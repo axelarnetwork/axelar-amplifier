@@ -1,4 +1,4 @@
-use axelar_wasm_std::nonempty;
+use axelar_wasm_std::{nonempty, permission_control};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
@@ -7,6 +7,7 @@ use cosmwasm_std::{
 use error_stack::ResultExt;
 use itertools::Itertools;
 
+use crate::contract::migrations::v0_4_0;
 use crate::{
     error::ContractError,
     msg::{ExecuteMsg, InstantiateMsg, QueryMsg},
@@ -14,6 +15,7 @@ use crate::{
 };
 
 mod execute;
+mod migrations;
 mod query;
 
 const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
@@ -25,6 +27,8 @@ pub fn migrate(
     _env: Env,
     _msg: Empty,
 ) -> Result<Response, axelar_wasm_std::ContractError> {
+    v0_4_0::migrate(deps.storage)?;
+
     // any version checks should be done before here
 
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
@@ -42,11 +46,11 @@ pub fn instantiate(
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     let governance = deps.api.addr_validate(&msg.governance_address)?;
+    permission_control::set_governance(deps.storage, &governance)?;
 
     CONFIG.save(
         deps.storage,
         &Config {
-            governance,
             rewards_denom: msg.rewards_denom,
         },
     )?;
@@ -72,7 +76,7 @@ pub fn execute(
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, axelar_wasm_std::ContractError> {
-    match msg {
+    match msg.ensure_permissions(deps.storage, &info.sender)? {
         ExecuteMsg::RecordParticipation {
             chain_name,
             event_id,
@@ -81,7 +85,7 @@ pub fn execute(
             let verifier_address = deps.api.addr_validate(&verifier_address)?;
             let pool_id = PoolId {
                 chain_name,
-                contract: info.sender.clone(),
+                contract: info.sender,
             };
             execute::record_participation(
                 deps.storage,
@@ -137,7 +141,7 @@ pub fn execute(
             Ok(Response::new().add_messages(msgs))
         }
         ExecuteMsg::UpdateParams { params } => {
-            execute::update_params(deps.storage, params, env.block.height, info.sender)?;
+            execute::update_params(deps.storage, params, env.block.height)?;
 
             Ok(Response::new())
         }
@@ -181,11 +185,12 @@ mod tests {
     #[test]
     fn migrate_sets_contract_version() {
         let mut deps = mock_dependencies();
+        v0_4_0::tests::instantiate_contract(deps.as_mut(), "denom");
 
         migrate(deps.as_mut(), mock_env(), Empty {}).unwrap();
 
         let contract_version = cw2::get_contract_version(deps.as_mut().storage).unwrap();
-        assert_eq!(contract_version.contract, "rewards");
+        assert_eq!(contract_version.contract, CONTRACT_NAME);
         assert_eq!(contract_version.version, CONTRACT_VERSION);
     }
 
