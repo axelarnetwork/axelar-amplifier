@@ -31,7 +31,7 @@ jobs:
       - name: Cache build artifacts
         uses: useblacksmith/rust-cache@v3
         with:
-          shared-key: "cache"
+          shared-key: "cache-tests"
 
       - name: Run tests
         uses: actions-rs/cargo@v1
@@ -59,7 +59,7 @@ jobs:
       - name: Cache build artifacts
         uses: useblacksmith/rust-cache@v3
         with:
-          shared-key: "cache"
+          shared-key: "cache-cosmwasm-compilation"
 
       - name: Build wasm release
         run: |
@@ -100,7 +100,7 @@ jobs:
       - name: Cache build artifacts
         uses: useblacksmith/rust-cache@v3
         with:
-          shared-key: "cache"
+          shared-key: "cache-lints"
 
       - name: Install cargo-sort
         uses: baptiste0928/cargo-install@v2
