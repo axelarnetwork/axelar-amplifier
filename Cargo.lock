@@ -2962,7 +2962,11 @@ dependencies = [
 name = "gateway-api"
 version = "0.1.0"
 dependencies = [
+ "axelar-wasm-std",
  "cosmwasm-schema",
+ "cosmwasm-std",
+ "error-stack",
+ "msgs-derive",
  "router-api",
 ]
 
