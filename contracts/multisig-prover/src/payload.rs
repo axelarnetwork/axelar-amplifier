@@ -130,7 +130,16 @@ impl From<&[CrossChainId]> for PayloadId {
 
 #[cfg(test)]
 mod test {
-    use router_api::CrossChainId;
+    use std::str::FromStr;
+
+    use super::*;
+    use axelar_rkyv_encoding::types::{ArchivedExecuteData, ArchivedSignature};
+    use cosmwasm_std::Uint128;
+    use multisig::{
+        key::{Recoverable, Signature},
+        msg::Signer,
+    };
+    use router_api::{Address, ChainName, CrossChainId};
 
     use crate::{payload::PayloadId, test::test_data};
 
@@ -146,5 +155,107 @@ mod test {
         let res2: PayloadId = message_ids.as_slice().into();
 
         assert_eq!(res, res2);
+    }
+
+    #[test]
+    fn rkyv_message_encoding_works_as_expected() {
+        let message = Message {
+            cc_id: CrossChainId {
+                chain: ChainName::from_str("fantom").unwrap(),
+                id: "123".to_string().parse().unwrap(),
+            },
+            source_address: Address::from_str("aabbbccc").unwrap(),
+            destination_chain: ChainName::from_str("solana").unwrap(),
+            destination_address: Address::from_str("aabbbccc").unwrap(),
+            payload_hash: [42; 32],
+        };
+        let messages = vec![message.clone()];
+        let payload = Payload::Messages(messages);
+        let encoder = Encoder::Rkyv;
+        let domain_separator = [123; 32];
+        let raw_public_key = [55; 33];
+        let signer = Signer {
+            address: cosmwasm_std::Addr::unchecked("foobar"),
+            weight: Uint128::one(),
+            pub_key: multisig::key::PublicKey::Ecdsa(
+                HexBinary::from_hex(hex::encode(raw_public_key).as_str()).unwrap(),
+            ),
+        };
+        let signers = [(signer.address.clone().to_string(), signer.clone())]
+            .to_vec()
+            .into_iter()
+            .collect();
+        let threshold = 1_u128;
+        let created_at = 500;
+        let verifier_set = VerifierSet {
+            signers,
+            threshold: Uint128::from(threshold),
+            created_at,
+        };
+        let raw_signature = [55; 65];
+        let signature = HexBinary::from_hex(hex::encode(raw_signature).as_str()).unwrap();
+        let signature = Signature::EcdsaRecoverable(Recoverable::try_from(signature).unwrap());
+        let signers_with_sigs = vec![SignerWithSig {
+            signer: signer.clone(),
+            signature,
+        }];
+        let digest_hash = payload
+            .digest(encoder.clone(), &domain_separator, &verifier_set)
+            .unwrap();
+        let encoded_archive_payload = payload
+            .execute_data(
+                encoder,
+                &domain_separator,
+                &verifier_set,
+                signers_with_sigs,
+                &payload,
+            )
+            .unwrap();
+
+        // now we decode and see what happens
+        let archived_data =
+            ArchivedExecuteData::from_bytes(encoded_archive_payload.as_slice()).unwrap();
+
+        // assert messages
+        let messages = archived_data.messages().unwrap();
+        assert_eq!(messages.len(), 1);
+        let archived_message = messages.get(0).unwrap();
+        assert_eq!(archived_message.cc_id().id(), message.cc_id.id.to_string());
+        assert_eq!(
+            archived_message.cc_id().chain(),
+            message.cc_id.chain.to_string()
+        );
+
+        // assert signers
+        let proof = archived_data.proof();
+        dbg!(&proof.threshold);
+        dbg!(&threshold.to_ne_bytes());
+        assert_eq!(proof.threshold.maybe_u128().unwrap(), threshold);
+        assert_eq!(proof.nonce, created_at);
+        assert_eq!(proof.signers_with_signatures.len(), 1);
+        let (archived_signer_public_key, archived_signer) =
+            proof.signers_with_signatures.into_iter().next().unwrap();
+        let pk_bytes = archived_signer_public_key.to_bytes();
+        assert_eq!(pk_bytes.as_slice(), signer.pub_key.as_ref());
+        assert_eq!(archived_signer.weight.maybe_u128().unwrap(), 1);
+        let ArchivedSignature::EcdsaRecoverable(archived_signature) =
+            archived_signer.signature.as_ref().unwrap()
+        else {
+            panic!("")
+        };
+        assert_eq!(archived_signature, &raw_signature);
+
+        // assert thashes match
+        let mut bytes = [0; 32];
+        bytes[0] = 1;
+        let u256_thereshold = axelar_rkyv_encoding::types::U256::from_le(bytes);
+        let rky_public_key = axelar_rkyv_encoding::types::PublicKey::new_ecdsa(raw_public_key);
+        let signers = [(rky_public_key, u256_thereshold.clone())]
+            .into_iter()
+            .collect();
+        let vs =
+            axelar_rkyv_encoding::types::VerifierSet::new(created_at, signers, u256_thereshold);
+        let archived_hash = archived_data.hash_payload_for_verifier_set(&domain_separator, &vs);
+        assert_eq!(archived_hash, digest_hash)
     }
 }
