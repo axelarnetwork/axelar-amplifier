@@ -284,6 +284,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::cast_possible_truncation)]
     fn poll_response() {
         let mut deps = mock_dependencies();
 
