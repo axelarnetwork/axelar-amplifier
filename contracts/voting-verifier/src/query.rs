@@ -48,23 +48,39 @@ pub fn message_status(
     ))
 }
 
-pub fn poll_response(deps: Deps, poll_id: PollId) -> Result<PollResponse, ContractError> {
+pub fn poll_response(
+    deps: Deps,
+    current_block_height: u64,
+    poll_id: PollId,
+) -> Result<PollResponse, ContractError> {
     let poll = POLLS.load(deps.storage, poll_id)?;
-    let data = match poll {
-        Poll::Messages(_) => {
-            PollData::Messages(poll_messages().idx.load_messages(deps.storage, poll_id)?)
+    let (data, status) = match &poll {
+        Poll::Messages(poll) => {
+            let msgs = poll_messages().idx.load_messages(deps.storage, poll_id)?;
+            assert_eq!(
+                poll.tallies.len(),
+                msgs.len(),
+                "data inconsistency for number of messages in poll {}",
+                poll.poll_id
+            );
+
+            (PollData::Messages(msgs), poll.status(current_block_height))
         }
-        Poll::ConfirmVerifierSet(_) => PollData::VerifierSet(
-            poll_verifier_sets()
-                .idx
-                .load_verifier_set(deps.storage, poll_id)?
-                .expect("verifier set not found in poll"),
+        Poll::ConfirmVerifierSet(poll) => (
+            PollData::VerifierSet(
+                poll_verifier_sets()
+                    .idx
+                    .load_verifier_set(deps.storage, poll_id)?
+                    .expect("verifier set not found in poll"),
+            ),
+            poll.status(current_block_height),
         ),
     };
 
     Ok(PollResponse {
         poll: poll.weighted_poll(),
         data,
+        status,
     })
 }
 
@@ -142,6 +158,7 @@ mod tests {
         voting::{PollId, Tallies, Vote, WeightedPoll},
         Participant, Snapshot, Threshold,
     };
+    use cosmwasm_std::testing::mock_env;
     use cosmwasm_std::{testing::mock_dependencies, Addr, Uint128, Uint64};
     use itertools::Itertools;
     use router_api::CrossChainId;
@@ -279,7 +296,7 @@ mod tests {
             )
             .unwrap();
 
-        let messages = (0..10).map(message);
+        let messages = (0..poll.poll_size as u32).map(message);
         messages.clone().enumerate().for_each(|(idx, msg)| {
             poll_messages()
                 .save(
@@ -293,9 +310,10 @@ mod tests {
         assert_eq!(
             PollResponse {
                 poll: poll.clone(),
-                data: PollData::Messages(messages.collect_vec())
+                data: PollData::Messages(messages.collect_vec()),
+                status: PollStatus::Expired
             },
-            super::poll_response(deps.as_ref(), poll.poll_id).unwrap()
+            super::poll_response(deps.as_ref(), mock_env().block.height, poll.poll_id).unwrap()
         );
     }
 

@@ -1,5 +1,6 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
 
+use axelar_wasm_std::voting::PollStatus;
 use axelar_wasm_std::{
     msg_id::MessageIdFormat,
     nonempty,
@@ -76,6 +77,7 @@ pub enum PollData {
 pub struct PollResponse {
     pub poll: WeightedPoll,
     pub data: PollData,
+    pub status: PollStatus,
 }
 
 #[cw_serde]
