@@ -9,7 +9,7 @@ use axelar_wasm_std::{
 use multisig::verifier_set::VerifierSet;
 use router_api::Message;
 
-use crate::msg::{ExecuteMsg, MessageStatus, Poll, QueryMsg};
+use crate::msg::{ExecuteMsg, MessageStatus, PollResponse, QueryMsg};
 
 type Result<T> = error_stack::Result<T, Error>;
 
@@ -62,7 +62,7 @@ impl<'a> Client<'a> {
         })
     }
 
-    pub fn poll(&self, poll_id: PollId) -> Result<Poll> {
+    pub fn poll(&self, poll_id: PollId) -> Result<PollResponse> {
         self.client
             .query(&QueryMsg::GetPoll { poll_id })
             .change_context_lazy(|| Error::QueryVotingVerifier(self.client.address.clone()))

@@ -9,7 +9,7 @@ use sha3::{Digest, Keccak256};
 
 #[cw_serde]
 pub struct VerifierSet {
-    // An ordered map with the signer's address as the key, and the signer as the value.
+    // An ordered map with the signer's axelar address as the key, and the signer as the value.
     pub signers: BTreeMap<String, Signer>,
     pub threshold: Uint128,
     // for hash uniqueness. The same exact verifier set could be in use at two different times,
