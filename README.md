@@ -53,5 +53,5 @@ contracts and `ampd` that work well together.
 | router            | 0.4.0 |
 | service-registry  | 0.4.1 |
 | voting-verifier   | 0.5.0 |
-| [tofnd](https://github.com/axelarnetwork/tofnd) | v1.0.0 |
+| [tofnd](https://github.com/axelarnetwork/tofnd) | v1.0.1 |
 | [solidity-contracts](https://github.com/axelarnetwork/axelar-gmp-sdk-solidity) | 5.9.0 |
