@@ -1,3 +1,5 @@
+#![allow(deprecated)]
+
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, StdResult, Storage};
 use cw_storage_plus::Item;
@@ -25,7 +27,6 @@ struct Config {
     pub nexus_gateway: Addr,
 }
 
-#[allow(deprecated)]
 fn set_generalized_permission_control(storage: &mut dyn Storage) -> Result<(), Error> {
     let old_config = CONFIG.load(storage)?;
     permission_control::set_admin(storage, &old_config.admin)
@@ -44,11 +45,9 @@ fn set_router_state(storage: &mut dyn Storage) -> StdResult<()> {
 }
 
 #[deprecated(since = "0.3.3", note = "only used during migration")]
-#[allow(deprecated)]
 const CONFIG: Item<Config> = Item::new("config");
 
 #[cfg(test)]
-#[allow(deprecated)]
 mod test {
     use std::collections::HashMap;
 
@@ -106,7 +105,6 @@ mod test {
     }
 
     #[test]
-    #[allow(deprecated)]
     fn migration() {
         let mut deps = mock_dependencies();
         let instantiate_msg = instantiate_0_3_3_contract(deps.as_mut()).unwrap();
@@ -185,7 +183,6 @@ mod test {
         .is_ok());
     }
 
-    #[allow(deprecated)]
     fn instantiate_0_3_3_contract(deps: DepsMut) -> Result<InstantiateMsg, ContractError> {
         let admin = "admin";
         let governance = "governance";
@@ -201,7 +198,6 @@ mod test {
     }
 
     #[deprecated(since = "0.3.3", note = "only used to test the migration")]
-    #[allow(deprecated)]
     fn instantiate(
         deps: DepsMut,
         _env: Env,
