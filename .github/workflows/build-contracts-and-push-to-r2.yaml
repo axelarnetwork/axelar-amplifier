@@ -1,4 +1,4 @@
-name: Upload ampd contracts to Cloudflare R2 bucket
+name: Amplifier wasm contracts - Upload wasm binaries to Cloudflare R2 bucket
 
 on:
   push:

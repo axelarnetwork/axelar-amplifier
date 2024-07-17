@@ -1,4 +1,4 @@
-name: Amplifier - Build main branch
+name: ampd (push to main) - Build and push image to ECR
 
 on:
   push:
