@@ -67,8 +67,8 @@ pub fn execute(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::GetPoll { poll_id: _ } => {
-            todo!()
+        QueryMsg::GetPoll { poll_id } => {
+            to_json_binary(&query::poll_response(deps, env.block.height, poll_id)?)
         }
 
         QueryMsg::GetMessagesStatus { messages } => {

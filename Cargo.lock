@@ -128,7 +128,7 @@ dependencies = [
 
 [[package]]
 name = "ampd"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "async-trait",
  "axelar-wasm-std",
@@ -2962,7 +2962,11 @@ dependencies = [
 name = "gateway-api"
 version = "0.1.0"
 dependencies = [
+ "axelar-wasm-std",
  "cosmwasm-schema",
+ "cosmwasm-std",
+ "error-stack",
+ "msgs-derive",
  "router-api",
 ]
 
@@ -6161,6 +6165,7 @@ dependencies = [
  "cw2 1.1.2",
  "error-stack",
  "itertools 0.11.0",
+ "msgs-derive",
  "report",
  "router-api",
  "thiserror",
