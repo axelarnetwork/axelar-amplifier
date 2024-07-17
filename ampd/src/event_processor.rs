@@ -39,12 +39,15 @@ pub enum Error {
 /// Let the `handler` consume events from the `event_stream`. The token is checked for cancellation
 /// at the end of each consumed block or when the `event_stream` times out. If the token is cancelled or the
 /// `event_stream` is closed, the function returns
+#[allow(clippy::too_many_arguments)]
 pub async fn consume_events<H, B, S, E>(
     handler_label: String,
     handler: H,
     broadcaster: B,
     event_stream: S,
     stream_timeout: Duration,
+    retry_timeout: Duration,
+    retry_max_attempts: u64,
     token: CancellationToken,
 ) -> Result<(), Error>
 where
@@ -54,8 +57,6 @@ where
     E: Context,
 {
     let mut event_stream = Box::pin(event_stream);
-    let handle_sleep_duration = Duration::from_secs(1);
-    let handle_max_attempts = 3;
     loop {
         let stream_status = retrieve_next_event(&mut event_stream, stream_timeout)
             .await
@@ -66,8 +67,8 @@ where
                 &handler,
                 &broadcaster,
                 event,
-                handle_sleep_duration,
-                handle_max_attempts,
+                retry_timeout,
+                retry_max_attempts,
             )
             .await?;
         }
@@ -204,6 +205,8 @@ mod tests {
                 broadcaster,
                 stream::iter(events),
                 Duration::from_secs(1000),
+                Duration::from_secs(1),
+                3,
                 CancellationToken::new(),
             ),
         )
@@ -233,6 +236,8 @@ mod tests {
                 broadcaster,
                 stream::iter(events),
                 Duration::from_secs(1000),
+                Duration::from_secs(1),
+                3,
                 CancellationToken::new(),
             ),
         )
@@ -263,6 +268,8 @@ mod tests {
                 broadcaster,
                 stream::iter(events),
                 Duration::from_secs(1000),
+                Duration::from_secs(1),
+                3,
                 CancellationToken::new(),
             ),
         )
@@ -297,6 +304,8 @@ mod tests {
                 broadcaster,
                 stream::iter(events),
                 Duration::from_secs(1000),
+                Duration::from_secs(1),
+                3,
                 CancellationToken::new(),
             ),
         )
@@ -332,6 +341,8 @@ mod tests {
                 broadcaster,
                 stream::iter(events),
                 Duration::from_secs(1000),
+                Duration::from_secs(1),
+                3,
                 token,
             ),
         )
@@ -358,6 +369,8 @@ mod tests {
                 broadcaster,
                 stream::pending::<Result<Event, Error>>(), // never returns any items so it can time out
                 Duration::from_secs(0),
+                Duration::from_secs(1),
+                3,
                 token,
             ),
         )

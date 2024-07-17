@@ -9,15 +9,34 @@ use crate::handlers::{self, config::deserialize_handler_configs};
 use crate::tofnd::Config as TofndConfig;
 use crate::url::Url;
 
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+pub struct EventProcessorConfig {
+    #[serde(with = "humantime_serde")]
+    pub retry_timeout: Duration,
+    pub retry_max_attempts: u64,
+    #[serde(with = "humantime_serde")]
+    pub stream_timeout: Duration,
+    pub buffer_cap: usize,
+}
+
+impl Default for EventProcessorConfig {
+    fn default() -> Self {
+        Self {
+            retry_timeout: Duration::from_secs(1),
+            retry_max_attempts: 3,
+            stream_timeout: Duration::from_secs(15),
+            buffer_cap: 100000,
+        }
+    }
+}
+
 #[derive(Deserialize, Serialize, Debug, PartialEq)]
 #[serde(default)]
 pub struct Config {
     pub health_check_bind_addr: SocketAddrV4,
     pub tm_jsonrpc: Url,
     pub tm_grpc: Url,
-    pub event_buffer_cap: usize,
-    #[serde(with = "humantime_serde")]
-    pub event_stream_timeout: Duration,
+    pub event_processor_config: EventProcessorConfig,
     pub broadcast: broadcaster::Config,
     #[serde(deserialize_with = "deserialize_handler_configs")]
     pub handlers: Vec<handlers::config::Config>,
@@ -33,8 +52,7 @@ impl Default for Config {
             broadcast: broadcaster::Config::default(),
             handlers: vec![],
             tofnd_config: TofndConfig::default(),
-            event_buffer_cap: 100000,
-            event_stream_timeout: Duration::from_secs(15),
+            event_processor_config: EventProcessorConfig::default(),
             service_registry: ServiceRegistryConfig::default(),
             health_check_bind_addr: SocketAddrV4::new(Ipv4Addr::UNSPECIFIED, 3000),
         }

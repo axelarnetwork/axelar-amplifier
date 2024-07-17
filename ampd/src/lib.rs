@@ -62,8 +62,7 @@ async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
         broadcast,
         handlers,
         tofnd_config,
-        event_buffer_cap,
-        event_stream_timeout,
+        event_processor_config,
         service_registry: _service_registry,
         health_check_bind_addr,
     } = cfg;
@@ -117,11 +116,17 @@ async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
         broadcaster,
         multisig_client,
         broadcast,
-        event_buffer_cap,
+        event_processor_config.buffer_cap,
         block_height_monitor,
         health_check_server,
     )
-    .configure_handlers(verifier, handlers, event_stream_timeout)
+    .configure_handlers(
+        verifier,
+        handlers,
+        event_processor_config.stream_timeout,
+        event_processor_config.retry_timeout,
+        event_processor_config.retry_max_attempts,
+    )
     .await
 }
 
@@ -199,6 +204,8 @@ where
         verifier: TMAddress,
         handler_configs: Vec<handlers::config::Config>,
         stream_timeout: Duration,
+        retry_timeout: Duration,
+        retry_max_attempts: u64,
     ) -> Result<App<T>, Error> {
         for config in handler_configs {
             let task = match config {
@@ -229,6 +236,8 @@ where
                             self.block_height_monitor.latest_block_height(),
                         ),
                         stream_timeout,
+                        retry_timeout,
+                        retry_max_attempts,
                     )
                 }
                 handlers::config::Config::EvmVerifierSetVerifier {
@@ -258,6 +267,8 @@ where
                             self.block_height_monitor.latest_block_height(),
                         ),
                         stream_timeout,
+                        retry_timeout,
+                        retry_max_attempts,
                     )
                 }
                 handlers::config::Config::MultisigSigner { cosmwasm_contract } => self
@@ -270,6 +281,8 @@ where
                             self.block_height_monitor.latest_block_height(),
                         ),
                         stream_timeout,
+                        retry_timeout,
+                        retry_max_attempts,
                     ),
                 handlers::config::Config::SuiMsgVerifier {
                     cosmwasm_contract,
@@ -291,6 +304,8 @@ where
                         self.block_height_monitor.latest_block_height(),
                     ),
                     stream_timeout,
+                    retry_timeout,
+                    retry_max_attempts,
                 ),
                 handlers::config::Config::SuiVerifierSetVerifier {
                     cosmwasm_contract,
@@ -312,6 +327,8 @@ where
                         self.block_height_monitor.latest_block_height(),
                     ),
                     stream_timeout,
+                    retry_timeout,
+                    retry_max_attempts,
                 ),
             };
             self.event_processor = self.event_processor.add_task(task);
@@ -325,6 +342,8 @@ where
         label: L,
         handler: H,
         stream_timeout: Duration,
+        retry_timeout: Duration,
+        retry_max_attempts: u64,
     ) -> CancellableTask<Result<(), event_processor::Error>>
     where
         L: AsRef<str>,
@@ -335,7 +354,16 @@ where
         let sub = self.event_subscriber.subscribe();
 
         CancellableTask::create(move |token| {
-            event_processor::consume_events(label, handler, broadcaster, sub, stream_timeout, token)
+            event_processor::consume_events(
+                label,
+                handler,
+                broadcaster,
+                sub,
+                stream_timeout,
+                retry_timeout,
+                retry_max_attempts,
+                token,
+            )
         })
     }
 
