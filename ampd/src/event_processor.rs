@@ -7,6 +7,7 @@ use error_stack::{Context, Result, ResultExt};
 use events::Event;
 use futures::StreamExt;
 use report::LoggableError;
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tokio::time::timeout;
 use tokio_stream::Stream;
@@ -36,6 +37,27 @@ pub enum Error {
     Tasks(#[from] TaskError),
 }
 
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+pub struct Config {
+    #[serde(with = "humantime_serde")]
+    pub retry_delay: Duration,
+    pub retry_max_attempts: u64,
+    #[serde(with = "humantime_serde")]
+    pub stream_timeout: Duration,
+    pub stream_buffer_size: usize,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            retry_delay: Duration::from_secs(1),
+            retry_max_attempts: 3,
+            stream_timeout: Duration::from_secs(15),
+            stream_buffer_size: 100000,
+        }
+    }
+}
+
 /// Let the `handler` consume events from the `event_stream`. The token is checked for cancellation
 /// at the end of each consumed block or when the `event_stream` times out. If the token is cancelled or the
 /// `event_stream` is closed, the function returns
@@ -44,7 +66,7 @@ pub async fn consume_events<H, B, S, E>(
     handler: H,
     broadcaster: B,
     event_stream: S,
-    stream_timeout: Duration,
+    event_processor_config: Config,
     token: CancellationToken,
 ) -> Result<(), Error>
 where
@@ -55,12 +77,20 @@ where
 {
     let mut event_stream = Box::pin(event_stream);
     loop {
-        let stream_status = retrieve_next_event(&mut event_stream, stream_timeout)
-            .await
-            .change_context(Error::EventStream)?;
+        let stream_status =
+            retrieve_next_event(&mut event_stream, event_processor_config.stream_timeout)
+                .await
+                .change_context(Error::EventStream)?;
 
         if let StreamStatus::Active(event) = &stream_status {
-            handle_event(&handler, &broadcaster, event).await?;
+            handle_event(
+                &handler,
+                &broadcaster,
+                event,
+                event_processor_config.retry_delay,
+                event_processor_config.retry_max_attempts,
+            )
+            .await?;
         }
 
         if let StreamStatus::Active(Event::BlockEnd(height)) = &stream_status {
@@ -77,7 +107,13 @@ where
     }
 }
 
-async fn handle_event<H, B>(handler: &H, broadcaster: &B, event: &Event) -> Result<(), Error>
+async fn handle_event<H, B>(
+    handler: &H,
+    broadcaster: &B,
+    event: &Event,
+    handle_sleep_duration: Duration,
+    handle_max_attempts: u64,
+) -> Result<(), Error>
 where
     H: EventHandler,
     B: BroadcasterClient,
@@ -85,10 +121,9 @@ where
     // if handlers run into errors we log them and then move on to the next event
     match future::with_retry(
         || handler.handle(event),
-        // TODO: make timeout and max_attempts configurable
         RetryPolicy::RepeatConstant {
-            sleep: Duration::from_secs(1),
-            max_attempts: 3,
+            sleep: handle_sleep_duration,
+            max_attempts: handle_max_attempts,
         },
     )
     .await
@@ -162,9 +197,21 @@ mod tests {
 
     use crate::event_processor;
     use crate::{
-        event_processor::{consume_events, Error, EventHandler},
+        event_processor::{consume_events, Config, Error, EventHandler},
         queue::queued_broadcaster::MockBroadcasterClient,
     };
+
+    pub fn setup_event_config(
+        retry_delay_value: Duration,
+        stream_timeout_value: Duration,
+    ) -> Config {
+        Config {
+            retry_delay: retry_delay_value,
+            retry_max_attempts: 3,
+            stream_timeout: stream_timeout_value,
+            stream_buffer_size: 100000,
+        }
+    }
 
     #[tokio::test]
     async fn stop_when_stream_closes() {
@@ -181,6 +228,7 @@ mod tests {
             .returning(|_| Ok(vec![]));
 
         let broadcaster = MockBroadcasterClient::new();
+        let event_config = setup_event_config(Duration::from_secs(1), Duration::from_secs(1000));
 
         let result_with_timeout = timeout(
             Duration::from_secs(1),
@@ -189,7 +237,7 @@ mod tests {
                 handler,
                 broadcaster,
                 stream::iter(events),
-                Duration::from_secs(1000),
+                event_config,
                 CancellationToken::new(),
             ),
         )
@@ -210,6 +258,7 @@ mod tests {
         handler.expect_handle().times(1).returning(|_| Ok(vec![]));
 
         let broadcaster = MockBroadcasterClient::new();
+        let event_config = setup_event_config(Duration::from_secs(1), Duration::from_secs(1000));
 
         let result_with_timeout = timeout(
             Duration::from_secs(1),
@@ -218,7 +267,7 @@ mod tests {
                 handler,
                 broadcaster,
                 stream::iter(events),
-                Duration::from_secs(1000),
+                event_config,
                 CancellationToken::new(),
             ),
         )
@@ -240,6 +289,7 @@ mod tests {
             .returning(|_| Err(report!(EventHandlerError::Failed)));
 
         let broadcaster = MockBroadcasterClient::new();
+        let event_config = setup_event_config(Duration::from_secs(1), Duration::from_secs(1000));
 
         let result_with_timeout = timeout(
             Duration::from_secs(3),
@@ -248,7 +298,7 @@ mod tests {
                 handler,
                 broadcaster,
                 stream::iter(events),
-                Duration::from_secs(1000),
+                event_config,
                 CancellationToken::new(),
             ),
         )
@@ -269,6 +319,7 @@ mod tests {
             .once()
             .returning(|_| Ok(vec![dummy_msg(), dummy_msg()]));
 
+        let event_config = setup_event_config(Duration::from_secs(1), Duration::from_secs(1000));
         let mut broadcaster = MockBroadcasterClient::new();
         broadcaster
             .expect_broadcast()
@@ -282,7 +333,7 @@ mod tests {
                 handler,
                 broadcaster,
                 stream::iter(events),
-                Duration::from_secs(1000),
+                event_config,
                 CancellationToken::new(),
             ),
         )
@@ -306,6 +357,7 @@ mod tests {
         handler.expect_handle().times(4).returning(|_| Ok(vec![]));
 
         let broadcaster = MockBroadcasterClient::new();
+        let event_config = setup_event_config(Duration::from_secs(1), Duration::from_secs(1000));
 
         let token = CancellationToken::new();
         token.cancel();
@@ -317,7 +369,7 @@ mod tests {
                 handler,
                 broadcaster,
                 stream::iter(events),
-                Duration::from_secs(1000),
+                event_config,
                 token,
             ),
         )
@@ -332,6 +384,7 @@ mod tests {
         let handler = MockEventHandler::new();
 
         let broadcaster = MockBroadcasterClient::new();
+        let event_config = setup_event_config(Duration::from_secs(1), Duration::from_secs(0));
 
         let token = CancellationToken::new();
         token.cancel();
@@ -343,7 +396,7 @@ mod tests {
                 handler,
                 broadcaster,
                 stream::pending::<Result<Event, Error>>(), // never returns any items so it can time out
-                Duration::from_secs(0),
+                event_config,
                 token,
             ),
         )

@@ -219,6 +219,6 @@ pub fn claim_stake(
             denom: service.bond_denom,
             amount: released_bond,
         }]
-        .to_vec(), // TODO: isolate coins
+        .to_vec(),
     }))
 }
