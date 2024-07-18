@@ -62,7 +62,7 @@ async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
         broadcast,
         handlers,
         tofnd_config,
-        event_processor_config,
+        event_processor,
         service_registry: _service_registry,
         health_check_bind_addr,
     } = cfg;
@@ -116,16 +116,16 @@ async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
         broadcaster,
         multisig_client,
         broadcast,
-        event_processor_config.buffer_cap,
+        event_processor.stream_buffer_size,
         block_height_monitor,
         health_check_server,
     )
     .configure_handlers(
         verifier,
         handlers,
-        event_processor_config.stream_timeout,
-        event_processor_config.retry_timeout,
-        event_processor_config.retry_max_attempts,
+        event_processor.stream_timeout,
+        event_processor.retry_delay,
+        event_processor.retry_max_attempts,
     )
     .await
 }
@@ -204,7 +204,7 @@ where
         verifier: TMAddress,
         handler_configs: Vec<handlers::config::Config>,
         stream_timeout: Duration,
-        retry_timeout: Duration,
+        retry_delay: Duration,
         retry_max_attempts: u64,
     ) -> Result<App<T>, Error> {
         for config in handler_configs {
@@ -236,7 +236,7 @@ where
                             self.block_height_monitor.latest_block_height(),
                         ),
                         stream_timeout,
-                        retry_timeout,
+                        retry_delay,
                         retry_max_attempts,
                     )
                 }
@@ -267,7 +267,7 @@ where
                             self.block_height_monitor.latest_block_height(),
                         ),
                         stream_timeout,
-                        retry_timeout,
+                        retry_delay,
                         retry_max_attempts,
                     )
                 }
@@ -281,7 +281,7 @@ where
                             self.block_height_monitor.latest_block_height(),
                         ),
                         stream_timeout,
-                        retry_timeout,
+                        retry_delay,
                         retry_max_attempts,
                     ),
                 handlers::config::Config::SuiMsgVerifier {
@@ -304,7 +304,7 @@ where
                         self.block_height_monitor.latest_block_height(),
                     ),
                     stream_timeout,
-                    retry_timeout,
+                    retry_delay,
                     retry_max_attempts,
                 ),
                 handlers::config::Config::SuiVerifierSetVerifier {
@@ -327,7 +327,7 @@ where
                         self.block_height_monitor.latest_block_height(),
                     ),
                     stream_timeout,
-                    retry_timeout,
+                    retry_delay,
                     retry_max_attempts,
                 ),
             };
@@ -342,7 +342,7 @@ where
         label: L,
         handler: H,
         stream_timeout: Duration,
-        retry_timeout: Duration,
+        retry_delay: Duration,
         retry_max_attempts: u64,
     ) -> CancellableTask<Result<(), event_processor::Error>>
     where
@@ -360,7 +360,7 @@ where
                 broadcaster,
                 sub,
                 stream_timeout,
-                retry_timeout,
+                retry_delay,
                 retry_max_attempts,
                 token,
             )

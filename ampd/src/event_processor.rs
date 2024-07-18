@@ -7,6 +7,7 @@ use error_stack::{Context, Result, ResultExt};
 use events::Event;
 use futures::StreamExt;
 use report::LoggableError;
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tokio::time::timeout;
 use tokio_stream::Stream;
@@ -34,6 +35,27 @@ pub enum Error {
     Broadcaster,
     #[error("handler stopped prematurely")]
     Tasks(#[from] TaskError),
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+pub struct EventProcessorConfig {
+    #[serde(with = "humantime_serde")]
+    pub retry_delay: Duration,
+    pub retry_max_attempts: u64,
+    #[serde(with = "humantime_serde")]
+    pub stream_timeout: Duration,
+    pub stream_buffer_size: usize,
+}
+
+impl Default for EventProcessorConfig {
+    fn default() -> Self {
+        Self {
+            retry_delay: Duration::from_secs(1),
+            retry_max_attempts: 3,
+            stream_timeout: Duration::from_secs(15),
+            stream_buffer_size: 100000,
+        }
+    }
 }
 
 /// Let the `handler` consume events from the `event_stream`. The token is checked for cancellation
