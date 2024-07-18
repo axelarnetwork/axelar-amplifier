@@ -21,16 +21,15 @@ const CHAIN_PROVER_INDEXED_MAP: IndexedMap<ChainName, ProverAddress, ChainProver
         },
     );
 
-pub fn load_chain_by_prover(
+pub fn is_prover_registered(
     storage: &dyn Storage,
     prover_address: ProverAddress,
-) -> Result<ProverAddress, ContractError> {
-    CHAIN_PROVER_INDEXED_MAP
+) -> Result<bool, ContractError> {
+    Ok(CHAIN_PROVER_INDEXED_MAP
         .idx
         .by_prover
         .item(storage, prover_address)?
-        .map(|(_, r)| r)
-        .ok_or(ContractError::ProverNotRegistered)
+        .is_some())
 }
 
 #[allow(dead_code)] // Used in tests, might be useful in future query

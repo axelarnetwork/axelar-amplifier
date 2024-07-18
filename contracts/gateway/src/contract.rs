@@ -45,6 +45,7 @@ pub fn execute(
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, axelar_wasm_std::ContractError> {
+    let msg = msg.ensure_permissions(deps.storage, &info.sender)?;
     Ok(internal::execute(deps, env, info, msg)?)
 }
 
