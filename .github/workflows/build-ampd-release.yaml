@@ -1,4 +1,4 @@
-name: Amplifier - Build Release
+name: ampd - Build and release binary and image
 
 on:
   workflow_dispatch:
