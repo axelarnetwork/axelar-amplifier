@@ -3,7 +3,6 @@ use cosmrs::tx::MessageExt;
 use cosmrs::{Any, Gas};
 use error_stack::{self, Report, ResultExt};
 use mockall::automock;
-use prost::Message;
 use thiserror::Error;
 use tokio::select;
 use tokio::sync::{mpsc, oneshot};
@@ -140,32 +139,21 @@ where
     async fn handle_tx_res(&self, tx_res: TxResponse) -> Result {
         let tx_hash = tx_res.response.txhash;
 
-        if tx_res.status == TxStatus::Failure {
-            warn!(tx_hash, "tx failed");
-            return Ok(());
-        }
+        match tx_res.status {
+            TxStatus::Success => {
+                tx_res.response.logs.iter().for_each(|log| {
+                    let msg_index = log.msg_index;
 
-        let batch_res = proto::axelar::auxiliary::v1beta1::BatchResponse::decode(
-            tx_res.response.data.as_bytes(),
-        )
-        .map_err(Into::into)
-        .map_err(Report::new)?;
-
-        for (index, res) in batch_res
-            .responses
-            .into_iter()
-            .enumerate()
-            .filter_map(|(i, res)| res.res.map(|res| (i, res)))
-        {
-            match res {
-                proto::axelar::auxiliary::v1beta1::batch_response::response::Res::Err(err) => {
-                    warn!(tx_hash, index, "msg in batch failed: {0}", err);
-                }
-                proto::axelar::auxiliary::v1beta1::batch_response::response::Res::Result(
-                    result,
-                ) => {
-                    info!(tx_hash, index, "msg in batch succeeded: {0}", result.log);
-                }
+                    log.events
+                        .iter()
+                        .enumerate()
+                        .for_each(|(event_index, event)| {
+                            info!(tx_hash, msg_index, event_index, "tx event {:?}", event);
+                        });
+                });
+            }
+            TxStatus::Failure => {
+                warn!(tx_hash, "tx failed");
             }
         }
 
