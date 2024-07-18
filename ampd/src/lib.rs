@@ -124,13 +124,7 @@ async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
         block_height_monitor,
         health_check_server,
     )
-    .configure_handlers(
-        verifier,
-        handlers,
-        event_processor.stream_timeout,
-        event_processor.retry_delay,
-        event_processor.retry_max_attempts,
-    )
+    .configure_handlers(verifier, handlers, event_processor)
     .await
 }
 
@@ -222,9 +216,7 @@ where
         mut self,
         verifier: TMAddress,
         handler_configs: Vec<handlers::config::Config>,
-        stream_timeout: Duration,
-        retry_delay: Duration,
-        retry_max_attempts: u64,
+        event_processor_config: event_processor::Config,
     ) -> Result<App<T>, Error> {
         for config in handler_configs {
             let task = match config {
@@ -254,9 +246,7 @@ where
                             rpc_client,
                             self.block_height_monitor.latest_block_height(),
                         ),
-                        stream_timeout,
-                        retry_delay,
-                        retry_max_attempts,
+                        event_processor_config.clone(),
                     )
                 }
                 handlers::config::Config::EvmVerifierSetVerifier {
@@ -285,9 +275,7 @@ where
                             rpc_client,
                             self.block_height_monitor.latest_block_height(),
                         ),
-                        stream_timeout,
-                        retry_delay,
-                        retry_max_attempts,
+                        event_processor_config.clone(),
                     )
                 }
                 handlers::config::Config::MultisigSigner { cosmwasm_contract } => self
@@ -299,9 +287,7 @@ where
                             self.multisig_client.clone(),
                             self.block_height_monitor.latest_block_height(),
                         ),
-                        stream_timeout,
-                        retry_delay,
-                        retry_max_attempts,
+                        event_processor_config.clone(),
                     ),
                 handlers::config::Config::SuiMsgVerifier {
                     cosmwasm_contract,
@@ -322,9 +308,7 @@ where
                         ),
                         self.block_height_monitor.latest_block_height(),
                     ),
-                    stream_timeout,
-                    retry_delay,
-                    retry_max_attempts,
+                    event_processor_config.clone(),
                 ),
                 handlers::config::Config::SuiVerifierSetVerifier {
                     cosmwasm_contract,
@@ -345,9 +329,7 @@ where
                         ),
                         self.block_height_monitor.latest_block_height(),
                     ),
-                    stream_timeout,
-                    retry_delay,
-                    retry_max_attempts,
+                    event_processor_config.clone(),
                 ),
             };
             self.event_processor = self.event_processor.add_task(task);
@@ -360,9 +342,7 @@ where
         &mut self,
         label: L,
         handler: H,
-        stream_timeout: Duration,
-        retry_delay: Duration,
-        retry_max_attempts: u64,
+        event_processor_config: event_processor::Config,
     ) -> CancellableTask<Result<(), event_processor::Error>>
     where
         L: AsRef<str>,
@@ -372,15 +352,15 @@ where
         let broadcaster = self.broadcaster.client();
         let sub = self.event_subscriber.subscribe();
 
-        let event_config = event_processor::Config {
-            retry_delay,
-            retry_max_attempts,
-            stream_timeout,
-            stream_buffer_size: 10000,
-        };
-
         CancellableTask::create(move |token| {
-            event_processor::consume_events(label, handler, broadcaster, sub, event_config, token)
+            event_processor::consume_events(
+                label,
+                handler,
+                broadcaster,
+                sub,
+                event_processor_config,
+                token,
+            )
         })
     }
 
