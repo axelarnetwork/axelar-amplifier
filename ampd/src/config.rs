@@ -15,7 +15,7 @@ pub struct Config {
     pub health_check_bind_addr: SocketAddrV4,
     pub tm_jsonrpc: Url,
     pub tm_grpc: Url,
-    pub event_processor: event_processor::EventProcessorConfig,
+    pub event_processor: event_processor::Config,
     pub broadcast: broadcaster::Config,
     #[serde(deserialize_with = "deserialize_handler_configs")]
     pub handlers: Vec<handlers::config::Config>,
@@ -31,7 +31,7 @@ impl Default for Config {
             broadcast: broadcaster::Config::default(),
             handlers: vec![],
             tofnd_config: TofndConfig::default(),
-            event_processor: event_processor::EventProcessorConfig::default(),
+            event_processor: event_processor::Config::default(),
             service_registry: ServiceRegistryConfig::default(),
             health_check_bind_addr: SocketAddrV4::new(Ipv4Addr::UNSPECIFIED, 3000),
         }

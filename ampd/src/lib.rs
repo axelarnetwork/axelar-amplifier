@@ -49,7 +49,6 @@ mod tofnd;
 mod types;
 mod url;
 
-use crate::event_processor::EventProcessorConfig;
 pub use grpc::{client, proto};
 
 const PREFIX: &str = "axelar";
@@ -373,7 +372,7 @@ where
         let broadcaster = self.broadcaster.client();
         let sub = self.event_subscriber.subscribe();
 
-        let event_config = EventProcessorConfig {
+        let event_config = event_processor::Config {
             retry_delay,
             retry_max_attempts,
             stream_timeout,

@@ -38,7 +38,7 @@ pub enum Error {
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
-pub struct EventProcessorConfig {
+pub struct Config {
     #[serde(with = "humantime_serde")]
     pub retry_delay: Duration,
     pub retry_max_attempts: u64,
@@ -47,7 +47,7 @@ pub struct EventProcessorConfig {
     pub stream_buffer_size: usize,
 }
 
-impl Default for EventProcessorConfig {
+impl Default for Config {
     fn default() -> Self {
         Self {
             retry_delay: Duration::from_secs(1),
@@ -66,7 +66,7 @@ pub async fn consume_events<H, B, S, E>(
     handler: H,
     broadcaster: B,
     event_stream: S,
-    event_processor_config: EventProcessorConfig,
+    event_processor_config: Config,
     token: CancellationToken,
 ) -> Result<(), Error>
 where
@@ -197,15 +197,15 @@ mod tests {
 
     use crate::event_processor;
     use crate::{
-        event_processor::{consume_events, Error, EventHandler, EventProcessorConfig},
+        event_processor::{consume_events, Config, Error, EventHandler},
         queue::queued_broadcaster::MockBroadcasterClient,
     };
 
     pub fn setup_event_config(
         retry_delay_value: Duration,
         stream_timeout_value: Duration,
-    ) -> EventProcessorConfig {
-        EventProcessorConfig {
+    ) -> Config {
+        Config {
             retry_delay: retry_delay_value,
             retry_max_attempts: 3,
             stream_timeout: stream_timeout_value,
