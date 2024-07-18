@@ -29,9 +29,14 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Cache build artifacts
-        uses: useblacksmith/rust-cache@v3
+        uses: useblacksmith/rust-cache@v3.0.1
+        id: cache
         with:
           shared-key: "cache-tests"
+
+      - name: Log crates.toml
+        if: steps.cache.outputs.cache-hit == 'true'
+        run: cat /home/runner/.cargo/.crates.toml
 
       - name: Run tests
         uses: actions-rs/cargo@v1
@@ -57,9 +62,14 @@ jobs:
           override: true
 
       - name: Cache build artifacts
-        uses: useblacksmith/rust-cache@v3
+        id: cache
+        uses: useblacksmith/rust-cache@v3.0.1
         with:
           shared-key: "cache-cosmwasm-compilation"
+
+      - name: Log crates.toml
+        if: steps.cache.outputs.cache-hit == 'true'
+        run: cat /home/runner/.cargo/.crates.toml
 
       - name: Build wasm release
         run: |
@@ -98,9 +108,14 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Cache build artifacts
-        uses: useblacksmith/rust-cache@v3
+        uses: useblacksmith/rust-cache@v3.0.1
+        id: cache
         with:
           shared-key: "cache-lints"
+
+      - name: Log crates.toml
+        if: steps.cache.outputs.cache-hit == 'true'
+        run: cat /home/runner/.cargo/.crates.toml
 
       - name: Install cargo-sort
         uses: baptiste0928/cargo-install@v2
