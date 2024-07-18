@@ -61,15 +61,12 @@ impl Default for EventProcessorConfig {
 /// Let the `handler` consume events from the `event_stream`. The token is checked for cancellation
 /// at the end of each consumed block or when the `event_stream` times out. If the token is cancelled or the
 /// `event_stream` is closed, the function returns
-#[allow(clippy::too_many_arguments)]
 pub async fn consume_events<H, B, S, E>(
     handler_label: String,
     handler: H,
     broadcaster: B,
     event_stream: S,
-    stream_timeout: Duration,
-    retry_timeout: Duration,
-    retry_max_attempts: u64,
+    event_processor_config: EventProcessorConfig,
     token: CancellationToken,
 ) -> Result<(), Error>
 where
@@ -80,17 +77,18 @@ where
 {
     let mut event_stream = Box::pin(event_stream);
     loop {
-        let stream_status = retrieve_next_event(&mut event_stream, stream_timeout)
-            .await
-            .change_context(Error::EventStream)?;
+        let stream_status =
+            retrieve_next_event(&mut event_stream, event_processor_config.stream_timeout)
+                .await
+                .change_context(Error::EventStream)?;
 
         if let StreamStatus::Active(event) = &stream_status {
             handle_event(
                 &handler,
                 &broadcaster,
                 event,
-                retry_timeout,
-                retry_max_attempts,
+                event_processor_config.retry_delay,
+                event_processor_config.retry_max_attempts,
             )
             .await?;
         }
@@ -199,9 +197,21 @@ mod tests {
 
     use crate::event_processor;
     use crate::{
-        event_processor::{consume_events, Error, EventHandler},
+        event_processor::{consume_events, Error, EventHandler, EventProcessorConfig},
         queue::queued_broadcaster::MockBroadcasterClient,
     };
+
+    pub fn setup_event_config(
+        retry_delay_value: Duration,
+        stream_timeout_value: Duration,
+    ) -> EventProcessorConfig {
+        EventProcessorConfig {
+            retry_delay: retry_delay_value,
+            retry_max_attempts: 3,
+            stream_timeout: stream_timeout_value,
+            stream_buffer_size: 100000,
+        }
+    }
 
     #[tokio::test]
     async fn stop_when_stream_closes() {
@@ -218,6 +228,7 @@ mod tests {
             .returning(|_| Ok(vec![]));
 
         let broadcaster = MockBroadcasterClient::new();
+        let event_config = setup_event_config(Duration::from_secs(1), Duration::from_secs(1000));
 
         let result_with_timeout = timeout(
             Duration::from_secs(1),
@@ -226,9 +237,7 @@ mod tests {
                 handler,
                 broadcaster,
                 stream::iter(events),
-                Duration::from_secs(1000),
-                Duration::from_secs(1),
-                3,
+                event_config,
                 CancellationToken::new(),
             ),
         )
@@ -249,6 +258,7 @@ mod tests {
         handler.expect_handle().times(1).returning(|_| Ok(vec![]));
 
         let broadcaster = MockBroadcasterClient::new();
+        let event_config = setup_event_config(Duration::from_secs(1), Duration::from_secs(1000));
 
         let result_with_timeout = timeout(
             Duration::from_secs(1),
@@ -257,9 +267,7 @@ mod tests {
                 handler,
                 broadcaster,
                 stream::iter(events),
-                Duration::from_secs(1000),
-                Duration::from_secs(1),
-                3,
+                event_config,
                 CancellationToken::new(),
             ),
         )
@@ -281,6 +289,7 @@ mod tests {
             .returning(|_| Err(report!(EventHandlerError::Failed)));
 
         let broadcaster = MockBroadcasterClient::new();
+        let event_config = setup_event_config(Duration::from_secs(1), Duration::from_secs(1000));
 
         let result_with_timeout = timeout(
             Duration::from_secs(3),
@@ -289,9 +298,7 @@ mod tests {
                 handler,
                 broadcaster,
                 stream::iter(events),
-                Duration::from_secs(1000),
-                Duration::from_secs(1),
-                3,
+                event_config,
                 CancellationToken::new(),
             ),
         )
@@ -312,6 +319,7 @@ mod tests {
             .once()
             .returning(|_| Ok(vec![dummy_msg(), dummy_msg()]));
 
+        let event_config = setup_event_config(Duration::from_secs(1), Duration::from_secs(1000));
         let mut broadcaster = MockBroadcasterClient::new();
         broadcaster
             .expect_broadcast()
@@ -325,9 +333,7 @@ mod tests {
                 handler,
                 broadcaster,
                 stream::iter(events),
-                Duration::from_secs(1000),
-                Duration::from_secs(1),
-                3,
+                event_config,
                 CancellationToken::new(),
             ),
         )
@@ -351,6 +357,7 @@ mod tests {
         handler.expect_handle().times(4).returning(|_| Ok(vec![]));
 
         let broadcaster = MockBroadcasterClient::new();
+        let event_config = setup_event_config(Duration::from_secs(1), Duration::from_secs(1000));
 
         let token = CancellationToken::new();
         token.cancel();
@@ -362,9 +369,7 @@ mod tests {
                 handler,
                 broadcaster,
                 stream::iter(events),
-                Duration::from_secs(1000),
-                Duration::from_secs(1),
-                3,
+                event_config,
                 token,
             ),
         )
@@ -379,6 +384,7 @@ mod tests {
         let handler = MockEventHandler::new();
 
         let broadcaster = MockBroadcasterClient::new();
+        let event_config = setup_event_config(Duration::from_secs(1), Duration::from_secs(0));
 
         let token = CancellationToken::new();
         token.cancel();
@@ -390,9 +396,7 @@ mod tests {
                 handler,
                 broadcaster,
                 stream::pending::<Result<Event, Error>>(), // never returns any items so it can time out
-                Duration::from_secs(0),
-                Duration::from_secs(1),
-                3,
+                event_config,
                 token,
             ),
         )

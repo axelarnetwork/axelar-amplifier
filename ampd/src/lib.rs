@@ -49,6 +49,7 @@ mod tofnd;
 mod types;
 mod url;
 
+use crate::event_processor::EventProcessorConfig;
 pub use grpc::{client, proto};
 
 const PREFIX: &str = "axelar";
@@ -372,17 +373,15 @@ where
         let broadcaster = self.broadcaster.client();
         let sub = self.event_subscriber.subscribe();
 
+        let event_config = EventProcessorConfig {
+            retry_delay,
+            retry_max_attempts,
+            stream_timeout,
+            stream_buffer_size: 10000,
+        };
+
         CancellableTask::create(move |token| {
-            event_processor::consume_events(
-                label,
-                handler,
-                broadcaster,
-                sub,
-                stream_timeout,
-                retry_delay,
-                retry_max_attempts,
-                token,
-            )
+            event_processor::consume_events(label, handler, broadcaster, sub, event_config, token)
         })
     }
 
