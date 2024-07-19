@@ -3,7 +3,7 @@ use cosmwasm_std::{Event, Response, Storage, WasmMsg};
 use error_stack::{Result, ResultExt};
 use itertools::Itertools;
 use router_api::client::Router;
-use router_api::{ChainName, Message};
+use router_api::Message;
 use voting_verifier::msg::MessageStatus;
 
 use crate::contract::Error;
