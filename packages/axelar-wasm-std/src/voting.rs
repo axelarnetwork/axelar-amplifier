@@ -13,28 +13,23 @@
    The contract then processes the results and takes appropriate action for each transaction, depending
    on whether the transaction was successfully verified.
 */
-use std::array::TryFromSliceError;
-use std::collections::BTreeMap;
-use std::collections::HashMap;
-use std::fmt;
-use std::ops::Add;
-use std::ops::Mul;
-use std::str::FromStr;
+use std::{
+    array::TryFromSliceError,
+    collections::{BTreeMap, HashMap},
+    fmt,
+    ops::{Add, Mul},
+    str::FromStr,
+};
 
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, StdError, StdResult, Uint128, Uint64};
-use cw_storage_plus::Prefixer;
-use cw_storage_plus::{IntKey, Key, KeyDeserialize, PrimaryKey};
-use num_traits::CheckedAdd;
-use num_traits::One;
-use strum::EnumIter;
-use strum::EnumString;
-use strum::IntoEnumIterator;
+use cw_storage_plus::{IntKey, Key, KeyDeserialize, Prefixer, PrimaryKey};
+use num_traits::{CheckedAdd, One};
+use strum::{EnumIter, EnumString, IntoEnumIterator};
 use thiserror::Error;
 use valuable::Valuable;
 
-use crate::nonempty;
-use crate::Snapshot;
+use crate::{nonempty, Snapshot};
 
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum Error {
@@ -417,12 +412,10 @@ impl WeightedPoll {
 #[cfg(test)]
 mod tests {
     use cosmwasm_std::{Addr, Uint64};
-    use rand::distributions::Alphanumeric;
-    use rand::{thread_rng, Rng};
-
-    use crate::{nonempty, Participant, Threshold};
+    use rand::{distributions::Alphanumeric, thread_rng, Rng};
 
     use super::*;
+    use crate::{nonempty, Participant, Threshold};
 
     #[test]
     fn cast_vote() {

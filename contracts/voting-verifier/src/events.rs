@@ -1,20 +1,20 @@
-use std::str::FromStr;
-use std::vec::Vec;
+use std::{str::FromStr, vec::Vec};
 
-use axelar_wasm_std::msg_id::Base58SolanaTxSignatureAndEventIndex;
-use axelar_wasm_std::msg_id::Base58TxDigestAndEventIndex;
-use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
-use axelar_wasm_std::msg_id::MessageIdFormat;
+use axelar_wasm_std::{
+    msg_id::{
+        Base58SolanaTxSignatureAndEventIndex, Base58TxDigestAndEventIndex, HexTxHashAndEventIndex,
+        MessageIdFormat,
+    },
+    nonempty,
+    voting::{PollId, Vote},
+    VerificationStatus,
+};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Attribute, Event};
-
-use axelar_wasm_std::voting::{PollId, Vote};
-use axelar_wasm_std::{nonempty, VerificationStatus};
 use multisig::verifier_set::VerifierSet;
 use router_api::{Address, ChainName, Message};
 
-use crate::error::ContractError;
-use crate::state::Config;
+use crate::{error::ContractError, state::Config};
 
 impl From<Config> for Vec<Attribute> {
     fn from(other: Config) -> Self {

@@ -1,9 +1,8 @@
+use axelar_wasm_std::hash::Hash;
 use cosmwasm_std::HexBinary;
 use error_stack::ResultExt;
 use ethers_contract::contract::EthCall;
 use ethers_core::abi::{encode as abi_encode, Tokenize};
-
-use axelar_wasm_std::hash::Hash;
 use evm_gateway::{ApproveMessagesCall, Message, Proof, RotateSignersCall, WeightedSigners};
 use multisig::{key::Signature, msg::SignerWithSig, verifier_set::VerifierSet};
 
@@ -78,21 +77,20 @@ pub fn add27(recovery_byte: k256::ecdsa::RecoveryId) -> u8 {
 mod tests {
     use std::str::FromStr;
 
+    use axelar_wasm_std::hash::Hash;
     use cosmwasm_std::HexBinary;
     use elliptic_curve::consts::U32;
     use ethers_core::types::Signature as EthersSignature;
+    use evm_gateway::evm_address;
     use generic_array::GenericArray;
     use hex::FromHex;
     use itertools::Itertools;
     use k256::ecdsa::Signature as K256Signature;
-    use sha3::{Digest, Keccak256};
-
-    use axelar_wasm_std::hash::Hash;
-    use evm_gateway::evm_address;
     use multisig::{
         key::{KeyType, KeyTyped, Signature},
         msg::{Signer, SignerWithSig},
     };
+    use sha3::{Digest, Keccak256};
 
     use crate::{
         encoding::abi::{

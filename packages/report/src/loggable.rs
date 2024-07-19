@@ -1,9 +1,11 @@
-use std::backtrace::Backtrace;
-use std::collections::VecDeque;
-use std::error::Error;
-use std::fmt::{Display, Formatter};
-use std::iter::FromIterator;
-use std::panic::Location;
+use std::{
+    backtrace::Backtrace,
+    collections::VecDeque,
+    error::Error,
+    fmt::{Display, Formatter},
+    iter::FromIterator,
+    panic::Location,
+};
 
 use error_stack::{AttachmentKind, Context, Frame, FrameKind, Report};
 use itertools::Itertools;
@@ -150,10 +152,12 @@ impl<'a> From<&'a Frame> for FrameType<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::LoggableError;
-    use error_stack::Report;
     use std::env;
+
+    use error_stack::Report;
     use thiserror::Error;
+
+    use crate::LoggableError;
 
     #[derive(Error, Debug)]
     enum Error {

@@ -1,31 +1,31 @@
 use std::convert::TryInto;
 
 use async_trait::async_trait;
-use cosmrs::cosmwasm::MsgExecuteContract;
-use cosmrs::{tx::Msg, Any};
-use error_stack::ResultExt;
-use ethers_core::types::{TransactionReceipt, U64};
-use multisig::verifier_set::VerifierSet;
-use serde::Deserialize;
-use tokio::sync::watch::Receiver;
-use tracing::{info, info_span};
-use valuable::Valuable;
-
 use axelar_wasm_std::{
     msg_id::HexTxHashAndEventIndex,
     voting::{PollId, Vote},
 };
+use cosmrs::{cosmwasm::MsgExecuteContract, tx::Msg, Any};
+use error_stack::ResultExt;
+use ethers_core::types::{TransactionReceipt, U64};
 use events::Error::EventTypeMismatch;
 use events_derive::try_from;
+use multisig::verifier_set::VerifierSet;
 use router_api::ChainName;
+use serde::Deserialize;
+use tokio::sync::watch::Receiver;
+use tracing::{info, info_span};
+use valuable::Valuable;
 use voting_verifier::msg::ExecuteMsg;
 
-use crate::event_processor::EventHandler;
-use crate::evm::finalizer::Finalization;
-use crate::evm::verifier::verify_verifier_set;
-use crate::evm::{finalizer, json_rpc::EthereumClient};
-use crate::handlers::errors::Error;
-use crate::types::{EVMAddress, Hash, TMAddress};
+use crate::{
+    event_processor::EventHandler,
+    evm::{
+        finalizer, finalizer::Finalization, json_rpc::EthereumClient, verifier::verify_verifier_set,
+    },
+    handlers::errors::Error,
+    types::{EVMAddress, Hash, TMAddress},
+};
 
 type Result<T> = error_stack::Result<T, Error>;
 
@@ -201,20 +201,17 @@ where
 mod tests {
     use std::{convert::TryInto, str::FromStr};
 
-    use base64::engine::general_purpose::STANDARD;
-    use base64::Engine;
+    use base64::{engine::general_purpose::STANDARD, Engine};
     use error_stack::{Report, Result};
     use ethers_providers::ProviderError;
-
-    use tendermint::abci;
-    use tokio::{sync::watch, test as async_test};
-
     use events::Event;
     use multisig::{
         key::KeyType,
         test::common::{build_verifier_set, ecdsa_test_data},
     };
     use router_api::ChainName;
+    use tendermint::abci;
+    use tokio::{sync::watch, test as async_test};
     use voting_verifier::events::{PollMetadata, PollStarted, VerifierSetConfirmation};
 
     use crate::{

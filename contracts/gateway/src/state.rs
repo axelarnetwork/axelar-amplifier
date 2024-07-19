@@ -57,8 +57,7 @@ const OUTGOING_MESSAGES: Map<CrossChainId, Message> = Map::new(OUTGOING_MESSAGES
 
 #[cfg(test)]
 mod test {
-    use cosmwasm_std::testing::mock_dependencies;
-    use cosmwasm_std::Addr;
+    use cosmwasm_std::{testing::mock_dependencies, Addr};
     use router_api::{CrossChainId, Message};
 
     use crate::state::{

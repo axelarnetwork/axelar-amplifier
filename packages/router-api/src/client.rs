@@ -1,7 +1,6 @@
 use cosmwasm_std::{to_json_binary, Addr, WasmMsg};
 
-use crate::msg::ExecuteMsg;
-use crate::Message;
+use crate::{msg::ExecuteMsg, Message};
 
 pub struct Router {
     pub address: Addr,

@@ -1,6 +1,5 @@
 use cosmwasm_std::Addr;
 use cw_multi_test::Executor;
-
 use integration_tests::contract::Contract;
 use multisig_prover::msg::ExecuteMsg;
 use service_registry::{msg::QueryMsg as ServiceRegistryQueryMsg, state::WeightedVerifier};

@@ -135,13 +135,11 @@ fn signers_weight(signatures: &HashMap<String, Signature>, verifier_set: &Verifi
 mod tests {
     use cosmwasm_std::{testing::MockQuerier, to_json_binary, Addr, HexBinary, QuerierWrapper};
 
+    use super::*;
     use crate::{
         key::KeyType,
-        test::common::build_verifier_set,
-        test::common::{ecdsa_test_data, ed25519_test_data},
+        test::common::{build_verifier_set, ecdsa_test_data, ed25519_test_data},
     };
-
-    use super::*;
 
     pub struct TestConfig {
         pub verifier_set: VerifierSet,

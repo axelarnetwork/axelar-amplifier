@@ -1,5 +1,4 @@
-use std::collections::HashMap;
-use std::ops::Deref;
+use std::{collections::HashMap, ops::Deref};
 
 use axelar_wasm_std::{nonempty, Threshold};
 use cosmwasm_schema::cw_serde;
@@ -399,12 +398,13 @@ impl<T> Deref for StorageState<T> {
 
 #[cfg(test)]
 mod test {
-    use super::*;
-    use crate::error::ContractError;
-    use crate::{msg::Params, state::ParamsSnapshot};
+    use std::collections::HashMap;
+
     use cosmwasm_std::{testing::mock_dependencies, Addr, Uint128, Uint64};
     use router_api::ChainName;
-    use std::collections::HashMap;
+
+    use super::*;
+    use crate::{error::ContractError, msg::Params, state::ParamsSnapshot};
 
     /// Test that the rewards are
     /// - distributed evenly to all verifiers that reach quorum

@@ -1,13 +1,11 @@
+use axelar_wasm_std::hash::Hash;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{from_json, HexBinary, StdResult};
 use cw_storage_plus::{Key, KeyDeserialize, PrimaryKey};
 use error_stack::Result;
-use sha3::{Digest, Keccak256};
-
-use axelar_wasm_std::hash::Hash;
-use multisig::msg::SignerWithSig;
-use multisig::verifier_set::VerifierSet;
+use multisig::{msg::SignerWithSig, verifier_set::VerifierSet};
 use router_api::{CrossChainId, Message};
+use sha3::{Digest, Keccak256};
 
 use crate::{
     encoding::{abi, Encoder},

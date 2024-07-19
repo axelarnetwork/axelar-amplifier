@@ -1,15 +1,14 @@
 use std::collections::{BTreeMap, HashSet};
 
+use axelar_wasm_std::{
+    snapshot::{Participant, Snapshot},
+    FnExt, MajorityThreshold, VerificationStatus,
+};
 use cosmwasm_std::{
     to_json_binary, wasm_execute, Addr, DepsMut, Env, MessageInfo, QuerierWrapper, QueryRequest,
     Response, Storage, SubMsg, WasmQuery,
 };
 use itertools::Itertools;
-
-use axelar_wasm_std::{
-    snapshot::{Participant, Snapshot},
-    FnExt, MajorityThreshold, VerificationStatus,
-};
 use multisig::{msg::Signer, verifier_set::VerifierSet};
 use router_api::{ChainName, CrossChainId, Message};
 use service_registry::state::{Service, WeightedVerifier};
@@ -427,6 +426,8 @@ pub fn update_admin(deps: DepsMut, new_admin_address: String) -> Result<Response
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
+
     use axelar_wasm_std::Threshold;
     use cosmwasm_std::{
         testing::{mock_dependencies, mock_env},
@@ -434,14 +435,12 @@ mod tests {
     };
     use router_api::ChainName;
 
+    use super::{different_set_in_progress, get_next_verifier_set};
     use crate::{
         execute::should_update_verifier_set,
         state::{Config, NEXT_VERIFIER_SET},
         test::test_data,
     };
-    use std::collections::BTreeMap;
-
-    use super::{different_set_in_progress, get_next_verifier_set};
 
     #[test]
     fn should_update_verifier_set_no_change() {

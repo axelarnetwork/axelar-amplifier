@@ -1,25 +1,27 @@
-use std::iter;
-use std::time::Duration;
+use std::{iter, time::Duration};
 
-use error_stack::ResultExt;
-use error_stack::{FutureExt, Report, Result};
+use error_stack::{FutureExt, Report, Result, ResultExt};
+use events::Event;
 use futures::TryStreamExt;
 use mockall::automock;
 use tendermint::block;
 use thiserror::Error;
-use tokio::select;
-use tokio::sync::broadcast::{self, Sender};
-use tokio::time;
-use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
-use tokio_stream::wrappers::BroadcastStream;
-use tokio_stream::Stream;
+use tokio::{
+    select,
+    sync::broadcast::{self, Sender},
+    time,
+};
+use tokio_stream::{
+    wrappers::{errors::BroadcastStreamRecvError, BroadcastStream},
+    Stream,
+};
 use tokio_util::sync::CancellationToken;
 use tracing::info;
 
-use events::Event;
-
-use crate::asyncutil::future::{self, RetryPolicy};
-use crate::tm_client::TmClient;
+use crate::{
+    asyncutil::future::{self, RetryPolicy},
+    tm_client::TmClient,
+};
 
 #[automock]
 pub trait EventSub {
@@ -171,22 +173,24 @@ pub enum EventSubError {
 
 #[cfg(test)]
 mod tests {
-    use std::convert::TryInto;
-    use std::time::Duration;
+    use std::{convert::TryInto, time::Duration};
 
-    use base64::engine::general_purpose::STANDARD;
-    use base64::Engine;
+    use base64::{engine::general_purpose::STANDARD, Engine};
     use futures::stream::StreamExt;
     use mockall::predicate::eq;
     use rand::Rng;
     use random_string::generate;
     use tendermint::{abci, AppHash};
-    use tokio::sync::{mpsc, oneshot};
-    use tokio::test;
+    use tokio::{
+        sync::{mpsc, oneshot},
+        test,
+    };
     use tokio_util::sync::CancellationToken;
 
-    use crate::event_sub::{Event, EventPublisher, EventSub};
-    use crate::tm_client;
+    use crate::{
+        event_sub::{Event, EventPublisher, EventSub},
+        tm_client,
+    };
 
     #[test]
     async fn should_start_from_the_latest_block() {

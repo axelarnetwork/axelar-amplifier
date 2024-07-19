@@ -1,6 +1,5 @@
 use cosmwasm_std::{to_json_binary, Deps, QueryRequest, StdResult, Uint64, WasmQuery};
 use error_stack::Result;
-
 use multisig::{multisig::Multisig, types::MultisigState};
 
 use crate::{

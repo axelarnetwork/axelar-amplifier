@@ -1,9 +1,10 @@
-use crate::{contract::Contract, protocol::Protocol};
 use axelar_wasm_std::Threshold;
 use cosmwasm_std::Addr;
 use cw_multi_test::{ContractWrapper, Executor};
 use multisig::key::KeyType;
 use multisig_prover::encoding::Encoder;
+
+use crate::{contract::Contract, protocol::Protocol};
 
 #[derive(Clone)]
 pub struct MultisigProverContract {

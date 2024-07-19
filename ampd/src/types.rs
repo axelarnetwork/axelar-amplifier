@@ -1,8 +1,9 @@
-use std::fmt;
-use std::hash::{Hash as StdHash, Hasher};
+use std::{
+    fmt,
+    hash::{Hash as StdHash, Hasher},
+};
 
-use cosmrs::crypto;
-use cosmrs::AccountId;
+use cosmrs::{crypto, AccountId};
 use ethers_core::types::{Address, H256};
 use serde::{Deserialize, Serialize};
 

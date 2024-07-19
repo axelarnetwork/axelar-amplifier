@@ -1,5 +1,4 @@
-use std::ops::Deref;
-use std::str::FromStr;
+use std::{ops::Deref, str::FromStr};
 
 use cosmwasm_schema::cw_serde;
 use valuable::Valuable;

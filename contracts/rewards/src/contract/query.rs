@@ -68,12 +68,11 @@ mod tests {
     use cosmwasm_std::{testing::mock_dependencies, Addr, Uint128, Uint64};
     use msg::Participation;
 
+    use super::*;
     use crate::{
         msg::Params,
         state::{EpochTally, ParamsSnapshot, RewardsPool},
     };
-
-    use super::*;
 
     fn setup(storage: &mut dyn Storage, initial_balance: Uint128) -> (ParamsSnapshot, PoolId) {
         let pool_id = PoolId {

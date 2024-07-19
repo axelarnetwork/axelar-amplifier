@@ -1,10 +1,12 @@
-use cosmwasm_std::{Addr, DepsMut, MessageInfo, Response};
 use std::collections::HashSet;
 
+use cosmwasm_std::{Addr, DepsMut, MessageInfo, Response};
 use router_api::ChainName;
 
-use crate::error::ContractError;
-use crate::state::{save_prover_for_chain, update_verifier_set_for_prover};
+use crate::{
+    error::ContractError,
+    state::{save_prover_for_chain, update_verifier_set_for_prover},
+};
 
 pub fn register_prover(
     deps: DepsMut,

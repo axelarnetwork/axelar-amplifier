@@ -116,13 +116,16 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::evm::finalizer::{pick, ConfirmationHeightFinalizer, Finalization, Finalizer};
-    use crate::evm::json_rpc::MockEthereumClient;
     use ethers_core::{
         abi::Hash,
         types::{Block, U64},
     };
     use tokio::test;
+
+    use crate::evm::{
+        finalizer::{pick, ConfirmationHeightFinalizer, Finalization, Finalizer},
+        json_rpc::MockEthereumClient,
+    };
 
     #[test]
     async fn latest_finalized_block_height_should_work() {

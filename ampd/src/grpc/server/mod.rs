@@ -1,10 +1,9 @@
 use tonic::transport::{server::Router, Server};
 
+use super::proto;
 use crate::{
     event_sub::EventSub, queue::queued_broadcaster::BroadcasterClient, tofnd::grpc::Multisig,
 };
-
-use super::proto;
 
 mod ampd;
 mod crypto;

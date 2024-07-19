@@ -100,7 +100,13 @@ jobs:
           profile: minimal
           toolchain: 1.78.0
           override: true
-          components: rustfmt, clippy
+          components: clippy
+
+      - name: Install stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          components: rustfmt
 
       - name: Install protoc
         uses: arduino/setup-protoc@v2
@@ -125,7 +131,7 @@ jobs:
       - name: Run cargo fmt
         uses: actions-rs/cargo@v1
         with:
-          command: fmt
+          command: +nightly fmt
           args: --all -- --check
 
       - name: Run cargo sort

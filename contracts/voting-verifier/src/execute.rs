@@ -1,32 +1,30 @@
 use std::collections::HashMap;
 
-use cosmwasm_std::{
-    to_json_binary, Addr, Deps, DepsMut, Env, Event, MessageInfo, OverflowError, OverflowOperation,
-    QueryRequest, Response, Storage, WasmMsg, WasmQuery,
-};
-
 use axelar_wasm_std::{
     nonempty, snapshot,
     voting::{PollId, PollResults, Vote, WeightedPoll},
     MajorityThreshold, VerificationStatus,
 };
-
+use cosmwasm_std::{
+    to_json_binary, Addr, Deps, DepsMut, Env, Event, MessageInfo, OverflowError, OverflowOperation,
+    QueryRequest, Response, Storage, WasmMsg, WasmQuery,
+};
+use itertools::Itertools;
 use multisig::verifier_set::VerifierSet;
 use router_api::{ChainName, Message};
 use service_registry::{msg::QueryMsg, state::WeightedVerifier};
 
-use crate::state::{self, Poll, PollContent, VOTES};
-use crate::state::{CONFIG, POLLS, POLL_ID};
-use crate::{error::ContractError, query::message_status};
-use crate::{events::QuorumReached, query::verifier_set_status, state::poll_verifier_sets};
 use crate::{
+    error::ContractError,
     events::{
-        PollEnded, PollMetadata, PollStarted, TxEventConfirmation, VerifierSetConfirmation, Voted,
+        PollEnded, PollMetadata, PollStarted, QuorumReached, TxEventConfirmation,
+        VerifierSetConfirmation, Voted,
     },
-    state::poll_messages,
+    query::{message_status, verifier_set_status},
+    state::{
+        self, poll_messages, poll_verifier_sets, Poll, PollContent, CONFIG, POLLS, POLL_ID, VOTES,
+    },
 };
-
-use itertools::Itertools;
 
 // TODO: this type of function exists in many contracts. Would be better to implement this
 // in one place, and then just include it
@@ -388,9 +386,8 @@ mod test {
     use axelar_wasm_std::{MajorityThreshold, Threshold};
     use cosmwasm_std::{testing::mock_dependencies, Addr};
 
-    use crate::state::{Config, CONFIG};
-
     use super::require_governance;
+    use crate::state::{Config, CONFIG};
 
     fn mock_config(governance: Addr, voting_threshold: MajorityThreshold) -> Config {
         Config {

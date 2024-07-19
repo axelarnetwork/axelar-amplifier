@@ -1,8 +1,10 @@
-use crate::primitives::*;
+use std::collections::HashMap;
+
 use axelar_wasm_std::msg_id::MessageIdFormat;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use msgs_derive::EnsurePermissions;
-use std::collections::HashMap;
+
+use crate::primitives::*;
 
 #[cw_serde]
 #[derive(EnsurePermissions)]

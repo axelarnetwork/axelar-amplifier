@@ -61,9 +61,8 @@ impl Snapshot {
 mod tests {
     use cosmwasm_std::{from_json, to_json_binary, Uint64};
 
-    use crate::Threshold;
-
     use super::*;
+    use crate::Threshold;
 
     fn mock_participant(address: &str, weight: nonempty::Uint128) -> Participant {
         Participant {

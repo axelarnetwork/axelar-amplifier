@@ -1,18 +1,21 @@
-use axelar_wasm_std::killswitch;
+use axelar_wasm_std::{killswitch, permission_control, FnExt};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     to_json_binary, Addr, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response, Storage,
 };
+use router_api::{
+    error::Error,
+    msg::{ExecuteMsg, QueryMsg},
+};
 
-use crate::contract::migrations::v0_3_3;
-use crate::events::RouterInstantiated;
-use crate::msg::InstantiateMsg;
-use crate::state;
-use crate::state::{load_chain_by_gateway, load_config, Config};
-use axelar_wasm_std::{permission_control, FnExt};
-use router_api::error::Error;
-use router_api::msg::{ExecuteMsg, QueryMsg};
+use crate::{
+    contract::migrations::v0_3_3,
+    events::RouterInstantiated,
+    msg::InstantiateMsg,
+    state,
+    state::{load_chain_by_gateway, load_config, Config},
+};
 
 mod execute;
 mod migrations;
@@ -144,10 +147,7 @@ pub fn query(
 mod test {
     use std::{collections::HashMap, str::FromStr};
 
-    use super::*;
-    use crate::events;
-    use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
-    use axelar_wasm_std::ContractError;
+    use axelar_wasm_std::{msg_id::HexTxHashAndEventIndex, ContractError};
     use cosmwasm_std::{
         from_json,
         testing::{mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage},
@@ -158,6 +158,9 @@ mod test {
         error::Error, ChainEndpoint, ChainName, CrossChainId, GatewayDirection, Message,
         CHAIN_NAME_DELIMITER,
     };
+
+    use super::*;
+    use crate::events;
 
     const ADMIN_ADDRESS: &str = "admin";
     const GOVERNANCE_ADDRESS: &str = "governance";

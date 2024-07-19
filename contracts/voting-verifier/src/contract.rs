@@ -5,9 +5,12 @@ use cosmwasm_std::{
     StdResult,
 };
 
-use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
-use crate::state::{Config, CONFIG};
-use crate::{execute, query};
+use crate::{
+    execute,
+    msg::{ExecuteMsg, InstantiateMsg, QueryMsg},
+    query,
+    state::{Config, CONFIG},
+};
 
 const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -96,13 +99,6 @@ pub fn migrate(
 
 #[cfg(test)]
 mod test {
-    use cosmwasm_std::{
-        from_json,
-        testing::{mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage},
-        Addr, Empty, Fraction, OwnedDeps, Uint128, Uint64, WasmQuery,
-    };
-    use sha3::{Digest, Keccak256, Keccak512};
-
     use axelar_wasm_std::{
         msg_id::{
             Base58SolanaTxSignatureAndEventIndex, Base58TxDigestAndEventIndex,
@@ -112,6 +108,11 @@ mod test {
         voting::Vote,
         MajorityThreshold, Threshold, VerificationStatus,
     };
+    use cosmwasm_std::{
+        from_json,
+        testing::{mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage},
+        Addr, Empty, Fraction, OwnedDeps, Uint128, Uint64, WasmQuery,
+    };
     use multisig::{
         key::KeyType,
         test::common::{build_verifier_set, ecdsa_test_data},
@@ -120,10 +121,10 @@ mod test {
     use service_registry::state::{
         AuthorizationState, BondingState, Verifier, WeightedVerifier, VERIFIER_WEIGHT,
     };
-
-    use crate::{error::ContractError, events::TxEventConfirmation, msg::MessageStatus};
+    use sha3::{Digest, Keccak256, Keccak512};
 
     use super::*;
+    use crate::{error::ContractError, events::TxEventConfirmation, msg::MessageStatus};
 
     const SENDER: &str = "sender";
     const SERVICE_REGISTRY_ADDRESS: &str = "service_registry_address";

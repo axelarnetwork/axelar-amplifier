@@ -1,7 +1,10 @@
-use std::convert::{TryFrom, TryInto};
-use std::fmt::{Debug, Display, Formatter};
-use std::str::FromStr;
-use std::{fmt, ops};
+use std::{
+    convert::{TryFrom, TryInto},
+    fmt,
+    fmt::{Debug, Display, Formatter},
+    ops,
+    str::FromStr,
+};
 
 use cosmrs::proto;
 use error_stack::{ensure, Report, Result, ResultExt};
@@ -186,9 +189,11 @@ impl Display for Denom {
 
 #[cfg(test)]
 mod tests {
-    use super::DecCoin;
-    use cosmrs::proto;
     use std::convert::TryFrom;
+
+    use cosmrs::proto;
+
+    use super::DecCoin;
 
     #[test]
     fn correct_parse() {

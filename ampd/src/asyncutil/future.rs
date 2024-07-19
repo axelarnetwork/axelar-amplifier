@@ -1,8 +1,10 @@
-use futures::{Future, FutureExt};
-use std::pin::Pin;
-use std::task::{Context, Poll};
-use std::time::Duration;
+use std::{
+    pin::Pin,
+    task::{Context, Poll},
+    time::Duration,
+};
 
+use futures::{Future, FutureExt};
 use tokio::time;
 
 pub fn with_retry<F, Fut, R, Err>(

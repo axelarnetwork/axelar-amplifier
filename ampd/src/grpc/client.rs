@@ -29,33 +29,37 @@ where
 mod tests {
     use std::time::Duration;
 
-    use cosmrs::Any;
-    use cosmrs::{bank::MsgSend, tx::Msg, AccountId};
+    use cosmrs::{bank::MsgSend, tx::Msg, AccountId, Any};
     use error_stack::Report;
     use events::Event;
     use futures::StreamExt;
-    use k256::ecdsa::SigningKey;
-    use k256::sha2::{Digest, Sha256};
+    use k256::{
+        ecdsa::SigningKey,
+        sha2::{Digest, Sha256},
+    };
     use mockall::predicate;
     use rand::rngs::OsRng;
-    use tokio::net::TcpListener;
-    use tokio::sync::mpsc;
-    use tokio::{sync::oneshot, test, time};
-    use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
-    use tokio_stream::wrappers::{ReceiverStream, TcpListenerStream};
+    use tokio::{
+        net::TcpListener,
+        sync::{mpsc, oneshot},
+        test, time,
+    };
+    use tokio_stream::wrappers::{
+        errors::BroadcastStreamRecvError, ReceiverStream, TcpListenerStream,
+    };
     use tonic::Code;
     use url::Url;
 
-    use crate::proto::{
-        Algorithm, BroadcastRequest, BroadcastResponse, GetKeyRequest, GetKeyResponse, SignRequest,
-        SignResponse, SubscribeRequest,
-    };
-    use crate::types::PublicKey;
     use crate::{
         event_sub::MockEventSub,
         grpc,
+        proto::{
+            Algorithm, BroadcastRequest, BroadcastResponse, GetKeyRequest, GetKeyResponse,
+            SignRequest, SignResponse, SubscribeRequest,
+        },
         queue::queued_broadcaster::MockBroadcasterClient,
         tofnd::{self, grpc::MockMultisig},
+        types::PublicKey,
     };
 
     async fn start_server(

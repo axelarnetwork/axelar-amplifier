@@ -1,17 +1,13 @@
 use std::fmt::Display;
 
 use axelar_wasm_std::FnExt;
-use base64::engine::general_purpose::STANDARD;
-use base64::Engine;
+use base64::{engine::general_purpose::STANDARD, Engine};
+use cosmrs::AccountId;
 use error_stack::{Report, Result, ResultExt};
 use serde_json::Value;
-use tendermint::abci::EventAttribute;
-use tendermint::{abci, block};
+use tendermint::{abci, abci::EventAttribute, block};
 
-use crate::errors::DecodingError;
-use crate::Error;
-
-use cosmrs::AccountId;
+use crate::{errors::DecodingError, Error};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Event {

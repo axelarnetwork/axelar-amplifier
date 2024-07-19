@@ -123,26 +123,27 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-    use std::time::Duration;
+    use std::{collections::HashMap, time::Duration};
 
-    use cosmrs::Any;
-    use cosmrs::{bank::MsgSend, tx::Msg, AccountId};
+    use cosmrs::{bank::MsgSend, tx::Msg, AccountId, Any};
     use error_stack::Report;
     use events::Event;
     use serde_json::Map;
-    use tokio::test;
-    use tokio::time::interval;
-    use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
-    use tokio_stream::wrappers::ReceiverStream;
-    use tokio_stream::StreamExt;
+    use tokio::{test, time::interval};
+    use tokio_stream::{
+        wrappers::{errors::BroadcastStreamRecvError, ReceiverStream},
+        StreamExt,
+    };
     use tonic::Code;
 
-    use crate::queue::queued_broadcaster;
-    use crate::{event_sub::MockEventSub, queue::queued_broadcaster::MockBroadcasterClient};
-
-    use super::proto::{self, ampd_server::Ampd};
-    use super::Server;
+    use super::{
+        proto::{self, ampd_server::Ampd},
+        Server,
+    };
+    use crate::{
+        event_sub::MockEventSub,
+        queue::{queued_broadcaster, queued_broadcaster::MockBroadcasterClient},
+    };
 
     #[test]
     async fn subscribe_should_return_stream_of_error_when_event_subscriber_fails() {

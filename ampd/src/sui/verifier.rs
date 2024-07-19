@@ -7,9 +7,10 @@ use serde::{de::Error, Deserialize, Deserializer};
 use sui_json_rpc_types::{SuiEvent, SuiTransactionBlockResponse};
 use sui_types::base_types::SuiAddress;
 
-use crate::handlers::sui_verify_msg::Message;
-use crate::handlers::sui_verify_verifier_set::VerifierSetConfirmation;
-use crate::types::Hash;
+use crate::{
+    handlers::{sui_verify_msg::Message, sui_verify_verifier_set::VerifierSetConfirmation},
+    types::Hash,
+};
 
 fn deserialize_from_str<'de, D, R>(deserializer: D) -> Result<R, D::Error>
 where
@@ -199,13 +200,16 @@ pub fn verify_verifier_set(
 
 #[cfg(test)]
 mod tests {
+    use axelar_wasm_std::voting::Vote;
     use cosmrs::crypto::PublicKey;
     use cosmwasm_std::{Addr, HexBinary, Uint128};
     use ecdsa::SigningKey;
     use ethers_core::abi::AbiEncode;
     use move_core_types::language_storage::StructTag;
+    use multisig::{key::KeyType, msg::Signer, verifier_set::VerifierSet};
     use rand::rngs::OsRng;
     use random_string::generate;
+    use router_api::ChainName;
     use serde_json::json;
     use sui_json_rpc_types::{SuiEvent, SuiTransactionBlockEvents, SuiTransactionBlockResponse};
     use sui_types::{
@@ -213,14 +217,10 @@ mod tests {
         event::EventID,
     };
 
-    use axelar_wasm_std::voting::Vote;
-    use multisig::{key::KeyType, msg::Signer, verifier_set::VerifierSet};
-    use router_api::ChainName;
-
-    use crate::sui::verifier::{verify_message, verify_verifier_set};
-    use crate::types::{EVMAddress, Hash};
     use crate::{
         handlers::{sui_verify_msg::Message, sui_verify_verifier_set::VerifierSetConfirmation},
+        sui::verifier::{verify_message, verify_verifier_set},
+        types::{EVMAddress, Hash},
         PREFIX,
     };
 

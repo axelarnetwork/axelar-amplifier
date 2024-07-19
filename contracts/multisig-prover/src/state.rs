@@ -1,10 +1,8 @@
+use axelar_wasm_std::{hash::Hash, MajorityThreshold};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::Addr;
 use cw_storage_plus::{Item, Map};
-
-use axelar_wasm_std::{hash::Hash, MajorityThreshold};
-use multisig::key::KeyType;
-use multisig::verifier_set::VerifierSet;
+use multisig::{key::KeyType, verifier_set::VerifierSet};
 use router_api::ChainName;
 
 use crate::{

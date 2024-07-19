@@ -2,12 +2,14 @@ use std::net::{Ipv4Addr, SocketAddrV4};
 
 use serde::{Deserialize, Serialize};
 
-use crate::broadcaster;
-use crate::commands::ServiceRegistryConfig;
-use crate::event_processor;
-use crate::handlers::{self, config::deserialize_handler_configs};
-use crate::tofnd::Config as TofndConfig;
-use crate::url::Url;
+use crate::{
+    broadcaster,
+    commands::ServiceRegistryConfig,
+    event_processor,
+    handlers::{self, config::deserialize_handler_configs},
+    tofnd::Config as TofndConfig,
+    url::Url,
+};
 
 #[derive(Deserialize, Serialize, Debug, PartialEq)]
 #[serde(default)]
@@ -40,24 +42,18 @@ impl Default for Config {
 
 #[cfg(test)]
 mod tests {
-    use std::fs;
-    use std::fs::File;
-    use std::io::Write;
-    use std::path::PathBuf;
-    use std::str::FromStr;
-    use std::time::Duration;
+    use std::{fs, fs::File, io::Write, path::PathBuf, str::FromStr, time::Duration};
 
     use cosmrs::AccountId;
-
     use router_api::ChainName;
 
-    use crate::evm::finalizer::Finalization;
-    use crate::handlers::config::Chain;
-    use crate::handlers::config::Config as HandlerConfig;
-    use crate::types::TMAddress;
-    use crate::url::Url;
-
     use super::Config;
+    use crate::{
+        evm::finalizer::Finalization,
+        handlers::config::{Chain, Config as HandlerConfig},
+        types::TMAddress,
+        url::Url,
+    };
 
     const PREFIX: &str = "axelar";
 

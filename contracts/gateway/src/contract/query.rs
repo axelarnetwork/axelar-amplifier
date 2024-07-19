@@ -1,10 +1,9 @@
-use crate::contract::Error;
 use axelar_wasm_std::error::extend_err;
 use cosmwasm_std::Storage;
 use error_stack::{report, Result, ResultExt};
 use router_api::{CrossChainId, Message};
 
-use crate::state;
+use crate::{contract::Error, state};
 
 pub fn get_outgoing_messages(
     storage: &dyn Storage,
@@ -39,9 +38,10 @@ fn accumulate_errs(
 
 #[cfg(test)]
 mod test {
-    use crate::state;
     use cosmwasm_std::testing::mock_dependencies;
     use router_api::{CrossChainId, Message};
+
+    use crate::state;
 
     #[test]
     fn get_outgoing_messages_all_messages_present_returns_all() {

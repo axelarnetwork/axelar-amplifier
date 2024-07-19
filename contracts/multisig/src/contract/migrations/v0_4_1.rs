@@ -1,5 +1,6 @@
 #![allow(deprecated)]
 
+use axelar_wasm_std::{killswitch, killswitch::State, nonempty, permission_control};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, StdError, Storage};
 use cw2::VersionError;
@@ -7,10 +8,7 @@ use cw_storage_plus::Item;
 use itertools::Itertools;
 use router_api::ChainName;
 
-use crate::contract::CONTRACT_NAME;
-use crate::state::AUTHORIZED_CALLERS;
-use axelar_wasm_std::killswitch::State;
-use axelar_wasm_std::{killswitch, nonempty, permission_control};
+use crate::{contract::CONTRACT_NAME, state::AUTHORIZED_CALLERS};
 
 const BASE_VERSION: &str = "0.4.1";
 
@@ -88,19 +86,24 @@ const CONFIG: Item<Config> = Item::new("config");
 
 #[cfg(test)]
 mod tests {
-    use cosmwasm_schema::cw_serde;
-    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-    use cosmwasm_std::{Addr, DepsMut, Env, HexBinary, MessageInfo, Response, Uint64};
-
     use axelar_wasm_std::nonempty;
+    use cosmwasm_schema::cw_serde;
+    use cosmwasm_std::{
+        testing::{mock_dependencies, mock_env, mock_info},
+        Addr, DepsMut, Env, HexBinary, MessageInfo, Response, Uint64,
+    };
     use router_api::ChainName;
 
-    use crate::contract::migrations::v0_4_1;
-    use crate::contract::migrations::v0_4_1::BASE_VERSION;
-    use crate::contract::{execute, query, CONTRACT_NAME};
-    use crate::msg::ExecuteMsg::{DisableSigning, SubmitSignature};
-    use crate::state::SIGNING_SESSION_COUNTER;
-    use crate::ContractError;
+    use crate::{
+        contract::{
+            execute,
+            migrations::{v0_4_1, v0_4_1::BASE_VERSION},
+            query, CONTRACT_NAME,
+        },
+        msg::ExecuteMsg::{DisableSigning, SubmitSignature},
+        state::SIGNING_SESSION_COUNTER,
+        ContractError,
+    };
 
     #[test]
     fn migrate_checks_contract_version() {

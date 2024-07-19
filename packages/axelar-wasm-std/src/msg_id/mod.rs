@@ -62,11 +62,10 @@ pub fn verify_msg_id(message_id: &str, format: &MessageIdFormat) -> Result<(), R
 
 #[cfg(test)]
 mod test {
+    use super::tx_hash_event_index::HexTxHashAndEventIndex;
     use crate::msg_id::{
         base_58_event_index::Base58TxDigestAndEventIndex, verify_msg_id, MessageIdFormat,
     };
-
-    use super::tx_hash_event_index::HexTxHashAndEventIndex;
 
     #[test]
     fn should_verify_hex_tx_hash_event_index_msg_id() {

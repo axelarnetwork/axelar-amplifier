@@ -1,9 +1,10 @@
+use std::fmt::Debug;
+
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response};
 use gateway_api::msg::{ExecuteMsg, QueryMsg};
 use router_api::CrossChainId;
-use std::fmt::Debug;
 
 use crate::msg::InstantiateMsg;
 
@@ -83,10 +84,7 @@ mod internal {
     use gateway_api::msg::{ExecuteMsg, QueryMsg};
     use router_api::client::Router;
 
-    use crate::contract::Error;
-    use crate::msg::InstantiateMsg;
-    use crate::state::Config;
-    use crate::{contract, state};
+    use crate::{contract, contract::Error, msg::InstantiateMsg, state, state::Config};
 
     pub(crate) fn instantiate(
         deps: DepsMut,

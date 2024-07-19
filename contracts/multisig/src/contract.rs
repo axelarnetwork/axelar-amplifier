@@ -1,13 +1,3 @@
-use crate::msg::MigrationMsg;
-use crate::{
-    events::Event,
-    msg::{ExecuteMsg, InstantiateMsg, QueryMsg},
-    state::{
-        get_verifier_set, Config, CONFIG, SIGNING_SESSIONS, SIGNING_SESSION_COUNTER, VERIFIER_SETS,
-    },
-    types::{MsgToSign, MultisigState},
-    ContractError,
-};
 use axelar_wasm_std::{killswitch, permission_control};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
@@ -17,6 +7,16 @@ use cosmwasm_std::{
 };
 use error_stack::{report, ResultExt};
 use itertools::Itertools;
+
+use crate::{
+    events::Event,
+    msg::{ExecuteMsg, InstantiateMsg, MigrationMsg, QueryMsg},
+    state::{
+        get_verifier_set, Config, CONFIG, SIGNING_SESSIONS, SIGNING_SESSION_COUNTER, VERIFIER_SETS,
+    },
+    types::{MsgToSign, MultisigState},
+    ContractError,
+};
 
 mod execute;
 mod migrations;
@@ -205,17 +205,15 @@ mod tests {
     use router_api::ChainName;
     use serde_json::from_str;
 
+    use super::*;
     use crate::{
         key::{KeyType, PublicKey, Signature},
         multisig::Multisig,
         state::load_session_signatures,
-        test::common::{build_verifier_set, TestSigner},
-        test::common::{ecdsa_test_data, ed25519_test_data},
+        test::common::{build_verifier_set, ecdsa_test_data, ed25519_test_data, TestSigner},
         types::MultisigState,
         verifier_set::VerifierSet,
     };
-
-    use super::*;
 
     const INSTANTIATOR: &str = "inst";
     const PROVER: &str = "prover";

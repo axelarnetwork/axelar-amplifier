@@ -1,14 +1,14 @@
 use std::time::Duration;
 
 use itertools::Itertools;
-use serde::de::{self, Deserializer};
-use serde::{Deserialize, Serialize};
+use router_api::ChainName;
+use serde::{
+    de::{self, Deserializer},
+    Deserialize, Serialize,
+};
 use serde_with::with_prefix;
 
-use crate::evm::finalizer::Finalization;
-use crate::types::TMAddress;
-use crate::url::Url;
-use router_api::ChainName;
+use crate::{evm::finalizer::Finalization, types::TMAddress, url::Url};
 
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
 pub struct Chain {

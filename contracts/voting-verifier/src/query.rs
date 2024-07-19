@@ -8,11 +8,8 @@ use router_api::Message;
 
 use crate::{
     error::ContractError,
-    state::{poll_messages, poll_verifier_sets, CONFIG},
-};
-use crate::{
     msg::{MessageStatus, PollData, PollResponse},
-    state::{self, Poll, PollContent, POLLS},
+    state::{self, poll_messages, poll_verifier_sets, Poll, PollContent, CONFIG, POLLS},
 };
 
 pub fn voting_threshold(deps: Deps) -> Result<MajorityThreshold, ContractError> {
@@ -158,14 +155,15 @@ mod tests {
         voting::{PollId, Tallies, Vote, WeightedPoll},
         Participant, Snapshot, Threshold,
     };
-    use cosmwasm_std::testing::mock_env;
-    use cosmwasm_std::{testing::mock_dependencies, Addr, Uint128, Uint64};
+    use cosmwasm_std::{
+        testing::{mock_dependencies, mock_env},
+        Addr, Uint128, Uint64,
+    };
     use itertools::Itertools;
     use router_api::CrossChainId;
 
-    use crate::state::PollContent;
-
     use super::*;
+    use crate::state::PollContent;
 
     #[test]
     fn verification_status_in_progress() {

@@ -2,9 +2,10 @@ use axelar_wasm_std::permission_control::Permission;
 use itertools::Itertools;
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
-use syn::punctuated::Punctuated;
-use syn::token::Comma;
-use syn::{Data, DataEnum, DeriveInput, Expr, ExprCall, Ident, Path, Token, Variant};
+use syn::{
+    punctuated::Punctuated, token::Comma, Data, DataEnum, DeriveInput, Expr, ExprCall, Ident, Path,
+    Token, Variant,
+};
 
 /// This macro derives the `ensure_permissions` method for an enum. The method checks if the sender
 /// has the required permissions to execute the variant. The permissions are defined using the

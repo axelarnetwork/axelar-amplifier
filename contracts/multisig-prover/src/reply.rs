@@ -1,11 +1,10 @@
 use cosmwasm_std::{from_json, DepsMut, Reply, Response, Uint64};
 use cw_utils::{parse_reply_execute_data, MsgExecuteContractResponse};
 
-use crate::state::{CONFIG, PAYLOAD};
 use crate::{
     error::ContractError,
     events::Event,
-    state::{MULTISIG_SESSION_PAYLOAD, REPLY_TRACKER},
+    state::{CONFIG, MULTISIG_SESSION_PAYLOAD, PAYLOAD, REPLY_TRACKER},
 };
 
 pub fn start_multisig_reply(deps: DepsMut, reply: Reply) -> Result<Response, ContractError> {

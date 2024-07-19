@@ -1,8 +1,7 @@
 use cosmwasm_std::{OverflowError, OverflowOperation, StdError, StdResult, Storage};
 use cw_storage_plus::Item;
 use num_traits::{CheckedAdd, One};
-use serde::de::DeserializeOwned;
-use serde::Serialize;
+use serde::{de::DeserializeOwned, Serialize};
 
 pub struct Counter<'a, T: Copy + Default> {
     item: Item<'a, T>,

@@ -5,16 +5,13 @@ use router_api::ChainName;
 use sha3::{Digest, Keccak256};
 use signature_verifier_api::client::SignatureVerifier;
 
-use crate::signing::validate_session_signature;
-use crate::state::{load_session_signatures, save_pub_key, save_signature};
-use crate::verifier_set::VerifierSet;
+use super::*;
 use crate::{
     key::{KeyTyped, PublicKey, Signature},
-    signing::SigningSession,
-    state::AUTHORIZED_CALLERS,
+    signing::{validate_session_signature, SigningSession},
+    state::{load_session_signatures, save_pub_key, save_signature, AUTHORIZED_CALLERS},
+    verifier_set::VerifierSet,
 };
-
-use super::*;
 
 pub fn start_signing_session(
     deps: DepsMut,

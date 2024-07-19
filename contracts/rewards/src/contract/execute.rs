@@ -205,8 +205,6 @@ fn merge_rewards(
 
 #[cfg(test)]
 mod test {
-    use super::*;
-
     use std::collections::HashMap;
 
     use axelar_wasm_std::nonempty;
@@ -216,6 +214,7 @@ mod test {
     };
     use router_api::ChainName;
 
+    use super::*;
     use crate::{
         error::ContractError,
         msg::Params,

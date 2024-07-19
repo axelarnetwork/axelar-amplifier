@@ -1,13 +1,13 @@
+use axelar_wasm_std::voting::Vote;
 use ethers_contract::EthLogDecode;
 use ethers_core::types::{Log, TransactionReceipt, H256};
+use evm_gateway::{IAxelarAmplifierGatewayEvents, WeightedSigners};
 use num_traits::cast;
 
-use axelar_wasm_std::voting::Vote;
-use evm_gateway::{IAxelarAmplifierGatewayEvents, WeightedSigners};
-
-use crate::handlers::evm_verify_msg::Message;
-use crate::handlers::evm_verify_verifier_set::VerifierSetConfirmation;
-use crate::types::EVMAddress;
+use crate::{
+    handlers::{evm_verify_msg::Message, evm_verify_verifier_set::VerifierSetConfirmation},
+    types::EVMAddress,
+};
 
 struct IAxelarGatewayEventsWithLog<'a>(&'a Log, IAxelarAmplifierGatewayEvents);
 

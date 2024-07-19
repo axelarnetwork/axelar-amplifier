@@ -6,8 +6,7 @@ use ethers_core::{
 use ethers_providers::{JsonRpcClient, ProviderError};
 use mockall::automock;
 
-use crate::json_rpc::Client;
-use crate::types::Hash;
+use crate::{json_rpc::Client, types::Hash};
 
 type Result<T> = error_stack::Result<T, ProviderError>;
 

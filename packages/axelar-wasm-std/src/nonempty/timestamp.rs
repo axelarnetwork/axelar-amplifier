@@ -1,5 +1,6 @@
-use crate::nonempty::Error;
 use cosmwasm_schema::cw_serde;
+
+use crate::nonempty::Error;
 
 #[cw_serde]
 pub struct Timestamp(cosmwasm_std::Timestamp);

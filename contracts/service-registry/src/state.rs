@@ -1,10 +1,9 @@
 use cosmwasm_schema::cw_serde;
+use cosmwasm_std::{Addr, Storage, Timestamp, Uint128};
+use cw_storage_plus::{Item, Map};
 use router_api::ChainName;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-
-use cosmwasm_std::{Addr, Storage, Timestamp, Uint128};
-use cw_storage_plus::{Item, Map};
 
 #[cw_serde]
 pub struct Config {
@@ -189,9 +188,11 @@ pub fn deregister_chains_support(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use cosmwasm_std::testing::mock_dependencies;
     use std::{str::FromStr, vec};
+
+    use cosmwasm_std::testing::mock_dependencies;
+
+    use super::*;
 
     #[test]
     fn register_single_verifier_chain_single_call_success() {

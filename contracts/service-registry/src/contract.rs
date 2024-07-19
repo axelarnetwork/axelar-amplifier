@@ -5,10 +5,12 @@ use cosmwasm_std::{
     QueryRequest, Response, Uint128, WasmQuery,
 };
 
-use crate::error::ContractError;
-use crate::migrations;
-use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
-use crate::state::{AuthorizationState, BondingState, Config, Service, Verifier, CONFIG, SERVICES};
+use crate::{
+    error::ContractError,
+    migrations,
+    msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg},
+    state::{AuthorizationState, BondingState, Config, Service, Verifier, CONFIG, SERVICES},
+};
 
 mod execute;
 mod query;
@@ -179,9 +181,8 @@ mod test {
     };
     use router_api::ChainName;
 
-    use crate::state::{WeightedVerifier, VERIFIER_WEIGHT};
-
     use super::*;
+    use crate::state::{WeightedVerifier, VERIFIER_WEIGHT};
 
     const GOVERNANCE_ADDRESS: &str = "governance";
     const UNAUTHORIZED_ADDRESS: &str = "unauthorized";

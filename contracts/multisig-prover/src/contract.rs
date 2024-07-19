@@ -141,32 +141,29 @@ pub fn migrate(
 
 #[cfg(test)]
 mod tests {
+    use axelar_wasm_std::{MajorityThreshold, Threshold, VerificationStatus};
     use cosmwasm_std::{
         from_json,
         testing::{mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage},
         Addr, Empty, Fraction, OwnedDeps, SubMsgResponse, SubMsgResult, Uint128, Uint64,
     };
-
-    use axelar_wasm_std::{MajorityThreshold, Threshold, VerificationStatus};
     use multisig::{msg::Signer, verifier_set::VerifierSet};
     use prost::Message;
     use router_api::CrossChainId;
 
+    use super::*;
     use crate::{
         contract::execute::should_update_verifier_set,
-        msg::VerifierSetResponse,
-        test::test_utils::{
-            mock_querier_handler, ADMIN, COORDINATOR_ADDRESS, GATEWAY_ADDRESS, GOVERNANCE,
-            MULTISIG_ADDRESS, SERVICE_NAME, SERVICE_REGISTRY_ADDRESS, VOTING_VERIFIER_ADDRESS,
+        encoding::Encoder,
+        msg::{GetProofResponse, ProofStatus, VerifierSetResponse},
+        test::{
+            test_data::{self, TestOperator},
+            test_utils::{
+                mock_querier_handler, ADMIN, COORDINATOR_ADDRESS, GATEWAY_ADDRESS, GOVERNANCE,
+                MULTISIG_ADDRESS, SERVICE_NAME, SERVICE_REGISTRY_ADDRESS, VOTING_VERIFIER_ADDRESS,
+            },
         },
     };
-    use crate::{
-        encoding::Encoder,
-        msg::{GetProofResponse, ProofStatus},
-        test::test_data::{self, TestOperator},
-    };
-
-    use super::*;
 
     const RELAYER: &str = "relayer";
     const MULTISIG_SESSION_ID: Uint64 = Uint64::one();

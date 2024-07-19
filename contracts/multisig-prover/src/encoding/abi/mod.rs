@@ -1,13 +1,12 @@
 pub mod execute_data;
 
+use axelar_wasm_std::hash::Hash;
 use error_stack::{Result, ResultExt};
 use ethers_core::abi::{encode as abi_encode, Token, Tokenize};
-use itertools::Itertools;
-use sha3::{Digest, Keccak256};
-
-use axelar_wasm_std::hash::Hash;
 use evm_gateway::{CommandType, Message, WeightedSigners};
+use itertools::Itertools;
 use multisig::verifier_set::VerifierSet;
+use sha3::{Digest, Keccak256};
 
 use crate::{error::ContractError, payload::Payload};
 
