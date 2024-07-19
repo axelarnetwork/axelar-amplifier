@@ -12,7 +12,8 @@ pub struct Config {
 
 pub const CONFIG: Item<Config> = Item::new("config");
 
-use axelar_wasm_std::{nonempty, snapshot::Participant};
+use axelar_wasm_std::nonempty;
+use axelar_wasm_std::snapshot::Participant;
 
 use crate::ContractError;
 
@@ -188,7 +189,8 @@ pub fn deregister_chains_support(
 
 #[cfg(test)]
 mod tests {
-    use std::{str::FromStr, vec};
+    use std::str::FromStr;
+    use std::vec;
 
     use cosmwasm_std::testing::mock_dependencies;
 

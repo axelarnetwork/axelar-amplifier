@@ -1,10 +1,7 @@
-use std::{
-    convert::{TryFrom, TryInto},
-    fmt,
-    fmt::{Debug, Display, Formatter},
-    ops,
-    str::FromStr,
-};
+use std::convert::{TryFrom, TryInto};
+use std::fmt::{Debug, Display, Formatter};
+use std::str::FromStr;
+use std::{fmt, ops};
 
 use cosmrs::proto;
 use error_stack::{ensure, Report, Result, ResultExt};

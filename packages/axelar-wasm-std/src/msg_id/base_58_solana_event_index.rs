@@ -1,5 +1,6 @@
 use core::fmt;
-use std::{fmt::Display, str::FromStr};
+use std::fmt::Display;
+use std::str::FromStr;
 
 use error_stack::{Report, ResultExt};
 use lazy_static::lazy_static;

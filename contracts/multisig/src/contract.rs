@@ -8,15 +8,13 @@ use cosmwasm_std::{
 use error_stack::{report, ResultExt};
 use itertools::Itertools;
 
-use crate::{
-    events::Event,
-    msg::{ExecuteMsg, InstantiateMsg, MigrationMsg, QueryMsg},
-    state::{
-        get_verifier_set, Config, CONFIG, SIGNING_SESSIONS, SIGNING_SESSION_COUNTER, VERIFIER_SETS,
-    },
-    types::{MsgToSign, MultisigState},
-    ContractError,
+use crate::events::Event;
+use crate::msg::{ExecuteMsg, InstantiateMsg, MigrationMsg, QueryMsg};
+use crate::state::{
+    get_verifier_set, Config, CONFIG, SIGNING_SESSIONS, SIGNING_SESSION_COUNTER, VERIFIER_SETS,
 };
+use crate::types::{MsgToSign, MultisigState};
+use crate::ContractError;
 
 mod execute;
 mod migrations;
@@ -194,26 +192,24 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 #[cfg(feature = "test")]
 #[cfg(test)]
 mod tests {
-    use std::{collections::HashMap, vec};
+    use std::collections::HashMap;
+    use std::vec;
 
-    use cosmwasm_std::{
-        from_json,
-        testing::{mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage},
-        Addr, Empty, OwnedDeps, WasmMsg,
+    use cosmwasm_std::testing::{
+        mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
     };
+    use cosmwasm_std::{from_json, Addr, Empty, OwnedDeps, WasmMsg};
     use permission_control::Permission;
     use router_api::ChainName;
     use serde_json::from_str;
 
     use super::*;
-    use crate::{
-        key::{KeyType, PublicKey, Signature},
-        multisig::Multisig,
-        state::load_session_signatures,
-        test::common::{build_verifier_set, ecdsa_test_data, ed25519_test_data, TestSigner},
-        types::MultisigState,
-        verifier_set::VerifierSet,
-    };
+    use crate::key::{KeyType, PublicKey, Signature};
+    use crate::multisig::Multisig;
+    use crate::state::load_session_signatures;
+    use crate::test::common::{build_verifier_set, ecdsa_test_data, ed25519_test_data, TestSigner};
+    use crate::types::MultisigState;
+    use crate::verifier_set::VerifierSet;
 
     const INSTANTIATOR: &str = "inst";
     const PROVER: &str = "prover";

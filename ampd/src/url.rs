@@ -1,13 +1,9 @@
-use std::{
-    fmt::{Display, Formatter},
-    str::FromStr,
-};
+use std::fmt::{Display, Formatter};
+use std::str::FromStr;
 
 use deref_derive::Deref;
-use serde::{
-    de::{Error, Visitor},
-    Deserialize, Deserializer, Serialize, Serializer,
-};
+use serde::de::{Error, Visitor};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use url::ParseError;
 
 #[derive(Debug, Deref, Hash, PartialEq, Eq, Clone)]

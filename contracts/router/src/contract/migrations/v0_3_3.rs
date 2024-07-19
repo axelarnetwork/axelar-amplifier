@@ -6,7 +6,8 @@ use cosmwasm_std::{Addr, StdResult, Storage};
 use cw_storage_plus::Item;
 use router_api::error::Error;
 
-use crate::{contract::CONTRACT_NAME, state};
+use crate::contract::CONTRACT_NAME;
+use crate::state;
 
 const BASE_VERSION: &str = "0.3.3";
 
@@ -50,23 +51,18 @@ const CONFIG: Item<Config> = Item::new("config");
 mod test {
     use std::collections::HashMap;
 
-    use axelar_wasm_std::{killswitch, msg_id::MessageIdFormat, ContractError};
-    use cosmwasm_std::{
-        testing::{mock_dependencies, mock_env, mock_info},
-        DepsMut, Env, MessageInfo, Response,
-    };
+    use axelar_wasm_std::msg_id::MessageIdFormat;
+    use axelar_wasm_std::{killswitch, ContractError};
+    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
+    use cosmwasm_std::{DepsMut, Env, MessageInfo, Response};
     use router_api::msg::ExecuteMsg;
 
-    use crate::{
-        contract::{
-            execute,
-            migrations::{v0_3_3, v0_3_3::BASE_VERSION},
-            CONTRACT_NAME,
-        },
-        events::RouterInstantiated,
-        msg::InstantiateMsg,
-        state,
-    };
+    use crate::contract::migrations::v0_3_3;
+    use crate::contract::migrations::v0_3_3::BASE_VERSION;
+    use crate::contract::{execute, CONTRACT_NAME};
+    use crate::events::RouterInstantiated;
+    use crate::msg::InstantiateMsg;
+    use crate::state;
 
     #[test]
     fn migrate_checks_contract_version() {

@@ -1,21 +1,20 @@
-use std::{cmp, convert::TryInto, ops::Mul, time::Duration};
+use std::cmp;
+use std::convert::TryInto;
+use std::ops::Mul;
+use std::time::Duration;
 
 use async_trait::async_trait;
 use axelar_wasm_std::FnExt;
-use cosmrs::{
-    proto::{
-        cosmos::{
-            auth::v1beta1::{BaseAccount, QueryAccountRequest, QueryAccountResponse},
-            bank::v1beta1::QueryBalanceRequest,
-            base::abci::v1beta1::TxResponse,
-            tx::v1beta1::{BroadcastMode, BroadcastTxRequest, SimulateRequest},
-        },
-        traits::MessageExt,
-    },
-    tendermint::chain::Id,
-    tx::Fee,
-    Amount, Coin, Denom, Gas,
+use cosmrs::proto::cosmos::auth::v1beta1::{
+    BaseAccount, QueryAccountRequest, QueryAccountResponse,
 };
+use cosmrs::proto::cosmos::bank::v1beta1::QueryBalanceRequest;
+use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
+use cosmrs::proto::cosmos::tx::v1beta1::{BroadcastMode, BroadcastTxRequest, SimulateRequest};
+use cosmrs::proto::traits::MessageExt;
+use cosmrs::tendermint::chain::Id;
+use cosmrs::tx::Fee;
+use cosmrs::{Amount, Coin, Denom, Gas};
 use dec_coin::DecCoin;
 use error_stack::{ensure, report, FutureExt, Result, ResultExt};
 use futures::TryFutureExt;
@@ -32,11 +31,9 @@ use tracing::info;
 use tx::Tx;
 use typed_builder::TypedBuilder;
 
-use crate::{
-    tofnd,
-    tofnd::grpc::Multisig,
-    types::{PublicKey, TMAddress},
-};
+use crate::tofnd;
+use crate::tofnd::grpc::Multisig;
+use crate::types::{PublicKey, TMAddress};
 
 pub mod confirm_tx;
 mod cosmos;
@@ -372,37 +369,31 @@ fn remap_account_not_found_error(
 
 #[cfg(test)]
 mod tests {
-    use cosmrs::{
-        bank::MsgSend,
-        crypto::PublicKey,
-        proto::{
-            cosmos::{
-                auth::v1beta1::{BaseAccount, QueryAccountResponse},
-                bank::v1beta1::QueryBalanceResponse,
-                base::abci::v1beta1::{GasInfo, TxResponse},
-                tx::v1beta1::{GetTxResponse, SimulateResponse},
-            },
-            traits::MessageExt,
-            Any,
-        },
-        tx::Msg,
-        AccountId, Coin, Denom,
-    };
+    use cosmrs::bank::MsgSend;
+    use cosmrs::crypto::PublicKey;
+    use cosmrs::proto::cosmos::auth::v1beta1::{BaseAccount, QueryAccountResponse};
+    use cosmrs::proto::cosmos::bank::v1beta1::QueryBalanceResponse;
+    use cosmrs::proto::cosmos::base::abci::v1beta1::{GasInfo, TxResponse};
+    use cosmrs::proto::cosmos::tx::v1beta1::{GetTxResponse, SimulateResponse};
+    use cosmrs::proto::traits::MessageExt;
+    use cosmrs::proto::Any;
+    use cosmrs::tx::Msg;
+    use cosmrs::{AccountId, Coin, Denom};
     use ecdsa::SigningKey;
     use k256::Secp256k1;
     use rand::rngs::OsRng;
     use tokio::test;
     use tonic::Status;
 
-    use crate::{
-        broadcaster::{
-            cosmos::{MockAccountQueryClient, MockBalanceQueryClient, MockBroadcastClient},
-            BasicBroadcaster, Broadcaster, Config, Error, UnvalidatedBasicBroadcaster,
-        },
-        tofnd::grpc::MockMultisig,
-        types::TMAddress,
-        PREFIX,
+    use crate::broadcaster::cosmos::{
+        MockAccountQueryClient, MockBalanceQueryClient, MockBroadcastClient,
     };
+    use crate::broadcaster::{
+        BasicBroadcaster, Broadcaster, Config, Error, UnvalidatedBasicBroadcaster,
+    };
+    use crate::tofnd::grpc::MockMultisig;
+    use crate::types::TMAddress;
+    use crate::PREFIX;
 
     #[test]
     async fn broadcaster_has_incorrect_fee_denomination_return_error() {

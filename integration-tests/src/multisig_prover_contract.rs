@@ -4,7 +4,8 @@ use cw_multi_test::{ContractWrapper, Executor};
 use multisig::key::KeyType;
 use multisig_prover::encoding::Encoder;
 
-use crate::{contract::Contract, protocol::Protocol};
+use crate::contract::Contract;
+use crate::protocol::Protocol;
 
 #[derive(Clone)]
 pub struct MultisigProverContract {

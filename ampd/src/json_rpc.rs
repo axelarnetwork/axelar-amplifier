@@ -2,7 +2,8 @@ use std::fmt::Debug;
 
 use error_stack::Report;
 use ethers_providers::{Http, JsonRpcClient, ProviderError};
-use serde::{de::DeserializeOwned, Serialize};
+use serde::de::DeserializeOwned;
+use serde::Serialize;
 
 use crate::url::Url;
 

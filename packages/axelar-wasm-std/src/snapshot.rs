@@ -3,7 +3,8 @@ use std::collections::HashMap;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Uint128};
 
-use crate::{nonempty, threshold::MajorityThreshold};
+use crate::nonempty;
+use crate::threshold::MajorityThreshold;
 
 #[cw_serde]
 pub struct Participant {

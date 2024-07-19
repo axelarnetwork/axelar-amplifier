@@ -6,7 +6,8 @@ use cosmwasm_std::{Addr, Storage};
 use cw_storage_plus::Item;
 use router_api::error::Error;
 
-use crate::{contract::CONTRACT_NAME, state};
+use crate::contract::CONTRACT_NAME;
+use crate::state;
 
 const BASE_VERSION: &str = "0.4.0";
 
@@ -41,17 +42,14 @@ pub const CONFIG: Item<Config> = Item::new("config");
 
 #[cfg(test)]
 pub mod tests {
-    use cosmwasm_std::{
-        testing::{mock_dependencies, mock_env, mock_info},
-        DepsMut, Env, MessageInfo, Response,
-    };
+    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
+    use cosmwasm_std::{DepsMut, Env, MessageInfo, Response};
 
-    use crate::{
-        contract::{execute, migrations::v0_4_0, CONTRACT_NAME},
-        msg::{ExecuteMsg, InstantiateMsg, Params},
-        state,
-        state::{Epoch, ParamsSnapshot, PARAMS},
-    };
+    use crate::contract::migrations::v0_4_0;
+    use crate::contract::{execute, CONTRACT_NAME};
+    use crate::msg::{ExecuteMsg, InstantiateMsg, Params};
+    use crate::state;
+    use crate::state::{Epoch, ParamsSnapshot, PARAMS};
 
     #[deprecated(since = "0.4.0", note = "only used during migration tests")]
     fn instantiate(

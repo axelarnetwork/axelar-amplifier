@@ -1,4 +1,5 @@
-use std::{collections::HashMap, ops::Deref};
+use std::collections::HashMap;
+use std::ops::Deref;
 
 use axelar_wasm_std::{nonempty, Threshold};
 use cosmwasm_schema::cw_serde;
@@ -7,7 +8,8 @@ use cw_storage_plus::{Item, Key, KeyDeserialize, Map, Prefixer, PrimaryKey};
 use error_stack::{Result, ResultExt};
 use router_api::ChainName;
 
-use crate::{error::ContractError, msg::Params};
+use crate::error::ContractError;
+use crate::msg::Params;
 
 #[cw_serde]
 pub struct Config {
@@ -400,11 +402,14 @@ impl<T> Deref for StorageState<T> {
 mod test {
     use std::collections::HashMap;
 
-    use cosmwasm_std::{testing::mock_dependencies, Addr, Uint128, Uint64};
+    use cosmwasm_std::testing::mock_dependencies;
+    use cosmwasm_std::{Addr, Uint128, Uint64};
     use router_api::ChainName;
 
     use super::*;
-    use crate::{error::ContractError, msg::Params, state::ParamsSnapshot};
+    use crate::error::ContractError;
+    use crate::msg::Params;
+    use crate::state::ParamsSnapshot;
 
     /// Test that the rewards are
     /// - distributed evenly to all verifiers that reach quorum

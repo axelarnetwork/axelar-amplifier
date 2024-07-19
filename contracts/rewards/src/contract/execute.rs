@@ -4,11 +4,9 @@ use axelar_wasm_std::{nonempty, FnExt};
 use cosmwasm_std::{Addr, OverflowError, OverflowOperation, Storage, Uint128};
 use error_stack::{Report, Result};
 
-use crate::{
-    error::ContractError,
-    msg::Params,
-    state::{self, Epoch, EpochTally, Event, ParamsSnapshot, PoolId, StorageState},
-};
+use crate::error::ContractError;
+use crate::msg::Params;
+use crate::state::{self, Epoch, EpochTally, Event, ParamsSnapshot, PoolId, StorageState};
 
 const DEFAULT_EPOCHS_TO_PROCESS: u64 = 10;
 const EPOCH_PAYOUT_DELAY: u64 = 2;
@@ -208,18 +206,14 @@ mod test {
     use std::collections::HashMap;
 
     use axelar_wasm_std::nonempty;
-    use cosmwasm_std::{
-        testing::{mock_dependencies, MockApi, MockQuerier, MockStorage},
-        Addr, OwnedDeps, Uint128, Uint64,
-    };
+    use cosmwasm_std::testing::{mock_dependencies, MockApi, MockQuerier, MockStorage};
+    use cosmwasm_std::{Addr, OwnedDeps, Uint128, Uint64};
     use router_api::ChainName;
 
     use super::*;
-    use crate::{
-        error::ContractError,
-        msg::Params,
-        state::{self, Config, Epoch, ParamsSnapshot, PoolId, CONFIG},
-    };
+    use crate::error::ContractError;
+    use crate::msg::Params;
+    use crate::state::{self, Config, Epoch, ParamsSnapshot, PoolId, CONFIG};
 
     /// Tests that the current epoch is computed correctly when the expected epoch is the same as the stored epoch
     #[test]

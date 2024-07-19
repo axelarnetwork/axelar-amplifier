@@ -1,11 +1,12 @@
 use cosmwasm_std::{to_json_binary, Deps, QueryRequest, StdResult, Uint64, WasmQuery};
 use error_stack::Result;
-use multisig::{multisig::Multisig, types::MultisigState};
+use multisig::multisig::Multisig;
+use multisig::types::MultisigState;
 
-use crate::{
-    error::ContractError,
-    msg::{GetProofResponse, ProofStatus, VerifierSetResponse},
-    state::{CONFIG, CURRENT_VERIFIER_SET, MULTISIG_SESSION_PAYLOAD, NEXT_VERIFIER_SET, PAYLOAD},
+use crate::error::ContractError;
+use crate::msg::{GetProofResponse, ProofStatus, VerifierSetResponse};
+use crate::state::{
+    CONFIG, CURRENT_VERIFIER_SET, MULTISIG_SESSION_PAYLOAD, NEXT_VERIFIER_SET, PAYLOAD,
 };
 
 pub fn get_proof(
@@ -72,7 +73,8 @@ pub fn next_verifier_set(deps: Deps) -> StdResult<Option<VerifierSetResponse>> {
 mod test {
     use cosmwasm_std::testing::mock_dependencies;
 
-    use crate::{state, test::test_data::new_verifier_set};
+    use crate::state;
+    use crate::test::test_data::new_verifier_set;
 
     #[test]
     fn next_verifier_set() {

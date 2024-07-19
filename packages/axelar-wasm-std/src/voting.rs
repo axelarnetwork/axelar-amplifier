@@ -13,13 +13,11 @@
    The contract then processes the results and takes appropriate action for each transaction, depending
    on whether the transaction was successfully verified.
 */
-use std::{
-    array::TryFromSliceError,
-    collections::{BTreeMap, HashMap},
-    fmt,
-    ops::{Add, Mul},
-    str::FromStr,
-};
+use std::array::TryFromSliceError;
+use std::collections::{BTreeMap, HashMap};
+use std::fmt;
+use std::ops::{Add, Mul};
+use std::str::FromStr;
 
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, StdError, StdResult, Uint128, Uint64};
@@ -412,7 +410,8 @@ impl WeightedPoll {
 #[cfg(test)]
 mod tests {
     use cosmwasm_std::{Addr, Uint64};
-    use rand::{distributions::Alphanumeric, thread_rng, Rng};
+    use rand::distributions::Alphanumeric;
+    use rand::{thread_rng, Rng};
 
     use super::*;
     use crate::{nonempty, Participant, Threshold};

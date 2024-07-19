@@ -6,21 +6,18 @@
 //! because the client traits also provide auto-mocks.
 
 use async_trait::async_trait;
-use cosmrs::proto::cosmos::{
-    auth::v1beta1::{
-        query_client::QueryClient as AuthQueryClient, QueryAccountRequest, QueryAccountResponse,
-    },
-    bank::v1beta1::{
-        query_client::QueryClient as BankQueryClient, QueryBalanceRequest, QueryBalanceResponse,
-    },
-    base::abci::v1beta1::TxResponse,
-    tx::v1beta1::{
-        service_client::ServiceClient, BroadcastTxRequest, GetTxRequest, GetTxResponse,
-        SimulateRequest, SimulateResponse,
-    },
+use cosmrs::proto::cosmos::auth::v1beta1::query_client::QueryClient as AuthQueryClient;
+use cosmrs::proto::cosmos::auth::v1beta1::{QueryAccountRequest, QueryAccountResponse};
+use cosmrs::proto::cosmos::bank::v1beta1::query_client::QueryClient as BankQueryClient;
+use cosmrs::proto::cosmos::bank::v1beta1::{QueryBalanceRequest, QueryBalanceResponse};
+use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
+use cosmrs::proto::cosmos::tx::v1beta1::service_client::ServiceClient;
+use cosmrs::proto::cosmos::tx::v1beta1::{
+    BroadcastTxRequest, GetTxRequest, GetTxResponse, SimulateRequest, SimulateResponse,
 };
 use mockall::automock;
-use tonic::{transport::Channel, Response, Status};
+use tonic::transport::Channel;
+use tonic::{Response, Status};
 
 #[automock]
 #[async_trait]

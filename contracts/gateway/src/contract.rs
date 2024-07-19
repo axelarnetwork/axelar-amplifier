@@ -84,7 +84,10 @@ mod internal {
     use gateway_api::msg::{ExecuteMsg, QueryMsg};
     use router_api::client::Router;
 
-    use crate::{contract, contract::Error, msg::InstantiateMsg, state, state::Config};
+    use crate::contract::Error;
+    use crate::msg::InstantiateMsg;
+    use crate::state::Config;
+    use crate::{contract, state};
 
     pub(crate) fn instantiate(
         deps: DepsMut,

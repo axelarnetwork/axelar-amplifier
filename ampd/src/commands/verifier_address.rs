@@ -2,7 +2,9 @@ use axelar_wasm_std::FnExt;
 use error_stack::Result;
 use report::ResultCompatExt;
 
-use crate::{commands::verifier_pub_key, tofnd::Config as TofndConfig, Error, PREFIX};
+use crate::commands::verifier_pub_key;
+use crate::tofnd::Config as TofndConfig;
+use crate::{Error, PREFIX};
 
 pub async fn run(config: TofndConfig) -> Result<Option<String>, Error> {
     verifier_pub_key(config)

@@ -2,7 +2,8 @@ use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Order, StdResult, Storage};
 use cw_storage_plus::{Index, IndexList, IndexedMap, Item, MultiIndex};
 use error_stack::{report, ResultExt};
-use router_api::{error::Error, ChainEndpoint, ChainName};
+use router_api::error::Error;
+use router_api::{ChainEndpoint, ChainName};
 
 pub fn save_config(storage: &mut dyn Storage, config: &Config) -> error_stack::Result<(), Error> {
     CONFIG

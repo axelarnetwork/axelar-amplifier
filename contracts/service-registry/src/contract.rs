@@ -5,12 +5,10 @@ use cosmwasm_std::{
     QueryRequest, Response, Uint128, WasmQuery,
 };
 
-use crate::{
-    error::ContractError,
-    migrations,
-    msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg},
-    state::{AuthorizationState, BondingState, Config, Service, Verifier, CONFIG, SERVICES},
-};
+use crate::error::ContractError;
+use crate::migrations;
+use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
+use crate::state::{AuthorizationState, BondingState, Config, Service, Verifier, CONFIG, SERVICES};
 
 mod execute;
 mod query;
@@ -174,11 +172,10 @@ pub fn migrate(
 mod test {
     use std::str::FromStr;
 
-    use cosmwasm_std::{
-        coins, from_json,
-        testing::{mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage},
-        CosmosMsg, Empty, OwnedDeps, StdResult,
+    use cosmwasm_std::testing::{
+        mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
     };
+    use cosmwasm_std::{coins, from_json, CosmosMsg, Empty, OwnedDeps, StdResult};
     use router_api::ChainName;
 
     use super::*;

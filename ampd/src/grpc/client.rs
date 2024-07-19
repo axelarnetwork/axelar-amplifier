@@ -1,7 +1,8 @@
 use error_stack::{Report, Result};
 use tonic::{codegen, transport};
 
-use super::proto::{ampd_client::AmpdClient, crypto_client::CryptoClient};
+use super::proto::ampd_client::AmpdClient;
+use super::proto::crypto_client::CryptoClient;
 
 pub struct Client {
     pub ampd: AmpdClient<transport::Channel>,
@@ -29,38 +30,34 @@ where
 mod tests {
     use std::time::Duration;
 
-    use cosmrs::{bank::MsgSend, tx::Msg, AccountId, Any};
+    use cosmrs::bank::MsgSend;
+    use cosmrs::tx::Msg;
+    use cosmrs::{AccountId, Any};
     use error_stack::Report;
     use events::Event;
     use futures::StreamExt;
-    use k256::{
-        ecdsa::SigningKey,
-        sha2::{Digest, Sha256},
-    };
+    use k256::ecdsa::SigningKey;
+    use k256::sha2::{Digest, Sha256};
     use mockall::predicate;
     use rand::rngs::OsRng;
-    use tokio::{
-        net::TcpListener,
-        sync::{mpsc, oneshot},
-        test, time,
-    };
-    use tokio_stream::wrappers::{
-        errors::BroadcastStreamRecvError, ReceiverStream, TcpListenerStream,
-    };
+    use tokio::net::TcpListener;
+    use tokio::sync::{mpsc, oneshot};
+    use tokio::{test, time};
+    use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
+    use tokio_stream::wrappers::{ReceiverStream, TcpListenerStream};
     use tonic::Code;
     use url::Url;
 
-    use crate::{
-        event_sub::MockEventSub,
-        grpc,
-        proto::{
-            Algorithm, BroadcastRequest, BroadcastResponse, GetKeyRequest, GetKeyResponse,
-            SignRequest, SignResponse, SubscribeRequest,
-        },
-        queue::queued_broadcaster::MockBroadcasterClient,
-        tofnd::{self, grpc::MockMultisig},
-        types::PublicKey,
+    use crate::event_sub::MockEventSub;
+    use crate::grpc;
+    use crate::proto::{
+        Algorithm, BroadcastRequest, BroadcastResponse, GetKeyRequest, GetKeyResponse, SignRequest,
+        SignResponse, SubscribeRequest,
     };
+    use crate::queue::queued_broadcaster::MockBroadcasterClient;
+    use crate::tofnd::grpc::MockMultisig;
+    use crate::tofnd::{self};
+    use crate::types::PublicKey;
 
     async fn start_server(
         event_sub: MockEventSub,

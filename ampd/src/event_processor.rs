@@ -1,4 +1,5 @@
-use std::{pin::Pin, time::Duration};
+use std::pin::Pin;
+use std::time::Duration;
 
 use async_trait::async_trait;
 use cosmrs::Any;
@@ -14,13 +15,9 @@ use tokio_util::sync::CancellationToken;
 use tracing::{info, warn};
 use valuable::Valuable;
 
-use crate::{
-    asyncutil::{
-        future::{self, RetryPolicy},
-        task::TaskError,
-    },
-    queue::queued_broadcaster::BroadcasterClient,
-};
+use crate::asyncutil::future::{self, RetryPolicy};
+use crate::asyncutil::task::TaskError;
+use crate::queue::queued_broadcaster::BroadcasterClient;
 
 #[async_trait]
 pub trait EventHandler {
@@ -188,7 +185,9 @@ mod tests {
     use std::time::Duration;
 
     use async_trait::async_trait;
-    use cosmrs::{bank::MsgSend, tx::Msg, AccountId, Any};
+    use cosmrs::bank::MsgSend;
+    use cosmrs::tx::Msg;
+    use cosmrs::{AccountId, Any};
     use error_stack::{report, Result};
     use events::Event;
     use futures::stream;
@@ -196,11 +195,9 @@ mod tests {
     use tokio::time::timeout;
     use tokio_util::sync::CancellationToken;
 
-    use crate::{
-        event_processor,
-        event_processor::{consume_events, Config, Error, EventHandler},
-        queue::queued_broadcaster::MockBroadcasterClient,
-    };
+    use crate::event_processor;
+    use crate::event_processor::{consume_events, Config, Error, EventHandler};
+    use crate::queue::queued_broadcaster::MockBroadcasterClient;
 
     pub fn setup_event_config(
         retry_delay_value: Duration,

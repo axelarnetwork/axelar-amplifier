@@ -1,11 +1,9 @@
-use std::{
-    backtrace::Backtrace,
-    collections::VecDeque,
-    error::Error,
-    fmt::{Display, Formatter},
-    iter::FromIterator,
-    panic::Location,
-};
+use std::backtrace::Backtrace;
+use std::collections::VecDeque;
+use std::error::Error;
+use std::fmt::{Display, Formatter};
+use std::iter::FromIterator;
+use std::panic::Location;
 
 use error_stack::{AttachmentKind, Context, Frame, FrameKind, Report};
 use itertools::Itertools;

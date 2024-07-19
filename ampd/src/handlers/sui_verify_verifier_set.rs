@@ -1,14 +1,15 @@
 use std::convert::TryInto;
 
 use async_trait::async_trait;
-use axelar_wasm_std::{
-    msg_id::Base58TxDigestAndEventIndex,
-    voting::{PollId, Vote},
-};
-use cosmrs::{cosmwasm::MsgExecuteContract, tx::Msg, Any};
+use axelar_wasm_std::msg_id::Base58TxDigestAndEventIndex;
+use axelar_wasm_std::voting::{PollId, Vote};
+use cosmrs::cosmwasm::MsgExecuteContract;
+use cosmrs::tx::Msg;
+use cosmrs::Any;
 use cosmwasm_std::{HexBinary, Uint128};
 use error_stack::ResultExt;
-use events::{Error::EventTypeMismatch, Event};
+use events::Error::EventTypeMismatch;
+use events::Event;
 use events_derive::try_from;
 use multisig::verifier_set::VerifierSet;
 use serde::Deserialize;
@@ -18,12 +19,11 @@ use tracing::{info, info_span};
 use valuable::Valuable;
 use voting_verifier::msg::ExecuteMsg;
 
-use crate::{
-    event_processor::EventHandler,
-    handlers::errors::Error,
-    sui::{json_rpc::SuiClient, verifier::verify_verifier_set},
-    types::TMAddress,
-};
+use crate::event_processor::EventHandler;
+use crate::handlers::errors::Error;
+use crate::sui::json_rpc::SuiClient;
+use crate::sui::verifier::verify_verifier_set;
+use crate::types::TMAddress;
 
 #[allow(dead_code)]
 #[derive(Deserialize, Debug)]
@@ -166,19 +166,19 @@ mod tests {
     use error_stack::{Report, Result};
     use ethers_providers::ProviderError;
     use events::Event;
-    use multisig::{
-        key::KeyType,
-        test::common::{build_verifier_set, ecdsa_test_data},
-    };
+    use multisig::key::KeyType;
+    use multisig::test::common::{build_verifier_set, ecdsa_test_data};
     use sui_types::base_types::{SuiAddress, TransactionDigest};
-    use tokio::{sync::watch, test as async_test};
+    use tokio::sync::watch;
+    use tokio::test as async_test;
     use voting_verifier::events::{PollMetadata, PollStarted, VerifierSetConfirmation};
 
     use super::PollStartedEvent;
-    use crate::{
-        event_processor::EventHandler, handlers::tests::get_event, sui::json_rpc::MockSuiClient,
-        types::TMAddress, PREFIX,
-    };
+    use crate::event_processor::EventHandler;
+    use crate::handlers::tests::get_event;
+    use crate::sui::json_rpc::MockSuiClient;
+    use crate::types::TMAddress;
+    use crate::PREFIX;
 
     #[test]
     fn should_deserialize_verifier_set_poll_started_event() {

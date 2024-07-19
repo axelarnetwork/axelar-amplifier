@@ -1,4 +1,5 @@
-use std::{future::Future, pin::Pin};
+use std::future::Future;
+use std::pin::Pin;
 
 use axelar_wasm_std::error::extend_err;
 use error_stack::{Context, Result, ResultExt};

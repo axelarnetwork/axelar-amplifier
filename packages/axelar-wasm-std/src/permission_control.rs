@@ -6,7 +6,8 @@ use flagset::{flags, Flags};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
-use crate::{flagset::FlagSet, FnExt};
+use crate::flagset::FlagSet;
+use crate::FnExt;
 
 flags! {
     #[repr(u8)]

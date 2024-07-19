@@ -5,12 +5,9 @@ use cosmwasm_std::{
     StdResult,
 };
 
-use crate::{
-    execute,
-    msg::{ExecuteMsg, InstantiateMsg, QueryMsg},
-    query,
-    state::{Config, CONFIG},
-};
+use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
+use crate::state::{Config, CONFIG};
+use crate::{execute, query};
 
 const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -99,24 +96,18 @@ pub fn migrate(
 
 #[cfg(test)]
 mod test {
-    use axelar_wasm_std::{
-        msg_id::{
-            Base58SolanaTxSignatureAndEventIndex, Base58TxDigestAndEventIndex,
-            HexTxHashAndEventIndex, MessageIdFormat,
-        },
-        nonempty,
-        voting::Vote,
-        MajorityThreshold, Threshold, VerificationStatus,
+    use axelar_wasm_std::msg_id::{
+        Base58SolanaTxSignatureAndEventIndex, Base58TxDigestAndEventIndex, HexTxHashAndEventIndex,
+        MessageIdFormat,
     };
-    use cosmwasm_std::{
-        from_json,
-        testing::{mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage},
-        Addr, Empty, Fraction, OwnedDeps, Uint128, Uint64, WasmQuery,
+    use axelar_wasm_std::voting::Vote;
+    use axelar_wasm_std::{nonempty, MajorityThreshold, Threshold, VerificationStatus};
+    use cosmwasm_std::testing::{
+        mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
     };
-    use multisig::{
-        key::KeyType,
-        test::common::{build_verifier_set, ecdsa_test_data},
-    };
+    use cosmwasm_std::{from_json, Addr, Empty, Fraction, OwnedDeps, Uint128, Uint64, WasmQuery};
+    use multisig::key::KeyType;
+    use multisig::test::common::{build_verifier_set, ecdsa_test_data};
     use router_api::{ChainName, CrossChainId, Message};
     use service_registry::state::{
         AuthorizationState, BondingState, Verifier, WeightedVerifier, VERIFIER_WEIGHT,
@@ -124,7 +115,9 @@ mod test {
     use sha3::{Digest, Keccak256, Keccak512};
 
     use super::*;
-    use crate::{error::ContractError, events::TxEventConfirmation, msg::MessageStatus};
+    use crate::error::ContractError;
+    use crate::events::TxEventConfirmation;
+    use crate::msg::MessageStatus;
 
     const SENDER: &str = "sender";
     const SERVICE_REGISTRY_ADDRESS: &str = "service_registry_address";

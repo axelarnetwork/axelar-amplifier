@@ -5,13 +5,10 @@ use cosmwasm_std::{
 };
 use error_stack::ResultExt;
 
-use crate::{
-    error::ContractError,
-    execute,
-    msg::{ExecuteMsg, InstantiateMsg, QueryMsg},
-    query, reply,
-    state::{Config, CONFIG},
-};
+use crate::error::ContractError;
+use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
+use crate::state::{Config, CONFIG};
+use crate::{execute, query, reply};
 
 pub const START_MULTISIG_REPLY_ID: u64 = 1;
 
@@ -142,27 +139,25 @@ pub fn migrate(
 #[cfg(test)]
 mod tests {
     use axelar_wasm_std::{MajorityThreshold, Threshold, VerificationStatus};
-    use cosmwasm_std::{
-        from_json,
-        testing::{mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage},
-        Addr, Empty, Fraction, OwnedDeps, SubMsgResponse, SubMsgResult, Uint128, Uint64,
+    use cosmwasm_std::testing::{
+        mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
     };
-    use multisig::{msg::Signer, verifier_set::VerifierSet};
+    use cosmwasm_std::{
+        from_json, Addr, Empty, Fraction, OwnedDeps, SubMsgResponse, SubMsgResult, Uint128, Uint64,
+    };
+    use multisig::msg::Signer;
+    use multisig::verifier_set::VerifierSet;
     use prost::Message;
     use router_api::CrossChainId;
 
     use super::*;
-    use crate::{
-        contract::execute::should_update_verifier_set,
-        encoding::Encoder,
-        msg::{GetProofResponse, ProofStatus, VerifierSetResponse},
-        test::{
-            test_data::{self, TestOperator},
-            test_utils::{
-                mock_querier_handler, ADMIN, COORDINATOR_ADDRESS, GATEWAY_ADDRESS, GOVERNANCE,
-                MULTISIG_ADDRESS, SERVICE_NAME, SERVICE_REGISTRY_ADDRESS, VOTING_VERIFIER_ADDRESS,
-            },
-        },
+    use crate::contract::execute::should_update_verifier_set;
+    use crate::encoding::Encoder;
+    use crate::msg::{GetProofResponse, ProofStatus, VerifierSetResponse};
+    use crate::test::test_data::{self, TestOperator};
+    use crate::test::test_utils::{
+        mock_querier_handler, ADMIN, COORDINATOR_ADDRESS, GATEWAY_ADDRESS, GOVERNANCE,
+        MULTISIG_ADDRESS, SERVICE_NAME, SERVICE_REGISTRY_ADDRESS, VOTING_VERIFIER_ADDRESS,
     };
 
     const RELAYER: &str = "relayer";

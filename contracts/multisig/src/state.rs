@@ -6,12 +6,10 @@ use cosmwasm_std::{Addr, HexBinary, Order, StdResult, Storage, Uint64};
 use cw_storage_plus::{Index, IndexList, IndexedMap, Item, Map, UniqueIndex};
 use router_api::ChainName;
 
-use crate::{
-    key::{KeyType, KeyTyped, PublicKey, Signature},
-    signing::SigningSession,
-    verifier_set::VerifierSet,
-    ContractError,
-};
+use crate::key::{KeyType, KeyTyped, PublicKey, Signature};
+use crate::signing::SigningSession;
+use crate::verifier_set::VerifierSet;
+use crate::ContractError;
 
 #[cw_serde]
 pub struct Config {

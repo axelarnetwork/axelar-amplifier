@@ -2,11 +2,8 @@ use std::time::Duration;
 
 use error_stack::{Result, ResultExt};
 use thiserror::Error;
-use tokio::{
-    select,
-    sync::watch::{self, Receiver, Sender},
-    time,
-};
+use tokio::sync::watch::{self, Receiver, Sender};
+use tokio::{select, time};
 use tokio_util::sync::CancellationToken;
 use tracing::info;
 
@@ -75,7 +72,8 @@ impl<T: TmClient + Sync> BlockHeightMonitor<T> {
 
 #[cfg(test)]
 mod tests {
-    use std::{convert::TryInto, time::Duration};
+    use std::convert::TryInto;
+    use std::time::Duration;
 
     use async_trait::async_trait;
     use mockall::mock;

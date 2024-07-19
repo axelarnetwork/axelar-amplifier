@@ -1,7 +1,5 @@
-use std::{
-    fmt,
-    hash::{Hash as StdHash, Hasher},
-};
+use std::fmt;
+use std::hash::{Hash as StdHash, Hasher};
 
 use cosmrs::{crypto, AccountId};
 use ethers_core::types::{Address, H256};

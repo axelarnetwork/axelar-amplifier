@@ -1,23 +1,20 @@
-use std::{collections::HashMap, vec};
+use std::collections::HashMap;
+use std::vec;
 
-use axelar_wasm_std::{
-    flagset::FlagSet,
-    killswitch,
-    msg_id::{self, MessageIdFormat},
-};
+use axelar_wasm_std::flagset::FlagSet;
+use axelar_wasm_std::killswitch;
+use axelar_wasm_std::msg_id::{self, MessageIdFormat};
 use cosmwasm_std::{to_json_binary, Addr, Event, Response, StdResult, Storage, WasmMsg};
 use error_stack::{ensure, report, ResultExt};
 use itertools::Itertools;
-use router_api::{error::Error, ChainEndpoint, ChainName, Gateway, GatewayDirection, Message};
+use router_api::error::Error;
+use router_api::{ChainEndpoint, ChainName, Gateway, GatewayDirection, Message};
 
-use crate::{
-    events,
-    events::{
-        ChainFrozen, ChainRegistered, ChainUnfrozen, GatewayInfo, GatewayUpgraded, MessageRouted,
-    },
-    state,
-    state::{chain_endpoints, Config},
+use crate::events::{
+    ChainFrozen, ChainRegistered, ChainUnfrozen, GatewayInfo, GatewayUpgraded, MessageRouted,
 };
+use crate::state::{chain_endpoints, Config};
+use crate::{events, state};
 
 pub fn register_chain(
     storage: &mut dyn Storage,
@@ -244,23 +241,20 @@ pub fn route_messages(
 mod test {
     use std::collections::HashMap;
 
-    use axelar_wasm_std::{flagset::FlagSet, msg_id::HexTxHashAndEventIndex};
-    use cosmwasm_std::{
-        testing::{mock_dependencies, mock_env, mock_info},
-        Addr, Storage,
-    };
+    use axelar_wasm_std::flagset::FlagSet;
+    use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
+    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
+    use cosmwasm_std::{Addr, Storage};
     use rand::{random, RngCore};
-    use router_api::{
-        error::Error, ChainEndpoint, ChainName, CrossChainId, Gateway, GatewayDirection, Message,
-    };
+    use router_api::error::Error;
+    use router_api::{ChainEndpoint, ChainName, CrossChainId, Gateway, GatewayDirection, Message};
 
     use super::{freeze_chains, unfreeze_chains};
-    use crate::{
-        contract::{execute::route_messages, instantiate},
-        events::{ChainFrozen, ChainUnfrozen},
-        msg::InstantiateMsg,
-        state::chain_endpoints,
-    };
+    use crate::contract::execute::route_messages;
+    use crate::contract::instantiate;
+    use crate::events::{ChainFrozen, ChainUnfrozen};
+    use crate::msg::InstantiateMsg;
+    use crate::state::chain_endpoints;
 
     fn rand_message(source_chain: ChainName, destination_chain: ChainName) -> Message {
         let mut bytes = [0; 32];

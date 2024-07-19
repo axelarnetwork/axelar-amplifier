@@ -1,10 +1,8 @@
 use axelar_wasm_std::Participant;
 use cosmwasm_std::{Addr, HexBinary, Uint128};
 
-use crate::{
-    key::{KeyType, PublicKey},
-    verifier_set::VerifierSet,
-};
+use crate::key::{KeyType, PublicKey};
+use crate::verifier_set::VerifierSet;
 
 #[derive(Clone)]
 pub struct TestSigner {

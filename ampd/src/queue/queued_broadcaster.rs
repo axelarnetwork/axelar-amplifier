@@ -1,20 +1,18 @@
 use async_trait::async_trait;
-use cosmrs::{tx::MessageExt, Any, Gas};
+use cosmrs::tx::MessageExt;
+use cosmrs::{Any, Gas};
 use error_stack::{self, Report, ResultExt};
 use mockall::automock;
 use thiserror::Error;
-use tokio::{
-    select,
-    sync::{mpsc, oneshot},
-    time::Interval,
-};
+use tokio::select;
+use tokio::sync::{mpsc, oneshot};
+use tokio::time::Interval;
 use tracing::{info, warn};
 
-use super::{msg_queue::MsgQueue, proto};
-use crate::broadcaster::{
-    confirm_tx::{TxResponse, TxStatus},
-    Broadcaster,
-};
+use super::msg_queue::MsgQueue;
+use super::proto;
+use crate::broadcaster::confirm_tx::{TxResponse, TxStatus};
+use crate::broadcaster::Broadcaster;
 
 type Result<T = ()> = error_stack::Result<T, Error>;
 type MsgAndResChan = (Any, oneshot::Sender<Result>);
@@ -232,27 +230,22 @@ where
 
 #[cfg(test)]
 mod test {
-    use cosmrs::{
-        bank::MsgSend,
-        proto::cosmos::base::abci::v1beta1::TxResponse,
-        tx::{Fee, MessageExt, Msg},
-        AccountId, Any,
-    };
+    use cosmrs::bank::MsgSend;
+    use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
+    use cosmrs::tx::{Fee, MessageExt, Msg};
+    use cosmrs::{AccountId, Any};
     use error_stack::Report;
     use futures::StreamExt;
-    use tokio::{
-        sync::mpsc,
-        test,
-        time::{interval, timeout, Duration, Instant},
-    };
+    use tokio::sync::mpsc;
+    use tokio::test;
+    use tokio::time::{interval, timeout, Duration, Instant};
     use tokio_stream::wrappers::ReceiverStream;
 
     use super::{Error, QueuedBroadcaster};
-    use crate::{
-        broadcaster::{self, MockBroadcaster},
-        queue::{proto, queued_broadcaster::BroadcasterClient},
-        PREFIX,
-    };
+    use crate::broadcaster::{self, MockBroadcaster};
+    use crate::queue::proto;
+    use crate::queue::queued_broadcaster::BroadcasterClient;
+    use crate::PREFIX;
 
     #[test]
     async fn should_ignore_msg_when_fee_estimation_fails() {

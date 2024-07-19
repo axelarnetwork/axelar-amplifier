@@ -10,7 +10,8 @@ pub mod sui_verify_verifier_set;
 mod tests {
     use std::convert::TryInto;
 
-    use base64::{engine::general_purpose::STANDARD, Engine};
+    use base64::engine::general_purpose::STANDARD;
+    use base64::Engine;
     use events::Event;
     use tendermint::abci;
 

@@ -1,7 +1,8 @@
 use std::fmt::Display;
 
 use axelar_wasm_std::permission_control;
-use cosmwasm_std::{testing::MockStorage, Addr, Storage};
+use cosmwasm_std::testing::MockStorage;
+use cosmwasm_std::{Addr, Storage};
 use error_stack::{report, Report};
 
 #[derive(msgs_derive::EnsurePermissions, Clone, Debug)]

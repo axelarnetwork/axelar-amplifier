@@ -1,5 +1,6 @@
 use cosmwasm_std::HexBinary;
-use serde::{de::Error, Deserialize, Deserializer, Serialize, Serializer};
+use serde::de::Error;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 pub fn serialize<S, const N: usize>(value: &[u8; N], serializer: S) -> Result<S::Ok, S::Error>
 where

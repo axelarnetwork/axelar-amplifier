@@ -1,16 +1,17 @@
 use std::collections::HashMap;
 
-use axelar_wasm_std::{self, voting::Vote};
+use axelar_wasm_std::voting::Vote;
+use axelar_wasm_std::{self};
 use cosmwasm_std::HexBinary;
 use move_core_types::language_storage::StructTag;
-use serde::{de::Error, Deserialize, Deserializer};
+use serde::de::Error;
+use serde::{Deserialize, Deserializer};
 use sui_json_rpc_types::{SuiEvent, SuiTransactionBlockResponse};
 use sui_types::base_types::SuiAddress;
 
-use crate::{
-    handlers::{sui_verify_msg::Message, sui_verify_verifier_set::VerifierSetConfirmation},
-    types::Hash,
-};
+use crate::handlers::sui_verify_msg::Message;
+use crate::handlers::sui_verify_verifier_set::VerifierSetConfirmation;
+use crate::types::Hash;
 
 fn deserialize_from_str<'de, D, R>(deserializer: D) -> Result<R, D::Error>
 where
@@ -206,23 +207,22 @@ mod tests {
     use ecdsa::SigningKey;
     use ethers_core::abi::AbiEncode;
     use move_core_types::language_storage::StructTag;
-    use multisig::{key::KeyType, msg::Signer, verifier_set::VerifierSet};
+    use multisig::key::KeyType;
+    use multisig::msg::Signer;
+    use multisig::verifier_set::VerifierSet;
     use rand::rngs::OsRng;
     use random_string::generate;
     use router_api::ChainName;
     use serde_json::json;
     use sui_json_rpc_types::{SuiEvent, SuiTransactionBlockEvents, SuiTransactionBlockResponse};
-    use sui_types::{
-        base_types::{SuiAddress, TransactionDigest},
-        event::EventID,
-    };
+    use sui_types::base_types::{SuiAddress, TransactionDigest};
+    use sui_types::event::EventID;
 
-    use crate::{
-        handlers::{sui_verify_msg::Message, sui_verify_verifier_set::VerifierSetConfirmation},
-        sui::verifier::{verify_message, verify_verifier_set},
-        types::{EVMAddress, Hash},
-        PREFIX,
-    };
+    use crate::handlers::sui_verify_msg::Message;
+    use crate::handlers::sui_verify_verifier_set::VerifierSetConfirmation;
+    use crate::sui::verifier::{verify_message, verify_verifier_set};
+    use crate::types::{EVMAddress, Hash};
+    use crate::PREFIX;
 
     #[test]
     fn should_not_verify_msg_if_tx_id_does_not_match() {

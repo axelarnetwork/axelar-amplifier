@@ -3,12 +3,10 @@ use cosmwasm_std::entry_point;
 use cosmwasm_std::{DepsMut, Empty, Env, MessageInfo, Response};
 use error_stack::ResultExt;
 
-use crate::{
-    error::ContractError,
-    msg::{ExecuteMsg, InstantiateMsg},
-    nexus,
-    state::{Config, GatewayStore, Store},
-};
+use crate::error::ContractError;
+use crate::msg::{ExecuteMsg, InstantiateMsg};
+use crate::nexus;
+use crate::state::{Config, GatewayStore, Store};
 
 mod execute;
 

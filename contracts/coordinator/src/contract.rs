@@ -10,12 +10,10 @@ use cosmwasm_std::{
 };
 use error_stack::report;
 
-use crate::{
-    contract::migrations::v0_2_0,
-    error::ContractError,
-    msg::{ExecuteMsg, InstantiateMsg, QueryMsg},
-    state::is_prover_registered,
-};
+use crate::contract::migrations::v0_2_0;
+use crate::error::ContractError;
+use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
+use crate::state::is_prover_registered;
 
 pub const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 pub const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -102,10 +100,10 @@ mod tests {
     use std::collections::HashSet;
 
     use axelar_wasm_std::permission_control::Permission;
-    use cosmwasm_std::{
-        testing::{mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage},
-        Addr, Empty, OwnedDeps,
+    use cosmwasm_std::testing::{
+        mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
     };
+    use cosmwasm_std::{Addr, Empty, OwnedDeps};
     use router_api::ChainName;
 
     use super::*;

@@ -1,20 +1,19 @@
-use std::{str::FromStr, vec::Vec};
+use std::str::FromStr;
+use std::vec::Vec;
 
-use axelar_wasm_std::{
-    msg_id::{
-        Base58SolanaTxSignatureAndEventIndex, Base58TxDigestAndEventIndex, HexTxHashAndEventIndex,
-        MessageIdFormat,
-    },
-    nonempty,
-    voting::{PollId, Vote},
-    VerificationStatus,
+use axelar_wasm_std::msg_id::{
+    Base58SolanaTxSignatureAndEventIndex, Base58TxDigestAndEventIndex, HexTxHashAndEventIndex,
+    MessageIdFormat,
 };
+use axelar_wasm_std::voting::{PollId, Vote};
+use axelar_wasm_std::{nonempty, VerificationStatus};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Attribute, Event};
 use multisig::verifier_set::VerifierSet;
 use router_api::{Address, ChainName, Message};
 
-use crate::{error::ContractError, state::Config};
+use crate::error::ContractError;
+use crate::state::Config;
 
 impl From<Config> for Vec<Attribute> {
     fn from(other: Config) -> Self {
@@ -265,10 +264,10 @@ where
 mod test {
     use std::collections::BTreeMap;
 
-    use axelar_wasm_std::{
-        msg_id::{Base58TxDigestAndEventIndex, HexTxHashAndEventIndex, MessageIdFormat},
-        nonempty,
+    use axelar_wasm_std::msg_id::{
+        Base58TxDigestAndEventIndex, HexTxHashAndEventIndex, MessageIdFormat,
     };
+    use axelar_wasm_std::nonempty;
     use cosmwasm_std::Uint128;
     use multisig::verifier_set::VerifierSet;
     use router_api::{CrossChainId, Message};

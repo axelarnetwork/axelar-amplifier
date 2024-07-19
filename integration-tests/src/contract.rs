@@ -1,7 +1,8 @@
 use cosmwasm_std::{Addr, Coin, StdError, StdResult};
 use cw_multi_test::{App, AppResponse, Executor};
 use error_stack::{report, Result};
-use serde::{de::DeserializeOwned, Serialize};
+use serde::de::DeserializeOwned;
+use serde::Serialize;
 
 pub trait Contract {
     type QMsg;

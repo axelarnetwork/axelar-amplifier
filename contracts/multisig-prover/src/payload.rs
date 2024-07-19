@@ -3,14 +3,13 @@ use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{from_json, HexBinary, StdResult};
 use cw_storage_plus::{Key, KeyDeserialize, PrimaryKey};
 use error_stack::Result;
-use multisig::{msg::SignerWithSig, verifier_set::VerifierSet};
+use multisig::msg::SignerWithSig;
+use multisig::verifier_set::VerifierSet;
 use router_api::{CrossChainId, Message};
 use sha3::{Digest, Keccak256};
 
-use crate::{
-    encoding::{abi, Encoder},
-    error::ContractError,
-};
+use crate::encoding::{abi, Encoder};
+use crate::error::ContractError;
 
 #[cw_serde]
 pub enum Payload {
@@ -115,7 +114,8 @@ impl From<&[CrossChainId]> for PayloadId {
 mod test {
     use router_api::CrossChainId;
 
-    use crate::{payload::PayloadId, test::test_data};
+    use crate::payload::PayloadId;
+    use crate::test::test_data;
 
     #[test]
     fn test_payload_id() {

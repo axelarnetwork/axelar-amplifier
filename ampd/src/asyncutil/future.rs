@@ -1,8 +1,6 @@
-use std::{
-    pin::Pin,
-    task::{Context, Poll},
-    time::Duration,
-};
+use std::pin::Pin;
+use std::task::{Context, Poll};
+use std::time::Duration;
 
 use futures::{Future, FutureExt};
 use tokio::time;
@@ -103,7 +101,8 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::{future, sync::Mutex};
+    use std::future;
+    use std::sync::Mutex;
 
     use tokio::time::Instant;
 

@@ -4,7 +4,9 @@ use cosmwasm_std::{Addr, Storage};
 use cw_storage_plus::{Item, Map};
 use router_api::ChainName;
 
-use crate::{contract::CONTRACT_NAME, error::ContractError, state::save_prover_for_chain};
+use crate::contract::CONTRACT_NAME;
+use crate::error::ContractError;
+use crate::state::save_prover_for_chain;
 
 const BASE_VERSION: &str = "0.2.0";
 
@@ -48,23 +50,17 @@ pub const PROVER_PER_CHAIN: Map<ChainName, Addr> = Map::new("prover_per_chain");
 
 #[cfg(test)]
 mod tests {
-    use cosmwasm_std::{
-        testing::{mock_dependencies, mock_env, mock_info},
-        Addr, DepsMut, Env, MessageInfo, Response,
-    };
+    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
+    use cosmwasm_std::{Addr, DepsMut, Env, MessageInfo, Response};
     use router_api::ChainName;
 
     use super::PROVER_PER_CHAIN;
-    use crate::{
-        contract::{
-            execute,
-            migrations::{v0_2_0, v0_2_0::BASE_VERSION},
-            CONTRACT_NAME,
-        },
-        error::ContractError,
-        msg::{ExecuteMsg, InstantiateMsg},
-        state::{is_prover_registered, load_prover_by_chain},
-    };
+    use crate::contract::migrations::v0_2_0;
+    use crate::contract::migrations::v0_2_0::BASE_VERSION;
+    use crate::contract::{execute, CONTRACT_NAME};
+    use crate::error::ContractError;
+    use crate::msg::{ExecuteMsg, InstantiateMsg};
+    use crate::state::{is_prover_registered, load_prover_by_chain};
 
     #[test]
     fn migrate_checks_contract_version() {

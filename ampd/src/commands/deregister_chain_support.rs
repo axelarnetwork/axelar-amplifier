@@ -1,16 +1,15 @@
 use axelar_wasm_std::nonempty;
-use cosmrs::{cosmwasm::MsgExecuteContract, tx::Msg};
+use cosmrs::cosmwasm::MsgExecuteContract;
+use cosmrs::tx::Msg;
 use error_stack::Result;
 use report::ResultCompatExt;
 use router_api::ChainName;
 use service_registry::msg::ExecuteMsg;
 use valuable::Valuable;
 
-use crate::{
-    commands::{broadcast_tx, verifier_pub_key},
-    config::Config,
-    Error, PREFIX,
-};
+use crate::commands::{broadcast_tx, verifier_pub_key};
+use crate::config::Config;
+use crate::{Error, PREFIX};
 
 #[derive(clap::Args, Debug, Valuable)]
 pub struct Args {

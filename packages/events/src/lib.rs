@@ -1,4 +1,5 @@
-pub use crate::{errors::Error, event::*};
+pub use crate::errors::Error;
+pub use crate::event::*;
 
 mod event;
 

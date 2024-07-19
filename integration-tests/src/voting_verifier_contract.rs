@@ -3,7 +3,8 @@ use cosmwasm_std::Addr;
 use cw_multi_test::{ContractWrapper, Executor};
 use router_api::ChainName;
 
-use crate::{contract::Contract, protocol::Protocol};
+use crate::contract::Contract;
+use crate::protocol::Protocol;
 
 #[derive(Clone)]
 pub struct VotingVerifierContract {

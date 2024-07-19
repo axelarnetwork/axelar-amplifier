@@ -1,14 +1,12 @@
-use std::{
-    collections::{HashMap, HashSet},
-    convert::TryInto,
-};
+use std::collections::{HashMap, HashSet};
+use std::convert::TryInto;
 
 use async_trait::async_trait;
-use axelar_wasm_std::{
-    msg_id::HexTxHashAndEventIndex,
-    voting::{PollId, Vote},
-};
-use cosmrs::{cosmwasm::MsgExecuteContract, tx::Msg, Any};
+use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
+use axelar_wasm_std::voting::{PollId, Vote};
+use cosmrs::cosmwasm::MsgExecuteContract;
+use cosmrs::tx::Msg;
+use cosmrs::Any;
 use error_stack::ResultExt;
 use ethers_core::types::{TransactionReceipt, U64};
 use events::Error::EventTypeMismatch;
@@ -21,12 +19,14 @@ use tracing::{info, info_span};
 use valuable::Valuable;
 use voting_verifier::msg::ExecuteMsg;
 
-use crate::{
-    event_processor::EventHandler,
-    evm::{finalizer, finalizer::Finalization, json_rpc::EthereumClient, verifier::verify_message},
-    handlers::errors::{Error, Error::DeserializeEvent},
-    types::{EVMAddress, Hash, TMAddress},
-};
+use crate::event_processor::EventHandler;
+use crate::evm::finalizer;
+use crate::evm::finalizer::Finalization;
+use crate::evm::json_rpc::EthereumClient;
+use crate::evm::verifier::verify_message;
+use crate::handlers::errors::Error;
+use crate::handlers::errors::Error::DeserializeEvent;
+use crate::types::{EVMAddress, Hash, TMAddress};
 
 type Result<T> = error_stack::Result<T, Error>;
 
@@ -223,28 +223,28 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::{convert::TryInto, str::FromStr};
+    use std::convert::TryInto;
+    use std::str::FromStr;
 
-    use base64::{engine::general_purpose::STANDARD, Engine};
+    use base64::engine::general_purpose::STANDARD;
+    use base64::Engine;
     use cosmwasm_std;
     use error_stack::{Report, Result};
     use ethers_providers::ProviderError;
-    use events::{
-        Error::{DeserializationFailed, EventTypeMismatch},
-        Event,
-    };
+    use events::Error::{DeserializationFailed, EventTypeMismatch};
+    use events::Event;
     use router_api::ChainName;
     use tendermint::abci;
-    use tokio::{sync::watch, test as async_test};
+    use tokio::sync::watch;
+    use tokio::test as async_test;
     use voting_verifier::events::{PollMetadata, PollStarted, TxEventConfirmation};
 
     use super::PollStartedEvent;
-    use crate::{
-        event_processor::EventHandler,
-        evm::{finalizer::Finalization, json_rpc::MockEthereumClient},
-        types::{EVMAddress, Hash, TMAddress},
-        PREFIX,
-    };
+    use crate::event_processor::EventHandler;
+    use crate::evm::finalizer::Finalization;
+    use crate::evm::json_rpc::MockEthereumClient;
+    use crate::types::{EVMAddress, Hash, TMAddress};
+    use crate::PREFIX;
 
     fn get_poll_started_event(participants: Vec<TMAddress>, expires_at: u64) -> PollStarted {
         PollStarted::Messages {

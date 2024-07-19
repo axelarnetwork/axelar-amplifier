@@ -3,7 +3,8 @@ use cosmwasm_std::Storage;
 use error_stack::{report, Result, ResultExt};
 use router_api::{CrossChainId, Message};
 
-use crate::{contract::Error, state};
+use crate::contract::Error;
+use crate::state;
 
 pub fn get_outgoing_messages(
     storage: &dyn Storage,

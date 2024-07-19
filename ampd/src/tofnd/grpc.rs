@@ -6,17 +6,16 @@ use error_stack::{Report, ResultExt};
 use k256::Secp256k1;
 use mockall::automock;
 use tokio::sync::Mutex;
-use tonic::{transport::Channel, Status};
+use tonic::transport::Channel;
+use tonic::Status;
 
-use super::{
-    error::{Error, TofndError},
-    proto::{
-        keygen_response::KeygenResponse, multisig_client, sign_response::SignResponse, Algorithm,
-        KeygenRequest, SignRequest,
-    },
-    MessageDigest, Signature,
-};
-use crate::{types::PublicKey, url::Url};
+use super::error::{Error, TofndError};
+use super::proto::keygen_response::KeygenResponse;
+use super::proto::sign_response::SignResponse;
+use super::proto::{multisig_client, Algorithm, KeygenRequest, SignRequest};
+use super::{MessageDigest, Signature};
+use crate::types::PublicKey;
+use crate::url::Url;
 
 type Result<T> = error_stack::Result<T, Error>;
 

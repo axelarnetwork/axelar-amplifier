@@ -1,23 +1,22 @@
 use std::collections::{BTreeMap, HashSet};
 
-use axelar_wasm_std::{
-    snapshot::{Participant, Snapshot},
-    FnExt, MajorityThreshold, VerificationStatus,
-};
+use axelar_wasm_std::snapshot::{Participant, Snapshot};
+use axelar_wasm_std::{FnExt, MajorityThreshold, VerificationStatus};
 use cosmwasm_std::{
     to_json_binary, wasm_execute, Addr, DepsMut, Env, MessageInfo, QuerierWrapper, QueryRequest,
     Response, Storage, SubMsg, WasmQuery,
 };
 use itertools::Itertools;
-use multisig::{msg::Signer, verifier_set::VerifierSet};
+use multisig::msg::Signer;
+use multisig::verifier_set::VerifierSet;
 use router_api::{ChainName, CrossChainId, Message};
 use service_registry::state::{Service, WeightedVerifier};
 
-use crate::{
-    contract::START_MULTISIG_REPLY_ID,
-    error::ContractError,
-    payload::Payload,
-    state::{Config, CONFIG, CURRENT_VERIFIER_SET, NEXT_VERIFIER_SET, PAYLOAD, REPLY_TRACKER},
+use crate::contract::START_MULTISIG_REPLY_ID;
+use crate::error::ContractError;
+use crate::payload::Payload;
+use crate::state::{
+    Config, CONFIG, CURRENT_VERIFIER_SET, NEXT_VERIFIER_SET, PAYLOAD, REPLY_TRACKER,
 };
 
 pub fn require_admin(deps: &DepsMut, info: MessageInfo) -> Result<(), ContractError> {
@@ -429,18 +428,14 @@ mod tests {
     use std::collections::BTreeMap;
 
     use axelar_wasm_std::Threshold;
-    use cosmwasm_std::{
-        testing::{mock_dependencies, mock_env},
-        Addr,
-    };
+    use cosmwasm_std::testing::{mock_dependencies, mock_env};
+    use cosmwasm_std::Addr;
     use router_api::ChainName;
 
     use super::{different_set_in_progress, get_next_verifier_set};
-    use crate::{
-        execute::should_update_verifier_set,
-        state::{Config, NEXT_VERIFIER_SET},
-        test::test_data,
-    };
+    use crate::execute::should_update_verifier_set;
+    use crate::state::{Config, NEXT_VERIFIER_SET};
+    use crate::test::test_data;
 
     #[test]
     fn should_update_verifier_set_no_change() {

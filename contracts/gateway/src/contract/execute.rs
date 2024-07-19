@@ -2,10 +2,13 @@ use axelar_wasm_std::{FnExt, VerificationStatus};
 use cosmwasm_std::{Event, Response, Storage, WasmMsg};
 use error_stack::{Result, ResultExt};
 use itertools::Itertools;
-use router_api::{client::Router, Message};
+use router_api::client::Router;
+use router_api::Message;
 use voting_verifier::msg::MessageStatus;
 
-use crate::{contract::Error, events::GatewayEvent, state};
+use crate::contract::Error;
+use crate::events::GatewayEvent;
+use crate::state;
 
 pub fn verify_messages(
     verifier: &voting_verifier::Client,

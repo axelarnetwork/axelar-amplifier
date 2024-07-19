@@ -1,29 +1,26 @@
 use std::collections::{HashMap, HashSet};
 
-use axelar_wasm_std::{
-    msg_id::HexTxHashAndEventIndex,
-    nonempty,
-    voting::{PollId, Vote},
-    Participant, Threshold,
-};
+use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
+use axelar_wasm_std::voting::{PollId, Vote};
+use axelar_wasm_std::{nonempty, Participant, Threshold};
 use coordinator::msg::ExecuteMsg as CoordinatorExecuteMsg;
 use cosmwasm_std::{
     coins, Addr, Attribute, BlockInfo, Event, HexBinary, StdError, Uint128, Uint64,
 };
 use cw_multi_test::{App, AppResponse, Executor};
-use integration_tests::{
-    contract::Contract, coordinator_contract::CoordinatorContract,
-    gateway_contract::GatewayContract, multisig_contract::MultisigContract,
-    multisig_prover_contract::MultisigProverContract, protocol::Protocol,
-    rewards_contract::RewardsContract, router_contract::RouterContract,
-    service_registry_contract::ServiceRegistryContract,
-    voting_verifier_contract::VotingVerifierContract,
-};
+use integration_tests::contract::Contract;
+use integration_tests::coordinator_contract::CoordinatorContract;
+use integration_tests::gateway_contract::GatewayContract;
+use integration_tests::multisig_contract::MultisigContract;
+use integration_tests::multisig_prover_contract::MultisigProverContract;
+use integration_tests::protocol::Protocol;
+use integration_tests::rewards_contract::RewardsContract;
+use integration_tests::router_contract::RouterContract;
+use integration_tests::service_registry_contract::ServiceRegistryContract;
+use integration_tests::voting_verifier_contract::VotingVerifierContract;
 use k256::ecdsa;
-use multisig::{
-    key::{KeyType, PublicKey},
-    verifier_set::VerifierSet,
-};
+use multisig::key::{KeyType, PublicKey};
+use multisig::verifier_set::VerifierSet;
 use multisig_prover::msg::VerifierSetResponse;
 use rewards::state::PoolId;
 use router_api::{Address, ChainName, CrossChainId, GatewayDirection, Message};

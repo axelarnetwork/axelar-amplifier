@@ -1,28 +1,19 @@
 use clap::Subcommand;
-use cosmrs::{
-    proto::{
-        cosmos::{
-            auth::v1beta1::query_client::QueryClient as AuthQueryClient,
-            bank::v1beta1::query_client::QueryClient as BankQueryClient,
-            base::abci::v1beta1::TxResponse, tx::v1beta1::service_client::ServiceClient,
-        },
-        Any,
-    },
-    AccountId,
-};
+use cosmrs::proto::cosmos::auth::v1beta1::query_client::QueryClient as AuthQueryClient;
+use cosmrs::proto::cosmos::bank::v1beta1::query_client::QueryClient as BankQueryClient;
+use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
+use cosmrs::proto::cosmos::tx::v1beta1::service_client::ServiceClient;
+use cosmrs::proto::Any;
+use cosmrs::AccountId;
 use error_stack::{Result, ResultExt};
 use serde::{Deserialize, Serialize};
 use valuable::Valuable;
 
-use crate::{
-    broadcaster,
-    broadcaster::Broadcaster,
-    config::Config as AmpdConfig,
-    tofnd,
-    tofnd::grpc::{Multisig, MultisigClient},
-    types::{PublicKey, TMAddress},
-    Error, PREFIX,
-};
+use crate::broadcaster::Broadcaster;
+use crate::config::Config as AmpdConfig;
+use crate::tofnd::grpc::{Multisig, MultisigClient};
+use crate::types::{PublicKey, TMAddress};
+use crate::{broadcaster, tofnd, Error, PREFIX};
 
 pub mod bond_verifier;
 pub mod daemon;

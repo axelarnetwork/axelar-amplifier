@@ -2,7 +2,9 @@ use cosmwasm_std::{to_json_binary, Addr, Response, WasmMsg};
 use error_stack::report;
 
 use super::Contract;
-use crate::{error::ContractError, nexus, state::Store};
+use crate::error::ContractError;
+use crate::nexus;
+use crate::state::Store;
 
 type Result<T> = error_stack::Result<T, ContractError>;
 

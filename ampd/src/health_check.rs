@@ -1,6 +1,8 @@
 use std::net::SocketAddrV4;
 
-use axum::{http::StatusCode, routing::get, Json, Router};
+use axum::http::StatusCode;
+use axum::routing::get;
+use axum::{Json, Router};
 use error_stack::{Result, ResultExt};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -55,10 +57,8 @@ struct Status {
 #[cfg(test)]
 mod tests {
 
-    use std::{
-        net::{SocketAddr, TcpListener},
-        time::Duration,
-    };
+    use std::net::{SocketAddr, TcpListener};
+    use std::time::Duration;
 
     use tokio::test as async_test;
 

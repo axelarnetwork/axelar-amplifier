@@ -2,7 +2,8 @@ use cosmwasm_std::Addr;
 use cw_multi_test::Executor;
 use integration_tests::contract::Contract;
 use multisig_prover::msg::ExecuteMsg;
-use service_registry::{msg::QueryMsg as ServiceRegistryQueryMsg, state::WeightedVerifier};
+use service_registry::msg::QueryMsg as ServiceRegistryQueryMsg;
+use service_registry::state::WeightedVerifier;
 use test_utils::{
     create_new_verifiers_vec, get_multisig_session_id, register_in_service_registry,
     register_verifiers, rotate_active_verifier_set, Verifier,

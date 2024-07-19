@@ -6,12 +6,10 @@ use sha3::{Digest, Keccak256};
 use signature_verifier_api::client::SignatureVerifier;
 
 use super::*;
-use crate::{
-    key::{KeyTyped, PublicKey, Signature},
-    signing::{validate_session_signature, SigningSession},
-    state::{load_session_signatures, save_pub_key, save_signature, AUTHORIZED_CALLERS},
-    verifier_set::VerifierSet,
-};
+use crate::key::{KeyTyped, PublicKey, Signature};
+use crate::signing::{validate_session_signature, SigningSession};
+use crate::state::{load_session_signatures, save_pub_key, save_signature, AUTHORIZED_CALLERS};
+use crate::verifier_set::VerifierSet;
 
 pub fn start_signing_session(
     deps: DepsMut,
