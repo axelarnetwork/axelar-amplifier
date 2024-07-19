@@ -1,12 +1,10 @@
 use core::fmt::Debug;
 use std::future::Future;
 
+use cosmrs::proto::cosmos::tx::v1beta1::TxRaw;
 use cosmrs::tendermint::chain::Id;
-use cosmrs::{
-    proto::cosmos::tx::v1beta1::TxRaw,
-    tx::{BodyBuilder, Fee, SignDoc, SignerInfo},
-    Any, Coin,
-};
+use cosmrs::tx::{BodyBuilder, Fee, SignDoc, SignerInfo};
+use cosmrs::{Any, Coin};
 use error_stack::{Context, Result, ResultExt};
 use report::ResultCompatExt;
 use thiserror::Error;
@@ -98,24 +96,21 @@ where
 
 #[cfg(test)]
 mod tests {
+    use cosmrs::bank::MsgSend;
+    use cosmrs::bip32::secp256k1::elliptic_curve::rand_core::OsRng;
+    use cosmrs::crypto::secp256k1::SigningKey;
+    use cosmrs::proto::cosmos::tx::v1beta1::TxRaw;
     use cosmrs::proto::Any;
-    use cosmrs::{
-        bank::MsgSend,
-        bip32::secp256k1::elliptic_curve::rand_core::OsRng,
-        crypto::secp256k1::SigningKey,
-        proto::cosmos::tx::v1beta1::TxRaw,
-        tendermint::chain::Id,
-        tx::{BodyBuilder, Fee, Msg, SignDoc, SignerInfo},
-        AccountId, Coin,
-    };
+    use cosmrs::tendermint::chain::Id;
+    use cosmrs::tx::{BodyBuilder, Fee, Msg, SignDoc, SignerInfo};
+    use cosmrs::{AccountId, Coin};
     use error_stack::Result;
     use k256::ecdsa;
     use k256::sha2::{Digest, Sha256};
     use tokio::test;
 
-    use crate::types::PublicKey;
-
     use super::{Error, Tx, DUMMY_CHAIN_ID};
+    use crate::types::PublicKey;
 
     #[test]
     async fn sign_with_should_produce_the_correct_tx() {

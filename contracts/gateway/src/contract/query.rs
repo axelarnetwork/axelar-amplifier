@@ -1,7 +1,6 @@
+use axelar_wasm_std::error::extend_err;
 use cosmwasm_std::Storage;
 use error_stack::{report, Result, ResultExt};
-
-use axelar_wasm_std::error::extend_err;
 use router_api::{CrossChainId, Message};
 
 use crate::contract::Error;
@@ -41,7 +40,6 @@ fn accumulate_errs(
 #[cfg(test)]
 mod test {
     use cosmwasm_std::testing::mock_dependencies;
-
     use router_api::{CrossChainId, Message};
 
     use crate::state;

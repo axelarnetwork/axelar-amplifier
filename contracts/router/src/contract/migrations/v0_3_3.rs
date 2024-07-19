@@ -1,13 +1,13 @@
 #![allow(deprecated)]
 
+use axelar_wasm_std::{killswitch, permission_control, ContractError};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, StdResult, Storage};
 use cw_storage_plus::Item;
+use router_api::error::Error;
 
 use crate::contract::CONTRACT_NAME;
 use crate::state;
-use axelar_wasm_std::{killswitch, permission_control, ContractError};
-use router_api::error::Error;
 
 const BASE_VERSION: &str = "0.3.3";
 
@@ -51,11 +51,10 @@ const CONFIG: Item<Config> = Item::new("config");
 mod test {
     use std::collections::HashMap;
 
-    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-    use cosmwasm_std::{DepsMut, Env, MessageInfo, Response};
-
     use axelar_wasm_std::msg_id::MessageIdFormat;
     use axelar_wasm_std::{killswitch, ContractError};
+    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
+    use cosmwasm_std::{DepsMut, Env, MessageInfo, Response};
     use router_api::msg::ExecuteMsg;
 
     use crate::contract::migrations::v0_3_3;

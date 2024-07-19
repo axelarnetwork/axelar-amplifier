@@ -3,20 +3,19 @@ use std::fmt::Debug;
 use std::fs::File;
 use std::iter;
 
+use axelar_wasm_std::{ContractError, VerificationStatus};
 use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info, MockQuerier};
 #[cfg(not(feature = "generate_golden_files"))]
 use cosmwasm_std::Response;
 use cosmwasm_std::{
     from_json, to_json_binary, Addr, ContractResult, DepsMut, QuerierResult, WasmQuery,
 };
-use itertools::Itertools;
-use serde::Serialize;
-
-use axelar_wasm_std::{ContractError, VerificationStatus};
 use gateway::contract::*;
 use gateway::msg::InstantiateMsg;
 use gateway_api::msg::{ExecuteMsg, QueryMsg};
+use itertools::Itertools;
 use router_api::{CrossChainId, Message};
+use serde::Serialize;
 use voting_verifier::msg::MessageStatus;
 
 #[test]

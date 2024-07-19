@@ -4,10 +4,8 @@ use cosmwasm_std::{Addr, HexBinary, Uint64};
 use router_api::ChainName;
 use serde_json::to_string;
 
-use crate::{
-    key::{PublicKey, Signature},
-    types::MsgToSign,
-};
+use crate::key::{PublicKey, Signature};
+use crate::types::MsgToSign;
 
 pub enum Event {
     // Emitted when a new signing session is open

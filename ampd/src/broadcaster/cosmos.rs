@@ -15,7 +15,6 @@ use cosmrs::proto::cosmos::tx::v1beta1::service_client::ServiceClient;
 use cosmrs::proto::cosmos::tx::v1beta1::{
     BroadcastTxRequest, GetTxRequest, GetTxResponse, SimulateRequest, SimulateResponse,
 };
-
 use mockall::automock;
 use tonic::transport::Channel;
 use tonic::{Response, Status};

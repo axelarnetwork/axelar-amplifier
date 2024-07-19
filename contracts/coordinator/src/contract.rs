@@ -2,10 +2,6 @@ mod execute;
 mod query;
 
 mod migrations;
-use crate::contract::migrations::v0_2_0;
-use crate::error::ContractError;
-use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
-use crate::state::is_prover_registered;
 use axelar_wasm_std::permission_control;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
@@ -13,6 +9,11 @@ use cosmwasm_std::{
     to_json_binary, Addr, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response, Storage,
 };
 use error_stack::report;
+
+use crate::contract::migrations::v0_2_0;
+use crate::error::ContractError;
+use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
+use crate::state::is_prover_registered;
 
 pub const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 pub const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -98,14 +99,15 @@ mod tests {
 
     use std::collections::HashSet;
 
-    use super::*;
-    use crate::state::load_prover_by_chain;
     use axelar_wasm_std::permission_control::Permission;
     use cosmwasm_std::testing::{
         mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
     };
     use cosmwasm_std::{Addr, Empty, OwnedDeps};
     use router_api::ChainName;
+
+    use super::*;
+    use crate::state::load_prover_by_chain;
 
     struct TestSetup {
         deps: OwnedDeps<MockStorage, MockApi, MockQuerier, Empty>,

@@ -1,5 +1,4 @@
 use cosmwasm_std::{Addr, HexBinary};
-
 use integration_tests::contract::Contract;
 use router_api::{CrossChainId, Message};
 

@@ -1,9 +1,8 @@
+use axelar_wasm_std::voting::Vote;
 use ethers_contract::EthLogDecode;
 use ethers_core::types::{Log, TransactionReceipt, H256};
-use num_traits::cast;
-
-use axelar_wasm_std::voting::Vote;
 use evm_gateway::{IAxelarAmplifierGatewayEvents, WeightedSigners};
+use num_traits::cast;
 
 use crate::handlers::evm_verify_msg::Message;
 use crate::handlers::evm_verify_verifier_set::VerifierSetConfirmation;
@@ -121,24 +120,17 @@ mod tests {
     use axelar_wasm_std::voting::Vote;
     use cosmwasm_std::Uint128;
     use ethers_contract::EthEvent;
-    use ethers_core::{
-        abi::{encode, Token},
-        types::{Log, TransactionReceipt, H256},
-    };
-    use evm_gateway::{
-        i_axelar_amplifier_gateway::{ContractCallFilter, SignersRotatedFilter},
-        WeightedSigners,
-    };
-    use multisig::{
-        key::KeyType,
-        test::common::{build_verifier_set, ecdsa_test_data},
-    };
+    use ethers_core::abi::{encode, Token};
+    use ethers_core::types::{Log, TransactionReceipt, H256};
+    use evm_gateway::i_axelar_amplifier_gateway::{ContractCallFilter, SignersRotatedFilter};
+    use evm_gateway::WeightedSigners;
+    use multisig::key::KeyType;
+    use multisig::test::common::{build_verifier_set, ecdsa_test_data};
 
     use super::{verify_message, verify_verifier_set};
-    use crate::{
-        handlers::{evm_verify_msg::Message, evm_verify_verifier_set::VerifierSetConfirmation},
-        types::{EVMAddress, Hash},
-    };
+    use crate::handlers::evm_verify_msg::Message;
+    use crate::handlers::evm_verify_verifier_set::VerifierSetConfirmation;
+    use crate::types::{EVMAddress, Hash};
 
     #[test]
     fn should_not_verify_verifier_set_if_tx_id_does_not_match() {

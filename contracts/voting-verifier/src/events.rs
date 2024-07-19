@@ -1,15 +1,14 @@
 use std::str::FromStr;
 use std::vec::Vec;
 
-use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, Attribute, Event};
-
-use axelar_wasm_std::msg_id::Base58SolanaTxSignatureAndEventIndex;
-use axelar_wasm_std::msg_id::Base58TxDigestAndEventIndex;
-use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
-use axelar_wasm_std::msg_id::MessageIdFormat;
+use axelar_wasm_std::msg_id::{
+    Base58SolanaTxSignatureAndEventIndex, Base58TxDigestAndEventIndex, HexTxHashAndEventIndex,
+    MessageIdFormat,
+};
 use axelar_wasm_std::voting::{PollId, Vote};
 use axelar_wasm_std::{nonempty, VerificationStatus};
+use cosmwasm_schema::cw_serde;
+use cosmwasm_std::{Addr, Attribute, Event};
 use multisig::verifier_set::VerifierSet;
 use router_api::{Address, ChainName, Message};
 
@@ -265,12 +264,11 @@ where
 mod test {
     use std::collections::BTreeMap;
 
-    use cosmwasm_std::Uint128;
-
-    use axelar_wasm_std::{
-        msg_id::{Base58TxDigestAndEventIndex, HexTxHashAndEventIndex, MessageIdFormat},
-        nonempty,
+    use axelar_wasm_std::msg_id::{
+        Base58TxDigestAndEventIndex, HexTxHashAndEventIndex, MessageIdFormat,
     };
+    use axelar_wasm_std::nonempty;
+    use cosmwasm_std::Uint128;
     use multisig::verifier_set::VerifierSet;
     use router_api::{CrossChainId, Message};
 

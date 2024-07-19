@@ -1,13 +1,12 @@
-use std::{fmt::Display, str::FromStr};
+use std::fmt::Display;
+use std::str::FromStr;
 
 use cosmwasm_schema::cw_serde;
 use error_stack::Report;
 
-pub use self::{
-    base_58_event_index::Base58TxDigestAndEventIndex,
-    base_58_solana_event_index::Base58SolanaTxSignatureAndEventIndex,
-    tx_hash_event_index::HexTxHashAndEventIndex,
-};
+pub use self::base_58_event_index::Base58TxDigestAndEventIndex;
+pub use self::base_58_solana_event_index::Base58SolanaTxSignatureAndEventIndex;
+pub use self::tx_hash_event_index::HexTxHashAndEventIndex;
 
 mod base_58_event_index;
 mod base_58_solana_event_index;
@@ -62,11 +61,9 @@ pub fn verify_msg_id(message_id: &str, format: &MessageIdFormat) -> Result<(), R
 
 #[cfg(test)]
 mod test {
-    use crate::msg_id::{
-        base_58_event_index::Base58TxDigestAndEventIndex, verify_msg_id, MessageIdFormat,
-    };
-
     use super::tx_hash_event_index::HexTxHashAndEventIndex;
+    use crate::msg_id::base_58_event_index::Base58TxDigestAndEventIndex;
+    use crate::msg_id::{verify_msg_id, MessageIdFormat};
 
     #[test]
     fn should_verify_hex_tx_hash_event_index_msg_id() {

@@ -8,7 +8,8 @@ use cw_storage_plus::{Item, Key, KeyDeserialize, Map, Prefixer, PrimaryKey};
 use error_stack::{Result, ResultExt};
 use router_api::ChainName;
 
-use crate::{error::ContractError, msg::Params};
+use crate::error::ContractError;
+use crate::msg::Params;
 
 #[cw_serde]
 pub struct Config {
@@ -399,12 +400,16 @@ impl<T> Deref for StorageState<T> {
 
 #[cfg(test)]
 mod test {
+    use std::collections::HashMap;
+
+    use cosmwasm_std::testing::mock_dependencies;
+    use cosmwasm_std::{Addr, Uint128, Uint64};
+    use router_api::ChainName;
+
     use super::*;
     use crate::error::ContractError;
-    use crate::{msg::Params, state::ParamsSnapshot};
-    use cosmwasm_std::{testing::mock_dependencies, Addr, Uint128, Uint64};
-    use router_api::ChainName;
-    use std::collections::HashMap;
+    use crate::msg::Params;
+    use crate::state::ParamsSnapshot;
 
     /// Test that the rewards are
     /// - distributed evenly to all verifiers that reach quorum

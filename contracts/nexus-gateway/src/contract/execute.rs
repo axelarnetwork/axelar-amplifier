@@ -1,11 +1,10 @@
 use cosmwasm_std::{to_json_binary, Addr, Response, WasmMsg};
 use error_stack::{report, ResultExt};
 
+use super::Contract;
 use crate::error::ContractError;
 use crate::nexus;
 use crate::state::Store;
-
-use super::Contract;
 
 type Result<T> = error_stack::Result<T, ContractError>;
 
@@ -73,15 +72,13 @@ where
 
 #[cfg(test)]
 mod test {
+    use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
     use cosmwasm_std::{from_json, CosmosMsg};
     use hex::decode;
-
-    use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
     use router_api::CrossChainId;
 
-    use crate::state::{Config, MockStore};
-
     use super::*;
+    use crate::state::{Config, MockStore};
 
     #[test]
     fn route_to_router_unauthorized() {

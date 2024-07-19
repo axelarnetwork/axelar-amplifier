@@ -1,16 +1,15 @@
 use std::collections::HashMap;
 
-use crate::{
-    key::{KeyType, KeyTyped, PublicKey, Signature},
-    signing::SigningSession,
-    verifier_set::VerifierSet,
-    ContractError,
-};
 use axelar_wasm_std::nonempty;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, HexBinary, Order, StdResult, Storage, Uint64};
 use cw_storage_plus::{Index, IndexList, IndexedMap, Item, Map, UniqueIndex};
 use router_api::ChainName;
+
+use crate::key::{KeyType, KeyTyped, PublicKey, Signature};
+use crate::signing::SigningSession;
+use crate::verifier_set::VerifierSet;
+use crate::ContractError;
 
 #[cw_serde]
 pub struct Config {
@@ -118,9 +117,8 @@ mod tests {
 
     use cosmwasm_std::testing::mock_dependencies;
 
-    use crate::test::common::ecdsa_test_data;
-
     use super::*;
+    use crate::test::common::ecdsa_test_data;
 
     #[test]
     fn should_fail_if_duplicate_public_key() {

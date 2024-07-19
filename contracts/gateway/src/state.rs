@@ -2,7 +2,6 @@ use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Storage};
 use cw_storage_plus::{Item, Map};
 use error_stack::{Result, ResultExt};
-
 use router_api::{CrossChainId, Message};
 
 #[cw_serde]
@@ -60,7 +59,6 @@ const OUTGOING_MESSAGES: Map<&CrossChainId, Message> = Map::new(OUTGOING_MESSAGE
 mod test {
     use cosmwasm_std::testing::mock_dependencies;
     use cosmwasm_std::Addr;
-
     use router_api::{CrossChainId, Message};
 
     use crate::state::{
