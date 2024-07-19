@@ -4,6 +4,7 @@ use std::ops::Mul;
 use std::time::Duration;
 
 use async_trait::async_trait;
+use axelar_wasm_std::FnExt;
 use cosmrs::proto::cosmos::auth::v1beta1::{
     BaseAccount, QueryAccountRequest, QueryAccountResponse,
 };
@@ -14,6 +15,7 @@ use cosmrs::proto::traits::MessageExt;
 use cosmrs::tendermint::chain::Id;
 use cosmrs::tx::Fee;
 use cosmrs::{Amount, Coin, Denom, Gas};
+use dec_coin::DecCoin;
 use error_stack::{ensure, report, FutureExt, Result, ResultExt};
 use futures::TryFutureExt;
 use k256::sha2::{Digest, Sha256};
@@ -21,16 +23,13 @@ use mockall::automock;
 use num_traits::{cast, Zero};
 use prost::Message;
 use prost_types::Any;
+use report::ResultCompatExt;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tonic::{Code, Status};
 use tracing::info;
-use typed_builder::TypedBuilder;
-
-use axelar_wasm_std::FnExt;
-use dec_coin::DecCoin;
-use report::ResultCompatExt;
 use tx::Tx;
+use typed_builder::TypedBuilder;
 
 use crate::tofnd;
 use crate::tofnd::grpc::Multisig;
@@ -370,6 +369,7 @@ fn remap_account_not_found_error(
 
 #[cfg(test)]
 mod tests {
+    use cosmrs::bank::MsgSend;
     use cosmrs::crypto::PublicKey;
     use cosmrs::proto::cosmos::auth::v1beta1::{BaseAccount, QueryAccountResponse};
     use cosmrs::proto::cosmos::bank::v1beta1::QueryBalanceResponse;
@@ -377,7 +377,8 @@ mod tests {
     use cosmrs::proto::cosmos::tx::v1beta1::{GetTxResponse, SimulateResponse};
     use cosmrs::proto::traits::MessageExt;
     use cosmrs::proto::Any;
-    use cosmrs::{bank::MsgSend, tx::Msg, AccountId, Coin, Denom};
+    use cosmrs::tx::Msg;
+    use cosmrs::{AccountId, Coin, Denom};
     use ecdsa::SigningKey;
     use k256::Secp256k1;
     use rand::rngs::OsRng;

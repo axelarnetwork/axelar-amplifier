@@ -1,9 +1,10 @@
+use std::fmt::Debug;
+
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response};
 use gateway_api::msg::{ExecuteMsg, QueryMsg};
 use router_api::CrossChainId;
-use std::fmt::Debug;
 
 use crate::msg::InstantiateMsg;
 

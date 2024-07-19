@@ -3,7 +3,8 @@ use std::collections::HashMap;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Uint128};
 
-use crate::{nonempty, threshold::MajorityThreshold};
+use crate::nonempty;
+use crate::threshold::MajorityThreshold;
 
 #[cw_serde]
 pub struct Participant {
@@ -61,9 +62,8 @@ impl Snapshot {
 mod tests {
     use cosmwasm_std::{from_json, to_json_binary, Uint64};
 
-    use crate::Threshold;
-
     use super::*;
+    use crate::Threshold;
 
     fn mock_participant(address: &str, weight: nonempty::Uint128) -> Participant {
         Participant {

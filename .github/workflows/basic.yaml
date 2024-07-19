@@ -94,13 +94,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install stable toolchain
+      - name: Install nightly toolchain
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: 1.78.0
+          toolchain: nightly
+          components: rustfmt
           override: true
-          components: rustfmt, clippy
 
       - name: Install protoc
         uses: arduino/setup-protoc@v2
@@ -127,6 +127,14 @@ jobs:
         with:
           command: fmt
           args: --all -- --check
+
+      - name: Install stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: 1.78.0
+          components: clippy
+          override: true
 
       - name: Run cargo sort
         uses: actions-rs/cargo@v1

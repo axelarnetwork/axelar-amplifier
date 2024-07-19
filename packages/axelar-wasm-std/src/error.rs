@@ -1,8 +1,9 @@
-use crate::permission_control;
 use cosmwasm_std::StdError;
 use error_stack::{Context, Report};
 use report::LoggableError;
 use thiserror::Error;
+
+use crate::permission_control;
 
 /// This error is supposed to be the top-level error type our contracts return to the cosmwasm module.
 /// Ideally, we would like to return an error-stack [Report] directly,

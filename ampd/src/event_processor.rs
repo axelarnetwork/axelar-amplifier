@@ -12,8 +12,7 @@ use thiserror::Error;
 use tokio::time::timeout;
 use tokio_stream::Stream;
 use tokio_util::sync::CancellationToken;
-use tracing::info;
-use tracing::warn;
+use tracing::{info, warn};
 use valuable::Valuable;
 
 use crate::asyncutil::future::{self, RetryPolicy};
@@ -183,6 +182,8 @@ enum StreamStatus {
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use async_trait::async_trait;
     use cosmrs::bank::MsgSend;
     use cosmrs::tx::Msg;
@@ -191,15 +192,12 @@ mod tests {
     use events::Event;
     use futures::stream;
     use mockall::mock;
-    use std::time::Duration;
     use tokio::time::timeout;
     use tokio_util::sync::CancellationToken;
 
     use crate::event_processor;
-    use crate::{
-        event_processor::{consume_events, Config, Error, EventHandler},
-        queue::queued_broadcaster::MockBroadcasterClient,
-    };
+    use crate::event_processor::{consume_events, Config, Error, EventHandler};
+    use crate::queue::queued_broadcaster::MockBroadcasterClient;
 
     pub fn setup_event_config(
         retry_delay_value: Duration,

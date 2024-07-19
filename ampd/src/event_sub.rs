@@ -1,22 +1,19 @@
 use std::iter;
 use std::time::Duration;
 
-use error_stack::ResultExt;
-use error_stack::{FutureExt, Report, Result};
+use error_stack::{FutureExt, Report, Result, ResultExt};
+use events::Event;
 use futures::TryStreamExt;
 use mockall::automock;
 use tendermint::block;
 use thiserror::Error;
-use tokio::select;
 use tokio::sync::broadcast::{self, Sender};
-use tokio::time;
+use tokio::{select, time};
 use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
 use tokio_stream::wrappers::BroadcastStream;
 use tokio_stream::Stream;
 use tokio_util::sync::CancellationToken;
 use tracing::info;
-
-use events::Event;
 
 use crate::asyncutil::future::{self, RetryPolicy};
 use crate::tm_client::TmClient;

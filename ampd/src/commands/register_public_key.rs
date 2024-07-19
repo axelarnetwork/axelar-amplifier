@@ -1,24 +1,21 @@
 use std::convert::{TryFrom, TryInto};
 
-use cosmrs::{cosmwasm::MsgExecuteContract, tx::Msg};
+use cosmrs::cosmwasm::MsgExecuteContract;
+use cosmrs::tx::Msg;
 use error_stack::{Result, ResultExt};
-use multisig::{key::PublicKey, msg::ExecuteMsg};
+use multisig::key::PublicKey;
+use multisig::msg::ExecuteMsg;
 use report::ResultCompatExt;
 use sha3::{Digest, Keccak256};
 use tracing::info;
 use valuable::Valuable;
 
-use crate::{
-    commands::{broadcast_tx, verifier_pub_key},
-    config::Config,
-    handlers,
-    tofnd::{
-        self,
-        grpc::{Multisig, MultisigClient},
-    },
-    types::TMAddress,
-    Error, PREFIX,
-};
+use crate::commands::{broadcast_tx, verifier_pub_key};
+use crate::config::Config;
+use crate::tofnd::grpc::{Multisig, MultisigClient};
+use crate::tofnd::{self};
+use crate::types::TMAddress;
+use crate::{handlers, Error, PREFIX};
 
 #[derive(clap::ValueEnum, Clone, Debug, Valuable, Copy)]
 enum KeyType {

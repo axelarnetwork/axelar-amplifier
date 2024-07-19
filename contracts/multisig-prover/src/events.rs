@@ -47,8 +47,9 @@ impl From<Event> for cosmwasm_std::Event {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use serde_json::to_string;
+
+    use super::*;
 
     #[test]
     fn proof_under_construction_is_serializable() {

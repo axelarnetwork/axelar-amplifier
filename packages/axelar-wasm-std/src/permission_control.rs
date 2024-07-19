@@ -1,11 +1,13 @@
-use crate::flagset::FlagSet;
-use crate::FnExt;
+use std::fmt::{Debug, Display, Formatter};
+
 use cosmwasm_std::{Addr, StdResult};
 use cw_storage_plus::Item;
 use flagset::{flags, Flags};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
-use std::fmt::{Debug, Display, Formatter};
+
+use crate::flagset::FlagSet;
+use crate::FnExt;
 
 flags! {
     #[repr(u8)]
@@ -94,8 +96,9 @@ pub fn sender_role(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use cosmwasm_std::testing::MockStorage;
+
+    use super::*;
 
     #[test]
     fn display_permissions() {

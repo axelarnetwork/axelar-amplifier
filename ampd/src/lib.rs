@@ -1,30 +1,27 @@
 use std::time::Duration;
 
+use asyncutil::task::{CancellableTask, TaskError, TaskGroup};
 use block_height_monitor::BlockHeightMonitor;
 use broadcaster::confirm_tx::TxConfirmer;
-use cosmrs::proto::cosmos::{
-    auth::v1beta1::query_client::QueryClient as AuthQueryClient,
-    bank::v1beta1::query_client::QueryClient as BankQueryClient,
-    tx::v1beta1::service_client::ServiceClient,
-};
+use broadcaster::Broadcaster;
+use cosmrs::proto::cosmos::auth::v1beta1::query_client::QueryClient as AuthQueryClient;
+use cosmrs::proto::cosmos::bank::v1beta1::query_client::QueryClient as BankQueryClient;
+use cosmrs::proto::cosmos::tx::v1beta1::service_client::ServiceClient;
 use error_stack::{FutureExt, Result, ResultExt};
+use event_processor::EventHandler;
+use event_sub::EventSub;
 use evm::finalizer::{pick, Finalization};
 use evm::json_rpc::EthereumClient;
+use queue::queued_broadcaster::QueuedBroadcaster;
 use router_api::ChainName;
 use thiserror::Error;
+use tofnd::grpc::{Multisig, MultisigClient};
 use tokio::signal::unix::{signal, SignalKind};
 use tokio::sync::mpsc;
 use tokio::time::interval;
 use tokio_util::sync::CancellationToken;
 use tonic::transport::Channel;
 use tracing::info;
-
-use asyncutil::task::{CancellableTask, TaskError, TaskGroup};
-use broadcaster::Broadcaster;
-use event_processor::EventHandler;
-use event_sub::EventSub;
-use queue::queued_broadcaster::QueuedBroadcaster;
-use tofnd::grpc::{Multisig, MultisigClient};
 use types::TMAddress;
 
 use crate::config::Config;

@@ -10,10 +10,10 @@ use syn::{Data, DataEnum, DeriveInput, Expr, ExprCall, Ident, Path, Token, Varia
 /// has the required permissions to execute the variant. The permissions are defined using the
 /// `#[permission]` attribute. The attribute can be used in two ways:
 /// - `#[permission(Permission1, Permission2, ...)]` requires the sender to have at least one of
-/// the specified permissions. These permissions are defined in the [axelar_wasm_std::permission_control::Permission] enum.
+///     the specified permissions. These permissions are defined in the [axelar_wasm_std::permission_control::Permission] enum.
 /// - `#[permission(Specific(Addr1, Addr2, ...))]` requires the sender to be one of the specified
-/// addresses. The macro will generate a function signature that takes closures as arguments to determine
-/// the whitelisted addresses.
+///     addresses. The macro will generate a function signature that takes closures as arguments to determine
+///     the whitelisted addresses.
 ///
 /// Both attributes can be used together, in which case the sender must have at least one of the
 /// specified permissions or be one of the specified addresses.

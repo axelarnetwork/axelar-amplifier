@@ -1,32 +1,26 @@
 use std::collections::HashMap;
 
+use axelar_wasm_std::voting::{PollId, PollResults, Vote, WeightedPoll};
+use axelar_wasm_std::{nonempty, snapshot, MajorityThreshold, VerificationStatus};
 use cosmwasm_std::{
     to_json_binary, Addr, Deps, DepsMut, Env, Event, MessageInfo, OverflowError, OverflowOperation,
     QueryRequest, Response, Storage, WasmMsg, WasmQuery,
 };
-
-use axelar_wasm_std::{
-    nonempty, snapshot,
-    voting::{PollId, PollResults, Vote, WeightedPoll},
-    MajorityThreshold, VerificationStatus,
-};
-
+use itertools::Itertools;
 use multisig::verifier_set::VerifierSet;
 use router_api::{ChainName, Message};
-use service_registry::{msg::QueryMsg, state::WeightedVerifier};
+use service_registry::msg::QueryMsg;
+use service_registry::state::WeightedVerifier;
 
-use crate::state::{self, Poll, PollContent, VOTES};
-use crate::state::{CONFIG, POLLS, POLL_ID};
-use crate::{error::ContractError, query::message_status};
-use crate::{events::QuorumReached, query::verifier_set_status, state::poll_verifier_sets};
-use crate::{
-    events::{
-        PollEnded, PollMetadata, PollStarted, TxEventConfirmation, VerifierSetConfirmation, Voted,
-    },
-    state::poll_messages,
+use crate::error::ContractError;
+use crate::events::{
+    PollEnded, PollMetadata, PollStarted, QuorumReached, TxEventConfirmation,
+    VerifierSetConfirmation, Voted,
 };
-
-use itertools::Itertools;
+use crate::query::{message_status, verifier_set_status};
+use crate::state::{
+    self, poll_messages, poll_verifier_sets, Poll, PollContent, CONFIG, POLLS, POLL_ID, VOTES,
+};
 
 // TODO: this type of function exists in many contracts. Would be better to implement this
 // in one place, and then just include it
@@ -386,11 +380,11 @@ fn calculate_expiration(block_height: u64, block_expiry: u64) -> Result<u64, Con
 #[cfg(test)]
 mod test {
     use axelar_wasm_std::{MajorityThreshold, Threshold};
-    use cosmwasm_std::{testing::mock_dependencies, Addr};
-
-    use crate::state::{Config, CONFIG};
+    use cosmwasm_std::testing::mock_dependencies;
+    use cosmwasm_std::Addr;
 
     use super::require_governance;
+    use crate::state::{Config, CONFIG};
 
     fn mock_config(governance: Addr, voting_threshold: MajorityThreshold) -> Config {
         Config {

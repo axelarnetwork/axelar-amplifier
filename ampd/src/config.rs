@@ -2,12 +2,12 @@ use std::net::{Ipv4Addr, SocketAddrV4};
 
 use serde::{Deserialize, Serialize};
 
-use crate::broadcaster;
 use crate::commands::ServiceRegistryConfig;
-use crate::event_processor;
-use crate::handlers::{self, config::deserialize_handler_configs};
+use crate::handlers::config::deserialize_handler_configs;
+use crate::handlers::{self};
 use crate::tofnd::Config as TofndConfig;
 use crate::url::Url;
+use crate::{broadcaster, event_processor};
 
 #[derive(Deserialize, Serialize, Debug, PartialEq)]
 #[serde(default)]
@@ -48,16 +48,13 @@ mod tests {
     use std::time::Duration;
 
     use cosmrs::AccountId;
-
     use router_api::ChainName;
 
+    use super::Config;
     use crate::evm::finalizer::Finalization;
-    use crate::handlers::config::Chain;
-    use crate::handlers::config::Config as HandlerConfig;
+    use crate::handlers::config::{Chain, Config as HandlerConfig};
     use crate::types::TMAddress;
     use crate::url::Url;
-
-    use super::Config;
 
     const PREFIX: &str = "axelar";
 

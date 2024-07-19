@@ -5,10 +5,8 @@ use cosmrs::proto::cosmos::tx::v1beta1::{GetTxRequest, GetTxResponse};
 use error_stack::{report, Report, Result};
 use futures::{StreamExt, TryFutureExt};
 use thiserror::Error;
-use tokio::{
-    sync::{mpsc, Mutex},
-    time,
-};
+use tokio::sync::{mpsc, Mutex};
+use tokio::time;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::Status;
 use tracing::error;
@@ -179,7 +177,8 @@ mod test {
 
     use cosmrs::proto::cosmos::tx::v1beta1::GetTxRequest;
     use mockall::predicate;
-    use tokio::{sync::mpsc, test};
+    use tokio::sync::mpsc;
+    use tokio::test;
 
     use super::{Error, TxConfirmer, TxResponse, TxStatus};
     use crate::broadcaster::cosmos::MockBroadcastClient;
