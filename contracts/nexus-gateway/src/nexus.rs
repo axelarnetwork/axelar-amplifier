@@ -144,10 +144,7 @@ mod test {
         assert_eq!(nexus_msg.destination_address, msg.destination_address);
         assert_eq!(nexus_msg.destination_chain, msg.destination_chain);
         assert_eq!(nexus_msg.source_address, msg.source_address);
-        assert_eq!(
-            nexus_msg.source_chain,
-            router_msg_cc_id.chain.clone().into()
-        );
+        assert_eq!(nexus_msg.source_chain, router_msg_cc_id.chain.clone());
         assert_eq!(nexus_msg.source_tx_id, vec![2; 32].try_into().unwrap());
         assert_eq!(nexus_msg.source_tx_index, 1);
     }
@@ -182,9 +179,6 @@ mod test {
         assert_eq!(nexus_msg.destination_address, msg.destination_address);
         assert_eq!(nexus_msg.destination_chain, msg.destination_chain);
         assert_eq!(nexus_msg.source_address, msg.source_address);
-        assert_eq!(
-            nexus_msg.source_chain,
-            router_msg_cc_id.chain.clone().into()
-        );
+        assert_eq!(nexus_msg.source_chain, router_msg_cc_id.chain.clone());
     }
 }

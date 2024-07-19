@@ -414,7 +414,7 @@ mod test {
         };
 
         let event = VerifierSetConfirmation::new(
-            &msg_id.to_string(),
+            msg_id,
             MessageIdFormat::Base58TxDigestAndEventIndex,
             verifier_set,
         );
