@@ -2,7 +2,7 @@ use axelar_wasm_std_derive::IntoContractError;
 use cosmwasm_std::StdError;
 use thiserror::Error;
 
-use crate::NormalizedChainName;
+use crate::ChainName;
 
 /// A chain name must adhere to the following rules:
 /// 1. it can optionally start with an uppercase letter, followed by one or more lowercase letters
@@ -36,7 +36,7 @@ pub enum Error {
     GatewayAlreadyRegistered,
 
     #[error("chain is frozen")]
-    ChainFrozen { chain: NormalizedChainName },
+    ChainFrozen { chain: ChainName },
 
     #[error("address is invalid")]
     InvalidAddress,

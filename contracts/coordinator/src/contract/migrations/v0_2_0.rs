@@ -2,7 +2,7 @@ use axelar_wasm_std::permission_control;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Storage};
 use cw_storage_plus::{Item, Map};
-use router_api::NormalizedChainName;
+use router_api::ChainName;
 
 use crate::contract::CONTRACT_NAME;
 use crate::error::ContractError;
@@ -46,13 +46,13 @@ pub struct Config {
 pub const CONFIG: Item<Config> = Item::new("config");
 
 #[deprecated(since = "0.2.0", note = "only used to test the migration")]
-pub const PROVER_PER_CHAIN: Map<NormalizedChainName, Addr> = Map::new("prover_per_chain");
+pub const PROVER_PER_CHAIN: Map<ChainName, Addr> = Map::new("prover_per_chain");
 
 #[cfg(test)]
 mod tests {
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
     use cosmwasm_std::{Addr, DepsMut, Env, MessageInfo, Response};
-    use router_api::NormalizedChainName;
+    use router_api::ChainName;
 
     use super::PROVER_PER_CHAIN;
     use crate::contract::migrations::v0_2_0;
@@ -115,7 +115,7 @@ mod tests {
         let mut deps = mock_dependencies();
         instantiate_0_2_0_contract(deps.as_mut()).unwrap();
 
-        let provers: Vec<(NormalizedChainName, Addr)> = vec![
+        let provers: Vec<(ChainName, Addr)> = vec![
             ("chain1".parse().unwrap(), Addr::unchecked("addr1")),
             ("chain2".parse().unwrap(), Addr::unchecked("addr2")),
         ];
@@ -172,7 +172,7 @@ mod tests {
     #[deprecated(since = "0.2.0", note = "only used to test the migration")]
     fn register_prover_0_2_0(
         deps: DepsMut,
-        chain_name: NormalizedChainName,
+        chain_name: ChainName,
         new_prover_addr: Addr,
     ) -> Result<Response, ContractError> {
         PROVER_PER_CHAIN.save(deps.storage, chain_name.clone(), &(new_prover_addr))?;

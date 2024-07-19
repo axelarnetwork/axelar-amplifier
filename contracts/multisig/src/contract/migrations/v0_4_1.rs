@@ -7,7 +7,7 @@ use cosmwasm_std::{Addr, StdError, Storage};
 use cw2::VersionError;
 use cw_storage_plus::Item;
 use itertools::Itertools;
-use router_api::NormalizedChainName;
+use router_api::ChainName;
 
 use crate::contract::CONTRACT_NAME;
 use crate::state::AUTHORIZED_CALLERS;
@@ -27,7 +27,7 @@ pub enum Error {
 pub fn migrate(
     storage: &mut dyn Storage,
     admin: Addr,
-    authorized_callers: Vec<(Addr, NormalizedChainName)>,
+    authorized_callers: Vec<(Addr, ChainName)>,
 ) -> Result<(), Error> {
     cw2::assert_contract_version(storage, CONTRACT_NAME, BASE_VERSION)?;
 
@@ -43,7 +43,7 @@ pub fn migrate(
 
 fn migrate_authorized_callers(
     storage: &mut dyn Storage,
-    authorized_callers: Vec<(Addr, NormalizedChainName)>,
+    authorized_callers: Vec<(Addr, ChainName)>,
 ) -> Result<(), Error> {
     AUTHORIZED_CALLERS.clear(storage);
     authorized_callers
@@ -92,7 +92,7 @@ mod tests {
     use cosmwasm_schema::cw_serde;
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
     use cosmwasm_std::{Addr, DepsMut, Env, HexBinary, MessageInfo, Response, Uint64};
-    use router_api::NormalizedChainName;
+    use router_api::ChainName;
 
     use crate::contract::migrations::v0_4_1;
     use crate::contract::migrations::v0_4_1::BASE_VERSION;
@@ -237,7 +237,7 @@ mod tests {
         .unwrap();
 
         let prover = Addr::unchecked("prover1");
-        let chain_name: NormalizedChainName = "mock-chain".parse().unwrap();
+        let chain_name: ChainName = "mock-chain".parse().unwrap();
         assert!(v0_4_1::migrate(
             deps.as_mut().storage,
             Addr::unchecked("admin"),

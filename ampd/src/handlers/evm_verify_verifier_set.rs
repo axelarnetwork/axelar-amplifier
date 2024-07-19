@@ -11,7 +11,7 @@ use ethers_core::types::{TransactionReceipt, U64};
 use events::Error::EventTypeMismatch;
 use events_derive::try_from;
 use multisig::verifier_set::VerifierSet;
-use router_api::NormalizedChainName;
+use router_api::ChainName;
 use serde::Deserialize;
 use tokio::sync::watch::Receiver;
 use tracing::{info, info_span};
@@ -40,7 +40,7 @@ pub struct VerifierSetConfirmation {
 struct PollStartedEvent {
     verifier_set: VerifierSetConfirmation,
     poll_id: PollId,
-    source_chain: router_api::NormalizedChainName,
+    source_chain: router_api::ChainName,
     source_gateway_address: EVMAddress,
     expires_at: u64,
     confirmation_height: u64,
@@ -53,7 +53,7 @@ where
 {
     verifier: TMAddress,
     voting_verifier_contract: TMAddress,
-    chain: NormalizedChainName,
+    chain: ChainName,
     finalizer_type: Finalization,
     rpc_client: C,
     latest_block_height: Receiver<u64>,
@@ -66,7 +66,7 @@ where
     pub fn new(
         verifier: TMAddress,
         voting_verifier_contract: TMAddress,
-        chain: NormalizedChainName,
+        chain: ChainName,
         finalizer_type: Finalization,
         rpc_client: C,
         latest_block_height: Receiver<u64>,
@@ -208,7 +208,7 @@ mod tests {
     use events::Event;
     use multisig::key::KeyType;
     use multisig::test::common::{build_verifier_set, ecdsa_test_data};
-    use router_api::NormalizedChainName;
+    use router_api::ChainName;
     use tendermint::abci;
     use tokio::sync::watch;
     use tokio::test as async_test;
@@ -255,7 +255,7 @@ mod tests {
         let handler = super::Handler::new(
             verifier,
             voting_verifier,
-            NormalizedChainName::from_str("ethereum").unwrap(),
+            ChainName::from_str("ethereum").unwrap(),
             Finalization::RPCFinalizedBlock,
             rpc_client,
             rx,

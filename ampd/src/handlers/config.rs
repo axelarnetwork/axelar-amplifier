@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use itertools::Itertools;
-use router_api::NormalizedChainName;
+use router_api::ChainName;
 use serde::de::{self, Deserializer};
 use serde::{Deserialize, Serialize};
 use serde_with::with_prefix;
@@ -12,7 +12,7 @@ use crate::url::Url;
 
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
 pub struct Chain {
-    pub name: NormalizedChainName,
+    pub name: ChainName,
     pub rpc_url: Url,
     #[serde(default)]
     pub finalization: Finalization,

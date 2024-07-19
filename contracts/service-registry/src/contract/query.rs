@@ -1,4 +1,4 @@
-use router_api::NormalizedChainName;
+use router_api::ChainName;
 
 use super::*;
 use crate::state::{WeightedVerifier, VERIFIERS, VERIFIERS_PER_CHAIN, VERIFIER_WEIGHT};
@@ -6,7 +6,7 @@ use crate::state::{WeightedVerifier, VERIFIERS, VERIFIERS_PER_CHAIN, VERIFIER_WE
 pub fn get_active_verifiers(
     deps: Deps,
     service_name: String,
-    chain_name: NormalizedChainName,
+    chain_name: ChainName,
 ) -> Result<Vec<WeightedVerifier>, ContractError> {
     let service = SERVICES
         .may_load(deps.storage, &service_name)?

@@ -8,7 +8,7 @@ use cosmwasm_std::{
 };
 use itertools::Itertools;
 use multisig::verifier_set::VerifierSet;
-use router_api::{Message, NormalizedChainName};
+use router_api::{ChainName, Message};
 use service_registry::msg::QueryMsg;
 use service_registry::state::WeightedVerifier;
 
@@ -316,10 +316,7 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: PollId) -> Result<Response, Co
     ))
 }
 
-fn take_snapshot(
-    deps: Deps,
-    chain: &NormalizedChainName,
-) -> Result<snapshot::Snapshot, ContractError> {
+fn take_snapshot(deps: Deps, chain: &ChainName) -> Result<snapshot::Snapshot, ContractError> {
     let config = CONFIG.load(deps.storage)?;
 
     // todo: add chain param to query after service registry updated

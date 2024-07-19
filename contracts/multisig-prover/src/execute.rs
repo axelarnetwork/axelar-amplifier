@@ -9,7 +9,7 @@ use cosmwasm_std::{
 use itertools::Itertools;
 use multisig::msg::Signer;
 use multisig::verifier_set::VerifierSet;
-use router_api::{CrossChainId, Message, NormalizedChainName};
+use router_api::{ChainName, CrossChainId, Message};
 use service_registry::state::{Service, WeightedVerifier};
 
 use crate::contract::START_MULTISIG_REPLY_ID;
@@ -91,7 +91,7 @@ fn get_messages(
     querier: QuerierWrapper,
     message_ids: Vec<CrossChainId>,
     gateway: Addr,
-    chain_name: NormalizedChainName,
+    chain_name: ChainName,
 ) -> Result<Vec<Message>, ContractError> {
     let length = message_ids.len();
 
@@ -430,7 +430,7 @@ mod tests {
     use axelar_wasm_std::Threshold;
     use cosmwasm_std::testing::{mock_dependencies, mock_env};
     use cosmwasm_std::Addr;
-    use router_api::NormalizedChainName;
+    use router_api::ChainName;
 
     use super::{different_set_in_progress, get_next_verifier_set};
     use crate::execute::should_update_verifier_set;
@@ -563,7 +563,7 @@ mod tests {
             voting_verifier: Addr::unchecked("doesn't matter"),
             signing_threshold: Threshold::try_from((2, 3)).unwrap().try_into().unwrap(),
             service_name: "validators".to_string(),
-            chain_name: NormalizedChainName::try_from("ethereum".to_owned()).unwrap(),
+            chain_name: ChainName::try_from("ethereum".to_owned()).unwrap(),
             verifier_set_diff_threshold: 0,
             encoder: crate::encoding::Encoder::Abi,
             key_type: multisig::key::KeyType::Ecdsa,

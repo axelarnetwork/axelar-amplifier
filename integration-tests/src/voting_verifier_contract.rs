@@ -1,7 +1,7 @@
 use axelar_wasm_std::{nonempty, MajorityThreshold};
 use cosmwasm_std::Addr;
 use cw_multi_test::{ContractWrapper, Executor};
-use router_api::NormalizedChainName;
+use router_api::ChainName;
 
 use crate::contract::Contract;
 use crate::protocol::Protocol;
@@ -16,7 +16,7 @@ impl VotingVerifierContract {
         protocol: &mut Protocol,
         source_gateway_address: nonempty::String,
         voting_threshold: MajorityThreshold,
-        source_chain: NormalizedChainName,
+        source_chain: ChainName,
     ) -> Self {
         let code = ContractWrapper::new(
             voting_verifier::contract::execute,

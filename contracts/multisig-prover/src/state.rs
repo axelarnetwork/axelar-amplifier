@@ -5,7 +5,7 @@ use cosmwasm_std::Addr;
 use cw_storage_plus::{Item, Map};
 use multisig::key::KeyType;
 use multisig::verifier_set::VerifierSet;
-use router_api::NormalizedChainName;
+use router_api::ChainName;
 
 use crate::encoding::Encoder;
 use crate::payload::{Payload, PayloadId};
@@ -21,7 +21,7 @@ pub struct Config {
     pub voting_verifier: Addr,
     pub signing_threshold: MajorityThreshold,
     pub service_name: String,
-    pub chain_name: NormalizedChainName,
+    pub chain_name: ChainName,
     pub verifier_set_diff_threshold: u32,
     pub encoder: Encoder,
     pub key_type: KeyType,

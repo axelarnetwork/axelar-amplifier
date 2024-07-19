@@ -3,7 +3,7 @@ use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmrs::tx::Msg;
 use error_stack::Result;
 use report::ResultCompatExt;
-use router_api::NormalizedChainName;
+use router_api::ChainName;
 use service_registry::msg::ExecuteMsg;
 use valuable::Valuable;
 
@@ -14,7 +14,7 @@ use crate::{Error, PREFIX};
 #[derive(clap::Args, Debug, Valuable)]
 pub struct Args {
     pub service_name: nonempty::String,
-    pub chains: Vec<NormalizedChainName>,
+    pub chains: Vec<ChainName>,
 }
 
 pub async fn run(config: Config, args: Args) -> Result<Option<String>, Error> {

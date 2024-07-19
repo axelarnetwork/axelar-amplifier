@@ -1,7 +1,7 @@
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Storage, Timestamp, Uint128};
 use cw_storage_plus::{Item, Map};
-use router_api::NormalizedChainName;
+use router_api::ChainName;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -157,14 +157,14 @@ type ServiceName = str;
 type VerifierAddress = Addr;
 
 pub const SERVICES: Map<&ServiceName, Service> = Map::new("services");
-pub const VERIFIERS_PER_CHAIN: Map<(&ServiceName, &NormalizedChainName, &VerifierAddress), ()> =
+pub const VERIFIERS_PER_CHAIN: Map<(&ServiceName, &ChainName, &VerifierAddress), ()> =
     Map::new("verifiers_per_chain");
 pub const VERIFIERS: Map<(&ServiceName, &VerifierAddress), Verifier> = Map::new("verifiers");
 
 pub fn register_chains_support(
     storage: &mut dyn Storage,
     service_name: String,
-    chains: Vec<NormalizedChainName>,
+    chains: Vec<ChainName>,
     verifier: VerifierAddress,
 ) -> Result<(), ContractError> {
     for chain in chains.iter() {
@@ -177,7 +177,7 @@ pub fn register_chains_support(
 pub fn deregister_chains_support(
     storage: &mut dyn Storage,
     service_name: String,
-    chains: Vec<NormalizedChainName>,
+    chains: Vec<ChainName>,
     verifier: VerifierAddress,
 ) -> Result<(), ContractError> {
     for chain in chains {
@@ -201,7 +201,7 @@ mod tests {
         let mut deps = mock_dependencies();
         let verifier = Addr::unchecked("verifier");
         let service_name = "validators";
-        let chain_name = NormalizedChainName::from_str("ethereum").unwrap();
+        let chain_name = ChainName::from_str("ethereum").unwrap();
         let chains = vec![chain_name.clone()];
         assert!(register_chains_support(
             deps.as_mut().storage,
@@ -218,8 +218,8 @@ mod tests {
         let verifier = Addr::unchecked("verifier");
         let service_name = "validators";
         let chain_names = vec![
-            NormalizedChainName::from_str("ethereum").unwrap(),
-            NormalizedChainName::from_str("cosmos").unwrap(),
+            ChainName::from_str("ethereum").unwrap(),
+            ChainName::from_str("cosmos").unwrap(),
         ];
 
         assert!(register_chains_support(
@@ -237,7 +237,7 @@ mod tests {
         let verifier = Addr::unchecked("verifier");
         let service_name = "validators";
 
-        let first_chain_name = NormalizedChainName::from_str("ethereum").unwrap();
+        let first_chain_name = ChainName::from_str("ethereum").unwrap();
         let first_chains_vector = vec![first_chain_name.clone()];
         assert!(register_chains_support(
             deps.as_mut().storage,
@@ -247,7 +247,7 @@ mod tests {
         )
         .is_ok());
 
-        let second_chain_name = NormalizedChainName::from_str("cosmos").unwrap();
+        let second_chain_name = ChainName::from_str("cosmos").unwrap();
         let second_chains_vector = vec![second_chain_name.clone()];
         assert!(register_chains_support(
             deps.as_mut().storage,
@@ -263,7 +263,7 @@ mod tests {
         let mut deps = mock_dependencies();
         let verifier = Addr::unchecked("verifier");
         let service_name = "validators";
-        let chain_name = NormalizedChainName::from_str("ethereum").unwrap();
+        let chain_name = ChainName::from_str("ethereum").unwrap();
         let chains = vec![chain_name.clone()];
         assert!(register_chains_support(
             deps.as_mut().storage,
@@ -288,8 +288,8 @@ mod tests {
         let verifier = Addr::unchecked("verifier");
         let service_name = "validators";
         let chain_names = vec![
-            NormalizedChainName::from_str("ethereum").unwrap(),
-            NormalizedChainName::from_str("cosmos").unwrap(),
+            ChainName::from_str("ethereum").unwrap(),
+            ChainName::from_str("cosmos").unwrap(),
         ];
         assert!(register_chains_support(
             deps.as_mut().storage,
@@ -313,7 +313,7 @@ mod tests {
         let mut deps = mock_dependencies();
         let verifier = Addr::unchecked("verifier");
         let service_name = "validators";
-        let chain_name = NormalizedChainName::from_str("ethereum").unwrap();
+        let chain_name = ChainName::from_str("ethereum").unwrap();
         let chains = vec![chain_name.clone()];
 
         assert!(deregister_chains_support(

@@ -12,25 +12,25 @@ pub enum ExecuteMsg {
     /// Registers a new chain with the router
     #[permission(Governance)]
     RegisterChain {
-        chain: NormalizedChainName,
+        chain: ChainName,
         gateway_address: Address,
         msg_id_format: MessageIdFormat,
     },
     /// Changes the gateway address associated with a particular chain
     #[permission(Governance)]
     UpgradeGateway {
-        chain: NormalizedChainName,
+        chain: ChainName,
         contract_address: Address,
     },
     /// Freezes the specified chains in the specified directions.
     #[permission(Elevated)]
     FreezeChains {
-        chains: HashMap<NormalizedChainName, GatewayDirection>,
+        chains: HashMap<ChainName, GatewayDirection>,
     },
     /// Unfreezes the specified chains in the specified directions.
     #[permission(Elevated)]
     UnfreezeChains {
-        chains: HashMap<NormalizedChainName, GatewayDirection>,
+        chains: HashMap<ChainName, GatewayDirection>,
     },
 
     /// Emergency command to stop all amplifier routing.
@@ -51,7 +51,7 @@ pub enum ExecuteMsg {
 #[derive(QueryResponses)]
 pub enum QueryMsg {
     #[returns(ChainEndpoint)]
-    GetChainInfo(NormalizedChainName),
+    GetChainInfo(ChainName),
 
     // Returns a list of chains registered with the router
     // The list is paginated by:
@@ -59,7 +59,7 @@ pub enum QueryMsg {
     // - limit: limit the number of chains returned, default is u32::MAX.
     #[returns(Vec<ChainEndpoint>)]
     Chains {
-        start_after: Option<NormalizedChainName>,
+        start_after: Option<ChainName>,
         limit: Option<u32>,
     },
     #[returns(bool)]

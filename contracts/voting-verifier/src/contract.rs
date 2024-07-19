@@ -108,7 +108,7 @@ mod test {
     use cosmwasm_std::{from_json, Addr, Empty, Fraction, OwnedDeps, Uint128, Uint64, WasmQuery};
     use multisig::key::KeyType;
     use multisig::test::common::{build_verifier_set, ecdsa_test_data};
-    use router_api::{CrossChainId, Message, NormalizedChainName};
+    use router_api::{ChainName, CrossChainId, Message};
     use service_registry::state::{
         AuthorizationState, BondingState, Verifier, WeightedVerifier, VERIFIER_WEIGHT,
     };
@@ -126,7 +126,7 @@ mod test {
     const POLL_BLOCK_EXPIRY: u64 = 100;
     const GOVERNANCE: &str = "governance";
 
-    fn source_chain() -> NormalizedChainName {
+    fn source_chain() -> ChainName {
         "source-chain".parse().unwrap()
     }
 

@@ -6,7 +6,7 @@ pub mod test_utils;
 
 #[test]
 fn claim_stake_after_rotation_success() {
-    let chains: Vec<router_api::NormalizedChainName> = vec![
+    let chains: Vec<router_api::ChainName> = vec![
         "Ethereum".to_string().try_into().unwrap(),
         "Polygon".to_string().try_into().unwrap(),
     ];
@@ -77,7 +77,7 @@ fn claim_stake_after_rotation_success() {
 
 #[test]
 fn claim_stake_when_in_all_active_verifier_sets_fails() {
-    let chains: Vec<router_api::NormalizedChainName> = vec![
+    let chains: Vec<router_api::ChainName> = vec![
         "Ethereum".to_string().try_into().unwrap(),
         "Polygon".to_string().try_into().unwrap(),
     ];
@@ -117,7 +117,7 @@ fn claim_stake_when_in_all_active_verifier_sets_fails() {
 
 #[test]
 fn claim_stake_when_in_some_active_verifier_sets_fails() {
-    let chains: Vec<router_api::NormalizedChainName> = vec![
+    let chains: Vec<router_api::ChainName> = vec![
         "Ethereum".to_string().try_into().unwrap(),
         "Polygon".to_string().try_into().unwrap(),
     ];
@@ -161,7 +161,7 @@ fn claim_stake_when_in_some_active_verifier_sets_fails() {
 
 #[test]
 fn claim_stake_after_deregistering_before_rotation_fails() {
-    let chains: Vec<router_api::NormalizedChainName> = vec![
+    let chains: Vec<router_api::ChainName> = vec![
         "Ethereum".to_string().try_into().unwrap(),
         "Polygon".to_string().try_into().unwrap(),
     ];
@@ -211,7 +211,7 @@ fn claim_stake_after_deregistering_before_rotation_fails() {
 
 #[test]
 fn claim_stake_when_jailed_fails() {
-    let chains: Vec<router_api::NormalizedChainName> = vec![
+    let chains: Vec<router_api::ChainName> = vec![
         "Ethereum".to_string().try_into().unwrap(),
         "Polygon".to_string().try_into().unwrap(),
     ];
@@ -266,7 +266,7 @@ fn claim_stake_when_jailed_fails() {
 
 #[test]
 fn claim_stake_when_in_next_verifier_sets_fails() {
-    let chains: Vec<router_api::NormalizedChainName> = vec![
+    let chains: Vec<router_api::ChainName> = vec![
         "Ethereum".to_string().try_into().unwrap(),
         "Polygon".to_string().try_into().unwrap(),
     ];

@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use cosmwasm_std::{ensure, OverflowError, OverflowOperation, Storage, WasmMsg};
-use router_api::NormalizedChainName;
+use router_api::ChainName;
 use sha3::{Digest, Keccak256};
 use signature_verifier_api::client::SignatureVerifier;
 
@@ -16,7 +16,7 @@ pub fn start_signing_session(
     env: Env,
     verifier_set_id: String,
     msg: MsgToSign,
-    chain_name: NormalizedChainName,
+    chain_name: ChainName,
     sig_verifier: Option<Addr>,
 ) -> Result<Response, ContractError> {
     ensure!(
@@ -180,7 +180,7 @@ pub fn register_pub_key(
 pub fn require_authorized_caller(
     storage: &dyn Storage,
     contract_address: &Addr,
-    chain_name: &NormalizedChainName,
+    chain_name: &ChainName,
 ) -> Result<Addr, ContractError> {
     let expected_chain_name = AUTHORIZED_CALLERS.load(storage, contract_address)?;
     if expected_chain_name != *chain_name {
@@ -193,7 +193,7 @@ pub fn require_authorized_caller(
 
 pub fn authorize_callers(
     deps: DepsMut,
-    contracts: HashMap<Addr, NormalizedChainName>,
+    contracts: HashMap<Addr, ChainName>,
 ) -> Result<Response, ContractError> {
     contracts
         .iter()
@@ -215,7 +215,7 @@ pub fn authorize_callers(
 
 pub fn unauthorize_callers(
     deps: DepsMut,
-    contracts: Vec<(Addr, NormalizedChainName)>,
+    contracts: Vec<(Addr, ChainName)>,
 ) -> Result<Response, ContractError> {
     contracts.iter().for_each(|(contract_address, _)| {
         AUTHORIZED_CALLERS.remove(deps.storage, contract_address)

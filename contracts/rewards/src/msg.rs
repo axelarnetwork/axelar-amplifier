@@ -4,7 +4,7 @@ use axelar_wasm_std::{nonempty, Threshold};
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, Uint128, Uint64};
 use msgs_derive::EnsurePermissions;
-use router_api::NormalizedChainName;
+use router_api::ChainName;
 
 use crate::state::{Epoch, PoolId};
 
@@ -44,7 +44,7 @@ pub enum ExecuteMsg {
     /// of messages in a batch as well as the number of messages a particular verifier actually participated in.
     #[permission(Any)]
     RecordParticipation {
-        chain_name: NormalizedChainName,
+        chain_name: ChainName,
         event_id: nonempty::String,
         verifier_address: String,
     },

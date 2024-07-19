@@ -1,5 +1,5 @@
 use cosmwasm_std::{Addr, Attribute, Event};
-use router_api::{GatewayDirection, Message, NormalizedChainName};
+use router_api::{ChainName, GatewayDirection, Message};
 
 pub struct RouterInstantiated {
     pub admin: Addr,
@@ -8,12 +8,12 @@ pub struct RouterInstantiated {
 }
 
 pub struct ChainRegistered {
-    pub name: NormalizedChainName,
+    pub name: ChainName,
     pub gateway: Addr,
 }
 
 pub struct GatewayInfo {
-    pub chain: NormalizedChainName,
+    pub chain: ChainName,
     pub gateway_address: Addr,
 }
 
@@ -22,12 +22,12 @@ pub struct GatewayUpgraded {
 }
 
 pub struct ChainFrozen {
-    pub name: NormalizedChainName,
+    pub name: ChainName,
     pub direction: GatewayDirection,
 }
 
 pub struct ChainUnfrozen {
-    pub name: NormalizedChainName,
+    pub name: ChainName,
     pub direction: GatewayDirection,
 }
 

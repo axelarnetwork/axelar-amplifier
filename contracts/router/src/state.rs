@@ -3,7 +3,7 @@ use cosmwasm_std::{Addr, Order, StdResult, Storage};
 use cw_storage_plus::{Index, IndexList, IndexedMap, Item, MultiIndex};
 use error_stack::{report, ResultExt};
 use router_api::error::Error;
-use router_api::{ChainEndpoint, NormalizedChainName};
+use router_api::{ChainEndpoint, ChainName};
 
 pub fn save_config(storage: &mut dyn Storage, config: &Config) -> error_stack::Result<(), Error> {
     CONFIG
@@ -17,7 +17,7 @@ pub fn load_config(storage: &dyn Storage) -> error_stack::Result<Config, Error> 
 
 pub fn load_chain_by_chain_name(
     storage: &dyn Storage,
-    chain_name: &NormalizedChainName,
+    chain_name: &ChainName,
 ) -> error_stack::Result<Option<ChainEndpoint>, Error> {
     chain_endpoints()
         .may_load(storage, chain_name.clone())
@@ -46,7 +46,7 @@ pub struct ChainEndpointIndexes<'a> {
     pub gateway: GatewayIndex<'a>,
 }
 
-pub struct GatewayIndex<'a>(MultiIndex<'a, Addr, ChainEndpoint, NormalizedChainName>);
+pub struct GatewayIndex<'a>(MultiIndex<'a, Addr, ChainEndpoint, ChainName>);
 
 impl<'a> GatewayIndex<'a> {
     pub fn new(
@@ -78,8 +78,7 @@ impl<'a> GatewayIndex<'a> {
 
 const CHAINS_PKEY: &str = "chains";
 
-pub fn chain_endpoints<'a>(
-) -> IndexedMap<'a, NormalizedChainName, ChainEndpoint, ChainEndpointIndexes<'a>> {
+pub fn chain_endpoints<'a>() -> IndexedMap<'a, ChainName, ChainEndpoint, ChainEndpointIndexes<'a>> {
     return IndexedMap::new(
         CHAINS_PKEY,
         ChainEndpointIndexes {

@@ -3,7 +3,7 @@ use axelar_wasm_std::voting::{PollId, PollStatus, Vote, WeightedPoll};
 use axelar_wasm_std::{nonempty, MajorityThreshold, VerificationStatus};
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use multisig::verifier_set::VerifierSet;
-use router_api::{Message, NormalizedChainName};
+use router_api::{ChainName, Message};
 
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -24,7 +24,7 @@ pub struct InstantiateMsg {
     /// The number of blocks to wait for on the source chain before considering a transaction final
     pub confirmation_height: u64,
     /// Name of the source chain
-    pub source_chain: NormalizedChainName,
+    pub source_chain: ChainName,
     /// Rewards contract address on axelar.
     pub rewards_address: String,
     /// Format that incoming messages should use for the id field of CrossChainId

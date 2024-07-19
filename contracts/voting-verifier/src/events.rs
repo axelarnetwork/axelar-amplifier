@@ -10,7 +10,7 @@ use axelar_wasm_std::{nonempty, VerificationStatus};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Attribute, Event};
 use multisig::verifier_set::VerifierSet;
-use router_api::{Address, Message, NormalizedChainName};
+use router_api::{Address, ChainName, Message};
 
 use crate::error::ContractError;
 use crate::state::Config;
@@ -43,7 +43,7 @@ impl From<Config> for Vec<Attribute> {
 
 pub struct PollMetadata {
     pub poll_id: PollId,
-    pub source_chain: NormalizedChainName,
+    pub source_chain: ChainName,
     pub source_gateway_address: nonempty::String,
     pub confirmation_height: u64,
     pub expires_at: u64,
@@ -167,7 +167,7 @@ pub struct TxEventConfirmation {
     pub tx_id: nonempty::String,
     pub event_index: u32,
     pub destination_address: Address,
-    pub destination_chain: NormalizedChainName,
+    pub destination_chain: ChainName,
     pub source_address: Address,
     /// for better user experience, the payload hash gets encoded into hex at the edges (input/output),
     /// but internally, we treat it as raw bytes to enforce its format.
@@ -210,7 +210,7 @@ impl From<Voted> for Event {
 
 pub struct PollEnded {
     pub poll_id: PollId,
-    pub source_chain: NormalizedChainName,
+    pub source_chain: ChainName,
     pub results: Vec<Option<Vote>>,
 }
 

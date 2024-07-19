@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::Addr;
 use msgs_derive::EnsurePermissions;
-use router_api::NormalizedChainName;
+use router_api::ChainName;
 
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -15,7 +15,7 @@ pub struct InstantiateMsg {
 pub enum ExecuteMsg {
     #[permission(Governance)]
     RegisterProverContract {
-        chain_name: NormalizedChainName,
+        chain_name: ChainName,
         new_prover_addr: Addr,
     },
     #[permission(Specific(prover))]

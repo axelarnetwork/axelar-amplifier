@@ -4,7 +4,7 @@ use axelar_wasm_std::nonempty;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, HexBinary, Uint128, Uint64};
 use msgs_derive::EnsurePermissions;
-use router_api::NormalizedChainName;
+use router_api::ChainName;
 
 use crate::key::{KeyType, PublicKey, Signature};
 use crate::multisig::Multisig;
@@ -13,7 +13,7 @@ use crate::verifier_set::VerifierSet;
 #[cw_serde]
 pub struct MigrationMsg {
     pub admin_address: String,
-    pub authorized_callers: HashMap<String, NormalizedChainName>,
+    pub authorized_callers: HashMap<String, ChainName>,
 }
 
 #[cw_serde]
@@ -35,7 +35,7 @@ pub enum ExecuteMsg {
     StartSigningSession {
         verifier_set_id: String,
         msg: HexBinary,
-        chain_name: NormalizedChainName,
+        chain_name: ChainName,
         /// Address of a contract responsible for signature verification.
         /// The multisig contract verifies each submitted signature by default.
         /// But some chains need custom verification beyond this, so the verification can be optionally overridden.
@@ -61,12 +61,12 @@ pub enum ExecuteMsg {
     /// Authorizes a set of contracts to call StartSigningSession.
     #[permission(Governance)]
     AuthorizeCallers {
-        contracts: HashMap<String, NormalizedChainName>,
+        contracts: HashMap<String, ChainName>,
     },
     /// Unauthorizes a set of contracts, so they can no longer call StartSigningSession.
     #[permission(Elevated)]
     UnauthorizeCallers {
-        contracts: HashMap<String, NormalizedChainName>,
+        contracts: HashMap<String, ChainName>,
     },
 
     /// Emergency command to stop all amplifier signing
@@ -96,7 +96,7 @@ pub enum QueryMsg {
     #[returns(bool)]
     IsCallerAuthorized {
         contract_address: String,
-        chain_name: NormalizedChainName,
+        chain_name: ChainName,
     },
 }
 

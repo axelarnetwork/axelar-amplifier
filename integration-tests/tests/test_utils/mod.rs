@@ -23,7 +23,7 @@ use multisig::key::{KeyType, PublicKey};
 use multisig::verifier_set::VerifierSet;
 use multisig_prover::msg::VerifierSetResponse;
 use rewards::state::PoolId;
-use router_api::{Address, CrossChainId, GatewayDirection, Message, NormalizedChainName};
+use router_api::{Address, ChainName, CrossChainId, GatewayDirection, Message};
 use service_registry::msg::ExecuteMsg;
 use sha3::{Digest, Keccak256};
 use tofn::ecdsa::KeyPair;
@@ -82,7 +82,7 @@ pub fn route_messages(app: &mut App, gateway: &GatewayContract, msgs: &[Message]
 pub fn freeze_chain(
     app: &mut App,
     router: &RouterContract,
-    chain_name: NormalizedChainName,
+    chain_name: ChainName,
     direction: GatewayDirection,
     admin: &Addr,
 ) {
@@ -99,7 +99,7 @@ pub fn freeze_chain(
 pub fn unfreeze_chain(
     app: &mut App,
     router: &RouterContract,
-    chain_name: &NormalizedChainName,
+    chain_name: &ChainName,
     direction: GatewayDirection,
     admin: &Addr,
 ) {
@@ -117,7 +117,7 @@ pub fn upgrade_gateway(
     app: &mut App,
     router: &RouterContract,
     governance: &Addr,
-    chain_name: &NormalizedChainName,
+    chain_name: &ChainName,
     contract_address: Address,
 ) {
     let response = router.execute(
@@ -334,11 +334,7 @@ pub fn advance_at_least_to_height(app: &mut App, desired_height: u64) {
     }
 }
 
-pub fn distribute_rewards(
-    protocol: &mut Protocol,
-    chain_name: &NormalizedChainName,
-    contract_address: Addr,
-) {
+pub fn distribute_rewards(protocol: &mut Protocol, chain_name: &ChainName, contract_address: Addr) {
     let response = protocol.rewards.execute(
         &mut protocol.app,
         Addr::unchecked("relayer"),
@@ -424,7 +420,7 @@ pub fn generate_key(seed: u32) -> KeyPair {
 
 pub struct Verifier {
     pub addr: Addr,
-    pub supported_chains: Vec<NormalizedChainName>,
+    pub supported_chains: Vec<ChainName>,
     pub key_pair: KeyPair,
 }
 
@@ -574,7 +570,7 @@ pub fn verifiers_to_verifier_set(
 }
 
 pub fn create_new_verifiers_vec(
-    chains: Vec<NormalizedChainName>,
+    chains: Vec<ChainName>,
     verifier_details: Vec<(String, u32)>,
 ) -> Vec<Verifier> {
     verifier_details
@@ -642,12 +638,12 @@ pub struct Chain {
     pub gateway: GatewayContract,
     pub voting_verifier: VotingVerifierContract,
     pub multisig_prover: MultisigProverContract,
-    pub chain_name: NormalizedChainName,
+    pub chain_name: ChainName,
 }
 
 pub fn setup_chain(
     protocol: &mut Protocol,
-    chain_name: NormalizedChainName,
+    chain_name: ChainName,
     verifiers: &[Verifier],
 ) -> Chain {
     let voting_verifier = VotingVerifierContract::instantiate_contract(

@@ -212,7 +212,7 @@ mod tests {
     use multisig::verifier_set::VerifierSet;
     use rand::rngs::OsRng;
     use random_string::generate;
-    use router_api::NormalizedChainName;
+    use router_api::ChainName;
     use serde_json::json;
     use sui_json_rpc_types::{SuiEvent, SuiTransactionBlockEvents, SuiTransactionBlockResponse};
     use sui_types::base_types::{SuiAddress, TransactionDigest};
@@ -546,7 +546,7 @@ mod tests {
         (gateway_address, tx_block, verifier_set_confirmation)
     }
 
-    fn rand_chain_name() -> NormalizedChainName {
+    fn rand_chain_name() -> ChainName {
         let charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
         generate(8, charset).parse().unwrap()
     }

@@ -1,4 +1,4 @@
-use router_api::NormalizedChainName;
+use router_api::ChainName;
 
 use super::*;
 use crate::state::{self, AuthorizationState, Verifier, VERIFIERS};
@@ -125,7 +125,7 @@ pub fn register_chains_support(
     deps: DepsMut,
     info: MessageInfo,
     service_name: String,
-    chains: Vec<NormalizedChainName>,
+    chains: Vec<ChainName>,
 ) -> Result<Response, ContractError> {
     SERVICES
         .may_load(deps.storage, &service_name)?
@@ -149,7 +149,7 @@ pub fn deregister_chains_support(
     deps: DepsMut,
     info: MessageInfo,
     service_name: String,
-    chains: Vec<NormalizedChainName>,
+    chains: Vec<ChainName>,
 ) -> Result<Response, ContractError> {
     SERVICES
         .may_load(deps.storage, &service_name)?

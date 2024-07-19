@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Order, Storage};
 use cw_storage_plus::{index_list, IndexedMap, MultiIndex, UniqueIndex};
-use router_api::NormalizedChainName;
+use router_api::ChainName;
 
 use crate::error::ContractError;
 
@@ -12,10 +12,10 @@ type VerifierAddress = Addr;
 
 #[index_list(ProverAddress)]
 struct ChainProverIndexes<'a> {
-    pub by_prover: UniqueIndex<'a, ProverAddress, ProverAddress, NormalizedChainName>,
+    pub by_prover: UniqueIndex<'a, ProverAddress, ProverAddress, ChainName>,
 }
 
-const CHAIN_PROVER_INDEXED_MAP: IndexedMap<NormalizedChainName, ProverAddress, ChainProverIndexes> =
+const CHAIN_PROVER_INDEXED_MAP: IndexedMap<ChainName, ProverAddress, ChainProverIndexes> =
     IndexedMap::new(
         "chain_prover_map",
         ChainProverIndexes {
@@ -37,7 +37,7 @@ pub fn is_prover_registered(
 #[allow(dead_code)] // Used in tests, might be useful in future query
 pub fn load_prover_by_chain(
     storage: &dyn Storage,
-    chain_name: NormalizedChainName,
+    chain_name: ChainName,
 ) -> Result<ProverAddress, ContractError> {
     CHAIN_PROVER_INDEXED_MAP
         .may_load(storage, chain_name)?
@@ -46,7 +46,7 @@ pub fn load_prover_by_chain(
 
 pub fn save_prover_for_chain(
     storage: &mut dyn Storage,
-    chain: NormalizedChainName,
+    chain: ChainName,
     prover: ProverAddress,
 ) -> Result<(), ContractError> {
     CHAIN_PROVER_INDEXED_MAP.save(storage, chain.clone(), &prover)?;

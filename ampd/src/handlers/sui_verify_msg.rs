@@ -29,7 +29,7 @@ pub struct Message {
     pub tx_id: TransactionDigest,
     pub event_index: u32,
     pub destination_address: String,
-    pub destination_chain: router_api::NormalizedChainName,
+    pub destination_chain: router_api::ChainName,
     pub source_address: SuiAddress,
     pub payload_hash: Hash,
 }
