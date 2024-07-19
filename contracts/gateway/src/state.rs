@@ -83,7 +83,7 @@ mod test {
         let mut deps = mock_dependencies();
 
         let message = Message {
-            cc_id: CrossChainId::new_amplifier("chain", "id").unwrap(),
+            cc_id: CrossChainId::new("chain", "id").unwrap(),
             source_address: "source_address".parse().unwrap(),
             destination_chain: "destination".parse().unwrap(),
             destination_address: "destination_address".parse().unwrap(),
@@ -97,14 +97,14 @@ mod test {
             Some(message)
         );
 
-        let unknown_chain_id = CrossChainId::new_amplifier("unknown", "id").unwrap();
+        let unknown_chain_id = CrossChainId::new("unknown", "id").unwrap();
 
         assert_eq!(
             may_load_outgoing_msg(&deps.storage, &unknown_chain_id).unwrap(),
             None
         );
 
-        let unknown_id = CrossChainId::new_amplifier("chain", "unkown").unwrap();
+        let unknown_id = CrossChainId::new("chain", "unkown").unwrap();
         assert_eq!(
             may_load_outgoing_msg(&deps.storage, &unknown_id).unwrap(),
             None

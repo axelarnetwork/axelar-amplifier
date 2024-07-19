@@ -224,7 +224,7 @@ mod test {
             }
             .to_string();
             msgs.push(Message {
-                cc_id: CrossChainId::new_amplifier(src_chain.chain_name.clone(), id).unwrap(),
+                cc_id: CrossChainId::new(src_chain.chain_name.clone(), id).unwrap(),
                 destination_address: "idc".parse().unwrap(),
                 destination_chain: dest_chain.chain_name.clone(),
                 source_address: "idc".parse().unwrap(),
@@ -376,7 +376,7 @@ mod test {
                         .unwrap()
                         .clone()
                         .into_iter()
-                        .filter(|m| m.cc_id.amplifier().unwrap().chain == s.chain_name)
+                        .filter(|m| m.cc_id.chain == s.chain_name)
                         .collect::<Vec<_>>(),
                     res.messages[i].msg.clone(),
                 );

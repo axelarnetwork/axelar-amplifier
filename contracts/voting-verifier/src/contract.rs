@@ -232,11 +232,8 @@ mod test {
     fn messages(len: u32, msg_id_format: &MessageIdFormat) -> Vec<Message> {
         (0..len)
             .map(|i| Message {
-                cc_id: CrossChainId::new_amplifier(
-                    source_chain(),
-                    message_id("id", i, msg_id_format),
-                )
-                .unwrap(),
+                cc_id: CrossChainId::new(source_chain(), message_id("id", i, msg_id_format))
+                    .unwrap(),
                 source_address: format!("source_address{i}").parse().unwrap(),
                 destination_chain: format!("destination-chain{i}").parse().unwrap(),
                 destination_address: format!("destination_address{i}").parse().unwrap(),
@@ -281,22 +278,16 @@ mod test {
         let msg = ExecuteMsg::VerifyMessages {
             messages: vec![
                 Message {
-                    cc_id: CrossChainId::new_amplifier(
-                        source_chain(),
-                        message_id("id", 1, &msg_id_format),
-                    )
-                    .unwrap(),
+                    cc_id: CrossChainId::new(source_chain(), message_id("id", 1, &msg_id_format))
+                        .unwrap(),
                     source_address: "source_address1".parse().unwrap(),
                     destination_chain: "destination-chain1".parse().unwrap(),
                     destination_address: "destination_address1".parse().unwrap(),
                     payload_hash: [0; 32],
                 },
                 Message {
-                    cc_id: CrossChainId::new_amplifier(
-                        "other-chain",
-                        message_id("id", 2, &msg_id_format),
-                    )
-                    .unwrap(),
+                    cc_id: CrossChainId::new("other-chain", message_id("id", 2, &msg_id_format))
+                        .unwrap(),
                     source_address: "source_address2".parse().unwrap(),
                     destination_chain: "destination-chain2".parse().unwrap(),
                     destination_address: "destination_address2".parse().unwrap(),
@@ -315,7 +306,7 @@ mod test {
         let mut deps = setup(verifiers.clone(), &msg_id_format);
 
         let mut messages = messages(1, &MessageIdFormat::HexTxHashAndEventIndex);
-        messages[0].cc_id = CrossChainId::new_amplifier(source_chain(), "foobar").unwrap();
+        messages[0].cc_id = CrossChainId::new(source_chain(), "foobar").unwrap();
 
         let msg = ExecuteMsg::VerifyMessages { messages };
 
@@ -340,7 +331,7 @@ mod test {
         let err = execute(deps.as_mut(), mock_env(), mock_info(SENDER, &[]), msg).unwrap_err();
         assert_contract_err_strings_equal(
             err,
-            ContractError::InvalidMessageID(messages[0].cc_id.id().to_string()),
+            ContractError::InvalidMessageID(messages[0].cc_id.id.to_string()),
         );
     }
 
@@ -358,7 +349,7 @@ mod test {
         let err = execute(deps.as_mut(), mock_env(), mock_info(SENDER, &[]), msg).unwrap_err();
         assert_contract_err_strings_equal(
             err,
-            ContractError::InvalidMessageID(messages[0].cc_id.id().to_string()),
+            ContractError::InvalidMessageID(messages[0].cc_id.id.to_string()),
         );
     }
 

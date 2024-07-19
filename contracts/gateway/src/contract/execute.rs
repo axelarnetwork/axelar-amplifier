@@ -53,7 +53,6 @@ fn apply(
     action: impl Fn(Vec<(VerificationStatus, Vec<Message>)>) -> (Option<WasmMsg>, Vec<Event>),
 ) -> Result<Response, Error> {
     check_for_duplicates(msgs)?
-        .then(normalize_source_chain)
         .then(|msgs| verifier.messages_status(msgs))
         .change_context(Error::MessageStatus)?
         .then(group_by_status)
@@ -75,15 +74,6 @@ fn check_for_duplicates(msgs: Vec<Message>) -> Result<Vec<Message>, Error> {
         return Err(Error::DuplicateMessageIds).attach_printable(duplicates.iter().join(", "));
     }
     Ok(msgs)
-}
-
-fn normalize_source_chain(mut msgs: Vec<Message>) -> Vec<Message> {
-    msgs.iter_mut()
-        .map(|mut msg| {
-            msg.cc_id.chain = ChainName::from(&msg.cc_id.chain).into();
-            msg
-        })
-        .collect()
 }
 
 fn group_by_status(

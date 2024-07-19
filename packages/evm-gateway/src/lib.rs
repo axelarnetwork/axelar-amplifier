@@ -182,7 +182,7 @@ mod test {
 
         for destination_address in destination_addresses {
             let router_messages = RouterMessage {
-                cc_id: CrossChainId::new_amplifier(source_chain, message_id).unwrap(),
+                cc_id: CrossChainId::new(source_chain, message_id).unwrap(),
                 source_address: source_address.parse().unwrap(),
                 destination_address: destination_address.parse().unwrap(),
                 destination_chain: destination_chain.parse().unwrap(),

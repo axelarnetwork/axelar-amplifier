@@ -109,7 +109,7 @@ mod test {
         let router_msg = router_api::Message::try_from(msg.clone());
         assert!(router_msg.is_ok());
         let router_msg = router_msg.unwrap();
-        let router_msg_cc_id = router_msg.cc_id.legacy().unwrap();
+        let router_msg_cc_id = router_msg.cc_id;
         assert_eq!(router_msg_cc_id.chain, msg.source_chain);
         assert_eq!(router_msg_cc_id.id.to_string(), msg.id);
     }
@@ -117,7 +117,7 @@ mod test {
     #[test]
     fn should_convert_router_message_to_nexus_message() {
         let msg = router_api::Message {
-            cc_id: CrossChainId::new_legacy(
+            cc_id: CrossChainId::new(
                 "ethereum",
                 HexTxHashAndEventIndex {
                     tx_hash: [2; 32],
@@ -135,7 +135,7 @@ mod test {
 
         let nexus_msg = Message::from(msg.clone());
 
-        let router_msg_cc_id = msg.cc_id.legacy().unwrap();
+        let router_msg_cc_id = msg.cc_id;
 
         assert_eq!(nexus_msg.id, *router_msg_cc_id.id);
         assert_eq!(nexus_msg.destination_address, msg.destination_address);
@@ -149,7 +149,7 @@ mod test {
     #[test]
     fn should_convert_router_message_with_non_hex_msg_id_to_nexus_message() {
         let msg = router_api::Message {
-            cc_id: CrossChainId::new_legacy(
+            cc_id: CrossChainId::new(
                 "ethereum",
                 Base58TxDigestAndEventIndex {
                     tx_digest: [2; 32],
@@ -167,7 +167,7 @@ mod test {
 
         let nexus_msg = Message::from(msg.clone());
 
-        let router_msg_cc_id = msg.cc_id.legacy().unwrap();
+        let router_msg_cc_id = msg.cc_id;
 
         assert_eq!(nexus_msg.id, *router_msg_cc_id.id);
         assert_eq!(nexus_msg.source_tx_id, vec![0; 32].try_into().unwrap());

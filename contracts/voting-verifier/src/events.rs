@@ -284,7 +284,7 @@ mod test {
 
     fn generate_msg(msg_id: nonempty::String) -> Message {
         Message {
-            cc_id: CrossChainId::new_amplifier("source-chain", msg_id).unwrap(),
+            cc_id: CrossChainId::new("source-chain", msg_id).unwrap(),
             source_address: "source_address".parse().unwrap(),
             destination_chain: "destination-chain".parse().unwrap(),
             destination_address: "destination-address".parse().unwrap(),

@@ -244,7 +244,7 @@ mod test {
 
         let msgs = vec![
             router_api::Message {
-                cc_id: CrossChainId::new_amplifier("sourceChain", "0x2fe4:0").unwrap(),
+                cc_id: CrossChainId::new("sourceChain", "0x2fe4:0").unwrap(),
                 source_address: "0xb860".parse().unwrap(),
                 destination_address: "0xD419".parse().unwrap(),
                 destination_chain: "destinationChain".parse().unwrap(),
@@ -256,7 +256,7 @@ mod test {
                 .unwrap(),
             },
             router_api::Message {
-                cc_id: CrossChainId::new_amplifier("sourceChain", "0x6b33:10").unwrap(),
+                cc_id: CrossChainId::new("sourceChain", "0x6b33:10").unwrap(),
                 source_address: "0x0725".parse().unwrap(),
                 destination_address: "0x7FAD".parse().unwrap(),
                 destination_chain: "destinationChain".parse().unwrap(),
@@ -299,7 +299,7 @@ mod test {
 
         let msgs = vec![
             router_api::Message {
-                cc_id: CrossChainId::new_amplifier("sourceChain", "0x2fe4:0").unwrap(),
+                cc_id: CrossChainId::new("sourceChain", "0x2fe4:0").unwrap(),
                 source_address: "0xb860".parse().unwrap(),
                 destination_address: "0xD419".parse().unwrap(),
                 destination_chain: "destinationChain".parse().unwrap(),
@@ -311,7 +311,7 @@ mod test {
                 .unwrap(),
             },
             router_api::Message {
-                cc_id: CrossChainId::new_amplifier("sourceChain", "0x6b33:10").unwrap(),
+                cc_id: CrossChainId::new("sourceChain", "0x6b33:10").unwrap(),
                 source_address: "0x70725".parse().unwrap(),
                 destination_address: "0x7FAD".parse().unwrap(),
                 destination_chain: "destinationChain".parse().unwrap(),

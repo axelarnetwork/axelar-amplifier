@@ -278,7 +278,7 @@ mod test {
         rand::thread_rng().fill_bytes(&mut payload_hash);
 
         Message {
-            cc_id: CrossChainId::new_amplifier(source_chain, id).unwrap(),
+            cc_id: CrossChainId::new(source_chain, id).unwrap(),
             source_address,
             destination_chain,
             destination_address,
@@ -484,7 +484,7 @@ mod test {
             .unwrap();
 
         let mut msg = rand_message(source_chain.clone(), destination_chain.clone());
-        msg.cc_id = CrossChainId::new_amplifier(source_chain, "foobar").unwrap();
+        msg.cc_id = CrossChainId::new(source_chain, "foobar").unwrap();
         assert!(route_messages(deps.as_mut().storage, sender, vec![msg])
             .is_err_and(move |err| { matches!(err.current_context(), Error::InvalidMessageId) }));
     }
@@ -509,7 +509,7 @@ mod test {
         .unwrap();
 
         let mut msg = rand_message(source_chain.clone(), destination_chain.clone());
-        msg.cc_id = CrossChainId::new_amplifier(source_chain, "foobar").unwrap();
+        msg.cc_id = CrossChainId::new(source_chain, "foobar").unwrap();
         assert!(route_messages(deps.as_mut().storage, sender, vec![msg])
             .is_err_and(move |err| { matches!(err.current_context(), Error::InvalidMessageId) }));
     }
@@ -550,7 +550,7 @@ mod test {
             .unwrap();
 
         let mut msg = rand_message(source_chain.clone(), destination_chain.clone());
-        msg.cc_id = CrossChainId::new_amplifier(
+        msg.cc_id = CrossChainId::new(
             source_chain,
             HexTxHashAndEventIndex {
                 tx_hash: [0; 32],

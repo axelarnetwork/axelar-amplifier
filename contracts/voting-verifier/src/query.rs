@@ -309,7 +309,7 @@ mod tests {
 
     fn message(id: u32) -> Message {
         Message {
-            cc_id: CrossChainId::new_amplifier(
+            cc_id: CrossChainId::new(
                 "source-chain",
                 HexTxHashAndEventIndex {
                     tx_hash: [0; 32],

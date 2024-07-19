@@ -92,21 +92,21 @@ mod test {
     fn generate_messages() -> Vec<Message> {
         vec![
             Message {
-                cc_id: CrossChainId::new_amplifier("chain1", "id1").unwrap(),
+                cc_id: CrossChainId::new("chain1", "id1").unwrap(),
                 destination_address: "addr1".parse().unwrap(),
                 destination_chain: "chain2".parse().unwrap(),
                 source_address: "addr2".parse().unwrap(),
                 payload_hash: [0; 32],
             },
             Message {
-                cc_id: CrossChainId::new_amplifier("chain2", "id2").unwrap(),
+                cc_id: CrossChainId::new("chain2", "id2").unwrap(),
                 destination_address: "addr3".parse().unwrap(),
                 destination_chain: "chain3".parse().unwrap(),
                 source_address: "addr4".parse().unwrap(),
                 payload_hash: [1; 32],
             },
             Message {
-                cc_id: CrossChainId::new_amplifier("chain3", "id3").unwrap(),
+                cc_id: CrossChainId::new("chain3", "id3").unwrap(),
                 destination_address: "addr5".parse().unwrap(),
                 destination_chain: "chain4".parse().unwrap(),
                 source_address: "addr6".parse().unwrap(),

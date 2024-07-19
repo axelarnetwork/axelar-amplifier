@@ -11,7 +11,7 @@ use axelar_wasm_std::{nonempty, FnExt};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Attribute, HexBinary, StdError, StdResult};
 use cw_storage_plus::{Key, KeyDeserialize, Prefixer, PrimaryKey};
-use error_stack::{Report, ResultExt};
+use error_stack::{Context, Report, ResultExt};
 use flagset::flags;
 use schemars::gen::SchemaGenerator;
 use schemars::schema::Schema;
@@ -104,6 +104,22 @@ impl TryFrom<String> for Address {
 pub struct CrossChainId {
     pub chain: ChainNameRaw,
     pub id: nonempty::String,
+}
+
+impl CrossChainId {
+    pub fn new<S, T>(
+        chain: impl TryInto<ChainNameRaw, Error = S>,
+        id: impl TryInto<nonempty::String, Error = T>,
+    ) -> error_stack::Result<Self, Error>
+    where
+        S: Context,
+        T: Context,
+    {
+        Ok(CrossChainId {
+            chain: chain.try_into().change_context(Error::InvalidChainName)?,
+            id: id.try_into().change_context(Error::InvalidMessageId)?,
+        })
+    }
 }
 
 impl PrimaryKey<'_> for CrossChainId {
@@ -507,7 +523,7 @@ mod tests {
 
     fn dummy_message() -> Message {
         Message {
-            cc_id: CrossChainId::new_amplifier("chain", "hash-index").unwrap(),
+            cc_id: CrossChainId::new("chain", "hash-index").unwrap(),
             source_address: "source_address".parse().unwrap(),
             destination_chain: "destination-chain".parse().unwrap(),
             destination_address: "destination_address".parse().unwrap(),

@@ -19,7 +19,7 @@ fn single_message_can_be_verified_and_routed_and_proven_and_rewards_are_distribu
     } = test_utils::setup_test_case();
 
     let msgs = vec![Message {
-        cc_id: CrossChainId::new_amplifier(
+        cc_id: CrossChainId::new(
             chain1.chain_name.clone(),
             "0x88d7956fd7b6fcec846548d83bd25727f2585b4be3add21438ae9fbb34625924-3",
         )
@@ -124,7 +124,7 @@ fn routing_to_incorrect_gateway_interface() {
     } = test_utils::setup_test_case();
 
     let msgs = [Message {
-        cc_id: CrossChainId::new_amplifier(
+        cc_id: CrossChainId::new(
             chain1.chain_name.clone(),
             "0x88d7956fd7b6fcec846548d83bd25727f2585b4be3add21438ae9fbb34625924-3",
         )

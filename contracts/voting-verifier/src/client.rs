@@ -117,7 +117,7 @@ mod test {
         let client: Client = client::Client::new(QuerierWrapper::new(&querier), addr).into();
 
         let msg_1 = Message {
-            cc_id: CrossChainId::new_amplifier(
+            cc_id: CrossChainId::new(
                 "eth",
                 HexTxHashAndEventIndex {
                     tx_hash: [0; 32],
@@ -133,7 +133,7 @@ mod test {
             payload_hash: [0; 32],
         };
         let msg_2 = Message {
-            cc_id: CrossChainId::new_amplifier(
+            cc_id: CrossChainId::new(
                 "eth",
                 HexTxHashAndEventIndex {
                     tx_hash: [1; 32],

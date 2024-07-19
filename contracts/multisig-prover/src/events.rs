@@ -54,8 +54,8 @@ mod tests {
     #[test]
     fn proof_under_construction_is_serializable() {
         let msg_ids = vec![
-            CrossChainId::new_amplifier("ethereum", "some_id").unwrap(),
-            CrossChainId::new_amplifier("fantom", "some_other_id").unwrap(),
+            CrossChainId::new("ethereum", "some_id").unwrap(),
+            CrossChainId::new("fantom", "some_other_id").unwrap(),
         ];
 
         let event = Event::ProofUnderConstruction {
