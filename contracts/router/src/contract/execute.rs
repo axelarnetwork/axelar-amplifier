@@ -182,7 +182,7 @@ fn validate_msgs(
     if msgs.iter().any(|msg| {
         msg.cc_id
             .amplifier()
-            .map_or(true, |cc_id| &cc_id.chain != &source_chain.name)
+            .map_or(true, |cc_id| cc_id.chain != source_chain.name)
     }) {
         return Err(report!(Error::WrongSourceChain));
     }
