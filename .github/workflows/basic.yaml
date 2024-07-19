@@ -94,14 +94,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install stable toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: 1.78.0
-          override: true
-          components: clippy
-
       - name: Install nightly toolchain
         uses: actions-rs/toolchain@v1
         with:
@@ -133,7 +125,7 @@ jobs:
       - name: Run cargo fmt
         uses: actions-rs/cargo@v1
         with:
-          command: +nightly fmt
+          command: fmt
           args: --all -- --check
 
       - name: Run cargo sort
