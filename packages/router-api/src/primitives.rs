@@ -11,7 +11,7 @@ use axelar_wasm_std::{nonempty, FnExt};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Attribute, HexBinary, StdError, StdResult};
 use cw_storage_plus::{Key, KeyDeserialize, Prefixer, PrimaryKey};
-use error_stack::{Context, Report, ResultExt};
+use error_stack::{Report, ResultExt};
 use flagset::flags;
 use schemars::gen::SchemaGenerator;
 use schemars::schema::Schema;
@@ -53,8 +53,8 @@ impl Message {
 impl From<Message> for Vec<Attribute> {
     fn from(other: Message) -> Self {
         vec![
-            ("id", other.cc_id.id()).into(),
-            ("source_chain", other.cc_id.chain_as_str()).into(),
+            ("id", other.cc_id.id).into(),
+            ("source_chain", other.cc_id.chain).into(),
             ("source_address", other.source_address.deref()).into(),
             ("destination_chain", other.destination_chain).into(),
             ("destination_address", other.destination_address.deref()).into(),
@@ -101,87 +101,21 @@ impl TryFrom<String> for Address {
 
 #[cw_serde]
 #[derive(Eq, Hash)]
-#[serde(untagged)]
-pub enum CrossChainId {
-    Amplifier(AmplifierCrossChainId),
-    Legacy(LegacyCrossChainId),
-}
-
-impl CrossChainId {
-    pub fn new_amplifier<S, T>(
-        chain: impl TryInto<ChainName, Error = S>,
-        id: impl TryInto<nonempty::String, Error = T>,
-    ) -> error_stack::Result<Self, Error>
-    where
-        S: Context,
-        T: Context,
-    {
-        Ok(CrossChainId::Amplifier(AmplifierCrossChainId {
-            chain: chain.try_into().change_context(Error::InvalidChainName)?,
-            id: id.try_into().change_context(Error::InvalidMessageId)?,
-        }))
-    }
-
-    pub fn new_legacy<S, T>(
-        chain: impl TryInto<LegacyChainName, Error = S>,
-        id: impl TryInto<nonempty::String, Error = T>,
-    ) -> error_stack::Result<Self, Error>
-    where
-        S: Context,
-        T: Context,
-    {
-        Ok(CrossChainId::Legacy(LegacyCrossChainId {
-            chain: chain.try_into().change_context(Error::InvalidChainName)?,
-            id: id.try_into().change_context(Error::InvalidMessageId)?,
-        }))
-    }
-
-    pub fn id(&self) -> &str {
-        match self {
-            CrossChainId::Amplifier(AmplifierCrossChainId { id, .. })
-            | CrossChainId::Legacy(LegacyCrossChainId { id, .. }) => id,
-        }
-    }
-
-    pub fn chain_as_str(&self) -> &str {
-        match self {
-            CrossChainId::Amplifier(AmplifierCrossChainId {
-                chain: ChainName(name),
-                ..
-            })
-            | CrossChainId::Legacy(LegacyCrossChainId {
-                chain: LegacyChainName(name),
-                ..
-            }) => name.as_ref(),
-        }
-    }
-
-    pub fn amplifier(&self) -> Result<&AmplifierCrossChainId, Error> {
-        match self {
-            CrossChainId::Amplifier(id) => Ok(id),
-            _ => Err(Error::InvalidChainName),
-        }
-    }
-
-    pub fn legacy(&self) -> Result<&LegacyCrossChainId, Error> {
-        match self {
-            CrossChainId::Legacy(id) => Ok(id),
-            _ => Err(Error::InvalidChainName),
-        }
-    }
+pub struct CrossChainId {
+    pub chain: SourceChainName,
+    pub id: nonempty::String,
 }
 
 impl PrimaryKey<'_> for CrossChainId {
-    type Prefix = LegacyChainName;
+    type Prefix = SourceChainName;
     type SubPrefix = ();
     type Suffix = String;
-    type SuperSuffix = (LegacyChainName, String);
+    type SuperSuffix = (SourceChainName, String);
 
     fn key(&self) -> Vec<Key> {
-        match self {
-            CrossChainId::Amplifier(id) => id.key(),
-            CrossChainId::Legacy(id) => id.key(),
-        }
+        let mut keys = self.chain.key();
+        keys.extend(self.id.key());
+        keys
     }
 }
 
@@ -189,112 +123,18 @@ impl KeyDeserialize for CrossChainId {
     type Output = Self;
 
     fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
-        // lower case chain name is more restrictive, so try that first
-        AmplifierCrossChainId::from_vec(value.clone())
-            .map(CrossChainId::Amplifier)
-            .or_else(|_| Ok(CrossChainId::Legacy(LegacyCrossChainId::from_vec(value)?)))
+        let (chain, id) = <(SourceChainName, String)>::from_vec(value)?;
+        Ok(CrossChainId {
+            chain,
+            id: id
+                .try_into()
+                .map_err(|err| StdError::parse_err(type_name::<nonempty::String>(), err))?,
+        })
     }
 }
-
 impl Display for CrossChainId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            CrossChainId::Amplifier(id) => Display::fmt(id, f),
-            CrossChainId::Legacy(id) => Display::fmt(id, f),
-        }
-    }
-}
-
-#[cw_serde]
-#[derive(Eq, Hash)]
-pub struct AmplifierCrossChainId {
-    pub chain: ChainName,
-    pub id: nonempty::String,
-}
-
-impl Display for AmplifierCrossChainId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        display_chain_name(self.chain.as_ref(), &self.id, f)
-    }
-}
-
-fn display_chain_name(chain_name: &str, id: &str, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    write!(f, "{}{}{}", chain_name, CHAIN_NAME_DELIMITER, id)
-}
-
-impl PrimaryKey<'_> for AmplifierCrossChainId {
-    type Prefix = ChainName;
-    type SubPrefix = ();
-    type Suffix = String;
-    type SuperSuffix = (ChainName, String);
-
-    fn key(&self) -> Vec<Key> {
-        let mut keys = self.chain.key();
-        keys.extend(self.id.key());
-        keys
-    }
-}
-
-impl KeyDeserialize for AmplifierCrossChainId {
-    type Output = Self;
-
-    fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
-        let (chain, id) = <(ChainName, String)>::from_vec(value)?;
-        Ok(AmplifierCrossChainId {
-            chain,
-            id: id
-                .try_into()
-                .map_err(|err| StdError::parse_err(type_name::<nonempty::String>(), err))?,
-        })
-    }
-}
-
-#[cw_serde]
-#[derive(Eq, Hash)]
-pub struct LegacyCrossChainId {
-    pub chain: LegacyChainName,
-    pub id: nonempty::String,
-}
-
-impl From<AmplifierCrossChainId> for LegacyCrossChainId {
-    fn from(other: AmplifierCrossChainId) -> Self {
-        LegacyCrossChainId {
-            chain: other.chain.into(),
-            id: other.id,
-        }
-    }
-}
-
-impl Display for LegacyCrossChainId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        display_chain_name(self.chain.as_ref(), &self.id, f)
-    }
-}
-
-impl PrimaryKey<'_> for LegacyCrossChainId {
-    type Prefix = LegacyChainName;
-    type SubPrefix = ();
-    type Suffix = String;
-    type SuperSuffix = (LegacyChainName, String);
-
-    fn key(&self) -> Vec<Key> {
-        let mut keys = self.chain.key();
-        keys.extend(self.id.key());
-        keys
-    }
-}
-
-impl KeyDeserialize for LegacyCrossChainId {
-    type Output = Self;
-
-    fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
-        let (chain, id) = <(LegacyChainName, String)>::from_vec(value)?;
-        Ok(LegacyCrossChainId {
-            chain,
-            id: id
-                .try_into()
-                .map_err(|err| StdError::parse_err(type_name::<nonempty::String>(), err))?,
-        })
+        write!(f, "{}{}{}", self.chain, CHAIN_NAME_DELIMITER, *self.id)
     }
 }
 
@@ -307,7 +147,7 @@ impl FromStr for ChainName {
     type Err = Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let chain_name: LegacyChainName = s.parse()?;
+        let chain_name: SourceChainName = s.parse()?;
 
         Ok(ChainName(chain_name.0.to_lowercase()))
     }
@@ -335,6 +175,14 @@ impl TryFrom<&str> for ChainName {
     }
 }
 
+impl TryFrom<&SourceChainName> for ChainName {
+    type Error = Error;
+
+    fn try_from(value: &SourceChainName) -> Result<Self, Self::Error> {
+        value.0.parse()
+    }
+}
+
 impl Display for ChainName {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
@@ -344,6 +192,12 @@ impl Display for ChainName {
 impl PartialEq<String> for ChainName {
     fn eq(&self, other: &String) -> bool {
         self.0 == *other
+    }
+}
+
+impl PartialEq<SourceChainName> for ChainName {
+    fn eq(&self, other: &SourceChainName) -> bool {
+        self.0 == other.0
     }
 }
 
@@ -394,15 +248,15 @@ impl AsRef<str> for ChainName {
 #[cw_serde]
 #[serde(try_from = "String")]
 #[derive(Eq, Hash)]
-pub struct LegacyChainName(String);
+pub struct SourceChainName(String);
 
-impl From<ChainName> for LegacyChainName {
+impl From<ChainName> for SourceChainName {
     fn from(other: ChainName) -> Self {
-        LegacyChainName(other.0)
+        SourceChainName(other.0)
     }
 }
 
-impl FromStr for LegacyChainName {
+impl FromStr for SourceChainName {
     type Err = Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -410,17 +264,17 @@ impl FromStr for LegacyChainName {
             return Err(Error::InvalidChainName);
         }
 
-        Ok(LegacyChainName(s.to_owned()))
+        Ok(SourceChainName(s.to_owned()))
     }
 }
 
-impl From<LegacyChainName> for String {
-    fn from(d: LegacyChainName) -> Self {
+impl From<SourceChainName> for String {
+    fn from(d: SourceChainName) -> Self {
         d.0
     }
 }
 
-impl TryFrom<String> for LegacyChainName {
+impl TryFrom<String> for SourceChainName {
     type Error = Error;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
@@ -428,7 +282,7 @@ impl TryFrom<String> for LegacyChainName {
     }
 }
 
-impl TryFrom<&str> for LegacyChainName {
+impl TryFrom<&str> for SourceChainName {
     type Error = Error;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
@@ -436,19 +290,25 @@ impl TryFrom<&str> for LegacyChainName {
     }
 }
 
-impl Display for LegacyChainName {
+impl Display for SourceChainName {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
     }
 }
 
-impl AsRef<str> for LegacyChainName {
+impl AsRef<str> for SourceChainName {
     fn as_ref(&self) -> &str {
         self.0.as_str()
     }
 }
 
-impl<'a> PrimaryKey<'a> for LegacyChainName {
+impl PartialEq<ChainName> for SourceChainName {
+    fn eq(&self, other: &ChainName) -> bool {
+        self.0 == other.0
+    }
+}
+
+impl<'a> PrimaryKey<'a> for SourceChainName {
     type Prefix = ();
     type SubPrefix = ();
     type Suffix = Self;
@@ -459,30 +319,30 @@ impl<'a> PrimaryKey<'a> for LegacyChainName {
     }
 }
 
-impl<'a> Prefixer<'a> for LegacyChainName {
+impl<'a> Prefixer<'a> for SourceChainName {
     fn prefix(&self) -> Vec<Key> {
         vec![Key::Ref(self.0.as_bytes())]
     }
 }
 
-impl KeyDeserialize for LegacyChainName {
+impl KeyDeserialize for SourceChainName {
     type Output = Self;
 
     #[inline(always)]
     fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
         String::from_utf8(value)
             .map_err(StdError::invalid_utf8)?
-            .then(LegacyChainName::try_from)
+            .then(SourceChainName::try_from)
             .map_err(StdError::invalid_utf8)
     }
 }
 
-impl KeyDeserialize for &LegacyChainName {
-    type Output = LegacyChainName;
+impl KeyDeserialize for &SourceChainName {
+    type Output = SourceChainName;
 
     #[inline(always)]
     fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
-        LegacyChainName::from_vec(value)
+        SourceChainName::from_vec(value)
     }
 }
 

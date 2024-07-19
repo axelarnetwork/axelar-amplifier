@@ -98,12 +98,10 @@ pub fn verify_messages(
 
     let source_chain = CONFIG.load(deps.storage)?.source_chain;
 
-    if messages.iter().any(|message| {
-        message
-            .cc_id
-            .amplifier()
-            .map_or(true, |cc_id| cc_id.chain != source_chain)
-    }) {
+    if messages
+        .iter()
+        .any(|message| message.cc_id.chain != source_chain)
+    {
         Err(ContractError::SourceChainMismatch(source_chain.clone()))?;
     }
 
@@ -133,7 +131,7 @@ pub fn verify_messages(
         return Ok(Response::new());
     }
 
-    let snapshot = take_snapshot(deps.as_ref(), &msgs_to_verify[0].cc_id.amplifier()?.chain)?;
+    let snapshot = take_snapshot(deps.as_ref(), &source_chain)?;
     let participants = snapshot.get_participants();
     let expires_at = calculate_expiration(env.block.height, config.block_expiry)?;
 

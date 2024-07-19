@@ -4,7 +4,7 @@ use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
 use axelar_wasm_std::nonempty;
 use cosmwasm_std::{CosmosMsg, CustomMsg};
 use error_stack::{Report, Result, ResultExt};
-use router_api::{Address, ChainName, CrossChainId, LegacyChainName};
+use router_api::{Address, ChainName, CrossChainId, SourceChainName};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -14,7 +14,7 @@ use crate::error::ContractError;
 // this matches the message type defined in the nexus module
 // https://github.com/axelarnetwork/axelar-core/blob/6c887df3797ba660093061662aff04e325b9c429/x/nexus/exported/types.pb.go#L405
 pub struct Message {
-    pub source_chain: LegacyChainName,
+    pub source_chain: SourceChainName,
     pub source_address: Address,
     pub destination_chain: ChainName,
     pub destination_address: Address,
@@ -40,24 +40,18 @@ fn parse_message_id(message_id: &str) -> Result<(nonempty::Vec<u8>, u64), Contra
 impl From<router_api::Message> for Message {
     fn from(msg: router_api::Message) -> Self {
         // fallback to using all 0's as the tx ID if it's not in the expected format
-        let (message_id, chain) = match msg.cc_id {
-            CrossChainId::Amplifier(id) => (id.id, id.chain.into()),
-            CrossChainId::Legacy(id) => (id.id, id.chain),
-        }
-        .clone();
-
         let (source_tx_id, source_tx_index) =
-            parse_message_id(&message_id).unwrap_or((vec![0; 32].try_into().unwrap(), 0));
+            parse_message_id(&msg.cc_id.id).unwrap_or((vec![0; 32].try_into().unwrap(), 0));
 
         Self {
-            source_chain: chain,
+            source_chain: msg.cc_id.chain,
             source_address: msg.source_address,
             destination_chain: msg.destination_chain,
             destination_address: msg.destination_address,
             payload_hash: msg.payload_hash,
             source_tx_id,
             source_tx_index,
-            id: message_id.into(),
+            id: msg.cc_id.id.into(),
         }
     }
 }
@@ -67,8 +61,11 @@ impl TryFrom<Message> for router_api::Message {
 
     fn try_from(msg: Message) -> Result<Self, ContractError> {
         Ok(Self {
-            cc_id: CrossChainId::new_legacy(msg.source_chain, msg.id.as_str())
-                .change_context(ContractError::InvalidMessageId(msg.id.to_string()))?,
+            cc_id: CrossChainId {
+                chain: msg.source_chain,
+                id: nonempty::String::try_from(msg.id.as_str())
+                    .change_context(ContractError::InvalidMessageId(msg.id))?,
+            },
             source_address: msg.source_address,
             destination_chain: msg.destination_chain,
             destination_address: msg.destination_address,

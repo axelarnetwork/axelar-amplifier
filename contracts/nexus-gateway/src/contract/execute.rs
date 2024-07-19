@@ -1,5 +1,5 @@
 use cosmwasm_std::{to_json_binary, Addr, Response, WasmMsg};
-use error_stack::{report, ResultExt};
+use error_stack::report;
 
 use super::Contract;
 use crate::error::ContractError;
@@ -48,21 +48,15 @@ where
 
         let msgs = msgs
             .into_iter()
-            .filter_map(
-                |msg| match self.store.is_message_routed(msg.cc_id.amplifier().ok()?) {
-                    Ok(true) => None,
-                    Ok(false) => Some(Ok(msg)),
-                    Err(err) => Some(Err(err)),
-                },
-            )
+            .filter_map(|msg| match self.store.is_message_routed(&msg.cc_id) {
+                Ok(true) => None,
+                Ok(false) => Some(Ok(msg)),
+                Err(err) => Some(Err(err)),
+            })
             .collect::<Result<Vec<_>>>()?;
 
-        msgs.iter().try_for_each(|msg| {
-            self.store
-                .set_message_routed(msg.cc_id.amplifier().change_context_lazy(|| {
-                    ContractError::InvalidSourceChain(msg.cc_id.chain_as_str().to_string())
-                })?)
-        })?;
+        msgs.iter()
+            .try_for_each(|msg| self.store.set_message_routed(&msg.cc_id))?;
 
         let msgs: Vec<nexus::Message> = msgs.into_iter().map(Into::into).collect();
 
