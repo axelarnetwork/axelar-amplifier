@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, HexBinary, Uint128, Uint64};
-use router_api::ChainName;
+use router_api::NormalizedChainName;
 use signature_verifier_api::client::SignatureVerifier;
 
 use crate::key::{PublicKey, Signature};
@@ -14,7 +14,7 @@ use crate::ContractError;
 pub struct SigningSession {
     pub id: Uint64,
     pub verifier_set_id: String,
-    pub chain_name: ChainName,
+    pub chain_name: NormalizedChainName,
     pub msg: MsgToSign,
     pub state: MultisigState,
     pub expires_at: u64,
@@ -25,7 +25,7 @@ impl SigningSession {
     pub fn new(
         session_id: Uint64,
         verifier_set_id: String,
-        chain_name: ChainName,
+        chain_name: NormalizedChainName,
         msg: MsgToSign,
         expires_at: u64,
         sig_verifier: Option<Addr>,

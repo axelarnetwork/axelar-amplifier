@@ -1,11 +1,11 @@
 use cosmwasm_std::Uint64;
-use router_api::{ChainName, CrossChainId};
+use router_api::{CrossChainId, NormalizedChainName};
 
 use crate::payload::PayloadId;
 
 pub enum Event {
     ProofUnderConstruction {
-        destination_chain: ChainName,
+        destination_chain: NormalizedChainName,
         payload_id: PayloadId,
         multisig_session_id: Uint64,
         msg_ids: Vec<CrossChainId>,

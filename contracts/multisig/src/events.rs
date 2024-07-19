@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use cosmwasm_std::{Addr, HexBinary, Uint64};
-use router_api::ChainName;
+use router_api::NormalizedChainName;
 use serde_json::to_string;
 
 use crate::key::{PublicKey, Signature};
@@ -14,7 +14,7 @@ pub enum Event {
         verifier_set_id: String,
         pub_keys: HashMap<String, PublicKey>,
         msg: MsgToSign,
-        chain_name: ChainName,
+        chain_name: NormalizedChainName,
         expires_at: u64,
     },
     // Emitted when a participant submits a signature
@@ -34,11 +34,11 @@ pub enum Event {
     },
     CallerAuthorized {
         contract_address: Addr,
-        chain_name: ChainName,
+        chain_name: NormalizedChainName,
     },
     CallerUnauthorized {
         contract_address: Addr,
-        chain_name: ChainName,
+        chain_name: NormalizedChainName,
     },
     SigningEnabled,
     SigningDisabled,

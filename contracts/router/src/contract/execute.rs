@@ -8,7 +8,7 @@ use cosmwasm_std::{to_json_binary, Addr, Event, Response, StdResult, Storage, Wa
 use error_stack::{ensure, report, ResultExt};
 use itertools::Itertools;
 use router_api::error::Error;
-use router_api::{ChainEndpoint, ChainName, Gateway, GatewayDirection, Message};
+use router_api::{ChainEndpoint, Gateway, GatewayDirection, Message, NormalizedChainName};
 
 use crate::events::{
     ChainFrozen, ChainRegistered, ChainUnfrozen, GatewayInfo, GatewayUpgraded, MessageRouted,
@@ -18,7 +18,7 @@ use crate::{events, state};
 
 pub fn register_chain(
     storage: &mut dyn Storage,
-    name: ChainName,
+    name: NormalizedChainName,
     gateway: Addr,
     msg_id_format: MessageIdFormat,
 ) -> Result<Response, Error> {
@@ -51,7 +51,7 @@ pub fn find_chain_for_gateway(
 
 pub fn upgrade_gateway(
     storage: &mut dyn Storage,
-    chain: ChainName,
+    chain: NormalizedChainName,
     contract_address: Addr,
 ) -> Result<Response, Error> {
     if find_chain_for_gateway(storage, &contract_address)?.is_some() {
@@ -77,7 +77,7 @@ pub fn upgrade_gateway(
 
 fn freeze_specific_chain(
     storage: &mut dyn Storage,
-    chain: ChainName,
+    chain: NormalizedChainName,
     direction: GatewayDirection,
 ) -> Result<ChainFrozen, Error> {
     chain_endpoints().update(storage, chain.clone(), |chain| match chain {
@@ -96,7 +96,7 @@ fn freeze_specific_chain(
 
 pub fn freeze_chains(
     storage: &mut dyn Storage,
-    chains: HashMap<ChainName, GatewayDirection>,
+    chains: HashMap<NormalizedChainName, GatewayDirection>,
 ) -> Result<Response, Error> {
     let events: Vec<_> = chains
         .into_iter()
@@ -110,7 +110,7 @@ pub fn freeze_chains(
 #[allow(clippy::arithmetic_side_effects)] // flagset operations don't cause under/overflows
 fn unfreeze_specific_chain(
     storage: &mut dyn Storage,
-    chain: ChainName,
+    chain: NormalizedChainName,
     direction: GatewayDirection,
 ) -> Result<ChainUnfrozen, Error> {
     chain_endpoints().update(storage, chain.clone(), |chain| match chain {
@@ -129,7 +129,7 @@ fn unfreeze_specific_chain(
 
 pub fn unfreeze_chains(
     storage: &mut dyn Storage,
-    chains: HashMap<ChainName, GatewayDirection>,
+    chains: HashMap<NormalizedChainName, GatewayDirection>,
 ) -> Result<Response, Error> {
     let events: Vec<_> = chains
         .into_iter()
@@ -247,7 +247,9 @@ mod test {
     use cosmwasm_std::{Addr, Storage};
     use rand::{random, RngCore};
     use router_api::error::Error;
-    use router_api::{ChainEndpoint, ChainName, CrossChainId, Gateway, GatewayDirection, Message};
+    use router_api::{
+        ChainEndpoint, CrossChainId, Gateway, GatewayDirection, Message, NormalizedChainName,
+    };
 
     use super::{freeze_chains, unfreeze_chains};
     use crate::contract::execute::route_messages;
@@ -256,7 +258,10 @@ mod test {
     use crate::msg::InstantiateMsg;
     use crate::state::chain_endpoints;
 
-    fn rand_message(source_chain: ChainName, destination_chain: ChainName) -> Message {
+    fn rand_message(
+        source_chain: NormalizedChainName,
+        destination_chain: NormalizedChainName,
+    ) -> Message {
         let mut bytes = [0; 32];
         rand::thread_rng().fill_bytes(&mut bytes);
 
@@ -289,7 +294,7 @@ mod test {
     #[test]
     fn route_messages_with_not_registered_source_chain() {
         let sender = Addr::unchecked("sender");
-        let source_chain: ChainName = "ethereum".parse().unwrap();
+        let source_chain: NormalizedChainName = "ethereum".parse().unwrap();
         let destination_chain = "bitcoin".parse().unwrap();
 
         let mut deps = mock_dependencies();
@@ -316,7 +321,7 @@ mod test {
     #[test]
     fn route_messages_with_frozen_source_chain() {
         let sender = Addr::unchecked("sender");
-        let source_chain: ChainName = "ethereum".parse().unwrap();
+        let source_chain: NormalizedChainName = "ethereum".parse().unwrap();
         let destination_chain = "bitcoin".parse().unwrap();
 
         let mut deps = mock_dependencies();
@@ -357,7 +362,7 @@ mod test {
     #[test]
     fn route_messages_with_wrong_source_chain() {
         let sender = Addr::unchecked("sender");
-        let source_chain: ChainName = "ethereum".parse().unwrap();
+        let source_chain: NormalizedChainName = "ethereum".parse().unwrap();
         let destination_chain = "bitcoin".parse().unwrap();
 
         let mut deps = mock_dependencies();
@@ -396,8 +401,8 @@ mod test {
     #[test]
     fn route_messages_with_frozen_destination_chain() {
         let sender = Addr::unchecked("sender");
-        let source_chain: ChainName = "ethereum".parse().unwrap();
-        let destination_chain: ChainName = "bitcoin".parse().unwrap();
+        let source_chain: NormalizedChainName = "ethereum".parse().unwrap();
+        let destination_chain: NormalizedChainName = "bitcoin".parse().unwrap();
 
         let mut deps = mock_dependencies();
         instantiate(
@@ -451,8 +456,8 @@ mod test {
     #[test]
     fn route_messages_from_non_nexus_with_invalid_message_id() {
         let sender = Addr::unchecked("sender");
-        let source_chain: ChainName = "ethereum".parse().unwrap();
-        let destination_chain: ChainName = "bitcoin".parse().unwrap();
+        let source_chain: NormalizedChainName = "ethereum".parse().unwrap();
+        let destination_chain: NormalizedChainName = "bitcoin".parse().unwrap();
 
         let mut deps = mock_dependencies();
         instantiate(
@@ -492,8 +497,8 @@ mod test {
     #[test]
     fn route_messages_from_nexus_with_invalid_message_id() {
         let sender = Addr::unchecked("nexus_gateway");
-        let source_chain: ChainName = "ethereum".parse().unwrap();
-        let destination_chain: ChainName = "bitcoin".parse().unwrap();
+        let source_chain: NormalizedChainName = "ethereum".parse().unwrap();
+        let destination_chain: NormalizedChainName = "bitcoin".parse().unwrap();
 
         let mut deps = mock_dependencies();
         instantiate(
@@ -517,8 +522,8 @@ mod test {
     #[test]
     fn route_messages_from_non_nexus_with_incorrect_message_id_format() {
         let sender = Addr::unchecked("sender");
-        let source_chain: ChainName = "ethereum".parse().unwrap();
-        let destination_chain: ChainName = "bitcoin".parse().unwrap();
+        let source_chain: NormalizedChainName = "ethereum".parse().unwrap();
+        let destination_chain: NormalizedChainName = "bitcoin".parse().unwrap();
 
         let mut deps = mock_dependencies();
         instantiate(
@@ -568,9 +573,9 @@ mod test {
     #[test]
     fn route_messages_from_non_nexus_to_non_nexus() {
         let sender = Addr::unchecked("sender");
-        let source_chain: ChainName = "ethereum".parse().unwrap();
-        let destination_chain_1: ChainName = "bitcoin".parse().unwrap();
-        let destination_chain_2: ChainName = "polygon".parse().unwrap();
+        let source_chain: NormalizedChainName = "ethereum".parse().unwrap();
+        let destination_chain_1: NormalizedChainName = "bitcoin".parse().unwrap();
+        let destination_chain_2: NormalizedChainName = "polygon".parse().unwrap();
 
         let mut deps = mock_dependencies();
         instantiate(
@@ -647,9 +652,9 @@ mod test {
     #[test]
     fn route_messages_from_nexus_to_registered_chains() {
         let sender = Addr::unchecked("nexus_gateway");
-        let source_chain: ChainName = "ethereum".parse().unwrap();
-        let destination_chain_1: ChainName = "bitcoin".parse().unwrap();
-        let destination_chain_2: ChainName = "polygon".parse().unwrap();
+        let source_chain: NormalizedChainName = "ethereum".parse().unwrap();
+        let destination_chain_1: NormalizedChainName = "bitcoin".parse().unwrap();
+        let destination_chain_2: NormalizedChainName = "polygon".parse().unwrap();
 
         let mut deps = mock_dependencies();
         instantiate(
@@ -711,8 +716,8 @@ mod test {
     #[test]
     fn route_messages_from_nexus_to_non_registered_chains() {
         let sender = Addr::unchecked("nexus_gateway");
-        let source_chain: ChainName = "ethereum".parse().unwrap();
-        let destination_chain: ChainName = "bitcoin".parse().unwrap();
+        let source_chain: NormalizedChainName = "ethereum".parse().unwrap();
+        let destination_chain: NormalizedChainName = "bitcoin".parse().unwrap();
 
         let mut deps = mock_dependencies();
         instantiate(
@@ -741,8 +746,8 @@ mod test {
     #[test]
     fn route_messages_from_registered_chain_to_nexus() {
         let sender = Addr::unchecked("sender");
-        let source_chain: ChainName = "ethereum".parse().unwrap();
-        let destination_chain: ChainName = "bitcoin".parse().unwrap();
+        let source_chain: NormalizedChainName = "ethereum".parse().unwrap();
+        let destination_chain: NormalizedChainName = "bitcoin".parse().unwrap();
 
         let mut deps = mock_dependencies();
         instantiate(
@@ -787,7 +792,7 @@ mod test {
     #[test]
     fn multiple_freeze_unfreeze_causes_no_arithmetic_side_effect() {
         let mut deps = mock_dependencies();
-        let chain: ChainName = "ethereum".parse().unwrap();
+        let chain: NormalizedChainName = "ethereum".parse().unwrap();
 
         chain_endpoints()
             .save(
@@ -878,7 +883,7 @@ mod test {
     #[test]
     fn freezing_unfreezing_chain_emits_correct_event() {
         let mut deps = mock_dependencies();
-        let chain: ChainName = "ethereum".parse().unwrap();
+        let chain: NormalizedChainName = "ethereum".parse().unwrap();
 
         chain_endpoints()
             .save(
@@ -928,7 +933,7 @@ mod test {
 
     fn assert_chain_endpoint_frozen_status(
         storage: &dyn Storage,
-        chain: ChainName,
+        chain: NormalizedChainName,
         expected: FlagSet<GatewayDirection>,
     ) {
         let status = chain_endpoints()

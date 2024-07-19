@@ -29,7 +29,7 @@ pub const CHAIN_NAME_DELIMITER: char = '_';
 pub struct Message {
     pub cc_id: CrossChainId,
     pub source_address: Address,
-    pub destination_chain: ChainName,
+    pub destination_chain: NormalizedChainName,
     pub destination_address: Address,
     /// for better user experience, the payload hash gets encoded into hex at the edges (input/output),
     /// but internally, we treat it as raw bytes to enforce its format.
@@ -102,15 +102,15 @@ impl TryFrom<String> for Address {
 #[cw_serde]
 #[derive(Eq, Hash)]
 pub struct CrossChainId {
-    pub chain: SourceChainName,
+    pub chain: ChainName,
     pub id: nonempty::String,
 }
 
 impl PrimaryKey<'_> for CrossChainId {
-    type Prefix = SourceChainName;
+    type Prefix = ChainName;
     type SubPrefix = ();
     type Suffix = String;
-    type SuperSuffix = (SourceChainName, String);
+    type SuperSuffix = (ChainName, String);
 
     fn key(&self) -> Vec<Key> {
         let mut keys = self.chain.key();
@@ -123,7 +123,7 @@ impl KeyDeserialize for CrossChainId {
     type Output = Self;
 
     fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
-        let (chain, id) = <(SourceChainName, String)>::from_vec(value)?;
+        let (chain, id) = <(ChainName, String)>::from_vec(value)?;
         Ok(CrossChainId {
             chain,
             id: id
@@ -141,15 +141,130 @@ impl Display for CrossChainId {
 #[cw_serde]
 #[serde(try_from = "String")]
 #[derive(Eq, Hash, Valuable)]
+pub struct NormalizedChainName(String);
+
+impl FromStr for NormalizedChainName {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let chain_name: ChainName = s.parse()?;
+
+        Ok(NormalizedChainName(chain_name.0.to_lowercase()))
+    }
+}
+
+impl From<NormalizedChainName> for String {
+    fn from(d: NormalizedChainName) -> Self {
+        d.0
+    }
+}
+
+impl TryFrom<String> for NormalizedChainName {
+    type Error = Error;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        value.parse()
+    }
+}
+
+impl TryFrom<&str> for NormalizedChainName {
+    type Error = Error;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        value.parse()
+    }
+}
+
+impl TryFrom<&ChainName> for NormalizedChainName {
+    type Error = Error;
+
+    fn try_from(value: &ChainName) -> Result<Self, Self::Error> {
+        value.0.parse()
+    }
+}
+
+impl Display for NormalizedChainName {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl PartialEq<String> for NormalizedChainName {
+    fn eq(&self, other: &String) -> bool {
+        self.0 == *other
+    }
+}
+
+impl PartialEq<ChainName> for NormalizedChainName {
+    fn eq(&self, other: &ChainName) -> bool {
+        self.0 == other.0
+    }
+}
+
+impl<'a> PrimaryKey<'a> for NormalizedChainName {
+    type Prefix = ();
+    type SubPrefix = ();
+    type Suffix = Self;
+    type SuperSuffix = Self;
+
+    fn key(&self) -> Vec<Key> {
+        vec![Key::Ref(self.0.as_bytes())]
+    }
+}
+
+impl<'a> Prefixer<'a> for NormalizedChainName {
+    fn prefix(&self) -> Vec<Key> {
+        vec![Key::Ref(self.0.as_bytes())]
+    }
+}
+
+impl KeyDeserialize for NormalizedChainName {
+    type Output = Self;
+
+    #[inline(always)]
+    fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
+        String::from_utf8(value)
+            .map_err(StdError::invalid_utf8)?
+            .then(NormalizedChainName::try_from)
+            .map_err(StdError::invalid_utf8)
+    }
+}
+
+impl KeyDeserialize for &NormalizedChainName {
+    type Output = NormalizedChainName;
+
+    #[inline(always)]
+    fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
+        NormalizedChainName::from_vec(value)
+    }
+}
+
+impl AsRef<str> for NormalizedChainName {
+    fn as_ref(&self) -> &str {
+        self.0.as_str()
+    }
+}
+
+#[cw_serde]
+#[serde(try_from = "String")]
+#[derive(Eq, Hash)]
 pub struct ChainName(String);
+
+impl From<NormalizedChainName> for ChainName {
+    fn from(other: NormalizedChainName) -> Self {
+        ChainName(other.0)
+    }
+}
 
 impl FromStr for ChainName {
     type Err = Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let chain_name: SourceChainName = s.parse()?;
+        if s.contains(CHAIN_NAME_DELIMITER) || s.is_empty() {
+            return Err(Error::InvalidChainName);
+        }
 
-        Ok(ChainName(chain_name.0.to_lowercase()))
+        Ok(ChainName(s.to_owned()))
     }
 }
 
@@ -175,28 +290,20 @@ impl TryFrom<&str> for ChainName {
     }
 }
 
-impl TryFrom<&SourceChainName> for ChainName {
-    type Error = Error;
-
-    fn try_from(value: &SourceChainName) -> Result<Self, Self::Error> {
-        value.0.parse()
-    }
-}
-
 impl Display for ChainName {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
     }
 }
 
-impl PartialEq<String> for ChainName {
-    fn eq(&self, other: &String) -> bool {
-        self.0 == *other
+impl AsRef<str> for ChainName {
+    fn as_ref(&self) -> &str {
+        self.0.as_str()
     }
 }
 
-impl PartialEq<SourceChainName> for ChainName {
-    fn eq(&self, other: &SourceChainName) -> bool {
+impl PartialEq<NormalizedChainName> for ChainName {
+    fn eq(&self, other: &NormalizedChainName) -> bool {
         self.0 == other.0
     }
 }
@@ -239,113 +346,6 @@ impl KeyDeserialize for &ChainName {
     }
 }
 
-impl AsRef<str> for ChainName {
-    fn as_ref(&self) -> &str {
-        self.0.as_str()
-    }
-}
-
-#[cw_serde]
-#[serde(try_from = "String")]
-#[derive(Eq, Hash)]
-pub struct SourceChainName(String);
-
-impl From<ChainName> for SourceChainName {
-    fn from(other: ChainName) -> Self {
-        SourceChainName(other.0)
-    }
-}
-
-impl FromStr for SourceChainName {
-    type Err = Error;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if s.contains(CHAIN_NAME_DELIMITER) || s.is_empty() {
-            return Err(Error::InvalidChainName);
-        }
-
-        Ok(SourceChainName(s.to_owned()))
-    }
-}
-
-impl From<SourceChainName> for String {
-    fn from(d: SourceChainName) -> Self {
-        d.0
-    }
-}
-
-impl TryFrom<String> for SourceChainName {
-    type Error = Error;
-
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        value.parse()
-    }
-}
-
-impl TryFrom<&str> for SourceChainName {
-    type Error = Error;
-
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
-        value.parse()
-    }
-}
-
-impl Display for SourceChainName {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
-impl AsRef<str> for SourceChainName {
-    fn as_ref(&self) -> &str {
-        self.0.as_str()
-    }
-}
-
-impl PartialEq<ChainName> for SourceChainName {
-    fn eq(&self, other: &ChainName) -> bool {
-        self.0 == other.0
-    }
-}
-
-impl<'a> PrimaryKey<'a> for SourceChainName {
-    type Prefix = ();
-    type SubPrefix = ();
-    type Suffix = Self;
-    type SuperSuffix = Self;
-
-    fn key(&self) -> Vec<Key> {
-        vec![Key::Ref(self.0.as_bytes())]
-    }
-}
-
-impl<'a> Prefixer<'a> for SourceChainName {
-    fn prefix(&self) -> Vec<Key> {
-        vec![Key::Ref(self.0.as_bytes())]
-    }
-}
-
-impl KeyDeserialize for SourceChainName {
-    type Output = Self;
-
-    #[inline(always)]
-    fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
-        String::from_utf8(value)
-            .map_err(StdError::invalid_utf8)?
-            .then(SourceChainName::try_from)
-            .map_err(StdError::invalid_utf8)
-    }
-}
-
-impl KeyDeserialize for &SourceChainName {
-    type Output = SourceChainName;
-
-    #[inline(always)]
-    fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
-        SourceChainName::from_vec(value)
-    }
-}
-
 flags! {
     #[repr(u8)]
     #[derive(Deserialize, Serialize, Hash)]
@@ -374,7 +374,7 @@ pub struct Gateway {
 
 #[cw_serde]
 pub struct ChainEndpoint {
-    pub name: ChainName,
+    pub name: NormalizedChainName,
     pub gateway: Gateway,
     pub frozen_status: FlagSet<GatewayDirection>,
     pub msg_id_format: MessageIdFormat,
@@ -429,14 +429,14 @@ mod tests {
     fn should_fail_to_parse_invalid_chain_name() {
         // empty
         assert_eq!(
-            "".parse::<ChainName>().unwrap_err(),
+            "".parse::<NormalizedChainName>().unwrap_err(),
             Error::InvalidChainName
         );
 
         // name contains id separator
         assert_eq!(
             format!("chain {CHAIN_NAME_DELIMITER}")
-                .parse::<ChainName>()
+                .parse::<NormalizedChainName>()
                 .unwrap_err(),
             Error::InvalidChainName
         );
@@ -450,15 +450,21 @@ mod tests {
             .map(char::from)
             .collect();
 
-        let chain_name: ChainName = rand_str.parse().unwrap();
+        let chain_name: NormalizedChainName = rand_str.parse().unwrap();
 
         assert_eq!(
             chain_name,
-            rand_str.to_lowercase().parse::<ChainName>().unwrap()
+            rand_str
+                .to_lowercase()
+                .parse::<NormalizedChainName>()
+                .unwrap()
         );
         assert_eq!(
             chain_name,
-            rand_str.to_uppercase().parse::<ChainName>().unwrap()
+            rand_str
+                .to_uppercase()
+                .parse::<NormalizedChainName>()
+                .unwrap()
         );
     }
 
@@ -466,22 +472,24 @@ mod tests {
     fn should_not_deserialize_invalid_chain_name() {
         assert_eq!(
             "chain name is invalid",
-            serde_json::from_str::<ChainName>("\"\"")
+            serde_json::from_str::<NormalizedChainName>("\"\"")
                 .unwrap_err()
                 .to_string()
         );
 
         assert_eq!(
             "chain name is invalid",
-            serde_json::from_str::<ChainName>(format!("\"chain{CHAIN_NAME_DELIMITER}\"").as_str())
-                .unwrap_err()
-                .to_string()
+            serde_json::from_str::<NormalizedChainName>(
+                format!("\"chain{CHAIN_NAME_DELIMITER}\"").as_str()
+            )
+            .unwrap_err()
+            .to_string()
         );
     }
 
     #[test]
     fn chain_name_should_not_match_case_insensitively() {
-        let chain_name = ChainName::from_str("ethereum").unwrap();
+        let chain_name = NormalizedChainName::from_str("ethereum").unwrap();
 
         assert!(chain_name.eq(&"ethereum".to_string()));
         assert!(chain_name.ne(&"Ethereum".to_string()));

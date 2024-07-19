@@ -6,7 +6,7 @@ use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Order, StdResult, Storage};
 use cw_storage_plus::{Index, IndexList, IndexedMap, Item, Map, MultiIndex};
 use multisig::verifier_set::VerifierSet;
-use router_api::{ChainName, Message};
+use router_api::{Message, NormalizedChainName};
 
 use crate::error::ContractError;
 
@@ -19,7 +19,7 @@ pub struct Config {
     pub voting_threshold: MajorityThreshold,
     pub block_expiry: u64, // number of blocks after which a poll expires
     pub confirmation_height: u64,
-    pub source_chain: ChainName,
+    pub source_chain: NormalizedChainName,
     pub rewards_contract: Addr,
     pub msg_id_format: MessageIdFormat,
 }

@@ -12,7 +12,7 @@ use ethers_core::types::{TransactionReceipt, U64};
 use events::Error::EventTypeMismatch;
 use events_derive::try_from;
 use futures::future::join_all;
-use router_api::ChainName;
+use router_api::NormalizedChainName;
 use serde::Deserialize;
 use tokio::sync::watch::Receiver;
 use tracing::{info, info_span};
@@ -35,7 +35,7 @@ pub struct Message {
     pub tx_id: Hash,
     pub event_index: u32,
     pub destination_address: String,
-    pub destination_chain: router_api::ChainName,
+    pub destination_chain: router_api::NormalizedChainName,
     pub source_address: EVMAddress,
     pub payload_hash: Hash,
 }
@@ -44,7 +44,7 @@ pub struct Message {
 #[try_from("wasm-messages_poll_started")]
 struct PollStartedEvent {
     poll_id: PollId,
-    source_chain: router_api::ChainName,
+    source_chain: router_api::NormalizedChainName,
     source_gateway_address: EVMAddress,
     confirmation_height: u64,
     expires_at: u64,
@@ -58,7 +58,7 @@ where
 {
     verifier: TMAddress,
     voting_verifier_contract: TMAddress,
-    chain: ChainName,
+    chain: NormalizedChainName,
     finalizer_type: Finalization,
     rpc_client: C,
     latest_block_height: Receiver<u64>,
@@ -71,7 +71,7 @@ where
     pub fn new(
         verifier: TMAddress,
         voting_verifier_contract: TMAddress,
-        chain: ChainName,
+        chain: NormalizedChainName,
         finalizer_type: Finalization,
         rpc_client: C,
         latest_block_height: Receiver<u64>,
@@ -233,7 +233,7 @@ mod tests {
     use ethers_providers::ProviderError;
     use events::Error::{DeserializationFailed, EventTypeMismatch};
     use events::Event;
-    use router_api::ChainName;
+    use router_api::NormalizedChainName;
     use tendermint::abci;
     use tokio::sync::watch;
     use tokio::test as async_test;
@@ -367,7 +367,7 @@ mod tests {
         let handler = super::Handler::new(
             verifier,
             voting_verifier_contract,
-            ChainName::from_str("ethereum").unwrap(),
+            NormalizedChainName::from_str("ethereum").unwrap(),
             Finalization::RPCFinalizedBlock,
             rpc_client,
             rx,

@@ -153,7 +153,8 @@ mod test {
     use permission_control::Permission;
     use router_api::error::Error;
     use router_api::{
-        ChainEndpoint, ChainName, CrossChainId, GatewayDirection, Message, CHAIN_NAME_DELIMITER,
+        ChainEndpoint, CrossChainId, GatewayDirection, Message, NormalizedChainName,
+        CHAIN_NAME_DELIMITER,
     };
 
     use super::*;
@@ -183,7 +184,7 @@ mod test {
     }
 
     struct Chain {
-        chain_name: ChainName,
+        chain_name: NormalizedChainName,
         gateway: Addr,
     }
 
@@ -726,7 +727,7 @@ mod test {
             mock_env(),
             mock_info(GOVERNANCE_ADDRESS, &[]),
             ExecuteMsg::RegisterChain {
-                chain: ChainName::from_str("ETHEREUM").unwrap(),
+                chain: NormalizedChainName::from_str("ETHEREUM").unwrap(),
                 gateway_address: Addr::unchecked("new gateway")
                     .to_string()
                     .try_into()
@@ -741,12 +742,13 @@ mod test {
     #[test]
     fn invalid_chain_name() {
         assert_contract_err_string_contains(
-            ChainName::from_str(format!("bad{}", CHAIN_NAME_DELIMITER).as_str()).unwrap_err(),
+            NormalizedChainName::from_str(format!("bad{}", CHAIN_NAME_DELIMITER).as_str())
+                .unwrap_err(),
             Error::InvalidChainName,
         );
 
         assert_contract_err_string_contains(
-            ChainName::from_str("").unwrap_err(),
+            NormalizedChainName::from_str("").unwrap_err(),
             Error::InvalidChainName,
         );
     }

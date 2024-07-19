@@ -208,7 +208,7 @@ mod test {
     use axelar_wasm_std::nonempty;
     use cosmwasm_std::testing::{mock_dependencies, MockApi, MockQuerier, MockStorage};
     use cosmwasm_std::{Addr, OwnedDeps, Uint128, Uint64};
-    use router_api::ChainName;
+    use router_api::NormalizedChainName;
 
     use super::*;
     use crate::error::ContractError;
@@ -729,7 +729,7 @@ mod test {
             (Addr::unchecked("contract_3"), vec![1000, 500, 2000]),
         ];
 
-        let chain_name: ChainName = "mock-chain".parse().unwrap();
+        let chain_name: NormalizedChainName = "mock-chain".parse().unwrap();
 
         for (pool_contract, rewards) in &test_data {
             let pool_id = PoolId {

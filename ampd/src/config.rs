@@ -48,7 +48,7 @@ mod tests {
     use std::time::Duration;
 
     use cosmrs::AccountId;
-    use router_api::ChainName;
+    use router_api::NormalizedChainName;
 
     use super::Config;
     use crate::evm::finalizer::Finalization;
@@ -261,7 +261,7 @@ mod tests {
             handlers: vec![
                 HandlerConfig::EvmMsgVerifier {
                     chain: Chain {
-                        name: ChainName::from_str("Ethereum").unwrap(),
+                        name: NormalizedChainName::from_str("Ethereum").unwrap(),
                         finalization: Finalization::RPCFinalizedBlock,
                         rpc_url: Url::from_str("http://127.0.0.1").unwrap(),
                     },
@@ -275,7 +275,7 @@ mod tests {
                         AccountId::new("axelar", &[0u8; 32]).unwrap(),
                     ),
                     chain: Chain {
-                        name: ChainName::from_str("Fantom").unwrap(),
+                        name: NormalizedChainName::from_str("Fantom").unwrap(),
                         finalization: Finalization::ConfirmationHeight,
                         rpc_url: Url::from_str("http://127.0.0.1").unwrap(),
                     },

@@ -2,14 +2,17 @@ use cosmwasm_std::{Deps, Order, Storage};
 use cw_storage_plus::Bound;
 use error_stack::{Result, ResultExt};
 use router_api::error::Error;
-use router_api::{ChainEndpoint, ChainName};
+use router_api::{ChainEndpoint, NormalizedChainName};
 
 use crate::state::chain_endpoints;
 
 // Pagination limits
 const DEFAULT_LIMIT: u32 = u32::MAX;
 
-pub fn get_chain_info(storage: &dyn Storage, chain: ChainName) -> Result<ChainEndpoint, Error> {
+pub fn get_chain_info(
+    storage: &dyn Storage,
+    chain: NormalizedChainName,
+) -> Result<ChainEndpoint, Error> {
     chain_endpoints()
         .may_load(storage, chain)
         .change_context(Error::StoreFailure)?
@@ -18,7 +21,7 @@ pub fn get_chain_info(storage: &dyn Storage, chain: ChainName) -> Result<ChainEn
 
 pub fn chains(
     deps: Deps,
-    start_after: Option<ChainName>,
+    start_after: Option<NormalizedChainName>,
     limit: Option<u32>,
 ) -> Result<Vec<ChainEndpoint>, Error> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT) as usize;
@@ -40,7 +43,7 @@ mod test {
     use cosmwasm_std::testing::mock_dependencies;
     use cosmwasm_std::Addr;
     use router_api::error::Error;
-    use router_api::{ChainEndpoint, ChainName, Gateway, GatewayDirection};
+    use router_api::{ChainEndpoint, Gateway, GatewayDirection, NormalizedChainName};
 
     use super::get_chain_info;
     use crate::state::chain_endpoints;
@@ -48,7 +51,7 @@ mod test {
     #[test]
     fn should_get_chain_info() {
         let mut deps = mock_dependencies();
-        let chain_name: ChainName = "Ethereum".to_string().try_into().unwrap();
+        let chain_name: NormalizedChainName = "Ethereum".to_string().try_into().unwrap();
         let chain_info = ChainEndpoint {
             name: chain_name.clone(),
             gateway: Gateway {
@@ -69,7 +72,7 @@ mod test {
     #[test]
     fn get_non_existent_chain_info() {
         let deps = mock_dependencies();
-        let chain_name: ChainName = "Ethereum".to_string().try_into().unwrap();
+        let chain_name: NormalizedChainName = "Ethereum".to_string().try_into().unwrap();
         let result = get_chain_info(deps.as_ref().storage, chain_name);
         assert!(result.is_err());
         assert_eq!(result.unwrap_err().current_context(), &Error::ChainNotFound);
@@ -78,7 +81,7 @@ mod test {
     #[test]
     fn paginated_chains() {
         let mut deps = mock_dependencies();
-        let chains: Vec<ChainName> = vec![
+        let chains: Vec<NormalizedChainName> = vec![
             "a-chain".parse().unwrap(),
             "b-chain".parse().unwrap(),
             "c-chain".parse().unwrap(),

@@ -13,7 +13,7 @@ pub mod test_utils;
 
 #[test]
 fn verifier_set_can_be_initialized_and_then_manually_updated() {
-    let chains: Vec<router_api::ChainName> = vec![
+    let chains: Vec<router_api::NormalizedChainName> = vec![
         "Ethereum".to_string().try_into().unwrap(),
         "Polygon".to_string().try_into().unwrap(),
     ];
@@ -325,7 +325,8 @@ fn verifier_set_update_can_be_resigned() {
 
 #[test]
 fn governance_should_confirm_new_verifier_set_without_verification() {
-    let chains: Vec<router_api::ChainName> = vec!["Ethereum".to_string().try_into().unwrap()];
+    let chains: Vec<router_api::NormalizedChainName> =
+        vec!["Ethereum".to_string().try_into().unwrap()];
     let test_utils::TestCase {
         mut protocol,
         chain1: ethereum,
@@ -382,7 +383,7 @@ fn rotate_signers_should_filter_out_signers_without_pubkey() {
         ..
     } = test_utils::setup_test_case();
 
-    let chains: Vec<router_api::ChainName> = vec![chain1.chain_name.clone()];
+    let chains: Vec<router_api::NormalizedChainName> = vec![chain1.chain_name.clone()];
 
     // add a third verifier to satisfy min verifier change threshold
     register_verifiers(

@@ -176,7 +176,7 @@ mod test {
         mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
     };
     use cosmwasm_std::{coins, from_json, CosmosMsg, Empty, OwnedDeps, StdResult};
-    use router_api::ChainName;
+    use router_api::NormalizedChainName;
 
     use super::*;
     use crate::state::{WeightedVerifier, VERIFIER_WEIGHT};
@@ -398,7 +398,7 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let chain_name = ChainName::from_str("ethereum").unwrap();
+        let chain_name = NormalizedChainName::from_str("ethereum").unwrap();
         let res = execute(
             deps.as_mut(),
             mock_env(),
@@ -443,7 +443,7 @@ mod test {
                 mock_env(),
                 QueryMsg::GetActiveVerifiers {
                     service_name: service_name.into(),
-                    chain_name: ChainName::from_str("random chain").unwrap(),
+                    chain_name: NormalizedChainName::from_str("random chain").unwrap(),
                 },
             )
             .unwrap(),
@@ -501,7 +501,7 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let chain_name = ChainName::from_str("ethereum").unwrap();
+        let chain_name = NormalizedChainName::from_str("ethereum").unwrap();
         let res = execute(
             deps.as_mut(),
             mock_env(),
@@ -589,9 +589,9 @@ mod test {
         assert!(res.is_ok());
 
         let chains = vec![
-            ChainName::from_str("ethereum").unwrap(),
-            ChainName::from_str("binance").unwrap(),
-            ChainName::from_str("avalanche").unwrap(),
+            NormalizedChainName::from_str("ethereum").unwrap(),
+            NormalizedChainName::from_str("binance").unwrap(),
+            NormalizedChainName::from_str("avalanche").unwrap(),
         ];
 
         let res = execute(
@@ -683,9 +683,9 @@ mod test {
         assert!(res.is_ok());
 
         let chains = vec![
-            ChainName::from_str("ethereum").unwrap(),
-            ChainName::from_str("binance").unwrap(),
-            ChainName::from_str("avalanche").unwrap(),
+            NormalizedChainName::from_str("ethereum").unwrap(),
+            NormalizedChainName::from_str("binance").unwrap(),
+            NormalizedChainName::from_str("avalanche").unwrap(),
         ];
 
         let res = execute(
@@ -807,7 +807,7 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let chain_name = ChainName::from_str("ethereum").unwrap();
+        let chain_name = NormalizedChainName::from_str("ethereum").unwrap();
         let res = execute(
             deps.as_mut(),
             mock_env(),
@@ -819,7 +819,7 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let second_chain_name = ChainName::from_str("avalanche").unwrap();
+        let second_chain_name = NormalizedChainName::from_str("avalanche").unwrap();
         // Deregister support for another chain
         let res = execute(
             deps.as_mut(),
@@ -909,7 +909,7 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let chain_name = ChainName::from_str("ethereum").unwrap();
+        let chain_name = NormalizedChainName::from_str("ethereum").unwrap();
         let res = execute(
             deps.as_mut(),
             mock_env(),
@@ -1021,7 +1021,7 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let chain_name = ChainName::from_str("ethereum").unwrap();
+        let chain_name = NormalizedChainName::from_str("ethereum").unwrap();
         let res = execute(
             deps.as_mut(),
             mock_env(),
@@ -1084,7 +1084,7 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let chain_name = ChainName::from_str("ethereum").unwrap();
+        let chain_name = NormalizedChainName::from_str("ethereum").unwrap();
         let res = execute(
             deps.as_mut(),
             mock_env(),
@@ -1147,7 +1147,7 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let chain_name = ChainName::from_str("ethereum").unwrap();
+        let chain_name = NormalizedChainName::from_str("ethereum").unwrap();
         let err = execute(
             deps.as_mut(),
             mock_env(),
@@ -1183,7 +1183,7 @@ mod test {
         let mut deps = setup();
 
         let service_name = "validators";
-        let chain_name = ChainName::from_str("ethereum").unwrap();
+        let chain_name = NormalizedChainName::from_str("ethereum").unwrap();
         let err = execute(
             deps.as_mut(),
             mock_env(),
@@ -1245,7 +1245,7 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let chain_name = ChainName::from_str("ethereum").unwrap();
+        let chain_name = NormalizedChainName::from_str("ethereum").unwrap();
         let res = execute(
             deps.as_mut(),
             mock_env(),
@@ -1357,7 +1357,7 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let chain_name = ChainName::from_str("ethereum").unwrap();
+        let chain_name = NormalizedChainName::from_str("ethereum").unwrap();
         let res = execute(
             deps.as_mut(),
             mock_env(),
@@ -1431,7 +1431,7 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let chain_name = ChainName::from_str("ethereum").unwrap();
+        let chain_name = NormalizedChainName::from_str("ethereum").unwrap();
         let res = execute(
             deps.as_mut(),
             mock_env(),
@@ -1505,7 +1505,7 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let chain_name = ChainName::from_str("ethereum").unwrap();
+        let chain_name = NormalizedChainName::from_str("ethereum").unwrap();
         let res = execute(
             deps.as_mut(),
             mock_env(),
@@ -1592,7 +1592,7 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let chain_name = ChainName::from_str("ethereum").unwrap();
+        let chain_name = NormalizedChainName::from_str("ethereum").unwrap();
         let res = execute(
             deps.as_mut(),
             mock_env(),
@@ -1701,7 +1701,7 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let chain_name = ChainName::from_str("ethereum").unwrap();
+        let chain_name = NormalizedChainName::from_str("ethereum").unwrap();
         let res = execute(
             deps.as_mut(),
             mock_env(),
@@ -1810,7 +1810,7 @@ mod test {
         )
         .unwrap();
 
-        let chain_name = ChainName::from_str("ethereum").unwrap();
+        let chain_name = NormalizedChainName::from_str("ethereum").unwrap();
 
         for verifier in &verifiers {
             // should return err until all verifiers are registered

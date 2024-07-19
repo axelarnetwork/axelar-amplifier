@@ -13,7 +13,7 @@ use event_sub::EventSub;
 use evm::finalizer::{pick, Finalization};
 use evm::json_rpc::EthereumClient;
 use queue::queued_broadcaster::QueuedBroadcaster;
-use router_api::ChainName;
+use router_api::NormalizedChainName;
 use thiserror::Error;
 use tofnd::grpc::{Multisig, MultisigClient};
 use tokio::signal::unix::{signal, SignalKind};
@@ -126,7 +126,7 @@ async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
 }
 
 async fn check_finalizer<'a, C>(
-    chain_name: &ChainName,
+    chain_name: &NormalizedChainName,
     finalization: &Finalization,
     rpc_client: &'a C,
 ) -> Result<(), Error>
@@ -445,7 +445,7 @@ pub enum Error {
     #[error("block height monitor failed")]
     BlockHeightMonitor,
     #[error("invalid finalizer type for chain {0}")]
-    InvalidFinalizerType(ChainName),
+    InvalidFinalizerType(NormalizedChainName),
     #[error("health check is not working")]
     HealthCheck,
 }

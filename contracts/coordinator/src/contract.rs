@@ -104,7 +104,7 @@ mod tests {
         mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
     };
     use cosmwasm_std::{Addr, Empty, OwnedDeps};
-    use router_api::ChainName;
+    use router_api::NormalizedChainName;
 
     use super::*;
     use crate::state::load_prover_by_chain;
@@ -113,7 +113,7 @@ mod tests {
         deps: OwnedDeps<MockStorage, MockApi, MockQuerier, Empty>,
         env: Env,
         prover: Addr,
-        chain_name: ChainName,
+        chain_name: NormalizedChainName,
     }
 
     fn setup(governance: &str) -> TestSetup {
@@ -129,7 +129,7 @@ mod tests {
         assert!(res.is_ok());
 
         let eth_prover = Addr::unchecked("eth_prover");
-        let eth: ChainName = "Ethereum".parse().unwrap();
+        let eth: NormalizedChainName = "Ethereum".parse().unwrap();
 
         TestSetup {
             deps,

@@ -6,7 +6,7 @@ use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, StdResult, Storage, Uint128};
 use cw_storage_plus::{Item, Key, KeyDeserialize, Map, Prefixer, PrimaryKey};
 use error_stack::{Result, ResultExt};
-use router_api::ChainName;
+use router_api::NormalizedChainName;
 
 use crate::error::ContractError;
 use crate::msg::Params;
@@ -27,12 +27,12 @@ pub struct ParamsSnapshot {
 #[cw_serde]
 #[derive(Eq, Hash)]
 pub struct PoolId {
-    pub chain_name: ChainName,
+    pub chain_name: NormalizedChainName,
     pub contract: Addr,
 }
 
 impl PoolId {
-    pub fn new(chain_name: ChainName, contract: Addr) -> Self {
+    pub fn new(chain_name: NormalizedChainName, contract: Addr) -> Self {
         PoolId {
             chain_name,
             contract,
@@ -41,10 +41,10 @@ impl PoolId {
 }
 
 impl PrimaryKey<'_> for PoolId {
-    type Prefix = ChainName;
+    type Prefix = NormalizedChainName;
     type SubPrefix = ();
     type Suffix = Addr;
-    type SuperSuffix = (ChainName, Addr);
+    type SuperSuffix = (NormalizedChainName, Addr);
 
     fn key(&self) -> Vec<Key> {
         let mut keys = self.chain_name.key();
@@ -57,7 +57,7 @@ impl KeyDeserialize for PoolId {
     type Output = Self;
 
     fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
-        let (chain_name, contract) = <(ChainName, Addr)>::from_vec(value)?;
+        let (chain_name, contract) = <(NormalizedChainName, Addr)>::from_vec(value)?;
         Ok(PoolId {
             chain_name,
             contract,
@@ -404,7 +404,7 @@ mod test {
 
     use cosmwasm_std::testing::mock_dependencies;
     use cosmwasm_std::{Addr, Uint128, Uint64};
-    use router_api::ChainName;
+    use router_api::NormalizedChainName;
 
     use super::*;
     use crate::error::ContractError;
@@ -713,7 +713,7 @@ mod test {
     fn save_and_load_rewards_pool() {
         let mut mock_deps = mock_dependencies();
 
-        let chain_name: ChainName = "mock-chain".parse().unwrap();
+        let chain_name: NormalizedChainName = "mock-chain".parse().unwrap();
         let pool = RewardsPool::new(PoolId::new(
             chain_name.clone(),
             Addr::unchecked("some contract"),

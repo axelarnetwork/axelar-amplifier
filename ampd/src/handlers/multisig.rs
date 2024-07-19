@@ -200,7 +200,7 @@ mod test {
     use rand::distributions::Alphanumeric;
     use rand::rngs::OsRng;
     use rand::Rng;
-    use router_api::ChainName;
+    use router_api::NormalizedChainName;
     use tendermint::abci;
     use tokio::sync::watch;
 
@@ -229,7 +229,7 @@ mod test {
         HexBinary::from(digest.as_slice())
     }
 
-    fn rand_chain_name() -> ChainName {
+    fn rand_chain_name() -> NormalizedChainName {
         rand::thread_rng()
             .sample_iter(&Alphanumeric)
             .take(32)

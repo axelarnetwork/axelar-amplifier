@@ -173,7 +173,7 @@ mod tests {
     use cosmwasm_std::testing::{mock_dependencies, mock_env};
     use cosmwasm_std::{coins, Addr, BlockInfo, Uint128};
     use cw_multi_test::{App, ContractWrapper, Executor};
-    use router_api::ChainName;
+    use router_api::NormalizedChainName;
 
     use super::*;
     use crate::msg::{ExecuteMsg, InstantiateMsg, Params, QueryMsg, RewardsPool};
@@ -197,7 +197,7 @@ mod tests {
     /// events and then distributes the rewards.
     #[test]
     fn test_rewards_flow() {
-        let chain_name: ChainName = "mock-chain".parse().unwrap();
+        let chain_name: NormalizedChainName = "mock-chain".parse().unwrap();
         let user = Addr::unchecked("user");
         let verifier = Addr::unchecked("verifier");
         let pool_contract = Addr::unchecked("pool_contract");

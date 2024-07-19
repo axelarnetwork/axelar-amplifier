@@ -1,7 +1,7 @@
 use axelar_wasm_std::{nonempty, voting};
 use axelar_wasm_std_derive::IntoContractError;
 use cosmwasm_std::{OverflowError, StdError};
-use router_api::ChainName;
+use router_api::NormalizedChainName;
 use service_registry;
 use thiserror::Error;
 
@@ -26,7 +26,7 @@ pub enum ContractError {
     EmptyMessages,
 
     #[error("all messages must have the same source chain {0}")]
-    SourceChainMismatch(ChainName),
+    SourceChainMismatch(NormalizedChainName),
 
     #[error("invalid message id {0}")]
     InvalidMessageID(String),

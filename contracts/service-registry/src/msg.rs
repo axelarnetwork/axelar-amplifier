@@ -1,6 +1,6 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, Uint128};
-use router_api::ChainName;
+use router_api::NormalizedChainName;
 
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -39,12 +39,12 @@ pub enum ExecuteMsg {
     // Register support for the specified chains. Called by the verifier.
     RegisterChainSupport {
         service_name: String,
-        chains: Vec<ChainName>,
+        chains: Vec<NormalizedChainName>,
     },
     // Deregister support for the specified chains. Called by the verifier.
     DeregisterChainSupport {
         service_name: String,
-        chains: Vec<ChainName>,
+        chains: Vec<NormalizedChainName>,
     },
 
     // Locks up any funds sent with the message as stake. Called by the verifier.
@@ -67,7 +67,7 @@ pub enum QueryMsg {
     #[returns(Vec<crate::state::WeightedVerifier>)]
     GetActiveVerifiers {
         service_name: String,
-        chain_name: ChainName,
+        chain_name: NormalizedChainName,
     },
 
     #[returns(crate::state::Service)]
