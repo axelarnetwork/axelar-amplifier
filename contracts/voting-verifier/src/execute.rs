@@ -102,7 +102,7 @@ pub fn verify_messages(
         message
             .cc_id
             .amplifier()
-            .map_or(true, |cc_id| &cc_id.chain != &source_chain)
+            .map_or(true, |cc_id| cc_id.chain != source_chain)
     }) {
         Err(ContractError::SourceChainMismatch(source_chain.clone()))?;
     }
