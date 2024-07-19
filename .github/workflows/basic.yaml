@@ -94,9 +94,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: remove fmt
-        run: rm -rf /home/runner/.cargo/bin/rustfmt
-
       - name: Install nightly toolchain
         uses: actions-rs/toolchain@v1
         with:
