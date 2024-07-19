@@ -4,6 +4,7 @@ use std::fmt::Debug;
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response};
 use gateway_api::msg::{ExecuteMsg, QueryMsg};
+
 use router_api::CrossChainId;
 
 use crate::msg::InstantiateMsg;
