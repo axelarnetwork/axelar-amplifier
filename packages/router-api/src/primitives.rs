@@ -211,7 +211,7 @@ impl Display for ChainName {
 
 impl PartialEq<ChainNameRaw> for ChainName {
     fn eq(&self, other: &ChainNameRaw) -> bool {
-        self == &other.0.as_str()
+        self == &other.as_ref()
     }
 }
 
@@ -330,7 +330,7 @@ impl AsRef<str> for ChainNameRaw {
 
 impl PartialEq<ChainName> for ChainNameRaw {
     fn eq(&self, other: &ChainName) -> bool {
-        self == &other.0.as_str()
+        self == &other.as_ref()
     }
 }
 
