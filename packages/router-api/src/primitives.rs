@@ -209,15 +209,21 @@ impl Display for ChainName {
     }
 }
 
-impl PartialEq<String> for ChainName {
-    fn eq(&self, other: &String) -> bool {
-        self.0 == *other
+impl PartialEq<ChainNameRaw> for ChainName {
+    fn eq(&self, other: &ChainNameRaw) -> bool {
+        self == &other.0.as_str()
     }
 }
 
-impl PartialEq<ChainNameRaw> for ChainName {
-    fn eq(&self, other: &ChainNameRaw) -> bool {
-        self.0 == other.0
+impl PartialEq<String> for ChainName {
+    fn eq(&self, other: &String) -> bool {
+        self == &other.as_str()
+    }
+}
+
+impl PartialEq<&str> for ChainName {
+    fn eq(&self, other: &&str) -> bool {
+        self.0 == *other
     }
 }
 
@@ -324,7 +330,19 @@ impl AsRef<str> for ChainNameRaw {
 
 impl PartialEq<ChainName> for ChainNameRaw {
     fn eq(&self, other: &ChainName) -> bool {
-        self.0 == other.0
+        self == &other.0.as_str()
+    }
+}
+
+impl PartialEq<String> for ChainNameRaw {
+    fn eq(&self, other: &String) -> bool {
+        self == &other.as_str()
+    }
+}
+
+impl PartialEq<&str> for ChainNameRaw {
+    fn eq(&self, other: &&str) -> bool {
+        self.0 == *other
     }
 }
 
@@ -446,43 +464,6 @@ mod tests {
     }
 
     #[test]
-    fn should_fail_to_parse_invalid_chain_name() {
-        // empty
-        assert_eq!(
-            "".parse::<ChainName>().unwrap_err(),
-            Error::InvalidChainName
-        );
-
-        // name contains id separator
-        assert_eq!(
-            format!("chain {CHAIN_NAME_DELIMITER}")
-                .parse::<ChainName>()
-                .unwrap_err(),
-            Error::InvalidChainName
-        );
-    }
-
-    #[test]
-    fn should_parse_to_case_insensitive_chain_name() {
-        let rand_str: String = thread_rng()
-            .sample_iter(&Alphanumeric)
-            .take(10)
-            .map(char::from)
-            .collect();
-
-        let chain_name: ChainName = rand_str.parse().unwrap();
-
-        assert_eq!(
-            chain_name,
-            rand_str.to_lowercase().parse::<ChainName>().unwrap()
-        );
-        assert_eq!(
-            chain_name,
-            rand_str.to_uppercase().parse::<ChainName>().unwrap()
-        );
-    }
-
-    #[test]
     fn should_not_deserialize_invalid_chain_name() {
         assert_eq!(
             "chain name is invalid",
@@ -500,15 +481,96 @@ mod tests {
     }
 
     #[test]
-    fn chain_name_should_not_match_case_insensitively() {
-        let chain_name = ChainName::from_str("ethereum").unwrap();
+    fn ensure_chain_name_parsing_respect_restrictions() {
+        struct TestCase<'a> {
+            input: &'a str,
+            can_parse: bool,
+            is_normalized: bool,
+        }
+        let random_lower = random_chain_name().to_lowercase();
+        let random_upper = random_chain_name().to_uppercase();
 
-        assert!(chain_name.eq(&"ethereum".to_string()));
-        assert!(chain_name.ne(&"Ethereum".to_string()));
-        assert!(chain_name.ne(&"ETHEREUM".to_string()));
-        assert!(chain_name.ne(&"ethEReum".to_string()));
+        let test_cases = [
+            TestCase {
+                input: "",
+                can_parse: false,
+                is_normalized: false,
+            },
+            TestCase {
+                input: "chain_with_prohibited_symbols",
+                can_parse: false,
+                is_normalized: false,
+            },
+            TestCase {
+                input: "!@#$%^&*()+=-1234567890",
+                can_parse: true,
+                is_normalized: true,
+            },
+            TestCase {
+                input: "ethereum",
+                can_parse: true,
+                is_normalized: true,
+            },
+            TestCase {
+                input: "ETHEREUM",
+                can_parse: true,
+                is_normalized: false,
+            },
+            TestCase {
+                input: "ethereum-1",
+                can_parse: true,
+                is_normalized: true,
+            },
+            TestCase {
+                input: "ETHEREUM-1",
+                can_parse: true,
+                is_normalized: false,
+            },
+            TestCase {
+                input: random_lower.as_str(),
+                can_parse: true,
+                is_normalized: true,
+            },
+            TestCase {
+                input: random_upper.as_str(),
+                can_parse: true,
+                is_normalized: false,
+            },
+        ];
 
-        assert!(chain_name.ne(&"Ethereum-1".to_string()));
+        let conversions = [
+            |input: &str| ChainName::from_str(input),
+            |input: &str| ChainName::try_from(input),
+            |input: &str| ChainName::try_from(input.to_string()),
+        ];
+
+        let raw_conversions = [
+            |input: &str| ChainNameRaw::from_str(input),
+            |input: &str| ChainNameRaw::try_from(input),
+            |input: &str| ChainNameRaw::try_from(input.to_string()),
+        ];
+
+        for case in test_cases.into_iter() {
+            for conversion in conversions.into_iter() {
+                let result = conversion(case.input);
+                assert_eq!(result.is_ok(), case.can_parse, "input: {}", case.input);
+                if case.can_parse {
+                    if case.is_normalized {
+                        assert_eq!(result.unwrap(), case.input);
+                    } else {
+                        assert_ne!(result.unwrap(), case.input);
+                    }
+                }
+            }
+
+            for conversion in raw_conversions.into_iter() {
+                let result = conversion(case.input);
+                assert_eq!(result.is_ok(), case.can_parse, "input: {}", case.input);
+                if case.can_parse {
+                    assert_eq!(result.unwrap(), case.input);
+                }
+            }
+        }
     }
 
     #[test]
@@ -529,5 +591,13 @@ mod tests {
             destination_address: "destination_address".parse().unwrap(),
             payload_hash: [1; 32],
         }
+    }
+
+    fn random_chain_name() -> String {
+        thread_rng()
+            .sample_iter(&Alphanumeric)
+            .take(10)
+            .map(char::from)
+            .collect()
     }
 }
