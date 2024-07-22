@@ -2,7 +2,7 @@ mod execute;
 mod query;
 
 mod migrations;
-use axelar_wasm_std::permission_control;
+use axelar_wasm_std::{permission_control, FnExt};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
@@ -67,8 +67,8 @@ pub fn execute(
         ExecuteMsg::SetActiveVerifiers { verifiers } => {
             execute::set_active_verifier_set(deps, info, verifiers)
         }
-    }
-    .map_err(axelar_wasm_std::ContractError::from)
+    }?
+    .then(Ok)
 }
 
 fn find_prover_address(
@@ -88,9 +88,9 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
     match msg {
         QueryMsg::ReadyToUnbond { worker_address } => to_json_binary(
             &query::check_verifier_ready_to_unbond(deps, worker_address)?,
-        )
-        .map_err(|err| err.into()),
+        )?,
     }
+    .then(Ok)
 }
 
 #[cfg(test)]
