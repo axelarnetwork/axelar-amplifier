@@ -84,7 +84,6 @@ fn find_prover_address(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-#[allow(dead_code)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
     match msg {
         QueryMsg::ReadyToUnbond { worker_address } => to_json_binary(

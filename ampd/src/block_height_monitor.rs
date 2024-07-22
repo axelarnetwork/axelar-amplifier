@@ -64,7 +64,6 @@ impl<T: TmClient + Sync> BlockHeightMonitor<T> {
         }
     }
 
-    #[allow(dead_code)]
     pub fn latest_block_height(&self) -> Receiver<u64> {
         self.latest_height_rx.clone()
     }
