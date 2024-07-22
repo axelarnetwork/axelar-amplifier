@@ -81,7 +81,10 @@ impl<T> From<&Report<T>> for LoggableError {
             // because of the stack order of attachments we need to reverse them to get the historical order
             attachments.reverse();
             error.attachments = attachments;
-            errors.push(error)
+
+            if !error.msg.is_empty() || !error.attachments.is_empty() {
+                errors.push(error)
+            }
         }
 
         chain_causes(errors).expect("a report must have at least one error")

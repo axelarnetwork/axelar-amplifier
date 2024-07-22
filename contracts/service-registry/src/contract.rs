@@ -1,3 +1,4 @@
+use axelar_wasm_std::FnExt;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
@@ -130,8 +131,8 @@ pub fn execute(
         ExecuteMsg::ClaimStake { service_name } => {
             execute::claim_stake(deps, env, info, service_name)
         }
-    }
-    .map_err(axelar_wasm_std::ContractError::from)
+    }?
+    .then(Ok)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]

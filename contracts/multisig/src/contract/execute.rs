@@ -215,7 +215,7 @@ pub fn authorize_callers(
 
 pub fn unauthorize_callers(
     deps: DepsMut,
-    contracts: Vec<(Addr, ChainName)>,
+    contracts: HashMap<Addr, ChainName>,
 ) -> Result<Response, ContractError> {
     contracts.iter().for_each(|(contract_address, _)| {
         AUTHORIZED_CALLERS.remove(deps.storage, contract_address)
