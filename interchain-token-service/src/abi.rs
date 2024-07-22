@@ -105,7 +105,7 @@ impl ItsMessage {
     }
 
     pub fn abi_decode(payload: &[u8]) -> Result<Self, Report<Error>> {
-
+        todo!()
     }
 }
 
@@ -115,7 +115,7 @@ impl ItsRoutedMessage {
         RoutedCall {
             messageType: MessageType::RoutedCall.into(),
             remote_chain: self.remote_chain.into(),
-            message: self.message.abi_encode().into(),
+            message: Vec::<u8>::from(self.message.abi_encode()).into(),
         }
         .abi_encode_params()
         .into()

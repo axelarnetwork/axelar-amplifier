@@ -1,5 +1,5 @@
 [workspace]
-members = ["ampd", "contracts/*", "integration-tests", "packages/*"]
+members = ["ampd", "contracts/*", "integration-tests", "packages/*", "interchain-token-service"]
 resolver = "2"
 
 [workspace.package]
@@ -50,7 +50,7 @@ tokio-util = "0.7.11"
 alloy-primitives = { version = "0.7.6", default-features = false }
 alloy-sol-types = { version = "0.7.6", default-features = false }
 strum = { version = "0.25", default-features = false, features = ["derive"] }
-interchain-token-service-api = { version = "^0.1.0", path = "packages/interchain-token-service-api" }
+interchain-token-service = { version = "^0.1.0", path = "interchain-token-service" }
 
 [workspace.lints.clippy]
 arithmetic_side_effects = "deny"
