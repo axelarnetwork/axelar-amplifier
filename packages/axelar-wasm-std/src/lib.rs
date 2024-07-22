@@ -1,11 +1,10 @@
-pub use crate::error::*;
 pub use crate::fn_ext::FnExt;
 pub use crate::snapshot::{Participant, Snapshot};
 pub use crate::threshold::{MajorityThreshold, Threshold};
 pub use crate::verification::VerificationStatus;
 
 pub mod counter;
-mod error;
+pub mod error;
 pub mod flagset;
 mod fn_ext;
 pub mod hash;

@@ -9,7 +9,7 @@ pub fn into_contract_error_derive(input: TokenStream) -> TokenStream {
     let name = &ast.ident;
 
     let gen = quote! {
-        impl From<#name> for axelar_wasm_std::ContractError {
+        impl From<#name> for axelar_wasm_std::error::ContractError {
             fn from(error: #name) -> Self {
                 use error_stack::report;
 

@@ -19,7 +19,7 @@ pub fn migrate(
     deps: DepsMut,
     _env: Env,
     _msg: Empty,
-) -> Result<Response, axelar_wasm_std::ContractError> {
+) -> Result<Response, axelar_wasm_std::error::ContractError> {
     // any version checks should be done before here
 
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
@@ -33,7 +33,7 @@ pub fn instantiate(
     _env: Env,
     _info: MessageInfo,
     msg: InstantiateMsg,
-) -> Result<Response, axelar_wasm_std::ContractError> {
+) -> Result<Response, axelar_wasm_std::error::ContractError> {
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     let nexus = deps.api.addr_validate(&msg.nexus)?;
@@ -50,7 +50,7 @@ pub fn execute(
     _env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
-) -> Result<Response<nexus::Message>, axelar_wasm_std::ContractError> {
+) -> Result<Response<nexus::Message>, axelar_wasm_std::error::ContractError> {
     let res = match msg.ensure_permissions(deps.storage, &info.sender, match_router, match_nexus)? {
         ExecuteMsg::RouteMessages(msgs) => {
             route_to_nexus(deps.storage, msgs).change_context(ContractError::RouteToNexus)?

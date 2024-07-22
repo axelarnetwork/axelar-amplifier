@@ -1,6 +1,7 @@
 #![allow(deprecated)]
 
-use axelar_wasm_std::{killswitch, permission_control, ContractError};
+use axelar_wasm_std::error::ContractError;
+use axelar_wasm_std::{killswitch, permission_control};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, StdResult, Storage};
 use cw_storage_plus::Item;

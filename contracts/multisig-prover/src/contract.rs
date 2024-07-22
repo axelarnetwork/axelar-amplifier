@@ -22,7 +22,7 @@ pub fn instantiate(
     _env: Env,
     _info: MessageInfo,
     msg: InstantiateMsg,
-) -> Result<Response, axelar_wasm_std::ContractError> {
+) -> Result<Response, axelar_wasm_std::error::ContractError> {
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     let config = make_config(&deps, msg)?;
@@ -34,7 +34,7 @@ pub fn instantiate(
 fn make_config(
     deps: &DepsMut,
     msg: InstantiateMsg,
-) -> Result<Config, axelar_wasm_std::ContractError> {
+) -> Result<Config, axelar_wasm_std::error::ContractError> {
     let admin = deps.api.addr_validate(&msg.admin_address)?;
     let governance = deps.api.addr_validate(&msg.governance_address)?;
     let gateway = deps.api.addr_validate(&msg.gateway_address)?;
@@ -70,7 +70,7 @@ pub fn execute(
     env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
-) -> Result<Response, axelar_wasm_std::ContractError> {
+) -> Result<Response, axelar_wasm_std::error::ContractError> {
     match msg {
         ExecuteMsg::ConstructProof { message_ids } => execute::construct_proof(deps, message_ids),
         ExecuteMsg::UpdateVerifierSet {} => {
@@ -101,12 +101,12 @@ pub fn reply(
     deps: DepsMut,
     _env: Env,
     reply: Reply,
-) -> Result<Response, axelar_wasm_std::ContractError> {
+) -> Result<Response, axelar_wasm_std::error::ContractError> {
     match reply.id {
         START_MULTISIG_REPLY_ID => reply::start_multisig_reply(deps, reply),
         _ => unreachable!("unknown reply ID"),
     }
-    .map_err(axelar_wasm_std::ContractError::from)
+    .map_err(axelar_wasm_std::error::ContractError::from)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -114,7 +114,7 @@ pub fn query(
     deps: Deps,
     _env: Env,
     msg: QueryMsg,
-) -> Result<Binary, axelar_wasm_std::ContractError> {
+) -> Result<Binary, axelar_wasm_std::error::ContractError> {
     match msg {
         QueryMsg::GetProof {
             multisig_session_id,
@@ -123,7 +123,7 @@ pub fn query(
         QueryMsg::NextVerifierSet {} => to_json_binary(&query::next_verifier_set(deps)?),
     }
     .change_context(ContractError::SerializeResponse)
-    .map_err(axelar_wasm_std::ContractError::from)
+    .map_err(axelar_wasm_std::error::ContractError::from)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -131,7 +131,7 @@ pub fn migrate(
     deps: DepsMut,
     _env: Env,
     _msg: Empty,
-) -> Result<Response, axelar_wasm_std::ContractError> {
+) -> Result<Response, axelar_wasm_std::error::ContractError> {
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     Ok(Response::default())
@@ -200,7 +200,7 @@ mod tests {
 
     fn execute_update_verifier_set(
         deps: DepsMut,
-    ) -> Result<Response, axelar_wasm_std::ContractError> {
+    ) -> Result<Response, axelar_wasm_std::error::ContractError> {
         let msg = ExecuteMsg::UpdateVerifierSet {};
         execute(deps, mock_env(), mock_info(ADMIN, &[]), msg)
     }
@@ -208,7 +208,7 @@ mod tests {
     fn confirm_verifier_set(
         deps: DepsMut,
         sender: Addr,
-    ) -> Result<Response, axelar_wasm_std::ContractError> {
+    ) -> Result<Response, axelar_wasm_std::error::ContractError> {
         let msg = ExecuteMsg::ConfirmVerifierSet {};
         execute(deps, mock_env(), mock_info(sender.as_str(), &[]), msg)
     }
@@ -217,7 +217,7 @@ mod tests {
         deps: DepsMut,
         sender: Addr,
         new_signing_threshold: MajorityThreshold,
-    ) -> Result<Response, axelar_wasm_std::ContractError> {
+    ) -> Result<Response, axelar_wasm_std::error::ContractError> {
         let msg = ExecuteMsg::UpdateSigningThreshold {
             new_signing_threshold,
         };
@@ -228,7 +228,7 @@ mod tests {
         deps: DepsMut,
         sender: &str,
         new_admin_address: String,
-    ) -> Result<Response, axelar_wasm_std::ContractError> {
+    ) -> Result<Response, axelar_wasm_std::error::ContractError> {
         let msg = ExecuteMsg::UpdateAdmin { new_admin_address };
         execute(deps, mock_env(), mock_info(sender, &[]), msg)
     }
@@ -236,7 +236,7 @@ mod tests {
     fn execute_construct_proof(
         deps: DepsMut,
         message_ids: Option<Vec<CrossChainId>>,
-    ) -> Result<Response, axelar_wasm_std::ContractError> {
+    ) -> Result<Response, axelar_wasm_std::error::ContractError> {
         let message_ids = match message_ids {
             Some(ids) => ids,
             None => test_data::messages()
@@ -249,7 +249,9 @@ mod tests {
         execute(deps, mock_env(), mock_info(RELAYER, &[]), msg)
     }
 
-    fn reply_construct_proof(deps: DepsMut) -> Result<Response, axelar_wasm_std::ContractError> {
+    fn reply_construct_proof(
+        deps: DepsMut,
+    ) -> Result<Response, axelar_wasm_std::error::ContractError> {
         let session_id = to_json_binary(&MULTISIG_SESSION_ID).unwrap();
 
         let response = SubMsgResponse {
@@ -275,7 +277,7 @@ mod tests {
     fn query_get_proof(
         deps: Deps,
         multisig_session_id: Option<Uint64>,
-    ) -> Result<GetProofResponse, axelar_wasm_std::ContractError> {
+    ) -> Result<GetProofResponse, axelar_wasm_std::error::ContractError> {
         let multisig_session_id = match multisig_session_id {
             Some(id) => id,
             None => MULTISIG_SESSION_ID,
@@ -293,7 +295,7 @@ mod tests {
 
     fn query_get_verifier_set(
         deps: Deps,
-    ) -> Result<Option<VerifierSetResponse>, axelar_wasm_std::ContractError> {
+    ) -> Result<Option<VerifierSetResponse>, axelar_wasm_std::error::ContractError> {
         query(deps, mock_env(), QueryMsg::CurrentVerifierSet {}).map(|res| from_json(res).unwrap())
     }
 
@@ -414,7 +416,7 @@ mod tests {
         assert!(res.is_err());
         assert_eq!(
             res.unwrap_err().to_string(),
-            axelar_wasm_std::ContractError::from(ContractError::Unauthorized).to_string()
+            axelar_wasm_std::error::ContractError::from(ContractError::Unauthorized).to_string()
         );
     }
 
@@ -552,7 +554,8 @@ mod tests {
         assert!(res.is_err());
         assert_eq!(
             res.unwrap_err().to_string(),
-            axelar_wasm_std::ContractError::from(ContractError::VerifierSetUnchanged).to_string()
+            axelar_wasm_std::error::ContractError::from(ContractError::VerifierSetUnchanged)
+                .to_string()
         );
     }
 
@@ -577,7 +580,7 @@ mod tests {
         assert!(res.is_err());
         assert_eq!(
             res.unwrap_err().to_string(),
-            axelar_wasm_std::ContractError::from(ContractError::VerifierSetNotConfirmed)
+            axelar_wasm_std::error::ContractError::from(ContractError::VerifierSetNotConfirmed)
                 .to_string()
         );
     }
@@ -607,7 +610,7 @@ mod tests {
         assert!(res.is_err());
         assert_eq!(
             res.unwrap_err().to_string(),
-            axelar_wasm_std::ContractError::from(ContractError::VerifierSetNotConfirmed)
+            axelar_wasm_std::error::ContractError::from(ContractError::VerifierSetNotConfirmed)
                 .to_string()
         );
     }
@@ -664,7 +667,7 @@ mod tests {
         assert!(res.is_err());
         assert_eq!(
             res.unwrap_err().to_string(),
-            axelar_wasm_std::ContractError::from(ContractError::NoVerifierSet).to_string()
+            axelar_wasm_std::error::ContractError::from(ContractError::NoVerifierSet).to_string()
         );
     }
 
