@@ -93,21 +93,10 @@ impl VerifierSetConfirmation {
 fn find_event<'a>(
     transaction: &'a TransactionOnNetwork,
     gateway_address: &Address,
-    log_index: usize,
     identifier: &str,
     needed_event_name: &[u8],
 ) -> Option<&'a Events> {
-    // We only support log index being 0, so only one supported event per transaction because of MultiversX limitations.
-    // The MultiversX Event Notifier service does not support log index, hence when an event comes there,
-    // we don't know it's log index in reference to the transaction it cam from. This might be changed,
-    // so we are keeping the message id the same (txHash-logIndex) to allow upgrading this
-    // in the future. using an activation epoch flag.
-    if log_index != 0 {
-        return None;
-    }
-
-    // Because of current relayer limitation, if log_index is 0, we will search through the logs and get the first log
-    // which corresponds to the gateway address, hence only supporting one cross chain call per transaction
+    // Search for first event from the transaction with the appropriate gateway, identifier and name
     transaction
         .logs
         .as_ref()?
@@ -147,7 +136,6 @@ pub fn verify_message(
     match find_event(
         transaction,
         gateway_address,
-        message.event_index as usize,
         CONTRACT_CALL_IDENTIFIER,
         CONTRACT_CALL_EVENT.as_bytes(),
     ) {
@@ -179,7 +167,6 @@ pub fn verify_verifier_set(
     match find_event(
         transaction,
         gateway_address,
-        verifier_set.event_index as usize,
         ROTATE_SIGNERS_IDENTIFIER,
         SIGNERS_ROTATED_EVENT.as_bytes(),
     ) {
@@ -229,14 +216,6 @@ mod tests {
         let (gateway_address, mut tx, msg) = get_matching_msg_and_tx();
 
         tx.logs = None;
-        assert_eq!(verify_message(&gateway_address, &tx, &msg), Vote::NotFound);
-    }
-
-    #[test]
-    fn should_not_verify_msg_if_event_index_does_not_match() {
-        let (gateway_address, tx, mut msg) = get_matching_msg_and_tx();
-
-        msg.event_index = 2;
         assert_eq!(verify_message(&gateway_address, &tx, &msg), Vote::NotFound);
     }
 
@@ -312,16 +291,9 @@ mod tests {
     }
 
     #[test]
-    fn should_verify_msg_if_correct_unsupported_index() {
-        let (gateway_address, tx, msg) = get_matching_msg_and_tx();
-        assert_eq!(verify_message(&gateway_address, &tx, &msg), Vote::NotFound);
-    }
-
-    #[test]
-    fn should_verify_msg_if_correct_event_index_0() {
+    fn should_verify_msg() {
         let (gateway_address, tx, mut msg) = get_matching_msg_and_tx();
 
-        msg.event_index = 0;
         assert_eq!(
             verify_message(&gateway_address, &tx, &msg),
             Vote::SucceededOnChain
@@ -347,17 +319,6 @@ mod tests {
         let (gateway_address, mut tx, verifier_set) = get_matching_verifier_set_and_tx();
 
         tx.logs = None;
-        assert_eq!(
-            verify_verifier_set(&gateway_address, &tx, verifier_set),
-            Vote::NotFound
-        );
-    }
-
-    #[test]
-    fn should_not_verify_verifier_set_if_event_index_does_not_match() {
-        let (gateway_address, tx, mut verifier_set) = get_matching_verifier_set_and_tx();
-
-        verifier_set.event_index = 2;
         assert_eq!(
             verify_verifier_set(&gateway_address, &tx, verifier_set),
             Vote::NotFound
@@ -421,19 +382,9 @@ mod tests {
     }
 
     #[test]
-    fn should_verify_verifier_set_if_correct_unsupported_index() {
+    fn should_verify_verifier() {
         let (gateway_address, tx, verifier_set) = get_matching_verifier_set_and_tx();
-        assert_eq!(
-            verify_verifier_set(&gateway_address, &tx, verifier_set),
-            Vote::NotFound
-        );
-    }
 
-    #[test]
-    fn should_verify_verifier_set_if_correct_event_index_0() {
-        let (gateway_address, tx, mut verifier_set) = get_matching_verifier_set_and_tx();
-
-        verifier_set.event_index = 0;
         assert_eq!(
             verify_verifier_set(&gateway_address, &tx, verifier_set),
             Vote::SucceededOnChain
@@ -455,7 +406,6 @@ mod tests {
 
         let msg = Message {
             tx_id,
-            event_index: 1,
             source_address,
             destination_chain: "ethereum".parse().unwrap(),
             destination_address: format!("0x{:x}", EVMAddress::random()).parse().unwrap(),
@@ -541,7 +491,6 @@ mod tests {
 
         let verifier_set_confirmation = VerifierSetConfirmation {
             tx_id,
-            event_index: 1,
             verifier_set: build_verifier_set(KeyType::Ed25519, &ed25519_test_data::signers()),
         };
 
