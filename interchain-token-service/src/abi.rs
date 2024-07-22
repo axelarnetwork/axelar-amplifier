@@ -4,11 +4,9 @@ use cosmwasm_std::{HexBinary, Uint256};
 use error_stack::{Report, ResultExt};
 use router_api::ChainName;
 
-use crate::{
-    error::Error,
-    primitives::{ItsHubMessage, ItsMessage},
-    TokenId, TokenManagerType,
-};
+use crate::error::Error;
+use crate::primitives::{ItsHubMessage, ItsMessage};
+use crate::{TokenId, TokenManagerType};
 
 // ITS Message payload types
 // Reference: https://github.com/axelarnetwork/interchain-token-service/blob/v1.2.4/DESIGN.md#interchain-communication-spec
@@ -258,10 +256,8 @@ mod tests {
     use cosmwasm_std::{HexBinary, Uint256};
     use router_api::ChainName;
 
-    use crate::{
-        abi::{DeployTokenManager, MessageType, SendToHub},
-        ItsHubMessage, ItsMessage, TokenManagerType,
-    };
+    use crate::abi::{DeployTokenManager, MessageType, SendToHub};
+    use crate::{ItsHubMessage, ItsMessage, TokenManagerType};
 
     #[test]
     fn interchain_transfer_encode_decode() {
