@@ -6,7 +6,7 @@ use router_api::ChainName;
 
 use crate::{
     error::Error,
-    primitives::{ItsMessage, ItsHubMessage},
+    primitives::{ItsHubMessage, ItsMessage},
     TokenId, TokenManagerType,
 };
 
@@ -101,7 +101,8 @@ impl ItsMessage {
                 params: Vec::<u8>::from(params).into(),
             }
             .abi_encode_params(),
-        }.into()
+        }
+        .into()
     }
 
     pub fn abi_decode(payload: &[u8]) -> Result<Self, Report<Error>> {
@@ -128,9 +129,8 @@ impl ItsMessage {
                 })
             }
             MessageType::DeployInterchainToken => {
-                let decoded =
-                    DeployInterchainToken::abi_decode_params(payload, true)
-                        .map_err(|e| Report::new(Error::InvalidMessage(e.to_string())))?;
+                let decoded = DeployInterchainToken::abi_decode_params(payload, true)
+                    .map_err(|e| Report::new(Error::InvalidMessage(e.to_string())))?;
 
                 Ok(ItsMessage::DeployInterchainToken {
                     token_id: TokenId::new(decoded.tokenId.into()),
@@ -149,8 +149,8 @@ impl ItsMessage {
 
                 Ok(ItsMessage::DeployTokenManager {
                     token_id: TokenId::new(decoded.tokenId.into()),
-                    token_manager_type: TokenManagerType::from_repr(token_manager_type).ok_or_else(
-                        || Report::new(Error::InvalidTokenManagerType))?,
+                    token_manager_type: TokenManagerType::from_repr(token_manager_type)
+                        .ok_or_else(|| Report::new(Error::InvalidTokenManagerType))?,
                     params: HexBinary::from(decoded.params.as_ref()),
                 })
             }
@@ -165,13 +165,28 @@ impl ItsMessage {
 
 impl ItsHubMessage {
     pub fn abi_encode(self) -> HexBinary {
-        RoutedCall {
-            messageType: MessageType::RoutedCall.into(),
-            remote_chain: self.remote_chain.into(),
-            message: Vec::<u8>::from(self.message.abi_encode()).into(),
+        match self {
+            ItsHubMessage::SendToHub {
+                destination_chain,
+                message,
+            } => RoutedCall {
+                messageType: MessageType::RoutedCall.into(),
+                remote_chain: destination_chain.into(),
+                message: Vec::<u8>::from(message.abi_encode()).into(),
+            }
+            .abi_encode_params()
+            .into(),
+            ItsHubMessage::ReceiveFromHub {
+                source_chain,
+                message,
+            } => RoutedCall {
+                messageType: MessageType::RoutedCall.into(),
+                remote_chain: source_chain.into(),
+                message: Vec::<u8>::from(message.abi_encode()).into(),
+            }
+            .abi_encode_params()
+            .into(),
         }
-        .abi_encode_params()
-        .into()
     }
 
     pub fn abi_decode(payload: &[u8]) -> Result<Self, Report<Error>> {
@@ -189,8 +204,8 @@ impl ItsHubMessage {
 
         let message = ItsMessage::abi_decode(&routed_message.message)?;
 
-        Ok(ItsHubMessage {
-            remote_chain: ChainName::try_from(routed_message.remote_chain)
+        Ok(ItsHubMessage::SendToHub {
+            destination_chain: ChainName::try_from(routed_message.remote_chain)
                 .change_context(Error::InvalidMessage("invalid remote chain".into()))?,
             message,
         })
@@ -220,7 +235,7 @@ mod tests {
 
     use crate::{
         abi::{DeployTokenManager, MessageType, RoutedCall},
-        ItsMessage, ItsHubMessage, TokenManagerType,
+        ItsHubMessage, ItsMessage, TokenManagerType,
     };
 
     #[test]
@@ -228,8 +243,8 @@ mod tests {
         let remote_chain = ChainName::from_str("chain").unwrap();
 
         let cases = vec![
-            ItsHubMessage {
-                remote_chain: remote_chain.clone(),
+            ItsHubMessage::SendToHub {
+                destination_chain: remote_chain.clone(),
                 message: ItsMessage::InterchainTransfer {
                     token_id: [0u8; 32].into(),
                     source_address: HexBinary::from_hex("").unwrap(),
@@ -238,8 +253,8 @@ mod tests {
                     data: HexBinary::from_hex("").unwrap(),
                 },
             },
-            ItsHubMessage {
-                remote_chain: remote_chain.clone(),
+            ItsHubMessage::SendToHub {
+                destination_chain: remote_chain.clone(),
                 message: ItsMessage::InterchainTransfer {
                     token_id: [255u8; 32].into(),
                     source_address: HexBinary::from_hex("4F4495243837681061C4743b74B3eEdf548D56A5")
@@ -273,8 +288,8 @@ mod tests {
         let remote_chain = ChainName::from_str("chain").unwrap();
 
         let cases = vec![
-            ItsHubMessage {
-                remote_chain: remote_chain.clone(),
+            ItsHubMessage::SendToHub {
+                destination_chain: remote_chain.clone(),
                 message: ItsMessage::DeployInterchainToken {
                     token_id: [0u8; 32].into(),
                     name: "".into(),
@@ -283,8 +298,8 @@ mod tests {
                     minter: HexBinary::from_hex("").unwrap(),
                 },
             },
-            ItsHubMessage {
-                remote_chain: remote_chain.clone(),
+            ItsHubMessage::SendToHub {
+                destination_chain: remote_chain.clone(),
                 message: ItsMessage::DeployInterchainToken {
                     token_id: [1u8; 32].into(),
                     name: "Test Token".into(),
@@ -293,8 +308,8 @@ mod tests {
                     minter: HexBinary::from_hex("1234").unwrap(),
                 },
             },
-            ItsHubMessage {
-                remote_chain: ChainName::from_str("unicode-chain-🌍").unwrap(),
+            ItsHubMessage::SendToHub {
+                destination_chain: ChainName::from_str("unicode-chain-🌍").unwrap(),
                 message: ItsMessage::DeployInterchainToken {
                     token_id: [0u8; 32].into(),
                     name: "Unicode Token 🪙".into(),
@@ -324,16 +339,16 @@ mod tests {
         let remote_chain = ChainName::from_str("chain").unwrap();
 
         let cases = vec![
-            ItsHubMessage {
-                remote_chain: remote_chain.clone(),
+            ItsHubMessage::SendToHub {
+                destination_chain: remote_chain.clone(),
                 message: ItsMessage::DeployTokenManager {
                     token_id: [0u8; 32].into(),
                     token_manager_type: TokenManagerType::NativeInterchainToken,
                     params: HexBinary::default(),
                 },
             },
-            ItsHubMessage {
-                remote_chain: remote_chain.clone(),
+            ItsHubMessage::SendToHub {
+                destination_chain: remote_chain.clone(),
                 message: ItsMessage::DeployTokenManager {
                     token_id: [1u8; 32].into(),
                     token_manager_type: TokenManagerType::Gateway,
@@ -444,8 +459,8 @@ mod tests {
     #[test]
     fn encode_decode_large_data() {
         let large_data = vec![0u8; 1024 * 1024]; // 1MB of data
-        let original = ItsHubMessage {
-            remote_chain: ChainName::from_str("large-data-chain").unwrap(),
+        let original = ItsHubMessage::SendToHub {
+            destination_chain: ChainName::from_str("large-data-chain").unwrap(),
             message: ItsMessage::InterchainTransfer {
                 token_id: [0u8; 32].into(),
                 source_address: HexBinary::from_hex("1234").unwrap(),
@@ -462,8 +477,8 @@ mod tests {
 
     #[test]
     fn encode_decode_unicode_strings() {
-        let original = ItsHubMessage {
-            remote_chain: ChainName::from_str("unicode-chain-🌍").unwrap(),
+        let original = ItsHubMessage::SendToHub {
+            destination_chain: ChainName::from_str("unicode-chain-🌍").unwrap(),
             message: ItsMessage::DeployInterchainToken {
                 token_id: [0u8; 32].into(),
                 name: "Unicode Token 🪙".into(),

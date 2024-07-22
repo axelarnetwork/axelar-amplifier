@@ -49,12 +49,19 @@ pub enum ItsMessage {
 
 #[cw_serde]
 #[derive(Eq)]
-pub struct ItsHubMessage {
-    /// Remote chain name.
-    /// ITS edge source contract -> ITS Hub GMP call: Set to the true destination chain name.
-    /// ITS Hub -> ITS edge destination contract: Set to the true source chain name.
-    pub remote_chain: ChainName,
-    pub message: ItsMessage,
+pub enum ItsHubMessage {
+    /// ITS edge source contract -> ITS Hub
+    SendToHub {
+        /// True destination chain of the ITS message
+        destination_chain: ChainName,
+        message: ItsMessage,
+    },
+    /// ITS Hub -> ITS edge destination contract
+    ReceiveFromHub {
+        /// True source chain of the ITS message
+        source_chain: ChainName,
+        message: ItsMessage,
+    },
 }
 
 impl TokenId {
