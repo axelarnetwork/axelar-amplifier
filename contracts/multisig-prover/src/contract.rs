@@ -1,4 +1,4 @@
-use axelar_wasm_std::FnExt;
+use axelar_wasm_std::permission_control;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
@@ -9,7 +9,10 @@ use error_stack::ResultExt;
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{Config, CONFIG};
-use crate::{execute, query, reply};
+mod execute;
+mod migrations;
+mod query;
+mod reply;
 
 pub const START_MULTISIG_REPLY_ID: u64 = 1;
 
@@ -25,43 +28,29 @@ pub fn instantiate(
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    let config = make_config(&deps, msg)?;
-    CONFIG.save(deps.storage, &config)?;
-
-    Ok(Response::default())
-}
-
-fn make_config(
-    deps: &DepsMut,
-    msg: InstantiateMsg,
-) -> Result<Config, axelar_wasm_std::error::ContractError> {
-    let admin = deps.api.addr_validate(&msg.admin_address)?;
-    let governance = deps.api.addr_validate(&msg.governance_address)?;
-    let gateway = deps.api.addr_validate(&msg.gateway_address)?;
-    let multisig = deps.api.addr_validate(&msg.multisig_address)?;
-    let coordinator = deps.api.addr_validate(&msg.coordinator_address)?;
-    let service_registry = deps.api.addr_validate(&msg.service_registry_address)?;
-    let voting_verifier = deps.api.addr_validate(&msg.voting_verifier_address)?;
-
-    Ok(Config {
-        admin,
-        governance,
-        gateway,
-        multisig,
-        coordinator,
-        service_registry,
-        voting_verifier,
+    let config = Config {
+        gateway: deps.api.addr_validate(&msg.gateway_address)?,
+        multisig: deps.api.addr_validate(&msg.multisig_address)?,
+        coordinator: deps.api.addr_validate(&msg.coordinator_address)?,
+        service_registry: deps.api.addr_validate(&msg.service_registry_address)?,
+        voting_verifier: deps.api.addr_validate(&msg.voting_verifier_address)?,
         signing_threshold: msg.signing_threshold,
         service_name: msg.service_name,
-        chain_name: msg
-            .chain_name
-            .parse()
-            .map_err(|_| ContractError::InvalidChainName)?,
+        chain_name: msg.chain_name.parse()?,
         verifier_set_diff_threshold: msg.verifier_set_diff_threshold,
         encoder: msg.encoder,
         key_type: msg.key_type,
         domain_separator: msg.domain_separator,
-    })
+    };
+    CONFIG.save(deps.storage, &config)?;
+
+    permission_control::set_admin(deps.storage, &deps.api.addr_validate(&msg.admin_address)?)?;
+    permission_control::set_governance(
+        deps.storage,
+        &deps.api.addr_validate(&msg.governance_address)?,
+    )?;
+
+    Ok(Response::default())
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -71,29 +60,22 @@ pub fn execute(
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
-    match msg {
-        ExecuteMsg::ConstructProof { message_ids } => execute::construct_proof(deps, message_ids),
-        ExecuteMsg::UpdateVerifierSet {} => {
-            execute::require_admin(&deps, info.clone())
-                .or_else(|_| execute::require_governance(&deps, info))?;
-            execute::update_verifier_set(deps, env)
+    match msg.ensure_permissions(deps.storage, &info.sender)? {
+        ExecuteMsg::ConstructProof { message_ids } => {
+            Ok(execute::construct_proof(deps, message_ids)?)
         }
+        ExecuteMsg::UpdateVerifierSet {} => Ok(execute::update_verifier_set(deps, env)?),
         ExecuteMsg::ConfirmVerifierSet {} => Ok(execute::confirm_verifier_set(deps, info.sender)?),
         ExecuteMsg::UpdateSigningThreshold {
             new_signing_threshold,
-        } => {
-            execute::require_governance(&deps, info)?;
-            Ok(execute::update_signing_threshold(
-                deps,
-                new_signing_threshold,
-            )?)
-        }
+        } => Ok(execute::update_signing_threshold(
+            deps,
+            new_signing_threshold,
+        )?),
         ExecuteMsg::UpdateAdmin { new_admin_address } => {
-            execute::require_governance(&deps, info)?;
             Ok(execute::update_admin(deps, new_admin_address)?)
         }
-    }?
-    .then(Ok)
+    }
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -132,19 +114,22 @@ pub fn migrate(
     _env: Env,
     _msg: Empty,
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
-    cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+    migrations::v0_6_0::migrate(deps.storage)?;
 
+    cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
     Ok(Response::default())
 }
 
 #[cfg(test)]
 mod tests {
-    use axelar_wasm_std::{MajorityThreshold, Threshold, VerificationStatus};
+    use axelar_wasm_std::permission_control::Permission;
+    use axelar_wasm_std::{permission_control, MajorityThreshold, Threshold, VerificationStatus};
     use cosmwasm_std::testing::{
         mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
     };
     use cosmwasm_std::{
-        from_json, Addr, Empty, Fraction, OwnedDeps, SubMsgResponse, SubMsgResult, Uint128, Uint64,
+        from_json, Addr, Api, Empty, Fraction, OwnedDeps, SubMsgResponse, SubMsgResult, Uint128,
+        Uint64,
     };
     use multisig::msg::Signer;
     use multisig::verifier_set::VerifierSet;
@@ -348,13 +333,30 @@ mod tests {
             assert_eq!(res.messages.len(), 0);
 
             let config = CONFIG.load(deps.as_ref().storage).unwrap();
-            assert_eq!(config.admin, admin);
             assert_eq!(config.gateway, gateway_address);
             assert_eq!(config.multisig, multisig_address);
             assert_eq!(config.service_registry, service_registry_address);
             assert_eq!(config.signing_threshold, signing_threshold);
             assert_eq!(config.service_name, service_name);
-            assert_eq!(config.encoder, encoding)
+            assert_eq!(config.encoder, encoding);
+
+            assert_eq!(
+                permission_control::sender_role(
+                    deps.as_ref().storage,
+                    &deps.api.addr_validate(admin).unwrap()
+                )
+                .unwrap(),
+                Permission::Admin.into()
+            );
+
+            assert_eq!(
+                permission_control::sender_role(
+                    deps.as_ref().storage,
+                    &deps.api.addr_validate(governance).unwrap()
+                )
+                .unwrap(),
+                Permission::Governance.into()
+            );
         }
     }
 
@@ -416,7 +418,11 @@ mod tests {
         assert!(res.is_err());
         assert_eq!(
             res.unwrap_err().to_string(),
-            axelar_wasm_std::error::ContractError::from(ContractError::Unauthorized).to_string()
+            axelar_wasm_std::error::ContractError::from(permission_control::Error::PermissionDenied {
+                expected: Permission::Elevated.into(),
+                actual: Permission::NoPrivilege.into()
+            })
+            .to_string()
         );
     }
 
@@ -868,7 +874,16 @@ mod tests {
         let res = execute_update_admin(deps.as_mut(), GOVERNANCE, new_admin.to_string());
         assert!(res.is_ok(), "{:?}", res);
 
-        let config = CONFIG.load(deps.as_ref().storage).unwrap();
-        assert_eq!(config.admin, Addr::unchecked(new_admin));
+        assert_eq!(
+            permission_control::sender_role(deps.as_ref().storage, &Addr::unchecked(new_admin))
+                .unwrap(),
+            Permission::Admin.into()
+        );
+
+        assert_eq!(
+            permission_control::sender_role(deps.as_ref().storage, &Addr::unchecked(ADMIN))
+                .unwrap(),
+            Permission::NoPrivilege.into()
+        );
     }
 }
