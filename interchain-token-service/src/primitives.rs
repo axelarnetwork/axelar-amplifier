@@ -15,12 +15,12 @@ pub struct TokenId(
 #[derive(Eq, Copy, FromRepr)]
 #[repr(u8)]
 pub enum TokenManagerType {
-    NativeInterchainToken = 0,
-    MintBurnFrom = 1,
-    LockUnlock = 2,
-    LockUnlockFee = 3,
-    MintBurn = 4,
-    Gateway = 5,
+    NativeInterchainToken,
+    MintBurnFrom,
+    LockUnlock,
+    LockUnlockFee,
+    MintBurn,
+    Gateway,
 }
 
 /// ITS message type that can be sent between ITS contracts for transfers/token deployments
@@ -80,6 +80,7 @@ impl From<[u8; 32]> for TokenId {
 }
 
 impl From<TokenId> for [u8; 32] {
+    #[inline(always)]
     fn from(id: TokenId) -> Self {
         id.0
     }
