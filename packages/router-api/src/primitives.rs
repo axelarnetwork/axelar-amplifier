@@ -165,7 +165,7 @@ impl FromStr for ChainName {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let chain_name: ChainNameRaw = s.parse()?;
 
-        Ok(chain_name.into())
+        Ok(ChainName(chain_name.0.to_lowercase()))
     }
 }
 
@@ -188,18 +188,6 @@ impl TryFrom<&str> for ChainName {
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         value.parse()
-    }
-}
-
-impl From<&ChainNameRaw> for ChainName {
-    fn from(value: &ChainNameRaw) -> Self {
-        ChainName(value.0.to_lowercase())
-    }
-}
-
-impl From<ChainNameRaw> for ChainName {
-    fn from(value: ChainNameRaw) -> Self {
-        ChainName(value.0.to_lowercase())
     }
 }
 
