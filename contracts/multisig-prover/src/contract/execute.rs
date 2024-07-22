@@ -1,10 +1,11 @@
 use std::collections::{BTreeMap, HashSet};
 
+use axelar_wasm_std::permission_control::Permission;
 use axelar_wasm_std::snapshot::{Participant, Snapshot};
-use axelar_wasm_std::{FnExt, MajorityThreshold, VerificationStatus};
+use axelar_wasm_std::{permission_control, FnExt, MajorityThreshold, VerificationStatus};
 use cosmwasm_std::{
-    to_json_binary, wasm_execute, Addr, DepsMut, Env, MessageInfo, QuerierWrapper, QueryRequest,
-    Response, Storage, SubMsg, WasmQuery,
+    to_json_binary, wasm_execute, Addr, DepsMut, Env, QuerierWrapper, QueryRequest, Response,
+    Storage, SubMsg, WasmQuery,
 };
 use itertools::Itertools;
 use multisig::msg::Signer;
@@ -18,20 +19,6 @@ use crate::payload::Payload;
 use crate::state::{
     Config, CONFIG, CURRENT_VERIFIER_SET, NEXT_VERIFIER_SET, PAYLOAD, REPLY_TRACKER,
 };
-
-pub fn require_admin(deps: &DepsMut, info: MessageInfo) -> Result<(), ContractError> {
-    match CONFIG.load(deps.storage)?.admin {
-        admin if admin == info.sender => Ok(()),
-        _ => Err(ContractError::Unauthorized),
-    }
-}
-
-pub fn require_governance(deps: &DepsMut, info: MessageInfo) -> Result<(), ContractError> {
-    match CONFIG.load(deps.storage)?.governance {
-        governance if governance == info.sender => Ok(()),
-        _ => Err(ContractError::Unauthorized),
-    }
-}
 
 pub fn construct_proof(
     deps: DepsMut,
@@ -322,7 +309,8 @@ pub fn confirm_verifier_set(deps: DepsMut, sender: Addr) -> Result<Response, Con
 
     let verifier_set = NEXT_VERIFIER_SET.load(deps.storage)?;
 
-    if sender != config.governance {
+    let sender_role = permission_control::sender_role(deps.storage, &sender)?;
+    if !sender_role.contains(Permission::Governance) {
         ensure_verifier_set_verification(&verifier_set, &config, &deps)?;
     }
 
@@ -413,13 +401,8 @@ pub fn update_signing_threshold(
 }
 
 pub fn update_admin(deps: DepsMut, new_admin_address: String) -> Result<Response, ContractError> {
-    CONFIG.update(
-        deps.storage,
-        |mut config| -> Result<Config, ContractError> {
-            config.admin = deps.api.addr_validate(&new_admin_address)?;
-            Ok(config)
-        },
-    )?;
+    let new_admin = deps.api.addr_validate(&new_admin_address)?;
+    permission_control::set_admin(deps.storage, &new_admin)?;
     Ok(Response::new())
 }
 
@@ -432,8 +415,7 @@ mod tests {
     use cosmwasm_std::Addr;
     use router_api::ChainName;
 
-    use super::{different_set_in_progress, get_next_verifier_set};
-    use crate::execute::should_update_verifier_set;
+    use super::{different_set_in_progress, get_next_verifier_set, should_update_verifier_set};
     use crate::state::{Config, NEXT_VERIFIER_SET};
     use crate::test::test_data;
 
@@ -554,8 +536,6 @@ mod tests {
 
     fn mock_config() -> Config {
         Config {
-            admin: Addr::unchecked("doesn't matter"),
-            governance: Addr::unchecked("doesn't matter"),
             gateway: Addr::unchecked("doesn't matter"),
             multisig: Addr::unchecked("doesn't matter"),
             coordinator: Addr::unchecked("doesn't matter"),
