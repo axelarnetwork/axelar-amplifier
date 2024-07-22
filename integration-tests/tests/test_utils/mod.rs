@@ -1,37 +1,31 @@
-use axelar_wasm_std::{
-    msg_id::tx_hash_event_index::HexTxHashAndEventIndex,
-    nonempty,
-    voting::{PollId, Vote},
-    Participant, Threshold,
-};
+use std::collections::{HashMap, HashSet};
+
+use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
+use axelar_wasm_std::voting::{PollId, Vote};
+use axelar_wasm_std::{nonempty, Participant, Threshold};
+use coordinator::msg::ExecuteMsg as CoordinatorExecuteMsg;
 use cosmwasm_std::{
     coins, Addr, Attribute, BlockInfo, Event, HexBinary, StdError, Uint128, Uint64,
 };
 use cw_multi_test::{App, AppResponse, Executor};
-use multisig_prover::msg::VerifierSetResponse;
-use router_api::{Address, ChainName, CrossChainId, GatewayDirection, Message};
-use std::collections::{HashMap, HashSet};
-
 use integration_tests::contract::Contract;
 use integration_tests::coordinator_contract::CoordinatorContract;
 use integration_tests::gateway_contract::GatewayContract;
 use integration_tests::multisig_contract::MultisigContract;
 use integration_tests::multisig_prover_contract::MultisigProverContract;
+use integration_tests::protocol::Protocol;
 use integration_tests::rewards_contract::RewardsContract;
+use integration_tests::router_contract::RouterContract;
 use integration_tests::service_registry_contract::ServiceRegistryContract;
 use integration_tests::voting_verifier_contract::VotingVerifierContract;
-use integration_tests::{protocol::Protocol, router_contract::RouterContract};
-
 use k256::ecdsa;
-use sha3::{Digest, Keccak256};
-
-use coordinator::msg::ExecuteMsg as CoordinatorExecuteMsg;
-use multisig::{
-    key::{KeyType, PublicKey},
-    verifier_set::VerifierSet,
-};
+use multisig::key::{KeyType, PublicKey};
+use multisig::verifier_set::VerifierSet;
+use multisig_prover::msg::VerifierSetResponse;
 use rewards::state::PoolId;
+use router_api::{Address, ChainName, CrossChainId, GatewayDirection, Message};
 use service_registry::msg::ExecuteMsg;
+use sha3::{Digest, Keccak256};
 use tofn::ecdsa::KeyPair;
 
 pub const AXL_DENOMINATION: &str = "uaxl";
@@ -363,13 +357,13 @@ pub fn setup_protocol(service_name: nonempty::String) -> Protocol {
             .init_balance(storage, &genesis, coins(u128::MAX, AXL_DENOMINATION))
             .unwrap()
     });
-    let router_admin_address = Addr::unchecked("admin");
+    let admin_address = Addr::unchecked("admin");
     let governance_address = Addr::unchecked("governance");
     let nexus_gateway = Addr::unchecked("nexus_gateway");
 
     let router = RouterContract::instantiate_contract(
         &mut app,
-        router_admin_address.clone(),
+        admin_address.clone(),
         governance_address.clone(),
         nexus_gateway.clone(),
     );
@@ -389,8 +383,9 @@ pub fn setup_protocol(service_name: nonempty::String) -> Protocol {
     let multisig = MultisigContract::instantiate_contract(
         &mut app,
         governance_address.clone(),
+        admin_address.clone(),
         rewards.contract_addr.clone(),
-        SIGNATURE_BLOCK_EXPIRY,
+        SIGNATURE_BLOCK_EXPIRY.try_into().unwrap(),
     );
 
     let coordinator =
@@ -403,7 +398,7 @@ pub fn setup_protocol(service_name: nonempty::String) -> Protocol {
         genesis_address: genesis,
         governance_address,
         router,
-        router_admin_address,
+        router_admin_address: admin_address,
         multisig,
         coordinator,
         service_registry,
@@ -683,8 +678,11 @@ pub fn setup_chain(
     let response = protocol.multisig.execute(
         &mut protocol.app,
         protocol.governance_address.clone(),
-        &multisig::msg::ExecuteMsg::AuthorizeCaller {
-            contract_address: multisig_prover.contract_addr.clone(),
+        &multisig::msg::ExecuteMsg::AuthorizeCallers {
+            contracts: HashMap::from([(
+                multisig_prover.contract_addr.to_string(),
+                chain_name.clone(),
+            )]),
         },
     );
     assert!(response.is_ok());

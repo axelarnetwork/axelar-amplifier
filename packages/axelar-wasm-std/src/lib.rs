@@ -1,10 +1,8 @@
-pub use crate::{
-    error::ContractError,
-    fn_ext::FnExt,
-    snapshot::{Participant, Snapshot},
-    threshold::{MajorityThreshold, Threshold},
-    verification::VerificationStatus,
-};
+pub use crate::error::ContractError;
+pub use crate::fn_ext::FnExt;
+pub use crate::snapshot::{Participant, Snapshot};
+pub use crate::threshold::{MajorityThreshold, Threshold};
+pub use crate::verification::VerificationStatus;
 
 pub mod counter;
 pub mod error;
@@ -12,6 +10,7 @@ pub mod flagset;
 mod fn_ext;
 pub mod hash;
 pub mod hex;
+pub mod killswitch;
 pub mod msg_id;
 pub mod nonempty;
 pub mod permission_control;

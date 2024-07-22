@@ -2,21 +2,20 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use cosmrs::tendermint::public_key::PublicKey as TMPublicKey;
-use der::{asn1::BitStringRef, Sequence};
-use ed25519::pkcs8::spki::{der::Decode, AlgorithmIdentifierRef};
 use error_stack::{Report, ResultExt};
 use k256::Secp256k1;
 use mockall::automock;
 use tokio::sync::Mutex;
-use tonic::{transport::Channel, Status};
+use tonic::transport::Channel;
+use tonic::Status;
 
-use crate::{types::PublicKey, url::Url};
-
-use super::proto::{
-    keygen_response::KeygenResponse, multisig_client, sign_response::SignResponse, Algorithm,
-    KeygenRequest, SignRequest,
-};
-use super::{error::Error, error::TofndError, MessageDigest, Signature};
+use super::error::{Error, TofndError};
+use super::proto::keygen_response::KeygenResponse;
+use super::proto::sign_response::SignResponse;
+use super::proto::{multisig_client, Algorithm, KeygenRequest, SignRequest};
+use super::{MessageDigest, Signature};
+use crate::types::PublicKey;
+use crate::url::Url;
 
 type Result<T> = error_stack::Result<T, Error>;
 
@@ -119,7 +118,9 @@ impl Multisig for MultisigClient {
                     Algorithm::Ecdsa => ecdsa::Signature::<Secp256k1>::from_der(&signature)
                         .map(|sig| sig.to_vec())
                         .change_context(Error::ParsingFailed),
-                    Algorithm::Ed25519 => parse_der_ed25519_signature(&signature),
+                    Algorithm::Ed25519 => ed25519::Signature::from_slice(&signature)
+                        .map(|sig| sig.to_vec())
+                        .change_context(Error::ParsingFailed),
                 },
 
                 SignResponse::Error(error_msg) => {
@@ -127,18 +128,4 @@ impl Multisig for MultisigClient {
                 }
             })
     }
-}
-
-#[derive(Sequence)]
-struct Asn1Signature<'a> {
-    pub signature_algorithm: AlgorithmIdentifierRef<'a>,
-    pub signature: BitStringRef<'a>,
-}
-
-fn parse_der_ed25519_signature(der_sig: &[u8]) -> Result<Signature> {
-    let der_decoded = Asn1Signature::from_der(der_sig).change_context(Error::ParsingFailed)?;
-
-    ed25519_dalek::Signature::from_slice(der_decoded.signature.raw_bytes())
-        .map(|s| s.to_vec())
-        .change_context(Error::ParsingFailed)
 }

@@ -5,9 +5,6 @@ use error_stack::{report, ResultExt};
 use router_api::error::Error;
 use router_api::{ChainEndpoint, ChainName};
 
-pub const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
-pub const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
-
 pub fn save_config(storage: &mut dyn Storage, config: &Config) -> error_stack::Result<(), Error> {
     CONFIG
         .save(storage, config)
@@ -44,17 +41,6 @@ pub struct Config {
 }
 
 pub const CONFIG: Item<Config> = Item::new("config");
-
-#[cw_serde]
-pub enum State {
-    Enabled,
-    Disabled,
-}
-pub const STATE: Item<State> = Item::new("state");
-
-pub fn is_enabled(storage: &dyn Storage) -> bool {
-    STATE.load(storage).unwrap_or(State::Disabled) == State::Enabled
-}
 
 pub struct ChainEndpointIndexes<'a> {
     pub gateway: GatewayIndex<'a>,

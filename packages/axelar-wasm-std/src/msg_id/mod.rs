@@ -1,14 +1,16 @@
-use std::{fmt::Display, str::FromStr};
+use std::fmt::Display;
+use std::str::FromStr;
 
 use cosmwasm_schema::cw_serde;
 use error_stack::Report;
 
-use self::{
-    base_58_event_index::Base58TxDigestAndEventIndex, tx_hash_event_index::HexTxHashAndEventIndex,
-};
+pub use self::base_58_event_index::Base58TxDigestAndEventIndex;
+pub use self::base_58_solana_event_index::Base58SolanaTxSignatureAndEventIndex;
+pub use self::tx_hash_event_index::HexTxHashAndEventIndex;
 
-pub mod base_58_event_index;
-pub mod tx_hash_event_index;
+mod base_58_event_index;
+mod base_58_solana_event_index;
+mod tx_hash_event_index;
 
 #[derive(thiserror::Error)]
 #[cw_serde]
@@ -39,6 +41,7 @@ pub trait MessageId: FromStr + Display {}
 pub enum MessageIdFormat {
     HexTxHashAndEventIndex,
     Base58TxDigestAndEventIndex,
+    Base58SolanaTxSignatureAndEventIndex,
 }
 
 // function the router calls to verify msg ids
@@ -50,16 +53,17 @@ pub fn verify_msg_id(message_id: &str, format: &MessageIdFormat) -> Result<(), R
         MessageIdFormat::Base58TxDigestAndEventIndex => {
             Base58TxDigestAndEventIndex::from_str(message_id).map(|_| ())
         }
+        MessageIdFormat::Base58SolanaTxSignatureAndEventIndex => {
+            Base58SolanaTxSignatureAndEventIndex::from_str(message_id).map(|_| ())
+        }
     }
 }
 
 #[cfg(test)]
 mod test {
-    use crate::msg_id::{
-        base_58_event_index::Base58TxDigestAndEventIndex, verify_msg_id, MessageIdFormat,
-    };
-
     use super::tx_hash_event_index::HexTxHashAndEventIndex;
+    use crate::msg_id::base_58_event_index::Base58TxDigestAndEventIndex;
+    use crate::msg_id::{verify_msg_id, MessageIdFormat};
 
     #[test]
     fn should_verify_hex_tx_hash_event_index_msg_id() {

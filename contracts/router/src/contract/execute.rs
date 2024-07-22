@@ -1,19 +1,19 @@
 use std::collections::HashMap;
 use std::vec;
 
-use cosmwasm_std::{to_json_binary, Addr, Event, Response, StdError, StdResult, Storage, WasmMsg};
+use axelar_wasm_std::flagset::FlagSet;
+use axelar_wasm_std::killswitch;
+use axelar_wasm_std::msg_id::{self, MessageIdFormat};
+use cosmwasm_std::{to_json_binary, Addr, Event, Response, StdResult, Storage, WasmMsg};
 use error_stack::{ensure, report, ResultExt};
 use itertools::Itertools;
-
-use axelar_wasm_std::flagset::FlagSet;
-use axelar_wasm_std::msg_id::{self, MessageIdFormat};
 use router_api::error::Error;
 use router_api::{ChainEndpoint, ChainName, Gateway, GatewayDirection, Message};
 
 use crate::events::{
     ChainFrozen, ChainRegistered, ChainUnfrozen, GatewayInfo, GatewayUpgraded, MessageRouted,
 };
-use crate::state::{chain_endpoints, Config, State, STATE};
+use crate::state::{chain_endpoints, Config};
 use crate::{events, state};
 
 pub fn register_chain(
@@ -140,41 +140,12 @@ pub fn unfreeze_chains(
     Ok(Response::new().add_events(events))
 }
 
-#[derive(thiserror::Error, Debug)]
-enum StateUpdateError {
-    #[error("router is already in the same state")]
-    SameState,
-    #[error(transparent)]
-    Std(#[from] StdError),
-}
-
 pub fn disable_routing(storage: &mut dyn Storage) -> Result<Response, Error> {
-    let state = STATE.update(storage, |state| match state {
-        State::Enabled => Ok(State::Disabled),
-        State::Disabled => Err(StateUpdateError::SameState),
-    });
-
-    state_toggle_response(state, events::RoutingDisabled)
+    killswitch::engage(storage, events::RoutingDisabled).map_err(|err| err.into())
 }
 
 pub fn enable_routing(storage: &mut dyn Storage) -> Result<Response, Error> {
-    let state = STATE.update(storage, |state| match state {
-        State::Disabled => Ok(State::Enabled),
-        State::Enabled => Err(StateUpdateError::SameState),
-    });
-
-    state_toggle_response(state, events::RoutingEnabled)
-}
-
-fn state_toggle_response(
-    state: Result<State, StateUpdateError>,
-    event: impl Into<Event>,
-) -> Result<Response, Error> {
-    match state {
-        Ok(_) => Ok(Response::new().add_event(event.into())),
-        Err(StateUpdateError::SameState) => Ok(Response::new()),
-        Err(StateUpdateError::Std(err)) => Err(err.into()),
-    }
+    killswitch::disengage(storage, events::RoutingEnabled).map_err(|err| err.into())
 }
 
 fn verify_msg_ids(
@@ -222,7 +193,10 @@ pub fn route_messages(
     sender: Addr,
     msgs: Vec<Message>,
 ) -> error_stack::Result<Response, Error> {
-    ensure!(state::is_enabled(storage), Error::RoutingDisabled);
+    ensure!(
+        killswitch::is_contract_active(storage),
+        Error::RoutingDisabled
+    );
 
     let config = state::load_config(storage)?;
 
@@ -265,20 +239,22 @@ pub fn route_messages(
 
 #[cfg(test)]
 mod test {
+    use std::collections::HashMap;
+
+    use axelar_wasm_std::flagset::FlagSet;
+    use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
+    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
+    use cosmwasm_std::{Addr, Storage};
+    use rand::{random, RngCore};
+    use router_api::error::Error;
+    use router_api::{ChainEndpoint, ChainName, CrossChainId, Gateway, GatewayDirection, Message};
+
     use super::{freeze_chains, unfreeze_chains};
     use crate::contract::execute::route_messages;
     use crate::contract::instantiate;
     use crate::events::{ChainFrozen, ChainUnfrozen};
     use crate::msg::InstantiateMsg;
     use crate::state::chain_endpoints;
-    use axelar_wasm_std::flagset::FlagSet;
-    use axelar_wasm_std::msg_id::tx_hash_event_index::HexTxHashAndEventIndex;
-    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-    use cosmwasm_std::{Addr, Storage};
-    use rand::{random, RngCore};
-    use router_api::error::Error;
-    use router_api::{ChainEndpoint, ChainName, CrossChainId, Gateway, GatewayDirection, Message};
-    use std::collections::HashMap;
 
     fn rand_message(source_chain: ChainName, destination_chain: ChainName) -> Message {
         let mut bytes = [0; 32];

@@ -1,5 +1,4 @@
 use cosmwasm_schema::write_api;
-
 use nexus_gateway::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 
 fn main() {

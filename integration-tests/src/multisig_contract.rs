@@ -1,6 +1,8 @@
-use crate::contract::Contract;
+use axelar_wasm_std::nonempty;
 use cosmwasm_std::Addr;
 use cw_multi_test::{App, ContractWrapper, Executor};
+
+use crate::contract::Contract;
 
 #[derive(Clone)]
 pub struct MultisigContract {
@@ -11,8 +13,9 @@ impl MultisigContract {
     pub fn instantiate_contract(
         app: &mut App,
         governance: Addr,
+        admin: Addr,
         rewards_address: Addr,
-        block_expiry: u64,
+        block_expiry: nonempty::Uint64,
     ) -> Self {
         let code = ContractWrapper::new(
             multisig::contract::execute,
@@ -28,6 +31,7 @@ impl MultisigContract {
                 &multisig::msg::InstantiateMsg {
                     rewards_address: rewards_address.to_string(),
                     governance_address: governance.to_string(),
+                    admin_address: admin.to_string(),
                     block_expiry,
                 },
                 &[],

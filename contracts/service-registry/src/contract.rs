@@ -172,16 +172,14 @@ pub fn migrate(
 mod test {
     use std::str::FromStr;
 
-    use cosmwasm_std::{
-        coins, from_json,
-        testing::{mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage},
-        CosmosMsg, Empty, OwnedDeps, StdResult,
+    use cosmwasm_std::testing::{
+        mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
     };
+    use cosmwasm_std::{coins, from_json, CosmosMsg, Empty, OwnedDeps, StdResult};
     use router_api::ChainName;
 
-    use crate::state::{WeightedVerifier, VERIFIER_WEIGHT};
-
     use super::*;
+    use crate::state::{WeightedVerifier, VERIFIER_WEIGHT};
 
     const GOVERNANCE_ADDRESS: &str = "governance";
     const UNAUTHORIZED_ADDRESS: &str = "unauthorized";

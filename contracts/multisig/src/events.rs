@@ -4,10 +4,8 @@ use cosmwasm_std::{Addr, HexBinary, Uint64};
 use router_api::ChainName;
 use serde_json::to_string;
 
-use crate::{
-    key::{PublicKey, Signature},
-    types::MsgToSign,
-};
+use crate::key::{PublicKey, Signature};
+use crate::types::MsgToSign;
 
 pub enum Event {
     // Emitted when a new signing session is open
@@ -36,10 +34,14 @@ pub enum Event {
     },
     CallerAuthorized {
         contract_address: Addr,
+        chain_name: ChainName,
     },
     CallerUnauthorized {
         contract_address: Addr,
+        chain_name: ChainName,
     },
+    SigningEnabled,
+    SigningDisabled,
 }
 
 impl From<Event> for cosmwasm_std::Event {
@@ -89,14 +91,20 @@ impl From<Event> for cosmwasm_std::Event {
                     "public_key",
                     to_string(&public_key).expect("failed to serialize public key"),
                 ),
-            Event::CallerAuthorized { contract_address } => {
-                cosmwasm_std::Event::new("caller_authorized")
-                    .add_attribute("contract_address", contract_address)
-            }
-            Event::CallerUnauthorized { contract_address } => {
-                cosmwasm_std::Event::new("caller_unauthorized")
-                    .add_attribute("contract_address", contract_address)
-            }
+            Event::CallerAuthorized {
+                contract_address,
+                chain_name,
+            } => cosmwasm_std::Event::new("caller_authorized")
+                .add_attribute("contract_address", contract_address)
+                .add_attribute("chain_name", chain_name),
+            Event::CallerUnauthorized {
+                contract_address,
+                chain_name,
+            } => cosmwasm_std::Event::new("caller_unauthorized")
+                .add_attribute("contract_address", contract_address)
+                .add_attribute("chain_name", chain_name),
+            Event::SigningEnabled => cosmwasm_std::Event::new("signing_enabled"),
+            Event::SigningDisabled => cosmwasm_std::Event::new("signing_disabled"),
         }
     }
 }

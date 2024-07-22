@@ -1,29 +1,37 @@
+use axelar_wasm_std::{killswitch, permission_control, FnExt};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     to_json_binary, Addr, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response, Storage,
 };
+use router_api::error::Error;
+use router_api::msg::{ExecuteMsg, QueryMsg};
 
-use crate::contract::migrations::{set_version_after_migration, v0_3_3};
+use crate::contract::migrations::v0_3_3;
 use crate::events::RouterInstantiated;
 use crate::msg::InstantiateMsg;
 use crate::state;
-use crate::state::{load_chain_by_gateway, Config, State, CONTRACT_NAME, CONTRACT_VERSION, STATE};
-use axelar_wasm_std::{permission_control, FnExt};
-use router_api::error::Error;
-use router_api::msg::{ExecuteMsg, QueryMsg};
+use crate::state::{load_chain_by_gateway, load_config, Config};
 
 mod execute;
 mod migrations;
 mod query;
 
+pub const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
+pub const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(
     deps: DepsMut,
     _env: Env,
     _msg: Empty,
 ) -> Result<Response, axelar_wasm_std::ContractError> {
-    set_version_after_migration(deps.storage, |storage| v0_3_3::migrate(storage))
+    v0_3_3::migrate(deps.storage)?;
+
+    // this needs to be the last thing to do during migration,
+    // because previous migration steps should check the old version
+    cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    Ok(Response::default())
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -47,7 +55,7 @@ pub fn instantiate(
     };
 
     state::save_config(deps.storage, &config)?;
-    STATE.save(deps.storage, &State::Enabled)?;
+    killswitch::init(deps.storage, killswitch::State::Disengaged)?;
 
     Ok(Response::new().add_event(
         RouterInstantiated {
@@ -100,11 +108,16 @@ pub fn execute(
 fn find_gateway_address(
     sender: &Addr,
 ) -> impl FnOnce(&dyn Storage, &ExecuteMsg) -> error_stack::Result<Addr, Error> + '_ {
-    |storage, _| {
-        load_chain_by_gateway(storage, sender)?
-            .gateway
-            .address
-            .then(Ok)
+    move |storage, _| {
+        let nexus_gateway = load_config(storage)?.nexus_gateway;
+        if nexus_gateway == sender {
+            Ok(nexus_gateway)
+        } else {
+            load_chain_by_gateway(storage, sender)?
+                .gateway
+                .address
+                .then(Ok)
+        }
     }
 }
 
@@ -121,29 +134,30 @@ pub fn query(
         QueryMsg::Chains { start_after, limit } => {
             to_json_binary(&query::chains(deps, start_after, limit)?)
         }
-        QueryMsg::IsEnabled => to_json_binary(&state::is_enabled(deps.storage)),
+        QueryMsg::IsEnabled => to_json_binary(&killswitch::is_contract_active(deps.storage)),
     }
     .map_err(axelar_wasm_std::ContractError::from)
 }
 
 #[cfg(test)]
 mod test {
-    use std::{collections::HashMap, str::FromStr};
+    use std::collections::HashMap;
+    use std::str::FromStr;
+
+    use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
+    use axelar_wasm_std::ContractError;
+    use cosmwasm_std::testing::{
+        mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
+    };
+    use cosmwasm_std::{from_json, Addr, CosmosMsg, Empty, OwnedDeps, WasmMsg};
+    use permission_control::Permission;
+    use router_api::error::Error;
+    use router_api::{
+        ChainEndpoint, ChainName, CrossChainId, GatewayDirection, Message, CHAIN_NAME_DELIMITER,
+    };
 
     use super::*;
     use crate::events;
-    use axelar_wasm_std::msg_id::tx_hash_event_index::HexTxHashAndEventIndex;
-    use axelar_wasm_std::ContractError;
-    use cosmwasm_std::{
-        from_json,
-        testing::{mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage},
-        Addr, CosmosMsg, Empty, OwnedDeps, WasmMsg,
-    };
-    use permission_control::Permission;
-    use router_api::{
-        error::Error, ChainEndpoint, ChainName, CrossChainId, GatewayDirection, Message,
-        CHAIN_NAME_DELIMITER,
-    };
 
     const ADMIN_ADDRESS: &str = "admin";
     const GOVERNANCE_ADDRESS: &str = "governance";
@@ -1705,5 +1719,39 @@ mod test {
         .unwrap();
 
         assert!(res.events.is_empty());
+    }
+
+    #[test]
+    fn is_enabled() {
+        let mut deps = mock_dependencies();
+        let is_enabled = |deps: Deps| {
+            from_json::<bool>(query(deps, mock_env(), QueryMsg::IsEnabled).unwrap()).unwrap()
+        };
+        assert!(!is_enabled(deps.as_ref()));
+
+        killswitch::init(deps.as_mut().storage, killswitch::State::Engaged).unwrap();
+        assert!(!is_enabled(deps.as_ref()));
+        killswitch::engage(deps.as_mut().storage, events::RoutingDisabled).unwrap();
+        assert!(!is_enabled(deps.as_ref()));
+        killswitch::disengage(deps.as_mut().storage, events::RoutingEnabled).unwrap();
+        assert!(is_enabled(deps.as_ref()));
+    }
+
+    #[test]
+    fn nexus_can_route_messages() {
+        let mut deps = setup();
+        let eth = make_chain("ethereum");
+        let polygon = make_chain("polygon");
+
+        register_chain(deps.as_mut(), &eth);
+        register_chain(deps.as_mut(), &polygon);
+
+        assert!(execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(NEXUS_GATEWAY_ADDRESS, &[]),
+            ExecuteMsg::RouteMessages(generate_messages(&eth, &polygon, &mut 0, 10)),
+        )
+        .is_ok());
     }
 }

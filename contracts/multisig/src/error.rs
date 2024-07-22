@@ -1,11 +1,19 @@
 use axelar_wasm_std_derive::IntoContractError;
 use cosmwasm_std::{OverflowError, StdError, Uint64};
+use cw2::VersionError;
+use router_api::ChainName;
 use thiserror::Error;
 
 #[derive(Error, Debug, PartialEq, IntoContractError)]
 pub enum ContractError {
     #[error(transparent)]
     Std(#[from] StdError),
+
+    #[error(transparent)]
+    Version(#[from] VersionError),
+
+    #[error("failed to migrate contract state")]
+    Migration,
 
     #[error(transparent)]
     Overflow(#[from] OverflowError),
@@ -57,4 +65,10 @@ pub enum ContractError {
 
     #[error("caller is not authorized")]
     Unauthorized,
+
+    #[error("signing is disabled")]
+    SigningDisabled,
+
+    #[error("specified chain name is incorrect. expected: {expected}")]
+    WrongChainName { expected: ChainName },
 }

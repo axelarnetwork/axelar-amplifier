@@ -2,22 +2,24 @@ use std::collections::HashSet;
 use std::convert::TryInto;
 
 use async_trait::async_trait;
+use axelar_wasm_std::voting::{PollId, Vote};
 use cosmrs::cosmwasm::MsgExecuteContract;
-use cosmrs::{tx::Msg, Any};
+use cosmrs::tx::Msg;
+use cosmrs::Any;
 use error_stack::ResultExt;
+use events::Error::EventTypeMismatch;
+use events::Event;
+use events_derive::try_from;
 use serde::Deserialize;
 use sui_types::base_types::{SuiAddress, TransactionDigest};
 use tokio::sync::watch::Receiver;
 use tracing::info;
-
-use axelar_wasm_std::voting::{PollId, Vote};
-use events::{Error::EventTypeMismatch, Event};
-use events_derive::try_from;
 use voting_verifier::msg::ExecuteMsg;
 
 use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error;
-use crate::sui::{json_rpc::SuiClient, verifier::verify_message};
+use crate::sui::json_rpc::SuiClient;
+use crate::sui::verifier::verify_message;
 use crate::types::{Hash, TMAddress};
 
 type Result<T> = error_stack::Result<T, Error>;
@@ -155,19 +157,18 @@ mod tests {
     use cosmwasm_std;
     use error_stack::{Report, Result};
     use ethers_providers::ProviderError;
+    use events::Event;
     use sui_types::base_types::{SuiAddress, TransactionDigest};
     use tokio::sync::watch;
     use tokio::test as async_test;
-
-    use events::Event;
     use voting_verifier::events::{PollMetadata, PollStarted, TxEventConfirmation};
 
+    use super::PollStartedEvent;
     use crate::event_processor::EventHandler;
-    use crate::handlers::{errors::Error, tests::get_event};
+    use crate::handlers::errors::Error;
+    use crate::handlers::tests::get_event;
     use crate::sui::json_rpc::MockSuiClient;
     use crate::types::{EVMAddress, Hash, TMAddress};
-
-    use super::PollStartedEvent;
 
     const PREFIX: &str = "axelar";
 

@@ -1,27 +1,22 @@
-use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, Response, StdResult, Storage};
-use cw2::VersionError;
-use cw_storage_plus::Item;
+#![allow(deprecated)]
 
-use crate::state;
-use crate::state::{State, STATE};
-use axelar_wasm_std::{permission_control, ContractError};
+use axelar_wasm_std::{killswitch, permission_control, ContractError};
+use cosmwasm_schema::cw_serde;
+use cosmwasm_std::{Addr, StdResult, Storage};
+use cw_storage_plus::Item;
 use router_api::error::Error;
+
+use crate::contract::CONTRACT_NAME;
+use crate::state;
 
 const BASE_VERSION: &str = "0.3.3";
 
-pub fn migrate(storage: &mut dyn Storage) -> Result<Response, ContractError> {
-    let current_version = cw2::get_contract_version(storage)?;
-    if current_version.version != BASE_VERSION {
-        Err(VersionError::WrongVersion {
-            expected: BASE_VERSION.into(),
-            found: current_version.version,
-        })?
-    } else {
-        set_generalized_permission_control(storage)?;
-        set_router_state(storage)?;
-        Ok(Response::default())
-    }
+pub fn migrate(storage: &mut dyn Storage) -> Result<(), ContractError> {
+    cw2::assert_contract_version(storage, CONTRACT_NAME, BASE_VERSION)?;
+
+    set_generalized_permission_control(storage)?;
+    set_router_state(storage)?;
+    Ok(())
 }
 
 #[deprecated(since = "0.3.3", note = "only used during migration")]
@@ -32,7 +27,6 @@ struct Config {
     pub nexus_gateway: Addr,
 }
 
-#[allow(deprecated)]
 fn set_generalized_permission_control(storage: &mut dyn Storage) -> Result<(), Error> {
     let old_config = CONFIG.load(storage)?;
     permission_control::set_admin(storage, &old_config.admin)
@@ -47,32 +41,28 @@ fn set_generalized_permission_control(storage: &mut dyn Storage) -> Result<(), E
 }
 
 fn set_router_state(storage: &mut dyn Storage) -> StdResult<()> {
-    STATE.save(storage, &State::Enabled)
+    killswitch::init(storage, killswitch::State::Disengaged)
 }
 
 #[deprecated(since = "0.3.3", note = "only used during migration")]
-#[allow(deprecated)]
 const CONFIG: Item<Config> = Item::new("config");
 
 #[cfg(test)]
-#[allow(deprecated)]
 mod test {
     use std::collections::HashMap;
 
+    use axelar_wasm_std::msg_id::MessageIdFormat;
+    use axelar_wasm_std::{killswitch, ContractError};
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
     use cosmwasm_std::{DepsMut, Env, MessageInfo, Response};
-
-    use axelar_wasm_std::msg_id::MessageIdFormat;
-    use axelar_wasm_std::ContractError;
     use router_api::msg::ExecuteMsg;
 
-    use crate::contract::execute;
     use crate::contract::migrations::v0_3_3;
     use crate::contract::migrations::v0_3_3::BASE_VERSION;
+    use crate::contract::{execute, CONTRACT_NAME};
     use crate::events::RouterInstantiated;
     use crate::msg::InstantiateMsg;
     use crate::state;
-    use crate::state::{State, CONTRACT_NAME, STATE};
 
     #[test]
     fn migrate_checks_contract_version() {
@@ -110,13 +100,10 @@ mod test {
 
         assert!(v0_3_3::migrate(deps.as_mut().storage).is_ok());
 
-        let state = STATE.load(deps.as_ref().storage);
-        assert!(state.is_ok());
-        assert_eq!(state.unwrap(), State::Enabled);
+        assert!(killswitch::is_contract_active(deps.as_mut().storage));
     }
 
     #[test]
-    #[allow(deprecated)]
     fn migration() {
         let mut deps = mock_dependencies();
         let instantiate_msg = instantiate_0_3_3_contract(deps.as_mut()).unwrap();
@@ -195,7 +182,6 @@ mod test {
         .is_ok());
     }
 
-    #[allow(deprecated)]
     fn instantiate_0_3_3_contract(deps: DepsMut) -> Result<InstantiateMsg, ContractError> {
         let admin = "admin";
         let governance = "governance";
@@ -211,7 +197,6 @@ mod test {
     }
 
     #[deprecated(since = "0.3.3", note = "only used to test the migration")]
-    #[allow(deprecated)]
     fn instantiate(
         deps: DepsMut,
         _env: Env,

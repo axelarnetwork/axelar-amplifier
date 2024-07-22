@@ -1,7 +1,8 @@
-use axelar_wasm_std::error::extend_err;
-use error_stack::{Context, Result, ResultExt};
 use std::future::Future;
 use std::pin::Pin;
+
+use axelar_wasm_std::error::extend_err;
+use error_stack::{Context, Result, ResultExt};
 use thiserror::Error;
 use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
@@ -109,9 +110,10 @@ pub struct TaskError;
 
 #[cfg(test)]
 mod test {
-    use crate::asyncutil::task::{CancellableTask, TaskError, TaskGroup};
     use error_stack::report;
     use tokio_util::sync::CancellationToken;
+
+    use crate::asyncutil::task::{CancellableTask, TaskError, TaskGroup};
 
     #[tokio::test]
     async fn running_no_tasks_returns_no_error() {

@@ -1,8 +1,9 @@
+use std::collections::HashSet;
+
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::Addr;
 use msgs_derive::EnsurePermissions;
 use router_api::ChainName;
-use std::collections::HashSet;
 
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -17,7 +18,7 @@ pub enum ExecuteMsg {
         chain_name: ChainName,
         new_prover_addr: Addr,
     },
-    #[permission(Any)]
+    #[permission(Specific(prover))]
     SetActiveVerifiers { verifiers: HashSet<Addr> },
 }
 

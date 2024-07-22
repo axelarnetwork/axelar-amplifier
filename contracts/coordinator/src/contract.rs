@@ -2,14 +2,21 @@ mod execute;
 mod query;
 
 mod migrations;
-use crate::contract::migrations::{set_version_after_migration, v0_2_0};
-use crate::error::ContractError;
-use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
-use crate::state::{CONTRACT_NAME, CONTRACT_VERSION};
-use axelar_wasm_std::{permission_control, FnExt};
+use axelar_wasm_std::permission_control;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{to_json_binary, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response};
+use cosmwasm_std::{
+    to_json_binary, Addr, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response, Storage,
+};
+use error_stack::report;
+
+use crate::contract::migrations::v0_2_0;
+use crate::error::ContractError;
+use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
+use crate::state::is_prover_registered;
+
+pub const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
+pub const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(
@@ -17,10 +24,13 @@ pub fn migrate(
     _env: Env,
     _msg: Empty,
 ) -> Result<Response, axelar_wasm_std::ContractError> {
-    set_version_after_migration(deps.storage, |storage| {
-        v0_2_0::migrate(storage).map(|_| Response::default())
-    })?
-    .then(Ok)
+    v0_2_0::migrate(deps.storage)?;
+
+    // this needs to be the last thing to do during migration,
+    // because previous migration steps should check the old version
+    cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    Ok(Response::default())
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -45,7 +55,11 @@ pub fn execute(
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, axelar_wasm_std::ContractError> {
-    match msg.ensure_permissions(deps.storage, &info.sender)? {
+    match msg.ensure_permissions(
+        deps.storage,
+        &info.sender,
+        find_prover_address(&info.sender),
+    )? {
         ExecuteMsg::RegisterProverContract {
             chain_name,
             new_prover_addr,
@@ -55,6 +69,18 @@ pub fn execute(
         }
     }
     .map_err(axelar_wasm_std::ContractError::from)
+}
+
+fn find_prover_address(
+    sender: &Addr,
+) -> impl FnOnce(&dyn Storage, &ExecuteMsg) -> error_stack::Result<Addr, ContractError> + '_ {
+    |storage, _| {
+        if is_prover_registered(storage, sender.clone())? {
+            Ok(sender.clone())
+        } else {
+            Err(report!(ContractError::ProverNotRegistered))
+        }
+    }
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -71,15 +97,17 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
 #[cfg(test)]
 mod tests {
 
-    use super::*;
-    use crate::error::ContractError;
-    use crate::state::PROVER_PER_CHAIN;
+    use std::collections::HashSet;
+
     use axelar_wasm_std::permission_control::Permission;
     use cosmwasm_std::testing::{
         mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
     };
     use cosmwasm_std::{Addr, Empty, OwnedDeps};
     use router_api::ChainName;
+
+    use super::*;
+    use crate::state::load_prover_by_chain;
 
     struct TestSetup {
         deps: OwnedDeps<MockStorage, MockApi, MockQuerier, Empty>,
@@ -156,9 +184,12 @@ mod tests {
         )
         .unwrap();
 
-        let chain_provers =
-            prover(test_setup.deps.as_ref(), test_setup.chain_name.clone()).unwrap();
-        assert_eq!(chain_provers, test_setup.prover);
+        let chain_prover = load_prover_by_chain(
+            test_setup.deps.as_ref().storage,
+            test_setup.chain_name.clone(),
+        );
+        assert!(chain_prover.is_ok(), "{:?}", chain_prover);
+        assert_eq!(chain_prover.unwrap(), test_setup.prover);
     }
 
     #[test]
@@ -185,9 +216,51 @@ mod tests {
         );
     }
 
-    fn prover(deps: Deps, chain_name: ChainName) -> Result<Addr, ContractError> {
-        PROVER_PER_CHAIN
-            .may_load(deps.storage, chain_name.clone())?
-            .ok_or(ContractError::NoProversRegisteredForChain(chain_name))
+    #[test]
+    fn set_active_verifiers_from_prover_succeeds() {
+        let governance = "governance_for_coordinator";
+        let mut test_setup = setup(governance);
+
+        execute(
+            test_setup.deps.as_mut(),
+            test_setup.env.clone(),
+            mock_info(governance, &[]),
+            ExecuteMsg::RegisterProverContract {
+                chain_name: test_setup.chain_name.clone(),
+                new_prover_addr: test_setup.prover.clone(),
+            },
+        )
+        .unwrap();
+
+        let res = execute(
+            test_setup.deps.as_mut(),
+            test_setup.env,
+            mock_info(test_setup.prover.as_str(), &[]),
+            ExecuteMsg::SetActiveVerifiers {
+                verifiers: HashSet::new(),
+            },
+        );
+        assert!(res.is_ok(), "{:?}", res);
+    }
+
+    #[test]
+    fn set_active_verifiers_from_random_address_fails() {
+        let governance = "governance_for_coordinator";
+        let mut test_setup = setup(governance);
+
+        let res = execute(
+            test_setup.deps.as_mut(),
+            test_setup.env,
+            mock_info(test_setup.prover.as_str(), &[]),
+            ExecuteMsg::SetActiveVerifiers {
+                verifiers: HashSet::new(),
+            },
+        );
+        assert!(res.unwrap_err().to_string().contains(
+            &axelar_wasm_std::ContractError::from(permission_control::Error::WhitelistNotFound {
+                sender: test_setup.prover
+            })
+            .to_string()
+        ));
     }
 }

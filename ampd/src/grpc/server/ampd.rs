@@ -1,4 +1,5 @@
-use std::{future, pin::Pin};
+use std::future;
+use std::pin::Pin;
 
 use async_trait::async_trait;
 use events::Event;
@@ -6,7 +7,8 @@ use futures::{Stream, StreamExt, TryStreamExt};
 use tonic::{Request, Response, Status};
 
 use super::proto;
-use crate::{event_sub::EventSub, queue::queued_broadcaster::BroadcasterClient};
+use crate::event_sub::EventSub;
+use crate::queue::queued_broadcaster::BroadcasterClient;
 
 impl From<Event> for proto::subscribe_response::Event {
     fn from(event: Event) -> Self {
@@ -126,8 +128,9 @@ mod tests {
     use std::collections::HashMap;
     use std::time::Duration;
 
-    use cosmrs::Any;
-    use cosmrs::{bank::MsgSend, tx::Msg, AccountId};
+    use cosmrs::bank::MsgSend;
+    use cosmrs::tx::Msg;
+    use cosmrs::{AccountId, Any};
     use error_stack::Report;
     use events::Event;
     use serde_json::Map;
@@ -138,11 +141,12 @@ mod tests {
     use tokio_stream::StreamExt;
     use tonic::Code;
 
-    use crate::queue::queued_broadcaster;
-    use crate::{event_sub::MockEventSub, queue::queued_broadcaster::MockBroadcasterClient};
-
-    use super::proto::{self, ampd_server::Ampd};
+    use super::proto::ampd_server::Ampd;
+    use super::proto::{self};
     use super::Server;
+    use crate::event_sub::MockEventSub;
+    use crate::queue::queued_broadcaster;
+    use crate::queue::queued_broadcaster::MockBroadcasterClient;
 
     #[test]
     async fn subscribe_should_return_stream_of_error_when_event_subscriber_fails() {

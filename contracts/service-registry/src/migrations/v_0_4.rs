@@ -53,8 +53,10 @@ pub fn migrate_services_coordinator_contract(
 
 #[cfg(test)]
 mod test {
+    use cosmwasm_std::testing::mock_dependencies;
+    use cosmwasm_std::{Addr, Uint128};
+
     use super::*;
-    use cosmwasm_std::{testing::mock_dependencies, Addr, Uint128};
 
     #[test]
     fn successfully_migrate_services() {

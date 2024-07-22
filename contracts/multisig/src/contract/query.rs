@@ -1,11 +1,10 @@
-use crate::{
-    key::{KeyType, PublicKey},
-    multisig::Multisig,
-    state::{load_pub_key, load_session_signatures, AUTHORIZED_CALLERS},
-    verifier_set::VerifierSet,
-};
+use router_api::ChainName;
 
 use super::*;
+use crate::key::{KeyType, PublicKey};
+use crate::multisig::Multisig;
+use crate::state::{load_pub_key, load_session_signatures, AUTHORIZED_CALLERS};
+use crate::verifier_set::VerifierSet;
 
 pub fn get_multisig(deps: Deps, session_id: Uint64) -> StdResult<Multisig> {
     let session = SIGNING_SESSIONS.load(deps.storage, session_id.into())?;
@@ -29,9 +28,7 @@ pub fn get_public_key(deps: Deps, verifier: Addr, key_type: KeyType) -> StdResul
     Ok(PublicKey::try_from((key_type, raw)).expect("could not decode pub key"))
 }
 
-pub fn caller_authorized(deps: Deps, address: Addr) -> StdResult<bool> {
-    let is_authorized = AUTHORIZED_CALLERS
-        .may_load(deps.storage, &address)?
-        .is_some();
+pub fn caller_authorized(deps: Deps, address: Addr, chain_name: ChainName) -> StdResult<bool> {
+    let is_authorized = AUTHORIZED_CALLERS.may_load(deps.storage, &address)? == Some(chain_name);
     Ok(is_authorized)
 }

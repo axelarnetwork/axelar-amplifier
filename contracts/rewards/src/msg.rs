@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use axelar_wasm_std::{nonempty, Threshold};
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, Uint128, Uint64};
+use msgs_derive::EnsurePermissions;
 use router_api::ChainName;
 
 use crate::state::{Epoch, PoolId};
@@ -31,6 +32,7 @@ pub struct Params {
 }
 
 #[cw_serde]
+#[derive(EnsurePermissions)]
 pub enum ExecuteMsg {
     /// Log a specific verifier as participating in a specific event. Verifier weights are ignored
     ///
@@ -40,6 +42,7 @@ pub enum ExecuteMsg {
     /// verifier could choose to record the participation, but then the missed message is not recorded in any way.
     /// A possible solution to this is to add a weight to each event, where the voting verifier specifies the number
     /// of messages in a batch as well as the number of messages a particular verifier actually participated in.
+    #[permission(Any)]
     RecordParticipation {
         chain_name: ChainName,
         event_id: nonempty::String,
@@ -47,6 +50,7 @@ pub enum ExecuteMsg {
     },
 
     /// Distribute rewards up to epoch T - 2 (i.e. if we are currently in epoch 10, distribute all undistributed rewards for epochs 0-8) and send the required number of tokens to each verifier
+    #[permission(Any)]
     DistributeRewards {
         pool_id: PoolId,
         /// Maximum number of historical epochs for which to distribute rewards, starting with the oldest. If not specified, distribute rewards for 10 epochs.
@@ -55,9 +59,11 @@ pub enum ExecuteMsg {
 
     /// Start a new reward pool for the given contract if none exists. Otherwise, add tokens to an existing reward pool.
     /// Any attached funds with a denom matching the rewards denom are added to the pool.
+    #[permission(Any)]
     AddRewards { pool_id: PoolId },
 
     /// Overwrites the currently stored params. Callable only by governance.
+    #[permission(Governance)]
     UpdateParams { params: Params },
 }
 
