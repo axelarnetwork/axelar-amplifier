@@ -1,12 +1,15 @@
-use axelar_wasm_std::{killswitch, permission_control};
+use std::collections::HashMap;
+
+use axelar_wasm_std::{killswitch, permission_control, FnExt};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_json_binary, Addr, Binary, Deps, DepsMut, Env, HexBinary, MessageInfo, Response, StdResult,
-    Storage, Uint64,
+    to_json_binary, Addr, Binary, Deps, DepsMut, Env, HexBinary, MessageInfo, Response, StdError,
+    StdResult, Storage, Uint64,
 };
 use error_stack::{report, ResultExt};
 use itertools::Itertools;
+use router_api::ChainName;
 
 use crate::events::Event;
 use crate::msg::{ExecuteMsg, InstantiateMsg, MigrationMsg, QueryMsg};
@@ -121,31 +124,31 @@ pub fn execute(
             signed_sender_address,
         } => execute::register_pub_key(deps, info, public_key, signed_sender_address),
         ExecuteMsg::AuthorizeCallers { contracts } => {
-            let contracts = contracts
-                .into_iter()
-                .map(|(contract_address, chain_name)| {
-                    deps.api
-                        .addr_validate(&contract_address)
-                        .map(|addr| (addr, chain_name))
-                })
-                .try_collect()?;
+            let contracts = validate_contract_addresses(&deps, contracts)?;
             execute::authorize_callers(deps, contracts)
         }
         ExecuteMsg::UnauthorizeCallers { contracts } => {
-            let contracts = contracts
-                .into_iter()
-                .map(|(contract_address, chain_name)| {
-                    deps.api
-                        .addr_validate(&contract_address)
-                        .map(|addr| (addr, chain_name))
-                })
-                .try_collect()?;
+            let contracts = validate_contract_addresses(&deps, contracts)?;
             execute::unauthorize_callers(deps, contracts)
         }
         ExecuteMsg::DisableSigning => execute::disable_signing(deps),
         ExecuteMsg::EnableSigning => execute::enable_signing(deps),
-    }
-    .map_err(axelar_wasm_std::ContractError::from)
+    }?
+    .then(Ok)
+}
+
+fn validate_contract_addresses(
+    deps: &DepsMut,
+    contracts: HashMap<String, ChainName>,
+) -> Result<HashMap<Addr, ChainName>, StdError> {
+    contracts
+        .into_iter()
+        .map(|(contract_address, chain_name)| {
+            deps.api
+                .addr_validate(&contract_address)
+                .map(|addr| (addr, chain_name))
+        })
+        .try_collect()
 }
 
 fn can_start_signing_session(
