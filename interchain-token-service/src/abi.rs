@@ -359,7 +359,7 @@ mod tests {
     fn invalid_routed_message_type() {
         let invalid_payload = RoutedCall {
             messageType: U256::from(MessageType::RoutedCall as u8 + 1),
-            remote_chain: "remote_chain".into(),
+            remote_chain: "remote-chain".into(),
             message: vec![].into(),
         }
         .abi_encode_params();
@@ -379,7 +379,7 @@ mod tests {
 
         let invalid_payload = RoutedCall {
             messageType: MessageType::RoutedCall.into(),
-            remote_chain: "remote_chain".into(),
+            remote_chain: "remote-chain".into(),
             message: message.into(),
         }
         .abi_encode_params();
@@ -437,14 +437,14 @@ mod tests {
         assert!(result
             .unwrap_err()
             .to_string()
-            .contains("failed to convert enum"));
+            .contains("failed to convert token manager type"));
     }
 
     #[test]
     fn encode_decode_large_data() {
         let large_data = vec![0u8; 1024 * 1024]; // 1MB of data
         let original = ItsRoutedMessage {
-            remote_chain: ChainName::from_str("large_data_chain").unwrap(),
+            remote_chain: ChainName::from_str("large-data-chain").unwrap(),
             message: ItsMessage::InterchainTransfer {
                 token_id: [0u8; 32].into(),
                 source_address: HexBinary::from_hex("1234").unwrap(),
@@ -462,7 +462,7 @@ mod tests {
     #[test]
     fn encode_decode_unicode_strings() {
         let original = ItsRoutedMessage {
-            remote_chain: ChainName::from_str("unicode_chain_🌍").unwrap(),
+            remote_chain: ChainName::from_str("unicode-chain-🌍").unwrap(),
             message: ItsMessage::DeployInterchainToken {
                 token_id: [0u8; 32].into(),
                 name: "Unicode Token 🪙".into(),
