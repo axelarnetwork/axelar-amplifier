@@ -23,6 +23,8 @@ pub enum TokenManagerType {
     Gateway = 5,
 }
 
+/// ITS message type that can be sent between ITS contracts for transfers/token deployments
+/// `ItsMessage` that are routed via the ITS hub get wrapped inside `ItsHubMessage`
 #[cw_serde]
 #[derive(Eq)]
 pub enum ItsMessage {
@@ -47,6 +49,7 @@ pub enum ItsMessage {
     },
 }
 
+/// ITS message type that can be sent between ITS edge contracts and the ITS Hub
 #[cw_serde]
 #[derive(Eq)]
 pub enum ItsHubMessage {

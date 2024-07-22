@@ -1,5 +1,5 @@
 [workspace]
-members = ["ampd", "contracts/*", "integration-tests", "packages/*", "interchain-token-service"]
+members = ["ampd", "contracts/*", "integration-tests", "interchain-token-service", "packages/*"]
 resolver = "2"
 
 [workspace.package]
