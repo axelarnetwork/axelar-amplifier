@@ -1,15 +1,15 @@
 pub mod execute_data;
 
+use axelar_wasm_std::hash::Hash;
 use error_stack::{Result, ResultExt};
 use ethers_core::abi::{encode as abi_encode, Token, Tokenize};
+use evm_gateway::{CommandType, Message, WeightedSigners};
 use itertools::Itertools;
+use multisig::verifier_set::VerifierSet;
 use sha3::{Digest, Keccak256};
 
-use axelar_wasm_std::hash::Hash;
-use evm_gateway::{CommandType, Message, WeightedSigners};
-use multisig::verifier_set::VerifierSet;
-
-use crate::{error::ContractError, payload::Payload};
+use crate::error::ContractError;
+use crate::payload::Payload;
 
 impl From<&Payload> for CommandType {
     fn from(payload: &Payload) -> Self {
@@ -72,13 +72,10 @@ pub fn encode(payload: &Payload) -> Result<Vec<u8>, ContractError> {
 mod tests {
     use cosmwasm_std::HexBinary;
 
-    use crate::{
-        encoding::abi::{payload_hash_to_sign, CommandType},
-        payload::Payload,
-        test::test_data::{
-            curr_verifier_set, domain_separator, messages, new_verifier_set,
-            verifier_set_from_pub_keys,
-        },
+    use crate::encoding::abi::{payload_hash_to_sign, CommandType};
+    use crate::payload::Payload;
+    use crate::test::test_data::{
+        curr_verifier_set, domain_separator, messages, new_verifier_set, verifier_set_from_pub_keys,
     };
 
     #[test]

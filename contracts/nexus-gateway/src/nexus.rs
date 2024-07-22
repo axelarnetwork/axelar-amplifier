@@ -1,6 +1,7 @@
 use std::str::FromStr;
 
-use axelar_wasm_std::{msg_id::HexTxHashAndEventIndex, nonempty};
+use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
+use axelar_wasm_std::nonempty;
 use cosmwasm_std::{CosmosMsg, CustomMsg};
 use error_stack::{Report, Result, ResultExt};
 use router_api::{Address, ChainName, CrossChainId};

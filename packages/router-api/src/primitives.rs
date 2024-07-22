@@ -1,14 +1,16 @@
-use std::{any::type_name, fmt, ops::Deref, str::FromStr};
+use std::any::type_name;
+use std::fmt;
+use std::ops::Deref;
+use std::str::FromStr;
 
 use axelar_wasm_std::flagset::FlagSet;
+use axelar_wasm_std::hash::Hash;
 use axelar_wasm_std::msg_id::MessageIdFormat;
-use axelar_wasm_std::{hash::Hash, nonempty, FnExt};
+use axelar_wasm_std::{nonempty, FnExt};
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, Attribute, HexBinary};
-use cosmwasm_std::{StdError, StdResult};
+use cosmwasm_std::{Addr, Attribute, HexBinary, StdError, StdResult};
 use cw_storage_plus::{Key, KeyDeserialize, Prefixer, PrimaryKey};
-use error_stack::Report;
-use error_stack::ResultExt;
+use error_stack::{Report, ResultExt};
 use flagset::flags;
 use schemars::gen::SchemaGenerator;
 use schemars::schema::Schema;
@@ -291,12 +293,12 @@ impl ChainEndpoint {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     use cosmwasm_std::to_json_vec;
     use rand::distributions::Alphanumeric;
     use rand::{thread_rng, Rng};
     use sha3::{Digest, Sha3_256};
+
+    use super::*;
 
     #[test]
     // Any modifications to the Message struct fields or their types

@@ -1,6 +1,7 @@
-use crate::nonempty::Error;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::HexBinary;
+
+use crate::nonempty::Error;
 
 #[cw_serde]
 #[serde(try_from = "std::vec::Vec<T>")]

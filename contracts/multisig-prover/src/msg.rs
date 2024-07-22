@@ -1,10 +1,12 @@
-use axelar_wasm_std::{hash::Hash, MajorityThreshold};
+use axelar_wasm_std::hash::Hash;
+use axelar_wasm_std::MajorityThreshold;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{HexBinary, Uint64};
 use multisig::key::KeyType;
 use router_api::CrossChainId;
 
-use crate::{encoding::Encoder, payload::Payload};
+use crate::encoding::Encoder;
+use crate::payload::Payload;
 
 #[cw_serde]
 pub struct InstantiateMsg {

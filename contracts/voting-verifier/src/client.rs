@@ -1,11 +1,7 @@
+use axelar_wasm_std::voting::{PollId, Vote};
+use axelar_wasm_std::{nonempty, MajorityThreshold, VerificationStatus};
 use cosmwasm_std::{Addr, WasmMsg};
 use error_stack::ResultExt;
-
-use axelar_wasm_std::{
-    nonempty,
-    voting::{PollId, Vote},
-    MajorityThreshold, VerificationStatus,
-};
 use multisig::verifier_set::VerifierSet;
 use router_api::Message;
 
@@ -104,20 +100,16 @@ fn ignore_empty(msgs: Vec<Message>) -> Option<Vec<Message>> {
 mod test {
     use std::collections::BTreeMap;
 
-    use axelar_wasm_std::{msg_id::HexTxHashAndEventIndex, Threshold, VerificationStatus};
-    use cosmwasm_std::{
-        from_json,
-        testing::{mock_dependencies, mock_env, mock_info, MockQuerier},
-        Addr, DepsMut, QuerierWrapper, Uint128, Uint64, WasmQuery,
-    };
+    use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
+    use axelar_wasm_std::{Threshold, VerificationStatus};
+    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info, MockQuerier};
+    use cosmwasm_std::{from_json, Addr, DepsMut, QuerierWrapper, Uint128, Uint64, WasmQuery};
     use multisig::verifier_set::VerifierSet;
     use router_api::{CrossChainId, Message};
 
-    use crate::{
-        contract::{instantiate, query},
-        msg::{InstantiateMsg, MessageStatus, QueryMsg},
-        Client,
-    };
+    use crate::contract::{instantiate, query};
+    use crate::msg::{InstantiateMsg, MessageStatus, QueryMsg};
+    use crate::Client;
 
     #[test]
     fn query_messages_status() {

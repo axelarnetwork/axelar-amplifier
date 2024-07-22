@@ -8,11 +8,9 @@ use error_stack::ResultExt;
 use itertools::Itertools;
 
 use crate::contract::migrations::v0_4_0;
-use crate::{
-    error::ContractError,
-    msg::{ExecuteMsg, InstantiateMsg, QueryMsg},
-    state::{self, Config, Epoch, ParamsSnapshot, PoolId, CONFIG, PARAMS},
-};
+use crate::error::ContractError;
+use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
+use crate::state::{self, Config, Epoch, ParamsSnapshot, PoolId, CONFIG, PARAMS};
 
 mod execute;
 mod migrations;
@@ -177,10 +175,9 @@ mod tests {
     use cw_multi_test::{App, ContractWrapper, Executor};
     use router_api::ChainName;
 
+    use super::*;
     use crate::msg::{ExecuteMsg, InstantiateMsg, Params, QueryMsg, RewardsPool};
     use crate::state::PoolId;
-
-    use super::*;
 
     #[test]
     fn migrate_sets_contract_version() {

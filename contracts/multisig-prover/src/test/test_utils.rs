@@ -1,6 +1,9 @@
 use axelar_wasm_std::VerificationStatus;
 use cosmwasm_std::{from_json, to_json_binary, Addr, QuerierResult, Uint128, WasmQuery};
-use multisig::{msg::Signer, multisig::Multisig, types::MultisigState, verifier_set::VerifierSet};
+use multisig::msg::Signer;
+use multisig::multisig::Multisig;
+use multisig::types::MultisigState;
+use multisig::verifier_set::VerifierSet;
 use service_registry::state::{
     AuthorizationState, BondingState, Verifier, WeightedVerifier, VERIFIER_WEIGHT,
 };

@@ -2,26 +2,25 @@ use std::collections::HashMap;
 use std::convert::TryInto;
 
 use async_trait::async_trait;
-use cosmrs::{
-    cosmwasm::MsgExecuteContract,
-    {tx::Msg, Any},
-};
+use cosmrs::cosmwasm::MsgExecuteContract;
+use cosmrs::tx::Msg;
+use cosmrs::Any;
 use cosmwasm_std::{HexBinary, Uint64};
 use ecdsa::VerifyingKey;
 use error_stack::{Report, ResultExt};
+use events::Error::EventTypeMismatch;
+use events_derive::{self, try_from};
 use hex::encode;
-use serde::{de::Error as DeserializeError, Deserialize, Deserializer};
+use multisig::msg::ExecuteMsg;
+use serde::de::Error as DeserializeError;
+use serde::{Deserialize, Deserializer};
 use tokio::sync::watch::Receiver;
 use tracing::info;
 
-use events::Error::EventTypeMismatch;
-use events_derive;
-use events_derive::try_from;
-use multisig::msg::ExecuteMsg;
-
 use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error::{self, DeserializeEvent};
-use crate::tofnd::{self, grpc::Multisig, MessageDigest};
+use crate::tofnd::grpc::Multisig;
+use crate::tofnd::{self, MessageDigest};
 use crate::types::{PublicKey, TMAddress};
 
 #[derive(Debug, Deserialize)]
@@ -194,6 +193,9 @@ mod test {
     use cosmwasm_std::{HexBinary, Uint64};
     use ecdsa::SigningKey;
     use error_stack::{Report, Result};
+    use multisig::events::Event::SigningStarted;
+    use multisig::key::PublicKey;
+    use multisig::types::MsgToSign;
     use rand::distributions::Alphanumeric;
     use rand::rngs::OsRng;
     use rand::Rng;
@@ -201,16 +203,10 @@ mod test {
     use tendermint::abci;
     use tokio::sync::watch;
 
-    use multisig::events::Event::SigningStarted;
-    use multisig::key::PublicKey;
-    use multisig::types::MsgToSign;
-
-    use crate::broadcaster::MockBroadcaster;
-    use crate::tofnd;
-    use crate::tofnd::grpc::MockMultisig;
-    use crate::types;
-
     use super::*;
+    use crate::broadcaster::MockBroadcaster;
+    use crate::tofnd::grpc::MockMultisig;
+    use crate::{tofnd, types};
 
     const MULTISIG_ADDRESS: &str = "axelarvaloper1zh9wrak6ke4n6fclj5e8yk397czv430ygs5jz7";
 

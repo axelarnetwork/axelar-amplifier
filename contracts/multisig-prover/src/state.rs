@@ -1,16 +1,14 @@
+use axelar_wasm_std::hash::Hash;
+use axelar_wasm_std::MajorityThreshold;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::Addr;
 use cw_storage_plus::{Item, Map};
-
-use axelar_wasm_std::{hash::Hash, MajorityThreshold};
 use multisig::key::KeyType;
 use multisig::verifier_set::VerifierSet;
 use router_api::ChainName;
 
-use crate::{
-    encoding::Encoder,
-    payload::{Payload, PayloadId},
-};
+use crate::encoding::Encoder;
+use crate::payload::{Payload, PayloadId};
 
 #[cw_serde]
 pub struct Config {

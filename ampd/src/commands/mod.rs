@@ -1,14 +1,11 @@
 use clap::Subcommand;
+use cosmrs::proto::cosmos::auth::v1beta1::query_client::QueryClient as AuthQueryClient;
+use cosmrs::proto::cosmos::bank::v1beta1::query_client::QueryClient as BankQueryClient;
 use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
-use cosmrs::proto::cosmos::{
-    auth::v1beta1::query_client::QueryClient as AuthQueryClient,
-    bank::v1beta1::query_client::QueryClient as BankQueryClient,
-    tx::v1beta1::service_client::ServiceClient,
-};
+use cosmrs::proto::cosmos::tx::v1beta1::service_client::ServiceClient;
 use cosmrs::proto::Any;
 use cosmrs::AccountId;
-use error_stack::Result;
-use error_stack::ResultExt;
+use error_stack::{Result, ResultExt};
 use serde::{Deserialize, Serialize};
 use valuable::Valuable;
 
@@ -16,8 +13,7 @@ use crate::broadcaster::Broadcaster;
 use crate::config::Config as AmpdConfig;
 use crate::tofnd::grpc::{Multisig, MultisigClient};
 use crate::types::{PublicKey, TMAddress};
-use crate::{broadcaster, Error};
-use crate::{tofnd, PREFIX};
+use crate::{broadcaster, tofnd, Error, PREFIX};
 
 pub mod bond_verifier;
 pub mod daemon;

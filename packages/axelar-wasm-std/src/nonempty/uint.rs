@@ -1,7 +1,8 @@
 use std::fmt;
 
-use crate::nonempty::Error;
 use cosmwasm_schema::cw_serde;
+
+use crate::nonempty::Error;
 
 #[cw_serde]
 #[serde(try_from = "cosmwasm_std::Uint64")]

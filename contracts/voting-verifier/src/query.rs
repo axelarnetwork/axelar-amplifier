@@ -1,19 +1,12 @@
-use axelar_wasm_std::{
-    voting::{PollId, PollStatus, Vote},
-    MajorityThreshold, VerificationStatus,
-};
+use axelar_wasm_std::voting::{PollId, PollStatus, Vote};
+use axelar_wasm_std::{MajorityThreshold, VerificationStatus};
 use cosmwasm_std::Deps;
 use multisig::verifier_set::VerifierSet;
 use router_api::Message;
 
-use crate::{
-    error::ContractError,
-    state::{poll_messages, poll_verifier_sets, CONFIG},
-};
-use crate::{
-    msg::{MessageStatus, PollData, PollResponse},
-    state::{self, Poll, PollContent, POLLS},
-};
+use crate::error::ContractError;
+use crate::msg::{MessageStatus, PollData, PollResponse};
+use crate::state::{self, poll_messages, poll_verifier_sets, Poll, PollContent, CONFIG, POLLS};
 
 pub fn voting_threshold(deps: Deps) -> Result<MajorityThreshold, ContractError> {
     Ok(CONFIG.load(deps.storage)?.voting_threshold)
@@ -152,20 +145,16 @@ fn voting_completed(poll: &state::Poll, cur_block_height: u64) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use axelar_wasm_std::{
-        msg_id::HexTxHashAndEventIndex,
-        nonempty,
-        voting::{PollId, Tallies, Vote, WeightedPoll},
-        Participant, Snapshot, Threshold,
-    };
-    use cosmwasm_std::testing::mock_env;
-    use cosmwasm_std::{testing::mock_dependencies, Addr, Uint128, Uint64};
+    use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
+    use axelar_wasm_std::voting::{PollId, Tallies, Vote, WeightedPoll};
+    use axelar_wasm_std::{nonempty, Participant, Snapshot, Threshold};
+    use cosmwasm_std::testing::{mock_dependencies, mock_env};
+    use cosmwasm_std::{Addr, Uint128, Uint64};
     use itertools::Itertools;
     use router_api::CrossChainId;
 
-    use crate::state::PollContent;
-
     use super::*;
+    use crate::state::PollContent;
 
     #[test]
     fn verification_status_in_progress() {

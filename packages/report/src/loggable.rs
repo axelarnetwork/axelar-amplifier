@@ -150,10 +150,12 @@ impl<'a> From<&'a Frame> for FrameType<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::LoggableError;
-    use error_stack::Report;
     use std::env;
+
+    use error_stack::Report;
     use thiserror::Error;
+
+    use crate::LoggableError;
 
     #[derive(Error, Debug)]
     enum Error {

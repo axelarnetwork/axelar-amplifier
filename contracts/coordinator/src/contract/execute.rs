@@ -1,6 +1,6 @@
-use cosmwasm_std::{Addr, DepsMut, MessageInfo, Response};
 use std::collections::HashSet;
 
+use cosmwasm_std::{Addr, DepsMut, MessageInfo, Response};
 use router_api::ChainName;
 
 use crate::error::ContractError;

@@ -1,13 +1,12 @@
 use std::collections::HashMap;
 use std::vec;
 
+use axelar_wasm_std::flagset::FlagSet;
 use axelar_wasm_std::killswitch;
+use axelar_wasm_std::msg_id::{self, MessageIdFormat};
 use cosmwasm_std::{to_json_binary, Addr, Event, Response, StdResult, Storage, WasmMsg};
 use error_stack::{ensure, report, ResultExt};
 use itertools::Itertools;
-
-use axelar_wasm_std::flagset::FlagSet;
-use axelar_wasm_std::msg_id::{self, MessageIdFormat};
 use router_api::error::Error;
 use router_api::{ChainEndpoint, ChainName, Gateway, GatewayDirection, Message};
 
@@ -240,12 +239,8 @@ pub fn route_messages(
 
 #[cfg(test)]
 mod test {
-    use super::{freeze_chains, unfreeze_chains};
-    use crate::contract::execute::route_messages;
-    use crate::contract::instantiate;
-    use crate::events::{ChainFrozen, ChainUnfrozen};
-    use crate::msg::InstantiateMsg;
-    use crate::state::chain_endpoints;
+    use std::collections::HashMap;
+
     use axelar_wasm_std::flagset::FlagSet;
     use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
@@ -253,7 +248,13 @@ mod test {
     use rand::{random, RngCore};
     use router_api::error::Error;
     use router_api::{ChainEndpoint, ChainName, CrossChainId, Gateway, GatewayDirection, Message};
-    use std::collections::HashMap;
+
+    use super::{freeze_chains, unfreeze_chains};
+    use crate::contract::execute::route_messages;
+    use crate::contract::instantiate;
+    use crate::events::{ChainFrozen, ChainUnfrozen};
+    use crate::msg::InstantiateMsg;
+    use crate::state::chain_endpoints;
 
     fn rand_message(source_chain: ChainName, destination_chain: ChainName) -> Message {
         let mut bytes = [0; 32];

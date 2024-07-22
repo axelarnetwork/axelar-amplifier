@@ -7,8 +7,7 @@ use thiserror::Error;
 use tokio::select;
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::Interval;
-use tracing::info;
-use tracing::warn;
+use tracing::{info, warn};
 
 use super::msg_queue::MsgQueue;
 use super::proto;
@@ -231,10 +230,10 @@ where
 
 #[cfg(test)]
 mod test {
+    use cosmrs::bank::MsgSend;
     use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
-    use cosmrs::tx::{Fee, MessageExt};
-    use cosmrs::Any;
-    use cosmrs::{bank::MsgSend, tx::Msg, AccountId};
+    use cosmrs::tx::{Fee, MessageExt, Msg};
+    use cosmrs::{AccountId, Any};
     use error_stack::Report;
     use futures::StreamExt;
     use tokio::sync::mpsc;

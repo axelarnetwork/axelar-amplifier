@@ -2,28 +2,21 @@ pub mod error;
 
 use std::str::FromStr;
 
+use axelar_wasm_std::hash::Hash;
+use axelar_wasm_std::FnExt;
 use cosmwasm_std::Uint256;
 use error_stack::{Report, ResultExt};
 use ethers_contract::abigen;
-use ethers_core::{
-    abi::{
-        encode,
-        Token::{self, Tuple, Uint},
-        Tokenize,
-    },
-    types::{Address, Bytes, U256},
-    utils::public_key_to_address,
-};
+use ethers_core::abi::Token::{self, Tuple, Uint};
+use ethers_core::abi::{encode, Tokenize};
+use ethers_core::types::{Address, Bytes, U256};
+use ethers_core::utils::public_key_to_address;
 use k256::ecdsa::VerifyingKey;
-use sha3::{Digest, Keccak256};
-
-use axelar_wasm_std::{hash::Hash, FnExt};
-use multisig::{
-    key::PublicKey,
-    msg::{Signer, SignerWithSig},
-    verifier_set::VerifierSet,
-};
+use multisig::key::PublicKey;
+use multisig::msg::{Signer, SignerWithSig};
+use multisig::verifier_set::VerifierSet;
 use router_api::Message as RouterMessage;
+use sha3::{Digest, Keccak256};
 
 use crate::error::Error;
 
@@ -152,10 +145,11 @@ pub fn evm_address(pub_key: &PublicKey) -> Result<Address, Report<Error>> {
 mod test {
     use std::str::FromStr;
 
+    use axelar_wasm_std::nonempty;
+    use axelar_wasm_std::snapshot::Participant;
     use cosmwasm_std::{Addr, HexBinary, Uint128};
-
-    use axelar_wasm_std::{nonempty, snapshot::Participant};
-    use multisig::{key::PublicKey, verifier_set::VerifierSet};
+    use multisig::key::PublicKey;
+    use multisig::verifier_set::VerifierSet;
     use router_api::{CrossChainId, Message as RouterMessage};
 
     use crate::{Message, WeightedSigners};

@@ -2,21 +2,21 @@ use std::collections::{HashMap, HashSet};
 use std::convert::TryInto;
 
 use async_trait::async_trait;
+use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
+use axelar_wasm_std::voting::{PollId, Vote};
 use cosmrs::cosmwasm::MsgExecuteContract;
-use cosmrs::{tx::Msg, Any};
+use cosmrs::tx::Msg;
+use cosmrs::Any;
 use error_stack::ResultExt;
 use ethers_core::types::{TransactionReceipt, U64};
+use events::Error::EventTypeMismatch;
+use events_derive::try_from;
 use futures::future::join_all;
+use router_api::ChainName;
 use serde::Deserialize;
 use tokio::sync::watch::Receiver;
 use tracing::{info, info_span};
 use valuable::Valuable;
-
-use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
-use axelar_wasm_std::voting::{PollId, Vote};
-use events::Error::EventTypeMismatch;
-use events_derive::try_from;
-use router_api::ChainName;
 use voting_verifier::msg::ExecuteMsg;
 
 use crate::event_processor::EventHandler;
@@ -231,22 +231,20 @@ mod tests {
     use cosmwasm_std;
     use error_stack::{Report, Result};
     use ethers_providers::ProviderError;
-    use tendermint::abci;
-    use tokio::sync::watch;
-    use tokio::test as async_test;
-
     use events::Error::{DeserializationFailed, EventTypeMismatch};
     use events::Event;
     use router_api::ChainName;
+    use tendermint::abci;
+    use tokio::sync::watch;
+    use tokio::test as async_test;
     use voting_verifier::events::{PollMetadata, PollStarted, TxEventConfirmation};
 
+    use super::PollStartedEvent;
     use crate::event_processor::EventHandler;
     use crate::evm::finalizer::Finalization;
     use crate::evm::json_rpc::MockEthereumClient;
     use crate::types::{EVMAddress, Hash, TMAddress};
     use crate::PREFIX;
-
-    use super::PollStartedEvent;
 
     fn get_poll_started_event(participants: Vec<TMAddress>, expires_at: u64) -> PollStarted {
         PollStarted::Messages {

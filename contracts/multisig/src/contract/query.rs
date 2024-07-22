@@ -1,13 +1,10 @@
 use router_api::ChainName;
 
-use crate::{
-    key::{KeyType, PublicKey},
-    multisig::Multisig,
-    state::{load_pub_key, load_session_signatures, AUTHORIZED_CALLERS},
-    verifier_set::VerifierSet,
-};
-
 use super::*;
+use crate::key::{KeyType, PublicKey};
+use crate::multisig::Multisig;
+use crate::state::{load_pub_key, load_session_signatures, AUTHORIZED_CALLERS};
+use crate::verifier_set::VerifierSet;
 
 pub fn get_multisig(deps: Deps, session_id: Uint64) -> StdResult<Multisig> {
     let session = SIGNING_SESSIONS.load(deps.storage, session_id.into())?;

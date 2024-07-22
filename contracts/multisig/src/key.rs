@@ -1,14 +1,15 @@
-use crate::{
-    ed25519::{ed25519_verify, ED25519_SIGNATURE_LEN},
-    secp256k1::ecdsa_verify,
-    ContractError,
-};
+use std::fmt::Display;
+
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{HexBinary, StdError, StdResult};
 use cw_storage_plus::{KeyDeserialize, PrimaryKey};
 use enum_display_derive::Display;
-use serde::{de::Error, Deserialize, Deserializer};
-use std::fmt::Display;
+use serde::de::Error;
+use serde::{Deserialize, Deserializer};
+
+use crate::ed25519::{ed25519_verify, ED25519_SIGNATURE_LEN};
+use crate::secp256k1::ecdsa_verify;
+use crate::ContractError;
 
 const ECDSA_COMPRESSED_PUBKEY_LEN: usize = 33;
 
@@ -323,14 +324,11 @@ mod ecdsa_tests {
     use cosmwasm_std::HexBinary;
     use k256::{AffinePoint, EncodedPoint};
 
-    use crate::{
-        key::{validate_and_normalize_public_key, Signature},
-        test::common::ecdsa_test_data,
-        types::MsgToSign,
-        ContractError,
-    };
-
     use super::{KeyType, PublicKey};
+    use crate::key::{validate_and_normalize_public_key, Signature};
+    use crate::test::common::ecdsa_test_data;
+    use crate::types::MsgToSign;
+    use crate::ContractError;
 
     #[test]
     fn deserialize_ecdsa_key() {
@@ -491,14 +489,11 @@ mod ed25519_tests {
     use cosmwasm_std::HexBinary;
     use curve25519_dalek::edwards::CompressedEdwardsY;
 
-    use crate::{
-        key::{validate_and_normalize_public_key, Signature},
-        test::common::ed25519_test_data,
-        types::MsgToSign,
-        ContractError,
-    };
-
     use super::{KeyType, PublicKey};
+    use crate::key::{validate_and_normalize_public_key, Signature};
+    use crate::test::common::ed25519_test_data;
+    use crate::types::MsgToSign;
+    use crate::ContractError;
 
     #[test]
     fn deserialize_ed25519_key() {

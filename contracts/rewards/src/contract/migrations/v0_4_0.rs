@@ -1,10 +1,9 @@
 #![allow(deprecated)]
 
+use axelar_wasm_std::{permission_control, ContractError};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Storage};
 use cw_storage_plus::Item;
-
-use axelar_wasm_std::{permission_control, ContractError};
 use router_api::error::Error;
 
 use crate::contract::CONTRACT_NAME;

@@ -1,8 +1,7 @@
-use crate::state::{self, Verifier};
-use crate::state::{AuthorizationState, VERIFIERS};
 use router_api::ChainName;
 
 use super::*;
+use crate::state::{self, AuthorizationState, Verifier, VERIFIERS};
 
 pub fn require_governance(deps: &DepsMut, info: MessageInfo) -> Result<(), ContractError> {
     let config = CONFIG.load(deps.storage)?;
@@ -219,6 +218,6 @@ pub fn claim_stake(
             denom: service.bond_denom,
             amount: released_bond,
         }]
-        .to_vec(), // TODO: isolate coins
+        .to_vec(),
     }))
 }

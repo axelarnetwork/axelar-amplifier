@@ -1,5 +1,6 @@
 use core::fmt;
-use std::{fmt::Display, str::FromStr};
+use std::fmt::Display;
+use std::str::FromStr;
 
 use cosmwasm_std::HexBinary;
 use error_stack::{Report, ResultExt};
@@ -7,7 +8,8 @@ use lazy_static::lazy_static;
 use regex::Regex;
 
 use super::Error;
-use crate::{hash::Hash, nonempty};
+use crate::hash::Hash;
+use crate::nonempty;
 
 pub struct HexTxHashAndEventIndex {
     pub tx_hash: Hash,
