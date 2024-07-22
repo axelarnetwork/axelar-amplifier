@@ -69,6 +69,10 @@ jobs:
             (cd $C && cargo build --release --lib --target wasm32-unknown-unknown --locked)
           done
 
+      - name: Build ITS release
+        run: |
+          ( cd interchain-token-service && cargo build --release --locked )
+
       - name: Install cosmwasm-check
         uses: actions-rs/cargo@v1
         with:
