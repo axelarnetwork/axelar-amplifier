@@ -1,5 +1,4 @@
-use axelar_wasm_std::FnExt;
-use axelar_wasm_std::permission_control;
+use axelar_wasm_std::{permission_control, FnExt};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
@@ -76,8 +75,7 @@ pub fn execute(
         ExecuteMsg::UpdateAdmin { new_admin_address } => {
             Ok(execute::update_admin(deps, new_admin_address)?)
         }
-    }?
-    .then(Ok)
+    }
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
