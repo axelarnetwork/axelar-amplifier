@@ -2,6 +2,7 @@ use axelar_wasm_std::hash::Hash;
 use axelar_wasm_std::MajorityThreshold;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{HexBinary, Uint64};
+use msgs_derive::EnsurePermissions;
 use multisig::key::KeyType;
 use router_api::CrossChainId;
 
@@ -57,23 +58,25 @@ pub struct InstantiateMsg {
 }
 
 #[cw_serde]
+#[derive(EnsurePermissions)]
 pub enum ExecuteMsg {
     // Start building a proof that includes specified messages
     // Queries the gateway for actual message contents
-    ConstructProof {
-        message_ids: Vec<CrossChainId>,
-    },
+    #[permission(Any)]
+    ConstructProof { message_ids: Vec<CrossChainId> },
+    #[permission(Elevated)]
     UpdateVerifierSet,
+
+    #[permission(Any)]
     ConfirmVerifierSet,
     // Updates the signing threshold. The threshold currently in use does not change.
     // The verifier set must be updated and confirmed for the change to take effect.
-    // Callable only by governance.
+    #[permission(Governance)]
     UpdateSigningThreshold {
         new_signing_threshold: MajorityThreshold,
     },
-    UpdateAdmin {
-        new_admin_address: String,
-    },
+    #[permission(Governance)]
+    UpdateAdmin { new_admin_address: String },
 }
 
 #[cw_serde]
