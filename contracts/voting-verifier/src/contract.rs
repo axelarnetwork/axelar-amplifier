@@ -1,3 +1,4 @@
+use axelar_wasm_std::FnExt;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
@@ -60,8 +61,8 @@ pub fn execute(
             execute::require_governance(&deps, info.sender)?;
             execute::update_voting_threshold(deps, new_voting_threshold)
         }
-    }
-    .map_err(axelar_wasm_std::ContractError::from)
+    }?
+    .then(Ok)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]

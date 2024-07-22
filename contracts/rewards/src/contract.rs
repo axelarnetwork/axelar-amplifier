@@ -91,8 +91,7 @@ pub fn execute(
                 verifier_address,
                 pool_id,
                 env.block.height,
-            )
-            .map_err(axelar_wasm_std::ContractError::from)?;
+            )?;
 
             Ok(Response::new())
         }
@@ -122,8 +121,7 @@ pub fn execute(
             deps.api.addr_validate(pool_id.contract.as_str())?;
 
             let rewards =
-                execute::distribute_rewards(deps.storage, pool_id, env.block.height, epoch_count)
-                    .map_err(axelar_wasm_std::ContractError::from)?;
+                execute::distribute_rewards(deps.storage, pool_id, env.block.height, epoch_count)?;
 
             let msgs = rewards
                 .into_iter()
