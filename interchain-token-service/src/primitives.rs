@@ -49,7 +49,7 @@ pub enum ItsMessage {
 
 #[cw_serde]
 #[derive(Eq)]
-pub struct ItsRoutedMessage {
+pub struct ItsHubMessage {
     /// Remote chain name.
     /// ITS edge source contract -> ITS Hub GMP call: Set to the true destination chain name.
     /// ITS Hub -> ITS edge destination contract: Set to the true source chain name.

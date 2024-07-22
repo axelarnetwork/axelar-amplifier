@@ -6,7 +6,7 @@ use router_api::ChainName;
 
 use crate::{
     error::Error,
-    primitives::{ItsMessage, ItsRoutedMessage},
+    primitives::{ItsMessage, ItsHubMessage},
     TokenId, TokenManagerType,
 };
 
@@ -105,13 +105,66 @@ impl ItsMessage {
     }
 
     pub fn abi_decode(payload: &[u8]) -> Result<Self, Report<Error>> {
-        todo!()
+        if payload.len() < 32 {
+            return Err(Report::new(Error::InvalidMessage(
+                "invalid message length".into(),
+            )));
+        }
+
+        let message_type = MessageType::abi_decode(&payload[0..32], true)
+            .map_err(|e| Error::InvalidMessage(e.to_string()))?;
+
+        let message = match message_type {
+            MessageType::InterchainTransfer => {
+                let decoded = InterchainTransfer::abi_decode_params(payload, true)
+                    .map_err(|e| Report::new(Error::InvalidMessage(e.to_string())))?;
+
+                Ok(ItsMessage::InterchainTransfer {
+                    token_id: TokenId::new(decoded.tokenId.into()),
+                    source_address: HexBinary::from(decoded.sourceAddress.to_vec()),
+                    destination_address: HexBinary::from(decoded.destinationAddress.as_ref()),
+                    amount: Uint256::from_le_bytes(decoded.amount.to_le_bytes()),
+                    data: HexBinary::from(decoded.data.as_ref()),
+                })
+            }
+            MessageType::DeployInterchainToken => {
+                let decoded =
+                    DeployInterchainToken::abi_decode_params(payload, true)
+                        .map_err(|e| Report::new(Error::InvalidMessage(e.to_string())))?;
+
+                Ok(ItsMessage::DeployInterchainToken {
+                    token_id: TokenId::new(decoded.tokenId.into()),
+                    name: decoded.name,
+                    symbol: decoded.symbol,
+                    decimals: decoded.decimals,
+                    minter: HexBinary::from(decoded.minter.as_ref()),
+                })
+            }
+            MessageType::DeployTokenManager => {
+                let decoded = DeployTokenManager::abi_decode_params(payload, true)
+                    .map_err(|e| Report::new(Error::InvalidMessage(e.to_string())))?;
+
+                let token_manager_type = u8::try_from(decoded.tokenManagerType)
+                    .map_err(|e| Report::new(Error::InvalidMessage(e.to_string())))?;
+
+                Ok(ItsMessage::DeployTokenManager {
+                    token_id: TokenId::new(decoded.tokenId.into()),
+                    token_manager_type: TokenManagerType::from_repr(token_manager_type).ok_or_else(
+                        || Report::new(Error::InvalidTokenManagerType))?,
+                    params: HexBinary::from(decoded.params.as_ref()),
+                })
+            }
+            _ => Err(Report::new(Error::InvalidMessage(
+                "invalid inner message".into(),
+            ))),
+        }?;
+
+        Ok(message)
     }
 }
 
-impl ItsRoutedMessage {
+impl ItsHubMessage {
     pub fn abi_encode(self) -> HexBinary {
-
         RoutedCall {
             messageType: MessageType::RoutedCall.into(),
             remote_chain: self.remote_chain.into(),
@@ -134,61 +187,9 @@ impl ItsRoutedMessage {
             )));
         }
 
-        if routed_message.message.len() < 32 {
-            return Err(Report::new(Error::InvalidMessage(
-                "invalid message length".into(),
-            )));
-        }
+        let message = ItsMessage::abi_decode(&routed_message.message)?;
 
-        let message_type = MessageType::abi_decode(&routed_message.message[0..32], true)
-            .map_err(|e| Error::InvalidMessage(e.to_string()))?;
-
-        let message = match message_type {
-            MessageType::InterchainTransfer => {
-                let decoded = InterchainTransfer::abi_decode_params(&routed_message.message, true)
-                    .map_err(|e| Report::new(Error::InvalidMessage(e.to_string())))?;
-
-                Ok(ItsMessage::InterchainTransfer {
-                    token_id: TokenId::new(decoded.tokenId.into()),
-                    source_address: HexBinary::from(decoded.sourceAddress.to_vec()),
-                    destination_address: HexBinary::from(decoded.destinationAddress.as_ref()),
-                    amount: Uint256::from_le_bytes(decoded.amount.to_le_bytes()),
-                    data: HexBinary::from(decoded.data.as_ref()),
-                })
-            }
-            MessageType::DeployInterchainToken => {
-                let decoded =
-                    DeployInterchainToken::abi_decode_params(&routed_message.message, true)
-                        .map_err(|e| Report::new(Error::InvalidMessage(e.to_string())))?;
-
-                Ok(ItsMessage::DeployInterchainToken {
-                    token_id: TokenId::new(decoded.tokenId.into()),
-                    name: decoded.name,
-                    symbol: decoded.symbol,
-                    decimals: decoded.decimals,
-                    minter: HexBinary::from(decoded.minter.as_ref()),
-                })
-            }
-            MessageType::DeployTokenManager => {
-                let decoded = DeployTokenManager::abi_decode_params(&routed_message.message, true)
-                    .map_err(|e| Report::new(Error::InvalidMessage(e.to_string())))?;
-
-                let token_manager_type = u8::try_from(decoded.tokenManagerType)
-                    .map_err(|e| Report::new(Error::InvalidMessage(e.to_string())))?;
-
-                Ok(ItsMessage::DeployTokenManager {
-                    token_id: TokenId::new(decoded.tokenId.into()),
-                    token_manager_type: TokenManagerType::from_repr(token_manager_type).ok_or_else(
-                        || Report::new(Error::InvalidTokenManagerType))?,
-                    params: HexBinary::from(decoded.params.as_ref()),
-                })
-            }
-            _ => Err(Report::new(Error::InvalidMessage(
-                "invalid inner message".into(),
-            ))),
-        }?;
-
-        Ok(ItsRoutedMessage {
+        Ok(ItsHubMessage {
             remote_chain: ChainName::try_from(routed_message.remote_chain)
                 .change_context(Error::InvalidMessage("invalid remote chain".into()))?,
             message,
@@ -219,7 +220,7 @@ mod tests {
 
     use crate::{
         abi::{DeployTokenManager, MessageType, RoutedCall},
-        ItsMessage, ItsRoutedMessage, TokenManagerType,
+        ItsMessage, ItsHubMessage, TokenManagerType,
     };
 
     #[test]
@@ -227,7 +228,7 @@ mod tests {
         let remote_chain = ChainName::from_str("chain").unwrap();
 
         let cases = vec![
-            ItsRoutedMessage {
+            ItsHubMessage {
                 remote_chain: remote_chain.clone(),
                 message: ItsMessage::InterchainTransfer {
                     token_id: [0u8; 32].into(),
@@ -237,7 +238,7 @@ mod tests {
                     data: HexBinary::from_hex("").unwrap(),
                 },
             },
-            ItsRoutedMessage {
+            ItsHubMessage {
                 remote_chain: remote_chain.clone(),
                 message: ItsMessage::InterchainTransfer {
                     token_id: [255u8; 32].into(),
@@ -262,7 +263,7 @@ mod tests {
 
         for original in cases {
             let encoded = original.clone().abi_encode();
-            let decoded = ItsRoutedMessage::abi_decode(&encoded).unwrap();
+            let decoded = ItsHubMessage::abi_decode(&encoded).unwrap();
             assert_eq!(original, decoded);
         }
     }
@@ -272,7 +273,7 @@ mod tests {
         let remote_chain = ChainName::from_str("chain").unwrap();
 
         let cases = vec![
-            ItsRoutedMessage {
+            ItsHubMessage {
                 remote_chain: remote_chain.clone(),
                 message: ItsMessage::DeployInterchainToken {
                     token_id: [0u8; 32].into(),
@@ -282,7 +283,7 @@ mod tests {
                     minter: HexBinary::from_hex("").unwrap(),
                 },
             },
-            ItsRoutedMessage {
+            ItsHubMessage {
                 remote_chain: remote_chain.clone(),
                 message: ItsMessage::DeployInterchainToken {
                     token_id: [1u8; 32].into(),
@@ -292,7 +293,7 @@ mod tests {
                     minter: HexBinary::from_hex("1234").unwrap(),
                 },
             },
-            ItsRoutedMessage {
+            ItsHubMessage {
                 remote_chain: ChainName::from_str("unicode-chain-🌍").unwrap(),
                 message: ItsMessage::DeployInterchainToken {
                     token_id: [0u8; 32].into(),
@@ -313,7 +314,7 @@ mod tests {
 
         for original in cases {
             let encoded = original.clone().abi_encode();
-            let decoded = ItsRoutedMessage::abi_decode(&encoded).unwrap();
+            let decoded = ItsHubMessage::abi_decode(&encoded).unwrap();
             assert_eq!(original, decoded);
         }
     }
@@ -323,7 +324,7 @@ mod tests {
         let remote_chain = ChainName::from_str("chain").unwrap();
 
         let cases = vec![
-            ItsRoutedMessage {
+            ItsHubMessage {
                 remote_chain: remote_chain.clone(),
                 message: ItsMessage::DeployTokenManager {
                     token_id: [0u8; 32].into(),
@@ -331,7 +332,7 @@ mod tests {
                     params: HexBinary::default(),
                 },
             },
-            ItsRoutedMessage {
+            ItsHubMessage {
                 remote_chain: remote_chain.clone(),
                 message: ItsMessage::DeployTokenManager {
                     token_id: [1u8; 32].into(),
@@ -350,7 +351,7 @@ mod tests {
 
         for original in cases {
             let encoded = original.clone().abi_encode();
-            let decoded = ItsRoutedMessage::abi_decode(&encoded).unwrap();
+            let decoded = ItsHubMessage::abi_decode(&encoded).unwrap();
             assert_eq!(original, decoded);
         }
     }
@@ -364,7 +365,7 @@ mod tests {
         }
         .abi_encode_params();
 
-        let result = ItsRoutedMessage::abi_decode(&invalid_payload);
+        let result = ItsHubMessage::abi_decode(&invalid_payload);
         assert!(result.is_err());
         assert!(result
             .unwrap_err()
@@ -384,7 +385,7 @@ mod tests {
         }
         .abi_encode_params();
 
-        let result = ItsRoutedMessage::abi_decode(&invalid_payload);
+        let result = ItsHubMessage::abi_decode(&invalid_payload);
         assert!(result.is_err());
         assert!(result
             .unwrap_err()
@@ -408,7 +409,7 @@ mod tests {
         }
         .abi_encode_params();
 
-        let result = ItsRoutedMessage::abi_decode(&payload);
+        let result = ItsHubMessage::abi_decode(&payload);
         assert!(result.is_err());
         assert!(result
             .unwrap_err()
@@ -432,7 +433,7 @@ mod tests {
         }
         .abi_encode_params();
 
-        let result = ItsRoutedMessage::abi_decode(&payload);
+        let result = ItsHubMessage::abi_decode(&payload);
         assert!(result.is_err());
         assert!(result
             .unwrap_err()
@@ -443,7 +444,7 @@ mod tests {
     #[test]
     fn encode_decode_large_data() {
         let large_data = vec![0u8; 1024 * 1024]; // 1MB of data
-        let original = ItsRoutedMessage {
+        let original = ItsHubMessage {
             remote_chain: ChainName::from_str("large-data-chain").unwrap(),
             message: ItsMessage::InterchainTransfer {
                 token_id: [0u8; 32].into(),
@@ -455,13 +456,13 @@ mod tests {
         };
 
         let encoded = original.clone().abi_encode();
-        let decoded = ItsRoutedMessage::abi_decode(&encoded).unwrap();
+        let decoded = ItsHubMessage::abi_decode(&encoded).unwrap();
         assert_eq!(original, decoded);
     }
 
     #[test]
     fn encode_decode_unicode_strings() {
-        let original = ItsRoutedMessage {
+        let original = ItsHubMessage {
             remote_chain: ChainName::from_str("unicode-chain-🌍").unwrap(),
             message: ItsMessage::DeployInterchainToken {
                 token_id: [0u8; 32].into(),
@@ -473,7 +474,7 @@ mod tests {
         };
 
         let encoded = original.clone().abi_encode();
-        let decoded = ItsRoutedMessage::abi_decode(&encoded).unwrap();
+        let decoded = ItsHubMessage::abi_decode(&encoded).unwrap();
         assert_eq!(original, decoded);
     }
 }
