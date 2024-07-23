@@ -145,7 +145,7 @@ mod test {
     use std::str::FromStr;
 
     use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
-    use axelar_wasm_std::ContractError;
+    use axelar_wasm_std::{err_contains, ContractError};
     use cosmwasm_std::testing::{
         mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
     };
@@ -318,6 +318,52 @@ mod test {
         .unwrap_err();
 
         assert_contract_err_string_contains(err, Error::WrongSourceChain);
+    }
+
+    #[test]
+    fn amplifier_messages_must_have_lower_case() {
+        let mut deps = setup();
+        let eth = make_chain("ethereum");
+        let polygon = make_chain("polygon");
+
+        register_chain(deps.as_mut(), &eth);
+        register_chain(deps.as_mut(), &polygon);
+
+        let mut messages = generate_messages(&eth, &polygon, &mut 0, 1);
+        messages
+            .iter_mut()
+            .for_each(|msg| msg.cc_id.chain = "Ethereum".parse().unwrap());
+
+        let result = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(eth.gateway.as_str(), &[]),
+            ExecuteMsg::RouteMessages(messages),
+        )
+        .unwrap_err();
+        assert!(err_contains!(result.report, Error, Error::WrongSourceChain));
+    }
+
+    #[test]
+    fn nexus_messages_can_have_upper_case() {
+        let mut deps = setup();
+        let eth = make_chain("ethereum");
+        let polygon = make_chain("polygon");
+
+        register_chain(deps.as_mut(), &polygon);
+
+        let mut messages = generate_messages(&eth, &polygon, &mut 0, 1);
+        messages
+            .iter_mut()
+            .for_each(|msg| msg.cc_id.chain = "Ethereum".parse().unwrap());
+
+        assert!(execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(NEXUS_GATEWAY_ADDRESS, &[]),
+            ExecuteMsg::RouteMessages(messages),
+        )
+        .is_ok())
     }
 
     #[test]
