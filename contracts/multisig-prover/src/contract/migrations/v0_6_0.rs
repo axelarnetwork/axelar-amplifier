@@ -1,7 +1,8 @@
 #![allow(deprecated)]
 
+use axelar_wasm_std::error::ContractError;
 use axelar_wasm_std::hash::Hash;
-use axelar_wasm_std::{permission_control, ContractError, MajorityThreshold};
+use axelar_wasm_std::{permission_control, MajorityThreshold};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Storage};
 use cw_storage_plus::Item;
