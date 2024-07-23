@@ -61,6 +61,14 @@ jobs:
           target: wasm32-unknown-unknown
           override: true
 
+      - name: Install cosmwasm-check compatible toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: 1.75.0
+          target: wasm32-unknown-unknown
+          override: false
+
       - name: Cache build artifacts
         id: cache
         uses: useblacksmith/rust-cache@v3.0.1
