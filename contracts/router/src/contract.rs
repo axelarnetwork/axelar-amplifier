@@ -144,6 +144,7 @@ mod test {
     use std::collections::HashMap;
     use std::str::FromStr;
 
+    use axelar_wasm_std::err_contains;
     use axelar_wasm_std::error::ContractError;
     use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
     use cosmwasm_std::testing::{
