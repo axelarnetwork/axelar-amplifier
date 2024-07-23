@@ -88,6 +88,10 @@ jobs:
       - name: Check wasm contracts
         run: cosmwasm-check ./target/wasm32-unknown-unknown/release/*.wasm
 
+      - name: Build ampd
+        working-directory: ./ampd
+        run: cargo build --release --locked
+
   lints:
     name: Lints
     runs-on: blacksmith-16vcpu-ubuntu-2204
