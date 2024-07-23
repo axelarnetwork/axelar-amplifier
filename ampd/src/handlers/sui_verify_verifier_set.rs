@@ -6,7 +6,6 @@ use axelar_wasm_std::voting::{PollId, Vote};
 use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmrs::tx::Msg;
 use cosmrs::Any;
-use cosmwasm_std::{HexBinary, Uint128};
 use error_stack::ResultExt;
 use events::Error::EventTypeMismatch;
 use events::Event;
@@ -24,13 +23,6 @@ use crate::handlers::errors::Error;
 use crate::sui::json_rpc::SuiClient;
 use crate::sui::verifier::verify_verifier_set;
 use crate::types::TMAddress;
-
-#[allow(dead_code)]
-#[derive(Deserialize, Debug)]
-pub struct Operators {
-    pub weights_by_addresses: Vec<(HexBinary, Uint128)>,
-    pub threshold: Uint128,
-}
 
 #[derive(Deserialize, Debug)]
 pub struct VerifierSetConfirmation {
