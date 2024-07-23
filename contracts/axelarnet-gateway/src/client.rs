@@ -29,7 +29,7 @@ impl AxelarnetGateway {
         })
     }
 
-    pub fn validate_message(&self, message: Message) -> WasmMsg {
-        self.execute(&ExecuteMsg::ValidateMessage(message))
+    pub fn execute_message(&self, message: Message, payload: HexBinary) -> WasmMsg {
+        self.execute(&ExecuteMsg::ExecuteMessage { message, payload })
     }
 }

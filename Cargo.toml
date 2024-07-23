@@ -52,7 +52,7 @@ alloy-primitives = { version = "0.7.6", default-features = false }
 alloy-sol-types = { version = "0.7.6", default-features = false }
 strum = { version = "0.25", default-features = false, features = ["derive"] }
 interchain-token-service = { version = "^0.1.0", path = "interchain-token-service" }
-axelarnet-gateway-api = { version = "^0.1.0", path = "packages/axelarnet-gateway-api" }
+axelarnet-gateway = { version = "^0.1.0", path = "contracts/axelarnet-gateway" }
 
 [workspace.lints.clippy]
 arithmetic_side_effects = "deny"

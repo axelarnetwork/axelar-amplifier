@@ -753,11 +753,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "axelarnet-gateway-api"
+name = "axelarnet-gateway"
 version = "0.1.0"
 dependencies = [
+ "axelar-wasm-std",
  "cosmwasm-schema",
  "cosmwasm-std",
+ "error-stack",
+ "msgs-derive",
  "router-api",
 ]
 

@@ -1,12 +1,15 @@
 [package]
-name = "axelarnet-gateway-api"
+name = "axelarnet-gateway"
 version = "0.1.0"
 rust-version = { workspace = true }
 edition = "2021"
 
 [dependencies]
+axelar-wasm-std = { workspace = true }
 cosmwasm-schema = { workspace = true }
 cosmwasm-std = { workspace = true }
+error-stack = { workspace = true }
+msgs-derive = { workspace = true }
 router-api = { workspace = true }
 
 [lints]

@@ -1,25 +1,30 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::HexBinary;
+use msgs_derive::EnsurePermissions;
 use router_api::{Address, ChainName, CrossChainId, Message};
 
 #[cw_serde]
+#[derive(EnsurePermissions)]
 pub enum ExecuteMsg {
-    // Permissionless
     /// Initiate a cross-chain contract call from Axelarnet to another chain.
     /// The message will be routed to the destination chain's gateway via the router.
+    #[permission(Any)]
     CallContract {
         destination_chain: ChainName,
         destination_address: Address,
         payload: HexBinary,
     },
 
-    // Permissioned: Can only be called by the router
     /// Receive messages from the router and mark them as approved.
+    #[permission(Specific(router))]
     RouteMessages(Vec<Message>),
 
-    // Permissioned: Can be called by the address receiving the message
-    /// Validate if the message was received for the caller contract and mark as executed. The receiving contract should call this before executing a message.
-    ValidateMessage(Message),
+    /// Execute a cross-chain message destined for Axelar with the corresponding payload.
+    #[permission(Any)]
+    ExecuteMessage {
+        message: Message,
+        payload: HexBinary,
+    },
 }
 
 #[cw_serde]
