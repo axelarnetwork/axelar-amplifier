@@ -68,12 +68,14 @@ pub enum ItsHubMessage {
 }
 
 impl TokenId {
+    #[inline(always)]
     pub fn new(id: [u8; 32]) -> Self {
         id.into()
     }
 }
 
 impl From<[u8; 32]> for TokenId {
+    #[inline(always)]
     fn from(id: [u8; 32]) -> Self {
         Self(id)
     }
