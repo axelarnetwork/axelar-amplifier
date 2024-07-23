@@ -137,8 +137,8 @@ pub struct Proof {
     signatures: Vec<Signature>,
 }
 
-impl Proof {
-    pub fn new(verifier_set: VerifierSet, mut signatures: Vec<SignerWithSig>) -> Self {
+impl From<(VerifierSet, Vec<SignerWithSig>)> for Proof {
+    fn from((verifier_set, mut signatures): (VerifierSet, Vec<SignerWithSig>)) -> Self {
         signatures.sort_by_key(|signer| signer.signer.pub_key.clone());
 
         Self {
