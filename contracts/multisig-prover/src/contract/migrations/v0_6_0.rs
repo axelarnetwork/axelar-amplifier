@@ -174,7 +174,7 @@ mod tests {
         _env: Env,
         _info: MessageInfo,
         msg: InstantiateMsg,
-    ) -> Result<Response, axelar_wasm_std::ContractError> {
+    ) -> Result<Response, axelar_wasm_std::error::ContractError> {
         cw2::set_contract_version(deps.storage, CONTRACT_NAME, v0_6_0::BASE_VERSION)?;
 
         let config = make_config(&deps, msg)?;
@@ -186,7 +186,7 @@ mod tests {
     fn make_config(
         deps: &DepsMut,
         msg: InstantiateMsg,
-    ) -> Result<v0_6_0::Config, axelar_wasm_std::ContractError> {
+    ) -> Result<v0_6_0::Config, axelar_wasm_std::error::ContractError> {
         let admin = deps.api.addr_validate(&msg.admin_address)?;
         let governance = deps.api.addr_validate(&msg.governance_address)?;
         let gateway = deps.api.addr_validate(&msg.gateway_address)?;
