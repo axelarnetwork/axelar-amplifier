@@ -19,7 +19,7 @@ pub fn instantiate(
     _env: Env,
     _info: MessageInfo,
     msg: InstantiateMsg,
-) -> Result<Response, axelar_wasm_std::ContractError> {
+) -> Result<Response, axelar_wasm_std::error::ContractError> {
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     let config = Config {
@@ -46,7 +46,7 @@ pub fn execute(
     env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
-) -> Result<Response, axelar_wasm_std::ContractError> {
+) -> Result<Response, axelar_wasm_std::error::ContractError> {
     match msg {
         ExecuteMsg::VerifyMessages { messages } => execute::verify_messages(deps, env, messages),
         ExecuteMsg::Vote { poll_id, votes } => execute::vote(deps, env, info, poll_id, votes),
@@ -54,7 +54,7 @@ pub fn execute(
         ExecuteMsg::VerifyVerifierSet {
             message_id,
             new_verifier_set,
-        } => execute::verify_verifier_set(deps, env, message_id, new_verifier_set),
+        } => execute::verify_verifier_set(deps, env, &message_id, new_verifier_set),
         ExecuteMsg::UpdateVotingThreshold {
             new_voting_threshold,
         } => {
@@ -87,7 +87,7 @@ pub fn migrate(
     deps: DepsMut,
     _env: Env,
     _msg: Empty,
-) -> Result<Response, axelar_wasm_std::ContractError> {
+) -> Result<Response, axelar_wasm_std::error::ContractError> {
     // any version checks should be done before here
 
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
@@ -140,8 +140,8 @@ mod test {
     }
 
     fn assert_contract_err_strings_equal(
-        actual: impl Into<axelar_wasm_std::ContractError>,
-        expected: impl Into<axelar_wasm_std::ContractError>,
+        actual: impl Into<axelar_wasm_std::error::ContractError>,
+        expected: impl Into<axelar_wasm_std::error::ContractError>,
     ) {
         assert_eq!(actual.into().to_string(), expected.into().to_string());
     }
@@ -233,10 +233,8 @@ mod test {
     fn messages(len: u32, msg_id_format: &MessageIdFormat) -> Vec<Message> {
         (0..len)
             .map(|i| Message {
-                cc_id: CrossChainId {
-                    chain: source_chain(),
-                    id: message_id("id", i, msg_id_format),
-                },
+                cc_id: CrossChainId::new(source_chain(), message_id("id", i, msg_id_format))
+                    .unwrap(),
                 source_address: format!("source_address{i}").parse().unwrap(),
                 destination_chain: format!("destination-chain{i}").parse().unwrap(),
                 destination_address: format!("destination_address{i}").parse().unwrap(),
@@ -281,20 +279,16 @@ mod test {
         let msg = ExecuteMsg::VerifyMessages {
             messages: vec![
                 Message {
-                    cc_id: CrossChainId {
-                        chain: source_chain(),
-                        id: message_id("id", 1, &msg_id_format),
-                    },
+                    cc_id: CrossChainId::new(source_chain(), message_id("id", 1, &msg_id_format))
+                        .unwrap(),
                     source_address: "source_address1".parse().unwrap(),
                     destination_chain: "destination-chain1".parse().unwrap(),
                     destination_address: "destination_address1".parse().unwrap(),
                     payload_hash: [0; 32],
                 },
                 Message {
-                    cc_id: CrossChainId {
-                        chain: "other-chain".parse().unwrap(),
-                        id: message_id("id", 2, &msg_id_format),
-                    },
+                    cc_id: CrossChainId::new("other-chain", message_id("id", 2, &msg_id_format))
+                        .unwrap(),
                     source_address: "source_address2".parse().unwrap(),
                     destination_chain: "destination-chain2".parse().unwrap(),
                     destination_address: "destination_address2".parse().unwrap(),
@@ -313,13 +307,15 @@ mod test {
         let mut deps = setup(verifiers.clone(), &msg_id_format);
 
         let mut messages = messages(1, &MessageIdFormat::HexTxHashAndEventIndex);
-        let msg_id = "foobar";
-        messages[0].cc_id.id = msg_id.parse().unwrap();
+        messages[0].cc_id = CrossChainId::new(source_chain(), "foobar").unwrap();
 
         let msg = ExecuteMsg::VerifyMessages { messages };
 
         let err = execute(deps.as_mut(), mock_env(), mock_info(SENDER, &[]), msg).unwrap_err();
-        assert_contract_err_strings_equal(err, ContractError::InvalidMessageID(msg_id.to_string()));
+        assert_contract_err_strings_equal(
+            err,
+            ContractError::InvalidMessageID("foobar".to_string()),
+        );
     }
 
     #[test]

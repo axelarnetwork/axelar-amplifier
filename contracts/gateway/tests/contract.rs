@@ -3,7 +3,8 @@ use std::fmt::Debug;
 use std::fs::File;
 use std::iter;
 
-use axelar_wasm_std::{ContractError, VerificationStatus};
+use axelar_wasm_std::error::ContractError;
+use axelar_wasm_std::VerificationStatus;
 use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info, MockQuerier};
 #[cfg(not(feature = "generate_golden_files"))]
 use cosmwasm_std::Response;
@@ -344,10 +345,7 @@ fn generate_msgs_with_all_statuses(
 fn generate_msgs(namespace: impl Debug, count: u8) -> Vec<Message> {
     (0..count)
         .map(|i| Message {
-            cc_id: CrossChainId {
-                chain: "mock-chain".parse().unwrap(),
-                id: format!("{:?}{}", namespace, i).parse().unwrap(),
-            },
+            cc_id: CrossChainId::new("mock-chain", format!("{:?}{}", namespace, i)).unwrap(),
             destination_address: "idc".parse().unwrap(),
             destination_chain: "mock-chain-2".parse().unwrap(),
             source_address: "idc".parse().unwrap(),

@@ -1,4 +1,4 @@
-use axelar_wasm_std::ContractError;
+use axelar_wasm_std::error::ContractError;
 use axelar_wasm_std_derive::IntoContractError;
 use thiserror::Error;
 

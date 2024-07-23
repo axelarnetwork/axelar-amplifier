@@ -76,12 +76,11 @@ pub fn new_verifier_set() -> VerifierSet {
 
 pub fn messages() -> Vec<Message> {
     vec![Message {
-        cc_id: CrossChainId {
-            chain: "ganache-1".parse().unwrap(),
-            id: "0xff822c88807859ff226b58e24f24974a70f04b9442501ae38fd665b3c68f3834-0"
-                .parse()
-                .unwrap(),
-        },
+        cc_id: CrossChainId::new(
+            "ganache-1",
+            "0xff822c88807859ff226b58e24f24974a70f04b9442501ae38fd665b3c68f3834-0",
+        )
+        .unwrap(),
         source_address: "0x52444f1835Adc02086c37Cb226561605e2E1699b"
             .parse()
             .unwrap(),

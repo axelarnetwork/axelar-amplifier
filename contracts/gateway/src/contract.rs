@@ -19,7 +19,7 @@ pub fn migrate(
     deps: DepsMut,
     _env: Env,
     _msg: Empty,
-) -> Result<Response, axelar_wasm_std::ContractError> {
+) -> Result<Response, axelar_wasm_std::error::ContractError> {
     // any version checks should be done before here
 
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
@@ -33,7 +33,7 @@ pub fn instantiate(
     env: Env,
     info: MessageInfo,
     msg: InstantiateMsg,
-) -> Result<Response, axelar_wasm_std::ContractError> {
+) -> Result<Response, axelar_wasm_std::error::ContractError> {
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     Ok(internal::instantiate(deps, env, info, msg)?)
@@ -45,7 +45,7 @@ pub fn execute(
     env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
-) -> Result<Response, axelar_wasm_std::ContractError> {
+) -> Result<Response, axelar_wasm_std::error::ContractError> {
     let msg = msg.ensure_permissions(deps.storage, &info.sender)?;
     Ok(internal::execute(deps, env, info, msg)?)
 }
@@ -55,7 +55,7 @@ pub fn query(
     deps: Deps,
     env: Env,
     msg: QueryMsg,
-) -> Result<Binary, axelar_wasm_std::ContractError> {
+) -> Result<Binary, axelar_wasm_std::error::ContractError> {
     Ok(internal::query(deps, env, msg)?)
 }
 

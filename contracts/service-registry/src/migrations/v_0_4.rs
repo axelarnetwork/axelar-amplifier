@@ -28,7 +28,7 @@ mod v0_3_state {
 pub fn migrate_services_coordinator_contract(
     store: &mut dyn Storage,
     coordinator_contract: Addr,
-) -> Result<Response, axelar_wasm_std::ContractError> {
+) -> Result<Response, axelar_wasm_std::error::ContractError> {
     v0_3_state::SERVICES
         .range(store, None, None, Order::Ascending)
         .collect::<Result<Vec<_>, _>>()?

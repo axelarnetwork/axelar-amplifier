@@ -23,7 +23,7 @@ pub fn instantiate(
     _env: Env,
     _info: MessageInfo,
     msg: InstantiateMsg,
-) -> Result<Response, axelar_wasm_std::ContractError> {
+) -> Result<Response, axelar_wasm_std::error::ContractError> {
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     CONFIG.save(
@@ -41,7 +41,7 @@ pub fn execute(
     env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
-) -> Result<Response, axelar_wasm_std::ContractError> {
+) -> Result<Response, axelar_wasm_std::error::ContractError> {
     match msg {
         ExecuteMsg::RegisterService {
             service_name,
@@ -163,10 +163,10 @@ pub fn migrate(
     deps: DepsMut,
     _env: Env,
     msg: MigrateMsg,
-) -> Result<Response, axelar_wasm_std::ContractError> {
+) -> Result<Response, axelar_wasm_std::error::ContractError> {
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
     migrations::v_0_4::migrate_services_coordinator_contract(deps.storage, msg.coordinator_contract)
-        .map_err(axelar_wasm_std::ContractError::from)
+        .map_err(axelar_wasm_std::error::ContractError::from)
 }
 
 #[cfg(test)]
@@ -212,8 +212,8 @@ mod test {
     }
 
     pub fn assert_contract_err_strings_equal(
-        actual: impl Into<axelar_wasm_std::ContractError>,
-        expected: impl Into<axelar_wasm_std::ContractError>,
+        actual: impl Into<axelar_wasm_std::error::ContractError>,
+        expected: impl Into<axelar_wasm_std::error::ContractError>,
     ) {
         assert_eq!(actual.into().to_string(), expected.into().to_string());
     }
@@ -1739,7 +1739,7 @@ mod test {
         assert!(res.is_err());
         assert_eq!(
             res.unwrap_err().to_string(),
-            axelar_wasm_std::ContractError::from(ContractError::InvalidBondingState(
+            axelar_wasm_std::error::ContractError::from(ContractError::InvalidBondingState(
                 BondingState::Unbonding {
                     unbonded_at: unbond_request_env.block.time,
                     amount: min_verifier_bond,
