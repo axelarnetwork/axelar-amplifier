@@ -222,7 +222,7 @@ mod tests {
             ExecuteMsg::RouteMessages(msgs.clone()),
         );
 
-        assert!(res.is_ok_and(|res| res.messages.len() == 0));
+        assert!(res.is_ok_and(|res| res.messages.is_empty()));
     }
 
     fn nexus_messages() -> Vec<nexus::Message> {
