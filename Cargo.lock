@@ -6877,6 +6877,7 @@ dependencies = [
  "cw2 1.1.2",
  "error-stack",
  "integration-tests",
+ "msgs-derive",
  "report",
  "router-api",
  "schemars",
