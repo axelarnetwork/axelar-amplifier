@@ -61,6 +61,11 @@ jobs:
           target: wasm32-unknown-unknown
           override: true
 
+      - name: Install protoc
+        uses: arduino/setup-protoc@v2
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Cache build artifacts
         id: cache
         uses: useblacksmith/rust-cache@v3.0.1
