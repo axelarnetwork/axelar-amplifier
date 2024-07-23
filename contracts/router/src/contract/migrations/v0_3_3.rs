@@ -52,8 +52,9 @@ const CONFIG: Item<Config> = Item::new("config");
 mod test {
     use std::collections::HashMap;
 
+    use axelar_wasm_std::error::ContractError;
+    use axelar_wasm_std::killswitch;
     use axelar_wasm_std::msg_id::MessageIdFormat;
-    use axelar_wasm_std::{killswitch, ContractError};
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
     use cosmwasm_std::{DepsMut, Env, MessageInfo, Response};
     use router_api::msg::ExecuteMsg;
