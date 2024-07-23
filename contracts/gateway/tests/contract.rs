@@ -10,13 +10,12 @@ use cosmwasm_std::Response;
 use cosmwasm_std::{
     from_json, to_json_binary, Addr, ContractResult, DepsMut, QuerierResult, WasmQuery,
 };
-use itertools::Itertools;
-use router_api::{CrossChainId, Message};
-use serde::Serialize;
-
 use gateway::contract::*;
 use gateway::msg::InstantiateMsg;
 use gateway_api::msg::{ExecuteMsg, QueryMsg};
+use itertools::Itertools;
+use router_api::{CrossChainId, Message};
+use serde::Serialize;
 use voting_verifier::msg::MessageStatus;
 
 #[test]

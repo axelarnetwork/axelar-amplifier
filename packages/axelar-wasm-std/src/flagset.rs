@@ -1,6 +1,8 @@
 use std::ops::{Deref, DerefMut};
 
-use schemars::{gen::SchemaGenerator, schema::Schema, JsonSchema};
+use schemars::gen::SchemaGenerator;
+use schemars::schema::Schema;
+use schemars::JsonSchema;
 use serde::{Deserialize, Deserializer, Serialize};
 
 #[derive(Serialize, Clone, Debug, PartialEq, Eq)]

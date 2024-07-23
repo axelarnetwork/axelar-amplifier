@@ -1,0 +1,65 @@
+name: Amplifier wasm contracts - Upload wasm binaries to Cloudflare R2 bucket
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: Github branch to checkout for compilation
+        required: true
+        default: main
+        type: string
+
+
+jobs:
+  compile-and-upload:
+    name: Compile contracts and push to R2
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+    steps:
+      - name: Determine branch
+        id: get-branch-name
+        run: |
+          if [ "${{ github.event_name }}" == "push" ]; then
+            branch="main"
+          else
+            branch="${{ inputs.branch }}"
+          fi
+          echo "branch=$branch" >> $GITHUB_OUTPUT
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: "0"
+          path: axelar-amplifier
+          submodules: recursive
+          ref: ${{ steps.get-branch-name.outputs.branch }}
+
+      - name: Compile amplifier contracts
+        id: compile-contracts
+        run: |
+          cd axelar-amplifier
+          docker run --rm -v "$(pwd)":/code \
+          --mount type=volume,source="$(basename "$(pwd)")_cache",target=/code/target \
+          --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
+          cosmwasm/optimizer:0.16.0
+          
+          commit_hash=$(git rev-parse --short HEAD)
+          cd ..
+          mkdir -p ./artifacts/$commit_hash/
+          cp -R axelar-amplifier/artifacts/* ./artifacts/$commit_hash/
+          echo "wasm-directory=./artifacts" >> $GITHUB_OUTPUT
+
+      - uses: ryand56/r2-upload-action@latest
+        with:
+          r2-account-id: ${{ secrets.R2_ACCOUNT_ID }}
+          r2-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_CF }}
+          r2-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_CF }}
+          r2-bucket: ${{ secrets.R2_BUCKET }}
+          source-dir: ${{ steps.compile-contracts.outputs.wasm-directory }}
+          destination-dir: ./pre-releases/ampd/contracts/

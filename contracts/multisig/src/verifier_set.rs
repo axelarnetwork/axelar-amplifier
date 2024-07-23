@@ -1,15 +1,17 @@
 use std::collections::{BTreeMap, HashMap};
 
-use crate::{key::PublicKey, msg::Signer};
 use axelar_wasm_std::hash::Hash;
 use axelar_wasm_std::Participant;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, HexBinary, Uint128};
 use sha3::{Digest, Keccak256};
 
+use crate::key::PublicKey;
+use crate::msg::Signer;
+
 #[cw_serde]
 pub struct VerifierSet {
-    // An ordered map with the signer's address as the key, and the signer as the value.
+    // An ordered map with the signer's axelar address as the key, and the signer as the value.
     pub signers: BTreeMap<String, Signer>,
     pub threshold: Uint128,
     // for hash uniqueness. The same exact verifier set could be in use at two different times,

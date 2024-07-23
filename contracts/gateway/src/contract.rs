@@ -1,9 +1,10 @@
+use std::fmt::Debug;
+
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response};
 use gateway_api::msg::{ExecuteMsg, QueryMsg};
 use router_api::CrossChainId;
-use std::fmt::Debug;
 
 use crate::msg::InstantiateMsg;
 
@@ -45,6 +46,7 @@ pub fn execute(
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, axelar_wasm_std::ContractError> {
+    let msg = msg.ensure_permissions(deps.storage, &info.sender)?;
     Ok(internal::execute(deps, env, info, msg)?)
 }
 

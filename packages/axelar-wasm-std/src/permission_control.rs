@@ -1,11 +1,13 @@
-use crate::flagset::FlagSet;
-use crate::FnExt;
+use std::fmt::{Debug, Display, Formatter};
+
 use cosmwasm_std::{Addr, StdResult};
 use cw_storage_plus::Item;
 use flagset::{flags, Flags};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
-use std::fmt::{Debug, Display, Formatter};
+
+use crate::flagset::FlagSet;
+use crate::FnExt;
 
 flags! {
     #[repr(u8)]
@@ -47,6 +49,10 @@ pub enum Error {
     AddressNotWhitelisted { expected: Vec<Addr>, actual: Addr },
     #[error("no whitelisting condition found for sender address '{sender}'")]
     WhitelistNotFound { sender: Addr },
+    #[error("specific check called on wrong enum variant")]
+    WrongVariant,
+    #[error("sender is not authorized")]
+    Unauthorized, // generic error to handle errors that don't fall into the above cases
 }
 
 const ADMIN: Item<Addr> = Item::new("permission_control_contract_admin_addr");
@@ -61,8 +67,7 @@ pub fn set_governance(storage: &mut dyn cosmwasm_std::Storage, addr: &Addr) -> S
     GOVERNANCE.save(storage, addr)
 }
 
-// this is an implementation detail of the `EnsurePermission` derived ensure_permission macro and shouldn't be called on its own
-#[doc(hidden)]
+/// Generally it shouldn't be necessary to call this function directly, use derived permission controlled functions instead
 #[allow(clippy::arithmetic_side_effects)] // flagset is safe
 pub fn sender_role(
     storage: &dyn cosmwasm_std::Storage,
@@ -91,8 +96,9 @@ pub fn sender_role(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use cosmwasm_std::testing::MockStorage;
+
+    use super::*;
 
     #[test]
     fn display_permissions() {

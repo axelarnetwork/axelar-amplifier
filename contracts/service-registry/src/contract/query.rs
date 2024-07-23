@@ -1,8 +1,7 @@
 use router_api::ChainName;
 
-use crate::state::{WeightedVerifier, VERIFIERS, VERIFIERS_PER_CHAIN, VERIFIER_WEIGHT};
-
 use super::*;
+use crate::state::{WeightedVerifier, VERIFIERS, VERIFIERS_PER_CHAIN, VERIFIER_WEIGHT};
 
 pub fn get_active_verifiers(
     deps: Deps,

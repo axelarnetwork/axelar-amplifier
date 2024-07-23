@@ -2,10 +2,10 @@ use async_trait::async_trait;
 use k256::sha2::{Digest, Sha256};
 use tonic::{Request, Response, Status};
 
-use crate::tofnd::{self, grpc::Multisig};
-use crate::types::PublicKey;
-
 use super::proto;
+use crate::tofnd::grpc::Multisig;
+use crate::tofnd::{self};
+use crate::types::PublicKey;
 
 impl From<proto::Algorithm> for tofnd::Algorithm {
     fn from(algorithm: proto::Algorithm) -> Self {
@@ -92,12 +92,12 @@ mod tests {
     use tokio::test;
     use tonic::Code;
 
+    use super::proto::crypto_server::Crypto;
+    use super::proto::{self};
+    use super::Server;
     use crate::tofnd;
     use crate::tofnd::grpc::MockMultisig;
     use crate::types::PublicKey;
-
-    use super::proto::{self, crypto_server::Crypto};
-    use super::Server;
 
     #[test]
     async fn sign_should_return_correct_signature() {

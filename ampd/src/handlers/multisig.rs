@@ -3,27 +3,25 @@ use std::convert::TryInto;
 
 use async_trait::async_trait;
 use cosmrs::cosmwasm::MsgExecuteContract;
-use cosmrs::{tx::Msg, Any};
+use cosmrs::tx::Msg;
+use cosmrs::Any;
 use cosmwasm_std::{HexBinary, Uint64};
 use ecdsa::VerifyingKey;
-use error_stack::ResultExt;
+use error_stack::{Report, ResultExt};
+use events::Error::EventTypeMismatch;
+use events_derive::{self, try_from};
 use hex::encode;
+use multisig::msg::ExecuteMsg;
 use serde::de::Error as DeserializeError;
 use serde::{Deserialize, Deserializer};
 use tokio::sync::watch::Receiver;
 use tracing::info;
 
-use events::Error::EventTypeMismatch;
-use events_derive;
-use events_derive::try_from;
-use multisig::msg::ExecuteMsg;
-
 use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error::{self, DeserializeEvent};
 use crate::tofnd::grpc::Multisig;
 use crate::tofnd::{self, MessageDigest};
-use crate::types::PublicKey;
-use crate::types::TMAddress;
+use crate::types::{PublicKey, TMAddress};
 
 #[derive(Debug, Deserialize)]
 #[try_from("wasm-signing_started")]
@@ -150,13 +148,19 @@ where
 
         match pub_keys.get(&self.verifier) {
             Some(pub_key) => {
+                let key_type = match pub_key.type_url() {
+                    PublicKey::ED25519_TYPE_URL => tofnd::Algorithm::Ed25519,
+                    PublicKey::SECP256K1_TYPE_URL => tofnd::Algorithm::Ecdsa,
+                    unspported => return Err(Report::from(Error::KeyType(unspported.to_string()))),
+                };
+
                 let signature = self
                     .signer
                     .sign(
                         self.multisig.to_string().as_str(),
                         msg.clone(),
                         pub_key,
-                        tofnd::Algorithm::Ecdsa,
+                        key_type,
                     )
                     .await
                     .change_context(Error::Sign)?;
@@ -189,6 +193,9 @@ mod test {
     use cosmwasm_std::{HexBinary, Uint64};
     use ecdsa::SigningKey;
     use error_stack::{Report, Result};
+    use multisig::events::Event::SigningStarted;
+    use multisig::key::PublicKey;
+    use multisig::types::MsgToSign;
     use rand::distributions::Alphanumeric;
     use rand::rngs::OsRng;
     use rand::Rng;
@@ -196,16 +203,10 @@ mod test {
     use tendermint::abci;
     use tokio::sync::watch;
 
-    use multisig::events::Event::SigningStarted;
-    use multisig::key::PublicKey;
-    use multisig::types::MsgToSign;
-
-    use crate::broadcaster::MockBroadcaster;
-    use crate::tofnd;
-    use crate::tofnd::grpc::MockMultisig;
-    use crate::types;
-
     use super::*;
+    use crate::broadcaster::MockBroadcaster;
+    use crate::tofnd::grpc::MockMultisig;
+    use crate::{tofnd, types};
 
     const MULTISIG_ADDRESS: &str = "axelarvaloper1zh9wrak6ke4n6fclj5e8yk397czv430ygs5jz7";
 

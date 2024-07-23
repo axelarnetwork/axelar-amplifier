@@ -1,6 +1,5 @@
 use cosmwasm_std::{Deps, Order, Storage};
 use cw_storage_plus::Bound;
-
 use error_stack::{Result, ResultExt};
 use router_api::error::Error;
 use router_api::{ChainEndpoint, ChainName};
@@ -37,14 +36,14 @@ pub fn chains(
 
 #[cfg(test)]
 mod test {
-    use crate::state;
-    use crate::state::{chain_endpoints, State, STATE};
     use axelar_wasm_std::flagset::FlagSet;
-    use cosmwasm_std::{testing::mock_dependencies, Addr};
+    use cosmwasm_std::testing::mock_dependencies;
+    use cosmwasm_std::Addr;
     use router_api::error::Error;
     use router_api::{ChainEndpoint, ChainName, Gateway, GatewayDirection};
 
     use super::get_chain_info;
+    use crate::state::chain_endpoints;
 
     #[test]
     fn should_get_chain_info() {
@@ -130,17 +129,5 @@ mod test {
         let result =
             super::chains(deps.as_ref(), Some("e-chain".parse().unwrap()), Some(2)).unwrap();
         assert_eq!(result.len(), 0);
-    }
-
-    #[test]
-    fn is_enabled() {
-        let mut deps = mock_dependencies();
-        assert!(!state::is_enabled(deps.as_ref().storage));
-
-        STATE.save(deps.as_mut().storage, &State::Disabled).unwrap();
-        assert!(!state::is_enabled(deps.as_ref().storage));
-
-        STATE.save(deps.as_mut().storage, &State::Enabled).unwrap();
-        assert!(state::is_enabled(deps.as_ref().storage));
     }
 }

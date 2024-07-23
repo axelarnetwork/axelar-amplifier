@@ -1,11 +1,7 @@
+use axelar_wasm_std::msg_id::MessageIdFormat;
+use axelar_wasm_std::voting::{PollId, PollStatus, Vote, WeightedPoll};
+use axelar_wasm_std::{nonempty, MajorityThreshold, VerificationStatus};
 use cosmwasm_schema::{cw_serde, QueryResponses};
-
-use axelar_wasm_std::{
-    msg_id::MessageIdFormat,
-    nonempty,
-    voting::{PollId, Vote},
-    MajorityThreshold, VerificationStatus,
-};
 use multisig::verifier_set::VerifierSet;
 use router_api::{ChainName, Message};
 
@@ -68,15 +64,21 @@ pub enum ExecuteMsg {
 }
 
 #[cw_serde]
-pub struct Poll {
-    poll_id: PollId,
-    messages: Vec<Message>,
+pub enum PollData {
+    Messages(Vec<Message>),
+    VerifierSet(VerifierSet),
+}
+#[cw_serde]
+pub struct PollResponse {
+    pub poll: WeightedPoll,
+    pub data: PollData,
+    pub status: PollStatus,
 }
 
 #[cw_serde]
 #[derive(QueryResponses)]
 pub enum QueryMsg {
-    #[returns(Poll)]
+    #[returns(PollResponse)]
     GetPoll { poll_id: PollId },
 
     #[returns(Vec<MessageStatus>)]

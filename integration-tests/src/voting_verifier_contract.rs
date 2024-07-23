@@ -1,10 +1,10 @@
-use crate::contract::Contract;
-use crate::protocol::Protocol;
-use axelar_wasm_std::nonempty;
-use axelar_wasm_std::MajorityThreshold;
+use axelar_wasm_std::{nonempty, MajorityThreshold};
 use cosmwasm_std::Addr;
 use cw_multi_test::{ContractWrapper, Executor};
 use router_api::ChainName;
+
+use crate::contract::Contract;
+use crate::protocol::Protocol;
 
 #[derive(Clone)]
 pub struct VotingVerifierContract {

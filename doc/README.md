@@ -33,4 +33,4 @@ mdbook serve doc --open
 ## Contributing
 
 Information about how to contribute to the documentation can be found in the documentation
-chapter [here](http://localhost:3000/contributing/documentation.html)
+chapter [here](src/contributing/documentation.md)

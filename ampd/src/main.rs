@@ -4,12 +4,6 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use ::config::{Config as cfg, Environment, File, FileFormat, FileSourceFile};
-use clap::{arg, command, Parser, ValueEnum};
-use config::ConfigError;
-use error_stack::{Report, ResultExt};
-use tracing::{error, info};
-use valuable::Valuable;
-
 use ampd::commands::{
     bond_verifier, daemon, deregister_chain_support, register_chain_support, register_public_key,
     verifier_address, SubCommand,
@@ -17,7 +11,12 @@ use ampd::commands::{
 use ampd::config::Config;
 use ampd::Error;
 use axelar_wasm_std::FnExt;
+use clap::{arg, command, Parser, ValueEnum};
+use config::ConfigError;
+use error_stack::{Report, ResultExt};
 use report::LoggableError;
+use tracing::{error, info};
+use valuable::Valuable;
 
 #[derive(Debug, Parser, Valuable)]
 #[command(version)]

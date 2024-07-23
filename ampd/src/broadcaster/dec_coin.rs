@@ -186,9 +186,11 @@ impl Display for Denom {
 
 #[cfg(test)]
 mod tests {
-    use super::DecCoin;
-    use cosmrs::proto;
     use std::convert::TryFrom;
+
+    use cosmrs::proto;
+
+    use super::DecCoin;
 
     #[test]
     fn correct_parse() {

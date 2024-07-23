@@ -1,7 +1,8 @@
-use crate::contract::Contract;
 use cosmwasm_std::Addr;
 use cw_multi_test::{App, ContractWrapper, Executor};
 use service_registry::contract::{execute, instantiate, query};
+
+use crate::contract::Contract;
 
 #[derive(Clone)]
 pub struct ServiceRegistryContract {

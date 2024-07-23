@@ -4,21 +4,12 @@ use axelar_wasm_std::{nonempty, FnExt};
 use cosmwasm_std::{Addr, OverflowError, OverflowOperation, Storage, Uint128};
 use error_stack::{Report, Result};
 
-use crate::{
-    error::ContractError,
-    msg::Params,
-    state::{self, Config, Epoch, EpochTally, Event, ParamsSnapshot, PoolId, StorageState},
-};
+use crate::error::ContractError;
+use crate::msg::Params;
+use crate::state::{self, Epoch, EpochTally, Event, ParamsSnapshot, PoolId, StorageState};
 
 const DEFAULT_EPOCHS_TO_PROCESS: u64 = 10;
 const EPOCH_PAYOUT_DELAY: u64 = 2;
-
-fn require_governance(config: Config, sender: Addr) -> Result<(), ContractError> {
-    if config.governance != sender {
-        return Err(ContractError::Unauthorized.into());
-    }
-    Ok(())
-}
 
 pub(crate) fn record_participation(
     storage: &mut dyn Storage,
@@ -127,9 +118,7 @@ pub(crate) fn update_params(
     storage: &mut dyn Storage,
     new_params: Params,
     block_height: u64,
-    sender: Addr,
 ) -> Result<(), ContractError> {
-    require_governance(state::load_config(storage), sender)?;
     let cur_epoch = Epoch::current(&state::load_params(storage), block_height)?;
     // If the param update reduces the epoch duration such that the current epoch immediately ends,
     // start a new epoch at this block, incrementing the current epoch number by 1.
@@ -214,24 +203,17 @@ fn merge_rewards(
 
 #[cfg(test)]
 mod test {
-    use super::*;
-
     use std::collections::HashMap;
 
     use axelar_wasm_std::nonempty;
-    use cosmwasm_std::{
-        testing::{mock_dependencies, MockApi, MockQuerier, MockStorage},
-        Addr, OwnedDeps, Uint128, Uint64,
-    };
+    use cosmwasm_std::testing::{mock_dependencies, MockApi, MockQuerier, MockStorage};
+    use cosmwasm_std::{Addr, OwnedDeps, Uint128, Uint64};
     use router_api::ChainName;
 
-    use crate::{
-        error::ContractError,
-        msg::Params,
-        state::{
-            self, Config, Epoch, EpochTally, Event, ParamsSnapshot, PoolId, RewardsPool, CONFIG,
-        },
-    };
+    use super::*;
+    use crate::error::ContractError;
+    use crate::msg::Params;
+    use crate::state::{self, Config, Epoch, ParamsSnapshot, PoolId, CONFIG};
 
     /// Tests that the current epoch is computed correctly when the expected epoch is the same as the stored epoch
     #[test]
@@ -239,7 +221,7 @@ mod test {
         let cur_epoch_num = 1u64;
         let block_height_started = 250u64;
         let epoch_duration = 100u64;
-        let (mock_deps, _) = setup(cur_epoch_num, block_height_started, epoch_duration);
+        let mock_deps = setup(cur_epoch_num, block_height_started, epoch_duration);
         let current_params = state::load_params(mock_deps.as_ref().storage);
 
         let new_epoch = Epoch::current(&current_params, block_height_started).unwrap();
@@ -263,7 +245,7 @@ mod test {
         let cur_epoch_num = 1u64;
         let block_height_started = 250u64;
         let epoch_duration = 100u64;
-        let (mock_deps, _) = setup(cur_epoch_num, block_height_started, epoch_duration);
+        let mock_deps = setup(cur_epoch_num, block_height_started, epoch_duration);
         let current_params = state::load_params(mock_deps.as_ref().storage);
 
         assert!(Epoch::current(&current_params, block_height_started - 1).is_err());
@@ -276,7 +258,7 @@ mod test {
         let cur_epoch_num = 1u64;
         let block_height_started = 250u64;
         let epoch_duration = 100u64;
-        let (mock_deps, _) = setup(cur_epoch_num, block_height_started, epoch_duration);
+        let mock_deps = setup(cur_epoch_num, block_height_started, epoch_duration);
 
         // elements are (height, expected epoch number, expected epoch start)
         let test_cases = vec![
@@ -318,7 +300,7 @@ mod test {
         let epoch_block_start = 250u64;
         let epoch_duration = 100u64;
 
-        let (mut mock_deps, _) = setup(cur_epoch_num, epoch_block_start, epoch_duration);
+        let mut mock_deps = setup(cur_epoch_num, epoch_block_start, epoch_duration);
 
         let pool_id = PoolId {
             chain_name: "mock-chain".parse().unwrap(),
@@ -372,7 +354,7 @@ mod test {
         let block_height_started = 250u64;
         let epoch_duration = 100u64;
 
-        let (mut mock_deps, _) = setup(starting_epoch_num, block_height_started, epoch_duration);
+        let mut mock_deps = setup(starting_epoch_num, block_height_started, epoch_duration);
 
         let pool_id = PoolId {
             chain_name: "mock-chain".parse().unwrap(),
@@ -434,7 +416,7 @@ mod test {
         let block_height_started = 250u64;
         let epoch_duration = 100u64;
 
-        let (mut mock_deps, _) = setup(cur_epoch_num, block_height_started, epoch_duration);
+        let mut mock_deps = setup(cur_epoch_num, block_height_started, epoch_duration);
 
         let mut simulated_participation = HashMap::new();
         simulated_participation.insert(
@@ -509,7 +491,7 @@ mod test {
         let initial_rewards_per_epoch = 100u128;
         let initial_participation_threshold = (1, 2);
         let epoch_duration = 100u64;
-        let (mut mock_deps, config) = setup_with_params(
+        let mut mock_deps = setup_with_params(
             initial_epoch_num,
             initial_epoch_start,
             epoch_duration,
@@ -532,13 +514,7 @@ mod test {
         let expected_epoch =
             Epoch::current(&state::load_params(mock_deps.as_ref().storage), cur_height).unwrap();
 
-        update_params(
-            mock_deps.as_mut().storage,
-            new_params.clone(),
-            cur_height,
-            config.governance.clone(),
-        )
-        .unwrap();
+        update_params(mock_deps.as_mut().storage, new_params.clone(), cur_height).unwrap();
         let stored = state::load_params(mock_deps.as_ref().storage);
         assert_eq!(stored.params, new_params);
 
@@ -555,40 +531,13 @@ mod test {
         assert_eq!(stored.created_at, cur_epoch);
     }
 
-    /// Test that rewards parameters cannot be updated by an address other than governance
-    #[test]
-    fn update_params_unauthorized() {
-        let initial_epoch_num = 1u64;
-        let initial_epoch_start = 250u64;
-        let epoch_duration = 100u64;
-        let (mut mock_deps, _) = setup(initial_epoch_num, initial_epoch_start, epoch_duration);
-
-        let new_params = Params {
-            rewards_per_epoch: cosmwasm_std::Uint128::from(100u128).try_into().unwrap(),
-            participation_threshold: (Uint64::new(2), Uint64::new(3)).try_into().unwrap(),
-            epoch_duration: epoch_duration.try_into().unwrap(),
-        };
-
-        let res = update_params(
-            mock_deps.as_mut().storage,
-            new_params.clone(),
-            initial_epoch_start,
-            Addr::unchecked("some non governance address"),
-        );
-        assert!(res.is_err());
-        assert_eq!(
-            res.unwrap_err().current_context(),
-            &ContractError::Unauthorized
-        );
-    }
-
     /// Test extending the epoch duration. This should not change the current epoch
     #[test]
     fn extend_epoch_duration() {
         let initial_epoch_num = 1u64;
         let initial_epoch_start = 250u64;
         let initial_epoch_duration = 100u64;
-        let (mut mock_deps, config) = setup(
+        let mut mock_deps = setup(
             initial_epoch_num,
             initial_epoch_start,
             initial_epoch_duration,
@@ -608,13 +557,7 @@ mod test {
             ..initial_params_snapshot.params // keep everything besides epoch duration the same
         };
 
-        update_params(
-            mock_deps.as_mut().storage,
-            new_params.clone(),
-            cur_height,
-            config.governance.clone(),
-        )
-        .unwrap();
+        update_params(mock_deps.as_mut().storage, new_params.clone(), cur_height).unwrap();
 
         let updated_params_snapshot = state::load_params(mock_deps.as_ref().storage);
 
@@ -647,7 +590,7 @@ mod test {
         let initial_epoch_num = 1u64;
         let initial_epoch_start = 256u64;
         let initial_epoch_duration = 100u64;
-        let (mut mock_deps, config) = setup(
+        let mut mock_deps = setup(
             initial_epoch_num,
             initial_epoch_start,
             initial_epoch_duration,
@@ -668,13 +611,7 @@ mod test {
             epoch_duration: new_epoch_duration.try_into().unwrap(),
             ..initial_params_snapshot.params
         };
-        update_params(
-            mock_deps.as_mut().storage,
-            new_params.clone(),
-            cur_height,
-            config.governance.clone(),
-        )
-        .unwrap();
+        update_params(mock_deps.as_mut().storage, new_params.clone(), cur_height).unwrap();
 
         let updated_params_snapshot = state::load_params(mock_deps.as_ref().storage);
 
@@ -699,7 +636,7 @@ mod test {
         let initial_epoch_num = 1u64;
         let initial_epoch_start = 250u64;
         let initial_epoch_duration = 100u64;
-        let (mut mock_deps, config) = setup(
+        let mut mock_deps = setup(
             initial_epoch_num,
             initial_epoch_start,
             initial_epoch_duration,
@@ -720,13 +657,7 @@ mod test {
             epoch_duration: 10.try_into().unwrap(),
             ..initial_params_snapshot.params
         };
-        update_params(
-            mock_deps.as_mut().storage,
-            new_params.clone(),
-            cur_height,
-            config.governance.clone(),
-        )
-        .unwrap();
+        update_params(mock_deps.as_mut().storage, new_params.clone(), cur_height).unwrap();
 
         let updated_params_snapshot = state::load_params(mock_deps.as_ref().storage);
 
@@ -749,7 +680,7 @@ mod test {
         let block_height_started = 250u64;
         let epoch_duration = 100u64;
 
-        let (mut mock_deps, _) = setup(cur_epoch_num, block_height_started, epoch_duration);
+        let mut mock_deps = setup(cur_epoch_num, block_height_started, epoch_duration);
 
         let pool_id = PoolId {
             chain_name: "mock-chain".parse().unwrap(),
@@ -790,7 +721,7 @@ mod test {
         let block_height_started = 250u64;
         let epoch_duration = 100u64;
 
-        let (mut mock_deps, _) = setup(cur_epoch_num, block_height_started, epoch_duration);
+        let mut mock_deps = setup(cur_epoch_num, block_height_started, epoch_duration);
         // a vector of (contract, rewards amounts) pairs
         let test_data = vec![
             (Addr::unchecked("contract_1"), vec![100, 200, 50]),
@@ -840,7 +771,7 @@ mod test {
         let rewards_per_epoch = 100u128;
         let participation_threshold = (2, 3);
 
-        let (mut mock_deps, _) = setup_with_params(
+        let mut mock_deps = setup_with_params(
             cur_epoch_num,
             block_height_started,
             epoch_duration,
@@ -940,7 +871,7 @@ mod test {
         let rewards_per_epoch = 100u128;
         let participation_threshold = (1, 2);
 
-        let (mut mock_deps, _) = setup_with_params(
+        let mut mock_deps = setup_with_params(
             cur_epoch_num,
             block_height_started,
             epoch_duration,
@@ -1019,7 +950,7 @@ mod test {
         let rewards_per_epoch = 100u128;
         let participation_threshold = (8, 10);
 
-        let (mut mock_deps, _) = setup_with_params(
+        let mut mock_deps = setup_with_params(
             cur_epoch_num,
             block_height_started,
             epoch_duration,
@@ -1098,7 +1029,7 @@ mod test {
         let rewards_per_epoch = 100u128;
         let participation_threshold = (8, 10);
 
-        let (mut mock_deps, _) = setup_with_params(
+        let mut mock_deps = setup_with_params(
             cur_epoch_num,
             block_height_started,
             epoch_duration,
@@ -1165,7 +1096,7 @@ mod test {
         let rewards_per_epoch = 100u128;
         let participation_threshold = (8, 10);
 
-        let (mut mock_deps, _) = setup_with_params(
+        let mut mock_deps = setup_with_params(
             cur_epoch_num,
             block_height_started,
             epoch_duration,
@@ -1215,69 +1146,13 @@ mod test {
 
     type MockDeps = OwnedDeps<MockStorage, MockApi, MockQuerier>;
 
-    fn set_initial_storage(
-        params_store: ParamsSnapshot,
-        events_store: Vec<Event>,
-        tally_store: Vec<EpochTally>,
-        rewards_store: Vec<RewardsPool>,
-        watermark_store: HashMap<PoolId, u64>,
-    ) -> (MockDeps, Config) {
-        let mut deps = mock_dependencies();
-        let storage = deps.as_mut().storage;
-
-        state::save_params(storage, &params_store).unwrap();
-
-        events_store.iter().for_each(|event| {
-            state::save_event(storage, event).unwrap();
-        });
-
-        tally_store.iter().for_each(|tally| {
-            state::save_epoch_tally(storage, tally).unwrap();
-        });
-
-        rewards_store.iter().for_each(|pool| {
-            state::save_rewards_pool(storage, pool).unwrap();
-        });
-
-        watermark_store
-            .into_iter()
-            .for_each(|(pool_id, epoch_num)| {
-                state::save_rewards_watermark(storage, pool_id, epoch_num).unwrap();
-            });
-
-        let config = Config {
-            governance: Addr::unchecked("governance"),
-            rewards_denom: "AXL".to_string(),
-        };
-
-        CONFIG.save(storage, &config).unwrap();
-
-        (deps, config)
-    }
-
-    fn setup_with_stores(
-        params_store: ParamsSnapshot,
-        events_store: Vec<Event>,
-        tally_store: Vec<EpochTally>,
-        rewards_store: Vec<RewardsPool>,
-        watermark_store: HashMap<PoolId, u64>,
-    ) -> (MockDeps, Config) {
-        set_initial_storage(
-            params_store,
-            events_store,
-            tally_store,
-            rewards_store,
-            watermark_store,
-        )
-    }
-
     fn setup_with_params(
         cur_epoch_num: u64,
         block_height_started: u64,
         epoch_duration: u64,
         rewards_per_epoch: u128,
         participation_threshold: (u64, u64),
-    ) -> (MockDeps, Config) {
+    ) -> MockDeps {
         let rewards_per_epoch: nonempty::Uint128 = cosmwasm_std::Uint128::from(rewards_per_epoch)
             .try_into()
             .unwrap();
@@ -1295,24 +1170,21 @@ mod test {
             created_at: current_epoch.clone(),
         };
 
-        let rewards_store = Vec::new();
-        let events_store = Vec::new();
-        let tally_store = Vec::new();
-        let watermark_store = HashMap::new();
-        setup_with_stores(
-            params_snapshot,
-            events_store,
-            tally_store,
-            rewards_store,
-            watermark_store,
-        )
+        let mut deps = mock_dependencies();
+        let storage = deps.as_mut().storage;
+
+        state::save_params(storage, &params_snapshot).unwrap();
+
+        let config = Config {
+            rewards_denom: "AXL".to_string(),
+        };
+
+        CONFIG.save(storage, &config).unwrap();
+
+        deps
     }
 
-    fn setup(
-        cur_epoch_num: u64,
-        block_height_started: u64,
-        epoch_duration: u64,
-    ) -> (MockDeps, Config) {
+    fn setup(cur_epoch_num: u64, block_height_started: u64, epoch_duration: u64) -> MockDeps {
         let participation_threshold = (1, 2);
         let rewards_per_epoch = 100u128;
         setup_with_params(
