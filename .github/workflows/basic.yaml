@@ -83,7 +83,8 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: install
-          args: --version 1.5.5 --locked cosmwasm-check
+          # v1.3.x is used to check for compatibility with wasmvm v1.3.x used by Axelar
+          args: --version 1.3.4 --locked cosmwasm-check
 
       - name: Check wasm contracts
         run: cosmwasm-check ./target/wasm32-unknown-unknown/release/*.wasm
