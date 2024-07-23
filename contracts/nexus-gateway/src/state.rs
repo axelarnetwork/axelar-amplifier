@@ -8,7 +8,7 @@ use router_api::CrossChainId;
 use crate::error::ContractError;
 
 const CONFIG: Item<Config> = Item::new("config");
-const ROUTED_MESSAGE_IDS: Map<CrossChainId, ()> = Map::new("routed_message_ids");
+const ROUTED_MESSAGE_IDS: Map<&CrossChainId, ()> = Map::new("routed_message_ids");
 
 type Result<T> = error_stack::Result<T, ContractError>;
 
@@ -45,13 +45,13 @@ impl Store for GatewayStore<'_> {
 
     fn set_message_routed(&mut self, id: &CrossChainId) -> Result<()> {
         ROUTED_MESSAGE_IDS
-            .save(self.storage, id.clone(), &())
+            .save(self.storage, id, &())
             .change_context(ContractError::StoreFailure)
     }
 
     fn is_message_routed(&self, id: &CrossChainId) -> Result<bool> {
         ROUTED_MESSAGE_IDS
-            .may_load(self.storage, id.clone())
+            .may_load(self.storage, id)
             .map(|result| result.is_some())
             .change_context(ContractError::StoreFailure)
     }

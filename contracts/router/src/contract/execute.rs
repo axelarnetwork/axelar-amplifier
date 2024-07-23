@@ -278,10 +278,7 @@ mod test {
         rand::thread_rng().fill_bytes(&mut payload_hash);
 
         Message {
-            cc_id: CrossChainId {
-                chain: source_chain,
-                id: id.parse().unwrap(),
-            },
+            cc_id: CrossChainId::new(source_chain, id).unwrap(),
             source_address,
             destination_chain,
             destination_address,
@@ -486,8 +483,8 @@ mod test {
             )
             .unwrap();
 
-        let mut msg = rand_message(source_chain, destination_chain.clone());
-        msg.cc_id.id = "foobar".try_into().unwrap();
+        let mut msg = rand_message(source_chain.clone(), destination_chain.clone());
+        msg.cc_id = CrossChainId::new(source_chain, "foobar").unwrap();
         assert!(route_messages(deps.as_mut().storage, sender, vec![msg])
             .is_err_and(move |err| { matches!(err.current_context(), Error::InvalidMessageId) }));
     }
@@ -511,8 +508,8 @@ mod test {
         )
         .unwrap();
 
-        let mut msg = rand_message(source_chain, destination_chain.clone());
-        msg.cc_id.id = "foobar".try_into().unwrap();
+        let mut msg = rand_message(source_chain.clone(), destination_chain.clone());
+        msg.cc_id = CrossChainId::new(source_chain, "foobar").unwrap();
         assert!(route_messages(deps.as_mut().storage, sender, vec![msg])
             .is_err_and(move |err| { matches!(err.current_context(), Error::InvalidMessageId) }));
     }
@@ -552,14 +549,18 @@ mod test {
             )
             .unwrap();
 
-        let mut msg = rand_message(source_chain, destination_chain.clone());
-        msg.cc_id.id = HexTxHashAndEventIndex {
-            tx_hash: [0; 32],
-            event_index: 0,
-        }
-        .to_string()
-        .try_into()
+        let mut msg = rand_message(source_chain.clone(), destination_chain.clone());
+        msg.cc_id = CrossChainId::new(
+            source_chain,
+            HexTxHashAndEventIndex {
+                tx_hash: [0; 32],
+                event_index: 0,
+            }
+            .to_string()
+            .as_str(),
+        )
         .unwrap();
+
         assert!(route_messages(deps.as_mut().storage, sender, vec![msg])
             .is_err_and(move |err| { matches!(err.current_context(), Error::InvalidMessageId) }));
     }

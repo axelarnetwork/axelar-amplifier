@@ -222,13 +222,12 @@ mod tests {
         deps: DepsMut,
         message_ids: Option<Vec<CrossChainId>>,
     ) -> Result<Response, axelar_wasm_std::ContractError> {
-        let message_ids = match message_ids {
-            Some(ids) => ids,
-            None => test_data::messages()
+        let message_ids = message_ids.unwrap_or_else(|| {
+            test_data::messages()
                 .into_iter()
                 .map(|msg| msg.cc_id)
-                .collect::<Vec<CrossChainId>>(),
-        };
+                .collect::<Vec<CrossChainId>>()
+        });
 
         let msg = ExecuteMsg::ConstructProof { message_ids };
         execute(deps, mock_env(), mock_info(RELAYER, &[]), msg)

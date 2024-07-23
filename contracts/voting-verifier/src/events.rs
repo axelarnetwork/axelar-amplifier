@@ -122,24 +122,24 @@ pub struct VerifierSetConfirmation {
 
 /// If parsing is successful, returns (tx_id, event_index). Otherwise returns ContractError::InvalidMessageID
 fn parse_message_id(
-    message_id: nonempty::String,
+    message_id: &str,
     msg_id_format: &MessageIdFormat,
 ) -> Result<(nonempty::String, u32), ContractError> {
     match msg_id_format {
         MessageIdFormat::Base58TxDigestAndEventIndex => {
-            let id = Base58TxDigestAndEventIndex::from_str(&message_id)
-                .map_err(|_| ContractError::InvalidMessageID(message_id.into()))?;
+            let id = Base58TxDigestAndEventIndex::from_str(message_id)
+                .map_err(|_| ContractError::InvalidMessageID(message_id.to_string()))?;
             Ok((id.tx_digest_as_base58(), id.event_index))
         }
         MessageIdFormat::HexTxHashAndEventIndex => {
-            let id = HexTxHashAndEventIndex::from_str(&message_id)
-                .map_err(|_| ContractError::InvalidMessageID(message_id.into()))?;
+            let id = HexTxHashAndEventIndex::from_str(message_id)
+                .map_err(|_| ContractError::InvalidMessageID(message_id.to_string()))?;
 
             Ok((id.tx_hash_as_hex(), id.event_index))
         }
         MessageIdFormat::Base58SolanaTxSignatureAndEventIndex => {
-            let id = Base58SolanaTxSignatureAndEventIndex::from_str(&message_id)
-                .map_err(|_| ContractError::InvalidMessageID(message_id.into()))?;
+            let id = Base58SolanaTxSignatureAndEventIndex::from_str(message_id)
+                .map_err(|_| ContractError::InvalidMessageID(message_id.to_string()))?;
 
             Ok((id.signature_as_base58(), id.event_index))
         }
@@ -148,7 +148,7 @@ fn parse_message_id(
 
 impl VerifierSetConfirmation {
     pub fn new(
-        message_id: nonempty::String,
+        message_id: &str,
         msg_id_format: MessageIdFormat,
         verifier_set: VerifierSet,
     ) -> Result<Self, ContractError> {
@@ -179,7 +179,7 @@ pub struct TxEventConfirmation {
 impl TryFrom<(Message, &MessageIdFormat)> for TxEventConfirmation {
     type Error = ContractError;
     fn try_from((msg, msg_id_format): (Message, &MessageIdFormat)) -> Result<Self, Self::Error> {
-        let (tx_id, event_index) = parse_message_id(msg.cc_id.id, msg_id_format)?;
+        let (tx_id, event_index) = parse_message_id(&msg.cc_id.id, msg_id_format)?;
 
         Ok(TxEventConfirmation {
             tx_id,
@@ -284,10 +284,7 @@ mod test {
 
     fn generate_msg(msg_id: nonempty::String) -> Message {
         Message {
-            cc_id: CrossChainId {
-                chain: "source-chain".parse().unwrap(),
-                id: msg_id,
-            },
+            cc_id: CrossChainId::new("source-chain", msg_id).unwrap(),
             source_address: "source_address".parse().unwrap(),
             destination_chain: "destination-chain".parse().unwrap(),
             destination_address: "destination-address".parse().unwrap(),
@@ -373,7 +370,7 @@ mod test {
             created_at: 1,
         };
         let event = VerifierSetConfirmation::new(
-            msg_id.to_string().parse().unwrap(),
+            &msg_id.to_string(),
             MessageIdFormat::HexTxHashAndEventIndex,
             verifier_set.clone(),
         )
@@ -396,7 +393,7 @@ mod test {
             created_at: 1,
         };
         let event = VerifierSetConfirmation::new(
-            msg_id.to_string().parse().unwrap(),
+            &msg_id.to_string(),
             MessageIdFormat::Base58TxDigestAndEventIndex,
             verifier_set.clone(),
         )
@@ -417,7 +414,7 @@ mod test {
         };
 
         let event = VerifierSetConfirmation::new(
-            msg_id.to_string().parse().unwrap(),
+            msg_id,
             MessageIdFormat::Base58TxDigestAndEventIndex,
             verifier_set,
         );
@@ -437,7 +434,7 @@ mod test {
         };
 
         let event = VerifierSetConfirmation::new(
-            msg_id.to_string().parse().unwrap(),
+            &msg_id.to_string(),
             MessageIdFormat::Base58TxDigestAndEventIndex,
             verifier_set,
         );

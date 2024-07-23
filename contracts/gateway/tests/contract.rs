@@ -344,10 +344,7 @@ fn generate_msgs_with_all_statuses(
 fn generate_msgs(namespace: impl Debug, count: u8) -> Vec<Message> {
     (0..count)
         .map(|i| Message {
-            cc_id: CrossChainId {
-                chain: "mock-chain".parse().unwrap(),
-                id: format!("{:?}{}", namespace, i).parse().unwrap(),
-            },
+            cc_id: CrossChainId::new("mock-chain", format!("{:?}{}", namespace, i)).unwrap(),
             destination_address: "idc".parse().unwrap(),
             destination_chain: "mock-chain-2".parse().unwrap(),
             source_address: "idc".parse().unwrap(),
