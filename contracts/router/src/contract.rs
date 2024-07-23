@@ -247,10 +247,10 @@ mod test {
     pub fn assert_messages_in_cosmos_msg(
         contract_addr: String,
         messages: Vec<Message>,
-        cosmos_msg: CosmosMsg,
+        cosmos_msg: &CosmosMsg,
     ) {
         assert_eq!(
-            CosmosMsg::Wasm(WasmMsg::Execute {
+            &CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr,
                 msg: to_json_binary(&gateway_api::msg::ExecuteMsg::RouteMessages(messages,))
                     .unwrap(),
@@ -284,7 +284,7 @@ mod test {
         assert_messages_in_cosmos_msg(
             polygon.gateway.to_string(),
             messages.clone(),
-            res.messages[0].msg.clone(),
+            &res.messages[0].msg,
         );
 
         // try to route twice
@@ -357,13 +357,18 @@ mod test {
             .iter_mut()
             .for_each(|msg| msg.cc_id.chain = "Ethereum".parse().unwrap());
 
-        assert!(execute(
+        let result = execute(
             deps.as_mut(),
             mock_env(),
             mock_info(NEXUS_GATEWAY_ADDRESS, &[]),
-            ExecuteMsg::RouteMessages(messages),
-        )
-        .is_ok())
+            ExecuteMsg::RouteMessages(messages.clone()),
+        );
+        assert!(result.is_ok());
+        assert_messages_in_cosmos_msg(
+            polygon.gateway.to_string(),
+            messages,
+            &result.unwrap().messages[0].msg,
+        );
     }
 
     #[test]
@@ -424,7 +429,7 @@ mod test {
                         .into_iter()
                         .filter(|m| m.cc_id.chain == s.chain_name)
                         .collect::<Vec<_>>(),
-                    res.messages[i].msg.clone(),
+                    &res.messages[i].msg,
                 );
             }
         }
@@ -660,7 +665,7 @@ mod test {
         assert_messages_in_cosmos_msg(
             new_gateway.to_string(),
             messages.clone(),
-            res.messages[0].msg.clone(),
+            &res.messages[0].msg,
         );
     }
 
@@ -707,7 +712,7 @@ mod test {
         assert_messages_in_cosmos_msg(
             eth.gateway.to_string(),
             messages.clone(),
-            res.messages[0].msg.clone(),
+            &res.messages[0].msg,
         );
     }
 
@@ -880,7 +885,7 @@ mod test {
         assert_messages_in_cosmos_msg(
             polygon.gateway.to_string(),
             messages.clone(),
-            res.messages[0].msg.clone(),
+            &res.messages[0].msg,
         );
 
         let res = execute(
@@ -960,7 +965,7 @@ mod test {
         assert_messages_in_cosmos_msg(
             polygon.gateway.to_string(),
             messages.clone(),
-            res.messages[0].msg.clone(),
+            &res.messages[0].msg,
         );
     }
 
