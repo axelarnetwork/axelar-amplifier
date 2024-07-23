@@ -309,16 +309,16 @@ mod tests {
 
     fn message(id: u32) -> Message {
         Message {
-            cc_id: CrossChainId {
-                chain: "source-chain".parse().unwrap(),
-                id: HexTxHashAndEventIndex {
+            cc_id: CrossChainId::new(
+                "source-chain",
+                HexTxHashAndEventIndex {
                     tx_hash: [0; 32],
                     event_index: id,
                 }
                 .to_string()
-                .try_into()
-                .unwrap(),
-            },
+                .as_str(),
+            )
+            .unwrap(),
             source_address: format!("source_address{id}").parse().unwrap(),
             destination_chain: format!("destination-chain{id}").parse().unwrap(),
             destination_address: format!("destination_address{id}").parse().unwrap(),

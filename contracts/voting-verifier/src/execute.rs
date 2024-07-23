@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use axelar_wasm_std::voting::{PollId, PollResults, Vote, WeightedPoll};
-use axelar_wasm_std::{nonempty, snapshot, MajorityThreshold, VerificationStatus};
+use axelar_wasm_std::{snapshot, MajorityThreshold, VerificationStatus};
 use cosmwasm_std::{
     to_json_binary, Addr, Deps, DepsMut, Env, Event, MessageInfo, OverflowError, OverflowOperation,
     QueryRequest, Response, Storage, WasmMsg, WasmQuery,
@@ -46,7 +46,7 @@ pub fn update_voting_threshold(
 pub fn verify_verifier_set(
     deps: DepsMut,
     env: Env,
-    message_id: nonempty::String,
+    message_id: &str,
     new_verifier_set: VerifierSet,
 ) -> Result<Response, ContractError> {
     let status = verifier_set_status(deps.as_ref(), &new_verifier_set, env.block.height)?;
@@ -100,9 +100,9 @@ pub fn verify_messages(
 
     if messages
         .iter()
-        .any(|message| message.cc_id.chain.ne(&source_chain))
+        .any(|message| message.cc_id.chain != source_chain)
     {
-        Err(ContractError::SourceChainMismatch(source_chain))?;
+        Err(ContractError::SourceChainMismatch(source_chain.clone()))?;
     }
 
     let config = CONFIG.load(deps.storage)?;
@@ -131,7 +131,7 @@ pub fn verify_messages(
         return Ok(Response::new());
     }
 
-    let snapshot = take_snapshot(deps.as_ref(), &msgs_to_verify[0].cc_id.chain)?;
+    let snapshot = take_snapshot(deps.as_ref(), &source_chain)?;
     let participants = snapshot.get_participants();
     let expires_at = calculate_expiration(env.block.height, config.block_expiry)?;
 

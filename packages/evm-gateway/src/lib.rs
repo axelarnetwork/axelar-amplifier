@@ -1,5 +1,3 @@
-pub mod error;
-
 use std::str::FromStr;
 
 use axelar_wasm_std::hash::Hash;
@@ -19,6 +17,8 @@ use router_api::Message as RouterMessage;
 use sha3::{Digest, Keccak256};
 
 use crate::error::Error;
+
+pub mod error;
 
 // Generates the bindings for the Axelar Amplifier Gateway contract.
 // This includes the defined structs: Messages, WeightedSigners, WeightedSigner, and Proofs.
@@ -182,10 +182,7 @@ mod test {
 
         for destination_address in destination_addresses {
             let router_messages = RouterMessage {
-                cc_id: CrossChainId {
-                    chain: source_chain.parse().unwrap(),
-                    id: message_id.parse().unwrap(),
-                },
+                cc_id: CrossChainId::new(source_chain, message_id).unwrap(),
                 source_address: source_address.parse().unwrap(),
                 destination_address: destination_address.parse().unwrap(),
                 destination_chain: destination_chain.parse().unwrap(),

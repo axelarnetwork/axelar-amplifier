@@ -7,7 +7,7 @@ use router_api::CrossChainId;
 use crate::error::ContractError;
 
 const CONFIG: Item<Config> = Item::new("config");
-const ROUTED_MESSAGE_IDS: Map<CrossChainId, ()> = Map::new("routed_message_ids");
+const ROUTED_MESSAGE_IDS: Map<&CrossChainId, ()> = Map::new("routed_message_ids");
 
 type Result<T> = error_stack::Result<T, ContractError>;
 
@@ -24,16 +24,16 @@ pub(crate) fn load_config(storage: &dyn Storage) -> Result<Config> {
 }
 
 pub(crate) fn set_message_routed(storage: &mut dyn Storage, id: &CrossChainId) -> Result<()> {
-    ROUTED_MESSAGE_IDS
-        .save(storage, id.clone(), &())
-        .change_context(ContractError::StoreFailure)
-}
+        ROUTED_MESSAGE_IDS
+            .save(storage, id, &())
+            .change_context(ContractError::StoreFailure)
+    }
 
 pub(crate) fn is_message_routed(storage: &dyn Storage, id: &CrossChainId) -> Result<bool> {
-    ROUTED_MESSAGE_IDS
-        .may_load(storage, id.clone())
-        .map(|result| result.is_some())
-        .change_context(ContractError::StoreFailure)
+        ROUTED_MESSAGE_IDS
+            .may_load(storage, id)
+            .map(|result| result.is_some())
+            .change_context(ContractError::StoreFailure)
 }
 
 #[cw_serde]
