@@ -418,10 +418,12 @@ mod tests {
         assert!(res.is_err());
         assert_eq!(
             res.unwrap_err().to_string(),
-            axelar_wasm_std::error::ContractError::from(permission_control::Error::PermissionDenied {
-                expected: Permission::Elevated.into(),
-                actual: Permission::NoPrivilege.into()
-            })
+            axelar_wasm_std::error::ContractError::from(
+                permission_control::Error::PermissionDenied {
+                    expected: Permission::Elevated.into(),
+                    actual: Permission::NoPrivilege.into()
+                }
+            )
             .to_string()
         );
     }
