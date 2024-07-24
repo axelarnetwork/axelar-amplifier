@@ -61,9 +61,7 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
     match msg.ensure_permissions(deps.storage, &info.sender)? {
-        ExecuteMsg::ConstructProof { message_ids } => {
-            Ok(execute::construct_proof(deps, message_ids)?)
-        }
+        ExecuteMsg::ConstructProof(message_ids) => Ok(execute::construct_proof(deps, message_ids)?),
         ExecuteMsg::UpdateVerifierSet {} => Ok(execute::update_verifier_set(deps, env)?),
         ExecuteMsg::ConfirmVerifierSet {} => Ok(execute::confirm_verifier_set(deps, info.sender)?),
         ExecuteMsg::UpdateSigningThreshold {
@@ -229,7 +227,7 @@ mod tests {
                 .collect::<Vec<CrossChainId>>()
         });
 
-        let msg = ExecuteMsg::ConstructProof { message_ids };
+        let msg = ExecuteMsg::ConstructProof(message_ids);
         execute(deps, mock_env(), mock_info(RELAYER, &[]), msg)
     }
 
