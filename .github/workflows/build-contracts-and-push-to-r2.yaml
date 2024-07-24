@@ -45,6 +45,7 @@ jobs:
           echo "Not a release commit. Skipping crate name and version extraction."
           fi
 
+
       - name: Determine branch
         id: get-branch-name
         run: |
@@ -55,6 +56,7 @@ jobs:
           fi
           echo "branch=$branch" >> $GITHUB_OUTPUT
 
+
       - name: Checkout code
         uses: actions/checkout@v4
         with:
@@ -63,21 +65,46 @@ jobs:
           submodules: recursive
           ref: ${{ steps.get-branch-name.outputs.branch }}
 
-#      - name: Compile amplifier contracts
-#        id: compile-contracts
-#        run: |
-#          cd axelar-amplifier
-#          docker run --rm -v "$(pwd)":/code \
-#          --mount type=volume,source="$(basename "$(pwd)")_cache",target=/code/target \
-#          --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
-#          cosmwasm/optimizer:0.16.0
-#
-#          commit_hash=$(git rev-parse --short HEAD)
-#          cd ..
-#          mkdir -p ./artifacts/$commit_hash/
-#          cp -R axelar-amplifier/artifacts/* ./artifacts/$commit_hash/
-#          echo "wasm-directory=./artifacts" >> $GITHUB_OUTPUT
-#
+
+      - name: Compile amplifier contracts
+        id: compile-contracts
+        run: |
+          cd axelar-amplifier
+          docker run --rm -v "$(pwd)":/code \
+          --mount type=volume,source="$(basename "$(pwd)")_cache",target=/code/target \
+          --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
+          cosmwasm/optimizer:0.16.0
+
+          commit_hash=$(git rev-parse --short HEAD)
+          cd ..
+          mkdir -p ./artifacts/$commit_hash/
+          cp -R axelar-amplifier/artifacts/* ./artifacts/$commit_hash/
+          echo "wasm-directory=./artifacts" >> $GITHUB_OUTPUT
+
+      - name: Prepare release artifacts
+        if: steps.check-release.outputs.is-release == 'true'
+        id: prepare-release
+        run: |
+          cd ${{ steps.compile-contracts.outputs.wasm-directory }}
+          crate_name="${{ steps.check-release.outputs.crate-name }}"
+          crate_version="${{ steps.check-release.outputs.crate-version }}"
+          wasm_file=$(find . -name "${crate_name//-/_}.wasm")
+          
+          if [ -z "$wasm_file" ]; then
+            echo "Error: Could not find .wasm file for $crate_name"
+            exit 1
+          fi
+          
+          mkdir -p "../release-artifacts"
+          cp "$wasm_file" "../release-artifacts/${crate_name}.wasm"
+          cp checksums.txt "../release-artifacts/"
+          
+          echo "release-artifacts-dir=./artifacts/release-artifacts" >> $GITHUB_OUTPUT
+          echo "r2-destination-dir=./releases/amplifier/${crate_name}/${crate_version}" >> $GITHUB_OUTPUT
+          
+          ls -la ../release-artifacts/
+
+
 #      - uses: ryand56/r2-upload-action@latest
 #        with:
 #          r2-account-id: ${{ secrets.R2_ACCOUNT_ID }}
