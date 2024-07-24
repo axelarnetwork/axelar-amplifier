@@ -372,7 +372,7 @@ mod test {
         for (i, verifiers) in verifiers.iter().enumerate() {
             record_participation(
                 mock_deps.as_mut().storage,
-                "some event".to_string().try_into().unwrap(),
+                "some event".try_into().unwrap(),
                 verifiers.clone(),
                 pool_id.clone(),
                 height_at_epoch_end + i as u64,

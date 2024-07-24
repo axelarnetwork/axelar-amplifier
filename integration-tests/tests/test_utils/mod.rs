@@ -648,7 +648,7 @@ pub fn setup_chain(
 ) -> Chain {
     let voting_verifier = VotingVerifierContract::instantiate_contract(
         protocol,
-        "doesn't matter".to_string().try_into().unwrap(),
+        "doesn't matter".try_into().unwrap(),
         Threshold::try_from((3, 4)).unwrap().try_into().unwrap(),
         chain_name.clone(),
     );
@@ -827,10 +827,10 @@ pub struct TestCase {
 
 // Creates an instance of Axelar Amplifier with an initial verifier set registered, and returns a TestCase instance.
 pub fn setup_test_case() -> TestCase {
-    let mut protocol = setup_protocol("validators".to_string().try_into().unwrap());
+    let mut protocol = setup_protocol("validators".try_into().unwrap());
     let chains = vec![
-        "Ethereum".to_string().try_into().unwrap(),
-        "Polygon".to_string().try_into().unwrap(),
+        "Ethereum".try_into().unwrap(),
+        "Polygon".try_into().unwrap(),
     ];
     let verifiers = create_new_verifiers_vec(
         chains.clone(),

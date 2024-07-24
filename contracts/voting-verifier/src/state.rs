@@ -12,12 +12,11 @@ use crate::error::ContractError;
 
 #[cw_serde]
 pub struct Config {
-    pub governance: Addr,
     pub service_registry_contract: Addr,
     pub service_name: nonempty::String,
     pub source_gateway_address: nonempty::String,
     pub voting_threshold: MajorityThreshold,
-    pub block_expiry: u64, // number of blocks after which a poll expires
+    pub block_expiry: nonempty::Uint64, // number of blocks after which a poll expires
     pub confirmation_height: u64,
     pub source_chain: ChainName,
     pub rewards_contract: Addr,

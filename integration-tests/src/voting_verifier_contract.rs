@@ -41,10 +41,15 @@ impl VotingVerifierContract {
                     service_name: protocol.service_name.clone(),
                     source_gateway_address,
                     voting_threshold,
-                    block_expiry: 10,
+                    block_expiry: 10.try_into().unwrap(),
                     confirmation_height: 5,
                     source_chain,
-                    rewards_address: protocol.rewards.contract_addr.to_string(),
+                    rewards_address: protocol
+                        .rewards
+                        .contract_addr
+                        .to_string()
+                        .try_into()
+                        .unwrap(),
                     msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
                 },
                 &[],
