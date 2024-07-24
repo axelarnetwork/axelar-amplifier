@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use axelar_wasm_std::voting::{PollId, PollResults, Vote, WeightedPoll};
 use axelar_wasm_std::{snapshot, MajorityThreshold, VerificationStatus};
 use cosmwasm_std::{
-    to_json_binary, Addr, Deps, DepsMut, Env, Event, MessageInfo, OverflowError, OverflowOperation,
+    to_json_binary, Deps, DepsMut, Env, Event, MessageInfo, OverflowError, OverflowOperation,
     QueryRequest, Response, Storage, WasmMsg, WasmQuery,
 };
 use itertools::Itertools;
@@ -12,25 +12,15 @@ use router_api::{ChainName, Message};
 use service_registry::msg::QueryMsg;
 use service_registry::state::WeightedVerifier;
 
+use crate::contract::query::{message_status, verifier_set_status};
 use crate::error::ContractError;
 use crate::events::{
     PollEnded, PollMetadata, PollStarted, QuorumReached, TxEventConfirmation,
     VerifierSetConfirmation, Voted,
 };
-use crate::query::{message_status, verifier_set_status};
 use crate::state::{
     self, poll_messages, poll_verifier_sets, Poll, PollContent, CONFIG, POLLS, POLL_ID, VOTES,
 };
-
-// TODO: this type of function exists in many contracts. Would be better to implement this
-// in one place, and then just include it
-pub fn require_governance(deps: &DepsMut, sender: Addr) -> Result<(), ContractError> {
-    let config = CONFIG.load(deps.storage)?;
-    if config.governance != sender {
-        return Err(ContractError::Unauthorized);
-    }
-    Ok(())
-}
 
 pub fn update_voting_threshold(
     deps: DepsMut,
@@ -57,7 +47,7 @@ pub fn verify_verifier_set(
     let config = CONFIG.load(deps.storage)?;
     let snapshot = take_snapshot(deps.as_ref(), &config.source_chain)?;
     let participants = snapshot.get_participants();
-    let expires_at = calculate_expiration(env.block.height, config.block_expiry)?;
+    let expires_at = calculate_expiration(env.block.height, config.block_expiry.into())?;
 
     let poll_id = create_verifier_set_poll(deps.storage, expires_at, snapshot)?;
 
@@ -133,7 +123,7 @@ pub fn verify_messages(
 
     let snapshot = take_snapshot(deps.as_ref(), &source_chain)?;
     let participants = snapshot.get_participants();
-    let expires_at = calculate_expiration(env.block.height, config.block_expiry)?;
+    let expires_at = calculate_expiration(env.block.height, config.block_expiry.into())?;
 
     let id = create_messages_poll(deps.storage, expires_at, snapshot, msgs_to_verify.len())?;
 
@@ -375,53 +365,4 @@ fn calculate_expiration(block_height: u64, block_expiry: u64) -> Result<u64, Con
         .checked_add(block_expiry)
         .ok_or_else(|| OverflowError::new(OverflowOperation::Add, block_height, block_expiry))
         .map_err(ContractError::from)
-}
-
-#[cfg(test)]
-mod test {
-    use axelar_wasm_std::{MajorityThreshold, Threshold};
-    use cosmwasm_std::testing::mock_dependencies;
-    use cosmwasm_std::Addr;
-
-    use super::require_governance;
-    use crate::state::{Config, CONFIG};
-
-    fn mock_config(governance: Addr, voting_threshold: MajorityThreshold) -> Config {
-        Config {
-            governance,
-            service_registry_contract: Addr::unchecked("doesn't matter"),
-            service_name: "validators".to_string().try_into().unwrap(),
-            source_gateway_address: "0x89e51fA8CA5D66cd220bAed62ED01e8951aa7c40"
-                .to_string()
-                .try_into()
-                .unwrap(),
-            voting_threshold,
-            source_chain: "ethereum".to_string().try_into().unwrap(),
-            block_expiry: 10,
-            confirmation_height: 2,
-            rewards_contract: Addr::unchecked("rewards"),
-            msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
-        }
-    }
-
-    #[test]
-    fn require_governance_should_reject_non_governance() {
-        let mut deps = mock_dependencies();
-        let governance = Addr::unchecked("governance");
-        CONFIG
-            .save(
-                deps.as_mut().storage,
-                &mock_config(
-                    governance.clone(),
-                    Threshold::try_from((2, 3)).unwrap().try_into().unwrap(),
-                ),
-            )
-            .unwrap();
-
-        let res = require_governance(&deps.as_mut(), Addr::unchecked("random"));
-        assert!(res.is_err());
-
-        let res = require_governance(&deps.as_mut(), governance);
-        assert!(res.is_ok());
-    }
 }
