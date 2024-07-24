@@ -247,7 +247,7 @@ mod tests {
         assert!(query::caller_authorized(deps.as_ref(), prover, chain_name).unwrap());
     }
 
-    #[deprecated(since = "0.4.1", note = "Only used to test the migration")]
+    #[deprecated(since = "0.4.1", note = "only used to test the migration")]
     fn instantiate(
         deps: DepsMut,
         _env: Env,
@@ -270,7 +270,7 @@ mod tests {
     }
 
     #[cw_serde]
-    #[deprecated(since = "0.4.1", note = "Only used to test the migration")]
+    #[deprecated(since = "0.4.1", note = "only used to test the migration")]
     struct InstantiateMsg {
         // the governance address is allowed to modify the authorized caller list for this contract
         pub governance_address: String,

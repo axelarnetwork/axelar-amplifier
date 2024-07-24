@@ -51,7 +51,7 @@ fn migrate_permission_control(storage: &mut dyn Storage, governance: &Addr) -> S
 }
 
 #[cw_serde]
-#[deprecated(since = "0.5.0", note = "Only used during migration")]
+#[deprecated(since = "0.5.0", note = "only used during migration")]
 pub struct Config {
     pub governance: Addr,
     pub service_registry_contract: Addr,
@@ -89,7 +89,7 @@ impl From<Config> for Vec<Attribute> {
         .collect()
     }
 }
-#[deprecated(since = "0.5.0", note = "Only used during migration")]
+#[deprecated(since = "0.5.0", note = "only used during migration")]
 pub const CONFIG: Item<Config> = Item::new("config");
 
 #[cfg(test)]
@@ -168,7 +168,7 @@ mod tests {
         .unwrap();
     }
 
-    #[deprecated(since = "0.5.0", note = "Only used to test the migration")]
+    #[deprecated(since = "0.5.0", note = "only used to test the migration")]
     fn instantiate(
         deps: DepsMut,
         _env: Env,
@@ -196,7 +196,7 @@ mod tests {
     }
 
     #[cw_serde]
-    #[deprecated(since = "0.5.0", note = "Only used to test the migration")]
+    #[deprecated(since = "0.5.0", note = "only used to test the migration")]
     pub struct InstantiateMsg {
         /// Address that can call all messages of unrestricted governance permission level, like UpdateVotingThreshold.
         /// It can execute messages that bypasses verification checks to rescue the contract if it got into an otherwise unrecoverable state due to external forces.
