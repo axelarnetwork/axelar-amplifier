@@ -3,7 +3,7 @@ use std::fmt::Display;
 use std::str::FromStr;
 
 use cosmwasm_std::HexBinary;
-use error_stack::{Report, ResultExt};
+use error_stack::{Report, ResultExt, ensure};
 use lazy_static::lazy_static;
 use regex::Regex;
 
@@ -17,7 +17,7 @@ pub struct HexTxHash {
 
 impl HexTxHash {
     pub fn tx_hash_as_hex(&self) -> nonempty::String {
-        format!("{}", HexBinary::from(self.tx_hash).to_hex())
+        HexBinary::from(self.tx_hash).to_hex()
             .try_into()
             .expect("failed to convert tx hash to non-empty string")
     }
@@ -42,12 +42,13 @@ impl FromStr for HexTxHash {
         Self: Sized,
     {
         // the PATTERN has exactly two capture groups, so the groups can be extracted safely
-        REGEX
-            .captures(message_id)
-            .ok_or(Error::InvalidMessageID {
+        ensure!(
+            REGEX.is_match(message_id),
+            Error::InvalidMessageID {
                 id: message_id.to_string(),
                 expected_format: PATTERN.to_string(),
-            })?;
+            }
+        );
         Ok(HexTxHash {
             tx_hash: HexBinary::from_hex(message_id)
                 .change_context(Error::InvalidTxHash(message_id.to_string()))?
@@ -79,7 +80,7 @@ mod tests {
             let byte: u8 = rand::random();
             bytes.push(byte)
         }
-        format!("{}", HexBinary::from(bytes).to_hex())
+        HexBinary::from(bytes).to_hex()
     }
 
     #[test]
@@ -123,6 +124,20 @@ mod tests {
     fn should_not_parse_msg_id_with_non_hex_tx_hash() {
         let msg_id = "82GKYvWv5EKm7jnYksHoh3u5M2RxHN2boPreM8Df4ej9";
         let res = HexTxHash::from_str(msg_id);
+        assert!(res.is_err());
+    }
+
+    #[test]
+    fn should_not_parse_msg_id_with_0x_prefix() {
+        let msg_id = "0x7cedbb3799cd99636045c84c5c55aef8a138f107ac8ba53a08cad1070ba4385b-1";
+        let res = HexTxHash::from_str(msg_id);
+        assert!(res.is_err());
+    }
+
+    #[test]
+    fn should_not_parse_msg_id_with_event_index() {
+        let tx_hash = random_hash();
+        let res = HexTxHash::from_str(&format!("{}-1", tx_hash));
         assert!(res.is_err());
     }
 }
