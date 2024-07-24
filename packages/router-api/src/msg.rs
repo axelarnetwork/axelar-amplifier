@@ -51,7 +51,7 @@ pub enum ExecuteMsg {
 #[derive(QueryResponses)]
 pub enum QueryMsg {
     #[returns(ChainEndpoint)]
-    GetChainInfo(ChainName),
+    ChainInfo(ChainName),
 
     // Returns a list of chains registered with the router
     // The list is paginated by:
