@@ -88,7 +88,7 @@ fn chain_can_be_freezed_unfreezed() {
 
     // routed message should have been preserved
     let found_msgs =
-        test_utils::get_messages_from_gateway(&mut protocol.app, &chain2.gateway, &msg_ids);
+        test_utils::messages_from_gateway(&mut protocol.app, &chain2.gateway, &msg_ids);
     assert_eq!(found_msgs, msgs);
 
     // can route again

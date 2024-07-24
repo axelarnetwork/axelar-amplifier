@@ -64,7 +64,7 @@ fn single_message_can_be_verified_and_routed_and_proven_and_rewards_are_distribu
 
     // check that the message can be found at the outgoing gateway
     let found_msgs =
-        test_utils::get_messages_from_gateway(&mut protocol.app, &chain2.gateway, &msg_ids);
+        test_utils::messages_from_gateway(&mut protocol.app, &chain2.gateway, &msg_ids);
     assert_eq!(found_msgs, msgs);
 
     // trigger signing and submit all necessary signatures
@@ -75,7 +75,7 @@ fn single_message_can_be_verified_and_routed_and_proven_and_rewards_are_distribu
         &verifiers,
     );
 
-    let proof = test_utils::get_proof(&mut protocol.app, &chain2.multisig_prover, &session_id);
+    let proof = test_utils::proof(&mut protocol.app, &chain2.multisig_prover, &session_id);
 
     // proof should be complete by now
     assert!(matches!(

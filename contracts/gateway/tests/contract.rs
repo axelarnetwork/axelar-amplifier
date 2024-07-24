@@ -138,7 +138,7 @@ fn successful_route_outgoing() {
         let router = "router";
         instantiate_contract(deps.as_mut(), "verifier", router);
 
-        let query_msg = QueryMsg::GetOutgoingMessages {
+        let query_msg = QueryMsg::OutgoingMessages {
             message_ids: msgs.iter().map(|msg| msg.cc_id.clone()).collect(),
         };
 
@@ -398,7 +398,7 @@ fn correctly_working_verifier_handler(
 {
     move |msg: voting_verifier::msg::QueryMsg| -> Result<Vec<MessageStatus>, ContractError> {
         match msg {
-            voting_verifier::msg::QueryMsg::GetMessagesStatus { messages } => Ok(messages
+            voting_verifier::msg::QueryMsg::MessagesStatus { messages } => Ok(messages
                 .into_iter()
                 .map(|msg| {
                     MessageStatus::new(

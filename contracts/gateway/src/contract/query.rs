@@ -6,7 +6,7 @@ use router_api::{CrossChainId, Message};
 use crate::contract::Error;
 use crate::state;
 
-pub fn get_outgoing_messages(
+pub fn outgoing_messages(
     storage: &dyn Storage,
     cross_chain_ids: Vec<CrossChainId>,
 ) -> Result<Vec<Message>, Error> {
@@ -45,7 +45,7 @@ mod test {
     use crate::state;
 
     #[test]
-    fn get_outgoing_messages_all_messages_present_returns_all() {
+    fn outgoing_messages_all_messages_present_returns_all() {
         let mut deps = mock_dependencies();
 
         let messages = generate_messages();
@@ -56,25 +56,25 @@ mod test {
 
         let ids = messages.iter().map(|msg| msg.cc_id.clone()).collect();
 
-        let res = super::get_outgoing_messages(&deps.storage, ids).unwrap();
+        let res = super::outgoing_messages(&deps.storage, ids).unwrap();
         assert_eq!(res, messages);
     }
 
     #[test]
-    fn get_outgoing_messages_nothing_stored_returns_not_found_error() {
+    fn outgoing_messages_nothing_stored_returns_not_found_error() {
         let deps = mock_dependencies();
 
         let messages = generate_messages();
         let ids = messages.iter().map(|msg| msg.cc_id.clone()).collect();
 
-        let res = super::get_outgoing_messages(&deps.storage, ids);
+        let res = super::outgoing_messages(&deps.storage, ids);
 
         assert!(res.is_err());
         assert_eq!(res.unwrap_err().current_frames().len(), messages.len());
     }
 
     #[test]
-    fn get_outgoing_messages_only_partially_found_returns_not_found_error() {
+    fn outgoing_messages_only_partially_found_returns_not_found_error() {
         let mut deps = mock_dependencies();
 
         let messages = generate_messages();
@@ -83,7 +83,7 @@ mod test {
 
         let ids = messages.iter().map(|msg| msg.cc_id.clone()).collect();
 
-        let res = super::get_outgoing_messages(&deps.storage, ids);
+        let res = super::outgoing_messages(&deps.storage, ids);
 
         assert!(res.is_err());
         assert_eq!(res.unwrap_err().current_frames().len(), messages.len() - 1);

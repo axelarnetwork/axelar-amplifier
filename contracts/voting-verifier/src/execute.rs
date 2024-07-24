@@ -56,7 +56,7 @@ pub fn verify_verifier_set(
 
     let config = CONFIG.load(deps.storage)?;
     let snapshot = take_snapshot(deps.as_ref(), &config.source_chain)?;
-    let participants = snapshot.get_participants();
+    let participants = snapshot.participants();
     let expires_at = calculate_expiration(env.block.height, config.block_expiry)?;
 
     let poll_id = create_verifier_set_poll(deps.storage, expires_at, snapshot)?;
@@ -132,7 +132,7 @@ pub fn verify_messages(
     }
 
     let snapshot = take_snapshot(deps.as_ref(), &source_chain)?;
-    let participants = snapshot.get_participants();
+    let participants = snapshot.participants();
     let expires_at = calculate_expiration(env.block.height, config.block_expiry)?;
 
     let id = create_messages_poll(deps.storage, expires_at, snapshot, msgs_to_verify.len())?;
@@ -166,7 +166,7 @@ pub fn verify_messages(
     ))
 }
 
-fn get_poll_results(poll: &Poll) -> PollResults {
+fn poll_results(poll: &Poll) -> PollResults {
     match poll {
         Poll::Messages(weighted_poll) => weighted_poll.results(),
         Poll::ConfirmVerifierSet(weighted_poll) => weighted_poll.results(),
@@ -231,7 +231,7 @@ pub fn vote(
         .may_load(deps.storage, poll_id)?
         .ok_or(ContractError::PollNotFound)?;
 
-    let results_before_voting = get_poll_results(&poll);
+    let results_before_voting = poll_results(&poll);
 
     let poll = poll.try_map(|poll| {
         poll.cast_vote(env.block.height, &info.sender, votes.clone())
@@ -239,7 +239,7 @@ pub fn vote(
     })?;
     POLLS.save(deps.storage, poll_id, &poll)?;
 
-    let results_after_voting = get_poll_results(&poll);
+    let results_after_voting = poll_results(&poll);
 
     let quorum_events = results_after_voting
         .difference(results_before_voting)
@@ -321,7 +321,7 @@ fn take_snapshot(deps: Deps, chain: &ChainName) -> Result<snapshot::Snapshot, Co
 
     // todo: add chain param to query after service registry updated
     // query service registry for active verifiers
-    let active_verifiers_query = QueryMsg::GetActiveVerifiers {
+    let active_verifiers_query = QueryMsg::ActiveVerifiers {
         service_name: config.service_name.to_string(),
         chain_name: chain.clone(),
     };

@@ -82,8 +82,8 @@ pub enum ExecuteMsg {
 #[cw_serde]
 #[derive(QueryResponses)]
 pub enum QueryMsg {
-    #[returns(GetProofResponse)]
-    GetProof { multisig_session_id: Uint64 },
+    #[returns(ProofResponse)]
+    Proof { multisig_session_id: Uint64 },
 
     /// Returns a `VerifierSetResponse` with the current verifier set id and the verifier set itself.
     #[returns(Option<VerifierSetResponse>)]
@@ -101,7 +101,7 @@ pub enum ProofStatus {
 }
 
 #[cw_serde]
-pub struct GetProofResponse {
+pub struct ProofResponse {
     pub multisig_session_id: Uint64,
     pub message_ids: Vec<CrossChainId>,
     pub payload: Payload,

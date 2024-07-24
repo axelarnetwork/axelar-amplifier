@@ -138,22 +138,18 @@ pub fn execute(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
     match msg {
-        QueryMsg::GetActiveVerifiers {
+        QueryMsg::ActiveVerifiers {
             service_name,
             chain_name,
-        } => to_json_binary(&query::get_active_verifiers(
-            deps,
-            service_name,
-            chain_name,
-        )?)
-        .map_err(|err| err.into()),
-        QueryMsg::GetVerifier {
+        } => to_json_binary(&query::active_verifiers(deps, service_name, chain_name)?)
+            .map_err(|err| err.into()),
+        QueryMsg::Verifier {
             service_name,
             verifier,
-        } => to_json_binary(&query::get_verifier(deps, service_name, verifier)?)
+        } => to_json_binary(&query::verifier(deps, service_name, verifier)?)
             .map_err(|err| err.into()),
-        QueryMsg::GetService { service_name } => {
-            to_json_binary(&query::get_service(deps, service_name)?).map_err(|err| err.into())
+        QueryMsg::Service { service_name } => {
+            to_json_binary(&query::service(deps, service_name)?).map_err(|err| err.into())
         }
     }
 }
@@ -415,7 +411,7 @@ mod test {
             query(
                 deps.as_ref(),
                 mock_env(),
-                QueryMsg::GetActiveVerifiers {
+                QueryMsg::ActiveVerifiers {
                     service_name: service_name.into(),
                     chain_name,
                 },
@@ -442,7 +438,7 @@ mod test {
             query(
                 deps.as_ref(),
                 mock_env(),
-                QueryMsg::GetActiveVerifiers {
+                QueryMsg::ActiveVerifiers {
                     service_name: service_name.into(),
                     chain_name: ChainName::from_str("random chain").unwrap(),
                 },
@@ -530,7 +526,7 @@ mod test {
             query(
                 deps.as_ref(),
                 mock_env(),
-                QueryMsg::GetActiveVerifiers {
+                QueryMsg::ActiveVerifiers {
                     service_name: service_name.into(),
                     chain_name,
                 },
@@ -622,7 +618,7 @@ mod test {
                 query(
                     deps.as_ref(),
                     mock_env(),
-                    QueryMsg::GetActiveVerifiers {
+                    QueryMsg::ActiveVerifiers {
                         service_name: service_name.into(),
                         chain_name: chain,
                     },
@@ -718,7 +714,7 @@ mod test {
             query(
                 deps.as_ref(),
                 mock_env(),
-                QueryMsg::GetActiveVerifiers {
+                QueryMsg::ActiveVerifiers {
                     service_name: service_name.into(),
                     chain_name: deregistered_chain,
                 },
@@ -734,7 +730,7 @@ mod test {
                 query(
                     deps.as_ref(),
                     mock_env(),
-                    QueryMsg::GetActiveVerifiers {
+                    QueryMsg::ActiveVerifiers {
                         service_name: service_name.into(),
                         chain_name: chain.clone(),
                     },
@@ -837,7 +833,7 @@ mod test {
             query(
                 deps.as_ref(),
                 mock_env(),
-                QueryMsg::GetActiveVerifiers {
+                QueryMsg::ActiveVerifiers {
                     service_name: service_name.into(),
                     chain_name,
                 },
@@ -949,7 +945,7 @@ mod test {
             query(
                 deps.as_ref(),
                 mock_env(),
-                QueryMsg::GetActiveVerifiers {
+                QueryMsg::ActiveVerifiers {
                     service_name: service_name.into(),
                     chain_name,
                 },
@@ -1038,7 +1034,7 @@ mod test {
             query(
                 deps.as_ref(),
                 mock_env(),
-                QueryMsg::GetActiveVerifiers {
+                QueryMsg::ActiveVerifiers {
                     service_name: service_name.into(),
                     chain_name,
                 },
@@ -1112,7 +1108,7 @@ mod test {
             query(
                 deps.as_ref(),
                 mock_env(),
-                QueryMsg::GetActiveVerifiers {
+                QueryMsg::ActiveVerifiers {
                     service_name: service_name.into(),
                     chain_name,
                 },
@@ -1166,7 +1162,7 @@ mod test {
             query(
                 deps.as_ref(),
                 mock_env(),
-                QueryMsg::GetActiveVerifiers {
+                QueryMsg::ActiveVerifiers {
                     service_name: service_name.into(),
                     chain_name,
                 },
@@ -1272,7 +1268,7 @@ mod test {
             query(
                 deps.as_ref(),
                 mock_env(),
-                QueryMsg::GetActiveVerifiers {
+                QueryMsg::ActiveVerifiers {
                     service_name: service_name.into(),
                     chain_name,
                 },
@@ -1374,7 +1370,7 @@ mod test {
             query(
                 deps.as_ref(),
                 mock_env(),
-                QueryMsg::GetActiveVerifiers {
+                QueryMsg::ActiveVerifiers {
                     service_name: service_name.into(),
                     chain_name,
                 },
@@ -1448,7 +1444,7 @@ mod test {
             query(
                 deps.as_ref(),
                 mock_env(),
-                QueryMsg::GetActiveVerifiers {
+                QueryMsg::ActiveVerifiers {
                     service_name: service_name.into(),
                     chain_name,
                 },
@@ -1522,7 +1518,7 @@ mod test {
             query(
                 deps.as_ref(),
                 mock_env(),
-                QueryMsg::GetActiveVerifiers {
+                QueryMsg::ActiveVerifiers {
                     service_name: service_name.into(),
                     chain_name,
                 },
@@ -1629,7 +1625,7 @@ mod test {
             query(
                 deps.as_ref(),
                 mock_env(),
-                QueryMsg::GetActiveVerifiers {
+                QueryMsg::ActiveVerifiers {
                     service_name: service_name.into(),
                     chain_name,
                 },
@@ -1775,7 +1771,7 @@ mod test {
 
     #[test]
     #[allow(clippy::cast_possible_truncation)]
-    fn get_active_verifiers_should_not_return_less_than_min() {
+    fn active_verifiers_should_not_return_less_than_min() {
         let mut deps = setup();
 
         let verifiers = vec![Addr::unchecked("verifier1"), Addr::unchecked("verifier2")];
@@ -1818,7 +1814,7 @@ mod test {
             let res = query(
                 deps.as_ref(),
                 mock_env(),
-                QueryMsg::GetActiveVerifiers {
+                QueryMsg::ActiveVerifiers {
                     service_name: service_name.into(),
                     chain_name: chain_name.clone(),
                 },
@@ -1855,7 +1851,7 @@ mod test {
             query(
                 deps.as_ref(),
                 mock_env(),
-                QueryMsg::GetActiveVerifiers {
+                QueryMsg::ActiveVerifiers {
                     service_name: service_name.into(),
                     chain_name: chain_name.clone(),
                 },
@@ -1878,7 +1874,7 @@ mod test {
         let res = query(
             deps.as_ref(),
             mock_env(),
-            QueryMsg::GetActiveVerifiers {
+            QueryMsg::ActiveVerifiers {
                 service_name: service_name.into(),
                 chain_name: chain_name.clone(),
             },
@@ -1984,7 +1980,7 @@ mod test {
             query(
                 deps.as_ref(),
                 mock_env(),
-                QueryMsg::GetVerifier {
+                QueryMsg::Verifier {
                     service_name: service_name.into(),
                     verifier: verifier2.to_string(),
                 },
