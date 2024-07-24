@@ -371,9 +371,12 @@ fn remap_account_not_found_error(
 mod tests {
     use cosmrs::bank::MsgSend;
     use cosmrs::crypto::PublicKey;
+    use cosmrs::proto::cosmos::auth::v1beta1::query_client::QueryClient as AuthQueryClient;
     use cosmrs::proto::cosmos::auth::v1beta1::{BaseAccount, QueryAccountResponse};
+    use cosmrs::proto::cosmos::bank::v1beta1::query_client::QueryClient as BankQueryClient;
     use cosmrs::proto::cosmos::bank::v1beta1::QueryBalanceResponse;
     use cosmrs::proto::cosmos::base::abci::v1beta1::{GasInfo, TxResponse};
+    use cosmrs::proto::cosmos::tx::v1beta1::service_client::ServiceClient;
     use cosmrs::proto::cosmos::tx::v1beta1::{GetTxResponse, SimulateResponse};
     use cosmrs::proto::traits::MessageExt;
     use cosmrs::proto::Any;
@@ -391,9 +394,69 @@ mod tests {
     use crate::broadcaster::{
         BasicBroadcaster, Broadcaster, Config, Error, UnvalidatedBasicBroadcaster,
     };
+    use crate::queue::proto;
     use crate::tofnd::grpc::MockMultisig;
     use crate::types::TMAddress;
     use crate::PREFIX;
+
+    #[test]
+    async fn play() {
+        let priv_key =
+            hex::decode("49d790f39fee5644ec369491ed1863e92f6f1460a9fbad29e16f835d55c0100d")
+                .unwrap();
+        let priv_key = SigningKey::from_bytes(priv_key.as_slice().try_into().unwrap()).unwrap();
+        let pub_key = priv_key.verifying_key().into();
+        let tm_grpc = "tcp://devnet-amplifier.axelar.dev:9090";
+
+        let service_client = ServiceClient::connect(tm_grpc.to_string()).await.unwrap();
+        let auth_query_client = AuthQueryClient::connect(tm_grpc.to_string()).await.unwrap();
+        let bank_query_client = BankQueryClient::connect(tm_grpc.to_string()).await.unwrap();
+
+        let mut signer = MockMultisig::default();
+        signer.expect_sign().returning(move |_, data, _, _| {
+            let (signature, _) = priv_key
+                .sign_prehash_recoverable(<Vec<u8>>::from(data).as_slice())
+                .unwrap();
+
+            Ok(signature.to_vec())
+        });
+
+        let mut config = Config::default();
+        config.chain_id = "devnet-amplifier".parse().unwrap();
+        config.gas_price.denom = "uamplifier".parse().unwrap();
+
+        let mut broadcaster = UnvalidatedBasicBroadcaster::builder()
+            .auth_query_client(auth_query_client)
+            .bank_query_client(bank_query_client)
+            .address_prefix(PREFIX.to_string())
+            .client(service_client)
+            .signer(signer)
+            .pub_key(("key_id".to_owned(), pub_key))
+            .config(config)
+            .build()
+            .validate_fee_denomination()
+            .await
+            .unwrap();
+
+        let msg_send = MsgSend {
+            from_address: broadcaster.sender_address().as_ref().clone(),
+            to_address: broadcaster.sender_address().as_ref().clone(),
+            amount: vec![],
+        }
+        .to_any()
+        .unwrap();
+        let batch_req = proto::axelar::auxiliary::v1beta1::BatchRequest {
+            sender: broadcaster.sender_address().as_ref().to_bytes(),
+            messages: vec![msg_send],
+        }
+        .to_any()
+        .unwrap();
+
+        // 0a262f6178656c61722e617578696c696172792e763162657461312e4261746368526571756573741296010a14d727d539f6c043330730f96359917c8ce1065c23127e0a1c2f636f736d6f732e62616e6b2e763162657461312e4d736753656e64125e0a2d6178656c61723136756e613277306b6370706e787065736c3933346e797475336e737376687072683867386466122d6178656c61723136756e613277306b6370706e787065736c3933346e797475336e737376687072683867386466
+        let tx_hash = broadcaster.broadcast(vec![batch_req]).await.unwrap().txhash;
+
+        println!("tx_hash {:?}", tx_hash);
+    }
 
     #[test]
     async fn broadcaster_has_incorrect_fee_denomination_return_error() {
