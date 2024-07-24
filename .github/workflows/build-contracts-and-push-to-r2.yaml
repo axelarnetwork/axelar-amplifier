@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - main
-      - fix/ignore-skip-ci-for-r2-action
+      - fix/push-releases-to-r2
   workflow_dispatch:
     inputs:
       branch:
@@ -25,9 +25,9 @@ jobs:
     steps:
       - name: Determine if commit is a release
         run: |
-          is_release=${{ contains(github.event.head_commit.message, 'chore: release') }}"
-          echo "Does commit belong to a release: ${{ is_release }}"
-          echo "is-release=is_release" >> $GITHUB_OUTPUT
+          is_release=${{ contains(github.event.head_commit.message, 'chore: release') }}
+          echo "Does commit belong to a release: $is_release"
+          echo "is-release=$is_release" >> $GITHUB_OUTPUT
 
       - name: Determine branch
         id: get-branch-name
