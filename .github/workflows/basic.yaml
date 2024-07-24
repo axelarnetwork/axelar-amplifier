@@ -59,6 +59,7 @@ jobs:
           profile: minimal
           toolchain: 1.78.0
           target: wasm32-unknown-unknown
+          default: true
           override: true
 
       - name: Install cosmwasm-check compatible toolchain
@@ -67,6 +68,7 @@ jobs:
           profile: minimal
           toolchain: 1.75.0
           target: wasm32-unknown-unknown
+          default: false
           override: false
 
       - name: Cache build artifacts
@@ -81,6 +83,7 @@ jobs:
 
       - name: Build wasm release
         run: |
+          cargo version
           for C in ./contracts/*/
           do
             echo "Compiling `basename $C`..."
