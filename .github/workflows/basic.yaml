@@ -83,7 +83,6 @@ jobs:
 
       - name: Build wasm release
         run: |
-          cargo version
           for C in ./contracts/*/
           do
             echo "Compiling `basename $C`..."
