@@ -71,17 +71,17 @@ pub fn execute(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::GetPoll { poll_id } => {
+        QueryMsg::Poll { poll_id } => {
             to_json_binary(&query::poll_response(deps, env.block.height, poll_id)?)
         }
 
-        QueryMsg::GetMessagesStatus(messages) => {
+        QueryMsg::MessagesStatus(messages) => {
             to_json_binary(&query::messages_status(deps, &messages, env.block.height)?)
         }
-        QueryMsg::GetVerifierSetStatus(new_verifier_set) => to_json_binary(
+        QueryMsg::VerifierSetStatus(new_verifier_set) => to_json_binary(
             &query::verifier_set_status(deps, &new_verifier_set, env.block.height)?,
         ),
-        QueryMsg::GetCurrentThreshold => to_json_binary(&query::voting_threshold(deps)?),
+        QueryMsg::CurrentThreshold => to_json_binary(&query::voting_threshold(deps)?),
     }
 }
 
@@ -422,7 +422,7 @@ mod test {
             query(
                 deps.as_ref(),
                 mock_env_expired(),
-                QueryMsg::GetMessagesStatus(messages.clone()),
+                QueryMsg::MessagesStatus(messages.clone()),
             )
             .unwrap(),
         )
@@ -539,7 +539,7 @@ mod test {
             query(
                 deps.as_ref(),
                 mock_env_expired(),
-                QueryMsg::GetMessagesStatus(messages.clone()),
+                QueryMsg::MessagesStatus(messages.clone()),
             )
             .unwrap(),
         )
@@ -575,7 +575,7 @@ mod test {
             query(
                 deps.as_ref(),
                 mock_env_expired(),
-                QueryMsg::GetMessagesStatus(messages.clone()),
+                QueryMsg::MessagesStatus(messages.clone()),
             )
             .unwrap(),
         )
@@ -606,7 +606,7 @@ mod test {
             query(
                 deps.as_ref(),
                 mock_env(),
-                QueryMsg::GetMessagesStatus(messages.clone()),
+                QueryMsg::MessagesStatus(messages.clone()),
             )
             .unwrap(),
         )
@@ -638,7 +638,7 @@ mod test {
             query(
                 deps.as_ref(),
                 mock_env(),
-                QueryMsg::GetMessagesStatus(messages.clone()),
+                QueryMsg::MessagesStatus(messages.clone()),
             )
             .unwrap(),
         )
@@ -670,7 +670,7 @@ mod test {
             query(
                 deps.as_ref(),
                 mock_env_expired(),
-                QueryMsg::GetMessagesStatus(messages.clone()),
+                QueryMsg::MessagesStatus(messages.clone()),
             )
             .unwrap(),
         )
@@ -746,7 +746,7 @@ mod test {
                 &query(
                     deps.as_ref(),
                     mock_env(),
-                    QueryMsg::GetMessagesStatus(messages.clone()),
+                    QueryMsg::MessagesStatus(messages.clone()),
                 )
                 .unwrap(),
             )
@@ -773,7 +773,7 @@ mod test {
             query(
                 deps.as_ref(),
                 mock_env(),
-                QueryMsg::GetVerifierSetStatus(verifier_set.clone()),
+                QueryMsg::VerifierSetStatus(verifier_set.clone()),
             )
             .unwrap(),
         )
@@ -823,7 +823,7 @@ mod test {
             query(
                 deps.as_ref(),
                 mock_env(),
-                QueryMsg::GetVerifierSetStatus(verifier_set.clone()),
+                QueryMsg::VerifierSetStatus(verifier_set.clone()),
             )
             .unwrap(),
         )
@@ -876,7 +876,7 @@ mod test {
             query(
                 deps.as_ref(),
                 mock_env(),
-                QueryMsg::GetVerifierSetStatus(verifier_set.clone()),
+                QueryMsg::VerifierSetStatus(verifier_set.clone()),
             )
             .unwrap(),
         )
@@ -929,7 +929,7 @@ mod test {
             query(
                 deps.as_ref(),
                 mock_env(),
-                QueryMsg::GetVerifierSetStatus(verifier_set.clone()),
+                QueryMsg::VerifierSetStatus(verifier_set.clone()),
             )
             .unwrap(),
         )
@@ -974,7 +974,7 @@ mod test {
             query(
                 deps.as_ref(),
                 mock_env(),
-                QueryMsg::GetVerifierSetStatus(verifier_set.clone()),
+                QueryMsg::VerifierSetStatus(verifier_set.clone()),
             )
             .unwrap(),
         )
@@ -1060,7 +1060,7 @@ mod test {
         )
         .unwrap();
 
-        let res = query(deps.as_ref(), mock_env(), QueryMsg::GetCurrentThreshold).unwrap();
+        let res = query(deps.as_ref(), mock_env(), QueryMsg::CurrentThreshold).unwrap();
 
         let threshold: MajorityThreshold = from_json(res).unwrap();
         assert_eq!(threshold, new_voting_threshold);
@@ -1137,7 +1137,7 @@ mod test {
             query(
                 deps.as_ref(),
                 mock_env(),
-                QueryMsg::GetMessagesStatus(messages.clone()),
+                QueryMsg::MessagesStatus(messages.clone()),
             )
             .unwrap(),
         )
@@ -1224,7 +1224,7 @@ mod test {
             query(
                 deps.as_ref(),
                 mock_env_expired(),
-                QueryMsg::GetMessagesStatus(messages.clone()),
+                QueryMsg::MessagesStatus(messages.clone()),
             )
             .unwrap(),
         )

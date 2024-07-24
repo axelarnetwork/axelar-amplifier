@@ -58,7 +58,7 @@ impl<'a> Client<'a> {
 
     pub fn poll(&self, poll_id: PollId) -> Result<PollResponse> {
         self.client
-            .query(&QueryMsg::GetPoll { poll_id })
+            .query(&QueryMsg::Poll { poll_id })
             .change_context_lazy(|| Error::QueryVotingVerifier(self.client.address.clone()))
     }
 
@@ -67,20 +67,20 @@ impl<'a> Client<'a> {
             [] => Ok(vec![]),
             _ => self
                 .client
-                .query(&QueryMsg::GetMessagesStatus(messages))
+                .query(&QueryMsg::MessagesStatus(messages))
                 .change_context_lazy(|| Error::QueryVotingVerifier(self.client.address.clone())),
         }
     }
 
     pub fn verifier_set_status(&self, new_verifier_set: VerifierSet) -> Result<VerificationStatus> {
         self.client
-            .query(&QueryMsg::GetVerifierSetStatus(new_verifier_set))
+            .query(&QueryMsg::VerifierSetStatus(new_verifier_set))
             .change_context_lazy(|| Error::QueryVotingVerifier(self.client.address.clone()))
     }
 
     pub fn current_threshold(&self) -> Result<MajorityThreshold> {
         self.client
-            .query(&QueryMsg::GetCurrentThreshold)
+            .query(&QueryMsg::CurrentThreshold)
             .change_context_lazy(|| Error::QueryVotingVerifier(self.client.address.clone()))
     }
 }

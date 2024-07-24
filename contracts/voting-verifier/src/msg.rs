@@ -79,16 +79,16 @@ pub struct PollResponse {
 #[derive(QueryResponses)]
 pub enum QueryMsg {
     #[returns(PollResponse)]
-    GetPoll { poll_id: PollId },
+    Poll { poll_id: PollId },
 
     #[returns(Vec<MessageStatus>)]
-    GetMessagesStatus(Vec<Message>),
+    MessagesStatus(Vec<Message>),
 
     #[returns(VerificationStatus)]
-    GetVerifierSetStatus(VerifierSet),
+    VerifierSetStatus(VerifierSet),
 
     #[returns(MajorityThreshold)]
-    GetCurrentThreshold,
+    CurrentThreshold,
 }
 
 #[cw_serde]

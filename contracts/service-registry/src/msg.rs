@@ -70,16 +70,16 @@ pub enum ExecuteMsg {
 #[derive(QueryResponses)]
 pub enum QueryMsg {
     #[returns(Vec<crate::state::WeightedVerifier>)]
-    GetActiveVerifiers {
+    ActiveVerifiers {
         service_name: String,
         chain_name: ChainName,
     },
 
     #[returns(crate::state::Service)]
-    GetService { service_name: String },
+    Service { service_name: String },
 
     #[returns(crate::state::Verifier)]
-    GetVerifier {
+    Verifier {
         service_name: String,
         verifier: String,
     },

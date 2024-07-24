@@ -32,7 +32,7 @@ pub const AXL_DENOMINATION: &str = "uaxl";
 
 pub const SIGNATURE_BLOCK_EXPIRY: u64 = 100;
 
-fn get_event_attribute<'a>(
+fn find_event_attribute<'a>(
     events: &'a [Event],
     event_type: &str,
     attribute_name: &str,
@@ -61,10 +61,10 @@ pub fn verify_messages(
 
     let response = response.unwrap();
 
-    let poll_id = get_event_attribute(&response.events, "wasm-messages_poll_started", "poll_id")
+    let poll_id = find_event_attribute(&response.events, "wasm-messages_poll_started", "poll_id")
         .map(|attr| serde_json::from_str(&attr.value).unwrap())
         .expect("couldn't get poll_id");
-    let expiry = get_event_attribute(&response.events, "wasm-messages_poll_started", "expires_at")
+    let expiry = find_event_attribute(&response.events, "wasm-messages_poll_started", "expires_at")
         .map(|attr| attr.value.as_str().parse().unwrap())
         .expect("couldn't get poll expiry");
     (poll_id, expiry)
@@ -206,8 +206,8 @@ pub fn construct_proof_and_sign(
     sign_proof(protocol, verifiers, response.unwrap())
 }
 
-pub fn get_multisig_session_id(response: AppResponse) -> Uint64 {
-    get_event_attribute(&response.events, "wasm-signing_started", "session_id")
+pub fn multisig_session_id(response: AppResponse) -> Uint64 {
+    find_event_attribute(&response.events, "wasm-signing_started", "session_id")
         .map(|attr| attr.value.as_str().try_into().unwrap())
         .expect("couldn't get session_id")
 }
@@ -217,10 +217,10 @@ pub fn sign_proof(
     verifiers: &Vec<Verifier>,
     response: AppResponse,
 ) -> Uint64 {
-    let msg_to_sign = get_event_attribute(&response.events, "wasm-signing_started", "msg")
+    let msg_to_sign = find_event_attribute(&response.events, "wasm-signing_started", "msg")
         .map(|attr| attr.value.clone())
         .expect("couldn't find message to sign");
-    let session_id = get_multisig_session_id(response);
+    let session_id = multisig_session_id(response);
 
     for verifier in verifiers {
         let signature = tofn::ecdsa::sign(
@@ -271,29 +271,29 @@ pub fn register_service(
     assert!(response.is_ok());
 }
 
-pub fn get_messages_from_gateway(
+pub fn messages_from_gateway(
     app: &mut App,
     gateway: &GatewayContract,
     message_ids: &[CrossChainId],
 ) -> Vec<Message> {
     let query_response: Result<Vec<Message>, StdError> = gateway.query(
         app,
-        &gateway_api::msg::QueryMsg::GetOutgoingMessages(message_ids.to_owned()),
+        &gateway_api::msg::QueryMsg::OutgoingMessages(message_ids.to_owned()),
     );
     assert!(query_response.is_ok());
 
     query_response.unwrap()
 }
 
-pub fn get_proof(
+pub fn proof(
     app: &mut App,
     multisig_prover: &MultisigProverContract,
     multisig_session_id: &Uint64,
-) -> multisig_prover::msg::GetProofResponse {
-    let query_response: Result<multisig_prover::msg::GetProofResponse, StdError> = multisig_prover
+) -> multisig_prover::msg::ProofResponse {
+    let query_response: Result<multisig_prover::msg::ProofResponse, StdError> = multisig_prover
         .query(
             app,
-            &multisig_prover::msg::QueryMsg::GetProof {
+            &multisig_prover::msg::QueryMsg::Proof {
                 multisig_session_id: *multisig_session_id,
             },
         );
@@ -302,7 +302,7 @@ pub fn get_proof(
     query_response.unwrap()
 }
 
-pub fn get_verifier_set_from_prover(
+pub fn verifier_set_from_prover(
     app: &mut App,
     multisig_prover_contract: &MultisigProverContract,
 ) -> VerifierSet {
@@ -491,15 +491,15 @@ pub fn confirm_verifier_set(
     assert!(response.is_ok());
 }
 
-fn get_verifier_set_poll_id_and_expiry(response: AppResponse) -> (PollId, PollExpiryBlock) {
-    let poll_id = get_event_attribute(
+fn verifier_set_poll_id_and_expiry(response: AppResponse) -> (PollId, PollExpiryBlock) {
+    let poll_id = find_event_attribute(
         &response.events,
         "wasm-verifier_set_poll_started",
         "poll_id",
     )
     .map(|attr| serde_json::from_str(&attr.value).unwrap())
     .expect("couldn't get poll_id");
-    let expiry = get_event_attribute(
+    let expiry = find_event_attribute(
         &response.events,
         "wasm-verifier_set_poll_started",
         "expires_at",
@@ -531,7 +531,7 @@ pub fn create_verifier_set_poll(
     );
     assert!(response.is_ok());
 
-    get_verifier_set_poll_id_and_expiry(response.unwrap())
+    verifier_set_poll_id_and_expiry(response.unwrap())
 }
 
 pub fn verifiers_to_verifier_set(
@@ -782,7 +782,7 @@ pub fn rotate_active_verifier_set(
 
     let session_id = sign_proof(protocol, previous_verifiers, response.unwrap());
 
-    let proof = get_proof(&mut protocol.app, &chain.multisig_prover, &session_id);
+    let proof = proof(&mut protocol.app, &chain.multisig_prover, &session_id);
     assert!(matches!(
         proof.status,
         multisig_prover::msg::ProofStatus::Completed { .. }

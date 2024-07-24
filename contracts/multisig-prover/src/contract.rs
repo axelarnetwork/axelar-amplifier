@@ -96,9 +96,9 @@ pub fn query(
     msg: QueryMsg,
 ) -> Result<Binary, axelar_wasm_std::error::ContractError> {
     match msg {
-        QueryMsg::GetProof {
+        QueryMsg::Proof {
             multisig_session_id,
-        } => to_json_binary(&query::get_proof(deps, multisig_session_id)?),
+        } => to_json_binary(&query::proof(deps, multisig_session_id)?),
         QueryMsg::CurrentVerifierSet {} => to_json_binary(&query::current_verifier_set(deps)?),
         QueryMsg::NextVerifierSet {} => to_json_binary(&query::next_verifier_set(deps)?),
     }
@@ -137,7 +137,7 @@ mod tests {
     use super::*;
     use crate::contract::execute::should_update_verifier_set;
     use crate::encoding::Encoder;
-    use crate::msg::{GetProofResponse, ProofStatus, VerifierSetResponse};
+    use crate::msg::{ProofResponse, ProofStatus, VerifierSetResponse};
     use crate::test::test_data::{self, TestOperator};
     use crate::test::test_utils::{
         mock_querier_handler, ADMIN, COORDINATOR_ADDRESS, GATEWAY_ADDRESS, GOVERNANCE,
@@ -256,10 +256,10 @@ mod tests {
         )
     }
 
-    fn query_get_proof(
+    fn query_proof(
         deps: Deps,
         multisig_session_id: Option<Uint64>,
-    ) -> Result<GetProofResponse, axelar_wasm_std::error::ContractError> {
+    ) -> Result<ProofResponse, axelar_wasm_std::error::ContractError> {
         let multisig_session_id = match multisig_session_id {
             Some(id) => id,
             None => MULTISIG_SESSION_ID,
@@ -268,14 +268,14 @@ mod tests {
         query(
             deps,
             mock_env(),
-            QueryMsg::GetProof {
+            QueryMsg::Proof {
                 multisig_session_id,
             },
         )
         .map(|res| from_json(res).unwrap())
     }
 
-    fn query_get_verifier_set(
+    fn query_verifier_set(
         deps: Deps,
     ) -> Result<Option<VerifierSetResponse>, axelar_wasm_std::error::ContractError> {
         query(deps, mock_env(), QueryMsg::CurrentVerifierSet {}).map(|res| from_json(res).unwrap())
@@ -385,14 +385,14 @@ mod tests {
     #[test]
     fn test_update_verifier_set_fresh() {
         let mut deps = setup_test_case();
-        let verifier_set = query_get_verifier_set(deps.as_ref());
+        let verifier_set = query_verifier_set(deps.as_ref());
         assert!(verifier_set.is_ok());
         assert!(verifier_set.unwrap().is_none());
         let res = execute_update_verifier_set(deps.as_mut());
 
         assert!(res.is_ok());
 
-        let verifier_set = query_get_verifier_set(deps.as_ref());
+        let verifier_set = query_verifier_set(deps.as_ref());
         assert!(verifier_set.is_ok());
 
         let verifier_set = verifier_set.unwrap().unwrap();
@@ -468,7 +468,7 @@ mod tests {
 
         assert!(res.is_ok());
 
-        let verifier_set = query_get_verifier_set(deps.as_ref());
+        let verifier_set = query_verifier_set(deps.as_ref());
         assert!(verifier_set.is_ok());
 
         let verifier_set = verifier_set.unwrap().unwrap();
@@ -502,7 +502,7 @@ mod tests {
         let res = execute_update_verifier_set(deps.as_mut());
         assert!(res.is_ok());
 
-        let verifier_set = query_get_verifier_set(deps.as_ref());
+        let verifier_set = query_verifier_set(deps.as_ref());
         assert!(verifier_set.is_ok());
 
         let verifier_set = verifier_set.unwrap().unwrap();
@@ -536,7 +536,7 @@ mod tests {
 
         assert!(res.is_ok());
 
-        let verifier_set = query_get_verifier_set(deps.as_ref());
+        let verifier_set = query_verifier_set(deps.as_ref());
         assert!(verifier_set.is_ok());
 
         let verifier_set = verifier_set.unwrap().unwrap();
@@ -653,7 +653,7 @@ mod tests {
         execute_construct_proof(deps.as_mut(), None).unwrap();
         reply_construct_proof(deps.as_mut()).unwrap(); // simulate reply from multisig
 
-        let res = query_get_proof(deps.as_ref(), None).unwrap();
+        let res = query_proof(deps.as_ref(), None).unwrap();
 
         assert_eq!(res.multisig_session_id, MULTISIG_SESSION_ID);
         assert_eq!(res.message_ids.len(), 1);
@@ -702,7 +702,7 @@ mod tests {
     /// Calls update_signing_threshold, increasing the threshold by one.
     /// Returns (initial threshold, new threshold)
     fn update_signing_threshold_increase_by_one(deps: DepsMut) -> (Uint128, Uint128) {
-        let verifier_set = query_get_verifier_set(deps.as_ref())
+        let verifier_set = query_verifier_set(deps.as_ref())
             .unwrap()
             .unwrap()
             .verifier_set;
@@ -740,7 +740,7 @@ mod tests {
             update_signing_threshold_increase_by_one(deps.as_mut());
         assert_ne!(initial_threshold, new_threshold);
 
-        let verifier_set = query_get_verifier_set(deps.as_ref())
+        let verifier_set = query_verifier_set(deps.as_ref())
             .unwrap()
             .unwrap()
             .verifier_set;
@@ -761,7 +761,7 @@ mod tests {
         let governance = Addr::unchecked(GOVERNANCE);
         confirm_verifier_set(deps.as_mut(), governance).unwrap();
 
-        let verifier_set = query_get_verifier_set(deps.as_ref())
+        let verifier_set = query_verifier_set(deps.as_ref())
             .unwrap()
             .unwrap()
             .verifier_set;
@@ -782,7 +782,7 @@ mod tests {
         let res = confirm_verifier_set(deps.as_mut(), Addr::unchecked("relayer"));
         assert!(res.is_ok());
 
-        let verifier_set = query_get_verifier_set(deps.as_ref())
+        let verifier_set = query_verifier_set(deps.as_ref())
             .unwrap()
             .unwrap()
             .verifier_set;

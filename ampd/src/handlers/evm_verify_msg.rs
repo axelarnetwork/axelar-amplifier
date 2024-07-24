@@ -246,7 +246,7 @@ mod tests {
     use crate::types::{EVMAddress, Hash, TMAddress};
     use crate::PREFIX;
 
-    fn get_poll_started_event(participants: Vec<TMAddress>, expires_at: u64) -> PollStarted {
+    fn poll_started_event(participants: Vec<TMAddress>, expires_at: u64) -> PollStarted {
         PollStarted::Messages {
             metadata: PollMetadata {
                 poll_id: "100".parse().unwrap(),
@@ -293,8 +293,8 @@ mod tests {
     #[test]
     fn should_not_deserialize_incorrect_event() {
         // incorrect event type
-        let mut event: Event = get_event(
-            get_poll_started_event(participants(5, None), 100),
+        let mut event: Event = to_event(
+            poll_started_event(participants(5, None), 100),
             &TMAddress::random(PREFIX),
         );
         match event {
@@ -313,8 +313,8 @@ mod tests {
         ));
 
         // invalid field
-        let mut event: Event = get_event(
-            get_poll_started_event(participants(5, None), 100),
+        let mut event: Event = to_event(
+            poll_started_event(participants(5, None), 100),
             &TMAddress::random(PREFIX),
         );
         match event {
@@ -336,8 +336,8 @@ mod tests {
 
     #[test]
     fn should_deserialize_correct_event() {
-        let event: Event = get_event(
-            get_poll_started_event(participants(5, None), 100),
+        let event: Event = to_event(
+            poll_started_event(participants(5, None), 100),
             &TMAddress::random(PREFIX),
         );
         let event: Result<PollStartedEvent, events::Error> = event.try_into();
@@ -357,8 +357,8 @@ mod tests {
         let voting_verifier_contract = TMAddress::random(PREFIX);
         let verifier = TMAddress::random(PREFIX);
         let expiration = 100u64;
-        let event: Event = get_event(
-            get_poll_started_event(participants(5, Some(verifier.clone())), expiration),
+        let event: Event = to_event(
+            poll_started_event(participants(5, Some(verifier.clone())), expiration),
             &voting_verifier_contract,
         );
 
@@ -382,7 +382,7 @@ mod tests {
         assert_eq!(handler.handle(&event).await.unwrap(), vec![]);
     }
 
-    fn get_event(event: impl Into<cosmwasm_std::Event>, contract_address: &TMAddress) -> Event {
+    fn to_event(event: impl Into<cosmwasm_std::Event>, contract_address: &TMAddress) -> Event {
         let mut event: cosmwasm_std::Event = event.into();
 
         event.ty = format!("wasm-{}", event.ty);
