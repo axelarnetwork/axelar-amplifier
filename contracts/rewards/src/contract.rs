@@ -266,7 +266,7 @@ mod tests {
             contract_address.clone(),
             &ExecuteMsg::RecordParticipation {
                 chain_name: chain_name.clone(),
-                event_id: "some event".to_string().try_into().unwrap(),
+                event_id: "some event".try_into().unwrap(),
                 verifier_address: verifier.to_string(),
             },
             &[],
@@ -278,7 +278,7 @@ mod tests {
             contract_address.clone(),
             &ExecuteMsg::RecordParticipation {
                 chain_name: chain_name.clone(),
-                event_id: "some other event".to_string().try_into().unwrap(),
+                event_id: "some other event".try_into().unwrap(),
                 verifier_address: verifier.to_string(),
             },
             &[],
