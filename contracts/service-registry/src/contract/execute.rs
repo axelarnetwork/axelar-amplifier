@@ -3,14 +3,6 @@ use router_api::ChainName;
 use super::*;
 use crate::state::{self, AuthorizationState, Verifier, VERIFIERS};
 
-pub fn require_governance(deps: &DepsMut, info: MessageInfo) -> Result<(), ContractError> {
-    let config = CONFIG.load(deps.storage)?;
-    if config.governance != info.sender {
-        return Err(ContractError::Unauthorized);
-    }
-    Ok(())
-}
-
 #[allow(clippy::too_many_arguments)]
 pub fn register_service(
     deps: DepsMut,
@@ -131,10 +123,6 @@ pub fn register_chains_support(
         .may_load(deps.storage, &service_name)?
         .ok_or(ContractError::ServiceNotFound)?;
 
-    VERIFIERS
-        .may_load(deps.storage, (&service_name, &info.sender))?
-        .ok_or(ContractError::VerifierNotFound)?;
-
     state::register_chains_support(
         deps.storage,
         service_name.clone(),
@@ -154,10 +142,6 @@ pub fn deregister_chains_support(
     SERVICES
         .may_load(deps.storage, &service_name)?
         .ok_or(ContractError::ServiceNotFound)?;
-
-    VERIFIERS
-        .may_load(deps.storage, (&service_name, &info.sender))?
-        .ok_or(ContractError::VerifierNotFound)?;
 
     state::deregister_chains_support(deps.storage, service_name.clone(), chains, info.sender)?;
 
