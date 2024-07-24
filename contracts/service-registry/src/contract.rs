@@ -134,10 +134,7 @@ fn match_verifier(
     |storage: &dyn Storage, msg: &ExecuteMsg| {
         let service_name = match msg {
             ExecuteMsg::RegisterChainSupport { service_name, .. }
-            | ExecuteMsg::DeregisterChainSupport { service_name, .. }
-            | ExecuteMsg::BondVerifier { service_name, .. }
-            | ExecuteMsg::UnbondVerifier { service_name, .. }
-            | ExecuteMsg::ClaimStake { service_name, .. } => service_name,
+            | ExecuteMsg::DeregisterChainSupport { service_name, .. } => service_name,
             _ => bail!(permission_control::Error::WrongVariant),
         };
         VERIFIERS
