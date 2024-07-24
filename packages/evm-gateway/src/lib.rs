@@ -83,7 +83,7 @@ impl TryFrom<&RouterMessage> for Message {
 
         Ok(Message {
             source_chain: msg.cc_id.chain.to_string(),
-            message_id: msg.cc_id.id.to_string(),
+            message_id: msg.cc_id.message_id.to_string(),
             source_address: msg.source_address.to_string(),
             contract_address,
             payload_hash: msg.payload_hash,

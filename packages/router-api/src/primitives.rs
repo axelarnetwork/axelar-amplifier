@@ -53,7 +53,7 @@ impl Message {
 impl From<Message> for Vec<Attribute> {
     fn from(other: Message) -> Self {
         vec![
-            ("id", other.cc_id.id).into(),
+            ("id", other.cc_id.message_id).into(),
             ("source_chain", other.cc_id.chain).into(),
             ("source_address", other.source_address.deref()).into(),
             ("destination_chain", other.destination_chain).into(),
@@ -103,7 +103,7 @@ impl TryFrom<String> for Address {
 #[derive(Eq, Hash)]
 pub struct CrossChainId {
     pub chain: ChainNameRaw,
-    pub id: nonempty::String,
+    pub message_id: nonempty::String,
 }
 
 impl CrossChainId {
@@ -117,7 +117,7 @@ impl CrossChainId {
     {
         Ok(CrossChainId {
             chain: chain.try_into().change_context(Error::InvalidChainName)?,
-            id: id.try_into().change_context(Error::InvalidMessageId)?,
+            message_id: id.try_into().change_context(Error::InvalidMessageId)?,
         })
     }
 }
@@ -130,7 +130,7 @@ impl PrimaryKey<'_> for CrossChainId {
 
     fn key(&self) -> Vec<Key> {
         let mut keys = self.chain.key();
-        keys.extend(self.id.key());
+        keys.extend(self.message_id.key());
         keys
     }
 }
@@ -142,7 +142,7 @@ impl KeyDeserialize for CrossChainId {
         let (chain, id) = <(ChainNameRaw, String)>::from_vec(value)?;
         Ok(CrossChainId {
             chain,
-            id: id
+            message_id: id
                 .try_into()
                 .map_err(|err| StdError::parse_err(type_name::<nonempty::String>(), err))?,
         })
@@ -150,7 +150,11 @@ impl KeyDeserialize for CrossChainId {
 }
 impl Display for CrossChainId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}{}{}", self.chain, CHAIN_NAME_DELIMITER, *self.id)
+        write!(
+            f,
+            "{}{}{}",
+            self.chain, CHAIN_NAME_DELIMITER, *self.message_id
+        )
     }
 }
 
