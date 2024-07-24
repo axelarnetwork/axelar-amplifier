@@ -77,12 +77,13 @@ pub fn encode_execute_data(
 mod tests {
     use axelar_wasm_std::hash::Hash;
     use cosmwasm_std::{Addr, HexBinary, Uint128};
-    use multisig::{key::KeyType, msg::Signer, verifier_set::VerifierSet};
+    use multisig::key::KeyType;
+    use multisig::msg::Signer;
+    use multisig::verifier_set::VerifierSet;
     use router_api::{CrossChainId, Message};
 
-    use crate::payload::Payload;
-
     use super::payload_digest;
+    use crate::payload::Payload;
 
     #[test]
     fn payload_digest_should_encode_correctly_for_verifier_set() {
