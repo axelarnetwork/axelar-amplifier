@@ -102,7 +102,7 @@ jobs:
         run: cosmwasm-check ./target/wasm32-unknown-unknown/release/*.wasm
 
   ampd-compilation:
-    name: Ampd Compilation
+    name: Ampd Release Compilation
     runs-on: blacksmith-32vcpu-ubuntu-2204
     steps:
       - uses: actions/checkout@v4
