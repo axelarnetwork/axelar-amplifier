@@ -245,23 +245,25 @@ fn build_general_permissions_check(
         if general_permissions.is_empty() && !permission.specific.is_empty() {
             // getting to this point means the specific check has failed, so we return an error
             quote! {
-                return Err(axelar_wasm_std::permission_control::Error::AddressNotWhitelisted {
+                Err(axelar_wasm_std::permission_control::Error::AddressNotWhitelisted {
                     expected: whitelisted.clone(),
                     actual: sender.clone(),
                 }.into())
             }
         } else {
             // specific permissions have either failed or there were none, so check general permissions
-            quote! {(#(axelar_wasm_std::permission_control::Permission::#general_permissions )|*).into()}
+            quote! {Ok((#(axelar_wasm_std::permission_control::Permission::#general_permissions )|*).into())}
         }
     });
 
     // map enum variants to general permission checks. Exclude checks for the 'Any' case,
     // because it allows any address, compare permissions to the sender's role otherwise.
     quote! {
-        let permission : axelar_wasm_std::flagset::FlagSet<_> = match self {
+        let permission : Result<axelar_wasm_std::flagset::FlagSet<_>, axelar_wasm_std::permission_control::Error > = match self {
             #(#enum_type::#variants {..}=> {#general_permissions_quote})*
         };
+
+        let permission = permission?;
 
         if permission.contains(axelar_wasm_std::permission_control::Permission::Any) {
             return Ok(self);

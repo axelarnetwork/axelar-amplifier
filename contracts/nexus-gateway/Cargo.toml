@@ -22,6 +22,7 @@ cw2 = { workspace = true }
 error-stack = { workspace = true }
 hex = "0.4.3"
 mockall = "0.11.4"
+msgs-derive = { workspace = true }
 report = { workspace = true }
 router-api = { workspace = true }
 schemars = "0.8.15"

@@ -76,3 +76,15 @@ pub fn extend_err<T, E: Context>(
         Err(added_error)
     }
 }
+
+#[macro_export]
+macro_rules! err_contains {
+    ($expression:expr, $error_type:ty, $pattern:pat $(if $guard:expr)? $(,)?) => {
+        match $expression.downcast_ref::<$error_type>() {
+            Some($pattern) $(if $guard)? => true,
+            _ => false,
+        }
+    };
+}
+
+pub use err_contains;

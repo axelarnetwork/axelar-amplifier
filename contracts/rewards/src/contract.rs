@@ -24,7 +24,7 @@ pub fn migrate(
     deps: DepsMut,
     _env: Env,
     _msg: Empty,
-) -> Result<Response, axelar_wasm_std::ContractError> {
+) -> Result<Response, axelar_wasm_std::error::ContractError> {
     v0_4_0::migrate(deps.storage)?;
 
     // any version checks should be done before here
@@ -40,7 +40,7 @@ pub fn instantiate(
     env: Env,
     _info: MessageInfo,
     msg: InstantiateMsg,
-) -> Result<Response, axelar_wasm_std::ContractError> {
+) -> Result<Response, axelar_wasm_std::error::ContractError> {
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     let governance = deps.api.addr_validate(&msg.governance_address)?;
@@ -73,7 +73,7 @@ pub fn execute(
     env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
-) -> Result<Response, axelar_wasm_std::ContractError> {
+) -> Result<Response, axelar_wasm_std::error::ContractError> {
     match msg.ensure_permissions(deps.storage, &info.sender)? {
         ExecuteMsg::RecordParticipation {
             chain_name,
@@ -149,19 +149,19 @@ pub fn query(
     deps: Deps,
     env: Env,
     msg: QueryMsg,
-) -> Result<Binary, axelar_wasm_std::ContractError> {
+) -> Result<Binary, axelar_wasm_std::error::ContractError> {
     match msg {
         QueryMsg::RewardsPool { pool_id } => {
             let pool = query::rewards_pool(deps.storage, pool_id, env.block.height)?;
             to_json_binary(&pool)
                 .change_context(ContractError::SerializeResponse)
-                .map_err(axelar_wasm_std::ContractError::from)
+                .map_err(axelar_wasm_std::error::ContractError::from)
         }
         QueryMsg::VerifierParticipation { pool_id, epoch_num } => {
             let tally = query::participation(deps.storage, pool_id, epoch_num, env.block.height)?;
             to_json_binary(&tally)
                 .change_context(ContractError::SerializeResponse)
-                .map_err(axelar_wasm_std::ContractError::from)
+                .map_err(axelar_wasm_std::error::ContractError::from)
         }
     }
 }
@@ -266,7 +266,7 @@ mod tests {
             contract_address.clone(),
             &ExecuteMsg::RecordParticipation {
                 chain_name: chain_name.clone(),
-                event_id: "some event".to_string().try_into().unwrap(),
+                event_id: "some event".try_into().unwrap(),
                 verifier_address: verifier.to_string(),
             },
             &[],
@@ -278,7 +278,7 @@ mod tests {
             contract_address.clone(),
             &ExecuteMsg::RecordParticipation {
                 chain_name: chain_name.clone(),
-                event_id: "some other event".to_string().try_into().unwrap(),
+                event_id: "some other event".try_into().unwrap(),
                 verifier_address: verifier.to_string(),
             },
             &[],

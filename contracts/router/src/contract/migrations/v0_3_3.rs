@@ -1,6 +1,7 @@
 #![allow(deprecated)]
 
-use axelar_wasm_std::{killswitch, permission_control, ContractError};
+use axelar_wasm_std::error::ContractError;
+use axelar_wasm_std::{killswitch, permission_control};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, StdResult, Storage};
 use cw_storage_plus::Item;
@@ -51,8 +52,9 @@ const CONFIG: Item<Config> = Item::new("config");
 mod test {
     use std::collections::HashMap;
 
+    use axelar_wasm_std::error::ContractError;
+    use axelar_wasm_std::killswitch;
     use axelar_wasm_std::msg_id::MessageIdFormat;
-    use axelar_wasm_std::{killswitch, ContractError};
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
     use cosmwasm_std::{DepsMut, Env, MessageInfo, Response};
     use router_api::msg::ExecuteMsg;

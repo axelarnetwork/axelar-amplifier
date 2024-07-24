@@ -17,7 +17,7 @@ pub fn get_outgoing_messages(
 }
 
 fn try_load_msg(storage: &dyn Storage, id: CrossChainId) -> Result<Message, Error> {
-    state::may_load_outgoing_msg(storage, id.clone())
+    state::may_load_outgoing_msg(storage, &id)
         .change_context(Error::InvalidStoreAccess)
         .transpose()
         .unwrap_or(Err(report!(Error::MessageNotFound(id))))
@@ -51,8 +51,7 @@ mod test {
         let messages = generate_messages();
 
         for message in messages.iter() {
-            state::save_outgoing_msg(deps.as_mut().storage, message.cc_id.clone(), message)
-                .unwrap();
+            state::save_outgoing_msg(deps.as_mut().storage, &message.cc_id, message).unwrap();
         }
 
         let ids = messages.iter().map(|msg| msg.cc_id.clone()).collect();
@@ -80,12 +79,7 @@ mod test {
 
         let messages = generate_messages();
 
-        state::save_outgoing_msg(
-            deps.as_mut().storage,
-            messages[1].cc_id.clone(),
-            &messages[1],
-        )
-        .unwrap();
+        state::save_outgoing_msg(deps.as_mut().storage, &messages[1].cc_id, &messages[1]).unwrap();
 
         let ids = messages.iter().map(|msg| msg.cc_id.clone()).collect();
 
@@ -98,30 +92,21 @@ mod test {
     fn generate_messages() -> Vec<Message> {
         vec![
             Message {
-                cc_id: CrossChainId {
-                    chain: "chain1".parse().unwrap(),
-                    id: "id1".parse().unwrap(),
-                },
+                cc_id: CrossChainId::new("chain1", "id1").unwrap(),
                 destination_address: "addr1".parse().unwrap(),
                 destination_chain: "chain2".parse().unwrap(),
                 source_address: "addr2".parse().unwrap(),
                 payload_hash: [0; 32],
             },
             Message {
-                cc_id: CrossChainId {
-                    chain: "chain2".parse().unwrap(),
-                    id: "id2".parse().unwrap(),
-                },
+                cc_id: CrossChainId::new("chain2", "id2").unwrap(),
                 destination_address: "addr3".parse().unwrap(),
                 destination_chain: "chain3".parse().unwrap(),
                 source_address: "addr4".parse().unwrap(),
                 payload_hash: [1; 32],
             },
             Message {
-                cc_id: CrossChainId {
-                    chain: "chain3".parse().unwrap(),
-                    id: "id3".parse().unwrap(),
-                },
+                cc_id: CrossChainId::new("chain3", "id3").unwrap(),
                 destination_address: "addr5".parse().unwrap(),
                 destination_chain: "chain4".parse().unwrap(),
                 source_address: "addr6".parse().unwrap(),
