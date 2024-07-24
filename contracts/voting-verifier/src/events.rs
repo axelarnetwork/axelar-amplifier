@@ -17,23 +17,39 @@ use crate::state::Config;
 
 impl From<Config> for Vec<Attribute> {
     fn from(other: Config) -> Self {
+        // destructuring the Config struct so changes to the fields don't go unnoticed
+        let Config {
+            service_name,
+            service_registry_contract,
+            source_gateway_address,
+            voting_threshold,
+            block_expiry,
+            confirmation_height,
+            source_chain,
+            rewards_contract,
+            msg_id_format,
+        } = other;
+
         vec![
-            ("service_name", other.service_name.to_string()),
+            ("service_name", service_name.to_string()),
             (
                 "service_registry_contract",
-                other.service_registry_contract.to_string(),
+                service_registry_contract.to_string(),
             ),
-            (
-                "source_gateway_address",
-                other.source_gateway_address.to_string(),
-            ),
+            ("source_gateway_address", source_gateway_address.to_string()),
             (
                 "voting_threshold",
-                serde_json::to_string(&other.voting_threshold)
+                serde_json::to_string(&voting_threshold)
                     .expect("failed to serialize voting_threshold"),
             ),
-            ("block_expiry", other.block_expiry.to_string()),
-            ("confirmation_height", other.confirmation_height.to_string()),
+            ("block_expiry", block_expiry.to_string()),
+            ("confirmation_height", confirmation_height.to_string()),
+            ("source_chain", source_chain.to_string()),
+            ("rewards_contract", rewards_contract.to_string()),
+            (
+                "msg_id_format",
+                serde_json::to_string(&msg_id_format).expect("failed to serialize msg_id_format"),
+            ),
         ]
         .into_iter()
         .map(Attribute::from)

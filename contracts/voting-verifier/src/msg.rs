@@ -2,6 +2,7 @@ use axelar_wasm_std::msg_id::MessageIdFormat;
 use axelar_wasm_std::voting::{PollId, PollStatus, Vote, WeightedPoll};
 use axelar_wasm_std::{nonempty, MajorityThreshold, VerificationStatus};
 use cosmwasm_schema::{cw_serde, QueryResponses};
+use msgs_derive::EnsurePermissions;
 use multisig::verifier_set::VerifierSet;
 use router_api::{ChainName, Message};
 
@@ -20,44 +21,43 @@ pub struct InstantiateMsg {
     /// Threshold of weighted votes required for voting to be considered complete for a particular message
     pub voting_threshold: MajorityThreshold,
     /// The number of blocks after which a poll expires
-    pub block_expiry: u64,
+    pub block_expiry: nonempty::Uint64,
     /// The number of blocks to wait for on the source chain before considering a transaction final
     pub confirmation_height: u64,
     /// Name of the source chain
     pub source_chain: ChainName,
     /// Rewards contract address on axelar.
-    pub rewards_address: String,
+    pub rewards_address: nonempty::String,
     /// Format that incoming messages should use for the id field of CrossChainId
     pub msg_id_format: MessageIdFormat,
 }
 
 #[cw_serde]
+#[derive(EnsurePermissions)]
 pub enum ExecuteMsg {
     // Computes the results of a poll
     // For all verified messages, calls MessagesVerified on the verifier
-    EndPoll {
-        poll_id: PollId,
-    },
+    #[permission(Any)]
+    EndPoll { poll_id: PollId },
 
     // Casts votes for specified poll
-    Vote {
-        poll_id: PollId,
-        votes: Vec<Vote>,
-    },
+    #[permission(Any)]
+    Vote { poll_id: PollId, votes: Vec<Vote> },
 
     // returns a vector of true/false values, indicating current verification status for each message
     // starts a poll for any not yet verified messages
-    VerifyMessages {
-        messages: Vec<Message>,
-    },
+    #[permission(Any)]
+    VerifyMessages(Vec<Message>),
 
     // Starts a poll to confirm a verifier set update on the external gateway
+    #[permission(Any)]
     VerifyVerifierSet {
         message_id: nonempty::String,
         new_verifier_set: VerifierSet,
     },
 
     // Update the threshold used for new polls. Callable only by governance
+    #[permission(Governance)]
     UpdateVotingThreshold {
         new_voting_threshold: MajorityThreshold,
     },
@@ -79,16 +79,16 @@ pub struct PollResponse {
 #[derive(QueryResponses)]
 pub enum QueryMsg {
     #[returns(PollResponse)]
-    GetPoll { poll_id: PollId },
+    Poll { poll_id: PollId },
 
     #[returns(Vec<MessageStatus>)]
-    GetMessagesStatus { messages: Vec<Message> },
+    MessagesStatus(Vec<Message>),
 
     #[returns(VerificationStatus)]
-    GetVerifierSetStatus { new_verifier_set: VerifierSet },
+    VerifierSetStatus(VerifierSet),
 
     #[returns(MajorityThreshold)]
-    GetCurrentThreshold,
+    CurrentThreshold,
 }
 
 #[cw_serde]
