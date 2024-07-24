@@ -363,7 +363,7 @@ where
 
             let response = self
                 .client
-                .get_tx(GetTxRequest {
+                .tx(GetTxRequest {
                     hash: tx_hash.to_string(),
                 })
                 .await;
@@ -580,7 +580,7 @@ mod tests {
             .expect_broadcast_tx()
             .returning(|_| Ok(TxResponse::default()));
         client
-            .expect_get_tx()
+            .expect_tx()
             .times((Config::default().tx_fetch_max_retries + 1) as usize)
             .returning(|_| Err(Status::deadline_exceeded("time out")));
 
@@ -612,7 +612,7 @@ mod tests {
         client
             .expect_broadcast_tx()
             .returning(|_| Ok(TxResponse::default()));
-        client.expect_get_tx().times(1).returning(|_| {
+        client.expect_tx().times(1).returning(|_| {
             Ok(GetTxResponse {
                 tx_response: Some(TxResponse {
                     code: 32,
