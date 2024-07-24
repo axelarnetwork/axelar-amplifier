@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - fix/ignore-skip-ci-for-r2-action
   workflow_dispatch:
     inputs:
       branch:
@@ -21,6 +22,11 @@ jobs:
       contents: write
       packages: write
       id-token: write
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'push' && 
+       (github.ref == 'refs/heads/fix/ignore-skip-ci-for-r2-action' || 
+        !contains(github.event.head_commit.message, '[skip ci]')))
     steps:
       - name: Determine branch
         id: get-branch-name
