@@ -101,6 +101,39 @@ jobs:
       - name: Check wasm contracts
         run: cosmwasm-check ./target/wasm32-unknown-unknown/release/*.wasm
 
+  ampd-compilation:
+    name: Ampd Release Compilation
+    runs-on: blacksmith-16vcpu-ubuntu-2204
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: 1.78.0
+          target: wasm32-unknown-unknown
+          override: true
+
+      - name: Install protoc
+        uses: arduino/setup-protoc@v2
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Cache build artifacts
+        id: cache
+        uses: useblacksmith/rust-cache@v3.0.1
+        with:
+          shared-key: "cache-ampd-compilation"
+
+      - name: Log crates.toml
+        if: steps.cache.outputs.cache-hit == 'true'
+        run: cat /home/runner/.cargo/.crates.toml
+
+      - name: Build ampd
+        working-directory: ./ampd
+        run: cargo build --release --locked
+
   lints:
     name: Lints
     runs-on: blacksmith-16vcpu-ubuntu-2204
