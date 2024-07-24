@@ -95,15 +95,18 @@ pub const CONFIG: Item<Config> = Item::new("config");
 #[cfg(test)]
 mod tests {
     use axelar_wasm_std::msg_id::MessageIdFormat;
-    use axelar_wasm_std::{nonempty, MajorityThreshold, Threshold};
+    use axelar_wasm_std::permission_control::Permission;
+    use axelar_wasm_std::{nonempty, permission_control, MajorityThreshold, Threshold};
     use cosmwasm_schema::cw_serde;
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-    use cosmwasm_std::{Attribute, DepsMut, Empty, Env, Event, MessageInfo, Response};
+    use cosmwasm_std::{Addr, Attribute, DepsMut, Empty, Env, Event, MessageInfo, Response};
     use router_api::ChainName;
 
     use crate::contract::migrations::v0_5_0;
     use crate::contract::{migrate, CONTRACT_NAME, CONTRACT_VERSION};
     use crate::state;
+
+    const GOVERNANCE: &str = "governance";
 
     #[test]
     fn migrate_checks_contract_version() {
@@ -145,13 +148,28 @@ mod tests {
         assert!(state::CONFIG.load(deps.as_mut().storage).is_ok());
     }
 
+    #[test]
+    fn permission_control_gets_migrated() {
+        let mut deps = mock_dependencies();
+        instantiate_contract(deps.as_mut());
+
+        assert!(v0_5_0::migrate(deps.as_mut().storage).is_ok());
+
+        assert!(permission_control::sender_role(
+            deps.as_mut().storage,
+            &Addr::unchecked(GOVERNANCE)
+        )
+        .unwrap()
+        .contains(Permission::Governance));
+    }
+
     fn instantiate_contract(deps: DepsMut) {
         instantiate(
             deps,
             mock_env(),
             mock_info("admin", &[]),
             InstantiateMsg {
-                governance_address: "governance".parse().unwrap(),
+                governance_address: GOVERNANCE.parse().unwrap(),
                 service_registry_address: "service_registry".parse().unwrap(),
                 service_name: "service".parse().unwrap(),
                 source_gateway_address: "source_gateway".parse().unwrap(),
