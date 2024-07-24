@@ -45,7 +45,7 @@ impl Snapshot {
         }
     }
 
-    pub fn get_participants(&self) -> Vec<Addr> {
+    pub fn participants(&self) -> Vec<Addr> {
         self.participants
             .keys()
             .cloned()
@@ -53,7 +53,7 @@ impl Snapshot {
             .collect()
     }
 
-    pub fn get_participant(&self, participant: &Addr) -> Option<&Participant> {
+    pub fn find(&self, participant: &Addr) -> Option<&Participant> {
         self.participants.get(&participant.to_string())
     }
 }

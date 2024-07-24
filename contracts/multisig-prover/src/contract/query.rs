@@ -4,22 +4,19 @@ use multisig::multisig::Multisig;
 use multisig::types::MultisigState;
 
 use crate::error::ContractError;
-use crate::msg::{GetProofResponse, ProofStatus, VerifierSetResponse};
+use crate::msg::{ProofResponse, ProofStatus, VerifierSetResponse};
 use crate::state::{
     CONFIG, CURRENT_VERIFIER_SET, MULTISIG_SESSION_PAYLOAD, NEXT_VERIFIER_SET, PAYLOAD,
 };
 
-pub fn get_proof(
-    deps: Deps,
-    multisig_session_id: Uint64,
-) -> Result<GetProofResponse, ContractError> {
+pub fn proof(deps: Deps, multisig_session_id: Uint64) -> Result<ProofResponse, ContractError> {
     let config = CONFIG.load(deps.storage).map_err(ContractError::from)?;
 
     let payload_id = MULTISIG_SESSION_PAYLOAD
         .load(deps.storage, multisig_session_id.u64())
         .map_err(ContractError::from)?;
 
-    let query_msg = multisig::msg::QueryMsg::GetMultisig {
+    let query_msg = multisig::msg::QueryMsg::Multisig {
         session_id: multisig_session_id,
     };
 
@@ -49,7 +46,7 @@ pub fn get_proof(
         }
     };
 
-    Ok(GetProofResponse {
+    Ok(ProofResponse {
         multisig_session_id,
         message_ids: payload.message_ids().unwrap_or_default(),
         payload,

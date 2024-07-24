@@ -15,9 +15,9 @@ message SubscribeRequest {
   bool include_block_begin_end = 2;
 }
 
-message EventBlockBegin { uint64 height = 1; }
+message EventBlockBegin {uint64 height = 1;}
 
-message EventBlockEnd { uint64 height = 1; }
+message EventBlockEnd {uint64 height = 1;}
 
 message Event {
   string event_type = 1;
@@ -32,7 +32,7 @@ message SubscribeResponse {
   }
 }
 
-message BroadcastRequest { google.protobuf.Any msg = 1; }
+message BroadcastRequest {google.protobuf.Any msg = 1;}
 
 message BroadcastResponse {}
 
@@ -47,16 +47,16 @@ message SignRequest {
   Algorithm algorithm = 3;
 }
 
-message SignResponse { bytes signature = 1; }
+message SignResponse {bytes signature = 1;}
 
-message GetKeyRequest {
+message KeyRequest {
   string key_id = 1;
   Algorithm algorithm = 2;
 }
 
-message GetKeyResponse { bytes pub_key = 1; }
+message KeyResponse {bytes pub_key = 1;}
 
 service Crypto {
   rpc Sign(SignRequest) returns (SignResponse) {}
-  rpc GetKey(GetKeyRequest) returns (GetKeyResponse) {}
+  rpc Key(KeyRequest) returns (KeyResponse) {}
 }
