@@ -8548,6 +8548,7 @@ dependencies = [
  "error-stack",
  "integration-tests",
  "itertools 0.11.0",
+ "msgs-derive",
  "multisig",
  "rand",
  "report",
