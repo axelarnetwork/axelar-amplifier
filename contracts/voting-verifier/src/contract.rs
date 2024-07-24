@@ -54,7 +54,7 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
     match msg.ensure_permissions(deps.storage, &info.sender)? {
-        ExecuteMsg::VerifyMessages ( messages ) => execute::verify_messages(deps, env, messages),
+        ExecuteMsg::VerifyMessages(messages) => execute::verify_messages(deps, env, messages),
         ExecuteMsg::Vote { poll_id, votes } => execute::vote(deps, env, info, poll_id, votes),
         ExecuteMsg::EndPoll { poll_id } => execute::end_poll(deps, env, poll_id),
         ExecuteMsg::VerifyVerifierSet {

@@ -47,7 +47,7 @@ pub enum ExecuteMsg {
     // returns a vector of true/false values, indicating current verification status for each message
     // starts a poll for any not yet verified messages
     #[permission(Any)]
-    VerifyMessages ( Vec<Message> ),
+    VerifyMessages(Vec<Message>),
 
     // Starts a poll to confirm a verifier set update on the external gateway
     #[permission(Any)]
