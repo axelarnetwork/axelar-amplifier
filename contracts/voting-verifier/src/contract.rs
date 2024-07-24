@@ -1,4 +1,4 @@
-use axelar_wasm_std::FnExt;
+use axelar_wasm_std::{permission_control, FnExt};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
@@ -6,9 +6,13 @@ use cosmwasm_std::{
     StdResult,
 };
 
+use crate::contract::migrations::v0_5_0;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{Config, CONFIG};
-use crate::{execute, query};
+
+mod execute;
+mod migrations;
+mod query;
 
 const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -22,8 +26,10 @@ pub fn instantiate(
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
+    let governance = deps.api.addr_validate(&msg.governance_address)?;
+    permission_control::set_governance(deps.storage, &governance)?;
+
     let config = Config {
-        governance: deps.api.addr_validate(&msg.governance_address)?,
         service_name: msg.service_name,
         service_registry_contract: deps.api.addr_validate(&msg.service_registry_address)?,
         source_gateway_address: msg.source_gateway_address,
@@ -47,8 +53,8 @@ pub fn execute(
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
-    match msg {
-        ExecuteMsg::VerifyMessages(messages) => execute::verify_messages(deps, env, messages),
+    match msg.ensure_permissions(deps.storage, &info.sender)? {
+        ExecuteMsg::VerifyMessages ( messages ) => execute::verify_messages(deps, env, messages),
         ExecuteMsg::Vote { poll_id, votes } => execute::vote(deps, env, info, poll_id, votes),
         ExecuteMsg::EndPoll { poll_id } => execute::end_poll(deps, env, poll_id),
         ExecuteMsg::VerifyVerifierSet {
@@ -57,10 +63,7 @@ pub fn execute(
         } => execute::verify_verifier_set(deps, env, &message_id, new_verifier_set),
         ExecuteMsg::UpdateVotingThreshold {
             new_voting_threshold,
-        } => {
-            execute::require_governance(&deps, info.sender)?;
-            execute::update_voting_threshold(deps, new_voting_threshold)
-        }
+        } => execute::update_voting_threshold(deps, new_voting_threshold),
     }?
     .then(Ok)
 }
@@ -88,9 +91,7 @@ pub fn migrate(
     _env: Env,
     _msg: Empty,
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
-    // any version checks should be done before here
-
-    cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+    v0_5_0::migrate(deps.storage)?;
 
     Ok(Response::default())
 }
@@ -131,10 +132,6 @@ mod test {
         "source-chain".parse().unwrap()
     }
 
-    fn governance() -> Addr {
-        Addr::unchecked(GOVERNANCE)
-    }
-
     fn initial_voting_threshold() -> MajorityThreshold {
         Threshold::try_from((2, 3)).unwrap().try_into().unwrap()
     }
@@ -167,19 +164,24 @@ mod test {
     ) -> OwnedDeps<MockStorage, MockApi, MockQuerier, Empty> {
         let mut deps = mock_dependencies();
 
-        let config = Config {
-            governance: governance(),
-            service_name: SERVICE_NAME.parse().unwrap(),
-            service_registry_contract: Addr::unchecked(SERVICE_REGISTRY_ADDRESS),
-            source_gateway_address: "source_gateway_address".parse().unwrap(),
-            voting_threshold: initial_voting_threshold(),
-            block_expiry: POLL_BLOCK_EXPIRY,
-            confirmation_height: 100,
-            source_chain: source_chain(),
-            rewards_contract: Addr::unchecked(REWARDS_ADDRESS),
-            msg_id_format: msg_id_format.clone(),
-        };
-        CONFIG.save(deps.as_mut().storage, &config).unwrap();
+        instantiate(
+            deps.as_mut(),
+            mock_env(),
+            mock_info("admin", &[]),
+            InstantiateMsg {
+                governance_address: GOVERNANCE.parse().unwrap(),
+                service_registry_address: SERVICE_REGISTRY_ADDRESS.parse().unwrap(),
+                service_name: SERVICE_NAME.parse().unwrap(),
+                source_gateway_address: "source_gateway_address".parse().unwrap(),
+                voting_threshold: initial_voting_threshold(),
+                block_expiry: POLL_BLOCK_EXPIRY.try_into().unwrap(),
+                confirmation_height: 100,
+                source_chain: source_chain(),
+                rewards_address: REWARDS_ADDRESS.parse().unwrap(),
+                msg_id_format: msg_id_format.clone(),
+            },
+        )
+        .unwrap();
 
         deps.querier.update_wasm(move |wq| match wq {
             WasmQuery::Smart { contract_addr, .. } if contract_addr == SERVICE_REGISTRY_ADDRESS => {
@@ -255,19 +257,6 @@ mod test {
             .iter()
             .map(|message| MessageStatus::new(message.clone(), status))
             .collect()
-    }
-
-    #[test]
-    fn migrate_sets_contract_version() {
-        let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
-        let verifiers = verifiers(2);
-        let mut deps = setup(verifiers.clone(), &msg_id_format);
-
-        migrate(deps.as_mut(), mock_env(), Empty {}).unwrap();
-
-        let contract_version = cw2::get_contract_version(deps.as_mut().storage).unwrap();
-        assert_eq!(contract_version.contract, "voting-verifier");
-        assert_eq!(contract_version.version, CONTRACT_VERSION);
     }
 
     #[test]

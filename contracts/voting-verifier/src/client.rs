@@ -217,10 +217,10 @@ mod test {
                 .unwrap()
                 .try_into()
                 .unwrap(),
-            block_expiry: 100,
+            block_expiry: 100.try_into().unwrap(),
             confirmation_height: 10,
             source_chain: "source-chain".parse().unwrap(),
-            rewards_address: "rewards".to_string(),
+            rewards_address: "rewards".try_into().unwrap(),
             msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
         };
 
