@@ -63,7 +63,7 @@ pub enum ExecuteMsg {
     // Start building a proof that includes specified messages
     // Queries the gateway for actual message contents
     #[permission(Any)]
-    ConstructProof { message_ids: Vec<CrossChainId> },
+    ConstructProof(Vec<CrossChainId>),
     #[permission(Elevated)]
     UpdateVerifierSet,
 

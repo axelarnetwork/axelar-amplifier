@@ -47,9 +47,7 @@ pub enum ExecuteMsg {
 
     // returns a vector of true/false values, indicating current verification status for each message
     // starts a poll for any not yet verified messages
-    VerifyMessages {
-        messages: Vec<Message>,
-    },
+    VerifyMessages(Vec<Message>),
 
     // Starts a poll to confirm a verifier set update on the external gateway
     VerifyVerifierSet {
@@ -82,10 +80,10 @@ pub enum QueryMsg {
     GetPoll { poll_id: PollId },
 
     #[returns(Vec<MessageStatus>)]
-    GetMessagesStatus { messages: Vec<Message> },
+    GetMessagesStatus(Vec<Message>),
 
     #[returns(VerificationStatus)]
-    GetVerifierSetStatus { new_verifier_set: VerifierSet },
+    GetVerifierSetStatus(VerifierSet),
 
     #[returns(MajorityThreshold)]
     GetCurrentThreshold,

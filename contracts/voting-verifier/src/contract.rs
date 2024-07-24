@@ -48,7 +48,7 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
     match msg {
-        ExecuteMsg::VerifyMessages { messages } => execute::verify_messages(deps, env, messages),
+        ExecuteMsg::VerifyMessages(messages) => execute::verify_messages(deps, env, messages),
         ExecuteMsg::Vote { poll_id, votes } => execute::vote(deps, env, info, poll_id, votes),
         ExecuteMsg::EndPoll { poll_id } => execute::end_poll(deps, env, poll_id),
         ExecuteMsg::VerifyVerifierSet {
@@ -72,10 +72,10 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             to_json_binary(&query::poll_response(deps, env.block.height, poll_id)?)
         }
 
-        QueryMsg::GetMessagesStatus { messages } => {
+        QueryMsg::GetMessagesStatus(messages) => {
             to_json_binary(&query::messages_status(deps, &messages, env.block.height)?)
         }
-        QueryMsg::GetVerifierSetStatus { new_verifier_set } => to_json_binary(
+        QueryMsg::GetVerifierSetStatus(new_verifier_set) => to_json_binary(
             &query::verifier_set_status(deps, &new_verifier_set, env.block.height)?,
         ),
         QueryMsg::GetCurrentThreshold => to_json_binary(&query::voting_threshold(deps)?),
@@ -276,26 +276,24 @@ mod test {
         let verifiers = verifiers(2);
         let mut deps = setup(verifiers.clone(), &msg_id_format);
 
-        let msg = ExecuteMsg::VerifyMessages {
-            messages: vec![
-                Message {
-                    cc_id: CrossChainId::new(source_chain(), message_id("id", 1, &msg_id_format))
-                        .unwrap(),
-                    source_address: "source_address1".parse().unwrap(),
-                    destination_chain: "destination-chain1".parse().unwrap(),
-                    destination_address: "destination_address1".parse().unwrap(),
-                    payload_hash: [0; 32],
-                },
-                Message {
-                    cc_id: CrossChainId::new("other-chain", message_id("id", 2, &msg_id_format))
-                        .unwrap(),
-                    source_address: "source_address2".parse().unwrap(),
-                    destination_chain: "destination-chain2".parse().unwrap(),
-                    destination_address: "destination_address2".parse().unwrap(),
-                    payload_hash: [0; 32],
-                },
-            ],
-        };
+        let msg = ExecuteMsg::VerifyMessages(vec![
+            Message {
+                cc_id: CrossChainId::new(source_chain(), message_id("id", 1, &msg_id_format))
+                    .unwrap(),
+                source_address: "source_address1".parse().unwrap(),
+                destination_chain: "destination-chain1".parse().unwrap(),
+                destination_address: "destination_address1".parse().unwrap(),
+                payload_hash: [0; 32],
+            },
+            Message {
+                cc_id: CrossChainId::new("other-chain", message_id("id", 2, &msg_id_format))
+                    .unwrap(),
+                source_address: "source_address2".parse().unwrap(),
+                destination_chain: "destination-chain2".parse().unwrap(),
+                destination_address: "destination_address2".parse().unwrap(),
+                payload_hash: [0; 32],
+            },
+        ]);
         let err = execute(deps.as_mut(), mock_env(), mock_info(SENDER, &[]), msg).unwrap_err();
         assert_contract_err_strings_equal(err, ContractError::SourceChainMismatch(source_chain()));
     }
@@ -309,7 +307,7 @@ mod test {
         let mut messages = messages(1, &MessageIdFormat::HexTxHashAndEventIndex);
         messages[0].cc_id = CrossChainId::new(source_chain(), "foobar").unwrap();
 
-        let msg = ExecuteMsg::VerifyMessages { messages };
+        let msg = ExecuteMsg::VerifyMessages(messages);
 
         let err = execute(deps.as_mut(), mock_env(), mock_info(SENDER, &[]), msg).unwrap_err();
         assert_contract_err_strings_equal(
@@ -325,9 +323,7 @@ mod test {
         let mut deps = setup(verifiers.clone(), &msg_id_format);
 
         let messages = messages(1, &MessageIdFormat::Base58TxDigestAndEventIndex);
-        let msg = ExecuteMsg::VerifyMessages {
-            messages: messages.clone(),
-        };
+        let msg = ExecuteMsg::VerifyMessages(messages.clone());
 
         let err = execute(deps.as_mut(), mock_env(), mock_info(SENDER, &[]), msg).unwrap_err();
         assert_contract_err_strings_equal(
@@ -343,9 +339,7 @@ mod test {
         let mut deps = setup(verifiers.clone(), &msg_id_format);
 
         let messages = messages(1, &MessageIdFormat::HexTxHashAndEventIndex);
-        let msg = ExecuteMsg::VerifyMessages {
-            messages: messages.clone(),
-        };
+        let msg = ExecuteMsg::VerifyMessages(messages.clone());
 
         let err = execute(deps.as_mut(), mock_env(), mock_info(SENDER, &[]), msg).unwrap_err();
         assert_contract_err_strings_equal(
@@ -367,9 +361,9 @@ mod test {
             deps.as_mut(),
             mock_env(),
             mock_info(SENDER, &[]),
-            ExecuteMsg::VerifyMessages {
-                messages: messages[0..messages_in_progress].to_vec(), // verify a subset of the messages
-            },
+            ExecuteMsg::VerifyMessages(
+                messages[0..messages_in_progress].to_vec(), // verify a subset of the messages
+            ),
         )
         .unwrap();
 
@@ -377,9 +371,9 @@ mod test {
             deps.as_mut(),
             mock_env(),
             mock_info(SENDER, &[]),
-            ExecuteMsg::VerifyMessages {
-                messages: messages.clone(), // verify all messages including the ones from previous execution
-            },
+            ExecuteMsg::VerifyMessages(
+                messages.clone(), // verify all messages including the ones from previous execution
+            ),
         )
         .unwrap();
 
@@ -425,9 +419,7 @@ mod test {
         let mut deps = setup(verifiers.clone(), &msg_id_format);
         let messages = messages(5, &msg_id_format);
 
-        let msg = ExecuteMsg::VerifyMessages {
-            messages: messages.clone(),
-        };
+        let msg = ExecuteMsg::VerifyMessages(messages.clone());
         execute(
             deps.as_mut(),
             mock_env(),
@@ -441,9 +433,7 @@ mod test {
             query(
                 deps.as_ref(),
                 mock_env_expired(),
-                QueryMsg::GetMessagesStatus {
-                    messages: messages.clone(),
-                },
+                QueryMsg::GetMessagesStatus(messages.clone()),
             )
             .unwrap(),
         )
@@ -505,9 +495,7 @@ mod test {
 
         // 1. First verification
 
-        let msg_verify = ExecuteMsg::VerifyMessages {
-            messages: messages.clone(),
-        };
+        let msg_verify = ExecuteMsg::VerifyMessages(messages.clone());
 
         let res = execute(
             deps.as_mut(),
@@ -562,9 +550,7 @@ mod test {
             query(
                 deps.as_ref(),
                 mock_env_expired(),
-                QueryMsg::GetMessagesStatus {
-                    messages: messages.clone(),
-                },
+                QueryMsg::GetMessagesStatus(messages.clone()),
             )
             .unwrap(),
         )
@@ -600,9 +586,7 @@ mod test {
             query(
                 deps.as_ref(),
                 mock_env_expired(),
-                QueryMsg::GetMessagesStatus {
-                    messages: messages.clone(),
-                },
+                QueryMsg::GetMessagesStatus(messages.clone()),
             )
             .unwrap(),
         )
@@ -633,9 +617,7 @@ mod test {
             query(
                 deps.as_ref(),
                 mock_env(),
-                QueryMsg::GetMessagesStatus {
-                    messages: messages.clone(),
-                },
+                QueryMsg::GetMessagesStatus(messages.clone()),
             )
             .unwrap(),
         )
@@ -659,9 +641,7 @@ mod test {
             deps.as_mut(),
             mock_env(),
             mock_info(SENDER, &[]),
-            ExecuteMsg::VerifyMessages {
-                messages: messages.clone(),
-            },
+            ExecuteMsg::VerifyMessages(messages.clone()),
         )
         .unwrap();
 
@@ -669,9 +649,7 @@ mod test {
             query(
                 deps.as_ref(),
                 mock_env(),
-                QueryMsg::GetMessagesStatus {
-                    messages: messages.clone(),
-                },
+                QueryMsg::GetMessagesStatus(messages.clone()),
             )
             .unwrap(),
         )
@@ -695,9 +673,7 @@ mod test {
             deps.as_mut(),
             mock_env(),
             mock_info(SENDER, &[]),
-            ExecuteMsg::VerifyMessages {
-                messages: messages.clone(),
-            },
+            ExecuteMsg::VerifyMessages(messages.clone()),
         )
         .unwrap();
 
@@ -705,9 +681,7 @@ mod test {
             query(
                 deps.as_ref(),
                 mock_env_expired(),
-                QueryMsg::GetMessagesStatus {
-                    messages: messages.clone(),
-                },
+                QueryMsg::GetMessagesStatus(messages.clone()),
             )
             .unwrap(),
         )
@@ -748,9 +722,7 @@ mod test {
                 deps.as_mut(),
                 mock_env(),
                 mock_info(SENDER, &[]),
-                ExecuteMsg::VerifyMessages {
-                    messages: messages.clone(),
-                },
+                ExecuteMsg::VerifyMessages(messages.clone()),
             )
             .unwrap();
 
@@ -785,9 +757,7 @@ mod test {
                 &query(
                     deps.as_ref(),
                     mock_env(),
-                    QueryMsg::GetMessagesStatus {
-                        messages: messages.clone(),
-                    },
+                    QueryMsg::GetMessagesStatus(messages.clone()),
                 )
                 .unwrap(),
             )
@@ -814,9 +784,7 @@ mod test {
             query(
                 deps.as_ref(),
                 mock_env(),
-                QueryMsg::GetVerifierSetStatus {
-                    new_verifier_set: verifier_set.clone(),
-                },
+                QueryMsg::GetVerifierSetStatus(verifier_set.clone()),
             )
             .unwrap(),
         )
@@ -866,9 +834,7 @@ mod test {
             query(
                 deps.as_ref(),
                 mock_env(),
-                QueryMsg::GetVerifierSetStatus {
-                    new_verifier_set: verifier_set.clone(),
-                },
+                QueryMsg::GetVerifierSetStatus(verifier_set.clone()),
             )
             .unwrap(),
         )
@@ -921,9 +887,7 @@ mod test {
             query(
                 deps.as_ref(),
                 mock_env(),
-                QueryMsg::GetVerifierSetStatus {
-                    new_verifier_set: verifier_set.clone(),
-                },
+                QueryMsg::GetVerifierSetStatus(verifier_set.clone()),
             )
             .unwrap(),
         )
@@ -976,9 +940,7 @@ mod test {
             query(
                 deps.as_ref(),
                 mock_env(),
-                QueryMsg::GetVerifierSetStatus {
-                    new_verifier_set: verifier_set.clone(),
-                },
+                QueryMsg::GetVerifierSetStatus(verifier_set.clone()),
             )
             .unwrap(),
         )
@@ -1023,9 +985,7 @@ mod test {
             query(
                 deps.as_ref(),
                 mock_env(),
-                QueryMsg::GetVerifierSetStatus {
-                    new_verifier_set: verifier_set.clone(),
-                },
+                QueryMsg::GetVerifierSetStatus(verifier_set.clone()),
             )
             .unwrap(),
         )
@@ -1133,9 +1093,7 @@ mod test {
             deps.as_mut(),
             mock_env(),
             mock_info(SENDER, &[]),
-            ExecuteMsg::VerifyMessages {
-                messages: messages.clone(),
-            },
+            ExecuteMsg::VerifyMessages(messages.clone()),
         )
         .unwrap();
 
@@ -1190,9 +1148,7 @@ mod test {
             query(
                 deps.as_ref(),
                 mock_env(),
-                QueryMsg::GetMessagesStatus {
-                    messages: messages.clone(),
-                },
+                QueryMsg::GetMessagesStatus(messages.clone()),
             )
             .unwrap(),
         )
@@ -1240,9 +1196,7 @@ mod test {
             deps.as_mut(),
             mock_env(),
             mock_info(SENDER, &[]),
-            ExecuteMsg::VerifyMessages {
-                messages: messages.clone(),
-            },
+            ExecuteMsg::VerifyMessages(messages.clone()),
         )
         .unwrap();
 
@@ -1281,9 +1235,7 @@ mod test {
             query(
                 deps.as_ref(),
                 mock_env_expired(),
-                QueryMsg::GetMessagesStatus {
-                    messages: messages.clone(),
-                },
+                QueryMsg::GetMessagesStatus(messages.clone()),
             )
             .unwrap(),
         )
@@ -1313,9 +1265,7 @@ mod test {
 
         // 1. First verification
 
-        let msg_verify = ExecuteMsg::VerifyMessages {
-            messages: messages.clone(),
-        };
+        let msg_verify = ExecuteMsg::VerifyMessages(messages.clone());
 
         let res = execute(
             deps.as_mut(),

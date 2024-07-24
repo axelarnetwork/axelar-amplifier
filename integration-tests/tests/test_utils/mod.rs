@@ -197,9 +197,9 @@ pub fn construct_proof_and_sign(
     let response = multisig_prover.execute(
         &mut protocol.app,
         Addr::unchecked("relayer"),
-        &multisig_prover::msg::ExecuteMsg::ConstructProof {
-            message_ids: messages.iter().map(|msg| msg.cc_id.clone()).collect(),
-        },
+        &multisig_prover::msg::ExecuteMsg::ConstructProof(
+            messages.iter().map(|msg| msg.cc_id.clone()).collect(),
+        ),
     );
     assert!(response.is_ok());
 
@@ -278,9 +278,7 @@ pub fn get_messages_from_gateway(
 ) -> Vec<Message> {
     let query_response: Result<Vec<Message>, StdError> = gateway.query(
         app,
-        &gateway_api::msg::QueryMsg::GetOutgoingMessages {
-            message_ids: message_ids.to_owned(),
-        },
+        &gateway_api::msg::QueryMsg::GetOutgoingMessages(message_ids.to_owned()),
     );
     assert!(query_response.is_ok());
 

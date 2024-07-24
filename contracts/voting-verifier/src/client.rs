@@ -27,10 +27,8 @@ pub struct Client<'a> {
 
 impl<'a> Client<'a> {
     pub fn verify_messages(&self, messages: Vec<Message>) -> Option<WasmMsg> {
-        ignore_empty(messages).map(|messages| {
-            self.client
-                .execute(&ExecuteMsg::VerifyMessages { messages })
-        })
+        ignore_empty(messages)
+            .map(|messages| self.client.execute(&ExecuteMsg::VerifyMessages(messages)))
     }
 
     pub fn vote(&self, poll_id: PollId, votes: Vec<Vote>) -> WasmMsg {
@@ -69,14 +67,14 @@ impl<'a> Client<'a> {
             [] => Ok(vec![]),
             _ => self
                 .client
-                .query(&QueryMsg::GetMessagesStatus { messages })
+                .query(&QueryMsg::GetMessagesStatus(messages))
                 .change_context_lazy(|| Error::QueryVotingVerifier(self.client.address.clone())),
         }
     }
 
     pub fn verifier_set_status(&self, new_verifier_set: VerifierSet) -> Result<VerificationStatus> {
         self.client
-            .query(&QueryMsg::GetVerifierSetStatus { new_verifier_set })
+            .query(&QueryMsg::GetVerifierSetStatus(new_verifier_set))
             .change_context_lazy(|| Error::QueryVotingVerifier(self.client.address.clone()))
     }
 
