@@ -9,7 +9,7 @@ use cw_storage_plus::Item;
 use multisig::key::KeyType;
 use router_api::ChainName;
 
-use crate::contract::CONTRACT_NAME;
+use crate::contract::{CONTRACT_NAME, CONTRACT_VERSION};
 use crate::encoding::Encoder;
 use crate::state;
 
@@ -21,9 +21,17 @@ pub(crate) fn migrate(storage: &mut dyn Storage) -> Result<(), ContractError> {
     let config = CONFIG.load(storage)?;
 
     migrate_permission_control(storage, &config)?;
-
     migrate_config(storage, config)?;
+    delete_payloads(storage);
+
+    cw2::set_contract_version(storage, CONTRACT_NAME, CONTRACT_VERSION)?;
     Ok(())
+}
+
+fn delete_payloads(storage: &mut dyn Storage) {
+    state::PAYLOAD.clear(storage);
+    state::MULTISIG_SESSION_PAYLOAD.clear(storage);
+    state::REPLY_TRACKER.remove(storage);
 }
 
 fn migrate_permission_control(
@@ -58,7 +66,7 @@ fn migrate_config(storage: &mut dyn Storage, config: Config) -> Result<(), Contr
 
 #[cw_serde]
 #[deprecated(since = "0.6.0", note = "only used during migration")]
-pub struct Config {
+struct Config {
     pub admin: Addr,
     pub governance: Addr,
     pub gateway: Addr,
@@ -75,7 +83,7 @@ pub struct Config {
     pub domain_separator: Hash,
 }
 #[deprecated(since = "0.6.0", note = "only used during migration")]
-pub const CONFIG: Item<Config> = Item::new("config");
+const CONFIG: Item<Config> = Item::new("config");
 
 #[cfg(test)]
 mod tests {
@@ -84,13 +92,14 @@ mod tests {
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
     use cosmwasm_std::{Addr, DepsMut, Env, MessageInfo, Response};
     use multisig::key::KeyType;
+    use router_api::{CrossChainId, Message};
 
     use crate::contract::migrations::v0_6_0;
-    use crate::contract::CONTRACT_NAME;
+    use crate::contract::{CONTRACT_NAME, CONTRACT_VERSION};
     use crate::encoding::Encoder;
     use crate::error::ContractError;
     use crate::msg::InstantiateMsg;
-    use crate::state;
+    use crate::{payload, state};
 
     #[test]
     fn migrate_checks_contract_version() {
@@ -104,6 +113,68 @@ mod tests {
             .unwrap();
 
         assert!(v0_6_0::migrate(deps.as_mut().storage).is_ok());
+    }
+
+    #[test]
+    fn migrate_sets_contract_version() {
+        let mut deps = mock_dependencies();
+        instantiate_contract(deps.as_mut());
+
+        v0_6_0::migrate(deps.as_mut().storage).unwrap();
+
+        let contract_version = cw2::get_contract_version(deps.as_mut().storage).unwrap();
+        assert_eq!(contract_version.contract, CONTRACT_NAME);
+        assert_eq!(contract_version.version, CONTRACT_VERSION);
+    }
+
+    #[test]
+    fn migrate_payload() {
+        let mut deps = mock_dependencies();
+
+        instantiate_contract(deps.as_mut());
+
+        let msgs = vec![
+            Message {
+                cc_id: CrossChainId {
+                    message_id: "id1".try_into().unwrap(),
+                    chain: "chain1".try_into().unwrap(),
+                },
+                source_address: "source_address".parse().unwrap(),
+                destination_chain: "destination".parse().unwrap(),
+                destination_address: "destination_address".parse().unwrap(),
+                payload_hash: [1; 32],
+            },
+            Message {
+                cc_id: CrossChainId {
+                    message_id: "id2".try_into().unwrap(),
+                    chain: "chain2".try_into().unwrap(),
+                },
+                source_address: "source_address2".parse().unwrap(),
+                destination_chain: "destination2".parse().unwrap(),
+                destination_address: "destination_address2".parse().unwrap(),
+                payload_hash: [2; 32],
+            },
+            Message {
+                cc_id: CrossChainId {
+                    message_id: "id3".try_into().unwrap(),
+                    chain: "chain3".try_into().unwrap(),
+                },
+                source_address: "source_address3".parse().unwrap(),
+                destination_chain: "destination3".parse().unwrap(),
+                destination_address: "destination_address3".parse().unwrap(),
+                payload_hash: [3; 32],
+            },
+        ];
+
+        let payload = payload::Payload::Messages(msgs);
+
+        state::PAYLOAD
+            .save(deps.as_mut().storage, &payload.id(), &payload)
+            .unwrap();
+
+        assert!(v0_6_0::migrate(deps.as_mut().storage).is_ok());
+
+        assert!(state::PAYLOAD.is_empty(deps.as_ref().storage));
     }
 
     #[test]

@@ -434,7 +434,7 @@ mod tests {
     // will cause this test to fail, indicating that a migration is needed.
     fn test_message_struct_unchanged() {
         let expected_message_hash =
-            "e8052da3a89c90468cc6e4e242a827f8579fb0ea8e298b1650d73a0f7e81abc3";
+            "de86c472975a04755f38cbf919e570778e356b91841abbc856f091d5cf389a4e";
 
         let msg = dummy_message();
 
