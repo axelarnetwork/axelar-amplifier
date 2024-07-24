@@ -200,7 +200,7 @@ mod tests {
 
         for msg in msgs.iter() {
             v0_2_3::OUTGOING_MESSAGES
-                .save(deps.as_mut().storage, &msg.cc_id, &msg)
+                .save(deps.as_mut().storage, &msg.cc_id, msg)
                 .unwrap();
         }
 
