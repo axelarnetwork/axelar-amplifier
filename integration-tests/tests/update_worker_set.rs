@@ -14,8 +14,8 @@ pub mod test_utils;
 #[test]
 fn verifier_set_can_be_initialized_and_then_manually_updated() {
     let chains: Vec<router_api::ChainName> = vec![
-        "Ethereum".to_string().try_into().unwrap(),
-        "Polygon".to_string().try_into().unwrap(),
+        "Ethereum".try_into().unwrap(),
+        "Polygon".try_into().unwrap(),
     ];
 
     let test_utils::TestCase {
@@ -111,8 +111,8 @@ fn verifier_set_can_be_initialized_and_then_manually_updated() {
 #[test]
 fn verifier_set_cannot_be_updated_again_while_pending_verifier_is_not_yet_confirmed() {
     let chains = vec![
-        "Ethereum".to_string().try_into().unwrap(),
-        "Polygon".to_string().try_into().unwrap(),
+        "Ethereum".try_into().unwrap(),
+        "Polygon".try_into().unwrap(),
     ];
     let test_utils::TestCase {
         mut protocol,
@@ -231,8 +231,8 @@ fn verifier_set_cannot_be_updated_again_while_pending_verifier_is_not_yet_confir
 #[test]
 fn verifier_set_update_can_be_resigned() {
     let chains = vec![
-        "Ethereum".to_string().try_into().unwrap(),
-        "Polygon".to_string().try_into().unwrap(),
+        "Ethereum".try_into().unwrap(),
+        "Polygon".try_into().unwrap(),
     ];
     let test_utils::TestCase {
         mut protocol,
@@ -325,7 +325,7 @@ fn verifier_set_update_can_be_resigned() {
 
 #[test]
 fn governance_should_confirm_new_verifier_set_without_verification() {
-    let chains: Vec<router_api::ChainName> = vec!["Ethereum".to_string().try_into().unwrap()];
+    let chains: Vec<router_api::ChainName> = vec!["Ethereum".try_into().unwrap()];
     let test_utils::TestCase {
         mut protocol,
         chain1: ethereum,

@@ -82,7 +82,7 @@ fn messages(
 ) -> Result<Vec<Message>, ContractError> {
     let length = message_ids.len();
 
-    let query = gateway_api::msg::QueryMsg::OutgoingMessages { message_ids };
+    let query = gateway_api::msg::QueryMsg::OutgoingMessages(message_ids);
     let messages: Vec<Message> = querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
         contract_addr: gateway.into(),
         msg: to_json_binary(&query)?,
@@ -288,9 +288,7 @@ fn ensure_verifier_set_verification(
     config: &Config,
     deps: &DepsMut,
 ) -> Result<(), ContractError> {
-    let query = voting_verifier::msg::QueryMsg::VerifierSetStatus {
-        new_verifier_set: verifier_set.clone(),
-    };
+    let query = voting_verifier::msg::QueryMsg::VerifierSetStatus(verifier_set.clone());
 
     let status: VerificationStatus = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
         contract_addr: config.voting_verifier.to_string(),

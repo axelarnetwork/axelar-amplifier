@@ -86,3 +86,5 @@ macro_rules! err_contains {
         }
     };
 }
+
+pub use err_contains;
