@@ -89,15 +89,20 @@ jobs:
           crate_name="${{ steps.check-release.outputs.crate-name }}"
           crate_version="${{ steps.check-release.outputs.crate-version }}"
           wasm_file=$(find . -name "${crate_name//-/_}.wasm")
+          checksum_file=$(find . -name "checksums.txt")
           
           if [ -z "$wasm_file" ]; then
             echo "Error: Could not find .wasm file for $crate_name"
             exit 1
           fi
           
+          ls -la
+          echo "Wasm file: $wasm_file"
+          echo "Checksum file: $checksum_file"
+          
           mkdir -p "../release-artifacts"
           cp "$wasm_file" "../release-artifacts/${crate_name}.wasm"
-          cp checksums.txt "../release-artifacts/"
+          cp "$checksum_file" "../release-artifacts/"
           
           echo "release-artifacts-dir=./artifacts/release-artifacts" >> $GITHUB_OUTPUT
           echo "r2-destination-dir=./releases/amplifier/${crate_name}/${crate_version}" >> $GITHUB_OUTPUT
