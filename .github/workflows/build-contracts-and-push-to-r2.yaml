@@ -23,11 +23,27 @@ jobs:
       packages: write
       id-token: write
     steps:
-      - name: Determine if commit is a release
+      - name: Check for release information if present
+        id: check-release
         run: |
+          commit_message="${{ github.event.head_commit.message }}"
           is_release=${{ contains(github.event.head_commit.message, 'chore: release') }}
           echo "Does commit belong to a release: $is_release"
           echo "is-release=$is_release" >> $GITHUB_OUTPUT
+          
+          if [ "$is_release" = "true" ]; then
+            release_info=$(echo "$commit_message" | sed -n 's/chore: release \(.*\) \(.*\)/\1 \2/p')
+            crate_name=$(echo $release_info | cut -d' ' -f1)
+            version=$(echo $release_info | cut -d' ' -f2)
+            
+            echo "Crate Name: $crate_name"
+            echo "Version: $version"
+            
+            echo "crate-name=$crate_name" >> $GITHUB_OUTPUT
+            echo "crate-version=$version" >> $GITHUB_OUTPUT
+          else
+          echo "Not a release commit. Skipping crate name and version extraction."
+          fi
 
       - name: Determine branch
         id: get-branch-name
