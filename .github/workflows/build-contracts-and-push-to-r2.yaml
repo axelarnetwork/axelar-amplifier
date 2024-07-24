@@ -22,12 +22,20 @@ jobs:
       contents: write
       packages: write
       id-token: write
-    if: |
-      github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'push' && 
-       (github.ref == 'refs/heads/fix/ignore-skip-ci-for-r2-action' || 
-        !contains(github.event.head_commit.message, '[skip ci]')))
     steps:
+      - name: Log condition variables
+        run: |
+          echo "Logging condition variables:"
+          echo "github.event_name: ${{ github.event_name }}"
+          echo "github.ref: ${{ github.ref }}"
+          echo "github.event.head_commit.message: ${{ github.event.head_commit.message }}"
+          echo "Contains [skip ci]: ${{ contains(github.event.head_commit.message, '[skip ci]') }}"
+          echo "Condition evaluation: ${{ 
+            github.event_name == 'workflow_dispatch' ||
+            (github.event_name == 'push' && 
+             (github.ref == 'refs/heads/fix/ignore-skip-ci-for-r2-action' || 
+              !contains(github.event.head_commit.message, '[skip ci]')))
+          }}"
       - name: Determine branch
         id: get-branch-name
         run: |
