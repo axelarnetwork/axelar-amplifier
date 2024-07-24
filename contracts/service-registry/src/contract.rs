@@ -1,10 +1,8 @@
-use std::io::Empty;
-
 use axelar_wasm_std::{permission_control, FnExt};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_json_binary, Addr, BankMsg, Binary, Coin, Deps, DepsMut, Env, MessageInfo, Order,
+    to_json_binary, Addr, BankMsg, Binary, Coin, Deps, DepsMut, Empty, Env, MessageInfo, Order,
     QueryRequest, Response, Storage, Uint128, WasmQuery,
 };
 use error_stack::{bail, Report, ResultExt};
