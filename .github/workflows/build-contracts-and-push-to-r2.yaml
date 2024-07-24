@@ -74,66 +74,57 @@ jobs:
           passphrase: ${{ secrets.GPG_PASSPHRASE }}
 
 
-      - name: Compile a single amplifier contract
-        if: steps.check-release.outputs.is-release == 'true'
-        id: compile-single-contract
+      - name: Compile all amplifier contracts
+        id: compile-contracts
         run: |
-          crate_name="${{ steps.check-release.outputs.crate-name }}"
-          cd axelar-amplifier/contracts/$crate_name
-          
+          cd axelar-amplifier
           docker run --rm -v "$(pwd)":/code \
           --mount type=volume,source="$(basename "$(pwd)")_cache",target=/code/target \
           --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
           cosmwasm/optimizer:0.16.0
+
+          commit_hash=$(git rev-parse --short HEAD)
+          cd ..
+          mkdir -p ./artifacts/$commit_hash/
+          cp -R axelar-amplifier/artifacts/* ./artifacts/$commit_hash/
+          echo "wasm-directory=./artifacts" >> $GITHUB_OUTPUT
+
+
+      - name: Prepare and sign release artifacts
+        if: steps.check-release.outputs.is-release == 'true'
+        id: prepare-release
+        run: |
+          cd ${{ steps.compile-contracts.outputs.wasm-directory }}
+          crate_name="${{ steps.check-release.outputs.crate-name }}"
+          crate_version="${{ steps.check-release.outputs.crate-version }}"
+          wasm_file=$(find . -name "${crate_name//-/_}.wasm")
+          checksum_file=$(find . -name "checksums.txt")
+
+          if [ -z "$wasm_file" ]; then
+            echo "Error: Could not find .wasm file for $crate_name"
+            exit 1
+          fi
+
+          mkdir -p "../release-artifacts"
+          cp "$wasm_file" "../release-artifacts/${crate_name}.wasm"
+          cp "$checksum_file" "../release-artifacts/"
           
-          ls -la ./artifacts
+          gpg --armor --detach-sign  ../release-artifacts/${crate_name}.wasm
+          gpg --armor --detach-sign  ../release-artifacts/checksums.txt
+
+          echo "release-artifacts-dir=./release-artifacts" >> $GITHUB_OUTPUT
+          echo "r2-destination-dir=./releases/amplifier/${crate_name}/${crate_version}" >> $GITHUB_OUTPUT
 
 
-#      - name: Compile all amplifier contracts
-#        if: steps.check-release.outputs.is-release != 'true'
-#        id: compile-contracts
-#        run: |
-#          cd axelar-amplifier
-#          docker run --rm -v "$(pwd)":/code \
-#          --mount type=volume,source="$(basename "$(pwd)")_cache",target=/code/target \
-#          --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
-#          cosmwasm/optimizer:0.16.0
-#
-#          commit_hash=$(git rev-parse --short HEAD)
-#          cd ..
-#          mkdir -p ./artifacts/$commit_hash/
-#          cp -R axelar-amplifier/artifacts/* ./artifacts/$commit_hash/
-#          echo "wasm-directory=./artifacts" >> $GITHUB_OUTPUT
-#
-#
-#      - name: Prepare release artifacts
-#        if: steps.check-release.outputs.is-release == 'true'
-#        id: prepare-release
-#        run: |
-#          cd ${{ steps.compile-contracts.outputs.wasm-directory }}
-#          crate_name="${{ steps.check-release.outputs.crate-name }}"
-#          crate_version="${{ steps.check-release.outputs.crate-version }}"
-#          wasm_file=$(find . -name "${crate_name//-/_}.wasm")
-#          checksum_file=$(find . -name "checksums.txt")
-#
-#          if [ -z "$wasm_file" ]; then
-#            echo "Error: Could not find .wasm file for $crate_name"
-#            exit 1
-#          fi
-#
-#          ls -la
-#          echo "Wasm file: $wasm_file"
-#          echo "Checksum file: $checksum_file"
-#
-#          mkdir -p "../release-artifacts"
-#          cp "$wasm_file" "../release-artifacts/${crate_name}.wasm"
-#          cp "$checksum_file" "../release-artifacts/"
-#
-#          echo "release-artifacts-dir=./artifacts/release-artifacts" >> $GITHUB_OUTPUT
-#          echo "r2-destination-dir=./releases/amplifier/${crate_name}/${crate_version}" >> $GITHUB_OUTPUT
-#
-#          ls -la ../release-artifacts/
-
+      - uses: ryand56/r2-upload-action@latest
+        if: steps.check-release.outputs.is-release == 'true'
+        with:
+          r2-account-id: ${{ secrets.R2_ACCOUNT_ID }}
+          r2-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_CF }}
+          r2-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_CF }}
+          r2-bucket: ${{ secrets.R2_BUCKET }}
+          source-dir: ${{ steps.prepare-release.outputs.release-artifacts-dir }}
+          destination-dir: ${{ steps.prepare-release.outputs.r2-destination-dir }}
 
 #      - uses: ryand56/r2-upload-action@latest
 #        with:
