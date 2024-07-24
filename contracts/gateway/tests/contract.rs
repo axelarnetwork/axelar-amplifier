@@ -9,7 +9,8 @@ use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info, MockQuerier}
 #[cfg(not(feature = "generate_golden_files"))]
 use cosmwasm_std::Response;
 use cosmwasm_std::{
-    from_json, to_json_binary, Addr, ContractResult, DepsMut, QuerierResult, WasmQuery,
+    from_binary, from_json, to_json_binary, Addr, Binary, ContractResult, CosmosMsg, DepsMut,
+    QuerierResult, SubMsg, WasmMsg, WasmQuery,
 };
 use gateway::contract::*;
 use gateway::msg::InstantiateMsg;

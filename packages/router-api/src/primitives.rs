@@ -53,7 +53,7 @@ impl Message {
 impl From<Message> for Vec<Attribute> {
     fn from(other: Message) -> Self {
         vec![
-            ("id", other.cc_id.message_id).into(),
+            ("message_id", other.cc_id.message_id).into(),
             ("source_chain", other.cc_id.chain).into(),
             ("source_address", other.source_address.deref()).into(),
             ("destination_chain", other.destination_chain).into(),
