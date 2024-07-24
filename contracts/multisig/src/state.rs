@@ -57,7 +57,7 @@ pub fn save_signature(
 
 type VerifierSetId = str;
 pub const VERIFIER_SETS: Map<&VerifierSetId, VerifierSet> = Map::new("verifier_sets");
-pub fn get_verifier_set(
+pub fn verifier_set(
     store: &dyn Storage,
     verifier_set_id: &str,
 ) -> Result<VerifierSet, ContractError> {

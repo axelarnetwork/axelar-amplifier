@@ -49,7 +49,7 @@ pub struct Args {
 pub async fn run(config: Config, args: Args) -> Result<Option<String>, Error> {
     let pub_key = verifier_pub_key(config.tofnd_config.clone()).await?;
 
-    let multisig_address = get_multisig_address(&config)?;
+    let multisig_address = multisig_address(&config)?;
 
     let tofnd_config = config.tofnd_config.clone();
 
@@ -105,7 +105,7 @@ pub async fn run(config: Config, args: Args) -> Result<Option<String>, Error> {
     )))
 }
 
-fn get_multisig_address(config: &Config) -> Result<TMAddress, Error> {
+fn multisig_address(config: &Config) -> Result<TMAddress, Error> {
     config
         .handlers
         .iter()

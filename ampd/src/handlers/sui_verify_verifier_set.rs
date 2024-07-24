@@ -167,7 +167,7 @@ mod tests {
 
     use super::PollStartedEvent;
     use crate::event_processor::EventHandler;
-    use crate::handlers::tests::get_event;
+    use crate::handlers::tests::into_structured_event;
     use crate::sui::json_rpc::MockSuiClient;
     use crate::types::TMAddress;
     use crate::PREFIX;
@@ -176,7 +176,7 @@ mod tests {
     fn should_deserialize_verifier_set_poll_started_event() {
         let participants = (0..5).map(|_| TMAddress::random(PREFIX)).collect();
 
-        let event: Result<PollStartedEvent, events::Error> = get_event(
+        let event: Result<PollStartedEvent, events::Error> = into_structured_event(
             verifier_set_poll_started_event(participants, 100),
             &TMAddress::random(PREFIX),
         )
@@ -200,7 +200,7 @@ mod tests {
         let voting_verifier = TMAddress::random(PREFIX);
         let verifier = TMAddress::random(PREFIX);
         let expiration = 100u64;
-        let event: Event = get_event(
+        let event: Event = into_structured_event(
             verifier_set_poll_started_event(
                 vec![verifier.clone()].into_iter().collect(),
                 expiration,

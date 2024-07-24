@@ -24,7 +24,7 @@ use tonic::{Response, Status};
 pub trait BroadcastClient {
     async fn broadcast_tx(&mut self, request: BroadcastTxRequest) -> Result<TxResponse, Status>;
     async fn simulate(&mut self, request: SimulateRequest) -> Result<SimulateResponse, Status>;
-    async fn get_tx(&mut self, request: GetTxRequest) -> Result<GetTxResponse, Status>;
+    async fn tx(&mut self, request: GetTxRequest) -> Result<GetTxResponse, Status>;
 }
 
 #[async_trait]
@@ -42,7 +42,7 @@ impl BroadcastClient for ServiceClient<Channel> {
         self.simulate(request).await.map(Response::into_inner)
     }
 
-    async fn get_tx(&mut self, request: GetTxRequest) -> Result<GetTxResponse, Status> {
+    async fn tx(&mut self, request: GetTxRequest) -> Result<GetTxResponse, Status> {
         self.get_tx(request).await.map(Response::into_inner)
     }
 }
