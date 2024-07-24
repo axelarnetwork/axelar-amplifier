@@ -66,48 +66,73 @@ jobs:
           ref: ${{ steps.get-branch-name.outputs.branch }}
 
 
-      - name: Compile amplifier contracts
-        id: compile-contracts
+      - name: Import GPG key
+        id: import_gpg
+        uses: crazy-max/ghaction-import-gpg@v4
+        with:
+          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
+          passphrase: ${{ secrets.GPG_PASSPHRASE }}
+
+
+      - name: Compile a single amplifier contract
+        if: steps.check-release.outputs.is-release == 'true'
+        id: compile-single-contract
         run: |
-          cd axelar-amplifier
+          crate_name="${{ steps.check-release.outputs.crate-name }}"
+          cd axelar-amplifier/contracts/$crate_name
+          
           docker run --rm -v "$(pwd)":/code \
           --mount type=volume,source="$(basename "$(pwd)")_cache",target=/code/target \
           --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
           cosmwasm/optimizer:0.16.0
+          
+          ls -la ./artifacts
 
-          commit_hash=$(git rev-parse --short HEAD)
-          cd ..
-          mkdir -p ./artifacts/$commit_hash/
-          cp -R axelar-amplifier/artifacts/* ./artifacts/$commit_hash/
-          echo "wasm-directory=./artifacts" >> $GITHUB_OUTPUT
 
-      - name: Prepare release artifacts
-        if: steps.check-release.outputs.is-release == 'true'
-        id: prepare-release
-        run: |
-          cd ${{ steps.compile-contracts.outputs.wasm-directory }}
-          crate_name="${{ steps.check-release.outputs.crate-name }}"
-          crate_version="${{ steps.check-release.outputs.crate-version }}"
-          wasm_file=$(find . -name "${crate_name//-/_}.wasm")
-          checksum_file=$(find . -name "checksums.txt")
-          
-          if [ -z "$wasm_file" ]; then
-            echo "Error: Could not find .wasm file for $crate_name"
-            exit 1
-          fi
-          
-          ls -la
-          echo "Wasm file: $wasm_file"
-          echo "Checksum file: $checksum_file"
-          
-          mkdir -p "../release-artifacts"
-          cp "$wasm_file" "../release-artifacts/${crate_name}.wasm"
-          cp "$checksum_file" "../release-artifacts/"
-          
-          echo "release-artifacts-dir=./artifacts/release-artifacts" >> $GITHUB_OUTPUT
-          echo "r2-destination-dir=./releases/amplifier/${crate_name}/${crate_version}" >> $GITHUB_OUTPUT
-          
-          ls -la ../release-artifacts/
+#      - name: Compile all amplifier contracts
+#        if: steps.check-release.outputs.is-release != 'true'
+#        id: compile-contracts
+#        run: |
+#          cd axelar-amplifier
+#          docker run --rm -v "$(pwd)":/code \
+#          --mount type=volume,source="$(basename "$(pwd)")_cache",target=/code/target \
+#          --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
+#          cosmwasm/optimizer:0.16.0
+#
+#          commit_hash=$(git rev-parse --short HEAD)
+#          cd ..
+#          mkdir -p ./artifacts/$commit_hash/
+#          cp -R axelar-amplifier/artifacts/* ./artifacts/$commit_hash/
+#          echo "wasm-directory=./artifacts" >> $GITHUB_OUTPUT
+#
+#
+#      - name: Prepare release artifacts
+#        if: steps.check-release.outputs.is-release == 'true'
+#        id: prepare-release
+#        run: |
+#          cd ${{ steps.compile-contracts.outputs.wasm-directory }}
+#          crate_name="${{ steps.check-release.outputs.crate-name }}"
+#          crate_version="${{ steps.check-release.outputs.crate-version }}"
+#          wasm_file=$(find . -name "${crate_name//-/_}.wasm")
+#          checksum_file=$(find . -name "checksums.txt")
+#
+#          if [ -z "$wasm_file" ]; then
+#            echo "Error: Could not find .wasm file for $crate_name"
+#            exit 1
+#          fi
+#
+#          ls -la
+#          echo "Wasm file: $wasm_file"
+#          echo "Checksum file: $checksum_file"
+#
+#          mkdir -p "../release-artifacts"
+#          cp "$wasm_file" "../release-artifacts/${crate_name}.wasm"
+#          cp "$checksum_file" "../release-artifacts/"
+#
+#          echo "release-artifacts-dir=./artifacts/release-artifacts" >> $GITHUB_OUTPUT
+#          echo "r2-destination-dir=./releases/amplifier/${crate_name}/${crate_version}" >> $GITHUB_OUTPUT
+#
+#          ls -la ../release-artifacts/
 
 
 #      - uses: ryand56/r2-upload-action@latest
