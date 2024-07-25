@@ -1,3 +1,6 @@
+use std::time::Duration;
+
+use crate::asyncutil::future::{self, RetryPolicy};
 use async_trait::async_trait;
 use error_stack::{Report, Result};
 use mockall::automock;
@@ -18,12 +21,26 @@ pub trait TmClient {
 #[async_trait]
 impl TmClient for HttpClient {
     async fn latest_block(&self) -> Result<BlockResponse, Error> {
-        Client::latest_block(self).await.map_err(Report::from)
+        future::with_retry(
+            || Client::latest_block(self),
+            RetryPolicy::RepeatConstant {
+                sleep: Duration::from_secs(1),
+                max_attempts: 15,
+            },
+        )
+        .await
+        .map_err(Report::from)
     }
 
     async fn block_results(&self, height: Height) -> Result<BlockResultsResponse, Error> {
-        Client::block_results(self, height)
-            .await
-            .map_err(Report::from)
+        future::with_retry(
+            || Client::block_results(self, height),
+            RetryPolicy::RepeatConstant {
+                sleep: Duration::from_secs(1),
+                max_attempts: 15,
+            },
+        )
+        .await
+        .map_err(Report::from)
     }
 }
