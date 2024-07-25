@@ -84,9 +84,9 @@ mod test {
 
         let message = Message {
             cc_id: CrossChainId::new("chain", "id").unwrap(),
-            source_address: "source_address".parse().unwrap(),
+            source_address: "source-address".parse().unwrap(),
             destination_chain: "destination".parse().unwrap(),
-            destination_address: "destination_address".parse().unwrap(),
+            destination_address: "destination-address".parse().unwrap(),
             payload_hash: [1; 32],
         };
 
