@@ -26,9 +26,8 @@ jobs:
       - name: Get tag
         id: get-tag
         run: |
-          echo "github ref name: ${{ github.ref_name }}"
-          echo "github event release tag name: ${{ github.event.release.tag_name }}"
           if [[ $GITHUB_REF == refs/tags/* ]]; then
+            echo "tag:${GITHUB_REF#refs/tags/}"
             echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
           else
             echo "tag=" >> $GITHUB_OUTPUT
