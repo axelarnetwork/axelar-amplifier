@@ -441,7 +441,7 @@ mod tests {
     // will cause this test to fail, indicating that a migration is needed.
     fn test_message_struct_unchanged() {
         let expected_message_hash =
-            "e8052da3a89c90468cc6e4e242a827f8579fb0ea8e298b1650d73a0f7e81abc3";
+            "b0c6ee811cf4c205b08e36dbbad956212c4e291aedae44ab700265477bfea526";
 
         let msg = dummy_message();
 
@@ -455,7 +455,7 @@ mod tests {
     #[test]
     fn hash_id_unchanged() {
         let expected_message_hash =
-            "1e28562de094e142cbeaab1eb32d0d4a78e9e44be231fe3d042a3aca542ecb1d";
+            "e6b9cc9b6962c997b44ded605ebfb4f861e2db2ddff7e8be84a7a79728cea61e";
 
         let msg = dummy_message();
 
@@ -666,9 +666,9 @@ mod tests {
     fn dummy_message() -> Message {
         Message {
             cc_id: CrossChainId::new("chain", "hash-index").unwrap(),
-            source_address: "source_address".parse().unwrap(),
+            source_address: "source-address".parse().unwrap(),
             destination_chain: "destination-chain".parse().unwrap(),
-            destination_address: "destination_address".parse().unwrap(),
+            destination_address: "destination-address".parse().unwrap(),
             payload_hash: [1; 32],
         }
     }
