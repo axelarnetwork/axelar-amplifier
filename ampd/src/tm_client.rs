@@ -1,11 +1,12 @@
 use std::time::Duration;
 
-use crate::asyncutil::future::{self, RetryPolicy};
 use async_trait::async_trait;
 use error_stack::{Report, Result};
 use mockall::automock;
 use tendermint::block::Height;
 use tendermint_rpc::{Client, HttpClient};
+
+use crate::asyncutil::future::{self, RetryPolicy};
 
 pub type BlockResultsResponse = tendermint_rpc::endpoint::block_results::Response;
 pub type BlockResponse = tendermint_rpc::endpoint::block::Response;
