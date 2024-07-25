@@ -75,6 +75,7 @@ impl From<Message> for Vec<Attribute> {
 }
 
 #[cw_serde]
+#[serde(try_from = "String")]
 #[derive(Eq, Hash)]
 pub struct Address(nonempty::String);
 
