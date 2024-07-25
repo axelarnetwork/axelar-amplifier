@@ -98,6 +98,10 @@ impl TryFrom<String> for Address {
     type Error = Report<Error>;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
+        if value.contains(CHAIN_NAME_DELIMITER) {
+            return Err(Report::new(Error::InvalidAddress));
+        }
+
         Ok(Address(
             value
                 .parse::<nonempty::String>()
@@ -569,6 +573,87 @@ mod tests {
     }
 
     #[test]
+    fn should_not_deserialize_invalid_address() {
+        assert_eq!(
+            "address is invalid",
+            serde_json::from_str::<Address>("\"\"")
+                .unwrap_err()
+                .to_string()
+        );
+
+        assert_eq!(
+            "address is invalid",
+            serde_json::from_str::<Address>(format!("\"address{CHAIN_NAME_DELIMITER}\"").as_str())
+                .unwrap_err()
+                .to_string()
+        );
+    }
+
+    #[test]
+    fn ensure_address_parsing_respect_restrictions() {
+        struct TestCase<'a> {
+            input: &'a str,
+            can_parse: bool,
+        }
+        let random_lower = random_address().to_lowercase();
+        let random_upper = random_address().to_uppercase();
+
+        let test_cases = [
+            TestCase {
+                input: "",
+                can_parse: false,
+            },
+            TestCase {
+                input: "address_with_prohibited_symbols",
+                can_parse: false,
+            },
+            TestCase {
+                input: "!@#$%^&*()+=-1234567890",
+                can_parse: true,
+            },
+            TestCase {
+                input: "0x4F4495243837681061C4743b74B3eEdf548D56A5",
+                can_parse: true,
+            },
+            TestCase {
+                input: "0x4f4495243837681061c4743b74b3eedf548d56a5",
+                can_parse: true,
+            },
+            TestCase {
+                input: "GARRAOPAA5MNY3Y5V2OOYXUMBC54UDHHJTUMLRQBY2DIZKT62G5WSJP4Copy",
+                can_parse: true,
+            },
+            TestCase {
+                input: "ETHEREUM-1",
+                can_parse: true,
+            },
+            TestCase {
+                input: random_lower.as_str(),
+                can_parse: true,
+            },
+            TestCase {
+                input: random_upper.as_str(),
+                can_parse: true,
+            },
+        ];
+
+        let conversions: [fn(&str) -> Result<Address, _>; 2] = [
+            |input: &str| Address::from_str(input),
+            |input: &str| Address::try_from(input.to_string()),
+        ];
+
+        for case in test_cases.into_iter() {
+            for conversion in conversions.into_iter() {
+                let result = conversion(case.input);
+                assert_eq!(result.is_ok(), case.can_parse, "input: {}", case.input);
+                if case.can_parse {
+                    assert_eq!(result.unwrap().to_string(), case.input);
+                }
+            }
+        }
+    }
+
+    #[test]
     fn json_schema_for_gateway_direction_flag_set_does_not_panic() {
         let gen = &mut SchemaGenerator::default();
         // check it doesn't panic
@@ -589,6 +674,14 @@ mod tests {
     }
 
     fn random_chain_name() -> String {
+        thread_rng()
+            .sample_iter(&Alphanumeric)
+            .take(10)
+            .map(char::from)
+            .collect()
+    }
+
+    fn random_address() -> String {
         thread_rng()
             .sample_iter(&Alphanumeric)
             .take(10)
