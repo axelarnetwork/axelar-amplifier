@@ -60,15 +60,16 @@ jobs:
           fi
 
 
-      - name: Determine branch
-        id: get-branch-name
+      - name: Determine checkout ref
+        id: get-checkout-ref
         run: |
-          if [ "${{ github.event_name }}" == "push" ]; then
-            branch="main"
+          if [[ $GITHUB_REF == refs/tags/* ]]; then
+            echo "ref=$GITHUB_REF" >> $GITHUB_OUTPUT
+          elif [ "${{ github.event_name }}" == "push" ]; then
+            echo "ref=main" >> $GITHUB_OUTPUT
           else
-            branch="${{ inputs.branch }}"
+            echo "ref=${{ inputs.branch }}" >> $GITHUB_OUTPUT
           fi
-          echo "branch=$branch" >> $GITHUB_OUTPUT
 
 
       - name: Checkout code
@@ -77,7 +78,7 @@ jobs:
           fetch-depth: "0"
           path: axelar-amplifier
           submodules: recursive
-          ref: ${{ steps.get-branch-name.outputs.branch }}
+          ref: ${{ steps.get-checkout-ref.outputs.ref }}
 
 
       - name: Import GPG key
