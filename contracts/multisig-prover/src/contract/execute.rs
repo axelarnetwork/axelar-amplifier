@@ -98,7 +98,9 @@ fn messages(
         .iter()
         .any(|msg| msg.destination_chain != chain_name)
     {
-        panic!("violated invariant: messages from different chain found");
+        panic!(
+            "violated invariant: destination_chain in message does not match configured chain name"
+        );
     }
 
     Ok(messages)
