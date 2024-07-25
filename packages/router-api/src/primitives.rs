@@ -22,7 +22,9 @@ use valuable::Valuable;
 
 use crate::error::*;
 
-pub const CHAIN_NAME_DELIMITER: char = '_';
+/// Delimiter used when concatenating fields to prevent ambiguous encodings.
+/// The delimiter must be prevented from being contained in values that are used as fields.
+pub const FIELD_DELIMITER: char = '_';
 
 #[cw_serde]
 #[derive(Eq, Hash)]
@@ -41,11 +43,18 @@ pub struct Message {
 impl Message {
     pub fn hash(&self) -> Hash {
         let mut hasher = Keccak256::new();
+        let delimiter_bytes = &[FIELD_DELIMITER as u8];
+
         hasher.update(self.cc_id.to_string());
+        hasher.update(delimiter_bytes);
         hasher.update(self.source_address.as_str());
+        hasher.update(delimiter_bytes);
         hasher.update(self.destination_chain.as_ref());
+        hasher.update(delimiter_bytes);
         hasher.update(self.destination_address.as_str());
+        hasher.update(delimiter_bytes);
         hasher.update(self.payload_hash);
+
         hasher.finalize().into()
     }
 }
@@ -68,6 +77,7 @@ impl From<Message> for Vec<Attribute> {
 }
 
 #[cw_serde]
+#[serde(try_from = "String")]
 #[derive(Eq, Hash)]
 pub struct Address(nonempty::String);
 
@@ -91,6 +101,10 @@ impl TryFrom<String> for Address {
     type Error = Report<Error>;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
+        if value.contains(FIELD_DELIMITER) {
+            return Err(Report::new(Error::InvalidAddress));
+        }
+
         Ok(Address(
             value
                 .parse::<nonempty::String>()
@@ -150,7 +164,7 @@ impl KeyDeserialize for CrossChainId {
 }
 impl Display for CrossChainId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}{}{}", self.chain, CHAIN_NAME_DELIMITER, *self.id)
+        write!(f, "{}{}{}", self.chain, FIELD_DELIMITER, *self.id)
     }
 }
 
@@ -274,7 +288,7 @@ impl FromStr for ChainNameRaw {
     type Err = Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if s.contains(CHAIN_NAME_DELIMITER) || s.is_empty() {
+        if s.contains(FIELD_DELIMITER) || s.is_empty() {
             return Err(Error::InvalidChainName);
         }
 
@@ -430,7 +444,7 @@ mod tests {
     // will cause this test to fail, indicating that a migration is needed.
     fn test_message_struct_unchanged() {
         let expected_message_hash =
-            "e8052da3a89c90468cc6e4e242a827f8579fb0ea8e298b1650d73a0f7e81abc3";
+            "b0c6ee811cf4c205b08e36dbbad956212c4e291aedae44ab700265477bfea526";
 
         let msg = dummy_message();
 
@@ -444,7 +458,7 @@ mod tests {
     #[test]
     fn hash_id_unchanged() {
         let expected_message_hash =
-            "d30a374a795454706b43259998aafa741267ecbc8b6d5771be8d7b8c9a9db263";
+            "e6b9cc9b6962c997b44ded605ebfb4f861e2db2ddff7e8be84a7a79728cea61e";
 
         let msg = dummy_message();
 
@@ -462,7 +476,7 @@ mod tests {
 
         assert_eq!(
             "chain name is invalid",
-            serde_json::from_str::<ChainName>(format!("\"chain{CHAIN_NAME_DELIMITER}\"").as_str())
+            serde_json::from_str::<ChainName>(format!("\"chain{FIELD_DELIMITER}\"").as_str())
                 .unwrap_err()
                 .to_string()
         );
@@ -562,6 +576,87 @@ mod tests {
     }
 
     #[test]
+    fn should_not_deserialize_invalid_address() {
+        assert_eq!(
+            "address is invalid",
+            serde_json::from_str::<Address>("\"\"")
+                .unwrap_err()
+                .to_string()
+        );
+
+        assert_eq!(
+            "address is invalid",
+            serde_json::from_str::<Address>(format!("\"address{FIELD_DELIMITER}\"").as_str())
+                .unwrap_err()
+                .to_string()
+        );
+    }
+
+    #[test]
+    fn ensure_address_parsing_respect_restrictions() {
+        struct TestCase<'a> {
+            input: &'a str,
+            can_parse: bool,
+        }
+        let random_lower = random_address().to_lowercase();
+        let random_upper = random_address().to_uppercase();
+
+        let test_cases = [
+            TestCase {
+                input: "",
+                can_parse: false,
+            },
+            TestCase {
+                input: "address_with_prohibited_symbols",
+                can_parse: false,
+            },
+            TestCase {
+                input: "!@#$%^&*()+=-1234567890",
+                can_parse: true,
+            },
+            TestCase {
+                input: "0x4F4495243837681061C4743b74B3eEdf548D56A5",
+                can_parse: true,
+            },
+            TestCase {
+                input: "0x4f4495243837681061c4743b74b3eedf548d56a5",
+                can_parse: true,
+            },
+            TestCase {
+                input: "GARRAOPAA5MNY3Y5V2OOYXUMBC54UDHHJTUMLRQBY2DIZKT62G5WSJP4Copy",
+                can_parse: true,
+            },
+            TestCase {
+                input: "ETHEREUM-1",
+                can_parse: true,
+            },
+            TestCase {
+                input: random_lower.as_str(),
+                can_parse: true,
+            },
+            TestCase {
+                input: random_upper.as_str(),
+                can_parse: true,
+            },
+        ];
+
+        let conversions: [fn(&str) -> Result<Address, _>; 2] = [
+            |input: &str| Address::from_str(input),
+            |input: &str| Address::try_from(input.to_string()),
+        ];
+
+        for case in test_cases.into_iter() {
+            for conversion in conversions.into_iter() {
+                let result = conversion(case.input);
+                assert_eq!(result.is_ok(), case.can_parse, "input: {}", case.input);
+                if case.can_parse {
+                    assert_eq!(result.unwrap().to_string(), case.input);
+                }
+            }
+        }
+    }
+
+    #[test]
     fn json_schema_for_gateway_direction_flag_set_does_not_panic() {
         let gen = &mut SchemaGenerator::default();
         // check it doesn't panic
@@ -574,14 +669,22 @@ mod tests {
     fn dummy_message() -> Message {
         Message {
             cc_id: CrossChainId::new("chain", "hash-index").unwrap(),
-            source_address: "source_address".parse().unwrap(),
+            source_address: "source-address".parse().unwrap(),
             destination_chain: "destination-chain".parse().unwrap(),
-            destination_address: "destination_address".parse().unwrap(),
+            destination_address: "destination-address".parse().unwrap(),
             payload_hash: [1; 32],
         }
     }
 
     fn random_chain_name() -> String {
+        thread_rng()
+            .sample_iter(&Alphanumeric)
+            .take(10)
+            .map(char::from)
+            .collect()
+    }
+
+    fn random_address() -> String {
         thread_rng()
             .sample_iter(&Alphanumeric)
             .take(10)

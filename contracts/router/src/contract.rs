@@ -152,7 +152,7 @@ mod test {
     use permission_control::Permission;
     use router_api::error::Error;
     use router_api::{
-        ChainEndpoint, ChainName, CrossChainId, GatewayDirection, Message, CHAIN_NAME_DELIMITER,
+        ChainEndpoint, ChainName, CrossChainId, GatewayDirection, Message, FIELD_DELIMITER,
     };
 
     use super::*;
@@ -638,7 +638,7 @@ mod test {
 
         register_chain(deps.as_mut(), &eth);
         register_chain(deps.as_mut(), &polygon);
-        let new_gateway = Addr::unchecked("new_gateway");
+        let new_gateway = Addr::unchecked("new-gateway");
 
         let _ = execute(
             deps.as_mut(),
@@ -676,7 +676,7 @@ mod test {
 
         register_chain(deps.as_mut(), &eth);
         register_chain(deps.as_mut(), &polygon);
-        let new_gateway = Addr::unchecked("new_gateway");
+        let new_gateway = Addr::unchecked("new-gateway");
 
         let _ = execute(
             deps.as_mut(),
@@ -791,7 +791,7 @@ mod test {
     #[test]
     fn invalid_chain_name() {
         assert_contract_err_string_contains(
-            ChainName::from_str(format!("bad{}", CHAIN_NAME_DELIMITER).as_str()).unwrap_err(),
+            ChainName::from_str(format!("bad{}", FIELD_DELIMITER).as_str()).unwrap_err(),
             Error::InvalidChainName,
         );
 
