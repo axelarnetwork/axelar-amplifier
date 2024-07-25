@@ -22,7 +22,9 @@ use valuable::Valuable;
 
 use crate::error::*;
 
-pub const CHAIN_NAME_DELIMITER: char = '_';
+/// Delimiter used when concatenating fields to prevent ambiguous encodings.
+/// The delimiter must be prevented from being contained in values that are used as fields.
+pub const FIELD_DELIMITER: char = '_';
 
 #[cw_serde]
 #[derive(Eq, Hash)]
@@ -41,7 +43,7 @@ pub struct Message {
 impl Message {
     pub fn hash(&self) -> Hash {
         let mut hasher = Keccak256::new();
-        let delimiter_bytes = &[CHAIN_NAME_DELIMITER as u8];
+        let delimiter_bytes = &[FIELD_DELIMITER as u8];
 
         hasher.update(self.cc_id.to_string());
         hasher.update(delimiter_bytes);
@@ -99,7 +101,7 @@ impl TryFrom<String> for Address {
     type Error = Report<Error>;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
-        if value.contains(CHAIN_NAME_DELIMITER) {
+        if value.contains(FIELD_DELIMITER) {
             return Err(Report::new(Error::InvalidAddress));
         }
 
@@ -162,7 +164,7 @@ impl KeyDeserialize for CrossChainId {
 }
 impl Display for CrossChainId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}{}{}", self.chain, CHAIN_NAME_DELIMITER, *self.id)
+        write!(f, "{}{}{}", self.chain, FIELD_DELIMITER, *self.id)
     }
 }
 
@@ -286,7 +288,7 @@ impl FromStr for ChainNameRaw {
     type Err = Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if s.contains(CHAIN_NAME_DELIMITER) || s.is_empty() {
+        if s.contains(FIELD_DELIMITER) || s.is_empty() {
             return Err(Error::InvalidChainName);
         }
 
@@ -474,7 +476,7 @@ mod tests {
 
         assert_eq!(
             "chain name is invalid",
-            serde_json::from_str::<ChainName>(format!("\"chain{CHAIN_NAME_DELIMITER}\"").as_str())
+            serde_json::from_str::<ChainName>(format!("\"chain{FIELD_DELIMITER}\"").as_str())
                 .unwrap_err()
                 .to_string()
         );
@@ -584,7 +586,7 @@ mod tests {
 
         assert_eq!(
             "address is invalid",
-            serde_json::from_str::<Address>(format!("\"address{CHAIN_NAME_DELIMITER}\"").as_str())
+            serde_json::from_str::<Address>(format!("\"address{FIELD_DELIMITER}\"").as_str())
                 .unwrap_err()
                 .to_string()
         );
