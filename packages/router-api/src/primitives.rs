@@ -41,11 +41,18 @@ pub struct Message {
 impl Message {
     pub fn hash(&self) -> Hash {
         let mut hasher = Keccak256::new();
+        let delimiter_bytes = &[CHAIN_NAME_DELIMITER as u8];
+
         hasher.update(self.cc_id.to_string());
+        hasher.update(delimiter_bytes);
         hasher.update(self.source_address.as_str());
+        hasher.update(delimiter_bytes);
         hasher.update(self.destination_chain.as_ref());
+        hasher.update(delimiter_bytes);
         hasher.update(self.destination_address.as_str());
+        hasher.update(delimiter_bytes);
         hasher.update(self.payload_hash);
+
         hasher.finalize().into()
     }
 }
@@ -444,7 +451,7 @@ mod tests {
     #[test]
     fn hash_id_unchanged() {
         let expected_message_hash =
-            "d30a374a795454706b43259998aafa741267ecbc8b6d5771be8d7b8c9a9db263";
+            "1e28562de094e142cbeaab1eb32d0d4a78e9e44be231fe3d042a3aca542ecb1d";
 
         let msg = dummy_message();
 
