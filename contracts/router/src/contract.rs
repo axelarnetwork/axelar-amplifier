@@ -638,7 +638,7 @@ mod test {
 
         register_chain(deps.as_mut(), &eth);
         register_chain(deps.as_mut(), &polygon);
-        let new_gateway = Addr::unchecked("new_gateway");
+        let new_gateway = Addr::unchecked("new-gateway");
 
         let _ = execute(
             deps.as_mut(),
@@ -676,7 +676,7 @@ mod test {
 
         register_chain(deps.as_mut(), &eth);
         register_chain(deps.as_mut(), &polygon);
-        let new_gateway = Addr::unchecked("new_gateway");
+        let new_gateway = Addr::unchecked("new-gateway");
 
         let _ = execute(
             deps.as_mut(),
