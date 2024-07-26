@@ -271,7 +271,7 @@ mod test {
     use std::collections::BTreeMap;
 
     use axelar_wasm_std::msg_id::{
-        Base58TxDigestAndEventIndex, HexTxHashAndEventIndex, MessageIdFormat, HexTxHash
+        Base58TxDigestAndEventIndex, HexTxHash, HexTxHashAndEventIndex, MessageIdFormat,
     };
     use axelar_wasm_std::nonempty;
     use cosmwasm_std::Uint128;
@@ -333,8 +333,7 @@ mod test {
         let msg = generate_msg(msg_id.to_string().parse().unwrap());
 
         let event =
-            TxEventConfirmation::try_from((msg.clone(), &MessageIdFormat::HexTxHash))
-                .unwrap();
+            TxEventConfirmation::try_from((msg.clone(), &MessageIdFormat::HexTxHash)).unwrap();
 
         assert_eq!(event.tx_id, msg_id.tx_hash_as_hex());
         assert_eq!(event.event_index, 0);

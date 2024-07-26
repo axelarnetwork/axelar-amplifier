@@ -3,7 +3,7 @@ use std::fmt::Display;
 use std::str::FromStr;
 
 use cosmwasm_std::HexBinary;
-use error_stack::{Report, ResultExt, ensure};
+use error_stack::{ensure, Report, ResultExt};
 use lazy_static::lazy_static;
 use regex::Regex;
 
@@ -17,7 +17,8 @@ pub struct HexTxHash {
 
 impl HexTxHash {
     pub fn tx_hash_as_hex(&self) -> nonempty::String {
-        HexBinary::from(self.tx_hash).to_hex()
+        HexBinary::from(self.tx_hash)
+            .to_hex()
             .try_into()
             .expect("failed to convert tx hash to non-empty string")
     }
@@ -61,11 +62,7 @@ impl FromStr for HexTxHash {
 
 impl Display for HexTxHash {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{}",
-            HexBinary::from(self.tx_hash).to_hex(),
-        )
+        write!(f, "{}", HexBinary::from(self.tx_hash).to_hex(),)
     }
 }
 
@@ -85,9 +82,8 @@ mod tests {
 
     #[test]
     fn should_parse_msg_id() {
-        let res = HexTxHash::from_str(
-            "7cedbb3799cd99636045c84c5c55aef8a138f107ac8ba53a08cad1070ba4385b",
-        );
+        let res =
+            HexTxHash::from_str("7cedbb3799cd99636045c84c5c55aef8a138f107ac8ba53a08cad1070ba4385b");
         assert!(res.is_ok());
 
         for _ in 0..1000 {
@@ -108,8 +104,7 @@ mod tests {
         assert!(res.is_err());
 
         // too short
-        let res =
-            HexTxHash::from_str(&format!("{}", &tx_hash[..tx_hash.len() - 2]));
+        let res = HexTxHash::from_str(&format!("{}", &tx_hash[..tx_hash.len() - 2]));
         assert!(res.is_err());
     }
 
