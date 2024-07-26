@@ -63,7 +63,7 @@ impl From<Message> for Vec<Attribute> {
     fn from(other: Message) -> Self {
         vec![
             ("message_id", other.cc_id.message_id).into(),
-            ("source_chain", other.cc_id.chain).into(),
+            ("source_chain", other.cc_id.source_chain).into(),
             ("source_address", other.source_address.deref()).into(),
             ("destination_chain", other.destination_chain).into(),
             ("destination_address", other.destination_address.deref()).into(),
@@ -116,7 +116,7 @@ impl TryFrom<String> for Address {
 #[cw_serde]
 #[derive(Eq, Hash)]
 pub struct CrossChainId {
-    pub chain: ChainNameRaw,
+    pub source_chain: ChainNameRaw,
     pub message_id: nonempty::String,
 }
 
@@ -130,7 +130,7 @@ impl CrossChainId {
         T: Context,
     {
         Ok(CrossChainId {
-            chain: chain.try_into().change_context(Error::InvalidChainName)?,
+            source_chain: chain.try_into().change_context(Error::InvalidChainName)?,
             message_id: id.try_into().change_context(Error::InvalidMessageId)?,
         })
     }
@@ -143,7 +143,7 @@ impl PrimaryKey<'_> for CrossChainId {
     type SuperSuffix = (ChainNameRaw, String);
 
     fn key(&self) -> Vec<Key> {
-        let mut keys = self.chain.key();
+        let mut keys = self.source_chain.key();
         keys.extend(self.message_id.key());
         keys
     }
@@ -153,9 +153,9 @@ impl KeyDeserialize for CrossChainId {
     type Output = Self;
 
     fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
-        let (chain, id) = <(ChainNameRaw, String)>::from_vec(value)?;
+        let (source_chain, id) = <(ChainNameRaw, String)>::from_vec(value)?;
         Ok(CrossChainId {
-            chain,
+            source_chain,
             message_id: id
                 .try_into()
                 .map_err(|err| StdError::parse_err(type_name::<nonempty::String>(), err))?,
@@ -164,7 +164,11 @@ impl KeyDeserialize for CrossChainId {
 }
 impl Display for CrossChainId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}{}{}", self.chain, FIELD_DELIMITER, *self.message_id)
+        write!(
+            f,
+            "{}{}{}",
+            self.source_chain, FIELD_DELIMITER, *self.message_id
+        )
     }
 }
 
@@ -444,7 +448,7 @@ mod tests {
     // will cause this test to fail, indicating that a migration is needed.
     fn test_message_struct_unchanged() {
         let expected_message_hash =
-            "b0c6ee811cf4c205b08e36dbbad956212c4e291aedae44ab700265477bfea526";
+            "3a0edbeb590d12cf9f71864469d9e7afd52cccf2798db09c55def296af3a8e89";
 
         let msg = dummy_message();
 

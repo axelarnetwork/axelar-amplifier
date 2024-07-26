@@ -137,31 +137,31 @@ mod tests {
             Message {
                 cc_id: CrossChainId {
                     message_id: "id1".try_into().unwrap(),
-                    chain: "chain1".try_into().unwrap(),
+                    source_chain: "chain1".try_into().unwrap(),
                 },
-                source_address: "source_address".parse().unwrap(),
+                source_address: "source-address".parse().unwrap(),
                 destination_chain: "destination".parse().unwrap(),
-                destination_address: "destination_address".parse().unwrap(),
+                destination_address: "destination-address".parse().unwrap(),
                 payload_hash: [1; 32],
             },
             Message {
                 cc_id: CrossChainId {
                     message_id: "id2".try_into().unwrap(),
-                    chain: "chain2".try_into().unwrap(),
+                    source_chain: "chain2".try_into().unwrap(),
                 },
-                source_address: "source_address2".parse().unwrap(),
+                source_address: "source-address2".parse().unwrap(),
                 destination_chain: "destination2".parse().unwrap(),
-                destination_address: "destination_address2".parse().unwrap(),
+                destination_address: "destination-address2".parse().unwrap(),
                 payload_hash: [2; 32],
             },
             Message {
                 cc_id: CrossChainId {
                     message_id: "id3".try_into().unwrap(),
-                    chain: "chain3".try_into().unwrap(),
+                    source_chain: "chain3".try_into().unwrap(),
                 },
-                source_address: "source_address3".parse().unwrap(),
+                source_address: "source-address3".parse().unwrap(),
                 destination_chain: "destination3".parse().unwrap(),
-                destination_address: "destination_address3".parse().unwrap(),
+                destination_address: "destination-address3".parse().unwrap(),
                 payload_hash: [3; 32],
             },
         ];

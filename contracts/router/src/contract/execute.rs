@@ -179,7 +179,10 @@ fn validate_msgs(
         }));
     }
 
-    if msgs.iter().any(|msg| msg.cc_id.chain != source_chain.name) {
+    if msgs
+        .iter()
+        .any(|msg| msg.cc_id.source_chain != source_chain.name)
+    {
         return Err(report!(Error::WrongSourceChain));
     }
 

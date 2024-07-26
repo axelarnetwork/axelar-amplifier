@@ -5,52 +5,26 @@ use std::any::type_name;
 use axelar_wasm_std::error::ContractError;
 use axelar_wasm_std::nonempty;
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Order, StdError, StdResult, Storage};
+use cosmwasm_std::{StdError, StdResult, Storage};
 use cw_storage_plus::{Key, KeyDeserialize, Map, PrimaryKey};
-use itertools::Itertools;
 use router_api::{Address, ChainName, ChainNameRaw};
 
 use crate::contract::{CONTRACT_NAME, CONTRACT_VERSION};
-use crate::state;
 
 const BASE_VERSION: &str = "0.2.3";
 
 pub fn migrate(storage: &mut dyn Storage) -> Result<(), ContractError> {
     cw2::assert_contract_version(storage, CONTRACT_NAME, BASE_VERSION)?;
 
-    migrate_outgoing_messages(storage)?;
+    delete_outgoing_messages(storage);
 
     cw2::set_contract_version(storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     Ok(())
 }
 
-fn migrate_outgoing_messages(storage: &mut dyn Storage) -> StdResult<()> {
-    let msgs: Vec<_> = OUTGOING_MESSAGES
-        .range(storage, None, None, Order::Ascending)
-        .collect();
-
+fn delete_outgoing_messages(storage: &mut dyn Storage) {
     OUTGOING_MESSAGES.clear(storage);
-
-    msgs.into_iter()
-        .map_ok(|(cc_id, msg)| {
-            let cc_id = router_api::CrossChainId {
-                message_id: cc_id.id,
-                chain: cc_id.chain,
-            };
-
-            let message = router_api::Message {
-                cc_id: cc_id.clone(),
-                source_address: msg.source_address,
-                destination_chain: msg.destination_chain,
-                destination_address: msg.destination_address,
-                payload_hash: msg.payload_hash,
-            };
-
-            state::OUTGOING_MESSAGES.save(storage, &cc_id, &message)
-        })
-        .flatten()
-        .try_collect()
 }
 
 #[deprecated(since = "0.2.3", note = "only used during migration")]
@@ -171,9 +145,9 @@ mod tests {
                     id: "id1".try_into().unwrap(),
                     chain: "chain1".try_into().unwrap(),
                 },
-                source_address: "source_address".parse().unwrap(),
+                source_address: "source-address".parse().unwrap(),
                 destination_chain: "destination".parse().unwrap(),
-                destination_address: "destination_address".parse().unwrap(),
+                destination_address: "destination-address".parse().unwrap(),
                 payload_hash: [1; 32],
             },
             v0_2_3::Message {
@@ -181,9 +155,9 @@ mod tests {
                     id: "id2".try_into().unwrap(),
                     chain: "chain2".try_into().unwrap(),
                 },
-                source_address: "source_address2".parse().unwrap(),
+                source_address: "source-address2".parse().unwrap(),
                 destination_chain: "destination2".parse().unwrap(),
-                destination_address: "destination_address2".parse().unwrap(),
+                destination_address: "destination-address2".parse().unwrap(),
                 payload_hash: [2; 32],
             },
             v0_2_3::Message {
@@ -191,9 +165,9 @@ mod tests {
                     id: "id3".try_into().unwrap(),
                     chain: "chain3".try_into().unwrap(),
                 },
-                source_address: "source_address3".parse().unwrap(),
+                source_address: "source-address3".parse().unwrap(),
                 destination_chain: "destination3".parse().unwrap(),
-                destination_address: "destination_address3".parse().unwrap(),
+                destination_address: "destination-address3".parse().unwrap(),
                 payload_hash: [3; 32],
             },
         ];
@@ -206,16 +180,6 @@ mod tests {
 
         assert!(v0_2_3::migrate(deps.as_mut().storage).is_ok());
 
-        for msg in msgs.iter() {
-            let cc_id = router_api::CrossChainId {
-                message_id: msg.cc_id.id.clone(),
-                chain: msg.cc_id.chain.clone(),
-            };
-
-            assert!(state::OUTGOING_MESSAGES
-                .may_load(&deps.storage, &cc_id)
-                .unwrap()
-                .is_some());
-        }
+        assert!(state::OUTGOING_MESSAGES.is_empty(deps.as_ref().storage))
     }
 }

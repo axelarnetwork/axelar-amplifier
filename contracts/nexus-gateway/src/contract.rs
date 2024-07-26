@@ -275,7 +275,7 @@ mod tests {
         let msgs = vec![
             router_api::Message {
                 cc_id: CrossChainId {
-                    chain: "sourceChain".parse().unwrap(),
+                    source_chain: "sourceChain".parse().unwrap(),
                     message_id: "0x2fe4:0".parse().unwrap(),
                 },
                 source_address: "0xb860".parse().unwrap(),
@@ -290,7 +290,7 @@ mod tests {
             },
             router_api::Message {
                 cc_id: CrossChainId {
-                    chain: "sourceChain".parse().unwrap(),
+                    source_chain: "sourceChain".parse().unwrap(),
                     message_id: "0x6b33:10".parse().unwrap(),
                 },
                 source_address: "0x70725".parse().unwrap(),
