@@ -20,6 +20,8 @@ pub fn migrate(storage: &mut dyn Storage) -> Result<(), ContractError> {
     migrate_permission_control(storage, &config.governance)?;
     migrate_config(storage, config)?;
 
+    delete_polls(storage);
+
     cw2::set_contract_version(storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     Ok(())
@@ -48,6 +50,13 @@ fn migrate_config(storage: &mut dyn Storage, config: Config) -> StdResult<()> {
 
 fn migrate_permission_control(storage: &mut dyn Storage, governance: &Addr) -> StdResult<()> {
     permission_control::set_governance(storage, governance)
+}
+
+fn delete_polls(storage: &mut dyn Storage) {
+    state::POLLS.clear(storage);
+    state::VOTES.clear(storage);
+    state::poll_messages().clear(storage);
+    state::poll_messages().clear(storage);
 }
 
 #[cw_serde]
@@ -161,6 +170,19 @@ mod tests {
         )
         .unwrap()
         .contains(Permission::Governance));
+    }
+
+    #[test]
+    fn state_is_cleared_after_migration() {
+        let mut deps = mock_dependencies();
+        instantiate_contract(deps.as_mut());
+
+        assert!(v0_5_0::migrate(deps.as_mut().storage).is_ok());
+
+        assert!(state::VOTES.is_empty(deps.as_ref().storage));
+        assert!(state::POLLS.is_empty(deps.as_ref().storage));
+        assert!(state::poll_messages().is_empty(deps.as_ref().storage));
+        assert!(state::poll_verifier_sets().is_empty(deps.as_ref().storage));
     }
 
     fn instantiate_contract(deps: DepsMut) {

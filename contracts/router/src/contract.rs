@@ -331,7 +331,7 @@ mod test {
         let mut messages = generate_messages(&eth, &polygon, &mut 0, 1);
         messages
             .iter_mut()
-            .for_each(|msg| msg.cc_id.chain = "Ethereum".parse().unwrap());
+            .for_each(|msg| msg.cc_id.source_chain = "Ethereum".parse().unwrap());
 
         let result = execute(
             deps.as_mut(),
@@ -354,7 +354,7 @@ mod test {
         let mut messages = generate_messages(&eth, &polygon, &mut 0, 1);
         messages
             .iter_mut()
-            .for_each(|msg| msg.cc_id.chain = "Ethereum".parse().unwrap());
+            .for_each(|msg| msg.cc_id.source_chain = "Ethereum".parse().unwrap());
 
         let result = execute(
             deps.as_mut(),
@@ -426,7 +426,7 @@ mod test {
                         .unwrap()
                         .clone()
                         .into_iter()
-                        .filter(|m| m.cc_id.chain == s.chain_name)
+                        .filter(|m| m.cc_id.source_chain == s.chain_name)
                         .collect::<Vec<_>>(),
                     &res.messages[i].msg,
                 );

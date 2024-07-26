@@ -317,7 +317,7 @@ mod test {
         let err = execute(deps.as_mut(), mock_env(), mock_info(SENDER, &[]), msg).unwrap_err();
         assert_contract_err_strings_equal(
             err,
-            ContractError::InvalidMessageID(messages[0].cc_id.id.to_string()),
+            ContractError::InvalidMessageID(messages[0].cc_id.message_id.to_string()),
         );
     }
 
@@ -333,7 +333,7 @@ mod test {
         let err = execute(deps.as_mut(), mock_env(), mock_info(SENDER, &[]), msg).unwrap_err();
         assert_contract_err_strings_equal(
             err,
-            ContractError::InvalidMessageID(messages[0].cc_id.id.to_string()),
+            ContractError::InvalidMessageID(messages[0].cc_id.message_id.to_string()),
         );
     }
 

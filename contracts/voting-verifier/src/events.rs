@@ -195,7 +195,7 @@ pub struct TxEventConfirmation {
 impl TryFrom<(Message, &MessageIdFormat)> for TxEventConfirmation {
     type Error = ContractError;
     fn try_from((msg, msg_id_format): (Message, &MessageIdFormat)) -> Result<Self, Self::Error> {
-        let (tx_id, event_index) = parse_message_id(&msg.cc_id.id, msg_id_format)?;
+        let (tx_id, event_index) = parse_message_id(&msg.cc_id.message_id, msg_id_format)?;
 
         Ok(TxEventConfirmation {
             tx_id,

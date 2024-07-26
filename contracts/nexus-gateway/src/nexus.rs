@@ -41,17 +41,17 @@ impl From<router_api::Message> for Message {
     fn from(msg: router_api::Message) -> Self {
         // fallback to using all 0's as the tx ID if it's not in the expected format
         let (source_tx_id, source_tx_index) =
-            parse_message_id(&msg.cc_id.id).unwrap_or((vec![0; 32].try_into().unwrap(), 0));
+            parse_message_id(&msg.cc_id.message_id).unwrap_or((vec![0; 32].try_into().unwrap(), 0));
 
         Self {
-            source_chain: msg.cc_id.chain,
+            source_chain: msg.cc_id.source_chain,
             source_address: msg.source_address,
             destination_chain: msg.destination_chain,
             destination_address: msg.destination_address,
             payload_hash: msg.payload_hash,
             source_tx_id,
             source_tx_index,
-            id: msg.cc_id.id.into(),
+            id: msg.cc_id.message_id.into(),
         }
     }
 }
@@ -62,8 +62,8 @@ impl TryFrom<Message> for router_api::Message {
     fn try_from(msg: Message) -> Result<Self, ContractError> {
         Ok(Self {
             cc_id: CrossChainId {
-                chain: msg.source_chain,
-                id: nonempty::String::try_from(msg.id.as_str())
+                source_chain: msg.source_chain,
+                message_id: nonempty::String::try_from(msg.id.as_str())
                     .change_context(ContractError::InvalidMessageId(msg.id))?,
             },
             source_address: msg.source_address,
@@ -110,8 +110,8 @@ mod test {
         assert!(router_msg.is_ok());
         let router_msg = router_msg.unwrap();
         let router_msg_cc_id = router_msg.cc_id;
-        assert_eq!(router_msg_cc_id.chain, msg.source_chain);
-        assert_eq!(router_msg_cc_id.id.to_string(), msg.id);
+        assert_eq!(router_msg_cc_id.source_chain, msg.source_chain);
+        assert_eq!(router_msg_cc_id.message_id.to_string(), msg.id);
     }
 
     #[test]
@@ -137,11 +137,14 @@ mod test {
 
         let router_msg_cc_id = msg.cc_id;
 
-        assert_eq!(nexus_msg.id, *router_msg_cc_id.id);
+        assert_eq!(nexus_msg.id, *router_msg_cc_id.message_id);
         assert_eq!(nexus_msg.destination_address, msg.destination_address);
         assert_eq!(nexus_msg.destination_chain, msg.destination_chain);
         assert_eq!(nexus_msg.source_address, msg.source_address);
-        assert_eq!(nexus_msg.source_chain, router_msg_cc_id.chain.clone());
+        assert_eq!(
+            nexus_msg.source_chain,
+            router_msg_cc_id.source_chain.clone()
+        );
         assert_eq!(nexus_msg.source_tx_id, vec![2; 32].try_into().unwrap());
         assert_eq!(nexus_msg.source_tx_index, 1);
     }
@@ -169,13 +172,16 @@ mod test {
 
         let router_msg_cc_id = msg.cc_id;
 
-        assert_eq!(nexus_msg.id, *router_msg_cc_id.id);
+        assert_eq!(nexus_msg.id, *router_msg_cc_id.message_id);
         assert_eq!(nexus_msg.source_tx_id, vec![0; 32].try_into().unwrap());
         assert_eq!(nexus_msg.source_tx_index, 0);
 
         assert_eq!(nexus_msg.destination_address, msg.destination_address);
         assert_eq!(nexus_msg.destination_chain, msg.destination_chain);
         assert_eq!(nexus_msg.source_address, msg.source_address);
-        assert_eq!(nexus_msg.source_chain, router_msg_cc_id.chain.clone());
+        assert_eq!(
+            nexus_msg.source_chain,
+            router_msg_cc_id.source_chain.clone()
+        );
     }
 }
