@@ -141,7 +141,7 @@ mod tests {
 
     fn instantiate_0_2_0_contract(
         deps: DepsMut,
-    ) -> Result<InstantiateMsg, axelar_wasm_std::ContractError> {
+    ) -> Result<InstantiateMsg, axelar_wasm_std::error::ContractError> {
         let governance = "governance";
 
         let msg = InstantiateMsg {

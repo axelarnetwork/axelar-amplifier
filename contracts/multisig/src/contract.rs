@@ -1,17 +1,20 @@
-use axelar_wasm_std::{killswitch, permission_control};
+use std::collections::HashMap;
+
+use axelar_wasm_std::{killswitch, permission_control, FnExt};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_json_binary, Addr, Binary, Deps, DepsMut, Env, HexBinary, MessageInfo, Response, StdResult,
-    Storage, Uint64,
+    to_json_binary, Addr, Binary, Deps, DepsMut, Env, HexBinary, MessageInfo, Response, StdError,
+    StdResult, Storage, Uint64,
 };
 use error_stack::{report, ResultExt};
 use itertools::Itertools;
+use router_api::ChainName;
 
 use crate::events::Event;
 use crate::msg::{ExecuteMsg, InstantiateMsg, MigrationMsg, QueryMsg};
 use crate::state::{
-    get_verifier_set, Config, CONFIG, SIGNING_SESSIONS, SIGNING_SESSION_COUNTER, VERIFIER_SETS,
+    verifier_set, Config, CONFIG, SIGNING_SESSIONS, SIGNING_SESSION_COUNTER, VERIFIER_SETS,
 };
 use crate::types::{MsgToSign, MultisigState};
 use crate::ContractError;
@@ -28,7 +31,7 @@ pub fn migrate(
     deps: DepsMut,
     _env: Env,
     msg: MigrationMsg,
-) -> Result<Response, axelar_wasm_std::ContractError> {
+) -> Result<Response, axelar_wasm_std::error::ContractError> {
     let admin = deps.api.addr_validate(&msg.admin_address)?;
     let authorized_callers = msg
         .authorized_callers
@@ -56,7 +59,7 @@ pub fn instantiate(
     _env: Env,
     _info: MessageInfo,
     msg: InstantiateMsg,
-) -> Result<Response, axelar_wasm_std::ContractError> {
+) -> Result<Response, axelar_wasm_std::error::ContractError> {
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     let admin = deps.api.addr_validate(&msg.admin_address)?;
@@ -84,7 +87,7 @@ pub fn execute(
     env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
-) -> Result<Response, axelar_wasm_std::ContractError> {
+) -> Result<Response, axelar_wasm_std::error::ContractError> {
     match msg.ensure_permissions(
         deps.storage,
         &info.sender,
@@ -104,7 +107,7 @@ pub fn execute(
                 env,
                 verifier_set_id,
                 msg.try_into()
-                    .map_err(axelar_wasm_std::ContractError::from)?,
+                    .map_err(axelar_wasm_std::error::ContractError::from)?,
                 chain_name,
                 sig_verifier,
             )
@@ -121,31 +124,31 @@ pub fn execute(
             signed_sender_address,
         } => execute::register_pub_key(deps, info, public_key, signed_sender_address),
         ExecuteMsg::AuthorizeCallers { contracts } => {
-            let contracts = contracts
-                .into_iter()
-                .map(|(contract_address, chain_name)| {
-                    deps.api
-                        .addr_validate(&contract_address)
-                        .map(|addr| (addr, chain_name))
-                })
-                .try_collect()?;
+            let contracts = validate_contract_addresses(&deps, contracts)?;
             execute::authorize_callers(deps, contracts)
         }
         ExecuteMsg::UnauthorizeCallers { contracts } => {
-            let contracts = contracts
-                .into_iter()
-                .map(|(contract_address, chain_name)| {
-                    deps.api
-                        .addr_validate(&contract_address)
-                        .map(|addr| (addr, chain_name))
-                })
-                .try_collect()?;
+            let contracts = validate_contract_addresses(&deps, contracts)?;
             execute::unauthorize_callers(deps, contracts)
         }
         ExecuteMsg::DisableSigning => execute::disable_signing(deps),
         ExecuteMsg::EnableSigning => execute::enable_signing(deps),
-    }
-    .map_err(axelar_wasm_std::ContractError::from)
+    }?
+    .then(Ok)
+}
+
+fn validate_contract_addresses(
+    deps: &DepsMut,
+    contracts: HashMap<String, ChainName>,
+) -> Result<HashMap<Addr, ChainName>, StdError> {
+    contracts
+        .into_iter()
+        .map(|(contract_address, chain_name)| {
+            deps.api
+                .addr_validate(&contract_address)
+                .map(|addr| (addr, chain_name))
+        })
+        .try_collect()
 }
 
 fn can_start_signing_session(
@@ -164,16 +167,14 @@ fn can_start_signing_session(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::GetMultisig { session_id } => {
-            to_json_binary(&query::get_multisig(deps, session_id)?)
+        QueryMsg::Multisig { session_id } => to_json_binary(&query::multisig(deps, session_id)?),
+        QueryMsg::VerifierSet { verifier_set_id } => {
+            to_json_binary(&query::verifier_set(deps, verifier_set_id)?)
         }
-        QueryMsg::GetVerifierSet { verifier_set_id } => {
-            to_json_binary(&query::get_verifier_set(deps, verifier_set_id)?)
-        }
-        QueryMsg::GetPublicKey {
+        QueryMsg::PublicKey {
             verifier_address,
             key_type,
-        } => to_json_binary(&query::get_public_key(
+        } => to_json_binary(&query::public_key(
             deps,
             deps.api.addr_validate(&verifier_address)?,
             key_type,
@@ -219,7 +220,7 @@ mod tests {
 
     const SIGNATURE_BLOCK_EXPIRY: u64 = 100;
 
-    fn do_instantiate(deps: DepsMut) -> Result<Response, axelar_wasm_std::ContractError> {
+    fn do_instantiate(deps: DepsMut) -> Result<Response, axelar_wasm_std::error::ContractError> {
         let info = mock_info(INSTANTIATOR, &[]);
         let env = mock_env();
 
@@ -236,7 +237,7 @@ mod tests {
     fn generate_verifier_set(
         key_type: KeyType,
         deps: DepsMut,
-    ) -> Result<(Response, VerifierSet), axelar_wasm_std::ContractError> {
+    ) -> Result<(Response, VerifierSet), axelar_wasm_std::error::ContractError> {
         let info = mock_info(PROVER, &[]);
         let env = mock_env();
 
@@ -258,7 +259,7 @@ mod tests {
         query(
             deps,
             env,
-            QueryMsg::GetVerifierSet {
+            QueryMsg::VerifierSet {
                 verifier_set_id: verifier_set_id.to_string(),
             },
         )
@@ -269,7 +270,7 @@ mod tests {
         sender: &str,
         verifier_set_id: &str,
         chain_name: ChainName,
-    ) -> Result<Response, axelar_wasm_std::ContractError> {
+    ) -> Result<Response, axelar_wasm_std::error::ContractError> {
         let info = mock_info(sender, &[]);
         let env = mock_env();
 
@@ -288,7 +289,7 @@ mod tests {
         env: Env,
         session_id: Uint64,
         signer: &TestSigner,
-    ) -> Result<Response, axelar_wasm_std::ContractError> {
+    ) -> Result<Response, axelar_wasm_std::error::ContractError> {
         let msg = ExecuteMsg::SubmitSignature {
             session_id,
             signature: signer.signature.clone(),
@@ -301,7 +302,7 @@ mod tests {
         verifier: Addr,
         public_key: PublicKey,
         signed_sender_address: HexBinary,
-    ) -> Result<Response, axelar_wasm_std::ContractError> {
+    ) -> Result<Response, axelar_wasm_std::error::ContractError> {
         let msg = ExecuteMsg::RegisterPublicKey {
             public_key,
             signed_sender_address,
@@ -312,7 +313,7 @@ mod tests {
     fn do_authorize_callers(
         deps: DepsMut,
         contracts: Vec<(Addr, ChainName)>,
-    ) -> Result<Response, axelar_wasm_std::ContractError> {
+    ) -> Result<Response, axelar_wasm_std::error::ContractError> {
         let info = mock_info(GOVERNANCE, &[]);
         let env = mock_env();
 
@@ -328,7 +329,7 @@ mod tests {
     fn do_unauthorize_caller(
         deps: DepsMut,
         contracts: Vec<(Addr, ChainName)>,
-    ) -> Result<Response, axelar_wasm_std::ContractError> {
+    ) -> Result<Response, axelar_wasm_std::error::ContractError> {
         let info = mock_info(GOVERNANCE, &[]);
         let env = mock_env();
 
@@ -344,7 +345,7 @@ mod tests {
     fn do_disable_signing(
         deps: DepsMut,
         sender: &str,
-    ) -> Result<Response, axelar_wasm_std::ContractError> {
+    ) -> Result<Response, axelar_wasm_std::error::ContractError> {
         let info = mock_info(sender, &[]);
         let env = mock_env();
 
@@ -355,7 +356,7 @@ mod tests {
     fn do_enable_signing(
         deps: DepsMut,
         sender: &str,
-    ) -> Result<Response, axelar_wasm_std::ContractError> {
+    ) -> Result<Response, axelar_wasm_std::error::ContractError> {
         let info = mock_info(sender, &[]);
         let env = mock_env();
 
@@ -372,7 +373,7 @@ mod tests {
         query(
             deps,
             env,
-            QueryMsg::GetPublicKey {
+            QueryMsg::PublicKey {
                 verifier_address: verifier.to_string(),
                 key_type,
             },
@@ -399,7 +400,7 @@ mod tests {
     }
 
     // TODO: move to external crate?
-    fn get_event_attribute<'a>(
+    fn event_attribute<'a>(
         event: &'a cosmwasm_std::Event,
         attribute_name: &'a str,
     ) -> Option<&'a str> {
@@ -511,7 +512,7 @@ mod tests {
                 .unwrap();
 
             let verifier_set_id = subkey.to_string();
-            let verifier_set = get_verifier_set(deps.as_ref().storage, &verifier_set_id).unwrap();
+            let verifier_set = verifier_set(deps.as_ref().storage, &verifier_set_id).unwrap();
             let message = match subkey {
                 _ if subkey == ecdsa_subkey => ecdsa_test_data::message(),
                 _ if subkey == ed25519_subkey => ed25519_test_data::message(),
@@ -533,18 +534,18 @@ mod tests {
             let event = res.events.first().unwrap();
             assert_eq!(event.ty, "signing_started".to_string());
             assert_eq!(
-                get_event_attribute(event, "session_id").unwrap(),
+                event_attribute(event, "session_id").unwrap(),
                 session.id.to_string()
             );
             assert_eq!(
-                get_event_attribute(event, "verifier_set_id").unwrap(),
+                event_attribute(event, "verifier_set_id").unwrap(),
                 session.verifier_set_id
             );
             assert_eq!(
-                verifier_set.get_pub_keys(),
-                from_str(get_event_attribute(event, "pub_keys").unwrap()).unwrap()
+                verifier_set.pub_keys(),
+                from_str(event_attribute(event, "pub_keys").unwrap()).unwrap()
             );
-            assert_eq!(get_event_attribute(event, "msg").unwrap(), message.to_hex());
+            assert_eq!(event_attribute(event, "msg").unwrap(), message.to_hex());
         }
     }
 
@@ -632,15 +633,15 @@ mod tests {
             let event = res.events.first().unwrap();
             assert_eq!(event.ty, "signature_submitted".to_string());
             assert_eq!(
-                get_event_attribute(event, "session_id").unwrap(),
+                event_attribute(event, "session_id").unwrap(),
                 session_id.to_string()
             );
             assert_eq!(
-                get_event_attribute(event, "participant").unwrap(),
+                event_attribute(event, "participant").unwrap(),
                 signer.address.into_string()
             );
             assert_eq!(
-                get_event_attribute(event, "signature").unwrap(),
+                event_attribute(event, "signature").unwrap(),
                 signer.signature.to_hex()
             );
         }
@@ -697,7 +698,7 @@ mod tests {
             let event = res.events.get(1).unwrap();
             assert_eq!(event.ty, "signing_completed".to_string());
             assert_eq!(
-                get_event_attribute(event, "session_id").unwrap(),
+                event_attribute(event, "session_id").unwrap(),
                 session_id.to_string()
             );
         }
@@ -783,7 +784,7 @@ mod tests {
 
             assert_eq!(
                 res.unwrap_err().to_string(),
-                axelar_wasm_std::ContractError::from(ContractError::SigningSessionClosed {
+                axelar_wasm_std::error::ContractError::from(ContractError::SigningSessionClosed {
                     session_id
                 })
                 .to_string()
@@ -808,7 +809,7 @@ mod tests {
 
         assert_eq!(
             res.unwrap_err().to_string(),
-            axelar_wasm_std::ContractError::from(ContractError::SigningSessionNotFound {
+            axelar_wasm_std::error::ContractError::from(ContractError::SigningSessionNotFound {
                 session_id: invalid_session_id
             })
             .to_string()
@@ -843,7 +844,7 @@ mod tests {
             let expected_completed_at = env.block.height;
             do_sign(deps.as_mut(), env, session_id, signers.get(1).unwrap()).unwrap();
 
-            let msg = QueryMsg::GetMultisig { session_id };
+            let msg = QueryMsg::Multisig { session_id };
 
             let res = query(deps.as_ref(), mock_env(), msg);
             assert!(res.is_ok());
@@ -1035,7 +1036,7 @@ mod tests {
         );
         assert_eq!(
             res.unwrap_err().to_string(),
-            axelar_wasm_std::ContractError::from(
+            axelar_wasm_std::error::ContractError::from(
                 ContractError::InvalidPublicKeyRegistrationSignature
             )
             .to_string()
@@ -1054,7 +1055,7 @@ mod tests {
         );
         assert_eq!(
             res.unwrap_err().to_string(),
-            axelar_wasm_std::ContractError::from(
+            axelar_wasm_std::error::ContractError::from(
                 ContractError::InvalidPublicKeyRegistrationSignature
             )
             .to_string()
@@ -1088,7 +1089,8 @@ mod tests {
 
         assert_eq!(
             res.unwrap_err().to_string(),
-            axelar_wasm_std::ContractError::from(ContractError::DuplicatePublicKey).to_string()
+            axelar_wasm_std::error::ContractError::from(ContractError::DuplicatePublicKey)
+                .to_string()
         );
     }
 

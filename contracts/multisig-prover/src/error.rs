@@ -8,9 +8,6 @@ pub enum ContractError {
     #[error(transparent)]
     Std(#[from] StdError),
 
-    #[error("caller is not authorized")]
-    Unauthorized,
-
     #[error("message is invalid")]
     InvalidMessage,
 

@@ -1,5 +1,6 @@
 use std::any::type_name;
 use std::fmt;
+use std::fmt::Display;
 use std::ops::Deref;
 use std::str::FromStr;
 
@@ -10,7 +11,7 @@ use axelar_wasm_std::{nonempty, FnExt};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Attribute, HexBinary, StdError, StdResult};
 use cw_storage_plus::{Key, KeyDeserialize, Prefixer, PrimaryKey};
-use error_stack::{Report, ResultExt};
+use error_stack::{Context, Report, ResultExt};
 use flagset::flags;
 use schemars::gen::SchemaGenerator;
 use schemars::schema::Schema;
@@ -21,7 +22,9 @@ use valuable::Valuable;
 
 use crate::error::*;
 
-pub const CHAIN_NAME_DELIMITER: char = '_';
+/// Delimiter used when concatenating fields to prevent ambiguous encodings.
+/// The delimiter must be prevented from being contained in values that are used as fields.
+pub const FIELD_DELIMITER: char = '_';
 
 #[cw_serde]
 #[derive(Eq, Hash)]
@@ -40,11 +43,18 @@ pub struct Message {
 impl Message {
     pub fn hash(&self) -> Hash {
         let mut hasher = Keccak256::new();
+        let delimiter_bytes = &[FIELD_DELIMITER as u8];
+
         hasher.update(self.cc_id.to_string());
+        hasher.update(delimiter_bytes);
         hasher.update(self.source_address.as_str());
+        hasher.update(delimiter_bytes);
         hasher.update(self.destination_chain.as_ref());
+        hasher.update(delimiter_bytes);
         hasher.update(self.destination_address.as_str());
+        hasher.update(delimiter_bytes);
         hasher.update(self.payload_hash);
+
         hasher.finalize().into()
     }
 }
@@ -52,8 +62,8 @@ impl Message {
 impl From<Message> for Vec<Attribute> {
     fn from(other: Message) -> Self {
         vec![
-            ("id", other.cc_id.id).into(),
-            ("source_chain", other.cc_id.chain).into(),
+            ("message_id", other.cc_id.message_id).into(),
+            ("source_chain", other.cc_id.source_chain).into(),
             ("source_address", other.source_address.deref()).into(),
             ("destination_chain", other.destination_chain).into(),
             ("destination_address", other.destination_address.deref()).into(),
@@ -67,6 +77,7 @@ impl From<Message> for Vec<Attribute> {
 }
 
 #[cw_serde]
+#[serde(try_from = "String")]
 #[derive(Eq, Hash)]
 pub struct Address(nonempty::String);
 
@@ -90,6 +101,10 @@ impl TryFrom<String> for Address {
     type Error = Report<Error>;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
+        if value.contains(FIELD_DELIMITER) {
+            return Err(Report::new(Error::InvalidAddress));
+        }
+
         Ok(Address(
             value
                 .parse::<nonempty::String>()
@@ -101,47 +116,35 @@ impl TryFrom<String> for Address {
 #[cw_serde]
 #[derive(Eq, Hash)]
 pub struct CrossChainId {
-    pub chain: ChainName,
-    pub id: nonempty::String,
+    pub source_chain: ChainNameRaw,
+    pub message_id: nonempty::String,
 }
 
-/// todo: remove this when state::NewMessage is used
-impl FromStr for CrossChainId {
-    type Err = Error;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let parts = s.split_once(CHAIN_NAME_DELIMITER);
-        let (chain, id) = parts
-            .map(|(chain, id)| {
-                (
-                    chain.parse::<ChainName>(),
-                    id.parse::<nonempty::String>()
-                        .map_err(|_| Error::InvalidMessageId),
-                )
-            })
-            .ok_or(Error::InvalidMessageId)?;
+impl CrossChainId {
+    pub fn new<S, T>(
+        chain: impl TryInto<ChainNameRaw, Error = S>,
+        id: impl TryInto<nonempty::String, Error = T>,
+    ) -> error_stack::Result<Self, Error>
+    where
+        S: Context,
+        T: Context,
+    {
         Ok(CrossChainId {
-            chain: chain?,
-            id: id?,
+            source_chain: chain.try_into().change_context(Error::InvalidChainName)?,
+            message_id: id.try_into().change_context(Error::InvalidMessageId)?,
         })
     }
 }
 
-impl fmt::Display for CrossChainId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}{}{}", self.chain, CHAIN_NAME_DELIMITER, *self.id)
-    }
-}
-
 impl PrimaryKey<'_> for CrossChainId {
-    type Prefix = ChainName;
+    type Prefix = ChainNameRaw;
     type SubPrefix = ();
     type Suffix = String;
-    type SuperSuffix = (ChainName, String);
+    type SuperSuffix = (ChainNameRaw, String);
 
     fn key(&self) -> Vec<Key> {
-        let mut keys = self.chain.key();
-        keys.extend(self.id.key());
+        let mut keys = self.source_chain.key();
+        keys.extend(self.message_id.key());
         keys
     }
 }
@@ -150,13 +153,22 @@ impl KeyDeserialize for CrossChainId {
     type Output = Self;
 
     fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
-        let (chain, id) = <(ChainName, String)>::from_vec(value)?;
+        let (source_chain, id) = <(ChainNameRaw, String)>::from_vec(value)?;
         Ok(CrossChainId {
-            chain,
-            id: id
+            source_chain,
+            message_id: id
                 .try_into()
                 .map_err(|err| StdError::parse_err(type_name::<nonempty::String>(), err))?,
         })
+    }
+}
+impl Display for CrossChainId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}{}{}",
+            self.source_chain, FIELD_DELIMITER, *self.message_id
+        )
     }
 }
 
@@ -169,11 +181,9 @@ impl FromStr for ChainName {
     type Err = Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if s.contains(CHAIN_NAME_DELIMITER) || s.is_empty() {
-            return Err(Error::InvalidChainName);
-        }
+        let chain_name: ChainNameRaw = s.parse()?;
 
-        Ok(ChainName(s.to_lowercase()))
+        Ok(ChainName(chain_name.0.to_lowercase()))
     }
 }
 
@@ -191,15 +201,35 @@ impl TryFrom<String> for ChainName {
     }
 }
 
-impl fmt::Display for ChainName {
+impl TryFrom<&str> for ChainName {
+    type Error = Error;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        value.parse()
+    }
+}
+
+impl Display for ChainName {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
     }
 }
 
+impl PartialEq<ChainNameRaw> for ChainName {
+    fn eq(&self, other: &ChainNameRaw) -> bool {
+        self == &other.as_ref()
+    }
+}
+
 impl PartialEq<String> for ChainName {
     fn eq(&self, other: &String) -> bool {
-        self.0 == other.to_lowercase()
+        self == &other.as_str()
+    }
+}
+
+impl PartialEq<&str> for ChainName {
+    fn eq(&self, other: &&str) -> bool {
+        self.0 == *other
     }
 }
 
@@ -244,6 +274,119 @@ impl KeyDeserialize for &ChainName {
 impl AsRef<str> for ChainName {
     fn as_ref(&self) -> &str {
         self.0.as_str()
+    }
+}
+
+#[cw_serde]
+#[serde(try_from = "String")]
+#[derive(Eq, Hash)]
+pub struct ChainNameRaw(String);
+
+impl From<ChainName> for ChainNameRaw {
+    fn from(other: ChainName) -> Self {
+        ChainNameRaw(other.0)
+    }
+}
+
+impl FromStr for ChainNameRaw {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s.contains(FIELD_DELIMITER) || s.is_empty() {
+            return Err(Error::InvalidChainName);
+        }
+
+        Ok(ChainNameRaw(s.to_owned()))
+    }
+}
+
+impl From<ChainNameRaw> for String {
+    fn from(d: ChainNameRaw) -> Self {
+        d.0
+    }
+}
+
+impl TryFrom<String> for ChainNameRaw {
+    type Error = Error;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        value.parse()
+    }
+}
+
+impl TryFrom<&str> for ChainNameRaw {
+    type Error = Error;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        value.parse()
+    }
+}
+
+impl Display for ChainNameRaw {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl AsRef<str> for ChainNameRaw {
+    fn as_ref(&self) -> &str {
+        self.0.as_str()
+    }
+}
+
+impl PartialEq<ChainName> for ChainNameRaw {
+    fn eq(&self, other: &ChainName) -> bool {
+        self == &other.as_ref()
+    }
+}
+
+impl PartialEq<String> for ChainNameRaw {
+    fn eq(&self, other: &String) -> bool {
+        self == &other.as_str()
+    }
+}
+
+impl PartialEq<&str> for ChainNameRaw {
+    fn eq(&self, other: &&str) -> bool {
+        self.0 == *other
+    }
+}
+
+impl<'a> PrimaryKey<'a> for ChainNameRaw {
+    type Prefix = ();
+    type SubPrefix = ();
+    type Suffix = Self;
+    type SuperSuffix = Self;
+
+    fn key(&self) -> Vec<Key> {
+        vec![Key::Ref(self.0.as_bytes())]
+    }
+}
+
+impl<'a> Prefixer<'a> for ChainNameRaw {
+    fn prefix(&self) -> Vec<Key> {
+        vec![Key::Ref(self.0.as_bytes())]
+    }
+}
+
+impl KeyDeserialize for ChainNameRaw {
+    type Output = Self;
+
+    #[inline(always)]
+    fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
+        String::from_utf8(value)
+            .map_err(StdError::invalid_utf8)?
+            .then(ChainNameRaw::try_from)
+            .map_err(StdError::invalid_utf8)
+    }
+}
+
+impl KeyDeserialize for &ChainNameRaw {
+    type Output = ChainNameRaw;
+
+    #[inline(always)]
+    fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
+        ChainNameRaw::from_vec(value)
     }
 }
 
@@ -305,7 +448,7 @@ mod tests {
     // will cause this test to fail, indicating that a migration is needed.
     fn test_message_struct_unchanged() {
         let expected_message_hash =
-            "e8052da3a89c90468cc6e4e242a827f8579fb0ea8e298b1650d73a0f7e81abc3";
+            "3a0edbeb590d12cf9f71864469d9e7afd52cccf2798db09c55def296af3a8e89";
 
         let msg = dummy_message();
 
@@ -319,48 +462,11 @@ mod tests {
     #[test]
     fn hash_id_unchanged() {
         let expected_message_hash =
-            "d30a374a795454706b43259998aafa741267ecbc8b6d5771be8d7b8c9a9db263";
+            "e6b9cc9b6962c997b44ded605ebfb4f861e2db2ddff7e8be84a7a79728cea61e";
 
         let msg = dummy_message();
 
         assert_eq!(hex::encode(msg.hash()), expected_message_hash);
-    }
-
-    #[test]
-    fn should_fail_to_parse_invalid_chain_name() {
-        // empty
-        assert_eq!(
-            "".parse::<ChainName>().unwrap_err(),
-            Error::InvalidChainName
-        );
-
-        // name contains id separator
-        assert_eq!(
-            format!("chain {CHAIN_NAME_DELIMITER}")
-                .parse::<ChainName>()
-                .unwrap_err(),
-            Error::InvalidChainName
-        );
-    }
-
-    #[test]
-    fn should_parse_to_case_insensitive_chain_name() {
-        let rand_str: String = thread_rng()
-            .sample_iter(&Alphanumeric)
-            .take(10)
-            .map(char::from)
-            .collect();
-
-        let chain_name: ChainName = rand_str.parse().unwrap();
-
-        assert_eq!(
-            chain_name,
-            rand_str.to_lowercase().parse::<ChainName>().unwrap()
-        );
-        assert_eq!(
-            chain_name,
-            rand_str.to_uppercase().parse::<ChainName>().unwrap()
-        );
     }
 
     #[test]
@@ -374,22 +480,184 @@ mod tests {
 
         assert_eq!(
             "chain name is invalid",
-            serde_json::from_str::<ChainName>(format!("\"chain{CHAIN_NAME_DELIMITER}\"").as_str())
+            serde_json::from_str::<ChainName>(format!("\"chain{FIELD_DELIMITER}\"").as_str())
                 .unwrap_err()
                 .to_string()
         );
     }
 
     #[test]
-    fn chain_name_case_insensitive_comparison() {
-        let chain_name = ChainName::from_str("ethereum").unwrap();
+    fn ensure_chain_name_parsing_respect_restrictions() {
+        struct TestCase<'a> {
+            input: &'a str,
+            can_parse: bool,
+            is_normalized: bool,
+        }
+        let random_lower = random_chain_name().to_lowercase();
+        let random_upper = random_chain_name().to_uppercase();
 
-        assert!(chain_name.eq(&"Ethereum".to_string()));
-        assert!(chain_name.eq(&"ETHEREUM".to_string()));
-        assert!(chain_name.eq(&"ethereum".to_string()));
-        assert!(chain_name.eq(&"ethEReum".to_string()));
+        let test_cases = [
+            TestCase {
+                input: "",
+                can_parse: false,
+                is_normalized: false,
+            },
+            TestCase {
+                input: "chain_with_prohibited_symbols",
+                can_parse: false,
+                is_normalized: false,
+            },
+            TestCase {
+                input: "!@#$%^&*()+=-1234567890",
+                can_parse: true,
+                is_normalized: true,
+            },
+            TestCase {
+                input: "ethereum",
+                can_parse: true,
+                is_normalized: true,
+            },
+            TestCase {
+                input: "ETHEREUM",
+                can_parse: true,
+                is_normalized: false,
+            },
+            TestCase {
+                input: "ethereum-1",
+                can_parse: true,
+                is_normalized: true,
+            },
+            TestCase {
+                input: "ETHEREUM-1",
+                can_parse: true,
+                is_normalized: false,
+            },
+            TestCase {
+                input: random_lower.as_str(),
+                can_parse: true,
+                is_normalized: true,
+            },
+            TestCase {
+                input: random_upper.as_str(),
+                can_parse: true,
+                is_normalized: false,
+            },
+        ];
 
-        assert!(!chain_name.eq(&"Ethereum-1".to_string()));
+        let conversions = [
+            |input: &str| ChainName::from_str(input),
+            |input: &str| ChainName::try_from(input),
+            |input: &str| ChainName::try_from(input.to_string()),
+        ];
+
+        let raw_conversions = [
+            |input: &str| ChainNameRaw::from_str(input),
+            |input: &str| ChainNameRaw::try_from(input),
+            |input: &str| ChainNameRaw::try_from(input.to_string()),
+        ];
+
+        for case in test_cases.into_iter() {
+            for conversion in conversions.into_iter() {
+                let result = conversion(case.input);
+                assert_eq!(result.is_ok(), case.can_parse, "input: {}", case.input);
+                if case.can_parse {
+                    if case.is_normalized {
+                        assert_eq!(result.unwrap(), case.input);
+                    } else {
+                        assert_ne!(result.unwrap(), case.input);
+                    }
+                }
+            }
+
+            for conversion in raw_conversions.into_iter() {
+                let result = conversion(case.input);
+                assert_eq!(result.is_ok(), case.can_parse, "input: {}", case.input);
+                if case.can_parse {
+                    assert_eq!(result.unwrap(), case.input);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn should_not_deserialize_invalid_address() {
+        assert_eq!(
+            "address is invalid",
+            serde_json::from_str::<Address>("\"\"")
+                .unwrap_err()
+                .to_string()
+        );
+
+        assert_eq!(
+            "address is invalid",
+            serde_json::from_str::<Address>(format!("\"address{FIELD_DELIMITER}\"").as_str())
+                .unwrap_err()
+                .to_string()
+        );
+    }
+
+    #[test]
+    fn ensure_address_parsing_respect_restrictions() {
+        struct TestCase<'a> {
+            input: &'a str,
+            can_parse: bool,
+        }
+        let random_lower = random_address().to_lowercase();
+        let random_upper = random_address().to_uppercase();
+
+        let test_cases = [
+            TestCase {
+                input: "",
+                can_parse: false,
+            },
+            TestCase {
+                input: "address_with_prohibited_symbols",
+                can_parse: false,
+            },
+            TestCase {
+                input: "!@#$%^&*()+=-1234567890",
+                can_parse: true,
+            },
+            TestCase {
+                input: "0x4F4495243837681061C4743b74B3eEdf548D56A5",
+                can_parse: true,
+            },
+            TestCase {
+                input: "0x4f4495243837681061c4743b74b3eedf548d56a5",
+                can_parse: true,
+            },
+            TestCase {
+                input: "GARRAOPAA5MNY3Y5V2OOYXUMBC54UDHHJTUMLRQBY2DIZKT62G5WSJP4Copy",
+                can_parse: true,
+            },
+            TestCase {
+                input: "ETHEREUM-1",
+                can_parse: true,
+            },
+            TestCase {
+                input: random_lower.as_str(),
+                can_parse: true,
+            },
+            TestCase {
+                input: random_upper.as_str(),
+                can_parse: true,
+            },
+        ];
+
+        let conversions: [fn(&str) -> Result<Address, _>; 2] = [
+            |input: &str| Address::from_str(input),
+            |input: &str| Address::try_from(input.to_string()),
+        ];
+
+        for case in test_cases.into_iter() {
+            for conversion in conversions.into_iter() {
+                let result = conversion(case.input);
+                assert_eq!(result.is_ok(), case.can_parse, "input: {}", case.input);
+                if case.can_parse {
+                    assert_eq!(result.unwrap().to_string(), case.input);
+                }
+            }
+        }
     }
 
     #[test]
@@ -404,14 +672,27 @@ mod tests {
 
     fn dummy_message() -> Message {
         Message {
-            cc_id: CrossChainId {
-                id: "hash-index".parse().unwrap(),
-                chain: "chain".parse().unwrap(),
-            },
-            source_address: "source_address".parse().unwrap(),
+            cc_id: CrossChainId::new("chain", "hash-index").unwrap(),
+            source_address: "source-address".parse().unwrap(),
             destination_chain: "destination-chain".parse().unwrap(),
-            destination_address: "destination_address".parse().unwrap(),
+            destination_address: "destination-address".parse().unwrap(),
             payload_hash: [1; 32],
         }
+    }
+
+    fn random_chain_name() -> String {
+        thread_rng()
+            .sample_iter(&Alphanumeric)
+            .take(10)
+            .map(char::from)
+            .collect()
+    }
+
+    fn random_address() -> String {
+        thread_rng()
+            .sample_iter(&Alphanumeric)
+            .take(10)
+            .map(char::from)
+            .collect()
     }
 }

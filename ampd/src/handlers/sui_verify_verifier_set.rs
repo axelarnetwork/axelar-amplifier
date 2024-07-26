@@ -6,7 +6,6 @@ use axelar_wasm_std::voting::{PollId, Vote};
 use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmrs::tx::Msg;
 use cosmrs::Any;
-use cosmwasm_std::{HexBinary, Uint128};
 use error_stack::ResultExt;
 use events::Error::EventTypeMismatch;
 use events::Event;
@@ -24,13 +23,6 @@ use crate::handlers::errors::Error;
 use crate::sui::json_rpc::SuiClient;
 use crate::sui::verifier::verify_verifier_set;
 use crate::types::TMAddress;
-
-#[allow(dead_code)]
-#[derive(Deserialize, Debug)]
-pub struct Operators {
-    pub weights_by_addresses: Vec<(HexBinary, Uint128)>,
-    pub threshold: Uint128,
-}
 
 #[derive(Deserialize, Debug)]
 pub struct VerifierSetConfirmation {
@@ -175,7 +167,7 @@ mod tests {
 
     use super::PollStartedEvent;
     use crate::event_processor::EventHandler;
-    use crate::handlers::tests::get_event;
+    use crate::handlers::tests::into_structured_event;
     use crate::sui::json_rpc::MockSuiClient;
     use crate::types::TMAddress;
     use crate::PREFIX;
@@ -184,7 +176,7 @@ mod tests {
     fn should_deserialize_verifier_set_poll_started_event() {
         let participants = (0..5).map(|_| TMAddress::random(PREFIX)).collect();
 
-        let event: Result<PollStartedEvent, events::Error> = get_event(
+        let event: Result<PollStartedEvent, events::Error> = into_structured_event(
             verifier_set_poll_started_event(participants, 100),
             &TMAddress::random(PREFIX),
         )
@@ -208,7 +200,7 @@ mod tests {
         let voting_verifier = TMAddress::random(PREFIX);
         let verifier = TMAddress::random(PREFIX);
         let expiration = 100u64;
-        let event: Event = get_event(
+        let event: Event = into_structured_event(
             verifier_set_poll_started_event(
                 vec![verifier.clone()].into_iter().collect(),
                 expiration,

@@ -49,10 +49,10 @@ fn multisig_mock_querier_handler(
     operators: Vec<TestOperator>,
 ) -> QuerierResult {
     let result = match msg {
-        multisig::msg::QueryMsg::GetMultisig { session_id: _ } => {
-            to_json_binary(&mock_get_multisig(operators))
+        multisig::msg::QueryMsg::Multisig { session_id: _ } => {
+            to_json_binary(&mock_multisig(operators))
         }
-        multisig::msg::QueryMsg::GetPublicKey {
+        multisig::msg::QueryMsg::PublicKey {
             verifier_address,
             key_type: _,
         } => to_json_binary(
@@ -68,7 +68,7 @@ fn multisig_mock_querier_handler(
     Ok(result.into()).into()
 }
 
-fn mock_get_multisig(operators: Vec<TestOperator>) -> Multisig {
+fn mock_multisig(operators: Vec<TestOperator>) -> Multisig {
     let quorum = test_data::quorum();
 
     let signers = operators
@@ -117,7 +117,7 @@ fn service_registry_mock_querier_handler(
     operators: Vec<TestOperator>,
 ) -> QuerierResult {
     let result = match msg {
-        service_registry::msg::QueryMsg::GetService { service_name } => {
+        service_registry::msg::QueryMsg::Service { service_name } => {
             to_json_binary(&service_registry::state::Service {
                 name: service_name.to_string(),
                 coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS),
@@ -129,7 +129,7 @@ fn service_registry_mock_querier_handler(
                 description: "verifiers".to_string(),
             })
         }
-        service_registry::msg::QueryMsg::GetActiveVerifiers {
+        service_registry::msg::QueryMsg::ActiveVerifiers {
             service_name: _,
             chain_name: _,
         } => to_json_binary(
