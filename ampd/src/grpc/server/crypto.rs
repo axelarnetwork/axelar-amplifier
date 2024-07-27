@@ -67,17 +67,17 @@ where
         Ok(Response::new(proto::SignResponse { signature }))
     }
 
-    async fn get_key(
+    async fn key(
         &self,
-        req: Request<proto::GetKeyRequest>,
-    ) -> Result<Response<proto::GetKeyResponse>, Status> {
+        req: Request<proto::KeyRequest>,
+    ) -> Result<Response<proto::KeyResponse>, Status> {
         let req = req.into_inner();
 
         let algorithm = proto::Algorithm::from_i32(req.algorithm)
             .ok_or(Status::invalid_argument("invalid algorithm"))?;
         let key = self.key(&req.key_id, algorithm).await?;
 
-        Ok(Response::new(proto::GetKeyResponse {
+        Ok(Response::new(proto::KeyResponse {
             pub_key: key.to_bytes(),
         }))
     }
@@ -92,9 +92,10 @@ mod tests {
     use tokio::test;
     use tonic::Code;
 
-    use super::proto::crypto_server::Crypto;
     use super::proto::{self};
     use super::Server;
+    use crate::proto::crypto_server;
+    use crate::proto::crypto_server::Crypto;
     use crate::tofnd;
     use crate::tofnd::grpc::MockMultisig;
     use crate::types::PublicKey;
@@ -158,7 +159,7 @@ mod tests {
     }
 
     #[test]
-    async fn get_key_should_return_correct_key() {
+    async fn key_should_return_correct_key() {
         let key_id = "key_id";
         let algorithm = proto::Algorithm::Ecdsa;
         let key: PublicKey = SigningKey::random(&mut OsRng).verifying_key().into();
@@ -173,27 +174,30 @@ mod tests {
             .return_once(move |_, _| Ok(key));
         let server = Server::new(multisig_client);
 
-        let req = tonic::Request::new(proto::GetKeyRequest {
+        let req = tonic::Request::new(proto::KeyRequest {
             key_id: key_id.to_string(),
             algorithm: algorithm.into(),
         });
-        let res = server.get_key(req).await.unwrap().into_inner();
+        let res = crypto_server::Crypto::key(&server, req)
+            .await
+            .unwrap()
+            .into_inner();
 
         assert_eq!(res.pub_key, key.to_bytes());
     }
 
     #[test]
-    async fn get_key_should_return_error_when_algorithm_is_invalid() {
+    async fn key_should_return_error_when_algorithm_is_invalid() {
         let key_id = "key_id";
 
         let multisig_client = MockMultisig::default();
         let server = Server::new(multisig_client);
 
-        let req = tonic::Request::new(proto::GetKeyRequest {
+        let req = tonic::Request::new(proto::KeyRequest {
             key_id: key_id.to_string(),
             algorithm: 2,
         });
-        let res = server.get_key(req).await.unwrap_err();
+        let res = crypto_server::Crypto::key(&server, req).await.unwrap_err();
 
         assert_eq!(res.code(), Code::InvalidArgument);
     }

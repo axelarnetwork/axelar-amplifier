@@ -4,7 +4,7 @@ use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
 use axelar_wasm_std::nonempty;
 use cosmwasm_std::{CosmosMsg, CustomMsg};
 use error_stack::{Report, Result, ResultExt};
-use router_api::{Address, ChainName, CrossChainId};
+use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -14,7 +14,7 @@ use crate::error::ContractError;
 // this matches the message type defined in the nexus module
 // https://github.com/axelarnetwork/axelar-core/blob/6c887df3797ba660093061662aff04e325b9c429/x/nexus/exported/types.pb.go#L405
 pub struct Message {
-    pub source_chain: ChainName,
+    pub source_chain: ChainNameRaw,
     pub source_address: Address,
     pub destination_chain: ChainName,
     pub destination_address: Address,
@@ -41,17 +41,17 @@ impl From<router_api::Message> for Message {
     fn from(msg: router_api::Message) -> Self {
         // fallback to using all 0's as the tx ID if it's not in the expected format
         let (source_tx_id, source_tx_index) =
-            parse_message_id(&msg.cc_id.id).unwrap_or((vec![0; 32].try_into().unwrap(), 0));
+            parse_message_id(&msg.cc_id.message_id).unwrap_or((vec![0; 32].try_into().unwrap(), 0));
 
         Self {
-            source_chain: msg.cc_id.chain.clone(),
+            source_chain: msg.cc_id.source_chain,
             source_address: msg.source_address,
             destination_chain: msg.destination_chain,
             destination_address: msg.destination_address,
             payload_hash: msg.payload_hash,
             source_tx_id,
             source_tx_index,
-            id: msg.cc_id.id.to_string(),
+            id: msg.cc_id.message_id.into(),
         }
     }
 }
@@ -62,9 +62,9 @@ impl TryFrom<Message> for router_api::Message {
     fn try_from(msg: Message) -> Result<Self, ContractError> {
         Ok(Self {
             cc_id: CrossChainId {
-                chain: msg.source_chain,
-                id: nonempty::String::try_from(msg.id.clone())
-                    .change_context(ContractError::InvalidMessageId(msg.id.to_string()))?,
+                source_chain: msg.source_chain,
+                message_id: nonempty::String::try_from(msg.id.as_str())
+                    .change_context(ContractError::InvalidMessageId(msg.id))?,
             },
             source_address: msg.source_address,
             destination_chain: msg.destination_chain,
@@ -109,23 +109,24 @@ mod test {
         let router_msg = router_api::Message::try_from(msg.clone());
         assert!(router_msg.is_ok());
         let router_msg = router_msg.unwrap();
-        assert_eq!(router_msg.cc_id.chain, msg.source_chain);
-        assert_eq!(router_msg.cc_id.id.to_string(), msg.id);
+        let router_msg_cc_id = router_msg.cc_id;
+        assert_eq!(router_msg_cc_id.source_chain, msg.source_chain);
+        assert_eq!(router_msg_cc_id.message_id.to_string(), msg.id);
     }
 
     #[test]
     fn should_convert_router_message_to_nexus_message() {
         let msg = router_api::Message {
-            cc_id: CrossChainId {
-                chain: "ethereum".parse().unwrap(),
-                id: HexTxHashAndEventIndex {
+            cc_id: CrossChainId::new(
+                "ethereum",
+                HexTxHashAndEventIndex {
                     tx_hash: [2; 32],
                     event_index: 1,
                 }
                 .to_string()
-                .try_into()
-                .unwrap(),
-            },
+                .as_str(),
+            )
+            .unwrap(),
             source_address: "something".parse().unwrap(),
             destination_chain: "polygon".parse().unwrap(),
             destination_address: "something else".parse().unwrap(),
@@ -134,11 +135,16 @@ mod test {
 
         let nexus_msg = Message::from(msg.clone());
 
-        assert_eq!(nexus_msg.id, msg.cc_id.id.to_string());
+        let router_msg_cc_id = msg.cc_id;
+
+        assert_eq!(nexus_msg.id, *router_msg_cc_id.message_id);
         assert_eq!(nexus_msg.destination_address, msg.destination_address);
         assert_eq!(nexus_msg.destination_chain, msg.destination_chain);
         assert_eq!(nexus_msg.source_address, msg.source_address);
-        assert_eq!(nexus_msg.source_chain, msg.cc_id.chain);
+        assert_eq!(
+            nexus_msg.source_chain,
+            router_msg_cc_id.source_chain.clone()
+        );
         assert_eq!(nexus_msg.source_tx_id, vec![2; 32].try_into().unwrap());
         assert_eq!(nexus_msg.source_tx_index, 1);
     }
@@ -146,16 +152,16 @@ mod test {
     #[test]
     fn should_convert_router_message_with_non_hex_msg_id_to_nexus_message() {
         let msg = router_api::Message {
-            cc_id: CrossChainId {
-                chain: "ethereum".parse().unwrap(),
-                id: Base58TxDigestAndEventIndex {
+            cc_id: CrossChainId::new(
+                "ethereum",
+                Base58TxDigestAndEventIndex {
                     tx_digest: [2; 32],
                     event_index: 1,
                 }
                 .to_string()
-                .try_into()
-                .unwrap(),
-            },
+                .as_str(),
+            )
+            .unwrap(),
             source_address: "something".parse().unwrap(),
             destination_chain: "polygon".parse().unwrap(),
             destination_address: "something else".parse().unwrap(),
@@ -164,13 +170,18 @@ mod test {
 
         let nexus_msg = Message::from(msg.clone());
 
-        assert_eq!(nexus_msg.id, msg.cc_id.id.to_string());
+        let router_msg_cc_id = msg.cc_id;
+
+        assert_eq!(nexus_msg.id, *router_msg_cc_id.message_id);
         assert_eq!(nexus_msg.source_tx_id, vec![0; 32].try_into().unwrap());
         assert_eq!(nexus_msg.source_tx_index, 0);
 
         assert_eq!(nexus_msg.destination_address, msg.destination_address);
         assert_eq!(nexus_msg.destination_chain, msg.destination_chain);
         assert_eq!(nexus_msg.source_address, msg.source_address);
-        assert_eq!(nexus_msg.source_chain, msg.cc_id.chain);
+        assert_eq!(
+            nexus_msg.source_chain,
+            router_msg_cc_id.source_chain.clone()
+        );
     }
 }

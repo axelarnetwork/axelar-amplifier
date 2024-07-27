@@ -82,13 +82,13 @@ pub enum ExecuteMsg {
 #[derive(QueryResponses)]
 pub enum QueryMsg {
     #[returns(Multisig)]
-    GetMultisig { session_id: Uint64 },
+    Multisig { session_id: Uint64 },
 
     #[returns(VerifierSet)]
-    GetVerifierSet { verifier_set_id: String },
+    VerifierSet { verifier_set_id: String },
 
     #[returns(PublicKey)]
-    GetPublicKey {
+    PublicKey {
         verifier_address: String,
         key_type: KeyType,
     },

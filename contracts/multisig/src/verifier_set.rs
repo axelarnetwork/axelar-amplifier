@@ -65,7 +65,7 @@ impl VerifierSet {
         HexBinary::from(self.hash()).to_hex()
     }
 
-    pub fn get_pub_keys(&self) -> HashMap<String, PublicKey> {
+    pub fn pub_keys(&self) -> HashMap<String, PublicKey> {
         self.signers
             .iter()
             .map(|(address, signer)| (address.clone(), signer.pub_key.clone()))

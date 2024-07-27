@@ -24,7 +24,7 @@ pub fn migrate(
     deps: DepsMut,
     _env: Env,
     _msg: Empty,
-) -> Result<Response, axelar_wasm_std::ContractError> {
+) -> Result<Response, axelar_wasm_std::error::ContractError> {
     v0_3_3::migrate(deps.storage)?;
 
     // this needs to be the last thing to do during migration,
@@ -40,7 +40,7 @@ pub fn instantiate(
     _env: Env,
     _info: MessageInfo,
     msg: InstantiateMsg,
-) -> Result<Response, axelar_wasm_std::ContractError> {
+) -> Result<Response, axelar_wasm_std::error::ContractError> {
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     let admin = deps.api.addr_validate(&msg.admin_address)?;
@@ -73,7 +73,7 @@ pub fn execute(
     _env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
-) -> Result<Response, axelar_wasm_std::ContractError> {
+) -> Result<Response, axelar_wasm_std::error::ContractError> {
     match msg.ensure_permissions(
         deps.storage,
         &info.sender,
@@ -101,8 +101,8 @@ pub fn execute(
         }
         ExecuteMsg::DisableRouting => execute::disable_routing(deps.storage),
         ExecuteMsg::EnableRouting => execute::enable_routing(deps.storage),
-    }
-    .map_err(axelar_wasm_std::ContractError::from)
+    }?
+    .then(Ok)
 }
 
 fn find_gateway_address(
@@ -126,17 +126,15 @@ pub fn query(
     deps: Deps,
     _env: Env,
     msg: QueryMsg,
-) -> Result<Binary, axelar_wasm_std::ContractError> {
+) -> Result<Binary, axelar_wasm_std::error::ContractError> {
     match msg {
-        QueryMsg::GetChainInfo(chain) => {
-            to_json_binary(&query::get_chain_info(deps.storage, chain)?)
-        }
+        QueryMsg::ChainInfo(chain) => to_json_binary(&query::chain_info(deps.storage, chain)?),
         QueryMsg::Chains { start_after, limit } => {
             to_json_binary(&query::chains(deps, start_after, limit)?)
         }
         QueryMsg::IsEnabled => to_json_binary(&killswitch::is_contract_active(deps.storage)),
     }
-    .map_err(axelar_wasm_std::ContractError::from)
+    .map_err(axelar_wasm_std::error::ContractError::from)
 }
 
 #[cfg(test)]
@@ -144,8 +142,9 @@ mod test {
     use std::collections::HashMap;
     use std::str::FromStr;
 
+    use axelar_wasm_std::err_contains;
+    use axelar_wasm_std::error::ContractError;
     use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
-    use axelar_wasm_std::ContractError;
     use cosmwasm_std::testing::{
         mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
     };
@@ -153,7 +152,7 @@ mod test {
     use permission_control::Permission;
     use router_api::error::Error;
     use router_api::{
-        ChainEndpoint, ChainName, CrossChainId, GatewayDirection, Message, CHAIN_NAME_DELIMITER,
+        ChainEndpoint, ChainName, CrossChainId, GatewayDirection, Message, FIELD_DELIMITER,
     };
 
     use super::*;
@@ -224,10 +223,7 @@ mod test {
             }
             .to_string();
             msgs.push(Message {
-                cc_id: CrossChainId {
-                    id: id.parse().unwrap(),
-                    chain: src_chain.chain_name.clone(),
-                },
+                cc_id: CrossChainId::new(src_chain.chain_name.clone(), id).unwrap(),
                 destination_address: "idc".parse().unwrap(),
                 destination_chain: dest_chain.chain_name.clone(),
                 source_address: "idc".parse().unwrap(),
@@ -238,8 +234,8 @@ mod test {
     }
 
     pub fn assert_contract_err_string_contains(
-        actual: impl Into<axelar_wasm_std::ContractError>,
-        expected: impl Into<axelar_wasm_std::ContractError>,
+        actual: impl Into<axelar_wasm_std::error::ContractError>,
+        expected: impl Into<axelar_wasm_std::error::ContractError>,
     ) {
         assert!(actual
             .into()
@@ -250,10 +246,10 @@ mod test {
     pub fn assert_messages_in_cosmos_msg(
         contract_addr: String,
         messages: Vec<Message>,
-        cosmos_msg: CosmosMsg,
+        cosmos_msg: &CosmosMsg,
     ) {
         assert_eq!(
-            CosmosMsg::Wasm(WasmMsg::Execute {
+            &CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr,
                 msg: to_json_binary(&gateway_api::msg::ExecuteMsg::RouteMessages(messages,))
                     .unwrap(),
@@ -287,7 +283,7 @@ mod test {
         assert_messages_in_cosmos_msg(
             polygon.gateway.to_string(),
             messages.clone(),
-            res.messages[0].msg.clone(),
+            &res.messages[0].msg,
         );
 
         // try to route twice
@@ -321,6 +317,57 @@ mod test {
         .unwrap_err();
 
         assert_contract_err_string_contains(err, Error::WrongSourceChain);
+    }
+
+    #[test]
+    fn amplifier_messages_must_have_lower_case() {
+        let mut deps = setup();
+        let eth = make_chain("ethereum");
+        let polygon = make_chain("polygon");
+
+        register_chain(deps.as_mut(), &eth);
+        register_chain(deps.as_mut(), &polygon);
+
+        let mut messages = generate_messages(&eth, &polygon, &mut 0, 1);
+        messages
+            .iter_mut()
+            .for_each(|msg| msg.cc_id.source_chain = "Ethereum".parse().unwrap());
+
+        let result = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(eth.gateway.as_str(), &[]),
+            ExecuteMsg::RouteMessages(messages),
+        )
+        .unwrap_err();
+        assert!(err_contains!(result.report, Error, Error::WrongSourceChain));
+    }
+
+    #[test]
+    fn nexus_messages_can_have_upper_case() {
+        let mut deps = setup();
+        let eth = make_chain("ethereum");
+        let polygon = make_chain("polygon");
+
+        register_chain(deps.as_mut(), &polygon);
+
+        let mut messages = generate_messages(&eth, &polygon, &mut 0, 1);
+        messages
+            .iter_mut()
+            .for_each(|msg| msg.cc_id.source_chain = "Ethereum".parse().unwrap());
+
+        let result = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(NEXUS_GATEWAY_ADDRESS, &[]),
+            ExecuteMsg::RouteMessages(messages.clone()),
+        );
+        assert!(result.is_ok());
+        assert_messages_in_cosmos_msg(
+            polygon.gateway.to_string(),
+            messages,
+            &result.unwrap().messages[0].msg,
+        );
     }
 
     #[test]
@@ -379,9 +426,9 @@ mod test {
                         .unwrap()
                         .clone()
                         .into_iter()
-                        .filter(|m| m.cc_id.chain == s.chain_name)
+                        .filter(|m| m.cc_id.source_chain == s.chain_name)
                         .collect::<Vec<_>>(),
-                    res.messages[i].msg.clone(),
+                    &res.messages[i].msg,
                 );
             }
         }
@@ -591,7 +638,7 @@ mod test {
 
         register_chain(deps.as_mut(), &eth);
         register_chain(deps.as_mut(), &polygon);
-        let new_gateway = Addr::unchecked("new_gateway");
+        let new_gateway = Addr::unchecked("new-gateway");
 
         let _ = execute(
             deps.as_mut(),
@@ -617,7 +664,7 @@ mod test {
         assert_messages_in_cosmos_msg(
             new_gateway.to_string(),
             messages.clone(),
-            res.messages[0].msg.clone(),
+            &res.messages[0].msg,
         );
     }
 
@@ -629,7 +676,7 @@ mod test {
 
         register_chain(deps.as_mut(), &eth);
         register_chain(deps.as_mut(), &polygon);
-        let new_gateway = Addr::unchecked("new_gateway");
+        let new_gateway = Addr::unchecked("new-gateway");
 
         let _ = execute(
             deps.as_mut(),
@@ -664,7 +711,7 @@ mod test {
         assert_messages_in_cosmos_msg(
             eth.gateway.to_string(),
             messages.clone(),
-            res.messages[0].msg.clone(),
+            &res.messages[0].msg,
         );
     }
 
@@ -744,7 +791,7 @@ mod test {
     #[test]
     fn invalid_chain_name() {
         assert_contract_err_string_contains(
-            ChainName::from_str(format!("bad{}", CHAIN_NAME_DELIMITER).as_str()).unwrap_err(),
+            ChainName::from_str(format!("bad{}", FIELD_DELIMITER).as_str()).unwrap_err(),
             Error::InvalidChainName,
         );
 
@@ -837,7 +884,7 @@ mod test {
         assert_messages_in_cosmos_msg(
             polygon.gateway.to_string(),
             messages.clone(),
-            res.messages[0].msg.clone(),
+            &res.messages[0].msg,
         );
 
         let res = execute(
@@ -917,7 +964,7 @@ mod test {
         assert_messages_in_cosmos_msg(
             polygon.gateway.to_string(),
             messages.clone(),
-            res.messages[0].msg.clone(),
+            &res.messages[0].msg,
         );
     }
 

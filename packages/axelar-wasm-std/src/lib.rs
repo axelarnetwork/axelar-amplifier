@@ -1,4 +1,3 @@
-pub use crate::error::ContractError;
 pub use crate::fn_ext::FnExt;
 pub use crate::snapshot::{Participant, Snapshot};
 pub use crate::threshold::{MajorityThreshold, Threshold};

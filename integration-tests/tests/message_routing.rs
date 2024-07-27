@@ -19,13 +19,11 @@ fn single_message_can_be_verified_and_routed_and_proven_and_rewards_are_distribu
     } = test_utils::setup_test_case();
 
     let msgs = vec![Message {
-        cc_id: CrossChainId {
-            chain: chain1.chain_name.clone(),
-            id: "0x88d7956fd7b6fcec846548d83bd25727f2585b4be3add21438ae9fbb34625924-3"
-                .to_string()
-                .try_into()
-                .unwrap(),
-        },
+        cc_id: CrossChainId::new(
+            chain1.chain_name.clone(),
+            "0x88d7956fd7b6fcec846548d83bd25727f2585b4be3add21438ae9fbb34625924-3",
+        )
+        .unwrap(),
         source_address: "0xBf12773B49()0e1Deb57039061AAcFA2A87DEaC9b9"
             .to_string()
             .try_into()
@@ -66,7 +64,7 @@ fn single_message_can_be_verified_and_routed_and_proven_and_rewards_are_distribu
 
     // check that the message can be found at the outgoing gateway
     let found_msgs =
-        test_utils::get_messages_from_gateway(&mut protocol.app, &chain2.gateway, &msg_ids);
+        test_utils::messages_from_gateway(&mut protocol.app, &chain2.gateway, &msg_ids);
     assert_eq!(found_msgs, msgs);
 
     // trigger signing and submit all necessary signatures
@@ -77,7 +75,7 @@ fn single_message_can_be_verified_and_routed_and_proven_and_rewards_are_distribu
         &verifiers,
     );
 
-    let proof = test_utils::get_proof(&mut protocol.app, &chain2.multisig_prover, &session_id);
+    let proof = test_utils::proof(&mut protocol.app, &chain2.multisig_prover, &session_id);
 
     // proof should be complete by now
     assert!(matches!(
@@ -126,13 +124,11 @@ fn routing_to_incorrect_gateway_interface() {
     } = test_utils::setup_test_case();
 
     let msgs = [Message {
-        cc_id: CrossChainId {
-            chain: chain1.chain_name.clone(),
-            id: "0x88d7956fd7b6fcec846548d83bd25727f2585b4be3add21438ae9fbb34625924-3"
-                .to_string()
-                .try_into()
-                .unwrap(),
-        },
+        cc_id: CrossChainId::new(
+            chain1.chain_name.clone(),
+            "0x88d7956fd7b6fcec846548d83bd25727f2585b4be3add21438ae9fbb34625924-3",
+        )
+        .unwrap(),
         source_address: "0xBf12773B49()0e1Deb57039061AAcFA2A87DEaC9b9"
             .to_string()
             .try_into()

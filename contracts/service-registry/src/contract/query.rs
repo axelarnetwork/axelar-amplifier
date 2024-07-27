@@ -3,7 +3,7 @@ use router_api::ChainName;
 use super::*;
 use crate::state::{WeightedVerifier, VERIFIERS, VERIFIERS_PER_CHAIN, VERIFIER_WEIGHT};
 
-pub fn get_active_verifiers(
+pub fn active_verifiers(
     deps: Deps,
     service_name: String,
     chain_name: ChainName,
@@ -36,7 +36,7 @@ pub fn get_active_verifiers(
     }
 }
 
-pub fn get_verifier(
+pub fn verifier(
     deps: Deps,
     service_name: String,
     verifier: String,
@@ -49,7 +49,7 @@ pub fn get_verifier(
         .ok_or(ContractError::VerifierNotFound)
 }
 
-pub fn get_service(deps: Deps, service_name: String) -> Result<Service, ContractError> {
+pub fn service(deps: Deps, service_name: String) -> Result<Service, ContractError> {
     SERVICES
         .may_load(deps.storage, &service_name)?
         .ok_or(ContractError::ServiceNotFound)
