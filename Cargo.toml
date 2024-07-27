@@ -48,8 +48,8 @@ tokio = "1.38.0"
 tokio-stream = "0.1.11"
 tokio-util = "0.7.11"
 tofn = { version = "1.1" }
-alloy-primitives = { version = "0.7.6", default-features = false }
-alloy-sol-types = { version = "0.7.6", default-features = false }
+alloy-primitives = { version = "0.7.6", default-features = false, features = ["std"] }
+alloy-sol-types = { version = "0.7.6", default-features = false, features = ["std"] }
 strum = { version = "0.25", default-features = false, features = ["derive"] }
 interchain-token-service = { version = "^0.1.0", path = "interchain-token-service" }
 

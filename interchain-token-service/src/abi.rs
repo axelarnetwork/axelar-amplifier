@@ -1,5 +1,6 @@
 use alloy_primitives::{FixedBytes, U256};
 use alloy_sol_types::{sol, SolValue};
+use axelar_wasm_std::FnExt;
 use cosmwasm_std::{HexBinary, Uint256};
 use error_stack::{Report, ResultExt};
 use router_api::ChainName;
@@ -111,18 +112,16 @@ impl ItsMessage {
 
     pub fn abi_decode(payload: &[u8]) -> Result<Self, Report<Error>> {
         if payload.len() < 32 {
-            return Err(Report::new(Error::InvalidMessage(
-                "invalid message length".into(),
-            )));
+            return Err(Report::new(Error::InvalidMessage));
         }
 
         let message_type = MessageType::abi_decode(&payload[0..32], true)
-            .map_err(|e| Error::InvalidMessage(e.to_string()))?;
+            .change_context(Error::InvalidMessageType)?;
 
         let message = match message_type {
             MessageType::InterchainTransfer => {
                 let decoded = InterchainTransfer::abi_decode_params(payload, true)
-                    .map_err(|e| Report::new(Error::InvalidMessage(e.to_string())))?;
+                    .change_context(Error::InvalidMessage)?;
 
                 Ok(ItsMessage::InterchainTransfer {
                     token_id: TokenId::new(decoded.tokenId.into()),
@@ -134,7 +133,7 @@ impl ItsMessage {
             }
             MessageType::DeployInterchainToken => {
                 let decoded = DeployInterchainToken::abi_decode_params(payload, true)
-                    .map_err(|e| Report::new(Error::InvalidMessage(e.to_string())))?;
+                    .change_context(Error::InvalidMessage)?;
 
                 Ok(ItsMessage::DeployInterchainToken {
                     token_id: TokenId::new(decoded.tokenId.into()),
@@ -146,21 +145,20 @@ impl ItsMessage {
             }
             MessageType::DeployTokenManager => {
                 let decoded = DeployTokenManager::abi_decode_params(payload, true)
-                    .map_err(|e| Report::new(Error::InvalidMessage(e.to_string())))?;
+                    .change_context(Error::InvalidMessage)?;
 
                 let token_manager_type = u8::try_from(decoded.tokenManagerType)
-                    .map_err(|e| Report::new(Error::InvalidMessage(e.to_string())))?;
+                    .change_context(Error::InvalidTokenManagerType)?
+                    .then(TokenManagerType::from_repr)
+                    .ok_or_else(|| Report::new(Error::InvalidTokenManagerType))?;
 
                 Ok(ItsMessage::DeployTokenManager {
                     token_id: TokenId::new(decoded.tokenId.into()),
-                    token_manager_type: TokenManagerType::from_repr(token_manager_type)
-                        .ok_or_else(|| Report::new(Error::InvalidTokenManagerType))?,
+                    token_manager_type,
                     params: HexBinary::from(decoded.params.as_ref()),
                 })
             }
-            _ => Err(Report::new(Error::InvalidMessage(
-                "invalid inner message".into(),
-            ))),
+            _ => Err(Report::new(Error::InvalidMessageType)),
         }?;
 
         Ok(message)
@@ -195,40 +193,34 @@ impl ItsHubMessage {
 
     pub fn abi_decode(payload: &[u8]) -> Result<Self, Report<Error>> {
         if payload.len() < 32 {
-            return Err(Report::new(Error::InvalidMessage(
-                "invalid message length".into(),
-            )));
+            return Err(Report::new(Error::InvalidMessage));
         }
 
         let message_type = MessageType::abi_decode(&payload[0..32], true)
-            .map_err(|e| Error::InvalidMessage(e.to_string()))?;
+            .change_context(Error::InvalidMessageType)?;
 
         let hub_message = match message_type {
             MessageType::SendToHub => {
                 let decoded = SendToHub::abi_decode_params(payload, true)
-                    .map_err(|e| Error::InvalidMessage(e.to_string()))?;
+                    .change_context(Error::InvalidMessage)?;
 
                 ItsHubMessage::SendToHub {
                     destination_chain: ChainName::try_from(decoded.destination_chain)
-                        .change_context(Error::InvalidMessage("invalid remote chain".into()))?,
+                        .change_context(Error::InvalidChainName)?,
                     message: ItsMessage::abi_decode(&decoded.message)?,
                 }
             }
             MessageType::ReceiveFromHub => {
                 let decoded = ReceiveFromHub::abi_decode_params(payload, true)
-                    .map_err(|e| Error::InvalidMessage(e.to_string()))?;
+                    .change_context(Error::InvalidMessage)?;
 
                 ItsHubMessage::ReceiveFromHub {
                     source_chain: ChainName::try_from(decoded.source_chain)
-                        .change_context(Error::InvalidMessage("invalid source chain".into()))?,
+                        .change_context(Error::InvalidChainName)?,
                     message: ItsMessage::abi_decode(&decoded.message)?,
                 }
             }
-            _ => {
-                return Err(Report::new(Error::InvalidMessage(
-                    "invalid hub message type".into(),
-                )))
-            }
+            _ => return Err(Report::new(Error::InvalidMessageType)),
         };
 
         Ok(hub_message)
@@ -257,6 +249,7 @@ mod tests {
     use router_api::ChainName;
 
     use crate::abi::{DeployTokenManager, MessageType, SendToHub};
+    use crate::error::Error;
     use crate::{ItsHubMessage, ItsMessage, TokenManagerType};
 
     #[test]
@@ -463,7 +456,7 @@ mod tests {
     }
 
     #[test]
-    fn invalid_routed_message_type() {
+    fn invalid_its_hub_message_type() {
         let invalid_payload = SendToHub {
             messageType: U256::from(MessageType::ReceiveFromHub as u8 + 1),
             destination_chain: "remote-chain".into(),
@@ -473,14 +466,14 @@ mod tests {
 
         let result = ItsHubMessage::abi_decode(&invalid_payload);
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("not a valid MessageType enum"));
+        assert_eq!(
+            result.unwrap_err().current_context().to_string(),
+            Error::InvalidMessageType.to_string()
+        );
     }
 
     #[test]
-    fn invalid_inner_message_type() {
+    fn invalid_its_message_type() {
         let mut message = MessageType::DeployTokenManager.abi_encode();
         message[31] = 3;
 
@@ -493,10 +486,10 @@ mod tests {
 
         let result = ItsHubMessage::abi_decode(&invalid_payload);
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("invalid inner message"));
+        assert_eq!(
+            result.unwrap_err().current_context().to_string(),
+            Error::InvalidMessageType.to_string()
+        );
     }
 
     #[test]
@@ -517,10 +510,10 @@ mod tests {
 
         let result = ItsHubMessage::abi_decode(&payload);
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("invalid remote chain"));
+        assert_eq!(
+            result.unwrap_err().current_context().to_string(),
+            Error::InvalidChainName.to_string()
+        );
     }
 
     #[test]
@@ -541,10 +534,10 @@ mod tests {
 
         let result = ItsHubMessage::abi_decode(&payload);
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("failed to convert token manager type"));
+        assert_eq!(
+            result.unwrap_err().current_context().to_string(),
+            Error::InvalidTokenManagerType.to_string()
+        );
     }
 
     #[test]

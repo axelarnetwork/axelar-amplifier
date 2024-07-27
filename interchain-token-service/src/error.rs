@@ -3,8 +3,12 @@ use thiserror::Error;
 
 #[derive(Error, Debug, PartialEq, IntoContractError)]
 pub enum Error {
-    #[error("failed to decode ITS message: {0}")]
-    InvalidMessage(String),
-    #[error("failed to convert token manager type")]
+    #[error("failed to decode ITS message")]
+    InvalidMessage,
+    #[error("invalid message type")]
+    InvalidMessageType,
+    #[error("invalid chain name")]
+    InvalidChainName,
+    #[error("invalid token manager type")]
     InvalidTokenManagerType,
 }
