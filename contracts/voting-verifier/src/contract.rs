@@ -237,9 +237,9 @@ mod test {
             .map(|i| Message {
                 cc_id: CrossChainId::new(source_chain(), message_id("id", i, msg_id_format))
                     .unwrap(),
-                source_address: format!("source_address{i}").parse().unwrap(),
+                source_address: format!("source-address{i}").parse().unwrap(),
                 destination_chain: format!("destination-chain{i}").parse().unwrap(),
-                destination_address: format!("destination_address{i}").parse().unwrap(),
+                destination_address: format!("destination-address{i}").parse().unwrap(),
                 payload_hash: [0; 32],
             })
             .collect()
@@ -269,17 +269,17 @@ mod test {
             Message {
                 cc_id: CrossChainId::new(source_chain(), message_id("id", 1, &msg_id_format))
                     .unwrap(),
-                source_address: "source_address1".parse().unwrap(),
+                source_address: "source-address1".parse().unwrap(),
                 destination_chain: "destination-chain1".parse().unwrap(),
-                destination_address: "destination_address1".parse().unwrap(),
+                destination_address: "destination-address1".parse().unwrap(),
                 payload_hash: [0; 32],
             },
             Message {
                 cc_id: CrossChainId::new("other-chain", message_id("id", 2, &msg_id_format))
                     .unwrap(),
-                source_address: "source_address2".parse().unwrap(),
+                source_address: "source-address2".parse().unwrap(),
                 destination_chain: "destination-chain2".parse().unwrap(),
-                destination_address: "destination_address2".parse().unwrap(),
+                destination_address: "destination-address2".parse().unwrap(),
                 payload_hash: [0; 32],
             },
         ]);
@@ -317,7 +317,7 @@ mod test {
         let err = execute(deps.as_mut(), mock_env(), mock_info(SENDER, &[]), msg).unwrap_err();
         assert_contract_err_strings_equal(
             err,
-            ContractError::InvalidMessageID(messages[0].cc_id.id.to_string()),
+            ContractError::InvalidMessageID(messages[0].cc_id.message_id.to_string()),
         );
     }
 
@@ -333,7 +333,7 @@ mod test {
         let err = execute(deps.as_mut(), mock_env(), mock_info(SENDER, &[]), msg).unwrap_err();
         assert_contract_err_strings_equal(
             err,
-            ContractError::InvalidMessageID(messages[0].cc_id.id.to_string()),
+            ContractError::InvalidMessageID(messages[0].cc_id.message_id.to_string()),
         );
     }
 
