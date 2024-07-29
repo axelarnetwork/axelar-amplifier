@@ -41,7 +41,7 @@ pub(crate) fn route_outgoing_messages(
             .may_load(store, &msg.cc_id)
             .change_context(Error::InvalidStoreAccess)
             .and_then(|stored_msg| match stored_msg {
-                Some(message) if msg.hash() != message.hash() => {
+                Some(stored_msg) if msg.hash() != stored_msg.hash() => {
                     Err(report!(Error::MessageMismatch(msg.cc_id.clone())))
                 }
                 Some(_) => Ok(()), // message already exists
