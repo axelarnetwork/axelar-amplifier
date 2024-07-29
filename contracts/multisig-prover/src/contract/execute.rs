@@ -7,7 +7,6 @@ use cosmwasm_std::{
     to_json_binary, wasm_execute, Addr, DepsMut, Env, QuerierWrapper, QueryRequest, Response,
     Storage, SubMsg, WasmQuery,
 };
-use error_stack::bail;
 use itertools::Itertools;
 use multisig::msg::Signer;
 use multisig::verifier_set::VerifierSet;
