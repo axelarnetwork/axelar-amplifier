@@ -99,8 +99,8 @@ fn messages(
         .find(|msg| msg.destination_chain != chain_name)
     {
         Err(ContractError::InvalidDestinationChain {
-            expected: &chain_name,
-            actual: &wrong_destination.destination_chain,
+            expected: chain_name,
+            actual: wrong_destination.destination_chain.clone(),
         })
     } else {
         Ok(messages)

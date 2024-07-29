@@ -5,7 +5,7 @@ use router_api::ChainName;
 use thiserror::Error;
 
 #[derive(Error, Debug, PartialEq, IntoContractError)]
-pub enum ContractError<'a> {
+pub enum ContractError {
     #[error(transparent)]
     Std(#[from] StdError),
 
@@ -64,9 +64,9 @@ pub enum ContractError<'a> {
     #[error("not enough verifiers")]
     NotEnoughVerifiers,
 
-    #[error("invald destination chain '{0}', expected '{1}")]
+    #[error("invalid destination chain '{actual}', expected '{expected}")]
     InvalidDestinationChain {
-        actual: &'a ChainName,
-        expected: &'a ChainName,
+        actual: ChainName,
+        expected: ChainName,
     },
 }
