@@ -89,20 +89,16 @@ pub fn verify_messages(
         Err(ContractError::EmptyMessages)?;
     }
 
-    let source_chain = CONFIG
-        .load(deps.storage)
-        .map_err(ContractError::from)?
-        .source_chain;
-
     let config = CONFIG.load(deps.storage).map_err(ContractError::from)?;
 
     let messages = messages.try_map(|message| {
-        validate_source_chain(message, &source_chain)
+        validate_source_chain(message, &config.source_chain)
             .and_then(|message| validate_source_address(message, &config.address_format))
-    })?;
-
-    let messages = messages.try_map(|message| {
-        message_status(deps.as_ref(), &message, env.block.height).map(|status| (status, message))
+            .and_then(|message| {
+                message_status(deps.as_ref(), &message, env.block.height)
+                    .map(|status| (status, message))
+                    .map_err(Report::from)
+            })
     })?;
 
     let msgs_to_verify: Vec<Message> = messages
@@ -121,7 +117,7 @@ pub fn verify_messages(
         return Ok(Response::new());
     }
 
-    let snapshot = take_snapshot(deps.as_ref(), &source_chain)?;
+    let snapshot = take_snapshot(deps.as_ref(), &config.source_chain)?;
     let participants = snapshot.participants();
     let expires_at = calculate_expiration(env.block.height, config.block_expiry.into())?;
 
