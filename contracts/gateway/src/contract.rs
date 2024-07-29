@@ -2,7 +2,7 @@ use std::fmt::Debug;
 
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response};
+use cosmwasm_std::{Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response, StdError};
 use gateway_api::msg::{ExecuteMsg, QueryMsg};
 use router_api::CrossChainId;
 
@@ -60,6 +60,8 @@ pub fn query(
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
+    #[error(transparent)]
+    Std(#[from] StdError),
     #[error("gateway contract config is missing")]
     ConfigMissing,
     #[error("invalid store access")]
@@ -74,6 +76,8 @@ pub enum Error {
     MessageStatus,
     #[error("message with ID {0} not found")]
     MessageNotFound(CrossChainId),
+    #[error("message with id {0} mismatches with the stored one")]
+    MessageMismatch(CrossChainId),
 }
 
 mod internal {
