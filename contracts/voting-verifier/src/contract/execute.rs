@@ -90,7 +90,7 @@ pub fn verify_messages(
 
     if messages
         .iter()
-        .any(|message| message.cc_id.chain != source_chain)
+        .any(|message| message.cc_id.source_chain != source_chain)
     {
         Err(ContractError::SourceChainMismatch(source_chain.clone()))?;
     }

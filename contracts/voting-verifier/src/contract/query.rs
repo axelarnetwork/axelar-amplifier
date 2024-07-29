@@ -319,9 +319,9 @@ mod tests {
                 .as_str(),
             )
             .unwrap(),
-            source_address: format!("source_address{id}").parse().unwrap(),
+            source_address: format!("source-address{id}").parse().unwrap(),
             destination_chain: format!("destination-chain{id}").parse().unwrap(),
-            destination_address: format!("destination_address{id}").parse().unwrap(),
+            destination_address: format!("destination-address{id}").parse().unwrap(),
             payload_hash: [0; 32],
         }
     }

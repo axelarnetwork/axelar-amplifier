@@ -17,7 +17,8 @@ pub fn outgoing_messages(
 }
 
 fn try_load_msg(storage: &dyn Storage, id: CrossChainId) -> Result<Message, Error> {
-    state::may_load_outgoing_msg(storage, &id)
+    state::OUTGOING_MESSAGES
+        .may_load(storage, &id)
         .change_context(Error::InvalidStoreAccess)
         .transpose()
         .unwrap_or(Err(report!(Error::MessageNotFound(id))))
@@ -51,7 +52,9 @@ mod test {
         let messages = generate_messages();
 
         for message in messages.iter() {
-            state::save_outgoing_msg(deps.as_mut().storage, &message.cc_id, message).unwrap();
+            state::OUTGOING_MESSAGES
+                .save(deps.as_mut().storage, &message.cc_id, message)
+                .unwrap();
         }
 
         let ids = messages.iter().map(|msg| msg.cc_id.clone()).collect();
@@ -79,7 +82,9 @@ mod test {
 
         let messages = generate_messages();
 
-        state::save_outgoing_msg(deps.as_mut().storage, &messages[1].cc_id, &messages[1]).unwrap();
+        state::OUTGOING_MESSAGES
+            .save(deps.as_mut().storage, &messages[1].cc_id, &messages[1])
+            .unwrap();
 
         let ids = messages.iter().map(|msg| msg.cc_id.clone()).collect();
 
