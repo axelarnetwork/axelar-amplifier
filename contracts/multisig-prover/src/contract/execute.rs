@@ -7,6 +7,7 @@ use cosmwasm_std::{
     to_json_binary, wasm_execute, Addr, DepsMut, Env, QuerierWrapper, QueryRequest, Response,
     Storage, SubMsg, WasmQuery,
 };
+use error_stack::bail;
 use itertools::Itertools;
 use multisig::msg::Signer;
 use multisig::verifier_set::VerifierSet;
@@ -94,16 +95,17 @@ fn messages(
         "violated invariant: returned gateway messages count mismatch"
     );
 
-    if messages
+    if let Some(wrong_destination) = messages
         .iter()
-        .any(|msg| msg.destination_chain != chain_name)
+        .find(|msg| msg.destination_chain != chain_name)
     {
-        panic!(
-            "violated invariant: destination_chain in message does not match configured chain name"
-        );
+        Err(ContractError::InvalidDestinationChain {
+            expected: &chain_name,
+            actual: &wrong_destination.destination_chain,
+        })
+    } else {
+        Ok(messages)
     }
-
-    Ok(messages)
 }
 
 fn make_verifier_set(
