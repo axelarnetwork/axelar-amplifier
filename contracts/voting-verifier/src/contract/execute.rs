@@ -1,11 +1,14 @@
 use std::collections::HashMap;
 
+use axelar_wasm_std::address_format::{validate_address, AddressFormat};
+use axelar_wasm_std::utils::TryMapExt;
 use axelar_wasm_std::voting::{PollId, PollResults, Vote, WeightedPoll};
 use axelar_wasm_std::{snapshot, MajorityThreshold, VerificationStatus};
 use cosmwasm_std::{
     to_json_binary, Deps, DepsMut, Env, Event, MessageInfo, OverflowError, OverflowOperation,
     QueryRequest, Response, Storage, WasmMsg, WasmQuery,
 };
+use error_stack::{report, Report, ResultExt};
 use itertools::Itertools;
 use multisig::verifier_set::VerifierSet;
 use router_api::{ChainName, Message};
@@ -81,29 +84,22 @@ pub fn verify_messages(
     deps: DepsMut,
     env: Env,
     messages: Vec<Message>,
-) -> Result<Response, ContractError> {
+) -> Result<Response, Report<ContractError>> {
     if messages.is_empty() {
         Err(ContractError::EmptyMessages)?;
     }
 
-    let source_chain = CONFIG.load(deps.storage)?.source_chain;
+    let config = CONFIG.load(deps.storage).map_err(ContractError::from)?;
 
-    if messages
-        .iter()
-        .any(|message| message.cc_id.source_chain != source_chain)
-    {
-        Err(ContractError::SourceChainMismatch(source_chain.clone()))?;
-    }
-
-    let config = CONFIG.load(deps.storage)?;
-
-    let messages = messages
-        .into_iter()
-        .map(|message| {
-            message_status(deps.as_ref(), &message, env.block.height)
-                .map(|status| (status, message))
-        })
-        .collect::<Result<Vec<_>, _>>()?;
+    let messages = messages.try_map(|message| {
+        validate_source_chain(message, &config.source_chain)
+            .and_then(|message| validate_source_address(message, &config.address_format))
+            .and_then(|message| {
+                message_status(deps.as_ref(), &message, env.block.height)
+                    .map(|status| (status, message))
+                    .map_err(Report::from)
+            })
+    })?;
 
     let msgs_to_verify: Vec<Message> = messages
         .into_iter()
@@ -121,18 +117,20 @@ pub fn verify_messages(
         return Ok(Response::new());
     }
 
-    let snapshot = take_snapshot(deps.as_ref(), &source_chain)?;
+    let snapshot = take_snapshot(deps.as_ref(), &config.source_chain)?;
     let participants = snapshot.participants();
     let expires_at = calculate_expiration(env.block.height, config.block_expiry.into())?;
 
     let id = create_messages_poll(deps.storage, expires_at, snapshot, msgs_to_verify.len())?;
 
     for (idx, message) in msgs_to_verify.iter().enumerate() {
-        poll_messages().save(
-            deps.storage,
-            &message.hash(),
-            &state::PollContent::<Message>::new(message.clone(), id, idx),
-        )?;
+        poll_messages()
+            .save(
+                deps.storage,
+                &message.hash(),
+                &state::PollContent::<Message>::new(message.clone(), id, idx),
+            )
+            .map_err(ContractError::from)?;
     }
 
     let messages = msgs_to_verify
@@ -365,4 +363,27 @@ fn calculate_expiration(block_height: u64, block_expiry: u64) -> Result<u64, Con
         .checked_add(block_expiry)
         .ok_or_else(|| OverflowError::new(OverflowOperation::Add, block_height, block_expiry))
         .map_err(ContractError::from)
+}
+
+fn validate_source_chain(
+    message: Message,
+    source_chain: &ChainName,
+) -> Result<Message, Report<ContractError>> {
+    if message.cc_id.source_chain != *source_chain {
+        Err(report!(ContractError::SourceChainMismatch(
+            source_chain.clone()
+        )))
+    } else {
+        Ok(message)
+    }
+}
+
+fn validate_source_address(
+    message: Message,
+    address_format: &AddressFormat,
+) -> Result<Message, Report<ContractError>> {
+    validate_address(&message.source_address, address_format)
+        .change_context(ContractError::InvalidSourceAddress)?;
+
+    Ok(message)
 }
