@@ -42,6 +42,9 @@ pub enum ContractError {
 
     #[error("poll results have different length")]
     PollResultsLengthUnequal,
+
+    #[error("invalid source address")]
+    InvalidSourceAddress,
 }
 
 impl From<ContractError> for StdError {
