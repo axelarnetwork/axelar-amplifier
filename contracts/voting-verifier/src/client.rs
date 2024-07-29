@@ -222,6 +222,7 @@ mod test {
             source_chain: "source-chain".parse().unwrap(),
             rewards_address: "rewards".try_into().unwrap(),
             msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
+            address_format: axelar_wasm_std::address_format::AddressFormat::Eip55,
         };
 
         instantiate(deps, env, info.clone(), msg.clone()).unwrap();

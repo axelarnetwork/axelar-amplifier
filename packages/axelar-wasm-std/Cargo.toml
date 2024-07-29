@@ -29,6 +29,7 @@ optimize = """docker run --rm -v "$(pwd)":/code \
 """
 
 [dependencies]
+alloy-primitives = { workspace = true }
 bs58 = "0.5.1"
 cosmwasm-schema = { workspace = true }
 cosmwasm-std = { workspace = true }
