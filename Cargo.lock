@@ -761,7 +761,7 @@ dependencies = [
 [[package]]
 name = "axelar-rkyv-encoding"
 version = "0.1.0"
-source = "git+https://git@github.com/eigerco/solana-axelar.git?branch=main#89e1b00d9be8d2fe9a1982bfc2eb33f5a380f836"
+source = "git+https://git@github.com/eigerco/solana-axelar.git?branch=main#3521cf434bbf096709ea108397ed68334b88a1cf"
 dependencies = [
  "bnum",
  "bs58 0.5.1",

@@ -55,6 +55,7 @@ impl Payload {
                 &domain_separator,
                 &to_verifier_set(cur_verifier_set)?,
                 &axelar_rkyv_encoding::types::Payload::try_from(self)?,
+                axelar_rkyv_encoding::hasher::generic::Keccak256Hasher::default(),
             )),
         }
     }
@@ -234,7 +235,7 @@ mod test {
         assert_eq!(proof.nonce, created_at);
         assert_eq!(proof.signers_with_signatures.len(), 1);
         let (archived_signer_public_key, archived_signer) =
-            proof.signers_with_signatures.into_iter().next().unwrap();
+            proof.signers_with_signatures.iter().next().unwrap();
         let pk_bytes = archived_signer_public_key.to_bytes();
         assert_eq!(pk_bytes.as_slice(), signer.pub_key.as_ref());
         assert_eq!(archived_signer.weight.maybe_u128().unwrap(), 1);
@@ -243,7 +244,7 @@ mod test {
         else {
             panic!("")
         };
-        assert_eq!(archived_signature, &raw_signature);
+        assert_eq!(*archived_signature, raw_signature);
 
         // assert thashes match
         let mut bytes = [0; 32];
@@ -255,7 +256,11 @@ mod test {
             .collect();
         let vs =
             axelar_rkyv_encoding::types::VerifierSet::new(created_at, signers, u256_thereshold);
-        let archived_hash = archived_data.hash_payload_for_verifier_set(&domain_separator, &vs);
+        let archived_hash = archived_data.hash_payload_for_verifier_set(
+            &domain_separator,
+            &vs,
+            axelar_rkyv_encoding::hasher::generic::Keccak256Hasher::default(),
+        );
         assert_eq!(archived_hash, digest_hash)
     }
 }
