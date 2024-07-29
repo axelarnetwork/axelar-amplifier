@@ -37,21 +37,18 @@ pub(crate) fn route_outgoing_messages(
     let msgs = check_for_duplicates(verified)?;
 
     for msg in msgs.iter() {
-        match state::OUTGOING_MESSAGES
+        state::OUTGOING_MESSAGES
             .may_load(store, &msg.cc_id)
-            .map_err(Error::from)?
-        {
-            Some(message) => {
-                if msg.hash().ne(&message.hash()) {
-                    return Err(report!(Error::MessageMismatch(msg.cc_id.clone())));
+            .change_context(Error::InvalidStoreAccess)
+            .and_then(|stored_msg| match stored_msg {
+                Some(message) if msg.hash() != message.hash() => {
+                    Err(report!(Error::MessageMismatch(msg.cc_id.clone())))
                 }
-            }
-            None => {
-                state::OUTGOING_MESSAGES
+                Some(_) => Ok(()), // message already exists
+                None => state::OUTGOING_MESSAGES
                     .save(store, &msg.cc_id, msg)
-                    .change_context(Error::InvalidStoreAccess)?;
-            }
-        }
+                    .change_context(Error::InvalidStoreAccess),
+            })?;
     }
 
     Ok(Response::new().add_events(
