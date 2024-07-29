@@ -1,6 +1,6 @@
 use axelar_wasm_std::{FnExt, VerificationStatus};
 use cosmwasm_std::{Event, Response, Storage, WasmMsg};
-use error_stack::{report, IntoReport, Report, Result, ResultExt};
+use error_stack::{report, Result, ResultExt};
 use itertools::Itertools;
 use router_api::client::Router;
 use router_api::Message;
