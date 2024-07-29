@@ -31,7 +31,17 @@ jobs:
           if [[ $GITHUB_REF == refs/tags/* ]]; then
             echo "tag=${GITHUB_REF#refs/tags/}"
             echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            input_branch="${{ github.event.inputs.branch }}"
+            if [[ $input_branch =~ ^([a-zA-Z-]+)-v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+              echo "tag=$input_branch"
+              echo "tag=$input_branch" >> $GITHUB_OUTPUT
+            else
+              echo "tag="
+              echo "tag=" >> $GITHUB_OUTPUT
+            fi
           else
+            echo "tag="
             echo "tag=" >> $GITHUB_OUTPUT
           fi
 
