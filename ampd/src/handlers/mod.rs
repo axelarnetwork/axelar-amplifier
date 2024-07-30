@@ -20,7 +20,10 @@ mod tests {
     use crate::types::TMAddress;
 
     /// Convert a CosmWasm event into an ABCI event
-    pub fn get_event(event: impl Into<cosmwasm_std::Event>, contract_address: &TMAddress) -> Event {
+    pub fn into_structured_event(
+        event: impl Into<cosmwasm_std::Event>,
+        contract_address: &TMAddress,
+    ) -> Event {
         let mut event: cosmwasm_std::Event = event.into();
 
         event.ty = format!("wasm-{}", event.ty);

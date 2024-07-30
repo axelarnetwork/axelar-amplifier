@@ -1,11 +1,14 @@
+#![allow(deprecated)]
+
+use axelar_wasm_std::error::ContractError;
+use axelar_wasm_std::{killswitch, permission_control};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, StdResult, Storage};
 use cw_storage_plus::Item;
+use router_api::error::Error;
 
 use crate::contract::CONTRACT_NAME;
 use crate::state;
-use axelar_wasm_std::{killswitch, permission_control, ContractError};
-use router_api::error::Error;
 
 const BASE_VERSION: &str = "0.3.3";
 
@@ -25,7 +28,6 @@ struct Config {
     pub nexus_gateway: Addr,
 }
 
-#[allow(deprecated)]
 fn set_generalized_permission_control(storage: &mut dyn Storage) -> Result<(), Error> {
     let old_config = CONFIG.load(storage)?;
     permission_control::set_admin(storage, &old_config.admin)
@@ -44,19 +46,17 @@ fn set_router_state(storage: &mut dyn Storage) -> StdResult<()> {
 }
 
 #[deprecated(since = "0.3.3", note = "only used during migration")]
-#[allow(deprecated)]
 const CONFIG: Item<Config> = Item::new("config");
 
 #[cfg(test)]
-#[allow(deprecated)]
 mod test {
     use std::collections::HashMap;
 
+    use axelar_wasm_std::error::ContractError;
+    use axelar_wasm_std::killswitch;
+    use axelar_wasm_std::msg_id::MessageIdFormat;
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
     use cosmwasm_std::{DepsMut, Env, MessageInfo, Response};
-
-    use axelar_wasm_std::msg_id::MessageIdFormat;
-    use axelar_wasm_std::{killswitch, ContractError};
     use router_api::msg::ExecuteMsg;
 
     use crate::contract::migrations::v0_3_3;
@@ -106,7 +106,6 @@ mod test {
     }
 
     #[test]
-    #[allow(deprecated)]
     fn migration() {
         let mut deps = mock_dependencies();
         let instantiate_msg = instantiate_0_3_3_contract(deps.as_mut()).unwrap();
@@ -185,7 +184,6 @@ mod test {
         .is_ok());
     }
 
-    #[allow(deprecated)]
     fn instantiate_0_3_3_contract(deps: DepsMut) -> Result<InstantiateMsg, ContractError> {
         let admin = "admin";
         let governance = "governance";
@@ -201,7 +199,6 @@ mod test {
     }
 
     #[deprecated(since = "0.3.3", note = "only used to test the migration")]
-    #[allow(deprecated)]
     fn instantiate(
         deps: DepsMut,
         _env: Env,

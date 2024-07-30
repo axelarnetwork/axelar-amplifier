@@ -1,24 +1,20 @@
 use std::iter;
 use std::time::Duration;
 
-use error_stack::ResultExt;
-use error_stack::{FutureExt, Report, Result};
+use error_stack::{FutureExt, Report, Result, ResultExt};
+use events::Event;
 use futures::TryStreamExt;
 use mockall::automock;
 use tendermint::block;
 use thiserror::Error;
-use tokio::select;
 use tokio::sync::broadcast::{self, Sender};
-use tokio::time;
+use tokio::{select, time};
 use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
 use tokio_stream::wrappers::BroadcastStream;
 use tokio_stream::Stream;
 use tokio_util::sync::CancellationToken;
 use tracing::info;
 
-use events::Event;
-
-use crate::asyncutil::future::{self, RetryPolicy};
 use crate::tm_client::TmClient;
 
 #[automock]
@@ -128,20 +124,13 @@ impl<T: TmClient + Sync> EventPublisher<T> {
     }
 
     async fn events(&self, block_height: block::Height) -> Result<Vec<Event>, EventSubError> {
-        let block_results = future::with_retry(
-            || {
-                self.tm_client.block_results(block_height).change_context(
-                    EventSubError::EventQuery {
-                        block: block_height,
-                    },
-                )
-            },
-            RetryPolicy::RepeatConstant {
-                sleep: Duration::from_secs(1),
-                max_attempts: 15,
-            },
-        )
-        .await?;
+        let block_results = self
+            .tm_client
+            .block_results(block_height)
+            .change_context(EventSubError::EventQuery {
+                block: block_height,
+            })
+            .await?;
 
         let begin_block_events = block_results.begin_block_events.into_iter().flatten();
         let tx_events = block_results

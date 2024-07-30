@@ -3,20 +3,20 @@ use std::fmt::Debug;
 use std::fs::File;
 use std::iter;
 
-use axelar_wasm_std::{ContractError, VerificationStatus};
+use axelar_wasm_std::error::ContractError;
+use axelar_wasm_std::VerificationStatus;
 use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info, MockQuerier};
 #[cfg(not(feature = "generate_golden_files"))]
 use cosmwasm_std::Response;
 use cosmwasm_std::{
     from_json, to_json_binary, Addr, ContractResult, DepsMut, QuerierResult, WasmQuery,
 };
-use itertools::Itertools;
-use router_api::{CrossChainId, Message};
-use serde::Serialize;
-
 use gateway::contract::*;
 use gateway::msg::InstantiateMsg;
 use gateway_api::msg::{ExecuteMsg, QueryMsg};
+use itertools::Itertools;
+use router_api::{CrossChainId, Message};
+use serde::Serialize;
 use voting_verifier::msg::MessageStatus;
 
 #[test]
@@ -138,9 +138,8 @@ fn successful_route_outgoing() {
         let router = "router";
         instantiate_contract(deps.as_mut(), "verifier", router);
 
-        let query_msg = QueryMsg::GetOutgoingMessages {
-            message_ids: msgs.iter().map(|msg| msg.cc_id.clone()).collect(),
-        };
+        let query_msg =
+            QueryMsg::OutgoingMessages(msgs.iter().map(|msg| msg.cc_id.clone()).collect());
 
         // check no messages are outgoing
         let query_response = query(deps.as_ref(), mock_env(), query_msg.clone());
@@ -345,10 +344,7 @@ fn generate_msgs_with_all_statuses(
 fn generate_msgs(namespace: impl Debug, count: u8) -> Vec<Message> {
     (0..count)
         .map(|i| Message {
-            cc_id: CrossChainId {
-                chain: "mock-chain".parse().unwrap(),
-                id: format!("{:?}{}", namespace, i).parse().unwrap(),
-            },
+            cc_id: CrossChainId::new("mock-chain", format!("{:?}{}", namespace, i)).unwrap(),
             destination_address: "idc".parse().unwrap(),
             destination_chain: "mock-chain-2".parse().unwrap(),
             source_address: "idc".parse().unwrap(),
@@ -401,7 +397,7 @@ fn correctly_working_verifier_handler(
 {
     move |msg: voting_verifier::msg::QueryMsg| -> Result<Vec<MessageStatus>, ContractError> {
         match msg {
-            voting_verifier::msg::QueryMsg::GetMessagesStatus { messages } => Ok(messages
+            voting_verifier::msg::QueryMsg::MessagesStatus(messages) => Ok(messages
                 .into_iter()
                 .map(|msg| {
                     MessageStatus::new(

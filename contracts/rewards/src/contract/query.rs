@@ -1,11 +1,9 @@
 use cosmwasm_std::{Storage, Uint64};
 use error_stack::Result;
 
-use crate::{
-    error::ContractError,
-    msg,
-    state::{self, Epoch, PoolId},
-};
+use crate::error::ContractError;
+use crate::msg;
+use crate::state::{self, Epoch, PoolId};
 
 pub fn rewards_pool(
     storage: &dyn Storage,
@@ -65,15 +63,13 @@ pub fn participation(
 
 #[cfg(test)]
 mod tests {
-    use cosmwasm_std::{testing::mock_dependencies, Addr, Uint128, Uint64};
+    use cosmwasm_std::testing::mock_dependencies;
+    use cosmwasm_std::{Addr, Uint128, Uint64};
     use msg::Participation;
 
-    use crate::{
-        msg::Params,
-        state::{EpochTally, ParamsSnapshot, RewardsPool},
-    };
-
     use super::*;
+    use crate::msg::Params;
+    use crate::state::{EpochTally, ParamsSnapshot, RewardsPool};
 
     fn setup(storage: &mut dyn Storage, initial_balance: Uint128) -> (ParamsSnapshot, PoolId) {
         let pool_id = PoolId {

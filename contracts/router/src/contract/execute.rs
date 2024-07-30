@@ -1,13 +1,12 @@
 use std::collections::HashMap;
 use std::vec;
 
+use axelar_wasm_std::flagset::FlagSet;
 use axelar_wasm_std::killswitch;
+use axelar_wasm_std::msg_id::{self, MessageIdFormat};
 use cosmwasm_std::{to_json_binary, Addr, Event, Response, StdResult, Storage, WasmMsg};
 use error_stack::{ensure, report, ResultExt};
 use itertools::Itertools;
-
-use axelar_wasm_std::flagset::FlagSet;
-use axelar_wasm_std::msg_id::{self, MessageIdFormat};
 use router_api::error::Error;
 use router_api::{ChainEndpoint, ChainName, Gateway, GatewayDirection, Message};
 
@@ -154,7 +153,7 @@ fn verify_msg_ids(
     expected_format: &MessageIdFormat,
 ) -> Result<(), error_stack::Report<Error>> {
     msgs.iter()
-        .try_for_each(|msg| msg_id::verify_msg_id(&msg.cc_id.id, expected_format))
+        .try_for_each(|msg| msg_id::verify_msg_id(&msg.cc_id.message_id, expected_format))
         .change_context(Error::InvalidMessageId)
 }
 
@@ -180,7 +179,10 @@ fn validate_msgs(
         }));
     }
 
-    if msgs.iter().any(|msg| msg.cc_id.chain != source_chain.name) {
+    if msgs
+        .iter()
+        .any(|msg| msg.cc_id.source_chain != source_chain.name)
+    {
         return Err(report!(Error::WrongSourceChain));
     }
 
@@ -240,12 +242,8 @@ pub fn route_messages(
 
 #[cfg(test)]
 mod test {
-    use super::{freeze_chains, unfreeze_chains};
-    use crate::contract::execute::route_messages;
-    use crate::contract::instantiate;
-    use crate::events::{ChainFrozen, ChainUnfrozen};
-    use crate::msg::InstantiateMsg;
-    use crate::state::chain_endpoints;
+    use std::collections::HashMap;
+
     use axelar_wasm_std::flagset::FlagSet;
     use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
@@ -253,7 +251,13 @@ mod test {
     use rand::{random, RngCore};
     use router_api::error::Error;
     use router_api::{ChainEndpoint, ChainName, CrossChainId, Gateway, GatewayDirection, Message};
-    use std::collections::HashMap;
+
+    use super::{freeze_chains, unfreeze_chains};
+    use crate::contract::execute::route_messages;
+    use crate::contract::instantiate;
+    use crate::events::{ChainFrozen, ChainUnfrozen};
+    use crate::msg::InstantiateMsg;
+    use crate::state::chain_endpoints;
 
     fn rand_message(source_chain: ChainName, destination_chain: ChainName) -> Message {
         let mut bytes = [0; 32];
@@ -277,10 +281,7 @@ mod test {
         rand::thread_rng().fill_bytes(&mut payload_hash);
 
         Message {
-            cc_id: CrossChainId {
-                chain: source_chain,
-                id: id.parse().unwrap(),
-            },
+            cc_id: CrossChainId::new(source_chain, id).unwrap(),
             source_address,
             destination_chain,
             destination_address,
@@ -485,8 +486,8 @@ mod test {
             )
             .unwrap();
 
-        let mut msg = rand_message(source_chain, destination_chain.clone());
-        msg.cc_id.id = "foobar".try_into().unwrap();
+        let mut msg = rand_message(source_chain.clone(), destination_chain.clone());
+        msg.cc_id = CrossChainId::new(source_chain, "foobar").unwrap();
         assert!(route_messages(deps.as_mut().storage, sender, vec![msg])
             .is_err_and(move |err| { matches!(err.current_context(), Error::InvalidMessageId) }));
     }
@@ -510,8 +511,8 @@ mod test {
         )
         .unwrap();
 
-        let mut msg = rand_message(source_chain, destination_chain.clone());
-        msg.cc_id.id = "foobar".try_into().unwrap();
+        let mut msg = rand_message(source_chain.clone(), destination_chain.clone());
+        msg.cc_id = CrossChainId::new(source_chain, "foobar").unwrap();
         assert!(route_messages(deps.as_mut().storage, sender, vec![msg])
             .is_err_and(move |err| { matches!(err.current_context(), Error::InvalidMessageId) }));
     }
@@ -551,14 +552,18 @@ mod test {
             )
             .unwrap();
 
-        let mut msg = rand_message(source_chain, destination_chain.clone());
-        msg.cc_id.id = HexTxHashAndEventIndex {
-            tx_hash: [0; 32],
-            event_index: 0,
-        }
-        .to_string()
-        .try_into()
+        let mut msg = rand_message(source_chain.clone(), destination_chain.clone());
+        msg.cc_id = CrossChainId::new(
+            source_chain,
+            HexTxHashAndEventIndex {
+                tx_hash: [0; 32],
+                event_index: 0,
+            }
+            .to_string()
+            .as_str(),
+        )
         .unwrap();
+
         assert!(route_messages(deps.as_mut().storage, sender, vec![msg])
             .is_err_and(move |err| { matches!(err.current_context(), Error::InvalidMessageId) }));
     }

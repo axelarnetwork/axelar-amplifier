@@ -6,11 +6,9 @@ use cosmwasm_std::{Addr, HexBinary, Uint128, Uint64};
 use msgs_derive::EnsurePermissions;
 use router_api::ChainName;
 
-use crate::{
-    key::{KeyType, PublicKey, Signature},
-    multisig::Multisig,
-    verifier_set::VerifierSet,
-};
+use crate::key::{KeyType, PublicKey, Signature};
+use crate::multisig::Multisig;
+use crate::verifier_set::VerifierSet;
 
 #[cw_serde]
 pub struct MigrationMsg {
@@ -84,13 +82,13 @@ pub enum ExecuteMsg {
 #[derive(QueryResponses)]
 pub enum QueryMsg {
     #[returns(Multisig)]
-    GetMultisig { session_id: Uint64 },
+    Multisig { session_id: Uint64 },
 
     #[returns(VerifierSet)]
-    GetVerifierSet { verifier_set_id: String },
+    VerifierSet { verifier_set_id: String },
 
     #[returns(PublicKey)]
-    GetPublicKey {
+    PublicKey {
         verifier_address: String,
         key_type: KeyType,
     },

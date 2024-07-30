@@ -1,5 +1,7 @@
 #![allow(deprecated)]
 
+use axelar_wasm_std::killswitch::State;
+use axelar_wasm_std::{killswitch, nonempty, permission_control};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, StdError, Storage};
 use cw2::VersionError;
@@ -9,8 +11,6 @@ use router_api::ChainName;
 
 use crate::contract::CONTRACT_NAME;
 use crate::state::AUTHORIZED_CALLERS;
-use axelar_wasm_std::killswitch::State;
-use axelar_wasm_std::{killswitch, nonempty, permission_control};
 
 const BASE_VERSION: &str = "0.4.1";
 
@@ -88,11 +88,10 @@ const CONFIG: Item<Config> = Item::new("config");
 
 #[cfg(test)]
 mod tests {
+    use axelar_wasm_std::nonempty;
     use cosmwasm_schema::cw_serde;
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
     use cosmwasm_std::{Addr, DepsMut, Env, HexBinary, MessageInfo, Response, Uint64};
-
-    use axelar_wasm_std::nonempty;
     use router_api::ChainName;
 
     use crate::contract::migrations::v0_4_1;
@@ -248,7 +247,7 @@ mod tests {
         assert!(query::caller_authorized(deps.as_ref(), prover, chain_name).unwrap());
     }
 
-    #[deprecated(since = "0.4.1", note = "only used to test migration")]
+    #[deprecated(since = "0.4.1", note = "only used to test the migration")]
     fn instantiate(
         deps: DepsMut,
         _env: Env,
@@ -271,7 +270,7 @@ mod tests {
     }
 
     #[cw_serde]
-    #[deprecated(since = "0.4.1", note = "only used to test migration")]
+    #[deprecated(since = "0.4.1", note = "only used to test the migration")]
     struct InstantiateMsg {
         // the governance address is allowed to modify the authorized caller list for this contract
         pub governance_address: String,

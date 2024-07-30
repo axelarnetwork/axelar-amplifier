@@ -78,7 +78,8 @@ const STATE: Item<State> = Item::new("state");
 
 #[cfg(test)]
 mod tests {
-    use cosmwasm_std::{testing::mock_dependencies, Event};
+    use cosmwasm_std::testing::mock_dependencies;
+    use cosmwasm_std::Event;
 
     use crate::killswitch::{disengage, engage, init, is_contract_active, State, STATE};
 

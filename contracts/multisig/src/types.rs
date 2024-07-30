@@ -50,9 +50,8 @@ impl TryFrom<HexBinary> for MsgToSign {
 
 #[cfg(test)]
 mod tests {
-    use crate::test::common::ecdsa_test_data;
-
     use super::*;
+    use crate::test::common::ecdsa_test_data;
 
     #[test]
     fn test_try_from_hexbinary_to_message() {

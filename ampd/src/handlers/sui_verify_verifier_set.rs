@@ -1,22 +1,21 @@
 use std::convert::TryInto;
 
 use async_trait::async_trait;
+use axelar_wasm_std::msg_id::Base58TxDigestAndEventIndex;
+use axelar_wasm_std::voting::{PollId, Vote};
 use cosmrs::cosmwasm::MsgExecuteContract;
-use cosmrs::{tx::Msg, Any};
-use cosmwasm_std::HexBinary;
-use cosmwasm_std::Uint128;
+use cosmrs::tx::Msg;
+use cosmrs::Any;
 use error_stack::ResultExt;
+use events::Error::EventTypeMismatch;
+use events::Event;
+use events_derive::try_from;
 use multisig::verifier_set::VerifierSet;
 use serde::Deserialize;
 use sui_types::base_types::{SuiAddress, TransactionDigest};
 use tokio::sync::watch::Receiver;
 use tracing::{info, info_span};
 use valuable::Valuable;
-
-use axelar_wasm_std::msg_id::Base58TxDigestAndEventIndex;
-use axelar_wasm_std::voting::{PollId, Vote};
-use events::{Error::EventTypeMismatch, Event};
-use events_derive::try_from;
 use voting_verifier::msg::ExecuteMsg;
 
 use crate::event_processor::EventHandler;
@@ -24,13 +23,6 @@ use crate::handlers::errors::Error;
 use crate::sui::json_rpc::SuiClient;
 use crate::sui::verifier::verify_verifier_set;
 use crate::types::TMAddress;
-
-#[allow(dead_code)]
-#[derive(Deserialize, Debug)]
-pub struct Operators {
-    pub weights_by_addresses: Vec<(HexBinary, Uint128)>,
-    pub threshold: Uint128,
-}
 
 #[derive(Deserialize, Debug)]
 pub struct VerifierSetConfirmation {
@@ -165,29 +157,26 @@ mod tests {
 
     use error_stack::{Report, Result};
     use ethers_providers::ProviderError;
+    use events::Event;
+    use multisig::key::KeyType;
+    use multisig::test::common::{build_verifier_set, ecdsa_test_data};
     use sui_types::base_types::{SuiAddress, TransactionDigest};
     use tokio::sync::watch;
     use tokio::test as async_test;
-
-    use events::Event;
-    use multisig::{
-        key::KeyType,
-        test::common::{build_verifier_set, ecdsa_test_data},
-    };
     use voting_verifier::events::{PollMetadata, PollStarted, VerifierSetConfirmation};
 
-    use crate::event_processor::EventHandler;
-    use crate::sui::json_rpc::MockSuiClient;
-    use crate::PREFIX;
-    use crate::{handlers::tests::get_event, types::TMAddress};
-
     use super::PollStartedEvent;
+    use crate::event_processor::EventHandler;
+    use crate::handlers::tests::into_structured_event;
+    use crate::sui::json_rpc::MockSuiClient;
+    use crate::types::TMAddress;
+    use crate::PREFIX;
 
     #[test]
     fn should_deserialize_verifier_set_poll_started_event() {
         let participants = (0..5).map(|_| TMAddress::random(PREFIX)).collect();
 
-        let event: Result<PollStartedEvent, events::Error> = get_event(
+        let event: Result<PollStartedEvent, events::Error> = into_structured_event(
             verifier_set_poll_started_event(participants, 100),
             &TMAddress::random(PREFIX),
         )
@@ -211,7 +200,7 @@ mod tests {
         let voting_verifier = TMAddress::random(PREFIX);
         let verifier = TMAddress::random(PREFIX);
         let expiration = 100u64;
-        let event: Event = get_event(
+        let event: Event = into_structured_event(
             verifier_set_poll_started_event(
                 vec![verifier.clone()].into_iter().collect(),
                 expiration,

@@ -1,8 +1,10 @@
-use crate::primitives::*;
+use std::collections::HashMap;
+
 use axelar_wasm_std::msg_id::MessageIdFormat;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use msgs_derive::EnsurePermissions;
-use std::collections::HashMap;
+
+use crate::primitives::*;
 
 #[cw_serde]
 #[derive(EnsurePermissions)]
@@ -49,7 +51,7 @@ pub enum ExecuteMsg {
 #[derive(QueryResponses)]
 pub enum QueryMsg {
     #[returns(ChainEndpoint)]
-    GetChainInfo(ChainName),
+    ChainInfo(ChainName),
 
     // Returns a list of chains registered with the router
     // The list is paginated by:

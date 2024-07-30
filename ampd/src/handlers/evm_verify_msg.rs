@@ -2,21 +2,21 @@ use std::collections::{HashMap, HashSet};
 use std::convert::TryInto;
 
 use async_trait::async_trait;
+use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
+use axelar_wasm_std::voting::{PollId, Vote};
 use cosmrs::cosmwasm::MsgExecuteContract;
-use cosmrs::{tx::Msg, Any};
+use cosmrs::tx::Msg;
+use cosmrs::Any;
 use error_stack::ResultExt;
 use ethers_core::types::{TransactionReceipt, U64};
+use events::Error::EventTypeMismatch;
+use events_derive::try_from;
 use futures::future::join_all;
+use router_api::ChainName;
 use serde::Deserialize;
 use tokio::sync::watch::Receiver;
 use tracing::{info, info_span};
 use valuable::Valuable;
-
-use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
-use axelar_wasm_std::voting::{PollId, Vote};
-use events::Error::EventTypeMismatch;
-use events_derive::try_from;
-use router_api::ChainName;
 use voting_verifier::msg::ExecuteMsg;
 
 use crate::event_processor::EventHandler;
@@ -231,24 +231,22 @@ mod tests {
     use cosmwasm_std;
     use error_stack::{Report, Result};
     use ethers_providers::ProviderError;
-    use tendermint::abci;
-    use tokio::sync::watch;
-    use tokio::test as async_test;
-
     use events::Error::{DeserializationFailed, EventTypeMismatch};
     use events::Event;
     use router_api::ChainName;
+    use tendermint::abci;
+    use tokio::sync::watch;
+    use tokio::test as async_test;
     use voting_verifier::events::{PollMetadata, PollStarted, TxEventConfirmation};
 
+    use super::PollStartedEvent;
     use crate::event_processor::EventHandler;
     use crate::evm::finalizer::Finalization;
     use crate::evm::json_rpc::MockEthereumClient;
     use crate::types::{EVMAddress, Hash, TMAddress};
     use crate::PREFIX;
 
-    use super::PollStartedEvent;
-
-    fn get_poll_started_event(participants: Vec<TMAddress>, expires_at: u64) -> PollStarted {
+    fn poll_started_event(participants: Vec<TMAddress>, expires_at: u64) -> PollStarted {
         PollStarted::Messages {
             metadata: PollMetadata {
                 poll_id: "100".parse().unwrap(),
@@ -295,8 +293,8 @@ mod tests {
     #[test]
     fn should_not_deserialize_incorrect_event() {
         // incorrect event type
-        let mut event: Event = get_event(
-            get_poll_started_event(participants(5, None), 100),
+        let mut event: Event = to_event(
+            poll_started_event(participants(5, None), 100),
             &TMAddress::random(PREFIX),
         );
         match event {
@@ -315,8 +313,8 @@ mod tests {
         ));
 
         // invalid field
-        let mut event: Event = get_event(
-            get_poll_started_event(participants(5, None), 100),
+        let mut event: Event = to_event(
+            poll_started_event(participants(5, None), 100),
             &TMAddress::random(PREFIX),
         );
         match event {
@@ -338,8 +336,8 @@ mod tests {
 
     #[test]
     fn should_deserialize_correct_event() {
-        let event: Event = get_event(
-            get_poll_started_event(participants(5, None), 100),
+        let event: Event = to_event(
+            poll_started_event(participants(5, None), 100),
             &TMAddress::random(PREFIX),
         );
         let event: Result<PollStartedEvent, events::Error> = event.try_into();
@@ -359,8 +357,8 @@ mod tests {
         let voting_verifier_contract = TMAddress::random(PREFIX);
         let verifier = TMAddress::random(PREFIX);
         let expiration = 100u64;
-        let event: Event = get_event(
-            get_poll_started_event(participants(5, Some(verifier.clone())), expiration),
+        let event: Event = to_event(
+            poll_started_event(participants(5, Some(verifier.clone())), expiration),
             &voting_verifier_contract,
         );
 
@@ -384,7 +382,7 @@ mod tests {
         assert_eq!(handler.handle(&event).await.unwrap(), vec![]);
     }
 
-    fn get_event(event: impl Into<cosmwasm_std::Event>, contract_address: &TMAddress) -> Event {
+    fn to_event(event: impl Into<cosmwasm_std::Event>, contract_address: &TMAddress) -> Event {
         let mut event: cosmwasm_std::Event = event.into();
 
         event.ty = format!("wasm-{}", event.ty);

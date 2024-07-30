@@ -1,10 +1,10 @@
-use crate::contract::Contract;
-use crate::protocol::Protocol;
-use axelar_wasm_std::nonempty;
-use axelar_wasm_std::MajorityThreshold;
+use axelar_wasm_std::{nonempty, MajorityThreshold};
 use cosmwasm_std::Addr;
 use cw_multi_test::{ContractWrapper, Executor};
 use router_api::ChainName;
+
+use crate::contract::Contract;
+use crate::protocol::Protocol;
 
 #[derive(Clone)]
 pub struct VotingVerifierContract {
@@ -41,10 +41,15 @@ impl VotingVerifierContract {
                     service_name: protocol.service_name.clone(),
                     source_gateway_address,
                     voting_threshold,
-                    block_expiry: 10,
+                    block_expiry: 10.try_into().unwrap(),
                     confirmation_height: 5,
                     source_chain,
-                    rewards_address: protocol.rewards.contract_addr.to_string(),
+                    rewards_address: protocol
+                        .rewards
+                        .contract_addr
+                        .to_string()
+                        .try_into()
+                        .unwrap(),
                     msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
                 },
                 &[],

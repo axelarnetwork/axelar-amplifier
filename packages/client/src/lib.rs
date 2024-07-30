@@ -4,7 +4,8 @@ use cosmwasm_std::{
     to_json_binary, Addr, QuerierWrapper, QueryRequest, StdError, WasmMsg, WasmQuery,
 };
 use error_stack::{Report, Result};
-use serde::{de::DeserializeOwned, Serialize};
+use serde::de::DeserializeOwned;
+use serde::Serialize;
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
