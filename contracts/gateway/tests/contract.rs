@@ -4,7 +4,7 @@ use std::fs::File;
 use std::iter;
 
 use axelar_wasm_std::error::ContractError;
-use axelar_wasm_std::VerificationStatus;
+use axelar_wasm_std::{err_contains, VerificationStatus};
 use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info, MockQuerier};
 #[cfg(not(feature = "generate_golden_files"))]
 use cosmwasm_std::Response;
@@ -15,6 +15,7 @@ use gateway::contract::*;
 use gateway::msg::InstantiateMsg;
 use gateway_api::msg::{ExecuteMsg, QueryMsg};
 use itertools::Itertools;
+use rand::{thread_rng, Rng};
 use router_api::{CrossChainId, Message};
 use serde::Serialize;
 use voting_verifier::msg::MessageStatus;
@@ -278,6 +279,43 @@ fn route_duplicate_ids_should_fail() {
 
         assert!(response.is_err());
     }
+}
+
+#[test]
+fn reject_reroute_outgoing_message_with_different_contents() {
+    let mut msgs = generate_msgs(VerificationStatus::SucceededOnSourceChain, 10);
+
+    let mut deps = mock_dependencies();
+
+    let router = "router";
+    instantiate_contract(deps.as_mut(), "verifier", router);
+
+    let response = execute(
+        deps.as_mut(),
+        mock_env(),
+        mock_info(router, &[]),
+        ExecuteMsg::RouteMessages(msgs.clone()),
+    );
+    assert!(response.is_ok());
+
+    // re-route with different payload
+    msgs.iter_mut().for_each(|msg| {
+        let mut rng = thread_rng();
+        msg.payload_hash.iter_mut().for_each(|byte| {
+            *byte = rng.gen();
+        });
+    });
+    let response = execute(
+        deps.as_mut(),
+        mock_env(),
+        mock_info(router, &[]),
+        ExecuteMsg::RouteMessages(msgs.clone()),
+    );
+    assert!(response.is_err_and(|err| err_contains!(
+        err.report,
+        Error,
+        Error::MessageMismatch { .. }
+    )));
 }
 
 fn test_cases_for_correct_verifier() -> (
