@@ -27,7 +27,7 @@ pub fn construct_proof(
     let config = CONFIG.load(deps.storage).map_err(ContractError::from)?;
     let payload_id = message_ids.as_slice().into();
 
-    let messages = get_messages(
+    let messages = messages(
         deps.querier,
         message_ids,
         config.gateway.clone(),
@@ -76,7 +76,7 @@ pub fn construct_proof(
     Ok(Response::new().add_submessage(SubMsg::reply_on_success(wasm_msg, START_MULTISIG_REPLY_ID)))
 }
 
-fn get_messages(
+fn messages(
     querier: QuerierWrapper,
     message_ids: Vec<CrossChainId>,
     gateway: Addr,
@@ -84,7 +84,7 @@ fn get_messages(
 ) -> Result<Vec<Message>, ContractError> {
     let length = message_ids.len();
 
-    let query = gateway_api::msg::QueryMsg::GetOutgoingMessages(message_ids);
+    let query = gateway_api::msg::QueryMsg::OutgoingMessages(message_ids);
     let messages: Vec<Message> = querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
         contract_addr: gateway.into(),
         msg: to_json_binary(&query)?,
@@ -111,7 +111,7 @@ fn make_verifier_set(
     env: &Env,
     config: &Config,
 ) -> Result<VerifierSet, ContractError> {
-    let active_verifiers_query = service_registry::msg::QueryMsg::GetActiveVerifiers {
+    let active_verifiers_query = service_registry::msg::QueryMsg::ActiveVerifiers {
         service_name: config.service_name.clone(),
         chain_name: config.chain_name.clone(),
     };
@@ -126,7 +126,7 @@ fn make_verifier_set(
         .querier
         .query::<Service>(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: config.service_registry.to_string(),
-            msg: to_json_binary(&service_registry::msg::QueryMsg::GetService {
+            msg: to_json_binary(&service_registry::msg::QueryMsg::Service {
                 service_name: config.service_name.clone(),
             })?,
         }))?
@@ -135,7 +135,7 @@ fn make_verifier_set(
     let participants_with_pubkeys = verifiers
         .into_iter()
         .filter_map(|verifier| {
-            let pub_key_query = multisig::msg::QueryMsg::GetPublicKey {
+            let pub_key_query = multisig::msg::QueryMsg::PublicKey {
                 verifier_address: verifier.verifier_info.address.to_string(),
                 key_type: config.key_type,
             };
@@ -170,7 +170,7 @@ fn make_verifier_set(
     ))
 }
 
-fn get_next_verifier_set(
+fn next_verifier_set(
     deps: &DepsMut,
     env: &Env,
     config: &Config,
@@ -239,7 +239,7 @@ pub fn update_verifier_set(
             ))
         }
         Some(cur_verifier_set) => {
-            let new_verifier_set = get_next_verifier_set(&deps, &env, &config)?
+            let new_verifier_set = next_verifier_set(&deps, &env, &config)?
                 .ok_or(ContractError::VerifierSetUnchanged)?;
 
             save_next_verifier_set(deps.storage, &new_verifier_set)?;
@@ -292,7 +292,7 @@ fn ensure_verifier_set_verification(
     config: &Config,
     deps: &DepsMut,
 ) -> Result<(), ContractError> {
-    let query = voting_verifier::msg::QueryMsg::GetVerifierSetStatus(verifier_set.clone());
+    let query = voting_verifier::msg::QueryMsg::VerifierSetStatus(verifier_set.clone());
 
     let status: VerificationStatus = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
         contract_addr: config.voting_verifier.to_string(),
@@ -417,7 +417,7 @@ mod tests {
     use cosmwasm_std::Addr;
     use router_api::ChainName;
 
-    use super::{different_set_in_progress, get_next_verifier_set, should_update_verifier_set};
+    use super::{different_set_in_progress, next_verifier_set, should_update_verifier_set};
     use crate::state::{Config, NEXT_VERIFIER_SET};
     use crate::test::test_data;
 
@@ -525,14 +525,14 @@ mod tests {
     }
 
     #[test]
-    fn get_next_verifier_set_should_return_pending() {
+    fn next_verifier_set_should_return_pending() {
         let mut deps = mock_dependencies();
         let env = mock_env();
         let new_verifier_set = test_data::new_verifier_set();
         NEXT_VERIFIER_SET
             .save(deps.as_mut().storage, &new_verifier_set)
             .unwrap();
-        let ret_verifier_set = get_next_verifier_set(&deps.as_mut(), &env, &mock_config());
+        let ret_verifier_set = next_verifier_set(&deps.as_mut(), &env, &mock_config());
         assert_eq!(ret_verifier_set.unwrap().unwrap(), new_verifier_set);
     }
 

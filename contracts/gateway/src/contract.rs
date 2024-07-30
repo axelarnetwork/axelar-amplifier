@@ -6,9 +6,11 @@ use cosmwasm_std::{Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response};
 use gateway_api::msg::{ExecuteMsg, QueryMsg};
 use router_api::CrossChainId;
 
+use crate::contract::migrations::v0_2_3;
 use crate::msg::InstantiateMsg;
 
 mod execute;
+mod migrations;
 mod query;
 
 const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
@@ -20,10 +22,7 @@ pub fn migrate(
     _env: Env,
     _msg: Empty,
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
-    // any version checks should be done before here
-
-    cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-
+    v0_2_3::migrate(deps.storage)?;
     Ok(Response::default())
 }
 
@@ -75,6 +74,8 @@ pub enum Error {
     MessageStatus,
     #[error("message with ID {0} not found")]
     MessageNotFound(CrossChainId),
+    #[error("message with id {0} mismatches with the stored one")]
+    MessageMismatch(CrossChainId),
 }
 
 mod internal {
@@ -140,28 +141,10 @@ mod internal {
 
     pub(crate) fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, Error> {
         match msg {
-            QueryMsg::GetOutgoingMessages(message_ids) => {
-                let msgs = contract::query::get_outgoing_messages(deps.storage, message_ids)?;
+            QueryMsg::OutgoingMessages(message_ids) => {
+                let msgs = contract::query::outgoing_messages(deps.storage, message_ids)?;
                 to_json_binary(&msgs).change_context(Error::SerializeResponse)
             }
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use cosmwasm_std::testing::{mock_dependencies, mock_env};
-
-    use super::*;
-
-    #[test]
-    fn migrate_sets_contract_version() {
-        let mut deps = mock_dependencies();
-
-        migrate(deps.as_mut(), mock_env(), Empty {}).unwrap();
-
-        let contract_version = cw2::get_contract_version(deps.as_mut().storage).unwrap();
-        assert_eq!(contract_version.contract, "gateway");
-        assert_eq!(contract_version.version, CONTRACT_VERSION);
     }
 }

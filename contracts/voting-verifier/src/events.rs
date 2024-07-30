@@ -28,6 +28,7 @@ impl From<Config> for Vec<Attribute> {
             source_chain,
             rewards_contract,
             msg_id_format,
+            address_format,
         } = other;
 
         vec![
@@ -49,6 +50,10 @@ impl From<Config> for Vec<Attribute> {
             (
                 "msg_id_format",
                 serde_json::to_string(&msg_id_format).expect("failed to serialize msg_id_format"),
+            ),
+            (
+                "address_format",
+                serde_json::to_string(&address_format).expect("failed to serialize address_format"),
             ),
         ]
         .into_iter()
@@ -195,7 +200,7 @@ pub struct TxEventConfirmation {
 impl TryFrom<(Message, &MessageIdFormat)> for TxEventConfirmation {
     type Error = ContractError;
     fn try_from((msg, msg_id_format): (Message, &MessageIdFormat)) -> Result<Self, Self::Error> {
-        let (tx_id, event_index) = parse_message_id(&msg.cc_id.id, msg_id_format)?;
+        let (tx_id, event_index) = parse_message_id(&msg.cc_id.message_id, msg_id_format)?;
 
         Ok(TxEventConfirmation {
             tx_id,
@@ -301,7 +306,7 @@ mod test {
     fn generate_msg(msg_id: nonempty::String) -> Message {
         Message {
             cc_id: CrossChainId::new("source-chain", msg_id).unwrap(),
-            source_address: "source_address".parse().unwrap(),
+            source_address: "source-address".parse().unwrap(),
             destination_chain: "destination-chain".parse().unwrap(),
             destination_address: "destination-address".parse().unwrap(),
             payload_hash: [0; 32],

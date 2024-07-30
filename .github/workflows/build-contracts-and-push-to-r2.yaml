@@ -4,10 +4,12 @@ on:
   push:
     branches:
       - main
+    tags:
+      - '*-v[0-9]+.[0-9]+.[0-9]+'
   workflow_dispatch:
     inputs:
-      branch:
-        description: Github branch to checkout for compilation
+      ref:
+        description: Github branch or tag to checkout for compilation
         required: true
         default: main
         type: string
@@ -22,15 +24,63 @@ jobs:
       packages: write
       id-token: write
     steps:
-      - name: Determine branch
-        id: get-branch-name
+      - name: Get tag
+        id: get-tag
         run: |
-          if [ "${{ github.event_name }}" == "push" ]; then
-            branch="main"
+          echo "github_ref=$GITHUB_REF"
+          if [[ $GITHUB_REF == refs/tags/* ]]; then
+            echo "tag=${GITHUB_REF#refs/tags/}"
+            echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            input_ref="${{ github.event.inputs.ref }}"
+            if [[ $input_ref =~ ^([a-zA-Z-]+)-v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+              echo "tag=$input_ref"
+              echo "tag=$input_ref" >> $GITHUB_OUTPUT
+            else
+              echo "tag="
+              echo "tag=" >> $GITHUB_OUTPUT
+            fi
           else
-            branch="${{ inputs.branch }}"
+            echo "tag="
+            echo "tag=" >> $GITHUB_OUTPUT
           fi
-          echo "branch=$branch" >> $GITHUB_OUTPUT
+
+      - name: Check for release information from tag
+        id: check-release
+        run: |
+          tag="${{ steps.get-tag.outputs.tag }}"
+          is_release="false"
+
+          if [[ $tag =~ ^([a-zA-Z-]+)-v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+            is_release="true"
+            crate_name="${BASH_REMATCH[1]}"
+            crate_version="${BASH_REMATCH[2]}"
+
+            echo "Is release: $is_release"
+            echo "Crate Name: $crate_name"
+            echo "Crate Version: $crate_version"
+
+            echo "is-release=$is_release" >> $GITHUB_OUTPUT
+            echo "crate-name=$crate_name" >> $GITHUB_OUTPUT
+            echo "crate-version=$crate_version" >> $GITHUB_OUTPUT
+          else
+            echo "Is release: $is_release"
+            echo "Not a release tag. Skipping crate name and version extraction."
+            echo "is-release=$is_release" >> $GITHUB_OUTPUT
+          fi
+
+
+      - name: Determine checkout ref
+        id: get-checkout-ref
+        run: |
+          if [[ $GITHUB_REF == refs/tags/* ]]; then
+            echo "ref=$GITHUB_REF" >> $GITHUB_OUTPUT
+          elif [ "${{ github.event_name }}" == "push" ]; then
+            echo "ref=main" >> $GITHUB_OUTPUT
+          else
+            echo "ref=${{ inputs.ref }}" >> $GITHUB_OUTPUT
+          fi
+
 
       - name: Checkout code
         uses: actions/checkout@v4
@@ -38,9 +88,18 @@ jobs:
           fetch-depth: "0"
           path: axelar-amplifier
           submodules: recursive
-          ref: ${{ steps.get-branch-name.outputs.branch }}
+          ref: ${{ steps.get-checkout-ref.outputs.ref }}
 
-      - name: Compile amplifier contracts
+
+      - name: Import GPG key
+        id: import_gpg
+        uses: crazy-max/ghaction-import-gpg@v4
+        with:
+          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
+          passphrase: ${{ secrets.GPG_PASSPHRASE }}
+
+
+      - name: Compile all amplifier contracts
         id: compile-contracts
         run: |
           cd axelar-amplifier
@@ -48,14 +107,53 @@ jobs:
           --mount type=volume,source="$(basename "$(pwd)")_cache",target=/code/target \
           --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
           cosmwasm/optimizer:0.16.0
-          
+
           commit_hash=$(git rev-parse --short HEAD)
           cd ..
           mkdir -p ./artifacts/$commit_hash/
           cp -R axelar-amplifier/artifacts/* ./artifacts/$commit_hash/
           echo "wasm-directory=./artifacts" >> $GITHUB_OUTPUT
 
+
+      - name: Prepare and sign release artifacts
+        if: steps.check-release.outputs.is-release == 'true'
+        id: prepare-release
+        run: |
+          cd ${{ steps.compile-contracts.outputs.wasm-directory }}
+          crate_name="${{ steps.check-release.outputs.crate-name }}"
+          crate_version="${{ steps.check-release.outputs.crate-version }}"
+          wasm_file=$(find . -name "${crate_name//-/_}.wasm")
+          checksum_file=$(find . -name "checksums.txt")
+
+          if [ -z "$wasm_file" ]; then
+            echo "Error: Could not find .wasm file for $crate_name"
+            exit 1
+          fi
+
+          mkdir -p "../release-artifacts"
+          cp "$wasm_file" "../release-artifacts/${crate_name}.wasm"
+          cp "$checksum_file" "../release-artifacts/"
+
+          gpg --armor --detach-sign  ../release-artifacts/${crate_name}.wasm
+          gpg --armor --detach-sign  ../release-artifacts/checksums.txt
+
+          echo "release-artifacts-dir=./release-artifacts" >> $GITHUB_OUTPUT
+          echo "r2-destination-dir=./releases/amplifier/${crate_name}/${crate_version}" >> $GITHUB_OUTPUT
+
+
       - uses: ryand56/r2-upload-action@latest
+        if: steps.check-release.outputs.is-release == 'true'
+        with:
+          r2-account-id: ${{ secrets.R2_ACCOUNT_ID }}
+          r2-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_CF }}
+          r2-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_CF }}
+          r2-bucket: ${{ secrets.R2_BUCKET }}
+          source-dir: ${{ steps.prepare-release.outputs.release-artifacts-dir }}
+          destination-dir: ${{ steps.prepare-release.outputs.r2-destination-dir }}
+
+
+      - uses: ryand56/r2-upload-action@latest
+        if: steps.check-release.outputs.is-release != 'true'
         with:
           r2-account-id: ${{ secrets.R2_ACCOUNT_ID }}
           r2-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_CF }}

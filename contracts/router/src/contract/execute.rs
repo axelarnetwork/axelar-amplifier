@@ -153,7 +153,7 @@ fn verify_msg_ids(
     expected_format: &MessageIdFormat,
 ) -> Result<(), error_stack::Report<Error>> {
     msgs.iter()
-        .try_for_each(|msg| msg_id::verify_msg_id(&msg.cc_id.id, expected_format))
+        .try_for_each(|msg| msg_id::verify_msg_id(&msg.cc_id.message_id, expected_format))
         .change_context(Error::InvalidMessageId)
 }
 
@@ -179,7 +179,10 @@ fn validate_msgs(
         }));
     }
 
-    if msgs.iter().any(|msg| msg.cc_id.chain != source_chain.name) {
+    if msgs
+        .iter()
+        .any(|msg| msg.cc_id.source_chain != source_chain.name)
+    {
         return Err(report!(Error::WrongSourceChain));
     }
 

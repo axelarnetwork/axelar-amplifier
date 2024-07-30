@@ -50,7 +50,7 @@ fn has_failed(tx_receipt: &TransactionReceipt) -> bool {
     tx_receipt.status == Some(0u64.into())
 }
 
-fn get_event<'a>(
+fn event<'a>(
     gateway_address: &EVMAddress,
     tx_receipt: &'a TransactionReceipt,
     log_index: u32,
@@ -83,7 +83,7 @@ where
         return Vote::FailedOnChain;
     }
 
-    match get_event(gateway_address, tx_receipt, expected_event_index) {
+    match event(gateway_address, tx_receipt, expected_event_index) {
         Some(event)
             if tx_receipt.transaction_hash == expected_transaction_hash && to_verify == event =>
         {
@@ -135,7 +135,7 @@ mod tests {
     #[test]
     fn should_not_verify_verifier_set_if_tx_id_does_not_match() {
         let (gateway_address, tx_receipt, mut verifier_set) =
-            get_matching_verifier_set_and_tx_receipt();
+            matching_verifier_set_and_tx_receipt();
 
         verifier_set.tx_id = Hash::random();
         assert_eq!(
@@ -147,7 +147,7 @@ mod tests {
     #[test]
     fn should_not_verify_verifier_set_if_tx_failed() {
         let (gateway_address, mut tx_receipt, verifier_set) =
-            get_matching_verifier_set_and_tx_receipt();
+            matching_verifier_set_and_tx_receipt();
 
         tx_receipt.status = Some(0u64.into());
         assert_eq!(
@@ -158,7 +158,7 @@ mod tests {
 
     #[test]
     fn should_not_verify_verifier_set_if_gateway_address_does_not_match() {
-        let (_, tx_receipt, verifier_set) = get_matching_verifier_set_and_tx_receipt();
+        let (_, tx_receipt, verifier_set) = matching_verifier_set_and_tx_receipt();
 
         let gateway_address = EVMAddress::random();
         assert_eq!(
@@ -170,7 +170,7 @@ mod tests {
     #[test]
     fn should_not_verify_verifier_set_if_log_index_does_not_match() {
         let (gateway_address, tx_receipt, mut verifier_set) =
-            get_matching_verifier_set_and_tx_receipt();
+            matching_verifier_set_and_tx_receipt();
 
         verifier_set.event_index = 0;
         assert_eq!(
@@ -192,7 +192,7 @@ mod tests {
     #[test]
     fn should_not_verify_verifier_set_if_verifier_set_does_not_match() {
         let (gateway_address, tx_receipt, mut verifier_set) =
-            get_matching_verifier_set_and_tx_receipt();
+            matching_verifier_set_and_tx_receipt();
 
         verifier_set.verifier_set.threshold = Uint128::from(50u64);
         assert_eq!(
@@ -203,8 +203,7 @@ mod tests {
 
     #[test]
     fn should_verify_verifier_set_if_correct() {
-        let (gateway_address, tx_receipt, verifier_set) =
-            get_matching_verifier_set_and_tx_receipt();
+        let (gateway_address, tx_receipt, verifier_set) = matching_verifier_set_and_tx_receipt();
 
         assert_eq!(
             verify_verifier_set(&gateway_address, &tx_receipt, &verifier_set),
@@ -214,7 +213,7 @@ mod tests {
 
     #[test]
     fn should_not_verify_msg_if_tx_id_does_not_match() {
-        let (gateway_address, tx_receipt, mut msg) = get_matching_msg_and_tx_receipt();
+        let (gateway_address, tx_receipt, mut msg) = matching_msg_and_tx_receipt();
 
         msg.tx_id = Hash::random();
         assert_eq!(
@@ -225,7 +224,7 @@ mod tests {
 
     #[test]
     fn should_not_verify_msg_if_tx_failed() {
-        let (gateway_address, mut tx_receipt, msg) = get_matching_msg_and_tx_receipt();
+        let (gateway_address, mut tx_receipt, msg) = matching_msg_and_tx_receipt();
 
         tx_receipt.status = Some(0u64.into());
         assert_eq!(
@@ -236,7 +235,7 @@ mod tests {
 
     #[test]
     fn should_not_verify_msg_if_gateway_address_does_not_match() {
-        let (_, tx_receipt, msg) = get_matching_msg_and_tx_receipt();
+        let (_, tx_receipt, msg) = matching_msg_and_tx_receipt();
 
         let gateway_address = EVMAddress::random();
         assert_eq!(
@@ -247,7 +246,7 @@ mod tests {
 
     #[test]
     fn should_not_verify_msg_if_log_index_does_not_match() {
-        let (gateway_address, tx_receipt, mut msg) = get_matching_msg_and_tx_receipt();
+        let (gateway_address, tx_receipt, mut msg) = matching_msg_and_tx_receipt();
 
         msg.event_index = 0;
         assert_eq!(
@@ -268,7 +267,7 @@ mod tests {
 
     #[test]
     fn should_not_verify_msg_if_msg_does_not_match() {
-        let (gateway_address, tx_receipt, mut msg) = get_matching_msg_and_tx_receipt();
+        let (gateway_address, tx_receipt, mut msg) = matching_msg_and_tx_receipt();
 
         msg.source_address = EVMAddress::random();
         assert_eq!(
@@ -279,7 +278,7 @@ mod tests {
 
     #[test]
     fn should_verify_msg_if_correct() {
-        let (gateway_address, tx_receipt, msg) = get_matching_msg_and_tx_receipt();
+        let (gateway_address, tx_receipt, msg) = matching_msg_and_tx_receipt();
 
         assert_eq!(
             verify_message(&gateway_address, &tx_receipt, &msg),
@@ -287,7 +286,7 @@ mod tests {
         );
     }
 
-    fn get_matching_verifier_set_and_tx_receipt(
+    fn matching_verifier_set_and_tx_receipt(
     ) -> (EVMAddress, TransactionReceipt, VerifierSetConfirmation) {
         let tx_id = Hash::random();
         let log_index = 1;
@@ -326,7 +325,7 @@ mod tests {
         (gateway_address, tx_receipt, verifier_set)
     }
 
-    fn get_matching_msg_and_tx_receipt() -> (EVMAddress, TransactionReceipt, Message) {
+    fn matching_msg_and_tx_receipt() -> (EVMAddress, TransactionReceipt, Message) {
         let tx_id = Hash::random();
         let log_index = 1;
         let gateway_address = EVMAddress::random();

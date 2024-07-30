@@ -6,7 +6,7 @@ use router_api::{CrossChainId, Message};
 use crate::contract::Error;
 use crate::state;
 
-pub fn get_outgoing_messages(
+pub fn outgoing_messages(
     storage: &dyn Storage,
     cross_chain_ids: Vec<CrossChainId>,
 ) -> Result<Vec<Message>, Error> {
@@ -17,7 +17,8 @@ pub fn get_outgoing_messages(
 }
 
 fn try_load_msg(storage: &dyn Storage, id: CrossChainId) -> Result<Message, Error> {
-    state::may_load_outgoing_msg(storage, &id)
+    state::OUTGOING_MESSAGES
+        .may_load(storage, &id)
         .change_context(Error::InvalidStoreAccess)
         .transpose()
         .unwrap_or(Err(report!(Error::MessageNotFound(id))))
@@ -45,45 +46,49 @@ mod test {
     use crate::state;
 
     #[test]
-    fn get_outgoing_messages_all_messages_present_returns_all() {
+    fn outgoing_messages_all_messages_present_returns_all() {
         let mut deps = mock_dependencies();
 
         let messages = generate_messages();
 
         for message in messages.iter() {
-            state::save_outgoing_msg(deps.as_mut().storage, &message.cc_id, message).unwrap();
+            state::OUTGOING_MESSAGES
+                .save(deps.as_mut().storage, &message.cc_id, message)
+                .unwrap();
         }
 
         let ids = messages.iter().map(|msg| msg.cc_id.clone()).collect();
 
-        let res = super::get_outgoing_messages(&deps.storage, ids).unwrap();
+        let res = super::outgoing_messages(&deps.storage, ids).unwrap();
         assert_eq!(res, messages);
     }
 
     #[test]
-    fn get_outgoing_messages_nothing_stored_returns_not_found_error() {
+    fn outgoing_messages_nothing_stored_returns_not_found_error() {
         let deps = mock_dependencies();
 
         let messages = generate_messages();
         let ids = messages.iter().map(|msg| msg.cc_id.clone()).collect();
 
-        let res = super::get_outgoing_messages(&deps.storage, ids);
+        let res = super::outgoing_messages(&deps.storage, ids);
 
         assert!(res.is_err());
         assert_eq!(res.unwrap_err().current_frames().len(), messages.len());
     }
 
     #[test]
-    fn get_outgoing_messages_only_partially_found_returns_not_found_error() {
+    fn outgoing_messages_only_partially_found_returns_not_found_error() {
         let mut deps = mock_dependencies();
 
         let messages = generate_messages();
 
-        state::save_outgoing_msg(deps.as_mut().storage, &messages[1].cc_id, &messages[1]).unwrap();
+        state::OUTGOING_MESSAGES
+            .save(deps.as_mut().storage, &messages[1].cc_id, &messages[1])
+            .unwrap();
 
         let ids = messages.iter().map(|msg| msg.cc_id.clone()).collect();
 
-        let res = super::get_outgoing_messages(&deps.storage, ids);
+        let res = super::outgoing_messages(&deps.storage, ids);
 
         assert!(res.is_err());
         assert_eq!(res.unwrap_err().current_frames().len(), messages.len() - 1);

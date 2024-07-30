@@ -1,4 +1,4 @@
-use axelar_wasm_std::{permission_control, FnExt};
+use axelar_wasm_std::permission_control;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
@@ -39,6 +39,7 @@ pub fn instantiate(
         source_chain: msg.source_chain,
         rewards_contract: deps.api.addr_validate(&msg.rewards_address)?,
         msg_id_format: msg.msg_id_format,
+        address_format: msg.address_format,
     };
     CONFIG.save(deps.storage, &config)?;
 
@@ -54,34 +55,41 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
     match msg.ensure_permissions(deps.storage, &info.sender)? {
-        ExecuteMsg::VerifyMessages(messages) => execute::verify_messages(deps, env, messages),
-        ExecuteMsg::Vote { poll_id, votes } => execute::vote(deps, env, info, poll_id, votes),
-        ExecuteMsg::EndPoll { poll_id } => execute::end_poll(deps, env, poll_id),
+        ExecuteMsg::VerifyMessages(messages) => Ok(execute::verify_messages(deps, env, messages)?),
+        ExecuteMsg::Vote { poll_id, votes } => Ok(execute::vote(deps, env, info, poll_id, votes)?),
+        ExecuteMsg::EndPoll { poll_id } => Ok(execute::end_poll(deps, env, poll_id)?),
         ExecuteMsg::VerifyVerifierSet {
             message_id,
             new_verifier_set,
-        } => execute::verify_verifier_set(deps, env, &message_id, new_verifier_set),
+        } => Ok(execute::verify_verifier_set(
+            deps,
+            env,
+            &message_id,
+            new_verifier_set,
+        )?),
         ExecuteMsg::UpdateVotingThreshold {
             new_voting_threshold,
-        } => execute::update_voting_threshold(deps, new_voting_threshold),
-    }?
-    .then(Ok)
+        } => Ok(execute::update_voting_threshold(
+            deps,
+            new_voting_threshold,
+        )?),
+    }
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::GetPoll { poll_id } => {
+        QueryMsg::Poll { poll_id } => {
             to_json_binary(&query::poll_response(deps, env.block.height, poll_id)?)
         }
 
-        QueryMsg::GetMessagesStatus(messages) => {
+        QueryMsg::MessagesStatus(messages) => {
             to_json_binary(&query::messages_status(deps, &messages, env.block.height)?)
         }
-        QueryMsg::GetVerifierSetStatus(new_verifier_set) => to_json_binary(
+        QueryMsg::VerifierSetStatus(new_verifier_set) => to_json_binary(
             &query::verifier_set_status(deps, &new_verifier_set, env.block.height)?,
         ),
-        QueryMsg::GetCurrentThreshold => to_json_binary(&query::voting_threshold(deps)?),
+        QueryMsg::CurrentThreshold => to_json_binary(&query::voting_threshold(deps)?),
     }
 }
 
@@ -98,12 +106,15 @@ pub fn migrate(
 
 #[cfg(test)]
 mod test {
+    use axelar_wasm_std::address_format::AddressFormat;
     use axelar_wasm_std::msg_id::{
         Base58SolanaTxSignatureAndEventIndex, Base58TxDigestAndEventIndex, HexTxHashAndEventIndex,
         MessageIdFormat,
     };
     use axelar_wasm_std::voting::Vote;
-    use axelar_wasm_std::{nonempty, MajorityThreshold, Threshold, VerificationStatus};
+    use axelar_wasm_std::{
+        err_contains, nonempty, MajorityThreshold, Threshold, VerificationStatus,
+    };
     use cosmwasm_std::testing::{
         mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
     };
@@ -179,6 +190,7 @@ mod test {
                 source_chain: source_chain(),
                 rewards_address: REWARDS_ADDRESS.parse().unwrap(),
                 msg_id_format: msg_id_format.clone(),
+                address_format: AddressFormat::Eip55,
             },
         )
         .unwrap();
@@ -237,9 +249,12 @@ mod test {
             .map(|i| Message {
                 cc_id: CrossChainId::new(source_chain(), message_id("id", i, msg_id_format))
                     .unwrap(),
-                source_address: format!("source_address{i}").parse().unwrap(),
+                source_address: alloy_primitives::Address::random()
+                    .to_string()
+                    .try_into()
+                    .unwrap(),
                 destination_chain: format!("destination-chain{i}").parse().unwrap(),
-                destination_address: format!("destination_address{i}").parse().unwrap(),
+                destination_address: format!("destination-address{i}").parse().unwrap(),
                 payload_hash: [0; 32],
             })
             .collect()
@@ -269,17 +284,20 @@ mod test {
             Message {
                 cc_id: CrossChainId::new(source_chain(), message_id("id", 1, &msg_id_format))
                     .unwrap(),
-                source_address: "source_address1".parse().unwrap(),
+                source_address: alloy_primitives::Address::random()
+                    .to_string()
+                    .parse()
+                    .unwrap(),
                 destination_chain: "destination-chain1".parse().unwrap(),
-                destination_address: "destination_address1".parse().unwrap(),
+                destination_address: "destination-address1".parse().unwrap(),
                 payload_hash: [0; 32],
             },
             Message {
                 cc_id: CrossChainId::new("other-chain", message_id("id", 2, &msg_id_format))
                     .unwrap(),
-                source_address: "source_address2".parse().unwrap(),
+                source_address: "source-address2".parse().unwrap(),
                 destination_chain: "destination-chain2".parse().unwrap(),
-                destination_address: "destination_address2".parse().unwrap(),
+                destination_address: "destination-address2".parse().unwrap(),
                 payload_hash: [0; 32],
             },
         ]);
@@ -317,7 +335,7 @@ mod test {
         let err = execute(deps.as_mut(), mock_env(), mock_info(SENDER, &[]), msg).unwrap_err();
         assert_contract_err_strings_equal(
             err,
-            ContractError::InvalidMessageID(messages[0].cc_id.id.to_string()),
+            ContractError::InvalidMessageID(messages[0].cc_id.message_id.to_string()),
         );
     }
 
@@ -333,7 +351,7 @@ mod test {
         let err = execute(deps.as_mut(), mock_env(), mock_info(SENDER, &[]), msg).unwrap_err();
         assert_contract_err_strings_equal(
             err,
-            ContractError::InvalidMessageID(messages[0].cc_id.id.to_string()),
+            ContractError::InvalidMessageID(messages[0].cc_id.message_id.to_string()),
         );
     }
 
@@ -422,7 +440,7 @@ mod test {
             query(
                 deps.as_ref(),
                 mock_env_expired(),
-                QueryMsg::GetMessagesStatus(messages.clone()),
+                QueryMsg::MessagesStatus(messages.clone()),
             )
             .unwrap(),
         )
@@ -539,7 +557,7 @@ mod test {
             query(
                 deps.as_ref(),
                 mock_env_expired(),
-                QueryMsg::GetMessagesStatus(messages.clone()),
+                QueryMsg::MessagesStatus(messages.clone()),
             )
             .unwrap(),
         )
@@ -575,7 +593,7 @@ mod test {
             query(
                 deps.as_ref(),
                 mock_env_expired(),
-                QueryMsg::GetMessagesStatus(messages.clone()),
+                QueryMsg::MessagesStatus(messages.clone()),
             )
             .unwrap(),
         )
@@ -606,7 +624,7 @@ mod test {
             query(
                 deps.as_ref(),
                 mock_env(),
-                QueryMsg::GetMessagesStatus(messages.clone()),
+                QueryMsg::MessagesStatus(messages.clone()),
             )
             .unwrap(),
         )
@@ -638,7 +656,7 @@ mod test {
             query(
                 deps.as_ref(),
                 mock_env(),
-                QueryMsg::GetMessagesStatus(messages.clone()),
+                QueryMsg::MessagesStatus(messages.clone()),
             )
             .unwrap(),
         )
@@ -670,7 +688,7 @@ mod test {
             query(
                 deps.as_ref(),
                 mock_env_expired(),
-                QueryMsg::GetMessagesStatus(messages.clone()),
+                QueryMsg::MessagesStatus(messages.clone()),
             )
             .unwrap(),
         )
@@ -746,7 +764,7 @@ mod test {
                 &query(
                     deps.as_ref(),
                     mock_env(),
-                    QueryMsg::GetMessagesStatus(messages.clone()),
+                    QueryMsg::MessagesStatus(messages.clone()),
                 )
                 .unwrap(),
             )
@@ -773,7 +791,7 @@ mod test {
             query(
                 deps.as_ref(),
                 mock_env(),
-                QueryMsg::GetVerifierSetStatus(verifier_set.clone()),
+                QueryMsg::VerifierSetStatus(verifier_set.clone()),
             )
             .unwrap(),
         )
@@ -823,7 +841,7 @@ mod test {
             query(
                 deps.as_ref(),
                 mock_env(),
-                QueryMsg::GetVerifierSetStatus(verifier_set.clone()),
+                QueryMsg::VerifierSetStatus(verifier_set.clone()),
             )
             .unwrap(),
         )
@@ -876,7 +894,7 @@ mod test {
             query(
                 deps.as_ref(),
                 mock_env(),
-                QueryMsg::GetVerifierSetStatus(verifier_set.clone()),
+                QueryMsg::VerifierSetStatus(verifier_set.clone()),
             )
             .unwrap(),
         )
@@ -929,7 +947,7 @@ mod test {
             query(
                 deps.as_ref(),
                 mock_env(),
-                QueryMsg::GetVerifierSetStatus(verifier_set.clone()),
+                QueryMsg::VerifierSetStatus(verifier_set.clone()),
             )
             .unwrap(),
         )
@@ -974,7 +992,7 @@ mod test {
             query(
                 deps.as_ref(),
                 mock_env(),
-                QueryMsg::GetVerifierSetStatus(verifier_set.clone()),
+                QueryMsg::VerifierSetStatus(verifier_set.clone()),
             )
             .unwrap(),
         )
@@ -1060,7 +1078,7 @@ mod test {
         )
         .unwrap();
 
-        let res = query(deps.as_ref(), mock_env(), QueryMsg::GetCurrentThreshold).unwrap();
+        let res = query(deps.as_ref(), mock_env(), QueryMsg::CurrentThreshold).unwrap();
 
         let threshold: MajorityThreshold = from_json(res).unwrap();
         assert_eq!(threshold, new_voting_threshold);
@@ -1137,7 +1155,7 @@ mod test {
             query(
                 deps.as_ref(),
                 mock_env(),
-                QueryMsg::GetMessagesStatus(messages.clone()),
+                QueryMsg::MessagesStatus(messages.clone()),
             )
             .unwrap(),
         )
@@ -1224,7 +1242,7 @@ mod test {
             query(
                 deps.as_ref(),
                 mock_env_expired(),
-                QueryMsg::GetMessagesStatus(messages.clone()),
+                QueryMsg::MessagesStatus(messages.clone()),
             )
             .unwrap(),
         )
@@ -1349,5 +1367,50 @@ mod test {
                 );
             }
         });
+    }
+
+    #[test]
+    fn should_fail_if_messages_have_invalid_source_address() {
+        let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
+        let verifiers = verifiers(2);
+        let mut deps = setup(verifiers.clone(), &msg_id_format);
+
+        let eip55_address = alloy_primitives::Address::random().to_string();
+
+        let cases = vec![
+            eip55_address.to_lowercase(),
+            eip55_address.to_uppercase(),
+            // mix
+            eip55_address
+                .chars()
+                .enumerate()
+                .map(|(i, c)| {
+                    if i % 2 == 0 {
+                        c.to_uppercase().next().unwrap()
+                    } else {
+                        c.to_lowercase().next().unwrap()
+                    }
+                })
+                .collect::<String>(),
+        ];
+
+        for case in cases {
+            let mut messages = messages(1, &MessageIdFormat::HexTxHashAndEventIndex);
+            messages[0].source_address = case.parse().unwrap();
+            let msg = ExecuteMsg::VerifyMessages(messages);
+            let res = execute(deps.as_mut(), mock_env(), mock_info(SENDER, &[]), msg);
+            assert!(res.is_err_and(|err| err_contains!(
+                err.report,
+                ContractError,
+                ContractError::InvalidSourceAddress { .. }
+            )));
+        }
+
+        // should not fail if address is valid
+        let mut messages = messages(1, &MessageIdFormat::HexTxHashAndEventIndex);
+        messages[0].source_address = eip55_address.parse().unwrap();
+        let msg = ExecuteMsg::VerifyMessages(messages);
+        let res = execute(deps.as_mut(), mock_env(), mock_info(SENDER, &[]), msg);
+        assert!(res.is_ok());
     }
 }

@@ -223,7 +223,7 @@ mod tests {
 
     #[test]
     fn should_deserialize_correct_event() {
-        let event: Event = get_event(
+        let event: Event = to_event(
             poll_started_event(participants(5, None), 100),
             &TMAddress::random(PREFIX),
         );
@@ -245,7 +245,7 @@ mod tests {
         let voting_verifier = TMAddress::random(PREFIX);
         let verifier = TMAddress::random(PREFIX);
         let expiration = 100u64;
-        let event: Event = get_event(
+        let event: Event = to_event(
             poll_started_event(participants(5, Some(verifier.clone())), expiration),
             &voting_verifier,
         );
@@ -293,7 +293,7 @@ mod tests {
         }
     }
 
-    fn get_event(event: impl Into<cosmwasm_std::Event>, contract_address: &TMAddress) -> Event {
+    fn to_event(event: impl Into<cosmwasm_std::Event>, contract_address: &TMAddress) -> Event {
         let mut event: cosmwasm_std::Event = event.into();
 
         event.ty = format!("wasm-{}", event.ty);

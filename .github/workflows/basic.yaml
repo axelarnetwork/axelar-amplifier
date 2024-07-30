@@ -59,7 +59,17 @@ jobs:
           profile: minimal
           toolchain: 1.78.0
           target: wasm32-unknown-unknown
+          default: true
           override: true
+
+      - name: Install cosmwasm-check compatible toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: 1.75.0
+          target: wasm32-unknown-unknown
+          default: false
+          override: false
 
       - name: Cache build artifacts
         id: cache
@@ -79,14 +89,54 @@ jobs:
             (cd $C && cargo build --release --lib --target wasm32-unknown-unknown --locked)
           done
 
+      - name: Build ITS release
+        working-directory: ./interchain-token-service
+        run: cargo build --release --target wasm32-unknown-unknown --locked
+
+      # cosmwasm-check v1.3.x is used to check for compatibility with wasmvm v1.3.x used by Axelar
+      # Older rust toolchain is required to install cosmwasm-check v1.3.x
       - name: Install cosmwasm-check
         uses: actions-rs/cargo@v1
         with:
           command: install
-          args: --version 1.5.5 --locked cosmwasm-check
+          toolchain: 1.75.0
+          args: --version 1.3.4 --locked cosmwasm-check
 
       - name: Check wasm contracts
         run: cosmwasm-check ./target/wasm32-unknown-unknown/release/*.wasm
+
+  ampd-compilation:
+    name: Ampd Release Compilation
+    runs-on: blacksmith-16vcpu-ubuntu-2204
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: 1.78.0
+          target: wasm32-unknown-unknown
+          override: true
+
+      - name: Install protoc
+        uses: arduino/setup-protoc@v2
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Cache build artifacts
+        id: cache
+        uses: useblacksmith/rust-cache@v3.0.1
+        with:
+          shared-key: "cache-ampd-compilation"
+
+      - name: Log crates.toml
+        if: steps.cache.outputs.cache-hit == 'true'
+        run: cat /home/runner/.cargo/.crates.toml
+
+      - name: Build ampd
+        working-directory: ./ampd
+        run: cargo build --release --locked
 
   lints:
     name: Lints

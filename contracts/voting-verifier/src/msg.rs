@@ -1,3 +1,4 @@
+use axelar_wasm_std::address_format::AddressFormat;
 use axelar_wasm_std::msg_id::MessageIdFormat;
 use axelar_wasm_std::voting::{PollId, PollStatus, Vote, WeightedPoll};
 use axelar_wasm_std::{nonempty, MajorityThreshold, VerificationStatus};
@@ -30,6 +31,7 @@ pub struct InstantiateMsg {
     pub rewards_address: nonempty::String,
     /// Format that incoming messages should use for the id field of CrossChainId
     pub msg_id_format: MessageIdFormat,
+    pub address_format: AddressFormat,
 }
 
 #[cw_serde]
@@ -79,16 +81,16 @@ pub struct PollResponse {
 #[derive(QueryResponses)]
 pub enum QueryMsg {
     #[returns(PollResponse)]
-    GetPoll { poll_id: PollId },
+    Poll { poll_id: PollId },
 
     #[returns(Vec<MessageStatus>)]
-    GetMessagesStatus(Vec<Message>),
+    MessagesStatus(Vec<Message>),
 
     #[returns(VerificationStatus)]
-    GetVerifierSetStatus(VerifierSet),
+    VerifierSetStatus(VerifierSet),
 
     #[returns(MajorityThreshold)]
-    GetCurrentThreshold,
+    CurrentThreshold,
 }
 
 #[cw_serde]

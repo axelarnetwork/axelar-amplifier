@@ -51,7 +51,7 @@ mod tests {
     use crate::event_sub::MockEventSub;
     use crate::grpc;
     use crate::proto::{
-        Algorithm, BroadcastRequest, BroadcastResponse, GetKeyRequest, GetKeyResponse, SignRequest,
+        Algorithm, BroadcastRequest, BroadcastResponse, KeyRequest, KeyResponse, SignRequest,
         SignResponse, SubscribeRequest,
     };
     use crate::queue::queued_broadcaster::MockBroadcasterClient;
@@ -80,7 +80,7 @@ mod tests {
     }
 
     #[test]
-    async fn get_key_should_work() {
+    async fn key_should_work() {
         let key_id = "key_id";
         let key: PublicKey = SigningKey::random(&mut OsRng).verifying_key().into();
         let algorithm = Algorithm::Ed25519;
@@ -105,14 +105,14 @@ mod tests {
                 .await
                 .unwrap()
                 .crypto
-                .get_key(GetKeyRequest {
+                .key(KeyRequest {
                     key_id: key_id.to_string(),
                     algorithm: algorithm.into(),
                 })
                 .await
                 .unwrap()
                 .into_inner(),
-            GetKeyResponse {
+            KeyResponse {
                 pub_key: key.to_bytes()
             }
         );
