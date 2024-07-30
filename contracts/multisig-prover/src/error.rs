@@ -64,7 +64,7 @@ pub enum ContractError {
     #[error("not enough verifiers")]
     NotEnoughVerifiers,
 
-    #[error("invalid destination chain '{actual}', expected '{expected}")]
+    #[error("invalid destination chain '{actual}', expected '{expected}'")]
     InvalidDestinationChain {
         actual: ChainName,
         expected: ChainName,
