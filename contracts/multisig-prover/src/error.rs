@@ -1,6 +1,7 @@
 use axelar_wasm_std::nonempty;
 use axelar_wasm_std_derive::IntoContractError;
 use cosmwasm_std::StdError;
+use router_api::ChainName;
 use thiserror::Error;
 
 #[derive(Error, Debug, PartialEq, IntoContractError)]
@@ -18,6 +19,7 @@ pub enum ContractError {
     InvalidSignature { reason: String },
 
     #[error("chain name is invalid")]
+    #[deprecated(since = "0.6.0")]
     InvalidChainName,
 
     #[error("invalid participants: {reason}")]
@@ -61,4 +63,10 @@ pub enum ContractError {
 
     #[error("not enough verifiers")]
     NotEnoughVerifiers,
+
+    #[error("invalid destination chain '{actual}', expected '{expected}'")]
+    InvalidDestinationChain {
+        actual: ChainName,
+        expected: ChainName,
+    },
 }
