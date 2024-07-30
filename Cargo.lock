@@ -4835,6 +4835,8 @@ dependencies = [
  "enum-display-derive",
  "error-stack",
  "getrandom",
+ "goldie",
+ "hex",
  "itertools 0.11.0",
  "k256",
  "msgs-derive",

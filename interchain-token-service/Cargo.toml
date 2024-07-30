@@ -21,7 +21,7 @@ strum = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]
-goldie = { version = "0.5" }
+goldie = { workspace = true }
 
 [lints]
 workspace = true
