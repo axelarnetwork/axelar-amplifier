@@ -82,7 +82,8 @@ impl VerifierSet {
 
 #[cfg(test)]
 mod tests {
-    use crate::{key::KeyType, test::common::{build_verifier_set, ecdsa_test_data}};
+    use crate::key::KeyType;
+    use crate::test::common::{build_verifier_set, ecdsa_test_data};
 
     // If this test fails, it means the verifier set hash has changed and therefore a migration is needed.
     #[test]
