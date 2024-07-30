@@ -127,7 +127,7 @@ mod tests {
     use cosmwasm_std::{Addr, DepsMut, Env, HexBinary, MessageInfo, Response, Uint64};
     use router_api::ChainName;
 
-    use crate::contract::migrations::v0_4_1::{self, migrate, BASE_VERSION};
+    use crate::contract::migrations::v0_4_1::{self, BASE_VERSION};
     use crate::contract::{execute, query, CONTRACT_NAME};
     use crate::msg::ExecuteMsg::{DisableSigning, SubmitSignature};
     use crate::signing::SigningSession;
