@@ -1,6 +1,6 @@
 use axelar_wasm_std::{FnExt, VerificationStatus};
 use cosmwasm_std::{Event, Response, Storage, WasmMsg};
-use error_stack::{Result, ResultExt};
+use error_stack::{report, Result, ResultExt};
 use itertools::Itertools;
 use router_api::client::Router;
 use router_api::Message;
@@ -38,8 +38,17 @@ pub(crate) fn route_outgoing_messages(
 
     for msg in msgs.iter() {
         state::OUTGOING_MESSAGES
-            .save(store, &msg.cc_id, msg)
-            .change_context(Error::InvalidStoreAccess)?;
+            .may_load(store, &msg.cc_id)
+            .change_context(Error::InvalidStoreAccess)
+            .and_then(|stored_msg| match stored_msg {
+                Some(stored_msg) if msg.hash() != stored_msg.hash() => {
+                    Err(report!(Error::MessageMismatch(msg.cc_id.clone())))
+                }
+                Some(_) => Ok(()), // message already exists
+                None => state::OUTGOING_MESSAGES
+                    .save(store, &msg.cc_id, msg)
+                    .change_context(Error::InvalidStoreAccess),
+            })?;
     }
 
     Ok(Response::new().add_events(

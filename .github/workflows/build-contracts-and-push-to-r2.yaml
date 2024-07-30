@@ -8,7 +8,7 @@ on:
       - '*-v[0-9]+.[0-9]+.[0-9]+'
   workflow_dispatch:
     inputs:
-      branch:
+      ref:
         description: Github branch or tag to checkout for compilation
         required: true
         default: main
@@ -31,7 +31,17 @@ jobs:
           if [[ $GITHUB_REF == refs/tags/* ]]; then
             echo "tag=${GITHUB_REF#refs/tags/}"
             echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            input_ref="${{ github.event.inputs.ref }}"
+            if [[ $input_ref =~ ^([a-zA-Z-]+)-v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+              echo "tag=$input_ref"
+              echo "tag=$input_ref" >> $GITHUB_OUTPUT
+            else
+              echo "tag="
+              echo "tag=" >> $GITHUB_OUTPUT
+            fi
           else
+            echo "tag="
             echo "tag=" >> $GITHUB_OUTPUT
           fi
 
@@ -68,7 +78,7 @@ jobs:
           elif [ "${{ github.event_name }}" == "push" ]; then
             echo "ref=main" >> $GITHUB_OUTPUT
           else
-            echo "ref=${{ inputs.branch }}" >> $GITHUB_OUTPUT
+            echo "ref=${{ inputs.ref }}" >> $GITHUB_OUTPUT
           fi
 
 

@@ -24,7 +24,7 @@ fn single_message_can_be_verified_and_routed_and_proven_and_rewards_are_distribu
             "0x88d7956fd7b6fcec846548d83bd25727f2585b4be3add21438ae9fbb34625924-3",
         )
         .unwrap(),
-        source_address: "0xBf12773B49()0e1Deb57039061AAcFA2A87DEaC9b9"
+        source_address: "0xBf12773B490e1Deb57039061AAcFA2A87DEaC9b9"
             .to_string()
             .try_into()
             .unwrap(),

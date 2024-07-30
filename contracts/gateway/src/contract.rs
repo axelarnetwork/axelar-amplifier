@@ -74,6 +74,8 @@ pub enum Error {
     MessageStatus,
     #[error("message with ID {0} not found")]
     MessageNotFound(CrossChainId),
+    #[error("message with id {0} mismatches with the stored one")]
+    MessageMismatch(CrossChainId),
 }
 
 mod internal {
