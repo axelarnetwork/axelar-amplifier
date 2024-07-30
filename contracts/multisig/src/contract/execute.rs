@@ -278,6 +278,7 @@ fn signing_response(
                 Event::SigningCompleted {
                     session_id: session.id,
                     completed_at,
+                    chain_name,
                 }
                 .into(),
             )
