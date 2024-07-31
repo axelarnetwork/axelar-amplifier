@@ -308,7 +308,9 @@ fn ensure_verifier_set_verification(
 pub fn confirm_verifier_set(deps: DepsMut, sender: Addr) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
 
-    let verifier_set = NEXT_VERIFIER_SET.load(deps.storage)?;
+    let verifier_set = NEXT_VERIFIER_SET
+        .load(deps.storage)
+        .map_err(|_| ContractError::NoVerifierSetToConfirm)?;
 
     let sender_role = permission_control::sender_role(deps.storage, &sender)?;
     if !sender_role.contains(Permission::Governance) {

@@ -49,6 +49,9 @@ pub enum ContractError {
     #[error("a verifier set confirmation already in progress")]
     VerifierSetConfirmationInProgress,
 
+    #[error("no verifier set to confirm")]
+    NoVerifierSetToConfirm,
+
     #[error("no verifier set stored")]
     NoVerifierSet,
 
