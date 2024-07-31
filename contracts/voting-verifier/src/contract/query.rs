@@ -132,9 +132,9 @@ fn verification_status<T: PartialEq + std::fmt::Debug>(
     }
 }
 
-fn voting_completed(poll: &state::Poll, cur_block_height: u64) -> bool {
+fn voting_completed(poll: &Poll, cur_block_height: u64) -> bool {
     match poll {
-        state::Poll::Messages(poll) | state::Poll::ConfirmVerifierSet(poll) => {
+        Poll::Messages(poll) | Poll::ConfirmVerifierSet(poll) => {
             matches!(
                 poll.status(cur_block_height),
                 PollStatus::Expired | PollStatus::Finished
@@ -167,7 +167,7 @@ mod tests {
             .save(
                 deps.as_mut().storage,
                 poll.poll_id,
-                &state::Poll::Messages(poll.clone()),
+                &Poll::Messages(poll.clone()),
             )
             .unwrap();
 
@@ -203,7 +203,7 @@ mod tests {
             .save(
                 deps.as_mut().storage,
                 poll.poll_id,
-                &state::Poll::Messages(poll.clone()),
+                &Poll::Messages(poll.clone()),
             )
             .unwrap();
 
@@ -239,7 +239,7 @@ mod tests {
             .save(
                 deps.as_mut().storage,
                 poll.poll_id,
-                &state::Poll::Messages(poll.clone()),
+                &Poll::Messages(poll.clone()),
             )
             .unwrap();
 
@@ -282,7 +282,7 @@ mod tests {
             .save(
                 deps.as_mut().storage,
                 poll.poll_id,
-                &state::Poll::Messages(poll.clone()),
+                &Poll::Messages(poll.clone()),
             )
             .unwrap();
 

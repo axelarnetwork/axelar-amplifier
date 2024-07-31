@@ -339,7 +339,7 @@ fn create_verifier_set_poll(
     let id = POLL_ID.incr(store)?;
 
     let poll = WeightedPoll::new(id, snapshot, expires_at, 1);
-    POLLS.save(store, id, &state::Poll::ConfirmVerifierSet(poll))?;
+    POLLS.save(store, id, &Poll::ConfirmVerifierSet(poll))?;
 
     Ok(id)
 }
@@ -353,7 +353,7 @@ fn create_messages_poll(
     let id = POLL_ID.incr(store)?;
 
     let poll = WeightedPoll::new(id, snapshot, expires_at, poll_size);
-    POLLS.save(store, id, &state::Poll::Messages(poll))?;
+    POLLS.save(store, id, &Poll::Messages(poll))?;
 
     Ok(id)
 }

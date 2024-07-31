@@ -21,7 +21,7 @@ where
 {
     let string: String = Deserialize::deserialize(deserializer)?;
 
-    R::from_str(&string).map_err(D::Error::custom)
+    R::from_str(&string).map_err(Error::custom)
 }
 
 fn deserialize_sui_bytes<'de, D, const LENGTH: usize>(
@@ -33,13 +33,13 @@ where
     let bytes: HashMap<String, String> = Deserialize::deserialize(deserializer)?;
     let hex = bytes
         .get("bytes")
-        .ok_or_else(|| D::Error::custom("missing bytes"))?
+        .ok_or_else(|| Error::custom("missing bytes"))?
         .trim_start_matches("0x");
 
     hex::decode(hex)
-        .map_err(D::Error::custom)?
+        .map_err(Error::custom)?
         .try_into()
-        .map_err(|_| D::Error::custom(format!("failed deserialize into [u8; {}]", LENGTH)))
+        .map_err(|_| Error::custom(format!("failed deserialize into [u8; {}]", LENGTH)))
 }
 
 #[derive(Deserialize, Debug, PartialEq, Eq, PartialOrd, Ord)]

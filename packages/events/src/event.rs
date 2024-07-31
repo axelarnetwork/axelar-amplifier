@@ -5,7 +5,6 @@ use base64::engine::general_purpose::STANDARD;
 use base64::Engine;
 use cosmrs::AccountId;
 use error_stack::{Report, Result, ResultExt};
-use serde_json::Value;
 use tendermint::abci::EventAttribute;
 use tendermint::{abci, block};
 

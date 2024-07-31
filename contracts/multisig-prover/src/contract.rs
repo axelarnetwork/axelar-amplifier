@@ -170,7 +170,7 @@ mod tests {
                 service_name: SERVICE_NAME.to_string(),
                 chain_name: "ganache-0".to_string(),
                 verifier_set_diff_threshold: 0,
-                encoder: crate::encoding::Encoder::Abi,
+                encoder: Encoder::Abi,
                 key_type: multisig::key::KeyType::Ecdsa,
                 domain_separator: [0; 32],
             },
