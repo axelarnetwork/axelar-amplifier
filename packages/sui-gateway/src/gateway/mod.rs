@@ -109,8 +109,8 @@ impl TryFrom<&router_api::Message> for Message {
 
     fn try_from(value: &router_api::Message) -> Result<Self, Self::Error> {
         Ok(Self {
-            source_chain: value.cc_id.chain.to_string(),
-            message_id: value.cc_id.id.to_string(),
+            source_chain: value.cc_id.source_chain.to_string(),
+            message_id: value.cc_id.message_id.to_string(),
             source_address: value.source_address.to_string(),
             destination_id: value.destination_address.parse()?,
             payload_hash: value.payload_hash.into(),
