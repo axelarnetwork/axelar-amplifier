@@ -4873,6 +4873,7 @@ dependencies = [
  "gateway",
  "gateway-api",
  "generic-array",
+ "goldie",
  "hex",
  "itertools 0.11.0",
  "k256",
