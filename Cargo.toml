@@ -33,7 +33,7 @@ router-api = { version = "^1.0.0", path = "packages/router-api" }
 report = { version = "^1.0.0", path = "packages/report" }
 client = { version = "^1.0.0", path = "packages/client" }
 quote = "1.0.36"
-rewards = { version = "^0.4.0", path = "contracts/rewards" }
+rewards = { version = "^1.0.0", path = "contracts/rewards" }
 thiserror = "1.0.61"
 mockall = "0.12.1"
 serde = { version = "1.0.145", default-features = false, features = ["derive"] }
