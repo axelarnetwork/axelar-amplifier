@@ -4852,7 +4852,7 @@ dependencies = [
 
 [[package]]
 name = "multisig-prover"
-version = "0.6.0"
+version = "1.0.0"
 dependencies = [
  "anyhow",
  "axelar-wasm-std",
