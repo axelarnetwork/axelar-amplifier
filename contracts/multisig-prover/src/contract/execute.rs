@@ -96,14 +96,17 @@ fn messages(
         "violated invariant: returned gateway messages count mismatch"
     );
 
-    if messages
+    if let Some(wrong_destination) = messages
         .iter()
-        .any(|msg| msg.destination_chain != chain_name)
+        .find(|msg| msg.destination_chain != chain_name)
     {
-        panic!("violated invariant: messages from different chain found");
+        Err(ContractError::InvalidDestinationChain {
+            expected: chain_name,
+            actual: wrong_destination.destination_chain.clone(),
+        })
+    } else {
+        Ok(messages)
     }
-
-    Ok(messages)
 }
 
 fn make_verifier_set(
