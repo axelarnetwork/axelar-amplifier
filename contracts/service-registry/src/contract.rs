@@ -70,7 +70,7 @@ pub fn execute(
         } => {
             let verifiers = verifiers
                 .into_iter()
-                .map(|verifier| deps.api.addr_validate(&verifier))
+                .map(|verifier| validate_verifier_address(&deps, verifier))
                 .collect::<Result<Vec<_>, _>>()?;
             execute::update_verifier_authorization_status(
                 deps,
@@ -85,7 +85,7 @@ pub fn execute(
         } => {
             let verifiers = verifiers
                 .into_iter()
-                .map(|verifier| validate_verifier_address(&deps, verifier))
+                .map(|verifier| deps.api.addr_validate(&verifier))
                 .collect::<Result<Vec<_>, _>>()?;
             execute::update_verifier_authorization_status(
                 deps,
@@ -307,7 +307,7 @@ mod test {
             mock_env(),
             mock_info(GOVERNANCE_ADDRESS, &[]),
             ExecuteMsg::AuthorizeVerifiers {
-                verifiers: vec![Addr::unchecked("verifier").into()],
+                verifiers: vec![Addr::unchecked("axelar1f7txddxt969wqdc8rxqyzc8zrt4gz2qk0xx3x5").into()],
                 service_name: service_name.into(),
             },
         );
@@ -318,7 +318,7 @@ mod test {
             mock_env(),
             mock_info(UNAUTHORIZED_ADDRESS, &[]),
             ExecuteMsg::AuthorizeVerifiers {
-                verifiers: vec![Addr::unchecked("verifier").into()],
+                verifiers: vec![Addr::unchecked("axelar1f7txddxt969wqdc8rxqyzc8zrt4gz2qk0xx3x5").into()],
                 service_name: service_name.into(),
             },
         )
@@ -327,6 +327,22 @@ mod test {
             err.report,
             permission_control::Error,
             permission_control::Error::PermissionDenied { .. }
+        ));
+
+        let err = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(UNAUTHORIZED_ADDRESS, &[]),
+            ExecuteMsg::AuthorizeVerifiers {
+                verifiers: vec![Addr::unchecked("short").into()],
+                service_name: service_name.into(),
+            },
+        )
+        .unwrap_err();
+        assert!(err_contains!(
+            err.report,
+            ContractError,
+            ContractError::InvalidVerifierAddress(..)
         ));
     }
 
