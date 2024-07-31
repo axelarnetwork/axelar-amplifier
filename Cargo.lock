@@ -1581,7 +1581,7 @@ checksum = "6245d59a3e82a7fc217c5828a6692dbc6dfb63a0c8c90495621f7b9d79704a0e"
 
 [[package]]
 name = "coordinator"
-version = "0.2.0"
+version = "1.0.0"
 dependencies = [
  "axelar-wasm-std",
  "axelar-wasm-std-derive",

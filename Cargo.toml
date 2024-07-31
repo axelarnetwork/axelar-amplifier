@@ -21,7 +21,7 @@ axelar-wasm-std-derive = { version = "^1.0.0", path = "packages/axelar-wasm-std-
 integration-tests = { version = "^1.0.0", path = "integration-tests" }
 itertools = "0.11.0"
 voting-verifier = { version = "^0.5.0", path = "contracts/voting-verifier" }
-coordinator = { version = "^0.2.0", path = "contracts/coordinator" }
+coordinator = { version = "^1.0.0", path = "contracts/coordinator" }
 multisig = { version = "^1.0.0", path = "contracts/multisig" }
 msgs-derive = { version = "^1.0.0", path = "packages/msgs-derive" }
 multisig-prover = { version = "^0.6.0", path = "contracts/multisig-prover" }
