@@ -34,4 +34,6 @@ pub enum ContractError {
     NotEnoughVerifiers,
     #[error("verifier is jailed")]
     VerifierJailed,
+    #[error("invalid verifier address {0}")]
+    InvalidVerifierAddress(String),
 }
