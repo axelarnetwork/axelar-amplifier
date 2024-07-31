@@ -792,7 +792,7 @@ checksum = "0c4b4d0bd25bd0b74681c0ad21497610ce1b7c91b1022cd21c80c6fbdd9476b0"
 
 [[package]]
 name = "axelar-wasm-std"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "alloy-primitives",
  "bs58 0.5.1",
@@ -821,7 +821,7 @@ dependencies = [
 
 [[package]]
 name = "axelar-wasm-std-derive"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "axelar-wasm-std",
  "error-stack",
@@ -1460,7 +1460,7 @@ checksum = "4b82cf0babdbd58558212896d1a4272303a57bdb245c2bf1147185fb45640e70"
 
 [[package]]
 name = "client"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "cosmwasm-std",
  "error-stack",
@@ -2662,7 +2662,7 @@ checksum = "0206175f82b8d6bf6652ff7d71a1e27fd2e4efde587fd368662814d6ec1d9ce0"
 
 [[package]]
 name = "events"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "axelar-wasm-std",
  "base64 0.21.7",
@@ -2675,7 +2675,7 @@ dependencies = [
 
 [[package]]
 name = "events-derive"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "error-stack",
  "events",
@@ -2687,7 +2687,7 @@ dependencies = [
 
 [[package]]
 name = "evm-gateway"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "axelar-wasm-std",
  "cosmwasm-std",
@@ -3131,7 +3131,7 @@ dependencies = [
 
 [[package]]
 name = "gateway-api"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "axelar-wasm-std",
  "cosmwasm-schema",
@@ -3907,7 +3907,7 @@ dependencies = [
 
 [[package]]
 name = "integration-tests"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "axelar-wasm-std",
  "coordinator",
@@ -4734,7 +4734,7 @@ dependencies = [
 
 [[package]]
 name = "msgs-derive"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "axelar-wasm-std",
  "cosmwasm-std",
@@ -6334,7 +6334,7 @@ checksum = "7a66a03ae7c801facd77a29370b4faec201768915ac14a721ba36f20bc9c209b"
 
 [[package]]
 name = "report"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "error-stack",
  "eyre",
@@ -6523,7 +6523,7 @@ dependencies = [
 
 [[package]]
 name = "router-api"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "axelar-wasm-std",
  "axelar-wasm-std-derive",
@@ -7298,7 +7298,7 @@ dependencies = [
 
 [[package]]
 name = "signature-verifier-api"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
