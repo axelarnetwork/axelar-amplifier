@@ -69,4 +69,7 @@ pub enum ContractError {
         actual: ChainName,
         expected: ChainName,
     },
+
+    #[error("payload does not match the stored value")]
+    PayloadMismatch,
 }
