@@ -1,6 +1,6 @@
 [package]
 name = "axelar-wasm-std"
-version = "0.1.0"
+version = "1.0.0"
 rust-version = { workspace = true }
 edition = "2021"
 description = "Axelar cosmwasm standard library crate"
