@@ -19,16 +19,15 @@ pub enum Payload {
 
 impl Payload {
     /// id returns the unique identifier for the payload, which can be either
-    /// - 0 followed by the hash of '_' separated message ids
-    /// - 1 followed by the hash of the verifier set
+    /// - Hash of 0 followed by '_' separated message ids
+    /// - Hash of 1 followed by the verifier set hash
     pub fn id(&self) -> PayloadId {
         let hash = match self {
             Payload::Messages(msgs) => {
                 let message_ids: Vec<String> =
                     msgs.iter().map(|msg| msg.cc_id.to_string()).collect();
 
-                Keccak256::digest(message_ids.join(&FIELD_DELIMITER.to_string()).as_bytes())
-                    .to_vec()
+                message_ids.join(&FIELD_DELIMITER.to_string()).into()
             }
             Payload::VerifierSet(verifier_set) => verifier_set.hash().to_vec(),
         };
@@ -36,7 +35,7 @@ impl Payload {
         let mut id = vec![self.variant_to_u8()];
         id.extend(hash);
 
-        id.into()
+        Keccak256::digest(id).to_vec().into()
     }
 
     fn variant_to_u8(&self) -> u8 {

@@ -7,7 +7,7 @@ use cosmwasm_std::{
     to_json_binary, wasm_execute, Addr, DepsMut, Env, QuerierWrapper, QueryRequest, Response,
     Storage, SubMsg, WasmQuery,
 };
-use error_stack::report;
+use error_stack::{report, ResultExt};
 use itertools::Itertools;
 use multisig::msg::Signer;
 use multisig::verifier_set::VerifierSet;
@@ -43,7 +43,8 @@ pub fn construct_proof(
     {
         Some(stored_payload) => {
             if stored_payload != payload {
-                return Err(report!(ContractError::PayloadMismatch));
+                return Err(report!(ContractError::PayloadMismatch))
+                    .attach_printable_lazy(|| format!("{:?}", stored_payload));
             }
         }
         None => {
