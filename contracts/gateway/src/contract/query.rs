@@ -10,7 +10,7 @@ pub fn outgoing_messages<'a>(
     cross_chain_ids: impl Iterator<Item = &'a CrossChainId>,
 ) -> Result<Binary, state::Error> {
     let msgs = cross_chain_ids
-        .map(|id| state::load_outgoing_message(storage, &id))
+        .map(|id| state::load_outgoing_message(storage, id))
         .fold(Ok(vec![]), accumulate_errs)?;
 
     Ok(to_json_binary(&msgs).map_err(state::Error::from)?)
@@ -51,7 +51,7 @@ mod test {
         let ids = messages.iter().map(|msg| &msg.cc_id);
 
         let res = super::outgoing_messages(&deps.storage, ids).unwrap();
-        let actual_messages: Vec<Message> = from_json(&res).unwrap();
+        let actual_messages: Vec<Message> = from_json(res).unwrap();
         assert_eq!(actual_messages, messages);
     }
 
