@@ -6,41 +6,41 @@ resolver = "2"
 rust-version = "1.78.0" # be sure there is an optimizer release supporting this version before updating. See https://github.com/CosmWasm/optimizer
 
 [workspace.dependencies]
-router = { version = "^0.4.0", path = "contracts/router" }
+router = { version = "^1.0.0", path = "contracts/router" }
 cosmwasm-std = "1.5.5"
 cosmwasm-schema = "1.5.5"
 cw-storage-plus = { version = "1.2.0", features = ["iterator", "macro"] }
 cw2 = "1.1.0"
 ed25519-dalek = { version = "2.1.1", default-features = false }
 error-stack = { version = "0.4.0", features = ["eyre"] }
-events = { version = "^0.1.0", path = "packages/events" }
-events-derive = { version = "^0.1.0", path = "packages/events-derive" }
-evm-gateway = { version = "^0.1.0", path = "packages/evm-gateway" }
-axelar-wasm-std = { version = "^0.1.0", path = "packages/axelar-wasm-std" }
-axelar-wasm-std-derive = { version = "^0.1.0", path = "packages/axelar-wasm-std-derive" }
-integration-tests = { version = "^0.1.0", path = "integration-tests" }
+events = { version = "^1.0.0", path = "packages/events" }
+events-derive = { version = "^1.0.0", path = "packages/events-derive" }
+evm-gateway = { version = "^1.0.0", path = "packages/evm-gateway" }
+axelar-wasm-std = { version = "^1.0.0", path = "packages/axelar-wasm-std" }
+axelar-wasm-std-derive = { version = "^1.0.0", path = "packages/axelar-wasm-std-derive" }
+integration-tests = { version = "^1.0.0", path = "integration-tests" }
 itertools = "0.11.0"
-voting-verifier = { version = "^0.5.0", path = "contracts/voting-verifier" }
-coordinator = { version = "^0.2.0", path = "contracts/coordinator" }
-multisig = { version = "^0.4.1", path = "contracts/multisig" }
-msgs-derive = { version = "^0.1.0", path = "packages/msgs-derive" }
-multisig-prover = { version = "^0.6.0", path = "contracts/multisig-prover" }
+voting-verifier = { version = "^1.0.0", path = "contracts/voting-verifier" }
+coordinator = { version = "^1.0.0", path = "contracts/coordinator" }
+multisig = { version = "^1.0.0", path = "contracts/multisig" }
+msgs-derive = { version = "^1.0.0", path = "packages/msgs-derive" }
+multisig-prover = { version = "^1.0.0", path = "contracts/multisig-prover" }
 num-traits = { version = "0.2.14", default-features = false }
-service-registry = { version = "^0.4.1", path = "contracts/service-registry" }
-gateway = { version = "^0.2.3", path = "contracts/gateway" }
-gateway-api = { version = "^0.1.0", path = "packages/gateway-api" }
-router-api = { version = "^0.1.0", path = "packages/router-api" }
-report = { version = "^0.1.0", path = "packages/report" }
-client = { version = "^0.1.0", path = "packages/client" }
+service-registry = { version = "^1.0.0", path = "contracts/service-registry" }
+gateway = { version = "^1.0.0", path = "contracts/gateway" }
+gateway-api = { version = "^1.0.0", path = "packages/gateway-api" }
+router-api = { version = "^1.0.0", path = "packages/router-api" }
+report = { version = "^1.0.0", path = "packages/report" }
+client = { version = "^1.0.0", path = "packages/client" }
 quote = "1.0.36"
-rewards = { version = "^0.4.0", path = "contracts/rewards" }
+rewards = { version = "^1.0.0", path = "contracts/rewards" }
 thiserror = "1.0.61"
 mockall = "0.12.1"
 serde = { version = "1.0.145", default-features = false, features = ["derive"] }
 serde_json = "1.0.89"
 schemars = "0.8.10"
 sha3 = { version = "0.10.8", default-features = false, features = [] }
-signature-verifier-api = { version = "^0.1.0", path = "packages/signature-verifier-api" }
+signature-verifier-api = { version = "^1.0.0", path = "packages/signature-verifier-api" }
 syn = "2.0.68"
 ethers-contract = { version = "2.0.14", default-features = false, features = ["abigen"] }
 ethers-core = "2.0.14"

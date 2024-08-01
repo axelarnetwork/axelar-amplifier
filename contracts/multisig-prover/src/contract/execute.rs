@@ -7,6 +7,7 @@ use cosmwasm_std::{
     to_json_binary, wasm_execute, Addr, DepsMut, Env, QuerierWrapper, QueryRequest, Response,
     Storage, SubMsg, WasmQuery,
 };
+use error_stack::{report, ResultExt};
 use itertools::Itertools;
 use multisig::msg::Signer;
 use multisig::verifier_set::VerifierSet;
@@ -25,7 +26,6 @@ pub fn construct_proof(
     message_ids: Vec<CrossChainId>,
 ) -> error_stack::Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage).map_err(ContractError::from)?;
-    let payload_id = message_ids.as_slice().into();
 
     let messages = messages(
         deps.querier,
@@ -34,18 +34,23 @@ pub fn construct_proof(
         config.chain_name.clone(),
     )?;
 
-    let payload = match PAYLOAD
+    let payload = Payload::Messages(messages);
+    let payload_id = payload.id();
+
+    match PAYLOAD
         .may_load(deps.storage, &payload_id)
         .map_err(ContractError::from)?
     {
-        Some(payload) => payload,
+        Some(stored_payload) => {
+            if stored_payload != payload {
+                return Err(report!(ContractError::PayloadMismatch))
+                    .attach_printable_lazy(|| format!("{:?}", stored_payload));
+            }
+        }
         None => {
-            let payload = Payload::Messages(messages);
             PAYLOAD
                 .save(deps.storage, &payload_id, &payload)
                 .map_err(ContractError::from)?;
-
-            payload
         }
     };
 
@@ -308,7 +313,9 @@ fn ensure_verifier_set_verification(
 pub fn confirm_verifier_set(deps: DepsMut, sender: Addr) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
 
-    let verifier_set = NEXT_VERIFIER_SET.load(deps.storage)?;
+    let verifier_set = NEXT_VERIFIER_SET
+        .may_load(deps.storage)?
+        .ok_or(ContractError::NoVerifierSetToConfirm)?;
 
     let sender_role = permission_control::sender_role(deps.storage, &sender)?;
     if !sender_role.contains(Permission::Governance) {

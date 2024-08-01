@@ -1,6 +1,6 @@
 [package]
 name = "coordinator"
-version = "0.2.0"
+version = "1.0.0"
 rust-version = { workspace = true }
 edition = "2021"
 description = "Amplifier info aggregation for external use, alongside contract management, instantiation and migration"

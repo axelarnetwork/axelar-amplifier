@@ -620,6 +620,19 @@ mod tests {
     }
 
     #[test]
+    fn confirm_verifier_no_update_in_progress_should_fail() {
+        let mut deps = setup_test_case();
+
+        let res = confirm_verifier_set(deps.as_mut(), Addr::unchecked("relayer"));
+        assert!(res.is_err());
+        assert_eq!(
+            res.unwrap_err().to_string(),
+            axelar_wasm_std::error::ContractError::from(ContractError::NoVerifierSetToConfirm)
+                .to_string()
+        );
+    }
+
+    #[test]
     fn test_construct_proof() {
         let mut deps = setup_test_case();
         execute_update_verifier_set(deps.as_mut()).unwrap();
