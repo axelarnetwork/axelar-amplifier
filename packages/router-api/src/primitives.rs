@@ -184,12 +184,6 @@ impl Display for CrossChainId {
 #[derive(Eq, Hash, Valuable)]
 pub struct ChainName(String);
 
-impl ChainName {
-    /// Maximum length of a chain name (in bytes).
-    /// This MUST NOT be changed without a corresponding change to the ChainName validation in axelar-core.
-    pub const MAX_LEN: usize = ChainNameRaw::MAX_LEN;
-}
-
 impl FromStr for ChainName {
     type Err = Error;
 
@@ -313,7 +307,7 @@ impl From<ChainName> for ChainNameRaw {
 impl ChainNameRaw {
     /// Maximum length of a chain name (in bytes).
     /// This MUST NOT be changed without a corresponding change to the ChainName validation in axelar-core.
-    pub const MAX_LEN: usize = 20;
+    const MAX_LEN: usize = 20;
 }
 
 impl FromStr for ChainNameRaw {
