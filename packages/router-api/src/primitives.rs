@@ -295,7 +295,7 @@ impl AsRef<str> for ChainName {
 ///
 /// Certain restrictions apply on the string:
 /// - Must not be empty
-/// - Must not exceed `ChainName::MAX_LEN` bytes
+/// - Must not exceed `ChainNameRaw::MAX_LEN` bytes
 /// - Only ASCII characters are allowed
 /// - Must not contain the `FIELD_DELIMITER` character
 /// - Case-sensitivity is preserved
