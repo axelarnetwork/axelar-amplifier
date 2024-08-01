@@ -113,9 +113,9 @@ jobs:
 
           commit_hash=$(git rev-parse --short HEAD)
           cd ..
-          mkdir -p ./artifacts/$commit_hash/
-          cp -R axelar-amplifier/artifacts/* ./artifacts/$commit_hash/
-          echo "wasm-directory=./artifacts" >> $GITHUB_OUTPUT
+          mkdir -p ./$commit_hash/
+          cp -R axelar-amplifier/artifacts/* ./$commit_hash/
+          echo "wasm-directory=./$commit_hash" >> $GITHUB_OUTPUT
 
 
       - name: Prepare and sign release artifacts
@@ -141,11 +141,10 @@ jobs:
           gpg --armor --detach-sign  ../${crate_version}/checksums.txt
 
           echo "release-artifacts-dir=./${crate_version}" >> $GITHUB_OUTPUT
-          echo "r2-destination-dir=./releases/cosmwasm/${crate_name}/${crate_version}" >> $GITHUB_OUTPUT
+          echo "r2-destination-dir=./releases/cosmwasm/${crate_name}" >> $GITHUB_OUTPUT
 
 
       - uses: ryand56/r2-upload-action@latest
-        if: steps.check-release.outputs.is-release == 'true'
         with:
           r2-account-id: ${{ secrets.R2_ACCOUNT_ID }}
           r2-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_CF }}
@@ -156,7 +155,6 @@ jobs:
 
 
       - uses: ryand56/r2-upload-action@latest
-        if: steps.check-release.outputs.is-release != 'true'
         with:
           r2-account-id: ${{ secrets.R2_ACCOUNT_ID }}
           r2-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_CF }}
