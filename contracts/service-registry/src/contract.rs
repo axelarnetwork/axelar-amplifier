@@ -15,6 +15,9 @@ mod execute;
 mod migrations;
 mod query;
 
+/// Verifiers must use standard 20-byte addresses.
+/// This is to prevent concerns with variable length addresses being used as storage keys or when hashing.
+const VERIFIER_ADDRESS_LEN: usize = 20;
 const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -67,7 +70,7 @@ pub fn execute(
         } => {
             let verifiers = verifiers
                 .into_iter()
-                .map(|veriier| deps.api.addr_validate(&veriier))
+                .map(|verifier| validate_verifier_address(&deps, verifier))
                 .collect::<Result<Vec<_>, _>>()?;
             execute::update_verifier_authorization_status(
                 deps,
@@ -142,6 +145,20 @@ fn match_verifier(
             .map(|verifier| verifier.address)
             .change_context(permission_control::Error::Unauthorized)
     }
+}
+
+fn validate_verifier_address(
+    deps: &DepsMut,
+    verifier_address: String,
+) -> Result<Addr, ContractError> {
+    let verifier = deps.api.addr_validate(&verifier_address)?;
+
+    let canonical_address = deps.api.addr_canonicalize(&verifier_address)?;
+    if canonical_address.len() != VERIFIER_ADDRESS_LEN {
+        return Err(ContractError::InvalidVerifierAddress(verifier_address));
+    }
+
+    Ok(verifier)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -290,7 +307,7 @@ mod test {
             mock_env(),
             mock_info(GOVERNANCE_ADDRESS, &[]),
             ExecuteMsg::AuthorizeVerifiers {
-                verifiers: vec![Addr::unchecked("verifier").into()],
+                verifiers: vec![Addr::unchecked("axelar1f7txddxt969wqdc8rxqyzc8zrt4gz2qk0xx3x5").into()],
                 service_name: service_name.into(),
             },
         );
@@ -301,7 +318,7 @@ mod test {
             mock_env(),
             mock_info(UNAUTHORIZED_ADDRESS, &[]),
             ExecuteMsg::AuthorizeVerifiers {
-                verifiers: vec![Addr::unchecked("verifier").into()],
+                verifiers: vec![Addr::unchecked("axelar1f7txddxt969wqdc8rxqyzc8zrt4gz2qk0xx3x5").into()],
                 service_name: service_name.into(),
             },
         )
@@ -310,6 +327,22 @@ mod test {
             err.report,
             permission_control::Error,
             permission_control::Error::PermissionDenied { .. }
+        ));
+
+        let err = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(UNAUTHORIZED_ADDRESS, &[]),
+            ExecuteMsg::AuthorizeVerifiers {
+                verifiers: vec![Addr::unchecked("short").into()],
+                service_name: service_name.into(),
+            },
+        )
+        .unwrap_err();
+        assert!(err_contains!(
+            err.report,
+            ContractError,
+            ContractError::InvalidVerifierAddress(..)
         ));
     }
 
