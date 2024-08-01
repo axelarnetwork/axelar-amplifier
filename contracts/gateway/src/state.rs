@@ -32,7 +32,7 @@ pub(crate) fn load_config(storage: &dyn Storage) -> Result<Config, Error> {
 }
 
 pub(crate) fn save_config(storage: &mut dyn Storage, config: &Config) -> Result<(), Error> {
-    Ok(CONFIG.save(storage, config).map_err(Error::from)?)
+    CONFIG.save(storage, config).map_err(Error::from)
 }
 
 pub(crate) fn load_outgoing_message(
