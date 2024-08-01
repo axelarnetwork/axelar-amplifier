@@ -138,7 +138,7 @@ jobs:
           gpg --armor --detach-sign  ../release-artifacts/checksums.txt
 
           echo "release-artifacts-dir=./release-artifacts" >> $GITHUB_OUTPUT
-          echo "r2-destination-dir=./releases/amplifier/${crate_name}/${crate_version}" >> $GITHUB_OUTPUT
+          echo "r2-destination-dir=./releases/cosmwasm/${crate_name}/${crate_version}" >> $GITHUB_OUTPUT
 
 
       - uses: ryand56/r2-upload-action@latest
@@ -160,4 +160,4 @@ jobs:
           r2-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_CF }}
           r2-bucket: ${{ secrets.R2_BUCKET }}
           source-dir: ${{ steps.compile-contracts.outputs.wasm-directory }}
-          destination-dir: ./pre-releases/ampd/contracts/
+          destination-dir: ./pre-releases/cosmwasm/

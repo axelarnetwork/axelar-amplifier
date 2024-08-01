@@ -330,7 +330,7 @@ where
 
             Ok(Fee::from_amount_and_gas(
                 Coin {
-                    amount: cast((gas_adj.mul(self.config.gas_price.amount)).ceil())
+                    amount: cast(gas_adj.mul(self.config.gas_price.amount).ceil())
                         .ok_or(Error::FeeEstimation)?,
                     denom: self.config.gas_price.denom.clone().into(),
                 },

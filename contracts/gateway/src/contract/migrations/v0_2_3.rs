@@ -87,12 +87,12 @@ impl KeyDeserialize for &CrossChainId {
 mod tests {
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
     use cosmwasm_std::{DepsMut, Env, MessageInfo, Response};
-    use cw_storage_plus::Item;
     use error_stack::ResultExt;
 
     use crate::contract::migrations::v0_2_3;
     use crate::contract::{Error, CONTRACT_NAME, CONTRACT_VERSION};
     use crate::msg::InstantiateMsg;
+    use crate::state;
     use crate::state::Config;
 
     #[test]
@@ -206,13 +206,9 @@ mod tests {
             .change_context(Error::InvalidAddress)
             .attach_printable(msg.verifier_address)?;
 
-        CONFIG
-            .save(deps.storage, &Config { verifier, router })
+        state::save_config(deps.storage, &Config { verifier, router })
             .change_context(Error::InvalidStoreAccess)?;
 
         Ok(Response::new())
     }
-
-    #[deprecated(since = "0.2.3", note = "only used to test the migration")]
-    const CONFIG: Item<Config> = Item::new("config");
 }

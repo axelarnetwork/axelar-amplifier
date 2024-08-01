@@ -407,10 +407,7 @@ mod test {
             .iter()
             .cloned()
             .map(|e| {
-                (
-                    e,
-                    &axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
-                )
+                (e, &MessageIdFormat::HexTxHashAndEventIndex)
                     .try_into()
                     .unwrap()
             })
@@ -480,10 +477,7 @@ mod test {
         let expected = messages
             .into_iter()
             .map(|e| {
-                (
-                    e,
-                    &axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
-                )
+                (e, &MessageIdFormat::HexTxHashAndEventIndex)
                     .try_into()
                     .unwrap()
             })

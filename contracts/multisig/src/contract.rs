@@ -1200,7 +1200,7 @@ mod tests {
 
         assert_eq!(
             res.unwrap_err().to_string(),
-            axelar_wasm_std::permission_control::Error::PermissionDenied {
+            permission_control::Error::PermissionDenied {
                 expected: Permission::Governance.into(),
                 actual: Permission::NoPrivilege.into()
             }
@@ -1222,7 +1222,7 @@ mod tests {
 
         assert_eq!(
             res.unwrap_err().to_string(),
-            axelar_wasm_std::permission_control::Error::PermissionDenied {
+            permission_control::Error::PermissionDenied {
                 expected: Permission::Elevated.into(),
                 actual: Permission::NoPrivilege.into()
             }
