@@ -138,7 +138,7 @@ jobs:
           gpg --armor --detach-sign  ../release-artifacts/checksums.txt
 
           echo "release-artifacts-dir=./release-artifacts" >> $GITHUB_OUTPUT
-          echo "r2-destination-dir=./releases/amplifier/${crate_name}/${crate_version}" >> $GITHUB_OUTPUT
+          echo "r2-destination-dir=./releases/cosmwasm/${crate_name}/${crate_version}" >> $GITHUB_OUTPUT
 
 
       - uses: ryand56/r2-upload-action@latest
