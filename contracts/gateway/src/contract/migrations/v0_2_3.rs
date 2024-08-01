@@ -182,7 +182,7 @@ mod tests {
 
         assert!(v0_2_3::migrate(deps.as_mut().storage).is_ok());
 
-        assert!(state::OUTGOING_MESSAGES.is_empty(deps.as_ref().storage))
+        assert!(v0_2_3::OUTGOING_MESSAGES.is_empty(deps.as_ref().storage))
     }
 
     #[deprecated(since = "0.2.3", note = "only used to test the migration")]

@@ -1,6 +1,6 @@
 use axelar_wasm_std::{FnExt, VerificationStatus};
 use cosmwasm_std::{Event, Response, Storage, WasmMsg};
-use error_stack::{report, Result, ResultExt};
+use error_stack::{Result, ResultExt};
 use itertools::Itertools;
 use router_api::client::Router;
 use router_api::Message;
@@ -10,7 +10,7 @@ use crate::contract::Error;
 use crate::events::GatewayEvent;
 use crate::state;
 
-pub fn verify_messages(
+pub(crate) fn verify_messages(
     verifier: &voting_verifier::Client,
     msgs: Vec<Message>,
 ) -> Result<Response, Error> {
@@ -37,18 +37,8 @@ pub(crate) fn route_outgoing_messages(
     let msgs = check_for_duplicates(verified)?;
 
     for msg in msgs.iter() {
-        state::OUTGOING_MESSAGES
-            .may_load(store, &msg.cc_id)
-            .change_context(Error::InvalidStoreAccess)
-            .and_then(|stored_msg| match stored_msg {
-                Some(stored_msg) if msg.hash() != stored_msg.hash() => {
-                    Err(report!(Error::MessageMismatch(msg.cc_id.clone())))
-                }
-                Some(_) => Ok(()), // message already exists
-                None => state::OUTGOING_MESSAGES
-                    .save(store, &msg.cc_id, msg)
-                    .change_context(Error::InvalidStoreAccess),
-            })?;
+        state::save_outgoing_message(store, &msg.cc_id, msg)
+            .change_context(Error::SaveOutgoingMessage)?;
     }
 
     Ok(Response::new().add_events(
