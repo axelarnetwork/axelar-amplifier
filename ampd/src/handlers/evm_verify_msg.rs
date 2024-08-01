@@ -107,7 +107,7 @@ where
         )
         .await
         .into_iter()
-        .filter_map(Result::unwrap_or_default)
+        .filter_map(std::result::Result::unwrap_or_default)
         .filter_map(|tx_receipt| {
             if tx_receipt
                 .block_number
