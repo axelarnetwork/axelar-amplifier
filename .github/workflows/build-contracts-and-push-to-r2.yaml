@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - refactor/r2-internal-path-structure
     tags:
       - '*-v[0-9]+.[0-9]+.[0-9]+'
   workflow_dispatch:
@@ -28,24 +27,23 @@ jobs:
       - name: Get tag
         id: get-tag
         run: |
-          echo "tag=rewards-v1.0.0" >> $GITHUB_OUTPUT
-#          echo "github_ref=$GITHUB_REF"
-#          if [[ $GITHUB_REF == refs/tags/* ]]; then
-#            echo "tag=${GITHUB_REF#refs/tags/}"
-#            echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-#          elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-#            input_ref="${{ github.event.inputs.ref }}"
-#            if [[ $input_ref =~ ^([a-zA-Z-]+)-v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
-#              echo "tag=$input_ref"
-#              echo "tag=$input_ref" >> $GITHUB_OUTPUT
-#            else
-#              echo "tag="
-#              echo "tag=" >> $GITHUB_OUTPUT
-#            fi
-#          else
-#            echo "tag="
-#            echo "tag=" >> $GITHUB_OUTPUT
-#          fi
+          echo "github_ref=$GITHUB_REF"
+          if [[ $GITHUB_REF == refs/tags/* ]]; then
+            echo "tag=${GITHUB_REF#refs/tags/}"
+            echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            input_ref="${{ github.event.inputs.ref }}"
+            if [[ $input_ref =~ ^([a-zA-Z-]+)-v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+              echo "tag=$input_ref"
+              echo "tag=$input_ref" >> $GITHUB_OUTPUT
+            else
+              echo "tag="
+              echo "tag=" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "tag="
+            echo "tag=" >> $GITHUB_OUTPUT
+          fi
 
 
       - name: Check for release information from tag
@@ -145,6 +143,7 @@ jobs:
 
 
       - uses: ryand56/r2-upload-action@latest
+        if: steps.check-release.outputs.is-release == 'true'
         with:
           r2-account-id: ${{ secrets.R2_ACCOUNT_ID }}
           r2-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_CF }}
@@ -155,6 +154,7 @@ jobs:
 
 
       - uses: ryand56/r2-upload-action@latest
+        if: steps.check-release.outputs.is-release != 'true'
         with:
           r2-account-id: ${{ secrets.R2_ACCOUNT_ID }}
           r2-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_CF }}
