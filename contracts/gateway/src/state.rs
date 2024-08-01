@@ -1,4 +1,4 @@
-use axelar_wasm_std_derive::IntoContractError;
+use axelar_wasm_std::IntoContractError;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, StdError, Storage};
 use cw_storage_plus::{Item, Map};

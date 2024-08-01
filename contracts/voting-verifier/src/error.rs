@@ -1,5 +1,4 @@
-use axelar_wasm_std::{nonempty, voting};
-use axelar_wasm_std_derive::IntoContractError;
+use axelar_wasm_std::{nonempty, voting, IntoContractError};
 use cosmwasm_std::{OverflowError, StdError};
 use router_api::ChainName;
 use service_registry;

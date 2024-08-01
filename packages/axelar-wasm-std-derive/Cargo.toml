@@ -9,12 +9,14 @@ edition = "2021"
 proc-macro = true
 
 [dependencies]
-axelar-wasm-std = { workspace = true }
 error-stack = { workspace = true }
 quote = "1.0.33"
 report = { workspace = true }
 syn = "2.0.29"
 thiserror = { workspace = true }
+
+[dev-dependencies]
+axelar-wasm-std = { workspace = true }
 
 [lints]
 workspace = true

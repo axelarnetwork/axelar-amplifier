@@ -18,8 +18,7 @@ crate-type = ["rlib"]
 [features]
 # for more explicit tests, cargo test --features=backtraces
 backtraces = ["cosmwasm-std/backtraces"]
-# use library feature to disable all instantiate/execute/query exports
-library = []
+derive = ["dep:axelar-wasm-std-derive"]
 
 [package.metadata.scripts]
 optimize = """docker run --rm -v "$(pwd)":/code \
@@ -30,6 +29,7 @@ optimize = """docker run --rm -v "$(pwd)":/code \
 
 [dependencies]
 alloy-primitives = { workspace = true }
+axelar-wasm-std-derive = { workspace = true, optional = true }
 bs58 = "0.5.1"
 cosmwasm-schema = { workspace = true }
 cosmwasm-std = { workspace = true }
