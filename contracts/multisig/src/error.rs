@@ -1,6 +1,6 @@
-use axelar_wasm_std_derive::IntoContractError;
 use cosmwasm_std::{OverflowError, StdError, Uint64};
 use cw2::VersionError;
+use error_utils::IntoContractError;
 use router_api::ChainName;
 use thiserror::Error;
 

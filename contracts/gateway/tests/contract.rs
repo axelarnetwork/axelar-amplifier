@@ -3,14 +3,14 @@ use std::fmt::Debug;
 use std::fs::File;
 use std::iter;
 
-use axelar_wasm_std::error::ContractError;
-use axelar_wasm_std::{err_contains, VerificationStatus};
+use axelar_wasm_std::VerificationStatus;
 use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info, MockQuerier};
 #[cfg(not(feature = "generate_golden_files"))]
 use cosmwasm_std::Response;
 use cosmwasm_std::{
     from_json, to_json_binary, Addr, ContractResult, DepsMut, QuerierResult, WasmQuery,
 };
+use error_utils::{err_contains, ContractError};
 use gateway::contract::*;
 use gateway::msg::InstantiateMsg;
 use gateway::state;

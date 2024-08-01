@@ -5,7 +5,7 @@ use std::{fmt, ops};
 
 use cosmrs::proto;
 use error_stack::{ensure, Report, Result, ResultExt};
-use report::ResultCompatExt;
+use error_utils::result_ext::ResultCompatExt;
 use serde::{Deserialize, Serialize};
 use serde_with::SerializeDisplay;
 use thiserror::Error;

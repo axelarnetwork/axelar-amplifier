@@ -24,7 +24,7 @@ pub fn migrate(
     deps: DepsMut,
     _env: Env,
     _msg: Empty,
-) -> Result<Response, axelar_wasm_std::error::ContractError> {
+) -> Result<Response, error_utils::ContractError> {
     v0_3_3::migrate(deps.storage)?;
 
     // this needs to be the last thing to do during migration,
@@ -40,7 +40,7 @@ pub fn instantiate(
     _env: Env,
     _info: MessageInfo,
     msg: InstantiateMsg,
-) -> Result<Response, axelar_wasm_std::error::ContractError> {
+) -> Result<Response, error_utils::ContractError> {
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     let admin = deps.api.addr_validate(&msg.admin_address)?;
@@ -73,7 +73,7 @@ pub fn execute(
     _env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
-) -> Result<Response, axelar_wasm_std::error::ContractError> {
+) -> Result<Response, error_utils::ContractError> {
     match msg.ensure_permissions(
         deps.storage,
         &info.sender,
@@ -122,11 +122,7 @@ fn find_gateway_address(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(
-    deps: Deps,
-    _env: Env,
-    msg: QueryMsg,
-) -> Result<Binary, axelar_wasm_std::error::ContractError> {
+pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, error_utils::ContractError> {
     match msg {
         QueryMsg::ChainInfo(chain) => to_json_binary(&query::chain_info(deps.storage, chain)?),
         QueryMsg::Chains { start_after, limit } => {
@@ -134,7 +130,7 @@ pub fn query(
         }
         QueryMsg::IsEnabled => to_json_binary(&killswitch::is_contract_active(deps.storage)),
     }
-    .map_err(axelar_wasm_std::error::ContractError::from)
+    .map_err(error_utils::ContractError::from)
 }
 
 #[cfg(test)]
@@ -142,13 +138,12 @@ mod test {
     use std::collections::HashMap;
     use std::str::FromStr;
 
-    use axelar_wasm_std::err_contains;
-    use axelar_wasm_std::error::ContractError;
     use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
     use cosmwasm_std::testing::{
         mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
     };
     use cosmwasm_std::{from_json, Addr, CosmosMsg, Empty, OwnedDeps, WasmMsg};
+    use error_utils::{err_contains, ContractError};
     use permission_control::Permission;
     use router_api::error::Error;
     use router_api::{

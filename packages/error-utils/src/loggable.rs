@@ -158,7 +158,7 @@ mod tests {
     use error_stack::Report;
     use thiserror::Error;
 
-    use crate::LoggableError;
+    use crate::loggable::LoggableError;
 
     #[derive(Error, Debug)]
     enum Error {

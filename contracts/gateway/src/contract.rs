@@ -49,7 +49,7 @@ pub fn migrate(
     deps: DepsMut,
     _env: Env,
     _msg: Empty,
-) -> Result<Response, axelar_wasm_std::error::ContractError> {
+) -> Result<Response, error_utils::ContractError> {
     v0_2_3::migrate(deps.storage)?;
     Ok(Response::default())
 }
@@ -60,7 +60,7 @@ pub fn instantiate(
     _: Env,
     _: MessageInfo,
     msg: InstantiateMsg,
-) -> Result<Response, axelar_wasm_std::error::ContractError> {
+) -> Result<Response, error_utils::ContractError> {
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     let router = deps
@@ -85,7 +85,7 @@ pub fn execute(
     _: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
-) -> Result<Response, axelar_wasm_std::error::ContractError> {
+) -> Result<Response, error_utils::ContractError> {
     let config = state::load_config(deps.storage).change_context(Error::Execute)?;
     let verifier = client::Client::new(deps.querier, config.verifier).into();
 
@@ -111,11 +111,7 @@ pub fn execute(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(
-    deps: Deps,
-    _: Env,
-    msg: QueryMsg,
-) -> Result<Binary, axelar_wasm_std::error::ContractError> {
+pub fn query(deps: Deps, _: Env, msg: QueryMsg) -> Result<Binary, error_utils::ContractError> {
     match msg {
         QueryMsg::OutgoingMessages(message_ids) => {
             query::outgoing_messages(deps.storage, message_ids.iter())

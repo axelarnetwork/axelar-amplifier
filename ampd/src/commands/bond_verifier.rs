@@ -3,7 +3,7 @@ use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmrs::tx::Msg;
 use cosmrs::Coin;
 use error_stack::Result;
-use report::ResultCompatExt;
+use error_utils::result_ext::ResultCompatExt;
 use service_registry::msg::ExecuteMsg;
 use valuable::Valuable;
 

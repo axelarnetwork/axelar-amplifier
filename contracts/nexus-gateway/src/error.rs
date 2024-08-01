@@ -1,5 +1,5 @@
-use axelar_wasm_std_derive::IntoContractError;
 use cosmwasm_std::HexBinary;
+use error_utils::IntoContractError;
 use thiserror::Error;
 
 #[derive(Error, Debug, PartialEq, IntoContractError)]

@@ -31,7 +31,7 @@ pub fn migrate(
     deps: DepsMut,
     _env: Env,
     msg: MigrationMsg,
-) -> Result<Response, axelar_wasm_std::error::ContractError> {
+) -> Result<Response, error_utils::ContractError> {
     let admin = deps.api.addr_validate(&msg.admin_address)?;
     let authorized_callers = msg
         .authorized_callers
@@ -59,7 +59,7 @@ pub fn instantiate(
     _env: Env,
     _info: MessageInfo,
     msg: InstantiateMsg,
-) -> Result<Response, axelar_wasm_std::error::ContractError> {
+) -> Result<Response, error_utils::ContractError> {
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     let admin = deps.api.addr_validate(&msg.admin_address)?;
@@ -87,7 +87,7 @@ pub fn execute(
     env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
-) -> Result<Response, axelar_wasm_std::error::ContractError> {
+) -> Result<Response, error_utils::ContractError> {
     match msg.ensure_permissions(
         deps.storage,
         &info.sender,
@@ -106,8 +106,7 @@ pub fn execute(
                 deps,
                 env,
                 verifier_set_id,
-                msg.try_into()
-                    .map_err(axelar_wasm_std::error::ContractError::from)?,
+                msg.try_into().map_err(error_utils::ContractError::from)?,
                 chain_name,
                 sig_verifier,
             )
@@ -220,7 +219,7 @@ mod tests {
 
     const SIGNATURE_BLOCK_EXPIRY: u64 = 100;
 
-    fn do_instantiate(deps: DepsMut) -> Result<Response, axelar_wasm_std::error::ContractError> {
+    fn do_instantiate(deps: DepsMut) -> Result<Response, error_utils::ContractError> {
         let info = mock_info(INSTANTIATOR, &[]);
         let env = mock_env();
 
@@ -237,7 +236,7 @@ mod tests {
     fn generate_verifier_set(
         key_type: KeyType,
         deps: DepsMut,
-    ) -> Result<(Response, VerifierSet), axelar_wasm_std::error::ContractError> {
+    ) -> Result<(Response, VerifierSet), error_utils::ContractError> {
         let info = mock_info(PROVER, &[]);
         let env = mock_env();
 
@@ -270,7 +269,7 @@ mod tests {
         sender: &str,
         verifier_set_id: &str,
         chain_name: ChainName,
-    ) -> Result<Response, axelar_wasm_std::error::ContractError> {
+    ) -> Result<Response, error_utils::ContractError> {
         let info = mock_info(sender, &[]);
         let env = mock_env();
 
@@ -289,7 +288,7 @@ mod tests {
         env: Env,
         session_id: Uint64,
         signer: &TestSigner,
-    ) -> Result<Response, axelar_wasm_std::error::ContractError> {
+    ) -> Result<Response, error_utils::ContractError> {
         let msg = ExecuteMsg::SubmitSignature {
             session_id,
             signature: signer.signature.clone(),
@@ -302,7 +301,7 @@ mod tests {
         verifier: Addr,
         public_key: PublicKey,
         signed_sender_address: HexBinary,
-    ) -> Result<Response, axelar_wasm_std::error::ContractError> {
+    ) -> Result<Response, error_utils::ContractError> {
         let msg = ExecuteMsg::RegisterPublicKey {
             public_key,
             signed_sender_address,
@@ -313,7 +312,7 @@ mod tests {
     fn do_authorize_callers(
         deps: DepsMut,
         contracts: Vec<(Addr, ChainName)>,
-    ) -> Result<Response, axelar_wasm_std::error::ContractError> {
+    ) -> Result<Response, error_utils::ContractError> {
         let info = mock_info(GOVERNANCE, &[]);
         let env = mock_env();
 
@@ -329,7 +328,7 @@ mod tests {
     fn do_unauthorize_caller(
         deps: DepsMut,
         contracts: Vec<(Addr, ChainName)>,
-    ) -> Result<Response, axelar_wasm_std::error::ContractError> {
+    ) -> Result<Response, error_utils::ContractError> {
         let info = mock_info(GOVERNANCE, &[]);
         let env = mock_env();
 
@@ -345,7 +344,7 @@ mod tests {
     fn do_disable_signing(
         deps: DepsMut,
         sender: &str,
-    ) -> Result<Response, axelar_wasm_std::error::ContractError> {
+    ) -> Result<Response, error_utils::ContractError> {
         let info = mock_info(sender, &[]);
         let env = mock_env();
 
@@ -356,7 +355,7 @@ mod tests {
     fn do_enable_signing(
         deps: DepsMut,
         sender: &str,
-    ) -> Result<Response, axelar_wasm_std::error::ContractError> {
+    ) -> Result<Response, error_utils::ContractError> {
         let info = mock_info(sender, &[]);
         let env = mock_env();
 
@@ -784,7 +783,7 @@ mod tests {
 
             assert_eq!(
                 res.unwrap_err().to_string(),
-                axelar_wasm_std::error::ContractError::from(ContractError::SigningSessionClosed {
+                error_utils::ContractError::from(ContractError::SigningSessionClosed {
                     session_id
                 })
                 .to_string()
@@ -809,7 +808,7 @@ mod tests {
 
         assert_eq!(
             res.unwrap_err().to_string(),
-            axelar_wasm_std::error::ContractError::from(ContractError::SigningSessionNotFound {
+            error_utils::ContractError::from(ContractError::SigningSessionNotFound {
                 session_id: invalid_session_id
             })
             .to_string()
@@ -1036,10 +1035,8 @@ mod tests {
         );
         assert_eq!(
             res.unwrap_err().to_string(),
-            axelar_wasm_std::error::ContractError::from(
-                ContractError::InvalidPublicKeyRegistrationSignature
-            )
-            .to_string()
+            error_utils::ContractError::from(ContractError::InvalidPublicKeyRegistrationSignature)
+                .to_string()
         );
 
         // Ed25519
@@ -1055,10 +1052,8 @@ mod tests {
         );
         assert_eq!(
             res.unwrap_err().to_string(),
-            axelar_wasm_std::error::ContractError::from(
-                ContractError::InvalidPublicKeyRegistrationSignature
-            )
-            .to_string()
+            error_utils::ContractError::from(ContractError::InvalidPublicKeyRegistrationSignature)
+                .to_string()
         );
     }
 
@@ -1089,8 +1084,7 @@ mod tests {
 
         assert_eq!(
             res.unwrap_err().to_string(),
-            axelar_wasm_std::error::ContractError::from(ContractError::DuplicatePublicKey)
-                .to_string()
+            error_utils::ContractError::from(ContractError::DuplicatePublicKey).to_string()
         );
     }
 

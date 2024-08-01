@@ -23,7 +23,7 @@ pub fn migrate(
     deps: DepsMut,
     _env: Env,
     _msg: Empty,
-) -> Result<Response, axelar_wasm_std::error::ContractError> {
+) -> Result<Response, error_utils::ContractError> {
     v0_2_0::migrate(deps.storage)?;
 
     // this needs to be the last thing to do during migration,
@@ -39,7 +39,7 @@ pub fn instantiate(
     _env: Env,
     _info: MessageInfo,
     msg: InstantiateMsg,
-) -> Result<Response, axelar_wasm_std::error::ContractError> {
+) -> Result<Response, error_utils::ContractError> {
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     let governance = deps.api.addr_validate(&msg.governance_address)?;
@@ -54,7 +54,7 @@ pub fn execute(
     _env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
-) -> Result<Response, axelar_wasm_std::error::ContractError> {
+) -> Result<Response, error_utils::ContractError> {
     match msg.ensure_permissions(
         deps.storage,
         &info.sender,
@@ -207,12 +207,10 @@ mod tests {
         );
         assert_eq!(
             res.unwrap_err().to_string(),
-            axelar_wasm_std::error::ContractError::from(
-                permission_control::Error::PermissionDenied {
-                    expected: Permission::Governance.into(),
-                    actual: Permission::NoPrivilege.into()
-                }
-            )
+            error_utils::ContractError::from(permission_control::Error::PermissionDenied {
+                expected: Permission::Governance.into(),
+                actual: Permission::NoPrivilege.into()
+            })
             .to_string()
         );
     }
@@ -258,11 +256,9 @@ mod tests {
             },
         );
         assert!(res.unwrap_err().to_string().contains(
-            &axelar_wasm_std::error::ContractError::from(
-                permission_control::Error::WhitelistNotFound {
-                    sender: test_setup.prover
-                }
-            )
+            &error_utils::ContractError::from(permission_control::Error::WhitelistNotFound {
+                sender: test_setup.prover
+            })
             .to_string()
         ));
     }

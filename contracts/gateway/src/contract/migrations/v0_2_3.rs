@@ -2,11 +2,11 @@
 
 use std::any::type_name;
 
-use axelar_wasm_std::error::ContractError;
 use axelar_wasm_std::nonempty;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{StdError, StdResult, Storage};
 use cw_storage_plus::{Key, KeyDeserialize, Map, PrimaryKey};
+use error_utils::ContractError;
 use router_api::{Address, ChainName, ChainNameRaw};
 
 use crate::contract::{CONTRACT_NAME, CONTRACT_VERSION};
@@ -191,7 +191,7 @@ mod tests {
         _env: Env,
         _info: MessageInfo,
         msg: InstantiateMsg,
-    ) -> Result<Response, axelar_wasm_std::error::ContractError> {
+    ) -> Result<Response, error_utils::ContractError> {
         cw2::set_contract_version(deps.storage, CONTRACT_NAME, v0_2_3::BASE_VERSION)?;
 
         let router = deps

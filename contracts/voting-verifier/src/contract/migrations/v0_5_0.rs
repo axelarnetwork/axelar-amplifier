@@ -1,12 +1,12 @@
 #![allow(deprecated)]
 
 use axelar_wasm_std::address_format::AddressFormat;
-use axelar_wasm_std::error::ContractError;
 use axelar_wasm_std::msg_id::MessageIdFormat;
 use axelar_wasm_std::{nonempty, permission_control, MajorityThreshold};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Attribute, StdResult, Storage};
 use cw_storage_plus::Item;
+use error_utils::ContractError;
 use router_api::ChainName;
 
 use crate::contract::{CONTRACT_NAME, CONTRACT_VERSION};
@@ -216,7 +216,7 @@ mod tests {
         _env: Env,
         _info: MessageInfo,
         msg: InstantiateMsg,
-    ) -> Result<Response, axelar_wasm_std::error::ContractError> {
+    ) -> Result<Response, error_utils::ContractError> {
         cw2::set_contract_version(deps.storage, CONTRACT_NAME, v0_5_0::BASE_VERSION)?;
 
         let config = v0_5_0::Config {

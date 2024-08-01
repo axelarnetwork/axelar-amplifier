@@ -6,7 +6,7 @@ use cosmrs::tendermint::chain::Id;
 use cosmrs::tx::{BodyBuilder, Fee, SignDoc, SignerInfo};
 use cosmrs::{Any, Coin};
 use error_stack::{Context, Result, ResultExt};
-use report::ResultCompatExt;
+use error_utils::result_ext::ResultCompatExt;
 use thiserror::Error;
 use typed_builder::TypedBuilder;
 

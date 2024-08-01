@@ -853,8 +853,8 @@ pub fn setup_test_case() -> TestCase {
 }
 
 pub fn assert_contract_err_strings_equal(
-    actual: impl Into<axelar_wasm_std::error::ContractError>,
-    expected: impl Into<axelar_wasm_std::error::ContractError>,
+    actual: impl Into<error_utils::ContractError>,
+    expected: impl Into<error_utils::ContractError>,
 ) {
     assert_eq!(actual.into().to_string(), expected.into().to_string());
 }
