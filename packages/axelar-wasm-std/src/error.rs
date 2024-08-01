@@ -2,9 +2,10 @@ use std::fmt::{Display, Formatter};
 
 use cosmwasm_std::StdError;
 use error_stack::{report, Context, Report};
+use report::LoggableError;
 use thiserror::Error;
 
-use crate::loggable::LoggableError;
+use crate::permission_control;
 
 /// This error is supposed to be the top-level error type our contracts return to the cosmwasm module.
 /// Ideally, we would like to return an error-stack [Report] directly,
@@ -32,6 +33,14 @@ impl From<StdError> for ContractError {
 
 impl From<cw2::VersionError> for ContractError {
     fn from(err: cw2::VersionError) -> Self {
+        ContractError {
+            report: report!(err).change_context(Error::Report),
+        }
+    }
+}
+
+impl From<permission_control::Error> for ContractError {
+    fn from(err: permission_control::Error) -> Self {
         ContractError {
             report: report!(err).change_context(Error::Report),
         }
@@ -77,3 +86,5 @@ macro_rules! err_contains {
         }
     };
 }
+
+pub use err_contains;

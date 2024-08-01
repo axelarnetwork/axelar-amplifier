@@ -14,7 +14,7 @@ use axelar_wasm_std::FnExt;
 use clap::{arg, command, Parser, ValueEnum};
 use config::ConfigError;
 use error_stack::{Report, ResultExt};
-use error_utils::loggable::LoggableError;
+use report::LoggableError;
 use tracing::{error, info};
 use valuable::Valuable;
 

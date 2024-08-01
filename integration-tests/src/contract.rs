@@ -22,7 +22,7 @@ pub trait Contract {
         app: &mut App,
         caller: Addr,
         execute_message: &Self::ExMsg,
-    ) -> Result<AppResponse, error_utils::ContractError>
+    ) -> Result<AppResponse, axelar_wasm_std::error::ContractError>
     where
         Self::ExMsg: Serialize,
         Self::ExMsg: std::fmt::Debug,
@@ -36,7 +36,7 @@ pub trait Contract {
         caller: Addr,
         execute_message: &Self::ExMsg,
         funds: &[Coin],
-    ) -> Result<AppResponse, error_utils::ContractError>
+    ) -> Result<AppResponse, axelar_wasm_std::error::ContractError>
     where
         Self::ExMsg: Serialize,
         Self::ExMsg: std::fmt::Debug,
@@ -49,7 +49,7 @@ pub trait Contract {
         )
         .map_err(|err| {
             report!(err
-                .downcast::<error_utils::ContractError>()
+                .downcast::<axelar_wasm_std::error::ContractError>()
                 .unwrap_or_else(|err| err.downcast::<StdError>().unwrap().into()))
         })
     }

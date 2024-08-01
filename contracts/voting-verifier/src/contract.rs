@@ -23,7 +23,7 @@ pub fn instantiate(
     _env: Env,
     _info: MessageInfo,
     msg: InstantiateMsg,
-) -> Result<Response, error_utils::ContractError> {
+) -> Result<Response, axelar_wasm_std::error::ContractError> {
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     let governance = deps.api.addr_validate(&msg.governance_address)?;
@@ -53,7 +53,7 @@ pub fn execute(
     env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
-) -> Result<Response, error_utils::ContractError> {
+) -> Result<Response, axelar_wasm_std::error::ContractError> {
     match msg.ensure_permissions(deps.storage, &info.sender)? {
         ExecuteMsg::VerifyMessages(messages) => Ok(execute::verify_messages(deps, env, messages)?),
         ExecuteMsg::Vote { poll_id, votes } => Ok(execute::vote(deps, env, info, poll_id, votes)?),
@@ -98,7 +98,7 @@ pub fn migrate(
     deps: DepsMut,
     _env: Env,
     _msg: Empty,
-) -> Result<Response, error_utils::ContractError> {
+) -> Result<Response, axelar_wasm_std::error::ContractError> {
     v0_5_0::migrate(deps.storage)?;
 
     Ok(Response::default())
@@ -112,12 +112,13 @@ mod test {
         MessageIdFormat,
     };
     use axelar_wasm_std::voting::Vote;
-    use axelar_wasm_std::{nonempty, MajorityThreshold, Threshold, VerificationStatus};
+    use axelar_wasm_std::{
+        err_contains, nonempty, MajorityThreshold, Threshold, VerificationStatus,
+    };
     use cosmwasm_std::testing::{
         mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
     };
     use cosmwasm_std::{from_json, Addr, Empty, Fraction, OwnedDeps, Uint128, Uint64, WasmQuery};
-    use error_utils::err_contains;
     use multisig::key::KeyType;
     use multisig::test::common::{build_verifier_set, ecdsa_test_data};
     use router_api::{ChainName, CrossChainId, Message};
@@ -147,8 +148,8 @@ mod test {
     }
 
     fn assert_contract_err_strings_equal(
-        actual: impl Into<error_utils::ContractError>,
-        expected: impl Into<error_utils::ContractError>,
+        actual: impl Into<axelar_wasm_std::error::ContractError>,
+        expected: impl Into<axelar_wasm_std::error::ContractError>,
     ) {
         assert_eq!(actual.into().to_string(), expected.into().to_string());
     }

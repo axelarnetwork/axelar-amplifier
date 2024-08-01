@@ -2,7 +2,6 @@ use std::fmt::{Debug, Display, Formatter};
 
 use cosmwasm_std::{Addr, StdResult};
 use cw_storage_plus::Item;
-use error_utils::IntoContractError;
 use flagset::{flags, Flags};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
@@ -39,7 +38,7 @@ impl Display for FlagSet<Permission> {
     }
 }
 
-#[derive(thiserror::Error, Debug, PartialEq, IntoContractError)]
+#[derive(thiserror::Error, Debug, PartialEq)]
 pub enum Error {
     #[error("sender with role '{actual}' is not allowed to perform this action that requires '{expected}' permissions")]
     PermissionDenied {

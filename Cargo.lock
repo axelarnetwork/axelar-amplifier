@@ -239,7 +239,6 @@ dependencies = [
  "elliptic-curve",
  "enum-display-derive",
  "error-stack",
- "error-utils",
  "ethers-contract",
  "ethers-core",
  "ethers-providers",
@@ -260,6 +259,7 @@ dependencies = [
  "prost-types",
  "rand",
  "random-string",
+ "report",
  "reqwest",
  "router-api",
  "serde",
@@ -802,7 +802,6 @@ dependencies = [
  "cw-storage-plus 1.2.0",
  "cw2 1.1.2",
  "error-stack",
- "error-utils",
  "flagset",
  "hex",
  "itertools 0.11.0",
@@ -810,6 +809,7 @@ dependencies = [
  "num-traits",
  "rand",
  "regex",
+ "report",
  "schemars",
  "serde",
  "serde_json",
@@ -817,6 +817,18 @@ dependencies = [
  "strum 0.25.0",
  "thiserror",
  "valuable",
+]
+
+[[package]]
+name = "axelar-wasm-std-derive"
+version = "1.0.0"
+dependencies = [
+ "axelar-wasm-std",
+ "error-stack",
+ "quote 1.0.36",
+ "report",
+ "syn 2.0.68",
+ "thiserror",
 ]
 
 [[package]]
@@ -1572,16 +1584,17 @@ name = "coordinator"
 version = "1.0.0"
 dependencies = [
  "axelar-wasm-std",
+ "axelar-wasm-std-derive",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-multi-test",
  "cw-storage-plus 1.2.0",
  "cw2 1.1.2",
  "error-stack",
- "error-utils",
  "integration-tests",
  "msgs-derive",
  "multisig",
+ "report",
  "router-api",
  "thiserror",
  "tofn",
@@ -2465,31 +2478,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "error-utils"
-version = "1.0.0"
-dependencies = [
- "cosmwasm-std",
- "cw2 1.1.2",
- "error-stack",
- "error-utils-derive",
- "eyre",
- "itertools 0.11.0",
- "thiserror",
- "valuable",
-]
-
-[[package]]
-name = "error-utils-derive"
-version = "1.0.0"
-dependencies = [
- "error-stack",
- "error-utils",
- "quote 1.0.36",
- "syn 2.0.68",
- "thiserror",
-]
-
-[[package]]
 name = "ethabi"
 version = "18.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3122,6 +3110,7 @@ name = "gateway"
 version = "1.0.0"
 dependencies = [
  "axelar-wasm-std",
+ "axelar-wasm-std-derive",
  "client",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -3129,10 +3118,10 @@ dependencies = [
  "cw-storage-plus 1.2.0",
  "cw2 1.1.2",
  "error-stack",
- "error-utils",
  "gateway-api",
  "itertools 0.11.0",
  "rand",
+ "report",
  "router-api",
  "serde",
  "serde_json",
@@ -3925,13 +3914,13 @@ dependencies = [
  "cosmwasm-std",
  "cw-multi-test",
  "error-stack",
- "error-utils",
  "gateway",
  "gateway-api",
  "k256",
  "multisig",
  "multisig-prover",
  "rand",
+ "report",
  "rewards",
  "router",
  "router-api",
@@ -3950,11 +3939,12 @@ dependencies = [
  "alloy-primitives",
  "alloy-sol-types",
  "axelar-wasm-std",
+ "axelar-wasm-std-derive",
  "cosmwasm-schema",
  "cosmwasm-std",
  "error-stack",
- "error-utils",
  "goldie",
+ "report",
  "router-api",
  "schemars",
  "serde",
@@ -4832,6 +4822,7 @@ name = "multisig"
 version = "1.0.0"
 dependencies = [
  "axelar-wasm-std",
+ "axelar-wasm-std-derive",
  "cosmwasm-crypto",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -4843,13 +4834,13 @@ dependencies = [
  "ed25519-dalek",
  "enum-display-derive",
  "error-stack",
- "error-utils",
  "getrandom",
  "goldie",
  "hex",
  "itertools 0.11.0",
  "k256",
  "msgs-derive",
+ "report",
  "rewards",
  "router-api",
  "serde",
@@ -4865,6 +4856,7 @@ version = "1.0.0"
 dependencies = [
  "anyhow",
  "axelar-wasm-std",
+ "axelar-wasm-std-derive",
  "bcs",
  "coordinator",
  "cosmwasm-schema",
@@ -4875,7 +4867,6 @@ dependencies = [
  "cw2 1.1.2",
  "elliptic-curve",
  "error-stack",
- "error-utils",
  "ethers-contract",
  "ethers-core",
  "evm-gateway",
@@ -4889,6 +4880,7 @@ dependencies = [
  "msgs-derive",
  "multisig",
  "prost 0.12.6",
+ "report",
  "router-api",
  "serde_json",
  "service-registry",
@@ -5022,15 +5014,16 @@ name = "nexus-gateway"
 version = "1.0.0"
 dependencies = [
  "axelar-wasm-std",
+ "axelar-wasm-std-derive",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 1.2.0",
  "cw2 1.1.2",
  "error-stack",
- "error-utils",
  "hex",
  "mockall 0.11.4",
  "msgs-derive",
+ "report",
  "router-api",
  "schemars",
  "serde",
@@ -6340,6 +6333,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7a66a03ae7c801facd77a29370b4faec201768915ac14a721ba36f20bc9c209b"
 
 [[package]]
+name = "report"
+version = "1.0.0"
+dependencies = [
+ "error-stack",
+ "eyre",
+ "itertools 0.11.0",
+ "thiserror",
+ "valuable",
+]
+
+[[package]]
 name = "reqwest"
 version = "0.11.27"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6385,15 +6389,16 @@ name = "rewards"
 version = "1.0.0"
 dependencies = [
  "axelar-wasm-std",
+ "axelar-wasm-std-derive",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-multi-test",
  "cw-storage-plus 1.2.0",
  "cw2 1.1.2",
  "error-stack",
- "error-utils",
  "itertools 0.11.0",
  "msgs-derive",
+ "report",
  "router-api",
  "thiserror",
 ]
@@ -6495,13 +6500,13 @@ name = "router"
 version = "1.0.0"
 dependencies = [
  "axelar-wasm-std",
+ "axelar-wasm-std-derive",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-multi-test",
  "cw-storage-plus 1.2.0",
  "cw2 1.1.2",
  "error-stack",
- "error-utils",
  "flagset",
  "gateway-api",
  "hex",
@@ -6510,6 +6515,7 @@ dependencies = [
  "mockall 0.12.1",
  "msgs-derive",
  "rand",
+ "report",
  "router-api",
  "serde_json",
  "thiserror",
@@ -6520,15 +6526,16 @@ name = "router-api"
 version = "1.0.0"
 dependencies = [
  "axelar-wasm-std",
+ "axelar-wasm-std-derive",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 1.2.0",
  "error-stack",
- "error-utils",
  "flagset",
  "hex",
  "msgs-derive",
  "rand",
+ "report",
  "schemars",
  "serde",
  "serde_json",
@@ -7148,6 +7155,7 @@ name = "service-registry"
 version = "1.0.0"
 dependencies = [
  "axelar-wasm-std",
+ "axelar-wasm-std-derive",
  "coordinator",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -7155,9 +7163,9 @@ dependencies = [
  "cw-storage-plus 1.2.0",
  "cw2 1.1.2",
  "error-stack",
- "error-utils",
  "integration-tests",
  "msgs-derive",
+ "report",
  "router-api",
  "schemars",
  "serde",
@@ -8852,6 +8860,7 @@ version = "1.0.0"
 dependencies = [
  "alloy-primitives",
  "axelar-wasm-std",
+ "axelar-wasm-std-derive",
  "client",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -8859,12 +8868,12 @@ dependencies = [
  "cw-storage-plus 1.2.0",
  "cw2 1.1.2",
  "error-stack",
- "error-utils",
  "integration-tests",
  "itertools 0.11.0",
  "msgs-derive",
  "multisig",
  "rand",
+ "report",
  "rewards",
  "router-api",
  "serde_json",

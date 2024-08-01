@@ -1,6 +1,6 @@
+use axelar_wasm_std_derive::IntoContractError;
 use cosmwasm_std::StdError;
 use cw2::VersionError;
-use error_utils::IntoContractError;
 use thiserror::Error;
 
 #[derive(Error, Debug, PartialEq, IntoContractError)]

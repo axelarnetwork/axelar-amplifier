@@ -11,14 +11,13 @@ cosmwasm-std = "1.5.5"
 cosmwasm-schema = "1.5.5"
 cw-storage-plus = { version = "1.2.0", features = ["iterator", "macro"] }
 cw2 = "1.1.0"
-eyre = "0.6.12"
 ed25519-dalek = { version = "2.1.1", default-features = false }
 error-stack = { version = "0.4.0", features = ["eyre"] }
 events = { version = "^1.0.0", path = "packages/events" }
 events-derive = { version = "^1.0.0", path = "packages/events-derive" }
 evm-gateway = { version = "^1.0.0", path = "packages/evm-gateway" }
 axelar-wasm-std = { version = "^1.0.0", path = "packages/axelar-wasm-std" }
-error-utils-derive = { version = "^1.0.0", path = "packages/error-utils-derive" }
+axelar-wasm-std-derive = { version = "^1.0.0", path = "packages/axelar-wasm-std-derive" }
 integration-tests = { version = "^1.0.0", path = "integration-tests" }
 itertools = "0.11.0"
 voting-verifier = { version = "^1.0.0", path = "contracts/voting-verifier" }
@@ -31,7 +30,7 @@ service-registry = { version = "^1.0.0", path = "contracts/service-registry" }
 gateway = { version = "^1.0.0", path = "contracts/gateway" }
 gateway-api = { version = "^1.0.0", path = "packages/gateway-api" }
 router-api = { version = "^1.0.0", path = "packages/router-api" }
-error-utils = { version = "^1.0.0", path = "packages/error-utils" }
+report = { version = "^1.0.0", path = "packages/report" }
 client = { version = "^1.0.0", path = "packages/client" }
 quote = "1.0.36"
 rewards = { version = "^1.0.0", path = "contracts/rewards" }
@@ -54,7 +53,6 @@ alloy-sol-types = { version = "0.7.6", default-features = false, features = ["st
 strum = { version = "0.25", default-features = false, features = ["derive"] }
 interchain-token-service = { version = "^0.1.0", path = "interchain-token-service" }
 goldie = { version = "0.5" }
-valuable = { version = "0.1.0" }
 
 [workspace.lints.clippy]
 arithmetic_side_effects = "deny"

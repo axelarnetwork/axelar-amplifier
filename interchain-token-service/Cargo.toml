@@ -8,11 +8,11 @@ edition = "2021"
 alloy-primitives = { workspace = true }
 alloy-sol-types = { workspace = true }
 axelar-wasm-std = { workspace = true }
-error-utils = { workspace = true }
-
+axelar-wasm-std-derive = { workspace = true }
 cosmwasm-schema = { workspace = true }
 cosmwasm-std = { workspace = true }
 error-stack = { workspace = true }
+report = { workspace = true }
 router-api = { workspace = true }
 schemars = { workspace = true }
 serde = { workspace = true }

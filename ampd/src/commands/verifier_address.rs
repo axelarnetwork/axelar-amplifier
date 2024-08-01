@@ -1,6 +1,6 @@
 use axelar_wasm_std::FnExt;
 use error_stack::Result;
-use error_utils::result_ext::ResultCompatExt;
+use report::ResultCompatExt;
 
 use crate::commands::verifier_pub_key;
 use crate::tofnd::Config as TofndConfig;

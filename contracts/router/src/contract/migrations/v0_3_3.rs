@@ -1,10 +1,10 @@
 #![allow(deprecated)]
 
+use axelar_wasm_std::error::ContractError;
 use axelar_wasm_std::{killswitch, permission_control};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, StdResult, Storage};
 use cw_storage_plus::Item;
-use error_utils::ContractError;
 use router_api::error::Error;
 
 use crate::contract::CONTRACT_NAME;
@@ -52,11 +52,11 @@ const CONFIG: Item<Config> = Item::new("config");
 mod test {
     use std::collections::HashMap;
 
+    use axelar_wasm_std::error::ContractError;
     use axelar_wasm_std::killswitch;
     use axelar_wasm_std::msg_id::MessageIdFormat;
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
     use cosmwasm_std::{DepsMut, Env, MessageInfo, Response};
-    use error_utils::ContractError;
     use router_api::msg::ExecuteMsg;
 
     use crate::contract::migrations::v0_3_3;

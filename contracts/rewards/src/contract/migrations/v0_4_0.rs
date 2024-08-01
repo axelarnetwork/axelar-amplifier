@@ -1,10 +1,10 @@
 #![allow(deprecated)]
 
+use axelar_wasm_std::error::ContractError;
 use axelar_wasm_std::permission_control;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Storage};
 use cw_storage_plus::Item;
-use error_utils::ContractError;
 use router_api::error::Error;
 
 use crate::contract::CONTRACT_NAME;
@@ -58,7 +58,7 @@ pub mod tests {
         env: Env,
         _info: MessageInfo,
         msg: InstantiateMsg,
-    ) -> Result<Response, error_utils::ContractError> {
+    ) -> Result<Response, axelar_wasm_std::error::ContractError> {
         cw2::set_contract_version(deps.storage, CONTRACT_NAME, v0_4_0::BASE_VERSION)?;
 
         let governance = deps.api.addr_validate(&msg.governance_address)?;

@@ -2,7 +2,7 @@ use axelar_wasm_std::nonempty;
 use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmrs::tx::Msg;
 use error_stack::Result;
-use error_utils::result_ext::ResultCompatExt;
+use report::ResultCompatExt;
 use router_api::ChainName;
 use service_registry::msg::ExecuteMsg;
 use valuable::Valuable;

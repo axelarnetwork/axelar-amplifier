@@ -1,8 +1,8 @@
 use std::future::Future;
 use std::pin::Pin;
 
+use axelar_wasm_std::error::extend_err;
 use error_stack::{Context, Result, ResultExt};
-use error_utils::extend_err;
 use thiserror::Error;
 use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;

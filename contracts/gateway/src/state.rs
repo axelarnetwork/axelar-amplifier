@@ -1,7 +1,7 @@
+use axelar_wasm_std_derive::IntoContractError;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, StdError, Storage};
 use cw_storage_plus::{Item, Map};
-use error_utils::IntoContractError;
 use router_api::{CrossChainId, Message};
 
 #[cw_serde]

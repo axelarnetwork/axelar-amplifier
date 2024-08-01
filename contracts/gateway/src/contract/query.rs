@@ -1,6 +1,6 @@
+use axelar_wasm_std::error::extend_err;
 use cosmwasm_std::{to_json_binary, Binary, Storage};
 use error_stack::Result;
-use error_utils::extend_err;
 use router_api::{CrossChainId, Message};
 
 use crate::state;

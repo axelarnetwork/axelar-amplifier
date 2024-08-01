@@ -24,7 +24,7 @@ pub fn instantiate(
     _env: Env,
     _info: MessageInfo,
     msg: InstantiateMsg,
-) -> Result<Response, error_utils::ContractError> {
+) -> Result<Response, axelar_wasm_std::error::ContractError> {
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     let governance = deps.api.addr_validate(&msg.governance_account)?;
@@ -39,7 +39,7 @@ pub fn execute(
     env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
-) -> Result<Response, error_utils::ContractError> {
+) -> Result<Response, axelar_wasm_std::error::ContractError> {
     match msg.ensure_permissions(deps.storage, &info.sender, match_verifier(&info.sender))? {
         ExecuteMsg::RegisterService {
             service_name,
@@ -168,7 +168,7 @@ pub fn migrate(
     deps: DepsMut,
     _env: Env,
     _msg: Empty,
-) -> Result<Response, error_utils::ContractError> {
+) -> Result<Response, axelar_wasm_std::error::ContractError> {
     migrations::v0_4_1::migrate(deps.storage)?;
 
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
@@ -180,11 +180,11 @@ pub fn migrate(
 mod test {
     use std::str::FromStr;
 
+    use axelar_wasm_std::error::err_contains;
     use cosmwasm_std::testing::{
         mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
     };
     use cosmwasm_std::{coins, from_json, CosmosMsg, Empty, OwnedDeps, StdResult};
-    use error_utils::err_contains;
     use router_api::ChainName;
 
     use super::*;
@@ -1760,7 +1760,7 @@ mod test {
         assert!(res.is_err());
         assert_eq!(
             res.unwrap_err().to_string(),
-            error_utils::ContractError::from(ContractError::InvalidBondingState(
+            axelar_wasm_std::error::ContractError::from(ContractError::InvalidBondingState(
                 BondingState::Unbonding {
                     unbonded_at: unbond_request_env.block.time,
                     amount: min_verifier_bond,

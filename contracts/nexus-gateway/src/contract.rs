@@ -19,7 +19,7 @@ pub fn migrate(
     deps: DepsMut,
     _env: Env,
     _msg: Empty,
-) -> Result<Response, error_utils::ContractError> {
+) -> Result<Response, axelar_wasm_std::error::ContractError> {
     // any version checks should be done before here
 
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
@@ -33,7 +33,7 @@ pub fn instantiate(
     _env: Env,
     _info: MessageInfo,
     msg: InstantiateMsg,
-) -> Result<Response, error_utils::ContractError> {
+) -> Result<Response, axelar_wasm_std::error::ContractError> {
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     let nexus = deps.api.addr_validate(&msg.nexus)?;
@@ -50,7 +50,7 @@ pub fn execute(
     _env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
-) -> Result<Response<nexus::Message>, error_utils::ContractError> {
+) -> Result<Response<nexus::Message>, axelar_wasm_std::error::ContractError> {
     let res = match msg.ensure_permissions(deps.storage, &info.sender, match_router, match_nexus)? {
         ExecuteMsg::RouteMessages(msgs) => {
             route_to_nexus(deps.storage, msgs).change_context(ContractError::RouteToNexus)?
@@ -74,10 +74,9 @@ fn match_nexus(storage: &dyn Storage, _: &ExecuteMsg) -> Result<Addr, Report<Con
 #[cfg(test)]
 mod tests {
     use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
-    use axelar_wasm_std::permission_control;
+    use axelar_wasm_std::{err_contains, permission_control};
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
     use cosmwasm_std::{from_json, Addr, CosmosMsg, WasmMsg};
-    use error_utils::err_contains;
     use hex::decode;
     use router_api::CrossChainId;
 

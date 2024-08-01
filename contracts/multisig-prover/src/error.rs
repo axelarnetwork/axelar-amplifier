@@ -1,6 +1,6 @@
 use axelar_wasm_std::nonempty;
+use axelar_wasm_std_derive::IntoContractError;
 use cosmwasm_std::StdError;
-use error_utils::IntoContractError;
 use router_api::ChainName;
 use thiserror::Error;
 

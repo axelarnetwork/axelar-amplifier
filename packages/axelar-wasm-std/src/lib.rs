@@ -5,6 +5,7 @@ pub use crate::verification::VerificationStatus;
 
 pub mod address_format;
 pub mod counter;
+pub mod error;
 pub mod flagset;
 mod fn_ext;
 pub mod hash;
