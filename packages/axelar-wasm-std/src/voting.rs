@@ -411,6 +411,7 @@ impl WeightedPoll {
 mod tests {
     use cosmwasm_std::{Addr, Uint64};
     use rand::distributions::Alphanumeric;
+    use rand::Rng;
 
     use super::*;
     use crate::{nonempty, Participant, Threshold};

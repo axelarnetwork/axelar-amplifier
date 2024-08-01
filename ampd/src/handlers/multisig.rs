@@ -345,10 +345,10 @@ mod test {
         let mut event = signing_started_event();
 
         let invalid_pub_key: [u8; 32] = rand::random();
-        let mut map: HashMap<String, PublicKey> = HashMap::new();
+        let mut map: HashMap<String, multisig::key::PublicKey> = HashMap::new();
         map.insert(
             rand_account().to_string(),
-            PublicKey::Ecdsa(HexBinary::from(invalid_pub_key.as_slice())),
+            multisig::key::PublicKey::Ecdsa(HexBinary::from(invalid_pub_key.as_slice())),
         );
         match event {
             events::Event::Abci {
