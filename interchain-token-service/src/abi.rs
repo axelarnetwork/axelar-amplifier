@@ -347,7 +347,7 @@ mod tests {
                 },
             },
             ItsHubMessage::SendToHub {
-                destination_chain: ChainName::from_str("unicode-chain-🌍").unwrap(),
+                destination_chain: remote_chain.clone(),
                 message: ItsMessage::DeployInterchainToken {
                     token_id: [0u8; 32].into(),
                     name: "Unicode Token 🪙".into(),
@@ -377,7 +377,7 @@ mod tests {
                 },
             },
             ItsHubMessage::ReceiveFromHub {
-                source_chain: ChainName::from_str("unicode-chain-🌍").unwrap(),
+                source_chain: remote_chain.clone(),
                 message: ItsMessage::DeployInterchainToken {
                     token_id: [0u8; 32].into(),
                     name: "Unicode Token 🪙".into(),
@@ -562,7 +562,7 @@ mod tests {
     #[test]
     fn encode_decode_unicode_strings() {
         let original = ItsHubMessage::SendToHub {
-            destination_chain: ChainName::from_str("unicode-chain-🌍").unwrap(),
+            destination_chain: ChainName::from_str("chain").unwrap(),
             message: ItsMessage::DeployInterchainToken {
                 token_id: [0u8; 32].into(),
                 name: "Unicode Token 🪙".into(),

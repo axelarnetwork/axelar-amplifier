@@ -235,7 +235,7 @@ mod test {
     fn rand_chain_name() -> ChainName {
         rand::thread_rng()
             .sample_iter(&Alphanumeric)
-            .take(32)
+            .take(10)
             .map(char::from)
             .collect::<String>()
             .try_into()
