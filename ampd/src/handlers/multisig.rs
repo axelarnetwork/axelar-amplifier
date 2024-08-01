@@ -8,7 +8,6 @@ use cosmrs::Any;
 use cosmwasm_std::{HexBinary, Uint64};
 use ecdsa::VerifyingKey;
 use error_stack::{Report, ResultExt};
-use events::Error::EventTypeMismatch;
 use events_derive;
 use events_derive::try_from;
 use hex::encode;
@@ -126,7 +125,12 @@ where
             msg,
             expires_at,
         } = match event.try_into() as error_stack::Result<_, _> {
-            Err(report) if matches!(report.current_context(), EventTypeMismatch(_)) => {
+            Err(report)
+                if matches!(
+                    report.current_context(),
+                    events::Error::EventTypeMismatch(_)
+                ) =>
+            {
                 return Ok(vec![]);
             }
             result => result.change_context(DeserializeEvent)?,
@@ -194,8 +198,7 @@ mod test {
     use cosmwasm_std::{HexBinary, Uint64};
     use ecdsa::SigningKey;
     use error_stack::{Report, Result};
-    use multisig::events::Event::SigningStarted;
-    use multisig::key::PublicKey;
+    use multisig::events::Event;
     use multisig::types::MsgToSign;
     use rand::distributions::Alphanumeric;
     use rand::rngs::OsRng;
@@ -242,9 +245,9 @@ mod test {
     fn signing_started_event() -> events::Event {
         let pub_keys = (0..10)
             .map(|_| (rand_account().to_string(), rand_public_key()))
-            .collect::<HashMap<String, PublicKey>>();
+            .collect::<HashMap<String, multisig::key::PublicKey>>();
 
-        let poll_started = SigningStarted {
+        let poll_started = Event::SigningStarted {
             session_id: Uint64::one(),
             verifier_set_id: "verifier_set_id".to_string(),
             pub_keys,
@@ -273,9 +276,9 @@ mod test {
     fn signing_started_event_with_missing_fields(contract_address: &str) -> events::Event {
         let pub_keys = (0..10)
             .map(|_| (rand_account().to_string(), rand_public_key()))
-            .collect::<HashMap<String, PublicKey>>();
+            .collect::<HashMap<String, multisig::key::PublicKey>>();
 
-        let poll_started = SigningStarted {
+        let poll_started = Event::SigningStarted {
             session_id: Uint64::one(),
             verifier_set_id: "verifier_set_id".to_string(),
             pub_keys,
@@ -342,10 +345,10 @@ mod test {
         let mut event = signing_started_event();
 
         let invalid_pub_key: [u8; 32] = rand::random();
-        let mut map: HashMap<String, PublicKey> = HashMap::new();
+        let mut map: HashMap<String, multisig::key::PublicKey> = HashMap::new();
         map.insert(
             rand_account().to_string(),
-            PublicKey::Ecdsa(HexBinary::from(invalid_pub_key.as_slice())),
+            multisig::key::PublicKey::Ecdsa(HexBinary::from(invalid_pub_key.as_slice())),
         );
         match event {
             events::Event::Abci {

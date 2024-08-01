@@ -234,8 +234,8 @@ mod test {
     }
 
     pub fn assert_contract_err_string_contains(
-        actual: impl Into<axelar_wasm_std::error::ContractError>,
-        expected: impl Into<axelar_wasm_std::error::ContractError>,
+        actual: impl Into<ContractError>,
+        expected: impl Into<ContractError>,
     ) {
         assert!(actual
             .into()
