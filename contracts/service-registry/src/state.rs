@@ -1,12 +1,11 @@
+use axelar_wasm_std::nonempty;
+use axelar_wasm_std::snapshot::Participant;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Storage, Timestamp, Uint128};
 use cw_storage_plus::Map;
 use router_api::ChainName;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-
-use axelar_wasm_std::nonempty;
-use axelar_wasm_std::snapshot::Participant;
 
 use crate::ContractError;
 
