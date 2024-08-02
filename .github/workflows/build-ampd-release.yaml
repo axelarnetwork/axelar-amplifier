@@ -22,6 +22,7 @@ jobs:
         id: extract_semver
         run: |
           full_semver=$(echo ${{ github.event.inputs.tag }} | sed 's/ampd-//')
+          full_semver="v1.1.1"
           version_number=$(echo $full_semver | sed 's/^v//')
           echo "semver=$full_semver" >> $GITHUB_OUTPUT
           echo "version=$version_number" >> $GITHUB_OUTPUT
@@ -188,18 +189,22 @@ jobs:
         id: prepare-r2-release
         run: |
           mkdir -p "./${VERSION}"
+          ls -la ./ampdbin
           cp -R ./ampdbin/* "./${VERSION}/"
           echo "release-dir=./${VERSION}" >> $GITHUB_OUTPUT
           echo "r2-destination-dir=./releases/ampd/" >> $GITHUB_OUTPUT
+          ls -la ./${VERSION}
+          
+          
 
-      - uses: ryand56/r2-upload-action@latest
-        with:
-          r2-account-id: ${{ secrets.R2_ACCOUNT_ID }}
-          r2-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_CF }}
-          r2-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_CF }}
-          r2-bucket: ${{ secrets.R2_BUCKET }}
-          source-dir: ${{ steps.prepare-r2-release.outputs.release-dir }}
-          destination-dir: ${{ steps.prepare-r2-release.outputs.r2-destination-dir }}
+#      - uses: ryand56/r2-upload-action@latest
+#        with:
+#          r2-account-id: ${{ secrets.R2_ACCOUNT_ID }}
+#          r2-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_CF }}
+#          r2-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_CF }}
+#          r2-bucket: ${{ secrets.R2_BUCKET }}
+#          source-dir: ${{ steps.prepare-r2-release.outputs.release-dir }}
+#          destination-dir: ${{ steps.prepare-r2-release.outputs.r2-destination-dir }}
 
 #  release-docker:
 #    runs-on: ubuntu-22.04
