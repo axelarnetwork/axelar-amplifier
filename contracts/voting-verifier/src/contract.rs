@@ -106,7 +106,7 @@ pub fn migrate(
 
 #[cfg(test)]
 mod test {
-    use axelar_wasm_std::address_format::AddressFormat;
+    use axelar_wasm_std::address::AddressFormat;
     use axelar_wasm_std::msg_id::{
         Base58SolanaTxSignatureAndEventIndex, Base58TxDigestAndEventIndex, HexTxHashAndEventIndex,
         MessageIdFormat,
