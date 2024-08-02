@@ -42,7 +42,7 @@ jobs:
     needs: extract-semver
     strategy:
       matrix:
-        os: [ ubuntu-22.04, macos-12 ]
+        os: [ ubuntu-22.04 ]
         arch: [ amd64, arm64 ]
 
     permissions:
@@ -188,9 +188,10 @@ jobs:
           VERSION: ${{ needs.extract-semver.outputs.version }}
         id: prepare-r2-release
         run: |
+          echo "${VERSION}"
           mkdir -p "./${VERSION}"
           ls -la ./ampdbin
-          cp -R ./ampdbin/* "./${VERSION}/"
+          cp -R ./ampdbin/. "./${VERSION}/"
           echo "release-dir=./${VERSION}" >> $GITHUB_OUTPUT
           echo "r2-destination-dir=./releases/ampd/" >> $GITHUB_OUTPUT
           ls -la ./${VERSION}
