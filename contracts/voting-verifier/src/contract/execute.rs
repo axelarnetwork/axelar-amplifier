@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use axelar_wasm_std::address_format::{validate_address, AddressFormat};
+use axelar_wasm_std::address::{validate_address, AddressFormat};
 use axelar_wasm_std::utils::TryMapExt;
 use axelar_wasm_std::voting::{PollId, PollResults, Vote, WeightedPoll};
 use axelar_wasm_std::{snapshot, MajorityThreshold, VerificationStatus};

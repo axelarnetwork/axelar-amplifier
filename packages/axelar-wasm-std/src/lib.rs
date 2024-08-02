@@ -3,7 +3,7 @@ pub use crate::snapshot::{Participant, Snapshot};
 pub use crate::threshold::{MajorityThreshold, Threshold};
 pub use crate::verification::VerificationStatus;
 
-pub mod address_format;
+pub mod address;
 pub mod counter;
 pub mod error;
 pub mod flagset;

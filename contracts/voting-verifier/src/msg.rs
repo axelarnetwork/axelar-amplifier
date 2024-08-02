@@ -1,4 +1,4 @@
-use axelar_wasm_std::address_format::AddressFormat;
+use axelar_wasm_std::address::AddressFormat;
 use axelar_wasm_std::msg_id::MessageIdFormat;
 use axelar_wasm_std::voting::{PollId, PollStatus, Vote, WeightedPoll};
 use axelar_wasm_std::{nonempty, MajorityThreshold, VerificationStatus};
