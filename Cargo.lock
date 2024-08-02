@@ -795,6 +795,7 @@ name = "axelar-wasm-std"
 version = "1.0.0"
 dependencies = [
  "alloy-primitives",
+ "axelar-wasm-std-derive",
  "bs58 0.5.1",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -1584,7 +1585,6 @@ name = "coordinator"
 version = "1.0.0"
 dependencies = [
  "axelar-wasm-std",
- "axelar-wasm-std-derive",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-multi-test",
@@ -3110,7 +3110,6 @@ name = "gateway"
 version = "1.0.0"
 dependencies = [
  "axelar-wasm-std",
- "axelar-wasm-std-derive",
  "client",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -3939,7 +3938,6 @@ dependencies = [
  "alloy-primitives",
  "alloy-sol-types",
  "axelar-wasm-std",
- "axelar-wasm-std-derive",
  "cosmwasm-schema",
  "cosmwasm-std",
  "error-stack",
@@ -4822,7 +4820,6 @@ name = "multisig"
 version = "1.0.0"
 dependencies = [
  "axelar-wasm-std",
- "axelar-wasm-std-derive",
  "cosmwasm-crypto",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -4856,7 +4853,6 @@ version = "1.0.0"
 dependencies = [
  "anyhow",
  "axelar-wasm-std",
- "axelar-wasm-std-derive",
  "bcs",
  "coordinator",
  "cosmwasm-schema",
@@ -5014,7 +5010,6 @@ name = "nexus-gateway"
 version = "1.0.0"
 dependencies = [
  "axelar-wasm-std",
- "axelar-wasm-std-derive",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 1.2.0",
@@ -6389,7 +6384,6 @@ name = "rewards"
 version = "1.0.0"
 dependencies = [
  "axelar-wasm-std",
- "axelar-wasm-std-derive",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-multi-test",
@@ -6500,7 +6494,6 @@ name = "router"
 version = "1.0.0"
 dependencies = [
  "axelar-wasm-std",
- "axelar-wasm-std-derive",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-multi-test",
@@ -6526,7 +6519,6 @@ name = "router-api"
 version = "1.0.0"
 dependencies = [
  "axelar-wasm-std",
- "axelar-wasm-std-derive",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 1.2.0",
@@ -7155,7 +7147,6 @@ name = "service-registry"
 version = "1.0.0"
 dependencies = [
  "axelar-wasm-std",
- "axelar-wasm-std-derive",
  "coordinator",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -8860,7 +8851,6 @@ version = "1.0.0"
 dependencies = [
  "alloy-primitives",
  "axelar-wasm-std",
- "axelar-wasm-std-derive",
  "client",
  "cosmwasm-schema",
  "cosmwasm-std",
