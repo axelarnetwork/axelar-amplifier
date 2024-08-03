@@ -62,6 +62,16 @@ rpc_url = 'http://127.0.0.1/'
 secs = 3
 nanos = 0
 
+[[handlers]]
+type = 'MvxMsgVerifier'
+cosmwasm_contract = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'
+proxy_url = 'http://127.0.0.1/'
+
+[[handlers]]
+type = 'MvxVerifierSetVerifier'
+cosmwasm_contract = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'
+proxy_url = 'http://127.0.0.1/'
+
 [tofnd_config]
 url = 'http://localhost:50051/'
 party_uid = 'ampd'
