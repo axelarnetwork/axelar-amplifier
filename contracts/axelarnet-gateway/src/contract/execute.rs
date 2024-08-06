@@ -1,5 +1,5 @@
 use axelar_wasm_std::nonempty;
-use cosmwasm_std::{to_json_binary, Addr, Api, HexBinary, Response, Storage, WasmMsg};
+use cosmwasm_std::{Addr, Api, HexBinary, QuerierWrapper, Response, Storage};
 use error_stack::{report, Result, ResultExt};
 use router_api::client::Router;
 use router_api::{Address, ChainName, CrossChainId, Message};
@@ -7,7 +7,7 @@ use sha3::{Digest, Keccak256};
 
 use crate::contract::Error;
 use crate::events::AxelarnetGatewayEvent;
-use crate::msg::AxelarExecutableExecuteMsg;
+use crate::executable::AxelarExecutableClient;
 use crate::state::{self};
 
 // TODO: Retrieve the actual tx hash from core, since cosmwasm doesn't provide it. Use a placeholder in the meantime.
@@ -98,6 +98,7 @@ pub(crate) fn route_incoming_messages(
 pub(crate) fn execute(
     store: &mut dyn Storage,
     api: &dyn Api,
+    querier: QuerierWrapper,
     cc_id: CrossChainId,
     payload: HexBinary,
 ) -> Result<Response, Error> {
@@ -109,26 +110,24 @@ pub(crate) fn execute(
         return Err(report!(Error::PayloadHashMismatch));
     }
 
+    let config = state::load_config(store).change_context(Error::InvalidStoreAccess)?;
+    if config.chain_name != msg.destination_chain {
+        return Err(report!(Error::InvalidDestinationChain(
+            msg.destination_chain
+        )));
+    }
+
     let destination_contract = api
         .addr_validate(&msg.destination_address)
         .change_context(Error::InvalidAddress(msg.destination_address.to_string()))?;
 
-    // Apps are required to expose AxelarExecutableExecuteMsg::Execute interface
-    let execute_msg = AxelarExecutableExecuteMsg::Execute {
-        cc_id: msg.cc_id.clone(),
-        source_address: msg.source_address.clone(),
-        destination_chain: msg.destination_chain.clone(),
-        destination_address: msg.destination_address.clone(),
-        payload,
-    };
+    let executable: AxelarExecutableClient =
+        client::Client::new(querier, destination_contract).into();
 
-    let wasm_msg = WasmMsg::Execute {
-        contract_addr: destination_contract.to_string(),
-        msg: to_json_binary(&execute_msg).change_context(Error::SerializeWasmMsg)?,
-        funds: vec![],
-    };
+    // Apps are required to expose AxelarExecutableMsg::Execute interface
+    let executable_msg = executable.execute(msg.cc_id.clone(), msg.source_address.clone(), payload);
 
     Ok(Response::new()
-        .add_message(wasm_msg)
+        .add_message(executable_msg)
         .add_event(AxelarnetGatewayEvent::MessageExecuted { msg }.into()))
 }

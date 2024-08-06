@@ -6,7 +6,7 @@ use cosmwasm_std::{
 };
 use error_stack::ResultExt;
 use router_api::client::Router;
-use router_api::CrossChainId;
+use router_api::{ChainName, CrossChainId};
 
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{self, Config};
@@ -31,6 +31,8 @@ pub enum Error {
     InvalidSender(Addr),
     #[error("invalid address {0}")]
     InvalidAddress(String),
+    #[error("invalid destination chain {0}")]
+    InvalidDestinationChain(ChainName),
     #[error("failed to construct message id")]
     MessageIdConstructionFailed,
     #[error("failed to save outgoing message")]
@@ -125,7 +127,7 @@ pub fn execute(
             }
         }
         ExecuteMsg::Execute { cc_id, payload } => {
-            execute::execute(deps.storage, deps.api, cc_id, payload)
+            execute::execute(deps.storage, deps.api, deps.querier, cc_id, payload)
         }
     }?
     .then(Ok)
