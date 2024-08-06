@@ -23,8 +23,7 @@ pub(crate) fn call_contract(
     destination_address: Address,
     payload: HexBinary,
 ) -> Result<Response, Error> {
-    let counter =
-        state::increment_message_counter(store).change_context(Error::InvalidStoreAccess)?;
+    let counter = state::increment_msg_counter(store).change_context(Error::InvalidStoreAccess)?;
 
     let message_id = HexTxHashAndEventIndex {
         tx_hash: PLACEHOLDER_TX_HASH,
@@ -66,7 +65,7 @@ pub(crate) fn route_outgoing_messages(
     msgs: Vec<Message>,
 ) -> Result<Response, Error> {
     for msg in msgs.iter() {
-        state::save_outgoing_message(store, msg.cc_id.clone(), msg.clone())
+        state::save_outgoing_msg(store, msg.cc_id.clone(), msg.clone())
             .change_context(Error::SaveOutgoingMessage)?;
     }
 
@@ -108,7 +107,7 @@ pub(crate) fn execute(
     cc_id: CrossChainId,
     payload: HexBinary,
 ) -> Result<Response, Error> {
-    let msg = state::update_message_status(store, cc_id.clone())
+    let msg = state::update_msg_status(store, cc_id.clone())
         .change_context(Error::MessageStatusUpdateFailed(cc_id))?;
 
     let payload_hash: [u8; 32] = Keccak256::digest(payload.as_slice()).into();

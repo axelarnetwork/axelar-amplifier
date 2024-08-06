@@ -10,7 +10,7 @@ pub fn outgoing_messages<'a>(
     cross_chain_ids: impl Iterator<Item = &'a CrossChainId>,
 ) -> Result<Binary, state::Error> {
     let msgs = cross_chain_ids
-        .map(|id| state::may_load_outgoing_message(storage, id))
+        .map(|id| state::may_load_outgoing_msg(storage, id))
         .fold(Ok(vec![]), accumulate_errs)?
         .into_iter()
         .filter_map(|msg_with_status| {
@@ -55,7 +55,7 @@ mod test {
         let messages = generate_messages();
 
         for message in messages.iter() {
-            state::save_outgoing_message(
+            state::save_outgoing_msg(
                 deps.as_mut().storage,
                 message.cc_id.clone(),
                 message.clone(),
@@ -88,7 +88,7 @@ mod test {
 
         let messages = generate_messages();
 
-        state::save_outgoing_message(
+        state::save_outgoing_msg(
             deps.as_mut().storage,
             messages[1].cc_id.clone(),
             messages[1].clone(),
@@ -108,19 +108,19 @@ mod test {
 
         let messages = generate_messages();
 
-        state::save_outgoing_message(
+        state::save_outgoing_msg(
             deps.as_mut().storage,
             messages[0].cc_id.clone(),
             messages[0].clone(),
         )
         .unwrap();
-        state::save_outgoing_message(
+        state::save_outgoing_msg(
             deps.as_mut().storage,
             messages[1].cc_id.clone(),
             messages[1].clone(),
         )
         .unwrap();
-        state::update_message_status(deps.as_mut().storage, messages[1].cc_id.clone()).unwrap();
+        state::update_msg_status(deps.as_mut().storage, messages[1].cc_id.clone()).unwrap();
 
         let ids = messages.iter().map(|msg| &msg.cc_id);
 

@@ -64,11 +64,13 @@ pub(crate) fn load_config(storage: &dyn Storage) -> Result<Config, Error> {
 pub(crate) fn save_incoming_msg(
     storage: &mut dyn Storage,
     key: CrossChainId,
-    value: &Message,
+    msg: &Message,
 ) -> Result<(), Error> {
     match INCOMING_MESSAGES.may_load(storage, key.clone())? {
         Some(_) => Err(Error::MessageAlreadyExists(key)),
-        None => INCOMING_MESSAGES.save(storage, key, value).map_err(Error::from),
+        None => INCOMING_MESSAGES
+            .save(storage, key, msg)
+            .map_err(Error::from),
     }
 }
 
@@ -81,7 +83,7 @@ pub(crate) fn may_load_incoming_msg(
         .map_err(Error::from)
 }
 
-pub(crate) fn may_load_outgoing_message(
+pub(crate) fn may_load_outgoing_msg(
     storage: &dyn Storage,
     cc_id: &CrossChainId,
 ) -> Result<Option<MessageWithStatus>, Error> {
@@ -90,7 +92,7 @@ pub(crate) fn may_load_outgoing_message(
         .map_err(Error::from)
 }
 
-pub(crate) fn save_outgoing_message(
+pub(crate) fn save_outgoing_msg(
     storage: &mut dyn Storage,
     cc_id: CrossChainId,
     msg: Message,
@@ -119,7 +121,7 @@ pub(crate) fn save_outgoing_message(
 }
 
 /// Update the status of a message to executed if it is in approved status, error otherwise.
-pub(crate) fn update_message_status(
+pub(crate) fn update_msg_status(
     storage: &mut dyn Storage,
     cc_id: CrossChainId,
 ) -> Result<Message, Error> {
@@ -153,7 +155,7 @@ pub(crate) fn update_message_status(
     }
 }
 
-pub(crate) fn increment_message_counter(storage: &mut dyn Storage) -> Result<u32, Error> {
+pub(crate) fn increment_msg_counter(storage: &mut dyn Storage) -> Result<u32, Error> {
     COUNTER.incr(storage).map_err(Error::from)
 }
 
@@ -164,7 +166,7 @@ mod test {
     use router_api::{CrossChainId, Message};
 
     use crate::state::{
-        load_config, may_load_outgoing_message, save_config, save_outgoing_message, Config,
+        load_config, may_load_outgoing_msg, save_config, save_outgoing_msg, Config,
         MessageWithStatus,
     };
 
@@ -185,7 +187,7 @@ mod test {
     fn outgoing_messages_storage() {
         let mut deps = mock_dependencies();
 
-        let message = Message {
+        let msg = Message {
             cc_id: CrossChainId {
                 source_chain: "chain".parse().unwrap(),
                 message_id: "id".parse().unwrap(),
@@ -196,19 +198,14 @@ mod test {
             payload_hash: [1; 32],
         };
         let msg_with_status = MessageWithStatus {
-            msg: message.clone(),
+            msg: msg.clone(),
             status: crate::state::MessageStatus::Approved,
         };
 
-        assert!(save_outgoing_message(
-            deps.as_mut().storage,
-            message.cc_id.clone(),
-            message.clone(),
-        )
-        .is_ok());
+        assert!(save_outgoing_msg(deps.as_mut().storage, msg.cc_id.clone(), msg.clone(),).is_ok());
 
         assert_eq!(
-            may_load_outgoing_message(&deps.storage, &message.cc_id).unwrap(),
+            may_load_outgoing_msg(&deps.storage, &msg.cc_id).unwrap(),
             Some(msg_with_status)
         );
 
@@ -218,7 +215,7 @@ mod test {
         };
 
         assert_eq!(
-            may_load_outgoing_message(&deps.storage, &unknown_chain_id).unwrap(),
+            may_load_outgoing_msg(&deps.storage, &unknown_chain_id).unwrap(),
             None
         );
 
@@ -227,7 +224,7 @@ mod test {
             message_id: "unknown".parse().unwrap(),
         };
         assert_eq!(
-            may_load_outgoing_message(&deps.storage, &unknown_id).unwrap(),
+            may_load_outgoing_msg(&deps.storage, &unknown_id).unwrap(),
             None
         );
     }
