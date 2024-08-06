@@ -26,7 +26,7 @@ pub(crate) struct MessageWithStatus {
 const CONFIG_NAME: &str = "config";
 const CONFIG: Item<Config> = Item::new(CONFIG_NAME);
 const COUNTER_NAME: &str = "counter";
-const COUNTER: Counter<u64> = Counter::new(COUNTER_NAME);
+const COUNTER: Counter<u32> = Counter::new(COUNTER_NAME);
 const INCOMING_MESSAGES_NAME: &str = "incoming_messages";
 const INCOMING_MESSAGES: Map<CrossChainId, Message> = Map::new(INCOMING_MESSAGES_NAME);
 const OUTGOING_MESSAGES_NAME: &str = "outgoing_messages";
@@ -46,6 +46,8 @@ pub enum Error {
     MessageNotApproved(CrossChainId),
     #[error("message with ID {0} already executed")]
     MessageAlreadyExecuted(CrossChainId),
+    #[error("incoming message with ID {0} already exists")]
+    MessageAlreadyExists(CrossChainId),
 }
 
 pub(crate) fn save_config(storage: &mut dyn Storage, value: &Config) -> Result<(), Error> {
@@ -64,9 +66,10 @@ pub(crate) fn save_incoming_msg(
     key: CrossChainId,
     value: &Message,
 ) -> Result<(), Error> {
-    INCOMING_MESSAGES
-        .save(storage, key, value)
-        .map_err(Error::from)
+    match INCOMING_MESSAGES.may_load(storage, key.clone())? {
+        Some(_) => Err(Error::MessageAlreadyExists(key)),
+        None => INCOMING_MESSAGES.save(storage, key, value).map_err(Error::from),
+    }
 }
 
 pub(crate) fn may_load_incoming_msg(
@@ -150,7 +153,7 @@ pub(crate) fn update_message_status(
     }
 }
 
-pub(crate) fn increment_message_counter(storage: &mut dyn Storage) -> Result<u64, Error> {
+pub(crate) fn increment_message_counter(storage: &mut dyn Storage) -> Result<u32, Error> {
     COUNTER.incr(storage).map_err(Error::from)
 }
 
