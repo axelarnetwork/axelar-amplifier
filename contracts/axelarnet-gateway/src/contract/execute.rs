@@ -1,3 +1,4 @@
+use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
 use axelar_wasm_std::nonempty;
 use cosmwasm_std::{Addr, Api, HexBinary, QuerierWrapper, Response, Storage};
 use error_stack::{report, Result, ResultExt};
@@ -11,8 +12,7 @@ use crate::executable::AxelarExecutableClient;
 use crate::state::{self};
 
 // TODO: Retrieve the actual tx hash from core, since cosmwasm doesn't provide it. Use a placeholder in the meantime.
-const PLACEHOLDER_TX_HASH: &str =
-    "0x0000000000000000000000000000000000000000000000000000000000000000";
+const PLACEHOLDER_TX_HASH: [u8; 32] = [0u8; 32];
 
 pub(crate) fn call_contract(
     store: &mut dyn Storage,
@@ -26,10 +26,16 @@ pub(crate) fn call_contract(
     let counter =
         state::increment_message_counter(store).change_context(Error::InvalidStoreAccess)?;
 
+    let message_id = HexTxHashAndEventIndex {
+        tx_hash: PLACEHOLDER_TX_HASH,
+        event_index: counter,
+    }
+    .to_string();
+
     let cc_id = CrossChainId {
         source_chain: chain_name.into(),
-        message_id: nonempty::String::try_from(format!("{0}-{1}", PLACEHOLDER_TX_HASH, counter))
-            .change_context(Error::MessageIdConstructionFailed)?,
+        message_id: nonempty::String::try_from(message_id)
+            .change_context(Error::InvalidMessageId)?,
     };
 
     let payload_hash = Keccak256::digest(payload.as_slice()).into();

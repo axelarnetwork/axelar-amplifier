@@ -33,8 +33,8 @@ pub enum Error {
     InvalidAddress(String),
     #[error("invalid destination chain {0}")]
     InvalidDestinationChain(ChainName),
-    #[error("failed to construct message id")]
-    MessageIdConstructionFailed,
+    #[error("invalid message id")]
+    InvalidMessageId,
     #[error("failed to save outgoing message")]
     SaveOutgoingMessage,
     #[error("message with ID {0} not found")]
