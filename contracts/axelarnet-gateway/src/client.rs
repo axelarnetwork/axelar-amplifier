@@ -36,9 +36,8 @@ impl<'a> Client<'a> {
         })
     }
 
-    pub fn execute(&self, message: Message, payload: HexBinary) -> WasmMsg {
-        self.client
-            .execute(&ExecuteMsg::Execute { message, payload })
+    pub fn execute(&self, cc_id: CrossChainId, payload: HexBinary) -> WasmMsg {
+        self.client.execute(&ExecuteMsg::Execute { cc_id, payload })
     }
 
     pub fn route_messages(&self, msgs: Vec<Message>) -> Option<WasmMsg> {
@@ -64,7 +63,6 @@ fn ignore_empty(msgs: Vec<Message>) -> Option<Vec<Message>> {
 mod test {
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info, MockQuerier};
     use cosmwasm_std::{from_json, to_json_binary, DepsMut, QuerierWrapper};
-    use sha3::{Digest, Keccak256};
 
     use super::*;
     use crate::contract::{instantiate, query};
@@ -108,22 +106,15 @@ mod test {
             client::Client::new(QuerierWrapper::new(&querier), addr.clone()).into();
 
         let payload = HexBinary::from(vec![1, 2, 3]);
-        let payload_hash = Keccak256::digest(payload.as_slice()).into();
-        let message = Message {
-            cc_id: CrossChainId::new("source-chain", "message-id").unwrap(),
-            source_address: "source-address".parse().unwrap(),
-            destination_chain: "destination-chain".parse().unwrap(),
-            destination_address: "destination-address".parse().unwrap(),
-            payload_hash,
-        };
+        let cc_id = CrossChainId::new("source-chain", "message-id").unwrap();
 
-        let msg = client.execute(message.clone(), payload.clone());
+        let msg = client.execute(cc_id.clone(), payload.clone());
 
         assert_eq!(
             msg,
             WasmMsg::Execute {
                 contract_addr: addr.to_string(),
-                msg: to_json_binary(&ExecuteMsg::Execute { message, payload }).unwrap(),
+                msg: to_json_binary(&ExecuteMsg::Execute { cc_id, payload }).unwrap(),
                 funds: vec![],
             }
         );

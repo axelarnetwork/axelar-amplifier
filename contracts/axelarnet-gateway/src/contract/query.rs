@@ -120,12 +120,7 @@ mod test {
             messages[1].clone(),
         )
         .unwrap();
-        state::update_message_status(
-            deps.as_mut().storage,
-            messages[1].cc_id.clone(),
-            messages[1].clone(),
-        )
-        .unwrap();
+        state::update_message_status(deps.as_mut().storage, messages[1].cc_id.clone()).unwrap();
 
         let ids = messages.iter().map(|msg| &msg.cc_id);
 

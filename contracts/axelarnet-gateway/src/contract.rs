@@ -124,8 +124,8 @@ pub fn execute(
                 execute::route_incoming_messages(deps.storage, &router, msgs)
             }
         }
-        ExecuteMsg::Execute { message, payload } => {
-            execute::execute(deps.storage, deps.api, message, payload)
+        ExecuteMsg::Execute { cc_id, payload } => {
+            execute::execute(deps.storage, deps.api, cc_id, payload)
         }
     }?
     .then(Ok)

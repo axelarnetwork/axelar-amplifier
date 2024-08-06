@@ -119,31 +119,33 @@ pub(crate) fn save_outgoing_message(
 pub(crate) fn update_message_status(
     storage: &mut dyn Storage,
     cc_id: CrossChainId,
-    msg: Message,
-) -> Result<(), Error> {
+) -> Result<Message, Error> {
     let existing = OUTGOING_MESSAGES
         .may_load(storage, cc_id.clone())
         .map_err(Error::from)?;
 
     match existing {
         Some(MessageWithStatus {
-            msg: existing_msg,
-            status,
-        }) if msg == existing_msg => match status {
-            MessageStatus::Approved => OUTGOING_MESSAGES
+            msg,
+            status: MessageStatus::Approved,
+        }) => {
+            OUTGOING_MESSAGES
                 .save(
                     storage,
                     cc_id,
                     &MessageWithStatus {
-                        msg: existing_msg,
+                        msg: msg.clone(),
                         status: MessageStatus::Executed,
                     },
                 )
-                .map_err(Error::from)?
-                .then(Ok),
-            MessageStatus::Executed => Err(Error::MessageAlreadyExecuted(cc_id)),
-        },
-        Some(_) => Err(Error::MessageMismatch(cc_id)),
+                .map_err(Error::from)?;
+
+            Ok(msg)
+        }
+        Some(MessageWithStatus {
+            status: MessageStatus::Executed,
+            ..
+        }) => Err(Error::MessageAlreadyExecuted(cc_id)),
         _ => Err(Error::MessageNotApproved(cc_id)),
     }
 }

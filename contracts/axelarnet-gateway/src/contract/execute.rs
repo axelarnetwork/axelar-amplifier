@@ -7,7 +7,7 @@ use sha3::{Digest, Keccak256};
 
 use crate::contract::Error;
 use crate::events::AxelarnetGatewayEvent;
-use crate::msg::ExecuteMsg;
+use crate::msg::AxelarExecutableExecuteMsg;
 use crate::state::{self};
 
 // TODO: Retrieve the actual tx hash from core, since cosmwasm doesn't provide it. Use a placeholder in the meantime.
@@ -98,28 +98,27 @@ pub(crate) fn route_incoming_messages(
 pub(crate) fn execute(
     store: &mut dyn Storage,
     api: &dyn Api,
-    message: Message,
+    cc_id: CrossChainId,
     payload: HexBinary,
 ) -> Result<Response, Error> {
+    let msg = state::update_message_status(store, cc_id.clone())
+        .change_context(Error::MessageStatusUpdateFailed(cc_id))?;
+
     let payload_hash: [u8; 32] = Keccak256::digest(payload.as_slice()).into();
-    if payload_hash != message.payload_hash {
+    if payload_hash != msg.payload_hash {
         return Err(report!(Error::PayloadHashMismatch));
     }
 
-    let cc_id = message.cc_id.clone();
-
-    state::update_message_status(store, cc_id.clone(), message.clone())
-        .change_context(Error::MessageStatusUpdateFailed(cc_id))?;
-
     let destination_contract = api
-        .addr_validate(&message.destination_address)
-        .change_context(Error::InvalidAddress(
-            message.destination_address.to_string(),
-        ))?;
+        .addr_validate(&msg.destination_address)
+        .change_context(Error::InvalidAddress(msg.destination_address.to_string()))?;
 
-    // Apps are required to expose ExecuteMsg::Execute interface
-    let execute_msg = ExecuteMsg::Execute {
-        message: message.clone(),
+    // Apps are required to expose AxelarExecutableExecuteMsg::Execute interface
+    let execute_msg = AxelarExecutableExecuteMsg::Execute {
+        cc_id: msg.cc_id.clone(),
+        source_address: msg.source_address.clone(),
+        destination_chain: msg.destination_chain.clone(),
+        destination_address: msg.destination_address.clone(),
         payload,
     };
 
@@ -131,5 +130,5 @@ pub(crate) fn execute(
 
     Ok(Response::new()
         .add_message(wasm_msg)
-        .add_event(AxelarnetGatewayEvent::MessageExecuted { msg: message }.into()))
+        .add_event(AxelarnetGatewayEvent::MessageExecuted { msg }.into()))
 }

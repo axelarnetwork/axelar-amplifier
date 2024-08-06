@@ -34,7 +34,7 @@ pub enum ExecuteMsg {
     /// Execute the message at the destination contract with the corresponding payload.
     #[permission(Any)]
     Execute {
-        message: Message,
+        cc_id: CrossChainId,
         payload: HexBinary,
     },
 }
@@ -45,4 +45,16 @@ pub enum QueryMsg {
     /// Returns the list of messages with their status destined for Axelar.
     #[returns(Vec<MessageWithStatus>)]
     OutgoingMessages { message_ids: Vec<CrossChainId> },
+}
+
+#[cw_serde]
+pub enum AxelarExecutableExecuteMsg {
+    /// Execute the message at the destination contract with the corresponding payload, via the gateway.
+    Execute {
+        cc_id: CrossChainId,
+        source_address: Address,
+        destination_chain: ChainName,
+        destination_address: Address,
+        payload: HexBinary,
+    },
 }
