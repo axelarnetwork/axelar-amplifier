@@ -10,6 +10,10 @@ use crate::events::AxelarnetGatewayEvent;
 use crate::msg::ExecuteMsg;
 use crate::state::{self};
 
+// TODO: Retrieve the actual tx hash from core, since cosmwasm doesn't provide it. Use a placeholder in the meantime.
+const PLACEHOLDER_TX_HASH: &str =
+    "0x0000000000000000000000000000000000000000000000000000000000000000";
+
 pub(crate) fn call_contract(
     store: &mut dyn Storage,
     router: &Router,
@@ -22,10 +26,9 @@ pub(crate) fn call_contract(
     let counter =
         state::increment_message_counter(store).change_context(Error::InvalidStoreAccess)?;
 
-    // TODO: set an appropriate id
     let cc_id = CrossChainId {
         source_chain: chain_name.into(),
-        message_id: nonempty::String::try_from(format!("0xdead-{0}", counter))
+        message_id: nonempty::String::try_from(format!("{0}-{1}", PLACEHOLDER_TX_HASH, counter))
             .change_context(Error::MessageIdConstructionFailed)?,
     };
 
