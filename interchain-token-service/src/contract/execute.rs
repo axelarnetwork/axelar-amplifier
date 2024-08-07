@@ -1,11 +1,15 @@
-use cosmwasm_std::{DepsMut, HexBinary, Response};
+use cosmwasm_std::{DepsMut, HexBinary, Response, Storage};
 use error_stack::{report, Result, ResultExt};
 use router_api::{Address, ChainName, CrossChainId};
 
 use crate::contract::Error;
 use crate::events::ItsContractEvent;
 use crate::primitives::ItsHubMessage;
-use crate::state::{load_config, load_trusted_address, save_trusted_address};
+use crate::state::{
+    load_config, load_trusted_address, save_trusted_address, start_token_balance,
+    update_token_balance,
+};
+use crate::ItsMessage;
 
 pub fn execute_message(
     deps: DepsMut,
@@ -31,6 +35,13 @@ pub fn execute_message(
             destination_chain,
             message: its_message,
         } => {
+            apply_balance_tracking(
+                deps.storage,
+                source_chain.clone(),
+                destination_chain.clone(),
+                &its_message,
+            )?;
+
             let receive_from_hub = ItsHubMessage::ReceiveFromHub {
                 source_chain: source_chain.clone(),
                 message: its_message.clone(),
@@ -60,6 +71,50 @@ pub fn execute_message(
         }
         _ => Err(report!(Error::InvalidPayload)),
     }
+}
+
+fn apply_balance_tracking(
+    storage: &mut dyn Storage,
+    source_chain: ChainName,
+    destination_chain: ChainName,
+    message: &ItsMessage,
+) -> Result<(), Error> {
+    match message {
+        ItsMessage::InterchainTransfer {
+            token_id, amount, ..
+        } => {
+            // Update the balance on the source chain
+            update_token_balance(
+                storage,
+                token_id.clone(),
+                source_chain.clone(),
+                *amount,
+                false,
+            )
+            .change_context_lazy(|| Error::BalanceUpdateFailed(source_chain, token_id.clone()))?;
+
+            // Update the balance on the destination chain
+            update_token_balance(
+                storage,
+                token_id.clone(),
+                destination_chain.clone(),
+                *amount,
+                true,
+            )
+            .change_context_lazy(|| {
+                Error::BalanceUpdateFailed(destination_chain, token_id.clone())
+            })?;
+        }
+        // Start balance tracking for the token on the destination chain when a token deployment is seen
+        // No invariants can be assumed on the source since the token might pre-exist on the source chain
+        ItsMessage::DeployInterchainToken { token_id, .. } => {
+            start_token_balance(storage, token_id.clone(), destination_chain.clone())
+                .change_context(Error::InvalidStoreAccess)?;
+        }
+        ItsMessage::DeployTokenManager { .. } => (),
+    };
+
+    Ok(())
 }
 
 pub fn update_trusted_address(
@@ -275,5 +330,235 @@ mod tests {
         let result = execute_message(deps, cc_id, source_address, payload).unwrap_err();
 
         assert!(err_contains!(result, Error, Error::InvalidPayload));
+    }
+
+    #[test]
+    fn balance_tracking_interchain_transfer() {
+        let mut deps = setup();
+
+        let source_chain: ChainName = "source-chain".parse().unwrap();
+        let destination_chain: ChainName = "destination-chain".parse().unwrap();
+        let source_address: Address = "trusted-source".parse().unwrap();
+        let destination_address: Address = "trusted-destination".parse().unwrap();
+
+        register_trusted_address(&mut deps.as_mut(), source_chain.as_ref(), &source_address);
+        register_trusted_address(
+            &mut deps.as_mut(),
+            destination_chain.as_ref(),
+            &destination_address,
+        );
+
+        let token_id = TokenId::new([1u8; 32]);
+        let amount = Uint256::from(1000u128);
+
+        // Initialize balance tracking for the token on both chains
+        state::start_token_balance(
+            deps.as_mut().storage,
+            token_id.clone(),
+            source_chain.clone(),
+        )
+        .unwrap();
+        state::start_token_balance(
+            deps.as_mut().storage,
+            token_id.clone(),
+            destination_chain.clone(),
+        )
+        .unwrap();
+
+        // Simulate an initial balance on the source chain
+        state::update_token_balance(
+            deps.as_mut().storage,
+            token_id.clone(),
+            source_chain.clone(),
+            amount,
+            true,
+        )
+        .unwrap();
+
+        let transfer_message = ItsMessage::InterchainTransfer {
+            token_id: token_id.clone(),
+            source_address: HexBinary::from_hex("1234").unwrap(),
+            destination_address: HexBinary::from_hex("5678").unwrap(),
+            amount,
+            data: HexBinary::from_hex("abcd").unwrap(),
+        };
+        let its_hub_message = ItsHubMessage::SendToHub {
+            destination_chain: destination_chain.clone(),
+            message: transfer_message,
+        };
+
+        let payload = its_hub_message.abi_encode();
+        let cc_id = CrossChainId::new(source_chain.clone(), "transfer-message-id").unwrap();
+        execute_message(deps.as_mut(), cc_id, source_address, payload).unwrap();
+
+        // Check balances after transfer
+        let source_balance =
+            state::may_load_token_balance(deps.as_ref().storage, &token_id, &source_chain).unwrap();
+        let destination_balance =
+            state::may_load_token_balance(deps.as_ref().storage, &token_id, &destination_chain)
+                .unwrap();
+
+        assert_eq!(source_balance, Some(Uint256::zero()));
+        assert_eq!(destination_balance, Some(amount));
+    }
+
+    #[test]
+    fn balance_tracking_deploy_interchain_token() {
+        let mut deps = setup();
+
+        let source_chain: ChainName = "source-chain".parse().unwrap();
+        let destination_chain: ChainName = "destination-chain".parse().unwrap();
+        let source_address: Address = "trusted-source".parse().unwrap();
+        let destination_address: Address = "trusted-destination".parse().unwrap();
+
+        register_trusted_address(&mut deps.as_mut(), source_chain.as_ref(), &source_address);
+        register_trusted_address(
+            &mut deps.as_mut(),
+            destination_chain.as_ref(),
+            &destination_address,
+        );
+
+        let token_id = TokenId::new([2u8; 32]);
+
+        let deploy_message = ItsMessage::DeployInterchainToken {
+            token_id: token_id.clone(),
+            name: "Test Token".to_string(),
+            symbol: "TST".to_string(),
+            decimals: 18,
+            minter: HexBinary::from_hex("1234").unwrap(),
+        };
+        let its_hub_message = ItsHubMessage::SendToHub {
+            destination_chain: destination_chain.clone(),
+            message: deploy_message,
+        };
+
+        let payload = its_hub_message.abi_encode();
+        let cc_id = CrossChainId::new(source_chain.clone(), "deploy-message-id").unwrap();
+        execute_message(deps.as_mut(), cc_id, source_address, payload).unwrap();
+
+        // Check if balance tracking is initialized on the destination chain
+        let destination_balance =
+            state::may_load_token_balance(deps.as_ref().storage, &token_id, &destination_chain)
+                .unwrap();
+        assert_eq!(destination_balance, Some(Uint256::zero()));
+
+        // Check that balance tracking is not initialized on the source chain
+        let source_balance =
+            state::may_load_token_balance(deps.as_ref().storage, &token_id, &source_chain).unwrap();
+        assert_eq!(source_balance, None);
+    }
+
+    #[test]
+    fn balance_tracking_insufficient_balance() {
+        let mut deps = setup();
+
+        let source_chain: ChainName = "source-chain".parse().unwrap();
+        let destination_chain: ChainName = "destination-chain".parse().unwrap();
+        let source_address: Address = "trusted-source".parse().unwrap();
+        let destination_address: Address = "trusted-destination".parse().unwrap();
+
+        register_trusted_address(&mut deps.as_mut(), source_chain.as_ref(), &source_address);
+        register_trusted_address(
+            &mut deps.as_mut(),
+            destination_chain.as_ref(),
+            &destination_address,
+        );
+
+        let token_id = TokenId::new([3u8; 32]);
+        let initial_amount = Uint256::from(500u128);
+        let transfer_amount = Uint256::from(1000u128);
+
+        // Initialize balance tracking and set initial balance
+        state::start_token_balance(
+            deps.as_mut().storage,
+            token_id.clone(),
+            source_chain.clone(),
+        )
+        .unwrap();
+        state::update_token_balance(
+            deps.as_mut().storage,
+            token_id.clone(),
+            source_chain.clone(),
+            initial_amount,
+            true,
+        )
+        .unwrap();
+
+        let transfer_message = ItsMessage::InterchainTransfer {
+            token_id: token_id.clone(),
+            source_address: HexBinary::from_hex("1234").unwrap(),
+            destination_address: HexBinary::from_hex("5678").unwrap(),
+            amount: transfer_amount,
+            data: HexBinary::from_hex("abcd").unwrap(),
+        };
+        let its_hub_message = ItsHubMessage::SendToHub {
+            destination_chain: destination_chain.clone(),
+            message: transfer_message,
+        };
+
+        let payload = its_hub_message.abi_encode();
+        let cc_id =
+            CrossChainId::new(source_chain.clone(), "insufficient-balance-message-id").unwrap();
+        let result = execute_message(deps.as_mut(), cc_id, source_address, payload);
+
+        assert!(result.is_err());
+        assert!(err_contains!(
+            result.unwrap_err(),
+            Error,
+            Error::BalanceUpdateFailed(..)
+        ));
+
+        // Check that the balances remain unchanged
+        let source_balance =
+            state::may_load_token_balance(deps.as_ref().storage, &token_id, &source_chain).unwrap();
+        assert_eq!(source_balance, Some(initial_amount));
+
+        let destination_balance =
+            state::may_load_token_balance(deps.as_ref().storage, &token_id, &destination_chain)
+                .unwrap();
+        assert_eq!(destination_balance, None);
+    }
+
+    #[test]
+    fn balance_tracking_deploy_token_manager() {
+        let mut deps = setup();
+
+        let source_chain: ChainName = "source-chain".parse().unwrap();
+        let destination_chain: ChainName = "destination-chain".parse().unwrap();
+        let source_address: Address = "trusted-source".parse().unwrap();
+        let destination_address: Address = "trusted-destination".parse().unwrap();
+
+        register_trusted_address(&mut deps.as_mut(), source_chain.as_ref(), &source_address);
+        register_trusted_address(
+            &mut deps.as_mut(),
+            destination_chain.as_ref(),
+            &destination_address,
+        );
+
+        let token_id = TokenId::new([4u8; 32]);
+
+        let deploy_message = ItsMessage::DeployTokenManager {
+            token_id: token_id.clone(),
+            token_manager_type: crate::primitives::TokenManagerType::MintBurn,
+            params: HexBinary::from_hex("").unwrap(),
+        };
+        let its_hub_message = ItsHubMessage::SendToHub {
+            destination_chain: destination_chain.clone(),
+            message: deploy_message,
+        };
+
+        let payload = its_hub_message.abi_encode();
+        let cc_id =
+            CrossChainId::new(source_chain.clone(), "deploy-token-manager-message-id").unwrap();
+        execute_message(deps.as_mut(), cc_id, source_address, payload).unwrap();
+
+        // Check that balance tracking is not initialized for DeployTokenManager
+        let source_balance =
+            state::may_load_token_balance(deps.as_ref().storage, &token_id, &source_chain).unwrap();
+        assert_eq!(source_balance, None);
+        let destination_balance =
+            state::may_load_token_balance(deps.as_ref().storage, &token_id, &destination_chain)
+                .unwrap();
+        assert_eq!(destination_balance, None);
     }
 }

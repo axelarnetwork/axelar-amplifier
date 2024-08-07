@@ -1,17 +1,11 @@
-use axelar_wasm_std::IntoContractError;
+use axelar_wasm_std::utils::TryMapExt;
+use axelar_wasm_std::{FnExt, IntoContractError};
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, StdError, Storage};
-use cw_storage_plus::{Item, Map};
+use cosmwasm_std::{Addr, StdError, StdResult, Storage, Uint256};
+use cw_storage_plus::{Item, Key, KeyDeserialize, Map, Prefixer, PrimaryKey};
 use router_api::{Address, ChainName, ChainNameRaw};
 
-#[cw_serde]
-pub struct Config {
-    pub chain_name: ChainNameRaw,
-    pub gateway: Addr,
-}
-
-const CONFIG: Item<Config> = Item::new("config");
-const TRUSTED_ITS_ADDRESSES: Map<&ChainName, Address> = Map::new("trusted_its_addresses");
+use crate::TokenId;
 
 #[derive(thiserror::Error, Debug, IntoContractError)]
 pub enum Error {
@@ -21,7 +15,69 @@ pub enum Error {
     MissingConfig,
     #[error("trusted address for chain {0} not found")]
     TrustedAddressNotFound(ChainName),
+    #[error("insufficient balance for token {token_id} on chain {chain}")]
+    InsufficientBalance {
+        token_id: TokenId,
+        chain: ChainName,
+        balance: Uint256,
+    },
+    #[error("balance already exists for token {token_id} on chain {chain}")]
+    BalanceAlreadyExists { token_id: TokenId, chain: ChainName },
 }
+
+#[cw_serde]
+pub struct Config {
+    pub chain_name: ChainNameRaw,
+    pub gateway: Addr,
+}
+
+#[cw_serde]
+pub struct TokenChainPair {
+    pub token_id: TokenId,
+    pub chain: ChainName,
+}
+
+impl<'a> PrimaryKey<'a> for TokenChainPair {
+    type Prefix = TokenId;
+    type SubPrefix = ();
+    type Suffix = ChainName;
+    type SuperSuffix = Self;
+
+    fn key(&self) -> Vec<Key> {
+        let mut keys = self.token_id.key();
+        keys.extend(self.chain.key());
+        keys
+    }
+}
+
+impl<'a> Prefixer<'a> for TokenChainPair {
+    fn prefix(&self) -> Vec<Key> {
+        self.key()
+    }
+}
+
+impl KeyDeserialize for TokenChainPair {
+    type Output = Self;
+
+    fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
+        if value.len() < 32 {
+            return Err(StdError::generic_err("Invalid key length"));
+        }
+        let (token_id_bytes, chain_bytes) = value.split_at(32);
+        let token_id = TokenId::new(
+            token_id_bytes
+                .try_into()
+                .map_err(|_| StdError::generic_err("Invalid TokenId"))?,
+        );
+        let chain = ChainName::from_vec(chain_bytes.to_vec())?;
+
+        Ok(TokenChainPair { token_id, chain })
+    }
+}
+
+const CONFIG: Item<Config> = Item::new("config");
+const TRUSTED_ITS_ADDRESSES: Map<&ChainName, Address> = Map::new("trusted_its_addresses");
+const TOKEN_BALANCES: Map<TokenChainPair, Uint256> = Map::new("token_balances");
 
 pub(crate) fn load_config(storage: &dyn Storage) -> Result<Config, Error> {
     CONFIG
@@ -63,13 +119,72 @@ pub(crate) fn remove_trusted_address(
     Ok(())
 }
 
-pub(crate) fn get_all_trusted_addresses(
+pub(crate) fn load_all_trusted_addresses(
     storage: &dyn Storage,
 ) -> Result<Vec<(ChainName, Address)>, Error> {
     TRUSTED_ITS_ADDRESSES
         .range(storage, None, None, cosmwasm_std::Order::Ascending)
         .collect::<Result<Vec<_>, _>>()
         .map_err(Error::from)
+}
+
+pub fn start_token_balance(
+    storage: &mut dyn Storage,
+    token_id: TokenId,
+    chain: ChainName,
+) -> Result<(), Error> {
+    let key = TokenChainPair { token_id, chain };
+
+    match TOKEN_BALANCES.may_load(storage, key.clone())? {
+        None => TOKEN_BALANCES
+            .save(storage, key, &Uint256::zero())?
+            .then(Ok),
+        Some(_) => Err(Error::BalanceAlreadyExists {
+            token_id: key.token_id,
+            chain: key.chain,
+        }),
+    }
+}
+
+pub fn update_token_balance(
+    storage: &mut dyn Storage,
+    token_id: TokenId,
+    chain: ChainName,
+    amount: Uint256,
+    is_deposit: bool,
+) -> Result<(), Error> {
+    let key = TokenChainPair { token_id, chain };
+
+    TOKEN_BALANCES
+        .may_load(storage, key.clone())?
+        .try_map(|balance| {
+            if is_deposit {
+                balance
+                    .checked_add(amount)
+                    .map_err(|_| Error::MissingConfig)?
+            } else {
+                balance
+                    .checked_sub(amount)
+                    .map_err(|_| Error::MissingConfig)?
+            }
+            .then(Ok::<Uint256, Error>)
+        })?
+        .try_map(|balance| TOKEN_BALANCES.save(storage, key.clone(), &balance))?;
+
+    Ok(())
+}
+
+pub fn may_load_token_balance(
+    storage: &dyn Storage,
+    token_id: &TokenId,
+    chain: &ChainName,
+) -> Result<Option<Uint256>, Error> {
+    let key = TokenChainPair {
+        token_id: token_id.clone(),
+        chain: chain.clone(),
+    };
+
+    TOKEN_BALANCES.may_load(storage, key)?.then(Ok)
 }
 
 #[cfg(test)]
@@ -128,7 +243,7 @@ mod tests {
         assert!(save_trusted_address(deps.as_mut().storage, &chain1, &address1).is_ok());
         assert!(save_trusted_address(deps.as_mut().storage, &chain2, &address2).is_ok());
 
-        let all_addresses = get_all_trusted_addresses(deps.as_ref().storage).unwrap();
+        let all_addresses = load_all_trusted_addresses(deps.as_ref().storage).unwrap();
         assert_eq!(all_addresses.len(), 2);
         assert!(all_addresses.contains(&(chain1, address1)));
         assert!(all_addresses.contains(&(chain2, address2)));

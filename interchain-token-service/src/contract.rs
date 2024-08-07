@@ -5,11 +5,11 @@ use axelar_wasm_std::{FnExt, IntoContractError};
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{Addr, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response, Storage};
 use error_stack::{Report, ResultExt};
-use router_api::Address;
+use router_api::{Address, ChainName};
 
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
-use crate::state;
 use crate::state::Config;
+use crate::{state, TokenId};
 
 mod execute;
 mod query;
@@ -35,6 +35,8 @@ pub enum Error {
     InvalidPayload,
     #[error("untrusted sender")]
     UntrustedSender,
+    #[error("failed to update balance on chain {0} for token id {1}")]
+    BalanceUpdateFailed(ChainName, TokenId),
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -116,6 +118,7 @@ pub fn query(
     match msg {
         QueryMsg::TrustedAddress { chain } => query::trusted_address(deps, chain)?,
         QueryMsg::AllTrustedAddresses {} => query::all_trusted_addresses(deps)?,
+        QueryMsg::TokenBalance { chain, token_id } => query::token_balance(deps, chain, token_id)?,
     }
     .then(Ok)
 }

@@ -1,9 +1,11 @@
 use std::collections::HashMap;
 
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::HexBinary;
+use cosmwasm_std::{HexBinary, Uint256};
 use msgs_derive::EnsurePermissions;
 use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
+
+use crate::TokenId;
 
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -32,6 +34,8 @@ pub enum QueryMsg {
     TrustedAddress { chain: ChainName },
     #[returns(AllTrustedAddressesResponse)]
     AllTrustedAddresses {},
+    #[returns(TokenBalanceResponse)]
+    TokenBalance { chain: ChainName, token_id: TokenId },
 }
 
 #[cw_serde]
@@ -48,4 +52,9 @@ pub struct TrustedAddressResponse {
 #[cw_serde]
 pub struct AllTrustedAddressesResponse {
     pub addresses: HashMap<ChainName, Address>,
+}
+
+#[cw_serde]
+pub struct TokenBalanceResponse {
+    pub balance: Option<Uint256>,
 }
