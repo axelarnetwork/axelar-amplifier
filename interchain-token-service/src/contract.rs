@@ -120,7 +120,6 @@ pub fn query(
     match msg {
         QueryMsg::TrustedAddress { chain } => query::trusted_address(deps, chain)?,
         QueryMsg::AllTrustedAddresses {} => query::all_trusted_addresses(deps)?,
-        QueryMsg::TokenBalance { chain, token_id } => query::token_balance(deps, chain, token_id)?,
     }
     .then(Ok)
 }

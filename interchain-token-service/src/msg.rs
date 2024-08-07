@@ -5,9 +5,6 @@ use cosmwasm_schema::{cw_serde, QueryResponses};
 use msgs_derive::EnsurePermissions;
 use router_api::{Address, ChainName, ChainNameRaw};
 
-use crate::state::TokenBalance;
-use crate::TokenId;
-
 #[cw_serde]
 pub struct InstantiateMsg {
     pub chain_name: ChainNameRaw,
@@ -33,8 +30,6 @@ pub enum QueryMsg {
     TrustedAddress { chain: ChainName },
     #[returns(AllTrustedAddressesResponse)]
     AllTrustedAddresses {},
-    #[returns(TokenBalanceResponse)]
-    TokenBalance { chain: ChainName, token_id: TokenId },
 }
 
 #[cw_serde]
@@ -45,9 +40,4 @@ pub struct TrustedAddressResponse {
 #[cw_serde]
 pub struct AllTrustedAddressesResponse {
     pub addresses: HashMap<ChainName, Address>,
-}
-
-#[cw_serde]
-pub struct TokenBalanceResponse {
-    pub balance: Option<TokenBalance>,
 }

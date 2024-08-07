@@ -1,8 +1,7 @@
 use std::fmt::Display;
 
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{HexBinary, StdError, StdResult, Uint256};
-use cw_storage_plus::{Key, KeyDeserialize, Prefixer, PrimaryKey};
+use cosmwasm_std::{HexBinary, Uint256};
 use router_api::ChainName;
 use strum::FromRepr;
 
@@ -17,38 +16,6 @@ pub struct TokenId(
 impl Display for TokenId {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "{}", hex::encode(self.0))
-    }
-}
-
-impl<'a> PrimaryKey<'a> for TokenId {
-    type Prefix = ();
-    type SubPrefix = ();
-    type Suffix = Self;
-    type SuperSuffix = Self;
-
-    fn key(&self) -> Vec<Key> {
-        vec![Key::Ref(&self.0)]
-    }
-}
-
-impl<'a> Prefixer<'a> for TokenId {
-    fn prefix(&self) -> Vec<Key> {
-        self.0.key()
-    }
-}
-
-impl KeyDeserialize for TokenId {
-    type Output = Self;
-
-    fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
-        if value.len() != 32 {
-            return Err(StdError::generic_err("Invalid TokenId length"));
-        }
-        Ok(TokenId::new(
-            value
-                .try_into()
-                .map_err(|_| StdError::generic_err("Invalid TokenId"))?,
-        ))
     }
 }
 
