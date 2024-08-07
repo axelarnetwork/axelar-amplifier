@@ -61,7 +61,7 @@ impl RpcSender for RpcRecorder {
             "getAccountInfo" => serde_json::to_value(Response {
                 context: RpcResponseContext { slot: 1, api_version: None },
                 value: Value::Null,
-            })?,          
+            })?,
             "getTransaction" => serde_json::to_value(EncodedConfirmedTransactionWithStatusMeta {
                 slot: 2,
                 transaction: EncodedTransactionWithStatusMeta {
@@ -108,7 +108,7 @@ impl RpcSender for RpcRecorder {
                         }),
                 },
                 block_time: Some(1628633791),
-            })?,            
+            })?,
             "getVersion" => {
                 let version = Version::default();
                 json!(RpcVersionInfo {
