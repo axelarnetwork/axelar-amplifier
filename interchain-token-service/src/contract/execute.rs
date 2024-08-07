@@ -11,6 +11,11 @@ use crate::state::{
 };
 use crate::ItsMessage;
 
+/// Executes an incoming ITS message.
+///
+/// This function handles the execution of ITS (Interchain Token Service) messages received from
+/// trusted sources. It verifies the source address, decodes the message, applies balance tracking,
+/// and forwards the message to the destination chain.
 pub fn execute_message(
     deps: DepsMut,
     cc_id: CrossChainId,
@@ -73,6 +78,26 @@ pub fn execute_message(
     }
 }
 
+/// Applies balance tracking logic for interchain transfers and token deployments.
+///
+/// This function handles different types of ITS messages and applies the appropriate
+/// balance changes or initializations based on the message type.
+///
+/// # Behavior for different ITS message types
+///
+/// 1. InterchainTransfer:
+///    - Decreases the token balance on the source chain.
+///    - Increases the token balance on the destination chain.
+///    - If the balance becomes insufficient on the source chain, an error is returned.
+///
+/// 2. DeployInterchainToken:
+///    - Initializes balance tracking for the token on the destination chain.
+///    - Sets the initial balance to zero.
+///    - The source chain is not checked, as the token might originate from there.
+///
+/// 3. DeployTokenManager:
+///    - Initializes the token on the destination chain, but doesn't track balances. This prevents the token from being deployed to the same chain again.
+///    - The source chain is not checked, as the token might originate from there, or not follow standard lock-and-mint mechanism.
 fn apply_balance_tracking(
     storage: &mut dyn Storage,
     source_chain: ChainName,
@@ -148,7 +173,7 @@ mod tests {
     use crate::events::ItsContractEvent;
     use crate::msg::InstantiateMsg;
     use crate::primitives::{ItsHubMessage, ItsMessage, TokenId};
-    use crate::state::{self, save_trusted_address};
+    use crate::state::{self, save_trusted_address, TokenBalance};
 
     fn setup() -> OwnedDeps<MockStorage, MockApi, MockQuerier, Empty> {
         let mut deps = mock_dependencies();
@@ -403,8 +428,8 @@ mod tests {
             state::may_load_token_balance(deps.as_ref().storage, &token_id, &destination_chain)
                 .unwrap();
 
-        assert_eq!(source_balance, Some(Uint256::zero()));
-        assert_eq!(destination_balance, Some(amount));
+        assert_eq!(source_balance, Some(TokenBalance::Tracked(Uint256::zero())));
+        assert_eq!(destination_balance, Some(TokenBalance::Tracked(amount)));
     }
 
     #[test]
@@ -445,7 +470,10 @@ mod tests {
         let destination_balance =
             state::may_load_token_balance(deps.as_ref().storage, &token_id, &destination_chain)
                 .unwrap();
-        assert_eq!(destination_balance, Some(Uint256::zero()));
+        assert_eq!(
+            destination_balance,
+            Some(TokenBalance::Tracked(Uint256::zero()))
+        );
 
         // Check that balance tracking is not initialized on the source chain
         let source_balance =
@@ -517,7 +545,7 @@ mod tests {
         // Check that the balances remain unchanged
         let source_balance =
             state::may_load_token_balance(deps.as_ref().storage, &token_id, &source_chain).unwrap();
-        assert_eq!(source_balance, Some(initial_amount));
+        assert_eq!(source_balance, Some(TokenBalance::Tracked(initial_amount)));
 
         let destination_balance =
             state::may_load_token_balance(deps.as_ref().storage, &token_id, &destination_chain)
@@ -565,6 +593,73 @@ mod tests {
         let destination_balance =
             state::may_load_token_balance(deps.as_ref().storage, &token_id, &destination_chain)
                 .unwrap();
-        assert_eq!(destination_balance, None);
+        assert_eq!(destination_balance, Some(TokenBalance::Untracked));
+    }
+
+    #[test]
+    fn token_already_registered() {
+        let mut deps = setup();
+
+        let source_chain: ChainName = "source-chain".parse().unwrap();
+        let destination_chain: ChainName = "destination-chain".parse().unwrap();
+        let source_address: Address = "trusted-source".parse().unwrap();
+        let destination_address: Address = "trusted-destination".parse().unwrap();
+
+        register_trusted_address(&mut deps.as_mut(), source_chain.as_ref(), &source_address);
+        register_trusted_address(
+            &mut deps.as_mut(),
+            destination_chain.as_ref(),
+            &destination_address,
+        );
+
+        let token_id = TokenId::new([5u8; 32]);
+
+        // First, deploy a token manager
+        let deploy_manager_message = ItsMessage::DeployTokenManager {
+            token_id: token_id.clone(),
+            token_manager_type: crate::primitives::TokenManagerType::MintBurn,
+            params: HexBinary::from_hex("").unwrap(),
+        };
+        let its_hub_message = ItsHubMessage::SendToHub {
+            destination_chain: destination_chain.clone(),
+            message: deploy_manager_message,
+        };
+
+        let payload = its_hub_message.abi_encode();
+        let cc_id =
+            CrossChainId::new(source_chain.clone(), "deploy-token-manager-message-id").unwrap();
+        execute_message(deps.as_mut(), cc_id, source_address.clone(), payload).unwrap();
+
+        // Now, try to deploy an interchain token with the same token_id
+        let deploy_token_message = ItsMessage::DeployInterchainToken {
+            token_id: token_id.clone(),
+            name: "Test Token".to_string(),
+            symbol: "TST".to_string(),
+            decimals: 18,
+            minter: HexBinary::from_hex("1234").unwrap(),
+        };
+        let its_hub_message = ItsHubMessage::SendToHub {
+            destination_chain: destination_chain.clone(),
+            message: deploy_token_message,
+        };
+
+        let payload = its_hub_message.abi_encode();
+        let cc_id =
+            CrossChainId::new(source_chain.clone(), "deploy-interchain-token-message-id").unwrap();
+        let result = execute_message(deps.as_mut(), cc_id, source_address, payload);
+
+        // The execution should fail because the token is already registered
+        assert!(result.is_err());
+        assert!(err_contains!(
+            result.unwrap_err(),
+            state::Error,
+            state::Error::TokenAlreadyRegistered { .. }
+        ));
+
+        // Verify that the token balance remains untracked
+        let balance =
+            state::may_load_token_balance(deps.as_ref().storage, &token_id, &destination_chain)
+                .unwrap();
+        assert_eq!(balance, Some(TokenBalance::Untracked));
     }
 }

@@ -1,10 +1,11 @@
 use std::collections::HashMap;
 
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{HexBinary, Uint256};
+use cosmwasm_std::HexBinary;
 use msgs_derive::EnsurePermissions;
 use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
 
+use crate::state::TokenBalance;
 use crate::TokenId;
 
 #[cw_serde]
@@ -56,5 +57,5 @@ pub struct AllTrustedAddressesResponse {
 
 #[cw_serde]
 pub struct TokenBalanceResponse {
-    pub balance: Option<Uint256>,
+    pub balance: Option<TokenBalance>,
 }

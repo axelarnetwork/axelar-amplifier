@@ -30,6 +30,7 @@ mod tests {
     use cosmwasm_std::testing::mock_dependencies;
     use cosmwasm_std::{from_json, Uint256};
     use router_api::Address;
+    use state::TokenBalance;
 
     use super::*;
     use crate::state::{save_trusted_address, start_token_balance, update_token_balance};
@@ -90,7 +91,7 @@ mod tests {
         // Query the balance (should be zero)
         let bin = token_balance(deps.as_ref(), chain.clone(), token_id.clone()).unwrap();
         let res: TokenBalanceResponse = from_json(bin).unwrap();
-        assert_eq!(res.balance, Some(Uint256::zero()));
+        assert_eq!(res.balance, Some(TokenBalance::Tracked(Uint256::zero())));
 
         // Update the balance
         let amount = Uint256::from(1000u128);
@@ -106,12 +107,27 @@ mod tests {
         // Query the updated balance
         let bin = token_balance(deps.as_ref(), chain.clone(), token_id).unwrap();
         let res: TokenBalanceResponse = from_json(bin).unwrap();
-        assert_eq!(res.balance, Some(amount));
+        assert_eq!(res.balance, Some(TokenBalance::Tracked(amount)));
 
         // Query a non-existent token balance
         let non_existent_token_id = TokenId::new([2u8; 32]);
-        let bin = token_balance(deps.as_ref(), chain, non_existent_token_id).unwrap();
+        let bin = token_balance(deps.as_ref(), chain.clone(), non_existent_token_id).unwrap();
         let res: TokenBalanceResponse = from_json(bin).unwrap();
         assert_eq!(res.balance, None);
+
+        // Start untracked balance for a new token
+        let untracked_token_id = TokenId::new([3u8; 32]);
+        start_token_balance(
+            deps.as_mut().storage,
+            untracked_token_id.clone(),
+            chain.clone(),
+            false,
+        )
+        .unwrap();
+
+        // Query the untracked balance
+        let bin = token_balance(deps.as_ref(), chain, untracked_token_id).unwrap();
+        let res: TokenBalanceResponse = from_json(bin).unwrap();
+        assert_eq!(res.balance, Some(TokenBalance::Untracked));
     }
 }

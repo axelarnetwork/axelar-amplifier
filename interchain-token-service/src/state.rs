@@ -1,4 +1,3 @@
-use axelar_wasm_std::utils::TryMapExt;
 use axelar_wasm_std::{FnExt, IntoContractError};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, StdError, StdResult, Storage, Uint256};
@@ -31,11 +30,13 @@ pub struct Config {
     pub gateway: Addr,
 }
 
-/// Token info for a given token id and chain
+/// Token balance for a given token id and chain
 #[cw_serde]
-pub struct TokenBalance {
-    /// Token balance on the chain. None signifies that the token balance isn't being tracked.
-    balance: Option<Uint256>,
+pub enum TokenBalance {
+    /// Token balance is tracked on the chain
+    Tracked(Uint256),
+    /// Token balance is not tracked
+    Untracked,
 }
 
 #[cw_serde]
@@ -146,19 +147,13 @@ pub fn start_token_balance(
     match TOKEN_BALANCES.may_load(storage, key.clone())? {
         None => {
             let initial_balance = if track_balance {
-                Some(Uint256::zero())
+                TokenBalance::Tracked(Uint256::zero())
             } else {
-                None
+                TokenBalance::Untracked
             };
 
             TOKEN_BALANCES
-                .save(
-                    storage,
-                    key,
-                    &TokenBalance {
-                        balance: initial_balance,
-                    },
-                )?
+                .save(storage, key, &initial_balance)?
                 .then(Ok)
         }
         Some(_) => Err(Error::TokenAlreadyRegistered {
@@ -180,10 +175,8 @@ pub fn update_token_balance(
     let token_balance = TOKEN_BALANCES.may_load(storage, key.clone())?;
 
     match token_balance {
-        Some(TokenBalance {
-            balance: Some(balance),
-        }) => {
-            let token_info = if is_deposit {
+        Some(TokenBalance::Tracked(balance)) => {
+            let token_balance = if is_deposit {
                 balance
                     .checked_add(amount)
                     .map_err(|_| Error::MissingConfig)?
@@ -192,10 +185,9 @@ pub fn update_token_balance(
                     .checked_sub(amount)
                     .map_err(|_| Error::MissingConfig)?
             }
-            .then(Some)
-            .then(|b| TokenBalance { balance: b });
+            .then(TokenBalance::Tracked);
 
-            TOKEN_BALANCES.save(storage, key.clone(), &token_info)?;
+            TOKEN_BALANCES.save(storage, key.clone(), &token_balance)?;
         }
         Some(_) | None => (),
     }
@@ -207,17 +199,13 @@ pub fn may_load_token_balance(
     storage: &dyn Storage,
     token_id: &TokenId,
     chain: &ChainName,
-) -> Result<Option<Uint256>, Error> {
+) -> Result<Option<TokenBalance>, Error> {
     let key = TokenChainPair {
         token_id: token_id.clone(),
         chain: chain.clone(),
     };
 
-    TOKEN_BALANCES
-        .may_load(storage, key)?
-        .map(|b| b.balance)
-        .unwrap_or(None)
-        .then(Ok)
+    TOKEN_BALANCES.may_load(storage, key)?.then(Ok)
 }
 
 #[cfg(test)]
