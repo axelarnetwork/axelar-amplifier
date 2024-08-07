@@ -188,26 +188,20 @@ jobs:
         id: prepare-r2-release
         run: |
           version="${{ needs.extract-semver.outputs.version }}"
-          echo "Current version: ${version}"
           mkdir -p "./${version}"
-          echo "Contents of ./ampdbin directory:"
-          ls -la ./ampdbin
           cp -R ./ampdbin/. "./${version}/"
           echo "release-dir=./${version}" >> $GITHUB_OUTPUT
           echo "r2-destination-dir=./releases/ampd/" >> $GITHUB_OUTPUT
-          echo "Contents of the new version directory:"
-          ls -la "./${version}"
-          
           
 
-#      - uses: ryand56/r2-upload-action@latest
-#        with:
-#          r2-account-id: ${{ secrets.R2_ACCOUNT_ID }}
-#          r2-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_CF }}
-#          r2-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_CF }}
-#          r2-bucket: ${{ secrets.R2_BUCKET }}
-#          source-dir: ${{ steps.prepare-r2-release.outputs.release-dir }}
-#          destination-dir: ${{ steps.prepare-r2-release.outputs.r2-destination-dir }}
+      - uses: ryand56/r2-upload-action@latest
+        with:
+          r2-account-id: ${{ secrets.R2_ACCOUNT_ID }}
+          r2-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_CF }}
+          r2-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_CF }}
+          r2-bucket: ${{ secrets.R2_BUCKET }}
+          source-dir: ${{ steps.prepare-r2-release.outputs.release-dir }}
+          destination-dir: ${{ steps.prepare-r2-release.outputs.r2-destination-dir }}
 
 #  release-docker:
 #    runs-on: ubuntu-22.04
