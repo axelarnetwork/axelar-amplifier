@@ -1,6 +1,6 @@
 use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
 use axelar_wasm_std::nonempty;
-use cosmwasm_std::{Addr, Api, HexBinary, QuerierWrapper, Response, Storage};
+use cosmwasm_std::{Addr, Api, Event, HexBinary, QuerierWrapper, Response, Storage, WasmMsg};
 use error_stack::{report, Result, ResultExt};
 use router_api::client::Router;
 use router_api::{Address, ChainName, CrossChainId, Message};
@@ -50,13 +50,12 @@ pub(crate) fn call_contract(
 
     state::save_incoming_msg(store, cc_id, &msg).change_context(Error::InvalidStoreAccess)?;
 
+    let (wasm_msg, events) = route(router, vec![msg.clone()])?;
+
     Ok(Response::new()
-        .add_message(
-            router
-                .route(vec![msg.clone()])
-                .ok_or(Error::RoutingFailed)?,
-        )
-        .add_event(AxelarnetGatewayEvent::ContractCalled { msg, payload }.into()))
+        .add_message(wasm_msg)
+        .add_event(AxelarnetGatewayEvent::ContractCalled { msg, payload }.into())
+        .add_events(events))
 }
 
 // because the messages came from the router, we can assume they are already verified
@@ -93,12 +92,20 @@ pub(crate) fn route_incoming_messages(
         }?
     }
 
-    Ok(Response::new()
-        .add_message(router.route(msgs.clone()).ok_or(Error::RoutingFailed)?)
-        .add_events(
-            msgs.into_iter()
-                .map(|msg| AxelarnetGatewayEvent::Routing { msg }.into()),
-        ))
+    let (wasm_msg, events) = route(router, msgs)?;
+
+    Ok(Response::new().add_message(wasm_msg).add_events(events))
+}
+
+fn route(
+    router: &Router,
+    msgs: Vec<Message>,
+) -> Result<(WasmMsg, impl IntoIterator<Item = Event>), Error> {
+    Ok((
+        router.route(msgs.clone()).ok_or(Error::RoutingFailed)?,
+        msgs.into_iter()
+            .map(|msg| AxelarnetGatewayEvent::Routing { msg }.into()),
+    ))
 }
 
 pub(crate) fn execute(
