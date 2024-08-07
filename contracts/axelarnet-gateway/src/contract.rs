@@ -87,7 +87,7 @@ pub fn instantiate(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
-    _env: Env,
+    env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
@@ -107,6 +107,7 @@ pub fn execute(
             payload,
         } => execute::call_contract(
             deps.storage,
+            env.block.height,
             &router,
             chain_name,
             info.sender,

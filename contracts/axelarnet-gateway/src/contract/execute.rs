@@ -1,6 +1,6 @@
 use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
 use axelar_wasm_std::nonempty;
-use cosmwasm_std::{Addr, Api, Event, HexBinary, QuerierWrapper, Response, Storage, WasmMsg};
+use cosmwasm_std::{Addr, Api, Event, HexBinary, QuerierWrapper, Response, Storage, Uint256, WasmMsg};
 use error_stack::{report, Result, ResultExt};
 use router_api::client::Router;
 use router_api::{Address, ChainName, CrossChainId, Message};
@@ -11,11 +11,11 @@ use crate::events::AxelarnetGatewayEvent;
 use crate::executable::AxelarExecutableClient;
 use crate::state::{self};
 
-// TODO: Retrieve the actual tx hash from core, since cosmwasm doesn't provide it. Use a placeholder in the meantime.
 const PLACEHOLDER_TX_HASH: [u8; 32] = [0u8; 32];
 
 pub(crate) fn call_contract(
     store: &mut dyn Storage,
+    block_height: u64,
     router: &Router,
     chain_name: ChainName,
     sender: Addr,
@@ -25,8 +25,9 @@ pub(crate) fn call_contract(
 ) -> Result<Response, Error> {
     let counter = state::increment_msg_counter(store).change_context(Error::InvalidStoreAccess)?;
 
+    // TODO: Retrieve the actual tx hash from core, since cosmwasm doesn't provide it. Use the block height as the placeholder in the meantime.
     let message_id = HexTxHashAndEventIndex {
-        tx_hash: PLACEHOLDER_TX_HASH,
+        tx_hash: Uint256::from(block_height).to_be_bytes(),
         event_index: counter,
     }
     .to_string();
