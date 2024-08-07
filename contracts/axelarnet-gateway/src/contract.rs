@@ -1,9 +1,7 @@
 use axelar_wasm_std::FnExt;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{
-    to_json_binary, Addr, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response,
-};
+use cosmwasm_std::{to_json_binary, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response};
 use error_stack::ResultExt;
 use router_api::client::Router;
 use router_api::{ChainName, CrossChainId};
@@ -27,8 +25,6 @@ pub enum Error {
     SerializeResponse,
     #[error("failed to serialize wasm message")]
     SerializeWasmMsg,
-    #[error("invalid sender {0}")]
-    InvalidSender(Addr),
     #[error("invalid address {0}")]
     InvalidAddress(String),
     #[error("invalid destination chain {0}")]

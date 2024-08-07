@@ -42,7 +42,7 @@ pub(crate) fn call_contract(
     let msg = Message {
         cc_id: cc_id.clone(),
         source_address: Address::try_from(sender.clone().into_string())
-            .change_context(Error::InvalidSender(sender))?,
+            .expect("failed to convert sender address"),
         destination_chain,
         destination_address,
         payload_hash,
