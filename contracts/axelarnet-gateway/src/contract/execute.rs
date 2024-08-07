@@ -1,6 +1,8 @@
 use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
 use axelar_wasm_std::nonempty;
-use cosmwasm_std::{Addr, Api, Event, HexBinary, QuerierWrapper, Response, Storage, WasmMsg};
+use cosmwasm_std::{
+    Addr, Api, Event, HexBinary, QuerierWrapper, Response, Storage, Uint256, WasmMsg,
+};
 use error_stack::{report, Result, ResultExt};
 use router_api::client::Router;
 use router_api::{Address, ChainName, CrossChainId, Message};
@@ -11,11 +13,10 @@ use crate::events::AxelarnetGatewayEvent;
 use crate::executable::AxelarExecutableClient;
 use crate::state::{self};
 
-// TODO: Retrieve the actual tx hash from core, since cosmwasm doesn't provide it. Use a placeholder in the meantime.
-const PLACEHOLDER_TX_HASH: [u8; 32] = [0u8; 32];
-
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn call_contract(
     store: &mut dyn Storage,
+    block_height: u64,
     router: &Router,
     chain_name: ChainName,
     sender: Addr,
@@ -25,8 +26,9 @@ pub(crate) fn call_contract(
 ) -> Result<Response, Error> {
     let counter = state::increment_msg_counter(store).change_context(Error::InvalidStoreAccess)?;
 
+    // TODO: Retrieve the actual tx hash from core, since cosmwasm doesn't provide it. Use the block height as the placeholder in the meantime.
     let message_id = HexTxHashAndEventIndex {
-        tx_hash: PLACEHOLDER_TX_HASH,
+        tx_hash: Uint256::from(block_height).to_be_bytes(),
         event_index: counter,
     }
     .to_string();
@@ -58,8 +60,8 @@ pub(crate) fn call_contract(
         .add_events(events))
 }
 
-// because the messages came from the router, we can assume they are already verified
-pub(crate) fn route_outgoing_messages(
+// Because the messages came from the router, we can assume they are already verified
+pub(crate) fn receive_messages(
     store: &mut dyn Storage,
     msgs: Vec<Message>,
 ) -> Result<Response, Error> {
@@ -74,7 +76,7 @@ pub(crate) fn route_outgoing_messages(
     ))
 }
 
-pub(crate) fn route_incoming_messages(
+pub(crate) fn send_messages(
     store: &mut dyn Storage,
     router: &Router,
     msgs: Vec<Message>,
@@ -112,6 +114,7 @@ pub(crate) fn execute(
     store: &mut dyn Storage,
     api: &dyn Api,
     querier: QuerierWrapper,
+    chain_name: ChainName,
     cc_id: CrossChainId,
     payload: HexBinary,
 ) -> Result<Response, Error> {
@@ -123,8 +126,7 @@ pub(crate) fn execute(
         return Err(report!(Error::PayloadHashMismatch));
     }
 
-    let config = state::load_config(store).change_context(Error::InvalidStoreAccess)?;
-    if config.chain_name != msg.destination_chain {
+    if chain_name != msg.destination_chain {
         return Err(report!(Error::InvalidDestinationChain(
             msg.destination_chain
         )));

@@ -1,7 +1,7 @@
 use axelar_wasm_std::FnExt;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{to_json_binary, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response};
+use cosmwasm_std::{Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response};
 use error_stack::ResultExt;
 use router_api::client::Router;
 use router_api::{ChainName, CrossChainId};
@@ -10,7 +10,6 @@ use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{self, Config};
 
 mod execute;
-mod query;
 
 const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -87,7 +86,7 @@ pub fn instantiate(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
-    _env: Env,
+    env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
@@ -107,6 +106,7 @@ pub fn execute(
             payload,
         } => execute::call_contract(
             deps.storage,
+            env.block.height,
             &router,
             chain_name,
             info.sender,
@@ -116,32 +116,31 @@ pub fn execute(
         ),
         ExecuteMsg::RouteMessages(msgs) => {
             if info.sender == router.address {
-                execute::route_outgoing_messages(deps.storage, msgs)
+                execute::receive_messages(deps.storage, msgs)
             } else {
                 // Messages initiated via call contract can be routed again
-                execute::route_incoming_messages(deps.storage, &router, msgs)
+                execute::send_messages(deps.storage, &router, msgs)
             }
         }
-        ExecuteMsg::Execute { cc_id, payload } => {
-            execute::execute(deps.storage, deps.api, deps.querier, cc_id, payload)
-        }
+        ExecuteMsg::Execute { cc_id, payload } => execute::execute(
+            deps.storage,
+            deps.api,
+            deps.querier,
+            chain_name,
+            cc_id,
+            payload,
+        ),
     }?
     .then(Ok)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(
-    deps: Deps,
+    _deps: Deps,
     _env: Env,
-    msg: QueryMsg,
+    _msg: QueryMsg,
 ) -> Result<Binary, axelar_wasm_std::error::ContractError> {
-    match msg {
-        QueryMsg::OutgoingMessages { message_ids } => {
-            let msgs = query::outgoing_messages(deps.storage, message_ids.iter())?;
-            to_json_binary(&msgs).change_context(Error::SerializeResponse)
-        }
-    }?
-    .then(Ok)
+    todo!()
 }
 
 #[cfg(test)]

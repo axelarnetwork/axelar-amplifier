@@ -1,16 +1,7 @@
-use cosmwasm_std::{Addr, HexBinary, WasmMsg};
-use error_stack::ResultExt;
+use cosmwasm_std::{HexBinary, WasmMsg};
 use router_api::{Address, ChainName, CrossChainId, Message};
 
 use crate::msg::{ExecuteMsg, QueryMsg};
-
-type Result<T> = error_stack::Result<T, Error>;
-
-#[derive(thiserror::Error, Debug)]
-pub enum Error {
-    #[error("failed to query the axelarnet gateway contract at {0}")]
-    QueryAxelarnetGateway(Addr),
-}
 
 impl<'a> From<client::Client<'a, ExecuteMsg, QueryMsg>> for Client<'a> {
     fn from(client: client::Client<'a, ExecuteMsg, QueryMsg>) -> Self {
@@ -43,12 +34,6 @@ impl<'a> Client<'a> {
     pub fn route_messages(&self, msgs: Vec<Message>) -> Option<WasmMsg> {
         ignore_empty(msgs).map(|messages| self.client.execute(&ExecuteMsg::RouteMessages(messages)))
     }
-
-    pub fn outgoing_messages(&self, message_ids: Vec<CrossChainId>) -> Result<Vec<Message>> {
-        self.client
-            .query(&QueryMsg::OutgoingMessages { message_ids })
-            .change_context_lazy(|| Error::QueryAxelarnetGateway(self.client.address.clone()))
-    }
 }
 
 fn ignore_empty(msgs: Vec<Message>) -> Option<Vec<Message>> {
@@ -62,10 +47,10 @@ fn ignore_empty(msgs: Vec<Message>) -> Option<Vec<Message>> {
 #[cfg(test)]
 mod test {
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info, MockQuerier};
-    use cosmwasm_std::{from_json, to_json_binary, DepsMut, QuerierWrapper};
+    use cosmwasm_std::{to_json_binary, Addr, DepsMut, QuerierWrapper};
 
     use super::*;
-    use crate::contract::{instantiate, query};
+    use crate::contract::instantiate;
     use crate::msg::InstantiateMsg;
 
     #[test]
@@ -125,14 +110,7 @@ mod test {
         let mut deps = mock_dependencies();
         let instantiate_msg = instantiate_contract(deps.as_mut());
 
-        let mut querier = MockQuerier::default();
-        querier.update_wasm(move |msg| match msg {
-            cosmwasm_std::WasmQuery::Smart { contract_addr, msg } if contract_addr == addr => {
-                let msg = from_json::<QueryMsg>(msg).unwrap();
-                Ok(query(deps.as_ref(), mock_env(), msg).into()).into()
-            }
-            _ => panic!("unexpected query: {:?}", msg),
-        });
+        let querier = MockQuerier::default();
 
         (querier, instantiate_msg, Addr::unchecked(addr))
     }
