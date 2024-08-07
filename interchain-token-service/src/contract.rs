@@ -1,6 +1,7 @@
 use std::fmt::Debug;
 
 use axelar_wasm_std::{FnExt, IntoContractError};
+use axelarnet_gateway::AxelarExecutableMsg;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{Addr, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response, Storage};
@@ -91,14 +92,15 @@ pub fn execute(
     let msg = msg.ensure_permissions(deps.storage, &info.sender, match_gateway)?;
 
     match msg {
-        ExecuteMsg::Execute {
+        ExecuteMsg::Execute(AxelarExecutableMsg {
             cc_id,
             source_address,
             payload,
-        } => execute::execute_message(deps, cc_id, source_address, payload),
-        ExecuteMsg::UpdateTrustedAddress { chain, address } => {
-            execute::update_trusted_address(deps, chain, address)
+        }) => execute::execute_message(deps, cc_id, source_address, payload),
+        ExecuteMsg::SetTrustedAddress { chain, address } => {
+            execute::set_trusted_address(deps, chain, address)
         }
+        ExecuteMsg::RemoveTrustedAddress { chain } => execute::remove_trusted_address(deps, chain),
     }?
     .then(Ok)
 }

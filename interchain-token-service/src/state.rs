@@ -118,13 +118,8 @@ pub(crate) fn save_trusted_address(
         .map_err(Error::from)
 }
 
-#[cfg(test)]
-pub(crate) fn remove_trusted_address(
-    storage: &mut dyn Storage,
-    chain: &ChainName,
-) -> Result<(), Error> {
-    TRUSTED_ITS_ADDRESSES.remove(storage, chain);
-    Ok(())
+pub(crate) fn remove_trusted_address(storage: &mut dyn Storage, chain: &ChainName) {
+    TRUSTED_ITS_ADDRESSES.remove(storage, chain)
 }
 
 pub(crate) fn load_all_trusted_addresses(
@@ -250,7 +245,7 @@ mod tests {
         );
 
         // Test removing trusted address
-        assert!(remove_trusted_address(deps.as_mut().storage, &chain).is_ok());
+        remove_trusted_address(deps.as_mut().storage, &chain);
         assert!(matches!(
             load_trusted_address(deps.as_ref().storage, &chain),
             Err(Error::TrustedAddressNotFound(_))

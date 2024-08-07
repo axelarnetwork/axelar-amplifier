@@ -6,8 +6,7 @@ use crate::contract::Error;
 use crate::events::ItsContractEvent;
 use crate::primitives::ItsHubMessage;
 use crate::state::{
-    load_config, load_trusted_address, save_trusted_address, start_token_balance,
-    update_token_balance,
+    self, load_config, load_trusted_address, start_token_balance, update_token_balance,
 };
 use crate::ItsMessage;
 
@@ -145,18 +144,21 @@ fn apply_balance_tracking(
     Ok(())
 }
 
-pub fn update_trusted_address(
+pub fn set_trusted_address(
     deps: DepsMut,
     chain: ChainName,
     address: Address,
 ) -> Result<Response, Error> {
-    save_trusted_address(deps.storage, &chain, &address)
+    state::save_trusted_address(deps.storage, &chain, &address)
         .change_context(Error::InvalidStoreAccess)?;
 
-    Ok(
-        Response::new()
-            .add_event(ItsContractEvent::TrustedAddressUpdated { chain, address }.into()),
-    )
+    Ok(Response::new().add_event(ItsContractEvent::TrustedAddressSet { chain, address }.into()))
+}
+
+pub fn remove_trusted_address(deps: DepsMut, chain: ChainName) -> Result<Response, Error> {
+    state::remove_trusted_address(deps.storage, &chain);
+
+    Ok(Response::new().add_event(ItsContractEvent::TrustedAddressRemoved { chain }.into()))
 }
 
 #[cfg(test)]
@@ -209,7 +211,7 @@ mod tests {
     }
 
     #[test]
-    fn test_execute_message_send_to_hub() {
+    fn execute_message_send_to_hub() {
         let mut deps = setup();
 
         let source_chain: ChainName = "source-chain".parse().unwrap();
@@ -299,12 +301,12 @@ mod tests {
         let chain: ChainName = "new-chain".parse().unwrap();
         let address: Address = "new-trusted-address".parse().unwrap();
 
-        let result = update_trusted_address(deps.as_mut(), chain.clone(), address.clone()).unwrap();
+        let result = set_trusted_address(deps.as_mut(), chain.clone(), address.clone()).unwrap();
 
         assert_eq!(result.messages.len(), 0);
 
         let event = &result.events[0];
-        let expected_event = ItsContractEvent::TrustedAddressUpdated {
+        let expected_event = ItsContractEvent::TrustedAddressSet {
             chain: chain.clone(),
             address: address.clone(),
         };

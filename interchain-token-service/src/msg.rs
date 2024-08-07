@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 
+use axelarnet_gateway::AxelarExecutableMsg;
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::HexBinary;
 use msgs_derive::EnsurePermissions;
-use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
+use router_api::{Address, ChainName, ChainNameRaw};
 
 use crate::state::TokenBalance;
 use crate::TokenId;
@@ -19,13 +19,11 @@ pub struct InstantiateMsg {
 #[derive(EnsurePermissions)]
 pub enum ExecuteMsg {
     #[permission(Specific(gateway))]
-    Execute {
-        cc_id: CrossChainId,
-        source_address: Address,
-        payload: HexBinary,
-    },
+    Execute(AxelarExecutableMsg),
+    #[permission(Governance)]
+    SetTrustedAddress { chain: ChainName, address: Address },
     #[permission(Elevated)]
-    UpdateTrustedAddress { chain: ChainName, address: Address },
+    RemoveTrustedAddress { chain: ChainName },
 }
 
 #[cw_serde]
@@ -37,12 +35,6 @@ pub enum QueryMsg {
     AllTrustedAddresses {},
     #[returns(TokenBalanceResponse)]
     TokenBalance { chain: ChainName, token_id: TokenId },
-}
-
-#[cw_serde]
-pub struct ConfigResponse {
-    pub chain_name: ChainName,
-    pub gateway_address: String,
 }
 
 #[cw_serde]

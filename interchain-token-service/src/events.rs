@@ -9,9 +9,12 @@ pub enum ItsContractEvent {
         destination_chain: ChainName,
         message: ItsMessage,
     },
-    TrustedAddressUpdated {
+    TrustedAddressSet {
         chain: ChainName,
         address: Address,
+    },
+    TrustedAddressRemoved {
+        chain: ChainName,
     },
 }
 
@@ -28,10 +31,13 @@ impl From<ItsContractEvent> for Event {
                 destination_chain,
                 message,
             ),
-            ItsContractEvent::TrustedAddressUpdated { chain, address } => {
+            ItsContractEvent::TrustedAddressSet { chain, address } => {
                 Event::new("trusted_address_updated")
                     .add_attribute("chain", chain.to_string())
                     .add_attribute("address", address.to_string())
+            }
+            ItsContractEvent::TrustedAddressRemoved { chain } => {
+                Event::new("trusted_address_removed").add_attribute("chain", chain.to_string())
             }
         }
     }
