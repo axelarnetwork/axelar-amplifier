@@ -892,8 +892,9 @@ checksum = "0c4b4d0bd25bd0b74681c0ad21497610ce1b7c91b1022cd21c80c6fbdd9476b0"
 [[package]]
 name = "axelar-message-primitives"
 version = "0.1.0"
-source = "git+https://github.com/eigerco/solana-axelar.git?branch=main#3521cf434bbf096709ea108397ed68334b88a1cf"
+source = "git+https://github.com/eigerco/solana-axelar.git?branch=main#c9bd755c9bb765aa5c9f227b4bea55449e1208fb"
 dependencies = [
+ "alloy-sol-types",
  "anyhow",
  "bcs",
  "bnum",
@@ -912,7 +913,7 @@ dependencies = [
 [[package]]
 name = "axelar-rkyv-encoding"
 version = "0.1.0"
-source = "git+https://git@github.com/eigerco/solana-axelar.git?branch=main#3521cf434bbf096709ea108397ed68334b88a1cf"
+source = "git+https://git@github.com/eigerco/solana-axelar.git?branch=main#c9bd755c9bb765aa5c9f227b4bea55449e1208fb"
 dependencies = [
  "bnum",
  "bs58 0.5.1",
@@ -927,7 +928,7 @@ dependencies = [
 [[package]]
 name = "axelar-rkyv-encoding"
 version = "0.1.0"
-source = "git+https://github.com/eigerco/solana-axelar.git?branch=main#3521cf434bbf096709ea108397ed68334b88a1cf"
+source = "git+https://github.com/eigerco/solana-axelar.git?branch=main#c9bd755c9bb765aa5c9f227b4bea55449e1208fb"
 dependencies = [
  "bnum",
  "bs58 0.5.1",
@@ -3853,7 +3854,7 @@ dependencies = [
 [[package]]
 name = "gmp-gateway"
 version = "0.1.0"
-source = "git+https://github.com/eigerco/solana-axelar.git?branch=main#3521cf434bbf096709ea108397ed68334b88a1cf"
+source = "git+https://github.com/eigerco/solana-axelar.git?branch=main#c9bd755c9bb765aa5c9f227b4bea55449e1208fb"
 dependencies = [
  "axelar-message-primitives",
  "axelar-rkyv-encoding 0.1.0 (git+https://github.com/eigerco/solana-axelar.git?branch=main)",
@@ -6776,7 +6777,7 @@ dependencies = [
 [[package]]
 name = "program-utils"
 version = "0.1.0"
-source = "git+https://github.com/eigerco/solana-axelar.git?branch=main#3521cf434bbf096709ea108397ed68334b88a1cf"
+source = "git+https://github.com/eigerco/solana-axelar.git?branch=main#c9bd755c9bb765aa5c9f227b4bea55449e1208fb"
 dependencies = [
  "borsh 1.5.1",
  "solana-program",
