@@ -17,6 +17,7 @@ jobs:
     name: Validate tag and extract semver
     outputs:
       semver: ${{ steps.extract_semver.outputs.semver }}
+      version: ${{ steps.extract_semver.outputs.version }}
     steps:
       - name: Extract semver from tag
         id: extract_semver
@@ -184,17 +185,18 @@ jobs:
 #          aws s3 cp ./ampdbin ${S3_PATH}/ --recursive
 
       - name: Prepare directory source directory structure for r2 upload
-        env:
-          VERSION: ${{ needs.extract-semver.outputs.version }}
         id: prepare-r2-release
         run: |
-          echo "${VERSION}"
-          mkdir -p "./${VERSION}"
+          version="${{ needs.extract-semver.outputs.version }}"
+          echo "Current version: ${version}"
+          mkdir -p "./${version}"
+          echo "Contents of ./ampdbin directory:"
           ls -la ./ampdbin
-          cp -R ./ampdbin/. "./${VERSION}/"
-          echo "release-dir=./${VERSION}" >> $GITHUB_OUTPUT
+          cp -R ./ampdbin/. "./${version}/"
+          echo "release-dir=./${version}" >> $GITHUB_OUTPUT
           echo "r2-destination-dir=./releases/ampd/" >> $GITHUB_OUTPUT
-          ls -la ./${VERSION}
+          echo "Contents of the new version directory:"
+          ls -la "./${version}"
           
           
 
