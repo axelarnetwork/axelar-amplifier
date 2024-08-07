@@ -33,7 +33,8 @@ impl<'a> Client<'a> {
     }
 
     pub fn route_messages(&self, msgs: Vec<Message>) -> Option<WasmMsg> {
-        msgs.to_none_if_empty().map(|messages| self.client.execute(&ExecuteMsg::RouteMessages(messages)))
+        msgs.to_none_if_empty()
+            .map(|messages| self.client.execute(&ExecuteMsg::RouteMessages(messages)))
     }
 }
 

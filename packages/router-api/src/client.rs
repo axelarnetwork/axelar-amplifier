@@ -18,6 +18,7 @@ impl Router {
     }
 
     pub fn route(&self, msgs: Vec<Message>) -> Option<WasmMsg> {
-        msgs.to_none_if_empty().map(|msgs| self.execute(&ExecuteMsg::RouteMessages(msgs)))
+        msgs.to_none_if_empty()
+            .map(|msgs| self.execute(&ExecuteMsg::RouteMessages(msgs)))
     }
 }
