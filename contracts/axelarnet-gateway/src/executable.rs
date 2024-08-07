@@ -2,24 +2,30 @@ use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{HexBinary, WasmMsg};
 use router_api::{Address, CrossChainId};
 
+/// `AxelarExecutableMsg` is a struct containing the args used by the axelarnet gateway to execute a destination contract on Axelar.
+/// Each App needs to expose a `ExecuteMsg::Execute(AxelarExecutableMsg)` variant that only the gateway is allowed to call.
 #[cw_serde]
-pub enum AxelarExecutableMsg {
-    /// Execute the message at the destination contract with the corresponding payload, via the gateway.
-    Execute {
-        cc_id: CrossChainId,
-        source_address: Address,
-        payload: HexBinary,
-    },
+pub struct AxelarExecutableMsg {
+    pub cc_id: CrossChainId,
+    pub source_address: Address,
+    pub payload: HexBinary,
 }
 
-impl<'a> From<client::Client<'a, AxelarExecutableMsg, ()>> for AxelarExecutableClient<'a> {
-    fn from(client: client::Client<'a, AxelarExecutableMsg, ()>) -> Self {
+/// Crate-specific `ExecuteMsg` type wraps the `AxelarExecutableMsg` for the AxelarExecutable client.
+#[cw_serde]
+pub(crate) enum AxelarExecutableExecuteMsg {
+    /// Execute the message at the destination contract with the corresponding payload.
+    Execute(AxelarExecutableMsg),
+}
+
+impl<'a> From<client::Client<'a, AxelarExecutableExecuteMsg, ()>> for AxelarExecutableClient<'a> {
+    fn from(client: client::Client<'a, AxelarExecutableExecuteMsg, ()>) -> Self {
         AxelarExecutableClient { client }
     }
 }
 
 pub struct AxelarExecutableClient<'a> {
-    client: client::Client<'a, AxelarExecutableMsg, ()>,
+    client: client::Client<'a, AxelarExecutableExecuteMsg, ()>,
 }
 
 impl<'a> AxelarExecutableClient<'a> {
@@ -29,11 +35,12 @@ impl<'a> AxelarExecutableClient<'a> {
         source_address: Address,
         payload: HexBinary,
     ) -> WasmMsg {
-        self.client.execute(&AxelarExecutableMsg::Execute {
-            cc_id,
-            source_address,
-            payload,
-        })
+        self.client
+            .execute(&AxelarExecutableExecuteMsg::Execute(AxelarExecutableMsg {
+                cc_id,
+                source_address,
+                payload,
+            }))
     }
 }
 
@@ -60,11 +67,11 @@ mod test {
             msg,
             WasmMsg::Execute {
                 contract_addr: addr.to_string(),
-                msg: to_json_binary(&AxelarExecutableMsg::Execute {
+                msg: to_json_binary(&AxelarExecutableExecuteMsg::Execute(AxelarExecutableMsg {
                     cc_id,
                     source_address,
                     payload,
-                })
+                }))
                 .unwrap(),
                 funds: vec![],
             }
