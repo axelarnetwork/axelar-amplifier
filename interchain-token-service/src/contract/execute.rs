@@ -103,15 +103,18 @@ fn apply_balance_tracking(
             )
             .change_context_lazy(|| {
                 Error::BalanceUpdateFailed(destination_chain, token_id.clone())
-            })?;
+            })?
         }
         // Start balance tracking for the token on the destination chain when a token deployment is seen
         // No invariants can be assumed on the source since the token might pre-exist on the source chain
         ItsMessage::DeployInterchainToken { token_id, .. } => {
-            start_token_balance(storage, token_id.clone(), destination_chain.clone())
-                .change_context(Error::InvalidStoreAccess)?;
+            start_token_balance(storage, token_id.clone(), destination_chain.clone(), true)
+                .change_context(Error::InvalidStoreAccess)?
         }
-        ItsMessage::DeployTokenManager { .. } => (),
+        ItsMessage::DeployTokenManager { token_id, .. } => {
+            start_token_balance(storage, token_id.clone(), destination_chain.clone(), false)
+                .change_context(Error::InvalidStoreAccess)?
+        }
     };
 
     Ok(())
@@ -356,12 +359,14 @@ mod tests {
             deps.as_mut().storage,
             token_id.clone(),
             source_chain.clone(),
+            true,
         )
         .unwrap();
         state::start_token_balance(
             deps.as_mut().storage,
             token_id.clone(),
             destination_chain.clone(),
+            true,
         )
         .unwrap();
 
@@ -473,6 +478,7 @@ mod tests {
             deps.as_mut().storage,
             token_id.clone(),
             source_chain.clone(),
+            true,
         )
         .unwrap();
         state::update_token_balance(

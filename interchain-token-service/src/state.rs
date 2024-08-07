@@ -21,14 +21,21 @@ pub enum Error {
         chain: ChainName,
         balance: Uint256,
     },
-    #[error("balance already exists for token {token_id} on chain {chain}")]
-    BalanceAlreadyExists { token_id: TokenId, chain: ChainName },
+    #[error("token {token_id} is already registered on chain {chain}")]
+    TokenAlreadyRegistered { token_id: TokenId, chain: ChainName },
 }
 
 #[cw_serde]
 pub struct Config {
     pub chain_name: ChainNameRaw,
     pub gateway: Addr,
+}
+
+/// Token info for a given token id and chain
+#[cw_serde]
+pub struct TokenBalance {
+    /// Token balance on the chain. None signifies that the token balance isn't being tracked.
+    balance: Option<Uint256>,
 }
 
 #[cw_serde]
@@ -77,7 +84,7 @@ impl KeyDeserialize for TokenChainPair {
 
 const CONFIG: Item<Config> = Item::new("config");
 const TRUSTED_ITS_ADDRESSES: Map<&ChainName, Address> = Map::new("trusted_its_addresses");
-const TOKEN_BALANCES: Map<TokenChainPair, Uint256> = Map::new("token_balances");
+const TOKEN_BALANCES: Map<TokenChainPair, TokenBalance> = Map::new("token_balances");
 
 pub(crate) fn load_config(storage: &dyn Storage) -> Result<Config, Error> {
     CONFIG
@@ -132,14 +139,29 @@ pub fn start_token_balance(
     storage: &mut dyn Storage,
     token_id: TokenId,
     chain: ChainName,
+    track_balance: bool,
 ) -> Result<(), Error> {
     let key = TokenChainPair { token_id, chain };
 
     match TOKEN_BALANCES.may_load(storage, key.clone())? {
-        None => TOKEN_BALANCES
-            .save(storage, key, &Uint256::zero())?
-            .then(Ok),
-        Some(_) => Err(Error::BalanceAlreadyExists {
+        None => {
+            let initial_balance = if track_balance {
+                Some(Uint256::zero())
+            } else {
+                None
+            };
+
+            TOKEN_BALANCES
+                .save(
+                    storage,
+                    key,
+                    &TokenBalance {
+                        balance: initial_balance,
+                    },
+                )?
+                .then(Ok)
+        }
+        Some(_) => Err(Error::TokenAlreadyRegistered {
             token_id: key.token_id,
             chain: key.chain,
         }),
@@ -155,10 +177,13 @@ pub fn update_token_balance(
 ) -> Result<(), Error> {
     let key = TokenChainPair { token_id, chain };
 
-    TOKEN_BALANCES
-        .may_load(storage, key.clone())?
-        .try_map(|balance| {
-            if is_deposit {
+    let token_balance = TOKEN_BALANCES.may_load(storage, key.clone())?;
+
+    match token_balance {
+        Some(TokenBalance {
+            balance: Some(balance),
+        }) => {
+            let token_info = if is_deposit {
                 balance
                     .checked_add(amount)
                     .map_err(|_| Error::MissingConfig)?
@@ -167,9 +192,13 @@ pub fn update_token_balance(
                     .checked_sub(amount)
                     .map_err(|_| Error::MissingConfig)?
             }
-            .then(Ok::<Uint256, Error>)
-        })?
-        .try_map(|balance| TOKEN_BALANCES.save(storage, key.clone(), &balance))?;
+            .then(Some)
+            .then(|b| TokenBalance { balance: b });
+
+            TOKEN_BALANCES.save(storage, key.clone(), &token_info)?;
+        }
+        Some(_) | None => (),
+    }
 
     Ok(())
 }
@@ -184,7 +213,11 @@ pub fn may_load_token_balance(
         chain: chain.clone(),
     };
 
-    TOKEN_BALANCES.may_load(storage, key)?.then(Ok)
+    TOKEN_BALANCES
+        .may_load(storage, key)?
+        .map(|b| b.balance)
+        .unwrap_or(None)
+        .then(Ok)
 }
 
 #[cfg(test)]

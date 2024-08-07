@@ -85,7 +85,7 @@ mod tests {
         let token_id = TokenId::new([1u8; 32]);
 
         // Start balance tracking for the token
-        start_token_balance(deps.as_mut().storage, token_id.clone(), chain.clone()).unwrap();
+        start_token_balance(deps.as_mut().storage, token_id.clone(), chain.clone(), true).unwrap();
 
         // Query the balance (should be zero)
         let bin = token_balance(deps.as_ref(), chain.clone(), token_id.clone()).unwrap();
