@@ -17,27 +17,3 @@ ITS Hub maintains balance invariants for native interchain tokens for every chai
 ### Cross-chain messaging
 
 The ITS Hub makes use of the Axelarnet gateway [contract](../contracts/axelarnet-gateway/) to facilitate sending or receiving cross-chain messages. Messages are sent via `CallContract`, and received when the Axelarnet gateway is executed (by a relayer / user) through `Execute`, which in turn executes ITS Hub's `Execute` method.
-
-## Build
-
-Ensure that `rust >= 1.78` is installed.
-
-```bash
-# Install protoc
-brew install protobuf
-
-# Install rustup
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-
-# Install rust 1.78.0
-rustup default 1.78.0
-
-# Add wasm toolchain
-rustup target add wasm32-unknown-unknown
-
-# Build the contract
-cargo wasm
-
-# Run tests
-cargo test
-```
