@@ -1,6 +1,8 @@
 use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
 use axelar_wasm_std::nonempty;
-use cosmwasm_std::{Addr, Api, Event, HexBinary, QuerierWrapper, Response, Storage, Uint256, WasmMsg};
+use cosmwasm_std::{
+    Addr, Api, Event, HexBinary, QuerierWrapper, Response, Storage, Uint256, WasmMsg,
+};
 use error_stack::{report, Result, ResultExt};
 use router_api::client::Router;
 use router_api::{Address, ChainName, CrossChainId, Message};
@@ -11,8 +13,7 @@ use crate::events::AxelarnetGatewayEvent;
 use crate::executable::AxelarExecutableClient;
 use crate::state::{self};
 
-const PLACEHOLDER_TX_HASH: [u8; 32] = [0u8; 32];
-
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn call_contract(
     store: &mut dyn Storage,
     block_height: u64,
@@ -59,8 +60,8 @@ pub(crate) fn call_contract(
         .add_events(events))
 }
 
-// because the messages came from the router, we can assume they are already verified
-pub(crate) fn route_outgoing_messages(
+// Because the messages came from the router, we can assume they are already verified
+pub(crate) fn receive_messages(
     store: &mut dyn Storage,
     msgs: Vec<Message>,
 ) -> Result<Response, Error> {
@@ -75,7 +76,7 @@ pub(crate) fn route_outgoing_messages(
     ))
 }
 
-pub(crate) fn route_incoming_messages(
+pub(crate) fn send_messages(
     store: &mut dyn Storage,
     router: &Router,
     msgs: Vec<Message>,
@@ -113,6 +114,7 @@ pub(crate) fn execute(
     store: &mut dyn Storage,
     api: &dyn Api,
     querier: QuerierWrapper,
+    chain_name: ChainName,
     cc_id: CrossChainId,
     payload: HexBinary,
 ) -> Result<Response, Error> {
@@ -124,8 +126,7 @@ pub(crate) fn execute(
         return Err(report!(Error::PayloadHashMismatch));
     }
 
-    let config = state::load_config(store).change_context(Error::InvalidStoreAccess)?;
-    if config.chain_name != msg.destination_chain {
+    if chain_name != msg.destination_chain {
         return Err(report!(Error::InvalidDestinationChain(
             msg.destination_chain
         )));

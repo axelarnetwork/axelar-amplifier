@@ -3,8 +3,6 @@ use cosmwasm_std::HexBinary;
 use msgs_derive::EnsurePermissions;
 use router_api::{Address, ChainName, CrossChainId, Message};
 
-use crate::state::MessageWithStatus;
-
 #[cw_serde]
 pub struct InstantiateMsg {
     /// The chain name for this gateway.
@@ -41,8 +39,4 @@ pub enum ExecuteMsg {
 
 #[cw_serde]
 #[derive(QueryResponses)]
-pub enum QueryMsg {
-    /// Returns the list of messages with their status destined for Axelar.
-    #[returns(Vec<MessageWithStatus>)]
-    OutgoingMessages { message_ids: Vec<CrossChainId> },
-}
+pub enum QueryMsg {}
