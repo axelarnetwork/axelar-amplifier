@@ -52,3 +52,12 @@ cw-multi-test = "0.15.1"
 
 [lints]
 workspace = true
+
+# [workspace]
+# members = [
+#     "examples/hello_world",
+# ]
+
+[[example]]
+name = "hello_world"
+path = "examples/hello_world/src/lib.rs"
