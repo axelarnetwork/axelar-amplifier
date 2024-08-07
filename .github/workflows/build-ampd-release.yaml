@@ -14,11 +14,15 @@ jobs:
     name: Validate tag and extract semver
     outputs:
       semver: ${{ steps.extract_semver.outputs.semver }}
+      version: ${{ steps.extract_semver.outputs.version }}
     steps:
       - name: Extract semver from tag
         id: extract_semver
         run: |
-          echo "semver=$(echo ${{ github.event.inputs.tag }} | sed 's/ampd-//')" >> $GITHUB_OUTPUT
+          full_semver=$(echo ${{ github.event.inputs.tag }} | sed 's/ampd-//')
+          version_number=$(echo $full_semver | sed 's/^v//')
+          echo "semver=$full_semver" >> $GITHUB_OUTPUT
+          echo "version=$version_number" >> $GITHUB_OUTPUT
 
       - name: Validate tag
         env:
@@ -175,6 +179,25 @@ jobs:
           S3_PATH: s3://axelar-releases/ampd/${{ needs.extract-semver.outputs.semver }}
         run: |
           aws s3 cp ./ampdbin ${S3_PATH}/ --recursive
+
+      - name: Prepare source directory structure for r2 upload
+        id: prepare-r2-release
+        run: |
+          version="${{ needs.extract-semver.outputs.version }}"
+          mkdir -p "./${version}"
+          cp -R ./ampdbin/. "./${version}/"
+          echo "release-dir=./${version}" >> $GITHUB_OUTPUT
+          echo "r2-destination-dir=./releases/ampd/" >> $GITHUB_OUTPUT
+          
+
+      - uses: ryand56/r2-upload-action@latest
+        with:
+          r2-account-id: ${{ secrets.R2_ACCOUNT_ID }}
+          r2-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_CF }}
+          r2-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_CF }}
+          r2-bucket: ${{ secrets.R2_BUCKET }}
+          source-dir: ${{ steps.prepare-r2-release.outputs.release-dir }}
+          destination-dir: ${{ steps.prepare-r2-release.outputs.r2-destination-dir }}
 
   release-docker:
     runs-on: ubuntu-22.04
