@@ -25,10 +25,13 @@ pub(crate) struct MessageWithStatus {
 
 const CONFIG_NAME: &str = "config";
 const CONFIG: Item<Config> = Item::new(CONFIG_NAME);
+
 const COUNTER_NAME: &str = "counter";
 const COUNTER: Counter<u32> = Counter::new(COUNTER_NAME);
+
 const INCOMING_MESSAGES_NAME: &str = "incoming_messages";
 const INCOMING_MESSAGES: Map<CrossChainId, Message> = Map::new(INCOMING_MESSAGES_NAME);
+
 const OUTGOING_MESSAGES_NAME: &str = "outgoing_messages";
 const OUTGOING_MESSAGES: Map<CrossChainId, MessageWithStatus> = Map::new(OUTGOING_MESSAGES_NAME);
 

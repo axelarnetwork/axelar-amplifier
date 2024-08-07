@@ -50,12 +50,12 @@ pub(crate) fn call_contract(
 
     state::save_incoming_msg(store, cc_id, &msg).change_context(Error::InvalidStoreAccess)?;
 
-    let wasm_msg = router
-        .route(vec![msg.clone()])
-        .ok_or(Error::RoutingFailed)?;
-
     Ok(Response::new()
-        .add_message(wasm_msg)
+        .add_message(
+            router
+                .route(vec![msg.clone()])
+                .ok_or(Error::RoutingFailed)?,
+        )
         .add_event(AxelarnetGatewayEvent::ContractCalled { msg, payload }.into()))
 }
 
@@ -82,22 +82,23 @@ pub(crate) fn route_incoming_messages(
 ) -> Result<Response, Error> {
     for msg in msgs.iter() {
         let stored_msg = state::may_load_incoming_msg(store, &msg.cc_id)
-            .change_context(Error::MessageNotFound(msg.cc_id.clone()))?;
+            .change_context(Error::InvalidStoreAccess)?;
 
         match stored_msg {
             Some(message) if msg != &message => {
                 Err(report!(Error::MessageMismatch(msg.cc_id.clone())))
             }
-            _ => Ok(()),
+            Some(_) => Ok(()),
+            None => Err(report!(Error::MessageNotFound(msg.cc_id.clone()))),
         }?
     }
 
-    let wasm_msg = router.route(msgs.clone()).ok_or(Error::RoutingFailed)?;
-    let events = msgs
-        .into_iter()
-        .map(|msg| AxelarnetGatewayEvent::Routing { msg }.into());
-
-    Ok(Response::new().add_message(wasm_msg).add_events(events))
+    Ok(Response::new()
+        .add_message(router.route(msgs.clone()).ok_or(Error::RoutingFailed)?)
+        .add_events(
+            msgs.into_iter()
+                .map(|msg| AxelarnetGatewayEvent::Routing { msg }.into()),
+        ))
 }
 
 pub(crate) fn execute(
@@ -129,10 +130,9 @@ pub(crate) fn execute(
     let executable: AxelarExecutableClient =
         client::Client::new(querier, destination_contract).into();
 
+    // Call the destination contract
     // Apps are required to expose AxelarExecutableMsg::Execute interface
-    let executable_msg = executable.execute(msg.cc_id.clone(), msg.source_address.clone(), payload);
-
     Ok(Response::new()
-        .add_message(executable_msg)
+        .add_message(executable.execute(msg.cc_id.clone(), msg.source_address.clone(), payload))
         .add_event(AxelarnetGatewayEvent::MessageExecuted { msg }.into()))
 }
