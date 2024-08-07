@@ -1,8 +1,10 @@
-use axelar_wasm_std::IntoContractError;
+use axelar_wasm_std::{FnExt, IntoContractError};
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, StdError, Storage};
-use cw_storage_plus::{Item, Map};
+use cosmwasm_std::{Addr, StdError, StdResult, Storage, Uint256};
+use cw_storage_plus::{Item, Key, KeyDeserialize, Map, Prefixer, PrimaryKey};
 use router_api::{Address, ChainName, ChainNameRaw};
+
+use crate::TokenId;
 
 #[derive(thiserror::Error, Debug, IntoContractError)]
 pub enum Error {
@@ -12,6 +14,14 @@ pub enum Error {
     MissingConfig,
     #[error("trusted address for chain {0} not found")]
     TrustedAddressNotFound(ChainName),
+    #[error("insufficient balance for token {token_id} on chain {chain}")]
+    InsufficientBalance {
+        token_id: TokenId,
+        chain: ChainName,
+        balance: Uint256,
+    },
+    #[error("token {token_id} is already registered on chain {chain}")]
+    TokenAlreadyRegistered { token_id: TokenId, chain: ChainName },
 }
 
 #[cw_serde]
@@ -20,8 +30,62 @@ pub struct Config {
     pub gateway: Addr,
 }
 
+/// Token balance for a given token id and chain
+#[cw_serde]
+pub enum TokenBalance {
+    /// Token balance is tracked on the chain
+    Tracked(Uint256),
+    /// Token balance is not tracked
+    Untracked,
+}
+
+#[cw_serde]
+pub struct TokenChainPair {
+    pub token_id: TokenId,
+    pub chain: ChainName,
+}
+
+impl<'a> PrimaryKey<'a> for TokenChainPair {
+    type Prefix = TokenId;
+    type SubPrefix = ();
+    type Suffix = ChainName;
+    type SuperSuffix = Self;
+
+    fn key(&self) -> Vec<Key> {
+        let mut keys = self.token_id.key();
+        keys.extend(self.chain.key());
+        keys
+    }
+}
+
+impl<'a> Prefixer<'a> for TokenChainPair {
+    fn prefix(&self) -> Vec<Key> {
+        self.key()
+    }
+}
+
+impl KeyDeserialize for TokenChainPair {
+    type Output = Self;
+
+    fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
+        if value.len() < 32 {
+            return Err(StdError::generic_err("Invalid key length"));
+        }
+        let (token_id_bytes, chain_bytes) = value.split_at(32);
+        let token_id = TokenId::new(
+            token_id_bytes
+                .try_into()
+                .map_err(|_| StdError::generic_err("Invalid TokenId"))?,
+        );
+        let chain = ChainName::from_vec(chain_bytes.to_vec())?;
+
+        Ok(TokenChainPair { token_id, chain })
+    }
+}
+
 const CONFIG: Item<Config> = Item::new("config");
 const TRUSTED_ITS_ADDRESSES: Map<&ChainName, Address> = Map::new("trusted_its_addresses");
+const TOKEN_BALANCES: Map<TokenChainPair, TokenBalance> = Map::new("token_balances");
 
 pub(crate) fn load_config(storage: &dyn Storage) -> Result<Config, Error> {
     CONFIG
@@ -65,6 +129,78 @@ pub(crate) fn load_all_trusted_addresses(
         .range(storage, None, None, cosmwasm_std::Order::Ascending)
         .collect::<Result<Vec<_>, _>>()
         .map_err(Error::from)
+}
+
+pub fn start_token_balance(
+    storage: &mut dyn Storage,
+    token_id: TokenId,
+    chain: ChainName,
+    track_balance: bool,
+) -> Result<(), Error> {
+    let key = TokenChainPair { token_id, chain };
+
+    match TOKEN_BALANCES.may_load(storage, key.clone())? {
+        None => {
+            let initial_balance = if track_balance {
+                TokenBalance::Tracked(Uint256::zero())
+            } else {
+                TokenBalance::Untracked
+            };
+
+            TOKEN_BALANCES
+                .save(storage, key, &initial_balance)?
+                .then(Ok)
+        }
+        Some(_) => Err(Error::TokenAlreadyRegistered {
+            token_id: key.token_id,
+            chain: key.chain,
+        }),
+    }
+}
+
+pub fn update_token_balance(
+    storage: &mut dyn Storage,
+    token_id: TokenId,
+    chain: ChainName,
+    amount: Uint256,
+    is_deposit: bool,
+) -> Result<(), Error> {
+    let key = TokenChainPair { token_id, chain };
+
+    let token_balance = TOKEN_BALANCES.may_load(storage, key.clone())?;
+
+    match token_balance {
+        Some(TokenBalance::Tracked(balance)) => {
+            let token_balance = if is_deposit {
+                balance
+                    .checked_add(amount)
+                    .map_err(|_| Error::MissingConfig)?
+            } else {
+                balance
+                    .checked_sub(amount)
+                    .map_err(|_| Error::MissingConfig)?
+            }
+            .then(TokenBalance::Tracked);
+
+            TOKEN_BALANCES.save(storage, key.clone(), &token_balance)?;
+        }
+        Some(_) | None => (),
+    }
+
+    Ok(())
+}
+
+pub fn may_load_token_balance(
+    storage: &dyn Storage,
+    token_id: &TokenId,
+    chain: &ChainName,
+) -> Result<Option<TokenBalance>, Error> {
+    let key = TokenChainPair {
+        token_id: token_id.clone(),
+        chain: chain.clone(),
+    };
+
+    TOKEN_BALANCES.may_load(storage, key)?.then(Ok)
 }
 
 #[cfg(test)]
