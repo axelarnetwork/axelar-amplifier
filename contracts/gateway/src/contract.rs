@@ -8,7 +8,6 @@ use error_stack::ResultExt;
 use gateway_api::msg::{ExecuteMsg, QueryMsg};
 use router_api::client::Router;
 
-use crate::contract::migrations::v0_2_3;
 use crate::msg::InstantiateMsg;
 use crate::state;
 use crate::state::Config;
@@ -22,8 +21,6 @@ const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
-    #[error("invalid store access")]
-    InvalidStoreAccess,
     #[error("batch contains duplicate message ids")]
     DuplicateMessageIds,
     #[error("invalid address")]
@@ -46,11 +43,10 @@ pub enum Error {
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(
-    deps: DepsMut,
+    _deps: DepsMut,
     _env: Env,
     _msg: Empty,
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
-    v0_2_3::migrate(deps.storage)?;
     Ok(Response::default())
 }
 
