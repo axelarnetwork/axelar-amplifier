@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+  create:
     tags:
       - '*-v[0-9]+.[0-9]+.[0-9]+'
   workflow_dispatch:
@@ -56,6 +57,11 @@ jobs:
             is_release="true"
             crate_name="${BASH_REMATCH[1]}"
             crate_version="${BASH_REMATCH[2]}"
+          
+            if [[ $crate_name == "ampd" ]]; then
+              echo "Ampd release. Ignoring the wasm build and upload."
+              exit 1
+            fi
 
             echo "Is release: $is_release"
             echo "Crate Name: $crate_name"
@@ -90,6 +96,7 @@ jobs:
           path: axelar-amplifier
           submodules: recursive
           ref: ${{ steps.get-checkout-ref.outputs.ref }}
+          token: ${{ secrets.INTEROP_CI_ACTION_TOKEN }}
 
 
       - name: Import GPG key
