@@ -28,9 +28,10 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          token: ${{ secrets.INTEROP_CI_ACTION_TOKEN }}
       - name: Setup variables for sub-project to release
         id: setup-variables
         shell: bash
@@ -68,3 +69,4 @@ jobs:
           major-pattern: ${{ steps.setup-variables.outputs.major-pattern }}
           minor-pattern: ${{ steps.setup-variables.outputs.minor-pattern }}
           change-path: ${{ steps.setup-variables.outputs.change-path }}
+          github_token: ${{ secrets.INTEROP_CI_ACTION_TOKEN }}
