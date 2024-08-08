@@ -86,12 +86,14 @@ impl KeyDeserialize for &CrossChainId {
 #[cfg(test)]
 mod tests {
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-    use cosmwasm_std::DepsMut;
+    use cosmwasm_std::{DepsMut, Env, MessageInfo, Response};
+    use error_stack::ResultExt;
 
     use crate::contract::migrations::v0_2_3;
-    use crate::contract::{instantiate, CONTRACT_NAME, CONTRACT_VERSION};
+    use crate::contract::{Error, CONTRACT_NAME, CONTRACT_VERSION};
     use crate::msg::InstantiateMsg;
     use crate::state;
+    use crate::state::Config;
 
     #[test]
     fn migrate_checks_contract_version() {
@@ -180,6 +182,33 @@ mod tests {
 
         assert!(v0_2_3::migrate(deps.as_mut().storage).is_ok());
 
-        assert!(state::OUTGOING_MESSAGES.is_empty(deps.as_ref().storage))
+        assert!(v0_2_3::OUTGOING_MESSAGES.is_empty(deps.as_ref().storage))
+    }
+
+    #[deprecated(since = "0.2.3", note = "only used to test the migration")]
+    pub fn instantiate(
+        deps: DepsMut,
+        _env: Env,
+        _info: MessageInfo,
+        msg: InstantiateMsg,
+    ) -> Result<Response, axelar_wasm_std::error::ContractError> {
+        cw2::set_contract_version(deps.storage, CONTRACT_NAME, v0_2_3::BASE_VERSION)?;
+
+        let router = deps
+            .api
+            .addr_validate(&msg.router_address)
+            .change_context(Error::InvalidAddress)
+            .attach_printable(msg.router_address)?;
+
+        let verifier = deps
+            .api
+            .addr_validate(&msg.verifier_address)
+            .change_context(Error::InvalidAddress)
+            .attach_printable(msg.verifier_address)?;
+
+        state::save_config(deps.storage, &Config { verifier, router })
+            .change_context(Error::InvalidStoreAccess)?;
+
+        Ok(Response::new())
     }
 }

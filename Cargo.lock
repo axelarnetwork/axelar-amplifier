@@ -220,7 +220,7 @@ dependencies = [
 
 [[package]]
 name = "ampd"
-version = "0.6.0"
+version = "1.0.0"
 dependencies = [
  "async-trait",
  "axelar-wasm-std",
@@ -792,9 +792,10 @@ checksum = "0c4b4d0bd25bd0b74681c0ad21497610ce1b7c91b1022cd21c80c6fbdd9476b0"
 
 [[package]]
 name = "axelar-wasm-std"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "alloy-primitives",
+ "axelar-wasm-std-derive",
  "bs58 0.5.1",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -821,7 +822,7 @@ dependencies = [
 
 [[package]]
 name = "axelar-wasm-std-derive"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "axelar-wasm-std",
  "error-stack",
@@ -1460,7 +1461,7 @@ checksum = "4b82cf0babdbd58558212896d1a4272303a57bdb245c2bf1147185fb45640e70"
 
 [[package]]
 name = "client"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "cosmwasm-std",
  "error-stack",
@@ -1581,10 +1582,9 @@ checksum = "6245d59a3e82a7fc217c5828a6692dbc6dfb63a0c8c90495621f7b9d79704a0e"
 
 [[package]]
 name = "coordinator"
-version = "0.2.0"
+version = "1.0.0"
 dependencies = [
  "axelar-wasm-std",
- "axelar-wasm-std-derive",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-multi-test",
@@ -2662,7 +2662,7 @@ checksum = "0206175f82b8d6bf6652ff7d71a1e27fd2e4efde587fd368662814d6ec1d9ce0"
 
 [[package]]
 name = "events"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "axelar-wasm-std",
  "base64 0.21.7",
@@ -2675,7 +2675,7 @@ dependencies = [
 
 [[package]]
 name = "events-derive"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "error-stack",
  "events",
@@ -2687,7 +2687,7 @@ dependencies = [
 
 [[package]]
 name = "evm-gateway"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "axelar-wasm-std",
  "cosmwasm-std",
@@ -3107,10 +3107,9 @@ dependencies = [
 
 [[package]]
 name = "gateway"
-version = "0.2.3"
+version = "1.0.0"
 dependencies = [
  "axelar-wasm-std",
- "axelar-wasm-std-derive",
  "client",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -3131,7 +3130,7 @@ dependencies = [
 
 [[package]]
 name = "gateway-api"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "axelar-wasm-std",
  "cosmwasm-schema",
@@ -3907,7 +3906,7 @@ dependencies = [
 
 [[package]]
 name = "integration-tests"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "axelar-wasm-std",
  "coordinator",
@@ -3939,7 +3938,6 @@ dependencies = [
  "alloy-primitives",
  "alloy-sol-types",
  "axelar-wasm-std",
- "axelar-wasm-std-derive",
  "cosmwasm-schema",
  "cosmwasm-std",
  "error-stack",
@@ -4734,7 +4732,7 @@ dependencies = [
 
 [[package]]
 name = "msgs-derive"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "axelar-wasm-std",
  "cosmwasm-std",
@@ -4819,10 +4817,9 @@ checksum = "e5ce46fe64a9d73be07dcbe690a38ce1b293be448fd8ce1e6c1b8062c9f72c6a"
 
 [[package]]
 name = "multisig"
-version = "0.4.1"
+version = "1.0.0"
 dependencies = [
  "axelar-wasm-std",
- "axelar-wasm-std-derive",
  "cosmwasm-crypto",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -4852,11 +4849,10 @@ dependencies = [
 
 [[package]]
 name = "multisig-prover"
-version = "0.6.0"
+version = "1.0.0"
 dependencies = [
  "anyhow",
  "axelar-wasm-std",
- "axelar-wasm-std-derive",
  "bcs",
  "coordinator",
  "cosmwasm-schema",
@@ -4873,6 +4869,7 @@ dependencies = [
  "gateway",
  "gateway-api",
  "generic-array",
+ "goldie",
  "hex",
  "itertools 0.11.0",
  "k256",
@@ -5010,10 +5007,9 @@ dependencies = [
 
 [[package]]
 name = "nexus-gateway"
-version = "0.3.0"
+version = "1.0.0"
 dependencies = [
  "axelar-wasm-std",
- "axelar-wasm-std-derive",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 1.2.0",
@@ -6333,7 +6329,7 @@ checksum = "7a66a03ae7c801facd77a29370b4faec201768915ac14a721ba36f20bc9c209b"
 
 [[package]]
 name = "report"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "error-stack",
  "eyre",
@@ -6385,10 +6381,9 @@ dependencies = [
 
 [[package]]
 name = "rewards"
-version = "0.4.0"
+version = "1.0.0"
 dependencies = [
  "axelar-wasm-std",
- "axelar-wasm-std-derive",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-multi-test",
@@ -6496,10 +6491,9 @@ dependencies = [
 
 [[package]]
 name = "router"
-version = "0.4.0"
+version = "1.0.0"
 dependencies = [
  "axelar-wasm-std",
- "axelar-wasm-std-derive",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-multi-test",
@@ -6522,10 +6516,9 @@ dependencies = [
 
 [[package]]
 name = "router-api"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "axelar-wasm-std",
- "axelar-wasm-std-derive",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 1.2.0",
@@ -7151,10 +7144,9 @@ dependencies = [
 
 [[package]]
 name = "service-registry"
-version = "0.4.1"
+version = "1.0.0"
 dependencies = [
  "axelar-wasm-std",
- "axelar-wasm-std-derive",
  "coordinator",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -7297,7 +7289,7 @@ dependencies = [
 
 [[package]]
 name = "signature-verifier-api"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -8855,11 +8847,10 @@ checksum = "2e4fe92cfc1bad19c19925d5eee4b30584dbbdee4ff10183b261acccbef74e2d"
 
 [[package]]
 name = "voting-verifier"
-version = "0.5.0"
+version = "1.0.0"
 dependencies = [
  "alloy-primitives",
  "axelar-wasm-std",
- "axelar-wasm-std-derive",
  "client",
  "cosmwasm-schema",
  "cosmwasm-std",

@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use axelar_wasm_std::{nonempty, MajorityThreshold, Participant, Threshold};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, HexBinary, Uint128, Uint64};
-use multisig::key::{KeyType, PublicKey, Signature};
+use multisig::key::{KeyType, Signature};
 use multisig::msg::Signer;
 use multisig::verifier_set::VerifierSet;
 use router_api::{CrossChainId, Message};
@@ -13,7 +13,7 @@ pub fn new_verifier_set() -> VerifierSet {
         Signer {
             address: Addr::unchecked("axelarvaloper1x86a8prx97ekkqej2x636utrdu23y8wupp9gk5"),
             weight: Uint128::from(10u128),
-            pub_key: PublicKey::Ecdsa(
+            pub_key: multisig::key::PublicKey::Ecdsa(
                 HexBinary::from_hex(
                     "03d123ce370b163acd576be0e32e436bb7e63262769881d35fa3573943bf6c6f81",
                 )
@@ -23,7 +23,7 @@ pub fn new_verifier_set() -> VerifierSet {
         Signer {
             address: Addr::unchecked("axelarvaloper1ff675m593vve8yh82lzhdnqfpu7m23cxstr6h4"),
             weight: Uint128::from(10u128),
-            pub_key: PublicKey::Ecdsa(
+            pub_key: multisig::key::PublicKey::Ecdsa(
                 HexBinary::from_hex(
                     "03c6ddb0fcee7b528da1ef3c9eed8d51eeacd7cc28a8baa25c33037c5562faa6e4",
                 )
@@ -33,7 +33,7 @@ pub fn new_verifier_set() -> VerifierSet {
         Signer {
             address: Addr::unchecked("axelarvaloper12cwre2gdhyytc3p97z9autzg27hmu4gfzz4rxc"),
             weight: Uint128::from(10u128),
-            pub_key: PublicKey::Ecdsa(
+            pub_key: multisig::key::PublicKey::Ecdsa(
                 HexBinary::from_hex(
                     "0274b5d2a4c55d7edbbf9cc210c4d25adbb6194d6b444816235c82984bee518255",
                 )
@@ -43,7 +43,7 @@ pub fn new_verifier_set() -> VerifierSet {
         Signer {
             address: Addr::unchecked("axelarvaloper1vs9rdplntrf7ceqdkznjmanrr59qcpjq6le0yw"),
             weight: Uint128::from(10u128),
-            pub_key: PublicKey::Ecdsa(
+            pub_key: multisig::key::PublicKey::Ecdsa(
                 HexBinary::from_hex(
                     "02a670f57de55b8b39b4cb051e178ca8fb3fe3a78cdde7f8238baf5e6ce1893185",
                 )
@@ -53,7 +53,7 @@ pub fn new_verifier_set() -> VerifierSet {
         Signer {
             address: Addr::unchecked("axelarvaloper1hz0slkejw96dukw87fztjkvwjdpcu20jewg6mw"),
             weight: Uint128::from(10u128),
-            pub_key: PublicKey::Ecdsa(
+            pub_key: multisig::key::PublicKey::Ecdsa(
                 HexBinary::from_hex(
                     "028584592624e742ba154c02df4c0b06e4e8a957ba081083ea9fe5309492aa6c7b",
                 )
@@ -201,7 +201,7 @@ pub fn verifier_set_from_pub_keys(pub_keys: Vec<&str>) -> VerifierSet {
                     address: Addr::unchecked(format!("verifier{i}")),
                     weight: nonempty::Uint128::one(),
                 },
-                PublicKey::Ecdsa(HexBinary::from_hex(pub_keys[i]).unwrap()),
+                multisig::key::PublicKey::Ecdsa(HexBinary::from_hex(pub_keys[i]).unwrap()),
             )
         })
         .collect();

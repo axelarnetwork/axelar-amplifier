@@ -170,7 +170,7 @@ mod tests {
                 service_name: SERVICE_NAME.to_string(),
                 chain_name: "ganache-0".to_string(),
                 verifier_set_diff_threshold: 0,
-                encoder: crate::encoding::Encoder::Abi,
+                encoder: Encoder::Abi,
                 key_type: multisig::key::KeyType::Ecdsa,
                 domain_separator: [0; 32],
             },
@@ -615,6 +615,19 @@ mod tests {
         assert_eq!(
             res.unwrap_err().to_string(),
             axelar_wasm_std::error::ContractError::from(ContractError::VerifierSetNotConfirmed)
+                .to_string()
+        );
+    }
+
+    #[test]
+    fn confirm_verifier_no_update_in_progress_should_fail() {
+        let mut deps = setup_test_case();
+
+        let res = confirm_verifier_set(deps.as_mut(), Addr::unchecked("relayer"));
+        assert!(res.is_err());
+        assert_eq!(
+            res.unwrap_err().to_string(),
+            axelar_wasm_std::error::ContractError::from(ContractError::NoVerifierSetToConfirm)
                 .to_string()
         );
     }

@@ -1,6 +1,6 @@
 [package]
 name = "router"
-version = "0.4.0"
+version = "1.0.0"
 rust-version = { workspace = true }
 edition = "2021"
 description = "Router contract"
@@ -33,8 +33,7 @@ optimize = """docker run --rm -v "$(pwd)":/code \
 """
 
 [dependencies]
-axelar-wasm-std = { workspace = true }
-axelar-wasm-std-derive = { workspace = true }
+axelar-wasm-std = { workspace = true, features = ["derive"] }
 cosmwasm-schema = { workspace = true }
 cosmwasm-std = { workspace = true }
 cw-storage-plus = { workspace = true }

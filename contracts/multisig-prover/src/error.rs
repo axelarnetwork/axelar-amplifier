@@ -1,5 +1,4 @@
-use axelar_wasm_std::nonempty;
-use axelar_wasm_std_derive::IntoContractError;
+use axelar_wasm_std::{nonempty, IntoContractError};
 use cosmwasm_std::StdError;
 use router_api::ChainName;
 use thiserror::Error;
@@ -49,6 +48,9 @@ pub enum ContractError {
     #[error("a verifier set confirmation already in progress")]
     VerifierSetConfirmationInProgress,
 
+    #[error("no verifier set to confirm")]
+    NoVerifierSetToConfirm,
+
     #[error("no verifier set stored")]
     NoVerifierSet,
 
@@ -69,4 +71,7 @@ pub enum ContractError {
         actual: ChainName,
         expected: ChainName,
     },
+
+    #[error("payload does not match the stored value")]
+    PayloadMismatch,
 }

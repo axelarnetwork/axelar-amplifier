@@ -19,3 +19,6 @@ pub mod threshold;
 pub mod utils;
 pub mod verification;
 pub mod voting;
+
+#[cfg(feature = "derive")]
+pub use axelar_wasm_std_derive::*;
