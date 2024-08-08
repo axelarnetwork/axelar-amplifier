@@ -108,8 +108,8 @@ pub fn migrate(
 mod test {
     use axelar_wasm_std::address_format::AddressFormat;
     use axelar_wasm_std::msg_id::{
-        Base58SolanaTxSignatureAndEventIndex, Base58TxDigestAndEventIndex, HexTxHashAndEventIndex,
-        MessageIdFormat,
+        Base58SolanaTxSignatureAndEventIndex, Base58TxDigestAndEventIndex, HexTxHash,
+        HexTxHashAndEventIndex, MessageIdFormat,
     };
     use axelar_wasm_std::voting::Vote;
     use axelar_wasm_std::{
@@ -241,6 +241,12 @@ mod test {
                 .parse()
                 .unwrap()
             }
+            MessageIdFormat::HexTxHash => HexTxHash {
+                tx_hash: Keccak256::digest(id.as_bytes()).into(),
+            }
+            .to_string()
+            .parse()
+            .unwrap(),
         }
     }
 
