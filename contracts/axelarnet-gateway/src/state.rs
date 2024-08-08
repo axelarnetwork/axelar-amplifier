@@ -26,14 +26,14 @@ pub(crate) struct MessageWithStatus {
 const CONFIG_NAME: &str = "config";
 const CONFIG: Item<Config> = Item::new(CONFIG_NAME);
 
-const COUNTER_NAME: &str = "counter";
-const COUNTER: Counter<u32> = Counter::new(COUNTER_NAME);
+const SENT_MESSAGE_COUNTER_NAME: &str = "sent_message_counter";
+const SENT_MESSAGE_COUNTER: Counter<u32> = Counter::new(SENT_MESSAGE_COUNTER_NAME);
 
-const INCOMING_MESSAGES_NAME: &str = "incoming_messages";
-const INCOMING_MESSAGES: Map<CrossChainId, Message> = Map::new(INCOMING_MESSAGES_NAME);
+const SENT_MESSAGES_NAME: &str = "sent_messages";
+const SENT_MESSAGES: Map<CrossChainId, Message> = Map::new(SENT_MESSAGES_NAME);
 
-const OUTGOING_MESSAGES_NAME: &str = "outgoing_messages";
-const OUTGOING_MESSAGES: Map<CrossChainId, MessageWithStatus> = Map::new(OUTGOING_MESSAGES_NAME);
+const RECEIVED_MESSAGES_NAME: &str = "received_messages";
+const RECEIVED_MESSAGES: Map<CrossChainId, MessageWithStatus> = Map::new(RECEIVED_MESSAGES_NAME);
 
 #[derive(thiserror::Error, Debug, IntoContractError)]
 pub enum Error {
@@ -49,7 +49,7 @@ pub enum Error {
     MessageNotApproved(CrossChainId),
     #[error("message with ID {0} already executed")]
     MessageAlreadyExecuted(CrossChainId),
-    #[error("incoming message with ID {0} already exists")]
+    #[error("sent message with ID {0} already exists")]
     MessageAlreadyExists(CrossChainId),
 }
 
@@ -64,44 +64,42 @@ pub(crate) fn load_config(storage: &dyn Storage) -> Result<Config, Error> {
         .ok_or(Error::MissingConfig)
 }
 
-pub(crate) fn save_incoming_msg(
+pub(crate) fn save_sent_msg(
     storage: &mut dyn Storage,
     key: CrossChainId,
     msg: &Message,
 ) -> Result<(), Error> {
-    match INCOMING_MESSAGES.may_load(storage, key.clone())? {
+    match SENT_MESSAGES.may_load(storage, key.clone())? {
         Some(_) => Err(Error::MessageAlreadyExists(key)),
-        None => INCOMING_MESSAGES
-            .save(storage, key, msg)
-            .map_err(Error::from),
+        None => SENT_MESSAGES.save(storage, key, msg).map_err(Error::from),
     }
 }
 
-pub(crate) fn may_load_incoming_msg(
+pub(crate) fn may_load_sent_msg(
     storage: &dyn Storage,
     id: &CrossChainId,
 ) -> Result<Option<Message>, Error> {
-    INCOMING_MESSAGES
+    SENT_MESSAGES
         .may_load(storage, id.clone())
         .map_err(Error::from)
 }
 
 #[cfg(test)]
-pub(crate) fn may_load_outgoing_msg(
+pub(crate) fn may_load_received_msg(
     storage: &dyn Storage,
     cc_id: &CrossChainId,
 ) -> Result<Option<MessageWithStatus>, Error> {
-    OUTGOING_MESSAGES
+    RECEIVED_MESSAGES
         .may_load(storage, cc_id.clone())
         .map_err(Error::from)
 }
 
-pub(crate) fn save_outgoing_msg(
+pub(crate) fn save_received_msg(
     storage: &mut dyn Storage,
     cc_id: CrossChainId,
     msg: Message,
 ) -> Result<(), Error> {
-    let existing = OUTGOING_MESSAGES
+    let existing = RECEIVED_MESSAGES
         .may_load(storage, cc_id.clone())
         .map_err(Error::from)?;
 
@@ -110,7 +108,7 @@ pub(crate) fn save_outgoing_msg(
             msg: existing_msg, ..
         }) if msg != existing_msg => Err(Error::MessageMismatch(msg.cc_id.clone())),
         Some(_) => Ok(()), // new message is identical, no need to store it
-        None => OUTGOING_MESSAGES
+        None => RECEIVED_MESSAGES
             .save(
                 storage,
                 cc_id,
@@ -125,11 +123,11 @@ pub(crate) fn save_outgoing_msg(
 }
 
 /// Update the status of a message to executed if it is in approved status, error otherwise.
-pub(crate) fn update_msg_status(
+pub(crate) fn set_msg_as_executed(
     storage: &mut dyn Storage,
     cc_id: CrossChainId,
 ) -> Result<Message, Error> {
-    let existing = OUTGOING_MESSAGES
+    let existing = RECEIVED_MESSAGES
         .may_load(storage, cc_id.clone())
         .map_err(Error::from)?;
 
@@ -138,7 +136,7 @@ pub(crate) fn update_msg_status(
             msg,
             status: MessageStatus::Approved,
         }) => {
-            OUTGOING_MESSAGES
+            RECEIVED_MESSAGES
                 .save(
                     storage,
                     cc_id,
@@ -160,7 +158,7 @@ pub(crate) fn update_msg_status(
 }
 
 pub(crate) fn increment_msg_counter(storage: &mut dyn Storage) -> Result<u32, Error> {
-    COUNTER.incr(storage).map_err(Error::from)
+    SENT_MESSAGE_COUNTER.incr(storage).map_err(Error::from)
 }
 
 #[cfg(test)]
@@ -170,7 +168,7 @@ mod test {
     use router_api::{CrossChainId, Message};
 
     use crate::state::{
-        load_config, may_load_outgoing_msg, save_config, save_outgoing_msg, Config,
+        load_config, may_load_received_msg, save_config, save_received_msg, Config,
         MessageWithStatus,
     };
 
@@ -206,10 +204,10 @@ mod test {
             status: crate::state::MessageStatus::Approved,
         };
 
-        assert!(save_outgoing_msg(deps.as_mut().storage, msg.cc_id.clone(), msg.clone(),).is_ok());
+        assert!(save_received_msg(deps.as_mut().storage, msg.cc_id.clone(), msg.clone(),).is_ok());
 
         assert_eq!(
-            may_load_outgoing_msg(&deps.storage, &msg.cc_id).unwrap(),
+            may_load_received_msg(&deps.storage, &msg.cc_id).unwrap(),
             Some(msg_with_status)
         );
 
@@ -219,7 +217,7 @@ mod test {
         };
 
         assert_eq!(
-            may_load_outgoing_msg(&deps.storage, &unknown_chain_id).unwrap(),
+            may_load_received_msg(&deps.storage, &unknown_chain_id).unwrap(),
             None
         );
 
@@ -228,7 +226,7 @@ mod test {
             message_id: "unknown".parse().unwrap(),
         };
         assert_eq!(
-            may_load_outgoing_msg(&deps.storage, &unknown_id).unwrap(),
+            may_load_received_msg(&deps.storage, &unknown_id).unwrap(),
             None
         );
     }

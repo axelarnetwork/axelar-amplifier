@@ -30,6 +30,7 @@ pub enum ExecuteMsg {
     RouteMessages(Vec<Message>),
 
     /// Execute the message at the destination contract with the corresponding payload.
+    /// The message is marked as executed and thus can't be executed again.
     #[permission(Any)]
     Execute {
         cc_id: CrossChainId,

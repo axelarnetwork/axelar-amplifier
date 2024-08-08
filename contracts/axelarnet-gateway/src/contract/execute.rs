@@ -1,5 +1,4 @@
 use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
-use axelar_wasm_std::nonempty;
 use cosmwasm_std::{
     Addr, Api, Event, HexBinary, QuerierWrapper, Response, Storage, Uint256, WasmMsg,
 };
@@ -31,12 +30,11 @@ pub(crate) fn call_contract(
         tx_hash: Uint256::from(block_height).to_be_bytes(),
         event_index: counter,
     }
-    .to_string();
+    .into();
 
     let cc_id = CrossChainId {
         source_chain: chain_name.into(),
-        message_id: nonempty::String::try_from(message_id)
-            .change_context(Error::InvalidMessageId)?,
+        message_id,
     };
 
     let payload_hash = Keccak256::digest(payload.as_slice()).into();
@@ -50,7 +48,7 @@ pub(crate) fn call_contract(
         payload_hash,
     };
 
-    state::save_incoming_msg(store, cc_id, &msg).change_context(Error::InvalidStoreAccess)?;
+    state::save_sent_msg(store, cc_id, &msg).change_context(Error::InvalidStoreAccess)?;
 
     let (wasm_msg, events) = route(router, vec![msg.clone()])?;
 
@@ -66,7 +64,7 @@ pub(crate) fn receive_messages(
     msgs: Vec<Message>,
 ) -> Result<Response, Error> {
     for msg in msgs.iter() {
-        state::save_outgoing_msg(store, msg.cc_id.clone(), msg.clone())
+        state::save_received_msg(store, msg.cc_id.clone(), msg.clone())
             .change_context(Error::SaveOutgoingMessage)?;
     }
 
@@ -82,7 +80,7 @@ pub(crate) fn send_messages(
     msgs: Vec<Message>,
 ) -> Result<Response, Error> {
     for msg in msgs.iter() {
-        let stored_msg = state::may_load_incoming_msg(store, &msg.cc_id)
+        let stored_msg = state::may_load_sent_msg(store, &msg.cc_id)
             .change_context(Error::InvalidStoreAccess)?;
 
         match stored_msg {
@@ -118,7 +116,7 @@ pub(crate) fn execute(
     cc_id: CrossChainId,
     payload: HexBinary,
 ) -> Result<Response, Error> {
-    let msg = state::update_msg_status(store, cc_id.clone())
+    let msg = state::set_msg_as_executed(store, cc_id.clone())
         .change_context(Error::MessageStatusUpdateFailed(cc_id))?;
 
     let payload_hash: [u8; 32] = Keccak256::digest(payload.as_slice()).into();
