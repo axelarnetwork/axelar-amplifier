@@ -2,7 +2,7 @@
 name = "signature-verifier-api"
 version = "1.0.0"
 rust-version = { workspace = true }
-edition = "2021"
+edition = { workspace = true }
 
 [dependencies]
 cosmwasm-schema = { workspace = true }
