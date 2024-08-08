@@ -1619,6 +1619,61 @@ mod test {
         assert_eq!(err.current_context(), &ContractError::NoRewardsToDistribute);
     }
 
+    #[test]
+    fn cannot_record_participation_before_pool_is_created() {
+        let cur_epoch_num = 1u64;
+        let block_height_started = 250u64;
+        let mut mock_deps =
+            setup_multiple_pools_with_params(cur_epoch_num, block_height_started, vec![]);
+
+        assert!(record_participation(
+            mock_deps.as_mut().storage,
+            "some-event".parse().unwrap(),
+            Addr::unchecked("verifier"),
+            PoolId {
+                chain_name: "mock-chain".parse().unwrap(),
+                contract: Addr::unchecked("contract")
+            },
+            block_height_started
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn cannot_add_rewards_before_pool_is_created() {
+        let cur_epoch_num = 1u64;
+        let block_height_started = 250u64;
+        let mut mock_deps =
+            setup_multiple_pools_with_params(cur_epoch_num, block_height_started, vec![]);
+        assert!(add_rewards(
+            mock_deps.as_mut().storage,
+            PoolId {
+                chain_name: "mock-chain".parse().unwrap(),
+                contract: Addr::unchecked("contract")
+            },
+            100u128.try_into().unwrap(),
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn cannot_distribute_rewards_before_pool_is_created() {
+        let cur_epoch_num = 1u64;
+        let block_height_started = 250u64;
+        let mut mock_deps =
+            setup_multiple_pools_with_params(cur_epoch_num, block_height_started, vec![]);
+        assert!(distribute_rewards(
+            mock_deps.as_mut().storage,
+            PoolId {
+                chain_name: "mock-chain".parse().unwrap(),
+                contract: Addr::unchecked("contract")
+            },
+            block_height_started,
+            None
+        )
+        .is_err());
+    }
+
     type MockDeps = OwnedDeps<MockStorage, MockApi, MockQuerier>;
 
     fn setup_multiple_pools_with_params(
