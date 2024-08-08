@@ -7,7 +7,7 @@ use thiserror::Error;
 use tokio::select;
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::Interval;
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
 
 use super::msg_queue::MsgQueue;
 use super::proto;
@@ -147,7 +147,7 @@ where
                         .iter()
                         .enumerate()
                         .for_each(|(event_index, event)| {
-                            info!(tx_hash, msg_index, event_index, "tx event {:?}", event);
+                            debug!(tx_hash, msg_index, event_index, "tx event {:?}", event);
                         });
                 });
             }
