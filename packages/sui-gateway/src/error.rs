@@ -6,4 +6,8 @@ pub enum Error {
     InvalidAddressBytes(Vec<u8>),
     #[error("invalid address hex: {0}")]
     InvalidAddressHex(String),
+    #[error("unsupported type of public key")]
+    UnsupportedPublicKey,
+    #[error("unsupported type of signature")]
+    UnsupportedSignature,
 }

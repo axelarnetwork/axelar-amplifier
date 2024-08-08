@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use error_stack::{Report, Result, ResultExt};
+use error_stack::{report, Report, Result, ResultExt};
 use serde::{Deserialize, Serialize};
 
 use crate::error::Error;
@@ -32,9 +32,12 @@ impl FromStr for SuiAddress {
     type Err = Report<Error>;
 
     fn from_str(s: &str) -> Result<Self, Error> {
-        hex::decode(s.trim_start_matches(ADDRESS_PREFIX))
-            .change_context(Error::InvalidAddressHex(s.to_string()))?
-            .as_slice()
-            .try_into()
+        hex::decode(
+            s.strip_prefix(ADDRESS_PREFIX)
+                .ok_or(report!(Error::InvalidAddressHex(s.to_string())))?,
+        )
+        .change_context(Error::InvalidAddressHex(s.to_string()))?
+        .as_slice()
+        .try_into()
     }
 }

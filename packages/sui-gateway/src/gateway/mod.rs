@@ -1,5 +1,6 @@
-use cosmwasm_std::HexBinary;
-use error_stack::Report;
+use cosmwasm_std::Uint256;
+use error_stack::{report, Report};
+use multisig::key::PublicKey;
 use multisig::msg::SignerWithSig;
 use multisig::verifier_set::VerifierSet;
 use serde::{Deserialize, Serialize};
@@ -10,8 +11,11 @@ use crate::error::Error;
 
 pub mod events;
 
-pub const COMMAND_TYPE_APPROVE_MESSAGES: u8 = 0;
-pub const COMMAND_TYPE_ROTATE_SIGNERS: u8 = 1;
+#[repr(u8)]
+pub enum CommandType {
+    ApproveMessages = 0,
+    RotateSigners = 1,
+}
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Bytes32 {
@@ -43,30 +47,30 @@ pub struct WeightedSigners {
     pub nonce: Bytes32,
 }
 
-impl From<VerifierSet> for WeightedSigners {
-    fn from(verifier_set: VerifierSet) -> Self {
-        let mut signers: Vec<_> = verifier_set
+impl TryFrom<VerifierSet> for WeightedSigners {
+    type Error = Report<Error>;
+
+    fn try_from(verifier_set: VerifierSet) -> Result<Self, Self::Error> {
+        let mut signers = verifier_set
             .signers
             .values()
-            .map(|signer| WeightedSigner {
-                pub_key: HexBinary::from(signer.pub_key.clone()).to_vec(),
-                weight: signer.weight.into(),
+            .map(|signer| match &signer.pub_key {
+                PublicKey::Ecdsa(key) => Ok(WeightedSigner {
+                    pub_key: key.to_vec(),
+                    weight: signer.weight.into(),
+                }),
+                PublicKey::Ed25519(_) => Err(Report::new(Error::UnsupportedPublicKey)),
             })
-            .collect();
-        signers.sort_by_key(|signer| signer.pub_key.clone());
+            .collect::<Result<Vec<_>, _>>()?;
+        signers.sort_by(|signer1, signer2| signer1.pub_key.cmp(&signer2.pub_key));
 
-        let nonce = [0u8; 24]
-            .into_iter()
-            .chain(verifier_set.created_at.to_be_bytes())
-            .collect::<Vec<_>>();
+        let nonce = Uint256::from(verifier_set.created_at).to_be_bytes().into();
 
-        Self {
+        Ok(Self {
             signers,
             threshold: verifier_set.threshold.into(),
-            nonce: <[u8; 32]>::try_from(nonce)
-                .expect("nonce must be 32 bytes")
-                .into(),
-        }
+            nonce,
+        })
     }
 }
 
@@ -123,10 +127,15 @@ pub struct Signature {
     bytes: Vec<u8>,
 }
 
-impl From<multisig::key::Signature> for Signature {
-    fn from(signature: multisig::key::Signature) -> Self {
-        Self {
-            bytes: signature.as_ref().to_vec(),
+impl TryFrom<multisig::key::Signature> for Signature {
+    type Error = Report<Error>;
+
+    fn try_from(signature: multisig::key::Signature) -> Result<Self, Self::Error> {
+        match signature {
+            multisig::key::Signature::EcdsaRecoverable(signature) => Ok(Self {
+                bytes: signature.as_ref().to_vec(),
+            }),
+            _ => Err(report!(Error::UnsupportedSignature)),
         }
     }
 }
@@ -137,18 +146,22 @@ pub struct Proof {
     signatures: Vec<Signature>,
 }
 
-impl From<(VerifierSet, Vec<SignerWithSig>)> for Proof {
-    fn from((verifier_set, mut signatures): (VerifierSet, Vec<SignerWithSig>)) -> Self {
-        signatures.sort_by_key(|signer| signer.signer.pub_key.clone());
+impl TryFrom<(VerifierSet, Vec<SignerWithSig>)> for Proof {
+    type Error = Report<Error>;
 
-        Self {
-            signers: verifier_set.into(),
+    fn try_from(
+        (verifier_set, mut signatures): (VerifierSet, Vec<SignerWithSig>),
+    ) -> Result<Self, Self::Error> {
+        signatures.sort_by(|signer1, signer2| signer1.signer.pub_key.cmp(&signer2.signer.pub_key));
+
+        Ok(Self {
+            signers: verifier_set.try_into()?,
             signatures: signatures
                 .into_iter()
                 .map(|signer| signer.signature)
-                .map(Into::into)
-                .collect(),
-        }
+                .map(TryInto::try_into)
+                .collect::<Result<Vec<_>, _>>()?,
+        })
     }
 }
 

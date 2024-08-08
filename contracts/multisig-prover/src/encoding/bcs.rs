@@ -7,8 +7,7 @@ use multisig::msg::SignerWithSig;
 use multisig::verifier_set::VerifierSet;
 use sha3::{Digest, Keccak256};
 use sui_gateway::gateway::{
-    ExecuteData, Message, MessageToSign, Proof, WeightedSigners, COMMAND_TYPE_APPROVE_MESSAGES,
-    COMMAND_TYPE_ROTATE_SIGNERS,
+    CommandType, ExecuteData, Message, MessageToSign, Proof, WeightedSigners,
 };
 
 use crate::encoding::{to_recoverable, Encoder};
@@ -25,10 +24,11 @@ fn encode_payload(payload: &Payload) -> Result<Vec<u8>, ContractError> {
                 .change_context(ContractError::InvalidMessage)?,
         )
         .expect("failed to serialize messages"),
-        Payload::VerifierSet(verifier_set) => {
-            bcs::to_bytes(&WeightedSigners::from(verifier_set.clone()))
-                .expect("failed to weighted signers")
-        }
+        Payload::VerifierSet(verifier_set) => bcs::to_bytes(
+            &WeightedSigners::try_from(verifier_set.clone())
+                .change_context(ContractError::InvalidVerifierSet)?,
+        )
+        .expect("failed to weighted signers"),
     };
 
     Ok(encoded)
@@ -40,15 +40,18 @@ pub fn payload_digest(
     payload: &Payload,
 ) -> Result<Hash, ContractError> {
     let command_type = match payload {
-        Payload::Messages(_) => COMMAND_TYPE_APPROVE_MESSAGES,
-        Payload::VerifierSet(_) => COMMAND_TYPE_ROTATE_SIGNERS,
+        Payload::Messages(_) => CommandType::ApproveMessages,
+        Payload::VerifierSet(_) => CommandType::RotateSigners,
     };
-    let data = iter::once(command_type)
+    let data = iter::once(command_type as u8)
         .chain(encode_payload(payload)?)
         .collect::<Vec<_>>();
     let msg = MessageToSign {
         domain_separator: (*domain_separator).into(),
-        signers_hash: WeightedSigners::from(verifier_set.clone()).hash().into(),
+        signers_hash: WeightedSigners::try_from(verifier_set.clone())
+            .change_context(ContractError::InvalidVerifierSet)?
+            .hash()
+            .into(),
         data_hash: <[u8; 32]>::from(Keccak256::digest(data)).into(),
     };
 
@@ -64,8 +67,11 @@ pub fn encode_execute_data(
     let signatures = to_recoverable(Encoder::Bcs, payload_digest, signatures);
 
     let encoded_payload = encode_payload(payload)?;
-    let encoded_proof = bcs::to_bytes(&Proof::from((verifier_set.clone(), signatures)))
-        .expect("failed to serialize proof");
+    let encoded_proof = bcs::to_bytes(
+        &Proof::try_from((verifier_set.clone(), signatures))
+            .change_context(ContractError::Proof)?,
+    )
+    .expect("failed to serialize proof");
     let execute_data = ExecuteData::new(encoded_payload, encoded_proof);
 
     Ok(bcs::to_bytes(&execute_data)
