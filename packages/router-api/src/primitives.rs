@@ -113,6 +113,12 @@ impl TryFrom<String> for Address {
     }
 }
 
+impl std::fmt::Display for Address {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", *self.0)
+    }
+}
+
 #[cw_serde]
 #[derive(Eq, Hash)]
 pub struct CrossChainId {

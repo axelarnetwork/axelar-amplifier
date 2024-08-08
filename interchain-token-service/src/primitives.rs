@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{HexBinary, Uint256};
 use router_api::ChainName;
@@ -10,6 +12,12 @@ pub struct TokenId(
     #[schemars(with = "String")]
     [u8; 32],
 );
+
+impl Display for TokenId {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}", hex::encode(self.0))
+    }
+}
 
 #[cw_serde]
 #[derive(Eq, Copy, FromRepr)]

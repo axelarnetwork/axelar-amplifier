@@ -1,11 +1,10 @@
 use alloy_primitives::{FixedBytes, U256};
 use alloy_sol_types::{sol, SolValue};
-use axelar_wasm_std::FnExt;
+use axelar_wasm_std::{FnExt, IntoContractError};
 use cosmwasm_std::{HexBinary, Uint256};
 use error_stack::{Report, ResultExt};
 use router_api::ChainName;
 
-use crate::error::Error;
 use crate::primitives::{ItsHubMessage, ItsMessage};
 use crate::{TokenId, TokenManagerType};
 
@@ -60,6 +59,18 @@ sol! {
         string source_chain;
         bytes message;
     }
+}
+
+#[derive(thiserror::Error, Debug, PartialEq, IntoContractError)]
+pub enum Error {
+    #[error("failed to decode ITS message")]
+    InvalidMessage,
+    #[error("invalid message type")]
+    InvalidMessageType,
+    #[error("invalid chain name")]
+    InvalidChainName,
+    #[error("invalid token manager type")]
+    InvalidTokenManagerType,
 }
 
 impl ItsMessage {
@@ -248,8 +259,7 @@ mod tests {
     use cosmwasm_std::{HexBinary, Uint256};
     use router_api::ChainName;
 
-    use crate::abi::{DeployTokenManager, MessageType, SendToHub};
-    use crate::error::Error;
+    use crate::abi::{DeployTokenManager, Error, MessageType, SendToHub};
     use crate::{ItsHubMessage, ItsMessage, TokenManagerType};
 
     #[test]
