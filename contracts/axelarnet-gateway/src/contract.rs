@@ -4,7 +4,7 @@ use cosmwasm_std::entry_point;
 use cosmwasm_std::{Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response};
 use error_stack::ResultExt;
 use router_api::client::Router;
-use router_api::{ChainName, CrossChainId};
+use router_api::CrossChainId;
 
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{self, Config};
@@ -26,8 +26,6 @@ pub enum Error {
     SerializeWasmMsg,
     #[error("invalid address {0}")]
     InvalidAddress(String),
-    #[error("invalid destination chain {0}")]
-    InvalidDestinationChain(ChainName),
     #[error("invalid message id")]
     InvalidMessageId,
     #[error("failed to save outgoing message")]
@@ -116,20 +114,15 @@ pub fn execute(
         ),
         ExecuteMsg::RouteMessages(msgs) => {
             if info.sender == router.address {
-                execute::receive_messages(deps.storage, msgs)
+                execute::receive_messages(deps.storage, chain_name, msgs)
             } else {
                 // Messages initiated via call contract can be routed again
                 execute::send_messages(deps.storage, &router, msgs)
             }
         }
-        ExecuteMsg::Execute { cc_id, payload } => execute::execute(
-            deps.storage,
-            deps.api,
-            deps.querier,
-            chain_name,
-            cc_id,
-            payload,
-        ),
+        ExecuteMsg::Execute { cc_id, payload } => {
+            execute::execute(deps.storage, deps.api, deps.querier, cc_id, payload)
+        }
     }?
     .then(Ok)
 }

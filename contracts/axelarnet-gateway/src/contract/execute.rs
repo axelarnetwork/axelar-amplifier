@@ -61,9 +61,14 @@ pub(crate) fn call_contract(
 // Because the messages came from the router, we can assume they are already verified
 pub(crate) fn receive_messages(
     store: &mut dyn Storage,
+    chain_name: ChainName,
     msgs: Vec<Message>,
 ) -> Result<Response, Error> {
     for msg in msgs.iter() {
+        if chain_name != msg.destination_chain {
+            panic!("message destination chain should match chain name in the gateway")
+        }
+
         state::save_received_msg(store, msg.cc_id.clone(), msg.clone())
             .change_context(Error::SaveOutgoingMessage)?;
     }
@@ -112,7 +117,6 @@ pub(crate) fn execute(
     store: &mut dyn Storage,
     api: &dyn Api,
     querier: QuerierWrapper,
-    chain_name: ChainName,
     cc_id: CrossChainId,
     payload: HexBinary,
 ) -> Result<Response, Error> {
@@ -122,12 +126,6 @@ pub(crate) fn execute(
     let payload_hash: [u8; 32] = Keccak256::digest(payload.as_slice()).into();
     if payload_hash != msg.payload_hash {
         return Err(report!(Error::PayloadHashMismatch));
-    }
-
-    if chain_name != msg.destination_chain {
-        return Err(report!(Error::InvalidDestinationChain(
-            msg.destination_chain
-        )));
     }
 
     let destination_contract = api
@@ -349,5 +347,20 @@ mod tests {
 
         let err = execute(deps.as_mut(), env, info, msg).unwrap_err();
         assert!(err_contains!(err.report, Error, Error::PayloadHashMismatch));
+    }
+
+    #[test]
+    #[should_panic(expected = "should match chain name")]
+    fn receive_messages_wrong_chain() {
+        let (mut deps, _, _) = setup();
+
+        let mut message = dummy_message();
+        message.destination_chain = "wrong-chain".parse().unwrap();
+
+        let msg = ExecuteMsg::RouteMessages(vec![message]);
+        let info = mock_info(ROUTER, &[]);
+
+        // This should panic because the destination chain doesn't match the gateway's chain name
+        execute(deps.as_mut(), mock_env(), info, msg).unwrap();
     }
 }
