@@ -188,7 +188,7 @@ jobs:
           cp -R ./ampdbin/. "./${version}/"
           echo "release-dir=./${version}" >> $GITHUB_OUTPUT
           echo "r2-destination-dir=./releases/ampd/" >> $GITHUB_OUTPUT
-
+          
 
       - uses: ryand56/r2-upload-action@latest
         with:
