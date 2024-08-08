@@ -1,0 +1,22 @@
+name: Ping IP Address
+
+on:
+  workflow_dispatch:  # This allows manual triggering of the workflow
+
+jobs:
+  ping-ip:
+    runs-on: blacksmith-staging
+    steps:
+      - name: Ping IP address
+        run: |
+          echo "Starting ping to 172.32.0.89 for 5 seconds..."
+          timeout 5s ping 172.32.0.89
+          echo "Ping completed."
+  ping-ip-ubuntu:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping IP address
+        run: |
+          echo "Starting ping to 172.32.0.89 for 5 seconds..."
+          timeout 5s ping 172.32.0.89
+          echo "Ping completed."
