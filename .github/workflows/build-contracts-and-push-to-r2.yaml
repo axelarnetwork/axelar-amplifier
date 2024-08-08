@@ -45,6 +45,7 @@ jobs:
             echo "tag=" >> $GITHUB_OUTPUT
           fi
 
+
       - name: Check for release information from tag
         id: check-release
         run: |
@@ -110,9 +111,9 @@ jobs:
 
           commit_hash=$(git rev-parse --short HEAD)
           cd ..
-          mkdir -p ./artifacts/$commit_hash/
-          cp -R axelar-amplifier/artifacts/* ./artifacts/$commit_hash/
-          echo "wasm-directory=./artifacts" >> $GITHUB_OUTPUT
+          mkdir -p ./$commit_hash/
+          cp -R axelar-amplifier/artifacts/* ./$commit_hash/
+          echo "wasm-directory=./$commit_hash" >> $GITHUB_OUTPUT
 
 
       - name: Prepare and sign release artifacts
@@ -130,15 +131,15 @@ jobs:
             exit 1
           fi
 
-          mkdir -p "../release-artifacts"
-          cp "$wasm_file" "../release-artifacts/${crate_name}.wasm"
-          cp "$checksum_file" "../release-artifacts/"
+          mkdir -p "../${crate_version}"
+          cp "$wasm_file" "../${crate_version}/${crate_name}.wasm"
+          cp "$checksum_file" "../${crate_version}/"
 
-          gpg --armor --detach-sign  ../release-artifacts/${crate_name}.wasm
-          gpg --armor --detach-sign  ../release-artifacts/checksums.txt
+          gpg --armor --detach-sign  ../${crate_version}/${crate_name}.wasm
+          gpg --armor --detach-sign  ../${crate_version}/checksums.txt
 
-          echo "release-artifacts-dir=./release-artifacts" >> $GITHUB_OUTPUT
-          echo "r2-destination-dir=./releases/amplifier/${crate_name}/${crate_version}" >> $GITHUB_OUTPUT
+          echo "release-artifacts-dir=./${crate_version}" >> $GITHUB_OUTPUT
+          echo "r2-destination-dir=./releases/cosmwasm/${crate_name}" >> $GITHUB_OUTPUT
 
 
       - uses: ryand56/r2-upload-action@latest
@@ -160,4 +161,4 @@ jobs:
           r2-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_CF }}
           r2-bucket: ${{ secrets.R2_BUCKET }}
           source-dir: ${{ steps.compile-contracts.outputs.wasm-directory }}
-          destination-dir: ./pre-releases/ampd/contracts/
+          destination-dir: ./pre-releases/cosmwasm/

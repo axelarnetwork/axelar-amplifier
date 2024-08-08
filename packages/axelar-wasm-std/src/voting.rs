@@ -411,7 +411,7 @@ impl WeightedPoll {
 mod tests {
     use cosmwasm_std::{Addr, Uint64};
     use rand::distributions::Alphanumeric;
-    use rand::{thread_rng, Rng};
+    use rand::Rng;
 
     use super::*;
     use crate::{nonempty, Participant, Threshold};
@@ -444,7 +444,7 @@ mod tests {
 
     #[test]
     fn voter_not_a_participant() {
-        let mut rng = thread_rng();
+        let mut rng = rand::thread_rng();
         let poll = new_poll(
             rng.gen::<u64>(),
             rng.gen_range(1..50),
@@ -452,7 +452,7 @@ mod tests {
         );
         let votes = vec![Vote::SucceededOnChain, Vote::SucceededOnChain];
 
-        let rand_addr: String = thread_rng()
+        let rand_addr: String = rand::thread_rng()
             .sample_iter(&Alphanumeric)
             .take(5)
             .map(char::from)

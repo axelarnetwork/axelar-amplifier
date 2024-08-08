@@ -1,6 +1,6 @@
 [package]
 name = "axelar-wasm-std-derive"
-version = "0.1.0"
+version = "1.0.0"
 rust-version = { workspace = true }
 edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -9,12 +9,14 @@ edition = "2021"
 proc-macro = true
 
 [dependencies]
-axelar-wasm-std = { workspace = true }
 error-stack = { workspace = true }
 quote = "1.0.33"
 report = { workspace = true }
 syn = "2.0.29"
 thiserror = { workspace = true }
+
+[dev-dependencies]
+axelar-wasm-std = { workspace = true }
 
 [lints]
 workspace = true
