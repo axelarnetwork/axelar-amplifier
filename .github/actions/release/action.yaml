@@ -16,6 +16,9 @@ inputs:
     description: "minor pattern match string"
   change-path:
     description: "paths to observe for changes"
+  github_token:
+    description: "GitHub token for pushing changes"
+    required: true
 
 runs:
   using: "composite"
@@ -156,9 +159,20 @@ runs:
         inputs.dry-run == 'false' &&
         steps.semantic-version.outputs.changed == 'true'
       run: |
-        git config --global user.email "devops@axelar.network"
-        git config --global user.name "Axelar DevOps"
+        git config --global user.email "devops@interoplabs.io"
+        git config --global user.name "Interop Labs CI"
         cargo release -x \
           --no-confirm \
+          --no-push \
           -p ${{ inputs.binary-to-release }} \
           ${{ steps.semantic-version.outputs.version_type }}
+
+    - name: Push changes of cargo release
+      if:
+        inputs.dry-run == 'false' &&
+        steps.semantic-version.outputs.changed == 'true'
+      uses: ad-m/github-push-action@master
+      with:
+        github_token: ${{ inputs.github_token }}
+        branch: ${{ github.ref }}
+        tags: true
