@@ -188,10 +188,9 @@ mod tests {
             created_at: 2025,
         });
 
-        assert_eq!(
-            hex::encode(payload_digest(&Hash::from([1; 32]), &verifier_set, &payload).unwrap()),
-            "1775806969d1e2e6bac62484ed8d7be8c6c48c2f6bb4075ee60a45548140aaa9"
-        );
+        goldie::assert!(hex::encode(
+            payload_digest(&Hash::from([1; 32]), &verifier_set, &payload).unwrap()
+        ));
     }
 
     #[test]
@@ -282,9 +281,8 @@ mod tests {
             },
         ]);
 
-        assert_eq!(
-            hex::encode(payload_digest(&Hash::from([1; 32]), &verifier_set, &payload).unwrap()),
-            "26d564a2e0f5336170857e4a3436ac05f3883ed293dbf674aa0787478723a1af"
-        );
+        goldie::assert!(hex::encode(
+            payload_digest(&Hash::from([1; 32]), &verifier_set, &payload).unwrap()
+        ));
     }
 }

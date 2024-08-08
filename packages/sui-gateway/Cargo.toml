@@ -21,3 +21,4 @@ workspace = true
 
 [dev-dependencies]
 bs58 = "0.5.1"
+rand = "0.8.5"

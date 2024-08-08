@@ -7554,6 +7554,7 @@ dependencies = [
  "error-stack",
  "hex",
  "multisig",
+ "rand",
  "router-api",
  "serde",
  "serde_json",
