@@ -35,7 +35,7 @@ const SENT_MESSAGES: Map<CrossChainId, Message> = Map::new(SENT_MESSAGES_NAME);
 const RECEIVED_MESSAGES_NAME: &str = "received_messages";
 const RECEIVED_MESSAGES: Map<CrossChainId, MessageWithStatus> = Map::new(RECEIVED_MESSAGES_NAME);
 
-#[derive(thiserror::Error, Debug, IntoContractError)]
+#[derive(thiserror::Error, Debug, PartialEq, IntoContractError)]
 pub enum Error {
     #[error(transparent)]
     Std(#[from] StdError),
@@ -162,72 +162,178 @@ pub(crate) fn increment_msg_counter(storage: &mut dyn Storage) -> Result<u32, Er
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use cosmwasm_std::testing::mock_dependencies;
     use cosmwasm_std::Addr;
     use router_api::{CrossChainId, Message};
 
-    use crate::state::{
-        load_config, may_load_received_msg, save_config, save_received_msg, Config,
-        MessageWithStatus,
-    };
+    use super::*;
+
+    fn create_test_message() -> Message {
+        Message {
+            cc_id: CrossChainId::new("source-chain", "message-id").unwrap(),
+            source_address: "source-address".parse().unwrap(),
+            destination_chain: "destination-chain".parse().unwrap(),
+            destination_address: "destination-address".parse().unwrap(),
+            payload_hash: [1; 32],
+        }
+    }
 
     #[test]
     fn config_storage() {
         let mut deps = mock_dependencies();
 
         let config = Config {
-            chain_name: "chain".parse().unwrap(),
-            router: Addr::unchecked("router"),
+            chain_name: "test-chain".parse().unwrap(),
+            router: Addr::unchecked("router-address"),
         };
-        assert!(save_config(deps.as_mut().storage, &config).is_ok());
 
-        assert_eq!(load_config(&deps.storage).unwrap(), config);
+        // Test saving config
+        super::save_config(deps.as_mut().storage, &config).unwrap();
+
+        // Test loading config
+        let loaded_config = super::load_config(deps.as_ref().storage).unwrap();
+        assert_eq!(config, loaded_config);
+
+        // Test loading non-existent config
+        CONFIG.remove(deps.as_mut().storage);
+        let result = super::load_config(deps.as_ref().storage);
+        assert_eq!(result, Err(Error::MissingConfig));
     }
 
     #[test]
-    fn outgoing_messages_storage() {
+    fn sent_message_storage() {
+        let mut deps = mock_dependencies();
+        let message = create_test_message();
+
+        // Test saving sent message
+        super::save_sent_msg(deps.as_mut().storage, message.cc_id.clone(), &message).unwrap();
+
+        // Test loading sent message
+        let loaded_message =
+            super::may_load_sent_msg(deps.as_ref().storage, &message.cc_id).unwrap();
+        assert_eq!(Some(message.clone()), loaded_message);
+
+        // Test loading non-existent message
+        let non_existent_id = CrossChainId::new("non-existent", "id").unwrap();
+        assert_eq!(
+            None,
+            super::may_load_sent_msg(deps.as_ref().storage, &non_existent_id).unwrap()
+        );
+
+        // Test saving duplicate message
+        let result = super::save_sent_msg(deps.as_mut().storage, message.cc_id.clone(), &message);
+        assert_eq!(result, Err(Error::MessageAlreadyExists(message.cc_id)));
+    }
+
+    #[test]
+    fn received_message_storage() {
+        let mut deps = mock_dependencies();
+        let message = create_test_message();
+
+        // Test saving received message
+        super::save_received_msg(
+            deps.as_mut().storage,
+            message.cc_id.clone(),
+            message.clone(),
+        )
+        .unwrap();
+
+        // Test loading received message
+        let loaded_message =
+            super::may_load_received_msg(deps.as_ref().storage, &message.cc_id).unwrap();
+        assert_eq!(
+            Some(MessageWithStatus {
+                msg: message.clone(),
+                status: MessageStatus::Approved
+            }),
+            loaded_message
+        );
+
+        // Test loading non-existent message
+        let non_existent_id = CrossChainId::new("non-existent", "id").unwrap();
+        assert_eq!(
+            None,
+            super::may_load_received_msg(deps.as_ref().storage, &non_existent_id).unwrap()
+        );
+
+        // Test saving duplicate message (should not error, but also not change the stored message)
+        super::save_received_msg(
+            deps.as_mut().storage,
+            message.cc_id.clone(),
+            message.clone(),
+        )
+        .unwrap();
+        let loaded_message =
+            super::may_load_received_msg(deps.as_ref().storage, &message.cc_id).unwrap();
+        assert_eq!(
+            Some(MessageWithStatus {
+                msg: message.clone(),
+                status: MessageStatus::Approved
+            }),
+            loaded_message
+        );
+
+        // Test saving mismatched message
+        let mismatched_message = Message {
+            cc_id: message.cc_id.clone(),
+            source_address: "different-address".parse().unwrap(),
+            ..message.clone()
+        };
+        let result = super::save_received_msg(
+            deps.as_mut().storage,
+            message.cc_id.clone(),
+            mismatched_message,
+        );
+        assert_eq!(result, Err(Error::MessageMismatch(message.cc_id)));
+    }
+
+    #[test]
+    fn set_msg_as_executed() {
+        let mut deps = mock_dependencies();
+        let message = create_test_message();
+
+        // Save a received message
+        super::save_received_msg(
+            deps.as_mut().storage,
+            message.cc_id.clone(),
+            message.clone(),
+        )
+        .unwrap();
+
+        // Test setting message as executed
+        let executed_message =
+            super::set_msg_as_executed(deps.as_mut().storage, message.cc_id.clone()).unwrap();
+        assert_eq!(message, executed_message);
+
+        // Verify the message status is now Executed
+        let loaded_message =
+            super::may_load_received_msg(deps.as_ref().storage, &message.cc_id).unwrap();
+        assert_eq!(
+            Some(MessageWithStatus {
+                msg: message.clone(),
+                status: MessageStatus::Executed
+            }),
+            loaded_message
+        );
+
+        // Test setting an already executed message
+        let result = super::set_msg_as_executed(deps.as_mut().storage, message.cc_id.clone());
+        assert_eq!(result, Err(Error::MessageAlreadyExecuted(message.cc_id)));
+
+        // Test setting a non-existent message
+        let non_existent_id = CrossChainId::new("non-existent", "id").unwrap();
+        let result = super::set_msg_as_executed(deps.as_mut().storage, non_existent_id.clone());
+        assert_eq!(result, Err(Error::MessageNotApproved(non_existent_id)));
+    }
+
+    #[test]
+    fn increment_msg_counter() {
         let mut deps = mock_dependencies();
 
-        let msg = Message {
-            cc_id: CrossChainId {
-                source_chain: "chain".parse().unwrap(),
-                message_id: "id".parse().unwrap(),
-            },
-            source_address: "source-address".parse().unwrap(),
-            destination_chain: "destination".parse().unwrap(),
-            destination_address: "destination-address".parse().unwrap(),
-            payload_hash: [1; 32],
-        };
-        let msg_with_status = MessageWithStatus {
-            msg: msg.clone(),
-            status: crate::state::MessageStatus::Approved,
-        };
-
-        assert!(save_received_msg(deps.as_mut().storage, msg.cc_id.clone(), msg.clone(),).is_ok());
-
-        assert_eq!(
-            may_load_received_msg(&deps.storage, &msg.cc_id).unwrap(),
-            Some(msg_with_status)
-        );
-
-        let unknown_chain_id = CrossChainId {
-            source_chain: "unknown".parse().unwrap(),
-            message_id: "id".parse().unwrap(),
-        };
-
-        assert_eq!(
-            may_load_received_msg(&deps.storage, &unknown_chain_id).unwrap(),
-            None
-        );
-
-        let unknown_id = CrossChainId {
-            source_chain: "chain".parse().unwrap(),
-            message_id: "unknown".parse().unwrap(),
-        };
-        assert_eq!(
-            may_load_received_msg(&deps.storage, &unknown_id).unwrap(),
-            None
-        );
+        for i in 1..=3 {
+            let count = super::increment_msg_counter(deps.as_mut().storage).unwrap();
+            assert_eq!(i, count);
+        }
     }
 }

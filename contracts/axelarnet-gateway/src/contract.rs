@@ -38,8 +38,8 @@ pub enum Error {
     MessageMismatch(CrossChainId),
     #[error("message with ID {0} not in approved status")]
     MessageNotApproved(CrossChainId),
-    #[error("failed to status for message with ID {0}")]
-    MessageStatusUpdateFailed(CrossChainId),
+    #[error("failed to set message with ID {0} as executed")]
+    SetMessageStatusExecutedFailed(CrossChainId),
     #[error("payload hash doesn't match message")]
     PayloadHashMismatch,
     #[error("failed to route messages")]

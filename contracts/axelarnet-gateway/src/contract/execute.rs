@@ -117,7 +117,7 @@ pub(crate) fn execute(
     payload: HexBinary,
 ) -> Result<Response, Error> {
     let msg = state::set_msg_as_executed(store, cc_id.clone())
-        .change_context(Error::MessageStatusUpdateFailed(cc_id))?;
+        .change_context(Error::SetMessageStatusExecutedFailed(cc_id))?;
 
     let payload_hash: [u8; 32] = Keccak256::digest(payload.as_slice()).into();
     if payload_hash != msg.payload_hash {
@@ -142,4 +142,212 @@ pub(crate) fn execute(
     Ok(Response::new()
         .add_message(executable.execute(msg.cc_id.clone(), msg.source_address.clone(), payload))
         .add_event(AxelarnetGatewayEvent::MessageExecuted { msg }.into()))
+}
+
+#[cfg(test)]
+mod tests {
+    use axelar_wasm_std::err_contains;
+    use cosmwasm_std::testing::{
+        mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
+    };
+    use cosmwasm_std::{Addr, CosmosMsg, Empty, Env, MessageInfo, OwnedDeps};
+    use router_api::{ChainName, CrossChainId, Message};
+
+    use super::*;
+    use crate::contract::{execute, instantiate};
+    use crate::msg::{ExecuteMsg, InstantiateMsg};
+    use crate::state::{self, MessageStatus};
+
+    const CHAIN: &str = "chain";
+    const SOURCE_CHAIN: &str = "source-chain";
+    const ROUTER: &str = "router";
+    const PAYLOAD: [u8; 3] = [1, 2, 3];
+    const SENDER: &str = "sender";
+
+    fn setup() -> (
+        OwnedDeps<MockStorage, MockApi, MockQuerier, Empty>,
+        Env,
+        MessageInfo,
+    ) {
+        let mut deps = mock_dependencies();
+        let env = mock_env();
+        let info = mock_info(SENDER, &[]);
+
+        let chain_name: ChainName = CHAIN.parse().unwrap();
+        let router = Addr::unchecked(ROUTER);
+
+        let msg = InstantiateMsg {
+            chain_name: chain_name.clone(),
+            router_address: router.to_string(),
+        };
+
+        let _res = instantiate(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
+
+        (deps, env, info)
+    }
+
+    fn dummy_message() -> Message {
+        Message {
+            cc_id: CrossChainId::new(SOURCE_CHAIN, "message-id").unwrap(),
+            source_address: "source-address".parse().unwrap(),
+            destination_chain: CHAIN.parse().unwrap(),
+            destination_address: "destination-address".parse().unwrap(),
+            payload_hash: Keccak256::digest(PAYLOAD).into(),
+        }
+    }
+
+    #[test]
+    fn call_contract() {
+        let (mut deps, env, info) = setup();
+
+        let expected_message_id = HexTxHashAndEventIndex {
+            tx_hash: Uint256::from(env.block.height).to_be_bytes(),
+            event_index: 1,
+        };
+        let expected_cc_id = CrossChainId::new(CHAIN, expected_message_id).unwrap();
+        let message = Message {
+            cc_id: expected_cc_id.clone(),
+            source_address: info.sender.clone().into_string().parse().unwrap(),
+            destination_chain: "destination-chain".parse().unwrap(),
+            destination_address: "destination-address".parse().unwrap(),
+            payload_hash: Keccak256::digest(PAYLOAD).into(),
+        };
+
+        let msg = ExecuteMsg::CallContract {
+            destination_chain: message.destination_chain.clone(),
+            destination_address: message.destination_address.clone(),
+            payload: PAYLOAD.into(),
+        };
+
+        let res = execute(deps.as_mut(), env, info, msg).unwrap();
+        let sent_message = state::may_load_sent_msg(deps.as_mut().storage, &expected_cc_id)
+            .unwrap()
+            .unwrap();
+        assert_eq!(sent_message, message);
+
+        let router: Router = Router {
+            address: Addr::unchecked(ROUTER),
+        };
+        assert_eq!(res.messages.len(), 1);
+        assert_eq!(
+            res.messages[0].msg,
+            CosmosMsg::Wasm(router.route(vec![message]).unwrap())
+        );
+    }
+
+    #[test]
+    fn route_messages_from_router() {
+        let (mut deps, env, _) = setup();
+
+        let message = dummy_message();
+        let msg = ExecuteMsg::RouteMessages(vec![message.clone()]);
+
+        // Execute RouteMessages as if it's coming from the router
+        let info = mock_info(ROUTER, &[]);
+        execute(deps.as_mut(), env, info, msg).unwrap();
+
+        // Check that the message was saved as received
+        let received_message = state::may_load_received_msg(deps.as_mut().storage, &message.cc_id)
+            .unwrap()
+            .unwrap();
+        assert_eq!(received_message.msg, message);
+        assert!(matches!(received_message.status, MessageStatus::Approved));
+    }
+
+    #[test]
+    fn execute_message() {
+        let (mut deps, env, info) = setup();
+
+        let message = dummy_message();
+        let cc_id = message.cc_id.clone();
+
+        // Save the message as received
+        state::save_received_msg(deps.as_mut().storage, cc_id.clone(), message).unwrap();
+
+        let msg = ExecuteMsg::Execute {
+            cc_id: cc_id.clone(),
+            payload: PAYLOAD.into(),
+        };
+
+        let res = execute(deps.as_mut(), env, info, msg).unwrap();
+
+        // Check that a message was sent to the destination contract
+        assert_eq!(res.messages.len(), 1);
+
+        // Check that the message status was updated to Executed
+        let executed_message = state::may_load_received_msg(deps.as_mut().storage, &cc_id)
+            .unwrap()
+            .unwrap();
+        assert!(matches!(executed_message.status, MessageStatus::Executed));
+    }
+
+    #[test]
+    fn execute_not_found() {
+        let (mut deps, env, info) = setup();
+
+        let cc_id = CrossChainId::new(SOURCE_CHAIN, "message-id").unwrap();
+        let msg = ExecuteMsg::Execute {
+            cc_id: cc_id.clone(),
+            payload: PAYLOAD.into(),
+        };
+
+        let err = execute(deps.as_mut(), env, info, msg).unwrap_err();
+        assert!(err_contains!(
+            err.report,
+            state::Error,
+            state::Error::MessageNotApproved(..)
+        ));
+        assert!(err_contains!(
+            err.report,
+            Error,
+            Error::SetMessageStatusExecutedFailed(..)
+        ));
+    }
+
+    #[test]
+    fn execute_already_executed() {
+        let (mut deps, env, info) = setup();
+
+        let message = dummy_message();
+        let cc_id = message.cc_id.clone();
+
+        // Save the message as already executed
+        state::save_received_msg(deps.as_mut().storage, cc_id.clone(), message).unwrap();
+        state::set_msg_as_executed(deps.as_mut().storage, cc_id.clone()).unwrap();
+
+        let msg = ExecuteMsg::Execute {
+            cc_id,
+            payload: PAYLOAD.into(),
+        };
+
+        let err = execute(deps.as_mut(), env, info, msg).unwrap_err();
+        assert!(err_contains!(
+            err.report,
+            state::Error,
+            state::Error::MessageAlreadyExecuted(..)
+        ));
+        assert!(err_contains!(
+            err.report,
+            Error,
+            Error::SetMessageStatusExecutedFailed(..)
+        ));
+    }
+
+    #[test]
+    fn execute_payload_mismatch() {
+        let (mut deps, env, info) = setup();
+
+        let message = dummy_message();
+        let cc_id = message.cc_id.clone();
+
+        state::save_received_msg(deps.as_mut().storage, cc_id.clone(), message).unwrap();
+
+        let msg = ExecuteMsg::Execute {
+            cc_id,
+            payload: [4, 5, 6].into(),
+        };
+
+        let err = execute(deps.as_mut(), env, info, msg).unwrap_err();
+        assert!(err_contains!(err.report, Error, Error::PayloadHashMismatch));
+    }
 }
