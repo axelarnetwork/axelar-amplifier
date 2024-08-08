@@ -375,7 +375,6 @@ pub fn setup_protocol(service_name: nonempty::String) -> Protocol {
         &mut app,
         governance_address.clone(),
         AXL_DENOMINATION.to_string(),
-        rewards_params.clone(),
     );
 
     let multisig = MultisigContract::instantiate_contract(
@@ -692,6 +691,38 @@ pub fn setup_chain(
             chain: chain_name.clone(),
             gateway_address: gateway.contract_addr.to_string().try_into().unwrap(),
             msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
+        },
+    );
+    assert!(response.is_ok());
+
+    let rewards_params = rewards::msg::Params {
+        epoch_duration: nonempty::Uint64::try_from(10u64).unwrap(),
+        rewards_per_epoch: Uint128::from(100u128).try_into().unwrap(),
+        participation_threshold: (1, 2).try_into().unwrap(),
+    };
+
+    let response = protocol.rewards.execute(
+        &mut protocol.app,
+        protocol.governance_address.clone(),
+        &rewards::msg::ExecuteMsg::CreatePool {
+            pool_id: PoolId {
+                chain_name: chain_name.clone(),
+                contract: voting_verifier.contract_addr.clone(),
+            },
+            params: rewards_params.clone(),
+        },
+    );
+    assert!(response.is_ok());
+
+    let response = protocol.rewards.execute(
+        &mut protocol.app,
+        protocol.governance_address.clone(),
+        &rewards::msg::ExecuteMsg::CreatePool {
+            pool_id: PoolId {
+                chain_name: chain_name.clone(),
+                contract: protocol.multisig.contract_addr.clone(),
+            },
+            params: rewards_params,
         },
     );
     assert!(response.is_ok());
