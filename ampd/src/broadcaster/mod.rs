@@ -490,6 +490,7 @@ mod tests {
         ));
     }
 
+    #[test]
     async fn broadcast_confirmed() {
         let mut broadcaster = init_validated_broadcaster(None, None, None).await;
         let msgs = vec![dummy_msg()];
