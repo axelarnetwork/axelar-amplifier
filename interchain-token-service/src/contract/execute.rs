@@ -131,9 +131,18 @@ fn apply_balance_tracking(
         }
         // Start balance tracking for the token on the destination chain when a token deployment is seen
         // No invariants can be assumed on the source since the token might pre-exist on the source chain
-        ItsMessage::DeployInterchainToken { token_id, .. } => {
-            start_token_balance(storage, token_id.clone(), destination_chain.clone(), true)
-                .change_context(Error::InvalidStoreAccess)?
+        ItsMessage::DeployInterchainToken {
+            token_id, minter, ..
+        } => {
+            // Track the token balance on the destination chain if token is owned by ITS, i.e. no minter is set
+            let is_its_owned = minter.len() == 0;
+            start_token_balance(
+                storage,
+                token_id.clone(),
+                destination_chain.clone(),
+                is_its_owned,
+            )
+            .change_context(Error::InvalidStoreAccess)?
         }
         ItsMessage::DeployTokenManager { token_id, .. } => {
             start_token_balance(storage, token_id.clone(), destination_chain.clone(), false)
@@ -457,6 +466,55 @@ mod tests {
             name: "Test Token".to_string(),
             symbol: "TST".to_string(),
             decimals: 18,
+            minter: HexBinary::from_hex("").unwrap(),
+        };
+        let its_hub_message = ItsHubMessage::SendToHub {
+            destination_chain: destination_chain.clone(),
+            message: deploy_message,
+        };
+
+        let payload = its_hub_message.abi_encode();
+        let cc_id = CrossChainId::new(source_chain.clone(), "deploy-message-id").unwrap();
+        execute_message(deps.as_mut(), cc_id, source_address, payload).unwrap();
+
+        // Check if balance is being tracked on the destination chain
+        let destination_balance =
+            state::may_load_token_balance(deps.as_ref().storage, &token_id, &destination_chain)
+                .unwrap();
+        assert_eq!(
+            destination_balance,
+            Some(TokenBalance::Tracked(Uint256::zero()))
+        );
+
+        // Check that balance tracking is not initialized on the source chain
+        let source_balance =
+            state::may_load_token_balance(deps.as_ref().storage, &token_id, &source_chain).unwrap();
+        assert_eq!(source_balance, None);
+    }
+
+    #[test]
+    fn balance_tracking_deploy_interchain_token_with_minter() {
+        let mut deps = setup();
+
+        let source_chain: ChainName = "source-chain".parse().unwrap();
+        let destination_chain: ChainName = "destination-chain".parse().unwrap();
+        let source_address: Address = "trusted-source".parse().unwrap();
+        let destination_address: Address = "trusted-destination".parse().unwrap();
+
+        register_trusted_address(&mut deps.as_mut(), source_chain.as_ref(), &source_address);
+        register_trusted_address(
+            &mut deps.as_mut(),
+            destination_chain.as_ref(),
+            &destination_address,
+        );
+
+        let token_id = TokenId::new([2u8; 32]);
+
+        let deploy_message = ItsMessage::DeployInterchainToken {
+            token_id: token_id.clone(),
+            name: "Test Token".to_string(),
+            symbol: "TST".to_string(),
+            decimals: 18,
             minter: HexBinary::from_hex("1234").unwrap(),
         };
         let its_hub_message = ItsHubMessage::SendToHub {
@@ -468,14 +526,11 @@ mod tests {
         let cc_id = CrossChainId::new(source_chain.clone(), "deploy-message-id").unwrap();
         execute_message(deps.as_mut(), cc_id, source_address, payload).unwrap();
 
-        // Check if balance tracking is initialized on the destination chain
+        // Check if balance is not being tracked on the destination chain
         let destination_balance =
             state::may_load_token_balance(deps.as_ref().storage, &token_id, &destination_chain)
                 .unwrap();
-        assert_eq!(
-            destination_balance,
-            Some(TokenBalance::Tracked(Uint256::zero()))
-        );
+        assert_eq!(destination_balance, Some(TokenBalance::Untracked));
 
         // Check that balance tracking is not initialized on the source chain
         let source_balance =
