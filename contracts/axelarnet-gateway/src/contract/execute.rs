@@ -195,7 +195,7 @@ mod tests {
     }
 
     #[test]
-    fn call_contract() {
+    fn call_contract_and_send_message() {
         let (mut deps, env, info) = setup();
 
         let expected_message_id = HexTxHashAndEventIndex {
@@ -217,7 +217,7 @@ mod tests {
             payload: PAYLOAD.into(),
         };
 
-        let res = execute(deps.as_mut(), env, info, msg).unwrap();
+        let res = execute(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
         let sent_message = state::may_load_sent_msg(deps.as_mut().storage, &expected_cc_id)
             .unwrap()
             .unwrap();
@@ -226,6 +226,15 @@ mod tests {
         let router: Router = Router {
             address: Addr::unchecked(ROUTER),
         };
+        assert_eq!(res.messages.len(), 1);
+        assert_eq!(
+            res.messages[0].msg,
+            CosmosMsg::Wasm(router.route(vec![message.clone()]).unwrap())
+        );
+
+        // Re-route the message again
+        let msg = ExecuteMsg::RouteMessages(vec![message.clone()]);
+        let res = execute(deps.as_mut(), env, info, msg).unwrap();
         assert_eq!(res.messages.len(), 1);
         assert_eq!(
             res.messages[0].msg,
