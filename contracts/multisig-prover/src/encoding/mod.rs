@@ -1,5 +1,5 @@
-pub mod abi;
-pub mod bcs;
+mod abi;
+mod bcs;
 
 use axelar_wasm_std::hash::Hash;
 use cosmwasm_schema::cw_serde;

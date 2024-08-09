@@ -13,7 +13,7 @@ pub struct AxelarExecutableMsg {
 
 /// Crate-specific `ExecuteMsg` type wraps the `AxelarExecutableMsg` for the AxelarExecutable client.
 #[cw_serde]
-pub(crate) enum AxelarExecutableExecuteMsg {
+pub enum AxelarExecutableExecuteMsg {
     /// Execute the message at the destination contract with the corresponding payload.
     Execute(AxelarExecutableMsg),
 }

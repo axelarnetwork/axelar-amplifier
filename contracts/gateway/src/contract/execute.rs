@@ -10,7 +10,7 @@ use crate::contract::Error;
 use crate::events::GatewayEvent;
 use crate::state;
 
-pub(crate) fn verify_messages(
+pub fn verify_messages(
     verifier: &voting_verifier::Client,
     msgs: Vec<Message>,
 ) -> Result<Response, Error> {
@@ -19,7 +19,7 @@ pub(crate) fn verify_messages(
     })
 }
 
-pub(crate) fn route_incoming_messages(
+pub fn route_incoming_messages(
     verifier: &voting_verifier::Client,
     router: &Router,
     msgs: Vec<Message>,
@@ -30,7 +30,7 @@ pub(crate) fn route_incoming_messages(
 }
 
 // because the messages came from the router, we can assume they are already verified
-pub(crate) fn route_outgoing_messages(
+pub fn route_outgoing_messages(
     store: &mut dyn Storage,
     verified: Vec<Message>,
 ) -> Result<Response, Error> {

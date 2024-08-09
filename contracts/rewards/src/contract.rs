@@ -7,7 +7,6 @@ use cosmwasm_std::{
 use error_stack::ResultExt;
 use itertools::Itertools;
 
-use crate::contract::migrations::v0_4_0;
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{self, Config, Epoch, ParamsSnapshot, PoolId, CONFIG, PARAMS};
@@ -25,7 +24,7 @@ pub fn migrate(
     _env: Env,
     _msg: Empty,
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
-    v0_4_0::migrate(deps.storage)?;
+    migrations::v0_4_0::migrate(deps.storage)?;
 
     // any version checks should be done before here
 
@@ -180,7 +179,9 @@ mod tests {
     #[test]
     fn migrate_sets_contract_version() {
         let mut deps = mock_dependencies();
-        v0_4_0::tests::instantiate_contract(deps.as_mut(), "denom");
+
+        #[allow(deprecated)]
+        migrations::v0_4_0::tests::instantiate_contract(deps.as_mut(), "denom");
 
         migrate(deps.as_mut(), mock_env(), Empty {}).unwrap();
 
