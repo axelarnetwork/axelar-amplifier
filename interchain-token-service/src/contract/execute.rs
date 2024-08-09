@@ -36,11 +36,11 @@ pub fn execute_message(
             destination_chain,
             message: its_message,
         } => {
-            let receive_from_hub = ItsHubMessage::ReceiveFromHub {
+            let destination_payload = ItsHubMessage::ReceiveFromHub {
                 source_chain: source_chain.clone(),
                 message: its_message.clone(),
-            };
-            let encoded_payload = receive_from_hub.abi_encode();
+            }
+            .abi_encode();
 
             let destination_address = load_its_address(deps.storage, &destination_chain)
                 .change_context(Error::InvalidStoreAccess)?;
@@ -51,7 +51,7 @@ pub fn execute_message(
             let call_contract_msg = gateway.call_contract(
                 destination_chain.clone(),
                 destination_address,
-                encoded_payload,
+                destination_payload,
             );
 
             Ok(Response::new().add_message(call_contract_msg).add_event(
