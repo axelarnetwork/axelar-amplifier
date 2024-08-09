@@ -1,7 +1,9 @@
 use axelar_wasm_std::FnExt;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response};
+use cosmwasm_std::{
+    to_json_binary, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response,
+};
 use error_stack::ResultExt;
 use router_api::client::Router;
 use router_api::CrossChainId;
@@ -10,6 +12,7 @@ use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{self, Config};
 
 mod execute;
+mod query;
 
 const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -129,11 +132,17 @@ pub fn execute(
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(
-    _deps: Deps,
+    deps: Deps,
     _env: Env,
-    _msg: QueryMsg,
+    msg: QueryMsg,
 ) -> Result<Binary, axelar_wasm_std::error::ContractError> {
-    todo!()
+    match msg {
+        QueryMsg::SentMessages { cc_ids } => to_json_binary(&query::sent_messages(deps, cc_ids)?),
+        QueryMsg::ReceivedMessages { cc_ids } => {
+            to_json_binary(&query::received_messages(deps, cc_ids)?)
+        }
+    }
+    .map_err(axelar_wasm_std::error::ContractError::from)
 }
 
 #[cfg(test)]
