@@ -3,6 +3,8 @@ use cosmwasm_std::HexBinary;
 use msgs_derive::EnsurePermissions;
 use router_api::{Address, ChainName, CrossChainId, Message};
 
+use crate::state::MessageWithStatus;
+
 #[cw_serde]
 pub struct InstantiateMsg {
     /// The chain name for this gateway.
@@ -40,4 +42,12 @@ pub enum ExecuteMsg {
 
 #[cw_serde]
 #[derive(QueryResponses)]
-pub enum QueryMsg {}
+pub enum QueryMsg {
+    /// Returns the sent messages for the given cross-chain ids.
+    #[returns(Vec<Message>)]
+    SentMessages { cc_ids: Vec<CrossChainId> },
+
+    /// Returns the received messages with their status for the given cross-chain ids.
+    #[returns(Vec<MessageWithStatus>)]
+    ReceivedMessages { cc_ids: Vec<CrossChainId> },
+}
