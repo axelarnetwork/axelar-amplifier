@@ -2,7 +2,7 @@
 name = "interchain-token-service"
 version = "0.1.0"
 rust-version = { workspace = true }
-edition = "2021"
+edition = { workspace = true }
 
 [dependencies]
 alloy-primitives = { workspace = true }
