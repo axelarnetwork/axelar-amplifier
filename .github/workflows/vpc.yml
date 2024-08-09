@@ -10,13 +10,30 @@ jobs:
       - name: Ping IP address
         run: |
           echo "Starting ping to 172.32.0.89 for 5 seconds..."
-          timeout 5s ping 172.32.0.89
-          echo "Ping completed."
+          OUTPUT=$(timeout 5s ping 172.32.0.89 | grep "bytes from" | wc -l)
+          echo "Number of successful pings: $OUTPUT"
+          if [ "$OUTPUT" -gt 0 ]; then
+            echo "Ping successful!"
+            exit 0
+          else
+            echo "Ping failed!"
+            exit 1
+          fi
+        shell: bash
+
   ping-ip-ubuntu:
     runs-on: ubuntu-latest
     steps:
       - name: Ping IP address
         run: |
           echo "Starting ping to 172.32.0.89 for 5 seconds..."
-          timeout 5s ping 172.32.0.89
-          echo "Ping completed."
+          OUTPUT=$(timeout 5s ping 172.32.0.89 | grep "bytes from" | wc -l)
+          echo "Number of successful pings: $OUTPUT"
+          if [ "$OUTPUT" -gt 0 ]; then
+            echo "Ping successful!"
+            exit 0
+          else
+            echo "Ping failed!"
+            exit 1
+          fi
+        shell: bash
