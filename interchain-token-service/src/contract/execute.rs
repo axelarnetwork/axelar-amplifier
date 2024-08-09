@@ -5,12 +5,12 @@ use router_api::{Address, ChainName, CrossChainId};
 use crate::contract::Error;
 use crate::events::ItsContractEvent;
 use crate::primitives::ItsHubMessage;
-use crate::state::{self, load_config, load_trusted_address};
+use crate::state::{self, load_config, load_its_address};
 
 /// Executes an incoming ITS message.
 ///
 /// This function handles the execution of ITS (Interchain Token Service) messages received from
-/// trusted sources. It verifies the source address, decodes the message, applies balance tracking,
+/// its sources. It verifies the source address, decodes the message, applies balance tracking,
 /// and forwards the message to the destination chain.
 pub fn execute_message(
     deps: DepsMut,
@@ -22,10 +22,10 @@ pub fn execute_message(
 
     let source_chain = ChainName::try_from(cc_id.source_chain.clone().to_string())
         .change_context(Error::InvalidPayload)?;
-    let trusted_source_address = load_trusted_address(deps.storage, &source_chain)
-        .change_context(Error::InvalidStoreAccess)?;
-    if source_address != trusted_source_address {
-        return Err(report!(Error::UntrustedAddress(source_address)));
+    let its_source_address =
+        load_its_address(deps.storage, &source_chain).change_context(Error::InvalidStoreAccess)?;
+    if source_address != its_source_address {
+        return Err(report!(Error::UnknownItsAddress(source_address)));
     }
 
     let its_hub_message =
@@ -42,7 +42,7 @@ pub fn execute_message(
             };
             let encoded_payload = receive_from_hub.abi_encode();
 
-            let destination_address = load_trusted_address(deps.storage, &destination_chain)
+            let destination_address = load_its_address(deps.storage, &destination_chain)
                 .change_context(Error::InvalidStoreAccess)?;
 
             let gateway: axelarnet_gateway::Client =
@@ -67,21 +67,21 @@ pub fn execute_message(
     }
 }
 
-pub fn set_trusted_address(
+pub fn set_its_address(
     deps: DepsMut,
     chain: ChainName,
     address: Address,
 ) -> Result<Response, Error> {
-    state::save_trusted_address(deps.storage, &chain, &address)
+    state::save_its_address(deps.storage, &chain, &address)
         .change_context(Error::InvalidStoreAccess)?;
 
-    Ok(Response::new().add_event(ItsContractEvent::TrustedAddressSet { chain, address }.into()))
+    Ok(Response::new().add_event(ItsContractEvent::ItsAddressSet { chain, address }.into()))
 }
 
-pub fn remove_trusted_address(deps: DepsMut, chain: ChainName) -> Result<Response, Error> {
-    state::remove_trusted_address(deps.storage, &chain);
+pub fn remove_its_address(deps: DepsMut, chain: ChainName) -> Result<Response, Error> {
+    state::remove_its_address(deps.storage, &chain);
 
-    Ok(Response::new().add_event(ItsContractEvent::TrustedAddressRemoved { chain }.into()))
+    Ok(Response::new().add_event(ItsContractEvent::ItsAddressRemoved { chain }.into()))
 }
 
 #[cfg(test)]
@@ -100,7 +100,7 @@ mod tests {
     use crate::events::ItsContractEvent;
     use crate::msg::InstantiateMsg;
     use crate::primitives::{ItsHubMessage, ItsMessage, TokenId};
-    use crate::state::{self, save_trusted_address};
+    use crate::state::{self, save_its_address};
 
     fn setup() -> OwnedDeps<MockStorage, MockApi, MockQuerier, Empty> {
         let mut deps = mock_dependencies();
@@ -113,7 +113,7 @@ mod tests {
             admin_address: "admin".to_string(),
             chain_name: "source-chain".parse().unwrap(),
             gateway_address: "gateway".to_string(),
-            trusted_addresses: HashMap::new(),
+            its_addresses: HashMap::new(),
         };
 
         instantiate(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
@@ -121,10 +121,10 @@ mod tests {
         deps
     }
 
-    fn register_trusted_address(deps: &mut DepsMut, chain: &str, address: &str) {
+    fn register_its_address(deps: &mut DepsMut, chain: &str, address: &str) {
         let chain: ChainName = chain.parse().unwrap();
         let address: Address = address.parse().unwrap();
-        save_trusted_address(deps.storage, &chain, &address).unwrap();
+        save_its_address(deps.storage, &chain, &address).unwrap();
     }
 
     fn generate_its_message() -> ItsMessage {
@@ -143,11 +143,11 @@ mod tests {
 
         let source_chain: ChainName = "source-chain".parse().unwrap();
         let destination_chain: ChainName = "destination-chain".parse().unwrap();
-        let source_address: Address = "trusted-source".parse().unwrap();
-        let destination_address: Address = "trusted-destination".parse().unwrap();
+        let source_address: Address = "its-source".parse().unwrap();
+        let destination_address: Address = "its-destination".parse().unwrap();
 
-        register_trusted_address(&mut deps.as_mut(), source_chain.as_ref(), &source_address);
-        register_trusted_address(
+        register_its_address(&mut deps.as_mut(), source_chain.as_ref(), &source_address);
+        register_its_address(
             &mut deps.as_mut(),
             destination_chain.as_ref(),
             &destination_address,
@@ -186,11 +186,11 @@ mod tests {
     }
 
     #[test]
-    fn execute_message_untrusted_address() {
+    fn execute_message_units_address() {
         let mut owned_deps = setup();
         let mut deps = owned_deps.as_mut();
 
-        register_trusted_address(&mut deps, "source-chain", "trusted-source");
+        register_its_address(&mut deps, "source-chain", "its-source");
 
         let its_message = generate_its_message();
         let its_hub_message = ItsHubMessage::SendToHub {
@@ -200,10 +200,10 @@ mod tests {
 
         let payload = its_hub_message.abi_encode();
         let cc_id = CrossChainId::new("source-chain", "message-id").unwrap();
-        let source_address: Address = "untrusted-source".parse().unwrap();
+        let source_address: Address = "units-source".parse().unwrap();
         let result = execute_message(deps, cc_id, source_address.clone(), payload).unwrap_err();
 
-        assert!(err_contains!(result, Error, Error::UntrustedAddress(..)));
+        assert!(err_contains!(result, Error, Error::UnknownItsAddress(..)));
     }
 
     #[test]
@@ -211,35 +211,35 @@ mod tests {
         let mut owned_deps = setup();
         let mut deps = owned_deps.as_mut();
 
-        register_trusted_address(&mut deps, "source-chain", "trusted-source");
+        register_its_address(&mut deps, "source-chain", "its-source");
 
         let invalid_payload = HexBinary::from_hex("deaddead").unwrap();
         let cc_id = CrossChainId::new("source-chain", "message-id").unwrap();
-        let source_address: Address = "trusted-source".parse().unwrap();
+        let source_address: Address = "its-source".parse().unwrap();
         let result = execute_message(deps, cc_id, source_address, invalid_payload).unwrap_err();
 
         assert!(err_contains!(result, Error, Error::InvalidPayload));
     }
 
     #[test]
-    fn check_updated_trusted_address() {
+    fn check_updated_its_address() {
         let mut deps = setup();
 
         let chain: ChainName = "new-chain".parse().unwrap();
-        let address: Address = "new-trusted-address".parse().unwrap();
+        let address: Address = "new-its-address".parse().unwrap();
 
-        let result = set_trusted_address(deps.as_mut(), chain.clone(), address.clone()).unwrap();
+        let result = set_its_address(deps.as_mut(), chain.clone(), address.clone()).unwrap();
 
         assert_eq!(result.messages.len(), 0);
 
         let event = &result.events[0];
-        let expected_event = ItsContractEvent::TrustedAddressSet {
+        let expected_event = ItsContractEvent::ItsAddressSet {
             chain: chain.clone(),
             address: address.clone(),
         };
         assert_eq!(event, &cosmwasm_std::Event::from(expected_event));
 
-        let saved_address = load_trusted_address(deps.as_mut().storage, &chain).unwrap();
+        let saved_address = load_its_address(deps.as_mut().storage, &chain).unwrap();
         assert_eq!(saved_address, address);
     }
 
@@ -248,7 +248,7 @@ mod tests {
         let mut owned_deps = setup();
         let mut deps = owned_deps.as_mut();
 
-        register_trusted_address(&mut deps, "source-chain", "trusted-source");
+        register_its_address(&mut deps, "source-chain", "its-source");
 
         let its_message = generate_its_message();
         let its_hub_message = ItsHubMessage::SendToHub {
@@ -258,13 +258,13 @@ mod tests {
 
         let payload = its_hub_message.abi_encode();
         let cc_id = CrossChainId::new("source-chain", "message-id").unwrap();
-        let source_address: Address = "trusted-source".parse().unwrap();
+        let source_address: Address = "its-source".parse().unwrap();
         let result = execute_message(deps, cc_id, source_address, payload).unwrap_err();
 
         assert!(err_contains!(
             result,
             state::Error,
-            state::Error::TrustedAddressNotFound(..)
+            state::Error::ItsAddressNotFound(..)
         ));
     }
 
@@ -273,7 +273,7 @@ mod tests {
         let mut owned_deps = setup();
         let mut deps = owned_deps.as_mut();
 
-        register_trusted_address(&mut deps, "source-chain", "trusted-source");
+        register_its_address(&mut deps, "source-chain", "its-source");
 
         let its_message = generate_its_message();
         let its_hub_message = ItsHubMessage::ReceiveFromHub {
@@ -283,7 +283,7 @@ mod tests {
 
         let payload = its_hub_message.abi_encode();
         let cc_id = CrossChainId::new("source-chain", "message-id").unwrap();
-        let source_address: Address = "trusted-source".parse().unwrap();
+        let source_address: Address = "its-source".parse().unwrap();
         let result = execute_message(deps, cc_id, source_address, payload).unwrap_err();
 
         assert!(err_contains!(result, Error, Error::InvalidPayload));

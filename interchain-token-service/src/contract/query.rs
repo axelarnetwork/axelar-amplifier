@@ -1,27 +1,30 @@
 use cosmwasm_std::{to_json_binary, Binary, Deps};
 use router_api::ChainName;
 
-use crate::msg::{AllTrustedAddressesResponse, TrustedAddressResponse};
+use crate::msg::{AllItsAddressesResponse, ItsAddressResponse};
 use crate::state;
 
-pub fn trusted_address(deps: Deps, chain: ChainName) -> Result<Binary, state::Error> {
-    let address = state::load_trusted_address(deps.storage, &chain).ok();
-    to_json_binary(&TrustedAddressResponse { address }).map_err(state::Error::from)
+pub fn its_address(deps: Deps, chain: ChainName) -> Result<Binary, state::Error> {
+    let address = state::load_its_address(deps.storage, &chain).ok();
+    to_json_binary(&ItsAddressResponse { address }).map_err(state::Error::from)
 }
 
-pub fn all_trusted_addresses(deps: Deps) -> Result<Binary, state::Error> {
-    let addresses = state::load_all_trusted_addresses(deps.storage)?;
-    to_json_binary(&AllTrustedAddressesResponse { addresses }).map_err(state::Error::from)
+pub fn all_its_addresses(deps: Deps) -> Result<Binary, state::Error> {
+    let addresses = state::load_all_its_addresses(deps.storage)?;
+    to_json_binary(&AllItsAddressesResponse { addresses }).map_err(state::Error::from)
 }
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
+    use axelar_wasm_std::FnExt;
     use cosmwasm_std::from_json;
     use cosmwasm_std::testing::mock_dependencies;
     use router_api::Address;
 
     use super::*;
-    use crate::state::save_trusted_address;
+    use crate::state::save_its_address;
 
     #[test]
     fn query_trusted_address() {
@@ -31,17 +34,17 @@ mod tests {
         let address: Address = "trusted-address".parse().unwrap();
 
         // Save a trusted address
-        save_trusted_address(deps.as_mut().storage, &chain, &address).unwrap();
+        save_its_address(deps.as_mut().storage, &chain, &address).unwrap();
 
         // Query the trusted address
-        let bin = trusted_address(deps.as_ref(), chain).unwrap();
-        let res: TrustedAddressResponse = from_json(bin).unwrap();
+        let bin = its_address(deps.as_ref(), chain).unwrap();
+        let res: ItsAddressResponse = from_json(bin).unwrap();
         assert_eq!(res.address, Some(address));
 
         // Query a non-existent trusted address
         let non_existent_chain: ChainName = "non-existent-chain".parse().unwrap();
-        let bin = trusted_address(deps.as_ref(), non_existent_chain).unwrap();
-        let res: TrustedAddressResponse = from_json(bin).unwrap();
+        let bin = its_address(deps.as_ref(), non_existent_chain).unwrap();
+        let res: ItsAddressResponse = from_json(bin).unwrap();
         assert_eq!(res.address, None);
     }
 
@@ -55,14 +58,19 @@ mod tests {
         let address2: Address = "address2".parse().unwrap();
 
         // Save trusted addresses
-        save_trusted_address(deps.as_mut().storage, &chain1, &address1).unwrap();
-        save_trusted_address(deps.as_mut().storage, &chain2, &address2).unwrap();
+        save_its_address(deps.as_mut().storage, &chain1, &address1).unwrap();
+        save_its_address(deps.as_mut().storage, &chain2, &address2).unwrap();
 
         // Query all trusted addresses
-        let bin = all_trusted_addresses(deps.as_ref()).unwrap();
-        let res: AllTrustedAddressesResponse = from_json(bin).unwrap();
-        assert_eq!(res.addresses.len(), 2);
-        assert_eq!(res.addresses.get(&chain1), Some(&address1));
-        assert_eq!(res.addresses.get(&chain2), Some(&address2));
+        let bin: AllItsAddressesResponse = all_its_addresses(deps.as_ref())
+            .unwrap()
+            .then(from_json)
+            .unwrap();
+        assert_eq!(
+            bin.addresses,
+            vec![(chain1, address1), (chain2, address2)]
+                .into_iter()
+                .collect::<HashMap<_, _>>()
+        );
     }
 }

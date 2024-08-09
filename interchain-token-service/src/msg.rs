@@ -11,7 +11,7 @@ pub struct InstantiateMsg {
     pub admin_address: String,
     pub chain_name: ChainNameRaw,
     pub gateway_address: String,
-    pub trusted_addresses: HashMap<ChainName, Address>,
+    pub its_addresses: HashMap<ChainName, Address>,
 }
 
 #[cw_serde]
@@ -20,26 +20,26 @@ pub enum ExecuteMsg {
     #[permission(Specific(gateway))]
     Execute(AxelarExecutableMsg),
     #[permission(Governance)]
-    SetTrustedAddress { chain: ChainName, address: Address },
+    SetItsAddress { chain: ChainName, address: Address },
     #[permission(Elevated)]
-    RemoveTrustedAddress { chain: ChainName },
+    RemoveItsAddress { chain: ChainName },
 }
 
 #[cw_serde]
 #[derive(QueryResponses)]
 pub enum QueryMsg {
-    #[returns(TrustedAddressResponse)]
-    TrustedAddress { chain: ChainName },
-    #[returns(AllTrustedAddressesResponse)]
-    AllTrustedAddresses {},
+    #[returns(ItsAddressResponse)]
+    SetItsAddress { chain: ChainName },
+    #[returns(AllItsAddressesResponse)]
+    AllItsAddresses {},
 }
 
 #[cw_serde]
-pub struct TrustedAddressResponse {
+pub struct ItsAddressResponse {
     pub address: Option<Address>,
 }
 
 #[cw_serde]
-pub struct AllTrustedAddressesResponse {
+pub struct AllItsAddressesResponse {
     pub addresses: HashMap<ChainName, Address>,
 }

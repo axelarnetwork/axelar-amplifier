@@ -26,8 +26,8 @@ pub enum Error {
     InvalidStoreAccess,
     #[error("invalid address")]
     InvalidAddress,
-    #[error("untrusted source address {0}")]
-    UntrustedAddress(Address),
+    #[error("unknown its address {0}")]
+    UnknownItsAddress(Address),
     #[error("failed to execute ITS command")]
     Execute,
     #[error("unauthorized")]
@@ -79,8 +79,8 @@ pub fn instantiate(
         },
     )?;
 
-    for (chain, address) in msg.trusted_addresses {
-        state::save_trusted_address(deps.storage, &chain, &address)?;
+    for (chain, address) in msg.its_addresses {
+        state::save_its_address(deps.storage, &chain, &address)?;
     }
 
     Ok(Response::new())
@@ -101,10 +101,10 @@ pub fn execute(
             source_address,
             payload,
         }) => execute::execute_message(deps, cc_id, source_address, payload),
-        ExecuteMsg::SetTrustedAddress { chain, address } => {
-            execute::set_trusted_address(deps, chain, address)
+        ExecuteMsg::SetItsAddress { chain, address } => {
+            execute::set_its_address(deps, chain, address)
         }
-        ExecuteMsg::RemoveTrustedAddress { chain } => execute::remove_trusted_address(deps, chain),
+        ExecuteMsg::RemoveItsAddress { chain } => execute::remove_its_address(deps, chain),
     }?
     .then(Ok)
 }
@@ -122,8 +122,8 @@ pub fn query(
     msg: QueryMsg,
 ) -> Result<Binary, axelar_wasm_std::error::ContractError> {
     match msg {
-        QueryMsg::TrustedAddress { chain } => query::trusted_address(deps, chain)?,
-        QueryMsg::AllTrustedAddresses {} => query::all_trusted_addresses(deps)?,
+        QueryMsg::SetItsAddress { chain } => query::its_address(deps, chain)?,
+        QueryMsg::AllItsAddresses {} => query::all_its_addresses(deps)?,
     }
     .then(Ok)
 }
@@ -150,7 +150,7 @@ mod tests {
         let info = mock_info("sender", &[]);
         let env = mock_env();
 
-        let trusted_addresses = vec![("ethereum".parse().unwrap(), "address".parse().unwrap())]
+        let its_addresses = vec![("ethereum".parse().unwrap(), "address".parse().unwrap())]
             .into_iter()
             .collect::<HashMap<_, _>>();
 
@@ -159,7 +159,7 @@ mod tests {
             admin_address: ADMIN.parse().unwrap(),
             chain_name: CHAIN_NAME.parse().unwrap(),
             gateway_address: "gateway".into(),
-            trusted_addresses: trusted_addresses.clone(),
+            its_addresses: its_addresses.clone(),
         };
 
         let res = super::instantiate(deps.as_mut(), env, info, msg);
@@ -178,8 +178,7 @@ mod tests {
             Permission::Governance.into()
         );
 
-        let stored_trusted_addresses =
-            state::load_all_trusted_addresses(deps.as_mut().storage).unwrap();
-        assert_eq!(stored_trusted_addresses, trusted_addresses);
+        let stored_its_addresses = state::load_all_its_addresses(deps.as_mut().storage).unwrap();
+        assert_eq!(stored_its_addresses, its_addresses);
     }
 }

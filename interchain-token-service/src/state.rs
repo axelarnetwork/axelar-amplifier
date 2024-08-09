@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use axelar_wasm_std::{FnExt, IntoContractError};
+use axelar_wasm_std::IntoContractError;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, StdError, Storage};
 use cw_storage_plus::{Item, Map};
@@ -12,8 +12,8 @@ pub enum Error {
     Std(#[from] StdError),
     #[error("ITS contract got into an invalid state, its config is missing")]
     MissingConfig,
-    #[error("trusted address for chain {0} not found")]
-    TrustedAddressNotFound(ChainName),
+    #[error("its address for chain {0} not found")]
+    ItsAddressNotFound(ChainName),
 }
 
 #[cw_serde]
@@ -23,7 +23,7 @@ pub struct Config {
 }
 
 const CONFIG: Item<Config> = Item::new("config");
-const TRUSTED_ITS_ADDRESSES: Map<&ChainName, Address> = Map::new("trusted_its_addresses");
+const ITS_ADDRESSES: Map<&ChainName, Address> = Map::new("its_addresses");
 
 pub(crate) fn load_config(storage: &dyn Storage) -> Result<Config, Error> {
     CONFIG
@@ -36,34 +36,31 @@ pub(crate) fn save_config(storage: &mut dyn Storage, config: &Config) -> Result<
     CONFIG.save(storage, config).map_err(Error::from)
 }
 
-pub(crate) fn load_trusted_address(
-    storage: &dyn Storage,
-    chain: &ChainName,
-) -> Result<Address, Error> {
-    TRUSTED_ITS_ADDRESSES
+pub(crate) fn load_its_address(storage: &dyn Storage, chain: &ChainName) -> Result<Address, Error> {
+    ITS_ADDRESSES
         .may_load(storage, chain)
         .map_err(Error::from)?
-        .ok_or_else(|| Error::TrustedAddressNotFound(chain.clone()))
+        .ok_or_else(|| Error::ItsAddressNotFound(chain.clone()))
 }
 
-pub(crate) fn save_trusted_address(
+pub(crate) fn save_its_address(
     storage: &mut dyn Storage,
     chain: &ChainName,
     address: &Address,
 ) -> Result<(), Error> {
-    TRUSTED_ITS_ADDRESSES
+    ITS_ADDRESSES
         .save(storage, chain, address)
         .map_err(Error::from)
 }
 
-pub(crate) fn remove_trusted_address(storage: &mut dyn Storage, chain: &ChainName) {
-    TRUSTED_ITS_ADDRESSES.remove(storage, chain)
+pub(crate) fn remove_its_address(storage: &mut dyn Storage, chain: &ChainName) {
+    ITS_ADDRESSES.remove(storage, chain)
 }
 
-pub(crate) fn load_all_trusted_addresses(
+pub(crate) fn load_all_its_addresses(
     storage: &dyn Storage,
 ) -> Result<HashMap<ChainName, Address>, Error> {
-    TRUSTED_ITS_ADDRESSES
+    ITS_ADDRESSES
         .range(storage, None, None, cosmwasm_std::Order::Ascending)
         .collect::<Result<HashMap<_, _>, _>>()
         .map_err(Error::from)
@@ -97,35 +94,35 @@ mod tests {
     }
 
     #[test]
-    fn trusted_addresses_storage() {
+    fn its_addresses_storage() {
         let mut deps = mock_dependencies();
 
         let chain = "test-chain".parse().unwrap();
-        let address: Address = "trusted-address".parse().unwrap();
+        let address: Address = "its-address".parse().unwrap();
 
-        // Test saving and loading trusted address
-        assert!(save_trusted_address(deps.as_mut().storage, &chain, &address).is_ok());
+        // Test saving and loading its address
+        assert!(save_its_address(deps.as_mut().storage, &chain, &address).is_ok());
         assert_eq!(
-            load_trusted_address(deps.as_ref().storage, &chain).unwrap(),
+            load_its_address(deps.as_ref().storage, &chain).unwrap(),
             address
         );
 
-        // Test removing trusted address
-        remove_trusted_address(deps.as_mut().storage, &chain);
+        // Test removing its address
+        remove_its_address(deps.as_mut().storage, &chain);
         assert!(matches!(
-            load_trusted_address(deps.as_ref().storage, &chain),
-            Err(Error::TrustedAddressNotFound(_))
+            load_its_address(deps.as_ref().storage, &chain),
+            Err(Error::ItsAddressNotFound(_))
         ));
 
-        // Test getting all trusted addresses
+        // Test getting all its addresses
         let chain1 = "chain1".parse().unwrap();
         let chain2 = "chain2".parse().unwrap();
         let address1: Address = "address1".parse().unwrap();
         let address2: Address = "address2".parse().unwrap();
-        assert!(save_trusted_address(deps.as_mut().storage, &chain1, &address1).is_ok());
-        assert!(save_trusted_address(deps.as_mut().storage, &chain2, &address2).is_ok());
+        assert!(save_its_address(deps.as_mut().storage, &chain1, &address1).is_ok());
+        assert!(save_its_address(deps.as_mut().storage, &chain2, &address2).is_ok());
 
-        let all_addresses = load_all_trusted_addresses(deps.as_ref().storage).unwrap();
+        let all_addresses = load_all_its_addresses(deps.as_ref().storage).unwrap();
         assert_eq!(
             all_addresses,
             [(chain1, address1), (chain2, address2)]
