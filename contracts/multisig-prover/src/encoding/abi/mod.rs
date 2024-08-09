@@ -20,7 +20,7 @@ impl From<&Payload> for CommandType {
     }
 }
 
-pub fn payload_hash_to_sign(
+pub fn payload_digest(
     domain_separator: &Hash,
     signer: &VerifierSet,
     payload: &Payload,
@@ -72,7 +72,7 @@ pub fn encode(payload: &Payload) -> Result<Vec<u8>, ContractError> {
 mod tests {
     use cosmwasm_std::HexBinary;
 
-    use crate::encoding::abi::{payload_hash_to_sign, CommandType};
+    use crate::encoding::abi::{payload_digest, CommandType};
     use crate::payload::Payload;
     use crate::test::test_data::{
         curr_verifier_set, domain_separator, messages, new_verifier_set, verifier_set_from_pub_keys,
@@ -104,7 +104,7 @@ mod tests {
         ];
         let new_verifier_set = verifier_set_from_pub_keys(new_pub_keys);
 
-        let msg_to_sign = payload_hash_to_sign(
+        let msg_to_sign = payload_digest(
             &domain_separator,
             &curr_verifier_set(),
             &Payload::VerifierSet(new_verifier_set),
@@ -122,7 +122,7 @@ mod tests {
 
         let domain_separator = domain_separator();
 
-        let digest = payload_hash_to_sign(
+        let digest = payload_digest(
             &domain_separator,
             &curr_verifier_set(),
             &Payload::Messages(messages()),

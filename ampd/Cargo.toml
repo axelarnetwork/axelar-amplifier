@@ -10,7 +10,7 @@ async-trait = "0.1.59"
 axelar-wasm-std = { workspace = true }
 axum = "0.7.5"
 base64 = "0.21.2"
-bcs = "0.1.5"
+bcs = { workspace = true }
 clap = { version = "4.2.7", features = ["derive", "cargo"] }
 config = "0.13.2"
 cosmrs = { version = "0.14.0", features = ["cosmwasm", "grpc"] }
@@ -47,6 +47,7 @@ serde_json = { workspace = true }
 serde_with = "3.2.0"
 service-registry = { workspace = true }
 sha3 = { workspace = true }
+sui-gateway = { workspace = true }
 sui-json-rpc-types = { git = "https://github.com/mystenlabs/sui", tag = "mainnet-v1.26.2" }
 sui-types = { git = "https://github.com/mystenlabs/sui", features = ["test-utils"], tag = "mainnet-v1.26.2" }
 # Need to switch to our own fork of tendermint and tendermint-rpc due to event attribute value being nullable.
