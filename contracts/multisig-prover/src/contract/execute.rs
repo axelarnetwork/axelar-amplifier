@@ -64,7 +64,9 @@ pub fn construct_proof(
         .map_err(ContractError::from)?
         .ok_or(ContractError::NoVerifierSet)?;
 
-    let digest = payload.digest(config.encoder, &config.domain_separator, &verifier_set)?;
+    let digest = config
+        .encoder
+        .digest(&config.domain_separator, &verifier_set, &payload)?;
 
     let start_sig_msg = multisig::msg::ExecuteMsg::StartSigningSession {
         verifier_set_id: verifier_set.id(),
@@ -260,7 +262,9 @@ pub fn update_verifier_set(
                 .map_err(ContractError::from)?;
 
             let digest =
-                payload.digest(config.encoder, &config.domain_separator, &cur_verifier_set)?;
+                config
+                    .encoder
+                    .digest(&config.domain_separator, &cur_verifier_set, &payload)?;
 
             let start_sig_msg = multisig::msg::ExecuteMsg::StartSigningSession {
                 verifier_set_id: cur_verifier_set.id(),

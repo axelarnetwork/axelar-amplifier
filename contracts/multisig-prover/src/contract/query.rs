@@ -35,8 +35,7 @@ pub fn proof(deps: Deps, multisig_session_id: Uint64) -> Result<ProofResponse, C
     let status = match multisig.state {
         MultisigState::Pending => ProofStatus::Pending,
         MultisigState::Completed { .. } => {
-            let execute_data = payload.execute_data(
-                config.encoder,
+            let execute_data = config.encoder.execute_data(
                 &config.domain_separator,
                 &multisig.verifier_set,
                 multisig.optimize_signatures(),
