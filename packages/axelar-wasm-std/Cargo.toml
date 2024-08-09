@@ -2,7 +2,7 @@
 name = "axelar-wasm-std"
 version = "1.0.0"
 rust-version = { workspace = true }
-edition = "2021"
+edition = { workspace = true }
 description = "Axelar cosmwasm standard library crate"
 
 exclude = [

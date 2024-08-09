@@ -2,7 +2,7 @@
 name = "rewards"
 version = "1.0.0"
 rust-version = { workspace = true }
-edition = "2021"
+edition = { workspace = true }
 description = "Validator rewards contract"
 
 exclude = [

@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use axelar_wasm_std::{FnExt, IntoContractError};
+use axelar_wasm_std::{permission_control, FnExt, IntoContractError};
 use axelarnet_gateway::AxelarExecutableMsg;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
@@ -26,8 +26,8 @@ pub enum Error {
     InvalidStoreAccess,
     #[error("invalid address")]
     InvalidAddress,
-    #[error("untrusted source address {0}")]
-    UntrustedAddress(Address),
+    #[error("unknown its address {0}")]
+    UnknownItsAddress(Address),
     #[error("failed to execute ITS command")]
     Execute,
     #[error("unauthorized")]
@@ -59,6 +59,12 @@ pub fn instantiate(
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
+    let admin = deps.api.addr_validate(&msg.admin_address)?;
+    let governance = deps.api.addr_validate(&msg.governance_address)?;
+
+    permission_control::set_admin(deps.storage, &admin)?;
+    permission_control::set_governance(deps.storage, &governance)?;
+
     let gateway = deps
         .api
         .addr_validate(&msg.gateway_address)
@@ -73,10 +79,8 @@ pub fn instantiate(
         },
     )?;
 
-    if let Some(trusted_addresses) = msg.trusted_addresses {
-        for (chain, address) in trusted_addresses {
-            state::save_trusted_address(deps.storage, &chain, &address)?;
-        }
+    for (chain, address) in msg.its_addresses {
+        state::save_its_address(deps.storage, &chain, &address)?;
     }
 
     Ok(Response::new())
@@ -97,10 +101,10 @@ pub fn execute(
             source_address,
             payload,
         }) => execute::execute_message(deps, cc_id, source_address, payload),
-        ExecuteMsg::SetTrustedAddress { chain, address } => {
-            execute::set_trusted_address(deps, chain, address)
+        ExecuteMsg::SetItsAddress { chain, address } => {
+            execute::set_its_address(deps, chain, address)
         }
-        ExecuteMsg::RemoveTrustedAddress { chain } => execute::remove_trusted_address(deps, chain),
+        ExecuteMsg::RemoveItsAddress { chain } => execute::remove_its_address(deps, chain),
     }?
     .then(Ok)
 }
@@ -118,9 +122,64 @@ pub fn query(
     msg: QueryMsg,
 ) -> Result<Binary, axelar_wasm_std::error::ContractError> {
     match msg {
-        QueryMsg::TrustedAddress { chain } => query::trusted_address(deps, chain)?,
-        QueryMsg::AllTrustedAddresses {} => query::all_trusted_addresses(deps)?,
+        QueryMsg::SetItsAddress { chain } => query::its_address(deps, chain)?,
+        QueryMsg::AllItsAddresses {} => query::all_its_addresses(deps)?,
         QueryMsg::TokenBalance { chain, token_id } => query::token_balance(deps, chain, token_id)?,
     }
     .then(Ok)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+
+    use axelar_wasm_std::permission_control::{self, Permission};
+    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
+    use cosmwasm_std::Addr;
+
+    use crate::msg::InstantiateMsg;
+    use crate::state;
+
+    const GOVERNANCE: &str = "governance";
+    const ADMIN: &str = "admin";
+    const CHAIN_NAME: &str = "chain";
+
+    #[test]
+    fn instantiate() {
+        let mut deps = mock_dependencies();
+
+        let info = mock_info("sender", &[]);
+        let env = mock_env();
+
+        let its_addresses = vec![("ethereum".parse().unwrap(), "address".parse().unwrap())]
+            .into_iter()
+            .collect::<HashMap<_, _>>();
+
+        let msg = InstantiateMsg {
+            governance_address: GOVERNANCE.parse().unwrap(),
+            admin_address: ADMIN.parse().unwrap(),
+            chain_name: CHAIN_NAME.parse().unwrap(),
+            gateway_address: "gateway".into(),
+            its_addresses: its_addresses.clone(),
+        };
+
+        let res = super::instantiate(deps.as_mut(), env, info, msg);
+        assert!(res.is_ok());
+        assert_eq!(0, res.unwrap().messages.len());
+
+        assert_eq!(
+            permission_control::sender_role(deps.as_ref().storage, &Addr::unchecked(ADMIN))
+                .unwrap(),
+            Permission::Admin.into()
+        );
+
+        assert_eq!(
+            permission_control::sender_role(deps.as_ref().storage, &Addr::unchecked(GOVERNANCE))
+                .unwrap(),
+            Permission::Governance.into()
+        );
+
+        let stored_its_addresses = state::load_all_its_addresses(deps.as_mut().storage).unwrap();
+        assert_eq!(stored_its_addresses, its_addresses);
+    }
 }
