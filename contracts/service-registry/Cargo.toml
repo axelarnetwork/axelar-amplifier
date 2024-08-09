@@ -2,7 +2,7 @@
 name = "service-registry"
 version = "1.0.0"
 rust-version = { workspace = true }
-edition = "2021"
+edition = { workspace = true }
 description = "Contract handling the service registrations"
 
 exclude = [

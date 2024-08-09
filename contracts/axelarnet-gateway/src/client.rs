@@ -1,3 +1,4 @@
+use axelar_wasm_std::vec::VecExt;
 use cosmwasm_std::{HexBinary, WasmMsg};
 use router_api::{Address, ChainName, CrossChainId, Message};
 
@@ -32,15 +33,8 @@ impl<'a> Client<'a> {
     }
 
     pub fn route_messages(&self, msgs: Vec<Message>) -> Option<WasmMsg> {
-        ignore_empty(msgs).map(|messages| self.client.execute(&ExecuteMsg::RouteMessages(messages)))
-    }
-}
-
-fn ignore_empty(msgs: Vec<Message>) -> Option<Vec<Message>> {
-    if msgs.is_empty() {
-        None
-    } else {
-        Some(msgs)
+        msgs.to_none_if_empty()
+            .map(|messages| self.client.execute(&ExecuteMsg::RouteMessages(messages)))
     }
 }
 
