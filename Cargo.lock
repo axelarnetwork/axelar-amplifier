@@ -267,6 +267,7 @@ dependencies = [
  "serde_with 3.8.1",
  "service-registry",
  "sha3",
+ "sui-gateway",
  "sui-json-rpc-types",
  "sui-types",
  "tendermint 0.33.0",
@@ -4902,6 +4903,7 @@ dependencies = [
  "serde_json",
  "service-registry",
  "sha3",
+ "sui-gateway",
  "thiserror",
  "voting-verifier",
 ]
@@ -7561,6 +7563,24 @@ version = "0.1.0"
 source = "git+https://github.com/mystenlabs/sui?tag=mainnet-v1.26.2#f531168c745260b60a4ec4906c9f2b22240d872d"
 dependencies = [
  "serde_yaml",
+]
+
+[[package]]
+name = "sui-gateway"
+version = "1.0.0"
+dependencies = [
+ "bcs",
+ "bs58 0.5.1",
+ "cosmwasm-std",
+ "error-stack",
+ "hex",
+ "multisig",
+ "rand",
+ "router-api",
+ "serde",
+ "serde_json",
+ "sha3",
+ "thiserror",
 ]
 
 [[package]]
