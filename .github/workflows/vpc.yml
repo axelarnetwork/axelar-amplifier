@@ -1,7 +1,7 @@
 name: Ping IP Address
 
 on:
-  workflow_dispatch:  # This allows manual triggering of the workflow
+  workflow_dispatch:
 
 jobs:
   ping-ip:
@@ -10,6 +10,7 @@ jobs:
       - name: Ping IP address
         run: |
           echo "Starting ping to 172.32.0.89 for 5 seconds..."
+          timeout 5s ping 172.32.0.89 || true
           OUTPUT=$(timeout 5s ping 172.32.0.89 | grep "bytes from" | wc -l)
           echo "Number of successful pings: $OUTPUT"
           if [ "$OUTPUT" -gt 0 ]; then
@@ -27,6 +28,7 @@ jobs:
       - name: Ping IP address
         run: |
           echo "Starting ping to 172.32.0.89 for 5 seconds..."
+          timeout 5s ping 172.32.0.89 || true
           OUTPUT=$(timeout 5s ping 172.32.0.89 | grep "bytes from" | wc -l)
           echo "Number of successful pings: $OUTPUT"
           if [ "$OUTPUT" -gt 0 ]; then
