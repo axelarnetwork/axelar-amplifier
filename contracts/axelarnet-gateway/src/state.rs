@@ -84,7 +84,6 @@ pub(crate) fn may_load_sent_msg(
         .map_err(Error::from)
 }
 
-#[cfg(test)]
 pub(crate) fn may_load_received_msg(
     storage: &dyn Storage,
     cc_id: &CrossChainId,
