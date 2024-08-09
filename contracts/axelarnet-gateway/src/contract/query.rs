@@ -31,11 +31,16 @@ pub fn received_messages(
 
 #[cfg(test)]
 mod tests {
-    use cosmwasm_std::testing::mock_dependencies;
+    use axelar_wasm_std::err_contains;
+    use cosmwasm_std::from_json;
+    use cosmwasm_std::testing::{mock_dependencies, mock_env};
     use router_api::{CrossChainId, Message};
+    use serde::de::DeserializeOwned;
     use state::MessageStatus;
 
     use super::*;
+    use crate::contract;
+    use crate::msg::QueryMsg;
 
     const SOURCE_CHAIN: &str = "source-chain";
     const DESTINATION_CHAIN: &str = "destination-chain";
@@ -48,6 +53,17 @@ mod tests {
             destination_address: "destination-address".parse().unwrap(),
             payload_hash: [0; 32],
         }
+    }
+
+    // Query a msg and deserialize it. If the query fails, the error is returned
+    fn query<T: DeserializeOwned>(
+        deps: Deps,
+        msg: QueryMsg,
+    ) -> Result<T, axelar_wasm_std::error::ContractError> {
+        contract::query(deps, mock_env(), msg)?
+            .then(from_json::<T>)
+            .unwrap()
+            .then(Ok)
     }
 
     #[test]
@@ -63,16 +79,28 @@ mod tests {
         state::save_sent_msg(deps.as_mut().storage, message2.cc_id.clone(), &message2).unwrap();
 
         // Query existing messages
-        let result = sent_messages(
+        let result: Vec<Message> = query(
             deps.as_ref(),
-            vec![message1.cc_id.clone(), message2.cc_id.clone()],
+            QueryMsg::SentMessages {
+                cc_ids: vec![message1.cc_id.clone(), message2.cc_id.clone()],
+            },
         )
         .unwrap();
         assert_eq!(result, vec![message1, message2]);
 
         // Query with non-existent message
-        let result = sent_messages(deps.as_ref(), vec![message3.cc_id.clone()]);
-        assert_eq!(result, Err(state::Error::MessageNotFound(message3.cc_id)));
+        let err = query::<Vec<Message>>(
+            deps.as_ref(),
+            QueryMsg::SentMessages {
+                cc_ids: vec![message3.cc_id],
+            },
+        )
+        .unwrap_err();
+        assert!(err_contains!(
+            err.report,
+            state::Error,
+            state::Error::MessageNotFound(..)
+        ));
     }
 
     #[test]
@@ -101,11 +129,14 @@ mod tests {
         state::set_msg_as_executed(deps.as_mut().storage, message2.cc_id.clone()).unwrap();
 
         // Query existing messages
-        let result = received_messages(
+        let result: Vec<MessageWithStatus> = query(
             deps.as_ref(),
-            vec![message1.cc_id.clone(), message2.cc_id.clone()],
+            QueryMsg::ReceivedMessages {
+                cc_ids: vec![message1.cc_id.clone(), message2.cc_id.clone()],
+            },
         )
         .unwrap();
+
         assert_eq!(
             result,
             vec![
@@ -121,7 +152,17 @@ mod tests {
         );
 
         // Query with non-existent message
-        let result = received_messages(deps.as_ref(), vec![message3.cc_id.clone()]);
-        assert_eq!(result, Err(state::Error::MessageNotFound(message3.cc_id)));
+        let err = query::<Vec<MessageWithStatus>>(
+            deps.as_ref(),
+            QueryMsg::ReceivedMessages {
+                cc_ids: vec![message3.cc_id],
+            },
+        )
+        .unwrap_err();
+        assert!(err_contains!(
+            err.report,
+            state::Error,
+            state::Error::MessageNotFound(..)
+        ));
     }
 }
