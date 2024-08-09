@@ -10,9 +10,7 @@ pub fn trusted_address(deps: Deps, chain: ChainName) -> Result<Binary, state::Er
 }
 
 pub fn all_trusted_addresses(deps: Deps) -> Result<Binary, state::Error> {
-    let addresses = state::load_all_trusted_addresses(deps.storage)?
-        .into_iter()
-        .collect();
+    let addresses = state::load_all_trusted_addresses(deps.storage)?;
     to_json_binary(&AllTrustedAddressesResponse { addresses }).map_err(state::Error::from)
 }
 

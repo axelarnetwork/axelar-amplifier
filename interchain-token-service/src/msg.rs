@@ -7,9 +7,11 @@ use router_api::{Address, ChainName, ChainNameRaw};
 
 #[cw_serde]
 pub struct InstantiateMsg {
+    pub governance_address: String,
+    pub admin_address: String,
     pub chain_name: ChainNameRaw,
     pub gateway_address: String,
-    pub trusted_addresses: Option<HashMap<ChainName, Address>>,
+    pub trusted_addresses: HashMap<ChainName, Address>,
 }
 
 #[cw_serde]

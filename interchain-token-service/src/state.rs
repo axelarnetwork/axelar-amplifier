@@ -1,4 +1,6 @@
-use axelar_wasm_std::IntoContractError;
+use std::collections::HashMap;
+
+use axelar_wasm_std::{FnExt, IntoContractError};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, StdError, Storage};
 use cw_storage_plus::{Item, Map};
@@ -60,10 +62,10 @@ pub(crate) fn remove_trusted_address(storage: &mut dyn Storage, chain: &ChainNam
 
 pub(crate) fn load_all_trusted_addresses(
     storage: &dyn Storage,
-) -> Result<Vec<(ChainName, Address)>, Error> {
+) -> Result<HashMap<ChainName, Address>, Error> {
     TRUSTED_ITS_ADDRESSES
         .range(storage, None, None, cosmwasm_std::Order::Ascending)
-        .collect::<Result<Vec<_>, _>>()
+        .collect::<Result<HashMap<_, _>, _>>()
         .map_err(Error::from)
 }
 
@@ -124,8 +126,11 @@ mod tests {
         assert!(save_trusted_address(deps.as_mut().storage, &chain2, &address2).is_ok());
 
         let all_addresses = load_all_trusted_addresses(deps.as_ref().storage).unwrap();
-        assert_eq!(all_addresses.len(), 2);
-        assert!(all_addresses.contains(&(chain1, address1)));
-        assert!(all_addresses.contains(&(chain2, address2)));
+        assert_eq!(
+            all_addresses,
+            [(chain1, address1), (chain2, address2)]
+                .into_iter()
+                .collect::<HashMap<_, _>>()
+        );
     }
 }

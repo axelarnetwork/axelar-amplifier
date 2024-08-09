@@ -86,6 +86,8 @@ pub fn remove_trusted_address(deps: DepsMut, chain: ChainName) -> Result<Respons
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use axelar_wasm_std::err_contains;
     use cosmwasm_std::testing::{
         mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
@@ -107,9 +109,11 @@ mod tests {
 
         // Initialize the contract
         let msg = InstantiateMsg {
+            governance_address: "governance".to_string(),
+            admin_address: "admin".to_string(),
             chain_name: "source-chain".parse().unwrap(),
             gateway_address: "gateway".to_string(),
-            trusted_addresses: None,
+            trusted_addresses: HashMap::new(),
         };
 
         instantiate(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
