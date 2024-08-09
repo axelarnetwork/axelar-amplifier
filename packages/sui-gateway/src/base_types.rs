@@ -49,7 +49,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_sui_address_try_from() {
+    fn sui_address_try_from() {
         let mut bytes = [0u8; SUI_ADDRESS_LENGTH];
         rand::thread_rng().fill_bytes(&mut bytes);
         let address = SuiAddress::try_from(&bytes[..]).unwrap();
@@ -65,7 +65,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sui_address_from_str() {
+    fn sui_address_from_str() {
         let mut bytes = [0u8; SUI_ADDRESS_LENGTH];
         rand::thread_rng().fill_bytes(&mut bytes);
         let address = SuiAddress::from_str(format!("0x{}", hex::encode(bytes)).as_str()).unwrap();

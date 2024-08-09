@@ -58,6 +58,8 @@ pub fn payload_digest(
     Ok(msg.hash())
 }
 
+/// `encode_execute_data` returns the BCS encoded execute data that contains the payload and the proof.
+/// The relayer will use this data to submit the payload to the contract.
 pub fn encode_execute_data(
     verifier_set: &VerifierSet,
     signatures: Vec<SignerWithSig>,

@@ -132,6 +132,8 @@ impl TryFrom<multisig::key::Signature> for Signature {
 
     fn try_from(signature: multisig::key::Signature) -> Result<Self, Self::Error> {
         match signature {
+            // The move contracts require recoverable signatures. This should
+            // only be called after the proper conversion during encoding.
             multisig::key::Signature::EcdsaRecoverable(signature) => Ok(Self {
                 bytes: signature.as_ref().to_vec(),
             }),

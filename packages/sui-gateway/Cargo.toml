@@ -1,11 +1,11 @@
 [package]
 name = "sui-gateway"
 version = "1.0.0"
-edition = "2021"
+edition = { workspace = true }
 rust-version = { workspace = true }
 
 [dependencies]
-bcs = "0.1.5"
+bcs = { workspace = true }
 cosmwasm-std = { workspace = true }
 error-stack = { workspace = true }
 hex = "0.4.3"
