@@ -2,7 +2,7 @@
 name = "multisig-prover"
 version = "1.0.0"
 rust-version = { workspace = true }
-edition = "2021"
+edition = { workspace = true }
 description = "Multisig prover contract"
 
 exclude = [

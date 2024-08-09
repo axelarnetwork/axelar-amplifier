@@ -24,6 +24,7 @@ pub enum Error {
     #[error("message with ID {0} not found")]
     MessageNotFound(CrossChainId),
 }
+
 pub(crate) fn load_config(storage: &dyn Storage) -> Result<Config, Error> {
     CONFIG
         .may_load(storage)
@@ -53,6 +54,7 @@ pub(crate) fn save_outgoing_message(
     let existing = OUTGOING_MESSAGES
         .may_load(storage, cc_id)
         .map_err(Error::from)?;
+
     match existing {
         Some(existing) if msg.hash() != existing.hash() => {
             Err(Error::MessageMismatch(msg.cc_id.clone()))
