@@ -11,8 +11,7 @@ pub fn sent_messages(deps: Deps, cc_ids: Vec<CrossChainId>) -> Result<Vec<Messag
             state::may_load_sent_msg(deps.storage, &cc_id)?
                 .ok_or(state::Error::MessageNotFound(cc_id))
         })
-        .collect::<Result<Vec<_>, _>>()?
-        .then(Ok)
+        .collect::<Result<Vec<_>, _>>()
 }
 
 pub fn received_messages(
@@ -25,8 +24,7 @@ pub fn received_messages(
             state::may_load_received_msg(deps.storage, &cc_id)?
                 .ok_or(state::Error::MessageNotFound(cc_id))
         })
-        .collect::<Result<Vec<_>, _>>()?
-        .then(Ok)
+        .collect::<Result<Vec<_>, _>>()
 }
 
 #[cfg(test)]
