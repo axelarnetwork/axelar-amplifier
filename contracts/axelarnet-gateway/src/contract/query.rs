@@ -1,4 +1,3 @@
-use axelar_wasm_std::FnExt;
 use cosmwasm_std::Deps;
 use router_api::{CrossChainId, Message};
 
@@ -29,7 +28,7 @@ pub fn received_messages(
 
 #[cfg(test)]
 mod tests {
-    use axelar_wasm_std::err_contains;
+    use axelar_wasm_std::{err_contains, FnExt};
     use cosmwasm_std::from_json;
     use cosmwasm_std::testing::{mock_dependencies, mock_env};
     use router_api::{CrossChainId, Message};
