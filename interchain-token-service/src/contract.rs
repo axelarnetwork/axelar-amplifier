@@ -124,6 +124,7 @@ pub fn query(
     match msg {
         QueryMsg::SetItsAddress { chain } => query::its_address(deps, chain)?,
         QueryMsg::AllItsAddresses {} => query::all_its_addresses(deps)?,
+        QueryMsg::TokenBalance { chain, token_id } => query::token_balance(deps, chain, token_id)?,
     }
     .then(Ok)
 }
