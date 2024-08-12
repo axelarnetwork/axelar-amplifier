@@ -1,0 +1,175 @@
+syntax = "proto3";
+package axelar.nexus.v1beta1;
+
+option go_package = "github.com/axelarnetwork/axelar-core/x/nexus/types";
+
+import "google/protobuf/duration.proto";
+import "gogoproto/gogo.proto";
+import "axelar/nexus/exported/v1beta1/types.proto";
+import "axelar/nexus/v1beta1/types.proto";
+import "cosmos/base/query/v1beta1/pagination.proto";
+import "cosmos/base/v1beta1/coin.proto";
+import "axelar/nexus/v1beta1/params.proto";
+
+option (gogoproto.goproto_getters_all) = false;
+
+// ChainMaintainersRequest represents a message that queries
+// the chain maintainers for the specified chain
+message ChainMaintainersRequest { string chain = 1; }
+
+message ChainMaintainersResponse {
+  repeated bytes maintainers = 1
+      [ (gogoproto.casttype) =
+            "github.com/cosmos/cosmos-sdk/types.ValAddress" ];
+}
+
+// LatestDepositAddressRequest represents a message that queries a deposit
+// address by recipient address
+message LatestDepositAddressRequest {
+  string recipient_addr = 1;
+  string recipient_chain = 2;
+  string deposit_chain = 3;
+}
+
+message LatestDepositAddressResponse { string deposit_addr = 1; };
+
+// TransfersForChainRequest represents a message that queries the
+// transfers for the specified chain
+message TransfersForChainRequest {
+  string chain = 1;
+  exported.v1beta1.TransferState state = 2;
+  cosmos.base.query.v1beta1.PageRequest pagination = 3;
+}
+
+message TransfersForChainResponse {
+  repeated exported.v1beta1.CrossChainTransfer transfers = 1
+      [ (gogoproto.nullable) = false ];
+  cosmos.base.query.v1beta1.PageResponse pagination = 2;
+}
+
+// FeeInfoRequest represents a message that queries the transfer fees associated
+// to an asset on a chain
+message FeeInfoRequest {
+  string chain = 1;
+  string asset = 2;
+}
+
+message FeeInfoResponse { exported.v1beta1.FeeInfo fee_info = 1; }
+
+// TransferFeeRequest represents a message that queries the fees charged by
+// the network for a cross-chain transfer
+message TransferFeeRequest {
+  string source_chain = 1;
+  string destination_chain = 2;
+  string amount = 3;
+}
+
+message TransferFeeResponse {
+  cosmos.base.v1beta1.Coin fee = 1 [ (gogoproto.nullable) = false ];
+}
+
+enum ChainStatus {
+  option (gogoproto.goproto_enum_prefix) = false;
+
+  CHAIN_STATUS_UNSPECIFIED = 0
+      [ (gogoproto.enumvalue_customname) = "Unspecified" ];
+  CHAIN_STATUS_ACTIVATED = 1 [ (gogoproto.enumvalue_customname) = "Activated" ];
+  CHAIN_STATUS_DEACTIVATED = 2
+      [ (gogoproto.enumvalue_customname) = "Deactivated" ];
+}
+
+// ChainsRequest represents a message that queries the chains
+// registered on the network
+message ChainsRequest { ChainStatus status = 1; }
+
+message ChainsResponse {
+  repeated string chains = 1
+      [ (gogoproto.casttype) =
+            "github.com/axelarnetwork/axelar-core/x/nexus/exported.ChainName" ];
+}
+
+// AssetsRequest represents a message that queries the registered assets of a
+// chain
+message AssetsRequest { string chain = 1; }
+
+message AssetsResponse { repeated string assets = 1; }
+
+// ChainStateRequest represents a message that queries the state of a chain
+// registered on the network
+message ChainStateRequest { string chain = 1; }
+
+message ChainStateResponse {
+  ChainState state = 1 [ (gogoproto.nullable) = false ];
+}
+
+// ChainsByAssetRequest represents a message that queries the chains
+// that support an asset on the network
+message ChainsByAssetRequest { string asset = 1; }
+
+message ChainsByAssetResponse {
+  repeated string chains = 1
+      [ (gogoproto.casttype) =
+            "github.com/axelarnetwork/axelar-core/x/nexus/exported.ChainName" ];
+}
+
+// RecipientAddressRequest represents a message that queries the registered
+// recipient address for a given deposit address
+message RecipientAddressRequest {
+  string deposit_addr = 1;
+  string deposit_chain = 2;
+}
+
+message RecipientAddressResponse {
+  string recipient_addr = 1;
+  string recipient_chain = 2;
+};
+
+// TransferRateLimitRequest represents a message that queries the registered
+// transfer rate limit and current transfer amounts for a given chain and asset
+message TransferRateLimitRequest {
+  string chain = 1;
+  string asset = 2;
+}
+
+message TransferRateLimitResponse { TransferRateLimit transfer_rate_limit = 1; }
+
+message TransferRateLimit {
+  bytes limit = 1 [
+    (gogoproto.customtype) = "github.com/cosmos/cosmos-sdk/types.Int",
+    (gogoproto.nullable) = false
+  ];
+  google.protobuf.Duration window = 2
+      [ (gogoproto.stdduration) = true, (gogoproto.nullable) = false ];
+  bytes incoming = 3 [
+    deprecated = true,
+    (gogoproto.customtype) = "github.com/cosmos/cosmos-sdk/types.Int",
+    (gogoproto.nullable) = false
+  ];
+  bytes outgoing = 4 [
+    deprecated = true,
+    (gogoproto.customtype) = "github.com/cosmos/cosmos-sdk/types.Int",
+    (gogoproto.nullable) = false
+  ];
+  // time_left indicates the time left in the rate limit window
+  google.protobuf.Duration time_left = 5
+      [ (gogoproto.stdduration) = true, (gogoproto.nullable) = false ];
+  bytes from = 6 [
+    (gogoproto.customtype) = "github.com/cosmos/cosmos-sdk/types.Int",
+    (gogoproto.nullable) = false
+  ];
+  bytes to = 7 [
+    (gogoproto.customtype) = "github.com/cosmos/cosmos-sdk/types.Int",
+    (gogoproto.nullable) = false
+  ];
+}
+
+message MessageRequest { string id = 1 [ (gogoproto.customname) = "ID" ]; }
+
+message MessageResponse {
+  exported.v1beta1.GeneralMessage message = 1 [ (gogoproto.nullable) = false ];
+}
+
+// ParamsRequest represents a message that queries the params
+message ParamsRequest {}
+
+message ParamsResponse { Params params = 1 [ (gogoproto.nullable) = false ]; }
