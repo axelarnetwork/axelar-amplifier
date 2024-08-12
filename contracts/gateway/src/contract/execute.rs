@@ -183,28 +183,11 @@ fn messages_into_events(msgs: Vec<Message>, transform: fn(Message) -> GatewayEve
 #[cfg(test)]
 mod tests {
     use axelar_wasm_std::err_contains;
-    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-    use cosmwasm_std::{Addr, DepsMut};
-    use gateway_api::msg::ExecuteMsg;
+    use cosmwasm_std::testing::mock_dependencies;
     use router_api::{CrossChainId, Message};
 
-    use crate::contract::{execute, instantiate};
-    use crate::msg::InstantiateMsg;
+    use crate::contract::execute::route_outgoing_messages;
     use crate::state;
-
-    fn instantiate_contract(deps: DepsMut, verifier: &str, router: &str) {
-        let response = instantiate(
-            deps,
-            mock_env(),
-            mock_info("sender", &[]),
-            InstantiateMsg {
-                verifier_address: Addr::unchecked(verifier).into_string(),
-                router_address: Addr::unchecked(router).into_string(),
-            }
-            .clone(),
-        );
-        assert!(response.is_ok());
-    }
 
     #[test]
     fn reject_reroute_outgoing_message_with_different_contents() {
@@ -218,28 +201,15 @@ mod tests {
 
         let mut deps = mock_dependencies();
 
-        let router = "router";
-        instantiate_contract(deps.as_mut(), "verifier", router);
-
-        let response = execute(
-            deps.as_mut(),
-            mock_env(),
-            mock_info(router, &[]),
-            ExecuteMsg::RouteMessages(vec![msg.clone()]),
-        );
+        let response = route_outgoing_messages(deps.as_mut().storage, vec![msg.clone()]);
         assert!(response.is_ok());
 
         // re-route with different payload
         msg.payload_hash = [2; 32];
 
-        let response = execute(
-            deps.as_mut(),
-            mock_env(),
-            mock_info(router, &[]),
-            ExecuteMsg::RouteMessages(vec![msg]),
-        );
+        let response = route_outgoing_messages(deps.as_mut().storage, vec![msg]);
         assert!(response.is_err_and(|err| err_contains!(
-            err.report,
+            err,
             state::Error,
             state::Error::MessageMismatch { .. }
         )));
