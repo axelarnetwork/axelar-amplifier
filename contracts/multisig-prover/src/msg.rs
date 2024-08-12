@@ -1,10 +1,13 @@
-use axelar_wasm_std::{hash::Hash, MajorityThreshold};
+use axelar_wasm_std::hash::Hash;
+use axelar_wasm_std::MajorityThreshold;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{HexBinary, Uint64};
+use msgs_derive::EnsurePermissions;
 use multisig::key::KeyType;
 use router_api::CrossChainId;
 
-use crate::{encoding::Encoder, payload::Payload};
+use crate::encoding::Encoder;
+use crate::payload::Payload;
 
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -55,30 +58,32 @@ pub struct InstantiateMsg {
 }
 
 #[cw_serde]
+#[derive(EnsurePermissions)]
 pub enum ExecuteMsg {
     // Start building a proof that includes specified messages
     // Queries the gateway for actual message contents
-    ConstructProof {
-        message_ids: Vec<CrossChainId>,
-    },
+    #[permission(Any)]
+    ConstructProof(Vec<CrossChainId>),
+    #[permission(Elevated)]
     UpdateVerifierSet,
+
+    #[permission(Any)]
     ConfirmVerifierSet,
     // Updates the signing threshold. The threshold currently in use does not change.
     // The verifier set must be updated and confirmed for the change to take effect.
-    // Callable only by governance.
+    #[permission(Governance)]
     UpdateSigningThreshold {
         new_signing_threshold: MajorityThreshold,
     },
-    UpdateAdmin {
-        new_admin_address: String,
-    },
+    #[permission(Governance)]
+    UpdateAdmin { new_admin_address: String },
 }
 
 #[cw_serde]
 #[derive(QueryResponses)]
 pub enum QueryMsg {
-    #[returns(GetProofResponse)]
-    GetProof { multisig_session_id: Uint64 },
+    #[returns(ProofResponse)]
+    Proof { multisig_session_id: Uint64 },
 
     /// Returns a `VerifierSetResponse` with the current verifier set id and the verifier set itself.
     #[returns(Option<VerifierSetResponse>)]
@@ -96,7 +101,7 @@ pub enum ProofStatus {
 }
 
 #[cw_serde]
-pub struct GetProofResponse {
+pub struct ProofResponse {
     pub multisig_session_id: Uint64,
     pub message_ids: Vec<CrossChainId>,
     pub payload: Payload,

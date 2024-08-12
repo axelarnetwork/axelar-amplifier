@@ -5,16 +5,11 @@ use router_api::ChainName;
 use sha3::{Digest, Keccak256};
 use signature_verifier_api::client::SignatureVerifier;
 
-use crate::signing::validate_session_signature;
-use crate::state::{load_session_signatures, save_pub_key, save_signature};
-use crate::verifier_set::VerifierSet;
-use crate::{
-    key::{KeyTyped, PublicKey, Signature},
-    signing::SigningSession,
-    state::AUTHORIZED_CALLERS,
-};
-
 use super::*;
+use crate::key::{KeyTyped, PublicKey, Signature};
+use crate::signing::{validate_session_signature, SigningSession};
+use crate::state::{load_session_signatures, save_pub_key, save_signature, AUTHORIZED_CALLERS};
+use crate::verifier_set::VerifierSet;
 
 pub fn start_signing_session(
     deps: DepsMut,
@@ -31,7 +26,7 @@ pub fn start_signing_session(
 
     let config = CONFIG.load(deps.storage)?;
 
-    let verifier_set = get_verifier_set(deps.storage, &verifier_set_id)?;
+    let verifier_set = verifier_set(deps.storage, &verifier_set_id)?;
 
     let session_id = SIGNING_SESSION_COUNTER.update(
         deps.storage,
@@ -69,7 +64,7 @@ pub fn start_signing_session(
     let event = Event::SigningStarted {
         session_id,
         verifier_set_id,
-        pub_keys: verifier_set.get_pub_keys(),
+        pub_keys: verifier_set.pub_keys(),
         msg,
         chain_name,
         expires_at,
@@ -220,7 +215,7 @@ pub fn authorize_callers(
 
 pub fn unauthorize_callers(
     deps: DepsMut,
-    contracts: Vec<(Addr, ChainName)>,
+    contracts: HashMap<Addr, ChainName>,
 ) -> Result<Response, ContractError> {
     contracts.iter().for_each(|(contract_address, _)| {
         AUTHORIZED_CALLERS.remove(deps.storage, contract_address)

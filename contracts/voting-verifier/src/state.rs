@@ -1,15 +1,10 @@
+use axelar_wasm_std::hash::Hash;
+use axelar_wasm_std::msg_id::MessageIdFormat;
+use axelar_wasm_std::voting::{PollId, Vote, WeightedPoll};
+use axelar_wasm_std::{counter, nonempty, MajorityThreshold};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Order, StdResult, Storage};
 use cw_storage_plus::{Index, IndexList, IndexedMap, Item, Map, MultiIndex};
-
-use axelar_wasm_std::{
-    counter,
-    hash::Hash,
-    msg_id::MessageIdFormat,
-    nonempty,
-    voting::{PollId, Vote, WeightedPoll},
-    MajorityThreshold,
-};
 use multisig::verifier_set::VerifierSet;
 use router_api::{ChainName, Message};
 
@@ -17,12 +12,11 @@ use crate::error::ContractError;
 
 #[cw_serde]
 pub struct Config {
-    pub governance: Addr,
     pub service_registry_contract: Addr,
     pub service_name: nonempty::String,
     pub source_gateway_address: nonempty::String,
     pub voting_threshold: MajorityThreshold,
-    pub block_expiry: u64, // number of blocks after which a poll expires
+    pub block_expiry: nonempty::Uint64, // number of blocks after which a poll expires
     pub confirmation_height: u64,
     pub source_chain: ChainName,
     pub rewards_contract: Addr,
@@ -44,6 +38,13 @@ impl Poll {
         match self {
             Poll::Messages(poll) => Ok(Poll::Messages(func(poll)?)),
             Poll::ConfirmVerifierSet(poll) => Ok(Poll::ConfirmVerifierSet(func(poll)?)),
+        }
+    }
+
+    pub fn weighted_poll(self) -> WeightedPoll {
+        match self {
+            Poll::Messages(poll) => poll,
+            Poll::ConfirmVerifierSet(poll) => poll,
         }
     }
 }
@@ -115,6 +116,16 @@ impl<'a> PollMessagesIndex<'a> {
             [(_, content)] => Ok(Some(content.content.to_owned())),
             _ => panic!("More than one message for poll_id and index_in_poll"),
         }
+    }
+
+    pub fn load_messages(&self, storage: &dyn Storage, poll_id: PollId) -> StdResult<Vec<Message>> {
+        poll_messages()
+            .idx
+            .0
+            .sub_prefix(poll_id.to_string())
+            .range(storage, None, None, Order::Ascending)
+            .map(|item| item.map(|(_, poll_content)| poll_content.content))
+            .collect::<StdResult<Vec<_>>>()
     }
 }
 

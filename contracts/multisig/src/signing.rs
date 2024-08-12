@@ -5,12 +5,10 @@ use cosmwasm_std::{Addr, HexBinary, Uint128, Uint64};
 use router_api::ChainName;
 use signature_verifier_api::client::SignatureVerifier;
 
-use crate::{
-    key::{PublicKey, Signature},
-    types::{MsgToSign, MultisigState},
-    verifier_set::VerifierSet,
-    ContractError,
-};
+use crate::key::{PublicKey, Signature};
+use crate::types::{MsgToSign, MultisigState};
+use crate::verifier_set::VerifierSet;
+use crate::ContractError;
 
 #[cw_serde]
 pub struct SigningSession {
@@ -133,15 +131,12 @@ fn signers_weight(signatures: &HashMap<String, Signature>, verifier_set: &Verifi
 
 #[cfg(test)]
 mod tests {
-    use cosmwasm_std::{testing::MockQuerier, to_json_binary, Addr, HexBinary, QuerierWrapper};
-
-    use crate::{
-        key::KeyType,
-        test::common::build_verifier_set,
-        test::common::{ecdsa_test_data, ed25519_test_data},
-    };
+    use cosmwasm_std::testing::MockQuerier;
+    use cosmwasm_std::{to_json_binary, Addr, HexBinary, QuerierWrapper};
 
     use super::*;
+    use crate::key::KeyType;
+    use crate::test::common::{build_verifier_set, ecdsa_test_data, ed25519_test_data};
 
     pub struct TestConfig {
         pub verifier_set: VerifierSet,

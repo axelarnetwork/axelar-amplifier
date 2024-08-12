@@ -6,8 +6,7 @@ use thiserror::Error;
 use tokio::select;
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::Interval;
-use tracing::info;
-use tracing::warn;
+use tracing::{info, warn};
 
 use super::msg_queue::MsgQueue;
 use crate::broadcaster::Broadcaster;
@@ -172,10 +171,10 @@ where
 
 #[cfg(test)]
 mod test {
+    use cosmrs::bank::MsgSend;
     use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
-    use cosmrs::tx::Fee;
-    use cosmrs::Any;
-    use cosmrs::{bank::MsgSend, tx::Msg, AccountId};
+    use cosmrs::tx::{Fee, Msg};
+    use cosmrs::{AccountId, Any};
     use error_stack::Report;
     use tokio::sync::mpsc;
     use tokio::test;

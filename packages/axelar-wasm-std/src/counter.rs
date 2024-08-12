@@ -38,7 +38,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_get_and_incr() {
+    fn test_cur_and_incr() {
         let mut store = MockStorage::new();
 
         let counter: Counter<u64> = Counter::new("counter");

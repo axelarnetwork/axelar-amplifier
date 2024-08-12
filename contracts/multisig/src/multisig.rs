@@ -4,12 +4,10 @@ use cosmwasm_schema::cw_serde;
 use cosmwasm_std::Uint128;
 use itertools::Itertools;
 
-use crate::{
-    key::Signature,
-    msg::{Signer, SignerWithSig},
-    types::MultisigState,
-    verifier_set::VerifierSet,
-};
+use crate::key::Signature;
+use crate::msg::{Signer, SignerWithSig};
+use crate::types::MultisigState;
+use crate::verifier_set::VerifierSet;
 
 #[cw_serde]
 pub struct Multisig {
@@ -51,13 +49,11 @@ impl Multisig {
 mod test {
     use cosmwasm_std::{Addr, HexBinary, Uint128};
 
-    use crate::{
-        key::{PublicKey, Signature},
-        msg::Signer,
-        multisig::Multisig,
-        types::MultisigState,
-        verifier_set::VerifierSet,
-    };
+    use crate::key::{PublicKey, Signature};
+    use crate::msg::Signer;
+    use crate::multisig::Multisig;
+    use crate::types::MultisigState;
+    use crate::verifier_set::VerifierSet;
 
     #[test]
     fn optimize_signatures() {

@@ -2,22 +2,24 @@ use std::collections::HashSet;
 use std::convert::TryInto;
 
 use async_trait::async_trait;
+use axelar_wasm_std::voting::{PollId, Vote};
 use cosmrs::cosmwasm::MsgExecuteContract;
-use cosmrs::{tx::Msg, Any};
+use cosmrs::tx::Msg;
+use cosmrs::Any;
 use error_stack::ResultExt;
+use events::Error::EventTypeMismatch;
+use events::Event;
+use events_derive::try_from;
 use serde::Deserialize;
 use sui_types::base_types::{SuiAddress, TransactionDigest};
 use tokio::sync::watch::Receiver;
 use tracing::info;
-
-use axelar_wasm_std::voting::{PollId, Vote};
-use events::{Error::EventTypeMismatch, Event};
-use events_derive::try_from;
 use voting_verifier::msg::ExecuteMsg;
 
 use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error;
-use crate::sui::{json_rpc::SuiClient, verifier::verify_message};
+use crate::sui::json_rpc::SuiClient;
+use crate::sui::verifier::verify_message;
 use crate::types::{Hash, TMAddress};
 
 type Result<T> = error_stack::Result<T, Error>;
@@ -155,25 +157,24 @@ mod tests {
     use cosmwasm_std;
     use error_stack::{Report, Result};
     use ethers_providers::ProviderError;
+    use events::Event;
     use sui_types::base_types::{SuiAddress, TransactionDigest};
     use tokio::sync::watch;
     use tokio::test as async_test;
-
-    use events::Event;
     use voting_verifier::events::{PollMetadata, PollStarted, TxEventConfirmation};
 
+    use super::PollStartedEvent;
     use crate::event_processor::EventHandler;
-    use crate::handlers::{errors::Error, tests::get_event};
+    use crate::handlers::errors::Error;
+    use crate::handlers::tests::into_structured_event;
     use crate::sui::json_rpc::MockSuiClient;
     use crate::types::{EVMAddress, Hash, TMAddress};
-
-    use super::PollStartedEvent;
 
     const PREFIX: &str = "axelar";
 
     #[test]
     fn should_deserialize_poll_started_event() {
-        let event: Result<PollStartedEvent, events::Error> = get_event(
+        let event: Result<PollStartedEvent, events::Error> = into_structured_event(
             poll_started_event(participants(5, None), 100),
             &TMAddress::random(PREFIX),
         )
@@ -185,7 +186,7 @@ mod tests {
     // Should not handle event if it is not a poll started event
     #[async_test]
     async fn not_poll_started_event() {
-        let event = get_event(
+        let event = into_structured_event(
             cosmwasm_std::Event::new("transfer"),
             &TMAddress::random(PREFIX),
         );
@@ -203,7 +204,7 @@ mod tests {
     // Should not handle event if it is not emitted from voting verifier
     #[async_test]
     async fn contract_is_not_voting_verifier() {
-        let event = get_event(
+        let event = into_structured_event(
             poll_started_event(participants(5, None), 100),
             &TMAddress::random(PREFIX),
         );
@@ -222,7 +223,7 @@ mod tests {
     #[async_test]
     async fn verifier_is_not_a_participant() {
         let voting_verifier = TMAddress::random(PREFIX);
-        let event = get_event(
+        let event = into_structured_event(
             poll_started_event(participants(5, None), 100),
             &voting_verifier,
         );
@@ -251,7 +252,7 @@ mod tests {
         let voting_verifier = TMAddress::random(PREFIX);
         let verifier = TMAddress::random(PREFIX);
 
-        let event = get_event(
+        let event = into_structured_event(
             poll_started_event(participants(5, Some(verifier.clone())), 100),
             &voting_verifier,
         );
@@ -274,7 +275,7 @@ mod tests {
 
         let voting_verifier = TMAddress::random(PREFIX);
         let verifier = TMAddress::random(PREFIX);
-        let event = get_event(
+        let event = into_structured_event(
             poll_started_event(participants(5, Some(verifier.clone())), 100),
             &voting_verifier,
         );
@@ -302,7 +303,7 @@ mod tests {
         let voting_verifier = TMAddress::random(PREFIX);
         let verifier = TMAddress::random(PREFIX);
         let expiration = 100u64;
-        let event: Event = get_event(
+        let event: Event = into_structured_event(
             poll_started_event(participants(5, Some(verifier.clone())), expiration),
             &voting_verifier,
         );

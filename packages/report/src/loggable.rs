@@ -80,7 +80,10 @@ impl<T> From<&Report<T>> for LoggableError {
             // because of the stack order of attachments we need to reverse them to get the historical order
             attachments.reverse();
             error.attachments = attachments;
-            errors.push(error)
+
+            if !error.msg.is_empty() || !error.attachments.is_empty() {
+                errors.push(error)
+            }
         }
 
         chain_causes(errors).expect("a report must have at least one error")
@@ -149,10 +152,12 @@ impl<'a> From<&'a Frame> for FrameType<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::LoggableError;
-    use error_stack::Report;
     use std::env;
+
+    use error_stack::Report;
     use thiserror::Error;
+
+    use crate::LoggableError;
 
     #[derive(Error, Debug)]
     enum Error {

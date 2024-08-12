@@ -14,9 +14,8 @@ pub fn ecdsa_verify(msg_hash: &[u8], sig: &[u8], pub_key: &[u8]) -> Result<bool,
 mod test {
     use cosmwasm_std::HexBinary;
 
-    use crate::test::common::ecdsa_test_data;
-
     use super::*;
+    use crate::test::common::ecdsa_test_data;
 
     #[test]
     fn should_fail_sig_verification_instead_of_truncating() {

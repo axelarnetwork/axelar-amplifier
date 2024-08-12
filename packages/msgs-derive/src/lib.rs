@@ -10,10 +10,10 @@ use syn::{Data, DataEnum, DeriveInput, Expr, ExprCall, Ident, Path, Token, Varia
 /// has the required permissions to execute the variant. The permissions are defined using the
 /// `#[permission]` attribute. The attribute can be used in two ways:
 /// - `#[permission(Permission1, Permission2, ...)]` requires the sender to have at least one of
-/// the specified permissions. These permissions are defined in the [axelar_wasm_std::permission_control::Permission] enum.
+///     the specified permissions. These permissions are defined in the [axelar_wasm_std::permission_control::Permission] enum.
 /// - `#[permission(Specific(Addr1, Addr2, ...))]` requires the sender to be one of the specified
-/// addresses. The macro will generate a function signature that takes closures as arguments to determine
-/// the whitelisted addresses.
+///     addresses. The macro will generate a function signature that takes closures as arguments to determine
+///     the whitelisted addresses.
 ///
 /// Both attributes can be used together, in which case the sender must have at least one of the
 /// specified permissions or be one of the specified addresses.
@@ -245,23 +245,25 @@ fn build_general_permissions_check(
         if general_permissions.is_empty() && !permission.specific.is_empty() {
             // getting to this point means the specific check has failed, so we return an error
             quote! {
-                return Err(axelar_wasm_std::permission_control::Error::AddressNotWhitelisted {
+                Err(axelar_wasm_std::permission_control::Error::AddressNotWhitelisted {
                     expected: whitelisted.clone(),
                     actual: sender.clone(),
                 }.into())
             }
         } else {
             // specific permissions have either failed or there were none, so check general permissions
-            quote! {(#(axelar_wasm_std::permission_control::Permission::#general_permissions )|*).into()}
+            quote! {Ok((#(axelar_wasm_std::permission_control::Permission::#general_permissions )|*).into())}
         }
     });
 
     // map enum variants to general permission checks. Exclude checks for the 'Any' case,
     // because it allows any address, compare permissions to the sender's role otherwise.
     quote! {
-        let permission : axelar_wasm_std::flagset::FlagSet<_> = match self {
+        let permission : Result<axelar_wasm_std::flagset::FlagSet<_>, axelar_wasm_std::permission_control::Error > = match self {
             #(#enum_type::#variants {..}=> {#general_permissions_quote})*
         };
+
+        let permission = permission?;
 
         if permission.contains(axelar_wasm_std::permission_control::Permission::Any) {
             return Ok(self);

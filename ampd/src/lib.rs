@@ -1,31 +1,28 @@
 use std::num::NonZeroUsize;
 use std::time::Duration;
 
+use asyncutil::task::{CancellableTask, TaskError, TaskGroup};
 use block_height_monitor::BlockHeightMonitor;
-use cosmrs::proto::cosmos::{
-    auth::v1beta1::query_client::QueryClient as AuthQueryClient,
-    bank::v1beta1::query_client::QueryClient as BankQueryClient,
-    tx::v1beta1::service_client::ServiceClient,
-};
+use broadcaster::Broadcaster;
+use cosmrs::proto::cosmos::auth::v1beta1::query_client::QueryClient as AuthQueryClient;
+use cosmrs::proto::cosmos::bank::v1beta1::query_client::QueryClient as BankQueryClient;
+use cosmrs::proto::cosmos::tx::v1beta1::service_client::ServiceClient;
 use error_stack::{FutureExt, Result, ResultExt};
+use event_processor::EventHandler;
+use event_sub::EventSub;
 use evm::finalizer::{pick, Finalization};
 use evm::json_rpc::EthereumClient;
+use queue::queued_broadcaster::QueuedBroadcaster;
 use router_api::ChainName;
 use solana::rpc::RpcCacheWrapper;
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::commitment_config::CommitmentConfig;
 use thiserror::Error;
+use tofnd::grpc::{Multisig, MultisigClient};
 use tokio::signal::unix::{signal, SignalKind};
 use tokio::time::interval;
 use tokio_util::sync::CancellationToken;
 use tracing::info;
-
-use asyncutil::task::{CancellableTask, TaskError, TaskGroup};
-use broadcaster::Broadcaster;
-use event_processor::EventHandler;
-use event_sub::EventSub;
-use queue::queued_broadcaster::QueuedBroadcaster;
-use tofnd::grpc::{Multisig, MultisigClient};
 use types::TMAddress;
 
 use crate::config::Config;
@@ -67,8 +64,7 @@ async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
         broadcast,
         handlers,
         tofnd_config,
-        event_buffer_cap,
-        event_stream_timeout,
+        event_processor,
         service_registry: _service_registry,
         health_check_bind_addr,
     } = cfg;
@@ -122,11 +118,11 @@ async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
         broadcaster,
         multisig_client,
         broadcast,
-        event_buffer_cap,
+        event_processor.stream_buffer_size,
         block_height_monitor,
         health_check_server,
     )
-    .configure_handlers(verifier, handlers, event_stream_timeout)
+    .configure_handlers(verifier, handlers, event_processor)
     .await
 }
 
@@ -203,7 +199,7 @@ where
         mut self,
         verifier: TMAddress,
         handler_configs: Vec<handlers::config::Config>,
-        stream_timeout: Duration,
+        event_processor_config: event_processor::Config,
     ) -> Result<App<T>, Error> {
         for config in handler_configs {
             let task = match config {
@@ -233,7 +229,7 @@ where
                             rpc_client,
                             self.block_height_monitor.latest_block_height(),
                         ),
-                        stream_timeout,
+                        event_processor_config.clone(),
                     )
                 }
                 handlers::config::Config::EvmVerifierSetVerifier {
@@ -262,7 +258,7 @@ where
                             rpc_client,
                             self.block_height_monitor.latest_block_height(),
                         ),
-                        stream_timeout,
+                        event_processor_config.clone(),
                     )
                 }
                 handlers::config::Config::MultisigSigner { cosmwasm_contract } => self
@@ -274,7 +270,7 @@ where
                             self.multisig_client.clone(),
                             self.block_height_monitor.latest_block_height(),
                         ),
-                        stream_timeout,
+                        event_processor_config.clone(),
                     ),
                 handlers::config::Config::SuiMsgVerifier {
                     cosmwasm_contract,
@@ -295,7 +291,7 @@ where
                         ),
                         self.block_height_monitor.latest_block_height(),
                     ),
-                    stream_timeout,
+                    event_processor_config.clone(),
                 ),
                 handlers::config::Config::SuiVerifierSetVerifier {
                     cosmwasm_contract,
@@ -316,7 +312,7 @@ where
                         ),
                         self.block_height_monitor.latest_block_height(),
                     ),
-                    stream_timeout,
+                    event_processor_config.clone(),
                 ),
                 handlers::config::Config::SolanaMsgVerifier {
                     cosmwasm_contract,
@@ -339,7 +335,7 @@ where
                         chain.name,
                         self.block_height_monitor.latest_block_height(),
                     ),
-                    stream_timeout,
+                    event_processor_config.clone(),
                 ),
                 handlers::config::Config::SolanaVerifierSetVerifier {
                     cosmwasm_contract,
@@ -358,7 +354,7 @@ where
                         ),
                         self.block_height_monitor.latest_block_height(),
                     ),
-                    stream_timeout,
+                    event_processor_config.clone(),
                 ),
             };
             self.event_processor = self.event_processor.add_task(task);
@@ -371,7 +367,7 @@ where
         &mut self,
         label: L,
         handler: H,
-        stream_timeout: Duration,
+        event_processor_config: event_processor::Config,
     ) -> CancellableTask<Result<(), event_processor::Error>>
     where
         L: AsRef<str>,
@@ -382,7 +378,14 @@ where
         let sub = self.event_subscriber.subscribe();
 
         CancellableTask::create(move |token| {
-            event_processor::consume_events(label, handler, broadcaster, sub, stream_timeout, token)
+            event_processor::consume_events(
+                label,
+                handler,
+                broadcaster,
+                sub,
+                event_processor_config,
+                token,
+            )
         })
     }
 

@@ -3,7 +3,8 @@ use std::collections::HashMap;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Uint128};
 
-use crate::{nonempty, threshold::MajorityThreshold};
+use crate::nonempty;
+use crate::threshold::MajorityThreshold;
 
 #[cw_serde]
 pub struct Participant {
@@ -44,7 +45,7 @@ impl Snapshot {
         }
     }
 
-    pub fn get_participants(&self) -> Vec<Addr> {
+    pub fn participants(&self) -> Vec<Addr> {
         self.participants
             .keys()
             .cloned()
@@ -52,7 +53,7 @@ impl Snapshot {
             .collect()
     }
 
-    pub fn get_participant(&self, participant: &Addr) -> Option<&Participant> {
+    pub fn find(&self, participant: &Addr) -> Option<&Participant> {
         self.participants.get(&participant.to_string())
     }
 }
@@ -61,9 +62,8 @@ impl Snapshot {
 mod tests {
     use cosmwasm_std::{from_json, to_json_binary, Uint64};
 
-    use crate::Threshold;
-
     use super::*;
+    use crate::Threshold;
 
     fn mock_participant(address: &str, weight: nonempty::Uint128) -> Participant {
         Participant {

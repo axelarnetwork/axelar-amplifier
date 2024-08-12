@@ -1,9 +1,11 @@
 use std::collections::HashMap;
 
-use axelar_wasm_std::{self, voting::Vote};
+use axelar_wasm_std::voting::Vote;
+use axelar_wasm_std::{self};
 use cosmwasm_std::HexBinary;
 use move_core_types::language_storage::StructTag;
-use serde::{de::Error, Deserialize, Deserializer};
+use serde::de::Error;
+use serde::{Deserialize, Deserializer};
 use sui_json_rpc_types::{SuiEvent, SuiTransactionBlockResponse};
 use sui_types::base_types::SuiAddress;
 
@@ -199,34 +201,32 @@ pub fn verify_verifier_set(
 
 #[cfg(test)]
 mod tests {
+    use axelar_wasm_std::voting::Vote;
     use cosmrs::crypto::PublicKey;
     use cosmwasm_std::{Addr, HexBinary, Uint128};
     use ecdsa::SigningKey;
     use ethers_core::abi::AbiEncode;
     use move_core_types::language_storage::StructTag;
+    use multisig::key::KeyType;
+    use multisig::msg::Signer;
+    use multisig::verifier_set::VerifierSet;
     use rand::rngs::OsRng;
     use random_string::generate;
+    use router_api::ChainName;
     use serde_json::json;
     use sui_json_rpc_types::{SuiEvent, SuiTransactionBlockEvents, SuiTransactionBlockResponse};
-    use sui_types::{
-        base_types::{SuiAddress, TransactionDigest},
-        event::EventID,
-    };
+    use sui_types::base_types::{SuiAddress, TransactionDigest};
+    use sui_types::event::EventID;
 
-    use axelar_wasm_std::voting::Vote;
-    use multisig::{key::KeyType, msg::Signer, verifier_set::VerifierSet};
-    use router_api::ChainName;
-
+    use crate::handlers::sui_verify_msg::Message;
+    use crate::handlers::sui_verify_verifier_set::VerifierSetConfirmation;
     use crate::sui::verifier::{verify_message, verify_verifier_set};
     use crate::types::{EVMAddress, Hash};
-    use crate::{
-        handlers::{sui_verify_msg::Message, sui_verify_verifier_set::VerifierSetConfirmation},
-        PREFIX,
-    };
+    use crate::PREFIX;
 
     #[test]
     fn should_not_verify_msg_if_tx_id_does_not_match() {
-        let (gateway_address, tx_receipt, mut msg) = get_matching_msg_and_tx_block();
+        let (gateway_address, tx_receipt, mut msg) = matching_msg_and_tx_block();
 
         msg.tx_id = TransactionDigest::random();
         assert_eq!(
@@ -237,7 +237,7 @@ mod tests {
 
     #[test]
     fn should_not_verify_msg_if_event_index_does_not_match() {
-        let (gateway_address, tx_receipt, mut msg) = get_matching_msg_and_tx_block();
+        let (gateway_address, tx_receipt, mut msg) = matching_msg_and_tx_block();
 
         msg.event_index = rand::random::<u32>();
         assert_eq!(
@@ -248,7 +248,7 @@ mod tests {
 
     #[test]
     fn should_not_verify_msg_if_source_address_does_not_match() {
-        let (gateway_address, tx_receipt, mut msg) = get_matching_msg_and_tx_block();
+        let (gateway_address, tx_receipt, mut msg) = matching_msg_and_tx_block();
 
         msg.source_address = SuiAddress::random_for_testing_only();
         assert_eq!(
@@ -259,7 +259,7 @@ mod tests {
 
     #[test]
     fn should_not_verify_msg_if_destination_chain_does_not_match() {
-        let (gateway_address, tx_receipt, mut msg) = get_matching_msg_and_tx_block();
+        let (gateway_address, tx_receipt, mut msg) = matching_msg_and_tx_block();
 
         msg.destination_chain = rand_chain_name();
         assert_eq!(
@@ -270,7 +270,7 @@ mod tests {
 
     #[test]
     fn should_not_verify_msg_if_destination_address_does_not_match() {
-        let (gateway_address, tx_receipt, mut msg) = get_matching_msg_and_tx_block();
+        let (gateway_address, tx_receipt, mut msg) = matching_msg_and_tx_block();
 
         msg.destination_address = EVMAddress::random().to_string();
         assert_eq!(
@@ -281,7 +281,7 @@ mod tests {
 
     #[test]
     fn should_not_verify_msg_if_payload_hash_does_not_match() {
-        let (gateway_address, tx_receipt, mut msg) = get_matching_msg_and_tx_block();
+        let (gateway_address, tx_receipt, mut msg) = matching_msg_and_tx_block();
 
         msg.payload_hash = Hash::random();
         assert_eq!(
@@ -292,7 +292,7 @@ mod tests {
 
     #[test]
     fn should_verify_msg_if_correct() {
-        let (gateway_address, tx_block, msg) = get_matching_msg_and_tx_block();
+        let (gateway_address, tx_block, msg) = matching_msg_and_tx_block();
         assert_eq!(
             verify_message(&gateway_address, &tx_block, &msg),
             Vote::SucceededOnChain
@@ -301,7 +301,7 @@ mod tests {
 
     #[test]
     fn should_verify_verifier_set_if_correct() {
-        let (gateway_address, tx_block, verifier_set) = get_matching_verifier_set_and_tx_block();
+        let (gateway_address, tx_block, verifier_set) = matching_verifier_set_and_tx_block();
 
         assert_eq!(
             verify_verifier_set(&gateway_address, &tx_block, &verifier_set),
@@ -311,7 +311,7 @@ mod tests {
 
     #[test]
     fn should_not_verify_verifier_set_if_gateway_address_mismatch() {
-        let (_, tx_block, verifier_set) = get_matching_verifier_set_and_tx_block();
+        let (_, tx_block, verifier_set) = matching_verifier_set_and_tx_block();
 
         assert_eq!(
             verify_verifier_set(
@@ -325,8 +325,7 @@ mod tests {
 
     #[test]
     fn should_not_verify_verifier_set_if_tx_digest_mismatch() {
-        let (gateway_address, mut tx_block, verifier_set) =
-            get_matching_verifier_set_and_tx_block();
+        let (gateway_address, mut tx_block, verifier_set) = matching_verifier_set_and_tx_block();
         tx_block.digest = TransactionDigest::random();
 
         assert_eq!(
@@ -337,8 +336,7 @@ mod tests {
 
     #[test]
     fn should_not_verify_verifier_set_if_event_seq_mismatch() {
-        let (gateway_address, tx_block, mut verifier_set) =
-            get_matching_verifier_set_and_tx_block();
+        let (gateway_address, tx_block, mut verifier_set) = matching_verifier_set_and_tx_block();
         verifier_set.event_index = rand::random();
 
         assert_eq!(
@@ -349,8 +347,7 @@ mod tests {
 
     #[test]
     fn should_not_verify_verifier_set_if_struct_tag_mismatch() {
-        let (gateway_address, mut tx_block, verifier_set) =
-            get_matching_verifier_set_and_tx_block();
+        let (gateway_address, mut tx_block, verifier_set) = matching_verifier_set_and_tx_block();
         tx_block
             .events
             .as_mut()
@@ -373,8 +370,7 @@ mod tests {
 
     #[test]
     fn should_not_verify_verifier_set_if_threshold_mismatch() {
-        let (gateway_address, tx_block, mut verifier_set) =
-            get_matching_verifier_set_and_tx_block();
+        let (gateway_address, tx_block, mut verifier_set) = matching_verifier_set_and_tx_block();
         verifier_set.verifier_set.threshold = Uint128::new(2);
 
         assert_eq!(
@@ -385,8 +381,7 @@ mod tests {
 
     #[test]
     fn should_not_verify_verifier_set_if_nonce_mismatch() {
-        let (gateway_address, tx_block, mut verifier_set) =
-            get_matching_verifier_set_and_tx_block();
+        let (gateway_address, tx_block, mut verifier_set) = matching_verifier_set_and_tx_block();
         verifier_set.verifier_set.created_at = rand::random();
 
         assert_eq!(
@@ -397,8 +392,7 @@ mod tests {
 
     #[test]
     fn should_not_verify_verifier_set_if_signers_mismatch() {
-        let (gateway_address, tx_block, mut verifier_set) =
-            get_matching_verifier_set_and_tx_block();
+        let (gateway_address, tx_block, mut verifier_set) = matching_verifier_set_and_tx_block();
         let signer = random_signer();
         verifier_set
             .verifier_set
@@ -411,7 +405,7 @@ mod tests {
         );
     }
 
-    fn get_matching_msg_and_tx_block() -> (SuiAddress, SuiTransactionBlockResponse, Message) {
+    fn matching_msg_and_tx_block() -> (SuiAddress, SuiTransactionBlockResponse, Message) {
         let gateway_address = SuiAddress::random_for_testing_only();
 
         let msg = Message {
@@ -476,7 +470,7 @@ mod tests {
         }
     }
 
-    fn get_matching_verifier_set_and_tx_block() -> (
+    fn matching_verifier_set_and_tx_block() -> (
         SuiAddress,
         SuiTransactionBlockResponse,
         VerifierSetConfirmation,

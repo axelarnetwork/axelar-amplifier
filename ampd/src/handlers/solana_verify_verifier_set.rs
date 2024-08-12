@@ -214,7 +214,7 @@ mod tests {
     use tokio::sync::watch;
     use voting_verifier::events::{PollMetadata, PollStarted, VerifierSetConfirmation};
 
-    use crate::{handlers::tests::get_event, solana::test_utils::rpc_client_with_recorder, PREFIX};
+    use crate::{handlers::tests::into_structured_event, solana::test_utils::rpc_client_with_recorder, PREFIX};
 
     use tokio::test as async_test;
 
@@ -238,7 +238,7 @@ mod tests {
             rx,
         );
 
-        let event = get_event(
+        let event = into_structured_event(
             verifier_set_poll_started_event(participants(2, Some(worker.clone())), expiration),
             &TMAddress::random(PREFIX),
         );
@@ -274,7 +274,7 @@ mod tests {
             rx,
         );
 
-        let event = get_event(
+        let event = into_structured_event(
             verifier_set_poll_started_event(participants(2, Some(worker.clone())), expiration),
             &voting_verifier,
         );
@@ -309,7 +309,7 @@ mod tests {
             rx,
         );
 
-        let event = get_event(
+        let event = into_structured_event(
             verifier_set_poll_started_event(participants(2, None), expiration), // worker is not here.
             &voting_verifier,
         );
@@ -344,7 +344,7 @@ mod tests {
             rx,
         );
 
-        let event = get_event(
+        let event = into_structured_event(
             verifier_set_poll_started_event(participants(2, Some(worker.clone())), expiration),
             &voting_verifier,
         );

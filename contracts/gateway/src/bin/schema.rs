@@ -1,7 +1,6 @@
 use cosmwasm_schema::write_api;
-use gateway_api::msg::{ExecuteMsg, QueryMsg};
-
 use gateway::msg::InstantiateMsg;
+use gateway_api::msg::{ExecuteMsg, QueryMsg};
 
 fn main() {
     write_api! {

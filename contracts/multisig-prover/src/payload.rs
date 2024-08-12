@@ -1,22 +1,19 @@
+use axelar_wasm_std::hash::Hash;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{from_json, HexBinary, StdResult};
 use cw_storage_plus::{Key, KeyDeserialize, PrimaryKey};
 use error_stack::Result;
-use sha3::{Digest, Keccak256};
-
-use axelar_wasm_std::hash::Hash;
 use multisig::msg::SignerWithSig;
 use multisig::verifier_set::VerifierSet;
 use router_api::{CrossChainId, Message};
+use sha3::{Digest, Keccak256};
 
-use crate::{
-    encoding::{
+use crate::encoding::{
         abi,
         rkyv::{self, to_verifier_set},
         Encoder,
-    },
-    error::ContractError,
-};
+    };
+use crate::error::ContractError;
 
 #[cw_serde]
 pub enum Payload {
@@ -31,10 +28,7 @@ impl Payload {
     pub fn id(&self) -> PayloadId {
         match self {
             Payload::Messages(msgs) => {
-                let message_ids = msgs
-                    .iter()
-                    .map(|msg| msg.cc_id.clone())
-                    .collect::<Vec<CrossChainId>>();
+                let message_ids: Vec<_> = msgs.iter().map(|msg| msg.cc_id.clone()).collect();
 
                 message_ids.as_slice().into()
             }
@@ -55,6 +49,7 @@ impl Payload {
                 &domain_separator,
                 &to_verifier_set(cur_verifier_set)?,
                 &axelar_rkyv_encoding::types::Payload::try_from(self)?,
+                axelar_rkyv_encoding::hasher::generic::Keccak256Hasher::default(),
             )),
         }
     }
@@ -139,9 +134,10 @@ mod test {
         key::{Recoverable, Signature},
         msg::Signer,
     };
-    use router_api::{Address, ChainName, CrossChainId};
+    use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
 
-    use crate::{payload::PayloadId, test::test_data};
+    use crate::payload::PayloadId;
+    use crate::test::test_data;
 
     #[test]
     fn test_payload_id() {
@@ -161,8 +157,8 @@ mod test {
     fn rkyv_message_encoding_works_as_expected() {
         let message = Message {
             cc_id: CrossChainId {
-                chain: ChainName::from_str("fantom").unwrap(),
-                id: "123".to_string().parse().unwrap(),
+                source_chain: ChainNameRaw::from_str("fantom").unwrap(),
+                message_id: "123".to_string().parse().unwrap(),
             },
             source_address: Address::from_str("aabbbccc").unwrap(),
             destination_chain: ChainName::from_str("solana").unwrap(),
@@ -220,10 +216,10 @@ mod test {
         let messages = archived_data.messages().unwrap();
         assert_eq!(messages.len(), 1);
         let archived_message = messages.get(0).unwrap();
-        assert_eq!(archived_message.cc_id().id(), message.cc_id.id.to_string());
+        assert_eq!(archived_message.cc_id().id(), message.cc_id.message_id.to_string());
         assert_eq!(
             archived_message.cc_id().chain(),
-            message.cc_id.chain.to_string()
+            message.cc_id.source_chain.to_string()
         );
 
         // assert signers
@@ -234,7 +230,7 @@ mod test {
         assert_eq!(proof.nonce, created_at);
         assert_eq!(proof.signers_with_signatures.len(), 1);
         let (archived_signer_public_key, archived_signer) =
-            proof.signers_with_signatures.into_iter().next().unwrap();
+            proof.signers_with_signatures.iter().next().unwrap();
         let pk_bytes = archived_signer_public_key.to_bytes();
         assert_eq!(pk_bytes.as_slice(), signer.pub_key.as_ref());
         assert_eq!(archived_signer.weight.maybe_u128().unwrap(), 1);
@@ -243,7 +239,7 @@ mod test {
         else {
             panic!("")
         };
-        assert_eq!(archived_signature, &raw_signature);
+        assert_eq!(*archived_signature, raw_signature);
 
         // assert thashes match
         let mut bytes = [0; 32];
@@ -255,7 +251,11 @@ mod test {
             .collect();
         let vs =
             axelar_rkyv_encoding::types::VerifierSet::new(created_at, signers, u256_thereshold);
-        let archived_hash = archived_data.hash_payload_for_verifier_set(&domain_separator, &vs);
+        let archived_hash = archived_data.hash_payload_for_verifier_set(
+            &domain_separator,
+            &vs,
+            axelar_rkyv_encoding::hasher::generic::Keccak256Hasher::default(),
+        );
         assert_eq!(archived_hash, digest_hash)
     }
 }

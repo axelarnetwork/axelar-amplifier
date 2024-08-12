@@ -1,11 +1,13 @@
-use error_stack::{Result, ResultExt};
 use std::net::SocketAddrV4;
-use thiserror::Error;
-use tracing::info;
 
-use axum::{http::StatusCode, routing::get, Json, Router};
+use axum::http::StatusCode;
+use axum::routing::get;
+use axum::{Json, Router};
+use error_stack::{Result, ResultExt};
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
 use tokio_util::sync::CancellationToken;
+use tracing::info;
 
 #[derive(Error, Debug)]
 pub enum Error {
@@ -55,10 +57,12 @@ struct Status {
 #[cfg(test)]
 mod tests {
 
-    use super::*;
     use std::net::{SocketAddr, TcpListener};
     use std::time::Duration;
+
     use tokio::test as async_test;
+
+    use super::*;
 
     #[async_test]
     async fn server_lifecycle() {

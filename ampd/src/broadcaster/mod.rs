@@ -4,6 +4,7 @@ use std::time::Duration;
 use std::{cmp, thread};
 
 use async_trait::async_trait;
+use axelar_wasm_std::FnExt;
 use cosmrs::proto::cosmos::auth::v1beta1::{
     BaseAccount, QueryAccountRequest, QueryAccountResponse,
 };
@@ -16,6 +17,7 @@ use cosmrs::proto::traits::MessageExt;
 use cosmrs::tendermint::chain::Id;
 use cosmrs::tx::Fee;
 use cosmrs::{Amount, Coin, Denom, Gas};
+use dec_coin::DecCoin;
 use error_stack::{ensure, report, FutureExt, Report, Result, ResultExt};
 use futures::TryFutureExt;
 use k256::sha2::{Digest, Sha256};
@@ -23,18 +25,14 @@ use mockall::automock;
 use num_traits::{cast, Zero};
 use prost::Message;
 use prost_types::Any;
+use report::{LoggableError, ResultCompatExt};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tonic::{Code, Status};
-use tracing::debug;
-use tracing::info;
+use tracing::{debug, info};
+use tx::Tx;
 use typed_builder::TypedBuilder;
 use valuable::Valuable;
-
-use axelar_wasm_std::FnExt;
-use dec_coin::DecCoin;
-use report::{LoggableError, ResultCompatExt};
-use tx::Tx;
 
 use crate::tofnd;
 use crate::tofnd::grpc::Multisig;
@@ -365,7 +363,7 @@ where
 
             let response = self
                 .client
-                .get_tx(GetTxRequest {
+                .tx(GetTxRequest {
                     hash: tx_hash.to_string(),
                 })
                 .await;
@@ -445,6 +443,7 @@ enum ConfirmationResult {
 
 #[cfg(test)]
 mod tests {
+    use cosmrs::bank::MsgSend;
     use cosmrs::crypto::PublicKey;
     use cosmrs::proto::cosmos::auth::v1beta1::{BaseAccount, QueryAccountResponse};
     use cosmrs::proto::cosmos::bank::v1beta1::QueryBalanceResponse;
@@ -452,7 +451,8 @@ mod tests {
     use cosmrs::proto::cosmos::tx::v1beta1::{GetTxResponse, SimulateResponse};
     use cosmrs::proto::traits::MessageExt;
     use cosmrs::proto::Any;
-    use cosmrs::{bank::MsgSend, tx::Msg, AccountId, Coin, Denom};
+    use cosmrs::tx::Msg;
+    use cosmrs::{AccountId, Coin, Denom};
     use ecdsa::SigningKey;
     use k256::Secp256k1;
     use rand::rngs::OsRng;
@@ -580,7 +580,7 @@ mod tests {
             .expect_broadcast_tx()
             .returning(|_| Ok(TxResponse::default()));
         client
-            .expect_get_tx()
+            .expect_tx()
             .times((Config::default().tx_fetch_max_retries + 1) as usize)
             .returning(|_| Err(Status::deadline_exceeded("time out")));
 
@@ -612,7 +612,7 @@ mod tests {
         client
             .expect_broadcast_tx()
             .returning(|_| Ok(TxResponse::default()));
-        client.expect_get_tx().times(1).returning(|_| {
+        client.expect_tx().times(1).returning(|_| {
             Ok(GetTxResponse {
                 tx_response: Some(TxResponse {
                     code: 32,
@@ -808,7 +808,7 @@ mod tests {
         client
             .expect_broadcast_tx()
             .returning(|_| Ok(TxResponse::default()));
-        client.expect_get_tx().returning(|_| {
+        client.expect_tx().returning(|_| {
             Ok(GetTxResponse {
                 tx_response: Some(TxResponse {
                     code: 0,

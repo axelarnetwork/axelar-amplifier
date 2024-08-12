@@ -1,7 +1,8 @@
-use crate::contract::Contract;
 use axelar_wasm_std::nonempty;
 use cosmwasm_std::Addr;
 use cw_multi_test::{App, ContractWrapper, Executor};
+
+use crate::contract::Contract;
 
 #[derive(Clone)]
 pub struct MultisigContract {

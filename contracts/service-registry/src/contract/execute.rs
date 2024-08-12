@@ -1,15 +1,7 @@
-use crate::state::{self, VERIFIERS};
 use router_api::ChainName;
 
 use super::*;
-
-pub fn require_governance(deps: &DepsMut, info: MessageInfo) -> Result<(), ContractError> {
-    let config = CONFIG.load(deps.storage)?;
-    if config.governance != info.sender {
-        return Err(ContractError::Unauthorized);
-    }
-    Ok(())
-}
+use crate::state::{self, AuthorizationState, Verifier, VERIFIERS};
 
 #[allow(clippy::too_many_arguments)]
 pub fn register_service(
@@ -131,10 +123,6 @@ pub fn register_chains_support(
         .may_load(deps.storage, &service_name)?
         .ok_or(ContractError::ServiceNotFound)?;
 
-    VERIFIERS
-        .may_load(deps.storage, (&service_name, &info.sender))?
-        .ok_or(ContractError::VerifierNotFound)?;
-
     state::register_chains_support(
         deps.storage,
         service_name.clone(),
@@ -154,10 +142,6 @@ pub fn deregister_chains_support(
     SERVICES
         .may_load(deps.storage, &service_name)?
         .ok_or(ContractError::ServiceNotFound)?;
-
-    VERIFIERS
-        .may_load(deps.storage, (&service_name, &info.sender))?
-        .ok_or(ContractError::VerifierNotFound)?;
 
     state::deregister_chains_support(deps.storage, service_name.clone(), chains, info.sender)?;
 
@@ -218,6 +202,6 @@ pub fn claim_stake(
             denom: service.bond_denom,
             amount: released_bond,
         }]
-        .to_vec(), // TODO: isolate coins
+        .to_vec(),
     }))
 }

@@ -1,15 +1,11 @@
+use axelar_wasm_std::voting::{PollId, Vote};
+use axelar_wasm_std::{nonempty, MajorityThreshold, VerificationStatus};
 use cosmwasm_std::{Addr, WasmMsg};
 use error_stack::ResultExt;
-
-use axelar_wasm_std::{
-    nonempty,
-    voting::{PollId, Vote},
-    MajorityThreshold, VerificationStatus,
-};
 use multisig::verifier_set::VerifierSet;
 use router_api::Message;
 
-use crate::msg::{ExecuteMsg, MessageStatus, Poll, QueryMsg};
+use crate::msg::{ExecuteMsg, MessageStatus, PollResponse, QueryMsg};
 
 type Result<T> = error_stack::Result<T, Error>;
 
@@ -31,10 +27,8 @@ pub struct Client<'a> {
 
 impl<'a> Client<'a> {
     pub fn verify_messages(&self, messages: Vec<Message>) -> Option<WasmMsg> {
-        ignore_empty(messages).map(|messages| {
-            self.client
-                .execute(&ExecuteMsg::VerifyMessages { messages })
-        })
+        ignore_empty(messages)
+            .map(|messages| self.client.execute(&ExecuteMsg::VerifyMessages(messages)))
     }
 
     pub fn vote(&self, poll_id: PollId, votes: Vec<Vote>) -> WasmMsg {
@@ -62,9 +56,9 @@ impl<'a> Client<'a> {
         })
     }
 
-    pub fn poll(&self, poll_id: PollId) -> Result<Poll> {
+    pub fn poll(&self, poll_id: PollId) -> Result<PollResponse> {
         self.client
-            .query(&QueryMsg::GetPoll { poll_id })
+            .query(&QueryMsg::Poll { poll_id })
             .change_context_lazy(|| Error::QueryVotingVerifier(self.client.address.clone()))
     }
 
@@ -73,20 +67,20 @@ impl<'a> Client<'a> {
             [] => Ok(vec![]),
             _ => self
                 .client
-                .query(&QueryMsg::GetMessagesStatus { messages })
+                .query(&QueryMsg::MessagesStatus(messages))
                 .change_context_lazy(|| Error::QueryVotingVerifier(self.client.address.clone())),
         }
     }
 
     pub fn verifier_set_status(&self, new_verifier_set: VerifierSet) -> Result<VerificationStatus> {
         self.client
-            .query(&QueryMsg::GetVerifierSetStatus { new_verifier_set })
+            .query(&QueryMsg::VerifierSetStatus(new_verifier_set))
             .change_context_lazy(|| Error::QueryVotingVerifier(self.client.address.clone()))
     }
 
     pub fn current_threshold(&self) -> Result<MajorityThreshold> {
         self.client
-            .query(&QueryMsg::GetCurrentThreshold)
+            .query(&QueryMsg::CurrentThreshold)
             .change_context_lazy(|| Error::QueryVotingVerifier(self.client.address.clone()))
     }
 }
@@ -104,20 +98,16 @@ fn ignore_empty(msgs: Vec<Message>) -> Option<Vec<Message>> {
 mod test {
     use std::collections::BTreeMap;
 
-    use axelar_wasm_std::{msg_id::HexTxHashAndEventIndex, Threshold, VerificationStatus};
-    use cosmwasm_std::{
-        from_json,
-        testing::{mock_dependencies, mock_env, mock_info, MockQuerier},
-        Addr, DepsMut, QuerierWrapper, Uint128, Uint64, WasmQuery,
-    };
+    use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
+    use axelar_wasm_std::{Threshold, VerificationStatus};
+    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info, MockQuerier};
+    use cosmwasm_std::{from_json, Addr, DepsMut, QuerierWrapper, Uint128, Uint64, WasmQuery};
     use multisig::verifier_set::VerifierSet;
     use router_api::{CrossChainId, Message};
 
-    use crate::{
-        contract::{instantiate, query},
-        msg::{InstantiateMsg, MessageStatus, QueryMsg},
-        Client,
-    };
+    use crate::contract::{instantiate, query};
+    use crate::msg::{InstantiateMsg, MessageStatus, QueryMsg};
+    use crate::Client;
 
     #[test]
     fn query_messages_status() {
@@ -125,32 +115,32 @@ mod test {
         let client: Client = client::Client::new(QuerierWrapper::new(&querier), addr).into();
 
         let msg_1 = Message {
-            cc_id: CrossChainId {
-                chain: "eth".parse().unwrap(),
-                id: HexTxHashAndEventIndex {
+            cc_id: CrossChainId::new(
+                "eth",
+                HexTxHashAndEventIndex {
                     tx_hash: [0; 32],
                     event_index: 0,
                 }
                 .to_string()
-                .parse()
-                .unwrap(),
-            },
+                .as_str(),
+            )
+            .unwrap(),
             source_address: "0x1234".parse().unwrap(),
             destination_address: "0x5678".parse().unwrap(),
             destination_chain: "eth".parse().unwrap(),
             payload_hash: [0; 32],
         };
         let msg_2 = Message {
-            cc_id: CrossChainId {
-                chain: "eth".parse().unwrap(),
-                id: HexTxHashAndEventIndex {
+            cc_id: CrossChainId::new(
+                "eth",
+                HexTxHashAndEventIndex {
                     tx_hash: [1; 32],
                     event_index: 0,
                 }
                 .to_string()
-                .parse()
-                .unwrap(),
-            },
+                .as_str(),
+            )
+            .unwrap(),
             source_address: "0x4321".parse().unwrap(),
             destination_address: "0x8765".parse().unwrap(),
             destination_chain: "eth".parse().unwrap(),
@@ -227,10 +217,10 @@ mod test {
                 .unwrap()
                 .try_into()
                 .unwrap(),
-            block_expiry: 100,
+            block_expiry: 100.try_into().unwrap(),
             confirmation_height: 10,
             source_chain: "source-chain".parse().unwrap(),
-            rewards_address: "rewards".to_string(),
+            rewards_address: "rewards".try_into().unwrap(),
             msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
         };
 

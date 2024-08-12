@@ -4,8 +4,7 @@ use report::ResultCompatExt;
 
 use crate::commands::verifier_pub_key;
 use crate::tofnd::Config as TofndConfig;
-use crate::Error;
-use crate::PREFIX;
+use crate::{Error, PREFIX};
 
 pub async fn run(config: TofndConfig) -> Result<Option<String>, Error> {
     verifier_pub_key(config)

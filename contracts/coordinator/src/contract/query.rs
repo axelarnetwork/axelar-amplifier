@@ -1,5 +1,6 @@
-use crate::state::VERIFIER_PROVER_INDEXED_MAP;
 use cosmwasm_std::{Addr, Deps, Order, StdResult};
+
+use crate::state::VERIFIER_PROVER_INDEXED_MAP;
 
 fn is_verifier_in_any_verifier_set(deps: Deps, verifier_address: &Addr) -> bool {
     VERIFIER_PROVER_INDEXED_MAP

@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use itertools::Itertools;
+use router_api::ChainName;
 use serde::de::{self, Deserializer};
 use serde::{Deserialize, Serialize};
 use serde_with::with_prefix;
@@ -8,7 +9,6 @@ use serde_with::with_prefix;
 use crate::evm::finalizer::Finalization;
 use crate::types::TMAddress;
 use crate::url::Url;
-use router_api::ChainName;
 
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
 pub struct Chain {
@@ -236,7 +236,8 @@ where
 #[cfg(test)]
 mod tests {
 
-    use crate::{evm::finalizer::Finalization, handlers::config::Chain};
+    use crate::evm::finalizer::Finalization;
+    use crate::handlers::config::Chain;
 
     #[test]
     fn finalizer_should_default_to_ethereum() {

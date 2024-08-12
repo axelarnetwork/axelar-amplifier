@@ -1,9 +1,11 @@
-use crate::error::ContractError;
+use std::collections::HashSet;
+
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Order, Storage};
 use cw_storage_plus::{index_list, IndexedMap, MultiIndex, UniqueIndex};
 use router_api::ChainName;
-use std::collections::HashSet;
+
+use crate::error::ContractError;
 
 type ProverAddress = Addr;
 type VerifierAddress = Addr;

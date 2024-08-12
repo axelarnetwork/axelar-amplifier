@@ -112,8 +112,8 @@ impl TryFrom<&Payload> for axelar_rkyv_encoding::types::Payload {
 
 fn to_msg(msg: &Message) -> axelar_rkyv_encoding::types::Message {
     let enc_cc_id = axelar_rkyv_encoding::types::CrossChainId::new(
-        msg.cc_id.chain.to_string(),
-        msg.cc_id.id.to_string(),
+        msg.cc_id.source_chain.to_string(),
+        msg.cc_id.message_id.to_string(),
     );
 
     axelar_rkyv_encoding::types::Message::new(

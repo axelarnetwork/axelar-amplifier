@@ -37,7 +37,8 @@ pub(crate) fn route_outgoing_messages(
     let msgs = check_for_duplicates(verified)?;
 
     for msg in msgs.iter() {
-        state::save_outgoing_msg(store, msg.cc_id.clone(), msg)
+        state::OUTGOING_MESSAGES
+            .save(store, &msg.cc_id, msg)
             .change_context(Error::InvalidStoreAccess)?;
     }
 

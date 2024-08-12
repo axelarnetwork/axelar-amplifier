@@ -1,11 +1,13 @@
 use std::collections::{BTreeMap, HashMap};
 
-use crate::{key::PublicKey, msg::Signer};
 use axelar_wasm_std::hash::Hash;
 use axelar_wasm_std::Participant;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, HexBinary, Uint128};
 use sha3::{Digest, Keccak256};
+
+use crate::key::PublicKey;
+use crate::msg::Signer;
 
 #[cw_serde]
 pub struct VerifierSet {
@@ -63,7 +65,7 @@ impl VerifierSet {
         HexBinary::from(self.hash()).to_hex()
     }
 
-    pub fn get_pub_keys(&self) -> HashMap<String, PublicKey> {
+    pub fn pub_keys(&self) -> HashMap<String, PublicKey> {
         self.signers
             .iter()
             .map(|(address, signer)| (address.clone(), signer.pub_key.clone()))

@@ -1,29 +1,28 @@
 use std::convert::TryInto;
 
 use async_trait::async_trait;
+use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
+use axelar_wasm_std::voting::{PollId, Vote};
 use cosmrs::cosmwasm::MsgExecuteContract;
-use cosmrs::{tx::Msg, Any};
+use cosmrs::tx::Msg;
+use cosmrs::Any;
 use error_stack::ResultExt;
 use ethers_core::types::{TransactionReceipt, U64};
+use events::Error::EventTypeMismatch;
+use events_derive::try_from;
 use multisig::verifier_set::VerifierSet;
+use router_api::ChainName;
 use serde::Deserialize;
 use tokio::sync::watch::Receiver;
 use tracing::{info, info_span};
 use valuable::Valuable;
-
-use axelar_wasm_std::{
-    msg_id::HexTxHashAndEventIndex,
-    voting::{PollId, Vote},
-};
-use events::Error::EventTypeMismatch;
-use events_derive::try_from;
-use router_api::ChainName;
 use voting_verifier::msg::ExecuteMsg;
 
 use crate::event_processor::EventHandler;
+use crate::evm::finalizer;
 use crate::evm::finalizer::Finalization;
+use crate::evm::json_rpc::EthereumClient;
 use crate::evm::verifier::verify_verifier_set;
-use crate::evm::{finalizer, json_rpc::EthereumClient};
 use crate::handlers::errors::Error;
 use crate::types::{EVMAddress, Hash, TMAddress};
 
@@ -199,35 +198,32 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::{convert::TryInto, str::FromStr};
+    use std::convert::TryInto;
+    use std::str::FromStr;
 
     use base64::engine::general_purpose::STANDARD;
     use base64::Engine;
     use error_stack::{Report, Result};
     use ethers_providers::ProviderError;
-
-    use tendermint::abci;
-    use tokio::{sync::watch, test as async_test};
-
     use events::Event;
-    use multisig::{
-        key::KeyType,
-        test::common::{build_verifier_set, ecdsa_test_data},
-    };
+    use multisig::key::KeyType;
+    use multisig::test::common::{build_verifier_set, ecdsa_test_data};
     use router_api::ChainName;
+    use tendermint::abci;
+    use tokio::sync::watch;
+    use tokio::test as async_test;
     use voting_verifier::events::{PollMetadata, PollStarted, VerifierSetConfirmation};
 
-    use crate::{
-        event_processor::EventHandler,
-        evm::{finalizer::Finalization, json_rpc::MockEthereumClient},
-        handlers::evm_verify_verifier_set::PollStartedEvent,
-        types::{Hash, TMAddress},
-        PREFIX,
-    };
+    use crate::event_processor::EventHandler;
+    use crate::evm::finalizer::Finalization;
+    use crate::evm::json_rpc::MockEthereumClient;
+    use crate::handlers::evm_verify_verifier_set::PollStartedEvent;
+    use crate::types::{Hash, TMAddress};
+    use crate::PREFIX;
 
     #[test]
     fn should_deserialize_correct_event() {
-        let event: Event = get_event(
+        let event: Event = to_event(
             poll_started_event(participants(5, None), 100),
             &TMAddress::random(PREFIX),
         );
@@ -249,7 +245,7 @@ mod tests {
         let voting_verifier = TMAddress::random(PREFIX);
         let verifier = TMAddress::random(PREFIX);
         let expiration = 100u64;
-        let event: Event = get_event(
+        let event: Event = to_event(
             poll_started_event(participants(5, Some(verifier.clone())), expiration),
             &voting_verifier,
         );
@@ -297,7 +293,7 @@ mod tests {
         }
     }
 
-    fn get_event(event: impl Into<cosmwasm_std::Event>, contract_address: &TMAddress) -> Event {
+    fn to_event(event: impl Into<cosmwasm_std::Event>, contract_address: &TMAddress) -> Event {
         let mut event: cosmwasm_std::Event = event.into();
 
         event.ty = format!("wasm-{}", event.ty);
