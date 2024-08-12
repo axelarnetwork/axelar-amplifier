@@ -1,13 +1,15 @@
 # Based on https://github.com/actions-rs/example/blob/master/.github/workflows/quickstart.yml
+name: Basic
 
 on:
   pull_request:
   push:
     branches:
       - main
-      - releases/**
 
-name: Basic
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
