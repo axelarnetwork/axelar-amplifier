@@ -1,3 +1,4 @@
+use axelar_wasm_std::address;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{Addr, DepsMut, Empty, Env, MessageInfo, Response, Storage};
@@ -36,8 +37,8 @@ pub fn instantiate(
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    let nexus = deps.api.addr_validate(&msg.nexus)?;
-    let router = deps.api.addr_validate(&msg.router)?;
+    let nexus = address::validate_cosmwasm_address(deps.api, &msg.nexus)?;
+    let router = address::validate_cosmwasm_address(deps.api, &msg.router)?;
 
     state::save_config(deps.storage, Config { nexus, router }).expect("config must be saved");
 
