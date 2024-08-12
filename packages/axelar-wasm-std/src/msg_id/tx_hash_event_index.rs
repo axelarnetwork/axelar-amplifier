@@ -75,6 +75,15 @@ impl Display for HexTxHashAndEventIndex {
     }
 }
 
+impl From<HexTxHashAndEventIndex> for nonempty::String {
+    fn from(msg_id: HexTxHashAndEventIndex) -> Self {
+        msg_id
+            .to_string()
+            .try_into()
+            .expect("failed to convert msg id to non-empty string")
+    }
+}
+
 #[cfg(test)]
 mod tests {
 

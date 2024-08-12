@@ -1,3 +1,4 @@
+use axelar_wasm_std::vec::VecExt;
 use axelar_wasm_std::voting::{PollId, Vote};
 use axelar_wasm_std::{nonempty, MajorityThreshold, VerificationStatus};
 use cosmwasm_std::{Addr, WasmMsg};
@@ -27,7 +28,8 @@ pub struct Client<'a> {
 
 impl<'a> Client<'a> {
     pub fn verify_messages(&self, messages: Vec<Message>) -> Option<WasmMsg> {
-        ignore_empty(messages)
+        messages
+            .to_none_if_empty()
             .map(|messages| self.client.execute(&ExecuteMsg::VerifyMessages(messages)))
     }
 
@@ -82,15 +84,6 @@ impl<'a> Client<'a> {
         self.client
             .query(&QueryMsg::CurrentThreshold)
             .change_context_lazy(|| Error::QueryVotingVerifier(self.client.address.clone()))
-    }
-}
-
-// TODO: unify across contract clients
-fn ignore_empty(msgs: Vec<Message>) -> Option<Vec<Message>> {
-    if msgs.is_empty() {
-        None
-    } else {
-        Some(msgs)
     }
 }
 
