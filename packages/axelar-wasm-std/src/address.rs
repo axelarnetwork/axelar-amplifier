@@ -33,36 +33,35 @@ pub fn validate_cosmwasm_address(api: &dyn Api, addr: &str) -> Result<Addr, Erro
 mod tests {
     use cosmwasm_std::testing::MockApi;
 
-    use super::*;
-    use crate::err_contains;
+    use crate::{address, err_contains};
 
     #[test]
-    fn test_validate_address() {
+    fn validate_address() {
         let addr = "0x95222290DD7278Aa3Ddd389Cc1E1d165CC4BAfe5";
 
-        assert!(validate_address(addr, &AddressFormat::Eip55).is_ok());
+        assert!(address::validate_address(addr, &address::AddressFormat::Eip55).is_ok());
 
         let without_prefix = addr.strip_prefix("0x").unwrap();
-        assert!(validate_address(without_prefix, &AddressFormat::Eip55).is_err());
+        assert!(address::validate_address(without_prefix, &address::AddressFormat::Eip55).is_err());
 
         let lower_case = addr.to_lowercase();
-        assert!(validate_address(&lower_case, &AddressFormat::Eip55).is_err());
+        assert!(address::validate_address(&lower_case, &address::AddressFormat::Eip55).is_err());
 
         let upper_case = addr.to_uppercase();
-        assert!(validate_address(&upper_case, &AddressFormat::Eip55).is_err());
+        assert!(address::validate_address(&upper_case, &address::AddressFormat::Eip55).is_err());
     }
 
     #[test]
-    fn test_validate_cosmwasm_address() {
+    fn validate_cosmwasm_address() {
         let api = MockApi::default();
         let addr = "axelar1x46rqay4d3cssq8gxxvqz8xt6nwlz4td20k38v";
-        assert!(validate_cosmwasm_address(&api, addr).is_ok());
+        assert!(address::validate_cosmwasm_address(&api, addr).is_ok());
 
         let upper_case = addr.to_uppercase();
         assert!(err_contains!(
-            validate_cosmwasm_address(&api, &upper_case).unwrap_err(),
-            Error,
-            Error::InvalidAddress(..)
+            address::validate_cosmwasm_address(&api, &upper_case).unwrap_err(),
+            address::Error,
+            address::Error::InvalidAddress(..)
         ));
     }
 }
