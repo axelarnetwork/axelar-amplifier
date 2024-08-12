@@ -1,4 +1,4 @@
-use axelar_wasm_std::{nonempty, permission_control};
+use axelar_wasm_std::{address, nonempty, permission_control};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
@@ -43,7 +43,7 @@ pub fn instantiate(
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    let governance = deps.api.addr_validate(&msg.governance_address)?;
+    let governance = address::validate_cosmwasm_address(deps.api, &msg.governance_address)?;
     permission_control::set_governance(deps.storage, &governance)?;
 
     CONFIG.save(
@@ -80,7 +80,7 @@ pub fn execute(
             event_id,
             verifier_address,
         } => {
-            let verifier_address = deps.api.addr_validate(&verifier_address)?;
+            let verifier_address = address::validate_cosmwasm_address(deps.api, &verifier_address)?;
             let pool_id = PoolId {
                 chain_name,
                 contract: info.sender,
@@ -96,7 +96,7 @@ pub fn execute(
             Ok(Response::new())
         }
         ExecuteMsg::AddRewards { pool_id } => {
-            deps.api.addr_validate(pool_id.contract.as_str())?;
+            address::validate_cosmwasm_address(deps.api, pool_id.contract.as_str())?;
 
             let amount = info
                 .funds
@@ -118,7 +118,7 @@ pub fn execute(
             pool_id,
             epoch_count,
         } => {
-            deps.api.addr_validate(pool_id.contract.as_str())?;
+            address::validate_cosmwasm_address(deps.api, pool_id.contract.as_str())?;
 
             let rewards =
                 execute::distribute_rewards(deps.storage, pool_id, env.block.height, epoch_count)?;
