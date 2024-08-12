@@ -51,7 +51,7 @@ impl VotingVerifierContract {
                         .try_into()
                         .unwrap(),
                     msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
-                    address_format: axelar_wasm_std::address_format::AddressFormat::Eip55,
+                    address_format: axelar_wasm_std::address::AddressFormat::Eip55,
                 },
                 &[],
                 "voting_verifier",

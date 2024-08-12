@@ -1,4 +1,4 @@
-use axelar_wasm_std::FnExt;
+use axelar_wasm_std::{address, FnExt};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{to_json_binary, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response};
@@ -67,10 +67,7 @@ pub fn instantiate(
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    let router = deps
-        .api
-        .addr_validate(&msg.router_address)
-        .change_context(Error::InvalidAddress(msg.router_address.clone()))?;
+    let router = address::validate_cosmwasm_address(deps.api, &msg.router_address)?;
 
     let config = Config {
         chain_name: msg.chain_name,

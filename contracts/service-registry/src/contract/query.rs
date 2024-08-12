@@ -40,13 +40,17 @@ pub fn verifier(
     deps: Deps,
     service_name: String,
     verifier: String,
-) -> Result<Verifier, ContractError> {
+) -> Result<Verifier, axelar_wasm_std::error::ContractError> {
     VERIFIERS
         .may_load(
             deps.storage,
-            (&service_name, &deps.api.addr_validate(&verifier)?),
+            (
+                &service_name,
+                &address::validate_cosmwasm_address(deps.api, &verifier)?,
+            ),
         )?
-        .ok_or(ContractError::VerifierNotFound)
+        .ok_or(ContractError::VerifierNotFound)?
+        .then(Ok)
 }
 
 pub fn service(deps: Deps, service_name: String) -> Result<Service, ContractError> {

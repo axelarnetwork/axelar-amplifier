@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, HashSet};
 
 use axelar_wasm_std::permission_control::Permission;
 use axelar_wasm_std::snapshot::{Participant, Snapshot};
-use axelar_wasm_std::{permission_control, FnExt, MajorityThreshold, VerificationStatus};
+use axelar_wasm_std::{address, permission_control, FnExt, MajorityThreshold, VerificationStatus};
 use cosmwasm_std::{
     to_json_binary, wasm_execute, Addr, DepsMut, Env, QuerierWrapper, QueryRequest, Response,
     Storage, SubMsg, WasmQuery,
@@ -412,8 +412,11 @@ pub fn update_signing_threshold(
     Ok(Response::new())
 }
 
-pub fn update_admin(deps: DepsMut, new_admin_address: String) -> Result<Response, ContractError> {
-    let new_admin = deps.api.addr_validate(&new_admin_address)?;
+pub fn update_admin(
+    deps: DepsMut,
+    new_admin_address: String,
+) -> Result<Response, axelar_wasm_std::error::ContractError> {
+    let new_admin = address::validate_cosmwasm_address(deps.api, &new_admin_address)?;
     permission_control::set_admin(deps.storage, &new_admin)?;
     Ok(Response::new())
 }
