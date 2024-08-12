@@ -13,6 +13,8 @@ use cosmwasm_std::{
 };
 use gateway::contract::*;
 use gateway::msg::InstantiateMsg;
+#[cfg(feature = "test")]
+use gateway::StateError;
 use gateway_api::msg::{ExecuteMsg, QueryMsg};
 use itertools::Itertools;
 use rand::{thread_rng, Rng};
@@ -313,8 +315,8 @@ fn reject_reroute_outgoing_message_with_different_contents() {
     );
     assert!(response.is_err_and(|err| err_contains!(
         err.report,
-        Error,
-        Error::RouteOutgoingMessages
+        StateError,
+        StateError::MessageMismatch { .. }
     )));
 }
 

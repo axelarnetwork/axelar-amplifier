@@ -26,6 +26,8 @@ backtraces = ["cosmwasm-std/backtraces"]
 library = []
 # generate golden files for the tests
 generate_golden_files = []
+# Test utils
+test = []
 
 [package.metadata.scripts]
 optimize = """docker run --rm -v "$(pwd)":/code \
@@ -53,7 +55,13 @@ voting-verifier = { workspace = true, features = ["library"] }
 
 [dev-dependencies]
 cw-multi-test = "0.15.1"
+# Enable 'test' feature for crate integration tests
+gateway = { path = ".", features = ["test"] }
 rand = "0.8.5"
 
 [lints]
 workspace = true
+
+[[test]]
+name = "integration"
+path = "tests/contract.rs"
