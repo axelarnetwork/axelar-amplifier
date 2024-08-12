@@ -1,4 +1,4 @@
-use axelar_wasm_std::permission_control;
+use axelar_wasm_std::{address, permission_control};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
@@ -26,18 +26,21 @@ pub fn instantiate(
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    let governance = deps.api.addr_validate(&msg.governance_address)?;
+    let governance = address::validate_cosmwasm_address(deps.api, &msg.governance_address)?;
     permission_control::set_governance(deps.storage, &governance)?;
 
     let config = Config {
         service_name: msg.service_name,
-        service_registry_contract: deps.api.addr_validate(&msg.service_registry_address)?,
+        service_registry_contract: address::validate_cosmwasm_address(
+            deps.api,
+            &msg.service_registry_address,
+        )?,
         source_gateway_address: msg.source_gateway_address,
         voting_threshold: msg.voting_threshold,
         block_expiry: msg.block_expiry,
         confirmation_height: msg.confirmation_height,
         source_chain: msg.source_chain,
-        rewards_contract: deps.api.addr_validate(&msg.rewards_address)?,
+        rewards_contract: address::validate_cosmwasm_address(deps.api, &msg.rewards_address)?,
         msg_id_format: msg.msg_id_format,
         address_format: msg.address_format,
     };
