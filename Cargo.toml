@@ -29,6 +29,7 @@ msgs-derive = { version = "^1.0.0", path = "packages/msgs-derive" }
 multisig-prover = { version = "^1.0.0", path = "contracts/multisig-prover" }
 num-traits = { version = "0.2.14", default-features = false }
 service-registry = { version = "^1.0.0", path = "contracts/service-registry" }
+k256 = { version = "0.13.1", features = ["ecdsa"] }
 gateway = { version = "^1.0.0", path = "contracts/gateway" }
 gateway-api = { version = "^1.0.0", path = "packages/gateway-api" }
 router-api = { version = "^1.0.0", path = "packages/router-api" }
