@@ -57,8 +57,8 @@ pub fn instantiate(
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    let router = address::validate_cosmwasm_address(&deps.api, &msg.router_address)?;
-    let verifier = address::validate_cosmwasm_address(&deps.api, &msg.verifier_address)?;
+    let router = address::validate_cosmwasm_address(deps.api, &msg.router_address)?;
+    let verifier = address::validate_cosmwasm_address(deps.api, &msg.verifier_address)?;
 
     state::save_config(deps.storage, &Config { verifier, router })?;
     Ok(Response::new())
