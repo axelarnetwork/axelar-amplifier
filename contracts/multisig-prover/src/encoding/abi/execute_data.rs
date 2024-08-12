@@ -2,12 +2,12 @@ use axelar_wasm_std::hash::Hash;
 use cosmwasm_std::HexBinary;
 use error_stack::ResultExt;
 use ethers_contract::contract::EthCall;
-use ethers_core::abi::{encode as abi_encode, Tokenize};
+use ethers_core::abi::{self, Tokenize};
 use evm_gateway::{ApproveMessagesCall, Message, Proof, RotateSignersCall, WeightedSigners};
-use multisig::key::Signature;
 use multisig::msg::SignerWithSig;
 use multisig::verifier_set::VerifierSet;
 
+use crate::encoding::{to_recoverable, Encoder};
 use crate::error::ContractError;
 use crate::payload::Payload;
 
@@ -17,7 +17,7 @@ pub fn encode(
     payload_digest: &Hash,
     payload: &Payload,
 ) -> error_stack::Result<HexBinary, ContractError> {
-    let signers = to_recoverable(payload_digest.as_slice(), signers);
+    let signers = to_recoverable(Encoder::Abi, payload_digest, signers);
 
     let proof = Proof::new(verifier_set, signers).change_context(ContractError::Proof)?;
 
@@ -31,7 +31,7 @@ pub fn encode(
 
             (
                 ApproveMessagesCall::selector(),
-                abi_encode(&ApproveMessagesCall { messages, proof }.into_tokens()),
+                abi::encode(&ApproveMessagesCall { messages, proof }.into_tokens()),
             )
         }
         Payload::VerifierSet(new_verifier_set) => {
@@ -40,7 +40,7 @@ pub fn encode(
 
             (
                 RotateSignersCall::selector(),
-                abi_encode(&RotateSignersCall { new_signers, proof }.into_tokens()),
+                abi::encode(&RotateSignersCall { new_signers, proof }.into_tokens()),
             )
         }
     };
@@ -50,30 +50,6 @@ pub fn encode(
         .chain(encoded)
         .collect::<Vec<_>>()
         .into())
-}
-
-// Convert non-recoverable ECDSA signatures to recoverable ones.
-fn to_recoverable(msg: &[u8], signers: Vec<SignerWithSig>) -> Vec<SignerWithSig> {
-    signers
-        .into_iter()
-        .map(|mut signer| {
-            if let Signature::Ecdsa(nonrecoverable) = signer.signature {
-                signer.signature = nonrecoverable
-                    .to_recoverable(msg, &signer.signer.pub_key, add27)
-                    .map(Signature::EcdsaRecoverable)
-                    .expect("failed to convert non-recoverable signature to recoverable");
-            }
-
-            signer
-        })
-        .collect()
-}
-
-pub fn add27(recovery_byte: k256::ecdsa::RecoveryId) -> u8 {
-    recovery_byte
-        .to_byte()
-        .checked_add(27)
-        .expect("overflow when adding 27 to recovery byte")
 }
 
 #[cfg(test)]
@@ -93,8 +69,9 @@ mod tests {
     use multisig::msg::{Signer, SignerWithSig};
     use sha3::{Digest, Keccak256};
 
-    use crate::encoding::abi::execute_data::{add27, encode};
-    use crate::encoding::abi::payload_hash_to_sign;
+    use crate::encoding::abi::execute_data::encode;
+    use crate::encoding::abi::payload_digest;
+    use crate::encoding::add_27;
     use crate::payload::Payload;
     use crate::test::test_data::{
         curr_verifier_set, domain_separator, messages, verifier_set_from_pub_keys,
@@ -130,7 +107,7 @@ mod tests {
         let signers_with_sigs = signers_with_sigs(verifier_set.signers.values(), sigs);
 
         let payload = Payload::VerifierSet(new_verifier_set);
-        let payload_hash: Hash = payload_hash_to_sign(&domain_separator, &verifier_set, &payload)
+        let payload_hash: Hash = payload_digest(&domain_separator, &verifier_set, &payload)
             .unwrap()
             .as_slice()
             .try_into()
@@ -172,7 +149,7 @@ mod tests {
                 .to_recoverable(
                     HexBinary::from_hex(digest).unwrap().as_slice(),
                     &multisig::key::PublicKey::Ecdsa(HexBinary::from(pub_key.to_vec())),
-                    add27,
+                    add_27,
                 )
                 .unwrap();
 
@@ -202,7 +179,7 @@ mod tests {
         let signers_with_sigs = signers_with_sigs(verifier_set.signers.values(), sigs);
 
         let payload = Payload::Messages(messages());
-        let payload_hash: Hash = payload_hash_to_sign(&domain_separator, &verifier_set, &payload)
+        let payload_hash: Hash = payload_digest(&domain_separator, &verifier_set, &payload)
             .unwrap()
             .as_slice()
             .try_into()

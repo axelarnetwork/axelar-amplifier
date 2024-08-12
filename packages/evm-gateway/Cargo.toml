@@ -2,7 +2,7 @@
 name = "evm-gateway"
 version = "1.0.0"
 rust-version = { workspace = true }
-edition = "2021"
+edition = { workspace = true }
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
@@ -11,7 +11,7 @@ cosmwasm-std = { workspace = true }
 error-stack = { workspace = true }
 ethers-contract = { workspace = true }
 ethers-core = { workspace = true }
-k256 = { version = "0.13.1", features = ["ecdsa"] }
+k256 = { workspace = true }
 multisig = { workspace = true }
 router-api = { workspace = true }
 sha3 = { workspace = true }

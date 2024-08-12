@@ -1,6 +1,6 @@
 [package]
-edition = "2021"
 name = "ampd"
+edition = { workspace = true }
 version = "1.0.0"
 rust-version = { workspace = true }
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -10,7 +10,7 @@ async-trait = "0.1.59"
 axelar-wasm-std = { workspace = true }
 axum = "0.7.5"
 base64 = "0.21.2"
-bcs = "0.1.5"
+bcs = { workspace = true }
 clap = { version = "4.2.7", features = ["derive", "cargo"] }
 config = "0.13.2"
 cosmrs = { version = "0.14.0", features = ["cosmwasm", "grpc"] }
@@ -32,7 +32,7 @@ futures = "0.3.25"
 hex = { version = "0.4.3", features = ["serde"] }
 humantime-serde = "1.1.1"
 itertools = { workspace = true }
-k256 = { version = "0.13.1", features = ["ecdsa"] }
+k256 = { workspace = true }
 mockall = "0.11.3"
 move-core-types = { git = "https://github.com/mystenlabs/sui", tag = "mainnet-v1.26.2" }
 multisig = { workspace = true, features = ["library"] }
@@ -47,6 +47,7 @@ serde_json = { workspace = true }
 serde_with = "3.2.0"
 service-registry = { workspace = true }
 sha3 = { workspace = true }
+sui-gateway = { workspace = true }
 sui-json-rpc-types = { git = "https://github.com/mystenlabs/sui", tag = "mainnet-v1.26.2" }
 sui-types = { git = "https://github.com/mystenlabs/sui", features = ["test-utils"], tag = "mainnet-v1.26.2" }
 # Need to switch to our own fork of tendermint and tendermint-rpc due to event attribute value being nullable.
