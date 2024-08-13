@@ -49,6 +49,9 @@ impl VerifierSet {
     pub fn hash(&self) -> Hash {
         let mut hasher = Keccak256::new();
 
+        // Length prefix the bytes to be hashed to prevent hash collisions
+        hasher.update(self.signers.len().to_be_bytes());
+
         self.signers.values().for_each(|signer| {
             hasher.update(signer.address.as_bytes());
             hasher.update(signer.pub_key.as_ref());
@@ -65,7 +68,7 @@ impl VerifierSet {
         HexBinary::from(self.hash()).to_hex()
     }
 
-    pub fn get_pub_keys(&self) -> HashMap<String, PublicKey> {
+    pub fn pub_keys(&self) -> HashMap<String, PublicKey> {
         self.signers
             .iter()
             .map(|(address, signer)| (address.clone(), signer.pub_key.clone()))
@@ -74,5 +77,29 @@ impl VerifierSet {
 
     pub fn includes(&self, signer: &Addr) -> bool {
         self.signers.contains_key(signer.as_str())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::key::KeyType;
+    use crate::test::common::{build_verifier_set, ecdsa_test_data};
+
+    // If this test fails, it means the verifier set hash has changed and therefore a migration is needed.
+    #[test]
+    fn verifier_set_hash_unchanged() {
+        let signers = ecdsa_test_data::signers();
+        let verifier_set = build_verifier_set(KeyType::Ecdsa, &signers);
+
+        goldie::assert_json!(hex::encode(verifier_set.hash()));
+    }
+
+    // If this test fails, it means the verifier set hash has changed and therefore a migration is needed.
+    #[test]
+    fn verifier_set_id_unchanged() {
+        let signers = ecdsa_test_data::signers();
+        let verifier_set = build_verifier_set(KeyType::Ecdsa, &signers);
+
+        goldie::assert_json!(verifier_set.id());
     }
 }

@@ -135,13 +135,7 @@ where
             hash: tx_hash.clone(),
         };
 
-        match client
-            .lock()
-            .await
-            .get_tx(req)
-            .await
-            .then(evaluate_tx_response)
-        {
+        match client.lock().await.tx(req).await.then(evaluate_tx_response) {
             ConfirmationResult::Confirmed(tx) => return Ok(*tx),
             ConfirmationResult::NotFound if i == attempts.saturating_sub(1) => {
                 return Err(report!(Error::Confirmation { tx_hash }))
@@ -198,7 +192,7 @@ mod test {
 
         let mut client = MockBroadcastClient::new();
         client
-            .expect_get_tx()
+            .expect_tx()
             .with(predicate::eq(GetTxRequest {
                 hash: tx_hash.clone(),
             }))
@@ -245,7 +239,7 @@ mod test {
 
         let mut client = MockBroadcastClient::new();
         client
-            .expect_get_tx()
+            .expect_tx()
             .with(predicate::eq(GetTxRequest {
                 hash: tx_hash.clone(),
             }))
@@ -283,7 +277,7 @@ mod test {
 
         let mut client = MockBroadcastClient::new();
         client
-            .expect_get_tx()
+            .expect_tx()
             .with(predicate::eq(GetTxRequest {
                 hash: tx_hash.clone(),
             }))
@@ -317,7 +311,7 @@ mod test {
 
         let mut client = MockBroadcastClient::new();
         client
-            .expect_get_tx()
+            .expect_tx()
             .with(predicate::eq(GetTxRequest {
                 hash: tx_hash.clone(),
             }))

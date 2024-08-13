@@ -65,7 +65,7 @@ pub(crate) fn distribute_rewards(
         .map_or(0, |last_processed| last_processed.saturating_add(1));
 
     let to = std::cmp::min(
-        (from.saturating_add(epoch_process_limit)).saturating_sub(1), // for process limit =1 "from" and "to" must be equal
+        from.saturating_add(epoch_process_limit).saturating_sub(1), // for process limit =1 "from" and "to" must be equal
         cur_epoch.epoch_num.saturating_sub(EPOCH_PAYOUT_DELAY),
     );
 
@@ -372,7 +372,7 @@ mod test {
         for (i, verifiers) in verifiers.iter().enumerate() {
             record_participation(
                 mock_deps.as_mut().storage,
-                "some event".to_string().try_into().unwrap(),
+                "some event".try_into().unwrap(),
                 verifiers.clone(),
                 pool_id.clone(),
                 height_at_epoch_end + i as u64,
@@ -553,7 +553,7 @@ mod test {
 
         let new_epoch_duration = initial_epoch_duration * 2;
         let new_params = Params {
-            epoch_duration: (new_epoch_duration).try_into().unwrap(),
+            epoch_duration: new_epoch_duration.try_into().unwrap(),
             ..initial_params_snapshot.params // keep everything besides epoch duration the same
         };
 

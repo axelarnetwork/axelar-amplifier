@@ -47,28 +47,36 @@ impl From<Event> for cosmwasm_std::Event {
 
 #[cfg(test)]
 mod tests {
+    use router_api::Message;
     use serde_json::to_string;
 
     use super::*;
+    use crate::payload::Payload;
 
     #[test]
     fn proof_under_construction_is_serializable() {
-        let msg_ids = vec![
-            CrossChainId {
-                chain: "ethereum".parse().unwrap(),
-                id: "some_id".try_into().unwrap(),
+        let payload = Payload::Messages(vec![
+            Message {
+                cc_id: CrossChainId::new("ethereum", "some-id").unwrap(),
+                source_address: "0x1234".parse().unwrap(),
+                destination_chain: "avalanche".parse().unwrap(),
+                destination_address: "0x5678".parse().unwrap(),
+                payload_hash: [0; 32],
             },
-            CrossChainId {
-                chain: "fantom".parse().unwrap(),
-                id: "some_other_id".try_into().unwrap(),
+            Message {
+                cc_id: CrossChainId::new("fantom", "some-other-id").unwrap(),
+                source_address: "0x1234".parse().unwrap(),
+                destination_chain: "avalanche".parse().unwrap(),
+                destination_address: "0x5678".parse().unwrap(),
+                payload_hash: [0; 32],
             },
-        ];
+        ]);
 
         let event = Event::ProofUnderConstruction {
             destination_chain: "avalanche".parse().unwrap(),
-            payload_id: msg_ids.as_slice().into(),
+            payload_id: payload.id(),
             multisig_session_id: Uint64::new(2),
-            msg_ids,
+            msg_ids: payload.message_ids().unwrap(),
         };
 
         assert!(to_string(&cosmwasm_std::Event::from(event)).is_ok());

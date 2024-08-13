@@ -1,5 +1,5 @@
-use axelar_wasm_std::ContractError;
-use axelar_wasm_std_derive::IntoContractError;
+use axelar_wasm_std::error::ContractError;
+use axelar_wasm_std::IntoContractError;
 use thiserror::Error;
 
 #[derive(Error, Debug, IntoContractError)]

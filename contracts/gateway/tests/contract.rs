@@ -3,7 +3,8 @@ use std::fmt::Debug;
 use std::fs::File;
 use std::iter;
 
-use axelar_wasm_std::{ContractError, VerificationStatus};
+use axelar_wasm_std::error::ContractError;
+use axelar_wasm_std::{err_contains, VerificationStatus};
 use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info, MockQuerier};
 #[cfg(not(feature = "generate_golden_files"))]
 use cosmwasm_std::Response;
@@ -12,8 +13,10 @@ use cosmwasm_std::{
 };
 use gateway::contract::*;
 use gateway::msg::InstantiateMsg;
+use gateway::state;
 use gateway_api::msg::{ExecuteMsg, QueryMsg};
 use itertools::Itertools;
+use rand::{thread_rng, Rng};
 use router_api::{CrossChainId, Message};
 use serde::Serialize;
 use voting_verifier::msg::MessageStatus;
@@ -137,9 +140,8 @@ fn successful_route_outgoing() {
         let router = "router";
         instantiate_contract(deps.as_mut(), "verifier", router);
 
-        let query_msg = QueryMsg::GetOutgoingMessages {
-            message_ids: msgs.iter().map(|msg| msg.cc_id.clone()).collect(),
-        };
+        let query_msg =
+            QueryMsg::OutgoingMessages(msgs.iter().map(|msg| msg.cc_id.clone()).collect());
 
         // check no messages are outgoing
         let query_response = query(deps.as_ref(), mock_env(), query_msg.clone());
@@ -280,6 +282,43 @@ fn route_duplicate_ids_should_fail() {
     }
 }
 
+#[test]
+fn reject_reroute_outgoing_message_with_different_contents() {
+    let mut msgs = generate_msgs(VerificationStatus::SucceededOnSourceChain, 10);
+
+    let mut deps = mock_dependencies();
+
+    let router = "router";
+    instantiate_contract(deps.as_mut(), "verifier", router);
+
+    let response = execute(
+        deps.as_mut(),
+        mock_env(),
+        mock_info(router, &[]),
+        ExecuteMsg::RouteMessages(msgs.clone()),
+    );
+    assert!(response.is_ok());
+
+    // re-route with different payload
+    msgs.iter_mut().for_each(|msg| {
+        let mut rng = thread_rng();
+        msg.payload_hash.iter_mut().for_each(|byte| {
+            *byte = rng.gen();
+        });
+    });
+    let response = execute(
+        deps.as_mut(),
+        mock_env(),
+        mock_info(router, &[]),
+        ExecuteMsg::RouteMessages(msgs.clone()),
+    );
+    assert!(response.is_err_and(|err| err_contains!(
+        err.report,
+        state::Error,
+        state::Error::MessageMismatch { .. }
+    )));
+}
+
 fn test_cases_for_correct_verifier() -> (
     Vec<Vec<Message>>,
     impl Fn(voting_verifier::msg::QueryMsg) -> Result<Vec<MessageStatus>, ContractError> + Clone,
@@ -344,10 +383,7 @@ fn generate_msgs_with_all_statuses(
 fn generate_msgs(namespace: impl Debug, count: u8) -> Vec<Message> {
     (0..count)
         .map(|i| Message {
-            cc_id: CrossChainId {
-                chain: "mock-chain".parse().unwrap(),
-                id: format!("{:?}{}", namespace, i).parse().unwrap(),
-            },
+            cc_id: CrossChainId::new("mock-chain", format!("{:?}{}", namespace, i)).unwrap(),
             destination_address: "idc".parse().unwrap(),
             destination_chain: "mock-chain-2".parse().unwrap(),
             source_address: "idc".parse().unwrap(),
@@ -400,7 +436,7 @@ fn correctly_working_verifier_handler(
 {
     move |msg: voting_verifier::msg::QueryMsg| -> Result<Vec<MessageStatus>, ContractError> {
         match msg {
-            voting_verifier::msg::QueryMsg::GetMessagesStatus { messages } => Ok(messages
+            voting_verifier::msg::QueryMsg::MessagesStatus(messages) => Ok(messages
                 .into_iter()
                 .map(|msg| {
                     MessageStatus::new(

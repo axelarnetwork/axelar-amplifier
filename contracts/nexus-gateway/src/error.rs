@@ -1,12 +1,9 @@
-use axelar_wasm_std_derive::IntoContractError;
+use axelar_wasm_std::IntoContractError;
 use cosmwasm_std::HexBinary;
 use thiserror::Error;
 
 #[derive(Error, Debug, PartialEq, IntoContractError)]
 pub enum ContractError {
-    #[error("caller is not authorized")]
-    Unauthorized,
-
     #[error("store failed saving/loading data")]
     StoreFailure,
 

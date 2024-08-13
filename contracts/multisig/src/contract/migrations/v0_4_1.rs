@@ -3,14 +3,15 @@
 use axelar_wasm_std::killswitch::State;
 use axelar_wasm_std::{killswitch, nonempty, permission_control};
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, StdError, Storage};
+use cosmwasm_std::{Addr, Order, StdError, Storage};
 use cw2::VersionError;
 use cw_storage_plus::Item;
 use itertools::Itertools;
 use router_api::ChainName;
 
 use crate::contract::CONTRACT_NAME;
-use crate::state::AUTHORIZED_CALLERS;
+use crate::signing::SigningSession;
+use crate::state::{AUTHORIZED_CALLERS, SIGNING_SESSIONS, VERIFIER_SETS};
 
 const BASE_VERSION: &str = "0.4.1";
 
@@ -38,6 +39,8 @@ pub fn migrate(
     permission_control::set_admin(storage, &admin)?;
     migrate_config(storage, config)?;
     migrate_authorized_callers(storage, authorized_callers)?;
+    migrate_signing_sessions(storage)?;
+    migrate_verifier_set_ids(storage)?;
     Ok(())
 }
 
@@ -52,6 +55,36 @@ fn migrate_authorized_callers(
             AUTHORIZED_CALLERS.save(storage, contract_address, chain_name)
         })
         .try_collect()?;
+    Ok(())
+}
+
+pub fn migrate_signing_sessions(storage: &mut dyn Storage) -> Result<(), Error> {
+    let all: Vec<_> = SIGNING_SESSIONS
+        .range(storage, None, None, Order::Ascending)
+        .collect::<Result<Vec<_>, _>>()?;
+
+    for (session_id, session) in all {
+        let verifier_set = VERIFIER_SETS.load(storage, &session.verifier_set_id)?;
+        let new_session = SigningSession {
+            verifier_set_id: verifier_set.id(),
+            ..session
+        };
+        SIGNING_SESSIONS.save(storage, session_id, &new_session)?;
+    }
+
+    Ok(())
+}
+
+pub fn migrate_verifier_set_ids(storage: &mut dyn Storage) -> Result<(), Error> {
+    let all: Vec<_> = VERIFIER_SETS
+        .range(storage, None, None, Order::Ascending)
+        .collect::<Result<Vec<_>, _>>()?;
+
+    for v in all {
+        VERIFIER_SETS.remove(storage, &v.0);
+        VERIFIER_SETS.save(storage, &v.1.id(), &v.1)?;
+    }
+
     Ok(())
 }
 
@@ -94,11 +127,13 @@ mod tests {
     use cosmwasm_std::{Addr, DepsMut, Env, HexBinary, MessageInfo, Response, Uint64};
     use router_api::ChainName;
 
-    use crate::contract::migrations::v0_4_1;
-    use crate::contract::migrations::v0_4_1::BASE_VERSION;
+    use crate::contract::migrations::v0_4_1::{self, BASE_VERSION};
     use crate::contract::{execute, query, CONTRACT_NAME};
     use crate::msg::ExecuteMsg::{DisableSigning, SubmitSignature};
-    use crate::state::SIGNING_SESSION_COUNTER;
+    use crate::signing::SigningSession;
+    use crate::state::{SIGNING_SESSIONS, SIGNING_SESSION_COUNTER, VERIFIER_SETS};
+    use crate::test::common::build_verifier_set;
+    use crate::test::common::ecdsa_test_data::signers;
     use crate::ContractError;
 
     #[test]
@@ -247,7 +282,61 @@ mod tests {
         assert!(query::caller_authorized(deps.as_ref(), prover, chain_name).unwrap());
     }
 
-    #[deprecated(since = "0.4.1", note = "only used to test migration")]
+    #[test]
+    fn should_be_able_to_migrate_verifier_set_ids() {
+        let mut deps = mock_dependencies();
+
+        instantiate(
+            deps.as_mut(),
+            mock_env(),
+            mock_info("admin", &[]),
+            InstantiateMsg {
+                governance_address: "governance".to_string(),
+                rewards_address: "rewards".to_string(),
+                block_expiry: 100,
+            },
+        )
+        .unwrap();
+        let signers = signers();
+        let verifier_set = build_verifier_set(crate::key::KeyType::Ecdsa, &signers);
+        VERIFIER_SETS
+            .save(&mut deps.storage, "foobar", &verifier_set)
+            .unwrap();
+        let signing_session = SigningSession {
+            id: Uint64::one(),
+            verifier_set_id: "foobar".to_string(),
+            chain_name: "ethereum".parse().unwrap(),
+            msg: HexBinary::from([2; 32]).try_into().unwrap(),
+            state: crate::types::MultisigState::Pending,
+            expires_at: 100,
+            sig_verifier: None,
+        };
+        SIGNING_SESSIONS
+            .save(
+                &mut deps.storage,
+                signing_session.id.u64(),
+                &signing_session,
+            )
+            .unwrap();
+
+        v0_4_1::migrate(deps.as_mut().storage, Addr::unchecked("admin"), vec![]).unwrap();
+
+        let new_verifier_set = VERIFIER_SETS
+            .load(&deps.storage, &verifier_set.id())
+            .unwrap();
+        assert_eq!(new_verifier_set, verifier_set);
+
+        let expected_signing_session = SigningSession {
+            verifier_set_id: verifier_set.id(),
+            ..signing_session
+        };
+        let new_signing_session = SIGNING_SESSIONS
+            .load(&deps.storage, expected_signing_session.id.u64())
+            .unwrap();
+        assert_eq!(new_signing_session, expected_signing_session);
+    }
+
+    #[deprecated(since = "0.4.1", note = "only used to test the migration")]
     fn instantiate(
         deps: DepsMut,
         _env: Env,
@@ -270,7 +359,7 @@ mod tests {
     }
 
     #[cw_serde]
-    #[deprecated(since = "0.4.1", note = "only used to test migration")]
+    #[deprecated(since = "0.4.1", note = "only used to test the migration")]
     struct InstantiateMsg {
         // the governance address is allowed to modify the authorized caller list for this contract
         pub governance_address: String,

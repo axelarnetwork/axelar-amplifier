@@ -10,7 +10,7 @@ use crate::contract::Error;
 use crate::events::GatewayEvent;
 use crate::state;
 
-pub fn verify_messages(
+pub(crate) fn verify_messages(
     verifier: &voting_verifier::Client,
     msgs: Vec<Message>,
 ) -> Result<Response, Error> {
@@ -37,8 +37,8 @@ pub(crate) fn route_outgoing_messages(
     let msgs = check_for_duplicates(verified)?;
 
     for msg in msgs.iter() {
-        state::save_outgoing_msg(store, msg.cc_id.clone(), msg)
-            .change_context(Error::InvalidStoreAccess)?;
+        state::save_outgoing_message(store, &msg.cc_id, msg)
+            .change_context(Error::SaveOutgoingMessage)?;
     }
 
     Ok(Response::new().add_events(

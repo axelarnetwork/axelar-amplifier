@@ -26,7 +26,7 @@ pub fn start_signing_session(
 
     let config = CONFIG.load(deps.storage)?;
 
-    let verifier_set = get_verifier_set(deps.storage, &verifier_set_id)?;
+    let verifier_set = verifier_set(deps.storage, &verifier_set_id)?;
 
     let session_id = SIGNING_SESSION_COUNTER.update(
         deps.storage,
@@ -64,7 +64,7 @@ pub fn start_signing_session(
     let event = Event::SigningStarted {
         session_id,
         verifier_set_id,
-        pub_keys: verifier_set.get_pub_keys(),
+        pub_keys: verifier_set.pub_keys(),
         msg,
         chain_name,
         expires_at,
@@ -215,7 +215,7 @@ pub fn authorize_callers(
 
 pub fn unauthorize_callers(
     deps: DepsMut,
-    contracts: Vec<(Addr, ChainName)>,
+    contracts: HashMap<Addr, ChainName>,
 ) -> Result<Response, ContractError> {
     contracts.iter().for_each(|(contract_address, _)| {
         AUTHORIZED_CALLERS.remove(deps.storage, contract_address)
@@ -250,7 +250,7 @@ fn signing_response(
     let rewards_msg = WasmMsg::Execute {
         contract_addr: rewards_contract,
         msg: to_json_binary(&rewards::msg::ExecuteMsg::RecordParticipation {
-            chain_name: session.chain_name,
+            chain_name: session.chain_name.clone(),
             event_id: session
                 .id
                 .to_string()
@@ -278,6 +278,7 @@ fn signing_response(
                 Event::SigningCompleted {
                     session_id: session.id,
                     completed_at,
+                    chain_name: session.chain_name,
                 }
                 .into(),
             )

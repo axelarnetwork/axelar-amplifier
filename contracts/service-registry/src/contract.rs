@@ -1,16 +1,18 @@
+use axelar_wasm_std::{address, permission_control, FnExt};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_json_binary, Addr, BankMsg, Binary, Coin, Deps, DepsMut, Env, MessageInfo, Order,
-    QueryRequest, Response, Uint128, WasmQuery,
+    to_json_binary, Addr, BankMsg, Binary, Coin, Deps, DepsMut, Empty, Env, MessageInfo, Order,
+    QueryRequest, Response, Storage, Uint128, WasmQuery,
 };
+use error_stack::{bail, Report, ResultExt};
 
 use crate::error::ContractError;
-use crate::migrations;
-use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
-use crate::state::{AuthorizationState, BondingState, Config, Service, Verifier, CONFIG, SERVICES};
+use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
+use crate::state::{AuthorizationState, BondingState, Service, Verifier, SERVICES, VERIFIERS};
 
 mod execute;
+mod migrations;
 mod query;
 
 const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
@@ -22,15 +24,12 @@ pub fn instantiate(
     _env: Env,
     _info: MessageInfo,
     msg: InstantiateMsg,
-) -> Result<Response, axelar_wasm_std::ContractError> {
+) -> Result<Response, axelar_wasm_std::error::ContractError> {
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    CONFIG.save(
-        deps.storage,
-        &Config {
-            governance: deps.api.addr_validate(&msg.governance_account)?,
-        },
-    )?;
+    let governance = address::validate_cosmwasm_address(deps.api, &msg.governance_account)?;
+    permission_control::set_governance(deps.storage, &governance)?;
+
     Ok(Response::default())
 }
 
@@ -40,8 +39,8 @@ pub fn execute(
     env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
-) -> Result<Response, axelar_wasm_std::ContractError> {
-    match msg {
+) -> Result<Response, axelar_wasm_std::error::ContractError> {
+    match msg.ensure_permissions(deps.storage, &info.sender, match_verifier(&info.sender))? {
         ExecuteMsg::RegisterService {
             service_name,
             coordinator_contract,
@@ -51,28 +50,24 @@ pub fn execute(
             bond_denom,
             unbonding_period_days,
             description,
-        } => {
-            execute::require_governance(&deps, info)?;
-            execute::register_service(
-                deps,
-                service_name,
-                coordinator_contract,
-                min_num_verifiers,
-                max_num_verifiers,
-                min_verifier_bond,
-                bond_denom,
-                unbonding_period_days,
-                description,
-            )
-        }
+        } => execute::register_service(
+            deps,
+            service_name,
+            coordinator_contract,
+            min_num_verifiers,
+            max_num_verifiers,
+            min_verifier_bond,
+            bond_denom,
+            unbonding_period_days,
+            description,
+        ),
         ExecuteMsg::AuthorizeVerifiers {
             verifiers,
             service_name,
         } => {
-            execute::require_governance(&deps, info)?;
             let verifiers = verifiers
                 .into_iter()
-                .map(|veriier| deps.api.addr_validate(&veriier))
+                .map(|verifier| address::validate_cosmwasm_address(deps.api, &verifier))
                 .collect::<Result<Vec<_>, _>>()?;
             execute::update_verifier_authorization_status(
                 deps,
@@ -85,10 +80,9 @@ pub fn execute(
             verifiers,
             service_name,
         } => {
-            execute::require_governance(&deps, info)?;
             let verifiers = verifiers
                 .into_iter()
-                .map(|verifier| deps.api.addr_validate(&verifier))
+                .map(|verifier| address::validate_cosmwasm_address(deps.api, &verifier))
                 .collect::<Result<Vec<_>, _>>()?;
             execute::update_verifier_authorization_status(
                 deps,
@@ -101,10 +95,9 @@ pub fn execute(
             verifiers,
             service_name,
         } => {
-            execute::require_governance(&deps, info)?;
             let verifiers = verifiers
                 .into_iter()
-                .map(|verifier| deps.api.addr_validate(&verifier))
+                .map(|verifier| address::validate_cosmwasm_address(deps.api, &verifier))
                 .collect::<Result<Vec<_>, _>>()?;
             execute::update_verifier_authorization_status(
                 deps,
@@ -130,29 +123,46 @@ pub fn execute(
         ExecuteMsg::ClaimStake { service_name } => {
             execute::claim_stake(deps, env, info, service_name)
         }
+    }?
+    .then(Ok)
+}
+
+fn match_verifier(
+    sender: &Addr,
+) -> impl FnOnce(&dyn Storage, &ExecuteMsg) -> Result<Addr, Report<permission_control::Error>> + '_
+{
+    |storage: &dyn Storage, msg: &ExecuteMsg| {
+        let service_name = match msg {
+            ExecuteMsg::RegisterChainSupport { service_name, .. }
+            | ExecuteMsg::DeregisterChainSupport { service_name, .. } => service_name,
+            _ => bail!(permission_control::Error::WrongVariant),
+        };
+        VERIFIERS
+            .load(storage, (service_name, sender))
+            .map(|verifier| verifier.address)
+            .change_context(permission_control::Error::Unauthorized)
     }
-    .map_err(axelar_wasm_std::ContractError::from)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
+pub fn query(
+    deps: Deps,
+    _env: Env,
+    msg: QueryMsg,
+) -> Result<Binary, axelar_wasm_std::error::ContractError> {
     match msg {
-        QueryMsg::GetActiveVerifiers {
+        QueryMsg::ActiveVerifiers {
             service_name,
             chain_name,
-        } => to_json_binary(&query::get_active_verifiers(
-            deps,
-            service_name,
-            chain_name,
-        )?)
-        .map_err(|err| err.into()),
-        QueryMsg::GetVerifier {
+        } => to_json_binary(&query::active_verifiers(deps, service_name, chain_name)?)
+            .map_err(|err| err.into()),
+        QueryMsg::Verifier {
             service_name,
             verifier,
-        } => to_json_binary(&query::get_verifier(deps, service_name, verifier)?)
+        } => to_json_binary(&query::verifier(deps, service_name, verifier)?)
             .map_err(|err| err.into()),
-        QueryMsg::GetService { service_name } => {
-            to_json_binary(&query::get_service(deps, service_name)?).map_err(|err| err.into())
+        QueryMsg::Service { service_name } => {
+            to_json_binary(&query::service(deps, service_name)?).map_err(|err| err.into())
         }
     }
 }
@@ -161,17 +171,20 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
 pub fn migrate(
     deps: DepsMut,
     _env: Env,
-    msg: MigrateMsg,
-) -> Result<Response, axelar_wasm_std::ContractError> {
+    _msg: Empty,
+) -> Result<Response, axelar_wasm_std::error::ContractError> {
+    migrations::v0_4_1::migrate(deps.storage)?;
+
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-    migrations::v_0_4::migrate_services_coordinator_contract(deps.storage, msg.coordinator_contract)
-        .map_err(axelar_wasm_std::ContractError::from)
+
+    Ok(Response::default())
 }
 
 #[cfg(test)]
 mod test {
     use std::str::FromStr;
 
+    use axelar_wasm_std::error::err_contains;
     use cosmwasm_std::testing::{
         mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
     };
@@ -208,13 +221,6 @@ mod test {
         });
 
         deps
-    }
-
-    pub fn assert_contract_err_strings_equal(
-        actual: impl Into<axelar_wasm_std::ContractError>,
-        expected: impl Into<axelar_wasm_std::ContractError>,
-    ) {
-        assert_eq!(actual.into().to_string(), expected.into().to_string());
     }
 
     #[test]
@@ -254,7 +260,11 @@ mod test {
             },
         )
         .unwrap_err();
-        assert_contract_err_strings_equal(err, ContractError::Unauthorized);
+        assert!(err_contains!(
+            err.report,
+            permission_control::Error,
+            permission_control::Error::PermissionDenied { .. }
+        ));
     }
 
     #[test]
@@ -300,7 +310,11 @@ mod test {
             },
         )
         .unwrap_err();
-        assert_contract_err_strings_equal(err, ContractError::Unauthorized);
+        assert!(err_contains!(
+            err.report,
+            permission_control::Error,
+            permission_control::Error::PermissionDenied { .. }
+        ));
     }
 
     #[test]
@@ -414,7 +428,7 @@ mod test {
             query(
                 deps.as_ref(),
                 mock_env(),
-                QueryMsg::GetActiveVerifiers {
+                QueryMsg::ActiveVerifiers {
                     service_name: service_name.into(),
                     chain_name,
                 },
@@ -441,7 +455,7 @@ mod test {
             query(
                 deps.as_ref(),
                 mock_env(),
-                QueryMsg::GetActiveVerifiers {
+                QueryMsg::ActiveVerifiers {
                     service_name: service_name.into(),
                     chain_name: ChainName::from_str("random chain").unwrap(),
                 },
@@ -529,7 +543,7 @@ mod test {
             query(
                 deps.as_ref(),
                 mock_env(),
-                QueryMsg::GetActiveVerifiers {
+                QueryMsg::ActiveVerifiers {
                     service_name: service_name.into(),
                     chain_name,
                 },
@@ -621,7 +635,7 @@ mod test {
                 query(
                     deps.as_ref(),
                     mock_env(),
-                    QueryMsg::GetActiveVerifiers {
+                    QueryMsg::ActiveVerifiers {
                         service_name: service_name.into(),
                         chain_name: chain,
                     },
@@ -717,7 +731,7 @@ mod test {
             query(
                 deps.as_ref(),
                 mock_env(),
-                QueryMsg::GetActiveVerifiers {
+                QueryMsg::ActiveVerifiers {
                     service_name: service_name.into(),
                     chain_name: deregistered_chain,
                 },
@@ -733,7 +747,7 @@ mod test {
                 query(
                     deps.as_ref(),
                     mock_env(),
-                    QueryMsg::GetActiveVerifiers {
+                    QueryMsg::ActiveVerifiers {
                         service_name: service_name.into(),
                         chain_name: chain.clone(),
                     },
@@ -836,7 +850,7 @@ mod test {
             query(
                 deps.as_ref(),
                 mock_env(),
-                QueryMsg::GetActiveVerifiers {
+                QueryMsg::ActiveVerifiers {
                     service_name: service_name.into(),
                     chain_name,
                 },
@@ -948,7 +962,7 @@ mod test {
             query(
                 deps.as_ref(),
                 mock_env(),
-                QueryMsg::GetActiveVerifiers {
+                QueryMsg::ActiveVerifiers {
                     service_name: service_name.into(),
                     chain_name,
                 },
@@ -1037,7 +1051,7 @@ mod test {
             query(
                 deps.as_ref(),
                 mock_env(),
-                QueryMsg::GetActiveVerifiers {
+                QueryMsg::ActiveVerifiers {
                     service_name: service_name.into(),
                     chain_name,
                 },
@@ -1111,7 +1125,7 @@ mod test {
             query(
                 deps.as_ref(),
                 mock_env(),
-                QueryMsg::GetActiveVerifiers {
+                QueryMsg::ActiveVerifiers {
                     service_name: service_name.into(),
                     chain_name,
                 },
@@ -1159,13 +1173,17 @@ mod test {
         )
         .unwrap_err();
 
-        assert_contract_err_strings_equal(err, ContractError::VerifierNotFound);
+        assert!(err_contains!(
+            err.report,
+            permission_control::Error,
+            permission_control::Error::WhitelistNotFound { .. }
+        ));
 
         let verifiers: Vec<WeightedVerifier> = from_json(
             query(
                 deps.as_ref(),
                 mock_env(),
-                QueryMsg::GetActiveVerifiers {
+                QueryMsg::ActiveVerifiers {
                     service_name: service_name.into(),
                     chain_name,
                 },
@@ -1195,7 +1213,11 @@ mod test {
         )
         .unwrap_err();
 
-        assert_contract_err_strings_equal(err, ContractError::ServiceNotFound);
+        assert!(err_contains!(
+            err.report,
+            permission_control::Error,
+            permission_control::Error::WhitelistNotFound { .. }
+        ));
     }
 
     #[test]
@@ -1271,7 +1293,7 @@ mod test {
             query(
                 deps.as_ref(),
                 mock_env(),
-                QueryMsg::GetActiveVerifiers {
+                QueryMsg::ActiveVerifiers {
                     service_name: service_name.into(),
                     chain_name,
                 },
@@ -1318,7 +1340,11 @@ mod test {
         )
         .unwrap_err();
 
-        assert_contract_err_strings_equal(err, ContractError::WrongDenom);
+        assert!(err_contains!(
+            err.report,
+            ContractError,
+            ContractError::WrongDenom
+        ));
     }
 
     #[test]
@@ -1373,7 +1399,7 @@ mod test {
             query(
                 deps.as_ref(),
                 mock_env(),
-                QueryMsg::GetActiveVerifiers {
+                QueryMsg::ActiveVerifiers {
                     service_name: service_name.into(),
                     chain_name,
                 },
@@ -1447,7 +1473,7 @@ mod test {
             query(
                 deps.as_ref(),
                 mock_env(),
-                QueryMsg::GetActiveVerifiers {
+                QueryMsg::ActiveVerifiers {
                     service_name: service_name.into(),
                     chain_name,
                 },
@@ -1521,7 +1547,7 @@ mod test {
             query(
                 deps.as_ref(),
                 mock_env(),
-                QueryMsg::GetActiveVerifiers {
+                QueryMsg::ActiveVerifiers {
                     service_name: service_name.into(),
                     chain_name,
                 },
@@ -1628,7 +1654,7 @@ mod test {
             query(
                 deps.as_ref(),
                 mock_env(),
-                QueryMsg::GetActiveVerifiers {
+                QueryMsg::ActiveVerifiers {
                     service_name: service_name.into(),
                     chain_name,
                 },
@@ -1738,7 +1764,7 @@ mod test {
         assert!(res.is_err());
         assert_eq!(
             res.unwrap_err().to_string(),
-            axelar_wasm_std::ContractError::from(ContractError::InvalidBondingState(
+            axelar_wasm_std::error::ContractError::from(ContractError::InvalidBondingState(
                 BondingState::Unbonding {
                     unbonded_at: unbond_request_env.block.time,
                     amount: min_verifier_bond,
@@ -1774,7 +1800,7 @@ mod test {
 
     #[test]
     #[allow(clippy::cast_possible_truncation)]
-    fn get_active_verifiers_should_not_return_less_than_min() {
+    fn active_verifiers_should_not_return_less_than_min() {
         let mut deps = setup();
 
         let verifiers = vec![Addr::unchecked("verifier1"), Addr::unchecked("verifier2")];
@@ -1817,7 +1843,7 @@ mod test {
             let res = query(
                 deps.as_ref(),
                 mock_env(),
-                QueryMsg::GetActiveVerifiers {
+                QueryMsg::ActiveVerifiers {
                     service_name: service_name.into(),
                     chain_name: chain_name.clone(),
                 },
@@ -1854,7 +1880,7 @@ mod test {
             query(
                 deps.as_ref(),
                 mock_env(),
-                QueryMsg::GetActiveVerifiers {
+                QueryMsg::ActiveVerifiers {
                     service_name: service_name.into(),
                     chain_name: chain_name.clone(),
                 },
@@ -1877,7 +1903,7 @@ mod test {
         let res = query(
             deps.as_ref(),
             mock_env(),
-            QueryMsg::GetActiveVerifiers {
+            QueryMsg::ActiveVerifiers {
                 service_name: service_name.into(),
                 chain_name: chain_name.clone(),
             },
@@ -1947,7 +1973,11 @@ mod test {
             },
         )
         .unwrap_err();
-        assert_contract_err_strings_equal(err, ContractError::VerifierJailed);
+        assert!(err_contains!(
+            err.report,
+            ContractError,
+            ContractError::VerifierJailed
+        ));
 
         // given a verifier passed unbonding period
         let verifier2 = Addr::unchecked("verifier-2");
@@ -1983,7 +2013,7 @@ mod test {
             query(
                 deps.as_ref(),
                 mock_env(),
-                QueryMsg::GetVerifier {
+                QueryMsg::Verifier {
                     service_name: service_name.into(),
                     verifier: verifier2.to_string(),
                 },
@@ -2029,6 +2059,10 @@ mod test {
             },
         )
         .unwrap_err();
-        assert_contract_err_strings_equal(err, ContractError::VerifierJailed);
+        assert!(err_contains!(
+            err.report,
+            ContractError,
+            ContractError::VerifierJailed
+        ));
     }
 }

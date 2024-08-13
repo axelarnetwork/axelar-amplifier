@@ -2,7 +2,7 @@ mod execute;
 mod query;
 
 mod migrations;
-use axelar_wasm_std::permission_control;
+use axelar_wasm_std::{address, permission_control, FnExt};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
@@ -23,7 +23,7 @@ pub fn migrate(
     deps: DepsMut,
     _env: Env,
     _msg: Empty,
-) -> Result<Response, axelar_wasm_std::ContractError> {
+) -> Result<Response, axelar_wasm_std::error::ContractError> {
     v0_2_0::migrate(deps.storage)?;
 
     // this needs to be the last thing to do during migration,
@@ -39,10 +39,10 @@ pub fn instantiate(
     _env: Env,
     _info: MessageInfo,
     msg: InstantiateMsg,
-) -> Result<Response, axelar_wasm_std::ContractError> {
+) -> Result<Response, axelar_wasm_std::error::ContractError> {
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    let governance = deps.api.addr_validate(&msg.governance_address)?;
+    let governance = address::validate_cosmwasm_address(deps.api, &msg.governance_address)?;
     permission_control::set_governance(deps.storage, &governance)?;
 
     Ok(Response::default())
@@ -54,7 +54,7 @@ pub fn execute(
     _env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
-) -> Result<Response, axelar_wasm_std::ContractError> {
+) -> Result<Response, axelar_wasm_std::error::ContractError> {
     match msg.ensure_permissions(
         deps.storage,
         &info.sender,
@@ -67,8 +67,8 @@ pub fn execute(
         ExecuteMsg::SetActiveVerifiers { verifiers } => {
             execute::set_active_verifier_set(deps, info, verifiers)
         }
-    }
-    .map_err(axelar_wasm_std::ContractError::from)
+    }?
+    .then(Ok)
 }
 
 fn find_prover_address(
@@ -84,14 +84,13 @@ fn find_prover_address(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-#[allow(dead_code)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
     match msg {
         QueryMsg::ReadyToUnbond { worker_address } => to_json_binary(
             &query::check_verifier_ready_to_unbond(deps, worker_address)?,
-        )
-        .map_err(|err| err.into()),
+        )?,
     }
+    .then(Ok)
 }
 
 #[cfg(test)]
@@ -129,7 +128,7 @@ mod tests {
         assert!(res.is_ok());
 
         let eth_prover = Addr::unchecked("eth_prover");
-        let eth: ChainName = "Ethereum".to_string().try_into().unwrap();
+        let eth: ChainName = "Ethereum".parse().unwrap();
 
         TestSetup {
             deps,
@@ -208,10 +207,12 @@ mod tests {
         );
         assert_eq!(
             res.unwrap_err().to_string(),
-            axelar_wasm_std::ContractError::from(permission_control::Error::PermissionDenied {
-                expected: Permission::Governance.into(),
-                actual: Permission::NoPrivilege.into()
-            })
+            axelar_wasm_std::error::ContractError::from(
+                permission_control::Error::PermissionDenied {
+                    expected: Permission::Governance.into(),
+                    actual: Permission::NoPrivilege.into()
+                }
+            )
             .to_string()
         );
     }
@@ -257,9 +258,11 @@ mod tests {
             },
         );
         assert!(res.unwrap_err().to_string().contains(
-            &axelar_wasm_std::ContractError::from(permission_control::Error::WhitelistNotFound {
-                sender: test_setup.prover
-            })
+            &axelar_wasm_std::error::ContractError::from(
+                permission_control::Error::WhitelistNotFound {
+                    sender: test_setup.prover
+                }
+            )
             .to_string()
         ));
     }

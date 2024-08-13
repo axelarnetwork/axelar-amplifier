@@ -1,15 +1,9 @@
-use axelar_wasm_std::hash::Hash;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{from_json, HexBinary, StdResult};
 use cw_storage_plus::{Key, KeyDeserialize, PrimaryKey};
-use error_stack::Result;
-use multisig::msg::SignerWithSig;
 use multisig::verifier_set::VerifierSet;
-use router_api::{CrossChainId, Message};
+use router_api::{CrossChainId, Message, FIELD_DELIMITER};
 use sha3::{Digest, Keccak256};
-
-use crate::encoding::{abi, Encoder};
-use crate::error::ContractError;
 
 #[cw_serde]
 pub enum Payload {
@@ -19,31 +13,29 @@ pub enum Payload {
 
 impl Payload {
     /// id returns the unique identifier for the payload, which can be either
-    /// - the hash of comma separated sorted message ids
-    /// - the hash of the verifier set
+    /// - Hash of 0 followed by '_' separated message ids
+    /// - Hash of 1 followed by the verifier set hash
     pub fn id(&self) -> PayloadId {
-        match self {
+        let hash = match self {
             Payload::Messages(msgs) => {
-                let message_ids = msgs
-                    .iter()
-                    .map(|msg| msg.cc_id.clone())
-                    .collect::<Vec<CrossChainId>>();
+                let message_ids: Vec<String> =
+                    msgs.iter().map(|msg| msg.cc_id.to_string()).collect();
 
-                message_ids.as_slice().into()
+                message_ids.join(&FIELD_DELIMITER.to_string()).into()
             }
-            Payload::VerifierSet(verifier_set) => verifier_set.hash().as_slice().into(),
-        }
+            Payload::VerifierSet(verifier_set) => verifier_set.hash().to_vec(),
+        };
+
+        let mut id = vec![self.variant_to_u8()];
+        id.extend(hash);
+
+        Keccak256::digest(id).to_vec().into()
     }
 
-    pub fn digest(
-        &self,
-        encoder: Encoder,
-        domain_separator: &Hash,
-        cur_verifier_set: &VerifierSet,
-    ) -> Result<Hash, ContractError> {
-        match encoder {
-            Encoder::Abi => abi::payload_hash_to_sign(domain_separator, cur_verifier_set, self),
-            Encoder::Bcs => todo!(),
+    fn variant_to_u8(&self) -> u8 {
+        match self {
+            Payload::Messages(_) => 0,
+            Payload::VerifierSet(_) => 1,
         }
     }
 
@@ -53,31 +45,13 @@ impl Payload {
             Payload::VerifierSet(_) => None,
         }
     }
-
-    pub fn execute_data(
-        &self,
-        encoder: Encoder,
-        domain_separator: &Hash,
-        verifier_set: &VerifierSet,
-        signers_with_sigs: Vec<SignerWithSig>,
-        payload: &Payload,
-    ) -> Result<HexBinary, ContractError> {
-        let payload_hash = payload.digest(encoder, domain_separator, verifier_set)?;
-
-        match encoder {
-            Encoder::Abi => {
-                abi::execute_data::encode(verifier_set, signers_with_sigs, &payload_hash, payload)
-            }
-            Encoder::Bcs => todo!(),
-        }
-    }
 }
 
 #[cw_serde]
 pub struct PayloadId(HexBinary);
 
-impl From<&[u8]> for PayloadId {
-    fn from(id: &[u8]) -> Self {
+impl From<Vec<u8>> for PayloadId {
+    fn from(id: Vec<u8>) -> Self {
         Self(id.into())
     }
 }
@@ -101,33 +75,22 @@ impl KeyDeserialize for PayloadId {
     }
 }
 
-impl From<&[CrossChainId]> for PayloadId {
-    fn from(ids: &[CrossChainId]) -> Self {
-        let mut message_ids = ids.iter().map(|id| id.to_string()).collect::<Vec<_>>();
-        message_ids.sort();
-
-        Keccak256::digest(message_ids.join(",")).as_slice().into()
-    }
-}
-
 #[cfg(test)]
 mod test {
-    use router_api::CrossChainId;
-
-    use crate::payload::PayloadId;
+    use crate::payload::Payload;
     use crate::test::test_data;
 
     #[test]
-    fn test_payload_id() {
-        let messages = test_data::messages();
-        let mut message_ids: Vec<CrossChainId> =
-            messages.into_iter().map(|msg| msg.cc_id).collect();
+    fn payload_messages_id_unchanged() {
+        let payload = Payload::Messages(test_data::messages());
 
-        let res: PayloadId = message_ids.as_slice().into();
+        goldie::assert_json!(payload.id());
+    }
 
-        message_ids.reverse();
-        let res2: PayloadId = message_ids.as_slice().into();
+    #[test]
+    fn payload_verifier_set_id_unchanged() {
+        let payload = Payload::VerifierSet(test_data::curr_verifier_set());
 
-        assert_eq!(res, res2);
+        goldie::assert_json!(payload.id());
     }
 }

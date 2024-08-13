@@ -1,7 +1,7 @@
+use axelar_wasm_std::IntoContractError;
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, Storage};
+use cosmwasm_std::{Addr, StdError, Storage};
 use cw_storage_plus::{Item, Map};
-use error_stack::{Result, ResultExt};
 use router_api::{CrossChainId, Message};
 
 #[cw_serde]
@@ -10,112 +10,106 @@ pub(crate) struct Config {
     pub router: Addr,
 }
 
-pub(crate) fn save_config(storage: &mut dyn Storage, value: &Config) -> Result<(), Error> {
-    CONFIG
-        .save(storage, value)
-        .change_context(Error::SaveValue(CONFIG_NAME))
+const CONFIG: Item<Config> = Item::new("config");
+const OUTGOING_MESSAGES: Map<&CrossChainId, Message> = Map::new("outgoing_messages");
+
+#[derive(thiserror::Error, Debug, IntoContractError)]
+pub enum Error {
+    #[error(transparent)]
+    Std(#[from] StdError),
+    #[error("gateway got into an invalid state, its config is missing")]
+    MissingConfig,
+    #[error("message with ID {0} mismatches with the stored one")]
+    MessageMismatch(CrossChainId),
+    #[error("message with ID {0} not found")]
+    MessageNotFound(CrossChainId),
 }
+
 pub(crate) fn load_config(storage: &dyn Storage) -> Result<Config, Error> {
     CONFIG
-        .load(storage)
-        .change_context(Error::LoadValue(CONFIG_NAME))
+        .may_load(storage)
+        .map_err(Error::from)?
+        .ok_or(Error::MissingConfig)
 }
 
-pub(crate) fn save_outgoing_msg(
-    storage: &mut dyn Storage,
-    key: CrossChainId,
-    value: &Message,
-) -> Result<(), Error> {
-    OUTGOING_MESSAGES
-        .save(storage, key, value)
-        .change_context(Error::SaveValue(OUTGOING_MESSAGES_NAME))
+pub(crate) fn save_config(storage: &mut dyn Storage, config: &Config) -> Result<(), Error> {
+    CONFIG.save(storage, config).map_err(Error::from)
 }
-pub(crate) fn may_load_outgoing_msg(
+
+pub(crate) fn load_outgoing_message(
     storage: &dyn Storage,
-    id: CrossChainId,
-) -> Result<Option<Message>, Error> {
+    cc_id: &CrossChainId,
+) -> Result<Message, Error> {
     OUTGOING_MESSAGES
-        .may_load(storage, id.clone())
-        .change_context(Error::Parse(OUTGOING_MESSAGES_NAME))
-        .attach_printable(id.to_string())
+        .may_load(storage, cc_id)
+        .map_err(Error::from)?
+        .ok_or_else(|| Error::MessageNotFound(cc_id.clone()))
 }
 
-#[derive(thiserror::Error, Debug)]
-pub(crate) enum Error {
-    #[error("failed to save {0}")]
-    SaveValue(&'static str),
-    #[error("failed to load {0}")]
-    LoadValue(&'static str),
-    #[error("failed to parse key for {0}")]
-    Parse(&'static str),
-}
+pub(crate) fn save_outgoing_message(
+    storage: &mut dyn Storage,
+    cc_id: &CrossChainId,
+    msg: &Message,
+) -> Result<(), Error> {
+    let existing = OUTGOING_MESSAGES
+        .may_load(storage, cc_id)
+        .map_err(Error::from)?;
 
-const CONFIG_NAME: &str = "config";
-const CONFIG: Item<Config> = Item::new(CONFIG_NAME);
-const OUTGOING_MESSAGES_NAME: &str = "outgoing_messages";
-const OUTGOING_MESSAGES: Map<CrossChainId, Message> = Map::new(OUTGOING_MESSAGES_NAME);
+    match existing {
+        Some(existing) if msg.hash() != existing.hash() => {
+            Err(Error::MessageMismatch(msg.cc_id.clone()))
+        }
+        Some(_) => Ok(()), // new message is identical, no need to store it
+        None => Ok(OUTGOING_MESSAGES
+            .save(storage, cc_id, msg)
+            .map_err(Error::from)?),
+    }
+}
 
 #[cfg(test)]
 mod test {
     use cosmwasm_std::testing::mock_dependencies;
-    use cosmwasm_std::Addr;
     use router_api::{CrossChainId, Message};
 
-    use crate::state::{
-        load_config, may_load_outgoing_msg, save_config, save_outgoing_msg, Config,
-    };
-
-    #[test]
-    fn config_storage() {
-        let mut deps = mock_dependencies();
-
-        let config = Config {
-            verifier: Addr::unchecked("verifier"),
-            router: Addr::unchecked("router"),
-        };
-        assert!(save_config(deps.as_mut().storage, &config).is_ok());
-
-        assert_eq!(load_config(&deps.storage).unwrap(), config);
-    }
+    use crate::state::OUTGOING_MESSAGES;
 
     #[test]
     fn outgoing_messages_storage() {
         let mut deps = mock_dependencies();
 
         let message = Message {
-            cc_id: CrossChainId {
-                chain: "chain".parse().unwrap(),
-                id: "id".parse().unwrap(),
-            },
-            source_address: "source_address".parse().unwrap(),
+            cc_id: CrossChainId::new("chain", "id").unwrap(),
+            source_address: "source-address".parse().unwrap(),
             destination_chain: "destination".parse().unwrap(),
-            destination_address: "destination_address".parse().unwrap(),
+            destination_address: "destination-address".parse().unwrap(),
             payload_hash: [1; 32],
         };
 
-        assert!(save_outgoing_msg(deps.as_mut().storage, message.cc_id.clone(), &message).is_ok());
+        assert!(OUTGOING_MESSAGES
+            .save(deps.as_mut().storage, &message.cc_id, &message)
+            .is_ok());
 
         assert_eq!(
-            may_load_outgoing_msg(&deps.storage, message.cc_id.clone()).unwrap(),
+            OUTGOING_MESSAGES
+                .may_load(&deps.storage, &message.cc_id)
+                .unwrap(),
             Some(message)
         );
 
-        let unknown_chain_id = CrossChainId {
-            chain: "unknown".parse().unwrap(),
-            id: "id".parse().unwrap(),
-        };
+        let unknown_chain_id = CrossChainId::new("unknown", "id").unwrap();
 
         assert_eq!(
-            may_load_outgoing_msg(&deps.storage, unknown_chain_id).unwrap(),
+            OUTGOING_MESSAGES
+                .may_load(&deps.storage, &unknown_chain_id)
+                .unwrap(),
             None
         );
 
-        let unknown_id = CrossChainId {
-            chain: "chain".parse().unwrap(),
-            id: "unknown".parse().unwrap(),
-        };
+        let unknown_id = CrossChainId::new("chain", "unkown").unwrap();
         assert_eq!(
-            may_load_outgoing_msg(&deps.storage, unknown_id).unwrap(),
+            OUTGOING_MESSAGES
+                .may_load(&deps.storage, &unknown_id)
+                .unwrap(),
             None
         );
     }

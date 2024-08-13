@@ -1,36 +1,29 @@
 use std::collections::HashMap;
 
+use axelar_wasm_std::address::{validate_address, AddressFormat};
+use axelar_wasm_std::utils::TryMapExt;
 use axelar_wasm_std::voting::{PollId, PollResults, Vote, WeightedPoll};
-use axelar_wasm_std::{nonempty, snapshot, MajorityThreshold, VerificationStatus};
+use axelar_wasm_std::{snapshot, MajorityThreshold, VerificationStatus};
 use cosmwasm_std::{
-    to_json_binary, Addr, Deps, DepsMut, Env, Event, MessageInfo, OverflowError, OverflowOperation,
+    to_json_binary, Deps, DepsMut, Env, Event, MessageInfo, OverflowError, OverflowOperation,
     QueryRequest, Response, Storage, WasmMsg, WasmQuery,
 };
+use error_stack::{report, Report, ResultExt};
 use itertools::Itertools;
 use multisig::verifier_set::VerifierSet;
 use router_api::{ChainName, Message};
 use service_registry::msg::QueryMsg;
 use service_registry::state::WeightedVerifier;
 
+use crate::contract::query::{message_status, verifier_set_status};
 use crate::error::ContractError;
 use crate::events::{
     PollEnded, PollMetadata, PollStarted, QuorumReached, TxEventConfirmation,
     VerifierSetConfirmation, Voted,
 };
-use crate::query::{message_status, verifier_set_status};
 use crate::state::{
     self, poll_messages, poll_verifier_sets, Poll, PollContent, CONFIG, POLLS, POLL_ID, VOTES,
 };
-
-// TODO: this type of function exists in many contracts. Would be better to implement this
-// in one place, and then just include it
-pub fn require_governance(deps: &DepsMut, sender: Addr) -> Result<(), ContractError> {
-    let config = CONFIG.load(deps.storage)?;
-    if config.governance != sender {
-        return Err(ContractError::Unauthorized);
-    }
-    Ok(())
-}
 
 pub fn update_voting_threshold(
     deps: DepsMut,
@@ -46,7 +39,7 @@ pub fn update_voting_threshold(
 pub fn verify_verifier_set(
     deps: DepsMut,
     env: Env,
-    message_id: nonempty::String,
+    message_id: &str,
     new_verifier_set: VerifierSet,
 ) -> Result<Response, ContractError> {
     let status = verifier_set_status(deps.as_ref(), &new_verifier_set, env.block.height)?;
@@ -56,8 +49,8 @@ pub fn verify_verifier_set(
 
     let config = CONFIG.load(deps.storage)?;
     let snapshot = take_snapshot(deps.as_ref(), &config.source_chain)?;
-    let participants = snapshot.get_participants();
-    let expires_at = calculate_expiration(env.block.height, config.block_expiry)?;
+    let participants = snapshot.participants();
+    let expires_at = calculate_expiration(env.block.height, config.block_expiry.into())?;
 
     let poll_id = create_verifier_set_poll(deps.storage, expires_at, snapshot)?;
 
@@ -91,29 +84,22 @@ pub fn verify_messages(
     deps: DepsMut,
     env: Env,
     messages: Vec<Message>,
-) -> Result<Response, ContractError> {
+) -> Result<Response, Report<ContractError>> {
     if messages.is_empty() {
         Err(ContractError::EmptyMessages)?;
     }
 
-    let source_chain = CONFIG.load(deps.storage)?.source_chain;
+    let config = CONFIG.load(deps.storage).map_err(ContractError::from)?;
 
-    if messages
-        .iter()
-        .any(|message| message.cc_id.chain.ne(&source_chain))
-    {
-        Err(ContractError::SourceChainMismatch(source_chain))?;
-    }
-
-    let config = CONFIG.load(deps.storage)?;
-
-    let messages = messages
-        .into_iter()
-        .map(|message| {
-            message_status(deps.as_ref(), &message, env.block.height)
-                .map(|status| (status, message))
-        })
-        .collect::<Result<Vec<_>, _>>()?;
+    let messages = messages.try_map(|message| {
+        validate_source_chain(message, &config.source_chain)
+            .and_then(|message| validate_source_address(message, &config.address_format))
+            .and_then(|message| {
+                message_status(deps.as_ref(), &message, env.block.height)
+                    .map(|status| (status, message))
+                    .map_err(Report::from)
+            })
+    })?;
 
     let msgs_to_verify: Vec<Message> = messages
         .into_iter()
@@ -131,18 +117,20 @@ pub fn verify_messages(
         return Ok(Response::new());
     }
 
-    let snapshot = take_snapshot(deps.as_ref(), &msgs_to_verify[0].cc_id.chain)?;
-    let participants = snapshot.get_participants();
-    let expires_at = calculate_expiration(env.block.height, config.block_expiry)?;
+    let snapshot = take_snapshot(deps.as_ref(), &config.source_chain)?;
+    let participants = snapshot.participants();
+    let expires_at = calculate_expiration(env.block.height, config.block_expiry.into())?;
 
     let id = create_messages_poll(deps.storage, expires_at, snapshot, msgs_to_verify.len())?;
 
     for (idx, message) in msgs_to_verify.iter().enumerate() {
-        poll_messages().save(
-            deps.storage,
-            &message.hash(),
-            &state::PollContent::<Message>::new(message.clone(), id, idx),
-        )?;
+        poll_messages()
+            .save(
+                deps.storage,
+                &message.hash(),
+                &state::PollContent::<Message>::new(message.clone(), id, idx),
+            )
+            .map_err(ContractError::from)?;
     }
 
     let messages = msgs_to_verify
@@ -166,7 +154,7 @@ pub fn verify_messages(
     ))
 }
 
-fn get_poll_results(poll: &Poll) -> PollResults {
+fn poll_results(poll: &Poll) -> PollResults {
     match poll {
         Poll::Messages(weighted_poll) => weighted_poll.results(),
         Poll::ConfirmVerifierSet(weighted_poll) => weighted_poll.results(),
@@ -231,7 +219,7 @@ pub fn vote(
         .may_load(deps.storage, poll_id)?
         .ok_or(ContractError::PollNotFound)?;
 
-    let results_before_voting = get_poll_results(&poll);
+    let results_before_voting = poll_results(&poll);
 
     let poll = poll.try_map(|poll| {
         poll.cast_vote(env.block.height, &info.sender, votes.clone())
@@ -239,7 +227,7 @@ pub fn vote(
     })?;
     POLLS.save(deps.storage, poll_id, &poll)?;
 
-    let results_after_voting = get_poll_results(&poll);
+    let results_after_voting = poll_results(&poll);
 
     let quorum_events = results_after_voting
         .difference(results_before_voting)
@@ -321,7 +309,7 @@ fn take_snapshot(deps: Deps, chain: &ChainName) -> Result<snapshot::Snapshot, Co
 
     // todo: add chain param to query after service registry updated
     // query service registry for active verifiers
-    let active_verifiers_query = QueryMsg::GetActiveVerifiers {
+    let active_verifiers_query = QueryMsg::ActiveVerifiers {
         service_name: config.service_name.to_string(),
         chain_name: chain.clone(),
     };
@@ -351,7 +339,7 @@ fn create_verifier_set_poll(
     let id = POLL_ID.incr(store)?;
 
     let poll = WeightedPoll::new(id, snapshot, expires_at, 1);
-    POLLS.save(store, id, &state::Poll::ConfirmVerifierSet(poll))?;
+    POLLS.save(store, id, &Poll::ConfirmVerifierSet(poll))?;
 
     Ok(id)
 }
@@ -365,7 +353,7 @@ fn create_messages_poll(
     let id = POLL_ID.incr(store)?;
 
     let poll = WeightedPoll::new(id, snapshot, expires_at, poll_size);
-    POLLS.save(store, id, &state::Poll::Messages(poll))?;
+    POLLS.save(store, id, &Poll::Messages(poll))?;
 
     Ok(id)
 }
@@ -377,51 +365,25 @@ fn calculate_expiration(block_height: u64, block_expiry: u64) -> Result<u64, Con
         .map_err(ContractError::from)
 }
 
-#[cfg(test)]
-mod test {
-    use axelar_wasm_std::{MajorityThreshold, Threshold};
-    use cosmwasm_std::testing::mock_dependencies;
-    use cosmwasm_std::Addr;
-
-    use super::require_governance;
-    use crate::state::{Config, CONFIG};
-
-    fn mock_config(governance: Addr, voting_threshold: MajorityThreshold) -> Config {
-        Config {
-            governance,
-            service_registry_contract: Addr::unchecked("doesn't matter"),
-            service_name: "validators".to_string().try_into().unwrap(),
-            source_gateway_address: "0x89e51fA8CA5D66cd220bAed62ED01e8951aa7c40"
-                .to_string()
-                .try_into()
-                .unwrap(),
-            voting_threshold,
-            source_chain: "ethereum".to_string().try_into().unwrap(),
-            block_expiry: 10,
-            confirmation_height: 2,
-            rewards_contract: Addr::unchecked("rewards"),
-            msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
-        }
+fn validate_source_chain(
+    message: Message,
+    source_chain: &ChainName,
+) -> Result<Message, Report<ContractError>> {
+    if message.cc_id.source_chain != *source_chain {
+        Err(report!(ContractError::SourceChainMismatch(
+            source_chain.clone()
+        )))
+    } else {
+        Ok(message)
     }
+}
 
-    #[test]
-    fn require_governance_should_reject_non_governance() {
-        let mut deps = mock_dependencies();
-        let governance = Addr::unchecked("governance");
-        CONFIG
-            .save(
-                deps.as_mut().storage,
-                &mock_config(
-                    governance.clone(),
-                    Threshold::try_from((2, 3)).unwrap().try_into().unwrap(),
-                ),
-            )
-            .unwrap();
+fn validate_source_address(
+    message: Message,
+    address_format: &AddressFormat,
+) -> Result<Message, Report<ContractError>> {
+    validate_address(&message.source_address, address_format)
+        .change_context(ContractError::InvalidSourceAddress)?;
 
-        let res = require_governance(&deps.as_mut(), Addr::unchecked("random"));
-        assert!(res.is_err());
-
-        let res = require_governance(&deps.as_mut(), governance);
-        assert!(res.is_ok());
-    }
+    Ok(message)
 }

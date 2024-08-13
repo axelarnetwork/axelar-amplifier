@@ -325,7 +325,7 @@ where
 
             Ok(Fee::from_amount_and_gas(
                 Coin {
-                    amount: cast((gas_adj.mul(self.config.gas_price.amount)).ceil())
+                    amount: cast(gas_adj.mul(self.config.gas_price.amount).ceil())
                         .ok_or(Error::FeeEstimation)?,
                     denom: self.config.gas_price.denom.clone().into(),
                 },
@@ -668,7 +668,7 @@ mod tests {
         client
             .expect_broadcast_tx()
             .returning(|_| Ok(TxResponse::default()));
-        client.expect_get_tx().returning(|_| {
+        client.expect_tx().returning(|_| {
             Ok(GetTxResponse {
                 tx_response: Some(TxResponse {
                     code: 0,

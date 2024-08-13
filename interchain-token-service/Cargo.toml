@@ -1,0 +1,26 @@
+[package]
+name = "interchain-token-service"
+version = "0.1.0"
+rust-version = { workspace = true }
+edition = { workspace = true }
+
+[dependencies]
+alloy-primitives = { workspace = true }
+alloy-sol-types = { workspace = true }
+axelar-wasm-std = { workspace = true, features = ["derive"] }
+cosmwasm-schema = { workspace = true }
+cosmwasm-std = { workspace = true }
+error-stack = { workspace = true }
+report = { workspace = true }
+router-api = { workspace = true }
+schemars = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+strum = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+goldie = { workspace = true }
+
+[lints]
+workspace = true

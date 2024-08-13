@@ -4,18 +4,14 @@ use integration_tests::contract::Contract;
 use multisig_prover::msg::ExecuteMsg;
 use service_registry::msg::QueryMsg as ServiceRegistryQueryMsg;
 use service_registry::state::WeightedVerifier;
-use test_utils::{
-    create_new_verifiers_vec, get_multisig_session_id, register_in_service_registry,
-    register_verifiers, rotate_active_verifier_set, Verifier,
-};
 
 pub mod test_utils;
 
 #[test]
 fn verifier_set_can_be_initialized_and_then_manually_updated() {
     let chains: Vec<router_api::ChainName> = vec![
-        "Ethereum".to_string().try_into().unwrap(),
-        "Polygon".to_string().try_into().unwrap(),
+        "Ethereum".try_into().unwrap(),
+        "Polygon".try_into().unwrap(),
     ];
 
     let test_utils::TestCase {
@@ -30,19 +26,19 @@ fn verifier_set_can_be_initialized_and_then_manually_updated() {
         test_utils::verifiers_to_verifier_set(&mut protocol, &initial_verifiers);
 
     let verifier_set =
-        test_utils::get_verifier_set_from_prover(&mut protocol.app, &ethereum.multisig_prover);
+        test_utils::verifier_set_from_prover(&mut protocol.app, &ethereum.multisig_prover);
 
     assert_eq!(verifier_set, simulated_verifier_set);
 
     // add third and fourth verifier
     let mut new_verifiers = Vec::new();
-    let new_verifier = Verifier {
+    let new_verifier = test_utils::Verifier {
         addr: Addr::unchecked("verifier3"),
         supported_chains: chains.clone(),
         key_pair: test_utils::generate_key(2),
     };
     new_verifiers.push(new_verifier);
-    let new_verifier = Verifier {
+    let new_verifier = test_utils::Verifier {
         addr: Addr::unchecked("verifier4"),
         supported_chains: chains.clone(),
         key_pair: test_utils::generate_key(3),
@@ -70,7 +66,7 @@ fn verifier_set_can_be_initialized_and_then_manually_updated() {
     // sign with old verifiers
     let session_id = test_utils::sign_proof(&mut protocol, &initial_verifiers, response);
 
-    let proof = test_utils::get_proof(&mut protocol.app, &ethereum.multisig_prover, &session_id);
+    let proof = test_utils::proof(&mut protocol.app, &ethereum.multisig_prover, &session_id);
     assert!(matches!(
         proof.status,
         multisig_prover::msg::ProofStatus::Completed { .. }
@@ -104,15 +100,15 @@ fn verifier_set_can_be_initialized_and_then_manually_updated() {
     );
 
     let new_verifier_set =
-        test_utils::get_verifier_set_from_prover(&mut protocol.app, &ethereum.multisig_prover);
+        test_utils::verifier_set_from_prover(&mut protocol.app, &ethereum.multisig_prover);
     assert_eq!(new_verifier_set, expected_new_verifier_set);
 }
 
 #[test]
 fn verifier_set_cannot_be_updated_again_while_pending_verifier_is_not_yet_confirmed() {
     let chains = vec![
-        "Ethereum".to_string().try_into().unwrap(),
-        "Polygon".to_string().try_into().unwrap(),
+        "Ethereum".try_into().unwrap(),
+        "Polygon".try_into().unwrap(),
     ];
     let test_utils::TestCase {
         mut protocol,
@@ -126,7 +122,7 @@ fn verifier_set_cannot_be_updated_again_while_pending_verifier_is_not_yet_confir
         test_utils::verifiers_to_verifier_set(&mut protocol, &initial_verifiers);
 
     let verifier_set =
-        test_utils::get_verifier_set_from_prover(&mut protocol.app, &ethereum.multisig_prover);
+        test_utils::verifier_set_from_prover(&mut protocol.app, &ethereum.multisig_prover);
 
     assert_eq!(verifier_set, simulated_verifier_set);
 
@@ -160,7 +156,7 @@ fn verifier_set_cannot_be_updated_again_while_pending_verifier_is_not_yet_confir
 
     let session_id = test_utils::sign_proof(&mut protocol, &initial_verifiers, response);
 
-    let proof = test_utils::get_proof(&mut protocol.app, &ethereum.multisig_prover, &session_id);
+    let proof = test_utils::proof(&mut protocol.app, &ethereum.multisig_prover, &session_id);
 
     // proof must be completed
     assert!(matches!(
@@ -206,7 +202,7 @@ fn verifier_set_cannot_be_updated_again_while_pending_verifier_is_not_yet_confir
     );
 
     let new_verifier_set =
-        test_utils::get_verifier_set_from_prover(&mut protocol.app, &ethereum.multisig_prover);
+        test_utils::verifier_set_from_prover(&mut protocol.app, &ethereum.multisig_prover);
 
     assert_eq!(new_verifier_set, expected_new_verifier_set);
 
@@ -231,8 +227,8 @@ fn verifier_set_cannot_be_updated_again_while_pending_verifier_is_not_yet_confir
 #[test]
 fn verifier_set_update_can_be_resigned() {
     let chains = vec![
-        "Ethereum".to_string().try_into().unwrap(),
-        "Polygon".to_string().try_into().unwrap(),
+        "Ethereum".try_into().unwrap(),
+        "Polygon".try_into().unwrap(),
     ];
     let test_utils::TestCase {
         mut protocol,
@@ -246,7 +242,7 @@ fn verifier_set_update_can_be_resigned() {
         test_utils::verifiers_to_verifier_set(&mut protocol, &initial_verifiers);
 
     let verifier_set =
-        test_utils::get_verifier_set_from_prover(&mut protocol.app, &ethereum.multisig_prover);
+        test_utils::verifier_set_from_prover(&mut protocol.app, &ethereum.multisig_prover);
 
     assert_eq!(verifier_set, simulated_verifier_set);
 
@@ -275,7 +271,7 @@ fn verifier_set_update_can_be_resigned() {
         )
         .unwrap();
 
-    let first_session_id = get_multisig_session_id(response.clone());
+    let first_session_id = test_utils::multisig_session_id(response.clone());
 
     // signing didn't occur, trigger signing again
     let response = protocol
@@ -288,7 +284,7 @@ fn verifier_set_update_can_be_resigned() {
         )
         .unwrap();
 
-    let second_session_id = get_multisig_session_id(response.clone());
+    let second_session_id = test_utils::multisig_session_id(response.clone());
     assert_ne!(first_session_id, second_session_id);
 
     test_utils::sign_proof(&mut protocol, &initial_verifiers, response);
@@ -304,13 +300,13 @@ fn verifier_set_update_can_be_resigned() {
         )
         .unwrap();
 
-    let third_session_id = get_multisig_session_id(response.clone());
+    let third_session_id = test_utils::multisig_session_id(response.clone());
     assert_ne!(first_session_id, second_session_id);
     assert_ne!(second_session_id, third_session_id);
 
     test_utils::sign_proof(&mut protocol, &initial_verifiers, response);
 
-    let proof = test_utils::get_proof(
+    let proof = test_utils::proof(
         &mut protocol.app,
         &ethereum.multisig_prover,
         &second_session_id,
@@ -325,7 +321,7 @@ fn verifier_set_update_can_be_resigned() {
 
 #[test]
 fn governance_should_confirm_new_verifier_set_without_verification() {
-    let chains: Vec<router_api::ChainName> = vec!["Ethereum".to_string().try_into().unwrap()];
+    let chains: Vec<router_api::ChainName> = vec!["Ethereum".try_into().unwrap()];
     let test_utils::TestCase {
         mut protocol,
         chain1: ethereum,
@@ -336,7 +332,7 @@ fn governance_should_confirm_new_verifier_set_without_verification() {
 
     // add third verifier
     let mut new_verifiers = Vec::new();
-    let new_verifier = Verifier {
+    let new_verifier = test_utils::Verifier {
         addr: Addr::unchecked("verifier3"),
         supported_chains: chains.clone(),
         key_pair: test_utils::generate_key(2),
@@ -367,7 +363,7 @@ fn governance_should_confirm_new_verifier_set_without_verification() {
     );
 
     let new_verifier_set =
-        test_utils::get_verifier_set_from_prover(&mut protocol.app, &ethereum.multisig_prover);
+        test_utils::verifier_set_from_prover(&mut protocol.app, &ethereum.multisig_prover);
 
     assert_eq!(new_verifier_set, expected_new_verifier_set);
 }
@@ -385,21 +381,21 @@ fn rotate_signers_should_filter_out_signers_without_pubkey() {
     let chains: Vec<router_api::ChainName> = vec![chain1.chain_name.clone()];
 
     // add a third verifier to satisfy min verifier change threshold
-    register_verifiers(
+    test_utils::register_verifiers(
         &mut protocol,
-        &create_new_verifiers_vec(chains.clone(), vec![("verifier3".to_string(), 2)]),
+        &test_utils::create_new_verifiers_vec(chains.clone(), vec![("verifier3".to_string(), 2)]),
         min_verifier_bond,
     );
 
     // add a fourth verifier in service registry but does not submit a pubkey to multisig
-    register_in_service_registry(
+    test_utils::register_in_service_registry(
         &mut protocol,
-        &create_new_verifiers_vec(chains.clone(), vec![("verifier4".to_string(), 3)]),
+        &test_utils::create_new_verifiers_vec(chains.clone(), vec![("verifier4".to_string(), 3)]),
         min_verifier_bond,
     );
 
     // the fourth verifier should be filtered out in prover because it does not have a pubkey
-    let expect_new_verifiers = create_new_verifiers_vec(
+    let expect_new_verifiers = test_utils::create_new_verifiers_vec(
         chains.clone(),
         vec![
             ("verifier1".to_string(), 0),
@@ -415,7 +411,7 @@ fn rotate_signers_should_filter_out_signers_without_pubkey() {
         .service_registry
         .query(
             &protocol.app,
-            &ServiceRegistryQueryMsg::GetActiveVerifiers {
+            &ServiceRegistryQueryMsg::ActiveVerifiers {
                 service_name: protocol.service_name.to_string(),
                 chain_name: chains[0].clone(),
             },
@@ -428,7 +424,7 @@ fn rotate_signers_should_filter_out_signers_without_pubkey() {
     );
 
     // rotate signers
-    rotate_active_verifier_set(
+    test_utils::rotate_active_verifier_set(
         &mut protocol,
         chain1.clone(),
         &initial_verifiers,
@@ -436,7 +432,7 @@ fn rotate_signers_should_filter_out_signers_without_pubkey() {
     );
 
     let verifier_set =
-        test_utils::get_verifier_set_from_prover(&mut protocol.app, &chain1.multisig_prover);
+        test_utils::verifier_set_from_prover(&mut protocol.app, &chain1.multisig_prover);
 
     assert_eq!(verifier_set, expected_verifier_set);
 }

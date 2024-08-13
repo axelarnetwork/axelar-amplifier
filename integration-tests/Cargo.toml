@@ -1,8 +1,8 @@
 [package]
 name = "integration-tests"
-version = "0.1.0"
+version = "1.0.0"
 rust-version = { workspace = true }
-edition = "2021"
+edition = { workspace = true }
 description = "Amplifier Integration Tests"
 
 exclude = [
@@ -36,7 +36,7 @@ cw-multi-test = "0.15.1"
 error-stack = { workspace = true }
 gateway = { workspace = true }
 gateway-api = { workspace = true }
-k256 = { version = "0.13.1", features = ["ecdsa"] }
+k256 = { workspace = true }
 multisig = { workspace = true }
 multisig-prover = { workspace = true }
 rand = "0.8.5"
