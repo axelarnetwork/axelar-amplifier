@@ -17,6 +17,7 @@ error-stack = { version = "0.4.0", features = ["eyre"] }
 events = { version = "^1.0.0", path = "packages/events" }
 events-derive = { version = "^1.0.0", path = "packages/events-derive" }
 evm-gateway = { version = "^1.0.0", path = "packages/evm-gateway" }
+sui-gateway = { version = "^1.0.0", path = "packages/sui-gateway" }
 axelar-wasm-std = { version = "^1.0.0", path = "packages/axelar-wasm-std" }
 axelar-wasm-std-derive = { version = "^1.0.0", path = "packages/axelar-wasm-std-derive" }
 integration-tests = { version = "^1.0.0", path = "integration-tests" }
@@ -28,12 +29,14 @@ msgs-derive = { version = "^1.0.0", path = "packages/msgs-derive" }
 multisig-prover = { version = "^1.0.0", path = "contracts/multisig-prover" }
 num-traits = { version = "0.2.14", default-features = false }
 service-registry = { version = "^1.0.0", path = "contracts/service-registry" }
+k256 = { version = "0.13.1", features = ["ecdsa"] }
 gateway = { version = "^1.0.0", path = "contracts/gateway" }
 gateway-api = { version = "^1.0.0", path = "packages/gateway-api" }
 router-api = { version = "^1.0.0", path = "packages/router-api" }
 report = { version = "^1.0.0", path = "packages/report" }
 client = { version = "^1.0.0", path = "packages/client" }
 quote = "1.0.36"
+bcs = "0.1.5"
 rewards = { version = "^1.0.0", path = "contracts/rewards" }
 thiserror = "1.0.61"
 mockall = "0.12.1"

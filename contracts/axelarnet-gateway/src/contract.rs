@@ -1,7 +1,7 @@
-use axelar_wasm_std::FnExt;
+use axelar_wasm_std::{address, FnExt};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response};
+use cosmwasm_std::{to_json_binary, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response};
 use error_stack::ResultExt;
 use router_api::client::Router;
 use router_api::CrossChainId;
@@ -10,6 +10,7 @@ use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{self, Config};
 
 mod execute;
+mod query;
 
 const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -66,10 +67,7 @@ pub fn instantiate(
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    let router = deps
-        .api
-        .addr_validate(&msg.router_address)
-        .change_context(Error::InvalidAddress(msg.router_address.clone()))?;
+    let router = address::validate_cosmwasm_address(deps.api, &msg.router_address)?;
 
     let config = Config {
         chain_name: msg.chain_name,
@@ -129,11 +127,17 @@ pub fn execute(
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(
-    _deps: Deps,
+    deps: Deps,
     _env: Env,
-    _msg: QueryMsg,
+    msg: QueryMsg,
 ) -> Result<Binary, axelar_wasm_std::error::ContractError> {
-    todo!()
+    match msg {
+        QueryMsg::SentMessages { cc_ids } => to_json_binary(&query::sent_messages(deps, cc_ids)?),
+        QueryMsg::ReceivedMessages { cc_ids } => {
+            to_json_binary(&query::received_messages(deps, cc_ids)?)
+        }
+    }
+    .map_err(axelar_wasm_std::error::ContractError::from)
 }
 
 #[cfg(test)]
