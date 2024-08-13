@@ -1,7 +1,7 @@
-use axelar_wasm_std::error::extend_err;
+use axelar_wasm_std::error::accumulate_errs;
 use cosmwasm_std::{to_json_binary, Binary, Storage};
 use error_stack::Result;
-use router_api::{CrossChainId, Message};
+use router_api::CrossChainId;
 
 use crate::state;
 
@@ -14,20 +14,6 @@ pub fn outgoing_messages<'a>(
         .fold(Ok(vec![]), accumulate_errs)?;
 
     Ok(to_json_binary(&msgs).map_err(state::Error::from)?)
-}
-
-fn accumulate_errs(
-    acc: Result<Vec<Message>, state::Error>,
-    msg: std::result::Result<Message, state::Error>,
-) -> Result<Vec<Message>, state::Error> {
-    match (acc, msg) {
-        (Ok(mut msgs), Ok(msg)) => {
-            msgs.push(msg);
-            Ok(msgs)
-        }
-        (Err(report), Ok(_)) => Err(report),
-        (acc, Err(msg_err)) => extend_err(acc, msg_err.into()),
-    }
 }
 
 #[cfg(test)]

@@ -1,5 +1,6 @@
+use axelar_wasm_std::address;
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{HexBinary, WasmMsg};
+use cosmwasm_std::{Deps, HexBinary, WasmMsg};
 use router_api::{Address, CrossChainId};
 
 /// `AxelarExecutableMsg` is a struct containing the args used by the axelarnet gateway to execute a destination contract on Axelar.
@@ -11,36 +12,35 @@ pub struct AxelarExecutableMsg {
     pub payload: HexBinary,
 }
 
-/// Crate-specific `ExecuteMsg` type wraps the `AxelarExecutableMsg` for the AxelarExecutable client.
-#[cw_serde]
-pub(crate) enum AxelarExecutableExecuteMsg {
-    /// Execute the message at the destination contract with the corresponding payload.
-    Execute(AxelarExecutableMsg),
+pub struct PayloadExecutor<'a> {
+    client: client::Client<'a, AxelarExecutableMsg, ()>,
 }
 
-impl<'a> From<client::Client<'a, AxelarExecutableExecuteMsg, ()>> for AxelarExecutableClient<'a> {
-    fn from(client: client::Client<'a, AxelarExecutableExecuteMsg, ()>) -> Self {
-        AxelarExecutableClient { client }
+impl<'a> From<client::Client<'a, AxelarExecutableMsg, ()>> for PayloadExecutor<'a> {
+    fn from(client: client::Client<'a, AxelarExecutableMsg, ()>) -> Self {
+        PayloadExecutor { client }
     }
 }
 
-pub struct AxelarExecutableClient<'a> {
-    client: client::Client<'a, AxelarExecutableExecuteMsg, ()>,
-}
+impl<'a> PayloadExecutor<'a> {
+    pub fn new(deps: Deps<'a>, destination: &str) -> error_stack::Result<Self, address::Error> {
+        let destination = address::validate_cosmwasm_address(deps.api, destination)?;
+        Ok(PayloadExecutor {
+            client: client::Client::new(deps.querier, destination),
+        })
+    }
 
-impl<'a> AxelarExecutableClient<'a> {
     pub fn execute(
         &self,
         cc_id: CrossChainId,
         source_address: Address,
         payload: HexBinary,
     ) -> WasmMsg {
-        self.client
-            .execute(&AxelarExecutableExecuteMsg::Execute(AxelarExecutableMsg {
-                cc_id,
-                source_address,
-                payload,
-            }))
+        self.client.execute(&AxelarExecutableMsg {
+            cc_id,
+            source_address,
+            payload,
+        })
     }
 }
 
@@ -54,7 +54,7 @@ mod test {
     #[test]
     fn execute_message() {
         let (querier, addr) = setup();
-        let client: AxelarExecutableClient =
+        let client: PayloadExecutor =
             client::Client::new(QuerierWrapper::new(&querier), addr.clone()).into();
 
         let cc_id = CrossChainId::new("source-chain", "message-id").unwrap();
@@ -67,11 +67,11 @@ mod test {
             msg,
             WasmMsg::Execute {
                 contract_addr: addr.to_string(),
-                msg: to_json_binary(&AxelarExecutableExecuteMsg::Execute(AxelarExecutableMsg {
+                msg: to_json_binary(&AxelarExecutableMsg {
                     cc_id,
                     source_address,
                     payload,
-                }))
+                })
                 .unwrap(),
                 funds: vec![],
             }

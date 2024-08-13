@@ -77,6 +77,27 @@ pub fn extend_err<T, E: Context>(
     }
 }
 
+pub fn accumulate_errs<T, E: Context>(
+    acc: error_stack::Result<Vec<T>, E>,
+    value: Result<T, E>,
+) -> error_stack::Result<Vec<T>, E> {
+    accumulate_reports(acc, value.map_err(|err| err.into()))
+}
+
+pub fn accumulate_reports<T, E: Context>(
+    acc: error_stack::Result<Vec<T>, E>,
+    value: Result<T, Report<E>>,
+) -> error_stack::Result<Vec<T>, E> {
+    match (acc, value) {
+        (Ok(mut values), Ok(value)) => {
+            values.push(value);
+            Ok(values)
+        }
+        (Err(report), Ok(_)) => Err(report),
+        (acc, Err(err)) => extend_err(acc, err),
+    }
+}
+
 #[macro_export]
 macro_rules! err_contains {
     ($expression:expr, $error_type:ty, $pattern:pat $(if $guard:expr)? $(,)?) => {

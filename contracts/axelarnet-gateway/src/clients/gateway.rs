@@ -2,7 +2,7 @@ use axelar_wasm_std::vec::VecExt;
 use cosmwasm_std::{HexBinary, WasmMsg};
 use router_api::{Address, ChainName, CrossChainId, Message};
 
-use crate::msg::{ExecuteMsg, QueryMsg};
+use crate::msg::{CallContractData, ExecuteMsg, QueryMsg};
 
 impl<'a> From<client::Client<'a, ExecuteMsg, QueryMsg>> for Client<'a> {
     fn from(client: client::Client<'a, ExecuteMsg, QueryMsg>) -> Self {
@@ -21,11 +21,12 @@ impl<'a> Client<'a> {
         destination_address: Address,
         payload: HexBinary,
     ) -> WasmMsg {
-        self.client.execute(&ExecuteMsg::CallContract {
-            destination_chain,
-            destination_address,
-            payload,
-        })
+        self.client
+            .execute(&ExecuteMsg::CallContract(CallContractData {
+                destination_chain,
+                destination_address,
+                payload,
+            }))
     }
 
     pub fn execute(&self, cc_id: CrossChainId, payload: HexBinary) -> WasmMsg {
@@ -67,11 +68,11 @@ mod test {
             msg,
             WasmMsg::Execute {
                 contract_addr: addr.to_string(),
-                msg: to_json_binary(&ExecuteMsg::CallContract {
+                msg: to_json_binary(&ExecuteMsg::CallContract(CallContractData {
                     destination_chain,
                     destination_address,
                     payload,
-                })
+                }))
                 .unwrap(),
                 funds: vec![],
             }
