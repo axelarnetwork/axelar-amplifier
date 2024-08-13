@@ -6417,6 +6417,7 @@ dependencies = [
  "msgs-derive",
  "report",
  "router-api",
+ "serde_json",
  "thiserror",
 ]
 

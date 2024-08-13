@@ -9,6 +9,7 @@ use itertools::Itertools;
 
 use crate::contract::migrations::v0_4_0;
 use crate::error::ContractError;
+use crate::events;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{self, Config, Epoch, ParamsSnapshot, PoolId, CONFIG, PARAMS};
 
@@ -120,10 +121,16 @@ pub fn execute(
         } => {
             deps.api.addr_validate(pool_id.contract.as_str())?;
 
-            let rewards =
-                execute::distribute_rewards(deps.storage, pool_id, env.block.height, epoch_count)?;
+            let rewards_distribution = execute::distribute_rewards(
+                deps.storage,
+                pool_id.clone(),
+                env.block.height,
+                epoch_count,
+            )?;
 
-            let msgs = rewards
+            let msgs = rewards_distribution
+                .rewards
+                .clone()
                 .into_iter()
                 .sorted()
                 .map(|(addr, amount)| BankMsg::Send {
@@ -134,7 +141,9 @@ pub fn execute(
                     }],
                 });
 
-            Ok(Response::new().add_messages(msgs))
+            Ok(Response::new()
+                .add_messages(msgs)
+                .add_event(events::Event::from(rewards_distribution).into()))
         }
         ExecuteMsg::UpdateParams { params } => {
             execute::update_params(deps.storage, params, env.block.height)?;
