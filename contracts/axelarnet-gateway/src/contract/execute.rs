@@ -108,7 +108,7 @@ fn approved_msg(
     cc_id: &CrossChainId,
     payload: &HexBinary,
 ) -> Result<Message, Error> {
-    let msg = state::load_executable_msg(storage, &cc_id)
+    let msg = state::load_executable_msg(storage, cc_id)
         .change_context(Error::PayloadNotApproved)?
         .msg_owned();
 
@@ -132,8 +132,7 @@ fn generate_cross_chain_id(
     };
 
     let config = state::load_config(storage).change_context(Error::ConfigAccess)?;
-    Ok(CrossChainId::new(config.chain_name, message_id)
-        .change_context(Error::InvalidCrossChainId)?)
+    CrossChainId::new(config.chain_name, message_id).change_context(Error::InvalidCrossChainId)
 }
 
 // Because the messages came from the router, we can assume they are already verified
