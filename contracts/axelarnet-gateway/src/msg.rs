@@ -61,7 +61,7 @@ impl CallContractData {
 pub enum QueryMsg {
     /// Returns the sent messages for the given cross-chain ids.
     #[returns(Vec<Message>)]
-    ContractCallMessages { cc_ids: Vec<CrossChainId> },
+    RoutableMessages { cc_ids: Vec<CrossChainId> },
 
     /// Returns the received messages with their status for the given cross-chain ids.
     #[returns(Vec<ExecutableMessage>)]

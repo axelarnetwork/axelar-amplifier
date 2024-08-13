@@ -35,7 +35,7 @@ pub enum Error {
     #[error("unable to load the contract config")]
     ConfigAccess,
     #[error("unable to save the message before routing")]
-    SaveContractCallMessage,
+    SaveRoutableMessage,
     #[error("invalid cross-chain id")]
     InvalidCrossChainId,
     #[error("failed to create executor")]
@@ -62,8 +62,9 @@ pub fn call_contract(
         .change_context(Error::InvalidSourceAddress(sender.clone()))?;
     let msg = call_contract.into_message(id, source_address);
 
-    state::save_unique_contract_call_msg(storage, &msg.cc_id, &msg)
-        .change_context(Error::SaveContractCallMessage)?;
+    state::save_unique_routable_msg(storage, &msg.cc_id, &msg)
+        .inspect_err(|err| panic_if_already_exists(err, &msg.cc_id))
+        .change_context(Error::SaveRoutableMessage)?;
 
     Ok(route_messages(storage, sender, vec![msg.clone()])?
         .add_event(AxelarnetGatewayEvent::ContractCalled { msg, payload }.into()))
@@ -126,13 +127,22 @@ fn generate_cross_chain_id(
     // Use the block height as the placeholder in the meantime.
     let message_id = HexTxHashAndEventIndex {
         tx_hash: Uint256::from(block_height).to_be_bytes(),
-        event_index: state::MESSAGES_FROM_CONTRACT_CALL_COUNTER
+        event_index: state::ROUTABLE_MESSAGES_INDEX
             .incr(storage)
             .change_context(Error::EventIndex)?,
     };
 
     let config = state::load_config(storage).change_context(Error::ConfigAccess)?;
     CrossChainId::new(config.chain_name, message_id).change_context(Error::InvalidCrossChainId)
+}
+
+fn panic_if_already_exists(err: &state::Error, cc_id: &CrossChainId) {
+    if matches!(err, state::Error::MessageAlreadyExists(..)) {
+        panic!(
+            "violated invariant: message with ID {0} already exists",
+            cc_id
+        )
+    }
 }
 
 // Because the messages came from the router, we can assume they are already verified
@@ -182,7 +192,7 @@ fn route_to_router(
 /// Verify that the message is stored and matches the one we're trying to route. Returns Ok(None) if
 /// the message is not stored.
 fn verify_message(store: &mut dyn Storage, msg: &Message) -> Result<Option<Message>, Error> {
-    let stored_msg = state::may_load_contract_call_msg(store, &msg.cc_id)
+    let stored_msg = state::may_load_routable_msg(store, &msg.cc_id)
         .change_context(Error::ExecutableMessageAccess)?;
 
     match stored_msg {

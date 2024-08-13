@@ -81,8 +81,8 @@ pub fn execute(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
     match msg {
-        QueryMsg::ContractCallMessages { cc_ids } => to_json_binary(
-            &query::contract_call_messages(deps, cc_ids)
+        QueryMsg::RoutableMessages { cc_ids } => to_json_binary(
+            &query::routable_messages(deps, cc_ids)
                 .change_context(Error::QueryContractCallMessages)?,
         ),
         QueryMsg::ExecutableMessages { cc_ids } => to_json_binary(

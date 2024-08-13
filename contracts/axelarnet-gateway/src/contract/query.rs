@@ -5,13 +5,13 @@ use router_api::{CrossChainId, Message};
 
 use crate::state::{self, ExecutableMessage};
 
-pub fn contract_call_messages(
+pub fn routable_messages(
     deps: Deps,
     cc_ids: Vec<CrossChainId>,
 ) -> Result<Vec<Message>, state::Error> {
     cc_ids
         .into_iter()
-        .map(|cc_id| state::load_contract_call_msg(deps.storage, &cc_id))
+        .map(|cc_id| state::load_routable_msg(deps.storage, &cc_id))
         .fold(Ok(vec![]), accumulate_errs)
 }
 
