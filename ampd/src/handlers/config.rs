@@ -151,8 +151,8 @@ where
 }
 
 fn validate_mvx_msg_verifier_config<'de, D>(configs: &[Config]) -> Result<(), D::Error>
-    where
-        D: Deserializer<'de>,
+where
+    D: Deserializer<'de>,
 {
     match configs
         .iter()
@@ -167,8 +167,8 @@ fn validate_mvx_msg_verifier_config<'de, D>(configs: &[Config]) -> Result<(), D:
 }
 
 fn validate_mvx_worker_set_verifier_config<'de, D>(configs: &[Config]) -> Result<(), D::Error>
-    where
-        D: Deserializer<'de>,
+where
+    D: Deserializer<'de>,
 {
     match configs
         .iter()

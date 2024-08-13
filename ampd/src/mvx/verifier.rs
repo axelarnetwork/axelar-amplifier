@@ -24,7 +24,7 @@ impl Message {
 
         let topics = event.topics.as_ref().ok_or(Error::PropertyEmpty)?;
 
-        let event_name = topics.get(0).ok_or(Error::PropertyEmpty)?;
+        let event_name = topics.first().ok_or(Error::PropertyEmpty)?;
         let event_name = STANDARD.decode(event_name)?;
         if event_name.as_slice() != CONTRACT_CALL_EVENT.as_bytes() {
             return Ok(false);
@@ -32,14 +32,14 @@ impl Message {
 
         let sender = topics.get(1).ok_or(Error::PropertyEmpty)?;
         let sender = STANDARD.decode(sender)?;
-        if sender.len() != 32 || &sender[0..32] != &self.source_address.to_bytes() {
+        if sender.len() != 32 || sender[0..32] != self.source_address.to_bytes() {
             return Ok(false);
         }
 
         let destination_chain = topics.get(2).ok_or(Error::PropertyEmpty)?;
         let destination_chain = STANDARD.decode(destination_chain)?;
         let destination_chain = String::from_utf8(destination_chain)?;
-        if destination_chain != self.destination_chain.to_string() {
+        if destination_chain != self.destination_chain.as_ref() {
             return Ok(false);
         }
 
@@ -58,7 +58,7 @@ impl Message {
             return Ok(false);
         }
 
-        return Ok(true);
+        Ok(true)
     }
 }
 
@@ -70,7 +70,7 @@ impl VerifierSetConfirmation {
 
         let topics = event.topics.as_ref().ok_or(Error::PropertyEmpty)?;
 
-        let event_name = topics.get(0).ok_or(Error::PropertyEmpty)?;
+        let event_name = topics.first().ok_or(Error::PropertyEmpty)?;
         let event_name = STANDARD.decode(event_name)?;
         if event_name.as_slice() != SIGNERS_ROTATED_EVENT.as_bytes() {
             return Ok(false);
@@ -86,7 +86,7 @@ impl VerifierSetConfirmation {
             return Ok(false);
         }
 
-        return Ok(true);
+        Ok(true)
     }
 }
 
@@ -107,7 +107,7 @@ fn find_event<'a>(
                 && events.identifier == identifier
         })
         .filter_map(|events| {
-            let event_name = events.topics.as_ref()?.get(0)?;
+            let event_name = events.topics.as_ref()?.first()?;
             let event_name = STANDARD.decode(event_name).ok()?;
             if event_name.as_slice() == needed_event_name {
                 Some(events)
@@ -123,11 +123,7 @@ pub fn verify_message(
     transaction: &TransactionOnNetwork,
     message: &Message,
 ) -> Vote {
-    let hash = transaction
-        .hash
-        .as_ref()
-        .map(String::as_str)
-        .unwrap_or_default();
+    let hash = transaction.hash.as_deref().unwrap_or_default();
 
     if hash.is_empty() {
         return Vote::NotFound;
@@ -154,11 +150,7 @@ pub fn verify_verifier_set(
     transaction: &TransactionOnNetwork,
     verifier_set: VerifierSetConfirmation,
 ) -> Vote {
-    let hash = transaction
-        .hash
-        .as_ref()
-        .map(String::as_str)
-        .unwrap_or_default();
+    let hash = transaction.hash.as_deref().unwrap_or_default();
 
     if hash.is_empty() {
         return Vote::NotFound;
@@ -292,7 +284,7 @@ mod tests {
 
     #[test]
     fn should_verify_msg() {
-        let (gateway_address, tx, mut msg) = get_matching_msg_and_tx();
+        let (gateway_address, tx, msg) = get_matching_msg_and_tx();
 
         assert_eq!(
             verify_message(&gateway_address, &tx, &msg),
@@ -525,7 +517,7 @@ mod tests {
                 STANDARD.encode("0"),          // epoch (irrelevant here)
                 STANDARD.encode(signers_hash), // signers hash
             ]),
-            data: Some(STANDARD.encode(data).into()),
+            data: Some(STANDARD.encode(data)),
         };
 
         let other_address = Address::from_bech32_string(

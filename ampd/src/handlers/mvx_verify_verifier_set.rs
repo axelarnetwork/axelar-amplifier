@@ -168,7 +168,7 @@ mod tests {
 
     use super::PollStartedEvent;
     use crate::event_processor::EventHandler;
-    use crate::handlers::tests::get_event;
+    use crate::handlers::tests::into_structured_event;
     use crate::types::TMAddress;
     use crate::PREFIX;
     use multisig::key::KeyType;
@@ -177,7 +177,7 @@ mod tests {
 
     #[test]
     fn should_deserialize_verifier_set_poll_started_event() {
-        let event: Result<PollStartedEvent, events::Error> = get_event(
+        let event: Result<PollStartedEvent, events::Error> = into_structured_event(
             verifier_set_poll_started_event(participants(5, None), 100),
             &TMAddress::random(PREFIX),
         )
@@ -221,7 +221,7 @@ mod tests {
 
     #[async_test]
     async fn not_poll_started_event() {
-        let event = get_event(
+        let event = into_structured_event(
             cosmwasm_std::Event::new("transfer"),
             &TMAddress::random(PREFIX),
         );
@@ -238,7 +238,7 @@ mod tests {
 
     #[async_test]
     async fn contract_is_not_voting_verifier() {
-        let event = get_event(
+        let event = into_structured_event(
             verifier_set_poll_started_event(participants(5, None), 100),
             &TMAddress::random(PREFIX),
         );
@@ -256,7 +256,7 @@ mod tests {
     #[async_test]
     async fn verifier_is_not_a_participant() {
         let voting_verifier = TMAddress::random(PREFIX);
-        let event = get_event(
+        let event = into_structured_event(
             verifier_set_poll_started_event(participants(5, None), 100),
             &voting_verifier,
         );
@@ -281,7 +281,7 @@ mod tests {
         let voting_verifier = TMAddress::random(PREFIX);
         let verifier = TMAddress::random(PREFIX);
         let expiration = 100u64;
-        let event: Event = get_event(
+        let event: Event = into_structured_event(
             verifier_set_poll_started_event(
                 vec![verifier.clone()].into_iter().collect(),
                 expiration,
@@ -313,7 +313,7 @@ mod tests {
         let voting_verifier = TMAddress::random(PREFIX);
         let worker = TMAddress::random(PREFIX);
 
-        let event = get_event(
+        let event = into_structured_event(
             verifier_set_poll_started_event(participants(5, Some(worker.clone())), 100),
             &voting_verifier,
         );
@@ -356,9 +356,8 @@ mod tests {
 
     fn participants(n: u8, worker: Option<TMAddress>) -> Vec<TMAddress> {
         (0..n)
-            .into_iter()
             .map(|_| TMAddress::random(PREFIX))
-            .chain(worker.into_iter())
+            .chain(worker)
             .collect()
     }
 }

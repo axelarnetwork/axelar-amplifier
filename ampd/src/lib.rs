@@ -12,6 +12,7 @@ use event_processor::EventHandler;
 use event_sub::EventSub;
 use evm::finalizer::{pick, Finalization};
 use evm::json_rpc::EthereumClient;
+use multiversx_sdk::blockchain::CommunicationProxy;
 use queue::queued_broadcaster::QueuedBroadcaster;
 use router_api::ChainName;
 use thiserror::Error;
@@ -22,7 +23,6 @@ use tokio::time::interval;
 use tokio_util::sync::CancellationToken;
 use tonic::transport::Channel;
 use tracing::info;
-use multiversx_sdk::blockchain::CommunicationProxy;
 use types::TMAddress;
 
 use crate::config::Config;
@@ -338,7 +338,7 @@ where
                     handlers::mvx_verify_msg::Handler::new(
                         verifier.clone(),
                         cosmwasm_contract,
-                        CommunicationProxy::new(proxy_url.to_string().trim_end_matches("/").into()),
+                        CommunicationProxy::new(proxy_url.to_string().trim_end_matches('/').into()),
                         self.block_height_monitor.latest_block_height(),
                     ),
                     event_processor_config.clone(),
@@ -351,7 +351,7 @@ where
                     handlers::mvx_verify_verifier_set::Handler::new(
                         verifier.clone(),
                         cosmwasm_contract,
-                        CommunicationProxy::new(proxy_url.to_string().trim_end_matches("/").into()),
+                        CommunicationProxy::new(proxy_url.to_string().trim_end_matches('/').into()),
                         self.block_height_monitor.latest_block_height(),
                     ),
                     event_processor_config.clone(),

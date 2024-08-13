@@ -43,9 +43,7 @@ impl MvxProxy for CommunicationProxy {
             .into_iter()
             .zip(txs)
             .filter_map(|(hash, tx)| {
-                if tx.is_none() {
-                    return None;
-                }
+                tx.as_ref()?;
 
                 Some((hash, tx.unwrap()))
             })
@@ -60,6 +58,6 @@ impl MvxProxy for CommunicationProxy {
     }
 
     fn is_valid_transaction(tx: &TransactionOnNetwork) -> bool {
-        tx.hash.is_some() && tx.logs.is_some() && tx.status == STATUS_SUCCESS.to_string()
+        tx.hash.is_some() && tx.logs.is_some() && tx.status == *STATUS_SUCCESS
     }
 }
