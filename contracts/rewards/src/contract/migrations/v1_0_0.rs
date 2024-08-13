@@ -38,18 +38,19 @@ fn migrate_params(storage: &mut dyn Storage) -> Result<(), ContractError> {
 
 const POOLS: Map<PoolId, RewardsPool> = Map::new("pools");
 
-pub(crate) fn get_all_pools(storage: &mut dyn Storage) -> Result<Vec<RewardsPool>, ContractError> {
+fn get_all_pools(storage: &mut dyn Storage) -> Result<Vec<RewardsPool>, ContractError> {
     POOLS
         .range(storage, None, None, Order::Ascending)
         .map(|res| res.map(|(_, pool)| pool).map_err(|err| err.into()))
         .collect::<Result<Vec<_>, _>>()
 }
+
 #[deprecated(since = "1.0.0", note = "only used during migration")]
-pub const PARAMS: Item<ParamsSnapshot> = Item::new("params");
+const PARAMS: Item<ParamsSnapshot> = Item::new("params");
 
 #[cw_serde]
 #[deprecated(since = "1.0.0", note = "only used during migration")]
-pub struct RewardsPool {
+struct RewardsPool {
     pub id: PoolId,
     pub balance: Uint128,
 }
@@ -65,44 +66,6 @@ pub mod tests {
     use crate::contract::CONTRACT_NAME;
     use crate::msg::{InstantiateMsg, Params};
     use crate::state::{self, Config, Epoch, ParamsSnapshot, PoolId, CONFIG};
-
-    #[deprecated(since = "0.4.0", note = "only used during migration tests")]
-    fn instantiate(
-        deps: DepsMut,
-        env: Env,
-        _info: MessageInfo,
-        msg: InstantiateMsg,
-    ) -> Result<Response, axelar_wasm_std::error::ContractError> {
-        cw2::set_contract_version(deps.storage, CONTRACT_NAME, v1_0_0::BASE_VERSION)?;
-
-        let governance = deps.api.addr_validate(&msg.governance_address)?;
-        permission_control::set_governance(deps.storage, &governance)?;
-
-        CONFIG.save(
-            deps.storage,
-            &Config {
-                rewards_denom: msg.rewards_denom,
-            },
-        )?;
-
-        let params = Params {
-            epoch_duration: 100u64.try_into().unwrap(),
-            rewards_per_epoch: 1000u128.try_into().unwrap(),
-            participation_threshold: (1, 2).try_into().unwrap(),
-        };
-        PARAMS.save(
-            deps.storage,
-            &ParamsSnapshot {
-                params,
-                created_at: Epoch {
-                    epoch_num: 0,
-                    block_height_started: env.block.height,
-                },
-            },
-        )?;
-
-        Ok(Response::new())
-    }
 
     #[test]
     fn migrate_rewards_pools() {
@@ -170,5 +133,43 @@ pub mod tests {
             rewards_denom: denom.into(),
         };
         instantiate(deps, mock_env(), mock_info("anyone", &[]), msg).unwrap();
+    }
+
+    #[deprecated(since = "0.4.0", note = "only used during migration tests")]
+    fn instantiate(
+        deps: DepsMut,
+        env: Env,
+        _info: MessageInfo,
+        msg: InstantiateMsg,
+    ) -> Result<Response, axelar_wasm_std::error::ContractError> {
+        cw2::set_contract_version(deps.storage, CONTRACT_NAME, v1_0_0::BASE_VERSION)?;
+
+        let governance = deps.api.addr_validate(&msg.governance_address)?;
+        permission_control::set_governance(deps.storage, &governance)?;
+
+        CONFIG.save(
+            deps.storage,
+            &Config {
+                rewards_denom: msg.rewards_denom,
+            },
+        )?;
+
+        let params = Params {
+            epoch_duration: 100u64.try_into().unwrap(),
+            rewards_per_epoch: 1000u128.try_into().unwrap(),
+            participation_threshold: (1, 2).try_into().unwrap(),
+        };
+        PARAMS.save(
+            deps.storage,
+            &ParamsSnapshot {
+                params,
+                created_at: Epoch {
+                    epoch_num: 0,
+                    block_height_started: env.block.height,
+                },
+            },
+        )?;
+
+        Ok(Response::new())
     }
 }

@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use axelar_wasm_std::{nonempty, FnExt};
 use cosmwasm_std::{Addr, OverflowError, OverflowOperation, Storage, Uint128};
-use error_stack::{Report, Result};
+use error_stack::{ensure, Report, Result};
 
 use crate::error::ContractError;
 use crate::msg::Params;
@@ -61,10 +61,7 @@ pub(crate) fn distribute_rewards(
     epoch_process_limit: Option<u64>,
 ) -> Result<HashMap<Addr, Uint128>, ContractError> {
     let epoch_process_limit = epoch_process_limit.unwrap_or(DEFAULT_EPOCHS_TO_PROCESS);
-    let cur_epoch = Epoch::current(
-        &state::load_rewards_pool_params(storage, pool_id.clone())?,
-        cur_block_height,
-    )?;
+    let cur_epoch = state::current_epoch(storage, &pool_id, cur_block_height)?;
 
     let from = state::load_rewards_watermark(storage, pool_id.clone())?
         .map_or(0, |last_processed| last_processed.saturating_add(1));
@@ -125,9 +122,10 @@ pub(crate) fn create_pool(
     block_height: u64,
     pool_id: &PoolId,
 ) -> Result<(), ContractError> {
-    if state::load_rewards_pool(storage, pool_id.clone()).is_ok() {
-        return Err(ContractError::RewardsPoolAlreadyExists.into());
-    }
+    ensure!(
+        !state::pool_exists(storage, pool_id)?,
+        ContractError::RewardsPoolAlreadyExists
+    );
 
     let cur_epoch = Epoch {
         epoch_num: 0,
@@ -150,14 +148,11 @@ pub(crate) fn create_pool(
 
 pub(crate) fn update_pool_params(
     storage: &mut dyn Storage,
+    pool_id: &PoolId,
     new_params: Params,
     block_height: u64,
-    pool_id: &PoolId,
 ) -> Result<(), ContractError> {
-    let cur_epoch = Epoch::current(
-        &state::load_rewards_pool_params(storage, pool_id.clone())?,
-        block_height,
-    )?;
+    let cur_epoch = state::current_epoch(storage, pool_id, block_height)?;
     // If the param update reduces the epoch duration such that the current epoch immediately ends,
     // start a new epoch at this block, incrementing the current epoch number by 1.
     // This prevents us from jumping forward an arbitrary number of epochs, and maintains consistency for past events.
@@ -622,9 +617,9 @@ mod test {
 
         update_pool_params(
             mock_deps.as_mut().storage,
+            &pool_id,
             new_params.clone(),
             cur_height,
-            &pool_id,
         )
         .unwrap();
         let stored = state::load_rewards_pool(mock_deps.as_ref().storage, pool_id.clone())
@@ -686,9 +681,9 @@ mod test {
 
         update_pool_params(
             mock_deps.as_mut().storage,
+            &pool_id.clone(),
             new_params.clone(),
             cur_height,
-            &pool_id.clone(),
         )
         .unwrap();
 
@@ -756,9 +751,9 @@ mod test {
         };
         update_pool_params(
             mock_deps.as_mut().storage,
+            &pool_id,
             new_params.clone(),
             cur_height,
-            &pool_id,
         )
         .unwrap();
 
@@ -819,9 +814,9 @@ mod test {
         };
         update_pool_params(
             mock_deps.as_mut().storage,
+            &pool_id.clone(),
             new_params.clone(),
             cur_height,
-            &pool_id.clone(),
         )
         .unwrap();
 

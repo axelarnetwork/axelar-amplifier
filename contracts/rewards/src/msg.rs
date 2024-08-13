@@ -58,7 +58,7 @@ pub enum ExecuteMsg {
         epoch_count: Option<u64>,
     },
 
-    /// Start a new reward pool for the given contract if none exists. Otherwise, add tokens to an existing reward pool.
+    /// Add tokens to an existing rewards pool.
     /// Any attached funds with a denom matching the rewards denom are added to the pool.
     /// This call will error if the pool does not yet exist.
     #[permission(Any)]

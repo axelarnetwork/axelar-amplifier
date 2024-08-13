@@ -11,6 +11,21 @@ use router_api::ChainName;
 use crate::error::ContractError;
 use crate::msg::Params;
 
+/// Maps a (pool id, epoch number) pair to a tally for that epoch and rewards pool
+const TALLIES: Map<TallyId, EpochTally> = Map::new("tallies");
+
+/// Maps an (event id, pool id) pair to an Event
+const EVENTS: Map<(String, PoolId), Event> = Map::new("events");
+
+/// Maps the id to the rewards pool for given chain and contract
+const POOLS: Map<PoolId, RewardsPool> = Map::new("pools");
+
+/// Maps a rewards pool to the epoch number of the most recent epoch for which rewards were distributed. All epochs prior
+/// have had rewards distributed already and all epochs after have not yet had rewards distributed for this pool
+const WATERMARKS: Map<PoolId, u64> = Map::new("rewards_watermarks");
+
+pub const CONFIG: Item<Config> = Item::new("config");
+
 #[cw_serde]
 pub struct Config {
     pub rewards_denom: String,
@@ -252,21 +267,6 @@ impl RewardsPool {
     }
 }
 
-/// Maps a (pool id, epoch number) pair to a tally for that epoch and rewards pool
-const TALLIES: Map<TallyId, EpochTally> = Map::new("tallies");
-
-/// Maps an (event id, pool id) pair to an Event
-const EVENTS: Map<(String, PoolId), Event> = Map::new("events");
-
-/// Maps the id to the rewards pool for given chain and contract
-const POOLS: Map<PoolId, RewardsPool> = Map::new("pools");
-
-/// Maps a rewards pool to the epoch number of the most recent epoch for which rewards were distributed. All epochs prior
-/// have had rewards distributed already and all epochs after have not yet had rewards distributed for this pool
-const WATERMARKS: Map<PoolId, u64> = Map::new("rewards_watermarks");
-
-pub const CONFIG: Item<Config> = Item::new("config");
-
 pub(crate) fn load_config(storage: &dyn Storage) -> Config {
     CONFIG.load(storage).expect("couldn't load config")
 }
@@ -384,6 +384,27 @@ pub(crate) fn update_pool_params(
             }),
         })
         .change_context(ContractError::UpdateRewardsPool)
+}
+
+pub(crate) fn pool_exists(
+    storage: &mut dyn Storage,
+    pool_id: &PoolId,
+) -> Result<bool, ContractError> {
+    POOLS
+        .may_load(storage, pool_id.to_owned())
+        .change_context(ContractError::LoadRewardsPool)
+        .map(|pool| pool.is_some())
+}
+
+pub(crate) fn current_epoch(
+    storage: &mut dyn Storage,
+    pool_id: &PoolId,
+    cur_block_height: u64,
+) -> Result<Epoch, ContractError> {
+    Epoch::current(
+        &load_rewards_pool_params(storage, pool_id.to_owned())?,
+        cur_block_height,
+    )
 }
 
 pub(crate) enum StorageState<T> {

@@ -126,7 +126,7 @@ pub fn execute(
             Ok(Response::new().add_messages(msgs))
         }
         ExecuteMsg::UpdatePoolParams { params, pool_id } => {
-            execute::update_pool_params(deps.storage, params, env.block.height, &pool_id)?;
+            execute::update_pool_params(deps.storage, &pool_id, params, env.block.height)?;
 
             Ok(Response::new())
         }
