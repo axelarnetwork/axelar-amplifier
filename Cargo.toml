@@ -54,6 +54,7 @@ alloy-sol-types = { version = "0.7.6", default-features = false, features = ["st
 strum = { version = "0.25", default-features = false, features = ["derive"] }
 interchain-token-service = { version = "^0.1.0", path = "interchain-token-service" }
 goldie = { version = "0.5" }
+axelarnet-gateway = { version = "^0.1.0", path = "contracts/axelarnet-gateway" }
 
 [workspace.lints.clippy]
 arithmetic_side_effects = "deny"
