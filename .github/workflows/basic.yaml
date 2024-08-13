@@ -1,13 +1,15 @@
 # Based on https://github.com/actions-rs/example/blob/master/.github/workflows/quickstart.yml
+name: Basic
 
 on:
   pull_request:
   push:
     branches:
       - main
-      - releases/**
 
-name: Basic
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
@@ -88,6 +90,10 @@ jobs:
             echo "Compiling `basename $C`..."
             (cd $C && cargo build --release --lib --target wasm32-unknown-unknown --locked)
           done
+
+      - name: Build ITS release
+        working-directory: ./interchain-token-service
+        run: cargo build --release --target wasm32-unknown-unknown --locked
 
       # cosmwasm-check v1.3.x is used to check for compatibility with wasmvm v1.3.x used by Axelar
       # Older rust toolchain is required to install cosmwasm-check v1.3.x

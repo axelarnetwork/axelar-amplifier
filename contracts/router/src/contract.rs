@@ -1,4 +1,4 @@
-use axelar_wasm_std::{killswitch, permission_control, FnExt};
+use axelar_wasm_std::{address, killswitch, permission_control, FnExt};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
@@ -43,9 +43,9 @@ pub fn instantiate(
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    let admin = deps.api.addr_validate(&msg.admin_address)?;
-    let governance = deps.api.addr_validate(&msg.governance_address)?;
-    let nexus_gateway = deps.api.addr_validate(&msg.nexus_gateway)?;
+    let admin = address::validate_cosmwasm_address(deps.api, &msg.admin_address)?;
+    let governance = address::validate_cosmwasm_address(deps.api, &msg.governance_address)?;
+    let nexus_gateway = address::validate_cosmwasm_address(deps.api, &msg.nexus_gateway)?;
 
     permission_control::set_admin(deps.storage, &admin)?;
     permission_control::set_governance(deps.storage, &governance)?;
@@ -84,14 +84,14 @@ pub fn execute(
             gateway_address,
             msg_id_format,
         } => {
-            let gateway_address = deps.api.addr_validate(&gateway_address)?;
+            let gateway_address = address::validate_cosmwasm_address(deps.api, &gateway_address)?;
             execute::register_chain(deps.storage, chain, gateway_address, msg_id_format)
         }
         ExecuteMsg::UpgradeGateway {
             chain,
             contract_address,
         } => {
-            let contract_address = deps.api.addr_validate(&contract_address)?;
+            let contract_address = address::validate_cosmwasm_address(deps.api, &contract_address)?;
             execute::upgrade_gateway(deps.storage, chain, contract_address)
         }
         ExecuteMsg::FreezeChains { chains } => execute::freeze_chains(deps.storage, chains),
@@ -234,8 +234,8 @@ mod test {
     }
 
     pub fn assert_contract_err_string_contains(
-        actual: impl Into<axelar_wasm_std::error::ContractError>,
-        expected: impl Into<axelar_wasm_std::error::ContractError>,
+        actual: impl Into<ContractError>,
+        expected: impl Into<ContractError>,
     ) {
         assert!(actual
             .into()

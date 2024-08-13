@@ -1,8 +1,8 @@
 [package]
 name = "gateway"
-version = "0.2.3"
+version = "1.0.0"
 rust-version = { workspace = true }
-edition = "2021"
+edition = { workspace = true }
 description = "Gateway contract"
 
 exclude = [
@@ -35,8 +35,7 @@ optimize = """docker run --rm -v "$(pwd)":/code \
 """
 
 [dependencies]
-axelar-wasm-std = { workspace = true }
-axelar-wasm-std-derive = { workspace = true }
+axelar-wasm-std = { workspace = true, features = ["derive"] }
 client = { workspace = true }
 cosmwasm-schema = { workspace = true }
 cosmwasm-std = { workspace = true }
@@ -54,6 +53,7 @@ voting-verifier = { workspace = true, features = ["library"] }
 
 [dev-dependencies]
 cw-multi-test = "0.15.1"
+rand = "0.8.5"
 
 [lints]
 workspace = true

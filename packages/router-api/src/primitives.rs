@@ -172,6 +172,13 @@ impl Display for CrossChainId {
     }
 }
 
+/// ChainName represents the identifier used for chains in Amplifier.
+/// Certain restrictions apply on the string:
+/// - Must not be empty
+/// - Must not exceed `ChainName::MAX_LEN` bytes
+/// - Only ASCII characters are allowed
+/// - Must not contain the `FIELD_DELIMITER` character
+/// - The string is lowercased
 #[cw_serde]
 #[serde(try_from = "String")]
 #[derive(Eq, Hash, Valuable)]
@@ -277,6 +284,15 @@ impl AsRef<str> for ChainName {
     }
 }
 
+/// ChainNameRaw represents the raw case-sensitive identifier used for source chains in Amplifier.
+/// It is backwards compatible with case-sensitive chain names used in axelar-core (e.g. `Ethereum`).
+///
+/// Certain restrictions apply on the string:
+/// - Must not be empty
+/// - Must not exceed `ChainNameRaw::MAX_LEN` bytes
+/// - Only ASCII characters are allowed
+/// - Must not contain the `FIELD_DELIMITER` character
+/// - Case-sensitivity is preserved
 #[cw_serde]
 #[serde(try_from = "String")]
 #[derive(Eq, Hash)]
@@ -288,11 +304,17 @@ impl From<ChainName> for ChainNameRaw {
     }
 }
 
+impl ChainNameRaw {
+    /// Maximum length of a chain name (in bytes).
+    /// This MUST NOT be changed without a corresponding change to the ChainName validation in axelar-core.
+    const MAX_LEN: usize = 20;
+}
+
 impl FromStr for ChainNameRaw {
     type Err = Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if s.contains(FIELD_DELIMITER) || s.is_empty() {
+        if s.is_empty() || s.len() > Self::MAX_LEN || !s.is_ascii() || s.contains(FIELD_DELIMITER) {
             return Err(Error::InvalidChainName);
         }
 
@@ -508,7 +530,12 @@ mod tests {
                 is_normalized: false,
             },
             TestCase {
-                input: "!@#$%^&*()+=-1234567890",
+                input: "!@#$%^&*()+=-",
+                can_parse: true,
+                is_normalized: true,
+            },
+            TestCase {
+                input: "1234567890",
                 can_parse: true,
                 is_normalized: true,
             },
@@ -530,6 +557,16 @@ mod tests {
             TestCase {
                 input: "ETHEREUM-1",
                 can_parse: true,
+                is_normalized: false,
+            },
+            TestCase {
+                input: "long chain name over max len",
+                can_parse: false,
+                is_normalized: false,
+            },
+            TestCase {
+                input: "UTF-8 ❤",
+                can_parse: false,
                 is_normalized: false,
             },
             TestCase {

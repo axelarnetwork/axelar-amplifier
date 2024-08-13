@@ -1,4 +1,4 @@
-use axelar_wasm_std::permission_control;
+use axelar_wasm_std::{address, permission_control};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
@@ -29,11 +29,17 @@ pub fn instantiate(
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     let config = Config {
-        gateway: deps.api.addr_validate(&msg.gateway_address)?,
-        multisig: deps.api.addr_validate(&msg.multisig_address)?,
-        coordinator: deps.api.addr_validate(&msg.coordinator_address)?,
-        service_registry: deps.api.addr_validate(&msg.service_registry_address)?,
-        voting_verifier: deps.api.addr_validate(&msg.voting_verifier_address)?,
+        gateway: address::validate_cosmwasm_address(deps.api, &msg.gateway_address)?,
+        multisig: address::validate_cosmwasm_address(deps.api, &msg.multisig_address)?,
+        coordinator: address::validate_cosmwasm_address(deps.api, &msg.coordinator_address)?,
+        service_registry: address::validate_cosmwasm_address(
+            deps.api,
+            &msg.service_registry_address,
+        )?,
+        voting_verifier: address::validate_cosmwasm_address(
+            deps.api,
+            &msg.voting_verifier_address,
+        )?,
         signing_threshold: msg.signing_threshold,
         service_name: msg.service_name,
         chain_name: msg.chain_name.parse()?,
@@ -44,10 +50,13 @@ pub fn instantiate(
     };
     CONFIG.save(deps.storage, &config)?;
 
-    permission_control::set_admin(deps.storage, &deps.api.addr_validate(&msg.admin_address)?)?;
+    permission_control::set_admin(
+        deps.storage,
+        &address::validate_cosmwasm_address(deps.api, &msg.admin_address)?,
+    )?;
     permission_control::set_governance(
         deps.storage,
-        &deps.api.addr_validate(&msg.governance_address)?,
+        &address::validate_cosmwasm_address(deps.api, &msg.governance_address)?,
     )?;
 
     Ok(Response::default())
@@ -125,8 +134,7 @@ mod tests {
         mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
     };
     use cosmwasm_std::{
-        from_json, Addr, Api, Empty, Fraction, OwnedDeps, SubMsgResponse, SubMsgResult, Uint128,
-        Uint64,
+        from_json, Addr, Empty, Fraction, OwnedDeps, SubMsgResponse, SubMsgResult, Uint128, Uint64,
     };
     use multisig::msg::Signer;
     use multisig::verifier_set::VerifierSet;
@@ -170,7 +178,7 @@ mod tests {
                 service_name: SERVICE_NAME.to_string(),
                 chain_name: "ganache-0".to_string(),
                 verifier_set_diff_threshold: 0,
-                encoder: crate::encoding::Encoder::Abi,
+                encoder: Encoder::Abi,
                 key_type: multisig::key::KeyType::Ecdsa,
                 domain_separator: [0; 32],
             },
@@ -339,7 +347,7 @@ mod tests {
             assert_eq!(
                 permission_control::sender_role(
                     deps.as_ref().storage,
-                    &deps.api.addr_validate(admin).unwrap()
+                    &address::validate_cosmwasm_address(&deps.api, admin).unwrap()
                 )
                 .unwrap(),
                 Permission::Admin.into()
@@ -348,7 +356,7 @@ mod tests {
             assert_eq!(
                 permission_control::sender_role(
                     deps.as_ref().storage,
-                    &deps.api.addr_validate(governance).unwrap()
+                    &address::validate_cosmwasm_address(&deps.api, governance).unwrap()
                 )
                 .unwrap(),
                 Permission::Governance.into()
@@ -615,6 +623,19 @@ mod tests {
         assert_eq!(
             res.unwrap_err().to_string(),
             axelar_wasm_std::error::ContractError::from(ContractError::VerifierSetNotConfirmed)
+                .to_string()
+        );
+    }
+
+    #[test]
+    fn confirm_verifier_no_update_in_progress_should_fail() {
+        let mut deps = setup_test_case();
+
+        let res = confirm_verifier_set(deps.as_mut(), Addr::unchecked("relayer"));
+        assert!(res.is_err());
+        assert_eq!(
+            res.unwrap_err().to_string(),
+            axelar_wasm_std::error::ContractError::from(ContractError::NoVerifierSetToConfirm)
                 .to_string()
         );
     }

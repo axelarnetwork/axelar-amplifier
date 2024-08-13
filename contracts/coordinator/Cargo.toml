@@ -1,8 +1,8 @@
 [package]
 name = "coordinator"
-version = "0.2.0"
+version = "1.0.0"
 rust-version = { workspace = true }
-edition = "2021"
+edition = { workspace = true }
 description = "Amplifier info aggregation for external use, alongside contract management, instantiation and migration"
 
 exclude = [
@@ -33,8 +33,7 @@ optimize = """docker run --rm -v "$(pwd)":/code \
 """
 
 [dependencies]
-axelar-wasm-std = { workspace = true }
-axelar-wasm-std-derive = { workspace = true }
+axelar-wasm-std = { workspace = true, features = ["derive"] }
 cosmwasm-schema = { workspace = true }
 cosmwasm-std = { workspace = true }
 cw-storage-plus = { workspace = true }

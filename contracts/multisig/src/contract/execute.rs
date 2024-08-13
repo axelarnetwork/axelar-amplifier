@@ -250,7 +250,7 @@ fn signing_response(
     let rewards_msg = WasmMsg::Execute {
         contract_addr: rewards_contract,
         msg: to_json_binary(&rewards::msg::ExecuteMsg::RecordParticipation {
-            chain_name: session.chain_name,
+            chain_name: session.chain_name.clone(),
             event_id: session
                 .id
                 .to_string()
@@ -278,6 +278,7 @@ fn signing_response(
                 Event::SigningCompleted {
                     session_id: session.id,
                     completed_at,
+                    chain_name: session.chain_name,
                 }
                 .into(),
             )
