@@ -20,7 +20,6 @@ pub mod daemon;
 pub mod deregister_chain_support;
 pub mod register_chain_support;
 pub mod register_public_key;
-pub mod unbond_verifier;
 pub mod verifier_address;
 
 #[derive(Debug, Subcommand, Valuable)]
