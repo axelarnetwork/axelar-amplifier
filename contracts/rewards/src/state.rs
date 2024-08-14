@@ -254,10 +254,8 @@ impl RewardsPool {
 pub struct RewardsDistribution {
     /// Amount of rewards denom each verifier received
     pub rewards: HashMap<Addr, Uint128>,
-    /// Total number of epochs processed for this distribution
-    pub epochs_processed: u64,
-    /// Latest epoch for which rewards were distributed
-    pub last_distribution_epoch: u64,
+    /// List of epochs processed for this distribution
+    pub epochs_processed: Vec<u64>,
     /// Epoch in which rewards were distributed
     pub current_epoch: Epoch,
     /// True if there are more rewards to distribute (later epochs that have not yet been distributed but are ready for distribution at the time of calling)

@@ -79,11 +79,7 @@ pub(crate) fn distribute_rewards(
     state::save_rewards_watermark(storage, pool_id, to)?;
     Ok(RewardsDistribution {
         rewards,
-        epochs_processed: to
-            .saturating_add(1)
-            .checked_sub(from)
-            .expect("overflowed computing number of epochs_processed"),
-        last_distribution_epoch: to,
+        epochs_processed: (from..=to).collect(),
         current_epoch: cur_epoch.clone(),
         can_distribute_more: to < cur_epoch.epoch_num.saturating_sub(EPOCH_PAYOUT_DELAY),
     })
@@ -874,10 +870,9 @@ mod test {
             );
         }
 
-        assert_eq!(distribution.epochs_processed, epoch_count as u64);
         assert_eq!(
-            distribution.last_distribution_epoch,
-            cur_epoch_num + epoch_count as u64 - 1
+            distribution.epochs_processed,
+            Vec::from_iter(0u64..epoch_count as u64)
         );
     }
 
@@ -941,10 +936,9 @@ mod test {
             rewards_claimed.get(&verifier),
             Some(&(rewards_per_epoch * epochs_to_process as u128).into())
         );
-        assert_eq!(distribution.epochs_processed, epochs_to_process);
         assert_eq!(
-            distribution.last_distribution_epoch,
-            cur_epoch_num + epochs_to_process - 1
+            distribution.epochs_processed,
+            Vec::from_iter(0u64..epochs_to_process)
         );
         assert_eq!(
             distribution.current_epoch.epoch_num,
@@ -972,11 +966,7 @@ mod test {
         );
         assert_eq!(
             distribution.epochs_processed,
-            total_epochs_with_rewards - epochs_to_process
-        );
-        assert_eq!(
-            distribution.last_distribution_epoch,
-            cur_epoch_num + total_epochs_with_rewards - 1
+            Vec::from_iter(epochs_to_process..total_epochs_with_rewards)
         );
         assert_eq!(
             distribution.current_epoch.epoch_num,
@@ -1177,7 +1167,7 @@ mod test {
         )
         .unwrap();
         assert_eq!(distribution.rewards.len(), 1);
-        assert_eq!(distribution.epochs_processed, 1);
+        assert_eq!(distribution.epochs_processed, vec![cur_epoch_num]);
 
         // try to claim again, shouldn't get an error
         let err = distribute_rewards(
