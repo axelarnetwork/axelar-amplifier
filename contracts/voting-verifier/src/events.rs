@@ -165,7 +165,7 @@ fn parse_message_id(
             Ok((id.signature_as_base58(), id.event_index))
         }
         MessageIdFormat::HexTxHash => {
-            let id = HexTxHash::from_str(&message_id)
+            let id = HexTxHash::from_str(message_id)
                 .map_err(|_| ContractError::InvalidMessageID(message_id.into()))?;
 
             Ok((id.tx_hash_as_hex(), 0))

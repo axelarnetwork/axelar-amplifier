@@ -104,7 +104,7 @@ mod tests {
         assert!(res.is_err());
 
         // too short
-        let res = HexTxHash::from_str(&tx_hash[..tx_hash.len() - 2].to_string());
+        let res = HexTxHash::from_str(&tx_hash[..tx_hash.len() - 2]);
         assert!(res.is_err());
     }
 
