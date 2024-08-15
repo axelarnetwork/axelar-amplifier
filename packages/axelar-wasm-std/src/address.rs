@@ -1,8 +1,9 @@
+use std::str::FromStr;
+
 use alloy_primitives::Address;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Api};
 use error_stack::{Result, ResultExt};
-use std::str::FromStr;
 use sui_types::SuiAddress;
 
 #[derive(thiserror::Error)]
