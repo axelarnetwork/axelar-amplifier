@@ -111,6 +111,12 @@ impl From<Uint128> for cosmwasm_std::Uint128 {
     }
 }
 
+impl AsRef<cosmwasm_std::Uint128> for Uint128 {
+    fn as_ref(&self) -> &cosmwasm_std::Uint128 {
+        &self.0
+    }
+}
+
 impl TryFrom<u128> for Uint128 {
     type Error = Error;
     fn try_from(value: u128) -> Result<Self, Self::Error> {

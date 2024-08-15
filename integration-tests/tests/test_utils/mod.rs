@@ -251,7 +251,7 @@ pub fn sign_proof(
 
 pub fn register_service(
     protocol: &mut Protocol,
-    min_verifier_bond: Uint128,
+    min_verifier_bond: nonempty::Uint128,
     unbonding_period_days: u16,
 ) {
     let response = protocol.service_registry.execute(
@@ -425,7 +425,7 @@ pub struct Verifier {
 pub fn register_verifiers(
     protocol: &mut Protocol,
     verifiers: &Vec<Verifier>,
-    min_verifier_bond: Uint128,
+    min_verifier_bond: nonempty::Uint128,
 ) {
     register_in_service_registry(protocol, verifiers, min_verifier_bond);
     submit_pubkeys(protocol, verifiers);
@@ -587,7 +587,7 @@ pub fn update_registry_and_construct_verifier_set_update_proof(
     verifiers_to_remove: &Vec<Verifier>,
     current_verifiers: &Vec<Verifier>,
     chain_multisig_prover: &MultisigProverContract,
-    min_verifier_bond: Uint128,
+    min_verifier_bond: nonempty::Uint128,
 ) -> Uint64 {
     // Register new verifiers
     register_verifiers(protocol, new_verifiers, min_verifier_bond);
@@ -819,7 +819,7 @@ pub struct TestCase {
     pub chain1: Chain,
     pub chain2: Chain,
     pub verifiers: Vec<Verifier>,
-    pub min_verifier_bond: Uint128,
+    pub min_verifier_bond: nonempty::Uint128,
     pub unbonding_period_days: u16,
 }
 
@@ -835,7 +835,7 @@ pub fn setup_test_case() -> TestCase {
         vec![("verifier1".to_string(), 0), ("verifier2".to_string(), 1)],
     );
 
-    let min_verifier_bond = Uint128::new(100);
+    let min_verifier_bond = nonempty::Uint128::try_from(100).unwrap();
     let unbonding_period_days = 10;
     register_service(&mut protocol, min_verifier_bond, unbonding_period_days);
 
@@ -862,7 +862,7 @@ pub fn assert_contract_err_strings_equal(
 pub fn register_in_service_registry(
     protocol: &mut Protocol,
     verifiers: &Vec<Verifier>,
-    min_verifier_bond: Uint128,
+    min_verifier_bond: nonempty::Uint128,
 ) {
     let response = protocol.service_registry.execute(
         &mut protocol.app,
@@ -881,7 +881,7 @@ pub fn register_in_service_registry(
         let response = protocol.app.send_tokens(
             protocol.genesis_address.clone(),
             verifier.addr.clone(),
-            &coins(min_verifier_bond.u128(), AXL_DENOMINATION),
+            &coins(min_verifier_bond.as_ref().u128(), AXL_DENOMINATION),
         );
         assert!(response.is_ok());
 
@@ -891,7 +891,7 @@ pub fn register_in_service_registry(
             &ExecuteMsg::BondVerifier {
                 service_name: protocol.service_name.to_string(),
             },
-            &coins(min_verifier_bond.u128(), AXL_DENOMINATION),
+            &coins(min_verifier_bond.as_ref().u128(), AXL_DENOMINATION),
         );
         assert!(response.is_ok());
 
