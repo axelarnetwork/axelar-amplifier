@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use error_stack::{report, Report, Result, ResultExt};
+use error_stack::{ensure, report, Report, Result, ResultExt};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -39,17 +39,19 @@ impl FromStr for SuiAddress {
     type Err = Report<Error>;
 
     fn from_str(s: &str) -> Result<Self, Error> {
+        let hex = s
+            .strip_prefix(ADDRESS_PREFIX)
+            .ok_or(report!(Error::InvalidAddressHex(s.to_string())))?;
         // disallow uppercase characters for the sui addresses
-        match s.chars().any(|c| c.is_uppercase()) {
-            true => Err(report!(Error::InvalidAddressHex(s.to_string()))),
-            false => hex::decode(
-                s.strip_prefix(ADDRESS_PREFIX)
-                    .ok_or(report!(Error::InvalidAddressHex(s.to_string())))?,
-            )
+        ensure!(
+            hex.to_lowercase() == hex,
+            Error::InvalidAddressHex(s.to_string())
+        );
+
+        hex::decode(hex)
             .change_context(Error::InvalidAddressHex(s.to_string()))?
             .as_slice()
-            .try_into(),
-        }
+            .try_into()
     }
 }
 
