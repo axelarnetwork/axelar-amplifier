@@ -17,8 +17,7 @@ pub struct HexTxHash {
 
 impl HexTxHash {
     pub fn tx_hash_as_hex(&self) -> nonempty::String {
-        HexBinary::from(self.tx_hash)
-            .to_hex()
+        format!("0x{}", HexBinary::from(self.tx_hash).to_hex())
             .try_into()
             .expect("failed to convert tx hash to non-empty string")
     }
@@ -30,7 +29,7 @@ impl HexTxHash {
     }
 }
 
-const PATTERN: &str = "^[0-9a-f]{64}$";
+const PATTERN: &str = "^0x[0-9a-f]{64}$";
 lazy_static! {
     static ref REGEX: Regex = Regex::new(PATTERN).expect("invalid regex");
 }
@@ -51,7 +50,7 @@ impl FromStr for HexTxHash {
             }
         );
         Ok(HexTxHash {
-            tx_hash: HexBinary::from_hex(message_id)
+            tx_hash: HexBinary::from_hex(&message_id[2..])
                 .change_context(Error::InvalidTxHash(message_id.to_string()))?
                 .as_slice()
                 .try_into()
@@ -62,7 +61,7 @@ impl FromStr for HexTxHash {
 
 impl Display for HexTxHash {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", HexBinary::from(self.tx_hash).to_hex(),)
+        write!(f, "0x{}", HexBinary::from(self.tx_hash).to_hex())
     }
 }
 
@@ -77,13 +76,14 @@ mod tests {
             let byte: u8 = rand::random();
             bytes.push(byte)
         }
-        HexBinary::from(bytes).to_hex()
+        format!("0x{}", HexBinary::from(bytes).to_hex())
     }
 
     #[test]
     fn should_parse_msg_id() {
-        let res =
-            HexTxHash::from_str("7cedbb3799cd99636045c84c5c55aef8a138f107ac8ba53a08cad1070ba4385b");
+        let res = HexTxHash::from_str(
+            "0x7cedbb3799cd99636045c84c5c55aef8a138f107ac8ba53a08cad1070ba4385b",
+        );
         assert!(res.is_ok());
 
         for _ in 0..1000 {
@@ -110,8 +110,8 @@ mod tests {
 
     #[test]
     fn should_not_parse_msg_id_with_uppercase_tx_hash() {
-        let tx_hash = &random_hash();
-        let res = HexTxHash::from_str(&tx_hash.to_uppercase());
+        let tx_hash = &random_hash()[2..];
+        let res = HexTxHash::from_str(&format!("0x{}", tx_hash.to_uppercase()));
         assert!(res.is_err());
     }
 
@@ -123,8 +123,8 @@ mod tests {
     }
 
     #[test]
-    fn should_not_parse_msg_id_with_0x_prefix() {
-        let msg_id = "0x7cedbb3799cd99636045c84c5c55aef8a138f107ac8ba53a08cad1070ba4385b-1";
+    fn should_not_parse_msg_id_without_0x() {
+        let msg_id = "7cedbb3799cd99636045c84c5c55aef8a138f107ac8ba53a08cad1070ba4385b";
         let res = HexTxHash::from_str(msg_id);
         assert!(res.is_err());
     }
