@@ -1,10 +1,13 @@
 pub mod contract;
-pub mod encoding;
+mod encoding;
 pub mod error;
 pub mod events;
 pub mod msg;
-pub mod payload;
-pub mod state;
+mod payload;
+mod state;
+
+pub use encoding::Encoder;
+pub use payload::Payload;
 
 #[cfg(test)]
 mod test;

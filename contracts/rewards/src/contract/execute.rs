@@ -11,7 +11,7 @@ use crate::state::{self, Epoch, EpochTally, Event, ParamsSnapshot, PoolId, Stora
 const DEFAULT_EPOCHS_TO_PROCESS: u64 = 10;
 const EPOCH_PAYOUT_DELAY: u64 = 2;
 
-pub(crate) fn record_participation(
+pub fn record_participation(
     storage: &mut dyn Storage,
     event_id: nonempty::String,
     verifier: Addr,
@@ -52,7 +52,7 @@ fn load_or_store_event(
     }
 }
 
-pub(crate) fn distribute_rewards(
+pub fn distribute_rewards(
     storage: &mut dyn Storage,
     pool_id: PoolId,
     cur_block_height: u64,
@@ -114,7 +114,7 @@ fn iterate_epoch_tallies<'a>(
     })
 }
 
-pub(crate) fn update_params(
+pub fn update_params(
     storage: &mut dyn Storage,
     new_params: Params,
     block_height: u64,
@@ -159,7 +159,7 @@ pub(crate) fn update_params(
     Ok(())
 }
 
-pub(crate) fn add_rewards(
+pub fn add_rewards(
     storage: &mut dyn Storage,
     pool_id: PoolId,
     amount: nonempty::Uint128,

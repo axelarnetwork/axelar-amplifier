@@ -9,6 +9,7 @@ use error_stack::ResultExt;
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{Config, CONFIG};
+
 mod execute;
 mod migrations;
 mod query;
