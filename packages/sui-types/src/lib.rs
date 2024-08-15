@@ -2,11 +2,18 @@ use std::str::FromStr;
 
 use error_stack::{report, Report, Result, ResultExt};
 use serde::{Deserialize, Serialize};
-
-use crate::error::Error;
+use thiserror::Error;
 
 const ADDRESS_PREFIX: &str = "0x";
 const SUI_ADDRESS_LENGTH: usize = 32;
+
+#[derive(Error, Debug)]
+pub enum Error {
+    #[error("invalid address bytes: {:?}", .0)]
+    InvalidAddressBytes(Vec<u8>),
+    #[error("invalid address hex: {0}")]
+    InvalidAddressHex(String),
+}
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SuiAddress([u8; SUI_ADDRESS_LENGTH]);
@@ -32,13 +39,17 @@ impl FromStr for SuiAddress {
     type Err = Report<Error>;
 
     fn from_str(s: &str) -> Result<Self, Error> {
-        hex::decode(
-            s.strip_prefix(ADDRESS_PREFIX)
-                .ok_or(report!(Error::InvalidAddressHex(s.to_string())))?,
-        )
-        .change_context(Error::InvalidAddressHex(s.to_string()))?
-        .as_slice()
-        .try_into()
+        // disallow uppercase characters for the sui addresses
+        match s.chars().any(|c| c.is_uppercase()) {
+            true => Err(report!(Error::InvalidAddressHex(s.to_string()))),
+            false => hex::decode(
+                s.strip_prefix(ADDRESS_PREFIX)
+                    .ok_or(report!(Error::InvalidAddressHex(s.to_string())))?,
+            )
+            .change_context(Error::InvalidAddressHex(s.to_string()))?
+            .as_slice()
+            .try_into(),
+        }
     }
 }
 
