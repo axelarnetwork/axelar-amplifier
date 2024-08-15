@@ -2,8 +2,8 @@ use std::str::FromStr;
 use std::vec::Vec;
 
 use axelar_wasm_std::msg_id::{
-    Base58SolanaTxSignatureAndEventIndex, Base58TxDigestAndEventIndex, HexTxHashAndEventIndex,
-    MessageIdFormat,
+    Base58SolanaTxSignatureAndEventIndex, Base58TxDigestAndEventIndex, HexTxHash,
+    HexTxHashAndEventIndex, MessageIdFormat,
 };
 use axelar_wasm_std::voting::{PollId, Vote};
 use axelar_wasm_std::{nonempty, VerificationStatus};
@@ -164,6 +164,12 @@ fn parse_message_id(
 
             Ok((id.signature_as_base58(), id.event_index))
         }
+        MessageIdFormat::HexTxHash => {
+            let id = HexTxHash::from_str(message_id)
+                .map_err(|_| ContractError::InvalidMessageID(message_id.into()))?;
+
+            Ok((id.tx_hash_as_hex(), 0))
+        }
     }
 }
 
@@ -286,7 +292,7 @@ mod test {
     use std::collections::BTreeMap;
 
     use axelar_wasm_std::msg_id::{
-        Base58TxDigestAndEventIndex, HexTxHashAndEventIndex, MessageIdFormat,
+        Base58TxDigestAndEventIndex, HexTxHash, HexTxHashAndEventIndex, MessageIdFormat,
     };
     use axelar_wasm_std::nonempty;
     use cosmwasm_std::Uint128;
@@ -321,7 +327,7 @@ mod test {
     }
 
     #[test]
-    fn should_make_tx_event_confirmation_with_hex_msg_id() {
+    fn should_make_tx_event_confirmation_with_hex_event_index_msg_id() {
         let msg_id = HexTxHashAndEventIndex {
             tx_hash: random_32_bytes(),
             event_index: 0,
@@ -334,6 +340,21 @@ mod test {
 
         assert_eq!(event.tx_id, msg_id.tx_hash_as_hex());
         assert_eq!(event.event_index, msg_id.event_index);
+        compare_event_to_message(event, msg);
+    }
+
+    #[test]
+    fn should_make_tx_event_confirmation_with_hex_msg_id() {
+        let msg_id = HexTxHash {
+            tx_hash: random_32_bytes(),
+        };
+        let msg = generate_msg(msg_id.to_string().parse().unwrap());
+
+        let event =
+            TxEventConfirmation::try_from((msg.clone(), &MessageIdFormat::HexTxHash)).unwrap();
+
+        assert_eq!(event.tx_id, msg_id.tx_hash_as_hex());
+        assert_eq!(event.event_index, 0);
         compare_event_to_message(event, msg);
     }
 
