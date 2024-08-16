@@ -5,7 +5,7 @@ use cw_storage_plus::{Item, Map};
 use router_api::{CrossChainId, Message};
 
 #[cw_serde]
-pub(crate) struct Config {
+pub struct Config {
     pub verifier: Addr,
     pub router: Addr,
 }
@@ -25,18 +25,18 @@ pub enum Error {
     MessageNotFound(CrossChainId),
 }
 
-pub(crate) fn load_config(storage: &dyn Storage) -> Result<Config, Error> {
+pub fn load_config(storage: &dyn Storage) -> Result<Config, Error> {
     CONFIG
         .may_load(storage)
         .map_err(Error::from)?
         .ok_or(Error::MissingConfig)
 }
 
-pub(crate) fn save_config(storage: &mut dyn Storage, config: &Config) -> Result<(), Error> {
+pub fn save_config(storage: &mut dyn Storage, config: &Config) -> Result<(), Error> {
     CONFIG.save(storage, config).map_err(Error::from)
 }
 
-pub(crate) fn load_outgoing_message(
+pub fn load_outgoing_message(
     storage: &dyn Storage,
     cc_id: &CrossChainId,
 ) -> Result<Message, Error> {
@@ -46,7 +46,7 @@ pub(crate) fn load_outgoing_message(
         .ok_or_else(|| Error::MessageNotFound(cc_id.clone()))
 }
 
-pub(crate) fn save_outgoing_message(
+pub fn save_outgoing_message(
     storage: &mut dyn Storage,
     cc_id: &CrossChainId,
     msg: &Message,

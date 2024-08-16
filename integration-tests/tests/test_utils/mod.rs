@@ -22,7 +22,7 @@ use k256::ecdsa;
 use multisig::key::{KeyType, PublicKey};
 use multisig::verifier_set::VerifierSet;
 use multisig_prover::msg::VerifierSetResponse;
-use rewards::state::PoolId;
+use rewards::PoolId;
 use router_api::{Address, ChainName, CrossChainId, GatewayDirection, Message};
 use service_registry::msg::ExecuteMsg;
 use sha3::{Digest, Keccak256};
