@@ -73,6 +73,20 @@ mod tests {
         let upper_case = addr.to_uppercase();
         assert!(address::validate_address(&upper_case, &address::AddressFormat::Sui).is_err());
 
+        let mixed_case = addr
+            .chars()
+            .enumerate()
+            .map(|(i, c)| {
+                if i % 2 == 0 {
+                    c.to_uppercase().next().unwrap()
+                } else {
+                    c
+                }
+                .to_string()
+            })
+            .collect::<String>();
+        assert!(address::validate_address(&mixed_case, &address::AddressFormat::Sui).is_err());
+
         let invalid_length = format!("{}5f", addr);
         assert!(address::validate_address(&invalid_length, &address::AddressFormat::Sui).is_err());
     }
