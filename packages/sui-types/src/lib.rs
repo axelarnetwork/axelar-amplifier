@@ -1,12 +1,19 @@
 use std::str::FromStr;
 
-use error_stack::{report, Report, Result, ResultExt};
+use error_stack::{ensure, report, Report, Result, ResultExt};
 use serde::{Deserialize, Serialize};
-
-use crate::error::Error;
+use thiserror::Error;
 
 const ADDRESS_PREFIX: &str = "0x";
 const SUI_ADDRESS_LENGTH: usize = 32;
+
+#[derive(Error, Debug)]
+pub enum Error {
+    #[error("invalid address length: {:?}", .0)]
+    InvalidAddressLength(Vec<u8>),
+    #[error("invalid address: {0}")]
+    InvalidAddress(String),
+}
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SuiAddress([u8; SUI_ADDRESS_LENGTH]);
@@ -24,7 +31,7 @@ impl TryFrom<&[u8]> for SuiAddress {
         bytes
             .try_into()
             .map(Self)
-            .change_context(Error::InvalidAddressBytes(bytes.to_vec()))
+            .change_context(Error::InvalidAddressLength(bytes.to_vec()))
     }
 }
 
@@ -32,13 +39,19 @@ impl FromStr for SuiAddress {
     type Err = Report<Error>;
 
     fn from_str(s: &str) -> Result<Self, Error> {
-        hex::decode(
-            s.strip_prefix(ADDRESS_PREFIX)
-                .ok_or(report!(Error::InvalidAddressHex(s.to_string())))?,
-        )
-        .change_context(Error::InvalidAddressHex(s.to_string()))?
-        .as_slice()
-        .try_into()
+        let hex = s
+            .strip_prefix(ADDRESS_PREFIX)
+            .ok_or(report!(Error::InvalidAddress(s.to_string())))?;
+        // disallow uppercase characters for the sui addresses
+        ensure!(
+            hex.to_lowercase() == hex,
+            Error::InvalidAddress(s.to_string())
+        );
+
+        hex::decode(hex)
+            .change_context(Error::InvalidAddress(s.to_string()))?
+            .as_slice()
+            .try_into()
     }
 }
 
