@@ -9,10 +9,10 @@ const SUI_ADDRESS_LENGTH: usize = 32;
 
 #[derive(Error, Debug)]
 pub enum Error {
-    #[error("invalid address bytes: {:?}", .0)]
-    InvalidAddressBytes(Vec<u8>),
-    #[error("invalid address hex: {0}")]
-    InvalidAddressHex(String),
+    #[error("invalid address length: {:?}", .0)]
+    InvalidAddressLength(Vec<u8>),
+    #[error("invalid address: {0}")]
+    InvalidAddress(String),
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -31,7 +31,7 @@ impl TryFrom<&[u8]> for SuiAddress {
         bytes
             .try_into()
             .map(Self)
-            .change_context(Error::InvalidAddressBytes(bytes.to_vec()))
+            .change_context(Error::InvalidAddressLength(bytes.to_vec()))
     }
 }
 
@@ -41,15 +41,15 @@ impl FromStr for SuiAddress {
     fn from_str(s: &str) -> Result<Self, Error> {
         let hex = s
             .strip_prefix(ADDRESS_PREFIX)
-            .ok_or(report!(Error::InvalidAddressHex(s.to_string())))?;
+            .ok_or(report!(Error::InvalidAddress(s.to_string())))?;
         // disallow uppercase characters for the sui addresses
         ensure!(
             hex.to_lowercase() == hex,
-            Error::InvalidAddressHex(s.to_string())
+            Error::InvalidAddress(s.to_string())
         );
 
         hex::decode(hex)
-            .change_context(Error::InvalidAddressHex(s.to_string()))?
+            .change_context(Error::InvalidAddress(s.to_string()))?
             .as_slice()
             .try_into()
     }
