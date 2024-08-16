@@ -1,8 +1,3 @@
-use crate::handlers::mvx_verify_msg::Message;
-use crate::handlers::mvx_verify_verifier_set::VerifierSetConfirmation;
-use crate::mvx::error::Error;
-use crate::mvx::WeightedSigners;
-use crate::types::Hash;
 use axelar_wasm_std::voting::Vote;
 use base64::engine::general_purpose::STANDARD;
 use base64::Engine;
@@ -10,6 +5,12 @@ use hex::ToHex;
 use multiversx_sdk::data::address::Address;
 use multiversx_sdk::data::transaction::{Events, TransactionOnNetwork};
 use num_traits::cast;
+
+use crate::handlers::mvx_verify_msg::Message;
+use crate::handlers::mvx_verify_verifier_set::VerifierSetConfirmation;
+use crate::mvx::error::Error;
+use crate::mvx::WeightedSigners;
+use crate::types::Hash;
 
 const CONTRACT_CALL_IDENTIFIER: &str = "callContract";
 const CONTRACT_CALL_EVENT: &str = "contract_call_event";
@@ -153,6 +154,13 @@ pub fn verify_verifier_set(
 
 #[cfg(test)]
 mod tests {
+    use axelar_wasm_std::voting::Vote;
+    use base64::engine::general_purpose::STANDARD;
+    use base64::Engine;
+    use cosmwasm_std::{HexBinary, Uint128};
+    use hex::ToHex;
+    use multisig::key::KeyType;
+    use multisig::test::common::{build_verifier_set, ed25519_test_data};
     use multiversx_sdk::data::address::Address;
     use multiversx_sdk::data::transaction::{ApiLogs, Events, TransactionOnNetwork};
 
@@ -163,13 +171,6 @@ mod tests {
         ROTATE_SIGNERS_IDENTIFIER, SIGNERS_ROTATED_EVENT,
     };
     use crate::types::{EVMAddress, Hash};
-    use axelar_wasm_std::voting::Vote;
-    use base64::engine::general_purpose::STANDARD;
-    use base64::Engine;
-    use cosmwasm_std::{HexBinary, Uint128};
-    use hex::ToHex;
-    use multisig::key::KeyType;
-    use multisig::test::common::{build_verifier_set, ed25519_test_data};
 
     // test verify message
     #[test]

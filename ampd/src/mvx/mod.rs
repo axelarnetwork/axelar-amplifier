@@ -1,10 +1,11 @@
-use crate::mvx::error::Error;
 use axelar_wasm_std::hash::Hash;
 use cosmwasm_std::Uint256;
 use multisig::key::PublicKey;
 use multisig::msg::Signer;
 use multisig::verifier_set::VerifierSet;
 use sha3::{Digest, Keccak256};
+
+use crate::mvx::error::Error;
 
 pub mod error;
 pub mod proxy;

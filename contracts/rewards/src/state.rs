@@ -268,15 +268,15 @@ const WATERMARKS: Map<PoolId, u64> = Map::new("rewards_watermarks");
 
 pub const CONFIG: Item<Config> = Item::new("config");
 
-pub(crate) fn load_config(storage: &dyn Storage) -> Config {
+pub fn load_config(storage: &dyn Storage) -> Config {
     CONFIG.load(storage).expect("couldn't load config")
 }
 
-pub(crate) fn load_params(storage: &dyn Storage) -> ParamsSnapshot {
+pub fn load_params(storage: &dyn Storage) -> ParamsSnapshot {
     PARAMS.load(storage).expect("params should exist")
 }
 
-pub(crate) fn load_rewards_watermark(
+pub fn load_rewards_watermark(
     storage: &dyn Storage,
     pool_id: PoolId,
 ) -> Result<Option<u64>, ContractError> {
@@ -285,7 +285,7 @@ pub(crate) fn load_rewards_watermark(
         .change_context(ContractError::LoadRewardsWatermark)
 }
 
-pub(crate) fn load_event(
+pub fn load_event(
     storage: &dyn Storage,
     event_id: String,
     pool_id: PoolId,
@@ -295,7 +295,7 @@ pub(crate) fn load_event(
         .change_context(ContractError::LoadEvent)
 }
 
-pub(crate) fn load_epoch_tally(
+pub fn load_epoch_tally(
     storage: &dyn Storage,
     pool_id: PoolId,
     epoch_num: u64,
@@ -305,7 +305,7 @@ pub(crate) fn load_epoch_tally(
         .change_context(ContractError::LoadEpochTally)
 }
 
-pub(crate) fn may_load_rewards_pool(
+pub fn may_load_rewards_pool(
     storage: &dyn Storage,
     pool_id: PoolId,
 ) -> Result<Option<RewardsPool>, ContractError> {
@@ -314,7 +314,7 @@ pub(crate) fn may_load_rewards_pool(
         .change_context(ContractError::LoadRewardsPool)
 }
 
-pub(crate) fn load_rewards_pool_or_new(
+pub fn load_rewards_pool_or_new(
     storage: &dyn Storage,
     pool_id: PoolId,
 ) -> Result<RewardsPool, ContractError> {
@@ -322,7 +322,7 @@ pub(crate) fn load_rewards_pool_or_new(
         .map(|pool| pool.unwrap_or(RewardsPool::new(pool_id)))
 }
 
-pub(crate) fn load_rewards_pool(
+pub fn load_rewards_pool(
     storage: &dyn Storage,
     pool_id: PoolId,
 ) -> Result<RewardsPool, ContractError> {
@@ -330,7 +330,7 @@ pub(crate) fn load_rewards_pool(
         .ok_or(ContractError::RewardsPoolNotFound.into())
 }
 
-pub(crate) fn save_params(
+pub fn save_params(
     storage: &mut dyn Storage,
     params: &ParamsSnapshot,
 ) -> Result<(), ContractError> {
@@ -339,7 +339,7 @@ pub(crate) fn save_params(
         .change_context(ContractError::SaveParams)
 }
 
-pub(crate) fn save_rewards_watermark(
+pub fn save_rewards_watermark(
     storage: &mut dyn Storage,
     pool_id: PoolId,
     epoch_num: u64,
@@ -349,7 +349,7 @@ pub(crate) fn save_rewards_watermark(
         .change_context(ContractError::SaveRewardsWatermark)
 }
 
-pub(crate) fn save_event(storage: &mut dyn Storage, event: &Event) -> Result<(), ContractError> {
+pub fn save_event(storage: &mut dyn Storage, event: &Event) -> Result<(), ContractError> {
     EVENTS
         .save(
             storage,
@@ -359,7 +359,7 @@ pub(crate) fn save_event(storage: &mut dyn Storage, event: &Event) -> Result<(),
         .change_context(ContractError::SaveEvent)
 }
 
-pub(crate) fn save_epoch_tally(
+pub fn save_epoch_tally(
     storage: &mut dyn Storage,
     tally: &EpochTally,
 ) -> Result<(), ContractError> {
@@ -373,7 +373,7 @@ pub(crate) fn save_epoch_tally(
         .change_context(ContractError::SaveEpochTally)
 }
 
-pub(crate) fn save_rewards_pool(
+pub fn save_rewards_pool(
     storage: &mut dyn Storage,
     pool: &RewardsPool,
 ) -> Result<(), ContractError> {
@@ -382,7 +382,7 @@ pub(crate) fn save_rewards_pool(
         .change_context(ContractError::SaveRewardsPool)
 }
 
-pub(crate) enum StorageState<T> {
+pub enum StorageState<T> {
     Existing(T),
     New(T),
 }

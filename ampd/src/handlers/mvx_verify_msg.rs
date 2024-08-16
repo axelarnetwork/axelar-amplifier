@@ -2,18 +2,18 @@ use std::collections::HashSet;
 use std::convert::TryInto;
 
 use async_trait::async_trait;
+use axelar_wasm_std::voting::{PollId, Vote};
 use cosmrs::cosmwasm::MsgExecuteContract;
-use cosmrs::{tx::Msg, Any};
+use cosmrs::tx::Msg;
+use cosmrs::Any;
 use error_stack::ResultExt;
+use events::Error::EventTypeMismatch;
+use events::Event;
+use events_derive::try_from;
 use multiversx_sdk::data::address::Address;
 use serde::Deserialize;
 use tokio::sync::watch::Receiver;
 use tracing::info;
-
-use axelar_wasm_std::voting::{PollId, Vote};
-use events::Error::EventTypeMismatch;
-use events::Event;
-use events_derive::try_from;
 use voting_verifier::msg::ExecuteMsg;
 
 use crate::event_processor::EventHandler;
@@ -153,19 +153,17 @@ mod tests {
     use cosmrs::tx::Msg;
     use cosmwasm_std;
     use error_stack::Result;
+    use hex::ToHex;
     use tokio::sync::watch;
     use tokio::test as async_test;
-
     use voting_verifier::events::{PollMetadata, PollStarted, TxEventConfirmation};
 
+    use super::PollStartedEvent;
     use crate::event_processor::EventHandler;
     use crate::handlers::tests::into_structured_event;
     use crate::mvx::proxy::MockMvxProxy;
     use crate::types::{EVMAddress, Hash, TMAddress};
     use crate::PREFIX;
-    use hex::ToHex;
-
-    use super::PollStartedEvent;
 
     #[test]
     fn should_deserialize_poll_started_event() {

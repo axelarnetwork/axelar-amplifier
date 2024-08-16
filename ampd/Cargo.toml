@@ -36,6 +36,7 @@ k256 = { workspace = true }
 mockall = "0.11.3"
 move-core-types = { git = "https://github.com/mystenlabs/sui", tag = "mainnet-v1.26.2" }
 multisig = { workspace = true, features = ["library"] }
+multiversx-sdk = "0.4.1"
 num-traits = { workspace = true }
 prost = "0.11.9"
 prost-types = "0.11.9"
@@ -71,7 +72,6 @@ url = "2.3.1"
 valuable = { version = "0.1.0", features = ["derive"] }
 valuable-serde = { version = "0.1.0", features = ["std"] }
 voting-verifier = { workspace = true }
-multiversx-sdk = "0.4.1"
 
 [dev-dependencies]
 elliptic-curve = "0.13.5"
