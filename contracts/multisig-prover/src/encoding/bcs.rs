@@ -6,9 +6,7 @@ use error_stack::{Result, ResultExt};
 use multisig::msg::SignerWithSig;
 use multisig::verifier_set::VerifierSet;
 use sha3::{Digest, Keccak256};
-use sui_gateway::gateway::{
-    CommandType, ExecuteData, Message, MessageToSign, Proof, WeightedSigners,
-};
+use sui_gateway::{CommandType, ExecuteData, Message, MessageToSign, Proof, WeightedSigners};
 
 use crate::encoding::{to_recoverable, Encoder};
 use crate::error::ContractError;

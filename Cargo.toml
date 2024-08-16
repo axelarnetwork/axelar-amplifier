@@ -17,9 +17,11 @@ error-stack = { version = "0.4.0", features = ["eyre"] }
 events = { version = "^1.0.0", path = "packages/events" }
 events-derive = { version = "^1.0.0", path = "packages/events-derive" }
 evm-gateway = { version = "^1.0.0", path = "packages/evm-gateway" }
+sui-types = { version = "^1.0.0", path = "packages/sui-types" }
 sui-gateway = { version = "^1.0.0", path = "packages/sui-gateway" }
 axelar-wasm-std = { version = "^1.0.0", path = "packages/axelar-wasm-std" }
 axelar-wasm-std-derive = { version = "^1.0.0", path = "packages/axelar-wasm-std-derive" }
+hex = "0.4.3"
 integration-tests = { version = "^1.0.0", path = "integration-tests" }
 itertools = "0.11.0"
 voting-verifier = { version = "^1.0.0", path = "contracts/voting-verifier" }
