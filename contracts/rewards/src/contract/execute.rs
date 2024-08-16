@@ -1689,7 +1689,15 @@ mod test {
                 created_at: current_epoch.clone(),
             };
 
-            state::save_rewards_pool(storage, &RewardsPool{id: pool_id, params: params_snapshot, balance: Uint128::zero()}).unwrap();
+            state::save_rewards_pool(
+                storage,
+                &RewardsPool {
+                    id: pool_id,
+                    params: params_snapshot,
+                    balance: Uint128::zero(),
+                },
+            )
+            .unwrap();
         }
 
         let config = Config {
@@ -1728,7 +1736,15 @@ mod test {
 
         let mut deps = mock_dependencies();
         let storage = deps.as_mut().storage;
-        state::save_rewards_pool(storage, &RewardsPool{id: pool_id, params: params_snapshot, balance: Uint128::zero()}).unwrap();
+        state::save_rewards_pool(
+            storage,
+            &RewardsPool {
+                id: pool_id,
+                params: params_snapshot,
+                balance: Uint128::zero(),
+            },
+        )
+        .unwrap();
 
         let config = Config {
             rewards_denom: "AXL".to_string(),

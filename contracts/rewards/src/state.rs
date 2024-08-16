@@ -249,7 +249,6 @@ pub struct RewardsPool {
 }
 
 impl RewardsPool {
-
     pub fn sub_reward(mut self, reward: Uint128) -> Result<Self, ContractError> {
         self.balance = self
             .balance
@@ -717,10 +716,10 @@ mod test {
         let mut mock_deps = mock_dependencies();
 
         let chain_name: ChainName = "mock-chain".parse().unwrap();
-        let pool = RewardsPool{
+        let pool = RewardsPool {
             id: PoolId::new(chain_name.clone(), Addr::unchecked("some contract")),
             params,
-            balance: Uint128::zero()
+            balance: Uint128::zero(),
         };
         let res = save_rewards_pool(mock_deps.as_mut().storage, &pool);
         assert!(res.is_ok());
