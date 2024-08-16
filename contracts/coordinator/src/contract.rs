@@ -1,7 +1,7 @@
 mod execute;
+mod migrations;
 mod query;
 
-mod migrations;
 use axelar_wasm_std::{address, permission_control, FnExt};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;

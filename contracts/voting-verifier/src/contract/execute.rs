@@ -13,7 +13,7 @@ use itertools::Itertools;
 use multisig::verifier_set::VerifierSet;
 use router_api::{ChainName, Message};
 use service_registry::msg::QueryMsg;
-use service_registry::state::WeightedVerifier;
+use service_registry::WeightedVerifier;
 
 use crate::contract::query::{message_status, verifier_set_status};
 use crate::error::ContractError;

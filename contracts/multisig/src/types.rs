@@ -18,6 +18,7 @@ impl AsRef<[u8]> for MsgToSign {
     }
 }
 
+#[cfg(any(test, feature = "test"))]
 impl MsgToSign {
     pub fn unchecked(hex: HexBinary) -> Self {
         Self(hex)
@@ -44,7 +45,7 @@ impl TryFrom<HexBinary> for MsgToSign {
             });
         }
 
-        Ok(MsgToSign::unchecked(other))
+        Ok(MsgToSign(other))
     }
 }
 
