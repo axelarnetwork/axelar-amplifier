@@ -11,7 +11,7 @@ pub fn rewards_pool(
     block_height: u64,
 ) -> Result<msg::RewardsPool, ContractError> {
     let pool = state::load_rewards_pool(storage, pool_id.clone())?;
-    let current_params = state::load_params(storage);
+    let current_params = pool.params;
     let cur_epoch = Epoch::current(&current_params, block_height)?;
 
     // the params could have been updated since the tally was created. Therefore we use the params from the
@@ -42,7 +42,7 @@ pub fn participation(
     let epoch_num = match epoch_num {
         Some(num) => num,
         None => {
-            let current_params = state::load_params(storage);
+            let current_params = state::load_rewards_pool_params(storage, pool_id.clone())?;
             Epoch::current(&current_params, block_height)?.epoch_num
         }
     };
@@ -94,9 +94,9 @@ mod tests {
         let rewards_pool = RewardsPool {
             id: pool_id.clone(),
             balance: initial_balance,
+            params: params_snapshot.clone(),
         };
 
-        state::save_params(storage, &params_snapshot).unwrap();
         state::save_rewards_pool(storage, &rewards_pool).unwrap();
 
         (params_snapshot, pool_id)

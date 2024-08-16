@@ -9,12 +9,7 @@ pub struct RewardsContract {
 }
 
 impl RewardsContract {
-    pub fn instantiate_contract(
-        app: &mut App,
-        governance: Addr,
-        rewards_denom: String,
-        params: rewards::msg::Params,
-    ) -> Self {
+    pub fn instantiate_contract(app: &mut App, governance: Addr, rewards_denom: String) -> Self {
         let code = ContractWrapper::new(
             rewards::contract::execute,
             rewards::contract::instantiate,
@@ -29,7 +24,6 @@ impl RewardsContract {
                 &rewards::msg::InstantiateMsg {
                     governance_address: governance.to_string(),
                     rewards_denom,
-                    params,
                 },
                 &[],
                 "rewards",
