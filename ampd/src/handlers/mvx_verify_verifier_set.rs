@@ -28,6 +28,7 @@ use tracing::{info, info_span};
 #[derive(Deserialize, Debug)]
 pub struct VerifierSetConfirmation {
     pub tx_id: Hash,
+    pub event_index: u32,
     pub verifier_set: VerifierSet,
 }
 
@@ -127,7 +128,7 @@ where
         let vote = info_span!(
             "verify a new verifier set for MultiversX",
             poll_id = poll_id.to_string(),
-            id = format!("{}", verifier_set.tx_id)
+            id = format!("{}_{}", verifier_set.tx_id, verifier_set.event_index)
         )
         .in_scope(|| {
             info!("ready to verify a new worker set in poll");
@@ -199,6 +200,7 @@ mod tests {
             verifier_set.tx_id.encode_hex::<String>()
                 == "dfaf64de66510723f2efbacd7ead3c4f8c856aed1afc2cb30254552aeda47312"
         );
+        assert!(verifier_set.event_index == 1u32);
         assert!(verifier_set.verifier_set.signers.len() == 3);
         assert_eq!(verifier_set.verifier_set.threshold, Uint128::from(2u128));
 
@@ -348,7 +350,7 @@ mod tests {
                 tx_id: "dfaf64de66510723f2efbacd7ead3c4f8c856aed1afc2cb30254552aeda47312"
                     .parse()
                     .unwrap(),
-                event_index: 0,
+                event_index: 1,
                 verifier_set: build_verifier_set(KeyType::Ed25519, &ed25519_test_data::signers()),
             },
         }

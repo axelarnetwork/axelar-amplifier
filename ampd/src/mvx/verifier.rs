@@ -9,6 +9,7 @@ use base64::Engine;
 use hex::ToHex;
 use multiversx_sdk::data::address::Address;
 use multiversx_sdk::data::transaction::{Events, TransactionOnNetwork};
+use num_traits::cast;
 
 const CONTRACT_CALL_IDENTIFIER: &str = "callContract";
 const CONTRACT_CALL_EVENT: &str = "contract_call_event";
@@ -93,29 +94,17 @@ impl VerifierSetConfirmation {
 fn find_event<'a>(
     transaction: &'a TransactionOnNetwork,
     gateway_address: &Address,
-    identifier: &str,
-    needed_event_name: &[u8],
+    log_index: u32,
 ) -> Option<&'a Events> {
-    // Search for first event from the transaction with the appropriate gateway, identifier and name
-    transaction
-        .logs
-        .as_ref()?
-        .events
-        .iter()
-        .filter(|events| {
-            events.address.to_bytes() == gateway_address.to_bytes()
-                && events.identifier == identifier
-        })
-        .filter_map(|events| {
-            let event_name = events.topics.as_ref()?.first()?;
-            let event_name = STANDARD.decode(event_name).ok()?;
-            if event_name.as_slice() == needed_event_name {
-                Some(events)
-            } else {
-                None
-            }
-        })
-        .next()
+    let log_index: usize = cast(log_index).expect("log_index must be a valid usize");
+
+    let event = transaction.logs.as_ref()?.events.get(log_index)?;
+
+    if event.address.to_bytes() != gateway_address.to_bytes() {
+        return None;
+    }
+
+    Some(event)
 }
 
 pub fn verify_message(
@@ -129,12 +118,7 @@ pub fn verify_message(
         return Vote::NotFound;
     }
 
-    match find_event(
-        transaction,
-        gateway_address,
-        CONTRACT_CALL_IDENTIFIER,
-        CONTRACT_CALL_EVENT.as_bytes(),
-    ) {
+    match find_event(transaction, gateway_address, message.event_index) {
         Some(event)
             if hash == message.tx_id.encode_hex::<String>().as_str()
                 && message.eq_event(event).unwrap_or(false) =>
@@ -156,12 +140,7 @@ pub fn verify_verifier_set(
         return Vote::NotFound;
     }
 
-    match find_event(
-        transaction,
-        gateway_address,
-        ROTATE_SIGNERS_IDENTIFIER,
-        SIGNERS_ROTATED_EVENT.as_bytes(),
-    ) {
+    match find_event(transaction, gateway_address, verifier_set.event_index) {
         Some(event)
             if hash == verifier_set.tx_id.encode_hex::<String>().as_str()
                 && verifier_set.eq_event(event).unwrap_or(false) =>
@@ -208,6 +187,22 @@ mod tests {
         let (gateway_address, mut tx, msg) = get_matching_msg_and_tx();
 
         tx.logs = None;
+        assert_eq!(verify_message(&gateway_address, &tx, &msg), Vote::NotFound);
+    }
+
+    #[test]
+    fn should_not_verify_msg_if_no_log_for_event_index() {
+        let (gateway_address, tx, mut msg) = get_matching_msg_and_tx();
+
+        msg.event_index = 2;
+        assert_eq!(verify_message(&gateway_address, &tx, &msg), Vote::NotFound);
+    }
+
+    #[test]
+    fn should_not_verify_msg_if_event_index_does_not_match() {
+        let (gateway_address, tx, mut msg) = get_matching_msg_and_tx();
+
+        msg.event_index = 0;
         assert_eq!(verify_message(&gateway_address, &tx, &msg), Vote::NotFound);
     }
 
@@ -318,6 +313,28 @@ mod tests {
     }
 
     #[test]
+    fn should_not_verify_verifier_set_if_no_log_for_event_index() {
+        let (gateway_address, tx, mut verifier_set) = get_matching_verifier_set_and_tx();
+
+        verifier_set.event_index = 2;
+        assert_eq!(
+            verify_verifier_set(&gateway_address, &tx, verifier_set),
+            Vote::NotFound
+        );
+    }
+
+    #[test]
+    fn should_not_verify_verifier_set_if_event_index_does_not_match() {
+        let (gateway_address, tx, mut verifier_set) = get_matching_verifier_set_and_tx();
+
+        verifier_set.event_index = 0;
+        assert_eq!(
+            verify_verifier_set(&gateway_address, &tx, verifier_set),
+            Vote::NotFound
+        );
+    }
+
+    #[test]
     fn should_not_verify_verifier_set_if_not_from_gateway() {
         let (gateway_address, mut tx, verifier_set) = get_matching_verifier_set_and_tx();
 
@@ -398,6 +415,7 @@ mod tests {
 
         let msg = Message {
             tx_id,
+            event_index: 1,
             source_address,
             destination_chain: "ethereum".parse().unwrap(),
             destination_address: format!("0x{:x}", EVMAddress::random()).parse().unwrap(),
@@ -483,6 +501,7 @@ mod tests {
 
         let verifier_set_confirmation = VerifierSetConfirmation {
             tx_id,
+            event_index: 1,
             verifier_set: build_verifier_set(KeyType::Ed25519, &ed25519_test_data::signers()),
         };
 

@@ -27,6 +27,7 @@ type Result<T> = error_stack::Result<T, Error>;
 #[derive(Deserialize, Debug)]
 pub struct Message {
     pub tx_id: Hash,
+    pub event_index: u32,
     pub destination_address: String,
     pub destination_chain: router_api::ChainName,
     pub source_address: Address,
@@ -190,6 +191,7 @@ mod tests {
             message.tx_id.encode_hex::<String>()
                 == "dfaf64de66510723f2efbacd7ead3c4f8c856aed1afc2cb30254552aeda47312",
         );
+        assert!(message.event_index == 1u32);
         assert!(message.destination_chain == "ethereum");
         assert!(
             message.source_address.to_bech32_string().unwrap()
@@ -320,7 +322,7 @@ mod tests {
                 tx_id: "dfaf64de66510723f2efbacd7ead3c4f8c856aed1afc2cb30254552aeda47312"
                     .parse()
                     .unwrap(),
-                event_index: 0,
+                event_index: 1,
                 source_address: "erd1qqqqqqqqqqqqqpgqzqvm5ywqqf524efwrhr039tjs29w0qltkklsa05pk7"
                     .parse()
                     .unwrap(),
