@@ -85,14 +85,17 @@ pub fn bond_verifier(
         .may_load(deps.storage, &service_name)?
         .ok_or(ContractError::ServiceNotFound)?;
 
-    let bond = if !info.funds.is_empty() {
-        info.funds
-            .iter()
-            .find(|coin| coin.denom == service.bond_denom)
-            .ok_or(ContractError::WrongDenom)?
-            .amount
+    let bond: Option<nonempty::Uint128> = if !info.funds.is_empty() {
+        Some(
+            info.funds
+                .iter()
+                .find(|coin| coin.denom == service.bond_denom)
+                .ok_or(ContractError::NoFundsToBond)?
+                .amount
+                .try_into()?,
+        )
     } else {
-        Uint128::zero() // sender can rebond currently unbonding funds by just sending no new funds
+        None // sender can rebond currently unbonding funds by just sending no new funds
     };
 
     VERIFIERS.update(
@@ -100,11 +103,11 @@ pub fn bond_verifier(
         (&service_name.clone(), &info.sender.clone()),
         |sw| -> Result<Verifier, ContractError> {
             match sw {
-                Some(verifier) => Ok(verifier.add_bond(bond)?),
+                Some(verifier) => Ok(verifier.bond(bond)?),
                 None => Ok(Verifier {
                     address: info.sender,
                     bonding_state: BondingState::Bonded {
-                        amount: bond.try_into()?,
+                        amount: bond.ok_or(ContractError::NoFundsToBond)?,
                     },
                     authorization_state: AuthorizationState::NotAuthorized,
                     service_name,

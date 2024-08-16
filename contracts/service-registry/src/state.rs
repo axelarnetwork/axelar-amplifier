@@ -32,7 +32,7 @@ pub struct Verifier {
 }
 
 impl Verifier {
-    pub fn add_bond(self, to_add: Uint128) -> Result<Self, ContractError> {
+    pub fn bond(self, to_add: Option<nonempty::Uint128>) -> Result<Self, ContractError> {
         let amount: nonempty::Uint128 = match self.bonding_state {
             BondingState::Bonded { amount }
             | BondingState::RequestedUnbonding { amount }
@@ -41,10 +41,10 @@ impl Verifier {
                 unbonded_at: _,
             } => amount
                 .as_ref()
-                .checked_add(to_add)
+                .checked_add(to_add.map(Uint128::from).unwrap_or(Uint128::zero()))
                 .map_err(ContractError::Overflow)?
                 .try_into()?,
-            BondingState::Unbonded => to_add.try_into()?,
+            BondingState::Unbonded => to_add.ok_or(ContractError::NoFundsToBond)?,
         };
 
         Ok(Self {
@@ -326,7 +326,7 @@ mod tests {
             service_name: "validators".to_string(),
         };
 
-        let res = verifier.add_bond(Uint128::from(200u32));
+        let res = verifier.bond(Some(Uint128::from(200u32).try_into().unwrap()));
         assert!(res.is_ok());
         assert_eq!(
             res.unwrap().bonding_state,
@@ -347,7 +347,7 @@ mod tests {
             service_name: "validators".to_string(),
         };
 
-        let res = verifier.add_bond(Uint128::from(200u32));
+        let res = verifier.bond(Some(Uint128::from(200u32).try_into().unwrap()));
         assert!(res.is_ok());
         assert_eq!(
             res.unwrap().bonding_state,
@@ -369,7 +369,7 @@ mod tests {
             service_name: "validators".to_string(),
         };
 
-        let res = verifier.add_bond(Uint128::from(200u32));
+        let res = verifier.bond(Some(Uint128::from(200u32).try_into().unwrap()));
         assert!(res.is_ok());
         assert_eq!(
             res.unwrap().bonding_state,
@@ -388,7 +388,7 @@ mod tests {
             service_name: "validators".to_string(),
         };
 
-        let res = verifier.add_bond(Uint128::from(200u32));
+        let res = verifier.bond(Some(Uint128::from(200u32).try_into().unwrap()));
         assert!(res.is_ok());
         assert_eq!(
             res.unwrap().bonding_state,
@@ -409,12 +409,28 @@ mod tests {
             service_name: "validators".to_string(),
         };
 
-        let res = verifier.add_bond(Uint128::from(0u32));
+        let res = verifier.bond(None);
         assert!(res.is_err());
-        assert_eq!(
-            res.unwrap_err(),
-            ContractError::NonEmpty(nonempty::Error::InvalidValue("0".to_string()))
-        );
+        assert_eq!(res.unwrap_err(), ContractError::NoFundsToBond);
+    }
+    #[test]
+    fn test_zero_bond_rebond() {
+        let amount = nonempty::Uint128::try_from(100u128).unwrap();
+        let bonding_state = BondingState::Unbonding {
+            amount: amount.clone(),
+            unbonded_at: Timestamp::from_nanos(0),
+        };
+
+        let verifier = Verifier {
+            address: Addr::unchecked("verifier"),
+            bonding_state: bonding_state.clone(),
+            authorization_state: AuthorizationState::Authorized,
+            service_name: "validators".to_string(),
+        };
+
+        let res = verifier.bond(None);
+        assert!(res.is_ok());
+        assert_eq!(res.unwrap().bonding_state, BondingState::Bonded { amount });
     }
 
     #[test]

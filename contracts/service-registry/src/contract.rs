@@ -3,7 +3,7 @@ use axelar_wasm_std::{address, permission_control, FnExt};
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     to_json_binary, Addr, BankMsg, Binary, Coin, Deps, DepsMut, Empty, Env, MessageInfo, Order,
-    QueryRequest, Response, Storage, Uint128, WasmQuery,
+    QueryRequest, Response, Storage, WasmQuery,
 };
 use error_stack::{bail, Report, ResultExt};
 
@@ -189,7 +189,7 @@ mod test {
     use cosmwasm_std::testing::{
         mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
     };
-    use cosmwasm_std::{coins, from_json, CosmosMsg, Empty, OwnedDeps, StdResult};
+    use cosmwasm_std::{coins, from_json, CosmosMsg, Empty, OwnedDeps, StdResult, Uint128};
     use router_api::ChainName;
 
     use super::*;
@@ -1389,7 +1389,7 @@ mod test {
         assert!(err_contains!(
             err.report,
             ContractError,
-            ContractError::WrongDenom
+            ContractError::NoFundsToBond
         ));
     }
 
