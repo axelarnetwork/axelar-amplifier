@@ -2,8 +2,8 @@ use axelar_wasm_std::voting::Vote;
 use axelar_wasm_std::{self};
 use cosmwasm_std::HexBinary;
 use move_core_types::language_storage::StructTag;
-use sui_gateway::gateway::events::{ContractCall, SignersRotated};
-use sui_gateway::gateway::{WeightedSigner, WeightedSigners};
+use sui_gateway::events::{ContractCall, SignersRotated};
+use sui_gateway::{WeightedSigner, WeightedSigners};
 use sui_json_rpc_types::{SuiEvent, SuiTransactionBlockResponse};
 use sui_types::base_types::SuiAddress;
 
@@ -154,8 +154,8 @@ mod tests {
     use random_string::generate;
     use router_api::ChainName;
     use serde_json::json;
-    use sui_gateway::gateway::events::{ContractCall, SignersRotated};
-    use sui_gateway::gateway::{WeightedSigner, WeightedSigners};
+    use sui_gateway::events::{ContractCall, SignersRotated};
+    use sui_gateway::{WeightedSigner, WeightedSigners};
     use sui_json_rpc_types::{SuiEvent, SuiTransactionBlockEvents, SuiTransactionBlockResponse};
     use sui_types::base_types::{SuiAddress, TransactionDigest};
     use sui_types::event::EventID;

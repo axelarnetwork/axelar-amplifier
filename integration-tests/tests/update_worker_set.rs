@@ -3,7 +3,7 @@ use cw_multi_test::Executor;
 use integration_tests::contract::Contract;
 use multisig_prover::msg::ExecuteMsg;
 use service_registry::msg::QueryMsg as ServiceRegistryQueryMsg;
-use service_registry::state::WeightedVerifier;
+use service_registry::WeightedVerifier;
 
 pub mod test_utils;
 

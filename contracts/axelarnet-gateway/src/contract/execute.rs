@@ -13,7 +13,7 @@ use crate::executable::AxelarExecutableClient;
 use crate::state::{self};
 
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn call_contract(
+pub fn call_contract(
     store: &mut dyn Storage,
     block_height: u64,
     router: &Router,
@@ -59,7 +59,7 @@ pub(crate) fn call_contract(
 }
 
 // Because the messages came from the router, we can assume they are already verified
-pub(crate) fn receive_messages(
+pub fn receive_messages(
     store: &mut dyn Storage,
     chain_name: ChainName,
     msgs: Vec<Message>,
@@ -79,7 +79,7 @@ pub(crate) fn receive_messages(
     ))
 }
 
-pub(crate) fn send_messages(
+pub fn send_messages(
     store: &mut dyn Storage,
     router: &Router,
     msgs: Vec<Message>,
@@ -113,7 +113,7 @@ fn route(
     ))
 }
 
-pub(crate) fn execute(
+pub fn execute(
     store: &mut dyn Storage,
     api: &dyn Api,
     querier: QuerierWrapper,
