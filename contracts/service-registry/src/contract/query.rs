@@ -1,3 +1,4 @@
+use cosmwasm_std::{Addr, Order};
 use router_api::ChainName;
 
 use super::*;
@@ -5,7 +6,6 @@ use crate::state::{
     VerifierDetailsResponse, WeightedVerifier, VERIFIERS, VERIFIERS_PER_CHAIN_INDEXED_MAP,
     VERIFIER_WEIGHT,
 };
-use cosmwasm_std::{Addr, Order};
 
 pub fn active_verifiers(
     deps: Deps,
