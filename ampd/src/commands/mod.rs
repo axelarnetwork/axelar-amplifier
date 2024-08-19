@@ -20,6 +20,7 @@ pub mod daemon;
 pub mod deregister_chain_support;
 pub mod register_chain_support;
 pub mod register_public_key;
+pub mod send_tokens;
 pub mod verifier_address;
 
 #[derive(Debug, Subcommand, Valuable)]
@@ -36,6 +37,8 @@ pub enum SubCommand {
     RegisterPublicKey(register_public_key::Args),
     /// Query the verifier address
     VerifierAddress,
+    /// Send tokens from the verifier account to a specified address
+    SendTokens(send_tokens::Args),
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
