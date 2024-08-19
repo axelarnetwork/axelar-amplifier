@@ -259,6 +259,17 @@ impl RewardsPool {
     }
 }
 
+#[cw_serde]
+pub struct RewardsDistribution {
+    /// Amount of rewards denom each verifier received
+    pub rewards: HashMap<Addr, Uint128>,
+    /// List of epochs processed for this distribution
+    pub epochs_processed: Vec<u64>,
+    /// Epoch in which rewards were distributed
+    pub current_epoch: Epoch,
+    /// True if there are more rewards to distribute (later epochs that have not yet been distributed but are ready for distribution at the time of calling)
+    pub can_distribute_more: bool,
+}
 pub fn load_config(storage: &dyn Storage) -> Config {
     CONFIG.load(storage).expect("couldn't load config")
 }
