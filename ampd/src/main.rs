@@ -6,7 +6,7 @@ use std::process::ExitCode;
 use ::config::{Config as cfg, Environment, File, FileFormat, FileSourceFile};
 use ampd::commands::{
     bond_verifier, daemon, deregister_chain_support, register_chain_support, register_public_key,
-    verifier_address, SubCommand,
+    send_tokens, verifier_address, SubCommand,
 };
 use ampd::config::Config;
 use ampd::Error;
@@ -64,6 +64,7 @@ async fn main() -> ExitCode {
         }
         Some(SubCommand::RegisterPublicKey(args)) => register_public_key::run(cfg, args).await,
         Some(SubCommand::VerifierAddress) => verifier_address::run(cfg.tofnd_config).await,
+        Some(SubCommand::SendTokens(args)) => send_tokens::run(cfg, args).await,
     };
 
     match result {
