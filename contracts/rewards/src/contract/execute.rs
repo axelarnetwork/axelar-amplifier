@@ -7,7 +7,8 @@ use error_stack::{ensure, Report, Result};
 use crate::error::ContractError;
 use crate::msg::Params;
 use crate::state::{
-    self, Epoch, EpochTally, Event, ParamsSnapshot, PoolId, RewardsPool, StorageState,
+    self, Epoch, EpochTally, Event, ParamsSnapshot, PoolId, RewardsDistribution, RewardsPool,
+    StorageState,
 };
 
 const DEFAULT_EPOCHS_TO_PROCESS: u64 = 10;
@@ -59,7 +60,7 @@ pub fn distribute_rewards(
     pool_id: PoolId,
     cur_block_height: u64,
     epoch_process_limit: Option<u64>,
-) -> Result<HashMap<Addr, Uint128>, ContractError> {
+) -> Result<RewardsDistribution, ContractError> {
     let epoch_process_limit = epoch_process_limit.unwrap_or(DEFAULT_EPOCHS_TO_PROCESS);
     let cur_epoch = state::current_epoch(storage, &pool_id, cur_block_height)?;
 
@@ -77,7 +78,12 @@ pub fn distribute_rewards(
 
     let rewards = process_rewards_for_epochs(storage, pool_id.clone(), from, to)?;
     state::save_rewards_watermark(storage, pool_id, to)?;
-    Ok(rewards)
+    Ok(RewardsDistribution {
+        rewards,
+        epochs_processed: (from..=to).collect(),
+        current_epoch: cur_epoch.clone(),
+        can_distribute_more: to < cur_epoch.epoch_num.saturating_sub(EPOCH_PAYOUT_DELAY),
+    })
 }
 
 fn process_rewards_for_epochs(
@@ -1031,7 +1037,7 @@ mod test {
                 Uint128::from(rewards_to_add).try_into().unwrap(),
             );
 
-            let rewards_claimed = distribute_rewards(
+            let distribution = distribute_rewards(
                 mock_deps.as_mut().storage,
                 pool_id,
                 block_height_started + epoch_duration * 2,
@@ -1039,7 +1045,7 @@ mod test {
             )
             .unwrap();
             assert_eq!(
-                rewards_claimed.values().sum::<Uint128>(),
+                distribution.rewards.values().sum::<Uint128>(),
                 Uint128::from(params.rewards_per_epoch)
             );
         }
@@ -1112,7 +1118,7 @@ mod test {
             let rewards_to_add = params.rewards_per_epoch;
             let _ = add_rewards(mock_deps.as_mut().storage, pool_id.clone(), rewards_to_add);
 
-            let rewards_claimed = distribute_rewards(
+            let distribution = distribute_rewards(
                 mock_deps.as_mut().storage,
                 pool_id.clone(),
                 block_height_started + epoch_duration * 2,
@@ -1123,7 +1129,7 @@ mod test {
             if pool_id == pools[0] {
                 // the first pool has a 2/3 threshold, which both verifiers meet
                 assert_eq!(
-                    rewards_claimed,
+                    distribution.rewards,
                     HashMap::from_iter(verifiers.iter().map(|v| (
                         v.clone(),
                         Uint128::from(Uint128::from(rewards_to_add).u128() / 2)
@@ -1132,7 +1138,7 @@ mod test {
             } else {
                 // the second pool has 3/4 threshold, which only the second verifier meets
                 assert_eq!(
-                    rewards_claimed,
+                    distribution.rewards,
                     HashMap::from([(verifiers[1].clone(), Uint128::from(rewards_to_add))])
                 );
             }
@@ -1204,7 +1210,7 @@ mod test {
             let rewards_to_add = params.rewards_per_epoch;
             add_rewards(mock_deps.as_mut().storage, pool_id.clone(), rewards_to_add).unwrap();
 
-            let rewards = distribute_rewards(
+            let distribution = distribute_rewards(
                 mock_deps.as_mut().storage,
                 pool_id.clone(),
                 block_height_started + base_epoch_duration * EPOCH_PAYOUT_DELAY, // this is long enough for the first pool to pay out, but not the second
@@ -1213,9 +1219,9 @@ mod test {
             .unwrap();
 
             if pool_id == pools[0] {
-                assert_eq!(rewards.len(), 1);
+                assert_eq!(distribution.rewards.len(), 1);
             } else {
-                assert_eq!(rewards.len(), 0);
+                assert_eq!(distribution.rewards.len(), 0);
             }
         }
     }
@@ -1299,13 +1305,15 @@ mod test {
             Uint128::from(rewards_added).try_into().unwrap(),
         );
 
-        let rewards_claimed = distribute_rewards(
+        let distribution = distribute_rewards(
             mock_deps.as_mut().storage,
             pool_id,
-            block_height_started + epoch_duration * (epoch_count as u64 + 2),
+            block_height_started + epoch_duration * (epoch_count as u64 + 1),
             None,
         )
         .unwrap();
+
+        let rewards_claimed = distribution.rewards;
 
         assert_eq!(
             rewards_claimed.len(),
@@ -1318,6 +1326,11 @@ mod test {
                 Some(&Uint128::from(rewards))
             );
         }
+
+        assert_eq!(
+            distribution.epochs_processed,
+            Vec::from_iter(0u64..epoch_count as u64)
+        );
     }
 
     /// Tests that rewards are distributed correctly for a specified number of epochs, and that pagination works correctly
@@ -1361,34 +1374,45 @@ mod test {
             Uint128::from(rewards_added).try_into().unwrap(),
         );
 
-        // this puts us in epoch 10
+        // this puts us in epoch 9
         let cur_height = block_height_started + epoch_duration * 9;
         let total_epochs_with_rewards = (cur_height / epoch_duration) - 1;
 
         // distribute 5 epochs worth of rewards
         let epochs_to_process = 5;
-        let rewards_claimed = distribute_rewards(
+        let distribution = distribute_rewards(
             mock_deps.as_mut().storage,
             pool_id.clone(),
             cur_height,
             Some(epochs_to_process),
         )
         .unwrap();
+        let rewards_claimed = distribution.rewards;
         assert_eq!(rewards_claimed.len(), 1);
         assert!(rewards_claimed.contains_key(&verifier));
         assert_eq!(
             rewards_claimed.get(&verifier),
             Some(&(rewards_per_epoch * epochs_to_process as u128).into())
         );
+        assert_eq!(
+            distribution.epochs_processed,
+            Vec::from_iter(0u64..epochs_to_process)
+        );
+        assert_eq!(
+            distribution.current_epoch.epoch_num,
+            cur_height / epoch_duration
+        );
+        assert!(distribution.can_distribute_more);
 
         // distribute the remaining epochs worth of rewards
-        let rewards_claimed = distribute_rewards(
+        let distribution = distribute_rewards(
             mock_deps.as_mut().storage,
             pool_id.clone(),
             cur_height,
             None,
         )
         .unwrap();
+        let rewards_claimed = distribution.rewards;
         assert_eq!(rewards_claimed.len(), 1);
         assert!(rewards_claimed.contains_key(&verifier));
         assert_eq!(
@@ -1398,6 +1422,15 @@ mod test {
                     .into()
             )
         );
+        assert_eq!(
+            distribution.epochs_processed,
+            Vec::from_iter(epochs_to_process..total_epochs_with_rewards)
+        );
+        assert_eq!(
+            distribution.current_epoch.epoch_num,
+            cur_height / epoch_duration
+        );
+        assert!(!distribution.can_distribute_more);
     }
 
     /// Tests that we do not distribute rewards for a given epoch until two epochs later
@@ -1463,14 +1496,15 @@ mod test {
         assert_eq!(err.current_context(), &ContractError::NoRewardsToDistribute);
 
         // can claim now, two epochs after participation
-        let rewards_claimed = distribute_rewards(
+        let distribution = distribute_rewards(
             mock_deps.as_mut().storage,
             pool_id.clone(),
             block_height_started + epoch_duration * 2,
             None,
         )
         .unwrap();
-        assert_eq!(rewards_claimed.len(), 1);
+        assert_eq!(distribution.rewards.len(), 1);
+        assert!(!distribution.can_distribute_more);
 
         // should error if we try again
         let err = distribute_rewards(
@@ -1546,14 +1580,14 @@ mod test {
             Uint128::from(rewards_added).try_into().unwrap(),
         );
 
-        let result = distribute_rewards(
+        let distribution = distribute_rewards(
             mock_deps.as_mut().storage,
             pool_id,
             block_height_started + epoch_duration * 2,
             None,
-        );
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap().len(), 1);
+        )
+        .unwrap();
+        assert_eq!(distribution.rewards.len(), 1);
     }
 
     /// Tests that an error is returned from distribute_rewards when trying to claim rewards for the same epoch more than once
@@ -1594,14 +1628,15 @@ mod test {
             Uint128::from(rewards_added).try_into().unwrap(),
         );
 
-        let rewards_claimed = distribute_rewards(
+        let distribution = distribute_rewards(
             mock_deps.as_mut().storage,
             pool_id.clone(),
             block_height_started + epoch_duration * 2,
             None,
         )
         .unwrap();
-        assert_eq!(rewards_claimed.len(), 1);
+        assert_eq!(distribution.rewards.len(), 1);
+        assert_eq!(distribution.epochs_processed, vec![cur_epoch_num]);
 
         // try to claim again, shouldn't get an error
         let err = distribute_rewards(

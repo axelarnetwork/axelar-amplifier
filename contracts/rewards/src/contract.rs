@@ -8,6 +8,7 @@ use error_stack::ResultExt;
 use itertools::Itertools;
 
 use crate::error::ContractError;
+use crate::events;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{self, Config, PoolId, CONFIG};
 
@@ -108,10 +109,16 @@ pub fn execute(
         } => {
             address::validate_cosmwasm_address(deps.api, pool_id.contract.as_str())?;
 
-            let rewards =
-                execute::distribute_rewards(deps.storage, pool_id, env.block.height, epoch_count)?;
+            let rewards_distribution = execute::distribute_rewards(
+                deps.storage,
+                pool_id.clone(),
+                env.block.height,
+                epoch_count,
+            )?;
 
-            let msgs = rewards
+            let msgs = rewards_distribution
+                .rewards
+                .clone()
                 .into_iter()
                 .sorted()
                 .map(|(addr, amount)| BankMsg::Send {
@@ -122,7 +129,9 @@ pub fn execute(
                     }],
                 });
 
-            Ok(Response::new().add_messages(msgs))
+            Ok(Response::new()
+                .add_messages(msgs)
+                .add_event(events::Event::from(rewards_distribution).into()))
         }
         ExecuteMsg::UpdatePoolParams { params, pool_id } => {
             execute::update_pool_params(deps.storage, &pool_id, params, env.block.height)?;
