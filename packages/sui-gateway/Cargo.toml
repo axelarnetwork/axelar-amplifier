@@ -8,12 +8,13 @@ rust-version = { workspace = true }
 bcs = { workspace = true }
 cosmwasm-std = { workspace = true }
 error-stack = { workspace = true }
-hex = "0.4.3"
+hex = { workspace = true }
 multisig = { workspace = true, features = ["library"] }
 router-api = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 sha3 = { workspace = true }
+sui-types = { workspace = true }
 thiserror = { workspace = true }
 
 [lints]

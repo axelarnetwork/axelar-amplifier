@@ -6,19 +6,19 @@ use cw_storage_plus::{Item, Map};
 use router_api::{ChainName, CrossChainId, Message};
 
 #[cw_serde]
-pub(crate) struct Config {
+pub struct Config {
     pub chain_name: ChainName,
     pub router: Addr,
 }
 
 #[cw_serde]
-pub(crate) enum MessageStatus {
+pub enum MessageStatus {
     Approved,
     Executed,
 }
 
 #[cw_serde]
-pub(crate) struct MessageWithStatus {
+pub struct MessageWithStatus {
     pub msg: Message,
     pub status: MessageStatus,
 }
@@ -53,18 +53,18 @@ pub enum Error {
     MessageAlreadyExists(CrossChainId),
 }
 
-pub(crate) fn save_config(storage: &mut dyn Storage, value: &Config) -> Result<(), Error> {
+pub fn save_config(storage: &mut dyn Storage, value: &Config) -> Result<(), Error> {
     CONFIG.save(storage, value).map_err(Error::from)
 }
 
-pub(crate) fn load_config(storage: &dyn Storage) -> Result<Config, Error> {
+pub fn load_config(storage: &dyn Storage) -> Result<Config, Error> {
     CONFIG
         .may_load(storage)
         .map_err(Error::from)?
         .ok_or(Error::MissingConfig)
 }
 
-pub(crate) fn save_sent_msg(
+pub fn save_sent_msg(
     storage: &mut dyn Storage,
     key: CrossChainId,
     msg: &Message,
@@ -75,7 +75,7 @@ pub(crate) fn save_sent_msg(
     }
 }
 
-pub(crate) fn may_load_sent_msg(
+pub fn may_load_sent_msg(
     storage: &dyn Storage,
     id: &CrossChainId,
 ) -> Result<Option<Message>, Error> {
@@ -84,7 +84,7 @@ pub(crate) fn may_load_sent_msg(
         .map_err(Error::from)
 }
 
-pub(crate) fn may_load_received_msg(
+pub fn may_load_received_msg(
     storage: &dyn Storage,
     cc_id: &CrossChainId,
 ) -> Result<Option<MessageWithStatus>, Error> {
@@ -93,7 +93,7 @@ pub(crate) fn may_load_received_msg(
         .map_err(Error::from)
 }
 
-pub(crate) fn save_received_msg(
+pub fn save_received_msg(
     storage: &mut dyn Storage,
     cc_id: CrossChainId,
     msg: Message,
@@ -122,7 +122,7 @@ pub(crate) fn save_received_msg(
 }
 
 /// Update the status of a message to executed if it is in approved status, error otherwise.
-pub(crate) fn set_msg_as_executed(
+pub fn set_msg_as_executed(
     storage: &mut dyn Storage,
     cc_id: CrossChainId,
 ) -> Result<Message, Error> {
@@ -156,7 +156,7 @@ pub(crate) fn set_msg_as_executed(
     }
 }
 
-pub(crate) fn increment_msg_counter(storage: &mut dyn Storage) -> Result<u32, Error> {
+pub fn increment_msg_counter(storage: &mut dyn Storage) -> Result<u32, Error> {
     SENT_MESSAGE_COUNTER.incr(storage).map_err(Error::from)
 }
 
