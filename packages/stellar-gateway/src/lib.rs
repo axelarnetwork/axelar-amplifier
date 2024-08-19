@@ -79,7 +79,7 @@ impl TryFrom<Message> for ScVal {
         ];
 
         let vals: [ScVal; 5] = [
-            ScVal::Address(ScAddress::Contract(Hash(value.contract_address.0.clone()))),
+            ScVal::Address(ScAddress::Contract(Hash(value.contract_address.0))),
             ScVal::String(StringM::from_str(&value.message_id)?.into()),
             ScVal::Bytes(BytesM::try_from(AsRef::<[u8; 32]>::as_ref(&value.payload_hash))?.into()),
             ScVal::String(StringM::from_str(&value.source_address)?.into()),
@@ -235,7 +235,6 @@ fn sc_map_from_slices(keys: &[&str], vals: &[ScVal]) -> Result<ScVal, XdrError> 
 mod test {
     use axelar_wasm_std::FnExt;
     use cosmwasm_std::HexBinary;
-    use goldie;
     use serde::Serialize;
     use stellar_xdr::curr::{Limits, ScVal, WriteXdr};
 

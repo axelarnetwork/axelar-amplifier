@@ -30,7 +30,7 @@ pub fn payload_digest(
     let signers_hash = WeightedSigners::try_from(verifier_set)
         .change_context(ContractError::InvalidVerifierSet)?
         .hash()
-        .unwrap();
+        .map_err(ContractError::from)?;
 
     let unsigned = [
         domain_separator,
