@@ -18,6 +18,7 @@ events = { version = "^1.0.0", path = "packages/events" }
 events-derive = { version = "^1.0.0", path = "packages/events-derive" }
 evm-gateway = { version = "^1.0.0", path = "packages/evm-gateway" }
 sui-gateway = { version = "^1.0.0", path = "packages/sui-gateway" }
+stellar-gateway = { version = "^1.0.0", path = "packages/stellar-gateway" }
 axelar-wasm-std = { version = "^1.0.0", path = "packages/axelar-wasm-std" }
 axelar-wasm-std-derive = { version = "^1.0.0", path = "packages/axelar-wasm-std-derive" }
 integration-tests = { version = "^1.0.0", path = "integration-tests" }
@@ -57,6 +58,7 @@ strum = { version = "0.25", default-features = false, features = ["derive"] }
 interchain-token-service = { version = "^0.1.0", path = "interchain-token-service" }
 goldie = { version = "0.5" }
 axelarnet-gateway = { version = "^0.1.0", path = "contracts/axelarnet-gateway" }
+stellar-xdr = { version = "21.2.0" }
 
 [workspace.lints.clippy]
 arithmetic_side_effects = "deny"
