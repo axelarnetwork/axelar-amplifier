@@ -33,7 +33,7 @@ impl CommandType {
 impl TryFrom<CommandType> for ScVal {
     type Error = Report<XdrError>;
 
-    fn try_from(value: CommandType) -> Result<Self, <Self as TryFrom<CommandType>>::Error> {
+    fn try_from(value: CommandType) -> Result<Self, Report<XdrError>> {
         let val: VecM<ScVal> =
             vec![ScVal::Symbol(StringM::from_str(value.as_str())?.into())].try_into()?;
 
@@ -69,7 +69,7 @@ impl TryFrom<&router_api::Message> for Message {
 impl TryFrom<Message> for ScVal {
     type Error = XdrError;
 
-    fn try_from(value: Message) -> Result<Self, <Self as TryFrom<Message>>::Error> {
+    fn try_from(value: Message) -> Result<Self, XdrError> {
         let keys: [&'static str; 5] = [
             "contract_address",
             "message_id",
@@ -125,7 +125,7 @@ pub struct WeightedSigner {
 impl TryFrom<WeightedSigner> for ScVal {
     type Error = XdrError;
 
-    fn try_from(value: WeightedSigner) -> Result<Self, <Self as TryFrom<WeightedSigner>>::Error> {
+    fn try_from(value: WeightedSigner) -> Result<Self, XdrError> {
         let keys: [&'static str; 2] = ["signer", "weight"];
 
         let vals: [ScVal; 2] = [
@@ -166,7 +166,7 @@ impl WeightedSigners {
 impl TryFrom<WeightedSigners> for ScVal {
     type Error = XdrError;
 
-    fn try_from(value: WeightedSigners) -> Result<Self, <Self as TryFrom<WeightedSigner>>::Error> {
+    fn try_from(value: WeightedSigners) -> Result<Self, XdrError> {
         let signers = value.signers.clone().try_map(|signer| signer.try_into())?;
 
         let keys: [&'static str; 3] = ["nonce", "signers", "threshold"];
