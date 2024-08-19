@@ -2,7 +2,7 @@ use axelar_wasm_std::{address, permission_control, FnExt};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_json_binary, Addr, BankMsg, Binary, Coin, Deps, DepsMut, Empty, Env, MessageInfo, Order,
+    to_json_binary, Addr, BankMsg, Binary, Coin, Deps, DepsMut, Empty, Env, MessageInfo,
     QueryRequest, Response, Storage, Uint128, WasmQuery,
 };
 use error_stack::{bail, Report, ResultExt};
@@ -164,6 +164,11 @@ pub fn query(
         QueryMsg::Service { service_name } => {
             to_json_binary(&query::service(deps, service_name)?).map_err(|err| err.into())
         }
+        QueryMsg::VerifierDetails {
+            service_name,
+            verifier,
+        } => to_json_binary(&query::verifier_details(deps, service_name, verifier)?)
+            .map_err(|err| err.into()),
     }
 }
 
@@ -182,6 +187,7 @@ pub fn migrate(
 
 #[cfg(test)]
 mod test {
+    use std::collections::HashSet;
     use std::str::FromStr;
 
     use axelar_wasm_std::error::err_contains;
@@ -192,7 +198,7 @@ mod test {
     use router_api::ChainName;
 
     use super::*;
-    use crate::state::{WeightedVerifier, VERIFIER_WEIGHT};
+    use crate::state::{VerifierDetailsResponse, WeightedVerifier, VERIFIER_WEIGHT};
 
     const GOVERNANCE_ADDRESS: &str = "governance";
     const UNAUTHORIZED_ADDRESS: &str = "unauthorized";
@@ -2064,5 +2070,100 @@ mod test {
             ContractError,
             ContractError::VerifierJailed
         ));
+    }
+
+    #[test]
+    fn get_single_verifier_details() {
+        let mut deps = setup();
+
+        let service_name = "validators";
+        let min_verifier_bond = Uint128::new(100);
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(GOVERNANCE_ADDRESS, &[]),
+            ExecuteMsg::RegisterService {
+                service_name: service_name.into(),
+                coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS),
+                min_num_verifiers: 0,
+                max_num_verifiers: Some(100),
+                min_verifier_bond,
+                bond_denom: AXL_DENOMINATION.into(),
+                unbonding_period_days: 10,
+                description: "Some service".into(),
+            },
+        );
+        assert!(res.is_ok());
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(GOVERNANCE_ADDRESS, &[]),
+            ExecuteMsg::AuthorizeVerifiers {
+                verifiers: vec![VERIFIER_ADDRESS.into()],
+                service_name: service_name.into(),
+            },
+        );
+        assert!(res.is_ok());
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(
+                VERIFIER_ADDRESS,
+                &coins(min_verifier_bond.u128(), AXL_DENOMINATION),
+            ),
+            ExecuteMsg::BondVerifier {
+                service_name: service_name.into(),
+            },
+        );
+        assert!(res.is_ok());
+
+        let chains = vec![
+            ChainName::from_str("ethereum").unwrap(),
+            ChainName::from_str("binance").unwrap(),
+            ChainName::from_str("avalanche").unwrap(),
+        ];
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(VERIFIER_ADDRESS, &[]),
+            ExecuteMsg::RegisterChainSupport {
+                service_name: service_name.into(),
+                chains: chains.clone(),
+            },
+        );
+        assert!(res.is_ok());
+
+        let verifier_details: VerifierDetailsResponse = from_json(
+            query(
+                deps.as_ref(),
+                mock_env(),
+                QueryMsg::VerifierDetails {
+                    service_name: service_name.into(),
+                    verifier: VERIFIER_ADDRESS.into(),
+                },
+            )
+            .unwrap(),
+        )
+        .unwrap();
+
+        assert_eq!(
+            verifier_details.verifier,
+            Verifier {
+                address: Addr::unchecked(VERIFIER_ADDRESS),
+                bonding_state: BondingState::Bonded {
+                    amount: min_verifier_bond
+                },
+                authorization_state: AuthorizationState::Authorized,
+                service_name: service_name.into()
+            }
+        );
+        assert_eq!(verifier_details.weight, VERIFIER_WEIGHT);
+
+        let expected_chains: HashSet<ChainName> = chains.into_iter().collect();
+        let actual_chains: HashSet<ChainName> =
+            verifier_details.supported_chains.into_iter().collect();
+        assert_eq!(expected_chains, actual_chains);
     }
 }

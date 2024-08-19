@@ -2,7 +2,7 @@ use axelar_wasm_std::nonempty;
 use axelar_wasm_std::snapshot::Participant;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Storage, Timestamp, Uint128};
-use cw_storage_plus::Map;
+use cw_storage_plus::{index_list, IndexedMap, Map, MultiIndex};
 use router_api::ChainName;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -145,12 +145,48 @@ pub enum AuthorizationState {
     Jailed,
 }
 
-type ServiceName = str;
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
+pub struct VerifierDetailsResponse {
+    pub verifier: Verifier,
+    pub weight: nonempty::Uint128,
+    pub supported_chains: Vec<ChainName>,
+}
+
+#[cw_serde]
+pub struct VerifierChainRecord {
+    pub chain: ChainName,
+    pub verifier: VerifierAddress,
+}
+
+#[index_list(VerifierChainRecord)]
+pub struct VerifierPerChainIndexes<'a> {
+    pub verifier: MultiIndex<
+        'a,
+        VerifierAddress,
+        VerifierChainRecord,
+        (ServiceName, ChainName, VerifierAddress),
+    >,
+}
+
+pub const VERIFIERS_PER_CHAIN_INDEXED_MAP: IndexedMap<
+    (ServiceName, ChainName, VerifierAddress),
+    VerifierChainRecord,
+    VerifierPerChainIndexes,
+> = IndexedMap::new(
+    "verifiers",
+    VerifierPerChainIndexes {
+        verifier: MultiIndex::new(
+            |_pk: &[u8], d| d.verifier.clone(),
+            "verifiers",
+            "verifiers_service_verifier",
+        ),
+    },
+);
+
+type ServiceName = String;
 type VerifierAddress = Addr;
 
 pub const SERVICES: Map<&ServiceName, Service> = Map::new("services");
-pub const VERIFIERS_PER_CHAIN: Map<(&ServiceName, &ChainName, &VerifierAddress), ()> =
-    Map::new("verifiers_per_chain");
 pub const VERIFIERS: Map<(&ServiceName, &VerifierAddress), Verifier> = Map::new("verifiers");
 
 pub fn register_chains_support(
@@ -160,7 +196,14 @@ pub fn register_chains_support(
     verifier: VerifierAddress,
 ) -> Result<(), ContractError> {
     for chain in chains.iter() {
-        VERIFIERS_PER_CHAIN.save(storage, (&service_name, chain, &verifier), &())?;
+        VERIFIERS_PER_CHAIN_INDEXED_MAP.save(
+            storage,
+            (service_name.clone(), chain.clone(), verifier.clone()),
+            &VerifierChainRecord {
+                chain: chain.clone(),
+                verifier: verifier.clone(),
+            },
+        )?;
     }
 
     Ok(())
@@ -173,7 +216,17 @@ pub fn deregister_chains_support(
     verifier: VerifierAddress,
 ) -> Result<(), ContractError> {
     for chain in chains {
-        VERIFIERS_PER_CHAIN.remove(storage, (&service_name, &chain, &verifier));
+        VERIFIERS_PER_CHAIN_INDEXED_MAP
+            .remove(
+                storage,
+                (service_name.clone(), chain.clone(), verifier.clone()),
+            )
+            .unwrap_or_else(|_| {
+                panic!(
+                    "Failed to deregister support for chain {:?} from verifier {:?}",
+                    chain, verifier
+                )
+            });
     }
 
     Ok(())
