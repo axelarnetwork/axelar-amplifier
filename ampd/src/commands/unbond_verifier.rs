@@ -21,7 +21,7 @@ pub async fn run(config: Config, args: Args) -> Result<Option<String>, Error> {
     let msg = serde_json::to_vec(&ExecuteMsg::UnbondVerifier {
         service_name: args.service_name.into(),
     })
-    .expect("unbond verifier msg should serialize");
+    .expect("unbond verifier msg should be serializable");
 
     let tx = MsgExecuteContract {
         sender: pub_key.account_id(PREFIX).change_context(Error::Tofnd)?,
