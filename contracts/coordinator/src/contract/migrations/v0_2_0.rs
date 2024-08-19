@@ -10,7 +10,7 @@ use crate::state::save_prover_for_chain;
 
 const BASE_VERSION: &str = "0.2.0";
 
-pub(crate) fn migrate(storage: &mut dyn Storage) -> Result<(), ContractError> {
+pub fn migrate(storage: &mut dyn Storage) -> Result<(), ContractError> {
     cw2::assert_contract_version(storage, CONTRACT_NAME, BASE_VERSION)?;
 
     migrate_config_to_permission_control(storage)?;
@@ -38,15 +38,15 @@ fn migrate_registered_provers(storage: &mut dyn Storage) -> Result<(), ContractE
 
 #[cw_serde]
 #[deprecated(since = "0.2.0", note = "only used to test the migration")]
-pub struct Config {
+struct Config {
     pub governance: Addr,
 }
 
 #[deprecated(since = "0.2.0", note = "only used to test the migration")]
-pub const CONFIG: Item<Config> = Item::new("config");
+const CONFIG: Item<Config> = Item::new("config");
 
 #[deprecated(since = "0.2.0", note = "only used to test the migration")]
-pub const PROVER_PER_CHAIN: Map<ChainName, Addr> = Map::new("prover_per_chain");
+const PROVER_PER_CHAIN: Map<ChainName, Addr> = Map::new("prover_per_chain");
 
 #[cfg(test)]
 mod tests {

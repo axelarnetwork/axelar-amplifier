@@ -1,1 +1,1 @@
-pub(crate) mod v0_6_0;
+pub mod v0_6_0;
