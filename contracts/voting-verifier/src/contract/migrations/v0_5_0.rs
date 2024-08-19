@@ -1,6 +1,6 @@
 #![allow(deprecated)]
 
-use axelar_wasm_std::address_format::AddressFormat;
+use axelar_wasm_std::address::AddressFormat;
 use axelar_wasm_std::error::ContractError;
 use axelar_wasm_std::msg_id::MessageIdFormat;
 use axelar_wasm_std::{nonempty, permission_control, MajorityThreshold};

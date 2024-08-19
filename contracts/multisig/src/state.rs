@@ -17,9 +17,14 @@ pub struct Config {
     pub block_expiry: nonempty::Uint64, // number of blocks after which a signing session expires
 }
 
+type VerifierSetId = str;
+
 pub const CONFIG: Item<Config> = Item::new("config");
 pub const SIGNING_SESSION_COUNTER: Item<Uint64> = Item::new("signing_session_counter");
 pub const SIGNING_SESSIONS: Map<u64, SigningSession> = Map::new("signing_sessions");
+// The keys represent the addresses that can start a signing session.
+pub const AUTHORIZED_CALLERS: Map<&Addr, ChainName> = Map::new("authorized_callers");
+pub const VERIFIER_SETS: Map<&VerifierSetId, VerifierSet> = Map::new("verifier_sets");
 
 /// Signatures by session id and signer address
 pub const SIGNATURES: Map<(u64, &str), Signature> = Map::new("signatures");
@@ -55,8 +60,6 @@ pub fn save_signature(
     )
 }
 
-type VerifierSetId = str;
-pub const VERIFIER_SETS: Map<&VerifierSetId, VerifierSet> = Map::new("verifier_sets");
 pub fn verifier_set(
     store: &dyn Storage,
     verifier_set_id: &str,
@@ -108,9 +111,6 @@ pub fn save_pub_key(
 
     Ok(pub_keys().save(store, (signer, pub_key.key_type()), &pub_key.into())?)
 }
-
-// The keys represent the addresses that can start a signing session.
-pub const AUTHORIZED_CALLERS: Map<&Addr, ChainName> = Map::new("authorized_callers");
 
 #[cfg(test)]
 mod tests {

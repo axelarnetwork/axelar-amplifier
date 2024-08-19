@@ -12,6 +12,7 @@ use event_processor::EventHandler;
 use event_sub::EventSub;
 use evm::finalizer::{pick, Finalization};
 use evm::json_rpc::EthereumClient;
+use multiversx_sdk::blockchain::CommunicationProxy;
 use queue::queued_broadcaster::QueuedBroadcaster;
 use router_api::ChainName;
 use thiserror::Error;
@@ -39,6 +40,7 @@ mod grpc;
 mod handlers;
 mod health_check;
 mod json_rpc;
+mod mvx;
 mod queue;
 mod sui;
 mod tm_client;
@@ -324,6 +326,32 @@ where
                                 .build()
                                 .change_context(Error::Connection)?,
                         ),
+                        self.block_height_monitor.latest_block_height(),
+                    ),
+                    event_processor_config.clone(),
+                ),
+                handlers::config::Config::MvxMsgVerifier {
+                    cosmwasm_contract,
+                    proxy_url,
+                } => self.create_handler_task(
+                    "mvx-msg-verifier",
+                    handlers::mvx_verify_msg::Handler::new(
+                        verifier.clone(),
+                        cosmwasm_contract,
+                        CommunicationProxy::new(proxy_url.to_string().trim_end_matches('/').into()),
+                        self.block_height_monitor.latest_block_height(),
+                    ),
+                    event_processor_config.clone(),
+                ),
+                handlers::config::Config::MvxVerifierSetVerifier {
+                    cosmwasm_contract,
+                    proxy_url,
+                } => self.create_handler_task(
+                    "mvx-worker-set-verifier",
+                    handlers::mvx_verify_verifier_set::Handler::new(
+                        verifier.clone(),
+                        cosmwasm_contract,
+                        CommunicationProxy::new(proxy_url.to_string().trim_end_matches('/').into()),
                         self.block_height_monitor.latest_block_height(),
                     ),
                     event_processor_config.clone(),

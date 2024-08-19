@@ -1,5 +1,5 @@
-pub mod abi;
-pub mod bcs;
+mod abi;
+mod bcs;
 pub mod stellar_xdr;
 
 use axelar_wasm_std::hash::Hash;

@@ -1,4 +1,4 @@
-use axelar_wasm_std::{permission_control, FnExt};
+use axelar_wasm_std::{address, permission_control, FnExt};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
@@ -27,7 +27,7 @@ pub fn instantiate(
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    let governance = deps.api.addr_validate(&msg.governance_account)?;
+    let governance = address::validate_cosmwasm_address(deps.api, &msg.governance_account)?;
     permission_control::set_governance(deps.storage, &governance)?;
 
     Ok(Response::default())
@@ -67,7 +67,7 @@ pub fn execute(
         } => {
             let verifiers = verifiers
                 .into_iter()
-                .map(|veriier| deps.api.addr_validate(&veriier))
+                .map(|verifier| address::validate_cosmwasm_address(deps.api, &verifier))
                 .collect::<Result<Vec<_>, _>>()?;
             execute::update_verifier_authorization_status(
                 deps,
@@ -82,7 +82,7 @@ pub fn execute(
         } => {
             let verifiers = verifiers
                 .into_iter()
-                .map(|verifier| deps.api.addr_validate(&verifier))
+                .map(|verifier| address::validate_cosmwasm_address(deps.api, &verifier))
                 .collect::<Result<Vec<_>, _>>()?;
             execute::update_verifier_authorization_status(
                 deps,
@@ -97,7 +97,7 @@ pub fn execute(
         } => {
             let verifiers = verifiers
                 .into_iter()
-                .map(|verifier| deps.api.addr_validate(&verifier))
+                .map(|verifier| address::validate_cosmwasm_address(deps.api, &verifier))
                 .collect::<Result<Vec<_>, _>>()?;
             execute::update_verifier_authorization_status(
                 deps,
@@ -145,7 +145,11 @@ fn match_verifier(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
+pub fn query(
+    deps: Deps,
+    _env: Env,
+    msg: QueryMsg,
+) -> Result<Binary, axelar_wasm_std::error::ContractError> {
     match msg {
         QueryMsg::ActiveVerifiers {
             service_name,

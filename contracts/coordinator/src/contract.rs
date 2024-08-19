@@ -1,8 +1,8 @@
 mod execute;
+mod migrations;
 mod query;
 
-mod migrations;
-use axelar_wasm_std::{permission_control, FnExt};
+use axelar_wasm_std::{address, permission_control, FnExt};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
@@ -42,7 +42,7 @@ pub fn instantiate(
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    let governance = deps.api.addr_validate(&msg.governance_address)?;
+    let governance = address::validate_cosmwasm_address(deps.api, &msg.governance_address)?;
     permission_control::set_governance(deps.storage, &governance)?;
 
     Ok(Response::default())
