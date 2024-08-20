@@ -13,7 +13,7 @@ use crate::contract::{CONTRACT_NAME, CONTRACT_VERSION};
 use crate::encoding::Encoder;
 use crate::state;
 
-const BASE_VERSION: &str = "0.6.0";
+const BASE_VERSION: &str = "0.6.1";
 
 pub(crate) fn migrate(storage: &mut dyn Storage) -> Result<(), ContractError> {
     cw2::assert_contract_version(storage, CONTRACT_NAME, BASE_VERSION)?;
@@ -94,7 +94,7 @@ mod tests {
     use multisig::key::KeyType;
     use router_api::{CrossChainId, Message};
 
-    use crate::contract::migrations::v0_6_0;
+    use crate::contract::migrations::v0_6_1;
     use crate::contract::{CONTRACT_NAME, CONTRACT_VERSION};
     use crate::encoding::Encoder;
     use crate::error::ContractError;
@@ -107,12 +107,12 @@ mod tests {
         instantiate_contract(deps.as_mut());
         cw2::set_contract_version(deps.as_mut().storage, CONTRACT_NAME, "something wrong").unwrap();
 
-        assert!(v0_6_0::migrate(deps.as_mut().storage).is_err());
+        assert!(v0_6_1::migrate(deps.as_mut().storage).is_err());
 
-        cw2::set_contract_version(deps.as_mut().storage, CONTRACT_NAME, v0_6_0::BASE_VERSION)
+        cw2::set_contract_version(deps.as_mut().storage, CONTRACT_NAME, v0_6_1::BASE_VERSION)
             .unwrap();
 
-        assert!(v0_6_0::migrate(deps.as_mut().storage).is_ok());
+        assert!(v0_6_1::migrate(deps.as_mut().storage).is_ok());
     }
 
     #[test]
@@ -120,7 +120,7 @@ mod tests {
         let mut deps = mock_dependencies();
         instantiate_contract(deps.as_mut());
 
-        v0_6_0::migrate(deps.as_mut().storage).unwrap();
+        v0_6_1::migrate(deps.as_mut().storage).unwrap();
 
         let contract_version = cw2::get_contract_version(deps.as_mut().storage).unwrap();
         assert_eq!(contract_version.contract, CONTRACT_NAME);
@@ -172,7 +172,7 @@ mod tests {
             .save(deps.as_mut().storage, &payload.id(), &payload)
             .unwrap();
 
-        assert!(v0_6_0::migrate(deps.as_mut().storage).is_ok());
+        assert!(v0_6_1::migrate(deps.as_mut().storage).is_ok());
 
         assert!(state::PAYLOAD.is_empty(deps.as_ref().storage));
     }
@@ -183,7 +183,7 @@ mod tests {
 
         instantiate_contract(deps.as_mut());
 
-        assert!(v0_6_0::migrate(deps.as_mut().storage).is_ok());
+        assert!(v0_6_1::migrate(deps.as_mut().storage).is_ok());
 
         assert_eq!(
             permission_control::sender_role(deps.as_ref().storage, &Addr::unchecked("admin"))
@@ -204,12 +204,12 @@ mod tests {
 
         instantiate_contract(deps.as_mut());
 
-        assert!(v0_6_0::CONFIG.load(deps.as_ref().storage).is_ok());
+        assert!(v0_6_1::CONFIG.load(deps.as_ref().storage).is_ok());
         assert!(state::CONFIG.load(deps.as_ref().storage).is_err());
 
-        assert!(v0_6_0::migrate(deps.as_mut().storage).is_ok());
+        assert!(v0_6_1::migrate(deps.as_mut().storage).is_ok());
 
-        assert!(v0_6_0::CONFIG.load(deps.as_ref().storage).is_err());
+        assert!(v0_6_1::CONFIG.load(deps.as_ref().storage).is_err());
         assert!(state::CONFIG.load(deps.as_ref().storage).is_ok());
     }
 
@@ -247,10 +247,10 @@ mod tests {
         _info: MessageInfo,
         msg: InstantiateMsg,
     ) -> Result<Response, axelar_wasm_std::error::ContractError> {
-        cw2::set_contract_version(deps.storage, CONTRACT_NAME, v0_6_0::BASE_VERSION)?;
+        cw2::set_contract_version(deps.storage, CONTRACT_NAME, v0_6_1::BASE_VERSION)?;
 
         let config = make_config(&deps, msg)?;
-        v0_6_0::CONFIG.save(deps.storage, &config)?;
+        v0_6_1::CONFIG.save(deps.storage, &config)?;
 
         Ok(Response::default())
     }
@@ -258,7 +258,7 @@ mod tests {
     fn make_config(
         deps: &DepsMut,
         msg: InstantiateMsg,
-    ) -> Result<v0_6_0::Config, axelar_wasm_std::error::ContractError> {
+    ) -> Result<v0_6_1::Config, axelar_wasm_std::error::ContractError> {
         let admin = deps.api.addr_validate(&msg.admin_address)?;
         let governance = deps.api.addr_validate(&msg.governance_address)?;
         let gateway = deps.api.addr_validate(&msg.gateway_address)?;
@@ -267,7 +267,7 @@ mod tests {
         let service_registry = deps.api.addr_validate(&msg.service_registry_address)?;
         let voting_verifier = deps.api.addr_validate(&msg.voting_verifier_address)?;
 
-        Ok(v0_6_0::Config {
+        Ok(v0_6_1::Config {
             admin,
             governance,
             gateway,
