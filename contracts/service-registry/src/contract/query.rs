@@ -26,7 +26,6 @@ pub fn active_verifiers(
     let verifier_addresses: Vec<Addr> = VERIFIERS_PER_CHAIN_INDEXED_MAP
         .prefix((service_name.clone(), chain_name.clone()))
         .keys(deps.storage, None, None, Order::Ascending)
-        .map(|res| res.map(|verifier| verifier))
         .collect::<Result<Vec<Addr>, _>>()?;
 
     let weighted_verifiers: Vec<WeightedVerifier> = verifier_addresses
