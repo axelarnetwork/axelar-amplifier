@@ -1,11 +1,18 @@
+use axelar_wasm_std::nonempty;
 use cosmwasm_std::{Addr, Order};
 use router_api::ChainName;
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
 
 use super::*;
-use crate::state::{
-    VerifierDetailsResponse, WeightedVerifier, VERIFIERS, VERIFIERS_PER_CHAIN_INDEXED_MAP,
-    VERIFIER_WEIGHT,
-};
+use crate::state::{WeightedVerifier, VERIFIERS, VERIFIERS_PER_CHAIN_INDEXED_MAP, VERIFIER_WEIGHT};
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
+pub struct VerifierDetailsResponse {
+    pub verifier: Verifier,
+    pub weight: nonempty::Uint128,
+    pub supported_chains: Vec<ChainName>,
+}
 
 pub fn active_verifiers(
     deps: Deps,
@@ -16,30 +23,31 @@ pub fn active_verifiers(
         .may_load(deps.storage, &service_name)?
         .ok_or(ContractError::ServiceNotFound)?;
 
-    let verifiers: Vec<_> = VERIFIERS_PER_CHAIN_INDEXED_MAP
+    let verifier_addresses: Vec<Addr> = VERIFIERS_PER_CHAIN_INDEXED_MAP
         .prefix((service_name.clone(), chain_name.clone()))
-        .range(deps.storage, None, None, Order::Ascending)
-        .map(|res| res.map(|(_, record)| record.verifier))
+        .keys(deps.storage, None, None, Order::Ascending)
+        .map(|res| res.map(|verifier| verifier))
         .collect::<Result<Vec<Addr>, _>>()?;
 
-    let weighted_verifiers = verifiers
+    let weighted_verifiers: Vec<WeightedVerifier> = verifier_addresses
         .into_iter()
         .filter_map(|verifier_addr| {
             VERIFIERS
                 .may_load(deps.storage, (&service_name, &verifier_addr))
-                .unwrap_or(None)
-                .filter(|verifier| {
-                    matches!(
-                        verifier.bonding_state,
-                        BondingState::Bonded { amount } if amount >= service.min_verifier_bond
-                    ) && verifier.authorization_state == AuthorizationState::Authorized
-                })
-                .map(|verifier| WeightedVerifier {
-                    verifier_info: verifier,
-                    weight: VERIFIER_WEIGHT, // all verifiers have an identical const weight for now
-                })
+                .ok()
+                .flatten()
         })
-        .collect::<Vec<WeightedVerifier>>();
+        .filter(|verifier| {
+            matches!(
+                verifier.bonding_state,
+                BondingState::Bonded { amount } if amount >= service.min_verifier_bond
+            ) && verifier.authorization_state == AuthorizationState::Authorized
+        })
+        .map(|verifier| WeightedVerifier {
+            verifier_info: verifier,
+            weight: VERIFIER_WEIGHT,
+        })
+        .collect();
 
     if weighted_verifiers.len() < service.min_num_verifiers.into() {
         Err(ContractError::NotEnoughVerifiers)
@@ -78,10 +86,10 @@ pub fn verifier_details(
 
     let supported_chains = VERIFIERS_PER_CHAIN_INDEXED_MAP
         .idx
-        .verifier
-        .prefix(verifier_addr)
-        .range(deps.storage, None, None, Order::Ascending)
-        .map(|result| result.map(|(_, record)| record.chain))
+        .verifier_address
+        .prefix((service_name.clone(), verifier_addr.clone()))
+        .keys(deps.storage, None, None, Order::Ascending)
+        .map(|result| result.map(|(_, chain, _)| chain))
         .collect::<Result<Vec<ChainName>, _>>()?;
 
     Ok(VerifierDetailsResponse {

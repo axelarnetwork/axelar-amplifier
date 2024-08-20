@@ -2,7 +2,7 @@ use axelar_wasm_std::nonempty;
 use axelar_wasm_std::snapshot::Participant;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Storage, Timestamp, Uint128};
-use cw_storage_plus::{index_list, IndexedMap, Map, MultiIndex};
+use cw_storage_plus::{Index, IndexList, IndexedMap, KeyDeserialize, Map, MultiIndex};
 use router_api::ChainName;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -145,40 +145,38 @@ pub enum AuthorizationState {
     Jailed,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
-pub struct VerifierDetailsResponse {
-    pub verifier: Verifier,
-    pub weight: nonempty::Uint128,
-    pub supported_chains: Vec<ChainName>,
-}
-
-#[cw_serde]
-pub struct VerifierChainRecord {
-    pub chain: ChainName,
-    pub verifier: VerifierAddress,
-}
-
-#[index_list(VerifierChainRecord)]
 pub struct VerifierPerChainIndexes<'a> {
-    pub verifier: MultiIndex<
+    pub verifier_address: MultiIndex<
         'a,
-        VerifierAddress,
-        VerifierChainRecord,
+        (ServiceName, VerifierAddress),
+        (),
         (ServiceName, ChainName, VerifierAddress),
     >,
 }
 
+impl<'a> IndexList<()> for VerifierPerChainIndexes<'a> {
+    fn get_indexes(&'_ self) -> Box<dyn Iterator<Item = &'_ dyn Index<()>> + '_> {
+        let v: Vec<&dyn Index<()>> = vec![&self.verifier_address];
+        Box::new(v.into_iter())
+    }
+}
+
 pub const VERIFIERS_PER_CHAIN_INDEXED_MAP: IndexedMap<
     (ServiceName, ChainName, VerifierAddress),
-    VerifierChainRecord,
+    (),
     VerifierPerChainIndexes,
 > = IndexedMap::new(
     "verifiers",
     VerifierPerChainIndexes {
-        verifier: MultiIndex::new(
-            |_pk: &[u8], d| d.verifier.clone(),
+        verifier_address: MultiIndex::new(
+            |pk: &[u8], _: &()| {
+                let (service_name, _, verifier) =
+                    <(ServiceName, ChainName, VerifierAddress)>::from_slice(pk)
+                        .expect("Invalid primary key");
+                (service_name, verifier)
+            },
             "verifiers",
-            "verifiers_service_verifier",
+            "verifiers__address",
         ),
     },
 );
@@ -199,10 +197,7 @@ pub fn register_chains_support(
         VERIFIERS_PER_CHAIN_INDEXED_MAP.save(
             storage,
             (service_name.clone(), chain.clone(), verifier.clone()),
-            &VerifierChainRecord {
-                chain: chain.clone(),
-                verifier: verifier.clone(),
-            },
+            &(),
         )?;
     }
 

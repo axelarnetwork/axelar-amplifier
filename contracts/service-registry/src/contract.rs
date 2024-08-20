@@ -13,7 +13,7 @@ use crate::state::{AuthorizationState, BondingState, Service, Verifier, SERVICES
 
 mod execute;
 mod migrations;
-mod query;
+pub mod query;
 
 const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -198,7 +198,7 @@ mod test {
     use router_api::ChainName;
 
     use super::*;
-    use crate::state::{VerifierDetailsResponse, WeightedVerifier, VERIFIER_WEIGHT};
+    use crate::state::{WeightedVerifier, VERIFIER_WEIGHT};
 
     const GOVERNANCE_ADDRESS: &str = "governance";
     const UNAUTHORIZED_ADDRESS: &str = "unauthorized";
@@ -2135,7 +2135,7 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let verifier_details: VerifierDetailsResponse = from_json(
+        let verifier_details: query::VerifierDetailsResponse = from_json(
             query(
                 deps.as_ref(),
                 mock_env(),

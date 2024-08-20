@@ -83,7 +83,7 @@ pub enum QueryMsg {
         service_name: String,
         verifier: String,
     },
-    #[returns(crate::state::VerifierDetailsResponse)]
+    #[returns(crate::contract::query::VerifierDetailsResponse)]
     VerifierDetails {
         service_name: String,
         verifier: String,
