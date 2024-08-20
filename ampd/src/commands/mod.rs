@@ -16,11 +16,13 @@ use crate::types::{PublicKey, TMAddress};
 use crate::{broadcaster, tofnd, Error, PREFIX};
 
 pub mod bond_verifier;
+pub mod claim_stake;
 pub mod daemon;
 pub mod deregister_chain_support;
 pub mod register_chain_support;
 pub mod register_public_key;
 pub mod send_tokens;
+pub mod unbond_verifier;
 pub mod verifier_address;
 
 #[derive(Debug, Subcommand, Valuable)]
@@ -29,6 +31,10 @@ pub enum SubCommand {
     Daemon,
     /// Bond the verifier to the service registry contract
     BondVerifier(bond_verifier::Args),
+    /// Unbond the verifier from the service registry contract
+    UnbondVerifier(unbond_verifier::Args),
+    /// Claim unbonded stake from the service registry contract
+    ClaimStake(claim_stake::Args),
     /// Register chain support to the service registry contract
     RegisterChainSupport(register_chain_support::Args),
     /// Deregister chain support to the service registry contract
