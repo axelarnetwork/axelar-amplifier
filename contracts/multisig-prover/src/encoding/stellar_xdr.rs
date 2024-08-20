@@ -3,7 +3,7 @@ use axelar_wasm_std::FnExt;
 use error_stack::{Result, ResultExt};
 use multisig::verifier_set::VerifierSet;
 use sha3::{Digest, Keccak256};
-use stellar_gateway::{Message, Messages, WeightedSigners};
+use stellar::{Message, Messages, WeightedSigners};
 
 use crate::error::ContractError;
 use crate::payload::Payload;
@@ -25,12 +25,12 @@ pub fn payload_digest(
             .change_context(ContractError::InvalidVerifierSet)?
             .signers_rotation_hash(),
     }
-    .map_err(ContractError::from)?;
+    .change_context(ContractError::SerializeData)?;
 
     let signers_hash = WeightedSigners::try_from(verifier_set)
         .change_context(ContractError::InvalidVerifierSet)?
         .hash()
-        .map_err(ContractError::from)?;
+        .change_context(ContractError::SerializeData)?;
 
     let unsigned = [
         domain_separator,

@@ -75,6 +75,6 @@ pub enum ContractError {
     #[error("payload does not match the stored value")]
     PayloadMismatch,
 
-    #[error(transparent)]
-    StellarXdrError(#[from] stellar_xdr::curr::Error),
+    #[error("failed to serialize data for the external gateway")]
+    SerializeData,
 }

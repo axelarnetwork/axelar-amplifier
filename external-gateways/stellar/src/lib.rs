@@ -31,9 +31,9 @@ impl CommandType {
 }
 
 impl TryFrom<CommandType> for ScVal {
-    type Error = Report<XdrError>;
+    type Error = XdrError;
 
-    fn try_from(value: CommandType) -> Result<Self, Report<XdrError>> {
+    fn try_from(value: CommandType) -> Result<Self, XdrError> {
         let val: VecM<ScVal> =
             vec![ScVal::Symbol(StringM::from_str(value.as_str())?.into())].try_into()?;
 
