@@ -1,18 +1,9 @@
-use axelar_wasm_std::nonempty;
 use cosmwasm_std::{Addr, Order};
 use router_api::ChainName;
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
 
 use super::*;
+use crate::msg::VerifierDetailsResponse;
 use crate::state::{WeightedVerifier, VERIFIERS, VERIFIERS_PER_CHAIN, VERIFIER_WEIGHT};
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
-pub struct VerifierDetailsResponse {
-    pub verifier: Verifier,
-    pub weight: nonempty::Uint128,
-    pub supported_chains: Vec<ChainName>,
-}
 
 pub fn active_verifiers(
     deps: Deps,
@@ -53,24 +44,24 @@ pub fn active_verifiers(
     }
 }
 
-pub fn verifier(
-    deps: Deps,
-    service_name: String,
-    verifier: String,
-) -> Result<Verifier, axelar_wasm_std::error::ContractError> {
-    VERIFIERS
-        .may_load(
-            deps.storage,
-            (
-                &service_name,
-                &address::validate_cosmwasm_address(deps.api, &verifier)?,
-            ),
-        )?
-        .ok_or(ContractError::VerifierNotFound)?
-        .then(Ok)
-}
+// pub fn verifier(
+//     deps: Deps,
+//     service_name: String,
+//     verifier: String,
+// ) -> Result<Verifier, axelar_wasm_std::error::ContractError> {
+//     VERIFIERS
+//         .may_load(
+//             deps.storage,
+//             (
+//                 &service_name,
+//                 &address::validate_cosmwasm_address(deps.api, &verifier)?,
+//             ),
+//         )?
+//         .ok_or(ContractError::VerifierNotFound)?
+//         .then(Ok)
+// }
 
-pub fn verifier_details(
+pub fn verifier(
     deps: Deps,
     service_name: String,
     verifier: String,

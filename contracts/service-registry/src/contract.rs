@@ -9,7 +9,7 @@ use error_stack::{bail, Report, ResultExt};
 
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
-use crate::state::{AuthorizationState, BondingState, Service, Verifier, SERVICES, VERIFIERS};
+use crate::state::{AuthorizationState, BondingState, Service, SERVICES, VERIFIERS};
 
 mod execute;
 mod migrations;
@@ -164,11 +164,6 @@ pub fn query(
         QueryMsg::Service { service_name } => {
             to_json_binary(&query::service(deps, service_name)?).map_err(|err| err.into())
         }
-        QueryMsg::VerifierDetails {
-            service_name,
-            verifier,
-        } => to_json_binary(&query::verifier_details(deps, service_name, verifier)?)
-            .map_err(|err| err.into()),
     }
 }
 
@@ -198,7 +193,8 @@ mod test {
     use router_api::ChainName;
 
     use super::*;
-    use crate::state::{WeightedVerifier, VERIFIER_WEIGHT};
+    use crate::msg::VerifierDetailsResponse;
+    use crate::state::{Verifier, WeightedVerifier, VERIFIER_WEIGHT};
 
     const GOVERNANCE_ADDRESS: &str = "governance";
     const UNAUTHORIZED_ADDRESS: &str = "unauthorized";
@@ -2015,7 +2011,7 @@ mod test {
             },
         );
         assert!(res.is_ok());
-        let verifier: Verifier = from_json(
+        let verifier2_details: VerifierDetailsResponse = from_json(
             query(
                 deps.as_ref(),
                 mock_env(),
@@ -2027,6 +2023,7 @@ mod test {
             .unwrap(),
         )
         .unwrap();
+        let verifier = verifier2_details.verifier;
 
         assert_eq!(
             verifier.bonding_state,
@@ -2135,11 +2132,11 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let verifier_details: query::VerifierDetailsResponse = from_json(
+        let verifier_details: VerifierDetailsResponse = from_json(
             query(
                 deps.as_ref(),
                 mock_env(),
-                QueryMsg::VerifierDetails {
+                QueryMsg::Verifier {
                     service_name: service_name.into(),
                     verifier: VERIFIER_ADDRESS.into(),
                 },

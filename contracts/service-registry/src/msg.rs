@@ -1,7 +1,11 @@
+use crate::Verifier;
+use axelar_wasm_std::nonempty;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, Uint128};
 use msgs_derive::EnsurePermissions;
 use router_api::ChainName;
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
 
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -66,6 +70,13 @@ pub enum ExecuteMsg {
     ClaimStake { service_name: String },
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
+pub struct VerifierDetailsResponse {
+    pub verifier: Verifier,
+    pub weight: nonempty::Uint128,
+    pub supported_chains: Vec<ChainName>,
+}
+
 #[cw_serde]
 #[derive(QueryResponses)]
 pub enum QueryMsg {
@@ -78,13 +89,8 @@ pub enum QueryMsg {
     #[returns(crate::state::Service)]
     Service { service_name: String },
 
-    #[returns(crate::state::Verifier)]
+    #[returns(VerifierDetailsResponse)]
     Verifier {
-        service_name: String,
-        verifier: String,
-    },
-    #[returns(crate::contract::query::VerifierDetailsResponse)]
-    VerifierDetails {
         service_name: String,
         verifier: String,
     },
