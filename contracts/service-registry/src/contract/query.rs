@@ -5,7 +5,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use super::*;
-use crate::state::{WeightedVerifier, VERIFIERS, VERIFIERS_PER_CHAIN_INDEXED_MAP, VERIFIER_WEIGHT};
+use crate::state::{WeightedVerifier, VERIFIERS, VERIFIERS_PER_CHAIN, VERIFIER_WEIGHT};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
 pub struct VerifierDetailsResponse {
@@ -23,12 +23,10 @@ pub fn active_verifiers(
         .may_load(deps.storage, &service_name)?
         .ok_or(ContractError::ServiceNotFound)?;
 
-    let verifier_addresses: Vec<Addr> = VERIFIERS_PER_CHAIN_INDEXED_MAP
+    let verifiers: Vec<_> = VERIFIERS_PER_CHAIN
         .prefix((service_name.clone(), chain_name.clone()))
         .keys(deps.storage, None, None, Order::Ascending)
-        .collect::<Result<Vec<Addr>, _>>()?;
-
-    let weighted_verifiers: Vec<WeightedVerifier> = verifier_addresses
+        .collect::<Result<Vec<Addr>, _>>()?
         .into_iter()
         .filter_map(|verifier_addr| {
             VERIFIERS
@@ -48,10 +46,10 @@ pub fn active_verifiers(
         })
         .collect();
 
-    if weighted_verifiers.len() < service.min_num_verifiers.into() {
+    if verifiers.len() < service.min_num_verifiers.into() {
         Err(ContractError::NotEnoughVerifiers)
     } else {
-        Ok(weighted_verifiers)
+        Ok(verifiers)
     }
 }
 
@@ -83,7 +81,7 @@ pub fn verifier_details(
         .may_load(deps.storage, (&service_name, &verifier_addr))?
         .ok_or(ContractError::VerifierNotFound)?;
 
-    let supported_chains = VERIFIERS_PER_CHAIN_INDEXED_MAP
+    let supported_chains = VERIFIERS_PER_CHAIN
         .idx
         .verifier_address
         .prefix((service_name.clone(), verifier_addr.clone()))

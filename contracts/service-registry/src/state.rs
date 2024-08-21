@@ -161,12 +161,12 @@ impl<'a> IndexList<()> for VerifierPerChainIndexes<'a> {
     }
 }
 
-pub const VERIFIERS_PER_CHAIN_INDEXED_MAP: IndexedMap<
+pub const VERIFIERS_PER_CHAIN: IndexedMap<
     (ServiceName, ChainName, VerifierAddress),
     (),
     VerifierPerChainIndexes,
 > = IndexedMap::new(
-    "verifiers",
+    "verifiers_per_chain",
     VerifierPerChainIndexes {
         verifier_address: MultiIndex::new(
             |pk: &[u8], _: &()| {
@@ -175,7 +175,7 @@ pub const VERIFIERS_PER_CHAIN_INDEXED_MAP: IndexedMap<
                         .expect("Invalid primary key");
                 (service_name, verifier)
             },
-            "verifiers",
+            "verifiers_per_chain",
             "verifiers__address",
         ),
     },
@@ -194,13 +194,12 @@ pub fn register_chains_support(
     verifier: VerifierAddress,
 ) -> Result<(), ContractError> {
     for chain in chains.iter() {
-        VERIFIERS_PER_CHAIN_INDEXED_MAP.save(
+        VERIFIERS_PER_CHAIN.save(
             storage,
             (service_name.clone(), chain.clone(), verifier.clone()),
             &(),
         )?;
     }
-
     Ok(())
 }
 
@@ -211,19 +210,10 @@ pub fn deregister_chains_support(
     verifier: VerifierAddress,
 ) -> Result<(), ContractError> {
     for chain in chains {
-        VERIFIERS_PER_CHAIN_INDEXED_MAP
-            .remove(
-                storage,
-                (service_name.clone(), chain.clone(), verifier.clone()),
-            )
-            .unwrap_or_else(|_| {
-                panic!(
-                    "Failed to deregister support for chain {:?} from verifier {:?}",
-                    chain, verifier
-                )
-            });
+        VERIFIERS_PER_CHAIN
+            .remove(storage, (service_name.clone(), chain, verifier.clone()))
+            .map_err(|_| ContractError::DeregistrationFailed)?;
     }
-
     Ok(())
 }
 

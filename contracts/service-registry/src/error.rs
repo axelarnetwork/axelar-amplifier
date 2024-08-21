@@ -33,4 +33,6 @@ pub enum ContractError {
     NotEnoughVerifiers,
     #[error("verifier is jailed")]
     VerifierJailed,
+    #[error("Failed to deregister chain support")]
+    DeregistrationFailed,
 }
