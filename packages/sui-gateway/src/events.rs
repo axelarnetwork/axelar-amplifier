@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
+use sui_types::SuiAddress;
 
-use crate::base_types::SuiAddress;
-use crate::gateway::{Bytes32, WeightedSigners};
+use super::{Bytes32, WeightedSigners};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SignersRotated {

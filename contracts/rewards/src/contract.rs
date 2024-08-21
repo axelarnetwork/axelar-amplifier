@@ -8,8 +8,9 @@ use error_stack::ResultExt;
 use itertools::Itertools;
 
 use crate::error::ContractError;
+use crate::events;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
-use crate::state::{self, Config, Epoch, ParamsSnapshot, PoolId, CONFIG, PARAMS};
+use crate::state::{self, Config, PoolId, CONFIG};
 
 mod execute;
 mod migrations;
@@ -24,7 +25,7 @@ pub fn migrate(
     _env: Env,
     _msg: Empty,
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
-    migrations::v0_4_0::migrate(deps.storage)?;
+    migrations::v1_0_0::migrate(deps.storage)?;
 
     // any version checks should be done before here
 
@@ -36,7 +37,7 @@ pub fn migrate(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
-    env: Env,
+    _env: Env,
     _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
@@ -49,17 +50,6 @@ pub fn instantiate(
         deps.storage,
         &Config {
             rewards_denom: msg.rewards_denom,
-        },
-    )?;
-
-    PARAMS.save(
-        deps.storage,
-        &ParamsSnapshot {
-            params: msg.params,
-            created_at: Epoch {
-                epoch_num: 0,
-                block_height_started: env.block.height,
-            },
         },
     )?;
 
@@ -119,10 +109,16 @@ pub fn execute(
         } => {
             address::validate_cosmwasm_address(deps.api, pool_id.contract.as_str())?;
 
-            let rewards =
-                execute::distribute_rewards(deps.storage, pool_id, env.block.height, epoch_count)?;
+            let rewards_distribution = execute::distribute_rewards(
+                deps.storage,
+                pool_id.clone(),
+                env.block.height,
+                epoch_count,
+            )?;
 
-            let msgs = rewards
+            let msgs = rewards_distribution
+                .rewards
+                .clone()
                 .into_iter()
                 .sorted()
                 .map(|(addr, amount)| BankMsg::Send {
@@ -133,11 +129,17 @@ pub fn execute(
                     }],
                 });
 
-            Ok(Response::new().add_messages(msgs))
+            Ok(Response::new()
+                .add_messages(msgs)
+                .add_event(events::Event::from(rewards_distribution).into()))
         }
-        ExecuteMsg::UpdateParams { params } => {
-            execute::update_params(deps.storage, params, env.block.height)?;
+        ExecuteMsg::UpdatePoolParams { params, pool_id } => {
+            execute::update_pool_params(deps.storage, &pool_id, params, env.block.height)?;
 
+            Ok(Response::new())
+        }
+        ExecuteMsg::CreatePool { params, pool_id } => {
+            execute::create_pool(deps.storage, params, env.block.height, &pool_id)?;
             Ok(Response::new())
         }
     }
@@ -181,7 +183,7 @@ mod tests {
         let mut deps = mock_dependencies();
 
         #[allow(deprecated)]
-        migrations::v0_4_0::tests::instantiate_contract(deps.as_mut(), "denom");
+        migrations::v1_0_0::tests::instantiate_contract(deps.as_mut(), "denom");
 
         migrate(deps.as_mut(), mock_env(), Empty {}).unwrap();
 
@@ -224,7 +226,6 @@ mod tests {
                 &InstantiateMsg {
                     governance_address: governance_address.to_string(),
                     rewards_denom: AXL_DENOMINATION.to_string(),
-                    params: initial_params.clone(),
                 },
                 &[],
                 "Contract",
@@ -236,6 +237,17 @@ mod tests {
             chain_name: chain_name.clone(),
             contract: pool_contract.clone(),
         };
+
+        let res = app.execute_contract(
+            governance_address.clone(),
+            contract_address.clone(),
+            &ExecuteMsg::CreatePool {
+                params: initial_params.clone(),
+                pool_id: pool_id.clone(),
+            },
+            &[],
+        );
+        assert!(res.is_ok());
 
         let rewards = 200;
         let res = app.execute_contract(
@@ -255,8 +267,9 @@ mod tests {
         let res = app.execute_contract(
             governance_address,
             contract_address.clone(),
-            &ExecuteMsg::UpdateParams {
+            &ExecuteMsg::UpdatePoolParams {
                 params: updated_params.clone(),
+                pool_id: pool_id.clone(),
             },
             &[],
         );
