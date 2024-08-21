@@ -53,9 +53,10 @@ pub async fn run(config: Config, args: Args) -> Result<Option<String>, Error> {
 
     let tofnd_config = config.tofnd_config.clone();
 
-    let multisig_client = MultisigClient::new(tofnd_config.party_uid, tofnd_config.url)
+    let multisig_client = MultisigClient::new(tofnd_config.party_uid, tofnd_config.url.clone())
         .await
-        .change_context(Error::Connection)?;
+        .change_context(Error::Connection)
+        .attach_printable(tofnd_config.url)?;
     let multisig_key = multisig_client
         .keygen(&multisig_address.to_string(), args.key_type.into())
         .await
