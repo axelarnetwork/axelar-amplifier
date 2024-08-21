@@ -9,6 +9,7 @@ COPY ./packages ./packages
 COPY ./contracts ./contracts
 COPY ./interchain-token-service ./interchain-token-service
 COPY ./integration-tests ./integration-tests
+COPY ./external-gateways ./external-gateways
 COPY ./.cargo ./.cargo
 
 # build dependencies separately
