@@ -417,7 +417,7 @@ mod tests {
     fn test_zero_bond_rebond() {
         let amount = nonempty::Uint128::try_from(100u128).unwrap();
         let bonding_state = BondingState::Unbonding {
-            amount: amount.clone(),
+            amount,
             unbonded_at: Timestamp::from_nanos(0),
         };
 
