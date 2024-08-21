@@ -40,7 +40,7 @@ impl Verifier {
                 amount,
                 unbonded_at: _,
             } => amount
-                .as_ref()
+                .into_inner()
                 .checked_add(to_add.map(Uint128::from).unwrap_or(Uint128::zero()))
                 .map_err(ContractError::Overflow)?
                 .try_into()?,

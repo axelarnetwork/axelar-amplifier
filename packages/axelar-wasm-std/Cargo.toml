@@ -37,6 +37,7 @@ cw-storage-plus = { workspace = true }
 cw2 = { workspace = true }
 error-stack = { workspace = true }
 flagset = { version = "0.4.3", features = ["serde"] }
+into-inner-derive = { workspace = true }
 itertools = { workspace = true }
 lazy_static = "1.4.0"
 num-traits = { workspace = true }

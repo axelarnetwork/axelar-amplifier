@@ -881,7 +881,7 @@ pub fn register_in_service_registry(
         let response = protocol.app.send_tokens(
             protocol.genesis_address.clone(),
             verifier.addr.clone(),
-            &coins(min_verifier_bond.as_ref().u128(), AXL_DENOMINATION),
+            &coins(min_verifier_bond.into_inner().u128(), AXL_DENOMINATION),
         );
         assert!(response.is_ok());
 
@@ -891,7 +891,7 @@ pub fn register_in_service_registry(
             &ExecuteMsg::BondVerifier {
                 service_name: protocol.service_name.to_string(),
             },
-            &coins(min_verifier_bond.as_ref().u128(), AXL_DENOMINATION),
+            &coins(min_verifier_bond.into_inner().u128(), AXL_DENOMINATION),
         );
         assert!(response.is_ok());
 

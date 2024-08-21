@@ -859,7 +859,7 @@ mod test {
             mock_env(),
             mock_info(
                 VERIFIER_ADDRESS,
-                &coins(min_verifier_bond.as_ref().u128(), AXL_DENOMINATION),
+                &coins(min_verifier_bond.into_inner().u128(), AXL_DENOMINATION),
             ),
             ExecuteMsg::BondVerifier {
                 service_name: service_name.into(),
@@ -961,7 +961,7 @@ mod test {
             mock_env(),
             mock_info(
                 VERIFIER_ADDRESS,
-                &coins(min_verifier_bond.as_ref().u128(), AXL_DENOMINATION),
+                &coins(min_verifier_bond.into_inner().u128(), AXL_DENOMINATION),
             ),
             ExecuteMsg::BondVerifier {
                 service_name: service_name.into(),
@@ -1073,7 +1073,7 @@ mod test {
             mock_env(),
             mock_info(
                 VERIFIER_ADDRESS,
-                &coins(min_verifier_bond.as_ref().u128(), AXL_DENOMINATION),
+                &coins(min_verifier_bond.into_inner().u128(), AXL_DENOMINATION),
             ),
             ExecuteMsg::BondVerifier {
                 service_name: service_name.into(),
@@ -1305,7 +1305,7 @@ mod test {
             mock_env(),
             mock_info(
                 VERIFIER_ADDRESS,
-                &coins(min_verifier_bond.as_ref().u128(), AXL_DENOMINATION),
+                &coins(min_verifier_bond.into_inner().u128(), AXL_DENOMINATION),
             ),
             ExecuteMsg::BondVerifier {
                 service_name: service_name.into(),
@@ -1378,7 +1378,7 @@ mod test {
             mock_env(),
             mock_info(
                 VERIFIER_ADDRESS,
-                &coins(min_verifier_bond.as_ref().u128(), "funnydenom"),
+                &coins(min_verifier_bond.into_inner().u128(), "funnydenom"),
             ),
             ExecuteMsg::BondVerifier {
                 service_name: service_name.into(),
@@ -1421,7 +1421,7 @@ mod test {
             mock_env(),
             mock_info(
                 VERIFIER_ADDRESS,
-                &coins(min_verifier_bond.as_ref().u128(), AXL_DENOMINATION),
+                &coins(min_verifier_bond.into_inner().u128(), AXL_DENOMINATION),
             ),
             ExecuteMsg::BondVerifier {
                 service_name: service_name.into(),
@@ -1495,7 +1495,7 @@ mod test {
             mock_env(),
             mock_info(
                 VERIFIER_ADDRESS,
-                &coins(min_verifier_bond.as_ref().u128() / 2, AXL_DENOMINATION),
+                &coins(min_verifier_bond.into_inner().u128() / 2, AXL_DENOMINATION),
             ),
             ExecuteMsg::BondVerifier {
                 service_name: service_name.into(),
@@ -1558,7 +1558,7 @@ mod test {
             mock_env(),
             mock_info(
                 VERIFIER_ADDRESS,
-                &coins(min_verifier_bond.as_ref().u128(), AXL_DENOMINATION),
+                &coins(min_verifier_bond.into_inner().u128(), AXL_DENOMINATION),
             ),
             ExecuteMsg::BondVerifier {
                 service_name: service_name.into(),
@@ -1656,7 +1656,7 @@ mod test {
             mock_env(),
             mock_info(
                 VERIFIER_ADDRESS,
-                &coins(min_verifier_bond.as_ref().u128(), AXL_DENOMINATION),
+                &coins(min_verifier_bond.into_inner().u128(), AXL_DENOMINATION),
             ),
             ExecuteMsg::BondVerifier {
                 service_name: service_name.into(),
@@ -1765,7 +1765,7 @@ mod test {
             mock_env(),
             mock_info(
                 VERIFIER_ADDRESS,
-                &coins(min_verifier_bond.as_ref().u128(), AXL_DENOMINATION),
+                &coins(min_verifier_bond.into_inner().u128(), AXL_DENOMINATION),
             ),
             ExecuteMsg::BondVerifier {
                 service_name: service_name.into(),
@@ -1839,7 +1839,7 @@ mod test {
             res.messages[0].msg,
             CosmosMsg::Bank(BankMsg::Send {
                 to_address: VERIFIER_ADDRESS.into(),
-                amount: coins(min_verifier_bond.as_ref().u128(), AXL_DENOMINATION)
+                amount: coins(min_verifier_bond.into_inner().u128(), AXL_DENOMINATION)
             })
         )
     }
@@ -1901,7 +1901,7 @@ mod test {
                 mock_env(),
                 mock_info(
                     verifier.as_str(),
-                    &coins(min_verifier_bond.as_ref().u128(), AXL_DENOMINATION),
+                    &coins(min_verifier_bond.into_inner().u128(), AXL_DENOMINATION),
                 ),
                 ExecuteMsg::BondVerifier {
                     service_name: service_name.into(),
@@ -1989,7 +1989,7 @@ mod test {
             mock_env(),
             mock_info(
                 verifier1.as_str(),
-                &coins(min_verifier_bond.as_ref().u128(), AXL_DENOMINATION),
+                &coins(min_verifier_bond.into_inner().u128(), AXL_DENOMINATION),
             ),
             ExecuteMsg::BondVerifier {
                 service_name: service_name.into(),
@@ -2034,7 +2034,7 @@ mod test {
             mock_env(),
             mock_info(
                 verifier2.as_str(),
-                &coins(min_verifier_bond.as_ref().u128(), AXL_DENOMINATION),
+                &coins(min_verifier_bond.into_inner().u128(), AXL_DENOMINATION),
             ),
             ExecuteMsg::BondVerifier {
                 service_name: service_name.into(),
