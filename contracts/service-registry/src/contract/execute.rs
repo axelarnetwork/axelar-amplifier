@@ -90,7 +90,7 @@ pub fn bond_verifier(
             info.funds
                 .iter()
                 .find(|coin| coin.denom == service.bond_denom)
-                .ok_or(ContractError::NoFundsToBond)?
+                .ok_or(ContractError::WrongDenom)?
                 .amount
                 .try_into()?,
         )

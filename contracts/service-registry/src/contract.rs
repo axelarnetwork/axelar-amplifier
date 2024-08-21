@@ -1389,7 +1389,7 @@ mod test {
         assert!(err_contains!(
             err.report,
             ContractError,
-            ContractError::NoFundsToBond
+            ContractError::WrongDenom
         ));
     }
 
