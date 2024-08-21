@@ -813,6 +813,7 @@ dependencies = [
  "error-stack",
  "flagset",
  "hex",
+ "into-inner-derive",
  "itertools 0.11.0",
  "lazy_static",
  "num-traits",
@@ -4094,6 +4095,18 @@ dependencies = [
  "serde",
  "serde_json",
  "strum 0.25.0",
+ "thiserror",
+]
+
+[[package]]
+name = "into-inner-derive"
+version = "1.0.0"
+dependencies = [
+ "axelar-wasm-std",
+ "error-stack",
+ "quote 1.0.36",
+ "report",
+ "syn 2.0.68",
  "thiserror",
 ]
 
