@@ -74,4 +74,7 @@ pub enum ContractError {
 
     #[error("payload does not match the stored value")]
     PayloadMismatch,
+
+    #[error("failed to serialize data for the external gateway")]
+    SerializeData,
 }

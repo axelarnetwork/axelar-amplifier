@@ -32,7 +32,6 @@ mod block_height_monitor;
 mod broadcaster;
 pub mod commands;
 pub mod config;
-pub mod error;
 mod event_processor;
 mod event_sub;
 mod evm;
@@ -70,23 +69,29 @@ async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
     } = cfg;
 
     let tm_client = tendermint_rpc::HttpClient::new(tm_jsonrpc.to_string().as_str())
-        .change_context(Error::Connection)?;
+        .change_context(Error::Connection)
+        .attach_printable(tm_jsonrpc.clone())?;
     let service_client = ServiceClient::connect(tm_grpc.to_string())
         .await
-        .change_context(Error::Connection)?;
+        .change_context(Error::Connection)
+        .attach_printable(tm_grpc.clone())?;
     let auth_query_client = AuthQueryClient::connect(tm_grpc.to_string())
         .await
-        .change_context(Error::Connection)?;
+        .change_context(Error::Connection)
+        .attach_printable(tm_grpc.clone())?;
     let bank_query_client = BankQueryClient::connect(tm_grpc.to_string())
         .await
-        .change_context(Error::Connection)?;
-    let multisig_client = MultisigClient::new(tofnd_config.party_uid, tofnd_config.url)
+        .change_context(Error::Connection)
+        .attach_printable(tm_grpc.clone())?;
+    let multisig_client = MultisigClient::new(tofnd_config.party_uid, tofnd_config.url.clone())
         .await
-        .change_context(Error::Connection)?;
+        .change_context(Error::Connection)
+        .attach_printable(tofnd_config.url)?;
 
     let block_height_monitor = BlockHeightMonitor::connect(tm_client.clone())
         .await
-        .change_context(Error::Connection)?;
+        .change_context(Error::Connection)
+        .attach_printable(tm_jsonrpc)?;
 
     let pub_key = multisig_client
         .keygen(&tofnd_config.key_uid, tofnd::Algorithm::Ecdsa)
