@@ -1,6 +1,6 @@
 mod abi;
 mod bcs;
-pub mod stellar_xdr;
+mod stellar_xdr;
 
 use axelar_wasm_std::hash::Hash;
 use cosmwasm_schema::cw_serde;
