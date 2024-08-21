@@ -10,7 +10,7 @@ pub fn into_inner_derive(input: TokenStream) -> TokenStream {
     let ty = match ast.data {
         syn::Data::Struct(val) => match val.fields {
             Fields::Unnamed(fields) if fields.unnamed.len() == 1 => {
-                fields.unnamed.first().map(|field| field.ty.clone())
+                fields.unnamed.first().map(|field| field.ty.to_owned())
             }
             _ => None,
         },
@@ -26,6 +26,6 @@ pub fn into_inner_derive(input: TokenStream) -> TokenStream {
             }
         }
         .into(),
-        None => panic!("only tuple structs with a single field are supported"),
+        None => panic!("only newtype structs are supported"),
     }
 }
