@@ -1,13 +1,14 @@
 use std::fmt;
 
 use cosmwasm_schema::cw_serde;
+use into_inner_derive::IntoInner;
 
 use crate::nonempty::Error;
 
 #[cw_serde]
 #[serde(try_from = "cosmwasm_std::Uint64")]
 #[serde(into = "cosmwasm_std::Uint64")]
-#[derive(Copy, PartialOrd)]
+#[derive(Copy, PartialOrd, IntoInner)]
 pub struct Uint64(cosmwasm_std::Uint64);
 
 impl TryFrom<cosmwasm_std::Uint64> for Uint64 {
@@ -50,7 +51,7 @@ impl fmt::Display for Uint64 {
 
 // TODO: consider using macro for these types
 #[cw_serde]
-#[derive(Copy, PartialOrd, Eq)]
+#[derive(Copy, PartialOrd, Eq, IntoInner)]
 pub struct Uint256(cosmwasm_std::Uint256);
 
 impl TryFrom<cosmwasm_std::Uint256> for Uint256 {
@@ -83,14 +84,8 @@ impl TryFrom<cosmwasm_std::Uint128> for Uint256 {
     }
 }
 
-impl AsRef<cosmwasm_std::Uint256> for Uint256 {
-    fn as_ref(&self) -> &cosmwasm_std::Uint256 {
-        &self.0
-    }
-}
-
 #[cw_serde]
-#[derive(Copy, PartialOrd, Eq)]
+#[derive(Copy, PartialOrd, Eq, IntoInner)]
 pub struct Uint128(cosmwasm_std::Uint128);
 
 impl TryFrom<cosmwasm_std::Uint128> for Uint128 {
@@ -190,13 +185,6 @@ mod tests {
 
         // non-zero
         assert!(Uint256::try_from(cosmwasm_std::Uint128::one()).is_ok());
-    }
-
-    #[test]
-    fn convert_from_uint256_to_reference_cosmwasm_uint256() {
-        let val = Uint256(cosmwasm_std::Uint256::one());
-        let converted: &cosmwasm_std::Uint256 = val.as_ref();
-        assert_eq!(&val.0, converted);
     }
 
     #[test]
