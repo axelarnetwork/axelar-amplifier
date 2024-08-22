@@ -8,7 +8,11 @@ use crate::contract::CONTRACT_NAME;
 const BASE_VERSION: &str = "0.4.0";
 
 pub fn migrate(storage: &mut dyn Storage) -> Result<(), ContractError> {
-    cw2::assert_contract_version(storage, CONTRACT_NAME, BASE_VERSION)?;
+    let current_version = cw2::get_contract_version(storage)?;
+
+    if current_version.version != "1.0.0" {
+        cw2::assert_contract_version(storage, CONTRACT_NAME, BASE_VERSION)?;
+    }
     Ok(())
 }
 
@@ -28,6 +32,15 @@ mod test {
         assert!(v0_4_0::migrate(deps.as_mut().storage).is_err());
 
         cw2::set_contract_version(deps.as_mut().storage, CONTRACT_NAME, BASE_VERSION).unwrap();
+
+        assert!(v0_4_0::migrate(deps.as_mut().storage).is_ok());
+    }
+
+    #[test]
+    fn migrate_from_v1_updates_version() {
+        let mut deps = mock_dependencies();
+
+        cw2::set_contract_version(deps.as_mut().storage, CONTRACT_NAME, "1.0.0").unwrap();
 
         assert!(v0_4_0::migrate(deps.as_mut().storage).is_ok());
     }

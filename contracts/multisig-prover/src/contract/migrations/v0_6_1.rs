@@ -16,13 +16,17 @@ use crate::state;
 const BASE_VERSION: &str = "0.6.1";
 
 pub(crate) fn migrate(storage: &mut dyn Storage) -> Result<(), ContractError> {
-    cw2::assert_contract_version(storage, CONTRACT_NAME, BASE_VERSION)?;
+    let current_version = cw2::get_contract_version(storage)?;
 
-    let config = CONFIG.load(storage)?;
+    if current_version.version != "1.0.0" {
+        cw2::assert_contract_version(storage, CONTRACT_NAME, BASE_VERSION)?;
 
-    migrate_permission_control(storage, &config)?;
-    migrate_config(storage, config)?;
-    delete_payloads(storage);
+        let config = CONFIG.load(storage)?;
+
+        migrate_permission_control(storage, &config)?;
+        migrate_config(storage, config)?;
+        delete_payloads(storage);
+    }
 
     cw2::set_contract_version(storage, CONTRACT_NAME, CONTRACT_VERSION)?;
     Ok(())
@@ -211,6 +215,62 @@ mod tests {
 
         assert!(v0_6_1::CONFIG.load(deps.as_ref().storage).is_err());
         assert!(state::CONFIG.load(deps.as_ref().storage).is_ok());
+    }
+
+    #[test]
+    fn migrate_from_v1_only_updates_version() {
+        let mut deps = mock_dependencies();
+        crate::contract::instantiate(
+            deps.as_mut(),
+            mock_env(),
+            mock_info("admin", &[]),
+            InstantiateMsg {
+                admin_address: "admin".to_string(),
+                governance_address: "governance".to_string(),
+                gateway_address: "gateway".to_string(),
+                multisig_address: "multisig".to_string(),
+                coordinator_address: "coordinator".to_string(),
+                service_registry_address: "service_registry".to_string(),
+                voting_verifier_address: "voting_verifier".to_string(),
+                signing_threshold: Threshold::try_from((2u64, 3u64))
+                    .and_then(MajorityThreshold::try_from)
+                    .unwrap(),
+                service_name: "service".to_string(),
+                chain_name: "chain".to_string(),
+                verifier_set_diff_threshold: 1,
+                encoder: Encoder::Abi,
+                key_type: KeyType::Ecdsa,
+                domain_separator: [0; 32],
+            },
+        )
+        .unwrap();
+
+        cw2::set_contract_version(deps.as_mut().storage, CONTRACT_NAME, "1.0.0").unwrap();
+
+        let msgs = vec![Message {
+            cc_id: CrossChainId {
+                message_id: "id1".try_into().unwrap(),
+                source_chain: "chain1".try_into().unwrap(),
+            },
+            source_address: "source-address".parse().unwrap(),
+            destination_chain: "destination".parse().unwrap(),
+            destination_address: "destination-address".parse().unwrap(),
+            payload_hash: [1; 32],
+        }];
+
+        let payload = payload::Payload::Messages(msgs);
+
+        state::PAYLOAD
+            .save(deps.as_mut().storage, &payload.id(), &payload)
+            .unwrap();
+
+        assert!(v0_6_1::migrate(deps.as_mut().storage).is_ok());
+
+        assert!(!state::PAYLOAD.is_empty(deps.as_ref().storage));
+
+        let contract_version = cw2::get_contract_version(deps.as_mut().storage).unwrap();
+        assert_eq!(contract_version.contract, CONTRACT_NAME);
+        assert_eq!(contract_version.version, CONTRACT_VERSION);
     }
 
     fn instantiate_contract(deps: DepsMut) {
