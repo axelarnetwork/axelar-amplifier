@@ -88,12 +88,11 @@ mod tests {
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
     use cosmwasm_std::{DepsMut, Env, MessageInfo, Response};
 
+    use super::BASE_VERSION;
     use crate::contract::migrations::v0_2_3;
     use crate::contract::{CONTRACT_NAME, CONTRACT_VERSION};
     use crate::msg::InstantiateMsg;
     use crate::state;
-
-    use super::BASE_VERSION;
 
     #[test]
     fn migrate_checks_contract_version() {
