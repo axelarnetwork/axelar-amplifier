@@ -1,8 +1,10 @@
 use cosmwasm_schema::cw_serde;
+use into_inner_derive::IntoInner;
 
 use crate::nonempty::Error;
 
 #[cw_serde]
+#[derive(IntoInner)]
 pub struct Timestamp(cosmwasm_std::Timestamp);
 
 impl TryFrom<cosmwasm_std::Timestamp> for Timestamp {

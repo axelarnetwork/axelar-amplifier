@@ -1,3 +1,4 @@
+use axelar_wasm_std::nonempty;
 use router_api::ChainName;
 
 use super::*;
@@ -10,7 +11,7 @@ pub fn register_service(
     coordinator_contract: Addr,
     min_num_verifiers: u16,
     max_num_verifiers: Option<u16>,
-    min_verifier_bond: Uint128,
+    min_verifier_bond: nonempty::Uint128,
     bond_denom: String,
     unbonding_period_days: u16,
     description: String,
@@ -84,14 +85,17 @@ pub fn bond_verifier(
         .may_load(deps.storage, &service_name)?
         .ok_or(ContractError::ServiceNotFound)?;
 
-    let bond = if !info.funds.is_empty() {
-        info.funds
-            .iter()
-            .find(|coin| coin.denom == service.bond_denom)
-            .ok_or(ContractError::WrongDenom)?
-            .amount
+    let bond: Option<nonempty::Uint128> = if !info.funds.is_empty() {
+        Some(
+            info.funds
+                .iter()
+                .find(|coin| coin.denom == service.bond_denom)
+                .ok_or(ContractError::WrongDenom)?
+                .amount
+                .try_into()?,
+        )
     } else {
-        Uint128::zero() // sender can rebond currently unbonding funds by just sending no new funds
+        None // sender can rebond currently unbonding funds by just sending no new funds
     };
 
     VERIFIERS.update(
@@ -99,10 +103,12 @@ pub fn bond_verifier(
         (&service_name.clone(), &info.sender.clone()),
         |sw| -> Result<Verifier, ContractError> {
             match sw {
-                Some(verifier) => Ok(verifier.add_bond(bond)?),
+                Some(verifier) => Ok(verifier.bond(bond)?),
                 None => Ok(Verifier {
                     address: info.sender,
-                    bonding_state: BondingState::Bonded { amount: bond },
+                    bonding_state: BondingState::Bonded {
+                        amount: bond.ok_or(ContractError::NoFundsToBond)?,
+                    },
                     authorization_state: AuthorizationState::NotAuthorized,
                     service_name,
                 }),
@@ -200,7 +206,7 @@ pub fn claim_stake(
         to_address: info.sender.into(),
         amount: [Coin {
             denom: service.bond_denom,
-            amount: released_bond,
+            amount: released_bond.into(),
         }]
         .to_vec(),
     }))
