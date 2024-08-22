@@ -114,6 +114,10 @@ pub fn migrate(
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
     migrations::v0_6_1::migrate(deps.storage)?;
 
+    // this needs to be the last thing to do during migration,
+    // because previous migration steps should check the old version
+    cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
     Ok(Response::default())
 }
 

@@ -9,7 +9,7 @@ use cw_storage_plus::Item;
 use multisig::key::KeyType;
 use router_api::ChainName;
 
-use crate::contract::{CONTRACT_NAME, CONTRACT_VERSION};
+use crate::contract::CONTRACT_NAME;
 use crate::encoding::Encoder;
 use crate::state;
 
@@ -28,7 +28,6 @@ pub(crate) fn migrate(storage: &mut dyn Storage) -> Result<(), ContractError> {
         delete_payloads(storage);
     }
 
-    cw2::set_contract_version(storage, CONTRACT_NAME, CONTRACT_VERSION)?;
     Ok(())
 }
 
@@ -99,7 +98,7 @@ mod tests {
     use router_api::{CrossChainId, Message};
 
     use crate::contract::migrations::v0_6_1;
-    use crate::contract::{CONTRACT_NAME, CONTRACT_VERSION};
+    use crate::contract::CONTRACT_NAME;
     use crate::encoding::Encoder;
     use crate::error::ContractError;
     use crate::msg::InstantiateMsg;
@@ -117,18 +116,6 @@ mod tests {
             .unwrap();
 
         assert!(v0_6_1::migrate(deps.as_mut().storage).is_ok());
-    }
-
-    #[test]
-    fn migrate_sets_contract_version() {
-        let mut deps = mock_dependencies();
-        instantiate_contract(deps.as_mut());
-
-        v0_6_1::migrate(deps.as_mut().storage).unwrap();
-
-        let contract_version = cw2::get_contract_version(deps.as_mut().storage).unwrap();
-        assert_eq!(contract_version.contract, CONTRACT_NAME);
-        assert_eq!(contract_version.version, CONTRACT_VERSION);
     }
 
     #[test]
@@ -267,10 +254,6 @@ mod tests {
         assert!(v0_6_1::migrate(deps.as_mut().storage).is_ok());
 
         assert!(!state::PAYLOAD.is_empty(deps.as_ref().storage));
-
-        let contract_version = cw2::get_contract_version(deps.as_mut().storage).unwrap();
-        assert_eq!(contract_version.contract, CONTRACT_NAME);
-        assert_eq!(contract_version.version, CONTRACT_VERSION);
     }
 
     fn instantiate_contract(deps: DepsMut) {
