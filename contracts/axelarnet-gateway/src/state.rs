@@ -58,15 +58,15 @@ impl ExecutableMessage {
     }
 }
 
-pub(crate) fn save_config(storage: &mut dyn Storage, value: &Config) -> Result<(), Error> {
+pub fn save_config(storage: &mut dyn Storage, value: &Config) -> Result<(), Error> {
     Ok(CONFIG.save(storage, value)?)
 }
 
-pub(crate) fn load_config(storage: &dyn Storage) -> Result<Config, Error> {
+pub fn load_config(storage: &dyn Storage) -> Result<Config, Error> {
     CONFIG.may_load(storage)?.ok_or(Error::MissingConfig)
 }
 
-pub(crate) fn save_unique_routable_msg(
+pub fn save_unique_routable_msg(
     storage: &mut dyn Storage,
     cc_id: &CrossChainId,
     msg: &Message,
@@ -80,7 +80,7 @@ pub(crate) fn save_unique_routable_msg(
     Ok(ROUTABLE_MESSAGES.save(storage, cc_id, msg)?)
 }
 
-pub(crate) fn may_load_routable_msg(
+pub fn may_load_routable_msg(
     storage: &dyn Storage,
     id: &CrossChainId,
 ) -> Result<Option<Message>, Error> {
@@ -91,7 +91,7 @@ pub fn load_routable_msg(storage: &dyn Storage, id: &CrossChainId) -> Result<Mes
     may_load_routable_msg(storage, id)?.ok_or_else(|| Error::MessageNotFound(id.clone()))
 }
 
-pub(crate) fn save_executable_msg(
+pub fn save_executable_msg(
     storage: &mut dyn Storage,
     cc_id: &CrossChainId,
     msg: Message,
@@ -122,7 +122,7 @@ pub fn load_executable_msg(
 }
 
 /// Update the status of a message to executed if it is in approved status, error otherwise.
-pub(crate) fn update_as_executed(
+pub fn update_as_executed(
     storage: &mut dyn Storage,
     cc_id: &CrossChainId,
     action: impl FnOnce(Message) -> Result<Message, Error>,

@@ -15,7 +15,7 @@ use crate::state;
 
 const BASE_VERSION: &str = "0.6.0";
 
-pub(crate) fn migrate(storage: &mut dyn Storage) -> Result<(), ContractError> {
+pub fn migrate(storage: &mut dyn Storage) -> Result<(), ContractError> {
     cw2::assert_contract_version(storage, CONTRACT_NAME, BASE_VERSION)?;
 
     let config = CONFIG.load(storage)?;

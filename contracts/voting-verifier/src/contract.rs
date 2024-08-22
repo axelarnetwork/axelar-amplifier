@@ -111,8 +111,8 @@ pub fn migrate(
 mod test {
     use axelar_wasm_std::address::AddressFormat;
     use axelar_wasm_std::msg_id::{
-        Base58SolanaTxSignatureAndEventIndex, Base58TxDigestAndEventIndex, HexTxHashAndEventIndex,
-        MessageIdFormat,
+        Base58SolanaTxSignatureAndEventIndex, Base58TxDigestAndEventIndex, HexTxHash,
+        HexTxHashAndEventIndex, MessageIdFormat,
     };
     use axelar_wasm_std::voting::Vote;
     use axelar_wasm_std::{
@@ -125,7 +125,7 @@ mod test {
     use multisig::key::KeyType;
     use multisig::test::common::{build_verifier_set, ecdsa_test_data};
     use router_api::{ChainName, CrossChainId, Message};
-    use service_registry::state::{
+    use service_registry::{
         AuthorizationState, BondingState, Verifier, WeightedVerifier, VERIFIER_WEIGHT,
     };
     use sha3::{Digest, Keccak256, Keccak512};
@@ -163,7 +163,7 @@ mod test {
             verifiers.push(Verifier {
                 address: Addr::unchecked(format!("addr{}", i)),
                 bonding_state: BondingState::Bonded {
-                    amount: Uint128::from(100u128),
+                    amount: Uint128::from(100u128).try_into().unwrap(),
                 },
                 authorization_state: AuthorizationState::Authorized,
                 service_name: SERVICE_NAME.parse().unwrap(),
@@ -244,6 +244,12 @@ mod test {
                 .parse()
                 .unwrap()
             }
+            MessageIdFormat::HexTxHash => HexTxHash {
+                tx_hash: Keccak256::digest(id.as_bytes()).into(),
+            }
+            .to_string()
+            .parse()
+            .unwrap(),
         }
     }
 
