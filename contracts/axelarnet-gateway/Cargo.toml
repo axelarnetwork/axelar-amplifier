@@ -46,6 +46,7 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 sha3 = { workspace = true }
 thiserror = { workspace = true }
+itertools = { workspace = true }
 
 [dev-dependencies]
 cw-multi-test = "0.15.1"

@@ -2,7 +2,6 @@ use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::HexBinary;
 use msgs_derive::EnsurePermissions;
 use router_api::{Address, ChainName, CrossChainId, Message};
-use sha3::{Digest, Keccak256};
 
 use crate::state::ExecutableMessage;
 
@@ -34,26 +33,11 @@ pub enum ExecuteMsg {
     /// Initiate a cross-chain contract call from Axelarnet to another chain.
     /// The message will be routed to the destination chain's gateway via the router.
     #[permission(Any)]
-    CallContract(CallContractData),
-}
-
-#[cw_serde]
-pub struct CallContractData {
-    pub destination_chain: ChainName,
-    pub destination_address: Address,
-    pub payload: HexBinary,
-}
-
-impl CallContractData {
-    pub fn into_message(self, id: CrossChainId, source_address: Address) -> Message {
-        Message {
-            cc_id: id,
-            source_address,
-            destination_chain: self.destination_chain,
-            destination_address: self.destination_address,
-            payload_hash: Keccak256::digest(self.payload.as_slice()).into(),
-        }
-    }
+    CallContract {
+        destination_chain: ChainName,
+        destination_address: Address,
+        payload: HexBinary,
+    },
 }
 
 #[cw_serde]

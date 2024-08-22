@@ -27,6 +27,8 @@ pub enum Error {
     MessageAlreadyExecuted(CrossChainId),
     #[error("sent message with ID {0} already exists")]
     MessageAlreadyExists(CrossChainId),
+    #[error("payload hash doesn't match message")]
+    PayloadHashMismatch,
 }
 
 #[cw_serde]
@@ -120,22 +122,22 @@ pub fn load_executable_msg(
 }
 
 /// Update the status of a message to executed if it is in approved status, error otherwise.
-pub(crate) fn mark_msg_as_executed(
+pub(crate) fn update_as_executed(
     storage: &mut dyn Storage,
     cc_id: &CrossChainId,
-) -> Result<(), Error> {
-    let existing = may_load_executable_msg(storage, cc_id)?
-        .ok_or_else(|| Error::MessageNotApproved(cc_id.clone()))?;
+    action: impl FnOnce(Message) -> Result<Message, Error>,
+) -> Result<Message, Error> {
+    let msg = match may_load_executable_msg(storage, cc_id)? {
+        None => Err(Error::MessageNotApproved(cc_id.clone())),
+        Some(ExecutableMessage::Executed(_)) => Err(Error::MessageAlreadyExecuted(cc_id.clone())),
+        Some(ExecutableMessage::Approved(msg)) => Ok(action(msg)?),
+    }?;
 
-    match existing {
-        ExecutableMessage::Approved(msg) => Ok(EXECUTABLE_MESSAGES.save(
-            storage,
-            cc_id,
-            &ExecutableMessage::Executed(msg.clone()),
-        )?),
-        ExecutableMessage::Executed(_) => Err(Error::MessageAlreadyExecuted(cc_id.clone())),
-    }
+    EXECUTABLE_MESSAGES.save(storage, cc_id, &ExecutableMessage::Executed(msg.clone()))?;
+
+    Ok(msg)
 }
+
 //
 // #[cfg(test)]
 // mod tests {

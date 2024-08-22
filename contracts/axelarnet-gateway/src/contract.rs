@@ -65,10 +65,21 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg.ensure_permissions(deps.storage, &info.sender)? {
-        ExecuteMsg::CallContract(data) => {
-            execute::call_contract(deps.storage, env.block.height, info.sender, data)
-                .change_context(Error::CallContract)
-        }
+        ExecuteMsg::CallContract {
+            destination_chain,
+            destination_address,
+            payload,
+        } => execute::call_contract(
+            deps.storage,
+            env.block.height,
+            info.sender,
+            execute::CallContractData {
+                destination_chain,
+                destination_address,
+                payload,
+            },
+        )
+        .change_context(Error::CallContract),
         ExecuteMsg::RouteMessages(msgs) => execute::route_messages(deps.storage, info.sender, msgs)
             .change_context(Error::RouteMessages),
         ExecuteMsg::Execute { cc_id, payload } => {

@@ -1,17 +1,19 @@
 use std::str::FromStr;
 
-use axelar_wasm_std::error::accumulate_reports;
 use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
 use axelar_wasm_std::{FnExt, IntoContractError};
+use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, DepsMut, HexBinary, Response, Storage, Uint256};
 use error_stack::{bail, ensure, report, Result, ResultExt};
+use itertools::Itertools;
 use router_api::client::Router;
 use router_api::{Address, ChainName, CrossChainId, Message};
 use sha3::{Digest, Keccak256};
 
 use crate::clients::PayloadExecutor;
 use crate::events::AxelarnetGatewayEvent;
-use crate::{msg, state};
+use crate::state;
+use crate::state::Config;
 
 #[derive(thiserror::Error, Debug, IntoContractError)]
 pub enum Error {
@@ -23,8 +25,6 @@ pub enum Error {
     MessageMismatch(CrossChainId),
     #[error("failed to mark message with ID {0} as executed")]
     MarkExecuted(CrossChainId),
-    #[error("payload hash doesn't match message")]
-    PayloadHashMismatch,
     #[error("expected destination chain {expected}, got {actual}")]
     InvalidDestination {
         expected: ChainName,
@@ -48,15 +48,37 @@ pub enum Error {
     InvalidSourceAddress(Addr),
 }
 
+#[cw_serde]
+pub struct CallContractData {
+    pub destination_chain: ChainName,
+    pub destination_address: Address,
+    pub payload: HexBinary,
+}
+
+impl CallContractData {
+    pub fn into_message(self, id: CrossChainId, source_address: Address) -> Message {
+        Message {
+            cc_id: id,
+            source_address,
+            destination_chain: self.destination_chain,
+            destination_address: self.destination_address,
+            payload_hash: Keccak256::digest(self.payload.as_slice()).into(),
+        }
+    }
+}
+
 pub fn call_contract(
     storage: &mut dyn Storage,
     block_height: u64,
     sender: Addr,
-    call_contract: msg::CallContractData,
+    call_contract: CallContractData,
 ) -> Result<Response, Error> {
     let payload = call_contract.payload.clone();
 
-    let id = generate_cross_chain_id(storage, block_height)
+    let Config { router, chain_name } =
+        state::load_config(storage).change_context(Error::ConfigAccess)?;
+
+    let id = generate_cross_chain_id(storage, block_height, chain_name)
         .change_context(Error::CrossChainIdGeneration)?;
     let source_address = Address::from_str(sender.as_str())
         .change_context(Error::InvalidSourceAddress(sender.clone()))?;
@@ -66,8 +88,10 @@ pub fn call_contract(
         .inspect_err(|err| panic_if_already_exists(err, &msg.cc_id))
         .change_context(Error::SaveRoutableMessage)?;
 
-    Ok(route_messages(storage, sender, vec![msg.clone()])?
-        .add_event(AxelarnetGatewayEvent::ContractCalled { msg, payload }.into()))
+    Ok(
+        route_to_router(storage, &Router { address: router }, vec![msg.clone()])?
+            .add_event(AxelarnetGatewayEvent::ContractCalled { msg, payload }.into()),
+    )
 }
 
 pub fn route_messages(
@@ -75,11 +99,9 @@ pub fn route_messages(
     sender: Addr,
     msgs: Vec<Message>,
 ) -> Result<Response, Error> {
-    let config = state::load_config(storage).change_context(Error::ConfigAccess)?;
-    let chain_name = config.chain_name;
-    let router = Router {
-        address: config.router,
-    };
+    let Config { chain_name, router } =
+        state::load_config(storage).change_context(Error::ConfigAccess)?;
+    let router = Router { address: router };
 
     if sender == router.address {
         Ok(prepare_msgs_for_execution(storage, chain_name, msgs)?)
@@ -90,10 +112,13 @@ pub fn route_messages(
 }
 
 pub fn execute(deps: DepsMut, cc_id: CrossChainId, payload: HexBinary) -> Result<Response, Error> {
-    let msg = approved_msg(deps.storage, &cc_id, &payload)?;
-
-    state::mark_msg_as_executed(deps.storage, &cc_id)
-        .change_context(Error::MarkExecuted(cc_id.clone()))?;
+    let payload_hash: [u8; 32] = Keccak256::digest(payload.as_slice()).into();
+    let msg = state::update_as_executed(deps.storage, &cc_id, |msg| {
+        (payload_hash == msg.payload_hash)
+            .then_some(msg)
+            .ok_or(state::Error::PayloadHashMismatch)
+    })
+    .change_context(Error::MarkExecuted(cc_id.clone()))?;
 
     let executor = PayloadExecutor::new(deps.as_ref(), &msg.destination_address)
         .change_context(Error::CreateExecutor)?;
@@ -104,24 +129,10 @@ pub fn execute(deps: DepsMut, cc_id: CrossChainId, payload: HexBinary) -> Result
         .then(Ok)
 }
 
-fn approved_msg(
-    storage: &dyn Storage,
-    cc_id: &CrossChainId,
-    payload: &HexBinary,
-) -> Result<Message, Error> {
-    let msg = state::load_executable_msg(storage, cc_id)
-        .change_context(Error::PayloadNotApproved)?
-        .msg_owned();
-
-    let payload_hash: [u8; 32] = Keccak256::digest(payload.as_slice()).into();
-    ensure!(payload_hash == msg.payload_hash, Error::PayloadHashMismatch);
-
-    Ok(msg)
-}
-
 fn generate_cross_chain_id(
     storage: &mut dyn Storage,
     block_height: u64,
+    chain_name: ChainName,
 ) -> Result<CrossChainId, Error> {
     // TODO: Retrieve the actual tx hash from core, since cosmwasm doesn't provide it.
     // Use the block height as the placeholder in the meantime.
@@ -132,8 +143,7 @@ fn generate_cross_chain_id(
             .change_context(Error::EventIndex)?,
     };
 
-    let config = state::load_config(storage).change_context(Error::ConfigAccess)?;
-    CrossChainId::new(config.chain_name, message_id).change_context(Error::InvalidCrossChainId)
+    CrossChainId::new(chain_name, message_id).change_context(Error::InvalidCrossChainId)
 }
 
 fn panic_if_already_exists(err: &state::Error, cc_id: &CrossChainId) {
@@ -176,10 +186,11 @@ fn route_to_router(
     router: &Router,
     msgs: Vec<Message>,
 ) -> Result<Response, Error> {
-    let msgs = msgs
-        .iter()
+    let msgs: Vec<_> = msgs
+        .into_iter()
+        .unique()
         .filter_map(|msg| verify_message(store, msg).transpose())
-        .fold(Ok(vec![]), accumulate_reports)?;
+        .try_collect()?;
 
     Ok(Response::new()
         .add_messages(router.route(msgs.clone()))
@@ -191,12 +202,12 @@ fn route_to_router(
 
 /// Verify that the message is stored and matches the one we're trying to route. Returns Ok(None) if
 /// the message is not stored.
-fn verify_message(store: &mut dyn Storage, msg: &Message) -> Result<Option<Message>, Error> {
+fn verify_message(store: &mut dyn Storage, msg: Message) -> Result<Option<Message>, Error> {
     let stored_msg = state::may_load_routable_msg(store, &msg.cc_id)
         .change_context(Error::ExecutableMessageAccess)?;
 
     match stored_msg {
-        Some(stored_msg) if stored_msg != *msg => {
+        Some(stored_msg) if stored_msg != msg => {
             bail!(Error::MessageMismatch(msg.cc_id.clone()))
         }
         Some(stored_msg) => Ok(Some(stored_msg)),
