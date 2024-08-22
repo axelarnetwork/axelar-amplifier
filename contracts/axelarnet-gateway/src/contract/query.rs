@@ -45,7 +45,7 @@ pub fn executable_messages(
 //             cc_id: CrossChainId::new(SOURCE_CHAIN, id).unwrap(),
 //             source_address: "source-address".parse().unwrap(),
 //             destination_chain: DESTINATION_CHAIN.parse().unwrap(),
-//             destination_address: "destination-address".parse().unwrpub(crate)ap(),
+//             destination_address: "destination-address".parse().unwrap(),
 //             payload_hash: [0; 32],
 //         }
 //     }

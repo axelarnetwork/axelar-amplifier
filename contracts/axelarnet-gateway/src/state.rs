@@ -8,7 +8,7 @@ use router_api::{ChainName, CrossChainId, Message};
 
 const CONFIG: Item<Config> = Item::new("config");
 const ROUTABLE_MESSAGES: Map<&CrossChainId, Message> = Map::new("routable_messages");
-pub(crate) const ROUTABLE_MESSAGES_INDEX: Counter<u32> = Counter::new("routable_message_index");
+pub const ROUTABLE_MESSAGES_INDEX: Counter<u32> = Counter::new("routable_message_index");
 const EXECUTABLE_MESSAGES: Map<&CrossChainId, ExecutableMessage> = Map::new("executable_messages");
 
 #[derive(thiserror::Error, Debug, PartialEq, IntoContractError)]
@@ -32,7 +32,7 @@ pub enum Error {
 }
 
 #[cw_serde]
-pub(crate) struct Config {
+pub struct Config {
     pub chain_name: ChainName,
     pub router: Addr,
 }
@@ -107,7 +107,7 @@ pub fn save_executable_msg(
     }
 }
 
-pub(crate) fn may_load_executable_msg(
+pub fn may_load_executable_msg(
     storage: &dyn Storage,
     cc_id: &CrossChainId,
 ) -> Result<Option<ExecutableMessage>, Error> {
