@@ -29,6 +29,8 @@ pub enum ContractError {
     VerifierNotFound,
     #[error("invalid bonding state `{0:?}` for this operation")]
     InvalidBondingState(BondingState),
+    #[error("no attached funds to bond")]
+    NoFundsToBond,
     #[error("not enough verifiers")]
     NotEnoughVerifiers,
     #[error("verifier is jailed")]

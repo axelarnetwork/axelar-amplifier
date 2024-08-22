@@ -24,6 +24,7 @@ axelar-wasm-std = { version = "^1.0.0", path = "packages/axelar-wasm-std" }
 axelar-wasm-std-derive = { version = "^1.0.0", path = "packages/axelar-wasm-std-derive" }
 hex = "0.4.3"
 integration-tests = { version = "^1.0.0", path = "integration-tests" }
+into-inner-derive = { version = "^1.0.0", path = "packages/into-inner-derive" }
 itertools = "0.11.0"
 voting-verifier = { version = "^1.0.0", path = "contracts/voting-verifier" }
 coordinator = { version = "^1.0.0", path = "contracts/coordinator" }
