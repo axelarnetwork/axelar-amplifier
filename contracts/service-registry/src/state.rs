@@ -172,11 +172,11 @@ pub const VERIFIERS_PER_CHAIN: IndexedMap<
             |pk: &[u8], _: &()| {
                 let (service_name, _, verifier) =
                     <(ServiceName, ChainName, VerifierAddress)>::from_slice(pk)
-                        .expect("Invalid primary key");
+                        .expect("invalid primary key");
                 (service_name, verifier)
             },
             "verifiers_per_chain",
-            "verifiers__address",
+            "verifiers_per_chain__address",
         ),
     },
 );
@@ -210,9 +210,7 @@ pub fn deregister_chains_support(
     verifier: VerifierAddress,
 ) -> Result<(), ContractError> {
     for chain in chains {
-        VERIFIERS_PER_CHAIN
-            .remove(storage, (service_name.clone(), chain, verifier.clone()))
-            .map_err(|_| ContractError::DeregistrationFailed)?;
+        VERIFIERS_PER_CHAIN.remove(storage, (service_name.clone(), chain, verifier.clone()))?;
     }
     Ok(())
 }

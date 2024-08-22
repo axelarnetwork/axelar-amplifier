@@ -1,8 +1,9 @@
 use cosmwasm_std::{Addr, Order};
+use itertools::Itertools;
 use router_api::ChainName;
 
 use super::*;
-use crate::msg::VerifierDetailsResponse;
+use crate::msg::VerifierDetails;
 use crate::state::{WeightedVerifier, VERIFIERS, VERIFIERS_PER_CHAIN, VERIFIER_WEIGHT};
 
 pub fn active_verifiers(
@@ -33,7 +34,7 @@ pub fn active_verifiers(
         })
         .map(|verifier| WeightedVerifier {
             verifier_info: verifier,
-            weight: VERIFIER_WEIGHT,
+            weight: VERIFIER_WEIGHT, // all verifiers have an identical const weight for now
         })
         .collect();
 
@@ -44,28 +45,11 @@ pub fn active_verifiers(
     }
 }
 
-// pub fn verifier(
-//     deps: Deps,
-//     service_name: String,
-//     verifier: String,
-// ) -> Result<Verifier, axelar_wasm_std::error::ContractError> {
-//     VERIFIERS
-//         .may_load(
-//             deps.storage,
-//             (
-//                 &service_name,
-//                 &address::validate_cosmwasm_address(deps.api, &verifier)?,
-//             ),
-//         )?
-//         .ok_or(ContractError::VerifierNotFound)?
-//         .then(Ok)
-// }
-
 pub fn verifier(
     deps: Deps,
     service_name: String,
     verifier: String,
-) -> Result<VerifierDetailsResponse, ContractError> {
+) -> Result<VerifierDetails, ContractError> {
     let verifier_addr = deps.api.addr_validate(&verifier)?;
 
     let verifier = VERIFIERS
@@ -75,12 +59,12 @@ pub fn verifier(
     let supported_chains = VERIFIERS_PER_CHAIN
         .idx
         .verifier_address
-        .prefix((service_name.clone(), verifier_addr.clone()))
+        .prefix((service_name, verifier_addr.clone()))
         .keys(deps.storage, None, None, Order::Ascending)
-        .map(|result| result.map(|(_, chain, _)| chain))
-        .collect::<Result<Vec<ChainName>, _>>()?;
+        .map_ok(|(_, chain, _)| chain)
+        .try_collect()?;
 
-    Ok(VerifierDetailsResponse {
+    Ok(VerifierDetails {
         verifier,
         weight: VERIFIER_WEIGHT,
         supported_chains,

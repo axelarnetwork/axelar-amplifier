@@ -71,13 +71,6 @@ pub enum ExecuteMsg {
     ClaimStake { service_name: String },
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
-pub struct VerifierDetailsResponse {
-    pub verifier: Verifier,
-    pub weight: nonempty::Uint128,
-    pub supported_chains: Vec<ChainName>,
-}
-
 #[cw_serde]
 #[derive(QueryResponses)]
 pub enum QueryMsg {
@@ -90,11 +83,18 @@ pub enum QueryMsg {
     #[returns(crate::state::Service)]
     Service { service_name: String },
 
-    #[returns(VerifierDetailsResponse)]
+    #[returns(VerifierDetails)]
     Verifier {
         service_name: String,
         verifier: String,
     },
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
+pub struct VerifierDetails {
+    pub verifier: Verifier,
+    pub weight: nonempty::Uint128,
+    pub supported_chains: Vec<ChainName>,
 }
 
 #[cw_serde]
