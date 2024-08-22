@@ -10,7 +10,7 @@ use router_api::client::Router;
 use router_api::{Address, ChainName, CrossChainId, Message};
 use sha3::{Digest, Keccak256};
 
-use crate::clients::PayloadExecutor;
+use crate::clients::CrossChainExecutor;
 use crate::events::AxelarnetGatewayEvent;
 use crate::state;
 use crate::state::Config;
@@ -120,11 +120,11 @@ pub fn execute(deps: DepsMut, cc_id: CrossChainId, payload: HexBinary) -> Result
     })
     .change_context(Error::MarkExecuted(cc_id.clone()))?;
 
-    let executor = PayloadExecutor::new(deps.as_ref(), &msg.destination_address)
+    let executor = CrossChainExecutor::new(deps.as_ref(), &msg.destination_address)
         .change_context(Error::CreateExecutor)?;
 
     Response::new()
-        .add_message(executor.execute(cc_id, msg.source_address.clone(), payload))
+        .add_message(executor.prepare_execute_msg(cc_id, msg.source_address.clone(), payload))
         .add_event(AxelarnetGatewayEvent::MessageExecuted { msg }.into())
         .then(Ok)
 }

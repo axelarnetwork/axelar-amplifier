@@ -12,35 +12,44 @@ pub struct AxelarExecutableMsg {
     pub payload: HexBinary,
 }
 
-pub struct PayloadExecutor<'a> {
-    client: client::Client<'a, AxelarExecutableMsg, ()>,
+pub struct CrossChainExecutor<'a> {
+    client: client::Client<'a, ExecuteMsg, ()>,
 }
 
-impl<'a> From<client::Client<'a, AxelarExecutableMsg, ()>> for PayloadExecutor<'a> {
-    fn from(client: client::Client<'a, AxelarExecutableMsg, ()>) -> Self {
-        PayloadExecutor { client }
-    }
-}
-
-impl<'a> PayloadExecutor<'a> {
+impl<'a> CrossChainExecutor<'a> {
     pub fn new(deps: Deps<'a>, destination: &str) -> error_stack::Result<Self, address::Error> {
         let destination = address::validate_cosmwasm_address(deps.api, destination)?;
-        Ok(PayloadExecutor {
+        Ok(CrossChainExecutor {
             client: client::Client::new(deps.querier, destination),
         })
     }
 
-    pub fn execute(
+    pub fn prepare_execute_msg(
         &self,
         cc_id: CrossChainId,
         source_address: Address,
         payload: HexBinary,
     ) -> WasmMsg {
-        self.client.execute(&AxelarExecutableMsg {
-            cc_id,
-            source_address,
-            payload,
-        })
+        self.client
+            .execute(&ExecuteMsg::Execute(AxelarExecutableMsg {
+                cc_id,
+                source_address,
+                payload,
+            }))
+    }
+}
+
+/// By convention, amplifier-compatible contracts must expose this `Execute` variant.
+/// Due to identical json serialization, we can imitate it here so the gateway can call it.
+#[cw_serde]
+enum ExecuteMsg {
+    /// Execute the message at the destination contract with the corresponding payload.
+    Execute(AxelarExecutableMsg),
+}
+
+impl<'a> From<client::Client<'a, ExecuteMsg, ()>> for CrossChainExecutor<'a> {
+    fn from(client: client::Client<'a, ExecuteMsg, ()>) -> Self {
+        CrossChainExecutor { client }
     }
 }
 
@@ -54,14 +63,15 @@ mod test {
     #[test]
     fn execute_message() {
         let (querier, addr) = setup();
-        let client: PayloadExecutor =
+        let client: CrossChainExecutor =
             client::Client::new(QuerierWrapper::new(&querier), addr.clone()).into();
 
         let cc_id = CrossChainId::new("source-chain", "message-id").unwrap();
         let source_address: Address = "source-address".parse().unwrap();
         let payload = HexBinary::from(vec![1, 2, 3]);
 
-        let msg = client.execute(cc_id.clone(), source_address.clone(), payload.clone());
+        let msg =
+            client.prepare_execute_msg(cc_id.clone(), source_address.clone(), payload.clone());
 
         assert_eq!(
             msg,
