@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use asyncutil::task::{CancellableTask, TaskError, TaskGroup};
 use block_height_monitor::BlockHeightMonitor;
-use broadcaster::confirm_tx::TxConfirmer;
+use broadcaster::confirm_tx::ConfirmationCtx;
 use broadcaster::Broadcaster;
 use cosmrs::proto::cosmos::auth::v1beta1::query_client::QueryClient as AuthQueryClient;
 use cosmrs::proto::cosmos::bank::v1beta1::query_client::QueryClient as BankQueryClient;
@@ -151,7 +151,7 @@ where
     event_subscriber: event_sub::EventSubscriber,
     event_processor: TaskGroup<event_processor::Error>,
     broadcaster: QueuedBroadcaster<T>,
-    tx_confirmer: TxConfirmer<ServiceClient<Channel>>,
+    tx_confirmation_ctx: ConfirmationCtx<ServiceClient<Channel>>,
     multisig_client: MultisigClient,
     block_height_monitor: BlockHeightMonitor<tendermint_rpc::HttpClient>,
     health_check_server: health_check::Server,
@@ -178,8 +178,8 @@ where
         let (event_publisher, event_subscriber) =
             event_sub::EventPublisher::new(tm_client, event_buffer_cap);
 
-        let (tx_confirmer_sender, tx_confirmer_receiver) = mpsc::channel(1000);
-        let (tx_res_sender, tx_res_receiver) = mpsc::channel(1000);
+        let (tx_hash_sender, tx_hash_receiver) = mpsc::channel(1000);
+        let (tx_response_sender, tx_response_receiver) = mpsc::channel(1000);
 
         let event_processor = TaskGroup::new();
         let broadcaster = QueuedBroadcaster::new(
@@ -187,15 +187,15 @@ where
             broadcast_cfg.batch_gas_limit,
             broadcast_cfg.queue_cap,
             interval(broadcast_cfg.broadcast_interval),
-            tx_confirmer_sender,
-            tx_res_receiver,
+            tx_hash_sender,
+            tx_response_receiver,
         );
-        let tx_confirmer = TxConfirmer::new(
+        let tx_confirmation_ctx = ConfirmationCtx::new(
             service_client,
             broadcast_cfg.tx_fetch_interval,
             broadcast_cfg.tx_fetch_max_retries.saturating_add(1),
-            tx_confirmer_receiver,
-            tx_res_sender,
+            tx_hash_receiver,
+            tx_response_sender,
         );
 
         Self {
@@ -203,7 +203,7 @@ where
             event_subscriber,
             event_processor,
             broadcaster,
-            tx_confirmer,
+            tx_confirmation_ctx,
             multisig_client,
             block_height_monitor,
             health_check_server,
@@ -394,7 +394,7 @@ where
             event_publisher,
             event_processor,
             broadcaster,
-            tx_confirmer,
+            tx_confirmation_ctx: tx_confirmer,
             block_height_monitor,
             health_check_server,
             token,
@@ -438,7 +438,7 @@ where
                     .change_context(Error::EventProcessor)
             }))
             .add_task(CancellableTask::create(|_| {
-                tx_confirmer.run().change_context(Error::TxConfirmer)
+                tx_confirmer.run().change_context(Error::TxConfirmation)
             }))
             .add_task(CancellableTask::create(|_| {
                 broadcaster.run().change_context(Error::Broadcaster)
@@ -456,8 +456,8 @@ pub enum Error {
     EventProcessor,
     #[error("broadcaster failed")]
     Broadcaster,
-    #[error("tx confirmer failed")]
-    TxConfirmer,
+    #[error("tx confirmation failed")]
+    TxConfirmation,
     #[error("tofnd failed")]
     Tofnd,
     #[error("connection failed")]
