@@ -3,7 +3,7 @@ use axelar_wasm_std::{address, permission_control, FnExt};
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     to_json_binary, Addr, BankMsg, Binary, Coin, Deps, DepsMut, Empty, Env, MessageInfo,
-    QueryRequest, Response, Storage, Uint128, WasmQuery,
+    QueryRequest, Response, Storage, WasmQuery,
 };
 use error_stack::{bail, Report, ResultExt};
 
@@ -2120,7 +2120,7 @@ mod test {
         let mut deps = setup();
 
         let service_name = "validators";
-        let min_verifier_bond = Uint128::new(100);
+        let min_verifier_bond: nonempty::Uint128 = Uint128::new(100).try_into().unwrap();
         let res = execute(
             deps.as_mut(),
             mock_env(),
@@ -2154,7 +2154,7 @@ mod test {
             mock_env(),
             mock_info(
                 VERIFIER_ADDRESS,
-                &coins(min_verifier_bond.u128(), AXL_DENOMINATION),
+                &coins(min_verifier_bond.into_inner().u128(), AXL_DENOMINATION),
             ),
             ExecuteMsg::BondVerifier {
                 service_name: service_name.into(),
