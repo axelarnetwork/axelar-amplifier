@@ -86,17 +86,18 @@ impl KeyDeserialize for &CrossChainId {
 #[cfg(test)]
 mod tests {
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-    use cosmwasm_std::DepsMut;
+    use cosmwasm_std::{DepsMut, Env, MessageInfo, Response};
 
+    use super::BASE_VERSION;
     use crate::contract::migrations::v0_2_3;
-    use crate::contract::{instantiate, CONTRACT_NAME, CONTRACT_VERSION};
+    use crate::contract::{CONTRACT_NAME, CONTRACT_VERSION};
     use crate::msg::InstantiateMsg;
     use crate::state;
 
     #[test]
     fn migrate_checks_contract_version() {
         let mut deps = mock_dependencies();
-        instantiate_contract(deps.as_mut());
+        instantiate_0_2_3_contract(deps.as_mut());
 
         cw2::set_contract_version(deps.as_mut().storage, CONTRACT_NAME, "something wrong").unwrap();
 
@@ -111,7 +112,7 @@ mod tests {
     #[test]
     fn migrate_sets_contract_version() {
         let mut deps = mock_dependencies();
-        instantiate_contract(deps.as_mut());
+        instantiate_0_2_3_contract(deps.as_mut());
 
         v0_2_3::migrate(deps.as_mut().storage).unwrap();
 
@@ -120,24 +121,11 @@ mod tests {
         assert_eq!(contract_version.version, CONTRACT_VERSION);
     }
 
-    fn instantiate_contract(deps: DepsMut) {
-        instantiate(
-            deps,
-            mock_env(),
-            mock_info("admin", &[]),
-            InstantiateMsg {
-                verifier_address: "verifier".to_string(),
-                router_address: "router".to_string(),
-            },
-        )
-        .unwrap();
-    }
-
     #[test]
     fn migrate_outgoing_messages() {
         let mut deps = mock_dependencies();
 
-        instantiate_contract(deps.as_mut());
+        instantiate_0_2_3_contract(deps.as_mut());
 
         let msgs = vec![
             v0_2_3::Message {
@@ -181,5 +169,65 @@ mod tests {
         assert!(v0_2_3::migrate(deps.as_mut().storage).is_ok());
 
         assert!(state::OUTGOING_MESSAGES.is_empty(deps.as_ref().storage))
+    }
+
+    fn instantiate_0_2_3_contract(deps: DepsMut) {
+        instantiate(
+            deps,
+            mock_env(),
+            mock_info("admin", &[]),
+            InstantiateMsg {
+                verifier_address: "verifier".to_string(),
+                router_address: "router".to_string(),
+            },
+        )
+        .unwrap();
+    }
+
+    #[deprecated(since = "0.2.3", note = "only used during migration")]
+    pub fn instantiate(
+        deps: DepsMut,
+        env: Env,
+        info: MessageInfo,
+        msg: InstantiateMsg,
+    ) -> Result<Response, axelar_wasm_std::error::ContractError> {
+        cw2::set_contract_version(deps.storage, CONTRACT_NAME, BASE_VERSION)?;
+
+        Ok(internal::instantiate(deps, env, info, msg)?)
+    }
+
+    mod internal {
+        use cosmwasm_std::{DepsMut, Env, MessageInfo, Response};
+        use error_stack::{Result, ResultExt};
+
+        use crate::contract::Error;
+        use crate::msg::InstantiateMsg;
+        use crate::state;
+        use crate::state::Config;
+
+        #[deprecated(since = "0.2.3", note = "only used during migration")]
+        pub(crate) fn instantiate(
+            deps: DepsMut,
+            _env: Env,
+            _info: MessageInfo,
+            msg: InstantiateMsg,
+        ) -> Result<Response, Error> {
+            let router = deps
+                .api
+                .addr_validate(&msg.router_address)
+                .change_context(Error::InvalidAddress)
+                .attach_printable(msg.router_address)?;
+
+            let verifier = deps
+                .api
+                .addr_validate(&msg.verifier_address)
+                .change_context(Error::InvalidAddress)
+                .attach_printable(msg.verifier_address)?;
+
+            state::save_config(deps.storage, &Config { verifier, router })
+                .change_context(Error::InvalidStoreAccess)?;
+
+            Ok(Response::new())
+        }
     }
 }

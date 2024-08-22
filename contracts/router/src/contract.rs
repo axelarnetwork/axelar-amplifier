@@ -7,7 +7,7 @@ use cosmwasm_std::{
 use router_api::error::Error;
 use router_api::msg::{ExecuteMsg, QueryMsg};
 
-use crate::contract::migrations::v0_3_3;
+use crate::contract::migrations::v0_4_0;
 use crate::events::RouterInstantiated;
 use crate::msg::InstantiateMsg;
 use crate::state;
@@ -25,7 +25,7 @@ pub fn migrate(
     _env: Env,
     _msg: Empty,
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
-    v0_3_3::migrate(deps.storage)?;
+    v0_4_0::migrate(deps.storage)?;
 
     // this needs to be the last thing to do during migration,
     // because previous migration steps should check the old version
