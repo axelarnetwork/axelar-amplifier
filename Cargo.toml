@@ -1,5 +1,5 @@
 [workspace]
-members = ["ampd", "contracts/*", "integration-tests", "interchain-token-service", "packages/*"]
+members = ["ampd", "contracts/*", "external-gateways/*", "integration-tests", "interchain-token-service", "packages/*"]
 resolver = "2"
 
 [workspace.package]
@@ -19,10 +19,12 @@ events-derive = { version = "^1.0.0", path = "packages/events-derive" }
 evm-gateway = { version = "^1.0.0", path = "packages/evm-gateway" }
 sui-types = { version = "^1.0.0", path = "packages/sui-types" }
 sui-gateway = { version = "^1.0.0", path = "packages/sui-gateway" }
+stellar = { version = "^1.0.0", path = "external-gateways/stellar" }
 axelar-wasm-std = { version = "^1.0.0", path = "packages/axelar-wasm-std" }
 axelar-wasm-std-derive = { version = "^1.0.0", path = "packages/axelar-wasm-std-derive" }
 hex = "0.4.3"
 integration-tests = { version = "^1.0.0", path = "integration-tests" }
+into-inner-derive = { version = "^1.0.0", path = "packages/into-inner-derive" }
 itertools = "0.11.0"
 voting-verifier = { version = "^1.0.0", path = "contracts/voting-verifier" }
 coordinator = { version = "^1.0.0", path = "contracts/coordinator" }

@@ -2,13 +2,14 @@ use std::ops::Deref;
 use std::str::FromStr;
 
 use cosmwasm_schema::cw_serde;
+use into_inner_derive::IntoInner;
 use valuable::Valuable;
 
 use crate::nonempty::Error;
 
 #[cw_serde]
 #[serde(try_from = "std::string::String")]
-#[derive(Eq, Hash, Valuable)]
+#[derive(Eq, Hash, Valuable, IntoInner)]
 pub struct String(std::string::String);
 
 impl TryFrom<std::string::String> for String {

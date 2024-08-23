@@ -163,7 +163,7 @@ mod test {
             verifiers.push(Verifier {
                 address: Addr::unchecked(format!("addr{}", i)),
                 bonding_state: BondingState::Bonded {
-                    amount: Uint128::from(100u128),
+                    amount: Uint128::from(100u128).try_into().unwrap(),
                 },
                 authorization_state: AuthorizationState::Authorized,
                 service_name: SERVICE_NAME.parse().unwrap(),
