@@ -52,8 +52,7 @@ thiserror = { workspace = true }
 voting-verifier = { workspace = true, features = ["library"] }
 
 [dev-dependencies]
-cw-multi-test = { workspace = true }
-goldie = { workspace = true }
+cw-multi-test = "0.15.1"
 rand = "0.8.5"
 
 [lints]

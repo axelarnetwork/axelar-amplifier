@@ -26,7 +26,10 @@ pub enum Error {
 }
 
 pub fn load_config(storage: &dyn Storage) -> Result<Config, Error> {
-    CONFIG.may_load(storage)?.ok_or(Error::MissingConfig)
+    CONFIG
+        .may_load(storage)
+        .map_err(Error::from)?
+        .ok_or(Error::MissingConfig)
 }
 
 pub fn save_config(storage: &mut dyn Storage, config: &Config) -> Result<(), Error> {
@@ -38,7 +41,8 @@ pub fn load_outgoing_message(
     cc_id: &CrossChainId,
 ) -> Result<Message, Error> {
     OUTGOING_MESSAGES
-        .may_load(storage, cc_id)?
+        .may_load(storage, cc_id)
+        .map_err(Error::from)?
         .ok_or_else(|| Error::MessageNotFound(cc_id.clone()))
 }
 

@@ -34,7 +34,7 @@ pub fn route_outgoing_messages(
     store: &mut dyn Storage,
     verified: Vec<Message>,
 ) -> Result<Response, Error> {
-    let msgs: Vec<_> = verified.into_iter().unique().collect();
+    let msgs = check_for_duplicates(verified)?;
 
     for msg in msgs.iter() {
         state::save_outgoing_message(store, &msg.cc_id, msg)
@@ -52,15 +52,28 @@ fn apply(
     msgs: Vec<Message>,
     action: impl Fn(Vec<(VerificationStatus, Vec<Message>)>) -> (Option<WasmMsg>, Vec<Event>),
 ) -> Result<Response, Error> {
-    let unique_msgs = msgs.into_iter().unique().collect();
-
-    verifier
-        .messages_status(unique_msgs)
+    check_for_duplicates(msgs)?
+        .then(|msgs| verifier.messages_status(msgs))
         .change_context(Error::MessageStatus)?
         .then(group_by_status)
         .then(action)
         .then(|(msgs, events)| Response::new().add_messages(msgs).add_events(events))
         .then(Ok)
+}
+
+fn check_for_duplicates(msgs: Vec<Message>) -> Result<Vec<Message>, Error> {
+    let duplicates: Vec<_> = msgs
+        .iter()
+        // the following two map instructions are separated on purpose
+        // so the duplicate check is done on the typed id instead of just a string
+        .map(|m| &m.cc_id)
+        .duplicates()
+        .map(|cc_id| cc_id.to_string())
+        .collect();
+    if !duplicates.is_empty() {
+        return Err(Error::DuplicateMessageIds).attach_printable(duplicates.iter().join(", "));
+    }
+    Ok(msgs)
 }
 
 fn group_by_status(

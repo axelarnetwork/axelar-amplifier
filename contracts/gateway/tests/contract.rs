@@ -9,8 +9,7 @@ use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info, MockQuerier}
 #[cfg(not(feature = "generate_golden_files"))]
 use cosmwasm_std::Response;
 use cosmwasm_std::{
-    from_json, to_json_binary, Addr, ContractResult, CosmosMsg, DepsMut, QuerierResult, WasmMsg,
-    WasmQuery,
+    from_json, to_json_binary, Addr, ContractResult, DepsMut, QuerierResult, WasmQuery,
 };
 use gateway::contract::*;
 use gateway::msg::InstantiateMsg;
@@ -227,7 +226,7 @@ fn route_incoming_with_faulty_verifier_fails() {
 }
 
 #[test]
-fn verify_calls_with_duplicate_ids_should_ignore_duplicates() {
+fn calls_with_duplicate_ids_should_fail() {
     let (test_cases, handler) = test_cases_for_duplicate_msgs();
     for msgs in test_cases {
         let mut deps = mock_dependencies();
@@ -242,14 +241,28 @@ fn verify_calls_with_duplicate_ids_should_ignore_duplicates() {
             mock_info("sender", &[]),
             ExecuteMsg::VerifyMessages(msgs.clone()),
         );
-        assert!(response.is_ok());
-        let routed_msgs: Vec<ExecuteMsg> = extract_messages_from_response(response.unwrap());
-        goldie::assert_json!(routed_msgs);
+        assert!(response.is_err());
+
+        let response = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info("sender", &[]),
+            ExecuteMsg::RouteMessages(msgs.clone()),
+        );
+        assert!(response.is_err());
+
+        let response = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(router, &[]),
+            ExecuteMsg::RouteMessages(msgs),
+        );
+        assert!(response.is_err());
     }
 }
 
 #[test]
-fn route_duplicate_ids_should_ignore_duplicates() {
+fn route_duplicate_ids_should_fail() {
     let (test_cases, handler) = test_cases_for_duplicate_msgs();
     for msgs in test_cases {
         let mut deps = mock_dependencies();
@@ -264,23 +277,8 @@ fn route_duplicate_ids_should_ignore_duplicates() {
             ExecuteMsg::RouteMessages(msgs),
         );
 
-        assert!(response.is_ok());
-        let msgs: Vec<ExecuteMsg> = extract_messages_from_response(response.unwrap());
-        goldie::assert_json!(msgs)
+        assert!(response.is_err());
     }
-}
-
-fn extract_messages_from_response(response: Response) -> Vec<ExecuteMsg> {
-    response
-        .messages
-        .into_iter()
-        .map(|sub_msg| {
-            let CosmosMsg::Wasm(WasmMsg::Execute { msg, .. }) = sub_msg.msg else {
-                panic!("pattern must match")
-            };
-            from_json(msg).unwrap()
-        })
-        .collect()
 }
 
 #[test]
