@@ -71,7 +71,10 @@ fn claim_stake_after_rotation_success() {
     let after_balances = test_utils::query_balances(&protocol.app, &verifiers);
 
     for (before_balance, after_balance) in before_balances.into_iter().zip(after_balances) {
-        assert_eq!(after_balance, before_balance + min_verifier_bond);
+        assert_eq!(
+            after_balance,
+            before_balance + min_verifier_bond.into_inner()
+        );
     }
 }
 
