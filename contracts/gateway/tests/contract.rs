@@ -9,7 +9,8 @@ use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info, MockQuerier}
 #[cfg(not(feature = "generate_golden_files"))]
 use cosmwasm_std::Response;
 use cosmwasm_std::{
-    from_json, to_json_binary, Addr, ContractResult, DepsMut, QuerierResult, WasmQuery,
+    from_json, to_json_binary, Addr, ContractResult, CosmosMsg, DepsMut, QuerierResult, WasmMsg,
+    WasmQuery,
 };
 use gateway::contract::*;
 use gateway::msg::InstantiateMsg;
@@ -262,7 +263,7 @@ fn calls_with_duplicate_ids_should_fail() {
 }
 
 #[test]
-fn route_duplicate_ids_should_fail() {
+fn route_duplicate_ids_should_ignore_duplicates() {
     let (test_cases, handler) = test_cases_for_duplicate_msgs();
     for msgs in test_cases {
         let mut deps = mock_dependencies();
@@ -277,8 +278,23 @@ fn route_duplicate_ids_should_fail() {
             ExecuteMsg::RouteMessages(msgs),
         );
 
-        assert!(response.is_err());
+        assert!(response.is_ok());
+        let msgs: Vec<ExecuteMsg> = extract_messages_from_response(response.unwrap());
+        goldie::assert_json!(msgs)
     }
+}
+
+fn extract_messages_from_response(response: Response) -> Vec<ExecuteMsg> {
+    response
+        .messages
+        .into_iter()
+        .map(|sub_msg| {
+            let CosmosMsg::Wasm(WasmMsg::Execute { msg, .. }) = sub_msg.msg else {
+                panic!("pattern must match")
+            };
+            from_json(msg).unwrap()
+        })
+        .collect()
 }
 
 #[test]
