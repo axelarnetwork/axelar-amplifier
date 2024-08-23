@@ -8,33 +8,41 @@ where
     F: FnMut() -> Fut,
     Fut: Future<Output = Result<R, Err>>,
 {
-    let mut err_count = 0u64;
+    let mut attempt_count = 0u64;
     loop {
         match future().await {
             Ok(result) => return Ok(result),
             Err(err) => {
-                err_count = err_count.saturating_add(1);
-                handle_err(err, err_count, policy).await?
+                attempt_count = attempt_count.saturating_add(1);
+
+                match enact_policy(attempt_count, policy).await {
+                    PolicyAction::Retry => continue,
+                    PolicyAction::Abort => return Err(err),
+                }
             }
         }
     }
 }
 
-async fn handle_err<Err>(err: Err, err_count: u64, policy: RetryPolicy) -> Result<(), Err> {
+async fn enact_policy(attempt_count: u64, policy: RetryPolicy) -> PolicyAction {
     match policy {
         RetryPolicy::RepeatConstant {
             sleep,
             max_attempts,
         } => {
-            if err_count >= max_attempts {
-                return Err(err);
+            if attempt_count >= max_attempts {
+                PolicyAction::Abort
+            } else {
+                time::sleep(sleep).await;
+                PolicyAction::Retry
             }
-
-            time::sleep(sleep).await;
-
-            Ok(())
         }
     }
+}
+
+enum PolicyAction {
+    Retry,
+    Abort,
 }
 
 #[derive(Copy, Clone)]
