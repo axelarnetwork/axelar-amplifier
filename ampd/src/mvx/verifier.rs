@@ -500,11 +500,12 @@ mod tests {
             .parse()
             .unwrap();
 
-        let verifier_set_confirmation = VerifierSetConfirmation {
+        let mut verifier_set_confirmation = VerifierSetConfirmation {
             tx_id,
             event_index: 1,
             verifier_set: build_verifier_set(KeyType::Ed25519, &ed25519_test_data::signers()),
         };
+        verifier_set_confirmation.verifier_set.created_at = 5;
 
         // 00000003 - length of new signers
         // 45e67eaf446e6c26eb3a2b55b64339ecf3a4d1d03180bee20eb5afdd23fa644f - first new signer
@@ -514,11 +515,11 @@ mod tests {
         // dd9822c7fa239dda9913ebee813ecbe69e35d88ff651548d5cc42c033a8a667b - third new signer
         // 00000001 01 - length of biguint weight followed by 1 as hex
         // 00000001 02 - length of biguint threshold followed by 2 as hex
-        // 290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563 - the nonce (keccak256 hash of Uin256 number 0, created_at date)
-        let data = HexBinary::from_hex("0000000345e67eaf446e6c26eb3a2b55b64339ecf3a4d1d03180bee20eb5afdd23fa644f0000000101c387253d29085a8036d6ae2cafb1b14699751417c0ce302cfe03da279e6b5c040000000101dd9822c7fa239dda9913ebee813ecbe69e35d88ff651548d5cc42c033a8a667b00000001010000000102290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563")
+        // 0000000000000000000000000000000000000000000000000000000000000005 - the nonce (created_at date as uint256)
+        let data = HexBinary::from_hex("0000000345e67eaf446e6c26eb3a2b55b64339ecf3a4d1d03180bee20eb5afdd23fa644f0000000101c387253d29085a8036d6ae2cafb1b14699751417c0ce302cfe03da279e6b5c040000000101dd9822c7fa239dda9913ebee813ecbe69e35d88ff651548d5cc42c033a8a667b000000010100000001020000000000000000000000000000000000000000000000000000000000000005")
             .unwrap();
         let signers_hash =
-            HexBinary::from_hex("acc61d8597eaf76375dd9e34c50baab3c110d508ed4bd99c8d6000af503bf770")
+            HexBinary::from_hex("29f81aa379fa1f5973d05dd25e5ae4bc1afa2aa30156b1db5ec437a46ba4fd28")
                 .unwrap();
 
         let wrong_event = Events {
