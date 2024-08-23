@@ -764,7 +764,7 @@ mod test {
 
             // check status corresponds to votes
             let statuses: Vec<MessageStatus> = from_json(
-                &query(
+                query(
                     deps.as_ref(),
                     mock_env(),
                     QueryMsg::MessagesStatus(messages.clone()),

@@ -5,12 +5,15 @@ use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
 use cosmrs::proto::cosmos::tx::v1beta1::service_client::ServiceClient;
 use cosmrs::proto::Any;
 use cosmrs::AccountId;
-use error_stack::{Result, ResultExt};
+use error_stack::{report, FutureExt, Result, ResultExt};
+use futures::TryFutureExt;
 use serde::{Deserialize, Serialize};
+use tokio::sync::mpsc::{Receiver, Sender};
 use valuable::Valuable;
 
+use crate::asyncutil::future::RetryPolicy;
 use crate::broadcaster::Broadcaster;
-use crate::config::Config as AmpdConfig;
+use crate::config::{Config as AmpdConfig, Config};
 use crate::tofnd::grpc::{Multisig, MultisigClient};
 use crate::types::{PublicKey, TMAddress};
 use crate::{broadcaster, tofnd, Error, PREFIX};
@@ -75,13 +78,46 @@ async fn broadcast_tx(
     tx: Any,
     pub_key: PublicKey,
 ) -> Result<TxResponse, Error> {
+    let (confirmation_sender, mut confirmation_receiver) = tokio::sync::mpsc::channel(1);
+    let (hash_to_confirm_sender, hash_to_confirm_receiver) = tokio::sync::mpsc::channel(1);
+
+    let mut broadcaster = instantiate_broadcaster(
+        config,
+        pub_key,
+        hash_to_confirm_receiver,
+        confirmation_sender,
+    )
+    .await?;
+
+    broadcaster
+        .broadcast(vec![tx])
+        .change_context(Error::Broadcaster)
+        .and_then(|response| {
+            hash_to_confirm_sender
+                .send(response.txhash)
+                .change_context(Error::Broadcaster)
+        })
+        .await?;
+
+    confirmation_receiver
+        .recv()
+        .await
+        .ok_or(report!(Error::TxConfirmation))
+        .map(|tx| tx.response)
+}
+
+async fn instantiate_broadcaster(
+    config: Config,
+    pub_key: PublicKey,
+    tx_hashes_to_confirm: Receiver<String>,
+    confirmed_txs: Sender<broadcaster::confirm_tx::TxResponse>,
+) -> Result<impl Broadcaster, Error> {
     let AmpdConfig {
         tm_grpc,
         broadcast,
         tofnd_config,
         ..
     } = config;
-
     let service_client = ServiceClient::connect(tm_grpc.to_string())
         .await
         .change_context(Error::Connection)
@@ -99,7 +135,20 @@ async fn broadcast_tx(
         .change_context(Error::Connection)
         .attach_printable(tofnd_config.url)?;
 
-    broadcaster::UnvalidatedBasicBroadcaster::builder()
+    broadcaster::confirm_tx::TxConfirmer::new(
+        service_client.clone(),
+        RetryPolicy::RepeatConstant {
+            sleep: broadcast.tx_fetch_interval,
+            max_attempts: broadcast.tx_fetch_max_retries.saturating_add(1).into(),
+        },
+        tx_hashes_to_confirm,
+        confirmed_txs,
+    )
+    .run()
+    .await
+    .change_context(Error::TxConfirmation)?;
+
+    let basic_broadcaster = broadcaster::UnvalidatedBasicBroadcaster::builder()
         .client(service_client)
         .signer(multisig_client)
         .auth_query_client(auth_query_client)
@@ -110,8 +159,6 @@ async fn broadcast_tx(
         .build()
         .validate_fee_denomination()
         .await
-        .change_context(Error::Broadcaster)?
-        .broadcast(vec![tx])
-        .await
-        .change_context(Error::Broadcaster)
+        .change_context(Error::Broadcaster)?;
+    Ok(basic_broadcaster)
 }
