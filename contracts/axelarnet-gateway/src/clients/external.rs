@@ -12,6 +12,14 @@ pub struct AxelarExecutableMsg {
     pub payload: HexBinary,
 }
 
+/// By convention, amplifier-compatible contracts must expose this `Execute` variant.
+/// Due to identical json serialization, we can imitate it here so the gateway can call it.
+#[cw_serde]
+pub enum ExecuteMsg {
+    /// Execute the message at the destination contract with the corresponding payload.
+    Execute(AxelarExecutableMsg),
+}
+
 pub struct CrossChainExecutor<'a> {
     client: client::Client<'a, ExecuteMsg, ()>,
 }
@@ -37,14 +45,6 @@ impl<'a> CrossChainExecutor<'a> {
                 payload,
             }))
     }
-}
-
-/// By convention, amplifier-compatible contracts must expose this `Execute` variant.
-/// Due to identical json serialization, we can imitate it here so the gateway can call it.
-#[cw_serde]
-enum ExecuteMsg {
-    /// Execute the message at the destination contract with the corresponding payload.
-    Execute(AxelarExecutableMsg),
 }
 
 impl<'a> From<client::Client<'a, ExecuteMsg, ()>> for CrossChainExecutor<'a> {
@@ -77,11 +77,11 @@ mod test {
             msg,
             WasmMsg::Execute {
                 contract_addr: addr.to_string(),
-                msg: to_json_binary(&AxelarExecutableMsg {
+                msg: to_json_binary(&ExecuteMsg::Execute(AxelarExecutableMsg {
                     cc_id,
                     source_address,
                     payload,
-                })
+                }))
                 .unwrap(),
                 funds: vec![],
             }

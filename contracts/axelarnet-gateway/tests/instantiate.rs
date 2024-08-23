@@ -2,8 +2,7 @@ use axelarnet_gateway::contract;
 use axelarnet_gateway::msg::InstantiateMsg;
 use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
 
-use crate::utils::instantiate::instantiate_contract;
-use crate::utils::params;
+use crate::utils::{instantiate_contract, params};
 
 mod utils;
 #[test]

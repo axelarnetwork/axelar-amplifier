@@ -49,7 +49,8 @@ thiserror = { workspace = true }
 itertools = { workspace = true }
 
 [dev-dependencies]
-cw-multi-test = "0.15.1"
+cw-multi-test = { workspace = true }
+goldie = { workspace = true }
 
 [lints]
 workspace = true
