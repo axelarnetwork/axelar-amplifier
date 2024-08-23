@@ -1,102 +1,53 @@
-use std::pin::Pin;
-use std::task::{Context, Poll};
 use std::time::Duration;
 
-use futures::{Future, FutureExt};
+use futures::Future;
 use tokio::time;
 
-pub fn with_retry<F, Fut, R, Err>(
-    future: F,
-    policy: RetryPolicy,
-) -> impl Future<Output = Result<R, Err>>
+pub async fn with_retry<F, Fut, R, Err>(mut future: F, policy: RetryPolicy) -> Result<R, Err>
 where
-    F: Fn() -> Fut,
+    F: FnMut() -> Fut,
     Fut: Future<Output = Result<R, Err>>,
 {
-    RetriableFuture::new(future, policy)
-}
+    let mut attempt_count = 0u64;
+    loop {
+        match future().await {
+            Ok(result) => return Ok(result),
+            Err(err) => {
+                attempt_count = attempt_count.saturating_add(1);
 
-pub enum RetryPolicy {
-    RepeatConstant { sleep: Duration, max_attempts: u64 },
-}
-
-struct RetriableFuture<F, Fut, R, Err>
-where
-    F: Fn() -> Fut,
-    Fut: Future<Output = Result<R, Err>>,
-{
-    future: F,
-    inner: Pin<Box<Fut>>,
-    policy: RetryPolicy,
-    err_count: u64,
-}
-
-impl<F, Fut, R, Err> Unpin for RetriableFuture<F, Fut, R, Err>
-where
-    F: Fn() -> Fut,
-    Fut: Future<Output = Result<R, Err>>,
-{
-}
-
-impl<F, Fut, R, Err> RetriableFuture<F, Fut, R, Err>
-where
-    F: Fn() -> Fut,
-    Fut: Future<Output = Result<R, Err>>,
-{
-    fn new(get_future: F, policy: RetryPolicy) -> Self {
-        let future = get_future();
-
-        Self {
-            future: get_future,
-            inner: Box::pin(future),
-            policy,
-            err_count: 0,
-        }
-    }
-
-    fn handle_err(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        error: Err,
-    ) -> Poll<Result<R, Err>> {
-        self.err_count = self.err_count.saturating_add(1);
-
-        match self.policy {
-            RetryPolicy::RepeatConstant {
-                sleep,
-                max_attempts,
-            } => {
-                if self.err_count >= max_attempts {
-                    return Poll::Ready(Err(error));
+                match enact_policy(attempt_count, policy).await {
+                    PolicyAction::Retry => continue,
+                    PolicyAction::Abort => return Err(err),
                 }
-
-                self.inner = Box::pin((self.future)());
-
-                let waker = cx.waker().clone();
-                tokio::spawn(time::sleep(sleep).then(|_| async {
-                    waker.wake();
-                }));
-
-                Poll::Pending
             }
         }
     }
 }
 
-impl<F, Fut, R, Err> Future for RetriableFuture<F, Fut, R, Err>
-where
-    F: Fn() -> Fut,
-    Fut: Future<Output = Result<R, Err>>,
-{
-    type Output = Result<R, Err>;
-
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        match self.inner.as_mut().poll(cx) {
-            Poll::Pending => Poll::Pending,
-            Poll::Ready(Ok(result)) => Poll::Ready(Ok(result)),
-            Poll::Ready(Err(error)) => self.handle_err(cx, error),
+async fn enact_policy(attempt_count: u64, policy: RetryPolicy) -> PolicyAction {
+    match policy {
+        RetryPolicy::RepeatConstant {
+            sleep,
+            max_attempts,
+        } => {
+            if attempt_count >= max_attempts {
+                PolicyAction::Abort
+            } else {
+                time::sleep(sleep).await;
+                PolicyAction::Retry
+            }
         }
     }
+}
+
+enum PolicyAction {
+    Retry,
+    Abort,
+}
+
+#[derive(Copy, Clone)]
+pub enum RetryPolicy {
+    RepeatConstant { sleep: Duration, max_attempts: u64 },
 }
 
 #[cfg(test)]
