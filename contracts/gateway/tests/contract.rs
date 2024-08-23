@@ -227,7 +227,7 @@ fn route_incoming_with_faulty_verifier_fails() {
 }
 
 #[test]
-fn calls_with_duplicate_ids_should_fail() {
+fn verify_calls_with_duplicate_ids_should_ignore_duplicates() {
     let (test_cases, handler) = test_cases_for_duplicate_msgs();
     for msgs in test_cases {
         let mut deps = mock_dependencies();
@@ -242,23 +242,9 @@ fn calls_with_duplicate_ids_should_fail() {
             mock_info("sender", &[]),
             ExecuteMsg::VerifyMessages(msgs.clone()),
         );
-        assert!(response.is_err());
-
-        let response = execute(
-            deps.as_mut(),
-            mock_env(),
-            mock_info("sender", &[]),
-            ExecuteMsg::RouteMessages(msgs.clone()),
-        );
-        assert!(response.is_err());
-
-        let response = execute(
-            deps.as_mut(),
-            mock_env(),
-            mock_info(router, &[]),
-            ExecuteMsg::RouteMessages(msgs),
-        );
-        assert!(response.is_err());
+        assert!(response.is_ok());
+        let routed_msgs: Vec<ExecuteMsg> = extract_messages_from_response(response.unwrap());
+        goldie::assert_json!(routed_msgs);
     }
 }
 
