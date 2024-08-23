@@ -857,7 +857,7 @@ mod tests {
             let res = query(deps.as_ref(), mock_env(), msg);
             assert!(res.is_ok());
 
-            let query_res: Multisig = from_json(&res.unwrap()).unwrap();
+            let query_res: Multisig = from_json(res.unwrap()).unwrap();
             let session = SIGNING_SESSIONS
                 .load(deps.as_ref().storage, session_id.into())
                 .unwrap();
@@ -939,7 +939,7 @@ mod tests {
             for (addr, _, _) in &expected_pub_keys {
                 let res = query_registered_public_key(deps.as_ref(), addr.clone(), key_type);
                 assert!(res.is_ok());
-                ret_pub_keys.push(from_json(&res.unwrap()).unwrap());
+                ret_pub_keys.push(from_json(res.unwrap()).unwrap());
             }
             assert_eq!(
                 expected_pub_keys
