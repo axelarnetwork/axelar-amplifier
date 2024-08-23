@@ -1,2 +1,2 @@
-pub const AXELARNET: &'static str = "axelarnet";
-pub const ROUTER: &'static str = "router";
+pub const AXELARNET: &str = "axelarnet";
+pub const ROUTER: &str = "router";

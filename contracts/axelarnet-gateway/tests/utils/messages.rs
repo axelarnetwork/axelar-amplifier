@@ -33,12 +33,12 @@ where
 
     let msg = followup_messages.next().ok_or(())?.msg;
 
-    if let Some(_) = followup_messages.next() {
+    if followup_messages.next().is_some() {
         return Err(());
     }
 
     match msg {
-        CosmosMsg::Wasm(WasmMsg::Execute { msg, .. }) => from_json(&msg).map_err(|_| ()),
+        CosmosMsg::Wasm(WasmMsg::Execute { msg, .. }) => from_json(msg).map_err(|_| ()),
         _ => Err(()),
     }
 }
