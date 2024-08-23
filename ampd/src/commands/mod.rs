@@ -64,9 +64,10 @@ impl Default for ServiceRegistryConfig {
 }
 
 async fn verifier_pub_key(config: tofnd::Config) -> Result<PublicKey, Error> {
-    MultisigClient::new(config.party_uid, config.url)
+    MultisigClient::new(config.party_uid, config.url.clone())
         .await
-        .change_context(Error::Connection)?
+        .change_context(Error::Connection)
+        .attach_printable(config.url.clone())?
         .keygen(&config.key_uid, tofnd::Algorithm::Ecdsa)
         .await
         .change_context(Error::Tofnd)
@@ -119,16 +120,20 @@ async fn instantiate_broadcaster(
     } = config;
     let service_client = ServiceClient::connect(tm_grpc.to_string())
         .await
-        .change_context(Error::Connection)?;
+        .change_context(Error::Connection)
+        .attach_printable(tm_grpc.clone())?;
     let auth_query_client = AuthQueryClient::connect(tm_grpc.to_string())
         .await
-        .change_context(Error::Connection)?;
+        .change_context(Error::Connection)
+        .attach_printable(tm_grpc.clone())?;
     let bank_query_client = BankQueryClient::connect(tm_grpc.to_string())
         .await
-        .change_context(Error::Connection)?;
-    let multisig_client = MultisigClient::new(tofnd_config.party_uid, tofnd_config.url)
+        .change_context(Error::Connection)
+        .attach_printable(tm_grpc)?;
+    let multisig_client = MultisigClient::new(tofnd_config.party_uid, tofnd_config.url.clone())
         .await
-        .change_context(Error::Connection)?;
+        .change_context(Error::Connection)
+        .attach_printable(tofnd_config.url)?;
 
     broadcaster::confirm_tx::TxConfirmer::new(
         service_client.clone(),

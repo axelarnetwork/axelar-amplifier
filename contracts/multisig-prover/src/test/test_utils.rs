@@ -123,7 +123,7 @@ fn service_registry_mock_querier_handler(
                 coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS),
                 min_num_verifiers: 1,
                 max_num_verifiers: Some(100),
-                min_verifier_bond: Uint128::new(1),
+                min_verifier_bond: Uint128::new(1).try_into().unwrap(),
                 bond_denom: "uaxl".to_string(),
                 unbonding_period_days: 1,
                 description: "verifiers".to_string(),
@@ -139,7 +139,9 @@ fn service_registry_mock_querier_handler(
                 .map(|op| WeightedVerifier {
                     verifier_info: Verifier {
                         address: op.address,
-                        bonding_state: BondingState::Bonded { amount: op.weight },
+                        bonding_state: BondingState::Bonded {
+                            amount: op.weight.try_into().unwrap(),
+                        },
                         authorization_state: AuthorizationState::Authorized,
                         service_name: SERVICE_NAME.to_string(),
                     },

@@ -1,0 +1,22 @@
+[package]
+name = "into-inner-derive"
+version = "1.0.0"
+rust-version = { workspace = true }
+edition = { workspace = true }
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+proc-macro = true
+
+[dependencies]
+error-stack = { workspace = true }
+quote = "1.0.33"
+report = { workspace = true }
+syn = "2.0.29"
+thiserror = { workspace = true }
+
+[dev-dependencies]
+axelar-wasm-std = { workspace = true }
+
+[lints]
+workspace = true
