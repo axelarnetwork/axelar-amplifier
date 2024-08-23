@@ -1,5 +1,4 @@
 use std::sync::Arc;
-use std::time::Duration;
 
 use axelar_wasm_std::FnExt;
 use cosmrs::proto::cosmos::tx::v1beta1::{GetTxRequest, GetTxResponse};
