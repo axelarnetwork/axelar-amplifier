@@ -403,7 +403,7 @@ where
             event_publisher,
             event_processor,
             broadcaster,
-            tx_confirmer: tx_confirmer,
+            tx_confirmer,
             block_height_monitor,
             health_check_server,
             token,
