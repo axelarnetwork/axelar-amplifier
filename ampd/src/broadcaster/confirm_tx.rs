@@ -176,6 +176,7 @@ mod test {
     use tokio::test;
 
     use super::{Error, TxConfirmer, TxResponse, TxStatus};
+    use crate::asyncutil::future::RetryPolicy;
     use crate::broadcaster::cosmos::MockBroadcastClient;
 
     #[test]
@@ -206,8 +207,10 @@ mod test {
 
         let tx_confirmer = TxConfirmer::new(
             client,
-            sleep,
-            max_attempts,
+            RetryPolicy::RepeatConstant {
+                sleep,
+                max_attempts,
+            },
             tx_confirmer_receiver,
             tx_res_sender,
         );
@@ -253,8 +256,10 @@ mod test {
 
         let tx_confirmer = TxConfirmer::new(
             client,
-            sleep,
-            max_attempts,
+            RetryPolicy::RepeatConstant {
+                sleep,
+                max_attempts,
+            },
             tx_confirmer_receiver,
             tx_res_sender,
         );
@@ -292,8 +297,10 @@ mod test {
 
         let tx_confirmer = TxConfirmer::new(
             client,
-            sleep,
-            max_attempts,
+            RetryPolicy::RepeatConstant {
+                sleep,
+                max_attempts,
+            },
             tx_confirmer_receiver,
             tx_res_sender,
         );
@@ -331,8 +338,10 @@ mod test {
 
         let tx_confirmer = TxConfirmer::new(
             client,
-            sleep,
-            max_attempts,
+            RetryPolicy::RepeatConstant {
+                sleep,
+                max_attempts,
+            },
             tx_confirmer_receiver,
             tx_res_sender,
         );
