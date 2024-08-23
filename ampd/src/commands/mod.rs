@@ -1,4 +1,3 @@
-use axelar_wasm_std::FnExt;
 use clap::Subcommand;
 use cosmrs::proto::cosmos::auth::v1beta1::query_client::QueryClient as AuthQueryClient;
 use cosmrs::proto::cosmos::bank::v1beta1::query_client::QueryClient as BankQueryClient;
@@ -12,6 +11,7 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc::{Receiver, Sender};
 use valuable::Valuable;
 
+use crate::asyncutil::future::RetryPolicy;
 use crate::broadcaster::Broadcaster;
 use crate::config::{Config as AmpdConfig, Config};
 use crate::tofnd::grpc::{Multisig, MultisigClient};
@@ -130,10 +130,12 @@ async fn instantiate_broadcaster(
         .await
         .change_context(Error::Connection)?;
 
-    broadcaster::confirm_tx::ConfirmationCtx::new(
+    broadcaster::confirm_tx::TxConfirmer::new(
         service_client.clone(),
-        broadcast.tx_fetch_interval,
-        broadcast.tx_fetch_max_retries.saturating_add(1),
+        RetryPolicy::RepeatConstant {
+            sleep: broadcast.tx_fetch_interval,
+            max_attempts: broadcast.tx_fetch_max_retries.saturating_add(1).into(),
+        },
         tx_hashes_to_confirm,
         confirmed_txs,
     )

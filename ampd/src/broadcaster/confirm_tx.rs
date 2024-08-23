@@ -54,7 +54,7 @@ pub enum Error {
     SendTxRes(#[from] Box<mpsc::error::SendError<TxResponse>>),
 }
 
-pub struct ConfirmationCtx<T>
+pub struct TxConfirmer<T>
 where
     T: cosmos::BroadcastClient,
 {
@@ -64,23 +64,19 @@ where
     tx_res_sender: mpsc::Sender<TxResponse>,
 }
 
-impl<T> ConfirmationCtx<T>
+impl<T> TxConfirmer<T>
 where
     T: cosmos::BroadcastClient,
 {
     pub fn new(
         client: T,
-        sleep: Duration,
-        max_attempts: u32,
+        retry_policy: RetryPolicy,
         tx_hash_receiver: mpsc::Receiver<String>,
         tx_res_sender: mpsc::Sender<TxResponse>,
     ) -> Self {
         Self {
             client,
-            retry_policy: RetryPolicy::RepeatConstant {
-                sleep,
-                max_attempts: max_attempts.into(),
-            },
+            retry_policy,
             tx_hash_receiver,
             tx_res_sender,
         }
@@ -100,7 +96,7 @@ where
             .map(|tx_hash| {
                 // multiple instances of confirm_tx can be spawned due to buffer_unordered,
                 // so we need to clone the client to avoid a deadlock
-                confirm_tx(client.clone(), tx_hash, retry_policy)
+                confirm_tx_with_retry(client.clone(), tx_hash, retry_policy)
                     .and_then(|tx| async { send_response(&tx_res_sender, tx).await })
             })
             .buffer_unordered(limit);
@@ -113,28 +109,29 @@ where
     }
 }
 
-async fn confirm_tx(
+async fn confirm_tx_with_retry(
     client: Arc<Mutex<impl cosmos::BroadcastClient>>,
     tx_hash: String,
     retry_policy: RetryPolicy,
 ) -> Result<TxResponse, Error> {
-    async fn confirm(
-        client: Arc<Mutex<impl cosmos::BroadcastClient>>,
-        tx_hash: String,
-    ) -> Result<TxResponse, Error> {
-        let req = GetTxRequest {
-            hash: tx_hash.clone(),
-        };
+    with_retry(|| confirm_tx(client.clone(), tx_hash.clone()), retry_policy).await
+}
 
-        client
-            .lock()
-            .await
-            .tx(req)
-            .await
-            .then(evaluate_tx_response(tx_hash))
-    }
+// do to limitations of lambdas and lifetime issues this needs to be a separate function
+async fn confirm_tx(
+    client: Arc<Mutex<impl cosmos::BroadcastClient>>,
+    tx_hash: String,
+) -> Result<TxResponse, Error> {
+    let req = GetTxRequest {
+        hash: tx_hash.clone(),
+    };
 
-    with_retry(|| confirm(client.clone(), tx_hash.clone()), retry_policy).await
+    client
+        .lock()
+        .await
+        .tx(req)
+        .await
+        .then(evaluate_tx_response(tx_hash))
 }
 
 fn evaluate_tx_response(
@@ -178,7 +175,7 @@ mod test {
     use tokio::sync::mpsc;
     use tokio::test;
 
-    use super::{ConfirmationCtx, Error, TxResponse, TxStatus};
+    use super::{Error, TxConfirmer, TxResponse, TxStatus};
     use crate::broadcaster::cosmos::MockBroadcastClient;
 
     #[test]
@@ -207,7 +204,7 @@ mod test {
         let (tx_confirmer_sender, tx_confirmer_receiver) = mpsc::channel(100);
         let (tx_res_sender, mut tx_res_receiver) = mpsc::channel(100);
 
-        let tx_confirmer = ConfirmationCtx::new(
+        let tx_confirmer = TxConfirmer::new(
             client,
             sleep,
             max_attempts,
@@ -254,7 +251,7 @@ mod test {
         let (tx_confirmer_sender, tx_confirmer_receiver) = mpsc::channel(100);
         let (tx_res_sender, mut tx_res_receiver) = mpsc::channel(100);
 
-        let tx_confirmer = ConfirmationCtx::new(
+        let tx_confirmer = TxConfirmer::new(
             client,
             sleep,
             max_attempts,
@@ -293,7 +290,7 @@ mod test {
         let (tx_confirmer_sender, tx_confirmer_receiver) = mpsc::channel(100);
         let (tx_res_sender, _tx_res_receiver) = mpsc::channel(100);
 
-        let tx_confirmer = ConfirmationCtx::new(
+        let tx_confirmer = TxConfirmer::new(
             client,
             sleep,
             max_attempts,
@@ -332,7 +329,7 @@ mod test {
         let (tx_confirmer_sender, tx_confirmer_receiver) = mpsc::channel(100);
         let (tx_res_sender, _tx_res_receiver) = mpsc::channel(100);
 
-        let tx_confirmer = ConfirmationCtx::new(
+        let tx_confirmer = TxConfirmer::new(
             client,
             sleep,
             max_attempts,

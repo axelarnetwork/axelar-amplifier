@@ -2,7 +2,6 @@ use std::time::Duration;
 
 use asyncutil::task::{CancellableTask, TaskError, TaskGroup};
 use block_height_monitor::BlockHeightMonitor;
-use broadcaster::confirm_tx::ConfirmationCtx;
 use broadcaster::Broadcaster;
 use cosmrs::proto::cosmos::auth::v1beta1::query_client::QueryClient as AuthQueryClient;
 use cosmrs::proto::cosmos::bank::v1beta1::query_client::QueryClient as BankQueryClient;
@@ -49,6 +48,9 @@ mod types;
 mod url;
 
 pub use grpc::{client, proto};
+
+use crate::asyncutil::future::RetryPolicy;
+use crate::broadcaster::confirm_tx::TxConfirmer;
 
 const PREFIX: &str = "axelar";
 const DEFAULT_RPC_TIMEOUT: Duration = Duration::from_secs(3);
@@ -151,7 +153,7 @@ where
     event_subscriber: event_sub::EventSubscriber,
     event_processor: TaskGroup<event_processor::Error>,
     broadcaster: QueuedBroadcaster<T>,
-    tx_confirmation_ctx: ConfirmationCtx<ServiceClient<Channel>>,
+    tx_confirmer: TxConfirmer<ServiceClient<Channel>>,
     multisig_client: MultisigClient,
     block_height_monitor: BlockHeightMonitor<tendermint_rpc::HttpClient>,
     health_check_server: health_check::Server,
@@ -190,10 +192,12 @@ where
             tx_hash_sender,
             tx_response_receiver,
         );
-        let tx_confirmation_ctx = ConfirmationCtx::new(
+        let tx_confirmer = TxConfirmer::new(
             service_client,
-            broadcast_cfg.tx_fetch_interval,
-            broadcast_cfg.tx_fetch_max_retries.saturating_add(1),
+            RetryPolicy::RepeatConstant {
+                sleep: broadcast_cfg.tx_fetch_interval,
+                max_attempts: broadcast_cfg.tx_fetch_max_retries.saturating_add(1).into(),
+            },
             tx_hash_receiver,
             tx_response_sender,
         );
@@ -203,7 +207,7 @@ where
             event_subscriber,
             event_processor,
             broadcaster,
-            tx_confirmation_ctx,
+            tx_confirmer,
             multisig_client,
             block_height_monitor,
             health_check_server,
@@ -394,7 +398,7 @@ where
             event_publisher,
             event_processor,
             broadcaster,
-            tx_confirmation_ctx: tx_confirmer,
+            tx_confirmer: tx_confirmer,
             block_height_monitor,
             health_check_server,
             token,
