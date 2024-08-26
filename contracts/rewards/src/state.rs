@@ -429,13 +429,23 @@ pub fn remove_verifier_proxy(storage: &mut dyn Storage, verifier_addr: &Addr) {
     VERIFIER_PROXY_ADDRESSES.remove(storage, verifier_addr.to_owned())
 }
 
-pub fn load_verifier_proxy(
+pub fn may_load_verifier_proxy(
     storage: &dyn Storage,
     verifier_addr: &Addr,
 ) -> Result<Option<Addr>, ContractError> {
     VERIFIER_PROXY_ADDRESSES
         .may_load(storage, verifier_addr.to_owned())
         .change_context(ContractError::LoadProxyAddress)
+}
+
+pub fn load_verifier(
+    storage: &dyn Storage,
+    verifier_addr: &Addr,
+) -> Result<Verifier, ContractError> {
+    may_load_verifier_proxy(storage, &verifier_addr).map(|proxy_address| Verifier {
+        verifier_address: verifier_addr.to_owned(),
+        proxy_address,
+    })
 }
 
 pub enum StorageState<T> {

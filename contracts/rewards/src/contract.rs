@@ -181,7 +181,7 @@ pub fn query(
         }
         QueryMsg::VerifierProxy { verifier } => {
             let proxy =
-                state::load_verifier_proxy(deps.storage, &deps.api.addr_validate(&verifier)?)?;
+                state::may_load_verifier_proxy(deps.storage, &deps.api.addr_validate(&verifier)?)?;
             to_json_binary(&proxy)
                 .change_context(ContractError::SerializeResponse)
                 .map_err(axelar_wasm_std::error::ContractError::from)

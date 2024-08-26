@@ -83,15 +83,7 @@ pub fn distribute_rewards(
         rewards: rewards
             .into_iter()
             .map(|(addr, amount)| {
-                state::load_verifier_proxy(storage, &addr).map(|proxy_address| {
-                    (
-                        Verifier {
-                            verifier_address: addr,
-                            proxy_address,
-                        },
-                        amount,
-                    )
-                })
+                state::load_verifier(storage, &addr).map(|verifier| (verifier, amount))
             })
             .try_collect()?,
         epochs_processed: (from..=to).collect(),
