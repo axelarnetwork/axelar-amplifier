@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{HexBinary, Uint256};
-use router_api::ChainName;
+use router_api::ChainNameRaw;
 use strum::FromRepr;
 
 #[cw_serde]
@@ -64,13 +64,13 @@ pub enum ItsHubMessage {
     /// ITS edge source contract -> ITS Hub
     SendToHub {
         /// True destination chain of the ITS message
-        destination_chain: ChainName,
+        destination_chain: ChainNameRaw,
         message: ItsMessage,
     },
     /// ITS Hub -> ITS edge destination contract
     ReceiveFromHub {
         /// True source chain of the ITS message
-        source_chain: ChainName,
+        source_chain: ChainNameRaw,
         message: ItsMessage,
     },
 }

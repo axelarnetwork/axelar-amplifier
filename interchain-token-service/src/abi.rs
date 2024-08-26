@@ -3,7 +3,7 @@ use alloy_sol_types::{sol, SolValue};
 use axelar_wasm_std::{FnExt, IntoContractError};
 use cosmwasm_std::{HexBinary, Uint256};
 use error_stack::{bail, ensure, report, Report, ResultExt};
-use router_api::ChainName;
+use router_api::ChainNameRaw;
 
 use crate::primitives::{ItsHubMessage, ItsMessage};
 use crate::{TokenId, TokenManagerType};
@@ -212,7 +212,7 @@ impl ItsHubMessage {
                     .change_context(Error::InvalidMessage)?;
 
                 ItsHubMessage::SendToHub {
-                    destination_chain: ChainName::try_from(decoded.destination_chain)
+                    destination_chain: ChainNameRaw::try_from(decoded.destination_chain)
                         .change_context(Error::InvalidChainName)?,
                     message: ItsMessage::abi_decode(&decoded.message)?,
                 }
@@ -222,7 +222,7 @@ impl ItsHubMessage {
                     .change_context(Error::InvalidMessage)?;
 
                 ItsHubMessage::ReceiveFromHub {
-                    source_chain: ChainName::try_from(decoded.source_chain)
+                    source_chain: ChainNameRaw::try_from(decoded.source_chain)
                         .change_context(Error::InvalidChainName)?,
                     message: ItsMessage::abi_decode(&decoded.message)?,
                 }
@@ -253,14 +253,14 @@ mod tests {
     use alloy_primitives::{FixedBytes, U256};
     use alloy_sol_types::SolValue;
     use cosmwasm_std::{HexBinary, Uint256};
-    use router_api::ChainName;
+    use router_api::ChainNameRaw;
 
     use crate::abi::{DeployTokenManager, Error, MessageType, SendToHub};
     use crate::{ItsHubMessage, ItsMessage, TokenManagerType};
 
     #[test]
     fn interchain_transfer_encode_decode() {
-        let remote_chain = ChainName::from_str("chain").unwrap();
+        let remote_chain = ChainNameRaw::from_str("chain").unwrap();
 
         let cases = vec![
             ItsHubMessage::SendToHub {
@@ -329,7 +329,7 @@ mod tests {
 
     #[test]
     fn deploy_interchain_token_encode_decode() {
-        let remote_chain = ChainName::from_str("chain").unwrap();
+        let remote_chain = ChainNameRaw::from_str("chain").unwrap();
 
         let cases = vec![
             ItsHubMessage::SendToHub {
@@ -410,7 +410,7 @@ mod tests {
 
     #[test]
     fn deploy_token_manager_encode_decode() {
-        let remote_chain = ChainName::from_str("chain").unwrap();
+        let remote_chain = ChainNameRaw::from_str("chain").unwrap();
 
         let cases = vec![
             ItsHubMessage::SendToHub {
@@ -550,7 +550,7 @@ mod tests {
     fn encode_decode_large_data() {
         let large_data = vec![0u8; 1024 * 1024]; // 1MB of data
         let original = ItsHubMessage::SendToHub {
-            destination_chain: ChainName::from_str("large-data-chain").unwrap(),
+            destination_chain: ChainNameRaw::from_str("large-data-chain").unwrap(),
             message: ItsMessage::InterchainTransfer {
                 token_id: [0u8; 32].into(),
                 source_address: HexBinary::from_hex("1234").unwrap(),
@@ -568,7 +568,7 @@ mod tests {
     #[test]
     fn encode_decode_unicode_strings() {
         let original = ItsHubMessage::SendToHub {
-            destination_chain: ChainName::from_str("chain").unwrap(),
+            destination_chain: ChainNameRaw::from_str("chain").unwrap(),
             message: ItsMessage::DeployInterchainToken {
                 token_id: [0u8; 32].into(),
                 name: "Unicode Token 🪙".into(),

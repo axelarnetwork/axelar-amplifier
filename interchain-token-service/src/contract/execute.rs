@@ -1,7 +1,7 @@
 use axelar_wasm_std::IntoContractError;
 use cosmwasm_std::{DepsMut, HexBinary, QuerierWrapper, Response, Storage};
 use error_stack::{bail, ensure, report, Result, ResultExt};
-use router_api::{Address, ChainName, CrossChainId};
+use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
 
 use crate::events::ItsContractEvent;
 use crate::primitives::ItsHubMessage;
@@ -30,22 +30,23 @@ pub fn execute_message(
     source_address: Address,
     payload: HexBinary,
 ) -> Result<Response, Error> {
-    // Normalize source_chain name to avoid exposing legacy casing
-    // TODO: preserve case
-    let source_chain =
-        ChainName::try_from(cc_id.source_chain.as_ref()).expect("invalid source chain");
-    ensure_its_source_address(deps.storage, &source_chain, &source_address)?;
+    // Normalize source_chain name to avoid exposing legacy casing in storage
+    ensure_its_source_address(deps.storage, &cc_id.source_chain, &source_address)?;
 
     match ItsHubMessage::abi_decode(&payload).change_context(Error::InvalidPayload)? {
         ItsHubMessage::SendToHub {
             destination_chain,
             message,
         } => {
-            let destination_address = load_its_address(deps.storage, &destination_chain)
-                .change_context_lazy(|| Error::UnknownChain(destination_chain.clone()))?;
+            let destination_chain_normalized = ChainName::try_from(destination_chain.as_ref())
+                .expect("invalid destination chain name");
+            let destination_address = load_its_address(deps.storage, &destination_chain_normalized)
+                .change_context_lazy(|| {
+                    Error::UnknownChain(destination_chain_normalized.clone())
+                })?;
 
             let destination_payload = ItsHubMessage::ReceiveFromHub {
-                source_chain: source_chain.clone(),
+                source_chain: cc_id.source_chain.clone(),
                 message: message.clone(),
             }
             .abi_encode();
@@ -53,7 +54,7 @@ pub fn execute_message(
             Ok(call_contract_response(
                 deps.storage,
                 deps.querier,
-                destination_chain.clone(),
+                destination_chain_normalized,
                 destination_address,
                 destination_payload,
             )?
@@ -72,10 +73,11 @@ pub fn execute_message(
 
 fn ensure_its_source_address(
     storage: &dyn Storage,
-    source_chain: &ChainName,
+    source_chain: &ChainNameRaw,
     source_address: &Address,
 ) -> Result<(), Error> {
-    let its_source_address = load_its_address(storage, source_chain)
+    let source_chain = ChainName::try_from(source_chain.as_ref()).expect("invalid chain name");
+    let its_source_address = load_its_address(storage, &source_chain)
         .change_context_lazy(|| Error::UnknownChain(source_chain.clone()))?;
 
     ensure!(
@@ -176,8 +178,8 @@ mod tests {
     fn execute_message_send_to_hub() {
         let mut deps = setup();
 
-        let source_chain: ChainName = "source-chain".parse().unwrap();
-        let destination_chain: ChainName = "destination-chain".parse().unwrap();
+        let source_chain: ChainNameRaw = "source-chain".parse().unwrap();
+        let destination_chain: ChainNameRaw = "destination-chain".parse().unwrap();
         let source_address: Address = "its-source".parse().unwrap();
         let destination_address: Address = "its-destination".parse().unwrap();
 
@@ -202,7 +204,7 @@ mod tests {
         let axelarnet_gateway: axelarnet_gateway::Client =
             client::Client::new(deps.as_mut().querier, Addr::unchecked("gateway")).into();
         let expected_msg = axelarnet_gateway.call_contract(
-            destination_chain.clone(),
+            ChainName::try_from(destination_chain.as_ref()).unwrap(),
             destination_address,
             ItsHubMessage::ReceiveFromHub {
                 source_chain: source_chain.clone(),
