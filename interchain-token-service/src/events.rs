@@ -25,12 +25,7 @@ impl From<ItsContractEvent> for Event {
                 cc_id,
                 destination_chain,
                 message,
-            } => make_its_message_event(
-                "its_message_received",
-                cc_id,
-                destination_chain,
-                message,
-            ),
+            } => make_its_message_event("its_message_received", cc_id, destination_chain, message),
             ItsContractEvent::ItsAddressSet { chain, address } => {
                 Event::new("trusted_address_updated")
                     .add_attribute("chain", chain.to_string())

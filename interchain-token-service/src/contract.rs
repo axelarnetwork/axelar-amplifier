@@ -9,8 +9,8 @@ use cosmwasm_std::{Addr, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Respons
 use error_stack::{Report, ResultExt};
 
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
-use crate::state::Config;
 use crate::state;
+use crate::state::Config;
 
 mod execute;
 mod query;
@@ -31,11 +31,7 @@ pub enum Error {
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(
-    deps: DepsMut,
-    _env: Env,
-    _msg: Empty,
-) -> Result<Response, ContractError> {
+pub fn migrate(deps: DepsMut, _env: Env, _msg: Empty) -> Result<Response, ContractError> {
     // Implement migration logic if needed
 
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
@@ -89,10 +85,12 @@ pub fn execute(
             payload,
         }) => execute::execute_message(deps, cc_id, source_address, payload)
             .change_context(Error::Execute),
-        ExecuteMsg::SetItsAddress { chain, address } =>
-            execute::set_its_address(deps, chain, address)
-                .change_context(Error::SetItsAddress),
-        ExecuteMsg::RemoveItsAddress { chain } => execute::remove_its_address(deps, chain).change_context(Error::RemoveItsAddress),
+        ExecuteMsg::SetItsAddress { chain, address } => {
+            execute::set_its_address(deps, chain, address).change_context(Error::SetItsAddress)
+        }
+        ExecuteMsg::RemoveItsAddress { chain } => {
+            execute::remove_its_address(deps, chain).change_context(Error::RemoveItsAddress)
+        }
     }?
     .then(Ok)
 }
@@ -102,11 +100,7 @@ fn match_gateway(storage: &dyn Storage, _: &ExecuteMsg) -> Result<Addr, Report<s
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(
-    deps: Deps,
-    _: Env,
-    msg: QueryMsg,
-) -> Result<Binary, ContractError> {
+pub fn query(deps: Deps, _: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
     match msg {
         QueryMsg::SetItsAddress { chain } => query::its_address(deps, chain)?,
         QueryMsg::AllItsAddresses {} => query::all_its_addresses(deps)?,

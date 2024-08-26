@@ -43,7 +43,8 @@ pub fn execute_message(
 ) -> Result<Response, Error> {
     // Normalize source_chain name to avoid exposing legacy casing
     // TODO: preserve case
-    let source_chain = ChainName::try_from(cc_id.source_chain.as_ref()).expect("invalid source chain");
+    let source_chain =
+        ChainName::try_from(cc_id.source_chain.as_ref()).expect("invalid source chain");
     ensure_its_source_address(deps.storage, &source_chain, &source_address)?;
 
     let config = load_config(deps.storage).change_context(Error::ConfigAccess)?;
@@ -84,11 +85,18 @@ pub fn execute_message(
     }
 }
 
-fn ensure_its_source_address(storage: &dyn Storage, source_chain: &ChainName, source_address: &Address) -> Result<(), Error> {
-    let its_source_address =
-        load_its_address(storage, source_chain).change_context_lazy(|| Error::UnknownChain(source_chain.clone()))?;
+fn ensure_its_source_address(
+    storage: &dyn Storage,
+    source_chain: &ChainName,
+    source_address: &Address,
+) -> Result<(), Error> {
+    let its_source_address = load_its_address(storage, source_chain)
+        .change_context_lazy(|| Error::UnknownChain(source_chain.clone()))?;
 
-    ensure!(source_address == &its_source_address, Error::UnknownItsAddress(source_address.clone()));
+    ensure!(
+        source_address == &its_source_address,
+        Error::UnknownItsAddress(source_address.clone())
+    );
 
     Ok(())
 }
@@ -187,7 +195,8 @@ mod tests {
 
         let payload = its_hub_message.abi_encode();
         let cc_id = CrossChainId::new(source_chain.clone(), "message-id").unwrap();
-        let result = execute_message(deps.as_mut(), cc_id.clone(), source_address, payload).unwrap();
+        let result =
+            execute_message(deps.as_mut(), cc_id.clone(), source_address, payload).unwrap();
 
         let axelarnet_gateway: axelarnet_gateway::Client =
             client::Client::new(deps.as_mut().querier, Addr::unchecked("gateway")).into();
