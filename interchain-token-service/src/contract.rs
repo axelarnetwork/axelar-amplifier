@@ -1,16 +1,16 @@
 use std::fmt::Debug;
 
-use axelar_wasm_std::{permission_control, FnExt, IntoContractError};
+use axelar_wasm_std::error::ContractError;
+use axelar_wasm_std::{address, permission_control, FnExt, IntoContractError};
 use axelarnet_gateway::AxelarExecutableMsg;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{Addr, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response, Storage};
 use error_stack::{Report, ResultExt};
-use router_api::{Address, ChainName};
 
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::Config;
-use crate::{state, TokenId};
+use crate::state;
 
 mod execute;
 mod query;
@@ -20,33 +20,26 @@ const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[derive(thiserror::Error, Debug, IntoContractError)]
 pub enum Error {
-    #[error("contract config is missing")]
-    ConfigMissing,
-    #[error("invalid store access")]
-    InvalidStoreAccess,
-    #[error("invalid address")]
-    InvalidAddress,
-    #[error("unknown its address {0}")]
-    UnknownItsAddress(Address),
-    #[error("failed to execute ITS command")]
+    #[error("failed to execute a cross-chain message")]
     Execute,
-    #[error("unauthorized")]
-    Unauthorized,
-    #[error("failed to decode payload")]
-    InvalidPayload,
-    #[error("untrusted sender")]
-    UntrustedSender,
-    #[error("failed to update balance on chain {0} for token id {1}")]
-    BalanceUpdateFailed(ChainName, TokenId),
+    #[error("failed to set an its address")]
+    SetItsAddress,
+    #[error("failed to remove an its address")]
+    RemoveItsAddress,
+    #[error("failed to query its address")]
+    QueryItsAddress,
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(
-    _deps: DepsMut,
+    deps: DepsMut,
     _env: Env,
     _msg: Empty,
-) -> Result<Response, axelar_wasm_std::error::ContractError> {
+) -> Result<Response, ContractError> {
     // Implement migration logic if needed
+
+    cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
     Ok(Response::default())
 }
 
@@ -56,7 +49,7 @@ pub fn instantiate(
     _: Env,
     _: MessageInfo,
     msg: InstantiateMsg,
-) -> Result<Response, axelar_wasm_std::error::ContractError> {
+) -> Result<Response, ContractError> {
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     let admin = deps.api.addr_validate(&msg.admin_address)?;
@@ -65,11 +58,7 @@ pub fn instantiate(
     permission_control::set_admin(deps.storage, &admin)?;
     permission_control::set_governance(deps.storage, &governance)?;
 
-    let gateway = deps
-        .api
-        .addr_validate(&msg.gateway_address)
-        .change_context(Error::InvalidAddress)
-        .attach_printable(msg.gateway_address.clone())?;
+    let gateway = address::validate_cosmwasm_address(deps.api, &msg.gateway_address)?;
 
     state::save_config(
         deps.storage,
@@ -92,27 +81,24 @@ pub fn execute(
     _: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
-) -> Result<Response, axelar_wasm_std::error::ContractError> {
-    let msg = msg.ensure_permissions(deps.storage, &info.sender, match_gateway)?;
-
-    match msg {
+) -> Result<Response, ContractError> {
+    match msg.ensure_permissions(deps.storage, &info.sender, match_gateway)? {
         ExecuteMsg::Execute(AxelarExecutableMsg {
             cc_id,
             source_address,
             payload,
-        }) => execute::execute_message(deps, cc_id, source_address, payload),
-        ExecuteMsg::SetItsAddress { chain, address } => {
+        }) => execute::execute_message(deps, cc_id, source_address, payload)
+            .change_context(Error::Execute),
+        ExecuteMsg::SetItsAddress { chain, address } =>
             execute::set_its_address(deps, chain, address)
-        }
-        ExecuteMsg::RemoveItsAddress { chain } => execute::remove_its_address(deps, chain),
+                .change_context(Error::SetItsAddress),
+        ExecuteMsg::RemoveItsAddress { chain } => execute::remove_its_address(deps, chain).change_context(Error::RemoveItsAddress),
     }?
     .then(Ok)
 }
 
-fn match_gateway(storage: &dyn Storage, _: &ExecuteMsg) -> Result<Addr, Report<Error>> {
-    Ok(state::load_config(storage)
-        .change_context(Error::ConfigMissing)?
-        .gateway)
+fn match_gateway(storage: &dyn Storage, _: &ExecuteMsg) -> Result<Addr, Report<state::Error>> {
+    Ok(state::load_config(storage)?.gateway)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -120,7 +106,7 @@ pub fn query(
     deps: Deps,
     _: Env,
     msg: QueryMsg,
-) -> Result<Binary, axelar_wasm_std::error::ContractError> {
+) -> Result<Binary, ContractError> {
     match msg {
         QueryMsg::SetItsAddress { chain } => query::its_address(deps, chain)?,
         QueryMsg::AllItsAddresses {} => query::all_its_addresses(deps)?,

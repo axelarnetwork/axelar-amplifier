@@ -1,11 +1,32 @@
+use axelar_wasm_std::IntoContractError;
 use cosmwasm_std::{DepsMut, HexBinary, Response};
 use error_stack::{report, Result, ResultExt};
 use router_api::{Address, ChainName, CrossChainId};
 
-use crate::contract::Error;
 use crate::events::ItsContractEvent;
 use crate::primitives::ItsHubMessage;
 use crate::state::{self, load_config, load_its_address};
+use crate::TokenId;
+
+#[derive(thiserror::Error, Debug, IntoContractError)]
+pub enum Error {
+    #[error("invalid store access")]
+    InvalidStoreAccess,
+    #[error("invalid address")]
+    InvalidAddress,
+    #[error("unknown its address {0}")]
+    UnknownItsAddress(Address),
+    #[error("failed to execute ITS command")]
+    Execute,
+    #[error("unauthorized")]
+    Unauthorized,
+    #[error("failed to decode payload")]
+    InvalidPayload,
+    #[error("untrusted sender")]
+    UntrustedSender,
+    #[error("failed to update balance on chain {0} for token id {1}")]
+    BalanceUpdateFailed(ChainName, TokenId),
+}
 
 /// Executes an incoming ITS message.
 ///
