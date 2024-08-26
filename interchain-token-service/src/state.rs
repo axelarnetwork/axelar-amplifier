@@ -25,45 +25,45 @@ pub struct Config {
 const CONFIG: Item<Config> = Item::new("config");
 const ITS_ADDRESSES: Map<&ChainName, Address> = Map::new("its_addresses");
 
-pub(crate) fn load_config(storage: &dyn Storage) -> Result<Config, Error> {
+pub fn load_config(storage: &dyn Storage) -> Result<Config, Error> {
     CONFIG
-        .may_load(storage)
-        .map_err(Error::from)?
+        .may_load(storage)?
         .ok_or(Error::MissingConfig)
 }
 
-pub(crate) fn save_config(storage: &mut dyn Storage, config: &Config) -> Result<(), Error> {
-    CONFIG.save(storage, config).map_err(Error::from)
+pub fn save_config(storage: &mut dyn Storage, config: &Config) -> Result<(), Error> {
+    Ok(CONFIG.save(storage, config)?)
 }
 
-pub(crate) fn load_its_address(storage: &dyn Storage, chain: &ChainName) -> Result<Address, Error> {
-    ITS_ADDRESSES
-        .may_load(storage, chain)
-        .map_err(Error::from)?
+pub fn may_load_its_address(storage: &dyn Storage, chain: &ChainName) -> Result<Option<Address>, Error> {
+    Ok(ITS_ADDRESSES
+        .may_load(storage, chain)?)
+}
+
+pub fn load_its_address(storage: &dyn Storage, chain: &ChainName) -> Result<Address, Error> {
+    may_load_its_address(storage, chain)?
         .ok_or_else(|| Error::ItsAddressNotFound(chain.clone()))
 }
 
-pub(crate) fn save_its_address(
+pub fn save_its_address(
     storage: &mut dyn Storage,
     chain: &ChainName,
     address: &Address,
 ) -> Result<(), Error> {
-    ITS_ADDRESSES
-        .save(storage, chain, address)
-        .map_err(Error::from)
+    Ok(ITS_ADDRESSES
+        .save(storage, chain, address)?)
 }
 
-pub(crate) fn remove_its_address(storage: &mut dyn Storage, chain: &ChainName) {
+pub fn remove_its_address(storage: &mut dyn Storage, chain: &ChainName) {
     ITS_ADDRESSES.remove(storage, chain)
 }
 
-pub(crate) fn load_all_its_addresses(
+pub fn load_all_its_addresses(
     storage: &dyn Storage,
 ) -> Result<HashMap<ChainName, Address>, Error> {
-    ITS_ADDRESSES
+    Ok(ITS_ADDRESSES
         .range(storage, None, None, cosmwasm_std::Order::Ascending)
-        .collect::<Result<HashMap<_, _>, _>>()
-        .map_err(Error::from)
+        .collect::<Result<HashMap<_, _>, _>>()?)
 }
 
 #[cfg(test)]

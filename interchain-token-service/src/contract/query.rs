@@ -4,13 +4,13 @@ use router_api::ChainName;
 use crate::state;
 
 pub fn its_address(deps: Deps, chain: ChainName) -> Result<Binary, state::Error> {
-    let address = state::load_its_address(deps.storage, &chain).ok();
-    to_json_binary(&address).map_err(state::Error::from)
+    let address = state::may_load_its_address(deps.storage, &chain)?;
+    Ok(to_json_binary(&address)?)
 }
 
 pub fn all_its_addresses(deps: Deps) -> Result<Binary, state::Error> {
     let addresses = state::load_all_its_addresses(deps.storage)?;
-    to_json_binary(&addresses).map_err(state::Error::from)
+    Ok(to_json_binary(&addresses)?)
 }
 
 #[cfg(test)]
