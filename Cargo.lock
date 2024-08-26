@@ -5041,6 +5041,7 @@ dependencies = [
  "service-registry",
  "sha3",
  "stellar",
+ "stellar-xdr",
  "sui-gateway",
  "thiserror",
  "voting-verifier",

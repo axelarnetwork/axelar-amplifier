@@ -62,6 +62,7 @@ strum = { version = "0.25", default-features = false, features = ["derive"] }
 interchain-token-service = { version = "^0.1.0", path = "interchain-token-service" }
 goldie = { version = "0.5" }
 axelarnet-gateway = { version = "^0.1.0", path = "contracts/axelarnet-gateway" }
+stellar-xdr = { version = "21.2.0" }
 
 [workspace.lints.clippy]
 arithmetic_side_effects = "deny"
