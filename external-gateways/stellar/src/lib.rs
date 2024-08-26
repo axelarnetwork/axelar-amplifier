@@ -291,7 +291,7 @@ impl TryFrom<SignerWithSig> for ProofSigner {
             Ed25519(signature) => ProofSignature::Signed(
                 BytesM::try_from(signature.to_vec()).change_context(InvalidSignature)?,
             ),
-            _ => bail!(Error::UnsupportedPublicKey),
+            _ => bail!(Error::UnsupportedSignature),
         };
 
         Ok(Self { signer, signature })
