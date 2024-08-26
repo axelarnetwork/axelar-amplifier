@@ -24,6 +24,8 @@ pub enum ExecuteMsg {
     Execute(AxelarExecutableMsg),
     /// Set the ITS contract address of another chain. Each chain's ITS contract has to be whitelisted before
     /// ITS Hub can send cross-chain messages to it, or receive messages from it.
+    /// If an ITS address is already set for the chain, it will be overwritten.
+    /// This allows easier management of ITS contracts without the need for migration.
     #[permission(Governance)]
     SetItsAddress { chain: ChainName, address: Address },
     /// Remove the configured ITS contract address for the given chain

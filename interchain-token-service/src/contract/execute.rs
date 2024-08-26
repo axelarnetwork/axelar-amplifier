@@ -1,6 +1,6 @@
 use axelar_wasm_std::IntoContractError;
-use cosmwasm_std::{DepsMut, HexBinary, Response};
-use error_stack::{report, Result, ResultExt};
+use cosmwasm_std::{DepsMut, HexBinary, Response, Storage};
+use error_stack::{bail, ensure, report, Result, ResultExt};
 use router_api::{Address, ChainName, CrossChainId};
 
 use crate::events::ItsContractEvent;
@@ -10,8 +10,10 @@ use crate::TokenId;
 
 #[derive(thiserror::Error, Debug, IntoContractError)]
 pub enum Error {
-    #[error("invalid store access")]
-    InvalidStoreAccess,
+    #[error("unknown chain {0}")]
+    UnknownChain(ChainName),
+    #[error("unable to load the contract config")]
+    ConfigAccess,
     #[error("invalid address")]
     InvalidAddress,
     #[error("unknown its address {0}")]
@@ -39,20 +41,14 @@ pub fn execute_message(
     source_address: Address,
     payload: HexBinary,
 ) -> Result<Response, Error> {
-    let config = load_config(deps.storage).change_context(Error::InvalidStoreAccess)?;
+    // Normalize source_chain name to avoid exposing legacy casing
+    // TODO: preserve case
+    let source_chain = ChainName::try_from(cc_id.source_chain.as_ref()).expect("invalid source chain");
+    ensure_its_source_address(deps.storage, &source_chain, &source_address)?;
 
-    let source_chain = ChainName::try_from(cc_id.source_chain.clone().to_string())
-        .change_context(Error::InvalidPayload)?;
-    let its_source_address =
-        load_its_address(deps.storage, &source_chain).change_context(Error::InvalidStoreAccess)?;
-    if source_address != its_source_address {
-        return Err(report!(Error::UnknownItsAddress(source_address)));
-    }
+    let config = load_config(deps.storage).change_context(Error::ConfigAccess)?;
 
-    let its_hub_message =
-        ItsHubMessage::abi_decode(&payload).change_context(Error::InvalidPayload)?;
-
-    match its_hub_message {
+    match ItsHubMessage::abi_decode(&payload).change_context(Error::InvalidPayload)? {
         ItsHubMessage::SendToHub {
             destination_chain,
             message: its_message,
@@ -64,7 +60,7 @@ pub fn execute_message(
             .abi_encode();
 
             let destination_address = load_its_address(deps.storage, &destination_chain)
-                .change_context(Error::InvalidStoreAccess)?;
+                .change_context_lazy(|| Error::UnknownChain(destination_chain.clone()))?;
 
             let gateway: axelarnet_gateway::Client =
                 client::Client::new(deps.querier, config.gateway).into();
@@ -77,15 +73,24 @@ pub fn execute_message(
 
             Ok(Response::new().add_message(call_contract_msg).add_event(
                 ItsContractEvent::ItsMessageReceived {
-                    source_chain,
+                    cc_id,
                     destination_chain,
                     message: its_message,
                 }
                 .into(),
             ))
         }
-        _ => Err(report!(Error::InvalidPayload)),
+        _ => bail!(Error::InvalidPayload),
     }
+}
+
+fn ensure_its_source_address(storage: &dyn Storage, source_chain: &ChainName, source_address: &Address) -> Result<(), Error> {
+    let its_source_address =
+        load_its_address(storage, source_chain).change_context_lazy(|| Error::UnknownChain(source_chain.clone()))?;
+
+    ensure!(source_address == &its_source_address, Error::UnknownItsAddress(source_address.clone()));
+
+    Ok(())
 }
 
 pub fn set_its_address(
@@ -94,7 +99,7 @@ pub fn set_its_address(
     address: Address,
 ) -> Result<Response, Error> {
     state::save_its_address(deps.storage, &chain, &address)
-        .change_context(Error::InvalidStoreAccess)?;
+        .change_context_lazy(|| Error::UnknownChain(chain.clone()))?;
 
     Ok(Response::new().add_event(ItsContractEvent::ItsAddressSet { chain, address }.into()))
 }
@@ -182,7 +187,7 @@ mod tests {
 
         let payload = its_hub_message.abi_encode();
         let cc_id = CrossChainId::new(source_chain.clone(), "message-id").unwrap();
-        let result = execute_message(deps.as_mut(), cc_id, source_address, payload).unwrap();
+        let result = execute_message(deps.as_mut(), cc_id.clone(), source_address, payload).unwrap();
 
         let axelarnet_gateway: axelarnet_gateway::Client =
             client::Client::new(deps.as_mut().querier, Addr::unchecked("gateway")).into();
@@ -199,7 +204,7 @@ mod tests {
         assert_eq!(result.messages[0].msg, CosmosMsg::Wasm(expected_msg));
 
         let expected_event = ItsContractEvent::ItsMessageReceived {
-            source_chain,
+            cc_id,
             destination_chain,
             message: its_message,
         };
