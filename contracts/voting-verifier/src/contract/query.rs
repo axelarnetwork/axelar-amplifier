@@ -4,6 +4,8 @@ use cosmwasm_std::Deps;
 use multisig::verifier_set::VerifierSet;
 use router_api::Message;
 
+use error_stack::{report, Report, Result, ResultExt};
+
 use crate::error::ContractError;
 use crate::msg::{MessageStatus, PollData, PollResponse};
 use crate::state::{poll_messages, poll_verifier_sets, Poll, PollContent, CONFIG, POLLS};

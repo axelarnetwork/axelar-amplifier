@@ -7,9 +7,6 @@ use thiserror::Error;
 #[derive(Error, Debug, PartialEq, IntoContractError)]
 pub enum ContractError {
     #[error(transparent)]
-    Std(#[from] StdError),
-
-    #[error(transparent)]
     Overflow(#[from] OverflowError),
 
     #[error(transparent)]
@@ -44,6 +41,12 @@ pub enum ContractError {
 
     #[error("invalid source address")]
     InvalidSourceAddress,
+
+    #[error("store error")]
+    StoreError,
+
+    #[error("failed to serialize json")]
+    FailedToSerialize,
 }
 
 impl From<ContractError> for StdError {

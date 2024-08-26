@@ -8,7 +8,7 @@ use cosmwasm_std::{
     to_json_binary, Deps, DepsMut, Env, Event, MessageInfo, OverflowError, OverflowOperation,
     Response, Storage, WasmMsg,
 };
-use error_stack::{report, Report, ResultExt};
+use error_stack::{report, Report, Result, ResultExt};
 use itertools::Itertools;
 use multisig::verifier_set::VerifierSet;
 use router_api::{ChainName, Message};
@@ -28,10 +28,10 @@ pub fn update_voting_threshold(
     deps: DepsMut,
     new_voting_threshold: MajorityThreshold,
 ) -> Result<Response, ContractError> {
-    CONFIG.update(deps.storage, |mut config| -> Result<_, ContractError> {
+    CONFIG.update(deps.storage, |mut config| -> Result<_, cosmwasm_std::StdError> {
         config.voting_threshold = new_voting_threshold;
         Ok(config)
-    })?;
+    }).change_context(ContractError::StoreError)?;
     Ok(Response::new())
 }
 
@@ -46,7 +46,7 @@ pub fn verify_verifier_set(
         return Ok(Response::new());
     }
 
-    let config = CONFIG.load(deps.storage)?;
+    let config = CONFIG.load(deps.storage).change_context(ContractError::StoreError)?;
     let snapshot = take_snapshot(deps.as_ref(), &config.source_chain)?;
     let participants = snapshot.participants();
     let expires_at = calculate_expiration(env.block.height, config.block_expiry.into())?;
@@ -57,7 +57,7 @@ pub fn verify_verifier_set(
         deps.storage,
         &new_verifier_set.hash(),
         &PollContent::<VerifierSet>::new(new_verifier_set.clone(), poll_id),
-    )?;
+    ).change_context(ContractError::StoreError)?;
 
     Ok(Response::new().add_event(
         PollStarted::VerifierSet {
@@ -83,12 +83,12 @@ pub fn verify_messages(
     deps: DepsMut,
     env: Env,
     messages: Vec<Message>,
-) -> Result<Response, Report<ContractError>> {
+) -> Result<Response, ContractError> {
     if messages.is_empty() {
-        Err(ContractError::EmptyMessages)?;
+       return Err(report!(ContractError::EmptyMessages).into());
     }
 
-    let config = CONFIG.load(deps.storage).map_err(ContractError::from)?;
+    let config = CONFIG.load(deps.storage).change_context(ContractError::StoreError)?;
 
     let messages = messages.try_map(|message| {
         validate_source_chain(message, &config.source_chain)
@@ -96,9 +96,8 @@ pub fn verify_messages(
             .and_then(|message| {
                 message_status(deps.as_ref(), &message, env.block.height)
                     .map(|status| (status, message))
-                    .map_err(Report::from)
             })
-    })?;
+    });
 
     let msgs_to_verify: Vec<Message> = messages
         .into_iter()
@@ -255,19 +254,19 @@ pub fn vote(
 }
 
 pub fn end_poll(deps: DepsMut, env: Env, poll_id: PollId) -> Result<Response, ContractError> {
-    let config = CONFIG.load(deps.storage)?;
+    let config = CONFIG.load(deps.storage).change_context(ContractError::StoreError)?;
 
     let poll = POLLS
-        .may_load(deps.storage, poll_id)?
+        .may_load(deps.storage, poll_id).change_context(ContractError::StoreError)?
         .ok_or(ContractError::PollNotFound)?
         .try_map(|poll| poll.finish(env.block.height).map_err(ContractError::from))?;
 
-    POLLS.save(deps.storage, poll_id, &poll)?;
+    POLLS.save(deps.storage, poll_id, &poll).change_context(ContractError::StoreError)?;
 
     let votes: Vec<(String, Vec<Vote>)> = VOTES
         .prefix(poll_id)
         .range(deps.storage, None, None, cosmwasm_std::Order::Ascending)
-        .try_collect()?;
+        .try_collect().change_context(ContractError::StoreError)?;
 
     let poll_result = match &poll {
         Poll::Messages(poll) | Poll::ConfirmVerifierSet(poll) => {
@@ -304,7 +303,7 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: PollId) -> Result<Response, Co
 }
 
 fn take_snapshot(deps: Deps, chain: &ChainName) -> Result<snapshot::Snapshot, ContractError> {
-    let config = CONFIG.load(deps.storage)?;
+    let config = CONFIG.load(deps.storage).change_context(ContractError::StoreError)?;
 
     let service_registry: service_registry::client::Client =
         client::Client::new(deps.querier, config.service_registry_contract).into();
@@ -321,7 +320,7 @@ fn take_snapshot(deps: Deps, chain: &ChainName) -> Result<snapshot::Snapshot, Co
 
     Ok(snapshot::Snapshot::new(
         config.voting_threshold,
-        participants.try_into()?,
+        participants.try_into().map_err(ContractError::from)?
     ))
 }
 
@@ -330,10 +329,10 @@ fn create_verifier_set_poll(
     expires_at: u64,
     snapshot: snapshot::Snapshot,
 ) -> Result<PollId, ContractError> {
-    let id = POLL_ID.incr(store)?;
+    let id = POLL_ID.incr(store).change_context(ContractError::StoreError)?;
 
     let poll = WeightedPoll::new(id, snapshot, expires_at, 1);
-    POLLS.save(store, id, &Poll::ConfirmVerifierSet(poll))?;
+    POLLS.save(store, id, &Poll::ConfirmVerifierSet(poll)).change_context(ContractError::StoreError)?;
 
     Ok(id)
 }
@@ -344,10 +343,10 @@ fn create_messages_poll(
     snapshot: snapshot::Snapshot,
     poll_size: usize,
 ) -> Result<PollId, ContractError> {
-    let id = POLL_ID.incr(store)?;
+    let id = POLL_ID.incr(store).change_context(ContractError::StoreError)?;
 
     let poll = WeightedPoll::new(id, snapshot, expires_at, poll_size);
-    POLLS.save(store, id, &Poll::Messages(poll))?;
+    POLLS.save(store, id, &Poll::Messages(poll)).change_context(ContractError::StoreError)?;
 
     Ok(id)
 }
@@ -357,12 +356,13 @@ fn calculate_expiration(block_height: u64, block_expiry: u64) -> Result<u64, Con
         .checked_add(block_expiry)
         .ok_or_else(|| OverflowError::new(OverflowOperation::Add, block_height, block_expiry))
         .map_err(ContractError::from)
+        .map_err(Report::from)
 }
 
 fn validate_source_chain(
     message: Message,
     source_chain: &ChainName,
-) -> Result<Message, Report<ContractError>> {
+) -> Result<Message, ContractError> {
     if message.cc_id.source_chain != *source_chain {
         Err(report!(ContractError::SourceChainMismatch(
             source_chain.clone()
@@ -375,7 +375,7 @@ fn validate_source_chain(
 fn validate_source_address(
     message: Message,
     address_format: &AddressFormat,
-) -> Result<Message, Report<ContractError>> {
+) -> Result<Message, ContractError> {
     validate_address(&message.source_address, address_format)
         .change_context(ContractError::InvalidSourceAddress)?;
 
