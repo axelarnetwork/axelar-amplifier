@@ -12,6 +12,9 @@ crate-type = ["cdylib", "rlib"]
 name = "nexus-gateway-schema"
 path = "src/bin/schema.rs"
 
+[features]
+library = []
+
 [dependencies]
 axelar-wasm-std = { workspace = true, features = ["derive"] }
 cosmwasm-schema = { workspace = true }
