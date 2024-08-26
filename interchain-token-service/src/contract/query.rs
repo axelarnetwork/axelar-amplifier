@@ -1,17 +1,16 @@
 use cosmwasm_std::{to_json_binary, Binary, Deps};
 use router_api::ChainName;
 
-use crate::msg::{AllItsAddressesResponse, ItsAddressResponse};
 use crate::state;
 
 pub fn its_address(deps: Deps, chain: ChainName) -> Result<Binary, state::Error> {
     let address = state::load_its_address(deps.storage, &chain).ok();
-    to_json_binary(&ItsAddressResponse { address }).map_err(state::Error::from)
+    to_json_binary(&address).map_err(state::Error::from)
 }
 
 pub fn all_its_addresses(deps: Deps) -> Result<Binary, state::Error> {
     let addresses = state::load_all_its_addresses(deps.storage)?;
-    to_json_binary(&AllItsAddressesResponse { addresses }).map_err(state::Error::from)
+    to_json_binary(&addresses).map_err(state::Error::from)
 }
 
 #[cfg(test)]
@@ -38,14 +37,14 @@ mod tests {
 
         // Query the trusted address
         let bin = its_address(deps.as_ref(), chain).unwrap();
-        let res: ItsAddressResponse = from_json(bin).unwrap();
-        assert_eq!(res.address, Some(address));
+        let res: Option<Address> = from_json(bin).unwrap();
+        assert_eq!(res, Some(address));
 
         // Query a non-existent trusted address
         let non_existent_chain: ChainName = "non-existent-chain".parse().unwrap();
         let bin = its_address(deps.as_ref(), non_existent_chain).unwrap();
-        let res: ItsAddressResponse = from_json(bin).unwrap();
-        assert_eq!(res.address, None);
+        let res: Option<Address> = from_json(bin).unwrap();
+        assert_eq!(res, None);
     }
 
     #[test]
@@ -62,12 +61,12 @@ mod tests {
         save_its_address(deps.as_mut().storage, &chain2, &address2).unwrap();
 
         // Query all trusted addresses
-        let bin: AllItsAddressesResponse = all_its_addresses(deps.as_ref())
+        let addresses: HashMap<ChainName, Address> = all_its_addresses(deps.as_ref())
             .unwrap()
             .then(from_json)
             .unwrap();
         assert_eq!(
-            bin.addresses,
+            addresses,
             vec![(chain1, address1), (chain2, address2)]
                 .into_iter()
                 .collect::<HashMap<_, _>>()

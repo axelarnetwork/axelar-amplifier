@@ -10,17 +10,23 @@ pub struct InstantiateMsg {
     pub governance_address: String,
     pub admin_address: String,
     pub chain_name: ChainNameRaw,
+    /// The address of the axelarnet-gateway contract on Amplifier
     pub gateway_address: String,
+    /// Addresses of the ITS contracts on existing chains
     pub its_addresses: HashMap<ChainName, Address>,
 }
 
 #[cw_serde]
 #[derive(EnsurePermissions)]
 pub enum ExecuteMsg {
+    /// Execute a cross-chain message received by the axelarnet-gateway from another chain
     #[permission(Specific(gateway))]
     Execute(AxelarExecutableMsg),
+    /// Set the ITS contract address of another chain. Each chain's ITS contract has to be whitelisted before
+    /// ITS Hub can send cross-chain messages to it, or receive messages from it.
     #[permission(Governance)]
     SetItsAddress { chain: ChainName, address: Address },
+    /// Remove the configured ITS contract address for the given chain
     #[permission(Elevated)]
     RemoveItsAddress { chain: ChainName },
 }
@@ -28,18 +34,10 @@ pub enum ExecuteMsg {
 #[cw_serde]
 #[derive(QueryResponses)]
 pub enum QueryMsg {
-    #[returns(ItsAddressResponse)]
+    /// Query the ITS contract address of a chain
+    #[returns(Option<Address>)]
     SetItsAddress { chain: ChainName },
-    #[returns(AllItsAddressesResponse)]
+    /// Query all configured ITS contract addresses
+    #[returns(HashMap<ChainName, Address>)]
     AllItsAddresses {},
-}
-
-#[cw_serde]
-pub struct ItsAddressResponse {
-    pub address: Option<Address>,
-}
-
-#[cw_serde]
-pub struct AllItsAddressesResponse {
-    pub addresses: HashMap<ChainName, Address>,
 }
