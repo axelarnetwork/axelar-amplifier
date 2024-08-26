@@ -3,7 +3,7 @@ use axelar_wasm_std::{address, permission_control, FnExt};
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     to_json_binary, Addr, BankMsg, Binary, Coin, Deps, DepsMut, Empty, Env, MessageInfo, Order,
-    QueryRequest, Response, Storage, Uint128, WasmQuery,
+    QueryRequest, Response, Storage, WasmQuery,
 };
 use error_stack::{bail, Report, ResultExt};
 
@@ -185,10 +185,11 @@ mod test {
     use std::str::FromStr;
 
     use axelar_wasm_std::error::err_contains;
+    use axelar_wasm_std::nonempty;
     use cosmwasm_std::testing::{
         mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
     };
-    use cosmwasm_std::{coins, from_json, CosmosMsg, Empty, OwnedDeps, StdResult};
+    use cosmwasm_std::{coins, from_json, CosmosMsg, Empty, OwnedDeps, StdResult, Uint128};
     use router_api::ChainName;
 
     use super::*;
@@ -236,7 +237,7 @@ mod test {
                 coordinator_contract: Addr::unchecked("nowhere"),
                 min_num_verifiers: 0,
                 max_num_verifiers: Some(100),
-                min_verifier_bond: Uint128::zero(),
+                min_verifier_bond: Uint128::one().try_into().unwrap(),
                 bond_denom: AXL_DENOMINATION.into(),
                 unbonding_period_days: 10,
                 description: "Some service".into(),
@@ -253,7 +254,7 @@ mod test {
                 coordinator_contract: Addr::unchecked("nowhere"),
                 min_num_verifiers: 0,
                 max_num_verifiers: Some(100),
-                min_verifier_bond: Uint128::zero(),
+                min_verifier_bond: Uint128::one().try_into().unwrap(),
                 bond_denom: AXL_DENOMINATION.into(),
                 unbonding_period_days: 10,
                 description: "Some service".into(),
@@ -281,7 +282,7 @@ mod test {
                 coordinator_contract: Addr::unchecked("nowhere"),
                 min_num_verifiers: 0,
                 max_num_verifiers: Some(100),
-                min_verifier_bond: Uint128::zero(),
+                min_verifier_bond: Uint128::one().try_into().unwrap(),
                 bond_denom: AXL_DENOMINATION.into(),
                 unbonding_period_days: 10,
                 description: "Some service".into(),
@@ -332,7 +333,7 @@ mod test {
                 coordinator_contract: Addr::unchecked("nowhere"),
                 min_num_verifiers: 0,
                 max_num_verifiers: Some(100),
-                min_verifier_bond,
+                min_verifier_bond: min_verifier_bond.try_into().unwrap(),
                 bond_denom: AXL_DENOMINATION.into(),
                 unbonding_period_days: 10,
                 description: "Some service".into(),
@@ -366,6 +367,51 @@ mod test {
     }
 
     #[test]
+    fn bond_verifier_zero_bond_should_fail() {
+        let mut deps = setup();
+
+        let service_name = "validators";
+        let min_verifier_bond = Uint128::new(100);
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(GOVERNANCE_ADDRESS, &[]),
+            ExecuteMsg::RegisterService {
+                service_name: service_name.into(),
+                coordinator_contract: Addr::unchecked("nowhere"),
+                min_num_verifiers: 0,
+                max_num_verifiers: Some(100),
+                min_verifier_bond: min_verifier_bond.try_into().unwrap(),
+                bond_denom: AXL_DENOMINATION.into(),
+                unbonding_period_days: 10,
+                description: "Some service".into(),
+            },
+        );
+        assert!(res.is_ok());
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(GOVERNANCE_ADDRESS, &[]),
+            ExecuteMsg::AuthorizeVerifiers {
+                verifiers: vec![VERIFIER_ADDRESS.into()],
+                service_name: service_name.into(),
+            },
+        );
+        assert!(res.is_ok());
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(VERIFIER_ADDRESS, &[]),
+            ExecuteMsg::BondVerifier {
+                service_name: service_name.into(),
+            },
+        );
+        assert!(res.is_err());
+    }
+
+    #[test]
     fn register_chain_support() {
         let mut deps = setup();
 
@@ -380,7 +426,7 @@ mod test {
                 coordinator_contract: Addr::unchecked("nowhere"),
                 min_num_verifiers: 0,
                 max_num_verifiers: Some(100),
-                min_verifier_bond,
+                min_verifier_bond: min_verifier_bond.try_into().unwrap(),
                 bond_denom: AXL_DENOMINATION.into(),
                 unbonding_period_days: 10,
                 description: "Some service".into(),
@@ -442,7 +488,7 @@ mod test {
                 verifier_info: Verifier {
                     address: Addr::unchecked(VERIFIER_ADDRESS),
                     bonding_state: BondingState::Bonded {
-                        amount: min_verifier_bond
+                        amount: min_verifier_bond.try_into().unwrap(),
                     },
                     authorization_state: AuthorizationState::Authorized,
                     service_name: service_name.into()
@@ -483,7 +529,7 @@ mod test {
                 coordinator_contract: Addr::unchecked("nowhere"),
                 min_num_verifiers: 0,
                 max_num_verifiers: Some(100),
-                min_verifier_bond,
+                min_verifier_bond: min_verifier_bond.try_into().unwrap(),
                 bond_denom: AXL_DENOMINATION.into(),
                 unbonding_period_days: 10,
                 description: "Some service".into(),
@@ -570,7 +616,7 @@ mod test {
                 coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS),
                 min_num_verifiers: 0,
                 max_num_verifiers: Some(100),
-                min_verifier_bond,
+                min_verifier_bond: min_verifier_bond.try_into().unwrap(),
                 bond_denom: AXL_DENOMINATION.into(),
                 unbonding_period_days: 10,
                 description: "Some service".into(),
@@ -664,7 +710,7 @@ mod test {
                 coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS),
                 min_num_verifiers: 0,
                 max_num_verifiers: Some(100),
-                min_verifier_bond,
+                min_verifier_bond: min_verifier_bond.try_into().unwrap(),
                 bond_denom: AXL_DENOMINATION.into(),
                 unbonding_period_days: 10,
                 description: "Some service".into(),
@@ -761,7 +807,7 @@ mod test {
                     verifier_info: Verifier {
                         address: Addr::unchecked(VERIFIER_ADDRESS),
                         bonding_state: BondingState::Bonded {
-                            amount: min_verifier_bond
+                            amount: min_verifier_bond.try_into().unwrap(),
                         },
                         authorization_state: AuthorizationState::Authorized,
                         service_name: service_name.into()
@@ -779,7 +825,7 @@ mod test {
         let mut deps = setup();
 
         let service_name = "validators";
-        let min_verifier_bond = Uint128::new(100);
+        let min_verifier_bond: nonempty::Uint128 = Uint128::new(100).try_into().unwrap();
         let res = execute(
             deps.as_mut(),
             mock_env(),
@@ -813,7 +859,7 @@ mod test {
             mock_env(),
             mock_info(
                 VERIFIER_ADDRESS,
-                &coins(min_verifier_bond.u128(), AXL_DENOMINATION),
+                &coins(min_verifier_bond.into_inner().u128(), AXL_DENOMINATION),
             ),
             ExecuteMsg::BondVerifier {
                 service_name: service_name.into(),
@@ -881,7 +927,7 @@ mod test {
         let mut deps = setup();
 
         let service_name = "validators";
-        let min_verifier_bond = Uint128::new(100);
+        let min_verifier_bond: nonempty::Uint128 = Uint128::new(100).try_into().unwrap();
         let res = execute(
             deps.as_mut(),
             mock_env(),
@@ -915,7 +961,7 @@ mod test {
             mock_env(),
             mock_info(
                 VERIFIER_ADDRESS,
-                &coins(min_verifier_bond.u128(), AXL_DENOMINATION),
+                &coins(min_verifier_bond.into_inner().u128(), AXL_DENOMINATION),
             ),
             ExecuteMsg::BondVerifier {
                 service_name: service_name.into(),
@@ -993,7 +1039,7 @@ mod test {
         let mut deps = setup();
 
         let service_name = "validators";
-        let min_verifier_bond = Uint128::new(100);
+        let min_verifier_bond: nonempty::Uint128 = Uint128::new(100).try_into().unwrap();
         let res = execute(
             deps.as_mut(),
             mock_env(),
@@ -1027,7 +1073,7 @@ mod test {
             mock_env(),
             mock_info(
                 VERIFIER_ADDRESS,
-                &coins(min_verifier_bond.u128(), AXL_DENOMINATION),
+                &coins(min_verifier_bond.into_inner().u128(), AXL_DENOMINATION),
             ),
             ExecuteMsg::BondVerifier {
                 service_name: service_name.into(),
@@ -1069,7 +1115,7 @@ mod test {
         let mut deps = setup();
 
         let service_name = "validators";
-        let min_verifier_bond = Uint128::new(100);
+        let min_verifier_bond: nonempty::Uint128 = Uint128::new(100).try_into().unwrap();
         let res = execute(
             deps.as_mut(),
             mock_env(),
@@ -1143,7 +1189,7 @@ mod test {
         let mut deps = setup();
 
         let service_name = "validators";
-        let min_verifier_bond = Uint128::new(100);
+        let min_verifier_bond: nonempty::Uint128 = Uint128::new(100).try_into().unwrap();
         let res = execute(
             deps.as_mut(),
             mock_env(),
@@ -1225,7 +1271,7 @@ mod test {
         let mut deps = setup();
 
         let service_name = "validators";
-        let min_verifier_bond = Uint128::new(100);
+        let min_verifier_bond: nonempty::Uint128 = Uint128::new(100).try_into().unwrap();
         let res = execute(
             deps.as_mut(),
             mock_env(),
@@ -1259,7 +1305,7 @@ mod test {
             mock_env(),
             mock_info(
                 VERIFIER_ADDRESS,
-                &coins(min_verifier_bond.u128(), AXL_DENOMINATION),
+                &coins(min_verifier_bond.into_inner().u128(), AXL_DENOMINATION),
             ),
             ExecuteMsg::BondVerifier {
                 service_name: service_name.into(),
@@ -1309,7 +1355,7 @@ mod test {
         let mut deps = setup();
 
         let service_name = "validators";
-        let min_verifier_bond = Uint128::new(100);
+        let min_verifier_bond: nonempty::Uint128 = Uint128::new(100).try_into().unwrap();
         let res = execute(
             deps.as_mut(),
             mock_env(),
@@ -1332,7 +1378,7 @@ mod test {
             mock_env(),
             mock_info(
                 VERIFIER_ADDRESS,
-                &coins(min_verifier_bond.u128(), "funnydenom"),
+                &coins(min_verifier_bond.into_inner().u128(), "funnydenom"),
             ),
             ExecuteMsg::BondVerifier {
                 service_name: service_name.into(),
@@ -1352,7 +1398,7 @@ mod test {
         let mut deps = setup();
 
         let service_name = "validators";
-        let min_verifier_bond = Uint128::new(100);
+        let min_verifier_bond: nonempty::Uint128 = Uint128::new(100).try_into().unwrap();
         let res = execute(
             deps.as_mut(),
             mock_env(),
@@ -1375,7 +1421,7 @@ mod test {
             mock_env(),
             mock_info(
                 VERIFIER_ADDRESS,
-                &coins(min_verifier_bond.u128(), AXL_DENOMINATION),
+                &coins(min_verifier_bond.into_inner().u128(), AXL_DENOMINATION),
             ),
             ExecuteMsg::BondVerifier {
                 service_name: service_name.into(),
@@ -1415,7 +1461,7 @@ mod test {
         let mut deps = setup();
 
         let service_name = "validators";
-        let min_verifier_bond = Uint128::new(100);
+        let min_verifier_bond: nonempty::Uint128 = Uint128::new(100).try_into().unwrap();
         let res = execute(
             deps.as_mut(),
             mock_env(),
@@ -1449,7 +1495,7 @@ mod test {
             mock_env(),
             mock_info(
                 VERIFIER_ADDRESS,
-                &coins(min_verifier_bond.u128() / 2, AXL_DENOMINATION),
+                &coins(min_verifier_bond.into_inner().u128() / 2, AXL_DENOMINATION),
             ),
             ExecuteMsg::BondVerifier {
                 service_name: service_name.into(),
@@ -1489,7 +1535,7 @@ mod test {
         let mut deps = setup();
 
         let service_name = "validators";
-        let min_verifier_bond = Uint128::new(100);
+        let min_verifier_bond: nonempty::Uint128 = Uint128::new(100).try_into().unwrap();
         let res = execute(
             deps.as_mut(),
             mock_env(),
@@ -1512,7 +1558,7 @@ mod test {
             mock_env(),
             mock_info(
                 VERIFIER_ADDRESS,
-                &coins(min_verifier_bond.u128(), AXL_DENOMINATION),
+                &coins(min_verifier_bond.into_inner().u128(), AXL_DENOMINATION),
             ),
             ExecuteMsg::BondVerifier {
                 service_name: service_name.into(),
@@ -1576,7 +1622,7 @@ mod test {
         let mut deps = setup();
 
         let service_name = "validators";
-        let min_verifier_bond = Uint128::new(100);
+        let min_verifier_bond: nonempty::Uint128 = Uint128::new(100).try_into().unwrap();
         let res = execute(
             deps.as_mut(),
             mock_env(),
@@ -1610,7 +1656,7 @@ mod test {
             mock_env(),
             mock_info(
                 VERIFIER_ADDRESS,
-                &coins(min_verifier_bond.u128(), AXL_DENOMINATION),
+                &coins(min_verifier_bond.into_inner().u128(), AXL_DENOMINATION),
             ),
             ExecuteMsg::BondVerifier {
                 service_name: service_name.into(),
@@ -1682,7 +1728,7 @@ mod test {
     fn unbonding_period() {
         let mut deps = setup();
 
-        let min_verifier_bond = Uint128::new(100);
+        let min_verifier_bond: nonempty::Uint128 = Uint128::new(100).try_into().unwrap();
         let service_name = "validators";
         let unbonding_period_days = 1;
 
@@ -1719,7 +1765,7 @@ mod test {
             mock_env(),
             mock_info(
                 VERIFIER_ADDRESS,
-                &coins(min_verifier_bond.u128(), AXL_DENOMINATION),
+                &coins(min_verifier_bond.into_inner().u128(), AXL_DENOMINATION),
             ),
             ExecuteMsg::BondVerifier {
                 service_name: service_name.into(),
@@ -1793,7 +1839,7 @@ mod test {
             res.messages[0].msg,
             CosmosMsg::Bank(BankMsg::Send {
                 to_address: VERIFIER_ADDRESS.into(),
-                amount: coins(min_verifier_bond.u128(), AXL_DENOMINATION)
+                amount: coins(min_verifier_bond.into_inner().u128(), AXL_DENOMINATION)
             })
         )
     }
@@ -1807,7 +1853,7 @@ mod test {
         let min_num_verifiers = verifiers.len() as u16;
 
         let service_name = "validators";
-        let min_verifier_bond = Uint128::new(100);
+        let min_verifier_bond: nonempty::Uint128 = Uint128::new(100).try_into().unwrap();
         let _ = execute(
             deps.as_mut(),
             mock_env(),
@@ -1855,7 +1901,7 @@ mod test {
                 mock_env(),
                 mock_info(
                     verifier.as_str(),
-                    &coins(min_verifier_bond.u128(), AXL_DENOMINATION),
+                    &coins(min_verifier_bond.into_inner().u128(), AXL_DENOMINATION),
                 ),
                 ExecuteMsg::BondVerifier {
                     service_name: service_name.into(),
@@ -1917,7 +1963,7 @@ mod test {
 
         // register a service
         let service_name = "validators";
-        let min_verifier_bond = Uint128::new(100);
+        let min_verifier_bond: nonempty::Uint128 = Uint128::new(100).try_into().unwrap();
         let unbonding_period_days = 10;
         let res = execute(
             deps.as_mut(),
@@ -1943,7 +1989,7 @@ mod test {
             mock_env(),
             mock_info(
                 verifier1.as_str(),
-                &coins(min_verifier_bond.u128(), AXL_DENOMINATION),
+                &coins(min_verifier_bond.into_inner().u128(), AXL_DENOMINATION),
             ),
             ExecuteMsg::BondVerifier {
                 service_name: service_name.into(),
@@ -1988,7 +2034,7 @@ mod test {
             mock_env(),
             mock_info(
                 verifier2.as_str(),
-                &coins(min_verifier_bond.u128(), AXL_DENOMINATION),
+                &coins(min_verifier_bond.into_inner().u128(), AXL_DENOMINATION),
             ),
             ExecuteMsg::BondVerifier {
                 service_name: service_name.into(),

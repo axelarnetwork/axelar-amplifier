@@ -16,11 +16,13 @@ use crate::types::{PublicKey, TMAddress};
 use crate::{broadcaster, tofnd, Error, PREFIX};
 
 pub mod bond_verifier;
+pub mod claim_stake;
 pub mod daemon;
 pub mod deregister_chain_support;
 pub mod register_chain_support;
 pub mod register_public_key;
 pub mod send_tokens;
+pub mod unbond_verifier;
 pub mod verifier_address;
 
 #[derive(Debug, Subcommand, Valuable)]
@@ -29,6 +31,10 @@ pub enum SubCommand {
     Daemon,
     /// Bond the verifier to the service registry contract
     BondVerifier(bond_verifier::Args),
+    /// Unbond the verifier from the service registry contract
+    UnbondVerifier(unbond_verifier::Args),
+    /// Claim unbonded stake from the service registry contract
+    ClaimStake(claim_stake::Args),
     /// Register chain support to the service registry contract
     RegisterChainSupport(register_chain_support::Args),
     /// Deregister chain support to the service registry contract
@@ -55,9 +61,10 @@ impl Default for ServiceRegistryConfig {
 }
 
 async fn verifier_pub_key(config: tofnd::Config) -> Result<PublicKey, Error> {
-    MultisigClient::new(config.party_uid, config.url)
+    MultisigClient::new(config.party_uid, config.url.clone())
         .await
-        .change_context(Error::Connection)?
+        .change_context(Error::Connection)
+        .attach_printable(config.url.clone())?
         .keygen(&config.key_uid, tofnd::Algorithm::Ecdsa)
         .await
         .change_context(Error::Tofnd)
@@ -77,16 +84,20 @@ async fn broadcast_tx(
 
     let service_client = ServiceClient::connect(tm_grpc.to_string())
         .await
-        .change_context(Error::Connection)?;
+        .change_context(Error::Connection)
+        .attach_printable(tm_grpc.clone())?;
     let auth_query_client = AuthQueryClient::connect(tm_grpc.to_string())
         .await
-        .change_context(Error::Connection)?;
+        .change_context(Error::Connection)
+        .attach_printable(tm_grpc.clone())?;
     let bank_query_client = BankQueryClient::connect(tm_grpc.to_string())
         .await
-        .change_context(Error::Connection)?;
-    let multisig_client = MultisigClient::new(tofnd_config.party_uid, tofnd_config.url)
+        .change_context(Error::Connection)
+        .attach_printable(tm_grpc)?;
+    let multisig_client = MultisigClient::new(tofnd_config.party_uid, tofnd_config.url.clone())
         .await
-        .change_context(Error::Connection)?;
+        .change_context(Error::Connection)
+        .attach_printable(tofnd_config.url)?;
 
     broadcaster::UnvalidatedBasicBroadcaster::builder()
         .client(service_client)

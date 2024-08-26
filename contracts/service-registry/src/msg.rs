@@ -1,5 +1,6 @@
+use axelar_wasm_std::nonempty;
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{Addr, Uint128};
+use cosmwasm_std::Addr;
 use msgs_derive::EnsurePermissions;
 use router_api::ChainName;
 
@@ -18,7 +19,7 @@ pub enum ExecuteMsg {
         coordinator_contract: Addr,
         min_num_verifiers: u16,
         max_num_verifiers: Option<u16>,
-        min_verifier_bond: Uint128,
+        min_verifier_bond: nonempty::Uint128,
         bond_denom: String,
         unbonding_period_days: u16, // number of days to wait after starting unbonding before allowed to claim stake
         description: String,
