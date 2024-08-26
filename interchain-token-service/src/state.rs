@@ -19,7 +19,7 @@ pub enum Error {
 #[cw_serde]
 pub struct Config {
     pub chain_name: ChainNameRaw,
-    pub gateway: Addr,
+    pub axelarnet_gateway: Addr,
 }
 
 const CONFIG: Item<Config> = Item::new("config");
@@ -75,7 +75,7 @@ mod tests {
         // Test saving and loading config
         let config = Config {
             chain_name: "test-chain".parse().unwrap(),
-            gateway: Addr::unchecked("gateway-address"),
+            axelarnet_gateway: Addr::unchecked("gateway-address"),
         };
 
         assert!(save_config(deps.as_mut().storage, &config).is_ok());

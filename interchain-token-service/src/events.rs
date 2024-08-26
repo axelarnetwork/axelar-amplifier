@@ -1,12 +1,12 @@
 use cosmwasm_std::{Attribute, Event};
-use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
+use router_api::{Address, ChainName, CrossChainId};
 
 use crate::primitives::ItsMessage;
 
 pub enum ItsContractEvent {
     ItsMessageReceived {
         cc_id: CrossChainId,
-        destination_chain: ChainNameRaw,
+        destination_chain: ChainName,
         message: ItsMessage,
     },
     ItsAddressSet {
@@ -39,7 +39,7 @@ impl From<ItsContractEvent> for Event {
 fn make_its_message_event(
     event_name: &str,
     cc_id: CrossChainId,
-    destination_chain: ChainNameRaw,
+    destination_chain: ChainName,
     msg: ItsMessage,
 ) -> Event {
     let message_type: &'static str = (&msg).into();

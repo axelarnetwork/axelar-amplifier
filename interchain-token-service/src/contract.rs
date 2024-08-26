@@ -54,13 +54,14 @@ pub fn instantiate(
     permission_control::set_admin(deps.storage, &admin)?;
     permission_control::set_governance(deps.storage, &governance)?;
 
-    let gateway = address::validate_cosmwasm_address(deps.api, &msg.gateway_address)?;
+    let axelarnet_gateway =
+        address::validate_cosmwasm_address(deps.api, &msg.axelarnet_gateway_address)?;
 
     state::save_config(
         deps.storage,
         &Config {
             chain_name: msg.chain_name,
-            gateway,
+            axelarnet_gateway,
         },
     )?;
 
@@ -96,13 +97,13 @@ pub fn execute(
 }
 
 fn match_gateway(storage: &dyn Storage, _: &ExecuteMsg) -> Result<Addr, Report<state::Error>> {
-    Ok(state::load_config(storage)?.gateway)
+    Ok(state::load_config(storage)?.axelarnet_gateway)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
     match msg {
-        QueryMsg::SetItsAddress { chain } => query::its_address(deps, chain)?,
+        QueryMsg::ItsAddress { chain } => query::its_address(deps, chain)?,
         QueryMsg::AllItsAddresses {} => query::all_its_addresses(deps)?,
     }
     .then(Ok)
@@ -138,7 +139,7 @@ mod tests {
             governance_address: GOVERNANCE.parse().unwrap(),
             admin_address: ADMIN.parse().unwrap(),
             chain_name: CHAIN_NAME.parse().unwrap(),
-            gateway_address: "gateway".into(),
+            axelarnet_gateway_address: "gateway".into(),
             its_addresses: its_addresses.clone(),
         };
 

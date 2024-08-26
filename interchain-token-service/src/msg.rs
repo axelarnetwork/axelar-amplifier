@@ -11,7 +11,7 @@ pub struct InstantiateMsg {
     pub admin_address: String,
     pub chain_name: ChainNameRaw,
     /// The address of the axelarnet-gateway contract on Amplifier
-    pub gateway_address: String,
+    pub axelarnet_gateway_address: String,
     /// Addresses of the ITS contracts on existing chains
     pub its_addresses: HashMap<ChainName, Address>,
 }
@@ -28,7 +28,8 @@ pub enum ExecuteMsg {
     /// This allows easier management of ITS contracts without the need for migration.
     #[permission(Governance)]
     SetItsAddress { chain: ChainName, address: Address },
-    /// Remove the configured ITS contract address for the given chain
+    /// Remove the configured ITS contract address for the given chain.
+    /// The admin is allowed to remove the ITS address of a chain for emergencies.
     #[permission(Elevated)]
     RemoveItsAddress { chain: ChainName },
 }
@@ -38,7 +39,7 @@ pub enum ExecuteMsg {
 pub enum QueryMsg {
     /// Query the ITS contract address of a chain
     #[returns(Option<Address>)]
-    SetItsAddress { chain: ChainName },
+    ItsAddress { chain: ChainName },
     /// Query all configured ITS contract addresses
     #[returns(HashMap<ChainName, Address>)]
     AllItsAddresses {},
