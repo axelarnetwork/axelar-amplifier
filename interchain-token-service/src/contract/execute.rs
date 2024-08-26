@@ -1,12 +1,11 @@
 use axelar_wasm_std::IntoContractError;
-use cosmwasm_std::{DepsMut, HexBinary, Response, Storage};
+use cosmwasm_std::{DepsMut, HexBinary, QuerierWrapper, Response, Storage};
 use error_stack::{bail, ensure, report, Result, ResultExt};
 use router_api::{Address, ChainName, CrossChainId};
 
 use crate::events::ItsContractEvent;
 use crate::primitives::ItsHubMessage;
 use crate::state::{self, load_config, load_its_address};
-use crate::TokenId;
 
 #[derive(thiserror::Error, Debug, IntoContractError)]
 pub enum Error {
@@ -14,20 +13,10 @@ pub enum Error {
     UnknownChain(ChainName),
     #[error("unable to load the contract config")]
     ConfigAccess,
-    #[error("invalid address")]
-    InvalidAddress,
     #[error("unknown its address {0}")]
     UnknownItsAddress(Address),
-    #[error("failed to execute ITS command")]
-    Execute,
-    #[error("unauthorized")]
-    Unauthorized,
     #[error("failed to decode payload")]
     InvalidPayload,
-    #[error("untrusted sender")]
-    UntrustedSender,
-    #[error("failed to update balance on chain {0} for token id {1}")]
-    BalanceUpdateFailed(ChainName, TokenId),
 }
 
 /// Executes an incoming ITS message.
@@ -47,36 +36,32 @@ pub fn execute_message(
         ChainName::try_from(cc_id.source_chain.as_ref()).expect("invalid source chain");
     ensure_its_source_address(deps.storage, &source_chain, &source_address)?;
 
-    let config = load_config(deps.storage).change_context(Error::ConfigAccess)?;
-
     match ItsHubMessage::abi_decode(&payload).change_context(Error::InvalidPayload)? {
         ItsHubMessage::SendToHub {
             destination_chain,
-            message: its_message,
+            message,
         } => {
-            let destination_payload = ItsHubMessage::ReceiveFromHub {
-                source_chain: source_chain.clone(),
-                message: its_message.clone(),
-            }
-            .abi_encode();
-
             let destination_address = load_its_address(deps.storage, &destination_chain)
                 .change_context_lazy(|| Error::UnknownChain(destination_chain.clone()))?;
 
-            let gateway: axelarnet_gateway::Client =
-                client::Client::new(deps.querier, config.gateway).into();
+            let destination_payload = ItsHubMessage::ReceiveFromHub {
+                source_chain: source_chain.clone(),
+                message: message.clone(),
+            }
+            .abi_encode();
 
-            let call_contract_msg = gateway.call_contract(
+            Ok(call_contract_response(
+                deps.storage,
+                deps.querier,
                 destination_chain.clone(),
                 destination_address,
                 destination_payload,
-            );
-
-            Ok(Response::new().add_message(call_contract_msg).add_event(
+            )?
+            .add_event(
                 ItsContractEvent::ItsMessageReceived {
                     cc_id,
                     destination_chain,
-                    message: its_message,
+                    message,
                 }
                 .into(),
             ))
@@ -99,6 +84,22 @@ fn ensure_its_source_address(
     );
 
     Ok(())
+}
+
+fn call_contract_response(
+    storage: &dyn Storage,
+    querier: QuerierWrapper,
+    destination_chain: ChainName,
+    destination_address: Address,
+    payload: HexBinary,
+) -> Result<Response, Error> {
+    let config = load_config(storage).change_context(Error::ConfigAccess)?;
+
+    let gateway: axelarnet_gateway::Client = client::Client::new(querier, config.gateway).into();
+
+    let call_contract_msg = gateway.call_contract(destination_chain, destination_address, payload);
+
+    Ok(Response::new().add_message(call_contract_msg))
 }
 
 pub fn set_its_address(
