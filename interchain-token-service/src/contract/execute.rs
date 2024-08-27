@@ -149,7 +149,6 @@ mod tests {
         let msg = InstantiateMsg {
             governance_address: "governance".to_string(),
             admin_address: "admin".to_string(),
-            chain_name: "source-chain".parse().unwrap(),
             axelarnet_gateway_address: "gateway".to_string(),
             its_addresses: HashMap::new(),
         };

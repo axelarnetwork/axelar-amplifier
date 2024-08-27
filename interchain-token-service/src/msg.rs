@@ -3,13 +3,12 @@ use std::collections::HashMap;
 use axelarnet_gateway::AxelarExecutableMsg;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use msgs_derive::EnsurePermissions;
-use router_api::{Address, ChainName, ChainNameRaw};
+use router_api::{Address, ChainName};
 
 #[cw_serde]
 pub struct InstantiateMsg {
     pub governance_address: String,
     pub admin_address: String,
-    pub chain_name: ChainNameRaw,
     /// The address of the axelarnet-gateway contract on Amplifier
     pub axelarnet_gateway_address: String,
     /// Addresses of the ITS contracts on existing chains

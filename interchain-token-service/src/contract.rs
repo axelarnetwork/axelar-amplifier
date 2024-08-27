@@ -57,13 +57,7 @@ pub fn instantiate(
     let axelarnet_gateway =
         address::validate_cosmwasm_address(deps.api, &msg.axelarnet_gateway_address)?;
 
-    state::save_config(
-        deps.storage,
-        &Config {
-            chain_name: msg.chain_name,
-            axelarnet_gateway,
-        },
-    )?;
+    state::save_config(deps.storage, &Config { axelarnet_gateway })?;
 
     for (chain, address) in msg.its_addresses {
         state::save_its_address(deps.storage, &chain, &address)?;
@@ -122,7 +116,6 @@ mod tests {
 
     const GOVERNANCE: &str = "governance";
     const ADMIN: &str = "admin";
-    const CHAIN_NAME: &str = "chain";
 
     #[test]
     fn instantiate() {
@@ -138,7 +131,6 @@ mod tests {
         let msg = InstantiateMsg {
             governance_address: GOVERNANCE.parse().unwrap(),
             admin_address: ADMIN.parse().unwrap(),
-            chain_name: CHAIN_NAME.parse().unwrap(),
             axelarnet_gateway_address: "gateway".into(),
             its_addresses: its_addresses.clone(),
         };

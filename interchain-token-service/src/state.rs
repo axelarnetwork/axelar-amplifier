@@ -4,7 +4,7 @@ use axelar_wasm_std::IntoContractError;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, StdError, Storage};
 use cw_storage_plus::{Item, Map};
-use router_api::{Address, ChainName, ChainNameRaw};
+use router_api::{Address, ChainName};
 
 #[derive(thiserror::Error, Debug, IntoContractError)]
 pub enum Error {
@@ -18,7 +18,6 @@ pub enum Error {
 
 #[cw_serde]
 pub struct Config {
-    pub chain_name: ChainNameRaw,
     pub axelarnet_gateway: Addr,
 }
 
@@ -74,7 +73,6 @@ mod tests {
 
         // Test saving and loading config
         let config = Config {
-            chain_name: "test-chain".parse().unwrap(),
             axelarnet_gateway: Addr::unchecked("gateway-address"),
         };
 
