@@ -37,7 +37,7 @@ pub fn execute_message(
             destination_chain,
             message,
         } => {
-            let destination_chain = normalize(&destination_chain);
+            let destination_chain = to_chain_name(&destination_chain);
             let destination_address = load_its_address(deps.storage, &destination_chain)
                 .change_context_lazy(|| Error::UnknownChain(destination_chain.clone()))?;
 
@@ -67,7 +67,7 @@ pub fn execute_message(
     }
 }
 
-fn normalize(chain: &ChainNameRaw) -> ChainName {
+fn to_chain_name(chain: &ChainNameRaw) -> ChainName {
     ChainName::try_from(chain.as_ref()).expect("invalid chain name")
 }
 
@@ -76,7 +76,7 @@ fn ensure_its_source_address(
     source_chain: &ChainNameRaw,
     source_address: &Address,
 ) -> Result<(), Error> {
-    let source_chain = normalize(source_chain);
+    let source_chain = to_chain_name(source_chain);
     let its_source_address = load_its_address(storage, &source_chain)
         .change_context_lazy(|| Error::UnknownChain(source_chain.clone()))?;
 
