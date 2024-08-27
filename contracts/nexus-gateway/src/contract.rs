@@ -57,7 +57,7 @@ pub fn instantiate(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
-    env: Env,
+    _: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response<nexus::Message>, axelar_wasm_std::error::ContractError> {
@@ -69,7 +69,6 @@ pub fn execute(
         } => call_contract_with_token(
             deps.storage,
             deps.querier,
-            env.block.height,
             info,
             destination_chain,
             destination_address,

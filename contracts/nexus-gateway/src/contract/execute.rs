@@ -1,6 +1,6 @@
 use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
 use axelar_wasm_std::nonempty;
-use cosmwasm_std::{BankMsg, HexBinary, MessageInfo, QuerierWrapper, Response, Storage, Uint256};
+use cosmwasm_std::{BankMsg, HexBinary, MessageInfo, QuerierWrapper, Response, Storage};
 use error_stack::{bail, ResultExt};
 use router_api::{Address, ChainName};
 use sha3::{Digest, Keccak256};
@@ -14,7 +14,6 @@ type Result<T> = error_stack::Result<T, ContractError>;
 pub fn call_contract_with_token(
     storage: &mut dyn Storage,
     querier: QuerierWrapper,
-    block_height: u64,
     info: MessageInfo,
     destination_chain: ChainName,
     destination_address: Address,
@@ -32,8 +31,8 @@ pub fn call_contract_with_token(
         [token] => token.clone(),
         _ => bail!(ContractError::InvalidToken(info.funds)),
     };
-    // TODO: Retrieve the actual tx hash and event index from core, since cosmwasm doesn't provide it. Use the block height as the placeholder in the meantime.
-    let tx_hash = Uint256::from(block_height).to_be_bytes();
+    // TODO: Retrieve the actual tx hash and event index from core, since cosmwasm doesn't provide it. Use the all zeros as the placeholder in the meantime.
+    let tx_hash = [0; 32];
     let event_index = 0u32;
     let id = HexTxHashAndEventIndex::new(tx_hash, event_index);
 
