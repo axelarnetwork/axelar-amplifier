@@ -125,11 +125,11 @@ mod tests {
         let env = mock_env();
 
         let its_addresses = vec![
-                ("ethereum".parse().unwrap(), "eth-address".parse().unwrap()),
-                ("optimism".parse().unwrap(), "op-address".parse().unwrap())
-            ]
-            .into_iter()
-            .collect::<HashMap<_, _>>();
+            ("ethereum".parse().unwrap(), "eth-address".parse().unwrap()),
+            ("optimism".parse().unwrap(), "op-address".parse().unwrap()),
+        ]
+        .into_iter()
+        .collect::<HashMap<_, _>>();
 
         let msg = InstantiateMsg {
             governance_address: GOVERNANCE.parse().unwrap(),
