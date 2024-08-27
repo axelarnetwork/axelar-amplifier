@@ -442,7 +442,7 @@ pub fn load_verifier(
     storage: &dyn Storage,
     verifier_addr: &Addr,
 ) -> Result<Verifier, ContractError> {
-    may_load_verifier_proxy(storage, &verifier_addr).map(|proxy_address| Verifier {
+    may_load_verifier_proxy(storage, verifier_addr).map(|proxy_address| Verifier {
         verifier_address: verifier_addr.to_owned(),
         proxy_address,
     })

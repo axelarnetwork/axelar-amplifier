@@ -9,7 +9,7 @@ use crate::error::ContractError;
 use crate::msg::Params;
 use crate::state::{
     self, Epoch, EpochTally, Event, ParamsSnapshot, PoolId, RewardsDistribution, RewardsPool,
-    StorageState, Verifier,
+    StorageState
 };
 
 const DEFAULT_EPOCHS_TO_PROCESS: u64 = 10;
@@ -270,7 +270,7 @@ mod test {
     use super::*;
     use crate::error::ContractError;
     use crate::msg::Params;
-    use crate::state::{self, Config, Epoch, ParamsSnapshot, PoolId, CONFIG};
+    use crate::state::{self, Config, Epoch, ParamsSnapshot, PoolId, Verifier, CONFIG};
 
     /// Tests that the current epoch is computed correctly when the expected epoch is the same as the stored epoch
     #[test]
