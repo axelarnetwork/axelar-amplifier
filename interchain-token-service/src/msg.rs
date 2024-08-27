@@ -41,5 +41,5 @@ pub enum QueryMsg {
     ItsAddress { chain: ChainName },
     /// Query all configured ITS contract addresses
     #[returns(HashMap<ChainName, Address>)]
-    AllItsAddresses {},
+    AllItsAddresses,
 }

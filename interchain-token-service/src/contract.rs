@@ -98,7 +98,7 @@ fn match_gateway(storage: &dyn Storage, _: &ExecuteMsg) -> Result<Addr, Report<s
 pub fn query(deps: Deps, _: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
     match msg {
         QueryMsg::ItsAddress { chain } => query::its_address(deps, chain)?,
-        QueryMsg::AllItsAddresses {} => query::all_its_addresses(deps)?,
+        QueryMsg::AllItsAddresses => query::all_its_addresses(deps)?,
     }
     .then(Ok)
 }
@@ -124,7 +124,10 @@ mod tests {
         let info = mock_info("sender", &[]);
         let env = mock_env();
 
-        let its_addresses = vec![("ethereum".parse().unwrap(), "address".parse().unwrap())]
+        let its_addresses = vec![
+                ("ethereum".parse().unwrap(), "eth-address".parse().unwrap()),
+                ("optimism".parse().unwrap(), "op-address".parse().unwrap())
+            ]
             .into_iter()
             .collect::<HashMap<_, _>>();
 
