@@ -41,7 +41,7 @@ pub fn call_contract(
 
     let msg = Message {
         cc_id: cc_id.clone(),
-        source_address: Address::try_from(sender.clone().into_string())
+        source_address: Address::try_from(sender.into_string())
             .expect("failed to convert sender address"),
         destination_chain,
         destination_address,
