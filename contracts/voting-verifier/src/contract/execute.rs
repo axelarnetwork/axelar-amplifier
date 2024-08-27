@@ -6,14 +6,13 @@ use axelar_wasm_std::voting::{PollId, PollResults, Vote, WeightedPoll};
 use axelar_wasm_std::{snapshot, MajorityThreshold, VerificationStatus};
 use cosmwasm_std::{
     to_json_binary, Deps, DepsMut, Env, Event, MessageInfo, OverflowError, OverflowOperation,
-    QueryRequest, Response, Storage, WasmMsg, WasmQuery,
+    Response, Storage, WasmMsg,
 };
 use error_stack::{report, Report, ResultExt};
 use itertools::Itertools;
 use multisig::verifier_set::VerifierSet;
 use router_api::{ChainName, Message};
-use service_registry::msg::QueryMsg;
-use service_registry::WeightedVerifier;
+use service_registry::{Service, WeightedVerifier};
 
 use crate::contract::query::{message_status, verifier_set_status};
 use crate::error::ContractError;
@@ -307,18 +306,13 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: PollId) -> Result<Response, Co
 fn take_snapshot(deps: Deps, chain: &ChainName) -> Result<snapshot::Snapshot, ContractError> {
     let config = CONFIG.load(deps.storage)?;
 
-    // todo: add chain param to query after service registry updated
-    // query service registry for active verifiers
-    let active_verifiers_query = QueryMsg::ActiveVerifiers {
-        service_name: config.service_name.to_string(),
-        chain_name: chain.clone(),
-    };
+    let service_registry: service_registry::client::Client =
+        client::Client::new(deps.querier, config.service_registry_contract).into();
 
-    let verifiers: Vec<WeightedVerifier> =
-        deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: config.service_registry_contract.to_string(),
-            msg: to_json_binary(&active_verifiers_query)?,
-        }))?;
+    let verifiers: Vec<WeightedVerifier> = service_registry
+        .active_verifiers(config.service_name.into(), chain.to_owned())
+        .change_context(ContractError::ServiceRegistryQueryError)?;
+
 
     let participants = verifiers
         .into_iter()

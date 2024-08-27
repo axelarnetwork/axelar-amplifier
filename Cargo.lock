@@ -7490,6 +7490,7 @@ name = "service-registry"
 version = "1.0.0"
 dependencies = [
  "axelar-wasm-std",
+ "client",
  "coordinator",
  "cosmwasm-schema",
  "cosmwasm-std",

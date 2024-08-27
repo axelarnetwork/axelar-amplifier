@@ -18,8 +18,8 @@ pub enum ContractError {
     #[error(transparent)]
     NonEmptyError(#[from] nonempty::Error),
 
-    #[error(transparent)]
-    ServiceRegistryError(#[from] service_registry::ContractError),
+    #[error("failed to query service registry")]
+    ServiceRegistryQueryError,
 
     #[error("empty batch of messages")]
     EmptyMessages,
