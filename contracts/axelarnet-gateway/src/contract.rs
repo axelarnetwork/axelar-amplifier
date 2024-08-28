@@ -136,6 +136,7 @@ pub fn query(
         QueryMsg::ReceivedMessages { cc_ids } => {
             to_json_binary(&query::received_messages(deps, cc_ids)?)
         }
+        QueryMsg::ChainName => to_json_binary(&state::load_config(deps.storage)?.chain_name),
     }
     .map_err(axelar_wasm_std::error::ContractError::from)
 }
