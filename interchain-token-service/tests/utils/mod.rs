@@ -2,9 +2,9 @@
 // This circumvents that issue.
 #![allow(dead_code)]
 
-pub use instantiate::*;
 #[allow(unused_imports)]
 pub use execute::*;
+pub use instantiate::*;
 #[allow(unused_imports)]
 pub use query::*;
 
