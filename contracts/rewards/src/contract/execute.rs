@@ -9,7 +9,7 @@ use crate::error::ContractError;
 use crate::msg::Params;
 use crate::state::{
     self, Epoch, EpochTally, Event, ParamsSnapshot, PoolId, RewardsDistribution, RewardsPool,
-    StorageState
+    StorageState,
 };
 
 const DEFAULT_EPOCHS_TO_PROCESS: u64 = 10;
