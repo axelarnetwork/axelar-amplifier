@@ -1,5 +1,5 @@
 use axelar_wasm_std::counter::Counter;
-use axelar_wasm_std::IntoContractError;
+use axelar_wasm_std::{FnExt, IntoContractError};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, StdError, Storage};
 use cw_storage_plus::{Item, Map};
@@ -119,12 +119,13 @@ pub fn load_executable_msg(
 pub fn mark_as_executed(
     storage: &mut dyn Storage,
     cc_id: &CrossChainId,
-    validate: impl FnOnce(Message) -> Result<Message, Error>,
+    // this uses a reference to ensure the caller cannot mutate the message
+    validate: impl FnOnce(&Message) -> Result<(), Error>,
 ) -> Result<Message, Error> {
     let msg = match may_load_executable_msg(storage, cc_id)? {
         None => Err(Error::MessageNotApproved(cc_id.clone())),
         Some(ExecutableMessage::Executed(_)) => Err(Error::MessageAlreadyExecuted(cc_id.clone())),
-        Some(ExecutableMessage::Approved(msg)) => Ok(validate(msg)?),
+        Some(ExecutableMessage::Approved(msg)) => validate(&msg)?.then(|_| Ok(msg)),
     }?;
 
     EXECUTABLE_MESSAGES.save(storage, cc_id, &ExecutableMessage::Executed(msg.clone()))?;

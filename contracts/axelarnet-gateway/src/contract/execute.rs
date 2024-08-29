@@ -135,11 +135,13 @@ pub fn execute(deps: DepsMut, cc_id: CrossChainId, payload: HexBinary) -> Result
 
 fn ensure_same_payload_hash(
     payload_hash: &[u8; 32],
-) -> impl FnOnce(Message) -> core::result::Result<Message, state::Error> + '_ {
+) -> impl FnOnce(&Message) -> core::result::Result<(), state::Error> + '_ {
     |msg| {
-        (*payload_hash == msg.payload_hash)
-            .then_some(msg)
-            .ok_or(state::Error::PayloadHashMismatch)
+        if *payload_hash == msg.payload_hash {
+            return Err(state::Error::PayloadHashMismatch);
+        }
+
+        Ok(())
     }
 }
 
