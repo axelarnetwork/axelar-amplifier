@@ -1,0 +1,10 @@
+{
+  "execute": {
+    "cc_id": {
+      "source_chain": "source-chain",
+      "message_id": "hash-index"
+    },
+    "source_address": "source-address",
+    "payload": "010203"
+  }
+}

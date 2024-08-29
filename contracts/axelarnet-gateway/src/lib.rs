@@ -3,8 +3,7 @@ pub mod events;
 pub mod msg;
 mod state;
 
-mod client;
-pub use client::{Client, Error};
-
-mod executable;
-pub use executable::AxelarExecutableMsg;
+mod clients;
+pub use clients::external::AxelarExecutableMsg;
+pub use clients::gateway::Client;
+pub use state::ExecutableMessage;
