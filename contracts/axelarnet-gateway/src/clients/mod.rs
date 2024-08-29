@@ -1,5 +1,2 @@
-mod external;
-mod gateway;
-
-pub use external::*;
-pub use gateway::Client as GatewayClient;
+pub mod external;
+pub mod gateway;

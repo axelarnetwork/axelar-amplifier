@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
-use axelar_wasm_std::{FnExt, IntoContractError};
+use axelar_wasm_std::{address, FnExt, IntoContractError};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, DepsMut, HexBinary, Response, Storage, Uint256};
 use error_stack::{bail, ensure, report, Result, ResultExt};
@@ -10,10 +10,10 @@ use router_api::client::Router;
 use router_api::{Address, ChainName, CrossChainId, Message};
 use sha3::{Digest, Keccak256};
 
-use crate::clients::CrossChainExecutor;
+use crate::clients::external;
 use crate::events::AxelarnetGatewayEvent;
-use crate::state;
 use crate::state::Config;
+use crate::{state, AxelarExecutableMsg};
 
 #[derive(thiserror::Error, Debug, IntoContractError)]
 pub enum Error {
@@ -38,14 +38,12 @@ pub enum Error {
     SaveRoutableMessage,
     #[error("invalid cross-chain id")]
     InvalidCrossChainId,
-    #[error("failed to create executor")]
-    CreateExecutor,
-    #[error("not allowed to execute payload")]
-    PayloadNotApproved,
     #[error("unable to generate event index")]
     EventIndex,
     #[error("invalid source address {0}")]
     InvalidSourceAddress(Addr),
+    #[error("invalid destination address {0}")]
+    InvalidDestinationAddress(String),
 }
 
 #[cw_serde]
@@ -56,12 +54,12 @@ pub struct CallContractData {
 }
 
 impl CallContractData {
-    pub fn into_message(self, id: CrossChainId, source_address: Address) -> Message {
+    pub fn to_message(&self, id: CrossChainId, source_address: Address) -> Message {
         Message {
             cc_id: id,
             source_address,
-            destination_chain: self.destination_chain,
-            destination_address: self.destination_address,
+            destination_chain: self.destination_chain.clone(),
+            destination_address: self.destination_address.clone(),
             payload_hash: Keccak256::digest(self.payload.as_slice()).into(),
         }
     }
@@ -73,8 +71,6 @@ pub fn call_contract(
     sender: Addr,
     call_contract: CallContractData,
 ) -> Result<Response, Error> {
-    let payload = call_contract.payload.clone();
-
     let Config { router, chain_name } =
         state::load_config(storage).change_context(Error::ConfigAccess)?;
 
@@ -82,15 +78,20 @@ pub fn call_contract(
         .change_context(Error::CrossChainIdGeneration)?;
     let source_address = Address::from_str(sender.as_str())
         .change_context(Error::InvalidSourceAddress(sender.clone()))?;
-    let msg = call_contract.into_message(id, source_address);
+    let msg = call_contract.to_message(id, source_address);
 
     state::save_unique_routable_msg(storage, &msg.cc_id, &msg)
         .inspect_err(|err| panic_if_already_exists(err, &msg.cc_id))
         .change_context(Error::SaveRoutableMessage)?;
 
     Ok(
-        route_to_router(storage, &Router { address: router }, vec![msg.clone()])?
-            .add_event(AxelarnetGatewayEvent::ContractCalled { msg, payload }.into()),
+        route_to_router(storage, &Router { address: router }, vec![msg.clone()])?.add_event(
+            AxelarnetGatewayEvent::ContractCalled {
+                msg,
+                payload: call_contract.payload,
+            }
+            .into(),
+        ),
     )
 }
 
@@ -113,20 +114,37 @@ pub fn route_messages(
 
 pub fn execute(deps: DepsMut, cc_id: CrossChainId, payload: HexBinary) -> Result<Response, Error> {
     let payload_hash: [u8; 32] = Keccak256::digest(payload.as_slice()).into();
-    let msg = state::update_as_executed(deps.storage, &cc_id, |msg| {
+    let msg = state::mark_as_executed(deps.storage, &cc_id, ensure_same_payload_hash(payload_hash))
+        .change_context(Error::MarkExecuted(cc_id.clone()))?;
+
+    let execute_msg =
+        external_client(deps, &msg.destination_address)?.execute(AxelarExecutableMsg {
+            cc_id,
+            source_address: msg.source_address.clone(),
+            payload,
+        });
+
+    Response::new()
+        .add_message(execute_msg)
+        .add_event(AxelarnetGatewayEvent::MessageExecuted { msg }.into())
+        .then(Ok)
+}
+
+fn external_client(deps: DepsMut, contract_addr: &str) -> Result<external::Client, Error> {
+    let destination = address::validate_cosmwasm_address(deps.api, contract_addr)
+        .change_context(Error::InvalidDestinationAddress(contract_addr.to_string()))?;
+
+    Ok(external::Client::new(deps.querier, &destination))
+}
+
+fn ensure_same_payload_hash(
+    payload_hash: [u8; 32],
+) -> fn(Message) -> core::result::Result<Message, state::Error> {
+    |msg| {
         (payload_hash == msg.payload_hash)
             .then_some(msg)
             .ok_or(state::Error::PayloadHashMismatch)
-    })
-    .change_context(Error::MarkExecuted(cc_id.clone()))?;
-
-    let executor = CrossChainExecutor::new(deps.as_ref(), &msg.destination_address)
-        .change_context(Error::CreateExecutor)?;
-
-    Response::new()
-        .add_message(executor.prepare_execute_msg(cc_id, msg.source_address.clone(), payload))
-        .add_event(AxelarnetGatewayEvent::MessageExecuted { msg }.into())
-        .then(Ok)
+    }
 }
 
 fn generate_cross_chain_id(
@@ -189,7 +207,11 @@ fn route_to_router(
     let msgs: Vec<_> = msgs
         .into_iter()
         .unique()
-        .filter_map(|msg| verify_message(store, msg).transpose())
+        .map(|msg| try_load_executable_msg(store, msg))
+        .filter_map_ok(|msg| match msg {
+            Some(msg) => Some(msg),
+            None => None,
+        })
         .try_collect()?;
 
     Ok(Response::new()
@@ -202,7 +224,10 @@ fn route_to_router(
 
 /// Verify that the message is stored and matches the one we're trying to route. Returns Ok(None) if
 /// the message is not stored.
-fn verify_message(store: &mut dyn Storage, msg: Message) -> Result<Option<Message>, Error> {
+fn try_load_executable_msg(
+    store: &mut dyn Storage,
+    msg: Message,
+) -> Result<Option<Message>, Error> {
     let stored_msg = state::may_load_routable_msg(store, &msg.cc_id)
         .change_context(Error::ExecutableMessageAccess)?;
 

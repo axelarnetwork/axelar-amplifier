@@ -1,6 +1,5 @@
-use axelar_wasm_std::address;
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Deps, HexBinary, WasmMsg};
+use cosmwasm_std::{Addr, HexBinary, QuerierWrapper, WasmMsg};
 use router_api::{Address, CrossChainId};
 
 /// `AxelarExecutableMsg` is a struct containing the args used by the axelarnet gateway to execute a destination contract on Axelar.
@@ -15,84 +14,56 @@ pub struct AxelarExecutableMsg {
 /// By convention, amplifier-compatible contracts must expose this `Execute` variant.
 /// Due to identical json serialization, we can imitate it here so the gateway can call it.
 #[cw_serde]
-pub enum ExecuteMsg {
+enum ExecuteMsg {
     /// Execute the message at the destination contract with the corresponding payload.
     Execute(AxelarExecutableMsg),
 }
 
-pub struct CrossChainExecutor<'a> {
+pub struct Client<'a> {
     client: client::Client<'a, ExecuteMsg, ()>,
 }
 
-impl<'a> CrossChainExecutor<'a> {
-    pub fn new(deps: Deps<'a>, destination: &str) -> error_stack::Result<Self, address::Error> {
-        let destination = address::validate_cosmwasm_address(deps.api, destination)?;
-        Ok(CrossChainExecutor {
-            client: client::Client::new(deps.querier, destination),
-        })
+impl<'a> Client<'a> {
+    pub fn new(querier: QuerierWrapper<'a>, destination: &'a Addr) -> Self {
+        Client {
+            client: client::Client::new(querier, destination),
+        }
     }
 
-    pub fn prepare_execute_msg(
-        &self,
-        cc_id: CrossChainId,
-        source_address: Address,
-        payload: HexBinary,
-    ) -> WasmMsg {
-        self.client
-            .execute(&ExecuteMsg::Execute(AxelarExecutableMsg {
-                cc_id,
-                source_address,
-                payload,
-            }))
-    }
-}
-
-impl<'a> From<client::Client<'a, ExecuteMsg, ()>> for CrossChainExecutor<'a> {
-    fn from(client: client::Client<'a, ExecuteMsg, ()>) -> Self {
-        CrossChainExecutor { client }
+    pub fn execute(&self, msg: AxelarExecutableMsg) -> WasmMsg {
+        self.client.execute(&ExecuteMsg::Execute(msg))
     }
 }
 
 #[cfg(test)]
 mod test {
-    use cosmwasm_std::testing::MockQuerier;
-    use cosmwasm_std::{to_json_binary, Addr, QuerierWrapper};
+    use cosmwasm_std::testing::mock_dependencies;
+    use cosmwasm_std::{to_json_binary, Addr, HexBinary, WasmMsg};
+    use router_api::CrossChainId;
 
-    use super::*;
+    use crate::clients::external;
 
     #[test]
     fn execute_message() {
-        let (querier, addr) = setup();
-        let client: CrossChainExecutor =
-            client::Client::new(QuerierWrapper::new(&querier), addr.clone()).into();
+        let deps = mock_dependencies();
 
-        let cc_id = CrossChainId::new("source-chain", "message-id").unwrap();
-        let source_address: Address = "source-address".parse().unwrap();
-        let payload = HexBinary::from(vec![1, 2, 3]);
+        let destination_addr = Addr::unchecked("axelar-executable");
 
-        let msg =
-            client.prepare_execute_msg(cc_id.clone(), source_address.clone(), payload.clone());
+        let executable_msg = external::AxelarExecutableMsg {
+            source_address: "source-address".parse().unwrap(),
+            payload: HexBinary::from(vec![1, 2, 3]),
+            cc_id: CrossChainId::new("source-chain", "message-id").unwrap(),
+        };
+
+        let client = external::Client::new(deps.as_ref().querier, &destination_addr);
 
         assert_eq!(
-            msg,
+            client.execute(executable_msg.clone()),
             WasmMsg::Execute {
-                contract_addr: addr.to_string(),
-                msg: to_json_binary(&ExecuteMsg::Execute(AxelarExecutableMsg {
-                    cc_id,
-                    source_address,
-                    payload,
-                }))
-                .unwrap(),
+                contract_addr: destination_addr.to_string(),
+                msg: to_json_binary(&external::ExecuteMsg::Execute(executable_msg)).unwrap(),
                 funds: vec![],
             }
         );
-    }
-
-    fn setup() -> (MockQuerier, Addr) {
-        let addr = Addr::unchecked("axelar-executable");
-
-        let querier = MockQuerier::default();
-
-        (querier, addr)
     }
 }

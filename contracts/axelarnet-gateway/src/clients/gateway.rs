@@ -77,8 +77,7 @@ mod test {
     #[test]
     fn call_contract() {
         let (querier, _, addr) = setup();
-        let client: Client =
-            client::Client::new(QuerierWrapper::new(&querier), addr.clone()).into();
+        let client: Client = client::Client::new(QuerierWrapper::new(&querier), &addr).into();
 
         let destination_chain: ChainName = "destination-chain".parse().unwrap();
         let destination_address: Address = "destination-address".parse().unwrap();
@@ -108,8 +107,7 @@ mod test {
     #[test]
     fn execute_message() {
         let (querier, _, addr) = setup();
-        let client: Client =
-            client::Client::new(QuerierWrapper::new(&querier), addr.clone()).into();
+        let client: Client = client::Client::new(QuerierWrapper::new(&querier), &addr).into();
 
         let payload = HexBinary::from(vec![1, 2, 3]);
         let cc_id = CrossChainId::new("source-chain", "message-id").unwrap();

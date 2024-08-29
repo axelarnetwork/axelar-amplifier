@@ -22,8 +22,8 @@ pub enum Error {
     RouteMessages,
     #[error("failed to execute a cross-chain execution payload")]
     Execute,
-    #[error("failed to query cross-chain contract call messages")]
-    QueryContractCallMessages,
+    #[error("failed to query routable messages")]
+    QueryRoutableMessage,
     #[error("failed to query executable messages")]
     QueryExecutableMessages,
 }
@@ -93,14 +93,15 @@ pub fn execute(
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
     match msg {
         QueryMsg::RoutableMessages { cc_ids } => to_json_binary(
-            &query::routable_messages(deps, cc_ids)
-                .change_context(Error::QueryContractCallMessages)?,
+            &query::routable_messages(deps, cc_ids).change_context(Error::QueryRoutableMessage)?,
         ),
         QueryMsg::ExecutableMessages { cc_ids } => to_json_binary(
             &query::executable_messages(deps, cc_ids)
                 .change_context(Error::QueryExecutableMessages)?,
         ),
-        QueryMsg::ChainName => to_json_binary(&query::chain_name().change_context(Error::QueryChainName)?),
+        QueryMsg::ChainName => {
+            to_json_binary(&query::chain_name().change_context(Error::QueryChainName)?)
+        }
     }?
     .then(Ok)
 }

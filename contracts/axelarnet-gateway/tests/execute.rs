@@ -1,8 +1,8 @@
 use std::str::FromStr;
 
 use axelar_wasm_std::error::ContractError;
+use axelarnet_gateway::contract;
 use axelarnet_gateway::msg::ExecuteMsg;
-use axelarnet_gateway::{contract, ExternalExecuteMsg};
 use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
 use cosmwasm_std::{DepsMut, HexBinary, Response};
 use router_api::msg::ExecuteMsg as RouterExecuteMsg;
@@ -69,7 +69,7 @@ fn execute_approved_message_once_returns_correct_message() {
     let response = utils::execute_payload(deps.as_mut(), cc_id, payload);
     assert!(response.is_ok());
 
-    let msg = inspect_response_msg::<ExternalExecuteMsg>(response.unwrap());
+    let msg = inspect_response_msg::<utils::ExecuteMsg>(response.unwrap());
     assert!(msg.is_ok());
     goldie::assert_json!(msg.unwrap())
 }

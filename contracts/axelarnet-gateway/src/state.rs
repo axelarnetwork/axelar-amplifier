@@ -39,8 +39,9 @@ pub struct Config {
 
 #[cw_serde]
 pub enum ExecutableMessage {
-    // sent by the router, but not executed yet
+    /// A message that has been sent by the router, but not executed yet.
     Approved(Message),
+    /// An approved message that has been executed.
     Executed(Message),
 }
 
@@ -112,15 +113,16 @@ pub fn load_executable_msg(
 }
 
 /// Update the status of a message to executed if it is in approved status, error otherwise.
-pub fn update_as_executed(
+/// The validation function can define additional checks on the message.
+pub fn mark_as_executed(
     storage: &mut dyn Storage,
     cc_id: &CrossChainId,
-    action: impl FnOnce(Message) -> Result<Message, Error>,
+    validate: impl FnOnce(Message) -> Result<Message, Error>,
 ) -> Result<Message, Error> {
     let msg = match may_load_executable_msg(storage, cc_id)? {
         None => Err(Error::MessageNotApproved(cc_id.clone())),
         Some(ExecutableMessage::Executed(_)) => Err(Error::MessageAlreadyExecuted(cc_id.clone())),
-        Some(ExecutableMessage::Approved(msg)) => Ok(action(msg)?),
+        Some(ExecutableMessage::Approved(msg)) => Ok(validate(msg)?),
     }?;
 
     EXECUTABLE_MESSAGES.save(storage, cc_id, &ExecutableMessage::Executed(msg.clone()))?;
