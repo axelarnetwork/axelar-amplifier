@@ -24,6 +24,6 @@ pub fn executable_messages(
         .try_collect()
 }
 
-pub fn chain_name(storage: &dyn Storage) -> Result<ChainName, state::Error> {
-    state::load_config(storage).map(|config| config.chain_name)
+pub fn chain_name(storage: &dyn Storage) -> ChainName {
+    state::load_config(storage).chain_name
 }

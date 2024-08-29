@@ -26,8 +26,6 @@ pub enum Error {
     QueryRoutableMessage,
     #[error("failed to query executable messages")]
     QueryExecutableMessages,
-    #[error("failed to query chain name")]
-    QueryChainName,
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -104,9 +102,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
             &query::executable_messages(deps.storage, cc_ids)
                 .change_context(Error::QueryExecutableMessages)?,
         ),
-        QueryMsg::ChainName => {
-            to_json_binary(&query::chain_name(deps.storage).change_context(Error::QueryChainName)?)
-        }
+        QueryMsg::ChainName => to_json_binary(&query::chain_name(deps.storage)),
     }?
     .then(Ok)
 }
