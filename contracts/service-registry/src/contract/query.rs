@@ -16,7 +16,7 @@ pub fn active_verifiers(
         .ok_or(ContractError::ServiceNotFound)?;
 
     let verifiers: Vec<_> = VERIFIERS_PER_CHAIN
-        .prefix((&service_name.clone(), &chain_name.clone()))
+        .prefix((service_name.clone(), chain_name.clone()))
         .keys(deps.storage, None, None, Order::Ascending)
         .filter_map_ok(|verifier_addr| {
             VERIFIERS

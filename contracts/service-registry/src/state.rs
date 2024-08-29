@@ -160,7 +160,7 @@ impl<'a> IndexList<()> for VerifierPerChainIndexes<'a> {
 }
 
 pub const VERIFIERS_PER_CHAIN: IndexedMap<
-    (&ServiceName, &ChainName, &VerifierAddress),
+    (ServiceName, ChainName, VerifierAddress),
     (),
     VerifierPerChainIndexes,
 > = IndexedMap::new(
@@ -194,7 +194,7 @@ pub fn register_chains_support(
     for chain in chains.iter() {
         VERIFIERS_PER_CHAIN.save(
             storage,
-            (&service_name.clone(), &chain.clone(), &verifier.clone()),
+            (service_name.clone(), chain.clone(), verifier.clone()),
             &(),
         )?;
     }
@@ -208,7 +208,7 @@ pub fn deregister_chains_support(
     verifier: VerifierAddress,
 ) -> Result<(), ContractError> {
     for chain in chains {
-        VERIFIERS_PER_CHAIN.remove(storage, (&service_name.clone(), &chain, &verifier.clone()))?;
+        VERIFIERS_PER_CHAIN.remove(storage, (service_name.clone(), chain, verifier.clone()))?;
     }
     Ok(())
 }
