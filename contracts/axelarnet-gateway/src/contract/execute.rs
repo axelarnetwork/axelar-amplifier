@@ -137,7 +137,7 @@ fn ensure_same_payload_hash(
     payload_hash: &[u8; 32],
 ) -> impl FnOnce(&Message) -> core::result::Result<(), state::Error> + '_ {
     |msg| {
-        if *payload_hash == msg.payload_hash {
+        if *payload_hash != msg.payload_hash {
             return Err(state::Error::PayloadHashMismatch);
         }
 
