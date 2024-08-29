@@ -4,5 +4,5 @@ pub mod msg;
 mod state;
 
 mod clients;
-pub use clients::{AxelarExecutableMsg, ExecuteMsg as ExternalExecuteMsg, GatewayClient};
+pub use clients::{external::AxelarExecutableMsg, gateway::Client};
 pub use state::ExecutableMessage;

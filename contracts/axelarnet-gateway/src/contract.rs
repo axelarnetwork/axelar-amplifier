@@ -100,6 +100,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
             &query::executable_messages(deps, cc_ids)
                 .change_context(Error::QueryExecutableMessages)?,
         ),
+        QueryMsg::ChainName => to_json_binary(&query::chain_name().change_context(Error::QueryChainName)?),
     }?
     .then(Ok)
 }

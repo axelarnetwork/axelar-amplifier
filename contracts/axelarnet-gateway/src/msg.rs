@@ -50,4 +50,8 @@ pub enum QueryMsg {
     /// Returns the received messages with their status for the given cross-chain ids.
     #[returns(Vec<ExecutableMessage>)]
     ExecutableMessages { cc_ids: Vec<CrossChainId> },
+
+    /// Returns the chain name for this gateway.
+    #[returns(ChainName)]
+    ChainName,
 }
