@@ -32,8 +32,6 @@ pub enum Error {
     },
     #[error("failed to generate cross chain id")]
     CrossChainIdGeneration,
-    #[error("unable to load the contract config")]
-    ConfigAccess,
     #[error("unable to save the message before routing")]
     SaveRoutableMessage,
     #[error("invalid cross-chain id")]
@@ -71,8 +69,7 @@ pub fn call_contract(
     sender: Addr,
     call_contract: CallContractData,
 ) -> Result<Response, Error> {
-    let Config { router, chain_name } =
-        state::load_config(storage).change_context(Error::ConfigAccess)?;
+    let Config { router, chain_name } = state::load_config(storage);
 
     let id = generate_cross_chain_id(storage, block_height, chain_name)
         .change_context(Error::CrossChainIdGeneration)?;
@@ -100,8 +97,7 @@ pub fn route_messages(
     sender: Addr,
     msgs: Vec<Message>,
 ) -> Result<Response, Error> {
-    let Config { chain_name, router } =
-        state::load_config(storage).change_context(Error::ConfigAccess)?;
+    let Config { chain_name, router } = state::load_config(storage);
     let router = Router { address: router };
 
     if sender == router.address {

@@ -3,7 +3,7 @@ use axelarnet_gateway::{contract, ExecutableMessage};
 use cosmwasm_std::testing::{mock_dependencies, mock_env, MockApi, MockQuerier, MockStorage};
 use cosmwasm_std::{from_json, Deps, OwnedDeps};
 use router_api::msg::ExecuteMsg as RouterExecuteMsg;
-use router_api::{CrossChainId, Message};
+use router_api::{ChainName, CrossChainId, Message};
 use sha3::{Digest, Keccak256};
 
 use crate::utils::messages::inspect_response_msg;
@@ -40,6 +40,17 @@ fn query_executable_messages_gets_expected_messages() {
     goldie::assert_json!(result.unwrap());
 }
 
+#[test]
+fn query_chain_name_gets_expected_chain() {
+    let mut deps = mock_dependencies();
+
+    utils::instantiate_contract(deps.as_mut()).unwrap();
+
+    let result = query_chain_name(deps.as_ref());
+
+    assert_eq!(result.unwrap().as_ref(), params::AXELARNET);
+}
+
 fn query_routable_messages(deps: Deps, cc_ids: Vec<CrossChainId>) -> Result<Vec<Message>, ()> {
     from_json(
         contract::query(deps, mock_env(), QueryMsg::RoutableMessages { cc_ids }).map_err(|_| ())?,
@@ -56,6 +67,11 @@ fn query_executable_messages(
             .map_err(|_| ())?,
     )
     .map_err(|_| ())
+}
+
+fn query_chain_name(deps: Deps) -> Result<ChainName, ()> {
+    from_json(contract::query(deps, mock_env(), QueryMsg::ChainName).map_err(|_| ())?)
+        .map_err(|_| ())
 }
 
 fn populate_routable_messages(

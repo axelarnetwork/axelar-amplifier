@@ -57,8 +57,10 @@ pub fn save_config(storage: &mut dyn Storage, value: &Config) -> Result<(), Erro
     Ok(CONFIG.save(storage, value)?)
 }
 
-pub fn load_config(storage: &dyn Storage) -> Result<Config, Error> {
-    CONFIG.may_load(storage)?.ok_or(Error::MissingConfig)
+pub fn load_config(storage: &dyn Storage) -> Config {
+    CONFIG
+        .load(storage)
+        .expect("gateway config must be set during instantiation")
 }
 
 pub fn save_unique_routable_msg(
