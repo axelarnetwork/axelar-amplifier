@@ -812,7 +812,6 @@ dependencies = [
  "cw2 1.1.2",
  "error-stack",
  "flagset",
- "goldie",
  "hex",
  "into-inner-derive",
  "itertools 0.11.0",
