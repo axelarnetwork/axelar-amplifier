@@ -52,10 +52,12 @@ pub fn instantiate(
 ) -> Result<Response, ContractError> {
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    let router = address::validate_cosmwasm_address(deps.api, &msg.router_address)?;
-    let chain_name = msg.chain_name;
+    let config = Config {
+        chain_name: msg.chain_name,
+        router: address::validate_cosmwasm_address(deps.api, &msg.router_address)?,
+    };
 
-    state::save_config(deps.storage, &Config { chain_name, router })?;
+    state::save_config(deps.storage, &config)?;
     Ok(Response::new())
 }
 
