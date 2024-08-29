@@ -26,6 +26,8 @@ pub enum Error {
     QueryRoutableMessage,
     #[error("failed to query executable messages")]
     QueryExecutableMessages,
+    #[error("failed to query chain name")]
+    QueryChainName,
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -93,14 +95,15 @@ pub fn execute(
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
     match msg {
         QueryMsg::RoutableMessages { cc_ids } => to_json_binary(
-            &query::routable_messages(deps, cc_ids).change_context(Error::QueryRoutableMessage)?,
+            &query::routable_messages(deps.storage, cc_ids)
+                .change_context(Error::QueryRoutableMessage)?,
         ),
         QueryMsg::ExecutableMessages { cc_ids } => to_json_binary(
-            &query::executable_messages(deps, cc_ids)
+            &query::executable_messages(deps.storage, cc_ids)
                 .change_context(Error::QueryExecutableMessages)?,
         ),
         QueryMsg::ChainName => {
-            to_json_binary(&query::chain_name().change_context(Error::QueryChainName)?)
+            to_json_binary(&query::chain_name(deps.storage).change_context(Error::QueryChainName)?)
         }
     }?
     .then(Ok)

@@ -65,8 +65,7 @@ mod test {
     #[test]
     fn chain_name() {
         let (querier, _, addr) = setup();
-        let client: Client =
-            client::Client::new(QuerierWrapper::new(&querier), addr.clone()).into();
+        let client: Client = client::Client::new(QuerierWrapper::new(&querier), &addr).into();
 
         assert_eq!(
             client.chain_name().unwrap(),

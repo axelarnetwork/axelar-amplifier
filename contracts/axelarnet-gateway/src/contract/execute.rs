@@ -114,34 +114,34 @@ pub fn route_messages(
 
 pub fn execute(deps: DepsMut, cc_id: CrossChainId, payload: HexBinary) -> Result<Response, Error> {
     let payload_hash: [u8; 32] = Keccak256::digest(payload.as_slice()).into();
-    let msg = state::mark_as_executed(deps.storage, &cc_id, ensure_same_payload_hash(payload_hash))
-        .change_context(Error::MarkExecuted(cc_id.clone()))?;
+    let msg = state::mark_as_executed(
+        deps.storage,
+        &cc_id,
+        ensure_same_payload_hash(&payload_hash),
+    )
+    .change_context(Error::MarkExecuted(cc_id.clone()))?;
 
-    let execute_msg =
-        external_client(deps, &msg.destination_address)?.execute(AxelarExecutableMsg {
-            cc_id,
-            source_address: msg.source_address.clone(),
-            payload,
-        });
+    let executable_msg = AxelarExecutableMsg {
+        cc_id,
+        source_address: msg.source_address.clone(),
+        payload,
+    };
 
+    let destination = address::validate_cosmwasm_address(deps.api, &msg.destination_address)
+        .change_context(Error::InvalidDestinationAddress(
+            msg.destination_address.to_string(),
+        ))?;
     Response::new()
-        .add_message(execute_msg)
+        .add_message(external::Client::new(deps.querier, &destination).execute(executable_msg))
         .add_event(AxelarnetGatewayEvent::MessageExecuted { msg }.into())
         .then(Ok)
 }
 
-fn external_client(deps: DepsMut, contract_addr: &str) -> Result<external::Client, Error> {
-    let destination = address::validate_cosmwasm_address(deps.api, contract_addr)
-        .change_context(Error::InvalidDestinationAddress(contract_addr.to_string()))?;
-
-    Ok(external::Client::new(deps.querier, &destination))
-}
-
 fn ensure_same_payload_hash(
-    payload_hash: [u8; 32],
-) -> fn(Message) -> core::result::Result<Message, state::Error> {
+    payload_hash: &[u8; 32],
+) -> impl FnOnce(Message) -> core::result::Result<Message, state::Error> + '_ {
     |msg| {
-        (payload_hash == msg.payload_hash)
+        (*payload_hash == msg.payload_hash)
             .then_some(msg)
             .ok_or(state::Error::PayloadHashMismatch)
     }
@@ -208,10 +208,7 @@ fn route_to_router(
         .into_iter()
         .unique()
         .map(|msg| try_load_executable_msg(store, msg))
-        .filter_map_ok(|msg| match msg {
-            Some(msg) => Some(msg),
-            None => None,
-        })
+        .filter_map_ok(|msg| msg)
         .try_collect()?;
 
     Ok(Response::new()
