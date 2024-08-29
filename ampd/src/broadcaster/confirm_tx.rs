@@ -1,17 +1,17 @@
-use std::time::Duration;
+use std::sync::Arc;
 
 use axelar_wasm_std::FnExt;
 use cosmrs::proto::cosmos::tx::v1beta1::{GetTxRequest, GetTxResponse};
-use error_stack::{report, Report, Result};
+use error_stack::{bail, Report, Result};
 use futures::{StreamExt, TryFutureExt};
 use thiserror::Error;
 use tokio::sync::{mpsc, Mutex};
-use tokio::time;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::Status;
 use tracing::error;
 
 use super::cosmos;
+use crate::asyncutil::future::{with_retry, RetryPolicy};
 
 #[derive(Debug, PartialEq)]
 pub enum TxStatus {
@@ -53,19 +53,12 @@ pub enum Error {
     SendTxRes(#[from] Box<mpsc::error::SendError<TxResponse>>),
 }
 
-enum ConfirmationResult {
-    Confirmed(Box<TxResponse>),
-    NotFound,
-    GRPCError(Status),
-}
-
 pub struct TxConfirmer<T>
 where
     T: cosmos::BroadcastClient,
 {
     client: T,
-    sleep: Duration,
-    max_attempts: u32,
+    retry_policy: RetryPolicy,
     tx_hash_receiver: mpsc::Receiver<String>,
     tx_res_sender: mpsc::Sender<TxResponse>,
 }
@@ -76,15 +69,13 @@ where
 {
     pub fn new(
         client: T,
-        sleep: Duration,
-        max_attempts: u32,
+        retry_policy: RetryPolicy,
         tx_hash_receiver: mpsc::Receiver<String>,
         tx_res_sender: mpsc::Sender<TxResponse>,
     ) -> Self {
         Self {
             client,
-            sleep,
-            max_attempts,
+            retry_policy,
             tx_hash_receiver,
             tx_res_sender,
         }
@@ -93,23 +84,19 @@ where
     pub async fn run(self) -> Result<(), Error> {
         let Self {
             client,
-            sleep,
-            max_attempts,
+            retry_policy,
             tx_hash_receiver,
             tx_res_sender,
         } = self;
         let limit = tx_hash_receiver.capacity();
-        let client = Mutex::new(client);
+        let client = Arc::new(Mutex::new(client));
+
         let mut tx_hash_stream = ReceiverStream::new(tx_hash_receiver)
             .map(|tx_hash| {
-                confirm_tx(&client, tx_hash, sleep, max_attempts).and_then(|tx| async {
-                    tx_res_sender
-                        .send(tx)
-                        .await
-                        .map_err(Box::new)
-                        .map_err(Into::into)
-                        .map_err(Report::new)
-                })
+                // multiple instances of confirm_tx can be spawned due to buffer_unordered,
+                // so we need to clone the client to avoid a deadlock
+                confirm_tx_with_retry(client.clone(), tx_hash, retry_policy)
+                    .and_then(|tx| async { send_response(&tx_res_sender, tx).await })
             })
             .buffer_unordered(limit);
 
@@ -121,48 +108,61 @@ where
     }
 }
 
-async fn confirm_tx<T>(
-    client: &Mutex<T>,
+async fn confirm_tx_with_retry(
+    client: Arc<Mutex<impl cosmos::BroadcastClient>>,
     tx_hash: String,
-    sleep: Duration,
-    attempts: u32,
-) -> Result<TxResponse, Error>
-where
-    T: cosmos::BroadcastClient,
-{
-    for i in 0..attempts {
-        let req = GetTxRequest {
-            hash: tx_hash.clone(),
-        };
+    retry_policy: RetryPolicy,
+) -> Result<TxResponse, Error> {
+    with_retry(|| confirm_tx(client.clone(), tx_hash.clone()), retry_policy).await
+}
 
-        match client.lock().await.tx(req).await.then(evaluate_tx_response) {
-            ConfirmationResult::Confirmed(tx) => return Ok(*tx),
-            ConfirmationResult::NotFound if i == attempts.saturating_sub(1) => {
-                return Err(report!(Error::Confirmation { tx_hash }))
-            }
-            ConfirmationResult::GRPCError(status) if i == attempts.saturating_sub(1) => {
-                return Err(report!(Error::Grpc { status, tx_hash }))
-            }
-            _ => time::sleep(sleep).await,
-        }
-    }
+// do to limitations of lambdas and lifetime issues this needs to be a separate function
+async fn confirm_tx(
+    client: Arc<Mutex<impl cosmos::BroadcastClient>>,
+    tx_hash: String,
+) -> Result<TxResponse, Error> {
+    let req = GetTxRequest {
+        hash: tx_hash.clone(),
+    };
 
-    unreachable!("confirmation loop should have returned by now")
+    client
+        .lock()
+        .await
+        .tx(req)
+        .await
+        .then(evaluate_tx_response(tx_hash))
 }
 
 fn evaluate_tx_response(
-    response: core::result::Result<GetTxResponse, Status>,
-) -> ConfirmationResult {
-    match response {
-        Err(status) => ConfirmationResult::GRPCError(status),
+    tx_hash: String,
+) -> impl Fn(core::result::Result<GetTxResponse, Status>) -> Result<TxResponse, Error> {
+    move |response| match response {
+        Err(status) => bail!(Error::Grpc {
+            status,
+            tx_hash: tx_hash.clone()
+        }),
         Ok(GetTxResponse {
             tx_response: None, ..
-        }) => ConfirmationResult::NotFound,
+        }) => bail!(Error::Confirmation {
+            tx_hash: tx_hash.clone()
+        }),
         Ok(GetTxResponse {
             tx_response: Some(response),
             ..
-        }) => ConfirmationResult::Confirmed(Box::new(response.into())),
+        }) => Ok(response.into()),
     }
+}
+
+async fn send_response(
+    tx_res_sender: &mpsc::Sender<TxResponse>,
+    tx: TxResponse,
+) -> Result<(), Error> {
+    tx_res_sender
+        .send(tx)
+        .await
+        .map_err(Box::new)
+        .map_err(Into::into)
+        .map_err(Report::new)
 }
 
 #[cfg(test)]
@@ -175,6 +175,7 @@ mod test {
     use tokio::test;
 
     use super::{Error, TxConfirmer, TxResponse, TxStatus};
+    use crate::asyncutil::future::RetryPolicy;
     use crate::broadcaster::cosmos::MockBroadcastClient;
 
     #[test]
@@ -205,8 +206,10 @@ mod test {
 
         let tx_confirmer = TxConfirmer::new(
             client,
-            sleep,
-            max_attempts,
+            RetryPolicy::RepeatConstant {
+                sleep,
+                max_attempts,
+            },
             tx_confirmer_receiver,
             tx_res_sender,
         );
@@ -252,8 +255,10 @@ mod test {
 
         let tx_confirmer = TxConfirmer::new(
             client,
-            sleep,
-            max_attempts,
+            RetryPolicy::RepeatConstant {
+                sleep,
+                max_attempts,
+            },
             tx_confirmer_receiver,
             tx_res_sender,
         );
@@ -291,8 +296,10 @@ mod test {
 
         let tx_confirmer = TxConfirmer::new(
             client,
-            sleep,
-            max_attempts,
+            RetryPolicy::RepeatConstant {
+                sleep,
+                max_attempts,
+            },
             tx_confirmer_receiver,
             tx_res_sender,
         );
@@ -330,8 +337,10 @@ mod test {
 
         let tx_confirmer = TxConfirmer::new(
             client,
-            sleep,
-            max_attempts,
+            RetryPolicy::RepeatConstant {
+                sleep,
+                max_attempts,
+            },
             tx_confirmer_receiver,
             tx_res_sender,
         );

@@ -5214,6 +5214,8 @@ name = "nexus-gateway"
 version = "1.0.0"
 dependencies = [
  "axelar-wasm-std",
+ "axelarnet-gateway",
+ "client",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 1.2.0",
@@ -5226,6 +5228,7 @@ dependencies = [
  "router-api",
  "schemars",
  "serde",
+ "sha3",
  "thiserror",
  "voting-verifier",
 ]
