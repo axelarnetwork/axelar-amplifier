@@ -1,9 +1,68 @@
-use cosmwasm_std::{to_json_binary, Response, Storage, WasmMsg};
+use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
+use axelar_wasm_std::nonempty;
+use cosmwasm_std::{BankMsg, HexBinary, MessageInfo, QuerierWrapper, Response, Storage};
+use error_stack::{bail, ResultExt};
+use router_api::{Address, ChainName};
+use sha3::{Digest, Keccak256};
 
 use crate::error::ContractError;
+use crate::state::load_config;
 use crate::{nexus, state};
 
 type Result<T> = error_stack::Result<T, ContractError>;
+
+pub fn call_contract_with_token(
+    storage: &mut dyn Storage,
+    querier: QuerierWrapper,
+    info: MessageInfo,
+    destination_chain: ChainName,
+    destination_address: Address,
+    payload: HexBinary,
+) -> Result<Response<nexus::Message>> {
+    let config = load_config(storage)?;
+    let axelarnet_gateway: axelarnet_gateway::Client =
+        client::Client::new(querier, &config.axelar_gateway).into();
+    let source_address: Address = info
+        .sender
+        .into_string()
+        .parse()
+        .expect("invalid sender address");
+    let token = match info.funds.as_slice() {
+        [token] => token.clone(),
+        _ => bail!(ContractError::InvalidToken(info.funds)),
+    };
+    // TODO: Retrieve the actual tx hash and event index from core, since cosmwasm doesn't provide it. Use the all zeros as the placeholder in the meantime.
+    let tx_hash = [0; 32];
+    let event_index = 0u32;
+    let id = HexTxHashAndEventIndex::new(tx_hash, event_index);
+
+    // send the token to the nexus module account
+    let bank_transfer_msg = BankMsg::Send {
+        to_address: config.nexus.to_string(),
+        amount: vec![token.clone()],
+    };
+    let msg = nexus::Message {
+        source_chain: axelarnet_gateway
+            .chain_name()
+            .change_context(ContractError::AxelarnetGateway)?
+            .into(),
+        source_address,
+        destination_chain,
+        destination_address,
+        payload_hash: Keccak256::digest(payload.as_slice()).into(),
+        source_tx_id: tx_hash
+            .to_vec()
+            .try_into()
+            .expect("tx hash must not be empty"),
+        source_tx_index: event_index.into(),
+        id: nonempty::String::from(id).into(),
+        token: Some(token),
+    };
+
+    Ok(Response::new()
+        .add_message(bank_transfer_msg)
+        .add_message(msg))
+}
 
 pub fn route_to_router(
     storage: &dyn Storage,
@@ -13,16 +72,11 @@ pub fn route_to_router(
         .into_iter()
         .map(router_api::Message::try_from)
         .collect::<Result<Vec<_>>>()?;
-    if msgs.is_empty() {
-        return Ok(Response::default());
-    }
+    let router = router_api::client::Router {
+        address: state::load_config(storage)?.router,
+    };
 
-    Ok(Response::new().add_message(WasmMsg::Execute {
-        contract_addr: state::load_config(storage)?.router.to_string(),
-        msg: to_json_binary(&router_api::msg::ExecuteMsg::RouteMessages(msgs))
-            .expect("must serialize route-messages message"),
-        funds: vec![],
-    }))
+    Ok(Response::new().add_messages(router.route(msgs)))
 }
 
 pub fn route_to_nexus(
