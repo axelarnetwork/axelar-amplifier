@@ -98,7 +98,7 @@ fn send_to_destination(
     let config = load_config(storage).change_context(Error::ConfigAccess)?;
 
     let gateway: axelarnet_gateway::Client =
-        client::Client::new(querier, config.axelarnet_gateway).into();
+        client::Client::new(querier, &config.axelarnet_gateway).into();
 
     let call_contract_msg = gateway.call_contract(destination_chain, destination_address, payload);
 
@@ -201,8 +201,9 @@ mod tests {
         let result =
             execute_message(deps.as_mut(), cc_id.clone(), source_address, payload).unwrap();
 
+        let gateway_address = Addr::unchecked("gateway");
         let axelarnet_gateway: axelarnet_gateway::Client =
-            client::Client::new(deps.as_mut().querier, Addr::unchecked("gateway")).into();
+            client::Client::new(deps.as_mut().querier, &gateway_address).into();
         let expected_msg = axelarnet_gateway.call_contract(
             destination_chain.clone(),
             destination_address,
