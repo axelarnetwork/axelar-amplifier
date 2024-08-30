@@ -3,7 +3,7 @@ use alloy_sol_types::{sol, SolValue};
 use axelar_wasm_std::{FnExt, IntoContractError};
 use cosmwasm_std::{HexBinary, Uint256};
 use error_stack::{bail, ensure, report, Report, ResultExt};
-use router_api::ChainNameRaw;
+use router_api::{ChainName, ChainNameRaw};
 
 use crate::primitives::{ItsHubMessage, ItsMessage};
 use crate::{TokenId, TokenManagerType};
@@ -212,7 +212,7 @@ impl ItsHubMessage {
                     .change_context(Error::InvalidMessage)?;
 
                 ItsHubMessage::SendToHub {
-                    destination_chain: ChainNameRaw::try_from(decoded.destination_chain)
+                    destination_chain: ChainName::try_from(decoded.destination_chain)
                         .change_context(Error::InvalidChainName)?,
                     message: ItsMessage::abi_decode(&decoded.message)?,
                 }
@@ -253,14 +253,14 @@ mod tests {
     use alloy_primitives::{FixedBytes, U256};
     use alloy_sol_types::SolValue;
     use cosmwasm_std::{HexBinary, Uint256};
-    use router_api::ChainNameRaw;
+    use router_api::ChainName;
 
     use crate::abi::{DeployTokenManager, Error, MessageType, SendToHub};
     use crate::{ItsHubMessage, ItsMessage, TokenManagerType};
 
     #[test]
     fn interchain_transfer_encode_decode() {
-        let remote_chain = ChainNameRaw::from_str("chain").unwrap();
+        let remote_chain = ChainName::from_str("chain").unwrap();
 
         let cases = vec![
             ItsHubMessage::SendToHub {
@@ -288,7 +288,7 @@ mod tests {
                 },
             },
             ItsHubMessage::ReceiveFromHub {
-                source_chain: remote_chain.clone(),
+                source_chain: remote_chain.clone().into(),
                 message: ItsMessage::InterchainTransfer {
                     token_id: [0u8; 32].into(),
                     source_address: HexBinary::from_hex("").unwrap(),
@@ -298,7 +298,7 @@ mod tests {
                 },
             },
             ItsHubMessage::ReceiveFromHub {
-                source_chain: remote_chain.clone(),
+                source_chain: remote_chain.clone().into(),
                 message: ItsMessage::InterchainTransfer {
                     token_id: [255u8; 32].into(),
                     source_address: HexBinary::from_hex("4F4495243837681061C4743b74B3eEdf548D56A5")
@@ -329,7 +329,7 @@ mod tests {
 
     #[test]
     fn deploy_interchain_token_encode_decode() {
-        let remote_chain = ChainNameRaw::from_str("chain").unwrap();
+        let remote_chain = ChainName::from_str("chain").unwrap();
 
         let cases = vec![
             ItsHubMessage::SendToHub {
@@ -363,7 +363,7 @@ mod tests {
                 },
             },
             ItsHubMessage::ReceiveFromHub {
-                source_chain: remote_chain.clone(),
+                source_chain: remote_chain.clone().into(),
                 message: ItsMessage::DeployInterchainToken {
                     token_id: [0u8; 32].into(),
                     name: "".into(),
@@ -373,7 +373,7 @@ mod tests {
                 },
             },
             ItsHubMessage::ReceiveFromHub {
-                source_chain: remote_chain.clone(),
+                source_chain: remote_chain.clone().into(),
                 message: ItsMessage::DeployInterchainToken {
                     token_id: [1u8; 32].into(),
                     name: "Test Token".into(),
@@ -383,7 +383,7 @@ mod tests {
                 },
             },
             ItsHubMessage::ReceiveFromHub {
-                source_chain: remote_chain.clone(),
+                source_chain: remote_chain.clone().into(),
                 message: ItsMessage::DeployInterchainToken {
                     token_id: [0u8; 32].into(),
                     name: "Unicode Token 🪙".into(),
@@ -410,7 +410,7 @@ mod tests {
 
     #[test]
     fn deploy_token_manager_encode_decode() {
-        let remote_chain = ChainNameRaw::from_str("chain").unwrap();
+        let remote_chain = ChainName::from_str("chain").unwrap();
 
         let cases = vec![
             ItsHubMessage::SendToHub {
@@ -430,7 +430,7 @@ mod tests {
                 },
             },
             ItsHubMessage::ReceiveFromHub {
-                source_chain: remote_chain.clone(),
+                source_chain: remote_chain.clone().into(),
                 message: ItsMessage::DeployTokenManager {
                     token_id: [0u8; 32].into(),
                     token_manager_type: TokenManagerType::NativeInterchainToken,
@@ -438,7 +438,7 @@ mod tests {
                 },
             },
             ItsHubMessage::ReceiveFromHub {
-                source_chain: remote_chain.clone(),
+                source_chain: remote_chain.clone().into(),
                 message: ItsMessage::DeployTokenManager {
                     token_id: [1u8; 32].into(),
                     token_manager_type: TokenManagerType::Gateway,
@@ -550,7 +550,7 @@ mod tests {
     fn encode_decode_large_data() {
         let large_data = vec![0u8; 1024 * 1024]; // 1MB of data
         let original = ItsHubMessage::SendToHub {
-            destination_chain: ChainNameRaw::from_str("large-data-chain").unwrap(),
+            destination_chain: ChainName::from_str("large-data-chain").unwrap(),
             message: ItsMessage::InterchainTransfer {
                 token_id: [0u8; 32].into(),
                 source_address: HexBinary::from_hex("1234").unwrap(),
@@ -568,7 +568,7 @@ mod tests {
     #[test]
     fn encode_decode_unicode_strings() {
         let original = ItsHubMessage::SendToHub {
-            destination_chain: ChainNameRaw::from_str("chain").unwrap(),
+            destination_chain: ChainName::from_str("chain").unwrap(),
             message: ItsMessage::DeployInterchainToken {
                 token_id: [0u8; 32].into(),
                 name: "Unicode Token 🪙".into(),

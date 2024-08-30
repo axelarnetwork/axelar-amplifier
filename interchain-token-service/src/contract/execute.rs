@@ -37,7 +37,6 @@ pub fn execute_message(
             destination_chain,
             message,
         } => {
-            let destination_chain = to_chain_name(&destination_chain);
             let destination_address = load_its_address(deps.storage, &destination_chain)
                 .change_context_lazy(|| Error::UnknownChain(destination_chain.clone()))?;
 
@@ -192,7 +191,7 @@ mod tests {
 
         let its_message = generate_its_message();
         let its_hub_message = ItsHubMessage::SendToHub {
-            destination_chain: destination_chain.clone().into(),
+            destination_chain: destination_chain.clone(),
             message: its_message.clone(),
         };
 

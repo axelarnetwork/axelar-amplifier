@@ -76,7 +76,7 @@ fn execute() {
     let source_its_chain: ChainNameRaw = "optimism".parse().unwrap();
     let destination_its_chain: ChainName = "ethereum".parse().unwrap();
     let hub_message = ItsHubMessage::SendToHub {
-        destination_chain: destination_its_chain.clone().into(),
+        destination_chain: destination_its_chain.clone(),
         message: its_message.clone(),
     };
 
