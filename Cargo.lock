@@ -3221,11 +3221,13 @@ name = "gateway-api"
 version = "1.0.0"
 dependencies = [
  "axelar-wasm-std",
+ "client",
  "cosmwasm-schema",
  "cosmwasm-std",
  "error-stack",
  "msgs-derive",
  "router-api",
+ "thiserror",
 ]
 
 [[package]]
