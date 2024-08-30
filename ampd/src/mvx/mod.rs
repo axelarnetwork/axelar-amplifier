@@ -60,7 +60,7 @@ impl From<&VerifierSet> for WeightedSigners {
         WeightedSigners {
             signers,
             threshold: uint256_to_compact_vec(verifier_set.threshold.into()),
-            nonce: Keccak256::digest(Uint256::from(verifier_set.created_at).to_be_bytes()).into(),
+            nonce: Uint256::from(verifier_set.created_at).to_be_bytes(),
         }
     }
 }

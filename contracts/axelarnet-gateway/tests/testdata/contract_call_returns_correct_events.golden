@@ -1,0 +1,64 @@
+[
+  {
+    "type": "routing",
+    "attributes": [
+      {
+        "key": "message_id",
+        "value": "0x0000000000000000000000000000000000000000000000000000000000003039-1"
+      },
+      {
+        "key": "source_chain",
+        "value": "axelarnet"
+      },
+      {
+        "key": "source_address",
+        "value": "sender"
+      },
+      {
+        "key": "destination_chain",
+        "value": "destination-chain"
+      },
+      {
+        "key": "destination_address",
+        "value": "destination-address"
+      },
+      {
+        "key": "payload_hash",
+        "value": "f1885eda54b7a053318cd41e2093220dab15d65381b1157a3633a83bfd5c9239"
+      }
+    ]
+  },
+  {
+    "type": "contract_called",
+    "attributes": [
+      {
+        "key": "message_id",
+        "value": "0x0000000000000000000000000000000000000000000000000000000000003039-1"
+      },
+      {
+        "key": "source_chain",
+        "value": "axelarnet"
+      },
+      {
+        "key": "source_address",
+        "value": "sender"
+      },
+      {
+        "key": "destination_chain",
+        "value": "destination-chain"
+      },
+      {
+        "key": "destination_address",
+        "value": "destination-address"
+      },
+      {
+        "key": "payload_hash",
+        "value": "f1885eda54b7a053318cd41e2093220dab15d65381b1157a3633a83bfd5c9239"
+      },
+      {
+        "key": "payload",
+        "value": "010203"
+      }
+    ]
+  }
+]
