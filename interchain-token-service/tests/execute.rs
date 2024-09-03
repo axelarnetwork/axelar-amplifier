@@ -10,7 +10,7 @@ use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
 mod utils;
 
 #[test]
-fn set_its_address() {
+fn register_its_address_succeeds() {
     let mut deps = mock_dependencies();
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
@@ -30,7 +30,7 @@ fn set_its_address() {
 }
 
 #[test]
-fn remove_its_address() {
+fn deregister_its_address_succeeds() {
     let mut deps = mock_dependencies();
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
@@ -52,7 +52,7 @@ fn remove_its_address() {
 }
 
 #[test]
-fn execute() {
+fn execute_interchain_transfer_succeeds() {
     let mut deps = mock_dependencies();
     utils::instantiate_contract(deps.as_mut()).unwrap();
 

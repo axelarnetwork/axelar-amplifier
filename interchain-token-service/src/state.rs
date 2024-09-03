@@ -25,7 +25,9 @@ const CONFIG: Item<Config> = Item::new("config");
 const ITS_ADDRESSES: Map<&ChainName, Address> = Map::new("its_addresses");
 
 pub fn load_config(storage: &dyn Storage) -> Config {
-    CONFIG.load(storage).expect("config must be set during instantiation")
+    CONFIG
+        .load(storage)
+        .expect("config must be set during instantiation")
 }
 
 pub fn save_config(storage: &mut dyn Storage, config: &Config) -> Result<(), Error> {

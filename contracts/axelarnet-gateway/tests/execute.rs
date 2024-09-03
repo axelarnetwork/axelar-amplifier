@@ -1,6 +1,7 @@
 use std::str::FromStr;
 
-use axelar_wasm_std::{error::ContractError, response::inspect_response_msg};
+use axelar_wasm_std::error::ContractError;
+use axelar_wasm_std::response::inspect_response_msg;
 use axelarnet_gateway::contract;
 use axelarnet_gateway::msg::ExecuteMsg;
 use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};

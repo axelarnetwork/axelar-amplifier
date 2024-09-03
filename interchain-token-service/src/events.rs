@@ -26,11 +26,14 @@ impl From<Event> for cosmwasm_std::Event {
                 destination_chain,
                 message,
             } => make_its_message_event("its_message_received", cc_id, destination_chain, message),
-            Event::ItsAddressRegistered { chain, address } => cosmwasm_std::Event::new("its_address_registered")
-                .add_attribute("chain", chain.to_string())
-                .add_attribute("address", address.to_string()),
+            Event::ItsAddressRegistered { chain, address } => {
+                cosmwasm_std::Event::new("its_address_registered")
+                    .add_attribute("chain", chain.to_string())
+                    .add_attribute("address", address.to_string())
+            }
             Event::ItsAddressDeregistered { chain } => {
-                cosmwasm_std::Event::new("its_address_deregistered").add_attribute("chain", chain.to_string())
+                cosmwasm_std::Event::new("its_address_deregistered")
+                    .add_attribute("chain", chain.to_string())
             }
         }
     }

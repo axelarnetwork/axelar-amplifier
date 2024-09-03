@@ -129,7 +129,7 @@ mod tests {
     use cosmwasm_std::testing::{
         mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
     };
-    use cosmwasm_std::{Addr, CosmosMsg, DepsMut, Empty, OwnedDeps, Uint256};
+    use cosmwasm_std::{Addr, CosmosMsg, Empty, OwnedDeps, Uint256};
     use router_api::{Address, ChainName, CrossChainId};
 
     use super::*;
@@ -168,7 +168,7 @@ mod tests {
     }
 
     #[test]
-    fn execute_message_send_to_hub() {
+    fn execute_message_returns_correct_message() {
         let mut deps = setup();
         let source_chain: ChainName = "source-chain".parse().unwrap();
         let destination_chain: ChainName = "destination-chain".parse().unwrap();
@@ -176,7 +176,12 @@ mod tests {
         let destination_address: Address = "its-destination".parse().unwrap();
 
         register_its_address(deps.as_mut(), source_chain.clone(), source_address.clone()).unwrap();
-        register_its_address(deps.as_mut(), destination_chain.clone(), destination_address.clone()).unwrap();
+        register_its_address(
+            deps.as_mut(),
+            destination_chain.clone(),
+            destination_address.clone(),
+        )
+        .unwrap();
 
         let its_message = dummy_its_message();
         let its_hub_message = ItsHubMessage::SendToHub {
@@ -209,11 +214,14 @@ mod tests {
             destination_chain,
             message: its_message,
         };
-        assert_eq!(result.events, vec![cosmwasm_std::Event::from(expected_event)]);
+        assert_eq!(
+            result.events,
+            vec![cosmwasm_std::Event::from(expected_event)]
+        );
     }
 
     #[test]
-    fn fail_execute_if_unknown_its_source_address() {
+    fn execute_message_when_unknown_source_address_fails() {
         let mut deps = setup();
         let source_chain: ChainName = "source-chain".parse().unwrap();
         let source_address: Address = "its-source".parse().unwrap();
@@ -235,7 +243,7 @@ mod tests {
     }
 
     #[test]
-    fn execute_message_invalid_payload() {
+    fn execute_message_when_invalid_payload_fails() {
         let mut deps = setup();
         let source_chain: ChainName = "source-chain".parse().unwrap();
         let source_address: Address = "its-source".parse().unwrap();
@@ -244,12 +252,13 @@ mod tests {
         register_its_address(deps.as_mut(), source_chain.clone(), source_address.clone()).unwrap();
 
         let invalid_payload = HexBinary::from_hex("deaddead").unwrap();
-        let result = execute_message(deps.as_mut(), cc_id, source_address, invalid_payload).unwrap_err();
+        let result =
+            execute_message(deps.as_mut(), cc_id, source_address, invalid_payload).unwrap_err();
         assert!(err_contains!(result, Error, Error::InvalidPayload));
     }
 
     #[test]
-    fn check_updated_its_address() {
+    fn register_its_address_succeeds() {
         let mut deps = setup();
 
         let chain: ChainName = "new-chain".parse().unwrap();
@@ -271,7 +280,7 @@ mod tests {
     }
 
     #[test]
-    fn execute_message_unknown_destination() {
+    fn execute_message_when_unknown_destination_fails() {
         let mut deps = setup();
         let source_chain: ChainName = "source-chain".parse().unwrap();
         let source_address: Address = "its-source".parse().unwrap();
@@ -295,7 +304,7 @@ mod tests {
     }
 
     #[test]
-    fn execute_message_fail_if_invalid_message_type() {
+    fn execute_message_when_invalid_message_type_fails() {
         let mut deps = setup();
         let source_chain: ChainName = "source-chain".parse().unwrap();
         let source_address: Address = "its-source".parse().unwrap();
