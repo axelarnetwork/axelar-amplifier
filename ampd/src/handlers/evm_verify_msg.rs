@@ -35,7 +35,7 @@ pub struct Message {
     pub tx_id: Hash,
     pub event_index: u32,
     pub destination_address: String,
-    pub destination_chain: router_api::ChainName,
+    pub destination_chain: ChainName,
     pub source_address: EVMAddress,
     pub payload_hash: Hash,
 }
@@ -44,7 +44,7 @@ pub struct Message {
 #[try_from("wasm-messages_poll_started")]
 struct PollStartedEvent {
     poll_id: PollId,
-    source_chain: router_api::ChainName,
+    source_chain: ChainName,
     source_gateway_address: EVMAddress,
     confirmation_height: u64,
     expires_at: u64,

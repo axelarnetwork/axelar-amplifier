@@ -1,5 +1,5 @@
-use axelar_wasm_std_derive::IntoContractError;
-use cosmwasm_std::HexBinary;
+use axelar_wasm_std::IntoContractError;
+use cosmwasm_std::{Coin, HexBinary};
 use thiserror::Error;
 
 #[derive(Error, Debug, PartialEq, IntoContractError)]
@@ -19,9 +19,9 @@ pub enum ContractError {
     #[error("invalid payload hash {0}")]
     InvalidMessagePayloadHash(HexBinary),
 
-    #[error("failed routing messages to the nexus module")]
-    RouteToNexus,
+    #[error("invalid token: one and only one token is required for this operation, got {0:?}")]
+    InvalidToken(Vec<Coin>),
 
-    #[error("failed routing messages to the router")]
-    RouteToRouter,
+    #[error("failed querying the axelarnet gateway")]
+    AxelarnetGateway,
 }

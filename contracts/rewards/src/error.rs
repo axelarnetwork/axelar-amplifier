@@ -1,9 +1,12 @@
-use axelar_wasm_std_derive::IntoContractError;
-use cosmwasm_std::OverflowError;
+use axelar_wasm_std::IntoContractError;
+use cosmwasm_std::{OverflowError, StdError};
 use thiserror::Error;
 
 #[derive(Error, Debug, PartialEq, IntoContractError)]
 pub enum ContractError {
+    #[error(transparent)]
+    Std(#[from] StdError),
+
     #[error("error saving params")]
     SaveParams,
 
@@ -15,6 +18,9 @@ pub enum ContractError {
 
     #[error("error saving rewards pool")]
     SaveRewardsPool,
+
+    #[error("error updating rewards pool")]
+    UpdateRewardsPool,
 
     #[error("error saving rewards watermark")]
     SaveRewardsWatermark,
@@ -30,6 +36,9 @@ pub enum ContractError {
 
     #[error("rewards pool not found")]
     RewardsPoolNotFound,
+
+    #[error("rewards pool already exists")]
+    RewardsPoolAlreadyExists,
 
     #[error("error loading rewards watermark")]
     LoadRewardsWatermark,

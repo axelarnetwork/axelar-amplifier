@@ -22,7 +22,7 @@ use k256::ecdsa;
 use multisig::key::{KeyType, PublicKey};
 use multisig::verifier_set::VerifierSet;
 use multisig_prover::msg::VerifierSetResponse;
-use rewards::state::PoolId;
+use rewards::PoolId;
 use router_api::{Address, ChainName, CrossChainId, GatewayDirection, Message};
 use service_registry::msg::ExecuteMsg;
 use sha3::{Digest, Keccak256};
@@ -251,7 +251,7 @@ pub fn sign_proof(
 
 pub fn register_service(
     protocol: &mut Protocol,
-    min_verifier_bond: Uint128,
+    min_verifier_bond: nonempty::Uint128,
     unbonding_period_days: u16,
 ) {
     let response = protocol.service_registry.execute(
@@ -375,7 +375,6 @@ pub fn setup_protocol(service_name: nonempty::String) -> Protocol {
         &mut app,
         governance_address.clone(),
         AXL_DENOMINATION.to_string(),
-        rewards_params.clone(),
     );
 
     let multisig = MultisigContract::instantiate_contract(
@@ -425,7 +424,7 @@ pub struct Verifier {
 pub fn register_verifiers(
     protocol: &mut Protocol,
     verifiers: &Vec<Verifier>,
-    min_verifier_bond: Uint128,
+    min_verifier_bond: nonempty::Uint128,
 ) {
     register_in_service_registry(protocol, verifiers, min_verifier_bond);
     submit_pubkeys(protocol, verifiers);
@@ -587,7 +586,7 @@ pub fn update_registry_and_construct_verifier_set_update_proof(
     verifiers_to_remove: &Vec<Verifier>,
     current_verifiers: &Vec<Verifier>,
     chain_multisig_prover: &MultisigProverContract,
-    min_verifier_bond: Uint128,
+    min_verifier_bond: nonempty::Uint128,
 ) -> Uint64 {
     // Register new verifiers
     register_verifiers(protocol, new_verifiers, min_verifier_bond);
@@ -692,6 +691,38 @@ pub fn setup_chain(
             chain: chain_name.clone(),
             gateway_address: gateway.contract_addr.to_string().try_into().unwrap(),
             msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
+        },
+    );
+    assert!(response.is_ok());
+
+    let rewards_params = rewards::msg::Params {
+        epoch_duration: nonempty::Uint64::try_from(10u64).unwrap(),
+        rewards_per_epoch: Uint128::from(100u128).try_into().unwrap(),
+        participation_threshold: (1, 2).try_into().unwrap(),
+    };
+
+    let response = protocol.rewards.execute(
+        &mut protocol.app,
+        protocol.governance_address.clone(),
+        &rewards::msg::ExecuteMsg::CreatePool {
+            pool_id: PoolId {
+                chain_name: chain_name.clone(),
+                contract: voting_verifier.contract_addr.clone(),
+            },
+            params: rewards_params.clone(),
+        },
+    );
+    assert!(response.is_ok());
+
+    let response = protocol.rewards.execute(
+        &mut protocol.app,
+        protocol.governance_address.clone(),
+        &rewards::msg::ExecuteMsg::CreatePool {
+            pool_id: PoolId {
+                chain_name: chain_name.clone(),
+                contract: protocol.multisig.contract_addr.clone(),
+            },
+            params: rewards_params,
         },
     );
     assert!(response.is_ok());
@@ -819,7 +850,7 @@ pub struct TestCase {
     pub chain1: Chain,
     pub chain2: Chain,
     pub verifiers: Vec<Verifier>,
-    pub min_verifier_bond: Uint128,
+    pub min_verifier_bond: nonempty::Uint128,
     pub unbonding_period_days: u16,
 }
 
@@ -835,7 +866,7 @@ pub fn setup_test_case() -> TestCase {
         vec![("verifier1".to_string(), 0), ("verifier2".to_string(), 1)],
     );
 
-    let min_verifier_bond = Uint128::new(100);
+    let min_verifier_bond = nonempty::Uint128::try_from(100).unwrap();
     let unbonding_period_days = 10;
     register_service(&mut protocol, min_verifier_bond, unbonding_period_days);
 
@@ -862,7 +893,7 @@ pub fn assert_contract_err_strings_equal(
 pub fn register_in_service_registry(
     protocol: &mut Protocol,
     verifiers: &Vec<Verifier>,
-    min_verifier_bond: Uint128,
+    min_verifier_bond: nonempty::Uint128,
 ) {
     let response = protocol.service_registry.execute(
         &mut protocol.app,
@@ -881,7 +912,7 @@ pub fn register_in_service_registry(
         let response = protocol.app.send_tokens(
             protocol.genesis_address.clone(),
             verifier.addr.clone(),
-            &coins(min_verifier_bond.u128(), AXL_DENOMINATION),
+            &coins(min_verifier_bond.into_inner().u128(), AXL_DENOMINATION),
         );
         assert!(response.is_ok());
 
@@ -891,7 +922,7 @@ pub fn register_in_service_registry(
             &ExecuteMsg::BondVerifier {
                 service_name: protocol.service_name.to_string(),
             },
-            &coins(min_verifier_bond.u128(), AXL_DENOMINATION),
+            &coins(min_verifier_bond.into_inner().u128(), AXL_DENOMINATION),
         );
         assert!(response.is_ok());
 

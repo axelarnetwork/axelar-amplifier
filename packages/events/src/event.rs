@@ -5,7 +5,6 @@ use base64::engine::general_purpose::STANDARD;
 use base64::Engine;
 use cosmrs::AccountId;
 use error_stack::{Report, Result, ResultExt};
-use serde_json::Value;
 use tendermint::abci::EventAttribute;
 use tendermint::{abci, block};
 
@@ -90,7 +89,7 @@ impl TryFrom<abci::Event> for Event {
     }
 }
 
-fn try_into_kv_pair(attr: &EventAttribute) -> Result<(String, Value), Error> {
+fn try_into_kv_pair(attr: &EventAttribute) -> Result<(String, serde_json::Value), Error> {
     decode_event_attribute(attr)
         .change_context(Error::DecodingAttributesFailed)
         .map(|(key, value)| {

@@ -1,13 +1,13 @@
 use std::collections::HashMap;
 
-use axelar_wasm_std::{killswitch, permission_control, FnExt};
+use axelar_wasm_std::{address, killswitch, permission_control, FnExt};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_json_binary, Addr, Binary, Deps, DepsMut, Env, HexBinary, MessageInfo, Response, StdError,
-    StdResult, Storage, Uint64,
+    to_json_binary, Addr, Binary, Deps, DepsMut, Env, HexBinary, MessageInfo, Response, StdResult,
+    Storage, Uint64,
 };
-use error_stack::{report, ResultExt};
+use error_stack::{report, Report, ResultExt};
 use itertools::Itertools;
 use router_api::ChainName;
 
@@ -32,13 +32,12 @@ pub fn migrate(
     _env: Env,
     msg: MigrationMsg,
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
-    let admin = deps.api.addr_validate(&msg.admin_address)?;
+    let admin = address::validate_cosmwasm_address(deps.api, &msg.admin_address)?;
     let authorized_callers = msg
         .authorized_callers
         .into_iter()
         .map(|(contract_address, chain_name)| {
-            deps.api
-                .addr_validate(&contract_address)
+            address::validate_cosmwasm_address(deps.api, &contract_address)
                 .map(|addr| (addr, chain_name))
         })
         .try_collect()?;
@@ -62,8 +61,8 @@ pub fn instantiate(
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    let admin = deps.api.addr_validate(&msg.admin_address)?;
-    let governance = deps.api.addr_validate(&msg.governance_address)?;
+    let admin = address::validate_cosmwasm_address(deps.api, &msg.admin_address)?;
+    let governance = address::validate_cosmwasm_address(deps.api, &msg.governance_address)?;
 
     permission_control::set_admin(deps.storage, &admin)?;
     permission_control::set_governance(deps.storage, &governance)?;
@@ -71,7 +70,7 @@ pub fn instantiate(
     killswitch::init(deps.storage, killswitch::State::Disengaged)?;
 
     let config = Config {
-        rewards_contract: deps.api.addr_validate(&msg.rewards_address)?,
+        rewards_contract: address::validate_cosmwasm_address(deps.api, &msg.rewards_address)?,
         block_expiry: msg.block_expiry,
     };
     CONFIG.save(deps.storage, &config)?;
@@ -100,7 +99,7 @@ pub fn execute(
             sig_verifier,
         } => {
             let sig_verifier = sig_verifier
-                .map(|addr| deps.api.addr_validate(&addr))
+                .map(|addr| address::validate_cosmwasm_address(deps.api, &addr))
                 .transpose()?;
             execute::start_signing_session(
                 deps,
@@ -140,13 +139,14 @@ pub fn execute(
 fn validate_contract_addresses(
     deps: &DepsMut,
     contracts: HashMap<String, ChainName>,
-) -> Result<HashMap<Addr, ChainName>, StdError> {
+) -> Result<HashMap<Addr, ChainName>, Report<address::Error>> {
     contracts
         .into_iter()
         .map(|(contract_address, chain_name)| {
-            deps.api
-                .addr_validate(&contract_address)
-                .map(|addr| (addr, chain_name))
+            Ok((
+                address::validate_cosmwasm_address(deps.api, &contract_address)?,
+                chain_name,
+            ))
         })
         .try_collect()
 }
@@ -165,29 +165,34 @@ fn can_start_signing_session(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(
+    deps: Deps,
+    _env: Env,
+    msg: QueryMsg,
+) -> Result<Binary, axelar_wasm_std::error::ContractError> {
     match msg {
-        QueryMsg::Multisig { session_id } => to_json_binary(&query::multisig(deps, session_id)?),
+        QueryMsg::Multisig { session_id } => to_json_binary(&query::multisig(deps, session_id)?)?,
         QueryMsg::VerifierSet { verifier_set_id } => {
-            to_json_binary(&query::verifier_set(deps, verifier_set_id)?)
+            to_json_binary(&query::verifier_set(deps, verifier_set_id)?)?
         }
         QueryMsg::PublicKey {
             verifier_address,
             key_type,
         } => to_json_binary(&query::public_key(
             deps,
-            deps.api.addr_validate(&verifier_address)?,
+            address::validate_cosmwasm_address(deps.api, &verifier_address)?,
             key_type,
-        )?),
+        )?)?,
         QueryMsg::IsCallerAuthorized {
             contract_address,
             chain_name,
         } => to_json_binary(&query::caller_authorized(
             deps,
-            deps.api.addr_validate(&contract_address)?,
+            address::validate_cosmwasm_address(deps.api, &contract_address)?,
             chain_name,
-        )?),
+        )?)?,
     }
+    .then(Ok)
 }
 
 #[cfg(feature = "test")]
@@ -254,7 +259,10 @@ mod tests {
         execute(deps, env, info.clone(), msg).map(|res| (res, verifier_set))
     }
 
-    fn query_verifier_set(verifier_set_id: &str, deps: Deps) -> StdResult<Binary> {
+    fn query_verifier_set(
+        verifier_set_id: &str,
+        deps: Deps,
+    ) -> Result<Binary, axelar_wasm_std::error::ContractError> {
         let env = mock_env();
         query(
             deps,
@@ -368,7 +376,7 @@ mod tests {
         deps: Deps,
         verifier: Addr,
         key_type: KeyType,
-    ) -> StdResult<Binary> {
+    ) -> Result<Binary, axelar_wasm_std::error::ContractError> {
         let env = mock_env();
         query(
             deps,
@@ -849,7 +857,7 @@ mod tests {
             let res = query(deps.as_ref(), mock_env(), msg);
             assert!(res.is_ok());
 
-            let query_res: Multisig = from_json(&res.unwrap()).unwrap();
+            let query_res: Multisig = from_json(res.unwrap()).unwrap();
             let session = SIGNING_SESSIONS
                 .load(deps.as_ref().storage, session_id.into())
                 .unwrap();
@@ -931,7 +939,7 @@ mod tests {
             for (addr, _, _) in &expected_pub_keys {
                 let res = query_registered_public_key(deps.as_ref(), addr.clone(), key_type);
                 assert!(res.is_ok());
-                ret_pub_keys.push(from_json(&res.unwrap()).unwrap());
+                ret_pub_keys.push(from_json(res.unwrap()).unwrap());
             }
             assert_eq!(
                 expected_pub_keys
@@ -1200,7 +1208,7 @@ mod tests {
 
         assert_eq!(
             res.unwrap_err().to_string(),
-            axelar_wasm_std::permission_control::Error::PermissionDenied {
+            permission_control::Error::PermissionDenied {
                 expected: Permission::Governance.into(),
                 actual: Permission::NoPrivilege.into()
             }
@@ -1222,7 +1230,7 @@ mod tests {
 
         assert_eq!(
             res.unwrap_err().to_string(),
-            axelar_wasm_std::permission_control::Error::PermissionDenied {
+            permission_control::Error::PermissionDenied {
                 expected: Permission::Elevated.into(),
                 actual: Permission::NoPrivilege.into()
             }

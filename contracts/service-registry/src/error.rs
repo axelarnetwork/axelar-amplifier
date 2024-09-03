@@ -1,5 +1,4 @@
-use axelar_wasm_std::nonempty;
-use axelar_wasm_std_derive::IntoContractError;
+use axelar_wasm_std::{nonempty, IntoContractError};
 use cosmwasm_std::{OverflowError, StdError};
 use thiserror::Error;
 
@@ -30,6 +29,8 @@ pub enum ContractError {
     VerifierNotFound,
     #[error("invalid bonding state `{0:?}` for this operation")]
     InvalidBondingState(BondingState),
+    #[error("no attached funds to bond")]
+    NoFundsToBond,
     #[error("not enough verifiers")]
     NotEnoughVerifiers,
     #[error("verifier is jailed")]

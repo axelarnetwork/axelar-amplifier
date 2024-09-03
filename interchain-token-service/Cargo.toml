@@ -2,13 +2,12 @@
 name = "interchain-token-service"
 version = "0.1.0"
 rust-version = { workspace = true }
-edition = "2021"
+edition = { workspace = true }
 
 [dependencies]
 alloy-primitives = { workspace = true }
 alloy-sol-types = { workspace = true }
-axelar-wasm-std = { workspace = true }
-axelar-wasm-std-derive = { workspace = true }
+axelar-wasm-std = { workspace = true, features = ["derive"] }
 cosmwasm-schema = { workspace = true }
 cosmwasm-std = { workspace = true }
 error-stack = { workspace = true }
@@ -21,7 +20,7 @@ strum = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]
-goldie = { version = "0.5" }
+goldie = { workspace = true }
 
 [lints]
 workspace = true

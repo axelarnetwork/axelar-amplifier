@@ -1,3 +1,4 @@
+use axelar_wasm_std::vec::VecExt;
 use cosmwasm_std::{to_json_binary, Addr, WasmMsg};
 
 use crate::msg::ExecuteMsg;
@@ -17,15 +18,7 @@ impl Router {
     }
 
     pub fn route(&self, msgs: Vec<Message>) -> Option<WasmMsg> {
-        ignore_empty(msgs).map(|msgs| self.execute(&ExecuteMsg::RouteMessages(msgs)))
-    }
-}
-
-// TODO: unify across contract clients
-fn ignore_empty(msgs: Vec<Message>) -> Option<Vec<Message>> {
-    if msgs.is_empty() {
-        None
-    } else {
-        Some(msgs)
+        msgs.to_none_if_empty()
+            .map(|msgs| self.execute(&ExecuteMsg::RouteMessages(msgs)))
     }
 }

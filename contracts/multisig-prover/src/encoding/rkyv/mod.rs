@@ -161,7 +161,7 @@ fn to_signature(
     }
 }
 
-fn add27(recovery_byte: k256::ecdsa::RecoveryId) -> u8 {
+pub fn add27(recovery_byte: k256::ecdsa::RecoveryId) -> u8 {
     recovery_byte
         .to_byte()
         .checked_add(27)
@@ -172,18 +172,4 @@ fn recoverable_ecdsa_to_array(rec: &Recoverable) -> Result<[u8; 65]> {
     rec.as_ref()
         .try_into()
         .map_err(|e: TryFromSliceError| ContractError::RkyvEncodingError(e.to_string()))
-}
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn conversion_to_u256_le_works() {
-        let integer = to_u256_le(u128::MAX);
-        let expected = [
-            255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        ];
-        assert_eq!(expected, integer);
-    }
 }

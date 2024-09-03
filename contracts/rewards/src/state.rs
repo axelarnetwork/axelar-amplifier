@@ -11,6 +11,21 @@ use router_api::ChainName;
 use crate::error::ContractError;
 use crate::msg::Params;
 
+/// Maps a (pool id, epoch number) pair to a tally for that epoch and rewards pool
+const TALLIES: Map<TallyId, EpochTally> = Map::new("tallies");
+
+/// Maps an (event id, pool id) pair to an Event
+const EVENTS: Map<(String, PoolId), Event> = Map::new("events");
+
+/// Maps the id to the rewards pool for given chain and contract
+const POOLS: Map<PoolId, RewardsPool> = Map::new("pools");
+
+/// Maps a rewards pool to the epoch number of the most recent epoch for which rewards were distributed. All epochs prior
+/// have had rewards distributed already and all epochs after have not yet had rewards distributed for this pool
+const WATERMARKS: Map<PoolId, u64> = Map::new("rewards_watermarks");
+
+pub const CONFIG: Item<Config> = Item::new("config");
+
 #[cw_serde]
 pub struct Config {
     pub rewards_denom: String,
@@ -207,10 +222,10 @@ impl Epoch {
         if cur_block_height < last_updated_epoch.block_height_started {
             Err(ContractError::BlockHeightInPast.into())
         } else {
-            let epochs_elapsed = (cur_block_height
-                .saturating_sub(last_updated_epoch.block_height_started))
-            .checked_div(epoch_duration)
-            .expect("invalid invariant: epoch duration is zero");
+            let epochs_elapsed = cur_block_height
+                .saturating_sub(last_updated_epoch.block_height_started)
+                .checked_div(epoch_duration)
+                .expect("invalid invariant: epoch duration is zero");
             Ok(Epoch {
                 epoch_num: last_updated_epoch
                     .epoch_num
@@ -230,16 +245,10 @@ impl Epoch {
 pub struct RewardsPool {
     pub id: PoolId,
     pub balance: Uint128,
+    pub params: ParamsSnapshot,
 }
 
 impl RewardsPool {
-    pub fn new(id: PoolId) -> Self {
-        RewardsPool {
-            id,
-            balance: Uint128::zero(),
-        }
-    }
-
     pub fn sub_reward(mut self, reward: Uint128) -> Result<Self, ContractError> {
         self.balance = self
             .balance
@@ -250,33 +259,22 @@ impl RewardsPool {
     }
 }
 
-/// Current rewards parameters, along with when the params were updated
-pub const PARAMS: Item<ParamsSnapshot> = Item::new("params");
-
-/// Maps a (pool id, epoch number) pair to a tally for that epoch and rewards pool
-const TALLIES: Map<TallyId, EpochTally> = Map::new("tallies");
-
-/// Maps an (event id, pool id) pair to an Event
-const EVENTS: Map<(String, PoolId), Event> = Map::new("events");
-
-/// Maps the id to the rewards pool for given chain and contract
-const POOLS: Map<PoolId, RewardsPool> = Map::new("pools");
-
-/// Maps a rewards pool to the epoch number of the most recent epoch for which rewards were distributed. All epochs prior
-/// have had rewards distributed already and all epochs after have not yet had rewards distributed for this pool
-const WATERMARKS: Map<PoolId, u64> = Map::new("rewards_watermarks");
-
-pub const CONFIG: Item<Config> = Item::new("config");
-
-pub(crate) fn load_config(storage: &dyn Storage) -> Config {
+#[cw_serde]
+pub struct RewardsDistribution {
+    /// Amount of rewards denom each verifier received
+    pub rewards: HashMap<Addr, Uint128>,
+    /// List of epochs processed for this distribution
+    pub epochs_processed: Vec<u64>,
+    /// Epoch in which rewards were distributed
+    pub current_epoch: Epoch,
+    /// True if there are more rewards to distribute (later epochs that have not yet been distributed but are ready for distribution at the time of calling)
+    pub can_distribute_more: bool,
+}
+pub fn load_config(storage: &dyn Storage) -> Config {
     CONFIG.load(storage).expect("couldn't load config")
 }
 
-pub(crate) fn load_params(storage: &dyn Storage) -> ParamsSnapshot {
-    PARAMS.load(storage).expect("params should exist")
-}
-
-pub(crate) fn load_rewards_watermark(
+pub fn load_rewards_watermark(
     storage: &dyn Storage,
     pool_id: PoolId,
 ) -> Result<Option<u64>, ContractError> {
@@ -285,7 +283,7 @@ pub(crate) fn load_rewards_watermark(
         .change_context(ContractError::LoadRewardsWatermark)
 }
 
-pub(crate) fn load_event(
+pub fn load_event(
     storage: &dyn Storage,
     event_id: String,
     pool_id: PoolId,
@@ -295,7 +293,7 @@ pub(crate) fn load_event(
         .change_context(ContractError::LoadEvent)
 }
 
-pub(crate) fn load_epoch_tally(
+pub fn load_epoch_tally(
     storage: &dyn Storage,
     pool_id: PoolId,
     epoch_num: u64,
@@ -305,7 +303,7 @@ pub(crate) fn load_epoch_tally(
         .change_context(ContractError::LoadEpochTally)
 }
 
-pub(crate) fn may_load_rewards_pool(
+pub fn may_load_rewards_pool(
     storage: &dyn Storage,
     pool_id: PoolId,
 ) -> Result<Option<RewardsPool>, ContractError> {
@@ -314,15 +312,7 @@ pub(crate) fn may_load_rewards_pool(
         .change_context(ContractError::LoadRewardsPool)
 }
 
-pub(crate) fn load_rewards_pool_or_new(
-    storage: &dyn Storage,
-    pool_id: PoolId,
-) -> Result<RewardsPool, ContractError> {
-    may_load_rewards_pool(storage, pool_id.clone())
-        .map(|pool| pool.unwrap_or(RewardsPool::new(pool_id)))
-}
-
-pub(crate) fn load_rewards_pool(
+pub fn load_rewards_pool(
     storage: &dyn Storage,
     pool_id: PoolId,
 ) -> Result<RewardsPool, ContractError> {
@@ -330,16 +320,16 @@ pub(crate) fn load_rewards_pool(
         .ok_or(ContractError::RewardsPoolNotFound.into())
 }
 
-pub(crate) fn save_params(
-    storage: &mut dyn Storage,
-    params: &ParamsSnapshot,
-) -> Result<(), ContractError> {
-    PARAMS
-        .save(storage, params)
-        .change_context(ContractError::SaveParams)
+pub fn load_rewards_pool_params(
+    storage: &dyn Storage,
+    pool_id: PoolId,
+) -> Result<ParamsSnapshot, ContractError> {
+    may_load_rewards_pool(storage, pool_id.clone())?
+        .ok_or(ContractError::RewardsPoolNotFound.into())
+        .map(|pool| pool.params)
 }
 
-pub(crate) fn save_rewards_watermark(
+pub fn save_rewards_watermark(
     storage: &mut dyn Storage,
     pool_id: PoolId,
     epoch_num: u64,
@@ -349,7 +339,7 @@ pub(crate) fn save_rewards_watermark(
         .change_context(ContractError::SaveRewardsWatermark)
 }
 
-pub(crate) fn save_event(storage: &mut dyn Storage, event: &Event) -> Result<(), ContractError> {
+pub fn save_event(storage: &mut dyn Storage, event: &Event) -> Result<(), ContractError> {
     EVENTS
         .save(
             storage,
@@ -359,7 +349,7 @@ pub(crate) fn save_event(storage: &mut dyn Storage, event: &Event) -> Result<(),
         .change_context(ContractError::SaveEvent)
 }
 
-pub(crate) fn save_epoch_tally(
+pub fn save_epoch_tally(
     storage: &mut dyn Storage,
     tally: &EpochTally,
 ) -> Result<(), ContractError> {
@@ -373,7 +363,7 @@ pub(crate) fn save_epoch_tally(
         .change_context(ContractError::SaveEpochTally)
 }
 
-pub(crate) fn save_rewards_pool(
+pub fn save_rewards_pool(
     storage: &mut dyn Storage,
     pool: &RewardsPool,
 ) -> Result<(), ContractError> {
@@ -382,7 +372,42 @@ pub(crate) fn save_rewards_pool(
         .change_context(ContractError::SaveRewardsPool)
 }
 
-pub(crate) enum StorageState<T> {
+pub fn update_pool_params(
+    storage: &mut dyn Storage,
+    pool_id: &PoolId,
+    updated_params: &ParamsSnapshot,
+) -> Result<RewardsPool, ContractError> {
+    POOLS
+        .update(storage, pool_id.clone(), |pool| match pool {
+            None => Err(ContractError::RewardsPoolNotFound),
+            Some(pool) => Ok(RewardsPool {
+                id: pool_id.to_owned(),
+                balance: pool.balance,
+                params: updated_params.to_owned(),
+            }),
+        })
+        .change_context(ContractError::UpdateRewardsPool)
+}
+
+pub fn pool_exists(storage: &mut dyn Storage, pool_id: &PoolId) -> Result<bool, ContractError> {
+    POOLS
+        .may_load(storage, pool_id.to_owned())
+        .change_context(ContractError::LoadRewardsPool)
+        .map(|pool| pool.is_some())
+}
+
+pub fn current_epoch(
+    storage: &mut dyn Storage,
+    pool_id: &PoolId,
+    cur_block_height: u64,
+) -> Result<Epoch, ContractError> {
+    Epoch::current(
+        &load_rewards_pool_params(storage, pool_id.to_owned())?,
+        cur_block_height,
+    )
+}
+
+pub enum StorageState<T> {
     Existing(T),
     New(T),
 }
@@ -477,26 +502,6 @@ mod test {
 
     #[test]
     fn sub_reward_from_pool() {
-        let pool = RewardsPool {
-            id: PoolId {
-                chain_name: "mock-chain".parse().unwrap(),
-                contract: Addr::unchecked("pool_contract"),
-            },
-            balance: Uint128::from(100u128),
-        };
-        let new_pool = pool.sub_reward(Uint128::from(50u128)).unwrap();
-        assert_eq!(new_pool.balance, Uint128::from(50u128));
-
-        let new_pool = new_pool.sub_reward(Uint128::from(60u128));
-        assert!(matches!(
-            new_pool.unwrap_err().current_context(),
-            ContractError::PoolBalanceInsufficient
-        ));
-    }
-
-    #[test]
-    fn save_and_load_params() {
-        let mut mock_deps = mock_dependencies();
         let params = ParamsSnapshot {
             params: Params {
                 participation_threshold: (Uint64::new(1), Uint64::new(2)).try_into().unwrap(),
@@ -508,25 +513,22 @@ mod test {
                 block_height_started: 1,
             },
         };
-        // save an initial params, then load it
-        assert!(save_params(mock_deps.as_mut().storage, &params).is_ok());
-        let loaded = load_params(mock_deps.as_ref().storage);
-        assert_eq!(loaded, params);
-
-        // now store a new params, and check that it was updated
-        let new_params = ParamsSnapshot {
-            params: Params {
-                epoch_duration: 200u64.try_into().unwrap(),
-                ..params.params
+        let pool = RewardsPool {
+            id: PoolId {
+                chain_name: "mock-chain".parse().unwrap(),
+                contract: Addr::unchecked("pool_contract"),
             },
-            created_at: Epoch {
-                epoch_num: 2,
-                block_height_started: 101,
-            },
+            balance: Uint128::from(100u128),
+            params,
         };
-        assert!(save_params(mock_deps.as_mut().storage, &new_params).is_ok());
-        let loaded = load_params(mock_deps.as_mut().storage);
-        assert_eq!(loaded, new_params);
+        let new_pool = pool.sub_reward(Uint128::from(50u128)).unwrap();
+        assert_eq!(new_pool.balance, Uint128::from(50u128));
+
+        let new_pool = new_pool.sub_reward(Uint128::from(60u128));
+        assert!(matches!(
+            new_pool.unwrap_err().current_context(),
+            ContractError::PoolBalanceInsufficient
+        ));
     }
 
     #[test]
@@ -711,30 +713,31 @@ mod test {
 
     #[test]
     fn save_and_load_rewards_pool() {
+        let params = ParamsSnapshot {
+            params: Params {
+                participation_threshold: (Uint64::new(1), Uint64::new(2)).try_into().unwrap(),
+                epoch_duration: 100u64.try_into().unwrap(),
+                rewards_per_epoch: Uint128::from(1000u128).try_into().unwrap(),
+            },
+            created_at: Epoch {
+                epoch_num: 1,
+                block_height_started: 1,
+            },
+        };
         let mut mock_deps = mock_dependencies();
 
         let chain_name: ChainName = "mock-chain".parse().unwrap();
-        let pool = RewardsPool::new(PoolId::new(
-            chain_name.clone(),
-            Addr::unchecked("some contract"),
-        ));
+        let pool = RewardsPool {
+            id: PoolId::new(chain_name.clone(), Addr::unchecked("some contract")),
+            params,
+            balance: Uint128::zero(),
+        };
         let res = save_rewards_pool(mock_deps.as_mut().storage, &pool);
         assert!(res.is_ok());
 
-        let loaded = load_rewards_pool_or_new(mock_deps.as_ref().storage, pool.id.clone());
+        let loaded = load_rewards_pool(mock_deps.as_ref().storage, pool.id.clone());
 
         assert!(loaded.is_ok());
         assert_eq!(loaded.unwrap(), pool);
-
-        // return new pool when pool is not found
-        let loaded = load_rewards_pool_or_new(
-            mock_deps.as_ref().storage,
-            PoolId {
-                chain_name: chain_name.clone(),
-                contract: Addr::unchecked("a different contract"),
-            },
-        );
-        assert!(loaded.is_ok());
-        assert!(loaded.as_ref().unwrap().balance.is_zero());
     }
 }

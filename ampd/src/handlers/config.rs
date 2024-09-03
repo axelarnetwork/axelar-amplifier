@@ -53,6 +53,14 @@ pub enum Config {
         rpc_url: Url,
         rpc_timeout: Option<Duration>,
     },
+    MvxMsgVerifier {
+        cosmwasm_contract: TMAddress,
+        proxy_url: Url,
+    },
+    MvxVerifierSetVerifier {
+        cosmwasm_contract: TMAddress,
+        proxy_url: Url,
+    },
     SolanaMsgVerifier {
         cosmwasm_contract: TMAddress,
         max_tx_cache_entries: usize,
@@ -193,6 +201,38 @@ where
     }
 }
 
+fn validate_mvx_msg_verifier_config<'de, D>(configs: &[Config]) -> Result<(), D::Error>
+where
+    D: Deserializer<'de>,
+{
+    match configs
+        .iter()
+        .filter(|config| matches!(config, Config::MvxMsgVerifier { .. }))
+        .count()
+    {
+        count if count > 1 => Err(de::Error::custom(
+            "only one Mvx msg verifier config is allowed",
+        )),
+        _ => Ok(()),
+    }
+}
+
+fn validate_mvx_worker_set_verifier_config<'de, D>(configs: &[Config]) -> Result<(), D::Error>
+where
+    D: Deserializer<'de>,
+{
+    match configs
+        .iter()
+        .filter(|config| matches!(config, Config::MvxVerifierSetVerifier { .. }))
+        .count()
+    {
+        count if count > 1 => Err(de::Error::custom(
+            "only one Mvx worker set verifier config is allowed",
+        )),
+        _ => Ok(()),
+    }
+}
+
 fn validate_solana_verifier_set_verifier_configs<'de, D>(configs: &[Config]) -> Result<(), D::Error>
 where
     D: Deserializer<'de>,
@@ -227,6 +267,8 @@ where
     validate_multisig_signer_config::<D>(&configs)?;
     validate_sui_msg_verifier_config::<D>(&configs)?;
     validate_sui_verifier_set_verifier_config::<D>(&configs)?;
+    validate_mvx_msg_verifier_config::<D>(&configs)?;
+    validate_mvx_worker_set_verifier_config::<D>(&configs)?;
     validate_solana_msg_verifier_config::<D>(&configs)?;
     validate_solana_verifier_set_verifier_configs::<D>(&configs)?;
 

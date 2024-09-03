@@ -2,16 +2,17 @@ use std::collections::{BTreeMap, HashSet};
 
 use axelar_wasm_std::permission_control::Permission;
 use axelar_wasm_std::snapshot::{Participant, Snapshot};
-use axelar_wasm_std::{permission_control, FnExt, MajorityThreshold, VerificationStatus};
+use axelar_wasm_std::{address, permission_control, FnExt, MajorityThreshold, VerificationStatus};
 use cosmwasm_std::{
     to_json_binary, wasm_execute, Addr, DepsMut, Env, QuerierWrapper, QueryRequest, Response,
     Storage, SubMsg, WasmQuery,
 };
+use error_stack::{report, ResultExt};
 use itertools::Itertools;
 use multisig::msg::Signer;
 use multisig::verifier_set::VerifierSet;
 use router_api::{ChainName, CrossChainId, Message};
-use service_registry::state::{Service, WeightedVerifier};
+use service_registry::{Service, WeightedVerifier};
 
 use crate::contract::START_MULTISIG_REPLY_ID;
 use crate::error::ContractError;
@@ -25,7 +26,6 @@ pub fn construct_proof(
     message_ids: Vec<CrossChainId>,
 ) -> error_stack::Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage).map_err(ContractError::from)?;
-    let payload_id = message_ids.as_slice().into();
 
     let messages = messages(
         deps.querier,
@@ -34,18 +34,23 @@ pub fn construct_proof(
         config.chain_name.clone(),
     )?;
 
-    let payload = match PAYLOAD
+    let payload = Payload::Messages(messages);
+    let payload_id = payload.id();
+
+    match PAYLOAD
         .may_load(deps.storage, &payload_id)
         .map_err(ContractError::from)?
     {
-        Some(payload) => payload,
+        Some(stored_payload) => {
+            if stored_payload != payload {
+                return Err(report!(ContractError::PayloadMismatch))
+                    .attach_printable_lazy(|| format!("{:?}", stored_payload));
+            }
+        }
         None => {
-            let payload = Payload::Messages(messages);
             PAYLOAD
                 .save(deps.storage, &payload_id, &payload)
                 .map_err(ContractError::from)?;
-
-            payload
         }
     };
 
@@ -59,7 +64,9 @@ pub fn construct_proof(
         .map_err(ContractError::from)?
         .ok_or(ContractError::NoVerifierSet)?;
 
-    let digest = payload.digest(config.encoder, &config.domain_separator, &verifier_set)?;
+    let digest = config
+        .encoder
+        .digest(&config.domain_separator, &verifier_set, &payload)?;
 
     let start_sig_msg = multisig::msg::ExecuteMsg::StartSigningSession {
         verifier_set_id: verifier_set.id(),
@@ -94,14 +101,17 @@ fn messages(
         "violated invariant: returned gateway messages count mismatch"
     );
 
-    if messages
+    if let Some(wrong_destination) = messages
         .iter()
-        .any(|msg| msg.destination_chain != chain_name)
+        .find(|msg| msg.destination_chain != chain_name)
     {
-        panic!("violated invariant: messages from different chain found");
+        Err(ContractError::InvalidDestinationChain {
+            expected: chain_name,
+            actual: wrong_destination.destination_chain.clone(),
+        })
+    } else {
+        Ok(messages)
     }
-
-    Ok(messages)
 }
 
 fn make_verifier_set(
@@ -252,7 +262,9 @@ pub fn update_verifier_set(
                 .map_err(ContractError::from)?;
 
             let digest =
-                payload.digest(config.encoder, &config.domain_separator, &cur_verifier_set)?;
+                config
+                    .encoder
+                    .digest(&config.domain_separator, &cur_verifier_set, &payload)?;
 
             let start_sig_msg = multisig::msg::ExecuteMsg::StartSigningSession {
                 verifier_set_id: cur_verifier_set.id(),
@@ -305,7 +317,9 @@ fn ensure_verifier_set_verification(
 pub fn confirm_verifier_set(deps: DepsMut, sender: Addr) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
 
-    let verifier_set = NEXT_VERIFIER_SET.load(deps.storage)?;
+    let verifier_set = NEXT_VERIFIER_SET
+        .may_load(deps.storage)?
+        .ok_or(ContractError::NoVerifierSetToConfirm)?;
 
     let sender_role = permission_control::sender_role(deps.storage, &sender)?;
     if !sender_role.contains(Permission::Governance) {
@@ -398,8 +412,11 @@ pub fn update_signing_threshold(
     Ok(Response::new())
 }
 
-pub fn update_admin(deps: DepsMut, new_admin_address: String) -> Result<Response, ContractError> {
-    let new_admin = deps.api.addr_validate(&new_admin_address)?;
+pub fn update_admin(
+    deps: DepsMut,
+    new_admin_address: String,
+) -> Result<Response, axelar_wasm_std::error::ContractError> {
+    let new_admin = address::validate_cosmwasm_address(deps.api, &new_admin_address)?;
     permission_control::set_admin(deps.storage, &new_admin)?;
     Ok(Response::new())
 }

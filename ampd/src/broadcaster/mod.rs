@@ -1,7 +1,7 @@
+use std::cmp;
 use std::convert::TryInto;
 use std::ops::Mul;
 use std::time::Duration;
-use std::{cmp, thread};
 
 use async_trait::async_trait;
 use axelar_wasm_std::FnExt;
@@ -10,34 +10,32 @@ use cosmrs::proto::cosmos::auth::v1beta1::{
 };
 use cosmrs::proto::cosmos::bank::v1beta1::QueryBalanceRequest;
 use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
-use cosmrs::proto::cosmos::tx::v1beta1::{
-    BroadcastMode, BroadcastTxRequest, GetTxRequest, GetTxResponse, SimulateRequest,
-};
+use cosmrs::proto::cosmos::tx::v1beta1::{BroadcastMode, BroadcastTxRequest, SimulateRequest};
 use cosmrs::proto::traits::MessageExt;
 use cosmrs::tendermint::chain::Id;
 use cosmrs::tx::Fee;
 use cosmrs::{Amount, Coin, Denom, Gas};
 use dec_coin::DecCoin;
-use error_stack::{ensure, report, FutureExt, Report, Result, ResultExt};
+use error_stack::{ensure, report, FutureExt, Result, ResultExt};
 use futures::TryFutureExt;
 use k256::sha2::{Digest, Sha256};
 use mockall::automock;
 use num_traits::{cast, Zero};
 use prost::Message;
 use prost_types::Any;
-use report::{LoggableError, ResultCompatExt};
+use report::ResultCompatExt;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tonic::{Code, Status};
-use tracing::{debug, info};
+use tracing::info;
 use tx::Tx;
 use typed_builder::TypedBuilder;
-use valuable::Valuable;
 
 use crate::tofnd;
 use crate::tofnd::grpc::Multisig;
 use crate::types::{PublicKey, TMAddress};
 
+pub mod confirm_tx;
 mod cosmos;
 mod dec_coin;
 mod tx;
@@ -52,10 +50,6 @@ pub enum Error {
     FeeEstimation,
     #[error("broadcast failed")]
     Broadcast,
-    #[error("failed to confirm inclusion in block for tx with hash '{tx_hash}'")]
-    TxConfirmation { tx_hash: String },
-    #[error("failed to execute tx")]
-    Execution,
     #[error("failed to query balance for address '{address}' and denomination '{denom}'")]
     QueryBalance { address: TMAddress, denom: Denom },
     #[error("failed to query account for address '{address}'")]
@@ -102,6 +96,7 @@ impl Default for Config {
 #[automock]
 #[async_trait]
 pub trait Broadcaster {
+    fn sender_address(&self) -> TMAddress;
     async fn broadcast(&mut self, msgs: Vec<Any>) -> Result<TxResponse, Error>;
     async fn estimate_fee(&mut self, msgs: Vec<Any>) -> Result<Fee, Error>;
 }
@@ -215,6 +210,10 @@ where
     S: Multisig + Send + Sync,
     Q: cosmos::AccountQueryClient + Send,
 {
+    fn sender_address(&self) -> TMAddress {
+        self.address.clone()
+    }
+
     async fn broadcast(&mut self, msgs: Vec<Any>) -> Result<TxResponse, Error> {
         let (acc_number, acc_sequence) = self.acc_number_and_sequence().await?;
         let tx = Tx::builder()
@@ -258,10 +257,6 @@ where
         } = &response;
 
         info!(tx_hash, "broadcasted transaction");
-
-        self.confirm_tx(tx_hash).await?;
-
-        info!(tx_hash, "confirmed transaction");
 
         self.acc_sequence.replace(
             acc_sequence
@@ -330,7 +325,7 @@ where
 
             Ok(Fee::from_amount_and_gas(
                 Coin {
-                    amount: cast((gas_adj.mul(self.config.gas_price.amount)).ceil())
+                    amount: cast(gas_adj.mul(self.config.gas_price.amount).ceil())
                         .ok_or(Error::FeeEstimation)?,
                     denom: self.config.gas_price.denom.clone().into(),
                 },
@@ -352,48 +347,6 @@ where
             })
             .await
     }
-
-    async fn confirm_tx(&mut self, tx_hash: &str) -> Result<(), Error> {
-        let mut result: Result<(), Status> = Ok(());
-
-        for i in 0..self.config.tx_fetch_max_retries.saturating_add(1) {
-            if i > 0 {
-                thread::sleep(self.config.tx_fetch_interval)
-            }
-
-            let response = self
-                .client
-                .tx(GetTxRequest {
-                    hash: tx_hash.to_string(),
-                })
-                .await;
-
-            match evaluate_tx_response(response) {
-                ConfirmationResult::Success => {
-                    if let Err(report) = result {
-                        debug!(
-                            err = LoggableError::from(&report).as_value(),
-                            "tx confirmed after {} retries", i
-                        )
-                    }
-
-                    return Ok(());
-                }
-                ConfirmationResult::Critical(err) => return Err(err),
-                ConfirmationResult::Retriable(err) => {
-                    if let Err(result) = result.as_mut() {
-                        result.extend_one(err);
-                    } else {
-                        result = Err(err);
-                    }
-                }
-            };
-        }
-
-        result.change_context(Error::TxConfirmation {
-            tx_hash: tx_hash.to_string(),
-        })
-    }
 }
 
 fn decode_base_account(account: Any) -> Result<BaseAccount, Error> {
@@ -404,27 +357,6 @@ fn decode_base_account(account: Any) -> Result<BaseAccount, Error> {
         .attach_printable_lazy(|| format!("{{ value = {:?} }}", account.value))
 }
 
-fn evaluate_tx_response(
-    response: core::result::Result<GetTxResponse, Status>,
-) -> ConfirmationResult {
-    match response {
-        Err(err) => ConfirmationResult::Retriable(report!(err)),
-        Ok(GetTxResponse {
-            tx_response: None, ..
-        }) => ConfirmationResult::Retriable(Report::new(Status::not_found("tx not found"))),
-        Ok(GetTxResponse {
-            tx_response: Some(response),
-            ..
-        }) => match response {
-            TxResponse { code: 0, .. } => ConfirmationResult::Success,
-            _ => ConfirmationResult::Critical(
-                report!(Error::Execution)
-                    .attach_printable(format!("{{ response = {response:?} }}")),
-            ),
-        },
-    }
-}
-
 fn remap_account_not_found_error(
     response: core::result::Result<QueryAccountResponse, Status>,
 ) -> core::result::Result<QueryAccountResponse, Status> {
@@ -433,12 +365,6 @@ fn remap_account_not_found_error(
     } else {
         response
     }
-}
-
-enum ConfirmationResult {
-    Success,
-    Retriable(Report<Status>),
-    Critical(Report<Error>),
 }
 
 #[cfg(test)]
@@ -562,72 +488,6 @@ mod tests {
                 .current_context(),
             Error::Broadcast
         ));
-    }
-
-    #[test]
-    async fn tx_confirmation_failed() {
-        let mut client = MockBroadcastClient::new();
-        client.expect_simulate().returning(|_| {
-            Ok(SimulateResponse {
-                gas_info: Some(GasInfo {
-                    gas_wanted: 0,
-                    gas_used: 0,
-                }),
-                result: None,
-            })
-        });
-        client
-            .expect_broadcast_tx()
-            .returning(|_| Ok(TxResponse::default()));
-        client
-            .expect_tx()
-            .times((Config::default().tx_fetch_max_retries + 1) as usize)
-            .returning(|_| Err(Status::deadline_exceeded("time out")));
-
-        let mut broadcaster = init_validated_broadcaster(None, None, Some(client)).await;
-        let msgs = vec![dummy_msg()];
-
-        assert!(matches!(
-            broadcaster
-                .broadcast(msgs)
-                .await
-                .unwrap_err()
-                .current_context(),
-            Error::TxConfirmation { .. }
-        ));
-    }
-
-    #[test]
-    async fn tx_execution_failed() {
-        let mut client = MockBroadcastClient::new();
-        client.expect_simulate().returning(|_| {
-            Ok(SimulateResponse {
-                gas_info: Some(GasInfo {
-                    gas_wanted: 0,
-                    gas_used: 0,
-                }),
-                result: None,
-            })
-        });
-        client
-            .expect_broadcast_tx()
-            .returning(|_| Ok(TxResponse::default()));
-        client.expect_tx().times(1).returning(|_| {
-            Ok(GetTxResponse {
-                tx_response: Some(TxResponse {
-                    code: 32,
-                    ..TxResponse::default()
-                }),
-                ..GetTxResponse::default()
-            })
-        });
-
-        let mut broadcaster = init_validated_broadcaster(None, None, Some(client)).await;
-        let msgs = vec![dummy_msg()];
-
-        let report = broadcaster.broadcast(msgs).await.unwrap_err();
-
-        assert!(matches!(report.current_context(), Error::Execution));
     }
 
     #[test]

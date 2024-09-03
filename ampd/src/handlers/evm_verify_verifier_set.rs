@@ -40,7 +40,7 @@ pub struct VerifierSetConfirmation {
 struct PollStartedEvent {
     verifier_set: VerifierSetConfirmation,
     poll_id: PollId,
-    source_chain: router_api::ChainName,
+    source_chain: ChainName,
     source_gateway_address: EVMAddress,
     expires_at: u64,
     confirmation_height: u64,

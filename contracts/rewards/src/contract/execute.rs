@@ -2,23 +2,26 @@ use std::collections::HashMap;
 
 use axelar_wasm_std::{nonempty, FnExt};
 use cosmwasm_std::{Addr, OverflowError, OverflowOperation, Storage, Uint128};
-use error_stack::{Report, Result};
+use error_stack::{ensure, Report, Result};
 
 use crate::error::ContractError;
 use crate::msg::Params;
-use crate::state::{self, Epoch, EpochTally, Event, ParamsSnapshot, PoolId, StorageState};
+use crate::state::{
+    self, Epoch, EpochTally, Event, ParamsSnapshot, PoolId, RewardsDistribution, RewardsPool,
+    StorageState,
+};
 
 const DEFAULT_EPOCHS_TO_PROCESS: u64 = 10;
 const EPOCH_PAYOUT_DELAY: u64 = 2;
 
-pub(crate) fn record_participation(
+pub fn record_participation(
     storage: &mut dyn Storage,
     event_id: nonempty::String,
     verifier: Addr,
     pool_id: PoolId,
     block_height: u64,
 ) -> Result<(), ContractError> {
-    let current_params = state::load_params(storage);
+    let current_params = state::load_rewards_pool_params(storage, pool_id.clone())?;
     let cur_epoch = Epoch::current(&current_params, block_height)?;
 
     let event = load_or_store_event(storage, event_id, pool_id.clone(), cur_epoch.epoch_num)?;
@@ -52,20 +55,20 @@ fn load_or_store_event(
     }
 }
 
-pub(crate) fn distribute_rewards(
+pub fn distribute_rewards(
     storage: &mut dyn Storage,
     pool_id: PoolId,
     cur_block_height: u64,
     epoch_process_limit: Option<u64>,
-) -> Result<HashMap<Addr, Uint128>, ContractError> {
+) -> Result<RewardsDistribution, ContractError> {
     let epoch_process_limit = epoch_process_limit.unwrap_or(DEFAULT_EPOCHS_TO_PROCESS);
-    let cur_epoch = Epoch::current(&state::load_params(storage), cur_block_height)?;
+    let cur_epoch = state::current_epoch(storage, &pool_id, cur_block_height)?;
 
     let from = state::load_rewards_watermark(storage, pool_id.clone())?
         .map_or(0, |last_processed| last_processed.saturating_add(1));
 
     let to = std::cmp::min(
-        (from.saturating_add(epoch_process_limit)).saturating_sub(1), // for process limit =1 "from" and "to" must be equal
+        from.saturating_add(epoch_process_limit).saturating_sub(1), // for process limit =1 "from" and "to" must be equal
         cur_epoch.epoch_num.saturating_sub(EPOCH_PAYOUT_DELAY),
     );
 
@@ -75,7 +78,12 @@ pub(crate) fn distribute_rewards(
 
     let rewards = process_rewards_for_epochs(storage, pool_id.clone(), from, to)?;
     state::save_rewards_watermark(storage, pool_id, to)?;
-    Ok(rewards)
+    Ok(RewardsDistribution {
+        rewards,
+        epochs_processed: (from..=to).collect(),
+        current_epoch: cur_epoch.clone(),
+        can_distribute_more: to < cur_epoch.epoch_num.saturating_sub(EPOCH_PAYOUT_DELAY),
+    })
 }
 
 fn process_rewards_for_epochs(
@@ -85,7 +93,7 @@ fn process_rewards_for_epochs(
     to: u64,
 ) -> Result<HashMap<Addr, Uint128>, ContractError> {
     let rewards = cumulate_rewards(storage, &pool_id, from, to)?;
-    state::load_rewards_pool_or_new(storage, pool_id.clone())?
+    state::load_rewards_pool(storage, pool_id.clone())?
         .sub_reward(rewards.values().sum())?
         .then(|pool| state::save_rewards_pool(storage, &pool))?;
 
@@ -114,12 +122,43 @@ fn iterate_epoch_tallies<'a>(
     })
 }
 
-pub(crate) fn update_params(
+pub fn create_pool(
     storage: &mut dyn Storage,
+    params: Params,
+    block_height: u64,
+    pool_id: &PoolId,
+) -> Result<(), ContractError> {
+    ensure!(
+        !state::pool_exists(storage, pool_id)?,
+        ContractError::RewardsPoolAlreadyExists
+    );
+
+    let cur_epoch = Epoch {
+        epoch_num: 0,
+        block_height_started: block_height,
+    };
+
+    let params_snapshot = ParamsSnapshot {
+        params,
+        created_at: cur_epoch,
+    };
+
+    let pool = RewardsPool {
+        id: pool_id.clone(),
+        balance: Uint128::zero(),
+        params: params_snapshot,
+    };
+
+    state::save_rewards_pool(storage, &pool)
+}
+
+pub fn update_pool_params(
+    storage: &mut dyn Storage,
+    pool_id: &PoolId,
     new_params: Params,
     block_height: u64,
 ) -> Result<(), ContractError> {
-    let cur_epoch = Epoch::current(&state::load_params(storage), block_height)?;
+    let cur_epoch = state::current_epoch(storage, pool_id, block_height)?;
     // If the param update reduces the epoch duration such that the current epoch immediately ends,
     // start a new epoch at this block, incrementing the current epoch number by 1.
     // This prevents us from jumping forward an arbitrary number of epochs, and maintains consistency for past events.
@@ -149,22 +188,22 @@ pub(crate) fn update_params(
     } else {
         cur_epoch
     };
-    state::save_params(
-        storage,
-        &ParamsSnapshot {
-            params: new_params,
-            created_at: cur_epoch,
-        },
-    )?;
+    let new_params_snapshot = ParamsSnapshot {
+        params: new_params,
+        created_at: cur_epoch,
+    };
+
+    state::update_pool_params(storage, pool_id, &new_params_snapshot)?;
+
     Ok(())
 }
 
-pub(crate) fn add_rewards(
+pub fn add_rewards(
     storage: &mut dyn Storage,
     pool_id: PoolId,
     amount: nonempty::Uint128,
 ) -> Result<(), ContractError> {
-    let mut pool = state::load_rewards_pool_or_new(storage, pool_id)?;
+    let mut pool = state::load_rewards_pool(storage, pool_id)?;
     pool.balance = pool
         .balance
         .checked_add(Uint128::from(amount))
@@ -221,8 +260,19 @@ mod test {
         let cur_epoch_num = 1u64;
         let block_height_started = 250u64;
         let epoch_duration = 100u64;
-        let mock_deps = setup(cur_epoch_num, block_height_started, epoch_duration);
-        let current_params = state::load_params(mock_deps.as_ref().storage);
+        let pool_id = PoolId {
+            chain_name: "mock-chain".parse().unwrap(),
+            contract: Addr::unchecked("some contract"),
+        };
+        let mock_deps = setup(
+            cur_epoch_num,
+            block_height_started,
+            epoch_duration,
+            pool_id.clone(),
+        );
+        let current_params = state::load_rewards_pool(mock_deps.as_ref().storage, pool_id)
+            .unwrap()
+            .params;
 
         let new_epoch = Epoch::current(&current_params, block_height_started).unwrap();
         assert_eq!(new_epoch.epoch_num, cur_epoch_num);
@@ -245,8 +295,19 @@ mod test {
         let cur_epoch_num = 1u64;
         let block_height_started = 250u64;
         let epoch_duration = 100u64;
-        let mock_deps = setup(cur_epoch_num, block_height_started, epoch_duration);
-        let current_params = state::load_params(mock_deps.as_ref().storage);
+        let pool_id = PoolId {
+            chain_name: "mock-chain".parse().unwrap(),
+            contract: Addr::unchecked("some contract"),
+        };
+        let mock_deps = setup(
+            cur_epoch_num,
+            block_height_started,
+            epoch_duration,
+            pool_id.clone(),
+        );
+        let current_params = state::load_rewards_pool(mock_deps.as_ref().storage, pool_id.clone())
+            .unwrap()
+            .params;
 
         assert!(Epoch::current(&current_params, block_height_started - 1).is_err());
         assert!(Epoch::current(&current_params, block_height_started - epoch_duration).is_err());
@@ -258,7 +319,16 @@ mod test {
         let cur_epoch_num = 1u64;
         let block_height_started = 250u64;
         let epoch_duration = 100u64;
-        let mock_deps = setup(cur_epoch_num, block_height_started, epoch_duration);
+        let pool_id = PoolId {
+            chain_name: "mock-chain".parse().unwrap(),
+            contract: Addr::unchecked("some contract"),
+        };
+        let mock_deps = setup(
+            cur_epoch_num,
+            block_height_started,
+            epoch_duration,
+            pool_id.clone(),
+        );
 
         // elements are (height, expected epoch number, expected epoch start)
         let test_cases = vec![
@@ -285,8 +355,13 @@ mod test {
         ];
 
         for (height, expected_epoch_num, expected_block_start) in test_cases {
-            let new_epoch =
-                Epoch::current(&state::load_params(mock_deps.as_ref().storage), height).unwrap();
+            let new_epoch = Epoch::current(
+                &state::load_rewards_pool(mock_deps.as_ref().storage, pool_id.clone())
+                    .unwrap()
+                    .params,
+                height,
+            )
+            .unwrap();
 
             assert_eq!(new_epoch.epoch_num, expected_epoch_num);
             assert_eq!(new_epoch.block_height_started, expected_block_start);
@@ -300,12 +375,16 @@ mod test {
         let epoch_block_start = 250u64;
         let epoch_duration = 100u64;
 
-        let mut mock_deps = setup(cur_epoch_num, epoch_block_start, epoch_duration);
-
         let pool_id = PoolId {
             chain_name: "mock-chain".parse().unwrap(),
             contract: Addr::unchecked("some contract"),
         };
+        let mut mock_deps = setup(
+            cur_epoch_num,
+            epoch_block_start,
+            epoch_duration,
+            pool_id.clone(),
+        );
 
         let mut simulated_participation = HashMap::new();
         simulated_participation.insert(Addr::unchecked("verifier_1"), 10);
@@ -354,12 +433,16 @@ mod test {
         let block_height_started = 250u64;
         let epoch_duration = 100u64;
 
-        let mut mock_deps = setup(starting_epoch_num, block_height_started, epoch_duration);
-
         let pool_id = PoolId {
             chain_name: "mock-chain".parse().unwrap(),
             contract: Addr::unchecked("some contract"),
         };
+        let mut mock_deps = setup(
+            starting_epoch_num,
+            block_height_started,
+            epoch_duration,
+            pool_id.clone(),
+        );
 
         let verifiers = vec![
             Addr::unchecked("verifier_1"),
@@ -381,7 +464,9 @@ mod test {
         }
 
         let cur_epoch = Epoch::current(
-            &state::load_params(mock_deps.as_ref().storage),
+            &state::load_rewards_pool(mock_deps.as_ref().storage, pool_id.clone())
+                .unwrap()
+                .params,
             height_at_epoch_end,
         )
         .unwrap();
@@ -414,9 +499,6 @@ mod test {
     fn record_participation_multiple_contracts() {
         let cur_epoch_num = 1u64;
         let block_height_started = 250u64;
-        let epoch_duration = 100u64;
-
-        let mut mock_deps = setup(cur_epoch_num, block_height_started, epoch_duration);
 
         let mut simulated_participation = HashMap::new();
         simulated_participation.insert(
@@ -448,6 +530,20 @@ mod test {
                 },
                 2,
             ),
+        );
+
+        let params = Params {
+            participation_threshold: (1, 2).try_into().unwrap(),
+            epoch_duration: 100u64.try_into().unwrap(),
+            rewards_per_epoch: 100u128.try_into().unwrap(),
+        };
+        let mut mock_deps = setup_multiple_pools_with_params(
+            cur_epoch_num,
+            block_height_started,
+            simulated_participation
+                .iter()
+                .map(|(_, (pool_id, _))| (pool_id.clone(), params.clone()))
+                .collect(),
         );
 
         for (verifier, (pool_contract, events_participated)) in &simulated_participation {
@@ -482,6 +578,7 @@ mod test {
             );
         }
     }
+
     /// Test that rewards parameters are updated correctly. In this test we don't change the epoch duration, so
     /// that computation of the current epoch is unaffected.
     #[test]
@@ -491,12 +588,17 @@ mod test {
         let initial_rewards_per_epoch = 100u128;
         let initial_participation_threshold = (1, 2);
         let epoch_duration = 100u64;
+        let pool_id = PoolId {
+            chain_name: "mock-chain".parse().unwrap(),
+            contract: Addr::unchecked("some contract"),
+        };
         let mut mock_deps = setup_with_params(
             initial_epoch_num,
             initial_epoch_start,
             epoch_duration,
             initial_rewards_per_epoch,
             initial_participation_threshold,
+            pool_id.clone(),
         );
 
         // simulate the below tests running at this block height
@@ -511,16 +613,34 @@ mod test {
         };
 
         // the epoch shouldn't change when the params are updated, since we are not changing the epoch duration
-        let expected_epoch =
-            Epoch::current(&state::load_params(mock_deps.as_ref().storage), cur_height).unwrap();
+        let expected_epoch = Epoch::current(
+            &state::load_rewards_pool(mock_deps.as_ref().storage, pool_id.clone())
+                .unwrap()
+                .params,
+            cur_height,
+        )
+        .unwrap();
 
-        update_params(mock_deps.as_mut().storage, new_params.clone(), cur_height).unwrap();
-        let stored = state::load_params(mock_deps.as_ref().storage);
+        update_pool_params(
+            mock_deps.as_mut().storage,
+            &pool_id,
+            new_params.clone(),
+            cur_height,
+        )
+        .unwrap();
+        let stored = state::load_rewards_pool(mock_deps.as_ref().storage, pool_id.clone())
+            .unwrap()
+            .params;
         assert_eq!(stored.params, new_params);
 
         // current epoch shouldn't have changed
-        let cur_epoch =
-            Epoch::current(&state::load_params(mock_deps.as_ref().storage), cur_height).unwrap();
+        let cur_epoch = Epoch::current(
+            &state::load_rewards_pool(mock_deps.as_ref().storage, pool_id)
+                .unwrap()
+                .params,
+            cur_height,
+        )
+        .unwrap();
         assert_eq!(expected_epoch.epoch_num, cur_epoch.epoch_num);
         assert_eq!(
             expected_epoch.block_height_started,
@@ -537,10 +657,15 @@ mod test {
         let initial_epoch_num = 1u64;
         let initial_epoch_start = 250u64;
         let initial_epoch_duration = 100u64;
+        let pool_id = PoolId {
+            chain_name: "mock-chain".parse().unwrap(),
+            contract: Addr::unchecked("some contract"),
+        };
         let mut mock_deps = setup(
             initial_epoch_num,
             initial_epoch_start,
             initial_epoch_duration,
+            pool_id.clone(),
         );
 
         // simulate the tests running after 5 epochs have passed
@@ -548,18 +673,29 @@ mod test {
         let cur_height = initial_epoch_start + initial_epoch_duration * epochs_elapsed + 10; // add 10 here just to be a little past the epoch boundary
 
         // epoch shouldn't change if we are extending the duration
-        let initial_params_snapshot = state::load_params(mock_deps.as_ref().storage);
+        let initial_params_snapshot =
+            state::load_rewards_pool(mock_deps.as_ref().storage, pool_id.clone())
+                .unwrap()
+                .params;
         let epoch_prior_to_update = Epoch::current(&initial_params_snapshot, cur_height).unwrap();
 
         let new_epoch_duration = initial_epoch_duration * 2;
         let new_params = Params {
-            epoch_duration: (new_epoch_duration).try_into().unwrap(),
+            epoch_duration: new_epoch_duration.try_into().unwrap(),
             ..initial_params_snapshot.params // keep everything besides epoch duration the same
         };
 
-        update_params(mock_deps.as_mut().storage, new_params.clone(), cur_height).unwrap();
+        update_pool_params(
+            mock_deps.as_mut().storage,
+            &pool_id.clone(),
+            new_params.clone(),
+            cur_height,
+        )
+        .unwrap();
 
-        let updated_params_snapshot = state::load_params(mock_deps.as_ref().storage);
+        let updated_params_snapshot = state::load_rewards_pool(mock_deps.as_ref().storage, pool_id)
+            .unwrap()
+            .params;
 
         // current epoch shouldn't change
         let epoch = Epoch::current(&updated_params_snapshot, cur_height).unwrap();
@@ -590,10 +726,15 @@ mod test {
         let initial_epoch_num = 1u64;
         let initial_epoch_start = 256u64;
         let initial_epoch_duration = 100u64;
+        let pool_id = PoolId {
+            chain_name: "mock-chain".parse().unwrap(),
+            contract: Addr::unchecked("some contract"),
+        };
         let mut mock_deps = setup(
             initial_epoch_num,
             initial_epoch_start,
             initial_epoch_duration,
+            pool_id.clone(),
         );
 
         // simulate the tests running after 10 epochs have passed
@@ -602,7 +743,10 @@ mod test {
 
         let new_epoch_duration = initial_epoch_duration / 2;
 
-        let initial_params_snapshot = state::load_params(mock_deps.as_ref().storage);
+        let initial_params_snapshot =
+            state::load_rewards_pool(mock_deps.as_ref().storage, pool_id.clone())
+                .unwrap()
+                .params;
         let epoch_prior_to_update = Epoch::current(&initial_params_snapshot, cur_height).unwrap();
         // we are shortening the epoch, but not so much it causes the epoch number to change. We want to remain in the same epoch
         assert!(cur_height - epoch_prior_to_update.block_height_started < new_epoch_duration);
@@ -611,9 +755,18 @@ mod test {
             epoch_duration: new_epoch_duration.try_into().unwrap(),
             ..initial_params_snapshot.params
         };
-        update_params(mock_deps.as_mut().storage, new_params.clone(), cur_height).unwrap();
+        update_pool_params(
+            mock_deps.as_mut().storage,
+            &pool_id,
+            new_params.clone(),
+            cur_height,
+        )
+        .unwrap();
 
-        let updated_params_snapshot = state::load_params(mock_deps.as_ref().storage);
+        let updated_params_snapshot =
+            state::load_rewards_pool(mock_deps.as_ref().storage, pool_id.clone())
+                .unwrap()
+                .params;
 
         // current epoch shouldn't have changed
         let epoch = Epoch::current(&updated_params_snapshot, cur_height).unwrap();
@@ -636,10 +789,15 @@ mod test {
         let initial_epoch_num = 1u64;
         let initial_epoch_start = 250u64;
         let initial_epoch_duration = 100u64;
+        let pool_id = PoolId {
+            chain_name: "mock-chain".parse().unwrap(),
+            contract: Addr::unchecked("some contract"),
+        };
         let mut mock_deps = setup(
             initial_epoch_num,
             initial_epoch_start,
             initial_epoch_duration,
+            pool_id.clone(),
         );
 
         // simulate running the test after 100 epochs have elapsed
@@ -650,16 +808,28 @@ mod test {
         let cur_height =
             initial_epoch_start + initial_epoch_duration * epochs_elapsed + new_epoch_duration * 2;
 
-        let initial_params_snapshot = state::load_params(mock_deps.as_ref().storage);
+        let initial_params_snapshot =
+            state::load_rewards_pool(mock_deps.as_ref().storage, pool_id.clone())
+                .unwrap()
+                .params;
         let epoch_prior_to_update = Epoch::current(&initial_params_snapshot, cur_height).unwrap();
 
         let new_params = Params {
             epoch_duration: 10.try_into().unwrap(),
             ..initial_params_snapshot.params
         };
-        update_params(mock_deps.as_mut().storage, new_params.clone(), cur_height).unwrap();
+        update_pool_params(
+            mock_deps.as_mut().storage,
+            &pool_id.clone(),
+            new_params.clone(),
+            cur_height,
+        )
+        .unwrap();
 
-        let updated_params_snapshot = state::load_params(mock_deps.as_ref().storage);
+        let updated_params_snapshot =
+            state::load_rewards_pool(mock_deps.as_ref().storage, pool_id.clone())
+                .unwrap()
+                .params;
 
         // should be in new epoch now
         let epoch = Epoch::current(&updated_params_snapshot, cur_height).unwrap();
@@ -679,15 +849,19 @@ mod test {
         let cur_epoch_num = 1u64;
         let block_height_started = 250u64;
         let epoch_duration = 100u64;
-
-        let mut mock_deps = setup(cur_epoch_num, block_height_started, epoch_duration);
-
         let pool_id = PoolId {
             chain_name: "mock-chain".parse().unwrap(),
             contract: Addr::unchecked("some contract"),
         };
-        let pool =
-            state::load_rewards_pool_or_new(mock_deps.as_ref().storage, pool_id.clone()).unwrap();
+
+        let mut mock_deps = setup(
+            cur_epoch_num,
+            block_height_started,
+            epoch_duration,
+            pool_id.clone(),
+        );
+
+        let pool = state::load_rewards_pool(mock_deps.as_ref().storage, pool_id.clone()).unwrap();
         assert!(pool.balance.is_zero());
 
         let initial_amount = Uint128::from(100u128);
@@ -698,8 +872,7 @@ mod test {
         )
         .unwrap();
 
-        let pool =
-            state::load_rewards_pool_or_new(mock_deps.as_ref().storage, pool_id.clone()).unwrap();
+        let pool = state::load_rewards_pool(mock_deps.as_ref().storage, pool_id.clone()).unwrap();
         assert_eq!(pool.balance, initial_amount);
 
         let added_amount = Uint128::from(500u128);
@@ -710,7 +883,7 @@ mod test {
         )
         .unwrap();
 
-        let pool = state::load_rewards_pool_or_new(mock_deps.as_ref().storage, pool_id).unwrap();
+        let pool = state::load_rewards_pool(mock_deps.as_ref().storage, pool_id).unwrap();
         assert_eq!(pool.balance, initial_amount + added_amount);
     }
 
@@ -720,8 +893,17 @@ mod test {
         let cur_epoch_num = 1u64;
         let block_height_started = 250u64;
         let epoch_duration = 100u64;
+        let pool_id = PoolId {
+            chain_name: "mock-chain".parse().unwrap(),
+            contract: Addr::unchecked("some contract"),
+        };
 
-        let mut mock_deps = setup(cur_epoch_num, block_height_started, epoch_duration);
+        let mut mock_deps = setup(
+            cur_epoch_num,
+            block_height_started,
+            epoch_duration,
+            pool_id.clone(),
+        );
         // a vector of (contract, rewards amounts) pairs
         let test_data = vec![
             (Addr::unchecked("contract_1"), vec![100, 200, 50]),
@@ -736,6 +918,19 @@ mod test {
                 chain_name: chain_name.clone(),
                 contract: pool_contract.clone(),
             };
+            let participation_threshold = (1, 2);
+            let rewards_per_epoch = 100u128;
+            create_pool(
+                mock_deps.as_mut().storage,
+                Params {
+                    epoch_duration: epoch_duration.try_into().unwrap(),
+                    rewards_per_epoch: rewards_per_epoch.try_into().unwrap(),
+                    participation_threshold: participation_threshold.try_into().unwrap(),
+                },
+                block_height_started,
+                &pool_id,
+            )
+            .unwrap();
 
             for amount in rewards {
                 add_rewards(
@@ -753,12 +948,281 @@ mod test {
                 contract: pool_contract.clone(),
             };
 
-            let pool =
-                state::load_rewards_pool_or_new(mock_deps.as_ref().storage, pool_id).unwrap();
+            let pool = state::load_rewards_pool(mock_deps.as_ref().storage, pool_id).unwrap();
             assert_eq!(
                 pool.balance,
                 cosmwasm_std::Uint128::from(rewards.iter().sum::<u128>())
             );
+        }
+    }
+
+    /// Tests that pools can have different reward amounts
+    #[test]
+    fn multiple_pools_different_rewards_amount() {
+        let cur_epoch_num = 1u64;
+        let block_height_started = 250u64;
+        let epoch_duration = 100u64;
+
+        let mut simulated_participation = HashMap::new();
+        simulated_participation.insert(
+            Addr::unchecked("verifier-1"),
+            (
+                PoolId {
+                    chain_name: "mock-chain".parse().unwrap(),
+                    contract: Addr::unchecked("contract-1"),
+                },
+                3,
+            ),
+        );
+        simulated_participation.insert(
+            Addr::unchecked("verifier-2"),
+            (
+                PoolId {
+                    chain_name: "mock-chain-2".parse().unwrap(),
+                    contract: Addr::unchecked("contract-1"),
+                },
+                4,
+            ),
+        );
+        simulated_participation.insert(
+            Addr::unchecked("verifier-3"),
+            (
+                PoolId {
+                    chain_name: "mock-chain".parse().unwrap(),
+                    contract: Addr::unchecked("contract-3"),
+                },
+                2,
+            ),
+        );
+        let base_params = Params {
+            participation_threshold: (1, 2).try_into().unwrap(),
+            epoch_duration: 100u64.try_into().unwrap(),
+            rewards_per_epoch: 100u128.try_into().unwrap(), // this is overwritten below
+        };
+        let rewards_per_epoch = vec![50u128, 100u128, 200u128];
+        let pool_params: Vec<(PoolId, Params)> = simulated_participation
+            .values()
+            .map(|(pool_id, _)| pool_id.clone())
+            .zip(rewards_per_epoch.into_iter().map(|r| Params {
+                rewards_per_epoch: r.try_into().unwrap(),
+                ..base_params.clone()
+            }))
+            .collect();
+
+        let mut mock_deps = setup_multiple_pools_with_params(
+            cur_epoch_num,
+            block_height_started,
+            pool_params.clone(),
+        );
+
+        for (verifier, (pool_contract, events_participated)) in &simulated_participation {
+            for i in 0..*events_participated {
+                let event_id = i.to_string().try_into().unwrap();
+                record_participation(
+                    mock_deps.as_mut().storage,
+                    event_id,
+                    verifier.clone(),
+                    pool_contract.clone(),
+                    block_height_started,
+                )
+                .unwrap();
+            }
+        }
+
+        for (pool_id, params) in pool_params {
+            let rewards_to_add = params.rewards_per_epoch;
+            let _ = add_rewards(
+                mock_deps.as_mut().storage,
+                pool_id.clone(),
+                Uint128::from(rewards_to_add).try_into().unwrap(),
+            );
+
+            let distribution = distribute_rewards(
+                mock_deps.as_mut().storage,
+                pool_id,
+                block_height_started + epoch_duration * 2,
+                None,
+            )
+            .unwrap();
+            assert_eq!(
+                distribution.rewards.values().sum::<Uint128>(),
+                Uint128::from(params.rewards_per_epoch)
+            );
+        }
+    }
+
+    /// Tests that pools can have different participation thresholds
+    #[test]
+    fn multiple_pools_different_threshold() {
+        let cur_epoch_num = 1u64;
+        let block_height_started = 250u64;
+        let epoch_duration = 100u64;
+        let pools = vec![
+            PoolId {
+                chain_name: "mock-chain".parse().unwrap(),
+                contract: Addr::unchecked("contract-1"),
+            },
+            PoolId {
+                chain_name: "mock-chain-2".parse().unwrap(),
+                contract: Addr::unchecked("contract-1"),
+            },
+        ];
+
+        let verifiers = [Addr::unchecked("verifier-1"), Addr::unchecked("verifier-2")];
+
+        // simulate two verifiers each participating in two pools
+        // the first verifier participates in 2 events, and the second in 3 events (out of a total of 3 events)
+        let simulated_participation = vec![
+            (verifiers[0].clone(), (pools[0].clone(), 2)),
+            (verifiers[0].clone(), (pools[1].clone(), 2)),
+            (verifiers[1].clone(), (pools[0].clone(), 3)),
+            (verifiers[1].clone(), (pools[1].clone(), 3)),
+        ];
+        let base_params = Params {
+            participation_threshold: (1, 2).try_into().unwrap(), // this is overwritten below
+            epoch_duration: 100u64.try_into().unwrap(),
+            rewards_per_epoch: 100u128.try_into().unwrap(),
+        };
+        // the first pool has a 2/3 threshold, the second 3/4 threshold
+        let participation_thresholds = vec![(2, 3), (3, 4)];
+        let pool_params: Vec<(PoolId, Params)> = pools
+            .clone()
+            .into_iter()
+            .zip(participation_thresholds.into_iter().map(|p| Params {
+                participation_threshold: p.try_into().unwrap(),
+                ..base_params.clone()
+            }))
+            .collect();
+
+        let mut mock_deps = setup_multiple_pools_with_params(
+            cur_epoch_num,
+            block_height_started,
+            pool_params.clone(),
+        );
+
+        for (verifier, (pool_contract, events_participated)) in &simulated_participation {
+            for i in 0..*events_participated {
+                let event_id = i.to_string().try_into().unwrap();
+                record_participation(
+                    mock_deps.as_mut().storage,
+                    event_id,
+                    verifier.clone(),
+                    pool_contract.clone(),
+                    block_height_started,
+                )
+                .unwrap();
+            }
+        }
+
+        for (pool_id, params) in pool_params {
+            let rewards_to_add = params.rewards_per_epoch;
+            let _ = add_rewards(mock_deps.as_mut().storage, pool_id.clone(), rewards_to_add);
+
+            let distribution = distribute_rewards(
+                mock_deps.as_mut().storage,
+                pool_id.clone(),
+                block_height_started + epoch_duration * 2,
+                None,
+            )
+            .unwrap();
+
+            if pool_id == pools[0] {
+                // the first pool has a 2/3 threshold, which both verifiers meet
+                assert_eq!(
+                    distribution.rewards,
+                    HashMap::from_iter(verifiers.iter().map(|v| (
+                        v.clone(),
+                        Uint128::from(Uint128::from(rewards_to_add).u128() / 2)
+                    )))
+                );
+            } else {
+                // the second pool has 3/4 threshold, which only the second verifier meets
+                assert_eq!(
+                    distribution.rewards,
+                    HashMap::from([(verifiers[1].clone(), Uint128::from(rewards_to_add))])
+                );
+            }
+        }
+    }
+
+    /// Tests that pools can have different epoch lengths
+    #[test]
+    fn multiple_pools_different_epoch_length() {
+        let cur_epoch_num = 1u64;
+        let block_height_started = 250u64;
+        let base_epoch_duration = 100u64;
+        let pools = vec![
+            PoolId {
+                chain_name: "mock-chain".parse().unwrap(),
+                contract: Addr::unchecked("contract-1"),
+            },
+            PoolId {
+                chain_name: "mock-chain-2".parse().unwrap(),
+                contract: Addr::unchecked("contract-1"),
+            },
+        ];
+
+        let verifier = Addr::unchecked("verifier-1");
+
+        // simulate one verifier participating in two events in each pool
+        let simulated_participation = vec![
+            (verifier.clone(), (pools[0].clone(), 2)),
+            (verifier.clone(), (pools[1].clone(), 2)),
+        ];
+
+        let base_params = Params {
+            participation_threshold: (1, 2).try_into().unwrap(),
+            epoch_duration: 100u64.try_into().unwrap(), // this is overwritten below
+            rewards_per_epoch: 100u128.try_into().unwrap(),
+        };
+        // one pool has twice the epoch duration as the other
+        let epoch_durations = vec![base_epoch_duration, base_epoch_duration * 2];
+        let pool_params: Vec<(PoolId, Params)> = pools
+            .clone()
+            .into_iter()
+            .zip(epoch_durations.into_iter().map(|e| Params {
+                epoch_duration: e.try_into().unwrap(),
+                ..base_params.clone()
+            }))
+            .collect();
+
+        let mut mock_deps = setup_multiple_pools_with_params(
+            cur_epoch_num,
+            block_height_started,
+            pool_params.clone(),
+        );
+
+        for (verifier, (pool_contract, events_participated)) in &simulated_participation {
+            for i in 0..*events_participated {
+                let event_id = i.to_string().try_into().unwrap();
+                record_participation(
+                    mock_deps.as_mut().storage,
+                    event_id,
+                    verifier.clone(),
+                    pool_contract.clone(),
+                    block_height_started,
+                )
+                .unwrap();
+            }
+        }
+
+        for (pool_id, params) in pool_params {
+            let rewards_to_add = params.rewards_per_epoch;
+            add_rewards(mock_deps.as_mut().storage, pool_id.clone(), rewards_to_add).unwrap();
+
+            let distribution = distribute_rewards(
+                mock_deps.as_mut().storage,
+                pool_id.clone(),
+                block_height_started + base_epoch_duration * EPOCH_PAYOUT_DELAY, // this is long enough for the first pool to pay out, but not the second
+                None,
+            )
+            .unwrap();
+
+            if pool_id == pools[0] {
+                assert_eq!(distribution.rewards.len(), 1);
+            } else {
+                assert_eq!(distribution.rewards.len(), 0);
+            }
         }
     }
 
@@ -770,6 +1234,10 @@ mod test {
         let epoch_duration = 1000u64;
         let rewards_per_epoch = 100u128;
         let participation_threshold = (2, 3);
+        let pool_id = PoolId {
+            chain_name: "mock-chain".parse().unwrap(),
+            contract: Addr::unchecked("pool_contract"),
+        };
 
         let mut mock_deps = setup_with_params(
             cur_epoch_num,
@@ -777,6 +1245,7 @@ mod test {
             epoch_duration,
             rewards_per_epoch,
             participation_threshold,
+            pool_id.clone(),
         );
         let verifier1 = Addr::unchecked("verifier1");
         let verifier2 = Addr::unchecked("verifier2");
@@ -812,11 +1281,6 @@ mod test {
             (verifier4.clone(), rewards_per_epoch / 4),
         ]);
 
-        let pool_id = PoolId {
-            chain_name: "mock-chain".parse().unwrap(),
-            contract: Addr::unchecked("pool_contract"),
-        };
-
         for (verifier, events_participated) in verifier_participation_per_epoch.clone() {
             for (epoch, events) in events_participated.iter().enumerate().take(epoch_count) {
                 for event in events {
@@ -832,8 +1296,8 @@ mod test {
             }
         }
 
-        // we add 2 epochs worth of rewards. There were 2 epochs of participation, but only 2 epochs where rewards should be given out
-        // These tests we are accounting correctly, and only removing from the pool when we actually give out rewards
+        // we add 2 epochs worth of rewards. There were 4 epochs of participation, but only 2 epochs where rewards should be given out
+        // This tests we are accounting correctly, and only removing from the pool when we actually give out rewards
         let rewards_added = 2 * rewards_per_epoch;
         let _ = add_rewards(
             mock_deps.as_mut().storage,
@@ -841,13 +1305,15 @@ mod test {
             Uint128::from(rewards_added).try_into().unwrap(),
         );
 
-        let rewards_claimed = distribute_rewards(
+        let distribution = distribute_rewards(
             mock_deps.as_mut().storage,
             pool_id,
-            block_height_started + epoch_duration * (epoch_count as u64 + 2),
+            block_height_started + epoch_duration * (epoch_count as u64 + 1),
             None,
         )
         .unwrap();
+
+        let rewards_claimed = distribution.rewards;
 
         assert_eq!(
             rewards_claimed.len(),
@@ -860,6 +1326,11 @@ mod test {
                 Some(&Uint128::from(rewards))
             );
         }
+
+        assert_eq!(
+            distribution.epochs_processed,
+            Vec::from_iter(0u64..epoch_count as u64)
+        );
     }
 
     /// Tests that rewards are distributed correctly for a specified number of epochs, and that pagination works correctly
@@ -870,6 +1341,10 @@ mod test {
         let epoch_duration = 1000u64;
         let rewards_per_epoch = 100u128;
         let participation_threshold = (1, 2);
+        let pool_id = PoolId {
+            chain_name: "mock-chain".parse().unwrap(),
+            contract: Addr::unchecked("pool_contract"),
+        };
 
         let mut mock_deps = setup_with_params(
             cur_epoch_num,
@@ -877,12 +1352,9 @@ mod test {
             epoch_duration,
             rewards_per_epoch,
             participation_threshold,
+            pool_id.clone(),
         );
         let verifier = Addr::unchecked("verifier");
-        let pool_id = PoolId {
-            chain_name: "mock-chain".parse().unwrap(),
-            contract: Addr::unchecked("pool_contract"),
-        };
 
         for height in block_height_started..block_height_started + epoch_duration * 9 {
             let event_id = height.to_string() + "event";
@@ -902,34 +1374,45 @@ mod test {
             Uint128::from(rewards_added).try_into().unwrap(),
         );
 
-        // this puts us in epoch 10
+        // this puts us in epoch 9
         let cur_height = block_height_started + epoch_duration * 9;
         let total_epochs_with_rewards = (cur_height / epoch_duration) - 1;
 
         // distribute 5 epochs worth of rewards
         let epochs_to_process = 5;
-        let rewards_claimed = distribute_rewards(
+        let distribution = distribute_rewards(
             mock_deps.as_mut().storage,
             pool_id.clone(),
             cur_height,
             Some(epochs_to_process),
         )
         .unwrap();
+        let rewards_claimed = distribution.rewards;
         assert_eq!(rewards_claimed.len(), 1);
         assert!(rewards_claimed.contains_key(&verifier));
         assert_eq!(
             rewards_claimed.get(&verifier),
             Some(&(rewards_per_epoch * epochs_to_process as u128).into())
         );
+        assert_eq!(
+            distribution.epochs_processed,
+            Vec::from_iter(0u64..epochs_to_process)
+        );
+        assert_eq!(
+            distribution.current_epoch.epoch_num,
+            cur_height / epoch_duration
+        );
+        assert!(distribution.can_distribute_more);
 
         // distribute the remaining epochs worth of rewards
-        let rewards_claimed = distribute_rewards(
+        let distribution = distribute_rewards(
             mock_deps.as_mut().storage,
             pool_id.clone(),
             cur_height,
             None,
         )
         .unwrap();
+        let rewards_claimed = distribution.rewards;
         assert_eq!(rewards_claimed.len(), 1);
         assert!(rewards_claimed.contains_key(&verifier));
         assert_eq!(
@@ -939,6 +1422,15 @@ mod test {
                     .into()
             )
         );
+        assert_eq!(
+            distribution.epochs_processed,
+            Vec::from_iter(epochs_to_process..total_epochs_with_rewards)
+        );
+        assert_eq!(
+            distribution.current_epoch.epoch_num,
+            cur_height / epoch_duration
+        );
+        assert!(!distribution.can_distribute_more);
     }
 
     /// Tests that we do not distribute rewards for a given epoch until two epochs later
@@ -949,6 +1441,10 @@ mod test {
         let epoch_duration = 1000u64;
         let rewards_per_epoch = 100u128;
         let participation_threshold = (8, 10);
+        let pool_id = PoolId {
+            chain_name: "mock-chain".parse().unwrap(),
+            contract: Addr::unchecked("pool_contract"),
+        };
 
         let mut mock_deps = setup_with_params(
             cur_epoch_num,
@@ -956,6 +1452,7 @@ mod test {
             epoch_duration,
             rewards_per_epoch,
             participation_threshold,
+            pool_id.clone(),
         );
         let verifier = Addr::unchecked("verifier");
         let pool_id = PoolId {
@@ -999,14 +1496,15 @@ mod test {
         assert_eq!(err.current_context(), &ContractError::NoRewardsToDistribute);
 
         // can claim now, two epochs after participation
-        let rewards_claimed = distribute_rewards(
+        let distribution = distribute_rewards(
             mock_deps.as_mut().storage,
             pool_id.clone(),
             block_height_started + epoch_duration * 2,
             None,
         )
         .unwrap();
-        assert_eq!(rewards_claimed.len(), 1);
+        assert_eq!(distribution.rewards.len(), 1);
+        assert!(!distribution.can_distribute_more);
 
         // should error if we try again
         let err = distribute_rewards(
@@ -1028,6 +1526,10 @@ mod test {
         let epoch_duration = 1000u64;
         let rewards_per_epoch = 100u128;
         let participation_threshold = (8, 10);
+        let pool_id = PoolId {
+            chain_name: "mock-chain".parse().unwrap(),
+            contract: Addr::unchecked("pool_contract"),
+        };
 
         let mut mock_deps = setup_with_params(
             cur_epoch_num,
@@ -1035,6 +1537,7 @@ mod test {
             epoch_duration,
             rewards_per_epoch,
             participation_threshold,
+            pool_id.clone(),
         );
         let verifier = Addr::unchecked("verifier");
         let pool_id = PoolId {
@@ -1077,14 +1580,14 @@ mod test {
             Uint128::from(rewards_added).try_into().unwrap(),
         );
 
-        let result = distribute_rewards(
+        let distribution = distribute_rewards(
             mock_deps.as_mut().storage,
             pool_id,
             block_height_started + epoch_duration * 2,
             None,
-        );
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap().len(), 1);
+        )
+        .unwrap();
+        assert_eq!(distribution.rewards.len(), 1);
     }
 
     /// Tests that an error is returned from distribute_rewards when trying to claim rewards for the same epoch more than once
@@ -1095,6 +1598,10 @@ mod test {
         let epoch_duration = 1000u64;
         let rewards_per_epoch = 100u128;
         let participation_threshold = (8, 10);
+        let pool_id = PoolId {
+            chain_name: "mock-chain".parse().unwrap(),
+            contract: Addr::unchecked("pool_contract"),
+        };
 
         let mut mock_deps = setup_with_params(
             cur_epoch_num,
@@ -1102,12 +1609,9 @@ mod test {
             epoch_duration,
             rewards_per_epoch,
             participation_threshold,
+            pool_id.clone(),
         );
         let verifier = Addr::unchecked("verifier");
-        let pool_id = PoolId {
-            chain_name: "mock-chain".parse().unwrap(),
-            contract: Addr::unchecked("pool_contract"),
-        };
 
         let _ = record_participation(
             mock_deps.as_mut().storage,
@@ -1124,14 +1628,15 @@ mod test {
             Uint128::from(rewards_added).try_into().unwrap(),
         );
 
-        let rewards_claimed = distribute_rewards(
+        let distribution = distribute_rewards(
             mock_deps.as_mut().storage,
             pool_id.clone(),
             block_height_started + epoch_duration * 2,
             None,
         )
         .unwrap();
-        assert_eq!(rewards_claimed.len(), 1);
+        assert_eq!(distribution.rewards.len(), 1);
+        assert_eq!(distribution.epochs_processed, vec![cur_epoch_num]);
 
         // try to claim again, shouldn't get an error
         let err = distribute_rewards(
@@ -1144,7 +1649,100 @@ mod test {
         assert_eq!(err.current_context(), &ContractError::NoRewardsToDistribute);
     }
 
+    #[test]
+    fn cannot_record_participation_before_pool_is_created() {
+        let cur_epoch_num = 1u64;
+        let block_height_started = 250u64;
+        let mut mock_deps =
+            setup_multiple_pools_with_params(cur_epoch_num, block_height_started, vec![]);
+
+        assert!(record_participation(
+            mock_deps.as_mut().storage,
+            "some-event".parse().unwrap(),
+            Addr::unchecked("verifier"),
+            PoolId {
+                chain_name: "mock-chain".parse().unwrap(),
+                contract: Addr::unchecked("contract")
+            },
+            block_height_started
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn cannot_add_rewards_before_pool_is_created() {
+        let cur_epoch_num = 1u64;
+        let block_height_started = 250u64;
+        let mut mock_deps =
+            setup_multiple_pools_with_params(cur_epoch_num, block_height_started, vec![]);
+        assert!(add_rewards(
+            mock_deps.as_mut().storage,
+            PoolId {
+                chain_name: "mock-chain".parse().unwrap(),
+                contract: Addr::unchecked("contract")
+            },
+            100u128.try_into().unwrap(),
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn cannot_distribute_rewards_before_pool_is_created() {
+        let cur_epoch_num = 1u64;
+        let block_height_started = 250u64;
+        let mut mock_deps =
+            setup_multiple_pools_with_params(cur_epoch_num, block_height_started, vec![]);
+        assert!(distribute_rewards(
+            mock_deps.as_mut().storage,
+            PoolId {
+                chain_name: "mock-chain".parse().unwrap(),
+                contract: Addr::unchecked("contract")
+            },
+            block_height_started,
+            None
+        )
+        .is_err());
+    }
+
     type MockDeps = OwnedDeps<MockStorage, MockApi, MockQuerier>;
+
+    fn setup_multiple_pools_with_params(
+        cur_epoch_num: u64,
+        block_height_started: u64,
+        pools: Vec<(PoolId, Params)>,
+    ) -> MockDeps {
+        let current_epoch = Epoch {
+            epoch_num: cur_epoch_num,
+            block_height_started,
+        };
+
+        let mut deps = mock_dependencies();
+        let storage = deps.as_mut().storage;
+        for (pool_id, params) in pools {
+            let params_snapshot = ParamsSnapshot {
+                params,
+                created_at: current_epoch.clone(),
+            };
+
+            state::save_rewards_pool(
+                storage,
+                &RewardsPool {
+                    id: pool_id,
+                    params: params_snapshot,
+                    balance: Uint128::zero(),
+                },
+            )
+            .unwrap();
+        }
+
+        let config = Config {
+            rewards_denom: "AXL".to_string(),
+        };
+
+        CONFIG.save(storage, &config).unwrap();
+
+        deps
+    }
 
     fn setup_with_params(
         cur_epoch_num: u64,
@@ -1152,6 +1750,7 @@ mod test {
         epoch_duration: u64,
         rewards_per_epoch: u128,
         participation_threshold: (u64, u64),
+        pool_id: PoolId,
     ) -> MockDeps {
         let rewards_per_epoch: nonempty::Uint128 = cosmwasm_std::Uint128::from(rewards_per_epoch)
             .try_into()
@@ -1172,8 +1771,15 @@ mod test {
 
         let mut deps = mock_dependencies();
         let storage = deps.as_mut().storage;
-
-        state::save_params(storage, &params_snapshot).unwrap();
+        state::save_rewards_pool(
+            storage,
+            &RewardsPool {
+                id: pool_id,
+                params: params_snapshot,
+                balance: Uint128::zero(),
+            },
+        )
+        .unwrap();
 
         let config = Config {
             rewards_denom: "AXL".to_string(),
@@ -1184,7 +1790,12 @@ mod test {
         deps
     }
 
-    fn setup(cur_epoch_num: u64, block_height_started: u64, epoch_duration: u64) -> MockDeps {
+    fn setup(
+        cur_epoch_num: u64,
+        block_height_started: u64,
+        epoch_duration: u64,
+        pool_id: PoolId,
+    ) -> MockDeps {
         let participation_threshold = (1, 2);
         let rewards_per_epoch = 100u128;
         setup_with_params(
@@ -1193,6 +1804,7 @@ mod test {
             epoch_duration,
             rewards_per_epoch,
             participation_threshold,
+            pool_id,
         )
     }
 }

@@ -86,8 +86,10 @@ where
                 &handler,
                 &broadcaster,
                 event,
-                event_processor_config.retry_delay,
-                event_processor_config.retry_max_attempts,
+                RetryPolicy::RepeatConstant {
+                    sleep: event_processor_config.retry_delay,
+                    max_attempts: event_processor_config.retry_max_attempts,
+                },
             )
             .await?;
         }
@@ -110,23 +112,14 @@ async fn handle_event<H, B>(
     handler: &H,
     broadcaster: &B,
     event: &Event,
-    handle_sleep_duration: Duration,
-    handle_max_attempts: u64,
+    retry_policy: RetryPolicy,
 ) -> Result<(), Error>
 where
     H: EventHandler,
     B: BroadcasterClient,
 {
     // if handlers run into errors we log them and then move on to the next event
-    match future::with_retry(
-        || handler.handle(event),
-        RetryPolicy::RepeatConstant {
-            sleep: handle_sleep_duration,
-            max_attempts: handle_max_attempts,
-        },
-    )
-    .await
-    {
+    match future::with_retry(|| handler.handle(event), retry_policy).await {
         Ok(msgs) => {
             for msg in msgs {
                 broadcaster

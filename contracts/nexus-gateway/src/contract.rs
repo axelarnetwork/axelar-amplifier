@@ -1,9 +1,10 @@
+use axelar_wasm_std::address;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{Addr, DepsMut, Empty, Env, MessageInfo, Response, Storage};
-use error_stack::{Report, ResultExt};
+use error_stack::Report;
 
-use crate::contract::execute::{route_to_nexus, route_to_router};
+use crate::contract::execute::{call_contract_with_token, route_to_nexus, route_to_router};
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg};
 use crate::state::Config;
@@ -36,10 +37,19 @@ pub fn instantiate(
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    let nexus = deps.api.addr_validate(&msg.nexus)?;
-    let router = deps.api.addr_validate(&msg.router)?;
+    let nexus = address::validate_cosmwasm_address(deps.api, &msg.nexus)?;
+    let router = address::validate_cosmwasm_address(deps.api, &msg.router)?;
+    let axelar_gateway = address::validate_cosmwasm_address(deps.api, &msg.axelar_gateway)?;
 
-    state::save_config(deps.storage, Config { nexus, router }).expect("config must be saved");
+    state::save_config(
+        deps.storage,
+        Config {
+            nexus,
+            router,
+            axelar_gateway,
+        },
+    )
+    .expect("config must be saved");
 
     Ok(Response::default())
 }
@@ -47,17 +57,25 @@ pub fn instantiate(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
-    _env: Env,
+    _: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response<nexus::Message>, axelar_wasm_std::error::ContractError> {
     let res = match msg.ensure_permissions(deps.storage, &info.sender, match_router, match_nexus)? {
-        ExecuteMsg::RouteMessages(msgs) => {
-            route_to_nexus(deps.storage, msgs).change_context(ContractError::RouteToNexus)?
-        }
-        ExecuteMsg::RouteMessagesFromNexus(msgs) => {
-            route_to_router(deps.storage, msgs).change_context(ContractError::RouteToRouter)?
-        }
+        ExecuteMsg::CallContractWithToken {
+            destination_chain,
+            destination_address,
+            payload,
+        } => call_contract_with_token(
+            deps.storage,
+            deps.querier,
+            info,
+            destination_chain,
+            destination_address,
+            payload,
+        )?,
+        ExecuteMsg::RouteMessages(msgs) => route_to_nexus(deps.storage, msgs)?,
+        ExecuteMsg::RouteMessagesFromNexus(msgs) => route_to_router(deps.storage, msgs)?,
     };
 
     Ok(res)
@@ -76,7 +94,10 @@ mod tests {
     use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
     use axelar_wasm_std::{err_contains, permission_control};
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-    use cosmwasm_std::{from_json, Addr, CosmosMsg, WasmMsg};
+    use cosmwasm_std::{
+        from_json, to_json_binary, Addr, BankMsg, Coin, CosmosMsg, QuerierResult, SubMsg, WasmMsg,
+        WasmQuery,
+    };
     use hex::decode;
     use router_api::CrossChainId;
 
@@ -84,6 +105,7 @@ mod tests {
 
     const NEXUS: &str = "nexus";
     const ROUTER: &str = "router";
+    const AXELAR_GATEWAY: &str = "axelar_gateway";
 
     #[test]
     fn migrate_sets_contract_version() {
@@ -94,6 +116,80 @@ mod tests {
         let contract_version = cw2::get_contract_version(deps.as_mut().storage).unwrap();
         assert_eq!(contract_version.contract, "nexus-gateway");
         assert_eq!(contract_version.version, CONTRACT_VERSION);
+    }
+
+    #[test]
+    fn call_contract_with_token_no_token() {
+        let mut deps = mock_dependencies();
+        instantiate_contract(deps.as_mut());
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(NEXUS, &[]),
+            ExecuteMsg::CallContractWithToken {
+                destination_chain: "destinationChain".parse().unwrap(),
+                destination_address: "0xD419".parse().unwrap(),
+                payload: decode("bb9b5566c2f4876863333e481f4698350154259ffe6226e283b16ce18a64bcf1")
+                    .unwrap()
+                    .into(),
+            },
+        );
+        assert!(res.is_err_and(|err| err_contains!(
+            err.report,
+            ContractError,
+            ContractError::InvalidToken { .. }
+        )));
+    }
+
+    #[test]
+    fn call_contract_with_token() {
+        let mut deps = mock_dependencies();
+        deps.querier.update_wasm(move |msg| match msg {
+            WasmQuery::Smart { contract_addr, msg } if contract_addr == AXELAR_GATEWAY => {
+                let msg = from_json::<axelarnet_gateway::msg::QueryMsg>(msg).unwrap();
+
+                match msg {
+                    axelarnet_gateway::msg::QueryMsg::ChainName => {
+                        QuerierResult::Ok(to_json_binary("axelarnet").into())
+                    }
+                    _ => panic!("unexpected query: {:?}", msg),
+                }
+            }
+            _ => panic!("unexpected query: {:?}", msg),
+        });
+        instantiate_contract(deps.as_mut());
+
+        let token = Coin {
+            denom: "denom".to_string(),
+            amount: 100u128.into(),
+        };
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(NEXUS, &[token.clone()]),
+            ExecuteMsg::CallContractWithToken {
+                destination_chain: "destinationChain".parse().unwrap(),
+                destination_address: "0xD419".parse().unwrap(),
+                payload: decode("bb9b5566c2f4876863333e481f4698350154259ffe6226e283b16ce18a64bcf1")
+                    .unwrap()
+                    .into(),
+            },
+        );
+        assert!(res.is_ok_and(move |res| match res.messages.as_slice() {
+            [SubMsg {
+                msg: CosmosMsg::Bank(BankMsg::Send { to_address, amount }),
+                ..
+            }, SubMsg {
+                msg:
+                    CosmosMsg::Custom(nexus::Message {
+                        token: Some(actual_token),
+                        ..
+                    }),
+                ..
+            }] => *actual_token == token && to_address == NEXUS && *amount == vec![token],
+            _ => false,
+        }));
     }
 
     #[test]
@@ -251,6 +347,7 @@ mod tests {
                 source_tx_id: msg_ids[0].tx_hash.to_vec().try_into().unwrap(),
                 source_tx_index: msg_ids[0].event_index as u64,
                 id: msg_ids[0].to_string(),
+                token: None,
             },
             nexus::Message {
                 source_chain: "sourceChain".parse().unwrap(),
@@ -266,6 +363,7 @@ mod tests {
                 source_tx_id: msg_ids[1].tx_hash.to_vec().try_into().unwrap(),
                 source_tx_index: msg_ids[1].event_index as u64,
                 id: msg_ids[1].to_string(),
+                token: None,
             },
         ];
         msgs
@@ -315,6 +413,7 @@ mod tests {
             InstantiateMsg {
                 nexus: NEXUS.to_string(),
                 router: ROUTER.to_string(),
+                axelar_gateway: AXELAR_GATEWAY.to_string(),
             },
         )
         .unwrap();

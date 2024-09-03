@@ -4,7 +4,7 @@ use multisig::msg::Signer;
 use multisig::multisig::Multisig;
 use multisig::types::MultisigState;
 use multisig::verifier_set::VerifierSet;
-use service_registry::state::{
+use service_registry::{
     AuthorizationState, BondingState, Verifier, WeightedVerifier, VERIFIER_WEIGHT,
 };
 
@@ -118,12 +118,12 @@ fn service_registry_mock_querier_handler(
 ) -> QuerierResult {
     let result = match msg {
         service_registry::msg::QueryMsg::Service { service_name } => {
-            to_json_binary(&service_registry::state::Service {
+            to_json_binary(&service_registry::Service {
                 name: service_name.to_string(),
                 coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS),
                 min_num_verifiers: 1,
                 max_num_verifiers: Some(100),
-                min_verifier_bond: Uint128::new(1),
+                min_verifier_bond: Uint128::new(1).try_into().unwrap(),
                 bond_denom: "uaxl".to_string(),
                 unbonding_period_days: 1,
                 description: "verifiers".to_string(),
@@ -139,7 +139,9 @@ fn service_registry_mock_querier_handler(
                 .map(|op| WeightedVerifier {
                     verifier_info: Verifier {
                         address: op.address,
-                        bonding_state: BondingState::Bonded { amount: op.weight },
+                        bonding_state: BondingState::Bonded {
+                            amount: op.weight.try_into().unwrap(),
+                        },
                         authorization_state: AuthorizationState::Authorized,
                         service_name: SERVICE_NAME.to_string(),
                     },

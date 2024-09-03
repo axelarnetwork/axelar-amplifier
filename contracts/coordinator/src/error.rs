@@ -1,4 +1,4 @@
-use axelar_wasm_std_derive::IntoContractError;
+use axelar_wasm_std::IntoContractError;
 use cosmwasm_std::StdError;
 use cw2::VersionError;
 use thiserror::Error;

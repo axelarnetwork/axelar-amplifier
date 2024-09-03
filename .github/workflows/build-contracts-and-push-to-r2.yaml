@@ -4,12 +4,13 @@ on:
   push:
     branches:
       - main
+  create:
     tags:
       - '*-v[0-9]+.[0-9]+.[0-9]+'
   workflow_dispatch:
     inputs:
-      branch:
-        description: Github branch to checkout for compilation
+      ref:
+        description: Github branch or tag to checkout for compilation
         required: true
         default: main
         type: string
@@ -31,25 +32,41 @@ jobs:
           if [[ $GITHUB_REF == refs/tags/* ]]; then
             echo "tag=${GITHUB_REF#refs/tags/}"
             echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            input_ref="${{ github.event.inputs.ref }}"
+            if [[ $input_ref =~ ^([a-zA-Z-]+)-v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+              echo "tag=$input_ref"
+              echo "tag=$input_ref" >> $GITHUB_OUTPUT
+            else
+              echo "tag="
+              echo "tag=" >> $GITHUB_OUTPUT
+            fi
           else
+            echo "tag="
             echo "tag=" >> $GITHUB_OUTPUT
           fi
+
 
       - name: Check for release information from tag
         id: check-release
         run: |
           tag="${{ steps.get-tag.outputs.tag }}"
           is_release="false"
-          
+
           if [[ $tag =~ ^([a-zA-Z-]+)-v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
             is_release="true"
             crate_name="${BASH_REMATCH[1]}"
             crate_version="${BASH_REMATCH[2]}"
           
+            if [[ $crate_name == "ampd" ]]; then
+              echo "Ampd release. Ignoring the wasm build and upload."
+              exit 1
+            fi
+
             echo "Is release: $is_release"
             echo "Crate Name: $crate_name"
             echo "Crate Version: $crate_version"
-          
+
             echo "is-release=$is_release" >> $GITHUB_OUTPUT
             echo "crate-name=$crate_name" >> $GITHUB_OUTPUT
             echo "crate-version=$crate_version" >> $GITHUB_OUTPUT
@@ -68,7 +85,7 @@ jobs:
           elif [ "${{ github.event_name }}" == "push" ]; then
             echo "ref=main" >> $GITHUB_OUTPUT
           else
-            echo "ref=${{ inputs.branch }}" >> $GITHUB_OUTPUT
+            echo "ref=${{ inputs.ref }}" >> $GITHUB_OUTPUT
           fi
 
 
@@ -79,6 +96,7 @@ jobs:
           path: axelar-amplifier
           submodules: recursive
           ref: ${{ steps.get-checkout-ref.outputs.ref }}
+          token: ${{ secrets.INTEROP_CI_ACTION_TOKEN }}
 
 
       - name: Import GPG key
@@ -100,9 +118,9 @@ jobs:
 
           commit_hash=$(git rev-parse --short HEAD)
           cd ..
-          mkdir -p ./artifacts/$commit_hash/
-          cp -R axelar-amplifier/artifacts/* ./artifacts/$commit_hash/
-          echo "wasm-directory=./artifacts" >> $GITHUB_OUTPUT
+          mkdir -p ./$commit_hash/
+          cp -R axelar-amplifier/artifacts/* ./$commit_hash/
+          echo "wasm-directory=./$commit_hash" >> $GITHUB_OUTPUT
 
 
       - name: Prepare and sign release artifacts
@@ -120,15 +138,15 @@ jobs:
             exit 1
           fi
 
-          mkdir -p "../release-artifacts"
-          cp "$wasm_file" "../release-artifacts/${crate_name}.wasm"
-          cp "$checksum_file" "../release-artifacts/"
+          mkdir -p "../${crate_version}"
+          cp "$wasm_file" "../${crate_version}/${crate_name}.wasm"
+          cp "$checksum_file" "../${crate_version}/"
 
-          gpg --armor --detach-sign  ../release-artifacts/${crate_name}.wasm
-          gpg --armor --detach-sign  ../release-artifacts/checksums.txt
+          gpg --armor --detach-sign  ../${crate_version}/${crate_name}.wasm
+          gpg --armor --detach-sign  ../${crate_version}/checksums.txt
 
-          echo "release-artifacts-dir=./release-artifacts" >> $GITHUB_OUTPUT
-          echo "r2-destination-dir=./releases/amplifier/${crate_name}/${crate_version}" >> $GITHUB_OUTPUT
+          echo "release-artifacts-dir=./${crate_version}" >> $GITHUB_OUTPUT
+          echo "r2-destination-dir=./releases/cosmwasm/${crate_name}" >> $GITHUB_OUTPUT
 
 
       - uses: ryand56/r2-upload-action@latest
@@ -150,4 +168,4 @@ jobs:
           r2-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_CF }}
           r2-bucket: ${{ secrets.R2_BUCKET }}
           source-dir: ${{ steps.compile-contracts.outputs.wasm-directory }}
-          destination-dir: ./pre-releases/ampd/contracts/
+          destination-dir: ./pre-releases/cosmwasm/

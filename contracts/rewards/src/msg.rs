@@ -12,7 +12,6 @@ use crate::state::{Epoch, PoolId};
 pub struct InstantiateMsg {
     pub governance_address: String,
     pub rewards_denom: String,
-    pub params: Params,
 }
 
 #[cw_serde]
@@ -35,6 +34,7 @@ pub struct Params {
 #[derive(EnsurePermissions)]
 pub enum ExecuteMsg {
     /// Log a specific verifier as participating in a specific event. Verifier weights are ignored
+    /// This call will error if the pool does not yet exist.
     ///
     /// TODO: For batched voting, treating the entire batch as a single event can be problematic.
     /// A verifier may vote correctly for 9 out of 10 messages in a batch, but the verifier's participation
@@ -50,6 +50,7 @@ pub enum ExecuteMsg {
     },
 
     /// Distribute rewards up to epoch T - 2 (i.e. if we are currently in epoch 10, distribute all undistributed rewards for epochs 0-8) and send the required number of tokens to each verifier
+    /// This call will error if the pool does not yet exist.
     #[permission(Any)]
     DistributeRewards {
         pool_id: PoolId,
@@ -57,14 +58,20 @@ pub enum ExecuteMsg {
         epoch_count: Option<u64>,
     },
 
-    /// Start a new reward pool for the given contract if none exists. Otherwise, add tokens to an existing reward pool.
+    /// Add tokens to an existing rewards pool.
     /// Any attached funds with a denom matching the rewards denom are added to the pool.
+    /// This call will error if the pool does not yet exist.
     #[permission(Any)]
     AddRewards { pool_id: PoolId },
 
-    /// Overwrites the currently stored params. Callable only by governance.
+    /// Overwrites the currently stored params for the specified pool. Callable only by governance.
+    /// This call will error if the pool does not yet exist.
     #[permission(Governance)]
-    UpdateParams { params: Params },
+    UpdatePoolParams { params: Params, pool_id: PoolId },
+
+    /// Creates a rewards pool with the specified pool ID and parameters. Callable only by governance.
+    #[permission(Governance)]
+    CreatePool { params: Params, pool_id: PoolId },
 }
 
 #[cw_serde]

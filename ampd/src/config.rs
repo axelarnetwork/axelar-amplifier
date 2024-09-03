@@ -113,6 +113,20 @@ mod tests {
             nanos = 0
 
             [[handlers]]
+            type = 'MvxMsgVerifier'
+            cosmwasm_contract = '{}'
+            proxy_url = 'http://localhost:7545'
+
+            [[handlers]]
+            type = 'MvxVerifierSetVerifier'
+            cosmwasm_contract = '{}'
+            proxy_url = 'http://localhost:7545'
+
+            [handlers.rpc_timeout]
+            secs = 3
+            nanos = 0
+
+            [[handlers]]
             chain_name = 'solana'
             chain_rpc_url = 'http://127.0.0.1'
             cosmwasm_contract = '{}'
@@ -123,8 +137,10 @@ mod tests {
             chain_name = 'solana'
             chain_rpc_url = 'http://127.0.0.1'
             cosmwasm_contract = '{}'
-            type = 'SolanaVerifierSetVerifier' 
+            type = 'SolanaVerifierSetVerifier'
             ",
+            TMAddress::random(PREFIX),
+            TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
@@ -136,7 +152,7 @@ mod tests {
         );
 
         let cfg: Config = toml::from_str(config_str.as_str()).unwrap();
-        assert_eq!(cfg.handlers.len(), 8);
+        assert_eq!(cfg.handlers.len(), 10);
     }
 
     #[test]
@@ -315,6 +331,18 @@ mod tests {
                     ),
                     rpc_url: Url::from_str("http://127.0.0.1").unwrap(),
                     rpc_timeout: Some(Duration::from_secs(3)),
+                },
+                HandlerConfig::MvxMsgVerifier {
+                    cosmwasm_contract: TMAddress::from(
+                        AccountId::new("axelar", &[0u8; 32]).unwrap(),
+                    ),
+                    proxy_url: Url::from_str("http://127.0.0.1").unwrap(),
+                },
+                HandlerConfig::MvxVerifierSetVerifier {
+                    cosmwasm_contract: TMAddress::from(
+                        AccountId::new("axelar", &[0u8; 32]).unwrap(),
+                    ),
+                    proxy_url: Url::from_str("http://127.0.0.1").unwrap(),
                 },
                 HandlerConfig::SolanaMsgVerifier {
                     cosmwasm_contract: TMAddress::from(

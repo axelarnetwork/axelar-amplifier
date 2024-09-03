@@ -1,5 +1,6 @@
 #![allow(deprecated)]
 
+use axelar_wasm_std::address::AddressFormat;
 use axelar_wasm_std::error::ContractError;
 use axelar_wasm_std::msg_id::MessageIdFormat;
 use axelar_wasm_std::{nonempty, permission_control, MajorityThreshold};
@@ -43,6 +44,7 @@ fn migrate_config(storage: &mut dyn Storage, config: Config) -> StdResult<()> {
         msg_id_format: config.msg_id_format,
         source_gateway_address: config.source_gateway_address,
         voting_threshold: config.voting_threshold,
+        address_format: AddressFormat::Eip55,
     };
 
     state::CONFIG.save(storage, &config)

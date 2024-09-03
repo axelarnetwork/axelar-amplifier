@@ -82,7 +82,11 @@ macro_rules! err_contains {
     ($expression:expr, $error_type:ty, $pattern:pat $(if $guard:expr)? $(,)?) => {
         match $expression.downcast_ref::<$error_type>() {
             Some($pattern) $(if $guard)? => true,
-            _ => false,
+            _ => {
+                println!("actual: {:?}", $expression);
+
+                false
+            }
         }
     };
 }
