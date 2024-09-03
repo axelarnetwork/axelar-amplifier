@@ -1,6 +1,7 @@
 use axelar_wasm_std::{nonempty, voting, IntoContractError};
 use cosmwasm_std::{OverflowError, StdError};
 use router_api::ChainName;
+use service_registry;
 use thiserror::Error;
 
 #[derive(Error, Debug, PartialEq, IntoContractError)]
