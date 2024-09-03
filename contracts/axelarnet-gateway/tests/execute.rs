@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use axelar_wasm_std::error::ContractError;
+use axelar_wasm_std::{error::ContractError, response::inspect_response_msg};
 use axelarnet_gateway::contract;
 use axelarnet_gateway::msg::ExecuteMsg;
 use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
@@ -9,7 +9,6 @@ use router_api::msg::ExecuteMsg as RouterExecuteMsg;
 use router_api::{Address, ChainName, CrossChainId, Message};
 
 use crate::utils::messages;
-use crate::utils::messages::inspect_response_msg;
 
 mod utils;
 

@@ -1,4 +1,4 @@
-use axelar_wasm_std::msg::inspect_response_msg;
+use axelar_wasm_std::response::inspect_response_msg;
 use axelarnet_gateway::msg::ExecuteMsg as AxelarnetGatewayExecuteMsg;
 use cosmwasm_std::testing::{mock_dependencies, mock_env};
 use cosmwasm_std::{from_json, HexBinary};

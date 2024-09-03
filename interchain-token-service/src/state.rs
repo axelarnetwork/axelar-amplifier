@@ -24,8 +24,8 @@ pub struct Config {
 const CONFIG: Item<Config> = Item::new("config");
 const ITS_ADDRESSES: Map<&ChainName, Address> = Map::new("its_addresses");
 
-pub fn load_config(storage: &dyn Storage) -> Result<Config, Error> {
-    CONFIG.may_load(storage)?.ok_or(Error::MissingConfig)
+pub fn load_config(storage: &dyn Storage) -> Config {
+    CONFIG.load(storage).expect("config must be set during instantiation")
 }
 
 pub fn save_config(storage: &mut dyn Storage, config: &Config) -> Result<(), Error> {
@@ -68,47 +68,43 @@ mod tests {
     use super::*;
 
     #[test]
-    fn config_storage() {
+    fn save_and_load_config() {
         let mut deps = mock_dependencies();
 
-        // Test saving and loading config
         let config = Config {
             axelarnet_gateway: Addr::unchecked("gateway-address"),
         };
 
         assert!(save_config(deps.as_mut().storage, &config).is_ok());
-        assert_eq!(load_config(deps.as_ref().storage).unwrap(), config);
-
-        // Test missing config
-        let deps = mock_dependencies();
-        assert!(matches!(
-            load_config(deps.as_ref().storage),
-            Err(Error::MissingConfig)
-        ));
+        assert_eq!(load_config(deps.as_ref().storage), config);
     }
 
     #[test]
-    fn its_addresses_storage() {
+    #[should_panic(expected = "config must be set during instantiation")]
+    fn panic_if_config_missing() {
+        let deps = mock_dependencies();
+        load_config(deps.as_ref().storage);
+    }
+
+    #[test]
+    fn check_its_address_whitelist() {
         let mut deps = mock_dependencies();
 
         let chain = "test-chain".parse().unwrap();
         let address: Address = "its-address".parse().unwrap();
 
-        // Test saving and loading its address
         assert!(save_its_address(deps.as_mut().storage, &chain, &address).is_ok());
         assert_eq!(
             load_its_address(deps.as_ref().storage, &chain).unwrap(),
             address
         );
 
-        // Test removing its address
         remove_its_address(deps.as_mut().storage, &chain);
         assert!(matches!(
             load_its_address(deps.as_ref().storage, &chain),
             Err(Error::ItsAddressNotFound(_))
         ));
 
-        // Test getting all its addresses
         let chain1 = "chain1".parse().unwrap();
         let chain2 = "chain2".parse().unwrap();
         let address1: Address = "address1".parse().unwrap();

@@ -3,7 +3,7 @@ use cosmwasm_std::{DepsMut, HexBinary, QuerierWrapper, Response, Storage};
 use error_stack::{bail, ensure, report, Result, ResultExt};
 use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
 
-use crate::events::ItsContractEvent;
+use crate::events::Event;
 use crate::primitives::ItsHubMessage;
 use crate::state::{self, load_config, load_its_address};
 
@@ -11,8 +11,6 @@ use crate::state::{self, load_config, load_its_address};
 pub enum Error {
     #[error("unknown chain {0}")]
     UnknownChain(ChainName),
-    #[error("unable to load the contract config")]
-    ConfigAccess,
     #[error("unknown its address {0}")]
     UnknownItsAddress(Address),
     #[error("failed to decode payload")]
@@ -54,7 +52,7 @@ pub fn execute_message(
                 destination_payload,
             )?
             .add_event(
-                ItsContractEvent::ItsMessageReceived {
+                Event::ItsMessageReceived {
                     cc_id,
                     destination_chain,
                     message,
@@ -94,7 +92,7 @@ fn send_to_destination(
     destination_address: Address,
     payload: HexBinary,
 ) -> Result<Response, Error> {
-    let config = load_config(storage).change_context(Error::ConfigAccess)?;
+    let config = load_config(storage);
 
     let gateway: axelarnet_gateway::Client =
         client::Client::new(querier, &config.axelarnet_gateway).into();
@@ -112,13 +110,13 @@ pub fn set_its_address(
     state::save_its_address(deps.storage, &chain, &address)
         .change_context_lazy(|| Error::UnknownChain(chain.clone()))?;
 
-    Ok(Response::new().add_event(ItsContractEvent::ItsAddressSet { chain, address }.into()))
+    Ok(Response::new().add_event(Event::ItsAddressSet { chain, address }.into()))
 }
 
 pub fn remove_its_address(deps: DepsMut, chain: ChainName) -> Result<Response, Error> {
     state::remove_its_address(deps.storage, &chain);
 
-    Ok(Response::new().add_event(ItsContractEvent::ItsAddressRemoved { chain }.into()))
+    Ok(Response::new().add_event(Event::ItsAddressRemoved { chain }.into()))
 }
 
 #[cfg(test)]
@@ -129,12 +127,12 @@ mod tests {
     use cosmwasm_std::testing::{
         mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
     };
-    use cosmwasm_std::{Addr, CosmosMsg, DepsMut, Empty, Event, OwnedDeps, Uint256};
+    use cosmwasm_std::{Addr, CosmosMsg, DepsMut, Empty, OwnedDeps, Uint256};
     use router_api::{Address, ChainName, CrossChainId};
 
     use super::*;
     use crate::contract::instantiate;
-    use crate::events::ItsContractEvent;
+    use crate::events::Event;
     use crate::msg::InstantiateMsg;
     use crate::primitives::{ItsHubMessage, ItsMessage, TokenId};
     use crate::state::{self, save_its_address};
@@ -215,12 +213,12 @@ mod tests {
         assert_eq!(result.messages.len(), 1);
         assert_eq!(result.messages[0].msg, CosmosMsg::Wasm(expected_msg));
 
-        let expected_event = ItsContractEvent::ItsMessageReceived {
+        let expected_event = Event::ItsMessageReceived {
             cc_id,
             destination_chain,
             message: its_message,
         };
-        assert_eq!(result.events, vec![Event::from(expected_event)]);
+        assert_eq!(result.events, vec![cosmwasm_std::Event::from(expected_event)]);
     }
 
     #[test]
@@ -271,7 +269,7 @@ mod tests {
         assert_eq!(result.messages.len(), 0);
 
         let event = &result.events[0];
-        let expected_event = ItsContractEvent::ItsAddressSet {
+        let expected_event = Event::ItsAddressSet {
             chain: chain.clone(),
             address: address.clone(),
         };

@@ -48,8 +48,8 @@ pub fn instantiate(
 ) -> Result<Response, ContractError> {
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    let admin = deps.api.addr_validate(&msg.admin_address)?;
-    let governance = deps.api.addr_validate(&msg.governance_address)?;
+    let admin = address::validate_cosmwasm_address(deps.api, &msg.admin_address)?;
+    let governance = address::validate_cosmwasm_address(deps.api, &msg.governance_address)?;
 
     permission_control::set_admin(deps.storage, &admin)?;
     permission_control::set_governance(deps.storage, &governance)?;
@@ -90,16 +90,16 @@ pub fn execute(
     .then(Ok)
 }
 
-fn match_gateway(storage: &dyn Storage, _: &ExecuteMsg) -> Result<Addr, Report<state::Error>> {
-    Ok(state::load_config(storage)?.axelarnet_gateway)
+fn match_gateway(storage: &dyn Storage, _: &ExecuteMsg) -> Result<Addr, Report<Error>> {
+    Ok(state::load_config(storage).axelarnet_gateway)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
     match msg {
-        QueryMsg::ItsAddress { chain } => query::its_address(deps, chain)?,
-        QueryMsg::AllItsAddresses => query::all_its_addresses(deps)?,
-    }
+        QueryMsg::ItsAddress { chain } => query::its_address(deps, chain),
+        QueryMsg::AllItsAddresses => query::all_its_addresses(deps),
+    }?
     .then(Ok)
 }
 

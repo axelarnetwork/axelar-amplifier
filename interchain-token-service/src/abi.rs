@@ -64,7 +64,7 @@ sol! {
 #[derive(thiserror::Error, Debug, PartialEq, IntoContractError)]
 pub enum Error {
     #[error("failed to decode ITS message")]
-    InvalidMessage,
+    MessageDecodeFailed,
     #[error("invalid message type")]
     InvalidMessageType,
     #[error("invalid chain name")]
@@ -122,7 +122,7 @@ impl ItsMessage {
     }
 
     pub fn abi_decode(payload: &[u8]) -> Result<Self, Report<Error>> {
-        ensure!(payload.len() >= 32, Error::InvalidMessage);
+        ensure!(payload.len() >= 32, Error::MessageDecodeFailed);
 
         let message_type = MessageType::abi_decode(&payload[0..32], true)
             .change_context(Error::InvalidMessageType)?;
@@ -130,7 +130,7 @@ impl ItsMessage {
         let message = match message_type {
             MessageType::InterchainTransfer => {
                 let decoded = InterchainTransfer::abi_decode_params(payload, true)
-                    .change_context(Error::InvalidMessage)?;
+                    .change_context(Error::MessageDecodeFailed)?;
 
                 ItsMessage::InterchainTransfer {
                     token_id: TokenId::new(decoded.tokenId.into()),
@@ -142,7 +142,7 @@ impl ItsMessage {
             }
             MessageType::DeployInterchainToken => {
                 let decoded = DeployInterchainToken::abi_decode_params(payload, true)
-                    .change_context(Error::InvalidMessage)?;
+                    .change_context(Error::MessageDecodeFailed)?;
 
                 ItsMessage::DeployInterchainToken {
                     token_id: TokenId::new(decoded.tokenId.into()),
@@ -154,7 +154,7 @@ impl ItsMessage {
             }
             MessageType::DeployTokenManager => {
                 let decoded = DeployTokenManager::abi_decode_params(payload, true)
-                    .change_context(Error::InvalidMessage)?;
+                    .change_context(Error::MessageDecodeFailed)?;
 
                 let token_manager_type = u8::try_from(decoded.tokenManagerType)
                     .change_context(Error::InvalidTokenManagerType)?
@@ -201,7 +201,7 @@ impl ItsHubMessage {
     }
 
     pub fn abi_decode(payload: &[u8]) -> Result<Self, Report<Error>> {
-        ensure!(payload.len() >= 32, Error::InvalidMessage);
+        ensure!(payload.len() >= 32, Error::MessageDecodeFailed);
 
         let message_type = MessageType::abi_decode(&payload[0..32], true)
             .change_context(Error::InvalidMessageType)?;
@@ -209,7 +209,7 @@ impl ItsHubMessage {
         let hub_message = match message_type {
             MessageType::SendToHub => {
                 let decoded = SendToHub::abi_decode_params(payload, true)
-                    .change_context(Error::InvalidMessage)?;
+                    .change_context(Error::MessageDecodeFailed)?;
 
                 ItsHubMessage::SendToHub {
                     destination_chain: ChainName::try_from(decoded.destination_chain)
@@ -219,7 +219,7 @@ impl ItsHubMessage {
             }
             MessageType::ReceiveFromHub => {
                 let decoded = ReceiveFromHub::abi_decode_params(payload, true)
-                    .change_context(Error::InvalidMessage)?;
+                    .change_context(Error::MessageDecodeFailed)?;
 
                 ItsHubMessage::ReceiveFromHub {
                     source_chain: ChainNameRaw::try_from(decoded.source_chain)

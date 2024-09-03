@@ -1,9 +1,9 @@
-use cosmwasm_std::{Attribute, Event};
+use cosmwasm_std::Attribute;
 use router_api::{Address, ChainName, CrossChainId};
 
 use crate::primitives::ItsMessage;
 
-pub enum ItsContractEvent {
+pub enum Event {
     ItsMessageReceived {
         cc_id: CrossChainId,
         destination_chain: ChainName,
@@ -18,19 +18,19 @@ pub enum ItsContractEvent {
     },
 }
 
-impl From<ItsContractEvent> for Event {
-    fn from(event: ItsContractEvent) -> Self {
+impl From<Event> for cosmwasm_std::Event {
+    fn from(event: Event) -> Self {
         match event {
-            ItsContractEvent::ItsMessageReceived {
+            Event::ItsMessageReceived {
                 cc_id,
                 destination_chain,
                 message,
             } => make_its_message_event("its_message_received", cc_id, destination_chain, message),
-            ItsContractEvent::ItsAddressSet { chain, address } => Event::new("its_address_set")
+            Event::ItsAddressSet { chain, address } => cosmwasm_std::Event::new("its_address_set")
                 .add_attribute("chain", chain.to_string())
                 .add_attribute("address", address.to_string()),
-            ItsContractEvent::ItsAddressRemoved { chain } => {
-                Event::new("its_address_removed").add_attribute("chain", chain.to_string())
+            Event::ItsAddressRemoved { chain } => {
+                cosmwasm_std::Event::new("its_address_removed").add_attribute("chain", chain.to_string())
             }
         }
     }
@@ -41,7 +41,7 @@ fn make_its_message_event(
     cc_id: CrossChainId,
     destination_chain: ChainName,
     msg: ItsMessage,
-) -> Event {
+) -> cosmwasm_std::Event {
     let message_type: &'static str = (&msg).into();
     let mut attrs = vec![
         Attribute::new("cc_id", cc_id.to_string()),
@@ -93,5 +93,5 @@ fn make_its_message_event(
         }
     }
 
-    Event::new(event_name).add_attributes(attrs)
+    cosmwasm_std::Event::new(event_name).add_attributes(attrs)
 }
