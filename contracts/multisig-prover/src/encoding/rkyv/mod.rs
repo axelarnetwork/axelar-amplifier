@@ -11,6 +11,8 @@ use std::{array::TryFromSliceError, collections::BTreeMap};
 
 use crate::{error::ContractError, payload::Payload};
 
+use super::add_27;
+
 type Result<T> = core::result::Result<T, ContractError>;
 
 pub fn encode(
@@ -139,7 +141,7 @@ fn to_signature(
     match sig {
         Signature::Ecdsa(nonrec) => {
             let recov = nonrec
-                .to_recoverable(payload_hash, pub_key, add27)
+                .to_recoverable(payload_hash, pub_key, add_27)
                 .map_err(|e| ContractError::RkyvEncodingError(e.to_string()))?;
             Ok(axelar_rkyv_encoding::types::Signature::EcdsaRecoverable(
                 recoverable_ecdsa_to_array(&recov)?,
@@ -159,13 +161,6 @@ fn to_signature(
             Ok(axelar_rkyv_encoding::types::Signature::new_ed25519(data))
         }
     }
-}
-
-pub fn add27(recovery_byte: k256::ecdsa::RecoveryId) -> u8 {
-    recovery_byte
-        .to_byte()
-        .checked_add(27)
-        .expect("overflow when adding 27 to recovery byte")
 }
 
 fn recoverable_ecdsa_to_array(rec: &Recoverable) -> Result<[u8; 65]> {

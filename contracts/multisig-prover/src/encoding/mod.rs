@@ -86,7 +86,7 @@ where
         Encoder::Abi => add_27,
         Encoder::Bcs => no_op,
         Encoder::StellarXdr => no_op,
-        Encoder::Rkyv => rkyv::add27,
+        Encoder::Rkyv => add_27,
     };
     signers
         .into_iter()
