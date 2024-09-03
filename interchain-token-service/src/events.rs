@@ -9,11 +9,11 @@ pub enum Event {
         destination_chain: ChainName,
         message: ItsMessage,
     },
-    ItsAddressSet {
+    ItsAddressRegistered {
         chain: ChainName,
         address: Address,
     },
-    ItsAddressRemoved {
+    ItsAddressDeregistered {
         chain: ChainName,
     },
 }
@@ -26,11 +26,11 @@ impl From<Event> for cosmwasm_std::Event {
                 destination_chain,
                 message,
             } => make_its_message_event("its_message_received", cc_id, destination_chain, message),
-            Event::ItsAddressSet { chain, address } => cosmwasm_std::Event::new("its_address_set")
+            Event::ItsAddressRegistered { chain, address } => cosmwasm_std::Event::new("its_address_registered")
                 .add_attribute("chain", chain.to_string())
                 .add_attribute("address", address.to_string()),
-            Event::ItsAddressRemoved { chain } => {
-                cosmwasm_std::Event::new("its_address_removed").add_attribute("chain", chain.to_string())
+            Event::ItsAddressDeregistered { chain } => {
+                cosmwasm_std::Event::new("its_address_deregistered").add_attribute("chain", chain.to_string())
             }
         }
     }

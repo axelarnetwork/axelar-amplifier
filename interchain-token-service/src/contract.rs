@@ -80,11 +80,11 @@ pub fn execute(
             payload,
         }) => execute::execute_message(deps, cc_id, source_address, payload)
             .change_context(Error::Execute),
-        ExecuteMsg::SetItsAddress { chain, address } => {
-            execute::set_its_address(deps, chain, address).change_context(Error::SetItsAddress)
+        ExecuteMsg::RegisterItsAddress { chain, address } => {
+            execute::register_its_address(deps, chain, address).change_context(Error::SetItsAddress)
         }
-        ExecuteMsg::RemoveItsAddress { chain } => {
-            execute::remove_its_address(deps, chain).change_context(Error::RemoveItsAddress)
+        ExecuteMsg::DeregisterItsAddress { chain } => {
+            execute::deregister_its_address(deps, chain).change_context(Error::RemoveItsAddress)
         }
     }?
     .then(Ok)

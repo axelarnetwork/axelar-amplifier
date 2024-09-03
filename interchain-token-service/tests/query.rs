@@ -15,13 +15,13 @@ fn query_its_address() {
         .parse()
         .unwrap();
 
-    let res = utils::set_its_address(deps.as_mut(), chain.clone(), address.clone());
+    let res = utils::register_its_address(deps.as_mut(), chain.clone(), address.clone());
     assert!(res.is_ok());
 
     let queried_address = utils::query_its_address(deps.as_ref(), chain.clone()).unwrap();
     assert_eq!(queried_address, Some(address));
 
-    let res = utils::remove_its_address(deps.as_mut(), chain.clone());
+    let res = utils::deregister_its_address(deps.as_mut(), chain.clone());
     assert!(res.is_ok());
 
     let queried_address = utils::query_its_address(deps.as_ref(), chain.clone()).unwrap();
@@ -56,7 +56,7 @@ fn query_all_its_addresses() {
     .collect::<HashMap<_, _>>();
 
     for (chain, address) in its_addresses.iter() {
-        utils::set_its_address(deps.as_mut(), chain.clone(), address.clone()).unwrap();
+        utils::register_its_address(deps.as_mut(), chain.clone(), address.clone()).unwrap();
     }
 
     let queried_addresses = utils::query_all_its_addresses(deps.as_ref()).unwrap();

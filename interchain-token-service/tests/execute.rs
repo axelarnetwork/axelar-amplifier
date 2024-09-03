@@ -19,7 +19,7 @@ fn set_its_address() {
         .parse()
         .unwrap();
 
-    let res = utils::set_its_address(deps.as_mut(), chain.clone(), address.clone());
+    let res = utils::register_its_address(deps.as_mut(), chain.clone(), address.clone());
     assert!(res.is_ok());
 
     let query_msg = QueryMsg::ItsAddress { chain };
@@ -39,9 +39,9 @@ fn remove_its_address() {
         .parse()
         .unwrap();
 
-    utils::set_its_address(deps.as_mut(), chain.clone(), address).unwrap();
+    utils::register_its_address(deps.as_mut(), chain.clone(), address).unwrap();
 
-    let res = utils::remove_its_address(deps.as_mut(), chain.clone());
+    let res = utils::deregister_its_address(deps.as_mut(), chain.clone());
     assert!(res.is_ok());
 
     let query_msg = QueryMsg::ItsAddress { chain };
@@ -83,13 +83,13 @@ fn execute() {
     let payload = hub_message.abi_encode();
     let cc_id = CrossChainId::new(source_its_chain.clone(), "message-id").unwrap();
 
-    utils::set_its_address(
+    utils::register_its_address(
         deps.as_mut(),
         source_its_chain.clone().to_string().parse().unwrap(),
         source_its_address.clone(),
     )
     .unwrap();
-    utils::set_its_address(
+    utils::register_its_address(
         deps.as_mut(),
         destination_its_chain.clone().to_string().parse().unwrap(),
         destination_its_address.clone(),

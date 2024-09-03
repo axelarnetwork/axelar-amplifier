@@ -21,16 +21,16 @@ pub enum ExecuteMsg {
     /// Execute a cross-chain message received by the axelarnet-gateway from another chain
     #[permission(Specific(gateway))]
     Execute(AxelarExecutableMsg),
-    /// Set the ITS contract address of another chain. Each chain's ITS contract has to be whitelisted before
+    /// Register the ITS contract address of another chain. Each chain's ITS contract has to be whitelisted before
     /// ITS Hub can send cross-chain messages to it, or receive messages from it.
     /// If an ITS address is already set for the chain, it will be overwritten.
     /// This allows easier management of ITS contracts without the need for migration.
     #[permission(Governance)]
-    SetItsAddress { chain: ChainName, address: Address },
-    /// Remove the configured ITS contract address for the given chain.
+    RegisterItsAddress { chain: ChainName, address: Address },
+    /// Deregister the ITS contract address for the given chain.
     /// The admin is allowed to remove the ITS address of a chain for emergencies.
     #[permission(Elevated)]
-    RemoveItsAddress { chain: ChainName },
+    DeregisterItsAddress { chain: ChainName },
 }
 
 #[cw_serde]

@@ -15,6 +15,8 @@ pub enum Error {
     UnknownItsAddress(Address),
     #[error("failed to decode payload")]
     InvalidPayload,
+    #[error("invalid message type")]
+    InvalidMessageType,
 }
 
 /// Executes an incoming ITS message.
@@ -60,7 +62,7 @@ pub fn execute_message(
                 .into(),
             ))
         }
-        _ => bail!(Error::InvalidPayload),
+        _ => bail!(Error::InvalidMessageType),
     }
 }
 
@@ -102,7 +104,7 @@ fn send_to_destination(
     Ok(Response::new().add_message(call_contract_msg))
 }
 
-pub fn set_its_address(
+pub fn register_its_address(
     deps: DepsMut,
     chain: ChainName,
     address: Address,
@@ -110,13 +112,13 @@ pub fn set_its_address(
     state::save_its_address(deps.storage, &chain, &address)
         .change_context_lazy(|| Error::UnknownChain(chain.clone()))?;
 
-    Ok(Response::new().add_event(Event::ItsAddressSet { chain, address }.into()))
+    Ok(Response::new().add_event(Event::ItsAddressRegistered { chain, address }.into()))
 }
 
-pub fn remove_its_address(deps: DepsMut, chain: ChainName) -> Result<Response, Error> {
+pub fn deregister_its_address(deps: DepsMut, chain: ChainName) -> Result<Response, Error> {
     state::remove_its_address(deps.storage, &chain);
 
-    Ok(Response::new().add_event(Event::ItsAddressRemoved { chain }.into()))
+    Ok(Response::new().add_event(Event::ItsAddressDeregistered { chain }.into()))
 }
 
 #[cfg(test)]
@@ -135,7 +137,7 @@ mod tests {
     use crate::events::Event;
     use crate::msg::InstantiateMsg;
     use crate::primitives::{ItsHubMessage, ItsMessage, TokenId};
-    use crate::state::{self, save_its_address};
+    use crate::state;
 
     fn setup() -> OwnedDeps<MockStorage, MockApi, MockQuerier, Empty> {
         let mut deps = mock_dependencies();
@@ -155,13 +157,7 @@ mod tests {
         deps
     }
 
-    fn register_its_address(deps: &mut DepsMut, chain: &str, address: &str) {
-        let chain: ChainName = chain.parse().unwrap();
-        let address: Address = address.parse().unwrap();
-        save_its_address(deps.storage, &chain, &address).unwrap();
-    }
-
-    fn generate_its_message() -> ItsMessage {
+    fn dummy_its_message() -> ItsMessage {
         ItsMessage::InterchainTransfer {
             token_id: TokenId::new([0u8; 32]),
             source_address: HexBinary::from_hex("1234").unwrap(),
@@ -174,20 +170,15 @@ mod tests {
     #[test]
     fn execute_message_send_to_hub() {
         let mut deps = setup();
-
-        let source_chain: ChainNameRaw = "source-chain".parse().unwrap();
+        let source_chain: ChainName = "source-chain".parse().unwrap();
         let destination_chain: ChainName = "destination-chain".parse().unwrap();
         let source_address: Address = "its-source".parse().unwrap();
         let destination_address: Address = "its-destination".parse().unwrap();
 
-        register_its_address(&mut deps.as_mut(), source_chain.as_ref(), &source_address);
-        register_its_address(
-            &mut deps.as_mut(),
-            destination_chain.as_ref(),
-            &destination_address,
-        );
+        register_its_address(deps.as_mut(), source_chain.clone(), source_address.clone()).unwrap();
+        register_its_address(deps.as_mut(), destination_chain.clone(), destination_address.clone()).unwrap();
 
-        let its_message = generate_its_message();
+        let its_message = dummy_its_message();
         let its_hub_message = ItsHubMessage::SendToHub {
             destination_chain: destination_chain.clone(),
             message: its_message.clone(),
@@ -205,7 +196,7 @@ mod tests {
             destination_chain.clone(),
             destination_address,
             ItsHubMessage::ReceiveFromHub {
-                source_chain: source_chain.clone(),
+                source_chain: source_chain.clone().into(),
                 message: its_message.clone(),
             }
             .abi_encode(),
@@ -222,38 +213,38 @@ mod tests {
     }
 
     #[test]
-    fn execute_message_units_address() {
-        let mut owned_deps = setup();
-        let mut deps = owned_deps.as_mut();
+    fn fail_execute_if_unknown_its_source_address() {
+        let mut deps = setup();
+        let source_chain: ChainName = "source-chain".parse().unwrap();
+        let source_address: Address = "its-source".parse().unwrap();
+        let cc_id = CrossChainId::new(source_chain.clone(), "message-id").unwrap();
 
-        register_its_address(&mut deps, "source-chain", "its-source");
+        register_its_address(deps.as_mut(), source_chain.clone(), source_address).unwrap();
 
-        let its_message = generate_its_message();
+        let its_message = dummy_its_message();
         let its_hub_message = ItsHubMessage::SendToHub {
             destination_chain: "destination-chain".parse().unwrap(),
             message: its_message,
         };
 
         let payload = its_hub_message.abi_encode();
-        let cc_id = CrossChainId::new("source-chain", "message-id").unwrap();
-        let source_address: Address = "units-source".parse().unwrap();
-        let result = execute_message(deps, cc_id, source_address.clone(), payload).unwrap_err();
+        let invalid_address: Address = "invalid-address".parse().unwrap();
 
+        let result = execute_message(deps.as_mut(), cc_id, invalid_address, payload).unwrap_err();
         assert!(err_contains!(result, Error, Error::UnknownItsAddress(..)));
     }
 
     #[test]
     fn execute_message_invalid_payload() {
-        let mut owned_deps = setup();
-        let mut deps = owned_deps.as_mut();
+        let mut deps = setup();
+        let source_chain: ChainName = "source-chain".parse().unwrap();
+        let source_address: Address = "its-source".parse().unwrap();
+        let cc_id = CrossChainId::new(source_chain.clone(), "message-id").unwrap();
 
-        register_its_address(&mut deps, "source-chain", "its-source");
+        register_its_address(deps.as_mut(), source_chain.clone(), source_address.clone()).unwrap();
 
         let invalid_payload = HexBinary::from_hex("deaddead").unwrap();
-        let cc_id = CrossChainId::new("source-chain", "message-id").unwrap();
-        let source_address: Address = "its-source".parse().unwrap();
-        let result = execute_message(deps, cc_id, source_address, invalid_payload).unwrap_err();
-
+        let result = execute_message(deps.as_mut(), cc_id, source_address, invalid_payload).unwrap_err();
         assert!(err_contains!(result, Error, Error::InvalidPayload));
     }
 
@@ -264,12 +255,12 @@ mod tests {
         let chain: ChainName = "new-chain".parse().unwrap();
         let address: Address = "new-its-address".parse().unwrap();
 
-        let result = set_its_address(deps.as_mut(), chain.clone(), address.clone()).unwrap();
+        let result = register_its_address(deps.as_mut(), chain.clone(), address.clone()).unwrap();
 
         assert_eq!(result.messages.len(), 0);
 
         let event = &result.events[0];
-        let expected_event = Event::ItsAddressSet {
+        let expected_event = Event::ItsAddressRegistered {
             chain: chain.clone(),
             address: address.clone(),
         };
@@ -281,22 +272,21 @@ mod tests {
 
     #[test]
     fn execute_message_unknown_destination() {
-        let mut owned_deps = setup();
-        let mut deps = owned_deps.as_mut();
+        let mut deps = setup();
+        let source_chain: ChainName = "source-chain".parse().unwrap();
+        let source_address: Address = "its-source".parse().unwrap();
+        let cc_id = CrossChainId::new(source_chain.clone(), "message-id").unwrap();
 
-        register_its_address(&mut deps, "source-chain", "its-source");
+        register_its_address(deps.as_mut(), source_chain.clone(), source_address.clone()).unwrap();
 
-        let its_message = generate_its_message();
+        let its_message = dummy_its_message();
         let its_hub_message = ItsHubMessage::SendToHub {
             destination_chain: "unknown-chain".parse().unwrap(),
             message: its_message,
         };
 
         let payload = its_hub_message.abi_encode();
-        let cc_id = CrossChainId::new("source-chain", "message-id").unwrap();
-        let source_address: Address = "its-source".parse().unwrap();
-        let result = execute_message(deps, cc_id, source_address, payload).unwrap_err();
-
+        let result = execute_message(deps.as_mut(), cc_id, source_address, payload).unwrap_err();
         assert!(err_contains!(
             result,
             state::Error,
@@ -305,23 +295,22 @@ mod tests {
     }
 
     #[test]
-    fn execute_message_receive_from_hub() {
-        let mut owned_deps = setup();
-        let mut deps = owned_deps.as_mut();
+    fn execute_message_fail_if_invalid_message_type() {
+        let mut deps = setup();
+        let source_chain: ChainName = "source-chain".parse().unwrap();
+        let source_address: Address = "its-source".parse().unwrap();
+        let cc_id = CrossChainId::new(source_chain.clone(), "message-id").unwrap();
 
-        register_its_address(&mut deps, "source-chain", "its-source");
+        register_its_address(deps.as_mut(), source_chain.clone(), source_address.clone()).unwrap();
 
-        let its_message = generate_its_message();
+        let its_message = dummy_its_message();
         let its_hub_message = ItsHubMessage::ReceiveFromHub {
-            source_chain: "source-chain".parse().unwrap(),
+            source_chain: source_chain.clone().into(),
             message: its_message.clone(),
         };
 
         let payload = its_hub_message.abi_encode();
-        let cc_id = CrossChainId::new("source-chain", "message-id").unwrap();
-        let source_address: Address = "its-source".parse().unwrap();
-        let result = execute_message(deps, cc_id, source_address, payload).unwrap_err();
-
-        assert!(err_contains!(result, Error, Error::InvalidPayload));
+        let result = execute_message(deps.as_mut(), cc_id, source_address, payload).unwrap_err();
+        assert!(err_contains!(result, Error, Error::InvalidMessageType));
     }
 }

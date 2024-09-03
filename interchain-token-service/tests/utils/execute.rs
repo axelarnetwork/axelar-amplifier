@@ -25,7 +25,7 @@ pub fn execute(
     )
 }
 
-pub fn set_its_address(
+pub fn register_its_address(
     deps: DepsMut,
     chain: ChainName,
     address: Address,
@@ -34,15 +34,15 @@ pub fn set_its_address(
         deps,
         mock_env(),
         mock_info(params::GOVERNANCE, &[]),
-        ExecuteMsg::SetItsAddress { chain, address },
+        ExecuteMsg::RegisterItsAddress { chain, address },
     )
 }
 
-pub fn remove_its_address(deps: DepsMut, chain: ChainName) -> Result<Response, ContractError> {
+pub fn deregister_its_address(deps: DepsMut, chain: ChainName) -> Result<Response, ContractError> {
     contract::execute(
         deps,
         mock_env(),
         mock_info(params::ADMIN, &[]),
-        ExecuteMsg::RemoveItsAddress { chain },
+        ExecuteMsg::DeregisterItsAddress { chain },
     )
 }
