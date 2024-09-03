@@ -1,4 +1,5 @@
 use axelar_rkyv_encoding::types::{ED25519_PUBKEY_LEN, SECP256K1_COMPRESSED_PUBKEY_LEN};
+use axelar_wasm_std::hash::Hash;
 use cosmwasm_std::HexBinary;
 use itertools::Itertools;
 use multisig::{
@@ -15,12 +16,12 @@ use super::add_27;
 
 type Result<T> = core::result::Result<T, ContractError>;
 
-pub fn encode(
+pub fn encode_execute_data(
     signers_with_sigs: Vec<SignerWithSig>,
     payload_hash: [u8; 32],
     verifier_set: &VerifierSet,
     payload: &Payload,
-) -> Result<HexBinary> {
+) -> error_stack::Result<HexBinary, ContractError> {
     // this array contains `all` the signers, and optoinally the signatures if they exist for the given signer
     let mut signers_with_signatures = Vec::with_capacity(verifier_set.signers.len());
     for signer in verifier_set.signers.values() {
@@ -53,7 +54,20 @@ pub fn encode(
     Ok(HexBinary::from(bytes))
 }
 
-pub fn to_verifier_set(vs: &VerifierSet) -> Result<axelar_rkyv_encoding::types::VerifierSet> {
+pub fn payload_digest(
+    domain_separator: &Hash,
+    verifier_set: &VerifierSet,
+    payload: &Payload,
+) -> error_stack::Result<Hash, ContractError> {
+    Ok(axelar_rkyv_encoding::hash_payload(
+        &domain_separator,
+        &to_verifier_set(verifier_set)?,
+        &axelar_rkyv_encoding::types::Payload::try_from(payload)?,
+        axelar_rkyv_encoding::hasher::generic::Keccak256Hasher::default(),
+    ))
+}
+
+fn to_verifier_set(vs: &VerifierSet) -> Result<axelar_rkyv_encoding::types::VerifierSet> {
     let mut signers: BTreeMap<
         axelar_rkyv_encoding::types::PublicKey,
         axelar_rkyv_encoding::types::U128,
@@ -116,7 +130,7 @@ fn to_msg(msg: &Message) -> axelar_rkyv_encoding::types::Message {
     )
 }
 
-pub fn to_weighted_signature(
+fn to_weighted_signature(
     sig: &SignerWithSig,
     payload_hash: &[u8; 32],
 ) -> Result<(
