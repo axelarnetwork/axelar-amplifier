@@ -57,6 +57,16 @@ pub enum ItsMessage {
     },
 }
 
+impl ItsMessage {
+    pub fn token_id(&self) -> &TokenId {
+        match self {
+            ItsMessage::InterchainTransfer { token_id, .. } => token_id,
+            ItsMessage::DeployInterchainToken { token_id, .. } => token_id,
+            ItsMessage::DeployTokenManager { token_id, .. } => token_id,
+        }
+    }
+}
+
 /// ITS message type that can be sent between ITS edge contracts and the ITS Hub
 #[cw_serde]
 #[derive(Eq)]
@@ -81,6 +91,10 @@ impl ItsHubMessage {
             ItsHubMessage::SendToHub { message, .. } => message,
             ItsHubMessage::ReceiveFromHub { message, .. } => message,
         }
+    }
+
+    pub fn token_id(&self) -> &TokenId {
+        self.message().token_id()
     }
 }
 
