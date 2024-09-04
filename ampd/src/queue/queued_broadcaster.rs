@@ -198,14 +198,14 @@ where
     async fn clean_up(
         mut self,
         tx_hash_sender: mpsc::Sender<String>,
-        mut repsonse_receiver: mpsc::Receiver<TxResponse>,
+        mut response_receiver: mpsc::Receiver<TxResponse>,
     ) -> Result {
         info!("exiting broadcaster");
 
         self.broadcast_all(&tx_hash_sender).await?;
         // drop the tx hash sender so the receiver of that channel knows there won't be any more messages
         drop(tx_hash_sender);
-        while let Some(tx_res) = repsonse_receiver.recv().await {
+        while let Some(tx_res) = response_receiver.recv().await {
             handle_tx_response(tx_res).await?;
         }
 
