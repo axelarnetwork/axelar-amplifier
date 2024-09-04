@@ -1,0 +1,14 @@
+{
+  "route_messages": [
+    {
+      "cc_id": {
+        "source_chain": "axelarnet",
+        "message_id": "0x0000000000000000000000000000000000000000000000000000000000003039-1"
+      },
+      "source_address": "sender",
+      "destination_chain": "destination-chain",
+      "destination_address": "destination-address",
+      "payload_hash": "f1885eda54b7a053318cd41e2093220dab15d65381b1157a3633a83bfd5c9239"
+    }
+  ]
+}
