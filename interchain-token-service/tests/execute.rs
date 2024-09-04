@@ -1,7 +1,9 @@
 use assert_ok::assert_ok;
+use axelar_wasm_std::assert_err_contains;
 use axelar_wasm_std::response::inspect_response_msg;
 use axelarnet_gateway::msg::ExecuteMsg as AxelarnetGatewayExecuteMsg;
 use cosmwasm_std::testing::mock_dependencies;
+use interchain_token_service::contract::ExecuteError;
 use interchain_token_service::events::Event;
 use interchain_token_service::ItsHubMessage;
 use router_api::{Address, ChainName};
@@ -50,21 +52,19 @@ fn execute_interchain_transfer_succeeds() {
 
     let payload = hub_message.clone().abi_encode();
     let receive_payload = ItsHubMessage::ReceiveFromHub {
-        source_chain: source_its_chain.clone(),
+        source_chain: source_its_chain.clone().into(),
         message: hub_message.message().clone(),
     }
     .abi_encode();
 
-    assert_ok!(utils::register_its_address(
+    utils::register_its_address(deps.as_mut(), source_its_chain, source_its_address.clone())
+        .unwrap();
+    utils::register_its_address(
         deps.as_mut(),
-        source_its_chain.clone().to_string().parse().unwrap(),
-        source_its_address.clone(),
-    ));
-    assert_ok!(utils::register_its_address(
-        deps.as_mut(),
-        destination_its_chain.clone().to_string().parse().unwrap(),
+        destination_its_chain.clone(),
         destination_its_address.clone(),
-    ));
+    )
+    .unwrap();
 
     let response = utils::execute(
         deps.as_mut(),
@@ -92,4 +92,29 @@ fn execute_interchain_transfer_succeeds() {
     );
 
     goldie::assert_json!(response);
+}
+
+#[test]
+fn execute_message_when_unknown_source_address_fails() {
+    let mut deps = mock_dependencies();
+    utils::instantiate_contract(deps.as_mut()).unwrap();
+
+    let TestMessage {
+        hub_message,
+        router_message,
+        source_its_chain,
+        source_its_address,
+        ..
+    } = TestMessage::dummy();
+
+    utils::register_its_address(deps.as_mut(), source_its_chain, source_its_address).unwrap();
+
+    let unknown_address: Address = "unknown-address".parse().unwrap();
+    let result = utils::execute(
+        deps.as_mut(),
+        router_message.cc_id.clone(),
+        unknown_address,
+        hub_message.abi_encode(),
+    );
+    assert_err_contains!(result, ExecuteError, ExecuteError::UnknownItsAddress { .. });
 }

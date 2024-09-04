@@ -77,13 +77,24 @@ pub fn extend_err<T, E: Context>(
     }
 }
 
+/// Asserts that the Report contains the specified error type and pattern.
+/// If the report does not contain the specified error type and pattern,
+/// the error will be displayed in the assert message.
+///
+/// # Examples
+///
+/// ```
+/// let result = execute(deps.as_mut(), arg).unwrap_err();
+/// assert!(err_contains!(result.report, Error, Error::InvalidArg(..)));
+/// ```
 #[macro_export]
 macro_rules! err_contains {
     ($expression:expr, $error_type:ty, $pattern:pat $(if $guard:expr)? $(,)?) => {
         match $expression.downcast_ref::<$error_type>() {
             Some($pattern) $(if $guard)? => true,
             _ => {
-                println!("actual: {:?}", $expression);
+                println!("Expected error: {}{}\n", stringify!($pattern), stringify!($( if $guard)?));
+                println!("Actual: {:?}", $expression);
 
                 false
             }
@@ -91,4 +102,46 @@ macro_rules! err_contains {
     };
 }
 
-pub use err_contains;
+/// Asserts that the result is an error and contains the specified error type and pattern.
+/// If the result is not an error, or the error does not match the specified type and pattern,
+/// the result will be displayed in the assert message.
+///
+/// # Examples
+///
+/// ```
+/// let result = execute(deps.as_mut(), arg);
+/// assert_err_contains!(result, Error, Error::InvalidArg(..));
+/// ```
+#[macro_export]
+macro_rules! assert_err_contains {
+    ($expression:expr, $error_type:ty, $pattern:pat $(if $guard:expr)? $(,)?) => {{
+        let assert_statement = stringify!(assert_err_contains!($expression, $error_type, $pattern $(if $guard)?));
+        match $expression {
+            Ok(value) => {
+                assert!(
+                    false,
+                    "\nError calling {}\n\nExpected error: {}\n\nActual: Ok({:?})",
+                    assert_statement,
+                    stringify!($pattern $(if $guard)?),
+                    value
+                );
+            },
+            Err(err) => {
+                match err.report.downcast_ref::<$error_type>() {
+                    Some($pattern) $(if $guard)? => {},
+                    _ => {
+                        assert!(
+                            false,
+                            "\nError calling {}\n\nExpected error: {}\n\nActual: {:?}",
+                            assert_statement,
+                            stringify!($pattern $(if $guard)?),
+                            err.report
+                        );
+                    }
+                }
+            }
+        }
+    }};
+}
+
+pub use {assert_err_contains, err_contains};
