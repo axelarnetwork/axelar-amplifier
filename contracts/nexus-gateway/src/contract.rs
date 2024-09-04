@@ -1,5 +1,3 @@
-use std::borrow::BorrowMut;
-
 use axelar_wasm_std::address;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
@@ -21,11 +19,11 @@ const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(
-    mut deps: DepsMut,
+    deps: DepsMut,
     _env: Env,
     msg: MigrateMsg,
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
-    v1_0_0::migrate(deps.borrow_mut(), msg)?;
+    v1_0_0::migrate(deps, msg)?;
 
     Ok(Response::default())
 }

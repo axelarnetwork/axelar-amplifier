@@ -3,7 +3,7 @@
 use axelar_wasm_std::address;
 use axelar_wasm_std::error::ContractError;
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, DepsMut};
+use cosmwasm_std::{Addr, DepsMut, Storage};
 use cw_storage_plus::Item;
 
 use crate::contract::{CONTRACT_NAME, CONTRACT_VERSION};
@@ -13,22 +13,22 @@ use crate::state;
 const BASE_VERSION: &str = "1.0.0";
 const CONFIG: Item<Config> = Item::new("config");
 
-pub fn migrate(deps: &mut DepsMut, msg: MigrateMsg) -> Result<(), ContractError> {
+pub fn migrate(deps: DepsMut, msg: MigrateMsg) -> Result<(), ContractError> {
     cw2::assert_contract_version(deps.storage, CONTRACT_NAME, BASE_VERSION)?;
 
     let axelarnet_gateway = address::validate_cosmwasm_address(deps.api, &msg.axelarnet_gateway)?;
-    migrate_config(deps, axelarnet_gateway)?;
+    migrate_config(deps.storage, axelarnet_gateway)?;
 
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     Ok(())
 }
 
-fn migrate_config(deps: &mut DepsMut, axelarnet_gateway: Addr) -> Result<(), ContractError> {
-    let config = CONFIG.load(deps.storage)?;
+fn migrate_config(storage: &mut dyn Storage, axelarnet_gateway: Addr) -> Result<(), ContractError> {
+    let config = CONFIG.load(storage)?;
 
     state::save_config(
-        deps.storage,
+        storage,
         state::Config {
             nexus: config.nexus,
             router: config.router,
@@ -68,7 +68,7 @@ mod tests {
         cw2::set_contract_version(deps.as_mut().storage, CONTRACT_NAME, "something wrong").unwrap();
 
         assert!(v1_0_0::migrate(
-            &mut deps.as_mut(),
+            deps.as_mut(),
             MigrateMsg {
                 axelarnet_gateway: AXELARNET_GATEWAY.to_string(),
             }
@@ -92,7 +92,7 @@ mod tests {
         );
 
         assert!(v1_0_0::migrate(
-            &mut deps.as_mut(),
+            deps.as_mut(),
             MigrateMsg {
                 axelarnet_gateway: AXELARNET_GATEWAY.to_string(),
             }
