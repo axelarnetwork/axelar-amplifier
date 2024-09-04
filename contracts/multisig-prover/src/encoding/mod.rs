@@ -10,7 +10,6 @@ use error_stack::Result;
 use multisig::key::Signature;
 use multisig::msg::SignerWithSig;
 use multisig::verifier_set::VerifierSet;
-use rkyv::to_verifier_set;
 
 use crate::error::ContractError;
 use crate::payload::Payload;
@@ -37,12 +36,7 @@ impl Encoder {
             Encoder::StellarXdr => {
                 stellar_xdr::payload_digest(domain_separator, verifier_set, payload)
             }
-            Encoder::Rkyv => Ok(axelar_rkyv_encoding::hash_payload(
-                &domain_separator,
-                &to_verifier_set(verifier_set)?,
-                &axelar_rkyv_encoding::types::Payload::try_from(payload)?,
-                axelar_rkyv_encoding::hasher::generic::Keccak256Hasher::default(),
-            )),
+            Encoder::Rkyv => rkyv::payload_digest(domain_separator, verifier_set, payload),
         }
     }
 
@@ -67,12 +61,12 @@ impl Encoder {
                 payload,
             ),
             Encoder::StellarXdr => todo!(),
-            Encoder::Rkyv => Ok(rkyv::encode(
+            Encoder::Rkyv => rkyv::encode_execute_data(
                 sigs,
                 self.digest(domain_separator, verifier_set, payload)?,
                 verifier_set,
                 payload,
-            )?),
+            ),
         }
     }
 }
@@ -86,7 +80,7 @@ where
         Encoder::Abi => add_27,
         Encoder::Bcs => no_op,
         Encoder::StellarXdr => no_op,
-        Encoder::Rkyv => rkyv::add27,
+        Encoder::Rkyv => add_27,
     };
     signers
         .into_iter()
