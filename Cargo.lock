@@ -844,7 +844,7 @@ dependencies = [
 
 [[package]]
 name = "axelarnet-gateway"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "axelar-wasm-std",
  "client",
@@ -7538,6 +7538,7 @@ dependencies = [
  "cw2 1.1.2",
  "error-stack",
  "integration-tests",
+ "itertools 0.11.0",
  "msgs-derive",
  "report",
  "router-api",
