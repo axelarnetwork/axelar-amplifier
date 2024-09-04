@@ -56,7 +56,7 @@ impl<T: TmClient + Sync> BlockHeightMonitor<T> {
                     self.latest_height_tx.send(latest_block.block.header.height.into()).expect("failed to publish latest block height");
                 },
                 _ = token.cancelled() => {
-                    info!("block height monitor exiting");
+                    info!("exiting block height monitor");
 
                     return Ok(())
                 },
