@@ -155,8 +155,7 @@ mod tests {
         let querier = setup();
 
         let addr = Addr::unchecked(GATEWAY);
-        let client: Client =
-            client::Client::new(QuerierWrapper::new(&querier), &addr).into();
+        let client: Client = client::Client::new(QuerierWrapper::new(&querier), &addr).into();
         let cc_id = CrossChainId {
             source_chain: "ethereum".parse().unwrap(),
             message_id: "0x13548ac28fe95805ad2b8b824472d08e3b45cbc023a5a45a912f11ea98f81e97-0"
