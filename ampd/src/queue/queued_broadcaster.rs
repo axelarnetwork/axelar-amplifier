@@ -230,7 +230,12 @@ async fn handle_tx_response(tx_res: TxResponse) -> Result {
             });
         }
         TxStatus::Failure => {
-            warn!(tx_hash, "tx failed");
+            warn!(
+                tx_hash,
+                log = tx_res.response.raw_log,
+                error_code = tx_res.response.code,
+                "tx failed"
+            );
         }
     }
 
