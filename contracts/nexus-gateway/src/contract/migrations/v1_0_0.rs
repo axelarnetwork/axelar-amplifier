@@ -1,3 +1,5 @@
+#![allow(deprecated)]
+
 use axelar_wasm_std::address;
 use axelar_wasm_std::error::ContractError;
 use cosmwasm_schema::cw_serde;
@@ -24,7 +26,6 @@ pub fn migrate(deps: &mut DepsMut, msg: MigrateMsg) -> Result<(), ContractError>
 
 fn migrate_config(deps: &mut DepsMut, axelarnet_gateway: Addr) -> Result<(), ContractError> {
     let config = CONFIG.load(deps.storage)?;
-    CONFIG.remove(deps.storage);
 
     state::save_config(
         deps.storage,
@@ -38,6 +39,7 @@ fn migrate_config(deps: &mut DepsMut, axelarnet_gateway: Addr) -> Result<(), Con
 }
 
 #[cw_serde]
+#[deprecated(since = "1.0.0", note = "only used during migration")]
 pub struct Config {
     pub nexus: Addr,
     pub router: Addr,
@@ -45,16 +47,15 @@ pub struct Config {
 
 #[cfg(test)]
 mod tests {
-    use cosmwasm_std::{testing::mock_dependencies, Addr, DepsMut};
+    use cosmwasm_std::testing::mock_dependencies;
+    use cosmwasm_std::{Addr, DepsMut};
     use cw2::ContractVersion;
 
-    use crate::{
-        contract::{migrations::v1_0_0, CONTRACT_NAME, CONTRACT_VERSION},
-        msg::MigrateMsg,
-        state,
-    };
-
     use super::{Config, BASE_VERSION, CONFIG};
+    use crate::contract::migrations::v1_0_0;
+    use crate::contract::{CONTRACT_NAME, CONTRACT_VERSION};
+    use crate::msg::MigrateMsg;
+    use crate::state;
 
     const NEXUS: &str = "nexus";
     const ROUTER: &str = "router";
@@ -80,10 +81,10 @@ mod tests {
         let mut deps = mock_dependencies();
         instantiate_contract(deps.as_mut());
 
-        assert!(CONFIG.load(&mut deps.storage).is_ok());
-        assert!(state::load_config(&mut deps.storage).is_err());
+        assert!(CONFIG.load(&deps.storage).is_ok());
+        assert!(state::load_config(&deps.storage).is_err());
         assert_eq!(
-            cw2::get_contract_version(&mut deps.storage).unwrap(),
+            cw2::get_contract_version(&deps.storage).unwrap(),
             ContractVersion {
                 contract: CONTRACT_NAME.to_string(),
                 version: BASE_VERSION.to_string()
@@ -98,11 +99,11 @@ mod tests {
         )
         .is_ok());
 
-        assert!(CONFIG.load(&mut deps.storage).is_err());
-        assert!(state::load_config(&mut deps.storage)
+        assert!(CONFIG.load(&deps.storage).is_err());
+        assert!(state::load_config(&deps.storage)
             .is_ok_and(|config| config.axelarnet_gateway == Addr::unchecked(AXELARNET_GATEWAY)));
         assert_eq!(
-            cw2::get_contract_version(&mut deps.storage).unwrap(),
+            cw2::get_contract_version(&deps.storage).unwrap(),
             ContractVersion {
                 contract: CONTRACT_NAME.to_string(),
                 version: CONTRACT_VERSION.to_string()
