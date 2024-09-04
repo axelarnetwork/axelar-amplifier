@@ -1,0 +1,27 @@
+{
+  "signers": {
+    "signer1": {
+      "address": "signer1",
+      "weight": "1",
+      "pub_key": {
+        "ecdsa": "025e0231bfad810e5276e2cf9eb2f3f380ce0bdf6d84c3b6173499d3ddcc008856"
+      }
+    },
+    "signer2": {
+      "address": "signer2",
+      "weight": "1",
+      "pub_key": {
+        "ecdsa": "036ff6f4b2bc5e08aba924bd8fd986608f3685ca651a015b3d9d6a656de14769fe"
+      }
+    },
+    "signer3": {
+      "address": "signer3",
+      "weight": "1",
+      "pub_key": {
+        "ecdsa": "03686cbbef9f9e9a5c852883cb2637b55fc76bee6ee6a3ff636e7bea2e41beece4"
+      }
+    }
+  },
+  "threshold": "2",
+  "created_at": 0
+}

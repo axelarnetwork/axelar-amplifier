@@ -5016,6 +5016,7 @@ name = "multisig"
 version = "1.0.0"
 dependencies = [
  "axelar-wasm-std",
+ "client",
  "cosmwasm-crypto",
  "cosmwasm-schema",
  "cosmwasm-std",
