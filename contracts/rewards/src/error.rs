@@ -19,6 +19,9 @@ pub enum ContractError {
     #[error("error saving rewards pool")]
     SaveRewardsPool,
 
+    #[error("error saving verifier proxy adddress")]
+    SaveProxyAddress,
+
     #[error("error updating rewards pool")]
     UpdateRewardsPool,
 
@@ -42,6 +45,9 @@ pub enum ContractError {
 
     #[error("error loading rewards watermark")]
     LoadRewardsWatermark,
+
+    #[error("error loading verifier proxy address")]
+    LoadProxyAddress,
 
     #[error("invalid event id")]
     InvalidEventId,
