@@ -63,6 +63,7 @@ interchain-token-service = { version = "^0.1.0", path = "interchain-token-servic
 goldie = { version = "0.5" }
 axelarnet-gateway = { version = "^0.1.0", path = "contracts/axelarnet-gateway" }
 cw-multi-test = "1.2.0"
+assert_ok = "1.0"
 
 [workspace.lints.clippy]
 arithmetic_side_effects = "deny"

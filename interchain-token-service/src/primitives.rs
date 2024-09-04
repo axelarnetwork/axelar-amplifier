@@ -75,6 +75,15 @@ pub enum ItsHubMessage {
     },
 }
 
+impl ItsHubMessage {
+    pub fn message(&self) -> &ItsMessage {
+        match self {
+            ItsHubMessage::SendToHub { message, .. } => message,
+            ItsHubMessage::ReceiveFromHub { message, .. } => message,
+        }
+    }
+}
+
 impl TokenId {
     #[inline(always)]
     pub fn new(id: [u8; 32]) -> Self {

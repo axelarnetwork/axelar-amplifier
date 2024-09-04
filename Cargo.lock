@@ -703,6 +703,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "assert_ok"
+version = "1.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7c770ef7624541db11cce57929f00e737fef89157d7c1cd1977b20ee74fefd84"
+
+[[package]]
 name = "async-compression"
 version = "0.3.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4112,6 +4118,7 @@ version = "0.1.0"
 dependencies = [
  "alloy-primitives",
  "alloy-sol-types",
+ "assert_ok",
  "axelar-wasm-std",
  "axelarnet-gateway",
  "client",

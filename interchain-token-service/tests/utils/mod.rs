@@ -6,9 +6,12 @@
 pub use execute::*;
 pub use instantiate::*;
 #[allow(unused_imports)]
+pub use messages::*;
+#[allow(unused_imports)]
 pub use query::*;
 
 mod execute;
 mod instantiate;
+mod messages;
 pub mod params;
 mod query;

@@ -1,3 +1,4 @@
+use assert_ok::assert_ok;
 use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
 use interchain_token_service::contract;
 use interchain_token_service::msg::InstantiateMsg;
@@ -7,7 +8,7 @@ mod utils;
 #[test]
 fn instantiate_works() {
     let mut deps = mock_dependencies();
-    assert!(utils::instantiate_contract(deps.as_mut()).is_ok());
+    assert_ok!(utils::instantiate_contract(deps.as_mut()));
 }
 
 #[test]

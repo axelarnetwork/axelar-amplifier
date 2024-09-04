@@ -125,11 +125,12 @@ pub fn deregister_its_address(deps: DepsMut, chain: ChainName) -> Result<Respons
 mod tests {
     use std::collections::HashMap;
 
+    use assert_ok::assert_ok;
     use axelar_wasm_std::err_contains;
     use cosmwasm_std::testing::{
         mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
     };
-    use cosmwasm_std::{Addr, CosmosMsg, Empty, OwnedDeps, Uint256};
+    use cosmwasm_std::{Empty, OwnedDeps, Uint256};
     use router_api::{Address, ChainName, CrossChainId};
 
     use super::*;
@@ -152,7 +153,7 @@ mod tests {
             its_addresses: HashMap::new(),
         };
 
-        instantiate(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
+        assert_ok!(instantiate(deps.as_mut(), env.clone(), info.clone(), msg));
 
         deps
     }
@@ -165,59 +166,6 @@ mod tests {
             amount: Uint256::from(1000u128),
             data: HexBinary::from_hex("abcd").unwrap(),
         }
-    }
-
-    #[test]
-    fn execute_message_returns_correct_message() {
-        let mut deps = setup();
-        let source_chain: ChainName = "source-chain".parse().unwrap();
-        let destination_chain: ChainName = "destination-chain".parse().unwrap();
-        let source_address: Address = "its-source".parse().unwrap();
-        let destination_address: Address = "its-destination".parse().unwrap();
-
-        register_its_address(deps.as_mut(), source_chain.clone(), source_address.clone()).unwrap();
-        register_its_address(
-            deps.as_mut(),
-            destination_chain.clone(),
-            destination_address.clone(),
-        )
-        .unwrap();
-
-        let its_message = dummy_its_message();
-        let its_hub_message = ItsHubMessage::SendToHub {
-            destination_chain: destination_chain.clone(),
-            message: its_message.clone(),
-        };
-
-        let payload = its_hub_message.abi_encode();
-        let cc_id = CrossChainId::new(source_chain.clone(), "message-id").unwrap();
-        let result =
-            execute_message(deps.as_mut(), cc_id.clone(), source_address, payload).unwrap();
-
-        let gateway_address = Addr::unchecked("gateway");
-        let axelarnet_gateway: axelarnet_gateway::Client =
-            client::Client::new(deps.as_mut().querier, &gateway_address).into();
-        let expected_msg = axelarnet_gateway.call_contract(
-            destination_chain.clone(),
-            destination_address,
-            ItsHubMessage::ReceiveFromHub {
-                source_chain: source_chain.clone().into(),
-                message: its_message.clone(),
-            }
-            .abi_encode(),
-        );
-        assert_eq!(result.messages.len(), 1);
-        assert_eq!(result.messages[0].msg, CosmosMsg::Wasm(expected_msg));
-
-        let expected_event = Event::ItsMessageReceived {
-            cc_id,
-            destination_chain,
-            message: its_message,
-        };
-        assert_eq!(
-            result.events,
-            vec![cosmwasm_std::Event::from(expected_event)]
-        );
     }
 
     #[test]

@@ -1,16 +1,16 @@
+use assert_ok::assert_ok;
 use axelar_wasm_std::response::inspect_response_msg;
 use axelarnet_gateway::msg::ExecuteMsg as AxelarnetGatewayExecuteMsg;
-use cosmwasm_std::testing::{mock_dependencies, mock_env};
-use cosmwasm_std::{from_json, HexBinary};
-use interchain_token_service::contract::query;
-use interchain_token_service::msg::QueryMsg;
-use interchain_token_service::{ItsHubMessage, ItsMessage, TokenId};
-use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
+use cosmwasm_std::testing::mock_dependencies;
+use interchain_token_service::events::Event;
+use interchain_token_service::ItsHubMessage;
+use router_api::{Address, ChainName};
+use utils::TestMessage;
 
 mod utils;
 
 #[test]
-fn register_its_address_succeeds() {
+fn register_deregister_its_address_succeeds() {
     let mut deps = mock_dependencies();
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
@@ -19,35 +19,18 @@ fn register_its_address_succeeds() {
         .parse()
         .unwrap();
 
-    let res = utils::register_its_address(deps.as_mut(), chain.clone(), address.clone());
-    assert!(res.is_ok());
+    assert_ok!(utils::register_its_address(
+        deps.as_mut(),
+        chain.clone(),
+        address.clone()
+    ));
 
-    let query_msg = QueryMsg::ItsAddress { chain };
-    let res: Option<Address> =
-        from_json(query(deps.as_ref(), mock_env(), query_msg).unwrap()).unwrap();
-
+    let res = assert_ok!(utils::query_its_address(deps.as_ref(), chain.clone()));
     assert_eq!(res, Some(address));
-}
 
-#[test]
-fn deregister_its_address_succeeds() {
-    let mut deps = mock_dependencies();
-    utils::instantiate_contract(deps.as_mut()).unwrap();
+    assert_ok!(utils::deregister_its_address(deps.as_mut(), chain.clone()));
 
-    let chain: ChainName = "ethereum".parse().unwrap();
-    let address: Address = "0x1234567890123456789012345678901234567890"
-        .parse()
-        .unwrap();
-
-    utils::register_its_address(deps.as_mut(), chain.clone(), address).unwrap();
-
-    let res = utils::deregister_its_address(deps.as_mut(), chain.clone());
-    assert!(res.is_ok());
-
-    let query_msg = QueryMsg::ItsAddress { chain };
-    let res: Option<Address> =
-        from_json(query(deps.as_ref(), mock_env(), query_msg).unwrap()).unwrap();
-
+    let res = assert_ok!(utils::query_its_address(deps.as_ref(), chain.clone()));
     assert_eq!(res, None);
 }
 
@@ -56,78 +39,57 @@ fn execute_interchain_transfer_succeeds() {
     let mut deps = mock_dependencies();
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
-    let source_its_address: Address = "source-its-contract".parse().unwrap();
-    let destination_its_address: Address = "destination-its-contract".parse().unwrap();
+    let TestMessage {
+        hub_message,
+        router_message,
+        source_its_chain,
+        source_its_address,
+        destination_its_chain,
+        destination_its_address,
+    } = TestMessage::dummy();
 
-    let token_id = TokenId::new([0u8; 32]);
-    let source_address = HexBinary::from(b"source-caller");
-    let destination_address = HexBinary::from(b"destination-recipient");
-    let amount = 1000u128.into();
-    let data = HexBinary::from(b"data");
+    let payload = hub_message.clone().abi_encode();
+    let receive_payload = ItsHubMessage::ReceiveFromHub {
+        source_chain: source_its_chain.clone(),
+        message: hub_message.message().clone(),
+    }
+    .abi_encode();
 
-    let its_message = ItsMessage::InterchainTransfer {
-        token_id,
-        source_address: source_address.clone(),
-        destination_address,
-        amount,
-        data,
-    };
-
-    let source_its_chain: ChainNameRaw = "optimism".parse().unwrap();
-    let destination_its_chain: ChainName = "ethereum".parse().unwrap();
-    let hub_message = ItsHubMessage::SendToHub {
-        destination_chain: destination_its_chain.clone(),
-        message: its_message.clone(),
-    };
-
-    let payload = hub_message.abi_encode();
-    let cc_id = CrossChainId::new(source_its_chain.clone(), "message-id").unwrap();
-
-    utils::register_its_address(
+    assert_ok!(utils::register_its_address(
         deps.as_mut(),
         source_its_chain.clone().to_string().parse().unwrap(),
         source_its_address.clone(),
-    )
-    .unwrap();
-    utils::register_its_address(
+    ));
+    assert_ok!(utils::register_its_address(
         deps.as_mut(),
         destination_its_chain.clone().to_string().parse().unwrap(),
         destination_its_address.clone(),
+    ));
+
+    let response = utils::execute(
+        deps.as_mut(),
+        router_message.cc_id.clone(),
+        source_its_address,
+        payload,
     )
     .unwrap();
+    let msg: AxelarnetGatewayExecuteMsg = assert_ok!(inspect_response_msg(response.clone()));
+    let expected_msg = AxelarnetGatewayExecuteMsg::CallContract {
+        destination_chain: destination_its_chain.clone(),
+        destination_address: destination_its_address,
+        payload: receive_payload,
+    };
+    assert_eq!(msg, expected_msg);
 
-    let res = utils::execute(deps.as_mut(), cc_id, source_its_address, payload);
-    assert!(res.is_ok());
+    let expected_event = Event::ItsMessageReceived {
+        cc_id: router_message.cc_id,
+        destination_chain: destination_its_chain,
+        message: hub_message.message().clone(),
+    };
+    assert_eq!(
+        response.events,
+        vec![cosmwasm_std::Event::from(expected_event)]
+    );
 
-    let response = res.unwrap();
-    assert_eq!(response.messages.len(), 1);
-
-    let msg = inspect_response_msg::<AxelarnetGatewayExecuteMsg>(response);
-    assert!(msg.is_ok());
-
-    match msg.unwrap() {
-        AxelarnetGatewayExecuteMsg::CallContract {
-            destination_chain,
-            destination_address,
-            payload,
-        } => {
-            assert_eq!(destination_chain, destination_its_chain);
-            assert_eq!(destination_address, destination_its_address);
-
-            let hub_message = ItsHubMessage::abi_decode(&payload);
-            assert!(hub_message.is_ok());
-
-            match hub_message.unwrap() {
-                ItsHubMessage::ReceiveFromHub {
-                    source_chain,
-                    message,
-                } => {
-                    assert_eq!(source_chain, source_its_chain);
-                    assert_eq!(message, its_message);
-                }
-                _ => panic!("Expected ReceiveFromHub message"),
-            }
-        }
-        _ => panic!("Expected CallContract message"),
-    }
+    goldie::assert_json!(response);
 }
