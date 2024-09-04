@@ -27,8 +27,8 @@ impl MsgQueue {
 
         info!(
             message_type,
-            queue_size = self.len(),
-            queue_gas_cost = self.gas_cost(),
+            queue_size = self.msgs.len(),
+            queue_gas_cost = self.gas_cost,
             "pushed a new message into the queue"
         );
 
