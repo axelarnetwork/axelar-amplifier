@@ -6,10 +6,15 @@ use router_api::{Address, ChainName};
 use crate::nexus;
 
 #[cw_serde]
+pub struct MigrateMsg {
+    pub axelarnet_gateway: String,
+}
+
+#[cw_serde]
 pub struct InstantiateMsg {
     pub nexus: String,
     pub router: String,
-    pub axelar_gateway: String,
+    pub axelarnet_gateway: String,
 }
 
 #[cw_serde]
