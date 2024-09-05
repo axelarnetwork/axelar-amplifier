@@ -1,0 +1,31 @@
+[
+  {
+    "type": "message_executed",
+    "attributes": [
+      {
+        "key": "message_id",
+        "value": "hash-index"
+      },
+      {
+        "key": "source_chain",
+        "value": "source-chain"
+      },
+      {
+        "key": "source_address",
+        "value": "source-address"
+      },
+      {
+        "key": "destination_chain",
+        "value": "axelarnet"
+      },
+      {
+        "key": "destination_address",
+        "value": "destination-address"
+      },
+      {
+        "key": "payload_hash",
+        "value": "f1885eda54b7a053318cd41e2093220dab15d65381b1157a3633a83bfd5c9239"
+      }
+    ]
+  }
+]
