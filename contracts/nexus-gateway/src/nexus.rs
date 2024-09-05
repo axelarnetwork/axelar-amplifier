@@ -22,6 +22,7 @@ pub struct Message {
     pub source_tx_id: nonempty::Vec<u8>,
     pub source_tx_index: u64,
     pub id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub token: Option<Coin>,
 }
 
