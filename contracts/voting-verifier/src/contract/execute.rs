@@ -335,7 +335,7 @@ fn take_snapshot(deps: Deps, chain: &ChainName) -> Result<snapshot::Snapshot, Co
         .change_context(ContractError::StorageError)?;
 
     let service_registry: service_registry::client::Client =
-        client::Client::new(deps.querier, config.service_registry_contract).into();
+        client::Client::new(deps.querier, &config.service_registry_contract).into();
 
     let verifiers: Vec<WeightedVerifier> = service_registry
         .active_verifiers(config.service_name.into(), chain.to_owned())

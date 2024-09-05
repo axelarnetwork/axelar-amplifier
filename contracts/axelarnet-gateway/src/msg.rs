@@ -3,7 +3,7 @@ use cosmwasm_std::HexBinary;
 use msgs_derive::EnsurePermissions;
 use router_api::{Address, ChainName, CrossChainId, Message};
 
-use crate::state::MessageWithStatus;
+use crate::state::ExecutableMessage;
 
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -16,15 +16,6 @@ pub struct InstantiateMsg {
 #[cw_serde]
 #[derive(EnsurePermissions)]
 pub enum ExecuteMsg {
-    /// Initiate a cross-chain contract call from Axelarnet to another chain.
-    /// The message will be routed to the destination chain's gateway via the router.
-    #[permission(Any)]
-    CallContract {
-        destination_chain: ChainName,
-        destination_address: Address,
-        payload: HexBinary,
-    },
-
     /// Forward the given messages to the next step of the routing layer.
     /// Messages initiated via `CallContract` can be forwarded again to the router.
     /// If the messages are coming from the router, then they are marked ready for execution.
@@ -38,6 +29,15 @@ pub enum ExecuteMsg {
         cc_id: CrossChainId,
         payload: HexBinary,
     },
+
+    /// Initiate a cross-chain contract call from Axelarnet to another chain.
+    /// The message will be routed to the destination chain's gateway via the router.
+    #[permission(Any)]
+    CallContract {
+        destination_chain: ChainName,
+        destination_address: Address,
+        payload: HexBinary,
+    },
 }
 
 #[cw_serde]
@@ -45,9 +45,13 @@ pub enum ExecuteMsg {
 pub enum QueryMsg {
     /// Returns the sent messages for the given cross-chain ids.
     #[returns(Vec<Message>)]
-    SentMessages { cc_ids: Vec<CrossChainId> },
+    RoutableMessages { cc_ids: Vec<CrossChainId> },
 
     /// Returns the received messages with their status for the given cross-chain ids.
-    #[returns(Vec<MessageWithStatus>)]
-    ReceivedMessages { cc_ids: Vec<CrossChainId> },
+    #[returns(Vec<ExecutableMessage>)]
+    ExecutableMessages { cc_ids: Vec<CrossChainId> },
+
+    /// Returns the chain name for this gateway.
+    #[returns(ChainName)]
+    ChainName,
 }
