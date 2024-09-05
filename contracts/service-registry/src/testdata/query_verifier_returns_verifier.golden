@@ -1,0 +1,10 @@
+{
+  "address": "verifier",
+  "bonding_state": {
+    "Bonded": {
+      "amount": "1"
+    }
+  },
+  "authorization_state": "Authorized",
+  "service_name": "verifiers"
+}
