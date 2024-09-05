@@ -16,11 +16,7 @@ fn query_its_address() {
         .parse()
         .unwrap();
 
-    assert_ok!(utils::register_its_address(
-        deps.as_mut(),
-        chain.clone(),
-        address.clone()
-    ));
+    utils::register_its_address(deps.as_mut(), chain.clone(), address.clone()).unwrap();
 
     let queried_address = assert_ok!(utils::query_its_address(deps.as_ref(), chain.clone()));
     assert_eq!(queried_address, Some(address));
@@ -58,11 +54,7 @@ fn query_all_its_addresses() {
     .collect::<HashMap<_, _>>();
 
     for (chain, address) in its_addresses.iter() {
-        assert_ok!(utils::register_its_address(
-            deps.as_mut(),
-            chain.clone(),
-            address.clone()
-        ));
+        utils::register_its_address(deps.as_mut(), chain.clone(), address.clone()).unwrap();
     }
 
     let queried_addresses = assert_ok!(utils::query_all_its_addresses(deps.as_ref()));

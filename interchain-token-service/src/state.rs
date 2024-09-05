@@ -65,56 +65,62 @@ pub fn load_all_its_addresses(storage: &dyn Storage) -> Result<HashMap<ChainName
 
 #[cfg(test)]
 mod tests {
+    use assert_ok::assert_ok;
+    use axelar_wasm_std::assert_err_contains;
     use cosmwasm_std::testing::mock_dependencies;
 
     use super::*;
 
     #[test]
-    fn save_and_load_config() {
+    fn save_and_load_config_succeeds() {
         let mut deps = mock_dependencies();
 
         let config = Config {
             axelarnet_gateway: Addr::unchecked("gateway-address"),
         };
 
-        assert!(save_config(deps.as_mut().storage, &config).is_ok());
+        assert_ok!(save_config(deps.as_mut().storage, &config));
         assert_eq!(load_config(deps.as_ref().storage), config);
     }
 
     #[test]
     #[should_panic(expected = "config must be set during instantiation")]
-    fn panic_if_config_missing() {
+    fn load_missing_config_fails() {
         let deps = mock_dependencies();
         load_config(deps.as_ref().storage);
     }
 
     #[test]
-    fn check_its_address_whitelist() {
+    fn save_and_load_its_address_succeeds() {
         let mut deps = mock_dependencies();
-
-        let chain = "test-chain".parse().unwrap();
-        let address: Address = "its-address".parse().unwrap();
-
-        assert!(save_its_address(deps.as_mut().storage, &chain, &address).is_ok());
-        assert_eq!(
-            load_its_address(deps.as_ref().storage, &chain).unwrap(),
-            address
-        );
-
-        remove_its_address(deps.as_mut().storage, &chain);
-        assert!(matches!(
-            load_its_address(deps.as_ref().storage, &chain),
-            Err(Error::ItsAddressNotFound(_))
-        ));
 
         let chain1 = "chain1".parse().unwrap();
         let chain2 = "chain2".parse().unwrap();
         let address1: Address = "address1".parse().unwrap();
         let address2: Address = "address2".parse().unwrap();
-        assert!(save_its_address(deps.as_mut().storage, &chain1, &address1).is_ok());
-        assert!(save_its_address(deps.as_mut().storage, &chain2, &address2).is_ok());
 
-        let all_addresses = load_all_its_addresses(deps.as_ref().storage).unwrap();
+        assert_err_contains!(
+            load_its_address(deps.as_ref().storage, &chain1),
+            Error,
+            Error::ItsAddressNotFound(its_chain) if its_chain == &chain1
+        );
+        assert_eq!(
+            assert_ok!(load_all_its_addresses(deps.as_ref().storage)),
+            HashMap::new()
+        );
+
+        assert_ok!(save_its_address(deps.as_mut().storage, &chain1, &address1));
+        assert_ok!(save_its_address(deps.as_mut().storage, &chain2, &address2));
+        assert_eq!(
+            assert_ok!(load_its_address(deps.as_ref().storage, &chain1)),
+            address1
+        );
+        assert_eq!(
+            assert_ok!(load_its_address(deps.as_ref().storage, &chain2)),
+            address2
+        );
+
+        let all_addresses = assert_ok!(load_all_its_addresses(deps.as_ref().storage));
         assert_eq!(
             all_addresses,
             [(chain1, address1), (chain2, address2)]

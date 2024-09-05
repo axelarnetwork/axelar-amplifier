@@ -1,13 +1,14 @@
 use assert_ok::assert_ok;
-use axelar_wasm_std::assert_err_contains;
 use axelar_wasm_std::response::inspect_response_msg;
+use axelar_wasm_std::{assert_err_contains, permission_control};
 use axelarnet_gateway::msg::ExecuteMsg as AxelarnetGatewayExecuteMsg;
-use cosmwasm_std::testing::mock_dependencies;
+use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
 use cosmwasm_std::HexBinary;
-use interchain_token_service::contract::ExecuteError;
+use interchain_token_service::contract::{self, ExecuteError};
 use interchain_token_service::events::Event;
+use interchain_token_service::msg::ExecuteMsg;
 use interchain_token_service::{ItsHubMessage, ItsMessage, TokenId, TokenManagerType};
-use router_api::{Address, ChainName};
+use router_api::{Address, ChainName, CrossChainId};
 use utils::TestMessage;
 
 mod utils;
@@ -131,6 +132,28 @@ fn execute_its_hub_message_succeeds() {
         .collect();
 
     goldie::assert_json!(responses);
+}
+
+#[test]
+fn execute_its_when_not_gateway_sender_fails() {
+    let mut deps = mock_dependencies();
+    utils::instantiate_contract(deps.as_mut()).unwrap();
+
+    let result = contract::execute(
+        deps.as_mut(),
+        mock_env(),
+        mock_info("not-gateway", &[]),
+        ExecuteMsg::Execute(axelarnet_gateway::AxelarExecutableMsg {
+            cc_id: CrossChainId::new("source", "hash").unwrap(),
+            source_address: "source".parse().unwrap(),
+            payload: HexBinary::from([]),
+        }),
+    );
+    assert_err_contains!(
+        result,
+        permission_control::Error,
+        permission_control::Error::AddressNotWhitelisted { .. }
+    );
 }
 
 #[test]

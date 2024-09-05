@@ -61,7 +61,7 @@ sol! {
     }
 }
 
-#[derive(thiserror::Error, Debug, PartialEq, IntoContractError)]
+#[derive(thiserror::Error, Debug, IntoContractError)]
 pub enum Error {
     #[error("failed to decode ITS message")]
     MessageDecodeFailed,
@@ -252,6 +252,8 @@ mod tests {
 
     use alloy_primitives::{FixedBytes, U256};
     use alloy_sol_types::SolValue;
+    use assert_ok::assert_ok;
+    use axelar_wasm_std::assert_err_contains;
     use cosmwasm_std::{HexBinary, Uint256};
     use router_api::ChainName;
 
@@ -322,7 +324,7 @@ mod tests {
 
         for original in cases {
             let encoded = original.clone().abi_encode();
-            let decoded = ItsHubMessage::abi_decode(&encoded).unwrap();
+            let decoded = assert_ok!(ItsHubMessage::abi_decode(&encoded));
             assert_eq!(original, decoded);
         }
     }
@@ -403,7 +405,7 @@ mod tests {
 
         for original in cases {
             let encoded = original.clone().abi_encode();
-            let decoded = ItsHubMessage::abi_decode(&encoded).unwrap();
+            let decoded = assert_ok!(ItsHubMessage::abi_decode(&encoded));
             assert_eq!(original, decoded);
         }
     }
@@ -456,46 +458,55 @@ mod tests {
 
         for original in cases {
             let encoded = original.clone().abi_encode();
-            let decoded = ItsHubMessage::abi_decode(&encoded).unwrap();
+            let decoded = assert_ok!(ItsHubMessage::abi_decode(&encoded));
             assert_eq!(original, decoded);
         }
     }
 
     #[test]
     fn invalid_its_hub_message_type() {
-        let invalid_payload = SendToHub {
-            messageType: U256::from(MessageType::ReceiveFromHub as u8 + 1),
-            destination_chain: "remote-chain".into(),
-            message: vec![].into(),
-        }
-        .abi_encode_params();
+        let invalid_message_types = vec![
+            u8::MIN,
+            MessageType::InterchainTransfer as u8,
+            MessageType::DeployInterchainToken as u8,
+            MessageType::DeployTokenManager as u8,
+            MessageType::ReceiveFromHub as u8 + 1,
+            u8::MAX,
+        ];
 
-        let result = ItsHubMessage::abi_decode(&invalid_payload);
-        assert!(result.is_err());
-        assert_eq!(
-            result.unwrap_err().current_context().to_string(),
-            Error::InvalidMessageType.to_string()
-        );
+        for message_type in invalid_message_types {
+            let invalid_payload = SendToHub {
+                messageType: U256::from(message_type),
+                destination_chain: "remote-chain".into(),
+                message: vec![].into(),
+            }
+            .abi_encode_params();
+
+            let result = ItsHubMessage::abi_decode(&invalid_payload);
+            assert_err_contains!(result, Error, Error::InvalidMessageType);
+        }
     }
 
     #[test]
     fn invalid_its_message_type() {
-        let mut message = MessageType::DeployTokenManager.abi_encode();
-        message[31] = 3;
+        let invalid_message_types = vec![
+            MessageType::SendToHub as u8,
+            MessageType::ReceiveFromHub as u8,
+            MessageType::DeployTokenManager as u8 + 1,
+            u8::MAX,
+        ];
 
-        let invalid_payload = SendToHub {
-            messageType: MessageType::SendToHub.into(),
-            destination_chain: "remote-chain".into(),
-            message: message.into(),
+        for message_type in invalid_message_types {
+            let invalid_payload = SendToHub {
+                messageType: MessageType::SendToHub.into(),
+                destination_chain: "remote-chain".into(),
+                message: U256::from(message_type).abi_encode().into(),
+            }
+            .abi_encode_params();
+
+            let result = ItsHubMessage::abi_decode(&invalid_payload);
+            assert_err_contains!(result, Error, Error::InvalidMessageType);
         }
-        .abi_encode_params();
-
-        let result = ItsHubMessage::abi_decode(&invalid_payload);
-        assert!(result.is_err());
-        assert_eq!(
-            result.unwrap_err().current_context().to_string(),
-            Error::InvalidMessageType.to_string()
-        );
     }
 
     #[test]
@@ -515,11 +526,7 @@ mod tests {
         .abi_encode_params();
 
         let result = ItsHubMessage::abi_decode(&payload);
-        assert!(result.is_err());
-        assert_eq!(
-            result.unwrap_err().current_context().to_string(),
-            Error::InvalidChainName.to_string()
-        );
+        assert_err_contains!(result, Error, Error::InvalidChainName);
     }
 
     #[test]
@@ -539,11 +546,7 @@ mod tests {
         .abi_encode_params();
 
         let result = ItsHubMessage::abi_decode(&payload);
-        assert!(result.is_err());
-        assert_eq!(
-            result.unwrap_err().current_context().to_string(),
-            Error::InvalidTokenManagerType.to_string()
-        );
+        assert_err_contains!(result, Error, Error::InvalidTokenManagerType);
     }
 
     #[test]
@@ -561,7 +564,7 @@ mod tests {
         };
 
         let encoded = original.clone().abi_encode();
-        let decoded = ItsHubMessage::abi_decode(&encoded).unwrap();
+        let decoded = assert_ok!(ItsHubMessage::abi_decode(&encoded));
         assert_eq!(original, decoded);
     }
 
@@ -579,7 +582,7 @@ mod tests {
         };
 
         let encoded = original.clone().abi_encode();
-        let decoded = ItsHubMessage::abi_decode(&encoded).unwrap();
+        let decoded = assert_ok!(ItsHubMessage::abi_decode(&encoded));
         assert_eq!(original, decoded);
     }
 }
