@@ -24,12 +24,14 @@ const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub enum Error {
     #[error("failed to execute a cross-chain message")]
     Execute,
-    #[error("failed to set an its address")]
-    SetItsAddress,
-    #[error("failed to remove an its address")]
-    RemoveItsAddress,
+    #[error("failed to register an its edge contract")]
+    RegisterItsAddress,
+    #[error("failed to deregsiter an its edge contract")]
+    DeregisterItsAddress,
     #[error("failed to query its address")]
     QueryItsAddress,
+    #[error("failed to query all its addresses")]
+    QueryAllItsAddresses,
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -83,10 +85,10 @@ pub fn execute(
         }) => execute::execute_message(deps, cc_id, source_address, payload)
             .change_context(Error::Execute),
         ExecuteMsg::RegisterItsAddress { chain, address } => {
-            execute::register_its_address(deps, chain, address).change_context(Error::SetItsAddress)
+            execute::register_its_address(deps, chain, address).change_context(Error::RegisterItsAddress)
         }
         ExecuteMsg::DeregisterItsAddress { chain } => {
-            execute::deregister_its_address(deps, chain).change_context(Error::RemoveItsAddress)
+            execute::deregister_its_address(deps, chain).change_context(Error::DeregisterItsAddress)
         }
     }?
     .then(Ok)
@@ -99,8 +101,8 @@ fn match_gateway(storage: &dyn Storage, _: &ExecuteMsg) -> Result<Addr, Report<E
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
     match msg {
-        QueryMsg::ItsAddress { chain } => query::its_address(deps, chain),
-        QueryMsg::AllItsAddresses => query::all_its_addresses(deps),
+        QueryMsg::ItsAddress { chain } => query::its_address(deps, chain).change_context(Error::QueryItsAddress),
+        QueryMsg::AllItsAddresses => query::all_its_addresses(deps).change_context(Error::QueryAllItsAddresses),
     }?
     .then(Ok)
 }
