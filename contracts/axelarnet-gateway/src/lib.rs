@@ -6,4 +6,4 @@ mod state;
 mod clients;
 pub use clients::external::AxelarExecutableMsg;
 pub use clients::gateway::Client;
-pub use state::ExecutableMessage;
+pub use state::{Error as StateError, ExecutableMessage};
