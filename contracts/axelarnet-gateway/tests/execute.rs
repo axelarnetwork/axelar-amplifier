@@ -113,7 +113,11 @@ fn route_from_router_with_destination_chain_not_matching_contract_fails() {
 
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
-    assert!(utils::route_from_router(deps.as_mut(), vec![msg_with_wrong_destination]).is_err());
+    assert_err_contains!(
+        utils::route_from_router(deps.as_mut(), vec![msg_with_wrong_destination]),
+        ExecuteError,
+        ExecuteError::InvalidDestination { .. }
+    );
 }
 
 #[test]
@@ -124,9 +128,8 @@ fn route_from_router_same_message_multiple_times_succeeds() {
 
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
-    let response = utils::route_from_router(deps.as_mut(), msgs);
-    assert!(response.is_ok());
-    goldie::assert_json!(response.unwrap());
+    let response = assert_ok!(utils::route_from_router(deps.as_mut(), msgs));
+    goldie::assert_json!(response);
 }
 
 #[test]
@@ -140,7 +143,11 @@ fn route_from_router_multiple_times_with_data_mismatch_fails() {
 
     msgs[0].source_address = "wrong-address".parse().unwrap();
 
-    assert!(utils::route_from_router(deps.as_mut(), msgs).is_err());
+    assert_err_contains!(
+        utils::route_from_router(deps.as_mut(), msgs),
+        StateError,
+        StateError::MessageMismatch(..)
+    );
 }
 
 #[test]
@@ -151,9 +158,8 @@ fn route_to_router_without_contract_call_ignores_message() {
 
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
-    let response = route_to_router(deps.as_mut(), vec![msg]);
-    assert!(response.is_ok());
-    assert_eq!(response.unwrap().messages.len(), 0);
+    let response = assert_ok!(route_to_router(deps.as_mut(), vec![msg]));
+    assert_eq!(response.messages.len(), 0);
 }
 
 #[test]
@@ -178,7 +184,11 @@ fn route_to_router_after_contract_call_with_tempered_data_fails() {
     };
     msgs[0].destination_chain = "wrong-chain".parse().unwrap();
 
-    assert!(route_to_router(deps.as_mut(), msgs.clone()).is_err());
+    assert_err_contains!(
+        route_to_router(deps.as_mut(), msgs),
+        ExecuteError,
+        ExecuteError::MessageMismatch(..)
+    );
 }
 
 #[test]
@@ -203,11 +213,9 @@ fn route_to_router_after_contract_call_succeeds_multiple_times() {
     };
 
     for _ in 0..10 {
-        let response = route_to_router(deps.as_mut(), msgs.clone());
-        assert!(response.is_ok());
-        let msg = inspect_response_msg::<RouterExecuteMsg>(response.unwrap());
-        assert!(msg.is_ok());
-        goldie::assert_json!(msg.unwrap());
+        let response = assert_ok!(route_to_router(deps.as_mut(), msgs.clone()));
+        let msg = assert_ok!(inspect_response_msg::<RouterExecuteMsg>(response));
+        goldie::assert_json!(msg);
     }
 }
 
@@ -236,11 +244,9 @@ fn route_to_router_after_contract_call_ignores_duplicates() {
     msgs.append(&mut msgs.clone());
     assert_eq!(msgs.len(), 4);
 
-    let response = route_to_router(deps.as_mut(), msgs);
-    assert!(response.is_ok());
-    let msg = inspect_response_msg::<RouterExecuteMsg>(response.unwrap());
-    assert!(msg.is_ok());
-    goldie::assert_json!(msg.unwrap());
+    let response = assert_ok!(route_to_router(deps.as_mut(), msgs));
+    let msg = assert_ok!(inspect_response_msg::<RouterExecuteMsg>(response));
+    goldie::assert_json!(msg);
 }
 
 #[test]
@@ -252,18 +258,15 @@ fn contract_call_returns_correct_message() {
     let payload = vec![1, 2, 3].into();
 
     utils::instantiate_contract(deps.as_mut()).unwrap();
-    let response = utils::call_contract(
+
+    let response = assert_ok!(utils::call_contract(
         deps.as_mut(),
         destination_chain,
         destination_address,
         payload,
-    );
-
-    assert!(response.is_ok());
-
-    let msg = inspect_response_msg::<RouterExecuteMsg>(response.unwrap());
-    assert!(msg.is_ok());
-    goldie::assert_json!(msg.unwrap())
+    ));
+    let msg = assert_ok!(inspect_response_msg::<RouterExecuteMsg>(response));
+    goldie::assert_json!(msg)
 }
 
 #[test]
@@ -275,15 +278,13 @@ fn contract_call_returns_correct_events() {
     let payload = vec![1, 2, 3].into();
 
     utils::instantiate_contract(deps.as_mut()).unwrap();
-    let response = utils::call_contract(
+    let response = assert_ok!(utils::call_contract(
         deps.as_mut(),
         destination_chain,
         destination_address,
         payload,
-    );
-
-    assert!(response.is_ok());
-    goldie::assert_json!(response.unwrap().events)
+    ));
+    goldie::assert_json!(response.events)
 }
 
 #[test]
@@ -295,23 +296,21 @@ fn contract_call_multiple_times_results_in_different_messages() {
     let payload = HexBinary::from(vec![1, 2, 3]);
 
     utils::instantiate_contract(deps.as_mut()).unwrap();
-    let response1 = utils::call_contract(
+
+    let response1 = assert_ok!(utils::call_contract(
         deps.as_mut(),
         destination_chain.clone(),
         destination_address.clone(),
         payload.clone(),
-    );
-
-    let response2 = utils::call_contract(
+    ));
+    let response2 = assert_ok!(utils::call_contract(
         deps.as_mut(),
         destination_chain,
         destination_address,
         payload,
-    );
+    ));
 
-    assert!(response1.is_ok());
-    assert!(response2.is_ok());
-    assert_ne!(response1.unwrap().messages, response2.unwrap().messages);
+    assert_ne!(response1.messages, response2.messages);
 }
 
 fn route_to_router(deps: DepsMut, msgs: Vec<Message>) -> Result<Response, ContractError> {

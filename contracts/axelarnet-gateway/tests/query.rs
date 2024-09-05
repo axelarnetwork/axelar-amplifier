@@ -23,8 +23,8 @@ fn query_routable_messages_gets_expected_messages() {
     let cc_ids = expected.iter().map(|msg| &msg.cc_id).cloned().collect();
 
     assert_eq!(
+        assert_ok!(query_routable_messages(deps.as_ref(), cc_ids)),
         expected,
-        assert_ok!(query_routable_messages(deps.as_ref(), cc_ids))
     );
 }
 
@@ -47,8 +47,8 @@ fn query_chain_name_gets_expected_chain() {
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
     assert_eq!(
+        assert_ok!(query_chain_name(deps.as_ref())).as_ref(),
         params::AXELARNET,
-        assert_ok!(query_chain_name(deps.as_ref())).as_ref()
     );
 }
 
