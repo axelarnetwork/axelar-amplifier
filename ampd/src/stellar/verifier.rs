@@ -8,8 +8,8 @@ use crate::stellar::http_client::TxResponse;
 
 const TOPIC_CALLED: &str = "called";
 
-impl PartialEq<&ContractEventBody> for &Message {
-    fn eq(&self, event: &&ContractEventBody) -> bool {
+impl PartialEq<ContractEventBody> for Message {
+    fn eq(&self, event: &ContractEventBody) -> bool {
         let ContractEventBody::V0(body) = event;
 
         if body.topics.len() != 3 {
