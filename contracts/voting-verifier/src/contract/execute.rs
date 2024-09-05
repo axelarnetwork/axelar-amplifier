@@ -51,9 +51,8 @@ pub fn verify_verifier_set(
         return Ok(Response::new());
     }
 
-    let config = CONFIG
-        .load(deps.storage)
-        .change_context(ContractError::StorageError)?;
+    let config = CONFIG.load(deps.storage).expect("failed to load config");
+
     let snapshot = take_snapshot(deps.as_ref(), &config.source_chain)?;
     let participants = snapshot.participants();
     let expires_at = calculate_expiration(env.block.height, config.block_expiry.into())?;
@@ -97,9 +96,7 @@ pub fn verify_messages(
         return Err(report!(ContractError::EmptyMessages));
     }
 
-    let config = CONFIG
-        .load(deps.storage)
-        .change_context(ContractError::StorageError)?;
+    let config = CONFIG.load(deps.storage).expect("failed to load config");
 
     let messages = messages.try_map(|message| {
         validate_source_chain(message, &config.source_chain)
@@ -275,9 +272,7 @@ pub fn vote(
 }
 
 pub fn end_poll(deps: DepsMut, env: Env, poll_id: PollId) -> Result<Response, ContractError> {
-    let config = CONFIG
-        .load(deps.storage)
-        .change_context(ContractError::StorageError)?;
+    let config = CONFIG.load(deps.storage).expect("failed to load config");
 
     let poll = POLLS
         .may_load(deps.storage, poll_id)
@@ -330,9 +325,7 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: PollId) -> Result<Response, Co
 }
 
 fn take_snapshot(deps: Deps, chain: &ChainName) -> Result<snapshot::Snapshot, ContractError> {
-    let config = CONFIG
-        .load(deps.storage)
-        .change_context(ContractError::StorageError)?;
+    let config = CONFIG.load(deps.storage).expect("failed to load config");
 
     let service_registry: service_registry::client::Client =
         client::Client::new(deps.querier, &config.service_registry_contract).into();
