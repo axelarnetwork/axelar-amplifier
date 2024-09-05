@@ -7537,6 +7537,7 @@ name = "service-registry"
 version = "1.0.0"
 dependencies = [
  "axelar-wasm-std",
+ "client",
  "coordinator",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -7544,6 +7545,7 @@ dependencies = [
  "cw-storage-plus 1.2.0",
  "cw2 1.1.2",
  "error-stack",
+ "goldie",
  "integration-tests",
  "itertools 0.11.0",
  "msgs-derive",
