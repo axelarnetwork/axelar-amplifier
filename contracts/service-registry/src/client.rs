@@ -100,7 +100,7 @@ mod test {
     #[test]
     fn query_active_verifiers_returns_error_when_query_fails() {
         let (querier, addr) = setup_queries_to_fail();
-        let client: Client = client::Client::new(QuerierWrapper::new(&querier), addr).into();
+        let client: Client = client::Client::new(QuerierWrapper::new(&querier), &addr).into();
         let service_name = "verifiers".to_string();
         let chain_name: ChainName = "ethereum".try_into().unwrap();
         let res = client.active_verifiers(service_name.clone(), chain_name.clone());
@@ -112,7 +112,7 @@ mod test {
     #[test]
     fn query_active_verifiers_returns_active_verifiers() {
         let (querier, addr) = setup_queries_to_succeed();
-        let client: Client = client::Client::new(QuerierWrapper::new(&querier), addr).into();
+        let client: Client = client::Client::new(QuerierWrapper::new(&querier), &addr).into();
         let service_name = "verifiers".to_string();
         let chain_name: ChainName = "ethereum".try_into().unwrap();
         let res = client.active_verifiers(service_name.clone(), chain_name.clone());
@@ -124,7 +124,7 @@ mod test {
     #[test]
     fn query_verifier_returns_error_when_query_fails() {
         let (querier, addr) = setup_queries_to_fail();
-        let client: Client = client::Client::new(QuerierWrapper::new(&querier), addr).into();
+        let client: Client = client::Client::new(QuerierWrapper::new(&querier), &addr).into();
         let service_name = "verifiers".to_string();
         let verifier = Addr::unchecked("verifier").to_string();
         let res = client.verifier(service_name.clone(), verifier.clone());
@@ -136,7 +136,7 @@ mod test {
     #[test]
     fn query_verifier_returns_verifier() {
         let (querier, addr) = setup_queries_to_succeed();
-        let client: Client = client::Client::new(QuerierWrapper::new(&querier), addr).into();
+        let client: Client = client::Client::new(QuerierWrapper::new(&querier), &addr).into();
         let service_name = "verifiers".to_string();
         let verifier = Addr::unchecked("verifier").to_string();
         let res = client.verifier(service_name.clone(), verifier.clone());
@@ -148,7 +148,7 @@ mod test {
     #[test]
     fn query_service_returns_error_when_query_fails() {
         let (querier, addr) = setup_queries_to_fail();
-        let client: Client = client::Client::new(QuerierWrapper::new(&querier), addr).into();
+        let client: Client = client::Client::new(QuerierWrapper::new(&querier), &addr).into();
         let service_name = "verifiers".to_string();
         let res = client.service(service_name.clone());
 
@@ -159,7 +159,7 @@ mod test {
     #[test]
     fn query_service_returns_service() {
         let (querier, addr) = setup_queries_to_succeed();
-        let client: Client = client::Client::new(QuerierWrapper::new(&querier), addr).into();
+        let client: Client = client::Client::new(QuerierWrapper::new(&querier), &addr).into();
         let service_name = "verifiers".to_string();
         let res = client.service(service_name.clone());
 
