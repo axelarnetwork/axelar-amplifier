@@ -50,6 +50,7 @@ thiserror = { workspace = true }
 
 [dev-dependencies]
 cw-multi-test = "0.15.1"
+goldie = { workspace = true }
 integration-tests = { workspace = true }
 
 [lints]

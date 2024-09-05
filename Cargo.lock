@@ -7498,6 +7498,7 @@ dependencies = [
  "cw-storage-plus 1.2.0",
  "cw2 1.1.2",
  "error-stack",
+ "goldie",
  "integration-tests",
  "msgs-derive",
  "report",

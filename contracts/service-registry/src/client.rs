@@ -8,7 +8,7 @@ type Result<T> = error_stack::Result<T, Error>;
 
 #[derive(thiserror::Error, Debug, PartialEq)]
 pub enum Error {
-    #[error("failed query the service registry for active verifiers for service {service_name} and chain {chain_name}")]
+    #[error("failed to query service registry for active verifiers for service {service_name} and chain {chain_name}")]
     QueryActiveVerifiers {
         service_name: String,
         chain_name: ChainName,
@@ -22,6 +22,28 @@ pub enum Error {
         service_name: String,
         verifier: String,
     },
+}
+
+impl From<QueryMsg> for Error {
+    fn from(value: QueryMsg) -> Self {
+        match value {
+            QueryMsg::ActiveVerifiers {
+                service_name,
+                chain_name,
+            } => Error::QueryActiveVerifiers {
+                service_name,
+                chain_name,
+            },
+            QueryMsg::Service { service_name } => Error::QueryService(service_name),
+            QueryMsg::Verifier {
+                service_name,
+                verifier,
+            } => Error::QueryVerifier {
+                service_name,
+                verifier,
+            },
+        }
+    }
 }
 
 impl<'a> From<client::Client<'a, ExecuteMsg, QueryMsg>> for Client<'a> {
@@ -42,128 +64,180 @@ impl<'a> Client<'a> {
         service_name: String,
         chain_name: ChainName,
     ) -> Result<Vec<WeightedVerifier>> {
-        self.client
-            .query(&QueryMsg::ActiveVerifiers {
-                service_name: service_name.clone(),
-                chain_name: chain_name.clone(),
-            })
-            .change_context_lazy(|| Error::QueryActiveVerifiers {
-                service_name,
-                chain_name,
-            })
+        let msg = QueryMsg::ActiveVerifiers {
+            service_name,
+            chain_name,
+        };
+        self.client.query(&msg).change_context_lazy(|| msg.into())
     }
 
     pub fn service(&self, service_name: String) -> Result<Service> {
-        self.client
-            .query(&QueryMsg::Service {
-                service_name: service_name.clone(),
-            })
-            .change_context_lazy(|| Error::QueryService(service_name))
+        let msg = QueryMsg::Service { service_name };
+        self.client.query(&msg).change_context_lazy(|| msg.into())
     }
 
     pub fn verifier(&self, service_name: String, verifier: String) -> Result<Verifier> {
-        self.client
-            .query(&QueryMsg::Verifier {
-                service_name: service_name.clone(),
-                verifier: verifier.clone(),
-            })
-            .change_context_lazy(|| Error::QueryVerifier {
-                service_name,
-                verifier,
-            })
+        let msg = QueryMsg::Verifier {
+            service_name,
+            verifier,
+        };
+        self.client.query(&msg).change_context_lazy(|| msg.into())
     }
 }
 
 #[cfg(test)]
 mod test {
 
-    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info, MockQuerier};
-    use cosmwasm_std::{from_json, Addr, DepsMut, QuerierWrapper, WasmQuery};
+    use axelar_wasm_std::nonempty::Uint128;
+    use cosmwasm_std::testing::MockQuerier;
+    use cosmwasm_std::{from_json, to_json_binary, Addr, QuerierWrapper, SystemError, WasmQuery};
     use router_api::ChainName;
 
-    use crate::client::{Client, Error};
-    use crate::contract::{instantiate, query};
-    use crate::msg::{InstantiateMsg, QueryMsg};
+    use crate::client::Client;
+    use crate::msg::QueryMsg;
+    use crate::{Service, Verifier, WeightedVerifier};
 
     #[test]
-    fn query_active_verifiers_error() {
-        let (querier, _, addr) = setup();
+    fn query_active_verifiers_returns_error_when_query_fails() {
+        let (querier, addr) = setup_queries_to_fail();
         let client: Client = client::Client::new(QuerierWrapper::new(&querier), addr).into();
         let service_name = "verifiers".to_string();
         let chain_name: ChainName = "ethereum".try_into().unwrap();
         let res = client.active_verifiers(service_name.clone(), chain_name.clone());
-        assert!(res.is_err());
 
-        assert_eq!(
-            res.unwrap_err().to_string(),
-            Error::QueryActiveVerifiers {
-                service_name,
-                chain_name
-            }
-            .to_string(),
-        );
+        assert!(res.is_err());
+        goldie::assert!(res.unwrap_err().to_string());
     }
 
     #[test]
-    fn query_verifier_error() {
-        let (querier, _, addr) = setup();
+    fn query_active_verifiers_returns_active_verifiers() {
+        let (querier, addr) = setup_queries_to_succeed();
+        let client: Client = client::Client::new(QuerierWrapper::new(&querier), addr).into();
+        let service_name = "verifiers".to_string();
+        let chain_name: ChainName = "ethereum".try_into().unwrap();
+        let res = client.active_verifiers(service_name.clone(), chain_name.clone());
+
+        assert!(res.is_ok());
+        goldie::assert_json!(res.unwrap());
+    }
+
+    #[test]
+    fn query_verifier_returns_error_when_query_fails() {
+        let (querier, addr) = setup_queries_to_fail();
         let client: Client = client::Client::new(QuerierWrapper::new(&querier), addr).into();
         let service_name = "verifiers".to_string();
         let verifier = Addr::unchecked("verifier").to_string();
         let res = client.verifier(service_name.clone(), verifier.clone());
-        assert!(res.is_err());
 
-        assert_eq!(
-            res.unwrap_err().to_string(),
-            Error::QueryVerifier {
-                service_name,
-                verifier: verifier.to_string()
-            }
-            .to_string()
-        );
+        assert!(res.is_err());
+        goldie::assert!(res.unwrap_err().to_string());
     }
 
     #[test]
-    fn query_service_error() {
-        let (querier, _, addr) = setup();
+    fn query_verifier_returns_verifier() {
+        let (querier, addr) = setup_queries_to_succeed();
+        let client: Client = client::Client::new(QuerierWrapper::new(&querier), addr).into();
+        let service_name = "verifiers".to_string();
+        let verifier = Addr::unchecked("verifier").to_string();
+        let res = client.verifier(service_name.clone(), verifier.clone());
+
+        assert!(res.is_ok());
+        goldie::assert_json!(res.unwrap());
+    }
+
+    #[test]
+    fn query_service_returns_error_when_query_fails() {
+        let (querier, addr) = setup_queries_to_fail();
         let client: Client = client::Client::new(QuerierWrapper::new(&querier), addr).into();
         let service_name = "verifiers".to_string();
         let res = client.service(service_name.clone());
-        assert!(res.is_err());
 
-        assert_eq!(
-            res.unwrap_err().to_string(),
-            Error::QueryService(service_name).to_string()
-        );
+        assert!(res.is_err());
+        goldie::assert!(res.unwrap_err().to_string());
     }
 
-    fn setup() -> (MockQuerier, InstantiateMsg, Addr) {
+    #[test]
+    fn query_service_returns_service() {
+        let (querier, addr) = setup_queries_to_succeed();
+        let client: Client = client::Client::new(QuerierWrapper::new(&querier), addr).into();
+        let service_name = "verifiers".to_string();
+        let res = client.service(service_name.clone());
+
+        assert!(res.is_ok());
+        goldie::assert_json!(res.unwrap());
+    }
+
+    fn setup_queries_to_fail() -> (MockQuerier, Addr) {
+        let addr = "multisig";
+
+        let mut querier = MockQuerier::default();
+        querier.update_wasm(move |msg| match msg {
+            WasmQuery::Smart {
+                contract_addr,
+                msg: _,
+            } if contract_addr == addr => {
+                Err(SystemError::Unknown {}).into() // simulate cryptic error seen in production
+            }
+            _ => panic!("unexpected query: {:?}", msg),
+        });
+
+        (querier, Addr::unchecked(addr))
+    }
+
+    fn setup_queries_to_succeed() -> (MockQuerier, Addr) {
         let addr = "service-registry";
-        let mut deps = mock_dependencies();
-        let instantiate_msg = instantiate_contract(deps.as_mut());
 
         let mut querier = MockQuerier::default();
         querier.update_wasm(move |msg| match msg {
             WasmQuery::Smart { contract_addr, msg } if contract_addr == addr => {
                 let msg = from_json::<QueryMsg>(msg).unwrap();
-                Ok(query(deps.as_ref(), mock_env(), msg).into()).into()
+                match msg {
+                    QueryMsg::ActiveVerifiers {
+                        service_name,
+                        chain_name: _,
+                    } => Ok(to_json_binary(&vec![WeightedVerifier {
+                        verifier_info: Verifier {
+                            address: Addr::unchecked("verifier"),
+                            bonding_state: crate::BondingState::Bonded {
+                                amount: Uint128::one(),
+                            },
+                            authorization_state: crate::AuthorizationState::Authorized,
+                            service_name,
+                        },
+                        weight: Uint128::one(),
+                    }])
+                    .into())
+                    .into(),
+                    QueryMsg::Service { service_name } => Ok(to_json_binary(&Service {
+                        name: service_name,
+                        coordinator_contract: Addr::unchecked("coordinator"),
+                        min_num_verifiers: 1,
+                        max_num_verifiers: None,
+                        min_verifier_bond: Uint128::one(),
+                        bond_denom: "uaxl".into(),
+                        unbonding_period_days: 10,
+                        description: "some service".into(),
+                    })
+                    .into())
+                    .into(),
+                    QueryMsg::Verifier {
+                        service_name,
+                        verifier,
+                    } => Ok(to_json_binary(&Verifier {
+                        address: Addr::unchecked(verifier),
+                        bonding_state: crate::BondingState::Bonded {
+                            amount: Uint128::one(),
+                        },
+                        authorization_state: crate::AuthorizationState::Authorized,
+                        service_name,
+                    })
+                    .into())
+                    .into(),
+                }
             }
             _ => panic!("unexpected query: {:?}", msg),
         });
 
-        (querier, instantiate_msg, Addr::unchecked(addr))
-    }
-
-    fn instantiate_contract(deps: DepsMut) -> InstantiateMsg {
-        let env = mock_env();
-        let info = mock_info("deployer", &[]);
-
-        let msg = InstantiateMsg {
-            governance_account: "governance".into(),
-        };
-
-        instantiate(deps, env, info.clone(), msg.clone()).unwrap();
-
-        msg
+        (querier, Addr::unchecked(addr))
     }
 }
