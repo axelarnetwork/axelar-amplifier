@@ -13,7 +13,7 @@ use error_stack::report;
 use crate::contract::migrations::v0_2_0;
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
-use crate::state::is_prover_registered;
+use crate::state::{is_prover_registered, Config, CONFIG};
 
 pub const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 pub const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -41,6 +41,11 @@ pub fn instantiate(
     msg: InstantiateMsg,
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    let config = Config {
+        service_registry: address::validate_cosmwasm_address(deps.api, &msg.service_registry)?,
+    };
+    CONFIG.save(deps.storage, &config)?;
 
     let governance = address::validate_cosmwasm_address(deps.api, &msg.governance_address)?;
     permission_control::set_governance(deps.storage, &governance)?;
@@ -122,6 +127,7 @@ mod tests {
 
         let instantiate_msg = InstantiateMsg {
             governance_address: governance.to_string(),
+            service_registry: Addr::unchecked("random_service").to_string(),
         };
 
         let res = instantiate(deps.as_mut(), env.clone(), info.clone(), instantiate_msg);

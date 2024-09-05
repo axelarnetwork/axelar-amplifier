@@ -385,11 +385,14 @@ pub fn setup_protocol(service_name: nonempty::String) -> Protocol {
         SIGNATURE_BLOCK_EXPIRY.try_into().unwrap(),
     );
 
-    let coordinator =
-        CoordinatorContract::instantiate_contract(&mut app, governance_address.clone());
-
     let service_registry =
         ServiceRegistryContract::instantiate_contract(&mut app, governance_address.clone());
+
+    let coordinator = CoordinatorContract::instantiate_contract(
+        &mut app,
+        governance_address.clone(),
+        service_registry.contract_addr.clone(),
+    );
 
     Protocol {
         genesis_address: genesis,

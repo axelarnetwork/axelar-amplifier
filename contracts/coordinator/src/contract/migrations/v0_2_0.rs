@@ -143,9 +143,11 @@ mod tests {
         deps: DepsMut,
     ) -> Result<InstantiateMsg, axelar_wasm_std::error::ContractError> {
         let governance = "governance";
+        let service_registry = "service";
 
         let msg = InstantiateMsg {
             governance_address: governance.to_string(),
+            service_registry: service_registry.to_string(),
         };
         instantiate_0_2_0(deps, mock_env(), mock_info("sender", &[]), msg.clone())?;
         Ok(msg)

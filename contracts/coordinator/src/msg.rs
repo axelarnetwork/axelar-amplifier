@@ -8,6 +8,7 @@ use router_api::ChainName;
 #[cw_serde]
 pub struct InstantiateMsg {
     pub governance_address: String,
+    pub service_registry: String,
 }
 
 #[cw_serde]

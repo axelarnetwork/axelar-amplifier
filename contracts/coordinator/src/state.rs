@@ -1,14 +1,23 @@
 use std::collections::HashSet;
 
+use axelar_wasm_std::hash::Hash;
+use axelar_wasm_std::MajorityThreshold;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Order, Storage};
-use cw_storage_plus::{index_list, IndexedMap, MultiIndex, UniqueIndex};
+use cw_storage_plus::{index_list, IndexedMap, Item, MultiIndex, UniqueIndex};
+use multisig::key::KeyType;
 use router_api::ChainName;
 
 use crate::error::ContractError;
 
 type ProverAddress = Addr;
 type VerifierAddress = Addr;
+
+#[cw_serde]
+pub struct Config {
+    pub service_registry: Addr,
+}
+pub const CONFIG: Item<Config> = Item::new("config");
 
 #[index_list(ProverAddress)]
 struct ChainProverIndexes<'a> {
