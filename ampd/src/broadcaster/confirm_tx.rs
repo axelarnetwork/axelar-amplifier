@@ -59,34 +59,27 @@ where
 {
     client: T,
     retry_policy: RetryPolicy,
-    tx_hash_receiver: mpsc::Receiver<String>,
-    tx_res_sender: mpsc::Sender<TxResponse>,
 }
 
 impl<T> TxConfirmer<T>
 where
     T: cosmos::BroadcastClient,
 {
-    pub fn new(
-        client: T,
-        retry_policy: RetryPolicy,
-        tx_hash_receiver: mpsc::Receiver<String>,
-        tx_res_sender: mpsc::Sender<TxResponse>,
-    ) -> Self {
+    pub fn new(client: T, retry_policy: RetryPolicy) -> Self {
         Self {
             client,
             retry_policy,
-            tx_hash_receiver,
-            tx_res_sender,
         }
     }
 
-    pub async fn run(self) -> Result<(), Error> {
+    pub async fn run(
+        self,
+        tx_hash_receiver: mpsc::Receiver<String>,
+        tx_response_sender: mpsc::Sender<TxResponse>,
+    ) -> Result<(), Error> {
         let Self {
             client,
             retry_policy,
-            tx_hash_receiver,
-            tx_res_sender,
         } = self;
         let limit = tx_hash_receiver.capacity();
         let client = Arc::new(Mutex::new(client));
@@ -96,7 +89,7 @@ where
                 // multiple instances of confirm_tx can be spawned due to buffer_unordered,
                 // so we need to clone the client to avoid a deadlock
                 confirm_tx_with_retry(client.clone(), tx_hash, retry_policy)
-                    .and_then(|tx| async { send_response(&tx_res_sender, tx).await })
+                    .and_then(|tx| async { send_response(&tx_response_sender, tx).await })
             })
             .buffer_unordered(limit);
 
@@ -210,10 +203,8 @@ mod test {
                 sleep,
                 max_attempts,
             },
-            tx_confirmer_receiver,
-            tx_res_sender,
         );
-        let handle = tokio::spawn(tx_confirmer.run());
+        let handle = tokio::spawn(tx_confirmer.run(tx_confirmer_receiver, tx_res_sender));
 
         tx_confirmer_sender.send(tx_hash).await.unwrap();
         assert_eq!(
@@ -259,10 +250,8 @@ mod test {
                 sleep,
                 max_attempts,
             },
-            tx_confirmer_receiver,
-            tx_res_sender,
         );
-        let handle = tokio::spawn(tx_confirmer.run());
+        let handle = tokio::spawn(tx_confirmer.run(tx_confirmer_receiver, tx_res_sender));
 
         tx_confirmer_sender.send(tx_hash).await.unwrap();
         assert_eq!(
@@ -300,10 +289,8 @@ mod test {
                 sleep,
                 max_attempts,
             },
-            tx_confirmer_receiver,
-            tx_res_sender,
         );
-        let handle = tokio::spawn(tx_confirmer.run());
+        let handle = tokio::spawn(tx_confirmer.run(tx_confirmer_receiver, tx_res_sender));
 
         tx_confirmer_sender.send(tx_hash.clone()).await.unwrap();
         assert!(matches!(
@@ -341,10 +328,8 @@ mod test {
                 sleep,
                 max_attempts,
             },
-            tx_confirmer_receiver,
-            tx_res_sender,
         );
-        let handle = tokio::spawn(tx_confirmer.run());
+        let handle = tokio::spawn(tx_confirmer.run(tx_confirmer_receiver, tx_res_sender));
 
         tx_confirmer_sender.send(tx_hash.clone()).await.unwrap();
         assert!(matches!(

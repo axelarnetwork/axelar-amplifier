@@ -141,10 +141,8 @@ async fn instantiate_broadcaster(
             sleep: broadcast.tx_fetch_interval,
             max_attempts: broadcast.tx_fetch_max_retries.saturating_add(1).into(),
         },
-        tx_hashes_to_confirm,
-        confirmed_txs,
     )
-    .run()
+    .run(tx_hashes_to_confirm, confirmed_txs)
     .await
     .change_context(Error::TxConfirmation)?;
 
