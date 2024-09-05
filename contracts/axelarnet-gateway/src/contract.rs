@@ -11,6 +11,8 @@ use crate::state::{self, Config};
 mod execute;
 mod query;
 
+pub use execute::Error as ExecuteError;
+
 const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 

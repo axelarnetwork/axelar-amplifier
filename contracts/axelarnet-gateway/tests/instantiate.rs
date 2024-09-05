@@ -1,3 +1,5 @@
+use assert_ok::assert_ok;
+use axelar_wasm_std::assert_err_contains;
 use axelarnet_gateway::contract;
 use axelarnet_gateway::msg::InstantiateMsg;
 use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
@@ -9,7 +11,7 @@ mod utils;
 fn instantiate_works() {
     let mut deps = mock_dependencies();
 
-    assert!(instantiate_contract(deps.as_mut()).is_ok());
+    assert_ok!(instantiate_contract(deps.as_mut()));
 }
 
 #[test]
@@ -21,7 +23,9 @@ fn invalid_router_address() {
         router_address: "".to_string(),
     };
 
-    assert!(
-        contract::instantiate(deps.as_mut(), mock_env(), mock_info("sender", &[]), msg).is_err()
+    assert_err_contains!(
+        contract::instantiate(deps.as_mut(), mock_env(), mock_info("sender", &[]), msg),
+        axelar_wasm_std::address::Error,
+        axelar_wasm_std::address::Error::InvalidAddress(..),
     );
 }
