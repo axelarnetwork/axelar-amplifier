@@ -84,10 +84,6 @@ async fn broadcast_tx(
 
     let (mut broadcaster, confirmer) = instantiate_broadcaster(config, pub_key).await?;
 
-    let confirm_future = confirmer
-        .run(hash_to_confirm_receiver, confirmation_sender)
-        .change_context(Error::TxConfirmation);
-
     broadcaster
         .broadcast(vec![tx])
         .change_context(Error::Broadcaster)
@@ -98,7 +94,10 @@ async fn broadcast_tx(
         })
         .await?;
 
-    confirm_future.await?;
+    confirmer
+        .run(hash_to_confirm_receiver, confirmation_sender)
+        .change_context(Error::TxConfirmation)
+        .await?;
 
     confirmation_receiver
         .recv()
