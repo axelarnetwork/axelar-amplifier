@@ -38,23 +38,40 @@ pub enum TokenManagerType {
 #[cw_serde]
 #[derive(Eq, strum::IntoStaticStr)]
 pub enum Message {
+    /// Transfer ITS tokens between different chains
     InterchainTransfer {
+        /// The unique identifier of the token being transferred
         token_id: TokenId,
+        /// The address that called the ITS contract on the source chain
         source_address: HexBinary,
+        /// The address that the token will be sent to on the destination chain
+        /// If data is not empty, this address will given the token and executed as a contract on the destination chain
         destination_address: HexBinary,
+        /// The amount of tokens to transfer
         amount: Uint256,
+        /// An optional payload to be provided to the destination address, if `data` is not empty
         data: HexBinary,
     },
+    /// Deploy a new interchain token on the destination chain
     DeployInterchainToken {
+        /// The unique identifier of the token to be deployed
         token_id: TokenId,
+        /// The name of the token
         name: String,
+        /// The symbol of the token
         symbol: String,
+        /// The number of decimal places the token supports
         decimals: u8,
+        /// The address that will be the initial minter of the token (in addition to the ITS contract)
         minter: HexBinary,
     },
+    /// Deploy a new token manager on the destination chain
     DeployTokenManager {
+        /// The unique identifier of the token that the token manager will manage
         token_id: TokenId,
+        /// The type of token manager to deploy
         token_manager_type: TokenManagerType,
+        /// The parameters to be provided to the token manager contract
         params: HexBinary,
     },
 }
