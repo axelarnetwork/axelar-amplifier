@@ -1,6 +1,7 @@
 use cosmrs::{Any, Gas};
 use error_stack::Result;
 use thiserror::Error;
+use tracing::info;
 
 #[derive(Error, Debug)]
 pub enum Error {
@@ -16,11 +17,20 @@ pub struct MsgQueue {
 
 impl MsgQueue {
     pub fn push(&mut self, msg: Any, gas_cost: Gas) -> Result<(), Error> {
+        let message_type = msg.type_url.clone();
+
         self.msgs.push(msg);
         self.gas_cost = self
             .gas_cost
             .checked_add(gas_cost)
             .ok_or(Error::GasCostOverflow)?;
+
+        info!(
+            message_type,
+            queue_size = self.msgs.len(),
+            queue_gas_cost = self.gas_cost,
+            "pushed a new message into the queue"
+        );
 
         Ok(())
     }

@@ -2,7 +2,7 @@ use axelar_wasm_std::nonempty;
 use axelar_wasm_std::snapshot::Participant;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Storage, Timestamp, Uint128};
-use cw_storage_plus::Map;
+use cw_storage_plus::{Index, IndexList, IndexedMap, KeyDeserialize, Map, MultiIndex};
 use router_api::ChainName;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -143,12 +143,46 @@ pub enum AuthorizationState {
     Jailed,
 }
 
-type ServiceName = str;
+pub struct VerifierPerChainIndexes<'a> {
+    pub verifier_address: MultiIndex<
+        'a,
+        (ServiceName, VerifierAddress),
+        (),
+        (ServiceName, ChainName, VerifierAddress),
+    >,
+}
+
+impl<'a> IndexList<()> for VerifierPerChainIndexes<'a> {
+    fn get_indexes(&'_ self) -> Box<dyn Iterator<Item = &'_ dyn Index<()>> + '_> {
+        let v: Vec<&dyn Index<()>> = vec![&self.verifier_address];
+        Box::new(v.into_iter())
+    }
+}
+
+pub const VERIFIERS_PER_CHAIN: IndexedMap<
+    (ServiceName, ChainName, VerifierAddress),
+    (),
+    VerifierPerChainIndexes,
+> = IndexedMap::new(
+    "verifiers_per_chain",
+    VerifierPerChainIndexes {
+        verifier_address: MultiIndex::new(
+            |pk: &[u8], _: &()| {
+                let (service_name, _, verifier) =
+                    <(ServiceName, ChainName, VerifierAddress)>::from_slice(pk)
+                        .expect("invalid primary key");
+                (service_name, verifier)
+            },
+            "verifiers_per_chain",
+            "verifiers_per_chain__address",
+        ),
+    },
+);
+
+type ServiceName = String;
 type VerifierAddress = Addr;
 
 pub const SERVICES: Map<&ServiceName, Service> = Map::new("services");
-pub const VERIFIERS_PER_CHAIN: Map<(&ServiceName, &ChainName, &VerifierAddress), ()> =
-    Map::new("verifiers_per_chain");
 pub const VERIFIERS: Map<(&ServiceName, &VerifierAddress), Verifier> = Map::new("verifiers");
 
 pub fn register_chains_support(
@@ -158,9 +192,12 @@ pub fn register_chains_support(
     verifier: VerifierAddress,
 ) -> Result<(), ContractError> {
     for chain in chains.iter() {
-        VERIFIERS_PER_CHAIN.save(storage, (&service_name, chain, &verifier), &())?;
+        VERIFIERS_PER_CHAIN.save(
+            storage,
+            (service_name.clone(), chain.clone(), verifier.clone()),
+            &(),
+        )?;
     }
-
     Ok(())
 }
 
@@ -171,9 +208,8 @@ pub fn deregister_chains_support(
     verifier: VerifierAddress,
 ) -> Result<(), ContractError> {
     for chain in chains {
-        VERIFIERS_PER_CHAIN.remove(storage, (&service_name, &chain, &verifier));
+        VERIFIERS_PER_CHAIN.remove(storage, (service_name.clone(), chain, verifier.clone()))?;
     }
-
     Ok(())
 }
 

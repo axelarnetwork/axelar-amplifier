@@ -1,9 +1,8 @@
-use axelar_wasm_std::{address, permission_control};
+use axelar_wasm_std::{address, permission_control, FnExt};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     to_json_binary, Attribute, Binary, Deps, DepsMut, Empty, Env, Event, MessageInfo, Response,
-    StdResult,
 };
 
 use crate::contract::migrations::v0_5_0;
@@ -80,12 +79,15 @@ pub fn execute(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(
+    deps: Deps,
+    env: Env,
+    msg: QueryMsg,
+) -> Result<Binary, axelar_wasm_std::error::ContractError> {
     match msg {
         QueryMsg::Poll { poll_id } => {
             to_json_binary(&query::poll_response(deps, env.block.height, poll_id)?)
         }
-
         QueryMsg::MessagesStatus(messages) => {
             to_json_binary(&query::messages_status(deps, &messages, env.block.height)?)
         }
@@ -93,7 +95,8 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             &query::verifier_set_status(deps, &new_verifier_set, env.block.height)?,
         ),
         QueryMsg::CurrentThreshold => to_json_binary(&query::voting_threshold(deps)?),
-    }
+    }?
+    .then(Ok)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]

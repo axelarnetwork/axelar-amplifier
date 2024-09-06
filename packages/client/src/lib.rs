@@ -19,7 +19,7 @@ where
     Q: Serialize,
 {
     pub querier: QuerierWrapper<'a>,
-    pub address: Addr,
+    pub address: &'a Addr,
     execute_msg_type: PhantomData<M>,
     query_msg_type: PhantomData<Q>,
 }
@@ -29,7 +29,7 @@ where
     M: Serialize,
     Q: Serialize,
 {
-    pub fn new(querier: QuerierWrapper<'a>, address: Addr) -> Self {
+    pub fn new(querier: QuerierWrapper<'a>, address: &'a Addr) -> Self {
         Client {
             querier,
             address,

@@ -15,7 +15,7 @@ use crate::broadcaster::confirm_tx::{TxResponse, TxStatus};
 use crate::broadcaster::Broadcaster;
 
 type Result<T = ()> = error_stack::Result<T, Error>;
-type MsgAndResChan = (Any, oneshot::Sender<Result>);
+type MsgAndResponseCallback = (Any, oneshot::Sender<Result>);
 
 #[derive(Error, Debug)]
 pub enum Error {
@@ -31,6 +31,8 @@ pub enum Error {
     TxConfirmation,
     #[error("failed to decode tx response")]
     DecodeTxResponse(#[from] prost::DecodeError),
+    #[error("no clients for tx broadcasts connected")]
+    NoClients,
 }
 
 #[automock]
@@ -40,7 +42,7 @@ pub trait BroadcasterClient {
 }
 
 pub struct QueuedBroadcasterClient {
-    sender: mpsc::Sender<MsgAndResChan>,
+    sender: mpsc::Sender<MsgAndResponseCallback>,
 }
 
 #[async_trait]
@@ -63,10 +65,12 @@ where
     broadcaster: T,
     queue: MsgQueue,
     batch_gas_limit: Gas,
-    channel: Option<(mpsc::Sender<MsgAndResChan>, mpsc::Receiver<MsgAndResChan>)>,
+    channel: Option<(
+        mpsc::Sender<MsgAndResponseCallback>,
+        mpsc::Receiver<MsgAndResponseCallback>,
+    )>,
+    channel_capacity: usize,
     broadcast_interval: Interval,
-    tx_confirmer_sender: mpsc::Sender<String>,
-    tx_confirmer_receiver: mpsc::Receiver<TxResponse>,
 }
 
 impl<T> QueuedBroadcaster<T>
@@ -78,88 +82,54 @@ where
         batch_gas_limit: Gas,
         capacity: usize,
         broadcast_interval: Interval,
-        tx_confirmer_sender: mpsc::Sender<String>,
-        tx_res_receiver: mpsc::Receiver<TxResponse>,
     ) -> Self {
         Self {
             broadcaster,
             queue: MsgQueue::default(),
             batch_gas_limit,
-            channel: Some(mpsc::channel(capacity)),
+            channel: None,
             broadcast_interval,
-            tx_confirmer_sender,
-            tx_confirmer_receiver: tx_res_receiver,
+            channel_capacity: capacity,
         }
     }
 
-    pub async fn run(mut self) -> Result {
-        let (_, mut rx) = self
-            .channel
-            .take()
-            .expect("broadcast channel is expected to be set during initialization and must be available when running the broadcaster");
+    pub async fn run(
+        mut self,
+        tx_hash_sender: mpsc::Sender<String>,
+        mut tx_response_receiver: mpsc::Receiver<TxResponse>,
+    ) -> Result {
+        // drop the internal sender, so broadcast stops as soon as there are no external clients connected anymore
+        let (_, mut rx) = self.channel.take().ok_or(Error::NoClients)?;
 
         loop {
             select! {
                 msg = rx.recv() => match msg {
+                    Some(msg_and_response_callback) => self.handle_msg(msg_and_response_callback, &tx_hash_sender).await?,
+                    // no more senders, so stop broadcasting
                     None => break,
-                    Some(msg_and_res_chan) => self.handle_msg(msg_and_res_chan).await?,
                 },
+                // when traffic is low, periodically broadcast all queued messages so latency doesn't get too high
                 _ = self.broadcast_interval.tick() => {
-                    self.broadcast_all().await?;
+                    self.broadcast_all(&tx_hash_sender).await?;
                     self.broadcast_interval.reset();
                 },
-                Some(tx_res) = self.tx_confirmer_receiver.recv() => self.handle_tx_res(tx_res).await?,
+                Some(tx_res) = tx_response_receiver.recv() => handle_tx_response(tx_res).await?,
             }
         }
 
-        self.clean_up().await
+        self.clean_up(tx_hash_sender, tx_response_receiver).await
     }
 
-    async fn clean_up(mut self) -> Result {
-        self.broadcast_all().await?;
-        while let Some(tx_res) = self.tx_confirmer_receiver.recv().await {
-            self.handle_tx_res(tx_res).await?;
-        }
-
-        Ok(())
-    }
-
-    pub fn client(&self) -> QueuedBroadcasterClient {
+    pub fn client(&mut self) -> QueuedBroadcasterClient {
+        let (sender, _) = self
+            .channel
+            .get_or_insert(mpsc::channel(self.channel_capacity));
         QueuedBroadcasterClient {
-            sender: self
-                .channel
-                .as_ref()
-                .expect("broadcast channel is expected to be set during initialization and must be available when running the broadcaster")
-                .0
-                .clone(),
+            sender: sender.clone(),
         }
     }
 
-    async fn handle_tx_res(&self, tx_res: TxResponse) -> Result {
-        let tx_hash = tx_res.response.txhash;
-
-        match tx_res.status {
-            TxStatus::Success => {
-                tx_res.response.logs.iter().for_each(|log| {
-                    let msg_index = log.msg_index;
-
-                    log.events
-                        .iter()
-                        .enumerate()
-                        .for_each(|(event_index, event)| {
-                            debug!(tx_hash, msg_index, event_index, "tx event {:?}", event);
-                        });
-                });
-            }
-            TxStatus::Failure => {
-                warn!(tx_hash, "tx failed");
-            }
-        }
-
-        Ok(())
-    }
-
-    async fn broadcast_all(&mut self) -> Result {
+    async fn broadcast_all(&mut self, tx_hash_sender: &mpsc::Sender<String>) -> Result {
         let msgs = self.queue.pop_all();
 
         match msgs.len() {
@@ -180,7 +150,7 @@ where
                     .await
                     .change_context(Error::Broadcast)?
                     .txhash;
-                self.tx_confirmer_sender
+                tx_hash_sender
                     .send(tx_hash)
                     .await
                     .change_context(Error::TxConfirmation)?;
@@ -190,12 +160,16 @@ where
         }
     }
 
-    async fn handle_msg(&mut self, msg_and_res_chan: MsgAndResChan) -> Result<()> {
-        let (msg, tx) = msg_and_res_chan;
-
+    async fn handle_msg(
+        &mut self,
+        (msg, callback): MsgAndResponseCallback,
+        tx_hash_sender: &mpsc::Sender<String>,
+    ) -> Result<()> {
         match self.broadcaster.estimate_fee(vec![msg.clone()]).await {
             Ok(fee) => {
-                tx.send(Ok(())).map_err(|_| Report::new(Error::Client))?;
+                callback
+                    .send(Ok(()))
+                    .map_err(|_| Report::new(Error::Client))?;
 
                 if fee.gas_limit.saturating_add(self.queue.gas_cost()) >= self.batch_gas_limit {
                     warn!(
@@ -203,29 +177,69 @@ where
                         queue_gas_cost = self.queue.gas_cost(),
                         "exceeded batch gas limit. gas limit can be adjusted in ampd config"
                     );
-                    self.broadcast_all().await?;
+                    self.broadcast_all(tx_hash_sender).await?;
                     self.broadcast_interval.reset();
                 }
 
-                let message_type = msg.type_url.clone();
                 self.queue
                     .push(msg, fee.gas_limit)
                     .change_context(Error::Queue)?;
-                info!(
-                    message_type,
-                    queue_size = self.queue.len(),
-                    queue_gas_cost = self.queue.gas_cost(),
-                    "pushed a new message into the queue"
-                );
             }
             Err(err) => {
-                tx.send(Err(err).change_context(Error::EstimateFee))
+                callback
+                    .send(Err(err).change_context(Error::EstimateFee))
                     .map_err(|_| Report::new(Error::Client))?;
             }
         }
 
         Ok(())
     }
+
+    async fn clean_up(
+        mut self,
+        tx_hash_sender: mpsc::Sender<String>,
+        mut response_receiver: mpsc::Receiver<TxResponse>,
+    ) -> Result {
+        info!("exiting broadcaster");
+
+        self.broadcast_all(&tx_hash_sender).await?;
+        // drop the tx hash sender so the receiver of that channel knows there won't be any more messages
+        drop(tx_hash_sender);
+        while let Some(tx_res) = response_receiver.recv().await {
+            handle_tx_response(tx_res).await?;
+        }
+
+        Ok(())
+    }
+}
+
+async fn handle_tx_response(tx_res: TxResponse) -> Result {
+    let tx_hash = tx_res.response.txhash;
+
+    match tx_res.status {
+        TxStatus::Success => {
+            tx_res.response.logs.iter().for_each(|log| {
+                let msg_index = log.msg_index;
+
+                log.events
+                    .iter()
+                    .enumerate()
+                    .for_each(|(event_index, event)| {
+                        debug!(tx_hash, msg_index, event_index, "tx event {:?}", event);
+                    });
+            });
+        }
+        TxStatus::Failure => {
+            warn!(
+                tx_hash,
+                log = tx_res.response.raw_log,
+                error_code = tx_res.response.code,
+                "tx failed"
+            );
+        }
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]
@@ -257,16 +271,10 @@ mod test {
         let (tx_confirmer_sender, _tx_confirmer_receiver) = mpsc::channel(1000);
         let (tx_res_sender, tx_res_receiver) = mpsc::channel(1000);
         let broadcast_interval = interval(Duration::from_secs(5));
-        let queued_broadcaster = QueuedBroadcaster::new(
-            broadcaster,
-            100,
-            10,
-            broadcast_interval,
-            tx_confirmer_sender,
-            tx_res_receiver,
-        );
+        let mut queued_broadcaster =
+            QueuedBroadcaster::new(broadcaster, 100, 10, broadcast_interval);
         let client = queued_broadcaster.client();
-        let handle = tokio::spawn(queued_broadcaster.run());
+        let handle = tokio::spawn(queued_broadcaster.run(tx_confirmer_sender, tx_res_receiver));
 
         assert!(matches!(
             client
@@ -326,16 +334,10 @@ mod test {
         let (tx_res_sender, tx_res_receiver) = mpsc::channel(1000);
         let mut broadcast_interval = interval(interval_duration);
         broadcast_interval.tick().await;
-        let queued_broadcaster = QueuedBroadcaster::new(
-            broadcaster,
-            batch_gas_limit,
-            tx_count,
-            broadcast_interval,
-            tx_confirmer_sender,
-            tx_res_receiver,
-        );
+        let mut queued_broadcaster =
+            QueuedBroadcaster::new(broadcaster, batch_gas_limit, tx_count, broadcast_interval);
         let client = queued_broadcaster.client();
-        let handle = tokio::spawn(queued_broadcaster.run());
+        let handle = tokio::spawn(queued_broadcaster.run(tx_confirmer_sender, tx_res_receiver));
 
         let start_time = Instant::now();
 
@@ -410,16 +412,10 @@ mod test {
         let mut broadcast_interval = interval(interval_duration);
         // get rid of tick on startup
         broadcast_interval.tick().await;
-        let queued_broadcaster = QueuedBroadcaster::new(
-            broadcaster,
-            batch_gas_limit,
-            batch_size,
-            broadcast_interval,
-            tx_confirmer_sender,
-            tx_res_receiver,
-        );
+        let mut queued_broadcaster =
+            QueuedBroadcaster::new(broadcaster, batch_gas_limit, batch_size, broadcast_interval);
         let client = queued_broadcaster.client();
-        let handle = tokio::spawn(queued_broadcaster.run());
+        let handle = tokio::spawn(queued_broadcaster.run(tx_confirmer_sender, tx_res_receiver));
 
         let start_time = Instant::now();
 
@@ -487,16 +483,10 @@ mod test {
         let mut broadcast_interval = interval(Duration::from_secs(5));
         // get rid of tick on startup
         broadcast_interval.tick().await;
-        let queued_broadcaster = QueuedBroadcaster::new(
-            broadcaster,
-            batch_gas_limit,
-            tx_count,
-            broadcast_interval,
-            tx_confirmer_sender,
-            tx_res_receiver,
-        );
+        let mut queued_broadcaster =
+            QueuedBroadcaster::new(broadcaster, batch_gas_limit, tx_count, broadcast_interval);
         let client = queued_broadcaster.client();
-        let handle = tokio::spawn(queued_broadcaster.run());
+        let handle = tokio::spawn(queued_broadcaster.run(tx_confirmer_sender, tx_res_receiver));
 
         for _ in 0..tx_count {
             client.broadcast(dummy_msg()).await.unwrap();

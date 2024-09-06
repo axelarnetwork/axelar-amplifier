@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use axelar_wasm_std::{nonempty, FnExt};
 use cosmwasm_std::{Addr, OverflowError, OverflowOperation, Storage, Uint128};
 use error_stack::{ensure, Report, Result};
+use itertools::Itertools;
 
 use crate::error::ContractError;
 use crate::msg::Params;
@@ -79,7 +80,12 @@ pub fn distribute_rewards(
     let rewards = process_rewards_for_epochs(storage, pool_id.clone(), from, to)?;
     state::save_rewards_watermark(storage, pool_id, to)?;
     Ok(RewardsDistribution {
-        rewards,
+        rewards: rewards
+            .into_iter()
+            .map(|(addr, amount)| {
+                state::load_verifier(storage, &addr).map(|verifier| (verifier, amount))
+            })
+            .try_collect()?,
         epochs_processed: (from..=to).collect(),
         current_epoch: cur_epoch.clone(),
         can_distribute_more: to < cur_epoch.epoch_num.saturating_sub(EPOCH_PAYOUT_DELAY),
@@ -240,6 +246,18 @@ fn merge_rewards(
         })
 }
 
+pub fn set_verifier_proxy(
+    storage: &mut dyn Storage,
+    proxy_address: &Addr,
+    verifier_addr: &Addr,
+) -> Result<(), ContractError> {
+    state::save_verifier_proxy(storage, proxy_address, verifier_addr)
+}
+
+pub fn remove_verifier_proxy(storage: &mut dyn Storage, verifier_addr: &Addr) {
+    state::remove_verifier_proxy(storage, verifier_addr)
+}
+
 #[cfg(test)]
 mod test {
     use std::collections::HashMap;
@@ -252,7 +270,7 @@ mod test {
     use super::*;
     use crate::error::ContractError;
     use crate::msg::Params;
-    use crate::state::{self, Config, Epoch, ParamsSnapshot, PoolId, CONFIG};
+    use crate::state::{self, Config, Epoch, ParamsSnapshot, PoolId, Verifier, CONFIG};
 
     /// Tests that the current epoch is computed correctly when the expected epoch is the same as the stored epoch
     #[test]
@@ -1131,7 +1149,7 @@ mod test {
                 assert_eq!(
                     distribution.rewards,
                     HashMap::from_iter(verifiers.iter().map(|v| (
-                        v.clone(),
+                        make_verifier_with_no_proxy(v),
                         Uint128::from(Uint128::from(rewards_to_add).u128() / 2)
                     )))
                 );
@@ -1139,7 +1157,10 @@ mod test {
                 // the second pool has 3/4 threshold, which only the second verifier meets
                 assert_eq!(
                     distribution.rewards,
-                    HashMap::from([(verifiers[1].clone(), Uint128::from(rewards_to_add))])
+                    HashMap::from([(
+                        make_verifier_with_no_proxy(&verifiers[1].clone()),
+                        Uint128::from(rewards_to_add)
+                    )])
                 );
             }
         }
@@ -1320,9 +1341,9 @@ mod test {
             verifier_participation_per_epoch.len()
         );
         for (verifier, rewards) in expected_rewards_per_verifier {
-            assert!(rewards_claimed.contains_key(&verifier));
+            assert!(rewards_claimed.contains_key(&make_verifier_with_no_proxy(&verifier)));
             assert_eq!(
-                rewards_claimed.get(&verifier),
+                rewards_claimed.get(&make_verifier_with_no_proxy(&verifier)),
                 Some(&Uint128::from(rewards))
             );
         }
@@ -1389,9 +1410,9 @@ mod test {
         .unwrap();
         let rewards_claimed = distribution.rewards;
         assert_eq!(rewards_claimed.len(), 1);
-        assert!(rewards_claimed.contains_key(&verifier));
+        assert!(rewards_claimed.contains_key(&make_verifier_with_no_proxy(&verifier)));
         assert_eq!(
-            rewards_claimed.get(&verifier),
+            rewards_claimed.get(&make_verifier_with_no_proxy(&verifier)),
             Some(&(rewards_per_epoch * epochs_to_process as u128).into())
         );
         assert_eq!(
@@ -1414,9 +1435,9 @@ mod test {
         .unwrap();
         let rewards_claimed = distribution.rewards;
         assert_eq!(rewards_claimed.len(), 1);
-        assert!(rewards_claimed.contains_key(&verifier));
+        assert!(rewards_claimed.contains_key(&make_verifier_with_no_proxy(&verifier)));
         assert_eq!(
-            rewards_claimed.get(&verifier),
+            rewards_claimed.get(&make_verifier_with_no_proxy(&verifier)),
             Some(
                 &(rewards_per_epoch * (total_epochs_with_rewards - epochs_to_process) as u128)
                     .into()
@@ -1702,6 +1723,153 @@ mod test {
             None
         )
         .is_err());
+    }
+
+    /// Tests that rewards are distributed correctly based on verifier proxy address
+    #[test]
+    fn distribute_rewards_with_proxy_addresses() {
+        let cur_epoch_num = 0u64;
+        let block_height_started = 0u64;
+        let epoch_duration = 1000u64;
+        let rewards_per_epoch = 100u128;
+        let participation_threshold = (1, 2);
+        let pool_id = PoolId {
+            chain_name: "mock-chain".parse().unwrap(),
+            contract: Addr::unchecked("pool_contract"),
+        };
+
+        let mut mock_deps = setup_with_params(
+            cur_epoch_num,
+            block_height_started,
+            epoch_duration,
+            rewards_per_epoch,
+            participation_threshold,
+            pool_id.clone(),
+        );
+        let verifier = Addr::unchecked("verifier");
+
+        let mut cur_height = block_height_started;
+        let epoch_count = 3;
+        for height in block_height_started..block_height_started + epoch_duration * epoch_count {
+            let event_id = height.to_string() + "event";
+            record_participation(
+                mock_deps.as_mut().storage,
+                event_id.try_into().unwrap(),
+                verifier.clone(),
+                pool_id.clone(),
+                height,
+            )
+            .unwrap();
+            cur_height = height;
+        }
+
+        add_rewards(
+            mock_deps.as_mut().storage,
+            pool_id.clone(),
+            Uint128::from(rewards_per_epoch * epoch_count as u128)
+                .try_into()
+                .unwrap(),
+        )
+        .unwrap();
+
+        // advance two epochs past the last participation event
+        cur_height += epoch_duration * 2;
+        let proxy = Addr::unchecked("proxy");
+
+        set_verifier_proxy(mock_deps.as_mut().storage, &proxy, &verifier).unwrap();
+
+        let distribution = distribute_rewards(
+            mock_deps.as_mut().storage,
+            pool_id.clone(),
+            cur_height,
+            Some(1),
+        )
+        .unwrap();
+
+        let rewards_claimed = distribution.rewards;
+
+        assert_eq!(rewards_claimed.len(), 1);
+        assert!(rewards_claimed.contains_key(&make_verifier_with_proxy(&verifier, &proxy)));
+        assert_eq!(
+            rewards_claimed.get(&make_verifier_with_proxy(&verifier, &proxy)),
+            Some(&rewards_per_epoch.into())
+        );
+
+        assert_eq!(distribution.epochs_processed, vec![0u64],);
+        assert_eq!(
+            distribution.current_epoch.epoch_num,
+            cur_height / epoch_duration
+        );
+        assert!(distribution.can_distribute_more);
+
+        // update the proxy address and distribute the next epochs worth of rewards
+        let new_proxy = Addr::unchecked("new_proxy");
+        set_verifier_proxy(mock_deps.as_mut().storage, &new_proxy, &verifier).unwrap();
+
+        let distribution = distribute_rewards(
+            mock_deps.as_mut().storage,
+            pool_id.clone(),
+            cur_height,
+            Some(1),
+        )
+        .unwrap();
+
+        let rewards_claimed = distribution.rewards;
+
+        assert_eq!(rewards_claimed.len(), 1);
+        assert!(rewards_claimed.contains_key(&make_verifier_with_proxy(&verifier, &new_proxy)));
+        assert_eq!(
+            rewards_claimed.get(&make_verifier_with_proxy(&verifier, &new_proxy)),
+            Some(&rewards_per_epoch.into())
+        );
+
+        assert_eq!(distribution.epochs_processed, vec![1u64],);
+        assert_eq!(
+            distribution.current_epoch.epoch_num,
+            cur_height / epoch_duration
+        );
+        assert!(distribution.can_distribute_more);
+
+        // remove the proxy address and distribute the final epochs worth of rewards
+        remove_verifier_proxy(mock_deps.as_mut().storage, &verifier);
+
+        let distribution = distribute_rewards(
+            mock_deps.as_mut().storage,
+            pool_id.clone(),
+            cur_height,
+            Some(1),
+        )
+        .unwrap();
+
+        let rewards_claimed = distribution.rewards;
+
+        assert_eq!(rewards_claimed.len(), 1);
+        assert!(rewards_claimed.contains_key(&make_verifier_with_no_proxy(&verifier)));
+        assert_eq!(
+            rewards_claimed.get(&make_verifier_with_no_proxy(&verifier)),
+            Some(&rewards_per_epoch.into())
+        );
+
+        assert_eq!(distribution.epochs_processed, vec![2u64],);
+        assert_eq!(
+            distribution.current_epoch.epoch_num,
+            cur_height / epoch_duration
+        );
+        assert!(!distribution.can_distribute_more);
+    }
+
+    fn make_verifier_with_no_proxy(addr: &Addr) -> Verifier {
+        Verifier {
+            verifier_address: addr.to_owned(),
+            proxy_address: None,
+        }
+    }
+
+    fn make_verifier_with_proxy(verifier: &Addr, proxy: &Addr) -> Verifier {
+        Verifier {
+            verifier_address: verifier.to_owned(),
+            proxy_address: Some(proxy.to_owned()),
+        }
     }
 
     type MockDeps = OwnedDeps<MockStorage, MockApi, MockQuerier>;
