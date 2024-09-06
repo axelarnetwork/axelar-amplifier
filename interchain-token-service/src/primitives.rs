@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{HexBinary, Uint256};
-use router_api::{ChainName, ChainNameRaw};
+use router_api::ChainNameRaw;
 use strum::FromRepr;
 
 /// A unique 32-byte identifier for linked cross-chain tokens across ITS contracts.
@@ -67,7 +67,7 @@ pub enum HubMessage {
     /// ITS edge source contract -> ITS Hub
     SendToHub {
         /// True destination chain of the ITS message
-        destination_chain: ChainName,
+        destination_chain: ChainNameRaw,
         message: Message,
     },
     /// ITS Hub -> ITS edge destination contract

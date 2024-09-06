@@ -10,7 +10,7 @@ use crate::state::{self, load_config, load_its_address};
 #[derive(thiserror::Error, Debug, IntoContractError)]
 pub enum Error {
     #[error("unknown chain {0}")]
-    UnknownChain(ChainName),
+    UnknownChain(ChainNameRaw),
     #[error("unknown its address {0}")]
     UnknownItsAddress(Address),
     #[error("failed to decode payload")]
@@ -18,7 +18,7 @@ pub enum Error {
     #[error("invalid message type")]
     InvalidMessageType,
     #[error("failed to register its address for chain {0}")]
-    FailedItsAddressRegistration(ChainName),
+    FailedItsAddressRegistration(ChainNameRaw),
 }
 
 /// Executes an incoming ITS message.
@@ -68,7 +68,7 @@ pub fn execute_message(
     }
 }
 
-fn to_chain_name(chain: &ChainNameRaw) -> ChainName {
+fn normalize(chain: &ChainNameRaw) -> ChainName {
     ChainName::try_from(chain.as_ref()).expect("invalid chain name")
 }
 
@@ -77,8 +77,7 @@ fn ensure_its_source_address(
     source_chain: &ChainNameRaw,
     source_address: &Address,
 ) -> Result<(), Error> {
-    let source_chain = to_chain_name(source_chain);
-    let its_source_address = load_its_address(storage, &source_chain)
+    let its_source_address = load_its_address(storage, source_chain)
         .change_context_lazy(|| Error::UnknownChain(source_chain.clone()))?;
 
     ensure!(
@@ -92,7 +91,7 @@ fn ensure_its_source_address(
 fn send_to_destination(
     storage: &dyn Storage,
     querier: QuerierWrapper,
-    destination_chain: ChainName,
+    destination_chain: ChainNameRaw,
     destination_address: Address,
     payload: HexBinary,
 ) -> Result<Response, Error> {
@@ -101,14 +100,15 @@ fn send_to_destination(
     let gateway: axelarnet_gateway::Client =
         client::Client::new(querier, &config.axelarnet_gateway).into();
 
-    let call_contract_msg = gateway.call_contract(destination_chain, destination_address, payload);
+    let call_contract_msg =
+        gateway.call_contract(normalize(&destination_chain), destination_address, payload);
 
     Ok(Response::new().add_message(call_contract_msg))
 }
 
 pub fn register_its_address(
     deps: DepsMut,
-    chain: ChainName,
+    chain: ChainNameRaw,
     address: Address,
 ) -> Result<Response, Error> {
     state::save_its_address(deps.storage, &chain, &address)
@@ -117,7 +117,7 @@ pub fn register_its_address(
     Ok(Response::new().add_event(Event::ItsAddressRegistered { chain, address }.into()))
 }
 
-pub fn deregister_its_address(deps: DepsMut, chain: ChainName) -> Result<Response, Error> {
+pub fn deregister_its_address(deps: DepsMut, chain: ChainNameRaw) -> Result<Response, Error> {
     state::remove_its_address(deps.storage, &chain);
 
     Ok(Response::new().add_event(Event::ItsAddressDeregistered { chain }.into()))

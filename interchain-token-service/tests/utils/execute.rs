@@ -3,7 +3,7 @@ use cosmwasm_std::testing::{mock_env, mock_info};
 use cosmwasm_std::{DepsMut, HexBinary, Response};
 use interchain_token_service::contract;
 use interchain_token_service::msg::ExecuteMsg;
-use router_api::{Address, ChainName, CrossChainId};
+use router_api::{Address, ChainNameRaw, CrossChainId};
 
 use crate::utils::params;
 
@@ -27,7 +27,7 @@ pub fn execute(
 
 pub fn register_its_address(
     deps: DepsMut,
-    chain: ChainName,
+    chain: ChainNameRaw,
     address: Address,
 ) -> Result<Response, ContractError> {
     contract::execute(
@@ -38,7 +38,10 @@ pub fn register_its_address(
     )
 }
 
-pub fn deregister_its_address(deps: DepsMut, chain: ChainName) -> Result<Response, ContractError> {
+pub fn deregister_its_address(
+    deps: DepsMut,
+    chain: ChainNameRaw,
+) -> Result<Response, ContractError> {
     contract::execute(
         deps,
         mock_env(),

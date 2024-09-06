@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use axelarnet_gateway::AxelarExecutableMsg;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use msgs_derive::EnsurePermissions;
-use router_api::{Address, ChainName};
+use router_api::{Address, ChainNameRaw};
 
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -12,7 +12,7 @@ pub struct InstantiateMsg {
     /// The address of the axelarnet-gateway contract on Amplifier
     pub axelarnet_gateway_address: String,
     /// Addresses of the ITS edge contracts on connected chains
-    pub its_addresses: HashMap<ChainName, Address>,
+    pub its_addresses: HashMap<ChainNameRaw, Address>,
 }
 
 #[cw_serde]
@@ -25,11 +25,14 @@ pub enum ExecuteMsg {
     /// ITS Hub can send cross-chain messages to it, or receive messages from it.
     /// If an ITS address is already set for the chain, an error is returned.
     #[permission(Governance)]
-    RegisterItsAddress { chain: ChainName, address: Address },
+    RegisterItsAddress {
+        chain: ChainNameRaw,
+        address: Address,
+    },
     /// Deregister the ITS contract address for the given chain.
     /// The admin is allowed to remove the ITS address of a chain for emergencies.
     #[permission(Elevated)]
-    DeregisterItsAddress { chain: ChainName },
+    DeregisterItsAddress { chain: ChainNameRaw },
 }
 
 #[cw_serde]
@@ -37,8 +40,8 @@ pub enum ExecuteMsg {
 pub enum QueryMsg {
     /// Query the ITS contract address of a chain
     #[returns(Option<Address>)]
-    ItsAddress { chain: ChainName },
+    ItsAddress { chain: ChainNameRaw },
     /// Query all configured ITS contract addresses
-    #[returns(HashMap<ChainName, Address>)]
+    #[returns(HashMap<ChainNameRaw, Address>)]
     AllItsAddresses,
 }

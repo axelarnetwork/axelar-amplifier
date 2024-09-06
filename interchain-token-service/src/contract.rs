@@ -85,7 +85,8 @@ pub fn execute(
         }) => execute::execute_message(deps, cc_id, source_address, payload)
             .change_context(Error::Execute),
         ExecuteMsg::RegisterItsAddress { chain, address } => {
-            execute::register_its_address(deps, chain, address).change_context(Error::RegisterItsAddress)
+            execute::register_its_address(deps, chain, address)
+                .change_context(Error::RegisterItsAddress)
         }
         ExecuteMsg::DeregisterItsAddress { chain } => {
             execute::deregister_its_address(deps, chain).change_context(Error::DeregisterItsAddress)
@@ -101,8 +102,12 @@ fn match_gateway(storage: &dyn Storage, _: &ExecuteMsg) -> Result<Addr, Report<E
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
     match msg {
-        QueryMsg::ItsAddress { chain } => query::its_address(deps, chain).change_context(Error::QueryItsAddress),
-        QueryMsg::AllItsAddresses => query::all_its_addresses(deps).change_context(Error::QueryAllItsAddresses),
+        QueryMsg::ItsAddress { chain } => {
+            query::its_address(deps, chain).change_context(Error::QueryItsAddress)
+        }
+        QueryMsg::AllItsAddresses => {
+            query::all_its_addresses(deps).change_context(Error::QueryAllItsAddresses)
+        }
     }?
     .then(Ok)
 }

@@ -8,7 +8,7 @@ use interchain_token_service::contract::{self, ExecuteError};
 use interchain_token_service::events::Event;
 use interchain_token_service::msg::ExecuteMsg;
 use interchain_token_service::{HubMessage, Message, TokenId, TokenManagerType};
-use router_api::{Address, ChainName, CrossChainId};
+use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
 use utils::TestMessage;
 
 mod utils;
@@ -18,7 +18,7 @@ fn register_deregister_its_address_succeeds() {
     let mut deps = mock_dependencies();
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
-    let chain: ChainName = "ethereum".parse().unwrap();
+    let chain: ChainNameRaw = "ethereum".parse().unwrap();
     let address: Address = "0x1234567890123456789012345678901234567890"
         .parse()
         .unwrap();
@@ -43,7 +43,7 @@ fn reregistering_its_address_fails() {
     let mut deps = mock_dependencies();
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
-    let chain: ChainName = "ethereum".parse().unwrap();
+    let chain: ChainNameRaw = "ethereum".parse().unwrap();
     let address: Address = "0x1234567890123456789012345678901234567890"
         .parse()
         .unwrap();
@@ -120,7 +120,7 @@ fn execute_hub_message_succeeds() {
             };
             let payload = hub_message.clone().abi_encode();
             let receive_payload = HubMessage::ReceiveFromHub {
-                source_chain: source_its_chain.clone().into(),
+                source_chain: source_its_chain.clone(),
                 message: hub_message.message().clone(),
             }
             .abi_encode();
@@ -134,7 +134,7 @@ fn execute_hub_message_succeeds() {
             let msg: AxelarnetGatewayExecuteMsg =
                 assert_ok!(inspect_response_msg(response.clone()));
             let expected_msg = AxelarnetGatewayExecuteMsg::CallContract {
-                destination_chain: destination_its_chain.clone(),
+                destination_chain: ChainName::try_from(destination_its_chain.to_string()).unwrap(),
                 destination_address: destination_its_address.clone(),
                 payload: receive_payload,
             };
@@ -284,7 +284,7 @@ fn execute_message_when_invalid_message_type_fails() {
     .unwrap();
 
     let invalid_hub_message = HubMessage::ReceiveFromHub {
-        source_chain: source_its_chain.into(),
+        source_chain: source_its_chain,
         message: hub_message.message().clone(),
     };
     let result = utils::execute(

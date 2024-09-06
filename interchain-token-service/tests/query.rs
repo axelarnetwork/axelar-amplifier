@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use assert_ok::assert_ok;
 use cosmwasm_std::testing::mock_dependencies;
-use router_api::{Address, ChainName};
+use router_api::{Address, ChainNameRaw};
 
 mod utils;
 
@@ -11,7 +11,7 @@ fn query_its_address() {
     let mut deps = mock_dependencies();
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
-    let chain: ChainName = "ethereum".parse().unwrap();
+    let chain: ChainNameRaw = "Ethereum".parse().unwrap();
     let address: Address = "0x1234567890123456789012345678901234567890"
         .parse()
         .unwrap();
@@ -21,12 +21,16 @@ fn query_its_address() {
     let queried_address = assert_ok!(utils::query_its_address(deps.as_ref(), chain.clone()));
     assert_eq!(queried_address, Some(address));
 
+    // case sensitive query
+    let queried_address = assert_ok!(utils::query_its_address(deps.as_ref(), "ethereum".parse().unwrap()));
+    assert_eq!(queried_address, None);
+
     assert_ok!(utils::deregister_its_address(deps.as_mut(), chain.clone()));
 
     let queried_address = assert_ok!(utils::query_its_address(deps.as_ref(), chain.clone()));
     assert_eq!(queried_address, None);
 
-    let non_existent_chain: ChainName = "non-existent-chain".parse().unwrap();
+    let non_existent_chain: ChainNameRaw = "non-existent-chain".parse().unwrap();
     let queried_address = assert_ok!(utils::query_its_address(deps.as_ref(), non_existent_chain));
     assert_eq!(queried_address, None);
 }
@@ -38,13 +42,13 @@ fn query_all_its_addresses() {
 
     let its_addresses = vec![
         (
-            "ethereum".parse::<ChainName>().unwrap(),
+            "ethereum".parse::<ChainNameRaw>().unwrap(),
             "0x1234567890123456789012345678901234567890"
                 .parse::<Address>()
                 .unwrap(),
         ),
         (
-            "optimism".parse().unwrap(),
+            "Optimism".parse().unwrap(),
             "0x0987654321098765432109876543210987654321"
                 .parse()
                 .unwrap(),

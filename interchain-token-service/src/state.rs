@@ -4,7 +4,7 @@ use axelar_wasm_std::IntoContractError;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{ensure, Addr, StdError, Storage};
 use cw_storage_plus::{Item, Map};
-use router_api::{Address, ChainName};
+use router_api::{Address, ChainNameRaw};
 
 #[derive(thiserror::Error, Debug, IntoContractError)]
 pub enum Error {
@@ -13,9 +13,9 @@ pub enum Error {
     #[error("ITS contract got into an invalid state, its config is missing")]
     MissingConfig,
     #[error("its address for chain {0} not found")]
-    ItsAddressNotFound(ChainName),
+    ItsAddressNotFound(ChainNameRaw),
     #[error("its address for chain {0} already registered")]
-    ItsAddressAlreadyRegistered(ChainName),
+    ItsAddressAlreadyRegistered(ChainNameRaw),
 }
 
 #[cw_serde]
@@ -24,7 +24,7 @@ pub struct Config {
 }
 
 const CONFIG: Item<Config> = Item::new("config");
-const ITS_ADDRESSES: Map<&ChainName, Address> = Map::new("its_addresses");
+const ITS_ADDRESSES: Map<&ChainNameRaw, Address> = Map::new("its_addresses");
 
 pub fn load_config(storage: &dyn Storage) -> Config {
     CONFIG
@@ -38,30 +38,35 @@ pub fn save_config(storage: &mut dyn Storage, config: &Config) -> Result<(), Err
 
 pub fn may_load_its_address(
     storage: &dyn Storage,
-    chain: &ChainName,
+    chain: &ChainNameRaw,
 ) -> Result<Option<Address>, Error> {
     Ok(ITS_ADDRESSES.may_load(storage, chain)?)
 }
 
-pub fn load_its_address(storage: &dyn Storage, chain: &ChainName) -> Result<Address, Error> {
+pub fn load_its_address(storage: &dyn Storage, chain: &ChainNameRaw) -> Result<Address, Error> {
     may_load_its_address(storage, chain)?.ok_or_else(|| Error::ItsAddressNotFound(chain.clone()))
 }
 
 pub fn save_its_address(
     storage: &mut dyn Storage,
-    chain: &ChainName,
+    chain: &ChainNameRaw,
     address: &Address,
 ) -> Result<(), Error> {
-    ensure!(may_load_its_address(storage, chain)?.is_none(), Error::ItsAddressAlreadyRegistered(chain.clone()));
+    ensure!(
+        may_load_its_address(storage, chain)?.is_none(),
+        Error::ItsAddressAlreadyRegistered(chain.clone())
+    );
 
     Ok(ITS_ADDRESSES.save(storage, chain, address)?)
 }
 
-pub fn remove_its_address(storage: &mut dyn Storage, chain: &ChainName) {
+pub fn remove_its_address(storage: &mut dyn Storage, chain: &ChainNameRaw) {
     ITS_ADDRESSES.remove(storage, chain)
 }
 
-pub fn load_all_its_addresses(storage: &dyn Storage) -> Result<HashMap<ChainName, Address>, Error> {
+pub fn load_all_its_addresses(
+    storage: &dyn Storage,
+) -> Result<HashMap<ChainNameRaw, Address>, Error> {
     Ok(ITS_ADDRESSES
         .range(storage, None, None, cosmwasm_std::Order::Ascending)
         .collect::<Result<HashMap<_, _>, _>>()?)
@@ -99,7 +104,7 @@ mod tests {
         let mut deps = mock_dependencies();
 
         let chain1 = "chain1".parse().unwrap();
-        let chain2 = "chain2".parse().unwrap();
+        let chain2: ChainNameRaw = "chain2".parse().unwrap();
         let address1: Address = "address1".parse().unwrap();
         let address2: Address = "address2".parse().unwrap();
 
