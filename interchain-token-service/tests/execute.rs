@@ -39,6 +39,29 @@ fn register_deregister_its_address_succeeds() {
 }
 
 #[test]
+fn reregistering_its_address_fails() {
+    let mut deps = mock_dependencies();
+    utils::instantiate_contract(deps.as_mut()).unwrap();
+
+    let chain: ChainName = "ethereum".parse().unwrap();
+    let address: Address = "0x1234567890123456789012345678901234567890"
+        .parse()
+        .unwrap();
+
+    assert_ok!(utils::register_its_address(
+        deps.as_mut(),
+        chain.clone(),
+        address.clone()
+    ));
+
+    assert_err_contains!(
+        utils::register_its_address(deps.as_mut(), chain.clone(), address.clone()),
+        ExecuteError,
+        ExecuteError::FailedItsAddressRegistration(..)
+    );
+}
+
+#[test]
 fn execute_hub_message_succeeds() {
     let mut deps = mock_dependencies();
     utils::instantiate_contract(deps.as_mut()).unwrap();

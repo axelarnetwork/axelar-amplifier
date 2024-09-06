@@ -17,6 +17,8 @@ pub enum Error {
     InvalidPayload,
     #[error("invalid message type")]
     InvalidMessageType,
+    #[error("failed to register its address for chain {0}")]
+    FailedItsAddressRegistration(ChainName),
 }
 
 /// Executes an incoming ITS message.
@@ -110,7 +112,7 @@ pub fn register_its_address(
     address: Address,
 ) -> Result<Response, Error> {
     state::save_its_address(deps.storage, &chain, &address)
-        .change_context_lazy(|| Error::UnknownChain(chain.clone()))?;
+        .change_context_lazy(|| Error::FailedItsAddressRegistration(chain.clone()))?;
 
     Ok(Response::new().add_event(Event::ItsAddressRegistered { chain, address }.into()))
 }

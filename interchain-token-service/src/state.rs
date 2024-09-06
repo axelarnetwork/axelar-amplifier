@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use axelar_wasm_std::IntoContractError;
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, StdError, Storage};
+use cosmwasm_std::{ensure, Addr, StdError, Storage};
 use cw_storage_plus::{Item, Map};
 use router_api::{Address, ChainName};
 
@@ -14,6 +14,8 @@ pub enum Error {
     MissingConfig,
     #[error("its address for chain {0} not found")]
     ItsAddressNotFound(ChainName),
+    #[error("its address for chain {0} already registered")]
+    ItsAddressAlreadyRegistered(ChainName),
 }
 
 #[cw_serde]
@@ -50,6 +52,8 @@ pub fn save_its_address(
     chain: &ChainName,
     address: &Address,
 ) -> Result<(), Error> {
+    ensure!(may_load_its_address(storage, chain)?.is_none(), Error::ItsAddressAlreadyRegistered(chain.clone()));
+
     Ok(ITS_ADDRESSES.save(storage, chain, address)?)
 }
 
