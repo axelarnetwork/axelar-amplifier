@@ -15,5 +15,8 @@ msgs-derive = { workspace = true }
 router-api = { workspace = true }
 thiserror = { workspace = true }
 
+[dev-dependencies]
+goldie = { workspace = true }
+
 [lints]
 workspace = true
