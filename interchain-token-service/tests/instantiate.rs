@@ -14,14 +14,15 @@ mod utils;
 #[test]
 fn instantiate_succeeds() {
     let mut deps = mock_dependencies();
-    assert_ok!(utils::instantiate_contract(deps.as_mut()));
+    let response = assert_ok!(utils::instantiate_contract(deps.as_mut()));
+    goldie::assert_json!(response);
 }
 
 #[test]
 fn instantiate_with_args_succeeds() {
     let mut deps = mock_dependencies();
 
-    let its_addresses = vec![
+    let its_contracts = vec![
         ("ethereum".parse().unwrap(), "eth-address".parse().unwrap()),
         ("optimism".parse().unwrap(), "op-address".parse().unwrap()),
     ]
@@ -36,10 +37,11 @@ fn instantiate_with_args_succeeds() {
             governance_address: params::GOVERNANCE.to_string(),
             admin_address: params::ADMIN.to_string(),
             axelarnet_gateway_address: params::GATEWAY.to_string(),
-            its_addresses: its_addresses.clone(),
+            its_contracts: its_contracts.clone(),
         },
     ));
     assert_eq!(0, response.messages.len());
+    goldie::assert_json!(response);
 
     assert_eq!(
         assert_ok!(permission_control::sender_role(
@@ -56,8 +58,8 @@ fn instantiate_with_args_succeeds() {
         Permission::Governance.into()
     );
 
-    let stored_its_addresses = assert_ok!(utils::query_all_its_addresses(deps.as_ref()));
-    assert_eq!(stored_its_addresses, its_addresses);
+    let stored_its_contracts = assert_ok!(utils::query_all_its_contracts(deps.as_ref()));
+    assert_eq!(stored_its_contracts, its_contracts);
 }
 
 #[test]
@@ -67,7 +69,7 @@ fn invalid_gateway_address() {
         governance_address: utils::params::GOVERNANCE.to_string(),
         admin_address: utils::params::ADMIN.to_string(),
         axelarnet_gateway_address: "".to_string(),
-        its_addresses: Default::default(),
+        its_contracts: Default::default(),
     };
     assert_err_contains!(
         contract::instantiate(deps.as_mut(), mock_env(), mock_info("sender", &[]), msg),

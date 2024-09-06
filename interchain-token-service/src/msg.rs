@@ -12,7 +12,7 @@ pub struct InstantiateMsg {
     /// The address of the axelarnet-gateway contract on Amplifier
     pub axelarnet_gateway_address: String,
     /// Addresses of the ITS edge contracts on connected chains
-    pub its_addresses: HashMap<ChainNameRaw, Address>,
+    pub its_contracts: HashMap<ChainNameRaw, Address>,
 }
 
 #[cw_serde]
@@ -23,25 +23,25 @@ pub enum ExecuteMsg {
     Execute(AxelarExecutableMsg),
     /// Register the ITS contract address of another chain. Each chain's ITS contract has to be whitelisted before
     /// ITS Hub can send cross-chain messages to it, or receive messages from it.
-    /// If an ITS address is already set for the chain, an error is returned.
+    /// If an ITS contract is already set for the chain, an error is returned.
     #[permission(Governance)]
-    RegisterItsAddress {
+    RegisterItsContract {
         chain: ChainNameRaw,
         address: Address,
     },
     /// Deregister the ITS contract address for the given chain.
     /// The admin is allowed to remove the ITS address of a chain for emergencies.
     #[permission(Elevated)]
-    DeregisterItsAddress { chain: ChainNameRaw },
+    DeregisterItsContract { chain: ChainNameRaw },
 }
 
 #[cw_serde]
 #[derive(QueryResponses)]
 pub enum QueryMsg {
-    /// Query the ITS contract address of a chain
+    /// Query the ITS contract address registered for a chain
     #[returns(Option<Address>)]
-    ItsAddress { chain: ChainNameRaw },
-    /// Query all configured ITS contract addresses
+    ItsContract { chain: ChainNameRaw },
+    /// Query all registererd ITS contract addresses
     #[returns(HashMap<ChainNameRaw, Address>)]
-    AllItsAddresses,
+    AllItsContracts,
 }

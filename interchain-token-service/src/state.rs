@@ -13,9 +13,9 @@ pub enum Error {
     #[error("ITS contract got into an invalid state, its config is missing")]
     MissingConfig,
     #[error("its address for chain {0} not found")]
-    ItsAddressNotFound(ChainNameRaw),
+    ItsContractNotFound(ChainNameRaw),
     #[error("its address for chain {0} already registered")]
-    ItsAddressAlreadyRegistered(ChainNameRaw),
+    ItsContractAlreadyRegistered(ChainNameRaw),
 }
 
 #[cw_serde]
@@ -24,7 +24,7 @@ pub struct Config {
 }
 
 const CONFIG: Item<Config> = Item::new("config");
-const ITS_ADDRESSES: Map<&ChainNameRaw, Address> = Map::new("its_addresses");
+const ITS_CONTRACTS: Map<&ChainNameRaw, Address> = Map::new("its_contracts");
 
 pub fn load_config(storage: &dyn Storage) -> Config {
     CONFIG
@@ -36,38 +36,38 @@ pub fn save_config(storage: &mut dyn Storage, config: &Config) -> Result<(), Err
     Ok(CONFIG.save(storage, config)?)
 }
 
-pub fn may_load_its_address(
+pub fn may_load_its_contract(
     storage: &dyn Storage,
     chain: &ChainNameRaw,
 ) -> Result<Option<Address>, Error> {
-    Ok(ITS_ADDRESSES.may_load(storage, chain)?)
+    Ok(ITS_CONTRACTS.may_load(storage, chain)?)
 }
 
-pub fn load_its_address(storage: &dyn Storage, chain: &ChainNameRaw) -> Result<Address, Error> {
-    may_load_its_address(storage, chain)?.ok_or_else(|| Error::ItsAddressNotFound(chain.clone()))
+pub fn load_its_contract(storage: &dyn Storage, chain: &ChainNameRaw) -> Result<Address, Error> {
+    may_load_its_contract(storage, chain)?.ok_or_else(|| Error::ItsContractNotFound(chain.clone()))
 }
 
-pub fn save_its_address(
+pub fn save_its_contract(
     storage: &mut dyn Storage,
     chain: &ChainNameRaw,
     address: &Address,
 ) -> Result<(), Error> {
     ensure!(
-        may_load_its_address(storage, chain)?.is_none(),
-        Error::ItsAddressAlreadyRegistered(chain.clone())
+        may_load_its_contract(storage, chain)?.is_none(),
+        Error::ItsContractAlreadyRegistered(chain.clone())
     );
 
-    Ok(ITS_ADDRESSES.save(storage, chain, address)?)
+    Ok(ITS_CONTRACTS.save(storage, chain, address)?)
 }
 
-pub fn remove_its_address(storage: &mut dyn Storage, chain: &ChainNameRaw) {
-    ITS_ADDRESSES.remove(storage, chain)
+pub fn remove_its_contract(storage: &mut dyn Storage, chain: &ChainNameRaw) {
+    ITS_CONTRACTS.remove(storage, chain)
 }
 
-pub fn load_all_its_addresses(
+pub fn load_all_its_contracts(
     storage: &dyn Storage,
 ) -> Result<HashMap<ChainNameRaw, Address>, Error> {
-    Ok(ITS_ADDRESSES
+    Ok(ITS_CONTRACTS
         .range(storage, None, None, cosmwasm_std::Order::Ascending)
         .collect::<Result<HashMap<_, _>, _>>()?)
 }
@@ -100,7 +100,7 @@ mod tests {
     }
 
     #[test]
-    fn save_and_load_its_address_succeeds() {
+    fn save_and_load_its_contract_succeeds() {
         let mut deps = mock_dependencies();
 
         let chain1 = "chain1".parse().unwrap();
@@ -109,27 +109,27 @@ mod tests {
         let address2: Address = "address2".parse().unwrap();
 
         assert_err_contains!(
-            load_its_address(deps.as_ref().storage, &chain1),
+            load_its_contract(deps.as_ref().storage, &chain1),
             Error,
-            Error::ItsAddressNotFound(its_chain) if its_chain == &chain1
+            Error::ItsContractNotFound(its_chain) if its_chain == &chain1
         );
         assert_eq!(
-            assert_ok!(load_all_its_addresses(deps.as_ref().storage)),
+            assert_ok!(load_all_its_contracts(deps.as_ref().storage)),
             HashMap::new()
         );
 
-        assert_ok!(save_its_address(deps.as_mut().storage, &chain1, &address1));
-        assert_ok!(save_its_address(deps.as_mut().storage, &chain2, &address2));
+        assert_ok!(save_its_contract(deps.as_mut().storage, &chain1, &address1));
+        assert_ok!(save_its_contract(deps.as_mut().storage, &chain2, &address2));
         assert_eq!(
-            assert_ok!(load_its_address(deps.as_ref().storage, &chain1)),
+            assert_ok!(load_its_contract(deps.as_ref().storage, &chain1)),
             address1
         );
         assert_eq!(
-            assert_ok!(load_its_address(deps.as_ref().storage, &chain2)),
+            assert_ok!(load_its_contract(deps.as_ref().storage, &chain2)),
             address2
         );
 
-        let all_addresses = assert_ok!(load_all_its_addresses(deps.as_ref().storage));
+        let all_addresses = assert_ok!(load_all_its_contracts(deps.as_ref().storage));
         assert_eq!(
             all_addresses,
             [(chain1, address1), (chain2, address2)]

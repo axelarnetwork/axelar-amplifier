@@ -7,7 +7,7 @@ use router_api::{Address, ChainNameRaw};
 mod utils;
 
 #[test]
-fn query_its_address() {
+fn query_its_contract() {
     let mut deps = mock_dependencies();
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
@@ -16,31 +16,34 @@ fn query_its_address() {
         .parse()
         .unwrap();
 
-    utils::register_its_address(deps.as_mut(), chain.clone(), address.clone()).unwrap();
+    utils::register_its_contract(deps.as_mut(), chain.clone(), address.clone()).unwrap();
 
-    let queried_address = assert_ok!(utils::query_its_address(deps.as_ref(), chain.clone()));
+    let queried_address = assert_ok!(utils::query_its_contract(deps.as_ref(), chain.clone()));
     assert_eq!(queried_address, Some(address));
 
     // case sensitive query
-    let queried_address = assert_ok!(utils::query_its_address(deps.as_ref(), "ethereum".parse().unwrap()));
+    let queried_address = assert_ok!(utils::query_its_contract(
+        deps.as_ref(),
+        "ethereum".parse().unwrap()
+    ));
     assert_eq!(queried_address, None);
 
-    assert_ok!(utils::deregister_its_address(deps.as_mut(), chain.clone()));
+    assert_ok!(utils::deregister_its_contract(deps.as_mut(), chain.clone()));
 
-    let queried_address = assert_ok!(utils::query_its_address(deps.as_ref(), chain.clone()));
+    let queried_address = assert_ok!(utils::query_its_contract(deps.as_ref(), chain.clone()));
     assert_eq!(queried_address, None);
 
     let non_existent_chain: ChainNameRaw = "non-existent-chain".parse().unwrap();
-    let queried_address = assert_ok!(utils::query_its_address(deps.as_ref(), non_existent_chain));
+    let queried_address = assert_ok!(utils::query_its_contract(deps.as_ref(), non_existent_chain));
     assert_eq!(queried_address, None);
 }
 
 #[test]
-fn query_all_its_addresses() {
+fn query_all_its_contractes() {
     let mut deps = mock_dependencies();
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
-    let its_addresses = vec![
+    let its_contractes = vec![
         (
             "ethereum".parse::<ChainNameRaw>().unwrap(),
             "0x1234567890123456789012345678901234567890"
@@ -57,10 +60,10 @@ fn query_all_its_addresses() {
     .into_iter()
     .collect::<HashMap<_, _>>();
 
-    for (chain, address) in its_addresses.iter() {
-        utils::register_its_address(deps.as_mut(), chain.clone(), address.clone()).unwrap();
+    for (chain, address) in its_contractes.iter() {
+        utils::register_its_contract(deps.as_mut(), chain.clone(), address.clone()).unwrap();
     }
 
-    let queried_addresses = assert_ok!(utils::query_all_its_addresses(deps.as_ref()));
-    assert_eq!(queried_addresses, its_addresses);
+    let queried_addresses = assert_ok!(utils::query_all_its_contracts(deps.as_ref()));
+    assert_eq!(queried_addresses, its_contractes);
 }

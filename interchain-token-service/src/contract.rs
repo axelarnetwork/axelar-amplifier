@@ -8,6 +8,7 @@ use cosmwasm_std::entry_point;
 use cosmwasm_std::{Addr, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response, Storage};
 use error_stack::{Report, ResultExt};
 
+use crate::events::Event;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state;
 use crate::state::Config;
@@ -25,13 +26,13 @@ pub enum Error {
     #[error("failed to execute a cross-chain message")]
     Execute,
     #[error("failed to register an its edge contract")]
-    RegisterItsAddress,
+    RegisterItsContract,
     #[error("failed to deregsiter an its edge contract")]
-    DeregisterItsAddress,
+    DeregisterItsContract,
     #[error("failed to query its address")]
-    QueryItsAddress,
+    QueryItsContract,
     #[error("failed to query all its addresses")]
-    QueryAllItsAddresses,
+    QueryAllItsContracts,
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -63,11 +64,15 @@ pub fn instantiate(
 
     state::save_config(deps.storage, &Config { axelarnet_gateway })?;
 
-    for (chain, address) in msg.its_addresses {
-        state::save_its_address(deps.storage, &chain, &address)?;
+    for (chain, address) in msg.its_contracts.iter() {
+        state::save_its_contract(deps.storage, chain, address)?;
     }
 
-    Ok(Response::new())
+    Ok(Response::new().add_events(
+        msg.its_contracts
+            .into_iter()
+            .map(|(chain, address)| Event::ItsContractRegistered { chain, address }.into()),
+    ))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -84,12 +89,13 @@ pub fn execute(
             payload,
         }) => execute::execute_message(deps, cc_id, source_address, payload)
             .change_context(Error::Execute),
-        ExecuteMsg::RegisterItsAddress { chain, address } => {
-            execute::register_its_address(deps, chain, address)
-                .change_context(Error::RegisterItsAddress)
+        ExecuteMsg::RegisterItsContract { chain, address } => {
+            execute::register_its_contract(deps, chain, address)
+                .change_context(Error::RegisterItsContract)
         }
-        ExecuteMsg::DeregisterItsAddress { chain } => {
-            execute::deregister_its_address(deps, chain).change_context(Error::DeregisterItsAddress)
+        ExecuteMsg::DeregisterItsContract { chain } => {
+            execute::deregister_its_contract(deps, chain)
+                .change_context(Error::DeregisterItsContract)
         }
     }?
     .then(Ok)
@@ -102,11 +108,11 @@ fn match_gateway(storage: &dyn Storage, _: &ExecuteMsg) -> Result<Addr, Report<E
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
     match msg {
-        QueryMsg::ItsAddress { chain } => {
-            query::its_address(deps, chain).change_context(Error::QueryItsAddress)
+        QueryMsg::ItsContract { chain } => {
+            query::its_contracts(deps, chain).change_context(Error::QueryItsContract)
         }
-        QueryMsg::AllItsAddresses => {
-            query::all_its_addresses(deps).change_context(Error::QueryAllItsAddresses)
+        QueryMsg::AllItsContracts => {
+            query::all_its_contracts(deps).change_context(Error::QueryAllItsContracts)
         }
     }?
     .then(Ok)

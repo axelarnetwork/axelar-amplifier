@@ -5,14 +5,14 @@ use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
 
 use crate::events::Event;
 use crate::primitives::HubMessage;
-use crate::state::{self, load_config, load_its_address};
+use crate::state::{self, load_config, load_its_contract};
 
 #[derive(thiserror::Error, Debug, IntoContractError)]
 pub enum Error {
     #[error("unknown chain {0}")]
     UnknownChain(ChainNameRaw),
     #[error("unknown its address {0}")]
-    UnknownItsAddress(Address),
+    UnknownItsContract(Address),
     #[error("failed to decode payload")]
     InvalidPayload,
     #[error("invalid message type")]
@@ -39,7 +39,7 @@ pub fn execute_message(
             destination_chain,
             message,
         } => {
-            let destination_address = load_its_address(deps.storage, &destination_chain)
+            let destination_address = load_its_contract(deps.storage, &destination_chain)
                 .change_context_lazy(|| Error::UnknownChain(destination_chain.clone()))?;
 
             let destination_payload = HubMessage::ReceiveFromHub {
@@ -72,17 +72,18 @@ fn normalize(chain: &ChainNameRaw) -> ChainName {
     ChainName::try_from(chain.as_ref()).expect("invalid chain name")
 }
 
+/// Ensures that the source address of the cross-chain message is the registered ITS contract for the source chain.
 fn ensure_its_source_address(
     storage: &dyn Storage,
     source_chain: &ChainNameRaw,
     source_address: &Address,
 ) -> Result<(), Error> {
-    let its_source_address = load_its_address(storage, source_chain)
+    let source_its_contract = load_its_contract(storage, source_chain)
         .change_context_lazy(|| Error::UnknownChain(source_chain.clone()))?;
 
     ensure!(
-        source_address == &its_source_address,
-        Error::UnknownItsAddress(source_address.clone())
+        source_address == &source_its_contract,
+        Error::UnknownItsContract(source_address.clone())
     );
 
     Ok(())
@@ -106,19 +107,19 @@ fn send_to_destination(
     Ok(Response::new().add_message(call_contract_msg))
 }
 
-pub fn register_its_address(
+pub fn register_its_contract(
     deps: DepsMut,
     chain: ChainNameRaw,
     address: Address,
 ) -> Result<Response, Error> {
-    state::save_its_address(deps.storage, &chain, &address)
+    state::save_its_contract(deps.storage, &chain, &address)
         .change_context_lazy(|| Error::FailedItsAddressRegistration(chain.clone()))?;
 
-    Ok(Response::new().add_event(Event::ItsAddressRegistered { chain, address }.into()))
+    Ok(Response::new().add_event(Event::ItsContractRegistered { chain, address }.into()))
 }
 
-pub fn deregister_its_address(deps: DepsMut, chain: ChainNameRaw) -> Result<Response, Error> {
-    state::remove_its_address(deps.storage, &chain);
+pub fn deregister_its_contract(deps: DepsMut, chain: ChainNameRaw) -> Result<Response, Error> {
+    state::remove_its_contract(deps.storage, &chain);
 
-    Ok(Response::new().add_event(Event::ItsAddressDeregistered { chain }.into()))
+    Ok(Response::new().add_event(Event::ItsContractDeregistered { chain }.into()))
 }

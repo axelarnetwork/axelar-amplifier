@@ -9,11 +9,11 @@ pub enum Event {
         destination_chain: ChainNameRaw,
         message: Message,
     },
-    ItsAddressRegistered {
+    ItsContractRegistered {
         chain: ChainNameRaw,
         address: Address,
     },
-    ItsAddressDeregistered {
+    ItsContractDeregistered {
         chain: ChainNameRaw,
     },
 }
@@ -26,13 +26,13 @@ impl From<Event> for cosmwasm_std::Event {
                 destination_chain,
                 message,
             } => make_message_event("message_received", cc_id, destination_chain, message),
-            Event::ItsAddressRegistered { chain, address } => {
-                cosmwasm_std::Event::new("its_address_registered")
+            Event::ItsContractRegistered { chain, address } => {
+                cosmwasm_std::Event::new("its_contract_registered")
                     .add_attribute("chain", chain.to_string())
                     .add_attribute("address", address.to_string())
             }
-            Event::ItsAddressDeregistered { chain } => {
-                cosmwasm_std::Event::new("its_address_deregistered")
+            Event::ItsContractDeregistered { chain } => {
+                cosmwasm_std::Event::new("its_contract_deregistered")
                     .add_attribute("chain", chain.to_string())
             }
         }
@@ -49,7 +49,7 @@ fn make_message_event(
     let mut attrs = vec![
         Attribute::new("cc_id", cc_id.to_string()),
         Attribute::new("destination_chain", destination_chain.to_string()),
-        Attribute::new("message_type", String::from(message_type)),
+        Attribute::new("message_type", message_type.to_string()),
     ];
 
     match msg {

@@ -25,7 +25,7 @@ pub fn execute(
     )
 }
 
-pub fn register_its_address(
+pub fn register_its_contract(
     deps: DepsMut,
     chain: ChainNameRaw,
     address: Address,
@@ -34,11 +34,11 @@ pub fn register_its_address(
         deps,
         mock_env(),
         mock_info(params::GOVERNANCE, &[]),
-        ExecuteMsg::RegisterItsAddress { chain, address },
+        ExecuteMsg::RegisterItsContract { chain, address },
     )
 }
 
-pub fn deregister_its_address(
+pub fn deregister_its_contract(
     deps: DepsMut,
     chain: ChainNameRaw,
 ) -> Result<Response, ContractError> {
@@ -46,6 +46,6 @@ pub fn deregister_its_address(
         deps,
         mock_env(),
         mock_info(params::ADMIN, &[]),
-        ExecuteMsg::DeregisterItsAddress { chain },
+        ExecuteMsg::DeregisterItsContract { chain },
     )
 }
