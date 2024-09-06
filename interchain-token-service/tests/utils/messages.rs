@@ -1,19 +1,9 @@
 use cosmwasm_std::{HexBinary, Uint256};
-use interchain_token_service::{ItsHubMessage, ItsMessage, TokenId};
-use router_api::{Address, ChainName, CrossChainId, Message};
+use interchain_token_service::{HubMessage, Message, TokenId};
+use router_api::{Address, ChainName, CrossChainId};
 
 pub fn dummy_message() -> Message {
-    Message {
-        cc_id: CrossChainId::new("source-chain", "message-id").unwrap(),
-        source_address: "source-its-address".parse().unwrap(),
-        destination_chain: "destination-chain".parse().unwrap(),
-        destination_address: "its-hub-address".parse().unwrap(),
-        payload_hash: [1; 32],
-    }
-}
-
-pub fn dummy_its_message() -> ItsMessage {
-    ItsMessage::InterchainTransfer {
+    Message::InterchainTransfer {
         token_id: TokenId::new([2; 32]),
         source_address: HexBinary::from_hex("1234").unwrap(),
         destination_address: HexBinary::from_hex("5678").unwrap(),
@@ -23,8 +13,8 @@ pub fn dummy_its_message() -> ItsMessage {
 }
 
 pub struct TestMessage {
-    pub hub_message: ItsHubMessage,
-    pub router_message: Message,
+    pub hub_message: HubMessage,
+    pub router_message: router_api::Message,
     pub source_its_chain: ChainName,
     pub source_its_address: Address,
     pub destination_its_chain: ChainName,
@@ -38,11 +28,11 @@ impl TestMessage {
         let destination_its_chain: ChainName = "dest-its-chain".parse().unwrap();
         let destination_its_address: Address = "dest-its-address".parse().unwrap();
 
-        let hub_message = ItsHubMessage::SendToHub {
+        let hub_message = HubMessage::SendToHub {
             destination_chain: destination_its_chain.clone(),
-            message: dummy_its_message(),
+            message: dummy_message(),
         };
-        let router_message = Message {
+        let router_message = router_api::Message {
             cc_id: CrossChainId::new(source_its_chain.clone(), "message-id").unwrap(),
             source_address: source_its_address.clone(),
             destination_chain: "its-hub-chain".parse().unwrap(),

@@ -5,6 +5,7 @@ use cosmwasm_std::{HexBinary, Uint256};
 use router_api::{ChainName, ChainNameRaw};
 use strum::FromRepr;
 
+/// A unique 32-byte identifier for linked cross-chain tokens across ITS contracts.
 #[cw_serde]
 #[derive(Eq)]
 pub struct TokenId(
@@ -19,6 +20,7 @@ impl Display for TokenId {
     }
 }
 
+/// The supported types of token managers that can be deployed by ITS contracts.
 #[cw_serde]
 #[derive(Eq, Copy, FromRepr)]
 #[repr(u8)]
@@ -31,11 +33,11 @@ pub enum TokenManagerType {
     Gateway,
 }
 
-/// ITS message type that can be sent between ITS contracts for transfers/token deployments
-/// `ItsMessage` that are routed via the ITS hub get wrapped inside `ItsHubMessage`
+/// A message sent between ITS contracts to facilitate interchain transfers, token deployments, or token manager deployments.
+/// `Message` routed via the ITS hub get wrapped inside a [`HubMessage`]
 #[cw_serde]
 #[derive(Eq, strum::IntoStaticStr)]
-pub enum ItsMessage {
+pub enum Message {
     InterchainTransfer {
         token_id: TokenId,
         source_address: HexBinary,
@@ -57,29 +59,30 @@ pub enum ItsMessage {
     },
 }
 
-/// ITS message type that can be sent between ITS edge contracts and the ITS Hub
+/// A message sent between ITS edge contracts and the ITS hub contract (defined in this crate).
+/// `HubMessage` is used to route an ITS [`Message`] between ITS edge contracts on different chains via the ITS Hub.
 #[cw_serde]
 #[derive(Eq)]
-pub enum ItsHubMessage {
+pub enum HubMessage {
     /// ITS edge source contract -> ITS Hub
     SendToHub {
         /// True destination chain of the ITS message
         destination_chain: ChainName,
-        message: ItsMessage,
+        message: Message,
     },
     /// ITS Hub -> ITS edge destination contract
     ReceiveFromHub {
         /// True source chain of the ITS message
         source_chain: ChainNameRaw,
-        message: ItsMessage,
+        message: Message,
     },
 }
 
-impl ItsHubMessage {
-    pub fn message(&self) -> &ItsMessage {
+impl HubMessage {
+    pub fn message(&self) -> &Message {
         match self {
-            ItsHubMessage::SendToHub { message, .. } => message,
-            ItsHubMessage::ReceiveFromHub { message, .. } => message,
+            HubMessage::SendToHub { message, .. } => message,
+            HubMessage::ReceiveFromHub { message, .. } => message,
         }
     }
 }

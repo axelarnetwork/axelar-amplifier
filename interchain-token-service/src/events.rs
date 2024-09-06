@@ -1,13 +1,13 @@
 use cosmwasm_std::Attribute;
 use router_api::{Address, ChainName, CrossChainId};
 
-use crate::primitives::ItsMessage;
+use crate::primitives::Message;
 
 pub enum Event {
-    ItsMessageReceived {
+    MessageReceived {
         cc_id: CrossChainId,
         destination_chain: ChainName,
-        message: ItsMessage,
+        message: Message,
     },
     ItsAddressRegistered {
         chain: ChainName,
@@ -21,11 +21,11 @@ pub enum Event {
 impl From<Event> for cosmwasm_std::Event {
     fn from(event: Event) -> Self {
         match event {
-            Event::ItsMessageReceived {
+            Event::MessageReceived {
                 cc_id,
                 destination_chain,
                 message,
-            } => make_its_message_event("its_message_received", cc_id, destination_chain, message),
+            } => make_message_event("message_received", cc_id, destination_chain, message),
             Event::ItsAddressRegistered { chain, address } => {
                 cosmwasm_std::Event::new("its_address_registered")
                     .add_attribute("chain", chain.to_string())
@@ -39,11 +39,11 @@ impl From<Event> for cosmwasm_std::Event {
     }
 }
 
-fn make_its_message_event(
+fn make_message_event(
     event_name: &str,
     cc_id: CrossChainId,
     destination_chain: ChainName,
-    msg: ItsMessage,
+    msg: Message,
 ) -> cosmwasm_std::Event {
     let message_type: &'static str = (&msg).into();
     let mut attrs = vec![
@@ -53,7 +53,7 @@ fn make_its_message_event(
     ];
 
     match msg {
-        ItsMessage::InterchainTransfer {
+        Message::InterchainTransfer {
             token_id,
             source_address,
             destination_address,
@@ -68,7 +68,7 @@ fn make_its_message_event(
                 Attribute::new("data", data.to_string()),
             ]);
         }
-        ItsMessage::DeployInterchainToken {
+        Message::DeployInterchainToken {
             token_id,
             name,
             symbol,
@@ -83,7 +83,7 @@ fn make_its_message_event(
                 Attribute::new("minter", minter.to_string()),
             ]);
         }
-        ItsMessage::DeployTokenManager {
+        Message::DeployTokenManager {
             token_id,
             token_manager_type,
             params,

@@ -11,7 +11,7 @@ pub struct InstantiateMsg {
     pub admin_address: String,
     /// The address of the axelarnet-gateway contract on Amplifier
     pub axelarnet_gateway_address: String,
-    /// Addresses of the ITS contracts on existing chains
+    /// Addresses of the ITS edge contracts on connected chains
     pub its_addresses: HashMap<ChainName, Address>,
 }
 

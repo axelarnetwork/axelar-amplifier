@@ -7,7 +7,7 @@ use cosmwasm_std::HexBinary;
 use interchain_token_service::contract::{self, ExecuteError};
 use interchain_token_service::events::Event;
 use interchain_token_service::msg::ExecuteMsg;
-use interchain_token_service::{ItsHubMessage, ItsMessage, TokenId, TokenManagerType};
+use interchain_token_service::{HubMessage, Message, TokenId, TokenManagerType};
 use router_api::{Address, ChainName, CrossChainId};
 use utils::TestMessage;
 
@@ -39,7 +39,7 @@ fn register_deregister_its_address_succeeds() {
 }
 
 #[test]
-fn execute_its_hub_message_succeeds() {
+fn execute_hub_message_succeeds() {
     let mut deps = mock_dependencies();
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
@@ -66,37 +66,37 @@ fn execute_its_hub_message_succeeds() {
     .unwrap();
 
     let token_id = TokenId::new([1; 32]);
-    let test_its_messages = vec![
-        ItsMessage::InterchainTransfer {
+    let test_messages = vec![
+        Message::InterchainTransfer {
             token_id: token_id.clone(),
             source_address: HexBinary::from([1; 32]),
             destination_address: HexBinary::from([2; 32]),
             amount: 1u64.into(),
             data: HexBinary::from([1, 2, 3, 4]),
         },
-        ItsMessage::DeployInterchainToken {
+        Message::DeployInterchainToken {
             token_id: token_id.clone(),
             name: "Test".into(),
             symbol: "TST".into(),
             decimals: 18,
             minter: HexBinary::from([1; 32]),
         },
-        ItsMessage::DeployTokenManager {
+        Message::DeployTokenManager {
             token_id: token_id.clone(),
             token_manager_type: TokenManagerType::MintBurn,
             params: HexBinary::from([1, 2, 3, 4]),
         },
     ];
 
-    let responses: Vec<_> = test_its_messages
+    let responses: Vec<_> = test_messages
         .into_iter()
-        .map(|its_message| {
-            let hub_message = ItsHubMessage::SendToHub {
+        .map(|message| {
+            let hub_message = HubMessage::SendToHub {
                 destination_chain: destination_its_chain.clone(),
-                message: its_message,
+                message,
             };
             let payload = hub_message.clone().abi_encode();
-            let receive_payload = ItsHubMessage::ReceiveFromHub {
+            let receive_payload = HubMessage::ReceiveFromHub {
                 source_chain: source_its_chain.clone().into(),
                 message: hub_message.message().clone(),
             }
@@ -117,7 +117,7 @@ fn execute_its_hub_message_succeeds() {
             };
             assert_eq!(msg, expected_msg);
 
-            let expected_event = Event::ItsMessageReceived {
+            let expected_event = Event::MessageReceived {
                 cc_id: router_message.cc_id.clone(),
                 destination_chain: destination_its_chain.clone(),
                 message: hub_message.message().clone(),
@@ -260,7 +260,7 @@ fn execute_message_when_invalid_message_type_fails() {
     )
     .unwrap();
 
-    let invalid_hub_message = ItsHubMessage::ReceiveFromHub {
+    let invalid_hub_message = HubMessage::ReceiveFromHub {
         source_chain: source_its_chain.into(),
         message: hub_message.message().clone(),
     };

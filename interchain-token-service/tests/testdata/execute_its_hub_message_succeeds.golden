@@ -19,7 +19,7 @@
     "attributes": [],
     "events": [
       {
-        "type": "its_message_received",
+        "type": "message_received",
         "attributes": [
           {
             "key": "cc_id",
@@ -78,7 +78,7 @@
     "attributes": [],
     "events": [
       {
-        "type": "its_message_received",
+        "type": "message_received",
         "attributes": [
           {
             "key": "cc_id",
@@ -137,7 +137,7 @@
     "attributes": [],
     "events": [
       {
-        "type": "its_message_received",
+        "type": "message_received",
         "attributes": [
           {
             "key": "cc_id",

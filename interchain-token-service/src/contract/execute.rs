@@ -4,7 +4,7 @@ use error_stack::{bail, ensure, report, Result, ResultExt};
 use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
 
 use crate::events::Event;
-use crate::primitives::ItsHubMessage;
+use crate::primitives::HubMessage;
 use crate::state::{self, load_config, load_its_address};
 
 #[derive(thiserror::Error, Debug, IntoContractError)]
@@ -32,15 +32,15 @@ pub fn execute_message(
 ) -> Result<Response, Error> {
     ensure_its_source_address(deps.storage, &cc_id.source_chain, &source_address)?;
 
-    match ItsHubMessage::abi_decode(&payload).change_context(Error::InvalidPayload)? {
-        ItsHubMessage::SendToHub {
+    match HubMessage::abi_decode(&payload).change_context(Error::InvalidPayload)? {
+        HubMessage::SendToHub {
             destination_chain,
             message,
         } => {
             let destination_address = load_its_address(deps.storage, &destination_chain)
                 .change_context_lazy(|| Error::UnknownChain(destination_chain.clone()))?;
 
-            let destination_payload = ItsHubMessage::ReceiveFromHub {
+            let destination_payload = HubMessage::ReceiveFromHub {
                 source_chain: cc_id.source_chain.clone(),
                 message: message.clone(),
             }
@@ -54,7 +54,7 @@ pub fn execute_message(
                 destination_payload,
             )?
             .add_event(
-                Event::ItsMessageReceived {
+                Event::MessageReceived {
                     cc_id,
                     destination_chain,
                     message,
