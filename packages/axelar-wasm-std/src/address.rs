@@ -3,7 +3,8 @@ use std::str::FromStr;
 use alloy_primitives::Address;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Api};
-use error_stack::{Result, ResultExt};
+use error_stack::{bail, Result, ResultExt};
+use stellar_xdr::curr::ScAddress;
 use sui_types::SuiAddress;
 
 #[derive(thiserror::Error)]
@@ -17,6 +18,7 @@ pub enum Error {
 pub enum AddressFormat {
     Eip55,
     Sui,
+    Stellar,
 }
 
 pub fn validate_address(address: &str, format: &AddressFormat) -> Result<(), Error> {
@@ -27,6 +29,13 @@ pub fn validate_address(address: &str, format: &AddressFormat) -> Result<(), Err
         }
         AddressFormat::Sui => {
             SuiAddress::from_str(address)
+                .change_context(Error::InvalidAddress(address.to_string()))?;
+        }
+        AddressFormat::Stellar => {
+            if address != address.to_uppercase() {
+                bail!(Error::InvalidAddress(address.to_string()))
+            }
+            ScAddress::from_str(address)
                 .change_context(Error::InvalidAddress(address.to_string()))?;
         }
     }
@@ -103,5 +112,26 @@ mod tests {
             address::Error,
             address::Error::InvalidAddress(..)
         ));
+    }
+
+    #[test]
+    fn validate_stellar_address() {
+        // account id
+        let addr = "GA7QYNF7SOWQ3GLR2BGMZEHXAVIRZA4KVWLTJJFC7MGXUA74P7UJVSGZ";
+        assert!(address::validate_address(addr, &address::AddressFormat::Stellar).is_ok());
+
+        let lower_case = addr.to_lowercase();
+        assert!(address::validate_address(&lower_case, &address::AddressFormat::Stellar).is_err());
+
+        // contract
+        let addr = "CA7QYNF7SOWQ3GLR2BGMZEHXAVIRZA4KVWLTJJFC7MGXUA74P7UJUWDA";
+        assert!(address::validate_address(addr, &address::AddressFormat::Stellar).is_ok());
+
+        let lower_case = addr.to_lowercase();
+        assert!(address::validate_address(&lower_case, &address::AddressFormat::Stellar).is_err());
+
+        // invalid
+        let addr = "MA7QYNF7SOWQ3GLR2BGMZEHXAVIRZA4KVWLTJJFC7MGXUA74P7UJVAAAAAAAAAAAAAJLK";
+        assert!(address::validate_address(addr, &address::AddressFormat::Stellar).is_err());
     }
 }
