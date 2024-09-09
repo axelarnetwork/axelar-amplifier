@@ -7,9 +7,11 @@ use axelarnet_gateway::contract::{self, ExecuteError};
 use axelarnet_gateway::msg::ExecuteMsg;
 use axelarnet_gateway::StateError;
 use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-use cosmwasm_std::{DepsMut, HexBinary, Response};
+use cosmwasm_std::{ContractResult, DepsMut, HexBinary, Response, SystemResult};
+use rand::RngCore;
 use router_api::msg::ExecuteMsg as RouterExecuteMsg;
 use router_api::{Address, ChainName, CrossChainId, Message};
+use serde_json::json;
 
 use crate::utils::messages;
 use crate::utils::messages::inspect_response_msg;
@@ -165,6 +167,20 @@ fn route_to_router_without_contract_call_ignores_message() {
 #[test]
 fn route_to_router_after_contract_call_with_tempered_data_fails() {
     let mut deps = mock_dependencies();
+    deps.querier = deps.querier.with_custom_handler(move |_| {
+        let mut tx_hash = [0u8; 32];
+        rand::thread_rng().fill_bytes(&mut tx_hash);
+
+        SystemResult::Ok(ContractResult::Ok(
+            json!({
+                "tx_hash": tx_hash,
+                "nonce": 0,
+            })
+            .to_string()
+            .as_bytes()
+            .into(),
+        ))
+    });
 
     let destination_chain = "destination-chain".parse().unwrap();
     let destination_address = "destination-address".parse().unwrap();
@@ -193,7 +209,25 @@ fn route_to_router_after_contract_call_with_tempered_data_fails() {
 
 #[test]
 fn route_to_router_after_contract_call_succeeds_multiple_times() {
+    let tx_hash: [u8; 32] =
+        hex::decode("3fe69130d2899d40569559e420f182aa62bf6265de3f7d5be65fb86bc0869dbd")
+            .unwrap()
+            .try_into()
+            .unwrap();
+    let nonce = 210;
+
     let mut deps = mock_dependencies();
+    deps.querier = deps.querier.with_custom_handler(move |_| {
+        SystemResult::Ok(ContractResult::Ok(
+            json!({
+                "tx_hash": tx_hash,
+                "nonce": nonce,
+            })
+            .to_string()
+            .as_bytes()
+            .into(),
+        ))
+    });
 
     let destination_chain = "destination-chain".parse().unwrap();
     let destination_address = "destination-address".parse().unwrap();
@@ -221,7 +255,25 @@ fn route_to_router_after_contract_call_succeeds_multiple_times() {
 
 #[test]
 fn route_to_router_after_contract_call_ignores_duplicates() {
+    let tx_hash: [u8; 32] =
+        hex::decode("7629eaf655df7c97a92ab9bf92089b2db9c7c131495fcb70fdab67bfe2877b13")
+            .unwrap()
+            .try_into()
+            .unwrap();
+    let nonce = 200;
+
     let mut deps = mock_dependencies();
+    deps.querier = deps.querier.with_custom_handler(move |_| {
+        SystemResult::Ok(ContractResult::Ok(
+            json!({
+                "tx_hash": tx_hash,
+                "nonce": nonce,
+            })
+            .to_string()
+            .as_bytes()
+            .into(),
+        ))
+    });
 
     let destination_chain = "destination-chain".parse().unwrap();
     let destination_address = "destination-address".parse().unwrap();
@@ -251,7 +303,25 @@ fn route_to_router_after_contract_call_ignores_duplicates() {
 
 #[test]
 fn contract_call_returns_correct_message() {
+    let tx_hash: [u8; 32] =
+        hex::decode("a695e27bcb71c3dfd108c18e031ec966e37c7c95927c2a9fd88ec573ee690c2c")
+            .unwrap()
+            .try_into()
+            .unwrap();
+    let nonce = 190;
+
     let mut deps = mock_dependencies();
+    deps.querier = deps.querier.with_custom_handler(move |_| {
+        SystemResult::Ok(ContractResult::Ok(
+            json!({
+                "tx_hash": tx_hash,
+                "nonce": nonce,
+            })
+            .to_string()
+            .as_bytes()
+            .into(),
+        ))
+    });
 
     let destination_chain = "destination-chain".parse().unwrap();
     let destination_address = "destination-address".parse().unwrap();
@@ -271,7 +341,25 @@ fn contract_call_returns_correct_message() {
 
 #[test]
 fn contract_call_returns_correct_events() {
+    let tx_hash: [u8; 32] =
+        hex::decode("b695e27bcb71c3dfd108c18e031ec966e37c7c95927c2a9fd88ec573ee690c2c")
+            .unwrap()
+            .try_into()
+            .unwrap();
+    let nonce = 160;
+
     let mut deps = mock_dependencies();
+    deps.querier = deps.querier.with_custom_handler(move |_| {
+        SystemResult::Ok(ContractResult::Ok(
+            json!({
+                "tx_hash": tx_hash,
+                "nonce": nonce,
+            })
+            .to_string()
+            .as_bytes()
+            .into(),
+        ))
+    });
 
     let destination_chain = "destination-chain".parse().unwrap();
     let destination_address = "destination-address".parse().unwrap();
@@ -290,6 +378,20 @@ fn contract_call_returns_correct_events() {
 #[test]
 fn contract_call_multiple_times_results_in_different_messages() {
     let mut deps = mock_dependencies();
+    deps.querier = deps.querier.with_custom_handler(move |_| {
+        let mut tx_hash = [0u8; 32];
+        rand::thread_rng().fill_bytes(&mut tx_hash);
+
+        SystemResult::Ok(ContractResult::Ok(
+            json!({
+                "tx_hash": tx_hash,
+                "nonce": 0,
+            })
+            .to_string()
+            .as_bytes()
+            .into(),
+        ))
+    });
 
     let destination_chain = ChainName::from_str("destination-chain").unwrap();
     let destination_address = Address::from_str("destination-address").unwrap();

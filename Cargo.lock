@@ -805,6 +805,23 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0c4b4d0bd25bd0b74681c0ad21497610ce1b7c91b1022cd21c80c6fbdd9476b0"
 
 [[package]]
+name = "axelar-core-std"
+version = "1.0.0"
+dependencies = [
+ "axelar-wasm-std",
+ "client",
+ "cosmwasm-std",
+ "error-stack",
+ "goldie",
+ "hex",
+ "router-api",
+ "schemars",
+ "serde",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
 name = "axelar-wasm-std"
 version = "1.0.0"
 dependencies = [
@@ -855,6 +872,7 @@ name = "axelarnet-gateway"
 version = "1.0.0"
 dependencies = [
  "assert_ok",
+ "axelar-core-std",
  "axelar-wasm-std",
  "client",
  "cosmwasm-schema",
@@ -864,8 +882,10 @@ dependencies = [
  "cw2 1.1.2",
  "error-stack",
  "goldie",
+ "hex",
  "itertools 0.11.0",
  "msgs-derive",
+ "rand",
  "report",
  "router-api",
  "serde",
@@ -5262,6 +5282,7 @@ dependencies = [
 name = "nexus-gateway"
 version = "1.0.0"
 dependencies = [
+ "axelar-core-std",
  "axelar-wasm-std",
  "axelarnet-gateway",
  "client",
@@ -5273,10 +5294,12 @@ dependencies = [
  "hex",
  "mockall 0.11.4",
  "msgs-derive",
+ "rand",
  "report",
  "router-api",
  "schemars",
  "serde",
+ "serde_json",
  "sha3",
  "thiserror",
  "voting-verifier",
@@ -6874,6 +6897,7 @@ name = "router-api"
 version = "1.0.0"
 dependencies = [
  "axelar-wasm-std",
+ "client",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 1.2.0",

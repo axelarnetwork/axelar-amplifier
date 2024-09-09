@@ -1,3 +1,4 @@
+use axelar_core_std::nexus;
 use axelar_wasm_std::address;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
@@ -6,10 +7,10 @@ use error_stack::Report;
 use migrations::v1_0_0;
 
 use crate::contract::execute::{call_contract_with_token, route_to_nexus, route_to_router};
-use crate::error::ContractError;
+use crate::error::Error;
 use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg};
+use crate::state;
 use crate::state::Config;
-use crate::{nexus, state};
 
 mod execute;
 mod migrations;
@@ -60,7 +61,7 @@ pub fn execute(
     _: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
-) -> Result<Response<nexus::Message>, axelar_wasm_std::error::ContractError> {
+) -> Result<Response<nexus::execute::Message>, axelar_wasm_std::error::ContractError> {
     let res = match msg.ensure_permissions(deps.storage, &info.sender, match_router, match_nexus)? {
         ExecuteMsg::CallContractWithToken {
             destination_chain,
@@ -81,25 +82,28 @@ pub fn execute(
     Ok(res)
 }
 
-fn match_router(storage: &dyn Storage, _: &ExecuteMsg) -> Result<Addr, Report<ContractError>> {
+fn match_router(storage: &dyn Storage, _: &ExecuteMsg) -> Result<Addr, Report<Error>> {
     Ok(state::load_config(storage)?.router)
 }
 
-fn match_nexus(storage: &dyn Storage, _: &ExecuteMsg) -> Result<Addr, Report<ContractError>> {
+fn match_nexus(storage: &dyn Storage, _: &ExecuteMsg) -> Result<Addr, Report<Error>> {
     Ok(state::load_config(storage)?.nexus)
 }
 
 #[cfg(test)]
 mod tests {
+    use axelar_core_std::nexus;
     use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
     use axelar_wasm_std::{err_contains, permission_control};
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
     use cosmwasm_std::{
-        from_json, to_json_binary, Addr, BankMsg, Coin, CosmosMsg, QuerierResult, SubMsg, WasmMsg,
-        WasmQuery,
+        from_json, to_json_binary, Addr, BankMsg, Coin, ContractResult, CosmosMsg, QuerierResult,
+        SubMsg, SystemResult, WasmMsg, WasmQuery,
     };
     use hex::decode;
+    use rand::RngCore;
     use router_api::CrossChainId;
+    use serde_json::json;
 
     use super::*;
 
@@ -124,16 +128,26 @@ mod tests {
                     .into(),
             },
         );
-        assert!(res.is_err_and(|err| err_contains!(
-            err.report,
-            ContractError,
-            ContractError::InvalidToken { .. }
-        )));
+        assert!(res.is_err_and(|err| err_contains!(err.report, Error, Error::InvalidToken { .. })));
     }
 
     #[test]
     fn call_contract_with_token() {
         let mut deps = mock_dependencies();
+        deps.querier = deps.querier.with_custom_handler(move |_| {
+            let mut tx_hash = [0u8; 32];
+            rand::thread_rng().fill_bytes(&mut tx_hash);
+
+            SystemResult::Ok(ContractResult::Ok(
+                json!({
+                    "tx_hash": tx_hash,
+                    "nonce": 0,
+                })
+                .to_string()
+                .as_bytes()
+                .into(),
+            ))
+        });
         deps.querier.update_wasm(move |msg| match msg {
             WasmQuery::Smart { contract_addr, msg } if contract_addr == AXELARNET_GATEWAY => {
                 let msg = from_json::<axelarnet_gateway::msg::QueryMsg>(msg).unwrap();
@@ -171,7 +185,7 @@ mod tests {
                 ..
             }, SubMsg {
                 msg:
-                    CosmosMsg::Custom(nexus::Message {
+                    CosmosMsg::Custom(nexus::execute::Message {
                         token: Some(actual_token),
                         ..
                     }),
@@ -310,7 +324,7 @@ mod tests {
         assert!(res.is_ok_and(|res| res.messages.is_empty()));
     }
 
-    fn nexus_messages() -> Vec<nexus::Message> {
+    fn nexus_messages() -> Vec<nexus::execute::Message> {
         let msg_ids = [
             HexTxHashAndEventIndex {
                 tx_hash: vec![0x2f; 32].try_into().unwrap(),
@@ -322,7 +336,7 @@ mod tests {
             },
         ];
         let msgs = vec![
-            nexus::Message {
+            nexus::execute::Message {
                 source_chain: "sourceChain".parse().unwrap(),
                 source_address: "0xb860".parse().unwrap(),
                 destination_address: "0xD419".parse().unwrap(),
@@ -338,7 +352,7 @@ mod tests {
                 id: msg_ids[0].to_string(),
                 token: None,
             },
-            nexus::Message {
+            nexus::execute::Message {
                 source_chain: "sourceChain".parse().unwrap(),
                 source_address: "0xc860".parse().unwrap(),
                 destination_address: "0xA419".parse().unwrap(),

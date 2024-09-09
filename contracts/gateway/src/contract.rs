@@ -72,16 +72,14 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
     let config = state::load_config(deps.storage).change_context(Error::Execute)?;
-    let verifier = client::Client::new(deps.querier, &config.verifier).into();
+    let verifier = client::ContractClient::new(deps.querier, &config.verifier).into();
 
     match msg.ensure_permissions(deps.storage, &info.sender)? {
         ExecuteMsg::VerifyMessages(msgs) => {
             execute::verify_messages(&verifier, msgs).change_context(Error::VerifyMessages)
         }
         ExecuteMsg::RouteMessages(msgs) => {
-            let router = Router {
-                address: config.router,
-            };
+            let router = Router::new(config.router);
 
             if info.sender == router.address {
                 execute::route_outgoing_messages(deps.storage, msgs)
