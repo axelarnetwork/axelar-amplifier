@@ -7,11 +7,16 @@ edition = { workspace = true }
 
 [dependencies]
 axelar-wasm-std = { workspace = true }
+client = { workspace = true }
 cosmwasm-schema = { workspace = true }
 cosmwasm-std = { workspace = true }
 error-stack = { workspace = true }
 msgs-derive = { workspace = true }
 router-api = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+goldie = { workspace = true }
 
 [lints]
 workspace = true
