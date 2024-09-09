@@ -1,4 +1,4 @@
-use axelar_wasm_std::{nonempty, MajorityThreshold};
+use axelar_wasm_std::MajorityThreshold;
 use cosmwasm_std::Addr;
 use cw_multi_test::{ContractWrapper, Executor};
 use router_api::ChainName;
@@ -14,7 +14,6 @@ pub struct VotingVerifierContract {
 impl VotingVerifierContract {
     pub fn instantiate_contract(
         protocol: &mut Protocol,
-        source_gateway_address: nonempty::String,
         voting_threshold: MajorityThreshold,
         source_chain: ChainName,
     ) -> Self {
@@ -39,7 +38,9 @@ impl VotingVerifierContract {
                         .try_into()
                         .unwrap(),
                     service_name: protocol.service_name.clone(),
-                    source_gateway_address,
+                    source_gateway_address: "0x4F4495243837681061C4743b74B3eEdf548D56A5"
+                        .try_into()
+                        .unwrap(),
                     voting_threshold,
                     block_expiry: 10.try_into().unwrap(),
                     confirmation_height: 5,

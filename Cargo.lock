@@ -9369,6 +9369,7 @@ name = "voting-verifier"
 version = "1.0.0"
 dependencies = [
  "alloy-primitives",
+ "assert_ok",
  "axelar-wasm-std",
  "client",
  "cosmwasm-schema",
