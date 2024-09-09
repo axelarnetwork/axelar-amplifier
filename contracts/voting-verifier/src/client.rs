@@ -205,7 +205,9 @@ mod test {
             governance_address: "governance".try_into().unwrap(),
             service_registry_address: "service-registry".try_into().unwrap(),
             service_name: "voting-verifier".try_into().unwrap(),
-            source_gateway_address: "source-gateway".try_into().unwrap(),
+            source_gateway_address: "0x4F4495243837681061C4743b74B3eEdf548D56A5"
+                .try_into()
+                .unwrap(),
             voting_threshold: Threshold::try_from((Uint64::new(2), Uint64::new(3)))
                 .unwrap()
                 .try_into()
