@@ -94,6 +94,9 @@ async fn broadcast_tx(
         })
         .await?;
 
+    // drop the sender so the confirmer doesn't wait for more txs
+    drop(hash_to_confirm_sender);
+
     confirmer
         .run(hash_to_confirm_receiver, confirmation_sender)
         .change_context(Error::TxConfirmation)
