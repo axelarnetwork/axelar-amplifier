@@ -3,7 +3,7 @@ use itertools::Itertools;
 use router_api::ChainName;
 
 use super::*;
-use crate::msg::VerifierDetails;
+use service_registry_api::msg::VerifierDetails;
 use crate::state::{WeightedVerifier, VERIFIERS, VERIFIERS_PER_CHAIN, VERIFIER_WEIGHT};
 
 pub fn active_verifiers(

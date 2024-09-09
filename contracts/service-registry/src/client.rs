@@ -1,7 +1,7 @@
 use error_stack::ResultExt;
 use router_api::ChainName;
 
-use crate::msg::{ExecuteMsg, QueryMsg};
+use service_registry_api::msg::{ExecuteMsg, QueryMsg};
 use crate::{Service, Verifier, WeightedVerifier};
 
 type Result<T> = error_stack::Result<T, Error>;

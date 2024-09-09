@@ -7556,7 +7556,24 @@ dependencies = [
  "router-api",
  "schemars",
  "serde",
+ "service-registry-api",
  "thiserror",
+]
+
+[[package]]
+name = "service-registry-api"
+version = "1.0.0"
+dependencies = [
+ "axelar-wasm-std",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "error-stack",
+ "goldie",
+ "msgs-derive",
+ "report",
+ "router-api",
+ "schemars",
+ "serde",
 ]
 
 [[package]]

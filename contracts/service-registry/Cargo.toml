@@ -46,6 +46,7 @@ report = { workspace = true }
 router-api = { workspace = true }
 schemars = "0.8.10"
 serde = { version = "1.0.145", default-features = false, features = ["derive"] }
+service-registry-api = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]
