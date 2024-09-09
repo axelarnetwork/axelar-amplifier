@@ -809,6 +809,7 @@ name = "axelar-wasm-std"
 version = "1.0.0"
 dependencies = [
  "alloy-primitives",
+ "assert_ok",
  "axelar-wasm-std-derive",
  "bs58 0.5.1",
  "cosmwasm-schema",
