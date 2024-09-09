@@ -16,6 +16,8 @@ use config::ConfigError;
 use error_stack::{Report, ResultExt};
 use report::LoggableError;
 use tracing::{error, info};
+use tracing_core::LevelFilter;
+use tracing_subscriber::EnvFilter;
 use valuable::Valuable;
 
 #[derive(Debug, Parser, Valuable)]
@@ -92,10 +94,25 @@ async fn main() -> ExitCode {
 fn set_up_logger(output: &Output) {
     match output {
         Output::Json => {
-            tracing_subscriber::fmt().json().flatten_event(true).init();
+            tracing_subscriber::fmt()
+                .json()
+                .flatten_event(true)
+                .with_env_filter(
+                    EnvFilter::builder()
+                        .with_default_directive(LevelFilter::INFO.into())
+                        .from_env_lossy(),
+                )
+                .init();
         }
         Output::Text => {
-            tracing_subscriber::fmt().compact().init();
+            tracing_subscriber::fmt()
+                .compact()
+                .with_env_filter(
+                    EnvFilter::builder()
+                        .with_default_directive(LevelFilter::INFO.into())
+                        .from_env_lossy(),
+                )
+                .init();
         }
     };
 }
