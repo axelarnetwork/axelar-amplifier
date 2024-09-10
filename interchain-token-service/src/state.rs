@@ -60,8 +60,15 @@ pub fn save_its_contract(
     Ok(ITS_CONTRACTS.save(storage, chain, address)?)
 }
 
-pub fn remove_its_contract(storage: &mut dyn Storage, chain: &ChainNameRaw) {
-    ITS_CONTRACTS.remove(storage, chain)
+pub fn remove_its_contract(storage: &mut dyn Storage, chain: &ChainNameRaw) -> Result<(), Error> {
+    ensure!(
+        may_load_its_contract(storage, chain)?.is_some(),
+        Error::ItsContractNotFound(chain.clone())
+    );
+
+    ITS_CONTRACTS.remove(storage, chain);
+
+    Ok(())
 }
 
 pub fn load_all_its_contracts(

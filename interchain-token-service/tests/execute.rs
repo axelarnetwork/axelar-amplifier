@@ -56,9 +56,23 @@ fn reregistering_its_contract_fails() {
     ));
 
     assert_err_contains!(
-        utils::register_its_contract(deps.as_mut(), chain.clone(), address.clone()),
+        utils::register_its_contract(deps.as_mut(), chain, address),
         ExecuteError,
-        ExecuteError::FailedItsAddressRegistration(..)
+        ExecuteError::FailedItsContractRegistration(..)
+    );
+}
+
+#[test]
+fn deregistering_unknown_chain_fails() {
+    let mut deps = mock_dependencies();
+    utils::instantiate_contract(deps.as_mut()).unwrap();
+
+    let chain: ChainNameRaw = "ethereum".parse().unwrap();
+
+    assert_err_contains!(
+        utils::deregister_its_contract(deps.as_mut(), chain),
+        ExecuteError,
+        ExecuteError::FailedItsContractDeregistration(..)
     );
 }
 

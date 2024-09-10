@@ -17,8 +17,10 @@ pub enum Error {
     InvalidPayload,
     #[error("invalid message type")]
     InvalidMessageType,
-    #[error("failed to register its address for chain {0}")]
-    FailedItsAddressRegistration(ChainNameRaw),
+    #[error("failed to register its contract for chain {0}")]
+    FailedItsContractRegistration(ChainNameRaw),
+    #[error("failed to deregister its contract for chain {0}")]
+    FailedItsContractDeregistration(ChainNameRaw),
 }
 
 /// Executes an incoming ITS message.
@@ -113,13 +115,14 @@ pub fn register_its_contract(
     address: Address,
 ) -> Result<Response, Error> {
     state::save_its_contract(deps.storage, &chain, &address)
-        .change_context_lazy(|| Error::FailedItsAddressRegistration(chain.clone()))?;
+        .change_context_lazy(|| Error::FailedItsContractRegistration(chain.clone()))?;
 
     Ok(Response::new().add_event(Event::ItsContractRegistered { chain, address }.into()))
 }
 
 pub fn deregister_its_contract(deps: DepsMut, chain: ChainNameRaw) -> Result<Response, Error> {
-    state::remove_its_contract(deps.storage, &chain);
+    state::remove_its_contract(deps.storage, &chain)
+        .change_context_lazy(|| Error::FailedItsContractDeregistration(chain.clone()))?;
 
     Ok(Response::new().add_event(Event::ItsContractDeregistered { chain }.into()))
 }
