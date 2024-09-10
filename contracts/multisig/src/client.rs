@@ -30,8 +30,8 @@ pub enum Error {
     },
 }
 
-impl<'a> From<client::Client<'a, ExecuteMsg, QueryMsg>> for Client<'a> {
-    fn from(client: client::Client<'a, ExecuteMsg, QueryMsg>) -> Self {
+impl<'a> From<client::ContractClient<'a, ExecuteMsg, QueryMsg>> for Client<'a> {
+    fn from(client: client::ContractClient<'a, ExecuteMsg, QueryMsg>) -> Self {
         Client { client }
     }
 }
@@ -60,7 +60,7 @@ impl From<QueryMsg> for Error {
 }
 
 pub struct Client<'a> {
-    client: client::Client<'a, ExecuteMsg, QueryMsg>,
+    client: client::ContractClient<'a, ExecuteMsg, QueryMsg>,
 }
 
 impl<'a> Client<'a> {
@@ -117,7 +117,8 @@ mod test {
     #[test]
     fn query_multisig_session_returns_error_when_query_errors() {
         let (querier, addr) = setup_queries_to_fail();
-        let client: Client = client::Client::new(QuerierWrapper::new(&querier), &addr).into();
+        let client: Client =
+            client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
 
         let session_id: Uint64 = 1u64.into();
         let res = client.multisig(session_id);
@@ -128,7 +129,8 @@ mod test {
     #[test]
     fn query_multisig_session_returns_session() {
         let (querier, addr) = setup_queries_to_succeed();
-        let client: Client = client::Client::new(QuerierWrapper::new(&querier), &addr).into();
+        let client: Client =
+            client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
 
         let session_id: Uint64 = 1u64.into();
         let res = client.multisig(session_id);
@@ -139,7 +141,8 @@ mod test {
     #[test]
     fn query_verifier_set_returns_error_when_query_errors() {
         let (querier, addr) = setup_queries_to_fail();
-        let client: Client = client::Client::new(QuerierWrapper::new(&querier), &addr).into();
+        let client: Client =
+            client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
 
         let verifier_set_id = "my_set".to_string();
         let res = client.verifier_set(verifier_set_id.clone());
@@ -150,7 +153,8 @@ mod test {
     #[test]
     fn query_verifier_set_returns_verifier_set() {
         let (querier, addr) = setup_queries_to_succeed();
-        let client: Client = client::Client::new(QuerierWrapper::new(&querier), &addr).into();
+        let client: Client =
+            client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
 
         let verifier_set_id = "my_set".to_string();
         let res = client.verifier_set(verifier_set_id.clone());
@@ -161,7 +165,8 @@ mod test {
     #[test]
     fn query_public_key_returns_error_when_query_errors() {
         let (querier, addr) = setup_queries_to_fail();
-        let client: Client = client::Client::new(QuerierWrapper::new(&querier), &addr).into();
+        let client: Client =
+            client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
 
         let verifier_address = Addr::unchecked("verifier").to_string();
         let key_type = crate::key::KeyType::Ecdsa;
@@ -173,7 +178,8 @@ mod test {
     #[test]
     fn query_public_key_returns_public_key() {
         let (querier, addr) = setup_queries_to_succeed();
-        let client: Client = client::Client::new(QuerierWrapper::new(&querier), &addr).into();
+        let client: Client =
+            client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
 
         let verifier_address = Addr::unchecked("verifier").to_string();
         let key_type = crate::key::KeyType::Ecdsa;
@@ -186,7 +192,8 @@ mod test {
     #[test]
     fn query_is_caller_authorized_returns_error_when_query_errors() {
         let (querier, addr) = setup_queries_to_fail();
-        let client: Client = client::Client::new(QuerierWrapper::new(&querier), &addr).into();
+        let client: Client =
+            client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
 
         let contract_address = Addr::unchecked("prover").to_string();
         let chain_name = "ethereum".parse().unwrap();
@@ -198,7 +205,8 @@ mod test {
     #[test]
     fn query_is_caller_authorized_returns_caller_authorization() {
         let (querier, addr) = setup_queries_to_succeed();
-        let client: Client = client::Client::new(QuerierWrapper::new(&querier), &addr).into();
+        let client: Client =
+            client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
 
         let contract_address = Addr::unchecked("prover").to_string();
         let chain_name = "ethereum".parse().unwrap();
