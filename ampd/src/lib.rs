@@ -371,6 +371,22 @@ where
                     ),
                     event_processor_config.clone(),
                 ),
+                handlers::config::Config::StellarVerifierSetVerifier {
+                    cosmwasm_contract,
+                    http_url,
+                } => self.create_handler_task(
+                    "stellar-verifier-set-verifier",
+                    handlers::stellar_verify_verifier_set::Handler::new(
+                        verifier.clone(),
+                        cosmwasm_contract,
+                        stellar::http_client::Client::new(
+                            http_url.to_string().trim_end_matches('/').into(),
+                        )
+                        .change_context(Error::Connection)?,
+                        self.block_height_monitor.latest_block_height(),
+                    ),
+                    event_processor_config.clone(),
+                ),
             };
             self.event_processor = self.event_processor.add_task(task);
         }

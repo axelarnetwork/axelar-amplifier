@@ -1,4 +1,3 @@
-use std::collections::HashSet;
 use std::convert::TryInto;
 
 use async_trait::async_trait;
@@ -11,10 +10,9 @@ use events::Event;
 use events_derive::try_from;
 use multisig::verifier_set::VerifierSet;
 use prost_types::Any;
-use router_api::ChainName;
 use serde::Deserialize;
 use serde_with::{serde_as, DisplayFromStr};
-use stellar_xdr::curr::{ScAddress, ScBytes, ScString};
+use stellar_xdr::curr::ScAddress;
 use tokio::sync::watch::Receiver;
 use tracing::{info, info_span};
 use valuable::Valuable;
@@ -112,7 +110,7 @@ impl EventHandler for Handler {
 
         let transaction_response = self
             .http_client
-            .transaction_response(verifier_set.tx_id)
+            .transaction_response(verifier_set.tx_id.clone())
             .await
             .change_context(Error::TxReceipts)?;
 
@@ -145,7 +143,6 @@ impl EventHandler for Handler {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
     use std::convert::TryInto;
 
     use cosmrs::cosmwasm::MsgExecuteContract;
@@ -153,16 +150,18 @@ mod tests {
     use error_stack::Result;
     use events::Error::{DeserializationFailed, EventTypeMismatch};
     use events::Event;
+    use multisig::key::KeyType;
+    use multisig::test::common::{build_verifier_set, ed25519_test_data};
     use stellar_xdr::curr::ScAddress;
     use tokio::sync::watch;
     use tokio::test as async_test;
-    use voting_verifier::events::{PollMetadata, PollStarted, TxEventConfirmation};
+    use voting_verifier::events::{PollMetadata, PollStarted, VerifierSetConfirmation};
 
     use super::PollStartedEvent;
     use crate::event_processor::EventHandler;
     use crate::handlers::tests::{into_structured_event, participants};
     use crate::stellar::http_client::Client;
-    use crate::types::{EVMAddress, Hash, TMAddress};
+    use crate::types::{Hash, TMAddress};
     use crate::PREFIX;
 
     #[test]
@@ -257,7 +256,7 @@ mod tests {
     #[async_test]
     async fn should_vote_correctly() {
         let mut client = Client::faux();
-        faux::when!(client.transaction_responses).then(|_| Ok(HashMap::new()));
+        faux::when!(client.transaction_response).then(|_| Ok(None));
 
         let voting_verifier = TMAddress::random(PREFIX);
         let verifier = TMAddress::random(PREFIX);
@@ -274,7 +273,7 @@ mod tests {
     }
 
     fn poll_started_event(participants: Vec<TMAddress>, expires_at: u64) -> PollStarted {
-        PollStarted::Messages {
+        PollStarted::VerifierSet {
             metadata: PollMetadata {
                 poll_id: "100".parse().unwrap(),
                 source_chain: "stellar".parse().unwrap(),
@@ -291,21 +290,11 @@ mod tests {
                     .map(|addr| cosmwasm_std::Addr::unchecked(addr.to_string()))
                     .collect(),
             },
-            messages: (0..2)
-                .map(|i| TxEventConfirmation {
-                    tx_id: format!("{:x}", Hash::random()).parse().unwrap(),
-                    event_index: i,
-                    source_address: ScAddress::Contract(stellar_xdr::curr::Hash::from(
-                        Hash::random().0,
-                    ))
-                    .to_string()
-                    .try_into()
-                    .unwrap(),
-                    destination_chain: "ethereum".parse().unwrap(),
-                    destination_address: format!("0x{:x}", EVMAddress::random()).parse().unwrap(),
-                    payload_hash: Hash::random().to_fixed_bytes(),
-                })
-                .collect::<Vec<_>>(),
+            verifier_set: VerifierSetConfirmation {
+                tx_id: format!("{:x}", Hash::random()).parse().unwrap(),
+                event_index: 0,
+                verifier_set: build_verifier_set(KeyType::Ed25519, &ed25519_test_data::signers()),
+            },
         }
     }
 }

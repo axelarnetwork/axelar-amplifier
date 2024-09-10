@@ -270,6 +270,7 @@ dependencies = [
  "serde_with 3.8.1",
  "service-registry",
  "sha3",
+ "stellar",
  "stellar-rs",
  "stellar-xdr",
  "sui-gateway",
