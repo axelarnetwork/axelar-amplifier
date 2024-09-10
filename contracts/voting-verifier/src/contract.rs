@@ -1,12 +1,14 @@
-use axelar_wasm_std::{address, permission_control};
+use axelar_wasm_std::address::validate_address;
+use axelar_wasm_std::{address, permission_control, FnExt};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     to_json_binary, Attribute, Binary, Deps, DepsMut, Empty, Env, Event, MessageInfo, Response,
-    StdResult,
 };
+use error_stack::ResultExt;
 
 use crate::contract::migrations::v0_5_0;
+use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{Config, CONFIG};
 
@@ -28,6 +30,9 @@ pub fn instantiate(
 
     let governance = address::validate_cosmwasm_address(deps.api, &msg.governance_address)?;
     permission_control::set_governance(deps.storage, &governance)?;
+
+    validate_address(&msg.source_gateway_address, &msg.address_format)
+        .change_context(ContractError::InvalidSourceGatewayAddress)?;
 
     let config = Config {
         service_name: msg.service_name,
@@ -80,12 +85,15 @@ pub fn execute(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(
+    deps: Deps,
+    env: Env,
+    msg: QueryMsg,
+) -> Result<Binary, axelar_wasm_std::error::ContractError> {
     match msg {
         QueryMsg::Poll { poll_id } => {
             to_json_binary(&query::poll_response(deps, env.block.height, poll_id)?)
         }
-
         QueryMsg::MessagesStatus(messages) => {
             to_json_binary(&query::messages_status(deps, &messages, env.block.height)?)
         }
@@ -93,7 +101,8 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             &query::verifier_set_status(deps, &new_verifier_set, env.block.height)?,
         ),
         QueryMsg::CurrentThreshold => to_json_binary(&query::voting_threshold(deps)?),
-    }
+    }?
+    .then(Ok)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -109,6 +118,7 @@ pub fn migrate(
 
 #[cfg(test)]
 mod test {
+    use assert_ok::assert_ok;
     use axelar_wasm_std::address::AddressFormat;
     use axelar_wasm_std::msg_id::{
         Base58SolanaTxSignatureAndEventIndex, Base58TxDigestAndEventIndex, HexTxHash,
@@ -116,7 +126,8 @@ mod test {
     };
     use axelar_wasm_std::voting::Vote;
     use axelar_wasm_std::{
-        err_contains, nonempty, MajorityThreshold, Threshold, VerificationStatus,
+        assert_err_contains, err_contains, nonempty, MajorityThreshold, Threshold,
+        VerificationStatus,
     };
     use cosmwasm_std::testing::{
         mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
@@ -186,7 +197,9 @@ mod test {
                 governance_address: GOVERNANCE.parse().unwrap(),
                 service_registry_address: SERVICE_REGISTRY_ADDRESS.parse().unwrap(),
                 service_name: SERVICE_NAME.parse().unwrap(),
-                source_gateway_address: "source_gateway_address".parse().unwrap(),
+                source_gateway_address: "0x4F4495243837681061C4743b74B3eEdf548D56A5"
+                    .parse()
+                    .unwrap(),
                 voting_threshold: initial_voting_threshold(),
                 block_expiry: POLL_BLOCK_EXPIRY.try_into().unwrap(),
                 confirmation_height: 100,
@@ -281,6 +294,99 @@ mod test {
             .iter()
             .map(|message| MessageStatus::new(message.clone(), status))
             .collect()
+    }
+
+    #[test]
+    fn should_fail_if_gateway_address_format_is_invalid() {
+        let mut deps = mock_dependencies();
+
+        struct TestCase {
+            source_gateway_address: String,
+            address_format: AddressFormat,
+            should_fail: bool,
+        }
+
+        let test_cases = vec![
+            TestCase {
+                source_gateway_address: "0x4F4495243837681061C4743b74B3eEdf548D56A5".to_string(),
+                address_format: AddressFormat::Eip55,
+                should_fail: false,
+            },
+            TestCase {
+                source_gateway_address:
+                    "0xdb1473ed56ddede13225b99d779ebf9d9011874e26acbb8bfec8b6a43d0fbcaa".to_string(),
+                address_format: AddressFormat::Sui,
+                should_fail: false,
+            },
+            TestCase {
+                source_gateway_address: "0x4f4495243837681061C4743b74B3eEdf548D56A5".to_string(),
+                address_format: AddressFormat::Eip55,
+                should_fail: true,
+            },
+            TestCase {
+                source_gateway_address: "4F4495243837681061C4743b74B3eEdf548D56A5".to_string(),
+                address_format: AddressFormat::Eip55,
+                should_fail: true,
+            },
+            TestCase {
+                source_gateway_address: "0x4F4495243837681061C4743b74B3eEdf548D56A5"
+                    .to_string()
+                    .to_lowercase(),
+                address_format: AddressFormat::Eip55,
+                should_fail: true,
+            },
+            TestCase {
+                source_gateway_address: "0x4F4495243837681061C4743b74B3eEdf548D56A5"
+                    .to_string()
+                    .to_lowercase(),
+                address_format: AddressFormat::Sui,
+                should_fail: true,
+            },
+            TestCase {
+                source_gateway_address:
+                    "0xdb1473ed56ddede13225b99d779ebf9d9011874e26acbb8bfec8b6a43d0fbcaa"
+                        .to_string()
+                        .to_uppercase(),
+                address_format: AddressFormat::Sui,
+                should_fail: true,
+            },
+        ];
+
+        for TestCase {
+            source_gateway_address,
+            address_format,
+            should_fail,
+        } in test_cases
+        {
+            let result = instantiate(
+                deps.as_mut(),
+                mock_env(),
+                mock_info("admin", &[]),
+                InstantiateMsg {
+                    governance_address: GOVERNANCE.parse().unwrap(),
+                    service_registry_address: SERVICE_REGISTRY_ADDRESS.parse().unwrap(),
+                    service_name: SERVICE_NAME.parse().unwrap(),
+                    source_gateway_address: source_gateway_address.parse().unwrap(),
+                    voting_threshold: initial_voting_threshold(),
+                    block_expiry: POLL_BLOCK_EXPIRY.try_into().unwrap(),
+                    confirmation_height: 100,
+                    source_chain: source_chain(),
+                    rewards_address: REWARDS_ADDRESS.parse().unwrap(),
+                    msg_id_format: MessageIdFormat::HexTxHashAndEventIndex,
+                    address_format,
+                },
+            );
+
+            if should_fail {
+                assert_err_contains!(
+                    result,
+                    ContractError,
+                    ContractError::InvalidSourceGatewayAddress
+                );
+            } else {
+                assert_ok!(result);
+            }
+        }
     }
 
     #[test]

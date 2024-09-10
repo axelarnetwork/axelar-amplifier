@@ -1,7 +1,6 @@
 use axelar_wasm_std::{nonempty, voting, IntoContractError};
 use cosmwasm_std::{OverflowError, StdError};
 use router_api::ChainName;
-use service_registry;
 use thiserror::Error;
 
 #[derive(Error, Debug, PartialEq, IntoContractError)]
@@ -18,8 +17,8 @@ pub enum ContractError {
     #[error(transparent)]
     NonEmptyError(#[from] nonempty::Error),
 
-    #[error(transparent)]
-    ServiceRegistryError(#[from] service_registry::ContractError),
+    #[error("failed to build verifier snapshot")]
+    FailedToBuildSnapshot,
 
     #[error("empty batch of messages")]
     EmptyMessages,
@@ -44,6 +43,17 @@ pub enum ContractError {
 
     #[error("invalid source address")]
     InvalidSourceAddress,
+
+    #[error("invalid source gateway address")]
+    InvalidSourceGatewayAddress,
+
+    // Generic error to wrap cw_storage_plus errors
+    // This should only be used for things that shouldn't happen, such as encountering
+    // an error when loading data that should load successfully. For errors that can
+    // happen in the normal course of things, such as a user querying for a poll that doesn't
+    // exist, use a more descriptive error.
+    #[error("storage error")]
+    StorageError,
 }
 
 impl From<ContractError> for StdError {

@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
 use axelar_wasm_std::nonempty;
-use cosmwasm_std::{CosmosMsg, CustomMsg};
+use cosmwasm_std::{Coin, CosmosMsg, CustomMsg};
 use error_stack::{Report, Result, ResultExt};
 use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
 use schemars::JsonSchema;
@@ -22,6 +22,8 @@ pub struct Message {
     pub source_tx_id: nonempty::Vec<u8>,
     pub source_tx_index: u64,
     pub id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub token: Option<Coin>,
 }
 
 impl CustomMsg for Message {}
@@ -52,6 +54,7 @@ impl From<router_api::Message> for Message {
             source_tx_id,
             source_tx_index,
             id: msg.cc_id.message_id.into(),
+            token: None,
         }
     }
 }
@@ -104,6 +107,7 @@ mod test {
             source_tx_id: msg_id.tx_hash.to_vec().try_into().unwrap(),
             source_tx_index: msg_id.event_index as u64,
             id: msg_id.to_string(),
+            token: None,
         };
 
         let router_msg = router_api::Message::try_from(msg.clone());

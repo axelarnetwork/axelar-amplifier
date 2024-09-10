@@ -1,8 +1,15 @@
 use axelar_wasm_std::vec::VecExt;
-use cosmwasm_std::{HexBinary, WasmMsg};
+use cosmwasm_std::{Addr, HexBinary, WasmMsg};
+use error_stack::{Result, ResultExt};
 use router_api::{Address, ChainName, CrossChainId, Message};
 
 use crate::msg::{ExecuteMsg, QueryMsg};
+
+#[derive(thiserror::Error, Debug, PartialEq)]
+pub enum Error {
+    #[error("failed to query the chain name at gateway contract {0}")]
+    QueryChainName(Addr),
+}
 
 impl<'a> From<client::Client<'a, ExecuteMsg, QueryMsg>> for Client<'a> {
     fn from(client: client::Client<'a, ExecuteMsg, QueryMsg>) -> Self {
@@ -36,22 +43,40 @@ impl<'a> Client<'a> {
         msgs.to_none_if_empty()
             .map(|messages| self.client.execute(&ExecuteMsg::RouteMessages(messages)))
     }
+
+    pub fn chain_name(&self) -> Result<ChainName, Error> {
+        self.client
+            .query(&QueryMsg::ChainName)
+            .change_context_lazy(|| Error::QueryChainName(self.client.address.clone()))
+    }
 }
 
 #[cfg(test)]
 mod test {
+    use std::str::FromStr;
+
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info, MockQuerier};
-    use cosmwasm_std::{to_json_binary, Addr, DepsMut, QuerierWrapper};
+    use cosmwasm_std::{from_json, to_json_binary, Addr, DepsMut, QuerierWrapper, WasmQuery};
 
     use super::*;
-    use crate::contract::instantiate;
+    use crate::contract::{instantiate, query};
     use crate::msg::InstantiateMsg;
+
+    #[test]
+    fn chain_name() {
+        let (querier, _, addr) = setup();
+        let client: Client = client::Client::new(QuerierWrapper::new(&querier), &addr).into();
+
+        assert_eq!(
+            client.chain_name().unwrap(),
+            ChainName::from_str("source-chain").unwrap()
+        );
+    }
 
     #[test]
     fn call_contract() {
         let (querier, _, addr) = setup();
-        let client: Client =
-            client::Client::new(QuerierWrapper::new(&querier), addr.clone()).into();
+        let client: Client = client::Client::new(QuerierWrapper::new(&querier), &addr).into();
 
         let destination_chain: ChainName = "destination-chain".parse().unwrap();
         let destination_address: Address = "destination-address".parse().unwrap();
@@ -81,8 +106,7 @@ mod test {
     #[test]
     fn execute_message() {
         let (querier, _, addr) = setup();
-        let client: Client =
-            client::Client::new(QuerierWrapper::new(&querier), addr.clone()).into();
+        let client: Client = client::Client::new(QuerierWrapper::new(&querier), &addr).into();
 
         let payload = HexBinary::from(vec![1, 2, 3]);
         let cc_id = CrossChainId::new("source-chain", "message-id").unwrap();
@@ -104,7 +128,14 @@ mod test {
         let mut deps = mock_dependencies();
         let instantiate_msg = instantiate_contract(deps.as_mut());
 
-        let querier = MockQuerier::default();
+        let mut querier = MockQuerier::default();
+        querier.update_wasm(move |msg| match msg {
+            WasmQuery::Smart { contract_addr, msg } if contract_addr == addr => {
+                let msg = from_json::<QueryMsg>(msg).unwrap();
+                Ok(query(deps.as_ref(), mock_env(), msg).into()).into()
+            }
+            _ => panic!("unexpected query: {:?}", msg),
+        });
 
         (querier, instantiate_msg, Addr::unchecked(addr))
     }

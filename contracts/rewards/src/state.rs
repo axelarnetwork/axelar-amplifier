@@ -24,6 +24,8 @@ const POOLS: Map<PoolId, RewardsPool> = Map::new("pools");
 /// have had rewards distributed already and all epochs after have not yet had rewards distributed for this pool
 const WATERMARKS: Map<PoolId, u64> = Map::new("rewards_watermarks");
 
+pub const VERIFIER_PROXY_ADDRESSES: Map<Addr, Addr> = Map::new("verifier_proxy_addresses");
+
 pub const CONFIG: Item<Config> = Item::new("config");
 
 #[cw_serde]
@@ -260,9 +262,15 @@ impl RewardsPool {
 }
 
 #[cw_serde]
+#[derive(Eq, Hash, PartialOrd, Ord)]
+pub struct Verifier {
+    pub verifier_address: Addr,
+    pub proxy_address: Option<Addr>,
+}
+#[cw_serde]
 pub struct RewardsDistribution {
     /// Amount of rewards denom each verifier received
-    pub rewards: HashMap<Addr, Uint128>,
+    pub rewards: HashMap<Verifier, Uint128>,
     /// List of epochs processed for this distribution
     pub epochs_processed: Vec<u64>,
     /// Epoch in which rewards were distributed
@@ -405,6 +413,39 @@ pub fn current_epoch(
         &load_rewards_pool_params(storage, pool_id.to_owned())?,
         cur_block_height,
     )
+}
+
+pub fn save_verifier_proxy(
+    storage: &mut dyn Storage,
+    proxy_address: &Addr,
+    verifier_addr: &Addr,
+) -> Result<(), ContractError> {
+    VERIFIER_PROXY_ADDRESSES
+        .save(storage, verifier_addr.to_owned(), proxy_address)
+        .change_context(ContractError::SaveProxyAddress)
+}
+
+pub fn remove_verifier_proxy(storage: &mut dyn Storage, verifier_addr: &Addr) {
+    VERIFIER_PROXY_ADDRESSES.remove(storage, verifier_addr.to_owned())
+}
+
+pub fn may_load_verifier_proxy(
+    storage: &dyn Storage,
+    verifier_addr: &Addr,
+) -> Result<Option<Addr>, ContractError> {
+    VERIFIER_PROXY_ADDRESSES
+        .may_load(storage, verifier_addr.to_owned())
+        .change_context(ContractError::LoadProxyAddress)
+}
+
+pub fn load_verifier(
+    storage: &dyn Storage,
+    verifier_addr: &Addr,
+) -> Result<Verifier, ContractError> {
+    may_load_verifier_proxy(storage, verifier_addr).map(|proxy_address| Verifier {
+        verifier_address: verifier_addr.to_owned(),
+        proxy_address,
+    })
 }
 
 pub enum StorageState<T> {
