@@ -72,13 +72,13 @@ pub fn deregister_chains_support(
 
 #[cfg(test)]
 mod tests {
-    use axelar_wasm_std::nonempty;
-    use cosmwasm_std::{Timestamp, Uint128};
-    use service_registry_api::{AuthorizationState, BondingState, Verifier};
     use std::str::FromStr;
     use std::vec;
 
+    use axelar_wasm_std::nonempty;
     use cosmwasm_std::testing::mock_dependencies;
+    use cosmwasm_std::{Timestamp, Uint128};
+    use service_registry_api::{AuthorizationState, BondingState, Verifier};
 
     use super::*;
 
