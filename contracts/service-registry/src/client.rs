@@ -1,8 +1,8 @@
 use error_stack::ResultExt;
 use router_api::ChainName;
 
-use service_registry_api::msg::{ExecuteMsg, QueryMsg};
 use crate::{Service, Verifier, WeightedVerifier};
+use service_registry_api::msg::{ExecuteMsg, QueryMsg};
 
 type Result<T> = error_stack::Result<T, Error>;
 
@@ -94,8 +94,8 @@ mod test {
     use router_api::ChainName;
 
     use crate::client::Client;
-    use crate::msg::QueryMsg;
     use crate::{Service, Verifier, WeightedVerifier};
+    use service_registry_api::msg::QueryMsg;
 
     #[test]
     fn query_active_verifiers_returns_error_when_query_fails() {

@@ -2,7 +2,7 @@ use axelar_wasm_std::{nonempty, IntoContractError};
 use cosmwasm_std::{OverflowError, StdError};
 use thiserror::Error;
 
-use crate::state::BondingState;
+use crate::primitives::BondingState;
 
 #[derive(Error, Debug, PartialEq, IntoContractError)]
 pub enum ContractError {

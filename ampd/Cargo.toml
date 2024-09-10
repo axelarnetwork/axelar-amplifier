@@ -46,7 +46,7 @@ router-api = { workspace = true }
 serde = { version = "1.0.147", features = ["derive"] }
 serde_json = { workspace = true }
 serde_with = "3.2.0"
-service-registry = { workspace = true }
+service-registry-api = { workspace = true }
 sha3 = { workspace = true }
 sui-gateway = { workspace = true }
 sui-json-rpc-types = { git = "https://github.com/mystenlabs/sui", tag = "mainnet-v1.26.2" }

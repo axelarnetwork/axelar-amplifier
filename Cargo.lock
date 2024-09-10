@@ -266,7 +266,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_with 3.8.1",
- "service-registry",
+ "service-registry-api",
  "sha3",
  "sui-gateway",
  "sui-json-rpc-types",
@@ -4111,6 +4111,7 @@ dependencies = [
  "serde",
  "serde_json",
  "service-registry",
+ "service-registry-api",
  "sha3",
  "tofn",
  "voting-verifier",
@@ -5085,7 +5086,7 @@ dependencies = [
  "report",
  "router-api",
  "serde_json",
- "service-registry",
+ "service-registry-api",
  "sha3",
  "stellar",
  "sui-gateway",
@@ -7567,6 +7568,7 @@ dependencies = [
  "axelar-wasm-std",
  "cosmwasm-schema",
  "cosmwasm-std",
+ "cw-storage-plus 1.2.0",
  "error-stack",
  "goldie",
  "msgs-derive",
@@ -7574,6 +7576,7 @@ dependencies = [
  "router-api",
  "schemars",
  "serde",
+ "thiserror",
 ]
 
 [[package]]

@@ -1,10 +1,13 @@
-use cosmwasm_std::Order;
+use axelar_wasm_std::address;
+use cosmwasm_std::{Deps, Order};
 use itertools::Itertools;
 use router_api::ChainName;
 
-use super::*;
+use crate::state::VERIFIERS_PER_CHAIN;
 use service_registry_api::msg::VerifierDetails;
-use crate::state::{WeightedVerifier, VERIFIERS, VERIFIERS_PER_CHAIN, VERIFIER_WEIGHT};
+use service_registry_api::*;
+
+use service_registry_api::error::ContractError;
 
 pub fn active_verifiers(
     deps: Deps,

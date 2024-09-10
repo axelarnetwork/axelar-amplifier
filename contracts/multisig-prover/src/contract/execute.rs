@@ -12,7 +12,7 @@ use itertools::Itertools;
 use multisig::msg::Signer;
 use multisig::verifier_set::VerifierSet;
 use router_api::{ChainName, CrossChainId, Message};
-use service_registry::{Service, WeightedVerifier};
+use service_registry_api::{Service, WeightedVerifier};
 
 use crate::contract::START_MULTISIG_REPLY_ID;
 use crate::error::ContractError;
@@ -119,7 +119,7 @@ fn make_verifier_set(
     env: &Env,
     config: &Config,
 ) -> Result<VerifierSet, ContractError> {
-    let active_verifiers_query = service_registry::msg::QueryMsg::ActiveVerifiers {
+    let active_verifiers_query = service_registry_api::msg::QueryMsg::ActiveVerifiers {
         service_name: config.service_name.clone(),
         chain_name: config.chain_name.clone(),
     };
@@ -134,7 +134,7 @@ fn make_verifier_set(
         .querier
         .query::<Service>(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: config.service_registry.to_string(),
-            msg: to_json_binary(&service_registry::msg::QueryMsg::Service {
+            msg: to_json_binary(&service_registry_api::msg::QueryMsg::Service {
                 service_name: config.service_name.clone(),
             })?,
         }))?

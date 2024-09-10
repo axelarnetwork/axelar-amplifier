@@ -4,7 +4,7 @@ use multisig::msg::Signer;
 use multisig::multisig::Multisig;
 use multisig::types::MultisigState;
 use multisig::verifier_set::VerifierSet;
-use service_registry::{
+use service_registry_api::{
     AuthorizationState, BondingState, Verifier, WeightedVerifier, VERIFIER_WEIGHT,
 };
 
@@ -113,12 +113,12 @@ fn mock_multisig(operators: Vec<TestOperator>) -> Multisig {
 }
 
 fn service_registry_mock_querier_handler(
-    msg: service_registry::msg::QueryMsg,
+    msg: service_registry_api::msg::QueryMsg,
     operators: Vec<TestOperator>,
 ) -> QuerierResult {
     let result = match msg {
-        service_registry::msg::QueryMsg::Service { service_name } => {
-            to_json_binary(&service_registry::Service {
+        service_registry_api::msg::QueryMsg::Service { service_name } => {
+            to_json_binary(&service_registry_api::Service {
                 name: service_name.to_string(),
                 coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS),
                 min_num_verifiers: 1,
@@ -129,7 +129,7 @@ fn service_registry_mock_querier_handler(
                 description: "verifiers".to_string(),
             })
         }
-        service_registry::msg::QueryMsg::ActiveVerifiers {
+        service_registry_api::msg::QueryMsg::ActiveVerifiers {
             service_name: _,
             chain_name: _,
         } => to_json_binary(
