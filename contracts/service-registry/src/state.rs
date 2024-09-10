@@ -1,9 +1,7 @@
-use axelar_wasm_std::nonempty;
-use cosmwasm_std::{Addr, Storage, Timestamp, Uint128};
+use cosmwasm_std::{Addr, Storage};
 use cw_storage_plus::{Index, IndexList, IndexedMap, KeyDeserialize, MultiIndex};
 use router_api::ChainName;
 use service_registry_api::error::ContractError;
-use service_registry_api::*;
 
 type ServiceName = String;
 type VerifierAddress = Addr;
@@ -74,6 +72,9 @@ pub fn deregister_chains_support(
 
 #[cfg(test)]
 mod tests {
+    use axelar_wasm_std::nonempty;
+    use cosmwasm_std::{Timestamp, Uint128};
+    use service_registry_api::{AuthorizationState, BondingState, Verifier};
     use std::str::FromStr;
     use std::vec;
 
