@@ -1,0 +1,10 @@
+{
+  "name": "verifiers",
+  "coordinator_contract": "coordinator",
+  "min_num_verifiers": 1,
+  "max_num_verifiers": null,
+  "min_verifier_bond": "1",
+  "bond_denom": "uaxl",
+  "unbonding_period_days": 10,
+  "description": "some service"
+}

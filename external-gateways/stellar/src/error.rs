@@ -8,4 +8,8 @@ pub enum Error {
     InvalidPublicKey,
     #[error("invalid destination address")]
     InvalidDestinationAddress,
+    #[error("unsupported type of signature")]
+    UnsupportedSignature,
+    #[error("invalid signature")]
+    InvalidSignature,
 }

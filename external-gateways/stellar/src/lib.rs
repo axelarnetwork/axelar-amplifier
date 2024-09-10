@@ -4,8 +4,10 @@ use std::str::FromStr;
 
 use axelar_wasm_std::utils::TryMapExt;
 use cosmwasm_std::Uint256;
-use error_stack::{Report, ResultExt};
+use error_stack::{bail, Report, ResultExt};
 use multisig::key::PublicKey;
+use multisig::key::Signature::Ed25519;
+use multisig::msg::SignerWithSig;
 use multisig::verifier_set::VerifierSet;
 use sha3::{Digest, Keccak256};
 use stellar_strkey::Contract;
@@ -14,6 +16,7 @@ use stellar_xdr::curr::{
 };
 
 use crate::error::Error;
+use crate::error::Error::{InvalidPublicKey, InvalidSignature};
 
 #[derive(Debug, Clone)]
 pub enum CommandType {
@@ -95,6 +98,20 @@ pub struct Messages(Vec<Message>);
 impl From<Vec<Message>> for Messages {
     fn from(v: Vec<Message>) -> Self {
         Messages(v)
+    }
+}
+
+impl TryFrom<Messages> for ScVal {
+    type Error = XdrError;
+
+    fn try_from(value: Messages) -> Result<Self, XdrError> {
+        let messages = value
+            .0
+            .iter()
+            .map(|message| message.clone().try_into())
+            .collect::<Result<Vec<ScVal>, _>>()?;
+
+        Ok(ScVal::Vec(Some(VecM::try_from(messages)?.into())))
     }
 }
 
@@ -214,6 +231,123 @@ impl TryFrom<&VerifierSet> for WeightedSigners {
     }
 }
 
+#[derive(Clone, Debug)]
+pub enum ProofSignature {
+    Signed(BytesM<64>), // Ed25519 signature
+    Unsigned,
+}
+
+impl TryFrom<ProofSignature> for ScVal {
+    type Error = XdrError;
+
+    fn try_from(value: ProofSignature) -> Result<Self, XdrError> {
+        let val: VecM<ScVal> = match value {
+            ProofSignature::Signed(signature) => vec![
+                ScVal::Symbol(StringM::from_str("Signed")?.into()),
+                ScVal::Bytes(signature.to_vec().try_into()?),
+            ]
+            .try_into()?,
+
+            ProofSignature::Unsigned => {
+                vec![ScVal::Symbol(StringM::from_str("Unsigned")?.into())].try_into()?
+            }
+        };
+
+        Ok(ScVal::Vec(Some(val.into())))
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct ProofSigner {
+    pub signer: WeightedSigner,
+    pub signature: ProofSignature,
+}
+
+impl TryFrom<ProofSigner> for ScVal {
+    type Error = XdrError;
+
+    fn try_from(value: ProofSigner) -> Result<Self, XdrError> {
+        let keys: [&'static str; 2] = ["signature", "signer"];
+        let vals: [ScVal; 2] = [
+            value.signature.clone().try_into()?,
+            value.signer.clone().try_into()?,
+        ];
+
+        sc_map_from_slices(&keys, &vals)
+    }
+}
+
+impl TryFrom<SignerWithSig> for ProofSigner {
+    type Error = Report<Error>;
+
+    fn try_from(value: SignerWithSig) -> Result<Self, Self::Error> {
+        let signer = WeightedSigner {
+            signer: BytesM::try_from(value.signer.pub_key.as_ref())
+                .change_context(InvalidPublicKey)?,
+            weight: value.signer.weight.into(),
+        };
+
+        let signature = match value.signature {
+            Ed25519(signature) => ProofSignature::Signed(
+                BytesM::try_from(signature.to_vec()).change_context(InvalidSignature)?,
+            ),
+            _ => bail!(Error::UnsupportedSignature),
+        };
+
+        Ok(Self { signer, signature })
+    }
+}
+#[derive(Clone, Debug)]
+pub struct Proof {
+    pub signers: Vec<ProofSigner>,
+    pub threshold: u128,
+    pub nonce: BytesM<32>,
+}
+
+impl TryFrom<Proof> for ScVal {
+    type Error = XdrError;
+
+    fn try_from(value: Proof) -> Result<Self, XdrError> {
+        let signers = value.signers.clone().try_map(|signer| signer.try_into())?;
+
+        let keys: [&'static str; 3] = ["nonce", "signers", "threshold"];
+
+        let vals: [ScVal; 3] = [
+            ScVal::Bytes(value.nonce.to_vec().try_into()?),
+            ScVal::Vec(Some(signers.try_into()?)),
+            value.threshold.into(),
+        ];
+
+        sc_map_from_slices(&keys, &vals)
+    }
+}
+
+impl TryFrom<(VerifierSet, Vec<SignerWithSig>)> for Proof {
+    type Error = Report<Error>;
+
+    fn try_from(
+        (verifier_set, mut signers): (VerifierSet, Vec<SignerWithSig>),
+    ) -> Result<Self, Self::Error> {
+        signers.sort_by(|signer1, signer2| signer1.signer.pub_key.cmp(&signer2.signer.pub_key));
+
+        let signers = signers
+            .into_iter()
+            .map(TryInto::try_into)
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let nonce = Uint256::from(verifier_set.created_at)
+            .to_be_bytes()
+            .try_into()
+            .expect("must convert from 32 bytes");
+
+        Ok(Self {
+            signers,
+            threshold: verifier_set.threshold.into(),
+            nonce,
+        })
+    }
+}
+
 /// Form a new Map from a slice of symbol-names and a slice of values. Keys must be in sorted order.
 fn sc_map_from_slices(keys: &[&str], vals: &[ScVal]) -> Result<ScVal, XdrError> {
     let vec: VecM<ScMapEntry> = keys
@@ -238,7 +372,10 @@ mod test {
     use serde::Serialize;
     use stellar_xdr::curr::{Limits, ScVal, WriteXdr};
 
-    use crate::{CommandType, Message, Messages, WeightedSigner, WeightedSigners};
+    use crate::{
+        CommandType, Message, Messages, Proof, ProofSignature, ProofSigner, WeightedSigner,
+        WeightedSigners,
+    };
 
     #[test]
     fn command_type_encode() {
@@ -337,5 +474,79 @@ mod test {
         goldie::assert!(
             HexBinary::from(weighted_signers.signers_rotation_hash().unwrap()).to_hex()
         );
+    }
+
+    #[test]
+    fn proof_signature_encode() {
+        let unsigned = ScVal::try_from(ProofSignature::Unsigned)
+            .unwrap()
+            .to_xdr(Limits::none())
+            .unwrap()
+            .then(HexBinary::from)
+            .to_hex();
+
+        let signed = ScVal::try_from(ProofSignature::Signed("623ba3c98cfe635fd045b802f83471f0e8ba375aba4c8b8d03192859f5d9c1b09659807675850387c808432a3d8a894bc70e5988238ec9d2f7356eda53e468b0"
+            .parse()
+            .unwrap()))
+            .unwrap()
+            .to_xdr(Limits::none())
+            .unwrap()
+            .then(HexBinary::from)
+            .to_hex();
+
+        goldie::assert_json!(&vec![unsigned, signed]);
+    }
+
+    #[test]
+    fn proof_signer_encode() {
+        let proof_signer = ProofSigner {
+            signer: WeightedSigner {
+                signer: "39f771f3bd457def6c426d72c0ea3be8cacaf886845cc5eee821fb51f9af08a4".parse().unwrap(),
+                weight: 8,
+            },
+            signature: ProofSignature::Signed("ad2086a694ce4d34ad0643a5f337f6a7d71d25dd2c516b02eb8e2c43f0d5dc72770515c8619358efbd740de68b9f62ade186e356541864dae79039ee18b4530b".parse()
+                .unwrap()),
+        };
+
+        goldie::assert!(HexBinary::from(
+            ScVal::try_from(proof_signer)
+                .unwrap()
+                .to_xdr(Limits::none())
+                .unwrap()
+        )
+        .to_hex());
+    }
+
+    #[test]
+    fn proof_encode() {
+        let signers = vec![
+            ("56ab9b9fa21dc37d77d093ba8d0a954ee4af43fb701e93751352876c78e9d950", 8, "ad2e9cf32faf4f004e7005b7a0959c65882ce66279e46f6bcd3c231e88381bb7c0b54378ec31c526af770d0abf3965c790e8b850c34521f8565eb467110d1505"),
+            ("6ca711b4a5dec4c05f93ec6c61bce0b2a624f5dae358a5801b02a10404997918",2,"2abbbfe5d730e8c72c0393c465c9e34c45c5745e0d72fc817cacaa2ecfd4cf00d4751e9853cac9ded1afb17d00316382fde62db962a628893e6f28985a3b3c00"),
+            ("cf26fe65ca2c10ed3977d941e7f592793397bc33e549e381117bd6a199b983c7",8,"c5c268c3b4ecd78984fe4579f8e421eefbea19b1a2310c5fe43f45fb338c023f808b2bd44d766b840fe5297e711f06a8a2ae7a74094a0b6abc2c92aa7a234409"),
+            ("fd65bd8136a40785b413624070c19677a4d42f9227c0c41624b5c63f58400668", 4, "c4c68ecb792f0b0509214f31ed986dad776d4f6813a0f5318c32eb14e20774a54849f4427ba1e826db3e7c39c8afb560a182ecebdb51eb41e425bd3e1cb57b08"),
+            ("fe571761ad0a9834027e11e6c0a5166972054fbdd7452566e9c31f271f6caad9", 9,"0af1cc063353d57f3722ba93e021dc23e3498735affa2a65638bd7926f9290006df8643f75ff55c5ef55b38647464280680d5d699b588392c0188a9337afea03")
+        ].iter().map(|(signer, weight, signature)| ProofSigner {
+            signer: WeightedSigner {
+                signer: signer.parse().unwrap(),
+                weight: *weight,
+            },
+            signature: ProofSignature::Signed(signature.parse().unwrap()),
+        }).collect();
+
+        let proof = Proof {
+            signers,
+            threshold: 21,
+            nonce: "00000000000000000000000000000000000000000000000000000000000007e8"
+                .parse()
+                .unwrap(),
+        };
+
+        goldie::assert!(HexBinary::from(
+            ScVal::try_from(proof)
+                .unwrap()
+                .to_xdr(Limits::none())
+                .unwrap()
+        )
+        .to_hex());
     }
 }
