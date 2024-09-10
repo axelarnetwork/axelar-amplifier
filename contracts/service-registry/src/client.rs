@@ -168,7 +168,7 @@ mod test {
     }
 
     fn setup_queries_to_fail() -> (MockQuerier, Addr) {
-        let addr = "multisig";
+        let addr = "service-registry";
 
         let mut querier = MockQuerier::default();
         querier.update_wasm(move |msg| match msg {
