@@ -33,6 +33,7 @@ optimize = """docker run --rm -v "$(pwd)":/code \
 
 [dependencies]
 axelar-wasm-std = { workspace = true, features = ["derive"] }
+client = { workspace = true }
 coordinator = { workspace = true, features = ["library"] }
 cosmwasm-schema = { workspace = true }
 cosmwasm-std = { workspace = true }
@@ -49,6 +50,7 @@ thiserror = { workspace = true }
 
 [dev-dependencies]
 cw-multi-test = "0.15.1"
+goldie = { workspace = true }
 integration-tests = { workspace = true }
 
 [lints]

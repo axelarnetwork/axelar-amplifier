@@ -1,16 +1,18 @@
 use axelar_wasm_std::address;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{Addr, DepsMut, Empty, Env, MessageInfo, Response, Storage};
+use cosmwasm_std::{Addr, DepsMut, Env, MessageInfo, Response, Storage};
 use error_stack::Report;
+use migrations::v1_0_0;
 
 use crate::contract::execute::{call_contract_with_token, route_to_nexus, route_to_router};
 use crate::error::ContractError;
-use crate::msg::{ExecuteMsg, InstantiateMsg};
+use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg};
 use crate::state::Config;
 use crate::{nexus, state};
 
 mod execute;
+mod migrations;
 
 const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -19,11 +21,9 @@ const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub fn migrate(
     deps: DepsMut,
     _env: Env,
-    _msg: Empty,
+    msg: MigrateMsg,
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
-    // any version checks should be done before here
-
-    cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+    v1_0_0::migrate(deps, msg)?;
 
     Ok(Response::default())
 }
@@ -39,14 +39,14 @@ pub fn instantiate(
 
     let nexus = address::validate_cosmwasm_address(deps.api, &msg.nexus)?;
     let router = address::validate_cosmwasm_address(deps.api, &msg.router)?;
-    let axelar_gateway = address::validate_cosmwasm_address(deps.api, &msg.axelar_gateway)?;
+    let axelarnet_gateway = address::validate_cosmwasm_address(deps.api, &msg.axelarnet_gateway)?;
 
     state::save_config(
         deps.storage,
         Config {
             nexus,
             router,
-            axelar_gateway,
+            axelarnet_gateway,
         },
     )
     .expect("config must be saved");
@@ -105,18 +105,7 @@ mod tests {
 
     const NEXUS: &str = "nexus";
     const ROUTER: &str = "router";
-    const AXELAR_GATEWAY: &str = "axelar_gateway";
-
-    #[test]
-    fn migrate_sets_contract_version() {
-        let mut deps = mock_dependencies();
-
-        migrate(deps.as_mut(), mock_env(), Empty {}).unwrap();
-
-        let contract_version = cw2::get_contract_version(deps.as_mut().storage).unwrap();
-        assert_eq!(contract_version.contract, "nexus-gateway");
-        assert_eq!(contract_version.version, CONTRACT_VERSION);
-    }
+    const AXELARNET_GATEWAY: &str = "axelarnet_gateway";
 
     #[test]
     fn call_contract_with_token_no_token() {
@@ -146,7 +135,7 @@ mod tests {
     fn call_contract_with_token() {
         let mut deps = mock_dependencies();
         deps.querier.update_wasm(move |msg| match msg {
-            WasmQuery::Smart { contract_addr, msg } if contract_addr == AXELAR_GATEWAY => {
+            WasmQuery::Smart { contract_addr, msg } if contract_addr == AXELARNET_GATEWAY => {
                 let msg = from_json::<axelarnet_gateway::msg::QueryMsg>(msg).unwrap();
 
                 match msg {
@@ -413,7 +402,7 @@ mod tests {
             InstantiateMsg {
                 nexus: NEXUS.to_string(),
                 router: ROUTER.to_string(),
-                axelar_gateway: AXELAR_GATEWAY.to_string(),
+                axelarnet_gateway: AXELARNET_GATEWAY.to_string(),
             },
         )
         .unwrap();

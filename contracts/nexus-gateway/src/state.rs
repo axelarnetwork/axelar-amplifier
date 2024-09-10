@@ -40,5 +40,5 @@ pub fn is_message_routed(storage: &dyn Storage, id: &CrossChainId) -> Result<boo
 pub struct Config {
     pub nexus: Addr,
     pub router: Addr,
-    pub axelar_gateway: Addr,
+    pub axelarnet_gateway: Addr,
 }

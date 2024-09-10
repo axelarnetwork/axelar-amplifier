@@ -51,6 +51,7 @@ thiserror = { workspace = true }
 
 [dev-dependencies]
 alloy-primitives = { version = "0.7.7", features = ["getrandom"] }
+assert_ok = { workspace = true }
 cw-multi-test = "0.15.1"
 integration-tests = { workspace = true }
 multisig = { workspace = true, features = ["test", "library"] }

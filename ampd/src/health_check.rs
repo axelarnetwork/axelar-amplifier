@@ -38,7 +38,10 @@ impl Server {
 
         let app = Router::new().route("/status", get(status));
         axum::serve(listener, app)
-            .with_graceful_shutdown(async move { cancel.cancelled().await })
+            .with_graceful_shutdown(async move {
+                cancel.cancelled().await;
+                info!("exiting health check server")
+            })
             .await
             .change_context(Error::WhileRunning)
     }
