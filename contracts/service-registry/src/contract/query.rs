@@ -2,12 +2,11 @@ use axelar_wasm_std::address;
 use cosmwasm_std::{Deps, Order};
 use itertools::Itertools;
 use router_api::ChainName;
-
-use crate::state::VERIFIERS_PER_CHAIN;
+use service_registry_api::error::ContractError;
 use service_registry_api::msg::VerifierDetails;
 use service_registry_api::*;
 
-use service_registry_api::error::ContractError;
+use crate::state::VERIFIERS_PER_CHAIN;
 
 pub fn active_verifiers(
     deps: Deps,

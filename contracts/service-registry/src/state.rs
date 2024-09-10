@@ -2,7 +2,6 @@ use axelar_wasm_std::nonempty;
 use cosmwasm_std::{Addr, Storage, Timestamp, Uint128};
 use cw_storage_plus::{Index, IndexList, IndexedMap, KeyDeserialize, MultiIndex};
 use router_api::ChainName;
-
 use service_registry_api::error::ContractError;
 use service_registry_api::*;
 

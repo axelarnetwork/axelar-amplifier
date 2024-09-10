@@ -1,9 +1,9 @@
 use axelar_wasm_std::nonempty;
 use router_api::ChainName;
+use service_registry_api::{self, AuthorizationState, Verifier, VERIFIERS};
 
 use super::*;
 use crate::state::{self};
-use service_registry_api::{self, AuthorizationState, Verifier, VERIFIERS};
 
 #[allow(clippy::too_many_arguments)]
 pub fn register_service(
