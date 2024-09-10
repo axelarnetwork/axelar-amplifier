@@ -4,7 +4,7 @@ use axelar_wasm_std::{nonempty, Threshold};
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, Uint128, Uint64};
 use msgs_derive::EnsurePermissions;
-use router_api::ChainName;
+use router_api::{Address, ChainName};
 
 use crate::state::{Epoch, PoolId};
 
@@ -72,6 +72,15 @@ pub enum ExecuteMsg {
     /// Creates a rewards pool with the specified pool ID and parameters. Callable only by governance.
     #[permission(Governance)]
     CreatePool { params: Params, pool_id: PoolId },
+
+    /// Sets a proxy address for verifier rewards. Any future rewards distributed to the sender will instead
+    /// be distributed to the proxy address.
+    #[permission(Any)]
+    SetVerifierProxy { proxy_address: Address },
+
+    /// Removes any proxy address associated with the sender. Future verifier rewards will be distributed to the sender
+    #[permission(Any)]
+    RemoveVerifierProxy {},
 }
 
 #[cw_serde]
@@ -87,6 +96,10 @@ pub enum QueryMsg {
         pool_id: PoolId,
         epoch_num: Option<u64>,
     },
+
+    /// Gets the proxy address associated with the verifier, if any
+    #[returns(Option<Addr>)]
+    VerifierProxy { verifier: Address },
 }
 
 #[cw_serde]

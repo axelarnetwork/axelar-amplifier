@@ -8,8 +8,8 @@ use crate::stellar::http_client::TxResponse;
 
 const TOPIC_CALLED: &str = "called";
 
-impl PartialEq<&ContractEventBody> for &Message {
-    fn eq(&self, event: &&ContractEventBody) -> bool {
+impl PartialEq<ContractEventBody> for Message {
+    fn eq(&self, event: &ContractEventBody) -> bool {
         let ContractEventBody::V0(body) = event;
 
         if body.topics.len() != 3 {
@@ -23,19 +23,21 @@ impl PartialEq<&ContractEventBody> for &Message {
         let expected_topic: ScVal =
             ScSymbol(StringM::from_str(TOPIC_CALLED).expect("must convert str to ScSymbol")).into();
 
-        symbol == &expected_topic
-            && (source_address == &ScVal::Address(self.source_address.clone()))
-            && (payload_hash == &ScVal::Bytes(self.payload_hash.clone()))
-            && match &body.data {
-                ScVal::Vec(Some(data)) if data.len() == 3 => {
-                    let [dest_chain, dest_address, _] = &data[..] else {
-                        return false;
-                    };
-                    (ScVal::String(self.destination_chain.clone()) == *dest_chain)
-                        && (ScVal::String(self.destination_address.clone()) == *dest_address)
-                }
-                _ => false,
+        let (dest_chain, dest_address) = match &body.data {
+            ScVal::Vec(Some(data)) if data.len() == 3 => {
+                let [dest_chain, dest_address, _] = &data[..] else {
+                    return false;
+                };
+                (dest_chain, dest_address)
             }
+            _ => return false,
+        };
+
+        expected_topic == *symbol
+            && (ScVal::Address(self.source_address.clone()) == *source_address)
+            && (ScVal::Bytes(self.payload_hash.clone()) == *payload_hash)
+            && (ScVal::String(self.destination_chain.clone()) == *dest_chain)
+            && (ScVal::String(self.destination_address.clone()) == *dest_address)
     }
 }
 

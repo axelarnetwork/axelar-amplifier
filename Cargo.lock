@@ -707,6 +707,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "assert_ok"
+version = "1.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7c770ef7624541db11cce57929f00e737fef89157d7c1cd1977b20ee74fefd84"
+
+[[package]]
 name = "async-compression"
 version = "0.3.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -807,6 +813,7 @@ name = "axelar-wasm-std"
 version = "1.0.0"
 dependencies = [
  "alloy-primitives",
+ "assert_ok",
  "axelar-wasm-std-derive",
  "bs58 0.5.1",
  "cosmwasm-schema",
@@ -828,6 +835,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha3",
+ "stellar-xdr",
  "strum 0.25.0",
  "sui-types 1.0.0",
  "thiserror",
@@ -848,8 +856,9 @@ dependencies = [
 
 [[package]]
 name = "axelarnet-gateway"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
+ "assert_ok",
  "axelar-wasm-std",
  "client",
  "cosmwasm-schema",
@@ -3287,11 +3296,14 @@ name = "gateway-api"
 version = "1.0.0"
 dependencies = [
  "axelar-wasm-std",
+ "client",
  "cosmwasm-schema",
  "cosmwasm-std",
  "error-stack",
+ "goldie",
  "msgs-derive",
  "router-api",
+ "thiserror",
 ]
 
 [[package]]
@@ -4928,6 +4940,7 @@ name = "multisig"
 version = "1.0.0"
 dependencies = [
  "axelar-wasm-std",
+ "client",
  "cosmwasm-crypto",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -4990,6 +5003,7 @@ dependencies = [
  "service-registry",
  "sha3",
  "stellar",
+ "stellar-xdr",
  "sui-gateway",
  "thiserror",
  "voting-verifier",
@@ -7315,9 +7329,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.127"
+version = "1.0.128"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8043c06d9f82bd7271361ed64f415fe5e12a77fdb52e573e7f06a516dea329ad"
+checksum = "6ff5456707a1de34e7e37f2a6fd3d3f808c318259cbd01ab6377795054b483d8"
 dependencies = [
  "indexmap 2.2.6",
  "itoa",
@@ -7443,6 +7457,7 @@ name = "service-registry"
 version = "1.0.0"
 dependencies = [
  "axelar-wasm-std",
+ "client",
  "coordinator",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -7450,7 +7465,9 @@ dependencies = [
  "cw-storage-plus 1.2.0",
  "cw2 1.1.2",
  "error-stack",
+ "goldie",
  "integration-tests",
+ "itertools 0.11.0",
  "msgs-derive",
  "report",
  "router-api",
@@ -7740,7 +7757,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha3",
- "stellar-strkey",
+ "stellar-strkey 0.0.10",
  "stellar-xdr",
  "thiserror",
 ]
@@ -7777,6 +7794,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "stellar-strkey"
+version = "0.0.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9ecda1f64c0a1427563b0b35aa771b66c6ce508f02b18effcae1d0ab1261d014"
+dependencies = [
+ "crate-git-revision",
+ "data-encoding",
+ "thiserror",
+]
+
+[[package]]
 name = "stellar-xdr"
 version = "21.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7789,7 +7817,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_with 3.8.1",
- "stellar-strkey",
+ "stellar-strkey 0.0.8",
 ]
 
 [[package]]
@@ -9258,6 +9286,7 @@ name = "voting-verifier"
 version = "1.0.0"
 dependencies = [
  "alloy-primitives",
+ "assert_ok",
  "axelar-wasm-std",
  "client",
  "cosmwasm-schema",

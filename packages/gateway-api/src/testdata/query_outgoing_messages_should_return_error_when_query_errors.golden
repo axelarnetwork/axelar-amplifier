@@ -1,0 +1,1 @@
+failed to query gateway for outgoing messages. message ids: [CrossChainId { source_chain: ChainNameRaw("ethereum"), message_id: String("0x13548ac28fe95805ad2b8b824472d08e3b45cbc023a5a45a912f11ea98f81e97-0") }]

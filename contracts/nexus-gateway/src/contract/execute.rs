@@ -21,7 +21,7 @@ pub fn call_contract_with_token(
 ) -> Result<Response<nexus::Message>> {
     let config = load_config(storage)?;
     let axelarnet_gateway: axelarnet_gateway::Client =
-        client::Client::new(querier, &config.axelar_gateway).into();
+        client::Client::new(querier, &config.axelarnet_gateway).into();
     let source_address: Address = info
         .sender
         .into_string()

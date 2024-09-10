@@ -1,12 +1,17 @@
-use std::collections::HashMap;
-
+use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Uint128};
 
 use crate::state::{Epoch, RewardsDistribution};
 
+#[cw_serde]
+pub struct VerifierDistribution {
+    pub verifier_address: Addr,
+    pub proxy_address: Option<Addr>,
+    pub amount: Uint128,
+}
 pub enum Event {
     RewardsDistributed {
-        rewards: HashMap<Addr, Uint128>,
+        rewards: Vec<VerifierDistribution>,
         epochs_processed: Vec<u64>,
         current_epoch: Epoch,
         can_distribute_more: bool,
@@ -16,7 +21,15 @@ pub enum Event {
 impl From<RewardsDistribution> for Event {
     fn from(value: RewardsDistribution) -> Self {
         Event::RewardsDistributed {
-            rewards: value.rewards,
+            rewards: value
+                .rewards
+                .into_iter()
+                .map(|(v, amount)| VerifierDistribution {
+                    verifier_address: v.verifier_address,
+                    proxy_address: v.proxy_address,
+                    amount,
+                })
+                .collect(),
             epochs_processed: value.epochs_processed,
             current_epoch: value.current_epoch,
             can_distribute_more: value.can_distribute_more,
