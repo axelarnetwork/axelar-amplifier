@@ -57,7 +57,7 @@ impl Encoder {
                 &self.digest(domain_separator, verifier_set, payload)?,
                 payload,
             ),
-            Encoder::StellarXdr => todo!(),
+            Encoder::StellarXdr => stellar_xdr::encode_execute_data(verifier_set, sigs, payload),
         }
     }
 }
@@ -70,7 +70,7 @@ where
     let recovery_transform = match encoder {
         Encoder::Abi => add_27,
         Encoder::Bcs => no_op,
-        Encoder::StellarXdr => no_op,
+        _ => panic!("unsupported encoder"),
     };
     signers
         .into_iter()
