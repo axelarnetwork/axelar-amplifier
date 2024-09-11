@@ -9,16 +9,16 @@ type Result<T> = error_stack::Result<T, Error>;
 #[derive(thiserror::Error, Debug, PartialEq)]
 pub enum Error {
     #[error("failed to query service registry for active verifiers for service {service_name} and chain {chain_name}")]
-    QueryActiveVerifiers {
+    ActiveVerifiers {
         service_name: String,
         chain_name: ChainName,
     },
 
     #[error("failed to query service registry for service {0}")]
-    QueryService(String),
+    Service(String),
 
     #[error("failed to query service registry for verifier {verifier} of service {service_name}")]
-    QueryVerifier {
+    Verifier {
         service_name: String,
         verifier: String,
     },
@@ -30,15 +30,15 @@ impl From<QueryMsg> for Error {
             QueryMsg::ActiveVerifiers {
                 service_name,
                 chain_name,
-            } => Error::QueryActiveVerifiers {
+            } => Error::ActiveVerifiers {
                 service_name,
                 chain_name,
             },
-            QueryMsg::Service { service_name } => Error::QueryService(service_name),
+            QueryMsg::Service { service_name } => Error::Service(service_name),
             QueryMsg::Verifier {
                 service_name,
                 verifier,
-            } => Error::QueryVerifier {
+            } => Error::Verifier {
                 service_name,
                 verifier,
             },
@@ -174,7 +174,7 @@ mod test {
     }
 
     fn setup_queries_to_fail() -> (MockQuerier, Addr) {
-        let addr = "multisig";
+        let addr = "service-registry";
 
         let mut querier = MockQuerier::default();
         querier.update_wasm(move |msg| match msg {
