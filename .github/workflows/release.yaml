@@ -18,6 +18,7 @@ on:
           - voting-verifier
           - coordinator
           - axelarnet-gateway
+          - interchain-token-service
       dry-run:
         description: Dry run
         type: boolean
@@ -50,6 +51,7 @@ jobs:
             ["voting-verifier"]="voting-verifier,/(major)|(major-voting-verifier)|(major-contracts)/,/(minor)|(minor-voting-verifier)|(minor-contracts)/,contracts/voting-verifier packages"
             ["coordinator"]="coordinator,/(major)|(major-coordinator)|(major-contracts)/,/(minor)|(minor-coordinator)|(minor-contracts)/,contracts/coordinator packages"
             ["axelarnet-gateway"]="axelarnet-gateway,/(major)|(major-axelarnet-gateway)|(major-contracts)/,/(minor)|(minor-axelarnet-gateway)|(minor-contracts)/,contracts/axelarnet-gateway packages"
+            ["interchain-token-service"]="interchain-token-service,/(major)|(major-interchain-token-service)|(major-contracts)/,/(minor)|(minor-interchain-token-service)|(minor-contracts)/,contracts/interchain-token-service packages"
           )
 
           if [[ -n "${binaries_data[$binary]}" ]]; then
