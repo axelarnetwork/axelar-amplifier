@@ -8,7 +8,7 @@ use thiserror::Error;
 use tokio::sync::{mpsc, Mutex};
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::Status;
-use tracing::{debug, error, info, trace};
+use tracing::{debug, error, trace};
 
 use super::cosmos;
 use crate::asyncutil::future::{with_retry, RetryPolicy};
