@@ -91,10 +91,6 @@ jobs:
             (cd $C && cargo build --release --lib --target wasm32-unknown-unknown --locked)
           done
 
-      - name: Build ITS release
-        working-directory: ./interchain-token-service
-        run: cargo build --release --lib --target wasm32-unknown-unknown --locked
-
       # cosmwasm-check v1.3.x is used to check for compatibility with wasmvm v1.3.x used by Axelar
       # Older rust toolchain is required to install cosmwasm-check v1.3.x
       - name: Install cosmwasm-check
