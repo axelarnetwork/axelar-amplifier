@@ -88,7 +88,7 @@ fn messages(
 ) -> Result<Vec<Message>, ContractError> {
     let length = message_ids.len();
 
-    let gateway: gateway_api::client::Client = client::Client::new(querier, &gateway).into();
+    let gateway: gateway_api::Client = client::Client::new(querier, &gateway).into();
 
     let messages = gateway
         .outgoing_messages(message_ids)
@@ -131,7 +131,7 @@ fn make_verifier_set(
         .change_context(ContractError::FailedToBuildVerifierSet)?
         .min_num_verifiers;
 
-    let multisig: multisig::client::Client =
+    let multisig: multisig::Client =
         client::Client::new(deps.querier, &config.multisig).into();
 
     let participants_with_pubkeys = verifiers

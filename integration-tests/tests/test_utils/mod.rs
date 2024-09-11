@@ -487,7 +487,6 @@ pub fn confirm_verifier_set(
         relayer_addr.clone(),
         &multisig_prover::msg::ExecuteMsg::ConfirmVerifierSet,
     );
-    println!("{:?}", response);
     assert!(response.is_ok());
 }
 
