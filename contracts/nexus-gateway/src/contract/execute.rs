@@ -33,11 +33,12 @@ pub fn call_contract_with_token(
         _ => bail!(Error::InvalidToken(info.funds)),
     };
 
-    let client: nexus::Client = client::Client::new(querier).into();
-    let tx_hash_and_nonce = client.tx_hash_and_nonce().change_context(Error::Nexus)?;
+    let client: nexus::Client = client::CosmosClient::new(querier).into();
+    let nexus::query::TxHashAndNonceResponse { tx_hash, nonce } =
+        client.tx_hash_and_nonce().change_context(Error::Nexus)?;
     let id = HexTxHashAndEventIndex::new(
-        tx_hash_and_nonce.tx_hash,
-        u32::try_from(tx_hash_and_nonce.nonce).change_context(Error::NonceOverflow)?,
+        tx_hash,
+        u32::try_from(nonce).change_context(Error::NonceOverflow)?,
     );
 
     // send the token to the nexus module account
@@ -54,12 +55,11 @@ pub fn call_contract_with_token(
         destination_chain,
         destination_address,
         payload_hash: Keccak256::digest(payload.as_slice()).into(),
-        source_tx_id: tx_hash_and_nonce
-            .tx_hash
+        source_tx_id: tx_hash
             .to_vec()
             .try_into()
             .expect("tx hash must not be empty"),
-        source_tx_index: tx_hash_and_nonce.nonce,
+        source_tx_index: nonce,
         id: nonempty::String::from(id).into(),
         token: Some(token),
     };

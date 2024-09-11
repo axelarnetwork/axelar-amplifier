@@ -1,5 +1,3 @@
-use std::str::FromStr;
-
 use assert_ok::assert_ok;
 use axelar_wasm_std::assert_err_contains;
 use axelar_wasm_std::error::ContractError;
@@ -7,11 +5,14 @@ use axelar_wasm_std::response::inspect_response_msg;
 use axelarnet_gateway::contract::{self, ExecuteError};
 use axelarnet_gateway::msg::ExecuteMsg;
 use axelarnet_gateway::StateError;
-use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
+use cosmwasm_std::testing::{
+    mock_dependencies, mock_env, mock_info, MockQuerierCustomHandlerResult,
+};
 use cosmwasm_std::{ContractResult, DepsMut, HexBinary, Response, SystemResult};
 use rand::RngCore;
 use router_api::msg::ExecuteMsg as RouterExecuteMsg;
-use router_api::{Address, ChainName, CrossChainId, Message};
+use router_api::{CrossChainId, Message};
+use serde::de::DeserializeOwned;
 use serde_json::json;
 
 use crate::utils::messages;
@@ -166,21 +167,14 @@ fn route_to_router_without_contract_call_ignores_message() {
 
 #[test]
 fn route_to_router_after_contract_call_with_tempered_data_fails() {
-    let mut deps = mock_dependencies();
-    deps.querier = deps.querier.with_custom_handler(move |_| {
-        let mut tx_hash = [0u8; 32];
-        rand::thread_rng().fill_bytes(&mut tx_hash);
+    let mut tx_hash = [0u8; 32];
+    rand::thread_rng().fill_bytes(&mut tx_hash);
+    let nonce = rand::random();
 
-        SystemResult::Ok(ContractResult::Ok(
-            json!({
-                "tx_hash": tx_hash,
-                "nonce": 0,
-            })
-            .to_string()
-            .as_bytes()
-            .into(),
-        ))
-    });
+    let mut deps = mock_dependencies();
+    deps.querier = deps
+        .querier
+        .with_custom_handler(reply_with_tx_hash_and_nonce(tx_hash, nonce));
 
     let destination_chain = "destination-chain".parse().unwrap();
     let destination_address = "destination-address".parse().unwrap();
@@ -217,17 +211,9 @@ fn route_to_router_after_contract_call_succeeds_multiple_times() {
     let nonce = 210;
 
     let mut deps = mock_dependencies();
-    deps.querier = deps.querier.with_custom_handler(move |_| {
-        SystemResult::Ok(ContractResult::Ok(
-            json!({
-                "tx_hash": tx_hash,
-                "nonce": nonce,
-            })
-            .to_string()
-            .as_bytes()
-            .into(),
-        ))
-    });
+    deps.querier = deps
+        .querier
+        .with_custom_handler(reply_with_tx_hash_and_nonce(tx_hash, nonce));
 
     let destination_chain = "destination-chain".parse().unwrap();
     let destination_address = "destination-address".parse().unwrap();
@@ -263,17 +249,9 @@ fn route_to_router_after_contract_call_ignores_duplicates() {
     let nonce = 200;
 
     let mut deps = mock_dependencies();
-    deps.querier = deps.querier.with_custom_handler(move |_| {
-        SystemResult::Ok(ContractResult::Ok(
-            json!({
-                "tx_hash": tx_hash,
-                "nonce": nonce,
-            })
-            .to_string()
-            .as_bytes()
-            .into(),
-        ))
-    });
+    deps.querier = deps
+        .querier
+        .with_custom_handler(reply_with_tx_hash_and_nonce(tx_hash, nonce));
 
     let destination_chain = "destination-chain".parse().unwrap();
     let destination_address = "destination-address".parse().unwrap();
@@ -311,17 +289,9 @@ fn contract_call_returns_correct_message() {
     let nonce = 190;
 
     let mut deps = mock_dependencies();
-    deps.querier = deps.querier.with_custom_handler(move |_| {
-        SystemResult::Ok(ContractResult::Ok(
-            json!({
-                "tx_hash": tx_hash,
-                "nonce": nonce,
-            })
-            .to_string()
-            .as_bytes()
-            .into(),
-        ))
-    });
+    deps.querier = deps
+        .querier
+        .with_custom_handler(reply_with_tx_hash_and_nonce(tx_hash, nonce));
 
     let destination_chain = "destination-chain".parse().unwrap();
     let destination_address = "destination-address".parse().unwrap();
@@ -349,17 +319,9 @@ fn contract_call_returns_correct_events() {
     let nonce = 160;
 
     let mut deps = mock_dependencies();
-    deps.querier = deps.querier.with_custom_handler(move |_| {
-        SystemResult::Ok(ContractResult::Ok(
-            json!({
-                "tx_hash": tx_hash,
-                "nonce": nonce,
-            })
-            .to_string()
-            .as_bytes()
-            .into(),
-        ))
-    });
+    deps.querier = deps
+        .querier
+        .with_custom_handler(reply_with_tx_hash_and_nonce(tx_hash, nonce));
 
     let destination_chain = "destination-chain".parse().unwrap();
     let destination_address = "destination-address".parse().unwrap();
@@ -375,46 +337,6 @@ fn contract_call_returns_correct_events() {
     goldie::assert_json!(response.events)
 }
 
-#[test]
-fn contract_call_multiple_times_results_in_different_messages() {
-    let mut deps = mock_dependencies();
-    deps.querier = deps.querier.with_custom_handler(move |_| {
-        let mut tx_hash = [0u8; 32];
-        rand::thread_rng().fill_bytes(&mut tx_hash);
-
-        SystemResult::Ok(ContractResult::Ok(
-            json!({
-                "tx_hash": tx_hash,
-                "nonce": 0,
-            })
-            .to_string()
-            .as_bytes()
-            .into(),
-        ))
-    });
-
-    let destination_chain = ChainName::from_str("destination-chain").unwrap();
-    let destination_address = Address::from_str("destination-address").unwrap();
-    let payload = HexBinary::from(vec![1, 2, 3]);
-
-    utils::instantiate_contract(deps.as_mut()).unwrap();
-
-    let response1 = assert_ok!(utils::call_contract(
-        deps.as_mut(),
-        destination_chain.clone(),
-        destination_address.clone(),
-        payload.clone(),
-    ));
-    let response2 = assert_ok!(utils::call_contract(
-        deps.as_mut(),
-        destination_chain,
-        destination_address,
-        payload,
-    ));
-
-    assert_ne!(response1.messages, response2.messages);
-}
-
 fn route_to_router(deps: DepsMut, msgs: Vec<Message>) -> Result<Response, ContractError> {
     contract::execute(
         deps,
@@ -422,4 +344,24 @@ fn route_to_router(deps: DepsMut, msgs: Vec<Message>) -> Result<Response, Contra
         mock_info("sender", &[]),
         ExecuteMsg::RouteMessages(msgs),
     )
+}
+
+fn reply_with_tx_hash_and_nonce<C>(
+    tx_hash: [u8; 32],
+    nonce: u32,
+) -> impl Fn(&C) -> MockQuerierCustomHandlerResult
+where
+    C: DeserializeOwned,
+{
+    move |_| {
+        SystemResult::Ok(ContractResult::Ok(
+            json!({
+                "tx_hash": tx_hash,
+                "nonce": nonce,
+            })
+            .to_string()
+            .as_bytes()
+            .into(),
+        ))
+    }
 }

@@ -15,12 +15,12 @@ pub enum Error {
     QueryFailed(#[from] StdError),
 }
 
-pub struct Client<'a, T = Empty> {
+pub struct CosmosClient<'a, T = Empty> {
     querier: QuerierWrapper<'a>,
     custom_msg_type: PhantomData<T>,
 }
 
-impl<'a, T> Client<'a, T> {
+impl<'a, T> CosmosClient<'a, T> {
     pub fn new(querier: QuerierWrapper<'a>) -> Self {
         Self {
             querier,
@@ -53,7 +53,7 @@ where
     M: Serialize,
     Q: Serialize,
 {
-    inner: Client<'a, T>,
+    inner: CosmosClient<'a, T>,
     pub address: &'a Addr,
     execute_msg_type: PhantomData<M>,
     query_msg_type: PhantomData<Q>,
@@ -66,7 +66,7 @@ where
 {
     pub fn new(querier: QuerierWrapper<'a>, address: &'a Addr) -> Self {
         Self {
-            inner: Client::new(querier),
+            inner: CosmosClient::new(querier),
             address,
             execute_msg_type: PhantomData,
             query_msg_type: PhantomData,

@@ -2,7 +2,7 @@ use cosmwasm_std::CosmosMsg;
 use error_stack::ResultExt;
 
 pub mod execute;
-pub(crate) mod query;
+pub mod query;
 
 type Result<T> = error_stack::Result<T, Error>;
 
@@ -16,11 +16,11 @@ pub enum Error {
 }
 
 pub struct Client<'a> {
-    inner: client::Client<'a, execute::Message>,
+    inner: client::CosmosClient<'a, execute::Message>,
 }
 
-impl<'a> From<client::Client<'a, execute::Message>> for Client<'a> {
-    fn from(inner: client::Client<'a, execute::Message>) -> Self {
+impl<'a> From<client::CosmosClient<'a, execute::Message>> for Client<'a> {
+    fn from(inner: client::CosmosClient<'a, execute::Message>) -> Self {
         Client { inner }
     }
 }
@@ -39,39 +39,48 @@ impl<'a> Client<'a> {
 
 #[cfg(test)]
 mod test {
-    use cosmwasm_std::testing::MockQuerier;
+    use cosmwasm_std::testing::{MockQuerier, MockQuerierCustomHandlerResult};
     use cosmwasm_std::{ContractResult, QuerierWrapper, SystemResult};
+    use rand::RngCore;
+    use serde::de::DeserializeOwned;
     use serde_json::json;
 
     use crate::nexus;
-    use crate::query::QueryMsg;
+    use crate::query::AxelarQueryMsg;
 
     #[test]
     fn query_tx_hash_and_nonce() {
-        let tx_hash = "bb9b5566c2f4876863333e481f4698350154259ffe6226e283b16ce18a64bcf1";
-        let nonce = 150u64;
-        let querier: MockQuerier<QueryMsg> =
-            MockQuerier::new(&[]).with_custom_handler(move |query| {
-                assert_eq!(
-                    *query,
-                    QueryMsg::Nexus(nexus::query::QueryMsg::TxHashAndNonce {})
-                );
+        let mut tx_hash = [0u8; 32];
+        rand::thread_rng().fill_bytes(&mut tx_hash);
+        let nonce = rand::random();
 
-                SystemResult::Ok(ContractResult::Ok(
-                    json!({
-                        "tx_hash": hex::decode(tx_hash).unwrap(),
-                        "nonce": nonce,
-                    })
-                    .to_string()
-                    .as_bytes()
-                    .into(),
-                ))
-            });
+        let querier: MockQuerier<AxelarQueryMsg> =
+            MockQuerier::new(&[]).with_custom_handler(reply_with_tx_hash_and_nonce(tx_hash, nonce));
 
-        let client: nexus::Client = client::Client::new(QuerierWrapper::new(&querier)).into();
+        let client: nexus::Client = client::CosmosClient::new(QuerierWrapper::new(&querier)).into();
 
-        assert!(client.tx_hash_and_nonce().is_ok_and(|response| {
-            response.tx_hash == *hex::decode(tx_hash).unwrap() && response.nonce == nonce
-        }));
+        assert!(client
+            .tx_hash_and_nonce()
+            .is_ok_and(|response| { response.tx_hash == tx_hash && response.nonce == nonce }));
+    }
+
+    fn reply_with_tx_hash_and_nonce<C>(
+        tx_hash: [u8; 32],
+        nonce: u64,
+    ) -> impl Fn(&C) -> MockQuerierCustomHandlerResult
+    where
+        C: DeserializeOwned,
+    {
+        move |_| {
+            SystemResult::Ok(ContractResult::Ok(
+                json!({
+                    "tx_hash": tx_hash,
+                    "nonce": nonce,
+                })
+                .to_string()
+                .as_bytes()
+                .into(),
+            ))
+        }
     }
 }

@@ -50,6 +50,7 @@ multisig = { version = "^1.0.0", path = "contracts/multisig" }
 multisig-prover = { version = "^1.0.0", path = "contracts/multisig-prover" }
 num-traits = { version = "0.2.14", default-features = false }
 quote = "1.0.36"
+rand = "0.8.5"
 report = { version = "^1.0.0", path = "packages/report" }
 rewards = { version = "^1.0.0", path = "contracts/rewards" }
 router = { version = "^1.0.0", path = "contracts/router" }

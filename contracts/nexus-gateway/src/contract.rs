@@ -95,7 +95,9 @@ mod tests {
     use axelar_core_std::nexus;
     use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
     use axelar_wasm_std::{err_contains, permission_control};
-    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
+    use cosmwasm_std::testing::{
+        mock_dependencies, mock_env, mock_info, MockQuerierCustomHandlerResult,
+    };
     use cosmwasm_std::{
         from_json, to_json_binary, Addr, BankMsg, Coin, ContractResult, CosmosMsg, QuerierResult,
         SubMsg, SystemResult, WasmMsg, WasmQuery,
@@ -103,6 +105,7 @@ mod tests {
     use hex::decode;
     use rand::RngCore;
     use router_api::CrossChainId;
+    use serde::de::DeserializeOwned;
     use serde_json::json;
 
     use super::*;
@@ -133,21 +136,14 @@ mod tests {
 
     #[test]
     fn call_contract_with_token() {
-        let mut deps = mock_dependencies();
-        deps.querier = deps.querier.with_custom_handler(move |_| {
-            let mut tx_hash = [0u8; 32];
-            rand::thread_rng().fill_bytes(&mut tx_hash);
+        let mut tx_hash = [0u8; 32];
+        rand::thread_rng().fill_bytes(&mut tx_hash);
+        let nonce = rand::random();
 
-            SystemResult::Ok(ContractResult::Ok(
-                json!({
-                    "tx_hash": tx_hash,
-                    "nonce": 0,
-                })
-                .to_string()
-                .as_bytes()
-                .into(),
-            ))
-        });
+        let mut deps = mock_dependencies();
+        deps.querier = deps
+            .querier
+            .with_custom_handler(reply_with_tx_hash_and_nonce(tx_hash, nonce));
         deps.querier.update_wasm(move |msg| match msg {
             WasmQuery::Smart { contract_addr, msg } if contract_addr == AXELARNET_GATEWAY => {
                 let msg = from_json::<axelarnet_gateway::msg::QueryMsg>(msg).unwrap();
@@ -420,5 +416,25 @@ mod tests {
             },
         )
         .unwrap();
+    }
+
+    fn reply_with_tx_hash_and_nonce<C>(
+        tx_hash: [u8; 32],
+        nonce: u32,
+    ) -> impl Fn(&C) -> MockQuerierCustomHandlerResult
+    where
+        C: DeserializeOwned,
+    {
+        move |_| {
+            SystemResult::Ok(ContractResult::Ok(
+                json!({
+                    "tx_hash": tx_hash,
+                    "nonce": nonce,
+                })
+                .to_string()
+                .as_bytes()
+                .into(),
+            ))
+        }
     }
 }

@@ -76,14 +76,15 @@ pub fn call_contract(
 ) -> Result<Response, Error> {
     let Config { router, chain_name } = state::load_config(storage);
 
-    let client: nexus::Client = client::Client::new(querier).into();
-    let tx_hash_and_nonce = client.tx_hash_and_nonce().change_context(Error::Nexus)?;
+    let client: nexus::Client = client::CosmosClient::new(querier).into();
+    let nexus::query::TxHashAndNonceResponse { tx_hash, nonce } =
+        client.tx_hash_and_nonce().change_context(Error::Nexus)?;
 
     let id = CrossChainId::new(
         chain_name,
         HexTxHashAndEventIndex::new(
-            tx_hash_and_nonce.tx_hash,
-            u32::try_from(tx_hash_and_nonce.nonce).change_context(Error::NonceOverflow)?,
+            tx_hash,
+            u32::try_from(nonce).change_context(Error::NonceOverflow)?,
         ),
     )
     .change_context(Error::InvalidCrossChainId)?;

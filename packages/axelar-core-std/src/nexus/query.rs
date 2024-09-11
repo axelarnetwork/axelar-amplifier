@@ -18,8 +18,8 @@ pub struct TxHashAndNonceResponse {
     pub nonce: u64,
 }
 
-impl From<QueryMsg> for QueryRequest<crate::query::QueryMsg> {
-    fn from(msg: QueryMsg) -> QueryRequest<crate::query::QueryMsg> {
-        crate::query::QueryMsg::Nexus(msg).into()
+impl From<QueryMsg> for QueryRequest<crate::query::AxelarQueryMsg> {
+    fn from(msg: QueryMsg) -> QueryRequest<crate::query::AxelarQueryMsg> {
+        crate::query::AxelarQueryMsg::Nexus(msg).into()
     }
 }
