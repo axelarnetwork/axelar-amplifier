@@ -1,5 +1,8 @@
-use cosmwasm_std::Addr;
+use std::collections::HashSet;
+
+use cosmwasm_std::{Addr, WasmMsg};
 use error_stack::{Result, ResultExt};
+use router_api::ChainName;
 
 use crate::msg::{ExecuteMsg, QueryMsg};
 
@@ -28,7 +31,21 @@ pub struct Client<'a> {
 }
 
 impl<'a> Client<'a> {
-    // TODO: add execute methods
+    pub fn register_prover_contract(
+        &self,
+        chain_name: ChainName,
+        new_prover_addr: Addr,
+    ) -> WasmMsg {
+        self.client.execute(&ExecuteMsg::RegisterProverContract {
+            chain_name,
+            new_prover_addr,
+        })
+    }
+
+    pub fn set_active_verifiers(&self, verifiers: HashSet<Addr>) -> WasmMsg {
+        self.client
+            .execute(&ExecuteMsg::SetActiveVerifiers { verifiers })
+    }
 
     pub fn ready_to_unbond(&self, worker_address: Addr) -> Result<bool, Error> {
         let msg = QueryMsg::ReadyToUnbond { worker_address };

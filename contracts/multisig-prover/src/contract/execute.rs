@@ -2,17 +2,16 @@ use std::collections::{BTreeMap, HashSet};
 
 use axelar_wasm_std::permission_control::Permission;
 use axelar_wasm_std::snapshot::{Participant, Snapshot};
-use axelar_wasm_std::{address, permission_control, FnExt, MajorityThreshold, VerificationStatus};
-use cosmwasm_std::{
-    to_json_binary, wasm_execute, Addr, DepsMut, Env, QuerierWrapper, QueryRequest, Response,
-    Storage, SubMsg, WasmQuery,
+use axelar_wasm_std::{
+    address, nonempty, permission_control, FnExt, MajorityThreshold, VerificationStatus,
 };
-use error_stack::{report, ResultExt};
+use cosmwasm_std::{wasm_execute, Addr, DepsMut, Env, QuerierWrapper, Response, Storage, SubMsg};
+use error_stack::{report, Result, ResultExt};
 use itertools::Itertools;
 use multisig::msg::Signer;
 use multisig::verifier_set::VerifierSet;
 use router_api::{ChainName, CrossChainId, Message};
-use service_registry::{Service, WeightedVerifier};
+use service_registry::WeightedVerifier;
 
 use crate::contract::START_MULTISIG_REPLY_ID;
 use crate::error::ContractError;
@@ -89,11 +88,11 @@ fn messages(
 ) -> Result<Vec<Message>, ContractError> {
     let length = message_ids.len();
 
-    let query = gateway_api::msg::QueryMsg::OutgoingMessages(message_ids);
-    let messages: Vec<Message> = querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-        contract_addr: gateway.into(),
-        msg: to_json_binary(&query)?,
-    }))?;
+    let gateway: gateway_api::Client = client::Client::new(querier, &gateway).into();
+
+    let messages = gateway
+        .outgoing_messages(message_ids)
+        .change_context(ContractError::FailedToGetMessages)?;
 
     assert_eq!(
         messages.len(),
@@ -108,7 +107,8 @@ fn messages(
         Err(ContractError::InvalidDestinationChain {
             expected: chain_name,
             actual: wrong_destination.destination_chain.clone(),
-        })
+        }
+        .into())
     } else {
         Ok(messages)
     }
@@ -119,39 +119,24 @@ fn make_verifier_set(
     env: &Env,
     config: &Config,
 ) -> Result<VerifierSet, ContractError> {
-    let active_verifiers_query = service_registry::msg::QueryMsg::ActiveVerifiers {
-        service_name: config.service_name.clone(),
-        chain_name: config.chain_name.clone(),
-    };
+    let service_registry: service_registry::Client =
+        client::Client::new(deps.querier, &config.service_registry).into();
 
-    let verifiers: Vec<WeightedVerifier> =
-        deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: config.service_registry.to_string(),
-            msg: to_json_binary(&active_verifiers_query)?,
-        }))?;
+    let verifiers: Vec<WeightedVerifier> = service_registry
+        .active_verifiers(config.service_name.clone(), config.chain_name.to_owned())
+        .change_context(ContractError::FailedToBuildVerifierSet)?;
 
-    let min_num_verifiers = deps
-        .querier
-        .query::<Service>(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: config.service_registry.to_string(),
-            msg: to_json_binary(&service_registry::msg::QueryMsg::Service {
-                service_name: config.service_name.clone(),
-            })?,
-        }))?
+    let min_num_verifiers = service_registry
+        .service(config.service_name.clone())
+        .change_context(ContractError::FailedToBuildVerifierSet)?
         .min_num_verifiers;
+
+    let multisig: multisig::Client = client::Client::new(deps.querier, &config.multisig).into();
 
     let participants_with_pubkeys = verifiers
         .into_iter()
         .filter_map(|verifier| {
-            let pub_key_query = multisig::msg::QueryMsg::PublicKey {
-                verifier_address: verifier.verifier_info.address.to_string(),
-                key_type: config.key_type,
-            };
-
-            match deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-                contract_addr: config.multisig.to_string(),
-                msg: to_json_binary(&pub_key_query).ok()?,
-            })) {
+            match multisig.public_key(verifier.verifier_info.address.to_string(), config.key_type) {
                 Ok(pub_key) => Some((Participant::from(verifier), pub_key)),
                 Err(_) => None,
             }
@@ -159,16 +144,18 @@ fn make_verifier_set(
         .collect::<Vec<_>>();
 
     if participants_with_pubkeys.len() < min_num_verifiers as usize {
-        return Err(ContractError::NotEnoughVerifiers);
+        return Err(ContractError::NotEnoughVerifiers.into());
     }
 
     let snapshot = Snapshot::new(
         config.signing_threshold,
-        participants_with_pubkeys
-            .iter()
-            .map(|(participant, _)| participant.clone())
-            .collect::<Vec<_>>()
-            .try_into()?,
+        nonempty::Vec::<Participant>::try_from(
+            participants_with_pubkeys
+                .iter()
+                .map(|(participant, _)| participant.clone())
+                .collect::<Vec<_>>(),
+        )
+        .change_context(ContractError::FailedToBuildVerifierSet)?,
     );
 
     Ok(VerifierSet::new(
@@ -184,10 +171,15 @@ fn next_verifier_set(
     config: &Config,
 ) -> Result<Option<VerifierSet>, ContractError> {
     // if there's already a pending verifiers set update, just return it
-    if let Some(pending_verifier_set) = NEXT_VERIFIER_SET.may_load(deps.storage)? {
+    if let Some(pending_verifier_set) = NEXT_VERIFIER_SET
+        .may_load(deps.storage)
+        .change_context(ContractError::StorageError)?
+    {
         return Ok(Some(pending_verifier_set));
     }
-    let cur_verifier_set = CURRENT_VERIFIER_SET.may_load(deps.storage)?;
+    let cur_verifier_set = CURRENT_VERIFIER_SET
+        .may_load(deps.storage)
+        .change_context(ContractError::StorageError)?;
     let new_verifier_set = make_verifier_set(deps, env, config)?;
 
     match cur_verifier_set {
@@ -202,7 +194,7 @@ fn next_verifier_set(
                 Ok(None)
             }
         }
-        None => Err(ContractError::NoVerifierSet),
+        None => Err(ContractError::NoVerifierSet.into()),
     }
 }
 
@@ -211,10 +203,12 @@ fn save_next_verifier_set(
     new_verifier_set: &VerifierSet,
 ) -> Result<(), ContractError> {
     if different_set_in_progress(storage, new_verifier_set) {
-        return Err(ContractError::VerifierSetConfirmationInProgress);
+        return Err(ContractError::VerifierSetConfirmationInProgress.into());
     }
 
-    NEXT_VERIFIER_SET.save(storage, new_verifier_set)?;
+    NEXT_VERIFIER_SET
+        .save(storage, new_verifier_set)
+        .change_context(ContractError::StorageError)?;
     Ok(())
 }
 
@@ -300,62 +294,60 @@ fn ensure_verifier_set_verification(
     config: &Config,
     deps: &DepsMut,
 ) -> Result<(), ContractError> {
-    let query = voting_verifier::msg::QueryMsg::VerifierSetStatus(verifier_set.clone());
-
-    let status: VerificationStatus = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-        contract_addr: config.voting_verifier.to_string(),
-        msg: to_json_binary(&query)?,
-    }))?;
+    let verifier: voting_verifier::Client =
+        client::Client::new(deps.querier, &config.voting_verifier).into();
+    let status = verifier
+        .verifier_set_status(verifier_set.clone())
+        .change_context(ContractError::FailedToVerifyVerifierSet)?;
 
     if status != VerificationStatus::SucceededOnSourceChain {
-        Err(ContractError::VerifierSetNotConfirmed)
+        Err(ContractError::VerifierSetNotConfirmed.into())
     } else {
         Ok(())
     }
 }
 
 pub fn confirm_verifier_set(deps: DepsMut, sender: Addr) -> Result<Response, ContractError> {
-    let config = CONFIG.load(deps.storage)?;
+    let config = CONFIG.load(deps.storage).expect("failed to load config");
 
     let verifier_set = NEXT_VERIFIER_SET
-        .may_load(deps.storage)?
+        .may_load(deps.storage)
+        .change_context(ContractError::StorageError)?
         .ok_or(ContractError::NoVerifierSetToConfirm)?;
 
-    let sender_role = permission_control::sender_role(deps.storage, &sender)?;
+    let sender_role = permission_control::sender_role(deps.storage, &sender)
+        .change_context(ContractError::StorageError)?;
     if !sender_role.contains(Permission::Governance) {
         ensure_verifier_set_verification(&verifier_set, &config, &deps)?;
     }
 
-    CURRENT_VERIFIER_SET.save(deps.storage, &verifier_set)?;
+    CURRENT_VERIFIER_SET
+        .save(deps.storage, &verifier_set)
+        .change_context(ContractError::StorageError)?;
     NEXT_VERIFIER_SET.remove(deps.storage);
 
     let verifier_union_set = all_active_verifiers(&deps)?;
 
+    let coordinator: coordinator::Client =
+        client::Client::new(deps.querier, &config.coordinator).into();
+
+    let multisig: multisig::Client = client::Client::new(deps.querier, &config.multisig).into();
+
     Ok(Response::new()
-        .add_message(wasm_execute(
-            config.multisig,
-            &multisig::msg::ExecuteMsg::RegisterVerifierSet {
-                verifier_set: verifier_set.clone(),
-            },
-            vec![],
-        )?)
-        .add_message(wasm_execute(
-            config.coordinator,
-            &coordinator::msg::ExecuteMsg::SetActiveVerifiers {
-                verifiers: verifier_union_set,
-            },
-            vec![],
-        )?))
+        .add_message(multisig.register_verifier_set(verifier_set))
+        .add_message(coordinator.set_active_verifiers(verifier_union_set)))
 }
 
 fn all_active_verifiers(deps: &DepsMut) -> Result<HashSet<Addr>, ContractError> {
     let current_signers = CURRENT_VERIFIER_SET
-        .may_load(deps.storage)?
+        .may_load(deps.storage)
+        .change_context(ContractError::StorageError)?
         .map(|verifier_set| verifier_set.signers)
         .unwrap_or_default();
 
     let next_signers = NEXT_VERIFIER_SET
-        .may_load(deps.storage)?
+        .may_load(deps.storage)
+        .change_context(ContractError::StorageError)?
         .map(|verifier_set| verifier_set.signers)
         .unwrap_or_default();
 
@@ -402,22 +394,23 @@ pub fn update_signing_threshold(
     deps: DepsMut,
     new_signing_threshold: MajorityThreshold,
 ) -> Result<Response, ContractError> {
-    CONFIG.update(
-        deps.storage,
-        |mut config| -> Result<Config, ContractError> {
-            config.signing_threshold = new_signing_threshold;
-            Ok(config)
-        },
-    )?;
+    CONFIG
+        .update(
+            deps.storage,
+            |mut config| -> std::result::Result<Config, ContractError> {
+                config.signing_threshold = new_signing_threshold;
+                Ok(config)
+            },
+        )
+        .change_context(ContractError::StorageError)?;
     Ok(Response::new())
 }
 
-pub fn update_admin(
-    deps: DepsMut,
-    new_admin_address: String,
-) -> Result<Response, axelar_wasm_std::error::ContractError> {
-    let new_admin = address::validate_cosmwasm_address(deps.api, &new_admin_address)?;
-    permission_control::set_admin(deps.storage, &new_admin)?;
+pub fn update_admin(deps: DepsMut, new_admin_address: String) -> Result<Response, ContractError> {
+    let new_admin = address::validate_cosmwasm_address(deps.api, &new_admin_address)
+        .change_context(ContractError::FailedToUpdateAdmin)?;
+    permission_control::set_admin(deps.storage, &new_admin)
+        .change_context(ContractError::FailedToUpdateAdmin)?;
     Ok(Response::new())
 }
 
