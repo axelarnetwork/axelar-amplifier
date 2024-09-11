@@ -26,7 +26,7 @@ fn migrate_params(storage: &mut dyn Storage) -> Result<(), ContractError> {
     let params = PARAMS.load(storage)?;
     let funded_pools = get_all_pools(storage)?;
 
-    for (_, pool) in &funded_pools {
+    for pool in funded_pools.values() {
         state::save_rewards_pool(
             storage,
             &state::RewardsPool {
@@ -162,7 +162,7 @@ pub mod tests {
             epoch_num: 10,
             block_height_started: 100,
         };
-        let test_tally_ids = vec![
+        let test_tally_ids = [
             TallyId {
                 pool_id: PoolId {
                     chain_name: "mock-chain".parse().unwrap(),
@@ -205,7 +205,7 @@ pub mod tests {
         let mut test_tallies_2 = test_tallies.clone();
         test_tallies_2
             .iter_mut()
-            .for_each(|(_, tally)| tally.epoch.epoch_num = tally.epoch.epoch_num + 1);
+            .for_each(|(_, tally)| tally.epoch.epoch_num += 1);
         test_tallies.append(&mut test_tallies_2);
 
         for tally in &test_tallies {
