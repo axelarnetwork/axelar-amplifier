@@ -216,9 +216,10 @@ where
 
     async fn broadcast(&mut self, msgs: Vec<Any>) -> Result<TxResponse, Error> {
         let (acc_number, acc_sequence) = self.acc_number_and_sequence().await?;
+        let fee = self.estimate_fee(msgs.clone(), acc_sequence).await?;
         let tx = Tx::builder()
-            .msgs(msgs.clone())
-            .fee(self.estimate_fee(msgs, acc_sequence).await?)
+            .msgs(msgs)
+            .fee(fee.clone())
             .pub_key(self.pub_key.1)
             .acc_sequence(acc_sequence)
             .build()
@@ -256,7 +257,14 @@ where
             txhash: tx_hash, ..
         } = &response;
 
-        info!(tx_hash, "broadcasted transaction");
+        info!(
+            tx_hash,
+            acc_number,
+            acc_sequence = self.acc_sequence,
+            fee = format!("{:?}", fee.amount),
+            gas = format!("{:?}", fee.gas_limit),
+            "broadcasted transaction"
+        );
 
         self.acc_sequence.replace(
             acc_sequence
