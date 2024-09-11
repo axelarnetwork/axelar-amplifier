@@ -10,13 +10,13 @@ type Result<T> = error_stack::Result<T, Error>;
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
     #[error("failed to query gateway for outgoing messages. message ids: {0:?}")]
-    QueryOutgoingMessages(Vec<CrossChainId>),
+    OutgoingMessages(Vec<CrossChainId>),
 }
 
 impl From<QueryMsg> for Error {
     fn from(value: QueryMsg) -> Self {
         match value {
-            QueryMsg::OutgoingMessages(message_ids) => Error::QueryOutgoingMessages(message_ids),
+            QueryMsg::OutgoingMessages(message_ids) => Error::OutgoingMessages(message_ids),
         }
     }
 }

@@ -1,0 +1,45 @@
+{
+  "state": {
+    "completed": {
+      "completed_at": 1
+    }
+  },
+  "verifier_set": {
+    "signers": {
+      "signer1": {
+        "address": "signer1",
+        "weight": "1",
+        "pub_key": {
+          "ecdsa": "025e0231bfad810e5276e2cf9eb2f3f380ce0bdf6d84c3b6173499d3ddcc008856"
+        }
+      },
+      "signer2": {
+        "address": "signer2",
+        "weight": "1",
+        "pub_key": {
+          "ecdsa": "036ff6f4b2bc5e08aba924bd8fd986608f3685ca651a015b3d9d6a656de14769fe"
+        }
+      },
+      "signer3": {
+        "address": "signer3",
+        "weight": "1",
+        "pub_key": {
+          "ecdsa": "03686cbbef9f9e9a5c852883cb2637b55fc76bee6ee6a3ff636e7bea2e41beece4"
+        }
+      }
+    },
+    "threshold": "2",
+    "created_at": 0
+  },
+  "signatures": {
+    "signer2": {
+      "ecdsa": "a7ec5d1c15e84ba4b5da23fee49d77c5c81b3b1859411d1ef8193bf5a39783c76813e4cf4e1e1bfa0ea19c9f5b61d25ce978da137f3adb1730cba3d842702e72"
+    },
+    "signer3": {
+      "ecdsa": "d1bc22fd89d97dfe4091c73d2002823ca9ab29b742ae531d2560bf2abafb313f7d2c3263d09d9aa72f01ed1d49046e39f6513ea61241fd59cc53d02fc4222351"
+    },
+    "signer1": {
+      "ecdsa": "d7822dd89b9df02d64b91f69cff5811dfd4de16b792d9c6054b417c733bbcc542c1e504c8a1dffac94b5828a93e33a6b45d1bf59b2f9f28ffa56b8398d68a1c5"
+    }
+  }
+}
