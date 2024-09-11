@@ -7,11 +7,11 @@
       "attributes": [
         {
           "key": "chain",
-          "value": "optimism"
+          "value": "ethereum"
         },
         {
           "key": "address",
-          "value": "op-address"
+          "value": "eth-address"
         }
       ]
     },
@@ -20,11 +20,11 @@
       "attributes": [
         {
           "key": "chain",
-          "value": "ethereum"
+          "value": "optimism"
         },
         {
           "key": "address",
-          "value": "eth-address"
+          "value": "op-address"
         }
       ]
     }

@@ -29,7 +29,7 @@ fn instantiate_with_args_succeeds() {
     .into_iter()
     .collect::<HashMap<_, _>>();
 
-    let response = assert_ok!(contract::instantiate(
+    let mut response = assert_ok!(contract::instantiate(
         deps.as_mut(),
         mock_env(),
         mock_info("sender", &[]),
@@ -40,6 +40,16 @@ fn instantiate_with_args_succeeds() {
             its_contracts: its_contracts.clone(),
         },
     ));
+
+    response.events.sort_by_key(|event| {
+        event
+            .attributes
+            .iter()
+            .find(|attr| attr.key == "chain")
+            .map(|attr| attr.value.clone())
+            .unwrap_or_default()
+    });
+
     assert_eq!(0, response.messages.len());
     goldie::assert_json!(response);
 
