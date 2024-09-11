@@ -128,7 +128,6 @@ async fn confirm_tx(
         .tx(req)
         .await
         .then(evaluate_tx_response(tx_hash))
-        .then(|response| response)
 }
 
 fn evaluate_tx_response(
