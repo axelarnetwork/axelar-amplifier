@@ -17,14 +17,14 @@ impl From<QueryMsg> for Error {
     }
 }
 
-impl<'a> From<client::Client<'a, ExecuteMsg, QueryMsg>> for Client<'a> {
-    fn from(client: client::Client<'a, ExecuteMsg, QueryMsg>) -> Self {
+impl<'a> From<client::ContractClient<'a, ExecuteMsg, QueryMsg>> for Client<'a> {
+    fn from(client: client::ContractClient<'a, ExecuteMsg, QueryMsg>) -> Self {
         Client { client }
     }
 }
 
 pub struct Client<'a> {
-    client: client::Client<'a, ExecuteMsg, QueryMsg>,
+    client: client::ContractClient<'a, ExecuteMsg, QueryMsg>,
 }
 
 impl<'a> Client<'a> {
@@ -48,7 +48,8 @@ mod test {
     #[test]
     fn query_ready_to_unbond_returns_error_when_query_fails() {
         let (querier, addr) = setup_queries_to_fail();
-        let client: Client = client::Client::new(QuerierWrapper::new(&querier), &addr).into();
+        let client: Client =
+            client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
         let res = client.ready_to_unbond(Addr::unchecked("worker"));
 
         assert!(res.is_err());
@@ -58,7 +59,8 @@ mod test {
     #[test]
     fn query_ready_to_unbond_returns_correct_result() {
         let (querier, addr) = setup_queries_to_succeed();
-        let client: Client = client::Client::new(QuerierWrapper::new(&querier), &addr).into();
+        let client: Client =
+            client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
         let res = client.ready_to_unbond(Addr::unchecked("worker"));
 
         assert!(res.is_ok());
