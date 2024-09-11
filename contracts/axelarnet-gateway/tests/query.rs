@@ -19,14 +19,10 @@ mod utils;
 
 #[test]
 fn query_routable_messages_gets_expected_messages() {
-    let mut tx_hash = [0u8; 32];
-    rand::thread_rng().fill_bytes(&mut tx_hash);
-    let nonce = rand::random();
-
     let mut deps = mock_dependencies();
     deps.querier = deps
         .querier
-        .with_custom_handler(reply_with_tx_hash_and_nonce(tx_hash, nonce));
+        .with_custom_handler(reply_rand_tx_hash_and_nonce);
 
     utils::instantiate_contract(deps.as_mut()).unwrap();
     let mut expected = populate_routable_messages(&mut deps);
@@ -132,22 +128,21 @@ fn populate_executable_messages(
     msgs.into_iter().map(|msg| msg.cc_id).collect()
 }
 
-fn reply_with_tx_hash_and_nonce<C>(
-    tx_hash: [u8; 32],
-    nonce: u32,
-) -> impl Fn(&C) -> MockQuerierCustomHandlerResult
+fn reply_rand_tx_hash_and_nonce<C>(_: &C) -> MockQuerierCustomHandlerResult
 where
     C: DeserializeOwned,
 {
-    move |_| {
-        SystemResult::Ok(ContractResult::Ok(
-            json!({
-                "tx_hash": tx_hash,
-                "nonce": nonce,
-            })
-            .to_string()
-            .as_bytes()
-            .into(),
-        ))
-    }
+    let mut tx_hash = [0u8; 32];
+    rand::thread_rng().fill_bytes(&mut tx_hash);
+    let nonce: u32 = rand::random();
+
+    SystemResult::Ok(ContractResult::Ok(
+        json!({
+            "tx_hash": tx_hash,
+            "nonce": nonce,
+        })
+        .to_string()
+        .as_bytes()
+        .into(),
+    ))
 }
