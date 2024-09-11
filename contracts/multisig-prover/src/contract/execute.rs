@@ -131,8 +131,7 @@ fn make_verifier_set(
         .change_context(ContractError::FailedToBuildVerifierSet)?
         .min_num_verifiers;
 
-    let multisig: multisig::Client =
-        client::Client::new(deps.querier, &config.multisig).into();
+    let multisig: multisig::Client = client::Client::new(deps.querier, &config.multisig).into();
 
     let participants_with_pubkeys = verifiers
         .into_iter()
@@ -329,27 +328,14 @@ pub fn confirm_verifier_set(deps: DepsMut, sender: Addr) -> Result<Response, Con
 
     let verifier_union_set = all_active_verifiers(&deps)?;
 
+    let coordinator: coordinator::Client =
+        client::Client::new(deps.querier, &config.coordinator).into();
+
+    let multisig: multisig::Client = client::Client::new(deps.querier, &config.multisig).into();
+
     Ok(Response::new()
-        .add_message(
-            wasm_execute(
-                config.multisig,
-                &multisig::msg::ExecuteMsg::RegisterVerifierSet {
-                    verifier_set: verifier_set.clone(),
-                },
-                vec![],
-            )
-            .change_context(ContractError::FailedToCreateWasmExecuteMsg)?,
-        )
-        .add_message(
-            wasm_execute(
-                config.coordinator,
-                &coordinator::msg::ExecuteMsg::SetActiveVerifiers {
-                    verifiers: verifier_union_set,
-                },
-                vec![],
-            )
-            .change_context(ContractError::FailedToCreateWasmExecuteMsg)?,
-        ))
+        .add_message(multisig.register_verifier_set(verifier_set))
+        .add_message(coordinator.set_active_verifiers(verifier_union_set)))
 }
 
 fn all_active_verifiers(deps: &DepsMut) -> Result<HashSet<Addr>, ContractError> {

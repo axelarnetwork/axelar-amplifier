@@ -1,5 +1,7 @@
+use std::collections::HashMap;
+
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::Uint64;
+use cosmwasm_std::{HexBinary, Uint64, WasmMsg};
 use error_stack::{Result, ResultExt};
 use router_api::ChainName;
 
@@ -64,6 +66,62 @@ pub struct Client<'a> {
 }
 
 impl<'a> Client<'a> {
+    pub fn start_signing_session(
+        &self,
+        verifier_set_id: String,
+        msg: HexBinary,
+        chain_name: ChainName,
+        sig_verifier: Option<String>,
+    ) -> WasmMsg {
+        self.client.execute(&ExecuteMsg::StartSigningSession {
+            verifier_set_id,
+            msg,
+            chain_name,
+            sig_verifier,
+        })
+    }
+
+    pub fn submit_signature(&self, session_id: Uint64, signature: HexBinary) -> WasmMsg {
+        self.client.execute(&ExecuteMsg::SubmitSignature {
+            session_id,
+            signature,
+        })
+    }
+
+    pub fn register_verifier_set(&self, verifier_set: VerifierSet) -> WasmMsg {
+        self.client
+            .execute(&ExecuteMsg::RegisterVerifierSet { verifier_set })
+    }
+
+    pub fn register_public_key(
+        &self,
+        public_key: PublicKey,
+        signed_sender_address: HexBinary,
+    ) -> WasmMsg {
+        self.client.execute(&ExecuteMsg::RegisterPublicKey {
+            public_key,
+            signed_sender_address,
+        })
+    }
+
+    pub fn authorize_callers(&self, contracts: HashMap<String, ChainName>) -> WasmMsg {
+        self.client
+            .execute(&ExecuteMsg::AuthorizeCallers { contracts })
+    }
+
+    pub fn unauthorize_callers(&self, contracts: HashMap<String, ChainName>) -> WasmMsg {
+        self.client
+            .execute(&ExecuteMsg::UnauthorizeCallers { contracts })
+    }
+
+    pub fn disable_signing(&self) -> WasmMsg {
+        self.client.execute(&ExecuteMsg::DisableSigning)
+    }
+
+    pub fn enable_signing(&self) -> WasmMsg {
+        self.client.execute(&ExecuteMsg::EnableSigning)
+    }
+
     pub fn multisig(&self, session_id: Uint64) -> Result<Multisig, Error> {
         let msg = QueryMsg::Multisig { session_id };
         self.client.query(&msg).change_context_lazy(|| msg.into())
