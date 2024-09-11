@@ -285,7 +285,7 @@ pub fn update_verifier_set(
                     wasm_execute(
                         config.coordinator,
                         &coordinator::msg::ExecuteMsg::SetActiveVerifiers {
-                            verifiers: verifier_union_set,
+                            verifiers: verifier_union_set.iter().map(|v| v.to_string()).collect(),
                         },
                         vec![],
                     )
@@ -342,7 +342,7 @@ pub fn confirm_verifier_set(deps: DepsMut, sender: Addr) -> Result<Response, Con
         .add_message(wasm_execute(
             config.coordinator,
             &coordinator::msg::ExecuteMsg::SetActiveVerifiers {
-                verifiers: verifier_union_set,
+                verifiers: verifier_union_set.iter().map(|v| v.to_string()).collect(),
             },
             vec![],
         )?))
