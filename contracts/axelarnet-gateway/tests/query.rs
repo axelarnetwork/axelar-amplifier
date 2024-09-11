@@ -1,4 +1,5 @@
 use assert_ok::assert_ok;
+use axelar_wasm_std::response::inspect_response_msg;
 use axelarnet_gateway::msg::QueryMsg;
 use axelarnet_gateway::{contract, ExecutableMessage};
 use cosmwasm_std::testing::{mock_dependencies, mock_env, MockApi, MockQuerier, MockStorage};
@@ -9,7 +10,6 @@ use router_api::{ChainName, CrossChainId, Message};
 use serde_json::json;
 use sha3::{Digest, Keccak256};
 
-use crate::utils::messages::inspect_response_msg;
 use crate::utils::params;
 
 mod utils;

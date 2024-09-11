@@ -3,6 +3,7 @@ use std::str::FromStr;
 use assert_ok::assert_ok;
 use axelar_wasm_std::assert_err_contains;
 use axelar_wasm_std::error::ContractError;
+use axelar_wasm_std::response::inspect_response_msg;
 use axelarnet_gateway::contract::{self, ExecuteError};
 use axelarnet_gateway::msg::ExecuteMsg;
 use axelarnet_gateway::StateError;
@@ -14,7 +15,6 @@ use router_api::{Address, ChainName, CrossChainId, Message};
 use serde_json::json;
 
 use crate::utils::messages;
-use crate::utils::messages::inspect_response_msg;
 
 mod utils;
 
