@@ -64,6 +64,8 @@ pub fn call_contract_with_token(
         token: Some(token),
     };
 
+    // TODO: Emit ContractCalledWithToken event. Will do it once
+    // call contract with token happens via the axelarnet-gateway.
     Ok(Response::new()
         .add_message(bank_transfer_msg)
         .add_message(client.route_message(msg)))
