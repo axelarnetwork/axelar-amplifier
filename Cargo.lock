@@ -1663,12 +1663,14 @@ name = "coordinator"
 version = "1.0.0"
 dependencies = [
  "axelar-wasm-std",
+ "client",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-multi-test 0.15.1",
  "cw-storage-plus 1.2.0",
  "cw2 1.1.2",
  "error-stack",
+ "goldie",
  "integration-tests",
  "msgs-derive",
  "multisig",
