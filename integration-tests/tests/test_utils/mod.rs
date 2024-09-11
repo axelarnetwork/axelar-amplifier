@@ -645,7 +645,6 @@ pub fn setup_chain(
 ) -> Chain {
     let voting_verifier = VotingVerifierContract::instantiate_contract(
         protocol,
-        "doesn't matter".try_into().unwrap(),
         Threshold::try_from((3, 4)).unwrap().try_into().unwrap(),
         chain_name.clone(),
     );

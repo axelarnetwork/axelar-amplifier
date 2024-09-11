@@ -4,7 +4,6 @@ members = [
     "contracts/*",
     "external-gateways/*",
     "integration-tests",
-    "interchain-token-service",
     "packages/*"
 ]
 resolver = "2"
@@ -40,7 +39,7 @@ gateway-api = { version = "^1.0.0", path = "packages/gateway-api" }
 goldie = { version = "0.5" }
 hex = "0.4.3"
 integration-tests = { version = "^1.0.0", path = "integration-tests" }
-interchain-token-service = { version = "^0.1.0", path = "interchain-token-service" }
+interchain-token-service = { version = "^0.1.0", path = "contracts/interchain-token-service" }
 into-inner-derive = { version = "^1.0.0", path = "packages/into-inner-derive" }
 itertools = "0.11.0"
 k256 = { version = "0.13.1", features = ["ecdsa"] }
@@ -61,6 +60,7 @@ service-registry = { version = "^1.0.0", path = "contracts/service-registry" }
 sha3 = { version = "0.10.8", default-features = false, features = [] }
 signature-verifier-api = { version = "^1.0.0", path = "packages/signature-verifier-api" }
 stellar = { version = "^1.0.0", path = "external-gateways/stellar" }
+stellar-xdr = { version = "21.2.0" }
 strum = { version = "0.25", default-features = false, features = ["derive"] }
 sui-gateway = { version = "^1.0.0", path = "packages/sui-gateway" }
 sui-types = { version = "^1.0.0", path = "packages/sui-types" }
