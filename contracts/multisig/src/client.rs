@@ -14,19 +14,19 @@ use crate::verifier_set::VerifierSet;
 #[cw_serde]
 pub enum Error {
     #[error("failed to query multisig contract for multisig session. session_id: {0}")]
-    QueryMultisigSession(Uint64),
+    MultisigSession(Uint64),
 
     #[error("failed to query multisig contract for verifier set: verifier_set_id: {0}")]
-    QueryVerifierSet(String),
+    VerifierSet(String),
 
     #[error("failed to query multisig contract for verifier public key. verifier_address: {verifier_address}, key_type: {key_type}")]
-    QueryPublicKey {
+    PublicKey {
         verifier_address: String,
         key_type: KeyType,
     },
 
     #[error("failed to query multisig contract for caller authorization. contract_address: {contract_address}, chain_name: {chain_name}")]
-    QueryIsCallerAuthorized {
+    IsCallerAuthorized {
         contract_address: String,
         chain_name: ChainName,
     },
@@ -41,19 +41,19 @@ impl<'a> From<client::Client<'a, ExecuteMsg, QueryMsg>> for Client<'a> {
 impl From<QueryMsg> for Error {
     fn from(value: QueryMsg) -> Self {
         match value {
-            QueryMsg::Multisig { session_id } => Error::QueryMultisigSession(session_id),
-            QueryMsg::VerifierSet { verifier_set_id } => Error::QueryVerifierSet(verifier_set_id),
+            QueryMsg::Multisig { session_id } => Error::MultisigSession(session_id),
+            QueryMsg::VerifierSet { verifier_set_id } => Error::VerifierSet(verifier_set_id),
             QueryMsg::PublicKey {
                 verifier_address,
                 key_type,
-            } => Error::QueryPublicKey {
+            } => Error::PublicKey {
                 verifier_address,
                 key_type,
             },
             QueryMsg::IsCallerAuthorized {
                 contract_address,
                 chain_name,
-            } => Error::QueryIsCallerAuthorized {
+            } => Error::IsCallerAuthorized {
                 contract_address,
                 chain_name,
             },
