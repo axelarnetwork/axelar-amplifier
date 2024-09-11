@@ -176,7 +176,7 @@ pub fn unbond_verifier(
         .change_context(ContractError::StorageError)?
         .ok_or(ContractError::VerifierNotFound)?;
 
-    let coordinator: coordinator::client::Client =
+    let coordinator: coordinator::Client =
         client::Client::new(deps.querier, &service.coordinator_contract).into();
 
     let ready_to_unbond = coordinator
