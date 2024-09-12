@@ -8,7 +8,7 @@ use thiserror::Error;
 use tokio::sync::{mpsc, Mutex};
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::Status;
-use tracing::error;
+use tracing::{debug, error, trace};
 
 use super::cosmos;
 use crate::asyncutil::future::{with_retry, RetryPolicy};
@@ -81,15 +81,19 @@ where
             client,
             retry_policy,
         } = self;
-        let limit = tx_hash_receiver.capacity();
+        let limit = tx_hash_receiver.max_capacity();
         let client = Arc::new(Mutex::new(client));
 
+        debug!(limit, "starting confirmation");
+
         let mut tx_hash_stream = ReceiverStream::new(tx_hash_receiver)
-            .map(|tx_hash| {
+            .map(|tx_hash| async {
+                trace!(tx_hash, "handling confirmation");
                 // multiple instances of confirm_tx can be spawned due to buffer_unordered,
                 // so we need to clone the client to avoid a deadlock
                 confirm_tx_with_retry(client.clone(), tx_hash, retry_policy)
                     .and_then(|tx| async { send_response(&tx_response_sender, tx).await })
+                    .await
             })
             .buffer_unordered(limit);
 
