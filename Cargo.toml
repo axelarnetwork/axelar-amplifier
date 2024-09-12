@@ -50,7 +50,7 @@ serde_json = "1.0.89"
 schemars = "0.8.10"
 sha3 = { version = "0.10.8", default-features = false, features = [] }
 signature-verifier-api = { version = "^1.0.0", path = "packages/signature-verifier-api" }
-axelar-rkyv-encoding = { git = "https://git@github.com/eigerco/solana-axelar.git", branch = "main" }
+axelar-rkyv-encoding = { git = "https://github.com/eigerco/solana-axelar.git", branch = "main" }
 syn = "2.0.68"
 ethers-contract = { version = "2.0.14", default-features = false, features = ["abigen"] }
 ethers-core = "2.0.14"

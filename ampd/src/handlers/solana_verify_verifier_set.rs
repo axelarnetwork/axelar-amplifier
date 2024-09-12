@@ -1,8 +1,4 @@
-use std::borrow::Cow;
-use std::convert::TryInto;
-
 use async_trait::async_trait;
-use axelar_message_primitives::command::RotateSignersCommand;
 use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmrs::{tx::Msg, Any};
 use error_stack::ResultExt;
@@ -12,6 +8,7 @@ use multisig::verifier_set::VerifierSet;
 use serde::Deserialize;
 use solana_sdk::signature::Signature;
 use solana_transaction_status::UiTransactionEncoding;
+use std::convert::TryInto;
 use std::str::FromStr;
 use tokio::sync::watch::Receiver;
 use tracing::{error, info};
@@ -26,7 +23,7 @@ use crate::handlers::errors::Error;
 use crate::solana::verifier_set_verifier::{parse_gateway_event, verify_verifier_set};
 use crate::types::TMAddress;
 
-use gmp_gateway::events::GatewayEvent;
+use gmp_gateway::events::{ArchivedGatewayEvent, ArchivedRotateSignersEvent};
 
 type Result<T> = error_stack::Result<T, Error>;
 
@@ -170,17 +167,16 @@ impl EventHandler for Handler {
             },
         };
 
-        let gw_event = parse_gateway_event(&sol_tx).map_err(|_| Error::DeserializeEvent)?;
+        let gw_event_container =
+            parse_gateway_event(&sol_tx).map_err(|_| Error::DeserializeEvent)?;
+        let gw_event = gw_event_container.parse();
 
         match gw_event {
-            GatewayEvent::SignersRotated(Cow::Owned(RotateSignersCommand {
-                command_id: _,
-                destination_chain: _,
-                signer_set,
-                weights,
-                quorum,
-            })) => {
-                let vote = verify_verifier_set(&verifier_set, &signer_set, &weights, quorum);
+            ArchivedGatewayEvent::SignersRotated(ArchivedRotateSignersEvent {
+                new_signers_hash,
+                ..
+            }) => {
+                let vote = verify_verifier_set(&verifier_set, new_signers_hash);
                 Ok(vec![self
                     .vote_msg(poll_id, vec![vote])
                     .into_any()
@@ -214,7 +210,10 @@ mod tests {
     use tokio::sync::watch;
     use voting_verifier::events::{PollMetadata, PollStarted, VerifierSetConfirmation};
 
-    use crate::{handlers::tests::into_structured_event, solana::test_utils::rpc_client_with_recorder, PREFIX};
+    use crate::{
+        handlers::tests::into_structured_event, solana::test_utils::rpc_client_with_recorder,
+        PREFIX,
+    };
 
     use tokio::test as async_test;
 

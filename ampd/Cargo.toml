@@ -25,7 +25,9 @@ enum-display-derive = "0.1.1"
 error-stack = { workspace = true }
 ethers-contract = { workspace = true }
 ethers-core = { workspace = true }
-ethers-providers = { version = "2.0.13", default-features = false, features = ["rustls"] }
+ethers-providers = { version = "2.0.13", default-features = false, features = [
+    "rustls",
+] }
 events = { workspace = true }
 events-derive = { workspace = true }
 evm-gateway = { workspace = true }
@@ -60,12 +62,16 @@ solana-transaction-status = "2.0.1"
 sha3 = { workspace = true }
 sui-gateway = { workspace = true }
 sui-json-rpc-types = { git = "https://github.com/mystenlabs/sui", tag = "mainnet-v1.26.2" }
-sui-types = { git = "https://github.com/mystenlabs/sui", features = ["test-utils"], tag = "mainnet-v1.26.2" }
+sui-types = { git = "https://github.com/mystenlabs/sui", features = [
+    "test-utils",
+], tag = "mainnet-v1.26.2" }
 # Need to switch to our own fork of tendermint and tendermint-rpc due to event attribute value being nullable.
 # Can switch back once https://github.com/informalsystems/tendermint-rs/issues/1216 is resolved.
 # The fix for the issue is at https://github.com/axelarnetwork/tendermint-rs/commit/e97033e20e660a7e707ea86db174ec047bbba50d.
 tendermint = { git = "https://github.com/axelarnetwork/tendermint-rs.git", branch = "v0.33.x" }
-tendermint-rpc = { git = "https://github.com/axelarnetwork/tendermint-rs.git", branch = "v0.33.x", features = ["http-client"] }
+tendermint-rpc = { git = "https://github.com/axelarnetwork/tendermint-rs.git", branch = "v0.33.x", features = [
+    "http-client",
+] }
 thiserror = { workspace = true }
 tokio = { workspace = true, features = ["signal"] }
 tokio-stream = { workspace = true, features = ["sync"] }
@@ -92,6 +98,7 @@ multisig = { workspace = true, features = ["test", "library"] }
 rand = "0.8.5"
 random-string = "1.0.0"
 tokio = { workspace = true, features = ["test-util"] }
+axelar-rkyv-encoding = { workspace = true }
 
 [build-dependencies]
 tonic-build = "0.8.3"

@@ -1,7 +1,8 @@
-use axelar_message_primitives::Address;
 use axelar_wasm_std::voting::Vote;
-use hex::ToHex;
 use multisig::key::PublicKey;
+use multisig::verifier_set::VerifierSet;
+use sha3::Digest;
+use sha3::Keccak256;
 
 use crate::handlers::solana_verify_verifier_set::VerifierSetConfirmation;
 use solana_transaction_status::{
@@ -10,7 +11,7 @@ use solana_transaction_status::{
 use thiserror::Error;
 use tracing::error;
 
-use gmp_gateway::events::GatewayEvent;
+use gmp_gateway::events::{EventContainer, GatewayEvent};
 
 #[derive(Error, Debug, PartialEq)]
 pub enum VerificationError {
@@ -22,7 +23,9 @@ pub enum VerificationError {
 
 type Result<T> = std::result::Result<T, VerificationError>;
 
-pub fn parse_gateway_event(tx: &EncodedConfirmedTransactionWithStatusMeta) -> Result<GatewayEvent> {
+pub fn parse_gateway_event(
+    tx: &EncodedConfirmedTransactionWithStatusMeta,
+) -> Result<EventContainer> {
     let Some(meta) = &tx.transaction.meta else {
         return Err(VerificationError::NoLogMessages);
     };
@@ -40,200 +43,82 @@ pub fn parse_gateway_event(tx: &EncodedConfirmedTransactionWithStatusMeta) -> Re
 #[tracing::instrument(name = "solana_verify_verifier_set")]
 pub fn verify_verifier_set(
     verifier_set_conf: &VerifierSetConfirmation,
-    solana_signers: &[Address],
-    solana_weights: &[u128],
-    solana_quorum: u128,
+    new_signers_hash: &[u8; 32],
 ) -> Vote {
-    let tx_id = &verifier_set_conf.tx_id;
-    let verifier_set = &verifier_set_conf.verifier_set;
-    let verifier_set_threshold = verifier_set.threshold.u128();
-
-    if solana_signers.len() != solana_weights.len() {
-        error!(
-            tx_id,
-            solana_signers_count = solana_signers.len(),
-            solana_weights_count = solana_weights.len(),
-            "Signers length do not match in solana onchain data.",
-        );
-        return Vote::FailedOnChain;
+    let axelar_verifier_set_hash = hash_verifier_set(&verifier_set_conf.verifier_set);
+    if &axelar_verifier_set_hash == new_signers_hash {
+        return Vote::SucceededOnChain;
     }
+    Vote::FailedOnChain
+}
 
-    if verifier_set_threshold != solana_quorum {
-        error!(
-            tx_id,
-            axelar_threshold = verifier_set_threshold,
-            solana_quorum,
-            "Verifier set threshold do not match."
-        );
-        return Vote::FailedOnChain;
-    }
+fn hash_verifier_set(verifier_set: &VerifierSet) -> [u8; 32] {
+    let mut hasher = Keccak256::new();
 
-    for (solana_addr, solana_weight) in solana_signers.iter().zip(solana_weights.iter()) {
-        let solana_addr_hex = solana_addr.encode_hex::<String>();
-        let Some((addr, signer)) = verifier_set.signers.get_key_value(&solana_addr_hex) else {
-            error!(
-                tx_id,
-                solana_addr_hex, "Lookup for solana signer address failed on axelar verifier set",
-            );
-            return Vote::FailedOnChain;
-        };
-        let signer_address = signer.address.to_string();
-        if *addr != signer_address {
-            error!(
-                tx_id,
-                verifier_set_map_key=addr,
-                verifier_set_inner_signer_address=signer_address,
-                "Axelar verifier set has inconsistencies. Map key (Address) is different than the inner signer address.",
-            );
-            return Vote::FailedOnChain;
-        }
-        let signer_pub_key = match &signer.pub_key {
-            PublicKey::Ecdsa(hb) | PublicKey::Ed25519(hb) => hb,
-        };
-        if solana_addr.as_ref() != signer_pub_key.as_slice() {
-            let signer_pub_key_hex = signer.pub_key.encode_hex::<String>();
-            error!(
-                tx_id,
-                solana_addr_hex,
-                signer_pub_key_hex,
-                "Solana address is different than Axelar signer public key.",
-            );
-            return Vote::FailedOnChain;
-        }
+    // Length prefix the bytes to be hashed to prevent hash collisions
+    hasher.update(verifier_set.signers.len().to_le_bytes());
 
-        if *solana_weight != signer.weight.u128() {
-            error!(
-                tx_id,
-                solana_addr_hex,
-                solana_weight,
-                axelar_signer_weight = signer.weight.u128(),
-                "Signer weight differs",
-            );
-            return Vote::FailedOnChain;
+    verifier_set.signers.values().for_each(|signer| {
+        match signer.pub_key {
+            PublicKey::Ecdsa(_) => hasher.update(b"secp256k1"),
+            PublicKey::Ed25519(_) => hasher.update(b"ed25519"),
         }
-    }
-    Vote::SucceededOnChain
+        hasher.update(signer.pub_key.as_ref());
+        hasher.update(signer.weight.to_le_bytes());
+    });
+
+    hasher.update(verifier_set.threshold.to_le_bytes());
+    hasher.update(verifier_set.created_at.to_le_bytes());
+
+    hasher.finalize().into()
 }
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
 
+    use super::*;
+    use axelar_rkyv_encoding::hasher::generic::Keccak256Hasher;
     use cosmwasm_std::{Addr, HexBinary};
     use multisig::{
-        key::{KeyType, PublicKey},
+        key::KeyType,
         test::common::{build_verifier_set, TestSigner},
     };
 
-    use super::*;
-
     #[test]
-    fn test_verifier_test_verification_ok() {
-        let (verifier_set_conf, sol_signers, sol_weights, sol_quorum) =
-            matching_verifier_set_and_sol_data();
+    fn test_axelar_verifier_set_hashing_is_eq_to_rkyv_hashing() {
+        let (verifier_set_conf, sol_verifier_set) = matching_verifier_set_and_sol_data();
 
-        let vote = verify_verifier_set(&verifier_set_conf, &sol_signers, &sol_weights, sol_quorum);
+        let vote = verify_verifier_set(
+            &verifier_set_conf,
+            &sol_verifier_set.hash(Keccak256Hasher::default()),
+        );
 
         assert_eq!(Vote::SucceededOnChain, vote);
     }
 
-    #[test]
-    fn test_verifier_test_verification_fails_due_to_different_threshold() {
-        let (verifier_set_conf, sol_signers, sol_weights, mut sol_quorum) =
-            matching_verifier_set_and_sol_data();
-
-        sol_quorum += 1;
-
-        let vote = verify_verifier_set(&verifier_set_conf, &sol_signers, &sol_weights, sol_quorum);
-
-        assert_eq!(Vote::FailedOnChain, vote);
-    }
-
-    #[test]
-    fn test_verifier_test_verification_fails_due_to_different_weights_vec_len() {
-        let (verifier_set_conf, sol_signers, mut sol_weights, sol_quorum) =
-            matching_verifier_set_and_sol_data();
-
-        sol_weights.push(1);
-
-        let vote = verify_verifier_set(&verifier_set_conf, &sol_signers, &sol_weights, sol_quorum);
-
-        assert_eq!(Vote::FailedOnChain, vote);
-    }
-
-    #[test]
-    fn test_verifier_test_verification_fails_due_to_missing_signer() {
-        let (verifier_set_conf, mut sol_signers, sol_weights, sol_quorum) =
-            matching_verifier_set_and_sol_data();
-
-        sol_signers.pop().unwrap();
-
-        let vote = verify_verifier_set(&verifier_set_conf, &sol_signers, &sol_weights, sol_quorum);
-
-        assert_eq!(Vote::FailedOnChain, vote);
-    }
-
-    #[test]
-    fn test_verifier_test_verification_fails_due_to_different_signer_set_address() {
-        let (mut verifier_set_conf, sol_signers, sol_weights, sol_quorum) =
-            matching_verifier_set_and_sol_data();
-
-        let signer = verifier_set_conf
-            .verifier_set
-            .signers
-            .get_mut(sol_signers.get(1).unwrap().encode_hex::<String>().as_str())
-            .unwrap();
-        signer.address =
-            Addr::unchecked("ha ! a different address in the signer set address field");
-
-        let vote = verify_verifier_set(&verifier_set_conf, &sol_signers, &sol_weights, sol_quorum);
-
-        assert_eq!(Vote::FailedOnChain, vote);
-    }
-
-    #[test]
-    fn test_verifier_test_verification_fails_due_to_different_signer_set_pubkey() {
-        let (mut verifier_set_conf, sol_signers, sol_weights, sol_quorum) =
-            matching_verifier_set_and_sol_data();
-
-        let signer = verifier_set_conf
-            .verifier_set
-            .signers
-            .get_mut(sol_signers.get(1).unwrap().encode_hex::<String>().as_str())
-            .unwrap();
-        signer.pub_key = PublicKey::Ecdsa(HexBinary::from_hex("d9e1eb2b47cb8b7c1c2a5a32f6fa6c57d0e6fdd53eaa8c76fe7f0b3b390cfb3c40f258e476f2ca0e6a7ca2622ea23afe7bd1f873448e01eed86cd6446a403f35").unwrap());
-
-        let vote = verify_verifier_set(&verifier_set_conf, &sol_signers, &sol_weights, sol_quorum);
-
-        assert_eq!(Vote::FailedOnChain, vote);
-    }
-
-    #[test]
-    fn test_verifier_test_verification_fails_due_to_different_signer_weights() {
-        let (verifier_set_conf, sol_signers, mut sol_weights, sol_quorum) =
-            matching_verifier_set_and_sol_data();
-
-        *sol_weights.get_mut(1).unwrap() = 666;
-
-        let vote = verify_verifier_set(&verifier_set_conf, &sol_signers, &sol_weights, sol_quorum);
-
-        assert_eq!(Vote::FailedOnChain, vote);
-    }
-
-    fn matching_verifier_set_and_sol_data(
-    ) -> (VerifierSetConfirmation, Vec<Address>, Vec<u128>, u128) {
+    fn matching_verifier_set_and_sol_data() -> (
+        VerifierSetConfirmation,
+        axelar_rkyv_encoding::types::VerifierSet,
+    ) {
         let verifier_set = build_verifier_set(KeyType::Ecdsa, &signers());
 
         let sol_signers = verifier_set
             .signers
             .values()
-            .map(|v| Address::try_from(v.address.as_str()).unwrap())
+            .map(|v| {
+                let pair = (
+                    axelar_rkyv_encoding::types::PublicKey::from_str(v.address.as_str()).unwrap(),
+                    1.into(),
+                );
+                pair
+            })
             .collect();
-        let sol_weights = verifier_set
-            .signers
-            .values()
-            .map(|v| v.weight.u128())
-            .collect::<Vec<_>>();
+
         let sol_quorum = verifier_set.threshold.u128();
+
+        let sol_verifier_set =
+            axelar_rkyv_encoding::types::VerifierSet::new(0, sol_signers, sol_quorum.into());
 
         let verifier_set_confirmation = VerifierSetConfirmation {
             tx_id: String::from("90af"),
@@ -241,12 +126,7 @@ mod tests {
             verifier_set,
         };
 
-        (
-            verifier_set_confirmation,
-            sol_signers,
-            sol_weights,
-            sol_quorum,
-        )
+        (verifier_set_confirmation, sol_verifier_set)
     }
 
     fn signers() -> Vec<TestSigner> {

@@ -1,31 +1,33 @@
 use axelar_wasm_std::voting::Vote;
-use gmp_gateway::events::{CallContract, GatewayEvent};
+use gmp_gateway::events::{ArchivedCallContract, ArchivedGatewayEvent, GatewayEvent};
+use solana_sdk::pubkey::Pubkey;
 use solana_transaction_status::{
     option_serializer::OptionSerializer, EncodedConfirmedTransactionWithStatusMeta,
 };
-use std::{borrow::Cow, sync::Arc};
+use std::str::FromStr;
+use std::sync::Arc;
 use tracing::error;
 
 use crate::handlers::solana_verify_msg::Message;
 
-impl PartialEq<&Message> for GatewayEvent<'_> {
+impl PartialEq<&Message> for &ArchivedGatewayEvent {
     fn eq(&self, msg: &&Message) -> bool {
         match self {
-            GatewayEvent::CallContract(Cow::Owned(CallContract {
+            ArchivedGatewayEvent::CallContract(ArchivedCallContract {
                 sender,
                 destination_chain,
                 destination_address,
                 payload: _,
                 payload_hash,
-            })) => {
-                let event_dest_addr = String::from_utf8(destination_address.to_owned());
-                let event_dest_chain = String::from_utf8(destination_chain.to_owned());
+            }) => {
+                
+                let Ok(msg_sender) = Pubkey::from_str(msg.source_address.as_str()) else {
+                    return false;
+                };
 
-                event_dest_addr.is_ok()
-                    && sender.to_string() == msg.source_address
-                    && event_dest_chain.is_ok()
-                    && event_dest_addr.unwrap() == msg.destination_address
-                    && msg.destination_chain == event_dest_chain.unwrap()
+                sender == &msg_sender.to_bytes()
+                    && msg.destination_chain == destination_chain.as_str()
+                    && msg.destination_address == destination_address.as_str()
                     && *payload_hash == msg.payload_hash
             }
             _ => false,
@@ -119,7 +121,8 @@ fn find_first_log_message_match(
     for (i, log) in log_messages.iter().enumerate() {
         match GatewayEvent::parse_log(log) {
             Some(parsed_ev) => {
-                let verified = parsed_ev == message
+                let arch_gw_event = parsed_ev.parse();
+                let verified = arch_gw_event == message
                     && *tx_id == message.tx_id
                     && account_keys.contains(source_gateway_address);
 
@@ -135,9 +138,10 @@ fn find_first_log_message_match(
 
 #[cfg(test)]
 mod tests {
+
+    use axelar_rkyv_encoding::rkyv::ser::{serializers::AllocSerializer, Serializer};
     use base64::{engine::general_purpose, Engine};
-    use borsh::BorshSerialize;
-    use gmp_gateway::solana_program::pubkey::Pubkey;
+    use gmp_gateway::{events::CallContract, solana_program::pubkey::Pubkey};
 
     use std::str::FromStr;
 
@@ -167,7 +171,7 @@ mod tests {
         let tx_id = "3GLo4z4siudHxW1BMHBbkTKy7kfbssNFaxLR5hTjhEXCUzp2Pi2VVwybc1s96pEKjRre7CcKKeLhni79zWTNUseP".to_string();
         let destination_chain = "eth".to_string();
         let destination_address = "0x0".to_string();
-        let _payload: Vec<u8> = Vec::new();
+        let payload: Vec<u8> = Vec::new();
         let payload_hash: [u8; 32] = [0; 32];
         let source_gateway_address: String = "sol_gateway_addr".to_string();
         let source_pubkey = Pubkey::from([0; 32]);
@@ -212,17 +216,18 @@ mod tests {
         payload: Vec<u8>,
         payload_hash: [u8; 32],
     ) -> String {
-        let event = gmp_gateway::events::GatewayEvent::CallContract(Cow::Owned(CallContract {
-            sender,
-            destination_chain,
-            destination_address,
+        let event = gmp_gateway::events::GatewayEvent::CallContract(CallContract {
+            sender: sender.to_bytes(),
+            destination_chain: String::from_utf8(destination_chain).unwrap(),
+            destination_address: String::from_utf8(destination_address).unwrap(),
             payload,
             payload_hash,
-        }));
+        });
 
-        let mut event_data = Vec::new();
-        event.serialize(&mut event_data).unwrap();
-        let event_data_b64 = general_purpose::STANDARD.encode(event_data);
+        let mut serializer = AllocSerializer::<0>::default();
+        serializer.serialize_value(&event).unwrap();
+        let bytes = serializer.into_serializer().into_inner();
+        let event_data_b64 = general_purpose::STANDARD.encode(bytes);
         let mut log_message = "Program data: ".to_string();
         log_message.push_str(&event_data_b64);
         log_message

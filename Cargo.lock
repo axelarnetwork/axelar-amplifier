@@ -252,6 +252,7 @@ version = "1.0.0"
 dependencies = [
  "async-trait",
  "axelar-message-primitives",
+ "axelar-rkyv-encoding",
  "axelar-wasm-std",
  "axum 0.7.5",
  "base64 0.21.7",
@@ -907,19 +908,17 @@ checksum = "0c4b4d0bd25bd0b74681c0ad21497610ce1b7c91b1022cd21c80c6fbdd9476b0"
 [[package]]
 name = "axelar-message-primitives"
 version = "0.1.0"
-source = "git+https://github.com/eigerco/solana-axelar.git?branch=main#c9bd755c9bb765aa5c9f227b4bea55449e1208fb"
+source = "git+https://github.com/eigerco/solana-axelar.git?branch=main#80171c678822ea7ba51101b65a21520e048f8a81"
 dependencies = [
  "alloy-sol-types",
  "anyhow",
- "bcs",
  "bnum",
  "borsh 1.5.1",
  "bytemuck",
- "cosmwasm-schema 2.1.3",
  "ethers-core",
  "hex",
- "itertools 0.12.1",
  "libsecp256k1",
+ "rkyv",
  "sha3 0.10.8",
  "solana-program",
  "thiserror",
@@ -928,22 +927,7 @@ dependencies = [
 [[package]]
 name = "axelar-rkyv-encoding"
 version = "0.1.0"
-source = "git+https://git@github.com/eigerco/solana-axelar.git?branch=main#c9bd755c9bb765aa5c9f227b4bea55449e1208fb"
-dependencies = [
- "bnum",
- "bs58 0.5.1",
- "ed25519-dalek 2.1.1",
- "hex",
- "libsecp256k1",
- "rkyv",
- "sha3 0.10.8",
- "thiserror",
-]
-
-[[package]]
-name = "axelar-rkyv-encoding"
-version = "0.1.0"
-source = "git+https://github.com/eigerco/solana-axelar.git?branch=main#c9bd755c9bb765aa5c9f227b4bea55449e1208fb"
+source = "git+https://github.com/eigerco/solana-axelar.git?branch=main#80171c678822ea7ba51101b65a21520e048f8a81"
 dependencies = [
  "bnum",
  "bs58 0.5.1",
@@ -963,7 +947,7 @@ dependencies = [
  "alloy-primitives",
  "axelar-wasm-std-derive",
  "bs58 0.5.1",
- "cosmwasm-schema 1.5.7",
+ "cosmwasm-schema",
  "cosmwasm-std",
  "cw-multi-test 0.15.1",
  "cw-storage-plus 1.2.0",
@@ -1006,7 +990,7 @@ version = "0.1.0"
 dependencies = [
  "axelar-wasm-std",
  "client",
- "cosmwasm-schema 1.5.7",
+ "cosmwasm-schema",
  "cosmwasm-std",
  "cw-multi-test 1.2.0",
  "cw-storage-plus 1.2.0",
@@ -1268,12 +1252,6 @@ dependencies = [
  "quote 1.0.37",
  "syn 1.0.109",
 ]
-
-[[package]]
-name = "bimap"
-version = "0.6.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "230c5f1ca6a325a32553f8640d31ac9b49f2411e901e427570154868b46da4f7"
 
 [[package]]
 name = "bincode"
@@ -2093,7 +2071,7 @@ name = "coordinator"
 version = "1.0.0"
 dependencies = [
  "axelar-wasm-std",
- "cosmwasm-schema 1.5.7",
+ "cosmwasm-schema",
  "cosmwasm-std",
  "cw-multi-test 0.15.1",
  "cw-storage-plus 1.2.0",
@@ -2193,20 +2171,7 @@ version = "1.5.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5b4cd28147a66eba73720b47636a58097a979ad8c8bfdb4ed437ebcbfe362576"
 dependencies = [
- "cosmwasm-schema-derive 1.5.7",
- "schemars",
- "serde",
- "serde_json",
- "thiserror",
-]
-
-[[package]]
-name = "cosmwasm-schema"
-version = "2.1.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4bc0d4d85e83438ab9a0fea9348446f7268bc016aacfebce37e998559f151294"
-dependencies = [
- "cosmwasm-schema-derive 2.1.3",
+ "cosmwasm-schema-derive",
  "schemars",
  "serde",
  "serde_json",
@@ -2222,17 +2187,6 @@ dependencies = [
  "proc-macro2 1.0.86",
  "quote 1.0.37",
  "syn 1.0.109",
-]
-
-[[package]]
-name = "cosmwasm-schema-derive"
-version = "2.1.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "edf5c8adac41bb7751c050d7c4c18675be19ee128714454454575e894424eeef"
-dependencies = [
- "proc-macro2 1.0.86",
- "quote 1.0.37",
- "syn 2.0.77",
 ]
 
 [[package]]
@@ -2517,7 +2471,7 @@ version = "0.15.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0ae0b69fa7679de78825b4edeeec045066aa2b2c4b6e063d80042e565bb4da5c"
 dependencies = [
- "cosmwasm-schema 1.5.7",
+ "cosmwasm-schema",
  "cosmwasm-std",
  "cw2 0.15.1",
  "schemars",
@@ -2532,7 +2486,7 @@ version = "1.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1c4a657e5caacc3a0d00ee96ca8618745d050b8f757c709babafb81208d4239c"
 dependencies = [
- "cosmwasm-schema 1.5.7",
+ "cosmwasm-schema",
  "cosmwasm-std",
  "cw2 1.1.2",
  "schemars",
@@ -2547,7 +2501,7 @@ version = "0.15.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5abb8ecea72e09afff830252963cb60faf945ce6cef2c20a43814516082653da"
 dependencies = [
- "cosmwasm-schema 1.5.7",
+ "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 0.15.1",
  "schemars",
@@ -2560,7 +2514,7 @@ version = "1.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c6c120b24fbbf5c3bedebb97f2cc85fbfa1c3287e09223428e7e597b5293c1fa"
 dependencies = [
- "cosmwasm-schema 1.5.7",
+ "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 1.2.0",
  "schemars",
@@ -3851,7 +3805,7 @@ version = "1.0.0"
 dependencies = [
  "axelar-wasm-std",
  "client",
- "cosmwasm-schema 1.5.7",
+ "cosmwasm-schema",
  "cosmwasm-std",
  "cw-multi-test 0.15.1",
  "cw-storage-plus 1.2.0",
@@ -3873,7 +3827,7 @@ name = "gateway-api"
 version = "1.0.0"
 dependencies = [
  "axelar-wasm-std",
- "cosmwasm-schema 1.5.7",
+ "cosmwasm-schema",
  "cosmwasm-std",
  "error-stack",
  "msgs-derive",
@@ -3978,19 +3932,20 @@ dependencies = [
 [[package]]
 name = "gmp-gateway"
 version = "0.1.0"
-source = "git+https://github.com/eigerco/solana-axelar.git?branch=main#c9bd755c9bb765aa5c9f227b4bea55449e1208fb"
+source = "git+https://github.com/eigerco/solana-axelar.git?branch=main#80171c678822ea7ba51101b65a21520e048f8a81"
 dependencies = [
  "axelar-message-primitives",
- "axelar-rkyv-encoding 0.1.0 (git+https://github.com/eigerco/solana-axelar.git?branch=main)",
+ "axelar-rkyv-encoding",
  "base64 0.21.7",
- "bimap",
  "bincode",
  "borsh 1.5.1",
+ "hex",
  "itertools 0.12.1",
  "libsecp256k1",
  "num-derive 0.4.2",
  "num-traits",
  "program-utils",
+ "rkyv",
  "solana-program",
  "thiserror",
 ]
@@ -4733,7 +4688,7 @@ dependencies = [
  "alloy-primitives",
  "alloy-sol-types",
  "axelar-wasm-std",
- "cosmwasm-schema 1.5.7",
+ "cosmwasm-schema",
  "cosmwasm-std",
  "error-stack",
  "goldie",
@@ -5752,7 +5707,7 @@ version = "1.0.0"
 dependencies = [
  "axelar-wasm-std",
  "cosmwasm-crypto",
- "cosmwasm-schema 1.5.7",
+ "cosmwasm-schema",
  "cosmwasm-std",
  "curve25519-dalek 4.1.3",
  "cw-multi-test 0.15.1",
@@ -5783,11 +5738,11 @@ name = "multisig-prover"
 version = "1.0.0"
 dependencies = [
  "anyhow",
- "axelar-rkyv-encoding 0.1.0 (git+https://git@github.com/eigerco/solana-axelar.git?branch=main)",
+ "axelar-rkyv-encoding",
  "axelar-wasm-std",
  "bcs",
  "coordinator",
- "cosmwasm-schema 1.5.7",
+ "cosmwasm-schema",
  "cosmwasm-std",
  "cw-multi-test 0.15.1",
  "cw-storage-plus 1.2.0",
@@ -5989,7 +5944,7 @@ dependencies = [
  "axelar-wasm-std",
  "axelarnet-gateway",
  "client",
- "cosmwasm-schema 1.5.7",
+ "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 1.2.0",
  "cw2 1.1.2",
@@ -6275,7 +6230,7 @@ version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "af1844ef2428cc3e1cb900be36181049ef3d3193c63e43026cfe202983b27a56"
 dependencies = [
- "proc-macro-crate 3.2.0",
+ "proc-macro-crate 1.1.3",
  "proc-macro2 1.0.86",
  "quote 1.0.37",
  "syn 2.0.77",
@@ -7085,7 +7040,7 @@ dependencies = [
 [[package]]
 name = "program-utils"
 version = "0.1.0"
-source = "git+https://github.com/eigerco/solana-axelar.git?branch=main#c9bd755c9bb765aa5c9f227b4bea55449e1208fb"
+source = "git+https://github.com/eigerco/solana-axelar.git?branch=main#80171c678822ea7ba51101b65a21520e048f8a81"
 dependencies = [
  "borsh 1.5.1",
  "solana-program",
@@ -7233,7 +7188,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "81bddcdb20abf9501610992b6759a4c888aef7d1a7247ef75e2404275ac24af1"
 dependencies = [
  "anyhow",
- "itertools 0.12.1",
+ "itertools 0.11.0",
  "proc-macro2 1.0.86",
  "quote 1.0.37",
  "syn 2.0.77",
@@ -7718,7 +7673,7 @@ name = "rewards"
 version = "1.0.0"
 dependencies = [
  "axelar-wasm-std",
- "cosmwasm-schema 1.5.7",
+ "cosmwasm-schema",
  "cosmwasm-std",
  "cw-multi-test 0.15.1",
  "cw-storage-plus 1.2.0",
@@ -7858,7 +7813,7 @@ name = "router"
 version = "1.0.0"
 dependencies = [
  "axelar-wasm-std",
- "cosmwasm-schema 1.5.7",
+ "cosmwasm-schema",
  "cosmwasm-std",
  "cw-multi-test 0.15.1",
  "cw-storage-plus 1.2.0",
@@ -7883,7 +7838,7 @@ name = "router-api"
 version = "1.0.0"
 dependencies = [
  "axelar-wasm-std",
- "cosmwasm-schema 1.5.7",
+ "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 1.2.0",
  "error-stack",
@@ -8609,7 +8564,7 @@ version = "1.0.0"
 dependencies = [
  "axelar-wasm-std",
  "coordinator",
- "cosmwasm-schema 1.5.7",
+ "cosmwasm-schema",
  "cosmwasm-std",
  "cw-multi-test 0.15.1",
  "cw-storage-plus 1.2.0",
@@ -8776,7 +8731,7 @@ dependencies = [
 name = "signature-verifier-api"
 version = "1.0.0"
 dependencies = [
- "cosmwasm-schema 1.5.7",
+ "cosmwasm-schema",
  "cosmwasm-std",
  "error-stack",
  "thiserror",
@@ -11491,7 +11446,7 @@ dependencies = [
  "alloy-primitives",
  "axelar-wasm-std",
  "client",
- "cosmwasm-schema 1.5.7",
+ "cosmwasm-schema",
  "cosmwasm-std",
  "cw-multi-test 0.15.1",
  "cw-storage-plus 1.2.0",
@@ -11715,7 +11670,7 @@ version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf221c93e13a30d793f7645a0e7762c55d169dbb0a49671918a2319d289b10bb"
 dependencies = [
- "windows-sys 0.59.0",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]
