@@ -60,6 +60,9 @@ solana-zk-token-sdk = "2.0.1"
 solana-transaction-status = "2.0.1"
 
 sha3 = { workspace = true }
+stellar = { workspace = true }
+stellar-rs = "0.3.2"
+stellar-xdr = { workspace = true, features = ["serde_json"] }
 sui-gateway = { workspace = true }
 sui-json-rpc-types = { git = "https://github.com/mystenlabs/sui", tag = "mainnet-v1.26.2" }
 sui-types = { git = "https://github.com/mystenlabs/sui", features = [
@@ -92,7 +95,9 @@ axelar-message-primitives = { git = "https://github.com/eigerco/solana-axelar.gi
 lru = "0.12.3"
 
 [dev-dependencies]
+ed25519-dalek = { workspace = true, features = ["rand_core"] }
 elliptic-curve = "0.13.5"
+faux = "0.1.10"
 generic-array = "0.14.7"
 multisig = { workspace = true, features = ["test", "library"] }
 rand = "0.8.5"

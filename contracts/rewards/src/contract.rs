@@ -121,8 +121,11 @@ pub fn execute(
                 .clone()
                 .into_iter()
                 .sorted()
-                .map(|(addr, amount)| BankMsg::Send {
-                    to_address: addr.into(),
+                .map(|(verifier, amount)| BankMsg::Send {
+                    to_address: verifier
+                        .proxy_address
+                        .unwrap_or(verifier.verifier_address)
+                        .into(),
                     amount: vec![Coin {
                         denom: state::load_config(deps.storage).rewards_denom.clone(),
                         amount,
@@ -140,6 +143,18 @@ pub fn execute(
         }
         ExecuteMsg::CreatePool { params, pool_id } => {
             execute::create_pool(deps.storage, params, env.block.height, &pool_id)?;
+            Ok(Response::new())
+        }
+        ExecuteMsg::SetVerifierProxy { proxy_address } => {
+            execute::set_verifier_proxy(
+                deps.storage,
+                &deps.api.addr_validate(&proxy_address)?,
+                &info.sender,
+            )?;
+            Ok(Response::new())
+        }
+        ExecuteMsg::RemoveVerifierProxy {} => {
+            execute::remove_verifier_proxy(deps.storage, &info.sender);
             Ok(Response::new())
         }
     }
@@ -161,6 +176,13 @@ pub fn query(
         QueryMsg::VerifierParticipation { pool_id, epoch_num } => {
             let tally = query::participation(deps.storage, pool_id, epoch_num, env.block.height)?;
             to_json_binary(&tally)
+                .change_context(ContractError::SerializeResponse)
+                .map_err(axelar_wasm_std::error::ContractError::from)
+        }
+        QueryMsg::VerifierProxy { verifier } => {
+            let proxy =
+                state::may_load_verifier_proxy(deps.storage, &deps.api.addr_validate(&verifier)?)?;
+            to_json_binary(&proxy)
                 .change_context(ContractError::SerializeResponse)
                 .map_err(axelar_wasm_std::error::ContractError::from)
         }
@@ -342,5 +364,194 @@ mod tests {
             .query_balance(verifier, AXL_DENOMINATION)
             .unwrap();
         assert_eq!(balance.amount, Uint128::from(150u128));
+    }
+
+    /// Tests that rewards are properly distributed with respect to the verifier proxy address,
+    /// and that the proxy address can be correctly queried
+    #[test]
+    fn test_rewards_with_proxy() {
+        let chain_name: ChainName = "mock-chain".parse().unwrap();
+        let user = Addr::unchecked("user");
+        let verifier = Addr::unchecked("verifier");
+        let pool_contract = Addr::unchecked("pool_contract");
+
+        const AXL_DENOMINATION: &str = "uaxl";
+        let mut app = App::new(|router, _, storage| {
+            router
+                .bank
+                .init_balance(storage, &user, coins(100000, AXL_DENOMINATION))
+                .unwrap()
+        });
+        let code = ContractWrapper::new(execute, instantiate, query);
+        let code_id = app.store_code(Box::new(code));
+
+        let governance_address = Addr::unchecked("governance");
+        let params = Params {
+            epoch_duration: 10u64.try_into().unwrap(),
+            rewards_per_epoch: Uint128::from(100u128).try_into().unwrap(),
+            participation_threshold: (1, 2).try_into().unwrap(),
+        };
+        let contract_address = app
+            .instantiate_contract(
+                code_id,
+                Addr::unchecked("router"),
+                &InstantiateMsg {
+                    governance_address: governance_address.to_string(),
+                    rewards_denom: AXL_DENOMINATION.to_string(),
+                },
+                &[],
+                "Contract",
+                None,
+            )
+            .unwrap();
+
+        let pool_id = PoolId {
+            chain_name: chain_name.clone(),
+            contract: pool_contract.clone(),
+        };
+
+        app.execute_contract(
+            governance_address.clone(),
+            contract_address.clone(),
+            &ExecuteMsg::CreatePool {
+                params: params.clone(),
+                pool_id: pool_id.clone(),
+            },
+            &[],
+        )
+        .unwrap();
+
+        let proxy = Addr::unchecked("proxy");
+
+        app.execute_contract(
+            verifier.clone(),
+            contract_address.clone(),
+            &ExecuteMsg::SetVerifierProxy {
+                proxy_address: proxy.to_string().parse().unwrap(),
+            },
+            &[],
+        )
+        .unwrap();
+
+        // query the proxy
+        let res: Option<Addr> = app
+            .wrap()
+            .query_wasm_smart(
+                contract_address.clone(),
+                &QueryMsg::VerifierProxy {
+                    verifier: verifier.to_string().parse().unwrap(),
+                },
+            )
+            .unwrap();
+        assert_eq!(res, Some(proxy.clone()));
+
+        let rewards = 200;
+        app.execute_contract(
+            user.clone(),
+            contract_address.clone(),
+            &ExecuteMsg::AddRewards {
+                pool_id: pool_id.clone(),
+            },
+            &coins(rewards, AXL_DENOMINATION),
+        )
+        .unwrap();
+
+        app.execute_contract(
+            pool_contract.clone(),
+            contract_address.clone(),
+            &ExecuteMsg::RecordParticipation {
+                chain_name: chain_name.clone(),
+                event_id: "some event".try_into().unwrap(),
+                verifier_address: verifier.to_string(),
+            },
+            &[],
+        )
+        .unwrap();
+
+        // need to change the block height, so we can claim rewards
+        let old_height = app.block_info().height;
+        app.set_block(BlockInfo {
+            height: old_height + u64::from(params.epoch_duration) * 2,
+            ..app.block_info()
+        });
+
+        app.execute_contract(
+            user.clone(),
+            contract_address.clone(),
+            &ExecuteMsg::DistributeRewards {
+                pool_id: PoolId {
+                    chain_name: chain_name.clone(),
+                    contract: pool_contract.clone(),
+                },
+                epoch_count: None,
+            },
+            &[],
+        )
+        .unwrap();
+
+        // verifier should have been sent the appropriate rewards
+        let balance = app.wrap().query_balance(proxy, AXL_DENOMINATION).unwrap();
+        assert_eq!(balance.amount, Uint128::from(params.rewards_per_epoch));
+
+        // remove the proxy address
+        app.execute_contract(
+            verifier.clone(),
+            contract_address.clone(),
+            &ExecuteMsg::RemoveVerifierProxy {},
+            &[],
+        )
+        .unwrap();
+
+        // query the proxy
+        let res: Option<Addr> = app
+            .wrap()
+            .query_wasm_smart(
+                contract_address.clone(),
+                &QueryMsg::VerifierProxy {
+                    verifier: verifier.to_string().parse().unwrap(),
+                },
+            )
+            .unwrap();
+        assert_eq!(res, None);
+
+        app.execute_contract(
+            pool_contract.clone(),
+            contract_address.clone(),
+            &ExecuteMsg::RecordParticipation {
+                chain_name: chain_name.clone(),
+                event_id: "some other event".try_into().unwrap(),
+                verifier_address: verifier.to_string(),
+            },
+            &[],
+        )
+        .unwrap();
+
+        // need to change the block height, so we can claim rewards
+        let old_height = app.block_info().height;
+        app.set_block(BlockInfo {
+            height: old_height + u64::from(params.epoch_duration) * 2,
+            ..app.block_info()
+        });
+
+        app.execute_contract(
+            user,
+            contract_address.clone(),
+            &ExecuteMsg::DistributeRewards {
+                pool_id: PoolId {
+                    chain_name: chain_name.clone(),
+                    contract: pool_contract.clone(),
+                },
+                epoch_count: None,
+            },
+            &[],
+        )
+        .unwrap();
+
+        // verifier should have been sent the appropriate rewards
+        let balance = app
+            .wrap()
+            .query_balance(verifier, AXL_DENOMINATION)
+            .unwrap();
+        assert_eq!(balance.amount, Uint128::from(params.rewards_per_epoch));
     }
 }

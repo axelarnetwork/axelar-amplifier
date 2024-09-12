@@ -2,14 +2,14 @@ use axelar_wasm_std::{address, permission_control, FnExt};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_json_binary, Addr, BankMsg, Binary, Coin, Deps, DepsMut, Empty, Env, MessageInfo, Order,
-    QueryRequest, Response, Storage, WasmQuery,
+    to_json_binary, Addr, BankMsg, Binary, Coin, Deps, DepsMut, Empty, Env, MessageInfo, Response,
+    Storage,
 };
 use error_stack::{bail, Report, ResultExt};
 
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
-use crate::state::{AuthorizationState, BondingState, Service, Verifier, SERVICES, VERIFIERS};
+use crate::state::{AuthorizationState, BondingState, Service, SERVICES, VERIFIERS};
 
 mod execute;
 mod migrations;
@@ -182,6 +182,7 @@ pub fn migrate(
 
 #[cfg(test)]
 mod test {
+    use std::collections::HashSet;
     use std::str::FromStr;
 
     use axelar_wasm_std::error::err_contains;
@@ -189,11 +190,14 @@ mod test {
     use cosmwasm_std::testing::{
         mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
     };
-    use cosmwasm_std::{coins, from_json, CosmosMsg, Empty, OwnedDeps, StdResult, Uint128};
+    use cosmwasm_std::{
+        coins, from_json, CosmosMsg, Empty, OwnedDeps, StdResult, Uint128, WasmQuery,
+    };
     use router_api::ChainName;
 
     use super::*;
-    use crate::state::{WeightedVerifier, VERIFIER_WEIGHT};
+    use crate::msg::VerifierDetails;
+    use crate::state::{Verifier, WeightedVerifier, VERIFIER_WEIGHT};
 
     const GOVERNANCE_ADDRESS: &str = "governance";
     const UNAUTHORIZED_ADDRESS: &str = "unauthorized";
@@ -2055,7 +2059,7 @@ mod test {
             },
         );
         assert!(res.is_ok());
-        let verifier: Verifier = from_json(
+        let verifier2_details: VerifierDetails = from_json(
             query(
                 deps.as_ref(),
                 mock_env(),
@@ -2067,6 +2071,7 @@ mod test {
             .unwrap(),
         )
         .unwrap();
+        let verifier = verifier2_details.verifier;
 
         assert_eq!(
             verifier.bonding_state,
@@ -2110,5 +2115,100 @@ mod test {
             ContractError,
             ContractError::VerifierJailed
         ));
+    }
+
+    #[test]
+    fn get_single_verifier_details() {
+        let mut deps = setup();
+
+        let service_name = "validators";
+        let min_verifier_bond: nonempty::Uint128 = Uint128::new(100).try_into().unwrap();
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(GOVERNANCE_ADDRESS, &[]),
+            ExecuteMsg::RegisterService {
+                service_name: service_name.into(),
+                coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS),
+                min_num_verifiers: 0,
+                max_num_verifiers: Some(100),
+                min_verifier_bond,
+                bond_denom: AXL_DENOMINATION.into(),
+                unbonding_period_days: 10,
+                description: "Some service".into(),
+            },
+        );
+        assert!(res.is_ok());
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(GOVERNANCE_ADDRESS, &[]),
+            ExecuteMsg::AuthorizeVerifiers {
+                verifiers: vec![VERIFIER_ADDRESS.into()],
+                service_name: service_name.into(),
+            },
+        );
+        assert!(res.is_ok());
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(
+                VERIFIER_ADDRESS,
+                &coins(min_verifier_bond.into_inner().u128(), AXL_DENOMINATION),
+            ),
+            ExecuteMsg::BondVerifier {
+                service_name: service_name.into(),
+            },
+        );
+        assert!(res.is_ok());
+
+        let chains = vec![
+            ChainName::from_str("ethereum").unwrap(),
+            ChainName::from_str("binance").unwrap(),
+            ChainName::from_str("avalanche").unwrap(),
+        ];
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(VERIFIER_ADDRESS, &[]),
+            ExecuteMsg::RegisterChainSupport {
+                service_name: service_name.into(),
+                chains: chains.clone(),
+            },
+        );
+        assert!(res.is_ok());
+
+        let verifier_details: VerifierDetails = from_json(
+            query(
+                deps.as_ref(),
+                mock_env(),
+                QueryMsg::Verifier {
+                    service_name: service_name.into(),
+                    verifier: VERIFIER_ADDRESS.into(),
+                },
+            )
+            .unwrap(),
+        )
+        .unwrap();
+
+        assert_eq!(
+            verifier_details.verifier,
+            Verifier {
+                address: Addr::unchecked(VERIFIER_ADDRESS),
+                bonding_state: BondingState::Bonded {
+                    amount: min_verifier_bond
+                },
+                authorization_state: AuthorizationState::Authorized,
+                service_name: service_name.into()
+            }
+        );
+        assert_eq!(verifier_details.weight, VERIFIER_WEIGHT);
+
+        let expected_chains: HashSet<ChainName> = chains.into_iter().collect();
+        let actual_chains: HashSet<ChainName> =
+            verifier_details.supported_chains.into_iter().collect();
+        assert_eq!(expected_chains, actual_chains);
     }
 }

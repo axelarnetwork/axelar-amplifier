@@ -3,6 +3,10 @@ use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::Addr;
 use msgs_derive::EnsurePermissions;
 use router_api::ChainName;
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
+
+use crate::Verifier;
 
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -79,11 +83,18 @@ pub enum QueryMsg {
     #[returns(crate::state::Service)]
     Service { service_name: String },
 
-    #[returns(crate::state::Verifier)]
+    #[returns(VerifierDetails)]
     Verifier {
         service_name: String,
         verifier: String,
     },
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
+pub struct VerifierDetails {
+    pub verifier: Verifier,
+    pub weight: nonempty::Uint128,
+    pub supported_chains: Vec<ChainName>,
 }
 
 #[cw_serde]

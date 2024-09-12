@@ -6,9 +6,8 @@ edition = { workspace = true }
 description = "Multisig contract"
 
 exclude = [
-    # Those files are rust-optimizer artifacts. You might want to commit them for convenience, but they should not be part of the source code publication.
     "contract.wasm",
-    "hash.txt",
+    "hash.txt"
 ]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -41,6 +40,7 @@ optimize = """docker run --rm -v "$(pwd)":/code \
 
 [dependencies]
 axelar-wasm-std = { workspace = true, features = ["derive"] }
+client = { workspace = true }
 cosmwasm-crypto = "1.2.7"
 cosmwasm-schema = { workspace = true }
 cosmwasm-std = { workspace = true }

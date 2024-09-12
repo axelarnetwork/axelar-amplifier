@@ -6,9 +6,8 @@ edition = { workspace = true }
 description = "Voting verifier contract"
 
 exclude = [
-    # Those files are rust-optimizer artifacts. You might want to commit them for convenience, but they should not be part of the source code publication.
     "contract.wasm",
-    "hash.txt",
+    "hash.txt"
 ]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -52,7 +51,9 @@ thiserror = { workspace = true }
 
 [dev-dependencies]
 alloy-primitives = { version = "0.7.7", features = ["getrandom"] }
+assert_ok = { workspace = true }
 cw-multi-test = "0.15.1"
+goldie = { workspace = true }
 integration-tests = { workspace = true }
 multisig = { workspace = true, features = ["test", "library"] }
 rand = "0.8.5"

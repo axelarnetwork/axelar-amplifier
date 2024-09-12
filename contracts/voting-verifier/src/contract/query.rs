@@ -1,6 +1,7 @@
 use axelar_wasm_std::voting::{PollId, PollStatus, Vote};
 use axelar_wasm_std::{MajorityThreshold, VerificationStatus};
 use cosmwasm_std::Deps;
+use error_stack::{Result, ResultExt};
 use multisig::verifier_set::VerifierSet;
 use router_api::Message;
 
@@ -9,7 +10,10 @@ use crate::msg::{MessageStatus, PollData, PollResponse};
 use crate::state::{poll_messages, poll_verifier_sets, Poll, PollContent, CONFIG, POLLS};
 
 pub fn voting_threshold(deps: Deps) -> Result<MajorityThreshold, ContractError> {
-    Ok(CONFIG.load(deps.storage)?.voting_threshold)
+    Ok(CONFIG
+        .load(deps.storage)
+        .change_context(ContractError::StorageError)?
+        .voting_threshold)
 }
 
 pub fn messages_status(
@@ -31,7 +35,9 @@ pub fn message_status(
     message: &Message,
     cur_block_height: u64,
 ) -> Result<VerificationStatus, ContractError> {
-    let loaded_poll_content = poll_messages().may_load(deps.storage, &message.hash())?;
+    let loaded_poll_content = poll_messages()
+        .may_load(deps.storage, &message.hash())
+        .change_context(ContractError::StorageError)?;
 
     Ok(verification_status(
         deps,
@@ -46,10 +52,15 @@ pub fn poll_response(
     current_block_height: u64,
     poll_id: PollId,
 ) -> Result<PollResponse, ContractError> {
-    let poll = POLLS.load(deps.storage, poll_id)?;
+    let poll = POLLS
+        .load(deps.storage, poll_id)
+        .change_context(ContractError::PollNotFound)?;
     let (data, status) = match &poll {
         Poll::Messages(poll) => {
-            let msgs = poll_messages().idx.load_messages(deps.storage, poll_id)?;
+            let msgs = poll_messages()
+                .idx
+                .load_messages(deps.storage, poll_id)
+                .change_context(ContractError::StorageError)?;
             assert_eq!(
                 poll.tallies.len(),
                 msgs.len(),
@@ -63,7 +74,8 @@ pub fn poll_response(
             PollData::VerifierSet(
                 poll_verifier_sets()
                     .idx
-                    .load_verifier_set(deps.storage, poll_id)?
+                    .load_verifier_set(deps.storage, poll_id)
+                    .change_context(ContractError::StorageError)?
                     .expect("verifier set not found in poll"),
             ),
             poll.status(current_block_height),
@@ -82,10 +94,12 @@ pub fn verifier_set_status(
     verifier_set: &VerifierSet,
     cur_block_height: u64,
 ) -> Result<VerificationStatus, ContractError> {
-    let loaded_poll_content = poll_verifier_sets().may_load(
-        deps.storage,
-        &verifier_set.hash().as_slice().try_into().unwrap(),
-    )?;
+    let loaded_poll_content = poll_verifier_sets()
+        .may_load(
+            deps.storage,
+            &verifier_set.hash().as_slice().try_into().unwrap(),
+        )
+        .change_context(ContractError::StorageError)?;
 
     Ok(verification_status(
         deps,

@@ -8,10 +8,11 @@ use cosmrs::AccountId;
 use error_stack::{report, FutureExt, Result, ResultExt};
 use futures::TryFutureExt;
 use serde::{Deserialize, Serialize};
-use tokio::sync::mpsc::{Receiver, Sender};
+use tonic::transport::Channel;
 use valuable::Valuable;
 
 use crate::asyncutil::future::RetryPolicy;
+use crate::broadcaster::confirm_tx::TxConfirmer;
 use crate::broadcaster::Broadcaster;
 use crate::config::{Config as AmpdConfig, Config};
 use crate::tofnd::grpc::{Multisig, MultisigClient};
@@ -81,13 +82,7 @@ async fn broadcast_tx(
     let (confirmation_sender, mut confirmation_receiver) = tokio::sync::mpsc::channel(1);
     let (hash_to_confirm_sender, hash_to_confirm_receiver) = tokio::sync::mpsc::channel(1);
 
-    let mut broadcaster = instantiate_broadcaster(
-        config,
-        pub_key,
-        hash_to_confirm_receiver,
-        confirmation_sender,
-    )
-    .await?;
+    let (mut broadcaster, confirmer) = instantiate_broadcaster(config, pub_key).await?;
 
     broadcaster
         .broadcast(vec![tx])
@@ -97,6 +92,14 @@ async fn broadcast_tx(
                 .send(response.txhash)
                 .change_context(Error::Broadcaster)
         })
+        .await?;
+
+    // drop the sender so the confirmer doesn't wait for more txs
+    drop(hash_to_confirm_sender);
+
+    confirmer
+        .run(hash_to_confirm_receiver, confirmation_sender)
+        .change_context(Error::TxConfirmation)
         .await?;
 
     confirmation_receiver
@@ -109,9 +112,7 @@ async fn broadcast_tx(
 async fn instantiate_broadcaster(
     config: Config,
     pub_key: PublicKey,
-    tx_hashes_to_confirm: Receiver<String>,
-    confirmed_txs: Sender<broadcaster::confirm_tx::TxResponse>,
-) -> Result<impl Broadcaster, Error> {
+) -> Result<(impl Broadcaster, TxConfirmer<ServiceClient<Channel>>), Error> {
     let AmpdConfig {
         tm_grpc,
         broadcast,
@@ -135,18 +136,13 @@ async fn instantiate_broadcaster(
         .change_context(Error::Connection)
         .attach_printable(tofnd_config.url)?;
 
-    broadcaster::confirm_tx::TxConfirmer::new(
+    let confirmer = TxConfirmer::new(
         service_client.clone(),
         RetryPolicy::RepeatConstant {
             sleep: broadcast.tx_fetch_interval,
             max_attempts: broadcast.tx_fetch_max_retries.saturating_add(1).into(),
         },
-        tx_hashes_to_confirm,
-        confirmed_txs,
-    )
-    .run()
-    .await
-    .change_context(Error::TxConfirmation)?;
+    );
 
     let basic_broadcaster = broadcaster::UnvalidatedBasicBroadcaster::builder()
         .client(service_client)
@@ -160,5 +156,5 @@ async fn instantiate_broadcaster(
         .validate_fee_denomination()
         .await
         .change_context(Error::Broadcaster)?;
-    Ok(basic_broadcaster)
+    Ok((basic_broadcaster, confirmer))
 }

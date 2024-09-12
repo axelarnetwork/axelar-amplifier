@@ -1,3 +1,5 @@
+use assert_ok::assert_ok;
+use axelar_wasm_std::response::inspect_response_msg;
 use axelarnet_gateway::msg::QueryMsg;
 use axelarnet_gateway::{contract, ExecutableMessage};
 use cosmwasm_std::testing::{mock_dependencies, mock_env, MockApi, MockQuerier, MockStorage};
@@ -6,7 +8,6 @@ use router_api::msg::ExecuteMsg as RouterExecuteMsg;
 use router_api::{ChainName, CrossChainId, Message};
 use sha3::{Digest, Keccak256};
 
-use crate::utils::messages::inspect_response_msg;
 use crate::utils::params;
 
 mod utils;
@@ -21,9 +22,10 @@ fn query_routable_messages_gets_expected_messages() {
     expected.remove(3);
     let cc_ids = expected.iter().map(|msg| &msg.cc_id).cloned().collect();
 
-    let result = query_routable_messages(deps.as_ref(), cc_ids);
-
-    assert_eq!(result.unwrap(), expected);
+    assert_eq!(
+        assert_ok!(query_routable_messages(deps.as_ref(), cc_ids)),
+        expected,
+    );
 }
 
 #[test]
@@ -34,10 +36,8 @@ fn query_executable_messages_gets_expected_messages() {
     let mut cc_ids = populate_executable_messages(&mut deps);
     cc_ids.remove(3);
 
-    let result = query_executable_messages(deps.as_ref(), cc_ids);
-
-    assert!(result.is_ok());
-    goldie::assert_json!(result.unwrap());
+    let executable_message = assert_ok!(query_executable_messages(deps.as_ref(), cc_ids));
+    goldie::assert_json!(executable_message);
 }
 
 #[test]
@@ -46,9 +46,10 @@ fn query_chain_name_gets_expected_chain() {
 
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
-    let result = query_chain_name(deps.as_ref());
-
-    assert_eq!(result.unwrap().as_ref(), params::AXELARNET);
+    assert_eq!(
+        assert_ok!(query_chain_name(deps.as_ref())).as_ref(),
+        params::AXELARNET,
+    );
 }
 
 fn query_routable_messages(deps: Deps, cc_ids: Vec<CrossChainId>) -> Result<Vec<Message>, ()> {

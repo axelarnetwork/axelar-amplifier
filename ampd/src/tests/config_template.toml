@@ -73,6 +73,16 @@ cosmwasm_contract = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq
 proxy_url = 'http://127.0.0.1/'
 
 [[handlers]]
+type = 'StellarMsgVerifier'
+cosmwasm_contract = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'
+http_url = 'http://127.0.0.1/'
+
+[[handlers]]
+type = 'StellarVerifierSetVerifier'
+cosmwasm_contract = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'
+http_url = 'http://127.0.0.1/'
+
+[[handlers]]
 type = 'SolanaMsgVerifier'
 cosmwasm_contract = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'
 max_tx_cache_entries = 6

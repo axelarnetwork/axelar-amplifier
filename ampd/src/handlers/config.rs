@@ -61,6 +61,14 @@ pub enum Config {
         cosmwasm_contract: TMAddress,
         proxy_url: Url,
     },
+    StellarMsgVerifier {
+        cosmwasm_contract: TMAddress,
+        http_url: Url,
+    },
+    StellarVerifierSetVerifier {
+        cosmwasm_contract: TMAddress,
+        http_url: Url,
+    },
     SolanaMsgVerifier {
         cosmwasm_contract: TMAddress,
         max_tx_cache_entries: usize,
@@ -233,6 +241,38 @@ where
     }
 }
 
+fn validate_stellar_msg_verifier_config<'de, D>(configs: &[Config]) -> Result<(), D::Error>
+where
+    D: Deserializer<'de>,
+{
+    match configs
+        .iter()
+        .filter(|config| matches!(config, Config::StellarMsgVerifier { .. }))
+        .count()
+    {
+        count if count > 1 => Err(de::Error::custom(
+            "only one Stellar msg verifier config is allowed",
+        )),
+        _ => Ok(()),
+    }
+}
+
+fn validate_stellar_verifier_set_verifier_config<'de, D>(configs: &[Config]) -> Result<(), D::Error>
+where
+    D: Deserializer<'de>,
+{
+    match configs
+        .iter()
+        .filter(|config| matches!(config, Config::StellarMsgVerifier { .. }))
+        .count()
+    {
+        count if count > 1 => Err(de::Error::custom(
+            "only one Stellar verifier set verifier config is allowed",
+        )),
+        _ => Ok(()),
+    }
+}
+
 fn validate_solana_verifier_set_verifier_configs<'de, D>(configs: &[Config]) -> Result<(), D::Error>
 where
     D: Deserializer<'de>,
@@ -269,6 +309,8 @@ where
     validate_sui_verifier_set_verifier_config::<D>(&configs)?;
     validate_mvx_msg_verifier_config::<D>(&configs)?;
     validate_mvx_worker_set_verifier_config::<D>(&configs)?;
+    validate_stellar_msg_verifier_config::<D>(&configs)?;
+    validate_stellar_verifier_set_verifier_config::<D>(&configs)?;
     validate_solana_msg_verifier_config::<D>(&configs)?;
     validate_solana_verifier_set_verifier_configs::<D>(&configs)?;
 

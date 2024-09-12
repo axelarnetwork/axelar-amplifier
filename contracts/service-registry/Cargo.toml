@@ -6,9 +6,8 @@ edition = { workspace = true }
 description = "Contract handling the service registrations"
 
 exclude = [
-    # Those files are rust-optimizer artifacts. You might want to commit them for convenience, but they should not be part of the source code publication.
     "contract.wasm",
-    "hash.txt",
+    "hash.txt"
 ]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -34,12 +33,14 @@ optimize = """docker run --rm -v "$(pwd)":/code \
 
 [dependencies]
 axelar-wasm-std = { workspace = true, features = ["derive"] }
+client = { workspace = true }
 coordinator = { workspace = true, features = ["library"] }
 cosmwasm-schema = { workspace = true }
 cosmwasm-std = { workspace = true }
 cw-storage-plus = { workspace = true }
 cw2 = { workspace = true }
 error-stack = { workspace = true }
+itertools = { workspace = true }
 msgs-derive = { workspace = true }
 report = { workspace = true }
 router-api = { workspace = true }
@@ -49,6 +50,7 @@ thiserror = { workspace = true }
 
 [dev-dependencies]
 cw-multi-test = "0.15.1"
+goldie = { workspace = true }
 integration-tests = { workspace = true }
 
 [lints]

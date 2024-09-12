@@ -35,6 +35,7 @@ pub struct TaskGroup<E>
 where
     E: From<TaskError> + Context,
 {
+    name: String,
     tasks: Vec<CancellableTask<Result<(), E>>>,
 }
 
@@ -42,8 +43,11 @@ impl<E> TaskGroup<E>
 where
     E: From<TaskError> + Context,
 {
-    pub fn new() -> Self {
-        TaskGroup { tasks: vec![] }
+    pub fn new(name: impl Into<String>) -> Self {
+        TaskGroup {
+            name: name.into(),
+            tasks: vec![],
+        }
     }
 
     /// The added tasks won't be started until [Self::run] is called
@@ -57,7 +61,7 @@ where
     pub async fn run(self, token: CancellationToken) -> Result<(), E> {
         // running tasks and waiting for them is tightly coupled, so they both share a cloned token
         let mut running_tasks = start_tasks(self.tasks, token.clone());
-        wait_for_completion(&mut running_tasks, &token).await
+        wait_for_completion(self.name, &mut running_tasks, &token).await
     }
 }
 
@@ -77,6 +81,7 @@ where
 }
 
 async fn wait_for_completion<E>(
+    group_name: String,
     running_tasks: &mut JoinSet<Result<(), E>>,
     token: &CancellationToken,
 ) -> Result<(), E>
@@ -90,7 +95,8 @@ where
         // Any call to this after the first is a no-op, so no need to guard it.
         token.cancel();
         info!(
-            "shutting down sub-tasks ({}/{})",
+            "shutting down {} sub-tasks ({}/{})",
+            group_name,
             total_task_count.saturating_sub(running_tasks.len()),
             total_task_count
         );
@@ -117,7 +123,7 @@ mod test {
 
     #[tokio::test]
     async fn running_no_tasks_returns_no_error() {
-        let tasks: TaskGroup<TaskError> = TaskGroup::new();
+        let tasks: TaskGroup<TaskError> = TaskGroup::new("test");
         assert!(tasks.run(CancellationToken::new()).await.is_ok());
     }
 
@@ -128,7 +134,7 @@ mod test {
             Ok(())
         };
 
-        let tasks: TaskGroup<TaskError> = TaskGroup::new()
+        let tasks: TaskGroup<TaskError> = TaskGroup::new("test")
             .add_task(CancellableTask::create(waiting_task))
             .add_task(CancellableTask::create(waiting_task))
             .add_task(CancellableTask::create(|_| async { Ok(()) }))
@@ -138,7 +144,7 @@ mod test {
 
     #[tokio::test]
     async fn collect_all_errors_on_completion() {
-        let tasks = TaskGroup::new()
+        let tasks = TaskGroup::new("test")
             .add_task(CancellableTask::create(|token| async move {
                 token.cancelled().await;
                 Err(report!(TaskError {}))
@@ -164,7 +170,7 @@ mod test {
 
     #[tokio::test]
     async fn shutdown_gracefully_on_task_panic() {
-        let tasks = TaskGroup::new()
+        let tasks = TaskGroup::new("test")
             .add_task(CancellableTask::create(|_| async { Ok(()) }))
             .add_task(CancellableTask::create(|_| async { panic!("panic") }))
             .add_task(CancellableTask::create(|_| async {

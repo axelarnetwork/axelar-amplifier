@@ -63,7 +63,7 @@ impl<T: TmClient + Sync> EventPublisher<T> {
                     curr_block_height = self.process_blocks_from(curr_block_height, &token).await?.increment();
                 },
                 _ = token.cancelled() => {
-                    info!("event sub exiting");
+                    info!("exiting event sub");
 
                     return Ok(())
                 },

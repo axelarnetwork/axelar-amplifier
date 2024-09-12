@@ -7,6 +7,8 @@ pub mod mvx_verify_msg;
 pub mod mvx_verify_verifier_set;
 pub mod solana_verify_msg;
 pub mod solana_verify_verifier_set;
+pub(crate) mod stellar_verify_msg;
+pub(crate) mod stellar_verify_verifier_set;
 pub mod sui_verify_msg;
 pub mod sui_verify_verifier_set;
 
@@ -20,6 +22,7 @@ mod tests {
     use tendermint::abci;
 
     use crate::types::TMAddress;
+    use crate::PREFIX;
 
     /// Convert a CosmWasm event into an ABCI event
     pub fn into_structured_event(
@@ -42,5 +45,12 @@ mod tests {
         )
         .try_into()
         .expect("should convert to ABCI event")
+    }
+
+    pub fn participants(n: u8, verifier: Option<TMAddress>) -> Vec<TMAddress> {
+        (0..n)
+            .map(|_| TMAddress::random(PREFIX))
+            .chain(verifier)
+            .collect()
     }
 }

@@ -1,14 +1,13 @@
 [package]
 name = "axelarnet-gateway"
-version = "0.1.0"
+version = "1.0.0"
 rust-version = { workspace = true }
 edition = { workspace = true }
 description = "The Axelarnet Gateway contract allows apps on the Axelar Network to send/receive cross-chain messages to/from other chains."
 
 exclude = [
-    # Those files are rust-optimizer artifacts. You might want to commit them for convenience, but they should not be part of the source code publication.
     "contract.wasm",
-    "hash.txt",
+    "hash.txt"
 ]
 
 [lib]
@@ -49,6 +48,7 @@ sha3 = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]
+assert_ok = { workspace = true }
 cw-multi-test = { workspace = true }
 goldie = { workspace = true }
 

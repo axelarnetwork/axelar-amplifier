@@ -122,6 +122,16 @@ mod tests {
             cosmwasm_contract = '{}'
             proxy_url = 'http://localhost:7545'
 
+            [[handlers]]
+            type = 'StellarMsgVerifier'
+            cosmwasm_contract = '{}'
+            http_url = 'http://localhost:8000'
+
+            [[handlers]]
+            type = 'StellarVerifierSetVerifier'
+            cosmwasm_contract = '{}'
+            http_url = 'http://localhost:8000'
+
             [handlers.rpc_timeout]
             secs = 3
             nanos = 0
@@ -149,10 +159,12 @@ mod tests {
             TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
+            TMAddress::random(PREFIX),
+            TMAddress::random(PREFIX),
         );
 
         let cfg: Config = toml::from_str(config_str.as_str()).unwrap();
-        assert_eq!(cfg.handlers.len(), 10);
+        assert_eq!(cfg.handlers.len(), 12);
     }
 
     #[test]
@@ -343,6 +355,19 @@ mod tests {
                         AccountId::new("axelar", &[0u8; 32]).unwrap(),
                     ),
                     proxy_url: Url::from_str("http://127.0.0.1").unwrap(),
+                },
+                
+                HandlerConfig::StellarMsgVerifier {
+                    cosmwasm_contract: TMAddress::from(
+                        AccountId::new("axelar", &[0u8; 32]).unwrap(),
+                    ),
+                    http_url: Url::from_str("http://127.0.0.1").unwrap(),
+                },
+                HandlerConfig::StellarVerifierSetVerifier {
+                    cosmwasm_contract: TMAddress::from(
+                        AccountId::new("axelar", &[0u8; 32]).unwrap(),
+                    ),
+                    http_url: Url::from_str("http://127.0.0.1").unwrap(),
                 },
                 HandlerConfig::SolanaMsgVerifier {
                     cosmwasm_contract: TMAddress::from(
