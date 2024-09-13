@@ -8,7 +8,9 @@ use crate::msg::{ExecuteMsg, QueryMsg};
 
 #[derive(thiserror::Error, Debug, PartialEq)]
 pub enum Error {
-    #[error("failed to execute ReadyToUnbond query at coordinator contract. verifier_address: {0}")]
+    #[error(
+        "failed to execute ReadyToUnbond query at coordinator contract. verifier_address: {0}"
+    )]
     ReadyToUnbond(String),
 }
 
@@ -107,9 +109,9 @@ mod test {
             WasmQuery::Smart { contract_addr, msg } if contract_addr == addr => {
                 let msg = from_json::<QueryMsg>(msg).unwrap();
                 match msg {
-                    QueryMsg::ReadyToUnbond { verifier_address: _ } => {
-                        Ok(to_json_binary(&true).into()).into()
-                    }
+                    QueryMsg::ReadyToUnbond {
+                        verifier_address: _,
+                    } => Ok(to_json_binary(&true).into()).into(),
                 }
             }
             _ => panic!("unexpected query: {:?}", msg),
