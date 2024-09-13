@@ -220,7 +220,7 @@ dependencies = [
 
 [[package]]
 name = "ampd"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "async-trait",
  "axelar-wasm-std",
@@ -6685,7 +6685,7 @@ dependencies = [
 
 [[package]]
 name = "rewards"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "axelar-wasm-std",
  "cosmwasm-schema",
