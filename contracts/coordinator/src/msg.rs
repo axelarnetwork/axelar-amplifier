@@ -25,5 +25,5 @@ pub enum ExecuteMsg {
 #[derive(QueryResponses)]
 pub enum QueryMsg {
     #[returns(bool)]
-    ReadyToUnbond { worker_address: String },
+    ReadyToUnbond { verifier_address: String },
 }

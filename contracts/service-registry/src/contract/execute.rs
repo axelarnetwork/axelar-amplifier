@@ -169,7 +169,7 @@ pub fn unbond_verifier(
         .ok_or(ContractError::VerifierNotFound)?;
 
     let query = coordinator::msg::QueryMsg::ReadyToUnbond {
-        worker_address: verifier.address.to_string(),
+        verifier_address: verifier.address.to_string(),
     };
     let ready_to_unbond = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
         contract_addr: service.coordinator_contract.into(),

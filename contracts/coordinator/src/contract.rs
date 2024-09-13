@@ -96,7 +96,9 @@ pub fn query(
     msg: QueryMsg,
 ) -> Result<Binary, axelar_wasm_std::error::ContractError> {
     match msg {
-        QueryMsg::ReadyToUnbond { worker_address } => {
+        QueryMsg::ReadyToUnbond {
+            verifier_address: worker_address,
+        } => {
             let worker_address = validate_cosmwasm_address(deps.api, &worker_address)?;
             to_json_binary(&query::check_verifier_ready_to_unbond(
                 deps,
