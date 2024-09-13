@@ -220,7 +220,7 @@ dependencies = [
 
 [[package]]
 name = "ampd"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "async-trait",
  "axelar-wasm-std",
@@ -270,6 +270,7 @@ dependencies = [
  "serde_with 3.8.1",
  "service-registry",
  "sha3",
+ "stellar",
  "stellar-rs",
  "stellar-xdr",
  "sui-gateway",
@@ -1662,12 +1663,14 @@ name = "coordinator"
 version = "1.0.0"
 dependencies = [
  "axelar-wasm-std",
+ "client",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-multi-test 0.15.1",
  "cw-storage-plus 1.2.0",
  "cw2 1.1.2",
  "error-stack",
+ "goldie",
  "integration-tests",
  "itertools 0.11.0",
  "msgs-derive",
@@ -4043,16 +4046,24 @@ version = "0.1.0"
 dependencies = [
  "alloy-primitives",
  "alloy-sol-types",
+ "assert_ok",
  "axelar-wasm-std",
+ "axelarnet-gateway",
+ "client",
  "cosmwasm-schema",
  "cosmwasm-std",
+ "cw-storage-plus 1.2.0",
+ "cw2 1.1.2",
  "error-stack",
  "goldie",
+ "hex",
+ "msgs-derive",
  "report",
  "router-api",
  "schemars",
  "serde",
  "serde_json",
+ "sha3",
  "strum 0.25.0",
  "thiserror",
 ]
@@ -4976,6 +4987,7 @@ dependencies = [
  "anyhow",
  "axelar-wasm-std",
  "bcs",
+ "client",
  "coordinator",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -6650,7 +6662,7 @@ dependencies = [
 
 [[package]]
 name = "rewards"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "axelar-wasm-std",
  "cosmwasm-schema",
@@ -9296,6 +9308,7 @@ dependencies = [
  "cw-storage-plus 1.2.0",
  "cw2 1.1.2",
  "error-stack",
+ "goldie",
  "integration-tests",
  "itertools 0.11.0",
  "msgs-derive",

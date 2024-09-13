@@ -7,7 +7,6 @@ COPY ./Cargo.lock ./Cargo.lock
 COPY ./ampd/Cargo.toml ./ampd/Cargo.toml
 COPY ./packages ./packages
 COPY ./contracts ./contracts
-COPY ./interchain-token-service ./interchain-token-service
 COPY ./integration-tests ./integration-tests
 COPY ./external-gateways ./external-gateways
 COPY ./.cargo ./.cargo
