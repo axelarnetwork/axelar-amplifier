@@ -918,7 +918,7 @@ checksum = "0c4b4d0bd25bd0b74681c0ad21497610ce1b7c91b1022cd21c80c6fbdd9476b0"
 [[package]]
 name = "axelar-message-primitives"
 version = "0.1.0"
-source = "git+https://github.com/eigerco/solana-axelar.git?branch=main#80171c678822ea7ba51101b65a21520e048f8a81"
+source = "git+https://github.com/eigerco/solana-axelar.git?branch=main#06eb92a6494cf29bf8cc855231b12479ee80066d"
 dependencies = [
  "alloy-sol-types",
  "anyhow",
@@ -937,7 +937,7 @@ dependencies = [
 [[package]]
 name = "axelar-rkyv-encoding"
 version = "0.1.0"
-source = "git+https://github.com/eigerco/solana-axelar.git?branch=main#80171c678822ea7ba51101b65a21520e048f8a81"
+source = "git+https://github.com/eigerco/solana-axelar.git?branch=main#06eb92a6494cf29bf8cc855231b12479ee80066d"
 dependencies = [
  "bnum",
  "bs58 0.5.1",
@@ -3984,7 +3984,7 @@ dependencies = [
 [[package]]
 name = "gmp-gateway"
 version = "0.1.0"
-source = "git+https://github.com/eigerco/solana-axelar.git?branch=main#80171c678822ea7ba51101b65a21520e048f8a81"
+source = "git+https://github.com/eigerco/solana-axelar.git?branch=main#06eb92a6494cf29bf8cc855231b12479ee80066d"
 dependencies = [
  "axelar-message-primitives",
  "axelar-rkyv-encoding",
@@ -6293,7 +6293,7 @@ version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "af1844ef2428cc3e1cb900be36181049ef3d3193c63e43026cfe202983b27a56"
 dependencies = [
- "proc-macro-crate 3.2.0",
+ "proc-macro-crate 1.1.3",
  "proc-macro2 1.0.86",
  "quote 1.0.37",
  "syn 2.0.77",
@@ -7103,7 +7103,7 @@ dependencies = [
 [[package]]
 name = "program-utils"
 version = "0.1.0"
-source = "git+https://github.com/eigerco/solana-axelar.git?branch=main#80171c678822ea7ba51101b65a21520e048f8a81"
+source = "git+https://github.com/eigerco/solana-axelar.git?branch=main#06eb92a6494cf29bf8cc855231b12479ee80066d"
 dependencies = [
  "borsh 1.5.1",
  "solana-program",
@@ -7251,7 +7251,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "81bddcdb20abf9501610992b6759a4c888aef7d1a7247ef75e2404275ac24af1"
 dependencies = [
  "anyhow",
- "itertools 0.12.1",
+ "itertools 0.11.0",
  "proc-macro2 1.0.86",
  "quote 1.0.37",
  "syn 2.0.77",
@@ -11784,7 +11784,7 @@ version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf221c93e13a30d793f7645a0e7762c55d169dbb0a49671918a2319d289b10bb"
 dependencies = [
- "windows-sys 0.59.0",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]
