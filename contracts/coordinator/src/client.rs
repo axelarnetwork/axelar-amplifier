@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use cosmwasm_std::{Addr, WasmMsg};
+use cosmwasm_std::WasmMsg;
 use error_stack::{Result, ResultExt};
 use router_api::ChainName;
 
