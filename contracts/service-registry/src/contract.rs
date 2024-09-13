@@ -61,6 +61,10 @@ pub fn execute(
             unbonding_period_days,
             description,
         ),
+        ExecuteMsg::UpdateService {
+            service_name,
+            updated_service_params,
+        } => execute::update_service(deps, service_name, updated_service_params),
         ExecuteMsg::AuthorizeVerifiers {
             verifiers,
             service_name,
@@ -196,7 +200,7 @@ mod test {
     use router_api::ChainName;
 
     use super::*;
-    use crate::msg::VerifierDetails;
+    use crate::msg::{UpdatedServiceParams, VerifierDetails};
     use crate::state::{Verifier, WeightedVerifier, VERIFIER_WEIGHT};
 
     const GOVERNANCE_ADDRESS: &str = "governance";
@@ -265,6 +269,145 @@ mod test {
             },
         )
         .unwrap_err();
+        assert!(err_contains!(
+            err.report,
+            permission_control::Error,
+            permission_control::Error::PermissionDenied { .. }
+        ));
+    }
+
+    #[test]
+    fn update_service() {
+        let mut deps = setup();
+
+        let service_name = "validators".to_string();
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(GOVERNANCE_ADDRESS, &[]),
+            ExecuteMsg::RegisterService {
+                service_name: service_name.clone(),
+                coordinator_contract: Addr::unchecked("nowhere"),
+                min_num_verifiers: 0,
+                max_num_verifiers: Some(100),
+                min_verifier_bond: Uint128::one().try_into().unwrap(),
+                bond_denom: AXL_DENOMINATION.into(),
+                unbonding_period_days: 10,
+                description: "Some service".into(),
+            },
+        );
+        assert!(res.is_ok());
+
+        // update all configurable values
+        let updated_params = UpdatedServiceParams {
+            min_num_verifiers: Some(10),
+            max_num_verifiers: Some(None),
+            min_verifier_bond: Some(Uint128::from(10u128).try_into().unwrap()),
+            unbonding_period_days: Some(11),
+        };
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(GOVERNANCE_ADDRESS, &[]),
+            ExecuteMsg::UpdateService {
+                service_name: service_name.clone(),
+                updated_service_params: updated_params.clone(),
+            },
+        );
+        assert!(res.is_ok());
+
+        let res: Service = from_json(
+            query(
+                deps.as_ref(),
+                mock_env(),
+                QueryMsg::Service {
+                    service_name: service_name.clone(),
+                },
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            res.max_num_verifiers,
+            updated_params.max_num_verifiers.unwrap()
+        );
+        assert_eq!(
+            res.min_num_verifiers,
+            updated_params.min_num_verifiers.unwrap()
+        );
+        assert_eq!(
+            res.min_verifier_bond,
+            updated_params.min_verifier_bond.unwrap()
+        );
+        assert_eq!(
+            res.unbonding_period_days,
+            updated_params.unbonding_period_days.unwrap()
+        );
+
+        // check None values are ignored
+        let new_min_bond = Uint128::from(100u128).try_into().unwrap();
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(GOVERNANCE_ADDRESS, &[]),
+            ExecuteMsg::UpdateService {
+                service_name: service_name.clone(),
+                updated_service_params: UpdatedServiceParams {
+                    min_num_verifiers: None,
+                    max_num_verifiers: None,
+                    min_verifier_bond: Some(new_min_bond),
+                    unbonding_period_days: None,
+                },
+            },
+        );
+        assert!(res.is_ok());
+
+        let res: Service = from_json(
+            query(
+                deps.as_ref(),
+                mock_env(),
+                QueryMsg::Service {
+                    service_name: service_name.clone(),
+                },
+            )
+            .unwrap(),
+        )
+        .unwrap();
+
+        assert_eq!(res.min_verifier_bond, new_min_bond);
+        assert_eq!(
+            res.max_num_verifiers,
+            updated_params.max_num_verifiers.unwrap()
+        );
+        assert_eq!(
+            res.min_num_verifiers,
+            updated_params.min_num_verifiers.unwrap()
+        );
+        assert_eq!(
+            res.unbonding_period_days,
+            updated_params.unbonding_period_days.unwrap()
+        );
+
+        // check permissions are handled correctly
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(UNAUTHORIZED_ADDRESS, &[]),
+            ExecuteMsg::UpdateService {
+                service_name: service_name.clone(),
+                updated_service_params: UpdatedServiceParams {
+                    min_num_verifiers: None,
+                    max_num_verifiers: None,
+                    min_verifier_bond: Some(new_min_bond),
+                    unbonding_period_days: None,
+                },
+            },
+        );
+
+        assert!(res.is_err());
+        let err = res.unwrap_err();
         assert!(err_contains!(
             err.report,
             permission_control::Error,
