@@ -4,9 +4,10 @@ use axelar_wasm_std::address;
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{Addr, DepsMut, Env, MessageInfo, Response, Storage};
 use error_stack::Report;
+use execute::route_message_with_token_to_nexus;
 use migrations::v1_0_0;
 
-use crate::contract::execute::{call_contract_with_token, route_to_nexus, route_to_router};
+use crate::contract::execute::{route_messages_to_nexus, route_messages_to_router};
 use crate::error::Error;
 use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg};
 use crate::state;
@@ -62,24 +63,25 @@ pub fn execute(
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response<nexus::execute::Message>, axelar_wasm_std::error::ContractError> {
-    let res = match msg.ensure_permissions(deps.storage, &info.sender, match_router, match_nexus)? {
-        ExecuteMsg::CallContractWithToken {
-            destination_chain,
-            destination_address,
-            payload,
-        } => call_contract_with_token(
-            deps.storage,
-            deps.querier,
-            info,
-            destination_chain,
-            destination_address,
-            payload,
-        )?,
-        ExecuteMsg::RouteMessages(msgs) => route_to_nexus(deps.storage, msgs)?,
-        ExecuteMsg::RouteMessagesFromNexus(msgs) => route_to_router(deps.storage, msgs)?,
+    let res = match msg.ensure_permissions(
+        deps.storage,
+        &info.sender,
+        match_gateway,
+        match_router,
+        match_nexus,
+    )? {
+        ExecuteMsg::RouteMessageWithToken(msg) => {
+            route_message_with_token_to_nexus(deps.storage, deps.querier, info, msg)?
+        }
+        ExecuteMsg::RouteMessages(msgs) => route_messages_to_nexus(deps.storage, msgs)?,
+        ExecuteMsg::RouteMessagesFromNexus(msgs) => route_messages_to_router(deps.storage, msgs)?,
     };
 
     Ok(res)
+}
+
+fn match_gateway(storage: &dyn Storage, _: &ExecuteMsg) -> Result<Addr, Report<Error>> {
+    Ok(state::load_config(storage)?.axelarnet_gateway)
 }
 
 fn match_router(storage: &dyn Storage, _: &ExecuteMsg) -> Result<Addr, Report<Error>> {
@@ -95,101 +97,16 @@ mod tests {
     use axelar_core_std::nexus;
     use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
     use axelar_wasm_std::{err_contains, permission_control};
-    use cosmwasm_std::testing::{
-        mock_dependencies, mock_env, mock_info, MockQuerierCustomHandlerResult,
-    };
-    use cosmwasm_std::{
-        from_json, to_json_binary, Addr, BankMsg, Coin, ContractResult, CosmosMsg, QuerierResult,
-        SubMsg, SystemResult, WasmMsg, WasmQuery,
-    };
+    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
+    use cosmwasm_std::{from_json, CosmosMsg, WasmMsg};
     use hex::decode;
-    use rand::RngCore;
     use router_api::CrossChainId;
-    use serde::de::DeserializeOwned;
-    use serde_json::json;
 
     use super::*;
 
     const NEXUS: &str = "nexus";
     const ROUTER: &str = "router";
     const AXELARNET_GATEWAY: &str = "axelarnet_gateway";
-
-    #[test]
-    fn call_contract_with_token_no_token() {
-        let mut deps = mock_dependencies();
-        instantiate_contract(deps.as_mut());
-
-        let res = execute(
-            deps.as_mut(),
-            mock_env(),
-            mock_info(NEXUS, &[]),
-            ExecuteMsg::CallContractWithToken {
-                destination_chain: "destinationChain".parse().unwrap(),
-                destination_address: "0xD419".parse().unwrap(),
-                payload: decode("bb9b5566c2f4876863333e481f4698350154259ffe6226e283b16ce18a64bcf1")
-                    .unwrap()
-                    .into(),
-            },
-        );
-        assert!(res.is_err_and(|err| err_contains!(err.report, Error, Error::InvalidToken { .. })));
-    }
-
-    #[test]
-    fn call_contract_with_token() {
-        let mut tx_hash = [0u8; 32];
-        rand::thread_rng().fill_bytes(&mut tx_hash);
-        let nonce = rand::random();
-
-        let mut deps = mock_dependencies();
-        deps.querier = deps
-            .querier
-            .with_custom_handler(reply_with_tx_hash_and_nonce(tx_hash, nonce));
-        deps.querier.update_wasm(move |msg| match msg {
-            WasmQuery::Smart { contract_addr, msg } if contract_addr == AXELARNET_GATEWAY => {
-                let msg = from_json::<axelarnet_gateway::msg::QueryMsg>(msg).unwrap();
-
-                match msg {
-                    axelarnet_gateway::msg::QueryMsg::ChainName => {
-                        QuerierResult::Ok(to_json_binary("axelarnet").into())
-                    }
-                    _ => panic!("unexpected query: {:?}", msg),
-                }
-            }
-            _ => panic!("unexpected query: {:?}", msg),
-        });
-        instantiate_contract(deps.as_mut());
-
-        let token = Coin {
-            denom: "denom".to_string(),
-            amount: 100u128.into(),
-        };
-        let res = execute(
-            deps.as_mut(),
-            mock_env(),
-            mock_info(NEXUS, &[token.clone()]),
-            ExecuteMsg::CallContractWithToken {
-                destination_chain: "destinationChain".parse().unwrap(),
-                destination_address: "0xD419".parse().unwrap(),
-                payload: decode("bb9b5566c2f4876863333e481f4698350154259ffe6226e283b16ce18a64bcf1")
-                    .unwrap()
-                    .into(),
-            },
-        );
-        assert!(res.is_ok_and(move |res| match res.messages.as_slice() {
-            [SubMsg {
-                msg: CosmosMsg::Bank(BankMsg::Send { to_address, amount }),
-                ..
-            }, SubMsg {
-                msg:
-                    CosmosMsg::Custom(nexus::execute::Message {
-                        token: Some(actual_token),
-                        ..
-                    }),
-                ..
-            }] => *actual_token == token && to_address == NEXUS && *amount == vec![token],
-            _ => false,
-        }));
-    }
 
     #[test]
     fn route_to_router_unauthorized() {
@@ -416,25 +333,5 @@ mod tests {
             },
         )
         .unwrap();
-    }
-
-    fn reply_with_tx_hash_and_nonce<C>(
-        tx_hash: [u8; 32],
-        nonce: u32,
-    ) -> impl Fn(&C) -> MockQuerierCustomHandlerResult
-    where
-        C: DeserializeOwned,
-    {
-        move |_| {
-            SystemResult::Ok(ContractResult::Ok(
-                json!({
-                    "tx_hash": tx_hash,
-                    "nonce": nonce,
-                })
-                .to_string()
-                .as_bytes()
-                .into(),
-            ))
-        }
     }
 }

@@ -891,6 +891,7 @@ dependencies = [
  "hex",
  "itertools 0.11.0",
  "msgs-derive",
+ "nexus-gateway",
  "rand",
  "report",
  "router-api",
@@ -5211,7 +5212,6 @@ version = "1.0.0"
 dependencies = [
  "axelar-core-std",
  "axelar-wasm-std",
- "axelarnet-gateway",
  "client",
  "cosmwasm-schema",
  "cosmwasm-std",

@@ -18,7 +18,6 @@ library = []
 [dependencies]
 axelar-core-std = { workspace = true }
 axelar-wasm-std = { workspace = true, features = ["derive"] }
-axelarnet-gateway = { workspace = true, features = ["library"] }
 client = { workspace = true }
 cosmwasm-schema = { workspace = true }
 cosmwasm-std = { workspace = true }

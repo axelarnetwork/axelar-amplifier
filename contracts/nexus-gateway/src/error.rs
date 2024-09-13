@@ -15,10 +15,4 @@ pub enum Error {
 
     #[error("failed converting the nexus message for the router")]
     InvalidNexusMessageForRouter,
-
-    #[error("failed to query the nexus module")]
-    Nexus,
-
-    #[error("nonce from the nexus module overflowed u32")]
-    NonceOverflow,
 }
