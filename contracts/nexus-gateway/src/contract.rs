@@ -73,7 +73,9 @@ pub fn execute(
         ExecuteMsg::RouteMessageWithToken(msg) => {
             route_message_with_token_to_nexus(deps.storage, deps.querier, info, msg)?
         }
-        ExecuteMsg::RouteMessages(msgs) => route_messages_to_nexus(deps.storage, msgs)?,
+        ExecuteMsg::RouteMessages(msgs) => {
+            route_messages_to_nexus(deps.storage, deps.querier, msgs)?
+        }
         ExecuteMsg::RouteMessagesFromNexus(msgs) => route_messages_to_router(deps.storage, msgs)?,
     };
 
@@ -98,7 +100,7 @@ mod tests {
     use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
     use axelar_wasm_std::{err_contains, permission_control};
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-    use cosmwasm_std::{from_json, CosmosMsg, WasmMsg};
+    use cosmwasm_std::{from_json, Coin, CosmosMsg, WasmMsg};
     use hex::decode;
     use router_api::CrossChainId;
 
@@ -107,6 +109,71 @@ mod tests {
     const NEXUS: &str = "nexus";
     const ROUTER: &str = "router";
     const AXELARNET_GATEWAY: &str = "axelarnet_gateway";
+
+    #[test]
+    fn route_message_with_token_unauthorized() {
+        let mut deps = mock_dependencies();
+        instantiate_contract(deps.as_mut());
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info("unauthorized", &[Coin::new(100, "test")]),
+            ExecuteMsg::RouteMessageWithToken(router_messages()[0].clone()),
+        );
+        assert!(res.is_err_and(|err| err_contains!(
+            err.report,
+            permission_control::Error,
+            permission_control::Error::AddressNotWhitelisted { .. }
+        )));
+    }
+
+    #[test]
+    fn route_message_with_token_invalid_token() {
+        let mut deps = mock_dependencies();
+        instantiate_contract(deps.as_mut());
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(AXELARNET_GATEWAY, &[]),
+            ExecuteMsg::RouteMessageWithToken(router_messages()[0].clone()),
+        );
+        assert!(res.is_err_and(|err| { err.to_string().contains("invalid token") }));
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(
+                AXELARNET_GATEWAY,
+                &[Coin::new(100, "test"), Coin::new(100, "test")],
+            ),
+            ExecuteMsg::RouteMessageWithToken(router_messages()[0].clone()),
+        );
+        assert!(res.is_err_and(|err| { err.to_string().contains("invalid token") }));
+    }
+
+    #[test]
+    fn route_message_with_token() {
+        let mut deps = mock_dependencies();
+        instantiate_contract(deps.as_mut());
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(AXELARNET_GATEWAY, &[Coin::new(100, "test")]),
+            ExecuteMsg::RouteMessageWithToken(router_messages()[0].clone()),
+        );
+        goldie::assert_json!(res.unwrap());
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(AXELARNET_GATEWAY, &[Coin::new(100, "test")]),
+            ExecuteMsg::RouteMessageWithToken(router_messages()[0].clone()),
+        );
+        assert!(res.is_ok_and(|res| res.messages.is_empty()));
+    }
 
     #[test]
     fn route_to_router_unauthorized() {

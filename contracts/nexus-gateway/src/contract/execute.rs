@@ -1,5 +1,8 @@
+use std::iter;
+
 use axelar_core_std::nexus;
-use cosmwasm_std::{BankMsg, MessageInfo, QuerierWrapper, Response, Storage};
+use axelar_wasm_std::FnExt;
+use cosmwasm_std::{BankMsg, Coin, CosmosMsg, MessageInfo, QuerierWrapper, Response, Storage};
 use error_stack::{bail, ResultExt};
 
 use crate::error::Error;
@@ -7,92 +10,6 @@ use crate::state;
 use crate::state::load_config;
 
 type Result<T> = error_stack::Result<T, Error>;
-
-pub fn route_message_with_token_to_nexus(
-    storage: &mut dyn Storage,
-    querier: QuerierWrapper,
-    info: MessageInfo,
-    msg: router_api::Message,
-) -> Result<Response<nexus::execute::Message>> {
-    state::set_message_routed(storage, &msg.cc_id)?;
-
-    let token = match info.funds.as_slice() {
-        [token] => token.clone(),
-        _ => bail!(Error::InvalidToken(info.funds)),
-    };
-    let mut msg: nexus::execute::Message = msg.into();
-    msg.token = Some(token.clone());
-    // send the token to the nexus module account
-    let bank_transfer_msg = BankMsg::Send {
-        to_address: load_config(storage)?.nexus.to_string(),
-        amount: vec![token],
-    };
-
-    let client: nexus::Client = client::CosmosClient::new(querier).into();
-
-    Ok(Response::new()
-        .add_message(bank_transfer_msg)
-        .add_message(client.route_message(msg)))
-}
-
-// pub fn call_contract_with_token(
-//     storage: &mut dyn Storage,
-//     querier: QuerierWrapper,
-//     info: MessageInfo,
-//     destination_chain: ChainName,
-//     destination_address: Address,
-//     payload: HexBinary,
-// ) -> Result<Response<nexus::execute::Message>> {
-//     let config = load_config(storage)?;
-//     let axelarnet_gateway: axelarnet_gateway::Client =
-//         client::ContractClient::new(querier, &config.axelarnet_gateway).into();
-//     let source_address: Address = info
-//         .sender
-//         .into_string()
-//         .parse()
-//         .expect("invalid sender address");
-//     let token = match info.funds.as_slice() {
-//         [token] => token.clone(),
-//         _ => bail!(Error::InvalidToken(info.funds)),
-//     };
-
-//     let client: nexus::Client = client::CosmosClient::new(querier).into();
-//     let nexus::query::TxHashAndNonceResponse { tx_hash, nonce } =
-//         client.tx_hash_and_nonce().change_context(Error::Nexus)?;
-//     let id = HexTxHashAndEventIndex::new(
-//         tx_hash,
-//         u32::try_from(nonce).change_context(Error::NonceOverflow)?,
-//     );
-
-//     // send the token to the nexus module account
-//     let bank_transfer_msg = BankMsg::Send {
-//         to_address: config.nexus.to_string(),
-//         amount: vec![token.clone()],
-//     };
-//     let msg = nexus::execute::Message {
-//         source_chain: axelarnet_gateway
-//             .chain_name()
-//             .change_context(Error::AxelarnetGateway)?
-//             .into(),
-//         source_address,
-//         destination_chain,
-//         destination_address,
-//         payload_hash: Keccak256::digest(payload.as_slice()).into(),
-//         source_tx_id: tx_hash
-//             .to_vec()
-//             .try_into()
-//             .expect("tx hash must not be empty"),
-//         source_tx_index: nonce,
-//         id: nonempty::String::from(id).into(),
-//         token: Some(token),
-//     };
-
-//     // TODO: Emit ContractCalledWithToken event. Will do it once
-//     // call contract with token happens via the axelarnet-gateway.
-//     Ok(Response::new()
-//         .add_message(bank_transfer_msg)
-//         .add_message(client.route_message(msg)))
-// }
 
 pub fn route_messages_to_router(
     storage: &dyn Storage,
@@ -109,23 +26,66 @@ pub fn route_messages_to_router(
     Ok(Response::new().add_messages(router.route(msgs)))
 }
 
+pub fn route_message_with_token_to_nexus(
+    storage: &mut dyn Storage,
+    querier: QuerierWrapper,
+    info: MessageInfo,
+    msg: router_api::Message,
+) -> Result<Response<nexus::execute::Message>> {
+    let token = match info.funds.as_slice() {
+        [token] => token.clone(),
+        _ => bail!(Error::InvalidToken(info.funds)),
+    };
+
+    route_message_to_nexus(storage, querier, msg, Some(token))?
+        .then(|msgs| Response::new().add_messages(msgs))
+        .then(Result::Ok)
+}
+
 pub fn route_messages_to_nexus(
     storage: &mut dyn Storage,
+    querier: QuerierWrapper,
     msgs: Vec<router_api::Message>,
 ) -> Result<Response<nexus::execute::Message>> {
-    let msgs = msgs
-        .into_iter()
-        .filter_map(|msg| match state::is_message_routed(storage, &msg.cc_id) {
-            Ok(true) => None,
-            Ok(false) => Some(Ok(msg)),
-            Err(err) => Some(Err(err)),
+    msgs.into_iter()
+        .map(|msg| route_message_to_nexus(storage, querier, msg, None))
+        .collect::<Result<Vec<_>>>()?
+        .then(|msgs| msgs.concat())
+        .then(|msgs| Response::new().add_messages(msgs))
+        .then(Result::Ok)
+}
+
+fn route_message_to_nexus(
+    storage: &mut dyn Storage,
+    querier: QuerierWrapper,
+    msg: router_api::Message,
+    token: Option<Coin>,
+) -> Result<Vec<CosmosMsg<nexus::execute::Message>>> {
+    if state::is_message_routed(storage, &msg.cc_id)? {
+        return Ok(vec![]);
+    }
+
+    state::set_message_routed(storage, &msg.cc_id)?;
+
+    let client: nexus::Client = client::CosmosClient::new(querier).into();
+    let config = load_config(storage)?;
+
+    let mut msg: nexus::execute::Message = msg.into();
+    msg.token.clone_from(&token);
+
+    vec![client.route_message(msg)]
+        .then(move |mut msgs| {
+            if let Some(token) = token {
+                msgs.extend(iter::once(
+                    BankMsg::Send {
+                        to_address: config.nexus.to_string(),
+                        amount: vec![token],
+                    }
+                    .into(),
+                ));
+            }
+
+            msgs
         })
-        .collect::<Result<Vec<_>>>()?;
-
-    msgs.iter()
-        .try_for_each(|msg| state::set_message_routed(storage, &msg.cc_id))?;
-
-    let msgs: Vec<nexus::execute::Message> = msgs.into_iter().map(Into::into).collect();
-
-    Ok(Response::new().add_messages(msgs))
+        .then(Result::Ok)
 }
