@@ -15,7 +15,7 @@ pub trait Finalizer: Send + Sync {
     async fn latest_finalized_block_height(&self) -> Result<U64>;
 }
 
-#[derive(Debug, Deserialize, Serialize, PartialEq, Default)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Default)]
 pub enum Finalization {
     #[default]
     RPCFinalizedBlock,

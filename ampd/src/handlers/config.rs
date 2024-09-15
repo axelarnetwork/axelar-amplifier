@@ -10,7 +10,7 @@ use crate::evm::finalizer::Finalization;
 use crate::types::TMAddress;
 use crate::url::Url;
 
-#[derive(Debug, Deserialize, Serialize, PartialEq)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct Chain {
     pub name: ChainName,
     pub rpc_url: Url,
@@ -18,14 +18,14 @@ pub struct Chain {
     pub finalization: Finalization,
 }
 
-#[derive(Debug, Deserialize, Serialize, PartialEq)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 pub struct GenericChain {
     pub name: ChainName,
     pub rpc_url: Url,
 }
 
 with_prefix!(chain "chain_");
-#[derive(Debug, Deserialize, Serialize, PartialEq)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 #[serde(tag = "type")]
 pub enum Config {
     EvmMsgVerifier {
@@ -84,21 +84,6 @@ pub enum Config {
     },
 }
 
-fn validate_multisig_signer_config<'de, D>(configs: &[Config]) -> Result<(), D::Error>
-where
-    D: Deserializer<'de>,
-{
-    match configs
-        .iter()
-        .filter(|config| matches!(config, Config::MultisigSigner { .. }))
-        .count()
-    {
-        count if count > 1 => Err(de::Error::custom(
-            "only one multisig signer config is allowed",
-        )),
-        _ => Ok(()),
-    }
-}
 fn validate_evm_verifier_set_verifier_configs<'de, D>(configs: &[Config]) -> Result<(), D::Error>
 where
     D: Deserializer<'de>,
@@ -145,155 +130,20 @@ where
     Ok(())
 }
 
-fn validate_sui_msg_verifier_config<'de, D>(configs: &[Config]) -> Result<(), D::Error>
-where
-    D: Deserializer<'de>,
-{
-    match configs
-        .iter()
-        .filter(|config| matches!(config, Config::SuiMsgVerifier { .. }))
-        .count()
-    {
-        count if count > 1 => Err(de::Error::custom(
-            "only one Sui msg verifier config is allowed",
-        )),
-        _ => Ok(()),
-    }
-}
-
-fn validate_sui_verifier_set_verifier_config<'de, D>(configs: &[Config]) -> Result<(), D::Error>
-where
-    D: Deserializer<'de>,
-{
-    match configs
-        .iter()
-        .filter(|config| matches!(config, Config::SuiVerifierSetVerifier { .. }))
-        .count()
-    {
-        count if count > 1 => Err(de::Error::custom(
-            "only one Sui worker set verifier config is allowed",
-        )),
-        _ => Ok(()),
-    }
-}
-
-fn validate_solana_msg_verifier_config<'de, D>(configs: &[Config]) -> Result<(), D::Error>
-where
-    D: Deserializer<'de>,
-{
-    if !configs
-        .iter()
-        .filter_map(|config| match config {
-            Config::SolanaMsgVerifier {
-                chain: GenericChain { name, .. },
-                ..
-            } => Some(name),
-            _ => None,
-        })
-        .all_unique()
-    {
-        return Err(de::Error::custom(
-            "the chain name Solana msg verifier configs must be unique",
-        ));
-    }
-
-    match configs
-        .iter()
-        .filter(|config| matches!(config, Config::SolanaMsgVerifier { .. }))
-        .count()
-    {
-        count if count > 1 => Err(de::Error::custom(
-            "only one Solana msg verifier config is allowed",
-        )),
-        _ => Ok(()),
-    }
-}
-
-fn validate_mvx_msg_verifier_config<'de, D>(configs: &[Config]) -> Result<(), D::Error>
-where
-    D: Deserializer<'de>,
-{
-    match configs
-        .iter()
-        .filter(|config| matches!(config, Config::MvxMsgVerifier { .. }))
-        .count()
-    {
-        count if count > 1 => Err(de::Error::custom(
-            "only one Mvx msg verifier config is allowed",
-        )),
-        _ => Ok(()),
-    }
-}
-
-fn validate_mvx_worker_set_verifier_config<'de, D>(configs: &[Config]) -> Result<(), D::Error>
-where
-    D: Deserializer<'de>,
-{
-    match configs
-        .iter()
-        .filter(|config| matches!(config, Config::MvxVerifierSetVerifier { .. }))
-        .count()
-    {
-        count if count > 1 => Err(de::Error::custom(
-            "only one Mvx worker set verifier config is allowed",
-        )),
-        _ => Ok(()),
-    }
-}
-
-fn validate_stellar_msg_verifier_config<'de, D>(configs: &[Config]) -> Result<(), D::Error>
-where
-    D: Deserializer<'de>,
-{
-    match configs
-        .iter()
-        .filter(|config| matches!(config, Config::StellarMsgVerifier { .. }))
-        .count()
-    {
-        count if count > 1 => Err(de::Error::custom(
-            "only one Stellar msg verifier config is allowed",
-        )),
-        _ => Ok(()),
-    }
-}
-
-fn validate_stellar_verifier_set_verifier_config<'de, D>(configs: &[Config]) -> Result<(), D::Error>
-where
-    D: Deserializer<'de>,
-{
-    match configs
-        .iter()
-        .filter(|config| matches!(config, Config::StellarMsgVerifier { .. }))
-        .count()
-    {
-        count if count > 1 => Err(de::Error::custom(
-            "only one Stellar verifier set verifier config is allowed",
-        )),
-        _ => Ok(()),
-    }
-}
-
-fn validate_solana_verifier_set_verifier_configs<'de, D>(configs: &[Config]) -> Result<(), D::Error>
-where
-    D: Deserializer<'de>,
-{
-    if !configs
-        .iter()
-        .filter_map(|config| match config {
-            Config::SolanaVerifierSetVerifier {
-                chain: GenericChain { name, .. },
-                ..
-            } => Some(name),
-            _ => None,
-        })
-        .all_unique()
-    {
-        return Err(de::Error::custom(
-            "the chain name Solana worker set verifier configs must be unique",
-        ));
-    }
-
-    Ok(())
+macro_rules! ensure_unique_config {
+    ($configs:expr, $config_type:path, $config_name:expr) => {
+        match $configs
+            .iter()
+            .filter(|config| matches!(config, $config_type { .. }))
+            .count()
+        {
+            count if count > 1 => Err(de::Error::custom(format!(
+                "only one {} config is allowed",
+                $config_name
+            ))),
+            _ => Ok(()),
+        }
+    };
 }
 
 pub fn deserialize_handler_configs<'de, D>(deserializer: D) -> Result<Vec<Config>, D::Error>
@@ -304,24 +154,52 @@ where
 
     validate_evm_msg_verifier_configs::<D>(&configs)?;
     validate_evm_verifier_set_verifier_configs::<D>(&configs)?;
-    validate_multisig_signer_config::<D>(&configs)?;
-    validate_sui_msg_verifier_config::<D>(&configs)?;
-    validate_sui_verifier_set_verifier_config::<D>(&configs)?;
-    validate_mvx_msg_verifier_config::<D>(&configs)?;
-    validate_mvx_worker_set_verifier_config::<D>(&configs)?;
-    validate_stellar_msg_verifier_config::<D>(&configs)?;
-    validate_stellar_verifier_set_verifier_config::<D>(&configs)?;
-    validate_solana_msg_verifier_config::<D>(&configs)?;
-    validate_solana_verifier_set_verifier_configs::<D>(&configs)?;
+
+    ensure_unique_config!(&configs, Config::MultisigSigner, "Multisig signer")?;
+    ensure_unique_config!(&configs, Config::SuiMsgVerifier, "Sui message verifier")?;
+    ensure_unique_config!(
+        &configs,
+        Config::SuiVerifierSetVerifier,
+        "Sui verifier set verifier"
+    )?;
+    ensure_unique_config!(&configs, Config::MvxMsgVerifier, "Mvx message verifier")?;
+    ensure_unique_config!(
+        &configs,
+        Config::MvxVerifierSetVerifier,
+        "Mvx verifier set verifier"
+    )?;
+    ensure_unique_config!(
+        &configs,
+        Config::StellarMsgVerifier,
+        "Stellar message verifier"
+    )?;
+    ensure_unique_config!(
+        &configs,
+        Config::StellarVerifierSetVerifier,
+        "Stellar verifier set verifier"
+    )?;
+    ensure_unique_config!(
+        &configs,
+        Config::SolanaMsgVerifier,
+        "Solana message verifier"
+    )?;
+    ensure_unique_config!(
+        &configs,
+        Config::SolanaVerifierSetVerifier,
+        "Solana verifier set verifier"
+    )?;
 
     Ok(configs)
 }
 
 #[cfg(test)]
 mod tests {
+    use serde_json::to_value;
 
     use crate::evm::finalizer::Finalization;
-    use crate::handlers::config::Chain;
+    use crate::handlers::config::{deserialize_handler_configs, Chain, Config, GenericChain};
+    use crate::types::TMAddress;
+    use crate::PREFIX;
 
     #[test]
     fn finalizer_should_default_to_ethereum() {
@@ -332,5 +210,164 @@ mod tests {
 
         let chain_config: Chain = toml::from_str(chain_config_toml).unwrap();
         assert_eq!(chain_config.finalization, Finalization::RPCFinalizedBlock);
+    }
+
+    #[test]
+    fn unique_config_validation() {
+        let configs = vec![
+            Config::MultisigSigner {
+                cosmwasm_contract: TMAddress::random(PREFIX),
+            },
+            Config::MultisigSigner {
+                cosmwasm_contract: TMAddress::random(PREFIX),
+            },
+        ];
+
+        assert!(
+            matches!(deserialize_handler_configs(to_value(configs).unwrap()),
+                Err(e) if e.to_string().contains("only one Multisig signer config is allowed")
+            )
+        );
+
+        let configs = vec![
+            Config::SuiMsgVerifier {
+                cosmwasm_contract: TMAddress::random(PREFIX),
+                rpc_url: "http://localhost:7545/".parse().unwrap(),
+                rpc_timeout: None,
+            },
+            Config::SuiMsgVerifier {
+                cosmwasm_contract: TMAddress::random(PREFIX),
+                rpc_url: "http://localhost:7545/".parse().unwrap(),
+                rpc_timeout: None,
+            },
+        ];
+
+        assert!(
+            matches!(deserialize_handler_configs(to_value(configs).unwrap()),
+                Err(e) if e.to_string().contains("only one Sui message verifier config is allowed")
+            )
+        );
+
+        let configs = vec![
+            Config::SuiVerifierSetVerifier {
+                cosmwasm_contract: TMAddress::random(PREFIX),
+                rpc_url: "http://localhost:7545/".parse().unwrap(),
+                rpc_timeout: None,
+            },
+            Config::SuiVerifierSetVerifier {
+                cosmwasm_contract: TMAddress::random(PREFIX),
+                rpc_url: "http://localhost:7545/".parse().unwrap(),
+                rpc_timeout: None,
+            },
+        ];
+
+        assert!(
+            matches!(deserialize_handler_configs(to_value(configs).unwrap()),
+                Err(e) if e.to_string().contains("only one Sui verifier set verifier config is allowed")
+            )
+        );
+
+        let configs = vec![
+            Config::MvxMsgVerifier {
+                cosmwasm_contract: TMAddress::random(PREFIX),
+                proxy_url: "http://localhost:7545/".parse().unwrap(),
+            },
+            Config::MvxMsgVerifier {
+                cosmwasm_contract: TMAddress::random(PREFIX),
+                proxy_url: "http://localhost:7545/".parse().unwrap(),
+            },
+        ];
+
+        assert!(
+            matches!(deserialize_handler_configs(to_value(configs).unwrap()),
+                Err(e) if e.to_string().contains("only one Mvx message verifier config is allowed")
+            )
+        );
+
+        let configs = vec![
+            Config::MvxVerifierSetVerifier {
+                cosmwasm_contract: TMAddress::random(PREFIX),
+                proxy_url: "http://localhost:7545/".parse().unwrap(),
+            },
+            Config::MvxVerifierSetVerifier {
+                cosmwasm_contract: TMAddress::random(PREFIX),
+                proxy_url: "http://localhost:7545/".parse().unwrap(),
+            },
+        ];
+
+        assert!(
+            matches!(deserialize_handler_configs(to_value(configs).unwrap()),
+                Err(e) if e.to_string().contains("only one Mvx verifier set verifier config is allowed")
+            )
+        );
+
+        let configs = vec![
+            Config::StellarMsgVerifier {
+                cosmwasm_contract: TMAddress::random(PREFIX),
+                http_url: "http://localhost:8080/".parse().unwrap(),
+            },
+            Config::StellarMsgVerifier {
+                cosmwasm_contract: TMAddress::random(PREFIX),
+                http_url: "http://localhost:8080/".parse().unwrap(),
+            },
+        ];
+
+        assert!(
+            matches!(deserialize_handler_configs(to_value(configs).unwrap()),
+                Err(e) if e.to_string().contains("only one Stellar message verifier config is allowed")
+            )
+        );
+
+        let configs = vec![
+            Config::StellarVerifierSetVerifier {
+                cosmwasm_contract: TMAddress::random(PREFIX),
+                http_url: "http://localhost:8080/".parse().unwrap(),
+            },
+            Config::StellarVerifierSetVerifier {
+                cosmwasm_contract: TMAddress::random(PREFIX),
+                http_url: "http://localhost:8080/".parse().unwrap(),
+            },
+        ];
+
+        assert!(
+            matches!(deserialize_handler_configs(to_value(configs).unwrap()),
+                Err(e) if e.to_string().contains("only one Stellar verifier set verifier config is allowed")
+            )
+        );
+
+        let sample_config = Config::SolanaMsgVerifier {
+            cosmwasm_contract: TMAddress::random(PREFIX),
+            chain: GenericChain {
+                name: "solana".parse().unwrap(),
+                rpc_url: "http://localhost:8080/".parse().unwrap(),
+            },
+            rpc_timeout: None,
+            max_tx_cache_entries: 5,
+        };
+
+        let configs = vec![sample_config.clone(), sample_config];
+
+        assert!(
+            matches!(deserialize_handler_configs(to_value(configs).unwrap()),
+                Err(e) if e.to_string().contains("only one Solana message verifier config is allowed")
+            )
+        );
+
+        let sample_config = Config::SolanaVerifierSetVerifier {
+            cosmwasm_contract: TMAddress::random(PREFIX),
+            chain: GenericChain {
+                name: "solana".parse().unwrap(),
+                rpc_url: "http://localhost:8080/".parse().unwrap(),
+            },
+            rpc_timeout: None,
+        };
+
+        let configs = vec![sample_config.clone(), sample_config];
+
+        assert!(
+            matches!(deserialize_handler_configs(to_value(configs).unwrap()),
+                Err(e) if e.to_string().contains("only one Solana verifier set verifier config is allowed")
+            )
+        );
     }
 }
