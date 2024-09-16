@@ -108,6 +108,8 @@ jobs:
           
           sudo apt-get install protobuf-compiler pkg-config
           
+          echo "OPENSSL_INCLUDE_DIR" $(ls /usr/include/openssl) 
+          
           if [ "$ARCH" == "arm64" ]
           then
             sudo apt-get install gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
