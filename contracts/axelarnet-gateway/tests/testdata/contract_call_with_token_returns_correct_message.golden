@@ -2,7 +2,7 @@
   "route_message_with_token": {
     "cc_id": {
       "source_chain": "axelarnet",
-      "message_id": "0xb795e27bcb71c3dfd108c18e031ec966e37c7c95927c2a9fd88ec573ee690c2c-99"
+      "message_id": "0x0202020202020202020202020202020202020202020202020202020202020202-99"
     },
     "source_address": "sender",
     "destination_chain": "destination-chain",

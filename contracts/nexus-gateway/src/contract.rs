@@ -66,7 +66,7 @@ pub fn execute(
     let res = match msg.ensure_permissions(
         deps.storage,
         &info.sender,
-        match_gateway,
+        match_axelarnet_gateway,
         match_router,
         match_nexus,
     )? {
@@ -82,7 +82,7 @@ pub fn execute(
     Ok(res)
 }
 
-fn match_gateway(storage: &dyn Storage, _: &ExecuteMsg) -> Result<Addr, Report<Error>> {
+fn match_axelarnet_gateway(storage: &dyn Storage, _: &ExecuteMsg) -> Result<Addr, Report<Error>> {
     Ok(state::load_config(storage)?.axelarnet_gateway)
 }
 
@@ -96,9 +96,10 @@ fn match_nexus(storage: &dyn Storage, _: &ExecuteMsg) -> Result<Addr, Report<Err
 
 #[cfg(test)]
 mod tests {
+    use assert_ok::assert_ok;
     use axelar_core_std::nexus;
     use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
-    use axelar_wasm_std::{err_contains, permission_control};
+    use axelar_wasm_std::{assert_err_contains, err_contains, permission_control};
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
     use cosmwasm_std::{from_json, Coin, CosmosMsg, WasmMsg};
     use hex::decode;
@@ -121,11 +122,11 @@ mod tests {
             mock_info("unauthorized", &[Coin::new(100, "test")]),
             ExecuteMsg::RouteMessageWithToken(router_messages()[0].clone()),
         );
-        assert!(res.is_err_and(|err| err_contains!(
-            err.report,
+        assert_err_contains!(
+            res,
             permission_control::Error,
             permission_control::Error::AddressNotWhitelisted { .. }
-        )));
+        );
     }
 
     #[test]
@@ -164,7 +165,7 @@ mod tests {
             mock_info(AXELARNET_GATEWAY, &[Coin::new(100, "test")]),
             ExecuteMsg::RouteMessageWithToken(router_messages()[0].clone()),
         );
-        goldie::assert_json!(res.unwrap());
+        goldie::assert_json!(assert_ok!(res));
 
         let res = execute(
             deps.as_mut(),
@@ -172,7 +173,7 @@ mod tests {
             mock_info(AXELARNET_GATEWAY, &[Coin::new(100, "test")]),
             ExecuteMsg::RouteMessageWithToken(router_messages()[0].clone()),
         );
-        assert!(res.is_ok_and(|res| res.messages.is_empty()));
+        assert!(assert_ok!(res).messages.is_empty());
     }
 
     #[test]

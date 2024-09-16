@@ -3,6 +3,24 @@
     {
       "id": 0,
       "msg": {
+        "bank": {
+          "send": {
+            "to_address": "nexus",
+            "amount": [
+              {
+                "denom": "test",
+                "amount": "100"
+              }
+            ]
+          }
+        }
+      },
+      "gas_limit": null,
+      "reply_on": "never"
+    },
+    {
+      "id": 0,
+      "msg": {
         "custom": {
           "source_chain": "sourceChain",
           "source_address": "0xb860",
@@ -81,24 +99,6 @@
           "token": {
             "denom": "test",
             "amount": "100"
-          }
-        }
-      },
-      "gas_limit": null,
-      "reply_on": "never"
-    },
-    {
-      "id": 0,
-      "msg": {
-        "bank": {
-          "send": {
-            "to_address": "nexus",
-            "amount": [
-              {
-                "denom": "test",
-                "amount": "100"
-              }
-            ]
           }
         }
       },

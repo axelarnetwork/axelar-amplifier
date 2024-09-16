@@ -73,19 +73,14 @@ fn route_message_to_nexus(
     let mut msg: nexus::execute::Message = msg.into();
     msg.token.clone_from(&token);
 
-    vec![client.route_message(msg)]
-        .then(move |mut msgs| {
-            if let Some(token) = token {
-                msgs.extend(iter::once(
-                    BankMsg::Send {
-                        to_address: config.nexus.to_string(),
-                        amount: vec![token],
-                    }
-                    .into(),
-                ));
-            }
-
-            msgs
+    token
+        .into_iter()
+        .map(|token| BankMsg::Send {
+            to_address: config.nexus.to_string(),
+            amount: vec![token],
         })
+        .map(Into::into)
+        .chain(iter::once(client.route_message(msg)))
+        .collect::<Vec<_>>()
         .then(Result::Ok)
 }

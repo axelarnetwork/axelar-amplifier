@@ -18,8 +18,8 @@ pub struct InstantiateMsg {
 #[derive(EnsurePermissions)]
 pub enum ExecuteMsg {
     /// Initiate a cross-chain contract call with token from Axelarnet to another chain.
-    /// Note: This only works when the destination chain is a legacy chain.
-    #[permission(Specific(gateway))]
+    /// Note: This only works when the destination chain is a legacy chain, and one and only one token has to be sent together.
+    #[permission(Specific(axelarnet_gateway))]
     RouteMessageWithToken(router_api::Message),
     /// Route a cross-chain message from Axelarnet to another chain.
     /// Note: This only works when the destination chain is a legacy chain.

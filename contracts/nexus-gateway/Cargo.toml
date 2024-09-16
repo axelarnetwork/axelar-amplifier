@@ -39,6 +39,7 @@ voting-verifier = { workspace = true, features = ["library"] }
 workspace = true
 
 [dev-dependencies]
+assert_ok = { workspace = true }
 goldie = { workspace = true }
 rand = { workspace = true }
 serde_json = { workspace = true }

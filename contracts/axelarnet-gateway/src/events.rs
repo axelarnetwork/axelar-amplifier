@@ -35,8 +35,8 @@ impl From<AxelarnetGatewayEvent> for Event {
                 payload,
                 token,
             } => make_message_event("contract_called", msg)
-                .then(add_token_attribute_if_some(token))
-                .add_attribute("payload", payload.to_string()),
+                .add_attribute("payload", payload.to_string())
+                .then(add_token_attribute_if_some(token)),
             AxelarnetGatewayEvent::Routing { msg } => make_message_event("routing", msg),
             AxelarnetGatewayEvent::MessageExecuted { msg } => {
                 make_message_event("message_executed", msg)

@@ -315,11 +315,7 @@ fn contract_call_returns_correct_message() {
 
 #[test]
 fn contract_call_with_token_returns_correct_message() {
-    let tx_hash: [u8; 32] =
-        hex::decode("b795e27bcb71c3dfd108c18e031ec966e37c7c95927c2a9fd88ec573ee690c2c")
-            .unwrap()
-            .try_into()
-            .unwrap();
+    let tx_hash: [u8; 32] = [2; 32];
     let nonce = 99;
     let token = Coin::new(10, "axelar");
 
