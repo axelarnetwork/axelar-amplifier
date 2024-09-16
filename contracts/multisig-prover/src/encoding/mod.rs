@@ -45,7 +45,7 @@ impl Encoder {
         payload: &Payload,
     ) -> Result<HexBinary, ContractError> {
         match self {
-            Encoder::Abi => abi::execute_data::encode(
+            Encoder::Abi => abi::encode_execute_data(
                 verifier_set,
                 sigs,
                 &self.digest(domain_separator, verifier_set, payload)?,
