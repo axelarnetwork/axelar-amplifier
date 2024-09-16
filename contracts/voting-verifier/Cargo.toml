@@ -56,7 +56,7 @@ cw-multi-test = "0.15.1"
 goldie = { workspace = true }
 integration-tests = { workspace = true }
 multisig = { workspace = true, features = ["test", "library"] }
-rand = "0.8.5"
+rand = { workspace = true }
 sha3 = { workspace = true }
 
 [lints]
