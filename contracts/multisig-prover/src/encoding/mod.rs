@@ -1,4 +1,5 @@
 mod abi;
+mod abi2;
 mod bcs;
 mod stellar_xdr;
 
@@ -58,6 +59,31 @@ impl Encoder {
                 payload,
             ),
             Encoder::StellarXdr => stellar_xdr::encode_execute_data(verifier_set, sigs, payload),
+        }
+    }
+}
+pub trait Encoder2 {
+    fn digest(
+        domain_separator: &Hash,
+        verifier_set: &VerifierSet,
+        payload: &Payload,
+    ) -> Result<Hash, ContractError>;
+
+    fn execute_data(
+        &self,
+        domain_separator: &Hash,
+        verifier_set: &VerifierSet,
+        signatures: Vec<SignerWithSig>,
+        payload: &Payload,
+    ) -> Result<HexBinary, ContractError>;
+}
+
+impl Encoder {
+    pub fn encoder(self) -> impl Encoder2 {
+        match self {
+            Self::Abi => abi2::AbiEncoder {},
+            Self::Bcs => bcs::BcsEncoder {},
+            Self::StellarXdr => stellar_xdr::Encoder {},
         }
     }
 }

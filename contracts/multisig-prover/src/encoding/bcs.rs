@@ -8,7 +8,7 @@ use multisig::verifier_set::VerifierSet;
 use sha3::{Digest, Keccak256};
 use sui_gateway::{CommandType, ExecuteData, Message, MessageToSign, Proof, WeightedSigners};
 
-use crate::encoding::{to_recoverable, Encoder};
+use crate::encoding::{to_recoverable, Encoder, Encoder2};
 use crate::error::ContractError;
 use crate::payload::Payload;
 
@@ -77,6 +77,56 @@ pub fn encode_execute_data(
     Ok(bcs::to_bytes(&execute_data)
         .expect("failed to serialize execute data")
         .into())
+}
+
+pub struct BcsEncoder;
+
+impl Encoder2 for BcsEncoder {
+    fn digest(
+        domain_separator: &Hash,
+        verifier_set: &VerifierSet,
+        payload: &Payload,
+    ) -> Result<Hash, ContractError> {
+        let command_type = match payload {
+            Payload::Messages(_) => CommandType::ApproveMessages,
+            Payload::VerifierSet(_) => CommandType::RotateSigners,
+        };
+        let data = iter::once(command_type as u8)
+            .chain(encode_payload(payload)?)
+            .collect::<Vec<_>>();
+        let msg = MessageToSign {
+            domain_separator: (*domain_separator).into(),
+            signers_hash: WeightedSigners::try_from(verifier_set.clone())
+                .change_context(ContractError::InvalidVerifierSet)?
+                .hash()
+                .into(),
+            data_hash: <[u8; 32]>::from(Keccak256::digest(data)).into(),
+        };
+
+        Ok(msg.hash())
+    }
+
+    fn execute_data(
+        &self,
+        payload_digest: &Hash,
+        verifier_set: &VerifierSet,
+        signatures: Vec<SignerWithSig>,
+        payload: &Payload,
+    ) -> Result<HexBinary, ContractError> {
+        let signatures = to_recoverable(Encoder::Bcs, payload_digest, signatures);
+
+        let encoded_payload = encode_payload(payload)?;
+        let encoded_proof = bcs::to_bytes(
+            &Proof::try_from((verifier_set.clone(), signatures))
+                .change_context(ContractError::Proof)?,
+        )
+        .expect("failed to serialize proof");
+        let execute_data = ExecuteData::new(encoded_payload, encoded_proof);
+
+        Ok(bcs::to_bytes(&execute_data)
+            .expect("failed to serialize execute data")
+            .into())
+    }
 }
 
 #[cfg(test)]

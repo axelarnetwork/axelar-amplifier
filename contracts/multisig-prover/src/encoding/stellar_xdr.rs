@@ -8,6 +8,7 @@ use sha3::{Digest, Keccak256};
 use stellar::{Message, Messages, Proof, WeightedSigners};
 use stellar_xdr::curr::{Limits, ScVal, WriteXdr};
 
+use crate::encoding::Encoder2;
 use crate::error::ContractError;
 use crate::payload::Payload;
 
@@ -78,6 +79,79 @@ pub fn encode_execute_data(
 
     Ok(execute_data.as_slice().into())
 }
+
+pub struct Encoder;
+
+impl Encoder2 for Encoder {
+    fn digest(
+        domain_separator: &Hash,
+        verifier_set: &VerifierSet,
+        payload: &Payload,
+    ) -> Result<Hash, ContractError> {
+        let data_hash = match payload {
+            Payload::Messages(messages) => messages
+                .iter()
+                .map(Message::try_from)
+                .collect::<Result<Vec<_>, _>>()
+                .change_context(ContractError::InvalidMessage)?
+                .then(Messages::from)
+                .messages_approval_hash(),
+            Payload::VerifierSet(verifier_set) => WeightedSigners::try_from(verifier_set)
+                .change_context(ContractError::InvalidVerifierSet)?
+                .signers_rotation_hash(),
+        }
+        .change_context(ContractError::SerializeData)?;
+
+        let signers_hash = WeightedSigners::try_from(verifier_set)
+            .change_context(ContractError::InvalidVerifierSet)?
+            .hash()
+            .change_context(ContractError::SerializeData)?;
+
+        let unsigned = [
+            domain_separator,
+            signers_hash.as_slice(),
+            data_hash.as_slice(),
+        ]
+        .concat();
+
+        Ok(Keccak256::digest(unsigned).into())
+    }
+
+    fn execute_data(
+        &self,
+        domain_separator: &Hash,
+        verifier_set: &VerifierSet,
+        signatures: Vec<SignerWithSig>,
+        payload: &Payload,
+    ) -> Result<HexBinary, ContractError> {
+        let payload = match payload {
+            Payload::Messages(messages) => ScVal::try_from(
+                messages
+                    .iter()
+                    .map(Message::try_from)
+                    .collect::<Result<Vec<_>, _>>()
+                    .change_context(ContractError::InvalidMessage)?
+                    .then(Messages::from),
+            ),
+            Payload::VerifierSet(verifier_set) => ScVal::try_from(
+                WeightedSigners::try_from(verifier_set)
+                    .change_context(ContractError::InvalidVerifierSet)?,
+            ),
+        }
+        .change_context(ContractError::SerializeData)?;
+
+        let proof = Proof::try_from((verifier_set.clone(), signatures))
+            .change_context(ContractError::Proof)?;
+
+        let execute_data = ScVal::try_from((payload, proof))
+            .expect("must convert tuple of size 2 to ScVec")
+            .to_xdr(Limits::none())
+            .change_context(ContractError::SerializeData)?;
+
+        Ok(execute_data.as_slice().into())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use cosmwasm_std::{Addr, HexBinary, Uint128};
