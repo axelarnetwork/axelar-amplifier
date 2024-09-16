@@ -106,9 +106,10 @@ jobs:
           OS="linux"
           ARCH="${{ matrix.arch }}"
           
-          sudo apt-get install protobuf-compiler pkg-config
+          sudo apt-get install protobuf-compiler libssl-devpkg-config
           
           echo "OPENSSL_INCLUDE_DIR" $(ls /usr/include/openssl) 
+          echo "find opensslconf.h:" $(find /usr -name opensslconf.h)
           
           if [ "$ARCH" == "arm64" ]
           then
