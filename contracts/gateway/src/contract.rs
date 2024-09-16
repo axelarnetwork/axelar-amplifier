@@ -5,10 +5,9 @@ use axelar_wasm_std::{address, FnExt};
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response};
 use error_stack::ResultExt;
-use gateway_api::msg::{ExecuteMsg, QueryMsg};
 use router_api::client::Router;
 
-use crate::msg::InstantiateMsg;
+use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state;
 use crate::state::Config;
 
