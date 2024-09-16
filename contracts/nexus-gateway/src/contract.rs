@@ -165,7 +165,8 @@ mod tests {
             mock_info(AXELARNET_GATEWAY, &[Coin::new(100, "test")]),
             ExecuteMsg::RouteMessageWithToken(router_messages()[0].clone()),
         );
-        goldie::assert_json!(assert_ok!(res));
+        let res = assert_ok!(res);
+        goldie::assert_json!(res);
 
         let res = execute(
             deps.as_mut(),
@@ -173,7 +174,8 @@ mod tests {
             mock_info(AXELARNET_GATEWAY, &[Coin::new(100, "test")]),
             ExecuteMsg::RouteMessageWithToken(router_messages()[0].clone()),
         );
-        assert!(assert_ok!(res).messages.is_empty());
+        let res = assert_ok!(res);
+        assert!(res.messages.is_empty());
     }
 
     #[test]
