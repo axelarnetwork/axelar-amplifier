@@ -86,7 +86,6 @@ pub fn update_service(
 ) -> Result<Response, ContractError> {
     SERVICES.update(deps.storage, &service_name, |service| match service {
         None => Err(ContractError::ServiceNotFound),
-        // TODO: write a macro to automate this?
         Some(service) => Ok(Service {
             min_num_verifiers: updated_service_params
                 .min_num_verifiers

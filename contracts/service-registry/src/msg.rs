@@ -110,7 +110,6 @@ pub struct MigrateMsg {
 
 // Represents any modifiable fields of the Service struct
 // Any non-None field overwrites the value currently stored in the Service object
-// TODO: use a macro to auto generate this?
 #[cw_serde]
 pub struct UpdatedServiceParams {
     pub min_num_verifiers: Option<u16>,

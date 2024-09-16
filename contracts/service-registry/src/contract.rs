@@ -276,35 +276,57 @@ mod test {
         ));
     }
 
-    #[test]
-    fn update_service() {
-        let mut deps = setup();
-
-        let service_name = "validators".to_string();
-
+    fn execute_register_service(deps: DepsMut, service_name: String) -> Service {
+        let service = Service {
+            name: service_name,
+            coordinator_contract: Addr::unchecked("coordinator"),
+            min_num_verifiers: 0,
+            max_num_verifiers: Some(100),
+            min_verifier_bond: Uint128::one().try_into().unwrap(),
+            bond_denom: AXL_DENOMINATION.into(),
+            unbonding_period_days: 10,
+            description: "amplifier service".into(),
+        };
         let res = execute(
-            deps.as_mut(),
+            deps,
             mock_env(),
             mock_info(GOVERNANCE_ADDRESS, &[]),
             ExecuteMsg::RegisterService {
-                service_name: service_name.clone(),
-                coordinator_contract: Addr::unchecked("nowhere"),
-                min_num_verifiers: 0,
-                max_num_verifiers: Some(100),
-                min_verifier_bond: Uint128::one().try_into().unwrap(),
-                bond_denom: AXL_DENOMINATION.into(),
-                unbonding_period_days: 10,
-                description: "Some service".into(),
+                service_name: service.name.clone(),
+                coordinator_contract: service.coordinator_contract.clone(),
+                min_num_verifiers: service.min_num_verifiers,
+                max_num_verifiers: service.max_num_verifiers,
+                min_verifier_bond: service.min_verifier_bond,
+                bond_denom: service.bond_denom.clone(),
+                unbonding_period_days: service.unbonding_period_days,
+                description: service.description.clone(),
             },
         );
         assert!(res.is_ok());
+        service
+    }
+
+    #[test]
+    fn update_service_should_update_all_values() {
+        let mut deps = setup();
+
+        let service_name = "validators";
+
+        let service = execute_register_service(deps.as_mut(), service_name.into());
 
         // update all configurable values
         let updated_params = UpdatedServiceParams {
-            min_num_verifiers: Some(10),
-            max_num_verifiers: Some(None),
-            min_verifier_bond: Some(Uint128::from(10u128).try_into().unwrap()),
-            unbonding_period_days: Some(11),
+            min_num_verifiers: Some(service.min_num_verifiers + 1),
+            max_num_verifiers: Some(service.max_num_verifiers.map(|max| max + 1)),
+            min_verifier_bond: Some(
+                service
+                    .min_verifier_bond
+                    .into_inner()
+                    .strict_add(Uint128::one())
+                    .try_into()
+                    .unwrap(),
+            ),
+            unbonding_period_days: Some(service.unbonding_period_days + 1),
         };
 
         let res = execute(
@@ -312,7 +334,7 @@ mod test {
             mock_env(),
             mock_info(GOVERNANCE_ADDRESS, &[]),
             ExecuteMsg::UpdateService {
-                service_name: service_name.clone(),
+                service_name: service_name.into(),
                 updated_service_params: updated_params.clone(),
             },
         );
@@ -323,37 +345,44 @@ mod test {
                 deps.as_ref(),
                 mock_env(),
                 QueryMsg::Service {
-                    service_name: service_name.clone(),
+                    service_name: service.name.clone(),
                 },
             )
             .unwrap(),
         )
         .unwrap();
-        assert_eq!(
-            res.max_num_verifiers,
-            updated_params.max_num_verifiers.unwrap()
-        );
-        assert_eq!(
-            res.min_num_verifiers,
-            updated_params.min_num_verifiers.unwrap()
-        );
-        assert_eq!(
-            res.min_verifier_bond,
-            updated_params.min_verifier_bond.unwrap()
-        );
-        assert_eq!(
-            res.unbonding_period_days,
-            updated_params.unbonding_period_days.unwrap()
-        );
+
+        let expected_service = Service {
+            max_num_verifiers: updated_params.max_num_verifiers.unwrap(),
+            min_num_verifiers: updated_params.min_num_verifiers.unwrap(),
+            min_verifier_bond: updated_params.min_verifier_bond.unwrap(),
+            unbonding_period_days: updated_params.unbonding_period_days.unwrap(),
+            ..service
+        };
+        assert_eq!(res, expected_service);
+    }
+
+    #[test]
+    fn update_service_should_update_only_specified_values() {
+        let mut deps = setup();
+
+        let service_name = "verifiers";
+
+        let service = execute_register_service(deps.as_mut(), service_name.into());
 
         // check None values are ignored
-        let new_min_bond = Uint128::from(100u128).try_into().unwrap();
+        let new_min_bond = service
+            .min_verifier_bond
+            .into_inner()
+            .strict_add(Uint128::one())
+            .try_into()
+            .unwrap();
         let res = execute(
             deps.as_mut(),
             mock_env(),
             mock_info(GOVERNANCE_ADDRESS, &[]),
             ExecuteMsg::UpdateService {
-                service_name: service_name.clone(),
+                service_name: service_name.into(),
                 updated_service_params: UpdatedServiceParams {
                     min_num_verifiers: None,
                     max_num_verifiers: None,
@@ -369,38 +398,38 @@ mod test {
                 deps.as_ref(),
                 mock_env(),
                 QueryMsg::Service {
-                    service_name: service_name.clone(),
+                    service_name: service_name.into(),
                 },
             )
             .unwrap(),
         )
         .unwrap();
 
-        assert_eq!(res.min_verifier_bond, new_min_bond);
-        assert_eq!(
-            res.max_num_verifiers,
-            updated_params.max_num_verifiers.unwrap()
-        );
-        assert_eq!(
-            res.min_num_verifiers,
-            updated_params.min_num_verifiers.unwrap()
-        );
-        assert_eq!(
-            res.unbonding_period_days,
-            updated_params.unbonding_period_days.unwrap()
-        );
+        let expected_service = Service {
+            min_verifier_bond: new_min_bond,
+            ..service
+        };
+        assert_eq!(res, expected_service);
+    }
 
+    #[test]
+    fn update_service_should_only_be_callable_by_governance() {
+        let mut deps = setup();
+
+        let service_name = "validators";
+
+        let service = execute_register_service(deps.as_mut(), service_name.into());
         // check permissions are handled correctly
         let res = execute(
             deps.as_mut(),
             mock_env(),
             mock_info(UNAUTHORIZED_ADDRESS, &[]),
             ExecuteMsg::UpdateService {
-                service_name: service_name.clone(),
+                service_name: service.name,
                 updated_service_params: UpdatedServiceParams {
-                    min_num_verifiers: None,
+                    min_num_verifiers: Some(10),
                     max_num_verifiers: None,
-                    min_verifier_bond: Some(new_min_bond),
+                    min_verifier_bond: None,
                     unbonding_period_days: None,
                 },
             },
