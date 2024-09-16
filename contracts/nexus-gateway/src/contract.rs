@@ -140,7 +140,7 @@ mod tests {
             mock_info(AXELARNET_GATEWAY, &[]),
             ExecuteMsg::RouteMessageWithToken(router_messages()[0].clone()),
         );
-        assert!(res.is_err_and(|err| { err.to_string().contains("invalid token") }));
+        assert_err_contains!(res, Error, Error::InvalidToken);
 
         let res = execute(
             deps.as_mut(),
@@ -151,7 +151,7 @@ mod tests {
             ),
             ExecuteMsg::RouteMessageWithToken(router_messages()[0].clone()),
         );
-        assert!(res.is_err_and(|err| { err.to_string().contains("invalid token") }));
+        assert_err_contains!(res, Error, Error::InvalidToken);
     }
 
     #[test]
