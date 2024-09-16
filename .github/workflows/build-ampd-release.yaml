@@ -82,7 +82,6 @@ jobs:
           OS="darwin"
           ARCH="${{ matrix.arch }}"
           
-          brew install openssl@3
           brew install protobuf
           
           if [ "$ARCH" == "arm64" ]
@@ -107,7 +106,7 @@ jobs:
           OS="linux"
           ARCH="${{ matrix.arch }}"
           
-          sudo apt-get install openssl protobuf-compiler
+          sudo apt-get install libssl-dev protobuf-compiler
           
           if [ "$ARCH" == "arm64" ]
           then
