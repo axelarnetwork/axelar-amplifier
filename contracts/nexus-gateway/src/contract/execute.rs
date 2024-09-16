@@ -1,9 +1,10 @@
 use std::iter;
 
 use axelar_core_std::nexus;
+use axelar_wasm_std::token::GetToken;
 use axelar_wasm_std::FnExt;
 use cosmwasm_std::{BankMsg, Coin, CosmosMsg, MessageInfo, QuerierWrapper, Response, Storage};
-use error_stack::{bail, ResultExt};
+use error_stack::{report, ResultExt};
 
 use crate::error::Error;
 use crate::state;
@@ -32,10 +33,10 @@ pub fn route_message_with_token_to_nexus(
     info: MessageInfo,
     msg: router_api::Message,
 ) -> Result<Response<nexus::execute::Message>> {
-    let token = match info.funds.as_slice() {
-        [token] => token.clone(),
-        _ => bail!(Error::InvalidToken(info.funds)),
-    };
+    let token = info
+        .token()
+        .change_context(Error::InvalidToken)?
+        .ok_or(report!(Error::InvalidToken))?;
 
     route_message_to_nexus(storage, querier, msg, Some(token))?
         .then(|msgs| Response::new().add_messages(msgs))

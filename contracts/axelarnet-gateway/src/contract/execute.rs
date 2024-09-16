@@ -2,10 +2,11 @@ use std::str::FromStr;
 
 use axelar_core_std::nexus;
 use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
+use axelar_wasm_std::token::GetToken;
 use axelar_wasm_std::{address, FnExt, IntoContractError};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
-    to_json_binary, Addr, Coin, DepsMut, HexBinary, MessageInfo, QuerierWrapper, Response, Storage,
+    to_json_binary, Addr, DepsMut, HexBinary, MessageInfo, QuerierWrapper, Response, Storage,
     WasmMsg,
 };
 use error_stack::{bail, ensure, report, Result, ResultExt};
@@ -50,8 +51,8 @@ pub enum Error {
     Nexus,
     #[error("nonce from the nexus module overflowed u32")]
     NonceOverflow,
-    #[error("invalid token: one and only one token is required for this operation, got {0:?}")]
-    InvalidToken(Vec<Coin>),
+    #[error("invalid token received")]
+    InvalidToken,
 }
 
 #[cw_serde]
@@ -98,15 +99,15 @@ pub fn call_contract(
     )
     .change_context(Error::InvalidCrossChainId)?;
     let source_address = Address::from_str(info.sender.as_str())
-        .change_context(Error::InvalidSourceAddress(info.sender))?;
+        .change_context(Error::InvalidSourceAddress(info.sender.clone()))?;
     let msg = call_contract.to_message(id, source_address);
 
     state::save_unique_routable_msg(storage, &msg.cc_id, &msg)
         .inspect_err(|err| panic_if_already_exists(err, &msg.cc_id))
         .change_context(Error::SaveRoutableMessage)?;
 
-    let res = match info.funds.as_slice() {
-        [] => {
+    let res = match info.token().change_context(Error::InvalidToken)? {
+        None => {
             let event = AxelarnetGatewayEvent::ContractCalled {
                 msg: msg.clone(),
                 payload: call_contract.payload,
@@ -115,7 +116,7 @@ pub fn call_contract(
 
             route_to_router(storage, &Router::new(router), vec![msg])?.add_event(event.into())
         }
-        [token] => {
+        Some(token) => {
             let event = AxelarnetGatewayEvent::ContractCalled {
                 msg: msg.clone(),
                 payload: call_contract.payload,
@@ -129,11 +130,10 @@ pub fn call_contract(
                         msg,
                     ))
                     .expect("failed to serialize route message with token"),
-                    funds: vec![token.clone()],
+                    funds: vec![token],
                 })
                 .add_event(event.into())
         }
-        tokens => bail!(Error::InvalidToken(tokens.to_vec())),
     };
 
     Ok(res)

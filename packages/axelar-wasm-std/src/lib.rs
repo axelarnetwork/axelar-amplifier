@@ -17,6 +17,7 @@ pub mod permission_control;
 pub mod response;
 pub mod snapshot;
 pub mod threshold;
+pub mod token;
 pub mod utils;
 pub mod vec;
 pub mod verification;
