@@ -7,6 +7,7 @@ edition = { workspace = true }
 
 [dependencies]
 axelar-wasm-std = { workspace = true, features = ["derive"] }
+client = { workspace = true }
 cosmwasm-schema = { workspace = true }
 cosmwasm-std = { workspace = true }
 cw-storage-plus = { workspace = true }
@@ -23,7 +24,7 @@ valuable = "0.1.0"
 
 [dev-dependencies]
 hex = "0.4.3"
-rand = "0.8.5"
+rand = { workspace = true }
 
 [lints]
 workspace = true

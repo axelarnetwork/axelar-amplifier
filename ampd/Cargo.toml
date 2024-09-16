@@ -86,7 +86,7 @@ elliptic-curve = "0.13.5"
 faux = "0.1.10"
 generic-array = "0.14.7"
 multisig = { workspace = true, features = ["test", "library"] }
-rand = "0.8.5"
+rand = { workspace = true }
 random-string = "1.0.0"
 tokio = { workspace = true, features = ["test-util"] }
 

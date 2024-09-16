@@ -49,6 +49,7 @@ multisig = { version = "^1.0.0", path = "contracts/multisig" }
 multisig-prover = { version = "^1.0.0", path = "contracts/multisig-prover" }
 num-traits = { version = "0.2.14", default-features = false }
 quote = "1.0.36"
+rand = "0.8.5"
 report = { version = "^1.0.0", path = "packages/report" }
 rewards = { version = "^1.1.0", path = "contracts/rewards" }
 router = { version = "^1.0.0", path = "contracts/router" }
@@ -71,6 +72,7 @@ tokio = "1.38.0"
 tokio-stream = "0.1.11"
 tokio-util = "0.7.11"
 voting-verifier = { version = "^1.0.0", path = "contracts/voting-verifier" }
+axelar-core-std = { version = "^1.0.0", path = "packages/axelar-core-std" }
 
 [workspace.lints.clippy]
 arithmetic_side_effects = "deny"

@@ -328,7 +328,7 @@ fn take_snapshot(deps: Deps, chain: &ChainName) -> Result<snapshot::Snapshot, Co
     let config = CONFIG.load(deps.storage).expect("failed to load config");
 
     let service_registry: service_registry::Client =
-        client::Client::new(deps.querier, &config.service_registry_contract).into();
+        client::ContractClient::new(deps.querier, &config.service_registry_contract).into();
 
     let verifiers: Vec<WeightedVerifier> = service_registry
         .active_verifiers(config.service_name.into(), chain.to_owned())
