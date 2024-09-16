@@ -116,6 +116,7 @@ jobs:
             sudo apt-get install gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
             rustup target add aarch64-unknown-linux-gnu
             export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc
+            export OPENSSL_DIR=/usr
             export OPENSSL_LIB_DIR=/usr/lib/aarch64-linux-gnu
             export OPENSSL_INCLUDE_DIR=/usr/include/openssl
             cargo build --release --target aarch64-unknown-linux-gnu
