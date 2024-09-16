@@ -159,22 +159,20 @@ mod tests {
         let mut deps = mock_dependencies();
         instantiate_contract(deps.as_mut());
 
-        let res = execute(
+        let res = assert_ok!(execute(
             deps.as_mut(),
             mock_env(),
             mock_info(AXELARNET_GATEWAY, &[Coin::new(100, "test")]),
             ExecuteMsg::RouteMessageWithToken(router_messages()[0].clone()),
-        );
-        let res = assert_ok!(res);
+        ));
         goldie::assert_json!(res);
 
-        let res = execute(
+        let res = assert_ok!(execute(
             deps.as_mut(),
             mock_env(),
             mock_info(AXELARNET_GATEWAY, &[Coin::new(100, "test")]),
             ExecuteMsg::RouteMessageWithToken(router_messages()[0].clone()),
-        );
-        let res = assert_ok!(res);
+        ));
         assert!(res.messages.is_empty());
     }
 

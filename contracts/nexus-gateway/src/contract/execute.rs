@@ -71,8 +71,7 @@ fn route_message_to_nexus(
     let client: nexus::Client = client::CosmosClient::new(querier).into();
     let config = load_config(storage)?;
 
-    let mut msg: nexus::execute::Message = msg.into();
-    msg.token.clone_from(&token);
+    let msg: nexus::execute::Message = (msg, token.clone()).into();
 
     token
         .into_iter()
