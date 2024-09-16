@@ -106,7 +106,7 @@ jobs:
           OS="linux"
           ARCH="${{ matrix.arch }}"
           
-          sudo apt-get install protobuf-compiler
+          sudo apt-get install protobuf-compiler pkg-config
           
           if [ "$ARCH" == "arm64" ]
           then
