@@ -3,12 +3,13 @@ use std::iter;
 use axelar_wasm_std::hash::Hash;
 use cosmwasm_std::HexBinary;
 use error_stack::{Result, ResultExt};
+use k256::ecdsa::RecoveryId;
+use multisig::key::Signature;
 use multisig::msg::SignerWithSig;
 use multisig::verifier_set::VerifierSet;
 use sha3::{Digest, Keccak256};
 use sui_gateway::{CommandType, ExecuteData, Message, MessageToSign, Proof, WeightedSigners};
 
-use crate::encoding::{to_recoverable, Encoder};
 use crate::error::ContractError;
 use crate::payload::Payload;
 
@@ -59,12 +60,15 @@ pub fn payload_digest(
 /// `encode_execute_data` returns the BCS encoded execute data that contains the payload and the proof.
 /// The relayer will use this data to submit the payload to the contract.
 pub fn encode_execute_data(
+    domain_separator: &Hash,
     verifier_set: &VerifierSet,
     signatures: Vec<SignerWithSig>,
-    payload_digest: &Hash,
     payload: &Payload,
 ) -> Result<HexBinary, ContractError> {
-    let signatures = to_recoverable(Encoder::Bcs, payload_digest, signatures);
+    let signatures = to_recoverable(
+        payload_digest(domain_separator, verifier_set, payload)?,
+        signatures,
+    );
 
     let encoded_payload = encode_payload(payload)?;
     let encoded_proof = bcs::to_bytes(
@@ -77,6 +81,27 @@ pub fn encode_execute_data(
     Ok(bcs::to_bytes(&execute_data)
         .expect("failed to serialize execute data")
         .into())
+}
+
+fn to_recoverable<M>(msg: M, signers: Vec<SignerWithSig>) -> Vec<SignerWithSig>
+where
+    M: AsRef<[u8]>,
+{
+    let recovery_transform = |recovery_byte: RecoveryId| -> u8 { recovery_byte.to_byte() };
+
+    signers
+        .into_iter()
+        .map(|mut signer| {
+            if let Signature::Ecdsa(nonrecoverable) = signer.signature {
+                signer.signature = nonrecoverable
+                    .to_recoverable(msg.as_ref(), &signer.signer.pub_key, recovery_transform)
+                    .map(Signature::EcdsaRecoverable)
+                    .expect("failed to convert non-recoverable signature to recoverable");
+            }
+
+            signer
+        })
+        .collect()
 }
 
 #[cfg(test)]
