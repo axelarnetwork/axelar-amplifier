@@ -1,6 +1,7 @@
 use axelar_wasm_std::nonempty;
 use error_stack::Result;
 use router_api::ChainName;
+use service_registry_api::msg::UpdatedServiceParams;
 use service_registry_api::{self, AuthorizationState, Verifier};
 use state::VERIFIERS;
 
@@ -77,6 +78,32 @@ pub fn update_verifier_authorization_status(
         )?;
     }
 
+    Ok(Response::new())
+}
+
+pub fn update_service(
+    deps: DepsMut,
+    service_name: String,
+    updated_service_params: UpdatedServiceParams,
+) -> Result<Response, ContractError> {
+    SERVICES.update(deps.storage, &service_name, |service| match service {
+        None => Err(ContractError::ServiceNotFound),
+        Some(service) => Ok(Service {
+            min_num_verifiers: updated_service_params
+                .min_num_verifiers
+                .unwrap_or(service.min_num_verifiers),
+            max_num_verifiers: updated_service_params
+                .max_num_verifiers
+                .unwrap_or(service.max_num_verifiers),
+            min_verifier_bond: updated_service_params
+                .min_verifier_bond
+                .unwrap_or(service.min_verifier_bond),
+            unbonding_period_days: updated_service_params
+                .unbonding_period_days
+                .unwrap_or(service.unbonding_period_days),
+            ..service
+        }),
+    })?;
     Ok(Response::new())
 }
 
