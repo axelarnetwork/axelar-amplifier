@@ -6,7 +6,7 @@ use service_registry_api::error::ContractError;
 use service_registry_api::msg::VerifierDetails;
 use service_registry_api::*;
 
-use crate::state::VERIFIERS_PER_CHAIN;
+use crate::state::{SERVICES, VERIFIERS, VERIFIERS_PER_CHAIN, VERIFIER_WEIGHT};
 
 pub fn active_verifiers(
     deps: Deps,

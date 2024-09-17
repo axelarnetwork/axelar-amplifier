@@ -5001,6 +5001,7 @@ dependencies = [
  "report",
  "router-api",
  "serde_json",
+ "service-registry",
  "service-registry-api",
  "sha3",
  "stellar",

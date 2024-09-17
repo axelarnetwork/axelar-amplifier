@@ -91,8 +91,3 @@ pub struct VerifierDetails {
     pub weight: nonempty::Uint128,
     pub supported_chains: Vec<ChainName>,
 }
-
-#[cw_serde]
-pub struct MigrateMsg {
-    pub coordinator_contract: Addr,
-}

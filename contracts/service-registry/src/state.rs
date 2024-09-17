@@ -1,7 +1,9 @@
-use cosmwasm_std::{Addr, Storage};
-use cw_storage_plus::{Index, IndexList, IndexedMap, KeyDeserialize, MultiIndex};
+use axelar_wasm_std::nonempty;
+use cosmwasm_std::{Addr, Storage, Timestamp, Uint128};
+use cw_storage_plus::{Index, IndexList, IndexedMap, KeyDeserialize, Map, MultiIndex};
 use router_api::ChainName;
 use service_registry_api::error::ContractError;
+use service_registry_api::{AuthorizationState, BondingState, Service, Verifier};
 
 type ServiceName = String;
 type VerifierAddress = Addr;
@@ -41,6 +43,89 @@ pub const VERIFIERS_PER_CHAIN: IndexedMap<
         ),
     },
 );
+
+/// For now, all verifiers have equal weight, regardless of amount bonded
+pub const VERIFIER_WEIGHT: nonempty::Uint128 = nonempty::Uint128::one();
+
+pub const SERVICES: Map<&ServiceName, Service> = Map::new("services");
+pub const VERIFIERS: Map<(&ServiceName, &VerifierAddress), Verifier> = Map::new("verifiers");
+
+pub fn bond_verifier(
+    verifier: Verifier,
+    to_add: Option<nonempty::Uint128>,
+) -> Result<Verifier, ContractError> {
+    let amount: nonempty::Uint128 = match verifier.bonding_state {
+        BondingState::Bonded { amount }
+        | BondingState::RequestedUnbonding { amount }
+        | BondingState::Unbonding {
+            amount,
+            unbonded_at: _,
+        } => amount
+            .into_inner()
+            .checked_add(to_add.map(Uint128::from).unwrap_or(Uint128::zero()))
+            .map_err(ContractError::Overflow)?
+            .try_into()?,
+        BondingState::Unbonded => to_add.ok_or(ContractError::NoFundsToBond)?,
+    };
+
+    Ok(Verifier {
+        bonding_state: BondingState::Bonded { amount },
+        ..verifier
+    })
+}
+
+pub fn unbond_verifier(
+    verifier: Verifier,
+    can_unbond: bool,
+    time: Timestamp,
+) -> Result<Verifier, ContractError> {
+    if verifier.authorization_state == AuthorizationState::Jailed {
+        return Err(ContractError::VerifierJailed);
+    }
+
+    let bonding_state = match verifier.bonding_state {
+        BondingState::Bonded { amount } | BondingState::RequestedUnbonding { amount } => {
+            if can_unbond {
+                BondingState::Unbonding {
+                    unbonded_at: time,
+                    amount,
+                }
+            } else {
+                BondingState::RequestedUnbonding { amount }
+            }
+        }
+        _ => return Err(ContractError::InvalidBondingState(verifier.bonding_state)),
+    };
+
+    Ok(Verifier {
+        bonding_state,
+        ..verifier
+    })
+}
+
+pub fn claim_verifier_stake(
+    verifier: Verifier,
+    time: Timestamp,
+    unbonding_period_days: u64,
+) -> Result<(Verifier, nonempty::Uint128), ContractError> {
+    if verifier.authorization_state == AuthorizationState::Jailed {
+        return Err(ContractError::VerifierJailed);
+    }
+
+    match verifier.bonding_state {
+        BondingState::Unbonding {
+            amount,
+            unbonded_at,
+        } if unbonded_at.plus_days(unbonding_period_days) <= time => Ok((
+            Verifier {
+                bonding_state: BondingState::Unbonded,
+                ..verifier
+            },
+            amount,
+        )),
+        _ => Err(ContractError::InvalidBondingState(verifier.bonding_state)),
+    }
+}
 
 pub fn register_chains_support(
     storage: &mut dyn Storage,
@@ -222,7 +307,7 @@ mod tests {
             service_name: "validators".to_string(),
         };
 
-        let res = verifier.bond(Some(Uint128::from(200u32).try_into().unwrap()));
+        let res = bond_verifier(verifier, Some(Uint128::from(200u32).try_into().unwrap()));
         assert!(res.is_ok());
         assert_eq!(
             res.unwrap().bonding_state,
@@ -243,7 +328,7 @@ mod tests {
             service_name: "validators".to_string(),
         };
 
-        let res = verifier.bond(Some(Uint128::from(200u32).try_into().unwrap()));
+        let res = bond_verifier(verifier, Some(Uint128::from(200u32).try_into().unwrap()));
         assert!(res.is_ok());
         assert_eq!(
             res.unwrap().bonding_state,
@@ -265,7 +350,7 @@ mod tests {
             service_name: "validators".to_string(),
         };
 
-        let res = verifier.bond(Some(Uint128::from(200u32).try_into().unwrap()));
+        let res = bond_verifier(verifier, Some(Uint128::from(200u32).try_into().unwrap()));
         assert!(res.is_ok());
         assert_eq!(
             res.unwrap().bonding_state,
@@ -284,7 +369,7 @@ mod tests {
             service_name: "validators".to_string(),
         };
 
-        let res = verifier.bond(Some(Uint128::from(200u32).try_into().unwrap()));
+        let res = bond_verifier(verifier, Some(Uint128::from(200u32).try_into().unwrap()));
         assert!(res.is_ok());
         assert_eq!(
             res.unwrap().bonding_state,
@@ -305,7 +390,7 @@ mod tests {
             service_name: "validators".to_string(),
         };
 
-        let res = verifier.bond(None);
+        let res = bond_verifier(verifier, None);
         assert!(res.is_err());
         assert_eq!(res.unwrap_err(), ContractError::NoFundsToBond);
     }
@@ -324,7 +409,7 @@ mod tests {
             service_name: "validators".to_string(),
         };
 
-        let res = verifier.bond(None);
+        let res = bond_verifier(verifier, None);
         assert!(res.is_ok());
         assert_eq!(res.unwrap().bonding_state, BondingState::Bonded { amount });
     }
@@ -341,7 +426,7 @@ mod tests {
         };
 
         let unbonded_at = Timestamp::from_nanos(0);
-        let res = verifier.unbond(true, unbonded_at);
+        let res = unbond_verifier(verifier, true, unbonded_at);
         assert!(res.is_ok());
         assert_eq!(
             res.unwrap().bonding_state,
@@ -364,7 +449,7 @@ mod tests {
         };
 
         let unbonded_at = Timestamp::from_nanos(0);
-        let res = verifier.unbond(false, unbonded_at);
+        let res = unbond_verifier(verifier, false, unbonded_at);
         assert!(res.is_ok());
         assert_eq!(
             res.unwrap().bonding_state,
@@ -386,7 +471,7 @@ mod tests {
         };
 
         let unbonded_at = Timestamp::from_nanos(0);
-        let res = verifier.unbond(true, unbonded_at);
+        let res = unbond_verifier(verifier, true, unbonded_at);
         assert!(res.is_ok());
         assert_eq!(
             res.unwrap().bonding_state,
@@ -409,7 +494,7 @@ mod tests {
         };
 
         let unbonded_at = Timestamp::from_nanos(0);
-        let res = verifier.unbond(false, unbonded_at);
+        let res = unbond_verifier(verifier, false, unbonded_at);
         assert!(res.is_ok());
         assert_eq!(
             res.unwrap().bonding_state,
@@ -433,14 +518,14 @@ mod tests {
             service_name: "validators".to_string(),
         };
 
-        let res = verifier.clone().unbond(true, Timestamp::from_nanos(2));
+        let res = unbond_verifier(verifier.clone(), true, Timestamp::from_nanos(2));
         assert!(res.is_err());
         assert_eq!(
             res.unwrap_err(),
             ContractError::InvalidBondingState(bonding_state.clone())
         );
 
-        let res = verifier.unbond(false, Timestamp::from_nanos(2));
+        let res = unbond_verifier(verifier, false, Timestamp::from_nanos(2));
         assert!(res.is_err());
         assert_eq!(
             res.unwrap_err(),
@@ -459,14 +544,14 @@ mod tests {
             service_name: "validators".to_string(),
         };
 
-        let res = verifier.clone().unbond(true, Timestamp::from_nanos(2));
+        let res = unbond_verifier(verifier.clone(), true, Timestamp::from_nanos(2));
         assert!(res.is_err());
         assert_eq!(
             res.unwrap_err(),
             ContractError::InvalidBondingState(bonding_state.clone())
         );
 
-        let res = verifier.unbond(false, Timestamp::from_nanos(2));
+        let res = unbond_verifier(verifier, false, Timestamp::from_nanos(2));
         assert!(res.is_err());
         assert_eq!(
             res.unwrap_err(),
@@ -486,14 +571,14 @@ mod tests {
             service_name: "validators".to_string(),
         };
 
-        let res = verifier.clone().claim_stake(Timestamp::from_seconds(60), 1);
+        let res = claim_verifier_stake(verifier.clone(), Timestamp::from_seconds(60), 1);
         assert!(res.is_err());
         assert_eq!(
             res.unwrap_err(),
             ContractError::InvalidBondingState(bonding_state.clone())
         );
 
-        let res = verifier.claim_stake(Timestamp::from_seconds(60 * 60 * 24), 1);
+        let res = claim_verifier_stake(verifier, Timestamp::from_seconds(60 * 60 * 24), 1);
         assert!(res.is_err());
         assert_eq!(
             res.unwrap_err(),
@@ -513,14 +598,14 @@ mod tests {
             service_name: "validators".to_string(),
         };
 
-        let res = verifier.clone().claim_stake(Timestamp::from_seconds(60), 1);
+        let res = claim_verifier_stake(verifier.clone(), Timestamp::from_seconds(60), 1);
         assert!(res.is_err());
         assert_eq!(
             res.unwrap_err(),
             ContractError::InvalidBondingState(bonding_state.clone())
         );
 
-        let res = verifier.claim_stake(Timestamp::from_seconds(60 * 60 * 24), 1);
+        let res = claim_verifier_stake(verifier, Timestamp::from_seconds(60 * 60 * 24), 1);
         assert!(res.is_err());
         assert_eq!(
             res.unwrap_err(),
@@ -541,14 +626,14 @@ mod tests {
             service_name: "validators".to_string(),
         };
 
-        let res = verifier.clone().claim_stake(Timestamp::from_seconds(60), 1);
+        let res = claim_verifier_stake(verifier.clone(), Timestamp::from_seconds(60), 1);
         assert!(res.is_err());
         assert_eq!(
             res.unwrap_err(),
             ContractError::InvalidBondingState(bonding_state.clone())
         );
 
-        let res = verifier.claim_stake(Timestamp::from_seconds(60 * 60 * 24), 1);
+        let res = claim_verifier_stake(verifier, Timestamp::from_seconds(60 * 60 * 24), 1);
         assert!(res.is_ok());
 
         let (verifier, amount) = res.unwrap();
@@ -571,14 +656,14 @@ mod tests {
             service_name: "validators".to_string(),
         };
 
-        let res = verifier.clone().claim_stake(Timestamp::from_seconds(60), 1);
+        let res = claim_verifier_stake(verifier.clone(), Timestamp::from_seconds(60), 1);
         assert!(res.is_err());
         assert_eq!(
             res.unwrap_err(),
             ContractError::InvalidBondingState(bonding_state.clone())
         );
 
-        let res = verifier.claim_stake(Timestamp::from_seconds(60 * 60 * 24), 1);
+        let res = claim_verifier_stake(verifier, Timestamp::from_seconds(60 * 60 * 24), 1);
         assert!(res.is_err());
         assert_eq!(
             res.unwrap_err(),
@@ -597,7 +682,7 @@ mod tests {
             service_name: "validators".to_string(),
         };
 
-        let res = verifier.unbond(true, Timestamp::from_nanos(0));
+        let res = unbond_verifier(verifier, true, Timestamp::from_nanos(0));
         assert!(res.is_err());
         assert_eq!(res.unwrap_err(), ContractError::VerifierJailed);
     }
@@ -614,7 +699,7 @@ mod tests {
             service_name: "validators".to_string(),
         };
 
-        let res = verifier.claim_stake(Timestamp::from_nanos(1), 0);
+        let res = claim_verifier_stake(verifier, Timestamp::from_nanos(1), 0);
         assert!(res.is_err());
         assert_eq!(res.unwrap_err(), ContractError::VerifierJailed);
     }

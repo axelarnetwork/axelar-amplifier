@@ -4,9 +4,8 @@ use multisig::msg::Signer;
 use multisig::multisig::Multisig;
 use multisig::types::MultisigState;
 use multisig::verifier_set::VerifierSet;
-use service_registry_api::{
-    AuthorizationState, BondingState, Verifier, WeightedVerifier, VERIFIER_WEIGHT,
-};
+use service_registry::VERIFIER_WEIGHT;
+use service_registry_api::{AuthorizationState, BondingState, Verifier, WeightedVerifier};
 
 use super::test_data::{self, TestOperator};
 
