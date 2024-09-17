@@ -1,7 +1,7 @@
 [package]
 name = "ampd"
 edition = { workspace = true }
-version = "1.0.0"
+version = "1.1.0"
 rust-version = { workspace = true }
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -50,6 +50,7 @@ serde_json = { workspace = true }
 serde_with = "3.2.0"
 service-registry-api = { workspace = true }
 sha3 = { workspace = true }
+stellar = { workspace = true }
 stellar-rs = "0.3.2"
 stellar-xdr = { workspace = true, features = ["serde_json"] }
 sui-gateway = { workspace = true }
@@ -85,7 +86,7 @@ elliptic-curve = "0.13.5"
 faux = "0.1.10"
 generic-array = "0.14.7"
 multisig = { workspace = true, features = ["test", "library"] }
-rand = "0.8.5"
+rand = { workspace = true }
 random-string = "1.0.0"
 tokio = { workspace = true, features = ["test-util"] }
 

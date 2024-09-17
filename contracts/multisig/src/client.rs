@@ -1,5 +1,7 @@
+use std::collections::HashMap;
+
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::Uint64;
+use cosmwasm_std::{CosmosMsg, HexBinary, Uint64};
 use error_stack::{Result, ResultExt};
 use router_api::ChainName;
 
@@ -12,26 +14,26 @@ use crate::verifier_set::VerifierSet;
 #[cw_serde]
 pub enum Error {
     #[error("failed to query multisig contract for multisig session. session_id: {0}")]
-    QueryMultisigSession(Uint64),
+    MultisigSession(Uint64),
 
     #[error("failed to query multisig contract for verifier set: verifier_set_id: {0}")]
-    QueryVerifierSet(String),
+    VerifierSet(String),
 
     #[error("failed to query multisig contract for verifier public key. verifier_address: {verifier_address}, key_type: {key_type}")]
-    QueryPublicKey {
+    PublicKey {
         verifier_address: String,
         key_type: KeyType,
     },
 
     #[error("failed to query multisig contract for caller authorization. contract_address: {contract_address}, chain_name: {chain_name}")]
-    QueryIsCallerAuthorized {
+    IsCallerAuthorized {
         contract_address: String,
         chain_name: ChainName,
     },
 }
 
-impl<'a> From<client::Client<'a, ExecuteMsg, QueryMsg>> for Client<'a> {
-    fn from(client: client::Client<'a, ExecuteMsg, QueryMsg>) -> Self {
+impl<'a> From<client::ContractClient<'a, ExecuteMsg, QueryMsg>> for Client<'a> {
+    fn from(client: client::ContractClient<'a, ExecuteMsg, QueryMsg>) -> Self {
         Client { client }
     }
 }
@@ -39,19 +41,19 @@ impl<'a> From<client::Client<'a, ExecuteMsg, QueryMsg>> for Client<'a> {
 impl From<QueryMsg> for Error {
     fn from(value: QueryMsg) -> Self {
         match value {
-            QueryMsg::Multisig { session_id } => Error::QueryMultisigSession(session_id),
-            QueryMsg::VerifierSet { verifier_set_id } => Error::QueryVerifierSet(verifier_set_id),
+            QueryMsg::Multisig { session_id } => Error::MultisigSession(session_id),
+            QueryMsg::VerifierSet { verifier_set_id } => Error::VerifierSet(verifier_set_id),
             QueryMsg::PublicKey {
                 verifier_address,
                 key_type,
-            } => Error::QueryPublicKey {
+            } => Error::PublicKey {
                 verifier_address,
                 key_type,
             },
             QueryMsg::IsCallerAuthorized {
                 contract_address,
                 chain_name,
-            } => Error::QueryIsCallerAuthorized {
+            } => Error::IsCallerAuthorized {
                 contract_address,
                 chain_name,
             },
@@ -60,10 +62,66 @@ impl From<QueryMsg> for Error {
 }
 
 pub struct Client<'a> {
-    client: client::Client<'a, ExecuteMsg, QueryMsg>,
+    client: client::ContractClient<'a, ExecuteMsg, QueryMsg>,
 }
 
 impl<'a> Client<'a> {
+    pub fn start_signing_session(
+        &self,
+        verifier_set_id: String,
+        msg: HexBinary,
+        chain_name: ChainName,
+        sig_verifier: Option<String>,
+    ) -> CosmosMsg {
+        self.client.execute(&ExecuteMsg::StartSigningSession {
+            verifier_set_id,
+            msg,
+            chain_name,
+            sig_verifier,
+        })
+    }
+
+    pub fn submit_signature(&self, session_id: Uint64, signature: HexBinary) -> CosmosMsg {
+        self.client.execute(&ExecuteMsg::SubmitSignature {
+            session_id,
+            signature,
+        })
+    }
+
+    pub fn register_verifier_set(&self, verifier_set: VerifierSet) -> CosmosMsg {
+        self.client
+            .execute(&ExecuteMsg::RegisterVerifierSet { verifier_set })
+    }
+
+    pub fn register_public_key(
+        &self,
+        public_key: PublicKey,
+        signed_sender_address: HexBinary,
+    ) -> CosmosMsg {
+        self.client.execute(&ExecuteMsg::RegisterPublicKey {
+            public_key,
+            signed_sender_address,
+        })
+    }
+
+    pub fn authorize_callers(&self, contracts: HashMap<String, ChainName>) -> CosmosMsg {
+        self.client
+            .execute(&ExecuteMsg::AuthorizeCallers { contracts })
+    }
+
+    pub fn unauthorize_callers(&self, contracts: HashMap<String, ChainName>) -> CosmosMsg {
+        self.client
+            .execute(&ExecuteMsg::UnauthorizeCallers { contracts })
+    }
+
+    pub fn disable_signing(&self) -> CosmosMsg {
+        self.client.execute(&ExecuteMsg::DisableSigning)
+    }
+
+    pub fn enable_signing(&self) -> CosmosMsg {
+        self.client.execute(&ExecuteMsg::EnableSigning)
+    }
+
     pub fn multisig(&self, session_id: Uint64) -> Result<Multisig, Error> {
         let msg = QueryMsg::Multisig { session_id };
         self.client.query(&msg).change_context_lazy(|| msg.into())
@@ -117,7 +175,8 @@ mod test {
     #[test]
     fn query_multisig_session_returns_error_when_query_errors() {
         let (querier, addr) = setup_queries_to_fail();
-        let client: Client = client::Client::new(QuerierWrapper::new(&querier), &addr).into();
+        let client: Client =
+            client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
 
         let session_id: Uint64 = 1u64.into();
         let res = client.multisig(session_id);
@@ -128,7 +187,8 @@ mod test {
     #[test]
     fn query_multisig_session_returns_session() {
         let (querier, addr) = setup_queries_to_succeed();
-        let client: Client = client::Client::new(QuerierWrapper::new(&querier), &addr).into();
+        let client: Client =
+            client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
 
         let session_id: Uint64 = 1u64.into();
         let res = client.multisig(session_id);
@@ -139,7 +199,8 @@ mod test {
     #[test]
     fn query_verifier_set_returns_error_when_query_errors() {
         let (querier, addr) = setup_queries_to_fail();
-        let client: Client = client::Client::new(QuerierWrapper::new(&querier), &addr).into();
+        let client: Client =
+            client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
 
         let verifier_set_id = "my_set".to_string();
         let res = client.verifier_set(verifier_set_id.clone());
@@ -150,7 +211,8 @@ mod test {
     #[test]
     fn query_verifier_set_returns_verifier_set() {
         let (querier, addr) = setup_queries_to_succeed();
-        let client: Client = client::Client::new(QuerierWrapper::new(&querier), &addr).into();
+        let client: Client =
+            client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
 
         let verifier_set_id = "my_set".to_string();
         let res = client.verifier_set(verifier_set_id.clone());
@@ -161,7 +223,8 @@ mod test {
     #[test]
     fn query_public_key_returns_error_when_query_errors() {
         let (querier, addr) = setup_queries_to_fail();
-        let client: Client = client::Client::new(QuerierWrapper::new(&querier), &addr).into();
+        let client: Client =
+            client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
 
         let verifier_address = Addr::unchecked("verifier").to_string();
         let key_type = crate::key::KeyType::Ecdsa;
@@ -173,7 +236,8 @@ mod test {
     #[test]
     fn query_public_key_returns_public_key() {
         let (querier, addr) = setup_queries_to_succeed();
-        let client: Client = client::Client::new(QuerierWrapper::new(&querier), &addr).into();
+        let client: Client =
+            client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
 
         let verifier_address = Addr::unchecked("verifier").to_string();
         let key_type = crate::key::KeyType::Ecdsa;
@@ -186,7 +250,8 @@ mod test {
     #[test]
     fn query_is_caller_authorized_returns_error_when_query_errors() {
         let (querier, addr) = setup_queries_to_fail();
-        let client: Client = client::Client::new(QuerierWrapper::new(&querier), &addr).into();
+        let client: Client =
+            client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
 
         let contract_address = Addr::unchecked("prover").to_string();
         let chain_name = "ethereum".parse().unwrap();
@@ -198,7 +263,8 @@ mod test {
     #[test]
     fn query_is_caller_authorized_returns_caller_authorization() {
         let (querier, addr) = setup_queries_to_succeed();
-        let client: Client = client::Client::new(QuerierWrapper::new(&querier), &addr).into();
+        let client: Client =
+            client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
 
         let contract_address = Addr::unchecked("prover").to_string();
         let chain_name = "ethereum".parse().unwrap();

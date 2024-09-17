@@ -105,4 +105,17 @@ impl Client {
         })
         .collect::<HashMap<_, _>>())
     }
+
+    pub async fn transaction_response(&self, tx_hash: String) -> Result<Option<TxResponse>, Error> {
+        let tx_hash = SingleTransactionRequest::new()
+            .set_transaction_hash(tx_hash)
+            .map_err(|err_str| report!(Error::TxHash).attach_printable(err_str))?;
+
+        Ok(self
+            .0
+            .get_single_transaction(&tx_hash)
+            .await
+            .map(|tx_response| Some(tx_response.into()))
+            .unwrap_or_default())
+    }
 }

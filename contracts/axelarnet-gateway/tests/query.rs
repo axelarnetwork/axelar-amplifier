@@ -1,13 +1,18 @@
 use assert_ok::assert_ok;
+use axelar_wasm_std::response::inspect_response_msg;
 use axelarnet_gateway::msg::QueryMsg;
 use axelarnet_gateway::{contract, ExecutableMessage};
-use cosmwasm_std::testing::{mock_dependencies, mock_env, MockApi, MockQuerier, MockStorage};
-use cosmwasm_std::{from_json, Deps, OwnedDeps};
+use cosmwasm_std::testing::{
+    mock_dependencies, mock_env, MockApi, MockQuerier, MockQuerierCustomHandlerResult, MockStorage,
+};
+use cosmwasm_std::{from_json, ContractResult, Deps, OwnedDeps, SystemResult};
+use rand::RngCore;
 use router_api::msg::ExecuteMsg as RouterExecuteMsg;
 use router_api::{ChainName, CrossChainId, Message};
+use serde::de::DeserializeOwned;
+use serde_json::json;
 use sha3::{Digest, Keccak256};
 
-use crate::utils::messages::inspect_response_msg;
 use crate::utils::params;
 
 mod utils;
@@ -15,6 +20,9 @@ mod utils;
 #[test]
 fn query_routable_messages_gets_expected_messages() {
     let mut deps = mock_dependencies();
+    deps.querier = deps
+        .querier
+        .with_custom_handler(reply_rand_tx_hash_and_nonce);
 
     utils::instantiate_contract(deps.as_mut()).unwrap();
     let mut expected = populate_routable_messages(&mut deps);
@@ -118,4 +126,23 @@ fn populate_executable_messages(
     utils::execute_payload(deps.as_mut(), msgs[7].cc_id.clone(), vec![7].into()).unwrap();
 
     msgs.into_iter().map(|msg| msg.cc_id).collect()
+}
+
+fn reply_rand_tx_hash_and_nonce<C>(_: &C) -> MockQuerierCustomHandlerResult
+where
+    C: DeserializeOwned,
+{
+    let mut tx_hash = [0u8; 32];
+    rand::thread_rng().fill_bytes(&mut tx_hash);
+    let nonce: u32 = rand::random();
+
+    SystemResult::Ok(ContractResult::Ok(
+        json!({
+            "tx_hash": tx_hash,
+            "nonce": nonce,
+        })
+        .to_string()
+        .as_bytes()
+        .into(),
+    ))
 }

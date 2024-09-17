@@ -18,6 +18,7 @@ use cosmrs::{Amount, Coin, Denom, Gas};
 use dec_coin::DecCoin;
 use error_stack::{ensure, report, FutureExt, Result, ResultExt};
 use futures::TryFutureExt;
+use itertools::Itertools;
 use k256::sha2::{Digest, Sha256};
 use mockall::automock;
 use num_traits::{cast, Zero};
@@ -62,6 +63,8 @@ pub enum Error {
     MalformedResponse { query: String },
     #[error("address {address} is unknown, please make sure it is funded")]
     AccountNotFound { address: TMAddress },
+    #[error("transaction not accepted by the node")]
+    TxNotAccepted,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
@@ -216,9 +219,10 @@ where
 
     async fn broadcast(&mut self, msgs: Vec<Any>) -> Result<TxResponse, Error> {
         let (acc_number, acc_sequence) = self.acc_number_and_sequence().await?;
+        let fee = self.estimate_fee(msgs.clone(), acc_sequence).await?;
         let tx = Tx::builder()
-            .msgs(msgs.clone())
-            .fee(self.estimate_fee(msgs, acc_sequence).await?)
+            .msgs(msgs)
+            .fee(fee.clone())
             .pub_key(self.pub_key.1)
             .acc_sequence(acc_sequence)
             .build()
@@ -252,11 +256,18 @@ where
             .broadcast_tx(tx)
             .change_context(Error::Broadcast)
             .await?;
-        let TxResponse {
-            txhash: tx_hash, ..
-        } = &response;
 
-        info!(tx_hash, "broadcasted transaction");
+        info!(
+            tx_hash = response.txhash,
+            acc_number,
+            acc_sequence = self.acc_sequence,
+            fee.amount = fee.amount.iter().map(Coin::to_string).join(", "),
+            ?fee.gas_limit,
+            ?response,
+            "transaction was broadcast"
+        );
+
+        ensure!(response.code == 0, Error::TxNotAccepted);
 
         self.acc_sequence.replace(
             acc_sequence

@@ -16,6 +16,7 @@ path = "src/bin/schema.rs"
 library = []
 
 [dependencies]
+axelar-core-std = { workspace = true }
 axelar-wasm-std = { workspace = true, features = ["derive"] }
 axelarnet-gateway = { workspace = true, features = ["library"] }
 client = { workspace = true }
@@ -37,3 +38,7 @@ voting-verifier = { workspace = true, features = ["library"] }
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+rand = { workspace = true }
+serde_json = { workspace = true }

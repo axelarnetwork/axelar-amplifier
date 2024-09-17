@@ -1,0 +1,38 @@
+[
+  {
+    "messages": [],
+    "attributes": [],
+    "events": [
+      {
+        "type": "its_contract_registered",
+        "attributes": [
+          {
+            "key": "chain",
+            "value": "ethereum"
+          },
+          {
+            "key": "address",
+            "value": "0x1234567890123456789012345678901234567890"
+          }
+        ]
+      }
+    ],
+    "data": null
+  },
+  {
+    "messages": [],
+    "attributes": [],
+    "events": [
+      {
+        "type": "its_contract_deregistered",
+        "attributes": [
+          {
+            "key": "chain",
+            "value": "ethereum"
+          }
+        ]
+      }
+    ],
+    "data": null
+  }
+]

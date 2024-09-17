@@ -757,7 +757,7 @@ pub fn setup_chain(
         protocol.governance_address.clone(),
         &CoordinatorExecuteMsg::RegisterProverContract {
             chain_name: chain_name.clone(),
-            new_prover_addr: multisig_prover.contract_addr.clone(),
+            new_prover_addr: multisig_prover.contract_addr.to_string(),
         },
     );
     assert!(response.is_ok());
@@ -768,7 +768,7 @@ pub fn setup_chain(
         &mut protocol.app,
         multisig_prover.contract_addr.clone(),
         &coordinator::msg::ExecuteMsg::SetActiveVerifiers {
-            verifiers: verifier_union_set,
+            verifiers: verifier_union_set.iter().map(|v| v.to_string()).collect(),
         },
     );
     assert!(response.is_ok());

@@ -2,8 +2,8 @@ use axelar_wasm_std::{address, permission_control, FnExt};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_json_binary, Addr, BankMsg, Binary, Coin, Deps, DepsMut, Empty, Env, MessageInfo,
-    QueryRequest, Response, Storage, WasmQuery,
+    to_json_binary, Addr, BankMsg, Binary, Coin, Deps, DepsMut, Empty, Env, MessageInfo, Response,
+    Storage,
 };
 use error_stack::{bail, Report, ResultExt};
 use service_registry_api::error::ContractError;
@@ -195,7 +195,9 @@ mod test {
     use cosmwasm_std::testing::{
         mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
     };
-    use cosmwasm_std::{coins, from_json, CosmosMsg, Empty, OwnedDeps, StdResult, Uint128};
+    use cosmwasm_std::{
+        coins, from_json, CosmosMsg, Empty, OwnedDeps, StdResult, Uint128, WasmQuery,
+    };
     use router_api::ChainName;
     use service_registry_api::msg::VerifierDetails;
     use service_registry_api::{Verifier, WeightedVerifier};

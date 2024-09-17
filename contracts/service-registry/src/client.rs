@@ -9,16 +9,16 @@ type Result<T> = error_stack::Result<T, Error>;
 #[derive(thiserror::Error, Debug, PartialEq)]
 pub enum Error {
     #[error("failed to query service registry for active verifiers for service {service_name} and chain {chain_name}")]
-    QueryActiveVerifiers {
+    ActiveVerifiers {
         service_name: String,
         chain_name: ChainName,
     },
 
     #[error("failed to query service registry for service {0}")]
-    QueryService(String),
+    Service(String),
 
     #[error("failed to query service registry for verifier {verifier} of service {service_name}")]
-    QueryVerifier {
+    Verifier {
         service_name: String,
         verifier: String,
     },
@@ -30,15 +30,15 @@ impl From<QueryMsg> for Error {
             QueryMsg::ActiveVerifiers {
                 service_name,
                 chain_name,
-            } => Error::QueryActiveVerifiers {
+            } => Error::ActiveVerifiers {
                 service_name,
                 chain_name,
             },
-            QueryMsg::Service { service_name } => Error::QueryService(service_name),
+            QueryMsg::Service { service_name } => Error::Service(service_name),
             QueryMsg::Verifier {
                 service_name,
                 verifier,
-            } => Error::QueryVerifier {
+            } => Error::Verifier {
                 service_name,
                 verifier,
             },
@@ -46,14 +46,14 @@ impl From<QueryMsg> for Error {
     }
 }
 
-impl<'a> From<client::Client<'a, ExecuteMsg, QueryMsg>> for Client<'a> {
-    fn from(client: client::Client<'a, ExecuteMsg, QueryMsg>) -> Self {
+impl<'a> From<client::ContractClient<'a, ExecuteMsg, QueryMsg>> for Client<'a> {
+    fn from(client: client::ContractClient<'a, ExecuteMsg, QueryMsg>) -> Self {
         Client { client }
     }
 }
 
 pub struct Client<'a> {
-    client: client::Client<'a, ExecuteMsg, QueryMsg>,
+    client: client::ContractClient<'a, ExecuteMsg, QueryMsg>,
 }
 
 impl<'a> Client<'a> {
@@ -100,7 +100,8 @@ mod test {
     #[test]
     fn query_active_verifiers_returns_error_when_query_fails() {
         let (querier, addr) = setup_queries_to_fail();
-        let client: Client = client::Client::new(QuerierWrapper::new(&querier), &addr).into();
+        let client: Client =
+            client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
         let service_name = "verifiers".to_string();
         let chain_name: ChainName = "ethereum".try_into().unwrap();
         let res = client.active_verifiers(service_name.clone(), chain_name.clone());
@@ -112,7 +113,8 @@ mod test {
     #[test]
     fn query_active_verifiers_returns_active_verifiers() {
         let (querier, addr) = setup_queries_to_succeed();
-        let client: Client = client::Client::new(QuerierWrapper::new(&querier), &addr).into();
+        let client: Client =
+            client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
         let service_name = "verifiers".to_string();
         let chain_name: ChainName = "ethereum".try_into().unwrap();
         let res = client.active_verifiers(service_name.clone(), chain_name.clone());
@@ -124,7 +126,8 @@ mod test {
     #[test]
     fn query_verifier_returns_error_when_query_fails() {
         let (querier, addr) = setup_queries_to_fail();
-        let client: Client = client::Client::new(QuerierWrapper::new(&querier), &addr).into();
+        let client: Client =
+            client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
         let service_name = "verifiers".to_string();
         let verifier = Addr::unchecked("verifier").to_string();
         let res = client.verifier(service_name.clone(), verifier.clone());
@@ -136,7 +139,8 @@ mod test {
     #[test]
     fn query_verifier_returns_verifier() {
         let (querier, addr) = setup_queries_to_succeed();
-        let client: Client = client::Client::new(QuerierWrapper::new(&querier), &addr).into();
+        let client: Client =
+            client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
         let service_name = "verifiers".to_string();
         let verifier = Addr::unchecked("verifier").to_string();
         let res = client.verifier(service_name.clone(), verifier.clone());
@@ -148,7 +152,8 @@ mod test {
     #[test]
     fn query_service_returns_error_when_query_fails() {
         let (querier, addr) = setup_queries_to_fail();
-        let client: Client = client::Client::new(QuerierWrapper::new(&querier), &addr).into();
+        let client: Client =
+            client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
         let service_name = "verifiers".to_string();
         let res = client.service(service_name.clone());
 
@@ -159,7 +164,8 @@ mod test {
     #[test]
     fn query_service_returns_service() {
         let (querier, addr) = setup_queries_to_succeed();
-        let client: Client = client::Client::new(QuerierWrapper::new(&querier), &addr).into();
+        let client: Client =
+            client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
         let service_name = "verifiers".to_string();
         let res = client.service(service_name.clone());
 
@@ -168,7 +174,7 @@ mod test {
     }
 
     fn setup_queries_to_fail() -> (MockQuerier, Addr) {
-        let addr = "multisig";
+        let addr = "service-registry";
 
         let mut querier = MockQuerier::default();
         querier.update_wasm(move |msg| match msg {

@@ -1,5 +1,5 @@
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, HexBinary, QuerierWrapper, WasmMsg};
+use cosmwasm_std::{Addr, CosmosMsg, HexBinary, QuerierWrapper};
 use router_api::{Address, CrossChainId};
 
 /// `AxelarExecutableMsg` is a struct containing the args used by the axelarnet gateway to execute a destination contract on Axelar.
@@ -20,17 +20,17 @@ enum ExecuteMsg {
 }
 
 pub struct Client<'a> {
-    client: client::Client<'a, ExecuteMsg, ()>,
+    client: client::ContractClient<'a, ExecuteMsg, ()>,
 }
 
 impl<'a> Client<'a> {
     pub fn new(querier: QuerierWrapper<'a>, destination: &'a Addr) -> Self {
         Client {
-            client: client::Client::new(querier, destination),
+            client: client::ContractClient::new(querier, destination),
         }
     }
 
-    pub fn execute(&self, msg: AxelarExecutableMsg) -> WasmMsg {
+    pub fn execute(&self, msg: AxelarExecutableMsg) -> CosmosMsg {
         self.client.execute(&ExecuteMsg::Execute(msg))
     }
 }
@@ -64,6 +64,7 @@ mod test {
                 msg: to_json_binary(&external::ExecuteMsg::Execute(executable_msg)).unwrap(),
                 funds: vec![],
             }
+            .into()
         );
     }
 }

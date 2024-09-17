@@ -77,4 +77,25 @@ pub enum ContractError {
 
     #[error("failed to serialize data for the external gateway")]
     SerializeData,
+
+    #[error("failed to get outgoing messages from gateway")]
+    FailedToGetMessages,
+
+    #[error("failed to build verifier set")]
+    FailedToBuildVerifierSet,
+
+    #[error("failed to check verifier set verification status")]
+    FailedToVerifyVerifierSet,
+
+    #[error("failed to update admin")]
+    FailedToUpdateAdmin,
+
+    #[error("failed to create wasm execute msg")]
+    FailedToCreateWasmExecuteMsg,
+
+    // Generic error to wrap cw_storage_plus errors
+    // This should only be used for things that shouldn't happen, such as encountering
+    // an error when loading data that should always load successfully.
+    #[error("storage error")]
+    StorageError,
 }

@@ -2,6 +2,7 @@ mod execute;
 mod migrations;
 mod query;
 
+use axelar_wasm_std::address::validate_cosmwasm_address;
 use axelar_wasm_std::{address, permission_control, FnExt};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
@@ -9,8 +10,8 @@ use cosmwasm_std::{
     to_json_binary, Addr, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response, Storage,
 };
 use error_stack::report;
+use itertools::Itertools;
 
-use crate::contract::migrations::v0_2_0;
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::is_prover_registered;
@@ -24,8 +25,6 @@ pub fn migrate(
     _env: Env,
     _msg: Empty,
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
-    v0_2_0::migrate(deps.storage)?;
-
     // this needs to be the last thing to do during migration,
     // because previous migration steps should check the old version
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
@@ -63,8 +62,15 @@ pub fn execute(
         ExecuteMsg::RegisterProverContract {
             chain_name,
             new_prover_addr,
-        } => execute::register_prover(deps, chain_name, new_prover_addr),
+        } => {
+            let new_prover_addr = validate_cosmwasm_address(deps.api, &new_prover_addr)?;
+            execute::register_prover(deps, chain_name, new_prover_addr)
+        }
         ExecuteMsg::SetActiveVerifiers { verifiers } => {
+            let verifiers = verifiers
+                .iter()
+                .map(|v| validate_cosmwasm_address(deps.api, v))
+                .try_collect()?;
             execute::set_active_verifier_set(deps, info, verifiers)
         }
     }?
@@ -84,11 +90,21 @@ fn find_prover_address(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
+pub fn query(
+    deps: Deps,
+    _env: Env,
+    msg: QueryMsg,
+) -> Result<Binary, axelar_wasm_std::error::ContractError> {
     match msg {
-        QueryMsg::ReadyToUnbond { worker_address } => to_json_binary(
-            &query::check_verifier_ready_to_unbond(deps, worker_address)?,
-        )?,
+        QueryMsg::ReadyToUnbond {
+            verifier_address: worker_address,
+        } => {
+            let worker_address = validate_cosmwasm_address(deps.api, &worker_address)?;
+            to_json_binary(&query::check_verifier_ready_to_unbond(
+                deps,
+                worker_address,
+            )?)?
+        }
     }
     .then(Ok)
 }
@@ -150,7 +166,7 @@ mod tests {
             mock_info("not_governance", &[]),
             ExecuteMsg::RegisterProverContract {
                 chain_name: test_setup.chain_name.clone(),
-                new_prover_addr: test_setup.prover.clone(),
+                new_prover_addr: test_setup.prover.to_string(),
             }
         )
         .is_err());
@@ -161,7 +177,7 @@ mod tests {
             mock_info(governance, &[]),
             ExecuteMsg::RegisterProverContract {
                 chain_name: test_setup.chain_name.clone(),
-                new_prover_addr: test_setup.prover.clone(),
+                new_prover_addr: test_setup.prover.to_string(),
             }
         )
         .is_ok());
@@ -178,7 +194,7 @@ mod tests {
             mock_info(governance, &[]),
             ExecuteMsg::RegisterProverContract {
                 chain_name: test_setup.chain_name.clone(),
-                new_prover_addr: test_setup.prover.clone(),
+                new_prover_addr: test_setup.prover.to_string(),
             },
         )
         .unwrap();
@@ -202,7 +218,7 @@ mod tests {
             mock_info("random_address", &[]),
             ExecuteMsg::RegisterProverContract {
                 chain_name: test_setup.chain_name.clone(),
-                new_prover_addr: test_setup.prover.clone(),
+                new_prover_addr: test_setup.prover.to_string(),
             },
         );
         assert_eq!(
@@ -228,7 +244,7 @@ mod tests {
             mock_info(governance, &[]),
             ExecuteMsg::RegisterProverContract {
                 chain_name: test_setup.chain_name.clone(),
-                new_prover_addr: test_setup.prover.clone(),
+                new_prover_addr: test_setup.prover.to_string(),
             },
         )
         .unwrap();
