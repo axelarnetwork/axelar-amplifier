@@ -7,3 +7,6 @@ pub struct InstantiateMsg {
     /// Address of the router contract on axelar.
     pub router_address: String,
 }
+
+// these messages are extracted into a separate package to avoid circular dependencies
+pub use gateway_api::msg::{ExecuteMsg, QueryMsg};

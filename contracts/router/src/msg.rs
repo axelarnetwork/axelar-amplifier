@@ -9,3 +9,6 @@ pub struct InstantiateMsg {
     // the address of the nexus gateway
     pub nexus_gateway: String,
 }
+
+// these messages are extracted into a separate package to avoid circular dependencies
+pub use router_api::msg::{ExecuteMsg, QueryMsg};

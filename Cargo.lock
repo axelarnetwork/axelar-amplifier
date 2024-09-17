@@ -1695,6 +1695,7 @@ dependencies = [
  "error-stack",
  "goldie",
  "integration-tests",
+ "itertools 0.11.0",
  "msgs-derive",
  "multisig",
  "report",
@@ -5007,6 +5008,7 @@ name = "multisig-prover"
 version = "1.0.0"
 dependencies = [
  "anyhow",
+ "assert_ok",
  "axelar-wasm-std",
  "bcs",
  "client",

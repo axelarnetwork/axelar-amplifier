@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use cosmwasm_std::{Addr, CosmosMsg};
+use cosmwasm_std::CosmosMsg;
 use error_stack::{Result, ResultExt};
 use router_api::ChainName;
 
@@ -8,14 +8,16 @@ use crate::msg::{ExecuteMsg, QueryMsg};
 
 #[derive(thiserror::Error, Debug, PartialEq)]
 pub enum Error {
-    #[error("failed to execute ReadyToUnbond query at coordinator contract. worker_address: {0}")]
-    ReadyToUnbond(Addr),
+    #[error(
+        "failed to execute ReadyToUnbond query at coordinator contract. verifier_address: {0}"
+    )]
+    ReadyToUnbond(String),
 }
 
 impl From<QueryMsg> for Error {
     fn from(value: QueryMsg) -> Self {
         match value {
-            QueryMsg::ReadyToUnbond { worker_address } => Error::ReadyToUnbond(worker_address),
+            QueryMsg::ReadyToUnbond { verifier_address } => Error::ReadyToUnbond(verifier_address),
         }
     }
 }
@@ -34,7 +36,7 @@ impl<'a> Client<'a> {
     pub fn register_prover_contract(
         &self,
         chain_name: ChainName,
-        new_prover_addr: Addr,
+        new_prover_addr: String,
     ) -> CosmosMsg {
         self.client.execute(&ExecuteMsg::RegisterProverContract {
             chain_name,
@@ -42,13 +44,13 @@ impl<'a> Client<'a> {
         })
     }
 
-    pub fn set_active_verifiers(&self, verifiers: HashSet<Addr>) -> CosmosMsg {
+    pub fn set_active_verifiers(&self, verifiers: HashSet<String>) -> CosmosMsg {
         self.client
             .execute(&ExecuteMsg::SetActiveVerifiers { verifiers })
     }
 
-    pub fn ready_to_unbond(&self, worker_address: Addr) -> Result<bool, Error> {
-        let msg = QueryMsg::ReadyToUnbond { worker_address };
+    pub fn ready_to_unbond(&self, verifier_address: String) -> Result<bool, Error> {
+        let msg = QueryMsg::ReadyToUnbond { verifier_address };
         self.client.query(&msg).change_context_lazy(|| msg.into())
     }
 }
@@ -67,7 +69,7 @@ mod test {
         let (querier, addr) = setup_queries_to_fail();
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
-        let res = client.ready_to_unbond(Addr::unchecked("worker"));
+        let res = client.ready_to_unbond(Addr::unchecked("verifier").to_string());
 
         assert!(res.is_err());
         goldie::assert!(res.unwrap_err().to_string());
@@ -78,7 +80,7 @@ mod test {
         let (querier, addr) = setup_queries_to_succeed();
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
-        let res = client.ready_to_unbond(Addr::unchecked("worker"));
+        let res = client.ready_to_unbond(Addr::unchecked("verifier").to_string());
 
         assert!(res.is_ok());
         goldie::assert_json!(res.unwrap());
@@ -109,9 +111,9 @@ mod test {
             WasmQuery::Smart { contract_addr, msg } if contract_addr == addr => {
                 let msg = from_json::<QueryMsg>(msg).unwrap();
                 match msg {
-                    QueryMsg::ReadyToUnbond { worker_address: _ } => {
-                        Ok(to_json_binary(&true).into()).into()
-                    }
+                    QueryMsg::ReadyToUnbond {
+                        verifier_address: _,
+                    } => Ok(to_json_binary(&true).into()).into(),
                 }
             }
             _ => panic!("unexpected query: {:?}", msg),

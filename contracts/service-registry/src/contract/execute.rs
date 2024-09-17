@@ -180,7 +180,7 @@ pub fn unbond_verifier(
         client::ContractClient::new(deps.querier, &service.coordinator_contract).into();
 
     let ready_to_unbond = coordinator
-        .ready_to_unbond(verifier.address.clone())
+        .ready_to_unbond(verifier.address.to_string())
         .change_context(ContractError::FailedToUnbondVerifier)?;
 
     let verifier = verifier.unbond(ready_to_unbond, env.block.time)?;
