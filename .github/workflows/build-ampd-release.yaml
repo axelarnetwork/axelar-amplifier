@@ -99,7 +99,7 @@ jobs:
             mv "/Users/runner/work/axelar-amplifier/axelar-amplifier/target/release/ampd" "./ampdbin/ampd-$OS-$ARCH-$SEMVER"
           fi
           
-          gpg --armor --detach-sign  "./ampdbin/ampd-$OS-$ARCH-$SEMVER"
+          gpg --armor --detach-sign "./ampdbin/ampd-$OS-$ARCH-$SEMVER"
 
       - name: build and sign linux binaries
         env:
