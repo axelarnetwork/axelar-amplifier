@@ -20,13 +20,19 @@ pub enum ExecuteMsg {
     #[permission(Governance)]
     RegisterService {
         service_name: String,
-        coordinator_contract: Addr,
+        coordinator_contract: String,
         min_num_verifiers: u16,
         max_num_verifiers: Option<u16>,
         min_verifier_bond: nonempty::Uint128,
         bond_denom: String,
         unbonding_period_days: u16, // number of days to wait after starting unbonding before allowed to claim stake
         description: String,
+    },
+    /// Updates modifiable fields of the service. Note, not all fields are modifiable.
+    #[permission(Governance)]
+    UpdateService {
+        service_name: String,
+        updated_service_params: UpdatedServiceParams,
     },
     /// Authorizes verifiers to join a service. Can only be called by governance account. Verifiers must still bond sufficient stake to participate.
     #[permission(Governance)]
@@ -100,4 +106,14 @@ pub struct VerifierDetails {
 #[cw_serde]
 pub struct MigrateMsg {
     pub coordinator_contract: Addr,
+}
+
+// Represents any modifiable fields of the Service struct
+// Any non-None field overwrites the value currently stored in the Service object
+#[cw_serde]
+pub struct UpdatedServiceParams {
+    pub min_num_verifiers: Option<u16>,
+    pub max_num_verifiers: Option<Option<u16>>,
+    pub min_verifier_bond: Option<nonempty::Uint128>,
+    pub unbonding_period_days: Option<u16>,
 }
