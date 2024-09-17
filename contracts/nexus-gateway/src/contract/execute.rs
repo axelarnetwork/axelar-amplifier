@@ -74,12 +74,12 @@ fn route_message_to_nexus(
     let msg: nexus::execute::Message = (msg, token.clone()).into();
 
     token
-        .into_iter()
         .map(|token| BankMsg::Send {
             to_address: config.nexus.to_string(),
             amount: vec![token],
         })
         .map(Into::into)
+        .into_iter()
         .chain(iter::once(client.route_message(msg)))
         .collect::<Vec<_>>()
         .then(Result::Ok)
