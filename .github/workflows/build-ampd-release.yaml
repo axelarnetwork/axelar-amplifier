@@ -108,6 +108,8 @@ jobs:
           
           if [ "$ARCH" == "arm64" ]
           then
+            sudo apt-get install gcc-aarch64-linux-gnu g++-aarch64-linux-gnu 
+          
             sudo tee /etc/apt/sources.list > /dev/null << EOF
           
           # AMD64 repositories
@@ -131,7 +133,8 @@ jobs:
           
           if [ "$ARCH" == "arm64" ]
           then
-            sudo apt-get install gcc-aarch64-linux-gnu g++-aarch64-linux-gnu libssl-dev:arm64
+            echo "installing libssl-dev:arm64"
+            sudo apt-get install libssl-dev:arm64
           
             echo "OPENSSL_INCLUDE_DIR" $(ls /usr/include/openssl) 
             echo "find opensslconf.h:" $(find /usr -name opensslconf.h)
