@@ -230,16 +230,28 @@ pub fn update_verifier_set(
                 .save(deps.storage, &new_verifier_set)
                 .map_err(ContractError::from)?;
 
-            Ok(Response::new().add_message(
-                wasm_execute(
-                    config.multisig,
-                    &multisig::msg::ExecuteMsg::RegisterVerifierSet {
-                        verifier_set: new_verifier_set,
-                    },
-                    vec![],
+            let verifier_union_set = all_active_verifiers(&deps)?;
+            Ok(Response::new()
+                .add_message(
+                    wasm_execute(
+                        config.multisig,
+                        &multisig::msg::ExecuteMsg::RegisterVerifierSet {
+                            verifier_set: new_verifier_set,
+                        },
+                        vec![],
+                    )
+                    .map_err(ContractError::from)?,
                 )
-                .map_err(ContractError::from)?,
-            ))
+                .add_message(
+                    wasm_execute(
+                        config.coordinator,
+                        &coordinator::msg::ExecuteMsg::SetActiveVerifiers {
+                            verifiers: verifier_union_set,
+                        },
+                        vec![],
+                    )
+                    .map_err(ContractError::from)?,
+                ))
         }
         Some(cur_verifier_set) => {
             let new_verifier_set = next_verifier_set(&deps, &env, &config)?

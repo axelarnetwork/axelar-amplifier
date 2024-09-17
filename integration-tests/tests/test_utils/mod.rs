@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
 use axelar_wasm_std::voting::{PollId, Vote};
@@ -638,11 +638,7 @@ pub struct Chain {
     pub chain_name: ChainName,
 }
 
-pub fn setup_chain(
-    protocol: &mut Protocol,
-    chain_name: ChainName,
-    verifiers: &[Verifier],
-) -> Chain {
+pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
     let voting_verifier = VotingVerifierContract::instantiate_contract(
         protocol,
         Threshold::try_from((3, 4)).unwrap().try_into().unwrap(),
@@ -663,6 +659,16 @@ pub fn setup_chain(
         voting_verifier.contract_addr.clone(),
         chain_name.to_string(),
     );
+
+    let response = protocol.coordinator.execute(
+        &mut protocol.app,
+        protocol.governance_address.clone(),
+        &CoordinatorExecuteMsg::RegisterProverContract {
+            chain_name: chain_name.clone(),
+            new_prover_addr: multisig_prover.contract_addr.clone(),
+        },
+    );
+    assert!(response.is_ok());
 
     let response = multisig_prover.execute(
         &mut protocol.app,
@@ -749,27 +755,6 @@ pub fn setup_chain(
             },
         },
         &coins(1000, AXL_DENOMINATION),
-    );
-    assert!(response.is_ok());
-
-    let response = protocol.coordinator.execute(
-        &mut protocol.app,
-        protocol.governance_address.clone(),
-        &CoordinatorExecuteMsg::RegisterProverContract {
-            chain_name: chain_name.clone(),
-            new_prover_addr: multisig_prover.contract_addr.clone(),
-        },
-    );
-    assert!(response.is_ok());
-
-    let mut verifier_union_set = HashSet::new();
-    verifier_union_set.extend(verifiers.iter().map(|verifier| verifier.addr.clone()));
-    let response = protocol.coordinator.execute(
-        &mut protocol.app,
-        multisig_prover.contract_addr.clone(),
-        &coordinator::msg::ExecuteMsg::SetActiveVerifiers {
-            verifiers: verifier_union_set,
-        },
     );
     assert!(response.is_ok());
 
@@ -870,8 +855,8 @@ pub fn setup_test_case() -> TestCase {
     register_service(&mut protocol, min_verifier_bond, unbonding_period_days);
 
     register_verifiers(&mut protocol, &verifiers, min_verifier_bond);
-    let chain1 = setup_chain(&mut protocol, chains.first().unwrap().clone(), &verifiers);
-    let chain2 = setup_chain(&mut protocol, chains.get(1).unwrap().clone(), &verifiers);
+    let chain1 = setup_chain(&mut protocol, chains.first().unwrap().clone());
+    let chain2 = setup_chain(&mut protocol, chains.get(1).unwrap().clone());
     TestCase {
         protocol,
         chain1,
