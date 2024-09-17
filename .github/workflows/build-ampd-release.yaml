@@ -115,7 +115,7 @@ jobs:
           mkdir ampdbin
           mv "/home/runner/work/axelar-amplifier/axelar-amplifier/target/release/ampd" "./ampdbin/ampd-$OS-$ARCH-$SEMVER"
           
-          gpg --armor --detach-sign  "./ampdbin/ampd-$OS-$ARCH-$SEMVER"
+          gpg --armor --detach-sign "./ampdbin/ampd-$OS-$ARCH-$SEMVER"
 
       - name: Test Binary Format
         working-directory: ./ampdbin
