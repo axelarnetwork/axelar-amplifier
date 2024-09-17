@@ -7,13 +7,16 @@ use evm_gateway::{
     ApproveMessagesCall, CommandType, Message, Proof, RotateSignersCall, WeightedSigners,
 };
 use itertools::Itertools;
+use k256::ecdsa::RecoveryId;
+use multisig::key::Signature;
 use multisig::msg::SignerWithSig;
 use multisig::verifier_set::VerifierSet;
 use sha3::{Digest, Keccak256};
 
-use crate::encoding::{to_recoverable, Encoder};
 use crate::error::ContractError;
 use crate::payload::Payload;
+
+const PREFIX: &str = "\x19Ethereum Signed Message:\n96";
 
 impl From<&Payload> for CommandType {
     fn from(payload: &Payload) -> Self {
@@ -37,7 +40,7 @@ pub fn payload_digest(
 
     // Prefix for standard EVM signed data https://eips.ethereum.org/EIPS/eip-191
     let unsigned = [
-        "\x19Ethereum Signed Message:\n96".as_bytes(),
+        PREFIX.as_bytes(),
         domain_separator,
         signer_hash.as_slice(),
         data_hash.as_slice(),
@@ -73,12 +76,15 @@ pub fn encode_payload(payload: &Payload) -> Result<Vec<u8>, ContractError> {
 }
 
 pub fn encode_execute_data(
+    domain_separator: &Hash,
     verifier_set: &VerifierSet,
     signers: Vec<SignerWithSig>,
-    payload_digest: &Hash,
     payload: &Payload,
 ) -> error_stack::Result<HexBinary, ContractError> {
-    let signers = to_recoverable(Encoder::Abi, payload_digest, signers);
+    let signers = to_recoverable(
+        payload_digest(domain_separator, verifier_set, payload)?,
+        signers,
+    );
 
     let proof = Proof::new(verifier_set, signers).change_context(ContractError::Proof)?;
 
@@ -113,11 +119,38 @@ pub fn encode_execute_data(
         .into())
 }
 
+// Convert non-recoverable ECDSA signatures to recoverable ones.
+fn to_recoverable<M>(msg: M, signers: Vec<SignerWithSig>) -> Vec<SignerWithSig>
+where
+    M: AsRef<[u8]>,
+{
+    let recovery_transform = |recovery_byte: RecoveryId| -> u8 {
+        recovery_byte
+            .to_byte()
+            .checked_add(27)
+            .expect("overflow when adding 27 to recovery byte")
+    };
+
+    signers
+        .into_iter()
+        .map(|mut signer| {
+            if let Signature::Ecdsa(nonrecoverable) = signer.signature {
+                signer.signature = nonrecoverable
+                    .to_recoverable(msg.as_ref(), &signer.signer.pub_key, recovery_transform)
+                    .map(Signature::EcdsaRecoverable)
+                    .expect("failed to convert non-recoverable signature to recoverable");
+            }
+
+            signer
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use std::str::FromStr;
 
-    use axelar_wasm_std::hash::Hash;
+    use assert_ok::assert_ok;
     use cosmwasm_std::HexBinary;
     use elliptic_curve::consts::U32;
     use ethers_core::types::Signature as EthersSignature;
@@ -125,12 +158,11 @@ mod tests {
     use generic_array::GenericArray;
     use hex::FromHex;
     use itertools::Itertools;
-    use k256::ecdsa::Signature as K256Signature;
+    use k256::ecdsa::{RecoveryId, Signature as K256Signature};
     use multisig::key::{KeyType, KeyTyped, Signature};
     use multisig::msg::{Signer, SignerWithSig};
 
     use crate::encoding::abi::{encode_execute_data, payload_digest, CommandType};
-    use crate::encoding::add_27;
     use crate::payload::Payload;
     use crate::test::test_data::{
         curr_verifier_set, domain_separator, messages, new_verifier_set, verifier_set_from_pub_keys,
@@ -160,28 +192,25 @@ mod tests {
         let mut new_verifier_set = verifier_set_from_pub_keys(new_pub_keys);
         new_verifier_set.created_at = 2024;
 
-        goldie::assert!(hex::encode(
-            payload_digest(
-                &domain_separator,
-                &curr_verifier_set(),
-                &Payload::VerifierSet(new_verifier_set),
-            )
-            .unwrap()
+        let payload_digest = assert_ok!(payload_digest(
+            &domain_separator,
+            &curr_verifier_set(),
+            &Payload::VerifierSet(new_verifier_set),
         ));
+
+        goldie::assert!(hex::encode(payload_digest));
     }
 
     #[test]
     fn abi_approve_messages_payload_digest() {
         let domain_separator = domain_separator();
-
-        goldie::assert!(hex::encode(
-            payload_digest(
-                &domain_separator,
-                &curr_verifier_set(),
-                &Payload::Messages(messages()),
-            )
-            .unwrap()
+        let payload_digest = assert_ok!(payload_digest(
+            &domain_separator,
+            &curr_verifier_set(),
+            &Payload::Messages(messages()),
         ));
+
+        goldie::assert!(hex::encode(payload_digest));
     }
 
     #[test]
@@ -211,20 +240,15 @@ mod tests {
         let signers_with_sigs = signers_with_sigs(verifier_set.signers.values(), sigs);
 
         let payload = Payload::VerifierSet(new_verifier_set);
-        let payload_hash: Hash = payload_digest(&domain_separator, &verifier_set, &payload)
-            .unwrap()
-            .as_slice()
-            .try_into()
-            .unwrap();
 
-        goldie::assert!(encode_execute_data(
+        let execute_data = assert_ok!(encode_execute_data(
+            &domain_separator,
             &verifier_set,
             signers_with_sigs,
-            &payload_hash,
             &payload
-        )
-        .unwrap()
-        .to_hex());
+        ));
+
+        goldie::assert!(execute_data.to_hex());
     }
 
     #[test]
@@ -242,20 +266,13 @@ mod tests {
         let signers_with_sigs = signers_with_sigs(verifier_set.signers.values(), sigs);
 
         let payload = Payload::Messages(messages());
-        let payload_hash: Hash = payload_digest(&domain_separator, &verifier_set, &payload)
-            .unwrap()
-            .as_slice()
-            .try_into()
-            .unwrap();
-
-        goldie::assert!(encode_execute_data(
+        let execute_data = assert_ok!(encode_execute_data(
+            &domain_separator,
             &verifier_set,
             signers_with_sigs,
-            &payload_hash,
             &payload
-        )
-        .unwrap()
-        .to_hex());
+        ));
+        goldie::assert!(execute_data.to_hex());
     }
 
     #[test]
@@ -287,7 +304,12 @@ mod tests {
                 .to_recoverable(
                     HexBinary::from_hex(digest).unwrap().as_slice(),
                     &multisig::key::PublicKey::Ecdsa(HexBinary::from(pub_key.to_vec())),
-                    add_27,
+                    |recovery_byte: RecoveryId| -> u8 {
+                        recovery_byte
+                            .to_byte()
+                            .checked_add(27)
+                            .expect("overflow when adding 27 to recovery byte")
+                    },
                 )
                 .unwrap();
 
