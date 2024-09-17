@@ -1,6 +1,5 @@
 use axelar_wasm_std::nonempty;
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::Addr;
 use msgs_derive::EnsurePermissions;
 use router_api::ChainName;
 use schemars::JsonSchema;
@@ -15,7 +14,7 @@ pub enum ExecuteMsg {
     #[permission(Governance)]
     RegisterService {
         service_name: String,
-        coordinator_contract: Addr,
+        coordinator_contract: String,
         min_num_verifiers: u16,
         max_num_verifiers: Option<u16>,
         min_verifier_bond: nonempty::Uint128,

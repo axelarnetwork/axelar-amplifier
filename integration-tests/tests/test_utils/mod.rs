@@ -259,7 +259,7 @@ pub fn register_service(
         protocol.governance_address.clone(),
         &ExecuteMsg::RegisterService {
             service_name: protocol.service_name.to_string(),
-            coordinator_contract: protocol.coordinator.contract_addr.clone(),
+            coordinator_contract: protocol.coordinator.contract_addr.to_string(),
             min_num_verifiers: 0,
             max_num_verifiers: Some(100),
             min_verifier_bond,
