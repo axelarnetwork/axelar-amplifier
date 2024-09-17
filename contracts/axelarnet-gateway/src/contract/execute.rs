@@ -1,9 +1,10 @@
 use std::str::FromStr;
 
+use axelar_core_std::nexus;
 use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
 use axelar_wasm_std::{address, FnExt, IntoContractError};
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, DepsMut, HexBinary, Response, Storage, Uint256};
+use cosmwasm_std::{Addr, DepsMut, HexBinary, QuerierWrapper, Response, Storage};
 use error_stack::{bail, ensure, report, Result, ResultExt};
 use itertools::Itertools;
 use router_api::client::Router;
@@ -42,6 +43,10 @@ pub enum Error {
     InvalidSourceAddress(Addr),
     #[error("invalid destination address {0}")]
     InvalidDestinationAddress(String),
+    #[error("failed to query the nexus module")]
+    Nexus,
+    #[error("nonce from the nexus module overflowed u32")]
+    NonceOverflow,
 }
 
 #[cw_serde]
@@ -65,14 +70,24 @@ impl CallContractData {
 
 pub fn call_contract(
     storage: &mut dyn Storage,
-    block_height: u64,
+    querier: QuerierWrapper,
     sender: Addr,
     call_contract: CallContractData,
 ) -> Result<Response, Error> {
     let Config { router, chain_name } = state::load_config(storage);
 
-    let id = generate_cross_chain_id(storage, block_height, chain_name)
-        .change_context(Error::CrossChainIdGeneration)?;
+    let client: nexus::Client = client::CosmosClient::new(querier).into();
+    let nexus::query::TxHashAndNonceResponse { tx_hash, nonce } =
+        client.tx_hash_and_nonce().change_context(Error::Nexus)?;
+
+    let id = CrossChainId::new(
+        chain_name,
+        HexTxHashAndEventIndex::new(
+            tx_hash,
+            u32::try_from(nonce).change_context(Error::NonceOverflow)?,
+        ),
+    )
+    .change_context(Error::InvalidCrossChainId)?;
     let source_address = Address::from_str(sender.as_str())
         .change_context(Error::InvalidSourceAddress(sender.clone()))?;
     let msg = call_contract.to_message(id, source_address);
@@ -82,7 +97,7 @@ pub fn call_contract(
         .change_context(Error::SaveRoutableMessage)?;
 
     Ok(
-        route_to_router(storage, &Router { address: router }, vec![msg.clone()])?.add_event(
+        route_to_router(storage, &Router::new(router), vec![msg.clone()])?.add_event(
             AxelarnetGatewayEvent::ContractCalled {
                 msg,
                 payload: call_contract.payload,
@@ -98,7 +113,7 @@ pub fn route_messages(
     msgs: Vec<Message>,
 ) -> Result<Response, Error> {
     let Config { chain_name, router } = state::load_config(storage);
-    let router = Router { address: router };
+    let router = Router::new(router);
 
     if sender == router.address {
         Ok(prepare_msgs_for_execution(storage, chain_name, msgs)?)
@@ -143,23 +158,6 @@ fn ensure_same_payload_hash(
 
         Ok(())
     }
-}
-
-fn generate_cross_chain_id(
-    storage: &mut dyn Storage,
-    block_height: u64,
-    chain_name: ChainName,
-) -> Result<CrossChainId, Error> {
-    // TODO: Retrieve the actual tx hash from core, since cosmwasm doesn't provide it.
-    // Use the block height as the placeholder in the meantime.
-    let message_id = HexTxHashAndEventIndex {
-        tx_hash: Uint256::from(block_height).to_be_bytes(),
-        event_index: state::ROUTABLE_MESSAGES_INDEX
-            .incr(storage)
-            .change_context(Error::EventIndex)?,
-    };
-
-    CrossChainId::new(chain_name, message_id).change_context(Error::InvalidCrossChainId)
 }
 
 fn panic_if_already_exists(err: &state::Error, cc_id: &CrossChainId) {

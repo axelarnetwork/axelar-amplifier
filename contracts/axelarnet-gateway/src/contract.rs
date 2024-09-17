@@ -64,7 +64,7 @@ pub fn instantiate(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
-    env: Env,
+    _env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
@@ -75,7 +75,7 @@ pub fn execute(
             payload,
         } => execute::call_contract(
             deps.storage,
-            env.block.height,
+            deps.querier,
             info.sender,
             execute::CallContractData {
                 destination_chain,

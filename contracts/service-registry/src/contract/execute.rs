@@ -177,7 +177,7 @@ pub fn unbond_verifier(
         .ok_or(ContractError::VerifierNotFound)?;
 
     let coordinator: coordinator::Client =
-        client::Client::new(deps.querier, &service.coordinator_contract).into();
+        client::ContractClient::new(deps.querier, &service.coordinator_contract).into();
 
     let ready_to_unbond = coordinator
         .ready_to_unbond(verifier.address.clone())

@@ -1,25 +1,24 @@
 [package]
-name = "sui-gateway"
+name = "axelar-core-std"
 version = "1.0.0"
 edition = { workspace = true }
 rust-version = { workspace = true }
 
 [dependencies]
-bcs = { workspace = true }
+axelar-wasm-std = { workspace = true }
+client = { workspace = true }
 cosmwasm-std = { workspace = true }
 error-stack = { workspace = true }
-hex = { workspace = true }
-multisig = { workspace = true, features = ["library"] }
 router-api = { workspace = true }
+schemars = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-sha3 = { workspace = true }
-sui-types = { workspace = true }
 thiserror = { workspace = true }
+
+[dev-dependencies]
+goldie = { workspace = true }
+hex = { workspace = true }
+rand = { workspace = true }
 
 [lints]
 workspace = true
-
-[dev-dependencies]
-bs58 = "0.5.1"
-rand = { workspace = true }

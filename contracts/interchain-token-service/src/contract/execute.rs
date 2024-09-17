@@ -101,7 +101,7 @@ fn send_to_destination(
     let config = load_config(storage);
 
     let gateway: axelarnet_gateway::Client =
-        client::Client::new(querier, &config.axelarnet_gateway).into();
+        client::ContractClient::new(querier, &config.axelarnet_gateway).into();
 
     let call_contract_msg =
         gateway.call_contract(normalize(&destination_chain), destination_address, payload);

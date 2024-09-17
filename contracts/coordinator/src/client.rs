@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use cosmwasm_std::{Addr, WasmMsg};
+use cosmwasm_std::{Addr, CosmosMsg};
 use error_stack::{Result, ResultExt};
 use router_api::ChainName;
 
@@ -20,14 +20,14 @@ impl From<QueryMsg> for Error {
     }
 }
 
-impl<'a> From<client::Client<'a, ExecuteMsg, QueryMsg>> for Client<'a> {
-    fn from(client: client::Client<'a, ExecuteMsg, QueryMsg>) -> Self {
+impl<'a> From<client::ContractClient<'a, ExecuteMsg, QueryMsg>> for Client<'a> {
+    fn from(client: client::ContractClient<'a, ExecuteMsg, QueryMsg>) -> Self {
         Client { client }
     }
 }
 
 pub struct Client<'a> {
-    client: client::Client<'a, ExecuteMsg, QueryMsg>,
+    client: client::ContractClient<'a, ExecuteMsg, QueryMsg>,
 }
 
 impl<'a> Client<'a> {
@@ -35,14 +35,14 @@ impl<'a> Client<'a> {
         &self,
         chain_name: ChainName,
         new_prover_addr: Addr,
-    ) -> WasmMsg {
+    ) -> CosmosMsg {
         self.client.execute(&ExecuteMsg::RegisterProverContract {
             chain_name,
             new_prover_addr,
         })
     }
 
-    pub fn set_active_verifiers(&self, verifiers: HashSet<Addr>) -> WasmMsg {
+    pub fn set_active_verifiers(&self, verifiers: HashSet<Addr>) -> CosmosMsg {
         self.client
             .execute(&ExecuteMsg::SetActiveVerifiers { verifiers })
     }
@@ -65,7 +65,8 @@ mod test {
     #[test]
     fn query_ready_to_unbond_returns_error_when_query_fails() {
         let (querier, addr) = setup_queries_to_fail();
-        let client: Client = client::Client::new(QuerierWrapper::new(&querier), &addr).into();
+        let client: Client =
+            client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
         let res = client.ready_to_unbond(Addr::unchecked("worker"));
 
         assert!(res.is_err());
@@ -75,7 +76,8 @@ mod test {
     #[test]
     fn query_ready_to_unbond_returns_correct_result() {
         let (querier, addr) = setup_queries_to_succeed();
-        let client: Client = client::Client::new(QuerierWrapper::new(&querier), &addr).into();
+        let client: Client =
+            client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
         let res = client.ready_to_unbond(Addr::unchecked("worker"));
 
         assert!(res.is_ok());

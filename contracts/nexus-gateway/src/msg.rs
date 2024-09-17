@@ -1,9 +1,8 @@
+use axelar_core_std::nexus;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::HexBinary;
 use msgs_derive::EnsurePermissions;
 use router_api::{Address, ChainName};
-
-use crate::nexus;
 
 #[cw_serde]
 pub struct MigrateMsg {
@@ -33,7 +32,7 @@ pub enum ExecuteMsg {
     #[permission(Specific(router))]
     RouteMessages(Vec<router_api::Message>),
     #[permission(Specific(nexus))]
-    RouteMessagesFromNexus(Vec<nexus::Message>),
+    RouteMessagesFromNexus(Vec<nexus::execute::Message>),
 }
 
 #[cw_serde]
