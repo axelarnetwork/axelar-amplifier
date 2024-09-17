@@ -106,35 +106,22 @@ pub fn call_contract(
         .inspect_err(|err| panic_if_already_exists(err, &msg.cc_id))
         .change_context(Error::SaveRoutableMessage)?;
 
-    let res = match info.token().change_context(Error::InvalidToken)? {
-        None => {
-            let event = AxelarnetGatewayEvent::ContractCalled {
-                msg: msg.clone(),
-                payload: call_contract.payload,
-                token: None,
-            };
-
-            route_to_router(storage, &Router::new(router), vec![msg])?.add_event(event.into())
-        }
-        Some(token) => {
-            let event = AxelarnetGatewayEvent::ContractCalled {
-                msg: msg.clone(),
-                payload: call_contract.payload,
-                token: Some(token.clone()),
-            };
-
-            Response::new()
-                .add_message(WasmMsg::Execute {
-                    contract_addr: nexus_gateway.to_string(),
-                    msg: to_json_binary(&nexus_gateway::msg::ExecuteMsg::RouteMessageWithToken(
-                        msg,
-                    ))
-                    .expect("failed to serialize route message with token"),
-                    funds: vec![token],
-                })
-                .add_event(event.into())
-        }
+    let token = info.single_token().change_context(Error::InvalidToken)?;
+    let event = AxelarnetGatewayEvent::ContractCalled {
+        msg: msg.clone(),
+        payload: call_contract.payload,
+        token: token.clone(),
     };
+    let res = match token {
+        None => route_to_router(storage, &Router::new(router), vec![msg])?,
+        Some(token) => Response::new().add_message(WasmMsg::Execute {
+            contract_addr: nexus_gateway.to_string(),
+            msg: to_json_binary(&nexus_gateway::msg::ExecuteMsg::RouteMessageWithToken(msg))
+                .expect("failed to serialize route message with token"),
+            funds: vec![token],
+        }),
+    }
+    .add_event(event.into());
 
     Ok(res)
 }

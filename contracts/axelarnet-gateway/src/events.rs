@@ -1,4 +1,4 @@
-use axelar_wasm_std::FnExt;
+use axelar_wasm_std::event::EventExt;
 use cosmwasm_std::{Attribute, Coin, Event, HexBinary};
 use router_api::Message;
 
@@ -17,16 +17,6 @@ pub enum AxelarnetGatewayEvent {
     },
 }
 
-fn add_token_attribute_if_some(token: Option<Coin>) -> impl Fn(Event) -> Event {
-    move |event| {
-        if let Some(token) = &token {
-            event.add_attribute("token", token.to_string())
-        } else {
-            event
-        }
-    }
-}
-
 impl From<AxelarnetGatewayEvent> for Event {
     fn from(other: AxelarnetGatewayEvent) -> Self {
         match other {
@@ -36,7 +26,7 @@ impl From<AxelarnetGatewayEvent> for Event {
                 token,
             } => make_message_event("contract_called", msg)
                 .add_attribute("payload", payload.to_string())
-                .then(add_token_attribute_if_some(token)),
+                .add_attribute_if_some("token", token.map(|token| token.to_string())),
             AxelarnetGatewayEvent::Routing { msg } => make_message_event("routing", msg),
             AxelarnetGatewayEvent::MessageExecuted { msg } => {
                 make_message_event("message_executed", msg)

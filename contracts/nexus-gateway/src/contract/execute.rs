@@ -34,7 +34,7 @@ pub fn route_message_with_token_to_nexus(
     msg: router_api::Message,
 ) -> Result<Response<nexus::execute::Message>> {
     let token = info
-        .token()
+        .single_token()
         .change_context(Error::InvalidToken)?
         .ok_or(report!(Error::InvalidToken))?;
 
