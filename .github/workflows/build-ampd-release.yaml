@@ -110,6 +110,8 @@ jobs:
           
           if [ "$ARCH" == "arm64" ]
           then
+            sudo dpkg --add-architecture arm64
+            sudo apt-get update
             sudo apt-get install gcc-aarch64-linux-gnu g++-aarch64-linux-gnu libssl-dev:arm64
           
             echo "OPENSSL_INCLUDE_DIR" $(ls /usr/include/openssl) 
