@@ -185,7 +185,6 @@ jobs:
           echo "release-dir=./${version}" >> $GITHUB_OUTPUT
           echo "r2-destination-dir=./releases/ampd/" >> $GITHUB_OUTPUT
 
-
       - uses: ryand56/r2-upload-action@latest
         with:
           r2-account-id: ${{ secrets.R2_ACCOUNT_ID }}
