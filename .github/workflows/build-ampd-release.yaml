@@ -110,7 +110,16 @@ jobs:
           then
             sudo dpkg --add-architecture arm64
             # add the arm64 architecture to the sources.list
-            sudo sed -i '/^deb / s/^deb /deb [arch=amd64,arm64] /' /etc/apt/sources.list
+            sudo tee -a /etc/apt/sources.list << EOF
+
+            # ARM64 repositories
+              deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy main restricted universe multiverse
+              deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy-updates main restricted universe multiverse
+              deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy-backports main restricted universe multiverse
+              deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy-security main restricted universe multiverse
+              EOF
+          
+          
             cat /etc/apt/sources.list
             sudo apt-get update
           fi          
