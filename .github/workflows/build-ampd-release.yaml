@@ -127,7 +127,7 @@ jobs:
             sudo apt-get update
           fi          
           
-          sudo apt-get install protobuf-compiler pkg-config
+          sudo apt-get install protobuf-compiler
           
           if [ "$ARCH" == "arm64" ]
           then
