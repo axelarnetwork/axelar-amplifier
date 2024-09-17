@@ -25,11 +25,11 @@ impl GetToken for MessageInfo {
 
 #[cfg(test)]
 mod tests {
-    use crate::assert_err_contains;
-
-    use super::*;
     use assert_ok::assert_ok;
     use cosmwasm_std::{coin, coins, Addr};
+
+    use super::*;
+    use crate::assert_err_contains;
 
     #[test]
     fn single_token() {
