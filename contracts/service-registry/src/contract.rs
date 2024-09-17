@@ -50,17 +50,20 @@ pub fn execute(
             bond_denom,
             unbonding_period_days,
             description,
-        } => execute::register_service(
-            deps,
-            service_name,
-            coordinator_contract,
-            min_num_verifiers,
-            max_num_verifiers,
-            min_verifier_bond,
-            bond_denom,
-            unbonding_period_days,
-            description,
-        ),
+        } => {
+            let coordinator_contract = deps.api.addr_validate(&coordinator_contract)?;
+            execute::register_service(
+                deps,
+                service_name,
+                coordinator_contract,
+                min_num_verifiers,
+                max_num_verifiers,
+                min_verifier_bond,
+                bond_denom,
+                unbonding_period_days,
+                description,
+            )
+        }
         ExecuteMsg::UpdateService {
             service_name,
             updated_service_params,
@@ -242,7 +245,7 @@ mod test {
             mock_info(GOVERNANCE_ADDRESS, &[]),
             ExecuteMsg::RegisterService {
                 service_name: "validators".into(),
-                coordinator_contract: Addr::unchecked("nowhere"),
+                coordinator_contract: Addr::unchecked("nowhere").to_string(),
                 min_num_verifiers: 0,
                 max_num_verifiers: Some(100),
                 min_verifier_bond: Uint128::one().try_into().unwrap(),
@@ -259,7 +262,7 @@ mod test {
             mock_info(UNAUTHORIZED_ADDRESS, &[]),
             ExecuteMsg::RegisterService {
                 service_name: "validators".into(),
-                coordinator_contract: Addr::unchecked("nowhere"),
+                coordinator_contract: Addr::unchecked("nowhere").to_string(),
                 min_num_verifiers: 0,
                 max_num_verifiers: Some(100),
                 min_verifier_bond: Uint128::one().try_into().unwrap(),
@@ -293,7 +296,7 @@ mod test {
             mock_info(GOVERNANCE_ADDRESS, &[]),
             ExecuteMsg::RegisterService {
                 service_name: service.name.clone(),
-                coordinator_contract: service.coordinator_contract.clone(),
+                coordinator_contract: service.coordinator_contract.to_string(),
                 min_num_verifiers: service.min_num_verifiers,
                 max_num_verifiers: service.max_num_verifiers,
                 min_verifier_bond: service.min_verifier_bond,
@@ -455,7 +458,7 @@ mod test {
             mock_info(GOVERNANCE_ADDRESS, &[]),
             ExecuteMsg::RegisterService {
                 service_name: service_name.into(),
-                coordinator_contract: Addr::unchecked("nowhere"),
+                coordinator_contract: Addr::unchecked("nowhere").to_string(),
                 min_num_verifiers: 0,
                 max_num_verifiers: Some(100),
                 min_verifier_bond: Uint128::one().try_into().unwrap(),
@@ -506,7 +509,7 @@ mod test {
             mock_info(GOVERNANCE_ADDRESS, &[]),
             ExecuteMsg::RegisterService {
                 service_name: service_name.into(),
-                coordinator_contract: Addr::unchecked("nowhere"),
+                coordinator_contract: Addr::unchecked("nowhere").to_string(),
                 min_num_verifiers: 0,
                 max_num_verifiers: Some(100),
                 min_verifier_bond: min_verifier_bond.try_into().unwrap(),
@@ -554,7 +557,7 @@ mod test {
             mock_info(GOVERNANCE_ADDRESS, &[]),
             ExecuteMsg::RegisterService {
                 service_name: service_name.into(),
-                coordinator_contract: Addr::unchecked("nowhere"),
+                coordinator_contract: Addr::unchecked("nowhere").to_string(),
                 min_num_verifiers: 0,
                 max_num_verifiers: Some(100),
                 min_verifier_bond: min_verifier_bond.try_into().unwrap(),
@@ -599,7 +602,7 @@ mod test {
             mock_info(GOVERNANCE_ADDRESS, &[]),
             ExecuteMsg::RegisterService {
                 service_name: service_name.into(),
-                coordinator_contract: Addr::unchecked("nowhere"),
+                coordinator_contract: Addr::unchecked("nowhere").to_string(),
                 min_num_verifiers: 0,
                 max_num_verifiers: Some(100),
                 min_verifier_bond: min_verifier_bond.try_into().unwrap(),
@@ -702,7 +705,7 @@ mod test {
             mock_info(GOVERNANCE_ADDRESS, &[]),
             ExecuteMsg::RegisterService {
                 service_name: service_name.into(),
-                coordinator_contract: Addr::unchecked("nowhere"),
+                coordinator_contract: Addr::unchecked("nowhere").to_string(),
                 min_num_verifiers: 0,
                 max_num_verifiers: Some(100),
                 min_verifier_bond: min_verifier_bond.try_into().unwrap(),
@@ -789,7 +792,7 @@ mod test {
             mock_info(GOVERNANCE_ADDRESS, &[]),
             ExecuteMsg::RegisterService {
                 service_name: service_name.into(),
-                coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS),
+                coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS).to_string(),
                 min_num_verifiers: 0,
                 max_num_verifiers: Some(100),
                 min_verifier_bond: min_verifier_bond.try_into().unwrap(),
@@ -883,7 +886,7 @@ mod test {
             mock_info(GOVERNANCE_ADDRESS, &[]),
             ExecuteMsg::RegisterService {
                 service_name: service_name.into(),
-                coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS),
+                coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS).to_string(),
                 min_num_verifiers: 0,
                 max_num_verifiers: Some(100),
                 min_verifier_bond: min_verifier_bond.try_into().unwrap(),
@@ -1008,7 +1011,7 @@ mod test {
             mock_info(GOVERNANCE_ADDRESS, &[]),
             ExecuteMsg::RegisterService {
                 service_name: service_name.into(),
-                coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS),
+                coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS).to_string(),
                 min_num_verifiers: 0,
                 max_num_verifiers: Some(100),
                 min_verifier_bond,
@@ -1110,7 +1113,7 @@ mod test {
             mock_info(GOVERNANCE_ADDRESS, &[]),
             ExecuteMsg::RegisterService {
                 service_name: service_name.into(),
-                coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS),
+                coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS).to_string(),
                 min_num_verifiers: 0,
                 max_num_verifiers: Some(100),
                 min_verifier_bond,
@@ -1222,7 +1225,7 @@ mod test {
             mock_info(GOVERNANCE_ADDRESS, &[]),
             ExecuteMsg::RegisterService {
                 service_name: service_name.into(),
-                coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS),
+                coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS).to_string(),
                 min_num_verifiers: 0,
                 max_num_verifiers: Some(100),
                 min_verifier_bond,
@@ -1298,7 +1301,7 @@ mod test {
             mock_info(GOVERNANCE_ADDRESS, &[]),
             ExecuteMsg::RegisterService {
                 service_name: service_name.into(),
-                coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS),
+                coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS).to_string(),
                 min_num_verifiers: 0,
                 max_num_verifiers: Some(100),
                 min_verifier_bond,
@@ -1372,7 +1375,7 @@ mod test {
             mock_info(GOVERNANCE_ADDRESS, &[]),
             ExecuteMsg::RegisterService {
                 service_name: service_name.into(),
-                coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS),
+                coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS).to_string(),
                 min_num_verifiers: 0,
                 max_num_verifiers: Some(100),
                 min_verifier_bond,
@@ -1454,7 +1457,7 @@ mod test {
             mock_info(GOVERNANCE_ADDRESS, &[]),
             ExecuteMsg::RegisterService {
                 service_name: service_name.into(),
-                coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS),
+                coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS).to_string(),
                 min_num_verifiers: 0,
                 max_num_verifiers: Some(100),
                 min_verifier_bond,
@@ -1538,7 +1541,7 @@ mod test {
             mock_info(GOVERNANCE_ADDRESS, &[]),
             ExecuteMsg::RegisterService {
                 service_name: service_name.into(),
-                coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS),
+                coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS).to_string(),
                 min_num_verifiers: 0,
                 max_num_verifiers: Some(100),
                 min_verifier_bond,
@@ -1581,7 +1584,7 @@ mod test {
             mock_info(GOVERNANCE_ADDRESS, &[]),
             ExecuteMsg::RegisterService {
                 service_name: service_name.into(),
-                coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS),
+                coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS).to_string(),
                 min_num_verifiers: 0,
                 max_num_verifiers: Some(100),
                 min_verifier_bond,
@@ -1644,7 +1647,7 @@ mod test {
             mock_info(GOVERNANCE_ADDRESS, &[]),
             ExecuteMsg::RegisterService {
                 service_name: service_name.into(),
-                coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS),
+                coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS).to_string(),
                 min_num_verifiers: 0,
                 max_num_verifiers: Some(100),
                 min_verifier_bond,
@@ -1718,7 +1721,7 @@ mod test {
             mock_info(GOVERNANCE_ADDRESS, &[]),
             ExecuteMsg::RegisterService {
                 service_name: service_name.into(),
-                coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS),
+                coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS).to_string(),
                 min_num_verifiers: 0,
                 max_num_verifiers: Some(100),
                 min_verifier_bond,
@@ -1805,7 +1808,7 @@ mod test {
             mock_info(GOVERNANCE_ADDRESS, &[]),
             ExecuteMsg::RegisterService {
                 service_name: service_name.into(),
-                coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS),
+                coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS).to_string(),
                 min_num_verifiers: 0,
                 max_num_verifiers: Some(100),
                 min_verifier_bond,
@@ -1914,7 +1917,7 @@ mod test {
             mock_info(GOVERNANCE_ADDRESS, &[]),
             ExecuteMsg::RegisterService {
                 service_name: service_name.into(),
-                coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS),
+                coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS).to_string(),
                 min_num_verifiers: 0,
                 max_num_verifiers: Some(100),
                 min_verifier_bond,
@@ -2036,7 +2039,7 @@ mod test {
             mock_info(GOVERNANCE_ADDRESS, &[]),
             ExecuteMsg::RegisterService {
                 service_name: service_name.into(),
-                coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS),
+                coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS).to_string(),
                 min_num_verifiers,
                 max_num_verifiers: Some(100),
                 min_verifier_bond,
@@ -2147,7 +2150,7 @@ mod test {
             mock_info(GOVERNANCE_ADDRESS, &[]),
             ExecuteMsg::RegisterService {
                 service_name: service_name.into(),
-                coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS),
+                coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS).to_string(),
                 min_num_verifiers: 0,
                 max_num_verifiers: Some(100),
                 min_verifier_bond,
@@ -2301,7 +2304,7 @@ mod test {
             mock_info(GOVERNANCE_ADDRESS, &[]),
             ExecuteMsg::RegisterService {
                 service_name: service_name.into(),
-                coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS),
+                coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS).to_string(),
                 min_num_verifiers: 0,
                 max_num_verifiers: Some(100),
                 min_verifier_bond,
