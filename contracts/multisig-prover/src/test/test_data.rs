@@ -205,7 +205,7 @@ pub fn verifier_set_from_pub_keys(pub_keys: Vec<&str>) -> VerifierSet {
             )
         })
         .collect();
-    VerifierSet::new(participants, Uint128::from(3u128), 0)
+    VerifierSet::new(participants, Uint128::from(3u128), 1)
 }
 
 // Domain separator matches axelar-gmp-sdk-solidity repo test data

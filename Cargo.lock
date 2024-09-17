@@ -5006,6 +5006,7 @@ name = "multisig-prover"
 version = "1.0.0"
 dependencies = [
  "anyhow",
+ "assert_ok",
  "axelar-wasm-std",
  "bcs",
  "client",
