@@ -248,8 +248,8 @@ pub fn update_verifier_set(
                             verifiers: new_verifier_set
                                 .signers
                                 .values()
-                                .map(|signer| signer.address.clone())
-                                .collect::<HashSet<Addr>>(),
+                                .map(|signer| signer.address.to_string())
+                                .collect::<HashSet<String>>(),
                         },
                         vec![],
                     )
@@ -295,7 +295,7 @@ pub fn update_verifier_set(
                     wasm_execute(
                         config.coordinator,
                         &coordinator::msg::ExecuteMsg::SetActiveVerifiers {
-                            verifiers: verifier_union_set,
+                            verifiers: verifier_union_set.iter().map(|v| v.to_string()).collect(),
                         },
                         vec![],
                     )
@@ -352,10 +352,13 @@ pub fn confirm_verifier_set(deps: DepsMut, sender: Addr) -> Result<Response, Con
 
     Ok(Response::new()
         .add_message(multisig.register_verifier_set(verifier_set))
-        .add_message(coordinator.set_active_verifiers(verifier_union_set)))
+        .add_message(
+            coordinator
+                .set_active_verifiers(verifier_union_set.iter().map(|v| v.to_string()).collect()),
+        ))
 }
 
-pub fn all_active_verifiers(storage: &mut dyn Storage) -> Result<HashSet<Addr>, ContractError> {
+pub fn all_active_verifiers(storage: &mut dyn Storage) -> Result<HashSet<String>, ContractError> {
     let current_signers = CURRENT_VERIFIER_SET
         .may_load(storage)
         .change_context(ContractError::StorageError)?
@@ -371,8 +374,8 @@ pub fn all_active_verifiers(storage: &mut dyn Storage) -> Result<HashSet<Addr>, 
     current_signers
         .values()
         .chain(next_signers.values())
-        .map(|signer| signer.address.clone())
-        .collect::<HashSet<Addr>>()
+        .map(|signer| signer.address.to_string())
+        .collect::<HashSet<String>>()
         .then(Ok)
 }
 

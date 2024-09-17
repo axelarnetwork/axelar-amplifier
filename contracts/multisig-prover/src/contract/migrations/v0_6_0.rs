@@ -72,7 +72,7 @@ mod tests {
     }
 
     // returns None if the msg is not the expected type (coordinator::msg::ExecuteMsg::SetActiveVerifiers)
-    fn extract_verifiers_from_set_active_verifiers_msg(msg: SubMsg) -> Option<HashSet<Addr>> {
+    fn extract_verifiers_from_set_active_verifiers_msg(msg: SubMsg) -> Option<HashSet<String>> {
         match msg.msg {
             CosmosMsg::Wasm(msg) => match msg {
                 WasmMsg::Execute { msg, .. } => {
@@ -129,8 +129,8 @@ mod tests {
             test_data::curr_verifier_set()
                 .signers
                 .values()
-                .map(|signer| signer.address.clone())
-                .collect::<HashSet<Addr>>()
+                .map(|signer| signer.address.to_string())
+                .collect::<HashSet<String>>()
         );
     }
 
@@ -167,8 +167,8 @@ mod tests {
                 .signers
                 .values()
                 .chain(test_data::new_verifier_set().signers.values())
-                .map(|signer| signer.address.clone())
-                .collect::<HashSet<Addr>>()
+                .map(|signer| signer.address.to_string())
+                .collect::<HashSet<String>>()
         );
     }
 
