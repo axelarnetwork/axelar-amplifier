@@ -1,105 +1,49 @@
 #![allow(deprecated)]
 
 use axelar_wasm_std::error::ContractError;
-use axelar_wasm_std::hash::Hash;
-use axelar_wasm_std::{permission_control, MajorityThreshold};
-use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, Storage};
-use cw_storage_plus::Item;
-use multisig::key::KeyType;
-use router_api::ChainName;
+use cosmwasm_std::{wasm_execute, Response, Storage};
 
-use crate::contract::{CONTRACT_NAME, CONTRACT_VERSION};
-use crate::encoding::Encoder;
-use crate::state;
+use crate::contract::execute::all_active_verifiers;
+use crate::contract::CONTRACT_NAME;
+use crate::state::CONFIG;
 
-const BASE_VERSION: &str = "0.6.0";
+const BASE_VERSION: &str = "1.0.0";
 
-pub fn migrate(storage: &mut dyn Storage) -> Result<(), ContractError> {
+pub fn migrate(storage: &mut dyn Storage) -> Result<Response, ContractError> {
     cw2::assert_contract_version(storage, CONTRACT_NAME, BASE_VERSION)?;
-
     let config = CONFIG.load(storage)?;
 
-    migrate_permission_control(storage, &config)?;
-    migrate_config(storage, config)?;
-    delete_payloads(storage);
+    let verifiers = all_active_verifiers(storage)?;
 
-    cw2::set_contract_version(storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-    Ok(())
+    Ok(Response::new().add_message(
+        wasm_execute(
+            config.coordinator,
+            &coordinator::msg::ExecuteMsg::SetActiveVerifiers { verifiers },
+            vec![],
+        )
+        .map_err(ContractError::from)?,
+    ))
 }
-
-fn delete_payloads(storage: &mut dyn Storage) {
-    state::PAYLOAD.clear(storage);
-    state::MULTISIG_SESSION_PAYLOAD.clear(storage);
-    state::REPLY_TRACKER.remove(storage);
-}
-
-fn migrate_permission_control(
-    storage: &mut dyn Storage,
-    config: &Config,
-) -> Result<(), ContractError> {
-    permission_control::set_governance(storage, &config.governance)?;
-    permission_control::set_admin(storage, &config.admin)?;
-    Ok(())
-}
-
-fn migrate_config(storage: &mut dyn Storage, config: Config) -> Result<(), ContractError> {
-    CONFIG.remove(storage);
-
-    let config = state::Config {
-        gateway: config.gateway,
-        multisig: config.multisig,
-        coordinator: config.coordinator,
-        service_registry: config.service_registry,
-        voting_verifier: config.voting_verifier,
-        signing_threshold: config.signing_threshold,
-        service_name: config.service_name,
-        chain_name: config.chain_name,
-        verifier_set_diff_threshold: config.verifier_set_diff_threshold,
-        encoder: config.encoder,
-        key_type: config.key_type,
-        domain_separator: config.domain_separator,
-    };
-    state::CONFIG.save(storage, &config)?;
-    Ok(())
-}
-
-#[cw_serde]
-#[deprecated(since = "0.6.0", note = "only used during migration")]
-struct Config {
-    pub admin: Addr,
-    pub governance: Addr,
-    pub gateway: Addr,
-    pub multisig: Addr,
-    pub coordinator: Addr,
-    pub service_registry: Addr,
-    pub voting_verifier: Addr,
-    pub signing_threshold: MajorityThreshold,
-    pub service_name: String,
-    pub chain_name: ChainName,
-    pub verifier_set_diff_threshold: u32,
-    pub encoder: Encoder,
-    pub key_type: KeyType,
-    pub domain_separator: Hash,
-}
-#[deprecated(since = "0.6.0", note = "only used during migration")]
-const CONFIG: Item<Config> = Item::new("config");
 
 #[cfg(test)]
 mod tests {
-    use axelar_wasm_std::permission_control::Permission;
-    use axelar_wasm_std::{permission_control, MajorityThreshold, Threshold};
+    use std::collections::HashSet;
+
+    use axelar_wasm_std::{MajorityThreshold, Threshold};
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-    use cosmwasm_std::{Addr, DepsMut, Env, MessageInfo, Response};
+    use cosmwasm_std::{
+        from_json, Addr, CosmosMsg, DepsMut, Env, MessageInfo, Response, SubMsg, WasmMsg,
+    };
     use multisig::key::KeyType;
-    use router_api::{CrossChainId, Message};
 
     use crate::contract::migrations::v0_6_0;
     use crate::contract::{CONTRACT_NAME, CONTRACT_VERSION};
     use crate::encoding::Encoder;
     use crate::error::ContractError;
     use crate::msg::InstantiateMsg;
-    use crate::{payload, state};
+    use crate::state::{Config, CURRENT_VERIFIER_SET, NEXT_VERIFIER_SET};
+    use crate::test::test_data;
+    use crate::test::test_utils::COORDINATOR_ADDRESS;
 
     #[test]
     fn migrate_checks_contract_version() {
@@ -127,90 +71,105 @@ mod tests {
         assert_eq!(contract_version.version, CONTRACT_VERSION);
     }
 
+    // returns None if the msg is not the expected type (coordinator::msg::ExecuteMsg::SetActiveVerifiers)
+    fn extract_verifiers_from_set_active_verifiers_msg(msg: SubMsg) -> Option<HashSet<Addr>> {
+        match msg.msg {
+            CosmosMsg::Wasm(msg) => match msg {
+                WasmMsg::Execute { msg, .. } => {
+                    let msg: coordinator::msg::ExecuteMsg = from_json(msg).unwrap();
+                    match msg {
+                        coordinator::msg::ExecuteMsg::SetActiveVerifiers { verifiers } => {
+                            Some(verifiers)
+                        }
+                        _ => None,
+                    }
+                }
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
+    // returns None if the msg is not the expected type (WasmMsg::Execute)
+    fn extract_contract_address_from_wasm_msg(msg: SubMsg) -> Option<String> {
+        match msg.msg {
+            CosmosMsg::Wasm(msg) => match msg {
+                WasmMsg::Execute { contract_addr, .. } => Some(contract_addr),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
     #[test]
-    fn migrate_payload() {
+    fn migrate_sets_active_verifiers() {
         let mut deps = mock_dependencies();
 
         instantiate_contract(deps.as_mut());
-
-        let msgs = vec![
-            Message {
-                cc_id: CrossChainId {
-                    message_id: "id1".try_into().unwrap(),
-                    source_chain: "chain1".try_into().unwrap(),
-                },
-                source_address: "source-address".parse().unwrap(),
-                destination_chain: "destination".parse().unwrap(),
-                destination_address: "destination-address".parse().unwrap(),
-                payload_hash: [1; 32],
-            },
-            Message {
-                cc_id: CrossChainId {
-                    message_id: "id2".try_into().unwrap(),
-                    source_chain: "chain2".try_into().unwrap(),
-                },
-                source_address: "source-address2".parse().unwrap(),
-                destination_chain: "destination2".parse().unwrap(),
-                destination_address: "destination-address2".parse().unwrap(),
-                payload_hash: [2; 32],
-            },
-            Message {
-                cc_id: CrossChainId {
-                    message_id: "id3".try_into().unwrap(),
-                    source_chain: "chain3".try_into().unwrap(),
-                },
-                source_address: "source-address3".parse().unwrap(),
-                destination_chain: "destination3".parse().unwrap(),
-                destination_address: "destination-address3".parse().unwrap(),
-                payload_hash: [3; 32],
-            },
-        ];
-
-        let payload = payload::Payload::Messages(msgs);
-
-        state::PAYLOAD
-            .save(deps.as_mut().storage, &payload.id(), &payload)
+        CURRENT_VERIFIER_SET
+            .save(deps.as_mut().storage, &test_data::curr_verifier_set())
             .unwrap();
 
-        assert!(v0_6_0::migrate(deps.as_mut().storage).is_ok());
+        let res = v0_6_0::migrate(deps.as_mut().storage);
+        assert!(res.is_ok());
 
-        assert!(state::PAYLOAD.is_empty(deps.as_ref().storage));
-    }
+        let msgs = res.unwrap().messages;
+        assert_eq!(msgs.len(), 1);
+        let msg = msgs[0].clone();
 
-    #[test]
-    fn migrate_permission_control() {
-        let mut deps = mock_dependencies();
+        let contract_address = extract_contract_address_from_wasm_msg(msg.clone());
+        assert!(contract_address.is_some());
+        assert_eq!(COORDINATOR_ADDRESS, contract_address.unwrap());
 
-        instantiate_contract(deps.as_mut());
-
-        assert!(v0_6_0::migrate(deps.as_mut().storage).is_ok());
-
-        assert_eq!(
-            permission_control::sender_role(deps.as_ref().storage, &Addr::unchecked("admin"))
-                .unwrap(),
-            Permission::Admin.into()
-        );
+        let verifiers = extract_verifiers_from_set_active_verifiers_msg(msg);
+        assert!(verifiers.is_some());
 
         assert_eq!(
-            permission_control::sender_role(deps.as_ref().storage, &Addr::unchecked("governance"))
-                .unwrap(),
-            Permission::Governance.into()
+            verifiers.unwrap(),
+            test_data::curr_verifier_set()
+                .signers
+                .values()
+                .map(|signer| signer.address.clone())
+                .collect::<HashSet<Addr>>()
         );
     }
 
     #[test]
-    fn migrate_config() {
+    fn migrate_sets_active_verifiers_when_rotation_in_progress() {
         let mut deps = mock_dependencies();
 
         instantiate_contract(deps.as_mut());
+        CURRENT_VERIFIER_SET
+            .save(deps.as_mut().storage, &test_data::curr_verifier_set())
+            .unwrap();
 
-        assert!(v0_6_0::CONFIG.load(deps.as_ref().storage).is_ok());
-        assert!(state::CONFIG.load(deps.as_ref().storage).is_err());
+        NEXT_VERIFIER_SET
+            .save(deps.as_mut().storage, &test_data::new_verifier_set())
+            .unwrap();
 
-        assert!(v0_6_0::migrate(deps.as_mut().storage).is_ok());
+        let res = v0_6_0::migrate(deps.as_mut().storage);
+        assert!(res.is_ok());
 
-        assert!(v0_6_0::CONFIG.load(deps.as_ref().storage).is_err());
-        assert!(state::CONFIG.load(deps.as_ref().storage).is_ok());
+        let msgs = res.unwrap().messages;
+        assert_eq!(msgs.len(), 1);
+        let msg = msgs[0].clone();
+
+        let contract_address = extract_contract_address_from_wasm_msg(msg.clone());
+        assert!(contract_address.is_some());
+        assert_eq!(COORDINATOR_ADDRESS, contract_address.unwrap());
+
+        let verifiers = extract_verifiers_from_set_active_verifiers_msg(msg);
+        assert!(verifiers.is_some());
+
+        assert_eq!(
+            verifiers.unwrap(),
+            test_data::curr_verifier_set()
+                .signers
+                .values()
+                .chain(test_data::new_verifier_set().signers.values())
+                .map(|signer| signer.address.clone())
+                .collect::<HashSet<Addr>>()
+        );
     }
 
     fn instantiate_contract(deps: DepsMut) {
@@ -258,18 +217,14 @@ mod tests {
     fn make_config(
         deps: &DepsMut,
         msg: InstantiateMsg,
-    ) -> Result<v0_6_0::Config, axelar_wasm_std::error::ContractError> {
-        let admin = deps.api.addr_validate(&msg.admin_address)?;
-        let governance = deps.api.addr_validate(&msg.governance_address)?;
+    ) -> Result<Config, axelar_wasm_std::error::ContractError> {
         let gateway = deps.api.addr_validate(&msg.gateway_address)?;
         let multisig = deps.api.addr_validate(&msg.multisig_address)?;
         let coordinator = deps.api.addr_validate(&msg.coordinator_address)?;
         let service_registry = deps.api.addr_validate(&msg.service_registry_address)?;
         let voting_verifier = deps.api.addr_validate(&msg.voting_verifier_address)?;
 
-        Ok(v0_6_0::Config {
-            admin,
-            governance,
+        Ok(Config {
             gateway,
             multisig,
             coordinator,

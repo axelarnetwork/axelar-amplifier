@@ -230,13 +230,12 @@ pub fn update_verifier_set(
                 .save(deps.storage, &new_verifier_set)
                 .map_err(ContractError::from)?;
 
-            let verifier_union_set = all_active_verifiers(&deps)?;
             Ok(Response::new()
                 .add_message(
                     wasm_execute(
                         config.multisig,
                         &multisig::msg::ExecuteMsg::RegisterVerifierSet {
-                            verifier_set: new_verifier_set,
+                            verifier_set: new_verifier_set.clone(),
                         },
                         vec![],
                     )
@@ -246,7 +245,11 @@ pub fn update_verifier_set(
                     wasm_execute(
                         config.coordinator,
                         &coordinator::msg::ExecuteMsg::SetActiveVerifiers {
-                            verifiers: verifier_union_set,
+                            verifiers: new_verifier_set
+                                .signers
+                                .values()
+                                .map(|signer| signer.address.clone())
+                                .collect::<HashSet<Addr>>(),
                         },
                         vec![],
                     )
@@ -280,7 +283,7 @@ pub fn update_verifier_set(
                 chain_name: config.chain_name,
             };
 
-            let verifier_union_set = all_active_verifiers(&deps)?;
+            let verifier_union_set = all_active_verifiers(deps.storage)?;
 
             Ok(Response::new()
                 .add_submessage(SubMsg::reply_on_success(
@@ -339,7 +342,7 @@ pub fn confirm_verifier_set(deps: DepsMut, sender: Addr) -> Result<Response, Con
         .change_context(ContractError::StorageError)?;
     NEXT_VERIFIER_SET.remove(deps.storage);
 
-    let verifier_union_set = all_active_verifiers(&deps)?;
+    let verifier_union_set = all_active_verifiers(deps.storage)?;
 
     let coordinator: coordinator::Client =
         client::ContractClient::new(deps.querier, &config.coordinator).into();
@@ -352,15 +355,15 @@ pub fn confirm_verifier_set(deps: DepsMut, sender: Addr) -> Result<Response, Con
         .add_message(coordinator.set_active_verifiers(verifier_union_set)))
 }
 
-fn all_active_verifiers(deps: &DepsMut) -> Result<HashSet<Addr>, ContractError> {
+pub fn all_active_verifiers(storage: &mut dyn Storage) -> Result<HashSet<Addr>, ContractError> {
     let current_signers = CURRENT_VERIFIER_SET
-        .may_load(deps.storage)
+        .may_load(storage)
         .change_context(ContractError::StorageError)?
         .map(|verifier_set| verifier_set.signers)
         .unwrap_or_default();
 
     let next_signers = NEXT_VERIFIER_SET
-        .may_load(deps.storage)
+        .may_load(storage)
         .change_context(ContractError::StorageError)?
         .map(|verifier_set| verifier_set.signers)
         .unwrap_or_default();
