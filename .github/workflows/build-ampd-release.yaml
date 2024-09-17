@@ -111,6 +111,7 @@ jobs:
             sudo dpkg --add-architecture arm64
             # add the arm64 architecture to the sources.list
             sudo sed -i '/^deb / s/^deb /deb [arch=amd64,arm64] /' /etc/apt/sources.list
+            cat /etc/apt/sources.list
             sudo apt-get update
           fi          
           
