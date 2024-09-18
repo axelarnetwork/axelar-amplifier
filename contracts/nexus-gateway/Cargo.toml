@@ -18,7 +18,6 @@ library = []
 [dependencies]
 axelar-core-std = { workspace = true }
 axelar-wasm-std = { workspace = true, features = ["derive"] }
-axelarnet-gateway = { workspace = true, features = ["library"] }
 client = { workspace = true }
 cosmwasm-schema = { workspace = true }
 cosmwasm-std = { workspace = true }
@@ -40,5 +39,7 @@ voting-verifier = { workspace = true, features = ["library"] }
 workspace = true
 
 [dev-dependencies]
+assert_ok = { workspace = true }
+goldie = { workspace = true }
 rand = { workspace = true }
 serde_json = { workspace = true }

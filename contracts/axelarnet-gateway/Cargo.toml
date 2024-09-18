@@ -41,6 +41,7 @@ cw2 = { workspace = true }
 error-stack = { workspace = true }
 itertools = { workspace = true }
 msgs-derive = { workspace = true }
+nexus-gateway = { workspace = true, features = ["library"] }
 report = { workspace = true }
 router-api = { workspace = true }
 serde = { workspace = true }

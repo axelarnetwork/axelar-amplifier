@@ -3,7 +3,8 @@ use axelar_wasm_std::response::inspect_response_msg;
 use axelarnet_gateway::msg::QueryMsg;
 use axelarnet_gateway::{contract, ExecutableMessage};
 use cosmwasm_std::testing::{
-    mock_dependencies, mock_env, MockApi, MockQuerier, MockQuerierCustomHandlerResult, MockStorage,
+    mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockQuerierCustomHandlerResult,
+    MockStorage,
 };
 use cosmwasm_std::{from_json, ContractResult, Deps, OwnedDeps, SystemResult};
 use rand::RngCore;
@@ -90,6 +91,7 @@ fn populate_routable_messages(
         .map(|i| {
             let response = utils::call_contract(
                 deps.as_mut(),
+                mock_info("sender", &[]),
                 format!("destination-chain-{}", i).parse().unwrap(),
                 format!("destination-address-{}", i).parse().unwrap(),
                 vec![i].into(),
