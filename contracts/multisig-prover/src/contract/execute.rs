@@ -218,6 +218,13 @@ pub fn update_verifier_set(
     env: Env,
 ) -> error_stack::Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage).map_err(ContractError::from)?;
+
+    let coordinator: coordinator::Client =
+        client::ContractClient::new(deps.querier, &config.coordinator).into();
+
+    let multisig: multisig::Client =
+        client::ContractClient::new(deps.querier, &config.multisig).into();
+
     let cur_verifier_set = CURRENT_VERIFIER_SET
         .may_load(deps.storage)
         .map_err(ContractError::from)?;
@@ -231,29 +238,15 @@ pub fn update_verifier_set(
                 .map_err(ContractError::from)?;
 
             Ok(Response::new()
+                .add_message(multisig.register_verifier_set(new_verifier_set.clone()))
                 .add_message(
-                    wasm_execute(
-                        config.multisig,
-                        &multisig::msg::ExecuteMsg::RegisterVerifierSet {
-                            verifier_set: new_verifier_set.clone(),
-                        },
-                        vec![],
-                    )
-                    .map_err(ContractError::from)?,
-                )
-                .add_message(
-                    wasm_execute(
-                        config.coordinator,
-                        &coordinator::msg::ExecuteMsg::SetActiveVerifiers {
-                            verifiers: new_verifier_set
-                                .signers
-                                .values()
-                                .map(|signer| signer.address.to_string())
-                                .collect::<HashSet<String>>(),
-                        },
-                        vec![],
-                    )
-                    .map_err(ContractError::from)?,
+                    coordinator.set_active_verifiers(
+                        new_verifier_set
+                            .signers
+                            .values()
+                            .map(|signer| signer.address.to_string())
+                            .collect::<HashSet<String>>(),
+                    ),
                 ))
         }
         Some(cur_verifier_set) => {
@@ -276,31 +269,21 @@ pub fn update_verifier_set(
                     .encoder
                     .digest(&config.domain_separator, &cur_verifier_set, &payload)?;
 
-            let start_sig_msg = multisig::msg::ExecuteMsg::StartSigningSession {
-                verifier_set_id: cur_verifier_set.id(),
-                msg: digest.into(),
-                sig_verifier: None,
-                chain_name: config.chain_name,
-            };
-
             let verifier_union_set = all_active_verifiers(deps.storage)?;
 
             Ok(Response::new()
                 .add_submessage(SubMsg::reply_on_success(
-                    wasm_execute(config.multisig, &start_sig_msg, vec![])
-                        .map_err(ContractError::from)?,
+                    multisig.start_signing_session(
+                        cur_verifier_set.id(),
+                        digest.into(),
+                        config.chain_name,
+                        None,
+                    ),
                     START_MULTISIG_REPLY_ID,
                 ))
-                .add_message(
-                    wasm_execute(
-                        config.coordinator,
-                        &coordinator::msg::ExecuteMsg::SetActiveVerifiers {
-                            verifiers: verifier_union_set.iter().map(|v| v.to_string()).collect(),
-                        },
-                        vec![],
-                    )
-                    .map_err(ContractError::from)?,
-                ))
+                .add_message(coordinator.set_active_verifiers(
+                    verifier_union_set.iter().map(|v| v.to_string()).collect(),
+                )))
         }
     }
 }
