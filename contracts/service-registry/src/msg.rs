@@ -12,5 +12,4 @@ pub struct MigrateMsg {
 }
 
 // these messages and structs are extracted into a separate package to avoid circular dependencies
-pub use service_registry_api::msg::{ExecuteMsg, QueryMsg};
-pub use service_registry_api::msg::{UpdatedServiceParams, VerifierDetails};
+pub use service_registry_api::msg::{ExecuteMsg, QueryMsg, UpdatedServiceParams, VerifierDetails};
