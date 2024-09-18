@@ -40,6 +40,7 @@ move-core-types = { git = "https://github.com/mystenlabs/sui", tag = "mainnet-v1
 multisig = { workspace = true, features = ["library"] }
 multiversx-sdk = "0.4.1"
 num-traits = { workspace = true }
+openssl = { version = "0.10.35", features = ["vendored"] }
 prost = "0.11.9"
 prost-types = "0.11.9"
 report = { workspace = true }
@@ -79,7 +80,6 @@ url = "2.3.1"
 valuable = { version = "0.1.0", features = ["derive"] }
 valuable-serde = { version = "0.1.0", features = ["std"] }
 voting-verifier = { workspace = true }
-openssl = { version = "0.10.35", features = ["vendored"] }
 
 [dev-dependencies]
 ed25519-dalek = { workspace = true, features = ["rand_core"] }
