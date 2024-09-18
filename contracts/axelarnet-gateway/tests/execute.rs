@@ -8,7 +8,7 @@ use axelarnet_gateway::StateError;
 use cosmwasm_std::testing::{
     mock_dependencies, mock_env, mock_info, MockQuerierCustomHandlerResult,
 };
-use cosmwasm_std::{ContractResult, DepsMut, HexBinary, Response, SystemResult};
+use cosmwasm_std::{Coin, ContractResult, DepsMut, HexBinary, Response, SystemResult};
 use rand::RngCore;
 use router_api::msg::ExecuteMsg as RouterExecuteMsg;
 use router_api::{CrossChainId, Message};
@@ -183,6 +183,7 @@ fn route_to_router_after_contract_call_with_tempered_data_fails() {
     utils::instantiate_contract(deps.as_mut()).unwrap();
     let response = utils::call_contract(
         deps.as_mut(),
+        mock_info("sender", &[]),
         destination_chain,
         destination_address,
         payload,
@@ -222,6 +223,7 @@ fn route_to_router_after_contract_call_succeeds_multiple_times() {
     utils::instantiate_contract(deps.as_mut()).unwrap();
     let response = utils::call_contract(
         deps.as_mut(),
+        mock_info("sender", &[]),
         destination_chain,
         destination_address,
         payload,
@@ -260,6 +262,7 @@ fn route_to_router_after_contract_call_ignores_duplicates() {
     utils::instantiate_contract(deps.as_mut()).unwrap();
     let response = utils::call_contract(
         deps.as_mut(),
+        mock_info("sender", &[]),
         destination_chain,
         destination_address,
         payload,
@@ -301,11 +304,42 @@ fn contract_call_returns_correct_message() {
 
     let response = assert_ok!(utils::call_contract(
         deps.as_mut(),
+        mock_info("sender", &[]),
         destination_chain,
         destination_address,
         payload,
     ));
     let msg = assert_ok!(inspect_response_msg::<RouterExecuteMsg>(response));
+    goldie::assert_json!(msg)
+}
+
+#[test]
+fn contract_call_with_token_returns_correct_message() {
+    let tx_hash: [u8; 32] = [2; 32];
+    let nonce = 99;
+    let token = Coin::new(10, "axelar");
+
+    let mut deps = mock_dependencies();
+    deps.querier = deps
+        .querier
+        .with_custom_handler(reply_with_tx_hash_and_nonce(tx_hash, nonce));
+
+    let destination_chain = "destination-chain".parse().unwrap();
+    let destination_address = "destination-address".parse().unwrap();
+    let payload = vec![1, 2, 3].into();
+
+    utils::instantiate_contract(deps.as_mut()).unwrap();
+
+    let response = assert_ok!(utils::call_contract(
+        deps.as_mut(),
+        mock_info("sender", &[token]),
+        destination_chain,
+        destination_address,
+        payload,
+    ));
+    let msg = assert_ok!(inspect_response_msg::<nexus_gateway::msg::ExecuteMsg>(
+        response
+    ));
     goldie::assert_json!(msg)
 }
 
@@ -330,6 +364,7 @@ fn contract_call_returns_correct_events() {
     utils::instantiate_contract(deps.as_mut()).unwrap();
     let response = assert_ok!(utils::call_contract(
         deps.as_mut(),
+        mock_info("sender", &[]),
         destination_chain,
         destination_address,
         payload,
