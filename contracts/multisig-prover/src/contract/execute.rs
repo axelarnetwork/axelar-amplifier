@@ -11,7 +11,7 @@ use itertools::Itertools;
 use multisig::msg::Signer;
 use multisig::verifier_set::VerifierSet;
 use router_api::{ChainName, CrossChainId, Message};
-use service_registry::WeightedVerifier;
+use service_registry_api::WeightedVerifier;
 
 use crate::contract::START_MULTISIG_REPLY_ID;
 use crate::error::ContractError;

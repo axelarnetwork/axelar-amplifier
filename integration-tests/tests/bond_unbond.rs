@@ -1,6 +1,6 @@
 use cosmwasm_std::BlockInfo;
 use integration_tests::contract::Contract;
-use service_registry::msg::ExecuteMsg;
+use service_registry_api::msg::ExecuteMsg;
 
 pub mod test_utils;
 

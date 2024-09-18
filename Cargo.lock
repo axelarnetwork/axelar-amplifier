@@ -268,7 +268,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_with 3.8.1",
- "service-registry",
+ "service-registry-api",
  "sha3",
  "stellar",
  "stellar-rs",
@@ -4058,6 +4058,7 @@ dependencies = [
  "serde",
  "serde_json",
  "service-registry",
+ "service-registry-api",
  "sha3",
  "tofn",
  "voting-verifier",
@@ -5038,6 +5039,7 @@ dependencies = [
  "router-api",
  "serde_json",
  "service-registry",
+ "service-registry-api",
  "sha3",
  "stellar",
  "stellar-xdr",
@@ -7510,6 +7512,25 @@ dependencies = [
  "goldie",
  "integration-tests",
  "itertools 0.11.0",
+ "msgs-derive",
+ "report",
+ "router-api",
+ "schemars",
+ "serde",
+ "service-registry-api",
+ "thiserror",
+]
+
+[[package]]
+name = "service-registry-api"
+version = "1.0.0"
+dependencies = [
+ "axelar-wasm-std",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-storage-plus 1.2.0",
+ "error-stack",
+ "goldie",
  "msgs-derive",
  "report",
  "router-api",

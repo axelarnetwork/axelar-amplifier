@@ -32,8 +32,8 @@ impl ServiceRegistryContract {
 }
 
 impl Contract for ServiceRegistryContract {
-    type QMsg = service_registry::msg::QueryMsg;
-    type ExMsg = service_registry::msg::ExecuteMsg;
+    type QMsg = service_registry_api::msg::QueryMsg;
+    type ExMsg = service_registry_api::msg::ExecuteMsg;
 
     fn contract_address(&self) -> Addr {
         self.contract_addr.clone()
