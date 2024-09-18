@@ -2,7 +2,8 @@ use std::str::FromStr;
 
 use alloy_primitives::Address;
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, Api};
+use cosmwasm_std::{Addr, Api, StdResult};
+use cw_storage_plus::{Key, KeyDeserialize, Prefixer, PrimaryKey};
 use error_stack::{bail, Result, ResultExt};
 use stellar_xdr::curr::ScAddress;
 use sui_types::SuiAddress;
@@ -47,6 +48,51 @@ pub fn validate_cosmwasm_address(api: &dyn Api, addr: &str) -> Result<Addr, Erro
     api.addr_validate(addr)
         .change_context(Error::InvalidAddress(addr.to_string()))
 }
+
+#[cw_serde]
+pub struct VerifierAddress(Addr);
+
+impl TryFrom<Addr> for VerifierAddress {
+    type Error = Error;
+    fn try_from(value: Addr) -> std::result::Result<Self, Self::Error> {
+        
+    if value.as_bytes().len() != 20 {
+        return Err(Error::InvalidAddress(value.to_string()).into());
+    }
+
+    Ok(VerifierAddress(value))
+    }
+}
+
+/// owned variant.
+impl<'a> PrimaryKey<'a> for VerifierAddress {
+    type Prefix = ();
+    type SubPrefix = ();
+    type Suffix = Self;
+    type SuperSuffix = Self;
+
+    fn key(&self) -> Vec<Key> {
+        // this is simple, we don't add more prefixes
+        vec![Key::Ref(self.0.as_bytes())]
+    }
+}
+
+impl<'a> Prefixer<'a> for VerifierAddress {
+    fn prefix(&self) -> Vec<Key> {
+        vec![Key::Ref(self.0.as_bytes())]
+    }
+}
+impl KeyDeserialize for VerifierAddress {
+    type Output = VerifierAddress;
+
+    #[inline(always)]
+    fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
+        let addr = Addr::from_vec(value)?;
+        Ok(VerifierAddress(addr))
+    }
+}
+
+
 
 #[cfg(test)]
 mod tests {

@@ -1,3 +1,4 @@
+use axelar_wasm_std::address::VerifierAddress;
 use axelar_wasm_std::nonempty;
 use axelar_wasm_std::snapshot::Participant;
 use cosmwasm_schema::cw_serde;
@@ -180,10 +181,9 @@ pub const VERIFIERS_PER_CHAIN: IndexedMap<
 );
 
 type ServiceName = String;
-type VerifierAddress = Addr;
 
 pub const SERVICES: Map<&ServiceName, Service> = Map::new("services");
-pub const VERIFIERS: Map<(&ServiceName, &VerifierAddress), Verifier> = Map::new("verifiers");
+pub const VERIFIERS: Map<(&ServiceName, VerifierAddress), Verifier> = Map::new("verifiers");
 
 pub fn register_chains_support(
     storage: &mut dyn Storage,

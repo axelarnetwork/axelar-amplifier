@@ -58,7 +58,7 @@ pub fn update_verifier_authorization_status(
     for verifier in verifiers {
         VERIFIERS.update(
             deps.storage,
-            (&service_name, &verifier.clone()),
+            (&service_name, verifier.to_owned().try_into().unwrap()),
             |sw| -> std::result::Result<Verifier, ContractError> {
                 match sw {
                     Some(mut verifier) => {
@@ -131,7 +131,7 @@ pub fn bond_verifier(
 
     VERIFIERS.update(
         deps.storage,
-        (&service_name.clone(), &info.sender.clone()),
+        (&service_name.clone(), info.sender.clone().try_into().unwrap()),
         |sw| -> std::result::Result<Verifier, ContractError> {
             match sw {
                 Some(verifier) => Ok(verifier.bond(bond)?),
@@ -165,7 +165,7 @@ pub fn register_chains_support(
         deps.storage,
         service_name.clone(),
         chains.clone(),
-        info.sender.clone(),
+        info.sender.clone().try_into().unwrap(),
     )?;
 
     Ok(Response::new())
@@ -182,7 +182,7 @@ pub fn deregister_chains_support(
         .change_context(ContractError::StorageError)?
         .ok_or(ContractError::ServiceNotFound)?;
 
-    state::deregister_chains_support(deps.storage, service_name.clone(), chains, info.sender)?;
+    state::deregister_chains_support(deps.storage, service_name.clone(), chains, info.sender.clone().try_into().unwrap())?;
 
     Ok(Response::new())
 }
@@ -199,7 +199,7 @@ pub fn unbond_verifier(
         .ok_or(ContractError::ServiceNotFound)?;
 
     let verifier = VERIFIERS
-        .may_load(deps.storage, (&service_name, &info.sender))
+        .may_load(deps.storage, (&service_name, info.sender.clone().try_into().unwrap()))
         .change_context(ContractError::StorageError)?
         .ok_or(ContractError::VerifierNotFound)?;
 
@@ -213,7 +213,7 @@ pub fn unbond_verifier(
     let verifier = verifier.unbond(ready_to_unbond, env.block.time)?;
 
     VERIFIERS
-        .save(deps.storage, (&service_name, &info.sender), &verifier)
+        .save(deps.storage, (&service_name, info.sender.clone().try_into().unwrap()), &verifier)
         .change_context(ContractError::StorageError)?;
 
     Ok(Response::new())

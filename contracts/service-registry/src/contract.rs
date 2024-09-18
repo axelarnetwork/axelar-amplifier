@@ -145,7 +145,7 @@ fn match_verifier(
             _ => bail!(permission_control::Error::WrongVariant),
         };
         VERIFIERS
-            .load(storage, (service_name, sender))
+            .load(storage, (service_name, sender.to_owned().try_into().unwrap()))
             .map(|verifier| verifier.address)
             .change_context(permission_control::Error::Unauthorized)
     }
