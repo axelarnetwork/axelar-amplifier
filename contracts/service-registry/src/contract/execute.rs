@@ -1,11 +1,11 @@
 use axelar_wasm_std::nonempty;
 use error_stack::Result;
 use router_api::ChainName;
-use service_registry_api::msg::UpdatedServiceParams;
 use service_registry_api::{self, AuthorizationState, Verifier};
 use state::VERIFIERS;
 
 use super::*;
+use crate::msg::UpdatedServiceParams;
 use crate::state::{self};
 
 #[allow(clippy::too_many_arguments)]

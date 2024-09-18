@@ -7,10 +7,9 @@ use cosmwasm_std::{
 };
 use error_stack::{bail, Report, ResultExt};
 use service_registry_api::error::ContractError;
-use service_registry_api::msg::{ExecuteMsg, QueryMsg};
 use service_registry_api::{AuthorizationState, BondingState, Service};
 
-use crate::msg::InstantiateMsg;
+use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{SERVICES, VERIFIERS};
 
 mod execute;

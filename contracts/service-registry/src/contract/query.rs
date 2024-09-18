@@ -3,9 +3,9 @@ use cosmwasm_std::{Deps, Order};
 use itertools::Itertools;
 use router_api::ChainName;
 use service_registry_api::error::ContractError;
-use service_registry_api::msg::VerifierDetails;
 use service_registry_api::*;
 
+use crate::msg::VerifierDetails;
 use crate::state::{SERVICES, VERIFIERS, VERIFIERS_PER_CHAIN, VERIFIER_WEIGHT};
 
 pub fn active_verifiers(
