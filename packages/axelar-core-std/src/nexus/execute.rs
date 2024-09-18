@@ -39,8 +39,8 @@ fn parse_message_id(message_id: &str) -> Result<(nonempty::Vec<u8>, u64), Error>
     Ok((tx_id, id.event_index.into()))
 }
 
-impl From<router_api::Message> for Message {
-    fn from(msg: router_api::Message) -> Self {
+impl From<(router_api::Message, Option<Coin>)> for Message {
+    fn from((msg, token): (router_api::Message, Option<Coin>)) -> Self {
         // fallback to using all 0's as the tx ID if it's not in the expected format
         let (source_tx_id, source_tx_index) =
             parse_message_id(&msg.cc_id.message_id).unwrap_or((vec![0; 32].try_into().unwrap(), 0));
@@ -54,7 +54,7 @@ impl From<router_api::Message> for Message {
             source_tx_id,
             source_tx_index,
             id: msg.cc_id.message_id.into(),
-            token: None,
+            token,
         }
     }
 }
@@ -88,6 +88,7 @@ mod test {
     use std::vec;
 
     use axelar_wasm_std::msg_id::{Base58TxDigestAndEventIndex, HexTxHashAndEventIndex};
+    use cosmwasm_std::Coin;
     use router_api::CrossChainId;
 
     use super::Message;
@@ -137,20 +138,8 @@ mod test {
             payload_hash: [1; 32],
         };
 
-        let nexus_msg = Message::from(msg.clone());
-
-        let router_msg_cc_id = msg.cc_id;
-
-        assert_eq!(nexus_msg.id, *router_msg_cc_id.message_id);
-        assert_eq!(nexus_msg.destination_address, msg.destination_address);
-        assert_eq!(nexus_msg.destination_chain, msg.destination_chain);
-        assert_eq!(nexus_msg.source_address, msg.source_address);
-        assert_eq!(
-            nexus_msg.source_chain,
-            router_msg_cc_id.source_chain.clone()
-        );
-        assert_eq!(nexus_msg.source_tx_id, vec![2; 32].try_into().unwrap());
-        assert_eq!(nexus_msg.source_tx_index, 1);
+        let nexus_msg = Message::from((msg.clone(), None));
+        goldie::assert_json!(nexus_msg);
     }
 
     #[test]
@@ -172,20 +161,7 @@ mod test {
             payload_hash: [1; 32],
         };
 
-        let nexus_msg = Message::from(msg.clone());
-
-        let router_msg_cc_id = msg.cc_id;
-
-        assert_eq!(nexus_msg.id, *router_msg_cc_id.message_id);
-        assert_eq!(nexus_msg.source_tx_id, vec![0; 32].try_into().unwrap());
-        assert_eq!(nexus_msg.source_tx_index, 0);
-
-        assert_eq!(nexus_msg.destination_address, msg.destination_address);
-        assert_eq!(nexus_msg.destination_chain, msg.destination_chain);
-        assert_eq!(nexus_msg.source_address, msg.source_address);
-        assert_eq!(
-            nexus_msg.source_chain,
-            router_msg_cc_id.source_chain.clone()
-        );
+        let nexus_msg = Message::from((msg.clone(), Some(Coin::new(100, "test"))));
+        goldie::assert_json!(nexus_msg);
     }
 }
