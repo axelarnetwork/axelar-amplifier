@@ -33,6 +33,7 @@ pub enum Error {
 pub struct Config {
     pub chain_name: ChainName,
     pub router: Addr,
+    pub nexus_gateway: Addr,
 }
 
 #[cw_serde]

@@ -11,6 +11,8 @@ pub struct InstantiateMsg {
     pub chain_name: ChainName,
     /// Address of the router contract on axelar.
     pub router_address: String,
+    /// Address of the nexus gateway contract on axelar.
+    pub nexus_gateway: String,
 }
 
 #[cw_serde]
