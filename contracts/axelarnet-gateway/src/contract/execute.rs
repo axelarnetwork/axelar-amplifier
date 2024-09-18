@@ -2,9 +2,13 @@ use std::str::FromStr;
 
 use axelar_core_std::nexus;
 use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
+use axelar_wasm_std::token::GetToken;
 use axelar_wasm_std::{address, FnExt, IntoContractError};
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, DepsMut, HexBinary, QuerierWrapper, Response, Storage};
+use cosmwasm_std::{
+    to_json_binary, Addr, DepsMut, HexBinary, MessageInfo, QuerierWrapper, Response, Storage,
+    WasmMsg,
+};
 use error_stack::{bail, ensure, report, Result, ResultExt};
 use itertools::Itertools;
 use router_api::client::Router;
@@ -47,6 +51,8 @@ pub enum Error {
     Nexus,
     #[error("nonce from the nexus module overflowed u32")]
     NonceOverflow,
+    #[error("invalid token received")]
+    InvalidToken,
 }
 
 #[cw_serde]
@@ -71,10 +77,14 @@ impl CallContractData {
 pub fn call_contract(
     storage: &mut dyn Storage,
     querier: QuerierWrapper,
-    sender: Addr,
+    info: MessageInfo,
     call_contract: CallContractData,
 ) -> Result<Response, Error> {
-    let Config { router, chain_name } = state::load_config(storage);
+    let Config {
+        router,
+        chain_name,
+        nexus_gateway,
+    } = state::load_config(storage);
 
     let client: nexus::Client = client::CosmosClient::new(querier).into();
     let nexus::query::TxHashAndNonceResponse { tx_hash, nonce } =
@@ -88,23 +98,32 @@ pub fn call_contract(
         ),
     )
     .change_context(Error::InvalidCrossChainId)?;
-    let source_address = Address::from_str(sender.as_str())
-        .change_context(Error::InvalidSourceAddress(sender.clone()))?;
+    let source_address = Address::from_str(info.sender.as_str())
+        .change_context(Error::InvalidSourceAddress(info.sender.clone()))?;
     let msg = call_contract.to_message(id, source_address);
 
     state::save_unique_routable_msg(storage, &msg.cc_id, &msg)
         .inspect_err(|err| panic_if_already_exists(err, &msg.cc_id))
         .change_context(Error::SaveRoutableMessage)?;
 
-    Ok(
-        route_to_router(storage, &Router::new(router), vec![msg.clone()])?.add_event(
-            AxelarnetGatewayEvent::ContractCalled {
-                msg,
-                payload: call_contract.payload,
-            }
-            .into(),
-        ),
-    )
+    let token = info.single_token().change_context(Error::InvalidToken)?;
+    let event = AxelarnetGatewayEvent::ContractCalled {
+        msg: msg.clone(),
+        payload: call_contract.payload,
+        token: token.clone(),
+    };
+    let res = match token {
+        None => route_to_router(storage, &Router::new(router), vec![msg])?,
+        Some(token) => Response::new().add_message(WasmMsg::Execute {
+            contract_addr: nexus_gateway.to_string(),
+            msg: to_json_binary(&nexus_gateway::msg::ExecuteMsg::RouteMessageWithToken(msg))
+                .expect("failed to serialize route message with token"),
+            funds: vec![token],
+        }),
+    }
+    .add_event(event.into());
+
+    Ok(res)
 }
 
 pub fn route_messages(
@@ -112,7 +131,9 @@ pub fn route_messages(
     sender: Addr,
     msgs: Vec<Message>,
 ) -> Result<Response, Error> {
-    let Config { chain_name, router } = state::load_config(storage);
+    let Config {
+        chain_name, router, ..
+    } = state::load_config(storage);
     let router = Router::new(router);
 
     if sender == router.address {
