@@ -32,11 +32,11 @@ mod tests {
     use axelar_wasm_std::{MajorityThreshold, Threshold};
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
     use cosmwasm_std::{
-        from_json, Addr, CosmosMsg, DepsMut, Env, MessageInfo, Response, SubMsg, WasmMsg,
+        from_json, CosmosMsg, DepsMut, Env, MessageInfo, Response, SubMsg, WasmMsg,
     };
     use multisig::key::KeyType;
 
-    use crate::contract::migrations::v0_6_0;
+    use crate::contract::migrations::v1_0_0;
     use crate::contract::{CONTRACT_NAME, CONTRACT_VERSION};
     use crate::encoding::Encoder;
     use crate::error::ContractError;
@@ -51,12 +51,12 @@ mod tests {
         instantiate_contract(deps.as_mut());
         cw2::set_contract_version(deps.as_mut().storage, CONTRACT_NAME, "something wrong").unwrap();
 
-        assert!(v0_6_0::migrate(deps.as_mut().storage).is_err());
+        assert!(v1_0_0::migrate(deps.as_mut().storage).is_err());
 
-        cw2::set_contract_version(deps.as_mut().storage, CONTRACT_NAME, v0_6_0::BASE_VERSION)
+        cw2::set_contract_version(deps.as_mut().storage, CONTRACT_NAME, v1_0_0::BASE_VERSION)
             .unwrap();
 
-        assert!(v0_6_0::migrate(deps.as_mut().storage).is_ok());
+        assert!(v1_0_0::migrate(deps.as_mut().storage).is_ok());
     }
 
     #[test]
@@ -64,7 +64,7 @@ mod tests {
         let mut deps = mock_dependencies();
         instantiate_contract(deps.as_mut());
 
-        v0_6_0::migrate(deps.as_mut().storage).unwrap();
+        v1_0_0::migrate(deps.as_mut().storage).unwrap();
 
         let contract_version = cw2::get_contract_version(deps.as_mut().storage).unwrap();
         assert_eq!(contract_version.contract, CONTRACT_NAME);
@@ -74,18 +74,15 @@ mod tests {
     // returns None if the msg is not the expected type (coordinator::msg::ExecuteMsg::SetActiveVerifiers)
     fn extract_verifiers_from_set_active_verifiers_msg(msg: SubMsg) -> Option<HashSet<String>> {
         match msg.msg {
-            CosmosMsg::Wasm(msg) => match msg {
-                WasmMsg::Execute { msg, .. } => {
-                    let msg: coordinator::msg::ExecuteMsg = from_json(msg).unwrap();
-                    match msg {
-                        coordinator::msg::ExecuteMsg::SetActiveVerifiers { verifiers } => {
-                            Some(verifiers)
-                        }
-                        _ => None,
+            CosmosMsg::Wasm(WasmMsg::Execute { msg, .. }) => {
+                let msg: coordinator::msg::ExecuteMsg = from_json(msg).unwrap();
+                match msg {
+                    coordinator::msg::ExecuteMsg::SetActiveVerifiers { verifiers } => {
+                        Some(verifiers)
                     }
+                    _ => None,
                 }
-                _ => None,
-            },
+            }
             _ => None,
         }
     }
@@ -93,10 +90,7 @@ mod tests {
     // returns None if the msg is not the expected type (WasmMsg::Execute)
     fn extract_contract_address_from_wasm_msg(msg: SubMsg) -> Option<String> {
         match msg.msg {
-            CosmosMsg::Wasm(msg) => match msg {
-                WasmMsg::Execute { contract_addr, .. } => Some(contract_addr),
-                _ => None,
-            },
+            CosmosMsg::Wasm(WasmMsg::Execute { contract_addr, .. }) => Some(contract_addr),
             _ => None,
         }
     }
@@ -110,7 +104,7 @@ mod tests {
             .save(deps.as_mut().storage, &test_data::curr_verifier_set())
             .unwrap();
 
-        let res = v0_6_0::migrate(deps.as_mut().storage);
+        let res = v1_0_0::migrate(deps.as_mut().storage);
         assert!(res.is_ok());
 
         let msgs = res.unwrap().messages;
@@ -147,7 +141,7 @@ mod tests {
             .save(deps.as_mut().storage, &test_data::new_verifier_set())
             .unwrap();
 
-        let res = v0_6_0::migrate(deps.as_mut().storage);
+        let res = v1_0_0::migrate(deps.as_mut().storage);
         assert!(res.is_ok());
 
         let msgs = res.unwrap().messages;
@@ -206,10 +200,10 @@ mod tests {
         _info: MessageInfo,
         msg: InstantiateMsg,
     ) -> Result<Response, axelar_wasm_std::error::ContractError> {
-        cw2::set_contract_version(deps.storage, CONTRACT_NAME, v0_6_0::BASE_VERSION)?;
+        cw2::set_contract_version(deps.storage, CONTRACT_NAME, v1_0_0::BASE_VERSION)?;
 
         let config = make_config(&deps, msg)?;
-        v0_6_0::CONFIG.save(deps.storage, &config)?;
+        v1_0_0::CONFIG.save(deps.storage, &config)?;
 
         Ok(Response::default())
     }
