@@ -11,6 +11,8 @@ use crate::state::{self, Config};
 mod execute;
 mod query;
 
+pub use execute::Error as ExecuteError;
+
 const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -53,6 +55,7 @@ pub fn instantiate(
     let config = Config {
         chain_name: msg.chain_name,
         router: address::validate_cosmwasm_address(deps.api, &msg.router_address)?,
+        nexus_gateway: address::validate_cosmwasm_address(deps.api, &msg.nexus_gateway)?,
     };
 
     state::save_config(deps.storage, &config)?;
@@ -62,7 +65,7 @@ pub fn instantiate(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
-    env: Env,
+    _env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
@@ -73,8 +76,8 @@ pub fn execute(
             payload,
         } => execute::call_contract(
             deps.storage,
-            env.block.height,
-            info.sender,
+            deps.querier,
+            info,
             execute::CallContractData {
                 destination_chain,
                 destination_address,
@@ -109,6 +112,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
 
 #[cfg(test)]
 mod tests {
+    use assert_ok::assert_ok;
     use cosmwasm_std::testing::{mock_dependencies, mock_env};
 
     use super::*;
@@ -117,9 +121,9 @@ mod tests {
     fn migrate_sets_contract_version() {
         let mut deps = mock_dependencies();
 
-        migrate(deps.as_mut(), mock_env(), Empty {}).unwrap();
+        assert_ok!(migrate(deps.as_mut(), mock_env(), Empty {}));
 
-        let contract_version = cw2::get_contract_version(deps.as_mut().storage).unwrap();
+        let contract_version = assert_ok!(cw2::get_contract_version(deps.as_mut().storage));
         assert_eq!(contract_version.contract, "axelarnet-gateway");
         assert_eq!(contract_version.version, CONTRACT_VERSION);
     }

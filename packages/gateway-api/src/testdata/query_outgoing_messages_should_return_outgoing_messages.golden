@@ -1,0 +1,12 @@
+[
+  {
+    "cc_id": {
+      "source_chain": "ethereum",
+      "message_id": "0x13548ac28fe95805ad2b8b824472d08e3b45cbc023a5a45a912f11ea98f81e97-0"
+    },
+    "source_address": "foobar",
+    "destination_chain": "ethereum",
+    "destination_address": "foobar",
+    "payload_hash": "0000000000000000000000000000000000000000000000000000000000000000"
+  }
+]

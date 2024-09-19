@@ -5,11 +5,10 @@ use cosmwasm_std::{
     to_json_binary, Addr, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response, Storage,
 };
 use router_api::error::Error;
-use router_api::msg::{ExecuteMsg, QueryMsg};
 
 use crate::contract::migrations::v0_3_3;
 use crate::events::RouterInstantiated;
-use crate::msg::InstantiateMsg;
+use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state;
 use crate::state::{load_chain_by_gateway, load_config, Config};
 

@@ -1,4 +1,3 @@
-use axelar_wasm_std::counter::Counter;
 use axelar_wasm_std::{FnExt, IntoContractError};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, StdError, Storage};
@@ -8,7 +7,6 @@ use router_api::{ChainName, CrossChainId, Message};
 
 const CONFIG: Item<Config> = Item::new("config");
 const ROUTABLE_MESSAGES: Map<&CrossChainId, Message> = Map::new("routable_messages");
-pub const ROUTABLE_MESSAGES_INDEX: Counter<u32> = Counter::new("routable_message_index");
 const EXECUTABLE_MESSAGES: Map<&CrossChainId, ExecutableMessage> = Map::new("executable_messages");
 
 #[derive(thiserror::Error, Debug, PartialEq, IntoContractError)]
@@ -35,6 +33,7 @@ pub enum Error {
 pub struct Config {
     pub chain_name: ChainName,
     pub router: Addr,
+    pub nexus_gateway: Addr,
 }
 
 #[cw_serde]

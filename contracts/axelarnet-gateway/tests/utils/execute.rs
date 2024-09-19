@@ -3,7 +3,7 @@ use axelarnet_gateway::msg::ExecuteMsg as GatewayExecuteMsg;
 use axelarnet_gateway::{contract, AxelarExecutableMsg};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::testing::{mock_env, mock_info};
-use cosmwasm_std::{DepsMut, HexBinary, Response};
+use cosmwasm_std::{DepsMut, HexBinary, MessageInfo, Response};
 use router_api::{Address, ChainName, CrossChainId, Message};
 
 use crate::utils::params;
@@ -16,6 +16,7 @@ pub enum ExecuteMsg {
 
 pub fn call_contract(
     deps: DepsMut,
+    info: MessageInfo,
     destination_chain: ChainName,
     destination_address: Address,
     payload: HexBinary,
@@ -23,7 +24,7 @@ pub fn call_contract(
     contract::execute(
         deps,
         mock_env(),
-        mock_info("sender", &[]),
+        info,
         GatewayExecuteMsg::CallContract {
             destination_chain,
             destination_address,
