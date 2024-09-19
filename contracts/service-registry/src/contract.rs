@@ -6,10 +6,11 @@ use cosmwasm_std::{
     Storage,
 };
 use error_stack::{bail, Report, ResultExt};
+use service_registry_api::error::ContractError;
+use service_registry_api::{AuthorizationState, BondingState, Service};
 
-use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
-use crate::state::{AuthorizationState, BondingState, Service, SERVICES, VERIFIERS};
+use crate::state::{SERVICES, VERIFIERS};
 
 mod execute;
 mod migrations;
@@ -201,10 +202,11 @@ mod test {
         coins, from_json, CosmosMsg, Empty, OwnedDeps, StdResult, Uint128, WasmQuery,
     };
     use router_api::ChainName;
+    use service_registry_api::msg::{UpdatedServiceParams, VerifierDetails};
+    use service_registry_api::{Verifier, WeightedVerifier};
 
     use super::*;
-    use crate::msg::{UpdatedServiceParams, VerifierDetails};
-    use crate::state::{Verifier, WeightedVerifier, VERIFIER_WEIGHT};
+    use crate::state::VERIFIER_WEIGHT;
 
     const GOVERNANCE_ADDRESS: &str = "governance";
     const UNAUTHORIZED_ADDRESS: &str = "unauthorized";

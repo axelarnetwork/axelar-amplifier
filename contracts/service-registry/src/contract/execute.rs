@@ -1,10 +1,12 @@
 use axelar_wasm_std::nonempty;
 use error_stack::Result;
 use router_api::ChainName;
+use service_registry_api::{self, AuthorizationState, Verifier};
+use state::VERIFIERS;
 
 use super::*;
 use crate::msg::UpdatedServiceParams;
-use crate::state::{self, AuthorizationState, Verifier, VERIFIERS};
+use crate::state::{self};
 
 #[allow(clippy::too_many_arguments)]
 pub fn register_service(
@@ -134,7 +136,7 @@ pub fn bond_verifier(
         (&service_name.clone(), &info.sender.clone()),
         |sw| -> std::result::Result<Verifier, ContractError> {
             match sw {
-                Some(verifier) => Ok(verifier.bond(bond)?),
+                Some(verifier) => Ok(state::bond_verifier(verifier, bond)?),
                 None => Ok(Verifier {
                     address: info.sender,
                     bonding_state: BondingState::Bonded {
@@ -210,7 +212,7 @@ pub fn unbond_verifier(
         .ready_to_unbond(verifier.address.to_string())
         .change_context(ContractError::FailedToUnbondVerifier)?;
 
-    let verifier = verifier.unbond(ready_to_unbond, env.block.time)?;
+    let verifier = state::unbond_verifier(verifier, ready_to_unbond, env.block.time)?;
 
     VERIFIERS
         .save(deps.storage, (&service_name, &info.sender), &verifier)
@@ -235,8 +237,11 @@ pub fn claim_stake(
         .change_context(ContractError::StorageError)?
         .ok_or(ContractError::VerifierNotFound)?;
 
-    let (verifier, released_bond) =
-        verifier.claim_stake(env.block.time, service.unbonding_period_days as u64)?;
+    let (verifier, released_bond) = state::claim_verifier_stake(
+        verifier,
+        env.block.time,
+        service.unbonding_period_days as u64,
+    )?;
 
     VERIFIERS
         .save(deps.storage, (&service_name, &info.sender), &verifier)

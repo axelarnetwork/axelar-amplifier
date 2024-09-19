@@ -2,7 +2,6 @@
 
 use std::collections::HashMap;
 use std::marker::PhantomData;
-use std::u64;
 
 use axelar_wasm_std::error::ContractError;
 use cosmwasm_schema::cw_serde;

@@ -31,7 +31,7 @@ pub enum ContractError {
     PublicKeyNotFound { participant: String },
 
     #[error(transparent)]
-    ServiceRegistryError(#[from] service_registry::ContractError),
+    ServiceRegistryError(#[from] service_registry_api::error::ContractError),
 
     #[error(transparent)]
     NonEmptyError(#[from] nonempty::Error),

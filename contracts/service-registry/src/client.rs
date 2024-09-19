@@ -1,7 +1,7 @@
 use error_stack::ResultExt;
 use router_api::ChainName;
+use service_registry_api::msg::{ExecuteMsg, QueryMsg};
 
-use crate::msg::{ExecuteMsg, QueryMsg};
 use crate::{Service, Verifier, WeightedVerifier};
 
 type Result<T> = error_stack::Result<T, Error>;
@@ -92,9 +92,9 @@ mod test {
     use cosmwasm_std::testing::MockQuerier;
     use cosmwasm_std::{from_json, to_json_binary, Addr, QuerierWrapper, SystemError, WasmQuery};
     use router_api::ChainName;
+    use service_registry_api::msg::QueryMsg;
 
     use crate::client::Client;
-    use crate::msg::QueryMsg;
     use crate::{Service, Verifier, WeightedVerifier};
 
     #[test]
