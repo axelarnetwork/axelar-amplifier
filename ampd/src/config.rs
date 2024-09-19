@@ -2,7 +2,7 @@ use std::net::{Ipv4Addr, SocketAddrV4};
 
 use serde::{Deserialize, Serialize};
 
-use crate::commands::ServiceRegistryConfig;
+use crate::commands::{RewardsConfig, ServiceRegistryConfig};
 use crate::handlers::config::deserialize_handler_configs;
 use crate::handlers::{self};
 use crate::tofnd::Config as TofndConfig;
@@ -21,6 +21,7 @@ pub struct Config {
     pub handlers: Vec<handlers::config::Config>,
     pub tofnd_config: TofndConfig,
     pub service_registry: ServiceRegistryConfig,
+    pub rewards: RewardsConfig,
 }
 
 impl Default for Config {
@@ -33,6 +34,7 @@ impl Default for Config {
             tofnd_config: TofndConfig::default(),
             event_processor: event_processor::Config::default(),
             service_registry: ServiceRegistryConfig::default(),
+            rewards: RewardsConfig::default(),
             health_check_bind_addr: SocketAddrV4::new(Ipv4Addr::UNSPECIFIED, 3000),
         }
     }
