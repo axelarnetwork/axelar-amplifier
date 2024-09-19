@@ -82,7 +82,7 @@ jobs:
           OS="darwin"
           ARCH="${{ matrix.arch }}"
           brew install protobuf
-            
+          
           if [ "$ARCH" == "arm64" ]
           then
             rustup target add aarch64-apple-darwin
