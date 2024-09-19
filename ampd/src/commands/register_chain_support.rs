@@ -18,6 +18,9 @@ pub struct Args {
 }
 
 pub async fn run(config: Config, args: Args) -> Result<Option<String>, Error> {
+    if args.chains.len() == 0 {
+        return Err(Error::InvalidInput.into());
+    }
     let pub_key = verifier_pub_key(config.tofnd_config.clone()).await?;
 
     let msg = serde_json::to_vec(&ExecuteMsg::RegisterChainSupport {
