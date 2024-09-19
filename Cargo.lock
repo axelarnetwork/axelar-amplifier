@@ -258,7 +258,7 @@ dependencies = [
  "multisig",
  "multiversx-sdk",
  "num-traits",
- "openssl",
+ "openssl-sys",
  "prost 0.11.9",
  "prost-types",
  "rand",
