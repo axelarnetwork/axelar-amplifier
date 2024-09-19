@@ -1700,6 +1700,7 @@ dependencies = [
  "multisig",
  "report",
  "router-api",
+ "service-registry-api",
  "thiserror",
  "tofn",
 ]

@@ -1,8 +1,10 @@
 use std::collections::HashSet;
 
 use cosmwasm_schema::{cw_serde, QueryResponses};
+use cosmwasm_std::Addr;
 use msgs_derive::EnsurePermissions;
 use router_api::ChainName;
+use service_registry_api::msg::VerifierDetails;
 
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -27,4 +29,16 @@ pub enum ExecuteMsg {
 pub enum QueryMsg {
     #[returns(bool)]
     ReadyToUnbond { verifier_address: String },
+
+    #[returns(VerifierProverResponse)]
+    VerifierDetailsWithProvers {
+        service_name: String,
+        verifier: String,
+    },
+}
+
+#[cw_serde]
+pub struct VerifierProverResponse {
+    pub verifier_details: VerifierDetails,
+    pub active_prover_set: HashSet<Addr>,
 }

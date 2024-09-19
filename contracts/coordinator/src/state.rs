@@ -1,11 +1,8 @@
 use std::collections::HashSet;
 
-use axelar_wasm_std::hash::Hash;
-use axelar_wasm_std::MajorityThreshold;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Order, Storage};
 use cw_storage_plus::{index_list, IndexedMap, Item, MultiIndex, UniqueIndex};
-use multisig::key::KeyType;
 use router_api::ChainName;
 
 use crate::error::ContractError;

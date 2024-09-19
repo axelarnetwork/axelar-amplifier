@@ -110,6 +110,12 @@ pub fn query(
                 worker_address,
             )?)?
         }
+        QueryMsg::VerifierDetailsWithProvers { service_name, verifier } => {
+            let verifier_address = validate_cosmwasm_address(deps.api, &verifier)?;
+            to_json_binary(
+                &query::verifier_details_with_provers(deps, service_name, verifier_address)?
+            )?
+        }
     }
     .then(Ok)
 }
