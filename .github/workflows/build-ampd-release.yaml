@@ -81,6 +81,7 @@ jobs:
         run: |
           OS="darwin"
           ARCH="${{ matrix.arch }}"
+          
           brew install protobuf
           
           if [ "$ARCH" == "arm64" ]
