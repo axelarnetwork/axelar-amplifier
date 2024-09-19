@@ -1,7 +1,7 @@
 [package]
 name = "ampd"
 edition = { workspace = true }
-version = "1.0.0"
+version = "1.1.0"
 rust-version = { workspace = true }
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -24,7 +24,9 @@ enum-display-derive = "0.1.1"
 error-stack = { workspace = true }
 ethers-contract = { workspace = true }
 ethers-core = { workspace = true }
-ethers-providers = { version = "2.0.13", default-features = false, features = ["rustls"] }
+ethers-providers = { version = "2.0.13", default-features = false, features = [
+    "rustls",
+] }
 events = { workspace = true }
 events-derive = { workspace = true }
 evm-gateway = { workspace = true }
@@ -42,15 +44,21 @@ prost = "0.11.9"
 prost-types = "0.11.9"
 report = { workspace = true }
 reqwest = { version = "0.11.24", default-features = false }
+rewards = { workspace = true }
 router-api = { workspace = true }
 serde = { version = "1.0.147", features = ["derive"] }
 serde_json = { workspace = true }
 serde_with = "3.2.0"
-service-registry = { workspace = true }
+service-registry-api = { workspace = true }
 sha3 = { workspace = true }
+stellar = { workspace = true }
+stellar-rs = "0.3.2"
+stellar-xdr = { workspace = true, features = ["serde_json"] }
 sui-gateway = { workspace = true }
 sui-json-rpc-types = { git = "https://github.com/mystenlabs/sui", tag = "mainnet-v1.26.2" }
-sui-types = { git = "https://github.com/mystenlabs/sui", features = ["test-utils"], tag = "mainnet-v1.26.2" }
+sui-types = { git = "https://github.com/mystenlabs/sui", features = [
+    "test-utils",
+], tag = "mainnet-v1.26.2" }
 # Need to switch to our own fork of tendermint and tendermint-rpc due to event attribute value being nullable.
 # Can switch back once https://github.com/informalsystems/tendermint-rs/issues/1216 is resolved.
 # The fix for the issue is at https://github.com/axelarnetwork/tendermint-rs/commit/e97033e20e660a7e707ea86db174ec047bbba50d.
@@ -74,10 +82,12 @@ valuable-serde = { version = "0.1.0", features = ["std"] }
 voting-verifier = { workspace = true }
 
 [dev-dependencies]
+ed25519-dalek = { workspace = true, features = ["rand_core"] }
 elliptic-curve = "0.13.5"
+faux = "0.1.10"
 generic-array = "0.14.7"
 multisig = { workspace = true, features = ["test", "library"] }
-rand = "0.8.5"
+rand = { workspace = true }
 random-string = "1.0.0"
 tokio = { workspace = true, features = ["test-util"] }
 

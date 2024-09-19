@@ -78,7 +78,7 @@ impl From<Message> for Vec<Attribute> {
 
 #[cw_serde]
 #[serde(try_from = "String")]
-#[derive(Eq, Hash)]
+#[derive(Eq, Hash, Valuable)]
 pub struct Address(nonempty::String);
 
 impl Deref for Address {
@@ -110,6 +110,12 @@ impl TryFrom<String> for Address {
                 .parse::<nonempty::String>()
                 .change_context(Error::InvalidAddress)?,
         ))
+    }
+}
+
+impl std::fmt::Display for Address {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", *self.0)
     }
 }
 

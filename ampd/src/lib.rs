@@ -40,6 +40,7 @@ mod health_check;
 mod json_rpc;
 mod mvx;
 mod queue;
+mod stellar;
 mod sui;
 mod tm_client;
 mod tofnd;
@@ -67,6 +68,7 @@ async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
         tofnd_config,
         event_processor,
         service_registry: _service_registry,
+        rewards: _rewards,
         health_check_bind_addr,
     } = cfg;
 
@@ -350,6 +352,38 @@ where
                         verifier.clone(),
                         cosmwasm_contract,
                         CommunicationProxy::new(proxy_url.to_string().trim_end_matches('/').into()),
+                        self.block_height_monitor.latest_block_height(),
+                    ),
+                    event_processor_config.clone(),
+                ),
+                handlers::config::Config::StellarMsgVerifier {
+                    cosmwasm_contract,
+                    http_url,
+                } => self.create_handler_task(
+                    "stellar-msg-verifier",
+                    handlers::stellar_verify_msg::Handler::new(
+                        verifier.clone(),
+                        cosmwasm_contract,
+                        stellar::http_client::Client::new(
+                            http_url.to_string().trim_end_matches('/').into(),
+                        )
+                        .change_context(Error::Connection)?,
+                        self.block_height_monitor.latest_block_height(),
+                    ),
+                    event_processor_config.clone(),
+                ),
+                handlers::config::Config::StellarVerifierSetVerifier {
+                    cosmwasm_contract,
+                    http_url,
+                } => self.create_handler_task(
+                    "stellar-verifier-set-verifier",
+                    handlers::stellar_verify_verifier_set::Handler::new(
+                        verifier.clone(),
+                        cosmwasm_contract,
+                        stellar::http_client::Client::new(
+                            http_url.to_string().trim_end_matches('/').into(),
+                        )
+                        .change_context(Error::Connection)?,
                         self.block_height_monitor.latest_block_height(),
                     ),
                     event_processor_config.clone(),

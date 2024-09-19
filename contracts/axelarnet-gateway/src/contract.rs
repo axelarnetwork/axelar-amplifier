@@ -55,6 +55,7 @@ pub fn instantiate(
     let config = Config {
         chain_name: msg.chain_name,
         router: address::validate_cosmwasm_address(deps.api, &msg.router_address)?,
+        nexus_gateway: address::validate_cosmwasm_address(deps.api, &msg.nexus_gateway)?,
     };
 
     state::save_config(deps.storage, &config)?;
@@ -64,7 +65,7 @@ pub fn instantiate(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
-    env: Env,
+    _env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
@@ -75,8 +76,8 @@ pub fn execute(
             payload,
         } => execute::call_contract(
             deps.storage,
-            env.block.height,
-            info.sender,
+            deps.querier,
+            info,
             execute::CallContractData {
                 destination_chain,
                 destination_address,
