@@ -81,21 +81,22 @@ jobs:
         run: |
           OS="darwin"
           ARCH="${{ matrix.arch }}"
+          brew install protobuf
+
           if [ "$ARCH" == "arm64" ]
           then
-            brew install protobuf
             rustup target add aarch64-apple-darwin
             cargo build --release --target aarch64-apple-darwin
             mkdir ampdbin
             mv "/Users/runner/work/axelar-amplifier/axelar-amplifier/target/aarch64-apple-darwin/release/ampd" "./ampdbin/ampd-$OS-$ARCH-$SEMVER"
-            gpg --armor --detach-sign  "./ampdbin/ampd-$OS-$ARCH-$SEMVER"
           else
             brew install protobuf
             cargo build --release
             mkdir ampdbin
             mv "/Users/runner/work/axelar-amplifier/axelar-amplifier/target/release/ampd" "./ampdbin/ampd-$OS-$ARCH-$SEMVER"
-            gpg --armor --detach-sign  "./ampdbin/ampd-$OS-$ARCH-$SEMVER"
           fi
+          
+          gpg --armor --detach-sign  "./ampdbin/ampd-$OS-$ARCH-$SEMVER"
 
       - name: build and sign linux binaries
         env:
