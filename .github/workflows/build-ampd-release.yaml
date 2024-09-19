@@ -90,7 +90,6 @@ jobs:
             mkdir ampdbin
             mv "/Users/runner/work/axelar-amplifier/axelar-amplifier/target/aarch64-apple-darwin/release/ampd" "./ampdbin/ampd-$OS-$ARCH-$SEMVER"
           else
-            brew install protobuf
             cargo build --release
             mkdir ampdbin
             mv "/Users/runner/work/axelar-amplifier/axelar-amplifier/target/release/ampd" "./ampdbin/ampd-$OS-$ARCH-$SEMVER"
