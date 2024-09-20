@@ -36,7 +36,7 @@ pub enum TokenManagerType {
 /// A message sent between ITS contracts to facilitate interchain transfers, token deployments, or token manager deployments.
 /// `Message` routed via the ITS hub get wrapped inside a [`HubMessage`]
 #[cw_serde]
-#[derive(Eq, strum::IntoStaticStr)]
+#[derive(Eq, strum::AsRefStr)]
 pub enum Message {
     /// Transfer ITS tokens between different chains
     InterchainTransfer {
