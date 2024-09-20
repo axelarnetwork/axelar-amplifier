@@ -14,18 +14,15 @@ use crate::{Error, PREFIX};
 #[derive(clap::Args, Debug, Valuable)]
 pub struct Args {
     pub service_name: nonempty::String,
-    pub chains: Vec<ChainName>,
+    pub chain: ChainName,
 }
 
 pub async fn run(config: Config, args: Args) -> Result<Option<String>, Error> {
-    if args.chains.len() == 0 {
-        return Err(Error::InvalidInput.into());
-    }
     let pub_key = verifier_pub_key(config.tofnd_config.clone()).await?;
 
     let msg = serde_json::to_vec(&ExecuteMsg::RegisterChainSupport {
         service_name: args.service_name.into(),
-        chains: args.chains,
+        chains: vec![args.chain],
     })
     .expect("register chain support msg should serialize");
 
