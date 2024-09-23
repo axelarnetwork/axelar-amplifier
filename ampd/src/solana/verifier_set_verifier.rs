@@ -56,7 +56,9 @@ fn hash_verifier_set(verifier_set: &VerifierSet) -> [u8; 32] {
     let mut hasher = Keccak256::new();
 
     // Length prefix the bytes to be hashed to prevent hash collisions
-    hasher.update(verifier_set.signers.len().to_le_bytes());
+    let len = u32::try_from(verifier_set.signers.len())
+        .expect("impossible for the value to be larger than u32 on wasm32");
+    hasher.update(len.to_le_bytes());
 
     verifier_set.signers.values().for_each(|signer| {
         match signer.pub_key {
