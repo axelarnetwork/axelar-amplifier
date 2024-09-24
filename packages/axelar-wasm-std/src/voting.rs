@@ -23,7 +23,7 @@ use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, StdError, StdResult, Uint128, Uint64};
 use cw_storage_plus::{IntKey, Key, KeyDeserialize, Prefixer, PrimaryKey};
 use num_traits::{CheckedAdd, One};
-use strum::{EnumIter, EnumString, IntoEnumIterator};
+use strum::{AsRefStr, EnumIter, EnumString, IntoEnumIterator};
 use thiserror::Error;
 use valuable::Valuable;
 
@@ -153,21 +153,11 @@ impl fmt::Display for PollId {
 }
 
 #[cw_serde]
-#[derive(Eq, Hash, Ord, PartialOrd, EnumIter, EnumString, Valuable)]
+#[derive(Eq, Hash, Ord, PartialOrd, EnumIter, EnumString, AsRefStr, Valuable)]
 pub enum Vote {
     SucceededOnChain, // the txn was included on chain, and achieved the intended result
     FailedOnChain,    // the txn was included on chain, but failed to achieve the intended result
     NotFound,         // the txn could not be found on chain in any blocks at the time of voting
-}
-
-impl fmt::Display for Vote {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Vote::SucceededOnChain => write!(f, "SucceededOnChain"),
-            Vote::FailedOnChain => write!(f, "FailedOnChain"),
-            Vote::NotFound => write!(f, "NotFound"),
-        }
-    }
 }
 
 // Deserialization of enums as map keys is not supported by serde-json-wasm, we use String instead
@@ -178,7 +168,7 @@ impl Default for Tallies {
     fn default() -> Self {
         Self(
             Vote::iter()
-                .map(|vote| (vote.to_string(), Uint128::zero()))
+                .map(|vote| (vote.as_ref().to_string(), Uint128::zero()))
                 .collect(),
         )
     }
@@ -196,15 +186,15 @@ impl Tallies {
     }
 
     pub fn tally(&mut self, vote: &Vote, weight: &Uint128) {
-        let key = vote.to_string();
+        let key = vote.as_ref();
 
         let tally = self
             .0
-            .get(&key)
+            .get(key)
             .unwrap_or(&Uint128::zero())
             .saturating_add(*weight);
 
-        self.0.insert(key, tally);
+        self.0.insert(key.to_string(), tally);
     }
 }
 
@@ -415,6 +405,13 @@ mod tests {
 
     use super::*;
     use crate::{nonempty, Participant, Threshold};
+
+    #[test]
+    fn vote_strings_as_expected() {
+        goldie::assert_json!(Vote::iter()
+            .map(|vote| vote.as_ref().to_string())
+            .collect::<Vec<_>>());
+    }
 
     #[test]
     fn cast_vote() {

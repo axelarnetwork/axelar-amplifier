@@ -45,11 +45,10 @@ fn make_message_event(
     destination_chain: ChainNameRaw,
     msg: Message,
 ) -> cosmwasm_std::Event {
-    let message_type: &'static str = (&msg).into();
     let mut attrs = vec![
         Attribute::new("cc_id", cc_id.to_string()),
         Attribute::new("destination_chain", destination_chain.to_string()),
-        Attribute::new("message_type", message_type.to_string()),
+        Attribute::new("message_type", msg.as_ref().to_string()),
     ];
 
     match msg {

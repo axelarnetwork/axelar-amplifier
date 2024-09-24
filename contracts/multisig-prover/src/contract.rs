@@ -122,8 +122,9 @@ pub fn migrate(
     _env: Env,
     _msg: Empty,
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
-    migrations::v0_6_0::migrate(deps.storage)?;
+    migrations::v1_0_0::migrate(deps.storage)?;
 
+    cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
     Ok(Response::default())
 }
 
