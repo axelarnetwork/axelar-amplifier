@@ -62,8 +62,11 @@ fn make_its_message_event(
                 Attribute::new("source_address", source_address.to_string()),
                 Attribute::new("destination_address", destination_address.to_string()),
                 Attribute::new("amount", amount.to_string()),
-                Attribute::new("data", data.to_string()),
             ]);
+
+            if !data.is_empty() {
+                attrs.push(Attribute::new("data", data.to_string()));
+            }
         }
         ItsMessage::DeployInterchainToken {
             token_id,
@@ -74,11 +77,19 @@ fn make_its_message_event(
         } => {
             attrs.extend(vec![
                 Attribute::new("token_id", token_id.to_string()),
-                Attribute::new("name", name),
-                Attribute::new("symbol", symbol),
-                Attribute::new("decimals", decimals.to_string()),
-                Attribute::new("minter", minter.to_string()),
             ]);
+
+            if !name.is_empty() {
+                attrs.push(Attribute::new("name", name));
+            }
+            if !symbol.is_empty() {
+                attrs.push(Attribute::new("symbol", symbol));
+            }
+            attrs.push(Attribute::new("decimals", decimals.to_string()));
+
+            if !minter.is_empty() {
+                attrs.push(Attribute::new("minter", minter.to_string()));
+            }
         }
         ItsMessage::DeployTokenManager {
             token_id,
@@ -88,8 +99,11 @@ fn make_its_message_event(
             attrs.extend(vec![
                 Attribute::new("token_id", token_id.to_string()),
                 Attribute::new("token_manager_type", format!("{:?}", token_manager_type)),
-                Attribute::new("params", params.to_string()),
             ]);
+
+            if !params.is_empty() {
+                attrs.push(Attribute::new("params", params.to_string()));
+            }
         }
     }
 
