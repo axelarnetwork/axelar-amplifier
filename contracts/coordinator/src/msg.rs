@@ -1,8 +1,8 @@
 use std::collections::HashSet;
 
+use axelar_wasm_std::nonempty;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::Addr;
-use axelar_wasm_std::nonempty;
 use msgs_derive::EnsurePermissions;
 use router_api::ChainName;
 use service_registry_api::Verifier;
