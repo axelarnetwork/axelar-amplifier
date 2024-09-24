@@ -145,10 +145,20 @@ fn match_verifier(
             | ExecuteMsg::DeregisterChainSupport { service_name, .. } => service_name,
             _ => bail!(permission_control::Error::WrongVariant),
         };
-        VERIFIERS
+        let res = VERIFIERS
             .load(storage, (service_name, sender))
             .map(|verifier| verifier.address)
-            .change_context(permission_control::Error::Unauthorized)
+            .change_context(ContractError::VerifierNotFound)
+            .change_context(permission_control::Error::Unauthorized);
+
+        // on error, check if the service even exists, and if it doesn't, return ServiceNotFound
+        if res.is_err() {
+            SERVICES
+                .load(storage, service_name)
+                .change_context(ContractError::ServiceNotFound)
+                .change_context(permission_control::Error::Unauthorized)?;
+        }
+        res
     }
 }
 
@@ -1363,6 +1373,102 @@ mod test {
         assert_eq!(verifiers, vec![]);
     }
 
+    /// If a verifier registers support for a chain of an unregistered service,
+    /// process should return a contract error of type ServiceNotFound.
+    #[test]
+    fn register_single_chain_for_nonexistent_service() {
+        let mut deps = setup();
+
+        let service_name = "validators";
+        let chain_name = ChainName::from_str("ethereum").unwrap();
+        let err = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(VERIFIER_ADDRESS, &[]),
+            ExecuteMsg::RegisterChainSupport {
+                service_name: service_name.into(),
+                chains: vec![chain_name.clone()],
+            },
+        )
+        .unwrap_err();
+
+        assert!(err_contains!(
+            err.report,
+            ContractError,
+            ContractError::ServiceNotFound
+        ));
+    }
+
+    /// If a verifier deregisters support for a chain of an unregistered service,
+    /// process should return a contract error of type ServiceNotFound.
+    #[test]
+    fn deregister_single_chain_for_nonexistent_service() {
+        let mut deps = setup();
+
+        let service_name = "validators";
+        let chain_name = ChainName::from_str("ethereum").unwrap();
+        let err = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(VERIFIER_ADDRESS, &[]),
+            ExecuteMsg::DeregisterChainSupport {
+                service_name: service_name.into(),
+                chains: vec![chain_name.clone()],
+            },
+        )
+        .unwrap_err();
+
+        assert!(err_contains!(
+            err.report,
+            ContractError,
+            ContractError::ServiceNotFound
+        ));
+    }
+
+    /// If a verifier that is not part of a service registers support for a chain from that specific service,
+    /// process should return a contract error of type VerifierNotFound.
+    #[test]
+    fn register_from_unbonded_and_unauthorized_verifier_single_chain() {
+        let mut deps = setup();
+
+        let service_name = "validators";
+        let min_verifier_bond: nonempty::Uint128 = Uint128::new(100).try_into().unwrap();
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(GOVERNANCE_ADDRESS, &[]),
+            ExecuteMsg::RegisterService {
+                service_name: service_name.into(),
+                coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS).to_string(),
+                min_num_verifiers: 0,
+                max_num_verifiers: Some(100),
+                min_verifier_bond,
+                bond_denom: AXL_DENOMINATION.into(),
+                unbonding_period_days: 10,
+                description: "Some service".into(),
+            },
+        );
+        assert!(res.is_ok());
+
+        let chain_name = ChainName::from_str("ethereum").unwrap();
+        let err = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(VERIFIER_ADDRESS, &[]),
+            ExecuteMsg::RegisterChainSupport {
+                service_name: service_name.into(),
+                chains: vec![chain_name.clone()],
+            },
+        )
+        .unwrap_err();
+
+        assert!(err_contains!(
+            err.report,
+            ContractError,
+            ContractError::VerifierNotFound
+        ));
+    }
+
     /// If a verifier that is not part of a service deregisters support for a chain from that specific service,
     /// process should return a contract error of type VerifierNotFound.
     #[test]
@@ -1402,8 +1508,8 @@ mod test {
 
         assert!(err_contains!(
             err.report,
-            permission_control::Error,
-            permission_control::Error::WhitelistNotFound { .. }
+            ContractError,
+            ContractError::VerifierNotFound
         ));
 
         let verifiers: Vec<WeightedVerifier> = from_json(
@@ -1419,32 +1525,6 @@ mod test {
         )
         .unwrap();
         assert_eq!(verifiers, vec![]);
-    }
-
-    /// If a verifier deregisters support for a chain of an unregistered service,
-    /// process should return a contract error of type ServiceNotFound.
-    #[test]
-    fn deregister_single_chain_for_nonexistent_service() {
-        let mut deps = setup();
-
-        let service_name = "validators";
-        let chain_name = ChainName::from_str("ethereum").unwrap();
-        let err = execute(
-            deps.as_mut(),
-            mock_env(),
-            mock_info(VERIFIER_ADDRESS, &[]),
-            ExecuteMsg::DeregisterChainSupport {
-                service_name: service_name.into(),
-                chains: vec![chain_name.clone()],
-            },
-        )
-        .unwrap_err();
-
-        assert!(err_contains!(
-            err.report,
-            permission_control::Error,
-            permission_control::Error::WhitelistNotFound { .. }
-        ));
     }
 
     #[test]
