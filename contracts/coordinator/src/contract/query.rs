@@ -1,10 +1,13 @@
+use std::collections::HashSet;
+
+use cosmwasm_std::{to_json_binary, Addr, Deps, Order, QueryRequest, StdResult, WasmQuery};
+use itertools::Itertools;
+use service_registry_api::msg::QueryMsg::Verifier;
+use service_registry_api::msg::VerifierDetails;
+
 use crate::error::ContractError;
 use crate::msg::VerifierInfo;
 use crate::state::{CONFIG, VERIFIER_PROVER_INDEXED_MAP};
-use cosmwasm_std::{to_json_binary, Addr, Deps, Order, QueryRequest, StdResult, WasmQuery};
-use itertools::Itertools;
-use service_registry_api::msg::{QueryMsg::Verifier, VerifierDetails};
-use std::collections::HashSet;
 
 fn is_verifier_in_any_verifier_set(deps: Deps, verifier_address: &Addr) -> bool {
     VERIFIER_PROVER_INDEXED_MAP
