@@ -1,5 +1,5 @@
 use crate::error::ContractError;
-use crate::msg::VerifierProverResponse;
+use crate::msg::VerifierInfo;
 use crate::state::{CONFIG, VERIFIER_PROVER_INDEXED_MAP};
 use cosmwasm_std::{to_json_binary, Addr, Deps, Order, QueryRequest, StdResult, WasmQuery};
 use itertools::Itertools;
@@ -38,7 +38,7 @@ pub fn verifier_details_with_provers(
     deps: Deps,
     service_name: String,
     verifier_address: Addr,
-) -> Result<VerifierProverResponse, ContractError> {
+) -> Result<VerifierInfo, ContractError> {
     let config = CONFIG.load(deps.storage).map_err(ContractError::from)?;
 
     let verifier_details: VerifierDetails = deps
@@ -55,8 +55,10 @@ pub fn verifier_details_with_provers(
 
     let active_prover_set = get_provers_for_verifier(deps, verifier_address)?;
 
-    Ok(VerifierProverResponse {
-        verifier_details,
-        active_prover_set,
+    Ok(VerifierInfo {
+        verifier: verifier_details.verifier,
+        weight: verifier_details.weight,
+        supported_chains: verifier_details.supported_chains,
+        actively_signing_for: active_prover_set,
     })
 }

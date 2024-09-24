@@ -22,7 +22,7 @@ impl From<QueryMsg> for Error {
     fn from(value: QueryMsg) -> Self {
         match value {
             QueryMsg::ReadyToUnbond { verifier_address } => Error::ReadyToUnbond(verifier_address),
-            QueryMsg::VerifierDetailsWithProvers {
+            QueryMsg::VerifierInfo {
                 service_name,
                 verifier,
             } => Error::VerifierDetailsWithProvers(service_name, verifier),
@@ -122,7 +122,7 @@ mod test {
                     QueryMsg::ReadyToUnbond {
                         verifier_address: _,
                     } => Ok(to_json_binary(&true).into()).into(),
-                    QueryMsg::VerifierDetailsWithProvers {
+                    QueryMsg::VerifierInfo {
                         service_name: _,
                         verifier: _,
                     } => Ok(to_json_binary(&true).into()).into(),
