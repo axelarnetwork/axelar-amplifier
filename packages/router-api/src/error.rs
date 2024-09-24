@@ -46,4 +46,7 @@ pub enum Error {
 
     #[error("store failed saving/loading data")]
     StoreFailure,
+
+    #[error("failed to query the nexus module")]
+    Nexus,
 }

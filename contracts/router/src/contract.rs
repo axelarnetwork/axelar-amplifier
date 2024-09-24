@@ -84,7 +84,13 @@ pub fn execute(
             msg_id_format,
         } => {
             let gateway_address = address::validate_cosmwasm_address(deps.api, &gateway_address)?;
-            execute::register_chain(deps.storage, chain, gateway_address, msg_id_format)
+            Ok(execute::register_chain(
+                deps.storage,
+                deps.querier,
+                chain,
+                gateway_address,
+                msg_id_format,
+            )?)
         }
         ExecuteMsg::UpgradeGateway {
             chain,

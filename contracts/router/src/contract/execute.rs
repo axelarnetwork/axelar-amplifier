@@ -1,11 +1,14 @@
 use std::collections::HashMap;
 use std::vec;
 
+use axelar_core_std::nexus;
 use axelar_wasm_std::flagset::FlagSet;
 use axelar_wasm_std::killswitch;
 use axelar_wasm_std::msg_id::{self, MessageIdFormat};
-use cosmwasm_std::{to_json_binary, Addr, Event, Response, StdResult, Storage, WasmMsg};
-use error_stack::{ensure, report, ResultExt};
+use cosmwasm_std::{
+    to_json_binary, Addr, Event, QuerierWrapper, Response, StdResult, Storage, WasmMsg,
+};
+use error_stack::{bail, ensure, report, Report, ResultExt};
 use itertools::Itertools;
 use router_api::error::Error;
 use router_api::{ChainEndpoint, ChainName, Gateway, GatewayDirection, Message};
@@ -18,13 +21,27 @@ use crate::{events, state};
 
 pub fn register_chain(
     storage: &mut dyn Storage,
+    querier: QuerierWrapper,
     name: ChainName,
     gateway: Addr,
     msg_id_format: MessageIdFormat,
-) -> Result<Response, Error> {
-    if find_chain_for_gateway(storage, &gateway)?.is_some() {
-        return Err(Error::GatewayAlreadyRegistered);
+) -> Result<Response, Report<Error>> {
+    if find_chain_for_gateway(storage, &gateway)
+        .change_context(Error::StoreFailure)?
+        .is_some()
+    {
+        bail!(Error::GatewayAlreadyRegistered)
     }
+
+    let client: nexus::Client = client::CosmosClient::new(querier).into();
+    if client
+        .is_chain_registered(&name)
+        .change_context(Error::Nexus)?
+        .is_registered
+    {
+        bail!(Error::ChainAlreadyExists)
+    }
+
     chain_endpoints().update(storage, name.clone(), |chain| match chain {
         Some(_) => Err(Error::ChainAlreadyExists),
         None => Ok(ChainEndpoint {
@@ -244,15 +261,17 @@ pub fn route_messages(
 mod test {
     use std::collections::HashMap;
 
+    use axelar_wasm_std::assert_err_contains;
     use axelar_wasm_std::flagset::FlagSet;
-    use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
+    use axelar_wasm_std::msg_id::{HexTxHashAndEventIndex, MessageIdFormat};
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-    use cosmwasm_std::{Addr, Storage};
+    use cosmwasm_std::{Addr, ContractResult, QuerierWrapper, Storage, SystemResult};
     use rand::{random, RngCore};
     use router_api::error::Error;
     use router_api::{ChainEndpoint, ChainName, CrossChainId, Gateway, GatewayDirection, Message};
+    use serde_json::json;
 
-    use super::{freeze_chains, unfreeze_chains};
+    use super::{freeze_chains, register_chain, unfreeze_chains};
     use crate::contract::execute::route_messages;
     use crate::contract::instantiate;
     use crate::events::{ChainFrozen, ChainUnfrozen};
@@ -927,6 +946,33 @@ mod test {
             }
             .into()
         ));
+    }
+
+    #[test]
+    fn register_chain_with_duplicate_chain_name_in_core() {
+        let mut deps = mock_dependencies();
+        deps.querier = deps.querier.with_custom_handler(|_| {
+            SystemResult::Ok(ContractResult::Ok(
+                json!({
+                    "is_registered": true,
+                })
+                .to_string()
+                .as_bytes()
+                .into(),
+            ))
+        });
+
+        assert_err_contains!(
+            register_chain(
+                &mut deps.storage,
+                QuerierWrapper::new(&deps.querier),
+                "ethereum".parse().unwrap(),
+                Addr::unchecked("gateway"),
+                MessageIdFormat::HexTxHashAndEventIndex
+            ),
+            Error,
+            Error::ChainAlreadyExists
+        );
     }
 
     fn assert_chain_endpoint_frozen_status(
