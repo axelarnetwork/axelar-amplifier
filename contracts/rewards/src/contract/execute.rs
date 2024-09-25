@@ -165,6 +165,8 @@ pub fn update_pool_params(
     block_height: u64,
 ) -> Result<(), ContractError> {
     let cur_epoch = state::current_epoch(storage, pool_id, block_height)?;
+    let cur_tally = state::load_epoch_tally(storage, pool_id.clone(), cur_epoch.epoch_num)?;
+
     // If the param update reduces the epoch duration such that the current epoch immediately ends,
     // start a new epoch at this block, incrementing the current epoch number by 1.
     // This prevents us from jumping forward an arbitrary number of epochs, and maintains consistency for past events.
@@ -194,12 +196,18 @@ pub fn update_pool_params(
     } else {
         cur_epoch
     };
+
     let new_params_snapshot = ParamsSnapshot {
-        params: new_params,
-        created_at: cur_epoch,
+        params: new_params.clone(),
+        created_at: cur_epoch.clone(),
     };
 
     state::update_pool_params(storage, pool_id, &new_params_snapshot)?;
+
+    if let Some(mut tally) = cur_tally {
+        tally.params = new_params;
+        state::save_epoch_tally(storage, &tally)?;
+    }
 
     Ok(())
 }
