@@ -35,6 +35,7 @@ pub struct Protocol {
 pub type AxelarApp =
     App<BankKeeper, MockApi, MockStorage, AxelarModule, WasmKeeper<Empty, AxelarQueryMsg>>;
 
+#[allow(clippy::type_complexity)]
 pub struct AxelarModule {
     pub tx_hash_and_nonce: Box<dyn Fn(&BlockInfo) -> anyhow::Result<Binary>>,
     pub is_chain_registered: Box<dyn Fn(String) -> anyhow::Result<Binary>>,

@@ -56,8 +56,9 @@ mod test {
     use axelar_wasm_std::killswitch;
     use axelar_wasm_std::msg_id::MessageIdFormat;
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-    use cosmwasm_std::{DepsMut, Env, MessageInfo, Response};
+    use cosmwasm_std::{ContractResult, DepsMut, Env, MessageInfo, Response, SystemResult};
     use router_api::msg::ExecuteMsg;
+    use serde_json::json;
 
     use crate::contract::migrations::v0_3_3;
     use crate::contract::migrations::v0_3_3::BASE_VERSION;
@@ -108,6 +109,17 @@ mod test {
     #[test]
     fn migration() {
         let mut deps = mock_dependencies();
+        deps.querier = deps.querier.with_custom_handler(|_| {
+            SystemResult::Ok(ContractResult::Ok(
+                json!({
+                    "is_registered": false,
+                })
+                .to_string()
+                .as_bytes()
+                .into(),
+            ))
+        });
+
         let instantiate_msg = instantiate_0_3_3_contract(deps.as_mut()).unwrap();
 
         let msg = ExecuteMsg::RegisterChain {
