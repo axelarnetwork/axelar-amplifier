@@ -29,18 +29,18 @@ pub struct Protocol {
     pub service_name: nonempty::String,
     pub rewards: RewardsContract,
     pub rewards_params: rewards::msg::Params,
-    pub app: CustomApp,
+    pub app: AxelarApp,
 }
 
-pub type CustomApp =
-    App<BankKeeper, MockApi, MockStorage, CustomNexusQuerier, WasmKeeper<Empty, AxelarQueryMsg>>;
+pub type AxelarApp =
+    App<BankKeeper, MockApi, MockStorage, AxelarModule, WasmKeeper<Empty, AxelarQueryMsg>>;
 
-pub struct CustomNexusQuerier {
+pub struct AxelarModule {
     pub tx_hash_and_nonce: Box<dyn Fn(&BlockInfo) -> anyhow::Result<Binary>>,
     pub is_chain_registered: Box<dyn Fn(String) -> anyhow::Result<Binary>>,
 }
 
-impl Module for CustomNexusQuerier {
+impl Module for AxelarModule {
     type ExecT = Empty;
     type QueryT = AxelarQueryMsg;
     type SudoT = Empty;
@@ -90,9 +90,9 @@ impl Module for CustomNexusQuerier {
                 nexus::query::QueryMsg::IsChainRegistered { chain } => {
                     (self.is_chain_registered)(chain)
                 }
-                _ => unreachable!(),
+                _ => unreachable!("unexpected nexus message {:?}", query),
             },
-            _ => unreachable!(),
+            _ => unreachable!("unexpected query request {:?}", request),
         }
     }
 }

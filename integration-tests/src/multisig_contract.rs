@@ -4,7 +4,7 @@ use cosmwasm_std::{Addr, Deps, DepsMut, Env, MessageInfo};
 use cw_multi_test::{ContractWrapper, Executor};
 
 use crate::contract::Contract;
-use crate::protocol::{emptying_deps, emptying_deps_mut, CustomApp};
+use crate::protocol::{emptying_deps, emptying_deps_mut, AxelarApp};
 
 #[derive(Clone)]
 pub struct MultisigContract {
@@ -13,7 +13,7 @@ pub struct MultisigContract {
 
 impl MultisigContract {
     pub fn instantiate_contract(
-        app: &mut CustomApp,
+        app: &mut AxelarApp,
         governance: Addr,
         admin: Addr,
         rewards_address: Addr,

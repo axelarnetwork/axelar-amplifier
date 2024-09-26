@@ -21,7 +21,7 @@ pub struct TxHashAndNonceResponse {
     pub nonce: u64,
 }
 
-#[derive(Clone, Debug, PartialEq, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct IsChainRegisteredResponse {
     pub is_registered: bool,
 }

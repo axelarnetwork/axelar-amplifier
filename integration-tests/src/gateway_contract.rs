@@ -4,7 +4,7 @@ use cosmwasm_std::{Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response};
 use cw_multi_test::{ContractWrapper, Executor};
 
 use crate::contract::Contract;
-use crate::protocol::{emptying_deps, emptying_deps_mut, CustomApp};
+use crate::protocol::{emptying_deps, emptying_deps_mut, AxelarApp};
 
 #[derive(Clone)]
 pub struct GatewayContract {
@@ -13,7 +13,7 @@ pub struct GatewayContract {
 
 impl GatewayContract {
     pub fn instantiate_contract(
-        app: &mut CustomApp,
+        app: &mut AxelarApp,
         router_address: Addr,
         verifier_address: Addr,
     ) -> Self {

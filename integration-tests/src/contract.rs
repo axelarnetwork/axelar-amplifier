@@ -4,7 +4,7 @@ use error_stack::{report, Result};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
-use crate::protocol::CustomApp;
+use crate::protocol::AxelarApp;
 
 pub trait Contract {
     type QMsg;
@@ -13,7 +13,7 @@ pub trait Contract {
     fn contract_address(&self) -> Addr;
     fn query<T: DeserializeOwned>(
         &self,
-        app: &CustomApp,
+        app: &AxelarApp,
         query_message: &Self::QMsg,
     ) -> StdResult<T>
     where
@@ -25,7 +25,7 @@ pub trait Contract {
 
     fn execute(
         &self,
-        app: &mut CustomApp,
+        app: &mut AxelarApp,
         caller: Addr,
         execute_message: &Self::ExMsg,
     ) -> Result<AppResponse, axelar_wasm_std::error::ContractError>
@@ -38,7 +38,7 @@ pub trait Contract {
 
     fn execute_with_funds(
         &self,
-        app: &mut CustomApp,
+        app: &mut AxelarApp,
         caller: Addr,
         execute_message: &Self::ExMsg,
         funds: &[Coin],

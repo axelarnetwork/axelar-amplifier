@@ -4,7 +4,7 @@ use cosmwasm_std::{Addr, DepsMut, Env, MessageInfo, Response};
 use cw_multi_test::{ContractWrapper, Executor};
 
 use crate::contract::Contract;
-use crate::protocol::{emptying_deps, emptying_deps_mut, CustomApp};
+use crate::protocol::{emptying_deps, emptying_deps_mut, AxelarApp};
 
 #[derive(Clone)]
 pub struct ServiceRegistryContract {
@@ -12,7 +12,7 @@ pub struct ServiceRegistryContract {
 }
 
 impl ServiceRegistryContract {
-    pub fn instantiate_contract(app: &mut CustomApp, governance: Addr) -> Self {
+    pub fn instantiate_contract(app: &mut AxelarApp, governance: Addr) -> Self {
         let code = ContractWrapper::new(custom_execute, custom_instantiate, custom_query);
         let code_id = app.store_code(Box::new(code));
 
