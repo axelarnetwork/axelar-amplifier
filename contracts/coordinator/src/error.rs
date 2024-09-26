@@ -16,4 +16,10 @@ pub enum ContractError {
 
     #[error("prover is not registered")]
     ProverNotRegistered,
+
+    #[error("failed to obtain verifier details")]
+    FailedToGetVerifierDetails,
+
+    #[error("failed to get provers of verifier")]
+    FailedToGetProversForVerifier,
 }

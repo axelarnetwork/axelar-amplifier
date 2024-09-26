@@ -7563,6 +7563,7 @@ name = "service-registry-api"
 version = "1.0.0"
 dependencies = [
  "axelar-wasm-std",
+ "client",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 1.2.0",
@@ -9410,6 +9411,7 @@ dependencies = [
  "router-api",
  "serde_json",
  "service-registry",
+ "service-registry-api",
  "sha3",
  "thiserror",
 ]

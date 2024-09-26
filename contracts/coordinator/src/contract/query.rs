@@ -1,13 +1,12 @@
 use std::collections::HashSet;
 
-use cosmwasm_std::{to_json_binary, Addr, Deps, Order, QueryRequest, StdResult, WasmQuery};
-use itertools::Itertools;
-use service_registry_api::msg::QueryMsg::Verifier;
-use service_registry_api::msg::VerifierDetails;
-
 use crate::error::ContractError;
 use crate::msg::VerifierInfo;
 use crate::state::{CONFIG, VERIFIER_PROVER_INDEXED_MAP};
+use cosmwasm_std::{Addr, Deps, Order, StdResult};
+use error_stack::{Result, ResultExt};
+use itertools::Itertools;
+use service_registry_api::msg::VerifierDetails;
 
 pub fn check_verifier_ready_to_unbond(deps: Deps, verifier_address: Addr) -> StdResult<bool> {
     Ok(!is_verifier_in_any_verifier_set(deps, &verifier_address))
@@ -20,17 +19,12 @@ pub fn verifier_details_with_provers(
 ) -> Result<VerifierInfo, ContractError> {
     let config = CONFIG.load(deps.storage).expect("couldn't load config");
 
-    let verifier_details: VerifierDetails = deps
-        .querier
-        .query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: config.service_registry.to_string(),
-            msg: to_json_binary(&Verifier {
-                service_name,
-                verifier: verifier_address.to_string(),
-            })
-            .map_err(ContractError::from)?,
-        }))
-        .map_err(ContractError::from)?;
+    let service_registry: service_registry_api::Client =
+        client::ContractClient::new(deps.querier, &config.service_registry).into();
+
+    let verifier_details: VerifierDetails = service_registry
+        .verifier(service_name, verifier_address.to_string())
+        .change_context(ContractError::FailedToGetVerifierDetails)?;
 
     let active_prover_set = get_provers_for_verifier(deps, verifier_address)?;
 
@@ -61,7 +55,7 @@ fn get_provers_for_verifier(
         .prefix(verifier_address)
         .range(deps.storage, None, None, Order::Ascending)
         .map(|result| result.map(|(_, record)| record.prover))
-        .try_collect()?;
+        .try_collect();
 
-    Ok(provers)
+    provers.change_context(ContractError::FailedToGetProversForVerifier)
 }

@@ -1,3 +1,6 @@
+mod client;
+pub use client::Client;
+
 pub mod error;
 mod primitives;
 
