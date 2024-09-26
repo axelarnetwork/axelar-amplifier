@@ -1,7 +1,10 @@
-use cosmwasm_std::Addr;
-use cw_multi_test::{App, ContractWrapper, Executor};
+use axelar_core_std::query::AxelarQueryMsg;
+use axelar_wasm_std::error::ContractError;
+use cosmwasm_std::{Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response};
+use cw_multi_test::{ContractWrapper, Executor};
 
 use crate::contract::Contract;
+use crate::protocol::{emptying_deps, emptying_deps_mut, CustomApp};
 
 #[derive(Clone)]
 pub struct GatewayContract {
@@ -10,15 +13,11 @@ pub struct GatewayContract {
 
 impl GatewayContract {
     pub fn instantiate_contract(
-        app: &mut App,
+        app: &mut CustomApp,
         router_address: Addr,
         verifier_address: Addr,
     ) -> Self {
-        let code = ContractWrapper::new(
-            gateway::contract::execute,
-            gateway::contract::instantiate,
-            gateway::contract::query,
-        );
+        let code = ContractWrapper::new(custom_execute, custom_instantiate, custom_query);
         let code_id = app.store_code(Box::new(code));
 
         let contract_addr = app
@@ -37,6 +36,32 @@ impl GatewayContract {
 
         GatewayContract { contract_addr }
     }
+}
+
+fn custom_execute(
+    mut deps: DepsMut<AxelarQueryMsg>,
+    env: Env,
+    info: MessageInfo,
+    msg: gateway::msg::ExecuteMsg,
+) -> Result<Response, ContractError> {
+    gateway::contract::execute(emptying_deps_mut(&mut deps), env, info, msg)
+}
+
+fn custom_instantiate(
+    mut deps: DepsMut<AxelarQueryMsg>,
+    env: Env,
+    info: MessageInfo,
+    msg: gateway::msg::InstantiateMsg,
+) -> Result<Response, ContractError> {
+    gateway::contract::instantiate(emptying_deps_mut(&mut deps), env, info, msg)
+}
+
+fn custom_query(
+    deps: Deps<AxelarQueryMsg>,
+    env: Env,
+    msg: gateway::msg::QueryMsg,
+) -> Result<Binary, ContractError> {
+    gateway::contract::query(emptying_deps(&deps), env, msg)
 }
 
 impl Contract for GatewayContract {

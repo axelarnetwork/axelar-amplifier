@@ -1,10 +1,11 @@
+use axelar_core_std::query::AxelarQueryMsg;
 use axelar_wasm_std::MajorityThreshold;
-use cosmwasm_std::Addr;
+use cosmwasm_std::{Addr, DepsMut, Env, MessageInfo, Response};
 use cw_multi_test::{ContractWrapper, Executor};
 use router_api::ChainName;
 
 use crate::contract::Contract;
-use crate::protocol::Protocol;
+use crate::protocol::{emptying_deps, emptying_deps_mut, Protocol};
 
 #[derive(Clone)]
 pub struct VotingVerifierContract {
@@ -17,11 +18,7 @@ impl VotingVerifierContract {
         voting_threshold: MajorityThreshold,
         source_chain: ChainName,
     ) -> Self {
-        let code = ContractWrapper::new(
-            voting_verifier::contract::execute,
-            voting_verifier::contract::instantiate,
-            voting_verifier::contract::query,
-        );
+        let code = ContractWrapper::new(custom_execute, custom_instantiate, custom_query);
         let app = &mut protocol.app;
         let code_id = app.store_code(Box::new(code));
 
@@ -62,6 +59,32 @@ impl VotingVerifierContract {
 
         VotingVerifierContract { contract_addr }
     }
+}
+
+fn custom_execute(
+    mut deps: DepsMut<AxelarQueryMsg>,
+    env: Env,
+    info: MessageInfo,
+    msg: voting_verifier::msg::ExecuteMsg,
+) -> Result<Response, axelar_wasm_std::error::ContractError> {
+    voting_verifier::contract::execute(emptying_deps_mut(&mut deps), env, info, msg)
+}
+
+fn custom_instantiate(
+    mut deps: DepsMut<AxelarQueryMsg>,
+    env: Env,
+    info: MessageInfo,
+    msg: voting_verifier::msg::InstantiateMsg,
+) -> Result<Response, axelar_wasm_std::error::ContractError> {
+    voting_verifier::contract::instantiate(emptying_deps_mut(&mut deps), env, info, msg)
+}
+
+fn custom_query(
+    deps: cosmwasm_std::Deps<AxelarQueryMsg>,
+    env: Env,
+    msg: voting_verifier::msg::QueryMsg,
+) -> Result<cosmwasm_std::Binary, axelar_wasm_std::error::ContractError> {
+    voting_verifier::contract::query(emptying_deps(&deps), env, msg)
 }
 
 impl Contract for VotingVerifierContract {

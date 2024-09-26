@@ -28,8 +28,11 @@ optimize = """docker run --rm -v "$(pwd)":/code \
 """
 
 [dependencies]
+axelar-core-std = { workspace = true }
 axelar-wasm-std = { workspace = true }
 coordinator = { workspace = true }
+schemars = { workspace = true }
+anyhow = { workspace = true }
 cosmwasm-std = { workspace = true }
 cw-multi-test = "0.15.1"
 error-stack = { workspace = true }

@@ -1,8 +1,10 @@
-use coordinator::contract::{execute, instantiate, query};
-use cosmwasm_std::Addr;
-use cw_multi_test::{App, ContractWrapper, Executor};
+use axelar_core_std::query::AxelarQueryMsg;
+use axelar_wasm_std::error::ContractError;
+use cosmwasm_std::{Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response};
+use cw_multi_test::{ContractWrapper, Executor};
 
 use crate::contract::Contract;
+use crate::protocol::{emptying_deps, emptying_deps_mut, CustomApp};
 
 #[derive(Clone)]
 pub struct CoordinatorContract {
@@ -10,8 +12,8 @@ pub struct CoordinatorContract {
 }
 
 impl CoordinatorContract {
-    pub fn instantiate_contract(app: &mut App, governance: Addr) -> Self {
-        let code = ContractWrapper::new(execute, instantiate, query);
+    pub fn instantiate_contract(app: &mut CustomApp, governance: Addr) -> Self {
+        let code = ContractWrapper::new(custom_execute, custom_instantiate, custom_query);
         let code_id = app.store_code(Box::new(code));
 
         let contract_addr = app
@@ -31,6 +33,31 @@ impl CoordinatorContract {
     }
 }
 
+fn custom_execute(
+    mut deps: DepsMut<AxelarQueryMsg>,
+    env: Env,
+    info: MessageInfo,
+    msg: coordinator::msg::ExecuteMsg,
+) -> Result<Response, ContractError> {
+    coordinator::contract::execute(emptying_deps_mut(&mut deps), env, info, msg)
+}
+
+fn custom_instantiate(
+    mut deps: DepsMut<AxelarQueryMsg>,
+    env: Env,
+    info: MessageInfo,
+    msg: coordinator::msg::InstantiateMsg,
+) -> Result<Response, ContractError> {
+    coordinator::contract::instantiate(emptying_deps_mut(&mut deps), env, info, msg)
+}
+
+fn custom_query(
+    deps: Deps<AxelarQueryMsg>,
+    env: Env,
+    msg: coordinator::msg::QueryMsg,
+) -> Result<Binary, ContractError> {
+    coordinator::contract::query(emptying_deps(&deps), env, msg)
+}
 impl Contract for CoordinatorContract {
     type QMsg = coordinator::msg::QueryMsg;
     type ExMsg = coordinator::msg::ExecuteMsg;

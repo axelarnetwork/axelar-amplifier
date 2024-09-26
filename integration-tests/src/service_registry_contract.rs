@@ -1,8 +1,10 @@
-use cosmwasm_std::Addr;
-use cw_multi_test::{App, ContractWrapper, Executor};
-use service_registry::contract::{execute, instantiate, query};
+use axelar_core_std::query::AxelarQueryMsg;
+use axelar_wasm_std::error::ContractError;
+use cosmwasm_std::{Addr, DepsMut, Env, MessageInfo, Response};
+use cw_multi_test::{ContractWrapper, Executor};
 
 use crate::contract::Contract;
+use crate::protocol::{emptying_deps, emptying_deps_mut, CustomApp};
 
 #[derive(Clone)]
 pub struct ServiceRegistryContract {
@@ -10,8 +12,8 @@ pub struct ServiceRegistryContract {
 }
 
 impl ServiceRegistryContract {
-    pub fn instantiate_contract(app: &mut App, governance: Addr) -> Self {
-        let code = ContractWrapper::new(execute, instantiate, query);
+    pub fn instantiate_contract(app: &mut CustomApp, governance: Addr) -> Self {
+        let code = ContractWrapper::new(custom_execute, custom_instantiate, custom_query);
         let code_id = app.store_code(Box::new(code));
 
         let contract_addr = app
@@ -29,6 +31,32 @@ impl ServiceRegistryContract {
 
         ServiceRegistryContract { contract_addr }
     }
+}
+
+fn custom_execute(
+    mut deps: DepsMut<AxelarQueryMsg>,
+    env: Env,
+    info: MessageInfo,
+    msg: service_registry::msg::ExecuteMsg,
+) -> Result<Response, ContractError> {
+    service_registry::contract::execute(emptying_deps_mut(&mut deps), env, info, msg)
+}
+
+fn custom_instantiate(
+    mut deps: DepsMut<AxelarQueryMsg>,
+    env: Env,
+    info: MessageInfo,
+    msg: service_registry::msg::InstantiateMsg,
+) -> Result<Response, ContractError> {
+    service_registry::contract::instantiate(emptying_deps_mut(&mut deps), env, info, msg)
+}
+
+fn custom_query(
+    deps: cosmwasm_std::Deps<AxelarQueryMsg>,
+    env: Env,
+    msg: service_registry::msg::QueryMsg,
+) -> Result<cosmwasm_std::Binary, ContractError> {
+    service_registry::contract::query(emptying_deps(&deps), env, msg)
 }
 
 impl Contract for ServiceRegistryContract {

@@ -135,7 +135,7 @@ pub fn query(
     match msg {
         QueryMsg::ChainInfo(chain) => to_json_binary(&query::chain_info(deps.storage, chain)?),
         QueryMsg::Chains { start_after, limit } => {
-            to_json_binary(&query::chains(deps, start_after, limit)?)
+            to_json_binary(&query::chains(deps.storage, start_after, limit)?)
         }
         QueryMsg::IsEnabled => to_json_binary(&killswitch::is_contract_active(deps.storage)),
     }
