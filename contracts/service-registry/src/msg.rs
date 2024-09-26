@@ -6,10 +6,5 @@ pub struct InstantiateMsg {
     pub governance_account: String,
 }
 
-#[cw_serde]
-pub struct MigrateMsg {
-    pub coordinator_contract: Addr,
-}
-
 // these messages and structs are extracted into a separate package to avoid circular dependencies
 pub use service_registry_api::msg::{ExecuteMsg, QueryMsg, UpdatedServiceParams, VerifierDetails};
