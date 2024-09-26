@@ -147,6 +147,7 @@ mod test {
     use std::collections::HashMap;
     use std::str::FromStr;
 
+    use axelar_core_std::nexus::test_utils::reply_with_is_chain_registered;
     use axelar_wasm_std::err_contains;
     use axelar_wasm_std::error::ContractError;
     use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
@@ -170,6 +171,9 @@ mod test {
 
     fn setup() -> OwnedDeps<MockStorage, MockApi, MockQuerier, Empty> {
         let mut deps = mock_dependencies();
+        deps.querier = deps
+            .querier
+            .with_custom_handler(reply_with_is_chain_registered(false));
 
         instantiate(
             deps.as_mut(),

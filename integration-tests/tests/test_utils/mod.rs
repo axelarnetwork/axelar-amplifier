@@ -354,9 +354,9 @@ pub fn setup_protocol(service_name: nonempty::String) -> Protocol {
         .with_custom(AxelarModule {
             tx_hash_and_nonce: Box::new(|_| unimplemented!()),
             is_chain_registered: Box::new(|_| {
-                return Ok(to_json_binary(&IsChainRegisteredResponse {
+                Ok(to_json_binary(&IsChainRegisteredResponse {
                     is_registered: false,
-                })?);
+                })?)
             }),
         })
         .build(|router, _, storage| {

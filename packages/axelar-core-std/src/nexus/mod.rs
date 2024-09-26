@@ -52,16 +52,61 @@ impl<'a> Client<'a> {
     }
 }
 
-#[cfg(test)]
-mod test {
-    use assert_ok::assert_ok;
-    use cosmwasm_std::testing::{MockQuerier, MockQuerierCustomHandlerResult};
-    use cosmwasm_std::{ContractResult, QuerierWrapper, SystemResult};
-    use rand::RngCore;
+#[cfg(any(test, feature = "test"))]
+pub mod test_utils {
+    use cosmwasm_std::testing::MockQuerierCustomHandlerResult;
+    use cosmwasm_std::{ContractResult, SystemResult};
     use serde::de::DeserializeOwned;
     use serde_json::json;
 
+    pub fn reply_with_tx_hash_and_nonce<C>(
+        tx_hash: [u8; 32],
+        nonce: u64,
+    ) -> impl Fn(&C) -> MockQuerierCustomHandlerResult
+    where
+        C: DeserializeOwned,
+    {
+        move |_| {
+            SystemResult::Ok(ContractResult::Ok(
+                json!({
+                    "tx_hash": tx_hash,
+                    "nonce": nonce,
+                })
+                .to_string()
+                .as_bytes()
+                .into(),
+            ))
+        }
+    }
+
+    pub fn reply_with_is_chain_registered<C>(
+        is_registered: bool,
+    ) -> impl Fn(&C) -> MockQuerierCustomHandlerResult
+    where
+        C: DeserializeOwned,
+    {
+        move |_| {
+            SystemResult::Ok(ContractResult::Ok(
+                json!({
+                    "is_registered": is_registered
+                })
+                .to_string()
+                .as_bytes()
+                .into(),
+            ))
+        }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use assert_ok::assert_ok;
+    use cosmwasm_std::testing::MockQuerier;
+    use cosmwasm_std::QuerierWrapper;
+    use rand::RngCore;
+
     use crate::nexus;
+    use crate::nexus::test_utils::{reply_with_is_chain_registered, reply_with_tx_hash_and_nonce};
     use crate::query::AxelarQueryMsg;
 
     #[test]
@@ -83,41 +128,12 @@ mod test {
     #[test]
     fn query_is_chain_registered() {
         let querier: MockQuerier<AxelarQueryMsg> =
-            MockQuerier::new(&[]).with_custom_handler(|_| {
-                SystemResult::Ok(ContractResult::Ok(
-                    json!({
-                        "is_registered": true,
-                    })
-                    .to_string()
-                    .as_bytes()
-                    .into(),
-                ))
-            });
+            MockQuerier::new(&[]).with_custom_handler(reply_with_is_chain_registered(true));
 
         let client: nexus::Client = client::CosmosClient::new(QuerierWrapper::new(&querier)).into();
 
         assert!(
             assert_ok!(client.is_chain_registered(&"test-chain".parse().unwrap())).is_registered
         );
-    }
-
-    fn reply_with_tx_hash_and_nonce<C>(
-        tx_hash: [u8; 32],
-        nonce: u64,
-    ) -> impl Fn(&C) -> MockQuerierCustomHandlerResult
-    where
-        C: DeserializeOwned,
-    {
-        move |_| {
-            SystemResult::Ok(ContractResult::Ok(
-                json!({
-                    "tx_hash": tx_hash,
-                    "nonce": nonce,
-                })
-                .to_string()
-                .as_bytes()
-                .into(),
-            ))
-        }
     }
 }
