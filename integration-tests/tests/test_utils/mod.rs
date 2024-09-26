@@ -332,7 +332,7 @@ pub fn verifier_info_from_coordinator(
 pub fn assert_verifier_details_are_equal(
     verifier_info: VerifierInfo,
     verifier: &Verifier,
-    chains: &Vec<Chain>,
+    chains: &[Chain],
 ) {
     assert_eq!(verifier_info.verifier.address, verifier.addr);
 

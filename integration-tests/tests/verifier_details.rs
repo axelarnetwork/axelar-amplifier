@@ -18,7 +18,7 @@ fn verifier_information_should_be_consistent_in_coordinator() {
 
     test_utils::assert_verifier_details_are_equal(
         first_verifier_info,
-        &verifiers.first().unwrap(),
+        verifiers.first().unwrap(),
         &chains,
     );
 
@@ -29,7 +29,7 @@ fn verifier_information_should_be_consistent_in_coordinator() {
 
     test_utils::assert_verifier_details_are_equal(
         second_verifier_info,
-        &verifiers.get(1).unwrap(),
+        verifiers.get(1).unwrap(),
         &chains,
     );
 }

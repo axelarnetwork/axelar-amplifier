@@ -12,10 +12,14 @@ pub enum Error {
         "failed to execute ReadyToUnbond query at coordinator contract. verifier_address: {0}"
     )]
     ReadyToUnbond(String),
+
     #[error(
-        "failed to execute VerifierDetailsWithProvers query at coordinator contract. service_name: {0}, verifier_address: {1}"
+        "failed to execute VerifierDetailsWithProvers query at coordinator contract. service_name: {service_name}, verifier_address: {verifier_address}"
     )]
-    VerifierDetailsWithProvers(String, String),
+    VerifierDetailsWithProvers {
+        service_name: String,
+        verifier_address: String,
+    },
 }
 
 impl From<QueryMsg> for Error {
@@ -25,7 +29,10 @@ impl From<QueryMsg> for Error {
             QueryMsg::VerifierInfo {
                 service_name,
                 verifier,
-            } => Error::VerifierDetailsWithProvers(service_name, verifier),
+            } => Error::VerifierDetailsWithProvers {
+                service_name,
+                verifier_address: verifier,
+            },
         }
     }
 }

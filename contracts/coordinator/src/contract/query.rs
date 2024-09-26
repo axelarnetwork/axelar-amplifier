@@ -9,32 +9,8 @@ use crate::error::ContractError;
 use crate::msg::VerifierInfo;
 use crate::state::{CONFIG, VERIFIER_PROVER_INDEXED_MAP};
 
-fn is_verifier_in_any_verifier_set(deps: Deps, verifier_address: &Addr) -> bool {
-    VERIFIER_PROVER_INDEXED_MAP
-        .idx
-        .by_verifier
-        .prefix(verifier_address.clone())
-        .range(deps.storage, None, None, Order::Ascending)
-        .any(|_| true)
-}
-
 pub fn check_verifier_ready_to_unbond(deps: Deps, verifier_address: Addr) -> StdResult<bool> {
     Ok(!is_verifier_in_any_verifier_set(deps, &verifier_address))
-}
-
-fn get_provers_for_verifier(
-    deps: Deps,
-    verifier_address: Addr,
-) -> Result<HashSet<Addr>, ContractError> {
-    let provers = VERIFIER_PROVER_INDEXED_MAP
-        .idx
-        .by_verifier
-        .prefix(verifier_address)
-        .range(deps.storage, None, None, Order::Ascending)
-        .map(|result| result.map(|(_, record)| record.prover))
-        .try_collect()?;
-
-    Ok(provers)
 }
 
 pub fn verifier_details_with_provers(
@@ -42,7 +18,7 @@ pub fn verifier_details_with_provers(
     service_name: String,
     verifier_address: Addr,
 ) -> Result<VerifierInfo, ContractError> {
-    let config = CONFIG.load(deps.storage).map_err(ContractError::from)?;
+    let config = CONFIG.load(deps.storage).expect("couldn't load config");
 
     let verifier_details: VerifierDetails = deps
         .querier
@@ -64,4 +40,28 @@ pub fn verifier_details_with_provers(
         supported_chains: verifier_details.supported_chains,
         actively_signing_for: active_prover_set,
     })
+}
+
+fn is_verifier_in_any_verifier_set(deps: Deps, verifier_address: &Addr) -> bool {
+    VERIFIER_PROVER_INDEXED_MAP
+        .idx
+        .by_verifier
+        .prefix(verifier_address.clone())
+        .range(deps.storage, None, None, Order::Ascending)
+        .any(|_| true)
+}
+
+fn get_provers_for_verifier(
+    deps: Deps,
+    verifier_address: Addr,
+) -> Result<HashSet<Addr>, ContractError> {
+    let provers = VERIFIER_PROVER_INDEXED_MAP
+        .idx
+        .by_verifier
+        .prefix(verifier_address)
+        .range(deps.storage, None, None, Order::Ascending)
+        .map(|result| result.map(|(_, record)| record.prover))
+        .try_collect()?;
+
+    Ok(provers)
 }
