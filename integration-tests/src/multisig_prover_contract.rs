@@ -1,12 +1,13 @@
 use axelar_core_std::query::AxelarQueryMsg;
 use axelar_wasm_std::Threshold;
-use cosmwasm_std::{Addr, Deps, DepsMut, Env, MessageInfo};
+use cosmwasm_std::{Addr, DepsMut, Env};
 use cw_multi_test::{ContractWrapper, Executor};
 use multisig::key::KeyType;
+use multisig_prover::contract::{execute, instantiate, query};
 use multisig_prover::Encoder;
 
 use crate::contract::Contract;
-use crate::protocol::{emptying_deps, emptying_deps_mut, Protocol};
+use crate::protocol::{emptying_deps_mut, Protocol};
 
 #[derive(Clone)]
 pub struct MultisigProverContract {
@@ -22,8 +23,8 @@ impl MultisigProverContract {
         voting_verifier_address: Addr,
         chain_name: String,
     ) -> Self {
-        let code = ContractWrapper::new(custom_execute, custom_instantiate, custom_query)
-            .with_reply(custom_reply);
+        let code =
+            ContractWrapper::new_with_empty(execute, instantiate, query).with_reply(custom_reply);
         let app = &mut protocol.app;
         let code_id = app.store_code(Box::new(code));
 
@@ -61,32 +62,6 @@ impl MultisigProverContract {
             admin_addr: admin_address,
         }
     }
-}
-
-fn custom_execute(
-    mut deps: DepsMut<AxelarQueryMsg>,
-    env: Env,
-    info: MessageInfo,
-    msg: multisig_prover::msg::ExecuteMsg,
-) -> Result<cosmwasm_std::Response, axelar_wasm_std::error::ContractError> {
-    multisig_prover::contract::execute(emptying_deps_mut(&mut deps), env, info, msg)
-}
-
-fn custom_instantiate(
-    mut deps: DepsMut<AxelarQueryMsg>,
-    env: Env,
-    info: MessageInfo,
-    msg: multisig_prover::msg::InstantiateMsg,
-) -> Result<cosmwasm_std::Response, axelar_wasm_std::error::ContractError> {
-    multisig_prover::contract::instantiate(emptying_deps_mut(&mut deps), env, info, msg)
-}
-
-fn custom_query(
-    deps: Deps<AxelarQueryMsg>,
-    env: Env,
-    msg: multisig_prover::msg::QueryMsg,
-) -> Result<cosmwasm_std::Binary, axelar_wasm_std::error::ContractError> {
-    multisig_prover::contract::query(emptying_deps(&deps), env, msg)
 }
 
 fn custom_reply(
