@@ -1,7 +1,6 @@
 #![allow(deprecated)]
 
-use axelar_wasm_std::killswitch::State;
-use axelar_wasm_std::{killswitch, nonempty};
+use axelar_wasm_std::nonempty;
 use cosmwasm_std::{Addr, StdError, Storage};
 use cw2::VersionError;
 
@@ -21,8 +20,6 @@ pub enum Error {
 
 pub fn migrate(storage: &mut dyn Storage, service_registry: Addr) -> Result<(), Error> {
     cw2::assert_contract_version(storage, CONTRACT_NAME, BASE_VERSION)?;
-
-    killswitch::init(storage, State::Disengaged)?;
 
     migrate_config(storage, service_registry)?;
     Ok(())
