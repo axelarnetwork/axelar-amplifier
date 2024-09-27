@@ -1,7 +1,7 @@
-use crate::msg::{ExecuteMsg, QueryMsg, VerifierDetails};
 use error_stack::ResultExt;
 use router_api::ChainName;
 
+use crate::msg::{ExecuteMsg, QueryMsg, VerifierDetails};
 use crate::{Service, WeightedVerifier};
 
 type Result<T> = error_stack::Result<T, Error>;
@@ -88,13 +88,13 @@ impl<'a> Client<'a> {
 #[cfg(test)]
 mod test {
 
-    use crate::msg::{QueryMsg, VerifierDetails};
     use axelar_wasm_std::nonempty::Uint128;
     use cosmwasm_std::testing::MockQuerier;
     use cosmwasm_std::{from_json, to_json_binary, Addr, QuerierWrapper, SystemError, WasmQuery};
     use router_api::ChainName;
 
     use crate::client::Client;
+    use crate::msg::{QueryMsg, VerifierDetails};
     use crate::{Service, Verifier, WeightedVerifier};
 
     #[test]

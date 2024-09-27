@@ -1,12 +1,13 @@
 use std::collections::HashSet;
 
-use crate::error::ContractError;
-use crate::msg::VerifierInfo;
-use crate::state::{CONFIG, VERIFIER_PROVER_INDEXED_MAP};
 use cosmwasm_std::{Addr, Deps, Order, StdResult};
 use error_stack::{Result, ResultExt};
 use itertools::Itertools;
 use service_registry_api::msg::VerifierDetails;
+
+use crate::error::ContractError;
+use crate::msg::VerifierInfo;
+use crate::state::{CONFIG, VERIFIER_PROVER_INDEXED_MAP};
 
 pub fn check_verifier_ready_to_unbond(deps: Deps, verifier_address: Addr) -> StdResult<bool> {
     Ok(!is_verifier_in_any_verifier_set(deps, &verifier_address))
