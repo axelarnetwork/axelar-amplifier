@@ -16,6 +16,12 @@ pub struct Config {
 }
 pub const CONFIG: Item<Config> = Item::new("config");
 
+pub fn load_config(storage: &dyn Storage) -> Config {
+    CONFIG
+        .load(storage)
+        .expect("coordinator config must be set during instantiation")
+}
+
 #[index_list(ProverAddress)]
 struct ChainProverIndexes<'a> {
     pub by_prover: UniqueIndex<'a, ProverAddress, ProverAddress, ChainName>,

@@ -7,7 +7,7 @@ use service_registry_api::msg::VerifierDetails;
 
 use crate::error::ContractError;
 use crate::msg::VerifierInfo;
-use crate::state::{CONFIG, VERIFIER_PROVER_INDEXED_MAP};
+use crate::state::{load_config, VERIFIER_PROVER_INDEXED_MAP};
 
 pub fn check_verifier_ready_to_unbond(deps: Deps, verifier_address: Addr) -> StdResult<bool> {
     Ok(!is_verifier_in_any_verifier_set(deps, &verifier_address))
@@ -18,7 +18,7 @@ pub fn verifier_details_with_provers(
     service_name: String,
     verifier_address: Addr,
 ) -> Result<VerifierInfo, ContractError> {
-    let config = CONFIG.load(deps.storage).expect("couldn't load config");
+    let config = load_config(deps.storage);
 
     let service_registry: service_registry_api::Client =
         client::ContractClient::new(deps.querier, &config.service_registry).into();
