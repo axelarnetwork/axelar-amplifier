@@ -1,9 +1,9 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
 use axelar_wasm_std::voting::{PollId, Vote};
 use axelar_wasm_std::{nonempty, Participant, Threshold};
-use coordinator::msg::ExecuteMsg as CoordinatorExecuteMsg;
+use coordinator::msg::{ExecuteMsg as CoordinatorExecuteMsg, VerifierInfo};
 use cosmwasm_std::{
     coins, Addr, Attribute, BlockInfo, Event, HexBinary, StdError, Uint128, Uint64,
 };
@@ -313,6 +313,43 @@ pub fn verifier_set_from_prover(
     query_response.unwrap().unwrap().verifier_set
 }
 
+pub fn verifier_info_from_coordinator(
+    protocol: &mut Protocol,
+    verifier_address: Addr,
+) -> VerifierInfo {
+    let query_response: Result<VerifierInfo, StdError> = protocol.coordinator.query(
+        &protocol.app,
+        &coordinator::msg::QueryMsg::VerifierInfo {
+            service_name: protocol.service_name.to_string(),
+            verifier: verifier_address.to_string(),
+        },
+    );
+    assert!(query_response.is_ok());
+
+    query_response.unwrap()
+}
+
+pub fn assert_verifier_details_are_equal(
+    verifier_info: VerifierInfo,
+    verifier: &Verifier,
+    chains: &[Chain],
+) {
+    assert_eq!(verifier_info.verifier.address, verifier.addr);
+
+    let verifier_info_chains: HashSet<ChainName> =
+        verifier_info.supported_chains.into_iter().collect();
+    let verifier_chains: HashSet<ChainName> =
+        verifier.supported_chains.clone().into_iter().collect();
+    assert_eq!(verifier_info_chains, verifier_chains);
+
+    let available_provers: HashSet<Addr> = chains
+        .iter()
+        .map(|chain| chain.multisig_prover.contract_addr.clone())
+        .collect();
+
+    assert_eq!(verifier_info.actively_signing_for, available_provers);
+}
+
 #[allow(clippy::arithmetic_side_effects)]
 pub fn advance_height(app: &mut App, increment: u64) {
     let cur_block = app.block_info();
@@ -385,11 +422,14 @@ pub fn setup_protocol(service_name: nonempty::String) -> Protocol {
         SIGNATURE_BLOCK_EXPIRY.try_into().unwrap(),
     );
 
-    let coordinator =
-        CoordinatorContract::instantiate_contract(&mut app, governance_address.clone());
-
     let service_registry =
         ServiceRegistryContract::instantiate_contract(&mut app, governance_address.clone());
+
+    let coordinator = CoordinatorContract::instantiate_contract(
+        &mut app,
+        governance_address.clone(),
+        service_registry.contract_addr.clone(),
+    );
 
     Protocol {
         genesis_address: genesis,

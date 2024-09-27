@@ -12,12 +12,27 @@ pub enum Error {
         "failed to execute ReadyToUnbond query at coordinator contract. verifier_address: {0}"
     )]
     ReadyToUnbond(String),
+
+    #[error(
+        "failed to execute VerifierDetailsWithProvers query at coordinator contract. service_name: {service_name}, verifier_address: {verifier_address}"
+    )]
+    VerifierDetailsWithProvers {
+        service_name: String,
+        verifier_address: String,
+    },
 }
 
 impl From<QueryMsg> for Error {
     fn from(value: QueryMsg) -> Self {
         match value {
             QueryMsg::ReadyToUnbond { verifier_address } => Error::ReadyToUnbond(verifier_address),
+            QueryMsg::VerifierInfo {
+                service_name,
+                verifier,
+            } => Error::VerifierDetailsWithProvers {
+                service_name,
+                verifier_address: verifier,
+            },
         }
     }
 }
@@ -113,6 +128,10 @@ mod test {
                 match msg {
                     QueryMsg::ReadyToUnbond {
                         verifier_address: _,
+                    } => Ok(to_json_binary(&true).into()).into(),
+                    QueryMsg::VerifierInfo {
+                        service_name: _,
+                        verifier: _,
                     } => Ok(to_json_binary(&true).into()).into(),
                 }
             }

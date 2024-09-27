@@ -119,7 +119,7 @@ fn make_verifier_set(
     env: &Env,
     config: &Config,
 ) -> Result<VerifierSet, ContractError> {
-    let service_registry: service_registry::Client =
+    let service_registry: service_registry_api::Client =
         client::ContractClient::new(deps.querier, &config.service_registry).into();
 
     let verifiers: Vec<WeightedVerifier> = service_registry
