@@ -7,13 +7,13 @@ use axelar_wasm_std::{address, permission_control, FnExt};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_json_binary, Addr, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response, Storage,
+    to_json_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response, Storage,
 };
-use error_stack::report;
+use error_stack::{report, ResultExt};
 use itertools::Itertools;
 
 use crate::error::ContractError;
-use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
+use crate::msg::{ExecuteMsg, InstantiateMsg, MigrationMsg, QueryMsg};
 use crate::state::{is_prover_registered, Config, CONFIG};
 
 pub const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
@@ -23,8 +23,13 @@ pub const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub fn migrate(
     deps: DepsMut,
     _env: Env,
-    _msg: Empty,
+    msg: MigrationMsg,
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
+    let service_registry = validate_cosmwasm_address(deps.api, &msg.service_registry)?;
+
+    migrations::v0_2_0::migrate(deps.storage, service_registry)
+        .change_context(ContractError::Migration)?;
+
     // this needs to be the last thing to do during migration,
     // because previous migration steps should check the old version
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;

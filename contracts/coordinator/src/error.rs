@@ -22,4 +22,7 @@ pub enum ContractError {
 
     #[error("failed to get provers of verifier")]
     FailedToGetProversForVerifier,
+
+    #[error("failed to migrate contract state")]
+    Migration,
 }

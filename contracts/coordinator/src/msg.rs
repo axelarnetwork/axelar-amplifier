@@ -8,6 +8,11 @@ use router_api::ChainName;
 use service_registry_api::Verifier;
 
 #[cw_serde]
+pub struct MigrationMsg {
+    pub service_registry: String,
+}
+
+#[cw_serde]
 pub struct InstantiateMsg {
     pub governance_address: String,
     pub service_registry: String,
