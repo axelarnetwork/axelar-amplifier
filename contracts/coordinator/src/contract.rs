@@ -27,7 +27,7 @@ pub fn migrate(
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
     let service_registry = validate_cosmwasm_address(deps.api, &msg.service_registry)?;
 
-    migrations::v0_2_0::migrate(deps.storage, service_registry)
+    migrations::v1_0_0::migrate(deps.storage, service_registry)
         .change_context(ContractError::Migration)?;
 
     // this needs to be the last thing to do during migration,

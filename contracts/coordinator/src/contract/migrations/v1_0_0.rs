@@ -7,7 +7,7 @@ use cw2::VersionError;
 
 use crate::contract::CONTRACT_NAME;
 
-const BASE_VERSION: &str = "0.2.0";
+const BASE_VERSION: &str = "1.0.0";
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
@@ -41,7 +41,7 @@ mod tests {
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
     use cosmwasm_std::{Addr, DepsMut, Env, MessageInfo, Response};
 
-    use crate::contract::migrations::v0_2_0::{self, BASE_VERSION};
+    use crate::contract::migrations::v1_0_0::{self, BASE_VERSION};
     use crate::contract::CONTRACT_NAME;
 
     const GOVERNANCE: &str = "governance";
@@ -53,11 +53,11 @@ mod tests {
 
         cw2::set_contract_version(deps.as_mut().storage, CONTRACT_NAME, "something wrong").unwrap();
 
-        assert!(v0_2_0::migrate(deps.as_mut().storage, Addr::unchecked("random_service")).is_err());
+        assert!(v1_0_0::migrate(deps.as_mut().storage, Addr::unchecked("random_service")).is_err());
 
         cw2::set_contract_version(deps.as_mut().storage, CONTRACT_NAME, BASE_VERSION).unwrap();
 
-        assert!(v0_2_0::migrate(deps.as_mut().storage, Addr::unchecked("random_service")).is_ok());
+        assert!(v1_0_0::migrate(deps.as_mut().storage, Addr::unchecked("random_service")).is_ok());
     }
 
     #[test]
@@ -74,7 +74,7 @@ mod tests {
         .unwrap();
 
         let service_registry_address = Addr::unchecked("random_service");
-        assert!(v0_2_0::migrate(deps.as_mut().storage, service_registry_address.clone()).is_ok());
+        assert!(v1_0_0::migrate(deps.as_mut().storage, service_registry_address.clone()).is_ok());
 
         let config_result = crate::state::CONFIG.load(deps.as_mut().storage);
         assert!(config_result.is_ok());
@@ -95,7 +95,7 @@ mod tests {
         .unwrap();
     }
 
-    #[deprecated(since = "0.2.0", note = "only used to test the migration")]
+    #[deprecated(since = "1.0.0", note = "only used to test the migration")]
     fn instantiate(
         deps: DepsMut,
         _env: Env,
@@ -111,7 +111,7 @@ mod tests {
     }
 
     #[cw_serde]
-    #[deprecated(since = "0.2.0", note = "only used to test the migration")]
+    #[deprecated(since = "1.0.0", note = "only used to test the migration")]
     struct InstantiateMsg {
         pub governance_address: String,
     }
