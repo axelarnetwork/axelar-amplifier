@@ -11,7 +11,11 @@ pub struct CoordinatorContract {
 }
 
 impl CoordinatorContract {
-    pub fn instantiate_contract(app: &mut AxelarApp, governance: Addr) -> Self {
+    pub fn instantiate_contract(
+        app: &mut AxelarApp,
+        governance: Addr,
+        service_registry: Addr,
+    ) -> Self {
         let code = ContractWrapper::new_with_empty(execute, instantiate, query);
         let code_id = app.store_code(Box::new(code));
 
@@ -21,6 +25,7 @@ impl CoordinatorContract {
                 Addr::unchecked("anyone"),
                 &coordinator::msg::InstantiateMsg {
                     governance_address: governance.to_string(),
+                    service_registry: service_registry.to_string(),
                 },
                 &[],
                 "coordinator",
