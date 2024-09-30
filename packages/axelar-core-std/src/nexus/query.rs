@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 #[non_exhaustive]
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
-pub(crate) enum QueryMsg {
+pub enum QueryMsg {
     // TxHashAndNonce returns the tx hash and nonce of the current transaction
     // Note that the empty struct is used to be able to work for Golang
     TxHashAndNonce {},
@@ -21,7 +21,7 @@ pub struct TxHashAndNonceResponse {
     pub nonce: u64,
 }
 
-#[derive(Clone, Debug, PartialEq, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct IsChainRegisteredResponse {
     pub is_registered: bool,
 }

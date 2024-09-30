@@ -1,8 +1,9 @@
 use coordinator::contract::{execute, instantiate, query};
 use cosmwasm_std::Addr;
-use cw_multi_test::{App, ContractWrapper, Executor};
+use cw_multi_test::{ContractWrapper, Executor};
 
 use crate::contract::Contract;
+use crate::protocol::AxelarApp;
 
 #[derive(Clone)]
 pub struct CoordinatorContract {
@@ -10,8 +11,8 @@ pub struct CoordinatorContract {
 }
 
 impl CoordinatorContract {
-    pub fn instantiate_contract(app: &mut App, governance: Addr) -> Self {
-        let code = ContractWrapper::new(execute, instantiate, query);
+    pub fn instantiate_contract(app: &mut AxelarApp, governance: Addr) -> Self {
+        let code = ContractWrapper::new_with_empty(execute, instantiate, query);
         let code_id = app.store_code(Box::new(code));
 
         let contract_addr = app

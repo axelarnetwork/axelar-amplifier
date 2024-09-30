@@ -1,19 +1,20 @@
 use std::collections::HashMap;
 
+use axelar_core_std::nexus::query::IsChainRegisteredResponse;
 use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
 use axelar_wasm_std::voting::{PollId, Vote};
 use axelar_wasm_std::{nonempty, Participant, Threshold};
 use coordinator::msg::ExecuteMsg as CoordinatorExecuteMsg;
 use cosmwasm_std::{
-    coins, Addr, Attribute, BlockInfo, Event, HexBinary, StdError, Uint128, Uint64,
+    coins, to_json_binary, Addr, Attribute, BlockInfo, Event, HexBinary, StdError, Uint128, Uint64,
 };
-use cw_multi_test::{App, AppResponse, Executor};
+use cw_multi_test::{AppBuilder, AppResponse, Executor};
 use integration_tests::contract::Contract;
 use integration_tests::coordinator_contract::CoordinatorContract;
 use integration_tests::gateway_contract::GatewayContract;
 use integration_tests::multisig_contract::MultisigContract;
 use integration_tests::multisig_prover_contract::MultisigProverContract;
-use integration_tests::protocol::Protocol;
+use integration_tests::protocol::{AxelarApp, AxelarModule, Protocol};
 use integration_tests::rewards_contract::RewardsContract;
 use integration_tests::router_contract::RouterContract;
 use integration_tests::service_registry_contract::ServiceRegistryContract;
@@ -48,7 +49,7 @@ fn find_event_attribute<'a>(
 type PollExpiryBlock = u64;
 
 pub fn verify_messages(
-    app: &mut App,
+    app: &mut AxelarApp,
     gateway: &GatewayContract,
     msgs: &[Message],
 ) -> (PollId, PollExpiryBlock) {
@@ -70,7 +71,7 @@ pub fn verify_messages(
     (poll_id, expiry)
 }
 
-pub fn route_messages(app: &mut App, gateway: &GatewayContract, msgs: &[Message]) {
+pub fn route_messages(app: &mut AxelarApp, gateway: &GatewayContract, msgs: &[Message]) {
     let response = gateway.execute(
         app,
         Addr::unchecked("relayer"),
@@ -80,7 +81,7 @@ pub fn route_messages(app: &mut App, gateway: &GatewayContract, msgs: &[Message]
 }
 
 pub fn freeze_chain(
-    app: &mut App,
+    app: &mut AxelarApp,
     router: &RouterContract,
     chain_name: ChainName,
     direction: GatewayDirection,
@@ -97,7 +98,7 @@ pub fn freeze_chain(
 }
 
 pub fn unfreeze_chain(
-    app: &mut App,
+    app: &mut AxelarApp,
     router: &RouterContract,
     chain_name: &ChainName,
     direction: GatewayDirection,
@@ -114,7 +115,7 @@ pub fn unfreeze_chain(
 }
 
 pub fn upgrade_gateway(
-    app: &mut App,
+    app: &mut AxelarApp,
     router: &RouterContract,
     governance: &Addr,
     chain_name: &ChainName,
@@ -140,7 +141,7 @@ fn random_32_bytes() -> [u8; 32] {
 }
 
 pub fn vote_success_for_all_messages(
-    app: &mut App,
+    app: &mut AxelarApp,
     voting_verifier: &VotingVerifierContract,
     messages: &[Message],
     verifiers: &[Verifier],
@@ -160,7 +161,7 @@ pub fn vote_success_for_all_messages(
 }
 
 pub fn vote_true_for_verifier_set(
-    app: &mut App,
+    app: &mut AxelarApp,
     voting_verifier: &VotingVerifierContract,
     verifiers: &Vec<Verifier>,
     poll_id: PollId,
@@ -179,7 +180,7 @@ pub fn vote_true_for_verifier_set(
 }
 
 /// Ends the poll. Be sure the current block height has advanced at least to the poll expiration, else this will fail
-pub fn end_poll(app: &mut App, voting_verifier: &VotingVerifierContract, poll_id: PollId) {
+pub fn end_poll(app: &mut AxelarApp, voting_verifier: &VotingVerifierContract, poll_id: PollId) {
     let response = voting_verifier.execute(
         app,
         Addr::unchecked("relayer"),
@@ -272,7 +273,7 @@ pub fn register_service(
 }
 
 pub fn messages_from_gateway(
-    app: &mut App,
+    app: &mut AxelarApp,
     gateway: &GatewayContract,
     message_ids: &[CrossChainId],
 ) -> Vec<Message> {
@@ -286,7 +287,7 @@ pub fn messages_from_gateway(
 }
 
 pub fn proof(
-    app: &mut App,
+    app: &mut AxelarApp,
     multisig_prover: &MultisigProverContract,
     multisig_session_id: &Uint64,
 ) -> multisig_prover::msg::ProofResponse {
@@ -303,7 +304,7 @@ pub fn proof(
 }
 
 pub fn verifier_set_from_prover(
-    app: &mut App,
+    app: &mut AxelarApp,
     multisig_prover_contract: &MultisigProverContract,
 ) -> VerifierSet {
     let query_response: Result<Option<VerifierSetResponse>, StdError> =
@@ -314,7 +315,7 @@ pub fn verifier_set_from_prover(
 }
 
 #[allow(clippy::arithmetic_side_effects)]
-pub fn advance_height(app: &mut App, increment: u64) {
+pub fn advance_height(app: &mut AxelarApp, increment: u64) {
     let cur_block = app.block_info();
     app.set_block(BlockInfo {
         height: cur_block.height + increment,
@@ -322,7 +323,7 @@ pub fn advance_height(app: &mut App, increment: u64) {
     });
 }
 
-pub fn advance_at_least_to_height(app: &mut App, desired_height: u64) {
+pub fn advance_at_least_to_height(app: &mut AxelarApp, desired_height: u64) {
     let cur_block = app.block_info();
     if app.block_info().height < desired_height {
         app.set_block(BlockInfo {
@@ -349,12 +350,22 @@ pub fn distribute_rewards(protocol: &mut Protocol, chain_name: &ChainName, contr
 
 pub fn setup_protocol(service_name: nonempty::String) -> Protocol {
     let genesis = Addr::unchecked("genesis");
-    let mut app = App::new(|router, _, storage| {
-        router
-            .bank
-            .init_balance(storage, &genesis, coins(u128::MAX, AXL_DENOMINATION))
-            .unwrap()
-    });
+    let mut app = AppBuilder::new_custom()
+        .with_custom(AxelarModule {
+            tx_hash_and_nonce: Box::new(|_| unimplemented!()),
+            is_chain_registered: Box::new(|_| {
+                Ok(to_json_binary(&IsChainRegisteredResponse {
+                    is_registered: false,
+                })?)
+            }),
+        })
+        .build(|router, _, storage| {
+            router
+                .bank
+                .init_balance(storage, &genesis, coins(u128::MAX, AXL_DENOMINATION))
+                .unwrap()
+        });
+
     let admin_address = Addr::unchecked("admin");
     let governance_address = Addr::unchecked("governance");
     let nexus_gateway = Addr::unchecked("nexus_gateway");
@@ -478,7 +489,7 @@ pub fn claim_stakes(
 }
 
 pub fn confirm_verifier_set(
-    app: &mut App,
+    app: &mut AxelarApp,
     relayer_addr: Addr,
     multisig_prover: &MultisigProverContract,
 ) {
@@ -509,7 +520,7 @@ fn verifier_set_poll_id_and_expiry(response: AppResponse) -> (PollId, PollExpiry
 }
 
 pub fn create_verifier_set_poll(
-    app: &mut App,
+    app: &mut AxelarApp,
     relayer_addr: Addr,
     voting_verifier: &VotingVerifierContract,
     verifier_set: VerifierSet,
@@ -766,14 +777,14 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
     }
 }
 
-pub fn query_balance(app: &App, address: &Addr) -> Uint128 {
+pub fn query_balance(app: &AxelarApp, address: &Addr) -> Uint128 {
     app.wrap()
         .query_balance(address, AXL_DENOMINATION)
         .unwrap()
         .amount
 }
 
-pub fn query_balances(app: &App, verifiers: &Vec<Verifier>) -> Vec<Uint128> {
+pub fn query_balances(app: &AxelarApp, verifiers: &Vec<Verifier>) -> Vec<Uint128> {
     let mut balances = Vec::new();
     for verifier in verifiers {
         balances.push(query_balance(app, &verifier.addr))

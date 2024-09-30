@@ -261,15 +261,15 @@ pub fn route_messages(
 mod test {
     use std::collections::HashMap;
 
+    use axelar_core_std::nexus::test_utils::reply_with_is_chain_registered;
     use axelar_wasm_std::assert_err_contains;
     use axelar_wasm_std::flagset::FlagSet;
     use axelar_wasm_std::msg_id::{HexTxHashAndEventIndex, MessageIdFormat};
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-    use cosmwasm_std::{Addr, ContractResult, QuerierWrapper, Storage, SystemResult};
+    use cosmwasm_std::{Addr, QuerierWrapper, Storage};
     use rand::{random, RngCore};
     use router_api::error::Error;
     use router_api::{ChainEndpoint, ChainName, CrossChainId, Gateway, GatewayDirection, Message};
-    use serde_json::json;
 
     use super::{freeze_chains, register_chain, unfreeze_chains};
     use crate::contract::execute::route_messages;
@@ -951,16 +951,9 @@ mod test {
     #[test]
     fn register_chain_with_duplicate_chain_name_in_core() {
         let mut deps = mock_dependencies();
-        deps.querier = deps.querier.with_custom_handler(|_| {
-            SystemResult::Ok(ContractResult::Ok(
-                json!({
-                    "is_registered": true,
-                })
-                .to_string()
-                .as_bytes()
-                .into(),
-            ))
-        });
+        deps.querier = deps
+            .querier
+            .with_custom_handler(reply_with_is_chain_registered(true));
 
         assert_err_contains!(
             register_chain(
