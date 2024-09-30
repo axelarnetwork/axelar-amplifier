@@ -31,6 +31,7 @@ impl CoordinatorContract {
         CoordinatorContract { contract_addr }
     }
 }
+
 impl Contract for CoordinatorContract {
     type QMsg = coordinator::msg::QueryMsg;
     type ExMsg = coordinator::msg::ExecuteMsg;
