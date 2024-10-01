@@ -2,10 +2,12 @@ use axelar_wasm_std::IntoContractError;
 use cosmwasm_std::{DepsMut, HexBinary, QuerierWrapper, Response, Storage};
 use error_stack::{bail, ensure, report, Result, ResultExt};
 use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
+use sha3::{Digest, Keccak256};
 
 use crate::events::Event;
 use crate::primitives::HubMessage;
 use crate::state::{self, load_config, load_its_contract};
+use crate::TokenId;
 
 #[derive(thiserror::Error, Debug, IntoContractError)]
 pub enum Error {
@@ -21,6 +23,10 @@ pub enum Error {
     FailedItsContractRegistration(ChainNameRaw),
     #[error("failed to deregister its contract for chain {0}")]
     FailedItsContractDeregistration(ChainNameRaw),
+    #[error("failed to register gateway token")]
+    FailedGatewayTokenRegistration,
+    #[error("failed to generate token id")]
+    FailedTokenIdGeneration,
 }
 
 /// Executes an incoming ITS message.
@@ -125,4 +131,94 @@ pub fn deregister_its_contract(deps: DepsMut, chain: ChainNameRaw) -> Result<Res
         .change_context_lazy(|| Error::FailedItsContractDeregistration(chain.clone()))?;
 
     Ok(Response::new().add_event(Event::ItsContractDeregistered { chain }.into()))
+}
+
+pub fn register_gateway_token(
+    deps: DepsMut,
+    denom: String,
+    _chain: ChainNameRaw,
+) -> Result<Response, Error> {
+    let token_id = get_token_id(&deps, &denom)?;
+    state::save_gateway_token_denom(deps.storage, token_id, denom)
+        .change_context(Error::FailedGatewayTokenRegistration)?;
+    Ok(Response::new())
+}
+
+pub fn get_token_id(deps: &DepsMut, denom: &str) -> Result<TokenId, Error> {
+    let config = state::load_config(deps.storage);
+    let gateway: axelarnet_gateway::Client =
+        client::ContractClient::new(deps.querier, &config.axelarnet_gateway).into();
+    let chain_name = gateway
+        .chain_name()
+        .change_context(Error::FailedTokenIdGeneration)?;
+    let chain_name_hash: [u8; 32] = Keccak256::digest(chain_name.to_string().as_bytes()).into();
+
+    let gateway_token_prefix: [u8; 32] =
+        Keccak256::digest("its-interchain-token-id-gateway").into();
+
+    let token_id_raw: [u8; 32] =
+        Keccak256::digest([&gateway_token_prefix, &chain_name_hash, denom.as_bytes()].concat())
+            .into();
+    Ok(TokenId::new(token_id_raw))
+}
+
+#[cfg(test)]
+mod tests {
+    use axelarnet_gateway::msg::QueryMsg;
+    use cosmwasm_std::testing::{mock_dependencies, MockApi, MockQuerier};
+    use cosmwasm_std::{
+        from_json, to_json_binary, Addr, DepsMut, MemoryStorage, OwnedDeps, WasmQuery,
+    };
+    use router_api::ChainName;
+
+    use super::get_token_id;
+    use crate::state::{self, Config};
+
+    #[test]
+    fn get_token_id_should_be_idempotent() {
+        let mut deps = init();
+        let denom = "uaxl";
+        let token_id = get_token_id(&deps.as_mut(), denom).unwrap();
+        let token_id_2 = get_token_id(&deps.as_mut(), denom).unwrap();
+        assert_eq!(token_id, token_id_2);
+    }
+
+    #[test]
+    fn get_token_id_should_differ_for_different_denoms() {
+        let mut deps = init();
+        let axl_denom = "uaxl";
+        let eth_denom = "eth";
+        let token_id_axl = get_token_id(&deps.as_mut(), axl_denom).unwrap();
+        let token_id_eth = get_token_id(&deps.as_mut(), eth_denom).unwrap();
+        assert_ne!(token_id_axl, token_id_eth);
+    }
+
+    fn init() -> OwnedDeps<MemoryStorage, MockApi, MockQuerier> {
+        let addr = Addr::unchecked("axelar-gateway");
+        let mut deps = mock_dependencies();
+        state::save_config(
+            deps.as_mut().storage,
+            &Config {
+                axelarnet_gateway: addr.clone(),
+            },
+        )
+        .unwrap();
+
+        let mut querier = MockQuerier::default();
+        querier.update_wasm(move |msg| match msg {
+            WasmQuery::Smart { contract_addr, msg } if contract_addr == &addr.to_string() => {
+                let msg = from_json::<QueryMsg>(msg).unwrap();
+                match msg {
+                    QueryMsg::ChainName {} => {
+                        Ok(to_json_binary(&ChainName::try_from("axelar").unwrap()).into()).into()
+                    }
+                    _ => panic!("unsupported query"),
+                }
+            }
+            _ => panic!("unexpected query: {:?}", msg),
+        });
+
+        deps.querier = querier;
+        deps
+    }
 }

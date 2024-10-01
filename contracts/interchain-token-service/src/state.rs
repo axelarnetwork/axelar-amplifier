@@ -6,6 +6,8 @@ use cosmwasm_std::{ensure, Addr, StdError, Storage};
 use cw_storage_plus::{Item, Map};
 use router_api::{Address, ChainNameRaw};
 
+use crate::TokenId;
+
 #[derive(thiserror::Error, Debug, IntoContractError)]
 pub enum Error {
     #[error(transparent)]
@@ -25,6 +27,7 @@ pub struct Config {
 
 const CONFIG: Item<Config> = Item::new("config");
 const ITS_CONTRACTS: Map<&ChainNameRaw, Address> = Map::new("its_contracts");
+const GATEWAY_TOKEN_DENOMS: Map<TokenId, String> = Map::new("gateway_token_denoms");
 
 pub fn load_config(storage: &dyn Storage) -> Config {
     CONFIG
@@ -77,6 +80,14 @@ pub fn load_all_its_contracts(
     Ok(ITS_CONTRACTS
         .range(storage, None, None, cosmwasm_std::Order::Ascending)
         .collect::<Result<HashMap<_, _>, _>>()?)
+}
+
+pub fn save_gateway_token_denom(
+    storage: &mut dyn Storage,
+    token_id: TokenId,
+    denom: String,
+) -> Result<(), Error> {
+    Ok(GATEWAY_TOKEN_DENOMS.save(storage, token_id, &denom)?)
 }
 
 #[cfg(test)]

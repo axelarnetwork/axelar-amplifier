@@ -29,6 +29,8 @@ pub enum Error {
     RegisterItsContract,
     #[error("failed to deregsiter an its edge contract")]
     DeregisterItsContract,
+    #[error("failed to register gateway token")]
+    RegisterGatewayToken,
     #[error("failed to query its address")]
     QueryItsContract,
     #[error("failed to query all its addresses")]
@@ -97,6 +99,11 @@ pub fn execute(
             execute::deregister_its_contract(deps, chain)
                 .change_context(Error::DeregisterItsContract)
         }
+        ExecuteMsg::RegisterGatewayToken {
+            denom,
+            source_chain,
+        } => execute::register_gateway_token(deps, denom, source_chain)
+            .change_context(Error::RegisterGatewayToken),
     }?
     .then(Ok)
 }

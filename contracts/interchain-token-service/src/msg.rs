@@ -33,6 +33,13 @@ pub enum ExecuteMsg {
     /// The admin is allowed to remove the ITS address of a chain for emergencies.
     #[permission(Elevated)]
     DeregisterItsContract { chain: ChainNameRaw },
+
+    /// Register legacy gateway token with ITS
+    #[permission(Governance)]
+    RegisterGatewayToken {
+        denom: String,
+        source_chain: ChainNameRaw,
+    },
 }
 
 #[cw_serde]
