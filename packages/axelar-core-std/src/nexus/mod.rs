@@ -1,6 +1,9 @@
 use cosmwasm_std::CosmosMsg;
 use error_stack::ResultExt;
+use query::{IsChainRegisteredResponse, QueryMsg};
 use router_api::ChainName;
+
+use crate::query::AxelarQueryMsg;
 
 pub mod execute;
 pub mod query;
@@ -32,7 +35,7 @@ impl<'a> From<client::CosmosClient<'a, execute::Message>> for Client<'a> {
 impl<'a> Client<'a> {
     pub fn tx_hash_and_nonce(&self) -> Result<query::TxHashAndNonceResponse> {
         self.inner
-            .query(query::QueryMsg::TxHashAndNonce {})
+            .query(QueryMsg::TxHashAndNonce {})
             .change_context(Error::QueryTxHashAndNonce)
     }
 
@@ -40,14 +43,14 @@ impl<'a> Client<'a> {
         self.inner.execute(msg)
     }
 
-    pub fn is_chain_registered(
-        &self,
-        chain: &ChainName,
-    ) -> Result<query::IsChainRegisteredResponse> {
+    pub fn is_chain_registered(&self, chain: &ChainName) -> Result<bool> {
         self.inner
-            .query(query::QueryMsg::IsChainRegistered {
-                chain: chain.to_string(),
-            })
+            .query::<IsChainRegisteredResponse, QueryMsg, AxelarQueryMsg>(
+                QueryMsg::IsChainRegistered {
+                    chain: chain.to_string(),
+                },
+            )
+            .map(|res| res.is_registered)
             .change_context(Error::QueryIsChainRegistered)
     }
 }
@@ -132,8 +135,8 @@ mod test {
 
         let client: nexus::Client = client::CosmosClient::new(QuerierWrapper::new(&querier)).into();
 
-        assert!(
-            assert_ok!(client.is_chain_registered(&"test-chain".parse().unwrap())).is_registered
-        );
+        assert!(assert_ok!(
+            client.is_chain_registered(&"test-chain".parse().unwrap())
+        ));
     }
 }

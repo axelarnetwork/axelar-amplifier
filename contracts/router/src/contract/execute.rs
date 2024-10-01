@@ -37,9 +37,9 @@ pub fn register_chain(
     if client
         .is_chain_registered(&name)
         .change_context(Error::Nexus)?
-        .is_registered
     {
-        bail!(Error::ChainAlreadyExists)
+        Err(Report::new(Error::ChainAlreadyExists))
+            .attach_printable(format!("chain {} already exists in core", name))?
     }
 
     chain_endpoints().update(storage, name.clone(), |chain| match chain {
