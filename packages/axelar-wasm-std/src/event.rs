@@ -5,6 +5,11 @@ pub trait EventExt {
     where
         K: Into<String>,
         V: Into<String>;
+
+    fn add_attribute_if_nonempty<K, V>(self, key: K, value: V) -> Self
+    where
+        K: Into<String>,
+        V: Into<String>;
 }
 
 impl EventExt for Event {
@@ -18,11 +23,24 @@ impl EventExt for Event {
             None => self,
         }
     }
+
+    fn add_attribute_if_nonempty<K, V>(self, key: K, value: V) -> Self
+    where
+        K: Into<String>,
+        V: Into<String>,
+    {
+        let value: String = value.into();
+
+        match value.is_empty() {
+            false => self.add_attribute(key, value),
+            true => self,
+        }
+    }
 }
 
 #[cfg(test)]
 mod test {
-    use cosmwasm_std::{Event, Int128};
+    use cosmwasm_std::{Event, HexBinary, Int128};
 
     use super::EventExt;
 
@@ -32,6 +50,16 @@ mod test {
             .add_attribute_if_some("foo", Some("bar"))
             .add_attribute_if_some("int", Some(Int128::new(3213)))
             .add_attribute_if_some("baz", None::<String>);
+
+        goldie::assert_json!(event)
+    }
+
+    #[test]
+    fn add_attribute_if_nonempty() {
+        let event = Event::new("test")
+            .add_attribute_if_nonempty("foo", "bar")
+            .add_attribute_if_nonempty("int", "")
+            .add_attribute_if_nonempty("baz", HexBinary::default().to_string());
 
         goldie::assert_json!(event)
     }

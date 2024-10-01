@@ -23,7 +23,7 @@ impl Display for TokenId {
 
 /// The supported types of token managers that can be deployed by ITS contracts.
 #[cw_serde]
-#[derive(Eq, Copy, FromRepr)]
+#[derive(Eq, Copy, FromRepr, strum::AsRefStr)]
 #[repr(u8)]
 pub enum TokenManagerType {
     NativeInterchainToken,
