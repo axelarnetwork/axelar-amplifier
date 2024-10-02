@@ -1,2 +1,2 @@
 pub mod nexus;
-mod query;
+pub mod query;
