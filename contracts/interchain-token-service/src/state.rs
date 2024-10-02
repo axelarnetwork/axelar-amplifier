@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use axelar_wasm_std::IntoContractError;
+use axelar_wasm_std::{nonempty, IntoContractError};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{ensure, Addr, StdError, Storage};
 use cw_storage_plus::{Item, Map};
@@ -18,6 +18,8 @@ pub enum Error {
     ItsContractNotFound(ChainNameRaw),
     #[error("its address for chain {0} already registered")]
     ItsContractAlreadyRegistered(ChainNameRaw),
+    #[error("gateway token already registered {0}")]
+    GatewayTokenAlreadyRegistered(nonempty::String),
 }
 
 #[cw_serde]
@@ -27,7 +29,7 @@ pub struct Config {
 
 const CONFIG: Item<Config> = Item::new("config");
 const ITS_CONTRACTS: Map<&ChainNameRaw, Address> = Map::new("its_contracts");
-const GATEWAY_TOKEN_DENOMS: Map<TokenId, String> = Map::new("gateway_token_denoms");
+const GATEWAY_TOKEN_DENOMS: Map<TokenId, nonempty::String> = Map::new("gateway_token_denoms");
 
 pub fn load_config(storage: &dyn Storage) -> Config {
     CONFIG
@@ -85,9 +87,21 @@ pub fn load_all_its_contracts(
 pub fn save_gateway_token_denom(
     storage: &mut dyn Storage,
     token_id: TokenId,
-    denom: String,
+    denom: nonempty::String,
 ) -> Result<(), Error> {
-    Ok(GATEWAY_TOKEN_DENOMS.save(storage, token_id, &denom)?)
+    GATEWAY_TOKEN_DENOMS.update(storage, token_id, |stored_denom| match stored_denom {
+        None => Ok(denom),
+        _ => Err(Error::GatewayTokenAlreadyRegistered(denom)),
+    })?;
+    Ok(())
+}
+
+pub fn load_all_gateway_tokens(
+    storage: &dyn Storage,
+) -> Result<Vec<(TokenId, nonempty::String)>, Error> {
+    Ok(GATEWAY_TOKEN_DENOMS
+        .range(storage, None, None, cosmwasm_std::Order::Ascending)
+        .collect::<Result<Vec<_>, _>>()?)
 }
 
 #[cfg(test)]

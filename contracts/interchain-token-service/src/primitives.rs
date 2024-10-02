@@ -8,7 +8,7 @@ use strum::FromRepr;
 
 /// A unique 32-byte identifier for linked cross-chain tokens across ITS contracts.
 #[cw_serde]
-#[derive(Eq)]
+#[derive(Eq, Hash)]
 pub struct TokenId(
     #[serde(with = "axelar_wasm_std::hex")]
     #[schemars(with = "String")]

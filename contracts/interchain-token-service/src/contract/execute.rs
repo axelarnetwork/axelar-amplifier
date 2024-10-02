@@ -1,4 +1,4 @@
-use axelar_wasm_std::IntoContractError;
+use axelar_wasm_std::{nonempty, IntoContractError};
 use cosmwasm_std::{DepsMut, HexBinary, QuerierWrapper, Response, Storage};
 use error_stack::{bail, ensure, report, Result, ResultExt};
 use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
@@ -135,16 +135,20 @@ pub fn deregister_its_contract(deps: DepsMut, chain: ChainNameRaw) -> Result<Res
 
 pub fn register_gateway_token(
     deps: DepsMut,
-    denom: String,
+    denom: nonempty::String,
     _chain: ChainNameRaw,
 ) -> Result<Response, Error> {
-    let token_id = get_token_id(&deps, &denom)?;
+    let token_id = gateway_token_id(&deps, &denom)?;
     state::save_gateway_token_denom(deps.storage, token_id, denom)
         .change_context(Error::FailedGatewayTokenRegistration)?;
     Ok(Response::new())
 }
 
-pub fn get_token_id(deps: &DepsMut, denom: &str) -> Result<TokenId, Error> {
+fn gateway_token_prefix() -> [u8; 32] {
+    Keccak256::digest("its-interchain-token-id-gateway").into()
+}
+
+pub fn gateway_token_id(deps: &DepsMut, denom: &str) -> Result<TokenId, Error> {
     let config = state::load_config(deps.storage);
     let gateway: axelarnet_gateway::Client =
         client::ContractClient::new(deps.querier, &config.axelarnet_gateway).into();
@@ -153,11 +157,8 @@ pub fn get_token_id(deps: &DepsMut, denom: &str) -> Result<TokenId, Error> {
         .change_context(Error::FailedTokenIdGeneration)?;
     let chain_name_hash: [u8; 32] = Keccak256::digest(chain_name.to_string().as_bytes()).into();
 
-    let gateway_token_prefix: [u8; 32] =
-        Keccak256::digest("its-interchain-token-id-gateway").into();
-
     let token_id_raw: [u8; 32] =
-        Keccak256::digest([&gateway_token_prefix, &chain_name_hash, denom.as_bytes()].concat())
+        Keccak256::digest([&gateway_token_prefix(), &chain_name_hash, denom.as_bytes()].concat())
             .into();
     Ok(TokenId::new(token_id_raw))
 }
@@ -166,20 +167,18 @@ pub fn get_token_id(deps: &DepsMut, denom: &str) -> Result<TokenId, Error> {
 mod tests {
     use axelarnet_gateway::msg::QueryMsg;
     use cosmwasm_std::testing::{mock_dependencies, MockApi, MockQuerier};
-    use cosmwasm_std::{
-        from_json, to_json_binary, Addr, DepsMut, MemoryStorage, OwnedDeps, WasmQuery,
-    };
+    use cosmwasm_std::{from_json, to_json_binary, Addr, MemoryStorage, OwnedDeps, WasmQuery};
     use router_api::ChainName;
 
-    use super::get_token_id;
+    use super::gateway_token_id;
     use crate::state::{self, Config};
 
     #[test]
     fn get_token_id_should_be_idempotent() {
         let mut deps = init();
         let denom = "uaxl";
-        let token_id = get_token_id(&deps.as_mut(), denom).unwrap();
-        let token_id_2 = get_token_id(&deps.as_mut(), denom).unwrap();
+        let token_id = gateway_token_id(&deps.as_mut(), denom).unwrap();
+        let token_id_2 = gateway_token_id(&deps.as_mut(), denom).unwrap();
         assert_eq!(token_id, token_id_2);
     }
 
@@ -188,9 +187,17 @@ mod tests {
         let mut deps = init();
         let axl_denom = "uaxl";
         let eth_denom = "eth";
-        let token_id_axl = get_token_id(&deps.as_mut(), axl_denom).unwrap();
-        let token_id_eth = get_token_id(&deps.as_mut(), eth_denom).unwrap();
+        let token_id_axl = gateway_token_id(&deps.as_mut(), axl_denom).unwrap();
+        let token_id_eth = gateway_token_id(&deps.as_mut(), eth_denom).unwrap();
         assert_ne!(token_id_axl, token_id_eth);
+    }
+
+    #[test]
+    fn get_token_id_should_not_change() {
+        let mut deps = init();
+        let denom = "uaxl";
+        let token_id = gateway_token_id(&deps.as_mut(), denom).unwrap();
+        goldie::assert_json!(token_id);
     }
 
     fn init() -> OwnedDeps<MemoryStorage, MockApi, MockQuerier> {

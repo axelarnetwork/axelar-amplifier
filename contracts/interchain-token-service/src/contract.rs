@@ -35,6 +35,8 @@ pub enum Error {
     QueryItsContract,
     #[error("failed to query all its addresses")]
     QueryAllItsContracts,
+    #[error("failed to query gateway tokens")]
+    QueryGatewayTokens,
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -121,6 +123,86 @@ pub fn query(deps: Deps, _: Env, msg: QueryMsg) -> Result<Binary, ContractError>
         QueryMsg::AllItsContracts => {
             query::all_its_contracts(deps).change_context(Error::QueryAllItsContracts)
         }
+        QueryMsg::GatewayTokens => {
+            query::gateway_tokens(deps).change_context(Error::QueryGatewayTokens)
+        }
     }?
     .then(Ok)
+}
+
+#[cfg(test)]
+mod tests {
+
+    use std::collections::HashMap;
+
+    use axelar_wasm_std::nonempty;
+    use cosmwasm_std::testing::{
+        mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
+    };
+    use cosmwasm_std::{from_json, to_json_binary, OwnedDeps, WasmQuery};
+    use router_api::{ChainName, ChainNameRaw};
+
+    use super::{execute, instantiate};
+    use crate::contract::execute::gateway_token_id;
+    use crate::contract::query;
+    use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
+    use crate::TokenId;
+    const GOVERNANCE_ADDRESS: &str = "governance";
+    const ADMIN_ADDRESS: &str = "admin";
+    const AXELARNET_GATEWAY_ADDRESS: &str = "axelarnet-gateway";
+
+    #[test]
+    fn register_gateway_token_should_register_denom_and_token_id() {
+        let mut deps = setup();
+        let denom = "uaxl";
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(GOVERNANCE_ADDRESS, &[]),
+            ExecuteMsg::RegisterGatewayToken {
+                denom: denom.try_into().unwrap(),
+                source_chain: ChainNameRaw::try_from("axelar").unwrap(),
+            },
+        );
+        assert!(res.is_ok());
+
+        let tokens: Vec<(TokenId, nonempty::String)> =
+            from_json(query(deps.as_ref(), mock_env(), QueryMsg::GatewayTokens).unwrap()).unwrap();
+        assert_eq!(tokens.len(), 1);
+        assert_eq!(
+            tokens,
+            vec![(
+                gateway_token_id(&deps.as_mut(), denom).unwrap(),
+                denom.try_into().unwrap()
+            )]
+        );
+    }
+
+    fn setup() -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
+        let mut deps = mock_dependencies();
+
+        instantiate(
+            deps.as_mut(),
+            mock_env(),
+            mock_info("instantiator", &[]),
+            InstantiateMsg {
+                governance_address: GOVERNANCE_ADDRESS.to_string(),
+                admin_address: ADMIN_ADDRESS.to_string(),
+                axelarnet_gateway_address: AXELARNET_GATEWAY_ADDRESS.to_string(),
+                its_contracts: HashMap::new(),
+            },
+        )
+        .unwrap();
+
+        deps.querier.update_wasm(move |wq| match wq {
+            WasmQuery::Smart { contract_addr, .. }
+                if contract_addr == AXELARNET_GATEWAY_ADDRESS =>
+            {
+                Ok(to_json_binary(&ChainName::try_from("axelar").unwrap()).into()).into()
+            }
+            _ => panic!("no mock for this query"),
+        });
+
+        deps
+    }
 }

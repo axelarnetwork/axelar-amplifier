@@ -1,9 +1,12 @@
 use std::collections::HashMap;
 
+use axelar_wasm_std::nonempty;
 use axelarnet_gateway::AxelarExecutableMsg;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use msgs_derive::EnsurePermissions;
 use router_api::{Address, ChainNameRaw};
+
+use crate::TokenId;
 
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -37,7 +40,7 @@ pub enum ExecuteMsg {
     /// Register legacy gateway token with ITS
     #[permission(Governance)]
     RegisterGatewayToken {
-        denom: String,
+        denom: nonempty::String,
         source_chain: ChainNameRaw,
     },
 }
@@ -51,4 +54,6 @@ pub enum QueryMsg {
     /// Query all registererd ITS contract addresses
     #[returns(HashMap<ChainNameRaw, Address>)]
     AllItsContracts,
+    #[returns(Vec<(TokenId, nonempty::String)>)]
+    GatewayTokens,
 }

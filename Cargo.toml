@@ -44,6 +44,7 @@ interchain-token-service = { version = "^0.1.0", path = "contracts/interchain-to
 into-inner-derive = { version = "^1.0.0", path = "packages/into-inner-derive" }
 itertools = "0.11.0"
 k256 = { version = "0.13.1", features = ["ecdsa"] }
+lazy_static = "1.4.0"
 mockall = "0.12.1"
 msgs-derive = { version = "^1.0.0", path = "packages/msgs-derive" }
 multisig = { version = "^1.0.0", path = "contracts/multisig" }
