@@ -42,7 +42,6 @@ cw-storage-plus = { workspace = true }
 cw2 = { workspace = true }
 error-stack = { workspace = true }
 hex = { workspace = true }
-lazy_static = {workspace = true }
 msgs-derive = { workspace = true }
 report = { workspace = true }
 router-api = { workspace = true }
@@ -55,7 +54,6 @@ thiserror = { workspace = true }
 
 [dev-dependencies]
 assert_ok = { workspace = true }
-cw-multi-test = "0.15.1"
 goldie = { workspace = true }
 
 [lints]
