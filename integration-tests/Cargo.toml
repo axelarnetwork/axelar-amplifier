@@ -28,6 +28,8 @@ optimize = """docker run --rm -v "$(pwd)":/code \
 """
 
 [dependencies]
+anyhow = { workspace = true }
+axelar-core-std = { workspace = true }
 axelar-wasm-std = { workspace = true }
 coordinator = { workspace = true }
 cosmwasm-std = { workspace = true }
@@ -43,6 +45,7 @@ report = { workspace = true }
 rewards = { workspace = true }
 router = { workspace = true }
 router-api = { workspace = true }
+schemars = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 service-registry = { workspace = true }
