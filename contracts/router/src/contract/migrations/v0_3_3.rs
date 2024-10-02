@@ -52,6 +52,7 @@ const CONFIG: Item<Config> = Item::new("config");
 mod test {
     use std::collections::HashMap;
 
+    use axelar_core_std::nexus::test_utils::reply_with_is_chain_registered;
     use axelar_wasm_std::error::ContractError;
     use axelar_wasm_std::killswitch;
     use axelar_wasm_std::msg_id::MessageIdFormat;
@@ -108,6 +109,10 @@ mod test {
     #[test]
     fn migration() {
         let mut deps = mock_dependencies();
+        deps.querier = deps
+            .querier
+            .with_custom_handler(reply_with_is_chain_registered(false));
+
         let instantiate_msg = instantiate_0_3_3_contract(deps.as_mut()).unwrap();
 
         let msg = ExecuteMsg::RegisterChain {
