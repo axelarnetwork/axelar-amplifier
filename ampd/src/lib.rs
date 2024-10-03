@@ -68,6 +68,7 @@ async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
         tofnd_config,
         event_processor,
         service_registry: _service_registry,
+        rewards: _rewards,
         health_check_bind_addr,
     } = cfg;
 

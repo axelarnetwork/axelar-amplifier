@@ -47,6 +47,7 @@ rewards = { workspace = true, features = ["library"] }
 router-api = { workspace = true }
 serde_json = { workspace = true }
 service-registry = { workspace = true, features = ["library"] }
+service-registry-api = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]

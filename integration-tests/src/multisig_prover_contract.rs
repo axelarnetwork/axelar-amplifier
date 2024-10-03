@@ -1,11 +1,13 @@
+use axelar_core_std::query::AxelarQueryMsg;
 use axelar_wasm_std::Threshold;
-use cosmwasm_std::Addr;
+use cosmwasm_std::{Addr, DepsMut, Env};
 use cw_multi_test::{ContractWrapper, Executor};
 use multisig::key::KeyType;
+use multisig_prover::contract::{execute, instantiate, query};
 use multisig_prover::Encoder;
 
 use crate::contract::Contract;
-use crate::protocol::Protocol;
+use crate::protocol::{emptying_deps_mut, Protocol};
 
 #[derive(Clone)]
 pub struct MultisigProverContract {
@@ -21,12 +23,8 @@ impl MultisigProverContract {
         voting_verifier_address: Addr,
         chain_name: String,
     ) -> Self {
-        let code = ContractWrapper::new(
-            multisig_prover::contract::execute,
-            multisig_prover::contract::instantiate,
-            multisig_prover::contract::query,
-        )
-        .with_reply(multisig_prover::contract::reply);
+        let code =
+            ContractWrapper::new_with_empty(execute, instantiate, query).with_reply(custom_reply);
         let app = &mut protocol.app;
         let code_id = app.store_code(Box::new(code));
 
@@ -64,6 +62,14 @@ impl MultisigProverContract {
             admin_addr: admin_address,
         }
     }
+}
+
+fn custom_reply(
+    mut deps: DepsMut<AxelarQueryMsg>,
+    env: Env,
+    msg: cosmwasm_std::Reply,
+) -> Result<cosmwasm_std::Response, axelar_wasm_std::error::ContractError> {
+    multisig_prover::contract::reply(emptying_deps_mut(&mut deps), env, msg)
 }
 
 impl Contract for MultisigProverContract {

@@ -78,7 +78,7 @@ impl From<Message> for Vec<Attribute> {
 
 #[cw_serde]
 #[serde(try_from = "String")]
-#[derive(Eq, Hash)]
+#[derive(Eq, Hash, Valuable)]
 pub struct Address(nonempty::String);
 
 impl Deref for Address {

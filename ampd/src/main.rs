@@ -6,7 +6,8 @@ use std::process::ExitCode;
 use ::config::{Config as cfg, Environment, File, FileFormat, FileSourceFile};
 use ampd::commands::{
     bond_verifier, claim_stake, daemon, deregister_chain_support, register_chain_support,
-    register_public_key, send_tokens, unbond_verifier, verifier_address, SubCommand,
+    register_public_key, send_tokens, set_rewards_proxy, unbond_verifier, verifier_address,
+    SubCommand,
 };
 use ampd::config::Config;
 use ampd::Error;
@@ -16,6 +17,8 @@ use config::ConfigError;
 use error_stack::{Report, ResultExt};
 use report::LoggableError;
 use tracing::{error, info};
+use tracing_core::LevelFilter;
+use tracing_subscriber::EnvFilter;
 use valuable::Valuable;
 
 #[derive(Debug, Parser, Valuable)]
@@ -67,6 +70,7 @@ async fn main() -> ExitCode {
         Some(SubCommand::UnbondVerifier(args)) => unbond_verifier::run(cfg, args).await,
         Some(SubCommand::ClaimStake(args)) => claim_stake::run(cfg, args).await,
         Some(SubCommand::SendTokens(args)) => send_tokens::run(cfg, args).await,
+        Some(SubCommand::SetRewardsProxy(args)) => set_rewards_proxy::run(cfg, args).await,
     };
 
     match result {
@@ -92,10 +96,25 @@ async fn main() -> ExitCode {
 fn set_up_logger(output: &Output) {
     match output {
         Output::Json => {
-            tracing_subscriber::fmt().json().flatten_event(true).init();
+            tracing_subscriber::fmt()
+                .json()
+                .flatten_event(true)
+                .with_env_filter(
+                    EnvFilter::builder()
+                        .with_default_directive(LevelFilter::INFO.into())
+                        .from_env_lossy(),
+                )
+                .init();
         }
         Output::Text => {
-            tracing_subscriber::fmt().compact().init();
+            tracing_subscriber::fmt()
+                .compact()
+                .with_env_filter(
+                    EnvFilter::builder()
+                        .with_default_directive(LevelFilter::INFO.into())
+                        .from_env_lossy(),
+                )
+                .init();
         }
     };
 }

@@ -15,6 +15,7 @@ edition = "2021"
 [workspace.dependencies]
 alloy-primitives = { version = "0.7.6", default-features = false, features = ["std"] }
 alloy-sol-types = { version = "0.7.6", default-features = false, features = ["std"] }
+anyhow = "1.0.89"
 assert_ok = "1.0"
 axelar-wasm-std = { version = "^1.0.0", path = "packages/axelar-wasm-std" }
 axelar-wasm-std-derive = { version = "^1.0.0", path = "packages/axelar-wasm-std-derive" }
