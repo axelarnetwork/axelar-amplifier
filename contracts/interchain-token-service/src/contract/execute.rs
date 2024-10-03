@@ -1,4 +1,4 @@
-use axelar_wasm_std::{nonempty, IntoContractError};
+use axelar_wasm_std::{nonempty, FnExt, IntoContractError};
 use cosmwasm_std::{DepsMut, HexBinary, QuerierWrapper, Response, Storage};
 use error_stack::{bail, ensure, report, Result, ResultExt};
 use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
@@ -157,47 +157,60 @@ pub fn gateway_token_id(deps: &DepsMut, denom: &str) -> Result<TokenId, Error> {
         .change_context(Error::FailedTokenIdGeneration)?;
     let chain_name_hash: [u8; 32] = Keccak256::digest(chain_name.to_string().as_bytes()).into();
 
-    let token_id_raw: [u8; 32] =
-        Keccak256::digest([&gateway_token_prefix(), &chain_name_hash, denom.as_bytes()].concat())
-            .into();
-    Ok(TokenId::new(token_id_raw))
+    Keccak256::digest([&gateway_token_prefix(), &chain_name_hash, denom.as_bytes()].concat())
+        .then(<[u8; 32]>::from)
+        .then(TokenId::new)
+        .then(Ok)
 }
 
 #[cfg(test)]
 mod tests {
+    use assert_ok::assert_ok;
     use axelarnet_gateway::msg::QueryMsg;
     use cosmwasm_std::testing::{mock_dependencies, MockApi, MockQuerier};
     use cosmwasm_std::{from_json, to_json_binary, Addr, MemoryStorage, OwnedDeps, WasmQuery};
-    use router_api::ChainName;
+    use router_api::{ChainName, ChainNameRaw};
 
-    use super::gateway_token_id;
+    use super::{gateway_token_id, register_gateway_token};
     use crate::state::{self, Config};
 
     #[test]
-    fn get_token_id_should_be_idempotent() {
+    fn gateway_token_id_should_be_idempotent() {
         let mut deps = init();
         let denom = "uaxl";
-        let token_id = gateway_token_id(&deps.as_mut(), denom).unwrap();
-        let token_id_2 = gateway_token_id(&deps.as_mut(), denom).unwrap();
+        let token_id = assert_ok!(gateway_token_id(&deps.as_mut(), denom));
+        let token_id_2 = assert_ok!(gateway_token_id(&deps.as_mut(), denom));
         assert_eq!(token_id, token_id_2);
     }
 
     #[test]
-    fn get_token_id_should_differ_for_different_denoms() {
+    fn gateway_token_id_should_differ_for_different_denoms() {
         let mut deps = init();
         let axl_denom = "uaxl";
         let eth_denom = "eth";
-        let token_id_axl = gateway_token_id(&deps.as_mut(), axl_denom).unwrap();
-        let token_id_eth = gateway_token_id(&deps.as_mut(), eth_denom).unwrap();
+        let token_id_axl = assert_ok!(gateway_token_id(&deps.as_mut(), axl_denom));
+        let token_id_eth = assert_ok!(gateway_token_id(&deps.as_mut(), eth_denom));
         assert_ne!(token_id_axl, token_id_eth);
     }
 
     #[test]
-    fn get_token_id_should_not_change() {
+    fn gateway_token_id_should_not_change() {
         let mut deps = init();
         let denom = "uaxl";
-        let token_id = gateway_token_id(&deps.as_mut(), denom).unwrap();
+        let token_id = assert_ok!(gateway_token_id(&deps.as_mut(), denom));
         goldie::assert_json!(token_id);
+    }
+
+    #[test]
+    fn register_token_id_should_not_overwrite() {
+        let mut deps = init();
+        let denom = "uaxl";
+        let chain = ChainNameRaw::try_from("ethereum").unwrap();
+        let res = register_gateway_token(deps.as_mut(), denom.try_into().unwrap(), chain.clone());
+        assert!(res.is_ok());
+        // calling again should fail
+        let res = register_gateway_token(deps.as_mut(), denom.try_into().unwrap(), chain);
+        assert!(res.is_err());
     }
 
     fn init() -> OwnedDeps<MemoryStorage, MockApi, MockQuerier> {

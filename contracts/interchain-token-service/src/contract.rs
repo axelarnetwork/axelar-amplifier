@@ -166,15 +166,15 @@ mod tests {
         );
         assert!(res.is_ok());
 
-        let tokens: Vec<(TokenId, nonempty::String)> =
+        let tokens: HashMap<nonempty::String, TokenId> =
             from_json(query(deps.as_ref(), mock_env(), QueryMsg::GatewayTokens).unwrap()).unwrap();
         assert_eq!(tokens.len(), 1);
         assert_eq!(
             tokens,
-            vec![(
-                gateway_token_id(&deps.as_mut(), denom).unwrap(),
-                denom.try_into().unwrap()
-            )]
+            HashMap::from([(
+                denom.try_into().unwrap(),
+                gateway_token_id(&deps.as_mut(), denom).unwrap()
+            )])
         );
     }
 

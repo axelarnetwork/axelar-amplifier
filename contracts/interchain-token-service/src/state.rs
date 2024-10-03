@@ -98,10 +98,11 @@ pub fn save_gateway_token_denom(
 
 pub fn load_all_gateway_tokens(
     storage: &dyn Storage,
-) -> Result<Vec<(TokenId, nonempty::String)>, Error> {
+) -> Result<HashMap<nonempty::String, TokenId>, Error> {
     Ok(GATEWAY_TOKEN_DENOMS
         .range(storage, None, None, cosmwasm_std::Order::Ascending)
-        .collect::<Result<Vec<_>, _>>()?)
+        .map(|res| res.map(|(token_id, denom)| (denom, token_id)))
+        .collect::<Result<HashMap<_, _>, _>>()?)
 }
 
 #[cfg(test)]

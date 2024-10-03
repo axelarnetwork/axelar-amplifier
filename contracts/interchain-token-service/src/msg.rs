@@ -54,6 +54,6 @@ pub enum QueryMsg {
     /// Query all registererd ITS contract addresses
     #[returns(HashMap<ChainNameRaw, Address>)]
     AllItsContracts,
-    #[returns(Vec<(TokenId, nonempty::String)>)]
+    #[returns(HashMap<nonempty::String, TokenId>)]
     GatewayTokens,
 }
