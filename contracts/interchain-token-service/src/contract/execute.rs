@@ -168,12 +168,13 @@ pub fn gateway_token_id(deps: &DepsMut, denom: &str) -> Result<TokenId, Error> {
 #[cfg(test)]
 mod tests {
     use assert_ok::assert_ok;
+    use axelar_wasm_std::assert_err_contains;
     use axelarnet_gateway::msg::QueryMsg;
     use cosmwasm_std::testing::{mock_dependencies, MockApi, MockQuerier};
     use cosmwasm_std::{from_json, to_json_binary, Addr, MemoryStorage, OwnedDeps, WasmQuery};
     use router_api::{ChainName, ChainNameRaw};
 
-    use super::{gateway_token_id, register_gateway_token};
+    use super::{gateway_token_id, register_gateway_token, Error};
     use crate::state::{self, Config};
 
     #[test]
@@ -208,11 +209,17 @@ mod tests {
         let mut deps = init();
         let denom = "uaxl";
         let chain = ChainNameRaw::try_from("ethereum").unwrap();
-        let res = register_gateway_token(deps.as_mut(), denom.try_into().unwrap(), chain.clone());
-        assert!(res.is_ok());
+        assert_ok!(register_gateway_token(
+            deps.as_mut(),
+            denom.try_into().unwrap(),
+            chain.clone()
+        ));
         // calling again should fail
-        let res = register_gateway_token(deps.as_mut(), denom.try_into().unwrap(), chain);
-        assert!(res.is_err());
+        assert_err_contains!(
+            register_gateway_token(deps.as_mut(), denom.try_into().unwrap(), chain),
+            Error,
+            Error::FailedGatewayTokenRegistration
+        );
     }
 
     fn init() -> OwnedDeps<MemoryStorage, MockApi, MockQuerier> {
