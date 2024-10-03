@@ -2,12 +2,13 @@ use std::fmt::Display;
 
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{HexBinary, Uint256};
+use cw_storage_plus::{Key, KeyDeserialize, PrimaryKey};
 use router_api::ChainNameRaw;
 use strum::FromRepr;
 
 /// A unique 32-byte identifier for linked cross-chain tokens across ITS contracts.
 #[cw_serde]
-#[derive(Eq)]
+#[derive(Eq, Hash)]
 pub struct TokenId(
     #[serde(with = "axelar_wasm_std::hex")]
     #[schemars(with = "String")]
@@ -122,5 +123,24 @@ impl From<TokenId> for [u8; 32] {
     #[inline(always)]
     fn from(id: TokenId) -> Self {
         id.0
+    }
+}
+
+impl<'a> PrimaryKey<'a> for TokenId {
+    type Prefix = ();
+    type SubPrefix = ();
+    type Suffix = Self;
+    type SuperSuffix = Self;
+
+    fn key(&self) -> Vec<Key> {
+        self.0.key()
+    }
+}
+
+impl KeyDeserialize for TokenId {
+    type Output = TokenId;
+    fn from_vec(value: Vec<u8>) -> cosmwasm_std::StdResult<Self::Output> {
+        let inner = <[u8; 32]>::from_vec(value)?;
+        Ok(TokenId(inner))
     }
 }

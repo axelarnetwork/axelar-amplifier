@@ -1,3 +1,4 @@
+use std::fmt::Display;
 use std::ops::Deref;
 use std::str::FromStr;
 
@@ -57,6 +58,12 @@ impl Deref for String {
 impl From<String> for crate::nonempty::Vec<u8> {
     fn from(value: String) -> Self {
         value.0.into_bytes().try_into().expect("cannot be empty")
+    }
+}
+
+impl Display for String {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
     }
 }
 
