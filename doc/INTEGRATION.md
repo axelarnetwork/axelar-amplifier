@@ -46,7 +46,7 @@ Manages coordination between contracts in the Amplifier system. [Coordinator Doc
 
 **Multisig**  
 
-Facilitates verifier signing sessions that is leveraged by the multisig prover contract. The Multisig contract currently supports ECDSA and ED25519 signature schemes. [Multisig Documentation](../doc/src/contracts/multisig.md)
+Facilitates verifier signing sessions which is leveraged by the multisig prover contract. The Multisig contract currently supports ECDSA and ED25519 signature schemes. [Multisig Documentation](../doc/src/contracts/multisig.md)
 
 **Rewards**  
 
