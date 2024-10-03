@@ -9,6 +9,12 @@ use crate::primitives::HubMessage;
 use crate::state::{self, load_config, load_its_contract};
 use crate::TokenId;
 
+// this is just keccak256("its-interchain-token-id-gateway")
+const GATEWAY_TOKEN_PREFIX: [u8; 32] = [
+    106, 80, 188, 250, 12, 170, 167, 223, 94, 185, 52, 185, 146, 147, 21, 23, 145, 36, 97, 146,
+    215, 72, 32, 167, 6, 16, 83, 155, 176, 213, 112, 44,
+];
+
 #[derive(thiserror::Error, Debug, IntoContractError)]
 pub enum Error {
     #[error("unknown chain {0}")]
@@ -144,10 +150,6 @@ pub fn register_gateway_token(
     Ok(Response::new())
 }
 
-fn gateway_token_prefix() -> [u8; 32] {
-    Keccak256::digest("its-interchain-token-id-gateway").into()
-}
-
 pub fn gateway_token_id(deps: &DepsMut, denom: &str) -> Result<TokenId, Error> {
     let config = state::load_config(deps.storage);
     let gateway: axelarnet_gateway::Client =
@@ -157,7 +159,7 @@ pub fn gateway_token_id(deps: &DepsMut, denom: &str) -> Result<TokenId, Error> {
         .change_context(Error::FailedTokenIdGeneration)?;
     let chain_name_hash: [u8; 32] = Keccak256::digest(chain_name.to_string().as_bytes()).into();
 
-    Keccak256::digest([&gateway_token_prefix(), &chain_name_hash, denom.as_bytes()].concat())
+    Keccak256::digest([&GATEWAY_TOKEN_PREFIX, &chain_name_hash, denom.as_bytes()].concat())
         .then(<[u8; 32]>::from)
         .then(TokenId::new)
         .then(Ok)
