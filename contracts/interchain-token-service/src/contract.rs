@@ -31,6 +31,8 @@ pub enum Error {
     DeregisterItsContract,
     #[error("failed to register gateway token")]
     RegisterGatewayToken,
+    #[error("too many coins attached. Execute accepts zero or one coins")]
+    TooManyCoins,
     #[error("failed to query its address")]
     QueryItsContract,
     #[error("failed to query all its addresses")]
@@ -91,8 +93,15 @@ pub fn execute(
             cc_id,
             source_address,
             payload,
-        }) => execute::execute_message(deps, cc_id, source_address, payload)
-            .change_context(Error::Execute),
+        }) => {
+            let coin = match &info.funds[..] {
+                [] => Ok(None),
+                [coin] => Ok(Some(coin.to_owned())),
+                _ => Err(Error::TooManyCoins),
+            }?;
+            execute::execute_message(deps, cc_id, source_address, payload, coin)
+                .change_context(Error::Execute)
+        }
         ExecuteMsg::RegisterItsContract { chain, address } => {
             execute::register_its_contract(deps, chain, address)
                 .change_context(Error::RegisterItsContract)
@@ -133,22 +142,33 @@ pub fn query(deps: Deps, _: Env, msg: QueryMsg) -> Result<Binary, ContractError>
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
+    use std::marker::PhantomData;
 
+    use assert_ok::assert_ok;
+    use axelar_core_std::nexus;
+    use axelar_core_std::nexus::query::IsChainRegisteredResponse;
+    use axelar_core_std::query::AxelarQueryMsg;
+    use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
     use axelar_wasm_std::nonempty;
-    use cosmwasm_std::testing::{
-        mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
+    use axelarnet_gateway::AxelarExecutableMsg;
+    use cosmwasm_std::testing::{mock_env, mock_info, MockApi, MockQuerier, MockStorage};
+    use cosmwasm_std::{
+        from_json, to_json_binary, Coin, CosmosMsg, HexBinary, MemoryStorage, OwnedDeps, Uint128,
+        WasmMsg, WasmQuery,
     };
-    use cosmwasm_std::{from_json, to_json_binary, OwnedDeps, WasmQuery};
-    use router_api::{ChainName, ChainNameRaw};
+    use router_api::{ChainName, ChainNameRaw, CrossChainId};
 
     use super::{execute, instantiate};
     use crate::contract::execute::gateway_token_id;
     use crate::contract::query;
     use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
-    use crate::TokenId;
+    use crate::{HubMessage, Message, TokenId};
     const GOVERNANCE_ADDRESS: &str = "governance";
     const ADMIN_ADDRESS: &str = "admin";
     const AXELARNET_GATEWAY_ADDRESS: &str = "axelarnet-gateway";
+    const CORE_CHAIN: &str = "ethereum";
+    const AMPLIFIER_CHAIN: &str = "solana";
+    const AXELAR_CHAIN_NAME: &str = "axelar";
 
     #[test]
     fn register_gateway_token_should_register_denom_and_token_id() {
@@ -177,8 +197,164 @@ mod tests {
         );
     }
 
-    fn setup() -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
-        let mut deps = mock_dependencies();
+    /// Tests that a token can be attached to an ITS message, escrowed in the contract, and then subsequently
+    /// unlocked and sent back at a later time
+    #[test]
+    fn send_token_from_core_and_back() {
+        let mut deps = setup();
+        let denom = "eth";
+        let source_chain = ChainNameRaw::try_from(CORE_CHAIN).unwrap();
+        let destination_chain = ChainNameRaw::try_from(AMPLIFIER_CHAIN).unwrap();
+
+        let its_address = "68d30f47F19c07bCCEf4Ac7FAE2Dc12FCa3e0dC9";
+        let source_address =
+            HexBinary::from_hex("4838B106FCe9647Bdf1E7877BF73cE8B0BAD5f97").unwrap();
+
+        assert_ok!(execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(GOVERNANCE_ADDRESS, &[]),
+            ExecuteMsg::RegisterGatewayToken {
+                denom: denom.try_into().unwrap(),
+                source_chain: source_chain.clone(),
+            },
+        ));
+
+        assert_ok!(execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(GOVERNANCE_ADDRESS, &[]),
+            ExecuteMsg::RegisterItsContract {
+                chain: source_chain.clone(),
+                address: its_address.to_string().try_into().unwrap()
+            }
+        ));
+
+        assert_ok!(execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(GOVERNANCE_ADDRESS, &[]),
+            ExecuteMsg::RegisterItsContract {
+                chain: destination_chain.clone(),
+                address: its_address.to_string().try_into().unwrap()
+            }
+        ));
+
+        let coin = Coin {
+            denom: denom.to_string(),
+            amount: Uint128::new(100u128),
+        };
+
+        let token_id = gateway_token_id(&deps.as_mut(), denom).unwrap();
+        let msg = HubMessage::SendToHub {
+            destination_chain: destination_chain.clone(),
+            message: Message::InterchainTransfer {
+                token_id: token_id.clone(),
+                source_address: source_address.clone(),
+                destination_address: HexBinary::from_hex(its_address).unwrap(),
+                amount: coin.amount.into(),
+                data: HexBinary::from_hex("").unwrap(),
+            },
+        };
+
+        assert_ok!(execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(AXELARNET_GATEWAY_ADDRESS, &[coin.clone()]),
+            ExecuteMsg::Execute(AxelarExecutableMsg {
+                cc_id: CrossChainId {
+                    source_chain: source_chain.clone(),
+                    message_id: HexTxHashAndEventIndex::new([1u8; 32], 0u32)
+                        .to_string()
+                        .try_into()
+                        .unwrap(),
+                },
+                source_address: its_address.to_string().try_into().unwrap(),
+                payload: msg.abi_encode(),
+            })
+        ));
+
+        let msg = HubMessage::SendToHub {
+            destination_chain: source_chain.clone(),
+            message: Message::InterchainTransfer {
+                token_id: token_id.clone(),
+                source_address: source_address.clone(),
+                destination_address: HexBinary::from_hex(its_address).unwrap(),
+                amount: coin.amount.into(),
+                data: HexBinary::from_hex("").unwrap(),
+            },
+        };
+
+        let res = assert_ok!(execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(AXELARNET_GATEWAY_ADDRESS, &[]),
+            ExecuteMsg::Execute(AxelarExecutableMsg {
+                cc_id: CrossChainId {
+                    source_chain: destination_chain.clone(),
+                    message_id: HexTxHashAndEventIndex::new([1u8; 32], 0u32)
+                        .to_string()
+                        .try_into()
+                        .unwrap(),
+                },
+                source_address: its_address.to_string().try_into().unwrap(),
+                payload: msg.abi_encode(),
+            })
+        ));
+        assert_eq!(res.messages.len(), 1);
+        match &res.messages.first().unwrap().msg {
+            CosmosMsg::Wasm(WasmMsg::Execute { funds, .. }) => {
+                assert_eq!(funds.len(), 1);
+                assert_eq!(funds.first().unwrap(), &coin);
+            }
+            _ => assert!(false),
+        };
+    }
+
+    fn make_deps() -> OwnedDeps<MemoryStorage, MockApi, MockQuerier<AxelarQueryMsg>> {
+        let mut deps = OwnedDeps {
+            storage: MockStorage::default(),
+            api: MockApi::default(),
+            querier: MockQuerier::<AxelarQueryMsg>::new(&[]),
+            custom_query_type: PhantomData,
+        };
+
+        let mut querier = MockQuerier::<AxelarQueryMsg>::new(&[]);
+        querier.update_wasm(move |msg| match msg {
+            WasmQuery::Smart { contract_addr, msg }
+                if contract_addr == AXELARNET_GATEWAY_ADDRESS =>
+            {
+                let msg = from_json::<axelarnet_gateway::msg::QueryMsg>(msg).unwrap();
+                match msg {
+                    axelarnet_gateway::msg::QueryMsg::ChainName {} => {
+                        Ok(to_json_binary(&ChainName::try_from(AXELAR_CHAIN_NAME).unwrap()).into())
+                            .into()
+                    }
+                    _ => panic!("unsupported query"),
+                }
+            }
+            _ => panic!("unexpected query: {:?}", msg),
+        });
+        querier = querier.with_custom_handler(|msg| match msg {
+            AxelarQueryMsg::Nexus(msg) => match msg {
+                nexus::query::QueryMsg::IsChainRegistered { chain } => Ok(to_json_binary(
+                    &(IsChainRegisteredResponse {
+                        is_registered: chain == CORE_CHAIN,
+                    }),
+                )
+                .into())
+                .into(),
+                _ => panic!("unsupported query"),
+            },
+            _ => panic!("unsupported query"),
+        });
+
+        deps.querier = querier;
+        deps
+    }
+
+    fn setup() -> OwnedDeps<MemoryStorage, MockApi, MockQuerier<AxelarQueryMsg>> {
+        let mut deps = make_deps();
 
         instantiate(
             deps.as_mut(),
@@ -192,15 +368,6 @@ mod tests {
             },
         )
         .unwrap();
-
-        deps.querier.update_wasm(move |wq| match wq {
-            WasmQuery::Smart { contract_addr, .. }
-                if contract_addr == AXELARNET_GATEWAY_ADDRESS =>
-            {
-                Ok(to_json_binary(&ChainName::try_from("axelar").unwrap()).into()).into()
-            }
-            _ => panic!("no mock for this query"),
-        });
 
         deps
     }

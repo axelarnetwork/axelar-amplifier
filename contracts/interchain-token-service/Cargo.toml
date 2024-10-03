@@ -34,6 +34,7 @@ optimize = """docker run --rm -v "$(pwd)":/code \
 alloy-primitives = { workspace = true }
 alloy-sol-types = { workspace = true }
 axelar-wasm-std = { workspace = true, features = ["derive"] }
+axelar-core-std = {workspace = true }
 axelarnet-gateway = { workspace = true, features = ["library"] }
 client = { workspace = true }
 cosmwasm-schema = { workspace = true }

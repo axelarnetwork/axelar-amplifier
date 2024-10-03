@@ -96,6 +96,13 @@ pub fn save_gateway_token_denom(
     Ok(())
 }
 
+pub fn may_load_gateway_denom(
+    storage: &dyn Storage,
+    token_id: TokenId,
+) -> Result<Option<nonempty::String>, Error> {
+    Ok(GATEWAY_TOKEN_DENOMS.may_load(storage, token_id)?)
+}
+
 pub fn load_all_gateway_tokens(
     storage: &dyn Storage,
 ) -> Result<HashMap<nonempty::String, TokenId>, Error> {

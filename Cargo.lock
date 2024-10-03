@@ -4078,6 +4078,7 @@ dependencies = [
  "alloy-primitives",
  "alloy-sol-types",
  "assert_ok",
+ "axelar-core-std",
  "axelar-wasm-std",
  "axelarnet-gateway",
  "client",

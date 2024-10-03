@@ -1,5 +1,6 @@
+use axelar_core_std::nexus;
 use axelar_wasm_std::{nonempty, FnExt, IntoContractError};
-use cosmwasm_std::{DepsMut, HexBinary, QuerierWrapper, Response, Storage};
+use cosmwasm_std::{Coin, DepsMut, HexBinary, QuerierWrapper, Response, Storage, Uint128, Uint256};
 use error_stack::{bail, ensure, report, Result, ResultExt};
 use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
 use sha3::{Digest, Keccak256};
@@ -7,7 +8,7 @@ use sha3::{Digest, Keccak256};
 use crate::events::Event;
 use crate::primitives::HubMessage;
 use crate::state::{self, load_config, load_its_contract};
-use crate::TokenId;
+use crate::{Message, TokenId};
 
 // this is just keccak256("its-interchain-token-id-gateway")
 const GATEWAY_TOKEN_PREFIX: [u8; 32] = [
@@ -31,8 +32,28 @@ pub enum Error {
     FailedItsContractDeregistration(ChainNameRaw),
     #[error("failed to register gateway token")]
     FailedGatewayTokenRegistration,
+    #[error("failed to execute message")]
+    FailedExecuteMessage,
     #[error("failed to generate token id")]
     FailedTokenIdGeneration,
+    #[error("denom not registered")]
+    DenomNotRegistered,
+    #[error("source chain is not registered with axelar-core")]
+    SourceChainNotRegisteredInCore,
+    #[error("token id in message does not match token id of attached coin")]
+    TokenIdMismatch,
+    #[error("attached coin amount does not match transfer amount")]
+    TransferAmountMismatch,
+    #[error("coin attached but message is not an interchain transfer")]
+    NotInterchainTransfer,
+    #[error("transfer amount exceeds Uint128 max")]
+    TransferAmountOverflow,
+    #[error("gateway token should be attached but no token was attached")]
+    MissingAttachedGatewayToken,
+    #[error("failed to query nexus")]
+    NexusQueryError,
+    #[error("storage error")]
+    StorageError,
 }
 
 /// Executes an incoming ITS message.
@@ -45,6 +66,7 @@ pub fn execute_message(
     cc_id: CrossChainId,
     source_address: Address,
     payload: HexBinary,
+    coin: Option<Coin>,
 ) -> Result<Response, Error> {
     ensure_its_source_address(deps.storage, &cc_id.source_chain, &source_address)?;
 
@@ -62,12 +84,15 @@ pub fn execute_message(
             }
             .abi_encode();
 
+            verify_coin(&deps, &coin, &message, &cc_id.source_chain)?;
+
             Ok(send_to_destination(
                 deps.storage,
                 deps.querier,
                 destination_chain.clone(),
                 destination_address,
                 destination_payload,
+                get_coin_to_attach(&deps, &message, &destination_chain)?,
             )?
             .add_event(
                 Event::MessageReceived {
@@ -103,20 +128,126 @@ fn ensure_its_source_address(
     Ok(())
 }
 
+fn verify_coin(
+    deps: &DepsMut,
+    coin: &Option<Coin>,
+    message: &Message,
+    source_chain: &ChainNameRaw,
+) -> Result<(), Error> {
+    match coin {
+        None => verify_coin_should_be_none(deps, message, source_chain),
+        Some(coin) => verify_attached_coin(deps, coin, message, source_chain),
+    }
+}
+
+fn verify_coin_should_be_none(
+    deps: &DepsMut,
+    message: &Message,
+    source_chain: &ChainNameRaw,
+) -> Result<(), Error> {
+    let client: nexus::Client = client::CosmosClient::new(deps.querier).into();
+    let is_core_chain = client
+        .is_chain_registered(&normalize(source_chain))
+        .change_context(Error::NexusQueryError)?;
+
+    let token_id = message.token_id();
+    let is_gateway_token = state::may_load_gateway_denom(deps.storage, token_id)
+        .change_context(Error::StorageError)?
+        .is_some();
+
+    if is_core_chain && is_gateway_token {
+        bail!(Error::MissingAttachedGatewayToken);
+    }
+    Ok(())
+}
+
+fn verify_attached_coin(
+    deps: &DepsMut,
+    coin: &Coin,
+    message: &Message,
+    source_chain: &ChainNameRaw,
+) -> Result<(), Error> {
+    let token_id = message.token_id();
+    let computed_token_id = gateway_token_id(deps, coin.denom.as_str())?;
+    if computed_token_id != token_id {
+        bail!(Error::TokenIdMismatch)
+    }
+
+    let gateway_token_denom = state::may_load_gateway_denom(deps.storage, token_id.clone())
+        .change_context(Error::StorageError)?;
+    if gateway_token_denom.is_none() {
+        bail!(Error::DenomNotRegistered)
+    }
+
+    let transfer_amount = message.transfer_amount();
+    match transfer_amount {
+        None => bail!(Error::NotInterchainTransfer),
+        Some(amount) if amount != Uint256::from_uint128(coin.amount) => {
+            bail!(Error::TransferAmountMismatch)
+        }
+        _ => (),
+    };
+
+    let client: nexus::Client = client::CosmosClient::new(deps.querier).into();
+    if !client
+        .is_chain_registered(&normalize(source_chain))
+        .change_context(Error::NexusQueryError)?
+    {
+        bail!(Error::SourceChainNotRegisteredInCore)
+    }
+
+    Ok(())
+}
+
+fn get_coin_to_attach(
+    deps: &DepsMut,
+    message: &Message,
+    destination_chain: &ChainNameRaw,
+) -> Result<Option<Coin>, Error> {
+    let client: nexus::Client = client::CosmosClient::new(deps.querier).into();
+    if !client
+        .is_chain_registered(&normalize(destination_chain))
+        .change_context(Error::NexusQueryError)?
+    {
+        return Ok(None);
+    }
+
+    let token_id = message.token_id();
+    let gateway_token_denom = state::may_load_gateway_denom(deps.storage, token_id.clone())
+        .change_context(Error::StorageError)?;
+
+    let transfer_amount = message.transfer_amount();
+    match (gateway_token_denom, transfer_amount) {
+        (Some(denom), Some(amount)) => Ok(Some(Coin {
+            denom: denom.into_inner(),
+            amount: Uint128::try_from(amount).change_context(Error::TransferAmountOverflow)?,
+        })),
+        _ => Ok(None),
+    }
+}
+
 fn send_to_destination(
     storage: &dyn Storage,
     querier: QuerierWrapper,
     destination_chain: ChainNameRaw,
     destination_address: Address,
     payload: HexBinary,
+    coin: Option<Coin>,
 ) -> Result<Response, Error> {
     let config = load_config(storage);
 
     let gateway: axelarnet_gateway::Client =
         client::ContractClient::new(querier, &config.axelarnet_gateway).into();
 
-    let call_contract_msg =
-        gateway.call_contract(normalize(&destination_chain), destination_address, payload);
+    let call_contract_msg = match coin {
+        Some(coin) => gateway.call_contract_with_token(
+            normalize(&destination_chain),
+            destination_address,
+            payload,
+            coin,
+        ),
+        None => gateway.call_contract(normalize(&destination_chain), destination_address, payload),
+    };
 
     Ok(Response::new().add_message(call_contract_msg))
 }
@@ -167,15 +298,31 @@ pub fn gateway_token_id(deps: &DepsMut, denom: &str) -> Result<TokenId, Error> {
 
 #[cfg(test)]
 mod tests {
+    use std::marker::PhantomData;
+
     use assert_ok::assert_ok;
+    use axelar_core_std::nexus;
+    use axelar_core_std::nexus::query::IsChainRegisteredResponse;
+    use axelar_core_std::query::AxelarQueryMsg;
     use axelar_wasm_std::assert_err_contains;
+    use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
     use axelarnet_gateway::msg::QueryMsg;
-    use cosmwasm_std::testing::{mock_dependencies, MockApi, MockQuerier};
-    use cosmwasm_std::{from_json, to_json_binary, Addr, MemoryStorage, OwnedDeps, WasmQuery};
-    use router_api::{ChainName, ChainNameRaw};
+    use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage};
+    use cosmwasm_std::{
+        from_json, to_json_binary, Addr, Coin, CosmosMsg, HexBinary, MemoryStorage, OwnedDeps,
+        Uint128, Uint256, WasmMsg, WasmQuery,
+    };
+    use router_api::{ChainName, ChainNameRaw, CrossChainId};
 
     use super::{gateway_token_id, register_gateway_token, Error};
+    use crate::contract::execute::{execute_message, register_its_contract};
     use crate::state::{self, Config};
+    use crate::{HubMessage, Message};
+
+    const CORE_CHAIN: &str = "ethereum";
+    const AMPLIFIER_CHAIN: &str = "solana";
+    const GATEWAY_TOKEN_DENOM: &str = "eth";
+    const ITS_ADDRESS: &str = "68d30f47F19c07bCCEf4Ac7FAE2Dc12FCa3e0dC9";
 
     #[test]
     fn gateway_token_id_should_be_idempotent() {
@@ -222,9 +369,500 @@ mod tests {
         );
     }
 
-    fn init() -> OwnedDeps<MemoryStorage, MockApi, MockQuerier> {
+    #[test]
+    fn should_lock_and_unlock_gateway_token() {
+        let mut deps = init();
+        register_token_and_its_contracts(&mut deps);
+
+        let destination_chain = ChainNameRaw::try_from(AMPLIFIER_CHAIN).unwrap();
+        let source_chain = ChainNameRaw::try_from(CORE_CHAIN).unwrap();
+        let source_address =
+            HexBinary::from_hex("4838B106FCe9647Bdf1E7877BF73cE8B0BAD5f97").unwrap();
+
+        let token_id = gateway_token_id(&deps.as_mut(), GATEWAY_TOKEN_DENOM).unwrap();
+
+        let coin = Coin {
+            denom: GATEWAY_TOKEN_DENOM.to_string(),
+            amount: Uint128::from(1500u128),
+        };
+
+        let msg = HubMessage::SendToHub {
+            destination_chain: destination_chain.clone(),
+            message: Message::InterchainTransfer {
+                token_id: token_id.clone(),
+                source_address: source_address.clone(),
+                destination_address: HexBinary::from_hex(ITS_ADDRESS).unwrap(),
+                amount: coin.amount.into(),
+                data: HexBinary::from_hex("").unwrap(),
+            },
+        };
+        assert_ok!(execute_message(
+            deps.as_mut(),
+            CrossChainId {
+                source_chain: source_chain.clone(),
+                message_id: HexTxHashAndEventIndex::new([1u8; 32], 0u32)
+                    .to_string()
+                    .try_into()
+                    .unwrap(),
+            },
+            ITS_ADDRESS.to_string().try_into().unwrap(),
+            msg.abi_encode(),
+            Some(coin.clone()),
+        ));
+
+        let msg = HubMessage::SendToHub {
+            destination_chain: source_chain.clone(),
+            message: Message::InterchainTransfer {
+                token_id,
+                source_address: source_address.clone(),
+                destination_address: HexBinary::from_hex(ITS_ADDRESS).unwrap(),
+                amount: coin.amount.into(),
+                data: HexBinary::from_hex("").unwrap(),
+            },
+        };
+
+        let res = assert_ok!(execute_message(
+            deps.as_mut(),
+            CrossChainId {
+                source_chain: destination_chain.clone(),
+                message_id: HexTxHashAndEventIndex::new([1u8; 32], 0u32)
+                    .to_string()
+                    .try_into()
+                    .unwrap(),
+            },
+            ITS_ADDRESS.to_string().try_into().unwrap(),
+            msg.abi_encode(),
+            None,
+        ));
+
+        match &res.messages[0].msg {
+            CosmosMsg::Wasm(WasmMsg::Execute { funds, .. }) => {
+                assert_eq!(funds.len(), 1);
+                assert_eq!(funds.first().unwrap(), &coin);
+            }
+            _ => assert!(false),
+        };
+    }
+
+    #[test]
+    fn should_reject_transfer_if_token_id_does_not_match() {
+        let mut deps = init();
+        register_token_and_its_contracts(&mut deps);
+
+        let destination_chain = ChainNameRaw::try_from(AMPLIFIER_CHAIN).unwrap();
+        let source_chain = ChainNameRaw::try_from(CORE_CHAIN).unwrap();
+        let source_address =
+            HexBinary::from_hex("4838B106FCe9647Bdf1E7877BF73cE8B0BAD5f97").unwrap();
+
+        let coin = Coin {
+            denom: GATEWAY_TOKEN_DENOM.to_string(),
+            amount: Uint128::from(1500u128),
+        };
+
+        let msg = HubMessage::SendToHub {
+            destination_chain: destination_chain.clone(),
+            message: Message::InterchainTransfer {
+                token_id: [0u8; 32].into(),
+                source_address: source_address.clone(),
+                destination_address: HexBinary::from_hex(ITS_ADDRESS).unwrap(),
+                amount: coin.amount.into(),
+                data: HexBinary::from_hex("").unwrap(),
+            },
+        };
+        let res = execute_message(
+            deps.as_mut(),
+            CrossChainId {
+                source_chain: source_chain.clone(),
+                message_id: HexTxHashAndEventIndex::new([1u8; 32], 0u32)
+                    .to_string()
+                    .try_into()
+                    .unwrap(),
+            },
+            ITS_ADDRESS.to_string().try_into().unwrap(),
+            msg.abi_encode(),
+            Some(coin.clone()),
+        );
+        assert_err_contains!(res, Error, Error::TokenIdMismatch);
+    }
+
+    #[test]
+    fn should_reject_transfer_if_amount_does_not_match_attached_token() {
+        let mut deps = init();
+        register_token_and_its_contracts(&mut deps);
+
+        let destination_chain = ChainNameRaw::try_from(AMPLIFIER_CHAIN).unwrap();
+        let source_chain = ChainNameRaw::try_from(CORE_CHAIN).unwrap();
+        let source_address =
+            HexBinary::from_hex("4838B106FCe9647Bdf1E7877BF73cE8B0BAD5f97").unwrap();
+
+        let token_id = gateway_token_id(&deps.as_mut(), GATEWAY_TOKEN_DENOM).unwrap();
+
+        let coin = Coin {
+            denom: GATEWAY_TOKEN_DENOM.to_string(),
+            amount: Uint128::from(1500u128),
+        };
+
+        let msg = HubMessage::SendToHub {
+            destination_chain: destination_chain.clone(),
+            message: Message::InterchainTransfer {
+                token_id: token_id.clone(),
+                source_address: source_address.clone(),
+                destination_address: HexBinary::from_hex(ITS_ADDRESS).unwrap(),
+                amount: coin.amount.strict_sub(Uint128::one()).into(),
+                data: HexBinary::from_hex("").unwrap(),
+            },
+        };
+        let res = execute_message(
+            deps.as_mut(),
+            CrossChainId {
+                source_chain: source_chain.clone(),
+                message_id: HexTxHashAndEventIndex::new([1u8; 32], 0u32)
+                    .to_string()
+                    .try_into()
+                    .unwrap(),
+            },
+            ITS_ADDRESS.to_string().try_into().unwrap(),
+            msg.abi_encode(),
+            Some(coin.clone()),
+        );
+        assert_err_contains!(res, Error, Error::TransferAmountMismatch);
+    }
+
+    #[test]
+    fn should_reject_transfer_with_token_if_source_chain_is_not_core() {
+        let mut deps = init();
+        register_token_and_its_contracts(&mut deps);
+
+        let destination_chain = ChainNameRaw::try_from(CORE_CHAIN).unwrap();
+        let source_chain = ChainNameRaw::try_from(AMPLIFIER_CHAIN).unwrap();
+        let source_address =
+            HexBinary::from_hex("4838B106FCe9647Bdf1E7877BF73cE8B0BAD5f97").unwrap();
+
+        let token_id = gateway_token_id(&deps.as_mut(), GATEWAY_TOKEN_DENOM).unwrap();
+
+        let coin = Coin {
+            denom: GATEWAY_TOKEN_DENOM.to_string(),
+            amount: Uint128::from(1500u128),
+        };
+
+        let msg = HubMessage::SendToHub {
+            destination_chain: destination_chain.clone(),
+            message: Message::InterchainTransfer {
+                token_id: token_id.clone(),
+                source_address: source_address.clone(),
+                destination_address: HexBinary::from_hex(ITS_ADDRESS).unwrap(),
+                amount: coin.amount.into(),
+                data: HexBinary::from_hex("").unwrap(),
+            },
+        };
+        let res = execute_message(
+            deps.as_mut(),
+            CrossChainId {
+                source_chain: source_chain.clone(),
+                message_id: HexTxHashAndEventIndex::new([1u8; 32], 0u32)
+                    .to_string()
+                    .try_into()
+                    .unwrap(),
+            },
+            ITS_ADDRESS.to_string().try_into().unwrap(),
+            msg.abi_encode(),
+            Some(coin.clone()),
+        );
+        assert_err_contains!(res, Error, Error::SourceChainNotRegisteredInCore);
+    }
+
+    #[test]
+    fn should_reject_transfer_if_attached_token_is_not_registered() {
+        let mut deps = init();
+        register_token_and_its_contracts(&mut deps);
+
+        let destination_chain = ChainNameRaw::try_from(AMPLIFIER_CHAIN).unwrap();
+        let source_chain = ChainNameRaw::try_from(CORE_CHAIN).unwrap();
+        let source_address =
+            HexBinary::from_hex("4838B106FCe9647Bdf1E7877BF73cE8B0BAD5f97").unwrap();
+
+        let denom = "foobar";
+        let token_id = gateway_token_id(&deps.as_mut(), denom).unwrap();
+
+        let coin = Coin {
+            denom: denom.to_string(),
+            amount: Uint128::from(1500u128),
+        };
+
+        let msg = HubMessage::SendToHub {
+            destination_chain: destination_chain.clone(),
+            message: Message::InterchainTransfer {
+                token_id: token_id.clone(),
+                source_address: source_address.clone(),
+                destination_address: HexBinary::from_hex(ITS_ADDRESS).unwrap(),
+                amount: coin.amount.into(),
+                data: HexBinary::from_hex("").unwrap(),
+            },
+        };
+        let res = execute_message(
+            deps.as_mut(),
+            CrossChainId {
+                source_chain: source_chain.clone(),
+                message_id: HexTxHashAndEventIndex::new([1u8; 32], 0u32)
+                    .to_string()
+                    .try_into()
+                    .unwrap(),
+            },
+            ITS_ADDRESS.to_string().try_into().unwrap(),
+            msg.abi_encode(),
+            Some(coin.clone()),
+        );
+        assert_err_contains!(res, Error, Error::DenomNotRegistered);
+    }
+
+    #[test]
+    fn should_not_attach_coin_if_destination_is_not_core() {
+        let mut deps = init();
+        register_token_and_its_contracts(&mut deps);
+
+        let destination_chain = ChainNameRaw::try_from(AMPLIFIER_CHAIN).unwrap();
+        let source_chain = ChainNameRaw::try_from(CORE_CHAIN).unwrap();
+        let source_address =
+            HexBinary::from_hex("4838B106FCe9647Bdf1E7877BF73cE8B0BAD5f97").unwrap();
+
+        let token_id = gateway_token_id(&deps.as_mut(), GATEWAY_TOKEN_DENOM).unwrap();
+
+        let coin = Coin {
+            denom: GATEWAY_TOKEN_DENOM.to_string(),
+            amount: Uint128::from(1500u128),
+        };
+
+        // send the token from core to an amplifier chain, should be escrowed
+        let msg = HubMessage::SendToHub {
+            destination_chain: destination_chain.clone(),
+            message: Message::InterchainTransfer {
+                token_id: token_id.clone(),
+                source_address: source_address.clone(),
+                destination_address: HexBinary::from_hex(ITS_ADDRESS).unwrap(),
+                amount: coin.amount.into(),
+                data: HexBinary::from_hex("").unwrap(),
+            },
+        };
+        let res = assert_ok!(execute_message(
+            deps.as_mut(),
+            CrossChainId {
+                source_chain: source_chain.clone(),
+                message_id: HexTxHashAndEventIndex::new([1u8; 32], 0u32)
+                    .to_string()
+                    .try_into()
+                    .unwrap(),
+            },
+            ITS_ADDRESS.to_string().try_into().unwrap(),
+            msg.abi_encode(),
+            Some(coin.clone()),
+        ));
+
+        // no tokens attached, token is encoded purely as GMP
+        assert_eq!(res.messages.len(), 1);
+        match &res.messages[0].msg {
+            CosmosMsg::Wasm(WasmMsg::Execute { funds, .. }) => assert_eq!(funds.len(), 0),
+            _ => assert!(false),
+        };
+
+        // now send from amplifier chain to another amplifier chain
+        let second_destination_chain = ChainNameRaw::try_from("xrpl").unwrap();
+        assert_ok!(register_its_contract(
+            deps.as_mut(),
+            second_destination_chain.clone(),
+            ITS_ADDRESS.to_string().try_into().unwrap(),
+        ));
+
+        let msg = HubMessage::SendToHub {
+            destination_chain: second_destination_chain.clone(),
+            message: Message::InterchainTransfer {
+                token_id,
+                source_address: source_address.clone(),
+                destination_address: HexBinary::from_hex(ITS_ADDRESS).unwrap(),
+                amount: coin.amount.into(),
+                data: HexBinary::from_hex("").unwrap(),
+            },
+        };
+
+        let res = assert_ok!(execute_message(
+            deps.as_mut(),
+            CrossChainId {
+                source_chain: destination_chain.clone(),
+                message_id: HexTxHashAndEventIndex::new([1u8; 32], 0u32)
+                    .to_string()
+                    .try_into()
+                    .unwrap(),
+            },
+            ITS_ADDRESS.to_string().try_into().unwrap(),
+            msg.abi_encode(),
+            None,
+        ));
+
+        // no tokens should be attached
+        assert_eq!(res.messages.len(), 1);
+        match &res.messages[0].msg {
+            CosmosMsg::Wasm(WasmMsg::Execute { funds, .. }) => assert_eq!(funds.len(), 0),
+            _ => assert!(false),
+        };
+    }
+
+    #[test]
+    fn can_send_pure_gmp_from_core() {
+        let mut deps = init();
+        register_token_and_its_contracts(&mut deps);
+
+        let destination_chain = ChainNameRaw::try_from(AMPLIFIER_CHAIN).unwrap();
+        let source_chain = ChainNameRaw::try_from(CORE_CHAIN).unwrap();
+        let source_address =
+            HexBinary::from_hex("4838B106FCe9647Bdf1E7877BF73cE8B0BAD5f97").unwrap();
+
+        let denom = "wBTC";
+
+        let token_id = gateway_token_id(&deps.as_mut(), denom).unwrap();
+
+        // send the token from core to an amplifier chain, should be escrowed
+        let msg = HubMessage::SendToHub {
+            destination_chain: destination_chain.clone(),
+            message: Message::InterchainTransfer {
+                token_id: token_id.clone(),
+                source_address: source_address.clone(),
+                destination_address: HexBinary::from_hex(ITS_ADDRESS).unwrap(),
+                amount: Uint256::one(),
+                data: HexBinary::from_hex("").unwrap(),
+            },
+        };
+
+        assert_ok!(execute_message(
+            deps.as_mut(),
+            CrossChainId {
+                source_chain: source_chain.clone(),
+                message_id: HexTxHashAndEventIndex::new([1u8; 32], 0u32)
+                    .to_string()
+                    .try_into()
+                    .unwrap(),
+            },
+            ITS_ADDRESS.to_string().try_into().unwrap(),
+            msg.abi_encode(),
+            None,
+        ));
+    }
+
+    #[test]
+    fn should_reject_transfer_from_core_if_gateway_token_is_not_attached() {
+        let mut deps = init();
+        register_token_and_its_contracts(&mut deps);
+
+        let destination_chain = ChainNameRaw::try_from(AMPLIFIER_CHAIN).unwrap();
+        let source_chain = ChainNameRaw::try_from(CORE_CHAIN).unwrap();
+        let source_address =
+            HexBinary::from_hex("4838B106FCe9647Bdf1E7877BF73cE8B0BAD5f97").unwrap();
+
+        let token_id = gateway_token_id(&deps.as_mut(), GATEWAY_TOKEN_DENOM).unwrap();
+
+        let coin = Coin {
+            denom: GATEWAY_TOKEN_DENOM.to_string(),
+            amount: Uint128::from(1500u128),
+        };
+
+        let msg = HubMessage::SendToHub {
+            destination_chain: destination_chain.clone(),
+            message: Message::InterchainTransfer {
+                token_id: token_id.clone(),
+                source_address: source_address.clone(),
+                destination_address: HexBinary::from_hex(ITS_ADDRESS).unwrap(),
+                amount: coin.amount.into(),
+                data: HexBinary::from_hex("").unwrap(),
+            },
+        };
+        let res = execute_message(
+            deps.as_mut(),
+            CrossChainId {
+                source_chain: source_chain.clone(),
+                message_id: HexTxHashAndEventIndex::new([1u8; 32], 0u32)
+                    .to_string()
+                    .try_into()
+                    .unwrap(),
+            },
+            ITS_ADDRESS.to_string().try_into().unwrap(),
+            msg.abi_encode(),
+            None,
+        );
+        assert_err_contains!(res, Error, Error::MissingAttachedGatewayToken);
+    }
+
+    #[test]
+    fn should_reject_message_if_coin_attached_but_not_interchain_transfer() {
+        let mut deps = init();
+        register_token_and_its_contracts(&mut deps);
+
+        let destination_chain = ChainNameRaw::try_from(AMPLIFIER_CHAIN).unwrap();
+        let source_chain = ChainNameRaw::try_from(CORE_CHAIN).unwrap();
+
+        let token_id = gateway_token_id(&deps.as_mut(), GATEWAY_TOKEN_DENOM).unwrap();
+
+        let coin = Coin {
+            denom: GATEWAY_TOKEN_DENOM.to_string(),
+            amount: Uint128::from(1500u128),
+        };
+
+        let msg = HubMessage::SendToHub {
+            destination_chain: destination_chain.clone(),
+            message: Message::DeployInterchainToken {
+                token_id: token_id.clone(),
+                name: "foobar".to_string(),
+                symbol: "FOO".to_string(),
+                decimals: 10u8,
+                minter: HexBinary::from([0u8; 32]),
+            },
+        };
+        let res = execute_message(
+            deps.as_mut(),
+            CrossChainId {
+                source_chain: source_chain.clone(),
+                message_id: HexTxHashAndEventIndex::new([1u8; 32], 0u32)
+                    .to_string()
+                    .try_into()
+                    .unwrap(),
+            },
+            ITS_ADDRESS.to_string().try_into().unwrap(),
+            msg.abi_encode(),
+            Some(coin),
+        );
+        assert_err_contains!(res, Error, Error::NotInterchainTransfer);
+    }
+
+    fn register_token_and_its_contracts(
+        deps: &mut OwnedDeps<MemoryStorage, MockApi, MockQuerier<AxelarQueryMsg>>,
+    ) {
+        let amplifier_chain = ChainNameRaw::try_from(AMPLIFIER_CHAIN).unwrap();
+        let core_chain = ChainNameRaw::try_from(CORE_CHAIN).unwrap();
+
+        assert_ok!(register_gateway_token(
+            deps.as_mut(),
+            GATEWAY_TOKEN_DENOM.try_into().unwrap(),
+            core_chain.clone()
+        ));
+
+        assert_ok!(register_its_contract(
+            deps.as_mut(),
+            core_chain.clone(),
+            ITS_ADDRESS.to_string().try_into().unwrap(),
+        ));
+
+        assert_ok!(register_its_contract(
+            deps.as_mut(),
+            amplifier_chain.clone(),
+            ITS_ADDRESS.to_string().try_into().unwrap(),
+        ));
+    }
+
+    fn init() -> OwnedDeps<MemoryStorage, MockApi, MockQuerier<AxelarQueryMsg>> {
         let addr = Addr::unchecked("axelar-gateway");
-        let mut deps = mock_dependencies();
+        let mut deps = OwnedDeps {
+            storage: MockStorage::default(),
+            api: MockApi::default(),
+            querier: MockQuerier::<AxelarQueryMsg>::new(&[]),
+            custom_query_type: PhantomData,
+        };
         state::save_config(
             deps.as_mut().storage,
             &Config {
@@ -233,7 +871,7 @@ mod tests {
         )
         .unwrap();
 
-        let mut querier = MockQuerier::default();
+        let mut querier = MockQuerier::<AxelarQueryMsg>::new(&[]);
         querier.update_wasm(move |msg| match msg {
             WasmQuery::Smart { contract_addr, msg } if contract_addr == &addr.to_string() => {
                 let msg = from_json::<QueryMsg>(msg).unwrap();
@@ -245,6 +883,19 @@ mod tests {
                 }
             }
             _ => panic!("unexpected query: {:?}", msg),
+        });
+        querier = querier.with_custom_handler(|msg| match msg {
+            AxelarQueryMsg::Nexus(msg) => match msg {
+                nexus::query::QueryMsg::IsChainRegistered { chain } => Ok(to_json_binary(
+                    &(IsChainRegisteredResponse {
+                        is_registered: chain == CORE_CHAIN,
+                    }),
+                )
+                .into())
+                .into(),
+                _ => panic!("unsupported query"),
+            },
+            _ => panic!("unsupported query"),
         });
 
         deps.querier = querier;

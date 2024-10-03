@@ -1,15 +1,24 @@
+use std::marker::PhantomData;
+
 use assert_ok::assert_ok;
+use axelar_core_std::nexus;
+use axelar_core_std::nexus::query::IsChainRegisteredResponse;
+use axelar_core_std::query::AxelarQueryMsg;
 use axelar_wasm_std::response::inspect_response_msg;
 use axelar_wasm_std::{assert_err_contains, permission_control};
 use axelarnet_gateway::msg::ExecuteMsg as AxelarnetGatewayExecuteMsg;
-use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-use cosmwasm_std::HexBinary;
+use cosmwasm_std::testing::{
+    mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
+};
+use cosmwasm_std::{
+    from_json, to_json_binary, Addr, HexBinary, MemoryStorage, OwnedDeps, WasmQuery,
+};
 use interchain_token_service::contract::{self, ExecuteError};
 use interchain_token_service::events::Event;
 use interchain_token_service::msg::ExecuteMsg;
 use interchain_token_service::{HubMessage, Message, TokenId, TokenManagerType};
 use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
-use utils::TestMessage;
+use utils::{params, TestMessage};
 
 mod utils;
 
@@ -78,7 +87,7 @@ fn deregistering_unknown_chain_fails() {
 
 #[test]
 fn execute_hub_message_succeeds() {
-    let mut deps = mock_dependencies();
+    let mut deps = make_deps();
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
     let TestMessage {
@@ -313,4 +322,44 @@ fn execute_message_when_invalid_message_type_fails() {
         invalid_hub_message.abi_encode(),
     );
     assert_err_contains!(result, ExecuteError, ExecuteError::InvalidMessageType);
+}
+
+fn make_deps() -> OwnedDeps<MemoryStorage, MockApi, MockQuerier<AxelarQueryMsg>> {
+    let addr = Addr::unchecked(params::GATEWAY);
+    let mut deps = OwnedDeps {
+        storage: MockStorage::default(),
+        api: MockApi::default(),
+        querier: MockQuerier::<AxelarQueryMsg>::new(&[]),
+        custom_query_type: PhantomData,
+    };
+
+    let mut querier = MockQuerier::<AxelarQueryMsg>::new(&[]);
+    querier.update_wasm(move |msg| match msg {
+        WasmQuery::Smart { contract_addr, msg } if contract_addr == &addr.to_string() => {
+            let msg = from_json::<axelarnet_gateway::msg::QueryMsg>(msg).unwrap();
+            match msg {
+                axelarnet_gateway::msg::QueryMsg::ChainName {} => {
+                    Ok(to_json_binary(&ChainName::try_from("axelar").unwrap()).into()).into()
+                }
+                _ => panic!("unsupported query"),
+            }
+        }
+        _ => panic!("unexpected query: {:?}", msg),
+    });
+    querier = querier.with_custom_handler(|msg| match msg {
+        AxelarQueryMsg::Nexus(msg) => match msg {
+            nexus::query::QueryMsg::IsChainRegistered { chain } => Ok(to_json_binary(
+                &(IsChainRegisteredResponse {
+                    is_registered: chain == "ethereum",
+                }),
+            )
+            .into())
+            .into(),
+            _ => panic!("unsupported query"),
+        },
+        _ => panic!("unsupported query"),
+    });
+
+    deps.querier = querier;
+    deps
 }
