@@ -50,7 +50,7 @@ Facilitates verifier signing sessions which is leveraged by the multisig prover 
 
 **Rewards**  
 
-Manages verifier rewards. [Rewards Documentation](../doc/src/contracts/rewards.md)
+Keeps track of verifier participation in various on chain events and distributes rewards accordingly. [Rewards Documentation](../doc/src/contracts/rewards.md)
 
 **Router**  
 
