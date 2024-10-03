@@ -132,7 +132,6 @@ pub fn query(deps: Deps, _: Env, msg: QueryMsg) -> Result<Binary, ContractError>
 
 #[cfg(test)]
 mod tests {
-
     use std::collections::HashMap;
 
     use axelar_wasm_std::nonempty;
