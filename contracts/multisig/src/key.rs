@@ -115,7 +115,7 @@ impl TryFrom<HexBinary> for Recoverable {
 }
 
 #[cw_serde]
-#[derive(Ord, PartialOrd, Eq)]
+#[derive(Ord, PartialOrd, Eq, Hash)]
 pub enum PublicKey {
     /// ECDSA public key must be in compressed format (33 bytes)
     #[serde(deserialize_with = "deserialize_ecdsa_key")]

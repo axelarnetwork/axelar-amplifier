@@ -1,13 +1,14 @@
 pub mod error;
 
+use std::collections::HashMap;
 use std::str::FromStr;
 
 use axelar_wasm_std::utils::TryMapExt;
 use cosmwasm_std::Uint256;
 use error_stack::{bail, Report, ResultExt};
-use multisig::key::PublicKey;
 use multisig::key::Signature::Ed25519;
-use multisig::msg::SignerWithSig;
+use multisig::key::{PublicKey, Signature};
+use multisig::msg::{Signer, SignerWithSig};
 use multisig::verifier_set::VerifierSet;
 use sha3::{Digest, Keccak256};
 use stellar_strkey::Contract;
@@ -277,20 +278,20 @@ impl TryFrom<ProofSigner> for ScVal {
     }
 }
 
-impl TryFrom<SignerWithSig> for ProofSigner {
+impl TryFrom<(Signer, Option<Signature>)> for ProofSigner {
     type Error = Report<Error>;
 
-    fn try_from(value: SignerWithSig) -> Result<Self, Self::Error> {
+    fn try_from((signer, signature): (Signer, Option<Signature>)) -> Result<Self, Self::Error> {
         let signer = WeightedSigner {
-            signer: BytesM::try_from(value.signer.pub_key.as_ref())
-                .change_context(InvalidPublicKey)?,
-            weight: value.signer.weight.into(),
+            signer: BytesM::try_from(signer.pub_key.as_ref()).change_context(InvalidPublicKey)?,
+            weight: signer.weight.into(),
         };
 
-        let signature = match value.signature {
-            Ed25519(signature) => ProofSignature::Signed(
+        let signature = match signature {
+            Some(Ed25519(signature)) => ProofSignature::Signed(
                 BytesM::try_from(signature.to_vec()).change_context(InvalidSignature)?,
             ),
+            None => ProofSignature::Unsigned,
             _ => bail!(Error::UnsupportedSignature),
         };
 
@@ -326,12 +327,26 @@ impl TryFrom<(VerifierSet, Vec<SignerWithSig>)> for Proof {
     type Error = Report<Error>;
 
     fn try_from(
-        (verifier_set, mut signers): (VerifierSet, Vec<SignerWithSig>),
+        (verifier_set, signers): (VerifierSet, Vec<SignerWithSig>),
     ) -> Result<Self, Self::Error> {
-        signers.sort_by(|signer1, signer2| signer1.signer.pub_key.cmp(&signer2.signer.pub_key));
-
-        let signers = signers
+        let mut signatures_by_signers: HashMap<_, _> = signers
             .into_iter()
+            .map(|signer| (signer.signer.pub_key.clone(), signer))
+            .collect();
+
+        let mut sorted_verifiers = verifier_set.signers.into_iter().collect::<Vec<_>>();
+
+        sorted_verifiers
+            .sort_by(|(_, signer1), (_, signer2)| signer1.pub_key.cmp(&signer2.pub_key));
+
+        let signers = sorted_verifiers
+            .into_iter()
+            .map(|(_, signer)| {
+                let signature = signatures_by_signers
+                    .remove(&signer.pub_key)
+                    .map(|s| s.signature);
+                (signer, signature)
+            })
             .map(TryInto::try_into)
             .collect::<Result<Vec<_>, _>>()?;
 
