@@ -22,14 +22,14 @@ use voting_verifier::msg::ExecuteMsg;
 use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error;
 use crate::handlers::errors::Error::DeserializeEvent;
-use crate::stellar::http_client::Client;
+use crate::stellar::http_client::{Client, StellarTxId};
 use crate::stellar::verifier::verify_message;
 use crate::types::TMAddress;
 
 #[serde_as]
 #[derive(Deserialize, Debug, Clone)]
 pub struct Message {
-    pub tx_id: String,
+    pub tx_id: StellarTxId,
     pub event_index: u32,
     pub destination_address: ScString,
     pub destination_chain: ScString,
@@ -118,7 +118,7 @@ impl EventHandler for Handler {
 
         let tx_hashes: HashSet<_> = messages
             .iter()
-            .map(|message| message.tx_id.clone())
+            .map(|message| message.tx_id.to_string())
             .collect();
 
         let transaction_responses = self
@@ -129,7 +129,7 @@ impl EventHandler for Handler {
 
         let message_ids = messages
             .iter()
-            .map(|message| format!("{}-{}", message.tx_id, message.event_index))
+            .map(|message| message.tx_id.to_message_id(message.event_index))
             .collect::<Vec<_>>();
 
         let votes = info_span!(
@@ -145,7 +145,7 @@ impl EventHandler for Handler {
                 .iter()
                 .map(|msg| {
                     transaction_responses
-                        .get(&msg.tx_id)
+                        .get(&msg.tx_id.to_string())
                         .map_or(Vote::NotFound, |tx_response| {
                             verify_message(&source_gateway_address, tx_response, msg)
                         })
@@ -316,7 +316,7 @@ mod tests {
             },
             messages: (0..2)
                 .map(|i| TxEventConfirmation {
-                    tx_id: format!("{:x}", Hash::random()).parse().unwrap(),
+                    tx_id: format!("0x{:x}", Hash::random()).parse().unwrap(),
                     event_index: i,
                     source_address: ScAddress::Contract(stellar_xdr::curr::Hash::from(
                         Hash::random().0,
