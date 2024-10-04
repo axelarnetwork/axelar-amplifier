@@ -1,3 +1,4 @@
+use std::iter;
 use std::str::FromStr;
 
 use axelar_core_std::nexus;
@@ -6,10 +7,9 @@ use axelar_wasm_std::token::GetToken;
 use axelar_wasm_std::{address, FnExt, IntoContractError};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
-    to_json_binary, Addr, DepsMut, HexBinary, MessageInfo, QuerierWrapper, Response, Storage,
-    WasmMsg,
+    Addr, BankMsg, Coin, DepsMut, HexBinary, MessageInfo, QuerierWrapper, Response, Storage,
 };
-use error_stack::{bail, ensure, report, Result, ResultExt};
+use error_stack::{bail, ensure, report, ResultExt};
 use itertools::Itertools;
 use router_api::client::Router;
 use router_api::{Address, ChainName, CrossChainId, Message};
@@ -53,6 +53,8 @@ pub enum Error {
     NonceOverflow,
     #[error("invalid token received")]
     InvalidToken,
+    #[error("invalid routing destination")]
+    RoutingDestination,
 }
 
 #[cw_serde]
@@ -74,30 +76,28 @@ impl CallContractData {
     }
 }
 
+enum RoutingDestination {
+    Nexus,
+    Router,
+}
+
+type Result<T> = error_stack::Result<T, Error>;
+
 pub fn call_contract(
     storage: &mut dyn Storage,
     querier: QuerierWrapper,
     info: MessageInfo,
     call_contract: CallContractData,
-) -> Result<Response, Error> {
+) -> Result<Response<nexus::execute::Message>> {
     let Config {
         router,
         chain_name,
-        nexus_gateway,
+        nexus,
     } = state::load_config(storage);
 
     let client: nexus::Client = client::CosmosClient::new(querier).into();
-    let nexus::query::TxHashAndNonceResponse { tx_hash, nonce } =
-        client.tx_hash_and_nonce().change_context(Error::Nexus)?;
 
-    let id = CrossChainId::new(
-        chain_name,
-        HexTxHashAndEventIndex::new(
-            tx_hash,
-            u32::try_from(nonce).change_context(Error::NonceOverflow)?,
-        ),
-    )
-    .change_context(Error::InvalidCrossChainId)?;
+    let id = unique_cross_chain_id(&client, chain_name.clone())?;
     let source_address = Address::from_str(info.sender.as_str())
         .change_context(Error::InvalidSourceAddress(info.sender.clone()))?;
     let msg = call_contract.to_message(id, source_address);
@@ -112,14 +112,13 @@ pub fn call_contract(
         payload: call_contract.payload,
         token: token.clone(),
     };
-    let res = match token {
-        None => route_to_router(storage, &Router::new(router), vec![msg])?,
-        Some(token) => Response::new().add_message(WasmMsg::Execute {
-            contract_addr: nexus_gateway.to_string(),
-            msg: to_json_binary(&nexus_gateway::msg::ExecuteMsg::RouteMessageWithToken(msg))
-                .expect("failed to serialize route message with token"),
-            funds: vec![token],
-        }),
+
+    let res = match determine_routing_destination(&client, chain_name)? {
+        RoutingDestination::Nexus => route_to_nexus(&client, nexus, msg, token)?,
+        RoutingDestination::Router if token.is_none() => {
+            route_to_router(storage, &Router::new(router), vec![msg])?
+        }
+        _ => bail!(Error::RoutingDestination),
     }
     .add_event(event.into());
 
@@ -130,7 +129,7 @@ pub fn route_messages(
     storage: &mut dyn Storage,
     sender: Addr,
     msgs: Vec<Message>,
-) -> Result<Response, Error> {
+) -> Result<Response<nexus::execute::Message>> {
     let Config {
         chain_name, router, ..
     } = state::load_config(storage);
@@ -144,7 +143,11 @@ pub fn route_messages(
     }
 }
 
-pub fn execute(deps: DepsMut, cc_id: CrossChainId, payload: HexBinary) -> Result<Response, Error> {
+pub fn execute(
+    deps: DepsMut,
+    cc_id: CrossChainId,
+    payload: HexBinary,
+) -> Result<Response<nexus::execute::Message>> {
     let payload_hash: [u8; 32] = Keccak256::digest(payload.as_slice()).into();
     let msg = state::mark_as_executed(
         deps.storage,
@@ -163,6 +166,7 @@ pub fn execute(deps: DepsMut, cc_id: CrossChainId, payload: HexBinary) -> Result
         .change_context(Error::InvalidDestinationAddress(
             msg.destination_address.to_string(),
         ))?;
+
     Response::new()
         .add_message(external::Client::new(deps.querier, &destination).execute(executable_msg))
         .add_event(AxelarnetGatewayEvent::MessageExecuted { msg }.into())
@@ -195,7 +199,7 @@ fn prepare_msgs_for_execution(
     store: &mut dyn Storage,
     chain_name: ChainName,
     msgs: Vec<Message>,
-) -> Result<Response, Error> {
+) -> Result<Response<nexus::execute::Message>> {
     for msg in msgs.iter() {
         ensure!(
             chain_name == msg.destination_chain,
@@ -218,9 +222,9 @@ fn prepare_msgs_for_execution(
 /// Route messages to the router, ignore unknown messages.
 fn route_to_router(
     store: &mut dyn Storage,
-    router: &Router,
+    router: &Router<nexus::execute::Message>,
     msgs: Vec<Message>,
-) -> Result<Response, Error> {
+) -> Result<Response<nexus::execute::Message>> {
     let msgs: Vec<_> = msgs
         .into_iter()
         .unique()
@@ -238,10 +242,7 @@ fn route_to_router(
 
 /// Verify that the message is stored and matches the one we're trying to route. Returns Ok(None) if
 /// the message is not stored.
-fn try_load_executable_msg(
-    store: &mut dyn Storage,
-    msg: Message,
-) -> Result<Option<Message>, Error> {
+fn try_load_executable_msg(store: &mut dyn Storage, msg: Message) -> Result<Option<Message>> {
     let stored_msg = state::may_load_routable_msg(store, &msg.cc_id)
         .change_context(Error::ExecutableMessageAccess)?;
 
@@ -252,4 +253,57 @@ fn try_load_executable_msg(
         Some(stored_msg) => Ok(Some(stored_msg)),
         None => Ok(None),
     }
+}
+
+/// Query Nexus module in core to generate an unique cross chain id.
+fn unique_cross_chain_id(client: &nexus::Client, chain_name: ChainName) -> Result<CrossChainId> {
+    let nexus::query::TxHashAndNonceResponse { tx_hash, nonce } =
+        client.tx_hash_and_nonce().change_context(Error::Nexus)?;
+
+    CrossChainId::new(
+        chain_name,
+        HexTxHashAndEventIndex::new(
+            tx_hash,
+            u32::try_from(nonce).change_context(Error::NonceOverflow)?,
+        ),
+    )
+    .change_context(Error::InvalidCrossChainId)
+}
+
+/// Query Nexus module in core to decide should route message to core
+fn determine_routing_destination(
+    client: &nexus::Client,
+    name: ChainName,
+) -> Result<RoutingDestination> {
+    let dest = match client
+        .is_chain_registered(&name)
+        .change_context(Error::Nexus)?
+    {
+        true => RoutingDestination::Nexus,
+        false => RoutingDestination::Router,
+    };
+
+    Ok(dest)
+}
+
+/// Route message to the Nexus module
+fn route_to_nexus(
+    client: &nexus::Client,
+    nexus: Addr,
+    msg: Message,
+    token: Option<Coin>,
+) -> Result<Response<nexus::execute::Message>> {
+    let msg: nexus::execute::Message = (msg, token.clone()).into();
+
+    token
+        .map(|token| BankMsg::Send {
+            to_address: nexus.to_string(),
+            amount: vec![token],
+        })
+        .map(Into::into)
+        .into_iter()
+        .chain(iter::once(client.route_message(msg)))
+        .collect::<Vec<_>>()
+        .then(|msgs| Response::new().add_messages(msgs))
+        .then(Ok)
 }

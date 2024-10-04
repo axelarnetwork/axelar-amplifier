@@ -1,3 +1,4 @@
+use axelar_core_std::nexus;
 use axelar_wasm_std::error::ContractError;
 use axelar_wasm_std::{address, FnExt, IntoContractError};
 #[cfg(not(feature = "library"))]
@@ -55,7 +56,7 @@ pub fn instantiate(
     let config = Config {
         chain_name: msg.chain_name,
         router: address::validate_cosmwasm_address(deps.api, &msg.router_address)?,
-        nexus_gateway: address::validate_cosmwasm_address(deps.api, &msg.nexus_gateway)?,
+        nexus: address::validate_cosmwasm_address(deps.api, &msg.nexus)?,
     };
 
     state::save_config(deps.storage, &config)?;
@@ -68,7 +69,7 @@ pub fn execute(
     _env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
-) -> Result<Response, ContractError> {
+) -> Result<Response<nexus::execute::Message>, ContractError> {
     match msg.ensure_permissions(deps.storage, &info.sender)? {
         ExecuteMsg::CallContract {
             destination_chain,
