@@ -161,7 +161,7 @@ jobs:
 #          destination-dir: ${{ steps.prepare-release.outputs.r2-destination-dir }}
 
 
-      - uses: ryand56/r2-upload-action@1.3.2
+      - uses: ryand56/r2-upload-action@v1.3.2
         with:
           r2-account-id: ${{ secrets.R2_ACCOUNT_ID }}
           r2-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_CF }}
