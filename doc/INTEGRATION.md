@@ -13,12 +13,13 @@ To connect your chain to the Axelar network via the Interchain Amplifier, you wi
 **Gateway**  
 
 A contract on Amplifier that will forward incoming messages to the chain's correspoding verifier contract to check the validity of a transaction and forwards verified transactions onto the Amplifier router. It also receives messages from other chains to be processed by the multisig prover.
-Most integrators will begin by using or customizing this Gateway Contract.
+Most integrators will begin by using or customizing [this](../contracts/gateway/) Gateway Contract.
+
 [Gateway Documentation](../doc/src/contracts/gateway.md)
 
 **Verifier**  
 
-A contract on Amplifier protocol that verifies the validity of transactions on your chain. Most integrators will begin by using or customizing a Voting Verifier or can be customized to your needs for cases such as verification via ZK Proof.
+A contract on Amplifier protocol that verifies the validity of transactions on your chain. Most integrators will begin by using or customizing a Voting Verifier (such as [this](../contracts/voting-verifier/) one) or can be customized to your needs for cases such as verification via ZK Proof.
 
 A Voting Verifier must be supported by a Verifier Set that will need to support the chain and vote on the truth of source chain transactions. 
 
@@ -26,7 +27,7 @@ A Voting Verifier must be supported by a Verifier Set that will need to support 
 
 **Prover**  
 
-The prover contract is responsible for transforming gateway messages into a payload that is ready to be sent to the destination gateway.
+The prover contract is responsible for transforming gateway messages into a payload that is ready to be sent to the destination gateway. Most integrators will begin by using or customizing a multisig prover, such as [this](../contracts/multisig-prover/) one.
 
 [Multisig Prover Documentation](../doc/src/contracts/multisig_prover.md)
 
