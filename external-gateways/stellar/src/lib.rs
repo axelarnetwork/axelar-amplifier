@@ -329,9 +329,9 @@ impl TryFrom<(VerifierSet, Vec<SignerWithSig>)> for Proof {
     fn try_from(
         (verifier_set, signers): (VerifierSet, Vec<SignerWithSig>),
     ) -> Result<Self, Self::Error> {
-        let mut signatures_by_signers: HashMap<_, _> = signers
+        let mut signatures_by_pub_keys: HashMap<_, _> = signers
             .into_iter()
-            .map(|signer| (signer.signer.pub_key.clone(), signer))
+            .map(|signer| (signer.signer.pub_key.clone(), signer.signature))
             .collect();
 
         let mut sorted_verifiers = verifier_set.signers.into_iter().collect::<Vec<_>>();
@@ -342,9 +342,7 @@ impl TryFrom<(VerifierSet, Vec<SignerWithSig>)> for Proof {
         let signers = sorted_verifiers
             .into_iter()
             .map(|(_, signer)| {
-                let signature = signatures_by_signers
-                    .remove(&signer.pub_key)
-                    .map(|s| s.signature);
+                let signature = signatures_by_pub_keys.remove(&signer.pub_key);
                 (signer, signature)
             })
             .map(TryInto::try_into)
