@@ -8,6 +8,7 @@ use stellar_rs::horizon_client::HorizonClient;
 use stellar_rs::transactions::prelude::{SingleTransactionRequest, TransactionResponse};
 use stellar_xdr::curr::{ContractEvent, Limits, ReadXdr, ScAddress, TransactionMeta, VecM};
 use thiserror::Error;
+use tracing::warn;
 
 #[derive(Error, Debug)]
 pub enum Error {
@@ -101,7 +102,10 @@ impl Client {
         .map(|tx_response| tx_response.map(TxResponse::from))
         .filter_map(|tx_response| match tx_response {
             Ok(tx_response) => Some((tx_response.tx_hash(), tx_response)),
-            Err(_) => None,
+            Err(err) => {
+                warn!(err, "failed to get transaction response");
+                None
+            }
         })
         .collect::<HashMap<_, _>>())
     }
