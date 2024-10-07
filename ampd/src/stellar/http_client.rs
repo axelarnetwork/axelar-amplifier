@@ -120,6 +120,9 @@ impl Client {
             .get_single_transaction(&tx_hash)
             .await
             .map(|tx_response| Some(tx_response.into()))
-            .unwrap_or_default())
+            .unwrap_or_else(|err| {
+                warn!(err, "failed to get transaction response");
+                None
+            }))
     }
 }
