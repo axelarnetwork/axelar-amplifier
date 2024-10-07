@@ -80,6 +80,9 @@ valuable = { version = "0.1.0", features = ["derive"] }
 valuable-serde = { version = "0.1.0", features = ["std"] }
 voting-verifier = { workspace = true }
 
+starknet-core = "0.10.0"
+starknet-providers = "0.10.0"
+
 [dev-dependencies]
 ed25519-dalek = { workspace = true, features = ["rand_core"] }
 elliptic-curve = "0.13.5"
