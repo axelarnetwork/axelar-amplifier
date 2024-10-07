@@ -100,7 +100,10 @@ impl Client {
         )
         .await
         .into_iter()
-        .map(|tx_response| tx_response.map(TxResponse::from))
+        .map(|tx_response| {
+            info!("tx_response: {:?}", tx_response);
+            tx_response.map(TxResponse::from)
+        })
         .filter_map(|tx_response| match tx_response {
             Ok(tx_response) => Some((tx_response.tx_hash(), tx_response)),
             Err(_) => None,
