@@ -157,6 +157,8 @@ impl EventHandler for Handler {
         )
         .in_scope(|| {
             info!("ready to verify messages in poll",);
+            info!("tx responses: {:?}", transaction_responses);
+            info!("tx response {:?}", transaction_responses.get(&messages[0].tx_id));
 
             let votes: Vec<_> = messages
                 .iter()
