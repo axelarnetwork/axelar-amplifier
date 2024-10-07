@@ -132,7 +132,14 @@ mod tests {
             type = 'StellarVerifierSetVerifier'
             cosmwasm_contract = '{}'
             http_url = 'http://localhost:8000'
+
+
+            [[handlers]]
+            type = 'StacksMsgVerifier'
+            cosmwasm_contract = '{}'
+            http_url = 'http://localhost:8000'
             ",
+            TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
@@ -146,7 +153,7 @@ mod tests {
         );
 
         let cfg: Config = toml::from_str(config_str.as_str()).unwrap();
-        assert_eq!(cfg.handlers.len(), 10);
+        assert_eq!(cfg.handlers.len(), 11);
     }
 
     #[test]
@@ -345,6 +352,12 @@ mod tests {
                     http_url: Url::from_str("http://127.0.0.1").unwrap(),
                 },
                 HandlerConfig::StellarVerifierSetVerifier {
+                    cosmwasm_contract: TMAddress::from(
+                        AccountId::new("axelar", &[0u8; 32]).unwrap(),
+                    ),
+                    http_url: Url::from_str("http://127.0.0.1").unwrap(),
+                },
+                HandlerConfig::StacksMsgVerifier {
                     cosmwasm_contract: TMAddress::from(
                         AccountId::new("axelar", &[0u8; 32]).unwrap(),
                     ),

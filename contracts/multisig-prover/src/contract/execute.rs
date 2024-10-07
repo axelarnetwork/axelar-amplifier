@@ -100,6 +100,7 @@ fn messages(
         "violated invariant: returned gateway messages count mismatch"
     );
 
+    // TODO: Filter messages that have `destination_address` as the Stacks ITS Contract
     if let Some(wrong_destination) = messages
         .iter()
         .find(|msg| msg.destination_chain != chain_name)
