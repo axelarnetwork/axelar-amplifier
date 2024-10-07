@@ -8,6 +8,7 @@ use stellar_rs::horizon_client::HorizonClient;
 use stellar_rs::transactions::prelude::{SingleTransactionRequest, TransactionResponse};
 use stellar_xdr::curr::{ContractEvent, Limits, ReadXdr, ScAddress, TransactionMeta, VecM};
 use thiserror::Error;
+use tracing::info;
 
 #[derive(Error, Debug)]
 pub enum Error {
@@ -85,6 +86,7 @@ impl Client {
         let tx_hashes: Vec<_> = tx_hashes
             .into_iter()
             .map(|tx_hash| {
+                info!("tx_hash: {:?}", tx_hash);
                 SingleTransactionRequest::new()
                     .set_transaction_hash(tx_hash)
                     .map_err(|err_str| report!(Error::TxHash).attach_printable(err_str))

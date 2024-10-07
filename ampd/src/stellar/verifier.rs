@@ -3,6 +3,7 @@ use std::str::FromStr;
 use axelar_wasm_std::voting::Vote;
 use stellar::WeightedSigners;
 use stellar_xdr::curr::{ContractEventBody, ScAddress, ScSymbol, ScVal, StringM};
+use tracing::info;
 
 use crate::handlers::stellar_verify_msg::Message;
 use crate::handlers::stellar_verify_verifier_set::VerifierSetConfirmation;
@@ -15,7 +16,7 @@ impl PartialEq<ContractEventBody> for Message {
     fn eq(&self, event: &ContractEventBody) -> bool {
         let ContractEventBody::V0(body) = event;
 
-        std::println!("body: {:?}", body);
+        info!("body: {:?}", body);
 
         if body.topics.len() != 3 {
             return false;
@@ -44,7 +45,7 @@ impl PartialEq<ContractEventBody> for Message {
             && (ScVal::String(self.destination_chain.clone()) == *dest_chain)
             && (ScVal::String(self.destination_address.clone()) == *dest_address);
 
-        std::println!("res: {:?}", res);
+        info!("res: {:?}", res);
 
         res
     }
@@ -130,9 +131,9 @@ fn verify<'a>(
                 .clone()
                 .contract_id
                 .is_some_and(|hash| {
-                    std::println!("contract id: {:?}", ScAddress::Contract(hash.clone()).to_string());
-                    std::println!("gateway address: {:?}", gateway_address.to_string());
-                    ScAddress::Contract(hash) == ScAddress::from_str("CAXVAUVY4JCPMDQWIUMWHO2QVGZN6OXRIH5WAEERJ4KTJOBGZSLJJCMB").unwrap()
+                    info!("contract id: {:?}", ScAddress::Contract(hash.clone()).to_string());
+                    info!("gateway address: {:?}", gateway_address.to_string());
+                    &ScAddress::Contract(hash) == gateway_address
                 })
                 && to_verify == &event.body =>
         {

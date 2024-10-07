@@ -139,7 +139,10 @@ impl EventHandler for Handler {
             .http_client
             .transaction_responses(tx_hashes)
             .await
-            .change_context(Error::TxReceipts)?;
+            .change_context(Error::TxReceipts).map_err(|err| {
+                info!("err: {:?}", err);
+                err
+            })?;
 
         let message_ids = messages
             .iter()
