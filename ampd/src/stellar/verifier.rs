@@ -15,6 +15,8 @@ impl PartialEq<ContractEventBody> for Message {
     fn eq(&self, event: &ContractEventBody) -> bool {
         let ContractEventBody::V0(body) = event;
 
+        std::println!("body: {:?}", body);
+
         if body.topics.len() != 3 {
             return false;
         }
@@ -36,11 +38,15 @@ impl PartialEq<ContractEventBody> for Message {
             _ => return false,
         };
 
-        expected_topic == *symbol
+        let res = expected_topic == *symbol
             && (ScVal::Address(self.source_address.clone()) == *source_address)
             && (ScVal::Bytes(self.payload_hash.clone()) == *payload_hash)
             && (ScVal::String(self.destination_chain.clone()) == *dest_chain)
-            && (ScVal::String(self.destination_address.clone()) == *dest_address)
+            && (ScVal::String(self.destination_address.clone()) == *dest_address);
+
+        std::println!("res: {:?}", res);
+
+        res
     }
 }
 
@@ -123,7 +129,11 @@ fn verify<'a>(
             if event
                 .clone()
                 .contract_id
-                .is_some_and(|hash| ScAddress::Contract(hash) == *gateway_address)
+                .is_some_and(|hash| {
+                    std::println!("contract id: {:?}", ScAddress::Contract(hash.clone()).to_string());
+                    std::println!("gateway address: {:?}", gateway_address.to_string());
+                    ScAddress::Contract(hash) == ScAddress::from_str("CAXVAUVY4JCPMDQWIUMWHO2QVGZN6OXRIH5WAEERJ4KTJOBGZSLJJCMB").unwrap()
+                })
                 && to_verify == &event.body =>
         {
             Vote::SucceededOnChain
