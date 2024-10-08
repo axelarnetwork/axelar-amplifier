@@ -43,6 +43,14 @@ pub enum ExecuteMsg {
         denom: nonempty::String,
         source_chain: ChainNameRaw,
     },
+
+    /// Deploy legacy gateway token with ITS
+    #[permission(Governance)]
+    DeployGatewayToken {
+        denom: nonempty::String,
+        source_chain: ChainNameRaw,
+        destination_chain: ChainNameRaw,
+    },
 }
 
 #[cw_serde]
