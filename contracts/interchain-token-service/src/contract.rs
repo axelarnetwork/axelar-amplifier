@@ -1,6 +1,7 @@
 use std::fmt::Debug;
 
 use axelar_wasm_std::error::ContractError;
+use axelar_wasm_std::token::GetToken;
 use axelar_wasm_std::{address, permission_control, FnExt, IntoContractError};
 use axelarnet_gateway::AxelarExecutableMsg;
 #[cfg(not(feature = "library"))]
@@ -94,11 +95,7 @@ pub fn execute(
             source_address,
             payload,
         }) => {
-            let coin = match &info.funds[..] {
-                [] => Ok(None),
-                [coin] => Ok(Some(coin.to_owned())),
-                _ => Err(Error::TooManyCoins),
-            }?;
+            let coin = info.single_token()?;
             execute::execute_message(deps, cc_id, source_address, payload, coin)
                 .change_context(Error::Execute)
         }
@@ -150,6 +147,7 @@ mod tests {
     use axelar_core_std::query::AxelarQueryMsg;
     use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
     use axelar_wasm_std::nonempty;
+    use axelar_wasm_std::response::inspect_response_msg;
     use axelarnet_gateway::AxelarExecutableMsg;
     use cosmwasm_std::testing::{mock_env, mock_info, MockApi, MockQuerier, MockStorage};
     use cosmwasm_std::{
@@ -301,13 +299,15 @@ mod tests {
                 payload: msg.abi_encode(),
             })
         ));
-        assert_eq!(res.messages.len(), 1);
+        let _msg: axelarnet_gateway::msg::ExecuteMsg =
+            assert_ok!(inspect_response_msg(res.clone()));
+
         match &res.messages.first().unwrap().msg {
             CosmosMsg::Wasm(WasmMsg::Execute { funds, .. }) => {
                 assert_eq!(funds.len(), 1);
                 assert_eq!(funds.first().unwrap(), &coin);
             }
-            _ => assert!(false),
+            _ => panic!("incorrect msg type"),
         };
     }
 
@@ -336,16 +336,15 @@ mod tests {
             _ => panic!("unexpected query: {:?}", msg),
         });
         querier = querier.with_custom_handler(|msg| match msg {
-            AxelarQueryMsg::Nexus(msg) => match msg {
-                nexus::query::QueryMsg::IsChainRegistered { chain } => Ok(to_json_binary(
+            AxelarQueryMsg::Nexus(nexus::query::QueryMsg::IsChainRegistered { chain }) => {
+                Ok(to_json_binary(
                     &(IsChainRegisteredResponse {
                         is_registered: chain == CORE_CHAIN,
                     }),
                 )
                 .into())
-                .into(),
-                _ => panic!("unsupported query"),
-            },
+                .into()
+            }
             _ => panic!("unsupported query"),
         });
 

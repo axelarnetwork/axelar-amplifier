@@ -1,6 +1,6 @@
 use axelar_core_std::nexus;
 use axelar_wasm_std::{nonempty, FnExt, IntoContractError};
-use cosmwasm_std::{Coin, DepsMut, HexBinary, QuerierWrapper, Response, Storage, Uint128, Uint256};
+use cosmwasm_std::{Coin, DepsMut, HexBinary, QuerierWrapper, Response, Storage, Uint128};
 use error_stack::{bail, ensure, report, Result, ResultExt};
 use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
 use sha3::{Digest, Keccak256};
@@ -36,20 +36,13 @@ pub enum Error {
     FailedExecuteMessage,
     #[error("failed to generate token id")]
     FailedTokenIdGeneration,
-    #[error("denom not registered")]
-    DenomNotRegistered,
-    #[error("source chain is not registered with axelar-core")]
-    SourceChainNotRegisteredInCore,
-    #[error("token id in message does not match token id of attached coin")]
-    TokenIdMismatch,
-    #[error("attached coin amount does not match transfer amount")]
-    TransferAmountMismatch,
-    #[error("coin attached but message is not an interchain transfer")]
-    NotInterchainTransfer,
     #[error("transfer amount exceeds Uint128 max")]
     TransferAmountOverflow,
-    #[error("gateway token should be attached but no token was attached")]
-    MissingAttachedGatewayToken,
+    #[error("attached coin {attached:?} does not match expected coin {expected:?}")]
+    IncorrectAttachedCoin {
+        attached: Option<Coin>,
+        expected: Option<Coin>,
+    },
     #[error("failed to query nexus")]
     NexusQueryError,
     #[error("storage error")]
@@ -92,7 +85,7 @@ pub fn execute_message(
                 destination_chain.clone(),
                 destination_address,
                 destination_payload,
-                get_coin_to_attach(&deps, &message, &destination_chain)?,
+                gateway_token_transfer(&deps, &destination_chain, &message)?,
             )?
             .add_event(
                 Event::MessageReceived {
@@ -134,96 +127,40 @@ fn verify_coin(
     message: &Message,
     source_chain: &ChainNameRaw,
 ) -> Result<(), Error> {
-    match coin {
-        None => verify_coin_should_be_none(deps, message, source_chain),
-        Some(coin) => verify_attached_coin(deps, coin, message, source_chain),
-    }
+    let expected_coin = gateway_token_transfer(deps, source_chain, message)?;
+    ensure!(
+        &expected_coin == coin,
+        Error::IncorrectAttachedCoin {
+            attached: coin.clone(),
+            expected: expected_coin
+        }
+    );
+    Ok(())
 }
 
-fn verify_coin_should_be_none(
+fn gateway_token_transfer(
     deps: &DepsMut,
-    message: &Message,
     source_chain: &ChainNameRaw,
-) -> Result<(), Error> {
+    message: &Message,
+) -> Result<Option<Coin>, Error> {
     let client: nexus::Client = client::CosmosClient::new(deps.querier).into();
     let is_core_chain = client
         .is_chain_registered(&normalize(source_chain))
         .change_context(Error::NexusQueryError)?;
 
-    let token_id = message.token_id();
-    let is_gateway_token = state::may_load_gateway_denom(deps.storage, token_id)
-        .change_context(Error::StorageError)?
-        .is_some();
-
-    if is_core_chain && is_gateway_token {
-        bail!(Error::MissingAttachedGatewayToken);
+    if is_core_chain {
+        let token_id = message.token_id();
+        let gateway_denom = state::may_load_gateway_denom(deps.storage, token_id)
+            .change_context(Error::StorageError)?;
+        return match (gateway_denom, message) {
+            (Some(denom), Message::InterchainTransfer { amount, .. }) => Ok(Some(Coin {
+                denom: denom.to_string(),
+                amount: Uint128::try_from(*amount).change_context(Error::TransferAmountOverflow)?,
+            })),
+            _ => Ok(None),
+        };
     }
-    Ok(())
-}
-
-fn verify_attached_coin(
-    deps: &DepsMut,
-    coin: &Coin,
-    message: &Message,
-    source_chain: &ChainNameRaw,
-) -> Result<(), Error> {
-    let token_id = message.token_id();
-    let computed_token_id = gateway_token_id(deps, coin.denom.as_str())?;
-    if computed_token_id != token_id {
-        bail!(Error::TokenIdMismatch)
-    }
-
-    let gateway_token_denom = state::may_load_gateway_denom(deps.storage, token_id.clone())
-        .change_context(Error::StorageError)?;
-    if gateway_token_denom.is_none() {
-        bail!(Error::DenomNotRegistered)
-    }
-
-    let transfer_amount = message.transfer_amount();
-    match transfer_amount {
-        None => bail!(Error::NotInterchainTransfer),
-        Some(amount) if amount != Uint256::from_uint128(coin.amount) => {
-            bail!(Error::TransferAmountMismatch)
-        }
-        _ => (),
-    };
-
-    let client: nexus::Client = client::CosmosClient::new(deps.querier).into();
-    if !client
-        .is_chain_registered(&normalize(source_chain))
-        .change_context(Error::NexusQueryError)?
-    {
-        bail!(Error::SourceChainNotRegisteredInCore)
-    }
-
-    Ok(())
-}
-
-fn get_coin_to_attach(
-    deps: &DepsMut,
-    message: &Message,
-    destination_chain: &ChainNameRaw,
-) -> Result<Option<Coin>, Error> {
-    let client: nexus::Client = client::CosmosClient::new(deps.querier).into();
-    if !client
-        .is_chain_registered(&normalize(destination_chain))
-        .change_context(Error::NexusQueryError)?
-    {
-        return Ok(None);
-    }
-
-    let token_id = message.token_id();
-    let gateway_token_denom = state::may_load_gateway_denom(deps.storage, token_id.clone())
-        .change_context(Error::StorageError)?;
-
-    let transfer_amount = message.transfer_amount();
-    match (gateway_token_denom, transfer_amount) {
-        (Some(denom), Some(amount)) => Ok(Some(Coin {
-            denom: denom.into_inner(),
-            amount: Uint128::try_from(amount).change_context(Error::TransferAmountOverflow)?,
-        })),
-        _ => Ok(None),
-    }
+    Ok(None)
 }
 
 fn send_to_destination(
@@ -440,7 +377,7 @@ mod tests {
                 assert_eq!(funds.len(), 1);
                 assert_eq!(funds.first().unwrap(), &coin);
             }
-            _ => assert!(false),
+            _ => panic!("incorrect msg type"),
         };
     }
 
@@ -482,7 +419,15 @@ mod tests {
             msg.abi_encode(),
             Some(coin.clone()),
         );
-        assert_err_contains!(res, Error, Error::TokenIdMismatch);
+        assert!(res.is_err());
+        assert_eq!(
+            res.unwrap_err().to_string(),
+            Error::IncorrectAttachedCoin {
+                attached: Some(coin),
+                expected: None
+            }
+            .to_string()
+        );
     }
 
     #[test]
@@ -502,13 +447,15 @@ mod tests {
             amount: Uint128::from(1500u128),
         };
 
+        let amount_in_msg = coin.amount.strict_sub(Uint128::one());
+
         let msg = HubMessage::SendToHub {
             destination_chain: destination_chain.clone(),
             message: Message::InterchainTransfer {
                 token_id: token_id.clone(),
                 source_address: source_address.clone(),
                 destination_address: HexBinary::from_hex(ITS_ADDRESS).unwrap(),
-                amount: coin.amount.strict_sub(Uint128::one()).into(),
+                amount: amount_in_msg.into(),
                 data: HexBinary::from_hex("").unwrap(),
             },
         };
@@ -525,7 +472,18 @@ mod tests {
             msg.abi_encode(),
             Some(coin.clone()),
         );
-        assert_err_contains!(res, Error, Error::TransferAmountMismatch);
+        assert!(res.is_err());
+        assert_eq!(
+            res.unwrap_err().to_string(),
+            Error::IncorrectAttachedCoin {
+                attached: Some(coin.clone()),
+                expected: Some(Coin {
+                    denom: coin.denom,
+                    amount: amount_in_msg
+                })
+            }
+            .to_string()
+        );
     }
 
     #[test]
@@ -568,7 +526,15 @@ mod tests {
             msg.abi_encode(),
             Some(coin.clone()),
         );
-        assert_err_contains!(res, Error, Error::SourceChainNotRegisteredInCore);
+        assert!(res.is_err());
+        assert_eq!(
+            res.unwrap_err().to_string(),
+            Error::IncorrectAttachedCoin {
+                attached: Some(coin),
+                expected: None
+            }
+            .to_string()
+        );
     }
 
     #[test]
@@ -612,7 +578,15 @@ mod tests {
             msg.abi_encode(),
             Some(coin.clone()),
         );
-        assert_err_contains!(res, Error, Error::DenomNotRegistered);
+        assert!(res.is_err());
+        assert_eq!(
+            res.unwrap_err().to_string(),
+            Error::IncorrectAttachedCoin {
+                attached: Some(coin),
+                expected: None
+            }
+            .to_string()
+        );
     }
 
     #[test]
@@ -661,7 +635,7 @@ mod tests {
         assert_eq!(res.messages.len(), 1);
         match &res.messages[0].msg {
             CosmosMsg::Wasm(WasmMsg::Execute { funds, .. }) => assert_eq!(funds.len(), 0),
-            _ => assert!(false),
+            _ => panic!("incorrect msg type"),
         };
 
         // now send from amplifier chain to another amplifier chain
@@ -701,7 +675,7 @@ mod tests {
         assert_eq!(res.messages.len(), 1);
         match &res.messages[0].msg {
             CosmosMsg::Wasm(WasmMsg::Execute { funds, .. }) => assert_eq!(funds.len(), 0),
-            _ => assert!(false),
+            _ => panic!("incorrect msg type"),
         };
     }
 
@@ -786,7 +760,15 @@ mod tests {
             msg.abi_encode(),
             None,
         );
-        assert_err_contains!(res, Error, Error::MissingAttachedGatewayToken);
+        assert!(res.is_err());
+        assert_eq!(
+            res.unwrap_err().to_string(),
+            Error::IncorrectAttachedCoin {
+                attached: None,
+                expected: Some(coin)
+            }
+            .to_string()
+        );
     }
 
     #[test]
@@ -825,9 +807,17 @@ mod tests {
             },
             ITS_ADDRESS.to_string().try_into().unwrap(),
             msg.abi_encode(),
-            Some(coin),
+            Some(coin.clone()),
         );
-        assert_err_contains!(res, Error, Error::NotInterchainTransfer);
+        assert!(res.is_err());
+        assert_eq!(
+            res.unwrap_err().to_string(),
+            Error::IncorrectAttachedCoin {
+                expected: None,
+                attached: Some(coin)
+            }
+            .to_string()
+        );
     }
 
     fn register_token_and_its_contracts(
@@ -885,16 +875,15 @@ mod tests {
             _ => panic!("unexpected query: {:?}", msg),
         });
         querier = querier.with_custom_handler(|msg| match msg {
-            AxelarQueryMsg::Nexus(msg) => match msg {
-                nexus::query::QueryMsg::IsChainRegistered { chain } => Ok(to_json_binary(
+            AxelarQueryMsg::Nexus(nexus::query::QueryMsg::IsChainRegistered { chain }) => {
+                Ok(to_json_binary(
                     &(IsChainRegisteredResponse {
                         is_registered: chain == CORE_CHAIN,
                     }),
                 )
                 .into())
-                .into(),
-                _ => panic!("unsupported query"),
-            },
+                .into()
+            }
             _ => panic!("unsupported query"),
         });
 
