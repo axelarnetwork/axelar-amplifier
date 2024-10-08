@@ -97,7 +97,7 @@ pub fn call_contract(
 
     let client: nexus::Client = client::CosmosClient::new(querier).into();
 
-    let id = unique_cross_chain_id(&client, chain_name.clone())?;
+    let id = unique_cross_chain_id(&client, chain_name)?;
     let source_address = Address::from_str(info.sender.as_str())
         .change_context(Error::InvalidSourceAddress(info.sender.clone()))?;
     let msg = call_contract.to_message(id, source_address);
@@ -113,7 +113,7 @@ pub fn call_contract(
         token: token.clone(),
     };
 
-    let res = match determine_routing_destination(&client, chain_name)? {
+    let res = match determine_routing_destination(&client, &msg.destination_chain)? {
         RoutingDestination::Nexus => route_to_nexus(&client, nexus, msg, token)?,
         RoutingDestination::Router if token.is_none() => {
             route_to_router(storage, &Router::new(router), vec![msg])?
@@ -273,10 +273,10 @@ fn unique_cross_chain_id(client: &nexus::Client, chain_name: ChainName) -> Resul
 /// Query Nexus module in core to decide should route message to core
 fn determine_routing_destination(
     client: &nexus::Client,
-    name: ChainName,
+    name: &ChainName,
 ) -> Result<RoutingDestination> {
     let dest = match client
-        .is_chain_registered(&name)
+        .is_chain_registered(name)
         .change_context(Error::Nexus)?
     {
         true => RoutingDestination::Nexus,
