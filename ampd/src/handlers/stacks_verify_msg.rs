@@ -111,7 +111,7 @@ impl EventHandler for Handler {
         }
 
         let tx_hashes: HashSet<_> = messages.iter().map(|message| message.tx_id).collect();
-        let transactions_info = self
+        let transactions = self
             .http_client
             .get_transactions(tx_hashes)
             .await;
@@ -119,7 +119,7 @@ impl EventHandler for Handler {
         let votes: Vec<Vote> = messages
             .iter()
             .map(|msg| {
-                transactions_info
+                transactions
                     .get(&msg.tx_id)
                     .map_or(Vote::NotFound, |transaction| {
                         verify_message(&source_gateway_address, transaction, msg)

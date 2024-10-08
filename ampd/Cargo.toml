@@ -12,6 +12,7 @@ axum = "0.7.5"
 base64 = "0.21.2"
 bcs = { workspace = true }
 clap = { version = "4.2.7", features = ["derive", "cargo"] }
+clarity = { git = "https://github.com/stacks-network/stacks-core", tag = "2.5.0.0.7" }
 config = "0.13.2"
 cosmrs = { version = "0.14.0", features = ["cosmwasm", "grpc"] }
 cosmwasm-std = { workspace = true, features = ["stargate"] }

@@ -19,30 +19,30 @@ pub enum Error {
 
 #[derive(Debug, Deserialize, Default)]
 pub struct ContractLogValue {
-    hex: String,
+    pub hex: String,
 }
 
 #[derive(Debug, Deserialize, Default)]
 pub struct ContractLog {
-    contract_id: String,
-    topic: String,
-    value: ContractLogValue,
+    pub contract_id: String,
+    pub topic: String,
+    pub value: ContractLogValue,
 }
 
 #[derive(Debug, Deserialize, Default)]
 pub struct TransactionEvents {
-    event_index: u64,
-    tx_id: String,
-    contract_log: Option<ContractLog>,
+    pub event_index: u32,
+    pub tx_id: String,
+    pub contract_log: Option<ContractLog>,
 }
 
 #[derive(Debug, Deserialize, Default)]
 pub struct Transaction {
-    tx_id: String,
-    nonce: u64,
-    sender_address: String,
-    tx_status: String, // 'success'
-    events: Vec<TransactionEvents>,
+    pub tx_id: String,
+    pub nonce: u64,
+    pub sender_address: String,
+    pub tx_status: String, // 'success'
+    pub events: Vec<TransactionEvents>,
 }
 
 #[cfg_attr(test, faux::create)]
