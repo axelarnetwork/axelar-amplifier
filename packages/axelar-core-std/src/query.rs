@@ -1,13 +1,14 @@
 use cosmwasm_std::CustomQuery;
 use serde::{Deserialize, Serialize};
 
-use crate::nexus;
+use crate::{evm, nexus};
 
 #[non_exhaustive]
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum AxelarQueryMsg {
     Nexus(nexus::query::QueryMsg),
+    Evm(evm::query::QueryMsg),
 }
 
 impl CustomQuery for AxelarQueryMsg {}

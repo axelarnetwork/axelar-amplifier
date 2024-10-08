@@ -31,6 +31,8 @@ pub enum Error {
     DeregisterItsContract,
     #[error("failed to register gateway token")]
     RegisterGatewayToken,
+    #[error("failed to deploy gateway token")]
+    DeployGatewayToken,
     #[error("failed to query its address")]
     QueryItsContract,
     #[error("failed to query all its addresses")]
@@ -106,6 +108,11 @@ pub fn execute(
             source_chain,
         } => execute::register_gateway_token(deps, denom, source_chain)
             .change_context(Error::RegisterGatewayToken),
+        ExecuteMsg::DeployGatewayToken {
+            denom,
+            source_chain,
+            destination_chain,
+        } => execute::deploy_gateway_token(deps, denom, source_chain, destination_chain).change_context(Error::DeployGatewayToken)
     }?
     .then(Ok)
 }

@@ -6,8 +6,8 @@ use sha3::{Digest, Keccak256};
 
 use crate::events::Event;
 use crate::primitives::HubMessage;
-use crate::state::{self, load_config, load_its_contract};
-use crate::TokenId;
+use crate::state::{self, load_config, load_its_contract, may_load_its_contract};
+use crate::{Message, TokenId};
 
 // this is just keccak256("its-interchain-token-id-gateway")
 const GATEWAY_TOKEN_PREFIX: [u8; 32] = [
@@ -33,6 +33,18 @@ pub enum Error {
     FailedGatewayTokenRegistration,
     #[error("failed to generate token id")]
     FailedTokenIdGeneration,
+    #[error("failed to query evm module")]
+    EvmQueryError,
+    #[error("failed to query axelarnet gateway")]
+    AxelarnetGatewayQueryError,
+    #[error("token is not external")]
+    TokenNotExternal,
+    #[error("decimals overflowed u8")]
+    TooManyDecimals,
+    #[error("no its contract registered for chain {0}")]
+    NoItsContractRegistered(ChainNameRaw),
+    #[error("storage error")]
+    StorageError,
 }
 
 /// Executes an incoming ITS message.
@@ -150,6 +162,52 @@ pub fn register_gateway_token(
     Ok(Response::new())
 }
 
+pub fn deploy_gateway_token(
+    deps: DepsMut,
+    denom: nonempty::String,
+    source_chain: ChainNameRaw,
+    destination_chain: ChainNameRaw,
+) -> Result<Response, Error> {
+    let client: axelar_core_std::evm::Client = client::CosmosClient::new(deps.querier).into();
+    let token_info = client
+        .token_info(&source_chain, denom.clone())
+        .change_context(Error::EvmQueryError)?;
+    if !token_info.is_external {
+        bail!(Error::TokenNotExternal);
+    }
+    let token_id = gateway_token_id(&deps, &denom)?;
+    let msg = Message::DeployInterchainToken {
+        token_id,
+        name: token_info.details.token_name,
+        symbol: token_info.details.symbol,
+        decimals: u8::try_from(token_info.details.decimals).change_context(Error::TooManyDecimals)?,
+        minter: HexBinary::from([]),
+    };
+    let config = state::load_config(deps.storage);
+    let gateway: axelarnet_gateway::Client =
+        client::ContractClient::new(deps.querier, &config.axelarnet_gateway).into();
+    let chain_name = gateway
+        .chain_name()
+        .change_context(Error::AxelarnetGatewayQueryError)?;
+
+    let destination_payload = HubMessage::ReceiveFromHub {
+        source_chain: chain_name.into(),
+        message: msg.clone(),
+    }
+    .abi_encode();
+    let its_contract = may_load_its_contract(deps.storage, &destination_chain)
+        .change_context(Error::StorageError)?
+        .ok_or(Error::NoItsContractRegistered(destination_chain.clone()))?;
+
+    send_to_destination(
+        deps.storage,
+        deps.querier,
+        destination_chain.clone(),
+        its_contract,
+        destination_payload,
+    )
+}
+
 pub fn gateway_token_id(deps: &DepsMut, denom: &str) -> Result<TokenId, Error> {
     let config = state::load_config(deps.storage);
     let gateway: axelarnet_gateway::Client =
@@ -167,15 +225,33 @@ pub fn gateway_token_id(deps: &DepsMut, denom: &str) -> Result<TokenId, Error> {
 
 #[cfg(test)]
 mod tests {
+    use std::marker::PhantomData;
+
     use assert_ok::assert_ok;
+    use axelar_core_std::evm;
+    use axelar_core_std::evm::query::{TokenDetails, TokenInfoResponse};
+    use axelar_core_std::query::AxelarQueryMsg;
     use axelar_wasm_std::assert_err_contains;
+    use axelar_wasm_std::response::inspect_response_msg;
     use axelarnet_gateway::msg::QueryMsg;
-    use cosmwasm_std::testing::{mock_dependencies, MockApi, MockQuerier};
-    use cosmwasm_std::{from_json, to_json_binary, Addr, MemoryStorage, OwnedDeps, WasmQuery};
+    use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage};
+    use cosmwasm_std::{
+        from_json, to_json_binary, Addr, HexBinary, MemoryStorage, OwnedDeps, Uint256, WasmQuery,
+    };
     use router_api::{ChainName, ChainNameRaw};
 
-    use super::{gateway_token_id, register_gateway_token, Error};
+    use super::{deploy_gateway_token, gateway_token_id, register_gateway_token, Error};
+    use crate::contract::execute::register_its_contract;
     use crate::state::{self, Config};
+    use crate::{HubMessage, Message};
+
+    const CORE_CHAIN: &str = "ethereum";
+    const AMPLIFIER_CHAIN: &str = "solana";
+    const GATEWAY_TOKEN_DENOM: &str = "eth";
+    const ITS_ADDRESS: &str = "68d30f47F19c07bCCEf4Ac7FAE2Dc12FCa3e0dC9";
+    const AXELAR_CHAIN_NAME: &str = "axelar";
+    const GATEWAY_TOKEN_DECIMALS: u8 = 8;
+    const GATEWAY_TOKEN_ASSET_NAME: &str = "ethereum";
 
     #[test]
     fn gateway_token_id_should_be_idempotent() {
@@ -222,9 +298,83 @@ mod tests {
         );
     }
 
-    fn init() -> OwnedDeps<MemoryStorage, MockApi, MockQuerier> {
+    #[test]
+    fn deploy_gateway_token_should_deploy() {
+        let mut deps = init();
+        let denom = GATEWAY_TOKEN_DENOM.to_string().try_into().unwrap();
+        let chain = ChainNameRaw::try_from(CORE_CHAIN).unwrap();
+        let target_chain = ChainNameRaw::try_from(AMPLIFIER_CHAIN).unwrap();
+        assert_ok!(register_its_contract(
+            deps.as_mut(),
+            target_chain.clone(),
+            ITS_ADDRESS.to_string().try_into().unwrap()
+        ));
+        let res = assert_ok!(deploy_gateway_token(
+            deps.as_mut(),
+            denom,
+            chain,
+            target_chain.clone()
+        ));
+        let msg: axelarnet_gateway::msg::ExecuteMsg = assert_ok!(inspect_response_msg(res));
+        match msg {
+            axelarnet_gateway::msg::ExecuteMsg::CallContract {
+                destination_chain,
+                destination_address,
+                payload,
+            } => {
+                assert_eq!(
+                    destination_chain,
+                    ChainName::try_from(target_chain.as_ref()).unwrap()
+                );
+                assert_eq!(
+                    destination_address,
+                    ITS_ADDRESS.to_string().try_into().unwrap()
+                );
+                let decoded = assert_ok!(HubMessage::abi_decode(&payload));
+                match decoded {
+                    HubMessage::ReceiveFromHub {
+                        source_chain,
+                        message,
+                    } => {
+                        assert_eq!(
+                            source_chain,
+                            ChainNameRaw::try_from(AXELAR_CHAIN_NAME).unwrap()
+                        );
+                        match message {
+                            Message::DeployInterchainToken {
+                                token_id,
+                                name,
+                                symbol,
+                                decimals,
+                                minter,
+                            } => {
+                                assert_eq!(name, GATEWAY_TOKEN_ASSET_NAME);
+                                assert_eq!(symbol, GATEWAY_TOKEN_DENOM);
+                                assert_eq!(decimals, GATEWAY_TOKEN_DECIMALS);
+                                assert_eq!(
+                                    gateway_token_id(&deps.as_mut(), GATEWAY_TOKEN_DENOM).unwrap(),
+                                    token_id
+                                );
+                                assert_eq!(minter, HexBinary::from([]));
+                            }
+                            _ => assert!(false),
+                        }
+                    }
+                    _ => assert!(false),
+                }
+            }
+            _ => assert!(false),
+        };
+    }
+
+    fn init() -> OwnedDeps<MemoryStorage, MockApi, MockQuerier<AxelarQueryMsg>> {
         let addr = Addr::unchecked("axelar-gateway");
-        let mut deps = mock_dependencies();
+        let mut deps = OwnedDeps {
+            storage: MockStorage::default(),
+            api: MockApi::default(),
+            querier: MockQuerier::<AxelarQueryMsg>::new(&[]),
+            custom_query_type: PhantomData,
+        };
         state::save_config(
             deps.as_mut().storage,
             &Config {
@@ -233,18 +383,42 @@ mod tests {
         )
         .unwrap();
 
-        let mut querier = MockQuerier::default();
+        let mut querier = MockQuerier::<AxelarQueryMsg>::new(&[]);
         querier.update_wasm(move |msg| match msg {
             WasmQuery::Smart { contract_addr, msg } if contract_addr == &addr.to_string() => {
                 let msg = from_json::<QueryMsg>(msg).unwrap();
                 match msg {
                     QueryMsg::ChainName {} => {
-                        Ok(to_json_binary(&ChainName::try_from("axelar").unwrap()).into()).into()
+                        Ok(to_json_binary(&ChainName::try_from(AXELAR_CHAIN_NAME).unwrap()).into())
+                            .into()
                     }
                     _ => panic!("unsupported query"),
                 }
             }
             _ => panic!("unexpected query: {:?}", msg),
+        });
+        querier = querier.with_custom_handler(|msg| match msg {
+            AxelarQueryMsg::Evm(msg) => match msg {
+                evm::query::QueryMsg::TokenInfo { chain, asset } => Ok(to_json_binary(
+                    &(TokenInfoResponse {
+                        asset: GATEWAY_TOKEN_ASSET_NAME.to_string(),
+                        address: "".to_string(),
+                        details: TokenDetails {
+                            token_name: GATEWAY_TOKEN_ASSET_NAME.to_string(),
+                            symbol: GATEWAY_TOKEN_DENOM.to_string(),
+                            decimals: GATEWAY_TOKEN_DECIMALS as u32,
+                            capacity: Uint256::one(),
+                        },
+                        confirmed: true,
+                        is_external: true,
+                        burner_code_hash: "".to_string(),
+                    }),
+                )
+                .into())
+                .into(),
+                _ => panic!("unsupported query"),
+            },
+            _ => panic!("unsupported query"),
         });
 
         deps.querier = querier;
