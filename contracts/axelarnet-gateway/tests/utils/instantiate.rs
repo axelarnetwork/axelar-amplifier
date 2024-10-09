@@ -14,7 +14,7 @@ pub fn instantiate_contract(deps: DepsMut) -> Result<Response, ContractError> {
         InstantiateMsg {
             chain_name: params::AXELARNET.parse().unwrap(),
             router_address: params::ROUTER.parse().unwrap(),
-            nexus_gateway: params::NEXUS_GATEWAY.parse().unwrap(),
+            nexus: params::NEXUS.parse().unwrap(),
         },
     )
 }

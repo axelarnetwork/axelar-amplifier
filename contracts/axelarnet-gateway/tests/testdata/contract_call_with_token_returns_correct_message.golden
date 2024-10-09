@@ -1,12 +1,107 @@
-{
-  "route_message_with_token": {
-    "cc_id": {
-      "source_chain": "axelarnet",
-      "message_id": "0x0202020202020202020202020202020202020202020202020202020202020202-99"
+[
+  {
+    "id": 0,
+    "msg": {
+      "bank": {
+        "send": {
+          "to_address": "nexus",
+          "amount": [
+            {
+              "denom": "axelar",
+              "amount": "10"
+            }
+          ]
+        }
+      }
     },
-    "source_address": "sender",
-    "destination_chain": "destination-chain",
-    "destination_address": "destination-address",
-    "payload_hash": "f1885eda54b7a053318cd41e2093220dab15d65381b1157a3633a83bfd5c9239"
+    "gas_limit": null,
+    "reply_on": "never"
+  },
+  {
+    "id": 0,
+    "msg": {
+      "custom": {
+        "source_chain": "axelarnet",
+        "source_address": "sender",
+        "destination_chain": "destination-chain",
+        "destination_address": "destination-address",
+        "payload_hash": [
+          241,
+          136,
+          94,
+          218,
+          84,
+          183,
+          160,
+          83,
+          49,
+          140,
+          212,
+          30,
+          32,
+          147,
+          34,
+          13,
+          171,
+          21,
+          214,
+          83,
+          129,
+          177,
+          21,
+          122,
+          54,
+          51,
+          168,
+          59,
+          253,
+          92,
+          146,
+          57
+        ],
+        "source_tx_id": [
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2
+        ],
+        "source_tx_index": 99,
+        "id": "0x0202020202020202020202020202020202020202020202020202020202020202-99",
+        "token": {
+          "denom": "axelar",
+          "amount": "10"
+        }
+      }
+    },
+    "gas_limit": null,
+    "reply_on": "never"
   }
-}
+]

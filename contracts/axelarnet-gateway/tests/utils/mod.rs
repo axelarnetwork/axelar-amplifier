@@ -2,10 +2,13 @@
 // This circumvents that issue.
 #![allow(dead_code)]
 
+#[cfg_attr(test, allow(unused_imports))]
+pub use deps::*;
 #[allow(unused_imports)]
 pub use execute::*;
 pub use instantiate::*;
 
+mod deps;
 mod execute;
 mod instantiate;
 pub mod messages;
