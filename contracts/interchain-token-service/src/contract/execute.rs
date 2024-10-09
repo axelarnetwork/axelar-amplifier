@@ -140,27 +140,28 @@ fn verify_coin(
 
 fn gateway_token_transfer(
     deps: &DepsMut,
-    source_chain: &ChainNameRaw,
+    chain: &ChainNameRaw,
     message: &Message,
 ) -> Result<Option<Coin>, Error> {
     let client: nexus::Client = client::CosmosClient::new(deps.querier).into();
     let is_core_chain = client
-        .is_chain_registered(&normalize(source_chain))
+        .is_chain_registered(&normalize(chain))
         .change_context(Error::NexusQueryError)?;
 
-    if is_core_chain {
-        let token_id = message.token_id();
-        let gateway_denom = state::may_load_gateway_denom(deps.storage, token_id)
-            .change_context(Error::StorageError)?;
-        return match (gateway_denom, message) {
-            (Some(denom), Message::InterchainTransfer { amount, .. }) => Ok(Some(Coin {
-                denom: denom.to_string(),
-                amount: Uint128::try_from(*amount).change_context(Error::TransferAmountOverflow)?,
-            })),
-            _ => Ok(None),
-        };
+    if !is_core_chain {
+        return Ok(None);
     }
-    Ok(None)
+
+    let token_id = message.token_id();
+    let gateway_denom = state::may_load_gateway_denom(deps.storage, token_id)
+        .change_context(Error::StorageError)?;
+    match (gateway_denom, message) {
+        (Some(denom), Message::InterchainTransfer { amount, .. }) => Ok(Some(Coin {
+            denom: denom.to_string(),
+            amount: Uint128::try_from(*amount).change_context(Error::TransferAmountOverflow)?,
+        })),
+        _ => Ok(None),
+    }
 }
 
 fn send_to_destination(
