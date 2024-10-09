@@ -4,7 +4,10 @@ use std::ops::Deref;
 use axelar_core_std::nexus::query::QueryMsg;
 use axelar_core_std::query::AxelarQueryMsg;
 use cosmwasm_std::testing::{MockApi, MockQuerier, MockQuerierCustomHandlerResult, MockStorage};
-use cosmwasm_std::{ContractResult, Deps, DepsMut, Empty, OwnedDeps, QuerierWrapper, SystemResult};
+use cosmwasm_std::{
+    Api, ContractResult, CustomQuery, Deps, DepsMut, Empty, OwnedDeps, Querier, QuerierWrapper,
+    Storage, SystemResult,
+};
 use serde_json::json;
 
 pub fn mock_axelar_dependencies(
@@ -44,18 +47,25 @@ pub fn axelar_query_handler(
     }
 }
 
-pub fn emptying_deps_mut<'a>(deps: &'a mut DepsMut<AxelarQueryMsg>) -> DepsMut<'a, Empty> {
-    DepsMut {
-        storage: deps.storage,
-        api: deps.api,
-        querier: QuerierWrapper::new(deps.querier.deref()),
-    }
+pub trait OwnedDepsExt {
+    fn as_default_mut(&mut self) -> DepsMut<Empty>;
+    fn as_default_deps(&self) -> Deps<Empty>;
 }
 
-pub fn emptying_deps<'a>(deps: &'a Deps<AxelarQueryMsg>) -> Deps<'a, Empty> {
-    Deps {
-        storage: deps.storage,
-        api: deps.api,
-        querier: QuerierWrapper::new(deps.querier.deref()),
+impl<S: Storage, A: Api, Q: Querier, C: CustomQuery> OwnedDepsExt for OwnedDeps<S, A, Q, C> {
+    fn as_default_mut(&'_ mut self) -> DepsMut<'_, Empty> {
+        DepsMut {
+            storage: &mut self.storage,
+            api: &self.api,
+            querier: QuerierWrapper::new(&self.querier),
+        }
+    }
+
+    fn as_default_deps(&'_ self) -> Deps<'_, Empty> {
+        Deps {
+            storage: &self.storage,
+            api: &self.api,
+            querier: QuerierWrapper::new(&self.querier),
+        }
     }
 }

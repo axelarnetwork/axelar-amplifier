@@ -9,7 +9,7 @@ use rand::RngCore;
 use router_api::msg::ExecuteMsg as RouterExecuteMsg;
 use router_api::{CrossChainId, Message};
 
-use crate::utils::{axelar_query_handler, emptying_deps_mut, messages, mock_axelar_dependencies};
+use crate::utils::{axelar_query_handler, messages, mock_axelar_dependencies, OwnedDepsExt};
 
 mod utils;
 
@@ -174,9 +174,9 @@ fn route_to_router_after_contract_call_with_tempered_data_fails() {
     let destination_address = "destination-address".parse().unwrap();
     let payload = vec![1, 2, 3].into();
 
-    utils::instantiate_contract(emptying_deps_mut(&mut deps.as_mut())).unwrap();
+    utils::instantiate_contract(deps.as_default_mut()).unwrap();
     let response = utils::call_contract(
-        emptying_deps_mut(&mut deps.as_mut()),
+        deps.as_default_mut(),
         mock_info("sender", &[]),
         destination_chain,
         destination_address,
@@ -190,7 +190,7 @@ fn route_to_router_after_contract_call_with_tempered_data_fails() {
     msgs[0].destination_chain = "wrong-chain".parse().unwrap();
 
     assert_err_contains!(
-        utils::route_to_router(emptying_deps_mut(&mut deps.as_mut()), msgs),
+        utils::route_to_router(deps.as_default_mut(), msgs),
         ExecuteError,
         ExecuteError::MessageMismatch(..)
     );
@@ -214,9 +214,9 @@ fn route_to_router_after_contract_call_succeeds_multiple_times() {
     let destination_address = "destination-address".parse().unwrap();
     let payload = vec![1, 2, 3].into();
 
-    utils::instantiate_contract(emptying_deps_mut(&mut deps.as_mut())).unwrap();
+    utils::instantiate_contract(deps.as_default_mut()).unwrap();
     let response = utils::call_contract(
-        emptying_deps_mut(&mut deps.as_mut()),
+        deps.as_default_mut(),
         mock_info("sender", &[]),
         destination_chain,
         destination_address,
@@ -229,10 +229,7 @@ fn route_to_router_after_contract_call_succeeds_multiple_times() {
     };
 
     for _ in 0..10 {
-        let response = assert_ok!(utils::route_to_router(
-            emptying_deps_mut(&mut deps.as_mut()),
-            msgs.clone()
-        ));
+        let response = assert_ok!(utils::route_to_router(deps.as_default_mut(), msgs.clone()));
         let msg: RouterExecuteMsg = assert_ok!(inspect_response_msg(response));
         goldie::assert_json!(msg);
     }
@@ -256,9 +253,9 @@ fn route_to_router_after_contract_call_ignores_duplicates() {
     let destination_address = "destination-address".parse().unwrap();
     let payload = vec![1, 2, 3].into();
 
-    utils::instantiate_contract(emptying_deps_mut(&mut deps.as_mut())).unwrap();
+    utils::instantiate_contract(deps.as_default_mut()).unwrap();
     let response = utils::call_contract(
-        emptying_deps_mut(&mut deps.as_mut()),
+        deps.as_default_mut(),
         mock_info("sender", &[]),
         destination_chain,
         destination_address,
@@ -274,10 +271,7 @@ fn route_to_router_after_contract_call_ignores_duplicates() {
     msgs.append(&mut msgs.clone());
     assert_eq!(msgs.len(), 4);
 
-    let response = assert_ok!(utils::route_to_router(
-        emptying_deps_mut(&mut deps.as_mut()),
-        msgs
-    ));
+    let response = assert_ok!(utils::route_to_router(deps.as_default_mut(), msgs));
     let msg: RouterExecuteMsg = assert_ok!(inspect_response_msg(response));
     goldie::assert_json!(msg);
 }
@@ -300,10 +294,10 @@ fn contract_call_returns_correct_message() {
     let destination_address = "destination-address".parse().unwrap();
     let payload = vec![1, 2, 3].into();
 
-    utils::instantiate_contract(emptying_deps_mut(&mut deps.as_mut())).unwrap();
+    utils::instantiate_contract(deps.as_default_mut()).unwrap();
 
     let response = assert_ok!(utils::call_contract(
-        emptying_deps_mut(&mut deps.as_mut()),
+        deps.as_default_mut(),
         mock_info("sender", &[]),
         destination_chain,
         destination_address,
@@ -328,10 +322,10 @@ fn contract_call_with_token_returns_correct_message() {
     let destination_address = "destination-address".parse().unwrap();
     let payload = vec![1, 2, 3].into();
 
-    utils::instantiate_contract(emptying_deps_mut(&mut deps.as_mut())).unwrap();
+    utils::instantiate_contract(deps.as_default_mut()).unwrap();
 
     let response = assert_ok!(utils::call_contract(
-        emptying_deps_mut(&mut deps.as_mut()),
+        deps.as_default_mut(),
         mock_info("sender", &[token]),
         destination_chain,
         destination_address,
@@ -360,9 +354,9 @@ fn contract_call_returns_correct_events() {
     let destination_address = "destination-address".parse().unwrap();
     let payload = vec![1, 2, 3].into();
 
-    utils::instantiate_contract(emptying_deps_mut(&mut deps.as_mut())).unwrap();
+    utils::instantiate_contract(deps.as_default_mut()).unwrap();
     let response = assert_ok!(utils::call_contract(
-        emptying_deps_mut(&mut deps.as_mut()),
+        deps.as_default_mut(),
         mock_info("sender", &[]),
         destination_chain,
         destination_address,
@@ -386,11 +380,11 @@ fn contract_call_with_token_to_amplifier_chains_fails() {
     let destination_address = "destination-address".parse().unwrap();
     let payload = vec![1, 2, 3].into();
 
-    utils::instantiate_contract(emptying_deps_mut(&mut deps.as_mut())).unwrap();
+    utils::instantiate_contract(deps.as_default_mut()).unwrap();
 
     assert_err_contains!(
         utils::call_contract(
-            emptying_deps_mut(&mut deps.as_mut()),
+            deps.as_default_mut(),
             mock_info("sender", &[token]),
             destination_chain,
             destination_address,

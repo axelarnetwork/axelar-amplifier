@@ -14,7 +14,7 @@ use router_api::{ChainName, CrossChainId, Message};
 use serde_json::json;
 use sha3::{Digest, Keccak256};
 
-use crate::utils::{emptying_deps, emptying_deps_mut, mock_axelar_dependencies, params};
+use crate::utils::{mock_axelar_dependencies, params, OwnedDepsExt};
 
 mod utils;
 
@@ -25,17 +25,14 @@ fn query_routable_messages_gets_expected_messages() {
         .querier
         .with_custom_handler(reply_rand_tx_hash_and_nonce);
 
-    utils::instantiate_contract(emptying_deps_mut(&mut deps.as_mut())).unwrap();
+    utils::instantiate_contract(deps.as_default_mut()).unwrap();
     let mut expected = populate_routable_messages(&mut deps);
 
     expected.remove(3);
     let cc_ids = expected.iter().map(|msg| &msg.cc_id).cloned().collect();
 
     assert_eq!(
-        assert_ok!(query_routable_messages(
-            emptying_deps(&deps.as_ref()),
-            cc_ids
-        )),
+        assert_ok!(query_routable_messages(deps.as_default_deps(), cc_ids)),
         expected,
     );
 }
@@ -93,7 +90,7 @@ fn populate_routable_messages(
     (0..10)
         .map(|i| {
             let response = utils::call_contract(
-                emptying_deps_mut(&mut deps.as_mut()),
+                deps.as_default_mut(),
                 mock_info("sender", &[]),
                 format!("destination-chain-{}", i).parse().unwrap(),
                 format!("destination-address-{}", i).parse().unwrap(),
