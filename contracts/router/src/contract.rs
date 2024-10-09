@@ -84,7 +84,13 @@ pub fn execute(
             msg_id_format,
         } => {
             let gateway_address = address::validate_cosmwasm_address(deps.api, &gateway_address)?;
-            execute::register_chain(deps.storage, chain, gateway_address, msg_id_format)
+            Ok(execute::register_chain(
+                deps.storage,
+                deps.querier,
+                chain,
+                gateway_address,
+                msg_id_format,
+            )?)
         }
         ExecuteMsg::UpgradeGateway {
             chain,
@@ -129,7 +135,7 @@ pub fn query(
     match msg {
         QueryMsg::ChainInfo(chain) => to_json_binary(&query::chain_info(deps.storage, chain)?),
         QueryMsg::Chains { start_after, limit } => {
-            to_json_binary(&query::chains(deps, start_after, limit)?)
+            to_json_binary(&query::chains(deps.storage, start_after, limit)?)
         }
         QueryMsg::IsEnabled => to_json_binary(&killswitch::is_contract_active(deps.storage)),
     }
@@ -141,6 +147,7 @@ mod test {
     use std::collections::HashMap;
     use std::str::FromStr;
 
+    use axelar_core_std::nexus::test_utils::reply_with_is_chain_registered;
     use axelar_wasm_std::err_contains;
     use axelar_wasm_std::error::ContractError;
     use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
@@ -164,6 +171,9 @@ mod test {
 
     fn setup() -> OwnedDeps<MockStorage, MockApi, MockQuerier, Empty> {
         let mut deps = mock_dependencies();
+        deps.querier = deps
+            .querier
+            .with_custom_handler(reply_with_is_chain_registered(false));
 
         instantiate(
             deps.as_mut(),

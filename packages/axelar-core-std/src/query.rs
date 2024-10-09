@@ -6,7 +6,7 @@ use crate::nexus;
 #[non_exhaustive]
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
-pub(crate) enum AxelarQueryMsg {
+pub enum AxelarQueryMsg {
     Nexus(nexus::query::QueryMsg),
 }
 

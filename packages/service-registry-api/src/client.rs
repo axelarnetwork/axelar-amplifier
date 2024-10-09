@@ -1,8 +1,8 @@
 use error_stack::ResultExt;
 use router_api::ChainName;
-use service_registry_api::msg::{ExecuteMsg, QueryMsg};
 
-use crate::{Service, Verifier, WeightedVerifier};
+use crate::msg::{ExecuteMsg, QueryMsg, VerifierDetails};
+use crate::{Service, WeightedVerifier};
 
 type Result<T> = error_stack::Result<T, Error>;
 
@@ -76,7 +76,7 @@ impl<'a> Client<'a> {
         self.client.query(&msg).change_context_lazy(|| msg.into())
     }
 
-    pub fn verifier(&self, service_name: String, verifier: String) -> Result<Verifier> {
+    pub fn verifier(&self, service_name: String, verifier: String) -> Result<VerifierDetails> {
         let msg = QueryMsg::Verifier {
             service_name,
             verifier,
@@ -92,9 +92,9 @@ mod test {
     use cosmwasm_std::testing::MockQuerier;
     use cosmwasm_std::{from_json, to_json_binary, Addr, QuerierWrapper, SystemError, WasmQuery};
     use router_api::ChainName;
-    use service_registry_api::msg::QueryMsg;
 
     use crate::client::Client;
+    use crate::msg::{QueryMsg, VerifierDetails};
     use crate::{Service, Verifier, WeightedVerifier};
 
     #[test]
@@ -137,7 +137,7 @@ mod test {
     }
 
     #[test]
-    fn query_verifier_returns_verifier() {
+    fn query_verifier_returns_verifier_details() {
         let (querier, addr) = setup_queries_to_succeed();
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
@@ -229,13 +229,17 @@ mod test {
                     QueryMsg::Verifier {
                         service_name,
                         verifier,
-                    } => Ok(to_json_binary(&Verifier {
-                        address: Addr::unchecked(verifier),
-                        bonding_state: crate::BondingState::Bonded {
-                            amount: Uint128::one(),
+                    } => Ok(to_json_binary(&VerifierDetails {
+                        verifier: Verifier {
+                            address: Addr::unchecked(verifier),
+                            bonding_state: crate::BondingState::Bonded {
+                                amount: Uint128::one(),
+                            },
+                            authorization_state: crate::AuthorizationState::Authorized,
+                            service_name,
                         },
-                        authorization_state: crate::AuthorizationState::Authorized,
-                        service_name,
+                        weight: Uint128::one(),
+                        supported_chains: vec![],
                     })
                     .into())
                     .into(),
