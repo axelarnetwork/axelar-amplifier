@@ -48,11 +48,11 @@ impl PartialEq<ContractEventBody> for VerifierSetConfirmation {
     fn eq(&self, event: &ContractEventBody) -> bool {
         let ContractEventBody::V0(body) = event;
 
-        if body.topics.len() != 3 {
+        if body.topics.len() != 1 {
             return false;
         }
 
-        let [symbol, _, signer_hash] = &body.topics[..] else {
+        let [symbol] = &body.topics[..] else {
             return false;
         };
 
@@ -60,12 +60,21 @@ impl PartialEq<ContractEventBody> for VerifierSetConfirmation {
             ScSymbol(StringM::from_str(TOPIC_ROTATED).expect("must convert str to ScSymbol"))
                 .into();
 
+        let rotated_signers = match &body.data {
+            ScVal::Vec(Some(data)) if data.len() == 1 => {
+                let [rotated_signers] = &data[..] else {
+                    return false;
+                };
+                rotated_signers.clone()
+            }
+            _ => return false,
+        };
+
         WeightedSigners::try_from(&self.verifier_set)
             .ok()
-            .and_then(|signers| signers.hash().ok())
-            .and_then(|hash| ScVal::try_from(hash).ok())
-            .map_or(false, |hash| {
-                symbol == &expected_topic && signer_hash == &hash
+            .and_then(|signers| ScVal::try_from(signers).ok())
+            .map_or(false, |signers: ScVal| {
+                symbol == &expected_topic && signers == rotated_signers
             })
     }
 }
@@ -138,7 +147,7 @@ mod test {
     use stellar::WeightedSigners;
     use stellar_xdr::curr::{
         AccountId, BytesM, ContractEvent, ContractEventBody, ContractEventType, ContractEventV0,
-        PublicKey, ScAddress, ScBytes, ScString, ScSymbol, ScVal, StringM, Uint256,
+        PublicKey, ScAddress, ScBytes, ScString, ScSymbol, ScVal, ScVec, StringM, Uint256,
     };
 
     use crate::handlers::stellar_verify_msg::Message;
@@ -293,7 +302,7 @@ mod test {
         let signing_key = SigningKey::generate(&mut OsRng);
 
         let msg = Message {
-            tx_id: Hash::random().to_string(),
+            tx_id: format!("{:x}", Hash::random()),
             event_index: 0,
             source_address: ScAddress::Account(AccountId(PublicKey::PublicKeyTypeEd25519(
                 Uint256::from(signing_key.verifying_key().to_bytes()),
@@ -351,7 +360,7 @@ mod test {
         let threshold = Uint128::new(2u128);
 
         let verifier_set_confirmation = VerifierSetConfirmation {
-            tx_id: Hash::random().to_string(),
+            tx_id: format!("{:x}", Hash::random()),
             event_index: 0,
             verifier_set: VerifierSet {
                 signers: signers
@@ -363,21 +372,19 @@ mod test {
             },
         };
 
-        let weighted_signers =
-            WeightedSigners::try_from(&verifier_set_confirmation.verifier_set).unwrap();
-        let signer_hash = weighted_signers.hash().unwrap();
+        let weighted_signers: ScVal =
+            WeightedSigners::try_from(&verifier_set_confirmation.verifier_set)
+                .unwrap()
+                .try_into()
+                .unwrap();
 
         let event_body = ContractEventBody::V0(ContractEventV0 {
-            topics: vec![
-                ScVal::Symbol(ScSymbol(StringM::from_str(TOPIC_ROTATED).unwrap())),
-                ScVal::Bytes(ScBytes(
-                    BytesM::try_from(Hash::random().to_fixed_bytes()).unwrap(),
-                )),
-                ScVal::try_from(signer_hash).unwrap(),
-            ]
+            topics: vec![ScVal::Symbol(ScSymbol(
+                StringM::from_str(TOPIC_ROTATED).unwrap(),
+            ))]
             .try_into()
             .unwrap(),
-            data: ScVal::Vec(None),
+            data: ScVal::Vec(Some(ScVec::try_from(vec![weighted_signers]).unwrap())),
         });
 
         let event = ContractEvent {

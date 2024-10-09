@@ -1,13 +1,13 @@
 {
   "verifier": {
     "address": "verifier",
-      "bonding_state": {
-        "Bonded": {
-          "amount": "1"
-        }
-      },
-      "authorization_state": "Authorized",
-      "service_name": "verifiers"
+    "bonding_state": {
+      "Bonded": {
+        "amount": "1"
+      }
+    },
+    "authorization_state": "Authorized",
+    "service_name": "verifiers"
   },
   "weight": "1",
   "supported_chains": []
