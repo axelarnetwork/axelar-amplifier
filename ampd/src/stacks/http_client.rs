@@ -38,7 +38,7 @@ pub struct TransactionEvents {
 
 #[derive(Debug, Deserialize, Default)]
 pub struct Transaction {
-    pub tx_id: String,
+    pub tx_id: Hash,
     pub nonce: u64,
     pub sender_address: String,
     pub tx_status: String, // 'success'
@@ -202,7 +202,7 @@ mod tests {
         let transaction = serde_json::from_str::<Transaction>(data).unwrap();
         assert_eq!(
             transaction.tx_id,
-            "0xee0049faf8dde5507418140ed72bd64f73cc001b08de98e0c16a3a8d9f2c38cf"
+            "0xee0049faf8dde5507418140ed72bd64f73cc001b08de98e0c16a3a8d9f2c38cf".parse().unwrap()
         );
         assert_eq!(transaction.nonce, 2);
         assert_eq!(
