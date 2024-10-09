@@ -22,11 +22,7 @@ impl EventType {
             EventType::ContractCall => "ContractCall",
             EventType::SignersRotated => "SignersRotated",
         };
-
-        let module = match self {
-            EventType::ContractCall => "gateway",
-            EventType::SignersRotated => "auth",
-        };
+        let module = "events";
 
         format!("{}::{}::{}", gateway_address, module, event)
             .parse()
@@ -376,7 +372,7 @@ mod tests {
             sender: msg.source_address,
             type_: StructTag {
                 address: gateway_address.into(),
-                module: "gateway".parse().unwrap(),
+                module: "events".parse().unwrap(),
                 name: "ContractCall".parse().unwrap(),
                 type_params: vec![],
             },
@@ -463,7 +459,7 @@ mod tests {
             sender: SuiAddress::random_for_testing_only(),
             type_: StructTag {
                 address: gateway_address.into(),
-                module: "auth".parse().unwrap(),
+                module: "events".parse().unwrap(),
                 name: "SignersRotated".parse().unwrap(),
                 type_params: vec![],
             },
