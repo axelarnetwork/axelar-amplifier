@@ -1,5 +1,4 @@
 use std::marker::PhantomData;
-use std::ops::Deref;
 
 use axelar_core_std::nexus::query::QueryMsg;
 use axelar_core_std::query::AxelarQueryMsg;
