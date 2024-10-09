@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{HexBinary, Uint256};
-use cw_storage_plus::{Key, KeyDeserialize, PrimaryKey};
+use cw_storage_plus::{Key, KeyDeserialize, Prefixer, PrimaryKey};
 use router_api::ChainNameRaw;
 use strum::FromRepr;
 
@@ -105,6 +105,23 @@ impl HubMessage {
     }
 }
 
+impl Message {
+    pub fn token_id(&self) -> TokenId {
+        match self {
+            Message::InterchainTransfer { token_id, .. }
+            | Message::DeployInterchainToken { token_id, .. }
+            | Message::DeployTokenManager { token_id, .. } => token_id.clone(),
+        }
+    }
+
+    pub fn transfer_amount(&self) -> Option<Uint256> {
+        match self {
+            Message::InterchainTransfer { amount, .. } => Some(amount.to_owned()),
+            _ => None,
+        }
+    }
+}
+
 impl TokenId {
     #[inline(always)]
     pub fn new(id: [u8; 32]) -> Self {
@@ -142,5 +159,11 @@ impl KeyDeserialize for TokenId {
     fn from_vec(value: Vec<u8>) -> cosmwasm_std::StdResult<Self::Output> {
         let inner = <[u8; 32]>::from_vec(value)?;
         Ok(TokenId(inner))
+    }
+}
+
+impl<'a> Prefixer<'a> for TokenId {
+    fn prefix(&self) -> Vec<Key> {
+        self.key()
     }
 }
