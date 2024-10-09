@@ -397,6 +397,6 @@ fn contract_call_with_token_to_amplifier_chains_fails() {
             payload,
         ),
         ExecuteError,
-        ExecuteError::RoutingDestination,
+        ExecuteError::InvalidRoutingDestination,
     );
 }

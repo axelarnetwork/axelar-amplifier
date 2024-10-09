@@ -54,7 +54,7 @@ pub enum Error {
     #[error("invalid token received")]
     InvalidToken,
     #[error("invalid routing destination")]
-    RoutingDestination,
+    InvalidRoutingDestination,
 }
 
 #[cw_serde]
@@ -118,7 +118,7 @@ pub fn call_contract(
         RoutingDestination::Router if token.is_none() => {
             route_to_router(storage, &Router::new(router), vec![msg])?
         }
-        _ => bail!(Error::RoutingDestination),
+        _ => bail!(Error::InvalidRoutingDestination),
     }
     .add_event(event.into());
 

@@ -33,7 +33,8 @@ pub enum ExecuteMsg {
     },
 
     /// Initiate a cross-chain contract call from Axelarnet to another chain.
-    /// The message will be routed to the destination chain's gateway via the router.
+    /// If the destination chain is registered with core, the message will be routed to core with an optional token.
+    /// Otherwise, the message will be routed to the destination chain's gateway via the router.
     #[permission(Any)]
     CallContract {
         destination_chain: ChainName,
