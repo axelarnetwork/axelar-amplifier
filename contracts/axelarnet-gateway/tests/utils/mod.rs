@@ -2,6 +2,7 @@
 // This circumvents that issue.
 #![allow(dead_code)]
 
+#[cfg_attr(test, allow(unused_imports))]
 pub use deps::*;
 #[allow(unused_imports)]
 pub use execute::*;

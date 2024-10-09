@@ -11,7 +11,7 @@ pub struct InstantiateMsg {
     pub chain_name: ChainName,
     /// Address of the router contract on axelar.
     pub router_address: String,
-    /// Address of the nexus module on axelar.
+    /// Address of the nexus module account on axelar.
     pub nexus: String,
 }
 
