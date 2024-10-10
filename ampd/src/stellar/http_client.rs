@@ -11,6 +11,7 @@ use stellar_rs::horizon_client::HorizonClient;
 use stellar_rs::transactions::prelude::{SingleTransactionRequest, TransactionResponse};
 use stellar_xdr::curr::{ContractEvent, Limits, ReadXdr, ScAddress, TransactionMeta, VecM};
 use thiserror::Error;
+use tracing::warn;
 
 #[cfg(test)]
 use crate::types::Hash;
@@ -141,7 +142,10 @@ impl Client {
         .map(|tx_response| tx_response.map(TxResponse::from))
         .filter_map(|tx_response| match tx_response {
             Ok(tx_response) => Some((tx_response.tx_hash(), tx_response)),
-            Err(_) => None,
+            Err(err) => {
+                warn!(err, "failed to get transaction response");
+                None
+            }
         })
         .collect::<HashMap<_, _>>())
     }
@@ -156,6 +160,9 @@ impl Client {
             .get_single_transaction(&tx_hash)
             .await
             .map(|tx_response| Some(tx_response.into()))
-            .unwrap_or_default())
+            .unwrap_or_else(|err| {
+                warn!(err, "failed to get transaction response");
+                None
+            }))
     }
 }

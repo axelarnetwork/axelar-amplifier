@@ -9,7 +9,7 @@ use interchain_token_service::events::Event;
 use interchain_token_service::msg::ExecuteMsg;
 use interchain_token_service::{HubMessage, Message, TokenId, TokenManagerType};
 use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
-use utils::TestMessage;
+use utils::{make_deps, TestMessage};
 
 mod utils;
 
@@ -78,7 +78,7 @@ fn deregistering_unknown_chain_fails() {
 
 #[test]
 fn execute_hub_message_succeeds() {
-    let mut deps = mock_dependencies();
+    let mut deps = make_deps();
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
     let TestMessage {

@@ -1,21 +1,15 @@
 use assert_ok::assert_ok;
 use axelar_wasm_std::assert_err_contains;
-use axelar_wasm_std::error::ContractError;
 use axelar_wasm_std::response::inspect_response_msg;
-use axelarnet_gateway::contract::{self, ExecuteError};
-use axelarnet_gateway::msg::ExecuteMsg;
+use axelarnet_gateway::contract::ExecuteError;
 use axelarnet_gateway::StateError;
-use cosmwasm_std::testing::{
-    mock_dependencies, mock_env, mock_info, MockQuerierCustomHandlerResult,
-};
-use cosmwasm_std::{Coin, ContractResult, DepsMut, HexBinary, Response, SystemResult};
+use cosmwasm_std::testing::{mock_dependencies, mock_info};
+use cosmwasm_std::{Coin, HexBinary};
 use rand::RngCore;
 use router_api::msg::ExecuteMsg as RouterExecuteMsg;
 use router_api::{CrossChainId, Message};
-use serde::de::DeserializeOwned;
-use serde_json::json;
 
-use crate::utils::messages;
+use crate::utils::{axelar_query_handler, messages, mock_axelar_dependencies, OwnedDepsExt};
 
 mod utils;
 
@@ -85,7 +79,7 @@ fn execute_approved_message_once_returns_correct_message() {
     utils::route_from_router(deps.as_mut(), vec![msg]).unwrap();
 
     let response = assert_ok!(utils::execute_payload(deps.as_mut(), cc_id, payload));
-    let msg = assert_ok!(inspect_response_msg::<utils::ExecuteMsg>(response));
+    let msg: utils::ExecuteMsg = assert_ok!(inspect_response_msg(response));
     goldie::assert_json!(msg)
 }
 
@@ -161,7 +155,7 @@ fn route_to_router_without_contract_call_ignores_message() {
 
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
-    let response = assert_ok!(route_to_router(deps.as_mut(), vec![msg]));
+    let response = assert_ok!(utils::route_to_router(deps.as_mut(), vec![msg]));
     assert_eq!(response.messages.len(), 0);
 }
 
@@ -171,18 +165,18 @@ fn route_to_router_after_contract_call_with_tempered_data_fails() {
     rand::thread_rng().fill_bytes(&mut tx_hash);
     let nonce = rand::random();
 
-    let mut deps = mock_dependencies();
+    let mut deps = mock_axelar_dependencies();
     deps.querier = deps
         .querier
-        .with_custom_handler(reply_with_tx_hash_and_nonce(tx_hash, nonce));
+        .with_custom_handler(axelar_query_handler(tx_hash, nonce, false));
 
     let destination_chain = "destination-chain".parse().unwrap();
     let destination_address = "destination-address".parse().unwrap();
     let payload = vec![1, 2, 3].into();
 
-    utils::instantiate_contract(deps.as_mut()).unwrap();
+    utils::instantiate_contract(deps.as_default_mut()).unwrap();
     let response = utils::call_contract(
-        deps.as_mut(),
+        deps.as_default_mut(),
         mock_info("sender", &[]),
         destination_chain,
         destination_address,
@@ -196,7 +190,7 @@ fn route_to_router_after_contract_call_with_tempered_data_fails() {
     msgs[0].destination_chain = "wrong-chain".parse().unwrap();
 
     assert_err_contains!(
-        route_to_router(deps.as_mut(), msgs),
+        utils::route_to_router(deps.as_default_mut(), msgs),
         ExecuteError,
         ExecuteError::MessageMismatch(..)
     );
@@ -211,18 +205,18 @@ fn route_to_router_after_contract_call_succeeds_multiple_times() {
             .unwrap();
     let nonce = 210;
 
-    let mut deps = mock_dependencies();
+    let mut deps = mock_axelar_dependencies();
     deps.querier = deps
         .querier
-        .with_custom_handler(reply_with_tx_hash_and_nonce(tx_hash, nonce));
+        .with_custom_handler(axelar_query_handler(tx_hash, nonce, false));
 
     let destination_chain = "destination-chain".parse().unwrap();
     let destination_address = "destination-address".parse().unwrap();
     let payload = vec![1, 2, 3].into();
 
-    utils::instantiate_contract(deps.as_mut()).unwrap();
+    utils::instantiate_contract(deps.as_default_mut()).unwrap();
     let response = utils::call_contract(
-        deps.as_mut(),
+        deps.as_default_mut(),
         mock_info("sender", &[]),
         destination_chain,
         destination_address,
@@ -235,8 +229,8 @@ fn route_to_router_after_contract_call_succeeds_multiple_times() {
     };
 
     for _ in 0..10 {
-        let response = assert_ok!(route_to_router(deps.as_mut(), msgs.clone()));
-        let msg = assert_ok!(inspect_response_msg::<RouterExecuteMsg>(response));
+        let response = assert_ok!(utils::route_to_router(deps.as_default_mut(), msgs.clone()));
+        let msg: RouterExecuteMsg = assert_ok!(inspect_response_msg(response));
         goldie::assert_json!(msg);
     }
 }
@@ -250,18 +244,18 @@ fn route_to_router_after_contract_call_ignores_duplicates() {
             .unwrap();
     let nonce = 200;
 
-    let mut deps = mock_dependencies();
+    let mut deps = mock_axelar_dependencies();
     deps.querier = deps
         .querier
-        .with_custom_handler(reply_with_tx_hash_and_nonce(tx_hash, nonce));
+        .with_custom_handler(axelar_query_handler(tx_hash, nonce, false));
 
     let destination_chain = "destination-chain".parse().unwrap();
     let destination_address = "destination-address".parse().unwrap();
     let payload = vec![1, 2, 3].into();
 
-    utils::instantiate_contract(deps.as_mut()).unwrap();
+    utils::instantiate_contract(deps.as_default_mut()).unwrap();
     let response = utils::call_contract(
-        deps.as_mut(),
+        deps.as_default_mut(),
         mock_info("sender", &[]),
         destination_chain,
         destination_address,
@@ -277,8 +271,8 @@ fn route_to_router_after_contract_call_ignores_duplicates() {
     msgs.append(&mut msgs.clone());
     assert_eq!(msgs.len(), 4);
 
-    let response = assert_ok!(route_to_router(deps.as_mut(), msgs));
-    let msg = assert_ok!(inspect_response_msg::<RouterExecuteMsg>(response));
+    let response = assert_ok!(utils::route_to_router(deps.as_default_mut(), msgs));
+    let msg: RouterExecuteMsg = assert_ok!(inspect_response_msg(response));
     goldie::assert_json!(msg);
 }
 
@@ -291,25 +285,25 @@ fn contract_call_returns_correct_message() {
             .unwrap();
     let nonce = 190;
 
-    let mut deps = mock_dependencies();
+    let mut deps = mock_axelar_dependencies();
     deps.querier = deps
         .querier
-        .with_custom_handler(reply_with_tx_hash_and_nonce(tx_hash, nonce));
+        .with_custom_handler(axelar_query_handler(tx_hash, nonce, false));
 
     let destination_chain = "destination-chain".parse().unwrap();
     let destination_address = "destination-address".parse().unwrap();
     let payload = vec![1, 2, 3].into();
 
-    utils::instantiate_contract(deps.as_mut()).unwrap();
+    utils::instantiate_contract(deps.as_default_mut()).unwrap();
 
     let response = assert_ok!(utils::call_contract(
-        deps.as_mut(),
+        deps.as_default_mut(),
         mock_info("sender", &[]),
         destination_chain,
         destination_address,
         payload,
     ));
-    let msg = assert_ok!(inspect_response_msg::<RouterExecuteMsg>(response));
+    let msg: RouterExecuteMsg = assert_ok!(inspect_response_msg(response));
     goldie::assert_json!(msg)
 }
 
@@ -319,28 +313,27 @@ fn contract_call_with_token_returns_correct_message() {
     let nonce = 99;
     let token = Coin::new(10, "axelar");
 
-    let mut deps = mock_dependencies();
+    let mut deps = mock_axelar_dependencies();
     deps.querier = deps
         .querier
-        .with_custom_handler(reply_with_tx_hash_and_nonce(tx_hash, nonce));
+        .with_custom_handler(axelar_query_handler(tx_hash, nonce, true));
 
     let destination_chain = "destination-chain".parse().unwrap();
     let destination_address = "destination-address".parse().unwrap();
     let payload = vec![1, 2, 3].into();
 
-    utils::instantiate_contract(deps.as_mut()).unwrap();
+    utils::instantiate_contract(deps.as_default_mut()).unwrap();
 
     let response = assert_ok!(utils::call_contract(
-        deps.as_mut(),
+        deps.as_default_mut(),
         mock_info("sender", &[token]),
         destination_chain,
         destination_address,
         payload,
     ));
-    let msg = assert_ok!(inspect_response_msg::<nexus_gateway::msg::ExecuteMsg>(
-        response
-    ));
-    goldie::assert_json!(msg)
+    assert_eq!(response.messages.len(), 2);
+
+    goldie::assert_json!(response.messages)
 }
 
 #[test]
@@ -352,18 +345,18 @@ fn contract_call_returns_correct_events() {
             .unwrap();
     let nonce = 160;
 
-    let mut deps = mock_dependencies();
+    let mut deps = mock_axelar_dependencies();
     deps.querier = deps
         .querier
-        .with_custom_handler(reply_with_tx_hash_and_nonce(tx_hash, nonce));
+        .with_custom_handler(axelar_query_handler(tx_hash, nonce, false));
 
     let destination_chain = "destination-chain".parse().unwrap();
     let destination_address = "destination-address".parse().unwrap();
     let payload = vec![1, 2, 3].into();
 
-    utils::instantiate_contract(deps.as_mut()).unwrap();
+    utils::instantiate_contract(deps.as_default_mut()).unwrap();
     let response = assert_ok!(utils::call_contract(
-        deps.as_mut(),
+        deps.as_default_mut(),
         mock_info("sender", &[]),
         destination_chain,
         destination_address,
@@ -372,31 +365,32 @@ fn contract_call_returns_correct_events() {
     goldie::assert_json!(response.events)
 }
 
-fn route_to_router(deps: DepsMut, msgs: Vec<Message>) -> Result<Response, ContractError> {
-    contract::execute(
-        deps,
-        mock_env(),
-        mock_info("sender", &[]),
-        ExecuteMsg::RouteMessages(msgs),
-    )
-}
+#[test]
+fn contract_call_with_token_to_amplifier_chains_fails() {
+    let tx_hash: [u8; 32] = [2; 32];
+    let nonce = 99;
+    let token = Coin::new(10, "axelar");
 
-fn reply_with_tx_hash_and_nonce<C>(
-    tx_hash: [u8; 32],
-    nonce: u32,
-) -> impl Fn(&C) -> MockQuerierCustomHandlerResult
-where
-    C: DeserializeOwned,
-{
-    move |_| {
-        SystemResult::Ok(ContractResult::Ok(
-            json!({
-                "tx_hash": tx_hash,
-                "nonce": nonce,
-            })
-            .to_string()
-            .as_bytes()
-            .into(),
-        ))
-    }
+    let mut deps = mock_axelar_dependencies();
+    deps.querier = deps
+        .querier
+        .with_custom_handler(axelar_query_handler(tx_hash, nonce, false));
+
+    let destination_chain = "destination-chain".parse().unwrap();
+    let destination_address = "destination-address".parse().unwrap();
+    let payload = vec![1, 2, 3].into();
+
+    utils::instantiate_contract(deps.as_default_mut()).unwrap();
+
+    assert_err_contains!(
+        utils::call_contract(
+            deps.as_default_mut(),
+            mock_info("sender", &[token]),
+            destination_chain,
+            destination_address,
+            payload,
+        ),
+        ExecuteError,
+        ExecuteError::InvalidRoutingDestination,
+    );
 }

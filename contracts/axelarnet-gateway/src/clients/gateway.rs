@@ -1,5 +1,5 @@
 use axelar_wasm_std::vec::VecExt;
-use cosmwasm_std::{Addr, CosmosMsg, HexBinary};
+use cosmwasm_std::{Addr, Coin, CosmosMsg, HexBinary};
 use error_stack::{Result, ResultExt};
 use router_api::{Address, ChainName, CrossChainId, Message};
 
@@ -33,6 +33,23 @@ impl<'a> Client<'a> {
             destination_address,
             payload,
         })
+    }
+
+    pub fn call_contract_with_token(
+        &self,
+        destination_chain: ChainName,
+        destination_address: Address,
+        payload: HexBinary,
+        coin: Coin,
+    ) -> CosmosMsg {
+        self.client.execute_with_funds(
+            &ExecuteMsg::CallContract {
+                destination_chain,
+                destination_address,
+                payload,
+            },
+            coin,
+        )
     }
 
     pub fn execute(&self, cc_id: CrossChainId, payload: HexBinary) -> CosmosMsg {
@@ -154,7 +171,7 @@ mod test {
         let msg = InstantiateMsg {
             chain_name: "source-chain".parse().unwrap(),
             router_address: "router".to_string(),
-            nexus_gateway: "nexus-gateway".to_string(),
+            nexus: "nexus".to_string(),
         };
 
         instantiate(deps, env, info, msg.clone()).unwrap();

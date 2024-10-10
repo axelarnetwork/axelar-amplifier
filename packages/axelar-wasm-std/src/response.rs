@@ -13,9 +13,9 @@ pub enum Error {
 
 /// Get a msg wrapped inside a `WasmMsg::Execute` from a `Response`.
 /// If there are no wasm messages or more than one message in the response, this returns an error.
-pub fn inspect_response_msg<T>(response: Response) -> Result<T, Error>
+pub fn inspect_response_msg<T, D>(response: Response<T>) -> Result<D, Error>
 where
-    T: DeserializeOwned,
+    D: DeserializeOwned,
 {
     let mut followup_messages = response.messages.into_iter();
 
