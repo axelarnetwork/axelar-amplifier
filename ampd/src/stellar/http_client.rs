@@ -1,4 +1,5 @@
 use std::collections::{HashMap, HashSet};
+use std::fmt::Display;
 use std::str::FromStr;
 
 use error_stack::{report, Result};
@@ -10,6 +11,9 @@ use stellar_rs::horizon_client::HorizonClient;
 use stellar_rs::transactions::prelude::{SingleTransactionRequest, TransactionResponse};
 use stellar_xdr::curr::{ContractEvent, Limits, ReadXdr, ScAddress, TransactionMeta, VecM};
 use thiserror::Error;
+
+#[cfg(test)]
+use crate::types::Hash;
 
 #[derive(Error, Debug)]
 pub enum Error {
@@ -25,7 +29,7 @@ pub enum Error {
 pub struct StellarTxId(#[serde(deserialize_with = "deserialize_stellar_tx_id")] String);
 
 /// Deserializes a Stellar tx id from a 0x-prefixed tx id.
-fn deserialize_stellar_tx_id<'de, D>(deserializer: D) -> Result<String, D::Error>
+fn deserialize_stellar_tx_id<'de, D>(deserializer: D) -> std::result::Result<String, D::Error>
 where
     D: Deserializer<'de>,
 {
@@ -33,18 +37,23 @@ where
     tx_id
         .strip_prefix("0x")
         .map(String::from)
-        .ok_or(report!(D::Error::custom(Error::FailedTxIdDeserialization)))
+        .ok_or(D::Error::custom(Error::FailedTxIdDeserialization))
 }
 
 impl StellarTxId {
     pub fn to_message_id(&self, event_index: u32) -> String {
         format!("0x{}-{}", self.0.clone(), event_index)
     }
+
+    #[cfg(test)]
+    pub fn from_hash(hash: Hash) -> Self {
+        StellarTxId(format!("{:x}", hash))
+    }
 }
 
-impl ToString for StellarTxId {
-    fn to_string(&self) -> String {
-        self.0.clone()
+impl Display for StellarTxId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0.clone())
     }
 }
 
