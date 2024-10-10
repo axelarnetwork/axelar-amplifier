@@ -133,7 +133,6 @@ mod tests {
             cosmwasm_contract = '{}'
             http_url = 'http://localhost:8000'
 
-
             [[handlers]]
             type = 'StacksMsgVerifier'
             cosmwasm_contract = '{}'
