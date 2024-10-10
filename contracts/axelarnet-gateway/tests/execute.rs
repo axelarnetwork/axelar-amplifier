@@ -1,4 +1,5 @@
 use assert_ok::assert_ok;
+use axelar_core_std::nexus::test_utils::reply_with_is_chain_registered;
 use axelar_wasm_std::assert_err_contains;
 use axelar_wasm_std::response::inspect_response_msg;
 use axelarnet_gateway::contract::ExecuteError;
@@ -100,7 +101,10 @@ fn execute_approved_message_once_returns_correct_events() {
 
 #[test]
 fn route_from_router_with_destination_chain_not_matching_contract_fails() {
-    let mut deps = mock_dependencies();
+    let mut deps = mock_axelar_dependencies();
+    deps.querier = deps
+        .querier
+        .with_custom_handler(reply_with_is_chain_registered(false));
 
     let msg = messages::dummy_from_router(&[1, 2, 3]);
     let msg_with_wrong_destination = Message {
@@ -108,54 +112,127 @@ fn route_from_router_with_destination_chain_not_matching_contract_fails() {
         ..msg
     };
 
-    utils::instantiate_contract(deps.as_mut()).unwrap();
+    utils::instantiate_contract(deps.as_default_mut()).unwrap();
 
     assert_err_contains!(
-        utils::route_from_router(deps.as_mut(), vec![msg_with_wrong_destination]),
+        utils::route_from_router(deps.as_default_mut(), vec![msg_with_wrong_destination]),
         ExecuteError,
-        ExecuteError::InvalidDestination { .. }
+        ExecuteError::InvalidRoutingDestination,
     );
 }
 
 #[test]
 fn route_from_router_same_message_multiple_times_succeeds() {
-    let mut deps = mock_dependencies();
+    let mut deps = mock_axelar_dependencies();
+    deps.querier = deps
+        .querier
+        .with_custom_handler(reply_with_is_chain_registered(false));
 
     let msgs = vec![messages::dummy_from_router(&[1, 2, 3])];
 
-    utils::instantiate_contract(deps.as_mut()).unwrap();
+    utils::instantiate_contract(deps.as_default_mut()).unwrap();
 
-    let response = assert_ok!(utils::route_from_router(deps.as_mut(), msgs));
+    let response = assert_ok!(utils::route_from_router(deps.as_default_mut(), msgs));
     goldie::assert_json!(response);
 }
 
 #[test]
 fn route_from_router_multiple_times_with_data_mismatch_fails() {
-    let mut deps = mock_dependencies();
+    let mut deps = mock_axelar_dependencies();
+    deps.querier = deps
+        .querier
+        .with_custom_handler(reply_with_is_chain_registered(false));
 
     let mut msgs = vec![messages::dummy_from_router(&[1, 2, 3])];
 
-    utils::instantiate_contract(deps.as_mut()).unwrap();
-    utils::route_from_router(deps.as_mut(), msgs.clone()).unwrap();
+    utils::instantiate_contract(deps.as_default_mut()).unwrap();
+    utils::route_from_router(deps.as_default_mut(), msgs.clone()).unwrap();
 
     msgs[0].source_address = "wrong-address".parse().unwrap();
 
     assert_err_contains!(
-        utils::route_from_router(deps.as_mut(), msgs),
+        utils::route_from_router(deps.as_default_mut(), msgs),
         StateError,
         StateError::MessageMismatch(..)
     );
 }
 
 #[test]
+fn route_to_nexus_from_non_router_sender_fails() {
+    let mut deps = mock_axelar_dependencies();
+    deps.querier = deps
+        .querier
+        .with_custom_handler(reply_with_is_chain_registered(true));
+
+    let mut msg = messages::dummy_from_router(&[1, 2, 3]);
+    msg.destination_chain = "legacy-chain".parse().unwrap();
+
+    utils::instantiate_contract(deps.as_default_mut()).unwrap();
+    assert_err_contains!(
+        utils::route_to_router(deps.as_default_mut(), vec![msg]),
+        ExecuteError,
+        ExecuteError::InvalidRoutingDestination,
+    );
+}
+
+#[test]
+fn route_to_axelarnet_from_non_router_sender_fails() {
+    let mut deps = mock_axelar_dependencies();
+    deps.querier = deps
+        .querier
+        .with_custom_handler(reply_with_is_chain_registered(false));
+
+    let msgs = vec![messages::dummy_from_router(&[1, 2, 3])];
+
+    utils::instantiate_contract(deps.as_default_mut()).unwrap();
+    assert_err_contains!(
+        utils::route_to_router(deps.as_default_mut(), msgs),
+        ExecuteError,
+        ExecuteError::InvalidRoutingDestination,
+    );
+}
+
+#[test]
+fn route_from_router_to_nexus_succeeds() {
+    let mut deps = mock_axelar_dependencies();
+    deps.querier = deps
+        .querier
+        .with_custom_handler(reply_with_is_chain_registered(true));
+
+    let msg = messages::dummy_from_router(&[1, 2, 3]);
+    let msgs = vec![
+        Message {
+            destination_chain: "legacy-chain-1".parse().unwrap(),
+            ..msg.clone()
+        },
+        Message {
+            destination_chain: "legacy-chain-2".parse().unwrap(),
+            ..msg.clone()
+        },
+        Message {
+            destination_chain: "legacy-chain-2".parse().unwrap(),
+            ..msg
+        },
+    ];
+
+    utils::instantiate_contract(deps.as_default_mut()).unwrap();
+
+    let response = assert_ok!(utils::route_from_router(deps.as_default_mut(), msgs));
+    goldie::assert_json!(response);
+}
+
+#[test]
 fn route_to_router_without_contract_call_ignores_message() {
-    let mut deps = mock_dependencies();
+    let mut deps = mock_axelar_dependencies();
+    deps.querier = deps
+        .querier
+        .with_custom_handler(reply_with_is_chain_registered(false));
 
     let msg = messages::dummy_to_router(&vec![1, 2, 3]);
 
-    utils::instantiate_contract(deps.as_mut()).unwrap();
+    utils::instantiate_contract(deps.as_default_mut()).unwrap();
 
-    let response = assert_ok!(utils::route_to_router(deps.as_mut(), vec![msg]));
+    let response = assert_ok!(utils::route_to_router(deps.as_default_mut(), vec![msg]));
     assert_eq!(response.messages.len(), 0);
 }
 

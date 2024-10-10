@@ -1,0 +1,344 @@
+{
+  "messages": [
+    {
+      "id": 0,
+      "msg": {
+        "custom": {
+          "source_chain": "source-chain",
+          "source_address": "source-address",
+          "destination_chain": "legacy-chain-1",
+          "destination_address": "destination-address",
+          "payload_hash": [
+            241,
+            136,
+            94,
+            218,
+            84,
+            183,
+            160,
+            83,
+            49,
+            140,
+            212,
+            30,
+            32,
+            147,
+            34,
+            13,
+            171,
+            21,
+            214,
+            83,
+            129,
+            177,
+            21,
+            122,
+            54,
+            51,
+            168,
+            59,
+            253,
+            92,
+            146,
+            57
+          ],
+          "source_tx_id": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "source_tx_index": 0,
+          "id": "hash-index"
+        }
+      },
+      "gas_limit": null,
+      "reply_on": "never"
+    },
+    {
+      "id": 0,
+      "msg": {
+        "custom": {
+          "source_chain": "source-chain",
+          "source_address": "source-address",
+          "destination_chain": "legacy-chain-2",
+          "destination_address": "destination-address",
+          "payload_hash": [
+            241,
+            136,
+            94,
+            218,
+            84,
+            183,
+            160,
+            83,
+            49,
+            140,
+            212,
+            30,
+            32,
+            147,
+            34,
+            13,
+            171,
+            21,
+            214,
+            83,
+            129,
+            177,
+            21,
+            122,
+            54,
+            51,
+            168,
+            59,
+            253,
+            92,
+            146,
+            57
+          ],
+          "source_tx_id": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "source_tx_index": 0,
+          "id": "hash-index"
+        }
+      },
+      "gas_limit": null,
+      "reply_on": "never"
+    },
+    {
+      "id": 0,
+      "msg": {
+        "custom": {
+          "source_chain": "source-chain",
+          "source_address": "source-address",
+          "destination_chain": "legacy-chain-2",
+          "destination_address": "destination-address",
+          "payload_hash": [
+            241,
+            136,
+            94,
+            218,
+            84,
+            183,
+            160,
+            83,
+            49,
+            140,
+            212,
+            30,
+            32,
+            147,
+            34,
+            13,
+            171,
+            21,
+            214,
+            83,
+            129,
+            177,
+            21,
+            122,
+            54,
+            51,
+            168,
+            59,
+            253,
+            92,
+            146,
+            57
+          ],
+          "source_tx_id": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "source_tx_index": 0,
+          "id": "hash-index"
+        }
+      },
+      "gas_limit": null,
+      "reply_on": "never"
+    }
+  ],
+  "attributes": [],
+  "events": [
+    {
+      "type": "routing",
+      "attributes": [
+        {
+          "key": "message_id",
+          "value": "hash-index"
+        },
+        {
+          "key": "source_chain",
+          "value": "source-chain"
+        },
+        {
+          "key": "source_address",
+          "value": "source-address"
+        },
+        {
+          "key": "destination_chain",
+          "value": "legacy-chain-1"
+        },
+        {
+          "key": "destination_address",
+          "value": "destination-address"
+        },
+        {
+          "key": "payload_hash",
+          "value": "f1885eda54b7a053318cd41e2093220dab15d65381b1157a3633a83bfd5c9239"
+        }
+      ]
+    },
+    {
+      "type": "routing",
+      "attributes": [
+        {
+          "key": "message_id",
+          "value": "hash-index"
+        },
+        {
+          "key": "source_chain",
+          "value": "source-chain"
+        },
+        {
+          "key": "source_address",
+          "value": "source-address"
+        },
+        {
+          "key": "destination_chain",
+          "value": "legacy-chain-2"
+        },
+        {
+          "key": "destination_address",
+          "value": "destination-address"
+        },
+        {
+          "key": "payload_hash",
+          "value": "f1885eda54b7a053318cd41e2093220dab15d65381b1157a3633a83bfd5c9239"
+        }
+      ]
+    },
+    {
+      "type": "routing",
+      "attributes": [
+        {
+          "key": "message_id",
+          "value": "hash-index"
+        },
+        {
+          "key": "source_chain",
+          "value": "source-chain"
+        },
+        {
+          "key": "source_address",
+          "value": "source-address"
+        },
+        {
+          "key": "destination_chain",
+          "value": "legacy-chain-2"
+        },
+        {
+          "key": "destination_address",
+          "value": "destination-address"
+        },
+        {
+          "key": "payload_hash",
+          "value": "f1885eda54b7a053318cd41e2093220dab15d65381b1157a3633a83bfd5c9239"
+        }
+      ]
+    }
+  ],
+  "data": null
+}
