@@ -271,12 +271,16 @@ mod tests {
     use alloy_primitives::{FixedBytes, U256};
     use alloy_sol_types::SolValue;
     use assert_ok::assert_ok;
-    use axelar_wasm_std::assert_err_contains;
+    use axelar_wasm_std::{assert_err_contains, nonempty};
     use cosmwasm_std::{HexBinary, Uint256};
     use router_api::ChainNameRaw;
 
     use crate::abi::{DeployTokenManager, Error, MessageType, SendToHub};
     use crate::{HubMessage, Message, TokenManagerType};
+
+    fn from_hex(hex: &str) -> nonempty::HexBinary {
+        HexBinary::from_hex(hex).unwrap().try_into().unwrap()
+    }
 
     #[test]
     fn interchain_transfer_encode_decode() {
@@ -287,48 +291,40 @@ mod tests {
                 destination_chain: remote_chain.clone(),
                 message: Message::InterchainTransfer {
                     token_id: [0u8; 32].into(),
-                    source_address: HexBinary::from_hex("").unwrap(),
-                    destination_address: HexBinary::from_hex("").unwrap(),
+                    source_address: from_hex("00"),
+                    destination_address: from_hex("00"),
                     amount: Uint256::zero(),
-                    data: HexBinary::from_hex("").unwrap(),
+                    data: None,
                 },
             },
             HubMessage::SendToHub {
                 destination_chain: remote_chain.clone(),
                 message: Message::InterchainTransfer {
                     token_id: [255u8; 32].into(),
-                    source_address: HexBinary::from_hex("4F4495243837681061C4743b74B3eEdf548D56A5")
-                        .unwrap(),
-                    destination_address: HexBinary::from_hex(
-                        "4F4495243837681061C4743b74B3eEdf548D56A5",
-                    )
-                    .unwrap(),
+                    source_address: from_hex("4F4495243837681061C4743b74B3eEdf548D56A5"),
+                    destination_address: from_hex("4F4495243837681061C4743b74B3eEdf548D56A5"),
                     amount: Uint256::MAX,
-                    data: HexBinary::from_hex("abcd").unwrap(),
+                    data: Some(from_hex("abcd")),
                 },
             },
             HubMessage::ReceiveFromHub {
                 source_chain: remote_chain.clone(),
                 message: Message::InterchainTransfer {
                     token_id: [0u8; 32].into(),
-                    source_address: HexBinary::from_hex("").unwrap(),
-                    destination_address: HexBinary::from_hex("").unwrap(),
+                    source_address: from_hex("00"),
+                    destination_address: from_hex("00"),
                     amount: Uint256::zero(),
-                    data: HexBinary::from_hex("").unwrap(),
+                    data: None,
                 },
             },
             HubMessage::ReceiveFromHub {
                 source_chain: remote_chain.clone(),
                 message: Message::InterchainTransfer {
                     token_id: [255u8; 32].into(),
-                    source_address: HexBinary::from_hex("4F4495243837681061C4743b74B3eEdf548D56A5")
-                        .unwrap(),
-                    destination_address: HexBinary::from_hex(
-                        "4F4495243837681061C4743b74B3eEdf548D56A5",
-                    )
-                    .unwrap(),
+                    source_address: from_hex("4F4495243837681061C4743b74B3eEdf548D56A5"),
+                    destination_address: from_hex("4F4495243837681061C4743b74B3eEdf548D56A5"),
                     amount: Uint256::MAX,
-                    data: HexBinary::from_hex("abcd").unwrap(),
+                    data: Some(from_hex("abcd")),
                 },
             },
         ];
@@ -356,60 +352,60 @@ mod tests {
                 destination_chain: remote_chain.clone(),
                 message: Message::DeployInterchainToken {
                     token_id: [0u8; 32].into(),
-                    name: "".into(),
-                    symbol: "".into(),
+                    name: "t".try_into().unwrap(),
+                    symbol: "T".try_into().unwrap(),
                     decimals: 0,
-                    minter: HexBinary::from_hex("").unwrap(),
+                    minter: None,
                 },
             },
             HubMessage::SendToHub {
                 destination_chain: remote_chain.clone(),
                 message: Message::DeployInterchainToken {
                     token_id: [1u8; 32].into(),
-                    name: "Test Token".into(),
-                    symbol: "TST".into(),
+                    name: "Test Token".try_into().unwrap(),
+                    symbol: "TST".try_into().unwrap(),
                     decimals: 18,
-                    minter: HexBinary::from_hex("1234").unwrap(),
+                    minter: Some(from_hex("1234")),
                 },
             },
             HubMessage::SendToHub {
                 destination_chain: remote_chain.clone(),
                 message: Message::DeployInterchainToken {
                     token_id: [0u8; 32].into(),
-                    name: "Unicode Token 🪙".into(),
-                    symbol: "UNI🔣".into(),
+                    name: "Unicode Token 🪙".try_into().unwrap(),
+                    symbol: "UNI🔣".try_into().unwrap(),
                     decimals: 255,
-                    minter: HexBinary::from_hex("abcd").unwrap(),
+                    minter: Some(from_hex("abcd")),
                 },
             },
             HubMessage::ReceiveFromHub {
                 source_chain: remote_chain.clone(),
                 message: Message::DeployInterchainToken {
                     token_id: [0u8; 32].into(),
-                    name: "".into(),
-                    symbol: "".into(),
+                    name: "t".try_into().unwrap(),
+                    symbol: "T".try_into().unwrap(),
                     decimals: 0,
-                    minter: HexBinary::from_hex("").unwrap(),
+                    minter: None,
                 },
             },
             HubMessage::ReceiveFromHub {
                 source_chain: remote_chain.clone(),
                 message: Message::DeployInterchainToken {
                     token_id: [1u8; 32].into(),
-                    name: "Test Token".into(),
-                    symbol: "TST".into(),
+                    name: "Test Token".try_into().unwrap(),
+                    symbol: "TST".try_into().unwrap(),
                     decimals: 18,
-                    minter: HexBinary::from_hex("1234").unwrap(),
+                    minter: Some(from_hex("1234")),
                 },
             },
             HubMessage::ReceiveFromHub {
                 source_chain: remote_chain.clone(),
                 message: Message::DeployInterchainToken {
                     token_id: [0u8; 32].into(),
-                    name: "Unicode Token 🪙".into(),
-                    symbol: "UNI🔣".into(),
+                    name: "Unicode Token 🪙".try_into().unwrap(),
+                    symbol: "UNI🔣".try_into().unwrap(),
                     decimals: 255,
-                    minter: HexBinary::from_hex("abcd").unwrap(),
+                    minter: Some(from_hex("abcd")),
                 },
             },
         ];
@@ -438,7 +434,7 @@ mod tests {
                 message: Message::DeployTokenManager {
                     token_id: [0u8; 32].into(),
                     token_manager_type: TokenManagerType::NativeInterchainToken,
-                    params: HexBinary::default(),
+                    params: from_hex("00"),
                 },
             },
             HubMessage::SendToHub {
@@ -446,7 +442,7 @@ mod tests {
                 message: Message::DeployTokenManager {
                     token_id: [1u8; 32].into(),
                     token_manager_type: TokenManagerType::Gateway,
-                    params: HexBinary::from_hex("1234").unwrap(),
+                    params: from_hex("1234"),
                 },
             },
             HubMessage::ReceiveFromHub {
@@ -454,7 +450,7 @@ mod tests {
                 message: Message::DeployTokenManager {
                     token_id: [0u8; 32].into(),
                     token_manager_type: TokenManagerType::NativeInterchainToken,
-                    params: HexBinary::default(),
+                    params: from_hex("00"),
                 },
             },
             HubMessage::ReceiveFromHub {
@@ -462,7 +458,7 @@ mod tests {
                 message: Message::DeployTokenManager {
                     token_id: [1u8; 32].into(),
                     token_manager_type: TokenManagerType::Gateway,
-                    params: HexBinary::from_hex("1234").unwrap(),
+                    params: from_hex("1234"),
                 },
             },
         ];
@@ -574,10 +570,10 @@ mod tests {
             destination_chain: ChainNameRaw::from_str("large-data-chain").unwrap(),
             message: Message::InterchainTransfer {
                 token_id: [0u8; 32].into(),
-                source_address: HexBinary::from_hex("1234").unwrap(),
-                destination_address: HexBinary::from_hex("5678").unwrap(),
+                source_address: from_hex("1234"),
+                destination_address: from_hex("5678"),
                 amount: Uint256::from(1u128),
-                data: HexBinary::from(large_data),
+                data: Some(large_data.try_into().unwrap()),
             },
         };
 
@@ -592,10 +588,10 @@ mod tests {
             destination_chain: ChainNameRaw::from_str("chain").unwrap(),
             message: Message::DeployInterchainToken {
                 token_id: [0u8; 32].into(),
-                name: "Unicode Token 🪙".into(),
-                symbol: "UNI🔣".into(),
+                name: "Unicode Token 🪙".try_into().unwrap(),
+                symbol: "UNI🔣".try_into().unwrap(),
                 decimals: 18,
-                minter: HexBinary::from_hex("abcd").unwrap(),
+                minter: Some(from_hex("abcd")),
             },
         };
 

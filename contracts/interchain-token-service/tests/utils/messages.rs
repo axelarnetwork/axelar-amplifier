@@ -5,10 +5,10 @@ use router_api::{Address, ChainNameRaw, CrossChainId};
 pub fn dummy_message() -> Message {
     Message::InterchainTransfer {
         token_id: TokenId::new([2; 32]),
-        source_address: HexBinary::from_hex("1234").unwrap(),
-        destination_address: HexBinary::from_hex("5678").unwrap(),
+        source_address: HexBinary::from_hex("1234").unwrap().try_into().unwrap(),
+        destination_address: HexBinary::from_hex("5678").unwrap().try_into().unwrap(),
         amount: Uint256::from(1000u64),
-        data: HexBinary::from_hex("abcd").unwrap(),
+        data: Some(HexBinary::from_hex("abcd").unwrap().try_into().unwrap()),
     }
 }
 

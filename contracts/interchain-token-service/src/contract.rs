@@ -248,10 +248,10 @@ mod tests {
             destination_chain: destination_chain.clone(),
             message: Message::InterchainTransfer {
                 token_id: token_id.clone(),
-                source_address: source_address.clone(),
-                destination_address: HexBinary::from_hex(its_address).unwrap(),
+                source_address: source_address.clone().try_into().unwrap(),
+                destination_address: HexBinary::from_hex(its_address).unwrap().try_into().unwrap(),
                 amount: coin.amount.into(),
-                data: HexBinary::from_hex("").unwrap(),
+                data: None,
             },
         };
 
@@ -276,10 +276,10 @@ mod tests {
             destination_chain: source_chain.clone(),
             message: Message::InterchainTransfer {
                 token_id: token_id.clone(),
-                source_address: source_address.clone(),
-                destination_address: HexBinary::from_hex(its_address).unwrap(),
+                source_address: source_address.clone().try_into().unwrap(),
+                destination_address: HexBinary::from_hex(its_address).unwrap().try_into().unwrap(),
                 amount: coin.amount.into(),
-                data: HexBinary::from_hex("").unwrap(),
+                data: None,
             },
         };
 
