@@ -1,6 +1,6 @@
 use alloy_primitives::{FixedBytes, U256};
 use alloy_sol_types::{sol, SolValue};
-use axelar_wasm_std::{FnExt, IntoContractError};
+use axelar_wasm_std::{FnExt, IntoContractError, nonempty};
 use cosmwasm_std::{HexBinary, Uint256};
 use error_stack::{bail, ensure, report, Report, ResultExt};
 use router_api::ChainNameRaw;
@@ -63,14 +63,18 @@ sol! {
 
 #[derive(thiserror::Error, Debug, IntoContractError)]
 pub enum Error {
-    #[error("failed to decode ITS message")]
-    MessageDecodeFailed,
+    #[error("insufficient message length")]
+    InsufficientMessageLength,
     #[error("invalid message type")]
     InvalidMessageType,
     #[error("invalid chain name")]
     InvalidChainName,
     #[error("invalid token manager type")]
     InvalidTokenManagerType,
+    #[error(transparent)]
+    NonEmpty(#[from] nonempty::Error),
+    #[error(transparent)]
+    AbiDecodeFailed(#[from] alloy_sol_types::Error),
 }
 
 impl Message {
@@ -88,7 +92,7 @@ impl Message {
                 sourceAddress: Vec::<u8>::from(source_address).into(),
                 destinationAddress: Vec::<u8>::from(destination_address).into(),
                 amount: U256::from_le_bytes(amount.to_le_bytes()),
-                data: Vec::<u8>::from(data).into(),
+                data: into_vec(data).into(),
             }
             .abi_encode_params(),
             Message::DeployInterchainToken {
@@ -100,10 +104,10 @@ impl Message {
             } => DeployInterchainToken {
                 messageType: MessageType::DeployInterchainToken.into(),
                 tokenId: FixedBytes::<32>::new(token_id.into()),
-                name,
-                symbol,
+                name: name.into(),
+                symbol: symbol.into(),
                 decimals,
-                minter: Vec::<u8>::from(minter).into(),
+                minter: into_vec(minter).into(),
             }
             .abi_encode_params(),
             Message::DeployTokenManager {
@@ -122,49 +126,50 @@ impl Message {
     }
 
     pub fn abi_decode(payload: &[u8]) -> Result<Self, Report<Error>> {
-        ensure!(payload.len() >= 32, Error::MessageDecodeFailed);
+        ensure!(payload.len() >= 32, Error::InsufficientMessageLength);
 
         let message_type = MessageType::abi_decode(&payload[0..32], true)
+            .map_err(Error::AbiDecodeFailed)
             .change_context(Error::InvalidMessageType)?;
 
         let message = match message_type {
             MessageType::InterchainTransfer => {
                 let decoded = InterchainTransfer::abi_decode_params(payload, true)
-                    .change_context(Error::MessageDecodeFailed)?;
+                    .map_err(Error::AbiDecodeFailed)?;
 
                 Message::InterchainTransfer {
                     token_id: TokenId::new(decoded.tokenId.into()),
-                    source_address: HexBinary::from(decoded.sourceAddress.to_vec()),
-                    destination_address: HexBinary::from(decoded.destinationAddress.as_ref()),
+                    source_address: Vec::<u8>::from(decoded.sourceAddress).try_into().map_err(Error::NonEmpty)?,
+                    destination_address: Vec::<u8>::from(decoded.destinationAddress).try_into().map_err(Error::NonEmpty)?,
                     amount: Uint256::from_le_bytes(decoded.amount.to_le_bytes()),
-                    data: HexBinary::from(decoded.data.as_ref()),
+                    data: from_vec(decoded.data.into())?,
                 }
             }
             MessageType::DeployInterchainToken => {
                 let decoded = DeployInterchainToken::abi_decode_params(payload, true)
-                    .change_context(Error::MessageDecodeFailed)?;
+                    .map_err(Error::AbiDecodeFailed)?;
 
                 Message::DeployInterchainToken {
                     token_id: TokenId::new(decoded.tokenId.into()),
-                    name: decoded.name,
-                    symbol: decoded.symbol,
+                    name: decoded.name.try_into().map_err(Error::NonEmpty)?,
+                    symbol: decoded.symbol.try_into().map_err(Error::NonEmpty)?,
                     decimals: decoded.decimals,
-                    minter: HexBinary::from(decoded.minter.as_ref()),
+                    minter: from_vec(decoded.minter.into())?,
                 }
             }
             MessageType::DeployTokenManager => {
                 let decoded = DeployTokenManager::abi_decode_params(payload, true)
-                    .change_context(Error::MessageDecodeFailed)?;
+                    .map_err(Error::AbiDecodeFailed)?;
 
                 let token_manager_type = u8::try_from(decoded.tokenManagerType)
                     .change_context(Error::InvalidTokenManagerType)?
                     .then(TokenManagerType::from_repr)
-                    .ok_or_else(|| report!(Error::InvalidTokenManagerType))?;
+                    .ok_or_else(|| Error::InvalidTokenManagerType)?;
 
                 Message::DeployTokenManager {
                     token_id: TokenId::new(decoded.tokenId.into()),
                     token_manager_type,
-                    params: HexBinary::from(decoded.params.as_ref()),
+                    params: Vec::<u8>::from(decoded.params).try_into().map_err(Error::NonEmpty)?,
                 }
             }
             _ => bail!(Error::InvalidMessageType),
@@ -201,15 +206,16 @@ impl HubMessage {
     }
 
     pub fn abi_decode(payload: &[u8]) -> Result<Self, Report<Error>> {
-        ensure!(payload.len() >= 32, Error::MessageDecodeFailed);
+        ensure!(payload.len() >= 32, Error::InsufficientMessageLength);
 
         let message_type = MessageType::abi_decode(&payload[0..32], true)
+            .map_err(Error::AbiDecodeFailed)
             .change_context(Error::InvalidMessageType)?;
 
         let hub_message = match message_type {
             MessageType::SendToHub => {
                 let decoded = SendToHub::abi_decode_params(payload, true)
-                    .change_context(Error::MessageDecodeFailed)?;
+                    .map_err(Error::AbiDecodeFailed)?;
 
                 HubMessage::SendToHub {
                     destination_chain: ChainNameRaw::try_from(decoded.destination_chain)
@@ -219,7 +225,7 @@ impl HubMessage {
             }
             MessageType::ReceiveFromHub => {
                 let decoded = ReceiveFromHub::abi_decode_params(payload, true)
-                    .change_context(Error::MessageDecodeFailed)?;
+                    .map_err(Error::AbiDecodeFailed)?;
 
                 HubMessage::ReceiveFromHub {
                     source_chain: ChainNameRaw::try_from(decoded.source_chain)
@@ -244,6 +250,18 @@ impl From<TokenManagerType> for U256 {
     fn from(value: TokenManagerType) -> Self {
         U256::from(value as u8)
     }
+}
+
+fn into_vec(value: Option<nonempty::HexBinary>) -> std::vec::Vec<u8> {
+    value.map(|v| v.into()).unwrap_or_default()
+}
+
+fn from_vec(value: std::vec::Vec<u8>) -> Result<Option<nonempty::HexBinary>, Error> {
+    if value.is_empty() {
+        None
+    } else {
+        Some(nonempty::HexBinary::try_from(value)?)
+    }.then(Ok)
 }
 
 #[cfg(test)]
