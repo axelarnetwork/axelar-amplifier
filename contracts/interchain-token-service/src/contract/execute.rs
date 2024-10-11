@@ -158,7 +158,8 @@ fn gateway_token_transfer(
     match (gateway_denom, message) {
         (Some(denom), Message::InterchainTransfer { amount, .. }) => Ok(Some(Coin {
             denom: denom.to_string(),
-            amount: Uint128::try_from(Uint256::from(*amount)).change_context(Error::TransferAmountOverflow)?,
+            amount: Uint128::try_from(Uint256::from(*amount))
+                .change_context(Error::TransferAmountOverflow)?,
         })),
         _ => Ok(None),
     }

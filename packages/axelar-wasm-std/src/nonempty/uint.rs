@@ -1,4 +1,5 @@
-use std::{fmt, ops::Deref};
+use std::fmt;
+use std::ops::Deref;
 
 use cosmwasm_schema::cw_serde;
 use into_inner_derive::IntoInner;
