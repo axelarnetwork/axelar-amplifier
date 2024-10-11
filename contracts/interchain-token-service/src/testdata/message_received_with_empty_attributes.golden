@@ -52,6 +52,14 @@
         "value": "0101010101010101010101010101010101010101010101010101010101010101"
       },
       {
+        "key": "source_address",
+        "value": "00"
+      },
+      {
+        "key": "destination_address",
+        "value": "00"
+      },
+      {
         "key": "amount",
         "value": "1"
       }
@@ -110,6 +118,14 @@
         "value": "0101010101010101010101010101010101010101010101010101010101010101"
       },
       {
+        "key": "name",
+        "value": "t"
+      },
+      {
+        "key": "symbol",
+        "value": "T"
+      },
+      {
         "key": "decimals",
         "value": "0"
       }
@@ -137,6 +153,10 @@
       {
         "key": "token_manager_type",
         "value": "MintBurn"
+      },
+      {
+        "key": "params",
+        "value": "00"
       }
     ]
   }
