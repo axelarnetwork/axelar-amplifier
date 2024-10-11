@@ -4,6 +4,7 @@ use std::ops::Deref;
 use crate::nonempty::Error;
 
 #[cw_serde]
+#[serde(try_from = "cosmwasm_std::HexBinary")]
 #[derive(Eq, Hash)]
 pub struct HexBinary(cosmwasm_std::HexBinary);
 
@@ -19,17 +20,23 @@ impl TryFrom<cosmwasm_std::HexBinary> for HexBinary {
     }
 }
 
-impl TryFrom<&[u8]> for HexBinary {
+impl TryFrom<std::vec::Vec<u8>> for HexBinary {
     type Error = Error;
 
-    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        HexBinary::try_from(cosmwasm_std::HexBinary::from(value))
+    fn try_from(value: std::vec::Vec<u8>) -> Result<Self, Self::Error> {
+        cosmwasm_std::HexBinary::from(value).try_into()
     }
 }
 
 impl From<HexBinary> for cosmwasm_std::HexBinary {
     fn from(value: HexBinary) -> Self {
         value.0
+    }
+}
+
+impl From<HexBinary> for std::vec::Vec<u8> {
+    fn from(value: HexBinary) -> Self {
+        value.0.into()
     }
 }
 

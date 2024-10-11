@@ -1,10 +1,11 @@
 use std::fmt::Display;
 
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{HexBinary, Uint256};
+use cosmwasm_std::Uint256;
 use cw_storage_plus::{Key, KeyDeserialize, Prefixer, PrimaryKey};
 use router_api::ChainNameRaw;
 use strum::FromRepr;
+use axelar_wasm_std::nonempty;
 
 /// A unique 32-byte identifier for linked cross-chain tokens across ITS contracts.
 #[cw_serde]
@@ -44,27 +45,27 @@ pub enum Message {
         /// The unique identifier of the token being transferred
         token_id: TokenId,
         /// The address that called the ITS contract on the source chain
-        source_address: HexBinary,
+        source_address: nonempty::HexBinary,
         /// The address that the token will be sent to on the destination chain
         /// If data is not empty, this address will given the token and executed as a contract on the destination chain
-        destination_address: HexBinary,
+        destination_address: nonempty::HexBinary,
         /// The amount of tokens to transfer
         amount: Uint256,
         /// An optional payload to be provided to the destination address, if `data` is not empty
-        data: HexBinary,
+        data: Option<nonempty::HexBinary>,
     },
     /// Deploy a new interchain token on the destination chain
     DeployInterchainToken {
         /// The unique identifier of the token to be deployed
         token_id: TokenId,
         /// The name of the token
-        name: String,
+        name: nonempty::String,
         /// The symbol of the token
-        symbol: String,
+        symbol: nonempty::String,
         /// The number of decimal places the token supports
         decimals: u8,
         /// The address that will be the initial minter of the token (in addition to the ITS contract)
-        minter: HexBinary,
+        minter: Option<nonempty::HexBinary>,
     },
     /// Deploy a new token manager on the destination chain
     DeployTokenManager {
@@ -73,7 +74,7 @@ pub enum Message {
         /// The type of token manager to deploy
         token_manager_type: TokenManagerType,
         /// The parameters to be provided to the token manager contract
-        params: HexBinary,
+        params: nonempty::HexBinary,
     },
 }
 
