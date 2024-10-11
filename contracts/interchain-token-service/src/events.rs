@@ -60,10 +60,10 @@ fn make_message_event(
         } => {
             event
                 .add_attribute("token_id", token_id.to_string())
-                .add_attribute_if_nonempty("source_address", source_address.to_string())
-                .add_attribute_if_nonempty("destination_address", destination_address.to_string())
+                .add_attribute("source_address", source_address.to_string())
+                .add_attribute("destination_address", destination_address.to_string())
                 .add_attribute("amount", amount.to_string())
-                .add_attribute_if_nonempty("data", data.to_string())
+                .add_attribute_if_some("data", data.map(|data| data.to_string()))
         }
         Message::DeployInterchainToken {
             token_id,
@@ -74,10 +74,10 @@ fn make_message_event(
         } => {
             event
                 .add_attribute("token_id", token_id.to_string())
-                .add_attribute_if_nonempty("name", name)
-                .add_attribute_if_nonempty("symbol", symbol)
+                .add_attribute("name", name)
+                .add_attribute("symbol", symbol)
                 .add_attribute("decimals", decimals.to_string())
-                .add_attribute_if_nonempty("minter", minter.to_string())
+                .add_attribute_if_some("minter", minter.map(|minter| minter.to_string()))
         }
         Message::DeployTokenManager {
             token_id,
@@ -87,7 +87,7 @@ fn make_message_event(
             event
                 .add_attribute("token_id", token_id.to_string())
                 .add_attribute("token_manager_type", token_manager_type.as_ref().to_string())
-                .add_attribute_if_nonempty("params", params.to_string())
+                .add_attribute("params", params.to_string())
         }
     }
 }
@@ -104,22 +104,22 @@ mod test {
         let test_cases: Vec<Message> = vec![
             Message::InterchainTransfer {
                 token_id: TokenId::new([1; 32]),
-                source_address: HexBinary::from([1; 32]),
-                destination_address: HexBinary::from([1, 2, 3, 4]),
+                source_address: HexBinary::from([1; 32]).try_into().unwrap(),
+                destination_address: HexBinary::from([1, 2, 3, 4]).try_into().unwrap(),
                 amount: 1u64.into(),
-                data: HexBinary::from([1, 2, 3, 4]),
+                data: Some(HexBinary::from([1, 2, 3, 4]).try_into().unwrap()),
             },
             Message::DeployInterchainToken {
                 token_id: TokenId::new([1; 32]),
-                name: "Test".into(),
-                symbol: "TST".into(),
+                name: "Test".try_into().unwrap(),
+                symbol: "TST".try_into().unwrap(),
                 decimals: 18,
-                minter: HexBinary::from([1; 32]),
+                minter: Some(HexBinary::from([1; 32]).try_into().unwrap()),
             },
             Message::DeployTokenManager {
                 token_id: TokenId::new([1; 32]),
                 token_manager_type: TokenManagerType::MintBurn,
-                params: HexBinary::from([1, 2, 3, 4]),
+                params: HexBinary::from([1, 2, 3, 4]).try_into().unwrap(),
             },
         ];
 
@@ -141,36 +141,36 @@ mod test {
         let test_cases: Vec<Message> = vec![
             Message::InterchainTransfer {
                 token_id: TokenId::new([1; 32]),
-                source_address: HexBinary::from([1; 32]),
-                destination_address: HexBinary::from([1, 2, 3, 4]),
+                source_address: HexBinary::from([1; 32]).try_into().unwrap(),
+                destination_address: HexBinary::from([1, 2, 3, 4]).try_into().unwrap(),
                 amount: 1u64.into(),
-                data: HexBinary::default(),
+                data: None,
             },
             Message::InterchainTransfer {
                 token_id: TokenId::new([1; 32]),
-                source_address: HexBinary::default(),
-                destination_address: HexBinary::default(),
+                source_address: HexBinary::from([0u8]).try_into().unwrap(),
+                destination_address: HexBinary::from([0u8]).try_into().unwrap(),
                 amount: 1u64.into(),
-                data: HexBinary::default(),
+                data: None,
             },
             Message::DeployInterchainToken {
                 token_id: TokenId::new([1; 32]),
-                name: "Test".into(),
-                symbol: "TST".into(),
+                name: "Test".try_into().unwrap(),
+                symbol: "TST".try_into().unwrap(),
                 decimals: 18,
-                minter: HexBinary::default(),
+                minter: None,
             },
             Message::DeployInterchainToken {
                 token_id: TokenId::new([1; 32]),
-                name: "".into(),
-                symbol: "".into(),
+                name: "t".try_into().unwrap(),
+                symbol: "T".try_into().unwrap(),
                 decimals: 0,
-                minter: HexBinary::default(),
+                minter: None,
             },
             Message::DeployTokenManager {
                 token_id: TokenId::new([1; 32]),
                 token_manager_type: TokenManagerType::MintBurn,
-                params: HexBinary::default(),
+                params: HexBinary::from([0u8]).try_into().unwrap(),
             },
         ];
 
