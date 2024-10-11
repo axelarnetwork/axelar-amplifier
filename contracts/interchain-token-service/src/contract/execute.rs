@@ -243,8 +243,8 @@ mod tests {
     use axelar_core_std::nexus;
     use axelar_core_std::nexus::query::IsChainRegisteredResponse;
     use axelar_core_std::query::AxelarQueryMsg;
-    use axelar_wasm_std::assert_err_contains;
     use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
+    use axelar_wasm_std::{assert_err_contains, nonempty};
     use axelarnet_gateway::msg::QueryMsg;
     use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage};
     use cosmwasm_std::{
@@ -262,6 +262,13 @@ mod tests {
     const AMPLIFIER_CHAIN: &str = "solana";
     const GATEWAY_TOKEN_DENOM: &str = "eth";
     const ITS_ADDRESS: &str = "68d30f47F19c07bCCEf4Ac7FAE2Dc12FCa3e0dC9";
+
+    fn dummy_its_address() -> nonempty::HexBinary {
+        HexBinary::from_hex(ITS_ADDRESS)
+            .unwrap()
+            .try_into()
+            .unwrap()
+    }
 
     #[test]
     fn gateway_token_id_should_be_idempotent() {
@@ -330,10 +337,7 @@ mod tests {
             message: Message::InterchainTransfer {
                 token_id: token_id.clone(),
                 source_address: source_address.clone().try_into().unwrap(),
-                destination_address: HexBinary::from_hex(ITS_ADDRESS)
-                    .unwrap()
-                    .try_into()
-                    .unwrap(),
+                destination_address: dummy_its_address(),
                 amount: coin.amount.try_into().unwrap(),
                 data: None,
             },
@@ -357,10 +361,7 @@ mod tests {
             message: Message::InterchainTransfer {
                 token_id,
                 source_address: source_address.try_into().unwrap(),
-                destination_address: HexBinary::from_hex(ITS_ADDRESS)
-                    .unwrap()
-                    .try_into()
-                    .unwrap(),
+                destination_address: dummy_its_address(),
                 amount: coin.amount.try_into().unwrap(),
                 data: None,
             },
@@ -409,10 +410,7 @@ mod tests {
             message: Message::InterchainTransfer {
                 token_id: [0u8; 32].into(),
                 source_address: source_address.try_into().unwrap(),
-                destination_address: HexBinary::from_hex(ITS_ADDRESS)
-                    .unwrap()
-                    .try_into()
-                    .unwrap(),
+                destination_address: dummy_its_address(),
                 amount: coin.amount.try_into().unwrap(),
                 data: None,
             },
@@ -465,10 +463,7 @@ mod tests {
             message: Message::InterchainTransfer {
                 token_id: token_id.clone(),
                 source_address: source_address.try_into().unwrap(),
-                destination_address: HexBinary::from_hex(ITS_ADDRESS)
-                    .unwrap()
-                    .try_into()
-                    .unwrap(),
+                destination_address: dummy_its_address(),
                 amount: amount_in_msg.try_into().unwrap(),
                 data: None,
             },
@@ -522,10 +517,7 @@ mod tests {
             message: Message::InterchainTransfer {
                 token_id: token_id.clone(),
                 source_address: source_address.try_into().unwrap(),
-                destination_address: HexBinary::from_hex(ITS_ADDRESS)
-                    .unwrap()
-                    .try_into()
-                    .unwrap(),
+                destination_address: dummy_its_address(),
                 amount: coin.amount.try_into().unwrap(),
                 data: None,
             },
@@ -577,10 +569,7 @@ mod tests {
             message: Message::InterchainTransfer {
                 token_id: token_id.clone(),
                 source_address: source_address.try_into().unwrap(),
-                destination_address: HexBinary::from_hex(ITS_ADDRESS)
-                    .unwrap()
-                    .try_into()
-                    .unwrap(),
+                destination_address: dummy_its_address(),
                 amount: coin.amount.try_into().unwrap(),
                 data: None,
             },
@@ -632,10 +621,7 @@ mod tests {
             message: Message::InterchainTransfer {
                 token_id: token_id.clone(),
                 source_address: source_address.clone().try_into().unwrap(),
-                destination_address: HexBinary::from_hex(ITS_ADDRESS)
-                    .unwrap()
-                    .try_into()
-                    .unwrap(),
+                destination_address: dummy_its_address(),
                 amount: coin.amount.try_into().unwrap(),
                 data: None,
             },
@@ -674,10 +660,7 @@ mod tests {
             message: Message::InterchainTransfer {
                 token_id,
                 source_address: source_address.try_into().unwrap(),
-                destination_address: HexBinary::from_hex(ITS_ADDRESS)
-                    .unwrap()
-                    .try_into()
-                    .unwrap(),
+                destination_address: dummy_its_address(),
                 amount: coin.amount.try_into().unwrap(),
                 data: None,
             },
@@ -725,10 +708,7 @@ mod tests {
             message: Message::InterchainTransfer {
                 token_id: token_id.clone(),
                 source_address: source_address.clone().try_into().unwrap(),
-                destination_address: HexBinary::from_hex(ITS_ADDRESS)
-                    .unwrap()
-                    .try_into()
-                    .unwrap(),
+                destination_address: dummy_its_address(),
                 amount: Uint256::one().try_into().unwrap(),
                 data: None,
             },
@@ -771,10 +751,7 @@ mod tests {
             message: Message::InterchainTransfer {
                 token_id: token_id.clone(),
                 source_address: source_address.clone().try_into().unwrap(),
-                destination_address: HexBinary::from_hex(ITS_ADDRESS)
-                    .unwrap()
-                    .try_into()
-                    .unwrap(),
+                destination_address: dummy_its_address(),
                 amount: coin.amount.try_into().unwrap(),
                 data: None,
             },
