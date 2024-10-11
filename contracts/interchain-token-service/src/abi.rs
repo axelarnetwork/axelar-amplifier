@@ -145,7 +145,9 @@ impl Message {
                     destination_address: Vec::<u8>::from(decoded.destinationAddress)
                         .try_into()
                         .map_err(Error::NonEmpty)?,
-                    amount: Uint256::from_le_bytes(decoded.amount.to_le_bytes()),
+                    amount: Uint256::from_le_bytes(decoded.amount.to_le_bytes())
+                        .try_into()
+                        .map_err(Error::NonEmpty)?,
                     data: from_vec(decoded.data.into())?,
                 }
             }
@@ -301,7 +303,7 @@ mod tests {
                     token_id: [0u8; 32].into(),
                     source_address: from_hex("00"),
                     destination_address: from_hex("00"),
-                    amount: Uint256::zero(),
+                    amount: 1u64.try_into().unwrap(),
                     data: None,
                 },
             },
@@ -311,7 +313,7 @@ mod tests {
                     token_id: [255u8; 32].into(),
                     source_address: from_hex("4F4495243837681061C4743b74B3eEdf548D56A5"),
                     destination_address: from_hex("4F4495243837681061C4743b74B3eEdf548D56A5"),
-                    amount: Uint256::MAX,
+                    amount: Uint256::MAX.try_into().unwrap(),
                     data: Some(from_hex("abcd")),
                 },
             },
@@ -321,7 +323,7 @@ mod tests {
                     token_id: [0u8; 32].into(),
                     source_address: from_hex("00"),
                     destination_address: from_hex("00"),
-                    amount: Uint256::zero(),
+                    amount: 1u64.try_into().unwrap(),
                     data: None,
                 },
             },
@@ -331,7 +333,7 @@ mod tests {
                     token_id: [255u8; 32].into(),
                     source_address: from_hex("4F4495243837681061C4743b74B3eEdf548D56A5"),
                     destination_address: from_hex("4F4495243837681061C4743b74B3eEdf548D56A5"),
-                    amount: Uint256::MAX,
+                    amount: Uint256::MAX.try_into().unwrap(),
                     data: Some(from_hex("abcd")),
                 },
             },
@@ -359,6 +361,24 @@ mod tests {
                 tokenId: FixedBytes::<32>::new([1u8; 32]),
                 sourceAddress: vec![1, 2].into(),
                 destinationAddress: vec![].into(),
+                amount: U256::from(1),
+                data: vec![].into(),
+            }
+            .abi_encode_params(),
+            InterchainTransfer {
+                messageType: MessageType::InterchainTransfer.into(),
+                tokenId: FixedBytes::<32>::new([1u8; 32]),
+                sourceAddress: vec![].into(),
+                destinationAddress: vec![1, 2].into(),
+                amount: U256::from(1),
+                data: vec![].into(),
+            }
+            .abi_encode_params(),
+            InterchainTransfer {
+                messageType: MessageType::InterchainTransfer.into(),
+                tokenId: FixedBytes::<32>::new([1u8; 32]),
+                sourceAddress: vec![1, 2].into(),
+                destinationAddress: vec![1, 2].into(),
                 amount: U256::from(0),
                 data: vec![].into(),
             }
@@ -632,7 +652,7 @@ mod tests {
                 token_id: [0u8; 32].into(),
                 source_address: from_hex("1234"),
                 destination_address: from_hex("5678"),
-                amount: Uint256::from(1u128),
+                amount: Uint256::from(1u128).try_into().unwrap(),
                 data: Some(large_data.try_into().unwrap()),
             },
         };

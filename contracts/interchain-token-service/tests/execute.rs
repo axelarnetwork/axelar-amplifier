@@ -109,7 +109,7 @@ fn execute_hub_message_succeeds() {
             token_id: token_id.clone(),
             source_address: HexBinary::from([1; 32]).try_into().unwrap(),
             destination_address: HexBinary::from([2; 32]).try_into().unwrap(),
-            amount: 1u64.into(),
+            amount: 1u64.try_into().unwrap(),
             data: Some(HexBinary::from([1, 2, 3, 4]).try_into().unwrap()),
         },
         Message::DeployInterchainToken {

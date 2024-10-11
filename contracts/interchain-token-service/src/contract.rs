@@ -253,7 +253,7 @@ mod tests {
                     .unwrap()
                     .try_into()
                     .unwrap(),
-                amount: coin.amount.into(),
+                amount: coin.amount.try_into().unwrap(),
                 data: None,
             },
         };
@@ -284,7 +284,7 @@ mod tests {
                     .unwrap()
                     .try_into()
                     .unwrap(),
-                amount: coin.amount.into(),
+                amount: coin.amount.try_into().unwrap(),
                 data: None,
             },
         };

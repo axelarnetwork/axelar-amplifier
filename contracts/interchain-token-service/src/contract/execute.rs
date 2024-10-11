@@ -1,6 +1,6 @@
 use axelar_core_std::nexus;
 use axelar_wasm_std::{nonempty, FnExt, IntoContractError};
-use cosmwasm_std::{Coin, DepsMut, HexBinary, QuerierWrapper, Response, Storage, Uint128};
+use cosmwasm_std::{Coin, DepsMut, HexBinary, QuerierWrapper, Response, Storage, Uint128, Uint256};
 use error_stack::{bail, ensure, report, Result, ResultExt};
 use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
 use sha3::{Digest, Keccak256};
@@ -158,7 +158,7 @@ fn gateway_token_transfer(
     match (gateway_denom, message) {
         (Some(denom), Message::InterchainTransfer { amount, .. }) => Ok(Some(Coin {
             denom: denom.to_string(),
-            amount: Uint128::try_from(*amount).change_context(Error::TransferAmountOverflow)?,
+            amount: Uint128::try_from(Uint256::from(*amount)).change_context(Error::TransferAmountOverflow)?,
         })),
         _ => Ok(None),
     }
@@ -333,7 +333,7 @@ mod tests {
                     .unwrap()
                     .try_into()
                     .unwrap(),
-                amount: coin.amount.into(),
+                amount: coin.amount.try_into().unwrap(),
                 data: None,
             },
         };
@@ -360,7 +360,7 @@ mod tests {
                     .unwrap()
                     .try_into()
                     .unwrap(),
-                amount: coin.amount.into(),
+                amount: coin.amount.try_into().unwrap(),
                 data: None,
             },
         };
@@ -412,7 +412,7 @@ mod tests {
                     .unwrap()
                     .try_into()
                     .unwrap(),
-                amount: coin.amount.into(),
+                amount: coin.amount.try_into().unwrap(),
                 data: None,
             },
         };
@@ -468,7 +468,7 @@ mod tests {
                     .unwrap()
                     .try_into()
                     .unwrap(),
-                amount: amount_in_msg.into(),
+                amount: amount_in_msg.try_into().unwrap(),
                 data: None,
             },
         };
@@ -525,7 +525,7 @@ mod tests {
                     .unwrap()
                     .try_into()
                     .unwrap(),
-                amount: coin.amount.into(),
+                amount: coin.amount.try_into().unwrap(),
                 data: None,
             },
         };
@@ -580,7 +580,7 @@ mod tests {
                     .unwrap()
                     .try_into()
                     .unwrap(),
-                amount: coin.amount.into(),
+                amount: coin.amount.try_into().unwrap(),
                 data: None,
             },
         };
@@ -635,7 +635,7 @@ mod tests {
                     .unwrap()
                     .try_into()
                     .unwrap(),
-                amount: coin.amount.into(),
+                amount: coin.amount.try_into().unwrap(),
                 data: None,
             },
         };
@@ -677,7 +677,7 @@ mod tests {
                     .unwrap()
                     .try_into()
                     .unwrap(),
-                amount: coin.amount.into(),
+                amount: coin.amount.try_into().unwrap(),
                 data: None,
             },
         };
@@ -728,7 +728,7 @@ mod tests {
                     .unwrap()
                     .try_into()
                     .unwrap(),
-                amount: Uint256::one(),
+                amount: Uint256::one().try_into().unwrap(),
                 data: None,
             },
         };
@@ -774,7 +774,7 @@ mod tests {
                     .unwrap()
                     .try_into()
                     .unwrap(),
-                amount: coin.amount.into(),
+                amount: coin.amount.try_into().unwrap(),
                 data: None,
             },
         };

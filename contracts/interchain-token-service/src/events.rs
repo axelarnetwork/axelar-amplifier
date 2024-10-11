@@ -104,7 +104,7 @@ mod test {
                 token_id: TokenId::new([1; 32]),
                 source_address: HexBinary::from([1; 32]).try_into().unwrap(),
                 destination_address: HexBinary::from([1, 2, 3, 4]).try_into().unwrap(),
-                amount: 1u64.into(),
+                amount: 1u64.try_into().unwrap(),
                 data: Some(HexBinary::from([1, 2, 3, 4]).try_into().unwrap()),
             },
             Message::DeployInterchainToken {
@@ -144,14 +144,14 @@ mod test {
                 token_id: TokenId::new([1; 32]),
                 source_address: HexBinary::from([1; 32]).try_into().unwrap(),
                 destination_address: HexBinary::from([1, 2, 3, 4]).try_into().unwrap(),
-                amount: 1u64.into(),
+                amount: 1u64.try_into().unwrap(),
                 data: None,
             },
             Message::InterchainTransfer {
                 token_id: TokenId::new([1; 32]),
                 source_address: HexBinary::from([0u8]).try_into().unwrap(),
                 destination_address: HexBinary::from([0u8]).try_into().unwrap(),
-                amount: 1u64.into(),
+                amount: 1u64.try_into().unwrap(),
                 data: None,
             },
             Message::DeployInterchainToken {

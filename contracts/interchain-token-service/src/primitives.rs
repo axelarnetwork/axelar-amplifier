@@ -2,7 +2,6 @@ use std::fmt::Display;
 
 use axelar_wasm_std::nonempty;
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::Uint256;
 use cw_storage_plus::{Key, KeyDeserialize, Prefixer, PrimaryKey};
 use router_api::ChainNameRaw;
 use strum::FromRepr;
@@ -50,7 +49,7 @@ pub enum Message {
         /// If data is not empty, this address will given the token and executed as a contract on the destination chain
         destination_address: nonempty::HexBinary,
         /// The amount of tokens to transfer
-        amount: Uint256,
+        amount: nonempty::Uint256,
         /// An optional payload to be provided to the destination address, if `data` is not empty
         data: Option<nonempty::HexBinary>,
     },
@@ -112,13 +111,6 @@ impl Message {
             Message::InterchainTransfer { token_id, .. }
             | Message::DeployInterchainToken { token_id, .. }
             | Message::DeployTokenManager { token_id, .. } => token_id.clone(),
-        }
-    }
-
-    pub fn transfer_amount(&self) -> Option<Uint256> {
-        match self {
-            Message::InterchainTransfer { amount, .. } => Some(amount.to_owned()),
-            _ => None,
         }
     }
 }
