@@ -149,10 +149,6 @@ pub fn route_messages(
         .into_iter()
         .try_fold(Response::new(), |mut acc, (dest_chain, msgs)| {
             let response = match determine_routing_destination(&client, &dest_chain, &chain_name)? {
-                // Allow re-routing of CallContract initiated messages
-                RoutingDestination::Router if sender != router.address => {
-                    route_to_router(storage, &router, msgs.collect())
-                }
                 // Ensure only router routes to Axelarnet
                 RoutingDestination::Axelarnet => {
                     ensure!(sender == router.address, Error::InvalidRoutingDestination);
@@ -163,7 +159,11 @@ pub fn route_messages(
                     ensure!(sender == router.address, Error::InvalidRoutingDestination);
                     route_messages_to_nexus(&client, &nexus, msgs.collect())
                 }
-                _ => bail!(Error::InvalidRoutingDestination),
+                // Allow re-routing of CallContract initiated messages
+                RoutingDestination::Router => {
+                    ensure!(sender != router.address, Error::InvalidRoutingDestination);
+                    route_to_router(storage, &router, msgs.collect())
+                }
             }?;
 
             acc.messages.extend(response.messages);
