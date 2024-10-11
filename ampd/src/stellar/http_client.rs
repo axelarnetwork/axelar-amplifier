@@ -26,6 +26,8 @@ pub enum Error {
     FailedTxIdDeserialization,
 }
 
+/// StellarTxId is a wrapper around a Stellar transaction hash.
+/// The hash is encoded as a hex string and not 0x prefixed as required by the Stellar RPC.
 #[derive(Debug, Clone, Eq, Hash, Deserialize, Serialize, PartialEq)]
 pub struct StellarTxId(#[serde(deserialize_with = "deserialize_stellar_tx_id")] String);
 
