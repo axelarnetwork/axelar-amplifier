@@ -1,11 +1,11 @@
 use std::fmt::Display;
 
+use axelar_wasm_std::nonempty;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::Uint256;
 use cw_storage_plus::{Key, KeyDeserialize, Prefixer, PrimaryKey};
 use router_api::ChainNameRaw;
 use strum::FromRepr;
-use axelar_wasm_std::nonempty;
 
 /// A unique 32-byte identifier for linked cross-chain tokens across ITS contracts.
 #[cw_serde]

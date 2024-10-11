@@ -1,5 +1,6 @@
-use cosmwasm_schema::cw_serde;
 use std::ops::Deref;
+
+use cosmwasm_schema::cw_serde;
 
 use crate::nonempty::Error;
 

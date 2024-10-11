@@ -1,6 +1,6 @@
 use alloy_primitives::{FixedBytes, U256};
 use alloy_sol_types::{sol, SolValue};
-use axelar_wasm_std::{FnExt, IntoContractError, nonempty};
+use axelar_wasm_std::{nonempty, FnExt, IntoContractError};
 use cosmwasm_std::{HexBinary, Uint256};
 use error_stack::{bail, ensure, report, Report, ResultExt};
 use router_api::ChainNameRaw;
@@ -139,8 +139,12 @@ impl Message {
 
                 Message::InterchainTransfer {
                     token_id: TokenId::new(decoded.tokenId.into()),
-                    source_address: Vec::<u8>::from(decoded.sourceAddress).try_into().map_err(Error::NonEmpty)?,
-                    destination_address: Vec::<u8>::from(decoded.destinationAddress).try_into().map_err(Error::NonEmpty)?,
+                    source_address: Vec::<u8>::from(decoded.sourceAddress)
+                        .try_into()
+                        .map_err(Error::NonEmpty)?,
+                    destination_address: Vec::<u8>::from(decoded.destinationAddress)
+                        .try_into()
+                        .map_err(Error::NonEmpty)?,
                     amount: Uint256::from_le_bytes(decoded.amount.to_le_bytes()),
                     data: from_vec(decoded.data.into())?,
                 }
@@ -169,7 +173,9 @@ impl Message {
                 Message::DeployTokenManager {
                     token_id: TokenId::new(decoded.tokenId.into()),
                     token_manager_type,
-                    params: Vec::<u8>::from(decoded.params).try_into().map_err(Error::NonEmpty)?,
+                    params: Vec::<u8>::from(decoded.params)
+                        .try_into()
+                        .map_err(Error::NonEmpty)?,
                 }
             }
             _ => bail!(Error::InvalidMessageType),
@@ -214,8 +220,8 @@ impl HubMessage {
 
         let hub_message = match message_type {
             MessageType::SendToHub => {
-                let decoded = SendToHub::abi_decode_params(payload, true)
-                    .map_err(Error::AbiDecodeFailed)?;
+                let decoded =
+                    SendToHub::abi_decode_params(payload, true).map_err(Error::AbiDecodeFailed)?;
 
                 HubMessage::SendToHub {
                     destination_chain: ChainNameRaw::try_from(decoded.destination_chain)
@@ -261,7 +267,8 @@ fn from_vec(value: std::vec::Vec<u8>) -> Result<Option<nonempty::HexBinary>, Err
         None
     } else {
         Some(nonempty::HexBinary::try_from(value)?)
-    }.then(Ok)
+    }
+    .then(Ok)
 }
 
 #[cfg(test)]

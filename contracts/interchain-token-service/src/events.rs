@@ -57,38 +57,35 @@ fn make_message_event(
             destination_address,
             amount,
             data,
-        } => {
-            event
-                .add_attribute("token_id", token_id.to_string())
-                .add_attribute("source_address", source_address.to_string())
-                .add_attribute("destination_address", destination_address.to_string())
-                .add_attribute("amount", amount.to_string())
-                .add_attribute_if_some("data", data.map(|data| data.to_string()))
-        }
+        } => event
+            .add_attribute("token_id", token_id.to_string())
+            .add_attribute("source_address", source_address.to_string())
+            .add_attribute("destination_address", destination_address.to_string())
+            .add_attribute("amount", amount.to_string())
+            .add_attribute_if_some("data", data.map(|data| data.to_string())),
         Message::DeployInterchainToken {
             token_id,
             name,
             symbol,
             decimals,
             minter,
-        } => {
-            event
-                .add_attribute("token_id", token_id.to_string())
-                .add_attribute("name", name)
-                .add_attribute("symbol", symbol)
-                .add_attribute("decimals", decimals.to_string())
-                .add_attribute_if_some("minter", minter.map(|minter| minter.to_string()))
-        }
+        } => event
+            .add_attribute("token_id", token_id.to_string())
+            .add_attribute("name", name)
+            .add_attribute("symbol", symbol)
+            .add_attribute("decimals", decimals.to_string())
+            .add_attribute_if_some("minter", minter.map(|minter| minter.to_string())),
         Message::DeployTokenManager {
             token_id,
             token_manager_type,
             params,
-        } => {
-            event
-                .add_attribute("token_id", token_id.to_string())
-                .add_attribute("token_manager_type", token_manager_type.as_ref().to_string())
-                .add_attribute("params", params.to_string())
-        }
+        } => event
+            .add_attribute("token_id", token_id.to_string())
+            .add_attribute(
+                "token_manager_type",
+                token_manager_type.as_ref().to_string(),
+            )
+            .add_attribute("params", params.to_string()),
     }
 }
 
@@ -97,7 +94,8 @@ mod test {
     use cosmwasm_std::HexBinary;
     use router_api::CrossChainId;
 
-    use crate::{events::Event, Message, TokenId, TokenManagerType};
+    use crate::events::Event;
+    use crate::{Message, TokenId, TokenManagerType};
 
     #[test]
     fn message_received_with_all_attributes() {
@@ -123,15 +121,18 @@ mod test {
             },
         ];
 
-        let events: Vec<_> = test_cases.into_iter().map(|message| {
-            let event = Event::MessageReceived {
-                cc_id: CrossChainId::new("source", "hash").unwrap(),
-                destination_chain: "destination".parse().unwrap(),
-                message,
-            };
+        let events: Vec<_> = test_cases
+            .into_iter()
+            .map(|message| {
+                let event = Event::MessageReceived {
+                    cc_id: CrossChainId::new("source", "hash").unwrap(),
+                    destination_chain: "destination".parse().unwrap(),
+                    message,
+                };
 
-            cosmwasm_std::Event::from(event)
-        }).collect();
+                cosmwasm_std::Event::from(event)
+            })
+            .collect();
 
         goldie::assert_json!(events);
     }
@@ -174,15 +175,18 @@ mod test {
             },
         ];
 
-        let events: Vec<_> = test_cases.into_iter().map(|message| {
-            let event = Event::MessageReceived {
-                cc_id: CrossChainId::new("source", "hash").unwrap(),
-                destination_chain: "destination".parse().unwrap(),
-                message,
-            };
+        let events: Vec<_> = test_cases
+            .into_iter()
+            .map(|message| {
+                let event = Event::MessageReceived {
+                    cc_id: CrossChainId::new("source", "hash").unwrap(),
+                    destination_chain: "destination".parse().unwrap(),
+                    message,
+                };
 
-            cosmwasm_std::Event::from(event)
-        }).collect();
+                cosmwasm_std::Event::from(event)
+            })
+            .collect();
 
         goldie::assert_json!(events);
     }

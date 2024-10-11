@@ -329,7 +329,10 @@ mod tests {
             message: Message::InterchainTransfer {
                 token_id: token_id.clone(),
                 source_address: source_address.clone().try_into().unwrap(),
-                destination_address: HexBinary::from_hex(ITS_ADDRESS).unwrap().try_into().unwrap(),
+                destination_address: HexBinary::from_hex(ITS_ADDRESS)
+                    .unwrap()
+                    .try_into()
+                    .unwrap(),
                 amount: coin.amount.into(),
                 data: None,
             },
@@ -405,7 +408,10 @@ mod tests {
             message: Message::InterchainTransfer {
                 token_id: [0u8; 32].into(),
                 source_address: source_address.try_into().unwrap(),
-                destination_address: HexBinary::from_hex(ITS_ADDRESS).unwrap().try_into().unwrap(),
+                destination_address: HexBinary::from_hex(ITS_ADDRESS)
+                    .unwrap()
+                    .try_into()
+                    .unwrap(),
                 amount: coin.amount.into(),
                 data: None,
             },
@@ -458,7 +464,10 @@ mod tests {
             message: Message::InterchainTransfer {
                 token_id: token_id.clone(),
                 source_address: source_address.try_into().unwrap(),
-                destination_address: HexBinary::from_hex(ITS_ADDRESS).unwrap().try_into().unwrap(),
+                destination_address: HexBinary::from_hex(ITS_ADDRESS)
+                    .unwrap()
+                    .try_into()
+                    .unwrap(),
                 amount: amount_in_msg.into(),
                 data: None,
             },
@@ -512,7 +521,10 @@ mod tests {
             message: Message::InterchainTransfer {
                 token_id: token_id.clone(),
                 source_address: source_address.try_into().unwrap(),
-                destination_address: HexBinary::from_hex(ITS_ADDRESS).unwrap().try_into().unwrap(),
+                destination_address: HexBinary::from_hex(ITS_ADDRESS)
+                    .unwrap()
+                    .try_into()
+                    .unwrap(),
                 amount: coin.amount.into(),
                 data: None,
             },
@@ -564,7 +576,10 @@ mod tests {
             message: Message::InterchainTransfer {
                 token_id: token_id.clone(),
                 source_address: source_address.try_into().unwrap(),
-                destination_address: HexBinary::from_hex(ITS_ADDRESS).unwrap().try_into().unwrap(),
+                destination_address: HexBinary::from_hex(ITS_ADDRESS)
+                    .unwrap()
+                    .try_into()
+                    .unwrap(),
                 amount: coin.amount.into(),
                 data: None,
             },
@@ -616,7 +631,10 @@ mod tests {
             message: Message::InterchainTransfer {
                 token_id: token_id.clone(),
                 source_address: source_address.clone().try_into().unwrap(),
-                destination_address: HexBinary::from_hex(ITS_ADDRESS).unwrap().try_into().unwrap(),
+                destination_address: HexBinary::from_hex(ITS_ADDRESS)
+                    .unwrap()
+                    .try_into()
+                    .unwrap(),
                 amount: coin.amount.into(),
                 data: None,
             },
@@ -655,7 +673,10 @@ mod tests {
             message: Message::InterchainTransfer {
                 token_id,
                 source_address: source_address.try_into().unwrap(),
-                destination_address: HexBinary::from_hex(ITS_ADDRESS).unwrap().try_into().unwrap(),
+                destination_address: HexBinary::from_hex(ITS_ADDRESS)
+                    .unwrap()
+                    .try_into()
+                    .unwrap(),
                 amount: coin.amount.into(),
                 data: None,
             },
@@ -703,7 +724,10 @@ mod tests {
             message: Message::InterchainTransfer {
                 token_id: token_id.clone(),
                 source_address: source_address.clone().try_into().unwrap(),
-                destination_address: HexBinary::from_hex(ITS_ADDRESS).unwrap().try_into().unwrap(),
+                destination_address: HexBinary::from_hex(ITS_ADDRESS)
+                    .unwrap()
+                    .try_into()
+                    .unwrap(),
                 amount: Uint256::one(),
                 data: None,
             },
@@ -746,7 +770,10 @@ mod tests {
             message: Message::InterchainTransfer {
                 token_id: token_id.clone(),
                 source_address: source_address.clone().try_into().unwrap(),
-                destination_address: HexBinary::from_hex(ITS_ADDRESS).unwrap().try_into().unwrap(),
+                destination_address: HexBinary::from_hex(ITS_ADDRESS)
+                    .unwrap()
+                    .try_into()
+                    .unwrap(),
                 amount: coin.amount.into(),
                 data: None,
             },
