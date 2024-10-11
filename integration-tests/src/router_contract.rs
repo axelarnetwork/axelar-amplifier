@@ -15,7 +15,7 @@ impl RouterContract {
         app: &mut AxelarApp,
         admin: Addr,
         governance: Addr,
-        nexus: Addr,
+        axelarnet: Addr,
     ) -> Self {
         let code = ContractWrapper::new_with_empty(execute, instantiate, query);
         let code_id = app.store_code(Box::new(code));
@@ -27,7 +27,7 @@ impl RouterContract {
                 &router::msg::InstantiateMsg {
                     admin_address: admin.to_string(),
                     governance_address: governance.to_string(),
-                    nexus_gateway: nexus.to_string(),
+                    axelarnet_gateway: axelarnet.to_string(),
                 },
                 &[],
                 "router",

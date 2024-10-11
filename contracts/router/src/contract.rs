@@ -2,13 +2,13 @@ use axelar_wasm_std::{address, killswitch, permission_control, FnExt};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_json_binary, Addr, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response, Storage,
+    to_json_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response, Storage,
 };
 use router_api::error::Error;
 
-use crate::contract::migrations::v0_3_3;
+use crate::contract::migrations::v1_0_0;
 use crate::events::RouterInstantiated;
-use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
+use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 use crate::state;
 use crate::state::{load_chain_by_gateway, load_config, Config};
 
@@ -22,9 +22,10 @@ pub const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub fn migrate(
     deps: DepsMut,
     _env: Env,
-    _msg: Empty,
+    msg: MigrateMsg,
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
-    v0_3_3::migrate(deps.storage)?;
+    let axelarnet_gateway = address::validate_cosmwasm_address(deps.api, &msg.axelarnet_gateway)?;
+    v1_0_0::migrate(deps.storage, axelarnet_gateway)?;
 
     // this needs to be the last thing to do during migration,
     // because previous migration steps should check the old version
@@ -44,13 +45,13 @@ pub fn instantiate(
 
     let admin = address::validate_cosmwasm_address(deps.api, &msg.admin_address)?;
     let governance = address::validate_cosmwasm_address(deps.api, &msg.governance_address)?;
-    let nexus_gateway = address::validate_cosmwasm_address(deps.api, &msg.nexus_gateway)?;
+    let axelarnet_gateway = address::validate_cosmwasm_address(deps.api, &msg.axelarnet_gateway)?;
 
     permission_control::set_admin(deps.storage, &admin)?;
     permission_control::set_governance(deps.storage, &governance)?;
 
     let config = Config {
-        nexus_gateway: nexus_gateway.clone(),
+        axelarnet_gateway: axelarnet_gateway.clone(),
     };
 
     state::save_config(deps.storage, &config)?;
@@ -60,7 +61,7 @@ pub fn instantiate(
         RouterInstantiated {
             admin,
             governance,
-            nexus_gateway,
+            axelarnet_gateway,
         }
         .into(),
     ))
@@ -114,9 +115,9 @@ fn find_gateway_address(
     sender: &Addr,
 ) -> impl FnOnce(&dyn Storage, &ExecuteMsg) -> error_stack::Result<Addr, Error> + '_ {
     move |storage, _| {
-        let nexus_gateway = load_config(storage)?.nexus_gateway;
-        if nexus_gateway == sender {
-            Ok(nexus_gateway)
+        let axelarnet_gateway = load_config(storage)?.axelarnet_gateway;
+        if axelarnet_gateway == sender {
+            Ok(axelarnet_gateway)
         } else {
             load_chain_by_gateway(storage, sender)?
                 .gateway
@@ -166,7 +167,7 @@ mod test {
 
     const ADMIN_ADDRESS: &str = "admin";
     const GOVERNANCE_ADDRESS: &str = "governance";
-    const NEXUS_GATEWAY_ADDRESS: &str = "nexus_gateway";
+    const AXELARNET_GATEWAY_ADDRESS: &str = "axelarnet_gateway";
     const UNAUTHORIZED_ADDRESS: &str = "unauthorized";
 
     fn setup() -> OwnedDeps<MockStorage, MockApi, MockQuerier, Empty> {
@@ -182,7 +183,7 @@ mod test {
             InstantiateMsg {
                 admin_address: ADMIN_ADDRESS.to_string(),
                 governance_address: GOVERNANCE_ADDRESS.to_string(),
-                nexus_gateway: NEXUS_GATEWAY_ADDRESS.to_string(),
+                axelarnet_gateway: AXELARNET_GATEWAY_ADDRESS.to_string(),
             },
         )
         .unwrap();
@@ -368,7 +369,7 @@ mod test {
         let result = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(NEXUS_GATEWAY_ADDRESS, &[]),
+            mock_info(AXELARNET_GATEWAY_ADDRESS, &[]),
             ExecuteMsg::RouteMessages(messages.clone()),
         );
         assert!(result.is_ok());
@@ -1805,7 +1806,7 @@ mod test {
         assert!(execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(NEXUS_GATEWAY_ADDRESS, &[]),
+            mock_info(AXELARNET_GATEWAY_ADDRESS, &[]),
             ExecuteMsg::RouteMessages(generate_messages(&eth, &polygon, &mut 0, 10)),
         )
         .is_ok());
