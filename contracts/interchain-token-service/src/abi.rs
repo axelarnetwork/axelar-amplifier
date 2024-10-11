@@ -282,6 +282,7 @@ mod tests {
     use cosmwasm_std::{HexBinary, Uint256};
     use router_api::ChainNameRaw;
 
+    use super::{DeployInterchainToken, InterchainTransfer};
     use crate::abi::{DeployTokenManager, Error, MessageType, SendToHub};
     use crate::{HubMessage, Message, TokenManagerType};
 
@@ -347,6 +348,58 @@ mod tests {
             let encoded = original.clone().abi_encode();
             let decoded = assert_ok!(HubMessage::abi_decode(&encoded));
             assert_eq!(original, decoded);
+        }
+    }
+
+    #[test]
+    fn fail_decode_on_empty_fields() {
+        let test_cases = vec![
+            InterchainTransfer {
+                messageType: MessageType::InterchainTransfer.into(),
+                tokenId: FixedBytes::<32>::new([1u8; 32]),
+                sourceAddress: vec![1, 2].into(),
+                destinationAddress: vec![].into(),
+                amount: U256::from(0),
+                data: vec![].into(),
+            }
+            .abi_encode_params(),
+            DeployInterchainToken {
+                messageType: MessageType::DeployInterchainToken.into(),
+                tokenId: FixedBytes::<32>::new([1u8; 32]),
+                name: "".into(),
+                symbol: "TEST".into(),
+                decimals: 0,
+                minter: vec![].into(),
+            }
+            .abi_encode_params(),
+            DeployInterchainToken {
+                messageType: MessageType::DeployInterchainToken.into(),
+                tokenId: FixedBytes::<32>::new([1u8; 32]),
+                name: "Test".into(),
+                symbol: "".into(),
+                decimals: 0,
+                minter: vec![].into(),
+            }
+            .abi_encode_params(),
+            DeployTokenManager {
+                messageType: MessageType::DeployTokenManager.into(),
+                tokenId: FixedBytes::<32>::new([1u8; 32]),
+                tokenManagerType: TokenManagerType::NativeInterchainToken.into(),
+                params: vec![].into(),
+            }
+            .abi_encode_params(),
+        ];
+
+        for message in test_cases {
+            let payload = SendToHub {
+                messageType: MessageType::SendToHub.into(),
+                destination_chain: "destination".into(),
+                message: message.into(),
+            }
+            .abi_encode_params();
+
+            let result = HubMessage::abi_decode(&payload);
+            assert_err_contains!(result, Error, Error::NonEmpty(..));
         }
     }
 

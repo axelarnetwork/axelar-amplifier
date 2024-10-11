@@ -64,7 +64,7 @@ pub enum Message {
         symbol: nonempty::String,
         /// The number of decimal places the token supports
         decimals: u8,
-        /// The address that will be the initial minter of the token (in addition to the ITS contract)
+        /// An additional minter of the token (optional). ITS on the external chain is always a minter.
         minter: Option<nonempty::HexBinary>,
     },
     /// Deploy a new token manager on the destination chain
