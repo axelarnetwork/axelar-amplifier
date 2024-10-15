@@ -129,7 +129,6 @@ impl Message {
         ensure!(payload.len() >= 32, Error::InsufficientMessageLength);
 
         let message_type = MessageType::abi_decode(&payload[0..32], true)
-            .map_err(Error::AbiDecodeFailed)
             .change_context(Error::InvalidMessageType)?;
 
         let message = match message_type {
@@ -217,7 +216,6 @@ impl HubMessage {
         ensure!(payload.len() >= 32, Error::InsufficientMessageLength);
 
         let message_type = MessageType::abi_decode(&payload[0..32], true)
-            .map_err(Error::AbiDecodeFailed)
             .change_context(Error::InvalidMessageType)?;
 
         let hub_message = match message_type {

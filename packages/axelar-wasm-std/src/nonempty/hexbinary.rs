@@ -51,11 +51,15 @@ impl Deref for HexBinary {
 
 #[cfg(test)]
 mod tests {
+    use assert_ok::assert_ok;
+
     use crate::nonempty::{Error, HexBinary};
 
     #[test]
     fn test_non_empty_hexbinary() {
-        assert!(HexBinary::try_from(cosmwasm_std::HexBinary::from(&[1, 2, 3])).is_ok())
+        assert_ok!(HexBinary::try_from(cosmwasm_std::HexBinary::from(&[
+            1, 2, 3
+        ])));
     }
 
     #[test]
