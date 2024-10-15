@@ -1,6 +1,6 @@
 use axelar_core_std::nexus;
 use axelar_wasm_std::{nonempty, FnExt, IntoContractError};
-use cosmwasm_std::{Coin, DepsMut, HexBinary, QuerierWrapper, Response, Storage, Uint128};
+use cosmwasm_std::{Coin, DepsMut, HexBinary, QuerierWrapper, Response, Storage, Uint128, Uint256};
 use error_stack::{bail, ensure, report, Result, ResultExt};
 use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
 use sha3::{Digest, Keccak256};
@@ -158,7 +158,8 @@ fn gateway_token_transfer(
     match (gateway_denom, message) {
         (Some(denom), Message::InterchainTransfer { amount, .. }) => Ok(Some(Coin {
             denom: denom.to_string(),
-            amount: Uint128::try_from(*amount).change_context(Error::TransferAmountOverflow)?,
+            amount: Uint128::try_from(Uint256::from(*amount))
+                .change_context(Error::TransferAmountOverflow)?,
         })),
         _ => Ok(None),
     }
@@ -242,8 +243,8 @@ mod tests {
     use axelar_core_std::nexus;
     use axelar_core_std::nexus::query::IsChainRegisteredResponse;
     use axelar_core_std::query::AxelarQueryMsg;
-    use axelar_wasm_std::assert_err_contains;
     use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
+    use axelar_wasm_std::{assert_err_contains, nonempty};
     use axelarnet_gateway::msg::QueryMsg;
     use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage};
     use cosmwasm_std::{
@@ -261,6 +262,13 @@ mod tests {
     const AMPLIFIER_CHAIN: &str = "solana";
     const GATEWAY_TOKEN_DENOM: &str = "eth";
     const ITS_ADDRESS: &str = "68d30f47F19c07bCCEf4Ac7FAE2Dc12FCa3e0dC9";
+
+    fn dummy_its_address() -> nonempty::HexBinary {
+        HexBinary::from_hex(ITS_ADDRESS)
+            .unwrap()
+            .try_into()
+            .unwrap()
+    }
 
     #[test]
     fn gateway_token_id_should_be_idempotent() {
@@ -328,10 +336,10 @@ mod tests {
             destination_chain: destination_chain.clone(),
             message: Message::InterchainTransfer {
                 token_id: token_id.clone(),
-                source_address: source_address.clone(),
-                destination_address: HexBinary::from_hex(ITS_ADDRESS).unwrap(),
-                amount: coin.amount.into(),
-                data: HexBinary::from_hex("").unwrap(),
+                source_address: source_address.clone().try_into().unwrap(),
+                destination_address: dummy_its_address(),
+                amount: coin.amount.try_into().unwrap(),
+                data: None,
             },
         };
         assert_ok!(execute_message(
@@ -352,10 +360,10 @@ mod tests {
             destination_chain: source_chain.clone(),
             message: Message::InterchainTransfer {
                 token_id,
-                source_address: source_address.clone(),
-                destination_address: HexBinary::from_hex(ITS_ADDRESS).unwrap(),
-                amount: coin.amount.into(),
-                data: HexBinary::from_hex("").unwrap(),
+                source_address: source_address.try_into().unwrap(),
+                destination_address: dummy_its_address(),
+                amount: coin.amount.try_into().unwrap(),
+                data: None,
             },
         };
 
@@ -401,10 +409,10 @@ mod tests {
             destination_chain: destination_chain.clone(),
             message: Message::InterchainTransfer {
                 token_id: [0u8; 32].into(),
-                source_address: source_address.clone(),
-                destination_address: HexBinary::from_hex(ITS_ADDRESS).unwrap(),
-                amount: coin.amount.into(),
-                data: HexBinary::from_hex("").unwrap(),
+                source_address: source_address.try_into().unwrap(),
+                destination_address: dummy_its_address(),
+                amount: coin.amount.try_into().unwrap(),
+                data: None,
             },
         };
         let res = execute_message(
@@ -454,10 +462,10 @@ mod tests {
             destination_chain: destination_chain.clone(),
             message: Message::InterchainTransfer {
                 token_id: token_id.clone(),
-                source_address: source_address.clone(),
-                destination_address: HexBinary::from_hex(ITS_ADDRESS).unwrap(),
-                amount: amount_in_msg.into(),
-                data: HexBinary::from_hex("").unwrap(),
+                source_address: source_address.try_into().unwrap(),
+                destination_address: dummy_its_address(),
+                amount: amount_in_msg.try_into().unwrap(),
+                data: None,
             },
         };
         let res = execute_message(
@@ -508,10 +516,10 @@ mod tests {
             destination_chain: destination_chain.clone(),
             message: Message::InterchainTransfer {
                 token_id: token_id.clone(),
-                source_address: source_address.clone(),
-                destination_address: HexBinary::from_hex(ITS_ADDRESS).unwrap(),
-                amount: coin.amount.into(),
-                data: HexBinary::from_hex("").unwrap(),
+                source_address: source_address.try_into().unwrap(),
+                destination_address: dummy_its_address(),
+                amount: coin.amount.try_into().unwrap(),
+                data: None,
             },
         };
         let res = execute_message(
@@ -560,10 +568,10 @@ mod tests {
             destination_chain: destination_chain.clone(),
             message: Message::InterchainTransfer {
                 token_id: token_id.clone(),
-                source_address: source_address.clone(),
-                destination_address: HexBinary::from_hex(ITS_ADDRESS).unwrap(),
-                amount: coin.amount.into(),
-                data: HexBinary::from_hex("").unwrap(),
+                source_address: source_address.try_into().unwrap(),
+                destination_address: dummy_its_address(),
+                amount: coin.amount.try_into().unwrap(),
+                data: None,
             },
         };
         let res = execute_message(
@@ -612,10 +620,10 @@ mod tests {
             destination_chain: destination_chain.clone(),
             message: Message::InterchainTransfer {
                 token_id: token_id.clone(),
-                source_address: source_address.clone(),
-                destination_address: HexBinary::from_hex(ITS_ADDRESS).unwrap(),
-                amount: coin.amount.into(),
-                data: HexBinary::from_hex("").unwrap(),
+                source_address: source_address.clone().try_into().unwrap(),
+                destination_address: dummy_its_address(),
+                amount: coin.amount.try_into().unwrap(),
+                data: None,
             },
         };
         let res = assert_ok!(execute_message(
@@ -651,10 +659,10 @@ mod tests {
             destination_chain: second_destination_chain.clone(),
             message: Message::InterchainTransfer {
                 token_id,
-                source_address: source_address.clone(),
-                destination_address: HexBinary::from_hex(ITS_ADDRESS).unwrap(),
-                amount: coin.amount.into(),
-                data: HexBinary::from_hex("").unwrap(),
+                source_address: source_address.try_into().unwrap(),
+                destination_address: dummy_its_address(),
+                amount: coin.amount.try_into().unwrap(),
+                data: None,
             },
         };
 
@@ -699,10 +707,10 @@ mod tests {
             destination_chain: destination_chain.clone(),
             message: Message::InterchainTransfer {
                 token_id: token_id.clone(),
-                source_address: source_address.clone(),
-                destination_address: HexBinary::from_hex(ITS_ADDRESS).unwrap(),
-                amount: Uint256::one(),
-                data: HexBinary::from_hex("").unwrap(),
+                source_address: source_address.clone().try_into().unwrap(),
+                destination_address: dummy_its_address(),
+                amount: Uint256::one().try_into().unwrap(),
+                data: None,
             },
         };
 
@@ -742,10 +750,10 @@ mod tests {
             destination_chain: destination_chain.clone(),
             message: Message::InterchainTransfer {
                 token_id: token_id.clone(),
-                source_address: source_address.clone(),
-                destination_address: HexBinary::from_hex(ITS_ADDRESS).unwrap(),
-                amount: coin.amount.into(),
-                data: HexBinary::from_hex("").unwrap(),
+                source_address: source_address.clone().try_into().unwrap(),
+                destination_address: dummy_its_address(),
+                amount: coin.amount.try_into().unwrap(),
+                data: None,
             },
         };
         let res = execute_message(
@@ -791,10 +799,10 @@ mod tests {
             destination_chain: destination_chain.clone(),
             message: Message::DeployInterchainToken {
                 token_id: token_id.clone(),
-                name: "foobar".to_string(),
-                symbol: "FOO".to_string(),
+                name: "foobar".try_into().unwrap(),
+                symbol: "FOO".try_into().unwrap(),
                 decimals: 10u8,
-                minter: HexBinary::from([0u8; 32]),
+                minter: Some(HexBinary::from([0u8; 32]).try_into().unwrap()),
             },
         };
         let res = execute_message(
