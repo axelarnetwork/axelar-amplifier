@@ -55,6 +55,8 @@ pub enum Error {
     InvalidToken,
     #[error("invalid routing destination")]
     InvalidRoutingDestination,
+    #[error("failed converting the nexus message for the router")]
+    InvalidNexusMessageForRouter,
 }
 
 #[cw_serde]
@@ -171,6 +173,21 @@ pub fn execute(
         .add_message(external::Client::new(deps.querier, &destination).execute(executable_msg))
         .add_event(AxelarnetGatewayEvent::MessageExecuted { msg }.into())
         .then(Ok)
+}
+
+pub fn route_messages_from_nexus(
+    storage: &dyn Storage,
+    msgs: Vec<nexus::execute::Message>,
+) -> Result<Response<nexus::execute::Message>> {
+    let msgs: Vec<_> = msgs
+        .into_iter()
+        .map(router_api::Message::try_from)
+        .collect::<error_stack::Result<Vec<_>, _>>()
+        .change_context(Error::InvalidNexusMessageForRouter)?;
+
+    let router = Router::new(state::load_config(storage).router);
+
+    Ok(Response::new().add_messages(router.route(msgs)))
 }
 
 fn ensure_same_payload_hash(
