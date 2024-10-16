@@ -1,4 +1,5 @@
 use std::fmt;
+use std::ops::Deref;
 
 use cosmwasm_schema::cw_serde;
 use into_inner_derive::IntoInner;
@@ -72,6 +73,14 @@ impl From<Uint256> for cosmwasm_std::Uint256 {
     }
 }
 
+impl TryFrom<u64> for Uint256 {
+    type Error = Error;
+
+    fn try_from(value: u64) -> Result<Self, Self::Error> {
+        cosmwasm_std::Uint256::from(value).try_into()
+    }
+}
+
 impl TryFrom<cosmwasm_std::Uint128> for Uint256 {
     type Error = Error;
 
@@ -81,6 +90,14 @@ impl TryFrom<cosmwasm_std::Uint128> for Uint256 {
         } else {
             Ok(Uint256(value.into()))
         }
+    }
+}
+
+impl Deref for Uint256 {
+    type Target = cosmwasm_std::Uint256;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
     }
 }
 
