@@ -3,7 +3,6 @@ use std::convert::TryInto;
 
 use async_trait::async_trait;
 use axelar_wasm_std::voting::{PollId, Vote};
-use clarity::vm::types::{PrincipalData, QualifiedContractIdentifier};
 use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmrs::tx::Msg;
 use cosmrs::Any;
@@ -134,14 +133,13 @@ impl EventHandler for Handler {
 
 #[cfg(test)]
 mod tests {
-    use clarity::vm::types::{PrincipalData, QualifiedContractIdentifier};
+    use std::collections::HashMap;
+    use std::convert::TryInto;
+
     use cosmrs::cosmwasm::MsgExecuteContract;
     use cosmrs::tx::Msg;
     use cosmwasm_std;
     use error_stack::Result;
-    use hex::ToHex;
-    use std::collections::HashMap;
-    use std::convert::TryInto;
     use tokio::sync::watch;
     use tokio::test as async_test;
     use voting_verifier::events::{PollMetadata, PollStarted, TxEventConfirmation};

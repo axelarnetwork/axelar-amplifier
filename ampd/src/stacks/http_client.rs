@@ -1,9 +1,11 @@
-use crate::types::Hash;
-use futures::future::join_all;
-use serde::Deserialize;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
+
+use futures::future::join_all;
+use serde::Deserialize;
 use thiserror::Error;
+
+use crate::types::Hash;
 
 const GET_TRANSACTION: &str = "extended/v1/tx/";
 
@@ -89,7 +91,7 @@ impl Client {
     }
 
     async fn get_transaction(&self, tx_id: &str) -> Result<Transaction, Error> {
-        let mut endpoint = GET_TRANSACTION.to_string() + tx_id;
+        let endpoint = GET_TRANSACTION.to_string() + tx_id;
 
         let endpoint = self.get_endpoint(endpoint.as_str());
 
@@ -97,10 +99,10 @@ impl Client {
             .get(endpoint)
             .send()
             .await
-            .map_err(|err_str| Error::TxHash)?
+            .map_err(|_| Error::TxHash)?
             .json::<Transaction>()
             .await
-            .map_err(|err_str| Error::Client)
+            .map_err(|_| Error::Client)
     }
 
     fn get_endpoint(&self, endpoint: &str) -> String {
@@ -202,7 +204,9 @@ mod tests {
         let transaction = serde_json::from_str::<Transaction>(data).unwrap();
         assert_eq!(
             transaction.tx_id,
-            "0xee0049faf8dde5507418140ed72bd64f73cc001b08de98e0c16a3a8d9f2c38cf".parse().unwrap()
+            "0xee0049faf8dde5507418140ed72bd64f73cc001b08de98e0c16a3a8d9f2c38cf"
+                .parse()
+                .unwrap()
         );
         assert_eq!(transaction.nonce, 2);
         assert_eq!(

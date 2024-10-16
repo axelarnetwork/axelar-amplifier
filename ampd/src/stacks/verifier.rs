@@ -1,13 +1,13 @@
-use crate::handlers::stacks_verify_msg::Message;
-use crate::stacks::error::Error;
-use crate::stacks::http_client::{Transaction, TransactionEvents};
 use axelar_wasm_std::voting::Vote;
 use clarity::vm::types::{
     BufferLength, PrincipalData, SequenceSubtype, StringSubtype, TupleTypeSignature, TypeSignature,
     Value,
 };
 use clarity::vm::ClarityName;
-use cosmrs::tx::MessageExt;
+
+use crate::handlers::stacks_verify_msg::Message;
+use crate::stacks::error::Error;
+use crate::stacks::http_client::{Transaction, TransactionEvents};
 
 const PRINT_TOPIC: &str = "print";
 
@@ -134,12 +134,13 @@ pub fn verify_message(
 
 #[cfg(test)]
 mod tests {
+    use axelar_wasm_std::voting::Vote;
+
     use crate::handlers::stacks_verify_msg::Message;
     use crate::stacks::http_client::{
         ContractLog, ContractLogValue, Transaction, TransactionEvents,
     };
     use crate::stacks::verifier::verify_message;
-    use axelar_wasm_std::voting::Vote;
 
     // test verify message
     #[test]
@@ -174,8 +175,8 @@ mod tests {
     fn should_not_verify_not_gateway() {
         let (gateway_address, mut tx, msg) = get_matching_msg_and_tx();
 
-        let mut transaction_events = tx.events.get_mut(1).unwrap();
-        let mut contract_call = transaction_events.contract_log.as_mut().unwrap();
+        let transaction_events = tx.events.get_mut(1).unwrap();
+        let contract_call = transaction_events.contract_log.as_mut().unwrap();
 
         contract_call.contract_id = "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM".to_string();
 
@@ -186,8 +187,8 @@ mod tests {
     fn should_not_verify_invalid_topic() {
         let (gateway_address, mut tx, msg) = get_matching_msg_and_tx();
 
-        let mut transaction_events = tx.events.get_mut(1).unwrap();
-        let mut contract_call = transaction_events.contract_log.as_mut().unwrap();
+        let transaction_events = tx.events.get_mut(1).unwrap();
+        let contract_call = transaction_events.contract_log.as_mut().unwrap();
 
         contract_call.topic = "other".to_string();
 
@@ -198,8 +199,8 @@ mod tests {
     fn should_not_verify_invalid_type() {
         let (gateway_address, mut tx, msg) = get_matching_msg_and_tx();
 
-        let mut transaction_events = tx.events.get_mut(1).unwrap();
-        let mut contract_call = transaction_events.contract_log.as_mut().unwrap();
+        let transaction_events = tx.events.get_mut(1).unwrap();
+        let contract_call = transaction_events.contract_log.as_mut().unwrap();
 
         // Remove 'call' as hex from `contract-call` data
         contract_call.value.hex = contract_call
@@ -276,8 +277,6 @@ mod tests {
                 .parse()
                 .unwrap(),
         };
-
-        let payload_hash = msg.payload_hash;
 
         let wrong_event = TransactionEvents {
             event_index: 0,

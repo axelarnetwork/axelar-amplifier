@@ -163,7 +163,11 @@ where
         Config::StellarVerifierSetVerifier,
         "Stellar verifier set verifier"
     )?;
-    ensure_unique_config!(&configs, Config::StacksMsgVerifier, "Stacks message verifier")?;
+    ensure_unique_config!(
+        &configs,
+        Config::StacksMsgVerifier,
+        "Stacks message verifier"
+    )?;
 
     Ok(configs)
 }
