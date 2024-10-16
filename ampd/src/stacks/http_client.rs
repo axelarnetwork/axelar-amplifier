@@ -83,7 +83,7 @@ impl Client {
             .collect()
     }
 
-    async fn get_valid_transaction(&self, tx_hash: &Hash) -> Option<Transaction> {
+    pub async fn get_valid_transaction(&self, tx_hash: &Hash) -> Option<Transaction> {
         self.get_transaction(tx_hash.to_string().as_str())
             .await
             .ok()

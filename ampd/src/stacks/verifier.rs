@@ -6,12 +6,15 @@ use clarity::vm::types::{
 use clarity::vm::ClarityName;
 
 use crate::handlers::stacks_verify_msg::Message;
+use crate::handlers::stacks_verify_verifier_set::VerifierSetConfirmation;
 use crate::stacks::error::Error;
 use crate::stacks::http_client::{Transaction, TransactionEvents};
+use crate::stacks::WeightedSigners;
 
 const PRINT_TOPIC: &str = "print";
 
 const CONTRACT_CALL_TYPE: &str = "contract-call";
+const SIGNERS_ROTATED_TYPE: &str = "signers-rotated";
 
 impl Message {
     fn eq_event(&self, event: &TransactionEvents) -> Result<bool, Box<dyn std::error::Error>> {
@@ -100,6 +103,61 @@ impl Message {
     }
 }
 
+impl VerifierSetConfirmation {
+    fn eq_event(&self, event: &TransactionEvents) -> Result<bool, Box<dyn std::error::Error>> {
+        let contract_log = event.contract_log.as_ref().ok_or(Error::PropertyEmpty)?;
+
+        if contract_log.topic != PRINT_TOPIC {
+            return Ok(false);
+        }
+
+        let tuple_type_signature = TupleTypeSignature::try_from(vec![
+            (
+                ClarityName::from("type"),
+                TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(
+                    BufferLength::try_from(15u32)?,
+                ))),
+            ),
+            (
+                ClarityName::from("signers-hash"),
+                TypeSignature::SequenceType(SequenceSubtype::BufferType(BufferLength::try_from(
+                    32u32,
+                )?)),
+            ),
+        ])?;
+
+        let hex = contract_log
+            .value
+            .hex
+            .strip_prefix("0x")
+            .ok_or(Error::PropertyEmpty)?;
+
+        let value =
+            Value::try_deserialize_hex(hex, &TypeSignature::TupleType(tuple_type_signature), true)?;
+
+        if let Value::Tuple(data) = value {
+            if !data.get("type")?.eq(&Value::string_ascii_from_bytes(
+                SIGNERS_ROTATED_TYPE.as_bytes().to_vec(),
+            )?) {
+                return Ok(false);
+            }
+
+            let weighted_signers = WeightedSigners::try_from(&self.verifier_set)?;
+
+            if !data
+                .get("signers-hash")?
+                .eq(&Value::buff_from(weighted_signers.hash()?.to_vec())?)
+            {
+                return Ok(false);
+            }
+
+            return Ok(true);
+        }
+
+        Ok(false)
+    }
+}
+
 fn find_event<'a>(
     transaction: &'a Transaction,
     gateway_address: &String,
@@ -128,6 +186,21 @@ pub fn verify_message(
 
     match find_event(transaction, gateway_address, message.event_index) {
         Some(event) if message.eq_event(event).unwrap_or(false) => Vote::SucceededOnChain,
+        _ => Vote::NotFound,
+    }
+}
+
+pub fn verify_verifier_set(
+    gateway_address: &String,
+    transaction: &Transaction,
+    verifier_set: VerifierSetConfirmation,
+) -> Vote {
+    if verifier_set.tx_id != transaction.tx_id {
+        return Vote::NotFound;
+    }
+
+    match find_event(transaction, gateway_address, verifier_set.event_index) {
+        Some(event) if verifier_set.eq_event(event).unwrap_or(false) => Vote::SucceededOnChain,
         _ => Vote::NotFound,
     }
 }

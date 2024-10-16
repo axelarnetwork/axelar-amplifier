@@ -362,6 +362,12 @@ mod tests {
                     ),
                     http_url: Url::from_str("http://127.0.0.1").unwrap(),
                 },
+                HandlerConfig::StacksVerifierSetVerifier {
+                    cosmwasm_contract: TMAddress::from(
+                        AccountId::new("axelar", &[0u8; 32]).unwrap(),
+                    ),
+                    http_url: Url::from_str("http://127.0.0.1").unwrap(),
+                },
             ],
             ..Config::default()
         }

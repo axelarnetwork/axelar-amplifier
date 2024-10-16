@@ -403,6 +403,19 @@ where
                     ),
                     event_processor_config.clone(),
                 ),
+                handlers::config::Config::StacksVerifierSetVerifier {
+                    cosmwasm_contract,
+                    http_url,
+                } => self.create_handler_task(
+                    "stacks-verifier-set-verifier",
+                    handlers::stacks_verify_verifier_set::Handler::new(
+                        verifier.clone(),
+                        cosmwasm_contract,
+                        Client::new_http(http_url.to_string().trim_end_matches('/').into()),
+                        self.block_height_monitor.latest_block_height(),
+                    ),
+                    event_processor_config.clone(),
+                ),
             };
             self.event_processor = self.event_processor.add_task(task);
         }
