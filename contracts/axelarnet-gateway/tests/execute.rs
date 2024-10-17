@@ -394,3 +394,20 @@ fn contract_call_with_token_to_amplifier_chains_fails() {
         ExecuteError::InvalidRoutingDestination,
     );
 }
+
+#[test]
+fn route_from_nexus_to_router() {
+    let mut deps = mock_dependencies();
+
+    utils::instantiate_contract(deps.as_mut()).unwrap();
+
+    let response = assert_ok!(utils::route_from_nexus(
+        deps.as_mut(),
+        vec![
+            messages::dummy_from_nexus(&vec![1, 2, 3]),
+            messages::dummy_from_nexus(&vec![4, 5, 6]),
+        ]
+    ));
+
+    goldie::assert_json!(response.messages)
+}

@@ -55,7 +55,7 @@ pub enum Error {
     InvalidToken,
     #[error("invalid routing destination")]
     InvalidRoutingDestination,
-    #[error("failed converting the nexus message for the router")]
+    #[error("failed to convert the nexus message for the router")]
     InvalidNexusMessageForRouter,
 }
 

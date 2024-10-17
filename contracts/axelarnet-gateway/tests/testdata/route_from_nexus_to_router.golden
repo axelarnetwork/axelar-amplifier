@@ -1,0 +1,16 @@
+[
+  {
+    "id": 0,
+    "msg": {
+      "wasm": {
+        "execute": {
+          "contract_addr": "router",
+          "msg": "eyJyb3V0ZV9tZXNzYWdlcyI6W3siY2NfaWQiOnsic291cmNlX2NoYWluIjoiRXRoZXJldW0iLCJtZXNzYWdlX2lkIjoic291cmNlLWNoYWluLTAifSwic291cmNlX2FkZHJlc3MiOiJzb3VyY2UtYWRkcmVzcyIsImRlc3RpbmF0aW9uX2NoYWluIjoiZGVzdGluYXRpb24tY2hhaW4iLCJkZXN0aW5hdGlvbl9hZGRyZXNzIjoiZGVzdGluYXRpb24tYWRkcmVzcyIsInBheWxvYWRfaGFzaCI6ImYxODg1ZWRhNTRiN2EwNTMzMThjZDQxZTIwOTMyMjBkYWIxNWQ2NTM4MWIxMTU3YTM2MzNhODNiZmQ1YzkyMzkifSx7ImNjX2lkIjp7InNvdXJjZV9jaGFpbiI6IkV0aGVyZXVtIiwibWVzc2FnZV9pZCI6InNvdXJjZS1jaGFpbi0wIn0sInNvdXJjZV9hZGRyZXNzIjoic291cmNlLWFkZHJlc3MiLCJkZXN0aW5hdGlvbl9jaGFpbiI6ImRlc3RpbmF0aW9uLWNoYWluIiwiZGVzdGluYXRpb25fYWRkcmVzcyI6ImRlc3RpbmF0aW9uLWFkZHJlc3MiLCJwYXlsb2FkX2hhc2giOiIyZTZhNWViY2NjODgxMGZlZTMzMjRjMGQ0NDUwMDExODg3ODdkMGQzYWM4YWJhMmNkODliNzc1MjdkMTk4YmIwIn1dfQ==",
+          "funds": []
+        }
+      }
+    },
+    "gas_limit": null,
+    "reply_on": "never"
+  }
+]
