@@ -1,14 +1,11 @@
-use std::iter;
 use std::str::FromStr;
 
 use axelar_core_std::nexus;
 use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
-use axelar_wasm_std::token::GetToken;
 use axelar_wasm_std::{address, FnExt, IntoContractError};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
-    Addr, BankMsg, Coin, CosmosMsg, DepsMut, Event, HexBinary, MessageInfo, QuerierWrapper,
-    Response, Storage,
+    Addr, CosmosMsg, DepsMut, Event, HexBinary, MessageInfo, QuerierWrapper, Response, Storage,
 };
 use error_stack::{bail, ensure, report, ResultExt};
 use itertools::Itertools;
@@ -95,9 +92,7 @@ pub fn call_contract(
     call_contract: CallContractData,
 ) -> Result<Response<nexus::execute::Message>> {
     let Config {
-        router,
-        chain_name,
-        nexus,
+        router, chain_name, ..
     } = state::load_config(storage);
 
     let client: nexus::Client = client::CosmosClient::new(querier).into();
@@ -111,23 +106,18 @@ pub fn call_contract(
         .inspect_err(|err| panic_if_already_exists(err, &msg.cc_id))
         .change_context(Error::SaveRoutableMessage)?;
 
-    let token = info.single_token().change_context(Error::InvalidToken)?;
     let event = AxelarnetGatewayEvent::ContractCalled {
         msg: msg.clone(),
         payload: call_contract.payload,
-        token: token.clone(),
     };
 
     let res = match determine_routing_destination(&client, &msg.destination_chain, &chain_name)? {
-        RoutingDestination::Nexus => {
-            Response::new().add_messages(route_to_nexus(&client, &nexus, msg, token)?)
+        RoutingDestination::Nexus => route_to_router(storage, &Router::new(router), vec![msg])?,
+        RoutingDestination::Router | RoutingDestination::This => {
+            route_to_router(storage, &Router::new(router), vec![msg])?
         }
-        RoutingDestination::Router | RoutingDestination::This if token.is_none() => {
-            let (messages, events) = route_to_router(storage, &Router::new(router), vec![msg])?;
-            Response::new().add_messages(messages).add_events(events)
-        }
-        _ => bail!(Error::InvalidRoutingDestination),
     }
+    .then(|(messages, events)| Response::new().add_messages(messages).add_events(events))
     .add_event(event.into());
 
     Ok(res)
@@ -140,9 +130,7 @@ pub fn route_messages(
     msgs: Vec<Message>,
 ) -> Result<Response<nexus::execute::Message>> {
     let Config {
-        chain_name,
-        router,
-        nexus,
+        chain_name, router, ..
     } = state::load_config(storage);
 
     let router = Router::new(router);
@@ -160,7 +148,7 @@ pub fn route_messages(
                             prepare_msgs_for_execution(storage, chain_name.clone(), msgs.collect())
                         }
                         RoutingDestination::Nexus => {
-                            route_messages_to_nexus(&client, &nexus, msgs.collect())
+                            route_messages_to_nexus(&client, msgs.collect())
                         }
                         _ => bail!(Error::InvalidRoutingDestination),
                     }
@@ -343,38 +331,16 @@ fn determine_routing_destination(
     .then(Ok)
 }
 
-/// Route message to the Nexus module
-fn route_to_nexus(
-    client: &nexus::Client,
-    nexus: &Addr,
-    msg: Message,
-    token: Option<Coin>,
-) -> Result<Vec<CosmosMsg<nexus::execute::Message>>> {
-    let msg: nexus::execute::Message = (msg, token.clone()).into();
-
-    token
-        .map(|token| BankMsg::Send {
-            to_address: nexus.to_string(),
-            amount: vec![token],
-        })
-        .map(Into::into)
-        .into_iter()
-        .chain(iter::once(client.route_message(msg)))
-        .collect::<Vec<_>>()
-        .then(Ok)
-}
-
+/// Route messages to the Nexus module
 pub fn route_messages_to_nexus(
     client: &nexus::Client,
-    nexus: &Addr,
     msgs: Vec<Message>,
 ) -> Result<CosmosMsgWithEvent> {
     let nexus_msgs = msgs
         .clone()
         .into_iter()
-        .map(|msg| route_to_nexus(client, nexus, msg, None))
-        .collect::<Result<Vec<_>>>()?
-        .then(|msgs| msgs.concat());
+        .map(|msg| client.route_message(msg.into()))
+        .collect();
 
     Ok((
         nexus_msgs,

@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
 use axelar_wasm_std::nonempty;
-use cosmwasm_std::{Coin, CosmosMsg, CustomMsg};
+use cosmwasm_std::{CosmosMsg, CustomMsg};
 use error_stack::{Report, Result, ResultExt};
 use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
 use schemars::JsonSchema;
@@ -22,8 +22,6 @@ pub struct Message {
     pub source_tx_id: nonempty::Vec<u8>,
     pub source_tx_index: u64,
     pub id: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub token: Option<Coin>,
 }
 
 impl CustomMsg for Message {}
@@ -39,8 +37,8 @@ fn parse_message_id(message_id: &str) -> Result<(nonempty::Vec<u8>, u64), Error>
     Ok((tx_id, id.event_index.into()))
 }
 
-impl From<(router_api::Message, Option<Coin>)> for Message {
-    fn from((msg, token): (router_api::Message, Option<Coin>)) -> Self {
+impl From<router_api::Message> for Message {
+    fn from(msg: router_api::Message) -> Self {
         // fallback to using all 0's as the tx ID if it's not in the expected format
         let (source_tx_id, source_tx_index) =
             parse_message_id(&msg.cc_id.message_id).unwrap_or((vec![0; 32].try_into().unwrap(), 0));
@@ -54,7 +52,6 @@ impl From<(router_api::Message, Option<Coin>)> for Message {
             source_tx_id,
             source_tx_index,
             id: msg.cc_id.message_id.into(),
-            token,
         }
     }
 }
@@ -88,7 +85,6 @@ mod test {
     use std::vec;
 
     use axelar_wasm_std::msg_id::{Base58TxDigestAndEventIndex, HexTxHashAndEventIndex};
-    use cosmwasm_std::Coin;
     use router_api::CrossChainId;
 
     use super::Message;
@@ -108,7 +104,6 @@ mod test {
             source_tx_id: msg_id.tx_hash.to_vec().try_into().unwrap(),
             source_tx_index: msg_id.event_index as u64,
             id: msg_id.to_string(),
-            token: None,
         };
 
         let router_msg = router_api::Message::try_from(msg.clone());
@@ -138,7 +133,7 @@ mod test {
             payload_hash: [1; 32],
         };
 
-        let nexus_msg = Message::from((msg.clone(), None));
+        let nexus_msg = Message::from(msg.clone());
         goldie::assert_json!(nexus_msg);
     }
 
@@ -161,7 +156,7 @@ mod test {
             payload_hash: [1; 32],
         };
 
-        let nexus_msg = Message::from((msg.clone(), Some(Coin::new(100, "test"))));
+        let nexus_msg = Message::from(msg.clone());
         goldie::assert_json!(nexus_msg);
     }
 }
