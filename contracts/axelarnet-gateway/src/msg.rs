@@ -1,3 +1,4 @@
+use axelar_core_std::nexus;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::HexBinary;
 use msgs_derive::EnsurePermissions;
@@ -41,6 +42,10 @@ pub enum ExecuteMsg {
         destination_address: Address,
         payload: HexBinary,
     },
+
+    /// Forward the given nexus messages to the next step of the routing layer.
+    #[permission(Specific(nexus))]
+    RouteMessagesFromNexus(Vec<nexus::execute::Message>),
 }
 
 #[cw_serde]

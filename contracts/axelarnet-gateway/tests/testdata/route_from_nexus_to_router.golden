@@ -1,0 +1,24 @@
+{
+  "route_messages": [
+    {
+      "cc_id": {
+        "source_chain": "Ethereum",
+        "message_id": "source-chain-0"
+      },
+      "source_address": "source-address",
+      "destination_chain": "destination-chain",
+      "destination_address": "destination-address",
+      "payload_hash": "f1885eda54b7a053318cd41e2093220dab15d65381b1157a3633a83bfd5c9239"
+    },
+    {
+      "cc_id": {
+        "source_chain": "Ethereum",
+        "message_id": "source-chain-0"
+      },
+      "source_address": "source-address",
+      "destination_chain": "destination-chain",
+      "destination_address": "destination-address",
+      "payload_hash": "2e6a5ebccc8810fee3324c0d445001188787d0d3ac8aba2cd89b77527d198bb0"
+    }
+  ]
+}
