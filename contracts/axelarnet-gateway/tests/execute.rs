@@ -10,7 +10,9 @@ use rand::RngCore;
 use router_api::msg::ExecuteMsg as RouterExecuteMsg;
 use router_api::{CrossChainId, Message};
 
-use crate::utils::{axelar_query_handler, messages, mock_axelar_dependencies, OwnedDepsExt};
+use crate::utils::{
+    axelar_query_handler, messages, mock_axelar_dependencies, params, OwnedDepsExt,
+};
 
 mod utils;
 
@@ -170,23 +172,6 @@ fn route_to_nexus_from_non_router_sender_fails() {
     utils::instantiate_contract(deps.as_default_mut()).unwrap();
     assert_err_contains!(
         utils::route_to_router(deps.as_default_mut(), vec![msg]),
-        ExecuteError,
-        ExecuteError::InvalidRoutingDestination,
-    );
-}
-
-#[test]
-fn route_to_axelarnet_from_non_router_sender_fails() {
-    let mut deps = mock_axelar_dependencies();
-    deps.querier = deps
-        .querier
-        .with_custom_handler(reply_with_is_chain_registered(false));
-
-    let msgs = vec![messages::dummy_from_router(&[1, 2, 3])];
-
-    utils::instantiate_contract(deps.as_default_mut()).unwrap();
-    assert_err_contains!(
-        utils::route_to_router(deps.as_default_mut(), msgs),
         ExecuteError,
         ExecuteError::InvalidRoutingDestination,
     );
@@ -488,4 +473,39 @@ fn route_from_nexus_to_router() {
 
     let msg: RouterExecuteMsg = assert_ok!(inspect_response_msg(response));
     goldie::assert_json!(msg)
+}
+
+#[test]
+fn route_to_router_after_contract_call_to_self_succeeds_multiple_times() {
+    let tx_hash: [u8; 32] = [2; 32];
+    let nonce = 99;
+
+    let mut deps = mock_axelar_dependencies();
+    deps.querier = deps
+        .querier
+        .with_custom_handler(axelar_query_handler(tx_hash, nonce, false));
+
+    let destination_chain = params::AXELARNET.parse().unwrap();
+    let destination_address = "destination-address".parse().unwrap();
+    let payload = vec![1, 2, 3].into();
+
+    utils::instantiate_contract(deps.as_default_mut()).unwrap();
+    let response = utils::call_contract(
+        deps.as_default_mut(),
+        mock_info("sender", &[]),
+        destination_chain,
+        destination_address,
+        payload,
+    )
+    .unwrap();
+
+    let RouterExecuteMsg::RouteMessages(msgs) = inspect_response_msg(response).unwrap() else {
+        panic!("pattern must match")
+    };
+
+    for _ in 0..10 {
+        let response = assert_ok!(utils::route_to_router(deps.as_default_mut(), msgs.clone()));
+        let msg: RouterExecuteMsg = assert_ok!(inspect_response_msg(response));
+        goldie::assert_json!(msg);
+    }
 }

@@ -7,8 +7,8 @@ use axelar_wasm_std::token::GetToken;
 use axelar_wasm_std::{address, FnExt, IntoContractError};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
-    Addr, BankMsg, Coin, CosmosMsg, DepsMut, HexBinary, MessageInfo, QuerierWrapper, Response,
-    Storage,
+    Addr, BankMsg, Coin, CosmosMsg, DepsMut, Event, HexBinary, MessageInfo, QuerierWrapper,
+    Response, Storage,
 };
 use error_stack::{bail, ensure, report, ResultExt};
 use itertools::Itertools;
@@ -82,10 +82,11 @@ impl CallContractData {
 enum RoutingDestination {
     Nexus,
     Router,
-    Axelarnet,
+    This,
 }
 
 type Result<T> = error_stack::Result<T, Error>;
+type CosmosMsgWithEvent = (Vec<CosmosMsg<nexus::execute::Message>>, Vec<Event>);
 
 pub fn call_contract(
     storage: &mut dyn Storage,
@@ -121,8 +122,9 @@ pub fn call_contract(
         RoutingDestination::Nexus => {
             Response::new().add_messages(route_to_nexus(&client, &nexus, msg, token)?)
         }
-        RoutingDestination::Router if token.is_none() => {
-            route_to_router(storage, &Router::new(router), vec![msg])?
+        RoutingDestination::Router | RoutingDestination::This if token.is_none() => {
+            let (messages, events) = route_to_router(storage, &Router::new(router), vec![msg])?;
+            Response::new().add_messages(messages).add_events(events)
         }
         _ => bail!(Error::InvalidRoutingDestination),
     }
@@ -149,29 +151,32 @@ pub fn route_messages(
     msgs.into_iter()
         .group_by(|msg| msg.destination_chain.to_owned())
         .into_iter()
-        .try_fold(Response::new(), |mut acc, (dest_chain, msgs)| {
-            let response = match determine_routing_destination(&client, &dest_chain, &chain_name)? {
-                // Ensure only router routes to Axelarnet
-                RoutingDestination::Axelarnet => {
-                    ensure!(sender == router.address, Error::InvalidRoutingDestination);
-                    prepare_msgs_for_execution(storage, chain_name.clone(), msgs.collect())
+        .try_fold(Response::new(), |acc, (dest_chain, msgs)| {
+            let (messages, events) = match &sender {
+                addr if addr == router.address => {
+                    // Router can route to this chain and Nexus
+                    match determine_routing_destination(&client, &dest_chain, &chain_name)? {
+                        RoutingDestination::This => {
+                            prepare_msgs_for_execution(storage, chain_name.clone(), msgs.collect())
+                        }
+                        RoutingDestination::Nexus => {
+                            route_messages_to_nexus(&client, &nexus, msgs.collect())
+                        }
+                        _ => bail!(Error::InvalidRoutingDestination),
+                    }
                 }
-                // Ensure only router routes to Nexus
-                RoutingDestination::Nexus => {
-                    ensure!(sender == router.address, Error::InvalidRoutingDestination);
-                    route_messages_to_nexus(&client, &nexus, msgs.collect())
-                }
-                // Allow re-routing of CallContract initiated messages
-                RoutingDestination::Router => {
-                    ensure!(sender != router.address, Error::InvalidRoutingDestination);
-                    route_to_router(storage, &router, msgs.collect())
+                _ => {
+                    // Non-router senders can only route to Router
+                    match determine_routing_destination(&client, &dest_chain, &chain_name)? {
+                        RoutingDestination::This | RoutingDestination::Router => {
+                            route_to_router(storage, &router, msgs.collect())
+                        }
+                        _ => bail!(Error::InvalidRoutingDestination),
+                    }
                 }
             }?;
 
-            acc.messages.extend(response.messages);
-            acc.events.extend(response.events);
-
-            Ok(acc)
+            Ok(acc.add_messages(messages).add_events(events))
         })
 }
 
@@ -246,7 +251,7 @@ fn prepare_msgs_for_execution(
     store: &mut dyn Storage,
     chain_name: ChainName,
     msgs: Vec<Message>,
-) -> Result<Response<nexus::execute::Message>> {
+) -> Result<CosmosMsgWithEvent> {
     for msg in msgs.iter() {
         ensure!(
             chain_name == msg.destination_chain,
@@ -260,9 +265,11 @@ fn prepare_msgs_for_execution(
             .change_context(Error::SaveExecutableMessage)?;
     }
 
-    Ok(Response::new().add_events(
+    Ok((
+        vec![],
         msgs.into_iter()
-            .map(|msg| AxelarnetGatewayEvent::Routing { msg }.into()),
+            .map(|msg| AxelarnetGatewayEvent::Routing { msg }.into())
+            .collect(),
     ))
 }
 
@@ -271,7 +278,7 @@ fn route_to_router(
     store: &mut dyn Storage,
     router: &Router<nexus::execute::Message>,
     msgs: Vec<Message>,
-) -> Result<Response<nexus::execute::Message>> {
+) -> Result<CosmosMsgWithEvent> {
     let msgs: Vec<_> = msgs
         .into_iter()
         .unique()
@@ -279,12 +286,12 @@ fn route_to_router(
         .filter_map_ok(|msg| msg)
         .try_collect()?;
 
-    Ok(Response::new()
-        .add_messages(router.route(msgs.clone()))
-        .add_events(
-            msgs.into_iter()
-                .map(|msg| AxelarnetGatewayEvent::Routing { msg }.into()),
-        ))
+    Ok((
+        router.route(msgs.clone()).into_iter().collect(),
+        msgs.into_iter()
+            .map(|msg| AxelarnetGatewayEvent::Routing { msg }.into())
+            .collect(),
+    ))
 }
 
 /// Verify that the message is stored and matches the one we're trying to route. Returns Ok(None) if
@@ -321,18 +328,17 @@ fn unique_cross_chain_id(client: &nexus::Client, chain_name: ChainName) -> Resul
 fn determine_routing_destination(
     client: &nexus::Client,
     dest_chain: &ChainName,
-    axelar_chain: &ChainName,
+    this_chain: &ChainName,
 ) -> Result<RoutingDestination> {
-    match dest_chain {
-        dest_chain if dest_chain == axelar_chain => RoutingDestination::Axelarnet,
-        dest_chain
-            if client
-                .is_chain_registered(dest_chain)
-                .change_context(Error::Nexus)? =>
-        {
-            RoutingDestination::Nexus
-        }
-        _ => RoutingDestination::Router,
+    if dest_chain == this_chain {
+        RoutingDestination::This
+    } else if client
+        .is_chain_registered(dest_chain)
+        .change_context(Error::Nexus)?
+    {
+        RoutingDestination::Nexus
+    } else {
+        RoutingDestination::Router
     }
     .then(Ok)
 }
@@ -362,7 +368,7 @@ pub fn route_messages_to_nexus(
     client: &nexus::Client,
     nexus: &Addr,
     msgs: Vec<Message>,
-) -> Result<Response<nexus::execute::Message>> {
+) -> Result<CosmosMsgWithEvent> {
     let nexus_msgs = msgs
         .clone()
         .into_iter()
@@ -370,11 +376,10 @@ pub fn route_messages_to_nexus(
         .collect::<Result<Vec<_>>>()?
         .then(|msgs| msgs.concat());
 
-    Response::new()
-        .add_messages(nexus_msgs)
-        .add_events(
-            msgs.into_iter()
-                .map(|msg| AxelarnetGatewayEvent::Routing { msg }.into()),
-        )
-        .then(Ok)
+    Ok((
+        nexus_msgs,
+        msgs.into_iter()
+            .map(|msg| AxelarnetGatewayEvent::Routing { msg }.into())
+            .collect(),
+    ))
 }
