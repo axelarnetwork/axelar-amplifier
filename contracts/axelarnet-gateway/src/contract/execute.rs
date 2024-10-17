@@ -118,16 +118,11 @@ pub fn call_contract(
         token: token.clone(),
     };
 
-    let res = match determine_routing_destination(
-        storage,
-        &info.sender,
-        &client,
-        &msg.destination_chain,
-    )? {
+    let res = match determine_routing_destination(&client, &msg.destination_chain, &chain_name)? {
         RoutingDestination::Nexus => {
             Response::new().add_messages(route_to_nexus(&client, &nexus, msg, token)?)
         }
-        RoutingDestination::Router if token.is_none() => {
+        RoutingDestination::Router | RoutingDestination::This if token.is_none() => {
             let (messages, events) = route_to_router(storage, &Router::new(router), vec![msg])?;
             Response::new().add_messages(messages).add_events(events)
         }
@@ -157,16 +152,29 @@ pub fn route_messages(
         .group_by(|msg| msg.destination_chain.to_owned())
         .into_iter()
         .try_fold(Response::new(), |acc, (dest_chain, msgs)| {
-            let (messages, events) =
-                match determine_routing_destination(storage, &sender, &client, &dest_chain)? {
-                    RoutingDestination::This => {
-                        prepare_msgs_for_execution(storage, chain_name.clone(), msgs.collect())
+            let (messages, events) = match &sender {
+                addr if addr == router.address => {
+                    // Router can route to this chain and Nexus
+                    match determine_routing_destination(&client, &dest_chain, &chain_name)? {
+                        RoutingDestination::This => {
+                            prepare_msgs_for_execution(storage, chain_name.clone(), msgs.collect())
+                        }
+                        RoutingDestination::Nexus => {
+                            route_messages_to_nexus(&client, &nexus, msgs.collect())
+                        }
+                        _ => bail!(Error::InvalidRoutingDestination),
                     }
-                    RoutingDestination::Nexus => {
-                        route_messages_to_nexus(&client, &nexus, msgs.collect())
+                }
+                _ => {
+                    // Non-router senders can only route to Router
+                    match determine_routing_destination(&client, &dest_chain, &chain_name)? {
+                        RoutingDestination::This | RoutingDestination::Router => {
+                            route_to_router(storage, &router, msgs.collect())
+                        }
+                        _ => bail!(Error::InvalidRoutingDestination),
                     }
-                    RoutingDestination::Router => route_to_router(storage, &router, msgs.collect()),
-                }?;
+                }
+            }?;
 
             Ok(acc.add_messages(messages).add_events(events))
         })
@@ -318,38 +326,21 @@ fn unique_cross_chain_id(client: &nexus::Client, chain_name: ChainName) -> Resul
 
 /// Query Nexus module in core to decide should route message to core
 fn determine_routing_destination(
-    storage: &dyn Storage,
-    sender: &Addr,
     client: &nexus::Client,
     dest_chain: &ChainName,
+    this_chain: &ChainName,
 ) -> Result<RoutingDestination> {
-    let Config {
-        chain_name: this_chain,
-        router,
-        ..
-    } = state::load_config(storage);
-
-    let is_registered_in_nexus = client
+    if dest_chain == this_chain {
+        RoutingDestination::This
+    } else if client
         .is_chain_registered(dest_chain)
-        .change_context(Error::Nexus)?;
-
-    // Router can route to this chain or Nexus
-    if sender == &router {
-        if dest_chain == &this_chain {
-            Ok(RoutingDestination::This)
-        } else if is_registered_in_nexus {
-            Ok(RoutingDestination::Nexus)
-        } else {
-            bail!(Error::InvalidRoutingDestination)
-        }
-    // Non-router senders can only route to Router
+        .change_context(Error::Nexus)?
+    {
+        RoutingDestination::Nexus
     } else {
-        if is_registered_in_nexus {
-            bail!(Error::InvalidRoutingDestination)
-        } else {
-            Ok(RoutingDestination::Router)
-        }
+        RoutingDestination::Router
     }
+    .then(Ok)
 }
 
 /// Route message to the Nexus module
