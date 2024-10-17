@@ -1,5 +1,4 @@
 use axelar_core_std::nexus;
-use cw_storage_plus::Prefixer;
 use router_api::{CrossChainId, Message};
 use sha3::Digest;
 

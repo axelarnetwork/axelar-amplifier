@@ -409,5 +409,6 @@ fn route_from_nexus_to_router() {
         ]
     ));
 
-    goldie::assert_json!(response.messages)
+    let msg: RouterExecuteMsg = assert_ok!(inspect_response_msg(response));
+    goldie::assert_json!(msg)
 }
