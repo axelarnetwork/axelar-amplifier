@@ -12,7 +12,6 @@ on:
           - gateway
           - multisig
           - multisig-prover
-          - nexus-gateway
           - rewards
           - service-registry
           - voting-verifier
@@ -45,7 +44,6 @@ jobs:
             ["gateway"]="gateway,/(major)|(major-gateway)|(major-contracts)/,/(minor)|(minor-gateway)|(minor-contracts)/,contracts/gateway packages"
             ["multisig"]="multisig,/(major)|(major-multisig)|(major-contracts)/,/(minor)|(minor-multisig)|(minor-contracts)/,contracts/multisig packages"
             ["multisig-prover"]="multisig-prover,/(major)|(major-multisig-prover)|(major-contracts)/,/(minor)|(minor-multisig-prover)|(minor-contracts)/,contracts/multisig-prover packages"
-            ["nexus-gateway"]="nexus-gateway,/(major)|(major-nexus-gateway)|(major-contracts)/,/(minor)|(minor-nexus-gateway)|(minor-contracts)/,contracts/nexus-gateway packages"
             ["rewards"]="rewards,/(major)|(major-rewards)|(major-contracts)/,/(minor)|(minor-rewards)|(minor-contracts)/,contracts/rewards packages"
             ["service-registry"]="service-registry,/(major)|(major-service-registry)|(major-contracts)/,/(minor)|(minor-service-registry)|(minor-contracts)/,contracts/service-registry packages"
             ["voting-verifier"]="voting-verifier,/(major)|(major-voting-verifier)|(major-contracts)/,/(minor)|(minor-voting-verifier)|(minor-contracts)/,contracts/voting-verifier packages"
