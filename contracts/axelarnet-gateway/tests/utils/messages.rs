@@ -34,6 +34,5 @@ pub fn dummy_from_nexus(payload: &impl AsRef<[u8]>) -> nexus::execute::Message {
         source_tx_id: "source-chain".as_bytes().to_vec().try_into().unwrap(),
         source_tx_index: 0,
         id: "source-chain-0".to_string(),
-        token: None,
     }
 }
