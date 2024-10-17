@@ -144,9 +144,11 @@ impl VerifierSetConfirmation {
 
             let weighted_signers = WeightedSigners::try_from(&self.verifier_set)?;
 
+            let hash = weighted_signers.hash();
+
             if !data
                 .get("signers-hash")?
-                .eq(&Value::buff_from(weighted_signers.hash()?.to_vec())?)
+                .eq(&Value::buff_from(hash?.to_vec())?)
             {
                 return Ok(false);
             }
@@ -208,12 +210,18 @@ pub fn verify_verifier_set(
 #[cfg(test)]
 mod tests {
     use axelar_wasm_std::voting::Vote;
+    use clarity::vm::types::TupleData;
+    use clarity::vm::{ClarityName, Value};
+    use cosmwasm_std::{HexBinary, Uint128};
+    use multisig::key::KeyType;
+    use multisig::test::common::{build_verifier_set, ecdsa_test_data};
 
     use crate::handlers::stacks_verify_msg::Message;
+    use crate::handlers::stacks_verify_verifier_set::VerifierSetConfirmation;
     use crate::stacks::http_client::{
         ContractLog, ContractLogValue, Transaction, TransactionEvents,
     };
-    use crate::stacks::verifier::verify_message;
+    use crate::stacks::verifier::{verify_message, verify_verifier_set, SIGNERS_ROTATED_TYPE};
 
     // test verify message
     #[test]
@@ -334,6 +342,114 @@ mod tests {
         );
     }
 
+    // test verify worker set
+    #[test]
+    fn should_not_verify_verifier_set_if_tx_id_does_not_match() {
+        let (gateway_address, tx, mut verifier_set) = get_matching_verifier_set_and_tx();
+
+        verifier_set.tx_id = "ffaf64de66510723f2efbacd7ead3c4f8c856aed1afc2cb30254552aeda47313"
+            .parse()
+            .unwrap();
+        assert_eq!(
+            verify_verifier_set(&gateway_address, &tx, verifier_set),
+            Vote::NotFound
+        );
+    }
+
+    #[test]
+    fn should_not_verify_verifier_set_if_no_log_for_event_index() {
+        let (gateway_address, tx, mut verifier_set) = get_matching_verifier_set_and_tx();
+
+        verifier_set.event_index = 2;
+        assert_eq!(
+            verify_verifier_set(&gateway_address, &tx, verifier_set),
+            Vote::NotFound
+        );
+    }
+
+    #[test]
+    fn should_not_verify_verifier_set_if_event_index_does_not_match() {
+        let (gateway_address, tx, mut verifier_set) = get_matching_verifier_set_and_tx();
+
+        verifier_set.event_index = 0;
+        assert_eq!(
+            verify_verifier_set(&gateway_address, &tx, verifier_set),
+            Vote::NotFound
+        );
+    }
+
+    #[test]
+    fn should_not_verify_verifier_set_if_not_from_gateway() {
+        let (gateway_address, mut tx, verifier_set) = get_matching_verifier_set_and_tx();
+
+        let transaction_events = tx.events.get_mut(1).unwrap();
+        let contract_call = transaction_events.contract_log.as_mut().unwrap();
+
+        contract_call.contract_id = "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM".to_string();
+
+        assert_eq!(
+            verify_verifier_set(&gateway_address, &tx, verifier_set),
+            Vote::NotFound
+        );
+    }
+
+    #[test]
+    fn should_not_verify_verifier_set_invalid_topic() {
+        let (gateway_address, mut tx, verifier_set) = get_matching_verifier_set_and_tx();
+
+        let transaction_events = tx.events.get_mut(1).unwrap();
+        let contract_call = transaction_events.contract_log.as_mut().unwrap();
+
+        contract_call.topic = "other".to_string();
+
+        assert_eq!(
+            verify_verifier_set(&gateway_address, &tx, verifier_set),
+            Vote::NotFound
+        );
+    }
+
+    #[test]
+    fn should_not_verify_verifier_set_invalid_type() {
+        let (gateway_address, mut tx, verifier_set) = get_matching_verifier_set_and_tx();
+
+        let transaction_events = tx.events.get_mut(1).unwrap();
+        let signers_rotated = transaction_events.contract_log.as_mut().unwrap();
+
+        // Remove 'rotated' as hex from `signers-rotated` data
+        signers_rotated.value.hex = signers_rotated
+            .value
+            .hex
+            .strip_suffix("726f7461746564")
+            .unwrap()
+            .to_string();
+
+        assert_eq!(
+            verify_verifier_set(&gateway_address, &tx, verifier_set),
+            Vote::NotFound
+        );
+    }
+
+    #[test]
+    fn should_not_verify_worker_set_if_verifier_set_does_not_match() {
+        let (gateway_address, tx, mut verifier_set) = get_matching_verifier_set_and_tx();
+
+        verifier_set.verifier_set.threshold = Uint128::from(10u128);
+        assert_eq!(
+            verify_verifier_set(&gateway_address, &tx, verifier_set),
+            Vote::NotFound
+        );
+    }
+
+    #[test]
+    fn should_verify_verifier_set() {
+        let (gateway_address, tx, verifier_set) = get_matching_verifier_set_and_tx();
+
+        assert_eq!(
+            verify_verifier_set(&gateway_address, &tx, verifier_set),
+            Vote::SucceededOnChain
+        );
+    }
+
     fn get_matching_msg_and_tx() -> (String, Transaction, Message) {
         let gateway_address = "SP2N959SER36FZ5QT1CX9BR63W3E8X35WQCMBYYWC.axelar-gateway";
         let tx_id = "0xee0049faf8dde5507418140ed72bd64f73cc001b08de98e0c16a3a8d9f2c38cf"
@@ -378,5 +494,71 @@ mod tests {
         };
 
         (gateway_address.to_string(), transaction, msg)
+    }
+
+    fn get_matching_verifier_set_and_tx() -> (String, Transaction, VerifierSetConfirmation) {
+        let gateway_address = "SP2N959SER36FZ5QT1CX9BR63W3E8X35WQCMBYYWC.axelar-gateway";
+        let tx_id = "0xee0049faf8dde5507418140ed72bd64f73cc001b08de98e0c16a3a8d9f2c38cf"
+            .parse()
+            .unwrap();
+
+        let mut verifier_set_confirmation = VerifierSetConfirmation {
+            tx_id,
+            event_index: 1,
+            verifier_set: build_verifier_set(KeyType::Ecdsa, &ecdsa_test_data::signers()),
+        };
+        verifier_set_confirmation.verifier_set.created_at = 5;
+
+        let wrong_event = TransactionEvents {
+            event_index: 0,
+            tx_id: tx_id.to_string(),
+            contract_log: None,
+        };
+
+        let signers_hash =
+            HexBinary::from_hex("6925aafa48d1c99f0fd9bdd98b00fc319462a3ecbf2bbb8379c975a26a0c0c46")
+                .unwrap();
+
+        let value = Value::from(
+            TupleData::from_data(vec![
+                (
+                    ClarityName::from("signers-hash"),
+                    Value::buff_from(signers_hash.to_vec()).unwrap(),
+                ),
+                (
+                    ClarityName::from("type"),
+                    Value::string_ascii_from_bytes(SIGNERS_ROTATED_TYPE.as_bytes().to_vec())
+                        .unwrap(),
+                ),
+            ])
+            .unwrap(),
+        );
+
+        // TODO: Add proper hex data for event
+        let event = TransactionEvents {
+            event_index: 1,
+            tx_id: tx_id.to_string(),
+            contract_log: Some(ContractLog {
+                contract_id: gateway_address.to_string(),
+                topic: "print".to_string(),
+                value: ContractLogValue {
+                    hex: format!("0x{}", value.serialize_to_hex().unwrap()),
+                },
+            }),
+        };
+
+        let transaction = Transaction {
+            tx_id,
+            nonce: 1,
+            sender_address: "whatever".to_string(),
+            tx_status: "success".to_string(),
+            events: vec![wrong_event, event],
+        };
+
+        (
+            gateway_address.to_string(),
+            transaction,
+            verifier_set_confirmation,
+        )
     }
 }
