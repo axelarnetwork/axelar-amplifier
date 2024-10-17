@@ -184,7 +184,7 @@ fn validate_msgs(
     // because the source chain is registered in the core nexus module.
     // All messages received from the nexus gateway must adhere to the
     // HexTxHashAndEventIndex message ID format.
-    if sender == config.nexus_gateway {
+    if sender == config.axelarnet_gateway {
         verify_msg_ids(&msgs, &MessageIdFormat::HexTxHashAndEventIndex)?;
         return Ok(msgs);
     }
@@ -235,9 +235,9 @@ pub fn route_messages(
                 }
                 Some(destination_chain) => destination_chain.gateway.address,
                 // messages with unknown destination chains are routed to
-                // the nexus gateway if the sender is not the nexus gateway
+                // the axelarnet gateway if the sender is not the nexus gateway
                 // itself
-                None if sender != config.nexus_gateway => config.nexus_gateway.clone(),
+                None if sender != config.axelarnet_gateway => config.axelarnet_gateway.clone(),
                 _ => return Err(report!(Error::ChainNotFound)),
             };
 
@@ -277,6 +277,8 @@ mod test {
     use crate::events::{ChainFrozen, ChainUnfrozen};
     use crate::msg::InstantiateMsg;
     use crate::state::chain_endpoints;
+
+    const AXELARNET_GATEWAY: &str = "axelarnet_gateway";
 
     fn rand_message(source_chain: ChainName, destination_chain: ChainName) -> Message {
         let mut bytes = [0; 32];
@@ -322,7 +324,7 @@ mod test {
             InstantiateMsg {
                 admin_address: "admin".to_string(),
                 governance_address: "governance".to_string(),
-                nexus_gateway: "nexus_gateway".to_string(),
+                axelarnet_gateway: AXELARNET_GATEWAY.to_string(),
             },
         )
         .unwrap();
@@ -349,7 +351,7 @@ mod test {
             InstantiateMsg {
                 admin_address: "admin".to_string(),
                 governance_address: "governance".to_string(),
-                nexus_gateway: "nexus_gateway".to_string(),
+                axelarnet_gateway: AXELARNET_GATEWAY.to_string(),
             },
         )
         .unwrap();
@@ -390,7 +392,7 @@ mod test {
             InstantiateMsg {
                 admin_address: "admin".to_string(),
                 governance_address: "governance".to_string(),
-                nexus_gateway: "nexus_gateway".to_string(),
+                axelarnet_gateway: AXELARNET_GATEWAY.to_string(),
             },
         )
         .unwrap();
@@ -429,7 +431,7 @@ mod test {
             InstantiateMsg {
                 admin_address: "admin".to_string(),
                 governance_address: "governance".to_string(),
-                nexus_gateway: "nexus_gateway".to_string(),
+                axelarnet_gateway: AXELARNET_GATEWAY.to_string(),
             },
         )
         .unwrap();
@@ -484,7 +486,7 @@ mod test {
             InstantiateMsg {
                 admin_address: "admin".to_string(),
                 governance_address: "governance".to_string(),
-                nexus_gateway: "nexus_gateway".to_string(),
+                axelarnet_gateway: AXELARNET_GATEWAY.to_string(),
             },
         )
         .unwrap();
@@ -513,7 +515,7 @@ mod test {
 
     #[test]
     fn route_messages_from_nexus_with_invalid_message_id() {
-        let sender = Addr::unchecked("nexus_gateway");
+        let sender = Addr::unchecked(AXELARNET_GATEWAY);
         let source_chain: ChainName = "ethereum".parse().unwrap();
         let destination_chain: ChainName = "bitcoin".parse().unwrap();
 
@@ -525,7 +527,7 @@ mod test {
             InstantiateMsg {
                 admin_address: "admin".to_string(),
                 governance_address: "governance".to_string(),
-                nexus_gateway: "nexus_gateway".to_string(),
+                axelarnet_gateway: AXELARNET_GATEWAY.to_string(),
             },
         )
         .unwrap();
@@ -550,7 +552,7 @@ mod test {
             InstantiateMsg {
                 admin_address: "admin".to_string(),
                 governance_address: "governance".to_string(),
-                nexus_gateway: "nexus_gateway".to_string(),
+                axelarnet_gateway: AXELARNET_GATEWAY.to_string(),
             },
         )
         .unwrap();
@@ -602,7 +604,7 @@ mod test {
             InstantiateMsg {
                 admin_address: "admin".to_string(),
                 governance_address: "governance".to_string(),
-                nexus_gateway: "nexus_gateway".to_string(),
+                axelarnet_gateway: AXELARNET_GATEWAY.to_string(),
             },
         )
         .unwrap();
@@ -668,7 +670,7 @@ mod test {
 
     #[test]
     fn route_messages_from_nexus_to_registered_chains() {
-        let sender = Addr::unchecked("nexus_gateway");
+        let sender = Addr::unchecked(AXELARNET_GATEWAY);
         let source_chain: ChainName = "ethereum".parse().unwrap();
         let destination_chain_1: ChainName = "bitcoin".parse().unwrap();
         let destination_chain_2: ChainName = "polygon".parse().unwrap();
@@ -681,7 +683,7 @@ mod test {
             InstantiateMsg {
                 admin_address: "admin".to_string(),
                 governance_address: "governance".to_string(),
-                nexus_gateway: "nexus_gateway".to_string(),
+                axelarnet_gateway: AXELARNET_GATEWAY.to_string(),
             },
         )
         .unwrap();
@@ -732,7 +734,7 @@ mod test {
 
     #[test]
     fn route_messages_from_nexus_to_non_registered_chains() {
-        let sender = Addr::unchecked("nexus_gateway");
+        let sender = Addr::unchecked(AXELARNET_GATEWAY);
         let source_chain: ChainName = "ethereum".parse().unwrap();
         let destination_chain: ChainName = "bitcoin".parse().unwrap();
 
@@ -744,7 +746,7 @@ mod test {
             InstantiateMsg {
                 admin_address: "admin".to_string(),
                 governance_address: "governance".to_string(),
-                nexus_gateway: "nexus_gateway".to_string(),
+                axelarnet_gateway: AXELARNET_GATEWAY.to_string(),
             },
         )
         .unwrap();
@@ -774,7 +776,7 @@ mod test {
             InstantiateMsg {
                 admin_address: "admin".to_string(),
                 governance_address: "governance".to_string(),
-                nexus_gateway: "nexus_gateway".to_string(),
+                axelarnet_gateway: AXELARNET_GATEWAY.to_string(),
             },
         )
         .unwrap();
