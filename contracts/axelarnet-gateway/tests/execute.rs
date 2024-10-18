@@ -34,18 +34,21 @@ fn execute_message_when_not_approved_fails() {
 
 #[test]
 fn execute_approved_message_when_already_executed_fails() {
-    let mut deps = mock_dependencies();
+    let mut deps = mock_axelar_dependencies();
+    deps.querier = deps
+        .querier
+        .with_custom_handler(reply_with_is_chain_registered(false));
 
     let payload: HexBinary = vec![1, 2, 3].into();
     let msg = messages::dummy_from_router(&payload);
     let cc_id = msg.cc_id.clone();
 
-    utils::instantiate_contract(deps.as_mut()).unwrap();
-    utils::route_from_router(deps.as_mut(), vec![msg]).unwrap();
-    utils::execute_payload(deps.as_mut(), cc_id.clone(), payload.clone()).unwrap();
+    utils::instantiate_contract(deps.as_default_mut()).unwrap();
+    utils::route_from_router(deps.as_default_mut(), vec![msg]).unwrap();
+    utils::execute_payload(deps.as_default_mut(), cc_id.clone(), payload.clone()).unwrap();
 
     assert_err_contains!(
-        utils::execute_payload(deps.as_mut(), cc_id, payload),
+        utils::execute_payload(deps.as_default_mut(), cc_id, payload),
         StateError,
         StateError::MessageAlreadyExecuted(..)
     );
@@ -53,18 +56,21 @@ fn execute_approved_message_when_already_executed_fails() {
 
 #[test]
 fn execute_approved_message_when_payload_mismatch_fails() {
-    let mut deps = mock_dependencies();
+    let mut deps = mock_axelar_dependencies();
+    deps.querier = deps
+        .querier
+        .with_custom_handler(reply_with_is_chain_registered(false));
 
     let payload: Vec<u8> = vec![1, 2, 3];
     let mismatched_payload = vec![4, 5, 6].into();
     let msg = messages::dummy_from_router(&payload);
     let cc_id = msg.cc_id.clone();
 
-    utils::instantiate_contract(deps.as_mut()).unwrap();
-    utils::route_from_router(deps.as_mut(), vec![msg]).unwrap();
+    utils::instantiate_contract(deps.as_default_mut()).unwrap();
+    utils::route_from_router(deps.as_default_mut(), vec![msg]).unwrap();
 
     assert_err_contains!(
-        utils::execute_payload(deps.as_mut(), cc_id, mismatched_payload),
+        utils::execute_payload(deps.as_default_mut(), cc_id, mismatched_payload),
         StateError,
         StateError::PayloadHashMismatch
     );
@@ -72,32 +78,46 @@ fn execute_approved_message_when_payload_mismatch_fails() {
 
 #[test]
 fn execute_approved_message_once_returns_correct_message() {
-    let mut deps = mock_dependencies();
+    let mut deps = mock_axelar_dependencies();
+    deps.querier = deps
+        .querier
+        .with_custom_handler(reply_with_is_chain_registered(false));
 
     let payload = vec![1, 2, 3].into();
     let msg = messages::dummy_from_router(&payload);
     let cc_id = msg.cc_id.clone();
 
-    utils::instantiate_contract(deps.as_mut()).unwrap();
-    utils::route_from_router(deps.as_mut(), vec![msg]).unwrap();
+    utils::instantiate_contract(deps.as_default_mut()).unwrap();
+    utils::route_from_router(deps.as_default_mut(), vec![msg]).unwrap();
 
-    let response = assert_ok!(utils::execute_payload(deps.as_mut(), cc_id, payload));
+    let response = assert_ok!(utils::execute_payload(
+        deps.as_default_mut(),
+        cc_id,
+        payload
+    ));
     let msg: utils::ExecuteMsg = assert_ok!(inspect_response_msg(response));
     goldie::assert_json!(msg)
 }
 
 #[test]
 fn execute_approved_message_once_returns_correct_events() {
-    let mut deps = mock_dependencies();
+    let mut deps = mock_axelar_dependencies();
+    deps.querier = deps
+        .querier
+        .with_custom_handler(reply_with_is_chain_registered(false));
 
     let payload = vec![1, 2, 3].into();
     let msg = messages::dummy_from_router(&payload);
     let cc_id = msg.cc_id.clone();
 
-    utils::instantiate_contract(deps.as_mut()).unwrap();
-    utils::route_from_router(deps.as_mut(), vec![msg]).unwrap();
+    utils::instantiate_contract(deps.as_default_mut()).unwrap();
+    utils::route_from_router(deps.as_default_mut(), vec![msg]).unwrap();
 
-    let response = assert_ok!(utils::execute_payload(deps.as_mut(), cc_id, payload));
+    let response = assert_ok!(utils::execute_payload(
+        deps.as_default_mut(),
+        cc_id,
+        payload
+    ));
     goldie::assert_json!(response.events)
 }
 
@@ -160,21 +180,33 @@ fn route_from_router_multiple_times_with_data_mismatch_fails() {
 }
 
 #[test]
-fn route_to_nexus_from_non_router_sender_fails() {
+fn route_to_nexus_ignore_messages_from_non_router_sender() {
     let mut deps = mock_axelar_dependencies();
     deps.querier = deps
         .querier
         .with_custom_handler(reply_with_is_chain_registered(true));
 
-    let mut msg = messages::dummy_from_router(&[1, 2, 3]);
-    msg.destination_chain = "legacy-chain".parse().unwrap();
+    let msg = messages::dummy_from_router(&[1, 2, 3]);
 
     utils::instantiate_contract(deps.as_default_mut()).unwrap();
-    assert_err_contains!(
-        utils::route_to_router(deps.as_default_mut(), vec![msg]),
-        ExecuteError,
-        ExecuteError::InvalidRoutingDestination,
-    );
+
+    let response = assert_ok!(utils::route_to_router(deps.as_default_mut(), vec![msg]));
+    assert_eq!(response.messages.len(), 0);
+}
+
+#[test]
+fn route_to_axelarnet_gateway_ignore_messages_from_non_router_sender() {
+    let mut deps = mock_axelar_dependencies();
+    deps.querier = deps
+        .querier
+        .with_custom_handler(reply_with_is_chain_registered(true));
+
+    let msg = messages::dummy_from_router(&[1, 2, 3]);
+
+    utils::instantiate_contract(deps.as_default_mut()).unwrap();
+
+    let response = assert_ok!(utils::route_to_router(deps.as_default_mut(), vec![msg]));
+    assert_eq!(response.messages.len(), 0);
 }
 
 #[test]

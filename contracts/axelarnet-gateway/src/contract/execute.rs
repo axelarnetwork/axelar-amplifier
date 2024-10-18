@@ -82,6 +82,7 @@ impl CallContractData {
 enum RoutingDestination {
     Nexus,
     Router,
+    /// Messages that are intended for contracts on Axelar
     This,
 }
 
@@ -118,11 +119,16 @@ pub fn call_contract(
         token: token.clone(),
     };
 
-    let res = match determine_routing_destination(&client, &msg.destination_chain, &chain_name)? {
+    let res = match determine_routing_destination(
+        storage,
+        &info.sender,
+        &client,
+        &msg.destination_chain,
+    )? {
         RoutingDestination::Nexus => {
             Response::new().add_messages(route_to_nexus(&client, &nexus, msg, token)?)
         }
-        RoutingDestination::Router | RoutingDestination::This if token.is_none() => {
+        RoutingDestination::Router if token.is_none() => {
             let (messages, events) = route_to_router(storage, &Router::new(router), vec![msg])?;
             Response::new().add_messages(messages).add_events(events)
         }
@@ -148,33 +154,32 @@ pub fn route_messages(
     let router = Router::new(router);
     let client: nexus::Client = client::CosmosClient::new(querier).into();
 
+    // Router-sent messages are assumed pre-verified and routable
+    // Otherwise, only route routable messages instantiated from CallContract
+    let msgs = if sender != router.address {
+        msgs.into_iter()
+            .unique()
+            .map(|msg| try_load_routable_msg(storage, msg))
+            .filter_map_ok(|msg| msg)
+            .try_collect()?
+    } else {
+        msgs
+    };
+
     msgs.into_iter()
         .group_by(|msg| msg.destination_chain.to_owned())
         .into_iter()
         .try_fold(Response::new(), |acc, (dest_chain, msgs)| {
-            let (messages, events) = match &sender {
-                addr if addr == router.address => {
-                    // Router can route to this chain and Nexus
-                    match determine_routing_destination(&client, &dest_chain, &chain_name)? {
-                        RoutingDestination::This => {
-                            prepare_msgs_for_execution(storage, chain_name.clone(), msgs.collect())
-                        }
-                        RoutingDestination::Nexus => {
-                            route_messages_to_nexus(&client, &nexus, msgs.collect())
-                        }
-                        _ => bail!(Error::InvalidRoutingDestination),
+            let (messages, events) =
+                match determine_routing_destination(storage, &sender, &client, &dest_chain)? {
+                    RoutingDestination::This => {
+                        prepare_msgs_for_execution(storage, chain_name.clone(), msgs.collect())
                     }
-                }
-                _ => {
-                    // Non-router senders can only route to Router
-                    match determine_routing_destination(&client, &dest_chain, &chain_name)? {
-                        RoutingDestination::This | RoutingDestination::Router => {
-                            route_to_router(storage, &router, msgs.collect())
-                        }
-                        _ => bail!(Error::InvalidRoutingDestination),
+                    RoutingDestination::Nexus => {
+                        route_messages_to_nexus(&client, &nexus, msgs.collect())
                     }
-                }
-            }?;
+                    RoutingDestination::Router => route_to_router(storage, &router, msgs.collect()),
+                }?;
 
             Ok(acc.add_messages(messages).add_events(events))
         })
@@ -279,13 +284,6 @@ fn route_to_router(
     router: &Router<nexus::execute::Message>,
     msgs: Vec<Message>,
 ) -> Result<CosmosMsgWithEvent> {
-    let msgs: Vec<_> = msgs
-        .into_iter()
-        .unique()
-        .map(|msg| try_load_routable_msg(store, msg))
-        .filter_map_ok(|msg| msg)
-        .try_collect()?;
-
     Ok((
         router.route(msgs.clone()).into_iter().collect(),
         msgs.into_iter()
@@ -326,17 +324,25 @@ fn unique_cross_chain_id(client: &nexus::Client, chain_name: ChainName) -> Resul
 
 /// Query Nexus module in core to decide should route message to core
 fn determine_routing_destination(
+    storage: &dyn Storage,
+    sender: &Addr,
     client: &nexus::Client,
     dest_chain: &ChainName,
-    this_chain: &ChainName,
 ) -> Result<RoutingDestination> {
-    if dest_chain == this_chain {
-        RoutingDestination::This
-    } else if client
+    let Config {
+        chain_name: this_chain,
+        router,
+        ..
+    } = state::load_config(storage);
+
+    if client
         .is_chain_registered(dest_chain)
         .change_context(Error::Nexus)?
     {
         RoutingDestination::Nexus
+    } else if sender == router {
+        ensure!(*dest_chain == this_chain, Error::InvalidRoutingDestination);
+        RoutingDestination::This
     } else {
         RoutingDestination::Router
     }
