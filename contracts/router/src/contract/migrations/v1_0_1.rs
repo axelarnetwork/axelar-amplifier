@@ -12,7 +12,7 @@ mod test {
     #![allow(deprecated)]
 
     use assert_ok::assert_ok;
-    use axelar_wasm_std::error::{assert_err_contains, ContractError};
+    use axelar_wasm_std::error::ContractError;
     use cosmwasm_schema::cw_serde;
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
     use cosmwasm_std::{Addr, DepsMut, Env, MessageInfo, Response};
