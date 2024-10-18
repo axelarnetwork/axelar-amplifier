@@ -1,8 +1,7 @@
 use std::str::FromStr;
 
 use axelar_wasm_std::voting::Vote;
-use stellar::WeightedSigners;
-use stellar_xdr::curr::{ContractEventBody, ScAddress, ScSymbol, ScVal, StringM};
+use stellar_xdr::curr::{BytesM, ContractEventBody, ScAddress, ScBytes, ScSymbol, ScVal, StringM};
 
 use crate::handlers::stellar_verify_msg::Message;
 use crate::handlers::stellar_verify_verifier_set::VerifierSetConfirmation;
@@ -39,11 +38,11 @@ impl PartialEq<ContractEventBody> for VerifierSetConfirmation {
     fn eq(&self, event: &ContractEventBody) -> bool {
         let ContractEventBody::V0(body) = event;
 
-        if body.topics.len() != 1 {
+        if body.topics.len() != 3 {
             return false;
         }
 
-        let [symbol] = &body.topics[..] else {
+        let [symbol, _, rotate_signers_hash] = &body.topics[..] else {
             return false;
         };
 
@@ -51,22 +50,9 @@ impl PartialEq<ContractEventBody> for VerifierSetConfirmation {
             ScSymbol(StringM::from_str(TOPIC_ROTATED).expect("must convert str to ScSymbol"))
                 .into();
 
-        let rotated_signers = match &body.data {
-            ScVal::Vec(Some(data)) if data.len() == 1 => {
-                let [rotated_signers] = &data[..] else {
-                    return false;
-                };
-                rotated_signers.clone()
-            }
-            _ => return false,
-        };
-
-        WeightedSigners::try_from(&self.verifier_set)
-            .ok()
-            .and_then(|signers| ScVal::try_from(signers).ok())
-            .map_or(false, |signers: ScVal| {
-                symbol == &expected_topic && signers == rotated_signers
-            })
+        expected_topic == *symbol
+            && ScVal::Bytes(ScBytes(BytesM::try_from(self.verifier_set.hash()).unwrap()))
+                == *rotate_signers_hash
     }
 }
 
@@ -135,10 +121,9 @@ mod test {
     use multisig::msg::Signer;
     use multisig::verifier_set::VerifierSet;
     use rand::rngs::OsRng;
-    use stellar::WeightedSigners;
     use stellar_xdr::curr::{
         AccountId, BytesM, ContractEvent, ContractEventBody, ContractEventType, ContractEventV0,
-        PublicKey, ScAddress, ScBytes, ScString, ScSymbol, ScVal, ScVec, StringM, Uint256,
+        PublicKey, ScAddress, ScBytes, ScString, ScSymbol, ScVal, StringM, Uint256,
     };
 
     use crate::handlers::stellar_verify_msg::Message;
@@ -361,19 +346,17 @@ mod test {
             },
         };
 
-        let weighted_signers: ScVal =
-            WeightedSigners::try_from(&verifier_set_confirmation.verifier_set)
-                .unwrap()
-                .try_into()
-                .unwrap();
-
         let event_body = ContractEventBody::V0(ContractEventV0 {
-            topics: vec![ScVal::Symbol(ScSymbol(
-                StringM::from_str(TOPIC_ROTATED).unwrap(),
-            ))]
+            topics: vec![
+                ScVal::Symbol(ScSymbol(StringM::from_str(TOPIC_ROTATED).unwrap())),
+                ScVal::U64(1),
+                ScVal::Bytes(ScBytes(
+                    BytesM::try_from(verifier_set_confirmation.verifier_set.hash()).unwrap(),
+                )),
+            ]
             .try_into()
             .unwrap(),
-            data: ScVal::Vec(Some(ScVec::try_from(vec![weighted_signers]).unwrap())),
+            data: ().into(),
         });
 
         let event = ContractEvent {
