@@ -129,7 +129,7 @@ pub fn call_contract(
             Response::new().add_messages(route_to_nexus(&client, &nexus, msg, token)?)
         }
         RoutingDestination::Router if token.is_none() => {
-            let (messages, events) = route_to_router(storage, &Router::new(router), vec![msg])?;
+            let (messages, events) = route_to_router(&Router::new(router), vec![msg])?;
             Response::new().add_messages(messages).add_events(events)
         }
         _ => bail!(Error::InvalidRoutingDestination),
@@ -178,7 +178,7 @@ pub fn route_messages(
                     RoutingDestination::Nexus => {
                         route_messages_to_nexus(&client, &nexus, msgs.collect())
                     }
-                    RoutingDestination::Router => route_to_router(storage, &router, msgs.collect()),
+                    RoutingDestination::Router => route_to_router(&router, msgs.collect()),
                 }?;
 
             Ok(acc.add_messages(messages).add_events(events))
@@ -280,7 +280,6 @@ fn prepare_msgs_for_execution(
 
 /// Route messages to the router, ignore unknown messages.
 fn route_to_router(
-    store: &mut dyn Storage,
     router: &Router<nexus::execute::Message>,
     msgs: Vec<Message>,
 ) -> Result<CosmosMsgWithEvent> {
