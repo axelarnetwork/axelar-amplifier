@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use axelar_wasm_std::voting::Vote;
-use stellar::WeightedSigners;
+use stellar::{SignersHash, WeightedSigners};
 use stellar_xdr::curr::{ContractEventBody, ScAddress, ScSymbol, ScVal, StringM};
 
 use crate::handlers::stellar_verify_msg::Message;
@@ -60,21 +60,23 @@ impl PartialEq<ContractEventBody> for VerifierSetConfirmation {
             ScSymbol(StringM::from_str(TOPIC_ROTATED).expect("must convert str to ScSymbol"))
                 .into();
 
-        let rotated_signers = match &body.data {
-            ScVal::Vec(Some(data)) if data.len() == 1 => {
-                let [rotated_signers] = &data[..] else {
+        let (rotated_signers_hash, epoch) = match &body.data {
+            ScVal::Vec(Some(data)) if data.len() == 2 => {
+                let [rotated_signers_hash, epoch] = &data[..] else {
                     return false;
                 };
-                rotated_signers.clone()
+                (rotated_signers_hash.clone(), epoch.clone())
             }
             _ => return false,
         };
 
         WeightedSigners::try_from(&self.verifier_set)
             .ok()
-            .and_then(|signers| ScVal::try_from(signers).ok())
-            .map_or(false, |signers: ScVal| {
-                symbol == &expected_topic && signers == rotated_signers
+            .and_then(|signers| signers.signers_rotation_hash().ok())
+            .map_or(false, |signers_hash: [u8; 32]| {
+                let signers_hash_val: ScVal = SignersHash::new(signers_hash).into();
+
+                symbol == &expected_topic && signers_hash_val == rotated_signers_hash
             })
     }
 }
@@ -378,13 +380,16 @@ mod test {
                 .try_into()
                 .unwrap();
 
+        let epoch = ScVal::U64(created_at); // temporary
         let event_body = ContractEventBody::V0(ContractEventV0 {
             topics: vec![ScVal::Symbol(ScSymbol(
                 StringM::from_str(TOPIC_ROTATED).unwrap(),
             ))]
             .try_into()
             .unwrap(),
-            data: ScVal::Vec(Some(ScVec::try_from(vec![weighted_signers]).unwrap())),
+            data: ScVal::Vec(Some(
+                ScVec::try_from(vec![weighted_signers, epoch]).unwrap(),
+            )),
         });
 
         let event = ContractEvent {

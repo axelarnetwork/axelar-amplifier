@@ -12,4 +12,6 @@ pub enum Error {
     UnsupportedSignature,
     #[error("invalid signature")]
     InvalidSignature,
+    #[error("conversion failed")]
+    ConversionFailed,
 }

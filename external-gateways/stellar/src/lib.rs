@@ -2,6 +2,7 @@ pub mod error;
 
 use std::collections::HashMap;
 use std::str::FromStr;
+use std::u32;
 
 use axelar_wasm_std::utils::TryMapExt;
 use cosmwasm_std::Uint256;
@@ -13,7 +14,8 @@ use multisig::verifier_set::VerifierSet;
 use sha3::{Digest, Keccak256};
 use stellar_strkey::Contract;
 use stellar_xdr::curr::{
-    BytesM, Error as XdrError, Hash, Limits, ScAddress, ScMapEntry, ScVal, StringM, VecM, WriteXdr,
+    BytesM, Error as XdrError, Hash, Limits, ScAddress, ScBytes, ScMapEntry, ScVal, StringM, VecM,
+    WriteXdr,
 };
 
 use crate::error::Error;
@@ -196,6 +198,71 @@ impl TryFrom<WeightedSigners> for ScVal {
         ];
 
         sc_map_from_slices(&keys, &vals)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct SignersHash([u8; 32]);
+
+impl SignersHash {
+    pub fn new(hash: [u8; 32]) -> Self {
+        SignersHash(hash)
+    }
+    pub fn as_bytes(&self) -> &[u8; 32] {
+        &self.0
+    }
+}
+
+impl From<SignersHash> for ScVal {
+    fn from(hash: SignersHash) -> Self {
+        // Convert the [u8; 32] array into BytesM<u32::MAX>
+        let bytes: BytesM<{ u32::MAX }> =
+            BytesM::try_from(hash.0.to_vec()).expect("must convert [u8; 32] to BytesM");
+
+        // Wrap BytesM into ScBytes, and then into ScVal::Bytes
+        ScVal::Bytes(ScBytes::from(bytes))
+    }
+}
+
+impl TryFrom<&VerifierSet> for SignersHash {
+    type Error = Report<Error>;
+
+    fn try_from(value: &VerifierSet) -> Result<Self, Self::Error> {
+        let mut signers = value
+            .signers
+            .values()
+            .map(|signer| match &signer.pub_key {
+                PublicKey::Ed25519(key) => Ok(WeightedSigner {
+                    signer: BytesM::try_from(key.as_ref())
+                        .change_context(Error::InvalidPublicKey)
+                        .attach_printable(key.to_hex())?,
+                    weight: signer.weight.into(),
+                }),
+                PublicKey::Ecdsa(_) => Err(Report::new(Error::UnsupportedPublicKey)),
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        signers.sort_by(|signer1, signer2| signer1.signer.cmp(&signer2.signer));
+
+        let nonce = Uint256::from(value.created_at)
+            .to_be_bytes()
+            .try_into()
+            .expect("must convert from 32 bytes");
+
+        // Create WeightedSigners
+        let weighted_signers = WeightedSigners {
+            signers,
+            threshold: value.threshold.into(),
+            nonce,
+        };
+
+        // Compute and return the hash of WeightedSigners
+        let hash = weighted_signers
+            .signers_rotation_hash()
+            .change_context(Error::ConversionFailed)?; // Handle errors
+
+        // Return the SignersHash (which wraps [u8; 32])
+        Ok(SignersHash(hash))
     }
 }
 
