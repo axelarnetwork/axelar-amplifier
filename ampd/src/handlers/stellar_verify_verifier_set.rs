@@ -18,18 +18,16 @@ use tracing::{info, info_span};
 use valuable::Valuable;
 use voting_verifier::msg::ExecuteMsg;
 
-use super::stellar_verify_msg::deserialize_tx_id;
 use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error;
 use crate::handlers::errors::Error::DeserializeEvent;
-use crate::stellar::http_client::Client;
+use crate::stellar::http_client::{Client, StellarTxId};
 use crate::stellar::verifier::verify_verifier_set;
 use crate::types::TMAddress;
 
 #[derive(Deserialize, Debug)]
 pub struct VerifierSetConfirmation {
-    #[serde(deserialize_with = "deserialize_tx_id")]
-    pub tx_id: String,
+    pub tx_id: StellarTxId,
     pub event_index: u32,
     pub verifier_set: VerifierSet,
 }
@@ -112,14 +110,14 @@ impl EventHandler for Handler {
 
         let transaction_response = self
             .http_client
-            .transaction_response(verifier_set.tx_id.clone())
+            .transaction_response(verifier_set.tx_id.to_string())
             .await
             .change_context(Error::TxReceipts)?;
 
         let vote = info_span!(
             "verify a new verifier set",
             poll_id = poll_id.to_string(),
-            id = format!("0x{}-{}", verifier_set.tx_id, verifier_set.event_index),
+            id = verifier_set.tx_id.to_message_id(verifier_set.event_index),
         )
         .in_scope(|| {
             info!("ready to verify verifier set in poll",);
