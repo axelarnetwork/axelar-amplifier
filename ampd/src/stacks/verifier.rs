@@ -191,30 +191,28 @@ pub fn verify_message(
 
     match find_event(transaction, gateway_address, message.event_index) {
         Some(event) => {
-            // In case message is from its
-            if &message.source_address == its_address {
-                // In case messages is from Stacks -> Stacks and from ITS -> ITS, use custom logic
-                if &message.destination_chain == source_chain
-                    && &message.destination_address == its_address
-                {
-                    if message.eq_its_verify_event(event).unwrap_or(false) {
-                        return Vote::SucceededOnChain;
-                    }
-
-                    return Vote::NotFound;
-                }
-
-                // TODO: Should we check if the message is towards axelar and ITS Hub contract here?
-                // In other case, abi encode payload
-
-                if message.eq_its_hub_event(event).unwrap_or(false) {
+            // In case message is not from ITS
+            if &message.source_address != its_address {
+                if message.eq_event(event).unwrap_or(false) {
                     return Vote::SucceededOnChain;
                 }
 
                 return Vote::NotFound;
             }
 
-            if message.eq_event(event).unwrap_or(false) {
+            // In case messages is from Stacks -> Stacks and from ITS -> ITS, use custom logic
+            if &message.destination_chain == source_chain
+                && &message.destination_address == its_address
+            {
+                if message.eq_its_verify_event(event).unwrap_or(false) {
+                    return Vote::SucceededOnChain;
+                }
+
+                return Vote::NotFound;
+            }
+
+            // In other case, abi encode payload coming from Stacks ITS
+            if message.eq_its_hub_event(event).unwrap_or(false) {
                 return Vote::SucceededOnChain;
             }
 
