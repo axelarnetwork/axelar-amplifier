@@ -1,4 +1,5 @@
 use assert_ok::assert_ok;
+use axelar_core_std::nexus::test_utils::reply_with_is_chain_registered;
 use axelar_core_std::query::AxelarQueryMsg;
 use axelar_wasm_std::response::inspect_response_msg;
 use axelarnet_gateway::msg::QueryMsg;
@@ -39,13 +40,16 @@ fn query_routable_messages_gets_expected_messages() {
 
 #[test]
 fn query_executable_messages_gets_expected_messages() {
-    let mut deps = mock_dependencies();
+    let mut deps = mock_axelar_dependencies();
+    deps.querier = deps
+        .querier
+        .with_custom_handler(reply_with_is_chain_registered(false));
 
-    utils::instantiate_contract(deps.as_mut()).unwrap();
+    utils::instantiate_contract(deps.as_default_mut()).unwrap();
     let mut cc_ids = populate_executable_messages(&mut deps);
     cc_ids.remove(3);
 
-    let executable_message = assert_ok!(query_executable_messages(deps.as_ref(), cc_ids));
+    let executable_message = assert_ok!(query_executable_messages(deps.as_default_deps(), cc_ids));
     goldie::assert_json!(executable_message);
 }
 
@@ -109,7 +113,7 @@ fn populate_routable_messages(
 }
 
 fn populate_executable_messages(
-    deps: &mut OwnedDeps<MockStorage, MockApi, MockQuerier>,
+    deps: &mut OwnedDeps<MockStorage, MockApi, MockQuerier<AxelarQueryMsg>, AxelarQueryMsg>,
 ) -> Vec<CrossChainId> {
     let msgs: Vec<_> = (0..10)
         .map(|i| Message {
@@ -121,11 +125,11 @@ fn populate_executable_messages(
         })
         .collect();
 
-    utils::route_from_router(deps.as_mut(), msgs.clone()).unwrap();
+    utils::route_from_router(deps.as_default_mut(), msgs.clone()).unwrap();
 
-    utils::execute_payload(deps.as_mut(), msgs[0].cc_id.clone(), vec![0].into()).unwrap();
-    utils::execute_payload(deps.as_mut(), msgs[5].cc_id.clone(), vec![5].into()).unwrap();
-    utils::execute_payload(deps.as_mut(), msgs[7].cc_id.clone(), vec![7].into()).unwrap();
+    utils::execute_payload(deps.as_default_mut(), msgs[0].cc_id.clone(), vec![0].into()).unwrap();
+    utils::execute_payload(deps.as_default_mut(), msgs[5].cc_id.clone(), vec![5].into()).unwrap();
+    utils::execute_payload(deps.as_default_mut(), msgs[7].cc_id.clone(), vec![7].into()).unwrap();
 
     msgs.into_iter().map(|msg| msg.cc_id).collect()
 }

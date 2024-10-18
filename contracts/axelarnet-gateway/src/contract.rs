@@ -88,8 +88,10 @@ pub fn execute(
             },
         )
         .change_context(Error::CallContract),
-        ExecuteMsg::RouteMessages(msgs) => execute::route_messages(deps.storage, info.sender, msgs)
-            .change_context(Error::RouteMessages),
+        ExecuteMsg::RouteMessages(msgs) => {
+            execute::route_messages(deps.storage, deps.querier, info.sender, msgs)
+                .change_context(Error::RouteMessages)
+        }
         ExecuteMsg::Execute { cc_id, payload } => {
             execute::execute(deps, cc_id, payload).change_context(Error::Execute)
         }
