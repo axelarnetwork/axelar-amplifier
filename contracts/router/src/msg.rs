@@ -6,8 +6,13 @@ pub struct InstantiateMsg {
     pub admin_address: String,
     // governance votes on chains being added or upgraded
     pub governance_address: String,
-    // the address of the nexus gateway
-    pub nexus_gateway: String,
+    // the address of the axelarnet gateway
+    pub axelarnet_gateway: String,
+}
+
+#[cw_serde]
+pub struct MigrateMsg {
+    pub axelarnet_gateway: String,
 }
 
 // these messages are extracted into a separate package to avoid circular dependencies
