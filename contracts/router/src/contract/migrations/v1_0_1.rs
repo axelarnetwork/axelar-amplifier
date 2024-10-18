@@ -19,11 +19,9 @@ mod test {
     use cw_storage_plus::Item;
 
     use crate::contract::migrations::v1_0_1;
-    use crate::contract::migrations::v1_0_1::BASE_VERSION;
-    use crate::contract::CONTRACT_NAME;
     use crate::state;
 
-    #[deprecated(since = "1.0.0", note = "only used during migration")]
+    #[deprecated(since = "1.0.1", note = "only used during migration")]
     #[cw_serde]
     pub struct InstantiateMsg {
         // admin controls freezing and unfreezing a chain
@@ -34,37 +32,19 @@ mod test {
         pub nexus_gateway: String,
     }
 
-    #[deprecated(since = "1.0.0", note = "only used during migration")]
+    #[deprecated(since = "1.0.1", note = "only used during migration")]
     #[cw_serde]
     struct Config {
         pub nexus_gateway: Addr,
     }
 
-    #[deprecated(since = "1.0.0", note = "only used during migration")]
+    #[deprecated(since = "1.0.1", note = "only used during migration")]
     const CONFIG: Item<Config> = Item::new("config");
-
-    #[test]
-    fn migrate_checks_contract_version() {
-        let mut deps = mock_dependencies();
-
-        instantiate_1_0_0_contract(deps.as_mut()).unwrap();
-        cw2::set_contract_version(deps.as_mut().storage, CONTRACT_NAME, "something wrong").unwrap();
-
-        let axelarnet_gateway = Addr::unchecked("axelarnet-gateway");
-        assert_err_contains!(
-            v1_0_1::migrate(deps.as_mut().storage, axelarnet_gateway.clone()),
-            cw2::VersionError,
-            cw2::VersionError::WrongVersion { .. }
-        );
-
-        cw2::set_contract_version(deps.as_mut().storage, CONTRACT_NAME, BASE_VERSION).unwrap();
-        assert_ok!(v1_0_1::migrate(deps.as_mut().storage, axelarnet_gateway));
-    }
 
     #[test]
     fn config_gets_migrated() {
         let mut deps = mock_dependencies();
-        instantiate_1_0_0_contract(deps.as_mut()).unwrap();
+        instantiate_1_0_1_contract(deps.as_mut()).unwrap();
 
         assert_ok!(CONFIG.load(deps.as_mut().storage));
         assert!(state::load_config(&deps.storage).is_err());
@@ -80,7 +60,7 @@ mod test {
         assert_eq!(config.axelarnet_gateway, axelarnet_gateway);
     }
 
-    fn instantiate_1_0_0_contract(deps: DepsMut) -> Result<Response, ContractError> {
+    fn instantiate_1_0_1_contract(deps: DepsMut) -> Result<Response, ContractError> {
         let admin = "admin";
         let governance = "governance";
         let nexus_gateway = "nexus_gateway";
@@ -94,15 +74,13 @@ mod test {
         instantiate(deps, mock_env(), mock_info(admin, &[]), msg.clone())
     }
 
-    #[deprecated(since = "1.0.0", note = "only used to test the migration")]
+    #[deprecated(since = "1.0.1", note = "only used to test the migration")]
     fn instantiate(
         deps: DepsMut,
         _env: Env,
         _info: MessageInfo,
         msg: InstantiateMsg,
     ) -> Result<Response, ContractError> {
-        cw2::set_contract_version(deps.storage, CONTRACT_NAME, BASE_VERSION)?;
-
         let config = Config {
             nexus_gateway: deps.api.addr_validate(&msg.nexus_gateway)?,
         };
