@@ -6,7 +6,7 @@ use cosmwasm_std::{
 };
 use router_api::error::Error;
 
-use crate::contract::migrations::v1_0_0;
+use crate::contract::migrations::v1_0_1;
 use crate::events::RouterInstantiated;
 use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 use crate::state;
@@ -18,14 +18,18 @@ mod query;
 
 pub const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 pub const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
+const BASE_VERSION: &str = "1.0.1";
+
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(
     deps: DepsMut,
     _env: Env,
     msg: MigrateMsg,
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
+    cw2::assert_contract_version(deps.storage, CONTRACT_NAME, BASE_VERSION)?;
+
     let axelarnet_gateway = address::validate_cosmwasm_address(deps.api, &msg.axelarnet_gateway)?;
-    v1_0_0::migrate(deps.storage, axelarnet_gateway)?;
+    v1_0_1::migrate(deps.storage, axelarnet_gateway)?;
 
     // this needs to be the last thing to do during migration,
     // because previous migration steps should check the old version

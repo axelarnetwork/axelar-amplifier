@@ -1,14 +1,9 @@
 use axelar_wasm_std::error::ContractError;
 use cosmwasm_std::{Addr, Storage};
 
-use crate::contract::CONTRACT_NAME;
 use crate::state;
 
-const BASE_VERSION: &str = "1.0.0";
-
 pub fn migrate(storage: &mut dyn Storage, axelarnet_gateway: Addr) -> Result<(), ContractError> {
-    cw2::assert_contract_version(storage, CONTRACT_NAME, BASE_VERSION)?;
-
     // migrate config
     state::save_config(storage, &state::Config { axelarnet_gateway }).map_err(Into::into)
 }
@@ -23,8 +18,8 @@ mod test {
     use cosmwasm_std::{Addr, DepsMut, Env, MessageInfo, Response};
     use cw_storage_plus::Item;
 
-    use crate::contract::migrations::v1_0_0;
-    use crate::contract::migrations::v1_0_0::BASE_VERSION;
+    use crate::contract::migrations::v1_0_1;
+    use crate::contract::migrations::v1_0_1::BASE_VERSION;
     use crate::contract::CONTRACT_NAME;
     use crate::state;
 
@@ -57,13 +52,13 @@ mod test {
 
         let axelarnet_gateway = Addr::unchecked("axelarnet-gateway");
         assert_err_contains!(
-            v1_0_0::migrate(deps.as_mut().storage, axelarnet_gateway.clone()),
+            v1_0_1::migrate(deps.as_mut().storage, axelarnet_gateway.clone()),
             cw2::VersionError,
             cw2::VersionError::WrongVersion { .. }
         );
 
         cw2::set_contract_version(deps.as_mut().storage, CONTRACT_NAME, BASE_VERSION).unwrap();
-        assert_ok!(v1_0_0::migrate(deps.as_mut().storage, axelarnet_gateway));
+        assert_ok!(v1_0_1::migrate(deps.as_mut().storage, axelarnet_gateway));
     }
 
     #[test]
@@ -75,7 +70,7 @@ mod test {
         assert!(state::load_config(&deps.storage).is_err());
 
         let axelarnet_gateway = Addr::unchecked("axelarnet-gateway");
-        assert_ok!(v1_0_0::migrate(
+        assert_ok!(v1_0_1::migrate(
             deps.as_mut().storage,
             axelarnet_gateway.clone()
         ));
