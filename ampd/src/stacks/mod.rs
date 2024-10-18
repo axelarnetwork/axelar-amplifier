@@ -15,6 +15,7 @@ use crate::stacks::error::Error;
 
 mod error;
 pub(crate) mod http_client;
+mod its_verifier;
 pub(crate) mod verifier;
 
 pub struct WeightedSigner {

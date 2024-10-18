@@ -10,6 +10,7 @@ use error_stack::ResultExt;
 use events::Error::EventTypeMismatch;
 use events::Event;
 use events_derive::try_from;
+use router_api::ChainName;
 use serde::Deserialize;
 use tokio::sync::watch::Receiver;
 use tracing::info;
@@ -37,6 +38,7 @@ pub struct Message {
 #[try_from("wasm-messages_poll_started")]
 struct PollStartedEvent {
     poll_id: PollId,
+    source_chain: ChainName,
     source_gateway_address: String,
     messages: Vec<Message>,
     participants: Vec<TMAddress>,
@@ -48,6 +50,7 @@ pub struct Handler {
     voting_verifier_contract: TMAddress,
     http_client: Client,
     latest_block_height: Receiver<u64>,
+    its_address: String,
 }
 
 impl Handler {
@@ -56,12 +59,14 @@ impl Handler {
         voting_verifier_contract: TMAddress,
         http_client: Client,
         latest_block_height: Receiver<u64>,
+        its_address: String,
     ) -> Self {
         Self {
             verifier,
             voting_verifier_contract,
             http_client,
             latest_block_height,
+            its_address,
         }
     }
 
@@ -87,6 +92,7 @@ impl EventHandler for Handler {
 
         let PollStartedEvent {
             poll_id,
+            source_chain,
             source_gateway_address,
             messages,
             participants,
@@ -119,7 +125,13 @@ impl EventHandler for Handler {
                 transactions
                     .get(&msg.tx_id)
                     .map_or(Vote::NotFound, |transaction| {
-                        verify_message(&source_gateway_address, transaction, msg)
+                        verify_message(
+                            &source_chain,
+                            &source_gateway_address,
+                            &self.its_address,
+                            transaction,
+                            msg,
+                        )
                     })
             })
             .collect();
@@ -195,6 +207,7 @@ mod tests {
             TMAddress::random(PREFIX),
             Client::faux(),
             watch::channel(0).1,
+            "its_address".to_string(),
         );
 
         assert!(handler.handle(&event).await.is_ok());
@@ -213,6 +226,7 @@ mod tests {
             TMAddress::random(PREFIX),
             Client::faux(),
             watch::channel(0).1,
+            "its_address".to_string(),
         );
 
         assert!(handler.handle(&event).await.is_ok());
@@ -230,6 +244,7 @@ mod tests {
             voting_verifier,
             Client::faux(),
             watch::channel(0).1,
+            "its_address".to_string(),
         );
 
         assert!(handler.handle(&event).await.is_ok());
@@ -247,7 +262,13 @@ mod tests {
             &voting_verifier,
         );
 
-        let handler = super::Handler::new(worker, voting_verifier, client, watch::channel(0).1);
+        let handler = super::Handler::new(
+            worker,
+            voting_verifier,
+            client,
+            watch::channel(0).1,
+            "its_address".to_string(),
+        );
 
         let actual = handler.handle(&event).await.unwrap();
         assert_eq!(actual.len(), 1);
@@ -269,7 +290,13 @@ mod tests {
 
         let (tx, rx) = watch::channel(expiration - 1);
 
-        let handler = super::Handler::new(worker, voting_verifier, client, rx);
+        let handler = super::Handler::new(
+            worker,
+            voting_verifier,
+            client,
+            rx,
+            "its_address".to_string(),
+        );
 
         // poll is not expired yet, should hit proxy
         let actual = handler.handle(&event).await.unwrap();

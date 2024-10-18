@@ -66,6 +66,7 @@ pub enum Config {
     StacksMsgVerifier {
         cosmwasm_contract: TMAddress,
         http_url: Url,
+        its_address: String,
     },
     StacksVerifierSetVerifier {
         cosmwasm_contract: TMAddress,
@@ -328,10 +329,12 @@ mod tests {
             Config::StacksMsgVerifier {
                 cosmwasm_contract: TMAddress::random(PREFIX),
                 http_url: "http://localhost:8080/".parse().unwrap(),
+                its_address: "its_address".to_string(),
             },
             Config::StacksMsgVerifier {
                 cosmwasm_contract: TMAddress::random(PREFIX),
                 http_url: "http://localhost:8080/".parse().unwrap(),
+                its_address: "its_address".to_string(),
             },
         ];
 

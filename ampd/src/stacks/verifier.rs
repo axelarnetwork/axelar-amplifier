@@ -4,6 +4,7 @@ use clarity::vm::types::{
     Value,
 };
 use clarity::vm::ClarityName;
+use router_api::ChainName;
 
 use crate::handlers::stacks_verify_msg::Message;
 use crate::handlers::stacks_verify_verifier_set::VerifierSetConfirmation;
@@ -11,9 +12,9 @@ use crate::stacks::error::Error;
 use crate::stacks::http_client::{Transaction, TransactionEvents};
 use crate::stacks::WeightedSigners;
 
-const PRINT_TOPIC: &str = "print";
+pub const PRINT_TOPIC: &str = "print";
 
-const CONTRACT_CALL_TYPE: &str = "contract-call";
+pub const CONTRACT_CALL_TYPE: &str = "contract-call";
 const SIGNERS_ROTATED_TYPE: &str = "signers-rotated";
 
 impl Message {
@@ -178,7 +179,9 @@ fn find_event<'a>(
 }
 
 pub fn verify_message(
+    source_chain: &ChainName,
     gateway_address: &String,
+    its_address: &String,
     transaction: &Transaction,
     message: &Message,
 ) -> Vote {
@@ -187,7 +190,36 @@ pub fn verify_message(
     }
 
     match find_event(transaction, gateway_address, message.event_index) {
-        Some(event) if message.eq_event(event).unwrap_or(false) => Vote::SucceededOnChain,
+        Some(event) => {
+            // In case message is from its
+            if &message.source_address == its_address {
+                // In case messages is from Stacks -> Stacks and from ITS -> ITS, use custom logic
+                if &message.destination_chain == source_chain
+                    && &message.destination_address == its_address
+                {
+                    if message.eq_its_verify_event(event).unwrap_or(false) {
+                        return Vote::SucceededOnChain;
+                    }
+
+                    return Vote::NotFound;
+                }
+
+                // TODO: Should we check if the message is towards axelar and ITS Hub contract here?
+                // In other case, abi encode payload
+
+                if message.eq_its_hub_event(event).unwrap_or(false) {
+                    return Vote::SucceededOnChain;
+                }
+
+                return Vote::NotFound;
+            }
+
+            if message.eq_event(event).unwrap_or(false) {
+                return Vote::SucceededOnChain;
+            }
+
+            Vote::NotFound
+        }
         _ => Vote::NotFound,
     }
 }
@@ -215,6 +247,7 @@ mod tests {
     use cosmwasm_std::{HexBinary, Uint128};
     use multisig::key::KeyType;
     use multisig::test::common::{build_verifier_set, ecdsa_test_data};
+    use router_api::ChainName;
 
     use crate::handlers::stacks_verify_msg::Message;
     use crate::handlers::stacks_verify_verifier_set::VerifierSetConfirmation;
@@ -226,59 +259,74 @@ mod tests {
     // test verify message
     #[test]
     fn should_not_verify_tx_id_does_not_match() {
-        let (gateway_address, tx, mut msg) = get_matching_msg_and_tx();
+        let (source_chain, gateway_address, its_address, tx, mut msg) = get_matching_msg_and_tx();
 
         msg.tx_id = "ffaf64de66510723f2efbacd7ead3c4f8c856aed1afc2cb30254552aeda47313"
             .parse()
             .unwrap();
-        assert_eq!(verify_message(&gateway_address, &tx, &msg), Vote::NotFound);
+        assert_eq!(
+            verify_message(&source_chain, &gateway_address, &its_address, &tx, &msg),
+            Vote::NotFound
+        );
     }
 
     #[test]
     fn should_not_verify_no_log_for_event_index() {
-        let (gateway_address, tx, mut msg) = get_matching_msg_and_tx();
+        let (source_chain, gateway_address, its_address, tx, mut msg) = get_matching_msg_and_tx();
 
         msg.event_index = 2;
 
-        assert_eq!(verify_message(&gateway_address, &tx, &msg), Vote::NotFound);
+        assert_eq!(
+            verify_message(&source_chain, &gateway_address, &its_address, &tx, &msg),
+            Vote::NotFound
+        );
     }
 
     #[test]
     fn should_not_verify_event_index_does_not_match() {
-        let (gateway_address, tx, mut msg) = get_matching_msg_and_tx();
+        let (source_chain, gateway_address, its_address, tx, mut msg) = get_matching_msg_and_tx();
 
         msg.event_index = 0;
 
-        assert_eq!(verify_message(&gateway_address, &tx, &msg), Vote::NotFound);
+        assert_eq!(
+            verify_message(&source_chain, &gateway_address, &its_address, &tx, &msg),
+            Vote::NotFound
+        );
     }
 
     #[test]
     fn should_not_verify_not_gateway() {
-        let (gateway_address, mut tx, msg) = get_matching_msg_and_tx();
+        let (source_chain, gateway_address, its_address, mut tx, msg) = get_matching_msg_and_tx();
 
         let transaction_events = tx.events.get_mut(1).unwrap();
         let contract_call = transaction_events.contract_log.as_mut().unwrap();
 
         contract_call.contract_id = "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM".to_string();
 
-        assert_eq!(verify_message(&gateway_address, &tx, &msg), Vote::NotFound);
+        assert_eq!(
+            verify_message(&source_chain, &gateway_address, &its_address, &tx, &msg),
+            Vote::NotFound
+        );
     }
 
     #[test]
     fn should_not_verify_invalid_topic() {
-        let (gateway_address, mut tx, msg) = get_matching_msg_and_tx();
+        let (source_chain, gateway_address, its_address, mut tx, msg) = get_matching_msg_and_tx();
 
         let transaction_events = tx.events.get_mut(1).unwrap();
         let contract_call = transaction_events.contract_log.as_mut().unwrap();
 
         contract_call.topic = "other".to_string();
 
-        assert_eq!(verify_message(&gateway_address, &tx, &msg), Vote::NotFound);
+        assert_eq!(
+            verify_message(&source_chain, &gateway_address, &its_address, &tx, &msg),
+            Vote::NotFound
+        );
     }
 
     #[test]
     fn should_not_verify_invalid_type() {
-        let (gateway_address, mut tx, msg) = get_matching_msg_and_tx();
+        let (source_chain, gateway_address, its_address, mut tx, msg) = get_matching_msg_and_tx();
 
         let transaction_events = tx.events.get_mut(1).unwrap();
         let contract_call = transaction_events.contract_log.as_mut().unwrap();
@@ -291,53 +339,68 @@ mod tests {
             .unwrap()
             .to_string();
 
-        assert_eq!(verify_message(&gateway_address, &tx, &msg), Vote::NotFound);
+        assert_eq!(
+            verify_message(&source_chain, &gateway_address, &its_address, &tx, &msg),
+            Vote::NotFound
+        );
     }
 
     #[test]
     fn should_not_verify_invalid_sender() {
-        let (gateway_address, tx, mut msg) = get_matching_msg_and_tx();
+        let (source_chain, gateway_address, its_address, tx, mut msg) = get_matching_msg_and_tx();
 
         msg.source_address = "SP2N959SER36FZ5QT1CX9BR63W3E8X35WQCMBYYWC.axelar-gateway".to_string();
 
-        assert_eq!(verify_message(&gateway_address, &tx, &msg), Vote::NotFound);
+        assert_eq!(
+            verify_message(&source_chain, &gateway_address, &its_address, &tx, &msg),
+            Vote::NotFound
+        );
     }
 
     #[test]
     fn should_not_verify_invalid_destination_chain() {
-        let (gateway_address, tx, mut msg) = get_matching_msg_and_tx();
+        let (source_chain, gateway_address, its_address, tx, mut msg) = get_matching_msg_and_tx();
 
         msg.destination_chain = "other".parse().unwrap();
 
-        assert_eq!(verify_message(&gateway_address, &tx, &msg), Vote::NotFound);
+        assert_eq!(
+            verify_message(&source_chain, &gateway_address, &its_address, &tx, &msg),
+            Vote::NotFound
+        );
     }
 
     #[test]
     fn should_not_verify_invalid_destination_address() {
-        let (gateway_address, tx, mut msg) = get_matching_msg_and_tx();
+        let (source_chain, gateway_address, its_address, tx, mut msg) = get_matching_msg_and_tx();
 
         msg.destination_address = "other".parse().unwrap();
 
-        assert_eq!(verify_message(&gateway_address, &tx, &msg), Vote::NotFound);
+        assert_eq!(
+            verify_message(&source_chain, &gateway_address, &its_address, &tx, &msg),
+            Vote::NotFound
+        );
     }
 
     #[test]
     fn should_not_verify_invalid_payload_hash() {
-        let (gateway_address, tx, mut msg) = get_matching_msg_and_tx();
+        let (source_chain, gateway_address, its_address, tx, mut msg) = get_matching_msg_and_tx();
 
         msg.payload_hash = "0xaa38573718f5cd6d7e5a90adcdebd28b097f99574ad6febffea9a40adb17f4aa"
             .parse()
             .unwrap();
 
-        assert_eq!(verify_message(&gateway_address, &tx, &msg), Vote::NotFound);
+        assert_eq!(
+            verify_message(&source_chain, &gateway_address, &its_address, &tx, &msg),
+            Vote::NotFound
+        );
     }
 
     #[test]
     fn should_verify_msg() {
-        let (gateway_address, tx, msg) = get_matching_msg_and_tx();
+        let (source_chain, gateway_address, its_address, tx, msg) = get_matching_msg_and_tx();
 
         assert_eq!(
-            verify_message(&gateway_address, &tx, &msg),
+            verify_message(&source_chain, &gateway_address, &its_address, &tx, &msg),
             Vote::SucceededOnChain
         );
     }
@@ -450,8 +513,10 @@ mod tests {
         );
     }
 
-    fn get_matching_msg_and_tx() -> (String, Transaction, Message) {
+    fn get_matching_msg_and_tx() -> (ChainName, String, String, Transaction, Message) {
+        let source_chain = "stacks";
         let gateway_address = "SP2N959SER36FZ5QT1CX9BR63W3E8X35WQCMBYYWC.axelar-gateway";
+        let its_address = "ST2TFVBMRPS5SSNP98DQKQ5JNB2B6NZM91C4K3P7B.its";
         let tx_id = "0xee0049faf8dde5507418140ed72bd64f73cc001b08de98e0c16a3a8d9f2c38cf"
             .parse()
             .unwrap();
@@ -493,7 +558,13 @@ mod tests {
             events: vec![wrong_event, event],
         };
 
-        (gateway_address.to_string(), transaction, msg)
+        (
+            source_chain.parse().unwrap(),
+            gateway_address.to_string(),
+            its_address.to_string(),
+            transaction,
+            msg,
+        )
     }
 
     fn get_matching_verifier_set_and_tx() -> (String, Transaction, VerifierSetConfirmation) {
@@ -534,7 +605,6 @@ mod tests {
             .unwrap(),
         );
 
-        // TODO: Add proper hex data for event
         let event = TransactionEvents {
             event_index: 1,
             tx_id: tx_id.to_string(),
