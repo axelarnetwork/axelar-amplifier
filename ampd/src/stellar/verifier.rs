@@ -1,6 +1,7 @@
 use std::str::FromStr;
 
 use axelar_wasm_std::voting::Vote;
+use stellar::WeightedSigners;
 use stellar_xdr::curr::{BytesM, ContractEventBody, ScAddress, ScBytes, ScSymbol, ScVal, StringM};
 
 use crate::handlers::stellar_verify_msg::Message;
@@ -18,7 +19,8 @@ impl PartialEq<ContractEventBody> for Message {
             return false;
         }
 
-        let [symbol, source_address, dest_chain, dest_address, payload_hash] = &body.topics[..]
+        let [symbol, source_address, destination_chain, destination_address, payload_hash] =
+            &body.topics[..]
         else {
             return false;
         };
@@ -29,8 +31,8 @@ impl PartialEq<ContractEventBody> for Message {
         expected_topic == *symbol
             && (ScVal::Address(self.source_address.clone()) == *source_address)
             && (ScVal::Bytes(self.payload_hash.clone()) == *payload_hash)
-            && (ScVal::String(self.destination_chain.clone()) == *dest_chain)
-            && (ScVal::String(self.destination_address.clone()) == *dest_address)
+            && (ScVal::String(self.destination_chain.clone()) == *destination_chain)
+            && (ScVal::String(self.destination_address.clone()) == *destination_address)
     }
 }
 
@@ -42,7 +44,7 @@ impl PartialEq<ContractEventBody> for VerifierSetConfirmation {
             return false;
         }
 
-        let [symbol, _, rotate_signers_hash] = &body.topics[..] else {
+        let [symbol, _, signers_hash] = &body.topics[..] else {
             return false;
         };
 
@@ -50,9 +52,24 @@ impl PartialEq<ContractEventBody> for VerifierSetConfirmation {
             ScSymbol(StringM::from_str(TOPIC_ROTATED).expect("must convert str to ScSymbol"))
                 .into();
 
-        expected_topic == *symbol
-            && ScVal::Bytes(ScBytes(BytesM::try_from(self.verifier_set.hash()).unwrap()))
-                == *rotate_signers_hash
+        let weighted_signers = match WeightedSigners::try_from(&self.verifier_set) {
+            Ok(ws) => ws,
+            Err(_) => return false,
+        };
+
+        let hash_bytes = match weighted_signers.hash() {
+            Ok(bytes) => bytes,
+            Err(_) => return false,
+        };
+
+        let bytes = match BytesM::try_from(hash_bytes) {
+            Ok(b) => b,
+            Err(_) => return false,
+        };
+
+        let weighted_signers_hash = ScVal::Bytes(ScBytes(bytes));
+
+        &expected_topic == symbol && &weighted_signers_hash == signers_hash
     }
 }
 
@@ -117,10 +134,12 @@ mod test {
     use cosmrs::tx::MessageExt;
     use cosmwasm_std::{Addr, HexBinary, Uint128};
     use ed25519_dalek::SigningKey;
+    use hex::encode;
     use multisig::key::KeyType;
     use multisig::msg::Signer;
     use multisig::verifier_set::VerifierSet;
     use rand::rngs::OsRng;
+    use stellar::{WeightedSigner, WeightedSigners};
     use stellar_xdr::curr::{
         AccountId, BytesM, ContractEvent, ContractEventBody, ContractEventType, ContractEventV0,
         PublicKey, ScAddress, ScBytes, ScString, ScSymbol, ScVal, StringM, Uint256,
@@ -346,13 +365,20 @@ mod test {
             },
         };
 
+        let weighted_signers: WeightedSigners =
+            WeightedSigners::try_from(&verifier_set_confirmation.verifier_set).unwrap();
+
+        let hash_bytes = weighted_signers.hash().unwrap();
+
+        let bytes = BytesM::try_from(hash_bytes).unwrap();
+
+        let weighted_signers_hash = ScVal::Bytes(ScBytes(bytes));
+
         let event_body = ContractEventBody::V0(ContractEventV0 {
             topics: vec![
                 ScVal::Symbol(ScSymbol(StringM::from_str(TOPIC_ROTATED).unwrap())),
                 ScVal::U64(1),
-                ScVal::Bytes(ScBytes(
-                    BytesM::try_from(verifier_set_confirmation.verifier_set.hash()).unwrap(),
-                )),
+                weighted_signers_hash,
             ]
             .try_into()
             .unwrap(),
@@ -391,5 +417,38 @@ mod test {
                 .try_into()
                 .unwrap(),
         }
+    }
+
+    #[test]
+    fn test_weighted_signers_hash() {
+        let signers = vec![
+            WeightedSigner {
+                signer: BytesM::try_from(&[0x01; 32][..]).unwrap(),
+                weight: 1,
+            },
+            WeightedSigner {
+                signer: BytesM::try_from(&[0x02; 32][..]).unwrap(),
+                weight: 2,
+            },
+        ];
+        let threshold = 2u128;
+        let nonce = BytesM::try_from(&[0xAA; 32][..]).unwrap();
+
+        let weighted_signers = WeightedSigners {
+            signers,
+            threshold,
+            nonce,
+        };
+
+        let computed_hash = weighted_signers.hash().unwrap();
+
+        let computed_hash_hex = encode(computed_hash);
+
+        let expected_hash_hex = "20461fbe7185e150029b5bcd24605879e58138514855bb39024341cebcd42122";
+
+        assert_eq!(
+            computed_hash_hex, expected_hash_hex,
+            "WeightedSigners hash mismatch!"
+        );
     }
 }
