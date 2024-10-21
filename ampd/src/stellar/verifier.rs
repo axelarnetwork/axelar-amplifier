@@ -4,6 +4,7 @@ use axelar_wasm_std::voting::Vote;
 use stellar::WeightedSigners;
 use stellar_xdr::curr::{BytesM, ContractEventBody, ScAddress, ScBytes, ScSymbol, ScVal, StringM};
 
+use super::http_client::StellarTxId;
 use crate::handlers::stellar_verify_msg::Message;
 use crate::handlers::stellar_verify_verifier_set::VerifierSetConfirmation;
 use crate::stellar::http_client::TxResponse;
@@ -94,7 +95,7 @@ fn verify<'a>(
     gateway_address: &ScAddress,
     tx_receipt: &'a TxResponse,
     to_verify: impl PartialEq<&'a ContractEventBody>,
-    expected_tx_id: String,
+    expected_tx_id: StellarTxId,
     expected_event_index: u32,
 ) -> Vote {
     if expected_tx_id != tx_receipt.transaction_hash {
@@ -139,7 +140,7 @@ mod test {
 
     use crate::handlers::stellar_verify_msg::Message;
     use crate::handlers::stellar_verify_verifier_set::VerifierSetConfirmation;
-    use crate::stellar::http_client::TxResponse;
+    use crate::stellar::http_client::{StellarTxId, TxResponse};
     use crate::stellar::verifier::{
         verify_message, verify_verifier_set, TOPIC_CALLED, TOPIC_ROTATED,
     };
@@ -149,7 +150,7 @@ mod test {
     #[test]
     fn should_not_verify_msg_if_tx_id_does_not_match() {
         let (gateway_address, tx_response, mut msg) = matching_msg_and_tx_block();
-        msg.tx_id = "different_tx_hash".to_string();
+        msg.tx_id = StellarTxId::from_hash(Hash::random());
 
         assert_eq!(
             verify_message(&gateway_address, &tx_response, &msg),
@@ -233,7 +234,7 @@ mod test {
     #[test]
     fn should_not_verify_verifier_set_if_tx_id_does_not_match() {
         let (gateway_address, tx_response, mut confirmation) = matching_verifier_set_and_tx_block();
-        confirmation.tx_id = "different_tx_hash".to_string();
+        confirmation.tx_id = StellarTxId::from_hash(Hash::random());
 
         assert_eq!(
             verify_verifier_set(&gateway_address, &tx_response, &confirmation),
@@ -289,7 +290,7 @@ mod test {
         let signing_key = SigningKey::generate(&mut OsRng);
 
         let msg = Message {
-            tx_id: format!("{:x}", Hash::random()),
+            tx_id: StellarTxId::from_hash(Hash::random()),
             event_index: 0,
             source_address: ScAddress::Account(AccountId(PublicKey::PublicKeyTypeEd25519(
                 Uint256::from(signing_key.verifying_key().to_bytes()),
@@ -341,7 +342,7 @@ mod test {
         let threshold = Uint128::new(2u128);
 
         let verifier_set_confirmation = VerifierSetConfirmation {
-            tx_id: format!("{:x}", Hash::random()),
+            tx_id: StellarTxId::from_hash(Hash::random()),
             event_index: 0,
             verifier_set: VerifierSet {
                 signers: signers

@@ -11,8 +11,7 @@ use events::Event;
 use events_derive::try_from;
 use prost_types::Any;
 use router_api::ChainName;
-use serde::de::Error as DeserializeError;
-use serde::{Deserialize, Deserializer};
+use serde::Deserialize;
 use serde_with::{serde_as, DisplayFromStr};
 use stellar_xdr::curr::{ScAddress, ScBytes, ScString};
 use tokio::sync::watch::Receiver;
@@ -23,27 +22,14 @@ use voting_verifier::msg::ExecuteMsg;
 use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error;
 use crate::handlers::errors::Error::DeserializeEvent;
-use crate::stellar::http_client::Client;
+use crate::stellar::http_client::{Client, StellarTxId};
 use crate::stellar::verifier::verify_message;
 use crate::types::TMAddress;
-
-pub fn deserialize_tx_id<'de, D>(deserializer: D) -> Result<String, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let tx_id = String::deserialize(deserializer)?;
-
-    tx_id
-        .strip_prefix("0x")
-        .map(String::from)
-        .ok_or(D::Error::custom(Error::DeserializeEvent))
-}
 
 #[serde_as]
 #[derive(Deserialize, Debug, Clone)]
 pub struct Message {
-    #[serde(deserialize_with = "deserialize_tx_id")]
-    pub tx_id: String,
+    pub tx_id: StellarTxId,
     pub event_index: u32,
     pub destination_address: ScString,
     pub destination_chain: ScString,
@@ -132,7 +118,7 @@ impl EventHandler for Handler {
 
         let tx_hashes: HashSet<_> = messages
             .iter()
-            .map(|message| message.tx_id.clone())
+            .map(|message| message.tx_id.to_string())
             .collect();
 
         let transaction_responses = self
@@ -143,7 +129,7 @@ impl EventHandler for Handler {
 
         let message_ids = messages
             .iter()
-            .map(|message| format!("{}-{}", message.tx_id.clone(), message.event_index))
+            .map(|message| message.tx_id.to_message_id(message.event_index))
             .collect::<Vec<_>>();
 
         let votes = info_span!(
@@ -159,7 +145,7 @@ impl EventHandler for Handler {
                 .iter()
                 .map(|msg| {
                     transaction_responses
-                        .get(&msg.tx_id)
+                        .get(&msg.tx_id.to_string())
                         .map_or(Vote::NotFound, |tx_response| {
                             verify_message(&source_gateway_address, tx_response, msg)
                         })
