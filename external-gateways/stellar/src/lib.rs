@@ -73,7 +73,7 @@ impl TryFrom<&router_api::Message> for Message {
 impl TryFrom<Message> for ScVal {
     type Error = XdrError;
 
-    // Note that XDR sorts the keys first
+    // Note that XDR encodes the values in sorted order by key
     fn try_from(value: Message) -> Result<Self, XdrError> {
         let keys: [&'static str; 5] = [
             "contract_address",
