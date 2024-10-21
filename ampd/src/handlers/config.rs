@@ -67,6 +67,8 @@ pub enum Config {
         cosmwasm_contract: TMAddress,
         http_url: Url,
         its_address: String,
+        reference_native_interchain_token_address: String,
+        reference_token_manager_address: String,
     },
     StacksVerifierSetVerifier {
         cosmwasm_contract: TMAddress,
@@ -330,11 +332,15 @@ mod tests {
                 cosmwasm_contract: TMAddress::random(PREFIX),
                 http_url: "http://localhost:8080/".parse().unwrap(),
                 its_address: "its_address".to_string(),
+                reference_native_interchain_token_address: "interchain_token_address".to_string(),
+                reference_token_manager_address: "token_manager_address".to_string(),
             },
             Config::StacksMsgVerifier {
                 cosmwasm_contract: TMAddress::random(PREFIX),
                 http_url: "http://localhost:8080/".parse().unwrap(),
                 its_address: "its_address".to_string(),
+                reference_native_interchain_token_address: "interchain_token_address".to_string(),
+                reference_token_manager_address: "token_manager_address".to_string(),
             },
         ];
 

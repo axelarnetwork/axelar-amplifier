@@ -8,6 +8,7 @@ use thiserror::Error;
 use crate::types::Hash;
 
 const GET_TRANSACTION: &str = "extended/v1/tx/";
+const GET_CONTRACT_INFO: &str = "extended/v1/contract/";
 
 const STATUS_SUCCESS: &str = "success";
 
@@ -17,6 +18,8 @@ pub enum Error {
     Client,
     #[error("invalid tx hash")]
     TxHash,
+    #[error("invalid contract")]
+    Contract,
 }
 
 #[derive(Debug, Deserialize, Default)]
@@ -45,6 +48,11 @@ pub struct Transaction {
     pub sender_address: String,
     pub tx_status: String, // 'success'
     pub events: Vec<TransactionEvents>,
+}
+
+#[derive(Debug, Deserialize, Default)]
+pub struct ContractInfo {
+    pub source_code: String,
 }
 
 #[cfg_attr(test, faux::create)]
@@ -101,6 +109,21 @@ impl Client {
             .await
             .map_err(|_| Error::TxHash)?
             .json::<Transaction>()
+            .await
+            .map_err(|_| Error::Client)
+    }
+
+    pub async fn get_contract_info(&self, contract_id: &str) -> Result<ContractInfo, Error> {
+        let endpoint = GET_CONTRACT_INFO.to_string() + contract_id;
+
+        let endpoint = self.get_endpoint(endpoint.as_str());
+
+        self.client
+            .get(endpoint)
+            .send()
+            .await
+            .map_err(|_| Error::Contract)?
+            .json::<ContractInfo>()
             .await
             .map_err(|_| Error::Client)
     }

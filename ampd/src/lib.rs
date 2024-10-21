@@ -394,6 +394,8 @@ where
                     cosmwasm_contract,
                     http_url,
                     its_address,
+                    reference_native_interchain_token_address,
+                    reference_token_manager_address,
                 } => self.create_handler_task(
                     "stacks-msg-verifier",
                     handlers::stacks_verify_msg::Handler::new(
@@ -402,7 +404,11 @@ where
                         Client::new_http(http_url.to_string().trim_end_matches('/').into()),
                         self.block_height_monitor.latest_block_height(),
                         its_address,
-                    ),
+                        reference_native_interchain_token_address,
+                        reference_token_manager_address,
+                    )
+                    .await
+                    .change_context(Error::Connection)?,
                     event_processor_config.clone(),
                 ),
                 handlers::config::Config::StacksVerifierSetVerifier {

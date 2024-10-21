@@ -9,8 +9,8 @@ use router_api::ChainName;
 use crate::handlers::stacks_verify_msg::Message;
 use crate::handlers::stacks_verify_verifier_set::VerifierSetConfirmation;
 use crate::stacks::error::Error;
-use crate::stacks::http_client::{Transaction, TransactionEvents};
-use crate::stacks::its_verifier::get_its_hub_payload_hash;
+use crate::stacks::http_client::{Client, Transaction, TransactionEvents};
+use crate::stacks::its_verifier::{get_its_hub_payload_hash, its_verify_contract_code};
 use crate::stacks::WeightedSigners;
 use crate::types::Hash;
 
@@ -191,12 +191,15 @@ fn find_event<'a>(
     Some(event)
 }
 
-pub fn verify_message(
+pub async fn verify_message(
     source_chain: &ChainName,
     gateway_address: &String,
     its_address: &String,
     transaction: &Transaction,
     message: &Message,
+    http_client: &Client,
+    reference_native_interchain_token_code: &String,
+    reference_token_manager_code: &String,
 ) -> Vote {
     if message.tx_id != transaction.tx_id {
         return Vote::NotFound;
@@ -213,13 +216,21 @@ pub fn verify_message(
                 return Vote::NotFound;
             }
 
-            // TODO:
             // In case messages is from Stacks -> Stacks and from ITS -> ITS, use custom logic
             // for confirming contract deployments
             if &message.destination_chain == source_chain
                 && &message.destination_address == its_address
             {
-                if message.eq_its_verify_event(event).unwrap_or(false) {
+                if message.eq_event(event, None).unwrap_or(false)
+                    && its_verify_contract_code(
+                        event,
+                        http_client,
+                        reference_native_interchain_token_code,
+                        reference_token_manager_code,
+                    )
+                    .await
+                    .unwrap_or(false)
+                {
                     return Vote::SucceededOnChain;
                 }
 
@@ -227,8 +238,7 @@ pub fn verify_message(
             }
 
             // In other case, abi encode payload coming from Stacks ITS
-            if let Ok(payload_hash) = get_its_hub_payload_hash(event)
-            {
+            if let Ok(payload_hash) = get_its_hub_payload_hash(event) {
                 if message.eq_event(event, Some(payload_hash)).unwrap_or(false) {
                     return Vote::SucceededOnChain;
                 }
@@ -264,54 +274,86 @@ mod tests {
     use multisig::key::KeyType;
     use multisig::test::common::{build_verifier_set, ecdsa_test_data};
     use router_api::ChainName;
+    use tokio::test as async_test;
 
     use crate::handlers::stacks_verify_msg::Message;
     use crate::handlers::stacks_verify_verifier_set::VerifierSetConfirmation;
+    use crate::stacks::http_client::Client;
     use crate::stacks::http_client::{
         ContractLog, ContractLogValue, Transaction, TransactionEvents,
     };
     use crate::stacks::verifier::{verify_message, verify_verifier_set, SIGNERS_ROTATED_TYPE};
 
     // test verify message
-    #[test]
-    fn should_not_verify_tx_id_does_not_match() {
+    #[async_test]
+    async fn should_not_verify_tx_id_does_not_match() {
         let (source_chain, gateway_address, its_address, tx, mut msg) = get_matching_msg_and_tx();
 
         msg.tx_id = "ffaf64de66510723f2efbacd7ead3c4f8c856aed1afc2cb30254552aeda47313"
             .parse()
             .unwrap();
         assert_eq!(
-            verify_message(&source_chain, &gateway_address, &its_address, &tx, &msg),
+            verify_message(
+                &source_chain,
+                &gateway_address,
+                &its_address,
+                &tx,
+                &msg,
+                &Client::faux(),
+                &"native_interchain_token_code".to_string(),
+                &"token_manager_code".to_string()
+            )
+            .await,
             Vote::NotFound
         );
     }
 
-    #[test]
-    fn should_not_verify_no_log_for_event_index() {
+    #[async_test]
+    async fn should_not_verify_no_log_for_event_index() {
         let (source_chain, gateway_address, its_address, tx, mut msg) = get_matching_msg_and_tx();
 
         msg.event_index = 2;
 
         assert_eq!(
-            verify_message(&source_chain, &gateway_address, &its_address, &tx, &msg),
+            verify_message(
+                &source_chain,
+                &gateway_address,
+                &its_address,
+                &tx,
+                &msg,
+                &Client::faux(),
+                &"native_interchain_token_code".to_string(),
+                &"token_manager_code".to_string()
+            )
+            .await,
             Vote::NotFound
         );
     }
 
-    #[test]
-    fn should_not_verify_event_index_does_not_match() {
+    #[async_test]
+    async fn should_not_verify_event_index_does_not_match() {
         let (source_chain, gateway_address, its_address, tx, mut msg) = get_matching_msg_and_tx();
 
         msg.event_index = 0;
 
         assert_eq!(
-            verify_message(&source_chain, &gateway_address, &its_address, &tx, &msg),
+            verify_message(
+                &source_chain,
+                &gateway_address,
+                &its_address,
+                &tx,
+                &msg,
+                &Client::faux(),
+                &"native_interchain_token_code".to_string(),
+                &"token_manager_code".to_string()
+            )
+            .await,
             Vote::NotFound
         );
     }
 
-    #[test]
-    fn should_not_verify_not_gateway() {
+    #[async_test]
+    async fn should_not_verify_not_gateway() {
         let (source_chain, gateway_address, its_address, mut tx, msg) = get_matching_msg_and_tx();
 
         let transaction_events = tx.events.get_mut(1).unwrap();
@@ -320,13 +362,23 @@ mod tests {
         contract_call.contract_id = "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM".to_string();
 
         assert_eq!(
-            verify_message(&source_chain, &gateway_address, &its_address, &tx, &msg),
+            verify_message(
+                &source_chain,
+                &gateway_address,
+                &its_address,
+                &tx,
+                &msg,
+                &Client::faux(),
+                &"native_interchain_token_code".to_string(),
+                &"token_manager_code".to_string()
+            )
+            .await,
             Vote::NotFound
         );
     }
 
-    #[test]
-    fn should_not_verify_invalid_topic() {
+    #[async_test]
+    async fn should_not_verify_invalid_topic() {
         let (source_chain, gateway_address, its_address, mut tx, msg) = get_matching_msg_and_tx();
 
         let transaction_events = tx.events.get_mut(1).unwrap();
@@ -335,13 +387,23 @@ mod tests {
         contract_call.topic = "other".to_string();
 
         assert_eq!(
-            verify_message(&source_chain, &gateway_address, &its_address, &tx, &msg),
+            verify_message(
+                &source_chain,
+                &gateway_address,
+                &its_address,
+                &tx,
+                &msg,
+                &Client::faux(),
+                &"native_interchain_token_code".to_string(),
+                &"token_manager_code".to_string()
+            )
+            .await,
             Vote::NotFound
         );
     }
 
-    #[test]
-    fn should_not_verify_invalid_type() {
+    #[async_test]
+    async fn should_not_verify_invalid_type() {
         let (source_chain, gateway_address, its_address, mut tx, msg) = get_matching_msg_and_tx();
 
         let transaction_events = tx.events.get_mut(1).unwrap();
@@ -356,49 +418,89 @@ mod tests {
             .to_string();
 
         assert_eq!(
-            verify_message(&source_chain, &gateway_address, &its_address, &tx, &msg),
+            verify_message(
+                &source_chain,
+                &gateway_address,
+                &its_address,
+                &tx,
+                &msg,
+                &Client::faux(),
+                &"native_interchain_token_code".to_string(),
+                &"token_manager_code".to_string()
+            )
+            .await,
             Vote::NotFound
         );
     }
 
-    #[test]
-    fn should_not_verify_invalid_sender() {
+    #[async_test]
+    async fn should_not_verify_invalid_sender() {
         let (source_chain, gateway_address, its_address, tx, mut msg) = get_matching_msg_and_tx();
 
         msg.source_address = "SP2N959SER36FZ5QT1CX9BR63W3E8X35WQCMBYYWC.axelar-gateway".to_string();
 
         assert_eq!(
-            verify_message(&source_chain, &gateway_address, &its_address, &tx, &msg),
+            verify_message(
+                &source_chain,
+                &gateway_address,
+                &its_address,
+                &tx,
+                &msg,
+                &Client::faux(),
+                &"native_interchain_token_code".to_string(),
+                &"token_manager_code".to_string()
+            )
+            .await,
             Vote::NotFound
         );
     }
 
-    #[test]
-    fn should_not_verify_invalid_destination_chain() {
+    #[async_test]
+    async fn should_not_verify_invalid_destination_chain() {
         let (source_chain, gateway_address, its_address, tx, mut msg) = get_matching_msg_and_tx();
 
         msg.destination_chain = "other".parse().unwrap();
 
         assert_eq!(
-            verify_message(&source_chain, &gateway_address, &its_address, &tx, &msg),
+            verify_message(
+                &source_chain,
+                &gateway_address,
+                &its_address,
+                &tx,
+                &msg,
+                &Client::faux(),
+                &"native_interchain_token_code".to_string(),
+                &"token_manager_code".to_string()
+            )
+            .await,
             Vote::NotFound
         );
     }
 
-    #[test]
-    fn should_not_verify_invalid_destination_address() {
+    #[async_test]
+    async fn should_not_verify_invalid_destination_address() {
         let (source_chain, gateway_address, its_address, tx, mut msg) = get_matching_msg_and_tx();
 
         msg.destination_address = "other".parse().unwrap();
 
         assert_eq!(
-            verify_message(&source_chain, &gateway_address, &its_address, &tx, &msg),
+            verify_message(
+                &source_chain,
+                &gateway_address,
+                &its_address,
+                &tx,
+                &msg,
+                &Client::faux(),
+                &"native_interchain_token_code".to_string(),
+                &"token_manager_code".to_string()
+            )
+            .await,
             Vote::NotFound
         );
     }
 
-    #[test]
-    fn should_not_verify_invalid_payload_hash() {
+    #[async_test]
+    async fn should_not_verify_invalid_payload_hash() {
         let (source_chain, gateway_address, its_address, tx, mut msg) = get_matching_msg_and_tx();
 
         msg.payload_hash = "0xaa38573718f5cd6d7e5a90adcdebd28b097f99574ad6febffea9a40adb17f4aa"
@@ -406,17 +508,37 @@ mod tests {
             .unwrap();
 
         assert_eq!(
-            verify_message(&source_chain, &gateway_address, &its_address, &tx, &msg),
+            verify_message(
+                &source_chain,
+                &gateway_address,
+                &its_address,
+                &tx,
+                &msg,
+                &Client::faux(),
+                &"native_interchain_token_code".to_string(),
+                &"token_manager_code".to_string()
+            )
+            .await,
             Vote::NotFound
         );
     }
 
-    #[test]
-    fn should_verify_msg() {
+    #[async_test]
+    async fn should_verify_msg() {
         let (source_chain, gateway_address, its_address, tx, msg) = get_matching_msg_and_tx();
 
         assert_eq!(
-            verify_message(&source_chain, &gateway_address, &its_address, &tx, &msg),
+            verify_message(
+                &source_chain,
+                &gateway_address,
+                &its_address,
+                &tx,
+                &msg,
+                &Client::faux(),
+                &"native_interchain_token_code".to_string(),
+                &"token_manager_code".to_string()
+            )
+            .await,
             Vote::SucceededOnChain
         );
     }

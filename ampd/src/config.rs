@@ -369,6 +369,8 @@ mod tests {
                     ),
                     http_url: Url::from_str("http://127.0.0.1").unwrap(),
                     its_address: "its_address".to_string(),
+                    reference_native_interchain_token_address: "interchain_token_address".to_string(),
+                    reference_token_manager_address: "token_manager_address".to_string(),
                 },
                 HandlerConfig::StacksVerifierSetVerifier {
                     cosmwasm_contract: TMAddress::from(

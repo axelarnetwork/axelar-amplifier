@@ -7,6 +7,7 @@ use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmrs::tx::Msg;
 use cosmrs::Any;
 use error_stack::ResultExt;
+use futures::future;
 use events::Error::EventTypeMismatch;
 use events::Event;
 use events_derive::try_from;
@@ -51,23 +52,38 @@ pub struct Handler {
     http_client: Client,
     latest_block_height: Receiver<u64>,
     its_address: String,
+    reference_native_interchain_token_code: String,
+    reference_token_manager_code: String,
 }
 
 impl Handler {
-    pub fn new(
+    pub async fn new(
         verifier: TMAddress,
         voting_verifier_contract: TMAddress,
         http_client: Client,
         latest_block_height: Receiver<u64>,
         its_address: String,
-    ) -> Self {
-        Self {
+        reference_native_interchain_token_address: String,
+        reference_token_manager_address: String,
+    ) -> error_stack::Result<Self, crate::stacks::http_client::Error> {
+        let reference_native_interchain_token_info = http_client
+            .get_contract_info(reference_native_interchain_token_address.as_str())
+            .await?;
+
+        let reference_token_manager_info = http_client
+            .get_contract_info(reference_token_manager_address.as_str())
+            .await?;
+
+        Ok(Self {
             verifier,
             voting_verifier_contract,
             http_client,
             latest_block_height,
             its_address,
-        }
+            reference_native_interchain_token_code: reference_native_interchain_token_info
+                .source_code,
+            reference_token_manager_code: reference_token_manager_info.source_code,
+        })
     }
 
     fn vote_msg(&self, poll_id: PollId, votes: Vec<Vote>) -> MsgExecuteContract {
@@ -119,7 +135,8 @@ impl EventHandler for Handler {
         let tx_hashes: HashSet<_> = messages.iter().map(|message| message.tx_id).collect();
         let transactions = self.http_client.get_transactions(tx_hashes).await;
 
-        let votes: Vec<Vote> = messages
+        // TODO: See how to handle async function in map properly
+        let votes: Vec<Vote> = future::try_join_all(messages
             .iter()
             .map(|msg| {
                 transactions
@@ -131,10 +148,13 @@ impl EventHandler for Handler {
                             &self.its_address,
                             transaction,
                             msg,
+                            &self.http_client,
+                            &self.reference_native_interchain_token_code,
+                            &self.reference_token_manager_code,
                         )
                     })
-            })
-            .collect();
+            }))
+            .await?;
 
         Ok(vec![self
             .vote_msg(poll_id, votes)
@@ -208,9 +228,11 @@ mod tests {
             Client::faux(),
             watch::channel(0).1,
             "its_address".to_string(),
-        );
+            "native_interchain_token_code".to_string(),
+            "token_manager_code".to_string()
+        ).await;
 
-        assert!(handler.handle(&event).await.is_ok());
+        assert!(handler.unwrap().handle(&event).await.is_ok());
     }
 
     // Should not handle event if it is not emitted from voting verifier
@@ -227,9 +249,11 @@ mod tests {
             Client::faux(),
             watch::channel(0).1,
             "its_address".to_string(),
-        );
+            "native_interchain_token_code".to_string(),
+            "token_manager_code".to_string()
+        ).await;
 
-        assert!(handler.handle(&event).await.is_ok());
+        assert!(handler.unwrap().handle(&event).await.is_ok());
     }
 
     // Should not handle event if worker is not a poll participant
@@ -245,9 +269,11 @@ mod tests {
             Client::faux(),
             watch::channel(0).1,
             "its_address".to_string(),
-        );
+            "native_interchain_token_code".to_string(),
+            "token_manager_code".to_string()
+        ).await;
 
-        assert!(handler.handle(&event).await.is_ok());
+        assert!(handler.unwrap().handle(&event).await.is_ok());
     }
 
     #[async_test]
@@ -268,9 +294,11 @@ mod tests {
             client,
             watch::channel(0).1,
             "its_address".to_string(),
-        );
+            "native_interchain_token_code".to_string(),
+            "token_manager_code".to_string()
+        ).await;
 
-        let actual = handler.handle(&event).await.unwrap();
+        let actual = handler.unwrap().handle(&event).await.unwrap();
         assert_eq!(actual.len(), 1);
         assert!(MsgExecuteContract::from_any(actual.first().unwrap()).is_ok());
     }
@@ -296,7 +324,9 @@ mod tests {
             client,
             rx,
             "its_address".to_string(),
-        );
+            "native_interchain_token_code".to_string(),
+            "token_manager_code".to_string()
+        ).await.unwrap();
 
         // poll is not expired yet, should hit proxy
         let actual = handler.handle(&event).await.unwrap();
