@@ -365,7 +365,7 @@ mod test {
             topics: vec![
                 ScVal::Symbol(ScSymbol(StringM::from_str(TOPIC_ROTATED).unwrap())),
                 ScVal::U64(1),
-                ScVal::Bytes(ScBytes(weighted_signers_hash)),
+                ScVal::Bytes(ScBytes(BytesM::try_from(weighted_signers_hash).unwrap())),
             ]
             .try_into()
             .unwrap(),
