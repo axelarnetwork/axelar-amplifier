@@ -444,7 +444,7 @@ mod test {
     }
 
     #[test]
-    fn signers_rotation_hash() {
+    fn weighted_signers_hash() {
         let weighted_signers = WeightedSigners {
             signers: vec![
                 WeightedSigner {
@@ -484,9 +484,10 @@ mod test {
                 .unwrap(),
         };
 
-        goldie::assert!(
+        goldie::assert_json!(&vec![
+            HexBinary::from(weighted_signers.hash().unwrap()).to_hex(),
             HexBinary::from(weighted_signers.signers_rotation_hash().unwrap()).to_hex()
-        );
+        ]);
     }
 
     #[test]
