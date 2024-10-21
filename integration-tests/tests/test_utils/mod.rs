@@ -405,13 +405,13 @@ pub fn setup_protocol(service_name: nonempty::String) -> Protocol {
 
     let admin_address = Addr::unchecked("admin");
     let governance_address = Addr::unchecked("governance");
-    let nexus_gateway = Addr::unchecked("nexus_gateway");
+    let axelarnet_gateway = Addr::unchecked("axelarnet_gateway");
 
     let router = RouterContract::instantiate_contract(
         &mut app,
         admin_address.clone(),
         governance_address.clone(),
-        nexus_gateway.clone(),
+        axelarnet_gateway.clone(),
     );
 
     let rewards_params = rewards::msg::Params {

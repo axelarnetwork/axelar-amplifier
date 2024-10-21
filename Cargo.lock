@@ -6834,6 +6834,7 @@ dependencies = [
 name = "router"
 version = "1.0.1"
 dependencies = [
+ "assert_ok",
  "axelar-core-std",
  "axelar-wasm-std",
  "client",
