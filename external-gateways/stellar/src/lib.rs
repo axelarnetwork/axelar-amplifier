@@ -73,21 +73,22 @@ impl TryFrom<&router_api::Message> for Message {
 impl TryFrom<Message> for ScVal {
     type Error = XdrError;
 
+    // Note that XDR sorts the keys first
     fn try_from(value: Message) -> Result<Self, XdrError> {
         let keys: [&'static str; 5] = [
-            "source_chain",
-            "message_id",
-            "source_address",
             "contract_address",
+            "message_id",
             "payload_hash",
+            "source_address",
+            "source_chain",
         ];
 
         let vals: [ScVal; 5] = [
-            ScVal::String(StringM::from_str(&value.source_chain)?.into()),
-            ScVal::String(StringM::from_str(&value.message_id)?.into()),
-            ScVal::String(StringM::from_str(&value.source_address)?.into()),
             ScVal::Address(ScAddress::Contract(Hash(value.contract_address.0))),
+            ScVal::String(StringM::from_str(&value.message_id)?.into()),
             ScVal::Bytes(BytesM::try_from(AsRef::<[u8; 32]>::as_ref(&value.payload_hash))?.into()),
+            ScVal::String(StringM::from_str(&value.source_address)?.into()),
+            ScVal::String(StringM::from_str(&value.source_chain)?.into()),
         ];
 
         sc_map_from_slices(&keys, &vals)
