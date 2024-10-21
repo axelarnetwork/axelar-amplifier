@@ -47,8 +47,8 @@ impl TryFrom<CommandType> for ScVal {
 
 #[derive(Debug, Clone)]
 pub struct Message {
-    pub message_id: String,
     pub source_chain: String,
+    pub message_id: String,
     pub source_address: String,
     pub contract_address: Contract,
     pub payload_hash: Hash,
@@ -75,19 +75,19 @@ impl TryFrom<Message> for ScVal {
 
     fn try_from(value: Message) -> Result<Self, XdrError> {
         let keys: [&'static str; 5] = [
-            "contract_address",
-            "message_id",
-            "payload_hash",
-            "source_address",
             "source_chain",
+            "message_id",
+            "source_address",
+            "contract_address",
+            "payload_hash",
         ];
 
         let vals: [ScVal; 5] = [
-            ScVal::Address(ScAddress::Contract(Hash(value.contract_address.0))),
-            ScVal::String(StringM::from_str(&value.message_id)?.into()),
-            ScVal::Bytes(BytesM::try_from(AsRef::<[u8; 32]>::as_ref(&value.payload_hash))?.into()),
-            ScVal::String(StringM::from_str(&value.source_address)?.into()),
             ScVal::String(StringM::from_str(&value.source_chain)?.into()),
+            ScVal::String(StringM::from_str(&value.message_id)?.into()),
+            ScVal::String(StringM::from_str(&value.source_address)?.into()),
+            ScVal::Address(ScAddress::Contract(Hash(value.contract_address.0))),
+            ScVal::Bytes(BytesM::try_from(AsRef::<[u8; 32]>::as_ref(&value.payload_hash))?.into()),
         ];
 
         sc_map_from_slices(&keys, &vals)
@@ -429,8 +429,8 @@ mod test {
 
         let messages: Messages = (1..=4)
             .map(|i| Message {
-                message_id: format!("test-{}", i),
                 source_chain: format!("source-{}", i),
+                message_id: format!("test-{}", i),
                 source_address: "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
                     .to_string(),
                 contract_address: "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMDR4"
