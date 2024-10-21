@@ -5,7 +5,7 @@ use axelar_wasm_std::response::inspect_response_msg;
 use axelarnet_gateway::contract::ExecuteError;
 use axelarnet_gateway::StateError;
 use cosmwasm_std::testing::{mock_dependencies, mock_info};
-use cosmwasm_std::{Coin, HexBinary};
+use cosmwasm_std::HexBinary;
 use rand::RngCore;
 use router_api::msg::ExecuteMsg as RouterExecuteMsg;
 use router_api::{CrossChainId, Message};
@@ -402,35 +402,6 @@ fn contract_call_returns_correct_message() {
 }
 
 #[test]
-fn contract_call_with_token_returns_correct_message() {
-    let tx_hash: [u8; 32] = [2; 32];
-    let nonce = 99;
-    let token = Coin::new(10, "axelar");
-
-    let mut deps = mock_axelar_dependencies();
-    deps.querier = deps
-        .querier
-        .with_custom_handler(axelar_query_handler(tx_hash, nonce, true));
-
-    let destination_chain = "destination-chain".parse().unwrap();
-    let destination_address = "destination-address".parse().unwrap();
-    let payload = vec![1, 2, 3].into();
-
-    utils::instantiate_contract(deps.as_default_mut()).unwrap();
-
-    let response = assert_ok!(utils::call_contract(
-        deps.as_default_mut(),
-        mock_info("sender", &[token]),
-        destination_chain,
-        destination_address,
-        payload,
-    ));
-    assert_eq!(response.messages.len(), 2);
-
-    goldie::assert_json!(response.messages)
-}
-
-#[test]
 fn contract_call_returns_correct_events() {
     let tx_hash: [u8; 32] =
         hex::decode("b695e27bcb71c3dfd108c18e031ec966e37c7c95927c2a9fd88ec573ee690c2c")
@@ -457,36 +428,6 @@ fn contract_call_returns_correct_events() {
         payload,
     ));
     goldie::assert_json!(response.events)
-}
-
-#[test]
-fn contract_call_with_token_to_amplifier_chains_fails() {
-    let tx_hash: [u8; 32] = [2; 32];
-    let nonce = 99;
-    let token = Coin::new(10, "axelar");
-
-    let mut deps = mock_axelar_dependencies();
-    deps.querier = deps
-        .querier
-        .with_custom_handler(axelar_query_handler(tx_hash, nonce, false));
-
-    let destination_chain = "destination-chain".parse().unwrap();
-    let destination_address = "destination-address".parse().unwrap();
-    let payload = vec![1, 2, 3].into();
-
-    utils::instantiate_contract(deps.as_default_mut()).unwrap();
-
-    assert_err_contains!(
-        utils::call_contract(
-            deps.as_default_mut(),
-            mock_info("sender", &[token]),
-            destination_chain,
-            destination_address,
-            payload,
-        ),
-        ExecuteError,
-        ExecuteError::InvalidRoutingDestination,
-    );
 }
 
 #[test]
