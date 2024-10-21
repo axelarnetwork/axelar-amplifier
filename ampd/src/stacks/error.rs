@@ -8,4 +8,6 @@ pub enum Error {
     InvalidEncoding,
     #[error("provided key is not ecdsa")]
     NotEcdsaKey,
+    #[error("contract call is invalid")]
+    InvalidCall,
 }

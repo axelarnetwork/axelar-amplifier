@@ -11,6 +11,7 @@ use crate::handlers::stacks_verify_verifier_set::VerifierSetConfirmation;
 use crate::stacks::error::Error;
 use crate::stacks::http_client::{Transaction, TransactionEvents};
 use crate::stacks::WeightedSigners;
+use crate::types::Hash;
 
 pub const PRINT_TOPIC: &str = "print";
 
@@ -18,7 +19,11 @@ pub const CONTRACT_CALL_TYPE: &str = "contract-call";
 const SIGNERS_ROTATED_TYPE: &str = "signers-rotated";
 
 impl Message {
-    fn eq_event(&self, event: &TransactionEvents) -> Result<bool, Box<dyn std::error::Error>> {
+    pub fn eq_event(
+        &self,
+        event: &TransactionEvents,
+        new_payload_hash: Option<Hash>,
+    ) -> Result<bool, Box<dyn std::error::Error>> {
         let contract_log = event.contract_log.as_ref().ok_or(Error::PropertyEmpty)?;
 
         if contract_log.topic != PRINT_TOPIC {
@@ -90,7 +95,11 @@ impl Message {
                 return Ok(false);
             }
 
-            if !data
+            if let Some(new_payload_hash) = new_payload_hash {
+                if new_payload_hash != self.payload_hash {
+                    return Ok(false);
+                }
+            } else if !data
                 .get("payload-hash")?
                 .eq(&Value::buff_from(self.payload_hash.as_bytes().to_vec())?)
             {
@@ -193,14 +202,16 @@ pub fn verify_message(
         Some(event) => {
             // In case message is not from ITS
             if &message.source_address != its_address {
-                if message.eq_event(event).unwrap_or(false) {
+                if message.eq_event(event, None).unwrap_or(false) {
                     return Vote::SucceededOnChain;
                 }
 
                 return Vote::NotFound;
             }
 
+            // TODO:
             // In case messages is from Stacks -> Stacks and from ITS -> ITS, use custom logic
+            // for confirming contract deployments
             if &message.destination_chain == source_chain
                 && &message.destination_address == its_address
             {
