@@ -444,7 +444,7 @@ mod test {
     }
 
     #[test]
-    fn hash() {
+    fn weighted_signers_hash() {
         let weighted_signers = WeightedSigners {
             signers: vec![
                 WeightedSigner {
@@ -484,53 +484,10 @@ mod test {
                 .unwrap(),
         };
 
-        goldie::assert!(HexBinary::from(weighted_signers.hash().unwrap()).to_hex());
-    }
-
-    #[test]
-    fn signers_rotation_hash() {
-        let weighted_signers = WeightedSigners {
-            signers: vec![
-                WeightedSigner {
-                    signer: "0a245a2a2a5e8ec439d1377579a08fc78ea55647ba6fcb1f5d8a360218e8a985"
-                        .parse()
-                        .unwrap(),
-                    weight: 3,
-                },
-                WeightedSigner {
-                    signer: "0b422cf449d900f6f8eb97f62e35811c62eb75feb84dfccef44a5c1c3dbac2ad"
-                        .parse()
-                        .unwrap(),
-                    weight: 2,
-                },
-                WeightedSigner {
-                    signer: "18c34bf01a11b5ba21ea11b1678f3035ef753f0bdb1d5014ec21037e8f99e2a2"
-                        .parse()
-                        .unwrap(),
-                    weight: 4,
-                },
-                WeightedSigner {
-                    signer: "f683ca8a6d7fe55f25599bb64b01edcc5eeb85fe5b63d3a4f0b3c32405005518"
-                        .parse()
-                        .unwrap(),
-                    weight: 4,
-                },
-                WeightedSigner {
-                    signer: "fbb4b870e800038f1379697fae3058938c59b696f38dd0fdf2659c0cf3a5b663"
-                        .parse()
-                        .unwrap(),
-                    weight: 2,
-                },
-            ],
-            threshold: 8,
-            nonce: "8784bf7be5a9baaeea47e12d9e8ad0dec29afcbc3617d97f771e3c24fa945dce"
-                .parse()
-                .unwrap(),
-        };
-
-        goldie::assert!(
+        goldie::assert_json!(&vec![
+            HexBinary::from(weighted_signers.hash().unwrap()).to_hex(),
             HexBinary::from(weighted_signers.signers_rotation_hash().unwrap()).to_hex()
-        );
+        ]);
     }
 
     #[test]
