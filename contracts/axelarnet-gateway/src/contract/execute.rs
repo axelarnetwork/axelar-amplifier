@@ -7,7 +7,8 @@ use axelar_wasm_std::token::GetToken;
 use axelar_wasm_std::{address, FnExt, IntoContractError};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
-    Addr, BankMsg, Coin, DepsMut, HexBinary, MessageInfo, QuerierWrapper, Response, Storage,
+    Addr, BankMsg, Coin, CosmosMsg, DepsMut, Event, HexBinary, MessageInfo, QuerierWrapper,
+    Response, Storage,
 };
 use error_stack::{bail, ensure, report, ResultExt};
 use itertools::Itertools;
@@ -24,8 +25,8 @@ use crate::{state, AxelarExecutableMsg};
 pub enum Error {
     #[error("failed to save executable message")]
     SaveExecutableMessage,
-    #[error("failed to access executable message")]
-    ExecutableMessageAccess,
+    #[error("failed to access routable message")]
+    RoutableMessageAccess,
     #[error("message with ID {0} does not match the expected message")]
     MessageMismatch(CrossChainId),
     #[error("failed to mark message with ID {0} as executed")]
@@ -81,9 +82,12 @@ impl CallContractData {
 enum RoutingDestination {
     Nexus,
     Router,
+    /// Messages that are intended for contracts on Axelar
+    This,
 }
 
 type Result<T> = error_stack::Result<T, Error>;
+type CosmosMsgWithEvent = (Vec<CosmosMsg<nexus::execute::Message>>, Vec<Event>);
 
 pub fn call_contract(
     storage: &mut dyn Storage,
@@ -91,15 +95,11 @@ pub fn call_contract(
     info: MessageInfo,
     call_contract: CallContractData,
 ) -> Result<Response<nexus::execute::Message>> {
-    let Config {
-        router,
-        chain_name,
-        nexus,
-    } = state::load_config(storage);
+    let Config { chain_name, .. } = state::load_config(storage);
 
     let client: nexus::Client = client::CosmosClient::new(querier).into();
 
-    let id = unique_cross_chain_id(&client, chain_name)?;
+    let id = unique_cross_chain_id(&client, chain_name.clone())?;
     let source_address = Address::from_str(info.sender.as_str())
         .change_context(Error::InvalidSourceAddress(info.sender.clone()))?;
     let msg = call_contract.to_message(id, source_address);
@@ -115,34 +115,58 @@ pub fn call_contract(
         token: token.clone(),
     };
 
-    let res = match determine_routing_destination(&client, &msg.destination_chain)? {
-        RoutingDestination::Nexus => route_to_nexus(&client, nexus, msg, token)?,
-        RoutingDestination::Router if token.is_none() => {
-            route_to_router(storage, &Router::new(router), vec![msg])?
-        }
-        _ => bail!(Error::InvalidRoutingDestination),
-    }
-    .add_event(event.into());
-
-    Ok(res)
+    route_messages(storage, querier, info.sender, vec![msg]).map(|res| res.add_event(event.into()))
 }
 
 pub fn route_messages(
     storage: &mut dyn Storage,
+    querier: QuerierWrapper,
     sender: Addr,
     msgs: Vec<Message>,
 ) -> Result<Response<nexus::execute::Message>> {
     let Config {
-        chain_name, router, ..
+        chain_name,
+        router,
+        nexus,
     } = state::load_config(storage);
-    let router = Router::new(router);
 
-    if sender == router.address {
-        Ok(prepare_msgs_for_execution(storage, chain_name, msgs)?)
+    let router = Router::new(router);
+    let client: nexus::Client = client::CosmosClient::new(querier).into();
+
+    // Router-sent messages are assumed pre-verified and routable
+    // Otherwise, only route routable messages instantiated from CallContract
+    let msgs = if sender != router.address {
+        msgs.into_iter()
+            .unique()
+            .map(|msg| try_load_routable_msg(storage, msg))
+            .filter_map_ok(|msg| msg)
+            .try_collect()?
     } else {
-        // Messages initiated via call contract can be routed again
-        Ok(route_to_router(storage, &router, msgs)?)
-    }
+        msgs
+    };
+
+    msgs.into_iter()
+        .group_by(|msg| msg.destination_chain.to_owned())
+        .into_iter()
+        .try_fold(Response::new(), |acc, (dest_chain, msgs)| {
+            let (messages, events) = match determine_routing_destination(
+                &sender,
+                &client,
+                &dest_chain,
+                &router.address,
+                &chain_name,
+            )? {
+                RoutingDestination::This => {
+                    prepare_msgs_for_execution(storage, chain_name.clone(), msgs.collect())
+                }
+                RoutingDestination::Nexus => {
+                    route_messages_to_nexus(&client, &nexus, msgs.collect())
+                }
+                RoutingDestination::Router => route_to_router(&router, msgs.collect()),
+            }?;
+
+            Ok(acc.add_messages(messages).add_events(events))
+        })
 }
 
 pub fn execute(
@@ -216,7 +240,7 @@ fn prepare_msgs_for_execution(
     store: &mut dyn Storage,
     chain_name: ChainName,
     msgs: Vec<Message>,
-) -> Result<Response<nexus::execute::Message>> {
+) -> Result<CosmosMsgWithEvent> {
     for msg in msgs.iter() {
         ensure!(
             chain_name == msg.destination_chain,
@@ -230,38 +254,32 @@ fn prepare_msgs_for_execution(
             .change_context(Error::SaveExecutableMessage)?;
     }
 
-    Ok(Response::new().add_events(
+    Ok((
+        vec![],
         msgs.into_iter()
-            .map(|msg| AxelarnetGatewayEvent::Routing { msg }.into()),
+            .map(|msg| AxelarnetGatewayEvent::Routing { msg }.into())
+            .collect(),
     ))
 }
 
 /// Route messages to the router, ignore unknown messages.
 fn route_to_router(
-    store: &mut dyn Storage,
     router: &Router<nexus::execute::Message>,
     msgs: Vec<Message>,
-) -> Result<Response<nexus::execute::Message>> {
-    let msgs: Vec<_> = msgs
-        .into_iter()
-        .unique()
-        .map(|msg| try_load_executable_msg(store, msg))
-        .filter_map_ok(|msg| msg)
-        .try_collect()?;
-
-    Ok(Response::new()
-        .add_messages(router.route(msgs.clone()))
-        .add_events(
-            msgs.into_iter()
-                .map(|msg| AxelarnetGatewayEvent::Routing { msg }.into()),
-        ))
+) -> Result<CosmosMsgWithEvent> {
+    Ok((
+        router.route(msgs.clone()).into_iter().collect(),
+        msgs.into_iter()
+            .map(|msg| AxelarnetGatewayEvent::Routing { msg }.into())
+            .collect(),
+    ))
 }
 
 /// Verify that the message is stored and matches the one we're trying to route. Returns Ok(None) if
 /// the message is not stored.
-fn try_load_executable_msg(store: &mut dyn Storage, msg: Message) -> Result<Option<Message>> {
+fn try_load_routable_msg(store: &mut dyn Storage, msg: Message) -> Result<Option<Message>> {
     let stored_msg = state::may_load_routable_msg(store, &msg.cc_id)
-        .change_context(Error::ExecutableMessageAccess)?;
+        .change_context(Error::RoutableMessageAccess)?;
 
     match stored_msg {
         Some(stored_msg) if stored_msg != msg => {
@@ -289,27 +307,33 @@ fn unique_cross_chain_id(client: &nexus::Client, chain_name: ChainName) -> Resul
 
 /// Query Nexus module in core to decide should route message to core
 fn determine_routing_destination(
+    sender: &Addr,
     client: &nexus::Client,
-    name: &ChainName,
+    dest_chain: &ChainName,
+    router: &Addr,
+    this_chain: &ChainName,
 ) -> Result<RoutingDestination> {
-    let dest = match client
-        .is_chain_registered(name)
+    if client
+        .is_chain_registered(dest_chain)
         .change_context(Error::Nexus)?
     {
-        true => RoutingDestination::Nexus,
-        false => RoutingDestination::Router,
-    };
-
-    Ok(dest)
+        RoutingDestination::Nexus
+    } else if sender == router {
+        ensure!(dest_chain == this_chain, Error::InvalidRoutingDestination);
+        RoutingDestination::This
+    } else {
+        RoutingDestination::Router
+    }
+    .then(Ok)
 }
 
 /// Route message to the Nexus module
 fn route_to_nexus(
     client: &nexus::Client,
-    nexus: Addr,
+    nexus: &Addr,
     msg: Message,
     token: Option<Coin>,
-) -> Result<Response<nexus::execute::Message>> {
+) -> Result<Vec<CosmosMsg<nexus::execute::Message>>> {
     let msg: nexus::execute::Message = (msg, token.clone()).into();
 
     token
@@ -321,6 +345,25 @@ fn route_to_nexus(
         .into_iter()
         .chain(iter::once(client.route_message(msg)))
         .collect::<Vec<_>>()
-        .then(|msgs| Response::new().add_messages(msgs))
         .then(Ok)
+}
+
+pub fn route_messages_to_nexus(
+    client: &nexus::Client,
+    nexus: &Addr,
+    msgs: Vec<Message>,
+) -> Result<CosmosMsgWithEvent> {
+    let nexus_msgs = msgs
+        .clone()
+        .into_iter()
+        .map(|msg| route_to_nexus(client, nexus, msg, None))
+        .collect::<Result<Vec<_>>>()?
+        .then(|msgs| msgs.concat());
+
+    Ok((
+        nexus_msgs,
+        msgs.into_iter()
+            .map(|msg| AxelarnetGatewayEvent::Routing { msg }.into())
+            .collect(),
+    ))
 }
