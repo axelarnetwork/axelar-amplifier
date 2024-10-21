@@ -10,6 +10,7 @@ use crate::handlers::stacks_verify_msg::Message;
 use crate::handlers::stacks_verify_verifier_set::VerifierSetConfirmation;
 use crate::stacks::error::Error;
 use crate::stacks::http_client::{Transaction, TransactionEvents};
+use crate::stacks::its_verifier::get_its_hub_payload_hash;
 use crate::stacks::WeightedSigners;
 use crate::types::Hash;
 
@@ -40,15 +41,15 @@ impl Message {
             (ClarityName::from("sender"), TypeSignature::PrincipalType),
             (
                 ClarityName::from("destination-chain"),
-                TypeSignature::SequenceType(SequenceSubtype::BufferType(BufferLength::try_from(
-                    18u32,
-                )?)),
+                TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(
+                    BufferLength::try_from(32u32)?,
+                ))),
             ),
             (
                 ClarityName::from("destination-contract-address"),
-                TypeSignature::SequenceType(SequenceSubtype::BufferType(BufferLength::try_from(
-                    96u32,
-                )?)),
+                TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(
+                    BufferLength::try_from(48u32)?,
+                ))),
             ),
             (
                 ClarityName::from("payload-hash"),
@@ -80,15 +81,18 @@ impl Message {
                 return Ok(false);
             }
 
-            if !data.get("destination-chain")?.eq(&Value::buff_from(
-                self.destination_chain.as_ref().as_bytes().to_vec(),
-            )?) {
+            if !data
+                .get("destination-chain")?
+                .eq(&Value::string_ascii_from_bytes(
+                    self.destination_chain.as_ref().as_bytes().to_vec(),
+                )?)
+            {
                 return Ok(false);
             }
 
             if !data
                 .get("destination-contract-address")?
-                .eq(&Value::buff_from(
+                .eq(&Value::string_ascii_from_bytes(
                     self.destination_address.as_bytes().to_vec(),
                 )?)
             {
@@ -223,8 +227,11 @@ pub fn verify_message(
             }
 
             // In other case, abi encode payload coming from Stacks ITS
-            if message.eq_its_hub_event(event).unwrap_or(false) {
-                return Vote::SucceededOnChain;
+            if let Ok(payload_hash) = get_its_hub_payload_hash(event)
+            {
+                if message.eq_event(event, Some(payload_hash)).unwrap_or(false) {
+                    return Vote::SucceededOnChain;
+                }
             }
 
             Vote::NotFound
