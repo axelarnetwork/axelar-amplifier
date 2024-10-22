@@ -676,6 +676,7 @@ mod tests {
             contract_log: None,
         };
 
+        // TODO: Update hex value to correct one
         let event = TransactionEvents {
             event_index: 1,
             tx_id: tx_id.to_string(),

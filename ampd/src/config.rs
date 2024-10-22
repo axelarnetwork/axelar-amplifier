@@ -138,6 +138,8 @@ mod tests {
             cosmwasm_contract = '{}'
             http_url = 'http://localhost:8000'
             its_address = 'its_address'
+            reference_native_interchain_token_address = 'interchain_token_address'
+            reference_token_manager_address = 'token_manager_address'
 
             [[handlers]]
             type = 'StacksVerifierSetVerifier'

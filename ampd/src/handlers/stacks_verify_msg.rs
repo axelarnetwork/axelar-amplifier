@@ -7,10 +7,10 @@ use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmrs::tx::Msg;
 use cosmrs::Any;
 use error_stack::ResultExt;
-use futures::future;
 use events::Error::EventTypeMismatch;
 use events::Event;
 use events_derive::try_from;
+use futures::future;
 use router_api::ChainName;
 use serde::Deserialize;
 use tokio::sync::watch::Receiver;
@@ -19,7 +19,7 @@ use voting_verifier::msg::ExecuteMsg;
 
 use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error;
-use crate::stacks::http_client::Client;
+use crate::stacks::http_client::{Client, Transaction};
 use crate::stacks::verifier::verify_message;
 use crate::types::{Hash, TMAddress};
 
@@ -135,26 +135,26 @@ impl EventHandler for Handler {
         let tx_hashes: HashSet<_> = messages.iter().map(|message| message.tx_id).collect();
         let transactions = self.http_client.get_transactions(tx_hashes).await;
 
-        // TODO: See how to handle async function in map properly
-        let votes: Vec<Vote> = future::try_join_all(messages
-            .iter()
-            .map(|msg| {
-                transactions
-                    .get(&msg.tx_id)
-                    .map_or(Vote::NotFound, |transaction| {
-                        verify_message(
-                            &source_chain,
-                            &source_gateway_address,
-                            &self.its_address,
-                            transaction,
-                            msg,
-                            &self.http_client,
-                            &self.reference_native_interchain_token_code,
-                            &self.reference_token_manager_code,
-                        )
-                    })
-            }))
-            .await?;
+        let futures = messages.iter().map(|msg| async {
+            match transactions.get(&msg.tx_id) {
+                Some(transaction) => {
+                    verify_message(
+                        &source_chain,
+                        &source_gateway_address,
+                        &self.its_address,
+                        transaction,
+                        msg,
+                        &self.http_client,
+                        &self.reference_native_interchain_token_code,
+                        &self.reference_token_manager_code,
+                    )
+                    .await
+                }
+                None => Vote::NotFound,
+            }
+        });
+
+        let votes: Vec<Vote> = future::join_all(futures).await;
 
         Ok(vec![self
             .vote_msg(poll_id, votes)
@@ -176,10 +176,10 @@ mod tests {
     use tokio::test as async_test;
     use voting_verifier::events::{PollMetadata, PollStarted, TxEventConfirmation};
 
-    use super::PollStartedEvent;
+    use super::{Handler, PollStartedEvent};
     use crate::event_processor::EventHandler;
     use crate::handlers::tests::into_structured_event;
-    use crate::stacks::http_client::Client;
+    use crate::stacks::http_client::{Client, ContractInfo};
     use crate::types::{EVMAddress, Hash, TMAddress};
     use crate::PREFIX;
 
@@ -222,17 +222,9 @@ mod tests {
             &TMAddress::random(PREFIX),
         );
 
-        let handler = super::Handler::new(
-            TMAddress::random(PREFIX),
-            TMAddress::random(PREFIX),
-            Client::faux(),
-            watch::channel(0).1,
-            "its_address".to_string(),
-            "native_interchain_token_code".to_string(),
-            "token_manager_code".to_string()
-        ).await;
+        let handler = get_handler().await;
 
-        assert!(handler.unwrap().handle(&event).await.is_ok());
+        assert!(handler.handle(&event).await.is_ok());
     }
 
     // Should not handle event if it is not emitted from voting verifier
@@ -243,22 +235,21 @@ mod tests {
             &TMAddress::random(PREFIX),
         );
 
-        let handler = super::Handler::new(
-            TMAddress::random(PREFIX),
-            TMAddress::random(PREFIX),
-            Client::faux(),
-            watch::channel(0).1,
-            "its_address".to_string(),
-            "native_interchain_token_code".to_string(),
-            "token_manager_code".to_string()
-        ).await;
+        let handler = get_handler().await;
 
-        assert!(handler.unwrap().handle(&event).await.is_ok());
+        assert!(handler.handle(&event).await.is_ok());
     }
 
     // Should not handle event if worker is not a poll participant
     #[async_test]
     async fn verifier_is_not_a_participant() {
+        let mut client = Client::faux();
+        faux::when!(client.get_contract_info).then(|_| {
+            Ok(ContractInfo {
+                source_code: "()".to_string(),
+            })
+        });
+
         let voting_verifier = TMAddress::random(PREFIX);
         let event =
             into_structured_event(poll_started_event(participants(5, None)), &voting_verifier);
@@ -266,19 +257,26 @@ mod tests {
         let handler = super::Handler::new(
             TMAddress::random(PREFIX),
             voting_verifier,
-            Client::faux(),
+            client,
             watch::channel(0).1,
             "its_address".to_string(),
             "native_interchain_token_code".to_string(),
-            "token_manager_code".to_string()
-        ).await;
+            "token_manager_code".to_string(),
+        )
+        .await
+        .unwrap();
 
-        assert!(handler.unwrap().handle(&event).await.is_ok());
+        assert!(handler.handle(&event).await.is_ok());
     }
 
     #[async_test]
     async fn should_vote_correctly() {
         let mut client = Client::faux();
+        faux::when!(client.get_contract_info).then(|_| {
+            Ok(ContractInfo {
+                source_code: "()".to_string(),
+            })
+        });
         faux::when!(client.get_transactions).then(|_| HashMap::new());
 
         let voting_verifier = TMAddress::random(PREFIX);
@@ -295,10 +293,12 @@ mod tests {
             watch::channel(0).1,
             "its_address".to_string(),
             "native_interchain_token_code".to_string(),
-            "token_manager_code".to_string()
-        ).await;
+            "token_manager_code".to_string(),
+        )
+        .await
+        .unwrap();
 
-        let actual = handler.unwrap().handle(&event).await.unwrap();
+        let actual = handler.handle(&event).await.unwrap();
         assert_eq!(actual.len(), 1);
         assert!(MsgExecuteContract::from_any(actual.first().unwrap()).is_ok());
     }
@@ -306,6 +306,11 @@ mod tests {
     #[async_test]
     async fn should_skip_expired_poll() {
         let mut client = Client::faux();
+        faux::when!(client.get_contract_info).then(|_| {
+            Ok(ContractInfo {
+                source_code: "()".to_string(),
+            })
+        });
         faux::when!(client.get_transactions).then(|_| HashMap::new());
 
         let voting_verifier = TMAddress::random(PREFIX);
@@ -325,8 +330,10 @@ mod tests {
             rx,
             "its_address".to_string(),
             "native_interchain_token_code".to_string(),
-            "token_manager_code".to_string()
-        ).await.unwrap();
+            "token_manager_code".to_string(),
+        )
+        .await
+        .unwrap();
 
         // poll is not expired yet, should hit proxy
         let actual = handler.handle(&event).await.unwrap();
@@ -337,6 +344,30 @@ mod tests {
         // poll is expired
         assert_eq!(handler.handle(&event).await.unwrap(), vec![]);
     }
+
+    async fn get_handler() -> Handler {
+        let mut client = Client::faux();
+        faux::when!(client.get_contract_info).then(|_| {
+            Ok(ContractInfo {
+                source_code: "()".to_string(),
+            })
+        });
+
+        let handler = Handler::new(
+            TMAddress::random(PREFIX),
+            TMAddress::random(PREFIX),
+            client,
+            watch::channel(0).1,
+            "its_address".to_string(),
+            "native_interchain_token_code".to_string(),
+            "token_manager_code".to_string(),
+        )
+            .await
+            .unwrap();
+
+        handler
+    }
+
 
     fn poll_started_event(participants: Vec<TMAddress>) -> PollStarted {
         PollStarted::Messages {

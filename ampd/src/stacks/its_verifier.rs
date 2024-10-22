@@ -365,7 +365,14 @@ pub async fn its_verify_contract_code(
     let (payload, verify_type) = get_its_verify_call_params(event)?;
 
     match verify_type.as_str() {
-        VERIFY_INTERCHAIN_TOKEN => {}
+        VERIFY_INTERCHAIN_TOKEN => {
+            return its_verify_interchain_token(
+                payload,
+                http_client,
+                reference_native_interchain_token_code,
+            )
+            .await;
+        }
         VERIFY_TOKEN_MANAGER => {
             return its_verify_token_manager(payload, http_client, reference_token_manager_code)
                 .await;
@@ -398,6 +405,36 @@ fn get_its_verify_call_params(
     .expect_ascii()?;
 
     Ok((payload, verify_type))
+}
+
+async fn its_verify_interchain_token(
+    payload: Vec<u8>,
+    http_client: &Client,
+    reference_native_interchain_token: &String,
+) -> Result<bool, Box<dyn std::error::Error>> {
+    let tuple_type_signature = TupleTypeSignature::try_from(vec![(
+        ClarityName::from("token-address"),
+        TypeSignature::PrincipalType,
+    )])?;
+
+    let mut value = Value::try_deserialize_bytes(
+        &payload,
+        &TypeSignature::TupleType(tuple_type_signature),
+        true,
+    )?
+    .expect_tuple()?;
+
+    let token_address = value
+        .data_map
+        .remove("token-address")
+        .ok_or(Error::InvalidCall)?
+        .expect_principal()?;
+
+    let token_info = http_client
+        .get_contract_info(format!("{}", token_address).as_str())
+        .await?;
+
+    Ok(&token_info.source_code == reference_native_interchain_token)
 }
 
 async fn its_verify_token_manager(
@@ -582,7 +619,7 @@ mod tests {
         );
     }
 
-    // test verify message its
+    // test its_verify_contract_code
     // TODO:
 
     fn get_matching_its_hub_interchain_transfer_msg_and_tx(
