@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use axelar_wasm_std::address::{validate_address, AddressFormat};
 use axelar_wasm_std::utils::TryMapExt;
 use axelar_wasm_std::voting::{PollId, PollResults, Vote, WeightedPoll};
-use axelar_wasm_std::{snapshot, MajorityThreshold, VerificationStatus};
+use axelar_wasm_std::{nonempty, snapshot, MajorityThreshold, VerificationStatus};
 use cosmwasm_std::{
     to_json_binary, Deps, DepsMut, Env, Event, MessageInfo, OverflowError, OverflowOperation,
     Response, Storage, WasmMsg,
@@ -43,7 +43,7 @@ pub fn update_voting_threshold(
 pub fn verify_verifier_set(
     deps: DepsMut,
     env: Env,
-    message_id: &str,
+    message_id: nonempty::String,
     new_verifier_set: VerifierSet,
 ) -> Result<Response, ContractError> {
     let status = verifier_set_status(deps.as_ref(), &new_verifier_set, env.block.height)?;

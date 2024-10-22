@@ -12,7 +12,7 @@ use events::Event;
 use events_derive::try_from;
 use multisig::verifier_set::VerifierSet;
 use serde::Deserialize;
-use sui_types::base_types::{SuiAddress, TransactionDigest};
+use sui_types::base_types::SuiAddress;
 use tokio::sync::watch::Receiver;
 use tracing::{info, info_span};
 use valuable::Valuable;
@@ -26,8 +26,7 @@ use crate::types::TMAddress;
 
 #[derive(Deserialize, Debug)]
 pub struct VerifierSetConfirmation {
-    pub tx_id: TransactionDigest,
-    pub event_index: u32,
+    pub message_id: Base58TxDigestAndEventIndex,
     pub verifier_set: VerifierSet,
 }
 
@@ -121,15 +120,14 @@ where
 
         let transaction_block = self
             .rpc_client
-            .finalized_transaction_block(verifier_set.tx_id)
+            .finalized_transaction_block(verifier_set.message_id.tx_digest.into())
             .await
             .change_context(Error::TxReceipts)?;
 
         let vote = info_span!(
             "verify a new verifier set for Sui",
             poll_id = poll_id.to_string(),
-            id = Base58TxDigestAndEventIndex::new(verifier_set.tx_id, verifier_set.event_index)
-                .to_string()
+            id = verifier_set.message_id.to_string()
         )
         .in_scope(|| {
             let vote = transaction_block.map_or(Vote::NotFound, |tx_receipt| {
@@ -155,6 +153,7 @@ where
 mod tests {
     use std::convert::TryInto;
 
+    use axelar_wasm_std::msg_id::Base58TxDigestAndEventIndex;
     use error_stack::{Report, Result};
     use ethers_providers::ProviderError;
     use events::Event;
@@ -225,6 +224,7 @@ mod tests {
         participants: Vec<TMAddress>,
         expires_at: u64,
     ) -> PollStarted {
+        let msg_id = Base58TxDigestAndEventIndex::new(TransactionDigest::random(), 0u64);
         PollStarted::VerifierSet {
             metadata: PollMetadata {
                 poll_id: "100".parse().unwrap(),
@@ -241,8 +241,9 @@ mod tests {
                     .collect(),
             },
             verifier_set: VerifierSetConfirmation {
-                tx_id: TransactionDigest::random().to_string().parse().unwrap(),
-                event_index: 0,
+                tx_id: msg_id.tx_digest_as_base58(),
+                event_index: msg_id.event_index as u32,
+                message_id: msg_id.to_string().parse().unwrap(),
                 verifier_set: build_verifier_set(KeyType::Ecdsa, &ecdsa_test_data::signers()),
             },
         }

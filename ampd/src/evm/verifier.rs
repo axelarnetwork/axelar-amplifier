@@ -2,7 +2,6 @@ use axelar_wasm_std::voting::Vote;
 use ethers_contract::EthLogDecode;
 use ethers_core::types::{Log, TransactionReceipt, H256};
 use evm_gateway::{IAxelarAmplifierGatewayEvents, WeightedSigners};
-use num_traits::cast;
 
 use crate::handlers::evm_verify_msg::Message;
 use crate::handlers::evm_verify_verifier_set::VerifierSetConfirmation;
@@ -16,7 +15,7 @@ impl PartialEq<IAxelarGatewayEventsWithLog<'_>> for &Message {
 
         match event {
             IAxelarAmplifierGatewayEvents::ContractCallFilter(event) => {
-                log.transaction_hash == Some(self.tx_id)
+                log.transaction_hash == Some(self.message_id.tx_hash.into())
                     && event.sender == self.source_address
                     && self.destination_chain == event.destination_chain
                     && event.destination_contract_address == self.destination_address
@@ -37,7 +36,7 @@ impl PartialEq<IAxelarGatewayEventsWithLog<'_>> for &VerifierSetConfirmation {
                     Err(_) => return false,
                 };
 
-                log.transaction_hash == Some(self.tx_id)
+                log.transaction_hash == Some(self.message_id.tx_hash.into())
                     && event.signers_hash == weighted_signers.hash()
                     && event.signers == weighted_signers.abi_encode()
             }
@@ -53,9 +52,9 @@ fn has_failed(tx_receipt: &TransactionReceipt) -> bool {
 fn event<'a>(
     gateway_address: &EVMAddress,
     tx_receipt: &'a TransactionReceipt,
-    log_index: u32,
+    log_index: u64,
 ) -> Option<IAxelarGatewayEventsWithLog<'a>> {
-    let log_index: usize = cast(log_index).expect("log_index must be a valid usize");
+    let log_index: usize = usize::try_from(log_index).ok()?;
 
     tx_receipt
         .logs
@@ -74,7 +73,7 @@ fn verify<'a, V>(
     tx_receipt: &'a TransactionReceipt,
     to_verify: V,
     expected_transaction_hash: H256,
-    expected_event_index: u32,
+    expected_event_index: u64,
 ) -> Vote
 where
     V: PartialEq<IAxelarGatewayEventsWithLog<'a>>,
@@ -98,7 +97,13 @@ pub fn verify_message(
     tx_receipt: &TransactionReceipt,
     msg: &Message,
 ) -> Vote {
-    verify(gateway_address, tx_receipt, msg, msg.tx_id, msg.event_index)
+    verify(
+        gateway_address,
+        tx_receipt,
+        msg,
+        msg.message_id.tx_hash.into(),
+        msg.message_id.event_index,
+    )
 }
 
 pub fn verify_verifier_set(
@@ -110,13 +115,14 @@ pub fn verify_verifier_set(
         gateway_address,
         tx_receipt,
         confirmation,
-        confirmation.tx_id,
-        confirmation.event_index,
+        confirmation.message_id.tx_hash.into(),
+        confirmation.message_id.event_index,
     )
 }
 
 #[cfg(test)]
 mod tests {
+    use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
     use axelar_wasm_std::voting::Vote;
     use cosmwasm_std::Uint128;
     use ethers_contract::EthEvent;
@@ -137,7 +143,7 @@ mod tests {
         let (gateway_address, tx_receipt, mut verifier_set) =
             matching_verifier_set_and_tx_receipt();
 
-        verifier_set.tx_id = Hash::random();
+        verifier_set.message_id.tx_hash = Hash::random().into();
         assert_eq!(
             verify_verifier_set(&gateway_address, &tx_receipt, &verifier_set),
             Vote::NotFound
@@ -172,17 +178,17 @@ mod tests {
         let (gateway_address, tx_receipt, mut verifier_set) =
             matching_verifier_set_and_tx_receipt();
 
-        verifier_set.event_index = 0;
+        verifier_set.message_id.event_index = 0;
         assert_eq!(
             verify_verifier_set(&gateway_address, &tx_receipt, &verifier_set),
             Vote::NotFound
         );
-        verifier_set.event_index = 2;
+        verifier_set.message_id.event_index = 2;
         assert_eq!(
             verify_verifier_set(&gateway_address, &tx_receipt, &verifier_set),
             Vote::NotFound
         );
-        verifier_set.event_index = 3;
+        verifier_set.message_id.event_index = 3;
         assert_eq!(
             verify_verifier_set(&gateway_address, &tx_receipt, &verifier_set),
             Vote::NotFound
@@ -215,7 +221,7 @@ mod tests {
     fn should_not_verify_msg_if_tx_id_does_not_match() {
         let (gateway_address, tx_receipt, mut msg) = matching_msg_and_tx_receipt();
 
-        msg.tx_id = Hash::random();
+        msg.message_id.tx_hash = Hash::random().into();
         assert_eq!(
             verify_message(&gateway_address, &tx_receipt, &msg),
             Vote::NotFound
@@ -248,17 +254,17 @@ mod tests {
     fn should_not_verify_msg_if_log_index_does_not_match() {
         let (gateway_address, tx_receipt, mut msg) = matching_msg_and_tx_receipt();
 
-        msg.event_index = 0;
+        msg.message_id.event_index = 0;
         assert_eq!(
             verify_message(&gateway_address, &tx_receipt, &msg),
             Vote::NotFound
         );
-        msg.event_index = 2;
+        msg.message_id.event_index = 2;
         assert_eq!(
             verify_message(&gateway_address, &tx_receipt, &msg),
             Vote::NotFound
         );
-        msg.event_index = 3;
+        msg.message_id.event_index = 3;
         assert_eq!(
             verify_message(&gateway_address, &tx_receipt, &msg),
             Vote::NotFound
@@ -295,8 +301,7 @@ mod tests {
         let verifier_set = build_verifier_set(KeyType::Ecdsa, &ecdsa_test_data::signers());
 
         let verifier_set = VerifierSetConfirmation {
-            tx_id,
-            event_index: log_index,
+            message_id: HexTxHashAndEventIndex::new(tx_id, log_index as u64),
             verifier_set,
         };
 
@@ -331,8 +336,10 @@ mod tests {
         let gateway_address = EVMAddress::random();
 
         let msg = Message {
-            tx_id,
-            event_index: log_index,
+            message_id: HexTxHashAndEventIndex::new(tx_id, log_index as u64)
+                .to_string()
+                .parse()
+                .unwrap(),
             source_address: "0xd48e199950589a4336e4dc43bd2c72ba0c0baa86"
                 .parse()
                 .unwrap(),
