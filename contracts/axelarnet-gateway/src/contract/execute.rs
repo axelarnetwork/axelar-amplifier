@@ -1,14 +1,11 @@
-use std::iter;
 use std::str::FromStr;
 
 use axelar_core_std::nexus;
 use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
-use axelar_wasm_std::token::GetToken;
 use axelar_wasm_std::{address, FnExt, IntoContractError};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
-    Addr, BankMsg, Coin, CosmosMsg, DepsMut, Event, HexBinary, MessageInfo, QuerierWrapper,
-    Response, Storage,
+    Addr, CosmosMsg, DepsMut, Event, HexBinary, MessageInfo, QuerierWrapper, Response, Storage,
 };
 use error_stack::{bail, ensure, report, ResultExt};
 use itertools::Itertools;
@@ -108,11 +105,9 @@ pub fn call_contract(
         .inspect_err(|err| panic_if_already_exists(err, &msg.cc_id))
         .change_context(Error::SaveRoutableMessage)?;
 
-    let token = info.single_token().change_context(Error::InvalidToken)?;
     let event = AxelarnetGatewayEvent::ContractCalled {
         msg: msg.clone(),
         payload: call_contract.payload,
-        token: token.clone(),
     };
 
     route_messages(storage, querier, info.sender, vec![msg]).map(|res| res.add_event(event.into()))
@@ -125,9 +120,7 @@ pub fn route_messages(
     msgs: Vec<Message>,
 ) -> Result<Response<nexus::execute::Message>> {
     let Config {
-        chain_name,
-        router,
-        nexus,
+        chain_name, router, ..
     } = state::load_config(storage);
 
     let router = Router::new(router);
@@ -157,11 +150,9 @@ pub fn route_messages(
                 &chain_name,
             )? {
                 RoutingDestination::This => {
-                    prepare_msgs_for_execution(storage, chain_name.clone(), msgs.collect())
+                    prepare_for_execution(storage, chain_name.clone(), msgs.collect())
                 }
-                RoutingDestination::Nexus => {
-                    route_messages_to_nexus(&client, &nexus, msgs.collect())
-                }
+                RoutingDestination::Nexus => route_to_nexus(&client, msgs.collect()),
                 RoutingDestination::Router => route_to_router(&router, msgs.collect()),
             }?;
 
@@ -236,7 +227,7 @@ fn panic_if_already_exists(err: &state::Error, cc_id: &CrossChainId) {
 }
 
 // Because the messages came from the router, we can assume they are already verified
-fn prepare_msgs_for_execution(
+fn prepare_for_execution(
     store: &mut dyn Storage,
     chain_name: ChainName,
     msgs: Vec<Message>,
@@ -327,38 +318,13 @@ fn determine_routing_destination(
     .then(Ok)
 }
 
-/// Route message to the Nexus module
-fn route_to_nexus(
-    client: &nexus::Client,
-    nexus: &Addr,
-    msg: Message,
-    token: Option<Coin>,
-) -> Result<Vec<CosmosMsg<nexus::execute::Message>>> {
-    let msg: nexus::execute::Message = (msg, token.clone()).into();
-
-    token
-        .map(|token| BankMsg::Send {
-            to_address: nexus.to_string(),
-            amount: vec![token],
-        })
-        .map(Into::into)
-        .into_iter()
-        .chain(iter::once(client.route_message(msg)))
-        .collect::<Vec<_>>()
-        .then(Ok)
-}
-
-pub fn route_messages_to_nexus(
-    client: &nexus::Client,
-    nexus: &Addr,
-    msgs: Vec<Message>,
-) -> Result<CosmosMsgWithEvent> {
+/// Route messages to the Nexus module
+pub fn route_to_nexus(client: &nexus::Client, msgs: Vec<Message>) -> Result<CosmosMsgWithEvent> {
     let nexus_msgs = msgs
         .clone()
         .into_iter()
-        .map(|msg| route_to_nexus(client, nexus, msg, None))
-        .collect::<Result<Vec<_>>>()?
-        .then(|msgs| msgs.concat());
+        .map(|msg| client.route_message(msg.into()))
+        .collect();
 
     Ok((
         nexus_msgs,
