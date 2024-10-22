@@ -150,9 +150,9 @@ pub fn route_messages(
                 &chain_name,
             )? {
                 RoutingDestination::This => {
-                    prepare_msgs_for_execution(storage, chain_name.clone(), msgs.collect())
+                    prepare_for_execution(storage, chain_name.clone(), msgs.collect())
                 }
-                RoutingDestination::Nexus => route_messages_to_nexus(&client, msgs.collect()),
+                RoutingDestination::Nexus => route_to_nexus(&client, msgs.collect()),
                 RoutingDestination::Router => route_to_router(&router, msgs.collect()),
             }?;
 
@@ -227,7 +227,7 @@ fn panic_if_already_exists(err: &state::Error, cc_id: &CrossChainId) {
 }
 
 // Because the messages came from the router, we can assume they are already verified
-fn prepare_msgs_for_execution(
+fn prepare_for_execution(
     store: &mut dyn Storage,
     chain_name: ChainName,
     msgs: Vec<Message>,
@@ -319,10 +319,7 @@ fn determine_routing_destination(
 }
 
 /// Route messages to the Nexus module
-pub fn route_messages_to_nexus(
-    client: &nexus::Client,
-    msgs: Vec<Message>,
-) -> Result<CosmosMsgWithEvent> {
+pub fn route_to_nexus(client: &nexus::Client, msgs: Vec<Message>) -> Result<CosmosMsgWithEvent> {
     let nexus_msgs = msgs
         .clone()
         .into_iter()
