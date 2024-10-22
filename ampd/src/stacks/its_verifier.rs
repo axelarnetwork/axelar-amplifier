@@ -1,16 +1,14 @@
-use crate::handlers::stacks_verify_msg::Message;
-use crate::stacks::error::Error;
-use crate::stacks::http_client::{Client, TransactionEvents};
-use crate::stacks::verifier::{CONTRACT_CALL_TYPE, PRINT_TOPIC};
-use crate::types::Hash;
 use clarity::codec::StacksMessageCodec;
 use clarity::vm::types::{
-    BufferLength, PrincipalData, SequenceSubtype, StringSubtype, TupleData, TupleTypeSignature,
-    TypeSignature,
+    BufferLength, SequenceSubtype, StringSubtype, TupleData, TupleTypeSignature, TypeSignature,
 };
 use clarity::vm::{ClarityName, Value};
 use ethers_core::abi::{encode, Token};
 use sha3::{Digest, Keccak256};
+
+use crate::stacks::error::Error;
+use crate::stacks::http_client::{Client, TransactionEvents};
+use crate::types::Hash;
 
 const MESSAGE_TYPE_INTERCHAIN_TRANSFER: u128 = 0;
 const MESSAGE_TYPE_DEPLOY_INTERCHAIN_TOKEN: u128 = 1;
@@ -474,9 +472,8 @@ mod tests {
     use tokio::test as async_test;
 
     use crate::handlers::stacks_verify_msg::Message;
-    use crate::stacks::http_client::Client;
     use crate::stacks::http_client::{
-        ContractLog, ContractLogValue, Transaction, TransactionEvents,
+        Client, ContractInfo, ContractLog, ContractLogValue, Transaction, TransactionEvents,
     };
     use crate::stacks::verifier::verify_message;
 
@@ -619,8 +616,121 @@ mod tests {
         );
     }
 
-    // test its_verify_contract_code
-    // TODO:
+    #[async_test]
+    async fn should_not_verify_msg_its_verify_interchain_token_invalid_contract_code() {
+        let mut client = Client::faux();
+        faux::when!(client.get_contract_info).then(|_| {
+            Ok(ContractInfo {
+                source_code: "()".to_string(),
+            })
+        });
+
+        let (source_chain, gateway_address, its_address, tx, mut msg) =
+            get_matching_its_verify_interchain_token_msg_and_tx();
+
+        assert_eq!(
+            verify_message(
+                &source_chain,
+                &gateway_address,
+                &its_address,
+                &tx,
+                &msg,
+                &client,
+                &"native_interchain_token_code".to_string(),
+                &"token_manager_code".to_string()
+            )
+            .await,
+            Vote::NotFound
+        );
+    }
+
+    #[async_test]
+    async fn should_verify_msg_its_verify_interchain_token() {
+        let source_code = "native_interchain_token_code";
+
+        let mut client = Client::faux();
+        faux::when!(client.get_contract_info).then(|_| {
+            Ok(ContractInfo {
+                source_code: source_code.to_string(),
+            })
+        });
+
+        let (source_chain, gateway_address, its_address, tx, mut msg) =
+            get_matching_its_verify_interchain_token_msg_and_tx();
+
+        assert_eq!(
+            verify_message(
+                &source_chain,
+                &gateway_address,
+                &its_address,
+                &tx,
+                &msg,
+                &client,
+                &source_code.to_string(),
+                &"token_manager_code".to_string()
+            )
+            .await,
+            Vote::SucceededOnChain
+        );
+    }
+
+    #[async_test]
+    async fn should_not_verify_msg_its_verify_token_manager_invalid_contract_code() {
+        let mut client = Client::faux();
+        faux::when!(client.get_contract_info).then(|_| {
+            Ok(ContractInfo {
+                source_code: "()".to_string(),
+            })
+        });
+
+        let (source_chain, gateway_address, its_address, tx, mut msg) =
+            get_matching_its_verify_token_manager_msg_and_tx();
+
+        assert_eq!(
+            verify_message(
+                &source_chain,
+                &gateway_address,
+                &its_address,
+                &tx,
+                &msg,
+                &client,
+                &"native_interchain_token_code".to_string(),
+                &"token_manager_code".to_string()
+            )
+            .await,
+            Vote::NotFound
+        );
+    }
+
+    #[async_test]
+    async fn should_verify_msg_its_verify_token_manager() {
+        let source_code = "token_manager_code";
+
+        let mut client = Client::faux();
+        faux::when!(client.get_contract_info).then(|_| {
+            Ok(ContractInfo {
+                source_code: source_code.to_string(),
+            })
+        });
+
+        let (source_chain, gateway_address, its_address, tx, mut msg) =
+            get_matching_its_verify_token_manager_msg_and_tx();
+
+        assert_eq!(
+            verify_message(
+                &source_chain,
+                &gateway_address,
+                &its_address,
+                &tx,
+                &msg,
+                &client,
+                &"native_interchain_token_code".to_string(),
+                &source_code.to_string(),
+            )
+            .await,
+            Vote::SucceededOnChain
+        );
+    }
 
     fn get_matching_its_hub_interchain_transfer_msg_and_tx(
     ) -> (ChainName, String, String, Transaction, Message) {
@@ -809,6 +919,130 @@ mod tests {
                 topic: "print".to_string(),
                 value: ContractLogValue {
                     hex: "0x0c000000061164657374696e6174696f6e2d636861696e0d000000066178656c61721c64657374696e6174696f6e2d636f6e74726163742d616464726573730d00000008636f736d7761736d077061796c6f616402000000c10c000000031164657374696e6174696f6e2d636861696e0d00000008657468657265756d077061796c6f6164020000007a0c0000000406706172616d7302000000010008746f6b656e2d69640200000020c99a1f0a4b46456129d86b37f580af16fea20eeaf7e73628547c10f6799b90b012746f6b656e2d6d616e616765722d74797065010000000000000000000000000000000204747970650100000000000000000000000000000002047479706501000000000000000000000000000000030c7061796c6f61642d6861736802000000209ce89d392d43333d269dd9f234e765ded79db1ba895e8b2e3d6d8f936cae57320673656e646572061a6d78de7b0625dfbfc16c3a8a5735f6dc3dc3f2ce18696e746572636861696e2d746f6b656e2d7365727669636504747970650d0000000d636f6e74726163742d63616c6c".to_string(),
+                }
+            }),
+        };
+
+        let transaction = Transaction {
+            tx_id,
+            nonce: 1,
+            sender_address: "whatever".to_string(),
+            tx_status: "success".to_string(),
+            events: vec![wrong_event, event],
+        };
+
+        (
+            source_chain.parse().unwrap(),
+            gateway_address.to_string(),
+            its_address.to_string(),
+            transaction,
+            msg,
+        )
+    }
+
+    fn get_matching_its_verify_interchain_token_msg_and_tx(
+    ) -> (ChainName, String, String, Transaction, Message) {
+        let source_chain = "stacks";
+        let gateway_address = "SP2N959SER36FZ5QT1CX9BR63W3E8X35WQCMBYYWC.axelar-gateway";
+        let its_address = "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.interchain-token-service";
+        let tx_id = "0xee0049faf8dde5507418140ed72bd64f73cc001b08de98e0c16a3a8d9f2c38cf"
+            .parse()
+            .unwrap();
+
+        let msg = Message {
+            tx_id,
+            event_index: 1,
+            source_address: its_address.to_string(),
+            destination_chain: "stacks".parse().unwrap(),
+            destination_address: its_address.to_string(),
+            payload_hash: "0xe0a3c74b09fa9fc9ce46ab8b6984ffb079f49fc08862a949a14a6eb6ad063c75"
+                .parse()
+                .unwrap(),
+        };
+
+        let wrong_event = TransactionEvents {
+            event_index: 0,
+            tx_id: tx_id.to_string(),
+            contract_log: None,
+        };
+
+        /*
+            payload is:
+            {
+                type: 'verify-interchain-token',
+                token-address: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.sample-sip-010
+            }
+        */
+        let event = TransactionEvents {
+            event_index: 1,
+            tx_id: tx_id.to_string(),
+            contract_log: Some(ContractLog {
+                contract_id: gateway_address.to_string(),
+                topic: "print".to_string(),
+                value: ContractLogValue {
+                    hex: "0x0c000000061164657374696e6174696f6e2d636861696e0d00000006737461636b731c64657374696e6174696f6e2d636f6e74726163742d616464726573730d00000042535431505148514b5630524a585a465931444758384d4e534e5956453356475a4a53525450475a474d2e696e746572636861696e2d746f6b656e2d73657276696365077061796c6f616402000001c40c000000080a6d6573736167652d69640d0000002c617070726f7665642d696e746572636861696e2d746f6b656e2d6465706c6f796d656e742d6d657373616765077061796c6f616402000000a60c0000000608646563696d616c7301000000000000000000000000000000120c6d696e7465722d6279746573020000000100046e616d650d000000176e61746976652d696e746572636861696e2d746f6b656e0673796d626f6c0d0000000349545408746f6b656e2d696402000000206c96e90b60cd71d0b948ae26be1046377a10f46441d595a6d5dd4f4a6a850372047479706501000000000000000000000000000000010e736f757263652d616464726573730d00000004307830300c736f757263652d636861696e0d00000008657468657265756d0d746f6b656e2d61646472657373061a6d78de7b0625dfbfc16c3a8a5735f6dc3dc3f2ce0e73616d706c652d7369702d30313008746f6b656e2d696402000000206c96e90b60cd71d0b948ae26be1046377a10f46441d595a6d5dd4f4a6a8503720a746f6b656e2d74797065010000000000000000000000000000000004747970650d000000177665726966792d696e746572636861696e2d746f6b656e0c7061796c6f61642d686173680200000020e0a3c74b09fa9fc9ce46ab8b6984ffb079f49fc08862a949a14a6eb6ad063c750673656e646572061a6d78de7b0625dfbfc16c3a8a5735f6dc3dc3f2ce18696e746572636861696e2d746f6b656e2d7365727669636504747970650d0000000d636f6e74726163742d63616c6c".to_string(),
+                }
+            }),
+        };
+
+        let transaction = Transaction {
+            tx_id,
+            nonce: 1,
+            sender_address: "whatever".to_string(),
+            tx_status: "success".to_string(),
+            events: vec![wrong_event, event],
+        };
+
+        (
+            source_chain.parse().unwrap(),
+            gateway_address.to_string(),
+            its_address.to_string(),
+            transaction,
+            msg,
+        )
+    }
+
+    fn get_matching_its_verify_token_manager_msg_and_tx(
+    ) -> (ChainName, String, String, Transaction, Message) {
+        let source_chain = "stacks";
+        let gateway_address = "SP2N959SER36FZ5QT1CX9BR63W3E8X35WQCMBYYWC.axelar-gateway";
+        let its_address = "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.interchain-token-service";
+        let tx_id = "0xee0049faf8dde5507418140ed72bd64f73cc001b08de98e0c16a3a8d9f2c38cf"
+            .parse()
+            .unwrap();
+
+        let msg = Message {
+            tx_id,
+            event_index: 1,
+            source_address: its_address.to_string(),
+            destination_chain: "stacks".parse().unwrap(),
+            destination_address: its_address.to_string(),
+            payload_hash: "0x8488259c3537e21e92750cc757a4b99377c5149ea986e2eff7716fdaf8c4ace8"
+                .parse()
+                .unwrap(),
+        };
+
+        let wrong_event = TransactionEvents {
+            event_index: 0,
+            tx_id: tx_id.to_string(),
+            contract_log: None,
+        };
+
+        /*
+            payload is:
+            {
+                type: 'verify-token-manager',
+                token-manager-address: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.token-manager
+            }
+        */
+        let event = TransactionEvents {
+            event_index: 1,
+            tx_id: tx_id.to_string(),
+            contract_log: Some(ContractLog {
+                contract_id: gateway_address.to_string(),
+                topic: "print".to_string(),
+                value: ContractLogValue {
+                    hex: "0x0c000000061164657374696e6174696f6e2d636861696e0d00000006737461636b731c64657374696e6174696f6e2d636f6e74726163742d616464726573730d00000042535431505148514b5630524a585a465931444758384d4e534e5956453356475a4a53525450475a474d2e696e746572636861696e2d746f6b656e2d73657276696365077061796c6f616402000000da0c000000050d746f6b656e2d61646472657373061a6d78de7b0625dfbfc16c3a8a5735f6dc3dc3f2ce0e73616d706c652d7369702d30313008746f6b656e2d69640200000020289df9e77347122b6306bc2db1fa9387bb8b851d685ff3ee92d18335abd1c10c15746f6b656e2d6d616e616765722d61646472657373061a6d78de7b0625dfbfc16c3a8a5735f6dc3dc3f2ce0d746f6b656e2d6d616e616765720a746f6b656e2d74797065010000000000000000000000000000000204747970650d000000147665726966792d746f6b656e2d6d616e616765720c7061796c6f61642d6861736802000000208488259c3537e21e92750cc757a4b99377c5149ea986e2eff7716fdaf8c4ace80673656e646572061a6d78de7b0625dfbfc16c3a8a5735f6dc3dc3f2ce18696e746572636861696e2d746f6b656e2d7365727669636504747970650d0000000d636f6e74726163742d63616c6c".to_string(),
                 }
             }),
         };

@@ -362,12 +362,11 @@ mod tests {
             "native_interchain_token_code".to_string(),
             "token_manager_code".to_string(),
         )
-            .await
-            .unwrap();
+        .await
+        .unwrap();
 
         handler
     }
-
 
     fn poll_started_event(participants: Vec<TMAddress>) -> PollStarted {
         PollStarted::Messages {

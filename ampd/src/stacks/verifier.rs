@@ -48,7 +48,7 @@ impl Message {
             (
                 ClarityName::from("destination-contract-address"),
                 TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(
-                    BufferLength::try_from(48u32)?,
+                    BufferLength::try_from(128u32)?,
                 ))),
             ),
             (
@@ -278,9 +278,8 @@ mod tests {
 
     use crate::handlers::stacks_verify_msg::Message;
     use crate::handlers::stacks_verify_verifier_set::VerifierSetConfirmation;
-    use crate::stacks::http_client::Client;
     use crate::stacks::http_client::{
-        ContractLog, ContractLogValue, Transaction, TransactionEvents,
+        Client, ContractLog, ContractLogValue, Transaction, TransactionEvents,
     };
     use crate::stacks::verifier::{verify_message, verify_verifier_set, SIGNERS_ROTATED_TYPE};
 
@@ -662,10 +661,10 @@ mod tests {
         let msg = Message {
             tx_id,
             event_index: 1,
-            source_address: "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM".to_string(),
-            destination_chain: "ethereum".parse().unwrap(),
-            destination_address: "0x043E105189e15AC72252CFEF898EC3841A4A0561".to_string(),
-            payload_hash: "0x0338573718f5cd6d7e5a90adcdebd28b097f99574ad6febffea9a40adb17f46d"
+            source_address: "ST2CY5V39NHDPWSXMW9QDT3HC3GD6Q6XX4CFRK9AG".to_string(),
+            destination_chain: "Destination".parse().unwrap(),
+            destination_address: "0x123abc".to_string(),
+            payload_hash: "0x9ed02951dbf029855b46b102cc960362732569e83d00a49a7575d7aed229890e"
                 .parse()
                 .unwrap(),
         };
@@ -676,7 +675,6 @@ mod tests {
             contract_log: None,
         };
 
-        // TODO: Update hex value to correct one
         let event = TransactionEvents {
             event_index: 1,
             tx_id: tx_id.to_string(),
@@ -684,7 +682,7 @@ mod tests {
                 contract_id: gateway_address.to_string(),
                 topic: "print".to_string(),
                 value: ContractLogValue {
-                    hex: "0x0c000000061164657374696e6174696f6e2d636861696e0200000008657468657265756d1c64657374696e6174696f6e2d636f6e74726163742d61646472657373020000002a307830343345313035313839653135414337323235324346454638393845433338343141344130353631077061796c6f616402000000196c6f72656d697073756d20646f6c6f722073697420616d65740c7061796c6f61642d6861736802000000200338573718f5cd6d7e5a90adcdebd28b097f99574ad6febffea9a40adb17f46d0673656e646572051a6d78de7b0625dfbfc16c3a8a5735f6dc3dc3f2ce04747970650d0000000d636f6e74726163742d63616c6c".to_string(),
+                    hex: "0x0c000000061164657374696e6174696f6e2d636861696e0d0000000b64657374696e6174696f6e1c64657374696e6174696f6e2d636f6e74726163742d616464726573730d000000083078313233616263077061796c6f61640200000029535431534a3344544535444e375835345944483544363452334243423641324147325a5138595044350c7061796c6f61642d6861736802000000209ed02951dbf029855b46b102cc960362732569e83d00a49a7575d7aed229890e0673656e646572051a99e2ec69ac5b6e67b4e26edd0e2c1c1a6b9bbd2304747970650d0000000d636f6e74726163742d63616c6c".to_string(),
                 }
             }),
         };
