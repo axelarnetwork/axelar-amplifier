@@ -8,8 +8,8 @@ use crate::handlers::stellar_verify_msg::Message;
 use crate::handlers::stellar_verify_verifier_set::VerifierSetConfirmation;
 use crate::stellar::http_client::TxResponse;
 
-const TOPIC_CALLED: &str = "called";
-const TOPIC_ROTATED: &str = "rotated";
+const TOPIC_CALLED: &str = "contract_called";
+const TOPIC_ROTATED: &str = "signers_rotated";
 
 impl PartialEq<ContractEventBody> for Message {
     fn eq(&self, event: &ContractEventBody) -> bool {
