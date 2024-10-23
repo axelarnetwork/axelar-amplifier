@@ -6,8 +6,6 @@ use cosmwasm_std::{ensure, Addr, StdError, Storage};
 use cw_storage_plus::{Item, Map};
 use router_api::{Address, ChainNameRaw};
 
-use crate::TokenId;
-
 #[derive(thiserror::Error, Debug, IntoContractError)]
 pub enum Error {
     #[error(transparent)]
@@ -29,7 +27,6 @@ pub struct Config {
 
 const CONFIG: Item<Config> = Item::new("config");
 const ITS_CONTRACTS: Map<&ChainNameRaw, Address> = Map::new("its_contracts");
-const GATEWAY_TOKEN_DENOMS: Map<TokenId, nonempty::String> = Map::new("gateway_token_denoms");
 
 pub fn load_config(storage: &dyn Storage) -> Config {
     CONFIG
@@ -81,27 +78,6 @@ pub fn load_all_its_contracts(
 ) -> Result<HashMap<ChainNameRaw, Address>, Error> {
     Ok(ITS_CONTRACTS
         .range(storage, None, None, cosmwasm_std::Order::Ascending)
-        .collect::<Result<HashMap<_, _>, _>>()?)
-}
-
-pub fn save_gateway_token_denom(
-    storage: &mut dyn Storage,
-    token_id: TokenId,
-    denom: nonempty::String,
-) -> Result<(), Error> {
-    GATEWAY_TOKEN_DENOMS.update(storage, token_id, |stored_denom| match stored_denom {
-        None => Ok(denom),
-        _ => Err(Error::GatewayTokenAlreadyRegistered(denom)),
-    })?;
-    Ok(())
-}
-
-pub fn load_all_gateway_tokens(
-    storage: &dyn Storage,
-) -> Result<HashMap<nonempty::String, TokenId>, Error> {
-    Ok(GATEWAY_TOKEN_DENOMS
-        .range(storage, None, None, cosmwasm_std::Order::Ascending)
-        .map(|res| res.map(|(token_id, denom)| (denom, token_id)))
         .collect::<Result<HashMap<_, _>, _>>()?)
 }
 

@@ -41,7 +41,6 @@ cw2 = { workspace = true }
 error-stack = { workspace = true }
 itertools = { workspace = true }
 msgs-derive = { workspace = true }
-nexus-gateway = { workspace = true, features = ["library"] }
 report = { workspace = true }
 router-api = { workspace = true }
 serde = { workspace = true }
@@ -51,6 +50,7 @@ thiserror = { workspace = true }
 
 [dev-dependencies]
 assert_ok = { workspace = true }
+axelar-core-std = { workspace = true, features = ["test"] }
 cw-multi-test = { workspace = true }
 goldie = { workspace = true }
 hex = { workspace = true }

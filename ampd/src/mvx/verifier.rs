@@ -162,7 +162,7 @@ mod tests {
     use multisig::key::KeyType;
     use multisig::test::common::{build_verifier_set, ed25519_test_data};
     use multiversx_sdk::data::address::Address;
-    use multiversx_sdk::data::transaction::{ApiLogs, Events, TransactionOnNetwork};
+    use multiversx_sdk::data::transaction::{ApiLogs, Events, LogData, TransactionOnNetwork};
 
     use crate::handlers::mvx_verify_msg::Message;
     use crate::handlers::mvx_verify_verifier_set::VerifierSetConfirmation;
@@ -430,7 +430,7 @@ mod tests {
             address: gateway_address.clone(),
             identifier: CONTRACT_CALL_IDENTIFIER.into(),
             topics: Some(vec![STANDARD.encode(SIGNERS_ROTATED_EVENT)]), // wrong event name
-            data: None,
+            data: LogData::Empty,
         };
 
         // On MultiversX, topics and data are base64 encoded
@@ -444,7 +444,7 @@ mod tests {
                 STANDARD.encode(msg.destination_address.clone()),
                 STANDARD.encode(payload_hash),
             ]),
-            data: Some("".into()), // data is irrelevant here since it contains only the offchain payload
+            data: LogData::String("".into()), // data is irrelevant here since it contains only the offchain payload
         };
 
         let other_address = Address::from_bech32_string(
@@ -483,7 +483,7 @@ mod tests {
             data: None,
             hyperblock_nonce: Some(1),
             hyperblock_hash: Some("".into()),
-            smart_contract_results: None,
+            smart_contract_results: vec![],
             processing_type_on_destination: "".into(),
         };
 
@@ -526,7 +526,7 @@ mod tests {
             address: gateway_address.clone(),
             identifier: ROTATE_SIGNERS_IDENTIFIER.into(),
             topics: Some(vec![STANDARD.encode(CONTRACT_CALL_EVENT)]), // wrong event name
-            data: None,
+            data: LogData::Empty,
         };
 
         // On MultiversX, topics and data are base64 encoded
@@ -538,7 +538,7 @@ mod tests {
                 STANDARD.encode("0"),          // epoch (irrelevant here)
                 STANDARD.encode(signers_hash), // signers hash
             ]),
-            data: Some(STANDARD.encode(data)),
+            data: LogData::String(STANDARD.encode(data)),
         };
 
         let other_address = Address::from_bech32_string(
@@ -577,7 +577,7 @@ mod tests {
             data: None,
             hyperblock_nonce: Some(1),
             hyperblock_hash: Some("".into()),
-            smart_contract_results: None,
+            smart_contract_results: vec![],
             processing_type_on_destination: "".into(),
         };
 

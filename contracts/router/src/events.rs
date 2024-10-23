@@ -4,7 +4,7 @@ use router_api::{ChainName, GatewayDirection, Message};
 pub struct RouterInstantiated {
     pub admin: Addr,
     pub governance: Addr,
-    pub nexus_gateway: Addr,
+    pub axelarnet_gateway: Addr,
 }
 
 pub struct ChainRegistered {

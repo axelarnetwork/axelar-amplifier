@@ -9,7 +9,7 @@ use interchain_token_service::events::Event;
 use interchain_token_service::msg::ExecuteMsg;
 use interchain_token_service::{HubMessage, Message, TokenId, TokenManagerType};
 use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
-use utils::TestMessage;
+use utils::{make_deps, TestMessage};
 
 mod utils;
 
@@ -78,7 +78,7 @@ fn deregistering_unknown_chain_fails() {
 
 #[test]
 fn execute_hub_message_succeeds() {
-    let mut deps = mock_dependencies();
+    let mut deps = make_deps();
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
     let TestMessage {
@@ -107,22 +107,22 @@ fn execute_hub_message_succeeds() {
     let test_messages = vec![
         Message::InterchainTransfer {
             token_id: token_id.clone(),
-            source_address: HexBinary::from([1; 32]),
-            destination_address: HexBinary::from([2; 32]),
-            amount: 1u64.into(),
-            data: HexBinary::from([1, 2, 3, 4]),
+            source_address: HexBinary::from([1; 32]).try_into().unwrap(),
+            destination_address: HexBinary::from([2; 32]).try_into().unwrap(),
+            amount: 1u64.try_into().unwrap(),
+            data: Some(HexBinary::from([1, 2, 3, 4]).try_into().unwrap()),
         },
         Message::DeployInterchainToken {
             token_id: token_id.clone(),
-            name: "Test".into(),
-            symbol: "TST".into(),
+            name: "Test".try_into().unwrap(),
+            symbol: "TST".try_into().unwrap(),
             decimals: 18,
-            minter: HexBinary::from([1; 32]),
+            minter: Some(HexBinary::from([1; 32]).try_into().unwrap()),
         },
         Message::DeployTokenManager {
             token_id: token_id.clone(),
             token_manager_type: TokenManagerType::MintBurn,
-            params: HexBinary::from([1, 2, 3, 4]),
+            params: HexBinary::from([1, 2, 3, 4]).try_into().unwrap(),
         },
     ];
 

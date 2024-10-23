@@ -39,11 +39,11 @@ fn query_its_contract() {
 }
 
 #[test]
-fn query_all_its_contractes() {
+fn query_all_its_contracts() {
     let mut deps = mock_dependencies();
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
-    let its_contractes = vec![
+    let its_contracts = vec![
         (
             "ethereum".parse::<ChainNameRaw>().unwrap(),
             "0x1234567890123456789012345678901234567890"
@@ -60,10 +60,10 @@ fn query_all_its_contractes() {
     .into_iter()
     .collect::<HashMap<_, _>>();
 
-    for (chain, address) in its_contractes.iter() {
+    for (chain, address) in its_contracts.iter() {
         utils::register_its_contract(deps.as_mut(), chain.clone(), address.clone()).unwrap();
     }
 
     let queried_addresses = assert_ok!(utils::query_all_its_contracts(deps.as_ref()));
-    assert_eq!(queried_addresses, its_contractes);
+    assert_eq!(queried_addresses, its_contracts);
 }

@@ -2,45 +2,39 @@ use std::str::FromStr;
 
 use axelar_wasm_std::voting::Vote;
 use stellar::WeightedSigners;
-use stellar_xdr::curr::{ContractEventBody, ScAddress, ScSymbol, ScVal, StringM};
+use stellar_xdr::curr::{BytesM, ContractEventBody, ScAddress, ScBytes, ScSymbol, ScVal, StringM};
 
 use crate::handlers::stellar_verify_msg::Message;
 use crate::handlers::stellar_verify_verifier_set::VerifierSetConfirmation;
 use crate::stellar::http_client::TxResponse;
 
-const TOPIC_CALLED: &str = "called";
-const TOPIC_ROTATED: &str = "rotated";
+const TOPIC_CONTRACT_CALLED: &str = "contract_called";
+const TOPIC_SIGNERS_ROTATED: &str = "signers_rotated";
 
 impl PartialEq<ContractEventBody> for Message {
     fn eq(&self, event: &ContractEventBody) -> bool {
         let ContractEventBody::V0(body) = event;
 
-        if body.topics.len() != 3 {
+        if body.topics.len() != 5 {
             return false;
         }
 
-        let [symbol, source_address, payload_hash] = &body.topics[..] else {
+        let [symbol, source_address, destination_chain, destination_address, payload_hash] =
+            &body.topics[..]
+        else {
             return false;
         };
 
-        let expected_topic: ScVal =
-            ScSymbol(StringM::from_str(TOPIC_CALLED).expect("must convert str to ScSymbol")).into();
-
-        let (dest_chain, dest_address) = match &body.data {
-            ScVal::Vec(Some(data)) if data.len() == 3 => {
-                let [dest_chain, dest_address, _] = &data[..] else {
-                    return false;
-                };
-                (dest_chain, dest_address)
-            }
-            _ => return false,
-        };
+        let expected_topic: ScVal = ScSymbol(
+            StringM::from_str(TOPIC_CONTRACT_CALLED).expect("must convert str to ScSymbol"),
+        )
+        .into();
 
         expected_topic == *symbol
             && (ScVal::Address(self.source_address.clone()) == *source_address)
             && (ScVal::Bytes(self.payload_hash.clone()) == *payload_hash)
-            && (ScVal::String(self.destination_chain.clone()) == *dest_chain)
-            && (ScVal::String(self.destination_address.clone()) == *dest_address)
+            && (ScVal::String(self.destination_chain.clone()) == *destination_chain)
+            && (ScVal::String(self.destination_address.clone()) == *destination_address)
     }
 }
 
@@ -52,21 +46,26 @@ impl PartialEq<ContractEventBody> for VerifierSetConfirmation {
             return false;
         }
 
-        let [symbol, _, signer_hash] = &body.topics[..] else {
+        let [symbol, _, signers_hash] = &body.topics[..] else {
             return false;
         };
 
-        let expected_topic: ScVal =
-            ScSymbol(StringM::from_str(TOPIC_ROTATED).expect("must convert str to ScSymbol"))
-                .into();
+        let expected_topic: ScVal = ScSymbol(
+            StringM::from_str(TOPIC_SIGNERS_ROTATED).expect("must convert str to ScSymbol"),
+        )
+        .into();
 
-        WeightedSigners::try_from(&self.verifier_set)
+        let Some(weighted_signers_hash) = WeightedSigners::try_from(&self.verifier_set)
             .ok()
-            .and_then(|signers| signers.hash().ok())
-            .and_then(|hash| ScVal::try_from(hash).ok())
-            .map_or(false, |hash| {
-                symbol == &expected_topic && signer_hash == &hash
-            })
+            .and_then(|weighted_signers| weighted_signers.hash().ok())
+            .and_then(|signers_hash| BytesM::try_from(signers_hash).ok())
+            .map(ScBytes)
+            .map(ScVal::Bytes)
+        else {
+            return false;
+        };
+
+        &expected_topic == symbol && &weighted_signers_hash == signers_hash
     }
 }
 
@@ -145,7 +144,7 @@ mod test {
     use crate::handlers::stellar_verify_verifier_set::VerifierSetConfirmation;
     use crate::stellar::http_client::TxResponse;
     use crate::stellar::verifier::{
-        verify_message, verify_verifier_set, TOPIC_CALLED, TOPIC_ROTATED,
+        verify_message, verify_verifier_set, TOPIC_CONTRACT_CALLED, TOPIC_SIGNERS_ROTATED,
     };
     use crate::types::{EVMAddress, Hash};
     use crate::PREFIX;
@@ -293,7 +292,7 @@ mod test {
         let signing_key = SigningKey::generate(&mut OsRng);
 
         let msg = Message {
-            tx_id: Hash::random().to_string(),
+            tx_id: format!("{:x}", Hash::random()),
             event_index: 0,
             source_address: ScAddress::Account(AccountId(PublicKey::PublicKeyTypeEd25519(
                 Uint256::from(signing_key.verifying_key().to_bytes()),
@@ -308,21 +307,15 @@ mod test {
 
         let event_body = ContractEventBody::V0(ContractEventV0 {
             topics: vec![
-                ScVal::Symbol(ScSymbol(StringM::from_str(TOPIC_CALLED).unwrap())),
+                ScVal::Symbol(ScSymbol(StringM::from_str(TOPIC_CONTRACT_CALLED).unwrap())),
                 ScVal::Address(msg.source_address.clone()),
+                ScVal::String(msg.destination_chain.clone()),
+                ScVal::String(msg.destination_address.clone()),
                 ScVal::Bytes(msg.payload_hash.clone()),
             ]
             .try_into()
             .unwrap(),
-            data: ScVal::Vec(Some(
-                vec![
-                    ScVal::String(msg.destination_chain.clone()),
-                    ScVal::String(msg.destination_address.clone()),
-                    ScVal::String(StringM::from_str("payload").unwrap().into()),
-                ]
-                .try_into()
-                .unwrap(),
-            )),
+            data: ScVal::Bytes(BytesM::try_from("payload".as_bytes()).unwrap().into()),
         });
 
         let event = ContractEvent {
@@ -351,7 +344,7 @@ mod test {
         let threshold = Uint128::new(2u128);
 
         let verifier_set_confirmation = VerifierSetConfirmation {
-            tx_id: Hash::random().to_string(),
+            tx_id: format!("{:x}", Hash::random()),
             event_index: 0,
             verifier_set: VerifierSet {
                 signers: signers
@@ -363,21 +356,23 @@ mod test {
             },
         };
 
-        let weighted_signers =
-            WeightedSigners::try_from(&verifier_set_confirmation.verifier_set).unwrap();
-        let signer_hash = weighted_signers.hash().unwrap();
+        let weighted_signers_hash = BytesM::try_from(
+            WeightedSigners::try_from(&verifier_set_confirmation.verifier_set)
+                .unwrap()
+                .hash()
+                .unwrap(),
+        )
+        .unwrap();
 
         let event_body = ContractEventBody::V0(ContractEventV0 {
             topics: vec![
-                ScVal::Symbol(ScSymbol(StringM::from_str(TOPIC_ROTATED).unwrap())),
-                ScVal::Bytes(ScBytes(
-                    BytesM::try_from(Hash::random().to_fixed_bytes()).unwrap(),
-                )),
-                ScVal::try_from(signer_hash).unwrap(),
+                ScVal::Symbol(ScSymbol(StringM::from_str(TOPIC_SIGNERS_ROTATED).unwrap())),
+                ScVal::U64(1),
+                ScVal::Bytes(ScBytes(weighted_signers_hash)),
             ]
             .try_into()
             .unwrap(),
-            data: ScVal::Vec(None),
+            data: ().into(),
         });
 
         let event = ContractEvent {

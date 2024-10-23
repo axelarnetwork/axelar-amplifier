@@ -11,15 +11,10 @@ pub fn rewards_pool(
     block_height: u64,
 ) -> Result<msg::RewardsPool, ContractError> {
     let pool = state::load_rewards_pool(storage, pool_id.clone())?;
-    let current_params = pool.params;
-    let cur_epoch = Epoch::current(&current_params, block_height)?;
+    let params_snapshot = pool.params;
+    let cur_epoch = Epoch::current(&params_snapshot, block_height)?;
 
-    // the params could have been updated since the tally was created. Therefore we use the params from the
-    // active tally if it exists, otherwise we use the latest stored params.
-    let params = match state::load_epoch_tally(storage, pool_id.clone(), cur_epoch.epoch_num)? {
-        Some(epoch_tally) => epoch_tally.params,
-        None => current_params.params,
-    };
+    let params = params_snapshot.params;
 
     let last_distribution_epoch =
         state::load_rewards_watermark(storage, pool_id)?.map(Uint64::from);
@@ -28,6 +23,7 @@ pub fn rewards_pool(
         balance: pool.balance,
         epoch_duration: params.epoch_duration.into(),
         rewards_per_epoch: params.rewards_per_epoch.into(),
+        participation_threshold: params.participation_threshold,
         current_epoch_num: cur_epoch.epoch_num.into(),
         last_distribution_epoch,
     })
@@ -118,6 +114,7 @@ mod tests {
                 balance,
                 epoch_duration: current_params.params.epoch_duration.into(),
                 rewards_per_epoch: current_params.params.rewards_per_epoch.into(),
+                participation_threshold: current_params.params.participation_threshold,
                 current_epoch_num: Epoch::current(&current_params, block_height)
                     .unwrap()
                     .epoch_num
@@ -151,6 +148,7 @@ mod tests {
                 balance,
                 epoch_duration: current_params.params.epoch_duration.into(),
                 rewards_per_epoch: current_params.params.rewards_per_epoch.into(),
+                participation_threshold: current_params.params.participation_threshold,
                 current_epoch_num: Epoch::current(&current_params, block_height)
                     .unwrap()
                     .epoch_num
@@ -194,48 +192,8 @@ mod tests {
                 balance,
                 epoch_duration: current_params.params.epoch_duration.into(),
                 rewards_per_epoch: current_params.params.rewards_per_epoch.into(),
+                participation_threshold: current_params.params.participation_threshold,
                 current_epoch_num: Epoch::current(&current_params, cur_block_height)
-                    .unwrap()
-                    .epoch_num
-                    .into(),
-                last_distribution_epoch: None,
-            }
-        );
-    }
-
-    // Should get rewards pool details, if there is a tally for current epoch, then details are loaded from the tally
-    #[test]
-    fn should_get_rewards_pool_with_tally_for_current_epoch() {
-        let mut deps = mock_dependencies();
-        let balance = Uint128::from(1000u128);
-        let (current_params, pool_id) = setup(deps.as_mut().storage, balance);
-
-        let block_height = 1000;
-
-        let tally_params = Params {
-            epoch_duration: Uint64::from(200u64).try_into().unwrap(),
-            rewards_per_epoch: Uint128::from(2000u128).try_into().unwrap(),
-            participation_threshold: (2, 3).try_into().unwrap(),
-        };
-
-        state::save_epoch_tally(
-            deps.as_mut().storage,
-            &EpochTally::new(
-                pool_id.clone(),
-                Epoch::current(&current_params, block_height).unwrap(),
-                tally_params.clone(),
-            ),
-        )
-        .unwrap();
-
-        let res = rewards_pool(deps.as_mut().storage, pool_id.clone(), block_height).unwrap();
-        assert_eq!(
-            res,
-            msg::RewardsPool {
-                balance,
-                epoch_duration: tally_params.epoch_duration.into(),
-                rewards_per_epoch: tally_params.rewards_per_epoch.into(),
-                current_epoch_num: Epoch::current(&current_params, block_height)
                     .unwrap()
                     .epoch_num
                     .into(),

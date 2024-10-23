@@ -18,6 +18,7 @@ use tracing::{info, info_span};
 use valuable::Valuable;
 use voting_verifier::msg::ExecuteMsg;
 
+use super::stellar_verify_msg::deserialize_tx_id;
 use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error;
 use crate::handlers::errors::Error::DeserializeEvent;
@@ -27,6 +28,7 @@ use crate::types::TMAddress;
 
 #[derive(Deserialize, Debug)]
 pub struct VerifierSetConfirmation {
+    #[serde(deserialize_with = "deserialize_tx_id")]
     pub tx_id: String,
     pub event_index: u32,
     pub verifier_set: VerifierSet,
@@ -117,7 +119,7 @@ impl EventHandler for Handler {
         let vote = info_span!(
             "verify a new verifier set",
             poll_id = poll_id.to_string(),
-            id = format!("{}-{}", verifier_set.tx_id, verifier_set.event_index),
+            id = format!("0x{}-{}", verifier_set.tx_id, verifier_set.event_index),
         )
         .in_scope(|| {
             info!("ready to verify verifier set in poll",);
@@ -291,7 +293,7 @@ mod tests {
                     .collect(),
             },
             verifier_set: VerifierSetConfirmation {
-                tx_id: format!("{:x}", Hash::random()).parse().unwrap(),
+                tx_id: format!("0x{:x}", Hash::random()).parse().unwrap(),
                 event_index: 0,
                 verifier_set: build_verifier_set(KeyType::Ed25519, &ed25519_test_data::signers()),
             },

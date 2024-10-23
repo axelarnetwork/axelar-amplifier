@@ -895,7 +895,6 @@ dependencies = [
  "hex",
  "itertools 0.11.0",
  "msgs-derive",
- "nexus-gateway",
  "rand",
  "report",
  "router-api",
@@ -3025,7 +3024,7 @@ dependencies = [
  "proc-macro2 1.0.85",
  "quote 1.0.36",
  "syn 2.0.68",
- "uuid 1.8.0",
+ "uuid 1.10.0",
 ]
 
 [[package]]
@@ -4078,6 +4077,7 @@ dependencies = [
  "alloy-primitives",
  "alloy-sol-types",
  "assert_ok",
+ "axelar-core-std",
  "axelar-wasm-std",
  "axelarnet-gateway",
  "client",
@@ -5066,27 +5066,32 @@ dependencies = [
 
 [[package]]
 name = "multiversx-sdk"
-version = "0.4.1"
+version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5cb2f8dd4a17ce9c9fa1ab3d80152929702968be6536499f32bd7e2278c2e0fb"
+checksum = "ccf9bc1c31815db80017c68353b7187bc606b573af26f13331e9507d29f1976f"
 dependencies = [
+ "aes",
  "anyhow",
  "base64 0.22.1",
- "bech32 0.9.1",
+ "bech32 0.11.0",
  "bip39",
+ "ctr",
  "hex",
  "hmac",
- "itertools 0.12.1",
+ "itertools 0.13.0",
+ "log",
  "pbkdf2",
  "pem 3.0.4",
  "rand",
  "reqwest 0.12.5",
+ "scrypt",
  "serde",
  "serde_json",
  "serde_repr",
  "sha2 0.10.8",
  "sha3",
  "tokio",
+ "uuid 1.10.0",
  "zeroize",
 ]
 
@@ -5107,7 +5112,7 @@ dependencies = [
  "tap",
  "tokio",
  "tracing",
- "uuid 1.8.0",
+ "uuid 1.10.0",
 ]
 
 [[package]]
@@ -5225,34 +5230,6 @@ dependencies = [
  "pasta_curves",
  "serde",
  "trait-set",
-]
-
-[[package]]
-name = "nexus-gateway"
-version = "1.0.0"
-dependencies = [
- "assert_ok",
- "axelar-core-std",
- "axelar-wasm-std",
- "client",
- "cosmwasm-schema",
- "cosmwasm-std",
- "cw-storage-plus 1.2.0",
- "cw2 1.1.2",
- "error-stack",
- "goldie",
- "hex",
- "mockall 0.11.4",
- "msgs-derive",
- "rand",
- "report",
- "router-api",
- "schemars",
- "serde",
- "serde_json",
- "sha3",
- "thiserror",
- "voting-verifier",
 ]
 
 [[package]]
@@ -5719,6 +5696,17 @@ dependencies = [
  "redox_syscall",
  "smallvec",
  "windows-targets 0.52.5",
+]
+
+[[package]]
+name = "password-hash"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "346f04948ba92c43e8469c1ee6736c7563d71012b17d40745260fe106aac2166"
+dependencies = [
+ "base64ct",
+ "rand_core 0.6.4",
+ "subtle",
 ]
 
 [[package]]
@@ -6844,8 +6832,9 @@ dependencies = [
 
 [[package]]
 name = "router"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
+ "assert_ok",
  "axelar-core-std",
  "axelar-wasm-std",
  "client",
@@ -7156,6 +7145,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f3cb5ba0dc43242ce17de99c180e96db90b235b8a9fdc9543c96d2209116bd9f"
 
 [[package]]
+name = "salsa20"
+version = "0.10.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "97a22f5af31f73a954c10289c93e8a50cc23d971e80ee446f1f6f7137a088213"
+dependencies = [
+ "cipher",
+]
+
+[[package]]
 name = "same-file"
 version = "1.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7227,6 +7225,18 @@ name = "scopeguard"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
+
+[[package]]
+name = "scrypt"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0516a385866c09368f0b5bcd1caff3366aace790fcd46e2bb032697bb172fd1f"
+dependencies = [
+ "password-hash",
+ "pbkdf2",
+ "salsa20",
+ "sha2 0.10.8",
+]
 
 [[package]]
 name = "sct"
@@ -9008,7 +9018,7 @@ dependencies = [
  "tower-layer",
  "tower-service",
  "tracing",
- "uuid 1.8.0",
+ "uuid 1.10.0",
 ]
 
 [[package]]
@@ -9326,9 +9336,9 @@ checksum = "bc5cf98d8186244414c848017f0e2676b3fcb46807f6668a97dfe67359a3c4b7"
 
 [[package]]
 name = "uuid"
-version = "1.8.0"
+version = "1.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a183cf7feeba97b4dd1c0d46788634f6221d87fa961b305bed08c851829efcc0"
+checksum = "81dfa00651efa65069b0b6b651f4aaa31ba9e3c3ce0137aaad053604ee7e0314"
 dependencies = [
  "getrandom",
  "rand",

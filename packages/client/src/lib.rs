@@ -2,8 +2,8 @@ use std::marker::PhantomData;
 use std::ops::Deref;
 
 use cosmwasm_std::{
-    to_json_binary, Addr, CosmosMsg, CustomQuery, Empty, QuerierWrapper, QueryRequest, StdError,
-    WasmMsg, WasmQuery,
+    to_json_binary, Addr, Coin, CosmosMsg, CustomQuery, Empty, QuerierWrapper, QueryRequest,
+    StdError, WasmMsg, WasmQuery,
 };
 use error_stack::{Report, Result};
 use serde::de::DeserializeOwned;
@@ -78,6 +78,14 @@ where
             contract_addr: self.address.to_string(),
             msg: to_json_binary(msg).expect("msg should always be serializable"),
             funds: vec![],
+        })
+    }
+
+    pub fn execute_with_funds(&self, msg: &M, coin: Coin) -> CosmosMsg<T> {
+        self.inner.execute(WasmMsg::Execute {
+            contract_addr: self.address.to_string(),
+            msg: to_json_binary(msg).expect("msg should always be serializable"),
+            funds: vec![coin],
         })
     }
 

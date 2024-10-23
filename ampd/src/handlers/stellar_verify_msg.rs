@@ -11,7 +11,8 @@ use events::Event;
 use events_derive::try_from;
 use prost_types::Any;
 use router_api::ChainName;
-use serde::Deserialize;
+use serde::de::Error as DeserializeError;
+use serde::{Deserialize, Deserializer};
 use serde_with::{serde_as, DisplayFromStr};
 use stellar_xdr::curr::{ScAddress, ScBytes, ScString};
 use tokio::sync::watch::Receiver;
@@ -26,9 +27,22 @@ use crate::stellar::http_client::Client;
 use crate::stellar::verifier::verify_message;
 use crate::types::TMAddress;
 
+pub fn deserialize_tx_id<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let tx_id = String::deserialize(deserializer)?;
+
+    tx_id
+        .strip_prefix("0x")
+        .map(String::from)
+        .ok_or(D::Error::custom(Error::DeserializeEvent))
+}
+
 #[serde_as]
 #[derive(Deserialize, Debug, Clone)]
 pub struct Message {
+    #[serde(deserialize_with = "deserialize_tx_id")]
     pub tx_id: String,
     pub event_index: u32,
     pub destination_address: ScString,
@@ -129,7 +143,7 @@ impl EventHandler for Handler {
 
         let message_ids = messages
             .iter()
-            .map(|message| format!("{}-{}", message.tx_id, message.event_index))
+            .map(|message| format!("{}-{}", message.tx_id.clone(), message.event_index))
             .collect::<Vec<_>>();
 
         let votes = info_span!(
@@ -316,7 +330,7 @@ mod tests {
             },
             messages: (0..2)
                 .map(|i| TxEventConfirmation {
-                    tx_id: format!("{:x}", Hash::random()).parse().unwrap(),
+                    tx_id: format!("0x{:x}", Hash::random()).parse().unwrap(),
                     event_index: i,
                     source_address: ScAddress::Contract(stellar_xdr::curr::Hash::from(
                         Hash::random().0,

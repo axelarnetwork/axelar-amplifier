@@ -4,8 +4,8 @@ use async_trait::async_trait;
 use futures::future::join_all;
 use hex::ToHex;
 use mockall::automock;
-use multiversx_sdk::blockchain::CommunicationProxy;
 use multiversx_sdk::data::transaction::TransactionOnNetwork;
+use multiversx_sdk::gateway::GatewayProxy;
 
 use crate::types::Hash;
 
@@ -25,7 +25,7 @@ pub trait MvxProxy {
 }
 
 #[async_trait]
-impl MvxProxy for CommunicationProxy {
+impl MvxProxy for GatewayProxy {
     async fn transactions_info_with_results(
         &self,
         tx_hashes: HashSet<Hash>,
@@ -59,5 +59,71 @@ impl MvxProxy for CommunicationProxy {
 
     fn is_valid_transaction(tx: &TransactionOnNetwork) -> bool {
         tx.hash.is_some() && tx.logs.is_some() && tx.status == *STATUS_SUCCESS
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use multiversx_sdk::data::address::Address;
+    use multiversx_sdk::data::transaction::{ApiLogs, TransactionOnNetwork};
+    use multiversx_sdk::gateway::GatewayProxy;
+
+    use super::MvxProxy;
+
+    #[test]
+    fn should_not_be_valid_transaction_no_hash() {
+        let tx = TransactionOnNetwork {
+            hash: None,
+            ..TransactionOnNetwork::default()
+        };
+
+        assert!(!GatewayProxy::is_valid_transaction(&tx));
+    }
+
+    #[test]
+    fn should_not_be_valid_transaction_no_logs() {
+        let tx = TransactionOnNetwork {
+            hash: Some("txHash".into()),
+            logs: None,
+            ..TransactionOnNetwork::default()
+        };
+
+        assert!(!GatewayProxy::is_valid_transaction(&tx));
+    }
+
+    #[test]
+    fn should_not_be_valid_transaction_invalid_status() {
+        let tx = TransactionOnNetwork {
+            hash: Some("txHash".into()),
+            logs: Some(ApiLogs {
+                address: Address::from_bech32_string(
+                    "erd1qqqqqqqqqqqqqpgqhe8t5jewej70zupmh44jurgn29psua5l2jps3ntjj3",
+                )
+                .unwrap(),
+                events: vec![],
+            }),
+            status: "pending".into(),
+            ..TransactionOnNetwork::default()
+        };
+
+        assert!(!GatewayProxy::is_valid_transaction(&tx));
+    }
+
+    #[test]
+    fn should_be_valid_transaction() {
+        let tx = TransactionOnNetwork {
+            hash: Some("txHash".into()),
+            logs: Some(ApiLogs {
+                address: Address::from_bech32_string(
+                    "erd1qqqqqqqqqqqqqpgqhe8t5jewej70zupmh44jurgn29psua5l2jps3ntjj3",
+                )
+                .unwrap(),
+                events: vec![],
+            }),
+            status: "success".into(),
+            ..TransactionOnNetwork::default()
+        };
+
+        assert!(GatewayProxy::is_valid_transaction(&tx));
     }
 }

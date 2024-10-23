@@ -1,13 +1,14 @@
 pub mod error;
 
+use std::collections::HashMap;
 use std::str::FromStr;
 
 use axelar_wasm_std::utils::TryMapExt;
 use cosmwasm_std::Uint256;
 use error_stack::{bail, Report, ResultExt};
-use multisig::key::PublicKey;
 use multisig::key::Signature::Ed25519;
-use multisig::msg::SignerWithSig;
+use multisig::key::{PublicKey, Signature};
+use multisig::msg::{Signer, SignerWithSig};
 use multisig::verifier_set::VerifierSet;
 use sha3::{Digest, Keccak256};
 use stellar_strkey::Contract;
@@ -46,8 +47,8 @@ impl TryFrom<CommandType> for ScVal {
 
 #[derive(Debug, Clone)]
 pub struct Message {
-    pub message_id: String,
     pub source_chain: String,
+    pub message_id: String,
     pub source_address: String,
     pub contract_address: Contract,
     pub payload_hash: Hash,
@@ -72,6 +73,7 @@ impl TryFrom<&router_api::Message> for Message {
 impl TryFrom<Message> for ScVal {
     type Error = XdrError;
 
+    // Note that XDR encodes the values in sorted order by key
     fn try_from(value: Message) -> Result<Self, XdrError> {
         let keys: [&'static str; 5] = [
             "contract_address",
@@ -277,20 +279,20 @@ impl TryFrom<ProofSigner> for ScVal {
     }
 }
 
-impl TryFrom<SignerWithSig> for ProofSigner {
+impl TryFrom<(Signer, Option<Signature>)> for ProofSigner {
     type Error = Report<Error>;
 
-    fn try_from(value: SignerWithSig) -> Result<Self, Self::Error> {
+    fn try_from((signer, signature): (Signer, Option<Signature>)) -> Result<Self, Self::Error> {
         let signer = WeightedSigner {
-            signer: BytesM::try_from(value.signer.pub_key.as_ref())
-                .change_context(InvalidPublicKey)?,
-            weight: value.signer.weight.into(),
+            signer: BytesM::try_from(signer.pub_key.as_ref()).change_context(InvalidPublicKey)?,
+            weight: signer.weight.into(),
         };
 
-        let signature = match value.signature {
-            Ed25519(signature) => ProofSignature::Signed(
+        let signature = match signature {
+            Some(Ed25519(signature)) => ProofSignature::Signed(
                 BytesM::try_from(signature.to_vec()).change_context(InvalidSignature)?,
             ),
+            None => ProofSignature::Unsigned,
             _ => bail!(Error::UnsupportedSignature),
         };
 
@@ -326,12 +328,24 @@ impl TryFrom<(VerifierSet, Vec<SignerWithSig>)> for Proof {
     type Error = Report<Error>;
 
     fn try_from(
-        (verifier_set, mut signers): (VerifierSet, Vec<SignerWithSig>),
+        (verifier_set, signers): (VerifierSet, Vec<SignerWithSig>),
     ) -> Result<Self, Self::Error> {
-        signers.sort_by(|signer1, signer2| signer1.signer.pub_key.cmp(&signer2.signer.pub_key));
-
-        let signers = signers
+        let mut signatures_by_pub_keys: HashMap<_, _> = signers
             .into_iter()
+            .map(|signer| (signer.signer.pub_key.clone(), signer.signature))
+            .collect();
+
+        let mut sorted_verifiers = verifier_set.signers.into_iter().collect::<Vec<_>>();
+
+        sorted_verifiers
+            .sort_by(|(_, signer1), (_, signer2)| signer1.pub_key.cmp(&signer2.pub_key));
+
+        let signers = sorted_verifiers
+            .into_iter()
+            .map(|(_, signer)| {
+                let signature = signatures_by_pub_keys.remove(&signer.pub_key);
+                (signer, signature)
+            })
             .map(TryInto::try_into)
             .collect::<Result<Vec<_>, _>>()?;
 
@@ -416,8 +430,8 @@ mod test {
 
         let messages: Messages = (1..=4)
             .map(|i| Message {
-                message_id: format!("test-{}", i),
                 source_chain: format!("source-{}", i),
+                message_id: format!("test-{}", i),
                 source_address: "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
                     .to_string(),
                 contract_address: "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMDR4"
@@ -431,7 +445,7 @@ mod test {
     }
 
     #[test]
-    fn signers_rotation_hash() {
+    fn weighted_signers_hash() {
         let weighted_signers = WeightedSigners {
             signers: vec![
                 WeightedSigner {
@@ -471,9 +485,10 @@ mod test {
                 .unwrap(),
         };
 
-        goldie::assert!(
+        goldie::assert_json!(&vec![
+            HexBinary::from(weighted_signers.hash().unwrap()).to_hex(),
             HexBinary::from(weighted_signers.signers_rotation_hash().unwrap()).to_hex()
-        );
+        ]);
     }
 
     #[test]
@@ -520,17 +535,19 @@ mod test {
     #[test]
     fn proof_encode() {
         let signers = vec![
-            ("56ab9b9fa21dc37d77d093ba8d0a954ee4af43fb701e93751352876c78e9d950", 8, "ad2e9cf32faf4f004e7005b7a0959c65882ce66279e46f6bcd3c231e88381bb7c0b54378ec31c526af770d0abf3965c790e8b850c34521f8565eb467110d1505"),
-            ("6ca711b4a5dec4c05f93ec6c61bce0b2a624f5dae358a5801b02a10404997918",2,"2abbbfe5d730e8c72c0393c465c9e34c45c5745e0d72fc817cacaa2ecfd4cf00d4751e9853cac9ded1afb17d00316382fde62db962a628893e6f28985a3b3c00"),
-            ("cf26fe65ca2c10ed3977d941e7f592793397bc33e549e381117bd6a199b983c7",8,"c5c268c3b4ecd78984fe4579f8e421eefbea19b1a2310c5fe43f45fb338c023f808b2bd44d766b840fe5297e711f06a8a2ae7a74094a0b6abc2c92aa7a234409"),
-            ("fd65bd8136a40785b413624070c19677a4d42f9227c0c41624b5c63f58400668", 4, "c4c68ecb792f0b0509214f31ed986dad776d4f6813a0f5318c32eb14e20774a54849f4427ba1e826db3e7c39c8afb560a182ecebdb51eb41e425bd3e1cb57b08"),
-            ("fe571761ad0a9834027e11e6c0a5166972054fbdd7452566e9c31f271f6caad9", 9,"0af1cc063353d57f3722ba93e021dc23e3498735affa2a65638bd7926f9290006df8643f75ff55c5ef55b38647464280680d5d699b588392c0188a9337afea03")
-        ].iter().map(|(signer, weight, signature)| ProofSigner {
+            ("39f771f3bd457def6c426d72c0ea3be8cacaf886845cc5eee821fb51f9af08a4", 3, None),
+            ("56ab9b9fa21dc37d77d093ba8d0a954ee4af43fb701e93751352876c78e9d950", 8, Some("ad2e9cf32faf4f004e7005b7a0959c65882ce66279e46f6bcd3c231e88381bb7c0b54378ec31c526af770d0abf3965c790e8b850c34521f8565eb467110d1505")),
+            ("6ca711b4a5dec4c05f93ec6c61bce0b2a624f5dae358a5801b02a10404997918", 2, Some("2abbbfe5d730e8c72c0393c465c9e34c45c5745e0d72fc817cacaa2ecfd4cf00d4751e9853cac9ded1afb17d00316382fde62db962a628893e6f28985a3b3c00")),
+            ("cf26fe65ca2c10ed3977d941e7f592793397bc33e549e381117bd6a199b983c7", 8, Some("c5c268c3b4ecd78984fe4579f8e421eefbea19b1a2310c5fe43f45fb338c023f808b2bd44d766b840fe5297e711f06a8a2ae7a74094a0b6abc2c92aa7a234409")),
+            ("fbb4b870e800038f1379697fae3058938c59b696f38dd0fdf2659c0cf3a5b663", 1, None),
+            ("fd65bd8136a40785b413624070c19677a4d42f9227c0c41624b5c63f58400668", 4, Some("c4c68ecb792f0b0509214f31ed986dad776d4f6813a0f5318c32eb14e20774a54849f4427ba1e826db3e7c39c8afb560a182ecebdb51eb41e425bd3e1cb57b08")),
+            ("fe571761ad0a9834027e11e6c0a5166972054fbdd7452566e9c31f271f6caad9", 9, Some("0af1cc063353d57f3722ba93e021dc23e3498735affa2a65638bd7926f9290006df8643f75ff55c5ef55b38647464280680d5d699b588392c0188a9337afea03")),
+        ].into_iter().map(|(signer, weight, signature)| ProofSigner {
             signer: WeightedSigner {
                 signer: signer.parse().unwrap(),
-                weight: *weight,
+                weight,
             },
-            signature: ProofSignature::Signed(signature.parse().unwrap()),
+            signature: match signature { Some(signature) => ProofSignature::Signed(signature.parse().unwrap()), None => ProofSignature::Unsigned },
         }).collect();
 
         let proof = Proof {

@@ -212,19 +212,19 @@ mod tests {
                 "addr_1",
                 "12f7d9a9463212335914b39ee90bfa2045f90b64c1f2d7b58ed335282abac4a4",
                 8u128,
-                "b5b3b0749aa585f866d802e32ca4a6356f82eb52e2a1b4797cbaa30f3d755462f2eb995c70d9099e436b8a48498e4d613ff2d3ca7618973a36c2fde17493180f",
+                Some("b5b3b0749aa585f866d802e32ca4a6356f82eb52e2a1b4797cbaa30f3d755462f2eb995c70d9099e436b8a48498e4d613ff2d3ca7618973a36c2fde17493180f"),
             ),
             (
                 "addr_2",
                 "4c3863e4b0252a8674c1c6ad70b3ca3002b400b49ddfae5583b21907e65c5dd8",
                 1u128,
-                "cb8a1b98ec7678d5eb965d47c449b2b8396d170e53ad7b5f65a7c0fdf2aebe206b65be7cb2e81c7ddd8924acb2ffc2d463b678993227fdfbfc3ef03a8ffa030c",
+                None
             ),
             (
                 "addr_3",
                 "c35aa94d2038f258ecb1bb28fbc8a83ab79d2dc0a7223fd528a8f52a14c03292",
                 7u128,
-                "28e2c8accfa1c2db93349c6d3f783004d6a92cdbf322b92b3555315999e0eaf5d8bdf9deb58d798168a880972e81b8513dcb942de44862317d501cf7445c660a"
+                Some("28e2c8accfa1c2db93349c6d3f783004d6a92cdbf322b92b3555315999e0eaf5d8bdf9deb58d798168a880972e81b8513dcb942de44862317d501cf7445c660a")
             ),
 
         ];
@@ -274,7 +274,13 @@ mod tests {
                 "addr_1",
                 "77dd4768dda195f8080fe970be8fec5fee9cea781718158ce19d4a331442fd57",
                 2u128,
-                "91db8ad94ab379ee9021caeb3ee852582d09d06801213256cbd2937f2ad8182f518fde7a7f8c801adde7161e05cbbb9841ac0bf3290831570a54c6ae3d089703",
+                Some("91db8ad94ab379ee9021caeb3ee852582d09d06801213256cbd2937f2ad8182f518fde7a7f8c801adde7161e05cbbb9841ac0bf3290831570a54c6ae3d089703"),
+            ),
+            (
+                "addr_2",
+                "c35aa94d2038f258ecb1bb28fbc8a83ab79d2dc0a7223fd528a8f52a14c03292",
+                1u128,
+                None,
             ),
         ];
 
@@ -353,9 +359,15 @@ mod tests {
             created_at,
         }
     }
-    fn gen_signers_with_sig(signers_data: Vec<(&str, &str, u128, &str)>) -> Vec<SignerWithSig> {
+
+    fn gen_signers_with_sig(
+        signers_data: Vec<(&str, &str, u128, Option<&str>)>,
+    ) -> Vec<SignerWithSig> {
         signers_data
             .into_iter()
+            .filter_map(|(addr, pub_key, weight, sig)| {
+                sig.map(|signature| (addr, pub_key, weight, signature))
+            })
             .map(|(addr, pub_key, weight, sig)| {
                 Signer {
                     address: Addr::unchecked(addr),

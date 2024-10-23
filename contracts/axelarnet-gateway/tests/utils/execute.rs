@@ -1,3 +1,4 @@
+use axelar_core_std::nexus;
 use axelar_wasm_std::error::ContractError;
 use axelarnet_gateway::msg::ExecuteMsg as GatewayExecuteMsg;
 use axelarnet_gateway::{contract, AxelarExecutableMsg};
@@ -20,7 +21,7 @@ pub fn call_contract(
     destination_chain: ChainName,
     destination_address: Address,
     payload: HexBinary,
-) -> Result<Response, ContractError> {
+) -> Result<Response<nexus::execute::Message>, ContractError> {
     contract::execute(
         deps,
         mock_env(),
@@ -33,7 +34,10 @@ pub fn call_contract(
     )
 }
 
-pub fn route_from_router(deps: DepsMut, msgs: Vec<Message>) -> Result<Response, ContractError> {
+pub fn route_from_router(
+    deps: DepsMut,
+    msgs: Vec<Message>,
+) -> Result<Response<nexus::execute::Message>, ContractError> {
     contract::execute(
         deps,
         mock_env(),
@@ -46,11 +50,35 @@ pub fn execute_payload(
     deps: DepsMut,
     cc_id: CrossChainId,
     payload: HexBinary,
-) -> Result<Response, ContractError> {
+) -> Result<Response<nexus::execute::Message>, ContractError> {
     contract::execute(
         deps,
         mock_env(),
         mock_info("sender", &[]),
         GatewayExecuteMsg::Execute { cc_id, payload }.clone(),
+    )
+}
+
+pub fn route_to_router(
+    deps: DepsMut,
+    msgs: Vec<Message>,
+) -> Result<Response<nexus::execute::Message>, ContractError> {
+    contract::execute(
+        deps,
+        mock_env(),
+        mock_info("sender", &[]),
+        GatewayExecuteMsg::RouteMessages(msgs),
+    )
+}
+
+pub fn route_from_nexus(
+    deps: DepsMut,
+    msgs: Vec<nexus::execute::Message>,
+) -> Result<Response<nexus::execute::Message>, ContractError> {
+    contract::execute(
+        deps,
+        mock_env(),
+        mock_info("nexus", &[]),
+        GatewayExecuteMsg::RouteMessagesFromNexus(msgs),
     )
 }

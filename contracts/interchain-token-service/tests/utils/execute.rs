@@ -1,9 +1,17 @@
+use std::marker::PhantomData;
+
+use axelar_core_std::nexus;
+use axelar_core_std::nexus::query::IsChainRegisteredResponse;
+use axelar_core_std::query::AxelarQueryMsg;
 use axelar_wasm_std::error::ContractError;
-use cosmwasm_std::testing::{mock_env, mock_info};
-use cosmwasm_std::{DepsMut, HexBinary, Response};
+use cosmwasm_std::testing::{mock_env, mock_info, MockApi, MockQuerier, MockStorage};
+use cosmwasm_std::{
+    from_json, to_json_binary, Addr, DepsMut, HexBinary, MemoryStorage, OwnedDeps, Response,
+    WasmQuery,
+};
 use interchain_token_service::contract;
 use interchain_token_service::msg::ExecuteMsg;
-use router_api::{Address, ChainNameRaw, CrossChainId};
+use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
 
 use crate::utils::params;
 
@@ -48,4 +56,43 @@ pub fn deregister_its_contract(
         mock_info(params::ADMIN, &[]),
         ExecuteMsg::DeregisterItsContract { chain },
     )
+}
+
+pub fn make_deps() -> OwnedDeps<MemoryStorage, MockApi, MockQuerier<AxelarQueryMsg>> {
+    let addr = Addr::unchecked(params::GATEWAY);
+    let mut deps = OwnedDeps {
+        storage: MockStorage::default(),
+        api: MockApi::default(),
+        querier: MockQuerier::<AxelarQueryMsg>::new(&[]),
+        custom_query_type: PhantomData,
+    };
+
+    let mut querier = MockQuerier::<AxelarQueryMsg>::new(&[]);
+    querier.update_wasm(move |msg| match msg {
+        WasmQuery::Smart { contract_addr, msg } if contract_addr == &addr.to_string() => {
+            let msg = from_json::<axelarnet_gateway::msg::QueryMsg>(msg).unwrap();
+            match msg {
+                axelarnet_gateway::msg::QueryMsg::ChainName {} => {
+                    Ok(to_json_binary(&ChainName::try_from("axelar").unwrap()).into()).into()
+                }
+                _ => panic!("unsupported query"),
+            }
+        }
+        _ => panic!("unexpected query: {:?}", msg),
+    });
+    querier = querier.with_custom_handler(|msg| match msg {
+        AxelarQueryMsg::Nexus(nexus::query::QueryMsg::IsChainRegistered { chain }) => {
+            Ok(to_json_binary(
+                &(IsChainRegisteredResponse {
+                    is_registered: chain == "ethereum",
+                }),
+            )
+            .into())
+            .into()
+        }
+        _ => panic!("unsupported query"),
+    });
+
+    deps.querier = querier;
+    deps
 }
