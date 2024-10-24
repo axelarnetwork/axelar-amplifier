@@ -300,7 +300,7 @@ mod tests {
             )
             .unwrap();
 
-        let messages = (0..poll.poll_size as u32).map(message);
+        let messages = (0..poll.poll_size as u64).map(message);
         messages.clone().enumerate().for_each(|(idx, msg)| {
             poll_messages()
                 .save(
@@ -321,7 +321,7 @@ mod tests {
         );
     }
 
-    fn message(id: u32) -> Message {
+    fn message(id: u64) -> Message {
         Message {
             cc_id: CrossChainId::new(
                 "source-chain",

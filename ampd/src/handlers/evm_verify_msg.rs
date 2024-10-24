@@ -32,8 +32,7 @@ type Result<T> = error_stack::Result<T, Error>;
 
 #[derive(Deserialize, Debug)]
 pub struct Message {
-    pub tx_id: Hash,
-    pub event_index: u32,
+    pub message_id: HexTxHashAndEventIndex,
     pub destination_address: String,
     pub destination_chain: ChainName,
     pub source_address: EVMAddress,
@@ -121,7 +120,6 @@ where
         })
         .collect())
     }
-
     fn vote_msg(&self, poll_id: PollId, votes: Vec<Vote>) -> MsgExecuteContract {
         MsgExecuteContract {
             sender: self.verifier.as_ref().clone(),
@@ -174,24 +172,24 @@ where
             return Ok(vec![]);
         }
 
-        let tx_hashes: HashSet<_> = messages.iter().map(|message| message.tx_id).collect();
+        let tx_hashes: HashSet<Hash> = messages
+            .iter()
+            .map(|msg| msg.message_id.tx_hash.into()).collect();
         let finalized_tx_receipts = self
             .finalized_tx_receipts(tx_hashes, confirmation_height)
             .await?;
 
         let poll_id_str: String = poll_id.into();
         let source_chain_str: String = source_chain.into();
-        let message_ids = messages
-            .iter()
-            .map(|message| {
-                HexTxHashAndEventIndex::new(message.tx_id, message.event_index).to_string()
-            })
-            .collect::<Vec<_>>();
         let votes = info_span!(
             "verify messages from an EVM chain",
             poll_id = poll_id_str,
             source_chain = source_chain_str,
-            message_ids = message_ids.as_value()
+            message_ids = messages
+                .iter()
+                .map(|msg| msg.message_id.to_string())
+                .collect::<Vec<String>>()
+                .as_value(),
         )
         .in_scope(|| {
             info!("ready to verify messages in poll",);
@@ -200,7 +198,7 @@ where
                 .iter()
                 .map(|msg| {
                     finalized_tx_receipts
-                        .get(&msg.tx_id)
+                        .get(&msg.message_id.tx_hash.into())
                         .map_or(Vote::NotFound, |tx_receipt| {
                             verify_message(&source_gateway_address, tx_receipt, msg)
                         })
@@ -226,6 +224,7 @@ mod tests {
     use std::convert::TryInto;
     use std::str::FromStr;
 
+    use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
     use base64::engine::general_purpose::STANDARD;
     use base64::Engine;
     use cosmwasm_std;
@@ -247,6 +246,11 @@ mod tests {
     use crate::PREFIX;
 
     fn poll_started_event(participants: Vec<TMAddress>, expires_at: u64) -> PollStarted {
+        let msg_ids = vec![
+            HexTxHashAndEventIndex::new(Hash::random(), 0u64),
+            HexTxHashAndEventIndex::new(Hash::random(), 1u64),
+            HexTxHashAndEventIndex::new(Hash::random(), 10u64),
+        ];
         PollStarted::Messages {
             metadata: PollMetadata {
                 poll_id: "100".parse().unwrap(),
@@ -263,24 +267,27 @@ mod tests {
             },
             messages: vec![
                 TxEventConfirmation {
-                    tx_id: format!("0x{:x}", Hash::random()).parse().unwrap(),
-                    event_index: 0,
+                    tx_id: msg_ids[0].tx_hash_as_hex(),
+                    event_index: msg_ids[0].event_index as u32,
+                    message_id: msg_ids[0].to_string().parse().unwrap(),
                     source_address: format!("0x{:x}", EVMAddress::random()).parse().unwrap(),
                     destination_chain: "ethereum".parse().unwrap(),
                     destination_address: format!("0x{:x}", EVMAddress::random()).parse().unwrap(),
                     payload_hash: Hash::random().to_fixed_bytes(),
                 },
                 TxEventConfirmation {
-                    tx_id: format!("0x{:x}", Hash::random()).parse().unwrap(),
-                    event_index: 1,
+                    tx_id: msg_ids[1].tx_hash_as_hex(),
+                    event_index: msg_ids[1].event_index as u32,
+                    message_id: msg_ids[1].to_string().parse().unwrap(),
                     source_address: format!("0x{:x}", EVMAddress::random()).parse().unwrap(),
                     destination_chain: "ethereum".parse().unwrap(),
                     destination_address: format!("0x{:x}", EVMAddress::random()).parse().unwrap(),
                     payload_hash: Hash::random().to_fixed_bytes(),
                 },
                 TxEventConfirmation {
-                    tx_id: format!("0x{:x}", Hash::random()).parse().unwrap(),
-                    event_index: 10,
+                    tx_id: msg_ids[2].tx_hash_as_hex(),
+                    event_index: msg_ids[2].event_index as u32,
+                    message_id: msg_ids[2].to_string().parse().unwrap(),
                     source_address: format!("0x{:x}", EVMAddress::random()).parse().unwrap(),
                     destination_chain: "ethereum".parse().unwrap(),
                     destination_address: format!("0x{:x}", EVMAddress::random()).parse().unwrap(),

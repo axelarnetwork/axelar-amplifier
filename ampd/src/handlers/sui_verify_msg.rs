@@ -2,6 +2,7 @@ use std::collections::HashSet;
 use std::convert::TryInto;
 
 use async_trait::async_trait;
+use axelar_wasm_std::msg_id::Base58TxDigestAndEventIndex;
 use axelar_wasm_std::voting::{PollId, Vote};
 use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmrs::tx::Msg;
@@ -11,7 +12,7 @@ use events::Error::EventTypeMismatch;
 use events::Event;
 use events_derive::try_from;
 use serde::Deserialize;
-use sui_types::base_types::{SuiAddress, TransactionDigest};
+use sui_types::base_types::SuiAddress;
 use tokio::sync::watch::Receiver;
 use tracing::info;
 use voting_verifier::msg::ExecuteMsg;
@@ -26,8 +27,7 @@ type Result<T> = error_stack::Result<T, Error>;
 
 #[derive(Deserialize, Debug)]
 pub struct Message {
-    pub tx_id: TransactionDigest,
-    pub event_index: u32,
+    pub message_id: Base58TxDigestAndEventIndex,
     pub destination_address: String,
     pub destination_chain: router_api::ChainName,
     pub source_address: SuiAddress,
@@ -122,7 +122,10 @@ where
 
         // Does not assume voting verifier emits unique tx ids.
         // RPC will throw an error if the input contains any duplicate, deduplicate tx ids to avoid unnecessary failures.
-        let deduplicated_tx_ids: HashSet<_> = messages.iter().map(|msg| msg.tx_id).collect();
+        let deduplicated_tx_ids: HashSet<_> = messages
+            .iter()
+            .map(|msg| msg.message_id.tx_digest.into())
+            .collect();
         let transaction_blocks = self
             .rpc_client
             .finalized_transaction_blocks(deduplicated_tx_ids)
@@ -133,7 +136,7 @@ where
             .iter()
             .map(|msg| {
                 transaction_blocks
-                    .get(&msg.tx_id)
+                    .get(&msg.message_id.tx_digest.into())
                     .map_or(Vote::NotFound, |tx_block| {
                         verify_message(&source_gateway_address, tx_block, msg)
                     })
@@ -152,6 +155,7 @@ mod tests {
     use std::collections::HashMap;
     use std::convert::TryInto;
 
+    use axelar_wasm_std::msg_id::Base58TxDigestAndEventIndex;
     use cosmrs::cosmwasm::MsgExecuteContract;
     use cosmrs::tx::Msg;
     use cosmwasm_std;
@@ -322,6 +326,7 @@ mod tests {
     }
 
     fn poll_started_event(participants: Vec<TMAddress>, expires_at: u64) -> PollStarted {
+        let msg_id = Base58TxDigestAndEventIndex::new(TransactionDigest::random(), 0u64);
         PollStarted::Messages {
             metadata: PollMetadata {
                 poll_id: "100".parse().unwrap(),
@@ -338,8 +343,9 @@ mod tests {
                     .collect(),
             },
             messages: vec![TxEventConfirmation {
-                tx_id: TransactionDigest::random().to_string().parse().unwrap(),
-                event_index: 0,
+                tx_id: msg_id.tx_digest_as_base58(),
+                event_index: msg_id.event_index as u32,
+                message_id: msg_id.to_string().parse().unwrap(),
                 source_address: SuiAddress::random_for_testing_only()
                     .to_string()
                     .parse()

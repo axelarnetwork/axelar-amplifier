@@ -321,6 +321,12 @@ mod tests {
                     .parse()
                     .unwrap(),
                 event_index: 1,
+                message_id: format!(
+                    "0xdfaf64de66510723f2efbacd7ead3c4f8c856aed1afc2cb30254552aeda47312-1"
+                )
+                .to_string()
+                .parse()
+                .unwrap(),
                 source_address: "erd1qqqqqqqqqqqqqpgqzqvm5ywqqf524efwrhr039tjs29w0qltkklsa05pk7"
                     .parse()
                     .unwrap(),

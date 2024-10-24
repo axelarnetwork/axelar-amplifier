@@ -286,7 +286,7 @@ mod test {
 
         let id = HexTxHashAndEventIndex {
             tx_hash: bytes,
-            event_index: random::<u32>(),
+            event_index: random::<u64>(),
         }
         .to_string();
 

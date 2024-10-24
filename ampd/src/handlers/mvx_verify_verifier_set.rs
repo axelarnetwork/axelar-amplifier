@@ -348,6 +348,10 @@ mod tests {
                     .parse()
                     .unwrap(),
                 event_index: 1,
+                message_id: "dfaf64de66510723f2efbacd7ead3c4f8c856aed1afc2cb30254552aeda47312-1"
+                    .to_string()
+                    .try_into()
+                    .unwrap(),
                 verifier_set: build_verifier_set(KeyType::Ed25519, &ed25519_test_data::signers()),
             },
         }
