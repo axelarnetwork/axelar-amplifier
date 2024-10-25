@@ -174,7 +174,8 @@ where
 
         let tx_hashes: HashSet<Hash> = messages
             .iter()
-            .map(|msg| msg.message_id.tx_hash.into()).collect();
+            .map(|msg| msg.message_id.tx_hash.into())
+            .collect();
         let finalized_tx_receipts = self
             .finalized_tx_receipts(tx_hashes, confirmation_height)
             .await?;
