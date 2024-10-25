@@ -1,4 +1,4 @@
-use axelar_wasm_std::IntoContractError;
+use axelar_wasm_std::{killswitch, IntoContractError};
 use cosmwasm_std::{DepsMut, HexBinary, QuerierWrapper, Response, Storage};
 use error_stack::{bail, ensure, report, Result, ResultExt};
 use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
@@ -25,6 +25,8 @@ pub enum Error {
     FailedExecuteMessage,
     #[error("failed to query nexus")]
     NexusQueryError,
+    #[error("execution is currently disabled")]
+    ExecutionDisabled,
     #[error("storage error")]
     StorageError,
 }
@@ -40,6 +42,10 @@ pub fn execute_message(
     source_address: Address,
     payload: HexBinary,
 ) -> Result<Response, Error> {
+    ensure!(
+        killswitch::is_contract_active(deps.storage),
+        Error::ExecutionDisabled
+    );
     ensure_its_source_address(deps.storage, &cc_id.source_chain, &source_address)?;
 
     match HubMessage::abi_decode(&payload).change_context(Error::InvalidPayload)? {
@@ -131,4 +137,129 @@ pub fn deregister_its_contract(deps: DepsMut, chain: ChainNameRaw) -> Result<Res
         .change_context_lazy(|| Error::FailedItsContractDeregistration(chain.clone()))?;
 
     Ok(Response::new().add_event(Event::ItsContractDeregistered { chain }.into()))
+}
+
+pub fn disable_execution(deps: DepsMut) -> Result<Response, Error> {
+    killswitch::engage(deps.storage, Event::ExecutionDisabled).change_context(Error::StorageError)
+}
+
+pub fn enable_execution(deps: DepsMut) -> Result<Response, Error> {
+    killswitch::disengage(deps.storage, Event::ExecutionEnabled).change_context(Error::StorageError)
+}
+
+#[cfg(test)]
+mod tests {
+    use assert_ok::assert_ok;
+    use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
+    use axelar_wasm_std::{assert_err_contains, killswitch, nonempty, permission_control};
+    use cosmwasm_std::testing::{mock_dependencies, MockApi, MockQuerier};
+    use cosmwasm_std::{Addr, HexBinary, MemoryStorage, OwnedDeps, Uint256};
+    use router_api::{ChainNameRaw, CrossChainId};
+
+    use super::disable_execution;
+    use crate::contract::execute::{
+        enable_execution, execute_message, register_its_contract, Error,
+    };
+    use crate::state::{self, Config};
+    use crate::{HubMessage, Message};
+
+    const SOLANA: &str = "solana";
+    const ETHEREUM: &str = "ethereum";
+
+    const ITS_ADDRESS: &str = "68d30f47F19c07bCCEf4Ac7FAE2Dc12FCa3e0dC9";
+
+    const ADMIN: &str = "admin";
+    const GOVERNANCE: &str = "governance";
+    const AXELARNET_GATEWAY: &str = "axelarnet-gateway";
+
+    fn its_address() -> nonempty::HexBinary {
+        HexBinary::from_hex(ITS_ADDRESS)
+            .unwrap()
+            .try_into()
+            .unwrap()
+    }
+
+    #[test]
+    fn should_be_able_to_disable_and_enable_execution() {
+        let mut deps = mock_dependencies();
+        init(&mut deps);
+
+        assert_ok!(disable_execution(deps.as_mut()));
+
+        let msg = HubMessage::SendToHub {
+            destination_chain: ChainNameRaw::try_from(SOLANA).unwrap(),
+            message: Message::InterchainTransfer {
+                token_id: [7u8; 32].into(),
+                source_address: its_address(),
+                destination_address: its_address(),
+                amount: Uint256::one().try_into().unwrap(),
+                data: None,
+            },
+        };
+        let res = execute_message(
+            deps.as_mut(),
+            CrossChainId {
+                source_chain: ChainNameRaw::try_from(SOLANA).unwrap(),
+                message_id: HexTxHashAndEventIndex::new([1u8; 32], 0u32)
+                    .to_string()
+                    .try_into()
+                    .unwrap(),
+            },
+            ITS_ADDRESS.to_string().try_into().unwrap(),
+            msg.clone().abi_encode(),
+        );
+        assert_err_contains!(res, Error, Error::ExecutionDisabled);
+
+        assert_ok!(enable_execution(deps.as_mut()));
+
+        assert_ok!(execute_message(
+            deps.as_mut(),
+            CrossChainId {
+                source_chain: ChainNameRaw::try_from(SOLANA).unwrap(),
+                message_id: HexTxHashAndEventIndex::new([1u8; 32], 0u32)
+                    .to_string()
+                    .try_into()
+                    .unwrap(),
+            },
+            ITS_ADDRESS.to_string().try_into().unwrap(),
+            msg.abi_encode(),
+        ));
+    }
+
+    fn init(deps: &mut OwnedDeps<MemoryStorage, MockApi, MockQuerier>) {
+        assert_ok!(permission_control::set_admin(
+            deps.as_mut().storage,
+            &Addr::unchecked(ADMIN)
+        ));
+        assert_ok!(permission_control::set_governance(
+            deps.as_mut().storage,
+            &Addr::unchecked(GOVERNANCE)
+        ));
+
+        assert_ok!(state::save_config(
+            deps.as_mut().storage,
+            &Config {
+                axelarnet_gateway: Addr::unchecked(AXELARNET_GATEWAY),
+            },
+        ));
+
+        assert_ok!(killswitch::init(
+            deps.as_mut().storage,
+            killswitch::State::Disengaged
+        ));
+        let amplifier_chain = ChainNameRaw::try_from(SOLANA).unwrap();
+        let core_chain = ChainNameRaw::try_from(ETHEREUM).unwrap();
+
+        assert_ok!(register_its_contract(
+            deps.as_mut(),
+            core_chain.clone(),
+            ITS_ADDRESS.to_string().try_into().unwrap(),
+        ));
+
+        assert_ok!(register_its_contract(
+            deps.as_mut(),
+            amplifier_chain.clone(),
+            ITS_ADDRESS.to_string().try_into().unwrap(),
+        ));
+    }
 }

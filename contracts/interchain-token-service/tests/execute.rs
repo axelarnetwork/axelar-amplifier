@@ -9,7 +9,7 @@ use interchain_token_service::events::Event;
 use interchain_token_service::msg::ExecuteMsg;
 use interchain_token_service::{HubMessage, Message, TokenId, TokenManagerType};
 use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
-use utils::{make_deps, TestMessage};
+use utils::{make_deps, params, TestMessage};
 
 mod utils;
 
@@ -313,4 +313,80 @@ fn execute_message_when_invalid_message_type_fails() {
         invalid_hub_message.abi_encode(),
     );
     assert_err_contains!(result, ExecuteError, ExecuteError::InvalidMessageType);
+}
+
+#[test]
+fn disable_execution_when_not_admin_fails() {
+    let mut deps = mock_dependencies();
+    utils::instantiate_contract(deps.as_mut()).unwrap();
+
+    let result = contract::execute(
+        deps.as_mut(),
+        mock_env(),
+        mock_info("not-admin", &[]),
+        ExecuteMsg::DisableExecution,
+    );
+    assert_err_contains!(
+        result,
+        permission_control::Error,
+        permission_control::Error::PermissionDenied { .. }
+    );
+}
+
+#[test]
+fn enable_execution_when_not_admin_fails() {
+    let mut deps = mock_dependencies();
+    utils::instantiate_contract(deps.as_mut()).unwrap();
+
+    let result = contract::execute(
+        deps.as_mut(),
+        mock_env(),
+        mock_info("not-admin", &[]),
+        ExecuteMsg::EnableExecution,
+    );
+    assert_err_contains!(
+        result,
+        permission_control::Error,
+        permission_control::Error::PermissionDenied { .. }
+    );
+}
+
+#[test]
+fn admin_or_governance_can_enable_execution() {
+    let mut deps = mock_dependencies();
+    utils::instantiate_contract(deps.as_mut()).unwrap();
+
+    assert_ok!(contract::execute(
+        deps.as_mut(),
+        mock_env(),
+        mock_info(params::ADMIN, &[]),
+        ExecuteMsg::EnableExecution
+    ));
+
+    assert_ok!(contract::execute(
+        deps.as_mut(),
+        mock_env(),
+        mock_info(params::GOVERNANCE, &[]),
+        ExecuteMsg::EnableExecution
+    ));
+}
+
+#[test]
+fn admin_or_governance_can_disable_execution() {
+    let mut deps = mock_dependencies();
+    utils::instantiate_contract(deps.as_mut()).unwrap();
+
+    assert_ok!(contract::execute(
+        deps.as_mut(),
+        mock_env(),
+        mock_info(params::ADMIN, &[]),
+        ExecuteMsg::DisableExecution
+    ));
+
+    assert_ok!(contract::execute(
+        deps.as_mut(),
+        mock_env(),
+        mock_info(params::GOVERNANCE, &[]),
+        ExecuteMsg::DisableExecution
+    ));
 }
