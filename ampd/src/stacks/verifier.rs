@@ -42,7 +42,7 @@ impl Message {
             (
                 ClarityName::from("destination-chain"),
                 TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(
-                    BufferLength::try_from(32u32)?,
+                    BufferLength::try_from(20u32)?,
                 ))),
             ),
             (

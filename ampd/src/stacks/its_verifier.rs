@@ -35,7 +35,7 @@ pub fn get_its_hub_payload_hash(
         .get("destination-chain")?
         .clone()
         .expect_ascii()?;
-    let payload = tuple_data.get_owned("payload")?.expect_buff(10240)?;
+    let payload = tuple_data.get_owned("payload")?.expect_buff(63_000)?;
 
     let subtuple_type_signature =
         TupleTypeSignature::try_from(vec![(ClarityName::from("type"), TypeSignature::UIntType)])?;
@@ -82,13 +82,13 @@ fn get_its_hub_call_params(
         (
             ClarityName::from("destination-chain"),
             TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(
-                BufferLength::try_from(18u32)?,
+                BufferLength::try_from(20u32)?,
             ))),
         ),
         (
             ClarityName::from("payload"),
             TypeSignature::SequenceType(SequenceSubtype::BufferType(BufferLength::try_from(
-                10240u32,
+                63_000u32,
             )?)),
         ),
     ])?;
@@ -111,7 +111,7 @@ fn get_payload_from_contract_call_event(
     let contract_call_signature = TupleTypeSignature::try_from(vec![(
         ClarityName::from("payload"),
         TypeSignature::SequenceType(SequenceSubtype::BufferType(BufferLength::try_from(
-            10240u32,
+            64_000u32,
         )?)),
     )])?;
 
@@ -130,7 +130,7 @@ fn get_payload_from_contract_call_event(
     let payload = contract_call_value
         .expect_tuple()?
         .get_owned("payload")?
-        .expect_buff(10240)?;
+        .expect_buff(64_000)?;
 
     Ok(payload)
 }
@@ -152,14 +152,14 @@ fn get_its_interchain_transfer_abi_payload(
         (
             ClarityName::from("destination-address"),
             TypeSignature::SequenceType(SequenceSubtype::BufferType(BufferLength::try_from(
-                100u32,
+                128u32,
             )?)),
         ),
         (ClarityName::from("amount"), TypeSignature::UIntType),
         (
             ClarityName::from("data"),
             TypeSignature::SequenceType(SequenceSubtype::BufferType(BufferLength::try_from(
-                1024u32,
+                62_000u32,
             )?)),
         ),
     ])?;
@@ -193,7 +193,7 @@ fn get_its_interchain_transfer_abi_payload(
                 .data_map
                 .remove("destination-address")
                 .ok_or(Error::InvalidCall)?
-                .expect_buff(100)?,
+                .expect_buff(128)?,
         ),
         Token::Uint(
             original_value
@@ -208,7 +208,7 @@ fn get_its_interchain_transfer_abi_payload(
                 .data_map
                 .remove("data")
                 .ok_or(Error::InvalidCall)?
-                .expect_buff(1024)?,
+                .expect_buff(62_000)?,
         ),
     ]);
 
@@ -228,20 +228,20 @@ fn get_its_deploy_interchain_token_abi_payload(
         (
             ClarityName::from("name"),
             TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(
-                BufferLength::try_from(32u32)?,
+                BufferLength::try_from(64u32)?,
             ))),
         ),
         (
             ClarityName::from("symbol"),
             TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(
-                BufferLength::try_from(32u32)?,
+                BufferLength::try_from(16u32)?,
             ))),
         ),
         (ClarityName::from("decimals"), TypeSignature::UIntType),
         (
             ClarityName::from("minter"),
             TypeSignature::SequenceType(SequenceSubtype::BufferType(BufferLength::try_from(
-                200u32,
+                128u32,
             )?)),
         ),
     ])?;
@@ -289,7 +289,7 @@ fn get_its_deploy_interchain_token_abi_payload(
                 .data_map
                 .remove("minter")
                 .ok_or(Error::InvalidCall)?
-                .expect_buff(200)?,
+                .expect_buff(128)?,
         ),
     ]);
 
@@ -313,7 +313,7 @@ fn get_its_deploy_token_manager_payload(
         (
             ClarityName::from("params"),
             TypeSignature::SequenceType(SequenceSubtype::BufferType(BufferLength::try_from(
-                1024u32,
+                62_000u32,
             )?)),
         ),
     ])?;
@@ -347,7 +347,7 @@ fn get_its_deploy_token_manager_payload(
                 .data_map
                 .remove("params")
                 .ok_or(Error::InvalidCall)?
-                .expect_buff(1024)?,
+                .expect_buff(62_000)?,
         ),
     ]);
 
