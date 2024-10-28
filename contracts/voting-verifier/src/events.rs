@@ -195,8 +195,11 @@ impl VerifierSetConfirmation {
         msg_id_format: MessageIdFormat,
         verifier_set: VerifierSet,
     ) -> Result<Self, ContractError> {
+        #[allow(deprecated)]
         let (tx_id, event_index) = parse_message_id(&message_id, &msg_id_format)?;
 
+        #[allow(deprecated)]
+        // TODO: remove this attribute when tx_id and event_index are removed from the event
         Ok(Self {
             tx_id,
             event_index,
@@ -226,8 +229,11 @@ pub struct TxEventConfirmation {
 impl TryFrom<(Message, &MessageIdFormat)> for TxEventConfirmation {
     type Error = ContractError;
     fn try_from((msg, msg_id_format): (Message, &MessageIdFormat)) -> Result<Self, Self::Error> {
+        #[allow(deprecated)]
         let (tx_id, event_index) = parse_message_id(&msg.cc_id.message_id, msg_id_format)?;
 
+        #[allow(deprecated)]
+        // TODO: remove this attribute when tx_id and event_index are removed from the event
         Ok(TxEventConfirmation {
             tx_id,
             event_index,
@@ -359,8 +365,7 @@ mod test {
             TxEventConfirmation::try_from((msg.clone(), &MessageIdFormat::HexTxHashAndEventIndex))
                 .unwrap();
 
-        assert_eq!(event.tx_id, msg_id.tx_hash_as_hex());
-        assert_eq!(event.event_index as u64, msg_id.event_index);
+        assert_eq!(event.message_id, msg.cc_id.message_id);
         compare_event_to_message(event, msg);
     }
 
@@ -374,8 +379,7 @@ mod test {
         let event =
             TxEventConfirmation::try_from((msg.clone(), &MessageIdFormat::HexTxHash)).unwrap();
 
-        assert_eq!(event.tx_id, msg_id.tx_hash_as_hex());
-        assert_eq!(event.event_index, 0);
+        assert_eq!(event.message_id, msg.cc_id.message_id);
         compare_event_to_message(event, msg);
     }
 
@@ -393,8 +397,7 @@ mod test {
         ))
         .unwrap();
 
-        assert_eq!(event.tx_id, msg_id.tx_digest_as_base58());
-        assert_eq!(event.event_index as u64, msg_id.event_index);
+        assert_eq!(event.message_id, msg.cc_id.message_id);
         compare_event_to_message(event, msg);
     }
 
@@ -439,8 +442,7 @@ mod test {
         )
         .unwrap();
 
-        assert_eq!(event.tx_id, msg_id.tx_hash_as_hex());
-        assert_eq!(event.event_index as u64, msg_id.event_index);
+        assert_eq!(event.message_id, msg_id.to_string().try_into().unwrap());
         assert_eq!(event.verifier_set, verifier_set);
     }
 
@@ -462,8 +464,7 @@ mod test {
         )
         .unwrap();
 
-        assert_eq!(event.tx_id, msg_id.tx_digest_as_base58());
-        assert_eq!(event.event_index as u64, msg_id.event_index);
+        assert_eq!(event.message_id, msg_id.to_string().try_into().unwrap());
         assert_eq!(event.verifier_set, verifier_set);
     }
 

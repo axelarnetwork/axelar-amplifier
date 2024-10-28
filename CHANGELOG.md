@@ -8,4 +8,4 @@
 
 #### Migration Notes
 
-The voting verifier contracts must be migrated before ampd is upgraded.
+The voting verifier contracts must be migrated before ampd is upgraded. Existing ampd instances will continue to work even after the contract migration, but we recommend upgrading ampd.

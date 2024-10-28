@@ -247,7 +247,7 @@ mod tests {
     use crate::PREFIX;
 
     fn poll_started_event(participants: Vec<TMAddress>, expires_at: u64) -> PollStarted {
-        let msg_ids = vec![
+        let msg_ids = [
             HexTxHashAndEventIndex::new(Hash::random(), 0u64),
             HexTxHashAndEventIndex::new(Hash::random(), 1u64),
             HexTxHashAndEventIndex::new(Hash::random(), 10u64),
@@ -266,10 +266,11 @@ mod tests {
                     .map(|addr| cosmwasm_std::Addr::unchecked(addr.to_string()))
                     .collect(),
             },
+            #[allow(deprecated)] // TODO: The below events use the deprecated tx_id and event_index fields. Remove this attribute when those fields are removed
             messages: vec![
                 TxEventConfirmation {
                     tx_id: msg_ids[0].tx_hash_as_hex(),
-                    event_index: msg_ids[0].event_index as u32,
+                    event_index: u32::try_from(msg_ids[0].event_index).unwrap(),
                     message_id: msg_ids[0].to_string().parse().unwrap(),
                     source_address: format!("0x{:x}", EVMAddress::random()).parse().unwrap(),
                     destination_chain: "ethereum".parse().unwrap(),
@@ -278,7 +279,7 @@ mod tests {
                 },
                 TxEventConfirmation {
                     tx_id: msg_ids[1].tx_hash_as_hex(),
-                    event_index: msg_ids[1].event_index as u32,
+                    event_index: u32::try_from(msg_ids[1].event_index).unwrap(),
                     message_id: msg_ids[1].to_string().parse().unwrap(),
                     source_address: format!("0x{:x}", EVMAddress::random()).parse().unwrap(),
                     destination_chain: "ethereum".parse().unwrap(),
@@ -287,7 +288,7 @@ mod tests {
                 },
                 TxEventConfirmation {
                     tx_id: msg_ids[2].tx_hash_as_hex(),
-                    event_index: msg_ids[2].event_index as u32,
+                    event_index: u32::try_from(msg_ids[2].event_index).unwrap(),
                     message_id: msg_ids[2].to_string().parse().unwrap(),
                     source_address: format!("0x{:x}", EVMAddress::random()).parse().unwrap(),
                     destination_chain: "ethereum".parse().unwrap(),

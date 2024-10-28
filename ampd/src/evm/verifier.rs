@@ -196,6 +196,18 @@ mod tests {
     }
 
     #[test]
+    fn should_not_verify_verifier_set_if_log_index_greater_than_u32_max() {
+        let (gateway_address, tx_receipt, mut verifier_set) =
+            matching_verifier_set_and_tx_receipt();
+
+        verifier_set.message_id.event_index = u32::MAX as u64 + 1;
+        assert_eq!(
+            verify_verifier_set(&gateway_address, &tx_receipt, &verifier_set),
+            Vote::NotFound
+        );
+    }
+
+    #[test]
     fn should_not_verify_verifier_set_if_verifier_set_does_not_match() {
         let (gateway_address, tx_receipt, mut verifier_set) =
             matching_verifier_set_and_tx_receipt();
@@ -265,6 +277,17 @@ mod tests {
             Vote::NotFound
         );
         msg.message_id.event_index = 3;
+        assert_eq!(
+            verify_message(&gateway_address, &tx_receipt, &msg),
+            Vote::NotFound
+        );
+    }
+
+    #[test]
+    fn should_not_verify_msg_if_log_index_greater_than_u32_max() {
+        let (gateway_address, tx_receipt, mut msg) = matching_msg_and_tx_receipt();
+
+        msg.message_id.event_index = u32::MAX as u64 + 1;
         assert_eq!(
             verify_message(&gateway_address, &tx_receipt, &msg),
             Vote::NotFound

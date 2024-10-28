@@ -318,9 +318,11 @@ mod tests {
             messages: (0..2)
                 .map(|i| {
                     let msg_id = HexTxHashAndEventIndex::new(Hash::random(), i as u64);
+                    #[allow(deprecated)]
+                    // TODO: The below event uses the deprecated tx_id and event_index fields. Remove this attribute when those fields are removed
                     TxEventConfirmation {
                         tx_id: msg_id.tx_hash_as_hex(),
-                        event_index: msg_id.event_index as u32,
+                        event_index: u32::try_from(msg_id.event_index).unwrap(),
                         message_id: msg_id.to_string().parse().unwrap(),
                         source_address: ScAddress::Contract(stellar_xdr::curr::Hash::from(
                             Hash::random().0,
