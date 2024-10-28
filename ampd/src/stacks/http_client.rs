@@ -2,12 +2,13 @@ use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 
 use futures::future::join_all;
+use hex::ToHex;
 use serde::Deserialize;
 use thiserror::Error;
 
 use crate::types::Hash;
 
-const GET_TRANSACTION: &str = "extended/v1/tx/";
+const GET_TRANSACTION: &str = "extended/v1/tx/0x";
 const GET_CONTRACT_INFO: &str = "extended/v1/contract/";
 
 const STATUS_SUCCESS: &str = "success";
@@ -92,7 +93,7 @@ impl Client {
     }
 
     pub async fn get_valid_transaction(&self, tx_hash: &Hash) -> Option<Transaction> {
-        self.get_transaction(tx_hash.to_string().as_str())
+        self.get_transaction(tx_hash.encode_hex::<String>().as_str())
             .await
             .ok()
             .filter(Self::is_valid_transaction)
