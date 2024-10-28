@@ -228,13 +228,13 @@ fn get_its_deploy_interchain_token_abi_payload(
         (
             ClarityName::from("name"),
             TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(
-                BufferLength::try_from(64u32)?,
+                BufferLength::try_from(32u32)?,
             ))),
         ),
         (
             ClarityName::from("symbol"),
             TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(
-                BufferLength::try_from(16u32)?,
+                BufferLength::try_from(32u32)?,
             ))),
         ),
         (ClarityName::from("decimals"), TypeSignature::UIntType),
