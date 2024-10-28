@@ -29,6 +29,8 @@ pub enum Error {
     RegisterItsContract,
     #[error("failed to deregsiter an its edge contract")]
     DeregisterItsContract,
+    #[error("failed to set chain config")]
+    SetChainConfig,
     #[error("too many coins attached. Execute accepts zero or one coins")]
     TooManyCoins,
     #[error("failed to query its address")]
@@ -99,6 +101,12 @@ pub fn execute(
             execute::deregister_its_contract(deps, chain)
                 .change_context(Error::DeregisterItsContract)
         }
+        ExecuteMsg::SetChainConfig {
+            chain,
+            max_uint,
+            max_target_decimals,
+        } => execute::set_chain_config(deps, chain, max_uint, max_target_decimals)
+            .change_context(Error::DeregisterItsContract),
     }?
     .then(Ok)
 }

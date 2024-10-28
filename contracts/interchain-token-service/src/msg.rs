@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use axelarnet_gateway::AxelarExecutableMsg;
 use cosmwasm_schema::{cw_serde, QueryResponses};
+use cosmwasm_std::Uint256;
 use msgs_derive::EnsurePermissions;
 use router_api::{Address, ChainNameRaw};
 
@@ -33,6 +34,13 @@ pub enum ExecuteMsg {
     /// The admin is allowed to remove the ITS address of a chain for emergencies.
     #[permission(Elevated)]
     DeregisterItsContract { chain: ChainNameRaw },
+
+    #[permission(Governance)]
+    SetChainConfig {
+        chain: ChainNameRaw,
+        max_uint: Uint256,
+        max_target_decimals: u8,
+    },
 }
 
 #[cw_serde]

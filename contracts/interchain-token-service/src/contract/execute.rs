@@ -1,6 +1,6 @@
-use axelar_wasm_std::IntoContractError;
-use cosmwasm_std::{DepsMut, HexBinary, QuerierWrapper, Response, Storage};
-use error_stack::{bail, ensure, report, Result, ResultExt};
+use axelar_wasm_std::{FnExt, IntoContractError};
+use cosmwasm_std::{DepsMut, HexBinary, QuerierWrapper, Response, Storage, Uint256};
+use error_stack::{bail, ensure, report, Report, Result, ResultExt};
 use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
 
 use crate::events::Event;
@@ -27,6 +27,10 @@ pub enum Error {
     NexusQueryError,
     #[error("storage error")]
     StorageError,
+    #[error("chain config for {0} already set")]
+    ChainConfigAlreadySet(ChainNameRaw),
+    #[error("invalid chain max uint")]
+    InvalidChainMaxUint,
 }
 
 /// Executes an incoming ITS message.
@@ -131,4 +135,26 @@ pub fn deregister_its_contract(deps: DepsMut, chain: ChainNameRaw) -> Result<Res
         .change_context_lazy(|| Error::FailedItsContractDeregistration(chain.clone()))?;
 
     Ok(Response::new().add_event(Event::ItsContractDeregistered { chain }.into()))
+}
+
+pub fn set_chain_config(
+    deps: DepsMut,
+    chain: ChainNameRaw,
+    max_uint: Uint256,
+    max_target_decimals: u8,
+) -> Result<Response, Error> {
+    match state::load_chain_config(deps.storage, &chain).change_context(Error::StorageError)? {
+        Some(_) => bail!(Error::ChainConfigAlreadySet(chain)),
+        None => state::save_chain_config(
+            deps.storage,
+            &chain,
+            max_uint
+                .try_into()
+                .map_err(Report::new)
+                .change_context(Error::InvalidChainMaxUint)?,
+            max_target_decimals,
+        )
+        .change_context(Error::StorageError)?
+        .then(|_| Ok(Response::new())),
+    }
 }

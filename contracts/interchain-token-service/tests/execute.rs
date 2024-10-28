@@ -314,3 +314,58 @@ fn execute_message_when_invalid_message_type_fails() {
     );
     assert_err_contains!(result, ExecuteError, ExecuteError::InvalidMessageType);
 }
+
+#[test]
+fn set_chain_config_should_succeed() {
+    let chain = "ethereum".parse().unwrap();
+    let max_uint = "120000000000000000000000000".parse().unwrap();
+    let decimals = 18;
+
+    let mut deps = mock_dependencies();
+    utils::instantiate_contract(deps.as_mut()).unwrap();
+
+    assert_ok!(utils::set_chain_config(
+        deps.as_mut(),
+        chain,
+        max_uint,
+        decimals
+    ));
+}
+
+#[test]
+fn set_chain_config_should_fail_if_max_uint_is_zero() {
+    let chain: ChainNameRaw = "ethereum".parse().unwrap();
+    let max_uint = 0u64.into();
+    let decimals = 18;
+
+    let mut deps = mock_dependencies();
+    utils::instantiate_contract(deps.as_mut()).unwrap();
+
+    assert_err_contains!(
+        utils::set_chain_config(deps.as_mut(), chain, max_uint, decimals),
+        ExecuteError,
+        ExecuteError::InvalidChainMaxUint
+    )
+}
+
+#[test]
+fn set_chain_config_should_fail_if_chain_config_is_already_set() {
+    let chain: ChainNameRaw = "ethereum".parse().unwrap();
+    let max_uint = "120000000000000000000000000".parse().unwrap();
+    let decimals = 18;
+
+    let mut deps = mock_dependencies();
+    utils::instantiate_contract(deps.as_mut()).unwrap();
+
+    assert_ok!(utils::set_chain_config(
+        deps.as_mut(),
+        chain.clone(),
+        max_uint,
+        decimals
+    ));
+    assert_err_contains!(
+        utils::set_chain_config(deps.as_mut(), chain, max_uint, decimals),
+        ExecuteError,
+        ExecuteError::ChainConfigAlreadySet(_)
+    )
+}

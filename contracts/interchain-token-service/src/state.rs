@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
-use axelar_wasm_std::{nonempty, IntoContractError};
+use axelar_wasm_std::nonempty::{self, Uint256};
+use axelar_wasm_std::IntoContractError;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{ensure, Addr, StdError, Storage};
 use cw_storage_plus::{Item, Map};
@@ -25,8 +26,15 @@ pub struct Config {
     pub axelarnet_gateway: Addr,
 }
 
+#[cw_serde]
+pub struct ChainConfig {
+    max_uint: Uint256,
+    max_target_decimals: u8,
+}
+
 const CONFIG: Item<Config> = Item::new("config");
 const ITS_CONTRACTS: Map<&ChainNameRaw, Address> = Map::new("its_contracts");
+const CHAIN_CONFIGS: Map<&ChainNameRaw, ChainConfig> = Map::new("chain_configs");
 
 pub fn load_config(storage: &dyn Storage) -> Config {
     CONFIG
@@ -36,6 +44,29 @@ pub fn load_config(storage: &dyn Storage) -> Config {
 
 pub fn save_config(storage: &mut dyn Storage, config: &Config) -> Result<(), Error> {
     Ok(CONFIG.save(storage, config)?)
+}
+
+pub fn load_chain_config(
+    storage: &dyn Storage,
+    chain: &ChainNameRaw,
+) -> Result<Option<ChainConfig>, Error> {
+    Ok(CHAIN_CONFIGS.may_load(storage, chain)?)
+}
+
+pub fn save_chain_config(
+    storage: &mut dyn Storage,
+    chain: &ChainNameRaw,
+    max_uint: Uint256,
+    max_target_decimals: u8,
+) -> Result<(), Error> {
+    Ok(CHAIN_CONFIGS.save(
+        storage,
+        chain,
+        &ChainConfig {
+            max_uint,
+            max_target_decimals,
+        },
+    )?)
 }
 
 pub fn may_load_its_contract(
