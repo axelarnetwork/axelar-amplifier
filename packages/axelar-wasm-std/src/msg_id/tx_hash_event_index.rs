@@ -26,7 +26,9 @@ impl HexTxHashAndEventIndex {
     }
 
     pub fn tx_hash_as_hex_no_prefix(&self) -> nonempty::String {
-        format!("{}", HexBinary::from(self.tx_hash).to_hex())
+        HexBinary::from(self.tx_hash)
+            .to_hex()
+            .to_string()
             .try_into()
             .expect("failed to convert tx hash to non-empty string")
     }
