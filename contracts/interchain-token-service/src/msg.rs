@@ -34,12 +34,12 @@ pub enum ExecuteMsg {
     /// The admin is allowed to remove the ITS address of a chain for emergencies.
     #[permission(Elevated)]
     DeregisterItsContract { chain: ChainNameRaw },
-
+    /// Set the chain configuration for a chain.
     #[permission(Governance)]
     SetChainConfig {
         chain: ChainNameRaw,
-        max_uint: nonempty::Uint256,
-        max_target_decimals: u8,
+        max_uint: nonempty::Uint256, // The maximum uint value that is supported by the chain's token standard
+        max_target_decimals: u8, // The maximum number of decimals that is preserved when deploying a token to anothe chain where smaller uint values are used
     },
 }
 
