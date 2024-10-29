@@ -7,6 +7,7 @@ use axelarnet_gateway::AxelarExecutableMsg;
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{Addr, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response, Storage};
 use error_stack::{Report, ResultExt};
+use execute::{freeze_chain, unfreeze_chain};
 
 use crate::events::Event;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
@@ -29,8 +30,10 @@ pub enum Error {
     RegisterItsContract,
     #[error("failed to deregsiter an its edge contract")]
     DeregisterItsContract,
-    #[error("too many coins attached. Execute accepts zero or one coins")]
-    TooManyCoins,
+    #[error("failed to freeze chain")]
+    FreezeChain,
+    #[error("failed to unfreeze chain")]
+    UnfreezeChain,
     #[error("failed to query its address")]
     QueryItsContract,
     #[error("failed to query all its addresses")]
@@ -98,6 +101,12 @@ pub fn execute(
         ExecuteMsg::DeregisterItsContract { chain } => {
             execute::deregister_its_contract(deps, chain)
                 .change_context(Error::DeregisterItsContract)
+        }
+        ExecuteMsg::FreezeChain { chain } => {
+            freeze_chain(deps, chain).change_context(Error::FreezeChain)
+        }
+        ExecuteMsg::UnfreezeChain { chain } => {
+            unfreeze_chain(deps, chain).change_context(Error::UnfreezeChain)
         }
     }?
     .then(Ok)

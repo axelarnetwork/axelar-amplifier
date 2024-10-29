@@ -2,14 +2,13 @@ use std::collections::HashMap;
 
 use axelar_wasm_std::{nonempty, IntoContractError};
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{ensure, Addr, StdError, Storage};
+use cosmwasm_std::{ensure, Addr, Storage};
 use cw_storage_plus::{Item, Map};
+use error_stack::{report, Result, ResultExt};
 use router_api::{Address, ChainNameRaw};
 
 #[derive(thiserror::Error, Debug, IntoContractError)]
 pub enum Error {
-    #[error(transparent)]
-    Std(#[from] StdError),
     #[error("ITS contract got into an invalid state, its config is missing")]
     MissingConfig,
     #[error("its address for chain {0} not found")]
@@ -18,6 +17,10 @@ pub enum Error {
     ItsContractAlreadyRegistered(ChainNameRaw),
     #[error("gateway token already registered {0}")]
     GatewayTokenAlreadyRegistered(nonempty::String),
+    // This is a generic error to use when cw_storage_plus returns an error that is unexpected and
+    // should never happen, such as an error encountered when saving data.
+    #[error("storage error")]
+    Storage,
 }
 
 #[cw_serde]
@@ -27,6 +30,7 @@ pub struct Config {
 
 const CONFIG: Item<Config> = Item::new("config");
 const ITS_CONTRACTS: Map<&ChainNameRaw, Address> = Map::new("its_contracts");
+const FROZEN_CHAINS: Map<&ChainNameRaw, ()> = Map::new("frozen_chains");
 
 pub fn load_config(storage: &dyn Storage) -> Config {
     CONFIG
@@ -35,18 +39,22 @@ pub fn load_config(storage: &dyn Storage) -> Config {
 }
 
 pub fn save_config(storage: &mut dyn Storage, config: &Config) -> Result<(), Error> {
-    Ok(CONFIG.save(storage, config)?)
+    CONFIG.save(storage, config).change_context(Error::Storage)
 }
 
 pub fn may_load_its_contract(
     storage: &dyn Storage,
     chain: &ChainNameRaw,
 ) -> Result<Option<Address>, Error> {
-    Ok(ITS_CONTRACTS.may_load(storage, chain)?)
+    ITS_CONTRACTS
+        .may_load(storage, chain)
+        .change_context(Error::Storage)
 }
 
 pub fn load_its_contract(storage: &dyn Storage, chain: &ChainNameRaw) -> Result<Address, Error> {
-    may_load_its_contract(storage, chain)?.ok_or_else(|| Error::ItsContractNotFound(chain.clone()))
+    may_load_its_contract(storage, chain)
+        .change_context(Error::Storage)?
+        .ok_or_else(|| report!(Error::ItsContractNotFound(chain.clone())))
 }
 
 pub fn save_its_contract(
@@ -59,7 +67,9 @@ pub fn save_its_contract(
         Error::ItsContractAlreadyRegistered(chain.clone())
     );
 
-    Ok(ITS_CONTRACTS.save(storage, chain, address)?)
+    ITS_CONTRACTS
+        .save(storage, chain, address)
+        .change_context(Error::Storage)
 }
 
 pub fn remove_its_contract(storage: &mut dyn Storage, chain: &ChainNameRaw) -> Result<(), Error> {
@@ -76,9 +86,27 @@ pub fn remove_its_contract(storage: &mut dyn Storage, chain: &ChainNameRaw) -> R
 pub fn load_all_its_contracts(
     storage: &dyn Storage,
 ) -> Result<HashMap<ChainNameRaw, Address>, Error> {
-    Ok(ITS_CONTRACTS
+    ITS_CONTRACTS
         .range(storage, None, None, cosmwasm_std::Order::Ascending)
-        .collect::<Result<HashMap<_, _>, _>>()?)
+        .map(|res| res.change_context(Error::Storage))
+        .collect::<Result<HashMap<_, _>, _>>()
+}
+
+pub fn is_chain_frozen(storage: &dyn Storage, chain: &ChainNameRaw) -> Result<bool, Error> {
+    FROZEN_CHAINS
+        .may_load(storage, chain)
+        .change_context(Error::Storage)
+        .map(|res| res.is_some())
+}
+
+pub fn freeze_chain(storage: &mut dyn Storage, chain: &ChainNameRaw) -> Result<(), Error> {
+    FROZEN_CHAINS
+        .save(storage, chain, &())
+        .change_context(Error::Storage)
+}
+
+pub fn unfreeze_chain(storage: &mut dyn Storage, chain: &ChainNameRaw) {
+    FROZEN_CHAINS.remove(storage, chain)
 }
 
 #[cfg(test)]

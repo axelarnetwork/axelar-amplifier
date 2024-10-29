@@ -9,7 +9,7 @@ use interchain_token_service::events::Event;
 use interchain_token_service::msg::ExecuteMsg;
 use interchain_token_service::{HubMessage, Message, TokenId, TokenManagerType};
 use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
-use utils::{make_deps, TestMessage};
+use utils::{make_deps, params, TestMessage};
 
 mod utils;
 
@@ -313,4 +313,92 @@ fn execute_message_when_invalid_message_type_fails() {
         invalid_hub_message.abi_encode(),
     );
     assert_err_contains!(result, ExecuteError, ExecuteError::InvalidMessageType);
+}
+
+#[test]
+fn freeze_chain_when_not_admin_fails() {
+    let mut deps = mock_dependencies();
+    utils::instantiate_contract(deps.as_mut()).unwrap();
+
+    let result = contract::execute(
+        deps.as_mut(),
+        mock_env(),
+        mock_info("not-admin", &[]),
+        ExecuteMsg::FreezeChain {
+            chain: ChainNameRaw::try_from("ethereum").unwrap(),
+        },
+    );
+    assert_err_contains!(
+        result,
+        permission_control::Error,
+        permission_control::Error::PermissionDenied { .. }
+    );
+}
+
+#[test]
+fn unfreeze_chain_when_not_admin_fails() {
+    let mut deps = mock_dependencies();
+    utils::instantiate_contract(deps.as_mut()).unwrap();
+
+    let result = contract::execute(
+        deps.as_mut(),
+        mock_env(),
+        mock_info("not-admin", &[]),
+        ExecuteMsg::UnfreezeChain {
+            chain: ChainNameRaw::try_from("ethereum").unwrap(),
+        },
+    );
+    assert_err_contains!(
+        result,
+        permission_control::Error,
+        permission_control::Error::PermissionDenied { .. }
+    );
+}
+
+#[test]
+fn admin_or_governance_can_freeze_chain() {
+    let mut deps = mock_dependencies();
+    utils::instantiate_contract(deps.as_mut()).unwrap();
+
+    assert_ok!(contract::execute(
+        deps.as_mut(),
+        mock_env(),
+        mock_info(params::ADMIN, &[]),
+        ExecuteMsg::FreezeChain {
+            chain: ChainNameRaw::try_from("ethereum").unwrap()
+        }
+    ));
+
+    assert_ok!(contract::execute(
+        deps.as_mut(),
+        mock_env(),
+        mock_info(params::GOVERNANCE, &[]),
+        ExecuteMsg::FreezeChain {
+            chain: ChainNameRaw::try_from("ethereum").unwrap()
+        }
+    ));
+}
+
+#[test]
+fn admin_or_governance_can_unfreeze_chain() {
+    let mut deps = mock_dependencies();
+    utils::instantiate_contract(deps.as_mut()).unwrap();
+
+    assert_ok!(contract::execute(
+        deps.as_mut(),
+        mock_env(),
+        mock_info(params::ADMIN, &[]),
+        ExecuteMsg::UnfreezeChain {
+            chain: ChainNameRaw::try_from("ethereum").unwrap()
+        }
+    ));
+
+    assert_ok!(contract::execute(
+        deps.as_mut(),
+        mock_env(),
+        mock_info(params::GOVERNANCE, &[]),
+        ExecuteMsg::UnfreezeChain {
+            chain: ChainNameRaw::try_from("ethereum").unwrap()
+        }
+    ));
 }

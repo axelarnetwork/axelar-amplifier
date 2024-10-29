@@ -33,6 +33,14 @@ pub enum ExecuteMsg {
     /// The admin is allowed to remove the ITS address of a chain for emergencies.
     #[permission(Elevated)]
     DeregisterItsContract { chain: ChainNameRaw },
+
+    /// Freeze execution of ITS messages for a particular chain
+    #[permission(Elevated)]
+    FreezeChain { chain: ChainNameRaw },
+
+    /// Unfreeze execution of ITS messages for a particular chain
+    #[permission(Elevated)]
+    UnfreezeChain { chain: ChainNameRaw },
 }
 
 #[cw_serde]
