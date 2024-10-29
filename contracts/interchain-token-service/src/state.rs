@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
-use axelar_wasm_std::nonempty;
-use axelar_wasm_std::IntoContractError;
+use axelar_wasm_std::{nonempty, IntoContractError};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{ensure, Addr, StdError, Storage};
 use cw_storage_plus::{Item, Map};
