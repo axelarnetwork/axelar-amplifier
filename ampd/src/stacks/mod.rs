@@ -15,6 +15,7 @@ use crate::stacks::error::Error;
 
 mod error;
 pub(crate) mod http_client;
+mod its_verifier;
 pub(crate) mod verifier;
 
 pub struct WeightedSigner {
@@ -118,7 +119,7 @@ impl WeightedSigners {
                 Value::list_with_type(
                     &StacksEpochId::latest(),
                     weighted_signers,
-                    ListTypeData::new_list(TypeSignature::from(signer_type_signature), 48)
+                    ListTypeData::new_list(TypeSignature::from(signer_type_signature), 100)
                         .change_context(Error::InvalidEncoding)?,
                 )
                 .map_err(|_| Error::InvalidEncoding)?,

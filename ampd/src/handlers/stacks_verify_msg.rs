@@ -10,6 +10,8 @@ use error_stack::ResultExt;
 use events::Error::EventTypeMismatch;
 use events::Event;
 use events_derive::try_from;
+use futures::future;
+use router_api::ChainName;
 use serde::Deserialize;
 use tokio::sync::watch::Receiver;
 use tracing::info;
@@ -17,7 +19,7 @@ use voting_verifier::msg::ExecuteMsg;
 
 use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error;
-use crate::stacks::http_client::Client;
+use crate::stacks::http_client::{Client, Transaction};
 use crate::stacks::verifier::verify_message;
 use crate::types::{Hash, TMAddress};
 
@@ -37,6 +39,7 @@ pub struct Message {
 #[try_from("wasm-messages_poll_started")]
 struct PollStartedEvent {
     poll_id: PollId,
+    source_chain: ChainName,
     source_gateway_address: String,
     messages: Vec<Message>,
     participants: Vec<TMAddress>,
@@ -48,21 +51,39 @@ pub struct Handler {
     voting_verifier_contract: TMAddress,
     http_client: Client,
     latest_block_height: Receiver<u64>,
+    its_address: String,
+    reference_native_interchain_token_code: String,
+    reference_token_manager_code: String,
 }
 
 impl Handler {
-    pub fn new(
+    pub async fn new(
         verifier: TMAddress,
         voting_verifier_contract: TMAddress,
         http_client: Client,
         latest_block_height: Receiver<u64>,
-    ) -> Self {
-        Self {
+        its_address: String,
+        reference_native_interchain_token_address: String,
+        reference_token_manager_address: String,
+    ) -> error_stack::Result<Self, crate::stacks::http_client::Error> {
+        let reference_native_interchain_token_info = http_client
+            .get_contract_info(reference_native_interchain_token_address.as_str())
+            .await?;
+
+        let reference_token_manager_info = http_client
+            .get_contract_info(reference_token_manager_address.as_str())
+            .await?;
+
+        Ok(Self {
             verifier,
             voting_verifier_contract,
             http_client,
             latest_block_height,
-        }
+            its_address,
+            reference_native_interchain_token_code: reference_native_interchain_token_info
+                .source_code,
+            reference_token_manager_code: reference_token_manager_info.source_code,
+        })
     }
 
     fn vote_msg(&self, poll_id: PollId, votes: Vec<Vote>) -> MsgExecuteContract {
@@ -87,6 +108,7 @@ impl EventHandler for Handler {
 
         let PollStartedEvent {
             poll_id,
+            source_chain,
             source_gateway_address,
             messages,
             participants,
@@ -113,16 +135,26 @@ impl EventHandler for Handler {
         let tx_hashes: HashSet<_> = messages.iter().map(|message| message.tx_id).collect();
         let transactions = self.http_client.get_transactions(tx_hashes).await;
 
-        let votes: Vec<Vote> = messages
-            .iter()
-            .map(|msg| {
-                transactions
-                    .get(&msg.tx_id)
-                    .map_or(Vote::NotFound, |transaction| {
-                        verify_message(&source_gateway_address, transaction, msg)
-                    })
-            })
-            .collect();
+        let futures = messages.iter().map(|msg| async {
+            match transactions.get(&msg.tx_id) {
+                Some(transaction) => {
+                    verify_message(
+                        &source_chain,
+                        &source_gateway_address,
+                        &self.its_address,
+                        transaction,
+                        msg,
+                        &self.http_client,
+                        &self.reference_native_interchain_token_code,
+                        &self.reference_token_manager_code,
+                    )
+                    .await
+                }
+                None => Vote::NotFound,
+            }
+        });
+
+        let votes: Vec<Vote> = future::join_all(futures).await;
 
         Ok(vec![self
             .vote_msg(poll_id, votes)
@@ -144,10 +176,10 @@ mod tests {
     use tokio::test as async_test;
     use voting_verifier::events::{PollMetadata, PollStarted, TxEventConfirmation};
 
-    use super::PollStartedEvent;
+    use super::{Handler, PollStartedEvent};
     use crate::event_processor::EventHandler;
     use crate::handlers::tests::into_structured_event;
-    use crate::stacks::http_client::Client;
+    use crate::stacks::http_client::{Client, ContractInfo};
     use crate::types::{EVMAddress, Hash, TMAddress};
     use crate::PREFIX;
 
@@ -190,12 +222,7 @@ mod tests {
             &TMAddress::random(PREFIX),
         );
 
-        let handler = super::Handler::new(
-            TMAddress::random(PREFIX),
-            TMAddress::random(PREFIX),
-            Client::faux(),
-            watch::channel(0).1,
-        );
+        let handler = get_handler().await;
 
         assert!(handler.handle(&event).await.is_ok());
     }
@@ -208,12 +235,7 @@ mod tests {
             &TMAddress::random(PREFIX),
         );
 
-        let handler = super::Handler::new(
-            TMAddress::random(PREFIX),
-            TMAddress::random(PREFIX),
-            Client::faux(),
-            watch::channel(0).1,
-        );
+        let handler = get_handler().await;
 
         assert!(handler.handle(&event).await.is_ok());
     }
@@ -221,6 +243,13 @@ mod tests {
     // Should not handle event if worker is not a poll participant
     #[async_test]
     async fn verifier_is_not_a_participant() {
+        let mut client = Client::faux();
+        faux::when!(client.get_contract_info).then(|_| {
+            Ok(ContractInfo {
+                source_code: "()".to_string(),
+            })
+        });
+
         let voting_verifier = TMAddress::random(PREFIX);
         let event =
             into_structured_event(poll_started_event(participants(5, None)), &voting_verifier);
@@ -228,9 +257,14 @@ mod tests {
         let handler = super::Handler::new(
             TMAddress::random(PREFIX),
             voting_verifier,
-            Client::faux(),
+            client,
             watch::channel(0).1,
-        );
+            "its_address".to_string(),
+            "native_interchain_token_code".to_string(),
+            "token_manager_code".to_string(),
+        )
+        .await
+        .unwrap();
 
         assert!(handler.handle(&event).await.is_ok());
     }
@@ -238,6 +272,11 @@ mod tests {
     #[async_test]
     async fn should_vote_correctly() {
         let mut client = Client::faux();
+        faux::when!(client.get_contract_info).then(|_| {
+            Ok(ContractInfo {
+                source_code: "()".to_string(),
+            })
+        });
         faux::when!(client.get_transactions).then(|_| HashMap::new());
 
         let voting_verifier = TMAddress::random(PREFIX);
@@ -247,7 +286,17 @@ mod tests {
             &voting_verifier,
         );
 
-        let handler = super::Handler::new(worker, voting_verifier, client, watch::channel(0).1);
+        let handler = super::Handler::new(
+            worker,
+            voting_verifier,
+            client,
+            watch::channel(0).1,
+            "its_address".to_string(),
+            "native_interchain_token_code".to_string(),
+            "token_manager_code".to_string(),
+        )
+        .await
+        .unwrap();
 
         let actual = handler.handle(&event).await.unwrap();
         assert_eq!(actual.len(), 1);
@@ -257,6 +306,11 @@ mod tests {
     #[async_test]
     async fn should_skip_expired_poll() {
         let mut client = Client::faux();
+        faux::when!(client.get_contract_info).then(|_| {
+            Ok(ContractInfo {
+                source_code: "()".to_string(),
+            })
+        });
         faux::when!(client.get_transactions).then(|_| HashMap::new());
 
         let voting_verifier = TMAddress::random(PREFIX);
@@ -269,7 +323,17 @@ mod tests {
 
         let (tx, rx) = watch::channel(expiration - 1);
 
-        let handler = super::Handler::new(worker, voting_verifier, client, rx);
+        let handler = super::Handler::new(
+            worker,
+            voting_verifier,
+            client,
+            rx,
+            "its_address".to_string(),
+            "native_interchain_token_code".to_string(),
+            "token_manager_code".to_string(),
+        )
+        .await
+        .unwrap();
 
         // poll is not expired yet, should hit proxy
         let actual = handler.handle(&event).await.unwrap();
@@ -279,6 +343,29 @@ mod tests {
 
         // poll is expired
         assert_eq!(handler.handle(&event).await.unwrap(), vec![]);
+    }
+
+    async fn get_handler() -> Handler {
+        let mut client = Client::faux();
+        faux::when!(client.get_contract_info).then(|_| {
+            Ok(ContractInfo {
+                source_code: "()".to_string(),
+            })
+        });
+
+        let handler = Handler::new(
+            TMAddress::random(PREFIX),
+            TMAddress::random(PREFIX),
+            client,
+            watch::channel(0).1,
+            "its_address".to_string(),
+            "native_interchain_token_code".to_string(),
+            "token_manager_code".to_string(),
+        )
+        .await
+        .unwrap();
+
+        handler
     }
 
     fn poll_started_event(participants: Vec<TMAddress>) -> PollStarted {

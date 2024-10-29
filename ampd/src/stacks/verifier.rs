@@ -4,20 +4,27 @@ use clarity::vm::types::{
     Value,
 };
 use clarity::vm::ClarityName;
+use router_api::ChainName;
 
 use crate::handlers::stacks_verify_msg::Message;
 use crate::handlers::stacks_verify_verifier_set::VerifierSetConfirmation;
 use crate::stacks::error::Error;
-use crate::stacks::http_client::{Transaction, TransactionEvents};
+use crate::stacks::http_client::{Client, Transaction, TransactionEvents};
+use crate::stacks::its_verifier::{get_its_hub_payload_hash, its_verify_contract_code};
 use crate::stacks::WeightedSigners;
+use crate::types::Hash;
 
-const PRINT_TOPIC: &str = "print";
+pub const PRINT_TOPIC: &str = "print";
 
-const CONTRACT_CALL_TYPE: &str = "contract-call";
+pub const CONTRACT_CALL_TYPE: &str = "contract-call";
 const SIGNERS_ROTATED_TYPE: &str = "signers-rotated";
 
 impl Message {
-    fn eq_event(&self, event: &TransactionEvents) -> Result<bool, Box<dyn std::error::Error>> {
+    pub fn eq_event(
+        &self,
+        event: &TransactionEvents,
+        new_payload_hash: Option<Hash>,
+    ) -> Result<bool, Box<dyn std::error::Error>> {
         let contract_log = event.contract_log.as_ref().ok_or(Error::PropertyEmpty)?;
 
         if contract_log.topic != PRINT_TOPIC {
@@ -34,15 +41,15 @@ impl Message {
             (ClarityName::from("sender"), TypeSignature::PrincipalType),
             (
                 ClarityName::from("destination-chain"),
-                TypeSignature::SequenceType(SequenceSubtype::BufferType(BufferLength::try_from(
-                    18u32,
-                )?)),
+                TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(
+                    BufferLength::try_from(20u32)?,
+                ))),
             ),
             (
                 ClarityName::from("destination-contract-address"),
-                TypeSignature::SequenceType(SequenceSubtype::BufferType(BufferLength::try_from(
-                    96u32,
-                )?)),
+                TypeSignature::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(
+                    BufferLength::try_from(128u32)?,
+                ))),
             ),
             (
                 ClarityName::from("payload-hash"),
@@ -74,22 +81,29 @@ impl Message {
                 return Ok(false);
             }
 
-            if !data.get("destination-chain")?.eq(&Value::buff_from(
-                self.destination_chain.as_ref().as_bytes().to_vec(),
-            )?) {
-                return Ok(false);
-            }
-
             if !data
-                .get("destination-contract-address")?
-                .eq(&Value::buff_from(
-                    self.destination_address.as_bytes().to_vec(),
+                .get("destination-chain")?
+                .eq(&Value::string_ascii_from_bytes(
+                    self.destination_chain.as_ref().as_bytes().to_vec(),
                 )?)
             {
                 return Ok(false);
             }
 
             if !data
+                .get("destination-contract-address")?
+                .eq(&Value::string_ascii_from_bytes(
+                    self.destination_address.as_bytes().to_vec(),
+                )?)
+            {
+                return Ok(false);
+            }
+
+            if let Some(new_payload_hash) = new_payload_hash {
+                if new_payload_hash != self.payload_hash {
+                    return Ok(false);
+                }
+            } else if !data
                 .get("payload-hash")?
                 .eq(&Value::buff_from(self.payload_hash.as_bytes().to_vec())?)
             {
@@ -177,17 +191,61 @@ fn find_event<'a>(
     Some(event)
 }
 
-pub fn verify_message(
+pub async fn verify_message(
+    source_chain: &ChainName,
     gateway_address: &String,
+    its_address: &String,
     transaction: &Transaction,
     message: &Message,
+    http_client: &Client,
+    reference_native_interchain_token_code: &String,
+    reference_token_manager_code: &String,
 ) -> Vote {
     if message.tx_id != transaction.tx_id {
         return Vote::NotFound;
     }
 
     match find_event(transaction, gateway_address, message.event_index) {
-        Some(event) if message.eq_event(event).unwrap_or(false) => Vote::SucceededOnChain,
+        Some(event) => {
+            // In case message is not from ITS
+            if &message.source_address != its_address {
+                if message.eq_event(event, None).unwrap_or(false) {
+                    return Vote::SucceededOnChain;
+                }
+
+                return Vote::NotFound;
+            }
+
+            // In case messages is from Stacks -> Stacks and from ITS -> ITS, use custom logic
+            // for confirming contract deployments
+            if &message.destination_chain == source_chain
+                && &message.destination_address == its_address
+            {
+                if message.eq_event(event, None).unwrap_or(false)
+                    && its_verify_contract_code(
+                        event,
+                        http_client,
+                        reference_native_interchain_token_code,
+                        reference_token_manager_code,
+                    )
+                    .await
+                    .unwrap_or(false)
+                {
+                    return Vote::SucceededOnChain;
+                }
+
+                return Vote::NotFound;
+            }
+
+            // In other case, abi encode payload coming from Stacks ITS
+            if let Ok(payload_hash) = get_its_hub_payload_hash(event) {
+                if message.eq_event(event, Some(payload_hash)).unwrap_or(false) {
+                    return Vote::SucceededOnChain;
+                }
+            }
+
+            Vote::NotFound
+        }
         _ => Vote::NotFound,
     }
 }
@@ -215,70 +273,137 @@ mod tests {
     use cosmwasm_std::{HexBinary, Uint128};
     use multisig::key::KeyType;
     use multisig::test::common::{build_verifier_set, ecdsa_test_data};
+    use router_api::ChainName;
+    use tokio::test as async_test;
 
     use crate::handlers::stacks_verify_msg::Message;
     use crate::handlers::stacks_verify_verifier_set::VerifierSetConfirmation;
     use crate::stacks::http_client::{
-        ContractLog, ContractLogValue, Transaction, TransactionEvents,
+        Client, ContractLog, ContractLogValue, Transaction, TransactionEvents,
     };
     use crate::stacks::verifier::{verify_message, verify_verifier_set, SIGNERS_ROTATED_TYPE};
 
     // test verify message
-    #[test]
-    fn should_not_verify_tx_id_does_not_match() {
-        let (gateway_address, tx, mut msg) = get_matching_msg_and_tx();
+    #[async_test]
+    async fn should_not_verify_tx_id_does_not_match() {
+        let (source_chain, gateway_address, its_address, tx, mut msg) = get_matching_msg_and_tx();
 
         msg.tx_id = "ffaf64de66510723f2efbacd7ead3c4f8c856aed1afc2cb30254552aeda47313"
             .parse()
             .unwrap();
-        assert_eq!(verify_message(&gateway_address, &tx, &msg), Vote::NotFound);
+        assert_eq!(
+            verify_message(
+                &source_chain,
+                &gateway_address,
+                &its_address,
+                &tx,
+                &msg,
+                &Client::faux(),
+                &"native_interchain_token_code".to_string(),
+                &"token_manager_code".to_string()
+            )
+            .await,
+            Vote::NotFound
+        );
     }
 
-    #[test]
-    fn should_not_verify_no_log_for_event_index() {
-        let (gateway_address, tx, mut msg) = get_matching_msg_and_tx();
+    #[async_test]
+    async fn should_not_verify_no_log_for_event_index() {
+        let (source_chain, gateway_address, its_address, tx, mut msg) = get_matching_msg_and_tx();
 
         msg.event_index = 2;
 
-        assert_eq!(verify_message(&gateway_address, &tx, &msg), Vote::NotFound);
+        assert_eq!(
+            verify_message(
+                &source_chain,
+                &gateway_address,
+                &its_address,
+                &tx,
+                &msg,
+                &Client::faux(),
+                &"native_interchain_token_code".to_string(),
+                &"token_manager_code".to_string()
+            )
+            .await,
+            Vote::NotFound
+        );
     }
 
-    #[test]
-    fn should_not_verify_event_index_does_not_match() {
-        let (gateway_address, tx, mut msg) = get_matching_msg_and_tx();
+    #[async_test]
+    async fn should_not_verify_event_index_does_not_match() {
+        let (source_chain, gateway_address, its_address, tx, mut msg) = get_matching_msg_and_tx();
 
         msg.event_index = 0;
 
-        assert_eq!(verify_message(&gateway_address, &tx, &msg), Vote::NotFound);
+        assert_eq!(
+            verify_message(
+                &source_chain,
+                &gateway_address,
+                &its_address,
+                &tx,
+                &msg,
+                &Client::faux(),
+                &"native_interchain_token_code".to_string(),
+                &"token_manager_code".to_string()
+            )
+            .await,
+            Vote::NotFound
+        );
     }
 
-    #[test]
-    fn should_not_verify_not_gateway() {
-        let (gateway_address, mut tx, msg) = get_matching_msg_and_tx();
+    #[async_test]
+    async fn should_not_verify_not_gateway() {
+        let (source_chain, gateway_address, its_address, mut tx, msg) = get_matching_msg_and_tx();
 
         let transaction_events = tx.events.get_mut(1).unwrap();
         let contract_call = transaction_events.contract_log.as_mut().unwrap();
 
         contract_call.contract_id = "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM".to_string();
 
-        assert_eq!(verify_message(&gateway_address, &tx, &msg), Vote::NotFound);
+        assert_eq!(
+            verify_message(
+                &source_chain,
+                &gateway_address,
+                &its_address,
+                &tx,
+                &msg,
+                &Client::faux(),
+                &"native_interchain_token_code".to_string(),
+                &"token_manager_code".to_string()
+            )
+            .await,
+            Vote::NotFound
+        );
     }
 
-    #[test]
-    fn should_not_verify_invalid_topic() {
-        let (gateway_address, mut tx, msg) = get_matching_msg_and_tx();
+    #[async_test]
+    async fn should_not_verify_invalid_topic() {
+        let (source_chain, gateway_address, its_address, mut tx, msg) = get_matching_msg_and_tx();
 
         let transaction_events = tx.events.get_mut(1).unwrap();
         let contract_call = transaction_events.contract_log.as_mut().unwrap();
 
         contract_call.topic = "other".to_string();
 
-        assert_eq!(verify_message(&gateway_address, &tx, &msg), Vote::NotFound);
+        assert_eq!(
+            verify_message(
+                &source_chain,
+                &gateway_address,
+                &its_address,
+                &tx,
+                &msg,
+                &Client::faux(),
+                &"native_interchain_token_code".to_string(),
+                &"token_manager_code".to_string()
+            )
+            .await,
+            Vote::NotFound
+        );
     }
 
-    #[test]
-    fn should_not_verify_invalid_type() {
-        let (gateway_address, mut tx, msg) = get_matching_msg_and_tx();
+    #[async_test]
+    async fn should_not_verify_invalid_type() {
+        let (source_chain, gateway_address, its_address, mut tx, msg) = get_matching_msg_and_tx();
 
         let transaction_events = tx.events.get_mut(1).unwrap();
         let contract_call = transaction_events.contract_log.as_mut().unwrap();
@@ -291,53 +416,128 @@ mod tests {
             .unwrap()
             .to_string();
 
-        assert_eq!(verify_message(&gateway_address, &tx, &msg), Vote::NotFound);
+        assert_eq!(
+            verify_message(
+                &source_chain,
+                &gateway_address,
+                &its_address,
+                &tx,
+                &msg,
+                &Client::faux(),
+                &"native_interchain_token_code".to_string(),
+                &"token_manager_code".to_string()
+            )
+            .await,
+            Vote::NotFound
+        );
     }
 
-    #[test]
-    fn should_not_verify_invalid_sender() {
-        let (gateway_address, tx, mut msg) = get_matching_msg_and_tx();
+    #[async_test]
+    async fn should_not_verify_invalid_sender() {
+        let (source_chain, gateway_address, its_address, tx, mut msg) = get_matching_msg_and_tx();
 
         msg.source_address = "SP2N959SER36FZ5QT1CX9BR63W3E8X35WQCMBYYWC.axelar-gateway".to_string();
 
-        assert_eq!(verify_message(&gateway_address, &tx, &msg), Vote::NotFound);
+        assert_eq!(
+            verify_message(
+                &source_chain,
+                &gateway_address,
+                &its_address,
+                &tx,
+                &msg,
+                &Client::faux(),
+                &"native_interchain_token_code".to_string(),
+                &"token_manager_code".to_string()
+            )
+            .await,
+            Vote::NotFound
+        );
     }
 
-    #[test]
-    fn should_not_verify_invalid_destination_chain() {
-        let (gateway_address, tx, mut msg) = get_matching_msg_and_tx();
+    #[async_test]
+    async fn should_not_verify_invalid_destination_chain() {
+        let (source_chain, gateway_address, its_address, tx, mut msg) = get_matching_msg_and_tx();
 
         msg.destination_chain = "other".parse().unwrap();
 
-        assert_eq!(verify_message(&gateway_address, &tx, &msg), Vote::NotFound);
+        assert_eq!(
+            verify_message(
+                &source_chain,
+                &gateway_address,
+                &its_address,
+                &tx,
+                &msg,
+                &Client::faux(),
+                &"native_interchain_token_code".to_string(),
+                &"token_manager_code".to_string()
+            )
+            .await,
+            Vote::NotFound
+        );
     }
 
-    #[test]
-    fn should_not_verify_invalid_destination_address() {
-        let (gateway_address, tx, mut msg) = get_matching_msg_and_tx();
+    #[async_test]
+    async fn should_not_verify_invalid_destination_address() {
+        let (source_chain, gateway_address, its_address, tx, mut msg) = get_matching_msg_and_tx();
 
         msg.destination_address = "other".parse().unwrap();
 
-        assert_eq!(verify_message(&gateway_address, &tx, &msg), Vote::NotFound);
+        assert_eq!(
+            verify_message(
+                &source_chain,
+                &gateway_address,
+                &its_address,
+                &tx,
+                &msg,
+                &Client::faux(),
+                &"native_interchain_token_code".to_string(),
+                &"token_manager_code".to_string()
+            )
+            .await,
+            Vote::NotFound
+        );
     }
 
-    #[test]
-    fn should_not_verify_invalid_payload_hash() {
-        let (gateway_address, tx, mut msg) = get_matching_msg_and_tx();
+    #[async_test]
+    async fn should_not_verify_invalid_payload_hash() {
+        let (source_chain, gateway_address, its_address, tx, mut msg) = get_matching_msg_and_tx();
 
         msg.payload_hash = "0xaa38573718f5cd6d7e5a90adcdebd28b097f99574ad6febffea9a40adb17f4aa"
             .parse()
             .unwrap();
 
-        assert_eq!(verify_message(&gateway_address, &tx, &msg), Vote::NotFound);
+        assert_eq!(
+            verify_message(
+                &source_chain,
+                &gateway_address,
+                &its_address,
+                &tx,
+                &msg,
+                &Client::faux(),
+                &"native_interchain_token_code".to_string(),
+                &"token_manager_code".to_string()
+            )
+            .await,
+            Vote::NotFound
+        );
     }
 
-    #[test]
-    fn should_verify_msg() {
-        let (gateway_address, tx, msg) = get_matching_msg_and_tx();
+    #[async_test]
+    async fn should_verify_msg() {
+        let (source_chain, gateway_address, its_address, tx, msg) = get_matching_msg_and_tx();
 
         assert_eq!(
-            verify_message(&gateway_address, &tx, &msg),
+            verify_message(
+                &source_chain,
+                &gateway_address,
+                &its_address,
+                &tx,
+                &msg,
+                &Client::faux(),
+                &"native_interchain_token_code".to_string(),
+                &"token_manager_code".to_string()
+            )
+            .await,
             Vote::SucceededOnChain
         );
     }
@@ -450,8 +650,10 @@ mod tests {
         );
     }
 
-    fn get_matching_msg_and_tx() -> (String, Transaction, Message) {
+    fn get_matching_msg_and_tx() -> (ChainName, String, String, Transaction, Message) {
+        let source_chain = "stacks";
         let gateway_address = "SP2N959SER36FZ5QT1CX9BR63W3E8X35WQCMBYYWC.axelar-gateway";
+        let its_address = "ST2TFVBMRPS5SSNP98DQKQ5JNB2B6NZM91C4K3P7B.its";
         let tx_id = "0xee0049faf8dde5507418140ed72bd64f73cc001b08de98e0c16a3a8d9f2c38cf"
             .parse()
             .unwrap();
@@ -459,10 +661,10 @@ mod tests {
         let msg = Message {
             tx_id,
             event_index: 1,
-            source_address: "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM".to_string(),
-            destination_chain: "ethereum".parse().unwrap(),
-            destination_address: "0x043E105189e15AC72252CFEF898EC3841A4A0561".to_string(),
-            payload_hash: "0x0338573718f5cd6d7e5a90adcdebd28b097f99574ad6febffea9a40adb17f46d"
+            source_address: "ST2CY5V39NHDPWSXMW9QDT3HC3GD6Q6XX4CFRK9AG".to_string(),
+            destination_chain: "Destination".parse().unwrap(),
+            destination_address: "0x123abc".to_string(),
+            payload_hash: "0x9ed02951dbf029855b46b102cc960362732569e83d00a49a7575d7aed229890e"
                 .parse()
                 .unwrap(),
         };
@@ -480,7 +682,7 @@ mod tests {
                 contract_id: gateway_address.to_string(),
                 topic: "print".to_string(),
                 value: ContractLogValue {
-                    hex: "0x0c000000061164657374696e6174696f6e2d636861696e0200000008657468657265756d1c64657374696e6174696f6e2d636f6e74726163742d61646472657373020000002a307830343345313035313839653135414337323235324346454638393845433338343141344130353631077061796c6f616402000000196c6f72656d697073756d20646f6c6f722073697420616d65740c7061796c6f61642d6861736802000000200338573718f5cd6d7e5a90adcdebd28b097f99574ad6febffea9a40adb17f46d0673656e646572051a6d78de7b0625dfbfc16c3a8a5735f6dc3dc3f2ce04747970650d0000000d636f6e74726163742d63616c6c".to_string(),
+                    hex: "0x0c000000061164657374696e6174696f6e2d636861696e0d0000000b64657374696e6174696f6e1c64657374696e6174696f6e2d636f6e74726163742d616464726573730d000000083078313233616263077061796c6f61640200000029535431534a3344544535444e375835345944483544363452334243423641324147325a5138595044350c7061796c6f61642d6861736802000000209ed02951dbf029855b46b102cc960362732569e83d00a49a7575d7aed229890e0673656e646572051a99e2ec69ac5b6e67b4e26edd0e2c1c1a6b9bbd2304747970650d0000000d636f6e74726163742d63616c6c".to_string(),
                 }
             }),
         };
@@ -493,7 +695,13 @@ mod tests {
             events: vec![wrong_event, event],
         };
 
-        (gateway_address.to_string(), transaction, msg)
+        (
+            source_chain.parse().unwrap(),
+            gateway_address.to_string(),
+            its_address.to_string(),
+            transaction,
+            msg,
+        )
     }
 
     fn get_matching_verifier_set_and_tx() -> (String, Transaction, VerifierSetConfirmation) {
@@ -534,7 +742,6 @@ mod tests {
             .unwrap(),
         );
 
-        // TODO: Add proper hex data for event
         let event = TransactionEvents {
             event_index: 1,
             tx_id: tx_id.to_string(),
