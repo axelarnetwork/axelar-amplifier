@@ -31,8 +31,6 @@ pub enum Error {
     DeregisterItsContract,
     #[error("failed to set chain config")]
     SetChainConfig,
-    #[error("too many coins attached. Execute accepts zero or one coins")]
-    TooManyCoins,
     #[error("failed to query its address")]
     QueryItsContract,
     #[error("failed to query all its addresses")]
@@ -106,7 +104,7 @@ pub fn execute(
             max_uint,
             max_target_decimals,
         } => execute::set_chain_config(deps, chain, max_uint, max_target_decimals)
-            .change_context(Error::DeregisterItsContract),
+            .change_context(Error::SetChainConfig),
     }?
     .then(Ok)
 }

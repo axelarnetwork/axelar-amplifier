@@ -11,14 +11,10 @@ use router_api::{Address, ChainNameRaw};
 pub enum Error {
     #[error(transparent)]
     Std(#[from] StdError),
-    #[error("ITS contract got into an invalid state, its config is missing")]
-    MissingConfig,
     #[error("its address for chain {0} not found")]
     ItsContractNotFound(ChainNameRaw),
     #[error("its address for chain {0} already registered")]
     ItsContractAlreadyRegistered(ChainNameRaw),
-    #[error("gateway token already registered {0}")]
-    GatewayTokenAlreadyRegistered(nonempty::String),
 }
 
 #[cw_serde]
@@ -46,7 +42,7 @@ pub fn save_config(storage: &mut dyn Storage, config: &Config) -> Result<(), Err
     Ok(CONFIG.save(storage, config)?)
 }
 
-pub fn load_chain_config(
+pub fn may_load_chain_config(
     storage: &dyn Storage,
     chain: &ChainNameRaw,
 ) -> Result<Option<ChainConfig>, Error> {

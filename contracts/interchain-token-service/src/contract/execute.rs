@@ -21,16 +21,14 @@ pub enum Error {
     FailedItsContractRegistration(ChainNameRaw),
     #[error("failed to deregister its contract for chain {0}")]
     FailedItsContractDeregistration(ChainNameRaw),
-    #[error("failed to execute message")]
-    FailedExecuteMessage,
-    #[error("failed to query nexus")]
-    NexusQueryError,
-    #[error("storage error")]
-    StorageError,
     #[error("chain config for {0} already set")]
     ChainConfigAlreadySet(ChainNameRaw),
     #[error("invalid chain max uint")]
     InvalidChainMaxUint,
+    #[error("failed to load chain config for chain {0}")]
+    LoadChainConfig(ChainNameRaw),
+    #[error("failed to save chain config for chain {0}")]
+    SaveChainConfig(ChainNameRaw),
 }
 
 /// Executes an incoming ITS message.
@@ -143,7 +141,9 @@ pub fn set_chain_config(
     max_uint: Uint256,
     max_target_decimals: u8,
 ) -> Result<Response, Error> {
-    match state::load_chain_config(deps.storage, &chain).change_context(Error::StorageError)? {
+    match state::may_load_chain_config(deps.storage, &chain)
+        .change_context_lazy(|| Error::LoadChainConfig(chain.clone()))?
+    {
         Some(_) => bail!(Error::ChainConfigAlreadySet(chain)),
         None => state::save_chain_config(
             deps.storage,
@@ -154,7 +154,7 @@ pub fn set_chain_config(
                 .change_context(Error::InvalidChainMaxUint)?,
             max_target_decimals,
         )
-        .change_context(Error::StorageError)?
+        .change_context(Error::SaveChainConfig(chain))?
         .then(|_| Ok(Response::new())),
     }
 }
