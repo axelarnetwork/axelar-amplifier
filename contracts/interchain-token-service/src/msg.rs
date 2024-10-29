@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
+use axelar_wasm_std::nonempty;
 use axelarnet_gateway::AxelarExecutableMsg;
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::Uint256;
 use msgs_derive::EnsurePermissions;
 use router_api::{Address, ChainNameRaw};
 
@@ -38,7 +38,7 @@ pub enum ExecuteMsg {
     #[permission(Governance)]
     SetChainConfig {
         chain: ChainNameRaw,
-        max_uint: Uint256,
+        max_uint: nonempty::Uint256,
         max_target_decimals: u8,
     },
 }

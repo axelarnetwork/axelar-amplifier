@@ -1,6 +1,6 @@
-use axelar_wasm_std::{FnExt, IntoContractError};
-use cosmwasm_std::{DepsMut, HexBinary, QuerierWrapper, Response, Storage, Uint256};
-use error_stack::{bail, ensure, report, Report, Result, ResultExt};
+use axelar_wasm_std::{nonempty, FnExt, IntoContractError};
+use cosmwasm_std::{DepsMut, HexBinary, QuerierWrapper, Response, Storage};
+use error_stack::{bail, ensure, report, Result, ResultExt};
 use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
 
 use crate::events::Event;
@@ -24,8 +24,6 @@ pub enum Error {
     #[error("chain config for {0} already set")]
     ChainConfigAlreadySet(ChainNameRaw),
     #[error("invalid chain max uint")]
-    InvalidChainMaxUint,
-    #[error("failed to load chain config for chain {0}")]
     LoadChainConfig(ChainNameRaw),
     #[error("failed to save chain config for chain {0}")]
     SaveChainConfig(ChainNameRaw),
@@ -138,23 +136,15 @@ pub fn deregister_its_contract(deps: DepsMut, chain: ChainNameRaw) -> Result<Res
 pub fn set_chain_config(
     deps: DepsMut,
     chain: ChainNameRaw,
-    max_uint: Uint256,
+    max_uint: nonempty::Uint256,
     max_target_decimals: u8,
 ) -> Result<Response, Error> {
     match state::may_load_chain_config(deps.storage, &chain)
         .change_context_lazy(|| Error::LoadChainConfig(chain.clone()))?
     {
         Some(_) => bail!(Error::ChainConfigAlreadySet(chain)),
-        None => state::save_chain_config(
-            deps.storage,
-            &chain,
-            max_uint
-                .try_into()
-                .map_err(Report::new)
-                .change_context(Error::InvalidChainMaxUint)?,
-            max_target_decimals,
-        )
-        .change_context(Error::SaveChainConfig(chain))?
-        .then(|_| Ok(Response::new())),
+        None => state::save_chain_config(deps.storage, &chain, max_uint, max_target_decimals)
+            .change_context_lazy(|| Error::SaveChainConfig(chain))?
+            .then(|_| Ok(Response::new())),
     }
 }

@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use axelar_wasm_std::nonempty::{self, Uint256};
+use axelar_wasm_std::nonempty;
 use axelar_wasm_std::IntoContractError;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{ensure, Addr, StdError, Storage};
@@ -24,7 +24,7 @@ pub struct Config {
 
 #[cw_serde]
 pub struct ChainConfig {
-    max_uint: Uint256,
+    max_uint: nonempty::Uint256,
     max_target_decimals: u8,
 }
 
@@ -52,7 +52,7 @@ pub fn may_load_chain_config(
 pub fn save_chain_config(
     storage: &mut dyn Storage,
     chain: &ChainNameRaw,
-    max_uint: Uint256,
+    max_uint: nonempty::Uint256,
     max_target_decimals: u8,
 ) -> Result<(), Error> {
     Ok(CHAIN_CONFIGS.save(
