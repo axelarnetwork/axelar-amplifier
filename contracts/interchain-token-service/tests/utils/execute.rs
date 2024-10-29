@@ -4,6 +4,7 @@ use axelar_core_std::nexus;
 use axelar_core_std::nexus::query::IsChainRegisteredResponse;
 use axelar_core_std::query::AxelarQueryMsg;
 use axelar_wasm_std::error::ContractError;
+use axelar_wasm_std::nonempty;
 use cosmwasm_std::testing::{mock_env, mock_info, MockApi, MockQuerier, MockStorage};
 use cosmwasm_std::{
     from_json, to_json_binary, Addr, DepsMut, HexBinary, MemoryStorage, OwnedDeps, Response,
@@ -55,6 +56,24 @@ pub fn deregister_its_contract(
         mock_env(),
         mock_info(params::ADMIN, &[]),
         ExecuteMsg::DeregisterItsContract { chain },
+    )
+}
+
+pub fn set_chain_config(
+    deps: DepsMut,
+    chain: ChainNameRaw,
+    max_uint: nonempty::Uint256,
+    max_target_decimals: u8,
+) -> Result<Response, ContractError> {
+    contract::execute(
+        deps,
+        mock_env(),
+        mock_info(params::GOVERNANCE, &[]),
+        ExecuteMsg::SetChainConfig {
+            chain,
+            max_uint,
+            max_target_decimals,
+        },
     )
 }
 

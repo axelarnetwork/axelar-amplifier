@@ -10,14 +10,10 @@ use router_api::{Address, ChainNameRaw};
 pub enum Error {
     #[error(transparent)]
     Std(#[from] StdError),
-    #[error("ITS contract got into an invalid state, its config is missing")]
-    MissingConfig,
     #[error("its address for chain {0} not found")]
     ItsContractNotFound(ChainNameRaw),
     #[error("its address for chain {0} already registered")]
     ItsContractAlreadyRegistered(ChainNameRaw),
-    #[error("gateway token already registered {0}")]
-    GatewayTokenAlreadyRegistered(nonempty::String),
 }
 
 #[cw_serde]
@@ -25,8 +21,15 @@ pub struct Config {
     pub axelarnet_gateway: Addr,
 }
 
+#[cw_serde]
+pub struct ChainConfig {
+    max_uint: nonempty::Uint256,
+    max_target_decimals: u8,
+}
+
 const CONFIG: Item<Config> = Item::new("config");
 const ITS_CONTRACTS: Map<&ChainNameRaw, Address> = Map::new("its_contracts");
+const CHAIN_CONFIGS: Map<&ChainNameRaw, ChainConfig> = Map::new("chain_configs");
 
 pub fn load_config(storage: &dyn Storage) -> Config {
     CONFIG
@@ -36,6 +39,29 @@ pub fn load_config(storage: &dyn Storage) -> Config {
 
 pub fn save_config(storage: &mut dyn Storage, config: &Config) -> Result<(), Error> {
     Ok(CONFIG.save(storage, config)?)
+}
+
+pub fn may_load_chain_config(
+    storage: &dyn Storage,
+    chain: &ChainNameRaw,
+) -> Result<Option<ChainConfig>, Error> {
+    Ok(CHAIN_CONFIGS.may_load(storage, chain)?)
+}
+
+pub fn save_chain_config(
+    storage: &mut dyn Storage,
+    chain: &ChainNameRaw,
+    max_uint: nonempty::Uint256,
+    max_target_decimals: u8,
+) -> Result<(), Error> {
+    Ok(CHAIN_CONFIGS.save(
+        storage,
+        chain,
+        &ChainConfig {
+            max_uint,
+            max_target_decimals,
+        },
+    )?)
 }
 
 pub fn may_load_its_contract(
