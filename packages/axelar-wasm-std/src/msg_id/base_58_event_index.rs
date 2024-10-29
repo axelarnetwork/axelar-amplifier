@@ -5,14 +5,16 @@ use std::str::FromStr;
 use error_stack::{Report, ResultExt};
 use lazy_static::lazy_static;
 use regex::Regex;
+use serde_with::DeserializeFromStr;
 
 use super::Error;
 use crate::hash::Hash;
 use crate::nonempty;
 
+#[derive(Debug, DeserializeFromStr)]
 pub struct Base58TxDigestAndEventIndex {
     pub tx_digest: Hash,
-    pub event_index: u32,
+    pub event_index: u64,
 }
 
 impl Base58TxDigestAndEventIndex {
@@ -23,7 +25,7 @@ impl Base58TxDigestAndEventIndex {
             .expect("failed to convert tx hash to non-empty string")
     }
 
-    pub fn new(tx_id: impl Into<[u8; 32]>, event_index: impl Into<u32>) -> Self {
+    pub fn new(tx_id: impl Into<[u8; 32]>, event_index: impl Into<u64>) -> Self {
         Self {
             tx_digest: tx_id.into(),
             event_index: event_index.into(),
@@ -96,7 +98,7 @@ mod tests {
         bs58::encode(random_bytes()).into_string()
     }
 
-    fn random_event_index() -> u32 {
+    fn random_event_index() -> u64 {
         rand::random()
     }
 
@@ -285,7 +287,7 @@ mod tests {
     fn should_not_parse_msg_id_with_overflowing_event_index() {
         let event_index: u64 = u64::MAX;
         let tx_digest = random_tx_digest();
-        let res = Base58TxDigestAndEventIndex::from_str(&format!("{}-{}", tx_digest, event_index));
+        let res = Base58TxDigestAndEventIndex::from_str(&format!("{}-{}1", tx_digest, event_index));
         assert!(res.is_err());
     }
 
