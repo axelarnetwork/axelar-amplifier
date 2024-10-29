@@ -47,8 +47,8 @@ impl TryFrom<CommandType> for ScVal {
 
 #[derive(Debug, Clone)]
 pub struct Message {
-    pub message_id: String,
     pub source_chain: String,
+    pub message_id: String,
     pub source_address: String,
     pub contract_address: Contract,
     pub payload_hash: Hash,
@@ -73,6 +73,7 @@ impl TryFrom<&router_api::Message> for Message {
 impl TryFrom<Message> for ScVal {
     type Error = XdrError;
 
+    // Note that XDR encodes the values in sorted order by key
     fn try_from(value: Message) -> Result<Self, XdrError> {
         let keys: [&'static str; 5] = [
             "contract_address",
@@ -429,8 +430,8 @@ mod test {
 
         let messages: Messages = (1..=4)
             .map(|i| Message {
-                message_id: format!("test-{}", i),
                 source_chain: format!("source-{}", i),
+                message_id: format!("test-{}", i),
                 source_address: "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
                     .to_string(),
                 contract_address: "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMDR4"
@@ -444,7 +445,7 @@ mod test {
     }
 
     #[test]
-    fn signers_rotation_hash() {
+    fn weighted_signers_hash() {
         let weighted_signers = WeightedSigners {
             signers: vec![
                 WeightedSigner {
@@ -484,9 +485,10 @@ mod test {
                 .unwrap(),
         };
 
-        goldie::assert!(
+        goldie::assert_json!(&vec![
+            HexBinary::from(weighted_signers.hash().unwrap()).to_hex(),
             HexBinary::from(weighted_signers.signers_rotation_hash().unwrap()).to_hex()
-        );
+        ]);
     }
 
     #[test]

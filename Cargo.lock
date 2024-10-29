@@ -902,7 +902,6 @@ dependencies = [
  "hex",
  "itertools 0.11.0",
  "msgs-derive",
- "nexus-gateway",
  "rand",
  "report",
  "router-api",
@@ -5367,34 +5366,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "nexus-gateway"
-version = "1.0.0"
-dependencies = [
- "assert_ok",
- "axelar-core-std",
- "axelar-wasm-std",
- "client",
- "cosmwasm-schema",
- "cosmwasm-std",
- "cw-storage-plus 1.2.0",
- "cw2 1.1.2",
- "error-stack",
- "goldie",
- "hex",
- "mockall 0.11.4",
- "msgs-derive",
- "rand",
- "report",
- "router-api",
- "schemars",
- "serde",
- "serde_json",
- "sha3",
- "thiserror",
- "voting-verifier",
-]
-
-[[package]]
 name = "nix"
 version = "0.23.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7048,8 +7019,9 @@ dependencies = [
 
 [[package]]
 name = "router"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
+ "assert_ok",
  "axelar-core-std",
  "axelar-wasm-std",
  "client",

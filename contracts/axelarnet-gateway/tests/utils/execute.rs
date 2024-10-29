@@ -70,3 +70,15 @@ pub fn route_to_router(
         GatewayExecuteMsg::RouteMessages(msgs),
     )
 }
+
+pub fn route_from_nexus(
+    deps: DepsMut,
+    msgs: Vec<nexus::execute::Message>,
+) -> Result<Response<nexus::execute::Message>, ContractError> {
+    contract::execute(
+        deps,
+        mock_env(),
+        mock_info("nexus", &[]),
+        GatewayExecuteMsg::RouteMessagesFromNexus(msgs),
+    )
+}
