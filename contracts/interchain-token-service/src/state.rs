@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use axelar_wasm_std::utils::TryMapExt;
 use axelar_wasm_std::{nonempty, IntoContractError};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{ensure, Addr, OverflowError, StdError, Storage, Uint256};
@@ -207,12 +208,13 @@ impl TokenBalance {
         // If the token originated on this chain, deposits/withdrawals are reversed
         // since the balance is tracking the total supply that was bridged to other chains.
         let should_add = is_deposit ^ is_origin_chain;
-
-        let balance = match (balance, should_add) {
-            (Some(balance), true) => Some(balance.checked_add(amount.into())?),
-            (Some(balance), false) => Some(balance.checked_sub(amount.into())?),
-            (None, _) => None,
-        };
+        let balance = balance.try_map(|b| {
+            if should_add {
+                b.checked_add(amount.into())
+            } else {
+                b.checked_sub(amount.into())
+            }
+        })?;
 
         Ok(TokenBalance {
             balance,
