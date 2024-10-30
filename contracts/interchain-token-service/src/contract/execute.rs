@@ -23,18 +23,16 @@ pub enum Error {
     FailedItsContractDeregistration(ChainNameRaw),
     #[error("failed to execute message")]
     FailedExecuteMessage,
-    #[error("failed to query nexus")]
-    NexusQueryError,
     #[error("execution is currently disabled")]
     ExecutionDisabled,
-    #[error("storage error")]
-    StorageError,
     #[error("chain config for {0} already set")]
     ChainConfigAlreadySet(ChainNameRaw),
-    #[error("invalid chain max uint")]
+    #[error("failed to load chain config for chain {0}")]
     LoadChainConfig(ChainNameRaw),
     #[error("failed to save chain config for chain {0}")]
     SaveChainConfig(ChainNameRaw),
+    #[error("state error")]
+    State,
 }
 
 /// Executes an incoming ITS message.
@@ -146,11 +144,11 @@ pub fn deregister_its_contract(deps: DepsMut, chain: ChainNameRaw) -> Result<Res
 }
 
 pub fn disable_execution(deps: DepsMut) -> Result<Response, Error> {
-    killswitch::engage(deps.storage, Event::ExecutionDisabled).change_context(Error::StorageError)
+    killswitch::engage(deps.storage, Event::ExecutionDisabled).change_context(Error::State)
 }
 
 pub fn enable_execution(deps: DepsMut) -> Result<Response, Error> {
-    killswitch::disengage(deps.storage, Event::ExecutionEnabled).change_context(Error::StorageError)
+    killswitch::disengage(deps.storage, Event::ExecutionEnabled).change_context(Error::State)
 }
 
 pub fn set_chain_config(
