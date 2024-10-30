@@ -179,7 +179,7 @@ pub fn set_chain_config(
 ///    - If the custom minter is set, then the balance is not tracked, but the deployment is recorded.
 ///
 /// 3. DeployTokenManager:
-///    - Same as the custom minter being set case.
+///    - Same as the custom minter being set above. ITS Hub can't know if the existing token on the destination chain has a custom minter set.
 fn apply_invariants(
     storage: &mut dyn Storage,
     source_chain: ChainNameRaw,

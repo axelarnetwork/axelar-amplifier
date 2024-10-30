@@ -35,6 +35,8 @@ pub enum Error {
     QueryItsContract,
     #[error("failed to query all its addresses")]
     QueryAllItsContracts,
+    #[error("failed to query token chain config")]
+    QueryTokenChainConfig,
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -121,6 +123,9 @@ pub fn query(deps: Deps, _: Env, msg: QueryMsg) -> Result<Binary, ContractError>
         }
         QueryMsg::AllItsContracts => {
             query::all_its_contracts(deps).change_context(Error::QueryAllItsContracts)
+        }
+        QueryMsg::TokenChainConfig { chain, token_id } => {
+            query::token_chain_config(deps, chain, token_id).change_context(Error::QueryTokenChainConfig)
         }
     }?
     .then(Ok)

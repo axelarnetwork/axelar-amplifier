@@ -105,26 +105,32 @@ fn execute_hub_message_succeeds() {
     )
     .unwrap();
 
-    let token_id = TokenId::new([1; 32]);
     let test_messages = vec![
-        Message::InterchainTransfer {
-            token_id: token_id.clone(),
-            source_address: HexBinary::from([1; 32]).try_into().unwrap(),
-            destination_address: HexBinary::from([2; 32]).try_into().unwrap(),
-            amount: 1u64.try_into().unwrap(),
-            data: Some(HexBinary::from([1, 2, 3, 4]).try_into().unwrap()),
-        },
         Message::DeployInterchainToken {
-            token_id: token_id.clone(),
+            token_id: TokenId::new([1; 32]),
             name: "Test".try_into().unwrap(),
             symbol: "TST".try_into().unwrap(),
             decimals: 18,
             minter: Some(HexBinary::from([1; 32]).try_into().unwrap()),
         },
+        Message::InterchainTransfer {
+            token_id: TokenId::new([1; 32]),
+            source_address: HexBinary::from([1; 32]).try_into().unwrap(),
+            destination_address: HexBinary::from([2; 32]).try_into().unwrap(),
+            amount: 1u64.try_into().unwrap(),
+            data: Some(HexBinary::from([1, 2, 3, 4]).try_into().unwrap()),
+        },
         Message::DeployTokenManager {
-            token_id: token_id.clone(),
+            token_id: TokenId::new([2; 32]),
             token_manager_type: TokenManagerType::MintBurn,
             params: HexBinary::from([1, 2, 3, 4]).try_into().unwrap(),
+        },
+        Message::InterchainTransfer {
+            token_id: TokenId::new([2; 32]),
+            source_address: HexBinary::from([1; 32]).try_into().unwrap(),
+            destination_address: HexBinary::from([2; 32]).try_into().unwrap(),
+            amount: 1u64.try_into().unwrap(),
+            data: Some(HexBinary::from([1, 2, 3, 4]).try_into().unwrap()),
         },
     ];
 
@@ -135,18 +141,17 @@ fn execute_hub_message_succeeds() {
                 destination_chain: destination_its_chain.clone(),
                 message,
             };
-            let payload = hub_message.clone().abi_encode();
             let receive_payload = HubMessage::ReceiveFromHub {
                 source_chain: source_its_chain.clone(),
                 message: hub_message.message().clone(),
             }
             .abi_encode();
 
-            let response = assert_ok!(utils::execute(
+            let response = assert_ok!(utils::execute_hub_message(
                 deps.as_mut(),
                 router_message.cc_id.clone(),
                 source_its_contract.clone(),
-                payload,
+                hub_message.clone(),
             ));
             let msg: AxelarnetGatewayExecuteMsg =
                 assert_ok!(inspect_response_msg(response.clone()));

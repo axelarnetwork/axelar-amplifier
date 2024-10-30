@@ -10,7 +10,7 @@ use cosmwasm_std::{
     from_json, to_json_binary, Addr, DepsMut, HexBinary, MemoryStorage, OwnedDeps, Response,
     WasmQuery,
 };
-use interchain_token_service::contract;
+use interchain_token_service::{contract, HubMessage};
 use interchain_token_service::msg::ExecuteMsg;
 use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
 
@@ -32,6 +32,15 @@ pub fn execute(
             payload,
         }),
     )
+}
+
+pub fn execute_hub_message(
+    deps: DepsMut,
+    cc_id: CrossChainId,
+    source_address: Address,
+    message: HubMessage,
+) -> Result<Response, ContractError> {
+    execute(deps, cc_id, source_address, message.abi_encode())
 }
 
 pub fn register_its_contract(

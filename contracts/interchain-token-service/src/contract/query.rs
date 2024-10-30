@@ -1,7 +1,7 @@
 use cosmwasm_std::{to_json_binary, Binary, Deps};
 use router_api::ChainNameRaw;
 
-use crate::state;
+use crate::{state, TokenId};
 
 pub fn its_contracts(deps: Deps, chain: ChainNameRaw) -> Result<Binary, state::Error> {
     let contract_address = state::may_load_its_contract(deps.storage, &chain)?;
@@ -11,4 +11,9 @@ pub fn its_contracts(deps: Deps, chain: ChainNameRaw) -> Result<Binary, state::E
 pub fn all_its_contracts(deps: Deps) -> Result<Binary, state::Error> {
     let contract_addresses = state::load_all_its_contracts(deps.storage)?;
     Ok(to_json_binary(&contract_addresses)?)
+}
+
+pub fn token_chain_config(deps: Deps, chain: ChainNameRaw, token_id: TokenId) -> Result<Binary, state::Error> {
+    let config = state::may_load_token_chain_config(deps.storage, &chain, &token_id)?;
+    Ok(to_json_binary(&config)?)
 }
