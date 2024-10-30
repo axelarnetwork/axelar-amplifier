@@ -64,8 +64,7 @@ pub fn execute_message(
             message,
         } => {
             ensure!(
-                !is_chain_frozen(deps.storage, &destination_chain)
-                    .change_context(Error::State)?,
+                !is_chain_frozen(deps.storage, &destination_chain).change_context(Error::State)?,
                 Error::ChainFrozen(destination_chain)
             );
             let destination_address = load_its_contract(deps.storage, &destination_chain)
@@ -174,7 +173,6 @@ pub fn enable_execution(deps: DepsMut) -> Result<Response, Error> {
     killswitch::disengage(deps.storage, Event::ExecutionEnabled).change_context(Error::State)
 }
 
-
 pub fn set_chain_config(
     deps: DepsMut,
     chain: ChainNameRaw,
@@ -201,7 +199,8 @@ mod tests {
     use router_api::{ChainNameRaw, CrossChainId};
 
     use crate::contract::execute::{
-        disable_execution, enable_execution, execute_message, freeze_chain, register_its_contract, unfreeze_chain, Error
+        disable_execution, enable_execution, execute_message, freeze_chain, register_its_contract,
+        unfreeze_chain, Error,
     };
     use crate::state::{self, Config};
     use crate::{HubMessage, Message};

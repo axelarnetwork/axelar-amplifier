@@ -51,7 +51,9 @@ pub fn may_load_chain_config(
     storage: &dyn Storage,
     chain: &ChainNameRaw,
 ) -> Result<Option<ChainConfig>, Error> {
-    CHAIN_CONFIGS.may_load(storage, chain).change_context(Error::Storage)
+    CHAIN_CONFIGS
+        .may_load(storage, chain)
+        .change_context(Error::Storage)
 }
 
 pub fn save_chain_config(
@@ -60,14 +62,16 @@ pub fn save_chain_config(
     max_uint: nonempty::Uint256,
     max_target_decimals: u8,
 ) -> Result<(), Error> {
-    CHAIN_CONFIGS.save(
-        storage,
-        chain,
-        &ChainConfig {
-            max_uint,
-            max_target_decimals,
-        },
-    ).change_context(Error::Storage)
+    CHAIN_CONFIGS
+        .save(
+            storage,
+            chain,
+            &ChainConfig {
+                max_uint,
+                max_target_decimals,
+            },
+        )
+        .change_context(Error::Storage)
 }
 
 pub fn may_load_its_contract(
