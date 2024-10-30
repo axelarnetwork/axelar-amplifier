@@ -63,12 +63,9 @@ pub fn execute_message(
             let destination_address = load_its_contract(deps.storage, &destination_chain)
                 .change_context_lazy(|| Error::UnknownChain(destination_chain.clone()))?;
 
-            apply_invariants(
-                deps.storage,
-                cc_id.source_chain.clone(),
-                destination_chain.clone(),
-                &message,
-            )?;
+            apply_invariants(deps.storage, &message, cc_id.source_chain.clone(), true)?;
+
+            apply_invariants(deps.storage, &message, destination_chain.clone(), false)?;
 
             let destination_payload = HubMessage::ReceiveFromHub {
                 source_chain: cc_id.source_chain.clone(),
@@ -200,52 +197,36 @@ pub fn set_chain_config(
 ///    - Same as the custom minter being set above. ITS Hub can't know if the existing token on the destination chain has a custom minter set.
 fn apply_invariants(
     storage: &mut dyn Storage,
-    source_chain: ChainNameRaw,
-    destination_chain: ChainNameRaw,
     message: &Message,
+    chain: ChainNameRaw,
+    is_source_chain: bool,
 ) -> Result<(), Error> {
     match message {
         Message::InterchainTransfer {
             token_id, amount, ..
         } => {
-            // Update the balance on the source chain
-            state::update_token_balance(
+            state::update_token_info(
                 storage,
-                source_chain.clone(),
+                chain.clone(),
                 token_id.clone(),
                 *amount,
-                false,
+                !is_source_chain,
             )
             .change_context_lazy(|| Error::InvariantViolated(token_id.clone()))?;
-
-            // Update the balance on the destination chain
-            state::update_token_balance(
-                storage,
-                destination_chain.clone(),
-                token_id.clone(),
-                *amount,
-                true,
-            )
-            .change_context_lazy(|| Error::InvariantViolated(token_id.clone()))?
         }
-        // Start balance tracking for the token on the destination chain when a token deployment is seen
-        // No invariants can be assumed on the source since the token might pre-exist on the source chain
         Message::DeployInterchainToken {
             token_id,
             minter: None,
             ..
         } => {
-            state::start_token_balance(storage, source_chain.clone(), token_id.clone(), true, true)
-                .change_context_lazy(|| Error::InvariantViolated(token_id.clone()))?;
-
-            state::start_token_balance(
+            state::save_token_info(
                 storage,
-                destination_chain.clone(),
+                chain.clone(),
                 token_id.clone(),
-                false,
+                is_source_chain,
                 true,
             )
-            .change_context_lazy(|| Error::InvariantViolated(token_id.clone()))?
+            .change_context_lazy(|| Error::InvariantViolated(token_id.clone()))?;
         }
         Message::DeployInterchainToken {
             token_id,
@@ -253,23 +234,14 @@ fn apply_invariants(
             ..
         }
         | Message::DeployTokenManager { token_id, .. } => {
-            state::start_token_balance(
+            state::save_token_info(
                 storage,
-                source_chain.clone(),
+                chain.clone(),
                 token_id.clone(),
-                true,
+                is_source_chain,
                 false,
             )
             .change_context_lazy(|| Error::InvariantViolated(token_id.clone()))?;
-
-            state::start_token_balance(
-                storage,
-                destination_chain.clone(),
-                token_id.clone(),
-                false,
-                false,
-            )
-            .change_context_lazy(|| Error::InvariantViolated(token_id.clone()))?
         }
     };
 
@@ -313,18 +285,43 @@ mod tests {
         let mut deps = mock_dependencies();
         init(&mut deps);
 
+        let msg = HubMessage::SendToHub {
+            destination_chain: ChainNameRaw::try_from(SOLANA).unwrap(),
+            message: Message::DeployInterchainToken {
+                token_id: [7u8; 32].into(),
+                name: "Test".parse().unwrap(),
+                symbol: "TEST".parse().unwrap(),
+                decimals: 18,
+                minter: None,
+            },
+        };
+
+        assert_ok!(execute_message(
+            deps.as_mut(),
+            CrossChainId {
+                source_chain: ChainNameRaw::try_from(SOLANA).unwrap(),
+                message_id: HexTxHashAndEventIndex::new([1u8; 32], 0u32)
+                    .to_string()
+                    .try_into()
+                    .unwrap(),
+            },
+            ITS_ADDRESS.to_string().try_into().unwrap(),
+            msg.clone().abi_encode(),
+        ));
+
         assert_ok!(disable_execution(deps.as_mut()));
 
         let msg = HubMessage::SendToHub {
             destination_chain: ChainNameRaw::try_from(SOLANA).unwrap(),
             message: Message::InterchainTransfer {
                 token_id: [7u8; 32].into(),
+                amount: Uint256::one().try_into().unwrap(),
                 source_address: its_address(),
                 destination_address: its_address(),
-                amount: Uint256::one().try_into().unwrap(),
                 data: None,
             },
         };
+
         let res = execute_message(
             deps.as_mut(),
             CrossChainId {

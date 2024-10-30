@@ -13,7 +13,11 @@ pub fn all_its_contracts(deps: Deps) -> Result<Binary, state::Error> {
     Ok(to_json_binary(&contract_addresses)?)
 }
 
-pub fn token_chain_config(deps: Deps, chain: ChainNameRaw, token_id: TokenId) -> Result<Binary, state::Error> {
-    let config = state::may_load_token_chain_config(deps.storage, &chain, &token_id)?;
+pub fn token_info(
+    deps: Deps,
+    chain: ChainNameRaw,
+    token_id: TokenId,
+) -> Result<Binary, state::Error> {
+    let config = state::may_load_token_info(deps.storage, &chain, &token_id)?;
     Ok(to_json_binary(&config)?)
 }

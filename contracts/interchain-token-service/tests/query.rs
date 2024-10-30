@@ -77,6 +77,6 @@ fn query_token_chain_config() {
     let chain: ChainNameRaw = "ethereum".parse().unwrap();
     let token_id: TokenId = TokenId::new([1; 32]);
 
-    let config = utils::query_token_chain_config(deps.as_ref(), chain, token_id).unwrap();
+    let config = utils::query_token_info(deps.as_ref(), chain, token_id).unwrap();
     assert_eq!(config, None);
 }

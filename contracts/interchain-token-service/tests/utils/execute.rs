@@ -10,8 +10,8 @@ use cosmwasm_std::{
     from_json, to_json_binary, Addr, DepsMut, HexBinary, MemoryStorage, OwnedDeps, Response,
     WasmQuery,
 };
-use interchain_token_service::{contract, HubMessage};
 use interchain_token_service::msg::ExecuteMsg;
+use interchain_token_service::{contract, HubMessage};
 use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
 
 use crate::utils::params;
