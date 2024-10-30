@@ -6,6 +6,7 @@ use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
 use crate::events::Event;
 use crate::primitives::HubMessage;
 use crate::state::{self, load_config, load_its_contract};
+use crate::{Message, TokenId};
 
 #[derive(thiserror::Error, Debug, IntoContractError)]
 pub enum Error {
@@ -27,6 +28,8 @@ pub enum Error {
     LoadChainConfig(ChainNameRaw),
     #[error("failed to save chain config for chain {0}")]
     SaveChainConfig(ChainNameRaw),
+    #[error("failed to apply invariants for token {0}")]
+    InvariantViolated(TokenId),
 }
 
 /// Executes an incoming ITS message.
@@ -49,6 +52,13 @@ pub fn execute_message(
         } => {
             let destination_address = load_its_contract(deps.storage, &destination_chain)
                 .change_context_lazy(|| Error::UnknownChain(destination_chain.clone()))?;
+
+            apply_invariants(
+                deps.storage,
+                cc_id.source_chain.clone(),
+                destination_chain.clone(),
+                &message,
+            )?;
 
             let destination_payload = HubMessage::ReceiveFromHub {
                 source_chain: cc_id.source_chain.clone(),
@@ -147,4 +157,103 @@ pub fn set_chain_config(
             .change_context_lazy(|| Error::SaveChainConfig(chain))?
             .then(|_| Ok(Response::new())),
     }
+}
+
+/// Applies invariants on the ITS message.
+///
+/// Invariants:
+/// - Token must be deployed on the source/destination chains before any transfers can be routed.
+/// - Token must not be already deployed during deployment.
+/// - If the token is deployed without a custom minter, then the token is considered to be owned by ITS, and total token balance moved to the chain is tracked.
+/// - If the total token amount moved to a chain so far is `x`, then any transfer moving the token back from the chain and exceeding `x` will fail.
+///
+/// Invariants are updated depending on the ITS message type
+///
+/// 1. InterchainTransfer:
+///    - Decreases the token balance on the source chain, unless it's the origin chain in which case it's increased.
+///    - Increases the token balance on the destination chain, unless it's the origin chain in which case it's decreased.
+///    - If the balance underflows for either case, an error is returned.
+///
+/// 2. DeployInterchainToken:
+///    - If a custom minter is not set, then the token balance is tracked for the source/destination chain.
+///    - If the custom minter is set, then the balance is not tracked, but the deployment is recorded.
+///
+/// 3. DeployTokenManager:
+///    - Same as the custom minter being set case.
+fn apply_invariants(
+    storage: &mut dyn Storage,
+    source_chain: ChainNameRaw,
+    destination_chain: ChainNameRaw,
+    message: &Message,
+) -> Result<(), Error> {
+    match message {
+        Message::InterchainTransfer {
+            token_id, amount, ..
+        } => {
+            // Update the balance on the source chain
+            state::update_token_balance(
+                storage,
+                source_chain.clone(),
+                token_id.clone(),
+                *amount,
+                false,
+            )
+            .change_context_lazy(|| Error::InvariantViolated(token_id.clone()))?;
+
+            // Update the balance on the destination chain
+            state::update_token_balance(
+                storage,
+                destination_chain.clone(),
+                token_id.clone(),
+                *amount,
+                true,
+            )
+            .change_context_lazy(|| Error::InvariantViolated(token_id.clone()))?
+        }
+        // Start balance tracking for the token on the destination chain when a token deployment is seen
+        // No invariants can be assumed on the source since the token might pre-exist on the source chain
+        Message::DeployInterchainToken {
+            token_id,
+            minter: None,
+            ..
+        } => {
+            state::start_token_balance(storage, source_chain.clone(), token_id.clone(), true, true)
+                .change_context_lazy(|| Error::InvariantViolated(token_id.clone()))?;
+
+            state::start_token_balance(
+                storage,
+                destination_chain.clone(),
+                token_id.clone(),
+                false,
+                true,
+            )
+            .change_context_lazy(|| Error::InvariantViolated(token_id.clone()))?
+        }
+        Message::DeployInterchainToken {
+            token_id,
+            minter: Some(_),
+            ..
+        }
+        | Message::DeployTokenManager { token_id, .. } => {
+            state::start_token_balance(
+                storage,
+                source_chain.clone(),
+                token_id.clone(),
+                true,
+                false,
+            )
+            .change_context_lazy(|| Error::InvariantViolated(token_id.clone()))?;
+
+            state::start_token_balance(
+                storage,
+                destination_chain.clone(),
+                token_id.clone(),
+                false,
+                false,
+            )
+            .change_context_lazy(|| Error::InvariantViolated(token_id.clone()))?
+        }
+    };
+
+    Ok(())
 }

@@ -1,10 +1,13 @@
 use std::collections::HashMap;
 
-use axelar_wasm_std::{nonempty, IntoContractError};
+use axelar_wasm_std::{nonempty, FnExt as _, IntoContractError};
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{ensure, Addr, StdError, Storage};
+use cosmwasm_std::{ensure, Addr, OverflowError, StdError, Storage, Uint256};
 use cw_storage_plus::{Item, Map};
+use error_stack::{bail, ResultExt as _};
 use router_api::{Address, ChainNameRaw};
+
+use crate::TokenId;
 
 #[derive(thiserror::Error, Debug, IntoContractError)]
 pub enum Error {
@@ -14,6 +17,21 @@ pub enum Error {
     ItsContractNotFound(ChainNameRaw),
     #[error("its address for chain {0} already registered")]
     ItsContractAlreadyRegistered(ChainNameRaw),
+    #[error("token {token_id} already deployed on chain {chain}")]
+    TokenAlreadyDeployed {
+        token_id: TokenId,
+        chain: ChainNameRaw,
+    },
+    #[error("token {token_id} not deployed")]
+    TokenNotDeployed {
+        token_id: TokenId,
+        chain: ChainNameRaw,
+    },
+    #[error("balance invariant violated for token {token_id} on chain {chain}")]
+    TokenBalanceInvariantViolated {
+        token_id: TokenId,
+        chain: ChainNameRaw,
+    },
 }
 
 #[cw_serde]
@@ -27,9 +45,24 @@ pub struct ChainConfig {
     max_target_decimals: u8,
 }
 
+#[cw_serde]
+pub struct TokenChainBalance {
+    /// The total balance of the token bridged from/to the chain.
+    /// If the token is native to this chain, this will be the total supply bridged to other chains.
+    balance: Option<Uint256>,
+    /// Whether the token was deployed from this chain.
+    is_origin_chain: bool,
+}
+
+#[cw_serde]
+pub struct TokenChainConfig {
+    balance: TokenChainBalance,
+}
+
 const CONFIG: Item<Config> = Item::new("config");
 const ITS_CONTRACTS: Map<&ChainNameRaw, Address> = Map::new("its_contracts");
 const CHAIN_CONFIGS: Map<&ChainNameRaw, ChainConfig> = Map::new("chain_configs");
+const TOKEN_CONFIGS: Map<&(ChainNameRaw, TokenId), TokenChainConfig> = Map::new("token_configs");
 
 pub fn load_config(storage: &dyn Storage) -> Config {
     CONFIG
@@ -105,6 +138,88 @@ pub fn load_all_its_contracts(
     Ok(ITS_CONTRACTS
         .range(storage, None, None, cosmwasm_std::Order::Ascending)
         .collect::<Result<HashMap<_, _>, _>>()?)
+}
+
+pub fn start_token_balance(
+    storage: &mut dyn Storage,
+    chain: ChainNameRaw,
+    token_id: TokenId,
+    is_origin_chain: bool,
+    track_balance: bool,
+) -> Result<(), Error> {
+    match TOKEN_CONFIGS.may_load(storage, &(chain.clone(), token_id.clone()))? {
+        Some(_) if is_origin_chain => (),
+        Some(_) => return Err(Error::TokenNotDeployed { token_id, chain }),
+        None => {
+            let balance = TokenChainBalance {
+                balance: track_balance.then(Uint256::zero),
+                is_origin_chain,
+            };
+            TOKEN_CONFIGS.save(storage, &(chain, token_id), &TokenChainConfig { balance })?;
+        }
+    }
+
+    Ok(())
+}
+
+pub fn update_token_balance(
+    storage: &mut dyn Storage,
+    chain: ChainNameRaw,
+    token_id: TokenId,
+    amount: nonempty::Uint256,
+    is_deposit: bool,
+) -> Result<(), Error> {
+    let Some(mut token_config) =
+        TOKEN_CONFIGS.may_load(storage, &(chain.clone(), token_id.clone()))?
+    else {
+        return Err(Error::TokenNotDeployed { token_id, chain });
+    };
+
+    token_config.balance = token_config
+        .balance
+        .update(amount, is_deposit)
+        .map_err(|_| Error::TokenBalanceInvariantViolated {
+            token_id: token_id.clone(),
+            chain: chain.clone(),
+        })?;
+
+    TOKEN_CONFIGS.save(storage, &(chain, token_id), &token_config)?;
+
+    Ok(())
+}
+
+pub fn may_load_token_chain_config(
+    storage: &dyn Storage,
+    chain: &ChainNameRaw,
+    token_id: &TokenId,
+) -> Result<Option<TokenChainConfig>, Error> {
+    Ok(TOKEN_CONFIGS.may_load(storage, &(chain.clone(), token_id.clone()))?)
+}
+
+impl TokenChainBalance {
+    /// Deposit an amount to the token chain balance.
+    /// If the token originated on this chain, the amount is subtracted from the balance.
+    fn update(&self, amount: nonempty::Uint256, is_deposit: bool) -> Result<Self, OverflowError> {
+        let TokenChainBalance {
+            balance,
+            is_origin_chain,
+        } = self;
+
+        // If the token originated on this chain, deposits/withdrawals are reversed
+        // since the balance is tracking the total supply that was bridged to other chains.
+        let should_add = is_deposit ^ is_origin_chain;
+
+        let balance = match (balance, should_add) {
+            (Some(balance), true) => Some(balance.checked_add(amount.into())?),
+            (Some(balance), false) => Some(balance.checked_sub(amount.into())?),
+            (None, _) => None,
+        };
+
+        Ok(TokenChainBalance {
+            balance,
+            is_origin_chain: *is_origin_chain,
+        })
+    }
 }
 
 #[cfg(test)]
