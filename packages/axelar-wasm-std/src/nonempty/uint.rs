@@ -53,6 +53,7 @@ impl fmt::Display for Uint64 {
 // TODO: consider using macro for these types
 #[cw_serde]
 #[derive(Copy, PartialOrd, Eq, IntoInner)]
+#[serde(try_from = "cosmwasm_std::Uint256")]
 pub struct Uint256(cosmwasm_std::Uint256);
 
 impl TryFrom<cosmwasm_std::Uint256> for Uint256 {

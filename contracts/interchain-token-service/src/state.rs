@@ -15,8 +15,6 @@ pub enum Error {
     ItsContractNotFound(ChainNameRaw),
     #[error("its address for chain {0} already registered")]
     ItsContractAlreadyRegistered(ChainNameRaw),
-    #[error("gateway token already registered {0}")]
-    GatewayTokenAlreadyRegistered(nonempty::String),
     // This is a generic error to use when cw_storage_plus returns an error that is unexpected and
     // should never happen, such as an error encountered when saving data.
     #[error("storage error")]
@@ -28,9 +26,16 @@ pub struct Config {
     pub axelarnet_gateway: Addr,
 }
 
+#[cw_serde]
+pub struct ChainConfig {
+    max_uint: nonempty::Uint256,
+    max_target_decimals: u8,
+}
+
 const CONFIG: Item<Config> = Item::new("config");
 const ITS_CONTRACTS: Map<&ChainNameRaw, Address> = Map::new("its_contracts");
 const FROZEN_CHAINS: Map<&ChainNameRaw, ()> = Map::new("frozen_chains");
+const CHAIN_CONFIGS: Map<&ChainNameRaw, ChainConfig> = Map::new("chain_configs");
 
 pub fn load_config(storage: &dyn Storage) -> Config {
     CONFIG
@@ -40,6 +45,29 @@ pub fn load_config(storage: &dyn Storage) -> Config {
 
 pub fn save_config(storage: &mut dyn Storage, config: &Config) -> Result<(), Error> {
     CONFIG.save(storage, config).change_context(Error::Storage)
+}
+
+pub fn may_load_chain_config(
+    storage: &dyn Storage,
+    chain: &ChainNameRaw,
+) -> Result<Option<ChainConfig>, Error> {
+    CHAIN_CONFIGS.may_load(storage, chain).change_context(Error::Storage)
+}
+
+pub fn save_chain_config(
+    storage: &mut dyn Storage,
+    chain: &ChainNameRaw,
+    max_uint: nonempty::Uint256,
+    max_target_decimals: u8,
+) -> Result<(), Error> {
+    CHAIN_CONFIGS.save(
+        storage,
+        chain,
+        &ChainConfig {
+            max_uint,
+            max_target_decimals,
+        },
+    ).change_context(Error::Storage)
 }
 
 pub fn may_load_its_contract(

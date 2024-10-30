@@ -1,4 +1,4 @@
-use axelar_wasm_std::IntoContractError;
+use axelar_wasm_std::{killswitch, nonempty, FnExt, IntoContractError};
 use cosmwasm_std::{DepsMut, HexBinary, QuerierWrapper, Response, Storage};
 use error_stack::{bail, ensure, report, Result, ResultExt};
 use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
@@ -21,12 +21,20 @@ pub enum Error {
     FailedItsContractRegistration(ChainNameRaw),
     #[error("failed to deregister its contract for chain {0}")]
     FailedItsContractDeregistration(ChainNameRaw),
-    #[error("failed to query nexus")]
-    NexusQueryError,
-    #[error("state error")]
-    StateError,
+    #[error("failed to execute message")]
+    FailedExecuteMessage,
+    #[error("execution is currently disabled")]
+    ExecutionDisabled,
+    #[error("chain config for {0} already set")]
+    ChainConfigAlreadySet(ChainNameRaw),
+    #[error("failed to load chain config for chain {0}")]
+    LoadChainConfig(ChainNameRaw),
+    #[error("failed to save chain config for chain {0}")]
+    SaveChainConfig(ChainNameRaw),
     #[error("chain {0} is frozen")]
     ChainFrozen(ChainNameRaw),
+    #[error("state error")]
+    State,
 }
 
 /// Executes an incoming ITS message.
@@ -40,9 +48,13 @@ pub fn execute_message(
     source_address: Address,
     payload: HexBinary,
 ) -> Result<Response, Error> {
+    ensure!(
+        killswitch::is_contract_active(deps.storage),
+        Error::ExecutionDisabled
+    );
     ensure_its_source_address(deps.storage, &cc_id.source_chain, &source_address)?;
     ensure!(
-        !is_chain_frozen(deps.storage, &cc_id.source_chain).change_context(Error::StateError)?,
+        !is_chain_frozen(deps.storage, &cc_id.source_chain).change_context(Error::State)?,
         Error::ChainFrozen(cc_id.source_chain)
     );
 
@@ -53,7 +65,7 @@ pub fn execute_message(
         } => {
             ensure!(
                 !is_chain_frozen(deps.storage, &destination_chain)
-                    .change_context(Error::StateError)?,
+                    .change_context(Error::State)?,
                 Error::ChainFrozen(destination_chain)
             );
             let destination_address = load_its_contract(deps.storage, &destination_chain)
@@ -143,7 +155,7 @@ pub fn deregister_its_contract(deps: DepsMut, chain: ChainNameRaw) -> Result<Res
 }
 
 pub fn freeze_chain(deps: DepsMut, chain: ChainNameRaw) -> Result<Response, Error> {
-    state::freeze_chain(deps.storage, &chain).change_context(Error::StateError)?;
+    state::freeze_chain(deps.storage, &chain).change_context(Error::State)?;
 
     Ok(Response::new())
 }
@@ -152,6 +164,31 @@ pub fn unfreeze_chain(deps: DepsMut, chain: ChainNameRaw) -> Result<Response, Er
     state::unfreeze_chain(deps.storage, &chain);
 
     Ok(Response::new())
+}
+
+pub fn disable_execution(deps: DepsMut) -> Result<Response, Error> {
+    killswitch::engage(deps.storage, Event::ExecutionDisabled).change_context(Error::State)
+}
+
+pub fn enable_execution(deps: DepsMut) -> Result<Response, Error> {
+    killswitch::disengage(deps.storage, Event::ExecutionEnabled).change_context(Error::State)
+}
+
+
+pub fn set_chain_config(
+    deps: DepsMut,
+    chain: ChainNameRaw,
+    max_uint: nonempty::Uint256,
+    max_target_decimals: u8,
+) -> Result<Response, Error> {
+    match state::may_load_chain_config(deps.storage, &chain)
+        .change_context_lazy(|| Error::LoadChainConfig(chain.clone()))?
+    {
+        Some(_) => bail!(Error::ChainConfigAlreadySet(chain)),
+        None => state::save_chain_config(deps.storage, &chain, max_uint, max_target_decimals)
+            .change_context_lazy(|| Error::SaveChainConfig(chain))?
+            .then(|_| Ok(Response::new())),
+    }
 }
 
 #[cfg(test)]
@@ -164,7 +201,7 @@ mod tests {
     use router_api::{ChainNameRaw, CrossChainId};
 
     use crate::contract::execute::{
-        execute_message, freeze_chain, register_its_contract, unfreeze_chain, Error,
+        disable_execution, enable_execution, execute_message, freeze_chain, register_its_contract, unfreeze_chain, Error
     };
     use crate::state::{self, Config};
     use crate::{HubMessage, Message};
@@ -184,6 +221,53 @@ mod tests {
             .unwrap()
             .try_into()
             .unwrap()
+    }
+
+    #[test]
+    fn should_be_able_to_disable_and_enable_execution() {
+        let mut deps = mock_dependencies();
+        init(&mut deps);
+
+        assert_ok!(disable_execution(deps.as_mut()));
+
+        let msg = HubMessage::SendToHub {
+            destination_chain: ChainNameRaw::try_from(SOLANA).unwrap(),
+            message: Message::InterchainTransfer {
+                token_id: [7u8; 32].into(),
+                source_address: its_address(),
+                destination_address: its_address(),
+                amount: Uint256::one().try_into().unwrap(),
+                data: None,
+            },
+        };
+        let res = execute_message(
+            deps.as_mut(),
+            CrossChainId {
+                source_chain: ChainNameRaw::try_from(SOLANA).unwrap(),
+                message_id: HexTxHashAndEventIndex::new([1u8; 32], 0u32)
+                    .to_string()
+                    .try_into()
+                    .unwrap(),
+            },
+            ITS_ADDRESS.to_string().try_into().unwrap(),
+            msg.clone().abi_encode(),
+        );
+        assert_err_contains!(res, Error, Error::ExecutionDisabled);
+
+        assert_ok!(enable_execution(deps.as_mut()));
+
+        assert_ok!(execute_message(
+            deps.as_mut(),
+            CrossChainId {
+                source_chain: ChainNameRaw::try_from(SOLANA).unwrap(),
+                message_id: HexTxHashAndEventIndex::new([1u8; 32], 0u32)
+                    .to_string()
+                    .try_into()
+                    .unwrap(),
+            },
+            ITS_ADDRESS.to_string().try_into().unwrap(),
+            msg.abi_encode(),
+        ));
     }
 
     #[test]

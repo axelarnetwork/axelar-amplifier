@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 
 use axelar_wasm_std::error::ContractError;
-use axelar_wasm_std::{address, permission_control, FnExt, IntoContractError};
+use axelar_wasm_std::{address, killswitch, permission_control, FnExt, IntoContractError};
 use axelarnet_gateway::AxelarExecutableMsg;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
@@ -34,10 +34,16 @@ pub enum Error {
     FreezeChain,
     #[error("failed to unfreeze chain")]
     UnfreezeChain,
+    #[error("failed to set chain config")]
+    SetChainConfig,
     #[error("failed to query its address")]
     QueryItsContract,
     #[error("failed to query all its addresses")]
     QueryAllItsContracts,
+    #[error("failed to disable execution")]
+    DisableExecution,
+    #[error("failed to enable execution")]
+    EnableExecution,
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -72,6 +78,8 @@ pub fn instantiate(
     for (chain, address) in msg.its_contracts.iter() {
         state::save_its_contract(deps.storage, chain, address)?;
     }
+
+    killswitch::init(deps.storage, killswitch::State::Disengaged)?;
 
     Ok(Response::new().add_events(
         msg.its_contracts
@@ -108,6 +116,18 @@ pub fn execute(
         ExecuteMsg::UnfreezeChain { chain } => {
             unfreeze_chain(deps, chain).change_context(Error::UnfreezeChain)
         }
+        ExecuteMsg::DisableExecution => {
+            execute::disable_execution(deps).change_context(Error::DisableExecution)
+        }
+        ExecuteMsg::EnableExecution => {
+            execute::enable_execution(deps).change_context(Error::EnableExecution)
+        }
+        ExecuteMsg::SetChainConfig {
+            chain,
+            max_uint,
+            max_target_decimals,
+        } => execute::set_chain_config(deps, chain, max_uint, max_target_decimals)
+            .change_context(Error::SetChainConfig),
     }?
     .then(Ok)
 }

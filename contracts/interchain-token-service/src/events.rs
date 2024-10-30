@@ -16,6 +16,8 @@ pub enum Event {
     ItsContractDeregistered {
         chain: ChainNameRaw,
     },
+    ExecutionDisabled,
+    ExecutionEnabled,
 }
 
 impl From<Event> for cosmwasm_std::Event {
@@ -35,6 +37,8 @@ impl From<Event> for cosmwasm_std::Event {
                 cosmwasm_std::Event::new("its_contract_deregistered")
                     .add_attribute("chain", chain.to_string())
             }
+            Event::ExecutionDisabled => cosmwasm_std::Event::new("execution_disabled"),
+            Event::ExecutionEnabled => cosmwasm_std::Event::new("execution_enabled"),
         }
     }
 }
