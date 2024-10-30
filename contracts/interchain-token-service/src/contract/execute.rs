@@ -63,9 +63,9 @@ pub fn execute_message(
             let destination_address = load_its_contract(deps.storage, &destination_chain)
                 .change_context_lazy(|| Error::UnknownChain(destination_chain.clone()))?;
 
-            apply_invariants(deps.storage, &message, cc_id.source_chain.clone(), true)?;
+            apply_balance_invariant(deps.storage, &message, cc_id.source_chain.clone(), true)?;
 
-            apply_invariants(deps.storage, &message, destination_chain.clone(), false)?;
+            apply_balance_invariant(deps.storage, &message, destination_chain.clone(), false)?;
 
             let destination_payload = HubMessage::ReceiveFromHub {
                 source_chain: cc_id.source_chain.clone(),
@@ -177,8 +177,8 @@ pub fn set_chain_config(
 /// Applies invariants on the ITS message.
 ///
 /// Invariants:
-/// - Token must be deployed on the source/destination chains before any transfers can be routed.
-/// - Token must not be already deployed during deployment.
+/// - Token must be deployed on the chain before any transfers can be routed.
+/// - Token cannot be redeployed to the chain.
 /// - If the token is deployed without a custom minter, then the token is considered to be owned by ITS, and total token balance moved to the chain is tracked.
 /// - If the total token amount moved to a chain so far is `x`, then any transfer moving the token back from the chain and exceeding `x` will fail.
 ///
@@ -195,7 +195,7 @@ pub fn set_chain_config(
 ///
 /// 3. DeployTokenManager:
 ///    - Same as the custom minter being set above. ITS Hub can't know if the existing token on the destination chain has a custom minter set.
-fn apply_invariants(
+fn apply_balance_invariant(
     storage: &mut dyn Storage,
     message: &Message,
     chain: ChainNameRaw,
@@ -295,16 +295,14 @@ mod tests {
                 minter: None,
             },
         };
+        let cc_id = CrossChainId {
+            source_chain: ChainNameRaw::try_from(ETHEREUM).unwrap(),
+            message_id: HexTxHashAndEventIndex::new([1u8; 32], 0u32).into(),
+        };
 
         assert_ok!(execute_message(
             deps.as_mut(),
-            CrossChainId {
-                source_chain: ChainNameRaw::try_from(SOLANA).unwrap(),
-                message_id: HexTxHashAndEventIndex::new([1u8; 32], 0u32)
-                    .to_string()
-                    .try_into()
-                    .unwrap(),
-            },
+            cc_id.clone(),
             ITS_ADDRESS.to_string().try_into().unwrap(),
             msg.clone().abi_encode(),
         ));
@@ -324,13 +322,7 @@ mod tests {
 
         let res = execute_message(
             deps.as_mut(),
-            CrossChainId {
-                source_chain: ChainNameRaw::try_from(SOLANA).unwrap(),
-                message_id: HexTxHashAndEventIndex::new([1u8; 32], 0u32)
-                    .to_string()
-                    .try_into()
-                    .unwrap(),
-            },
+            cc_id.clone(),
             ITS_ADDRESS.to_string().try_into().unwrap(),
             msg.clone().abi_encode(),
         );
@@ -340,13 +332,7 @@ mod tests {
 
         assert_ok!(execute_message(
             deps.as_mut(),
-            CrossChainId {
-                source_chain: ChainNameRaw::try_from(SOLANA).unwrap(),
-                message_id: HexTxHashAndEventIndex::new([1u8; 32], 0u32)
-                    .to_string()
-                    .try_into()
-                    .unwrap(),
-            },
+            cc_id.clone(),
             ITS_ADDRESS.to_string().try_into().unwrap(),
             msg.abi_encode(),
         ));
