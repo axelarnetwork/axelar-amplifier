@@ -61,7 +61,7 @@ pub struct TokenInfo {
 const CONFIG: Item<Config> = Item::new("config");
 const ITS_CONTRACTS: Map<&ChainNameRaw, Address> = Map::new("its_contracts");
 const CHAIN_CONFIGS: Map<&ChainNameRaw, ChainConfig> = Map::new("chain_configs");
-const TOKEN_CONFIGS: Map<&(ChainNameRaw, TokenId), TokenInfo> = Map::new("token_configs");
+const TOKEN_INFO: Map<&(ChainNameRaw, TokenId), TokenInfo> = Map::new("token_info");
 
 pub fn load_config(storage: &dyn Storage) -> Config {
     CONFIG
@@ -146,7 +146,7 @@ pub fn save_token_info(
     is_origin_chain: bool,
     track_balance: bool,
 ) -> Result<(), Error> {
-    match TOKEN_CONFIGS.may_load(storage, &(chain.clone(), token_id.clone()))? {
+    match TOKEN_INFO.may_load(storage, &(chain.clone(), token_id.clone()))? {
         Some(_) if is_origin_chain => (),
         Some(_) => return Err(Error::TokenNotDeployed { token_id, chain }),
         None => {
@@ -154,7 +154,7 @@ pub fn save_token_info(
                 balance: track_balance.then(Uint256::zero),
                 is_origin_chain,
             };
-            TOKEN_CONFIGS.save(storage, &(chain, token_id), &TokenInfo { balance })?;
+            TOKEN_INFO.save(storage, &(chain, token_id), &TokenInfo { balance })?;
         }
     }
 
@@ -169,7 +169,7 @@ pub fn update_token_info(
     is_deposit: bool,
 ) -> Result<(), Error> {
     let Some(mut token_config) =
-        TOKEN_CONFIGS.may_load(storage, &(chain.clone(), token_id.clone()))?
+        TOKEN_INFO.may_load(storage, &(chain.clone(), token_id.clone()))?
     else {
         return Err(Error::TokenNotDeployed { token_id, chain });
     };
@@ -182,7 +182,7 @@ pub fn update_token_info(
             chain: chain.clone(),
         })?;
 
-    TOKEN_CONFIGS.save(storage, &(chain, token_id), &token_config)?;
+    TOKEN_INFO.save(storage, &(chain, token_id), &token_config)?;
 
     Ok(())
 }
@@ -192,7 +192,7 @@ pub fn may_load_token_info(
     chain: &ChainNameRaw,
     token_id: &TokenId,
 ) -> Result<Option<TokenInfo>, Error> {
-    Ok(TOKEN_CONFIGS.may_load(storage, &(chain.clone(), token_id.clone()))?)
+    Ok(TOKEN_INFO.may_load(storage, &(chain.clone(), token_id.clone()))?)
 }
 
 impl TokenBalance {
