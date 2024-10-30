@@ -140,7 +140,7 @@ fn match_gateway(storage: &dyn Storage, _: &ExecuteMsg) -> Result<Addr, Report<E
 pub fn query(deps: Deps, _: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
     match msg {
         QueryMsg::ItsContract { chain } => {
-            query::its_contracts(deps, chain).change_context(Error::QueryItsContract)
+            query::its_contract(deps, chain).change_context(Error::QueryItsContract)
         }
         QueryMsg::AllItsContracts => {
             query::all_its_contracts(deps).change_context(Error::QueryAllItsContracts)

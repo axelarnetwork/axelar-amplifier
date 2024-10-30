@@ -10,17 +10,16 @@ pub enum Error {
     #[error("failed to serialize data to JSON")]
     JsonSerialization,
     #[error("state error")]
-    StateError,
+    State,
 }
 
-pub fn its_contracts(deps: Deps, chain: ChainNameRaw) -> Result<Binary, Error> {
+pub fn its_contract(deps: Deps, chain: ChainNameRaw) -> Result<Binary, Error> {
     let contract_address =
-        may_load_its_contract(deps.storage, &chain).change_context(Error::StateError)?;
+        may_load_its_contract(deps.storage, &chain).change_context(Error::State)?;
     to_json_binary(&contract_address).change_context(Error::JsonSerialization)
 }
 
 pub fn all_its_contracts(deps: Deps) -> Result<Binary, Error> {
-    let contract_addresses =
-        load_all_its_contracts(deps.storage).change_context(Error::StateError)?;
+    let contract_addresses = load_all_its_contracts(deps.storage).change_context(Error::State)?;
     to_json_binary(&contract_addresses).change_context(Error::JsonSerialization)
 }

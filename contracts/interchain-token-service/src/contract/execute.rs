@@ -53,20 +53,14 @@ pub fn execute_message(
         Error::ExecutionDisabled
     );
     ensure_its_source_address(deps.storage, &cc_id.source_chain, &source_address)?;
-    ensure!(
-        !is_chain_frozen(deps.storage, &cc_id.source_chain).change_context(Error::State)?,
-        Error::ChainFrozen(cc_id.source_chain)
-    );
 
     match HubMessage::abi_decode(&payload).change_context(Error::InvalidPayload)? {
         HubMessage::SendToHub {
             destination_chain,
             message,
         } => {
-            ensure!(
-                !is_chain_frozen(deps.storage, &destination_chain).change_context(Error::State)?,
-                Error::ChainFrozen(destination_chain)
-            );
+            verify_chains_not_frozen(deps.storage, &cc_id.source_chain, &destination_chain)?;
+
             let destination_address = load_its_contract(deps.storage, &destination_chain)
                 .change_context_lazy(|| Error::UnknownChain(destination_chain.clone()))?;
 
@@ -94,6 +88,19 @@ pub fn execute_message(
         }
         _ => bail!(Error::InvalidMessageType),
     }
+}
+
+fn verify_chains_not_frozen(
+    storage: &dyn Storage,
+    source_chain: &ChainNameRaw,
+    destination_chain: &ChainNameRaw,
+) -> Result<(), Error> {
+    for chain in [source_chain, destination_chain] {
+        if is_chain_frozen(storage, chain).change_context(Error::State)? {
+            return Err(report!(Error::ChainFrozen(chain.to_owned())));
+        }
+    }
+    Ok(())
 }
 
 fn normalize(chain: &ChainNameRaw) -> ChainName {
