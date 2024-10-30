@@ -6,24 +6,34 @@ use cosmwasm_std::HexBinary;
 use error_stack::{Report, ResultExt};
 use lazy_static::lazy_static;
 use regex::Regex;
+use serde_with::DeserializeFromStr;
 
 use super::Error;
 use crate::hash::Hash;
 use crate::nonempty;
 
+#[derive(Debug, DeserializeFromStr, Clone)]
 pub struct HexTxHashAndEventIndex {
     pub tx_hash: Hash,
-    pub event_index: u32,
+    pub event_index: u64,
 }
 
 impl HexTxHashAndEventIndex {
     pub fn tx_hash_as_hex(&self) -> nonempty::String {
-        format!("0x{}", HexBinary::from(self.tx_hash).to_hex())
+        format!("0x{}", self.tx_hash_as_hex_no_prefix())
             .try_into()
             .expect("failed to convert tx hash to non-empty string")
     }
 
-    pub fn new(tx_id: impl Into<[u8; 32]>, event_index: impl Into<u32>) -> Self {
+    pub fn tx_hash_as_hex_no_prefix(&self) -> nonempty::String {
+        HexBinary::from(self.tx_hash)
+            .to_hex()
+            .to_string()
+            .try_into()
+            .expect("failed to convert tx hash to non-empty string")
+    }
+
+    pub fn new(tx_id: impl Into<[u8; 32]>, event_index: impl Into<u64>) -> Self {
         Self {
             tx_hash: tx_id.into(),
             event_index: event_index.into(),
@@ -98,7 +108,7 @@ mod tests {
         format!("0x{}", HexBinary::from(bytes).to_hex())
     }
 
-    fn random_event_index() -> u32 {
+    fn random_event_index() -> u64 {
         rand::random()
     }
 
@@ -223,7 +233,7 @@ mod tests {
     fn should_not_parse_msg_id_with_overflowing_event_index() {
         let event_index: u64 = u64::MAX;
         let tx_hash = random_hash();
-        let res = HexTxHashAndEventIndex::from_str(&format!("{}-{}", tx_hash, event_index));
+        let res = HexTxHashAndEventIndex::from_str(&format!("{}-{}1", tx_hash, event_index));
         assert!(res.is_err());
     }
 }

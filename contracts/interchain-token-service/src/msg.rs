@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use axelar_wasm_std::nonempty;
 use axelarnet_gateway::AxelarExecutableMsg;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use msgs_derive::EnsurePermissions;
@@ -39,6 +40,13 @@ pub enum ExecuteMsg {
 
     #[permission(Elevated)]
     EnableExecution,
+    /// Set the chain configuration for a chain.
+    #[permission(Governance)]
+    SetChainConfig {
+        chain: ChainNameRaw,
+        max_uint: nonempty::Uint256, // The maximum uint value that is supported by the chain's token standard
+        max_target_decimals: u8, // The maximum number of decimals that is preserved when deploying a token to anothe chain where smaller uint values are used
+    },
 }
 
 #[cw_serde]

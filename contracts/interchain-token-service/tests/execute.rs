@@ -1,9 +1,11 @@
+use std::str::FromStr;
+
 use assert_ok::assert_ok;
 use axelar_wasm_std::response::inspect_response_msg;
 use axelar_wasm_std::{assert_err_contains, permission_control};
 use axelarnet_gateway::msg::ExecuteMsg as AxelarnetGatewayExecuteMsg;
 use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-use cosmwasm_std::HexBinary;
+use cosmwasm_std::{HexBinary, Uint256};
 use interchain_token_service::contract::{self, ExecuteError};
 use interchain_token_service::events::Event;
 use interchain_token_service::msg::ExecuteMsg;
@@ -389,4 +391,49 @@ fn admin_or_governance_can_disable_execution() {
         mock_info(params::GOVERNANCE, &[]),
         ExecuteMsg::DisableExecution
     ));
+}
+
+#[test]
+fn set_chain_config_should_succeed() {
+    let chain = "ethereum".parse().unwrap();
+    let max_uint = Uint256::from_str("120000000000000000000000000")
+        .unwrap()
+        .try_into()
+        .unwrap();
+    let decimals = 18;
+
+    let mut deps = mock_dependencies();
+    utils::instantiate_contract(deps.as_mut()).unwrap();
+
+    assert_ok!(utils::set_chain_config(
+        deps.as_mut(),
+        chain,
+        max_uint,
+        decimals
+    ));
+}
+
+#[test]
+fn set_chain_config_should_fail_if_chain_config_is_already_set() {
+    let chain: ChainNameRaw = "ethereum".parse().unwrap();
+    let max_uint = Uint256::from_str("120000000000000000000000000")
+        .unwrap()
+        .try_into()
+        .unwrap();
+    let decimals = 18;
+
+    let mut deps = mock_dependencies();
+    utils::instantiate_contract(deps.as_mut()).unwrap();
+
+    assert_ok!(utils::set_chain_config(
+        deps.as_mut(),
+        chain.clone(),
+        max_uint,
+        decimals
+    ));
+    assert_err_contains!(
+        utils::set_chain_config(deps.as_mut(), chain, max_uint, decimals),
+        ExecuteError,
+        ExecuteError::ChainConfigAlreadySet(_)
+    )
 }

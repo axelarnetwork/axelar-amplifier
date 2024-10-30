@@ -29,6 +29,8 @@ pub enum Error {
     RegisterItsContract,
     #[error("failed to deregsiter an its edge contract")]
     DeregisterItsContract,
+    #[error("failed to set chain config")]
+    SetChainConfig,
     #[error("failed to query its address")]
     QueryItsContract,
     #[error("failed to query all its addresses")]
@@ -109,6 +111,12 @@ pub fn execute(
         ExecuteMsg::EnableExecution => {
             execute::enable_execution(deps).change_context(Error::EnableExecution)
         }
+        ExecuteMsg::SetChainConfig {
+            chain,
+            max_uint,
+            max_target_decimals,
+        } => execute::set_chain_config(deps, chain, max_uint, max_target_decimals)
+            .change_context(Error::SetChainConfig),
     }?
     .then(Ok)
 }
