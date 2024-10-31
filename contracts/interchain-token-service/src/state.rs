@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
-use axelar_wasm_std::utils::TryMapExt;
-use axelar_wasm_std::{nonempty, IntoContractError};
+use axelar_wasm_std::{nonempty, FnExt, IntoContractError};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{ensure, Addr, OverflowError, StdError, Storage, Uint256};
 use cw_storage_plus::{Item, Map};
@@ -46,17 +45,58 @@ pub struct ChainConfig {
 }
 
 #[cw_serde]
-pub struct TokenBalance {
-    /// The total balance of the token bridged from/to the chain.
-    /// If the token is native to this chain, this will be the total supply bridged to other chains.
-    pub balance: Option<Uint256>,
-    /// Whether the token was deployed from this chain.
-    pub is_origin_chain: bool,
+pub enum TokenBalance {
+    /// The total token balance bridged to this chain.
+    /// ITS Hub will not allow bridging back more than this amount of the token from the corresponding chain.
+    Tracked(Uint256),
+    /// The token balance bridged to this chain is not tracked.
+    Untracked,
+}
+
+#[cw_serde]
+pub enum TokenType {
+    /// The token originated on this chain.
+    Origin,
+    /// The token was deployed to this chain.
+    Remote,
 }
 
 #[cw_serde]
 pub struct TokenInfo {
     pub balance: TokenBalance,
+    pub token_type: TokenType,
+}
+
+#[derive(Clone)]
+pub enum DirectionalChain {
+    Source(ChainNameRaw),
+    Destination(ChainNameRaw),
+}
+
+/// The deployment type of the token.
+pub enum TokenDeploymentType {
+    /// The token is trustless.
+    Trustless,
+    /// The token has a custom minter.
+    CustomMinter,
+}
+
+impl From<&DirectionalChain> for TokenType {
+    fn from(directional_chain: &DirectionalChain) -> Self {
+        match directional_chain {
+            DirectionalChain::Source(_) => TokenType::Origin,
+            DirectionalChain::Destination(_) => TokenType::Remote,
+        }
+    }
+}
+
+impl From<DirectionalChain> for ChainNameRaw {
+    fn from(directional_chain: DirectionalChain) -> Self {
+        match directional_chain {
+            DirectionalChain::Source(chain) => chain,
+            DirectionalChain::Destination(chain) => chain,
+        }
+    }
 }
 
 const CONFIG: Item<Config> = Item::new("config");
@@ -142,20 +182,27 @@ pub fn load_all_its_contracts(
 
 pub fn save_token_info(
     storage: &mut dyn Storage,
-    chain: ChainNameRaw,
+    directional_chain: DirectionalChain,
     token_id: TokenId,
-    is_origin_chain: bool,
-    track_balance: bool,
+    token_deployment_type: TokenDeploymentType,
 ) -> Result<(), Error> {
+    let token_type = TokenType::from(&directional_chain);
+    let chain: ChainNameRaw = directional_chain.into();
+
     match TOKEN_INFO.may_load(storage, &(chain.clone(), token_id.clone()))? {
-        Some(_) if is_origin_chain => (),
-        Some(_) => return Err(Error::TokenNotDeployed { token_id, chain }),
+        Some(_) if token_type == TokenType::Origin => (),
+        Some(_) => return Err(Error::TokenAlreadyDeployed { token_id, chain }),
         None => {
-            let balance = TokenBalance {
-                balance: track_balance.then(Uint256::zero),
-                is_origin_chain,
-            };
-            TOKEN_INFO.save(storage, &(chain, token_id), &TokenInfo { balance })?;
+            let balance = (token_type.clone(), token_deployment_type).into();
+
+            TOKEN_INFO.save(
+                storage,
+                &(chain, token_id),
+                &TokenInfo {
+                    balance,
+                    token_type,
+                },
+            )?;
         }
     }
 
@@ -164,24 +211,25 @@ pub fn save_token_info(
 
 pub fn update_token_info(
     storage: &mut dyn Storage,
-    chain: ChainNameRaw,
+    directional_chain: DirectionalChain,
     token_id: TokenId,
     amount: nonempty::Uint256,
-    is_deposit: bool,
 ) -> Result<(), Error> {
+    let chain: ChainNameRaw = directional_chain.clone().into();
     let Some(mut token_config) =
         TOKEN_INFO.may_load(storage, &(chain.clone(), token_id.clone()))?
     else {
         return Err(Error::TokenNotDeployed { token_id, chain });
     };
 
-    token_config.balance = token_config
-        .balance
-        .update(amount, is_deposit)
-        .map_err(|_| Error::TokenBalanceInvariantViolated {
-            token_id: token_id.clone(),
-            chain: chain.clone(),
-        })?;
+    token_config.balance = match directional_chain {
+        DirectionalChain::Source(_) => token_config.balance.checked_sub(amount),
+        DirectionalChain::Destination(_) => token_config.balance.checked_add(amount),
+    }
+    .map_err(|_| Error::TokenBalanceInvariantViolated {
+        token_id: token_id.clone(),
+        chain: chain.clone(),
+    })?;
 
     TOKEN_INFO.save(storage, &(chain, token_id), &token_config)?;
 
@@ -197,29 +245,36 @@ pub fn may_load_token_info(
 }
 
 impl TokenBalance {
-    /// Deposit an amount to the token chain balance.
-    /// If the token originated on this chain, the amount is subtracted from the balance.
-    fn update(&self, amount: nonempty::Uint256, is_deposit: bool) -> Result<Self, OverflowError> {
-        let TokenBalance {
-            balance,
-            is_origin_chain,
-        } = self;
-
-        // If the token originated on this chain, deposits/withdrawals are reversed
-        // since the balance is tracking the total supply that was bridged to other chains.
-        let should_add = is_deposit ^ is_origin_chain;
-        let balance = balance.try_map(|b| {
-            if should_add {
-                b.checked_add(amount.into())
-            } else {
-                b.checked_sub(amount.into())
+    fn checked_add(&self, amount: nonempty::Uint256) -> Result<Self, OverflowError> {
+        match self {
+            TokenBalance::Tracked(balance) => {
+                TokenBalance::Tracked(balance.checked_add(amount.into())?)
             }
-        })?;
+            TokenBalance::Untracked => TokenBalance::Untracked,
+        }
+        .then(Ok)
+    }
 
-        Ok(TokenBalance {
-            balance,
-            is_origin_chain: *is_origin_chain,
-        })
+    fn checked_sub(&self, amount: nonempty::Uint256) -> Result<Self, OverflowError> {
+        match self {
+            TokenBalance::Tracked(balance) => {
+                TokenBalance::Tracked(balance.checked_sub(amount.into())?)
+            }
+            TokenBalance::Untracked => TokenBalance::Untracked,
+        }
+        .then(Ok)
+    }
+}
+
+impl From<(TokenType, TokenDeploymentType)> for TokenBalance {
+    fn from((token_type, token_deployment_type): (TokenType, TokenDeploymentType)) -> Self {
+        match (token_type, token_deployment_type) {
+            // Token balances are tracked for remote trustless tokens
+            (TokenType::Remote, TokenDeploymentType::Trustless) => {
+                TokenBalance::Tracked(Uint256::zero())
+            }
+            _ => TokenBalance::Untracked,
+        }
     }
 }
 

@@ -14,9 +14,8 @@ use interchain_token_service::msg::ExecuteMsg;
 use interchain_token_service::{contract, HubMessage};
 use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
 
-use crate::utils::params;
-
 use super::{instantiate_contract, TestMessage};
+use crate::utils::params;
 
 pub fn execute(
     deps: DepsMut,
@@ -127,7 +126,10 @@ pub fn make_deps() -> OwnedDeps<MemoryStorage, MockApi, MockQuerier<AxelarQueryM
     deps
 }
 
-pub fn setup() -> (OwnedDeps<MemoryStorage, MockApi, MockQuerier<AxelarQueryMsg>>, TestMessage) {
+pub fn setup() -> (
+    OwnedDeps<MemoryStorage, MockApi, MockQuerier<AxelarQueryMsg>>,
+    TestMessage,
+) {
     let mut deps = make_deps();
     instantiate_contract(deps.as_mut()).unwrap();
 

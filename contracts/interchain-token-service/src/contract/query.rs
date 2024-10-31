@@ -18,6 +18,6 @@ pub fn token_info(
     chain: ChainNameRaw,
     token_id: TokenId,
 ) -> Result<Binary, state::Error> {
-    let config = state::may_load_token_info(deps.storage, &chain, &token_id)?;
-    Ok(to_json_binary(&config)?)
+    let token_info = state::may_load_token_info(deps.storage, &chain, &token_id)?;
+    Ok(to_json_binary(&token_info)?)
 }

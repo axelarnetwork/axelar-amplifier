@@ -10,7 +10,7 @@ use interchain_token_service::contract::{self, ExecuteError};
 use interchain_token_service::events::Event;
 use interchain_token_service::msg::ExecuteMsg;
 use interchain_token_service::{
-    HubMessage, Message, TokenBalance, TokenId, TokenManagerType,
+    HubMessage, Message, TokenBalance, TokenId, TokenInfo, TokenManagerType, TokenType,
 };
 use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
 use utils::{make_deps, params, TestMessage};
@@ -447,19 +447,22 @@ fn set_chain_config_should_fail_if_chain_config_is_already_set() {
 
 #[test]
 fn interchain_transfer_maintains_balance_invariant() {
-    let (mut deps, TestMessage {
-        router_message,
-        source_its_chain,
-        source_its_contract,
-        destination_its_chain,
-        destination_its_contract,
-        ..
-    }) = utils::setup();
+    let (
+        mut deps,
+        TestMessage {
+            router_message,
+            source_its_chain,
+            source_its_contract,
+            destination_its_chain,
+            destination_its_contract,
+            ..
+        },
+    ) = utils::setup();
 
     let token_id = TokenId::new([1u8; 32]);
     let amount = nonempty::Uint256::try_from(400u64).unwrap();
 
-    let deploy_message = HubMessage::SendToHub {
+    let msg = HubMessage::SendToHub {
         destination_chain: destination_its_chain.clone(),
         message: Message::DeployInterchainToken {
             token_id: token_id.clone(),
@@ -473,7 +476,7 @@ fn interchain_transfer_maintains_balance_invariant() {
         deps.as_mut(),
         router_message.cc_id.clone(),
         source_its_contract.clone(),
-        deploy_message,
+        msg,
     ));
 
     let msg = HubMessage::SendToHub {
@@ -499,11 +502,11 @@ fn interchain_transfer_maintains_balance_invariant() {
             source_its_chain.clone(),
             token_id.clone()
         ))
-        .map(|info| info.balance),
-        Some(TokenBalance {
-            balance: Some(amount.into()),
-            is_origin_chain: true,
-        })
+        .unwrap(),
+        TokenInfo {
+            balance: TokenBalance::Untracked,
+            token_type: TokenType::Origin,
+        }
     );
     assert_eq!(
         assert_ok!(utils::query_token_info(
@@ -511,11 +514,11 @@ fn interchain_transfer_maintains_balance_invariant() {
             destination_its_chain.clone(),
             token_id.clone()
         ))
-        .map(|info| info.balance),
-        Some(TokenBalance {
-            balance: Some(amount.into()),
-            is_origin_chain: false,
-        })
+        .unwrap(),
+        TokenInfo {
+            balance: TokenBalance::Tracked(amount.into()),
+            token_type: TokenType::Remote,
+        }
     );
 
     // Send the same amount back
@@ -531,7 +534,11 @@ fn interchain_transfer_maintains_balance_invariant() {
     };
     assert_ok!(utils::execute_hub_message(
         deps.as_mut(),
-        CrossChainId::new(destination_its_chain.clone(), router_message.cc_id.message_id.clone()).unwrap(),
+        CrossChainId::new(
+            destination_its_chain.clone(),
+            router_message.cc_id.message_id.clone()
+        )
+        .unwrap(),
         destination_its_contract,
         msg,
     ));
@@ -542,11 +549,11 @@ fn interchain_transfer_maintains_balance_invariant() {
             source_its_chain.clone(),
             token_id.clone()
         ))
-        .map(|info| info.balance),
-        Some(TokenBalance {
-            balance: Some(Uint256::zero()),
-            is_origin_chain: true,
-        })
+        .unwrap(),
+        TokenInfo {
+            balance: TokenBalance::Untracked,
+            token_type: TokenType::Origin,
+        }
     );
     assert_eq!(
         assert_ok!(utils::query_token_info(
@@ -554,24 +561,27 @@ fn interchain_transfer_maintains_balance_invariant() {
             destination_its_chain,
             token_id
         ))
-        .map(|info| info.balance),
-        Some(TokenBalance {
-            balance: Some(Uint256::zero()),
-            is_origin_chain: false,
-        })
+        .unwrap(),
+        TokenInfo {
+            balance: TokenBalance::Tracked(Uint256::zero()),
+            token_type: TokenType::Remote,
+        }
     );
 }
 
 #[test]
 fn interchain_transfer_exceeds_balance_invariant_fails() {
-    let (mut deps, TestMessage {
-        router_message,
-        source_its_chain,
-        source_its_contract,
-        destination_its_chain,
-        destination_its_contract,
-        ..
-    }) = utils::setup();
+    let (
+        mut deps,
+        TestMessage {
+            router_message,
+            source_its_chain,
+            source_its_contract,
+            destination_its_chain,
+            destination_its_contract,
+            ..
+        },
+    ) = utils::setup();
 
     let token_id = TokenId::new([1u8; 32]);
     let amount = nonempty::Uint256::try_from(400u64).unwrap();
@@ -611,7 +621,7 @@ fn interchain_transfer_exceeds_balance_invariant_fails() {
             msg,
         ),
         ExecuteError,
-        ExecuteError::InvariantViolated(id) if id == &token_id
+        ExecuteError::UpdateTokenInfo(id) if id == &token_id
     );
 
     let msg = HubMessage::SendToHub {
@@ -649,6 +659,6 @@ fn interchain_transfer_exceeds_balance_invariant_fails() {
             msg,
         ),
         ExecuteError,
-        ExecuteError::InvariantViolated(id) if id == &token_id
+        ExecuteError::UpdateTokenInfo(id) if id == &token_id
     );
 }

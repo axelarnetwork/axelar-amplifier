@@ -5,7 +5,7 @@ use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
 
 use crate::events::Event;
 use crate::primitives::HubMessage;
-use crate::state::{self, load_config, load_its_contract};
+use crate::state::{self, load_config, load_its_contract, DirectionalChain, TokenDeploymentType};
 use crate::{Message, TokenId};
 
 #[derive(thiserror::Error, Debug, IntoContractError)]
@@ -32,8 +32,10 @@ pub enum Error {
     LoadChainConfig(ChainNameRaw),
     #[error("failed to save chain config for chain {0}")]
     SaveChainConfig(ChainNameRaw),
-    #[error("failed to apply invariants for token {0}")]
-    InvariantViolated(TokenId),
+    #[error("failed to save token info for token {0}")]
+    SaveTokenInfo(TokenId),
+    #[error("failed to update token info for token {0}")]
+    UpdateTokenInfo(TokenId),
     #[error("state error")]
     State,
 }
@@ -63,9 +65,17 @@ pub fn execute_message(
             let destination_address = load_its_contract(deps.storage, &destination_chain)
                 .change_context_lazy(|| Error::UnknownChain(destination_chain.clone()))?;
 
-            apply_balance_invariant(deps.storage, &message, cc_id.source_chain.clone(), true)?;
+            apply_balance_invariant(
+                deps.storage,
+                &message,
+                DirectionalChain::Source(cc_id.source_chain.clone()),
+            )?;
 
-            apply_balance_invariant(deps.storage, &message, destination_chain.clone(), false)?;
+            apply_balance_invariant(
+                deps.storage,
+                &message,
+                DirectionalChain::Destination(destination_chain.clone()),
+            )?;
 
             let destination_payload = HubMessage::ReceiveFromHub {
                 source_chain: cc_id.source_chain.clone(),
@@ -185,34 +195,27 @@ pub fn set_chain_config(
 /// Invariants are updated depending on the ITS message type
 ///
 /// 1. InterchainTransfer:
-///    - Decreases the token balance on the source chain, unless it's the origin chain in which case it's increased.
-///    - Increases the token balance on the destination chain, unless it's the origin chain in which case it's decreased.
+///    - Decreases the token balance on the source chain if the balance is being tracked.
+///    - Increases the token balance on the destination chain if the balance is being tracked.
 ///    - If the balance underflows for either case, an error is returned.
 ///
 /// 2. DeployInterchainToken:
-///    - If a custom minter is not set, then the token balance is tracked for the source/destination chain.
-///    - If the custom minter is set, then the balance is not tracked, but the deployment is recorded.
+///    - If a custom minter is not set, then the token balance is tracked for the destination chain.
+///    - If a custom minter is set, then the balance is not tracked, but the deployment is recorded as `TokenInfo`.
 ///
 /// 3. DeployTokenManager:
 ///    - Same as the custom minter being set above. ITS Hub can't know if the existing token on the destination chain has a custom minter set.
 fn apply_balance_invariant(
     storage: &mut dyn Storage,
     message: &Message,
-    chain: ChainNameRaw,
-    is_source_chain: bool,
+    directional_chain: DirectionalChain,
 ) -> Result<(), Error> {
     match message {
         Message::InterchainTransfer {
             token_id, amount, ..
         } => {
-            state::update_token_info(
-                storage,
-                chain.clone(),
-                token_id.clone(),
-                *amount,
-                !is_source_chain,
-            )
-            .change_context_lazy(|| Error::InvariantViolated(token_id.clone()))?;
+            state::update_token_info(storage, directional_chain, token_id.clone(), *amount)
+                .change_context_lazy(|| Error::UpdateTokenInfo(token_id.clone()))?;
         }
         Message::DeployInterchainToken {
             token_id,
@@ -221,12 +224,11 @@ fn apply_balance_invariant(
         } => {
             state::save_token_info(
                 storage,
-                chain.clone(),
+                directional_chain,
                 token_id.clone(),
-                is_source_chain,
-                true,
+                TokenDeploymentType::Trustless,
             )
-            .change_context_lazy(|| Error::InvariantViolated(token_id.clone()))?;
+            .change_context_lazy(|| Error::SaveTokenInfo(token_id.clone()))?;
         }
         Message::DeployInterchainToken {
             token_id,
@@ -236,12 +238,11 @@ fn apply_balance_invariant(
         | Message::DeployTokenManager { token_id, .. } => {
             state::save_token_info(
                 storage,
-                chain.clone(),
+                directional_chain,
                 token_id.clone(),
-                is_source_chain,
-                false,
+                TokenDeploymentType::CustomMinter,
             )
-            .change_context_lazy(|| Error::InvariantViolated(token_id.clone()))?;
+            .change_context_lazy(|| Error::SaveTokenInfo(token_id.clone()))?;
         }
     };
 
@@ -330,6 +331,16 @@ mod tests {
 
         assert_ok!(enable_execution(deps.as_mut()));
 
+        let msg = HubMessage::SendToHub {
+            destination_chain: ChainNameRaw::try_from(SOLANA).unwrap(),
+            message: Message::DeployInterchainToken {
+                token_id: [1u8; 32].into(),
+                name: "Test".parse().unwrap(),
+                symbol: "TEST".parse().unwrap(),
+                decimals: 18,
+                minter: None,
+            },
+        };
         assert_ok!(execute_message(
             deps.as_mut(),
             cc_id.clone(),
