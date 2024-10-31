@@ -2,14 +2,16 @@ use std::str::FromStr;
 
 use assert_ok::assert_ok;
 use axelar_wasm_std::response::inspect_response_msg;
-use axelar_wasm_std::{assert_err_contains, permission_control};
+use axelar_wasm_std::{assert_err_contains, nonempty, permission_control};
 use axelarnet_gateway::msg::ExecuteMsg as AxelarnetGatewayExecuteMsg;
 use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
 use cosmwasm_std::{HexBinary, Uint256};
 use interchain_token_service::contract::{self, ExecuteError};
 use interchain_token_service::events::Event;
 use interchain_token_service::msg::ExecuteMsg;
-use interchain_token_service::{HubMessage, Message, TokenId, TokenManagerType};
+use interchain_token_service::{
+    HubMessage, Message, TokenBalance, TokenId, TokenManagerType,
+};
 use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
 use utils::{make_deps, params, TestMessage};
 
@@ -441,4 +443,212 @@ fn set_chain_config_should_fail_if_chain_config_is_already_set() {
         ExecuteError,
         ExecuteError::ChainConfigAlreadySet(_)
     )
+}
+
+#[test]
+fn interchain_transfer_maintains_balance_invariant() {
+    let (mut deps, TestMessage {
+        router_message,
+        source_its_chain,
+        source_its_contract,
+        destination_its_chain,
+        destination_its_contract,
+        ..
+    }) = utils::setup();
+
+    let token_id = TokenId::new([1u8; 32]);
+    let amount = nonempty::Uint256::try_from(400u64).unwrap();
+
+    let deploy_message = HubMessage::SendToHub {
+        destination_chain: destination_its_chain.clone(),
+        message: Message::DeployInterchainToken {
+            token_id: token_id.clone(),
+            name: "Test".try_into().unwrap(),
+            symbol: "TST".try_into().unwrap(),
+            decimals: 18,
+            minter: None,
+        },
+    };
+    assert_ok!(utils::execute_hub_message(
+        deps.as_mut(),
+        router_message.cc_id.clone(),
+        source_its_contract.clone(),
+        deploy_message,
+    ));
+
+    let msg = HubMessage::SendToHub {
+        destination_chain: destination_its_chain.clone(),
+        message: Message::InterchainTransfer {
+            token_id: token_id.clone(),
+            source_address: HexBinary::from([1; 32]).try_into().unwrap(),
+            destination_address: HexBinary::from([2; 32]).try_into().unwrap(),
+            amount,
+            data: None,
+        },
+    };
+    assert_ok!(utils::execute_hub_message(
+        deps.as_mut(),
+        router_message.cc_id.clone(),
+        source_its_contract.clone(),
+        msg,
+    ));
+
+    assert_eq!(
+        assert_ok!(utils::query_token_info(
+            deps.as_ref(),
+            source_its_chain.clone(),
+            token_id.clone()
+        ))
+        .map(|info| info.balance),
+        Some(TokenBalance {
+            balance: Some(amount.into()),
+            is_origin_chain: true,
+        })
+    );
+    assert_eq!(
+        assert_ok!(utils::query_token_info(
+            deps.as_ref(),
+            destination_its_chain.clone(),
+            token_id.clone()
+        ))
+        .map(|info| info.balance),
+        Some(TokenBalance {
+            balance: Some(amount.into()),
+            is_origin_chain: false,
+        })
+    );
+
+    // Send the same amount back
+    let msg = HubMessage::SendToHub {
+        destination_chain: source_its_chain.clone(),
+        message: Message::InterchainTransfer {
+            token_id: token_id.clone(),
+            source_address: HexBinary::from([1; 32]).try_into().unwrap(),
+            destination_address: HexBinary::from([2; 32]).try_into().unwrap(),
+            amount,
+            data: None,
+        },
+    };
+    assert_ok!(utils::execute_hub_message(
+        deps.as_mut(),
+        CrossChainId::new(destination_its_chain.clone(), router_message.cc_id.message_id.clone()).unwrap(),
+        destination_its_contract,
+        msg,
+    ));
+
+    assert_eq!(
+        assert_ok!(utils::query_token_info(
+            deps.as_ref(),
+            source_its_chain.clone(),
+            token_id.clone()
+        ))
+        .map(|info| info.balance),
+        Some(TokenBalance {
+            balance: Some(Uint256::zero()),
+            is_origin_chain: true,
+        })
+    );
+    assert_eq!(
+        assert_ok!(utils::query_token_info(
+            deps.as_ref(),
+            destination_its_chain,
+            token_id
+        ))
+        .map(|info| info.balance),
+        Some(TokenBalance {
+            balance: Some(Uint256::zero()),
+            is_origin_chain: false,
+        })
+    );
+}
+
+#[test]
+fn interchain_transfer_exceeds_balance_invariant_fails() {
+    let (mut deps, TestMessage {
+        router_message,
+        source_its_chain,
+        source_its_contract,
+        destination_its_chain,
+        destination_its_contract,
+        ..
+    }) = utils::setup();
+
+    let token_id = TokenId::new([1u8; 32]);
+    let amount = nonempty::Uint256::try_from(400u64).unwrap();
+
+    let deploy_message = HubMessage::SendToHub {
+        destination_chain: destination_its_chain.clone(),
+        message: Message::DeployInterchainToken {
+            token_id: token_id.clone(),
+            name: "Test".try_into().unwrap(),
+            symbol: "TST".try_into().unwrap(),
+            decimals: 18,
+            minter: None,
+        },
+    };
+    assert_ok!(utils::execute_hub_message(
+        deps.as_mut(),
+        router_message.cc_id.clone(),
+        source_its_contract.clone(),
+        deploy_message,
+    ));
+
+    let msg = HubMessage::SendToHub {
+        destination_chain: source_its_chain.clone(),
+        message: Message::InterchainTransfer {
+            token_id: token_id.clone(),
+            source_address: HexBinary::from([1; 32]).try_into().unwrap(),
+            destination_address: HexBinary::from([2; 32]).try_into().unwrap(),
+            amount: 1u64.try_into().unwrap(),
+            data: None,
+        },
+    };
+    assert_err_contains!(
+        utils::execute_hub_message(
+            deps.as_mut(),
+            CrossChainId::new(destination_its_chain.clone(), router_message.cc_id.message_id.clone()).unwrap(),
+            destination_its_contract.clone(),
+            msg,
+        ),
+        ExecuteError,
+        ExecuteError::InvariantViolated(id) if id == &token_id
+    );
+
+    let msg = HubMessage::SendToHub {
+        destination_chain: destination_its_chain.clone(),
+        message: Message::InterchainTransfer {
+            token_id: token_id.clone(),
+            source_address: HexBinary::from([1; 32]).try_into().unwrap(),
+            destination_address: HexBinary::from([2; 32]).try_into().unwrap(),
+            amount,
+            data: None,
+        },
+    };
+    assert_ok!(utils::execute_hub_message(
+        deps.as_mut(),
+        router_message.cc_id.clone(),
+        source_its_contract.clone(),
+        msg,
+    ));
+
+    let msg = HubMessage::SendToHub {
+        destination_chain: source_its_chain.clone(),
+        message: Message::InterchainTransfer {
+            token_id: token_id.clone(),
+            source_address: HexBinary::from([1; 32]).try_into().unwrap(),
+            destination_address: HexBinary::from([2; 32]).try_into().unwrap(),
+            amount: amount.strict_add(Uint256::one()).try_into().unwrap(),
+            data: None,
+        },
+    };
+    assert_err_contains!(
+        utils::execute_hub_message(
+            deps.as_mut(),
+            CrossChainId::new(destination_its_chain, router_message.cc_id.message_id).unwrap(),
+            destination_its_contract,
+            msg,
+        ),
+        ExecuteError,
+        ExecuteError::InvariantViolated(id) if id == &token_id
+    );
 }

@@ -16,6 +16,8 @@ use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
 
 use crate::utils::params;
 
+use super::{instantiate_contract, TestMessage};
+
 pub fn execute(
     deps: DepsMut,
     cc_id: CrossChainId,
@@ -123,4 +125,32 @@ pub fn make_deps() -> OwnedDeps<MemoryStorage, MockApi, MockQuerier<AxelarQueryM
 
     deps.querier = querier;
     deps
+}
+
+pub fn setup() -> (OwnedDeps<MemoryStorage, MockApi, MockQuerier<AxelarQueryMsg>>, TestMessage) {
+    let mut deps = make_deps();
+    instantiate_contract(deps.as_mut()).unwrap();
+
+    let TestMessage {
+        source_its_chain,
+        source_its_contract,
+        destination_its_chain,
+        destination_its_contract,
+        ..
+    } = TestMessage::dummy();
+
+    register_its_contract(
+        deps.as_mut(),
+        source_its_chain.clone(),
+        source_its_contract.clone(),
+    )
+    .unwrap();
+    register_its_contract(
+        deps.as_mut(),
+        destination_its_chain.clone(),
+        destination_its_contract.clone(),
+    )
+    .unwrap();
+
+    (deps, TestMessage::dummy())
 }

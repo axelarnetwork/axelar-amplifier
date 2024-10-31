@@ -49,14 +49,14 @@ pub struct ChainConfig {
 pub struct TokenBalance {
     /// The total balance of the token bridged from/to the chain.
     /// If the token is native to this chain, this will be the total supply bridged to other chains.
-    balance: Option<Uint256>,
+    pub balance: Option<Uint256>,
     /// Whether the token was deployed from this chain.
-    is_origin_chain: bool,
+    pub is_origin_chain: bool,
 }
 
 #[cw_serde]
 pub struct TokenInfo {
-    balance: TokenBalance,
+    pub balance: TokenBalance,
 }
 
 const CONFIG: Item<Config> = Item::new("config");
