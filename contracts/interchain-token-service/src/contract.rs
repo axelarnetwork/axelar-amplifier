@@ -7,6 +7,7 @@ use axelarnet_gateway::AxelarExecutableMsg;
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{Addr, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response, Storage};
 use error_stack::{Report, ResultExt};
+use execute::{freeze_chain, unfreeze_chain};
 
 use crate::events::Event;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
@@ -29,6 +30,10 @@ pub enum Error {
     RegisterItsContract,
     #[error("failed to deregsiter an its edge contract")]
     DeregisterItsContract,
+    #[error("failed to freeze chain")]
+    FreezeChain,
+    #[error("failed to unfreeze chain")]
+    UnfreezeChain,
     #[error("failed to set chain config")]
     SetChainConfig,
     #[error("failed to query its address")]
@@ -105,6 +110,12 @@ pub fn execute(
             execute::deregister_its_contract(deps, chain)
                 .change_context(Error::DeregisterItsContract)
         }
+        ExecuteMsg::FreezeChain { chain } => {
+            freeze_chain(deps, chain).change_context(Error::FreezeChain)
+        }
+        ExecuteMsg::UnfreezeChain { chain } => {
+            unfreeze_chain(deps, chain).change_context(Error::UnfreezeChain)
+        }
         ExecuteMsg::DisableExecution => {
             execute::disable_execution(deps).change_context(Error::DisableExecution)
         }
@@ -129,7 +140,7 @@ fn match_gateway(storage: &dyn Storage, _: &ExecuteMsg) -> Result<Addr, Report<E
 pub fn query(deps: Deps, _: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
     match msg {
         QueryMsg::ItsContract { chain } => {
-            query::its_contracts(deps, chain).change_context(Error::QueryItsContract)
+            query::its_contract(deps, chain).change_context(Error::QueryItsContract)
         }
         QueryMsg::AllItsContracts => {
             query::all_its_contracts(deps).change_context(Error::QueryAllItsContracts)

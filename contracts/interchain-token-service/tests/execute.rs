@@ -105,6 +105,26 @@ fn execute_hub_message_succeeds() {
     )
     .unwrap();
 
+    let max_uint = Uint256::from_str("120000000000000000000000000")
+        .unwrap()
+        .try_into()
+        .unwrap();
+    let decimals = 18;
+
+    assert_ok!(utils::set_chain_config(
+        deps.as_mut(),
+        source_its_chain.clone(),
+        max_uint,
+        decimals
+    ));
+
+    assert_ok!(utils::set_chain_config(
+        deps.as_mut(),
+        destination_its_chain.clone(),
+        max_uint,
+        decimals
+    ));
+
     let token_id = TokenId::new([1; 32]);
     let test_messages = vec![
         Message::InterchainTransfer {
@@ -315,6 +335,122 @@ fn execute_message_when_invalid_message_type_fails() {
         invalid_hub_message.abi_encode(),
     );
     assert_err_contains!(result, ExecuteError, ExecuteError::InvalidMessageType);
+}
+
+#[test]
+fn freeze_chain_when_not_admin_fails() {
+    let mut deps = mock_dependencies();
+    utils::instantiate_contract(deps.as_mut()).unwrap();
+
+    let result = contract::execute(
+        deps.as_mut(),
+        mock_env(),
+        mock_info("not-admin", &[]),
+        ExecuteMsg::FreezeChain {
+            chain: ChainNameRaw::try_from("ethereum").unwrap(),
+        },
+    );
+    assert_err_contains!(
+        result,
+        permission_control::Error,
+        permission_control::Error::PermissionDenied { .. }
+    );
+}
+
+#[test]
+fn unfreeze_chain_when_not_admin_fails() {
+    let mut deps = mock_dependencies();
+    utils::instantiate_contract(deps.as_mut()).unwrap();
+
+    let result = contract::execute(
+        deps.as_mut(),
+        mock_env(),
+        mock_info("not-admin", &[]),
+        ExecuteMsg::UnfreezeChain {
+            chain: ChainNameRaw::try_from("ethereum").unwrap(),
+        },
+    );
+    assert_err_contains!(
+        result,
+        permission_control::Error,
+        permission_control::Error::PermissionDenied { .. }
+    );
+}
+
+#[test]
+fn admin_or_governance_can_freeze_chain() {
+    let mut deps = mock_dependencies();
+    utils::instantiate_contract(deps.as_mut()).unwrap();
+
+    let chain = "ethereum".parse().unwrap();
+    let max_uint = Uint256::from_str("120000000000000000000000000")
+        .unwrap()
+        .try_into()
+        .unwrap();
+    let decimals = 18;
+
+    assert_ok!(utils::set_chain_config(
+        deps.as_mut(),
+        chain,
+        max_uint,
+        decimals
+    ));
+
+    assert_ok!(contract::execute(
+        deps.as_mut(),
+        mock_env(),
+        mock_info(params::ADMIN, &[]),
+        ExecuteMsg::FreezeChain {
+            chain: ChainNameRaw::try_from("ethereum").unwrap()
+        }
+    ));
+
+    assert_ok!(contract::execute(
+        deps.as_mut(),
+        mock_env(),
+        mock_info(params::GOVERNANCE, &[]),
+        ExecuteMsg::FreezeChain {
+            chain: ChainNameRaw::try_from("ethereum").unwrap()
+        }
+    ));
+}
+
+#[test]
+fn admin_or_governance_can_unfreeze_chain() {
+    let mut deps = mock_dependencies();
+    utils::instantiate_contract(deps.as_mut()).unwrap();
+
+    let chain = "ethereum".parse().unwrap();
+    let max_uint = Uint256::from_str("120000000000000000000000000")
+        .unwrap()
+        .try_into()
+        .unwrap();
+    let decimals = 18;
+
+    assert_ok!(utils::set_chain_config(
+        deps.as_mut(),
+        chain,
+        max_uint,
+        decimals
+    ));
+
+    assert_ok!(contract::execute(
+        deps.as_mut(),
+        mock_env(),
+        mock_info(params::ADMIN, &[]),
+        ExecuteMsg::UnfreezeChain {
+            chain: ChainNameRaw::try_from("ethereum").unwrap()
+        }
+    ));
+
+    assert_ok!(contract::execute(
+        deps.as_mut(),
+        mock_env(),
+        mock_info(params::GOVERNANCE, &[]),
+        ExecuteMsg::UnfreezeChain {
+            chain: ChainNameRaw::try_from("ethereum").unwrap()
+        }
+    ));
 }
 
 #[test]

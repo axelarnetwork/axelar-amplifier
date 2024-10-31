@@ -5,7 +5,7 @@ use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
 
 use crate::events::Event;
 use crate::primitives::HubMessage;
-use crate::state::{self, load_config, load_its_contract};
+use crate::state::{self, is_chain_frozen, load_config, load_its_contract};
 
 #[derive(thiserror::Error, Debug, IntoContractError)]
 pub enum Error {
@@ -31,6 +31,8 @@ pub enum Error {
     LoadChainConfig(ChainNameRaw),
     #[error("failed to save chain config for chain {0}")]
     SaveChainConfig(ChainNameRaw),
+    #[error("chain {0} is frozen")]
+    ChainFrozen(ChainNameRaw),
     #[error("state error")]
     State,
 }
@@ -60,6 +62,8 @@ pub fn execute_message(
             let destination_address = load_its_contract(deps.storage, &destination_chain)
                 .change_context_lazy(|| Error::UnknownChain(destination_chain.clone()))?;
 
+            verify_chains_not_frozen(deps.storage, &cc_id.source_chain, &destination_chain)?;
+
             let destination_payload = HubMessage::ReceiveFromHub {
                 source_chain: cc_id.source_chain.clone(),
                 message: message.clone(),
@@ -84,6 +88,19 @@ pub fn execute_message(
         }
         _ => bail!(Error::InvalidMessageType),
     }
+}
+
+fn verify_chains_not_frozen(
+    storage: &dyn Storage,
+    source_chain: &ChainNameRaw,
+    destination_chain: &ChainNameRaw,
+) -> Result<(), Error> {
+    for chain in [source_chain, destination_chain] {
+        if is_chain_frozen(storage, chain).change_context(Error::State)? {
+            return Err(report!(Error::ChainFrozen(chain.to_owned())));
+        }
+    }
+    Ok(())
 }
 
 fn normalize(chain: &ChainNameRaw) -> ChainName {
@@ -143,6 +160,18 @@ pub fn deregister_its_contract(deps: DepsMut, chain: ChainNameRaw) -> Result<Res
     Ok(Response::new().add_event(Event::ItsContractDeregistered { chain }.into()))
 }
 
+pub fn freeze_chain(deps: DepsMut, chain: ChainNameRaw) -> Result<Response, Error> {
+    state::freeze_chain(deps.storage, &chain).change_context(Error::State)?;
+
+    Ok(Response::new())
+}
+
+pub fn unfreeze_chain(deps: DepsMut, chain: ChainNameRaw) -> Result<Response, Error> {
+    state::unfreeze_chain(deps.storage, &chain).change_context(Error::State)?;
+
+    Ok(Response::new())
+}
+
 pub fn disable_execution(deps: DepsMut) -> Result<Response, Error> {
     killswitch::engage(deps.storage, Event::ExecutionDisabled).change_context(Error::State)
 }
@@ -176,15 +205,16 @@ mod tests {
     use cosmwasm_std::{Addr, HexBinary, MemoryStorage, OwnedDeps, Uint256};
     use router_api::{ChainNameRaw, CrossChainId};
 
-    use super::disable_execution;
     use crate::contract::execute::{
-        enable_execution, execute_message, register_its_contract, Error,
+        disable_execution, enable_execution, execute_message, freeze_chain, register_its_contract,
+        set_chain_config, unfreeze_chain, Error,
     };
     use crate::state::{self, Config};
     use crate::{HubMessage, Message};
 
     const SOLANA: &str = "solana";
     const ETHEREUM: &str = "ethereum";
+    const XRPL: &str = "xrpl";
 
     const ITS_ADDRESS: &str = "68d30f47F19c07bCCEf4Ac7FAE2Dc12FCa3e0dC9";
 
@@ -246,6 +276,140 @@ mod tests {
         ));
     }
 
+    #[test]
+    fn execution_should_fail_if_source_chain_is_frozen() {
+        let mut deps = mock_dependencies();
+        init(&mut deps);
+
+        let source_chain = ChainNameRaw::try_from(SOLANA).unwrap();
+        let destination_chain = ChainNameRaw::try_from(ETHEREUM).unwrap();
+
+        assert_ok!(freeze_chain(deps.as_mut(), source_chain.clone()));
+
+        let msg = HubMessage::SendToHub {
+            destination_chain,
+            message: Message::InterchainTransfer {
+                token_id: [7u8; 32].into(),
+                source_address: its_address(),
+                destination_address: its_address(),
+                amount: Uint256::one().try_into().unwrap(),
+                data: None,
+            },
+        };
+        let res = execute_message(
+            deps.as_mut(),
+            CrossChainId {
+                source_chain: source_chain.clone(),
+                message_id: HexTxHashAndEventIndex::new([1u8; 32], 0u32)
+                    .to_string()
+                    .try_into()
+                    .unwrap(),
+            },
+            ITS_ADDRESS.to_string().try_into().unwrap(),
+            msg.clone().abi_encode(),
+        );
+
+        assert_err_contains!(res, Error, Error::ChainFrozen(..));
+
+        assert_ok!(unfreeze_chain(deps.as_mut(), source_chain.clone()));
+
+        assert_ok!(execute_message(
+            deps.as_mut(),
+            CrossChainId {
+                source_chain,
+                message_id: HexTxHashAndEventIndex::new([1u8; 32], 0u32)
+                    .to_string()
+                    .try_into()
+                    .unwrap(),
+            },
+            ITS_ADDRESS.to_string().try_into().unwrap(),
+            msg.clone().abi_encode(),
+        ));
+    }
+
+    #[test]
+    fn execution_should_fail_if_destination_chain_is_frozen() {
+        let mut deps = mock_dependencies();
+        init(&mut deps);
+
+        let source_chain = ChainNameRaw::try_from(SOLANA).unwrap();
+        let destination_chain = ChainNameRaw::try_from(ETHEREUM).unwrap();
+
+        assert_ok!(freeze_chain(deps.as_mut(), destination_chain.clone()));
+
+        let msg = HubMessage::SendToHub {
+            destination_chain: destination_chain.clone(),
+            message: Message::InterchainTransfer {
+                token_id: [7u8; 32].into(),
+                source_address: its_address(),
+                destination_address: its_address(),
+                amount: Uint256::one().try_into().unwrap(),
+                data: None,
+            },
+        };
+        let cc_id = CrossChainId {
+            source_chain,
+            message_id: HexTxHashAndEventIndex::new([1u8; 32], 0u32)
+                .to_string()
+                .try_into()
+                .unwrap(),
+        };
+
+        let res = execute_message(
+            deps.as_mut(),
+            cc_id.clone(),
+            ITS_ADDRESS.to_string().try_into().unwrap(),
+            msg.clone().abi_encode(),
+        );
+        assert_err_contains!(res, Error, Error::ChainFrozen(..));
+
+        assert_ok!(unfreeze_chain(deps.as_mut(), destination_chain));
+
+        assert_ok!(execute_message(
+            deps.as_mut(),
+            cc_id,
+            ITS_ADDRESS.to_string().try_into().unwrap(),
+            msg.clone().abi_encode(),
+        ));
+    }
+
+    #[test]
+    fn frozen_chain_that_is_not_source_or_destination_should_not_affect_execution() {
+        let mut deps = mock_dependencies();
+        init(&mut deps);
+
+        let source_chain = ChainNameRaw::try_from(SOLANA).unwrap();
+        let destination_chain = ChainNameRaw::try_from(ETHEREUM).unwrap();
+        let other_chain = ChainNameRaw::try_from(XRPL).unwrap();
+
+        assert_ok!(freeze_chain(deps.as_mut(), other_chain.clone()));
+
+        let msg = HubMessage::SendToHub {
+            destination_chain: destination_chain.clone(),
+            message: Message::InterchainTransfer {
+                token_id: [7u8; 32].into(),
+                source_address: its_address(),
+                destination_address: its_address(),
+                amount: Uint256::one().try_into().unwrap(),
+                data: None,
+            },
+        };
+        let cc_id = CrossChainId {
+            source_chain,
+            message_id: HexTxHashAndEventIndex::new([1u8; 32], 0u32)
+                .to_string()
+                .try_into()
+                .unwrap(),
+        };
+
+        assert_ok!(execute_message(
+            deps.as_mut(),
+            cc_id.clone(),
+            ITS_ADDRESS.to_string().try_into().unwrap(),
+            msg.clone().abi_encode(),
+        ));
+    }
+
     fn init(deps: &mut OwnedDeps<MemoryStorage, MockApi, MockQuerier>) {
         assert_ok!(permission_control::set_admin(
             deps.as_mut().storage,
@@ -267,19 +431,20 @@ mod tests {
             deps.as_mut().storage,
             killswitch::State::Disengaged
         ));
-        let amplifier_chain = ChainNameRaw::try_from(SOLANA).unwrap();
-        let core_chain = ChainNameRaw::try_from(ETHEREUM).unwrap();
 
-        assert_ok!(register_its_contract(
-            deps.as_mut(),
-            core_chain.clone(),
-            ITS_ADDRESS.to_string().try_into().unwrap(),
-        ));
-
-        assert_ok!(register_its_contract(
-            deps.as_mut(),
-            amplifier_chain.clone(),
-            ITS_ADDRESS.to_string().try_into().unwrap(),
-        ));
+        for chain_name in [SOLANA, ETHEREUM, XRPL] {
+            let chain = ChainNameRaw::try_from(chain_name).unwrap();
+            assert_ok!(register_its_contract(
+                deps.as_mut(),
+                chain.clone(),
+                ITS_ADDRESS.to_string().try_into().unwrap(),
+            ));
+            assert_ok!(set_chain_config(
+                deps.as_mut(),
+                chain,
+                Uint256::one().try_into().unwrap(),
+                16u8
+            ));
+        }
     }
 }
