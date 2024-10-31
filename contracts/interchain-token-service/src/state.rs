@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use axelar_wasm_std::{nonempty, IntoContractError};
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{ensure, Addr, Storage};
+use cosmwasm_std::{ensure, Addr, StdError, Storage};
 use cw_storage_plus::{Item, Map};
 use error_stack::{report, Result, ResultExt};
 use router_api::{Address, ChainNameRaw};
@@ -15,6 +15,8 @@ pub enum Error {
     ItsContractNotFound(ChainNameRaw),
     #[error("its address for chain {0} already registered")]
     ItsContractAlreadyRegistered(ChainNameRaw),
+    #[error("chain not found {0}")]
+    ChainNotFound(ChainNameRaw),
     // This is a generic error to use when cw_storage_plus returns an error that is unexpected and
     // should never happen, such as an error encountered when saving data.
     #[error("storage error")]
@@ -30,11 +32,11 @@ pub struct Config {
 pub struct ChainConfig {
     max_uint: nonempty::Uint256,
     max_target_decimals: u8,
+    frozen: bool,
 }
 
 const CONFIG: Item<Config> = Item::new("config");
 const ITS_CONTRACTS: Map<&ChainNameRaw, Address> = Map::new("its_contracts");
-const FROZEN_CHAINS: Map<&ChainNameRaw, ()> = Map::new("frozen_chains");
 const CHAIN_CONFIGS: Map<&ChainNameRaw, ChainConfig> = Map::new("chain_configs");
 
 pub fn load_config(storage: &dyn Storage) -> Config {
@@ -69,6 +71,7 @@ pub fn save_chain_config(
             &ChainConfig {
                 max_uint,
                 max_target_decimals,
+                frozen: false,
             },
         )
         .change_context(Error::Storage)
@@ -125,20 +128,35 @@ pub fn load_all_its_contracts(
 }
 
 pub fn is_chain_frozen(storage: &dyn Storage, chain: &ChainNameRaw) -> Result<bool, Error> {
-    FROZEN_CHAINS
-        .may_load(storage, chain)
-        .change_context(Error::Storage)
-        .map(|res| res.is_some())
+    CHAIN_CONFIGS
+        .load(storage, chain)
+        .change_context(Error::ChainNotFound(chain.to_owned()))
+        .map(|chain_config| chain_config.frozen)
 }
 
-pub fn freeze_chain(storage: &mut dyn Storage, chain: &ChainNameRaw) -> Result<(), Error> {
-    FROZEN_CHAINS
-        .save(storage, chain, &())
-        .change_context(Error::Storage)
+pub fn freeze_chain(storage: &mut dyn Storage, chain: &ChainNameRaw) -> Result<ChainConfig, Error> {
+    CHAIN_CONFIGS
+        .update(storage, chain, |elt| match elt {
+            Some(x) => Ok(ChainConfig { frozen: true, ..x }),
+            None => Err(StdError::NotFound {
+                kind: "chain not found".to_string(),
+            }),
+        })
+        .change_context(Error::ChainNotFound(chain.to_owned()))
 }
 
-pub fn unfreeze_chain(storage: &mut dyn Storage, chain: &ChainNameRaw) {
-    FROZEN_CHAINS.remove(storage, chain)
+pub fn unfreeze_chain(
+    storage: &mut dyn Storage,
+    chain: &ChainNameRaw,
+) -> Result<ChainConfig, Error> {
+    CHAIN_CONFIGS
+        .update(storage, chain, |elt| match elt {
+            Some(x) => Ok(ChainConfig { frozen: false, ..x }),
+            None => Err(StdError::NotFound {
+                kind: "chain not found".to_string(),
+            }),
+        })
+        .change_context(Error::ChainNotFound(chain.to_owned()))
 }
 
 #[cfg(test)]

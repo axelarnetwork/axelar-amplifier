@@ -59,10 +59,10 @@ pub fn execute_message(
             destination_chain,
             message,
         } => {
-            verify_chains_not_frozen(deps.storage, &cc_id.source_chain, &destination_chain)?;
-
             let destination_address = load_its_contract(deps.storage, &destination_chain)
                 .change_context_lazy(|| Error::UnknownChain(destination_chain.clone()))?;
+
+            verify_chains_not_frozen(deps.storage, &cc_id.source_chain, &destination_chain)?;
 
             let destination_payload = HubMessage::ReceiveFromHub {
                 source_chain: cc_id.source_chain.clone(),
@@ -167,7 +167,7 @@ pub fn freeze_chain(deps: DepsMut, chain: ChainNameRaw) -> Result<Response, Erro
 }
 
 pub fn unfreeze_chain(deps: DepsMut, chain: ChainNameRaw) -> Result<Response, Error> {
-    state::unfreeze_chain(deps.storage, &chain);
+    state::unfreeze_chain(deps.storage, &chain).change_context(Error::State)?;
 
     Ok(Response::new())
 }
@@ -207,7 +207,7 @@ mod tests {
 
     use crate::contract::execute::{
         disable_execution, enable_execution, execute_message, freeze_chain, register_its_contract,
-        unfreeze_chain, Error,
+        set_chain_config, unfreeze_chain, Error,
     };
     use crate::state::{self, Config};
     use crate::{HubMessage, Message};
@@ -438,6 +438,12 @@ mod tests {
                 deps.as_mut(),
                 chain.clone(),
                 ITS_ADDRESS.to_string().try_into().unwrap(),
+            ));
+            assert_ok!(set_chain_config(
+                deps.as_mut(),
+                chain,
+                Uint256::one().try_into().unwrap(),
+                16u8
             ));
         }
     }
