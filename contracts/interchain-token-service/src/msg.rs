@@ -53,7 +53,7 @@ pub enum ExecuteMsg {
     SetChainConfig {
         chain: ChainNameRaw,
         max_uint: nonempty::Uint256, // The maximum uint value that is supported by the chain's token standard
-        max_target_decimals: u8, // The maximum number of decimals that is preserved when deploying a token to anothe chain where smaller uint values are used
+        max_target_decimals: u8, // The maximum number of decimals that is preserved when deploying a token to another chain where smaller uint values are used
     },
 }
 
