@@ -41,6 +41,8 @@ pub enum Error {
     QueryAllItsContracts,
     #[error("failed to query token info")]
     QueryTokenInfo,
+    #[error("failed to query token config")]
+    QueryTokenConfig,
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -138,6 +140,9 @@ pub fn query(deps: Deps, _: Env, msg: QueryMsg) -> Result<Binary, ContractError>
         }
         QueryMsg::TokenInfo { chain, token_id } => {
             query::token_info(deps, chain, token_id).change_context(Error::QueryTokenInfo)
+        }
+        QueryMsg::TokenConfig { token_id } => {
+            query::token_config(deps, token_id).change_context(Error::QueryTokenConfig)
         }
     }?
     .then(Ok)

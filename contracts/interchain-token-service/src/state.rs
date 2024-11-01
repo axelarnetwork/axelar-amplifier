@@ -58,10 +58,17 @@ pub enum TokenDeploymentType {
     CustomMinter,
 }
 
+/// Global config for a token.
+#[cw_serde]
+pub struct TokenConfig {
+    origin_chain: ChainNameRaw,
+}
+
 const CONFIG: Item<Config> = Item::new("config");
 const ITS_CONTRACTS: Map<&ChainNameRaw, Address> = Map::new("its_contracts");
 const CHAIN_CONFIGS: Map<&ChainNameRaw, ChainConfig> = Map::new("chain_configs");
 const TOKEN_INFO: Map<&(ChainNameRaw, TokenId), TokenChainInfo> = Map::new("token_info");
+const TOKEN_CONFIGS: Map<&TokenId, TokenConfig> = Map::new("token_configs");
 
 pub fn load_config(storage: &dyn Storage) -> Config {
     CONFIG
@@ -154,6 +161,21 @@ pub fn may_load_token_info(
     token_id: TokenId,
 ) -> Result<Option<TokenChainInfo>, Error> {
     Ok(TOKEN_INFO.may_load(storage, &(chain, token_id))?)
+}
+
+pub fn may_load_token_config(
+    storage: &dyn Storage,
+    token_id: TokenId,
+) -> Result<Option<TokenConfig>, Error> {
+    Ok(TOKEN_CONFIGS.may_load(storage, &token_id)?)
+}
+
+pub fn save_token_config(
+    storage: &mut dyn Storage,
+    token_id: TokenId,
+    token_config: &TokenConfig,
+) -> Result<(), Error> {
+    Ok(TOKEN_CONFIGS.save(storage, &token_id, token_config)?)
 }
 
 impl TokenSupply {

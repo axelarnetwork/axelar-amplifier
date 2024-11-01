@@ -6,7 +6,7 @@ use cosmwasm_schema::{cw_serde, QueryResponses};
 use msgs_derive::EnsurePermissions;
 use router_api::{Address, ChainNameRaw};
 
-use crate::state::TokenChainInfo;
+use crate::state::{TokenChainInfo, TokenConfig};
 use crate::TokenId;
 
 #[cw_serde]
@@ -67,4 +67,7 @@ pub enum QueryMsg {
         chain: ChainNameRaw,
         token_id: TokenId,
     },
+    /// Query the token config for a token
+    #[returns(Option<TokenConfig>)]
+    TokenConfig { token_id: TokenId },
 }
