@@ -224,6 +224,8 @@ fn translate_amount_on_token_transfer(
                 .change_context(Error::State)?;
             let dest_chain_decimals = state::load_token_decimals(storage, dest_chain, token_id)
                 .change_context(Error::State)?;
+            let dest_chain_config =
+                state::load_chain_config(storage, dest_chain).change_context(Error::State)?;
 
             // dest_chain_amount = amount * 10 ^ (dest_chain_decimals - src_chain_decimals)
             // It's intentionally written in this way since the end result may still be fine even if
@@ -268,6 +270,14 @@ fn translate_amount_on_token_transfer(
                         amount,
                     })?
             };
+
+            if dest_chain_amount.gt(&dest_chain_config.max_uint) {
+                bail!(Error::InvalidTransferAmount {
+                    source_chain: src_chain.to_owned(),
+                    destination_chain: dest_chain.to_owned(),
+                    amount,
+                })
+            }
 
             Ok(Message::InterchainTransfer {
                 token_id,
