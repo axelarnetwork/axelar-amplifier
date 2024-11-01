@@ -84,11 +84,11 @@ pub fn execute_message(
             let destination_address = load_its_contract(deps.storage, &destination_chain)
                 .change_context_lazy(|| Error::UnknownChain(destination_chain.clone()))?;
 
-            for chain in [
+            for message_direction in [
                 MessageDirection::From(cc_id.source_chain.clone()),
                 MessageDirection::To(destination_chain.clone()),
             ] {
-                apply_checks(deps.storage, &message, chain)?;
+                apply_checks(deps.storage, &message, message_direction)?;
             }
 
             let destination_payload = HubMessage::ReceiveFromHub {
@@ -117,7 +117,7 @@ pub fn execute_message(
     }
 }
 
-fn chain_frozen_check(storage: &dyn Storage, chain: &ChainNameRaw) -> Result<(), Error> {
+fn ensure_chain_not_frozen(storage: &dyn Storage, chain: &ChainNameRaw) -> Result<(), Error> {
     ensure!(
         !is_chain_frozen(storage, chain).change_context(Error::State)?,
         Error::ChainFrozen(chain.to_owned())
@@ -231,14 +231,14 @@ fn apply_checks(
     .change_context(Error::State)?;
 
     // Validation checks
-    chain_frozen_check(storage, &message_direction.clone().into())?;
-    token_redeployment_check(message, &message_direction, &token_chain_info)?;
-    token_deployment_origin_chain_check(storage, message, &message_direction, &token_chain_info)?;
+    ensure_chain_not_frozen(storage, &message_direction.clone().into())?;
+    ensure_token_not_redeployed(message, &message_direction, token_chain_info.as_ref())?;
+    ensure_token_deployed_from_origin_chain(storage, message, &message_direction, token_chain_info.as_ref())?;
 
     // Transformations
-    let token_chain_info = token_deployment_check(message, &message_direction, token_chain_info)?
+    let token_chain_info = track_token_supply(message, &message_direction, token_chain_info)?
         .then(|token_chain_info| {
-        token_supply_check(message, &message_direction, token_chain_info)
+        update_token_supply(message, &message_direction, token_chain_info)
     })?;
 
     state::save_token_chain_info(
@@ -252,11 +252,11 @@ fn apply_checks(
 
 /// Ensures that the token is being redeployed from the same origin chain.
 /// If it's being deployed for the first time, the from chain is saved as the origin chain in the token config.
-fn token_deployment_origin_chain_check(
+fn ensure_token_deployed_from_origin_chain(
     storage: &mut dyn Storage,
     message: &Message,
     message_direction: &MessageDirection,
-    token_chain_info: &Option<TokenChainInfo>,
+    token_chain_info: Option<&TokenChainInfo>,
 ) -> Result<(), Error> {
     // Token cannot be redeployed to the destination chain
     if !matches!(
@@ -311,10 +311,10 @@ fn token_deployment_origin_chain_check(
 }
 
 /// Ensures that the token is not being redeployed to the same destination chain.
-fn token_redeployment_check(
+fn ensure_token_not_redeployed(
     message: &Message,
     message_direction: &MessageDirection,
-    token_chain_info: &Option<TokenChainInfo>,
+    token_chain_info: Option<&TokenChainInfo>,
 ) -> Result<(), Error> {
     if matches!(
         message,
@@ -334,7 +334,7 @@ fn token_redeployment_check(
 /// Ensures that the token info is recorded on deployment.
 /// The token supply tracking is also enabled on deployment for trustless token deployments (i.e no minter set).
 /// Tokens that haven't been deployed yet cannot be transferred.
-fn token_deployment_check(
+fn track_token_supply(
     message: &Message,
     message_direction: &MessageDirection,
     token_chain_info: Option<TokenChainInfo>,
@@ -362,7 +362,7 @@ fn token_deployment_check(
 /// Updates the token supply for the chain on a transfer.
 /// Ensures that the transfer `amount <= supply` for the chain,
 /// i.e no more than the token supply for the chain can be transferred out of the chain.
-fn token_supply_check(
+fn update_token_supply(
     message: &Message,
     message_direction: &MessageDirection,
     mut token_chain_info: TokenChainInfo,
