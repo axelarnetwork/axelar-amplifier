@@ -6,7 +6,7 @@ use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
 use crate::events::Event;
 use crate::primitives::HubMessage;
 use crate::state::{self, load_config, load_its_contract, DirectionalChain, TokenDeploymentType};
-use crate::{Message, TokenId, TokenInfo, TokenType};
+use crate::{Message, TokenId, TokenInfo};
 
 #[derive(thiserror::Error, Debug, IntoContractError)]
 pub enum Error {
@@ -232,23 +232,20 @@ fn token_redeployment_check(
     directional_chain: &DirectionalChain,
     token_info: Option<TokenInfo>,
 ) -> Result<Option<TokenInfo>, Error> {
-    match (&token_info, message) {
-        (None, Message::InterchainTransfer { token_id, .. }) => bail!(Error::TokenNotDeployed {
-            token_id: token_id.clone(),
+    // Token cannot be redeployed to the destination chain
+    if matches!(
+        message,
+        Message::DeployInterchainToken { .. } | Message::DeployTokenManager { .. }
+    ) && matches!(directional_chain, DirectionalChain::Destination(_))
+        && token_info.is_some()
+    {
+        bail!(Error::TokenAlreadyDeployed {
+            token_id: message.token_id(),
             chain: directional_chain.clone().into(),
-        }),
-        (
-            Some(_),
-            Message::DeployInterchainToken { token_id, .. }
-            | Message::DeployTokenManager { token_id, .. },
-        ) if TokenType::from(directional_chain) != TokenType::Origin => {
-            bail!(Error::TokenAlreadyDeployed {
-                token_id: token_id.clone(),
-                chain: directional_chain.clone().into(),
-            })
-        }
-        _ => Ok(token_info),
+        });
     }
+
+    Ok(token_info)
 }
 
 fn token_deployment_handler(
@@ -256,27 +253,23 @@ fn token_deployment_handler(
     directional_chain: &DirectionalChain,
     token_info: Option<TokenInfo>,
 ) -> Result<TokenInfo, Error> {
-    let token_deployment_type = match (token_info, message) {
-        (Some(token_info), _) => return Ok(token_info),
-        (None, Message::DeployInterchainToken { minter: None, .. }) => {
-            TokenDeploymentType::Trustless
-        }
-        (None, Message::DeployInterchainToken { .. } | Message::DeployTokenManager { .. }) => {
+    if let Some(token_info) = token_info {
+        return Ok(token_info);
+    }
+
+    let token_deployment_type = match message {
+        Message::DeployInterchainToken { minter: None, .. } => TokenDeploymentType::Trustless,
+        Message::DeployInterchainToken { .. } | Message::DeployTokenManager { .. } => {
             TokenDeploymentType::CustomMinter
         }
-        // TODO: Should we panic on this since the previous handler will check it, or should we merge the handlers to avoid this scenario, albeit adding a bit more complexity?
-        (None, _) => bail!(Error::TokenNotDeployed {
+        Message::InterchainTransfer { .. } => bail!(Error::TokenNotDeployed {
             token_id: message.token_id(),
             chain: directional_chain.clone().into(),
         }),
     };
 
-    let token_type: TokenType = directional_chain.into();
-    let balance = (token_type.clone(), token_deployment_type).into();
-
     Ok(TokenInfo {
-        balance,
-        token_type,
+        balance: (directional_chain, token_deployment_type).into(),
     })
 }
 

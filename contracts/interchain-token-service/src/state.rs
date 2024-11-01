@@ -16,21 +16,6 @@ pub enum Error {
     ItsContractNotFound(ChainNameRaw),
     #[error("its address for chain {0} already registered")]
     ItsContractAlreadyRegistered(ChainNameRaw),
-    #[error("token {token_id} already deployed on chain {chain}")]
-    TokenAlreadyDeployed {
-        token_id: TokenId,
-        chain: ChainNameRaw,
-    },
-    #[error("token {token_id} not deployed")]
-    TokenNotDeployed {
-        token_id: TokenId,
-        chain: ChainNameRaw,
-    },
-    #[error("balance invariant violated for token {token_id} on chain {chain}")]
-    TokenBalanceInvariantViolated {
-        token_id: TokenId,
-        chain: ChainNameRaw,
-    },
 }
 
 #[cw_serde]
@@ -54,17 +39,8 @@ pub enum TokenBalance {
 }
 
 #[cw_serde]
-pub enum TokenType {
-    /// The token originated on this chain.
-    Origin,
-    /// The token was deployed to this chain.
-    Remote,
-}
-
-#[cw_serde]
 pub struct TokenInfo {
     pub balance: TokenBalance,
-    pub token_type: TokenType,
 }
 
 #[derive(Clone)]
@@ -79,15 +55,6 @@ pub enum TokenDeploymentType {
     Trustless,
     /// The token has a custom minter.
     CustomMinter,
-}
-
-impl From<&DirectionalChain> for TokenType {
-    fn from(directional_chain: &DirectionalChain) -> Self {
-        match directional_chain {
-            DirectionalChain::Source(_) => TokenType::Origin,
-            DirectionalChain::Destination(_) => TokenType::Remote,
-        }
-    }
 }
 
 impl From<DirectionalChain> for ChainNameRaw {
@@ -234,11 +201,13 @@ impl TokenInfo {
     }
 }
 
-impl From<(TokenType, TokenDeploymentType)> for TokenBalance {
-    fn from((token_type, token_deployment_type): (TokenType, TokenDeploymentType)) -> Self {
-        match (token_type, token_deployment_type) {
+impl From<(&DirectionalChain, TokenDeploymentType)> for TokenBalance {
+    fn from(
+        (directional_chain, token_deployment_type): (&DirectionalChain, TokenDeploymentType),
+    ) -> Self {
+        match (directional_chain, token_deployment_type) {
             // Token balances are tracked for remote trustless tokens
-            (TokenType::Remote, TokenDeploymentType::Trustless) => {
+            (DirectionalChain::Destination(_), TokenDeploymentType::Trustless) => {
                 TokenBalance::Tracked(Uint256::zero())
             }
             _ => TokenBalance::Untracked,
