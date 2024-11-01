@@ -204,9 +204,9 @@ impl TokenChainInfo {
     pub fn update_supply(
         &mut self,
         amount: nonempty::Uint256,
-        directional_chain: MessageDirection,
+        message_direction: MessageDirection,
     ) -> Result<(), OverflowError> {
-        self.supply = match directional_chain {
+        self.supply = match message_direction {
             MessageDirection::From(_) => self.supply.checked_sub(amount)?,
             MessageDirection::To(_) => self.supply.checked_add(amount)?,
         };
@@ -217,9 +217,9 @@ impl TokenChainInfo {
 
 impl From<(&MessageDirection, TokenDeploymentType)> for TokenSupply {
     fn from(
-        (directional_chain, token_deployment_type): (&MessageDirection, TokenDeploymentType),
+        (message_direction, token_deployment_type): (&MessageDirection, TokenDeploymentType),
     ) -> Self {
-        match (directional_chain, token_deployment_type) {
+        match (message_direction, token_deployment_type) {
             // Token supply is only tracked for trustless tokens deployed to remote chains
             (MessageDirection::To(_), TokenDeploymentType::Trustless) => {
                 TokenSupply::Tracked(Uint256::zero())
@@ -230,8 +230,8 @@ impl From<(&MessageDirection, TokenDeploymentType)> for TokenSupply {
 }
 
 impl From<MessageDirection> for ChainNameRaw {
-    fn from(directional_chain: MessageDirection) -> Self {
-        match directional_chain {
+    fn from(message_direction: MessageDirection) -> Self {
+        match message_direction {
             MessageDirection::From(chain) => chain,
             MessageDirection::To(chain) => chain,
         }

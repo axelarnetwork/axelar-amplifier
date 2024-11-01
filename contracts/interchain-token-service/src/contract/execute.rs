@@ -213,27 +213,27 @@ pub fn set_chain_config(
 fn apply_handlers(
     storage: &mut dyn Storage,
     message: &Message,
-    directional_chain: MessageDirection,
+    message_direction: MessageDirection,
 ) -> Result<(), Error> {
     let token_info = state::may_load_token_info(
         storage,
-        directional_chain.clone().into(),
+        message_direction.clone().into(),
         message.token_id(),
     )
     .change_context_lazy(|| Error::LoadTokenInfo(message.token_id()))?;
 
     // Note: The order of the handlers is important
     let token_info = token_info
-        .then(|token_info| token_redeployment_check(message, &directional_chain, token_info))?
+        .then(|token_info| token_redeployment_check(message, &message_direction, token_info))?
         .then(|token_info| {
-            token_deployment_origin_chain_handler(storage, message, &directional_chain, token_info)
+            token_deployment_origin_chain_handler(storage, message, &message_direction, token_info)
         })?
-        .then(|token_info| token_deployment_handler(message, &directional_chain, token_info))?
-        .then(|token_info| token_supply_handler(message, &directional_chain, token_info))?;
+        .then(|token_info| token_deployment_handler(message, &message_direction, token_info))?
+        .then(|token_info| token_supply_handler(message, &message_direction, token_info))?;
 
     state::save_token_info(
         storage,
-        directional_chain.into(),
+        message_direction.into(),
         message.token_id(),
         &token_info,
     )
@@ -243,14 +243,14 @@ fn apply_handlers(
 fn token_deployment_origin_chain_handler(
     storage: &mut dyn Storage,
     message: &Message,
-    directional_chain: &MessageDirection,
+    message_direction: &MessageDirection,
     token_info: Option<TokenChainInfo>,
 ) -> Result<Option<TokenChainInfo>, Error> {
     // Token cannot be redeployed to the destination chain
     if !matches!(
         message,
         Message::DeployInterchainToken { .. } | Message::DeployTokenManager { .. }
-    ) || !matches!(directional_chain, MessageDirection::From(_))
+    ) || !matches!(message_direction, MessageDirection::From(_))
     {
         return Ok(token_info);
     }
@@ -261,11 +261,11 @@ fn token_deployment_origin_chain_handler(
     if let Some(TokenConfig { origin_chain, .. }) = token_config {
         // Token can only be redeployed from the same origin chain
         ensure!(
-            origin_chain == ChainNameRaw::from(directional_chain.clone()),
+            origin_chain == ChainNameRaw::from(message_direction.clone()),
             Error::TokenDeployedFromNonOriginChain {
                 token_id: message.token_id(),
                 origin_chain,
-                chain: directional_chain.clone().into(),
+                chain: message_direction.clone().into(),
             }
         );
 
@@ -274,13 +274,13 @@ fn token_deployment_origin_chain_handler(
             token_info.is_some(),
             Error::TokenNotDeployed {
                 token_id: message.token_id(),
-                chain: directional_chain.clone().into(),
+                chain: message_direction.clone().into(),
             }
         );
     } else {
         // Token is being deployed for the first time
         let token_config = TokenConfig {
-            origin_chain: ChainNameRaw::from(directional_chain.clone()),
+            origin_chain: ChainNameRaw::from(message_direction.clone()),
         };
 
         state::save_token_config(storage, &message.token_id(), &token_config)
@@ -290,7 +290,7 @@ fn token_deployment_origin_chain_handler(
             token_info.is_none(),
             Error::TokenAlreadyDeployed {
                 token_id: message.token_id(),
-                chain: directional_chain.clone().into(),
+                chain: message_direction.clone().into(),
             }
         );
     }
@@ -300,19 +300,19 @@ fn token_deployment_origin_chain_handler(
 
 fn token_redeployment_check(
     message: &Message,
-    directional_chain: &MessageDirection,
+    message_direction: &MessageDirection,
     token_info: Option<TokenChainInfo>,
 ) -> Result<Option<TokenChainInfo>, Error> {
     // Token cannot be redeployed to the destination chain
     if matches!(
         message,
         Message::DeployInterchainToken { .. } | Message::DeployTokenManager { .. }
-    ) && matches!(directional_chain, MessageDirection::To(_))
+    ) && matches!(message_direction, MessageDirection::To(_))
         && token_info.is_some()
     {
         bail!(Error::TokenAlreadyDeployed {
             token_id: message.token_id(),
-            chain: directional_chain.clone().into(),
+            chain: message_direction.clone().into(),
         });
     }
 
@@ -321,7 +321,7 @@ fn token_redeployment_check(
 
 fn token_deployment_handler(
     message: &Message,
-    directional_chain: &MessageDirection,
+    message_direction: &MessageDirection,
     token_info: Option<TokenChainInfo>,
 ) -> Result<TokenChainInfo, Error> {
     if let Some(token_info) = token_info {
@@ -335,18 +335,18 @@ fn token_deployment_handler(
         }
         Message::InterchainTransfer { .. } => bail!(Error::TokenNotDeployed {
             token_id: message.token_id(),
-            chain: directional_chain.clone().into(),
+            chain: message_direction.clone().into(),
         }),
     };
 
     Ok(TokenChainInfo::new(
-        (directional_chain, token_deployment_type).into(),
+        (message_direction, token_deployment_type).into(),
     ))
 }
 
 fn token_supply_handler(
     message: &Message,
-    directional_chain: &MessageDirection,
+    message_direction: &MessageDirection,
     mut token_info: TokenChainInfo,
 ) -> Result<TokenChainInfo, Error> {
     if let Message::InterchainTransfer {
@@ -354,10 +354,10 @@ fn token_supply_handler(
     } = message
     {
         token_info
-            .update_supply(*amount, directional_chain.clone())
+            .update_supply(*amount, message_direction.clone())
             .change_context_lazy(|| Error::TokenSupplyInvariantViolated {
                 token_id: token_id.clone(),
-                chain: directional_chain.clone().into(),
+                chain: message_direction.clone().into(),
             })?;
     }
 
@@ -388,13 +388,13 @@ fn token_supply_handler(
 // fn apply_supply_invariant(
 //     storage: &mut dyn Storage,
 //     message: &Message,
-//     directional_chain: DirectionalChain,
+//     message_direction: DirectionalChain,
 // ) -> Result<(), Error> {
 //     match message {
 //         Message::InterchainTransfer {
 //             token_id, amount, ..
 //         } => {
-//             state::update_token_info(storage, directional_chain, token_id.clone(), *amount)
+//             state::update_token_info(storage, message_direction, token_id.clone(), *amount)
 //                 .change_context_lazy(|| Error::UpdateTokenInfo(token_id.clone()))?;
 //         }
 //         Message::DeployInterchainToken {
@@ -404,7 +404,7 @@ fn token_supply_handler(
 //         } => {
 //             state::save_token_info(
 //                 storage,
-//                 directional_chain,
+//                 message_direction,
 //                 token_id.clone(),
 //                 TokenDeploymentType::Trustless,
 //             )
@@ -418,7 +418,7 @@ fn token_supply_handler(
 //         | Message::DeployTokenManager { token_id, .. } => {
 //             state::save_token_info(
 //                 storage,
-//                 directional_chain,
+//                 message_direction,
 //                 token_id.clone(),
 //                 TokenDeploymentType::CustomMinter,
 //             )
