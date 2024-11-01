@@ -7,8 +7,7 @@ use axelar_wasm_std::error::ContractError;
 use axelar_wasm_std::nonempty;
 use cosmwasm_std::testing::{mock_env, mock_info, MockApi, MockQuerier, MockStorage};
 use cosmwasm_std::{
-    from_json, to_json_binary, Addr, DepsMut, HexBinary, MemoryStorage, OwnedDeps, Response,
-    WasmQuery,
+    from_json, to_json_binary, Addr, DepsMut, HexBinary, MemoryStorage, OwnedDeps, Response, Uint256, WasmQuery
 };
 use interchain_token_service::msg::ExecuteMsg;
 use interchain_token_service::{contract, HubMessage};
@@ -16,6 +15,7 @@ use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
 
 use super::{instantiate_contract, TestMessage};
 use crate::utils::params;
+use assert_ok::assert_ok;
 
 pub fn execute(
     deps: DepsMut,
@@ -153,6 +153,23 @@ pub fn setup() -> (
         destination_its_contract.clone(),
     )
     .unwrap();
+
+    let max_uint: nonempty::Uint256 = Uint256::MAX.try_into().unwrap();
+    let decimals = u8::MAX;
+
+    assert_ok!(set_chain_config(
+        deps.as_mut(),
+        source_its_chain,
+        max_uint,
+        decimals
+    ));
+
+    assert_ok!(set_chain_config(
+        deps.as_mut(),
+        destination_its_chain,
+        max_uint,
+        decimals
+    ));
 
     (deps, TestMessage::dummy())
 }
