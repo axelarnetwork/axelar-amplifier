@@ -275,6 +275,14 @@ fn translate_amount(
 }
 
 #[allow(unused)]
+/// Translates the amount on token transfer.
+///
+/// The amount is translated from the source chain to the destination chain based on the token
+/// decimals of the source and destination chains. The translation is done as following:
+/// 1) new_amount = amount * 10 ^ (dest_chain_decimals - src_chain_decimals)
+/// 3) If new_amount is greater than the destination chain's `max_uint`, the translation
+/// fails.
+/// 4) If new_amount is zero, the translation fails.
 fn translate_amount_on_token_transfer(
     storage: &dyn Storage,
     src_chain: &ChainNameRaw,
