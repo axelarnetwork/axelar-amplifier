@@ -1,6 +1,5 @@
 use std::marker::PhantomData;
 
-use assert_ok::assert_ok;
 use axelar_core_std::nexus;
 use axelar_core_std::nexus::query::IsChainRegisteredResponse;
 use axelar_core_std::query::AxelarQueryMsg;
@@ -127,6 +126,21 @@ pub fn make_deps() -> OwnedDeps<MemoryStorage, MockApi, MockQuerier<AxelarQueryM
     deps
 }
 
+pub fn register_chain(
+    deps: &mut OwnedDeps<MemoryStorage, MockApi, MockQuerier<AxelarQueryMsg>>,
+    chain: ChainNameRaw,
+    its_contract: Address,
+) {
+    register_its_contract(deps.as_mut(), chain.clone(), its_contract).unwrap();
+    set_chain_config(
+        deps.as_mut(),
+        chain,
+        Uint256::MAX.try_into().unwrap(),
+        u8::MAX,
+    )
+    .unwrap();
+}
+
 pub fn setup() -> (
     OwnedDeps<MemoryStorage, MockApi, MockQuerier<AxelarQueryMsg>>,
     TestMessage,
@@ -142,35 +156,16 @@ pub fn setup() -> (
         ..
     } = TestMessage::dummy();
 
-    register_its_contract(
-        deps.as_mut(),
+    register_chain(
+        &mut deps,
         source_its_chain.clone(),
         source_its_contract.clone(),
-    )
-    .unwrap();
-    register_its_contract(
-        deps.as_mut(),
+    );
+    register_chain(
+        &mut deps,
         destination_its_chain.clone(),
         destination_its_contract.clone(),
-    )
-    .unwrap();
-
-    let max_uint: nonempty::Uint256 = Uint256::MAX.try_into().unwrap();
-    let decimals = u8::MAX;
-
-    assert_ok!(set_chain_config(
-        deps.as_mut(),
-        source_its_chain,
-        max_uint,
-        decimals
-    ));
-
-    assert_ok!(set_chain_config(
-        deps.as_mut(),
-        destination_its_chain,
-        max_uint,
-        decimals
-    ));
+    );
 
     (deps, TestMessage::dummy())
 }

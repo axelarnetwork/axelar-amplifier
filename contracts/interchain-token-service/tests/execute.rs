@@ -891,12 +891,11 @@ fn deploy_interchain_token_from_non_origin_chain_fails() {
 
     // Deploy the same token from a different origin chain now
     let another_chain: ChainNameRaw = "another-chain".parse().unwrap();
-    utils::register_its_contract(
-        deps.as_mut(),
+    utils::register_chain(
+        &mut deps,
         another_chain.clone(),
         source_its_contract.clone(),
-    )
-    .unwrap();
+    );
     assert_err_contains!(
         utils::execute_hub_message(
             deps.as_mut(),
@@ -928,13 +927,12 @@ fn deploy_interchain_token_to_multiple_destination_succeeds() {
         msg.clone(),
     ));
 
-    let another_chain: ChainNameRaw = "third-chain".parse().unwrap();
-    utils::register_its_contract(
-        deps.as_mut(),
+    let another_chain: ChainNameRaw = "another-chain".parse().unwrap();
+    utils::register_chain(
+        &mut deps,
         another_chain.clone(),
-        "another-its-address".parse().unwrap(),
-    )
-    .unwrap();
+        source_its_contract.clone(),
+    );
 
     let msg = HubMessage::SendToHub {
         destination_chain: another_chain,

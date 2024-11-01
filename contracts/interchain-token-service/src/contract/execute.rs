@@ -96,19 +96,12 @@ pub fn execute_message(
             let destination_address = load_its_contract(deps.storage, &destination_chain)
                 .change_context_lazy(|| Error::UnknownChain(destination_chain.clone()))?;
 
-            apply_checks(
-                deps.storage,
-                &message,
+            for chain in [
                 MessageDirection::From(cc_id.source_chain.clone()),
-            )?;
-
-            apply_checks(
-                deps.storage,
-                &message,
                 MessageDirection::To(destination_chain.clone()),
-            )?;
-
-            verify_chains_not_frozen(deps.storage, &cc_id.source_chain, &destination_chain)?;
+            ] {
+                apply_checks(deps.storage, &message, chain)?;
+            }
 
             let destination_payload = HubMessage::ReceiveFromHub {
                 source_chain: cc_id.source_chain.clone(),
@@ -136,16 +129,12 @@ pub fn execute_message(
     }
 }
 
-fn verify_chains_not_frozen(
-    storage: &dyn Storage,
-    source_chain: &ChainNameRaw,
-    destination_chain: &ChainNameRaw,
-) -> Result<(), Error> {
-    for chain in [source_chain, destination_chain] {
-        if is_chain_frozen(storage, chain).change_context(Error::State)? {
-            return Err(report!(Error::ChainFrozen(chain.to_owned())));
-        }
-    }
+fn chain_frozen_check(storage: &dyn Storage, chain: &ChainNameRaw) -> Result<(), Error> {
+    ensure!(
+        !is_chain_frozen(storage, chain).change_context(Error::State)?,
+        Error::ChainFrozen(chain.to_owned())
+    );
+
     Ok(())
 }
 
@@ -255,11 +244,12 @@ fn apply_checks(
     )
     .change_context_lazy(|| Error::LoadTokenInfo(message.token_id()))?;
 
-    // Validation checks on the token chain info
+    // Validation checks
+    chain_frozen_check(storage, &message_direction.clone().into())?;
     token_redeployment_check(message, &message_direction, &token_chain_info)?;
     token_deployment_origin_chain_check(storage, message, &message_direction, &token_chain_info)?;
 
-    // Transformations on the token chain info
+    // Transformations
     let token_chain_info = token_deployment_check(message, &message_direction, token_chain_info)?
         .then(|token_chain_info| {
         token_supply_check(message, &message_direction, token_chain_info)
@@ -519,12 +509,12 @@ mod tests {
 
         let msg = HubMessage::SendToHub {
             destination_chain,
-            message: Message::InterchainTransfer {
+            message: Message::DeployInterchainToken {
                 token_id: [7u8; 32].into(),
-                source_address: its_address(),
-                destination_address: its_address(),
-                amount: Uint256::one().try_into().unwrap(),
-                data: None,
+                name: "Test".parse().unwrap(),
+                symbol: "TEST".parse().unwrap(),
+                decimals: 18,
+                minter: None,
             },
         };
         let res = execute_message(
@@ -570,12 +560,12 @@ mod tests {
 
         let msg = HubMessage::SendToHub {
             destination_chain: destination_chain.clone(),
-            message: Message::InterchainTransfer {
+            message: Message::DeployInterchainToken {
                 token_id: [7u8; 32].into(),
-                source_address: its_address(),
-                destination_address: its_address(),
-                amount: Uint256::one().try_into().unwrap(),
-                data: None,
+                name: "Test".parse().unwrap(),
+                symbol: "TEST".parse().unwrap(),
+                decimals: 18,
+                minter: None,
             },
         };
         let cc_id = CrossChainId {
@@ -617,12 +607,12 @@ mod tests {
 
         let msg = HubMessage::SendToHub {
             destination_chain: destination_chain.clone(),
-            message: Message::InterchainTransfer {
+            message: Message::DeployInterchainToken {
                 token_id: [7u8; 32].into(),
-                source_address: its_address(),
-                destination_address: its_address(),
-                amount: Uint256::one().try_into().unwrap(),
-                data: None,
+                name: "Test".parse().unwrap(),
+                symbol: "TEST".parse().unwrap(),
+                decimals: 18,
+                minter: None,
             },
         };
         let cc_id = CrossChainId {
