@@ -6,7 +6,7 @@ use cosmwasm_std::{ensure, Addr, OverflowError, StdError, Storage, Uint256};
 use cw_storage_plus::{Item, Map};
 use router_api::{Address, ChainNameRaw};
 
-use crate::{Message, TokenId};
+use crate::TokenId;
 
 #[derive(thiserror::Error, Debug, IntoContractError)]
 pub enum Error {
@@ -41,7 +41,7 @@ pub enum TokenSupply {
 /// Information about a token on a specific chain.
 #[cw_serde]
 pub struct TokenChainInfo {
-    pub supply: TokenSupply,
+    supply: TokenSupply,
 }
 
 #[derive(Clone)]
@@ -56,15 +56,6 @@ pub enum TokenDeploymentType {
     Trustless,
     /// The token has a custom minter.
     CustomMinter,
-}
-
-impl From<MessageDirection> for ChainNameRaw {
-    fn from(directional_chain: MessageDirection) -> Self {
-        match directional_chain {
-            MessageDirection::From(chain) => chain,
-            MessageDirection::To(chain) => chain,
-        }
-    }
 }
 
 const CONFIG: Item<Config> = Item::new("config");
@@ -216,15 +207,22 @@ impl From<(&MessageDirection, TokenDeploymentType)> for TokenSupply {
     }
 }
 
-impl From<&Message> for Option<TokenDeploymentType> {
-    fn from(message: &Message) -> Self {
-        match message {
-            Message::InterchainTransfer { .. } => None,
-            Message::DeployInterchainToken { minter: None, .. } => {
-                Some(TokenDeploymentType::Trustless)
-            }
-            _ => Some(TokenDeploymentType::CustomMinter),
+impl From<MessageDirection> for ChainNameRaw {
+    fn from(directional_chain: MessageDirection) -> Self {
+        match directional_chain {
+            MessageDirection::From(chain) => chain,
+            MessageDirection::To(chain) => chain,
         }
+    }
+}
+
+impl TokenChainInfo {
+    pub fn new(supply: TokenSupply) -> Self {
+        Self { supply }
+    }
+
+    pub fn supply(&self) -> TokenSupply {
+        self.supply.clone()
     }
 }
 

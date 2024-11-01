@@ -274,9 +274,9 @@ fn token_deployment_handler(
         }),
     };
 
-    Ok(TokenChainInfo {
-        supply: (directional_chain, token_deployment_type).into(),
-    })
+    Ok(TokenChainInfo::new(
+        (directional_chain, token_deployment_type).into(),
+    ))
 }
 
 fn token_supply_handler(

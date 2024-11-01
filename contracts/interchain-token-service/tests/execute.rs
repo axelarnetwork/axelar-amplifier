@@ -491,7 +491,7 @@ fn deploy_interchain_token_tracks_supply() {
             token_id.clone()
         ))
         .unwrap()
-        .supply,
+        .supply(),
         TokenSupply::Untracked,
     );
     assert_eq!(
@@ -501,7 +501,7 @@ fn deploy_interchain_token_tracks_supply() {
             token_id.clone()
         ))
         .unwrap()
-        .supply,
+        .supply(),
         TokenSupply::Tracked(amount.into())
     );
 
@@ -534,7 +534,7 @@ fn deploy_interchain_token_tracks_supply() {
             token_id.clone()
         ))
         .unwrap()
-        .supply,
+        .supply(),
         TokenSupply::Untracked
     );
     assert_eq!(
@@ -544,7 +544,7 @@ fn deploy_interchain_token_tracks_supply() {
             token_id.clone()
         ))
         .unwrap()
-        .supply,
+        .supply(),
         TokenSupply::Tracked(Uint256::zero())
     );
 }
@@ -590,7 +590,7 @@ fn deploy_interchain_token_with_minter_does_not_track_supply() {
                 token_id.clone()
             ))
             .unwrap()
-            .supply,
+            .supply(),
             TokenSupply::Untracked,
         );
     }
@@ -642,7 +642,7 @@ fn deploy_interchain_token_with_minter_does_not_track_supply() {
                 token_id.clone()
             ))
             .unwrap()
-            .supply,
+            .supply(),
             TokenSupply::Untracked,
         );
     }
