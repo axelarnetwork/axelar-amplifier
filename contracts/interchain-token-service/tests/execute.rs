@@ -700,6 +700,56 @@ fn deploy_interchain_token_submitted_twice_fails() {
 }
 
 #[test]
+fn deploy_interchain_token_from_non_origin_chain_fails() {
+    let (
+        mut deps,
+        TestMessage {
+            router_message,
+            source_its_contract,
+            destination_its_chain,
+            ..
+        },
+    ) = utils::setup();
+
+    let token_id = TokenId::new([1u8; 32]);
+    let msg = HubMessage::SendToHub {
+        destination_chain: destination_its_chain.clone(),
+        message: Message::DeployInterchainToken {
+            token_id: token_id.clone(),
+            name: "Test".try_into().unwrap(),
+            symbol: "TST".try_into().unwrap(),
+            decimals: 18,
+            minter: None,
+        },
+    };
+    assert_ok!(utils::execute_hub_message(
+        deps.as_mut(),
+        router_message.cc_id.clone(),
+        source_its_contract.clone(),
+        msg.clone(),
+    ));
+
+    // Deploy the same token from a different origin chain now
+    let another_chain: ChainNameRaw = "another-chain".parse().unwrap();
+    utils::register_its_contract(
+        deps.as_mut(),
+        another_chain.clone(),
+        source_its_contract.clone(),
+    )
+    .unwrap();
+    assert_err_contains!(
+        utils::execute_hub_message(
+            deps.as_mut(),
+            CrossChainId::new(another_chain, router_message.cc_id.message_id).unwrap(),
+            source_its_contract,
+            msg,
+        ),
+        ExecuteError,
+        ExecuteError::TokenDeployedFromNonOriginChain { .. }
+    );
+}
+
+#[test]
 fn deploy_interchain_token_to_multiple_destination_succeeds() {
     let (
         mut deps,

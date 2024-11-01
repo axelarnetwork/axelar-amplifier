@@ -51,7 +51,7 @@ pub enum MessageDirection {
 
 /// The deployment type of the token.
 pub enum TokenDeploymentType {
-    /// The token is trustless.
+    /// The token is trustless, i.e only owned by ITS.
     Trustless,
     /// The token has a custom minter.
     CustomMinter,

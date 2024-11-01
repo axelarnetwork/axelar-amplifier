@@ -48,6 +48,12 @@ pub enum Error {
         token_id: TokenId,
         chain: ChainNameRaw,
     },
+    #[error("token {token_id} can only be deployed from its origin chain {origin_chain} and not from {chain}")]
+    TokenDeployedFromNonOriginChain {
+        token_id: TokenId,
+        origin_chain: ChainNameRaw,
+        chain: ChainNameRaw,
+    },
     #[error("state error")]
     State,
     #[error("token supply invariant violated for token {token_id} on chain {chain}")]
