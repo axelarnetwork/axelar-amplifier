@@ -220,7 +220,7 @@ fn translate_and_save_token_decimals_on_token_deployment(
             let dest_chain_decimals = if src_chain_config.max_uint.le(&dest_chain_config.max_uint) {
                 src_chain_decimals
             } else {
-                src_chain_config.max_target_decimals
+                src_chain_config.max_target_decimals.min(src_chain_decimals)
             };
 
             state::save_token_decimals(storage, src_chain, token_id, src_chain_decimals)
