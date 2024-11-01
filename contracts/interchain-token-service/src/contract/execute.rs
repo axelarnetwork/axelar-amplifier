@@ -6,7 +6,7 @@ use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
 use crate::events::Event;
 use crate::primitives::HubMessage;
 use crate::state::{self, load_config, load_its_contract, DirectionalChain, TokenDeploymentType};
-use crate::{Message, TokenId};
+use crate::{Message, TokenId, TokenInfo, TokenType};
 
 #[derive(thiserror::Error, Debug, IntoContractError)]
 pub enum Error {
@@ -34,10 +34,27 @@ pub enum Error {
     SaveChainConfig(ChainNameRaw),
     #[error("failed to save token info for token {0}")]
     SaveTokenInfo(TokenId),
-    #[error("failed to update token info for token {0}")]
-    UpdateTokenInfo(TokenId),
+    #[error("failed to load token info for token {0}")]
+    LoadTokenInfo(TokenId),
+    #[error("token info not found for token {0}")]
+    TokenInfoNotFound(TokenId),
+    #[error("token {token_id} not deployed on chain {chain}")]
+    TokenNotDeployed {
+        token_id: TokenId,
+        chain: ChainNameRaw,
+    },
+    #[error("token {token_id} already deployed on chain {chain}")]
+    TokenAlreadyDeployed {
+        token_id: TokenId,
+        chain: ChainNameRaw,
+    },
     #[error("state error")]
     State,
+    #[error("balance invariant violated for token {token_id} on chain {chain}")]
+    TokenBalanceInvariantViolated {
+        token_id: TokenId,
+        chain: ChainNameRaw,
+    },
 }
 
 /// Executes an incoming ITS message.
@@ -65,17 +82,8 @@ pub fn execute_message(
             let destination_address = load_its_contract(deps.storage, &destination_chain)
                 .change_context_lazy(|| Error::UnknownChain(destination_chain.clone()))?;
 
-            apply_balance_invariant(
-                deps.storage,
-                &message,
-                DirectionalChain::Source(cc_id.source_chain.clone()),
-            )?;
-
-            apply_balance_invariant(
-                deps.storage,
-                &message,
-                DirectionalChain::Destination(destination_chain.clone()),
-            )?;
+            apply_handlers(deps.storage, &message, DirectionalChain::Source(cc_id.source_chain.clone()))?;
+            apply_handlers(deps.storage, &message, DirectionalChain::Destination(destination_chain.clone()))?;
 
             let destination_payload = HubMessage::ReceiveFromHub {
                 source_chain: cc_id.source_chain.clone(),
@@ -184,6 +192,91 @@ pub fn set_chain_config(
     }
 }
 
+fn apply_handlers(
+    storage: &mut dyn Storage,
+    message: &Message,
+    directional_chain: DirectionalChain,
+) -> Result<(), Error> {
+    let token_info = state::may_load_token_info(storage, directional_chain.clone().into(), message.token_id())
+        .change_context_lazy(|| Error::LoadTokenInfo(message.token_id()))?;
+
+    // Note: The order of the handlers is important
+    let token_info = token_info
+        .then(|token_info| token_redeployment_check(message, &directional_chain, token_info))?
+        .then(|token_info| token_deployment_handler(message, &directional_chain, token_info))?
+        .then(|token_info| token_balance_handler(message, &directional_chain, token_info))?;
+
+    state::save_token_info(storage, directional_chain.into(), message.token_id(), token_info)
+        .change_context_lazy(|| Error::SaveTokenInfo(message.token_id()))
+}
+
+fn token_redeployment_check(
+    message: &Message,
+    directional_chain: &DirectionalChain,
+    token_info: Option<TokenInfo>,
+) -> Result<Option<TokenInfo>, Error> {
+    match (&token_info, message) {
+        (None, Message::InterchainTransfer { token_id, .. }) => bail!(Error::TokenNotDeployed {
+            token_id: token_id.clone(),
+            chain: directional_chain.clone().into(),
+        }),
+        (Some(_), Message::DeployInterchainToken { token_id, .. } | Message::DeployTokenManager { token_id, .. }) if TokenType::from(directional_chain) != TokenType::Origin => {
+            bail!(Error::TokenAlreadyDeployed {
+                token_id: token_id.clone(),
+                chain: directional_chain.clone().into(),
+            })
+        },
+        _ => Ok(token_info),
+    }
+}
+
+fn token_deployment_handler(
+    message: &Message,
+    directional_chain: &DirectionalChain,
+    token_info: Option<TokenInfo>,
+) -> Result<TokenInfo, Error> {
+    let token_deployment_type = match (token_info, message) {
+        (Some(token_info), _) => return Ok(token_info),
+        (None, Message::DeployInterchainToken { minter: None, .. }) => {
+            TokenDeploymentType::Trustless
+        },
+        (None, Message::DeployInterchainToken { .. } | Message::DeployTokenManager { .. }) => {
+            TokenDeploymentType::CustomMinter
+        },
+        // TODO: Should we panic on this since the previous handler will check it, or should we merge the handlers to avoid this scenario, albeit adding a bit more complexity?
+        (None, _) => bail!(Error::TokenNotDeployed {
+            token_id: message.token_id(),
+            chain: directional_chain.clone().into(),
+        }),
+    };
+
+    let token_type: TokenType = directional_chain.into();
+    let balance = (token_type.clone(), token_deployment_type).into();
+
+    Ok(TokenInfo {
+        balance,
+        token_type,
+    })
+}
+
+fn token_balance_handler(
+    message: &Message,
+    directional_chain: &DirectionalChain,
+    mut token_info: TokenInfo,
+) -> Result<TokenInfo, Error> {
+    if let Message::InterchainTransfer {
+            token_id, amount, ..
+        } = message {
+            token_info.update_balance(*amount, directional_chain.clone())
+                .change_context_lazy(|| Error::TokenBalanceInvariantViolated {
+                    token_id: token_id.clone(),
+                    chain: directional_chain.clone().into(),
+                })?;
+        }
+
+    Ok(token_info)
+}
+
 /// Applies invariants on the ITS message.
 ///
 /// Invariants:
@@ -205,49 +298,49 @@ pub fn set_chain_config(
 ///
 /// 3. DeployTokenManager:
 ///    - Same as the custom minter being set above. ITS Hub can't know if the existing token on the destination chain has a custom minter set.
-fn apply_balance_invariant(
-    storage: &mut dyn Storage,
-    message: &Message,
-    directional_chain: DirectionalChain,
-) -> Result<(), Error> {
-    match message {
-        Message::InterchainTransfer {
-            token_id, amount, ..
-        } => {
-            state::update_token_info(storage, directional_chain, token_id.clone(), *amount)
-                .change_context_lazy(|| Error::UpdateTokenInfo(token_id.clone()))?;
-        }
-        Message::DeployInterchainToken {
-            token_id,
-            minter: None,
-            ..
-        } => {
-            state::save_token_info(
-                storage,
-                directional_chain,
-                token_id.clone(),
-                TokenDeploymentType::Trustless,
-            )
-            .change_context_lazy(|| Error::SaveTokenInfo(token_id.clone()))?;
-        }
-        Message::DeployInterchainToken {
-            token_id,
-            minter: Some(_),
-            ..
-        }
-        | Message::DeployTokenManager { token_id, .. } => {
-            state::save_token_info(
-                storage,
-                directional_chain,
-                token_id.clone(),
-                TokenDeploymentType::CustomMinter,
-            )
-            .change_context_lazy(|| Error::SaveTokenInfo(token_id.clone()))?;
-        }
-    };
+// fn apply_balance_invariant(
+//     storage: &mut dyn Storage,
+//     message: &Message,
+//     directional_chain: DirectionalChain,
+// ) -> Result<(), Error> {
+//     match message {
+//         Message::InterchainTransfer {
+//             token_id, amount, ..
+//         } => {
+//             state::update_token_info(storage, directional_chain, token_id.clone(), *amount)
+//                 .change_context_lazy(|| Error::UpdateTokenInfo(token_id.clone()))?;
+//         }
+//         Message::DeployInterchainToken {
+//             token_id,
+//             minter: None,
+//             ..
+//         } => {
+//             state::save_token_info(
+//                 storage,
+//                 directional_chain,
+//                 token_id.clone(),
+//                 TokenDeploymentType::Trustless,
+//             )
+//             .change_context_lazy(|| Error::SaveTokenInfo(token_id.clone()))?;
+//         }
+//         Message::DeployInterchainToken {
+//             token_id,
+//             minter: Some(_),
+//             ..
+//         }
+//         | Message::DeployTokenManager { token_id, .. } => {
+//             state::save_token_info(
+//                 storage,
+//                 directional_chain,
+//                 token_id.clone(),
+//                 TokenDeploymentType::CustomMinter,
+//             )
+//             .change_context_lazy(|| Error::SaveTokenInfo(token_id.clone()))?;
+//         }
+//     };
 
-    Ok(())
-}
+//     Ok(())
+// }
 
 #[cfg(test)]
 mod tests {

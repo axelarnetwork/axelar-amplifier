@@ -6,7 +6,7 @@ use cosmwasm_std::{ensure, Addr, OverflowError, StdError, Storage, Uint256};
 use cw_storage_plus::{Item, Map};
 use router_api::{Address, ChainNameRaw};
 
-use crate::TokenId;
+use crate::{Message, TokenId};
 
 #[derive(thiserror::Error, Debug, IntoContractError)]
 pub enum Error {
@@ -182,66 +182,19 @@ pub fn load_all_its_contracts(
 
 pub fn save_token_info(
     storage: &mut dyn Storage,
-    directional_chain: DirectionalChain,
+    chain: ChainNameRaw,
     token_id: TokenId,
-    token_deployment_type: TokenDeploymentType,
+    token_info: TokenInfo,
 ) -> Result<(), Error> {
-    let token_type = TokenType::from(&directional_chain);
-    let chain: ChainNameRaw = directional_chain.into();
-
-    match TOKEN_INFO.may_load(storage, &(chain.clone(), token_id.clone()))? {
-        Some(_) if token_type == TokenType::Origin => (),
-        Some(_) => return Err(Error::TokenAlreadyDeployed { token_id, chain }),
-        None => {
-            let balance = (token_type.clone(), token_deployment_type).into();
-
-            TOKEN_INFO.save(
-                storage,
-                &(chain, token_id),
-                &TokenInfo {
-                    balance,
-                    token_type,
-                },
-            )?;
-        }
-    }
-
-    Ok(())
-}
-
-pub fn update_token_info(
-    storage: &mut dyn Storage,
-    directional_chain: DirectionalChain,
-    token_id: TokenId,
-    amount: nonempty::Uint256,
-) -> Result<(), Error> {
-    let chain: ChainNameRaw = directional_chain.clone().into();
-    let Some(mut token_config) =
-        TOKEN_INFO.may_load(storage, &(chain.clone(), token_id.clone()))?
-    else {
-        return Err(Error::TokenNotDeployed { token_id, chain });
-    };
-
-    token_config.balance = match directional_chain {
-        DirectionalChain::Source(_) => token_config.balance.checked_sub(amount),
-        DirectionalChain::Destination(_) => token_config.balance.checked_add(amount),
-    }
-    .map_err(|_| Error::TokenBalanceInvariantViolated {
-        token_id: token_id.clone(),
-        chain: chain.clone(),
-    })?;
-
-    TOKEN_INFO.save(storage, &(chain, token_id), &token_config)?;
-
-    Ok(())
+    Ok(TOKEN_INFO.save(storage, &(chain, token_id), &token_info)?)
 }
 
 pub fn may_load_token_info(
     storage: &dyn Storage,
-    chain: &ChainNameRaw,
-    token_id: &TokenId,
+    chain: ChainNameRaw,
+    token_id: TokenId,
 ) -> Result<Option<TokenInfo>, Error> {
-    Ok(TOKEN_INFO.may_load(storage, &(chain.clone(), token_id.clone()))?)
+    Ok(TOKEN_INFO.may_load(storage, &(chain, token_id))?)
 }
 
 impl TokenBalance {
@@ -264,6 +217,22 @@ impl TokenBalance {
         }
         .then(Ok)
     }
+
+}
+
+impl TokenInfo {
+    pub fn update_balance(
+        &mut self,
+        amount: nonempty::Uint256,
+        directional_chain: DirectionalChain,
+    ) -> Result<(), OverflowError> {
+        self.balance = match directional_chain {
+            DirectionalChain::Source(_) => self.balance.checked_sub(amount)?,
+            DirectionalChain::Destination(_) => self.balance.checked_add(amount)?,
+        };
+
+        Ok(())
+    }
 }
 
 impl From<(TokenType, TokenDeploymentType)> for TokenBalance {
@@ -274,6 +243,16 @@ impl From<(TokenType, TokenDeploymentType)> for TokenBalance {
                 TokenBalance::Tracked(Uint256::zero())
             }
             _ => TokenBalance::Untracked,
+        }
+    }
+}
+
+impl From<&Message> for Option<TokenDeploymentType> {
+    fn from(message: &Message) -> Self {
+        match message {
+            Message::InterchainTransfer { .. } => None,
+            Message::DeployInterchainToken { minter: None, .. } => Some(TokenDeploymentType::Trustless),
+            _ => Some(TokenDeploymentType::CustomMinter),
         }
     }
 }

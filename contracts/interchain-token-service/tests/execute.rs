@@ -621,7 +621,7 @@ fn interchain_transfer_exceeds_balance_invariant_fails() {
             msg,
         ),
         ExecuteError,
-        ExecuteError::UpdateTokenInfo(id) if id == &token_id
+        ExecuteError::TokenBalanceInvariantViolated { .. }
     );
 
     let msg = HubMessage::SendToHub {
@@ -659,6 +659,6 @@ fn interchain_transfer_exceeds_balance_invariant_fails() {
             msg,
         ),
         ExecuteError,
-        ExecuteError::UpdateTokenInfo(id) if id == &token_id
+        ExecuteError::TokenBalanceInvariantViolated { .. }
     );
 }
