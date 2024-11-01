@@ -616,7 +616,11 @@ fn interchain_transfer_exceeds_balance_invariant_fails() {
     assert_err_contains!(
         utils::execute_hub_message(
             deps.as_mut(),
-            CrossChainId::new(destination_its_chain.clone(), router_message.cc_id.message_id.clone()).unwrap(),
+            CrossChainId::new(
+                destination_its_chain.clone(),
+                router_message.cc_id.message_id.clone()
+            )
+            .unwrap(),
             destination_its_contract.clone(),
             msg,
         ),
@@ -661,4 +665,71 @@ fn interchain_transfer_exceeds_balance_invariant_fails() {
         ExecuteError,
         ExecuteError::TokenBalanceInvariantViolated { .. }
     );
+}
+
+#[test]
+fn deploy_interchain_token_submitted_twice_fails() {
+    let (
+        mut deps,
+        TestMessage {
+            router_message,
+            source_its_contract,
+            destination_its_chain,
+            ..
+        },
+    ) = utils::setup();
+
+    let token_id = TokenId::new([1u8; 32]);
+    let msg = HubMessage::SendToHub {
+        destination_chain: destination_its_chain.clone(),
+        message: Message::DeployInterchainToken {
+            token_id: token_id.clone(),
+            name: "Test".try_into().unwrap(),
+            symbol: "TST".try_into().unwrap(),
+            decimals: 18,
+            minter: None,
+        },
+    };
+    assert_ok!(utils::execute_hub_message(
+        deps.as_mut(),
+        router_message.cc_id.clone(),
+        source_its_contract.clone(),
+        msg.clone(),
+    ));
+
+    assert_err_contains!(
+        utils::execute_hub_message(
+            deps.as_mut(),
+            router_message.cc_id.clone(),
+            source_its_contract.clone(),
+            msg,
+        ),
+        ExecuteError,
+        ExecuteError::TokenAlreadyDeployed { .. }
+    );
+
+    let another_chain: ChainNameRaw = "third-chain".parse().unwrap();
+    utils::register_its_contract(
+        deps.as_mut(),
+        another_chain.clone(),
+        "another-its-address".parse().unwrap(),
+    )
+    .unwrap();
+
+    let msg = HubMessage::SendToHub {
+        destination_chain: another_chain,
+        message: Message::DeployInterchainToken {
+            token_id: token_id.clone(),
+            name: "Test".try_into().unwrap(),
+            symbol: "TST".try_into().unwrap(),
+            decimals: 18,
+            minter: None,
+        },
+    };
+    assert_ok!(utils::execute_hub_message(
+        deps.as_mut(),
+        router_message.cc_id.clone(),
+        source_its_contract.clone(),
+        msg.clone(),
+    ));
 }

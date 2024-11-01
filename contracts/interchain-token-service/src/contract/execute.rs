@@ -82,8 +82,16 @@ pub fn execute_message(
             let destination_address = load_its_contract(deps.storage, &destination_chain)
                 .change_context_lazy(|| Error::UnknownChain(destination_chain.clone()))?;
 
-            apply_handlers(deps.storage, &message, DirectionalChain::Source(cc_id.source_chain.clone()))?;
-            apply_handlers(deps.storage, &message, DirectionalChain::Destination(destination_chain.clone()))?;
+            apply_handlers(
+                deps.storage,
+                &message,
+                DirectionalChain::Source(cc_id.source_chain.clone()),
+            )?;
+            apply_handlers(
+                deps.storage,
+                &message,
+                DirectionalChain::Destination(destination_chain.clone()),
+            )?;
 
             let destination_payload = HubMessage::ReceiveFromHub {
                 source_chain: cc_id.source_chain.clone(),
@@ -197,8 +205,12 @@ fn apply_handlers(
     message: &Message,
     directional_chain: DirectionalChain,
 ) -> Result<(), Error> {
-    let token_info = state::may_load_token_info(storage, directional_chain.clone().into(), message.token_id())
-        .change_context_lazy(|| Error::LoadTokenInfo(message.token_id()))?;
+    let token_info = state::may_load_token_info(
+        storage,
+        directional_chain.clone().into(),
+        message.token_id(),
+    )
+    .change_context_lazy(|| Error::LoadTokenInfo(message.token_id()))?;
 
     // Note: The order of the handlers is important
     let token_info = token_info
@@ -206,8 +218,13 @@ fn apply_handlers(
         .then(|token_info| token_deployment_handler(message, &directional_chain, token_info))?
         .then(|token_info| token_balance_handler(message, &directional_chain, token_info))?;
 
-    state::save_token_info(storage, directional_chain.into(), message.token_id(), token_info)
-        .change_context_lazy(|| Error::SaveTokenInfo(message.token_id()))
+    state::save_token_info(
+        storage,
+        directional_chain.into(),
+        message.token_id(),
+        token_info,
+    )
+    .change_context_lazy(|| Error::SaveTokenInfo(message.token_id()))
 }
 
 fn token_redeployment_check(
@@ -220,12 +237,16 @@ fn token_redeployment_check(
             token_id: token_id.clone(),
             chain: directional_chain.clone().into(),
         }),
-        (Some(_), Message::DeployInterchainToken { token_id, .. } | Message::DeployTokenManager { token_id, .. }) if TokenType::from(directional_chain) != TokenType::Origin => {
+        (
+            Some(_),
+            Message::DeployInterchainToken { token_id, .. }
+            | Message::DeployTokenManager { token_id, .. },
+        ) if TokenType::from(directional_chain) != TokenType::Origin => {
             bail!(Error::TokenAlreadyDeployed {
                 token_id: token_id.clone(),
                 chain: directional_chain.clone().into(),
             })
-        },
+        }
         _ => Ok(token_info),
     }
 }
@@ -239,10 +260,10 @@ fn token_deployment_handler(
         (Some(token_info), _) => return Ok(token_info),
         (None, Message::DeployInterchainToken { minter: None, .. }) => {
             TokenDeploymentType::Trustless
-        },
+        }
         (None, Message::DeployInterchainToken { .. } | Message::DeployTokenManager { .. }) => {
             TokenDeploymentType::CustomMinter
-        },
+        }
         // TODO: Should we panic on this since the previous handler will check it, or should we merge the handlers to avoid this scenario, albeit adding a bit more complexity?
         (None, _) => bail!(Error::TokenNotDeployed {
             token_id: message.token_id(),
@@ -265,14 +286,16 @@ fn token_balance_handler(
     mut token_info: TokenInfo,
 ) -> Result<TokenInfo, Error> {
     if let Message::InterchainTransfer {
-            token_id, amount, ..
-        } = message {
-            token_info.update_balance(*amount, directional_chain.clone())
-                .change_context_lazy(|| Error::TokenBalanceInvariantViolated {
-                    token_id: token_id.clone(),
-                    chain: directional_chain.clone().into(),
-                })?;
-        }
+        token_id, amount, ..
+    } = message
+    {
+        token_info
+            .update_balance(*amount, directional_chain.clone())
+            .change_context_lazy(|| Error::TokenBalanceInvariantViolated {
+                token_id: token_id.clone(),
+                chain: directional_chain.clone().into(),
+            })?;
+    }
 
     Ok(token_info)
 }

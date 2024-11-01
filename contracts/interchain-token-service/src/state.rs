@@ -217,7 +217,6 @@ impl TokenBalance {
         }
         .then(Ok)
     }
-
 }
 
 impl TokenInfo {
@@ -251,7 +250,9 @@ impl From<&Message> for Option<TokenDeploymentType> {
     fn from(message: &Message) -> Self {
         match message {
             Message::InterchainTransfer { .. } => None,
-            Message::DeployInterchainToken { minter: None, .. } => Some(TokenDeploymentType::Trustless),
+            Message::DeployInterchainToken { minter: None, .. } => {
+                Some(TokenDeploymentType::Trustless)
+            }
             _ => Some(TokenDeploymentType::CustomMinter),
         }
     }
