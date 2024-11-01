@@ -314,6 +314,11 @@ impl ChainNameRaw {
     /// Maximum length of a chain name (in bytes).
     /// This MUST NOT be changed without a corresponding change to the ChainName validation in axelar-core.
     const MAX_LEN: usize = 20;
+
+    pub fn normalize(&self) -> ChainName {
+        // assert: if ChainNameRaw is valid, ChainName is also valid, just lower-cased
+        ChainName::try_from(self.as_ref()).expect("invalid chain name")
+    }
 }
 
 impl FromStr for ChainNameRaw {

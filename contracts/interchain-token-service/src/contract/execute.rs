@@ -1,3 +1,4 @@
+use axelar_wasm_std::nonempty::Uint256;
 use axelar_wasm_std::{killswitch, nonempty, FnExt, IntoContractError};
 use cosmwasm_std::{DepsMut, HexBinary, QuerierWrapper, Response, Storage};
 use error_stack::{bail, ensure, report, Result, ResultExt};
@@ -8,7 +9,7 @@ use crate::primitives::HubMessage;
 use crate::state::{
     self, is_chain_frozen, load_config, load_its_contract, MessageDirection, TokenDeploymentType,
 };
-use crate::{Message, TokenChainInfo, TokenConfig, TokenId};
+use crate::{GlobalTokenConfig, Message, TokenId, TokenInstantiation, TokenSupply};
 
 #[derive(thiserror::Error, Debug, IntoContractError)]
 pub enum Error {
@@ -74,50 +75,81 @@ pub fn execute_message(
         killswitch::is_contract_active(deps.storage),
         Error::ExecutionDisabled
     );
-    ensure_its_source_address(deps.storage, &cc_id.source_chain, &source_address)?;
+    ensure_is_its_source_address(deps.storage, &cc_id.source_chain, &source_address)?;
 
     match HubMessage::abi_decode(&payload).change_context(Error::InvalidPayload)? {
         HubMessage::SendToHub {
             destination_chain,
             message,
-        } => {
-            let destination_address = load_its_contract(deps.storage, &destination_chain)
-                .change_context_lazy(|| Error::UnknownChain(destination_chain.clone()))?;
-
-            for chain in [
-                MessageDirection::From(cc_id.source_chain.clone()),
-                MessageDirection::To(destination_chain.clone()),
-            ] {
-                apply_checks(deps.storage, &message, chain)?;
-            }
-
-            let destination_payload = HubMessage::ReceiveFromHub {
-                source_chain: cc_id.source_chain.clone(),
-                message: message.clone(),
-            }
-            .abi_encode();
-
-            Ok(send_to_destination(
-                deps.storage,
-                deps.querier,
-                destination_chain.clone(),
-                destination_address,
-                destination_payload,
-            )?
-            .add_event(
-                Event::MessageReceived {
-                    cc_id,
-                    destination_chain,
-                    message,
-                }
-                .into(),
-            ))
-        }
+        } => execute_hub_message(deps, cc_id, destination_chain, message),
         _ => bail!(Error::InvalidMessageType),
     }
 }
 
-fn chain_frozen_check(storage: &dyn Storage, chain: &ChainNameRaw) -> Result<(), Error> {
+fn execute_hub_message(
+    deps: DepsMut,
+    cc_id: CrossChainId,
+    destination_chain: ChainNameRaw,
+    message: Message,
+) -> Result<Response, Error> {
+    let destination_address = load_its_contract(deps.storage, &destination_chain)
+        .change_context_lazy(|| Error::UnknownChain(destination_chain.clone()))?;
+
+    apply_to_hub(
+        deps.storage,
+        &cc_id.source_chain,
+        &destination_chain,
+        &message,
+    )?;
+
+    let destination_payload = HubMessage::ReceiveFromHub {
+        source_chain: cc_id.source_chain.clone(),
+        message: message.clone(),
+    }
+    .abi_encode();
+
+    Ok(send_to_destination(
+        deps.storage,
+        deps.querier,
+        &destination_chain,
+        destination_address,
+        destination_payload,
+    )?
+    .add_event(
+        Event::MessageReceived {
+            cc_id,
+            destination_chain,
+            message,
+        }
+        .into(),
+    ))
+}
+
+fn apply_to_hub(
+    storage: &dyn Storage,
+    source_chain: &ChainNameRaw,
+    destination_chain: &ChainNameRaw,
+    message: &Message,
+) -> Result<(), Error> {
+    ensure_chain_not_frozen(storage, source_chain)?;
+    ensure_chain_not_frozen(storage, destination_chain)?;
+
+    match message {
+        Message::InterchainTransfer { amount, .. } => {
+            apply_transfer(amount)?;
+        }
+        Message::DeployInterchainToken { .. } => {
+            apply_token_deployment(storage, source_chain, destination_chain, message)?;
+        }
+        Message::DeployTokenManager { .. } => {
+            apply_token_deployment(storage, source_chain, destination_chain, message)?;
+        }
+    }
+
+    Ok(())
+}
+
+fn ensure_chain_not_frozen(storage: &dyn Storage, chain: &ChainNameRaw) -> Result<(), Error> {
     ensure!(
         !is_chain_frozen(storage, chain).change_context(Error::State)?,
         Error::ChainFrozen(chain.to_owned())
@@ -126,12 +158,8 @@ fn chain_frozen_check(storage: &dyn Storage, chain: &ChainNameRaw) -> Result<(),
     Ok(())
 }
 
-fn normalize(chain: &ChainNameRaw) -> ChainName {
-    ChainName::try_from(chain.as_ref()).expect("invalid chain name")
-}
-
 /// Ensures that the source address of the cross-chain message is the registered ITS contract for the source chain.
-fn ensure_its_source_address(
+fn ensure_is_its_source_address(
     storage: &dyn Storage,
     source_chain: &ChainNameRaw,
     source_address: &Address,
@@ -150,7 +178,7 @@ fn ensure_its_source_address(
 fn send_to_destination(
     storage: &dyn Storage,
     querier: QuerierWrapper,
-    destination_chain: ChainNameRaw,
+    destination_chain: &ChainNameRaw,
     destination_address: Address,
     payload: HexBinary,
 ) -> Result<Response, Error> {
@@ -160,7 +188,7 @@ fn send_to_destination(
         client::ContractClient::new(querier, &config.axelarnet_gateway).into();
 
     let call_contract_msg =
-        gateway.call_contract(normalize(&destination_chain), destination_address, payload);
+        gateway.call_contract(destination_chain.normalize(), destination_address, payload);
 
     Ok(Response::new().add_message(call_contract_msg))
 }
@@ -223,7 +251,7 @@ fn apply_checks(
     message: &Message,
     message_direction: MessageDirection,
 ) -> Result<(), Error> {
-    let token_chain_info = state::may_load_token_chain_info(
+    let token_instantiation = state::may_load_token_instantiation(
         storage,
         message_direction.clone().into(),
         message.token_id(),
@@ -231,21 +259,26 @@ fn apply_checks(
     .change_context(Error::State)?;
 
     // Validation checks
-    chain_frozen_check(storage, &message_direction.clone().into())?;
-    token_redeployment_check(message, &message_direction, &token_chain_info)?;
-    token_deployment_origin_chain_check(storage, message, &message_direction, &token_chain_info)?;
+    ensure_chain_not_frozen(storage, &message_direction.clone().into())?;
+    token_redeployment_check(message, &message_direction, &token_instantiation)?;
+    token_deployment_origin_chain_check(
+        storage,
+        message,
+        &message_direction,
+        &token_instantiation,
+    )?;
 
     // Transformations
-    let token_chain_info = token_deployment_check(message, &message_direction, token_chain_info)?
-        .then(|token_chain_info| {
-        token_supply_check(message, &message_direction, token_chain_info)
-    })?;
+    let token_instantiation =
+        token_deployment_check(message, &message_direction, token_instantiation)?.then(
+            |token_chain_info| token_supply_check(message, &message_direction, token_chain_info),
+        )?;
 
-    state::save_token_chain_info(
+    state::save_token_instantiation(
         storage,
         message_direction.into(),
         message.token_id(),
-        &token_chain_info,
+        &token_instantiation,
     )
     .change_context(Error::State)
 }
@@ -256,7 +289,7 @@ fn token_deployment_origin_chain_check(
     storage: &mut dyn Storage,
     message: &Message,
     message_direction: &MessageDirection,
-    token_chain_info: &Option<TokenChainInfo>,
+    token_chain_info: &Option<TokenInstantiation>,
 ) -> Result<(), Error> {
     // Token cannot be redeployed to the destination chain
     if !matches!(
@@ -267,10 +300,10 @@ fn token_deployment_origin_chain_check(
         return Ok(());
     }
 
-    let token_config =
-        state::may_load_token_config(storage, &message.token_id()).change_context(Error::State)?;
+    let token_config = state::may_load_global_token_config(storage, &message.token_id())
+        .change_context(Error::State)?;
 
-    if let Some(TokenConfig { origin_chain, .. }) = token_config {
+    if let Some(GlobalTokenConfig { origin_chain, .. }) = token_config {
         // Token can only be redeployed from the same origin chain
         ensure!(
             origin_chain == ChainNameRaw::from(message_direction.clone()),
@@ -291,11 +324,12 @@ fn token_deployment_origin_chain_check(
         );
     } else {
         // Token is being deployed for the first time
-        let token_config = TokenConfig {
+        let token_config = GlobalTokenConfig {
+            token_id: message.token_id(),
             origin_chain: ChainNameRaw::from(message_direction.clone()),
         };
 
-        state::save_token_config(storage, &message.token_id(), &token_config)
+        state::save_global_token_config(storage, &message.token_id(), &token_config)
             .change_context(Error::State)?;
 
         ensure!(
@@ -314,7 +348,7 @@ fn token_deployment_origin_chain_check(
 fn token_redeployment_check(
     message: &Message,
     message_direction: &MessageDirection,
-    token_chain_info: &Option<TokenChainInfo>,
+    token_chain_info: &Option<TokenInstantiation>,
 ) -> Result<(), Error> {
     if matches!(
         message,
@@ -337,10 +371,10 @@ fn token_redeployment_check(
 fn token_deployment_check(
     message: &Message,
     message_direction: &MessageDirection,
-    token_chain_info: Option<TokenChainInfo>,
-) -> Result<TokenChainInfo, Error> {
-    if let Some(token_chain_info) = token_chain_info {
-        return Ok(token_chain_info);
+    token_instantiation: Option<TokenInstantiation>,
+) -> Result<TokenInstantiation, Error> {
+    if let Some(instantiation) = token_instantiation {
+        return Ok(instantiation);
     }
 
     let token_deployment_type = match message {
@@ -354,32 +388,34 @@ fn token_deployment_check(
         }),
     };
 
-    Ok(TokenChainInfo::new(
-        (message_direction, token_deployment_type).into(),
+    Ok(TokenInstantiation::new(
+        message.token_id(),
+        message_direction,
+        &token_deployment_type,
     ))
 }
 
 /// Updates the token supply for the chain on a transfer.
 /// Ensures that the transfer `amount <= supply` for the chain,
-/// i.e no more than the token supply for the chain can be transferred out of the chain.
+/// i.e. no more than the token supply for the chain can be transferred out of the chain.
 fn token_supply_check(
     message: &Message,
     message_direction: &MessageDirection,
-    mut token_chain_info: TokenChainInfo,
-) -> Result<TokenChainInfo, Error> {
+    mut token_chain_info: TokenInstantiation,
+) -> Result<TokenInstantiation, Error> {
     if let Message::InterchainTransfer {
         token_id, amount, ..
     } = message
     {
-        token_chain_info
+        Ok(token_chain_info
             .update_supply(*amount, message_direction.clone())
             .change_context_lazy(|| Error::TokenSupplyInvariantViolated {
                 token_id: token_id.clone(),
                 chain: message_direction.clone().into(),
-            })?;
+            })?)
+    } else {
+        Ok(token_chain_info)
     }
-
-    Ok(token_chain_info)
 }
 
 #[cfg(test)]
@@ -654,4 +690,17 @@ mod tests {
             ));
         }
     }
+}
+
+fn apply_transfer(transfer_amount: &Uint256) -> Result<(), Error> {
+    todo!()
+}
+
+fn apply_token_deployment(
+    storage: &dyn Storage,
+    source_chain: &ChainNameRaw,
+    destination_chain: &ChainNameRaw,
+    message: &Message,
+) -> Result<(), Error> {
+    todo!()
 }

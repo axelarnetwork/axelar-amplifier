@@ -7,7 +7,7 @@ use cw_storage_plus::{Item, Map};
 use error_stack::{report, Result, ResultExt};
 use router_api::{Address, ChainNameRaw};
 
-use crate::TokenId;
+use crate::{Message, TokenId};
 
 #[derive(thiserror::Error, Debug, IntoContractError)]
 pub enum Error {
@@ -48,8 +48,26 @@ pub enum TokenSupply {
 
 /// Information about a token on a specific chain.
 #[cw_serde]
-pub struct TokenChainInfo {
+pub struct TokenInstantiation {
+    pub token_id: TokenId,
     supply: TokenSupply,
+}
+
+impl TokenInstantiation {
+    pub fn new(
+        token_id: TokenId,
+        direction: &MessageDirection,
+        deployment_type: &TokenDeploymentType,
+    ) -> Self {
+        let supply = match (direction, deployment_type) {
+            (MessageDirection::To(_), TokenDeploymentType::Trustless) => {
+                TokenSupply::Tracked(Uint256::zero())
+            }
+            _ => TokenSupply::Untracked,
+        };
+
+        Self { token_id, supply }
+    }
 }
 
 #[derive(Clone)]
@@ -60,7 +78,7 @@ pub enum MessageDirection {
 
 /// The deployment type of the token.
 pub enum TokenDeploymentType {
-    /// The token is trustless, i.e only owned by ITS.
+    /// The token is trustless, i.e. only owned by ITS.
     Trustless,
     /// The token has a custom minter.
     CustomMinter,
@@ -68,16 +86,17 @@ pub enum TokenDeploymentType {
 
 /// Global config for a token.
 #[cw_serde]
-pub struct TokenConfig {
+pub struct GlobalTokenConfig {
+    pub token_id: TokenId,
     pub origin_chain: ChainNameRaw,
 }
 
 const CONFIG: Item<Config> = Item::new("config");
 const ITS_CONTRACTS: Map<&ChainNameRaw, Address> = Map::new("its_contracts");
 const CHAIN_CONFIGS: Map<&ChainNameRaw, ChainConfig> = Map::new("chain_configs");
-const TOKEN_CHAIN_INFO: Map<&(ChainNameRaw, TokenId), TokenChainInfo> =
-    Map::new("token_chain_info");
-const TOKEN_CONFIGS: Map<&TokenId, TokenConfig> = Map::new("token_configs");
+const TOKEN_INSTANTIATIONS: Map<&(ChainNameRaw, TokenId), TokenInstantiation> =
+    Map::new("token_instantiation");
+const GLOBAL_TOKEN_CONFIGS: Map<&TokenId, GlobalTokenConfig> = Map::new("global_token_configs");
 
 pub fn load_config(storage: &dyn Storage) -> Config {
     CONFIG
@@ -178,9 +197,7 @@ pub fn freeze_chain(storage: &mut dyn Storage, chain: &ChainNameRaw) -> Result<C
     CHAIN_CONFIGS
         .update(storage, chain, |elt| match elt {
             Some(x) => Ok(ChainConfig { frozen: true, ..x }),
-            None => Err(StdError::NotFound {
-                kind: "chain not found".to_string(),
-            }),
+            None => Err(StdError::not_found("chain not found".to_string())),
         })
         .change_context(Error::ChainNotFound(chain.to_owned()))
 }
@@ -192,103 +209,85 @@ pub fn unfreeze_chain(
     CHAIN_CONFIGS
         .update(storage, chain, |elt| match elt {
             Some(x) => Ok(ChainConfig { frozen: false, ..x }),
-            None => Err(StdError::NotFound {
-                kind: "chain not found".to_string(),
-            }),
+            None => Err(StdError::not_found("chain not found".to_string())),
         })
         .change_context(Error::ChainNotFound(chain.to_owned()))
 }
 
-pub fn save_token_chain_info(
+pub fn save_token_instantiation(
     storage: &mut dyn Storage,
     chain: ChainNameRaw,
     token_id: TokenId,
-    token_chain_info: &TokenChainInfo,
+    token_instantiation: &TokenInstantiation,
 ) -> Result<(), Error> {
-    TOKEN_CHAIN_INFO
-        .save(storage, &(chain, token_id), token_chain_info)
+    TOKEN_INSTANTIATIONS
+        .save(storage, &(chain, token_id), token_instantiation)
         .change_context(Error::Storage)
 }
 
-pub fn may_load_token_chain_info(
+pub fn may_load_token_instantiation(
     storage: &dyn Storage,
     chain: ChainNameRaw,
     token_id: TokenId,
-) -> Result<Option<TokenChainInfo>, Error> {
-    TOKEN_CHAIN_INFO
+) -> Result<Option<TokenInstantiation>, Error> {
+    TOKEN_INSTANTIATIONS
         .may_load(storage, &(chain, token_id))
         .change_context(Error::Storage)
 }
 
-pub fn may_load_token_config(
+pub fn may_load_global_token_config(
     storage: &dyn Storage,
     token_id: &TokenId,
-) -> Result<Option<TokenConfig>, Error> {
-    TOKEN_CONFIGS
+) -> Result<Option<GlobalTokenConfig>, Error> {
+    GLOBAL_TOKEN_CONFIGS
         .may_load(storage, token_id)
         .change_context(Error::Storage)
 }
 
-pub fn save_token_config(
+pub fn save_global_token_config(
     storage: &mut dyn Storage,
     token_id: &TokenId,
-    token_config: &TokenConfig,
+    token_config: &GlobalTokenConfig,
 ) -> Result<(), Error> {
-    TOKEN_CONFIGS
+    GLOBAL_TOKEN_CONFIGS
         .save(storage, token_id, token_config)
         .change_context(Error::Storage)
 }
 
-impl TokenSupply {
-    fn checked_add(&self, amount: nonempty::Uint256) -> Result<Self, OverflowError> {
-        match self {
-            TokenSupply::Tracked(supply) => {
-                TokenSupply::Tracked(supply.checked_add(amount.into())?)
-            }
-            TokenSupply::Untracked => TokenSupply::Untracked,
-        }
-        .then(Ok)
-    }
-
-    fn checked_sub(&self, amount: nonempty::Uint256) -> Result<Self, OverflowError> {
-        match self {
-            TokenSupply::Tracked(supply) => {
-                TokenSupply::Tracked(supply.checked_sub(amount.into())?)
-            }
-            TokenSupply::Untracked => TokenSupply::Untracked,
-        }
-        .then(Ok)
-    }
-}
-
-impl TokenChainInfo {
+impl TokenInstantiation {
     pub fn update_supply(
-        &mut self,
+        mut self,
         amount: nonempty::Uint256,
         message_direction: MessageDirection,
-    ) -> Result<(), OverflowError> {
-        self.supply = match message_direction {
-            MessageDirection::From(_) => self.supply.checked_sub(amount)?,
-            MessageDirection::To(_) => self.supply.checked_add(amount)?,
+    ) -> Result<Self, OverflowError> {
+        self.supply = match self.supply {
+            TokenSupply::Untracked => TokenSupply::Untracked,
+
+            TokenSupply::Tracked(supply) => match message_direction {
+                MessageDirection::From(_) => {
+                    TokenSupply::Tracked(supply.checked_sub(amount.into())?)
+                }
+                MessageDirection::To(_) => TokenSupply::Tracked(supply.checked_add(amount.into())?),
+            },
         };
 
-        Ok(())
+        Ok(self)
     }
 }
 
-impl From<(&MessageDirection, TokenDeploymentType)> for TokenSupply {
-    fn from(
-        (message_direction, token_deployment_type): (&MessageDirection, TokenDeploymentType),
-    ) -> Self {
-        match (message_direction, token_deployment_type) {
-            // Token supply is only tracked for trustless tokens deployed to remote chains
-            (MessageDirection::To(_), TokenDeploymentType::Trustless) => {
-                TokenSupply::Tracked(Uint256::zero())
-            }
-            _ => TokenSupply::Untracked,
-        }
-    }
-}
+// impl From<(&MessageDirection, TokenDeploymentType)> for TokenSupply {
+//     fn from(
+//         (message_direction, token_deployment_type): (&MessageDirection, TokenDeploymentType),
+//     ) -> Self {
+//         match (message_direction, token_deployment_type) {
+//             // Token supply is only tracked for trustless tokens deployed to remote chains
+//             (MessageDirection::To(_), TokenDeploymentType::Trustless) => {
+//                 TokenSupply::Tracked(Uint256::zero())
+//             }
+//             _ => TokenSupply::Untracked,
+//         }
+//     }
+// }
 
 impl From<MessageDirection> for ChainNameRaw {
     fn from(message_direction: MessageDirection) -> Self {
@@ -299,11 +298,7 @@ impl From<MessageDirection> for ChainNameRaw {
     }
 }
 
-impl TokenChainInfo {
-    pub fn new(supply: TokenSupply) -> Self {
-        Self { supply }
-    }
-
+impl TokenInstantiation {
     pub fn supply(&self) -> TokenSupply {
         self.supply.clone()
     }
