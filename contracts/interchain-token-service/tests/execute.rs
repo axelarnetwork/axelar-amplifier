@@ -9,9 +9,7 @@ use cosmwasm_std::{HexBinary, Uint256};
 use interchain_token_service::contract::{self, ExecuteError};
 use interchain_token_service::events::Event;
 use interchain_token_service::msg::ExecuteMsg;
-use interchain_token_service::{
-    HubMessage, Message, TokenBalance, TokenId, TokenManagerType,
-};
+use interchain_token_service::{HubMessage, Message, TokenId, TokenManagerType, TokenSupply};
 use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
 use utils::{make_deps, params, TestMessage};
 
@@ -446,7 +444,7 @@ fn set_chain_config_should_fail_if_chain_config_is_already_set() {
 }
 
 #[test]
-fn interchain_transfer_maintains_balance_invariant() {
+fn interchain_transfer_maintains_supply_invariant() {
     let (
         mut deps,
         TestMessage {
@@ -503,8 +501,8 @@ fn interchain_transfer_maintains_balance_invariant() {
             token_id.clone()
         ))
         .unwrap()
-        .balance,
-        TokenBalance::Untracked,
+        .supply,
+        TokenSupply::Untracked,
     );
     assert_eq!(
         assert_ok!(utils::query_token_info(
@@ -513,8 +511,8 @@ fn interchain_transfer_maintains_balance_invariant() {
             token_id.clone()
         ))
         .unwrap()
-        .balance,
-        TokenBalance::Tracked(amount.into())
+        .supply,
+        TokenSupply::Tracked(amount.into())
     );
 
     // Send the same amount back
@@ -546,8 +544,8 @@ fn interchain_transfer_maintains_balance_invariant() {
             token_id.clone()
         ))
         .unwrap()
-        .balance,
-        TokenBalance::Untracked
+        .supply,
+        TokenSupply::Untracked
     );
     assert_eq!(
         assert_ok!(utils::query_token_info(
@@ -556,13 +554,13 @@ fn interchain_transfer_maintains_balance_invariant() {
             token_id
         ))
         .unwrap()
-        .balance,
-        TokenBalance::Tracked(Uint256::zero())
+        .supply,
+        TokenSupply::Tracked(Uint256::zero())
     );
 }
 
 #[test]
-fn interchain_transfer_exceeds_balance_fails() {
+fn interchain_transfer_exceeds_supply_fails() {
     let (
         mut deps,
         TestMessage {
@@ -617,7 +615,7 @@ fn interchain_transfer_exceeds_balance_fails() {
             msg,
         ),
         ExecuteError,
-        ExecuteError::TokenBalanceInvariantViolated { .. }
+        ExecuteError::TokenSupplyInvariantViolated { .. }
     );
 
     let msg = HubMessage::SendToHub {
@@ -655,7 +653,7 @@ fn interchain_transfer_exceeds_balance_fails() {
             msg,
         ),
         ExecuteError,
-        ExecuteError::TokenBalanceInvariantViolated { .. }
+        ExecuteError::TokenSupplyInvariantViolated { .. }
     );
 }
 

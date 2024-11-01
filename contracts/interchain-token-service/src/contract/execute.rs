@@ -50,8 +50,8 @@ pub enum Error {
     },
     #[error("state error")]
     State,
-    #[error("balance invariant violated for token {token_id} on chain {chain}")]
-    TokenBalanceInvariantViolated {
+    #[error("token supply invariant violated for token {token_id} on chain {chain}")]
+    TokenSupplyInvariantViolated {
         token_id: TokenId,
         chain: ChainNameRaw,
     },
@@ -60,7 +60,7 @@ pub enum Error {
 /// Executes an incoming ITS message.
 ///
 /// This function handles the execution of ITS (Interchain Token Service) messages received from
-/// its sources. It verifies the source address, decodes the message, applies balance tracking,
+/// its sources. It verifies the source address, decodes the message, applies various checks and transformations,
 /// and forwards the message to the destination chain.
 pub fn execute_message(
     deps: DepsMut,
@@ -216,7 +216,7 @@ fn apply_handlers(
     let token_info = token_info
         .then(|token_info| token_redeployment_check(message, &directional_chain, token_info))?
         .then(|token_info| token_deployment_handler(message, &directional_chain, token_info))?
-        .then(|token_info| token_balance_handler(message, &directional_chain, token_info))?;
+        .then(|token_info| token_supply_handler(message, &directional_chain, token_info))?;
 
     state::save_token_info(
         storage,
@@ -269,11 +269,11 @@ fn token_deployment_handler(
     };
 
     Ok(TokenInfo {
-        balance: (directional_chain, token_deployment_type).into(),
+        supply: (directional_chain, token_deployment_type).into(),
     })
 }
 
-fn token_balance_handler(
+fn token_supply_handler(
     message: &Message,
     directional_chain: &DirectionalChain,
     mut token_info: TokenInfo,
@@ -283,8 +283,8 @@ fn token_balance_handler(
     } = message
     {
         token_info
-            .update_balance(*amount, directional_chain.clone())
-            .change_context_lazy(|| Error::TokenBalanceInvariantViolated {
+            .update_supply(*amount, directional_chain.clone())
+            .change_context_lazy(|| Error::TokenSupplyInvariantViolated {
                 token_id: token_id.clone(),
                 chain: directional_chain.clone().into(),
             })?;
@@ -298,23 +298,23 @@ fn token_balance_handler(
 /// Invariants:
 /// - Token must be deployed on the chain before any transfers can be routed.
 /// - Token cannot be redeployed to the chain.
-/// - If the token is deployed without a custom minter, then the token is considered to be owned by ITS, and total token balance moved to the chain is tracked.
+/// - If the token is deployed without a custom minter, then the token is considered to be owned by ITS, and total token supply moved to the chain is tracked.
 /// - If the total token amount moved to a chain so far is `x`, then any transfer moving the token back from the chain and exceeding `x` will fail.
 ///
 /// Invariants are updated depending on the ITS message type
 ///
 /// 1. InterchainTransfer:
-///    - Decreases the token balance on the source chain if the balance is being tracked.
-///    - Increases the token balance on the destination chain if the balance is being tracked.
-///    - If the balance underflows for either case, an error is returned.
+///    - Decreases the token supply on the source chain if the supply is being tracked.
+///    - Increases the token supply on the destination chain if the supply is being tracked.
+///    - If the supply underflows for either case, an error is returned.
 ///
 /// 2. DeployInterchainToken:
-///    - If a custom minter is not set, then the token balance is tracked for the destination chain.
-///    - If a custom minter is set, then the balance is not tracked, but the deployment is recorded as `TokenInfo`.
+///    - If a custom minter is not set, then the token supply is tracked for the destination chain.
+///    - If a custom minter is set, then the supply is not tracked, but the deployment is recorded as `TokenInfo`.
 ///
 /// 3. DeployTokenManager:
 ///    - Same as the custom minter being set above. ITS Hub can't know if the existing token on the destination chain has a custom minter set.
-// fn apply_balance_invariant(
+// fn apply_supply_invariant(
 //     storage: &mut dyn Storage,
 //     message: &Message,
 //     directional_chain: DirectionalChain,

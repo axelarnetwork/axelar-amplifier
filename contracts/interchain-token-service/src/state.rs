@@ -30,17 +30,17 @@ pub struct ChainConfig {
 }
 
 #[cw_serde]
-pub enum TokenBalance {
-    /// The total token balance bridged to this chain.
+pub enum TokenSupply {
+    /// The total token supply bridged to this chain.
     /// ITS Hub will not allow bridging back more than this amount of the token from the corresponding chain.
     Tracked(Uint256),
-    /// The token balance bridged to this chain is not tracked.
+    /// The token supply bridged to this chain is not tracked.
     Untracked,
 }
 
 #[cw_serde]
 pub struct TokenInfo {
-    pub balance: TokenBalance,
+    pub supply: TokenSupply,
 }
 
 #[derive(Clone)]
@@ -164,53 +164,53 @@ pub fn may_load_token_info(
     Ok(TOKEN_INFO.may_load(storage, &(chain, token_id))?)
 }
 
-impl TokenBalance {
+impl TokenSupply {
     fn checked_add(&self, amount: nonempty::Uint256) -> Result<Self, OverflowError> {
         match self {
-            TokenBalance::Tracked(balance) => {
-                TokenBalance::Tracked(balance.checked_add(amount.into())?)
+            TokenSupply::Tracked(supply) => {
+                TokenSupply::Tracked(supply.checked_add(amount.into())?)
             }
-            TokenBalance::Untracked => TokenBalance::Untracked,
+            TokenSupply::Untracked => TokenSupply::Untracked,
         }
         .then(Ok)
     }
 
     fn checked_sub(&self, amount: nonempty::Uint256) -> Result<Self, OverflowError> {
         match self {
-            TokenBalance::Tracked(balance) => {
-                TokenBalance::Tracked(balance.checked_sub(amount.into())?)
+            TokenSupply::Tracked(supply) => {
+                TokenSupply::Tracked(supply.checked_sub(amount.into())?)
             }
-            TokenBalance::Untracked => TokenBalance::Untracked,
+            TokenSupply::Untracked => TokenSupply::Untracked,
         }
         .then(Ok)
     }
 }
 
 impl TokenInfo {
-    pub fn update_balance(
+    pub fn update_supply(
         &mut self,
         amount: nonempty::Uint256,
         directional_chain: DirectionalChain,
     ) -> Result<(), OverflowError> {
-        self.balance = match directional_chain {
-            DirectionalChain::Source(_) => self.balance.checked_sub(amount)?,
-            DirectionalChain::Destination(_) => self.balance.checked_add(amount)?,
+        self.supply = match directional_chain {
+            DirectionalChain::Source(_) => self.supply.checked_sub(amount)?,
+            DirectionalChain::Destination(_) => self.supply.checked_add(amount)?,
         };
 
         Ok(())
     }
 }
 
-impl From<(&DirectionalChain, TokenDeploymentType)> for TokenBalance {
+impl From<(&DirectionalChain, TokenDeploymentType)> for TokenSupply {
     fn from(
         (directional_chain, token_deployment_type): (&DirectionalChain, TokenDeploymentType),
     ) -> Self {
         match (directional_chain, token_deployment_type) {
-            // Token balances are tracked for remote trustless tokens
+            // Token supply is only tracked for trustless tokens deployed to remote chains
             (DirectionalChain::Destination(_), TokenDeploymentType::Trustless) => {
-                TokenBalance::Tracked(Uint256::zero())
+                TokenSupply::Tracked(Uint256::zero())
             }
-            _ => TokenBalance::Untracked,
+            _ => TokenSupply::Untracked,
         }
     }
 }
