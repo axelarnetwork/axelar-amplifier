@@ -67,7 +67,8 @@ pub struct TokenConfig {
 const CONFIG: Item<Config> = Item::new("config");
 const ITS_CONTRACTS: Map<&ChainNameRaw, Address> = Map::new("its_contracts");
 const CHAIN_CONFIGS: Map<&ChainNameRaw, ChainConfig> = Map::new("chain_configs");
-const TOKEN_INFO: Map<&(ChainNameRaw, TokenId), TokenChainInfo> = Map::new("token_info");
+const TOKEN_CHAIN_INFO: Map<&(ChainNameRaw, TokenId), TokenChainInfo> =
+    Map::new("token_chain_info");
 const TOKEN_CONFIGS: Map<&TokenId, TokenConfig> = Map::new("token_configs");
 
 pub fn load_config(storage: &dyn Storage) -> Config {
@@ -146,21 +147,21 @@ pub fn load_all_its_contracts(
         .collect::<Result<HashMap<_, _>, _>>()?)
 }
 
-pub fn save_token_info(
+pub fn save_token_chain_info(
     storage: &mut dyn Storage,
     chain: ChainNameRaw,
     token_id: TokenId,
-    token_info: &TokenChainInfo,
+    token_chain_info: &TokenChainInfo,
 ) -> Result<(), Error> {
-    Ok(TOKEN_INFO.save(storage, &(chain, token_id), token_info)?)
+    Ok(TOKEN_CHAIN_INFO.save(storage, &(chain, token_id), token_chain_info)?)
 }
 
-pub fn may_load_token_info(
+pub fn may_load_token_chain_info(
     storage: &dyn Storage,
     chain: ChainNameRaw,
     token_id: TokenId,
 ) -> Result<Option<TokenChainInfo>, Error> {
-    Ok(TOKEN_INFO.may_load(storage, &(chain, token_id))?)
+    Ok(TOKEN_CHAIN_INFO.may_load(storage, &(chain, token_id))?)
 }
 
 pub fn may_load_token_config(

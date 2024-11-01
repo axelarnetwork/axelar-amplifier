@@ -139,7 +139,7 @@ pub fn query(deps: Deps, _: Env, msg: QueryMsg) -> Result<Binary, ContractError>
             query::all_its_contracts(deps).change_context(Error::QueryAllItsContracts)
         }
         QueryMsg::TokenInfo { chain, token_id } => {
-            query::token_info(deps, chain, token_id).change_context(Error::QueryTokenInfo)
+            query::token_chain_info(deps, chain, token_id).change_context(Error::QueryTokenInfo)
         }
         QueryMsg::TokenConfig { token_id } => {
             query::token_config(deps, token_id).change_context(Error::QueryTokenConfig)

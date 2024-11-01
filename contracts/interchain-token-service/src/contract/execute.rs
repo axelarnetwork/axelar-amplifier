@@ -215,7 +215,7 @@ fn apply_handlers(
     message: &Message,
     message_direction: MessageDirection,
 ) -> Result<(), Error> {
-    let token_info = state::may_load_token_info(
+    let token_chain_info = state::may_load_token_chain_info(
         storage,
         message_direction.clone().into(),
         message.token_id(),
@@ -223,19 +223,30 @@ fn apply_handlers(
     .change_context_lazy(|| Error::LoadTokenInfo(message.token_id()))?;
 
     // Note: The order of the handlers is important
-    let token_info = token_info
-        .then(|token_info| token_redeployment_check(message, &message_direction, token_info))?
-        .then(|token_info| {
-            token_deployment_origin_chain_handler(storage, message, &message_direction, token_info)
+    let token_chain_info = token_chain_info
+        .then(|token_chain_info| {
+            token_redeployment_check(message, &message_direction, token_chain_info)
         })?
-        .then(|token_info| token_deployment_handler(message, &message_direction, token_info))?
-        .then(|token_info| token_supply_handler(message, &message_direction, token_info))?;
+        .then(|token_chain_info| {
+            token_deployment_origin_chain_handler(
+                storage,
+                message,
+                &message_direction,
+                token_chain_info,
+            )
+        })?
+        .then(|token_chain_info| {
+            token_deployment_handler(message, &message_direction, token_chain_info)
+        })?
+        .then(|token_chain_info| {
+            token_supply_handler(message, &message_direction, token_chain_info)
+        })?;
 
-    state::save_token_info(
+    state::save_token_chain_info(
         storage,
         message_direction.into(),
         message.token_id(),
-        &token_info,
+        &token_chain_info,
     )
     .change_context_lazy(|| Error::SaveTokenInfo(message.token_id()))
 }
@@ -244,7 +255,7 @@ fn token_deployment_origin_chain_handler(
     storage: &mut dyn Storage,
     message: &Message,
     message_direction: &MessageDirection,
-    token_info: Option<TokenChainInfo>,
+    token_chain_info: Option<TokenChainInfo>,
 ) -> Result<Option<TokenChainInfo>, Error> {
     // Token cannot be redeployed to the destination chain
     if !matches!(
@@ -252,7 +263,7 @@ fn token_deployment_origin_chain_handler(
         Message::DeployInterchainToken { .. } | Message::DeployTokenManager { .. }
     ) || !matches!(message_direction, MessageDirection::From(_))
     {
-        return Ok(token_info);
+        return Ok(token_chain_info);
     }
 
     let token_config = state::may_load_token_config(storage, &message.token_id())
@@ -271,7 +282,7 @@ fn token_deployment_origin_chain_handler(
 
         // Token chain info must already exist from previous deployment
         ensure!(
-            token_info.is_some(),
+            token_chain_info.is_some(),
             Error::TokenNotDeployed {
                 token_id: message.token_id(),
                 chain: message_direction.clone().into(),
@@ -287,7 +298,7 @@ fn token_deployment_origin_chain_handler(
             .change_context_lazy(|| Error::SaveTokenConfig(message.token_id()))?;
 
         ensure!(
-            token_info.is_none(),
+            token_chain_info.is_none(),
             Error::TokenAlreadyDeployed {
                 token_id: message.token_id(),
                 chain: message_direction.clone().into(),
@@ -295,20 +306,20 @@ fn token_deployment_origin_chain_handler(
         );
     }
 
-    Ok(token_info)
+    Ok(token_chain_info)
 }
 
 fn token_redeployment_check(
     message: &Message,
     message_direction: &MessageDirection,
-    token_info: Option<TokenChainInfo>,
+    token_chain_info: Option<TokenChainInfo>,
 ) -> Result<Option<TokenChainInfo>, Error> {
     // Token cannot be redeployed to the destination chain
     if matches!(
         message,
         Message::DeployInterchainToken { .. } | Message::DeployTokenManager { .. }
     ) && matches!(message_direction, MessageDirection::To(_))
-        && token_info.is_some()
+        && token_chain_info.is_some()
     {
         bail!(Error::TokenAlreadyDeployed {
             token_id: message.token_id(),
@@ -316,16 +327,16 @@ fn token_redeployment_check(
         });
     }
 
-    Ok(token_info)
+    Ok(token_chain_info)
 }
 
 fn token_deployment_handler(
     message: &Message,
     message_direction: &MessageDirection,
-    token_info: Option<TokenChainInfo>,
+    token_chain_info: Option<TokenChainInfo>,
 ) -> Result<TokenChainInfo, Error> {
-    if let Some(token_info) = token_info {
-        return Ok(token_info);
+    if let Some(token_chain_info) = token_chain_info {
+        return Ok(token_chain_info);
     }
 
     let token_deployment_type = match message {
@@ -347,13 +358,13 @@ fn token_deployment_handler(
 fn token_supply_handler(
     message: &Message,
     message_direction: &MessageDirection,
-    mut token_info: TokenChainInfo,
+    mut token_chain_info: TokenChainInfo,
 ) -> Result<TokenChainInfo, Error> {
     if let Message::InterchainTransfer {
         token_id, amount, ..
     } = message
     {
-        token_info
+        token_chain_info
             .update_supply(*amount, message_direction.clone())
             .change_context_lazy(|| Error::TokenSupplyInvariantViolated {
                 token_id: token_id.clone(),
@@ -361,7 +372,7 @@ fn token_supply_handler(
             })?;
     }
 
-    Ok(token_info)
+    Ok(token_chain_info)
 }
 
 /// Applies invariants on the ITS message.
@@ -394,7 +405,7 @@ fn token_supply_handler(
 //         Message::InterchainTransfer {
 //             token_id, amount, ..
 //         } => {
-//             state::update_token_info(storage, message_direction, token_id.clone(), *amount)
+//             state::update_token_chain_info(storage, message_direction, token_id.clone(), *amount)
 //                 .change_context_lazy(|| Error::UpdateTokenInfo(token_id.clone()))?;
 //         }
 //         Message::DeployInterchainToken {
@@ -402,7 +413,7 @@ fn token_supply_handler(
 //             minter: None,
 //             ..
 //         } => {
-//             state::save_token_info(
+//             state::save_token_chain_info(
 //                 storage,
 //                 message_direction,
 //                 token_id.clone(),
@@ -416,7 +427,7 @@ fn token_supply_handler(
 //             ..
 //         }
 //         | Message::DeployTokenManager { token_id, .. } => {
-//             state::save_token_info(
+//             state::save_token_chain_info(
 //                 storage,
 //                 message_direction,
 //                 token_id.clone(),

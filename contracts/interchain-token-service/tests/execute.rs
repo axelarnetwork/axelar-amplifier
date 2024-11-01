@@ -485,7 +485,7 @@ fn deploy_interchain_token_tracks_supply() {
     ));
 
     assert_eq!(
-        assert_ok!(utils::query_token_info(
+        assert_ok!(utils::query_token_chain_info(
             deps.as_ref(),
             source_its_chain.clone(),
             token_id.clone()
@@ -495,7 +495,7 @@ fn deploy_interchain_token_tracks_supply() {
         TokenSupply::Untracked,
     );
     assert_eq!(
-        assert_ok!(utils::query_token_info(
+        assert_ok!(utils::query_token_chain_info(
             deps.as_ref(),
             destination_its_chain.clone(),
             token_id.clone()
@@ -528,7 +528,7 @@ fn deploy_interchain_token_tracks_supply() {
     ));
 
     assert_eq!(
-        assert_ok!(utils::query_token_info(
+        assert_ok!(utils::query_token_chain_info(
             deps.as_ref(),
             source_its_chain.clone(),
             token_id.clone()
@@ -538,7 +538,7 @@ fn deploy_interchain_token_tracks_supply() {
         TokenSupply::Untracked
     );
     assert_eq!(
-        assert_ok!(utils::query_token_info(
+        assert_ok!(utils::query_token_chain_info(
             deps.as_ref(),
             destination_its_chain,
             token_id.clone()
@@ -584,7 +584,7 @@ fn deploy_interchain_token_with_minter_does_not_track_supply() {
     ));
     for chain in [source_its_chain.clone(), destination_its_chain.clone()] {
         assert_eq!(
-            assert_ok!(utils::query_token_info(
+            assert_ok!(utils::query_token_chain_info(
                 deps.as_ref(),
                 chain.clone(),
                 token_id.clone()
@@ -636,7 +636,7 @@ fn deploy_interchain_token_with_minter_does_not_track_supply() {
 
     for chain in [source_its_chain.clone(), destination_its_chain.clone()] {
         assert_eq!(
-            assert_ok!(utils::query_token_info(
+            assert_ok!(utils::query_token_chain_info(
                 deps.as_ref(),
                 chain.clone(),
                 token_id.clone()

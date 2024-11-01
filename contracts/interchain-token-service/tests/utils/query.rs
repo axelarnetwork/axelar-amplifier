@@ -23,7 +23,7 @@ pub fn query_all_its_contracts(
     Ok(from_json(bin)?)
 }
 
-pub fn query_token_info(
+pub fn query_token_chain_info(
     deps: Deps,
     chain: ChainNameRaw,
     token_id: TokenId,
