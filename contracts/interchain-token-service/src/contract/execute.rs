@@ -317,10 +317,18 @@ fn translate_amount_on_token_transfer(
 }
 
 #[allow(unused)]
+/// Translates and saves token decimals for the source/destination chains on token deployment.
+///
+/// The source chain's token decimals are saved as-is, while the destination chain's token decimals
+/// are calculated and saved as following:
+/// 1) If the source chain's `max_uint` is less than or equal to the destination chain's `max_uint`,
+///   the source chain's token decimals are used.
+/// 2) Otherwise, the minimum of the source chain's token decimals and the source chain's
+///  `max_target_decimals` is used.
 fn translate_and_save_token_decimals_on_token_deployment(
     storage: &mut dyn Storage,
-    src_chain: &ChainNameRaw,
-    dest_chain: &ChainNameRaw,
+    source_chain: &ChainNameRaw,
+    destination_chain: &ChainNameRaw,
     message: Message,
 ) -> Result<Message, Error> {
     match message {
@@ -328,30 +336,40 @@ fn translate_and_save_token_decimals_on_token_deployment(
             token_id,
             name,
             symbol,
-            decimals: src_chain_decimals,
+            decimals: source_chain_decimals,
             minter,
         } => {
-            let src_chain_config =
-                state::load_chain_config(storage, src_chain).change_context(Error::State)?;
-            let dest_chain_config =
-                state::load_chain_config(storage, dest_chain).change_context(Error::State)?;
+            let source_chain_config =
+                state::load_chain_config(storage, source_chain).change_context(Error::State)?;
+            let destination_chain_config = state::load_chain_config(storage, destination_chain)
+                .change_context(Error::State)?;
 
-            let dest_chain_decimals = if src_chain_config.max_uint.le(&dest_chain_config.max_uint) {
-                src_chain_decimals
+            let destination_chain_decimals = if source_chain_config
+                .max_uint
+                .le(&destination_chain_config.max_uint)
+            {
+                source_chain_decimals
             } else {
-                src_chain_config.max_target_decimals.min(src_chain_decimals)
+                source_chain_config
+                    .max_target_decimals
+                    .min(source_chain_decimals)
             };
 
-            state::save_token_decimals(storage, src_chain, token_id, src_chain_decimals)
+            state::save_token_decimals(storage, source_chain, token_id, source_chain_decimals)
                 .change_context(Error::State)?;
-            state::save_token_decimals(storage, dest_chain, token_id, dest_chain_decimals)
-                .change_context(Error::State)?;
+            state::save_token_decimals(
+                storage,
+                destination_chain,
+                token_id,
+                destination_chain_decimals,
+            )
+            .change_context(Error::State)?;
 
             Ok(Message::DeployInterchainToken {
                 token_id,
                 name,
                 symbol,
-                decimals: dest_chain_decimals,
+                decimals: destination_chain_decimals,
                 minter,
             })
         }
