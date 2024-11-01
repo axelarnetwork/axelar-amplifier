@@ -92,12 +92,12 @@ pub fn execute_message(
             let destination_address = load_its_contract(deps.storage, &destination_chain)
                 .change_context_lazy(|| Error::UnknownChain(destination_chain.clone()))?;
 
-            apply_handlers(
+            apply_checks(
                 deps.storage,
                 &message,
                 MessageDirection::From(cc_id.source_chain.clone()),
             )?;
-            apply_handlers(
+            apply_checks(
                 deps.storage,
                 &message,
                 MessageDirection::To(destination_chain.clone()),
@@ -210,7 +210,8 @@ pub fn set_chain_config(
     }
 }
 
-fn apply_handlers(
+/// Applies various checks on the message.
+fn apply_checks(
     storage: &mut dyn Storage,
     message: &Message,
     message_direction: MessageDirection,
@@ -222,25 +223,15 @@ fn apply_handlers(
     )
     .change_context_lazy(|| Error::LoadTokenInfo(message.token_id()))?;
 
-    // Note: The order of the handlers is important
-    let token_chain_info = token_chain_info
+    // Validation checks on the token chain info
+    token_redeployment_check(message, &message_direction, &token_chain_info)?;
+    token_deployment_origin_chain_check(storage, message, &message_direction, &token_chain_info)?;
+
+    // Transformations on the token chain info
+    let token_chain_info = token_deployment_check(message, &message_direction, token_chain_info)?
         .then(|token_chain_info| {
-            token_redeployment_check(message, &message_direction, token_chain_info)
-        })?
-        .then(|token_chain_info| {
-            token_deployment_origin_chain_handler(
-                storage,
-                message,
-                &message_direction,
-                token_chain_info,
-            )
-        })?
-        .then(|token_chain_info| {
-            token_deployment_handler(message, &message_direction, token_chain_info)
-        })?
-        .then(|token_chain_info| {
-            token_supply_handler(message, &message_direction, token_chain_info)
-        })?;
+        token_supply_check(message, &message_direction, token_chain_info)
+    })?;
 
     state::save_token_chain_info(
         storage,
@@ -251,19 +242,21 @@ fn apply_handlers(
     .change_context_lazy(|| Error::SaveTokenInfo(message.token_id()))
 }
 
-fn token_deployment_origin_chain_handler(
+/// Ensures that the token is being redeployed from the same origin chain.
+/// If it's being deployed for the first time, the from chain is saved as the origin chain in the token config.
+fn token_deployment_origin_chain_check(
     storage: &mut dyn Storage,
     message: &Message,
     message_direction: &MessageDirection,
-    token_chain_info: Option<TokenChainInfo>,
-) -> Result<Option<TokenChainInfo>, Error> {
+    token_chain_info: &Option<TokenChainInfo>,
+) -> Result<(), Error> {
     // Token cannot be redeployed to the destination chain
     if !matches!(
         message,
         Message::DeployInterchainToken { .. } | Message::DeployTokenManager { .. }
     ) || !matches!(message_direction, MessageDirection::From(_))
     {
-        return Ok(token_chain_info);
+        return Ok(());
     }
 
     let token_config = state::may_load_token_config(storage, &message.token_id())
@@ -306,15 +299,15 @@ fn token_deployment_origin_chain_handler(
         );
     }
 
-    Ok(token_chain_info)
+    Ok(())
 }
 
+/// Ensures that the token is not being redeployed to the same destination chain.
 fn token_redeployment_check(
     message: &Message,
     message_direction: &MessageDirection,
-    token_chain_info: Option<TokenChainInfo>,
-) -> Result<Option<TokenChainInfo>, Error> {
-    // Token cannot be redeployed to the destination chain
+    token_chain_info: &Option<TokenChainInfo>,
+) -> Result<(), Error> {
     if matches!(
         message,
         Message::DeployInterchainToken { .. } | Message::DeployTokenManager { .. }
@@ -327,10 +320,13 @@ fn token_redeployment_check(
         });
     }
 
-    Ok(token_chain_info)
+    Ok(())
 }
 
-fn token_deployment_handler(
+/// Ensures that the token info is recorded on deployment.
+/// The token supply tracking is also enabled on deployment for trustless token deployments (i.e no minter set).
+/// Tokens that haven't been deployed yet cannot be transferred.
+fn token_deployment_check(
     message: &Message,
     message_direction: &MessageDirection,
     token_chain_info: Option<TokenChainInfo>,
@@ -355,7 +351,10 @@ fn token_deployment_handler(
     ))
 }
 
-fn token_supply_handler(
+/// Updates the token supply for the chain on a transfer.
+/// Ensures that the transfer `amount <= supply` for the chain,
+/// i.e no more than the token supply for the chain can be transferred out of the chain.
+fn token_supply_check(
     message: &Message,
     message_direction: &MessageDirection,
     mut token_chain_info: TokenChainInfo,
@@ -374,71 +373,6 @@ fn token_supply_handler(
 
     Ok(token_chain_info)
 }
-
-/// Applies invariants on the ITS message.
-///
-/// Invariants:
-/// - Token must be deployed on the chain before any transfers can be routed.
-/// - Token cannot be redeployed to the chain.
-/// - If the token is deployed without a custom minter, then the token is considered to be owned by ITS, and total token supply moved to the chain is tracked.
-/// - If the total token amount moved to a chain so far is `x`, then any transfer moving the token back from the chain and exceeding `x` will fail.
-///
-/// Invariants are updated depending on the ITS message type
-///
-/// 1. InterchainTransfer:
-///    - Decreases the token supply on the source chain if the supply is being tracked.
-///    - Increases the token supply on the destination chain if the supply is being tracked.
-///    - If the supply underflows for either case, an error is returned.
-///
-/// 2. DeployInterchainToken:
-///    - If a custom minter is not set, then the token supply is tracked for the destination chain.
-///    - If a custom minter is set, then the supply is not tracked, but the deployment is recorded as `TokenInfo`.
-///
-/// 3. DeployTokenManager:
-///    - Same as the custom minter being set above. ITS Hub can't know if the existing token on the destination chain has a custom minter set.
-// fn apply_supply_invariant(
-//     storage: &mut dyn Storage,
-//     message: &Message,
-//     message_direction: DirectionalChain,
-// ) -> Result<(), Error> {
-//     match message {
-//         Message::InterchainTransfer {
-//             token_id, amount, ..
-//         } => {
-//             state::update_token_chain_info(storage, message_direction, token_id.clone(), *amount)
-//                 .change_context_lazy(|| Error::UpdateTokenInfo(token_id.clone()))?;
-//         }
-//         Message::DeployInterchainToken {
-//             token_id,
-//             minter: None,
-//             ..
-//         } => {
-//             state::save_token_chain_info(
-//                 storage,
-//                 message_direction,
-//                 token_id.clone(),
-//                 TokenDeploymentType::Trustless,
-//             )
-//             .change_context_lazy(|| Error::SaveTokenInfo(token_id.clone()))?;
-//         }
-//         Message::DeployInterchainToken {
-//             token_id,
-//             minter: Some(_),
-//             ..
-//         }
-//         | Message::DeployTokenManager { token_id, .. } => {
-//             state::save_token_chain_info(
-//                 storage,
-//                 message_direction,
-//                 token_id.clone(),
-//                 TokenDeploymentType::CustomMinter,
-//             )
-//             .change_context_lazy(|| Error::SaveTokenInfo(token_id.clone()))?;
-//         }
-//     };
-
-//     Ok(())
-// }
 
 #[cfg(test)]
 mod tests {
