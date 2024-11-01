@@ -444,7 +444,7 @@ fn set_chain_config_should_fail_if_chain_config_is_already_set() {
 }
 
 #[test]
-fn interchain_transfer_maintains_supply_invariant() {
+fn deploy_interchain_token_tracks_supply() {
     let (
         mut deps,
         TestMessage {
@@ -453,28 +453,18 @@ fn interchain_transfer_maintains_supply_invariant() {
             source_its_contract,
             destination_its_chain,
             destination_its_contract,
-            ..
+            hub_message,
         },
     ) = utils::setup();
 
-    let token_id = TokenId::new([1u8; 32]);
+    let token_id = hub_message.token_id();
     let amount = nonempty::Uint256::try_from(400u64).unwrap();
 
-    let msg = HubMessage::SendToHub {
-        destination_chain: destination_its_chain.clone(),
-        message: Message::DeployInterchainToken {
-            token_id: token_id.clone(),
-            name: "Test".try_into().unwrap(),
-            symbol: "TST".try_into().unwrap(),
-            decimals: 18,
-            minter: None,
-        },
-    };
     assert_ok!(utils::execute_hub_message(
         deps.as_mut(),
         router_message.cc_id.clone(),
         source_its_contract.clone(),
-        msg,
+        hub_message,
     ));
 
     let msg = HubMessage::SendToHub {
@@ -551,7 +541,7 @@ fn interchain_transfer_maintains_supply_invariant() {
         assert_ok!(utils::query_token_info(
             deps.as_ref(),
             destination_its_chain,
-            token_id
+            token_id.clone()
         ))
         .unwrap()
         .supply,
@@ -560,7 +550,7 @@ fn interchain_transfer_maintains_supply_invariant() {
 }
 
 #[test]
-fn interchain_transfer_exceeds_supply_fails() {
+fn deploy_interchain_token_with_minter_does_not_track_supply() {
     let (
         mut deps,
         TestMessage {
@@ -576,21 +566,110 @@ fn interchain_transfer_exceeds_supply_fails() {
     let token_id = TokenId::new([1u8; 32]);
     let amount = nonempty::Uint256::try_from(400u64).unwrap();
 
-    let deploy_message = HubMessage::SendToHub {
+    let msg = HubMessage::SendToHub {
         destination_chain: destination_its_chain.clone(),
         message: Message::DeployInterchainToken {
             token_id: token_id.clone(),
             name: "Test".try_into().unwrap(),
             symbol: "TST".try_into().unwrap(),
             decimals: 18,
-            minter: None,
+            minter: Some(HexBinary::from([1; 32]).try_into().unwrap()),
         },
     };
     assert_ok!(utils::execute_hub_message(
         deps.as_mut(),
         router_message.cc_id.clone(),
         source_its_contract.clone(),
-        deploy_message,
+        msg,
+    ));
+    for chain in [source_its_chain.clone(), destination_its_chain.clone()] {
+        assert_eq!(
+            assert_ok!(utils::query_token_info(
+                deps.as_ref(),
+                chain.clone(),
+                token_id.clone()
+            ))
+            .unwrap()
+            .supply,
+            TokenSupply::Untracked,
+        );
+    }
+
+    let msg = HubMessage::SendToHub {
+        destination_chain: destination_its_chain.clone(),
+        message: Message::InterchainTransfer {
+            token_id: token_id.clone(),
+            source_address: HexBinary::from([1; 32]).try_into().unwrap(),
+            destination_address: HexBinary::from([2; 32]).try_into().unwrap(),
+            amount,
+            data: None,
+        },
+    };
+    assert_ok!(utils::execute_hub_message(
+        deps.as_mut(),
+        router_message.cc_id.clone(),
+        source_its_contract.clone(),
+        msg,
+    ));
+
+    // Send a larger amount back
+    let msg = HubMessage::SendToHub {
+        destination_chain: source_its_chain.clone(),
+        message: Message::InterchainTransfer {
+            token_id: token_id.clone(),
+            source_address: HexBinary::from([1; 32]).try_into().unwrap(),
+            destination_address: HexBinary::from([2; 32]).try_into().unwrap(),
+            amount: amount.strict_add(Uint256::one()).try_into().unwrap(),
+            data: None,
+        },
+    };
+    assert_ok!(utils::execute_hub_message(
+        deps.as_mut(),
+        CrossChainId::new(
+            destination_its_chain.clone(),
+            router_message.cc_id.message_id.clone()
+        )
+        .unwrap(),
+        destination_its_contract,
+        msg,
+    ));
+
+    for chain in [source_its_chain.clone(), destination_its_chain.clone()] {
+        assert_eq!(
+            assert_ok!(utils::query_token_info(
+                deps.as_ref(),
+                chain.clone(),
+                token_id.clone()
+            ))
+            .unwrap()
+            .supply,
+            TokenSupply::Untracked,
+        );
+    }
+}
+
+#[test]
+fn interchain_transfer_exceeds_supply_fails() {
+    let (
+        mut deps,
+        TestMessage {
+            router_message,
+            source_its_chain,
+            source_its_contract,
+            destination_its_chain,
+            destination_its_contract,
+            hub_message: msg,
+        },
+    ) = utils::setup();
+
+    let token_id = msg.token_id();
+    let amount = nonempty::Uint256::try_from(400u64).unwrap();
+
+    assert_ok!(utils::execute_hub_message(
+        deps.as_mut(),
+        router_message.cc_id.clone(),
+        source_its_contract.clone(),
+        msg,
     ));
 
     let msg = HubMessage::SendToHub {
@@ -664,22 +743,11 @@ fn deploy_interchain_token_submitted_twice_fails() {
         TestMessage {
             router_message,
             source_its_contract,
-            destination_its_chain,
+            hub_message: msg,
             ..
         },
     ) = utils::setup();
 
-    let token_id = TokenId::new([1u8; 32]);
-    let msg = HubMessage::SendToHub {
-        destination_chain: destination_its_chain.clone(),
-        message: Message::DeployInterchainToken {
-            token_id: token_id.clone(),
-            name: "Test".try_into().unwrap(),
-            symbol: "TST".try_into().unwrap(),
-            decimals: 18,
-            minter: None,
-        },
-    };
     assert_ok!(utils::execute_hub_message(
         deps.as_mut(),
         router_message.cc_id.clone(),
@@ -706,22 +774,11 @@ fn deploy_interchain_token_from_non_origin_chain_fails() {
         TestMessage {
             router_message,
             source_its_contract,
-            destination_its_chain,
+            hub_message: msg,
             ..
         },
     ) = utils::setup();
 
-    let token_id = TokenId::new([1u8; 32]);
-    let msg = HubMessage::SendToHub {
-        destination_chain: destination_its_chain.clone(),
-        message: Message::DeployInterchainToken {
-            token_id: token_id.clone(),
-            name: "Test".try_into().unwrap(),
-            symbol: "TST".try_into().unwrap(),
-            decimals: 18,
-            minter: None,
-        },
-    };
     assert_ok!(utils::execute_hub_message(
         deps.as_mut(),
         router_message.cc_id.clone(),
@@ -756,22 +813,11 @@ fn deploy_interchain_token_to_multiple_destination_succeeds() {
         TestMessage {
             router_message,
             source_its_contract,
-            destination_its_chain,
+            hub_message: msg,
             ..
         },
     ) = utils::setup();
 
-    let token_id = TokenId::new([1u8; 32]);
-    let msg = HubMessage::SendToHub {
-        destination_chain: destination_its_chain.clone(),
-        message: Message::DeployInterchainToken {
-            token_id: token_id.clone(),
-            name: "Test".try_into().unwrap(),
-            symbol: "TST".try_into().unwrap(),
-            decimals: 18,
-            minter: None,
-        },
-    };
     assert_ok!(utils::execute_hub_message(
         deps.as_mut(),
         router_message.cc_id.clone(),
@@ -789,13 +835,7 @@ fn deploy_interchain_token_to_multiple_destination_succeeds() {
 
     let msg = HubMessage::SendToHub {
         destination_chain: another_chain,
-        message: Message::DeployInterchainToken {
-            token_id: token_id.clone(),
-            name: "Test".try_into().unwrap(),
-            symbol: "TST".try_into().unwrap(),
-            decimals: 18,
-            minter: None,
-        },
+        message: msg.message().clone(),
     };
     assert_ok!(utils::execute_hub_message(
         deps.as_mut(),

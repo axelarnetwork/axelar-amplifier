@@ -1,14 +1,13 @@
-use cosmwasm_std::HexBinary;
 use interchain_token_service::{HubMessage, Message, TokenId};
 use router_api::{Address, ChainNameRaw, CrossChainId};
 
 pub fn dummy_message() -> Message {
-    Message::InterchainTransfer {
+    Message::DeployInterchainToken {
         token_id: TokenId::new([2; 32]),
-        source_address: HexBinary::from_hex("1234").unwrap().try_into().unwrap(),
-        destination_address: HexBinary::from_hex("5678").unwrap().try_into().unwrap(),
-        amount: 1000u64.try_into().unwrap(),
-        data: Some(HexBinary::from_hex("abcd").unwrap().try_into().unwrap()),
+        name: "Test".try_into().unwrap(),
+        symbol: "TST".try_into().unwrap(),
+        decimals: 18,
+        minter: None,
     }
 }
 

@@ -103,6 +103,10 @@ impl HubMessage {
             HubMessage::ReceiveFromHub { message, .. } => message,
         }
     }
+
+    pub fn token_id(&self) -> TokenId {
+        self.message().token_id()
+    }
 }
 
 impl Message {
