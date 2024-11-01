@@ -38,8 +38,9 @@ pub enum TokenSupply {
     Untracked,
 }
 
+/// Information about a token on a specific chain.
 #[cw_serde]
-pub struct TokenInfo {
+pub struct TokenChainInfo {
     pub supply: TokenSupply,
 }
 
@@ -69,7 +70,7 @@ impl From<MessageDirection> for ChainNameRaw {
 const CONFIG: Item<Config> = Item::new("config");
 const ITS_CONTRACTS: Map<&ChainNameRaw, Address> = Map::new("its_contracts");
 const CHAIN_CONFIGS: Map<&ChainNameRaw, ChainConfig> = Map::new("chain_configs");
-const TOKEN_INFO: Map<&(ChainNameRaw, TokenId), TokenInfo> = Map::new("token_info");
+const TOKEN_INFO: Map<&(ChainNameRaw, TokenId), TokenChainInfo> = Map::new("token_info");
 
 pub fn load_config(storage: &dyn Storage) -> Config {
     CONFIG
@@ -151,7 +152,7 @@ pub fn save_token_info(
     storage: &mut dyn Storage,
     chain: ChainNameRaw,
     token_id: TokenId,
-    token_info: TokenInfo,
+    token_info: TokenChainInfo,
 ) -> Result<(), Error> {
     Ok(TOKEN_INFO.save(storage, &(chain, token_id), &token_info)?)
 }
@@ -160,7 +161,7 @@ pub fn may_load_token_info(
     storage: &dyn Storage,
     chain: ChainNameRaw,
     token_id: TokenId,
-) -> Result<Option<TokenInfo>, Error> {
+) -> Result<Option<TokenChainInfo>, Error> {
     Ok(TOKEN_INFO.may_load(storage, &(chain, token_id))?)
 }
 
@@ -186,7 +187,7 @@ impl TokenSupply {
     }
 }
 
-impl TokenInfo {
+impl TokenChainInfo {
     pub fn update_supply(
         &mut self,
         amount: nonempty::Uint256,

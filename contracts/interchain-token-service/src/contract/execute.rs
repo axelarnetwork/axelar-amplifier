@@ -6,7 +6,7 @@ use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
 use crate::events::Event;
 use crate::primitives::HubMessage;
 use crate::state::{self, load_config, load_its_contract, MessageDirection, TokenDeploymentType};
-use crate::{Message, TokenId, TokenInfo};
+use crate::{Message, TokenChainInfo, TokenId};
 
 #[derive(thiserror::Error, Debug, IntoContractError)]
 pub enum Error {
@@ -236,8 +236,8 @@ fn apply_handlers(
 fn token_redeployment_check(
     message: &Message,
     directional_chain: &MessageDirection,
-    token_info: Option<TokenInfo>,
-) -> Result<Option<TokenInfo>, Error> {
+    token_info: Option<TokenChainInfo>,
+) -> Result<Option<TokenChainInfo>, Error> {
     // Token cannot be redeployed to the destination chain
     if matches!(
         message,
@@ -257,8 +257,8 @@ fn token_redeployment_check(
 fn token_deployment_handler(
     message: &Message,
     directional_chain: &MessageDirection,
-    token_info: Option<TokenInfo>,
-) -> Result<TokenInfo, Error> {
+    token_info: Option<TokenChainInfo>,
+) -> Result<TokenChainInfo, Error> {
     if let Some(token_info) = token_info {
         return Ok(token_info);
     }
@@ -274,7 +274,7 @@ fn token_deployment_handler(
         }),
     };
 
-    Ok(TokenInfo {
+    Ok(TokenChainInfo {
         supply: (directional_chain, token_deployment_type).into(),
     })
 }
@@ -282,8 +282,8 @@ fn token_deployment_handler(
 fn token_supply_handler(
     message: &Message,
     directional_chain: &MessageDirection,
-    mut token_info: TokenInfo,
-) -> Result<TokenInfo, Error> {
+    mut token_info: TokenChainInfo,
+) -> Result<TokenChainInfo, Error> {
     if let Message::InterchainTransfer {
         token_id, amount, ..
     } = message
