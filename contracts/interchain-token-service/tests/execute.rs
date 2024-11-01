@@ -128,21 +128,21 @@ fn execute_hub_message_succeeds() {
     let token_id = TokenId::new([1; 32]);
     let test_messages = vec![
         Message::InterchainTransfer {
-            token_id: token_id.clone(),
+            token_id,
             source_address: HexBinary::from([1; 32]).try_into().unwrap(),
             destination_address: HexBinary::from([2; 32]).try_into().unwrap(),
             amount: 1u64.try_into().unwrap(),
             data: Some(HexBinary::from([1, 2, 3, 4]).try_into().unwrap()),
         },
         Message::DeployInterchainToken {
-            token_id: token_id.clone(),
+            token_id,
             name: "Test".try_into().unwrap(),
             symbol: "TST".try_into().unwrap(),
             decimals: 18,
             minter: Some(HexBinary::from([1; 32]).try_into().unwrap()),
         },
         Message::DeployTokenManager {
-            token_id: token_id.clone(),
+            token_id,
             token_manager_type: TokenManagerType::MintBurn,
             params: HexBinary::from([1, 2, 3, 4]).try_into().unwrap(),
         },

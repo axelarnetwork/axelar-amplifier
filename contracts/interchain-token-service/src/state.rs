@@ -7,6 +7,8 @@ use cw_storage_plus::{Item, Map};
 use error_stack::{report, Result, ResultExt};
 use router_api::{Address, ChainNameRaw};
 
+use crate::TokenId;
+
 #[derive(thiserror::Error, Debug, IntoContractError)]
 pub enum Error {
     #[error("ITS contract got into an invalid state, its config is missing")]
@@ -17,6 +19,8 @@ pub enum Error {
     ItsContractAlreadyRegistered(ChainNameRaw),
     #[error("chain not found {0}")]
     ChainNotFound(ChainNameRaw),
+    #[error("chain config for chain {0} not found")]
+    ChainConfigNotFound(ChainNameRaw),
     // This is a generic error to use when cw_storage_plus returns an error that is unexpected and
     // should never happen, such as an error encountered when saving data.
     #[error("storage error")]
@@ -30,8 +34,8 @@ pub struct Config {
 
 #[cw_serde]
 pub struct ChainConfig {
-    max_uint: nonempty::Uint256,
-    max_target_decimals: u8,
+    pub max_uint: nonempty::Uint256,
+    pub max_target_decimals: u8,
     frozen: bool,
 }
 
@@ -58,6 +62,15 @@ pub fn may_load_chain_config(
         .change_context(Error::Storage)
 }
 
+pub fn load_chain_config(
+    storage: &dyn Storage,
+    chain: &ChainNameRaw,
+) -> Result<ChainConfig, Error> {
+    may_load_chain_config(storage, chain)
+        .change_context(Error::Storage)?
+        .ok_or_else(|| report!(Error::ChainConfigNotFound(chain.to_owned())))
+}
+
 pub fn save_chain_config(
     storage: &mut dyn Storage,
     chain: &ChainNameRaw,
@@ -75,6 +88,15 @@ pub fn save_chain_config(
             },
         )
         .change_context(Error::Storage)
+}
+
+pub fn save_token_decimals(
+    _storage: &mut dyn Storage,
+    _chain: &ChainNameRaw,
+    _token_id: TokenId,
+    _decimals: u8,
+) -> Result<(), Error> {
+    todo!()
 }
 
 pub fn may_load_its_contract(

@@ -6,6 +6,7 @@ use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
 use crate::events::Event;
 use crate::primitives::HubMessage;
 use crate::state::{self, is_chain_frozen, load_config, load_its_contract};
+use crate::Message;
 
 #[derive(thiserror::Error, Debug, IntoContractError)]
 pub enum Error {
@@ -193,6 +194,49 @@ pub fn set_chain_config(
         None => state::save_chain_config(deps.storage, &chain, max_uint, max_target_decimals)
             .change_context_lazy(|| Error::SaveChainConfig(chain))?
             .then(|_| Ok(Response::new())),
+    }
+}
+
+#[allow(unused)]
+fn translate_and_save_token_decimals_on_token_deployment(
+    storage: &mut dyn Storage,
+    src_chain: &ChainNameRaw,
+    dest_chain: &ChainNameRaw,
+    message: Message,
+) -> Result<Message, Error> {
+    match message {
+        Message::DeployInterchainToken {
+            token_id,
+            name,
+            symbol,
+            decimals: src_chain_decimals,
+            minter,
+        } => {
+            let src_chain_config =
+                state::load_chain_config(storage, src_chain).change_context(Error::State)?;
+            let dest_chain_config =
+                state::load_chain_config(storage, dest_chain).change_context(Error::State)?;
+
+            let dest_chain_decimals = if src_chain_config.max_uint.le(&dest_chain_config.max_uint) {
+                src_chain_decimals
+            } else {
+                src_chain_config.max_target_decimals
+            };
+
+            state::save_token_decimals(storage, src_chain, token_id, src_chain_decimals)
+                .change_context(Error::State)?;
+            state::save_token_decimals(storage, dest_chain, token_id, dest_chain_decimals)
+                .change_context(Error::State)?;
+
+            Ok(Message::DeployInterchainToken {
+                token_id,
+                name,
+                symbol,
+                decimals: dest_chain_decimals,
+                minter,
+            })
+        }
+        _ => Ok(message),
     }
 }
 
