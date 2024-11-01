@@ -225,6 +225,10 @@ fn translate_amount_on_token_transfer(
             let dest_chain_decimals = state::load_token_decimals(storage, dest_chain, token_id)
                 .change_context(Error::State)?;
 
+            // dest_chain_amount = amount * 10 ^ (dest_chain_decimals - src_chain_decimals)
+            // It's intentionally written in this way since the end result may still be fine even if
+            //     1) amount * (10 ^ (dest_chain_decimals)) overflows
+            //     2) amount / (10 ^ (src_chain_decimals)) is zero
             let dest_chain_amount = if src_chain_decimals > dest_chain_decimals {
                 amount
                     .checked_div(
