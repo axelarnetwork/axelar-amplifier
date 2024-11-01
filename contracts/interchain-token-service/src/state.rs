@@ -44,9 +44,9 @@ pub struct TokenInfo {
 }
 
 #[derive(Clone)]
-pub enum DirectionalChain {
-    Source(ChainNameRaw),
-    Destination(ChainNameRaw),
+pub enum MessageDirection {
+    From(ChainNameRaw),
+    To(ChainNameRaw),
 }
 
 /// The deployment type of the token.
@@ -57,11 +57,11 @@ pub enum TokenDeploymentType {
     CustomMinter,
 }
 
-impl From<DirectionalChain> for ChainNameRaw {
-    fn from(directional_chain: DirectionalChain) -> Self {
+impl From<MessageDirection> for ChainNameRaw {
+    fn from(directional_chain: MessageDirection) -> Self {
         match directional_chain {
-            DirectionalChain::Source(chain) => chain,
-            DirectionalChain::Destination(chain) => chain,
+            MessageDirection::From(chain) => chain,
+            MessageDirection::To(chain) => chain,
         }
     }
 }
@@ -190,24 +190,24 @@ impl TokenInfo {
     pub fn update_supply(
         &mut self,
         amount: nonempty::Uint256,
-        directional_chain: DirectionalChain,
+        directional_chain: MessageDirection,
     ) -> Result<(), OverflowError> {
         self.supply = match directional_chain {
-            DirectionalChain::Source(_) => self.supply.checked_sub(amount)?,
-            DirectionalChain::Destination(_) => self.supply.checked_add(amount)?,
+            MessageDirection::From(_) => self.supply.checked_sub(amount)?,
+            MessageDirection::To(_) => self.supply.checked_add(amount)?,
         };
 
         Ok(())
     }
 }
 
-impl From<(&DirectionalChain, TokenDeploymentType)> for TokenSupply {
+impl From<(&MessageDirection, TokenDeploymentType)> for TokenSupply {
     fn from(
-        (directional_chain, token_deployment_type): (&DirectionalChain, TokenDeploymentType),
+        (directional_chain, token_deployment_type): (&MessageDirection, TokenDeploymentType),
     ) -> Self {
         match (directional_chain, token_deployment_type) {
             // Token supply is only tracked for trustless tokens deployed to remote chains
-            (DirectionalChain::Destination(_), TokenDeploymentType::Trustless) => {
+            (MessageDirection::To(_), TokenDeploymentType::Trustless) => {
                 TokenSupply::Tracked(Uint256::zero())
             }
             _ => TokenSupply::Untracked,

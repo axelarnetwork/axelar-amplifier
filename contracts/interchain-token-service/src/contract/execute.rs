@@ -5,7 +5,7 @@ use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
 
 use crate::events::Event;
 use crate::primitives::HubMessage;
-use crate::state::{self, load_config, load_its_contract, DirectionalChain, TokenDeploymentType};
+use crate::state::{self, load_config, load_its_contract, MessageDirection, TokenDeploymentType};
 use crate::{Message, TokenId, TokenInfo};
 
 #[derive(thiserror::Error, Debug, IntoContractError)]
@@ -85,12 +85,12 @@ pub fn execute_message(
             apply_handlers(
                 deps.storage,
                 &message,
-                DirectionalChain::Source(cc_id.source_chain.clone()),
+                MessageDirection::From(cc_id.source_chain.clone()),
             )?;
             apply_handlers(
                 deps.storage,
                 &message,
-                DirectionalChain::Destination(destination_chain.clone()),
+                MessageDirection::To(destination_chain.clone()),
             )?;
 
             let destination_payload = HubMessage::ReceiveFromHub {
@@ -203,7 +203,7 @@ pub fn set_chain_config(
 fn apply_handlers(
     storage: &mut dyn Storage,
     message: &Message,
-    directional_chain: DirectionalChain,
+    directional_chain: MessageDirection,
 ) -> Result<(), Error> {
     let token_info = state::may_load_token_info(
         storage,
@@ -229,14 +229,14 @@ fn apply_handlers(
 
 fn token_redeployment_check(
     message: &Message,
-    directional_chain: &DirectionalChain,
+    directional_chain: &MessageDirection,
     token_info: Option<TokenInfo>,
 ) -> Result<Option<TokenInfo>, Error> {
     // Token cannot be redeployed to the destination chain
     if matches!(
         message,
         Message::DeployInterchainToken { .. } | Message::DeployTokenManager { .. }
-    ) && matches!(directional_chain, DirectionalChain::Destination(_))
+    ) && matches!(directional_chain, MessageDirection::To(_))
         && token_info.is_some()
     {
         bail!(Error::TokenAlreadyDeployed {
@@ -250,7 +250,7 @@ fn token_redeployment_check(
 
 fn token_deployment_handler(
     message: &Message,
-    directional_chain: &DirectionalChain,
+    directional_chain: &MessageDirection,
     token_info: Option<TokenInfo>,
 ) -> Result<TokenInfo, Error> {
     if let Some(token_info) = token_info {
@@ -275,7 +275,7 @@ fn token_deployment_handler(
 
 fn token_supply_handler(
     message: &Message,
-    directional_chain: &DirectionalChain,
+    directional_chain: &MessageDirection,
     mut token_info: TokenInfo,
 ) -> Result<TokenInfo, Error> {
     if let Message::InterchainTransfer {
