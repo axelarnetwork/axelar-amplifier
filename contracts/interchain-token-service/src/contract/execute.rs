@@ -34,18 +34,6 @@ pub enum Error {
     State,
     #[error("chain config for {0} already set")]
     ChainConfigAlreadySet(ChainNameRaw),
-    #[error("failed to load chain config for chain {0}")]
-    LoadChainConfig(ChainNameRaw),
-    #[error("failed to save chain config for chain {0}")]
-    SaveChainConfig(ChainNameRaw),
-    #[error("failed to load token info for token {0}")]
-    LoadTokenInfo(TokenId),
-    #[error("failed to save token info for token {0}")]
-    SaveTokenInfo(TokenId),
-    #[error("failed to load token config for token {0}")]
-    LoadTokenConfig(TokenId),
-    #[error("failed to save token config for token {0}")]
-    SaveTokenConfig(TokenId),
     #[error("token info not found for token {0}")]
     TokenInfoNotFound(TokenId),
     #[error("token {token_id} not deployed on chain {chain}")]
@@ -221,12 +209,10 @@ pub fn set_chain_config(
     max_uint: nonempty::Uint256,
     max_target_decimals: u8,
 ) -> Result<Response, Error> {
-    match state::may_load_chain_config(deps.storage, &chain)
-        .change_context_lazy(|| Error::LoadChainConfig(chain.clone()))?
-    {
+    match state::may_load_chain_config(deps.storage, &chain).change_context(Error::State)? {
         Some(_) => bail!(Error::ChainConfigAlreadySet(chain)),
         None => state::save_chain_config(deps.storage, &chain, max_uint, max_target_decimals)
-            .change_context_lazy(|| Error::SaveChainConfig(chain))?
+            .change_context(Error::State)?
             .then(|_| Ok(Response::new())),
     }
 }
@@ -242,7 +228,7 @@ fn apply_checks(
         message_direction.clone().into(),
         message.token_id(),
     )
-    .change_context_lazy(|| Error::LoadTokenInfo(message.token_id()))?;
+    .change_context(Error::State)?;
 
     // Validation checks
     chain_frozen_check(storage, &message_direction.clone().into())?;
@@ -261,7 +247,7 @@ fn apply_checks(
         message.token_id(),
         &token_chain_info,
     )
-    .change_context_lazy(|| Error::SaveTokenInfo(message.token_id()))
+    .change_context(Error::State)
 }
 
 /// Ensures that the token is being redeployed from the same origin chain.
@@ -281,8 +267,8 @@ fn token_deployment_origin_chain_check(
         return Ok(());
     }
 
-    let token_config = state::may_load_token_config(storage, &message.token_id())
-        .change_context_lazy(|| Error::LoadTokenConfig(message.token_id()))?;
+    let token_config =
+        state::may_load_token_config(storage, &message.token_id()).change_context(Error::State)?;
 
     if let Some(TokenConfig { origin_chain, .. }) = token_config {
         // Token can only be redeployed from the same origin chain
@@ -310,7 +296,7 @@ fn token_deployment_origin_chain_check(
         };
 
         state::save_token_config(storage, &message.token_id(), &token_config)
-            .change_context_lazy(|| Error::SaveTokenConfig(message.token_id()))?;
+            .change_context(Error::State)?;
 
         ensure!(
             token_chain_info.is_none(),
