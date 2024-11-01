@@ -23,6 +23,6 @@ pub fn token_info(
 }
 
 pub fn token_config(deps: Deps, token_id: TokenId) -> Result<Binary, state::Error> {
-    let token_config = state::may_load_token_config(deps.storage, token_id)?;
+    let token_config = state::may_load_token_config(deps.storage, &token_id)?;
     Ok(to_json_binary(&token_config)?)
 }

@@ -6,7 +6,7 @@ use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
 use crate::events::Event;
 use crate::primitives::HubMessage;
 use crate::state::{self, load_config, load_its_contract, MessageDirection, TokenDeploymentType};
-use crate::{Message, TokenChainInfo, TokenId};
+use crate::{Message, TokenChainInfo, TokenConfig, TokenId};
 
 #[derive(thiserror::Error, Debug, IntoContractError)]
 pub enum Error {
@@ -32,10 +32,14 @@ pub enum Error {
     LoadChainConfig(ChainNameRaw),
     #[error("failed to save chain config for chain {0}")]
     SaveChainConfig(ChainNameRaw),
-    #[error("failed to save token info for token {0}")]
-    SaveTokenInfo(TokenId),
     #[error("failed to load token info for token {0}")]
     LoadTokenInfo(TokenId),
+    #[error("failed to save token info for token {0}")]
+    SaveTokenInfo(TokenId),
+    #[error("failed to load token config for token {0}")]
+    LoadTokenConfig(TokenId),
+    #[error("failed to save token config for token {0}")]
+    SaveTokenConfig(TokenId),
     #[error("token info not found for token {0}")]
     TokenInfoNotFound(TokenId),
     #[error("token {token_id} not deployed on chain {chain}")]
@@ -221,6 +225,9 @@ fn apply_handlers(
     // Note: The order of the handlers is important
     let token_info = token_info
         .then(|token_info| token_redeployment_check(message, &directional_chain, token_info))?
+        .then(|token_info| {
+            token_deployment_origin_chain_handler(storage, message, &directional_chain, token_info)
+        })?
         .then(|token_info| token_deployment_handler(message, &directional_chain, token_info))?
         .then(|token_info| token_supply_handler(message, &directional_chain, token_info))?;
 
@@ -228,9 +235,67 @@ fn apply_handlers(
         storage,
         directional_chain.into(),
         message.token_id(),
-        token_info,
+        &token_info,
     )
     .change_context_lazy(|| Error::SaveTokenInfo(message.token_id()))
+}
+
+fn token_deployment_origin_chain_handler(
+    storage: &mut dyn Storage,
+    message: &Message,
+    directional_chain: &MessageDirection,
+    token_info: Option<TokenChainInfo>,
+) -> Result<Option<TokenChainInfo>, Error> {
+    // Token cannot be redeployed to the destination chain
+    if !matches!(
+        message,
+        Message::DeployInterchainToken { .. } | Message::DeployTokenManager { .. }
+    ) || !matches!(directional_chain, MessageDirection::From(_))
+    {
+        return Ok(token_info);
+    }
+
+    let token_config = state::may_load_token_config(storage, &message.token_id())
+        .change_context_lazy(|| Error::LoadTokenConfig(message.token_id()))?;
+
+    if let Some(TokenConfig { origin_chain, .. }) = token_config {
+        // Token can only be redeployed from the same origin chain
+        ensure!(
+            origin_chain == ChainNameRaw::from(directional_chain.clone()),
+            Error::TokenDeployedFromNonOriginChain {
+                token_id: message.token_id(),
+                origin_chain,
+                chain: directional_chain.clone().into(),
+            }
+        );
+
+        // Token chain info must already exist from previous deployment
+        ensure!(
+            token_info.is_some(),
+            Error::TokenNotDeployed {
+                token_id: message.token_id(),
+                chain: directional_chain.clone().into(),
+            }
+        );
+    } else {
+        // Token is being deployed for the first time
+        let token_config = TokenConfig {
+            origin_chain: ChainNameRaw::from(directional_chain.clone()),
+        };
+
+        state::save_token_config(storage, &message.token_id(), &token_config)
+            .change_context_lazy(|| Error::SaveTokenConfig(message.token_id()))?;
+
+        ensure!(
+            token_info.is_none(),
+            Error::TokenAlreadyDeployed {
+                token_id: message.token_id(),
+                chain: directional_chain.clone().into(),
+            }
+        );
+    }
+
+    Ok(token_info)
 }
 
 fn token_redeployment_check(

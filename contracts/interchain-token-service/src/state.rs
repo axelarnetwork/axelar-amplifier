@@ -61,7 +61,7 @@ pub enum TokenDeploymentType {
 /// Global config for a token.
 #[cw_serde]
 pub struct TokenConfig {
-    origin_chain: ChainNameRaw,
+    pub origin_chain: ChainNameRaw,
 }
 
 const CONFIG: Item<Config> = Item::new("config");
@@ -150,9 +150,9 @@ pub fn save_token_info(
     storage: &mut dyn Storage,
     chain: ChainNameRaw,
     token_id: TokenId,
-    token_info: TokenChainInfo,
+    token_info: &TokenChainInfo,
 ) -> Result<(), Error> {
-    Ok(TOKEN_INFO.save(storage, &(chain, token_id), &token_info)?)
+    Ok(TOKEN_INFO.save(storage, &(chain, token_id), token_info)?)
 }
 
 pub fn may_load_token_info(
@@ -165,17 +165,17 @@ pub fn may_load_token_info(
 
 pub fn may_load_token_config(
     storage: &dyn Storage,
-    token_id: TokenId,
+    token_id: &TokenId,
 ) -> Result<Option<TokenConfig>, Error> {
-    Ok(TOKEN_CONFIGS.may_load(storage, &token_id)?)
+    Ok(TOKEN_CONFIGS.may_load(storage, token_id)?)
 }
 
 pub fn save_token_config(
     storage: &mut dyn Storage,
-    token_id: TokenId,
+    token_id: &TokenId,
     token_config: &TokenConfig,
 ) -> Result<(), Error> {
-    Ok(TOKEN_CONFIGS.save(storage, &token_id, token_config)?)
+    Ok(TOKEN_CONFIGS.save(storage, token_id, token_config)?)
 }
 
 impl TokenSupply {
