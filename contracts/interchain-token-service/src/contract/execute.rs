@@ -205,6 +205,75 @@ pub fn set_chain_config(
     }
 }
 
+fn translate_amount(
+    amount: nonempty::Uint256,
+    src_chain: &ChainNameRaw,
+    dest_chain: &ChainNameRaw,
+    src_chain_decimals: u8,
+    dest_chain_decimals: u8,
+    dest_chain_max_uint: nonempty::Uint256,
+) -> Result<nonempty::Uint256, Error> {
+    // dest_chain_amount = amount * 10 ^ (dest_chain_decimals - src_chain_decimals)
+    // It's intentionally written in this way since the end result may still be fine even if
+    //     1) amount * (10 ^ (dest_chain_decimals)) overflows
+    //     2) amount / (10 ^ (src_chain_decimals)) is zero
+    let dest_chain_amount = if src_chain_decimals > dest_chain_decimals {
+        amount
+            .checked_div(
+                Uint256::from_u128(10)
+                    .checked_pow(
+                        src_chain_decimals
+                            .checked_sub(dest_chain_decimals)
+                            .expect("decimals subtraction overflow")
+                            .into(),
+                    )
+                    .change_context_lazy(|| Error::InvalidTransferAmount {
+                        source_chain: src_chain.to_owned(),
+                        destination_chain: dest_chain.to_owned(),
+                        amount,
+                    })?,
+            )
+            .expect("(10 ^ (src_chain_decimals-dest_chain_decimals)) must be non-zero")
+    } else {
+        amount
+            .checked_mul(
+                Uint256::from_u128(10)
+                    .checked_pow(
+                        dest_chain_decimals
+                            .checked_sub(src_chain_decimals)
+                            .expect("decimals subtraction overflow")
+                            .into(),
+                    )
+                    .change_context_lazy(|| Error::InvalidTransferAmount {
+                        source_chain: src_chain.to_owned(),
+                        destination_chain: dest_chain.to_owned(),
+                        amount,
+                    })?,
+            )
+            .change_context_lazy(|| Error::InvalidTransferAmount {
+                source_chain: src_chain.to_owned(),
+                destination_chain: dest_chain.to_owned(),
+                amount,
+            })?
+    };
+
+    if dest_chain_amount.gt(&dest_chain_max_uint) {
+        bail!(Error::InvalidTransferAmount {
+            source_chain: src_chain.to_owned(),
+            destination_chain: dest_chain.to_owned(),
+            amount,
+        })
+    }
+
+    nonempty::Uint256::try_from(dest_chain_amount).change_context_lazy(|| {
+        Error::InvalidTransferAmount {
+            source_chain: src_chain.to_owned(),
+            destination_chain: dest_chain.to_owned(),
+            amount,
+        }
+    })
+}
+
 #[allow(unused)]
 fn translate_amount_on_token_transfer(
     storage: &dyn Storage,
@@ -224,71 +293,21 @@ fn translate_amount_on_token_transfer(
                 .change_context(Error::State)?;
             let dest_chain_decimals = state::load_token_decimals(storage, dest_chain, token_id)
                 .change_context(Error::State)?;
-            let dest_chain_config =
-                state::load_chain_config(storage, dest_chain).change_context(Error::State)?;
-
-            // dest_chain_amount = amount * 10 ^ (dest_chain_decimals - src_chain_decimals)
-            // It's intentionally written in this way since the end result may still be fine even if
-            //     1) amount * (10 ^ (dest_chain_decimals)) overflows
-            //     2) amount / (10 ^ (src_chain_decimals)) is zero
-            let dest_chain_amount = if src_chain_decimals > dest_chain_decimals {
-                amount
-                    .checked_div(
-                        Uint256::from_u128(10)
-                            .checked_pow(
-                                src_chain_decimals
-                                    .checked_sub(dest_chain_decimals)
-                                    .expect("decimals subtraction overflow")
-                                    .into(),
-                            )
-                            .change_context_lazy(|| Error::InvalidTransferAmount {
-                                source_chain: src_chain.to_owned(),
-                                destination_chain: dest_chain.to_owned(),
-                                amount,
-                            })?,
-                    )
-                    .expect("(10 ^ (src_chain_decimals-dest_chain_decimals)) must be non-zero")
-            } else {
-                amount
-                    .checked_mul(
-                        Uint256::from_u128(10)
-                            .checked_pow(
-                                dest_chain_decimals
-                                    .checked_sub(src_chain_decimals)
-                                    .expect("decimals subtraction overflow")
-                                    .into(),
-                            )
-                            .change_context_lazy(|| Error::InvalidTransferAmount {
-                                source_chain: src_chain.to_owned(),
-                                destination_chain: dest_chain.to_owned(),
-                                amount,
-                            })?,
-                    )
-                    .change_context_lazy(|| Error::InvalidTransferAmount {
-                        source_chain: src_chain.to_owned(),
-                        destination_chain: dest_chain.to_owned(),
-                        amount,
-                    })?
-            };
-
-            if dest_chain_amount.gt(&dest_chain_config.max_uint) {
-                bail!(Error::InvalidTransferAmount {
-                    source_chain: src_chain.to_owned(),
-                    destination_chain: dest_chain.to_owned(),
-                    amount,
-                })
-            }
+            let dest_chain_max_uint = state::load_chain_config(storage, dest_chain)
+                .change_context(Error::State)?
+                .max_uint;
 
             Ok(Message::InterchainTransfer {
                 token_id,
                 source_address,
                 destination_address,
-                amount: nonempty::Uint256::try_from(dest_chain_amount).change_context_lazy(
-                    || Error::InvalidTransferAmount {
-                        source_chain: src_chain.to_owned(),
-                        destination_chain: dest_chain.to_owned(),
-                        amount,
-                    },
+                amount: translate_amount(
+                    amount,
+                    src_chain,
+                    dest_chain,
+                    src_chain_decimals,
+                    src_chain_decimals,
+                    dest_chain_max_uint,
                 )?,
                 data,
             })
