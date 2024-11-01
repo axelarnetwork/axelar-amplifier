@@ -205,7 +205,9 @@ pub fn save_token_chain_info(
     token_id: TokenId,
     token_chain_info: &TokenChainInfo,
 ) -> Result<(), Error> {
-    TOKEN_CHAIN_INFO.save(storage, &(chain, token_id), token_chain_info).change_context(Error::Storage)
+    TOKEN_CHAIN_INFO
+        .save(storage, &(chain, token_id), token_chain_info)
+        .change_context(Error::Storage)
 }
 
 pub fn may_load_token_chain_info(
@@ -213,14 +215,18 @@ pub fn may_load_token_chain_info(
     chain: ChainNameRaw,
     token_id: TokenId,
 ) -> Result<Option<TokenChainInfo>, Error> {
-    TOKEN_CHAIN_INFO.may_load(storage, &(chain, token_id)).change_context(Error::Storage)
+    TOKEN_CHAIN_INFO
+        .may_load(storage, &(chain, token_id))
+        .change_context(Error::Storage)
 }
 
 pub fn may_load_token_config(
     storage: &dyn Storage,
     token_id: &TokenId,
 ) -> Result<Option<TokenConfig>, Error> {
-    TOKEN_CONFIGS.may_load(storage, token_id).change_context(Error::Storage)
+    TOKEN_CONFIGS
+        .may_load(storage, token_id)
+        .change_context(Error::Storage)
 }
 
 pub fn save_token_config(
@@ -228,7 +234,9 @@ pub fn save_token_config(
     token_id: &TokenId,
     token_config: &TokenConfig,
 ) -> Result<(), Error> {
-    TOKEN_CONFIGS.save(storage, token_id, token_config).change_context(Error::Storage)
+    TOKEN_CONFIGS
+        .save(storage, token_id, token_config)
+        .change_context(Error::Storage)
 }
 
 impl TokenSupply {

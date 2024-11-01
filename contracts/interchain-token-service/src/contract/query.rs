@@ -3,7 +3,10 @@ use cosmwasm_std::{to_json_binary, Binary, Deps};
 use error_stack::{Result, ResultExt};
 use router_api::ChainNameRaw;
 
-use crate::{state::{load_all_its_contracts, may_load_its_contract, may_load_token_chain_info, may_load_token_config}, TokenId};
+use crate::state::{
+    load_all_its_contracts, may_load_its_contract, may_load_token_chain_info, may_load_token_config,
+};
+use crate::TokenId;
 
 #[derive(thiserror::Error, Debug, IntoContractError)]
 pub enum Error {
@@ -29,11 +32,13 @@ pub fn token_chain_info(
     chain: ChainNameRaw,
     token_id: TokenId,
 ) -> Result<Binary, Error> {
-    let token_chain_info = may_load_token_chain_info(deps.storage, chain, token_id).change_context(Error::State)?;
+    let token_chain_info =
+        may_load_token_chain_info(deps.storage, chain, token_id).change_context(Error::State)?;
     to_json_binary(&token_chain_info).change_context(Error::JsonSerialization)
 }
 
 pub fn token_config(deps: Deps, token_id: TokenId) -> Result<Binary, Error> {
-    let token_config = may_load_token_config(deps.storage, &token_id).change_context(Error::State)?;
+    let token_config =
+        may_load_token_config(deps.storage, &token_id).change_context(Error::State)?;
     to_json_binary(&token_config).change_context(Error::JsonSerialization)
 }

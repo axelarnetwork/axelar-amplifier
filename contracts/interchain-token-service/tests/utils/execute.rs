@@ -1,5 +1,6 @@
 use std::marker::PhantomData;
 
+use assert_ok::assert_ok;
 use axelar_core_std::nexus;
 use axelar_core_std::nexus::query::IsChainRegisteredResponse;
 use axelar_core_std::query::AxelarQueryMsg;
@@ -7,7 +8,8 @@ use axelar_wasm_std::error::ContractError;
 use axelar_wasm_std::nonempty;
 use cosmwasm_std::testing::{mock_env, mock_info, MockApi, MockQuerier, MockStorage};
 use cosmwasm_std::{
-    from_json, to_json_binary, Addr, DepsMut, HexBinary, MemoryStorage, OwnedDeps, Response, Uint256, WasmQuery
+    from_json, to_json_binary, Addr, DepsMut, HexBinary, MemoryStorage, OwnedDeps, Response,
+    Uint256, WasmQuery,
 };
 use interchain_token_service::msg::ExecuteMsg;
 use interchain_token_service::{contract, HubMessage};
@@ -15,7 +17,6 @@ use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
 
 use super::{instantiate_contract, TestMessage};
 use crate::utils::params;
-use assert_ok::assert_ok;
 
 pub fn execute(
     deps: DepsMut,

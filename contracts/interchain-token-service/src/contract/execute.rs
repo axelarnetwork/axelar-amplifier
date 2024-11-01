@@ -5,7 +5,9 @@ use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
 
 use crate::events::Event;
 use crate::primitives::HubMessage;
-use crate::state::{self, is_chain_frozen, load_config, load_its_contract, MessageDirection, TokenDeploymentType};
+use crate::state::{
+    self, is_chain_frozen, load_config, load_its_contract, MessageDirection, TokenDeploymentType,
+};
 use crate::{Message, TokenChainInfo, TokenConfig, TokenId};
 
 #[derive(thiserror::Error, Debug, IntoContractError)]

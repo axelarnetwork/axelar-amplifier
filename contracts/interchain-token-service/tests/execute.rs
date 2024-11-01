@@ -80,14 +80,17 @@ fn deregistering_unknown_chain_fails() {
 
 #[test]
 fn execute_hub_message_succeeds() {
-    let (mut deps, TestMessage   {
-        router_message,
-        source_its_chain,
-        source_its_contract,
-        destination_its_chain,
-        destination_its_contract,
-        ..
-    }) = utils::setup();
+    let (
+        mut deps,
+        TestMessage {
+            router_message,
+            source_its_chain,
+            source_its_contract,
+            destination_its_chain,
+            destination_its_contract,
+            ..
+        },
+    ) = utils::setup();
 
     let test_messages = vec![
         Message::DeployInterchainToken {
