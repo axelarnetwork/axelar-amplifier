@@ -1,5 +1,5 @@
 use axelar_wasm_std::{killswitch, nonempty, FnExt, IntoContractError};
-use cosmwasm_std::{DepsMut, HexBinary, QuerierWrapper, Response, Storage};
+use cosmwasm_std::{DepsMut, HexBinary, QuerierWrapper, Response, Storage, Uint256};
 use error_stack::{bail, ensure, report, Result, ResultExt};
 use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
 
@@ -34,6 +34,14 @@ pub enum Error {
     SaveChainConfig(ChainNameRaw),
     #[error("chain {0} is frozen")]
     ChainFrozen(ChainNameRaw),
+    #[error(
+        "invalid transfer amount {amount} from chain {source_chain} to chain {destination_chain}"
+    )]
+    InvalidTransferAmount {
+        source_chain: ChainNameRaw,
+        destination_chain: ChainNameRaw,
+        amount: nonempty::Uint256,
+    },
     #[error("state error")]
     State,
 }
@@ -194,6 +202,84 @@ pub fn set_chain_config(
         None => state::save_chain_config(deps.storage, &chain, max_uint, max_target_decimals)
             .change_context_lazy(|| Error::SaveChainConfig(chain))?
             .then(|_| Ok(Response::new())),
+    }
+}
+
+#[allow(unused)]
+fn translate_amount_on_token_transfer(
+    storage: &dyn Storage,
+    src_chain: &ChainNameRaw,
+    dest_chain: &ChainNameRaw,
+    message: Message,
+) -> Result<Message, Error> {
+    match message {
+        Message::InterchainTransfer {
+            token_id,
+            source_address,
+            destination_address,
+            amount,
+            data,
+        } => {
+            let src_chain_decimals = state::load_token_decimals(storage, src_chain, token_id)
+                .change_context(Error::State)?;
+            let dest_chain_decimals = state::load_token_decimals(storage, dest_chain, token_id)
+                .change_context(Error::State)?;
+
+            let dest_chain_amount = if src_chain_decimals > dest_chain_decimals {
+                amount
+                    .checked_div(
+                        Uint256::from_u128(10)
+                            .checked_pow(
+                                src_chain_decimals
+                                    .checked_sub(dest_chain_decimals)
+                                    .expect("decimals subtraction overflow")
+                                    .into(),
+                            )
+                            .change_context_lazy(|| Error::InvalidTransferAmount {
+                                source_chain: src_chain.to_owned(),
+                                destination_chain: dest_chain.to_owned(),
+                                amount,
+                            })?,
+                    )
+                    .expect("(10 ^ (src_chain_decimals-dest_chain_decimals)) must be non-zero")
+            } else {
+                amount
+                    .checked_mul(
+                        Uint256::from_u128(10)
+                            .checked_pow(
+                                dest_chain_decimals
+                                    .checked_sub(src_chain_decimals)
+                                    .expect("decimals subtraction overflow")
+                                    .into(),
+                            )
+                            .change_context_lazy(|| Error::InvalidTransferAmount {
+                                source_chain: src_chain.to_owned(),
+                                destination_chain: dest_chain.to_owned(),
+                                amount,
+                            })?,
+                    )
+                    .change_context_lazy(|| Error::InvalidTransferAmount {
+                        source_chain: src_chain.to_owned(),
+                        destination_chain: dest_chain.to_owned(),
+                        amount,
+                    })?
+            };
+
+            Ok(Message::InterchainTransfer {
+                token_id,
+                source_address,
+                destination_address,
+                amount: nonempty::Uint256::try_from(dest_chain_amount).change_context_lazy(
+                    || Error::InvalidTransferAmount {
+                        source_chain: src_chain.to_owned(),
+                        destination_chain: dest_chain.to_owned(),
+                        amount,
+                    },
+                )?,
+                data,
+            })
+        }
+        _ => Ok(message),
     }
 }
 
