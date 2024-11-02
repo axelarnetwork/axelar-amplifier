@@ -6,6 +6,9 @@ use cosmwasm_schema::{cw_serde, QueryResponses};
 use msgs_derive::EnsurePermissions;
 use router_api::{Address, ChainNameRaw};
 
+use crate::state::{TokenConfig, TokenInstance};
+use crate::TokenId;
+
 #[cw_serde]
 pub struct InstantiateMsg {
     pub governance_address: String,
@@ -63,7 +66,16 @@ pub enum QueryMsg {
     /// Query the ITS contract address registered for a chain
     #[returns(Option<Address>)]
     ItsContract { chain: ChainNameRaw },
-    /// Query all registererd ITS contract addresses
+    /// Query all registered ITS contract addresses
     #[returns(HashMap<ChainNameRaw, Address>)]
     AllItsContracts,
+    /// Query a token instance on a specific chain
+    #[returns(Option<TokenInstance>)]
+    TokenInstance {
+        chain: ChainNameRaw,
+        token_id: TokenId,
+    },
+    /// Query the configuration parameters for a token
+    #[returns(Option<TokenConfig>)]
+    TokenConfig { token_id: TokenId },
 }
