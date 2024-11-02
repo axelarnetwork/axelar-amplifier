@@ -1,13 +1,13 @@
 use std::collections::HashMap;
 
-use axelar_wasm_std::{nonempty, FnExt, IntoContractError};
+use axelar_wasm_std::{nonempty, IntoContractError};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{ensure, Addr, OverflowError, StdError, Storage, Uint256};
 use cw_storage_plus::{Item, Map};
 use error_stack::{report, Result, ResultExt};
 use router_api::{Address, ChainNameRaw};
 
-use crate::{Message, TokenId};
+use crate::TokenId;
 
 #[derive(thiserror::Error, Debug, IntoContractError)]
 pub enum Error {
@@ -48,21 +48,22 @@ pub enum TokenSupply {
 
 /// Information about a token on a specific chain.
 #[cw_serde]
-pub struct TokenInstantiation {
+pub struct TokenInstance {
     pub token_id: TokenId,
-    supply: TokenSupply,
+    pub supply: TokenSupply,
 }
 
-impl TokenInstantiation {
-    pub fn new(
-        token_id: TokenId,
-        direction: &MessageDirection,
-        deployment_type: &TokenDeploymentType,
-    ) -> Self {
-        let supply = match (direction, deployment_type) {
-            (MessageDirection::To(_), TokenDeploymentType::Trustless) => {
-                TokenSupply::Tracked(Uint256::zero())
-            }
+impl TokenInstance {
+    pub fn new_on_origin(token_id: TokenId) -> Self {
+        Self {
+            token_id,
+            supply: TokenSupply::Untracked,
+        }
+    }
+
+    pub fn new(token_id: TokenId, deployment_type: &TokenDeploymentType) -> Self {
+        let supply = match deployment_type {
+            TokenDeploymentType::Trustless => TokenSupply::Tracked(Uint256::zero()),
             _ => TokenSupply::Untracked,
         };
 
@@ -94,7 +95,7 @@ pub struct GlobalTokenConfig {
 const CONFIG: Item<Config> = Item::new("config");
 const ITS_CONTRACTS: Map<&ChainNameRaw, Address> = Map::new("its_contracts");
 const CHAIN_CONFIGS: Map<&ChainNameRaw, ChainConfig> = Map::new("chain_configs");
-const TOKEN_INSTANTIATIONS: Map<&(ChainNameRaw, TokenId), TokenInstantiation> =
+const TOKEN_INSTANTIATIONS: Map<&(ChainNameRaw, TokenId), TokenInstance> =
     Map::new("token_instantiation");
 const GLOBAL_TOKEN_CONFIGS: Map<&TokenId, GlobalTokenConfig> = Map::new("global_token_configs");
 
@@ -218,18 +219,18 @@ pub fn save_token_instantiation(
     storage: &mut dyn Storage,
     chain: ChainNameRaw,
     token_id: TokenId,
-    token_instantiation: &TokenInstantiation,
+    token_instantiation: &TokenInstance,
 ) -> Result<(), Error> {
     TOKEN_INSTANTIATIONS
         .save(storage, &(chain, token_id), token_instantiation)
         .change_context(Error::Storage)
 }
 
-pub fn may_load_token_instantiation(
+pub fn may_load_token_instance(
     storage: &dyn Storage,
     chain: ChainNameRaw,
     token_id: TokenId,
-) -> Result<Option<TokenInstantiation>, Error> {
+) -> Result<Option<TokenInstance>, Error> {
     TOKEN_INSTANTIATIONS
         .may_load(storage, &(chain, token_id))
         .change_context(Error::Storage)
@@ -254,40 +255,31 @@ pub fn save_global_token_config(
         .change_context(Error::Storage)
 }
 
-impl TokenInstantiation {
+impl TokenInstance {
     pub fn update_supply(
-        mut self,
+        source: &mut Self,
+        destination: &mut Self,
         amount: nonempty::Uint256,
-        message_direction: MessageDirection,
-    ) -> Result<Self, OverflowError> {
-        self.supply = match self.supply {
+    ) -> Result<(), OverflowError> {
+        source.supply = match source.supply {
             TokenSupply::Untracked => TokenSupply::Untracked,
 
-            TokenSupply::Tracked(supply) => match message_direction {
-                MessageDirection::From(_) => {
-                    TokenSupply::Tracked(supply.checked_sub(amount.into())?)
-                }
-                MessageDirection::To(_) => TokenSupply::Tracked(supply.checked_add(amount.into())?),
-            },
+            TokenSupply::Tracked(supply) => {
+                TokenSupply::Tracked(supply.checked_sub(amount.into())?)
+            }
         };
 
-        Ok(self)
+        destination.supply = match destination.supply {
+            TokenSupply::Untracked => TokenSupply::Untracked,
+
+            TokenSupply::Tracked(supply) => {
+                TokenSupply::Tracked(supply.checked_add(amount.into())?)
+            }
+        };
+
+        Ok(())
     }
 }
-
-// impl From<(&MessageDirection, TokenDeploymentType)> for TokenSupply {
-//     fn from(
-//         (message_direction, token_deployment_type): (&MessageDirection, TokenDeploymentType),
-//     ) -> Self {
-//         match (message_direction, token_deployment_type) {
-//             // Token supply is only tracked for trustless tokens deployed to remote chains
-//             (MessageDirection::To(_), TokenDeploymentType::Trustless) => {
-//                 TokenSupply::Tracked(Uint256::zero())
-//             }
-//             _ => TokenSupply::Untracked,
-//         }
-//     }
-// }
 
 impl From<MessageDirection> for ChainNameRaw {
     fn from(message_direction: MessageDirection) -> Self {
@@ -295,12 +287,6 @@ impl From<MessageDirection> for ChainNameRaw {
             MessageDirection::From(chain) => chain,
             MessageDirection::To(chain) => chain,
         }
-    }
-}
-
-impl TokenInstantiation {
-    pub fn supply(&self) -> TokenSupply {
-        self.supply.clone()
     }
 }
 

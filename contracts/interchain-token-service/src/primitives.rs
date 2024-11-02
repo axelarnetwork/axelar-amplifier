@@ -40,41 +40,71 @@ pub enum TokenManagerType {
 #[derive(Eq, strum::AsRefStr)]
 pub enum Message {
     /// Transfer ITS tokens between different chains
-    InterchainTransfer {
-        /// The unique identifier of the token being transferred
-        token_id: TokenId,
-        /// The address that called the ITS contract on the source chain
-        source_address: nonempty::HexBinary,
-        /// The address that the token will be sent to on the destination chain
-        /// If data is not empty, this address will given the token and executed as a contract on the destination chain
-        destination_address: nonempty::HexBinary,
-        /// The amount of tokens to transfer
-        amount: nonempty::Uint256,
-        /// An optional payload to be provided to the destination address, if `data` is not empty
-        data: Option<nonempty::HexBinary>,
-    },
+    InterchainTransfer(InterchainTransfer),
     /// Deploy a new interchain token on the destination chain
-    DeployInterchainToken {
-        /// The unique identifier of the token to be deployed
-        token_id: TokenId,
-        /// The name of the token
-        name: nonempty::String,
-        /// The symbol of the token
-        symbol: nonempty::String,
-        /// The number of decimal places the token supports
-        decimals: u8,
-        /// An additional minter of the token (optional). ITS on the external chain is always a minter.
-        minter: Option<nonempty::HexBinary>,
-    },
+    DeployInterchainToken(DeployInterchainToken),
     /// Deploy a new token manager on the destination chain
-    DeployTokenManager {
-        /// The unique identifier of the token that the token manager will manage
-        token_id: TokenId,
-        /// The type of token manager to deploy
-        token_manager_type: TokenManagerType,
-        /// The parameters to be provided to the token manager contract
-        params: nonempty::HexBinary,
-    },
+    DeployTokenManager(DeployTokenManager),
+}
+
+#[cw_serde]
+#[derive(Eq)]
+pub struct InterchainTransfer {
+    /// The unique identifier of the token being transferred
+    pub token_id: TokenId,
+    /// The address that called the ITS contract on the source chain
+    pub source_address: nonempty::HexBinary,
+    /// The address that the token will be sent to on the destination chain
+    /// If data is not empty, this address will give the token and executed as a contract on the destination chain
+    pub destination_address: nonempty::HexBinary,
+    /// The amount of tokens to transfer
+    pub amount: nonempty::Uint256,
+    /// An optional payload to be provided to the destination address, if `data` is not empty
+    pub data: Option<nonempty::HexBinary>,
+}
+
+impl From<InterchainTransfer> for Message {
+    fn from(value: InterchainTransfer) -> Self {
+        Message::InterchainTransfer(value)
+    }
+}
+
+#[cw_serde]
+#[derive(Eq)]
+pub struct DeployInterchainToken {
+    /// The unique identifier of the token to be deployed
+    pub token_id: TokenId,
+    /// The name of the token
+    pub name: nonempty::String,
+    /// The symbol of the token
+    pub symbol: nonempty::String,
+    /// The number of decimal places the token supports
+    pub decimals: u8,
+    /// An additional minter of the token (optional). ITS on the external chain is always a minter.
+    pub minter: Option<nonempty::HexBinary>,
+}
+
+impl From<DeployInterchainToken> for Message {
+    fn from(value: DeployInterchainToken) -> Self {
+        Message::DeployInterchainToken(value)
+    }
+}
+
+#[cw_serde]
+#[derive(Eq)]
+pub struct DeployTokenManager {
+    /// The unique identifier of the token that the token manager will manage
+    pub token_id: TokenId,
+    /// The type of token manager to deploy
+    pub token_manager_type: TokenManagerType,
+    /// The parameters to be provided to the token manager contract
+    pub params: nonempty::HexBinary,
+}
+
+impl From<DeployTokenManager> for Message {
+    fn from(value: DeployTokenManager) -> Self {
+        Message::DeployTokenManager(value)
+    }
 }
 
 /// A message sent between ITS edge contracts and the ITS hub contract (defined in this crate).
@@ -112,9 +142,9 @@ impl HubMessage {
 impl Message {
     pub fn token_id(&self) -> TokenId {
         match self {
-            Message::InterchainTransfer { token_id, .. }
-            | Message::DeployInterchainToken { token_id, .. }
-            | Message::DeployTokenManager { token_id, .. } => token_id.clone(),
+            Message::InterchainTransfer(InterchainTransfer { token_id, .. })
+            | Message::DeployInterchainToken(DeployInterchainToken { token_id, .. })
+            | Message::DeployTokenManager(DeployTokenManager { token_id, .. }) => token_id.clone(),
         }
     }
 }

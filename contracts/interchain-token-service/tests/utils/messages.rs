@@ -1,14 +1,15 @@
-use interchain_token_service::{HubMessage, Message, TokenId};
+use interchain_token_service::{DeployInterchainToken, HubMessage, Message, TokenId};
 use router_api::{Address, ChainNameRaw, CrossChainId};
 
 pub fn dummy_message() -> Message {
-    Message::DeployInterchainToken {
+    DeployInterchainToken {
         token_id: TokenId::new([2; 32]),
         name: "Test".try_into().unwrap(),
         symbol: "TST".try_into().unwrap(),
         decimals: 18,
         minter: None,
     }
+    .into()
 }
 
 pub struct TestMessage {

@@ -6,4 +6,4 @@ pub mod contract;
 pub mod events;
 pub mod msg;
 mod state;
-pub use state::{GlobalTokenConfig, TokenInstantiation, TokenSupply};
+pub use state::{GlobalTokenConfig, TokenInstance, TokenSupply};

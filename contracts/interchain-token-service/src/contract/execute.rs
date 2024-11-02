@@ -1,15 +1,15 @@
-use axelar_wasm_std::nonempty::Uint256;
 use axelar_wasm_std::{killswitch, nonempty, FnExt, IntoContractError};
 use cosmwasm_std::{DepsMut, HexBinary, QuerierWrapper, Response, Storage};
 use error_stack::{bail, ensure, report, Result, ResultExt};
-use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
+use router_api::{Address, ChainNameRaw, CrossChainId};
 
 use crate::events::Event;
 use crate::primitives::HubMessage;
-use crate::state::{
-    self, is_chain_frozen, load_config, load_its_contract, MessageDirection, TokenDeploymentType,
+use crate::state::{self, is_chain_frozen, load_config, load_its_contract, TokenDeploymentType};
+use crate::{
+    DeployInterchainToken, DeployTokenManager, GlobalTokenConfig, InterchainTransfer, Message,
+    TokenId, TokenInstance,
 };
-use crate::{GlobalTokenConfig, Message, TokenId, TokenInstantiation, TokenSupply};
 
 #[derive(thiserror::Error, Debug, IntoContractError)]
 pub enum Error {
@@ -35,8 +35,6 @@ pub enum Error {
     State,
     #[error("chain config for {0} already set")]
     ChainConfigAlreadySet(ChainNameRaw),
-    #[error("token info not found for token {0}")]
-    TokenInfoNotFound(TokenId),
     #[error("token {token_id} not deployed on chain {chain}")]
     TokenNotDeployed {
         token_id: TokenId,
@@ -97,8 +95,8 @@ fn execute_hub_message(
 
     apply_to_hub(
         deps.storage,
-        &cc_id.source_chain,
-        &destination_chain,
+        cc_id.source_chain.clone(),
+        destination_chain.clone(),
         &message,
     )?;
 
@@ -126,23 +124,35 @@ fn execute_hub_message(
 }
 
 fn apply_to_hub(
-    storage: &dyn Storage,
-    source_chain: &ChainNameRaw,
-    destination_chain: &ChainNameRaw,
+    storage: &mut dyn Storage,
+    source_chain: ChainNameRaw,
+    destination_chain: ChainNameRaw,
     message: &Message,
 ) -> Result<(), Error> {
-    ensure_chain_not_frozen(storage, source_chain)?;
-    ensure_chain_not_frozen(storage, destination_chain)?;
+    ensure_chain_not_frozen(storage, &source_chain)?;
+    ensure_chain_not_frozen(storage, &destination_chain)?;
 
     match message {
-        Message::InterchainTransfer { amount, .. } => {
-            apply_transfer(amount)?;
+        Message::InterchainTransfer(transfer) => {
+            apply_transfer(storage, source_chain, destination_chain, transfer)?;
         }
-        Message::DeployInterchainToken { .. } => {
-            apply_token_deployment(storage, source_chain, destination_chain, message)?;
+        Message::DeployInterchainToken(deploy_token) => {
+            apply_token_deployment(
+                storage,
+                source_chain,
+                destination_chain,
+                deploy_token.token_id.clone(),
+                &deploy_token.deployment_type(),
+            )?;
         }
-        Message::DeployTokenManager { .. } => {
-            apply_token_deployment(storage, source_chain, destination_chain, message)?;
+        Message::DeployTokenManager(deploy_manager) => {
+            apply_token_deployment(
+                storage,
+                source_chain,
+                destination_chain,
+                deploy_manager.token_id.clone(),
+                &deploy_manager.deployment_type(),
+            )?;
         }
     }
 
@@ -245,176 +255,157 @@ pub fn set_chain_config(
     }
 }
 
-/// Applies various checks on the message.
-fn apply_checks(
+fn apply_transfer(
     storage: &mut dyn Storage,
-    message: &Message,
-    message_direction: MessageDirection,
+    source_chain: ChainNameRaw,
+    destination_chain: ChainNameRaw,
+    transfer: &InterchainTransfer,
 ) -> Result<(), Error> {
-    let token_instantiation = state::may_load_token_instantiation(
+    let mut source_instance =
+        try_load_token_instance(storage, source_chain.clone(), transfer.token_id.clone())?;
+    let mut destination_instance = try_load_token_instance(
         storage,
-        message_direction.clone().into(),
-        message.token_id(),
-    )
-    .change_context(Error::State)?;
-
-    // Validation checks
-    ensure_chain_not_frozen(storage, &message_direction.clone().into())?;
-    token_redeployment_check(message, &message_direction, &token_instantiation)?;
-    token_deployment_origin_chain_check(
-        storage,
-        message,
-        &message_direction,
-        &token_instantiation,
+        destination_chain.clone(),
+        transfer.token_id.clone(),
     )?;
 
-    // Transformations
-    let token_instantiation =
-        token_deployment_check(message, &message_direction, token_instantiation)?.then(
-            |token_chain_info| token_supply_check(message, &message_direction, token_chain_info),
-        )?;
+    TokenInstance::update_supply(
+        &mut source_instance,
+        &mut destination_instance,
+        transfer.amount.clone(),
+    )
+    .change_context_lazy(|| Error::TokenSupplyInvariantViolated {
+        token_id: transfer.token_id.clone(),
+        chain: source_chain.clone(),
+    })?;
 
     state::save_token_instantiation(
         storage,
-        message_direction.into(),
-        message.token_id(),
-        &token_instantiation,
+        source_chain,
+        transfer.token_id.clone(),
+        &source_instance,
     )
+    .and_then(|_| {
+        state::save_token_instantiation(
+            storage,
+            destination_chain,
+            transfer.token_id.clone(),
+            &destination_instance,
+        )
+    })
     .change_context(Error::State)
 }
 
-/// Ensures that the token is being redeployed from the same origin chain.
-/// If it's being deployed for the first time, the from chain is saved as the origin chain in the token config.
-fn token_deployment_origin_chain_check(
+fn try_load_token_instance(
     storage: &mut dyn Storage,
-    message: &Message,
-    message_direction: &MessageDirection,
-    token_chain_info: &Option<TokenInstantiation>,
-) -> Result<(), Error> {
-    // Token cannot be redeployed to the destination chain
-    if !matches!(
-        message,
-        Message::DeployInterchainToken { .. } | Message::DeployTokenManager { .. }
-    ) || !matches!(message_direction, MessageDirection::From(_))
-    {
-        return Ok(());
-    }
+    chain: ChainNameRaw,
+    token_id: TokenId,
+) -> Result<TokenInstance, Error> {
+    state::may_load_token_instance(storage, chain.clone(), token_id.clone())
+        .change_context(Error::State)?
+        .ok_or(report!(Error::TokenNotDeployed {
+            token_id: token_id.clone(),
+            chain,
+        }))
+}
 
-    let token_config = state::may_load_global_token_config(storage, &message.token_id())
-        .change_context(Error::State)?;
+fn apply_token_deployment(
+    storage: &mut dyn Storage,
+    source_chain: ChainNameRaw,
+    destination_chain: ChainNameRaw,
+    token_id: TokenId,
+    deployment_type: &TokenDeploymentType,
+) -> Result<(), Error> {
+    ensure_token_not_deployed_on_destination(storage, token_id.clone(), destination_chain.clone())?;
+
+    let token_config =
+        state::may_load_global_token_config(storage, &token_id).change_context(Error::State)?;
 
     if let Some(GlobalTokenConfig { origin_chain, .. }) = token_config {
-        // Token can only be redeployed from the same origin chain
-        ensure!(
-            origin_chain == ChainNameRaw::from(message_direction.clone()),
-            Error::TokenDeployedFromNonOriginChain {
-                token_id: message.token_id(),
-                origin_chain,
-                chain: message_direction.clone().into(),
-            }
-        );
-
-        // Token chain info must already exist from previous deployment
-        ensure!(
-            token_chain_info.is_some(),
-            Error::TokenNotDeployed {
-                token_id: message.token_id(),
-                chain: message_direction.clone().into(),
-            }
-        );
+        ensure_origin_matches_source_chain(source_chain, origin_chain, token_id.clone())?;
     } else {
-        // Token is being deployed for the first time
-        let token_config = GlobalTokenConfig {
-            token_id: message.token_id(),
-            origin_chain: ChainNameRaw::from(message_direction.clone()),
-        };
-
-        state::save_global_token_config(storage, &message.token_id(), &token_config)
-            .change_context(Error::State)?;
-
-        ensure!(
-            token_chain_info.is_none(),
-            Error::TokenAlreadyDeployed {
-                token_id: message.token_id(),
-                chain: message_direction.clone().into(),
-            }
-        );
+        initialize_token_on_origin(storage, source_chain, token_id.clone())?;
     }
 
+    let instance = TokenInstance::new(token_id.clone(), deployment_type);
+
+    state::save_token_instantiation(storage, destination_chain, token_id, &instance)
+        .change_context(Error::State)
+}
+
+fn ensure_origin_matches_source_chain(
+    source_chain: ChainNameRaw,
+    origin_chain: ChainNameRaw,
+    token_id: TokenId,
+) -> Result<(), Error> {
+    ensure!(
+        origin_chain == source_chain,
+        Error::TokenDeployedFromNonOriginChain {
+            token_id,
+            origin_chain,
+            chain: source_chain.clone(),
+        }
+    );
+
+    Ok(())
+}
+
+fn initialize_token_on_origin(
+    storage: &mut dyn Storage,
+    source_chain: ChainNameRaw,
+    token_id: TokenId,
+) -> Result<(), Error> {
+    // Token is being deployed for the first time
+    let token_config = GlobalTokenConfig {
+        token_id: token_id.clone(),
+        origin_chain: source_chain.clone(),
+    };
+    let instance = TokenInstance::new_on_origin(token_id.clone());
+
+    state::save_global_token_config(storage, &token_id, &token_config)
+        .and_then(|_| state::save_token_instantiation(storage, source_chain, token_id, &instance))
+        .change_context(Error::State)?;
     Ok(())
 }
 
 /// Ensures that the token is not being redeployed to the same destination chain.
-fn token_redeployment_check(
-    message: &Message,
-    message_direction: &MessageDirection,
-    token_chain_info: &Option<TokenInstantiation>,
+fn ensure_token_not_deployed_on_destination(
+    storage: &dyn Storage,
+    token_id: TokenId,
+    destination_chain: ChainNameRaw,
 ) -> Result<(), Error> {
-    if matches!(
-        message,
-        Message::DeployInterchainToken { .. } | Message::DeployTokenManager { .. }
-    ) && matches!(message_direction, MessageDirection::To(_))
-        && token_chain_info.is_some()
-    {
-        bail!(Error::TokenAlreadyDeployed {
-            token_id: message.token_id(),
-            chain: message_direction.clone().into(),
-        });
-    }
+    let token_instance =
+        state::may_load_token_instance(storage, destination_chain.clone(), token_id.clone())
+            .change_context(Error::State)?;
+
+    ensure!(
+        token_instance.is_none(),
+        Error::TokenAlreadyDeployed {
+            token_id,
+            chain: destination_chain,
+        }
+    );
 
     Ok(())
 }
 
-/// Ensures that the token info is recorded on deployment.
-/// The token supply tracking is also enabled on deployment for trustless token deployments (i.e no minter set).
-/// Tokens that haven't been deployed yet cannot be transferred.
-fn token_deployment_check(
-    message: &Message,
-    message_direction: &MessageDirection,
-    token_instantiation: Option<TokenInstantiation>,
-) -> Result<TokenInstantiation, Error> {
-    if let Some(instantiation) = token_instantiation {
-        return Ok(instantiation);
-    }
-
-    let token_deployment_type = match message {
-        Message::DeployInterchainToken { minter: None, .. } => TokenDeploymentType::Trustless,
-        Message::DeployInterchainToken { .. } | Message::DeployTokenManager { .. } => {
-            TokenDeploymentType::CustomMinter
-        }
-        Message::InterchainTransfer { .. } => bail!(Error::TokenNotDeployed {
-            token_id: message.token_id(),
-            chain: message_direction.clone().into(),
-        }),
-    };
-
-    Ok(TokenInstantiation::new(
-        message.token_id(),
-        message_direction,
-        &token_deployment_type,
-    ))
+trait DeploymentType {
+    fn deployment_type(&self) -> TokenDeploymentType;
 }
 
-/// Updates the token supply for the chain on a transfer.
-/// Ensures that the transfer `amount <= supply` for the chain,
-/// i.e. no more than the token supply for the chain can be transferred out of the chain.
-fn token_supply_check(
-    message: &Message,
-    message_direction: &MessageDirection,
-    mut token_chain_info: TokenInstantiation,
-) -> Result<TokenInstantiation, Error> {
-    if let Message::InterchainTransfer {
-        token_id, amount, ..
-    } = message
-    {
-        Ok(token_chain_info
-            .update_supply(*amount, message_direction.clone())
-            .change_context_lazy(|| Error::TokenSupplyInvariantViolated {
-                token_id: token_id.clone(),
-                chain: message_direction.clone().into(),
-            })?)
-    } else {
-        Ok(token_chain_info)
+impl DeploymentType for DeployInterchainToken {
+    fn deployment_type(&self) -> TokenDeploymentType {
+        if self.minter.is_some() {
+            TokenDeploymentType::CustomMinter
+        } else {
+            TokenDeploymentType::Trustless
+        }
+    }
+}
+
+impl DeploymentType for DeployTokenManager {
+    fn deployment_type(&self) -> TokenDeploymentType {
+        TokenDeploymentType::CustomMinter
     }
 }
 
@@ -432,7 +423,7 @@ mod tests {
         set_chain_config, unfreeze_chain, Error,
     };
     use crate::state::{self, Config};
-    use crate::{HubMessage, Message};
+    use crate::{DeployInterchainToken, HubMessage, InterchainTransfer};
 
     const SOLANA: &str = "solana";
     const ETHEREUM: &str = "ethereum";
@@ -458,13 +449,14 @@ mod tests {
 
         let msg = HubMessage::SendToHub {
             destination_chain: ChainNameRaw::try_from(SOLANA).unwrap(),
-            message: Message::DeployInterchainToken {
+            message: DeployInterchainToken {
                 token_id: [7u8; 32].into(),
                 name: "Test".parse().unwrap(),
                 symbol: "TEST".parse().unwrap(),
                 decimals: 18,
                 minter: None,
-            },
+            }
+            .into(),
         };
         let cc_id = CrossChainId {
             source_chain: ChainNameRaw::try_from(ETHEREUM).unwrap(),
@@ -482,13 +474,14 @@ mod tests {
 
         let msg = HubMessage::SendToHub {
             destination_chain: ChainNameRaw::try_from(SOLANA).unwrap(),
-            message: Message::InterchainTransfer {
+            message: InterchainTransfer {
                 token_id: [7u8; 32].into(),
                 amount: Uint256::one().try_into().unwrap(),
                 source_address: its_address(),
                 destination_address: its_address(),
                 data: None,
-            },
+            }
+            .into(),
         };
 
         let res = execute_message(
@@ -503,13 +496,14 @@ mod tests {
 
         let msg = HubMessage::SendToHub {
             destination_chain: ChainNameRaw::try_from(SOLANA).unwrap(),
-            message: Message::DeployInterchainToken {
+            message: DeployInterchainToken {
                 token_id: [1u8; 32].into(),
                 name: "Test".parse().unwrap(),
                 symbol: "TEST".parse().unwrap(),
                 decimals: 18,
                 minter: None,
-            },
+            }
+            .into(),
         };
         assert_ok!(execute_message(
             deps.as_mut(),
@@ -531,13 +525,14 @@ mod tests {
 
         let msg = HubMessage::SendToHub {
             destination_chain,
-            message: Message::DeployInterchainToken {
+            message: DeployInterchainToken {
                 token_id: [7u8; 32].into(),
                 name: "Test".parse().unwrap(),
                 symbol: "TEST".parse().unwrap(),
                 decimals: 18,
                 minter: None,
-            },
+            }
+            .into(),
         };
         let res = execute_message(
             deps.as_mut(),
@@ -582,13 +577,14 @@ mod tests {
 
         let msg = HubMessage::SendToHub {
             destination_chain: destination_chain.clone(),
-            message: Message::DeployInterchainToken {
+            message: DeployInterchainToken {
                 token_id: [7u8; 32].into(),
                 name: "Test".parse().unwrap(),
                 symbol: "TEST".parse().unwrap(),
                 decimals: 18,
                 minter: None,
-            },
+            }
+            .into(),
         };
         let cc_id = CrossChainId {
             source_chain,
@@ -629,13 +625,14 @@ mod tests {
 
         let msg = HubMessage::SendToHub {
             destination_chain: destination_chain.clone(),
-            message: Message::DeployInterchainToken {
+            message: DeployInterchainToken {
                 token_id: [7u8; 32].into(),
                 name: "Test".parse().unwrap(),
                 symbol: "TEST".parse().unwrap(),
                 decimals: 18,
                 minter: None,
-            },
+            }
+            .into(),
         };
         let cc_id = CrossChainId {
             source_chain,
@@ -690,17 +687,4 @@ mod tests {
             ));
         }
     }
-}
-
-fn apply_transfer(transfer_amount: &Uint256) -> Result<(), Error> {
-    todo!()
-}
-
-fn apply_token_deployment(
-    storage: &dyn Storage,
-    source_chain: &ChainNameRaw,
-    destination_chain: &ChainNameRaw,
-    message: &Message,
-) -> Result<(), Error> {
-    todo!()
 }

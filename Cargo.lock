@@ -4089,6 +4089,7 @@ dependencies = [
  "error-stack",
  "goldie",
  "hex",
+ "itertools 0.11.0",
  "msgs-derive",
  "report",
  "router-api",

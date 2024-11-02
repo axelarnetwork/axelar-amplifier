@@ -5,7 +5,7 @@ use router_api::ChainNameRaw;
 
 use crate::state::{
     load_all_its_contracts, may_load_global_token_config, may_load_its_contract,
-    may_load_token_instantiation,
+    may_load_token_instance,
 };
 use crate::TokenId;
 
@@ -34,7 +34,7 @@ pub fn token_instantiation(
     token_id: TokenId,
 ) -> Result<Binary, Error> {
     let token_instantiation =
-        may_load_token_instantiation(deps.storage, chain, token_id).change_context(Error::State)?;
+        may_load_token_instance(deps.storage, chain, token_id).change_context(Error::State)?;
     to_json_binary(&token_instantiation).change_context(Error::JsonSerialization)
 }
 

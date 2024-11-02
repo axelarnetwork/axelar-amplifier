@@ -9,7 +9,10 @@ use cosmwasm_std::{HexBinary, Uint256};
 use interchain_token_service::contract::{self, ExecuteError};
 use interchain_token_service::events::Event;
 use interchain_token_service::msg::ExecuteMsg;
-use interchain_token_service::{HubMessage, Message, TokenId, TokenManagerType, TokenSupply};
+use interchain_token_service::{
+    DeployInterchainToken, DeployTokenManager, HubMessage, InterchainTransfer, TokenId,
+    TokenManagerType, TokenSupply,
+};
 use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
 use utils::{params, TestMessage};
 
@@ -93,32 +96,36 @@ fn execute_hub_message_succeeds() {
     ) = utils::setup();
 
     let test_messages = vec![
-        Message::DeployInterchainToken {
+        DeployInterchainToken {
             token_id: TokenId::new([1; 32]),
             name: "Test".try_into().unwrap(),
             symbol: "TST".try_into().unwrap(),
             decimals: 18,
             minter: Some(HexBinary::from([1; 32]).try_into().unwrap()),
-        },
-        Message::InterchainTransfer {
+        }
+        .into(),
+        InterchainTransfer {
             token_id: TokenId::new([1; 32]),
             source_address: HexBinary::from([1; 32]).try_into().unwrap(),
             destination_address: HexBinary::from([2; 32]).try_into().unwrap(),
             amount: 1u64.try_into().unwrap(),
             data: Some(HexBinary::from([1, 2, 3, 4]).try_into().unwrap()),
-        },
-        Message::DeployTokenManager {
+        }
+        .into(),
+        DeployTokenManager {
             token_id: TokenId::new([2; 32]),
             token_manager_type: TokenManagerType::MintBurn,
             params: HexBinary::from([1, 2, 3, 4]).try_into().unwrap(),
-        },
-        Message::InterchainTransfer {
+        }
+        .into(),
+        InterchainTransfer {
             token_id: TokenId::new([2; 32]),
             source_address: HexBinary::from([1; 32]).try_into().unwrap(),
             destination_address: HexBinary::from([2; 32]).try_into().unwrap(),
             amount: 1u64.try_into().unwrap(),
             data: Some(HexBinary::from([1, 2, 3, 4]).try_into().unwrap()),
-        },
+        }
+        .into(),
     ];
 
     let responses: Vec<_> = test_messages
@@ -572,13 +579,14 @@ fn deploy_interchain_token_tracks_supply() {
 
     let msg = HubMessage::SendToHub {
         destination_chain: destination_its_chain.clone(),
-        message: Message::InterchainTransfer {
+        message: InterchainTransfer {
             token_id: token_id.clone(),
             source_address: HexBinary::from([1; 32]).try_into().unwrap(),
             destination_address: HexBinary::from([2; 32]).try_into().unwrap(),
             amount,
             data: None,
-        },
+        }
+        .into(),
     };
     assert_ok!(utils::execute_hub_message(
         deps.as_mut(),
@@ -588,36 +596,37 @@ fn deploy_interchain_token_tracks_supply() {
     ));
 
     assert_eq!(
-        assert_ok!(utils::query_token_chain_info(
+        assert_ok!(utils::query_token_instance(
             deps.as_ref(),
             source_its_chain.clone(),
             token_id.clone()
         ))
         .unwrap()
-        .supply(),
+        .supply,
         TokenSupply::Untracked,
     );
     assert_eq!(
-        assert_ok!(utils::query_token_chain_info(
+        assert_ok!(utils::query_token_instance(
             deps.as_ref(),
             destination_its_chain.clone(),
             token_id.clone()
         ))
         .unwrap()
-        .supply(),
+        .supply,
         TokenSupply::Tracked(amount.into())
     );
 
     // Send the same amount back
     let msg = HubMessage::SendToHub {
         destination_chain: source_its_chain.clone(),
-        message: Message::InterchainTransfer {
+        message: InterchainTransfer {
             token_id: token_id.clone(),
             source_address: HexBinary::from([1; 32]).try_into().unwrap(),
             destination_address: HexBinary::from([2; 32]).try_into().unwrap(),
             amount,
             data: None,
-        },
+        }
+        .into(),
     };
     assert_ok!(utils::execute_hub_message(
         deps.as_mut(),
@@ -631,23 +640,23 @@ fn deploy_interchain_token_tracks_supply() {
     ));
 
     assert_eq!(
-        assert_ok!(utils::query_token_chain_info(
+        assert_ok!(utils::query_token_instance(
             deps.as_ref(),
             source_its_chain.clone(),
             token_id.clone()
         ))
         .unwrap()
-        .supply(),
+        .supply,
         TokenSupply::Untracked
     );
     assert_eq!(
-        assert_ok!(utils::query_token_chain_info(
+        assert_ok!(utils::query_token_instance(
             deps.as_ref(),
             destination_its_chain,
             token_id.clone()
         ))
         .unwrap()
-        .supply(),
+        .supply,
         TokenSupply::Tracked(Uint256::zero())
     );
 }
@@ -671,13 +680,14 @@ fn deploy_interchain_token_with_minter_does_not_track_supply() {
 
     let msg = HubMessage::SendToHub {
         destination_chain: destination_its_chain.clone(),
-        message: Message::DeployInterchainToken {
+        message: DeployInterchainToken {
             token_id: token_id.clone(),
             name: "Test".try_into().unwrap(),
             symbol: "TST".try_into().unwrap(),
             decimals: 18,
             minter: Some(HexBinary::from([1; 32]).try_into().unwrap()),
-        },
+        }
+        .into(),
     };
     assert_ok!(utils::execute_hub_message(
         deps.as_mut(),
@@ -687,26 +697,27 @@ fn deploy_interchain_token_with_minter_does_not_track_supply() {
     ));
     for chain in [source_its_chain.clone(), destination_its_chain.clone()] {
         assert_eq!(
-            assert_ok!(utils::query_token_chain_info(
+            assert_ok!(utils::query_token_instance(
                 deps.as_ref(),
                 chain.clone(),
                 token_id.clone()
             ))
             .unwrap()
-            .supply(),
+            .supply,
             TokenSupply::Untracked,
         );
     }
 
     let msg = HubMessage::SendToHub {
         destination_chain: destination_its_chain.clone(),
-        message: Message::InterchainTransfer {
+        message: InterchainTransfer {
             token_id: token_id.clone(),
             source_address: HexBinary::from([1; 32]).try_into().unwrap(),
             destination_address: HexBinary::from([2; 32]).try_into().unwrap(),
             amount,
             data: None,
-        },
+        }
+        .into(),
     };
     assert_ok!(utils::execute_hub_message(
         deps.as_mut(),
@@ -718,13 +729,14 @@ fn deploy_interchain_token_with_minter_does_not_track_supply() {
     // Send a larger amount back
     let msg = HubMessage::SendToHub {
         destination_chain: source_its_chain.clone(),
-        message: Message::InterchainTransfer {
+        message: InterchainTransfer {
             token_id: token_id.clone(),
             source_address: HexBinary::from([1; 32]).try_into().unwrap(),
             destination_address: HexBinary::from([2; 32]).try_into().unwrap(),
             amount: amount.strict_add(Uint256::one()).try_into().unwrap(),
             data: None,
-        },
+        }
+        .into(),
     };
     assert_ok!(utils::execute_hub_message(
         deps.as_mut(),
@@ -739,13 +751,13 @@ fn deploy_interchain_token_with_minter_does_not_track_supply() {
 
     for chain in [source_its_chain.clone(), destination_its_chain.clone()] {
         assert_eq!(
-            assert_ok!(utils::query_token_chain_info(
+            assert_ok!(utils::query_token_instance(
                 deps.as_ref(),
                 chain.clone(),
                 token_id.clone()
             ))
             .unwrap()
-            .supply(),
+            .supply,
             TokenSupply::Untracked,
         );
     }
@@ -777,13 +789,14 @@ fn interchain_transfer_exceeds_supply_fails() {
 
     let msg = HubMessage::SendToHub {
         destination_chain: source_its_chain.clone(),
-        message: Message::InterchainTransfer {
+        message: InterchainTransfer {
             token_id: token_id.clone(),
             source_address: HexBinary::from([1; 32]).try_into().unwrap(),
             destination_address: HexBinary::from([2; 32]).try_into().unwrap(),
             amount: 1u64.try_into().unwrap(),
             data: None,
-        },
+        }
+        .into(),
     };
     assert_err_contains!(
         utils::execute_hub_message(
@@ -802,13 +815,14 @@ fn interchain_transfer_exceeds_supply_fails() {
 
     let msg = HubMessage::SendToHub {
         destination_chain: destination_its_chain.clone(),
-        message: Message::InterchainTransfer {
+        message: InterchainTransfer {
             token_id: token_id.clone(),
             source_address: HexBinary::from([1; 32]).try_into().unwrap(),
             destination_address: HexBinary::from([2; 32]).try_into().unwrap(),
             amount,
             data: None,
-        },
+        }
+        .into(),
     };
     assert_ok!(utils::execute_hub_message(
         deps.as_mut(),
@@ -819,13 +833,14 @@ fn interchain_transfer_exceeds_supply_fails() {
 
     let msg = HubMessage::SendToHub {
         destination_chain: source_its_chain.clone(),
-        message: Message::InterchainTransfer {
+        message: InterchainTransfer {
             token_id: token_id.clone(),
             source_address: HexBinary::from([1; 32]).try_into().unwrap(),
             destination_address: HexBinary::from([2; 32]).try_into().unwrap(),
             amount: amount.strict_add(Uint256::one()).try_into().unwrap(),
             data: None,
-        },
+        }
+        .into(),
     };
     assert_err_contains!(
         utils::execute_hub_message(
