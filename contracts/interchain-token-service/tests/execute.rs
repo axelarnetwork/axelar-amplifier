@@ -904,19 +904,31 @@ fn deploy_interchain_token_from_non_origin_chain_fails() {
         msg.clone(),
     ));
 
-    // Deploy the same token from a different origin chain now
-    let another_chain: ChainNameRaw = "another-chain".parse().unwrap();
+    // Deploy the same token from a different origin chain to a different destination chain now
+    let another_source_chain: ChainNameRaw = "another-source-chain".parse().unwrap();
     utils::register_chain(
         &mut deps,
-        another_chain.clone(),
+        another_source_chain.clone(),
         source_its_contract.clone(),
     );
+    let another_destination_chain: ChainNameRaw = "another-dest-chain".parse().unwrap();
+    utils::register_chain(
+        &mut deps,
+        another_destination_chain.clone(),
+        source_its_contract.clone(),
+    );
+
+    let new_destination_msg = HubMessage::SendToHub {
+        destination_chain: another_source_chain.clone(),
+        message: msg.message().clone(),
+    };
+
     assert_err_contains!(
         utils::execute_hub_message(
             deps.as_mut(),
-            CrossChainId::new(another_chain, router_message.cc_id.message_id).unwrap(),
+            CrossChainId::new(another_source_chain, router_message.cc_id.message_id).unwrap(),
             source_its_contract,
-            msg,
+            new_destination_msg,
         ),
         ExecuteError,
         ExecuteError::TokenDeployedFromNonOriginChain { .. }

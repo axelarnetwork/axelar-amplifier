@@ -44,10 +44,10 @@ pub enum Error {
     QueryItsContract,
     #[error("failed to query all its addresses")]
     QueryAllItsContracts,
-    #[error("failed to query a specific token instantiation")]
-    QueryTokenInstantiation,
-    #[error("failed to query the global token config")]
-    QueryGlobalTokenConfig,
+    #[error("failed to query a specific token instance")]
+    QueryTokenInstance,
+    #[error("failed to query the token config")]
+    QueryTokenConfig,
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -150,11 +150,10 @@ pub fn query(deps: Deps, _: Env, msg: QueryMsg) -> Result<Binary, ContractError>
             query::all_its_contracts(deps).change_context(Error::QueryAllItsContracts)
         }
         QueryMsg::TokenInstance { chain, token_id } => {
-            query::token_instantiation(deps, chain, token_id)
-                .change_context(Error::QueryTokenInstantiation)
+            query::token_instance(deps, chain, token_id).change_context(Error::QueryTokenInstance)
         }
         QueryMsg::TokenConfig { token_id } => {
-            query::token_config(deps, token_id).change_context(Error::QueryGlobalTokenConfig)
+            query::token_config(deps, token_id).change_context(Error::QueryTokenConfig)
         }
     }?
     .then(Ok)

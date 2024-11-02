@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use axelar_wasm_std::{nonempty, IntoContractError};
+use axelar_wasm_std::{nonempty, FnExt, IntoContractError};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{ensure, Addr, OverflowError, StdError, Storage, Uint256};
 use cw_storage_plus::{Item, Map};
@@ -46,35 +46,48 @@ pub enum TokenSupply {
     Untracked,
 }
 
+impl TokenSupply {
+    pub fn checked_add(self, amount: nonempty::Uint256) -> Result<Self, OverflowError> {
+        match self {
+            TokenSupply::Untracked => TokenSupply::Untracked,
+            TokenSupply::Tracked(supply) => {
+                TokenSupply::Tracked(supply.checked_add(amount.into())?)
+            }
+        }
+        .then(Ok)
+    }
+    pub fn checked_sub(self, amount: nonempty::Uint256) -> Result<Self, OverflowError> {
+        match self {
+            TokenSupply::Untracked => TokenSupply::Untracked,
+            TokenSupply::Tracked(supply) => {
+                TokenSupply::Tracked(supply.checked_sub(amount.into())?)
+            }
+        }
+        .then(Ok)
+    }
+}
+
 /// Information about a token on a specific chain.
 #[cw_serde]
 pub struct TokenInstance {
-    pub token_id: TokenId,
     pub supply: TokenSupply,
 }
 
 impl TokenInstance {
-    pub fn new_on_origin(token_id: TokenId) -> Self {
+    pub fn new_on_origin() -> Self {
         Self {
-            token_id,
             supply: TokenSupply::Untracked,
         }
     }
 
-    pub fn new(token_id: TokenId, deployment_type: &TokenDeploymentType) -> Self {
+    pub fn new(deployment_type: &TokenDeploymentType) -> Self {
         let supply = match deployment_type {
             TokenDeploymentType::Trustless => TokenSupply::Tracked(Uint256::zero()),
             _ => TokenSupply::Untracked,
         };
 
-        Self { token_id, supply }
+        Self { supply }
     }
-}
-
-#[derive(Clone)]
-pub enum MessageDirection {
-    From(ChainNameRaw),
-    To(ChainNameRaw),
 }
 
 /// The deployment type of the token.
@@ -85,19 +98,16 @@ pub enum TokenDeploymentType {
     CustomMinter,
 }
 
-/// Global config for a token.
 #[cw_serde]
-pub struct GlobalTokenConfig {
-    pub token_id: TokenId,
+pub struct TokenConfig {
     pub origin_chain: ChainNameRaw,
 }
 
 const CONFIG: Item<Config> = Item::new("config");
 const ITS_CONTRACTS: Map<&ChainNameRaw, Address> = Map::new("its_contracts");
 const CHAIN_CONFIGS: Map<&ChainNameRaw, ChainConfig> = Map::new("chain_configs");
-const TOKEN_INSTANTIATIONS: Map<&(ChainNameRaw, TokenId), TokenInstance> =
-    Map::new("token_instantiation");
-const GLOBAL_TOKEN_CONFIGS: Map<&TokenId, GlobalTokenConfig> = Map::new("global_token_configs");
+const TOKEN_INSTANCE: Map<&(ChainNameRaw, TokenId), TokenInstance> = Map::new("token_instance");
+const TOKEN_CONFIGS: Map<&TokenId, TokenConfig> = Map::new("token_configs");
 
 pub fn load_config(storage: &dyn Storage) -> Config {
     CONFIG
@@ -215,14 +225,14 @@ pub fn unfreeze_chain(
         .change_context(Error::ChainNotFound(chain.to_owned()))
 }
 
-pub fn save_token_instantiation(
+pub fn save_token_instance(
     storage: &mut dyn Storage,
     chain: ChainNameRaw,
     token_id: TokenId,
-    token_instantiation: &TokenInstance,
+    token_instance: &TokenInstance,
 ) -> Result<(), Error> {
-    TOKEN_INSTANTIATIONS
-        .save(storage, &(chain, token_id), token_instantiation)
+    TOKEN_INSTANCE
+        .save(storage, &(chain, token_id), token_instance)
         .change_context(Error::Storage)
 }
 
@@ -231,63 +241,28 @@ pub fn may_load_token_instance(
     chain: ChainNameRaw,
     token_id: TokenId,
 ) -> Result<Option<TokenInstance>, Error> {
-    TOKEN_INSTANTIATIONS
+    TOKEN_INSTANCE
         .may_load(storage, &(chain, token_id))
         .change_context(Error::Storage)
 }
 
-pub fn may_load_global_token_config(
+pub fn may_load_token_config(
     storage: &dyn Storage,
     token_id: &TokenId,
-) -> Result<Option<GlobalTokenConfig>, Error> {
-    GLOBAL_TOKEN_CONFIGS
+) -> Result<Option<TokenConfig>, Error> {
+    TOKEN_CONFIGS
         .may_load(storage, token_id)
         .change_context(Error::Storage)
 }
 
-pub fn save_global_token_config(
+pub fn save_token_config(
     storage: &mut dyn Storage,
     token_id: &TokenId,
-    token_config: &GlobalTokenConfig,
+    token_config: &TokenConfig,
 ) -> Result<(), Error> {
-    GLOBAL_TOKEN_CONFIGS
+    TOKEN_CONFIGS
         .save(storage, token_id, token_config)
         .change_context(Error::Storage)
-}
-
-impl TokenInstance {
-    pub fn update_supply(
-        source: &mut Self,
-        destination: &mut Self,
-        amount: nonempty::Uint256,
-    ) -> Result<(), OverflowError> {
-        source.supply = match source.supply {
-            TokenSupply::Untracked => TokenSupply::Untracked,
-
-            TokenSupply::Tracked(supply) => {
-                TokenSupply::Tracked(supply.checked_sub(amount.into())?)
-            }
-        };
-
-        destination.supply = match destination.supply {
-            TokenSupply::Untracked => TokenSupply::Untracked,
-
-            TokenSupply::Tracked(supply) => {
-                TokenSupply::Tracked(supply.checked_add(amount.into())?)
-            }
-        };
-
-        Ok(())
-    }
-}
-
-impl From<MessageDirection> for ChainNameRaw {
-    fn from(message_direction: MessageDirection) -> Self {
-        match message_direction {
-            MessageDirection::From(chain) => chain,
-            MessageDirection::To(chain) => chain,
-        }
-    }
 }
 
 #[cfg(test)]

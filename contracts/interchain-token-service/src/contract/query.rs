@@ -4,8 +4,7 @@ use error_stack::{Result, ResultExt};
 use router_api::ChainNameRaw;
 
 use crate::state::{
-    load_all_its_contracts, may_load_global_token_config, may_load_its_contract,
-    may_load_token_instance,
+    load_all_its_contracts, may_load_its_contract, may_load_token_config, may_load_token_instance,
 };
 use crate::TokenId;
 
@@ -28,18 +27,14 @@ pub fn all_its_contracts(deps: Deps) -> Result<Binary, Error> {
     to_json_binary(&contract_addresses).change_context(Error::JsonSerialization)
 }
 
-pub fn token_instantiation(
-    deps: Deps,
-    chain: ChainNameRaw,
-    token_id: TokenId,
-) -> Result<Binary, Error> {
-    let token_instantiation =
+pub fn token_instance(deps: Deps, chain: ChainNameRaw, token_id: TokenId) -> Result<Binary, Error> {
+    let token_instance =
         may_load_token_instance(deps.storage, chain, token_id).change_context(Error::State)?;
-    to_json_binary(&token_instantiation).change_context(Error::JsonSerialization)
+    to_json_binary(&token_instance).change_context(Error::JsonSerialization)
 }
 
 pub fn token_config(deps: Deps, token_id: TokenId) -> Result<Binary, Error> {
     let token_config =
-        may_load_global_token_config(deps.storage, &token_id).change_context(Error::State)?;
+        may_load_token_config(deps.storage, &token_id).change_context(Error::State)?;
     to_json_binary(&token_config).change_context(Error::JsonSerialization)
 }

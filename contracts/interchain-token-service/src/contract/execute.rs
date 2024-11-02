@@ -7,8 +7,8 @@ use crate::events::Event;
 use crate::primitives::HubMessage;
 use crate::state::{self, is_chain_frozen, load_config, load_its_contract, TokenDeploymentType};
 use crate::{
-    DeployInterchainToken, DeployTokenManager, GlobalTokenConfig, InterchainTransfer, Message,
-    TokenId, TokenInstance,
+    DeployInterchainToken, DeployTokenManager, InterchainTransfer, Message, TokenConfig, TokenId,
+    TokenInstance,
 };
 
 #[derive(thiserror::Error, Debug, IntoContractError)]
@@ -79,12 +79,12 @@ pub fn execute_message(
         HubMessage::SendToHub {
             destination_chain,
             message,
-        } => execute_hub_message(deps, cc_id, destination_chain, message),
+        } => execute_message_on_hub(deps, cc_id, destination_chain, message),
         _ => bail!(Error::InvalidMessageType),
     }
 }
 
-fn execute_hub_message(
+fn execute_message_on_hub(
     deps: DepsMut,
     cc_id: CrossChainId,
     destination_chain: ChainNameRaw,
@@ -261,39 +261,85 @@ fn apply_transfer(
     destination_chain: ChainNameRaw,
     transfer: &InterchainTransfer,
 ) -> Result<(), Error> {
+    subtract_amount_from_source(storage, source_chain, transfer)?;
+    add_amount_to_destination(storage, destination_chain, transfer)
+}
+
+fn subtract_amount_from_source(
+    storage: &mut dyn Storage,
+    source_chain: ChainNameRaw,
+    transfer: &InterchainTransfer,
+) -> Result<(), Error> {
     let mut source_instance =
         try_load_token_instance(storage, source_chain.clone(), transfer.token_id.clone())?;
+
+    source_instance.supply = source_instance
+        .supply
+        .checked_sub(transfer.amount)
+        .change_context_lazy(|| Error::TokenSupplyInvariantViolated {
+            token_id: transfer.token_id.clone(),
+            chain: source_chain.clone(),
+        })?;
+
+    state::save_token_instance(
+        storage,
+        source_chain,
+        transfer.token_id.clone(),
+        &source_instance,
+    )
+    .change_context(Error::State)
+}
+
+fn add_amount_to_destination(
+    storage: &mut dyn Storage,
+    destination_chain: ChainNameRaw,
+    transfer: &InterchainTransfer,
+) -> Result<(), Error> {
     let mut destination_instance = try_load_token_instance(
         storage,
         destination_chain.clone(),
         transfer.token_id.clone(),
     )?;
 
-    TokenInstance::update_supply(
-        &mut source_instance,
-        &mut destination_instance,
-        transfer.amount.clone(),
-    )
-    .change_context_lazy(|| Error::TokenSupplyInvariantViolated {
-        token_id: transfer.token_id.clone(),
-        chain: source_chain.clone(),
-    })?;
+    destination_instance.supply = destination_instance
+        .supply
+        .checked_add(transfer.amount)
+        .change_context_lazy(|| Error::TokenSupplyInvariantViolated {
+            token_id: transfer.token_id.clone(),
+            chain: destination_chain.clone(),
+        })?;
 
-    state::save_token_instantiation(
+    state::save_token_instance(
         storage,
-        source_chain,
+        destination_chain,
         transfer.token_id.clone(),
-        &source_instance,
+        &destination_instance,
     )
-    .and_then(|_| {
-        state::save_token_instantiation(
-            storage,
-            destination_chain,
-            transfer.token_id.clone(),
-            &destination_instance,
-        )
-    })
     .change_context(Error::State)
+}
+
+fn apply_token_deployment(
+    storage: &mut dyn Storage,
+    source_chain: ChainNameRaw,
+    destination_chain: ChainNameRaw,
+    token_id: TokenId,
+    deployment_type: &TokenDeploymentType,
+) -> Result<(), Error> {
+    ensure_token_not_deployed_on_destination(storage, token_id.clone(), destination_chain.clone())?;
+
+    let token_config =
+        state::may_load_token_config(storage, &token_id).change_context(Error::State)?;
+
+    if let Some(TokenConfig { origin_chain, .. }) = token_config {
+        ensure_origin_matches_source_chain(source_chain, origin_chain, token_id.clone())?;
+    } else {
+        initialize_token_on_origin(storage, source_chain, token_id.clone())?;
+    }
+
+    let destination_instance = TokenInstance::new(deployment_type);
+
+    state::save_token_instance(storage, destination_chain, token_id, &destination_instance)
+        .change_context(Error::State)
 }
 
 fn try_load_token_instance(
@@ -307,30 +353,6 @@ fn try_load_token_instance(
             token_id: token_id.clone(),
             chain,
         }))
-}
-
-fn apply_token_deployment(
-    storage: &mut dyn Storage,
-    source_chain: ChainNameRaw,
-    destination_chain: ChainNameRaw,
-    token_id: TokenId,
-    deployment_type: &TokenDeploymentType,
-) -> Result<(), Error> {
-    ensure_token_not_deployed_on_destination(storage, token_id.clone(), destination_chain.clone())?;
-
-    let token_config =
-        state::may_load_global_token_config(storage, &token_id).change_context(Error::State)?;
-
-    if let Some(GlobalTokenConfig { origin_chain, .. }) = token_config {
-        ensure_origin_matches_source_chain(source_chain, origin_chain, token_id.clone())?;
-    } else {
-        initialize_token_on_origin(storage, source_chain, token_id.clone())?;
-    }
-
-    let instance = TokenInstance::new(token_id.clone(), deployment_type);
-
-    state::save_token_instantiation(storage, destination_chain, token_id, &instance)
-        .change_context(Error::State)
 }
 
 fn ensure_origin_matches_source_chain(
@@ -356,14 +378,13 @@ fn initialize_token_on_origin(
     token_id: TokenId,
 ) -> Result<(), Error> {
     // Token is being deployed for the first time
-    let token_config = GlobalTokenConfig {
-        token_id: token_id.clone(),
+    let token_config = TokenConfig {
         origin_chain: source_chain.clone(),
     };
-    let instance = TokenInstance::new_on_origin(token_id.clone());
+    let instance = TokenInstance::new_on_origin();
 
-    state::save_global_token_config(storage, &token_id, &token_config)
-        .and_then(|_| state::save_token_instantiation(storage, source_chain, token_id, &instance))
+    state::save_token_config(storage, &token_id, &token_config)
+        .and_then(|_| state::save_token_instance(storage, source_chain, token_id, &instance))
         .change_context(Error::State)?;
     Ok(())
 }

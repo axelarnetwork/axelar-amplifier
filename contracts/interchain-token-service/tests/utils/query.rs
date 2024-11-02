@@ -5,7 +5,7 @@ use cosmwasm_std::testing::mock_env;
 use cosmwasm_std::{from_json, Deps};
 use interchain_token_service::contract::query;
 use interchain_token_service::msg::QueryMsg;
-use interchain_token_service::{GlobalTokenConfig, TokenId, TokenInstance};
+use interchain_token_service::{TokenConfig, TokenId, TokenInstance};
 use router_api::{Address, ChainNameRaw};
 
 pub fn query_its_contract(
@@ -39,7 +39,7 @@ pub fn query_token_instance(
 pub fn query_token_config(
     deps: Deps,
     token_id: TokenId,
-) -> Result<Option<GlobalTokenConfig>, ContractError> {
+) -> Result<Option<TokenConfig>, ContractError> {
     let bin = query(deps, mock_env(), QueryMsg::TokenConfig { token_id })?;
     Ok(from_json(bin)?)
 }
