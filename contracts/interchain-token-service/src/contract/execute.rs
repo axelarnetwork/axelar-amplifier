@@ -150,7 +150,7 @@ fn apply_to_hub(
     match message {
         Message::InterchainTransfer(transfer) => {
             apply_transfer(storage, source_chain, destination_chain, &transfer)
-                .map(|_| Message::InterchainTransfer(transfer))?
+                .map(Message::InterchainTransfer)?
         }
         Message::DeployInterchainToken(deploy_token) => {
             apply_token_deployment(storage, &source_chain, &destination_chain, deploy_token)
@@ -263,7 +263,6 @@ pub fn set_chain_config(
     }
 }
 
-#[allow(unused)]
 /// Calculates the destination on token transfer amount.
 ///
 /// The amount is calculated based on the token decimals on the source and destination chains.
@@ -279,51 +278,39 @@ fn destination_amount(
     token_id: TokenId,
     source_amount: nonempty::Uint256,
 ) -> Result<nonempty::Uint256, Error> {
-    let source_chain_decimals =
-        state::load_token_decimals(storage, source_chain, token_id).change_context(Error::State)?;
-    let destination_chain_decimals =
-        state::load_token_decimals(storage, destination_chain, token_id)
-            .change_context(Error::State)?;
-    let destination_chain_max_uint = state::load_chain_config(storage, destination_chain)
+    let source_token = try_load_token_instance(storage, source_chain.clone(), token_id)?;
+    let destination_token = try_load_token_instance(storage, destination_chain.clone(), token_id)?;
+    let (source_decimals, destination_decimals) =
+        match (source_token.decimals, destination_token.decimals) {
+            (Some(source_decimals), Some(destination_decimals)) => {
+                (source_decimals, destination_decimals)
+            }
+            (None, None) => return Ok(source_amount),
+            _ => unreachable!(
+                "decimals are either set in both the source and destination, or set in neither"
+            ), // This should never happen
+        };
+    let destination_max_uint = state::load_chain_config(storage, destination_chain)
         .change_context(Error::State)?
         .max_uint;
-    // dest_chain_amount = amount * 10 ^ (dest_chain_decimals - src_chain_decimals)
+
     // It's intentionally written in this way since the end result may still be fine even if
     //     1) amount * (10 ^ (dest_chain_decimals)) overflows
     //     2) amount / (10 ^ (src_chain_decimals)) is zero
-    let destination_amount = if source_chain_decimals > destination_chain_decimals {
+    let scaling_factor = Uint256::from_u128(10)
+        .checked_pow(source_decimals.abs_diff(destination_decimals).into())
+        .change_context_lazy(|| Error::InvalidTransferAmount {
+            source_chain: source_chain.to_owned(),
+            destination_chain: destination_chain.to_owned(),
+            amount: source_amount,
+        })?;
+    let destination_amount = if source_decimals > destination_decimals {
         source_amount
-            .checked_div(
-                Uint256::from_u128(10)
-                    .checked_pow(
-                        source_chain_decimals
-                            .checked_sub(destination_chain_decimals)
-                            .expect("decimals subtraction overflow")
-                            .into(),
-                    )
-                    .change_context_lazy(|| Error::InvalidTransferAmount {
-                        source_chain: source_chain.to_owned(),
-                        destination_chain: destination_chain.to_owned(),
-                        amount: source_amount,
-                    })?,
-            )
-            .expect("(10 ^ (src_chain_decimals-dest_chain_decimals)) must be non-zero")
+            .checked_div(scaling_factor)
+            .expect("scaling_factor must be non-zero")
     } else {
         source_amount
-            .checked_mul(
-                Uint256::from_u128(10)
-                    .checked_pow(
-                        destination_chain_decimals
-                            .checked_sub(source_chain_decimals)
-                            .expect("decimals subtraction overflow")
-                            .into(),
-                    )
-                    .change_context_lazy(|| Error::InvalidTransferAmount {
-                        source_chain: source_chain.to_owned(),
-                        destination_chain: destination_chain.to_owned(),
-                        amount: source_amount,
-                    })?,
-            )
+            .checked_mul(scaling_factor)
             .change_context_lazy(|| Error::InvalidTransferAmount {
                 source_chain: source_chain.to_owned(),
                 destination_chain: destination_chain.to_owned(),
@@ -331,7 +318,7 @@ fn destination_amount(
             })?
     };
 
-    if destination_amount.gt(&destination_chain_max_uint) {
+    if destination_amount.gt(&destination_max_uint) {
         bail!(Error::InvalidTransferAmount {
             source_chain: source_chain.to_owned(),
             destination_chain: destination_chain.to_owned(),
@@ -384,54 +371,69 @@ fn apply_transfer(
     source_chain: ChainNameRaw,
     destination_chain: ChainNameRaw,
     transfer: &InterchainTransfer,
-) -> Result<(), Error> {
-    subtract_amount_from_source(storage, source_chain, transfer)?;
-    add_amount_to_destination(storage, destination_chain, transfer)
+) -> Result<InterchainTransfer, Error> {
+    let destination_amount = destination_amount(
+        storage,
+        &source_chain,
+        &destination_chain,
+        transfer.token_id,
+        transfer.amount,
+    )?;
+
+    subtract_amount_from_source(storage, source_chain, transfer.token_id, transfer.amount)?;
+    add_amount_to_destination(
+        storage,
+        destination_chain,
+        transfer.token_id,
+        destination_amount,
+    )?;
+
+    Ok(InterchainTransfer {
+        amount: destination_amount,
+
+        ..transfer.clone()
+    })
 }
 
 fn subtract_amount_from_source(
     storage: &mut dyn Storage,
     source_chain: ChainNameRaw,
-    transfer: &InterchainTransfer,
+    token_id: TokenId,
+    amount: nonempty::Uint256,
 ) -> Result<(), Error> {
-    let mut source_instance =
-        try_load_token_instance(storage, source_chain.clone(), transfer.token_id)?;
+    let mut source_instance = try_load_token_instance(storage, source_chain.clone(), token_id)?;
 
     source_instance.supply = source_instance
         .supply
-        .checked_sub(transfer.amount)
+        .checked_sub(amount)
         .change_context_lazy(|| Error::TokenSupplyInvariantViolated {
-            token_id: transfer.token_id,
+            token_id,
             chain: source_chain.clone(),
         })?;
 
-    state::save_token_instance(storage, source_chain, transfer.token_id, &source_instance)
+    state::save_token_instance(storage, source_chain, token_id, &source_instance)
         .change_context(Error::State)
 }
 
 fn add_amount_to_destination(
     storage: &mut dyn Storage,
     destination_chain: ChainNameRaw,
-    transfer: &InterchainTransfer,
+    token_id: TokenId,
+    amount: nonempty::Uint256,
 ) -> Result<(), Error> {
     let mut destination_instance =
-        try_load_token_instance(storage, destination_chain.clone(), transfer.token_id)?;
+        try_load_token_instance(storage, destination_chain.clone(), token_id)?;
 
     destination_instance.supply = destination_instance
         .supply
-        .checked_add(transfer.amount)
+        .checked_add(amount)
         .change_context_lazy(|| Error::TokenSupplyInvariantViolated {
-            token_id: transfer.token_id,
+            token_id,
             chain: destination_chain.clone(),
         })?;
 
-    state::save_token_instance(
-        storage,
-        destination_chain,
-        transfer.token_id,
-        &destination_instance,
-    )
-    .change_context(Error::State)
+    state::save_token_instance(storage, destination_chain, token_id, &destination_instance)
+        .change_context(Error::State)
 }
 
 fn apply_token_deployment(
@@ -547,7 +549,7 @@ fn ensure_matching_original_deployment(
 }
 
 fn try_load_token_instance(
-    storage: &mut dyn Storage,
+    storage: &dyn Storage,
     chain: ChainNameRaw,
     token_id: TokenId,
 ) -> Result<TokenInstance, Error> {

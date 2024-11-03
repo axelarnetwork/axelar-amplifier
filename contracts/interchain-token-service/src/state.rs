@@ -160,14 +160,6 @@ pub fn save_chain_config(
         .change_context(Error::Storage)
 }
 
-pub fn load_token_decimals(
-    _storage: &dyn Storage,
-    _chain: &ChainNameRaw,
-    _token_id: TokenId,
-) -> Result<u8, Error> {
-    todo!()
-}
-
 pub fn may_load_its_contract(
     storage: &dyn Storage,
     chain: &ChainNameRaw,
