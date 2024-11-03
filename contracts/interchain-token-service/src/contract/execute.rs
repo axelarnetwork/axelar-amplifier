@@ -60,11 +60,13 @@ pub enum Error {
         chain: ChainNameRaw,
     },
     #[error(
-        "token {token_id} deployed from chain {chain} has different decimals than the original one"
+        "token {token_id} deployed from chain {chain} with different decimals than original deployment"
     )]
     TokenDeployedDecimalsMismatch {
         token_id: TokenId,
         chain: ChainNameRaw,
+        expected: Option<u8>,
+        actual: Option<u8>,
     },
     #[error("token supply invariant violated for token {token_id} on chain {chain}")]
     TokenSupplyInvariantViolated {
@@ -535,13 +537,20 @@ fn ensure_matching_original_deployment(
             chain: source_chain.clone(),
         }
     );
+
+    let token_instance = state::may_load_token_instance(storage, origin_chain.clone(), token_id)
+        .change_context(Error::State)?
+        .ok_or(report!(Error::TokenNotDeployed {
+            token_id,
+            chain: origin_chain.clone()
+        }))?;
     ensure!(
-        state::may_load_token_instance(storage, source_chain.clone(), token_id)
-            .change_context(Error::State)?
-            .is_some_and(|token_instance| token_instance.decimals == source_token_decimals),
+        token_instance.decimals == source_token_decimals,
         Error::TokenDeployedDecimalsMismatch {
             token_id,
-            chain: source_chain.clone()
+            chain: source_chain.clone(),
+            expected: token_instance.decimals,
+            actual: source_token_decimals
         }
     );
 
