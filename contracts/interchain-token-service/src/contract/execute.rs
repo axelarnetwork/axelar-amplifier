@@ -284,12 +284,17 @@ fn destination_amount(
     let destination_token = try_load_token_instance(storage, destination_chain.clone(), token_id)?;
     let (source_decimals, destination_decimals) =
         match (source_token.decimals, destination_token.decimals) {
+            (Some(source_decimals), Some(destination_decimals))
+                if source_decimals == destination_decimals =>
+            {
+                return Ok(source_amount)
+            }
             (Some(source_decimals), Some(destination_decimals)) => {
                 (source_decimals, destination_decimals)
             }
             (None, None) => return Ok(source_amount),
             _ => unreachable!(
-                "decimals are either set in both the source and destination, or set in neither"
+                "decimals should be set in both the source and destination, or set in neither"
             ), // This should never happen
         };
     let destination_max_uint = state::load_chain_config(storage, destination_chain)
@@ -382,60 +387,61 @@ fn apply_transfer(
         transfer.amount,
     )?;
 
-    subtract_amount_from_source(storage, source_chain, transfer.token_id, transfer.amount)?;
-    add_amount_to_destination(
-        storage,
-        destination_chain,
-        transfer.token_id,
-        destination_amount,
-    )?;
+    subtract_amount_from_source(storage, source_chain, transfer)?;
 
-    Ok(InterchainTransfer {
+    let destination_transfer = InterchainTransfer {
         amount: destination_amount,
 
         ..transfer.clone()
-    })
+    };
+    add_amount_to_destination(storage, destination_chain, &destination_transfer)?;
+
+    Ok(destination_transfer)
 }
 
 fn subtract_amount_from_source(
     storage: &mut dyn Storage,
     source_chain: ChainNameRaw,
-    token_id: TokenId,
-    amount: nonempty::Uint256,
+    transfer: &InterchainTransfer,
 ) -> Result<(), Error> {
-    let mut source_instance = try_load_token_instance(storage, source_chain.clone(), token_id)?;
+    let mut source_instance =
+        try_load_token_instance(storage, source_chain.clone(), transfer.token_id)?;
 
     source_instance.supply = source_instance
         .supply
-        .checked_sub(amount)
+        .checked_sub(transfer.amount)
         .change_context_lazy(|| Error::TokenSupplyInvariantViolated {
-            token_id,
+            token_id: transfer.token_id,
             chain: source_chain.clone(),
         })?;
 
-    state::save_token_instance(storage, source_chain, token_id, &source_instance)
+    state::save_token_instance(storage, source_chain, transfer.token_id, &source_instance)
         .change_context(Error::State)
 }
 
 fn add_amount_to_destination(
     storage: &mut dyn Storage,
     destination_chain: ChainNameRaw,
-    token_id: TokenId,
-    amount: nonempty::Uint256,
+    transfer: &InterchainTransfer,
 ) -> Result<(), Error> {
     let mut destination_instance =
-        try_load_token_instance(storage, destination_chain.clone(), token_id)?;
+        try_load_token_instance(storage, destination_chain.clone(), transfer.token_id)?;
 
     destination_instance.supply = destination_instance
         .supply
-        .checked_add(amount)
+        .checked_add(transfer.amount)
         .change_context_lazy(|| Error::TokenSupplyInvariantViolated {
-            token_id,
+            token_id: transfer.token_id,
             chain: destination_chain.clone(),
         })?;
 
-    state::save_token_instance(storage, destination_chain, token_id, &destination_instance)
-        .change_context(Error::State)
+    state::save_token_instance(
+        storage,
+        destination_chain,
+        transfer.token_id,
+        &destination_instance,
+    )
+    .change_context(Error::State)
 }
 
 fn apply_token_deployment(

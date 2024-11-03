@@ -19,8 +19,6 @@ pub enum Error {
     ItsContractAlreadyRegistered(ChainNameRaw),
     #[error("chain not found {0}")]
     ChainNotFound(ChainNameRaw),
-    #[error("chain config for chain {0} not found")]
-    ChainConfigNotFound(ChainNameRaw),
     // This is a generic error to use when cw_storage_plus returns an error that is unexpected and
     // should never happen, such as an error encountered when saving data.
     #[error("storage error")]
@@ -138,7 +136,7 @@ pub fn load_chain_config(
 ) -> Result<ChainConfig, Error> {
     may_load_chain_config(storage, chain)
         .change_context(Error::Storage)?
-        .ok_or_else(|| report!(Error::ChainConfigNotFound(chain.to_owned())))
+        .ok_or_else(|| report!(Error::ChainNotFound(chain.to_owned())))
 }
 
 pub fn save_chain_config(
