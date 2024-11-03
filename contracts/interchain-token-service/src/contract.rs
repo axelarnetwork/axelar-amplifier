@@ -36,14 +36,18 @@ pub enum Error {
     UnfreezeChain,
     #[error("failed to set chain config")]
     SetChainConfig,
-    #[error("failed to query its address")]
-    QueryItsContract,
-    #[error("failed to query all its addresses")]
-    QueryAllItsContracts,
     #[error("failed to disable execution")]
     DisableExecution,
     #[error("failed to enable execution")]
     EnableExecution,
+    #[error("failed to query its address")]
+    QueryItsContract,
+    #[error("failed to query all its addresses")]
+    QueryAllItsContracts,
+    #[error("failed to query a specific token instance")]
+    QueryTokenInstance,
+    #[error("failed to query the token config")]
+    QueryTokenConfig,
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -144,6 +148,12 @@ pub fn query(deps: Deps, _: Env, msg: QueryMsg) -> Result<Binary, ContractError>
         }
         QueryMsg::AllItsContracts => {
             query::all_its_contracts(deps).change_context(Error::QueryAllItsContracts)
+        }
+        QueryMsg::TokenInstance { chain, token_id } => {
+            query::token_instance(deps, chain, token_id).change_context(Error::QueryTokenInstance)
+        }
+        QueryMsg::TokenConfig { token_id } => {
+            query::token_config(deps, token_id).change_context(Error::QueryTokenConfig)
         }
     }?
     .then(Ok)

@@ -1,12 +1,15 @@
 use axelar_wasm_std::{killswitch, nonempty, FnExt, IntoContractError};
 use cosmwasm_std::{DepsMut, HexBinary, QuerierWrapper, Response, Storage};
 use error_stack::{bail, ensure, report, Result, ResultExt};
-use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
+use router_api::{Address, ChainNameRaw, CrossChainId};
 
 use crate::events::Event;
 use crate::primitives::HubMessage;
-use crate::state::{self, is_chain_frozen, load_config, load_its_contract};
-use crate::Message;
+use crate::state::{self, is_chain_frozen, load_config, load_its_contract, TokenDeploymentType};
+use crate::{
+    DeployInterchainToken, DeployTokenManager, InterchainTransfer, Message, TokenConfig, TokenId,
+    TokenInstance,
+};
 
 #[derive(thiserror::Error, Debug, IntoContractError)]
 pub enum Error {
@@ -26,22 +29,46 @@ pub enum Error {
     FailedExecuteMessage,
     #[error("execution is currently disabled")]
     ExecutionDisabled,
-    #[error("chain config for {0} already set")]
-    ChainConfigAlreadySet(ChainNameRaw),
-    #[error("failed to load chain config for chain {0}")]
-    LoadChainConfig(ChainNameRaw),
-    #[error("failed to save chain config for chain {0}")]
-    SaveChainConfig(ChainNameRaw),
     #[error("chain {0} is frozen")]
     ChainFrozen(ChainNameRaw),
     #[error("state error")]
     State,
+    #[error("chain config for {0} already set")]
+    ChainConfigAlreadySet(ChainNameRaw),
+    #[error("token {token_id} not deployed on chain {chain}")]
+    TokenNotDeployed {
+        token_id: TokenId,
+        chain: ChainNameRaw,
+    },
+    #[error("token {token_id} already deployed on chain {chain}")]
+    TokenAlreadyDeployed {
+        token_id: TokenId,
+        chain: ChainNameRaw,
+    },
+    #[error("token {token_id} can only be deployed from its origin chain {origin_chain} and not from {chain}")]
+    TokenDeployedFromNonOriginChain {
+        token_id: TokenId,
+        origin_chain: ChainNameRaw,
+        chain: ChainNameRaw,
+    },
+    #[error(
+        "token {token_id} deployed from chain {chain} has different decimals than the original one"
+    )]
+    TokenDeployedDecimalsMismatch {
+        token_id: TokenId,
+        chain: ChainNameRaw,
+    },
+    #[error("token supply invariant violated for token {token_id} on chain {chain}")]
+    TokenSupplyInvariantViolated {
+        token_id: TokenId,
+        chain: ChainNameRaw,
+    },
 }
 
 /// Executes an incoming ITS message.
 ///
 /// This function handles the execution of ITS (Interchain Token Service) messages received from
-/// its sources. It verifies the source address, decodes the message, applies balance tracking,
+/// its sources. It verifies the source address, decodes the message, applies various checks and transformations,
 /// and forwards the message to the destination chain.
 pub fn execute_message(
     deps: DepsMut,
@@ -53,63 +80,96 @@ pub fn execute_message(
         killswitch::is_contract_active(deps.storage),
         Error::ExecutionDisabled
     );
-    ensure_its_source_address(deps.storage, &cc_id.source_chain, &source_address)?;
+    ensure_is_its_source_address(deps.storage, &cc_id.source_chain, &source_address)?;
 
     match HubMessage::abi_decode(&payload).change_context(Error::InvalidPayload)? {
         HubMessage::SendToHub {
             destination_chain,
             message,
-        } => {
-            let destination_address = load_its_contract(deps.storage, &destination_chain)
-                .change_context_lazy(|| Error::UnknownChain(destination_chain.clone()))?;
-
-            verify_chains_not_frozen(deps.storage, &cc_id.source_chain, &destination_chain)?;
-
-            let destination_payload = HubMessage::ReceiveFromHub {
-                source_chain: cc_id.source_chain.clone(),
-                message: message.clone(),
-            }
-            .abi_encode();
-
-            Ok(send_to_destination(
-                deps.storage,
-                deps.querier,
-                destination_chain.clone(),
-                destination_address,
-                destination_payload,
-            )?
-            .add_event(
-                Event::MessageReceived {
-                    cc_id,
-                    destination_chain,
-                    message,
-                }
-                .into(),
-            ))
-        }
+        } => execute_message_on_hub(deps, cc_id, destination_chain, message),
         _ => bail!(Error::InvalidMessageType),
     }
 }
 
-fn verify_chains_not_frozen(
-    storage: &dyn Storage,
-    source_chain: &ChainNameRaw,
-    destination_chain: &ChainNameRaw,
-) -> Result<(), Error> {
-    for chain in [source_chain, destination_chain] {
-        if is_chain_frozen(storage, chain).change_context(Error::State)? {
-            return Err(report!(Error::ChainFrozen(chain.to_owned())));
-        }
+fn execute_message_on_hub(
+    deps: DepsMut,
+    cc_id: CrossChainId,
+    destination_chain: ChainNameRaw,
+    message: Message,
+) -> Result<Response, Error> {
+    let destination_address = load_its_contract(deps.storage, &destination_chain)
+        .change_context_lazy(|| Error::UnknownChain(destination_chain.clone()))?;
+
+    let message = apply_to_hub(
+        deps.storage,
+        cc_id.source_chain.clone(),
+        destination_chain.clone(),
+        message,
+    )?;
+
+    let destination_payload = HubMessage::ReceiveFromHub {
+        source_chain: cc_id.source_chain.clone(),
+        message: message.clone(),
     }
+    .abi_encode();
+
+    Ok(send_to_destination(
+        deps.storage,
+        deps.querier,
+        &destination_chain,
+        destination_address,
+        destination_payload,
+    )?
+    .add_event(
+        Event::MessageReceived {
+            cc_id,
+            destination_chain,
+            message,
+        }
+        .into(),
+    ))
+}
+
+fn apply_to_hub(
+    storage: &mut dyn Storage,
+    source_chain: ChainNameRaw,
+    destination_chain: ChainNameRaw,
+    message: Message,
+) -> Result<Message, Error> {
+    ensure_chain_not_frozen(storage, &source_chain)?;
+    ensure_chain_not_frozen(storage, &destination_chain)?;
+
+    match message {
+        Message::InterchainTransfer(transfer) => {
+            apply_transfer(storage, source_chain, destination_chain, &transfer)
+                .map(|_| Message::InterchainTransfer(transfer))?
+        }
+        Message::DeployInterchainToken(deploy_token) => {
+            apply_token_deployment(storage, &source_chain, &destination_chain, deploy_token)
+                .map(Message::DeployInterchainToken)?
+        }
+        Message::DeployTokenManager(deploy_manager) => apply_token_manager_deployment(
+            storage,
+            &source_chain,
+            &destination_chain,
+            deploy_manager,
+        )
+        .map(Message::DeployTokenManager)?,
+    }
+    .then(Result::Ok)
+}
+
+fn ensure_chain_not_frozen(storage: &dyn Storage, chain: &ChainNameRaw) -> Result<(), Error> {
+    ensure!(
+        !is_chain_frozen(storage, chain).change_context(Error::State)?,
+        Error::ChainFrozen(chain.to_owned())
+    );
+
     Ok(())
 }
 
-fn normalize(chain: &ChainNameRaw) -> ChainName {
-    ChainName::try_from(chain.as_ref()).expect("invalid chain name")
-}
-
 /// Ensures that the source address of the cross-chain message is the registered ITS contract for the source chain.
-fn ensure_its_source_address(
+fn ensure_is_its_source_address(
     storage: &dyn Storage,
     source_chain: &ChainNameRaw,
     source_address: &Address,
@@ -128,7 +188,7 @@ fn ensure_its_source_address(
 fn send_to_destination(
     storage: &dyn Storage,
     querier: QuerierWrapper,
-    destination_chain: ChainNameRaw,
+    destination_chain: &ChainNameRaw,
     destination_address: Address,
     payload: HexBinary,
 ) -> Result<Response, Error> {
@@ -138,7 +198,7 @@ fn send_to_destination(
         client::ContractClient::new(querier, &config.axelarnet_gateway).into();
 
     let call_contract_msg =
-        gateway.call_contract(normalize(&destination_chain), destination_address, payload);
+        gateway.call_contract(destination_chain.normalize(), destination_address, payload);
 
     Ok(Response::new().add_message(call_contract_msg))
 }
@@ -187,74 +247,280 @@ pub fn set_chain_config(
     max_uint: nonempty::Uint256,
     max_target_decimals: u8,
 ) -> Result<Response, Error> {
-    match state::may_load_chain_config(deps.storage, &chain)
-        .change_context_lazy(|| Error::LoadChainConfig(chain.clone()))?
-    {
+    match state::may_load_chain_config(deps.storage, &chain).change_context(Error::State)? {
         Some(_) => bail!(Error::ChainConfigAlreadySet(chain)),
         None => state::save_chain_config(deps.storage, &chain, max_uint, max_target_decimals)
-            .change_context_lazy(|| Error::SaveChainConfig(chain))?
+            .change_context(Error::State)?
             .then(|_| Ok(Response::new())),
     }
 }
 
-#[allow(unused)]
-/// Translates and saves token decimals for the source/destination chains on token deployment.
+/// Calculates the destination token decimals.
 ///
-/// The source chain's token decimals are saved as-is, while the destination chain's token decimals
-/// are calculated and saved as following:
+/// The destination chain's token decimals are calculated and saved as following:
 /// 1) If the source chain's `max_uint` is less than or equal to the destination chain's `max_uint`,
 ///   the source chain's token decimals are used.
 /// 2) Otherwise, the minimum of the source chain's token decimals and the source chain's
 ///  `max_target_decimals` is used.
-fn translate_and_save_token_decimals_on_token_deployment(
+fn destination_token_decimals(
     storage: &mut dyn Storage,
     source_chain: &ChainNameRaw,
     destination_chain: &ChainNameRaw,
-    message: Message,
-) -> Result<Message, Error> {
-    match message {
-        Message::DeployInterchainToken {
+    source_chain_decimals: u8,
+) -> Result<u8, Error> {
+    let source_chain_config =
+        state::load_chain_config(storage, source_chain).change_context(Error::State)?;
+    let destination_chain_config =
+        state::load_chain_config(storage, destination_chain).change_context(Error::State)?;
+
+    if source_chain_config
+        .max_uint
+        .le(&destination_chain_config.max_uint)
+    {
+        source_chain_decimals
+    } else {
+        source_chain_config
+            .max_target_decimals
+            .min(source_chain_decimals)
+    }
+    .then(Result::Ok)
+}
+
+fn apply_transfer(
+    storage: &mut dyn Storage,
+    source_chain: ChainNameRaw,
+    destination_chain: ChainNameRaw,
+    transfer: &InterchainTransfer,
+) -> Result<(), Error> {
+    subtract_amount_from_source(storage, source_chain, transfer)?;
+    add_amount_to_destination(storage, destination_chain, transfer)
+}
+
+fn subtract_amount_from_source(
+    storage: &mut dyn Storage,
+    source_chain: ChainNameRaw,
+    transfer: &InterchainTransfer,
+) -> Result<(), Error> {
+    let mut source_instance =
+        try_load_token_instance(storage, source_chain.clone(), transfer.token_id)?;
+
+    source_instance.supply = source_instance
+        .supply
+        .checked_sub(transfer.amount)
+        .change_context_lazy(|| Error::TokenSupplyInvariantViolated {
+            token_id: transfer.token_id,
+            chain: source_chain.clone(),
+        })?;
+
+    state::save_token_instance(storage, source_chain, transfer.token_id, &source_instance)
+        .change_context(Error::State)
+}
+
+fn add_amount_to_destination(
+    storage: &mut dyn Storage,
+    destination_chain: ChainNameRaw,
+    transfer: &InterchainTransfer,
+) -> Result<(), Error> {
+    let mut destination_instance =
+        try_load_token_instance(storage, destination_chain.clone(), transfer.token_id)?;
+
+    destination_instance.supply = destination_instance
+        .supply
+        .checked_add(transfer.amount)
+        .change_context_lazy(|| Error::TokenSupplyInvariantViolated {
+            token_id: transfer.token_id,
+            chain: destination_chain.clone(),
+        })?;
+
+    state::save_token_instance(
+        storage,
+        destination_chain,
+        transfer.token_id,
+        &destination_instance,
+    )
+    .change_context(Error::State)
+}
+
+fn apply_token_deployment(
+    storage: &mut dyn Storage,
+    source_chain: &ChainNameRaw,
+    destination_chain: &ChainNameRaw,
+    deploy_token: DeployInterchainToken,
+) -> Result<DeployInterchainToken, Error> {
+    let destination_token_decimals = destination_token_decimals(
+        storage,
+        source_chain,
+        destination_chain,
+        deploy_token.decimals,
+    )?;
+
+    save_token_instances(
+        storage,
+        source_chain,
+        destination_chain,
+        Some(deploy_token.decimals),
+        Some(destination_token_decimals),
+        deploy_token.token_id,
+        &deploy_token.deployment_type(),
+    )
+    .map(|_| DeployInterchainToken {
+        decimals: destination_token_decimals,
+
+        ..deploy_token
+    })
+}
+
+fn apply_token_manager_deployment(
+    storage: &mut dyn Storage,
+    source_chain: &ChainNameRaw,
+    destination_chain: &ChainNameRaw,
+    deploy_token_manager: DeployTokenManager,
+) -> Result<DeployTokenManager, Error> {
+    save_token_instances(
+        storage,
+        source_chain,
+        destination_chain,
+        None,
+        None,
+        deploy_token_manager.token_id,
+        &deploy_token_manager.deployment_type(),
+    )
+    .map(|_| deploy_token_manager)
+}
+
+fn save_token_instances(
+    storage: &mut dyn Storage,
+    source_chain: &ChainNameRaw,
+    destination_chain: &ChainNameRaw,
+    source_token_decimals: Option<u8>,
+    destination_token_decimals: Option<u8>,
+    token_id: TokenId,
+    deployment_type: &TokenDeploymentType,
+) -> Result<(), Error> {
+    ensure_token_not_deployed_on_destination(storage, token_id, destination_chain.clone())?;
+
+    let token_config =
+        state::may_load_token_config(storage, &token_id).change_context(Error::State)?;
+
+    if let Some(TokenConfig { origin_chain, .. }) = token_config {
+        ensure_matching_original_deployment(
+            origin_chain,
+            source_chain,
             token_id,
-            name,
-            symbol,
-            decimals: source_chain_decimals,
-            minter,
-        } => {
-            let source_chain_config =
-                state::load_chain_config(storage, source_chain).change_context(Error::State)?;
-            let destination_chain_config = state::load_chain_config(storage, destination_chain)
-                .change_context(Error::State)?;
+            storage,
+            source_token_decimals,
+        )?;
+    } else {
+        initialize_token_on_origin(storage, source_chain, token_id, source_token_decimals)?;
+    }
 
-            let destination_chain_decimals = if source_chain_config
-                .max_uint
-                .le(&destination_chain_config.max_uint)
-            {
-                source_chain_decimals
-            } else {
-                source_chain_config
-                    .max_target_decimals
-                    .min(source_chain_decimals)
-            };
+    let destination_instance = TokenInstance::new(deployment_type, destination_token_decimals);
 
-            state::save_token_decimals(storage, source_chain, token_id, source_chain_decimals)
-                .change_context(Error::State)?;
-            state::save_token_decimals(
-                storage,
-                destination_chain,
-                token_id,
-                destination_chain_decimals,
-            )
+    state::save_token_instance(
+        storage,
+        destination_chain.clone(),
+        token_id,
+        &destination_instance,
+    )
+    .change_context(Error::State)
+}
+
+fn ensure_matching_original_deployment(
+    origin_chain: ChainNameRaw,
+    source_chain: &ChainNameRaw,
+    token_id: TokenId,
+    storage: &mut dyn Storage,
+    source_token_decimals: Option<u8>,
+) -> Result<(), Error> {
+    ensure!(
+        origin_chain == *source_chain,
+        Error::TokenDeployedFromNonOriginChain {
+            token_id,
+            origin_chain: origin_chain.to_owned(),
+            chain: source_chain.clone(),
+        }
+    );
+    ensure!(
+        state::may_load_token_instance(storage, source_chain.clone(), token_id)
+            .change_context(Error::State)?
+            .is_some_and(|token_instance| token_instance.decimals == source_token_decimals),
+        Error::TokenDeployedDecimalsMismatch {
+            token_id,
+            chain: source_chain.clone()
+        }
+    );
+
+    Ok(())
+}
+
+fn try_load_token_instance(
+    storage: &mut dyn Storage,
+    chain: ChainNameRaw,
+    token_id: TokenId,
+) -> Result<TokenInstance, Error> {
+    state::may_load_token_instance(storage, chain.clone(), token_id)
+        .change_context(Error::State)?
+        .ok_or(report!(Error::TokenNotDeployed { token_id, chain }))
+}
+
+fn initialize_token_on_origin(
+    storage: &mut dyn Storage,
+    source_chain: &ChainNameRaw,
+    token_id: TokenId,
+    decimals: Option<u8>,
+) -> Result<(), Error> {
+    // Token is being deployed for the first time
+    let token_config = TokenConfig {
+        origin_chain: source_chain.clone(),
+    };
+    let instance = TokenInstance::new_on_origin(decimals);
+
+    state::save_token_config(storage, &token_id, &token_config)
+        .and_then(|_| {
+            state::save_token_instance(storage, source_chain.clone(), token_id, &instance)
+        })
+        .change_context(Error::State)?;
+    Ok(())
+}
+
+/// Ensures that the token is not being redeployed to the same destination chain.
+fn ensure_token_not_deployed_on_destination(
+    storage: &dyn Storage,
+    token_id: TokenId,
+    destination_chain: ChainNameRaw,
+) -> Result<(), Error> {
+    let token_instance =
+        state::may_load_token_instance(storage, destination_chain.clone(), token_id)
             .change_context(Error::State)?;
 
-            Ok(Message::DeployInterchainToken {
-                token_id,
-                name,
-                symbol,
-                decimals: destination_chain_decimals,
-                minter,
-            })
+    ensure!(
+        token_instance.is_none(),
+        Error::TokenAlreadyDeployed {
+            token_id,
+            chain: destination_chain,
         }
-        _ => Ok(message),
+    );
+
+    Ok(())
+}
+
+trait DeploymentType {
+    fn deployment_type(&self) -> TokenDeploymentType;
+}
+
+impl DeploymentType for DeployInterchainToken {
+    fn deployment_type(&self) -> TokenDeploymentType {
+        if self.minter.is_some() {
+            TokenDeploymentType::CustomMinter
+        } else {
+            TokenDeploymentType::Trustless
+        }
+    }
+}
+
+impl DeploymentType for DeployTokenManager {
+    fn deployment_type(&self) -> TokenDeploymentType {
+        TokenDeploymentType::CustomMinter
     }
 }
 
@@ -272,7 +538,7 @@ mod tests {
         set_chain_config, unfreeze_chain, Error,
     };
     use crate::state::{self, Config};
-    use crate::{HubMessage, Message};
+    use crate::{DeployInterchainToken, HubMessage, InterchainTransfer};
 
     const SOLANA: &str = "solana";
     const ETHEREUM: &str = "ethereum";
@@ -296,27 +562,46 @@ mod tests {
         let mut deps = mock_dependencies();
         init(&mut deps);
 
+        let msg = HubMessage::SendToHub {
+            destination_chain: ChainNameRaw::try_from(SOLANA).unwrap(),
+            message: DeployInterchainToken {
+                token_id: [7u8; 32].into(),
+                name: "Test".parse().unwrap(),
+                symbol: "TEST".parse().unwrap(),
+                decimals: 18,
+                minter: None,
+            }
+            .into(),
+        };
+        let cc_id = CrossChainId {
+            source_chain: ChainNameRaw::try_from(ETHEREUM).unwrap(),
+            message_id: HexTxHashAndEventIndex::new([1u8; 32], 0u32).into(),
+        };
+
+        assert_ok!(execute_message(
+            deps.as_mut(),
+            cc_id.clone(),
+            ITS_ADDRESS.to_string().try_into().unwrap(),
+            msg.clone().abi_encode(),
+        ));
+
         assert_ok!(disable_execution(deps.as_mut()));
 
         let msg = HubMessage::SendToHub {
             destination_chain: ChainNameRaw::try_from(SOLANA).unwrap(),
-            message: Message::InterchainTransfer {
+            message: InterchainTransfer {
                 token_id: [7u8; 32].into(),
+                amount: Uint256::one().try_into().unwrap(),
                 source_address: its_address(),
                 destination_address: its_address(),
-                amount: Uint256::one().try_into().unwrap(),
                 data: None,
-            },
+            }
+            .into(),
         };
+
         let res = execute_message(
             deps.as_mut(),
-            CrossChainId {
-                source_chain: ChainNameRaw::try_from(SOLANA).unwrap(),
-                message_id: HexTxHashAndEventIndex::new([1u8; 32], 0u32)
-                    .to_string()
-                    .try_into()
-                    .unwrap(),
-            },
+            cc_id.clone(),
             ITS_ADDRESS.to_string().try_into().unwrap(),
             msg.clone().abi_encode(),
         );
@@ -324,15 +609,20 @@ mod tests {
 
         assert_ok!(enable_execution(deps.as_mut()));
 
+        let msg = HubMessage::SendToHub {
+            destination_chain: ChainNameRaw::try_from(SOLANA).unwrap(),
+            message: DeployInterchainToken {
+                token_id: [1u8; 32].into(),
+                name: "Test".parse().unwrap(),
+                symbol: "TEST".parse().unwrap(),
+                decimals: 18,
+                minter: None,
+            }
+            .into(),
+        };
         assert_ok!(execute_message(
             deps.as_mut(),
-            CrossChainId {
-                source_chain: ChainNameRaw::try_from(SOLANA).unwrap(),
-                message_id: HexTxHashAndEventIndex::new([1u8; 32], 0u32)
-                    .to_string()
-                    .try_into()
-                    .unwrap(),
-            },
+            cc_id.clone(),
             ITS_ADDRESS.to_string().try_into().unwrap(),
             msg.abi_encode(),
         ));
@@ -350,13 +640,14 @@ mod tests {
 
         let msg = HubMessage::SendToHub {
             destination_chain,
-            message: Message::InterchainTransfer {
+            message: DeployInterchainToken {
                 token_id: [7u8; 32].into(),
-                source_address: its_address(),
-                destination_address: its_address(),
-                amount: Uint256::one().try_into().unwrap(),
-                data: None,
-            },
+                name: "Test".parse().unwrap(),
+                symbol: "TEST".parse().unwrap(),
+                decimals: 18,
+                minter: None,
+            }
+            .into(),
         };
         let res = execute_message(
             deps.as_mut(),
@@ -401,13 +692,14 @@ mod tests {
 
         let msg = HubMessage::SendToHub {
             destination_chain: destination_chain.clone(),
-            message: Message::InterchainTransfer {
+            message: DeployInterchainToken {
                 token_id: [7u8; 32].into(),
-                source_address: its_address(),
-                destination_address: its_address(),
-                amount: Uint256::one().try_into().unwrap(),
-                data: None,
-            },
+                name: "Test".parse().unwrap(),
+                symbol: "TEST".parse().unwrap(),
+                decimals: 18,
+                minter: None,
+            }
+            .into(),
         };
         let cc_id = CrossChainId {
             source_chain,
@@ -448,13 +740,14 @@ mod tests {
 
         let msg = HubMessage::SendToHub {
             destination_chain: destination_chain.clone(),
-            message: Message::InterchainTransfer {
+            message: DeployInterchainToken {
                 token_id: [7u8; 32].into(),
-                source_address: its_address(),
-                destination_address: its_address(),
-                amount: Uint256::one().try_into().unwrap(),
-                data: None,
-            },
+                name: "Test".parse().unwrap(),
+                symbol: "TEST".parse().unwrap(),
+                decimals: 18,
+                minter: None,
+            }
+            .into(),
         };
         let cc_id = CrossChainId {
             source_chain,
