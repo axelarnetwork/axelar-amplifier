@@ -6,7 +6,7 @@ use error_stack::{bail, ensure, report, Report, ResultExt};
 use router_api::ChainNameRaw;
 
 use crate::primitives::{HubMessage, Message};
-use crate::{TokenId, TokenManagerType};
+use crate::{primitives, TokenId, TokenManagerType};
 
 // ITS Message payload types
 // Reference: https://github.com/axelarnetwork/interchain-token-service/blob/v1.2.4/DESIGN.md#interchain-communication-spec
@@ -80,13 +80,13 @@ pub enum Error {
 impl Message {
     pub fn abi_encode(self) -> HexBinary {
         match self {
-            Message::InterchainTransfer {
+            Message::InterchainTransfer(primitives::InterchainTransfer {
                 token_id,
                 source_address,
                 destination_address,
                 amount,
                 data,
-            } => InterchainTransfer {
+            }) => InterchainTransfer {
                 messageType: MessageType::InterchainTransfer.into(),
                 tokenId: FixedBytes::<32>::new(token_id.into()),
                 sourceAddress: Vec::<u8>::from(source_address).into(),
@@ -95,13 +95,13 @@ impl Message {
                 data: into_vec(data).into(),
             }
             .abi_encode_params(),
-            Message::DeployInterchainToken {
+            Message::DeployInterchainToken(primitives::DeployInterchainToken {
                 token_id,
                 name,
                 symbol,
                 decimals,
                 minter,
-            } => DeployInterchainToken {
+            }) => DeployInterchainToken {
                 messageType: MessageType::DeployInterchainToken.into(),
                 tokenId: FixedBytes::<32>::new(token_id.into()),
                 name: name.into(),
@@ -110,11 +110,11 @@ impl Message {
                 minter: into_vec(minter).into(),
             }
             .abi_encode_params(),
-            Message::DeployTokenManager {
+            Message::DeployTokenManager(primitives::DeployTokenManager {
                 token_id,
                 token_manager_type,
                 params,
-            } => DeployTokenManager {
+            }) => DeployTokenManager {
                 messageType: MessageType::DeployTokenManager.into(),
                 tokenId: FixedBytes::<32>::new(token_id.into()),
                 tokenManagerType: token_manager_type.into(),
@@ -136,7 +136,7 @@ impl Message {
                 let decoded = InterchainTransfer::abi_decode_params(payload, true)
                     .map_err(Error::AbiDecodeFailed)?;
 
-                Message::InterchainTransfer {
+                primitives::InterchainTransfer {
                     token_id: TokenId::new(decoded.tokenId.into()),
                     source_address: Vec::<u8>::from(decoded.sourceAddress)
                         .try_into()
@@ -149,18 +149,20 @@ impl Message {
                         .map_err(Error::NonEmpty)?,
                     data: from_vec(decoded.data.into())?,
                 }
+                .into()
             }
             MessageType::DeployInterchainToken => {
                 let decoded = DeployInterchainToken::abi_decode_params(payload, true)
                     .map_err(Error::AbiDecodeFailed)?;
 
-                Message::DeployInterchainToken {
+                primitives::DeployInterchainToken {
                     token_id: TokenId::new(decoded.tokenId.into()),
                     name: decoded.name.try_into().map_err(Error::NonEmpty)?,
                     symbol: decoded.symbol.try_into().map_err(Error::NonEmpty)?,
                     decimals: decoded.decimals,
                     minter: from_vec(decoded.minter.into())?,
                 }
+                .into()
             }
             MessageType::DeployTokenManager => {
                 let decoded = DeployTokenManager::abi_decode_params(payload, true)
@@ -171,13 +173,14 @@ impl Message {
                     .then(TokenManagerType::from_repr)
                     .ok_or_else(|| Error::InvalidTokenManagerType)?;
 
-                Message::DeployTokenManager {
+                primitives::DeployTokenManager {
                     token_id: TokenId::new(decoded.tokenId.into()),
                     token_manager_type,
                     params: Vec::<u8>::from(decoded.params)
                         .try_into()
                         .map_err(Error::NonEmpty)?,
                 }
+                .into()
             }
             _ => bail!(Error::InvalidMessageType),
         };
@@ -284,7 +287,7 @@ mod tests {
 
     use super::{DeployInterchainToken, InterchainTransfer};
     use crate::abi::{DeployTokenManager, Error, MessageType, SendToHub};
-    use crate::{HubMessage, Message, TokenManagerType};
+    use crate::{primitives, HubMessage, TokenManagerType};
 
     fn from_hex(hex: &str) -> nonempty::HexBinary {
         HexBinary::from_hex(hex).unwrap().try_into().unwrap()
@@ -297,43 +300,47 @@ mod tests {
         let cases = vec![
             HubMessage::SendToHub {
                 destination_chain: remote_chain.clone(),
-                message: Message::InterchainTransfer {
+                message: primitives::InterchainTransfer {
                     token_id: [0u8; 32].into(),
                     source_address: from_hex("00"),
                     destination_address: from_hex("00"),
                     amount: 1u64.try_into().unwrap(),
                     data: None,
-                },
+                }
+                .into(),
             },
             HubMessage::SendToHub {
                 destination_chain: remote_chain.clone(),
-                message: Message::InterchainTransfer {
+                message: primitives::InterchainTransfer {
                     token_id: [255u8; 32].into(),
                     source_address: from_hex("4F4495243837681061C4743b74B3eEdf548D56A5"),
                     destination_address: from_hex("4F4495243837681061C4743b74B3eEdf548D56A5"),
                     amount: Uint256::MAX.try_into().unwrap(),
                     data: Some(from_hex("abcd")),
-                },
+                }
+                .into(),
             },
             HubMessage::ReceiveFromHub {
                 source_chain: remote_chain.clone(),
-                message: Message::InterchainTransfer {
+                message: primitives::InterchainTransfer {
                     token_id: [0u8; 32].into(),
                     source_address: from_hex("00"),
                     destination_address: from_hex("00"),
                     amount: 1u64.try_into().unwrap(),
                     data: None,
-                },
+                }
+                .into(),
             },
             HubMessage::ReceiveFromHub {
                 source_chain: remote_chain.clone(),
-                message: Message::InterchainTransfer {
+                message: primitives::InterchainTransfer {
                     token_id: [255u8; 32].into(),
                     source_address: from_hex("4F4495243837681061C4743b74B3eEdf548D56A5"),
                     destination_address: from_hex("4F4495243837681061C4743b74B3eEdf548D56A5"),
                     amount: Uint256::MAX.try_into().unwrap(),
                     data: Some(from_hex("abcd")),
-                },
+                }
+                .into(),
             },
         ];
 
@@ -428,63 +435,69 @@ mod tests {
         let cases = vec![
             HubMessage::SendToHub {
                 destination_chain: remote_chain.clone(),
-                message: Message::DeployInterchainToken {
+                message: primitives::DeployInterchainToken {
                     token_id: [0u8; 32].into(),
                     name: "t".try_into().unwrap(),
                     symbol: "T".try_into().unwrap(),
                     decimals: 0,
                     minter: None,
-                },
+                }
+                .into(),
             },
             HubMessage::SendToHub {
                 destination_chain: remote_chain.clone(),
-                message: Message::DeployInterchainToken {
+                message: primitives::DeployInterchainToken {
                     token_id: [1u8; 32].into(),
                     name: "Test Token".try_into().unwrap(),
                     symbol: "TST".try_into().unwrap(),
                     decimals: 18,
                     minter: Some(from_hex("1234")),
-                },
+                }
+                .into(),
             },
             HubMessage::SendToHub {
                 destination_chain: remote_chain.clone(),
-                message: Message::DeployInterchainToken {
+                message: primitives::DeployInterchainToken {
                     token_id: [0u8; 32].into(),
                     name: "Unicode Token 🪙".try_into().unwrap(),
                     symbol: "UNI🔣".try_into().unwrap(),
                     decimals: 255,
                     minter: Some(from_hex("abcd")),
-                },
+                }
+                .into(),
             },
             HubMessage::ReceiveFromHub {
                 source_chain: remote_chain.clone(),
-                message: Message::DeployInterchainToken {
+                message: primitives::DeployInterchainToken {
                     token_id: [0u8; 32].into(),
                     name: "t".try_into().unwrap(),
                     symbol: "T".try_into().unwrap(),
                     decimals: 0,
                     minter: None,
-                },
+                }
+                .into(),
             },
             HubMessage::ReceiveFromHub {
                 source_chain: remote_chain.clone(),
-                message: Message::DeployInterchainToken {
+                message: primitives::DeployInterchainToken {
                     token_id: [1u8; 32].into(),
                     name: "Test Token".try_into().unwrap(),
                     symbol: "TST".try_into().unwrap(),
                     decimals: 18,
                     minter: Some(from_hex("1234")),
-                },
+                }
+                .into(),
             },
             HubMessage::ReceiveFromHub {
                 source_chain: remote_chain.clone(),
-                message: Message::DeployInterchainToken {
+                message: primitives::DeployInterchainToken {
                     token_id: [0u8; 32].into(),
                     name: "Unicode Token 🪙".try_into().unwrap(),
                     symbol: "UNI🔣".try_into().unwrap(),
                     decimals: 255,
                     minter: Some(from_hex("abcd")),
-                },
+                }
+                .into(),
             },
         ];
 
@@ -509,35 +522,39 @@ mod tests {
         let cases = vec![
             HubMessage::SendToHub {
                 destination_chain: remote_chain.clone(),
-                message: Message::DeployTokenManager {
+                message: primitives::DeployTokenManager {
                     token_id: [0u8; 32].into(),
                     token_manager_type: TokenManagerType::NativeInterchainToken,
                     params: from_hex("00"),
-                },
+                }
+                .into(),
             },
             HubMessage::SendToHub {
                 destination_chain: remote_chain.clone(),
-                message: Message::DeployTokenManager {
+                message: primitives::DeployTokenManager {
                     token_id: [1u8; 32].into(),
                     token_manager_type: TokenManagerType::Gateway,
                     params: from_hex("1234"),
-                },
+                }
+                .into(),
             },
             HubMessage::ReceiveFromHub {
                 source_chain: remote_chain.clone(),
-                message: Message::DeployTokenManager {
+                message: primitives::DeployTokenManager {
                     token_id: [0u8; 32].into(),
                     token_manager_type: TokenManagerType::NativeInterchainToken,
                     params: from_hex("00"),
-                },
+                }
+                .into(),
             },
             HubMessage::ReceiveFromHub {
                 source_chain: remote_chain.clone(),
-                message: Message::DeployTokenManager {
+                message: primitives::DeployTokenManager {
                     token_id: [1u8; 32].into(),
                     token_manager_type: TokenManagerType::Gateway,
                     params: from_hex("1234"),
-                },
+                }
+                .into(),
             },
         ];
 
@@ -646,13 +663,14 @@ mod tests {
         let large_data = vec![0u8; 1024 * 1024]; // 1MB of data
         let original = HubMessage::SendToHub {
             destination_chain: ChainNameRaw::from_str("large-data-chain").unwrap(),
-            message: Message::InterchainTransfer {
+            message: primitives::InterchainTransfer {
                 token_id: [0u8; 32].into(),
                 source_address: from_hex("1234"),
                 destination_address: from_hex("5678"),
                 amount: Uint256::from(1u128).try_into().unwrap(),
                 data: Some(large_data.try_into().unwrap()),
-            },
+            }
+            .into(),
         };
 
         let encoded = original.clone().abi_encode();
@@ -664,13 +682,14 @@ mod tests {
     fn encode_decode_unicode_strings() {
         let original = HubMessage::SendToHub {
             destination_chain: ChainNameRaw::from_str("chain").unwrap(),
-            message: Message::DeployInterchainToken {
+            message: primitives::DeployInterchainToken {
                 token_id: [0u8; 32].into(),
                 name: "Unicode Token 🪙".try_into().unwrap(),
                 symbol: "UNI🔣".try_into().unwrap(),
                 decimals: 18,
                 minter: Some(from_hex("abcd")),
-            },
+            }
+            .into(),
         };
 
         let encoded = original.clone().abi_encode();
