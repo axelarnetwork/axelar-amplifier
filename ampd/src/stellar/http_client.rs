@@ -3,7 +3,6 @@ use std::str::FromStr;
 
 use error_stack::{report, Result};
 use futures::future::join_all;
-use num_traits::cast;
 use stellar_rs::horizon_client::HorizonClient;
 use stellar_rs::transactions::prelude::{SingleTransactionRequest, TransactionResponse};
 use stellar_xdr::curr::{ContractEvent, Limits, ReadXdr, ScAddress, TransactionMeta, VecM};
@@ -53,10 +52,10 @@ impl TxResponse {
         !self.successful
     }
 
-    pub fn event(&self, index: u32) -> Option<&ContractEvent> {
+    pub fn event(&self, index: u64) -> Option<&ContractEvent> {
         match self.contract_events {
             Some(ref events) => {
-                let log_index: usize = cast(index).expect("event index must be a valid usize");
+                let log_index = usize::try_from(index).ok()?;
                 events.get(log_index)
             }
             None => None,

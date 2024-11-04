@@ -341,6 +341,10 @@ mod tests {
                     .parse()
                     .unwrap(),
                 event_index: 1,
+                message_id: "0xdfaf64de66510723f2efbacd7ead3c4f8c856aed1afc2cb30254552aeda47312-1"
+                    .to_string()
+                    .parse()
+                    .unwrap(),
                 verifier_set: build_verifier_set(KeyType::Ecdsa, &ecdsa_test_data::signers()),
             },
         }

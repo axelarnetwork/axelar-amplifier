@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use assert_ok::assert_ok;
 use cosmwasm_std::testing::mock_dependencies;
+use interchain_token_service::TokenId;
 use router_api::{Address, ChainNameRaw};
 
 mod utils;
@@ -66,4 +67,16 @@ fn query_all_its_contracts() {
 
     let queried_addresses = assert_ok!(utils::query_all_its_contracts(deps.as_ref()));
     assert_eq!(queried_addresses, its_contracts);
+}
+
+#[test]
+fn query_token_chain_config() {
+    let mut deps = mock_dependencies();
+    utils::instantiate_contract(deps.as_mut()).unwrap();
+
+    let chain: ChainNameRaw = "ethereum".parse().unwrap();
+    let token_id: TokenId = TokenId::new([1; 32]);
+
+    let config = utils::query_token_instance(deps.as_ref(), chain, token_id).unwrap();
+    assert_eq!(config, None);
 }

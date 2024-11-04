@@ -1,12 +1,13 @@
 use std::fmt::Debug;
 
 use axelar_wasm_std::error::ContractError;
-use axelar_wasm_std::{address, permission_control, FnExt, IntoContractError};
+use axelar_wasm_std::{address, killswitch, permission_control, FnExt, IntoContractError};
 use axelarnet_gateway::AxelarExecutableMsg;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{Addr, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response, Storage};
 use error_stack::{Report, ResultExt};
+use execute::{freeze_chain, unfreeze_chain};
 
 use crate::events::Event;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
@@ -29,12 +30,24 @@ pub enum Error {
     RegisterItsContract,
     #[error("failed to deregsiter an its edge contract")]
     DeregisterItsContract,
-    #[error("too many coins attached. Execute accepts zero or one coins")]
-    TooManyCoins,
+    #[error("failed to freeze chain")]
+    FreezeChain,
+    #[error("failed to unfreeze chain")]
+    UnfreezeChain,
+    #[error("failed to set chain config")]
+    SetChainConfig,
+    #[error("failed to disable execution")]
+    DisableExecution,
+    #[error("failed to enable execution")]
+    EnableExecution,
     #[error("failed to query its address")]
     QueryItsContract,
     #[error("failed to query all its addresses")]
     QueryAllItsContracts,
+    #[error("failed to query a specific token instance")]
+    QueryTokenInstance,
+    #[error("failed to query the token config")]
+    QueryTokenConfig,
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -70,6 +83,8 @@ pub fn instantiate(
         state::save_its_contract(deps.storage, chain, address)?;
     }
 
+    killswitch::init(deps.storage, killswitch::State::Disengaged)?;
+
     Ok(Response::new().add_events(
         msg.its_contracts
             .into_iter()
@@ -99,6 +114,24 @@ pub fn execute(
             execute::deregister_its_contract(deps, chain)
                 .change_context(Error::DeregisterItsContract)
         }
+        ExecuteMsg::FreezeChain { chain } => {
+            freeze_chain(deps, chain).change_context(Error::FreezeChain)
+        }
+        ExecuteMsg::UnfreezeChain { chain } => {
+            unfreeze_chain(deps, chain).change_context(Error::UnfreezeChain)
+        }
+        ExecuteMsg::DisableExecution => {
+            execute::disable_execution(deps).change_context(Error::DisableExecution)
+        }
+        ExecuteMsg::EnableExecution => {
+            execute::enable_execution(deps).change_context(Error::EnableExecution)
+        }
+        ExecuteMsg::SetChainConfig {
+            chain,
+            max_uint,
+            max_target_decimals,
+        } => execute::set_chain_config(deps, chain, max_uint, max_target_decimals)
+            .change_context(Error::SetChainConfig),
     }?
     .then(Ok)
 }
@@ -111,10 +144,16 @@ fn match_gateway(storage: &dyn Storage, _: &ExecuteMsg) -> Result<Addr, Report<E
 pub fn query(deps: Deps, _: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
     match msg {
         QueryMsg::ItsContract { chain } => {
-            query::its_contracts(deps, chain).change_context(Error::QueryItsContract)
+            query::its_contract(deps, chain).change_context(Error::QueryItsContract)
         }
         QueryMsg::AllItsContracts => {
             query::all_its_contracts(deps).change_context(Error::QueryAllItsContracts)
+        }
+        QueryMsg::TokenInstance { chain, token_id } => {
+            query::token_instance(deps, chain, token_id).change_context(Error::QueryTokenInstance)
+        }
+        QueryMsg::TokenConfig { token_id } => {
+            query::token_config(deps, token_id).change_context(Error::QueryTokenConfig)
         }
     }?
     .then(Ok)

@@ -72,7 +72,7 @@ pub fn execute(
         } => Ok(execute::verify_verifier_set(
             deps,
             env,
-            &message_id,
+            message_id,
             new_verifier_set,
         )?),
         ExecuteMsg::UpdateVotingThreshold {
@@ -232,7 +232,7 @@ mod test {
         deps
     }
 
-    fn message_id(id: &str, index: u32, msg_id_format: &MessageIdFormat) -> nonempty::String {
+    fn message_id(id: &str, index: u64, msg_id_format: &MessageIdFormat) -> nonempty::String {
         match msg_id_format {
             MessageIdFormat::HexTxHashAndEventIndex => HexTxHashAndEventIndex {
                 tx_hash: Keccak256::digest(id.as_bytes()).into(),
@@ -266,7 +266,7 @@ mod test {
         }
     }
 
-    fn messages(len: u32, msg_id_format: &MessageIdFormat) -> Vec<Message> {
+    fn messages(len: u64, msg_id_format: &MessageIdFormat) -> Vec<Message> {
         (0..len)
             .map(|i| Message {
                 cc_id: CrossChainId::new(source_chain(), message_id("id", i, msg_id_format))
@@ -477,7 +477,7 @@ mod test {
         let mut deps = setup(verifiers.clone(), &msg_id_format);
         let messages_count = 5;
         let messages_in_progress = 3;
-        let messages = messages(messages_count as u32, &msg_id_format);
+        let messages = messages(messages_count as u64, &msg_id_format);
 
         execute(
             deps.as_mut(),

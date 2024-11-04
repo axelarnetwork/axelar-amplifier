@@ -388,6 +388,10 @@ mod tests {
                     .parse()
                     .unwrap(),
                 event_index: 1,
+                message_id: "0xdfaf64de66510723f2efbacd7ead3c4f8c856aed1afc2cb30254552aeda47312-1"
+                    .to_string()
+                    .parse()
+                    .unwrap(),
                 source_address: "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM".parse().unwrap(),
                 destination_chain: "ethereum".parse().unwrap(),
                 destination_address: format!("0x{:x}", EVMAddress::random()).parse().unwrap(),

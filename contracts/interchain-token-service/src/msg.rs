@@ -1,9 +1,13 @@
 use std::collections::HashMap;
 
+use axelar_wasm_std::nonempty;
 use axelarnet_gateway::AxelarExecutableMsg;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use msgs_derive::EnsurePermissions;
 use router_api::{Address, ChainNameRaw};
+
+use crate::state::{TokenConfig, TokenInstance};
+use crate::TokenId;
 
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -33,6 +37,27 @@ pub enum ExecuteMsg {
     /// The admin is allowed to remove the ITS address of a chain for emergencies.
     #[permission(Elevated)]
     DeregisterItsContract { chain: ChainNameRaw },
+
+    /// Freeze execution of ITS messages for a particular chain
+    #[permission(Elevated)]
+    FreezeChain { chain: ChainNameRaw },
+
+    /// Unfreeze execution of ITS messages for a particular chain
+    #[permission(Elevated)]
+    UnfreezeChain { chain: ChainNameRaw },
+
+    #[permission(Elevated)]
+    DisableExecution,
+
+    #[permission(Elevated)]
+    EnableExecution,
+    /// Set the chain configuration for a chain.
+    #[permission(Governance)]
+    SetChainConfig {
+        chain: ChainNameRaw,
+        max_uint: nonempty::Uint256, // The maximum uint value that is supported by the chain's token standard
+        max_target_decimals: u8, // The maximum number of decimals that is preserved when deploying a token to another chain where smaller uint values are used
+    },
 }
 
 #[cw_serde]
@@ -41,7 +66,16 @@ pub enum QueryMsg {
     /// Query the ITS contract address registered for a chain
     #[returns(Option<Address>)]
     ItsContract { chain: ChainNameRaw },
-    /// Query all registererd ITS contract addresses
+    /// Query all registered ITS contract addresses
     #[returns(HashMap<ChainNameRaw, Address>)]
     AllItsContracts,
+    /// Query a token instance on a specific chain
+    #[returns(Option<TokenInstance>)]
+    TokenInstance {
+        chain: ChainNameRaw,
+        token_id: TokenId,
+    },
+    /// Query the configuration parameters for a token
+    #[returns(Option<TokenConfig>)]
+    TokenConfig { token_id: TokenId },
 }
