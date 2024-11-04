@@ -507,10 +507,10 @@ fn save_token_instances(
 
     if let Some(TokenConfig { origin_chain, .. }) = token_config {
         ensure_matching_original_deployment(
+            storage,
             origin_chain,
             source_chain,
             token_id,
-            storage,
             source_token_decimals,
         )?;
     } else {
@@ -529,10 +529,10 @@ fn save_token_instances(
 }
 
 fn ensure_matching_original_deployment(
+    storage: &dyn Storage,
     origin_chain: ChainNameRaw,
     source_chain: &ChainNameRaw,
     token_id: TokenId,
-    storage: &mut dyn Storage,
     source_token_decimals: Option<u8>,
 ) -> Result<(), Error> {
     ensure!(

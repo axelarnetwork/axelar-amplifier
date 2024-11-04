@@ -267,8 +267,8 @@ fn execute_message_deploy_interchain_token_should_translate_decimals_when_max_ui
         mut deps,
         TestMessage {
             router_message,
-            source_its_chain,
             source_its_contract,
+            source_its_chain,
             destination_its_chain,
             ..
         },
