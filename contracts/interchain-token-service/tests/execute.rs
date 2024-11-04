@@ -15,7 +15,7 @@ use interchain_token_service::{
 };
 use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
 use serde_json::json;
-use utils::{instantiate_contract, make_deps, params, TestMessage};
+use utils::{params, TestMessage};
 
 mod utils;
 
@@ -175,50 +175,109 @@ fn execute_hub_message_succeeds() {
 }
 
 #[test]
-fn execute_message_deploy_interchain_token_should_translate_decimals_when_max_uints_are_different()
+fn execute_message_interchain_transfer_should_scale_the_amount_when_source_decimals_are_different()
 {
-    let mut deps = make_deps();
-    instantiate_contract(deps.as_mut()).unwrap();
-
-    let TestMessage {
-        router_message,
-        source_its_chain,
-        source_its_contract,
-        destination_its_chain,
-        destination_its_contract,
-        ..
-    } = TestMessage::dummy();
-
-    utils::register_its_contract(
-        deps.as_mut(),
-        source_its_chain.clone(),
-        source_its_contract.clone(),
-    )
-    .unwrap();
-    utils::register_its_contract(
-        deps.as_mut(),
-        destination_its_chain.clone(),
-        destination_its_contract.clone(),
-    )
-    .unwrap();
-    utils::set_chain_config(
-        deps.as_mut(),
-        source_its_chain.clone(),
+    let (
+        mut deps,
+        TestMessage {
+            router_message,
+            source_its_contract,
+            source_its_chain,
+            destination_its_chain,
+            destination_its_contract,
+            ..
+        },
+    ) = utils::setup_with_chain_configs(
         Uint256::MAX.try_into().unwrap(),
         6,
-    )
-    .unwrap();
-    utils::set_chain_config(
+        u64::MAX.try_into().unwrap(),
+        6,
+    );
+    let token_id = TokenId::new([1; 32]);
+    let deploy_token = DeployInterchainToken {
+        token_id,
+        name: "Test".try_into().unwrap(),
+        symbol: "TST".try_into().unwrap(),
+        decimals: 18,
+        minter: None,
+    }
+    .into();
+    let hub_message = HubMessage::SendToHub {
+        destination_chain: destination_its_chain.clone(),
+        message: deploy_token,
+    };
+    assert_ok!(utils::execute_hub_message(
         deps.as_mut(),
-        destination_its_chain.clone(),
-        Uint256::from_u128(2)
-            .pow(64)
-            .strict_sub(Uint256::one())
+        router_message.cc_id.clone(),
+        source_its_contract.clone(),
+        hub_message,
+    ));
+
+    // send from source to destination
+    let transfer = InterchainTransfer {
+        token_id,
+        source_address: HexBinary::from([1; 32]).try_into().unwrap(),
+        destination_address: HexBinary::from([2; 32]).try_into().unwrap(),
+        amount: Uint256::from_u128(1_000_000_000_000_000_000u128)
             .try_into()
             .unwrap(),
+        data: None,
+    };
+    let hub_message = HubMessage::SendToHub {
+        destination_chain: destination_its_chain.clone(),
+        message: transfer.into(),
+    };
+    let response_to_destination = assert_ok!(utils::execute_hub_message(
+        deps.as_mut(),
+        router_message.cc_id.clone(),
+        source_its_contract,
+        hub_message,
+    ));
+
+    // send back from destination to source
+    let transfer = InterchainTransfer {
+        token_id,
+        source_address: HexBinary::from([2; 32]).try_into().unwrap(),
+        destination_address: HexBinary::from([1; 32]).try_into().unwrap(),
+        amount: Uint256::from_u128(1_000_000u128).try_into().unwrap(),
+        data: None,
+    };
+    let mut cc_id = router_message.cc_id.clone();
+    cc_id.source_chain = destination_its_chain.clone();
+    let hub_message = HubMessage::SendToHub {
+        destination_chain: source_its_chain,
+        message: transfer.into(),
+    };
+    let response_to_source = assert_ok!(utils::execute_hub_message(
+        deps.as_mut(),
+        cc_id,
+        destination_its_contract,
+        hub_message,
+    ));
+
+    goldie::assert_json!(
+        json!({"response_to_destination": response_to_destination, "response_to_source": response_to_source})
+    );
+}
+
+#[test]
+fn execute_message_deploy_interchain_token_should_translate_decimals_when_max_uints_are_different()
+{
+    let (
+        mut deps,
+        TestMessage {
+            router_message,
+            source_its_contract,
+            source_its_chain,
+            destination_its_chain,
+            ..
+        },
+    ) = utils::setup_with_chain_configs(
+        Uint256::MAX.try_into().unwrap(),
         6,
-    )
-    .unwrap();
+        u64::MAX.try_into().unwrap(),
+        6,
+    );
 
     let token_id = TokenId::new([1; 32]);
     let message = DeployInterchainToken {
@@ -237,7 +296,7 @@ fn execute_message_deploy_interchain_token_should_translate_decimals_when_max_ui
         deps.as_mut(),
         router_message.cc_id.clone(),
         source_its_contract.clone(),
-        hub_message.clone(),
+        hub_message,
     ));
     let source_token_instance = assert_ok!(utils::query_token_instance(
         deps.as_ref(),
@@ -257,44 +316,21 @@ fn execute_message_deploy_interchain_token_should_translate_decimals_when_max_ui
 
 #[test]
 fn execute_message_deploy_interchain_token_should_translate_decimals_when_max_uints_are_the_same() {
-    let mut deps = make_deps();
-    instantiate_contract(deps.as_mut()).unwrap();
-
-    let TestMessage {
-        router_message,
-        source_its_chain,
-        source_its_contract,
-        destination_its_chain,
-        destination_its_contract,
-        ..
-    } = TestMessage::dummy();
-
-    utils::register_its_contract(
-        deps.as_mut(),
-        source_its_chain.clone(),
-        source_its_contract.clone(),
-    )
-    .unwrap();
-    utils::register_its_contract(
-        deps.as_mut(),
-        destination_its_chain.clone(),
-        destination_its_contract.clone(),
-    )
-    .unwrap();
-    utils::set_chain_config(
-        deps.as_mut(),
-        source_its_chain.clone(),
+    let (
+        mut deps,
+        TestMessage {
+            router_message,
+            source_its_chain,
+            source_its_contract,
+            destination_its_chain,
+            ..
+        },
+    ) = utils::setup_with_chain_configs(
         Uint256::MAX.try_into().unwrap(),
         6,
-    )
-    .unwrap();
-    utils::set_chain_config(
-        deps.as_mut(),
-        destination_its_chain.clone(),
         Uint256::MAX.try_into().unwrap(),
         6,
-    )
-    .unwrap();
+    );
 
     let token_id = TokenId::new([1; 32]);
     let message = DeployInterchainToken {
@@ -313,7 +349,7 @@ fn execute_message_deploy_interchain_token_should_translate_decimals_when_max_ui
         deps.as_mut(),
         router_message.cc_id.clone(),
         source_its_contract.clone(),
-        hub_message.clone(),
+        hub_message,
     ));
     let source_token_instance = assert_ok!(utils::query_token_instance(
         deps.as_ref(),

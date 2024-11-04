@@ -1,5 +1,5 @@
 use axelar_wasm_std::{killswitch, nonempty, FnExt, IntoContractError};
-use cosmwasm_std::{DepsMut, HexBinary, QuerierWrapper, Response, Storage};
+use cosmwasm_std::{DepsMut, HexBinary, QuerierWrapper, Response, Storage, Uint256};
 use error_stack::{bail, ensure, report, Result, ResultExt};
 use router_api::{Address, ChainNameRaw, CrossChainId};
 
@@ -31,6 +31,14 @@ pub enum Error {
     ExecutionDisabled,
     #[error("chain {0} is frozen")]
     ChainFrozen(ChainNameRaw),
+    #[error(
+        "invalid transfer amount {amount} from chain {source_chain} to chain {destination_chain}"
+    )]
+    InvalidTransferAmount {
+        source_chain: ChainNameRaw,
+        destination_chain: ChainNameRaw,
+        amount: nonempty::Uint256,
+    },
     #[error("state error")]
     State,
     #[error("chain config for {0} already set")]
@@ -144,7 +152,7 @@ fn apply_to_hub(
     match message {
         Message::InterchainTransfer(transfer) => {
             apply_transfer(storage, source_chain, destination_chain, &transfer)
-                .map(|_| Message::InterchainTransfer(transfer))?
+                .map(Message::InterchainTransfer)?
         }
         Message::DeployInterchainToken(deploy_token) => {
             apply_token_deployment(storage, &source_chain, &destination_chain, deploy_token)
@@ -257,6 +265,83 @@ pub fn set_chain_config(
     }
 }
 
+/// Calculates the destination on token transfer amount.
+///
+/// The amount is calculated based on the token decimals on the source and destination chains.
+/// The calculation is done as following:
+/// 1) `destination_amount` = `source_amount` * 10 ^ (`destination_chain_decimals` - `source_chain_decimals`)
+/// 3) If new_amount is greater than the destination chain's `max_uint`, the translation
+/// fails.
+/// 4) If new_amount is zero, the translation fails.
+fn destination_amount(
+    storage: &dyn Storage,
+    source_chain: &ChainNameRaw,
+    destination_chain: &ChainNameRaw,
+    token_id: TokenId,
+    source_amount: nonempty::Uint256,
+) -> Result<nonempty::Uint256, Error> {
+    let source_token = try_load_token_instance(storage, source_chain.clone(), token_id)?;
+    let destination_token = try_load_token_instance(storage, destination_chain.clone(), token_id)?;
+    let (source_decimals, destination_decimals) =
+        match (source_token.decimals, destination_token.decimals) {
+            (Some(source_decimals), Some(destination_decimals))
+                if source_decimals == destination_decimals =>
+            {
+                return Ok(source_amount)
+            }
+            (Some(source_decimals), Some(destination_decimals)) => {
+                (source_decimals, destination_decimals)
+            }
+            (None, None) => return Ok(source_amount),
+            _ => unreachable!(
+                "decimals should be set in both the source and destination, or set in neither"
+            ), // This should never happen
+        };
+    let destination_max_uint = state::load_chain_config(storage, destination_chain)
+        .change_context(Error::State)?
+        .max_uint;
+
+    // It's intentionally written in this way since the end result may still be fine even if
+    //     1) amount * (10 ^ (dest_chain_decimals)) overflows
+    //     2) amount / (10 ^ (src_chain_decimals)) is zero
+    let scaling_factor = Uint256::from_u128(10)
+        .checked_pow(source_decimals.abs_diff(destination_decimals).into())
+        .change_context_lazy(|| Error::InvalidTransferAmount {
+            source_chain: source_chain.to_owned(),
+            destination_chain: destination_chain.to_owned(),
+            amount: source_amount,
+        })?;
+    let destination_amount = if source_decimals > destination_decimals {
+        source_amount
+            .checked_div(scaling_factor)
+            .expect("scaling_factor must be non-zero")
+    } else {
+        source_amount
+            .checked_mul(scaling_factor)
+            .change_context_lazy(|| Error::InvalidTransferAmount {
+                source_chain: source_chain.to_owned(),
+                destination_chain: destination_chain.to_owned(),
+                amount: source_amount,
+            })?
+    };
+
+    if destination_amount.gt(&destination_max_uint) {
+        bail!(Error::InvalidTransferAmount {
+            source_chain: source_chain.to_owned(),
+            destination_chain: destination_chain.to_owned(),
+            amount: source_amount,
+        })
+    }
+
+    nonempty::Uint256::try_from(destination_amount).change_context_lazy(|| {
+        Error::InvalidTransferAmount {
+            source_chain: source_chain.to_owned(),
+            destination_chain: destination_chain.to_owned(),
+            amount: source_amount,
+        }
+    })
+}
+
 /// Calculates the destination token decimals.
 ///
 /// The destination chain's token decimals are calculated and saved as following:
@@ -293,9 +378,25 @@ fn apply_transfer(
     source_chain: ChainNameRaw,
     destination_chain: ChainNameRaw,
     transfer: &InterchainTransfer,
-) -> Result<(), Error> {
+) -> Result<InterchainTransfer, Error> {
+    let destination_amount = destination_amount(
+        storage,
+        &source_chain,
+        &destination_chain,
+        transfer.token_id,
+        transfer.amount,
+    )?;
+
     subtract_amount_from_source(storage, source_chain, transfer)?;
-    add_amount_to_destination(storage, destination_chain, transfer)
+
+    let destination_transfer = InterchainTransfer {
+        amount: destination_amount,
+
+        ..transfer.clone()
+    };
+    add_amount_to_destination(storage, destination_chain, &destination_transfer)?;
+
+    Ok(destination_transfer)
 }
 
 fn subtract_amount_from_source(
@@ -406,10 +507,10 @@ fn save_token_instances(
 
     if let Some(TokenConfig { origin_chain, .. }) = token_config {
         ensure_matching_original_deployment(
+            storage,
             origin_chain,
             source_chain,
             token_id,
-            storage,
             source_token_decimals,
         )?;
     } else {
@@ -428,10 +529,10 @@ fn save_token_instances(
 }
 
 fn ensure_matching_original_deployment(
+    storage: &dyn Storage,
     origin_chain: ChainNameRaw,
     source_chain: &ChainNameRaw,
     token_id: TokenId,
-    storage: &mut dyn Storage,
     source_token_decimals: Option<u8>,
 ) -> Result<(), Error> {
     ensure!(
@@ -463,7 +564,7 @@ fn ensure_matching_original_deployment(
 }
 
 fn try_load_token_instance(
-    storage: &mut dyn Storage,
+    storage: &dyn Storage,
     chain: ChainNameRaw,
     token_id: TokenId,
 ) -> Result<TokenInstance, Error> {

@@ -138,7 +138,7 @@ pub fn load_chain_config(
 ) -> Result<ChainConfig, Error> {
     may_load_chain_config(storage, chain)
         .change_context(Error::Storage)?
-        .ok_or_else(|| report!(Error::ChainConfigNotFound(chain.to_owned())))
+        .ok_or_else(|| report!(Error::ChainNotFound(chain.to_owned())))
 }
 
 pub fn save_chain_config(
