@@ -51,6 +51,15 @@ pub enum Error {
         origin_chain: ChainNameRaw,
         chain: ChainNameRaw,
     },
+    #[error(
+        "token {token_id} deployed from chain {chain} with different decimals than original deployment"
+    )]
+    TokenDeployedDecimalsMismatch {
+        token_id: TokenId,
+        chain: ChainNameRaw,
+        expected: Option<u8>,
+        actual: Option<u8>,
+    },
     #[error("token supply invariant violated for token {token_id} on chain {chain}")]
     TokenSupplyInvariantViolated {
         token_id: TokenId,
@@ -93,11 +102,11 @@ fn execute_message_on_hub(
     let destination_address = load_its_contract(deps.storage, &destination_chain)
         .change_context_lazy(|| Error::UnknownChain(destination_chain.clone()))?;
 
-    apply_to_hub(
+    let message = apply_to_hub(
         deps.storage,
         cc_id.source_chain.clone(),
         destination_chain.clone(),
-        &message,
+        message,
     )?;
 
     let destination_payload = HubMessage::ReceiveFromHub {
@@ -127,36 +136,29 @@ fn apply_to_hub(
     storage: &mut dyn Storage,
     source_chain: ChainNameRaw,
     destination_chain: ChainNameRaw,
-    message: &Message,
-) -> Result<(), Error> {
+    message: Message,
+) -> Result<Message, Error> {
     ensure_chain_not_frozen(storage, &source_chain)?;
     ensure_chain_not_frozen(storage, &destination_chain)?;
 
     match message {
         Message::InterchainTransfer(transfer) => {
-            apply_transfer(storage, source_chain, destination_chain, transfer)?;
+            apply_transfer(storage, source_chain, destination_chain, &transfer)
+                .map(|_| Message::InterchainTransfer(transfer))?
         }
         Message::DeployInterchainToken(deploy_token) => {
-            apply_token_deployment(
-                storage,
-                source_chain,
-                destination_chain,
-                deploy_token.token_id.clone(),
-                &deploy_token.deployment_type(),
-            )?;
+            apply_token_deployment(storage, &source_chain, &destination_chain, deploy_token)
+                .map(Message::DeployInterchainToken)?
         }
-        Message::DeployTokenManager(deploy_manager) => {
-            apply_token_deployment(
-                storage,
-                source_chain,
-                destination_chain,
-                deploy_manager.token_id.clone(),
-                &deploy_manager.deployment_type(),
-            )?;
-        }
+        Message::DeployTokenManager(deploy_manager) => apply_token_manager_deployment(
+            storage,
+            &source_chain,
+            &destination_chain,
+            deploy_manager,
+        )
+        .map(Message::DeployTokenManager)?,
     }
-
-    Ok(())
+    .then(Result::Ok)
 }
 
 fn ensure_chain_not_frozen(storage: &dyn Storage, chain: &ChainNameRaw) -> Result<(), Error> {
@@ -255,6 +257,37 @@ pub fn set_chain_config(
     }
 }
 
+/// Calculates the destination token decimals.
+///
+/// The destination chain's token decimals are calculated and saved as following:
+/// 1) If the source chain's `max_uint` is less than or equal to the destination chain's `max_uint`,
+///   the source chain's token decimals are used.
+/// 2) Otherwise, the minimum of the source chain's token decimals and the source chain's
+///  `max_target_decimals` is used.
+fn destination_token_decimals(
+    storage: &mut dyn Storage,
+    source_chain: &ChainNameRaw,
+    destination_chain: &ChainNameRaw,
+    source_chain_decimals: u8,
+) -> Result<u8, Error> {
+    let source_chain_config =
+        state::load_chain_config(storage, source_chain).change_context(Error::State)?;
+    let destination_chain_config =
+        state::load_chain_config(storage, destination_chain).change_context(Error::State)?;
+
+    if source_chain_config
+        .max_uint
+        .le(&destination_chain_config.max_uint)
+    {
+        source_chain_decimals
+    } else {
+        source_chain_config
+            .max_target_decimals
+            .min(source_chain_decimals)
+    }
+    .then(Result::Ok)
+}
+
 fn apply_transfer(
     storage: &mut dyn Storage,
     source_chain: ChainNameRaw,
@@ -271,23 +304,18 @@ fn subtract_amount_from_source(
     transfer: &InterchainTransfer,
 ) -> Result<(), Error> {
     let mut source_instance =
-        try_load_token_instance(storage, source_chain.clone(), transfer.token_id.clone())?;
+        try_load_token_instance(storage, source_chain.clone(), transfer.token_id)?;
 
     source_instance.supply = source_instance
         .supply
         .checked_sub(transfer.amount)
         .change_context_lazy(|| Error::TokenSupplyInvariantViolated {
-            token_id: transfer.token_id.clone(),
+            token_id: transfer.token_id,
             chain: source_chain.clone(),
         })?;
 
-    state::save_token_instance(
-        storage,
-        source_chain,
-        transfer.token_id.clone(),
-        &source_instance,
-    )
-    .change_context(Error::State)
+    state::save_token_instance(storage, source_chain, transfer.token_id, &source_instance)
+        .change_context(Error::State)
 }
 
 fn add_amount_to_destination(
@@ -295,24 +323,21 @@ fn add_amount_to_destination(
     destination_chain: ChainNameRaw,
     transfer: &InterchainTransfer,
 ) -> Result<(), Error> {
-    let mut destination_instance = try_load_token_instance(
-        storage,
-        destination_chain.clone(),
-        transfer.token_id.clone(),
-    )?;
+    let mut destination_instance =
+        try_load_token_instance(storage, destination_chain.clone(), transfer.token_id)?;
 
     destination_instance.supply = destination_instance
         .supply
         .checked_add(transfer.amount)
         .change_context_lazy(|| Error::TokenSupplyInvariantViolated {
-            token_id: transfer.token_id.clone(),
+            token_id: transfer.token_id,
             chain: destination_chain.clone(),
         })?;
 
     state::save_token_instance(
         storage,
         destination_chain,
-        transfer.token_id.clone(),
+        transfer.token_id,
         &destination_instance,
     )
     .change_context(Error::State)
@@ -320,26 +345,121 @@ fn add_amount_to_destination(
 
 fn apply_token_deployment(
     storage: &mut dyn Storage,
-    source_chain: ChainNameRaw,
-    destination_chain: ChainNameRaw,
+    source_chain: &ChainNameRaw,
+    destination_chain: &ChainNameRaw,
+    deploy_token: DeployInterchainToken,
+) -> Result<DeployInterchainToken, Error> {
+    let destination_token_decimals = destination_token_decimals(
+        storage,
+        source_chain,
+        destination_chain,
+        deploy_token.decimals,
+    )?;
+
+    save_token_instances(
+        storage,
+        source_chain,
+        destination_chain,
+        Some(deploy_token.decimals),
+        Some(destination_token_decimals),
+        deploy_token.token_id,
+        &deploy_token.deployment_type(),
+    )
+    .map(|_| DeployInterchainToken {
+        decimals: destination_token_decimals,
+
+        ..deploy_token
+    })
+}
+
+fn apply_token_manager_deployment(
+    storage: &mut dyn Storage,
+    source_chain: &ChainNameRaw,
+    destination_chain: &ChainNameRaw,
+    deploy_token_manager: DeployTokenManager,
+) -> Result<DeployTokenManager, Error> {
+    save_token_instances(
+        storage,
+        source_chain,
+        destination_chain,
+        None,
+        None,
+        deploy_token_manager.token_id,
+        &deploy_token_manager.deployment_type(),
+    )
+    .map(|_| deploy_token_manager)
+}
+
+fn save_token_instances(
+    storage: &mut dyn Storage,
+    source_chain: &ChainNameRaw,
+    destination_chain: &ChainNameRaw,
+    source_token_decimals: Option<u8>,
+    destination_token_decimals: Option<u8>,
     token_id: TokenId,
     deployment_type: &TokenDeploymentType,
 ) -> Result<(), Error> {
-    ensure_token_not_deployed_on_destination(storage, token_id.clone(), destination_chain.clone())?;
+    ensure_token_not_deployed_on_destination(storage, token_id, destination_chain.clone())?;
 
     let token_config =
         state::may_load_token_config(storage, &token_id).change_context(Error::State)?;
 
     if let Some(TokenConfig { origin_chain, .. }) = token_config {
-        ensure_origin_matches_source_chain(source_chain, origin_chain, token_id.clone())?;
+        ensure_matching_original_deployment(
+            origin_chain,
+            source_chain,
+            token_id,
+            storage,
+            source_token_decimals,
+        )?;
     } else {
-        initialize_token_on_origin(storage, source_chain, token_id.clone())?;
+        initialize_token_on_origin(storage, source_chain, token_id, source_token_decimals)?;
     }
 
-    let destination_instance = TokenInstance::new(deployment_type);
+    let destination_instance = TokenInstance::new(deployment_type, destination_token_decimals);
 
-    state::save_token_instance(storage, destination_chain, token_id, &destination_instance)
-        .change_context(Error::State)
+    state::save_token_instance(
+        storage,
+        destination_chain.clone(),
+        token_id,
+        &destination_instance,
+    )
+    .change_context(Error::State)
+}
+
+fn ensure_matching_original_deployment(
+    origin_chain: ChainNameRaw,
+    source_chain: &ChainNameRaw,
+    token_id: TokenId,
+    storage: &mut dyn Storage,
+    source_token_decimals: Option<u8>,
+) -> Result<(), Error> {
+    ensure!(
+        origin_chain == *source_chain,
+        Error::TokenDeployedFromNonOriginChain {
+            token_id,
+            origin_chain: origin_chain.to_owned(),
+            chain: source_chain.clone(),
+        }
+    );
+
+    let token_instance = state::may_load_token_instance(storage, origin_chain.clone(), token_id)
+        .change_context(Error::State)?
+        .ok_or(report!(Error::TokenNotDeployed {
+            token_id,
+            chain: origin_chain.clone()
+        }))?;
+    ensure!(
+        token_instance.decimals == source_token_decimals,
+        Error::TokenDeployedDecimalsMismatch {
+            token_id,
+            chain: source_chain.clone(),
+            expected: token_instance.decimals,
+            actual: source_token_decimals
+        }
+    );
+
+    Ok(())
 }
 
 fn try_load_token_instance(
@@ -347,44 +467,27 @@ fn try_load_token_instance(
     chain: ChainNameRaw,
     token_id: TokenId,
 ) -> Result<TokenInstance, Error> {
-    state::may_load_token_instance(storage, chain.clone(), token_id.clone())
+    state::may_load_token_instance(storage, chain.clone(), token_id)
         .change_context(Error::State)?
-        .ok_or(report!(Error::TokenNotDeployed {
-            token_id: token_id.clone(),
-            chain,
-        }))
-}
-
-fn ensure_origin_matches_source_chain(
-    source_chain: ChainNameRaw,
-    origin_chain: ChainNameRaw,
-    token_id: TokenId,
-) -> Result<(), Error> {
-    ensure!(
-        origin_chain == source_chain,
-        Error::TokenDeployedFromNonOriginChain {
-            token_id,
-            origin_chain,
-            chain: source_chain.clone(),
-        }
-    );
-
-    Ok(())
+        .ok_or(report!(Error::TokenNotDeployed { token_id, chain }))
 }
 
 fn initialize_token_on_origin(
     storage: &mut dyn Storage,
-    source_chain: ChainNameRaw,
+    source_chain: &ChainNameRaw,
     token_id: TokenId,
+    decimals: Option<u8>,
 ) -> Result<(), Error> {
     // Token is being deployed for the first time
     let token_config = TokenConfig {
         origin_chain: source_chain.clone(),
     };
-    let instance = TokenInstance::new_on_origin();
+    let instance = TokenInstance::new_on_origin(decimals);
 
     state::save_token_config(storage, &token_id, &token_config)
-        .and_then(|_| state::save_token_instance(storage, source_chain, token_id, &instance))
+        .and_then(|_| {
+            state::save_token_instance(storage, source_chain.clone(), token_id, &instance)
+        })
         .change_context(Error::State)?;
     Ok(())
 }
@@ -396,7 +499,7 @@ fn ensure_token_not_deployed_on_destination(
     destination_chain: ChainNameRaw,
 ) -> Result<(), Error> {
     let token_instance =
-        state::may_load_token_instance(storage, destination_chain.clone(), token_id.clone())
+        state::may_load_token_instance(storage, destination_chain.clone(), token_id)
             .change_context(Error::State)?;
 
     ensure!(

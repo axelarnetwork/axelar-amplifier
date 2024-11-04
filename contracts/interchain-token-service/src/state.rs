@@ -19,6 +19,8 @@ pub enum Error {
     ItsContractAlreadyRegistered(ChainNameRaw),
     #[error("chain not found {0}")]
     ChainNotFound(ChainNameRaw),
+    #[error("chain config for chain {0} not found")]
+    ChainConfigNotFound(ChainNameRaw),
     // This is a generic error to use when cw_storage_plus returns an error that is unexpected and
     // should never happen, such as an error encountered when saving data.
     #[error("storage error")]
@@ -32,8 +34,8 @@ pub struct Config {
 
 #[cw_serde]
 pub struct ChainConfig {
-    max_uint: nonempty::Uint256,
-    max_target_decimals: u8,
+    pub max_uint: nonempty::Uint256,
+    pub max_target_decimals: u8,
     frozen: bool,
 }
 
@@ -71,22 +73,24 @@ impl TokenSupply {
 #[cw_serde]
 pub struct TokenInstance {
     pub supply: TokenSupply,
+    pub decimals: Option<u8>,
 }
 
 impl TokenInstance {
-    pub fn new_on_origin() -> Self {
+    pub fn new_on_origin(decimals: Option<u8>) -> Self {
         Self {
             supply: TokenSupply::Untracked,
+            decimals,
         }
     }
 
-    pub fn new(deployment_type: &TokenDeploymentType) -> Self {
+    pub fn new(deployment_type: &TokenDeploymentType, decimals: Option<u8>) -> Self {
         let supply = match deployment_type {
             TokenDeploymentType::Trustless => TokenSupply::Tracked(Uint256::zero()),
             _ => TokenSupply::Untracked,
         };
 
-        Self { supply }
+        Self { supply, decimals }
     }
 }
 
@@ -126,6 +130,15 @@ pub fn may_load_chain_config(
     CHAIN_CONFIGS
         .may_load(storage, chain)
         .change_context(Error::Storage)
+}
+
+pub fn load_chain_config(
+    storage: &dyn Storage,
+    chain: &ChainNameRaw,
+) -> Result<ChainConfig, Error> {
+    may_load_chain_config(storage, chain)
+        .change_context(Error::Storage)?
+        .ok_or_else(|| report!(Error::ChainConfigNotFound(chain.to_owned())))
 }
 
 pub fn save_chain_config(
