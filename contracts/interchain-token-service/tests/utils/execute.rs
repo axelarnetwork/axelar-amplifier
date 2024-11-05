@@ -1,4 +1,5 @@
 use std::marker::PhantomData;
+use std::u8;
 
 use axelar_core_std::nexus;
 use axelar_core_std::nexus::query::IsChainRegisteredResponse;
@@ -44,49 +45,6 @@ pub fn execute_hub_message(
     execute(deps, cc_id, source_address, message.abi_encode())
 }
 
-pub fn register_its_contract(
-    deps: DepsMut,
-    chain: ChainNameRaw,
-    address: Address,
-) -> Result<Response, ContractError> {
-    contract::execute(
-        deps,
-        mock_env(),
-        mock_info(params::GOVERNANCE, &[]),
-        ExecuteMsg::RegisterItsContract { chain, address },
-    )
-}
-
-pub fn deregister_its_contract(
-    deps: DepsMut,
-    chain: ChainNameRaw,
-) -> Result<Response, ContractError> {
-    contract::execute(
-        deps,
-        mock_env(),
-        mock_info(params::ADMIN, &[]),
-        ExecuteMsg::DeregisterItsContract { chain },
-    )
-}
-
-pub fn set_chain_config(
-    deps: DepsMut,
-    chain: ChainNameRaw,
-    max_uint: nonempty::Uint256,
-    max_target_decimals: u8,
-) -> Result<Response, ContractError> {
-    contract::execute(
-        deps,
-        mock_env(),
-        mock_info(params::GOVERNANCE, &[]),
-        ExecuteMsg::SetChainConfig {
-            chain,
-            max_uint,
-            max_target_decimals,
-        },
-    )
-}
-
 pub fn make_deps() -> OwnedDeps<MemoryStorage, MockApi, MockQuerier<AxelarQueryMsg>> {
     let addr = Addr::unchecked(params::GATEWAY);
     let mut deps = OwnedDeps {
@@ -127,18 +85,39 @@ pub fn make_deps() -> OwnedDeps<MemoryStorage, MockApi, MockQuerier<AxelarQueryM
 }
 
 pub fn register_chain(
-    deps: &mut OwnedDeps<MemoryStorage, MockApi, MockQuerier<AxelarQueryMsg>>,
+    deps: DepsMut,
     chain: ChainNameRaw,
-    its_contract: Address,
-) {
-    register_its_contract(deps.as_mut(), chain.clone(), its_contract).unwrap();
-    set_chain_config(
-        deps.as_mut(),
-        chain,
-        Uint256::MAX.try_into().unwrap(),
-        u8::MAX,
+    its_edge_contract: Address,
+    max_uint: nonempty::Uint256,
+    max_target_decimals: u8,
+) -> Result<Response, ContractError> {
+    contract::execute(
+        deps,
+        mock_env(),
+        mock_info(params::GOVERNANCE, &[]),
+        ExecuteMsg::RegisterChain {
+            chain,
+            its_edge_contract,
+            max_uint,
+            max_target_decimals,
+        },
     )
-    .unwrap();
+}
+
+pub fn update_chain(
+    deps: DepsMut,
+    chain: ChainNameRaw,
+    its_edge_contract: Address,
+) -> Result<Response, ContractError> {
+    contract::execute(
+        deps,
+        mock_env(),
+        mock_info(params::GOVERNANCE, &[]),
+        ExecuteMsg::UpdateChain {
+            chain,
+            its_edge_contract,
+        },
+    )
 }
 
 pub fn setup_with_chain_configs(
@@ -161,24 +140,19 @@ pub fn setup_with_chain_configs(
         ..
     } = TestMessage::dummy();
 
-    register_its_contract(deps.as_mut(), source_its_chain.clone(), source_its_contract).unwrap();
-    set_chain_config(
+    register_chain(
         deps.as_mut(),
         source_its_chain,
+        source_its_contract,
         source_max_uint,
         source_max_target_decimals,
     )
     .unwrap();
 
-    register_its_contract(
-        deps.as_mut(),
-        destination_its_chain.clone(),
-        destination_its_contract,
-    )
-    .unwrap();
-    set_chain_config(
+    register_chain(
         deps.as_mut(),
         destination_its_chain,
+        destination_its_contract,
         destination_max_uint,
         destination_max_target_decimals,
     )
@@ -203,15 +177,21 @@ pub fn setup() -> (
     } = TestMessage::dummy();
 
     register_chain(
-        &mut deps,
+        deps.as_mut(),
         source_its_chain.clone(),
         source_its_contract.clone(),
-    );
+        Uint256::MAX.try_into().unwrap(),
+        u8::MAX,
+    )
+    .unwrap();
     register_chain(
-        &mut deps,
+        deps.as_mut(),
         destination_its_chain.clone(),
         destination_its_contract.clone(),
-    );
+        Uint256::MAX.try_into().unwrap(),
+        u8::MAX,
+    )
+    .unwrap();
 
     (deps, TestMessage::dummy())
 }

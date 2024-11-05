@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use assert_ok::assert_ok;
 use cosmwasm_std::testing::mock_dependencies;
+use cosmwasm_std::Uint256;
 use interchain_token_service::TokenId;
 use router_api::{Address, ChainNameRaw};
 
@@ -17,7 +18,14 @@ fn query_its_contract() {
         .parse()
         .unwrap();
 
-    utils::register_its_contract(deps.as_mut(), chain.clone(), address.clone()).unwrap();
+    utils::register_chain(
+        deps.as_mut(),
+        chain.clone(),
+        address.clone(),
+        Uint256::MAX.try_into().unwrap(),
+        u8::MAX,
+    )
+    .unwrap();
 
     let queried_address = assert_ok!(utils::query_its_contract(deps.as_ref(), chain.clone()));
     assert_eq!(queried_address, Some(address));
@@ -29,10 +37,17 @@ fn query_its_contract() {
     ));
     assert_eq!(queried_address, None);
 
-    assert_ok!(utils::deregister_its_contract(deps.as_mut(), chain.clone()));
+    let new_address: Address = "0x9999999990123456789012345678901234567890"
+        .parse()
+        .unwrap();
+    assert_ok!(utils::update_chain(
+        deps.as_mut(),
+        chain.clone(),
+        new_address.clone()
+    ));
 
     let queried_address = assert_ok!(utils::query_its_contract(deps.as_ref(), chain.clone()));
-    assert_eq!(queried_address, None);
+    assert_eq!(queried_address, Some(new_address));
 
     let non_existent_chain: ChainNameRaw = "non-existent-chain".parse().unwrap();
     let queried_address = assert_ok!(utils::query_its_contract(deps.as_ref(), non_existent_chain));
@@ -62,7 +77,14 @@ fn query_all_its_contracts() {
     .collect::<HashMap<_, _>>();
 
     for (chain, address) in its_contracts.iter() {
-        utils::register_its_contract(deps.as_mut(), chain.clone(), address.clone()).unwrap();
+        utils::register_chain(
+            deps.as_mut(),
+            chain.clone(),
+            address.clone(),
+            Uint256::MAX.try_into().unwrap(),
+            u8::MAX,
+        )
+        .unwrap();
     }
 
     let queried_addresses = assert_ok!(utils::query_all_its_contracts(deps.as_ref()));

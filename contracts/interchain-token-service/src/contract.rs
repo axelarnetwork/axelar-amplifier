@@ -9,7 +9,6 @@ use cosmwasm_std::{Addr, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Respons
 use error_stack::{Report, ResultExt};
 use execute::{freeze_chain, unfreeze_chain};
 
-use crate::events::Event;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state;
 use crate::state::Config;
@@ -26,10 +25,10 @@ const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub enum Error {
     #[error("failed to execute a cross-chain message")]
     Execute,
-    #[error("failed to register an its edge contract")]
-    RegisterItsContract,
-    #[error("failed to deregsiter an its edge contract")]
-    DeregisterItsContract,
+    #[error("failed to register chain")]
+    RegisterChain,
+    #[error("failed to update chain")]
+    UpdateChain,
     #[error("failed to freeze chain")]
     FreezeChain,
     #[error("failed to unfreeze chain")]
@@ -79,17 +78,9 @@ pub fn instantiate(
 
     state::save_config(deps.storage, &Config { axelarnet_gateway })?;
 
-    for (chain, address) in msg.its_contracts.iter() {
-        state::save_its_contract(deps.storage, chain, address)?;
-    }
-
     killswitch::init(deps.storage, killswitch::State::Disengaged)?;
 
-    Ok(Response::new().add_events(
-        msg.its_contracts
-            .into_iter()
-            .map(|(chain, address)| Event::ItsContractRegistered { chain, address }.into()),
-    ))
+    Ok(Response::new())
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -106,13 +97,24 @@ pub fn execute(
             payload,
         }) => execute::execute_message(deps, cc_id, source_address, payload)
             .change_context(Error::Execute),
-        ExecuteMsg::RegisterItsContract { chain, address } => {
-            execute::register_its_contract(deps, chain, address)
-                .change_context(Error::RegisterItsContract)
-        }
-        ExecuteMsg::DeregisterItsContract { chain } => {
-            execute::deregister_its_contract(deps, chain)
-                .change_context(Error::DeregisterItsContract)
+        ExecuteMsg::RegisterChain {
+            chain,
+            its_edge_contract,
+            max_uint,
+            max_target_decimals,
+        } => execute::register_chain(
+            deps,
+            chain,
+            its_edge_contract,
+            max_uint,
+            max_target_decimals,
+        )
+        .change_context(Error::RegisterChain),
+        ExecuteMsg::UpdateChain {
+            chain,
+            its_edge_contract,
+        } => {
+            execute::update_chain(deps, chain, its_edge_contract).change_context(Error::UpdateChain)
         }
         ExecuteMsg::FreezeChain { chain } => {
             freeze_chain(deps, chain).change_context(Error::FreezeChain)
@@ -126,12 +128,6 @@ pub fn execute(
         ExecuteMsg::EnableExecution => {
             execute::enable_execution(deps).change_context(Error::EnableExecution)
         }
-        ExecuteMsg::SetChainConfig {
-            chain,
-            max_uint,
-            max_target_decimals,
-        } => execute::set_chain_config(deps, chain, max_uint, max_target_decimals)
-            .change_context(Error::SetChainConfig),
     }?
     .then(Ok)
 }

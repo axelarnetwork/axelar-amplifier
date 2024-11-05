@@ -205,24 +205,6 @@ fn send_to_destination(
     Ok(Response::new().add_message(call_contract_msg))
 }
 
-pub fn register_its_contract(
-    deps: DepsMut,
-    chain: ChainNameRaw,
-    address: Address,
-) -> Result<Response, Error> {
-    state::save_its_contract(deps.storage, &chain, &address)
-        .change_context_lazy(|| Error::FailedItsContractRegistration(chain.clone()))?;
-
-    Ok(Response::new().add_event(Event::ItsContractRegistered { chain, address }.into()))
-}
-
-pub fn deregister_its_contract(deps: DepsMut, chain: ChainNameRaw) -> Result<Response, Error> {
-    state::remove_its_contract(deps.storage, &chain)
-        .change_context_lazy(|| Error::FailedItsContractDeregistration(chain.clone()))?;
-
-    Ok(Response::new().add_event(Event::ItsContractDeregistered { chain }.into()))
-}
-
 pub fn freeze_chain(deps: DepsMut, chain: ChainNameRaw) -> Result<Response, Error> {
     state::freeze_chain(deps.storage, &chain).change_context(Error::State)?;
 
@@ -243,18 +225,34 @@ pub fn enable_execution(deps: DepsMut) -> Result<Response, Error> {
     killswitch::disengage(deps.storage, Event::ExecutionEnabled).change_context(Error::State)
 }
 
-pub fn set_chain_config(
+pub fn register_chain(
     deps: DepsMut,
     chain: ChainNameRaw,
+    its_address: Address,
     max_uint: nonempty::Uint256,
     max_target_decimals: u8,
 ) -> Result<Response, Error> {
     match state::may_load_chain_config(deps.storage, &chain).change_context(Error::State)? {
         Some(_) => bail!(Error::ChainConfigAlreadySet(chain)),
-        None => state::save_chain_config(deps.storage, &chain, max_uint, max_target_decimals)
-            .change_context(Error::State)?
-            .then(|_| Ok(Response::new())),
+        None => state::save_chain_config(
+            deps.storage,
+            &chain,
+            its_address,
+            max_uint,
+            max_target_decimals,
+        )
+        .change_context(Error::State)?
+        .then(|_| Ok(Response::new())),
     }
+}
+
+pub fn update_chain(
+    deps: DepsMut,
+    chain: ChainNameRaw,
+    its_address: Address,
+) -> Result<Response, Error> {
+    state::update_its_contract(deps.storage, &chain, its_address).change_context(Error::State)?;
+    Ok(Response::new())
 }
 
 /// Calculates the destination on token transfer amount.
@@ -612,8 +610,8 @@ mod tests {
     use router_api::{ChainNameRaw, CrossChainId};
 
     use crate::contract::execute::{
-        disable_execution, enable_execution, execute_message, freeze_chain, register_its_contract,
-        set_chain_config, unfreeze_chain, Error,
+        disable_execution, enable_execution, execute_message, freeze_chain, register_chain,
+        unfreeze_chain, Error,
     };
     use crate::state::{self, Config};
     use crate::{DeployInterchainToken, HubMessage, InterchainTransfer};
@@ -867,14 +865,10 @@ mod tests {
 
         for chain_name in [SOLANA, ETHEREUM, XRPL] {
             let chain = ChainNameRaw::try_from(chain_name).unwrap();
-            assert_ok!(register_its_contract(
+            assert_ok!(register_chain(
                 deps.as_mut(),
                 chain.clone(),
                 ITS_ADDRESS.to_string().try_into().unwrap(),
-            ));
-            assert_ok!(set_chain_config(
-                deps.as_mut(),
-                chain,
                 Uint256::one().try_into().unwrap(),
                 16u8
             ));
