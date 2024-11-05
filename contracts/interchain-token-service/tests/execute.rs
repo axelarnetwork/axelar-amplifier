@@ -10,8 +10,7 @@ use interchain_token_service::contract::{self, ExecuteError};
 use interchain_token_service::events::Event;
 use interchain_token_service::msg::ExecuteMsg;
 use interchain_token_service::{
-    DeployInterchainToken, DeployTokenManager, HubMessage, InterchainTransfer, TokenId,
-    TokenManagerType, TokenSupply,
+    DeployInterchainToken, HubMessage, InterchainTransfer, TokenId, TokenSupply,
 };
 use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
 use serde_json::json;
@@ -107,20 +106,6 @@ fn execute_hub_message_succeeds() {
         .into(),
         InterchainTransfer {
             token_id: TokenId::new([1; 32]),
-            source_address: HexBinary::from([1; 32]).try_into().unwrap(),
-            destination_address: HexBinary::from([2; 32]).try_into().unwrap(),
-            amount: 1u64.try_into().unwrap(),
-            data: Some(HexBinary::from([1, 2, 3, 4]).try_into().unwrap()),
-        }
-        .into(),
-        DeployTokenManager {
-            token_id: TokenId::new([2; 32]),
-            token_manager_type: TokenManagerType::MintBurn,
-            params: HexBinary::from([1, 2, 3, 4]).try_into().unwrap(),
-        }
-        .into(),
-        InterchainTransfer {
-            token_id: TokenId::new([2; 32]),
             source_address: HexBinary::from([1; 32]).try_into().unwrap(),
             destination_address: HexBinary::from([2; 32]).try_into().unwrap(),
             amount: 1u64.try_into().unwrap(),

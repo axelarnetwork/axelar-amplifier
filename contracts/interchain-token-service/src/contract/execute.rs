@@ -7,8 +7,7 @@ use crate::events::Event;
 use crate::primitives::HubMessage;
 use crate::state::{self, is_chain_frozen, load_config, load_its_contract, TokenDeploymentType};
 use crate::{
-    DeployInterchainToken, DeployTokenManager, InterchainTransfer, Message, TokenConfig, TokenId,
-    TokenInstance,
+    DeployInterchainToken, InterchainTransfer, Message, TokenConfig, TokenId, TokenInstance,
 };
 
 #[derive(thiserror::Error, Debug, IntoContractError)]
@@ -158,13 +157,6 @@ fn apply_to_hub(
             apply_token_deployment(storage, &source_chain, &destination_chain, deploy_token)
                 .map(Message::DeployInterchainToken)?
         }
-        Message::DeployTokenManager(deploy_manager) => apply_token_manager_deployment(
-            storage,
-            &source_chain,
-            &destination_chain,
-            deploy_manager,
-        )
-        .map(Message::DeployTokenManager)?,
     }
     .then(Result::Ok)
 }
@@ -473,24 +465,6 @@ fn apply_token_deployment(
     })
 }
 
-fn apply_token_manager_deployment(
-    storage: &mut dyn Storage,
-    source_chain: &ChainNameRaw,
-    destination_chain: &ChainNameRaw,
-    deploy_token_manager: DeployTokenManager,
-) -> Result<DeployTokenManager, Error> {
-    save_token_instances(
-        storage,
-        source_chain,
-        destination_chain,
-        None,
-        None,
-        deploy_token_manager.token_id,
-        &deploy_token_manager.deployment_type(),
-    )
-    .map(|_| deploy_token_manager)
-}
-
 fn save_token_instances(
     storage: &mut dyn Storage,
     source_chain: &ChainNameRaw,
@@ -625,12 +599,6 @@ impl DeploymentType for DeployInterchainToken {
         } else {
             TokenDeploymentType::Trustless
         }
-    }
-}
-
-impl DeploymentType for DeployTokenManager {
-    fn deployment_type(&self) -> TokenDeploymentType {
-        TokenDeploymentType::CustomMinter
     }
 }
 
