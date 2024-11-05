@@ -43,8 +43,6 @@ pub enum Message {
     InterchainTransfer(InterchainTransfer),
     /// Deploy a new interchain token on the destination chain
     DeployInterchainToken(DeployInterchainToken),
-    /// Deploy a new token manager on the destination chain
-    DeployTokenManager(DeployTokenManager),
 }
 
 #[cw_serde]
@@ -90,23 +88,6 @@ impl From<DeployInterchainToken> for Message {
     }
 }
 
-#[cw_serde]
-#[derive(Eq)]
-pub struct DeployTokenManager {
-    /// The unique identifier of the token that the token manager will manage
-    pub token_id: TokenId,
-    /// The type of token manager to deploy
-    pub token_manager_type: TokenManagerType,
-    /// The parameters to be provided to the token manager contract
-    pub params: nonempty::HexBinary,
-}
-
-impl From<DeployTokenManager> for Message {
-    fn from(value: DeployTokenManager) -> Self {
-        Message::DeployTokenManager(value)
-    }
-}
-
 /// A message sent between ITS edge contracts and the ITS hub contract (defined in this crate).
 /// `HubMessage` is used to route an ITS [`Message`] between ITS edge contracts on different chains via the ITS Hub.
 #[cw_serde]
@@ -143,8 +124,7 @@ impl Message {
     pub fn token_id(&self) -> TokenId {
         match self {
             Message::InterchainTransfer(InterchainTransfer { token_id, .. })
-            | Message::DeployInterchainToken(DeployInterchainToken { token_id, .. })
-            | Message::DeployTokenManager(DeployTokenManager { token_id, .. }) => *token_id,
+            | Message::DeployInterchainToken(DeployInterchainToken { token_id, .. }) => *token_id,
         }
     }
 }
