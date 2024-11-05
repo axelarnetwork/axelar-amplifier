@@ -260,6 +260,7 @@ fn execute_message_interchain_transfer_should_scale_the_amount_when_source_decim
     );
 }
 
+// Note: we should add a test with 3 chains with distinct max uint values and try a round robin deploy + A -> B -> C transfer test
 #[test]
 fn execute_message_deploy_interchain_token_should_translate_decimals_when_max_uints_are_different()
 {

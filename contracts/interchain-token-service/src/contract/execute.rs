@@ -270,9 +270,9 @@ pub fn set_chain_config(
 /// The amount is calculated based on the token decimals on the source and destination chains.
 /// The calculation is done as following:
 /// 1) `destination_amount` = `source_amount` * 10 ^ (`destination_chain_decimals` - `source_chain_decimals`)
-/// 3) If new_amount is greater than the destination chain's `max_uint`, the translation
+/// 3) If `destination_amount` is greater than the destination chain's `max_uint`, the translation
 /// fails.
-/// 4) If new_amount is zero, the translation fails.
+/// 4) If `destination_amount` is zero, the translation fails.
 fn destination_amount(
     storage: &dyn Storage,
     source_chain: &ChainNameRaw,
@@ -312,6 +312,8 @@ fn destination_amount(
             amount: source_amount,
         })?;
     let destination_amount = if source_decimals > destination_decimals {
+        // Note: We should track the truncated dust in the global token config to allow recovery in the future
+        // The token's decimals on the origin chain will always be greater than or equal to `source_decimals`, so we can scale and add to the total dust amount
         source_amount
             .checked_div(scaling_factor)
             .expect("scaling_factor must be non-zero")
@@ -325,7 +327,9 @@ fn destination_amount(
             })?
     };
 
+    // Note: Use ensure! instead of bail!?
     if destination_amount.gt(&destination_max_uint) {
+        // Note: shall we different error enums to make debugging easier? Maybe add scaling factor in the error as well?
         bail!(Error::InvalidTransferAmount {
             source_chain: source_chain.to_owned(),
             destination_chain: destination_chain.to_owned(),
@@ -366,7 +370,9 @@ fn destination_token_decimals(
     {
         source_chain_decimals
     } else {
-        source_chain_config
+        // Note: Since destination_chain's `max_uint` is less than source_chain's, we need to use `max_target_decimals` of the destination chain.
+        // E.g. Deploying token from Ethereum to Sui
+        destination_chain_config
             .max_target_decimals
             .min(source_chain_decimals)
     }
@@ -379,6 +385,8 @@ fn apply_transfer(
     destination_chain: ChainNameRaw,
     transfer: &InterchainTransfer,
 ) -> Result<InterchainTransfer, Error> {
+    // Note: We're loading the token instances multiple times, are we refactoring it to load first and save at the end?
+    // Same for chain config (checking frozen status and reading max_uint)
     let destination_amount = destination_amount(
         storage,
         &source_chain,
