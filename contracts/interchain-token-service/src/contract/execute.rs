@@ -270,9 +270,9 @@ pub fn set_chain_config(
 /// The amount is calculated based on the token decimals on the source and destination chains.
 /// The calculation is done as following:
 /// 1) `destination_amount` = `source_amount` * 10 ^ (`destination_chain_decimals` - `source_chain_decimals`)
-/// 3) If new_amount is greater than the destination chain's `max_uint`, the translation
+/// 3) If `destination_amount` is greater than the destination chain's `max_uint`, the translation
 /// fails.
-/// 4) If new_amount is zero, the translation fails.
+/// 4) If `destination_amount` is zero, the translation fails.
 fn destination_amount(
     storage: &dyn Storage,
     source_chain: &ChainNameRaw,
@@ -325,13 +325,11 @@ fn destination_amount(
             })?
     };
 
-    if destination_amount.gt(&destination_max_uint) {
-        bail!(Error::InvalidTransferAmount {
-            source_chain: source_chain.to_owned(),
-            destination_chain: destination_chain.to_owned(),
-            amount: source_amount,
-        })
-    }
+    ensure!(destination_amount.le(&destination_max_uint), Error::InvalidTransferAmount {
+        source_chain: source_chain.to_owned(),
+        destination_chain: destination_chain.to_owned(),
+        amount: source_amount,
+    });
 
     nonempty::Uint256::try_from(destination_amount).change_context_lazy(|| {
         Error::InvalidTransferAmount {
@@ -366,7 +364,7 @@ fn destination_token_decimals(
     {
         source_chain_decimals
     } else {
-        source_chain_config
+        destination_chain_config
             .max_target_decimals
             .min(source_chain_decimals)
     }

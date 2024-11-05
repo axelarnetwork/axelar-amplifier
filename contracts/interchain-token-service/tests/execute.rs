@@ -276,7 +276,7 @@ fn execute_message_deploy_interchain_token_should_translate_decimals_when_max_ui
         Uint256::MAX.try_into().unwrap(),
         6,
         u64::MAX.try_into().unwrap(),
-        6,
+        9,
     );
 
     let token_id = TokenId::new([1; 32]);
