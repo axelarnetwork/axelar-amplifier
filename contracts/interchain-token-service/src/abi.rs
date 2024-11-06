@@ -16,7 +16,7 @@ sol! {
     enum MessageType {
         InterchainTransfer,
         DeployInterchainToken,
-        Unused,
+        DeployTokenManager, // note, this case is not supported by the ITS hub
         SendToHub,
         ReceiveFromHub,
     }
