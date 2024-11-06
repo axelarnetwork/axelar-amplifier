@@ -25,8 +25,8 @@ const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub enum Error {
     #[error("failed to execute a cross-chain message")]
     Execute,
-    #[error("failed to register chain")]
-    RegisterChain,
+    #[error("failed to register chains")]
+    RegisterChains,
     #[error("failed to update chain")]
     UpdateChain,
     #[error("failed to freeze chain")]
@@ -97,19 +97,9 @@ pub fn execute(
             payload,
         }) => execute::execute_message(deps, cc_id, source_address, payload)
             .change_context(Error::Execute),
-        ExecuteMsg::RegisterChain {
-            chain,
-            its_edge_contract,
-            max_uint,
-            max_target_decimals,
-        } => execute::register_chain(
-            deps,
-            chain,
-            its_edge_contract,
-            max_uint,
-            max_target_decimals,
-        )
-        .change_context(Error::RegisterChain),
+        ExecuteMsg::RegisterChains { chains } => {
+            execute::register_chains(deps, chains).change_context(Error::RegisterChains)
+        }
         ExecuteMsg::UpdateChain {
             chain,
             its_edge_contract,

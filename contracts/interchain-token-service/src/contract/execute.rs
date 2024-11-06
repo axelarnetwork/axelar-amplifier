@@ -1,19 +1,20 @@
 use axelar_wasm_std::{killswitch, nonempty, FnExt, IntoContractError};
 use cosmwasm_std::{DepsMut, HexBinary, QuerierWrapper, Response, Storage, Uint256};
 use error_stack::{bail, ensure, report, Result, ResultExt};
+use itertools::Itertools;
 use router_api::{Address, ChainNameRaw, CrossChainId};
 
 use crate::events::Event;
 use crate::primitives::HubMessage;
 use crate::state::{self, is_chain_frozen, load_config, load_its_contract, TokenDeploymentType};
 use crate::{
-    DeployInterchainToken, InterchainTransfer, Message, TokenConfig, TokenId, TokenInstance,
+    msg, DeployInterchainToken, InterchainTransfer, Message, TokenConfig, TokenId, TokenInstance,
 };
 
 #[derive(thiserror::Error, Debug, IntoContractError)]
 pub enum Error {
-    #[error("unknown chain {0}")]
-    UnknownChain(ChainNameRaw),
+    #[error("chain not found {0}")]
+    ChainNotFound(ChainNameRaw),
     #[error("unknown its address {0}")]
     UnknownItsContract(Address),
     #[error("failed to decode payload")]
@@ -40,8 +41,8 @@ pub enum Error {
     },
     #[error("state error")]
     State,
-    #[error("chain config for {0} already set")]
-    ChainConfigAlreadySet(ChainNameRaw),
+    #[error("chain {0} already registered")]
+    ChainAlreadyRegistered(ChainNameRaw),
     #[error("token {token_id} not deployed on chain {chain}")]
     TokenNotDeployed {
         token_id: TokenId,
@@ -107,7 +108,7 @@ fn execute_message_on_hub(
     message: Message,
 ) -> Result<Response, Error> {
     let destination_address = load_its_contract(deps.storage, &destination_chain)
-        .change_context_lazy(|| Error::UnknownChain(destination_chain.clone()))?;
+        .change_context_lazy(|| Error::ChainNotFound(destination_chain.clone()))?;
 
     let message = apply_to_hub(
         deps.storage,
@@ -177,7 +178,7 @@ fn ensure_is_its_source_address(
     source_address: &Address,
 ) -> Result<(), Error> {
     let source_its_contract = load_its_contract(storage, source_chain)
-        .change_context_lazy(|| Error::UnknownChain(source_chain.clone()))?;
+        .change_context_lazy(|| Error::ChainNotFound(source_chain.clone()))?;
 
     ensure!(
         source_address == &source_its_contract,
@@ -225,24 +226,36 @@ pub fn enable_execution(deps: DepsMut) -> Result<Response, Error> {
     killswitch::disengage(deps.storage, Event::ExecutionEnabled).change_context(Error::State)
 }
 
+pub fn register_chains(deps: DepsMut, chains: Vec<msg::ChainConfig>) -> Result<Response, Error> {
+    chains
+        .into_iter()
+        .map(|chain_config| {
+            register_chain(
+                deps.storage,
+                chain_config.chain,
+                chain_config.its_edge_contract,
+                chain_config.max_uint,
+                chain_config.max_target_decimals,
+            )
+        })
+        .try_collect::<_, Vec<Response>, _>()?
+        .then(|_| Ok(Response::new()))
+}
+
 pub fn register_chain(
-    deps: DepsMut,
+    storage: &mut dyn Storage,
     chain: ChainNameRaw,
     its_address: Address,
     max_uint: nonempty::Uint256,
     max_target_decimals: u8,
 ) -> Result<Response, Error> {
-    match state::may_load_chain_config(deps.storage, &chain).change_context(Error::State)? {
-        Some(_) => bail!(Error::ChainConfigAlreadySet(chain)),
-        None => state::save_chain_config(
-            deps.storage,
-            &chain,
-            its_address,
-            max_uint,
-            max_target_decimals,
-        )
-        .change_context(Error::State)?
-        .then(|_| Ok(Response::new())),
+    match state::may_load_chain_config(storage, &chain).change_context(Error::State)? {
+        Some(_) => bail!(Error::ChainAlreadyRegistered(chain)),
+        None => {
+            state::save_chain_config(storage, &chain, its_address, max_uint, max_target_decimals)
+                .change_context(Error::State)?
+                .then(|_| Ok(Response::new()))
+        }
     }
 }
 
@@ -611,10 +624,10 @@ mod tests {
 
     use crate::contract::execute::{
         disable_execution, enable_execution, execute_message, freeze_chain, register_chain,
-        unfreeze_chain, Error,
+        register_chains, unfreeze_chain, update_chain, Error,
     };
     use crate::state::{self, Config};
-    use crate::{DeployInterchainToken, HubMessage, InterchainTransfer};
+    use crate::{msg, DeployInterchainToken, HubMessage, InterchainTransfer};
 
     const SOLANA: &str = "solana";
     const ETHEREUM: &str = "ethereum";
@@ -841,6 +854,68 @@ mod tests {
         ));
     }
 
+    #[test]
+    fn register_chain_fails_if_already_registered() {
+        let mut deps = mock_dependencies();
+        assert_ok!(register_chain(
+            deps.as_mut().storage,
+            SOLANA.parse().unwrap(),
+            ITS_ADDRESS.to_string().try_into().unwrap(),
+            Uint256::one().try_into().unwrap(),
+            16u8
+        ));
+        assert_err_contains!(
+            register_chain(
+                deps.as_mut().storage,
+                SOLANA.parse().unwrap(),
+                ITS_ADDRESS.to_string().try_into().unwrap(),
+                Uint256::one().try_into().unwrap(),
+                16u8
+            ),
+            Error,
+            Error::ChainAlreadyRegistered(..)
+        );
+    }
+
+    #[test]
+    fn register_chains_fails_if_any_already_registered() {
+        let mut deps = mock_dependencies();
+        let chains = vec![
+            msg::ChainConfig {
+                chain: SOLANA.parse().unwrap(),
+                its_edge_contract: ITS_ADDRESS.to_string().try_into().unwrap(),
+                max_uint: Uint256::MAX.try_into().unwrap(),
+                max_target_decimals: 16u8,
+            },
+            msg::ChainConfig {
+                chain: XRPL.parse().unwrap(),
+                its_edge_contract: ITS_ADDRESS.to_string().try_into().unwrap(),
+                max_uint: Uint256::MAX.try_into().unwrap(),
+                max_target_decimals: 16u8,
+            },
+        ];
+        assert_ok!(register_chains(deps.as_mut(), chains[0..1].to_vec()));
+        assert_err_contains!(
+            register_chains(deps.as_mut(), chains,),
+            Error,
+            Error::ChainAlreadyRegistered(..)
+        );
+    }
+
+    #[test]
+    fn update_chain_fails_if_not_registered() {
+        let mut deps = mock_dependencies();
+        assert_err_contains!(
+            update_chain(
+                deps.as_mut(),
+                SOLANA.parse().unwrap(),
+                ITS_ADDRESS.parse().unwrap()
+            ),
+            Error,
+            Error::State
+        );
+    }
+
     fn init(deps: &mut OwnedDeps<MemoryStorage, MockApi, MockQuerier>) {
         assert_ok!(permission_control::set_admin(
             deps.as_mut().storage,
@@ -866,7 +941,7 @@ mod tests {
         for chain_name in [SOLANA, ETHEREUM, XRPL] {
             let chain = ChainNameRaw::try_from(chain_name).unwrap();
             assert_ok!(register_chain(
-                deps.as_mut(),
+                deps.as_mut().storage,
                 chain.clone(),
                 ITS_ADDRESS.to_string().try_into().unwrap(),
                 Uint256::one().try_into().unwrap(),

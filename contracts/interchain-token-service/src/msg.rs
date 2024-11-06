@@ -28,12 +28,7 @@ pub enum ExecuteMsg {
     /// ITS Hub can send cross-chain messages to it, or receive messages from it.
     /// If an ITS contract is already set for the chain, an error is returned.
     #[permission(Governance)]
-    RegisterChain {
-        chain: ChainNameRaw,
-        its_edge_contract: Address,
-        max_uint: nonempty::Uint256, // The maximum uint value that is supported by the chain's token standard
-        max_target_decimals: u8, // The maximum number of decimals that is preserved when deploying a token to another chain where smaller uint values are used
-    },
+    RegisterChains { chains: Vec<ChainConfig> },
 
     #[permission(Governance)]
     UpdateChain {
@@ -54,6 +49,14 @@ pub enum ExecuteMsg {
 
     #[permission(Elevated)]
     EnableExecution,
+}
+
+#[cw_serde]
+pub struct ChainConfig {
+    pub chain: ChainNameRaw,
+    pub its_edge_contract: Address,
+    pub max_uint: nonempty::Uint256, // The maximum uint value that is supported by the chain's token standard
+    pub max_target_decimals: u8, // The maximum number of decimals that is preserved when deploying a token to another chain where smaller uint values are used
 }
 
 #[cw_serde]

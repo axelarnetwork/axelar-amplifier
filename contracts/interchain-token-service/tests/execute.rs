@@ -8,13 +8,13 @@ use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
 use cosmwasm_std::{HexBinary, Uint256};
 use interchain_token_service::contract::{self, ExecuteError};
 use interchain_token_service::events::Event;
-use interchain_token_service::msg::ExecuteMsg;
+use interchain_token_service::msg::{self, ExecuteMsg};
 use interchain_token_service::{
     DeployInterchainToken, HubMessage, InterchainTransfer, TokenId, TokenSupply,
 };
 use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
 use serde_json::json;
-use utils::{params, TestMessage};
+use utils::{params, register_chains, TestMessage};
 
 mod utils;
 
@@ -55,7 +55,7 @@ fn register_update_its_contract_succeeds() {
 }
 
 #[test]
-fn reregistering_its_contract_fails() {
+fn reregistering_same_chain_fails() {
     let mut deps = mock_dependencies();
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
@@ -81,12 +81,12 @@ fn reregistering_its_contract_fails() {
             u8::MAX
         ),
         Error,
-        Error::RegisterChain
+        Error::RegisterChains
     );
 }
 
 #[test]
-fn deregistering_unknown_chain_fails() {
+fn update_unknown_chain_fails() {
     let mut deps = mock_dependencies();
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
@@ -102,6 +102,49 @@ fn deregistering_unknown_chain_fails() {
         ),
         Error,
         Error::UpdateChain
+    );
+}
+
+#[test]
+fn register_multiple_chains_succeeds() {
+    let mut deps = mock_dependencies();
+    utils::instantiate_contract(deps.as_mut()).unwrap();
+    let chains: Vec<msg::ChainConfig> = (0..10)
+        .map(|i| msg::ChainConfig {
+            chain: i.to_string().parse().unwrap(),
+            its_edge_contract: i.to_string().parse().unwrap(),
+            max_target_decimals: 18u8,
+            max_uint: Uint256::MAX.try_into().unwrap(),
+        })
+        .collect();
+    assert_ok!(register_chains(deps.as_mut(), chains.clone()));
+
+    for chain in chains {
+        let res = assert_ok!(utils::query_its_contract(
+            deps.as_ref(),
+            chain.chain.clone()
+        ));
+        assert_eq!(res, Some(chain.its_edge_contract));
+    }
+}
+
+#[test]
+fn register_multiple_chains_fails_if_one_invalid() {
+    let mut deps = mock_dependencies();
+    utils::instantiate_contract(deps.as_mut()).unwrap();
+    let chains: Vec<msg::ChainConfig> = (0..10)
+        .map(|i| msg::ChainConfig {
+            chain: i.to_string().parse().unwrap(),
+            its_edge_contract: i.to_string().parse().unwrap(),
+            max_target_decimals: 18u8,
+            max_uint: Uint256::MAX.try_into().unwrap(),
+        })
+        .collect();
+    assert_ok!(register_chains(deps.as_mut(), chains[0..1].to_vec()));
+    assert_err_contains!(
+        register_chains(deps.as_mut(), chains.clone()),
+        Error,
+        Error::RegisterChains
     );
 }
 
@@ -485,7 +528,7 @@ fn execute_message_when_unknown_chain_fails() {
         source_its_contract.clone(),
         hub_message.clone().abi_encode(),
     );
-    assert_err_contains!(result, ExecuteError, ExecuteError::UnknownChain(chain) if chain == &source_its_chain);
+    assert_err_contains!(result, ExecuteError, ExecuteError::ChainNotFound(chain) if chain == &source_its_chain);
 
     utils::register_chain(
         deps.as_mut(),
@@ -502,7 +545,7 @@ fn execute_message_when_unknown_chain_fails() {
         source_its_contract,
         hub_message.abi_encode(),
     );
-    assert_err_contains!(result, ExecuteError, ExecuteError::UnknownChain(chain) if chain == &destination_its_chain);
+    assert_err_contains!(result, ExecuteError, ExecuteError::ChainNotFound(chain) if chain == &destination_its_chain);
 }
 
 #[test]
@@ -793,7 +836,7 @@ fn set_chain_config_should_fail_if_chain_config_is_already_set() {
     assert_err_contains!(
         utils::register_chain(deps.as_mut(), chain, address, max_uint, decimals),
         ExecuteError,
-        ExecuteError::ChainConfigAlreadySet(_)
+        ExecuteError::ChainAlreadyRegistered(_)
     )
 }
 

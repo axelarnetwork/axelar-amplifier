@@ -1,5 +1,4 @@
 use std::marker::PhantomData;
-use std::u8;
 
 use axelar_core_std::nexus;
 use axelar_core_std::nexus::query::IsChainRegisteredResponse;
@@ -11,7 +10,7 @@ use cosmwasm_std::{
     from_json, to_json_binary, Addr, DepsMut, HexBinary, MemoryStorage, OwnedDeps, Response,
     Uint256, WasmQuery,
 };
-use interchain_token_service::msg::ExecuteMsg;
+use interchain_token_service::msg::{self, ExecuteMsg};
 use interchain_token_service::{contract, HubMessage};
 use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
 
@@ -91,16 +90,26 @@ pub fn register_chain(
     max_uint: nonempty::Uint256,
     max_target_decimals: u8,
 ) -> Result<Response, ContractError> {
-    contract::execute(
+    register_chains(
         deps,
-        mock_env(),
-        mock_info(params::GOVERNANCE, &[]),
-        ExecuteMsg::RegisterChain {
+        vec![msg::ChainConfig {
             chain,
             its_edge_contract,
             max_uint,
             max_target_decimals,
-        },
+        }],
+    )
+}
+
+pub fn register_chains(
+    deps: DepsMut,
+    chains: Vec<msg::ChainConfig>,
+) -> Result<Response, ContractError> {
+    contract::execute(
+        deps,
+        mock_env(),
+        mock_info(params::GOVERNANCE, &[]),
+        ExecuteMsg::RegisterChains { chains },
     )
 }
 
