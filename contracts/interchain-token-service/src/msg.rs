@@ -24,12 +24,14 @@ pub enum ExecuteMsg {
     #[permission(Specific(gateway))]
     Execute(AxelarExecutableMsg),
 
-    /// Register the ITS contract address of another chain. Each chain's ITS contract has to be whitelisted before
+    /// For each chain, register the ITS contract and set config parameters.
+    /// Each chain's ITS contract has to be whitelisted before
     /// ITS Hub can send cross-chain messages to it, or receive messages from it.
     /// If an ITS contract is already set for the chain, an error is returned.
     #[permission(Governance)]
     RegisterChains { chains: Vec<ChainConfig> },
 
+    /// Update the address of the ITS contract registered to the specified chain
     #[permission(Governance)]
     UpdateChain {
         chain: ChainNameRaw,
