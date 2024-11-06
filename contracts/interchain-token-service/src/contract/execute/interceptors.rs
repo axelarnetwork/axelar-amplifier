@@ -313,15 +313,14 @@ impl DeploymentType for DeployInterchainToken {
 mod test {
     use assert_ok::assert_ok;
     use axelar_wasm_std::assert_err_contains;
-    use cosmwasm_std::{testing::MockStorage, Uint256};
+    use cosmwasm_std::testing::MockStorage;
+    use cosmwasm_std::Uint256;
     use router_api::ChainNameRaw;
 
     use super::Error;
-    use crate::{
-        contract::execute::interceptors,
-        state::{self, TokenDeploymentType},
-        DeployInterchainToken, InterchainTransfer, TokenInstance,
-    };
+    use crate::contract::execute::interceptors;
+    use crate::state::{self, TokenDeploymentType};
+    use crate::{DeployInterchainToken, InterchainTransfer, TokenInstance};
 
     #[test]
     fn apply_scaling_factor_to_amount_when_source_decimals_are_bigger() {
