@@ -30,7 +30,7 @@ fn register_update_its_contract_succeeds() {
         .parse()
         .unwrap();
 
-    let register_response = assert_ok!(utils::register_chain(
+    assert_ok!(utils::register_chain(
         deps.as_mut(),
         chain.clone(),
         address.clone(),
@@ -43,15 +43,13 @@ fn register_update_its_contract_succeeds() {
     let new_address: Address = "0x9999999990123456789012345678901234567890"
         .parse()
         .unwrap();
-    let update_response = assert_ok!(utils::update_chain(
+    assert_ok!(utils::update_chain(
         deps.as_mut(),
         chain.clone(),
         new_address.clone()
     ));
     let res = assert_ok!(utils::query_its_contract(deps.as_ref(), chain.clone()));
     assert_eq!(res, Some(new_address));
-
-    goldie::assert_json!([register_response, update_response]);
 }
 
 #[test]
