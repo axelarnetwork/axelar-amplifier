@@ -270,11 +270,11 @@ pub fn may_load_token_config(
 
 pub fn save_token_config(
     storage: &mut dyn Storage,
-    token_id: &TokenId,
+    token_id: TokenId,
     token_config: &TokenConfig,
 ) -> Result<(), Error> {
     TOKEN_CONFIGS
-        .save(storage, token_id, token_config)
+        .save(storage, &token_id, token_config)
         .change_context(Error::Storage)
 }
 
