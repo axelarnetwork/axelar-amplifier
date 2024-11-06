@@ -16,6 +16,7 @@ sol! {
     enum MessageType {
         InterchainTransfer,
         DeployInterchainToken,
+        Unused,
         SendToHub,
         ReceiveFromHub,
     }
