@@ -122,7 +122,7 @@ pub fn save_token_instance_for_destination_chain(
         &TokenInstance::new(&deploy_token.deployment_type(), Some(deploy_token.decimals)),
     )
     .change_context(Error::State)
-    .and_then(|_| Ok(()))
+    .map(|_| ())
 }
 
 pub fn calculate_scaling_factor(
@@ -329,7 +329,7 @@ mod test {
         let source_chain: ChainNameRaw = "sourcechain".try_into().unwrap();
         let destination_chain: ChainNameRaw = "destinationchain".try_into().unwrap();
         let mut transfer = InterchainTransfer {
-            token_id: [1u8; 32].try_into().unwrap(),
+            token_id: [1u8; 32].into(),
             source_address: b"source_address".to_vec().try_into().unwrap(),
             destination_address: b"destination_address".to_vec().try_into().unwrap(),
             amount: Uint256::from(1_000_000_000_000u128).try_into().unwrap(),
@@ -376,7 +376,7 @@ mod test {
         let source_chain: ChainNameRaw = "sourcechain".try_into().unwrap();
         let destination_chain: ChainNameRaw = "destinationchain".try_into().unwrap();
         let mut transfer = InterchainTransfer {
-            token_id: [1u8; 32].try_into().unwrap(),
+            token_id: [1u8; 32].into(),
             source_address: b"source_address".to_vec().try_into().unwrap(),
             destination_address: b"destination_address".to_vec().try_into().unwrap(),
             amount: Uint256::from(1_000_000u128).try_into().unwrap(),
@@ -423,7 +423,7 @@ mod test {
         let source_chain: ChainNameRaw = "sourcechain".try_into().unwrap();
         let destination_chain: ChainNameRaw = "destinationchain".try_into().unwrap();
         let mut transfer = InterchainTransfer {
-            token_id: [1u8; 32].try_into().unwrap(),
+            token_id: [1u8; 32].into(),
             source_address: b"source_address".to_vec().try_into().unwrap(),
             destination_address: b"destination_address".to_vec().try_into().unwrap(),
             amount: Uint256::from(1_000_000u128).try_into().unwrap(),
@@ -470,7 +470,7 @@ mod test {
         let source_chain: ChainNameRaw = "sourcechain".try_into().unwrap();
         let destination_chain: ChainNameRaw = "destinationchain".try_into().unwrap();
         let mut transfer = InterchainTransfer {
-            token_id: [1u8; 32].try_into().unwrap(),
+            token_id: [1u8; 32].into(),
             source_address: b"source_address".to_vec().try_into().unwrap(),
             destination_address: b"destination_address".to_vec().try_into().unwrap(),
             amount: Uint256::from(1_000_000_000_000u128).try_into().unwrap(),
@@ -494,7 +494,7 @@ mod test {
         state::save_chain_config(
             &mut storage,
             &destination_chain,
-            Uint256::from(1_000_00u128).try_into().unwrap(),
+            Uint256::from(100_000u128).try_into().unwrap(),
             6,
         )
         .unwrap();
@@ -517,10 +517,10 @@ mod test {
         let source_chain: ChainNameRaw = "sourcechain".try_into().unwrap();
         let destination_chain: ChainNameRaw = "destinationchain".try_into().unwrap();
         let mut transfer = InterchainTransfer {
-            token_id: [1u8; 32].try_into().unwrap(),
+            token_id: [1u8; 32].into(),
             source_address: b"source_address".to_vec().try_into().unwrap(),
             destination_address: b"destination_address".to_vec().try_into().unwrap(),
-            amount: Uint256::from(1_000_00u128).try_into().unwrap(),
+            amount: Uint256::from(100_000u128).try_into().unwrap(),
             data: None,
         };
 
@@ -541,7 +541,7 @@ mod test {
         state::save_chain_config(
             &mut storage,
             &destination_chain,
-            Uint256::from(1_000_00u128).try_into().unwrap(),
+            Uint256::from(100_000u128).try_into().unwrap(),
             6,
         )
         .unwrap();
@@ -564,7 +564,7 @@ mod test {
         let source_chain: ChainNameRaw = "sourcechain".try_into().unwrap();
         let destination_chain: ChainNameRaw = "destinationchain".try_into().unwrap();
         let mut deploy_token = DeployInterchainToken {
-            token_id: [1u8; 32].try_into().unwrap(),
+            token_id: [1u8; 32].into(),
             name: "token".to_string().try_into().unwrap(),
             symbol: "TKN".to_string().try_into().unwrap(),
             decimals: 9,
@@ -595,7 +595,7 @@ mod test {
         assert_eq!(deploy_token.decimals, 6);
 
         let mut deploy_token = DeployInterchainToken {
-            token_id: [1u8; 32].try_into().unwrap(),
+            token_id: [1u8; 32].into(),
             name: "token".to_string().try_into().unwrap(),
             symbol: "TKN".to_string().try_into().unwrap(),
             decimals: 3,
@@ -616,7 +616,7 @@ mod test {
         let source_chain: ChainNameRaw = "sourcechain".try_into().unwrap();
         let destination_chain: ChainNameRaw = "destinationchain".try_into().unwrap();
         let mut deploy_token = DeployInterchainToken {
-            token_id: [1u8; 32].try_into().unwrap(),
+            token_id: [1u8; 32].into(),
             name: "token".to_string().try_into().unwrap(),
             symbol: "TKN".to_string().try_into().unwrap(),
             decimals: 9,

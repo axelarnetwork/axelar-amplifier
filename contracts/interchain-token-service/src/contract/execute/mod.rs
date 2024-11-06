@@ -177,7 +177,7 @@ fn apply_to_transfer(
             )
         })
         .and_then(|_| interceptors::add_supply_amount(storage, &destination_chain, &transfer))
-        .and_then(|_| Ok(transfer))
+        .map(|_| transfer)
 }
 
 fn apply_to_token_deployment(
@@ -202,7 +202,7 @@ fn apply_to_token_deployment(
                 &deploy_token,
             )
         })
-        .and_then(|_| Ok(deploy_token))
+        .map(|_| deploy_token)
 }
 
 fn ensure_chain_not_frozen(storage: &dyn Storage, chain: &ChainNameRaw) -> Result<(), Error> {
