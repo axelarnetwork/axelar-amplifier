@@ -64,8 +64,8 @@ pub enum Error {
     TokenDeployedDecimalsMismatch {
         token_id: TokenId,
         chain: ChainNameRaw,
-        expected: Option<u8>,
-        actual: Option<u8>,
+        expected: u8,
+        actual: u8,
     },
     #[error("token supply invariant violated for token {token_id} on chain {chain}")]
     TokenSupplyInvariantViolated {
