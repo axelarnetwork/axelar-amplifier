@@ -7,7 +7,7 @@ use cw_storage_plus::{Item, Map};
 use error_stack::{report, Result, ResultExt};
 use router_api::{Address, ChainNameRaw};
 
-use crate::TokenId;
+use crate::{msg, TokenId};
 
 #[derive(thiserror::Error, Debug, IntoContractError)]
 pub enum Error {
@@ -38,6 +38,17 @@ pub struct ChainConfig {
     pub max_target_decimals: u8,
     pub its_address: Address,
     frozen: bool,
+}
+
+impl From<msg::ChainConfig> for ChainConfig {
+    fn from(value: msg::ChainConfig) -> Self {
+        Self {
+            max_uint: value.max_uint,
+            max_target_decimals: value.max_target_decimals,
+            its_address: value.its_edge_contract,
+            frozen: false,
+        }
+    }
 }
 
 #[cw_serde]
@@ -144,21 +155,10 @@ pub fn load_chain_config(
 pub fn save_chain_config(
     storage: &mut dyn Storage,
     chain: &ChainNameRaw,
-    its_contract: Address,
-    max_uint: nonempty::Uint256,
-    max_target_decimals: u8,
+    config: impl Into<ChainConfig>,
 ) -> Result<(), Error> {
     CHAIN_CONFIGS
-        .save(
-            storage,
-            chain,
-            &ChainConfig {
-                max_uint,
-                max_target_decimals,
-                its_address: its_contract,
-                frozen: false,
-            },
-        )
+        .save(storage, chain, &config.into())
         .change_context(Error::Storage)
 }
 
@@ -322,17 +322,23 @@ mod tests {
 
         assert_ok!(save_chain_config(
             deps.as_mut().storage,
-            &chain1,
-            address1.clone(),
-            Uint256::MAX.try_into().unwrap(),
-            16u8
+            &chain1.clone(),
+            msg::ChainConfig {
+                chain: chain1.clone(),
+                its_edge_contract: address1.clone(),
+                max_uint: Uint256::MAX.try_into().unwrap(),
+                max_target_decimals: 16u8
+            }
         ));
         assert_ok!(save_chain_config(
             deps.as_mut().storage,
-            &chain2,
-            address2.clone(),
-            Uint256::MAX.try_into().unwrap(),
-            16u8
+            &chain2.clone(),
+            msg::ChainConfig {
+                chain: chain2.clone(),
+                its_edge_contract: address2.clone(),
+                max_uint: Uint256::MAX.try_into().unwrap(),
+                max_target_decimals: 16u8
+            }
         ));
         assert_eq!(
             assert_ok!(load_its_contract(deps.as_ref().storage, &chain1)),

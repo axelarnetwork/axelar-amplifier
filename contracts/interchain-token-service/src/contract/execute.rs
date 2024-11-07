@@ -229,33 +229,17 @@ pub fn enable_execution(deps: DepsMut) -> Result<Response, Error> {
 pub fn register_chains(deps: DepsMut, chains: Vec<msg::ChainConfig>) -> Result<Response, Error> {
     chains
         .into_iter()
-        .map(|chain_config| {
-            register_chain(
-                deps.storage,
-                chain_config.chain,
-                chain_config.its_edge_contract,
-                chain_config.max_uint,
-                chain_config.max_target_decimals,
-            )
-        })
+        .map(|chain_config| register_chain(deps.storage, chain_config))
         .try_collect::<_, Vec<Response>, _>()?
         .then(|_| Ok(Response::new()))
 }
 
-pub fn register_chain(
-    storage: &mut dyn Storage,
-    chain: ChainNameRaw,
-    its_address: Address,
-    max_uint: nonempty::Uint256,
-    max_target_decimals: u8,
-) -> Result<Response, Error> {
-    match state::may_load_chain_config(storage, &chain).change_context(Error::State)? {
-        Some(_) => bail!(Error::ChainAlreadyRegistered(chain)),
-        None => {
-            state::save_chain_config(storage, &chain, its_address, max_uint, max_target_decimals)
-                .change_context(Error::State)?
-                .then(|_| Ok(Response::new()))
-        }
+fn register_chain(storage: &mut dyn Storage, config: msg::ChainConfig) -> Result<Response, Error> {
+    match state::may_load_chain_config(storage, &config.chain).change_context(Error::State)? {
+        Some(_) => bail!(Error::ChainAlreadyRegistered(config.chain)),
+        None => state::save_chain_config(storage, &config.chain.clone(), config)
+            .change_context(Error::State)?
+            .then(|_| Ok(Response::new())),
     }
 }
 
@@ -859,18 +843,24 @@ mod tests {
         let mut deps = mock_dependencies();
         assert_ok!(register_chain(
             deps.as_mut().storage,
-            SOLANA.parse().unwrap(),
-            ITS_ADDRESS.to_string().try_into().unwrap(),
-            Uint256::one().try_into().unwrap(),
-            16u8
+            msg::ChainConfig {
+                chain: SOLANA.parse().unwrap(),
+
+                its_edge_contract: ITS_ADDRESS.to_string().try_into().unwrap(),
+                max_uint: Uint256::one().try_into().unwrap(),
+                max_target_decimals: 16u8
+            }
         ));
         assert_err_contains!(
             register_chain(
                 deps.as_mut().storage,
-                SOLANA.parse().unwrap(),
-                ITS_ADDRESS.to_string().try_into().unwrap(),
-                Uint256::one().try_into().unwrap(),
-                16u8
+                msg::ChainConfig {
+                    chain: SOLANA.parse().unwrap(),
+
+                    its_edge_contract: ITS_ADDRESS.to_string().try_into().unwrap(),
+                    max_uint: Uint256::one().try_into().unwrap(),
+                    max_target_decimals: 16u8
+                }
             ),
             Error,
             Error::ChainAlreadyRegistered(..)
@@ -942,10 +932,12 @@ mod tests {
             let chain = ChainNameRaw::try_from(chain_name).unwrap();
             assert_ok!(register_chain(
                 deps.as_mut().storage,
-                chain.clone(),
-                ITS_ADDRESS.to_string().try_into().unwrap(),
-                Uint256::one().try_into().unwrap(),
-                16u8
+                msg::ChainConfig {
+                    chain: chain.clone(),
+                    its_edge_contract: ITS_ADDRESS.to_string().try_into().unwrap(),
+                    max_uint: Uint256::one().try_into().unwrap(),
+                    max_target_decimals: 16u8
+                }
             ));
         }
     }
