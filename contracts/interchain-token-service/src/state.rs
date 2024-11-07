@@ -73,6 +73,8 @@ impl TokenSupply {
 #[cw_serde]
 pub struct TokenInstance {
     pub supply: TokenSupply,
+    // Note: Since we have decided to drop deploy token manager msg type, we can save `u8` instead of `Option<u8>`
+    // When we add custom token linking, we'll include decimals in the msg type
     pub decimals: Option<u8>,
 }
 
