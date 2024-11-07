@@ -845,7 +845,6 @@ mod tests {
             deps.as_mut().storage,
             msg::ChainConfig {
                 chain: SOLANA.parse().unwrap(),
-
                 its_edge_contract: ITS_ADDRESS.to_string().try_into().unwrap(),
                 max_uint: Uint256::one().try_into().unwrap(),
                 max_target_decimals: 16u8
@@ -856,7 +855,6 @@ mod tests {
                 deps.as_mut().storage,
                 msg::ChainConfig {
                     chain: SOLANA.parse().unwrap(),
-
                     its_edge_contract: ITS_ADDRESS.to_string().try_into().unwrap(),
                     max_uint: Uint256::one().try_into().unwrap(),
                     max_target_decimals: 16u8
