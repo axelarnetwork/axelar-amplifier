@@ -76,7 +76,7 @@ pub fn save_token_instance_for_source_chain(
                 origin_chain,
                 chain,
                 deploy_token.token_id,
-                Some(deploy_token.decimals),
+                deploy_token.decimals,
             )?;
         }
         None => {
@@ -90,7 +90,7 @@ pub fn save_token_instance_for_source_chain(
                         storage,
                         chain.clone(),
                         deploy_token.token_id,
-                        &TokenInstance::new_on_origin(Some(deploy_token.decimals)),
+                        &TokenInstance::new_on_origin(deploy_token.decimals),
                     )
                 })
                 .change_context(Error::State)?;
@@ -119,7 +119,7 @@ pub fn save_token_instance_for_destination_chain(
         storage,
         chain.clone(),
         deploy_token.token_id,
-        &TokenInstance::new(&deploy_token.deployment_type(), Some(deploy_token.decimals)),
+        &TokenInstance::new(&deploy_token.deployment_type(), deploy_token.decimals),
     )
     .change_context(Error::State)
     .map(|_| ())
@@ -146,7 +146,7 @@ fn ensure_matching_original_deployment(
     origin_chain: ChainNameRaw,
     chain: &ChainNameRaw,
     token_id: TokenId,
-    decimals: Option<u8>,
+    decimals: u8,
 ) -> Result<(), Error> {
     ensure!(
         origin_chain == *chain,
@@ -237,18 +237,10 @@ fn destination_amount(
 
     let (source_decimals, destination_decimals) =
         match (source_token.decimals, destination_token.decimals) {
-            (Some(source_decimals), Some(destination_decimals))
-                if source_decimals == destination_decimals =>
-            {
+            (source_decimals, destination_decimals) if source_decimals == destination_decimals => {
                 return Ok(source_amount)
             }
-            (Some(source_decimals), Some(destination_decimals)) => {
-                (source_decimals, destination_decimals)
-            }
-            (None, None) => return Ok(source_amount),
-            _ => unreachable!(
-                "decimals should be set in both the source and destination, or set in neither"
-            ), // This should never happen
+            (source_decimals, destination_decimals) => (source_decimals, destination_decimals),
         };
     let destination_max_uint = state::load_chain_config(storage, destination_chain)
         .change_context(Error::State)?
@@ -339,14 +331,14 @@ mod test {
             &mut storage,
             source_chain.clone(),
             transfer.token_id,
-            &TokenInstance::new_on_origin(Some(18)),
+            &TokenInstance::new_on_origin(18),
         )
         .unwrap();
         state::save_token_instance(
             &mut storage,
             destination_chain.clone(),
             transfer.token_id,
-            &TokenInstance::new(&TokenDeploymentType::Trustless, Some(12)),
+            &TokenInstance::new(&TokenDeploymentType::Trustless, 12),
         )
         .unwrap();
         state::save_chain_config(
@@ -386,14 +378,14 @@ mod test {
             &mut storage,
             source_chain.clone(),
             transfer.token_id,
-            &TokenInstance::new_on_origin(Some(12)),
+            &TokenInstance::new_on_origin(12),
         )
         .unwrap();
         state::save_token_instance(
             &mut storage,
             destination_chain.clone(),
             transfer.token_id,
-            &TokenInstance::new(&TokenDeploymentType::Trustless, Some(18)),
+            &TokenInstance::new(&TokenDeploymentType::Trustless, 18),
         )
         .unwrap();
         state::save_chain_config(
@@ -433,14 +425,14 @@ mod test {
             &mut storage,
             source_chain.clone(),
             transfer.token_id,
-            &TokenInstance::new_on_origin(Some(12)),
+            &TokenInstance::new_on_origin(12),
         )
         .unwrap();
         state::save_token_instance(
             &mut storage,
             destination_chain.clone(),
             transfer.token_id,
-            &TokenInstance::new(&TokenDeploymentType::Trustless, Some(12)),
+            &TokenInstance::new(&TokenDeploymentType::Trustless, 12),
         )
         .unwrap();
         state::save_chain_config(
@@ -480,14 +472,14 @@ mod test {
             &mut storage,
             source_chain.clone(),
             transfer.token_id,
-            &TokenInstance::new_on_origin(Some(18)),
+            &TokenInstance::new_on_origin(18),
         )
         .unwrap();
         state::save_token_instance(
             &mut storage,
             destination_chain.clone(),
             transfer.token_id,
-            &TokenInstance::new(&TokenDeploymentType::Trustless, Some(12)),
+            &TokenInstance::new(&TokenDeploymentType::Trustless, 12),
         )
         .unwrap();
         state::save_chain_config(
@@ -527,14 +519,14 @@ mod test {
             &mut storage,
             source_chain.clone(),
             transfer.token_id,
-            &TokenInstance::new_on_origin(Some(18)),
+            &TokenInstance::new_on_origin(18),
         )
         .unwrap();
         state::save_token_instance(
             &mut storage,
             destination_chain.clone(),
             transfer.token_id,
-            &TokenInstance::new(&TokenDeploymentType::Trustless, Some(12)),
+            &TokenInstance::new(&TokenDeploymentType::Trustless, 12),
         )
         .unwrap();
         state::save_chain_config(
