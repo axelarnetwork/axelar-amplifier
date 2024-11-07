@@ -2,12 +2,12 @@ use std::collections::HashMap;
 
 use axelar_wasm_std::{nonempty, FnExt, IntoContractError};
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{ensure, Addr, OverflowError, StdError, Storage, Uint256};
+use cosmwasm_std::{Addr, OverflowError, StdError, Storage, Uint256};
 use cw_storage_plus::{Item, Map};
 use error_stack::{report, Result, ResultExt};
 use router_api::{Address, ChainNameRaw};
 
-use crate::TokenId;
+use crate::{msg, TokenId};
 
 #[derive(thiserror::Error, Debug, IntoContractError)]
 pub enum Error {
@@ -36,7 +36,19 @@ pub struct Config {
 pub struct ChainConfig {
     pub max_uint: nonempty::Uint256,
     pub max_target_decimals: u8,
+    pub its_address: Address,
     frozen: bool,
+}
+
+impl From<msg::ChainConfig> for ChainConfig {
+    fn from(value: msg::ChainConfig) -> Self {
+        Self {
+            max_uint: value.max_uint,
+            max_target_decimals: value.max_target_decimals,
+            its_address: value.its_edge_contract,
+            frozen: false,
+        }
+    }
 }
 
 #[cw_serde]
@@ -108,7 +120,6 @@ pub struct TokenConfig {
 }
 
 const CONFIG: Item<Config> = Item::new("config");
-const ITS_CONTRACTS: Map<&ChainNameRaw, Address> = Map::new("its_contracts");
 const CHAIN_CONFIGS: Map<&ChainNameRaw, ChainConfig> = Map::new("chain_configs");
 const TOKEN_INSTANCE: Map<&(ChainNameRaw, TokenId), TokenInstance> = Map::new("token_instance");
 const TOKEN_CONFIGS: Map<&TokenId, TokenConfig> = Map::new("token_configs");
@@ -144,28 +155,36 @@ pub fn load_chain_config(
 pub fn save_chain_config(
     storage: &mut dyn Storage,
     chain: &ChainNameRaw,
-    max_uint: nonempty::Uint256,
-    max_target_decimals: u8,
+    config: impl Into<ChainConfig>,
 ) -> Result<(), Error> {
     CHAIN_CONFIGS
-        .save(
-            storage,
-            chain,
-            &ChainConfig {
-                max_uint,
-                max_target_decimals,
-                frozen: false,
-            },
-        )
+        .save(storage, chain, &config.into())
         .change_context(Error::Storage)
+}
+
+pub fn update_its_contract(
+    storage: &mut dyn Storage,
+    chain: &ChainNameRaw,
+    its_address: Address,
+) -> Result<ChainConfig, Error> {
+    CHAIN_CONFIGS
+        .update(storage, chain, |config| match config {
+            Some(config) => Ok(ChainConfig {
+                its_address,
+                ..config
+            }),
+            None => Err(StdError::not_found("config not found")),
+        })
+        .change_context(Error::ChainNotFound(chain.to_owned()))
 }
 
 pub fn may_load_its_contract(
     storage: &dyn Storage,
     chain: &ChainNameRaw,
 ) -> Result<Option<Address>, Error> {
-    ITS_CONTRACTS
+    CHAIN_CONFIGS
         .may_load(storage, chain)
+        .map(|res| res.map(|config| config.its_address))
         .change_context(Error::Storage)
 }
 
@@ -175,38 +194,15 @@ pub fn load_its_contract(storage: &dyn Storage, chain: &ChainNameRaw) -> Result<
         .ok_or_else(|| report!(Error::ItsContractNotFound(chain.clone())))
 }
 
-pub fn save_its_contract(
-    storage: &mut dyn Storage,
-    chain: &ChainNameRaw,
-    address: &Address,
-) -> Result<(), Error> {
-    ensure!(
-        may_load_its_contract(storage, chain)?.is_none(),
-        Error::ItsContractAlreadyRegistered(chain.clone())
-    );
-
-    ITS_CONTRACTS
-        .save(storage, chain, address)
-        .change_context(Error::Storage)
-}
-
-pub fn remove_its_contract(storage: &mut dyn Storage, chain: &ChainNameRaw) -> Result<(), Error> {
-    ensure!(
-        may_load_its_contract(storage, chain)?.is_some(),
-        Error::ItsContractNotFound(chain.clone())
-    );
-
-    ITS_CONTRACTS.remove(storage, chain);
-
-    Ok(())
-}
-
 pub fn load_all_its_contracts(
     storage: &dyn Storage,
 ) -> Result<HashMap<ChainNameRaw, Address>, Error> {
-    ITS_CONTRACTS
+    CHAIN_CONFIGS
         .range(storage, None, None, cosmwasm_std::Order::Ascending)
-        .map(|res| res.change_context(Error::Storage))
+        .map(|res| {
+            res.map(|(chain, config)| (chain, config.its_address))
+                .change_context(Error::Storage)
+        })
         .collect::<Result<HashMap<_, _>, _>>()
 }
 
@@ -324,8 +320,26 @@ mod tests {
             HashMap::new()
         );
 
-        assert_ok!(save_its_contract(deps.as_mut().storage, &chain1, &address1));
-        assert_ok!(save_its_contract(deps.as_mut().storage, &chain2, &address2));
+        assert_ok!(save_chain_config(
+            deps.as_mut().storage,
+            &chain1.clone(),
+            msg::ChainConfig {
+                chain: chain1.clone(),
+                its_edge_contract: address1.clone(),
+                max_uint: Uint256::MAX.try_into().unwrap(),
+                max_target_decimals: 16u8
+            }
+        ));
+        assert_ok!(save_chain_config(
+            deps.as_mut().storage,
+            &chain2.clone(),
+            msg::ChainConfig {
+                chain: chain2.clone(),
+                its_edge_contract: address2.clone(),
+                max_uint: Uint256::MAX.try_into().unwrap(),
+                max_target_decimals: 16u8
+            }
+        ));
         assert_eq!(
             assert_ok!(load_its_contract(deps.as_ref().storage, &chain1)),
             address1
