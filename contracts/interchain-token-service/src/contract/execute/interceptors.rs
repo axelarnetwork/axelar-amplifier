@@ -236,12 +236,12 @@ fn destination_amount(
     let destination_token = try_load_token_instance(storage, destination_chain.clone(), token_id)?;
 
     let (source_decimals, destination_decimals) =
-        match (source_token.decimals, destination_token.decimals) {
-            (source_decimals, destination_decimals) if source_decimals == destination_decimals => {
-                return Ok(source_amount)
-            }
-            (source_decimals, destination_decimals) => (source_decimals, destination_decimals),
-        };
+        (source_token.decimals, destination_token.decimals);
+
+    if source_decimals == destination_decimals {
+        return Ok(source_amount);
+    }
+
     let destination_max_uint = state::load_chain_config(storage, destination_chain)
         .change_context(Error::State)?
         .max_uint;
