@@ -35,6 +35,10 @@ ethers-core = "2.0.14"
 events = { version = "^1.0.0", path = "packages/events" }
 events-derive = { version = "^1.0.0", path = "packages/events-derive" }
 evm-gateway = { version = "^1.0.0", path = "packages/evm-gateway" }
+xrpl-types = { version = "^1.0.0", path = "packages/xrpl-types" }
+xrpl-multisig-prover = { version = "^0.1.0", path = "contracts/xrpl-multisig-prover" }
+xrpl-voting-verifier = { version = "^1.0.0", path = "contracts/xrpl-voting-verifier" }
+xrpl-gateway = { version = "^1.0.0", path = "contracts/xrpl-gateway" }
 gateway = { version = "^1.0.0", path = "contracts/gateway" }
 gateway-api = { version = "^1.0.0", path = "packages/gateway-api" }
 goldie = { version = "0.5" }

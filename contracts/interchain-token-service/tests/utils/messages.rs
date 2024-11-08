@@ -1,6 +1,6 @@
 use cosmwasm_std::HexBinary;
 use interchain_token_service::{HubMessage, Message, TokenId};
-use router_api::{Address, ChainNameRaw, CrossChainId};
+use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
 
 pub fn dummy_message() -> Message {
     Message::InterchainTransfer {

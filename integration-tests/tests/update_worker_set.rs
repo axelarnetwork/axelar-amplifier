@@ -1,8 +1,12 @@
-use cosmwasm_std::Addr;
+use router_api::ChainName;
+use cosmwasm_std::{Addr, HexBinary};
 use cw_multi_test::Executor;
+use multisig::key::KeyType;
 use integration_tests::contract::Contract;
 use multisig_prover::msg::ExecuteMsg;
 use service_registry::WeightedVerifier;
+use test_utils::Verifier;
+use xrpl_types::msg::XRPLMessage;
 use service_registry_api::msg::QueryMsg as ServiceRegistryQueryMsg;
 
 pub mod test_utils;
@@ -82,9 +86,10 @@ fn verifier_set_can_be_initialized_and_then_manually_updated() {
     );
 
     // do voting
-    test_utils::vote_true_for_verifier_set(
+    test_utils::vote_success(
         &mut protocol.app,
         &ethereum.voting_verifier,
+        1,
         &new_verifiers,
         poll_id,
     );
@@ -99,8 +104,106 @@ fn verifier_set_can_be_initialized_and_then_manually_updated() {
         &ethereum.multisig_prover,
     );
 
+    let new_verifier_set = test_utils::verifier_set_from_prover(&mut protocol.app, &ethereum.multisig_prover);
+
+    assert_eq!(new_verifier_set, expected_new_verifier_set);
+}
+
+#[test]
+fn xrpl_verifier_set_can_be_initialized_and_then_manually_updated() {
+    let chains: Vec<ChainName> = vec![
+        "Ethereum".to_string().try_into().unwrap(),
+        "Axelarnet".to_string().try_into().unwrap(),
+        "XRPL".to_string().try_into().unwrap(),
+    ];
+    let test_utils::XRPLDestinationTestCase {
+        mut protocol,
+        xrpl,
+        verifiers,
+        min_verifier_bond,
+        ..
+    } = test_utils::setup_xrpl_destination_test_case();
+    let initial_verifiers = verifiers; // TODO
+
+    let simulated_verifier_set = test_utils::xrpl_verifiers_to_verifier_set(&mut protocol, &initial_verifiers);
+
+    let verifier_set =
+        test_utils::get_xrpl_verifier_set_from_prover(&mut protocol.app, &xrpl.multisig_prover);
+
+    assert_eq!(verifier_set, simulated_verifier_set);
+
+    // add third and fourth verifier
+    let mut new_verifiers = Vec::new();
+    let new_verifier = Verifier {
+        addr: Addr::unchecked("verifier3"),
+        supported_chains: chains.clone(),
+        key_pair: test_utils::generate_key(2),
+    };
+    new_verifiers.push(new_verifier);
+    let new_verifier = Verifier {
+        addr: Addr::unchecked("verifier4"),
+        supported_chains: chains.clone(),
+        key_pair: test_utils::generate_key(3),
+    };
+    new_verifiers.push(new_verifier);
+
+    let expected_new_verifier_set = test_utils::xrpl_verifiers_to_verifier_set(&mut protocol, &new_verifiers);
+
+    test_utils::register_verifiers(&mut protocol, &new_verifiers, min_verifier_bond);
+
+    // remove old verifiers
+    test_utils::deregister_verifiers(&mut protocol, &initial_verifiers);
+
+    let session_id = test_utils::construct_xrpl_signer_list_set_proof_and_sign(
+        &mut protocol,
+        &xrpl.multisig_prover,
+        &initial_verifiers,
+    );
+
+    let proof = test_utils::get_xrpl_proof(
+        &mut protocol.app,
+        &xrpl.multisig_prover,
+        &session_id,
+    );
+    assert!(matches!(
+        proof,
+        xrpl_multisig_prover::msg::ProofResponse::Completed { .. }
+    ));
+    println!("SignerListSet proof: {:?}", proof);
+
+    let proof_msgs = vec![XRPLMessage::ProverMessage(
+        HexBinary::from_hex("166c19755f7dc98738709f1336992b95dae1871fd2af26bfe1b125c0250ffeef")
+        .unwrap()
+        .as_slice()
+        .try_into()
+        .unwrap(),
+    )];
+
+    let (poll_id, expiry) = test_utils::verify_xrpl_messages(
+        &mut protocol.app,
+        &xrpl.gateway,
+        &proof_msgs
+    );
+    test_utils::vote_success(
+        &mut protocol.app,
+        &xrpl.voting_verifier,
+        proof_msgs.len(),
+        &new_verifiers,
+        poll_id,
+    );
+    test_utils::advance_at_least_to_height(&mut protocol.app, expiry);
+    test_utils::end_poll(&mut protocol.app, &xrpl.voting_verifier, poll_id);
+
+    test_utils::xrpl_update_tx_status(
+        &mut protocol.app,
+        &xrpl.multisig_prover,
+        initial_verifiers.iter().map(|w| (KeyType::Ecdsa, HexBinary::from(w.key_pair.encoded_verifying_key())).try_into().unwrap()).collect(),
+        session_id,
+        proof_msgs[0].tx_id(),
+    );
+
     let new_verifier_set =
-        test_utils::verifier_set_from_prover(&mut protocol.app, &ethereum.multisig_prover);
+        test_utils::get_xrpl_verifier_set_from_prover(&mut protocol.app, &xrpl.multisig_prover);
     assert_eq!(new_verifier_set, expected_new_verifier_set);
 }
 

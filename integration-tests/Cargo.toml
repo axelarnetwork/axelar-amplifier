@@ -31,6 +31,7 @@ optimize = """docker run --rm -v "$(pwd)":/code \
 anyhow = { workspace = true }
 axelar-core-std = { workspace = true }
 axelar-wasm-std = { workspace = true }
+axelarnet-gateway = { workspace = true }
 coordinator = { workspace = true }
 cosmwasm-std = { workspace = true }
 cw-multi-test = "0.15.1"
@@ -40,6 +41,7 @@ gateway-api = { workspace = true }
 k256 = { workspace = true }
 multisig = { workspace = true }
 multisig-prover = { workspace = true }
+xrpl-multisig-prover = { workspace = true }
 rand = { workspace = true }
 report = { workspace = true }
 rewards = { workspace = true }
@@ -53,6 +55,11 @@ service-registry-api = { workspace = true }
 sha3 = { workspace = true }
 tofn = { workspace = true }
 voting-verifier = { workspace = true }
+xrpl-voting-verifier = { workspace = true }
+xrpl-gateway = { workspace = true }
+xrpl-types = { workspace = true }
+interchain-token-service = { workspace = true }
+ethers-core = { workspace = true }
 
 [lints]
 workspace = true

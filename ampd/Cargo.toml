@@ -51,6 +51,7 @@ serde = { version = "1.0.147", features = ["derive"] }
 serde_json = { workspace = true }
 serde_with = "3.2.0"
 service-registry-api = { workspace = true }
+schemars = { workspace = true }
 sha3 = { workspace = true }
 stellar = { workspace = true }
 stellar-rs = "0.3.2"
@@ -81,6 +82,8 @@ url = "2.3.1"
 valuable = { version = "0.1.0", features = ["derive"] }
 valuable-serde = { version = "0.1.0", features = ["std"] }
 voting-verifier = { workspace = true }
+xrpl_http_client = { version = "0.15.0" }
+xrpl-types = { workspace = true }
 
 [dev-dependencies]
 ed25519-dalek = { workspace = true, features = ["rand_core"] }
@@ -91,6 +94,7 @@ multisig = { workspace = true, features = ["test", "library"] }
 rand = { workspace = true }
 random-string = "1.0.0"
 tokio = { workspace = true, features = ["test-util"] }
+xrpl-multisig-prover = { workspace = true }
 
 [build-dependencies]
 tonic-build = "0.8.3"

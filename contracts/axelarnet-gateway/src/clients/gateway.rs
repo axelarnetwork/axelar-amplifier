@@ -171,7 +171,7 @@ mod test {
         let msg = InstantiateMsg {
             chain_name: "source-chain".parse().unwrap(),
             router_address: "router".to_string(),
-            nexus: "nexus".to_string(),
+            nexus_gateway: "nexus-gateway".to_string(),
         };
 
         instantiate(deps, env, info, msg.clone()).unwrap();

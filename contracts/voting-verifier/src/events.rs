@@ -142,7 +142,7 @@ pub struct VerifierSetConfirmation {
 }
 
 /// If parsing is successful, returns (tx_id, event_index). Otherwise returns ContractError::InvalidMessageID
-fn parse_message_id(
+pub fn parse_message_id(
     message_id: &str,
     msg_id_format: &MessageIdFormat,
 ) -> Result<(nonempty::String, u32), ContractError> {

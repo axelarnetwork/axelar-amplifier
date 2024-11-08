@@ -15,7 +15,7 @@ fn chain_can_be_freezed_unfreezed() {
         ..
     } = test_utils::setup_test_case();
 
-    let msgs = vec![Message {
+    let msgs: Vec<Message> = vec![Message {
         cc_id: CrossChainId::new(
             chain1.chain_name.clone(),
             "0x88d7956fd7b6fcec846548d83bd25727f2585b4be3add21438ae9fbb34625924-3",
@@ -44,10 +44,10 @@ fn chain_can_be_freezed_unfreezed() {
     let (poll_id, expiry) = test_utils::verify_messages(&mut protocol.app, &chain1.gateway, &msgs);
 
     // do voting
-    test_utils::vote_success_for_all_messages(
+    test_utils::vote_success(
         &mut protocol.app,
         &chain1.voting_verifier,
-        &msgs,
+        msgs.len(),
         &verifiers,
         poll_id,
     );

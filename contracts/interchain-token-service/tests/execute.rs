@@ -98,7 +98,7 @@ fn execute_hub_message_succeeds() {
     .unwrap();
     utils::register_its_contract(
         deps.as_mut(),
-        destination_its_chain.clone(),
+        destination_its_chain.clone().into(),
         destination_its_contract.clone(),
     )
     .unwrap();
@@ -130,7 +130,7 @@ fn execute_hub_message_succeeds() {
         .into_iter()
         .map(|message| {
             let hub_message = HubMessage::SendToHub {
-                destination_chain: destination_its_chain.clone(),
+                destination_chain: destination_its_chain.clone().into(),
                 message,
             };
             let payload = hub_message.clone().abi_encode();
@@ -157,7 +157,7 @@ fn execute_hub_message_succeeds() {
 
             let expected_event = Event::MessageReceived {
                 cc_id: router_message.cc_id.clone(),
-                destination_chain: destination_its_chain.clone(),
+                destination_chain: destination_its_chain.clone().into(),
                 message: hub_message.message().clone(),
             };
             assert_eq!(

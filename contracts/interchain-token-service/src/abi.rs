@@ -61,7 +61,7 @@ sol! {
     }
 }
 
-#[derive(thiserror::Error, Debug, IntoContractError)]
+#[derive(thiserror::Error, Debug, PartialEq, IntoContractError)]
 pub enum Error {
     #[error("insufficient message length")]
     InsufficientMessageLength,
@@ -316,7 +316,7 @@ mod tests {
                 },
             },
             HubMessage::ReceiveFromHub {
-                source_chain: remote_chain.clone(),
+                source_chain: remote_chain.clone().into(),
                 message: Message::InterchainTransfer {
                     token_id: [0u8; 32].into(),
                     source_address: from_hex("00"),
@@ -326,7 +326,7 @@ mod tests {
                 },
             },
             HubMessage::ReceiveFromHub {
-                source_chain: remote_chain.clone(),
+                source_chain: remote_chain.clone().into(),
                 message: Message::InterchainTransfer {
                     token_id: [255u8; 32].into(),
                     source_address: from_hex("4F4495243837681061C4743b74B3eEdf548D56A5"),
@@ -457,7 +457,7 @@ mod tests {
                 },
             },
             HubMessage::ReceiveFromHub {
-                source_chain: remote_chain.clone(),
+                source_chain: remote_chain.clone().into(),
                 message: Message::DeployInterchainToken {
                     token_id: [0u8; 32].into(),
                     name: "t".try_into().unwrap(),
@@ -467,7 +467,7 @@ mod tests {
                 },
             },
             HubMessage::ReceiveFromHub {
-                source_chain: remote_chain.clone(),
+                source_chain: remote_chain.clone().into(),
                 message: Message::DeployInterchainToken {
                     token_id: [1u8; 32].into(),
                     name: "Test Token".try_into().unwrap(),
@@ -477,7 +477,7 @@ mod tests {
                 },
             },
             HubMessage::ReceiveFromHub {
-                source_chain: remote_chain.clone(),
+                source_chain: remote_chain.clone().into(),
                 message: Message::DeployInterchainToken {
                     token_id: [0u8; 32].into(),
                     name: "Unicode Token 🪙".try_into().unwrap(),
@@ -524,7 +524,7 @@ mod tests {
                 },
             },
             HubMessage::ReceiveFromHub {
-                source_chain: remote_chain.clone(),
+                source_chain: remote_chain.clone().into(),
                 message: Message::DeployTokenManager {
                     token_id: [0u8; 32].into(),
                     token_manager_type: TokenManagerType::NativeInterchainToken,
@@ -532,7 +532,7 @@ mod tests {
                 },
             },
             HubMessage::ReceiveFromHub {
-                source_chain: remote_chain.clone(),
+                source_chain: remote_chain.clone().into(),
                 message: Message::DeployTokenManager {
                     token_id: [1u8; 32].into(),
                     token_manager_type: TokenManagerType::Gateway,

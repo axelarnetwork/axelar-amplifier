@@ -1,3 +1,4 @@
+use axelar_wasm_std::voting::{Vote, PollId};
 use axelar_wasm_std::MajorityThreshold;
 use cosmwasm_std::Addr;
 use cw_multi_test::{ContractWrapper, Executor};
@@ -67,5 +68,23 @@ impl Contract for VotingVerifierContract {
 
     fn contract_address(&self) -> Addr {
         self.contract_addr.clone()
+    }
+}
+
+pub trait VotingContract: Contract {
+    fn construct_vote_message(poll_id: PollId, messages_len: usize, vote: Vote) -> Self::ExMsg;
+    fn construct_end_poll_message(poll_id: PollId) -> Self::ExMsg;
+}
+
+impl VotingContract for VotingVerifierContract {
+    fn construct_vote_message(poll_id: PollId, messages_len: usize, vote: Vote) -> Self::ExMsg {
+        voting_verifier::msg::ExecuteMsg::Vote {
+            poll_id,
+            votes: vec![vote; messages_len],
+        }
+    }
+
+    fn construct_end_poll_message(poll_id: PollId) -> Self::ExMsg {
+        voting_verifier::msg::ExecuteMsg::EndPoll { poll_id }
     }
 }

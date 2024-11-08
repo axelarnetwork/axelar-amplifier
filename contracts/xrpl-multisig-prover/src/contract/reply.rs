@@ -1,0 +1,99 @@
+use cosmwasm_std::{from_json, Attribute, DepsMut, HexBinary, Reply, Response, Uint64};
+use cw_utils::{parse_reply_execute_data, MsgExecuteContractResponse};
+use xrpl_types::types::XRPLUnsignedTx;
+
+use crate::error::ContractError;
+use crate::events::Event;
+use crate::xrpl_serialize::XRPLSerialize;
+use crate::state::{
+    CONFIG, MultisigSession, MESSAGE_ID_TO_MULTISIG_SESSION, MULTISIG_SESSION_ID_TO_TX_HASH, REPLY_MESSAGE_ID, REPLY_TX_HASH, TRANSACTION_INFO
+};
+
+pub fn start_multisig_reply(deps: DepsMut, reply: Reply) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+
+    match parse_reply_execute_data(reply.clone()) {
+        Ok(MsgExecuteContractResponse { data: Some(data) }) => {
+            let tx_hash = REPLY_TX_HASH.load(deps.storage)?;
+
+            let multisig_session_id: Uint64 =
+                from_json(data).map_err(|_| ContractError::InvalidContractReply {
+                    reason: "invalid multisig session ID".to_string(),
+                })?;
+
+            MULTISIG_SESSION_ID_TO_TX_HASH.save(
+                deps.storage,
+                multisig_session_id.u64(),
+                &tx_hash,
+            )?;
+
+            let tx_info = TRANSACTION_INFO.load(deps.storage, &tx_hash)?;
+
+            let res = reply.result.unwrap();
+
+            let signing_started_attributes: Vec<_> = res
+                .events
+                .into_iter()
+                .filter(|e| e.ty == "wasm-signing_started")
+                .flat_map(|e| e.attributes)
+                .collect();
+
+            let expires_at: u64 = signing_started_attributes
+                .clone()
+                .into_iter()
+                .filter(|a| a.key.eq("expires_at"))
+                .next()
+                .expect("violated invariant: wasm-signing_started event missing expires_at")
+                .value
+                .parse()
+                .expect("violated invariant: expires_at is not a number");
+
+            match REPLY_MESSAGE_ID.may_load(deps.storage)? {
+                Some(message_id) => {
+                    MESSAGE_ID_TO_MULTISIG_SESSION.save(
+                        deps.storage,
+                        &message_id,
+                        &MultisigSession {
+                            id: multisig_session_id.u64(),
+                            expires_at,
+                        },
+                    )?;
+                    REPLY_MESSAGE_ID.remove(deps.storage);
+                }
+                None if matches!(tx_info.unsigned_contents, XRPLUnsignedTx::Payment(_)) => {
+                    panic!("No reply message ID found for Payment")
+                }
+                None => (),
+            }
+
+            let xrpl_signing_started_event_attributes: Vec<Attribute> = signing_started_attributes
+                .into_iter()
+                .filter(|a| !a.key.starts_with('_') && a.key != "msg")
+                .collect();
+
+            let xrpl_signing_started_event = cosmwasm_std::Event::new("xrpl_signing_started")
+                .add_attributes(xrpl_signing_started_event_attributes)
+                .add_attribute(
+                    "unsigned_tx",
+                    HexBinary::from(tx_info.unsigned_contents.xrpl_serialize()?).to_hex(),
+                );
+
+            Ok(Response::new()
+                .add_event(
+                    Event::ProofUnderConstruction {
+                        destination_chain: config.chain_name,
+                        tx_hash,
+                        multisig_session_id,
+                    }
+                    .into(),
+                )
+                .add_event(xrpl_signing_started_event))
+        }
+        Ok(MsgExecuteContractResponse { data: None }) => Err(ContractError::InvalidContractReply {
+            reason: "no data".to_string(),
+        }),
+        Err(_) => {
+            unreachable!("violated invariant: replied failed submessage with ReplyOn::Success")
+        }
+    }
+}

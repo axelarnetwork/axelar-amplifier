@@ -1,7 +1,9 @@
 use std::collections::HashMap;
 use std::convert::TryInto;
+use std::str::FromStr;
 
 use async_trait::async_trait;
+use router_api::ChainName;
 use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmrs::tx::Msg;
 use cosmrs::Any;
@@ -32,6 +34,7 @@ struct SigningStartedEvent {
     #[serde(with = "hex")]
     msg: MessageDigest,
     expires_at: u64,
+    chain: ChainName,
 }
 
 fn deserialize_public_keys<'de, D>(
@@ -124,6 +127,7 @@ where
             pub_keys,
             msg,
             expires_at,
+            chain,
         } = match event.try_into() as error_stack::Result<_, _> {
             Err(report)
                 if matches!(
@@ -135,6 +139,14 @@ where
             }
             result => result.change_context(DeserializeEvent)?,
         };
+
+        if chain.eq(&ChainName::from_str("XRPL").unwrap()) {
+            info!(
+                session_id = session_id.to_string(),
+                "skipping XRP signing session"
+            );
+            return Ok(vec![]);
+        }
 
         info!(
             session_id = session_id,

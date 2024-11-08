@@ -21,7 +21,7 @@ fn invalid_router_address() {
     let msg = InstantiateMsg {
         chain_name: params::AXELARNET.parse().unwrap(),
         router_address: "".to_string(),
-        nexus: params::NEXUS.parse().unwrap(),
+        nexus_gateway: params::NEXUS_GATEWAY.parse().unwrap(),
     };
 
     assert_err_contains!(
@@ -32,13 +32,13 @@ fn invalid_router_address() {
 }
 
 #[test]
-fn invalid_nexus_module_address() {
+fn invalid_nexus_gateway_address() {
     let mut deps = mock_dependencies();
 
     let msg = InstantiateMsg {
         chain_name: params::AXELARNET.parse().unwrap(),
         router_address: params::ROUTER.parse().unwrap(),
-        nexus: "".to_string(),
+        nexus_gateway: "".to_string(),
     };
 
     assert_err_contains!(
