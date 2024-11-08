@@ -10,7 +10,7 @@ use cosmwasm_std::{
     from_json, to_json_binary, Addr, DepsMut, HexBinary, MemoryStorage, OwnedDeps, Response,
     Uint256, WasmQuery,
 };
-use interchain_token_service::msg::ExecuteMsg;
+use interchain_token_service::msg::{self, ExecuteMsg};
 use interchain_token_service::{contract, HubMessage};
 use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
 
@@ -42,49 +42,6 @@ pub fn execute_hub_message(
     message: HubMessage,
 ) -> Result<Response, ContractError> {
     execute(deps, cc_id, source_address, message.abi_encode())
-}
-
-pub fn register_its_contract(
-    deps: DepsMut,
-    chain: ChainNameRaw,
-    address: Address,
-) -> Result<Response, ContractError> {
-    contract::execute(
-        deps,
-        mock_env(),
-        mock_info(params::GOVERNANCE, &[]),
-        ExecuteMsg::RegisterItsContract { chain, address },
-    )
-}
-
-pub fn deregister_its_contract(
-    deps: DepsMut,
-    chain: ChainNameRaw,
-) -> Result<Response, ContractError> {
-    contract::execute(
-        deps,
-        mock_env(),
-        mock_info(params::ADMIN, &[]),
-        ExecuteMsg::DeregisterItsContract { chain },
-    )
-}
-
-pub fn set_chain_config(
-    deps: DepsMut,
-    chain: ChainNameRaw,
-    max_uint: nonempty::Uint256,
-    max_target_decimals: u8,
-) -> Result<Response, ContractError> {
-    contract::execute(
-        deps,
-        mock_env(),
-        mock_info(params::GOVERNANCE, &[]),
-        ExecuteMsg::SetChainConfig {
-            chain,
-            max_uint,
-            max_target_decimals,
-        },
-    )
 }
 
 pub fn make_deps() -> OwnedDeps<MemoryStorage, MockApi, MockQuerier<AxelarQueryMsg>> {
@@ -127,18 +84,90 @@ pub fn make_deps() -> OwnedDeps<MemoryStorage, MockApi, MockQuerier<AxelarQueryM
 }
 
 pub fn register_chain(
-    deps: &mut OwnedDeps<MemoryStorage, MockApi, MockQuerier<AxelarQueryMsg>>,
+    deps: DepsMut,
     chain: ChainNameRaw,
-    its_contract: Address,
+    its_edge_contract: Address,
+    max_uint: nonempty::Uint256,
+    max_target_decimals: u8,
+) -> Result<Response, ContractError> {
+    register_chains(
+        deps,
+        vec![msg::ChainConfig {
+            chain,
+            its_edge_contract,
+            max_uint,
+            max_target_decimals,
+        }],
+    )
+}
+
+pub fn register_chains(
+    deps: DepsMut,
+    chains: Vec<msg::ChainConfig>,
+) -> Result<Response, ContractError> {
+    contract::execute(
+        deps,
+        mock_env(),
+        mock_info(params::GOVERNANCE, &[]),
+        ExecuteMsg::RegisterChains { chains },
+    )
+}
+
+pub fn update_chain(
+    deps: DepsMut,
+    chain: ChainNameRaw,
+    its_edge_contract: Address,
+) -> Result<Response, ContractError> {
+    contract::execute(
+        deps,
+        mock_env(),
+        mock_info(params::GOVERNANCE, &[]),
+        ExecuteMsg::UpdateChain {
+            chain,
+            its_edge_contract,
+        },
+    )
+}
+
+pub fn setup_with_chain_configs(
+    source_max_uint: nonempty::Uint256,
+    source_max_target_decimals: u8,
+    destination_max_uint: nonempty::Uint256,
+    destination_max_target_decimals: u8,
+) -> (
+    OwnedDeps<MemoryStorage, MockApi, MockQuerier<AxelarQueryMsg>>,
+    TestMessage,
 ) {
-    register_its_contract(deps.as_mut(), chain.clone(), its_contract).unwrap();
-    set_chain_config(
+    let mut deps = make_deps();
+    instantiate_contract(deps.as_mut()).unwrap();
+
+    let TestMessage {
+        source_its_chain,
+        source_its_contract,
+        destination_its_chain,
+        destination_its_contract,
+        ..
+    } = TestMessage::dummy();
+
+    register_chain(
         deps.as_mut(),
-        chain,
-        Uint256::MAX.try_into().unwrap(),
-        u8::MAX,
+        source_its_chain,
+        source_its_contract,
+        source_max_uint,
+        source_max_target_decimals,
     )
     .unwrap();
+
+    register_chain(
+        deps.as_mut(),
+        destination_its_chain,
+        destination_its_contract,
+        destination_max_uint,
+        destination_max_target_decimals,
+    )
+    .unwrap();
+
+    (deps, TestMessage::dummy())
 }
 
 pub fn setup() -> (
@@ -157,15 +186,21 @@ pub fn setup() -> (
     } = TestMessage::dummy();
 
     register_chain(
-        &mut deps,
+        deps.as_mut(),
         source_its_chain.clone(),
         source_its_contract.clone(),
-    );
+        Uint256::MAX.try_into().unwrap(),
+        u8::MAX,
+    )
+    .unwrap();
     register_chain(
-        &mut deps,
+        deps.as_mut(),
         destination_its_chain.clone(),
         destination_its_contract.clone(),
-    );
+        Uint256::MAX.try_into().unwrap(),
+        u8::MAX,
+    )
+    .unwrap();
 
     (deps, TestMessage::dummy())
 }

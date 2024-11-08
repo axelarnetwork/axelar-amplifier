@@ -2,7 +2,7 @@ use axelar_wasm_std::event::EventExt;
 use router_api::{Address, ChainNameRaw, CrossChainId};
 
 use crate::primitives::Message;
-use crate::{DeployInterchainToken, DeployTokenManager, InterchainTransfer};
+use crate::{DeployInterchainToken, InterchainTransfer};
 
 pub enum Event {
     MessageReceived {
@@ -80,17 +80,6 @@ fn make_message_event(
             .add_attribute("symbol", symbol)
             .add_attribute("decimals", decimals.to_string())
             .add_attribute_if_some("minter", minter.map(|minter| minter.to_string())),
-        Message::DeployTokenManager(DeployTokenManager {
-            token_id,
-            token_manager_type,
-            params,
-        }) => event
-            .add_attribute("token_id", token_id.to_string())
-            .add_attribute(
-                "token_manager_type",
-                token_manager_type.as_ref().to_string(),
-            )
-            .add_attribute("params", params.to_string()),
     }
 }
 
@@ -100,10 +89,7 @@ mod test {
     use router_api::CrossChainId;
 
     use crate::events::Event;
-    use crate::{
-        DeployInterchainToken, DeployTokenManager, InterchainTransfer, Message, TokenId,
-        TokenManagerType,
-    };
+    use crate::{DeployInterchainToken, InterchainTransfer, Message, TokenId};
 
     #[test]
     fn message_received_with_all_attributes() {
@@ -122,12 +108,6 @@ mod test {
                 symbol: "TST".try_into().unwrap(),
                 decimals: 18,
                 minter: Some(HexBinary::from([1; 32]).try_into().unwrap()),
-            }
-            .into(),
-            DeployTokenManager {
-                token_id: TokenId::new([1; 32]),
-                token_manager_type: TokenManagerType::MintBurn,
-                params: HexBinary::from([1, 2, 3, 4]).try_into().unwrap(),
             }
             .into(),
         ];
@@ -181,12 +161,6 @@ mod test {
                 symbol: "T".try_into().unwrap(),
                 decimals: 0,
                 minter: None,
-            }
-            .into(),
-            DeployTokenManager {
-                token_id: TokenId::new([1; 32]),
-                token_manager_type: TokenManagerType::MintBurn,
-                params: HexBinary::from([0u8]).try_into().unwrap(),
             }
             .into(),
         ];

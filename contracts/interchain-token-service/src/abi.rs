@@ -16,7 +16,7 @@ sol! {
     enum MessageType {
         InterchainTransfer,
         DeployInterchainToken,
-        DeployTokenManager,
+        DeployTokenManager, // note, this case is not supported by the ITS hub
         SendToHub,
         ReceiveFromHub,
     }
@@ -37,13 +37,6 @@ sol! {
         string symbol;
         uint8 decimals;
         bytes minter;
-    }
-
-    struct DeployTokenManager {
-        uint256 messageType;
-        bytes32 tokenId;
-        uint256 tokenManagerType;
-        bytes params;
     }
 
     struct SendToHub {
@@ -110,17 +103,6 @@ impl Message {
                 minter: into_vec(minter).into(),
             }
             .abi_encode_params(),
-            Message::DeployTokenManager(primitives::DeployTokenManager {
-                token_id,
-                token_manager_type,
-                params,
-            }) => DeployTokenManager {
-                messageType: MessageType::DeployTokenManager.into(),
-                tokenId: FixedBytes::<32>::new(token_id.into()),
-                tokenManagerType: token_manager_type.into(),
-                params: Vec::<u8>::from(params).into(),
-            }
-            .abi_encode_params(),
         }
         .into()
     }
@@ -161,24 +143,6 @@ impl Message {
                     symbol: decoded.symbol.try_into().map_err(Error::NonEmpty)?,
                     decimals: decoded.decimals,
                     minter: from_vec(decoded.minter.into())?,
-                }
-                .into()
-            }
-            MessageType::DeployTokenManager => {
-                let decoded = DeployTokenManager::abi_decode_params(payload, true)
-                    .map_err(Error::AbiDecodeFailed)?;
-
-                let token_manager_type = u8::try_from(decoded.tokenManagerType)
-                    .change_context(Error::InvalidTokenManagerType)?
-                    .then(TokenManagerType::from_repr)
-                    .ok_or_else(|| Error::InvalidTokenManagerType)?;
-
-                primitives::DeployTokenManager {
-                    token_id: TokenId::new(decoded.tokenId.into()),
-                    token_manager_type,
-                    params: Vec::<u8>::from(decoded.params)
-                        .try_into()
-                        .map_err(Error::NonEmpty)?,
                 }
                 .into()
             }
@@ -286,8 +250,8 @@ mod tests {
     use router_api::ChainNameRaw;
 
     use super::{DeployInterchainToken, InterchainTransfer};
-    use crate::abi::{DeployTokenManager, Error, MessageType, SendToHub};
-    use crate::{primitives, HubMessage, TokenManagerType};
+    use crate::abi::{Error, MessageType, SendToHub};
+    use crate::{primitives, HubMessage};
 
     fn from_hex(hex: &str) -> nonempty::HexBinary {
         HexBinary::from_hex(hex).unwrap().try_into().unwrap()
@@ -406,13 +370,6 @@ mod tests {
                 minter: vec![].into(),
             }
             .abi_encode_params(),
-            DeployTokenManager {
-                messageType: MessageType::DeployTokenManager.into(),
-                tokenId: FixedBytes::<32>::new([1u8; 32]),
-                tokenManagerType: TokenManagerType::NativeInterchainToken.into(),
-                params: vec![].into(),
-            }
-            .abi_encode_params(),
         ];
 
         for message in test_cases {
@@ -516,69 +473,11 @@ mod tests {
     }
 
     #[test]
-    fn deploy_token_manager_encode_decode() {
-        let remote_chain = ChainNameRaw::from_str("chain").unwrap();
-
-        let cases = vec![
-            HubMessage::SendToHub {
-                destination_chain: remote_chain.clone(),
-                message: primitives::DeployTokenManager {
-                    token_id: [0u8; 32].into(),
-                    token_manager_type: TokenManagerType::NativeInterchainToken,
-                    params: from_hex("00"),
-                }
-                .into(),
-            },
-            HubMessage::SendToHub {
-                destination_chain: remote_chain.clone(),
-                message: primitives::DeployTokenManager {
-                    token_id: [1u8; 32].into(),
-                    token_manager_type: TokenManagerType::Gateway,
-                    params: from_hex("1234"),
-                }
-                .into(),
-            },
-            HubMessage::ReceiveFromHub {
-                source_chain: remote_chain.clone(),
-                message: primitives::DeployTokenManager {
-                    token_id: [0u8; 32].into(),
-                    token_manager_type: TokenManagerType::NativeInterchainToken,
-                    params: from_hex("00"),
-                }
-                .into(),
-            },
-            HubMessage::ReceiveFromHub {
-                source_chain: remote_chain.clone(),
-                message: primitives::DeployTokenManager {
-                    token_id: [1u8; 32].into(),
-                    token_manager_type: TokenManagerType::Gateway,
-                    params: from_hex("1234"),
-                }
-                .into(),
-            },
-        ];
-
-        let encoded: Vec<_> = cases
-            .iter()
-            .map(|original| original.clone().abi_encode().to_hex())
-            .collect();
-
-        goldie::assert_json!(encoded);
-
-        for original in cases {
-            let encoded = original.clone().abi_encode();
-            let decoded = assert_ok!(HubMessage::abi_decode(&encoded));
-            assert_eq!(original, decoded);
-        }
-    }
-
-    #[test]
     fn invalid_hub_message_type() {
         let invalid_message_types = vec![
             u8::MIN,
             MessageType::InterchainTransfer as u8,
             MessageType::DeployInterchainToken as u8,
-            MessageType::DeployTokenManager as u8,
             MessageType::ReceiveFromHub as u8 + 1,
             u8::MAX,
         ];
@@ -601,7 +500,6 @@ mod tests {
         let invalid_message_types = vec![
             MessageType::SendToHub as u8,
             MessageType::ReceiveFromHub as u8,
-            MessageType::DeployTokenManager as u8 + 1,
             u8::MAX,
         ];
 
@@ -620,11 +518,13 @@ mod tests {
 
     #[test]
     fn invalid_destination_chain() {
-        let message = DeployTokenManager {
-            messageType: MessageType::DeployTokenManager.into(),
+        let message = DeployInterchainToken {
+            messageType: MessageType::DeployInterchainToken.into(),
             tokenId: FixedBytes::<32>::new([0u8; 32]),
-            tokenManagerType: TokenManagerType::NativeInterchainToken.into(),
-            params: vec![].into(),
+            name: "Test Token".into(),
+            symbol: "TST".into(),
+            decimals: 18,
+            minter: vec![].into(),
         };
 
         let payload = SendToHub {
@@ -636,26 +536,6 @@ mod tests {
 
         let result = HubMessage::abi_decode(&payload);
         assert_err_contains!(result, Error, Error::InvalidChainName);
-    }
-
-    #[test]
-    fn invalid_token_manager_type() {
-        let message = DeployTokenManager {
-            messageType: MessageType::DeployTokenManager.into(),
-            tokenId: FixedBytes::<32>::new([0u8; 32]),
-            tokenManagerType: U256::from(TokenManagerType::Gateway as u8 + 1),
-            params: vec![].into(),
-        };
-
-        let payload = SendToHub {
-            messageType: MessageType::SendToHub.into(),
-            destination_chain: "chain".into(),
-            message: message.abi_encode_params().into(),
-        }
-        .abi_encode_params();
-
-        let result = HubMessage::abi_decode(&payload);
-        assert_err_contains!(result, Error, Error::InvalidTokenManagerType);
     }
 
     #[test]
