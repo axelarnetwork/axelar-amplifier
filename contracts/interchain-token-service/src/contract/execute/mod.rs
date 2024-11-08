@@ -165,44 +165,36 @@ fn apply_to_transfer(
     storage: &mut dyn Storage,
     source_chain: ChainNameRaw,
     destination_chain: ChainNameRaw,
-    mut transfer: InterchainTransfer,
+    transfer: InterchainTransfer,
 ) -> Result<InterchainTransfer, Error> {
-    interceptors::subtract_supply_amount(storage, &source_chain, &transfer)
-        .and_then(|_| {
-            interceptors::apply_scaling_factor_to_amount(
-                storage,
-                &source_chain,
-                &destination_chain,
-                &mut transfer,
-            )
-        })
-        .and_then(|_| interceptors::add_supply_amount(storage, &destination_chain, &transfer))
-        .map(|_| transfer)
+    interceptors::subtract_supply_amount(storage, &source_chain, &transfer)?;
+    let transfer = interceptors::apply_scaling_factor_to_amount(
+        storage,
+        &source_chain,
+        &destination_chain,
+        transfer,
+    )?;
+    interceptors::add_supply_amount(storage, &destination_chain, &transfer)?;
+
+    Ok(transfer)
 }
 
 fn apply_to_token_deployment(
     storage: &mut dyn Storage,
     source_chain: &ChainNameRaw,
     destination_chain: &ChainNameRaw,
-    mut deploy_token: DeployInterchainToken,
+    deploy_token: DeployInterchainToken,
 ) -> Result<DeployInterchainToken, Error> {
-    interceptors::save_token_instance_for_source_chain(storage, source_chain, &deploy_token)
-        .and_then(|_| {
-            interceptors::calculate_scaling_factor(
-                storage,
-                source_chain,
-                destination_chain,
-                &mut deploy_token,
-            )
-        })
-        .and_then(|_| {
-            interceptors::save_token_instance_for_destination_chain(
-                storage,
-                destination_chain,
-                &deploy_token,
-            )
-        })
-        .map(|_| deploy_token)
+    interceptors::deploy_token_to_source_chain(storage, source_chain, &deploy_token)?;
+    let deploy_token = interceptors::calculate_scaling_factor(
+        storage,
+        source_chain,
+        destination_chain,
+        deploy_token,
+    )?;
+    interceptors::deploy_token_to_destination_chain(storage, destination_chain, &deploy_token)?;
+
+    Ok(deploy_token)
 }
 
 fn ensure_chain_not_frozen(storage: &dyn Storage, chain: &ChainNameRaw) -> Result<(), Error> {

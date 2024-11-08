@@ -49,8 +49,8 @@ pub fn apply_scaling_factor_to_amount(
     storage: &dyn Storage,
     source_chain: &ChainNameRaw,
     destination_chain: &ChainNameRaw,
-    transfer: &mut InterchainTransfer,
-) -> Result<(), Error> {
+    mut transfer: InterchainTransfer,
+) -> Result<InterchainTransfer, Error> {
     transfer.amount = destination_amount(
         storage,
         source_chain,
@@ -59,10 +59,10 @@ pub fn apply_scaling_factor_to_amount(
         transfer.amount,
     )?;
 
-    Ok(())
+    Ok(transfer)
 }
 
-pub fn save_token_instance_for_source_chain(
+pub fn deploy_token_to_source_chain(
     storage: &mut dyn Storage,
     chain: &ChainNameRaw,
     deploy_token: &DeployInterchainToken,
@@ -100,7 +100,7 @@ pub fn save_token_instance_for_source_chain(
     Ok(())
 }
 
-pub fn save_token_instance_for_destination_chain(
+pub fn deploy_token_to_destination_chain(
     storage: &mut dyn Storage,
     chain: &ChainNameRaw,
     deploy_token: &DeployInterchainToken,
@@ -129,8 +129,8 @@ pub fn calculate_scaling_factor(
     storage: &dyn Storage,
     source_chain: &ChainNameRaw,
     destination_chain: &ChainNameRaw,
-    deploy_token: &mut DeployInterchainToken,
-) -> Result<(), Error> {
+    mut deploy_token: DeployInterchainToken,
+) -> Result<DeployInterchainToken, Error> {
     deploy_token.decimals = destination_token_decimals(
         storage,
         source_chain,
@@ -138,7 +138,7 @@ pub fn calculate_scaling_factor(
         deploy_token.decimals,
     )?;
 
-    Ok(())
+    Ok(deploy_token)
 }
 
 fn ensure_matching_original_deployment(
@@ -327,7 +327,7 @@ mod test {
         let mut storage = MockStorage::new();
         let source_chain: ChainNameRaw = "sourcechain".try_into().unwrap();
         let destination_chain: ChainNameRaw = "destinationchain".try_into().unwrap();
-        let mut transfer = InterchainTransfer {
+        let transfer = InterchainTransfer {
             token_id: [1u8; 32].into(),
             source_address: b"source_address".to_vec().try_into().unwrap(),
             destination_address: b"destination_address".to_vec().try_into().unwrap(),
@@ -361,11 +361,11 @@ mod test {
         )
         .unwrap();
 
-        assert_ok!(interceptors::apply_scaling_factor_to_amount(
+        let transfer = assert_ok!(interceptors::apply_scaling_factor_to_amount(
             &storage,
             &source_chain,
             &destination_chain,
-            &mut transfer,
+            transfer,
         ));
         assert_eq!(
             transfer.amount,
@@ -378,7 +378,7 @@ mod test {
         let mut storage = MockStorage::new();
         let source_chain: ChainNameRaw = "sourcechain".try_into().unwrap();
         let destination_chain: ChainNameRaw = "destinationchain".try_into().unwrap();
-        let mut transfer = InterchainTransfer {
+        let transfer = InterchainTransfer {
             token_id: [1u8; 32].into(),
             source_address: b"source_address".to_vec().try_into().unwrap(),
             destination_address: b"destination_address".to_vec().try_into().unwrap(),
@@ -412,11 +412,11 @@ mod test {
         )
         .unwrap();
 
-        assert_ok!(interceptors::apply_scaling_factor_to_amount(
+        let transfer = assert_ok!(interceptors::apply_scaling_factor_to_amount(
             &storage,
             &source_chain,
             &destination_chain,
-            &mut transfer,
+            transfer,
         ));
         assert_eq!(
             transfer.amount,
@@ -429,7 +429,7 @@ mod test {
         let mut storage = MockStorage::new();
         let source_chain: ChainNameRaw = "sourcechain".try_into().unwrap();
         let destination_chain: ChainNameRaw = "destinationchain".try_into().unwrap();
-        let mut transfer = InterchainTransfer {
+        let transfer = InterchainTransfer {
             token_id: [1u8; 32].into(),
             source_address: b"source_address".to_vec().try_into().unwrap(),
             destination_address: b"destination_address".to_vec().try_into().unwrap(),
@@ -463,11 +463,11 @@ mod test {
         )
         .unwrap();
 
-        assert_ok!(interceptors::apply_scaling_factor_to_amount(
+        let transfer = assert_ok!(interceptors::apply_scaling_factor_to_amount(
             &storage,
             &source_chain,
             &destination_chain,
-            &mut transfer,
+            transfer,
         ));
         assert_eq!(
             transfer.amount,
@@ -480,7 +480,7 @@ mod test {
         let mut storage = MockStorage::new();
         let source_chain: ChainNameRaw = "sourcechain".try_into().unwrap();
         let destination_chain: ChainNameRaw = "destinationchain".try_into().unwrap();
-        let mut transfer = InterchainTransfer {
+        let transfer = InterchainTransfer {
             token_id: [1u8; 32].into(),
             source_address: b"source_address".to_vec().try_into().unwrap(),
             destination_address: b"destination_address".to_vec().try_into().unwrap(),
@@ -519,7 +519,7 @@ mod test {
                 &storage,
                 &source_chain,
                 &destination_chain,
-                &mut transfer,
+                transfer,
             ),
             Error,
             Error::InvalidTransferAmount { .. }
@@ -531,7 +531,7 @@ mod test {
         let mut storage = MockStorage::new();
         let source_chain: ChainNameRaw = "sourcechain".try_into().unwrap();
         let destination_chain: ChainNameRaw = "destinationchain".try_into().unwrap();
-        let mut transfer = InterchainTransfer {
+        let transfer = InterchainTransfer {
             token_id: [1u8; 32].into(),
             source_address: b"source_address".to_vec().try_into().unwrap(),
             destination_address: b"destination_address".to_vec().try_into().unwrap(),
@@ -570,7 +570,7 @@ mod test {
                 &storage,
                 &source_chain,
                 &destination_chain,
-                &mut transfer,
+                transfer,
             ),
             Error,
             Error::InvalidTransferAmount { .. }
@@ -582,7 +582,7 @@ mod test {
         let mut storage = MockStorage::new();
         let source_chain: ChainNameRaw = "sourcechain".try_into().unwrap();
         let destination_chain: ChainNameRaw = "destinationchain".try_into().unwrap();
-        let mut deploy_token = DeployInterchainToken {
+        let deploy_token = DeployInterchainToken {
             token_id: [1u8; 32].into(),
             name: "token".to_string().try_into().unwrap(),
             symbol: "TKN".to_string().try_into().unwrap(),
@@ -613,26 +613,26 @@ mod test {
         )
         .unwrap();
 
-        assert_ok!(interceptors::calculate_scaling_factor(
+        let deploy_token = assert_ok!(interceptors::calculate_scaling_factor(
             &storage,
             &source_chain,
             &destination_chain,
-            &mut deploy_token,
+            deploy_token,
         ));
         assert_eq!(deploy_token.decimals, 6);
 
-        let mut deploy_token = DeployInterchainToken {
+        let deploy_token = DeployInterchainToken {
             token_id: [1u8; 32].into(),
             name: "token".to_string().try_into().unwrap(),
             symbol: "TKN".to_string().try_into().unwrap(),
             decimals: 3,
             minter: None,
         };
-        assert_ok!(interceptors::calculate_scaling_factor(
+        let deploy_token = assert_ok!(interceptors::calculate_scaling_factor(
             &storage,
             &source_chain,
             &destination_chain,
-            &mut deploy_token,
+            deploy_token,
         ));
         assert_eq!(deploy_token.decimals, 3);
     }
@@ -642,7 +642,7 @@ mod test {
         let mut storage = MockStorage::new();
         let source_chain: ChainNameRaw = "sourcechain".try_into().unwrap();
         let destination_chain: ChainNameRaw = "destinationchain".try_into().unwrap();
-        let mut deploy_token = DeployInterchainToken {
+        let deploy_token = DeployInterchainToken {
             token_id: [1u8; 32].into(),
             name: "token".to_string().try_into().unwrap(),
             symbol: "TKN".to_string().try_into().unwrap(),
@@ -673,11 +673,11 @@ mod test {
         )
         .unwrap();
 
-        assert_ok!(interceptors::calculate_scaling_factor(
+        let deploy_token = assert_ok!(interceptors::calculate_scaling_factor(
             &storage,
             &source_chain,
             &destination_chain,
-            &mut deploy_token,
+            deploy_token,
         ));
         assert_eq!(deploy_token.decimals, 9);
     }
