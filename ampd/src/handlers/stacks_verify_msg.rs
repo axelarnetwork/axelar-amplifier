@@ -2,6 +2,7 @@ use std::collections::HashSet;
 use std::convert::TryInto;
 
 use async_trait::async_trait;
+use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
 use axelar_wasm_std::voting::{PollId, Vote};
 use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmrs::tx::Msg;
@@ -14,12 +15,13 @@ use futures::future;
 use router_api::ChainName;
 use serde::Deserialize;
 use tokio::sync::watch::Receiver;
-use tracing::info;
+use tracing::{info, info_span};
+use valuable::Valuable;
 use voting_verifier::msg::ExecuteMsg;
 
 use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error;
-use crate::stacks::http_client::{Client, Transaction};
+use crate::stacks::http_client::Client;
 use crate::stacks::verifier::verify_message;
 use crate::types::{Hash, TMAddress};
 
@@ -27,10 +29,9 @@ type Result<T> = error_stack::Result<T, Error>;
 
 #[derive(Deserialize, Debug)]
 pub struct Message {
-    pub tx_id: Hash,
-    pub event_index: u32,
+    pub message_id: HexTxHashAndEventIndex,
     pub destination_address: String,
-    pub destination_chain: router_api::ChainName,
+    pub destination_chain: ChainName,
     pub source_address: String,
     pub payload_hash: Hash,
 }
@@ -132,29 +133,55 @@ impl EventHandler for Handler {
             return Ok(vec![]);
         }
 
-        let tx_hashes: HashSet<_> = messages.iter().map(|message| message.tx_id).collect();
+        let tx_hashes: HashSet<Hash> = messages
+            .iter()
+            .map(|message| message.message_id.tx_hash.into())
+            .collect();
         let transactions = self.http_client.get_transactions(tx_hashes).await;
 
-        let futures = messages.iter().map(|msg| async {
-            match transactions.get(&msg.tx_id) {
-                Some(transaction) => {
-                    verify_message(
-                        &source_chain,
-                        &source_gateway_address,
-                        &self.its_address,
-                        transaction,
-                        msg,
-                        &self.http_client,
-                        &self.reference_native_interchain_token_code,
-                        &self.reference_token_manager_code,
-                    )
-                    .await
-                }
-                None => Vote::NotFound,
-            }
-        });
+        let message_ids = messages
+            .iter()
+            .map(|message| message.message_id.to_string())
+            .collect::<Vec<_>>();
 
-        let votes: Vec<Vote> = future::join_all(futures).await;
+        let votes = info_span!(
+            "verify messages in poll",
+            poll_id = poll_id.to_string(),
+            source_chain = source_chain.to_string(),
+            message_ids = message_ids.as_value()
+        )
+        .in_scope(|| async {
+            info!("ready to verify messages in poll",);
+
+            let futures = messages.iter().map(|msg| async {
+                match transactions.get(&msg.message_id.tx_hash.into()) {
+                    Some(transaction) => {
+                        verify_message(
+                            &source_chain,
+                            &source_gateway_address,
+                            &self.its_address,
+                            transaction,
+                            msg,
+                            &self.http_client,
+                            &self.reference_native_interchain_token_code,
+                            &self.reference_token_manager_code,
+                        )
+                        .await
+                    }
+                    None => Vote::NotFound,
+                }
+            });
+
+            let votes: Vec<Vote> = future::join_all(futures).await;
+
+            info!(
+                votes = votes.as_value(),
+                "ready to vote for messages in poll"
+            );
+
+            votes
+        })
+        .await;
 
         Ok(vec![self
             .vote_msg(poll_id, votes)
@@ -168,6 +195,7 @@ mod tests {
     use std::collections::HashMap;
     use std::convert::TryInto;
 
+    use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
     use cosmrs::cosmwasm::MsgExecuteContract;
     use cosmrs::tx::Msg;
     use cosmwasm_std;
@@ -176,7 +204,7 @@ mod tests {
     use tokio::test as async_test;
     use voting_verifier::events::{PollMetadata, PollStarted, TxEventConfirmation};
 
-    use super::{Handler, PollStartedEvent};
+    use super::{Handler, Message, PollStartedEvent};
     use crate::event_processor::EventHandler;
     use crate::handlers::tests::into_structured_event;
     use crate::stacks::http_client::{Client, ContractInfo};
@@ -201,15 +229,9 @@ mod tests {
                 == "SP2N959SER36FZ5QT1CX9BR63W3E8X35WQCMBYYWC.axelar-gateway"
         );
 
-        let message = event.messages.first().unwrap();
+        let message: &Message = event.messages.first().unwrap();
 
-        assert!(
-            message.tx_id
-                == "0xee0049faf8dde5507418140ed72bd64f73cc001b08de98e0c16a3a8d9f2c38cf"
-                    .parse()
-                    .unwrap(),
-        );
-        assert!(message.event_index == 1u32);
+        assert!(message.message_id.event_index == 1u64);
         assert!(message.destination_chain == "ethereum");
         assert!(message.source_address == "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM");
     }
@@ -369,6 +391,8 @@ mod tests {
     }
 
     fn poll_started_event(participants: Vec<TMAddress>) -> PollStarted {
+        let msg_id = HexTxHashAndEventIndex::new(Hash::random(), 1u64);
+
         PollStarted::Messages {
             metadata: PollMetadata {
                 poll_id: "100".parse().unwrap(),
@@ -383,15 +407,11 @@ mod tests {
                     .map(|addr| cosmwasm_std::Addr::unchecked(addr.to_string()))
                     .collect(),
             },
+            #[allow(deprecated)] // TODO: The below events use the deprecated tx_id and event_index fields. Remove this attribute when those fields are removed
             messages: vec![TxEventConfirmation {
-                tx_id: "0xee0049faf8dde5507418140ed72bd64f73cc001b08de98e0c16a3a8d9f2c38cf"
-                    .parse()
-                    .unwrap(),
-                event_index: 1,
-                message_id: "0xdfaf64de66510723f2efbacd7ead3c4f8c856aed1afc2cb30254552aeda47312-1"
-                    .to_string()
-                    .parse()
-                    .unwrap(),
+                tx_id: msg_id.tx_hash_as_hex(),
+                event_index: u32::try_from(msg_id.event_index).unwrap(),
+                message_id: msg_id.to_string().parse().unwrap(),
                 source_address: "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM".parse().unwrap(),
                 destination_chain: "ethereum".parse().unwrap(),
                 destination_address: format!("0x{:x}", EVMAddress::random()).parse().unwrap(),

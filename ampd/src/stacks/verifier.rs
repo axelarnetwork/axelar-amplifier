@@ -177,7 +177,7 @@ impl VerifierSetConfirmation {
 fn find_event<'a>(
     transaction: &'a Transaction,
     gateway_address: &String,
-    log_index: u32,
+    log_index: u64,
 ) -> Option<&'a TransactionEvents> {
     let event = transaction
         .events
@@ -201,11 +201,11 @@ pub async fn verify_message(
     reference_native_interchain_token_code: &String,
     reference_token_manager_code: &String,
 ) -> Vote {
-    if message.tx_id != transaction.tx_id {
+    if message.message_id.tx_hash != transaction.tx_id.as_bytes() {
         return Vote::NotFound;
     }
 
-    match find_event(transaction, gateway_address, message.event_index) {
+    match find_event(transaction, gateway_address, message.message_id.event_index) {
         Some(event) => {
             // In case message is not from ITS
             if &message.source_address != its_address {
@@ -255,11 +255,15 @@ pub fn verify_verifier_set(
     transaction: &Transaction,
     verifier_set: VerifierSetConfirmation,
 ) -> Vote {
-    if verifier_set.tx_id != transaction.tx_id {
+    if verifier_set.message_id.tx_hash != transaction.tx_id.as_bytes() {
         return Vote::NotFound;
     }
 
-    match find_event(transaction, gateway_address, verifier_set.event_index) {
+    match find_event(
+        transaction,
+        gateway_address,
+        verifier_set.message_id.event_index,
+    ) {
         Some(event) if verifier_set.eq_event(event).unwrap_or(false) => Vote::SucceededOnChain,
         _ => Vote::NotFound,
     }
@@ -267,6 +271,7 @@ pub fn verify_verifier_set(
 
 #[cfg(test)]
 mod tests {
+    use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
     use axelar_wasm_std::voting::Vote;
     use clarity::vm::types::TupleData;
     use clarity::vm::{ClarityName, Value};
@@ -282,15 +287,15 @@ mod tests {
         Client, ContractLog, ContractLogValue, Transaction, TransactionEvents,
     };
     use crate::stacks::verifier::{verify_message, verify_verifier_set, SIGNERS_ROTATED_TYPE};
+    use crate::types::Hash;
 
     // test verify message
     #[async_test]
     async fn should_not_verify_tx_id_does_not_match() {
         let (source_chain, gateway_address, its_address, tx, mut msg) = get_matching_msg_and_tx();
 
-        msg.tx_id = "ffaf64de66510723f2efbacd7ead3c4f8c856aed1afc2cb30254552aeda47313"
-            .parse()
-            .unwrap();
+        msg.message_id.tx_hash = Hash::random().into();
+
         assert_eq!(
             verify_message(
                 &source_chain,
@@ -311,7 +316,7 @@ mod tests {
     async fn should_not_verify_no_log_for_event_index() {
         let (source_chain, gateway_address, its_address, tx, mut msg) = get_matching_msg_and_tx();
 
-        msg.event_index = 2;
+        msg.message_id.event_index = 2;
 
         assert_eq!(
             verify_message(
@@ -333,7 +338,7 @@ mod tests {
     async fn should_not_verify_event_index_does_not_match() {
         let (source_chain, gateway_address, its_address, tx, mut msg) = get_matching_msg_and_tx();
 
-        msg.event_index = 0;
+        msg.message_id.event_index = 0;
 
         assert_eq!(
             verify_message(
@@ -547,9 +552,8 @@ mod tests {
     fn should_not_verify_verifier_set_if_tx_id_does_not_match() {
         let (gateway_address, tx, mut verifier_set) = get_matching_verifier_set_and_tx();
 
-        verifier_set.tx_id = "ffaf64de66510723f2efbacd7ead3c4f8c856aed1afc2cb30254552aeda47313"
-            .parse()
-            .unwrap();
+        verifier_set.message_id.tx_hash = Hash::random().into();
+
         assert_eq!(
             verify_verifier_set(&gateway_address, &tx, verifier_set),
             Vote::NotFound
@@ -560,7 +564,8 @@ mod tests {
     fn should_not_verify_verifier_set_if_no_log_for_event_index() {
         let (gateway_address, tx, mut verifier_set) = get_matching_verifier_set_and_tx();
 
-        verifier_set.event_index = 2;
+        verifier_set.message_id.event_index = 2;
+
         assert_eq!(
             verify_verifier_set(&gateway_address, &tx, verifier_set),
             Vote::NotFound
@@ -571,7 +576,8 @@ mod tests {
     fn should_not_verify_verifier_set_if_event_index_does_not_match() {
         let (gateway_address, tx, mut verifier_set) = get_matching_verifier_set_and_tx();
 
-        verifier_set.event_index = 0;
+        verifier_set.message_id.event_index = 0;
+
         assert_eq!(
             verify_verifier_set(&gateway_address, &tx, verifier_set),
             Vote::NotFound
@@ -654,13 +660,11 @@ mod tests {
         let source_chain = "stacks";
         let gateway_address = "SP2N959SER36FZ5QT1CX9BR63W3E8X35WQCMBYYWC.axelar-gateway";
         let its_address = "ST2TFVBMRPS5SSNP98DQKQ5JNB2B6NZM91C4K3P7B.its";
-        let tx_id = "0xee0049faf8dde5507418140ed72bd64f73cc001b08de98e0c16a3a8d9f2c38cf"
-            .parse()
-            .unwrap();
+
+        let message_id = HexTxHashAndEventIndex::new(Hash::random(), 1u64);
 
         let msg = Message {
-            tx_id,
-            event_index: 1,
+            message_id: message_id.clone(),
             source_address: "ST2CY5V39NHDPWSXMW9QDT3HC3GD6Q6XX4CFRK9AG".to_string(),
             destination_chain: "Destination".parse().unwrap(),
             destination_address: "0x123abc".to_string(),
@@ -671,13 +675,13 @@ mod tests {
 
         let wrong_event = TransactionEvents {
             event_index: 0,
-            tx_id: tx_id.to_string(),
+            tx_id: message_id.tx_hash_as_hex().to_string(),
             contract_log: None,
         };
 
         let event = TransactionEvents {
             event_index: 1,
-            tx_id: tx_id.to_string(),
+            tx_id: message_id.tx_hash_as_hex().to_string(),
             contract_log: Some(ContractLog {
                 contract_id: gateway_address.to_string(),
                 topic: "print".to_string(),
@@ -688,7 +692,7 @@ mod tests {
         };
 
         let transaction = Transaction {
-            tx_id,
+            tx_id: message_id.tx_hash.into(),
             nonce: 1,
             sender_address: "whatever".to_string(),
             tx_status: "success".to_string(),
@@ -706,20 +710,17 @@ mod tests {
 
     fn get_matching_verifier_set_and_tx() -> (String, Transaction, VerifierSetConfirmation) {
         let gateway_address = "SP2N959SER36FZ5QT1CX9BR63W3E8X35WQCMBYYWC.axelar-gateway";
-        let tx_id = "0xee0049faf8dde5507418140ed72bd64f73cc001b08de98e0c16a3a8d9f2c38cf"
-            .parse()
-            .unwrap();
+        let message_id = HexTxHashAndEventIndex::new(Hash::random(), 1u64);
 
         let mut verifier_set_confirmation = VerifierSetConfirmation {
-            tx_id,
-            event_index: 1,
+            message_id: message_id.clone(),
             verifier_set: build_verifier_set(KeyType::Ecdsa, &ecdsa_test_data::signers()),
         };
         verifier_set_confirmation.verifier_set.created_at = 5;
 
         let wrong_event = TransactionEvents {
             event_index: 0,
-            tx_id: tx_id.to_string(),
+            tx_id: message_id.tx_hash_as_hex().to_string(),
             contract_log: None,
         };
 
@@ -744,7 +745,7 @@ mod tests {
 
         let event = TransactionEvents {
             event_index: 1,
-            tx_id: tx_id.to_string(),
+            tx_id: message_id.tx_hash_as_hex().to_string(),
             contract_log: Some(ContractLog {
                 contract_id: gateway_address.to_string(),
                 topic: "print".to_string(),
@@ -755,7 +756,7 @@ mod tests {
         };
 
         let transaction = Transaction {
-            tx_id,
+            tx_id: message_id.tx_hash.into(),
             nonce: 1,
             sender_address: "whatever".to_string(),
             tx_status: "success".to_string(),

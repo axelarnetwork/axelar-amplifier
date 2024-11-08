@@ -467,6 +467,7 @@ async fn its_verify_token_manager(
 
 #[cfg(test)]
 mod tests {
+    use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
     use axelar_wasm_std::voting::Vote;
     use router_api::ChainName;
     use tokio::test as async_test;
@@ -476,6 +477,7 @@ mod tests {
         Client, ContractInfo, ContractLog, ContractLogValue, Transaction, TransactionEvents,
     };
     use crate::stacks::verifier::verify_message;
+    use crate::types::Hash;
 
     // test verify message its hub
     #[async_test]
@@ -625,7 +627,7 @@ mod tests {
             })
         });
 
-        let (source_chain, gateway_address, its_address, tx, mut msg) =
+        let (source_chain, gateway_address, its_address, tx, msg) =
             get_matching_its_verify_interchain_token_msg_and_tx();
 
         assert_eq!(
@@ -655,7 +657,7 @@ mod tests {
             })
         });
 
-        let (source_chain, gateway_address, its_address, tx, mut msg) =
+        let (source_chain, gateway_address, its_address, tx, msg) =
             get_matching_its_verify_interchain_token_msg_and_tx();
 
         assert_eq!(
@@ -683,7 +685,7 @@ mod tests {
             })
         });
 
-        let (source_chain, gateway_address, its_address, tx, mut msg) =
+        let (source_chain, gateway_address, its_address, tx, msg) =
             get_matching_its_verify_token_manager_msg_and_tx();
 
         assert_eq!(
@@ -713,7 +715,7 @@ mod tests {
             })
         });
 
-        let (source_chain, gateway_address, its_address, tx, mut msg) =
+        let (source_chain, gateway_address, its_address, tx, msg) =
             get_matching_its_verify_token_manager_msg_and_tx();
 
         assert_eq!(
@@ -737,13 +739,11 @@ mod tests {
         let source_chain = "stacks";
         let gateway_address = "SP2N959SER36FZ5QT1CX9BR63W3E8X35WQCMBYYWC.axelar-gateway";
         let its_address = "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.interchain-token-service";
-        let tx_id = "0xee0049faf8dde5507418140ed72bd64f73cc001b08de98e0c16a3a8d9f2c38cf"
-            .parse()
-            .unwrap();
+
+        let message_id = HexTxHashAndEventIndex::new(Hash::random(), 1u64);
 
         let msg = Message {
-            tx_id,
-            event_index: 1,
+            message_id: message_id.clone(),
             source_address: its_address.to_string(),
             destination_chain: "axelar".parse().unwrap(),
             destination_address: "cosmwasm".to_string(),
@@ -754,7 +754,7 @@ mod tests {
 
         let wrong_event = TransactionEvents {
             event_index: 0,
-            tx_id: tx_id.to_string(),
+            tx_id: message_id.tx_hash_as_hex().to_string(),
             contract_log: None,
         };
 
@@ -775,7 +775,7 @@ mod tests {
         */
         let event = TransactionEvents {
             event_index: 1,
-            tx_id: tx_id.to_string(),
+            tx_id: message_id.tx_hash_as_hex().to_string(),
             contract_log: Some(ContractLog {
                 contract_id: gateway_address.to_string(),
                 topic: "print".to_string(),
@@ -786,7 +786,7 @@ mod tests {
         };
 
         let transaction = Transaction {
-            tx_id,
+            tx_id: message_id.tx_hash.into(),
             nonce: 1,
             sender_address: "whatever".to_string(),
             tx_status: "success".to_string(),
@@ -807,13 +807,11 @@ mod tests {
         let source_chain = "stacks";
         let gateway_address = "SP2N959SER36FZ5QT1CX9BR63W3E8X35WQCMBYYWC.axelar-gateway";
         let its_address = "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.interchain-token-service";
-        let tx_id = "0xee0049faf8dde5507418140ed72bd64f73cc001b08de98e0c16a3a8d9f2c38cf"
-            .parse()
-            .unwrap();
+
+        let message_id = HexTxHashAndEventIndex::new(Hash::random(), 1u64);
 
         let msg = Message {
-            tx_id,
-            event_index: 1,
+            message_id: message_id.clone(),
             source_address: its_address.to_string(),
             destination_chain: "axelar".parse().unwrap(),
             destination_address: "0x00".to_string(),
@@ -824,7 +822,7 @@ mod tests {
 
         let wrong_event = TransactionEvents {
             event_index: 0,
-            tx_id: tx_id.to_string(),
+            tx_id: message_id.tx_hash_as_hex().to_string(),
             contract_log: None,
         };
 
@@ -845,7 +843,7 @@ mod tests {
         */
         let event = TransactionEvents {
             event_index: 1,
-            tx_id: tx_id.to_string(),
+            tx_id: message_id.tx_hash_as_hex().to_string(),
             contract_log: Some(ContractLog {
                 contract_id: gateway_address.to_string(),
                 topic: "print".to_string(),
@@ -856,7 +854,7 @@ mod tests {
         };
 
         let transaction = Transaction {
-            tx_id,
+            tx_id: message_id.tx_hash.into(),
             nonce: 1,
             sender_address: "whatever".to_string(),
             tx_status: "success".to_string(),
@@ -877,13 +875,11 @@ mod tests {
         let source_chain = "stacks";
         let gateway_address = "SP2N959SER36FZ5QT1CX9BR63W3E8X35WQCMBYYWC.axelar-gateway";
         let its_address = "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.interchain-token-service";
-        let tx_id = "0xee0049faf8dde5507418140ed72bd64f73cc001b08de98e0c16a3a8d9f2c38cf"
-            .parse()
-            .unwrap();
+
+        let message_id = HexTxHashAndEventIndex::new(Hash::random(), 1u64);
 
         let msg = Message {
-            tx_id,
-            event_index: 1,
+            message_id: message_id.clone(),
             source_address: its_address.to_string(),
             destination_chain: "axelar".parse().unwrap(),
             destination_address: "cosmwasm".to_string(),
@@ -894,7 +890,7 @@ mod tests {
 
         let wrong_event = TransactionEvents {
             event_index: 0,
-            tx_id: tx_id.to_string(),
+            tx_id: message_id.tx_hash_as_hex().to_string(),
             contract_log: None,
         };
 
@@ -913,7 +909,7 @@ mod tests {
         */
         let event = TransactionEvents {
             event_index: 1,
-            tx_id: tx_id.to_string(),
+            tx_id: message_id.tx_hash_as_hex().to_string(),
             contract_log: Some(ContractLog {
                 contract_id: gateway_address.to_string(),
                 topic: "print".to_string(),
@@ -924,7 +920,7 @@ mod tests {
         };
 
         let transaction = Transaction {
-            tx_id,
+            tx_id: message_id.tx_hash.into(),
             nonce: 1,
             sender_address: "whatever".to_string(),
             tx_status: "success".to_string(),
@@ -945,13 +941,11 @@ mod tests {
         let source_chain = "stacks";
         let gateway_address = "SP2N959SER36FZ5QT1CX9BR63W3E8X35WQCMBYYWC.axelar-gateway";
         let its_address = "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.interchain-token-service";
-        let tx_id = "0xee0049faf8dde5507418140ed72bd64f73cc001b08de98e0c16a3a8d9f2c38cf"
-            .parse()
-            .unwrap();
+
+        let message_id = HexTxHashAndEventIndex::new(Hash::random(), 1u64);
 
         let msg = Message {
-            tx_id,
-            event_index: 1,
+            message_id: message_id.clone(),
             source_address: its_address.to_string(),
             destination_chain: "stacks".parse().unwrap(),
             destination_address: its_address.to_string(),
@@ -962,7 +956,7 @@ mod tests {
 
         let wrong_event = TransactionEvents {
             event_index: 0,
-            tx_id: tx_id.to_string(),
+            tx_id: message_id.tx_hash_as_hex().to_string(),
             contract_log: None,
         };
 
@@ -975,7 +969,7 @@ mod tests {
         */
         let event = TransactionEvents {
             event_index: 1,
-            tx_id: tx_id.to_string(),
+            tx_id: message_id.tx_hash_as_hex().to_string(),
             contract_log: Some(ContractLog {
                 contract_id: gateway_address.to_string(),
                 topic: "print".to_string(),
@@ -986,7 +980,7 @@ mod tests {
         };
 
         let transaction = Transaction {
-            tx_id,
+            tx_id: message_id.tx_hash.into(),
             nonce: 1,
             sender_address: "whatever".to_string(),
             tx_status: "success".to_string(),
@@ -1007,13 +1001,11 @@ mod tests {
         let source_chain = "stacks";
         let gateway_address = "SP2N959SER36FZ5QT1CX9BR63W3E8X35WQCMBYYWC.axelar-gateway";
         let its_address = "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.interchain-token-service";
-        let tx_id = "0xee0049faf8dde5507418140ed72bd64f73cc001b08de98e0c16a3a8d9f2c38cf"
-            .parse()
-            .unwrap();
+
+        let message_id = HexTxHashAndEventIndex::new(Hash::random(), 1u64);
 
         let msg = Message {
-            tx_id,
-            event_index: 1,
+            message_id: message_id.clone(),
             source_address: its_address.to_string(),
             destination_chain: "stacks".parse().unwrap(),
             destination_address: its_address.to_string(),
@@ -1024,7 +1016,7 @@ mod tests {
 
         let wrong_event = TransactionEvents {
             event_index: 0,
-            tx_id: tx_id.to_string(),
+            tx_id: message_id.tx_hash_as_hex().to_string(),
             contract_log: None,
         };
 
@@ -1037,7 +1029,7 @@ mod tests {
         */
         let event = TransactionEvents {
             event_index: 1,
-            tx_id: tx_id.to_string(),
+            tx_id: message_id.tx_hash_as_hex().to_string(),
             contract_log: Some(ContractLog {
                 contract_id: gateway_address.to_string(),
                 topic: "print".to_string(),
@@ -1048,7 +1040,7 @@ mod tests {
         };
 
         let transaction = Transaction {
-            tx_id,
+            tx_id: message_id.tx_hash.into(),
             nonce: 1,
             sender_address: "whatever".to_string(),
             tx_status: "success".to_string(),

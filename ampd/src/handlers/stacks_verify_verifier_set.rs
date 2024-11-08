@@ -1,6 +1,7 @@
 use std::convert::TryInto;
 
 use async_trait::async_trait;
+use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
 use axelar_wasm_std::voting::{PollId, Vote};
 use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmrs::tx::Msg;
@@ -20,12 +21,11 @@ use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error;
 use crate::stacks::http_client::Client;
 use crate::stacks::verifier::verify_verifier_set;
-use crate::types::{Hash, TMAddress};
+use crate::types::TMAddress;
 
 #[derive(Deserialize, Debug)]
 pub struct VerifierSetConfirmation {
-    pub tx_id: Hash,
-    pub event_index: u32,
+    pub message_id: HexTxHashAndEventIndex,
     pub verifier_set: VerifierSet,
 }
 
@@ -110,13 +110,13 @@ impl EventHandler for Handler {
 
         let transaction = self
             .http_client
-            .get_valid_transaction(&verifier_set.tx_id)
+            .get_valid_transaction(&verifier_set.message_id.tx_hash.into())
             .await;
 
         let vote = info_span!(
             "verify a new verifier set for Stacks",
             poll_id = poll_id.to_string(),
-            id = format!("{}_{}", verifier_set.tx_id, verifier_set.event_index)
+            id = verifier_set.message_id.to_string(),
         )
         .in_scope(|| {
             info!("ready to verify a new worker set in poll");
@@ -143,6 +143,7 @@ impl EventHandler for Handler {
 mod tests {
     use std::convert::TryInto;
 
+    use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
     use cosmrs::cosmwasm::MsgExecuteContract;
     use cosmrs::tx::Msg;
     use cosmwasm_std;
@@ -158,7 +159,7 @@ mod tests {
     use crate::event_processor::EventHandler;
     use crate::handlers::tests::into_structured_event;
     use crate::stacks::http_client::Client;
-    use crate::types::TMAddress;
+    use crate::types::{Hash, TMAddress};
     use crate::PREFIX;
 
     #[test]
@@ -181,13 +182,7 @@ mod tests {
 
         let verifier_set = event.verifier_set;
 
-        assert!(
-            verifier_set.tx_id
-                == "0xee0049faf8dde5507418140ed72bd64f73cc001b08de98e0c16a3a8d9f2c38cf"
-                    .parse()
-                    .unwrap()
-        );
-        assert!(verifier_set.event_index == 1u32);
+        assert!(verifier_set.message_id.event_index == 1u64);
         assert!(verifier_set.verifier_set.signers.len() == 3);
         assert_eq!(verifier_set.verifier_set.threshold, Uint128::from(2u128));
 
@@ -322,6 +317,8 @@ mod tests {
         participants: Vec<TMAddress>,
         expires_at: u64,
     ) -> PollStarted {
+        let msg_id = HexTxHashAndEventIndex::new(Hash::random(), 1u64);
+
         PollStarted::VerifierSet {
             metadata: PollMetadata {
                 poll_id: "100".parse().unwrap(),
@@ -336,15 +333,11 @@ mod tests {
                     .map(|addr| cosmwasm_std::Addr::unchecked(addr.to_string()))
                     .collect(),
             },
+            #[allow(deprecated)] // TODO: The below events use the deprecated tx_id and event_index fields. Remove this attribute when those fields are removed
             verifier_set: VerifierSetConfirmation {
-                tx_id: "0xee0049faf8dde5507418140ed72bd64f73cc001b08de98e0c16a3a8d9f2c38cf"
-                    .parse()
-                    .unwrap(),
-                event_index: 1,
-                message_id: "0xdfaf64de66510723f2efbacd7ead3c4f8c856aed1afc2cb30254552aeda47312-1"
-                    .to_string()
-                    .parse()
-                    .unwrap(),
+                tx_id: msg_id.tx_hash_as_hex(),
+                event_index: u32::try_from(msg_id.event_index).unwrap(),
+                message_id: msg_id.to_string().parse().unwrap(),
                 verifier_set: build_verifier_set(KeyType::Ecdsa, &ecdsa_test_data::signers()),
             },
         }

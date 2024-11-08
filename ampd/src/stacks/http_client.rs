@@ -37,7 +37,7 @@ pub struct ContractLog {
 
 #[derive(Debug, Deserialize, Default)]
 pub struct TransactionEvents {
-    pub event_index: u32,
+    pub event_index: u64,
     pub tx_id: String,
     pub contract_log: Option<ContractLog>,
 }
