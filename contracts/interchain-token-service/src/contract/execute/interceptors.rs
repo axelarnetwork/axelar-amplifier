@@ -320,7 +320,7 @@ mod test {
     use super::Error;
     use crate::contract::execute::interceptors;
     use crate::state::{self, TokenDeploymentType};
-    use crate::{DeployInterchainToken, InterchainTransfer, TokenInstance};
+    use crate::{msg, DeployInterchainToken, InterchainTransfer, TokenInstance};
 
     #[test]
     fn apply_scaling_factor_to_amount_when_source_decimals_are_bigger() {
@@ -352,8 +352,12 @@ mod test {
         state::save_chain_config(
             &mut storage,
             &destination_chain,
-            Uint256::from(1_000_000_000u128).try_into().unwrap(),
-            6,
+            msg::ChainConfig {
+                chain: destination_chain.clone(),
+                its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
+                max_uint: Uint256::from(1_000_000_000u128).try_into().unwrap(),
+                max_target_decimals: 6,
+            },
         )
         .unwrap();
 
@@ -399,8 +403,12 @@ mod test {
         state::save_chain_config(
             &mut storage,
             &destination_chain,
-            Uint256::from(1_000_000_000_000_000u128).try_into().unwrap(),
-            6,
+            msg::ChainConfig {
+                chain: destination_chain.clone(),
+                its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
+                max_uint: Uint256::from(1_000_000_000_000_000u128).try_into().unwrap(),
+                max_target_decimals: 6,
+            },
         )
         .unwrap();
 
@@ -446,8 +454,12 @@ mod test {
         state::save_chain_config(
             &mut storage,
             &destination_chain,
-            Uint256::from(1_000_000_000_000_000u128).try_into().unwrap(),
-            6,
+            msg::ChainConfig {
+                chain: destination_chain.clone(),
+                its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
+                max_uint: Uint256::from(1_000_000_000_000_000u128).try_into().unwrap(),
+                max_target_decimals: 6,
+            },
         )
         .unwrap();
 
@@ -493,8 +505,12 @@ mod test {
         state::save_chain_config(
             &mut storage,
             &destination_chain,
-            Uint256::from(100_000u128).try_into().unwrap(),
-            6,
+            msg::ChainConfig {
+                chain: destination_chain.clone(),
+                its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
+                max_uint: Uint256::from(100_000u128).try_into().unwrap(),
+                max_target_decimals: 6,
+            },
         )
         .unwrap();
 
@@ -540,8 +556,12 @@ mod test {
         state::save_chain_config(
             &mut storage,
             &destination_chain,
-            Uint256::from(100_000u128).try_into().unwrap(),
-            6,
+            msg::ChainConfig {
+                chain: destination_chain.clone(),
+                its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
+                max_uint: Uint256::from(100_000u128).try_into().unwrap(),
+                max_target_decimals: 6,
+            },
         )
         .unwrap();
 
@@ -573,15 +593,23 @@ mod test {
         state::save_chain_config(
             &mut storage,
             &source_chain,
-            Uint256::from(1_000_000_000_000_000u128).try_into().unwrap(),
-            6,
+            msg::ChainConfig {
+                chain: source_chain.clone(),
+                its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
+                max_uint: Uint256::from(1_000_000_000_000_000u128).try_into().unwrap(),
+                max_target_decimals: 6,
+            },
         )
         .unwrap();
         state::save_chain_config(
             &mut storage,
             &destination_chain,
-            Uint256::from(1_000_000_000u128).try_into().unwrap(),
-            6,
+            msg::ChainConfig {
+                chain: destination_chain.clone(),
+                its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
+                max_uint: Uint256::from(1_000_000_000u128).try_into().unwrap(),
+                max_target_decimals: 6,
+            },
         )
         .unwrap();
 
@@ -625,15 +653,23 @@ mod test {
         state::save_chain_config(
             &mut storage,
             &source_chain,
-            Uint256::from(1_000_000_000u128).try_into().unwrap(),
-            6,
+            msg::ChainConfig {
+                chain: source_chain.clone(),
+                its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
+                max_uint: Uint256::from(1_000_000_000u128).try_into().unwrap(),
+                max_target_decimals: 6,
+            },
         )
         .unwrap();
         state::save_chain_config(
             &mut storage,
             &destination_chain,
-            Uint256::from(1_000_000_000_000_000u128).try_into().unwrap(),
-            6,
+            msg::ChainConfig {
+                chain: destination_chain.clone(),
+                its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
+                max_uint: Uint256::from(1_000_000_000_000_000u128).try_into().unwrap(),
+                max_target_decimals: 6,
+            },
         )
         .unwrap();
 
