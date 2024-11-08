@@ -85,18 +85,18 @@ impl TokenSupply {
 #[cw_serde]
 pub struct TokenInstance {
     pub supply: TokenSupply,
-    pub decimals: Option<u8>,
+    pub decimals: u8,
 }
 
 impl TokenInstance {
-    pub fn new_on_origin(decimals: Option<u8>) -> Self {
+    pub fn new_on_origin(decimals: u8) -> Self {
         Self {
             supply: TokenSupply::Untracked,
             decimals,
         }
     }
 
-    pub fn new(deployment_type: &TokenDeploymentType, decimals: Option<u8>) -> Self {
+    pub fn new(deployment_type: &TokenDeploymentType, decimals: u8) -> Self {
         let supply = match deployment_type {
             TokenDeploymentType::Trustless => TokenSupply::Tracked(Uint256::zero()),
             _ => TokenSupply::Untracked,
