@@ -300,6 +300,7 @@ mod tests {
         disable_execution, enable_execution, execute_message, freeze_chain, register_chain,
         register_chains, unfreeze_chain, update_chain, Error,
     };
+    use crate::msg::TruncationConfig;
     use crate::state::{self, Config};
     use crate::{msg, DeployInterchainToken, HubMessage, InterchainTransfer};
 
@@ -536,8 +537,10 @@ mod tests {
             msg::ChainConfig {
                 chain: SOLANA.parse().unwrap(),
                 its_edge_contract: ITS_ADDRESS.to_string().try_into().unwrap(),
-                max_uint: Uint256::one().try_into().unwrap(),
-                max_target_decimals: 16u8
+                truncation: TruncationConfig {
+                    max_uint: Uint256::one().try_into().unwrap(),
+                    max_decimals_when_truncating: 16u8
+                }
             }
         ));
         assert_err_contains!(
@@ -546,8 +549,10 @@ mod tests {
                 msg::ChainConfig {
                     chain: SOLANA.parse().unwrap(),
                     its_edge_contract: ITS_ADDRESS.to_string().try_into().unwrap(),
-                    max_uint: Uint256::one().try_into().unwrap(),
-                    max_target_decimals: 16u8
+                    truncation: TruncationConfig {
+                        max_uint: Uint256::one().try_into().unwrap(),
+                        max_decimals_when_truncating: 16u8
+                    }
                 }
             ),
             Error,
@@ -562,14 +567,18 @@ mod tests {
             msg::ChainConfig {
                 chain: SOLANA.parse().unwrap(),
                 its_edge_contract: ITS_ADDRESS.to_string().try_into().unwrap(),
-                max_uint: Uint256::MAX.try_into().unwrap(),
-                max_target_decimals: 16u8,
+                truncation: TruncationConfig {
+                    max_uint: Uint256::MAX.try_into().unwrap(),
+                    max_decimals_when_truncating: 16u8,
+                },
             },
             msg::ChainConfig {
                 chain: XRPL.parse().unwrap(),
                 its_edge_contract: ITS_ADDRESS.to_string().try_into().unwrap(),
-                max_uint: Uint256::MAX.try_into().unwrap(),
-                max_target_decimals: 16u8,
+                truncation: TruncationConfig {
+                    max_uint: Uint256::MAX.try_into().unwrap(),
+                    max_decimals_when_truncating: 16u8,
+                },
             },
         ];
         assert_ok!(register_chains(deps.as_mut(), chains[0..1].to_vec()));
@@ -623,8 +632,10 @@ mod tests {
                 msg::ChainConfig {
                     chain: chain.clone(),
                     its_edge_contract: ITS_ADDRESS.to_string().try_into().unwrap(),
-                    max_uint: Uint256::one().try_into().unwrap(),
-                    max_target_decimals: 16u8
+                    truncation: TruncationConfig {
+                        max_uint: Uint256::one().try_into().unwrap(),
+                        max_decimals_when_truncating: 16u8
+                    }
                 }
             ));
         }

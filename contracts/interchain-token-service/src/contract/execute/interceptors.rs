@@ -205,13 +205,15 @@ fn destination_token_decimals(
         state::load_chain_config(storage, destination_chain).change_context(Error::State)?;
 
     if source_chain_config
+        .truncation
         .max_uint
-        .le(&destination_chain_config.max_uint)
+        .le(&destination_chain_config.truncation.max_uint)
     {
         source_chain_decimals
     } else {
-        source_chain_config
-            .max_target_decimals
+        destination_chain_config
+            .truncation
+            .max_decimals_when_truncating
             .min(source_chain_decimals)
     }
     .then(Result::Ok)
@@ -244,6 +246,7 @@ fn destination_amount(
 
     let destination_max_uint = state::load_chain_config(storage, destination_chain)
         .change_context(Error::State)?
+        .truncation
         .max_uint;
 
     // It's intentionally written in this way since the end result may still be fine even if
@@ -311,6 +314,7 @@ mod test {
 
     use super::Error;
     use crate::contract::execute::interceptors;
+    use crate::msg::TruncationConfig;
     use crate::state::{self, TokenDeploymentType};
     use crate::{msg, DeployInterchainToken, InterchainTransfer, TokenInstance};
 
@@ -347,8 +351,10 @@ mod test {
             msg::ChainConfig {
                 chain: destination_chain.clone(),
                 its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
-                max_uint: Uint256::from(1_000_000_000u128).try_into().unwrap(),
-                max_target_decimals: 6,
+                truncation: TruncationConfig {
+                    max_uint: Uint256::from(1_000_000_000u128).try_into().unwrap(),
+                    max_decimals_when_truncating: 6,
+                },
             },
         )
         .unwrap();
@@ -398,8 +404,10 @@ mod test {
             msg::ChainConfig {
                 chain: destination_chain.clone(),
                 its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
-                max_uint: Uint256::from(1_000_000_000_000_000u128).try_into().unwrap(),
-                max_target_decimals: 6,
+                truncation: TruncationConfig {
+                    max_uint: Uint256::from(1_000_000_000_000_000u128).try_into().unwrap(),
+                    max_decimals_when_truncating: 6,
+                },
             },
         )
         .unwrap();
@@ -449,8 +457,10 @@ mod test {
             msg::ChainConfig {
                 chain: destination_chain.clone(),
                 its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
-                max_uint: Uint256::from(1_000_000_000_000_000u128).try_into().unwrap(),
-                max_target_decimals: 6,
+                truncation: TruncationConfig {
+                    max_uint: Uint256::from(1_000_000_000_000_000u128).try_into().unwrap(),
+                    max_decimals_when_truncating: 6,
+                },
             },
         )
         .unwrap();
@@ -500,8 +510,10 @@ mod test {
             msg::ChainConfig {
                 chain: destination_chain.clone(),
                 its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
-                max_uint: Uint256::from(100_000u128).try_into().unwrap(),
-                max_target_decimals: 6,
+                truncation: TruncationConfig {
+                    max_uint: Uint256::from(100_000u128).try_into().unwrap(),
+                    max_decimals_when_truncating: 6,
+                },
             },
         )
         .unwrap();
@@ -551,8 +563,10 @@ mod test {
             msg::ChainConfig {
                 chain: destination_chain.clone(),
                 its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
-                max_uint: Uint256::from(100_000u128).try_into().unwrap(),
-                max_target_decimals: 6,
+                truncation: TruncationConfig {
+                    max_uint: Uint256::from(100_000u128).try_into().unwrap(),
+                    max_decimals_when_truncating: 6,
+                },
             },
         )
         .unwrap();
@@ -588,8 +602,10 @@ mod test {
             msg::ChainConfig {
                 chain: source_chain.clone(),
                 its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
-                max_uint: Uint256::from(1_000_000_000_000_000u128).try_into().unwrap(),
-                max_target_decimals: 6,
+                truncation: TruncationConfig {
+                    max_uint: Uint256::from(1_000_000_000_000_000u128).try_into().unwrap(),
+                    max_decimals_when_truncating: 6,
+                },
             },
         )
         .unwrap();
@@ -599,8 +615,10 @@ mod test {
             msg::ChainConfig {
                 chain: destination_chain.clone(),
                 its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
-                max_uint: Uint256::from(1_000_000_000u128).try_into().unwrap(),
-                max_target_decimals: 6,
+                truncation: TruncationConfig {
+                    max_uint: Uint256::from(1_000_000_000u128).try_into().unwrap(),
+                    max_decimals_when_truncating: 6,
+                },
             },
         )
         .unwrap();
@@ -648,8 +666,10 @@ mod test {
             msg::ChainConfig {
                 chain: source_chain.clone(),
                 its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
-                max_uint: Uint256::from(1_000_000_000u128).try_into().unwrap(),
-                max_target_decimals: 6,
+                truncation: TruncationConfig {
+                    max_uint: Uint256::from(1_000_000_000u128).try_into().unwrap(),
+                    max_decimals_when_truncating: 6,
+                },
             },
         )
         .unwrap();
@@ -659,8 +679,10 @@ mod test {
             msg::ChainConfig {
                 chain: destination_chain.clone(),
                 its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
-                max_uint: Uint256::from(1_000_000_000_000_000u128).try_into().unwrap(),
-                max_target_decimals: 6,
+                truncation: TruncationConfig {
+                    max_uint: Uint256::from(1_000_000_000_000_000u128).try_into().unwrap(),
+                    max_decimals_when_truncating: 6,
+                },
             },
         )
         .unwrap();

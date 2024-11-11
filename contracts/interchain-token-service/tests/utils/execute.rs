@@ -10,7 +10,7 @@ use cosmwasm_std::{
     from_json, to_json_binary, Addr, DepsMut, HexBinary, MemoryStorage, OwnedDeps, Response,
     Uint256, WasmQuery,
 };
-use interchain_token_service::msg::{self, ExecuteMsg};
+use interchain_token_service::msg::{self, ExecuteMsg, TruncationConfig};
 use interchain_token_service::{contract, HubMessage};
 use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
 
@@ -88,15 +88,17 @@ pub fn register_chain(
     chain: ChainNameRaw,
     its_edge_contract: Address,
     max_uint: nonempty::Uint256,
-    max_target_decimals: u8,
+    max_decimals_when_truncating: u8,
 ) -> Result<Response, ContractError> {
     register_chains(
         deps,
         vec![msg::ChainConfig {
             chain,
             its_edge_contract,
-            max_uint,
-            max_target_decimals,
+            truncation: TruncationConfig {
+                max_uint,
+                max_decimals_when_truncating,
+            },
         }],
     )
 }

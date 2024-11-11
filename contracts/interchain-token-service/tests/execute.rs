@@ -8,7 +8,7 @@ use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
 use cosmwasm_std::{HexBinary, Uint256};
 use interchain_token_service::contract::{self, ExecuteError};
 use interchain_token_service::events::Event;
-use interchain_token_service::msg::{self, ExecuteMsg};
+use interchain_token_service::msg::{self, ExecuteMsg, TruncationConfig};
 use interchain_token_service::{
     DeployInterchainToken, HubMessage, InterchainTransfer, TokenId, TokenSupply,
 };
@@ -111,8 +111,10 @@ fn register_multiple_chains_succeeds() {
         .map(|i| msg::ChainConfig {
             chain: i.to_string().parse().unwrap(),
             its_edge_contract: i.to_string().parse().unwrap(),
-            max_target_decimals: 18u8,
-            max_uint: Uint256::MAX.try_into().unwrap(),
+            truncation: TruncationConfig {
+                max_decimals_when_truncating: 18u8,
+                max_uint: Uint256::MAX.try_into().unwrap(),
+            },
         })
         .collect();
     assert_ok!(register_chains(deps.as_mut(), chains.clone()));
@@ -134,8 +136,10 @@ fn register_multiple_chains_fails_if_one_invalid() {
         .map(|i| msg::ChainConfig {
             chain: i.to_string().parse().unwrap(),
             its_edge_contract: i.to_string().parse().unwrap(),
-            max_target_decimals: 18u8,
-            max_uint: Uint256::MAX.try_into().unwrap(),
+            truncation: TruncationConfig {
+                max_decimals_when_truncating: 18u8,
+                max_uint: Uint256::MAX.try_into().unwrap(),
+            },
         })
         .collect();
     assert_ok!(register_chains(deps.as_mut(), chains[0..1].to_vec()));
