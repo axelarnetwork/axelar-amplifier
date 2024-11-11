@@ -588,13 +588,6 @@ mod test {
         let mut storage = MockStorage::new();
         let source_chain: ChainNameRaw = "sourcechain".try_into().unwrap();
         let destination_chain: ChainNameRaw = "destinationchain".try_into().unwrap();
-        let deploy_token = DeployInterchainToken {
-            token_id: [1u8; 32].into(),
-            name: "token".to_string().try_into().unwrap(),
-            symbol: "TKN".to_string().try_into().unwrap(),
-            decimals: 9,
-            minter: None,
-        };
 
         state::save_chain_config(
             &mut storage,
@@ -604,7 +597,7 @@ mod test {
                 its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
                 truncation: TruncationConfig {
                     max_uint: Uint256::from(1_000_000_000_000_000u128).try_into().unwrap(),
-                    max_decimals_when_truncating: 6,
+                    max_decimals_when_truncating: 12,
                 },
             },
         )
@@ -622,6 +615,13 @@ mod test {
             },
         )
         .unwrap();
+        let deploy_token = DeployInterchainToken {
+            token_id: [1u8; 32].into(),
+            name: "token".to_string().try_into().unwrap(),
+            symbol: "TKN".to_string().try_into().unwrap(),
+            decimals: 9,
+            minter: None,
+        };
 
         let deploy_token = assert_ok!(interceptors::calculate_scaling_factor(
             &storage,
@@ -652,13 +652,6 @@ mod test {
         let mut storage = MockStorage::new();
         let source_chain: ChainNameRaw = "sourcechain".try_into().unwrap();
         let destination_chain: ChainNameRaw = "destinationchain".try_into().unwrap();
-        let deploy_token = DeployInterchainToken {
-            token_id: [1u8; 32].into(),
-            name: "token".to_string().try_into().unwrap(),
-            symbol: "TKN".to_string().try_into().unwrap(),
-            decimals: 9,
-            minter: None,
-        };
 
         state::save_chain_config(
             &mut storage,
@@ -687,6 +680,13 @@ mod test {
         )
         .unwrap();
 
+        let deploy_token = DeployInterchainToken {
+            token_id: [1u8; 32].into(),
+            name: "token".to_string().try_into().unwrap(),
+            symbol: "TKN".to_string().try_into().unwrap(),
+            decimals: 9,
+            minter: None,
+        };
         let deploy_token = assert_ok!(interceptors::calculate_scaling_factor(
             &storage,
             &source_chain,
@@ -694,5 +694,20 @@ mod test {
             deploy_token,
         ));
         assert_eq!(deploy_token.decimals, 9);
+
+        let deploy_token = DeployInterchainToken {
+            token_id: [1u8; 32].into(),
+            name: "token".to_string().try_into().unwrap(),
+            symbol: "TKN".to_string().try_into().unwrap(),
+            decimals: 3,
+            minter: None,
+        };
+        let deploy_token = assert_ok!(interceptors::calculate_scaling_factor(
+            &storage,
+            &source_chain,
+            &destination_chain,
+            deploy_token,
+        ));
+        assert_eq!(deploy_token.decimals, 3);
     }
 }
