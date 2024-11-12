@@ -192,6 +192,23 @@ fn try_load_token_instance(
         .ok_or(report!(Error::TokenNotDeployed { token_id, chain }))
 }
 
+fn try_load_token_instance_or_default(
+    storage: &dyn Storage,
+    chain: &ChainSpecifier,
+    token_id: TokenId,
+) -> Result<TokenInstance, Error> {
+    let res = state::may_load_token_instance(storage, chain.name.clone(), token_id)
+        .change_context(Error::State)?
+        .ok_or(report!(Error::TokenNotDeployed {
+            token_id,
+            chain: chain.name.clone(),
+        }));
+    if res.is_err() && !chain.is_amplifier_chain {
+        return try_load_origin_chain_token_instance(storage, token_id);
+    }
+    res
+}
+
 fn try_load_origin_chain_token_instance(
     storage: &dyn Storage,
     token_id: TokenId,
@@ -252,16 +269,9 @@ fn destination_amount(
     token_id: TokenId,
     source_amount: nonempty::Uint256,
 ) -> Result<nonempty::Uint256, Error> {
-    let source_token = if source_chain.is_amplifier_chain {
-        try_load_token_instance(storage, source_chain.name.clone(), token_id)?
-    } else {
-        try_load_origin_chain_token_instance(storage, token_id)?
-    };
-    let destination_token = if destination_chain.is_amplifier_chain {
-        try_load_token_instance(storage, destination_chain.name.clone(), token_id)?
-    } else {
-        try_load_origin_chain_token_instance(storage, token_id)?
-    };
+    let source_token = try_load_token_instance_or_default(storage, source_chain, token_id)?;
+    let destination_token =
+        try_load_token_instance_or_default(storage, destination_chain, token_id)?;
 
     let (source_decimals, destination_decimals) =
         (source_token.decimals, destination_token.decimals);
