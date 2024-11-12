@@ -197,7 +197,7 @@ fn destination_token_decimals(
     storage: &dyn Storage,
     source_chain: &ChainNameRaw,
     destination_chain: &ChainNameRaw,
-    source_chain_decimals: u8,
+    source_token_decimals: u8,
 ) -> Result<u8, Error> {
     let source_chain_config =
         state::load_chain_config(storage, source_chain).change_context(Error::State)?;
@@ -209,12 +209,12 @@ fn destination_token_decimals(
         .max_uint
         .le(&destination_chain_config.truncation.max_uint)
     {
-        source_chain_decimals
+        source_token_decimals
     } else {
         destination_chain_config
             .truncation
             .max_decimals_when_truncating
-            .min(source_chain_decimals)
+            .min(source_token_decimals)
     }
     .then(Result::Ok)
 }
