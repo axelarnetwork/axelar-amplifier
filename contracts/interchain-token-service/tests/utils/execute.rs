@@ -14,6 +14,7 @@ use interchain_token_service::msg::{self, ExecuteMsg, TruncationConfig};
 use interchain_token_service::{contract, HubMessage};
 use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
 
+use super::params::{CORE_CHAIN, CORE_ITS_CONTRACT};
 use super::{instantiate_contract, TestMessage};
 use crate::utils::params;
 
@@ -70,7 +71,7 @@ pub fn make_deps() -> OwnedDeps<MemoryStorage, MockApi, MockQuerier<AxelarQueryM
         AxelarQueryMsg::Nexus(nexus::query::QueryMsg::IsChainRegistered { chain }) => {
             Ok(to_json_binary(
                 &(IsChainRegisteredResponse {
-                    is_registered: chain == "ethereum",
+                    is_registered: chain == CORE_CHAIN,
                 }),
             )
             .into())
@@ -199,6 +200,15 @@ pub fn setup() -> (
         deps.as_mut(),
         destination_its_chain.clone(),
         destination_its_contract.clone(),
+        Uint256::MAX.try_into().unwrap(),
+        u8::MAX,
+    )
+    .unwrap();
+
+    register_chain(
+        deps.as_mut(),
+        CORE_CHAIN.parse().unwrap(),
+        CORE_ITS_CONTRACT.parse().unwrap(),
         Uint256::MAX.try_into().unwrap(),
         u8::MAX,
     )

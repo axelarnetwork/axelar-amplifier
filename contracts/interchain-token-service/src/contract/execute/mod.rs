@@ -1,3 +1,4 @@
+use axelar_core_std::nexus;
 use axelar_wasm_std::{killswitch, nonempty, FnExt, IntoContractError};
 use cosmwasm_std::{DepsMut, HexBinary, QuerierWrapper, Response, Storage};
 use error_stack::{bail, ensure, report, Result, ResultExt};
@@ -72,6 +73,8 @@ pub enum Error {
         token_id: TokenId,
         chain: ChainNameRaw,
     },
+    #[error("error querying nexus module for chain registration for chain {0}")]
+    Nexus(ChainNameRaw),
 }
 
 /// Executes an incoming ITS message.
@@ -111,6 +114,7 @@ fn execute_message_on_hub(
 
     let message = apply_to_hub(
         deps.storage,
+        deps.querier,
         cc_id.source_chain.clone(),
         destination_chain.clone(),
         message,
@@ -141,6 +145,7 @@ fn execute_message_on_hub(
 
 fn apply_to_hub(
     storage: &mut dyn Storage,
+    querier: QuerierWrapper,
     source_chain: ChainNameRaw,
     destination_chain: ChainNameRaw,
     message: Message,
@@ -150,7 +155,7 @@ fn apply_to_hub(
 
     match message {
         Message::InterchainTransfer(transfer) => {
-            apply_to_transfer(storage, source_chain, destination_chain, transfer)
+            apply_to_transfer(storage, querier, source_chain, destination_chain, transfer)
                 .map(Message::InterchainTransfer)?
         }
         Message::DeployInterchainToken(deploy_token) => {
@@ -163,18 +168,39 @@ fn apply_to_hub(
 
 fn apply_to_transfer(
     storage: &mut dyn Storage,
+    querier: QuerierWrapper,
     source_chain: ChainNameRaw,
     destination_chain: ChainNameRaw,
     transfer: InterchainTransfer,
 ) -> Result<InterchainTransfer, Error> {
-    interceptors::subtract_supply_amount(storage, &source_chain, &transfer)?;
-    let transfer = interceptors::apply_scaling_factor_to_amount(
-        storage,
-        &source_chain,
-        &destination_chain,
-        transfer,
-    )?;
-    interceptors::add_supply_amount(storage, &destination_chain, &transfer)?;
+    // we only do balance tracking for amplifier chains
+    let client: nexus::Client = client::CosmosClient::new(querier).into();
+    let source_is_amplifier_chain = !client
+        .is_chain_registered(&source_chain.normalize())
+        .change_context(Error::Nexus(source_chain.clone()))?;
+    let destination_is_amplifier_chain = !client
+        .is_chain_registered(&destination_chain.normalize())
+        .change_context(Error::Nexus(destination_chain.clone()))?;
+
+    if source_is_amplifier_chain {
+        interceptors::subtract_supply_amount(storage, &source_chain, &transfer)?;
+    }
+
+    // we only possibly scale if both source chain and destination chain are amplifier chains
+    let transfer = if source_is_amplifier_chain && destination_is_amplifier_chain {
+        interceptors::apply_scaling_factor_to_amount(
+            storage,
+            &source_chain,
+            &destination_chain,
+            transfer,
+        )?
+    } else {
+        transfer
+    };
+
+    if destination_is_amplifier_chain {
+        interceptors::add_supply_amount(storage, &destination_chain, &transfer)?;
+    }
 
     Ok(transfer)
 }

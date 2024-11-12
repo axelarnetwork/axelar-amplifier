@@ -14,6 +14,7 @@ use interchain_token_service::{
 };
 use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
 use serde_json::json;
+use utils::params::{CORE_CHAIN, CORE_ITS_CONTRACT};
 use utils::{params, register_chains, TestMessage};
 
 mod utils;
@@ -947,6 +948,64 @@ fn deploy_interchain_token_tracks_supply() {
         .unwrap()
         .supply,
         TokenSupply::Tracked(Uint256::zero())
+    );
+}
+
+#[test]
+fn transfer_interchain_token_from_core_does_not_check_balance_or_deployment() {
+    let (
+        mut deps,
+        TestMessage {
+            router_message,
+            source_its_chain: _,
+            source_its_contract,
+            destination_its_chain,
+            destination_its_contract: _,
+            hub_message,
+        },
+    ) = utils::setup();
+
+    let token_id = hub_message.token_id();
+    let amount = nonempty::Uint256::try_from(400u64).unwrap();
+
+    // this deploys the token from source_its_chain to destination_its_chain
+    assert_ok!(utils::execute_hub_message(
+        deps.as_mut(),
+        router_message.cc_id.clone(),
+        source_its_contract.clone(),
+        hub_message,
+    ));
+
+    let msg = HubMessage::SendToHub {
+        destination_chain: destination_its_chain.clone(),
+        message: InterchainTransfer {
+            token_id,
+            source_address: HexBinary::from([1; 32]).try_into().unwrap(),
+            destination_address: HexBinary::from([2; 32]).try_into().unwrap(),
+            amount,
+            data: None,
+        }
+        .into(),
+    };
+    assert_ok!(utils::execute_hub_message(
+        deps.as_mut(),
+        CrossChainId {
+            source_chain: CORE_CHAIN.parse().unwrap(),
+            message_id: router_message.cc_id.message_id.clone()
+        },
+        CORE_ITS_CONTRACT.parse().unwrap(),
+        msg,
+    ));
+
+    assert_eq!(
+        assert_ok!(utils::query_token_instance(
+            deps.as_ref(),
+            destination_its_chain.clone(),
+            token_id
+        ))
+        .unwrap()
+        .supply,
+        TokenSupply::Tracked(amount.into())
     );
 }
 
