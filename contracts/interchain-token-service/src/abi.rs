@@ -6,7 +6,7 @@ use error_stack::{bail, ensure, report, Report, ResultExt};
 use router_api::ChainNameRaw;
 
 use crate::primitives::{HubMessage, Message};
-use crate::{primitives, TokenId, TokenManagerType};
+use crate::{primitives, TokenId};
 
 // ITS Message payload types
 // Reference: https://github.com/axelarnetwork/interchain-token-service/blob/v1.2.4/DESIGN.md#interchain-communication-spec
@@ -62,8 +62,6 @@ pub enum Error {
     InvalidMessageType,
     #[error("invalid chain name")]
     InvalidChainName,
-    #[error("invalid token manager type")]
-    InvalidTokenManagerType,
     #[error(transparent)]
     NonEmpty(#[from] nonempty::Error),
     #[error(transparent)]
@@ -215,12 +213,6 @@ impl HubMessage {
 
 impl From<MessageType> for U256 {
     fn from(value: MessageType) -> Self {
-        U256::from(value as u8)
-    }
-}
-
-impl From<TokenManagerType> for U256 {
-    fn from(value: TokenManagerType) -> Self {
         U256::from(value as u8)
     }
 }
