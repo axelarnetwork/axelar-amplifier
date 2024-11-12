@@ -120,7 +120,7 @@ pub fn encode_execute_data(
 }
 
 // Convert non-recoverable ECDSA signatures to recoverable ones.
-fn to_recoverable<M>(msg: M, signers: Vec<SignerWithSig>) -> Vec<SignerWithSig>
+pub(super) fn to_recoverable<M>(msg: M, signers: Vec<SignerWithSig>) -> Vec<SignerWithSig>
 where
     M: AsRef<[u8]>,
 {
@@ -147,7 +147,7 @@ where
 }
 
 #[cfg(test)]
-mod tests {
+pub(super) mod tests {
     use std::str::FromStr;
 
     use assert_ok::assert_ok;
@@ -319,7 +319,7 @@ mod tests {
         }
     }
 
-    fn signers_with_sigs<'a>(
+    pub(crate) fn signers_with_sigs<'a>(
         signers: impl Iterator<Item = &'a Signer>,
         sigs: Vec<HexBinary>,
     ) -> Vec<SignerWithSig> {

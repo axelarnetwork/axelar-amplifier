@@ -1,5 +1,6 @@
 mod abi;
 mod bcs;
+mod starknet_abi;
 mod stellar_xdr;
 
 use axelar_wasm_std::hash::Hash;
@@ -17,6 +18,7 @@ use crate::payload::Payload;
 pub enum Encoder {
     Abi,
     Bcs,
+    StarknetAbi,
     StellarXdr,
 }
 
@@ -30,6 +32,9 @@ impl Encoder {
         match self {
             Encoder::Abi => abi::payload_digest(domain_separator, verifier_set, payload),
             Encoder::Bcs => bcs::payload_digest(domain_separator, verifier_set, payload),
+            Encoder::StarknetAbi => {
+                starknet_abi::payload_digest(domain_separator, verifier_set, payload)
+            }
             Encoder::StellarXdr => {
                 stellar_xdr::payload_digest(domain_separator, verifier_set, payload)
             }
@@ -46,6 +51,9 @@ impl Encoder {
         match self {
             Encoder::Abi => abi::encode_execute_data(domain_separator, verifier_set, sigs, payload),
             Encoder::Bcs => bcs::encode_execute_data(domain_separator, verifier_set, sigs, payload),
+            Encoder::StarknetAbi => {
+                starknet_abi::encode_execute_data(domain_separator, verifier_set, sigs, payload)
+            }
             Encoder::StellarXdr => stellar_xdr::encode_execute_data(verifier_set, sigs, payload),
         }
     }
