@@ -198,7 +198,6 @@ fn apply_to_transfer(
 
     interceptors::subtract_supply_amount_if_amplifier_chain(storage, &source_chain, &transfer)?;
 
-    // we only possibly scale if both source chain and destination chain are amplifier chains
     let transfer = interceptors::apply_scaling_factor_to_amount(
         storage,
         &source_chain,
