@@ -3,52 +3,58 @@ use cosmwasm_std::{Storage, Uint256};
 use error_stack::{bail, ensure, report, Result, ResultExt};
 use router_api::ChainNameRaw;
 
-use super::Error;
+use super::{ChainSpecifier, Error};
 use crate::state::{self, TokenDeploymentType};
 use crate::{DeployInterchainToken, InterchainTransfer, TokenConfig, TokenId, TokenInstance};
 
-pub fn subtract_supply_amount(
+pub fn subtract_supply_amount_if_amplifier_chain(
     storage: &mut dyn Storage,
-    chain: &ChainNameRaw,
+    chain: &ChainSpecifier,
     transfer: &InterchainTransfer,
 ) -> Result<(), Error> {
-    let mut token = try_load_token_instance(storage, chain.clone(), transfer.token_id)?;
+    if !chain.is_amplifier_chain {
+        return Ok(());
+    }
+    let mut token = try_load_token_instance(storage, chain.name.clone(), transfer.token_id)?;
 
     token.supply = token
         .supply
         .checked_sub(transfer.amount)
         .change_context_lazy(|| Error::TokenSupplyInvariantViolated {
             token_id: transfer.token_id,
-            chain: chain.clone(),
+            chain: chain.name.clone(),
         })?;
 
-    state::save_token_instance(storage, chain.clone(), transfer.token_id, &token)
+    state::save_token_instance(storage, chain.name.clone(), transfer.token_id, &token)
         .change_context(Error::State)
 }
 
-pub fn add_supply_amount(
+pub fn add_supply_amount_if_amplifier_chain(
     storage: &mut dyn Storage,
-    chain: &ChainNameRaw,
+    chain: &ChainSpecifier,
     transfer: &InterchainTransfer,
 ) -> Result<(), Error> {
-    let mut token = try_load_token_instance(storage, chain.clone(), transfer.token_id)?;
+    if !chain.is_amplifier_chain {
+        return Ok(());
+    }
+    let mut token = try_load_token_instance(storage, chain.name.clone(), transfer.token_id)?;
 
     token.supply = token
         .supply
         .checked_add(transfer.amount)
         .change_context_lazy(|| Error::TokenSupplyInvariantViolated {
             token_id: transfer.token_id,
-            chain: chain.clone(),
+            chain: chain.name.clone(),
         })?;
 
-    state::save_token_instance(storage, chain.clone(), transfer.token_id, &token)
+    state::save_token_instance(storage, chain.name.clone(), transfer.token_id, &token)
         .change_context(Error::State)
 }
 
 pub fn apply_scaling_factor_to_amount(
     storage: &dyn Storage,
-    source_chain: &ChainNameRaw,
-    destination_chain: &ChainNameRaw,
+    source_chain: &ChainSpecifier,
+    destination_chain: &ChainSpecifier,
     mut transfer: InterchainTransfer,
 ) -> Result<InterchainTransfer, Error> {
     transfer.amount = destination_amount(
@@ -186,6 +192,18 @@ fn try_load_token_instance(
         .ok_or(report!(Error::TokenNotDeployed { token_id, chain }))
 }
 
+fn try_load_origin_chain_token_instance(
+    storage: &dyn Storage,
+    token_id: TokenId,
+) -> Result<TokenInstance, Error> {
+    state::may_load_token_config(storage, &token_id)
+        .change_context(Error::State)?
+        .ok_or(report!(Error::TokenConfigNotFound(token_id)))
+        .and_then(|token_config| {
+            try_load_token_instance(storage, token_config.origin_chain, token_id)
+        })
+}
+
 /// Calculates the destination token decimals.
 ///
 /// The destination chain's token decimals are calculated and saved as following:
@@ -229,13 +247,21 @@ fn destination_token_decimals(
 /// 4) If new_amount is zero, the translation fails.
 fn destination_amount(
     storage: &dyn Storage,
-    source_chain: &ChainNameRaw,
-    destination_chain: &ChainNameRaw,
+    source_chain: &ChainSpecifier,
+    destination_chain: &ChainSpecifier,
     token_id: TokenId,
     source_amount: nonempty::Uint256,
 ) -> Result<nonempty::Uint256, Error> {
-    let source_token = try_load_token_instance(storage, source_chain.clone(), token_id)?;
-    let destination_token = try_load_token_instance(storage, destination_chain.clone(), token_id)?;
+    let source_token = if source_chain.is_amplifier_chain {
+        try_load_token_instance(storage, source_chain.name.clone(), token_id)?
+    } else {
+        try_load_origin_chain_token_instance(storage, token_id)?
+    };
+    let destination_token = if destination_chain.is_amplifier_chain {
+        try_load_token_instance(storage, destination_chain.name.clone(), token_id)?
+    } else {
+        try_load_origin_chain_token_instance(storage, token_id)?
+    };
 
     let (source_decimals, destination_decimals) =
         (source_token.decimals, destination_token.decimals);
@@ -244,7 +270,7 @@ fn destination_amount(
         return Ok(source_amount);
     }
 
-    let destination_max_uint = state::load_chain_config(storage, destination_chain)
+    let destination_max_uint = state::load_chain_config(storage, &destination_chain.name)
         .change_context(Error::State)?
         .truncation
         .max_uint;
@@ -255,8 +281,8 @@ fn destination_amount(
     let scaling_factor = Uint256::from_u128(10)
         .checked_pow(source_decimals.abs_diff(destination_decimals).into())
         .change_context_lazy(|| Error::InvalidTransferAmount {
-            source_chain: source_chain.to_owned(),
-            destination_chain: destination_chain.to_owned(),
+            source_chain: source_chain.name.to_owned(),
+            destination_chain: destination_chain.name.to_owned(),
             amount: source_amount,
         })?;
     let destination_amount = if source_decimals > destination_decimals {
@@ -267,24 +293,24 @@ fn destination_amount(
         source_amount
             .checked_mul(scaling_factor)
             .change_context_lazy(|| Error::InvalidTransferAmount {
-                source_chain: source_chain.to_owned(),
-                destination_chain: destination_chain.to_owned(),
+                source_chain: source_chain.name.to_owned(),
+                destination_chain: destination_chain.name.to_owned(),
                 amount: source_amount,
             })?
     };
 
     if destination_amount.gt(&destination_max_uint) {
         bail!(Error::InvalidTransferAmount {
-            source_chain: source_chain.to_owned(),
-            destination_chain: destination_chain.to_owned(),
+            source_chain: source_chain.name.to_owned(),
+            destination_chain: destination_chain.name.to_owned(),
             amount: source_amount,
         })
     }
 
     nonempty::Uint256::try_from(destination_amount).change_context_lazy(|| {
         Error::InvalidTransferAmount {
-            source_chain: source_chain.to_owned(),
-            destination_chain: destination_chain.to_owned(),
+            source_chain: source_chain.name.to_owned(),
+            destination_chain: destination_chain.name.to_owned(),
             amount: source_amount,
         }
     })
@@ -313,7 +339,7 @@ mod test {
     use router_api::ChainNameRaw;
 
     use super::Error;
-    use crate::contract::execute::interceptors;
+    use crate::contract::execute::{interceptors, ChainSpecifier};
     use crate::msg::TruncationConfig;
     use crate::state::{self, TokenDeploymentType};
     use crate::{msg, DeployInterchainToken, InterchainTransfer, TokenInstance};
@@ -361,8 +387,14 @@ mod test {
 
         let transfer = assert_ok!(interceptors::apply_scaling_factor_to_amount(
             &storage,
-            &source_chain,
-            &destination_chain,
+            &crate::contract::execute::ChainSpecifier {
+                name: source_chain,
+                is_amplifier_chain: true
+            },
+            &crate::contract::execute::ChainSpecifier {
+                name: destination_chain,
+                is_amplifier_chain: true
+            },
             transfer,
         ));
         assert_eq!(
@@ -414,8 +446,14 @@ mod test {
 
         let transfer = assert_ok!(interceptors::apply_scaling_factor_to_amount(
             &storage,
-            &source_chain,
-            &destination_chain,
+            &ChainSpecifier {
+                name: source_chain,
+                is_amplifier_chain: true
+            },
+            &ChainSpecifier {
+                name: destination_chain,
+                is_amplifier_chain: true
+            },
             transfer,
         ));
         assert_eq!(
@@ -467,8 +505,14 @@ mod test {
 
         let transfer = assert_ok!(interceptors::apply_scaling_factor_to_amount(
             &storage,
-            &source_chain,
-            &destination_chain,
+            &ChainSpecifier {
+                name: source_chain,
+                is_amplifier_chain: true
+            },
+            &ChainSpecifier {
+                name: destination_chain,
+                is_amplifier_chain: true
+            },
             transfer,
         ));
         assert_eq!(
@@ -521,8 +565,14 @@ mod test {
         assert_err_contains!(
             interceptors::apply_scaling_factor_to_amount(
                 &storage,
-                &source_chain,
-                &destination_chain,
+                &ChainSpecifier {
+                    name: source_chain,
+                    is_amplifier_chain: true
+                },
+                &ChainSpecifier {
+                    name: destination_chain,
+                    is_amplifier_chain: true
+                },
                 transfer,
             ),
             Error,
@@ -574,8 +624,14 @@ mod test {
         assert_err_contains!(
             interceptors::apply_scaling_factor_to_amount(
                 &storage,
-                &source_chain,
-                &destination_chain,
+                &ChainSpecifier {
+                    name: source_chain,
+                    is_amplifier_chain: true
+                },
+                &ChainSpecifier {
+                    name: destination_chain,
+                    is_amplifier_chain: true
+                },
                 transfer,
             ),
             Error,

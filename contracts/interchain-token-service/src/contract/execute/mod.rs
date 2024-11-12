@@ -43,6 +43,9 @@ pub enum Error {
     State,
     #[error("chain {0} already registered")]
     ChainAlreadyRegistered(ChainNameRaw),
+
+    #[error("token {0} config not found")]
+    TokenConfigNotFound(TokenId),
     #[error("token {token_id} not deployed on chain {chain}")]
     TokenNotDeployed {
         token_id: TokenId,
@@ -166,6 +169,11 @@ fn apply_to_hub(
     .then(Result::Ok)
 }
 
+pub struct ChainSpecifier {
+    pub name: ChainNameRaw,
+    pub is_amplifier_chain: bool,
+}
+
 fn apply_to_transfer(
     storage: &mut dyn Storage,
     querier: QuerierWrapper,
@@ -175,32 +183,30 @@ fn apply_to_transfer(
 ) -> Result<InterchainTransfer, Error> {
     // we only do balance tracking for amplifier chains
     let client: nexus::Client = client::CosmosClient::new(querier).into();
-    let source_is_amplifier_chain = !client
-        .is_chain_registered(&source_chain.normalize())
-        .change_context(Error::Nexus(source_chain.clone()))?;
-    let destination_is_amplifier_chain = !client
-        .is_chain_registered(&destination_chain.normalize())
-        .change_context(Error::Nexus(destination_chain.clone()))?;
-
-    if source_is_amplifier_chain {
-        interceptors::subtract_supply_amount(storage, &source_chain, &transfer)?;
-    }
-
-    // we only possibly scale if both source chain and destination chain are amplifier chains
-    let transfer = if source_is_amplifier_chain && destination_is_amplifier_chain {
-        interceptors::apply_scaling_factor_to_amount(
-            storage,
-            &source_chain,
-            &destination_chain,
-            transfer,
-        )?
-    } else {
-        transfer
+    let source_chain = ChainSpecifier {
+        name: source_chain.clone(),
+        is_amplifier_chain: !client
+            .is_chain_registered(&source_chain.normalize())
+            .change_context(Error::Nexus(source_chain.clone()))?,
+    };
+    let destination_chain = ChainSpecifier {
+        name: destination_chain.clone(),
+        is_amplifier_chain: !client
+            .is_chain_registered(&destination_chain.normalize())
+            .change_context(Error::Nexus(destination_chain.clone()))?,
     };
 
-    if destination_is_amplifier_chain {
-        interceptors::add_supply_amount(storage, &destination_chain, &transfer)?;
-    }
+    interceptors::subtract_supply_amount_if_amplifier_chain(storage, &source_chain, &transfer)?;
+
+    // we only possibly scale if both source chain and destination chain are amplifier chains
+    let transfer = interceptors::apply_scaling_factor_to_amount(
+        storage,
+        &source_chain,
+        &destination_chain,
+        transfer,
+    )?;
+
+    interceptors::add_supply_amount_if_amplifier_chain(storage, &destination_chain, &transfer)?;
 
     Ok(transfer)
 }
