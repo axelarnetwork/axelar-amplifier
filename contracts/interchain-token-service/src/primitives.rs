@@ -21,18 +21,6 @@ impl Display for TokenId {
     }
 }
 
-/// The supported types of token managers that can be deployed by ITS contracts.
-#[cw_serde]
-#[derive(Eq, Copy, FromRepr, strum::AsRefStr)]
-#[repr(u8)]
-pub enum TokenManagerType {
-    NativeInterchainToken,
-    MintBurnFrom,
-    LockUnlock,
-    LockUnlockFee,
-    MintBurn,
-}
-
 /// A message sent between ITS contracts to facilitate interchain transfers, token deployments, or token manager deployments.
 /// `Message` routed via the ITS hub get wrapped inside a [`HubMessage`]
 #[cw_serde]
