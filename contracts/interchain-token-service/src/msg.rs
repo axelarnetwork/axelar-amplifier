@@ -57,8 +57,13 @@ pub enum ExecuteMsg {
 pub struct ChainConfig {
     pub chain: ChainNameRaw,
     pub its_edge_contract: Address,
+    pub truncation: TruncationConfig,
+}
+
+#[cw_serde]
+pub struct TruncationConfig {
     pub max_uint: nonempty::Uint256, // The maximum uint value that is supported by the chain's token standard
-    pub max_target_decimals: u8, // The maximum number of decimals that is preserved when deploying a token to another chain where smaller uint values are used
+    pub max_decimals_when_truncating: u8, // The maximum number of decimals that is preserved when deploying from a chain with a larger max_uint
 }
 
 #[cw_serde]

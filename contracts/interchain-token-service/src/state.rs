@@ -34,17 +34,24 @@ pub struct Config {
 
 #[cw_serde]
 pub struct ChainConfig {
-    pub max_uint: nonempty::Uint256,
-    pub max_target_decimals: u8,
+    pub truncation: TruncationConfig,
     pub its_address: Address,
     frozen: bool,
+}
+
+#[cw_serde]
+pub struct TruncationConfig {
+    pub max_uint: nonempty::Uint256, // The maximum uint value that is supported by the chain's token standard
+    pub max_decimals_when_truncating: u8, // The maximum number of decimals that is preserved when deploying from a chain with a larger max_uint
 }
 
 impl From<msg::ChainConfig> for ChainConfig {
     fn from(value: msg::ChainConfig) -> Self {
         Self {
-            max_uint: value.max_uint,
-            max_target_decimals: value.max_target_decimals,
+            truncation: TruncationConfig {
+                max_uint: value.truncation.max_uint,
+                max_decimals_when_truncating: value.truncation.max_decimals_when_truncating,
+            },
             its_address: value.its_edge_contract,
             frozen: false,
         }
@@ -326,8 +333,10 @@ mod tests {
             msg::ChainConfig {
                 chain: chain1.clone(),
                 its_edge_contract: address1.clone(),
-                max_uint: Uint256::MAX.try_into().unwrap(),
-                max_target_decimals: 16u8
+                truncation: msg::TruncationConfig {
+                    max_uint: Uint256::MAX.try_into().unwrap(),
+                    max_decimals_when_truncating: 16u8
+                }
             }
         ));
         assert_ok!(save_chain_config(
@@ -336,8 +345,10 @@ mod tests {
             msg::ChainConfig {
                 chain: chain2.clone(),
                 its_edge_contract: address2.clone(),
-                max_uint: Uint256::MAX.try_into().unwrap(),
-                max_target_decimals: 16u8
+                truncation: msg::TruncationConfig {
+                    max_uint: Uint256::MAX.try_into().unwrap(),
+                    max_decimals_when_truncating: 16u8
+                }
             }
         ));
         assert_eq!(

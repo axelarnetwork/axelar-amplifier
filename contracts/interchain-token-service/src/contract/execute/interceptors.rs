@@ -197,7 +197,7 @@ fn destination_token_decimals(
     storage: &dyn Storage,
     source_chain: &ChainNameRaw,
     destination_chain: &ChainNameRaw,
-    source_chain_decimals: u8,
+    source_token_decimals: u8,
 ) -> Result<u8, Error> {
     let source_chain_config =
         state::load_chain_config(storage, source_chain).change_context(Error::State)?;
@@ -205,14 +205,16 @@ fn destination_token_decimals(
         state::load_chain_config(storage, destination_chain).change_context(Error::State)?;
 
     if source_chain_config
+        .truncation
         .max_uint
-        .le(&destination_chain_config.max_uint)
+        .le(&destination_chain_config.truncation.max_uint)
     {
-        source_chain_decimals
+        source_token_decimals
     } else {
-        source_chain_config
-            .max_target_decimals
-            .min(source_chain_decimals)
+        destination_chain_config
+            .truncation
+            .max_decimals_when_truncating
+            .min(source_token_decimals)
     }
     .then(Result::Ok)
 }
@@ -244,6 +246,7 @@ fn destination_amount(
 
     let destination_max_uint = state::load_chain_config(storage, destination_chain)
         .change_context(Error::State)?
+        .truncation
         .max_uint;
 
     // It's intentionally written in this way since the end result may still be fine even if
@@ -311,6 +314,7 @@ mod test {
 
     use super::Error;
     use crate::contract::execute::interceptors;
+    use crate::msg::TruncationConfig;
     use crate::state::{self, TokenDeploymentType};
     use crate::{msg, DeployInterchainToken, InterchainTransfer, TokenInstance};
 
@@ -347,8 +351,10 @@ mod test {
             msg::ChainConfig {
                 chain: destination_chain.clone(),
                 its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
-                max_uint: Uint256::from(1_000_000_000u128).try_into().unwrap(),
-                max_target_decimals: 6,
+                truncation: TruncationConfig {
+                    max_uint: Uint256::from(1_000_000_000u128).try_into().unwrap(),
+                    max_decimals_when_truncating: 6,
+                },
             },
         )
         .unwrap();
@@ -398,8 +404,10 @@ mod test {
             msg::ChainConfig {
                 chain: destination_chain.clone(),
                 its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
-                max_uint: Uint256::from(1_000_000_000_000_000u128).try_into().unwrap(),
-                max_target_decimals: 6,
+                truncation: TruncationConfig {
+                    max_uint: Uint256::from(1_000_000_000_000_000u128).try_into().unwrap(),
+                    max_decimals_when_truncating: 6,
+                },
             },
         )
         .unwrap();
@@ -449,8 +457,10 @@ mod test {
             msg::ChainConfig {
                 chain: destination_chain.clone(),
                 its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
-                max_uint: Uint256::from(1_000_000_000_000_000u128).try_into().unwrap(),
-                max_target_decimals: 6,
+                truncation: TruncationConfig {
+                    max_uint: Uint256::from(1_000_000_000_000_000u128).try_into().unwrap(),
+                    max_decimals_when_truncating: 6,
+                },
             },
         )
         .unwrap();
@@ -500,8 +510,10 @@ mod test {
             msg::ChainConfig {
                 chain: destination_chain.clone(),
                 its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
-                max_uint: Uint256::from(100_000u128).try_into().unwrap(),
-                max_target_decimals: 6,
+                truncation: TruncationConfig {
+                    max_uint: Uint256::from(100_000u128).try_into().unwrap(),
+                    max_decimals_when_truncating: 6,
+                },
             },
         )
         .unwrap();
@@ -551,8 +563,10 @@ mod test {
             msg::ChainConfig {
                 chain: destination_chain.clone(),
                 its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
-                max_uint: Uint256::from(100_000u128).try_into().unwrap(),
-                max_target_decimals: 6,
+                truncation: TruncationConfig {
+                    max_uint: Uint256::from(100_000u128).try_into().unwrap(),
+                    max_decimals_when_truncating: 6,
+                },
             },
         )
         .unwrap();
@@ -574,13 +588,6 @@ mod test {
         let mut storage = MockStorage::new();
         let source_chain: ChainNameRaw = "sourcechain".try_into().unwrap();
         let destination_chain: ChainNameRaw = "destinationchain".try_into().unwrap();
-        let deploy_token = DeployInterchainToken {
-            token_id: [1u8; 32].into(),
-            name: "token".to_string().try_into().unwrap(),
-            symbol: "TKN".to_string().try_into().unwrap(),
-            decimals: 9,
-            minter: None,
-        };
 
         state::save_chain_config(
             &mut storage,
@@ -588,8 +595,10 @@ mod test {
             msg::ChainConfig {
                 chain: source_chain.clone(),
                 its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
-                max_uint: Uint256::from(1_000_000_000_000_000u128).try_into().unwrap(),
-                max_target_decimals: 6,
+                truncation: TruncationConfig {
+                    max_uint: Uint256::from(1_000_000_000_000_000u128).try_into().unwrap(),
+                    max_decimals_when_truncating: 12,
+                },
             },
         )
         .unwrap();
@@ -599,11 +608,20 @@ mod test {
             msg::ChainConfig {
                 chain: destination_chain.clone(),
                 its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
-                max_uint: Uint256::from(1_000_000_000u128).try_into().unwrap(),
-                max_target_decimals: 6,
+                truncation: TruncationConfig {
+                    max_uint: Uint256::from(1_000_000_000u128).try_into().unwrap(),
+                    max_decimals_when_truncating: 6,
+                },
             },
         )
         .unwrap();
+        let deploy_token = DeployInterchainToken {
+            token_id: [1u8; 32].into(),
+            name: "token".to_string().try_into().unwrap(),
+            symbol: "TKN".to_string().try_into().unwrap(),
+            decimals: 9,
+            minter: None,
+        };
 
         let deploy_token = assert_ok!(interceptors::calculate_scaling_factor(
             &storage,
@@ -634,13 +652,6 @@ mod test {
         let mut storage = MockStorage::new();
         let source_chain: ChainNameRaw = "sourcechain".try_into().unwrap();
         let destination_chain: ChainNameRaw = "destinationchain".try_into().unwrap();
-        let deploy_token = DeployInterchainToken {
-            token_id: [1u8; 32].into(),
-            name: "token".to_string().try_into().unwrap(),
-            symbol: "TKN".to_string().try_into().unwrap(),
-            decimals: 9,
-            minter: None,
-        };
 
         state::save_chain_config(
             &mut storage,
@@ -648,8 +659,10 @@ mod test {
             msg::ChainConfig {
                 chain: source_chain.clone(),
                 its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
-                max_uint: Uint256::from(1_000_000_000u128).try_into().unwrap(),
-                max_target_decimals: 6,
+                truncation: TruncationConfig {
+                    max_uint: Uint256::from(1_000_000_000u128).try_into().unwrap(),
+                    max_decimals_when_truncating: 6,
+                },
             },
         )
         .unwrap();
@@ -659,12 +672,21 @@ mod test {
             msg::ChainConfig {
                 chain: destination_chain.clone(),
                 its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
-                max_uint: Uint256::from(1_000_000_000_000_000u128).try_into().unwrap(),
-                max_target_decimals: 6,
+                truncation: TruncationConfig {
+                    max_uint: Uint256::from(1_000_000_000_000_000u128).try_into().unwrap(),
+                    max_decimals_when_truncating: 6,
+                },
             },
         )
         .unwrap();
 
+        let deploy_token = DeployInterchainToken {
+            token_id: [1u8; 32].into(),
+            name: "token".to_string().try_into().unwrap(),
+            symbol: "TKN".to_string().try_into().unwrap(),
+            decimals: 9,
+            minter: None,
+        };
         let deploy_token = assert_ok!(interceptors::calculate_scaling_factor(
             &storage,
             &source_chain,
@@ -672,5 +694,20 @@ mod test {
             deploy_token,
         ));
         assert_eq!(deploy_token.decimals, 9);
+
+        let deploy_token = DeployInterchainToken {
+            token_id: [1u8; 32].into(),
+            name: "token".to_string().try_into().unwrap(),
+            symbol: "TKN".to_string().try_into().unwrap(),
+            decimals: 3,
+            minter: None,
+        };
+        let deploy_token = assert_ok!(interceptors::calculate_scaling_factor(
+            &storage,
+            &source_chain,
+            &destination_chain,
+            deploy_token,
+        ));
+        assert_eq!(deploy_token.decimals, 3);
     }
 }
