@@ -31,7 +31,6 @@ pub enum TokenManagerType {
     LockUnlock,
     LockUnlockFee,
     MintBurn,
-    Gateway,
 }
 
 /// A message sent between ITS contracts to facilitate interchain transfers, token deployments, or token manager deployments.
