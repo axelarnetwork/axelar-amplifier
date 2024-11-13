@@ -352,7 +352,6 @@ pub fn construct_trust_set_proof_and_sign(
         Addr::unchecked("xrpl_prover_admin"), // TODO: get from protocol
         &xrpl_multisig_prover::msg::ExecuteMsg::TrustSet { xrpl_token },
     );
-    println!("{:?}", response);
     assert!(response.is_ok());
     let response = response.unwrap();
 
