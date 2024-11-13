@@ -1,7 +1,7 @@
 use std::str::FromStr;
 use std::hash::Hash;
 
-use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
+use axelar_wasm_std::msg_id::HexTxHash;
 use axelar_wasm_std::{nonempty, FnExt, VerificationStatus};
 use cosmwasm_std::{Addr, CosmosMsg, Event, HexBinary, Response, Storage, Uint256};
 use error_stack::{Result, ResultExt};
@@ -214,7 +214,6 @@ pub fn register_remote_interchain_token(
 }
 
 pub fn deploy_xrp_to_sidechain(
-    storage: &mut dyn Storage,
     block_height: u64,
     router: &Router,
     its_hub: &Addr,
@@ -237,7 +236,7 @@ pub fn deploy_xrp_to_sidechain(
     let payload = send_to_hub_msg.abi_encode();
 
     let its_msg = Message {
-        cc_id: unique_cross_chain_id(storage, block_height, xrpl_chain_name.clone())?,
+        cc_id: unique_cross_chain_id(block_height, xrpl_chain_name.clone())?,
         source_address: Address::from_str(&xrpl_multisig.to_string()).unwrap(),
         destination_address: Address::from_str(its_hub.as_str()).unwrap(),
         destination_chain: axelar_chain_name.clone(),
@@ -253,7 +252,6 @@ pub fn deploy_xrp_to_sidechain(
 }
 
 pub fn deploy_interchain_token(
-    storage: &mut dyn Storage,
     block_height: u64,
     router: &Router,
     its_hub: &Addr,
@@ -280,7 +278,7 @@ pub fn deploy_interchain_token(
     let payload = send_to_hub_msg.abi_encode();
 
     let its_msg = Message {
-        cc_id: unique_cross_chain_id(storage, block_height, xrpl_chain_name.clone())?,
+        cc_id: unique_cross_chain_id(block_height, xrpl_chain_name.clone())?,
         source_address: Address::from_str(&xrpl_multisig.to_string()).unwrap(),
         destination_address: Address::from_str(its_hub.as_str()).unwrap(),
         destination_chain: axelar_chain_name.clone(),
@@ -296,17 +294,11 @@ pub fn deploy_interchain_token(
 }
 
 // TODO: potentially query nexus, similarly to how axelarnet-gateway does
-fn unique_cross_chain_id(
-    storage: &mut dyn Storage,
-    block_height: u64,
-    chain_name: ChainName,
-) -> Result<CrossChainId, Error> {
+fn unique_cross_chain_id(block_height: u64, chain_name: ChainName) -> Result<CrossChainId, Error> {
     // TODO: Retrieve the actual tx hash from core, since cosmwasm doesn't provide it.
     // Use the block height as the placeholder in the meantime.
-    let message_id = HexTxHashAndEventIndex {
+    let message_id = HexTxHash {
         tx_hash: Uint256::from(block_height).to_be_bytes(),
-        event_index: state::increment_event_index(storage)
-            .change_context(Error::EventIndex)?,
     };
 
     CrossChainId::new(chain_name, message_id).change_context(Error::InvalidCrossChainId)

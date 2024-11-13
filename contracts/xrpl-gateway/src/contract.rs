@@ -129,7 +129,6 @@ pub fn execute(
         } => {
             let router = Router::new(config.router);
             execute::deploy_xrp_to_sidechain(
-                deps.storage,
                 env.block.height,
                 &router,
                 &config.its_hub,
@@ -147,7 +146,6 @@ pub fn execute(
         } => {
             let router = Router::new(config.router);
             execute::deploy_interchain_token(
-                deps.storage,
                 env.block.height,
                 &router,
                 &config.its_hub,
