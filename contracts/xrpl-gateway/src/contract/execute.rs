@@ -187,8 +187,8 @@ pub fn register_local_interchain_token(
     xrpl_token: XRPLToken,
 ) -> Result<Response, Error> {
     let token_id = XRPLTokenOrXRP::Token(xrpl_token.clone()).token_id();
-    state::save_token_info(storage, token_id.into(), &XRPLRemoteInterchainTokenInfo {
-        xrpl_token: xrpl_token,
+    state::save_token_info(storage, &token_id, &XRPLRemoteInterchainTokenInfo {
+        xrpl_token,
         canonical_decimals: XRPL_LOCAL_TOKEN_DECIMALS,
     }).unwrap();
     Ok(Response::new())
@@ -206,7 +206,7 @@ pub fn register_remote_interchain_token(
         issuer: xrpl_multisig,
     };
     state::save_xrpl_currency_token_id(storage, xrpl_currency, &token_id).unwrap();
-    state::save_token_info(storage, token_id.into(), &XRPLRemoteInterchainTokenInfo {
+    state::save_token_info(storage, &token_id, &XRPLRemoteInterchainTokenInfo {
         xrpl_token,
         canonical_decimals,
     }).unwrap();

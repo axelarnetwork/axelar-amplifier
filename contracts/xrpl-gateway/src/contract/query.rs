@@ -21,7 +21,7 @@ pub fn token_info(
     storage: &dyn Storage,
     token_id: TokenId,
 ) -> Result<Binary, state::Error> {
-    let token_info = state::load_token_info(storage, token_id)?;
+    let token_info = state::load_token_info(storage, &token_id)?;
     Ok(to_json_binary(&token_info).map_err(state::Error::from)?)
 }
 

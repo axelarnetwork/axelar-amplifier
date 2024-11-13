@@ -20,7 +20,7 @@ const CONFIG: Item<Config> = Item::new("config");
 const OUTGOING_MESSAGES: Map<&CrossChainId, Message> = Map::new("outgoing_messages");
 
 const XRPL_CURRENCY_TO_TOKEN_ID: Map<[u8; 20], TokenId> = Map::new("xrpl_currency_to_token_id"); // TODO: rename to indicate that this is only relevant for remote tokens
-const TOKEN_ID_TO_TOKEN_INFO: Map<[u8; 32], XRPLRemoteInterchainTokenInfo> = Map::new("token_id_to_token_info");
+const TOKEN_ID_TO_TOKEN_INFO: Map<&TokenId, XRPLRemoteInterchainTokenInfo> = Map::new("token_id_to_token_info");
 const ROUTABLE_MESSAGES_INDEX: Counter<u32> = Counter::new("routable_message_index");
 
 #[derive(thiserror::Error, Debug, IntoContractError)]
@@ -82,21 +82,21 @@ pub fn save_outgoing_message(
 
 pub fn load_token_info(
     storage: &dyn Storage,
-    token_id: TokenId,
+    token_id: &TokenId,
 ) -> Result<XRPLRemoteInterchainTokenInfo, Error> {
     TOKEN_ID_TO_TOKEN_INFO
-        .may_load(storage, token_id.clone().into())
+        .may_load(storage, token_id)
         .map_err(Error::from)?
-        .ok_or_else(|| Error::TokenNotFound(token_id))
+        .ok_or_else(|| Error::TokenNotFound(token_id.clone()))
 }
 
 pub fn save_token_info(
     storage: &mut dyn Storage,
-    token_id: TokenId,
+    token_id: &TokenId,
     token_info: &XRPLRemoteInterchainTokenInfo,
 ) -> Result<(), Error> {
     TOKEN_ID_TO_TOKEN_INFO
-        .save(storage, token_id.into(), token_info)
+        .save(storage, token_id, token_info)
         .map_err(Error::from)
 }
 
