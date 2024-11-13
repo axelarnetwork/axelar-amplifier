@@ -36,7 +36,7 @@ impl From<Event> for cosmwasm_std::Event {
                 )
                 .add_attribute(
                     "unsigned_tx_hash",
-                    to_string(&unsigned_tx_hash).expect("violated invariant: tx_hash is not serializable"),
+                    unsigned_tx_hash.to_string()
                 )
                 .add_attribute(
                     "multisig_session_id",
