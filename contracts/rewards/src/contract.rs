@@ -25,10 +25,7 @@ pub fn migrate(
     _env: Env,
     _msg: Empty,
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
-    migrations::v1_0_0::migrate(deps.storage)?;
-
     // any version checks should be done before here
-
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     Ok(Response::default())
@@ -203,9 +200,6 @@ mod tests {
     #[test]
     fn migrate_sets_contract_version() {
         let mut deps = mock_dependencies();
-
-        #[allow(deprecated)]
-        migrations::v1_0_0::tests::instantiate_contract(deps.as_mut(), "denom");
 
         migrate(deps.as_mut(), mock_env(), Empty {}).unwrap();
 
