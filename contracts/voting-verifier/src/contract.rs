@@ -7,7 +7,6 @@ use cosmwasm_std::{
 };
 use error_stack::ResultExt;
 
-use crate::contract::migrations::v0_5_0;
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{Config, CONFIG};
@@ -111,7 +110,8 @@ pub fn migrate(
     _env: Env,
     _msg: Empty,
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
-    v0_5_0::migrate(deps.storage)?;
+    // any version checks should be done before here
+    cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     Ok(Response::default())
 }
