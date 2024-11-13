@@ -95,7 +95,7 @@ fn to_its_message(
         XRPLPaymentAmount::Drops(_) => XRPLTokenOrXRP::XRP.token_id(),
         XRPLPaymentAmount::Token(token, _) => {
             if token.issuer == xrpl_multisig.clone() {
-                state::load_token_id(store, token.currency).map_err(|_| Error::InvalidToken)?
+                state::load_token_id(store, &token.currency).map_err(|_| Error::InvalidToken)?
             } else {
                 XRPLTokenOrXRP::Token(token).token_id()
             }
@@ -205,7 +205,7 @@ pub fn register_remote_interchain_token(
         currency: xrpl_currency.clone(),
         issuer: xrpl_multisig,
     };
-    state::save_xrpl_currency_token_id(storage, xrpl_currency, &token_id).unwrap();
+    state::save_xrpl_currency_token_id(storage, &xrpl_currency, &token_id).unwrap();
     state::save_token_info(storage, &token_id, &XRPLRemoteInterchainTokenInfo {
         xrpl_token,
         canonical_decimals,

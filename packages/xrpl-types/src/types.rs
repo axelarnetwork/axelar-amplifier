@@ -588,13 +588,27 @@ pub fn message_to_sign(
 
 #[cw_serde]
 #[derive(Eq, Hash)]
-pub struct XRPLCurrency(String);
+pub struct XRPLCurrency([u8; 20]);
 
 impl XRPLCurrency {
-    pub fn to_bytes(self) -> [u8; 20] {
+    pub fn new(s: &str) -> Result<Self, XRPLError> {
+        if s.len() != 3 || s == "XRP" || !s.chars().all(|c| ALLOWED_CURRENCY_CHARS.contains(c)) {
+            return Err(XRPLError::InvalidCurrency);
+        }
+
         let mut buffer = [0u8; 20];
-        buffer[12..15].copy_from_slice(self.to_string().as_bytes());
-        buffer
+        buffer[12..15].copy_from_slice(s.as_bytes());
+        Ok(XRPLCurrency(buffer))
+    }
+
+    pub fn to_bytes(self) -> [u8; 20] {
+        self.0
+    }
+
+    pub fn to_string(&self) -> String {
+        std::str::from_utf8(&self.0[12..15])
+            .expect("Currency code should always be valid UTF-8")
+            .to_string()
     }
 }
 
@@ -606,7 +620,7 @@ impl From<XRPLCurrency> for [u8; 20] {
 
 impl fmt::Display for XRPLCurrency {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.0)
+        write!(f, "{}", self.to_string())
     }
 }
 
@@ -617,10 +631,27 @@ impl TryFrom<String> for XRPLCurrency {
     type Error = XRPLError;
 
     fn try_from(s: String) -> Result<Self, XRPLError> {
-        if s.len() != 3 || s == "XRP" || !s.chars().all(|c| ALLOWED_CURRENCY_CHARS.contains(c)) {
-            return Err(XRPLError::InvalidCurrency);
-        }
-        Ok(XRPLCurrency(s))
+        XRPLCurrency::new(&s)
+    }
+}
+
+impl<'a> PrimaryKey<'a> for XRPLCurrency {
+    type Prefix = ();
+    type SubPrefix = ();
+    type Suffix = XRPLCurrency;
+    type SuperSuffix = XRPLCurrency;
+
+    fn key(&self) -> Vec<Key> {
+        self.0.key()
+    }
+}
+
+impl KeyDeserialize for XRPLCurrency {
+    type Output = XRPLCurrency;
+
+    fn from_vec(value: Vec<u8>) -> cosmwasm_std::StdResult<Self::Output> {
+        let inner = <[u8; 20]>::from_vec(value)?;
+        Ok(XRPLCurrency(inner))
     }
 }
 

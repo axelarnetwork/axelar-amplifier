@@ -19,7 +19,7 @@ pub struct Config {
 const CONFIG: Item<Config> = Item::new("config");
 const OUTGOING_MESSAGES: Map<&CrossChainId, Message> = Map::new("outgoing_messages");
 
-const XRPL_CURRENCY_TO_TOKEN_ID: Map<[u8; 20], TokenId> = Map::new("xrpl_currency_to_token_id"); // TODO: rename to indicate that this is only relevant for remote tokens
+const XRPL_CURRENCY_TO_TOKEN_ID: Map<&XRPLCurrency, TokenId> = Map::new("xrpl_currency_to_token_id"); // TODO: rename to indicate that this is only relevant for remote tokens
 const TOKEN_ID_TO_TOKEN_INFO: Map<&TokenId, XRPLRemoteInterchainTokenInfo> = Map::new("token_id_to_token_info");
 const ROUTABLE_MESSAGES_INDEX: Counter<u32> = Counter::new("routable_message_index");
 
@@ -108,21 +108,21 @@ pub fn increment_event_index(storage: &mut dyn Storage) -> Result<u32, Error> {
 
 pub fn load_token_id(
     storage: &dyn Storage,
-    xrpl_currency: XRPLCurrency,
+    xrpl_currency: &XRPLCurrency,
 ) -> Result<TokenId, Error> {
     XRPL_CURRENCY_TO_TOKEN_ID
-        .may_load(storage, xrpl_currency.clone().into())
+        .may_load(storage, xrpl_currency)
         .map_err(Error::from)?
-        .ok_or_else(|| Error::TokenIdNotFound(xrpl_currency))
+        .ok_or_else(|| Error::TokenIdNotFound(xrpl_currency.clone()))
 }
 
 pub fn save_xrpl_currency_token_id(
     storage: &mut dyn Storage,
-    xrpl_currency: XRPLCurrency,
+    xrpl_currency: &XRPLCurrency,
     token_id: &TokenId
 ) -> Result<(), Error> {
     XRPL_CURRENCY_TO_TOKEN_ID
-        .save(storage, xrpl_currency.into(), token_id)
+        .save(storage, xrpl_currency, token_id)
         .map_err(Error::from)
 }
 
