@@ -101,12 +101,12 @@ pub fn execute(
         ExecuteMsg::UpdateVerifierSet {} => {
             execute::update_verifier_set(deps.storage, &querier, env)
         }
-        ExecuteMsg::UpdateTxStatus {
+        ExecuteMsg::ConfirmTxStatus {
             multisig_session_id,
             signer_public_keys,
             tx_id,
         } => {
-            execute::update_tx_status(
+            execute::confirm_tx_status(
                 deps.storage,
                 &querier,
                 &config,

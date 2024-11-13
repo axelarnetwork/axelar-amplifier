@@ -194,7 +194,7 @@ fn xrpl_verifier_set_can_be_initialized_and_then_manually_updated() {
     test_utils::advance_at_least_to_height(&mut protocol.app, expiry);
     test_utils::end_poll(&mut protocol.app, &xrpl.voting_verifier, poll_id);
 
-    test_utils::xrpl_update_tx_status(
+    test_utils::xrpl_confirm_tx_status(
         &mut protocol.app,
         &xrpl.multisig_prover,
         initial_verifiers.iter().map(|w| (KeyType::Ecdsa, HexBinary::from(w.key_pair.encoded_verifying_key())).try_into().unwrap()).collect(),

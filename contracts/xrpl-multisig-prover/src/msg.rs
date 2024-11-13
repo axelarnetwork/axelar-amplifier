@@ -110,7 +110,7 @@ pub enum ExecuteMsg {
     UpdateVerifierSet,
 
     #[permission(Any)]
-    UpdateTxStatus { // TODO: rename to ConfirmTxStatus
+    ConfirmTxStatus {
         multisig_session_id: Uint64,
         signer_public_keys: Vec<PublicKey>,
         tx_id: TxHash,

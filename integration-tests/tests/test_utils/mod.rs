@@ -617,7 +617,7 @@ pub fn get_xrpl_proof(
     query_response.unwrap()
 }
 
-pub fn xrpl_update_tx_status(
+pub fn xrpl_confirm_tx_status(
     app: &mut AxelarApp,
     multisig_prover: &XRPLMultisigProverContract,
     signer_public_keys: Vec<PublicKey>,
@@ -627,7 +627,7 @@ pub fn xrpl_update_tx_status(
     let response = multisig_prover.execute(
         app,
         Addr::unchecked("relayer"),
-        &xrpl_multisig_prover::msg::ExecuteMsg::UpdateTxStatus {
+        &xrpl_multisig_prover::msg::ExecuteMsg::ConfirmTxStatus {
             multisig_session_id,
             tx_id,
             signer_public_keys,

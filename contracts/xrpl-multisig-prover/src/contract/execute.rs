@@ -60,7 +60,7 @@ pub fn construct_ticket_create_proof(
     Ok(Response::new().add_submessage(start_signing_session(storage, config, unsigned_tx_hash, self_address, cur_verifier_set_id)?))
 }
 
-pub fn update_tx_status(
+pub fn confirm_tx_status(
     storage: &mut dyn Storage,
     querier: &Querier,
     config: &Config,

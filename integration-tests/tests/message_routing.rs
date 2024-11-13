@@ -173,7 +173,7 @@ fn xrpl_ticket_create_can_be_proven() {
     test_utils::advance_at_least_to_height(&mut protocol.app, expiry);
     test_utils::end_poll(&mut protocol.app, &xrpl.voting_verifier, poll_id);
 
-    test_utils::xrpl_update_tx_status(
+    test_utils::xrpl_confirm_tx_status(
         &mut protocol.app,
         &xrpl.multisig_prover,
         verifiers.iter().map(|w| (KeyType::Ecdsa, HexBinary::from(w.key_pair.encoded_verifying_key())).try_into().unwrap()).collect(),
@@ -240,7 +240,7 @@ fn xrpl_trust_line_can_be_proven() {
     test_utils::advance_at_least_to_height(&mut protocol.app, expiry);
     test_utils::end_poll(&mut protocol.app, &xrpl.voting_verifier, poll_id);
 
-    test_utils::xrpl_update_tx_status(
+    test_utils::xrpl_confirm_tx_status(
         &mut protocol.app,
         &xrpl.multisig_prover,
         verifiers.iter().map(|w| (KeyType::Ecdsa, HexBinary::from(w.key_pair.encoded_verifying_key())).try_into().unwrap()).collect(),
@@ -571,7 +571,7 @@ fn payment_towards_xrpl_can_be_verified_and_routed_and_proven() {
     test_utils::advance_at_least_to_height(&mut protocol.app, expiry);
     test_utils::end_poll(&mut protocol.app, &xrpl.voting_verifier, poll_id);
 
-    test_utils::xrpl_update_tx_status(
+    test_utils::xrpl_confirm_tx_status(
         &mut protocol.app,
         &xrpl.multisig_prover,
         verifiers.iter().map(|w| (KeyType::Ecdsa, HexBinary::from(w.key_pair.encoded_verifying_key())).try_into().unwrap()).collect(),
