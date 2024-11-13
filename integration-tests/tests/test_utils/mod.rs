@@ -1269,6 +1269,11 @@ pub fn setup_xrpl(
 ) -> XRPLChain {
     let xrpl_chain_name = ChainName::from_str("xrpl").unwrap();
     let xrpl_evm_sidechain_chain_name = ChainName::from_str("xrpl-evm-sidechain").unwrap();
+    let xrpl_multisig = XRPLAccountId::from_str("rfEf91bLxrTVC76vw1W3Ur8Jk4Lwujskmb").unwrap();
+
+    let governance = Addr::unchecked(xrpl_chain_name.to_string() + "_governance");
+    let gateway_admin = Addr::unchecked(xrpl_chain_name.to_string() + "_gateway_admin");
+    let multisig_prover_admin = Addr::unchecked(xrpl_chain_name.to_string() + "_prover_admin");
 
     let voting_verifier = XRPLVotingVerifierContract::instantiate_contract(
         protocol,
@@ -1277,9 +1282,10 @@ pub fn setup_xrpl(
         xrpl_chain_name.clone(),
     );
 
-    let xrpl_multisig = XRPLAccountId::from_str("rfEf91bLxrTVC76vw1W3Ur8Jk4Lwujskmb").unwrap();
     let gateway= XRPLGatewayContract::instantiate_contract(
         &mut protocol.app,
+        gateway_admin,
+        governance,
         protocol.router.contract_address().clone(),
         voting_verifier.contract_addr.clone(),
         axelar_its_hub_address,
@@ -1288,7 +1294,6 @@ pub fn setup_xrpl(
         xrpl_multisig.clone(),
     );
 
-    let multisig_prover_admin = Addr::unchecked(xrpl_chain_name.to_string() + "_prover_admin");
     let multisig_prover = XRPLMultisigProverContract::instantiate_contract(
         protocol,
         multisig_prover_admin.clone(),

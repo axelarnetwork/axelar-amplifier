@@ -13,6 +13,8 @@ pub struct XRPLGatewayContract {
 impl XRPLGatewayContract {
     pub fn instantiate_contract(
         app: &mut AxelarApp,
+        admin_address: Addr,
+        governance_address: Addr,
         router_address: Addr,
         verifier_address: Addr,
         its_hub_address: Addr,
@@ -32,6 +34,8 @@ impl XRPLGatewayContract {
                 code_id,
                 Addr::unchecked("anyone"),
                 &xrpl_gateway::msg::InstantiateMsg {
+                    admin_address: admin_address.to_string(),
+                    governance_address: governance_address.to_string(),
                     router_address: router_address.to_string(),
                     verifier_address: verifier_address.to_string(),
                     its_hub_address: its_hub_address.to_string(),

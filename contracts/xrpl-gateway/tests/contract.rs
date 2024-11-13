@@ -30,6 +30,8 @@ fn instantiate_works() {
         mock_env(),
         mock_info("sender", &[]),
         InstantiateMsg {
+            admin_address: Addr::unchecked("admin").into_string(),
+            governance_address: Addr::unchecked("governance").into_string(),
             verifier_address: Addr::unchecked("verifier").into_string(),
             router_address: Addr::unchecked("router").into_string(),
             its_hub_address: Addr::unchecked("its_hub").into_string(),
@@ -625,6 +627,8 @@ fn instantiate_contract(
         mock_env(),
         mock_info("sender", &[]),
         InstantiateMsg {
+            admin_address: Addr::unchecked("admin").into_string(),
+            governance_address: Addr::unchecked("governance").into_string(),
             verifier_address: Addr::unchecked(verifier).into_string(),
             router_address: Addr::unchecked(router).into_string(),
             its_hub_address: Addr::unchecked(its_hub).into_string(),

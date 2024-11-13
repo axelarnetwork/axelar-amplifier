@@ -10,6 +10,13 @@ use xrpl_types::types::{XRPLAccountId, XRPLCurrency, XRPLRemoteInterchainTokenIn
 
 #[cw_serde]
 pub struct InstantiateMsg {
+    /// Address that can execute all messages that either have unrestricted or admin permission level, such as Updateverifier set.
+    /// Should be set to a trusted address that can react to unexpected interruptions to the contract's operation.
+    pub admin_address: String,
+    /// Address that can call all messages of unrestricted, admin and governance permission level, such as UpdateSigningThreshold.
+    /// This address can execute messages that bypasses verification checks to rescue the contract if it got into an otherwise unrecoverable state due to external forces.
+    /// On mainnet, it should match the address of the Cosmos governance module.
+    pub governance_address: String,
     /// Address of the verifier contract on axelar associated with the source chain. E.g., the voting verifier contract.
     pub verifier_address: String,
     /// Address of the router contract on axelar.

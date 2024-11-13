@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use axelar_wasm_std::{address, FnExt, IntoContractError};
+use axelar_wasm_std::{address, permission_control, FnExt, IntoContractError};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response};
@@ -83,6 +83,12 @@ pub fn instantiate(
         xrpl_chain_name: msg.xrpl_chain_name,
         xrpl_multisig: msg.xrpl_multisig_address,
     })?;
+
+    permission_control::set_admin(deps.storage, &deps.api.addr_validate(&msg.admin_address)?)?;
+    permission_control::set_governance(
+        deps.storage,
+        &deps.api.addr_validate(&msg.governance_address)?,
+    )?;
 
     Ok(Response::new())
 }
