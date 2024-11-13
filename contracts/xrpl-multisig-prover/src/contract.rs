@@ -87,14 +87,14 @@ pub fn execute(
                 xrpl_token,
             )
         }
-        ExecuteMsg::ConstructProof { message_id, payload } => {
+        ExecuteMsg::ConstructProof { cc_id, payload } => {
             execute::construct_payment_proof(
                 deps.storage,
                 &querier,
                 env.contract.address,
                 env.block.height,
                 &config,
-                message_id,
+                cc_id,
                 payload,
             )
         }
@@ -174,8 +174,8 @@ pub fn query(
         )?),
         QueryMsg::CurrentVerifierSet {} => to_json_binary(&query::current_verifier_set(deps.storage)?),
         QueryMsg::NextVerifierSet {} => to_json_binary(&query::next_verifier_set(deps.storage)?),
-        QueryMsg::MultisigSession { message_id } => {
-            to_json_binary(&query::multisig_session(deps.storage, &message_id)?)
+        QueryMsg::MultisigSession { cc_id } => {
+            to_json_binary(&query::multisig_session(deps.storage, &cc_id)?)
         }
     }
     .change_context(ContractError::SerializeResponse)

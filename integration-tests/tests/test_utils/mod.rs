@@ -371,7 +371,7 @@ pub fn construct_xrpl_payment_proof_and_sign(
         &mut protocol.app,
         Addr::unchecked("relayer"),
         &xrpl_multisig_prover::msg::ExecuteMsg::ConstructProof {
-            message_id: message.cc_id.clone(),
+            cc_id: message.cc_id.clone(),
             payload,
         },
     );

@@ -4,7 +4,7 @@ use cosmwasm_schema::cw_serde;
 use cosmwasm_std::Addr;
 use router_api::{ChainName, CrossChainId};
 use cw_storage_plus::{Item, Map};
-use xrpl_types::types::{XRPLAccountId, TxHash, XRPLToken, TransactionInfo};
+use xrpl_types::types::{XRPLAccountId, TxHash, XRPLToken, TxInfo};
 
 #[cw_serde]
 pub struct Config {
@@ -24,9 +24,9 @@ pub struct Config {
 }
 
 pub const CONFIG: Item<Config> = Item::new("config");
-pub const REPLY_TX_HASH: Item<TxHash> = Item::new("reply_tx_hash");
-pub const REPLY_MESSAGE_ID: Item<CrossChainId> = Item::new("reply_message_id");
-pub const MULTISIG_SESSION_ID_TO_TX_HASH: Map<u64, TxHash> = Map::new("multisig_session_tx");
+pub const REPLY_UNSIGNED_TX_HASH: Item<TxHash> = Item::new("reply_unsigned_tx_hash");
+pub const REPLY_CROSS_CHAIN_ID: Item<CrossChainId> = Item::new("reply_cross_chain_id");
+pub const MULTISIG_SESSION_ID_TO_UNSIGNED_TX_HASH: Map<u64, TxHash> = Map::new("multisig_session_id_to_unsigned_tx_hash");
 
 // The next seq. no. is affected by the number of tickets created,
 // not solely on the last sequence number used.
@@ -43,13 +43,13 @@ pub struct MultisigSession { // TODO: rename
     pub expires_at: u64,
 }
 
-pub const MESSAGE_ID_TO_TICKET: Map<&CrossChainId, u32> = Map::new("message_id_to_ticket");
-pub const MESSAGE_ID_TO_MULTISIG_SESSION: Map<&CrossChainId, MultisigSession> =
-    Map::new("message_id_to_multisig_session");
+pub const CROSS_CHAIN_ID_TO_TICKET: Map<&CrossChainId, u32> = Map::new("cross_chain_id_to_ticket");
+pub const CROSS_CHAIN_ID_TO_MULTISIG_SESSION: Map<&CrossChainId, MultisigSession> =
+    Map::new("cross_chain_id_to_multisig_session");
 pub const CONFIRMED_TRANSACTIONS: Map<&u32, TxHash> = Map::new("confirmed_transactions");
 pub const AVAILABLE_TICKETS: Item<Vec<u32>> = Item::new("available_tickets");
-pub const TRANSACTION_INFO: Map<&TxHash, TransactionInfo> = Map::new("transaction_info");
-pub const LATEST_SEQUENTIAL_TX_HASH: Item<TxHash> = Item::new("latest_sequential_tx_hash");
+pub const UNSIGNED_TX_HASH_TO_TX_INFO: Map<&TxHash, TxInfo> = Map::new("unsigned_tx_hash_to_tx_info");
+pub const LATEST_SEQUENTIAL_UNSIGNED_TX_HASH: Item<TxHash> = Item::new("latest_sequential_unsigned_tx_hash");
 
 #[cw_serde]
 pub struct TokenInfo {

@@ -163,12 +163,11 @@ impl From<VerificationStatus> for TransactionStatus {
 }
 
 #[cw_serde]
-pub struct TransactionInfo {
+pub struct TxInfo {
     pub status: TransactionStatus,
     pub unsigned_contents: XRPLUnsignedTx,
-    pub original_message_id: Option<CrossChainId>,
+    pub original_cc_id: Option<CrossChainId>,
 }
-
 
 #[cw_serde]
 #[derive(Ord, PartialOrd, Eq)]

@@ -34,12 +34,12 @@ pub fn construct_trust_set_proof(
     xrpl_token: XRPLToken,
 ) -> Result<Response, ContractError> {
     // TODO: check if trust set already set
-    let tx_hash = xrpl_multisig::issue_trust_set(storage, config, xrpl_token)?;
+    let unsigned_tx_hash = xrpl_multisig::issue_trust_set(storage, config, xrpl_token)?;
 
     let cur_verifier_set = state::CURRENT_VERIFIER_SET.load(storage).map_err(|_| ContractError::NoVerifierSet)?;
     let cur_verifier_set_id = Into::<multisig::verifier_set::VerifierSet>::into(cur_verifier_set).id();
 
-    Ok(Response::new().add_submessage(start_signing_session(storage, config, tx_hash, self_address, cur_verifier_set_id)?))
+    Ok(Response::new().add_submessage(start_signing_session(storage, config, unsigned_tx_hash, self_address, cur_verifier_set_id)?))
 }
 
 pub fn construct_ticket_create_proof(
@@ -52,12 +52,12 @@ pub fn construct_ticket_create_proof(
         return Err(ContractError::TicketCountThresholdNotReached);
     }
 
-    let tx_hash = xrpl_multisig::issue_ticket_create(storage, config, ticket_count)?;
+    let unsigned_tx_hash = xrpl_multisig::issue_ticket_create(storage, config, ticket_count)?;
 
     let cur_verifier_set = state::CURRENT_VERIFIER_SET.load(storage).map_err(|_| ContractError::NoVerifierSet)?;
     let cur_verifier_set_id = Into::<multisig::verifier_set::VerifierSet>::into(cur_verifier_set).id();
 
-    Ok(Response::new().add_submessage(start_signing_session(storage, config, tx_hash, self_address, cur_verifier_set_id)?))
+    Ok(Response::new().add_submessage(start_signing_session(storage, config, unsigned_tx_hash, self_address, cur_verifier_set_id)?))
 }
 
 pub fn update_tx_status(
@@ -69,8 +69,8 @@ pub fn update_tx_status(
     tx_id: TxHash,
 ) -> Result<Response, ContractError> {
     let unsigned_tx_hash =
-        state::MULTISIG_SESSION_ID_TO_TX_HASH.load(storage, multisig_session_id.u64())?;
-    let tx_info = state::TRANSACTION_INFO.load(storage, &unsigned_tx_hash)?;
+        state::MULTISIG_SESSION_ID_TO_UNSIGNED_TX_HASH.load(storage, multisig_session_id.u64())?;
+    let tx_info = state::UNSIGNED_TX_HASH_TO_TX_INFO.load(storage, &unsigned_tx_hash)?;
     let multisig_session = querier.multisig(multisig_session_id)?;
 
     let xrpl_signers: Vec<XRPLSigner> = multisig_session
@@ -194,12 +194,12 @@ pub fn construct_payment_proof(
     self_address: Addr,
     block_height: u64,
     config: &Config,
-    message_id: CrossChainId,
+    cc_id: CrossChainId, // TODO: Optimize: cc_id.source_chain is always Axelar
     payload: HexBinary,
 ) -> Result<Response, ContractError> {
     // Prevent creating a duplicate signing session before the previous one expires
     if let Some(multisig_session) =
-        state::MESSAGE_ID_TO_MULTISIG_SESSION.may_load(storage, &message_id)?
+        state::CROSS_CHAIN_ID_TO_MULTISIG_SESSION.may_load(storage, &cc_id)?
     {
         match querier.multisig(&Uint64::from(multisig_session.id))?.state {
             MultisigState::Pending => {
@@ -217,7 +217,7 @@ pub fn construct_payment_proof(
         }
     };
 
-    let message = querier.outgoing_message(&message_id)?;
+    let message = querier.outgoing_message(&cc_id)?;
 
     // Message source chain (Axelar) and source address (ITS hub) has been validated by the gateway.
     // TODO: Check with Axelar if this destination chain check is necessary.
@@ -263,20 +263,20 @@ pub fn construct_payment_proof(
                         .try_into()
                         .map_err(|_| ContractError::InvalidDestinationAddress)?;
 
-                    let tx_hash = xrpl_multisig::issue_payment(
+                    let unsigned_tx_hash = xrpl_multisig::issue_payment(
                         storage,
                         config,
                         destination_address,
                         &xrpl_payment_amount,
-                        &message_id,
+                        &cc_id,
                         None // TODO: Handle cross-currency payments.
                     )?;
 
                     let cur_verifier_set = state::CURRENT_VERIFIER_SET.load(storage).map_err(|_| ContractError::NoVerifierSet)?;
                     let cur_verifier_set_id = Into::<multisig::verifier_set::VerifierSet>::into(cur_verifier_set).id();
 
-                    state::REPLY_MESSAGE_ID.save(storage, &message_id)?;
-                    Ok(Response::new().add_submessage(start_signing_session(storage, config, tx_hash, self_address, cur_verifier_set_id)?))
+                    state::REPLY_CROSS_CHAIN_ID.save(storage, &cc_id)?;
+                    Ok(Response::new().add_submessage(start_signing_session(storage, config, unsigned_tx_hash, self_address, cur_verifier_set_id)?))
                 },
                 interchain_token_service::Message::DeployInterchainToken { .. } => {
                     Err(ContractError::InvalidPayload)
@@ -292,15 +292,15 @@ pub fn construct_payment_proof(
 fn start_signing_session(
     storage: &mut dyn Storage,
     config: &Config,
-    tx_hash: TxHash,
+    unsigned_tx_hash: TxHash,
     self_address: Addr,
     cur_verifier_set_id: String,
 ) -> Result<SubMsg<cosmwasm_std::Empty>, ContractError> {
-    state::REPLY_TX_HASH.save(storage, &tx_hash)?;
+    state::REPLY_UNSIGNED_TX_HASH.save(storage, &unsigned_tx_hash)?;
 
     let start_sig_msg: multisig::msg::ExecuteMsg = multisig::msg::ExecuteMsg::StartSigningSession {
         verifier_set_id: cur_verifier_set_id,
-        msg: tx_hash.into(),
+        msg: unsigned_tx_hash.into(),
         chain_name: config.chain_name.clone(),
         sig_verifier: Some(self_address.into()),
     };
@@ -346,11 +346,11 @@ pub fn update_verifier_set(
             save_next_verifier_set(storage, &new_verifier_set)?;
 
             let verifier_union_set = all_active_verifiers(storage)?;
-            let tx_hash = xrpl_multisig::issue_signer_list_set(storage, &config, new_verifier_set.clone())?;
+            let unsigned_tx_hash = xrpl_multisig::issue_signer_list_set(storage, &config, new_verifier_set.clone())?;
 
             Ok(Response::new()
                 .add_submessage(
-                    start_signing_session(storage, &config, tx_hash, env.contract.address, multisig::verifier_set::VerifierSet::from(cur_verifier_set).id())?
+                    start_signing_session(storage, &config, unsigned_tx_hash, env.contract.address, multisig::verifier_set::VerifierSet::from(cur_verifier_set).id())?
                 )
                 .add_message(
                     wasm_execute(
@@ -364,7 +364,6 @@ pub fn update_verifier_set(
                 ))
         }
     }
-
 }
 
 fn all_active_verifiers(storage: &mut dyn Storage) -> Result<HashSet<String>, ContractError> {

@@ -6,7 +6,7 @@ use crate::error::ContractError;
 use crate::events::Event;
 use crate::xrpl_serialize::XRPLSerialize;
 use crate::state::{
-    CONFIG, MultisigSession, MESSAGE_ID_TO_MULTISIG_SESSION, MULTISIG_SESSION_ID_TO_TX_HASH, REPLY_MESSAGE_ID, REPLY_TX_HASH, TRANSACTION_INFO
+    CONFIG, MultisigSession, CROSS_CHAIN_ID_TO_MULTISIG_SESSION, MULTISIG_SESSION_ID_TO_UNSIGNED_TX_HASH, REPLY_CROSS_CHAIN_ID, REPLY_UNSIGNED_TX_HASH, UNSIGNED_TX_HASH_TO_TX_INFO
 };
 
 pub fn start_multisig_reply(deps: DepsMut, reply: Reply) -> Result<Response, ContractError> {
@@ -14,20 +14,20 @@ pub fn start_multisig_reply(deps: DepsMut, reply: Reply) -> Result<Response, Con
 
     match parse_reply_execute_data(reply.clone()) {
         Ok(MsgExecuteContractResponse { data: Some(data) }) => {
-            let tx_hash = REPLY_TX_HASH.load(deps.storage)?;
+            let unsigned_tx_hash = REPLY_UNSIGNED_TX_HASH.load(deps.storage)?;
 
             let multisig_session_id: Uint64 =
                 from_json(data).map_err(|_| ContractError::InvalidContractReply {
                     reason: "invalid multisig session ID".to_string(),
                 })?;
 
-            MULTISIG_SESSION_ID_TO_TX_HASH.save(
+            MULTISIG_SESSION_ID_TO_UNSIGNED_TX_HASH.save(
                 deps.storage,
                 multisig_session_id.u64(),
-                &tx_hash,
+                &unsigned_tx_hash,
             )?;
 
-            let tx_info = TRANSACTION_INFO.load(deps.storage, &tx_hash)?;
+            let tx_info = UNSIGNED_TX_HASH_TO_TX_INFO.load(deps.storage, &unsigned_tx_hash)?;
 
             let res = reply.result.unwrap();
 
@@ -48,17 +48,17 @@ pub fn start_multisig_reply(deps: DepsMut, reply: Reply) -> Result<Response, Con
                 .parse()
                 .expect("violated invariant: expires_at is not a number");
 
-            match REPLY_MESSAGE_ID.may_load(deps.storage)? {
-                Some(message_id) => {
-                    MESSAGE_ID_TO_MULTISIG_SESSION.save(
+            match REPLY_CROSS_CHAIN_ID.may_load(deps.storage)? {
+                Some(cc_id) => {
+                    CROSS_CHAIN_ID_TO_MULTISIG_SESSION.save(
                         deps.storage,
-                        &message_id,
+                        &cc_id,
                         &MultisigSession {
                             id: multisig_session_id.u64(),
                             expires_at,
                         },
                     )?;
-                    REPLY_MESSAGE_ID.remove(deps.storage);
+                    REPLY_CROSS_CHAIN_ID.remove(deps.storage);
                 }
                 None if matches!(tx_info.unsigned_contents, XRPLUnsignedTx::Payment(_)) => {
                     panic!("No reply message ID found for Payment")
@@ -82,7 +82,7 @@ pub fn start_multisig_reply(deps: DepsMut, reply: Reply) -> Result<Response, Con
                 .add_event(
                     Event::ProofUnderConstruction {
                         destination_chain: config.chain_name,
-                        tx_hash,
+                        unsigned_tx_hash,
                         multisig_session_id,
                     }
                     .into(),

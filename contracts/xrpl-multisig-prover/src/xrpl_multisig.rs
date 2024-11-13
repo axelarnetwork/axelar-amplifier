@@ -1,7 +1,7 @@
 use router_api::CrossChainId;
 use cosmwasm_std::Storage;
 use xrpl_types::types::{
-    TxHash, XRPLUnsignedTx, TransactionInfo, TransactionStatus, XRPLSequence,
+    TxHash, XRPLUnsignedTx, TxInfo, TransactionStatus, XRPLSequence,
     XRPLAccountId, XRPLPaymentAmount, XRPLCrossCurrencyOptions, XRPLToken, XRPLPaymentTx,
     XRPLTicketCreateTx, XRPLSignerListSetTx, XRPLSignerEntry, XRPLTrustSetTx,
 };
@@ -10,24 +10,24 @@ use crate::axelar_verifiers::VerifierSet;
 use crate::error::ContractError;
 use crate::state::{
     Config, AVAILABLE_TICKETS, CONFIRMED_TRANSACTIONS, CURRENT_VERIFIER_SET,
-    LAST_ASSIGNED_TICKET_NUMBER, LATEST_SEQUENTIAL_TX_HASH, MESSAGE_ID_TO_TICKET,
-    NEXT_SEQUENCE_NUMBER, NEXT_VERIFIER_SET, TRANSACTION_INFO,
+    LAST_ASSIGNED_TICKET_NUMBER, LATEST_SEQUENTIAL_UNSIGNED_TX_HASH, CROSS_CHAIN_ID_TO_TICKET,
+    NEXT_SEQUENCE_NUMBER, NEXT_VERIFIER_SET, UNSIGNED_TX_HASH_TO_TX_INFO,
 };
 
 fn issue_tx(
     storage: &mut dyn Storage,
     unsigned_tx: XRPLUnsignedTx,
-    original_message_id: Option<CrossChainId>,
+    original_cc_id: Option<CrossChainId>,
 ) -> Result<TxHash, ContractError> {
     let unsigned_tx_hash = xrpl_types::types::hash_unsigned_tx(&unsigned_tx)?;
 
-    TRANSACTION_INFO.save(
+    UNSIGNED_TX_HASH_TO_TX_INFO.save(
         storage,
         &unsigned_tx_hash,
-        &TransactionInfo {
+        &TxInfo {
             status: TransactionStatus::Pending,
             unsigned_contents: unsigned_tx.clone(),
-            original_message_id,
+            original_cc_id,
         },
     )?;
 
@@ -36,7 +36,7 @@ fn issue_tx(
             LAST_ASSIGNED_TICKET_NUMBER.save(storage, ticket_number)?;
         }
         XRPLSequence::Plain(_) => {
-            LATEST_SEQUENTIAL_TX_HASH.save(storage, &unsigned_tx_hash)?;
+            LATEST_SEQUENTIAL_UNSIGNED_TX_HASH.save(storage, &unsigned_tx_hash)?;
         }
     };
 
@@ -48,10 +48,10 @@ pub fn issue_payment(
     config: &Config,
     destination: XRPLAccountId,
     amount: &XRPLPaymentAmount,
-    message_id: &CrossChainId,
+    cc_id: &CrossChainId,
     cross_currency: Option<&XRPLCrossCurrencyOptions>,
 ) -> Result<TxHash, ContractError> {
-    let ticket_number = assign_ticket_number(storage, message_id)?;
+    let ticket_number = assign_ticket_number(storage, cc_id)?;
 
     let tx = XRPLPaymentTx {
         account: config.xrpl_multisig.clone(),
@@ -62,7 +62,7 @@ pub fn issue_payment(
         cross_currency: cross_currency.cloned()
     };
 
-    issue_tx(storage, XRPLUnsignedTx::Payment(tx), Some(message_id.clone()))
+    issue_tx(storage, XRPLUnsignedTx::Payment(tx), Some(cc_id.clone()))
 }
 
 pub fn issue_ticket_create(
@@ -127,7 +127,7 @@ pub fn update_tx_status(
     unsigned_tx_hash: TxHash,
     new_status: TransactionStatus,
 ) -> Result<Option<VerifierSet>, ContractError> {
-    let mut tx_info = TRANSACTION_INFO.load(storage, &unsigned_tx_hash)?;
+    let mut tx_info = UNSIGNED_TX_HASH_TO_TX_INFO.load(storage, &unsigned_tx_hash)?;
     if tx_info.status != TransactionStatus::Pending {
         return Err(ContractError::TxStatusAlreadyUpdated);
     }
@@ -148,7 +148,7 @@ pub fn update_tx_status(
         mark_ticket_unavailable(storage, tx_sequence_number)?;
     }
 
-    TRANSACTION_INFO.save(storage, &unsigned_tx_hash, &tx_info)?;
+    UNSIGNED_TX_HASH_TO_TX_INFO.save(storage, &unsigned_tx_hash, &tx_info)?;
 
     if tx_info.status != TransactionStatus::Succeeded {
         return Ok(None);
@@ -194,16 +194,16 @@ pub fn update_tx_status(
 // by a TX that doesn't correspond to this message.
 fn assign_ticket_number(
     storage: &mut dyn Storage,
-    message_id: &CrossChainId,
+    cc_id: &CrossChainId,
 ) -> Result<u32, ContractError> {
     // If this message ID has already been ticketed,
     // then use the same ticket number as before,
-    if let Some(ticket_number) = MESSAGE_ID_TO_TICKET.may_load(storage, message_id)? {
-        let confirmed_tx_hash = CONFIRMED_TRANSACTIONS.may_load(storage, &ticket_number)?;
+    if let Some(ticket_number) = CROSS_CHAIN_ID_TO_TICKET.may_load(storage, cc_id)? {
+        let confirmed_unsigned_tx_hash = CONFIRMED_TRANSACTIONS.may_load(storage, &ticket_number)?;
         // as long as it has not already been consumed
-        if confirmed_tx_hash.is_none()
+        if confirmed_unsigned_tx_hash.is_none()
         // or if it has been consumed by the same message.
-        || TRANSACTION_INFO.load(storage, &confirmed_tx_hash.unwrap())?.original_message_id.as_ref() == Some(message_id)
+        || UNSIGNED_TX_HASH_TO_TX_INFO.load(storage, &confirmed_unsigned_tx_hash.unwrap())?.original_cc_id.as_ref() == Some(cc_id)
         {
             return Ok(ticket_number);
         }
@@ -211,7 +211,7 @@ fn assign_ticket_number(
 
     // Otherwise, use the next available ticket number.
     let new_ticket_number = next_ticket_number(storage)?;
-    MESSAGE_ID_TO_TICKET.save(storage, message_id, &new_ticket_number)?;
+    CROSS_CHAIN_ID_TO_TICKET.save(storage, cc_id, &new_ticket_number)?;
     Ok(new_ticket_number)
 }
 
@@ -258,11 +258,11 @@ fn next_sequence_number(storage: &dyn Storage) -> Result<u32, ContractError> {
 
 fn load_latest_sequential_tx_info(
     storage: &dyn Storage,
-) -> Result<Option<TransactionInfo>, ContractError> {
-    LATEST_SEQUENTIAL_TX_HASH
+) -> Result<Option<TxInfo>, ContractError> {
+    LATEST_SEQUENTIAL_UNSIGNED_TX_HASH
         .may_load(storage)?
         .map_or(Ok(None), |tx_hash| {
-            Ok(TRANSACTION_INFO.may_load(storage, &tx_hash)?)
+            Ok(UNSIGNED_TX_HASH_TO_TX_INFO.may_load(storage, &tx_hash)?)
         })
 }
 

@@ -9,7 +9,7 @@ use xrpl_types::types::TxHash;
 pub enum Event {
     ProofUnderConstruction {
         destination_chain: ChainName,
-        tx_hash: TxHash,
+        unsigned_tx_hash: TxHash,
         multisig_session_id: Uint64,
     },
     XRPLSigningStarted {
@@ -26,7 +26,7 @@ impl From<Event> for cosmwasm_std::Event {
         match other {
             Event::ProofUnderConstruction {
                 destination_chain,
-                tx_hash,
+                unsigned_tx_hash,
                 multisig_session_id,
             } => cosmwasm_std::Event::new("proof_under_construction")
                 .add_attribute(
@@ -35,8 +35,8 @@ impl From<Event> for cosmwasm_std::Event {
                         .expect("violated invariant: destination_chain is not serializable"),
                 )
                 .add_attribute(
-                    "tx_hash",
-                    to_string(&tx_hash).expect("violated invariant: tx_hash is not serializable"),
+                    "unsigned_tx_hash",
+                    to_string(&unsigned_tx_hash).expect("violated invariant: tx_hash is not serializable"),
                 )
                 .add_attribute(
                     "multisig_session_id",

@@ -5,12 +5,12 @@ use multisig::key::PublicKey;
 use multisig::{key::Signature, types::MultisigState};
 use xrpl_types::error::XRPLError;
 
-use crate::state::{MultisigSession, AVAILABLE_TICKETS, MESSAGE_ID_TO_MULTISIG_SESSION, MESSAGE_ID_TO_TICKET, NEXT_VERIFIER_SET};
+use crate::state::{MultisigSession, AVAILABLE_TICKETS, CROSS_CHAIN_ID_TO_MULTISIG_SESSION, CROSS_CHAIN_ID_TO_TICKET, NEXT_VERIFIER_SET};
 use crate::{
     error::ContractError,
     msg::ProofResponse,
     querier::Querier,
-    state::{CURRENT_VERIFIER_SET, MULTISIG_SESSION_ID_TO_TX_HASH, TRANSACTION_INFO},
+    state::{CURRENT_VERIFIER_SET, MULTISIG_SESSION_ID_TO_UNSIGNED_TX_HASH, UNSIGNED_TX_HASH_TO_TX_INFO},
     xrpl_serialize::XRPLSerialize,
 };
 use xrpl_types::types::*;
@@ -21,9 +21,9 @@ fn message_to_sign(
     signer_xrpl_address: &XRPLAccountId,
 ) -> Result<[u8; 32], ContractError> {
     let unsigned_tx_hash =
-        MULTISIG_SESSION_ID_TO_TX_HASH.load(storage, multisig_session_id.u64())?;
+        MULTISIG_SESSION_ID_TO_UNSIGNED_TX_HASH.load(storage, multisig_session_id.u64())?;
 
-    let tx_info = TRANSACTION_INFO.load(storage, &unsigned_tx_hash)?;
+    let tx_info = UNSIGNED_TX_HASH_TO_TX_INFO.load(storage, &unsigned_tx_hash)?;
     if tx_info.status != TransactionStatus::Pending {
         return Err(ContractError::TxStatusNotPending.into());
     }
@@ -51,9 +51,9 @@ pub fn proof(
     multisig_session_id: &Uint64,
 ) -> StdResult<ProofResponse> {
     let unsigned_tx_hash =
-        MULTISIG_SESSION_ID_TO_TX_HASH.load(storage, multisig_session_id.u64())?;
+        MULTISIG_SESSION_ID_TO_UNSIGNED_TX_HASH.load(storage, multisig_session_id.u64())?;
 
-    let tx_info = TRANSACTION_INFO.load(storage, &unsigned_tx_hash)?;
+    let tx_info = UNSIGNED_TX_HASH_TO_TX_INFO.load(storage, &unsigned_tx_hash)?;
 
     let multisig_session = querier.multisig(multisig_session_id)?;
 
@@ -93,9 +93,9 @@ pub fn next_verifier_set(store: &dyn Storage) -> StdResult<Option<multisig::veri
 
 pub fn multisig_session(
     storage: &dyn Storage,
-    message_id: &CrossChainId,
+    cc_id: &CrossChainId,
 ) -> StdResult<Option<MultisigSession>> {
-    let existing_ticket_number = MESSAGE_ID_TO_TICKET.may_load(storage, message_id)?;
+    let existing_ticket_number = CROSS_CHAIN_ID_TO_TICKET.may_load(storage, cc_id)?;
     let available_tickets = AVAILABLE_TICKETS.may_load(storage)?;
     if existing_ticket_number.is_none() || available_tickets.is_none() {
         return Ok(None);
@@ -105,7 +105,7 @@ pub fn multisig_session(
         .unwrap()
         .contains(&existing_ticket_number.unwrap())
     {
-        return MESSAGE_ID_TO_MULTISIG_SESSION.may_load(storage, message_id);
+        return CROSS_CHAIN_ID_TO_MULTISIG_SESSION.may_load(storage, cc_id);
     }
 
     Ok(None)

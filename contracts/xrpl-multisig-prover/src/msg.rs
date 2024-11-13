@@ -80,7 +80,7 @@ pub enum QueryMsg {
     NextVerifierSet,
 
     #[returns(Option<MultisigSession>)]
-    MultisigSession { message_id: CrossChainId },
+    MultisigSession { cc_id: CrossChainId },
 }
 
 #[cw_serde]
@@ -102,7 +102,7 @@ pub enum ExecuteMsg {
     // Queries the gateway for actual message contents
     #[permission(Any)]
     ConstructProof {
-        message_id: CrossChainId,
+        cc_id: CrossChainId,
         payload: HexBinary,
     },
 
