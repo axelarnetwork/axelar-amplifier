@@ -83,7 +83,7 @@ pub fn confirm_tx_status(
         .collect::<Result<Vec<XRPLSigner>, XRPLError>>()?;
 
     if xrpl_signers.len() != signer_public_keys.len() {
-        return Err(ContractError::SignatureNotFound);
+        return Err(ContractError::InvalidSignerPublicKeys);
     }
 
     let signed_tx = XRPLSignedTransaction::new(tx_info.unsigned_contents, xrpl_signers);

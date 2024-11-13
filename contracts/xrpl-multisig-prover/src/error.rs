@@ -39,6 +39,9 @@ pub enum ContractError {
     #[error("invalid signature")]
     InvalidSignature,
 
+    #[error("invalid signer public keys")]
+    InvalidSignerPublicKeys,
+
     #[error("invalid transaction ID {0}")]
     InvalidTxId(String),
 
@@ -77,9 +80,6 @@ pub enum ContractError {
 
     #[error("failed to serialize the response")]
     SerializeResponse,
-
-    #[error("signature not found")]
-    SignatureNotFound,
 
     #[error("confirmed SignerListSet transaction does not match expected verifier set")]
     SignerListMismatch,
