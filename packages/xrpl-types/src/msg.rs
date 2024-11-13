@@ -8,7 +8,11 @@ use crate::types::{TxHash, XRPLAccountId, XRPLPaymentAmount, xrpl_account_id_str
 #[cw_serde]
 #[derive(Eq, Hash)]
 pub enum XRPLMessage {
-    ProverMessage(TxHash),
+    ProverMessage(
+        #[serde(with = "tx_hash_hex")]
+        #[schemars(with = "String")]
+        TxHash
+    ),
     UserMessage(XRPLUserMessage),
 }
 
