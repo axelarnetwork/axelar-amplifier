@@ -4,7 +4,7 @@ use cosmwasm_std::{HexBinary, Uint64};
 use multisig::key::PublicKey;
 use msgs_derive::EnsurePermissions;
 use router_api::{ChainName, CrossChainId};
-use xrpl_types::types::{TxHash, XRPLAccountId, XRPLToken, xrpl_account_id_string};
+use xrpl_types::types::{TxHash, XRPLAccountId, XRPLToken, xrpl_account_id_string, tx_hash_hex};
 
 use crate::state::MultisigSession;
 
@@ -87,10 +87,14 @@ pub enum QueryMsg {
 #[serde(tag = "status")]
 pub enum ProofResponse {
     Completed {
+        #[serde(with = "tx_hash_hex")]
+        #[schemars(with = "String")]
         unsigned_tx_hash: TxHash,
         tx_blob: HexBinary,
     },
     Pending {
+        #[serde(with = "tx_hash_hex")]
+        #[schemars(with = "String")]
         unsigned_tx_hash: TxHash,
     },
 }
@@ -113,6 +117,8 @@ pub enum ExecuteMsg {
     ConfirmTxStatus {
         multisig_session_id: Uint64,
         signer_public_keys: Vec<PublicKey>,
+        #[serde(with = "tx_hash_hex")]
+        #[schemars(with = "String")]
         tx_id: TxHash,
     },
 
