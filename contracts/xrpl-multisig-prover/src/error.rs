@@ -99,6 +99,12 @@ pub enum ContractError {
     #[error("transaction status is not pending")]
     TxStatusNotPending,
 
+    #[error("transaction status is still unknown")]
+    TxStatusUnknown,
+
+    #[error("transaction status is still being verified")]
+    TxStatusVerificationInProgress,
+
     #[error("a verifier set confirmation already in progress")]
     VerifierSetConfirmationInProgress,
 

@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use axelar_wasm_std::{address, permission_control, FnExt};
+use axelar_wasm_std::{address, permission_control, FnExt, VerificationStatus};
 use axelar_wasm_std::MajorityThreshold;
 use interchain_token_service::HubMessage;
 use router_api::CrossChainId;
@@ -96,6 +96,17 @@ pub fn update_tx_status(
 
     let message = XRPLMessage::ProverMessage(tx_id);
     let status = querier.message_status(message)?;
+
+    match status {
+        VerificationStatus::Unknown |
+        VerificationStatus::FailedToVerify => {
+            return Err(ContractError::TxStatusUnknown);
+        },
+        VerificationStatus::InProgress => {
+            return Err(ContractError::TxStatusVerificationInProgress);
+        },
+        _ => {}
+    }
 
     Ok(match xrpl_multisig::update_tx_status(storage, unsigned_tx_hash, status.into())? {
         None => Response::default(),
