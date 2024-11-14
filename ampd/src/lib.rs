@@ -364,7 +364,7 @@ where
                     handlers::stellar_verify_msg::Handler::new(
                         verifier.clone(),
                         cosmwasm_contract,
-                        stellar::http_client::Client::new(
+                        stellar::rpc_client::Client::new(
                             http_url.to_string().trim_end_matches('/').into(),
                         )
                         .change_context(Error::Connection)?,
@@ -380,7 +380,7 @@ where
                     handlers::stellar_verify_verifier_set::Handler::new(
                         verifier.clone(),
                         cosmwasm_contract,
-                        stellar::http_client::Client::new(
+                        stellar::rpc_client::Client::new(
                             http_url.to_string().trim_end_matches('/').into(),
                         )
                         .change_context(Error::Connection)?,
