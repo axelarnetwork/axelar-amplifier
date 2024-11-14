@@ -6,6 +6,25 @@
 
 - Change event index in message ids from u32 to u64. Emit message id from voting verifier [#666](https://github.com/axelarnetwork/axelar-amplifier/pull/666)
 
-#### Migration Notes
+#### v1.3.0 Migration Notes
+
+Components that need upgrading:
+ampd
+
+Contracts that need migration:
+coordinator
+voting-verifier
+service-registry
+rewards
+router
+multisig-prover
+
+Contracts that should be redeployed (deploy fresh instance):
+interchain-token-service
+axelarnet-gateway (deploy with chain name "axelar")
+
+Contracts no longer used (no longer part of the active system):
+nexus-gateway
 
 The voting verifier contracts must be migrated before ampd is upgraded. Existing ampd instances will continue to work even after the contract migration, but we recommend upgrading ampd.
+
