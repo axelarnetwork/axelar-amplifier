@@ -18,6 +18,7 @@ mod query;
 
 const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
+const BASE_VERSION: &str = "1.1.0";
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(
@@ -25,9 +26,7 @@ pub fn migrate(
     _env: Env,
     _msg: Empty,
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
-    migrations::v1_0_0::migrate(deps.storage)?;
-
-    // any version checks should be done before here
+    cw2::assert_contract_version(deps.storage, CONTRACT_NAME, BASE_VERSION)?;
 
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
@@ -191,7 +190,8 @@ pub fn query(
 
 #[cfg(test)]
 mod tests {
-    use cosmwasm_std::testing::{mock_dependencies, mock_env};
+    use assert_ok::assert_ok;
+    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
     use cosmwasm_std::{coins, Addr, BlockInfo, Uint128};
     use cw_multi_test::{App, ContractWrapper, Executor};
     use router_api::ChainName;
@@ -203,9 +203,17 @@ mod tests {
     #[test]
     fn migrate_sets_contract_version() {
         let mut deps = mock_dependencies();
-
-        #[allow(deprecated)]
-        migrations::v1_0_0::tests::instantiate_contract(deps.as_mut(), "denom");
+        let env = mock_env();
+        let info = mock_info("instantiator", &[]);
+        assert_ok!(instantiate(
+            deps.as_mut(),
+            env,
+            info,
+            InstantiateMsg {
+                governance_address: "governance".to_string(),
+                rewards_denom: "uaxl".to_string()
+            }
+        ));
 
         migrate(deps.as_mut(), mock_env(), Empty {}).unwrap();
 
