@@ -6,7 +6,7 @@
 
 - Change event index in message ids from u32 to u64. Emit message id from voting verifier [#666](https://github.com/axelarnetwork/axelar-amplifier/pull/666)
 
-#### Migration Notes
+#### v1.3.0 Migration Notes
 
 Components that need upgrading:
 ampd
