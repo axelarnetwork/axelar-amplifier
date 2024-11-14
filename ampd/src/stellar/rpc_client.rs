@@ -34,7 +34,7 @@ impl From<(Hash, GetTransactionResponse)> for TxResponse {
                 TransactionMeta::V3(data) => data.soroban_meta.map(|meta| meta.events),
                 _ => None,
             })
-            .unwrap_or_else(VecM::default);
+            .unwrap_or_default();
 
         Self {
             transaction_hash: transaction_hash.to_string(),
