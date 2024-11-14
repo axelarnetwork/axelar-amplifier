@@ -112,7 +112,7 @@ pub fn migrate(
     _msg: Empty,
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
     cw2::assert_contract_version(deps.storage, CONTRACT_NAME, BASE_VERSION)?;
-    // any version checks should be done before here
+
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     Ok(Response::default())
