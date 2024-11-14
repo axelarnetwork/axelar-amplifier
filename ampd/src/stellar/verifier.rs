@@ -6,7 +6,7 @@ use stellar_xdr::curr::{BytesM, ContractEventBody, ScAddress, ScBytes, ScSymbol,
 
 use crate::handlers::stellar_verify_msg::Message;
 use crate::handlers::stellar_verify_verifier_set::VerifierSetConfirmation;
-use crate::stellar::http_client::TxResponse;
+use crate::stellar::rpc_client::TxResponse;
 
 const TOPIC_CONTRACT_CALLED: &str = "contract_called";
 const TOPIC_SIGNERS_ROTATED: &str = "signers_rotated";
@@ -146,7 +146,7 @@ mod test {
 
     use crate::handlers::stellar_verify_msg::Message;
     use crate::handlers::stellar_verify_verifier_set::VerifierSetConfirmation;
-    use crate::stellar::http_client::TxResponse;
+    use crate::stellar::rpc_client::TxResponse;
     use crate::stellar::verifier::{
         verify_message, verify_verifier_set, TOPIC_CONTRACT_CALLED, TOPIC_SIGNERS_ROTATED,
     };
@@ -330,9 +330,8 @@ mod test {
 
         let tx_response = TxResponse {
             transaction_hash: msg.message_id.tx_hash_as_hex_no_prefix().to_string(),
-            source_address: msg.source_address.clone(),
             successful: true,
-            contract_events: Some(vec![event].try_into().unwrap()),
+            contract_events: vec![event].try_into().unwrap(),
         };
 
         (gateway_address, tx_response, msg)
@@ -389,11 +388,8 @@ mod test {
                 .message_id
                 .tx_hash_as_hex_no_prefix()
                 .to_string(),
-            source_address: ScAddress::Account(AccountId(PublicKey::PublicKeyTypeEd25519(
-                Uint256::from(SigningKey::generate(&mut OsRng).verifying_key().to_bytes()),
-            ))),
             successful: true,
-            contract_events: Some(vec![event].try_into().unwrap()),
+            contract_events: vec![event].try_into().unwrap(),
         };
 
         (gateway_address, tx_response, verifier_set_confirmation)
