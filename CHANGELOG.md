@@ -5,6 +5,7 @@
 [Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/ampd-v1.2.0..HEAD)
 
 - Change event index in message ids from u32 to u64. Emit message id from voting verifier [#666](https://github.com/axelarnetwork/axelar-amplifier/pull/666)
+- Ampd switch from horizon to RPC client for Stellar verifier [#694](https://github.com/axelarnetwork/axelar-amplifier/pull/694)
 
 #### v1.3.0 Migration Notes
 
