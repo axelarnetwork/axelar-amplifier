@@ -46,6 +46,7 @@ serde_json = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]
+assert_ok = { workspace = true }
 cw-multi-test = "0.15.1"
 
 [lints]
