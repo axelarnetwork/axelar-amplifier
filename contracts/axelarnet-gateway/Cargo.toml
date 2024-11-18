@@ -1,6 +1,6 @@
 [package]
 name = "axelarnet-gateway"
-version = "1.0.0"
+version = "0.1.0"
 rust-version = { workspace = true }
 edition = { workspace = true }
 description = "The Axelarnet Gateway contract allows apps on the Axelar Network to send/receive cross-chain messages to/from other chains."
