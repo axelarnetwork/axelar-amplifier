@@ -325,7 +325,7 @@ fn execute_message_interchain_transfer_should_scale_correctly_in_3_chain_cycle()
             "ethereum".parse().unwrap(),
             source_its_contract.clone(),
             Uint256::MAX.try_into().unwrap(),
-            18,
+            u8::MAX,
         ),
         (
             "stellar".parse().unwrap(),
@@ -407,7 +407,7 @@ fn execute_message_interchain_transfer_should_scale_correctly_in_3_chain_cycle()
     ));
 
     let scaling_factor = Uint256::from_u128(10)
-        .checked_pow(configs[0].3.abs_diff(configs[1].3).into())
+        .checked_pow(deploy_token.decimals.abs_diff(configs[1].3).into())
         .unwrap();
     let scaled_amount = amount.clone().checked_div(scaling_factor).unwrap();
 
@@ -436,7 +436,7 @@ fn execute_message_interchain_transfer_should_scale_correctly_in_3_chain_cycle()
     ));
 
     let scaling_factor = Uint256::from_u128(10)
-        .checked_pow(configs[0].3.abs_diff(configs[2].3).into())
+        .checked_pow(deploy_token.decimals.abs_diff(configs[2].3).into())
         .unwrap();
     let scaled_amount = amount.clone().checked_div(scaling_factor).unwrap();
 
@@ -478,7 +478,7 @@ fn execute_message_interchain_transfer_should_scale_correctly_in_3_chain_cycle_w
             "ethereum".parse().unwrap(),
             source_its_contract.clone(),
             Uint256::MAX.try_into().unwrap(),
-            18,
+            u8::MAX,
         ),
         (
             "stellar".parse().unwrap(),
@@ -560,7 +560,7 @@ fn execute_message_interchain_transfer_should_scale_correctly_in_3_chain_cycle_w
     ));
 
     let scaling_factor = Uint256::from_u128(10)
-        .checked_pow(configs[0].3.abs_diff(configs[1].3).into())
+        .checked_pow(deploy_token.decimals.abs_diff(configs[1].3).into())
         .unwrap();
     let scaled_amount = amount.clone().checked_div(scaling_factor).unwrap();
 
@@ -589,7 +589,7 @@ fn execute_message_interchain_transfer_should_scale_correctly_in_3_chain_cycle_w
     ));
 
     let scaling_factor = Uint256::from_u128(10)
-        .checked_pow(configs[0].3.abs_diff(configs[2].3).into())
+        .checked_pow(deploy_token.decimals.abs_diff(configs[2].3).into())
         .unwrap();
     let scaled_amount = amount.clone().checked_div(scaling_factor).unwrap();
 
