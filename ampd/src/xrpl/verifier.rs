@@ -92,7 +92,13 @@ pub fn verify_memos(memos: Vec<Memo>, message: &XRPLUserMessage) -> bool {
     let memo_kv: HashMap<String, String> = memos
         .into_iter()
         .filter(|m| m.memo_type.is_some() && m.memo_data.is_some())
-        .map(|m| (String::from_utf8(hex::decode(m.memo_type.unwrap()).unwrap()).unwrap(), m.memo_data.unwrap()))
+        .map(|m| (String::from_utf8(hex::decode(m.memo_type.unwrap()).expect("Memo value should be hex")).ok(), m.memo_data))
+        .filter_map(|(k, v)| {
+            match (k, v) {
+                (Some(k), Some(v)) => Some((k, v)),
+                _ => None,
+            }
+        })
         .collect();
 
     || -> Option<bool> {
