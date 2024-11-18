@@ -19,7 +19,7 @@ anyhow = "1.0.89"
 assert_ok = "1.0"
 axelar-wasm-std = { version = "^1.0.0", path = "packages/axelar-wasm-std" }
 axelar-wasm-std-derive = { version = "^1.0.0", path = "packages/axelar-wasm-std-derive" }
-axelarnet-gateway = { version = "^1.0.0", path = "contracts/axelarnet-gateway" }
+axelarnet-gateway = { version = "^0.1.0", path = "contracts/axelarnet-gateway" }
 bcs = "0.1.5"
 client = { version = "^1.0.0", path = "packages/client" }
 coordinator = { version = "^1.0.0", path = "contracts/coordinator" }
