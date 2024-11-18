@@ -57,10 +57,9 @@ pub fn route_incoming_messages(
     let msgs_by_status = group_by_status(verifier, msgs_with_payload, xrpl_chain_name)?;
 
     let mut route_msgs = Vec::new();
-    let events = Vec::new();
+    let mut events = Vec::new();
     for (status, msgs) in &msgs_by_status {
         let mut its_msgs = Vec::new();
-        let mut events = Vec::new();
         for msg in msgs {
             let (its_msg, payload) = to_its_message(store, msg, its_hub, axelar_chain_name, xrpl_multisig, xrpl_chain_name)?;
             let contract_called_event: Event = XRPLGatewayEvent::ContractCalled {
