@@ -1,3 +1,4 @@
+use cosmwasm_std::StdError;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -14,6 +15,8 @@ pub enum Error {
     PublicKey,
     #[error("failed to get signature from tofnd")]
     Sign,
+    #[error(transparent)]
+    Std(#[from] StdError),
     #[error("failed to get transaction receipts")]
     TxReceipts,
 }

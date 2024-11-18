@@ -100,25 +100,22 @@ where
             let tx_common = tx_res.tx.common();
             let (ledger_index, tx_hash) = (tx_common.ledger_index, tx_common.hash.clone());
 
-            if ledger_index
-                .unwrap_or(u32::MAX)
-                .le(&latest_validated_ledger_index)
-                && tx_hash.is_some()
-            {
-                let tx_hash = HexBinary::from_hex(tx_hash.unwrap().as_str()).ok();
-                if tx_hash.is_none() {
-                    return None;
-                }
-
-                let tx_hash = TxHash::try_from(tx_hash.unwrap()).ok();
-                if tx_hash.is_none() {
-                    return None;
-                }
-
-                Some((tx_hash.unwrap(), tx_res.tx))
-            } else {
-                None
-            }
+            (|| -> Result<_> {
+                Ok(if ledger_index
+                    .unwrap_or(u32::MAX)
+                    .le(&latest_validated_ledger_index)
+                    && tx_hash.is_some()
+                {
+                    let tx_hash = TxHash::try_from(HexBinary::from_hex(tx_hash.unwrap().as_str()).map_err(Error::from)?).ok();
+                    if tx_hash.is_none() {
+                        None
+                    } else {
+                        Some((tx_hash.unwrap(), tx_res.tx))
+                    }
+                } else {
+                    None
+                })
+            })().unwrap_or(None)
         })
         .collect())
     }
