@@ -131,6 +131,27 @@ pub fn update_chain(
     )
 }
 
+pub fn setup_multiple_chains(
+    configs: Vec<(ChainNameRaw, Address, nonempty::Uint256, u8)>,
+) -> (
+    OwnedDeps<MemoryStorage, MockApi, MockQuerier<AxelarQueryMsg>>,
+    TestMessage,
+) {
+    let mut deps = make_deps();
+    instantiate_contract(deps.as_mut()).unwrap();
+    for (chain_name, its_address, max_uint, target_decimals) in configs {
+        register_chain(
+            deps.as_mut(),
+            chain_name,
+            its_address,
+            max_uint,
+            target_decimals,
+        )
+        .unwrap();
+    }
+    (deps, TestMessage::dummy())
+}
+
 pub fn setup_with_chain_configs(
     source_max_uint: nonempty::Uint256,
     source_max_target_decimals: u8,
