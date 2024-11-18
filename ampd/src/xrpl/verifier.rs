@@ -11,7 +11,6 @@ pub fn verify_message(
     tx: &Transaction,
     message: &XRPLMessage,
 ) -> Vote {
-    // TODO: only allow certain tx flags
     if is_validated_tx(tx) && (is_valid_multisig_tx(tx, multisig_address, message) || is_valid_deposit_tx(tx, multisig_address, message)) {
         if is_successful_tx(tx) {
             Vote::SucceededOnChain
@@ -49,7 +48,8 @@ pub fn is_valid_deposit_tx(tx: &Transaction, multisig_address: &XRPLAccountId, m
                 return payment_tx.destination == multisig_address.to_string()
                     && user_msg.source_address.to_string() == tx.common().account
                     && verify_amount(tx_amount, user_msg)
-                    && verify_memos(memos, user_msg);
+                    && verify_memos(memos, user_msg)
+                    && payment_tx.flags.is_empty(); // TODO: whitelist specific flags
             }
         }
     }
