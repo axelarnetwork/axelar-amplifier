@@ -22,7 +22,7 @@ axelar-wasm-std-derive = { version = "^1.0.0", path = "packages/axelar-wasm-std-
 axelarnet-gateway = { version = "^1.0.0", path = "contracts/axelarnet-gateway" }
 bcs = "0.1.5"
 client = { version = "^1.0.0", path = "packages/client" }
-coordinator = { version = "^1.0.0", path = "contracts/coordinator" }
+coordinator = { version = "^1.1.0", path = "contracts/coordinator" }
 cosmwasm-schema = "1.5.5"
 cosmwasm-std = "1.5.5"
 cw-multi-test = "1.2.0"
