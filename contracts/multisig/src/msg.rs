@@ -11,12 +11,6 @@ use crate::multisig::Multisig;
 use crate::verifier_set::VerifierSet;
 
 #[cw_serde]
-pub struct MigrationMsg {
-    pub admin_address: String,
-    pub authorized_callers: HashMap<String, ChainName>,
-}
-
-#[cw_serde]
 pub struct InstantiateMsg {
     /// the governance address is allowed to modify the authorized caller list for this contract
     pub governance_address: String,
