@@ -42,7 +42,7 @@ jobs:
             ["ampd"]="ampd,/\(major\)|\(major-ampd\)/,/\(minor\)|\(minor-ampd\)/,ampd packages"
             ["router"]="router,/\(major\)|\(major-router\)|\(major-contracts\)|\(major-connection-router\)/,/\(minor\)|\(minor-router\)|\(minor-contracts\)|\(minor-connection-router\)/,contracts/router packages"
             ["gateway"]="gateway,/\(major\)|\(major-gateway\)|\(major-contracts\)/,/\(minor\)|\(minor-gateway\)|\(minor-contracts\)/,contracts/gateway packages"
-            ["multisig"]="multisig,/\(major-multisig\)|\(major-contracts\)/,/\(minor\)|\(minor-multisig\)|\(minor-contracts\)/,contracts/multisig packages"
+            ["multisig"]="multisig,/\(major\)|\(major-multisig\)|\(major-contracts\)/,/\(minor\)|\(minor-multisig\)|\(minor-contracts\)/,contracts/multisig packages"
             ["multisig-prover"]="multisig-prover,/\(major\)|\(major-multisig-prover\)|\(major-contracts\)/,/\(minor\)|\(minor-multisig-prover\)|\(minor-contracts\)/,contracts/multisig-prover packages"
             ["rewards"]="rewards,/\(major\)|\(major-rewards\)|\(major-contracts\)/,/\(minor\)|\(minor-rewards\)|\(minor-contracts\)/,contracts/rewards packages"
             ["service-registry"]="service-registry,/\(major\)|\(major-service-registry\)|\(major-contracts\)/,/\(minor\)|\(minor-service-registry\)|\(minor-contracts\)/,contracts/service-registry packages"
