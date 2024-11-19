@@ -41,7 +41,7 @@ mod health_check;
 mod json_rpc;
 mod mvx;
 mod queue;
-mod starknet;
+pub(crate) mod starknet;
 mod stellar;
 mod sui;
 mod tm_client;
@@ -393,7 +393,6 @@ where
                 handlers::config::Config::StarknetMsgVerifier {
                     cosmwasm_contract,
                     rpc_url,
-                    rpc_timeout,
                 } => self.create_handler_task(
                     "starknet-msg-verifier",
                     handlers::starknet_verify_msg::Handler::new(

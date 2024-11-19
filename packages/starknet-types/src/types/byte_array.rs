@@ -10,7 +10,7 @@ use thiserror::Error;
 /// ## Example usage with the string "hello"
 ///
 /// ```rust
-/// use ampd::starknet::types::byte_array::ByteArray;
+/// use starknet_types::types::byte_array::ByteArray;
 /// use std::str::FromStr;
 /// use starknet_core::types::FieldElement;
 /// use starknet_core::types::FromStrError;
@@ -136,7 +136,7 @@ impl ByteArray {
     /// ## Example usage with the string "hello"
     ///
     /// ```rust
-    /// use ampd::starknet::types::byte_array::ByteArray;
+    /// use starknet_types::types::byte_array::ByteArray;
     /// use std::str::FromStr;
     /// use starknet_core::types::FieldElement;
     /// use starknet_core::types::FromStrError;
@@ -176,7 +176,7 @@ mod byte_array_tests {
 
     use starknet_core::types::{FieldElement, FromStrError};
 
-    use crate::starknet::types::byte_array::ByteArray;
+    use super::ByteArray;
 
     #[test]
     fn byte_array_parse_fail_wrong_pending_word_length() {

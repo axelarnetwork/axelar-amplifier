@@ -66,7 +66,6 @@ pub enum Config {
     StarknetMsgVerifier {
         cosmwasm_contract: TMAddress,
         rpc_url: Url,
-        rpc_timeout: Option<Duration>,
     },
 }
 

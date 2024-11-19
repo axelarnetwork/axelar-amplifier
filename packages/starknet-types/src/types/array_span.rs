@@ -7,7 +7,7 @@ use thiserror::Error;
 /// ## Example usage with the string "hello"
 ///
 /// ```rust
-/// use ampd::starknet::types::array_span::ArraySpan;
+/// use starknet_types::types::array_span::ArraySpan;
 /// use std::str::FromStr;
 /// use starknet_core::types::FieldElement;
 /// use starknet_core::types::FromStrError;
@@ -75,7 +75,7 @@ mod array_span_tests {
 
     use starknet_core::types::{FieldElement, FromStrError};
 
-    use crate::starknet::types::array_span::ArraySpan;
+    use super::ArraySpan;
 
     #[test]
     fn try_from_valid_zeros() {

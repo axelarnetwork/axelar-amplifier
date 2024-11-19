@@ -32,7 +32,7 @@ impl EventType {
 mod event_type_tests {
     use starknet_core::utils::starknet_keccak;
 
-    use crate::starknet::events::EventType;
+    use super::EventType;
 
     #[test]
     fn parse_contract_call() {

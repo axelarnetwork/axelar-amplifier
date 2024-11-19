@@ -1,16 +1,13 @@
 use axelar_wasm_std::hash::Hash;
 use cosmwasm_std::HexBinary;
 use error_stack::{Result, ResultExt};
-use ethers_contract::contract::EthCall;
 use ethers_core::abi::{encode as abi_encode, Token, Tokenizable, Tokenize};
 use evm_gateway::{CommandType, Proof, RotateSignersCall, WeightedSigners};
 use itertools::Itertools;
-use k256::ecdsa::RecoveryId;
-use multisig::key::Signature;
 use multisig::msg::SignerWithSig;
 use multisig::verifier_set::VerifierSet;
 use sha3::{Digest, Keccak256};
-use starknet_types::StarknetMessage;
+use starknet_types::types::starknet_message::StarknetMessage;
 
 use crate::error::ContractError;
 use crate::payload::Payload;
@@ -116,25 +113,14 @@ pub fn encode_execute_data(
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
-
     use assert_ok::assert_ok;
-    use cosmwasm_std::{Addr, HexBinary};
-    use elliptic_curve::consts::U32;
-    use ethers_core::types::Signature as EthersSignature;
-    use evm_gateway::{evm_address, CommandType};
-    use generic_array::GenericArray;
-    use hex::FromHex;
-    use itertools::Itertools;
-    use k256::ecdsa::{RecoveryId, Signature as K256Signature};
-    use multisig::key::{KeyType, KeyTyped, Signature};
-    use multisig::msg::{Signer, SignerWithSig};
+    use cosmwasm_std::HexBinary;
 
     use crate::encoding::abi::tests::signers_with_sigs;
     use crate::encoding::starknet_abi::{encode_execute_data, payload_digest};
     use crate::payload::Payload;
     use crate::test::test_data::{
-        curr_verifier_set, domain_separator, messages, new_verifier_set, verifier_set_from_pub_keys,
+        curr_verifier_set, domain_separator, messages, verifier_set_from_pub_keys,
     };
 
     #[test]

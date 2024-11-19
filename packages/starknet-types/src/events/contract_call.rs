@@ -1,13 +1,12 @@
 use std::num::TryFromIntError;
 
 use ethers_core::types::H256;
-use starknet_core::types::ValueOutOfRangeError;
+use starknet_core::types::{FieldElement, ValueOutOfRangeError};
 use starknet_core::utils::{parse_cairo_short_string, ParseCairoShortStringError};
 use thiserror::Error;
 
-use crate::starknet::events::EventType;
-use crate::starknet::types::byte_array::{ByteArray, ByteArrayError};
-use crate::types::Hash;
+use crate::events::EventType;
+use crate::types::byte_array::{ByteArray, ByteArrayError};
 
 /// This is the event emitted by the gateway cairo contract on Starknet,
 /// when the call_contract method is called from a third party.
@@ -16,8 +15,8 @@ pub struct ContractCallEvent {
     pub from_contract_addr: String,
     pub destination_address: String,
     pub destination_chain: String,
-    pub source_address: String,
-    pub payload_hash: Hash,
+    pub source_address: FieldElement,
+    pub payload_hash: H256,
 }
 
 /// An error, representing failure to convert/parse a starknet event
@@ -80,7 +79,7 @@ impl TryFrom<starknet_core::types::Event> for ContractCallEvent {
         // the pedersen hash of the felt as described here, to get the actual address,
         // although I'm not sure that we can do it as described here:
         // https://docs.starknet.io/documentation/architecture_and_concepts/Smart_Contracts/contract-address/
-        let source_address = format!("0x{:064x}", starknet_event.data[0]);
+        let source_address = starknet_event.data[0];
 
         // destination_contract_address (ByteArray) is composed of FieldElements
         // from the second element to elemet X.
@@ -145,8 +144,8 @@ mod tests {
     use starknet_core::utils::starknet_keccak;
 
     use super::ContractCallEvent;
-    use crate::starknet::events::contract_call::ContractCallError;
-    use crate::starknet::types::byte_array::ByteArrayError;
+    use crate::events::contract_call::ContractCallError;
+    use crate::types::byte_array::ByteArrayError;
 
     #[test]
     fn destination_address_chunks_offset_out_of_range() {
@@ -220,11 +219,12 @@ mod tests {
                 ),
                 destination_address: String::from("hello"),
                 destination_chain: String::from("destination_chain"),
-                source_address: String::from(
+                source_address: FieldElement::from_str(
                     "0x00b3ff441a68610b30fd5e2abbf3a1548eb6ba6f3559f2862bf2dc757e5828ca"
-                ),
+                )
+                .unwrap(),
                 payload_hash: H256::from_slice(&[
-                    28u8, 138, 255, 149, 6, 133, 194, 237, 75, 195, 23, 79, 52, 114, 40, 123, 86,
+                    28, 138, 255, 149, 6, 133, 194, 237, 75, 195, 23, 79, 52, 114, 40, 123, 86,
                     217, 81, 123, 156, 148, 129, 39, 49, 154, 9, 167, 163, 109, 234, 200
                 ])
             }

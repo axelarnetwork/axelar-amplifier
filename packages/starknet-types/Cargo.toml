@@ -11,6 +11,8 @@ ethers-core = { workspace = true }
 starknet-core = { workspace = true }
 error-stack = { workspace = true }
 thiserror = { workspace = true }
+itertools = { workspace = true }
+hex = { workspace = true }
 
 [lints]
 workspace = true
