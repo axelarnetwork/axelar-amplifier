@@ -4,15 +4,15 @@ use axelar_wasm_std::{address, killswitch, permission_control, FnExt};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_json_binary, Addr, Binary, Deps, DepsMut, Env, HexBinary, MessageInfo, Response, StdResult,
-    Storage, Uint64,
+    to_json_binary, Addr, Binary, Deps, DepsMut, Empty, Env, HexBinary, MessageInfo, Response,
+    StdResult, Storage, Uint64,
 };
 use error_stack::{report, Report, ResultExt};
 use itertools::Itertools;
 use router_api::ChainName;
 
 use crate::events::Event;
-use crate::msg::{ExecuteMsg, InstantiateMsg, MigrationMsg, QueryMsg};
+use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{
     verifier_set, Config, CONFIG, SIGNING_SESSIONS, SIGNING_SESSION_COUNTER, VERIFIER_SETS,
 };
@@ -25,28 +25,15 @@ mod query;
 
 const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
+const BASE_VERSION: &str = "1.0.0";
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(
     deps: DepsMut,
     _env: Env,
-    msg: MigrationMsg,
+    _msg: Empty,
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
-    let admin = address::validate_cosmwasm_address(deps.api, &msg.admin_address)?;
-    let authorized_callers = msg
-        .authorized_callers
-        .into_iter()
-        .map(|(contract_address, chain_name)| {
-            address::validate_cosmwasm_address(deps.api, &contract_address)
-                .map(|addr| (addr, chain_name))
-        })
-        .try_collect()?;
-
-    migrations::v0_4_1::migrate(deps.storage, admin, authorized_callers)
-        .change_context(ContractError::Migration)?;
-
-    // this needs to be the last thing to do during migration,
-    // because previous migration steps should check the old version
+    cw2::assert_contract_version(deps.storage, CONTRACT_NAME, BASE_VERSION)?;
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     Ok(Response::default())
