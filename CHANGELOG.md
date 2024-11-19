@@ -12,25 +12,27 @@
 - Ampd switch from horizon to RPC client for Stellar verifier [#694](https://github.com/axelarnetwork/axelar-amplifier/pull/694)
 
 #### Migration Notes
-Contracts that should be redeployed (deploy fresh instance):
-interchain-token-service
-axelarnet-gateway (deploy with chain name "axelar")
+Upgrade or deploy contracts/components in the below order:
 
-Contracts that need migration:
-coordinator
-gateway
-rewards
-router
-multisig
-multisig-prover
-service-registry
-voting-verifier
+##### Contracts that should be deployed fresh
+- interchain-token-service
+- axelarnet-gateway (deploy with chain name "axelar")
 
-Components that need upgrading:
-ampd
+##### Contracts that need migration
+- coordinator
+- gateway
+- rewards
+- router
+- multisig
+- multisig-prover
+- service-registry
+- voting-verifier
 
-Contracts no longer used (no longer part of the active system):
-nexus-gateway
+##### Components that need upgrading
+- ampd
+
+##### Contracts no longer used (no longer part of the active system)
+- nexus-gateway
 
 The voting verifier contracts must be migrated before ampd is upgraded. Existing ampd instances will continue to work even after the contract migration, but we recommend upgrading ampd.
 
