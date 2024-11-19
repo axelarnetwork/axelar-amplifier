@@ -52,7 +52,7 @@ num-traits = { version = "0.2.14", default-features = false }
 quote = "1.0.36"
 rand = "0.8.5"
 report = { version = "^1.0.0", path = "packages/report" }
-rewards = { version = "^1.1.0", path = "contracts/rewards" }
+rewards = { version = "^1.2.0", path = "contracts/rewards" }
 router = { version = "^1.1.0", path = "contracts/router" }
 router-api = { version = "^1.0.0", path = "packages/router-api" }
 schemars = "0.8.10"
