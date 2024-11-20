@@ -22,7 +22,7 @@ axelar-wasm-std-derive = { version = "^1.0.0", path = "packages/axelar-wasm-std-
 axelarnet-gateway = { version = "^1.0.0", path = "contracts/axelarnet-gateway" }
 bcs = "0.1.5"
 client = { version = "^1.0.0", path = "packages/client" }
-coordinator = { version = "^1.0.0", path = "contracts/coordinator" }
+coordinator = { version = "^1.1.0", path = "contracts/coordinator" }
 cosmwasm-schema = "1.5.5"
 cosmwasm-std = "1.5.5"
 cw-multi-test = "1.2.0"
@@ -35,30 +35,30 @@ ethers-core = "2.0.14"
 events = { version = "^1.0.0", path = "packages/events" }
 events-derive = { version = "^1.0.0", path = "packages/events-derive" }
 evm-gateway = { version = "^1.0.0", path = "packages/evm-gateway" }
-gateway = { version = "^1.0.0", path = "contracts/gateway" }
+gateway = { version = "^1.1.0", path = "contracts/gateway" }
 gateway-api = { version = "^1.0.0", path = "packages/gateway-api" }
 goldie = { version = "0.5" }
 hex = "0.4.3"
 integration-tests = { version = "^1.0.0", path = "integration-tests" }
-interchain-token-service = { version = "^0.1.0", path = "contracts/interchain-token-service" }
+interchain-token-service = { version = "^1.0.0", path = "contracts/interchain-token-service" }
 into-inner-derive = { version = "^1.0.0", path = "packages/into-inner-derive" }
 itertools = "0.11.0"
 k256 = { version = "0.13.1", features = ["ecdsa"] }
 mockall = "0.12.1"
 msgs-derive = { version = "^1.0.0", path = "packages/msgs-derive" }
-multisig = { version = "^1.0.0", path = "contracts/multisig" }
-multisig-prover = { version = "^1.0.0", path = "contracts/multisig-prover" }
+multisig = { version = "^1.1.0", path = "contracts/multisig" }
+multisig-prover = { version = "^1.1.0", path = "contracts/multisig-prover" }
 num-traits = { version = "0.2.14", default-features = false }
 quote = "1.0.36"
 rand = "0.8.5"
 report = { version = "^1.0.0", path = "packages/report" }
-rewards = { version = "^1.1.0", path = "contracts/rewards" }
-router = { version = "^1.0.1", path = "contracts/router" }
+rewards = { version = "^1.2.0", path = "contracts/rewards" }
+router = { version = "^1.1.0", path = "contracts/router" }
 router-api = { version = "^1.0.0", path = "packages/router-api" }
 schemars = "0.8.10"
 serde = { version = "1.0.145", default-features = false, features = ["derive"] }
 serde_json = "1.0.89"
-service-registry = { version = "^1.0.0", path = "contracts/service-registry" }
+service-registry = { version = "^1.1.0", path = "contracts/service-registry" }
 service-registry-api = { version = "^1.0.0", path = "packages/service-registry-api" }
 sha3 = { version = "0.10.8", default-features = false, features = [] }
 signature-verifier-api = { version = "^1.0.0", path = "packages/signature-verifier-api" }
@@ -73,7 +73,7 @@ tofn = { version = "1.1" }
 tokio = "1.38.0"
 tokio-stream = "0.1.11"
 tokio-util = "0.7.11"
-voting-verifier = { version = "^1.0.0", path = "contracts/voting-verifier" }
+voting-verifier = { version = "^1.1.0", path = "contracts/voting-verifier" }
 axelar-core-std = { version = "^1.0.0", path = "packages/axelar-core-std" }
 
 [workspace.lints.clippy]

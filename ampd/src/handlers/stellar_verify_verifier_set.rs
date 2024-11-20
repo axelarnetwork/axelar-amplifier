@@ -22,7 +22,7 @@ use voting_verifier::msg::ExecuteMsg;
 use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error;
 use crate::handlers::errors::Error::DeserializeEvent;
-use crate::stellar::http_client::Client;
+use crate::stellar::rpc_client::Client;
 use crate::stellar::verifier::verify_verifier_set;
 use crate::types::TMAddress;
 
@@ -166,7 +166,7 @@ mod tests {
     use super::PollStartedEvent;
     use crate::event_processor::EventHandler;
     use crate::handlers::tests::{into_structured_event, participants};
-    use crate::stellar::http_client::Client;
+    use crate::stellar::rpc_client::Client;
     use crate::types::{Hash, TMAddress};
     use crate::PREFIX;
 

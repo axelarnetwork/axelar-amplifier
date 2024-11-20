@@ -4,7 +4,6 @@ use axelar_wasm_std::nonempty;
 use cosmwasm_schema::cw_serde;
 use cw_storage_plus::{Key, KeyDeserialize, Prefixer, PrimaryKey};
 use router_api::ChainNameRaw;
-use strum::FromRepr;
 
 /// A unique 32-byte identifier for linked cross-chain tokens across ITS contracts.
 #[cw_serde]
@@ -19,19 +18,6 @@ impl Display for TokenId {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "{}", hex::encode(self.0))
     }
-}
-
-/// The supported types of token managers that can be deployed by ITS contracts.
-#[cw_serde]
-#[derive(Eq, Copy, FromRepr, strum::AsRefStr)]
-#[repr(u8)]
-pub enum TokenManagerType {
-    NativeInterchainToken,
-    MintBurnFrom,
-    LockUnlock,
-    LockUnlockFee,
-    MintBurn,
-    Gateway,
 }
 
 /// A message sent between ITS contracts to facilitate interchain transfers, token deployments, or token manager deployments.
