@@ -3,6 +3,7 @@ use cosmwasm_std::Uint256;
 use multisig::key::PublicKey;
 use multisig::msg::Signer;
 use multisig::verifier_set::VerifierSet;
+use num_traits::ToBytes;
 use sha3::{Digest, Keccak256};
 
 use crate::mvx::error::Error;
@@ -24,15 +25,20 @@ pub struct WeightedSigners {
 
 impl WeightedSigners {
     pub fn hash(&self) -> Hash {
-        let mut encoded = Vec::new();
+        let mut encoded: Vec<Vec<u8>> = Vec::new();
+
+        encoded.push(usize_to_u32(self.signers.len()));
 
         for signer in self.signers.iter() {
-            encoded.push(signer.signer.as_slice());
-            encoded.push(signer.weight.as_slice());
+            encoded.push(signer.signer.to_vec());
+
+            encoded.push(usize_to_u32(signer.weight.len()));
+            encoded.push(signer.weight.to_vec());
         }
 
-        encoded.push(self.threshold.as_slice());
-        encoded.push(self.nonce.as_slice());
+        encoded.push(usize_to_u32(self.threshold.len()));
+        encoded.push(self.threshold.to_vec());
+        encoded.push(self.nonce.to_vec());
 
         Keccak256::digest(encoded.concat()).into()
     }
@@ -74,6 +80,10 @@ fn uint256_to_compact_vec(value: Uint256) -> Vec<u8> {
     let slice_from = bytes.iter().position(|byte| *byte != 0).unwrap_or(0);
 
     bytes[slice_from..].to_vec()
+}
+
+fn usize_to_u32(value: usize) -> Vec<u8> {
+    (value as u32).to_be_bytes().to_vec()
 }
 
 pub fn ed25519_key(pub_key: &PublicKey) -> Result<[u8; 32], Error> {
