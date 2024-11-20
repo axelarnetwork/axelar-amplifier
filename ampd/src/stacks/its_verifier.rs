@@ -12,7 +12,6 @@ use crate::types::Hash;
 
 const MESSAGE_TYPE_INTERCHAIN_TRANSFER: u128 = 0;
 const MESSAGE_TYPE_DEPLOY_INTERCHAIN_TOKEN: u128 = 1;
-const MESSAGE_TYPE_DEPLOY_TOKEN_MANAGER: u128 = 2;
 const MESSAGE_TYPE_SEND_TO_HUB: u128 = 3;
 
 const VERIFY_INTERCHAIN_TOKEN: &str = "verify-interchain-token";
@@ -54,7 +53,6 @@ pub fn get_its_hub_payload_hash(
         MESSAGE_TYPE_DEPLOY_INTERCHAIN_TOKEN => {
             get_its_deploy_interchain_token_abi_payload(payload)
         }
-        MESSAGE_TYPE_DEPLOY_TOKEN_MANAGER => get_its_deploy_token_manager_payload(payload),
         _ => {
             return Err(Error::InvalidCall.into());
         }
@@ -296,64 +294,6 @@ fn get_its_deploy_interchain_token_abi_payload(
     Ok(abi_payload)
 }
 
-fn get_its_deploy_token_manager_payload(
-    payload: Vec<u8>,
-) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
-    let tuple_type_signature = TupleTypeSignature::try_from(vec![
-        (
-            ClarityName::from("token-id"),
-            TypeSignature::SequenceType(SequenceSubtype::BufferType(BufferLength::try_from(
-                32u32,
-            )?)),
-        ),
-        (
-            ClarityName::from("token-manager-type"),
-            TypeSignature::UIntType,
-        ),
-        (
-            ClarityName::from("params"),
-            TypeSignature::SequenceType(SequenceSubtype::BufferType(BufferLength::try_from(
-                62_000u32,
-            )?)),
-        ),
-    ])?;
-
-    let mut original_value = Value::try_deserialize_bytes(
-        &payload,
-        &TypeSignature::TupleType(tuple_type_signature),
-        true,
-    )?
-    .expect_tuple()?;
-
-    let abi_payload = encode(&[
-        Token::Uint(MESSAGE_TYPE_DEPLOY_TOKEN_MANAGER.into()),
-        Token::FixedBytes(
-            original_value
-                .data_map
-                .remove("token-id")
-                .ok_or(Error::InvalidCall)?
-                .expect_buff(32)?,
-        ),
-        Token::Uint(
-            original_value
-                .data_map
-                .remove("token-manager-type")
-                .ok_or(Error::InvalidCall)?
-                .expect_u128()?
-                .into(),
-        ),
-        Token::Bytes(
-            original_value
-                .data_map
-                .remove("params")
-                .ok_or(Error::InvalidCall)?
-                .expect_buff(62_000)?,
-        ),
-    ]);
-
-    Ok(abi_payload)
-}
-
 pub async fn its_verify_contract_code(
     event: &TransactionEvents,
     http_client: &Client,
@@ -555,52 +495,6 @@ mod tests {
     async fn should_verify_msg_its_hub_deploy_interchain_token() {
         let (source_chain, gateway_address, its_address, tx, msg) =
             get_matching_its_hub_deploy_interchain_token_msg_and_tx();
-
-        assert_eq!(
-            verify_message(
-                &source_chain,
-                &gateway_address,
-                &its_address,
-                &tx,
-                &msg,
-                &Client::faux(),
-                &"native_interchain_token_code".to_string(),
-                &"token_manager_code".to_string()
-            )
-            .await,
-            Vote::SucceededOnChain
-        );
-    }
-
-    #[async_test]
-    async fn should_not_verify_its_hub_deploy_token_manager_invalid_payload_hash() {
-        let (source_chain, gateway_address, its_address, tx, mut msg) =
-            get_matching_its_hub_deploy_token_manager_msg_and_tx();
-
-        msg.payload_hash = "0xaa38573718f5cd6d7e5a90adcdebd28b097f99574ad6febffea9a40adb17f4aa"
-            .parse()
-            .unwrap();
-
-        assert_eq!(
-            verify_message(
-                &source_chain,
-                &gateway_address,
-                &its_address,
-                &tx,
-                &msg,
-                &Client::faux(),
-                &"native_interchain_token_code".to_string(),
-                &"token_manager_code".to_string()
-            )
-            .await,
-            Vote::NotFound
-        );
-    }
-
-    #[async_test]
-    async fn should_verify_msg_its_hub_deploy_token_manager() {
-        let (source_chain, gateway_address, its_address, tx, msg) =
-            get_matching_its_hub_deploy_token_manager_msg_and_tx();
 
         assert_eq!(
             verify_message(
@@ -849,72 +743,6 @@ mod tests {
                 topic: "print".to_string(),
                 value: ContractLogValue {
                     hex: "0x0c000000061164657374696e6174696f6e2d636861696e0d000000066178656c61721c64657374696e6174696f6e2d636f6e74726163742d616464726573730d0000000430783030077061796c6f616402000000d90c000000031164657374696e6174696f6e2d636861696e0d00000008657468657265756d077061796c6f616402000000920c0000000608646563696d616c730100000000000000000000000000000006066d696e746572020000000100046e616d650d0000000673616d706c650673796d626f6c0d0000000673616d706c6508746f6b656e2d69640200000020563dc3698c0f2c5adf375ff350bb54ecf86d2be109e3aacaf38111cdf171df7804747970650100000000000000000000000000000001047479706501000000000000000000000000000000030c7061796c6f61642d6861736802000000207bcf62a3e8aed07d1eb704a1c4b142de9c1f429d2a6cf835c3347763ae8e05ab0673656e646572061a6d78de7b0625dfbfc16c3a8a5735f6dc3dc3f2ce18696e746572636861696e2d746f6b656e2d7365727669636504747970650d0000000d636f6e74726163742d63616c6c".to_string(),
-                }
-            }),
-        };
-
-        let transaction = Transaction {
-            tx_id: message_id.tx_hash.into(),
-            nonce: 1,
-            sender_address: "whatever".to_string(),
-            tx_status: "success".to_string(),
-            events: vec![wrong_event, event],
-        };
-
-        (
-            source_chain.parse().unwrap(),
-            gateway_address.to_string(),
-            its_address.to_string(),
-            transaction,
-            msg,
-        )
-    }
-
-    fn get_matching_its_hub_deploy_token_manager_msg_and_tx(
-    ) -> (ChainName, String, String, Transaction, Message) {
-        let source_chain = "stacks";
-        let gateway_address = "SP2N959SER36FZ5QT1CX9BR63W3E8X35WQCMBYYWC.axelar-gateway";
-        let its_address = "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.interchain-token-service";
-
-        let message_id = HexTxHashAndEventIndex::new(Hash::random(), 1u64);
-
-        let msg = Message {
-            message_id: message_id.clone(),
-            source_address: its_address.to_string(),
-            destination_chain: "axelar".parse().unwrap(),
-            destination_address: "cosmwasm".to_string(),
-            payload_hash: "0x617076bb0067f463de653c1d16e4037f2cfb59c383820351e5b8bd2ca9d50948"
-                .parse()
-                .unwrap(),
-        };
-
-        let wrong_event = TransactionEvents {
-            event_index: 0,
-            tx_id: message_id.tx_hash_as_hex().to_string(),
-            contract_log: None,
-        };
-
-        /*
-            payload is:
-            {
-                type: u3,
-                destination-chain: "ethereum",
-                payload: {
-                    type: u2,
-                    token-id: 0xc99a1f0a4b46456129d86b37f580af16fea20eeaf7e73628547c10f6799b90b0,
-                    token-manager-type: u2,
-                    params: 0x00
-                }
-            }
-        */
-        let event = TransactionEvents {
-            event_index: 1,
-            tx_id: message_id.tx_hash_as_hex().to_string(),
-            contract_log: Some(ContractLog {
-                contract_id: gateway_address.to_string(),
-                topic: "print".to_string(),
-                value: ContractLogValue {
-                    hex: "0x0c000000061164657374696e6174696f6e2d636861696e0d000000066178656c61721c64657374696e6174696f6e2d636f6e74726163742d616464726573730d00000008636f736d7761736d077061796c6f616402000000c10c000000031164657374696e6174696f6e2d636861696e0d00000008657468657265756d077061796c6f6164020000007a0c0000000406706172616d7302000000010008746f6b656e2d69640200000020c99a1f0a4b46456129d86b37f580af16fea20eeaf7e73628547c10f6799b90b012746f6b656e2d6d616e616765722d74797065010000000000000000000000000000000204747970650100000000000000000000000000000002047479706501000000000000000000000000000000030c7061796c6f61642d6861736802000000209ce89d392d43333d269dd9f234e765ded79db1ba895e8b2e3d6d8f936cae57320673656e646572061a6d78de7b0625dfbfc16c3a8a5735f6dc3dc3f2ce18696e746572636861696e2d746f6b656e2d7365727669636504747970650d0000000d636f6e74726163742d63616c6c".to_string(),
                 }
             }),
         };
