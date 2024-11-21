@@ -265,6 +265,7 @@ pub fn vote(
             Voted {
                 poll_id,
                 voter: info.sender,
+                votes: votes,
             }
             .into(),
         )
