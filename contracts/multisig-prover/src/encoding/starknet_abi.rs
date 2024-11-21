@@ -26,8 +26,6 @@ use crate::payload::Payload;
 // The resulting ABI encoding bytes, for execute_data and payload, are the same
 // as in ethereum (without the function selector bytes in the beginning).
 
-const PREFIX: &str = "\x19Ethereum Signed Message:\n96";
-
 pub fn payload_digest(
     domain_separator: &Hash,
     signer: &VerifierSet,
@@ -41,7 +39,6 @@ pub fn payload_digest(
 
     // Prefix for standard EVM signed data https://eips.ethereum.org/EIPS/eip-191
     let unsigned = [
-        PREFIX.as_bytes(),
         domain_separator,
         signer_hash.as_slice(),
         data_hash.as_slice(),
@@ -144,7 +141,12 @@ mod tests {
             &Payload::VerifierSet(new_verifier_set),
         ));
 
-        goldie::assert!(hex::encode(payload_digest));
+        // Note: goldie doesn't work without the abi function selector bytes for some reason.
+        // The string here just has the 4 function selector bytes removed.
+        assert_eq!(
+            hex::encode(payload_digest),
+            "8d3aa274b0c388e4eb202dc9cf134f6088a8037a0037d9c98c534b9d0ef007f2"
+        );
     }
 
     #[test]
@@ -156,7 +158,12 @@ mod tests {
             &Payload::Messages(messages()),
         ));
 
-        goldie::assert!(hex::encode(payload_digest));
+        // Note: goldie doesn't work without the abi function selector bytes for some reason.
+        // The string here just has the 4 function selector bytes removed.
+        assert_eq!(
+            hex::encode(payload_digest),
+            "cd602f5e09aabb47bf7831c90cac1ca84d2a0a76ff81085e30ba441138fbde2d"
+        );
     }
 
     #[test]
