@@ -575,12 +575,12 @@ impl TryFrom<(multisig::key::Signature, multisig::msg::Signer)> for XRPLSigner {
 }
 
 #[cw_serde]
-pub struct XRPLSignedTransaction {
+pub struct XRPLSignedTx {
     pub unsigned_tx: XRPLUnsignedTx,
     pub signers: Vec<XRPLSigner>,
 }
 
-impl XRPLSignedTransaction {
+impl XRPLSignedTx {
     pub fn new(unsigned_tx: XRPLUnsignedTx, signers: Vec<XRPLSigner>) -> Self {
         Self {
             unsigned_tx,

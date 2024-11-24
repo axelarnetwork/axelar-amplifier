@@ -3,7 +3,7 @@ use std::cmp::Ordering;
 use cosmwasm_std::HexBinary;
 use multisig::key::PublicKey;
 use xrpl_types::types::{
-    XRPLAccountId, XRPLMemo, XRPLPathSet, XRPLSignedTransaction,
+    XRPLAccountId, XRPLMemo, XRPLPathSet, XRPLSignedTx,
     XRPLPathStep, XRPLPaymentAmount, XRPLSequence, XRPLSigner, XRPLSignerEntry,
     XRPLTokenAmount, XRPLUnsignedTx, XRPLPaymentTx, XRPLSignerListSetTx, XRPLTicketCreateTx,
     XRPLTrustSetTx,
@@ -365,7 +365,7 @@ impl TryInto<XRPLObject> for XRPLUnsignedTx {
     }
 }
 
-impl TryInto<XRPLObject> for XRPLSignedTransaction {
+impl TryInto<XRPLObject> for XRPLSignedTx {
     type Error = ContractError;
 
     fn try_into(self) -> Result<XRPLObject, ContractError> {
@@ -926,7 +926,7 @@ mod tests {
 
     #[test]
     fn serialize_xrpl_signed_xrp_payment_transaction() -> Result<(), ContractError> {
-        let signed_tx = XRPLSignedTransaction {
+        let signed_tx = XRPLSignedTx {
             unsigned_tx: XRPLUnsignedTx::Payment(XRPLPaymentTx {
                 account: XRPLAccountId::from_str("rfEf91bLxrTVC76vw1W3Ur8Jk4Lwujskmb")?,
                 fee: 30,
@@ -957,7 +957,7 @@ mod tests {
 
     #[test]
     fn tx_serialization_sort_signers() -> Result<(), ContractError> {
-        let signed_tx = XRPLSignedTransaction {
+        let signed_tx = XRPLSignedTx {
             unsigned_tx: XRPLUnsignedTx::Payment(XRPLPaymentTx {
                 account: XRPLAccountId::from_str("rfEf91bLxrTVC76vw1W3Ur8Jk4Lwujskmb")?,
                 fee: 30,
@@ -988,7 +988,7 @@ mod tests {
 
     #[test]
     fn tx_serialization_ed25519_signers() -> Result<(), ContractError> {
-        let signed_tx = XRPLSignedTransaction {
+        let signed_tx = XRPLSignedTx {
             unsigned_tx: XRPLUnsignedTx::Payment(XRPLPaymentTx {
                 account: XRPLAccountId::from_str("r4ZMbbb4Y3KoeexmjEeTdhqUBrYjjWdyGM")?,
                 fee: 30,
@@ -1022,7 +1022,7 @@ mod tests {
 
     #[test]
     fn serialize_xrpl_signed_xrp_ticket_create_transaction() -> Result<(), ContractError> {
-        let signed_tx = XRPLSignedTransaction {
+        let signed_tx = XRPLSignedTx {
             unsigned_tx: XRPLUnsignedTx::TicketCreate(XRPLTicketCreateTx {
                 account: XRPLAccountId::from_str("rfEf91bLxrTVC76vw1W3Ur8Jk4Lwujskmb")?,
                 fee: 30,
@@ -1051,7 +1051,7 @@ mod tests {
 
     #[test]
     fn serialize_xrpl_signed_signer_list_set_transaction() -> Result<(), ContractError> {
-        let signed_tx = XRPLSignedTransaction {
+        let signed_tx = XRPLSignedTx {
             unsigned_tx: XRPLUnsignedTx::SignerListSet(XRPLSignerListSetTx {
                 account: XRPLAccountId::from_str("rfEf91bLxrTVC76vw1W3Ur8Jk4Lwujskmb")?,
                 fee: 30,

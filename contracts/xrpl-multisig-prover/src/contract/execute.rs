@@ -14,7 +14,7 @@ use xrpl_types::error::XRPLError;
 use xrpl_types::msg::XRPLMessage;
 use xrpl_types::types::canonicalize_coin_amount;
 use xrpl_types::types::{
-    TxHash, XRPLToken, XRPLSigner, XRPLSignedTransaction, XRPLPaymentAmount, XRPLAccountId,
+    TxHash, XRPLToken, XRPLSigner, XRPLSignedTx, XRPLPaymentAmount, XRPLAccountId,
     XRPLTokenOrXrp
 };
 
@@ -86,7 +86,7 @@ pub fn confirm_tx_status(
         return Err(ContractError::InvalidSignerPublicKeys);
     }
 
-    let signed_tx = XRPLSignedTransaction::new(tx_info.unsigned_contents, xrpl_signers);
+    let signed_tx = XRPLSignedTx::new(tx_info.unsigned_contents, xrpl_signers);
     let signed_tx_blob = HexBinary::from(signed_tx.xrpl_serialize()?);
     let signed_tx_hash = xrpl_types::types::hash_signed_tx(signed_tx_blob.as_slice())?;
 

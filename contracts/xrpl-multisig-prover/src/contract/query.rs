@@ -67,7 +67,7 @@ pub fn proof(
                 .filter_map(|(signer_address, signer)| multisig_session.signatures.get(&signer_address).cloned().zip(Some(signer)))
                 .map(XRPLSigner::try_from)
                 .collect::<Result<Vec<_>, XRPLError>>()?;
-            let signed_tx = XRPLSignedTransaction::new(tx_info.unsigned_contents, xrpl_signers);
+            let signed_tx = XRPLSignedTx::new(tx_info.unsigned_contents, xrpl_signers);
             let tx_blob: HexBinary = HexBinary::from(signed_tx.xrpl_serialize()?);
             ProofResponse::Completed {
                 unsigned_tx_hash,
