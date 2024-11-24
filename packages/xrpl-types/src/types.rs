@@ -25,6 +25,10 @@ use crate::error::XRPLError;
 const XRPL_PAYMENT_DROPS_HASH_PREFIX: &[u8] = b"drops";
 const XRPL_PAYMENT_ISSUED_HASH_PREFIX: &[u8] = b"issued";
 
+const XRPL_ACCOUNT_ID_LENGTH: usize = 20;
+const XRPL_CURRENCY_LENGTH: usize = 20;
+const XRPL_TX_HASH_LENGTH: usize = 32;
+
 #[cw_serde]
 #[derive(Eq, Ord, PartialOrd)]
 pub struct AxelarSigner {
@@ -53,10 +57,10 @@ pub enum XRPLTxStatus {
 
 #[cw_serde]
 #[derive(Eq, Hash)]
-pub struct TxHash([u8; 32]);
+pub struct TxHash([u8; XRPL_TX_HASH_LENGTH]);
 
-impl AsRef<[u8; 32]> for TxHash {
-    fn as_ref(&self) -> &[u8; 32] {
+impl AsRef<[u8; XRPL_TX_HASH_LENGTH]> for TxHash {
+    fn as_ref(&self) -> &[u8; XRPL_TX_HASH_LENGTH] {
         &self.0
     }
 }
@@ -68,13 +72,13 @@ impl fmt::Display for TxHash {
 }
 
 impl TxHash {
-    pub fn new(hash: [u8; 32]) -> Self {
+    pub fn new(hash: [u8; XRPL_TX_HASH_LENGTH]) -> Self {
         Self(hash)
     }
 }
 
-impl Into<[u8; 32]> for TxHash {
-    fn into(self) -> [u8; 32] {
+impl Into<[u8; XRPL_TX_HASH_LENGTH]> for TxHash {
+    fn into(self) -> [u8; XRPL_TX_HASH_LENGTH] {
         self.0
     }
 }
@@ -399,26 +403,26 @@ pub struct XRPLTrustSetTx {
 
 #[cw_serde]
 #[derive(Eq, Hash)]
-pub struct XRPLAccountId([u8; 20]);
+pub struct XRPLAccountId([u8; XRPL_ACCOUNT_ID_LENGTH]);
 
 impl XRPLAccountId {
-    pub const fn to_bytes(&self) -> [u8; 20] {
+    pub const fn to_bytes(&self) -> [u8; XRPL_ACCOUNT_ID_LENGTH] {
         self.0
     }
 
-    pub fn from_bytes(bytes: [u8; 20]) -> Self {
+    pub fn from_bytes(bytes: [u8; XRPL_ACCOUNT_ID_LENGTH]) -> Self {
         Self(bytes)
     }
 }
 
-impl AsRef<[u8; 20]> for XRPLAccountId {
-    fn as_ref(&self) -> &[u8; 20] {
+impl AsRef<[u8; XRPL_ACCOUNT_ID_LENGTH]> for XRPLAccountId {
+    fn as_ref(&self) -> &[u8; XRPL_ACCOUNT_ID_LENGTH] {
         &self.0
     }
 }
 
-impl From<[u8; 20]> for XRPLAccountId {
-    fn from(bytes: [u8; 20]) -> Self {
+impl From<[u8; XRPL_ACCOUNT_ID_LENGTH]> for XRPLAccountId {
+    fn from(bytes: [u8; XRPL_ACCOUNT_ID_LENGTH]) -> Self {
         XRPLAccountId(bytes)
     }
 }
@@ -435,7 +439,7 @@ impl TryFrom<HexBinary> for XRPLAccountId {
     type Error = XRPLError;
 
     fn try_from(hex: HexBinary) -> Result<Self, XRPLError> {
-        let bytes: [u8; 20] = hex.as_slice().try_into().map_err(|_| XRPLError::InvalidAddress(hex.to_string()))?;
+        let bytes: [u8; XRPL_ACCOUNT_ID_LENGTH] = hex.as_slice().try_into().map_err(|_| XRPLError::InvalidAddress(hex.to_string()))?;
         Ok(Self(bytes))
     }
 }
@@ -488,7 +492,7 @@ impl std::str::FromStr for XRPLAccountId {
         if res.len() != 25 {
             return Err(XRPLError::InvalidAddress(address.to_string()));
         }
-        let mut buffer = [0u8; 20];
+        let mut buffer = [0u8; XRPL_ACCOUNT_ID_LENGTH];
         buffer.copy_from_slice(&res[1..21]);
         Ok(XRPLAccountId(buffer))
     }
@@ -625,7 +629,7 @@ pub fn message_to_sign(
 
 #[cw_serde]
 #[derive(Eq, Hash)]
-pub struct XRPLCurrency([u8; 20]);
+pub struct XRPLCurrency([u8; XRPL_CURRENCY_LENGTH]);
 
 impl XRPLCurrency {
     pub fn new(s: &str) -> Result<Self, XRPLError> {
@@ -633,12 +637,12 @@ impl XRPLCurrency {
             return Err(XRPLError::InvalidCurrency);
         }
 
-        let mut buffer = [0u8; 20];
+        let mut buffer = [0u8; XRPL_CURRENCY_LENGTH];
         buffer[12..15].copy_from_slice(s.as_bytes());
         Ok(XRPLCurrency(buffer))
     }
 
-    pub fn to_bytes(self) -> [u8; 20] {
+    pub fn to_bytes(&self) -> [u8; XRPL_CURRENCY_LENGTH] {
         self.0
     }
 
@@ -649,14 +653,14 @@ impl XRPLCurrency {
     }
 }
 
-impl AsRef<[u8; 20]> for XRPLCurrency {
-    fn as_ref(&self) -> &[u8; 20] {
+impl AsRef<[u8; XRPL_CURRENCY_LENGTH]> for XRPLCurrency {
+    fn as_ref(&self) -> &[u8; XRPL_CURRENCY_LENGTH] {
         &self.0
     }
 }
 
-impl From<XRPLCurrency> for [u8; 20] {
-    fn from(currency: XRPLCurrency) -> [u8; 20] {
+impl From<XRPLCurrency> for [u8; XRPL_CURRENCY_LENGTH] {
+    fn from(currency: XRPLCurrency) -> [u8; XRPL_CURRENCY_LENGTH] {
         currency.to_bytes()
     }
 }
@@ -693,7 +697,7 @@ impl KeyDeserialize for XRPLCurrency {
     type Output = XRPLCurrency;
 
     fn from_vec(value: Vec<u8>) -> cosmwasm_std::StdResult<Self::Output> {
-        let inner = <[u8; 20]>::from_vec(value)?;
+        let inner = <[u8; XRPL_CURRENCY_LENGTH]>::from_vec(value)?;
         Ok(XRPLCurrency(inner))
     }
 }
