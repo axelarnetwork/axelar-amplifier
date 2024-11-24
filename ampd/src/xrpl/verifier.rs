@@ -4,7 +4,7 @@ use xrpl_http_client::{Amount, ResultCategory};
 use xrpl_http_client::{Memo, Transaction::Payment, Transaction};
 use axelar_wasm_std::voting::Vote;
 use xrpl_types::msg::{XRPLUserMessage, XRPLMessage};
-use xrpl_types::types::{XRPLAccountId, XRPLCurrency, XRPLPaymentAmount, XRPLToken};
+use xrpl_types::types::{XRPLAccountId, XRPLPaymentAmount, XRPLToken};
 
 pub fn verify_message(
     multisig_address: &XRPLAccountId,
@@ -34,15 +34,15 @@ pub fn is_valid_multisig_tx(tx: &Transaction, multisig_address: &XRPLAccountId, 
 pub fn is_valid_deposit_tx(tx: &Transaction, multisig_address: &XRPLAccountId, message: &XRPLMessage) -> bool {
     if let Payment(payment_tx) = &tx {
         if let Some(memos) = payment_tx.clone().common.memos {
+            let tx_amount = payment_tx.amount.clone();
             if let XRPLMessage::UserMessage(user_msg) = message {
-                let tx_meta = tx.common().meta.clone();
-                if tx_meta.is_none() {
-                    return false;
-                }
-
-                let tx_amount = payment_tx.amount.clone();
-                if tx_meta.unwrap().delivered_amount != Some(tx_amount.clone()) {
-                    return false;
+                match tx.common().meta.clone() {
+                    Some(tx_meta) => {
+                        if tx_meta.delivered_amount != Some(tx_amount.clone()) {
+                            return false;
+                        }
+                    }
+                    None => return false,
                 }
 
                 return payment_tx.destination == multisig_address.to_string()
@@ -76,8 +76,8 @@ pub fn verify_amount(amount: Amount, message: &XRPLUserMessage) -> bool {
         let amount = match amount {
             Amount::Issued(a) => XRPLPaymentAmount::Issued(
                 XRPLToken {
-                    issuer: XRPLAccountId::try_from(a.issuer).ok()?,
-                    currency: XRPLCurrency::try_from(a.currency).ok()?,
+                    issuer: a.issuer.try_into().ok()?,
+                    currency: a.currency.try_into().ok()?,
                 },
                 a.value.try_into().ok()?
             ),
