@@ -203,7 +203,7 @@ pub enum XRPLTokenOrXRP {
 }
 
 #[cw_serde]
-pub struct XRPLRemoteInterchainTokenInfo {
+pub struct XRPLTokenInfo {
     pub xrpl_token: XRPLToken,
     pub canonical_decimals: u8,
 }

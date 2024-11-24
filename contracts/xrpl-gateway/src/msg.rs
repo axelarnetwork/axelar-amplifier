@@ -6,7 +6,7 @@ use router_api::{ChainName, CrossChainId, Message};
 use msgs_derive::EnsurePermissions;
 
 use xrpl_types::msg::{XRPLMessage, XRPLUserMessageWithPayload};
-use xrpl_types::types::{XRPLAccountId, XRPLCurrency, XRPLRemoteInterchainTokenInfo, XRPLToken, XRPLTokenOrXRP, xrpl_account_id_string};
+use xrpl_types::types::{XRPLAccountId, XRPLCurrency, XRPLTokenInfo, XRPLToken, XRPLTokenOrXRP, xrpl_account_id_string};
 
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -98,6 +98,6 @@ pub enum QueryMsg {
     #[returns(Vec<Message>)]
     OutgoingMessages(Vec<CrossChainId>),
 
-    #[returns(XRPLRemoteInterchainTokenInfo)]
+    #[returns(XRPLTokenInfo)]
     TokenInfo(TokenId),
 }

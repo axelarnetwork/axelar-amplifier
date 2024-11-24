@@ -4,7 +4,7 @@ use cosmwasm_std::{Addr, StdError, Storage};
 use cw_storage_plus::{Item, Map};
 use interchain_token_service::TokenId;
 use router_api::{ChainName, CrossChainId, Message};
-use xrpl_types::types::{XRPLAccountId, XRPLCurrency, XRPLRemoteInterchainTokenInfo};
+use xrpl_types::types::{XRPLAccountId, XRPLCurrency, XRPLTokenInfo};
 
 #[cw_serde]
 pub struct Config {
@@ -20,7 +20,7 @@ const CONFIG: Item<Config> = Item::new("config");
 const OUTGOING_MESSAGES: Map<&CrossChainId, Message> = Map::new("outgoing_messages");
 
 const XRPL_CURRENCY_TO_TOKEN_ID: Map<&XRPLCurrency, TokenId> = Map::new("xrpl_currency_to_token_id"); // TODO: rename to indicate that this is only relevant for remote tokens
-const TOKEN_ID_TO_TOKEN_INFO: Map<&TokenId, XRPLRemoteInterchainTokenInfo> = Map::new("token_id_to_token_info");
+const TOKEN_ID_TO_TOKEN_INFO: Map<&TokenId, XRPLTokenInfo> = Map::new("token_id_to_token_info");
 const ROUTABLE_MESSAGES_INDEX: Counter<u32> = Counter::new("routable_message_index");
 
 #[derive(thiserror::Error, Debug, IntoContractError)]
@@ -83,7 +83,7 @@ pub fn save_outgoing_message(
 pub fn load_token_info(
     storage: &dyn Storage,
     token_id: &TokenId,
-) -> Result<XRPLRemoteInterchainTokenInfo, Error> {
+) -> Result<XRPLTokenInfo, Error> {
     TOKEN_ID_TO_TOKEN_INFO
         .may_load(storage, token_id)
         .map_err(Error::from)?
@@ -93,7 +93,7 @@ pub fn load_token_info(
 pub fn save_token_info(
     storage: &mut dyn Storage,
     token_id: &TokenId,
-    token_info: &XRPLRemoteInterchainTokenInfo,
+    token_info: &XRPLTokenInfo,
 ) -> Result<(), Error> {
     TOKEN_ID_TO_TOKEN_INFO
         .save(storage, token_id, token_info)

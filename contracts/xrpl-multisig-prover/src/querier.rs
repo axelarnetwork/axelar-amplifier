@@ -6,10 +6,10 @@ use multisig::{key::PublicKey, multisig::Multisig};
 use router_api::{CrossChainId, Message};
 use service_registry::{Service, WeightedVerifier};
 use xrpl_voting_verifier::msg::MessageStatus;
-use xrpl_types::{msg::XRPLMessage, types::XRPLRemoteInterchainTokenInfo};
+use xrpl_types::msg::XRPLMessage;
+use xrpl_types::types::XRPLTokenInfo;
 
 use crate::{error::ContractError, state::Config};
-
 
 fn query<U, T>(
     querier: QuerierWrapper,
@@ -84,8 +84,8 @@ impl<'a> Querier<'a> {
             .ok_or(ContractError::InvalidMessageId(cc_id.message_id.to_string()))
     }
 
-    pub fn token_info(&self, token_id: TokenId) -> Result<XRPLRemoteInterchainTokenInfo, ContractError> {
-        let token_info: XRPLRemoteInterchainTokenInfo = query(
+    pub fn token_info(&self, token_id: TokenId) -> Result<XRPLTokenInfo, ContractError> {
+        let token_info: XRPLTokenInfo = query(
             self.querier,
             self.config.gateway.to_string(),
             &xrpl_gateway::msg::QueryMsg::TokenInfo(token_id),

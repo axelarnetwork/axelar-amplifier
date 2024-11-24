@@ -9,7 +9,7 @@ use itertools::Itertools;
 use router_api::client::Router;
 use router_api::{Address, ChainName, CrossChainId, Message};
 use sha3::{Digest, Keccak256};
-use xrpl_types::types::{XRPLAccountId, XRPLCurrency, XRPLPaymentAmount, XRPLRemoteInterchainTokenInfo, XRPLToken, XRPLTokenOrXRP};
+use xrpl_types::types::{XRPLAccountId, XRPLCurrency, XRPLPaymentAmount, XRPLTokenInfo, XRPLToken, XRPLTokenOrXRP};
 use xrpl_types::msg::{CrossChainMessage, XRPLMessage, XRPLUserMessageWithPayload};
 use interchain_token_service::{HubMessage as ITSHubMessage, Message as ITSMessage, TokenId, TokenManagerType};
 
@@ -186,7 +186,7 @@ pub fn register_local_interchain_token(
     xrpl_token: XRPLToken,
 ) -> Result<Response, Error> {
     let token_id = XRPLTokenOrXRP::Token(xrpl_token.clone()).token_id();
-    state::save_token_info(storage, &token_id, &XRPLRemoteInterchainTokenInfo {
+    state::save_token_info(storage, &token_id, &XRPLTokenInfo {
         xrpl_token,
         canonical_decimals: XRPL_LOCAL_TOKEN_DECIMALS,
     }).unwrap();
@@ -205,7 +205,7 @@ pub fn register_remote_interchain_token(
         issuer: xrpl_multisig,
     };
     state::save_xrpl_currency_token_id(storage, &xrpl_currency, &token_id).unwrap();
-    state::save_token_info(storage, &token_id, &XRPLRemoteInterchainTokenInfo {
+    state::save_token_info(storage, &token_id, &XRPLTokenInfo {
         xrpl_token,
         canonical_decimals,
     }).unwrap();
