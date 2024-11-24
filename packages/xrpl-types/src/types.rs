@@ -3,7 +3,7 @@ use std::str::FromStr;
 
 use axelar_wasm_std::VerificationStatus;
 use interchain_token_service::TokenId;
-use router_api::CrossChainId;
+use router_api::{CrossChainId, FIELD_DELIMITER};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{from_json, Binary, HexBinary, StdResult, Uint128, Uint256};
 use cw_storage_plus::{Key, KeyDeserialize, PrimaryKey};
@@ -21,6 +21,9 @@ use cosmwasm_std::Addr;
 use axelar_wasm_std::nonempty;
 
 use crate::error::XRPLError;
+
+const XRPL_PAYMENT_DROPS_HASH_PREFIX: &[u8] = b"drops";
+const XRPL_PAYMENT_ISSUED_HASH_PREFIX: &[u8] = b"issued";
 
 #[cw_serde]
 #[derive(Eq, Ord, PartialOrd)]
@@ -231,6 +234,34 @@ impl XRPLTokenOrXRP {
 pub enum XRPLPaymentAmount {
     Drops(u64),
     Token(XRPLToken, XRPLTokenAmount),
+}
+
+impl XRPLPaymentAmount {
+    pub fn hash(&self) -> [u8; 32] {
+        let mut hasher = Keccak256::new();
+        let delimiter_bytes = &[FIELD_DELIMITER as u8];
+
+        match self {
+            XRPLPaymentAmount::Drops(drops) => {
+                hasher.update(XRPL_PAYMENT_DROPS_HASH_PREFIX);
+                hasher.update(delimiter_bytes);
+                hasher.update(drops.to_be_bytes());
+            },
+            XRPLPaymentAmount::Token(token, amount) => {
+                hasher.update(XRPL_PAYMENT_ISSUED_HASH_PREFIX);
+                hasher.update(delimiter_bytes);
+                hasher.update(token.issuer.as_ref());
+                hasher.update(delimiter_bytes);
+                hasher.update(token.currency.as_ref());
+                hasher.update(delimiter_bytes);
+                hasher.update(amount.mantissa.to_be_bytes());
+                hasher.update(delimiter_bytes);
+                hasher.update(amount.exponent.to_be_bytes());
+            },
+        }
+
+        hasher.finalize().into()
+    }
 }
 
 impl fmt::Display for XRPLPaymentAmount {
@@ -609,6 +640,12 @@ impl XRPLCurrency {
         std::str::from_utf8(&self.0[12..15])
             .expect("Currency code should always be valid UTF-8")
             .to_string()
+    }
+}
+
+impl AsRef<[u8; 20]> for XRPLCurrency {
+    fn as_ref(&self) -> &[u8; 20] {
+        &self.0
     }
 }
 

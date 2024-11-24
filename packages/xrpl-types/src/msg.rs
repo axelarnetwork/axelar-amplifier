@@ -108,6 +108,8 @@ impl XRPLUserMessage {
         hasher.update(self.destination_address.as_ref());
         hasher.update(delimiter_bytes);
         hasher.update(self.payload_hash);
+        hasher.update(delimiter_bytes);
+        hasher.update(self.amount.hash());
 
         hasher.finalize().into()
     }
