@@ -228,7 +228,7 @@ impl XRPLTokenOrXrp {
             // TODO: Hash domain separation for XRP vs Issued.
             XRPLTokenOrXrp::Issued(token) => {
                 // TODO: Assert token.issuer != xrpl_multisig.
-                (token.issuer.as_ref(), token.currency.clone().to_bytes().to_vec())
+                (token.issuer.as_ref(), token.currency.clone().as_bytes().to_vec())
             },
             XRPLTokenOrXrp::Xrp => (XRP_DEPLOYER, "XRP".as_bytes().to_vec()),
         };
@@ -406,7 +406,7 @@ pub struct XRPLTrustSetTx {
 pub struct XRPLAccountId([u8; XRPL_ACCOUNT_ID_LENGTH]);
 
 impl XRPLAccountId {
-    pub const fn to_bytes(&self) -> [u8; XRPL_ACCOUNT_ID_LENGTH] {
+    pub const fn as_bytes(&self) -> [u8; XRPL_ACCOUNT_ID_LENGTH] {
         self.0
     }
 
@@ -642,7 +642,7 @@ impl XRPLCurrency {
         Ok(XRPLCurrency(buffer))
     }
 
-    pub fn to_bytes(&self) -> [u8; XRPL_CURRENCY_LENGTH] {
+    pub fn as_bytes(&self) -> [u8; XRPL_CURRENCY_LENGTH] {
         self.0
     }
 
@@ -661,7 +661,7 @@ impl AsRef<[u8; XRPL_CURRENCY_LENGTH]> for XRPLCurrency {
 
 impl From<XRPLCurrency> for [u8; XRPL_CURRENCY_LENGTH] {
     fn from(currency: XRPLCurrency) -> [u8; XRPL_CURRENCY_LENGTH] {
-        currency.to_bytes()
+        currency.as_bytes()
     }
 }
 
@@ -737,7 +737,7 @@ impl XRPLTokenAmount {
         Self { mantissa, exponent }
     }
 
-    pub fn to_bytes(&self) -> [u8; 8] {
+    pub fn as_bytes(&self) -> [u8; 8] {
         if self.mantissa == 0 {
             0x8000000000000000u64.to_be_bytes()
         } else {

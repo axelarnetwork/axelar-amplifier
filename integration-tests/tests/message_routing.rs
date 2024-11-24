@@ -287,7 +287,7 @@ fn payment_from_xrpl_can_be_verified_and_routed_and_proven() {
 
     let interchain_transfer_msg = its::Message::InterchainTransfer {
         token_id: XRPLTokenOrXrp::Xrp.token_id(),
-        source_address: nonempty::HexBinary::try_from(HexBinary::from(source_address.to_bytes())).unwrap(),
+        source_address: nonempty::HexBinary::try_from(HexBinary::from(source_address.as_bytes())).unwrap(),
         destination_address,
         amount: nonempty::Uint256::try_from(1000000000000000000u64).unwrap(),
         // amount: Uint256::from(1000000u128), // 1 XRP
@@ -444,7 +444,7 @@ fn payment_towards_xrpl_can_be_verified_and_routed_and_proven() {
     let interchain_transfer_msg = its::Message::InterchainTransfer {
         token_id: XRPLTokenOrXrp::Xrp.token_id(),
         source_address: nonempty::HexBinary::try_from(HexBinary::from(source_address.as_bytes())).unwrap(),
-        destination_address: nonempty::HexBinary::try_from(HexBinary::from(destination_address.to_bytes())).unwrap(),
+        destination_address: nonempty::HexBinary::try_from(HexBinary::from(destination_address.as_bytes())).unwrap(),
         amount,
         data: payload,
     };

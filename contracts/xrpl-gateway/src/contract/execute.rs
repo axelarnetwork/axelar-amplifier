@@ -128,7 +128,7 @@ fn to_its_message(
             } else {
                 Uint256::from(drops)
             },
-            XRPLPaymentAmount::Issued(_, token_amount) => Uint256::from(u64::from_be_bytes(token_amount.to_bytes())),
+            XRPLPaymentAmount::Issued(_, token_amount) => Uint256::from(u64::from_be_bytes(token_amount.as_bytes())),
         }).unwrap(),
         data: msg_with_payload.payload.clone(),
     };

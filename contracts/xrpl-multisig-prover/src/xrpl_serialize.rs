@@ -129,8 +129,8 @@ impl XRPLSerialize for XRPLPaymentAmount {
             }
             XRPLPaymentAmount::Issued(token, amount) => {
                 let mut buf = Vec::with_capacity(48);
-                buf.extend_from_slice(&amount.to_bytes());
-                buf.extend_from_slice(&token.currency.clone().to_bytes());
+                buf.extend_from_slice(&amount.as_bytes());
+                buf.extend_from_slice(&token.currency.clone().as_bytes());
                 buf.extend_from_slice(token.issuer.as_ref());
                 Ok(buf)
             }
@@ -225,7 +225,7 @@ impl XRPLSerialize for XRPLAccountId {
     fn xrpl_serialize(&self) -> Result<Vec<u8>, ContractError> {
         let mut result: Vec<u8> = Vec::new();
         result.extend(vec![20u8]);
-        result.extend(self.to_bytes());
+        result.extend(self.as_bytes());
         Ok(result)
     }
 }
@@ -242,11 +242,11 @@ impl XRPLSerialize for XRPLPathSet {
             assert!(path.steps.len() <= 8);
             for step in path.steps.iter() {
                 let (type_flag, first_value, opt_second_value): (u8, [u8; 20], Option<[u8; 20]>) = match step {
-                    XRPLPathStep::Account(account) => (0x01, account.to_bytes(), None),
-                    XRPLPathStep::Currency(currency) => (0x10, currency.clone().to_bytes(), None),
+                    XRPLPathStep::Account(account) => (0x01, account.as_bytes(), None),
+                    XRPLPathStep::Currency(currency) => (0x10, currency.clone().as_bytes(), None),
                     XRPLPathStep::XRP => (0x10, <[u8; 20]>::default(), None),
-                    XRPLPathStep::Issuer(issuer) => (0x20, issuer.to_bytes(), None),
-                    XRPLPathStep::Token(token) => (0x30, token.currency.clone().to_bytes(), Some(token.issuer.to_bytes())),
+                    XRPLPathStep::Issuer(issuer) => (0x20, issuer.as_bytes(), None),
+                    XRPLPathStep::Token(token) => (0x30, token.currency.clone().as_bytes(), Some(token.issuer.as_bytes())),
                 };
                 result.extend(vec![type_flag]);
                 result.extend(first_value);
