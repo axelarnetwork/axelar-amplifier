@@ -9,7 +9,7 @@ use itertools::Itertools;
 use router_api::client::Router;
 use router_api::{Address, ChainName, CrossChainId, Message};
 use sha3::{Digest, Keccak256};
-use xrpl_types::types::{XRPLAccountId, XRPLCurrency, XRPLPaymentAmount, XRPLTokenInfo, XRPLToken, XRPLTokenOrXRP};
+use xrpl_types::types::{XRPLAccountId, XRPLCurrency, XRPLPaymentAmount, XRPLTokenInfo, XRPLToken, XRPLTokenOrXrp};
 use xrpl_types::msg::{CrossChainMessage, XRPLMessage, XRPLUserMessageWithPayload};
 use interchain_token_service::{HubMessage as ITSHubMessage, Message as ITSMessage, TokenId, TokenManagerType};
 
@@ -91,12 +91,12 @@ fn to_its_message(
 ) -> Result<(Message, HexBinary), Error> {
     let user_message = &msg_with_payload.message;
     let token_id = match user_message.amount.clone() {
-        XRPLPaymentAmount::Drops(_) => XRPLTokenOrXRP::XRP.token_id(),
-        XRPLPaymentAmount::Token(token, _) => {
+        XRPLPaymentAmount::Drops(_) => XRPLTokenOrXrp::Xrp.token_id(),
+        XRPLPaymentAmount::Issued(token, _) => {
             if token.issuer == xrpl_multisig.clone() {
                 state::load_token_id(store, &token.currency).map_err(|_| Error::InvalidToken)?
             } else {
-                XRPLTokenOrXRP::Token(token).token_id()
+                XRPLTokenOrXrp::Issued(token).token_id()
             }
         }
     };
@@ -128,7 +128,7 @@ fn to_its_message(
             } else {
                 Uint256::from(drops)
             },
-            XRPLPaymentAmount::Token(_, token_amount) => Uint256::from(u64::from_be_bytes(token_amount.to_bytes())),
+            XRPLPaymentAmount::Issued(_, token_amount) => Uint256::from(u64::from_be_bytes(token_amount.to_bytes())),
         }).unwrap(),
         data: msg_with_payload.payload.clone(),
     };
@@ -185,7 +185,7 @@ pub fn register_local_interchain_token(
     storage: &mut dyn Storage,
     xrpl_token: XRPLToken,
 ) -> Result<Response, Error> {
-    let token_id = XRPLTokenOrXRP::Token(xrpl_token.clone()).token_id();
+    let token_id = XRPLTokenOrXrp::Issued(xrpl_token.clone()).token_id();
     state::save_token_info(storage, &token_id, &XRPLTokenInfo {
         xrpl_token,
         canonical_decimals: XRPL_LOCAL_TOKEN_DECIMALS,
@@ -222,7 +222,7 @@ pub fn deploy_xrp_to_sidechain(
     xrpl_multisig: XRPLAccountId,
     deployment_params: nonempty::HexBinary,
 ) -> Result<Response, Error> {
-    let token_id = XRPLTokenOrXRP::XRP.token_id();
+    let token_id = XRPLTokenOrXrp::Xrp.token_id();
     let send_to_hub_msg = ITSHubMessage::SendToHub {
         destination_chain: sidechain_name.clone().into(),
         message: ITSMessage::DeployTokenManager {
@@ -257,7 +257,7 @@ pub fn deploy_interchain_token(
     axelar_chain_name: &ChainName,
     xrpl_multisig: XRPLAccountId,
     xrpl_chain_name: &ChainName,
-    xrpl_token: XRPLTokenOrXRP,
+    xrpl_token: XRPLTokenOrXrp,
     destination_chain: ChainName,
     token_params: DeployInterchainTokenParams,
 ) -> Result<Response, Error> {
@@ -419,7 +419,7 @@ fn scale_up_drops(drops: u64, to_decimals: u8) -> Uint256 {
 
 #[test]
 fn receive_deploy_token_manager_from_hub() {
-    let token_id = XRPLTokenOrXRP::XRP.token_id();
+    let token_id = XRPLTokenOrXrp::Xrp.token_id();
     let original = ITSHubMessage::ReceiveFromHub {
         source_chain: ChainName::from_str("xrpl").unwrap().into(),
         message: ITSMessage::DeployTokenManager {
@@ -436,7 +436,7 @@ fn receive_deploy_token_manager_from_hub() {
 
 #[test]
 fn send_deploy_token_manager_to_hub() {
-    let token_id = XRPLTokenOrXRP::XRP.token_id();
+    let token_id = XRPLTokenOrXrp::Xrp.token_id();
     let original = ITSHubMessage::SendToHub {
         destination_chain: ChainName::from_str("xrpl-evm-sidechain").unwrap().into(),
         message: ITSMessage::DeployTokenManager {
@@ -454,7 +454,7 @@ fn send_deploy_token_manager_to_hub() {
 #[test]
 fn send_interchain_token_transfer_to_hub() {
     let interchain_transfer = ITSMessage::InterchainTransfer {
-        token_id: XRPLTokenOrXRP::XRP.token_id(),
+        token_id: XRPLTokenOrXrp::Xrp.token_id(),
         source_address: nonempty::HexBinary::try_from(HexBinary::from(xrpl_types::types::XRPLAccountId::from_str("rNM8ue6DZpneFC4gBEJMSEdbwNEBZjs3Dy").unwrap().as_ref())).unwrap(),
         //destination_address: HexBinary::from_hex("dBfA2ae8aF2FA445B71F1C504d4BDCf8c1Fd5bE9").unwrap(),
         destination_address: nonempty::HexBinary::try_from(HexBinary::from_hex("d84f0525dC35448150Df0B83D5d0d574fa59785E").unwrap()).unwrap(),
@@ -478,7 +478,7 @@ fn receive_interchain_token_transfer_from_hub() {
     let original = ITSHubMessage::ReceiveFromHub {
         source_chain: ChainName::from_str("xrpl").unwrap().into(),
         message: ITSMessage::InterchainTransfer {
-            token_id: XRPLTokenOrXRP::XRP.token_id(),
+            token_id: XRPLTokenOrXrp::Xrp.token_id(),
             source_address: nonempty::HexBinary::try_from(HexBinary::from(vec![146, 136, 70, 186, 245, 155, 212, 140, 40, 177, 49, 133, 84, 114, 208, 76, 147, 187, 208, 183])).unwrap(),
             //destination_address: HexBinary::from_hex("dBfA2ae8aF2FA445B71F1C504d4BDCf8c1Fd5bE9").unwrap(),
             destination_address: nonempty::HexBinary::try_from(HexBinary::from_hex("d84f0525dC35448150Df0B83D5d0d574fa59785E").unwrap()).unwrap(),

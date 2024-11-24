@@ -115,7 +115,7 @@ mod test {
             destination_address: nonempty::HexBinary::try_from(HexBinary::from_hex("5678").unwrap()).unwrap(),
             destination_chain: "eth".parse().unwrap(),
             payload_hash: [0; 32],
-            amount: XRPLPaymentAmount::Token(XRPLToken {
+            amount: XRPLPaymentAmount::Issued(XRPLToken {
                 currency: "USD".to_string().try_into().unwrap(),
                 issuer: XRPLAccountId::from_bytes([0; 20]),
             }, XRPLTokenAmount::try_from("1e15".to_string()).unwrap()),

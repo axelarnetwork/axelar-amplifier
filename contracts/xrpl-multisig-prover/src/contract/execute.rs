@@ -15,7 +15,7 @@ use xrpl_types::msg::XRPLMessage;
 use xrpl_types::types::canonicalize_coin_amount;
 use xrpl_types::types::{
     TxHash, XRPLToken, XRPLSigner, XRPLSignedTransaction, XRPLPaymentAmount, XRPLAccountId,
-    XRPLTokenOrXRP
+    XRPLTokenOrXrp
 };
 
 use crate::axelar_verifiers;
@@ -246,7 +246,7 @@ pub fn construct_payment_proof(
                 // Source address (ITS on source chain) has been validated by ITS hub.
                 interchain_token_service::Message::InterchainTransfer { token_id, source_address: _, destination_address, amount, data: _ } => {
                     // TODO: Consider enforcing that data is None for simple payments.
-                    let xrpl_payment_amount = if token_id == XRPLTokenOrXRP::XRP.token_id() { // TODO: Optimize: Do not compute XRP token ID every time.
+                    let xrpl_payment_amount = if token_id == XRPLTokenOrXrp::Xrp.token_id() { // TODO: Optimize: Do not compute XRP token ID every time.
                         let drops = if source_chain == config.xrpl_evm_sidechain_chain_name {
                             scale_down_to_drops(amount.into(), 18u8)
                         } else {
@@ -256,7 +256,7 @@ pub fn construct_payment_proof(
                     } else {
                         let token_info = querier.token_info(token_id)?;
                         // TODO: handle decimal precision conversion
-                        XRPLPaymentAmount::Token(token_info.xrpl_token, canonicalize_coin_amount(Uint128::try_from(Uint256::from(amount)).unwrap(), token_info.canonical_decimals)?)
+                        XRPLPaymentAmount::Issued(token_info.xrpl_token, canonicalize_coin_amount(Uint128::try_from(Uint256::from(amount)).unwrap(), token_info.canonical_decimals)?)
                     };
 
                     let destination_address: XRPLAccountId = destination_address

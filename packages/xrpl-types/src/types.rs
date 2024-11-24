@@ -204,9 +204,9 @@ pub struct XRPLToken {
 }
 
 #[cw_serde]
-pub enum XRPLTokenOrXRP {
-    Token(XRPLToken),
-    XRP,
+pub enum XRPLTokenOrXrp {
+    Issued(XRPLToken),
+    Xrp,
 }
 
 #[cw_serde]
@@ -218,13 +218,15 @@ pub struct XRPLTokenInfo {
 const ITS_INTERCHAIN_TOKEN_ID: &[u8] = "its-interchain-token-id".as_bytes();
 const XRP_DEPLOYER: &[u8; 20] = &[0u8; 20];
 
-impl XRPLTokenOrXRP {
+impl XRPLTokenOrXrp {
     pub fn token_id(&self) -> TokenId {
         let (deployer, salt) = match self {
-            XRPLTokenOrXRP::Token(token) => {
+            // TODO: Hash domain separation for XRP vs Issued.
+            XRPLTokenOrXrp::Issued(token) => {
+                // TODO: Assert token.issuer != xrpl_multisig.
                 (token.issuer.as_ref(), token.currency.clone().to_bytes().to_vec())
             },
-            XRPLTokenOrXRP::XRP => (XRP_DEPLOYER, "XRP".as_bytes().to_vec()),
+            XRPLTokenOrXrp::Xrp => (XRP_DEPLOYER, "XRP".as_bytes().to_vec()),
         };
         let prefix = Keccak256::digest(ITS_INTERCHAIN_TOKEN_ID);
         let token_id = Keccak256::digest(vec![prefix.as_slice(), deployer, salt.as_slice()].concat());
@@ -237,7 +239,7 @@ impl XRPLTokenOrXRP {
 #[derive(Eq, Hash)]
 pub enum XRPLPaymentAmount {
     Drops(u64),
-    Token(XRPLToken, XRPLTokenAmount),
+    Issued(XRPLToken, XRPLTokenAmount),
 }
 
 impl XRPLPaymentAmount {
@@ -251,7 +253,7 @@ impl XRPLPaymentAmount {
                 hasher.update(delimiter_bytes);
                 hasher.update(drops.to_be_bytes());
             },
-            XRPLPaymentAmount::Token(token, amount) => {
+            XRPLPaymentAmount::Issued(token, amount) => {
                 hasher.update(XRPL_PAYMENT_ISSUED_HASH_PREFIX);
                 hasher.update(delimiter_bytes);
                 hasher.update(token.issuer.as_ref());
@@ -272,7 +274,7 @@ impl fmt::Display for XRPLPaymentAmount {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             XRPLPaymentAmount::Drops(drops) => write!(f, "Drops({})", drops),
-            XRPLPaymentAmount::Token(token, amount) => write!(f, "TokenAmount({:?},{:?})", token, amount),
+            XRPLPaymentAmount::Issued(token, amount) => write!(f, "TokenAmount({:?},{:?})", token, amount),
         }
     }
 }

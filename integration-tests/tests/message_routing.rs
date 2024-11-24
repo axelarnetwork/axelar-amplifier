@@ -6,7 +6,7 @@ use cosmwasm_std::{Addr, HexBinary, Uint128};
 use multisig::key::KeyType;
 use integration_tests::contract::Contract;
 use xrpl_types::msg::{CrossChainMessage, XRPLUserMessage, XRPLMessage, XRPLUserMessageWithPayload};
-use xrpl_types::types::{TxHash, XRPLAccountId, XRPLCurrency, XRPLPaymentAmount, XRPLToken, XRPLTokenOrXRP};
+use xrpl_types::types::{TxHash, XRPLAccountId, XRPLCurrency, XRPLPaymentAmount, XRPLToken, XRPLTokenOrXrp};
 use interchain_token_service as its;
 use ethers_core::utils::keccak256;
 
@@ -286,7 +286,7 @@ fn payment_from_xrpl_can_be_verified_and_routed_and_proven() {
     };
 
     let interchain_transfer_msg = its::Message::InterchainTransfer {
-        token_id: XRPLTokenOrXRP::XRP.token_id(),
+        token_id: XRPLTokenOrXrp::Xrp.token_id(),
         source_address: nonempty::HexBinary::try_from(HexBinary::from(source_address.to_bytes())).unwrap(),
         destination_address,
         amount: nonempty::Uint256::try_from(1000000000000000000u64).unwrap(),
@@ -442,7 +442,7 @@ fn payment_towards_xrpl_can_be_verified_and_routed_and_proven() {
     let payload: Option<nonempty::HexBinary> = None;
 
     let interchain_transfer_msg = its::Message::InterchainTransfer {
-        token_id: XRPLTokenOrXRP::XRP.token_id(),
+        token_id: XRPLTokenOrXrp::Xrp.token_id(),
         source_address: nonempty::HexBinary::try_from(HexBinary::from(source_address.as_bytes())).unwrap(),
         destination_address: nonempty::HexBinary::try_from(HexBinary::from(destination_address.to_bytes())).unwrap(),
         amount,

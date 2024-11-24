@@ -74,7 +74,7 @@ fn remove_0x_prefix(s: String) -> String {
 pub fn verify_amount(amount: Amount, message: &XRPLUserMessage) -> bool {
     || -> Option<bool> {
         let amount = match amount {
-            Amount::Issued(a) => XRPLPaymentAmount::Token(
+            Amount::Issued(a) => XRPLPaymentAmount::Issued(
                 XRPLToken {
                     issuer: XRPLAccountId::try_from(a.issuer).ok()?,
                     currency: XRPLCurrency::try_from(a.currency).ok()?,

@@ -6,7 +6,7 @@ use router_api::{ChainName, CrossChainId, Message};
 use msgs_derive::EnsurePermissions;
 
 use xrpl_types::msg::{XRPLMessage, XRPLUserMessageWithPayload};
-use xrpl_types::types::{XRPLAccountId, XRPLCurrency, XRPLTokenInfo, XRPLToken, XRPLTokenOrXRP, xrpl_account_id_string};
+use xrpl_types::types::{XRPLAccountId, XRPLCurrency, XRPLTokenInfo, XRPLToken, XRPLTokenOrXrp, xrpl_account_id_string};
 
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -69,7 +69,7 @@ pub enum ExecuteMsg {
     // TODO
     #[permission(Admin)]
     DeployInterchainToken {
-        xrpl_token: XRPLTokenOrXRP,
+        xrpl_token: XRPLTokenOrXrp,
         destination_chain: ChainName,
         token_params: DeployInterchainTokenParams,
     },

@@ -127,7 +127,7 @@ impl XRPLSerialize for XRPLPaymentAmount {
                     })
                 }
             }
-            XRPLPaymentAmount::Token(token, amount) => {
+            XRPLPaymentAmount::Issued(token, amount) => {
                 let mut buf = Vec::with_capacity(48);
                 buf.extend_from_slice(&amount.to_bytes());
                 buf.extend_from_slice(&token.currency.clone().to_bytes());
@@ -342,7 +342,7 @@ impl TryInto<XRPLObject> for XRPLTrustSetTx {
         let mut obj = xrpl_json!({
             TransactionType: TRUST_SET_TX_TYPE,
             Flags: 0u32,
-            LimitAmount: XRPLPaymentAmount::Token(self.token, XRPLTokenAmount::MAX),
+            LimitAmount: XRPLPaymentAmount::Issued(self.token, XRPLTokenAmount::MAX),
             Fee: XRPLPaymentAmount::Drops(self.fee),
             Account: self.account,
             SigningPubKey: HexBinary::from(vec![]),
@@ -563,7 +563,7 @@ mod tests {
         );
         assert_hex_eq!(
             "800000000000000000000000000000000000000055534400000000005B812C9D57731E27A2DA8B1830195F88EF32A3B6",
-            XRPLPaymentAmount::Token(XRPLToken {
+            XRPLPaymentAmount::Issued(XRPLToken {
                 issuer: XRPLAccountId::from_str("r9LqNeG6qHxjeUocjvVki2XR35weJ9mZgQ")?,
                 currency: "USD".to_string().try_into()?,
             }, canonicalize_coin_amount(Uint128::zero(), 0)?)
@@ -571,7 +571,7 @@ mod tests {
         );
         assert_hex_eq!(
             "D4838D7EA4C6800000000000000000000000000055534400000000005B812C9D57731E27A2DA8B1830195F88EF32A3B6",
-            XRPLPaymentAmount::Token(XRPLToken {
+            XRPLPaymentAmount::Issued(XRPLToken {
                 issuer: XRPLAccountId::from_str("r9LqNeG6qHxjeUocjvVki2XR35weJ9mZgQ")?,
                 currency: "USD".to_string().try_into()?,
             }, canonicalize_coin_amount(Uint128::one(), 0)?)
@@ -580,7 +580,7 @@ mod tests {
         // minimum absolute amount
         assert_hex_eq!(
             "C0438D7EA4C6800000000000000000000000000055534400000000005B812C9D57731E27A2DA8B1830195F88EF32A3B6",
-            XRPLPaymentAmount::Token(XRPLToken {
+            XRPLPaymentAmount::Issued(XRPLToken {
                 issuer: XRPLAccountId::from_str("r9LqNeG6qHxjeUocjvVki2XR35weJ9mZgQ")?,
                 currency: "USD".to_string().try_into()?
             }, XRPLTokenAmount::new(XRPL_TOKEN_MIN_MANTISSA, XRPL_TOKEN_MIN_EXPONENT))
@@ -589,7 +589,7 @@ mod tests {
         // maximum amount
         assert_hex_eq!(
             "EC6386F26FC0FFFF00000000000000000000000055534400000000005B812C9D57731E27A2DA8B1830195F88EF32A3B6",
-            XRPLPaymentAmount::Token(XRPLToken {
+            XRPLPaymentAmount::Issued(XRPLToken {
                 issuer: XRPLAccountId::from_str("r9LqNeG6qHxjeUocjvVki2XR35weJ9mZgQ")?,
                 currency: "USD".to_string().try_into()?
             }, XRPLTokenAmount::new(XRPL_TOKEN_MAX_MANTISSA, XRPL_TOKEN_MAX_EXPONENT))
@@ -601,7 +601,7 @@ mod tests {
         // currency can contain non-alphanumeric ascii letters
         assert_hex_eq!(
             "D4CEEBE0B40E8000000000000000000000000000247B7D00000000005B812C9D57731E27A2DA8B1830195F88EF32A3B6",
-            XRPLPaymentAmount::Token(XRPLToken {
+            XRPLPaymentAmount::Issued(XRPLToken {
                 issuer: XRPLAccountId::from_str("r9LqNeG6qHxjeUocjvVki2XR35weJ9mZgQ")?,
                 currency: "${}".to_string().try_into()?,
             }, canonicalize_coin_amount(Uint128::from(42u128), 0)?)
@@ -780,7 +780,7 @@ mod tests {
             account: XRPLAccountId::from_str("r9LqNeG6qHxjeUocjvVki2XR35weJ9mZgQ")?,
             fee: 12,
             sequence: XRPLSequence::Plain(1),
-            amount: XRPLPaymentAmount::Token(
+            amount: XRPLPaymentAmount::Issued(
                 XRPLToken {
                     currency: "JPY".to_string().try_into()?,
                     issuer: XRPLAccountId::from_str("rrrrrrrrrrrrrrrrrrrrBZbvji")?,
@@ -804,7 +804,7 @@ mod tests {
             account: XRPLAccountId::from_str("r9LqNeG6qHxjeUocjvVki2XR35weJ9mZgQ")?,
             fee: 12,
             sequence: XRPLSequence::Plain(1),
-            amount: XRPLPaymentAmount::Token(
+            amount: XRPLPaymentAmount::Issued(
                 XRPLToken {
                     currency: "JPY".to_string().try_into()?,
                     issuer: XRPLAccountId::from_str("rrrrrrrrrrrrrrrrrrrrBZbvji")?,
@@ -813,7 +813,7 @@ mod tests {
             ),
             destination: XRPLAccountId::from_str("rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh")?,
             cross_currency: Some(XRPLCrossCurrencyOptions{
-                send_max: XRPLPaymentAmount::Token(
+                send_max: XRPLPaymentAmount::Issued(
                     XRPLToken {
                         currency: "USD".to_string().try_into()?,
                         issuer: XRPLAccountId::from_str("rw2521mDNXyKzHBrFGZ5Rj4wzUjS9FbiZq")?,
@@ -837,7 +837,7 @@ mod tests {
             account: XRPLAccountId::from_str("r9LqNeG6qHxjeUocjvVki2XR35weJ9mZgQ")?,
             fee: 12,
             sequence: XRPLSequence::Plain(1),
-            amount: XRPLPaymentAmount::Token(
+            amount: XRPLPaymentAmount::Issued(
                 XRPLToken {
                     currency: "JPY".to_string().try_into()?,
                     issuer: XRPLAccountId::from_str("rrrrrrrrrrrrrrrrrrrrBZbvji")?,
@@ -846,7 +846,7 @@ mod tests {
             ),
             destination: XRPLAccountId::from_str("rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh")?,
             cross_currency: Some(XRPLCrossCurrencyOptions{
-                send_max: XRPLPaymentAmount::Token(
+                send_max: XRPLPaymentAmount::Issued(
                     XRPLToken {
                         currency: "USD".to_string().try_into()?,
                         issuer: XRPLAccountId::from_str("rw2521mDNXyKzHBrFGZ5Rj4wzUjS9FbiZq")?,
@@ -993,7 +993,7 @@ mod tests {
                 account: XRPLAccountId::from_str("r4ZMbbb4Y3KoeexmjEeTdhqUBrYjjWdyGM")?,
                 fee: 30,
                 sequence: XRPLSequence::Ticket(45205896),
-                amount: XRPLPaymentAmount::Token(XRPLToken{
+                amount: XRPLPaymentAmount::Issued(XRPLToken{
                     currency: "ETH".to_string().try_into()?,
                     issuer: XRPLAccountId::from_str("r4ZMbbb4Y3KoeexmjEeTdhqUBrYjjWdyGM")?
                 }, canonicalize_coin_amount(Uint128::from(100000000u128), 0)?),
