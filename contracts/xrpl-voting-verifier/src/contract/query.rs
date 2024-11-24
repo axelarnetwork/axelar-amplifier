@@ -1,12 +1,11 @@
 use axelar_wasm_std::voting::{PollId, PollStatus, Vote};
 use axelar_wasm_std::{MajorityThreshold, VerificationStatus};
 use cosmwasm_std::{Deps, Storage};
-
-use crate::error::ContractError;
-use crate::msg::{MessageStatus, PollData, PollResponse};
 use xrpl_types::msg::XRPLMessage;
 
 use crate::state::{poll_messages, Poll, PollContent, CONFIG, POLLS};
+use crate::error::ContractError;
+use crate::msg::{MessageStatus, PollData, PollResponse};
 
 pub fn voting_threshold(deps: Deps) -> Result<MajorityThreshold, ContractError> {
     Ok(CONFIG.load(deps.storage)?.voting_threshold)

@@ -7,21 +7,16 @@ use cosmwasm_std::{
     to_json_binary, Deps, DepsMut, Env, Event, MessageInfo, OverflowError, OverflowOperation,
     QueryRequest, Response, Storage, WasmMsg, WasmQuery,
 };
-use error_stack::Report;
-use error_stack::report;
+use error_stack::{Report, report};
 use itertools::Itertools;
 use service_registry::msg::QueryMsg;
 use service_registry::WeightedVerifier;
+use xrpl_types::msg::XRPLMessage;
 
 use crate::contract::query::message_status;
 use crate::error::ContractError;
-use crate::events::{
-    PollEnded, PollMetadata, PollStarted, QuorumReached, Voted,
-};
-use xrpl_types::msg::XRPLMessage;
-use crate::state::{
-    self, poll_messages, Poll, CONFIG, POLLS, POLL_ID, VOTES,
-};
+use crate::events::{PollEnded, PollMetadata, PollStarted, QuorumReached, Voted};
+use crate::state::{self, poll_messages, Poll, CONFIG, POLLS, POLL_ID, VOTES};
 
 pub fn update_voting_threshold(
     deps: DepsMut,
@@ -272,15 +267,15 @@ fn take_snapshot(deps: Deps) -> Result<snapshot::Snapshot, ContractError> {
 }
 
 fn create_messages_poll(
-    store: &mut dyn Storage,
+    storage: &mut dyn Storage,
     expires_at: u64,
     snapshot: snapshot::Snapshot,
     poll_size: usize,
 ) -> Result<PollId, ContractError> {
-    let id = POLL_ID.incr(store)?;
+    let id = POLL_ID.incr(storage)?;
 
     let poll = WeightedPoll::new(id, snapshot, expires_at, poll_size);
-    POLLS.save(store, id, &state::Poll::Messages(poll))?;
+    POLLS.save(storage, id, &state::Poll::Messages(poll))?;
 
     Ok(id)
 }

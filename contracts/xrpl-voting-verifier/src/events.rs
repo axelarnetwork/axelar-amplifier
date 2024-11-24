@@ -3,8 +3,8 @@ use std::vec::Vec;
 use axelar_wasm_std::voting::{PollId, Vote};
 use axelar_wasm_std::{nonempty, VerificationStatus};
 use cosmwasm_std::{Addr, Attribute, Event};
-
 use xrpl_types::msg::XRPLMessage;
+
 use crate::state::Config;
 
 impl From<Config> for Vec<Attribute> {
