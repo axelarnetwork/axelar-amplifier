@@ -44,7 +44,7 @@ impl From<AxelarSigner> for Participant {
 }
 
 #[cw_serde]
-pub enum TransactionStatus {
+pub enum XRPLTxStatus {
     Pending,
     Succeeded,
     FailedOnChain,
@@ -155,19 +155,23 @@ pub mod tx_hash_hex {
     }
 }
 
-impl From<VerificationStatus> for TransactionStatus {
-    fn from(status: VerificationStatus) -> TransactionStatus {
-        match status {
-            VerificationStatus::SucceededOnSourceChain => TransactionStatus::Succeeded,
-            VerificationStatus::FailedOnSourceChain => TransactionStatus::FailedOnChain,
-            _ => TransactionStatus::Inconclusive,
+impl Into<XRPLTxStatus> for VerificationStatus {
+    fn into(self) -> XRPLTxStatus {
+        match self {
+            VerificationStatus::SucceededOnSourceChain => XRPLTxStatus::Succeeded, // message was found and its execution was successful
+            VerificationStatus::FailedOnSourceChain => XRPLTxStatus::FailedOnChain, // message was found but its execution failed
+            VerificationStatus::NotFoundOnSourceChain // message was not found on source chain
+            | VerificationStatus::FailedToVerify // verification process failed, e.g. no consensus reached
+            | VerificationStatus::InProgress // verification in progress
+            | VerificationStatus::Unknown // not verified yet, i.e. has never been part of a poll
+            => XRPLTxStatus::Inconclusive,
         }
     }
 }
 
 #[cw_serde]
 pub struct TxInfo {
-    pub status: TransactionStatus,
+    pub status: XRPLTxStatus,
     pub unsigned_contents: XRPLUnsignedTx,
     pub original_cc_id: Option<CrossChainId>,
 }
@@ -329,8 +333,8 @@ impl XRPLUnsignedTx {
             XRPLUnsignedTx::TrustSet(tx) => &tx.sequence,
         }
     }
-    pub fn sequence_number_increment(&self, status: TransactionStatus) -> u32 {
-        if status == TransactionStatus::Pending || status == TransactionStatus::Inconclusive {
+    pub fn sequence_number_increment(&self, status: XRPLTxStatus) -> u32 {
+        if status == XRPLTxStatus::Pending || status == XRPLTxStatus::Inconclusive {
             return 0;
         }
 
@@ -344,9 +348,9 @@ impl XRPLUnsignedTx {
                 XRPLSequence::Ticket(_) => 0,
             },
             XRPLUnsignedTx::TicketCreate(tx) => match status {
-                TransactionStatus::Succeeded => tx.ticket_count + 1,
-                TransactionStatus::FailedOnChain => 1,
-                TransactionStatus::Inconclusive | TransactionStatus::Pending => unreachable!(),
+                XRPLTxStatus::Succeeded => tx.ticket_count + 1,
+                XRPLTxStatus::FailedOnChain => 1,
+                XRPLTxStatus::Inconclusive | XRPLTxStatus::Pending => unreachable!(),
             },
             XRPLUnsignedTx::TrustSet(tx) => match tx.sequence {
                 XRPLSequence::Plain(_) => 1,

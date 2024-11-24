@@ -1,7 +1,7 @@
 use router_api::CrossChainId;
 use cosmwasm_std::Storage;
 use xrpl_types::types::{
-    TxHash, XRPLUnsignedTx, TxInfo, TransactionStatus, XRPLSequence,
+    TxHash, XRPLUnsignedTx, TxInfo, XRPLTxStatus, XRPLSequence,
     XRPLAccountId, XRPLPaymentAmount, XRPLCrossCurrencyOptions, XRPLToken, XRPLPaymentTx,
     XRPLTicketCreateTx, XRPLSignerListSetTx, XRPLSignerEntry, XRPLTrustSetTx,
 };
@@ -25,7 +25,7 @@ fn issue_tx(
         storage,
         &unsigned_tx_hash,
         &TxInfo {
-            status: TransactionStatus::Pending,
+            status: XRPLTxStatus::Pending,
             unsigned_contents: unsigned_tx.clone(),
             original_cc_id,
         },
@@ -125,10 +125,10 @@ pub fn issue_signer_list_set(
 pub fn update_tx_status(
     storage: &mut dyn Storage,
     unsigned_tx_hash: TxHash,
-    new_status: TransactionStatus,
+    new_status: XRPLTxStatus,
 ) -> Result<Option<VerifierSet>, ContractError> {
     let mut tx_info = UNSIGNED_TX_HASH_TO_TX_INFO.load(storage, &unsigned_tx_hash)?;
-    if tx_info.status != TransactionStatus::Pending {
+    if tx_info.status != XRPLTxStatus::Pending {
         return Err(ContractError::TxStatusAlreadyUpdated);
     }
 
@@ -143,14 +143,14 @@ pub fn update_tx_status(
         NEXT_SEQUENCE_NUMBER.save(storage, &(tx_sequence_number + sequence_number_increment))?;
     }
 
-    if new_status == TransactionStatus::Succeeded || new_status == TransactionStatus::FailedOnChain {
+    if new_status == XRPLTxStatus::Succeeded || new_status == XRPLTxStatus::FailedOnChain {
         CONFIRMED_TRANSACTIONS.save(storage, &tx_sequence_number, &unsigned_tx_hash)?;
         mark_ticket_unavailable(storage, tx_sequence_number)?;
     }
 
     UNSIGNED_TX_HASH_TO_TX_INFO.save(storage, &unsigned_tx_hash, &tx_info)?;
 
-    if tx_info.status != TransactionStatus::Succeeded {
+    if tx_info.status != XRPLTxStatus::Succeeded {
         return Ok(None);
     }
 
@@ -243,7 +243,7 @@ pub fn tickets_available_to_request(storage: &mut dyn Storage) -> Result<u32, Co
 fn next_sequence_number(storage: &dyn Storage) -> Result<u32, ContractError> {
     match load_latest_sequential_tx_info(storage)? {
         Some(latest_sequential_tx_info)
-            if latest_sequential_tx_info.status == TransactionStatus::Pending =>
+            if latest_sequential_tx_info.status == XRPLTxStatus::Pending =>
             // this might still be pending but another tx with same sequence number may be confirmed!!!
         {
             Ok(latest_sequential_tx_info

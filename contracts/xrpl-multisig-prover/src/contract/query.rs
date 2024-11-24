@@ -24,7 +24,7 @@ fn message_to_sign(
         MULTISIG_SESSION_ID_TO_UNSIGNED_TX_HASH.load(storage, multisig_session_id.u64())?;
 
     let tx_info = UNSIGNED_TX_HASH_TO_TX_INFO.load(storage, &unsigned_tx_hash)?;
-    if tx_info.status != TransactionStatus::Pending {
+    if tx_info.status != XRPLTxStatus::Pending {
         return Err(ContractError::TxStatusNotPending.into());
     }
 
