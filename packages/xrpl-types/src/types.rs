@@ -870,3 +870,49 @@ pub fn canonicalize_token_amount(
     let (mantissa, exponent) = canonicalize_mantissa(amount, -i64::from(decimals))?;
     Ok(XRPLTokenAmount::new(mantissa, exponent))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_account_id_to_bytes() {
+        assert_eq!(
+            "rrrrrrrrrrrrrrrrrrrrrhoLvTp",
+            XRPLAccountId::from([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+                .to_string()
+        );
+        assert_eq!(
+            "rQLbzfJH5BT1FS9apRLKV3G8dWEA5njaQi",
+            XRPLAccountId::from([
+                255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+                255, 255, 255, 255
+            ])
+            .to_string()
+        );
+    }
+
+    #[test]
+    fn test_ed25519_public_key_to_xrpl_address() -> Result<(), XRPLError> {
+        assert_eq!(
+            XRPLAccountId::from(&PublicKey::Ed25519(HexBinary::from_hex(
+                "ED9434799226374926EDA3B54B1B461B4ABF7237962EAE18528FEA67595397FA32"
+            )?))
+            .to_string(),
+            "rDTXLQ7ZKZVKz33zJbHjgVShjsBnqMBhmN"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_secp256k1_public_key_to_xrpl_address() -> Result<(), XRPLError> {
+        assert_eq!(
+            XRPLAccountId::from(&PublicKey::Ecdsa(HexBinary::from_hex(
+                "0303E20EC6B4A39A629815AE02C0A1393B9225E3B890CAE45B59F42FA29BE9668D"
+            )?))
+            .to_string(),
+            "rnBFvgZphmN39GWzUJeUitaP22Fr9be75H"
+        );
+        Ok(())
+    }
+}
