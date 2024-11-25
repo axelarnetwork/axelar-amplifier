@@ -858,7 +858,7 @@ pub fn canonicalize_mantissa(
         });
     }
 
-    let mantissa = u64::from_be_bytes(mantissa.to_be_bytes()[8..].try_into().unwrap());
+    let mantissa = u64::from_be_bytes(mantissa.to_be_bytes()[24..32].try_into().expect("mantissa should be 8 bytes"));
 
     Ok((mantissa, exponent))
 }
