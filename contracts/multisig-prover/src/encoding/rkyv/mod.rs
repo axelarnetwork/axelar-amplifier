@@ -2,6 +2,7 @@ use axelar_rkyv_encoding::types::{ED25519_PUBKEY_LEN, SECP256K1_COMPRESSED_PUBKE
 use axelar_wasm_std::hash::Hash;
 use cosmwasm_std::HexBinary;
 use itertools::Itertools;
+use k256::ecdsa::RecoveryId;
 use multisig::{
     key::{PublicKey, Recoverable, Signature},
     msg::SignerWithSig,
@@ -11,8 +12,6 @@ use router_api::Message;
 use std::{array::TryFromSliceError, collections::BTreeMap};
 
 use crate::{error::ContractError, payload::Payload};
-
-use super::add_27;
 
 type Result<T> = core::result::Result<T, ContractError>;
 
@@ -152,10 +151,11 @@ fn to_signature(
     pub_key: &PublicKey,
     payload_hash: &[u8; 32],
 ) -> Result<axelar_rkyv_encoding::types::Signature> {
+    let recovery_transform = |recovery_byte: RecoveryId| -> u8 { recovery_byte.to_byte() };
     match sig {
         Signature::Ecdsa(nonrec) => {
             let recov = nonrec
-                .to_recoverable(payload_hash, pub_key, add_27)
+                .to_recoverable(payload_hash, pub_key, recovery_transform)
                 .map_err(|e| ContractError::RkyvEncodingError(e.to_string()))?;
             Ok(axelar_rkyv_encoding::types::Signature::EcdsaRecoverable(
                 recoverable_ecdsa_to_array(&recov)?,
