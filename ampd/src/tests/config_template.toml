@@ -86,8 +86,7 @@ rpc_url = 'http://127.0.0.1/'
 type = 'SolanaMsgVerifier'
 cosmwasm_contract = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'
 max_tx_cache_entries = 6
-chain_name = 'solana'
-chain_rpc_url = 'http://127.0.0.1/'
+rpc_url = 'http://127.0.0.1/'
 
 [handlers.rpc_timeout]
 secs = 3
@@ -96,8 +95,7 @@ nanos = 0
 [[handlers]]
 type = 'SolanaVerifierSetVerifier'
 cosmwasm_contract = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'
-chain_name = 'solana'
-chain_rpc_url = 'http://127.0.0.1/'
+rpc_url = 'http://127.0.0.1/'
 
 [handlers.rpc_timeout]
 secs = 3

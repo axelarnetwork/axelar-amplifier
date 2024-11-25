@@ -20,7 +20,6 @@ impl PartialEq<&Message> for &ArchivedGatewayEvent {
                 payload: _,
                 payload_hash,
             }) => {
-                
                 let Ok(msg_sender) = Pubkey::from_str(msg.source_address.as_str()) else {
                     return false;
                 };

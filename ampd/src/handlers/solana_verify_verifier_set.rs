@@ -41,7 +41,6 @@ struct PollStartedEvent {
     contract_address: TMAddress,
     verifier_set: VerifierSetConfirmation,
     poll_id: PollId,
-    source_chain: router_api::ChainName,
     _source_gateway_address: String,
     expires_at: u64,
     _confirmation_height: u64,
@@ -51,7 +50,6 @@ struct PollStartedEvent {
 pub struct Handler {
     verifier: TMAddress,
     voting_verifier: TMAddress,
-    chain: ChainName,
     rpc_client: RpcClient,
     latest_block_height: Receiver<u64>,
 }
@@ -60,14 +58,12 @@ impl Handler {
     pub fn new(
         verifier: TMAddress,
         voting_verifier: TMAddress,
-        chain: ChainName,
         rpc_client: RpcClient,
         latest_block_height: Receiver<u64>,
     ) -> Self {
         Self {
             verifier,
             voting_verifier,
-            chain,
             rpc_client,
             latest_block_height,
         }
@@ -92,7 +88,6 @@ impl EventHandler for Handler {
         let PollStartedEvent {
             contract_address,
             poll_id,
-            source_chain,
             expires_at,
             participants,
             verifier_set,
@@ -105,10 +100,6 @@ impl EventHandler for Handler {
         };
 
         if self.voting_verifier != contract_address {
-            return Ok(vec![]);
-        }
-
-        if self.chain != source_chain {
             return Ok(vec![]);
         }
 
@@ -229,13 +220,7 @@ mod tests {
         let expiration = 100u64;
         let (_, rx) = watch::channel(expiration - 1);
 
-        let handler = Handler::new(
-            worker.clone(),
-            voting_verifier.clone(),
-            ChainName::from_str("solana").unwrap(),
-            rpc_client,
-            rx,
-        );
+        let handler = Handler::new(worker.clone(), voting_verifier.clone(), rpc_client, rx);
 
         let event = into_structured_event(
             verifier_set_poll_started_event(participants(2, Some(worker.clone())), expiration),
@@ -265,13 +250,7 @@ mod tests {
         let expiration = 100u64;
         let (_, rx) = watch::channel(expiration - 1);
 
-        let handler = Handler::new(
-            worker.clone(),
-            voting_verifier.clone(),
-            ChainName::from_str("notmatchingchain").unwrap(),
-            rpc_client,
-            rx,
-        );
+        let handler = Handler::new(worker.clone(), voting_verifier.clone(), rpc_client, rx);
 
         let event = into_structured_event(
             verifier_set_poll_started_event(participants(2, Some(worker.clone())), expiration),
@@ -300,13 +279,7 @@ mod tests {
         let expiration = 100u64;
         let (_, rx) = watch::channel(expiration - 1);
 
-        let handler = Handler::new(
-            worker.clone(),
-            voting_verifier.clone(),
-            ChainName::from_str("solana").unwrap(),
-            rpc_client,
-            rx,
-        );
+        let handler = Handler::new(worker.clone(), voting_verifier.clone(), rpc_client, rx);
 
         let event = into_structured_event(
             verifier_set_poll_started_event(participants(2, None), expiration), // worker is not here.
@@ -335,13 +308,7 @@ mod tests {
         let expiration = 100u64;
         let (_, rx) = watch::channel(expiration);
 
-        let handler = Handler::new(
-            worker.clone(),
-            voting_verifier.clone(),
-            ChainName::from_str("solana").unwrap(),
-            rpc_client,
-            rx,
-        );
+        let handler = Handler::new(worker.clone(), voting_verifier.clone(), rpc_client, rx);
 
         let event = into_structured_event(
             verifier_set_poll_started_event(participants(2, Some(worker.clone())), expiration),
@@ -364,10 +331,16 @@ mod tests {
         participants: Vec<TMAddress>,
         expires_at: u64,
     ) -> PollStarted {
+        let signature_1 = "3GLo4z4siudHxW1BMHBbkTKy7kfbssNFaxLR5hTjhEXCUzp2Pi2VVwybc1s96pEKjRre7CcKKeLhni79zWTNUseP";
+        let event_idx_1 = 10_u32;
+        let message_id_1 = format!("{signature_1}-{event_idx_1}");
+
+        #[allow(deprecated)]
         PollStarted::VerifierSet {
             verifier_set: VerifierSetConfirmation {
-                tx_id: nonempty::String::from_str("value").unwrap(),
-                event_index: 1,
+                tx_id: signature_1.parse().unwrap(),
+                event_index: event_idx_1,
+                message_id: message_id_1.parse().unwrap(),
                 verifier_set: build_verifier_set(KeyType::Ecdsa, &ecdsa_test_data::signers()),
             },
             metadata: PollMetadata {

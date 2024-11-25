@@ -396,38 +396,36 @@ where
                 handlers::config::Config::SolanaMsgVerifier {
                     cosmwasm_contract,
                     max_tx_cache_entries,
-                    chain,
+                    rpc_url,
                     rpc_timeout,
                 } => self.create_handler_task(
-                    format!("{}-msg-verifier", chain.name),
+                    "solana-msg-verifier",
                     handlers::solana_verify_msg::Handler::new(
                         verifier.clone(),
                         cosmwasm_contract,
                         RpcCacheWrapper::new(
                             RpcClient::new_with_timeout_and_commitment(
-                                chain.rpc_url.to_string(),
+                                rpc_url.to_string(),
                                 rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT),
                                 CommitmentConfig::finalized(),
                             ),
                             NonZeroUsize::new(max_tx_cache_entries).unwrap(),
                         ),
-                        chain.name,
                         self.block_height_monitor.latest_block_height(),
                     ),
                     event_processor_config.clone(),
                 ),
                 handlers::config::Config::SolanaVerifierSetVerifier {
                     cosmwasm_contract,
-                    chain,
+                    rpc_url,
                     rpc_timeout,
                 } => self.create_handler_task(
-                    format!("{}-worker-set-verifier", chain.name),
+                    "solana-verifier-set-verifier",
                     handlers::solana_verify_verifier_set::Handler::new(
                         verifier.clone(),
                         cosmwasm_contract,
-                        chain.name,
                         RpcClient::new_with_timeout_and_commitment(
-                            chain.rpc_url.to_string(),
+                            rpc_url.to_string(),
                             rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT),
                             CommitmentConfig::finalized(),
                         ),

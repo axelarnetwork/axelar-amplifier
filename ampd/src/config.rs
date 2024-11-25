@@ -54,7 +54,6 @@ mod tests {
 
     use super::Config;
     use crate::evm::finalizer::Finalization;
-    use crate::handlers::config::GenericChain;
     use crate::handlers::config::{Chain, Config as HandlerConfig};
     use crate::types::TMAddress;
     use crate::url::Url;
@@ -132,24 +131,22 @@ mod tests {
             [[handlers]]
             type = 'StellarVerifierSetVerifier'
             cosmwasm_contract = '{}'
-            http_url = 'http://localhost:8000'
+            rpc_url = 'http://localhost:8000'
 
             [handlers.rpc_timeout]
             secs = 3
             nanos = 0
 
             [[handlers]]
-            chain_name = 'solana'
-            chain_rpc_url = 'http://127.0.0.1'
+            type = 'SolanaMsgVerifier'
+            rpc_url = 'http://127.0.0.1'
             cosmwasm_contract = '{}'
             max_tx_cache_entries = 6
-            type = 'SolanaMsgVerifier'
 
             [[handlers]]
-            chain_name = 'solana'
+            type = 'SolanaVerifierSetVerifier'
             chain_rpc_url = 'http://127.0.0.1'
             cosmwasm_contract = '{}'
-            type = 'SolanaVerifierSetVerifier'
             rpc_url = 'http://localhost:7545'
             ",
             TMAddress::random(PREFIX),
@@ -376,20 +373,14 @@ mod tests {
                         AccountId::new("axelar", &[0u8; 32]).unwrap(),
                     ),
                     max_tx_cache_entries: 6,
-                    chain: GenericChain {
-                        name: ChainName::from_str("solana").unwrap(),
-                        rpc_url: Url::from_str("http://127.0.0.1").unwrap(),
-                    },
+                    rpc_url: Url::from_str("http://127.0.0.1").unwrap(),
                     rpc_timeout: Some(Duration::from_secs(3)),
                 },
                 HandlerConfig::SolanaVerifierSetVerifier {
                     cosmwasm_contract: TMAddress::from(
                         AccountId::new("axelar", &[0u8; 32]).unwrap(),
                     ),
-                    chain: GenericChain {
-                        name: ChainName::from_str("solana").unwrap(),
-                        rpc_url: Url::from_str("http://127.0.0.1").unwrap(),
-                    },
+                    rpc_url: Url::from_str("http://127.0.0.1").unwrap(),
                     rpc_timeout: Some(Duration::from_secs(3)),
                 },
             ],

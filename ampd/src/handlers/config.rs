@@ -18,12 +18,6 @@ pub struct Chain {
     pub finalization: Finalization,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
-pub struct GenericChain {
-    pub name: ChainName,
-    pub rpc_url: Url,
-}
-
 with_prefix!(chain "chain_");
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 #[serde(tag = "type")]
@@ -72,14 +66,12 @@ pub enum Config {
     SolanaMsgVerifier {
         cosmwasm_contract: TMAddress,
         max_tx_cache_entries: usize,
-        #[serde(flatten, with = "chain")]
-        chain: GenericChain,
+        rpc_url: Url,
         rpc_timeout: Option<Duration>,
     },
     SolanaVerifierSetVerifier {
         cosmwasm_contract: TMAddress,
-        #[serde(flatten, with = "chain")]
-        chain: GenericChain,
+        rpc_url: Url,
         rpc_timeout: Option<Duration>,
     },
 }
@@ -197,7 +189,7 @@ mod tests {
     use serde_json::to_value;
 
     use crate::evm::finalizer::Finalization;
-    use crate::handlers::config::{deserialize_handler_configs, Chain, Config, GenericChain};
+    use crate::handlers::config::{deserialize_handler_configs, Chain, Config};
     use crate::types::TMAddress;
     use crate::PREFIX;
 
@@ -337,10 +329,7 @@ mod tests {
 
         let sample_config = Config::SolanaMsgVerifier {
             cosmwasm_contract: TMAddress::random(PREFIX),
-            chain: GenericChain {
-                name: "solana".parse().unwrap(),
-                rpc_url: "http://localhost:8080/".parse().unwrap(),
-            },
+            rpc_url: "http://localhost:8080/".parse().unwrap(),
             rpc_timeout: None,
             max_tx_cache_entries: 5,
         };
@@ -355,10 +344,7 @@ mod tests {
 
         let sample_config = Config::SolanaVerifierSetVerifier {
             cosmwasm_contract: TMAddress::random(PREFIX),
-            chain: GenericChain {
-                name: "solana".parse().unwrap(),
-                rpc_url: "http://localhost:8080/".parse().unwrap(),
-            },
+            rpc_url: "http://localhost:8080/".parse().unwrap(),
             rpc_timeout: None,
         };
 
