@@ -149,7 +149,7 @@ jobs:
           echo "r2-destination-dir=./releases/cosmwasm/${crate_name}" >> $GITHUB_OUTPUT
 
 
-      - uses: ryand56/r2-upload-action@latest
+      - uses: ryand56/r2-upload-action@v1.3.2
         if: steps.check-release.outputs.is-release == 'true'
         with:
           r2-account-id: ${{ secrets.R2_ACCOUNT_ID }}
@@ -160,7 +160,7 @@ jobs:
           destination-dir: ${{ steps.prepare-release.outputs.r2-destination-dir }}
 
 
-      - uses: ryand56/r2-upload-action@latest
+      - uses: ryand56/r2-upload-action@v1.3.2
         if: steps.check-release.outputs.is-release != 'true'
         with:
           r2-account-id: ${{ secrets.R2_ACCOUNT_ID }}

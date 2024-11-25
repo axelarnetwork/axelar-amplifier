@@ -1,6 +1,6 @@
 [package]
 name = "coordinator"
-version = "1.0.0"
+version = "1.1.0"
 rust-version = { workspace = true }
 edition = { workspace = true }
 description = "Amplifier info aggregation for external use, alongside contract management, instantiation and migration"
@@ -39,10 +39,12 @@ cosmwasm-std = { workspace = true }
 cw-storage-plus = { workspace = true }
 cw2 = { workspace = true }
 error-stack = { workspace = true }
+itertools = { workspace = true }
 msgs-derive = { workspace = true }
 multisig = { workspace = true, features = ["library"] }
 report = { workspace = true }
 router-api = { workspace = true }
+service-registry-api = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]

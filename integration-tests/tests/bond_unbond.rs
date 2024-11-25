@@ -1,8 +1,36 @@
 use cosmwasm_std::BlockInfo;
 use integration_tests::contract::Contract;
-use service_registry::msg::ExecuteMsg;
+use service_registry_api::msg::ExecuteMsg;
 
 pub mod test_utils;
+
+#[test]
+fn verifier_should_not_unbond_while_in_active_set() {
+    let test_utils::TestCase {
+        mut protocol,
+        verifiers,
+        unbonding_period_days,
+        ..
+    } = test_utils::setup_test_case();
+
+    test_utils::deregister_verifiers(&mut protocol, &verifiers);
+
+    let block = protocol.app.block_info();
+    protocol.app.set_block(BlockInfo {
+        height: block.height + 1,
+        time: protocol
+            .app
+            .block_info()
+            .time
+            .plus_days(unbonding_period_days.into()),
+        ..block
+    });
+
+    let claim_results = test_utils::claim_stakes(&mut protocol, &verifiers);
+    for claim_result in claim_results {
+        assert!(claim_result.is_err());
+    }
+}
 
 #[test]
 fn claim_stake_after_rotation_success() {

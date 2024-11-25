@@ -1,2 +1,1 @@
-#[allow(deprecated)]
-pub mod v0_2_0;
+pub mod v1_0_0;

@@ -1,7 +1,7 @@
 use axelar_wasm_std::vec::VecExt;
 use axelar_wasm_std::voting::{PollId, Vote};
 use axelar_wasm_std::{nonempty, MajorityThreshold, VerificationStatus};
-use cosmwasm_std::WasmMsg;
+use cosmwasm_std::CosmosMsg;
 use error_stack::ResultExt;
 use multisig::verifier_set::VerifierSet;
 use router_api::Message;
@@ -33,28 +33,28 @@ impl From<QueryMsg> for Error {
     }
 }
 
-impl<'a> From<client::Client<'a, ExecuteMsg, QueryMsg>> for Client<'a> {
-    fn from(client: client::Client<'a, ExecuteMsg, QueryMsg>) -> Self {
+impl<'a> From<client::ContractClient<'a, ExecuteMsg, QueryMsg>> for Client<'a> {
+    fn from(client: client::ContractClient<'a, ExecuteMsg, QueryMsg>) -> Self {
         Client { client }
     }
 }
 
 pub struct Client<'a> {
-    client: client::Client<'a, ExecuteMsg, QueryMsg>,
+    client: client::ContractClient<'a, ExecuteMsg, QueryMsg>,
 }
 
 impl<'a> Client<'a> {
-    pub fn verify_messages(&self, messages: Vec<Message>) -> Option<WasmMsg> {
+    pub fn verify_messages(&self, messages: Vec<Message>) -> Option<CosmosMsg> {
         messages
             .to_none_if_empty()
             .map(|messages| self.client.execute(&ExecuteMsg::VerifyMessages(messages)))
     }
 
-    pub fn vote(&self, poll_id: PollId, votes: Vec<Vote>) -> WasmMsg {
+    pub fn vote(&self, poll_id: PollId, votes: Vec<Vote>) -> CosmosMsg {
         self.client.execute(&ExecuteMsg::Vote { poll_id, votes })
     }
 
-    pub fn end_poll(&self, poll_id: PollId) -> WasmMsg {
+    pub fn end_poll(&self, poll_id: PollId) -> CosmosMsg {
         self.client.execute(&ExecuteMsg::EndPoll { poll_id })
     }
 
@@ -62,14 +62,14 @@ impl<'a> Client<'a> {
         &self,
         message_id: nonempty::String,
         new_verifier_set: VerifierSet,
-    ) -> WasmMsg {
+    ) -> CosmosMsg {
         self.client.execute(&ExecuteMsg::VerifyVerifierSet {
             message_id,
             new_verifier_set,
         })
     }
 
-    pub fn update_voting_threshold(&self, new_voting_threshold: MajorityThreshold) -> WasmMsg {
+    pub fn update_voting_threshold(&self, new_voting_threshold: MajorityThreshold) -> CosmosMsg {
         self.client.execute(&ExecuteMsg::UpdateVotingThreshold {
             new_voting_threshold,
         })
@@ -121,7 +121,8 @@ mod test {
     #[test]
     fn query_messages_status() {
         let (querier, _, addr) = setup();
-        let client: Client = client::Client::new(QuerierWrapper::new(&querier), &addr).into();
+        let client: Client =
+            client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
 
         let msg_1 = Message {
             cc_id: CrossChainId::new(
@@ -171,7 +172,8 @@ mod test {
     #[test]
     fn query_verifier_set_status() {
         let (querier, _, addr) = setup();
-        let client: Client = client::Client::new(QuerierWrapper::new(&querier), &addr).into();
+        let client: Client =
+            client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
 
         assert_eq!(
             client
@@ -188,7 +190,8 @@ mod test {
     #[test]
     fn query_current_threshold() {
         let (querier, instantiate_msg, addr) = setup();
-        let client: Client = client::Client::new(QuerierWrapper::new(&querier), &addr).into();
+        let client: Client =
+            client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
 
         assert_eq!(
             client.current_threshold().unwrap(),
@@ -199,7 +202,8 @@ mod test {
     #[test]
     fn query_verifier_set_returns_error_when_query_fails() {
         let (querier, addr) = setup_queries_to_fail();
-        let client: Client = client::Client::new(QuerierWrapper::new(&querier), &addr).into();
+        let client: Client =
+            client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
         let res = client.verifier_set_status(VerifierSet {
             signers: BTreeMap::new(),
             threshold: Uint128::one(),
@@ -213,7 +217,8 @@ mod test {
     #[test]
     fn query_messages_status_returns_error_when_query_fails() {
         let (querier, addr) = setup_queries_to_fail();
-        let client: Client = client::Client::new(QuerierWrapper::new(&querier), &addr).into();
+        let client: Client =
+            client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
         let res = client.messages_status(vec![Message {
             cc_id: CrossChainId::new(
                 "eth",
@@ -238,7 +243,8 @@ mod test {
     #[test]
     fn query_poll_returns_error_when_query_fails() {
         let (querier, addr) = setup_queries_to_fail();
-        let client: Client = client::Client::new(QuerierWrapper::new(&querier), &addr).into();
+        let client: Client =
+            client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
         let res = client.poll(1u64.into());
 
         assert!(res.is_err());
@@ -248,7 +254,8 @@ mod test {
     #[test]
     fn query_current_threshold_returns_error_when_query_fails() {
         let (querier, addr) = setup_queries_to_fail();
-        let client: Client = client::Client::new(QuerierWrapper::new(&querier), &addr).into();
+        let client: Client =
+            client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
         let res = client.current_threshold();
 
         assert!(res.is_err());

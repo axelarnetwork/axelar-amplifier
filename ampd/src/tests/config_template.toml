@@ -12,7 +12,7 @@ stream_buffer_size = 100000
 chain_id = 'axelar-dojo-1'
 tx_fetch_interval = '500ms'
 tx_fetch_max_retries = 10
-gas_adjustment = 1.0
+gas_adjustment = 1.2
 gas_price = '0.00005uaxl'
 batch_gas_limit = 1000000
 queue_cap = 1000
@@ -75,12 +75,12 @@ proxy_url = 'http://127.0.0.1/'
 [[handlers]]
 type = 'StellarMsgVerifier'
 cosmwasm_contract = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'
-http_url = 'http://127.0.0.1/'
+rpc_url = 'http://127.0.0.1/'
 
 [[handlers]]
 type = 'StellarVerifierSetVerifier'
 cosmwasm_contract = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'
-http_url = 'http://127.0.0.1/'
+rpc_url = 'http://127.0.0.1/'
 
 [[handlers]]
 type = 'SolanaMsgVerifier'
@@ -109,4 +109,7 @@ party_uid = 'ampd'
 key_uid = 'axelar'
 
 [service_registry]
+cosmwasm_contract = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'
+
+[rewards]
 cosmwasm_contract = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'

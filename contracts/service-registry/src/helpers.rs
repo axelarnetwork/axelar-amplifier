@@ -1,8 +1,7 @@
 use cosmwasm_std::{to_json_binary, Addr, CosmosMsg, StdResult, WasmMsg};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-
-use crate::msg::ExecuteMsg;
+use service_registry_api::msg::ExecuteMsg;
 
 /// ServiceRegistry is a wrapper around Addr that provides a lot of helpers
 /// for working with this.

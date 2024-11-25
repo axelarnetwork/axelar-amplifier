@@ -18,6 +18,7 @@ mod query;
 
 const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
+const BASE_VERSION: &str = "1.2.0";
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(
@@ -25,9 +26,7 @@ pub fn migrate(
     _env: Env,
     _msg: Empty,
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
-    migrations::v1_0_0::migrate(deps.storage)?;
-
-    // any version checks should be done before here
+    cw2::assert_contract_version(deps.storage, CONTRACT_NAME, BASE_VERSION)?;
 
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
@@ -191,7 +190,8 @@ pub fn query(
 
 #[cfg(test)]
 mod tests {
-    use cosmwasm_std::testing::{mock_dependencies, mock_env};
+    use assert_ok::assert_ok;
+    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
     use cosmwasm_std::{coins, Addr, BlockInfo, Uint128};
     use cw_multi_test::{App, ContractWrapper, Executor};
     use router_api::ChainName;
@@ -203,9 +203,17 @@ mod tests {
     #[test]
     fn migrate_sets_contract_version() {
         let mut deps = mock_dependencies();
-
-        #[allow(deprecated)]
-        migrations::v1_0_0::tests::instantiate_contract(deps.as_mut(), "denom");
+        let env = mock_env();
+        let info = mock_info("instantiator", &[]);
+        assert_ok!(instantiate(
+            deps.as_mut(),
+            env,
+            info,
+            InstantiateMsg {
+                governance_address: "governance".to_string(),
+                rewards_denom: "uaxl".to_string()
+            }
+        ));
 
         migrate(deps.as_mut(), mock_env(), Empty {}).unwrap();
 
@@ -332,6 +340,7 @@ mod tests {
                 balance: rewards.into(),
                 epoch_duration: updated_params.epoch_duration.into(),
                 rewards_per_epoch: updated_params.rewards_per_epoch.into(),
+                participation_threshold: updated_params.participation_threshold,
                 current_epoch_num: 0u64.into(),
                 last_distribution_epoch: None
             }
@@ -553,5 +562,489 @@ mod tests {
             .query_balance(verifier, AXL_DENOMINATION)
             .unwrap();
         assert_eq!(balance.amount, Uint128::from(params.rewards_per_epoch));
+    }
+
+    // test that pool parameter updates take effect in the current epoch, even when there is
+    // an existing tally
+    #[test]
+    fn params_updated_in_current_epoch_when_existing_tallies() {
+        let chain_name: ChainName = "mock-chain".parse().unwrap();
+        let user = Addr::unchecked("user");
+        let verifier = Addr::unchecked("verifier");
+        let pool_contract = Addr::unchecked("pool_contract");
+
+        const AXL_DENOMINATION: &str = "uaxl";
+        let mut app = App::new(|router, _, storage| {
+            router
+                .bank
+                .init_balance(storage, &user, coins(100000, AXL_DENOMINATION))
+                .unwrap()
+        });
+        let code = ContractWrapper::new(execute, instantiate, query);
+        let code_id = app.store_code(Box::new(code));
+
+        let governance_address = Addr::unchecked("governance");
+        let initial_params = Params {
+            epoch_duration: 10u64.try_into().unwrap(),
+            rewards_per_epoch: Uint128::from(100u128).try_into().unwrap(),
+            participation_threshold: (1, 2).try_into().unwrap(),
+        };
+        let contract_address = app
+            .instantiate_contract(
+                code_id,
+                Addr::unchecked("router"),
+                &InstantiateMsg {
+                    governance_address: governance_address.to_string(),
+                    rewards_denom: AXL_DENOMINATION.to_string(),
+                },
+                &[],
+                "Contract",
+                None,
+            )
+            .unwrap();
+
+        let pool_id = PoolId {
+            chain_name: chain_name.clone(),
+            contract: pool_contract.clone(),
+        };
+
+        let res = app.execute_contract(
+            governance_address.clone(),
+            contract_address.clone(),
+            &ExecuteMsg::CreatePool {
+                params: initial_params.clone(),
+                pool_id: pool_id.clone(),
+            },
+            &[],
+        );
+        assert!(res.is_ok());
+
+        app.execute_contract(
+            pool_contract.clone(),
+            contract_address.clone(),
+            &ExecuteMsg::RecordParticipation {
+                chain_name: chain_name.clone(),
+                event_id: "some event".try_into().unwrap(),
+                verifier_address: verifier.to_string(),
+            },
+            &[],
+        )
+        .unwrap();
+
+        let updated_params = Params {
+            rewards_per_epoch: initial_params
+                .rewards_per_epoch
+                .into_inner()
+                .checked_add(Uint128::from(1000u128))
+                .unwrap()
+                .try_into()
+                .unwrap(),
+            ..initial_params
+        };
+        let res = app.execute_contract(
+            governance_address,
+            contract_address.clone(),
+            &ExecuteMsg::UpdatePoolParams {
+                params: updated_params.clone(),
+                pool_id: pool_id.clone(),
+            },
+            &[],
+        );
+        assert!(res.is_ok());
+
+        // check the rewards pool
+        let res: RewardsPool = app
+            .wrap()
+            .query_wasm_smart(
+                contract_address.clone(),
+                &QueryMsg::RewardsPool {
+                    pool_id: pool_id.clone(),
+                },
+            )
+            .unwrap();
+        assert_eq!(
+            res,
+            RewardsPool {
+                balance: Uint128::zero(),
+                epoch_duration: updated_params.epoch_duration.into(),
+                rewards_per_epoch: updated_params.rewards_per_epoch.into(),
+                participation_threshold: updated_params.participation_threshold,
+                current_epoch_num: 0u64.into(),
+                last_distribution_epoch: None
+            }
+        );
+
+        // need to change the block height, so we can claim rewards
+        let old_height = app.block_info().height;
+        app.set_block(BlockInfo {
+            height: old_height + u64::from(updated_params.epoch_duration) * 2,
+            ..app.block_info()
+        });
+
+        app.execute_contract(
+            user.clone(),
+            contract_address.clone(),
+            &ExecuteMsg::AddRewards {
+                pool_id: pool_id.clone(),
+            },
+            &coins(
+                updated_params.rewards_per_epoch.into_inner().u128(),
+                AXL_DENOMINATION,
+            ),
+        )
+        .unwrap();
+
+        app.execute_contract(
+            user,
+            contract_address.clone(),
+            &ExecuteMsg::DistributeRewards {
+                pool_id: PoolId {
+                    chain_name: chain_name.clone(),
+                    contract: pool_contract.clone(),
+                },
+                epoch_count: None,
+            },
+            &[],
+        )
+        .unwrap();
+
+        // verifier should have been sent the appropriate rewards
+        let balance = app
+            .wrap()
+            .query_balance(verifier, AXL_DENOMINATION)
+            .unwrap();
+        assert_eq!(
+            balance.amount,
+            Uint128::from(updated_params.rewards_per_epoch)
+        );
+    }
+
+    // test that pool parameter updates take effect in the current epoch when there are no tallies
+    #[test]
+    fn params_updated_in_current_epoch_with_no_existing_tallies() {
+        let chain_name: ChainName = "mock-chain".parse().unwrap();
+        let user = Addr::unchecked("user");
+        let verifier = Addr::unchecked("verifier");
+        let pool_contract = Addr::unchecked("pool_contract");
+
+        const AXL_DENOMINATION: &str = "uaxl";
+        let mut app = App::new(|router, _, storage| {
+            router
+                .bank
+                .init_balance(storage, &user, coins(100000, AXL_DENOMINATION))
+                .unwrap()
+        });
+        let code = ContractWrapper::new(execute, instantiate, query);
+        let code_id = app.store_code(Box::new(code));
+
+        let governance_address = Addr::unchecked("governance");
+        let initial_params = Params {
+            epoch_duration: 10u64.try_into().unwrap(),
+            rewards_per_epoch: Uint128::from(100u128).try_into().unwrap(),
+            participation_threshold: (1, 2).try_into().unwrap(),
+        };
+        let contract_address = app
+            .instantiate_contract(
+                code_id,
+                Addr::unchecked("router"),
+                &InstantiateMsg {
+                    governance_address: governance_address.to_string(),
+                    rewards_denom: AXL_DENOMINATION.to_string(),
+                },
+                &[],
+                "Contract",
+                None,
+            )
+            .unwrap();
+
+        let pool_id = PoolId {
+            chain_name: chain_name.clone(),
+            contract: pool_contract.clone(),
+        };
+
+        let res = app.execute_contract(
+            governance_address.clone(),
+            contract_address.clone(),
+            &ExecuteMsg::CreatePool {
+                params: initial_params.clone(),
+                pool_id: pool_id.clone(),
+            },
+            &[],
+        );
+        assert!(res.is_ok());
+
+        let updated_params = Params {
+            rewards_per_epoch: initial_params
+                .rewards_per_epoch
+                .into_inner()
+                .checked_add(Uint128::from(1000u128))
+                .unwrap()
+                .try_into()
+                .unwrap(),
+            ..initial_params
+        };
+
+        let res = app.execute_contract(
+            governance_address,
+            contract_address.clone(),
+            &ExecuteMsg::UpdatePoolParams {
+                params: updated_params.clone(),
+                pool_id: pool_id.clone(),
+            },
+            &[],
+        );
+        assert!(res.is_ok());
+
+        // check the rewards pool
+        let res: RewardsPool = app
+            .wrap()
+            .query_wasm_smart(
+                contract_address.clone(),
+                &QueryMsg::RewardsPool {
+                    pool_id: pool_id.clone(),
+                },
+            )
+            .unwrap();
+        assert_eq!(
+            res,
+            RewardsPool {
+                balance: Uint128::zero(),
+                epoch_duration: updated_params.epoch_duration.into(),
+                rewards_per_epoch: updated_params.rewards_per_epoch.into(),
+                participation_threshold: updated_params.participation_threshold,
+                current_epoch_num: 0u64.into(),
+                last_distribution_epoch: None
+            }
+        );
+
+        // test distributing the rewards now
+
+        // add some participation now, so we can distribute rewards
+        app.execute_contract(
+            pool_contract.clone(),
+            contract_address.clone(),
+            &ExecuteMsg::RecordParticipation {
+                chain_name: chain_name.clone(),
+                event_id: "some event".try_into().unwrap(),
+                verifier_address: verifier.to_string(),
+            },
+            &[],
+        )
+        .unwrap();
+
+        // need to change the block height, so we can claim rewards
+        let old_height = app.block_info().height;
+        app.set_block(BlockInfo {
+            height: old_height + u64::from(updated_params.epoch_duration) * 2,
+            ..app.block_info()
+        });
+
+        app.execute_contract(
+            user.clone(),
+            contract_address.clone(),
+            &ExecuteMsg::AddRewards {
+                pool_id: pool_id.clone(),
+            },
+            &coins(
+                updated_params.rewards_per_epoch.into_inner().u128(),
+                AXL_DENOMINATION,
+            ),
+        )
+        .unwrap();
+
+        app.execute_contract(
+            user,
+            contract_address.clone(),
+            &ExecuteMsg::DistributeRewards {
+                pool_id: PoolId {
+                    chain_name: chain_name.clone(),
+                    contract: pool_contract.clone(),
+                },
+                epoch_count: None,
+            },
+            &[],
+        )
+        .unwrap();
+
+        // verifier should have been sent the appropriate rewards
+        let balance = app
+            .wrap()
+            .query_balance(verifier, AXL_DENOMINATION)
+            .unwrap();
+        assert_eq!(
+            balance.amount,
+            Uint128::from(updated_params.rewards_per_epoch)
+        );
+    }
+
+    // test that pool parameter updates take effect in the current epoch when shortening the epoch such that a new epoch
+    // is immediately created. If the params shorten the epoch duration such that the current epoch should end, the contract
+    // immediately ends the current epoch and starts a new one. This tests that things like rewards_per_epoch are updated correctly
+    // for the epoch that was ended
+    #[test]
+    fn params_updated_in_current_epoch_when_shortening_epoch() {
+        let chain_name: ChainName = "mock-chain".parse().unwrap();
+        let user = Addr::unchecked("user");
+        let verifier = Addr::unchecked("verifier");
+        let pool_contract = Addr::unchecked("pool_contract");
+
+        const AXL_DENOMINATION: &str = "uaxl";
+        let mut app = App::new(|router, _, storage| {
+            router
+                .bank
+                .init_balance(storage, &user, coins(100000, AXL_DENOMINATION))
+                .unwrap()
+        });
+        let code = ContractWrapper::new(execute, instantiate, query);
+        let code_id = app.store_code(Box::new(code));
+
+        let governance_address = Addr::unchecked("governance");
+        let initial_params = Params {
+            epoch_duration: 10u64.try_into().unwrap(),
+            rewards_per_epoch: Uint128::from(100u128).try_into().unwrap(),
+            participation_threshold: (1, 2).try_into().unwrap(),
+        };
+        let contract_address = app
+            .instantiate_contract(
+                code_id,
+                Addr::unchecked("router"),
+                &InstantiateMsg {
+                    governance_address: governance_address.to_string(),
+                    rewards_denom: AXL_DENOMINATION.to_string(),
+                },
+                &[],
+                "Contract",
+                None,
+            )
+            .unwrap();
+
+        let pool_id = PoolId {
+            chain_name: chain_name.clone(),
+            contract: pool_contract.clone(),
+        };
+
+        let res = app.execute_contract(
+            governance_address.clone(),
+            contract_address.clone(),
+            &ExecuteMsg::CreatePool {
+                params: initial_params.clone(),
+                pool_id: pool_id.clone(),
+            },
+            &[],
+        );
+        assert!(res.is_ok());
+
+        app.execute_contract(
+            pool_contract.clone(),
+            contract_address.clone(),
+            &ExecuteMsg::RecordParticipation {
+                chain_name: chain_name.clone(),
+                event_id: "some event".try_into().unwrap(),
+                verifier_address: verifier.to_string(),
+            },
+            &[],
+        )
+        .unwrap();
+
+        // advance the height two blocks
+        let old_height = app.block_info().height;
+        app.set_block(BlockInfo {
+            height: old_height + 2,
+            ..app.block_info()
+        });
+
+        // shorten the epoch duration to 1 block. We are already two blocks in, so this will end the epoch
+        // also, increase the rewards distributed per epoch
+        let updated_params = Params {
+            epoch_duration: 1u64.try_into().unwrap(),
+            rewards_per_epoch: initial_params
+                .rewards_per_epoch
+                .into_inner()
+                .checked_add(Uint128::from(1000u128))
+                .unwrap()
+                .try_into()
+                .unwrap(),
+            ..initial_params
+        };
+
+        let res = app.execute_contract(
+            governance_address,
+            contract_address.clone(),
+            &ExecuteMsg::UpdatePoolParams {
+                params: updated_params.clone(),
+                pool_id: pool_id.clone(),
+            },
+            &[],
+        );
+        assert!(res.is_ok());
+
+        // check the rewards pool reflects the new values
+        let res: RewardsPool = app
+            .wrap()
+            .query_wasm_smart(
+                contract_address.clone(),
+                &QueryMsg::RewardsPool {
+                    pool_id: pool_id.clone(),
+                },
+            )
+            .unwrap();
+        assert_eq!(
+            res,
+            RewardsPool {
+                balance: Uint128::zero(),
+                epoch_duration: updated_params.epoch_duration.into(),
+                rewards_per_epoch: updated_params.rewards_per_epoch.into(),
+                participation_threshold: updated_params.participation_threshold,
+                current_epoch_num: 1u64.into(),
+                last_distribution_epoch: None
+            }
+        );
+
+        // now test distributing rewards for the previous epoch, when the params update occurred. The amount
+        // of rewards distributed should reflect the updated params
+
+        // need to change the block height, so we can claim rewards
+        let old_height = app.block_info().height;
+        app.set_block(BlockInfo {
+            height: old_height + u64::from(updated_params.epoch_duration) * 2,
+            ..app.block_info()
+        });
+
+        app.execute_contract(
+            user.clone(),
+            contract_address.clone(),
+            &ExecuteMsg::AddRewards {
+                pool_id: pool_id.clone(),
+            },
+            &coins(
+                updated_params.rewards_per_epoch.into_inner().u128(),
+                AXL_DENOMINATION,
+            ),
+        )
+        .unwrap();
+
+        app.execute_contract(
+            user,
+            contract_address.clone(),
+            &ExecuteMsg::DistributeRewards {
+                pool_id: PoolId {
+                    chain_name: chain_name.clone(),
+                    contract: pool_contract.clone(),
+                },
+                epoch_count: None,
+            },
+            &[],
+        )
+        .unwrap();
+
+        // verifier should have been sent the appropriate rewards
+        let balance = app
+            .wrap()
+            .query_balance(verifier, AXL_DENOMINATION)
+            .unwrap();
+        assert_eq!(
+            balance.amount,
+            Uint128::from(updated_params.rewards_per_epoch)
+        );
     }
 }

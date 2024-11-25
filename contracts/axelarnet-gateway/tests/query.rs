@@ -1,42 +1,55 @@
 use assert_ok::assert_ok;
+use axelar_core_std::nexus::test_utils::reply_with_is_chain_registered;
+use axelar_core_std::query::AxelarQueryMsg;
 use axelar_wasm_std::response::inspect_response_msg;
 use axelarnet_gateway::msg::QueryMsg;
 use axelarnet_gateway::{contract, ExecutableMessage};
-use cosmwasm_std::testing::{mock_dependencies, mock_env, MockApi, MockQuerier, MockStorage};
-use cosmwasm_std::{from_json, Deps, OwnedDeps};
+use cosmwasm_std::testing::{
+    mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockQuerierCustomHandlerResult,
+    MockStorage,
+};
+use cosmwasm_std::{from_json, ContractResult, Deps, OwnedDeps, SystemResult};
+use rand::RngCore;
 use router_api::msg::ExecuteMsg as RouterExecuteMsg;
 use router_api::{ChainName, CrossChainId, Message};
+use serde_json::json;
 use sha3::{Digest, Keccak256};
 
-use crate::utils::params;
+use crate::utils::{mock_axelar_dependencies, params, OwnedDepsExt};
 
 mod utils;
 
 #[test]
 fn query_routable_messages_gets_expected_messages() {
-    let mut deps = mock_dependencies();
+    let mut deps = mock_axelar_dependencies();
+    deps.querier = deps
+        .querier
+        .with_custom_handler(reply_rand_tx_hash_and_nonce);
 
-    utils::instantiate_contract(deps.as_mut()).unwrap();
+    utils::instantiate_contract(deps.as_default_mut()).unwrap();
     let mut expected = populate_routable_messages(&mut deps);
 
     expected.remove(3);
     let cc_ids = expected.iter().map(|msg| &msg.cc_id).cloned().collect();
 
     assert_eq!(
-        assert_ok!(query_routable_messages(deps.as_ref(), cc_ids)),
+        assert_ok!(query_routable_messages(deps.as_default_deps(), cc_ids)),
         expected,
     );
 }
 
 #[test]
 fn query_executable_messages_gets_expected_messages() {
-    let mut deps = mock_dependencies();
+    let mut deps = mock_axelar_dependencies();
+    deps.querier = deps
+        .querier
+        .with_custom_handler(reply_with_is_chain_registered(false));
 
-    utils::instantiate_contract(deps.as_mut()).unwrap();
+    utils::instantiate_contract(deps.as_default_mut()).unwrap();
     let mut cc_ids = populate_executable_messages(&mut deps);
     cc_ids.remove(3);
 
-    let executable_message = assert_ok!(query_executable_messages(deps.as_ref(), cc_ids));
+    let executable_message = assert_ok!(query_executable_messages(deps.as_default_deps(), cc_ids));
     goldie::assert_json!(executable_message);
 }
 
@@ -76,12 +89,13 @@ fn query_chain_name(deps: Deps) -> Result<ChainName, ()> {
 }
 
 fn populate_routable_messages(
-    deps: &mut OwnedDeps<MockStorage, MockApi, MockQuerier>,
+    deps: &mut OwnedDeps<MockStorage, MockApi, MockQuerier<AxelarQueryMsg>, AxelarQueryMsg>,
 ) -> Vec<Message> {
     (0..10)
         .map(|i| {
             let response = utils::call_contract(
-                deps.as_mut(),
+                deps.as_default_mut(),
+                mock_info("sender", &[]),
                 format!("destination-chain-{}", i).parse().unwrap(),
                 format!("destination-address-{}", i).parse().unwrap(),
                 vec![i].into(),
@@ -99,7 +113,7 @@ fn populate_routable_messages(
 }
 
 fn populate_executable_messages(
-    deps: &mut OwnedDeps<MockStorage, MockApi, MockQuerier>,
+    deps: &mut OwnedDeps<MockStorage, MockApi, MockQuerier<AxelarQueryMsg>, AxelarQueryMsg>,
 ) -> Vec<CrossChainId> {
     let msgs: Vec<_> = (0..10)
         .map(|i| Message {
@@ -111,11 +125,38 @@ fn populate_executable_messages(
         })
         .collect();
 
-    utils::route_from_router(deps.as_mut(), msgs.clone()).unwrap();
+    utils::route_from_router(deps.as_default_mut(), msgs.clone()).unwrap();
 
-    utils::execute_payload(deps.as_mut(), msgs[0].cc_id.clone(), vec![0].into()).unwrap();
-    utils::execute_payload(deps.as_mut(), msgs[5].cc_id.clone(), vec![5].into()).unwrap();
-    utils::execute_payload(deps.as_mut(), msgs[7].cc_id.clone(), vec![7].into()).unwrap();
+    utils::execute_payload(deps.as_default_mut(), msgs[0].cc_id.clone(), vec![0].into()).unwrap();
+    utils::execute_payload(deps.as_default_mut(), msgs[5].cc_id.clone(), vec![5].into()).unwrap();
+    utils::execute_payload(deps.as_default_mut(), msgs[7].cc_id.clone(), vec![7].into()).unwrap();
 
     msgs.into_iter().map(|msg| msg.cc_id).collect()
+}
+
+pub fn reply_rand_tx_hash_and_nonce(query: &AxelarQueryMsg) -> MockQuerierCustomHandlerResult {
+    let result = match query {
+        AxelarQueryMsg::Nexus(nexus_query) => match nexus_query {
+            axelar_core_std::nexus::query::QueryMsg::TxHashAndNonce {} => {
+                let mut tx_hash = [0u8; 32];
+                rand::thread_rng().fill_bytes(&mut tx_hash);
+                let nonce: u32 = rand::random();
+
+                json!({
+                    "tx_hash": tx_hash,
+                    "nonce": nonce,
+                })
+            }
+            axelar_core_std::nexus::query::QueryMsg::IsChainRegistered { chain: _ } => json!({
+                "is_registered": false
+            }),
+            _ => unreachable!("unexpected nexus query {:?}", nexus_query),
+        },
+        _ => unreachable!("unexpected query request {:?}", query),
+    }
+    .to_string()
+    .as_bytes()
+    .into();
+
+    SystemResult::Ok(ContractResult::Ok(result))
 }

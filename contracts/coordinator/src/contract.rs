@@ -2,18 +2,19 @@ mod execute;
 mod migrations;
 mod query;
 
+use axelar_wasm_std::address::validate_cosmwasm_address;
 use axelar_wasm_std::{address, permission_control, FnExt};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_json_binary, Addr, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response, Storage,
+    to_json_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response, Storage,
 };
-use error_stack::report;
+use error_stack::{report, ResultExt};
+use itertools::Itertools;
 
-use crate::contract::migrations::v0_2_0;
 use crate::error::ContractError;
-use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
-use crate::state::is_prover_registered;
+use crate::msg::{ExecuteMsg, InstantiateMsg, MigrationMsg, QueryMsg};
+use crate::state::{is_prover_registered, Config, CONFIG};
 
 pub const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 pub const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -22,9 +23,12 @@ pub const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub fn migrate(
     deps: DepsMut,
     _env: Env,
-    _msg: Empty,
+    msg: MigrationMsg,
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
-    v0_2_0::migrate(deps.storage)?;
+    let service_registry = validate_cosmwasm_address(deps.api, &msg.service_registry)?;
+
+    migrations::v1_0_0::migrate(deps.storage, service_registry)
+        .change_context(ContractError::Migration)?;
 
     // this needs to be the last thing to do during migration,
     // because previous migration steps should check the old version
@@ -41,6 +45,11 @@ pub fn instantiate(
     msg: InstantiateMsg,
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    let config = Config {
+        service_registry: address::validate_cosmwasm_address(deps.api, &msg.service_registry)?,
+    };
+    CONFIG.save(deps.storage, &config)?;
 
     let governance = address::validate_cosmwasm_address(deps.api, &msg.governance_address)?;
     permission_control::set_governance(deps.storage, &governance)?;
@@ -63,8 +72,15 @@ pub fn execute(
         ExecuteMsg::RegisterProverContract {
             chain_name,
             new_prover_addr,
-        } => execute::register_prover(deps, chain_name, new_prover_addr),
+        } => {
+            let new_prover_addr = validate_cosmwasm_address(deps.api, &new_prover_addr)?;
+            execute::register_prover(deps, chain_name, new_prover_addr)
+        }
         ExecuteMsg::SetActiveVerifiers { verifiers } => {
+            let verifiers = verifiers
+                .iter()
+                .map(|v| validate_cosmwasm_address(deps.api, v))
+                .try_collect()?;
             execute::set_active_verifier_set(deps, info, verifiers)
         }
     }?
@@ -84,11 +100,32 @@ fn find_prover_address(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
+pub fn query(
+    deps: Deps,
+    _env: Env,
+    msg: QueryMsg,
+) -> Result<Binary, axelar_wasm_std::error::ContractError> {
     match msg {
-        QueryMsg::ReadyToUnbond { worker_address } => to_json_binary(
-            &query::check_verifier_ready_to_unbond(deps, worker_address)?,
-        )?,
+        QueryMsg::ReadyToUnbond {
+            verifier_address: worker_address,
+        } => {
+            let worker_address = validate_cosmwasm_address(deps.api, &worker_address)?;
+            to_json_binary(&query::check_verifier_ready_to_unbond(
+                deps,
+                worker_address,
+            )?)?
+        }
+        QueryMsg::VerifierInfo {
+            service_name,
+            verifier,
+        } => {
+            let verifier_address = validate_cosmwasm_address(deps.api, &verifier)?;
+            to_json_binary(&query::verifier_details_with_provers(
+                deps,
+                service_name,
+                verifier_address,
+            )?)?
+        }
     }
     .then(Ok)
 }
@@ -122,6 +159,7 @@ mod tests {
 
         let instantiate_msg = InstantiateMsg {
             governance_address: governance.to_string(),
+            service_registry: Addr::unchecked("random_service").to_string(),
         };
 
         let res = instantiate(deps.as_mut(), env.clone(), info.clone(), instantiate_msg);
@@ -150,7 +188,7 @@ mod tests {
             mock_info("not_governance", &[]),
             ExecuteMsg::RegisterProverContract {
                 chain_name: test_setup.chain_name.clone(),
-                new_prover_addr: test_setup.prover.clone(),
+                new_prover_addr: test_setup.prover.to_string(),
             }
         )
         .is_err());
@@ -161,7 +199,7 @@ mod tests {
             mock_info(governance, &[]),
             ExecuteMsg::RegisterProverContract {
                 chain_name: test_setup.chain_name.clone(),
-                new_prover_addr: test_setup.prover.clone(),
+                new_prover_addr: test_setup.prover.to_string(),
             }
         )
         .is_ok());
@@ -178,7 +216,7 @@ mod tests {
             mock_info(governance, &[]),
             ExecuteMsg::RegisterProverContract {
                 chain_name: test_setup.chain_name.clone(),
-                new_prover_addr: test_setup.prover.clone(),
+                new_prover_addr: test_setup.prover.to_string(),
             },
         )
         .unwrap();
@@ -202,7 +240,7 @@ mod tests {
             mock_info("random_address", &[]),
             ExecuteMsg::RegisterProverContract {
                 chain_name: test_setup.chain_name.clone(),
-                new_prover_addr: test_setup.prover.clone(),
+                new_prover_addr: test_setup.prover.to_string(),
             },
         );
         assert_eq!(
@@ -228,7 +266,7 @@ mod tests {
             mock_info(governance, &[]),
             ExecuteMsg::RegisterProverContract {
                 chain_name: test_setup.chain_name.clone(),
-                new_prover_addr: test_setup.prover.clone(),
+                new_prover_addr: test_setup.prover.to_string(),
             },
         )
         .unwrap();

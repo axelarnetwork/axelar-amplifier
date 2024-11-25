@@ -2,14 +2,13 @@ use axelar_wasm_std::{address, killswitch, permission_control, FnExt};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_json_binary, Addr, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response, Storage,
+    to_json_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response, Storage,
 };
 use router_api::error::Error;
-use router_api::msg::{ExecuteMsg, QueryMsg};
 
-use crate::contract::migrations::v0_3_3;
+use crate::contract::migrations::v1_0_1;
 use crate::events::RouterInstantiated;
-use crate::msg::InstantiateMsg;
+use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 use crate::state;
 use crate::state::{load_chain_by_gateway, load_config, Config};
 
@@ -19,13 +18,18 @@ mod query;
 
 pub const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 pub const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
+const BASE_VERSION: &str = "1.0.1";
+
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(
     deps: DepsMut,
     _env: Env,
-    _msg: Empty,
+    msg: MigrateMsg,
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
-    v0_3_3::migrate(deps.storage)?;
+    cw2::assert_contract_version(deps.storage, CONTRACT_NAME, BASE_VERSION)?;
+
+    let axelarnet_gateway = address::validate_cosmwasm_address(deps.api, &msg.axelarnet_gateway)?;
+    v1_0_1::migrate(deps.storage, axelarnet_gateway)?;
 
     // this needs to be the last thing to do during migration,
     // because previous migration steps should check the old version
@@ -45,13 +49,13 @@ pub fn instantiate(
 
     let admin = address::validate_cosmwasm_address(deps.api, &msg.admin_address)?;
     let governance = address::validate_cosmwasm_address(deps.api, &msg.governance_address)?;
-    let nexus_gateway = address::validate_cosmwasm_address(deps.api, &msg.nexus_gateway)?;
+    let axelarnet_gateway = address::validate_cosmwasm_address(deps.api, &msg.axelarnet_gateway)?;
 
     permission_control::set_admin(deps.storage, &admin)?;
     permission_control::set_governance(deps.storage, &governance)?;
 
     let config = Config {
-        nexus_gateway: nexus_gateway.clone(),
+        axelarnet_gateway: axelarnet_gateway.clone(),
     };
 
     state::save_config(deps.storage, &config)?;
@@ -61,7 +65,7 @@ pub fn instantiate(
         RouterInstantiated {
             admin,
             governance,
-            nexus_gateway,
+            axelarnet_gateway,
         }
         .into(),
     ))
@@ -85,7 +89,13 @@ pub fn execute(
             msg_id_format,
         } => {
             let gateway_address = address::validate_cosmwasm_address(deps.api, &gateway_address)?;
-            execute::register_chain(deps.storage, chain, gateway_address, msg_id_format)
+            Ok(execute::register_chain(
+                deps.storage,
+                deps.querier,
+                chain,
+                gateway_address,
+                msg_id_format,
+            )?)
         }
         ExecuteMsg::UpgradeGateway {
             chain,
@@ -109,9 +119,9 @@ fn find_gateway_address(
     sender: &Addr,
 ) -> impl FnOnce(&dyn Storage, &ExecuteMsg) -> error_stack::Result<Addr, Error> + '_ {
     move |storage, _| {
-        let nexus_gateway = load_config(storage)?.nexus_gateway;
-        if nexus_gateway == sender {
-            Ok(nexus_gateway)
+        let axelarnet_gateway = load_config(storage)?.axelarnet_gateway;
+        if axelarnet_gateway == sender {
+            Ok(axelarnet_gateway)
         } else {
             load_chain_by_gateway(storage, sender)?
                 .gateway
@@ -130,7 +140,7 @@ pub fn query(
     match msg {
         QueryMsg::ChainInfo(chain) => to_json_binary(&query::chain_info(deps.storage, chain)?),
         QueryMsg::Chains { start_after, limit } => {
-            to_json_binary(&query::chains(deps, start_after, limit)?)
+            to_json_binary(&query::chains(deps.storage, start_after, limit)?)
         }
         QueryMsg::IsEnabled => to_json_binary(&killswitch::is_contract_active(deps.storage)),
     }
@@ -142,6 +152,7 @@ mod test {
     use std::collections::HashMap;
     use std::str::FromStr;
 
+    use axelar_core_std::nexus::test_utils::reply_with_is_chain_registered;
     use axelar_wasm_std::err_contains;
     use axelar_wasm_std::error::ContractError;
     use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
@@ -160,11 +171,14 @@ mod test {
 
     const ADMIN_ADDRESS: &str = "admin";
     const GOVERNANCE_ADDRESS: &str = "governance";
-    const NEXUS_GATEWAY_ADDRESS: &str = "nexus_gateway";
+    const AXELARNET_GATEWAY_ADDRESS: &str = "axelarnet_gateway";
     const UNAUTHORIZED_ADDRESS: &str = "unauthorized";
 
     fn setup() -> OwnedDeps<MockStorage, MockApi, MockQuerier, Empty> {
         let mut deps = mock_dependencies();
+        deps.querier = deps
+            .querier
+            .with_custom_handler(reply_with_is_chain_registered(false));
 
         instantiate(
             deps.as_mut(),
@@ -173,7 +187,7 @@ mod test {
             InstantiateMsg {
                 admin_address: ADMIN_ADDRESS.to_string(),
                 governance_address: GOVERNANCE_ADDRESS.to_string(),
-                nexus_gateway: NEXUS_GATEWAY_ADDRESS.to_string(),
+                axelarnet_gateway: AXELARNET_GATEWAY_ADDRESS.to_string(),
             },
         )
         .unwrap();
@@ -359,7 +373,7 @@ mod test {
         let result = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(NEXUS_GATEWAY_ADDRESS, &[]),
+            mock_info(AXELARNET_GATEWAY_ADDRESS, &[]),
             ExecuteMsg::RouteMessages(messages.clone()),
         );
         assert!(result.is_ok());
@@ -1796,7 +1810,7 @@ mod test {
         assert!(execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(NEXUS_GATEWAY_ADDRESS, &[]),
+            mock_info(AXELARNET_GATEWAY_ADDRESS, &[]),
             ExecuteMsg::RouteMessages(generate_messages(&eth, &polygon, &mut 0, 10)),
         )
         .is_ok());

@@ -1,15 +1,15 @@
-use cosmwasm_std::{HexBinary, Uint256};
-use interchain_token_service::{HubMessage, Message, TokenId};
+use interchain_token_service::{DeployInterchainToken, HubMessage, Message, TokenId};
 use router_api::{Address, ChainNameRaw, CrossChainId};
 
 pub fn dummy_message() -> Message {
-    Message::InterchainTransfer {
+    DeployInterchainToken {
         token_id: TokenId::new([2; 32]),
-        source_address: HexBinary::from_hex("1234").unwrap(),
-        destination_address: HexBinary::from_hex("5678").unwrap(),
-        amount: Uint256::from(1000u64),
-        data: HexBinary::from_hex("abcd").unwrap(),
+        name: "Test".try_into().unwrap(),
+        symbol: "TST".try_into().unwrap(),
+        decimals: 18,
+        minter: None,
     }
+    .into()
 }
 
 pub struct TestMessage {

@@ -136,12 +136,16 @@ impl From<PollStarted> for Event {
 
 #[cw_serde]
 pub struct VerifierSetConfirmation {
+    #[deprecated(since = "1.1.0", note = "use message_id field instead")]
     pub tx_id: nonempty::String,
+    #[deprecated(since = "1.1.0", note = "use message_id field instead")]
     pub event_index: u32,
+    pub message_id: nonempty::String,
     pub verifier_set: VerifierSet,
 }
 
 /// If parsing is successful, returns (tx_id, event_index). Otherwise returns ContractError::InvalidMessageID
+#[deprecated(since = "1.1.0", note = "don't parse message id, just emit as is")]
 fn parse_message_id(
     message_id: &str,
     msg_id_format: &MessageIdFormat,
@@ -150,19 +154,31 @@ fn parse_message_id(
         MessageIdFormat::Base58TxDigestAndEventIndex => {
             let id = Base58TxDigestAndEventIndex::from_str(message_id)
                 .map_err(|_| ContractError::InvalidMessageID(message_id.to_string()))?;
-            Ok((id.tx_digest_as_base58(), id.event_index))
+            Ok((
+                id.tx_digest_as_base58(),
+                u32::try_from(id.event_index)
+                    .map_err(|_| ContractError::InvalidMessageID(message_id.to_string()))?,
+            ))
         }
         MessageIdFormat::HexTxHashAndEventIndex => {
             let id = HexTxHashAndEventIndex::from_str(message_id)
                 .map_err(|_| ContractError::InvalidMessageID(message_id.to_string()))?;
 
-            Ok((id.tx_hash_as_hex(), id.event_index))
+            Ok((
+                id.tx_hash_as_hex(),
+                u32::try_from(id.event_index)
+                    .map_err(|_| ContractError::InvalidMessageID(message_id.to_string()))?,
+            ))
         }
         MessageIdFormat::Base58SolanaTxSignatureAndEventIndex => {
             let id = Base58SolanaTxSignatureAndEventIndex::from_str(message_id)
                 .map_err(|_| ContractError::InvalidMessageID(message_id.to_string()))?;
 
-            Ok((id.signature_as_base58(), id.event_index))
+            Ok((
+                id.signature_as_base58(),
+                u32::try_from(id.event_index)
+                    .map_err(|_| ContractError::InvalidMessageID(message_id.to_string()))?,
+            ))
         }
         MessageIdFormat::HexTxHash => {
             let id = HexTxHash::from_str(message_id)
@@ -175,15 +191,19 @@ fn parse_message_id(
 
 impl VerifierSetConfirmation {
     pub fn new(
-        message_id: &str,
+        message_id: nonempty::String,
         msg_id_format: MessageIdFormat,
         verifier_set: VerifierSet,
     ) -> Result<Self, ContractError> {
-        let (tx_id, event_index) = parse_message_id(message_id, &msg_id_format)?;
+        #[allow(deprecated)]
+        let (tx_id, event_index) = parse_message_id(&message_id, &msg_id_format)?;
 
+        #[allow(deprecated)]
+        // TODO: remove this attribute when tx_id and event_index are removed from the event
         Ok(Self {
             tx_id,
             event_index,
+            message_id,
             verifier_set,
         })
     }
@@ -191,8 +211,11 @@ impl VerifierSetConfirmation {
 
 #[cw_serde]
 pub struct TxEventConfirmation {
+    #[deprecated(since = "1.1.0", note = "use message_id field instead")]
     pub tx_id: nonempty::String,
+    #[deprecated(since = "1.1.0", note = "use message_id field instead")]
     pub event_index: u32,
+    pub message_id: nonempty::String,
     pub destination_address: Address,
     pub destination_chain: ChainName,
     pub source_address: Address,
@@ -206,11 +229,15 @@ pub struct TxEventConfirmation {
 impl TryFrom<(Message, &MessageIdFormat)> for TxEventConfirmation {
     type Error = ContractError;
     fn try_from((msg, msg_id_format): (Message, &MessageIdFormat)) -> Result<Self, Self::Error> {
+        #[allow(deprecated)]
         let (tx_id, event_index) = parse_message_id(&msg.cc_id.message_id, msg_id_format)?;
 
+        #[allow(deprecated)]
+        // TODO: remove this attribute when tx_id and event_index are removed from the event
         Ok(TxEventConfirmation {
             tx_id,
             event_index,
+            message_id: msg.cc_id.message_id,
             destination_address: msg.destination_address,
             destination_chain: msg.destination_chain,
             source_address: msg.source_address,
@@ -338,8 +365,7 @@ mod test {
             TxEventConfirmation::try_from((msg.clone(), &MessageIdFormat::HexTxHashAndEventIndex))
                 .unwrap();
 
-        assert_eq!(event.tx_id, msg_id.tx_hash_as_hex());
-        assert_eq!(event.event_index, msg_id.event_index);
+        assert_eq!(event.message_id, msg.cc_id.message_id);
         compare_event_to_message(event, msg);
     }
 
@@ -353,8 +379,7 @@ mod test {
         let event =
             TxEventConfirmation::try_from((msg.clone(), &MessageIdFormat::HexTxHash)).unwrap();
 
-        assert_eq!(event.tx_id, msg_id.tx_hash_as_hex());
-        assert_eq!(event.event_index, 0);
+        assert_eq!(event.message_id, msg.cc_id.message_id);
         compare_event_to_message(event, msg);
     }
 
@@ -372,8 +397,7 @@ mod test {
         ))
         .unwrap();
 
-        assert_eq!(event.tx_id, msg_id.tx_digest_as_base58());
-        assert_eq!(event.event_index, msg_id.event_index);
+        assert_eq!(event.message_id, msg.cc_id.message_id);
         compare_event_to_message(event, msg);
     }
 
@@ -404,7 +428,7 @@ mod test {
     fn should_make_verifier_set_confirmation_with_hex_msg_id() {
         let msg_id = HexTxHashAndEventIndex {
             tx_hash: random_32_bytes(),
-            event_index: rand::random::<u32>(),
+            event_index: rand::random::<u32>() as u64,
         };
         let verifier_set = VerifierSet {
             signers: BTreeMap::new(),
@@ -412,14 +436,13 @@ mod test {
             created_at: 1,
         };
         let event = VerifierSetConfirmation::new(
-            &msg_id.to_string(),
+            msg_id.to_string().parse().unwrap(),
             MessageIdFormat::HexTxHashAndEventIndex,
             verifier_set.clone(),
         )
         .unwrap();
 
-        assert_eq!(event.tx_id, msg_id.tx_hash_as_hex());
-        assert_eq!(event.event_index, msg_id.event_index);
+        assert_eq!(event.message_id, msg_id.to_string().try_into().unwrap());
         assert_eq!(event.verifier_set, verifier_set);
     }
 
@@ -427,7 +450,7 @@ mod test {
     fn should_make_verifier_set_confirmation_with_base58_msg_id() {
         let msg_id = Base58TxDigestAndEventIndex {
             tx_digest: random_32_bytes(),
-            event_index: rand::random::<u32>(),
+            event_index: rand::random::<u32>() as u64,
         };
         let verifier_set = VerifierSet {
             signers: BTreeMap::new(),
@@ -435,14 +458,13 @@ mod test {
             created_at: 1,
         };
         let event = VerifierSetConfirmation::new(
-            &msg_id.to_string(),
+            msg_id.to_string().parse().unwrap(),
             MessageIdFormat::Base58TxDigestAndEventIndex,
             verifier_set.clone(),
         )
         .unwrap();
 
-        assert_eq!(event.tx_id, msg_id.tx_digest_as_base58());
-        assert_eq!(event.event_index, msg_id.event_index);
+        assert_eq!(event.message_id, msg_id.to_string().try_into().unwrap());
         assert_eq!(event.verifier_set, verifier_set);
     }
 
@@ -456,7 +478,7 @@ mod test {
         };
 
         let event = VerifierSetConfirmation::new(
-            msg_id,
+            msg_id.to_string().parse().unwrap(),
             MessageIdFormat::Base58TxDigestAndEventIndex,
             verifier_set,
         );
@@ -467,7 +489,7 @@ mod test {
     fn make_verifier_set_confirmation_should_fail_with_different_msg_id_format() {
         let msg_id = HexTxHashAndEventIndex {
             tx_hash: random_32_bytes(),
-            event_index: rand::random::<u32>(),
+            event_index: rand::random::<u64>(),
         };
         let verifier_set = VerifierSet {
             signers: BTreeMap::new(),
@@ -476,7 +498,7 @@ mod test {
         };
 
         let event = VerifierSetConfirmation::new(
-            &msg_id.to_string(),
+            msg_id.to_string().parse().unwrap(),
             MessageIdFormat::Base58TxDigestAndEventIndex,
             verifier_set,
         );

@@ -20,7 +20,7 @@ impl From<AxelarnetGatewayEvent> for Event {
         match other {
             AxelarnetGatewayEvent::ContractCalled { msg, payload } => {
                 make_message_event("contract_called", msg)
-                    .add_attributes(vec![("payload", payload.to_string())])
+                    .add_attribute("payload", payload.to_string())
             }
             AxelarnetGatewayEvent::Routing { msg } => make_message_event("routing", msg),
             AxelarnetGatewayEvent::MessageExecuted { msg } => {

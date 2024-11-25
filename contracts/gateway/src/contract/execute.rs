@@ -1,5 +1,5 @@
 use axelar_wasm_std::{FnExt, VerificationStatus};
-use cosmwasm_std::{Event, Response, Storage, WasmMsg};
+use cosmwasm_std::{CosmosMsg, Event, Response, Storage};
 use error_stack::{Result, ResultExt};
 use itertools::Itertools;
 use router_api::client::Router;
@@ -50,7 +50,7 @@ pub fn route_outgoing_messages(
 fn apply(
     verifier: &voting_verifier::Client,
     msgs: Vec<Message>,
-    action: impl Fn(Vec<(VerificationStatus, Vec<Message>)>) -> (Option<WasmMsg>, Vec<Event>),
+    action: impl Fn(Vec<(VerificationStatus, Vec<Message>)>) -> (Option<CosmosMsg>, Vec<Event>),
 ) -> Result<Response, Error> {
     check_for_duplicates(msgs)?
         .then(|msgs| verifier.messages_status(msgs))
@@ -92,7 +92,7 @@ fn group_by_status(
 fn verify(
     verifier: &voting_verifier::Client,
     msgs_by_status: Vec<(VerificationStatus, Vec<Message>)>,
-) -> (Option<WasmMsg>, Vec<Event>) {
+) -> (Option<CosmosMsg>, Vec<Event>) {
     msgs_by_status
         .into_iter()
         .map(|(status, msgs)| {
@@ -108,7 +108,7 @@ fn verify(
 fn route(
     router: &Router,
     msgs_by_status: Vec<(VerificationStatus, Vec<Message>)>,
-) -> (Option<WasmMsg>, Vec<Event>) {
+) -> (Option<CosmosMsg>, Vec<Event>) {
     msgs_by_status
         .into_iter()
         .map(|(status, msgs)| {

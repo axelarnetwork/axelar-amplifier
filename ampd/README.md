@@ -10,7 +10,7 @@ uses [tofnd](https://github.com/axelarnetwork/tofnd) for signing transactions an
 
 Below is the config file format, with explanations for each entry:
 
-```
+```yaml
 tm_jsonrpc=[JSON-RPC URL of Axelar node]
 tm_grpc=[gRPC URL of Axelar node]
 event_buffer_cap=[max blockchain events to queue. Will error if set too low]
@@ -57,7 +57,7 @@ type=[handler type. Could be EvmVerifierSetVerifier | SuiVerifierSetVerifier | S
 Below is an example config for connecting to a local axelard node and local tofnd process, and verifying transactions
 from Avalanche testnet and Sui testnet.
 
-```
+```yaml
 health_check_bind_addr="0.0.0.0:3000"
 tm_jsonrpc="http://localhost:26657"
 tm_grpc="tcp://localhost:9090"

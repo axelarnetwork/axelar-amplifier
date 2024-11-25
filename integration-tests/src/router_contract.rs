@@ -1,7 +1,9 @@
 use cosmwasm_std::Addr;
-use cw_multi_test::{App, ContractWrapper, Executor};
+use cw_multi_test::{ContractWrapper, Executor};
+use router::contract::{execute, instantiate, query};
 
 use crate::contract::Contract;
+use crate::protocol::AxelarApp;
 
 #[derive(Clone)]
 pub struct RouterContract {
@@ -9,12 +11,13 @@ pub struct RouterContract {
 }
 
 impl RouterContract {
-    pub fn instantiate_contract(app: &mut App, admin: Addr, governance: Addr, nexus: Addr) -> Self {
-        let code = ContractWrapper::new(
-            router::contract::execute,
-            router::contract::instantiate,
-            router::contract::query,
-        );
+    pub fn instantiate_contract(
+        app: &mut AxelarApp,
+        admin: Addr,
+        governance: Addr,
+        axelarnet: Addr,
+    ) -> Self {
+        let code = ContractWrapper::new_with_empty(execute, instantiate, query);
         let code_id = app.store_code(Box::new(code));
 
         let contract_addr = app
@@ -24,7 +27,7 @@ impl RouterContract {
                 &router::msg::InstantiateMsg {
                     admin_address: admin.to_string(),
                     governance_address: governance.to_string(),
-                    nexus_gateway: nexus.to_string(),
+                    axelarnet_gateway: axelarnet.to_string(),
                 },
                 &[],
                 "router",

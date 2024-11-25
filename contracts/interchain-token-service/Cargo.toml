@@ -1,6 +1,6 @@
 [package]
 name = "interchain-token-service"
-version = "0.1.0"
+version = "1.0.0"
 rust-version = { workspace = true }
 edition = { workspace = true }
 
@@ -33,6 +33,7 @@ optimize = """docker run --rm -v "$(pwd)":/code \
 [dependencies]
 alloy-primitives = { workspace = true }
 alloy-sol-types = { workspace = true }
+axelar-core-std = { workspace = true }
 axelar-wasm-std = { workspace = true, features = ["derive"] }
 axelarnet-gateway = { workspace = true, features = ["library"] }
 client = { workspace = true }
@@ -42,6 +43,7 @@ cw-storage-plus = { workspace = true }
 cw2 = { workspace = true }
 error-stack = { workspace = true }
 hex = { workspace = true }
+itertools = "0.11.0"
 msgs-derive = { workspace = true }
 report = { workspace = true }
 router-api = { workspace = true }

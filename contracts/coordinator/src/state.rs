@@ -2,13 +2,25 @@ use std::collections::HashSet;
 
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Order, Storage};
-use cw_storage_plus::{index_list, IndexedMap, MultiIndex, UniqueIndex};
+use cw_storage_plus::{index_list, IndexedMap, Item, MultiIndex, UniqueIndex};
 use router_api::ChainName;
 
 use crate::error::ContractError;
 
 type ProverAddress = Addr;
 type VerifierAddress = Addr;
+
+#[cw_serde]
+pub struct Config {
+    pub service_registry: Addr,
+}
+pub const CONFIG: Item<Config> = Item::new("config");
+
+pub fn load_config(storage: &dyn Storage) -> Config {
+    CONFIG
+        .load(storage)
+        .expect("coordinator config must be set during instantiation")
+}
 
 #[index_list(ProverAddress)]
 struct ChainProverIndexes<'a> {

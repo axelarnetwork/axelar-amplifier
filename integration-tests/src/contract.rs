@@ -1,15 +1,21 @@
 use cosmwasm_std::{Addr, Coin, StdError, StdResult};
-use cw_multi_test::{App, AppResponse, Executor};
+use cw_multi_test::{AppResponse, Executor};
 use error_stack::{report, Result};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
+
+use crate::protocol::AxelarApp;
 
 pub trait Contract {
     type QMsg;
     type ExMsg;
 
     fn contract_address(&self) -> Addr;
-    fn query<T: DeserializeOwned>(&self, app: &App, query_message: &Self::QMsg) -> StdResult<T>
+    fn query<T: DeserializeOwned>(
+        &self,
+        app: &AxelarApp,
+        query_message: &Self::QMsg,
+    ) -> StdResult<T>
     where
         Self::QMsg: Serialize,
     {
@@ -19,7 +25,7 @@ pub trait Contract {
 
     fn execute(
         &self,
-        app: &mut App,
+        app: &mut AxelarApp,
         caller: Addr,
         execute_message: &Self::ExMsg,
     ) -> Result<AppResponse, axelar_wasm_std::error::ContractError>
@@ -32,7 +38,7 @@ pub trait Contract {
 
     fn execute_with_funds(
         &self,
-        app: &mut App,
+        app: &mut AxelarApp,
         caller: Addr,
         execute_message: &Self::ExMsg,
         funds: &[Coin],

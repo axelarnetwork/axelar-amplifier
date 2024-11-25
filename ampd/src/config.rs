@@ -2,7 +2,7 @@ use std::net::{Ipv4Addr, SocketAddrV4};
 
 use serde::{Deserialize, Serialize};
 
-use crate::commands::ServiceRegistryConfig;
+use crate::commands::{RewardsConfig, ServiceRegistryConfig};
 use crate::handlers::config::deserialize_handler_configs;
 use crate::handlers::{self};
 use crate::tofnd::Config as TofndConfig;
@@ -21,6 +21,7 @@ pub struct Config {
     pub handlers: Vec<handlers::config::Config>,
     pub tofnd_config: TofndConfig,
     pub service_registry: ServiceRegistryConfig,
+    pub rewards: RewardsConfig,
 }
 
 impl Default for Config {
@@ -33,6 +34,7 @@ impl Default for Config {
             tofnd_config: TofndConfig::default(),
             event_processor: event_processor::Config::default(),
             service_registry: ServiceRegistryConfig::default(),
+            rewards: RewardsConfig::default(),
             health_check_bind_addr: SocketAddrV4::new(Ipv4Addr::UNSPECIFIED, 3000),
         }
     }
@@ -52,8 +54,8 @@ mod tests {
 
     use super::Config;
     use crate::evm::finalizer::Finalization;
-    use crate::handlers::config::{Chain, Config as HandlerConfig};
     use crate::handlers::config::GenericChain;
+    use crate::handlers::config::{Chain, Config as HandlerConfig};
     use crate::types::TMAddress;
     use crate::url::Url;
 
@@ -125,7 +127,7 @@ mod tests {
             [[handlers]]
             type = 'StellarMsgVerifier'
             cosmwasm_contract = '{}'
-            http_url = 'http://localhost:8000'
+            rpc_url = 'http://localhost:7545'
 
             [[handlers]]
             type = 'StellarVerifierSetVerifier'
@@ -148,6 +150,7 @@ mod tests {
             chain_rpc_url = 'http://127.0.0.1'
             cosmwasm_contract = '{}'
             type = 'SolanaVerifierSetVerifier'
+            rpc_url = 'http://localhost:7545'
             ",
             TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
@@ -356,18 +359,17 @@ mod tests {
                     ),
                     proxy_url: Url::from_str("http://127.0.0.1").unwrap(),
                 },
-                
                 HandlerConfig::StellarMsgVerifier {
                     cosmwasm_contract: TMAddress::from(
                         AccountId::new("axelar", &[0u8; 32]).unwrap(),
                     ),
-                    http_url: Url::from_str("http://127.0.0.1").unwrap(),
+                    rpc_url: Url::from_str("http://127.0.0.1").unwrap(),
                 },
                 HandlerConfig::StellarVerifierSetVerifier {
                     cosmwasm_contract: TMAddress::from(
                         AccountId::new("axelar", &[0u8; 32]).unwrap(),
                     ),
-                    http_url: Url::from_str("http://127.0.0.1").unwrap(),
+                    rpc_url: Url::from_str("http://127.0.0.1").unwrap(),
                 },
                 HandlerConfig::SolanaMsgVerifier {
                     cosmwasm_contract: TMAddress::from(

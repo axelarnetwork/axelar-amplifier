@@ -1,4 +1,4 @@
-use cosmwasm_std::{Deps, Order, Storage};
+use cosmwasm_std::{Order, Storage};
 use cw_storage_plus::Bound;
 use error_stack::{Result, ResultExt};
 use router_api::error::Error;
@@ -17,7 +17,7 @@ pub fn chain_info(storage: &dyn Storage, chain: ChainName) -> Result<ChainEndpoi
 }
 
 pub fn chains(
-    deps: Deps,
+    storage: &dyn Storage,
     start_after: Option<ChainName>,
     limit: Option<u32>,
 ) -> Result<Vec<ChainEndpoint>, Error> {
@@ -25,7 +25,7 @@ pub fn chains(
     let start = start_after.map(Bound::exclusive);
 
     chain_endpoints()
-        .range(deps.storage, start, None, Order::Ascending)
+        .range(storage, start, None, Order::Ascending)
         .take(limit)
         .map(|item| {
             item.map(|(_, endpoint)| endpoint)
@@ -105,29 +105,41 @@ mod test {
         }
 
         // no pagination
-        let result = super::chains(deps.as_ref(), None, None).unwrap();
+        let result = super::chains(deps.as_ref().storage, None, None).unwrap();
         assert_eq!(result.len(), 4);
         assert_eq!(result, endpoints);
 
         // with limit
-        let result = super::chains(deps.as_ref(), None, Some(2)).unwrap();
+        let result = super::chains(deps.as_ref().storage, None, Some(2)).unwrap();
         assert_eq!(result.len(), 2);
         assert_eq!(result, vec![endpoints[0].clone(), endpoints[1].clone()]);
 
         // with page
-        let result =
-            super::chains(deps.as_ref(), Some("c-chain".parse().unwrap()), Some(2)).unwrap();
+        let result = super::chains(
+            deps.as_ref().storage,
+            Some("c-chain".parse().unwrap()),
+            Some(2),
+        )
+        .unwrap();
         assert_eq!(result.len(), 1);
         assert_eq!(result, vec![endpoints[3].clone()]);
 
         // start after the last chain
-        let result =
-            super::chains(deps.as_ref(), Some("d-chain".parse().unwrap()), Some(2)).unwrap();
+        let result = super::chains(
+            deps.as_ref().storage,
+            Some("d-chain".parse().unwrap()),
+            Some(2),
+        )
+        .unwrap();
         assert_eq!(result.len(), 0);
 
         // with a key out of the scope
-        let result =
-            super::chains(deps.as_ref(), Some("e-chain".parse().unwrap()), Some(2)).unwrap();
+        let result = super::chains(
+            deps.as_ref().storage,
+            Some("e-chain".parse().unwrap()),
+            Some(2),
+        )
+        .unwrap();
         assert_eq!(result.len(), 0);
     }
 }

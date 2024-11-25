@@ -1,5 +1,5 @@
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, HexBinary, QuerierWrapper, WasmMsg};
+use cosmwasm_std::{Addr, CosmosMsg, Empty, HexBinary, QuerierWrapper};
 use router_api::{Address, CrossChainId};
 
 /// `AxelarExecutableMsg` is a struct containing the args used by the axelarnet gateway to execute a destination contract on Axelar.
@@ -19,18 +19,18 @@ enum ExecuteMsg {
     Execute(AxelarExecutableMsg),
 }
 
-pub struct Client<'a> {
-    client: client::Client<'a, ExecuteMsg, ()>,
+pub struct Client<'a, T = Empty> {
+    client: client::ContractClient<'a, ExecuteMsg, (), T>,
 }
 
-impl<'a> Client<'a> {
+impl<'a, T> Client<'a, T> {
     pub fn new(querier: QuerierWrapper<'a>, destination: &'a Addr) -> Self {
         Client {
-            client: client::Client::new(querier, destination),
+            client: client::ContractClient::new(querier, destination),
         }
     }
 
-    pub fn execute(&self, msg: AxelarExecutableMsg) -> WasmMsg {
+    pub fn execute(&self, msg: AxelarExecutableMsg) -> CosmosMsg<T> {
         self.client.execute(&ExecuteMsg::Execute(msg))
     }
 }
@@ -38,7 +38,7 @@ impl<'a> Client<'a> {
 #[cfg(test)]
 mod test {
     use cosmwasm_std::testing::mock_dependencies;
-    use cosmwasm_std::{to_json_binary, Addr, HexBinary, WasmMsg};
+    use cosmwasm_std::{to_json_binary, Addr, Empty, HexBinary, WasmMsg};
     use router_api::CrossChainId;
 
     use crate::clients::external;
@@ -55,7 +55,8 @@ mod test {
             cc_id: CrossChainId::new("source-chain", "message-id").unwrap(),
         };
 
-        let client = external::Client::new(deps.as_ref().querier, &destination_addr);
+        let client: external::Client<'_, Empty> =
+            external::Client::new(deps.as_ref().querier, &destination_addr);
 
         assert_eq!(
             client.execute(executable_msg.clone()),
@@ -64,6 +65,7 @@ mod test {
                 msg: to_json_binary(&external::ExecuteMsg::Execute(executable_msg)).unwrap(),
                 funds: vec![],
             }
+            .into()
         );
     }
 }

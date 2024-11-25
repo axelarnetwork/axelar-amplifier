@@ -7,7 +7,6 @@ use axelar_wasm_std::hash::Hash;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::HexBinary;
 use error_stack::Result;
-use multisig::key::Signature;
 use multisig::msg::SignerWithSig;
 use multisig::verifier_set::VerifierSet;
 
@@ -48,18 +47,8 @@ impl Encoder {
         payload: &Payload,
     ) -> Result<HexBinary, ContractError> {
         match self {
-            Encoder::Abi => abi::execute_data::encode(
-                verifier_set,
-                sigs,
-                &self.digest(domain_separator, verifier_set, payload)?,
-                payload,
-            ),
-            Encoder::Bcs => bcs::encode_execute_data(
-                verifier_set,
-                sigs,
-                &self.digest(domain_separator, verifier_set, payload)?,
-                payload,
-            ),
+            Encoder::Abi => abi::encode_execute_data(domain_separator, verifier_set, sigs, payload),
+            Encoder::Bcs => bcs::encode_execute_data(domain_separator, verifier_set, sigs, payload),
             Encoder::StellarXdr => stellar_xdr::encode_execute_data(verifier_set, sigs, payload),
             Encoder::Rkyv => rkyv::encode_execute_data(
                 sigs,

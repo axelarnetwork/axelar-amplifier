@@ -4,7 +4,7 @@ use cosmrs::tx::Msg;
 use error_stack::Result;
 use report::ResultCompatExt;
 use router_api::ChainName;
-use service_registry::msg::ExecuteMsg;
+use service_registry_api::msg::ExecuteMsg;
 use valuable::Valuable;
 
 use crate::commands::{broadcast_tx, verifier_pub_key};
@@ -14,7 +14,7 @@ use crate::{Error, PREFIX};
 #[derive(clap::Args, Debug, Valuable)]
 pub struct Args {
     pub service_name: nonempty::String,
-    pub chains: Vec<ChainName>,
+    pub chain: ChainName,
 }
 
 pub async fn run(config: Config, args: Args) -> Result<Option<String>, Error> {
@@ -22,7 +22,7 @@ pub async fn run(config: Config, args: Args) -> Result<Option<String>, Error> {
 
     let msg = serde_json::to_vec(&ExecuteMsg::RegisterChainSupport {
         service_name: args.service_name.into(),
-        chains: args.chains,
+        chains: vec![args.chain],
     })
     .expect("register chain support msg should serialize");
 

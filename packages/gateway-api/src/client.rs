@@ -1,5 +1,5 @@
 use axelar_wasm_std::vec::VecExt;
-use cosmwasm_std::WasmMsg;
+use cosmwasm_std::CosmosMsg;
 use error_stack::ResultExt;
 use router_api::{CrossChainId, Message};
 
@@ -21,14 +21,14 @@ impl From<QueryMsg> for Error {
     }
 }
 
-impl<'a> From<client::Client<'a, ExecuteMsg, QueryMsg>> for Client<'a> {
-    fn from(client: client::Client<'a, ExecuteMsg, QueryMsg>) -> Self {
+impl<'a> From<client::ContractClient<'a, ExecuteMsg, QueryMsg>> for Client<'a> {
+    fn from(client: client::ContractClient<'a, ExecuteMsg, QueryMsg>) -> Self {
         Client { client }
     }
 }
 
 pub struct Client<'a> {
-    client: client::Client<'a, ExecuteMsg, QueryMsg>,
+    client: client::ContractClient<'a, ExecuteMsg, QueryMsg>,
 }
 
 impl<'a> Client<'a> {
@@ -37,13 +37,13 @@ impl<'a> Client<'a> {
         self.client.query(&msg).change_context_lazy(|| msg.into())
     }
 
-    pub fn verify_messages(&self, messages: Vec<Message>) -> Option<WasmMsg> {
+    pub fn verify_messages(&self, messages: Vec<Message>) -> Option<CosmosMsg> {
         messages
             .to_none_if_empty()
             .map(|messages| self.client.execute(&ExecuteMsg::VerifyMessages(messages)))
     }
 
-    pub fn route_messages(&self, messages: Vec<Message>) -> Option<WasmMsg> {
+    pub fn route_messages(&self, messages: Vec<Message>) -> Option<CosmosMsg> {
         messages
             .to_none_if_empty()
             .map(|messages| self.client.execute(&ExecuteMsg::RouteMessages(messages)))
@@ -63,7 +63,8 @@ mod tests {
     fn query_outgoing_messages_should_return_error_when_query_errors() {
         let (querier, addr) = setup_queries_to_fail();
 
-        let client: Client = client::Client::new(QuerierWrapper::new(&querier), &addr).into();
+        let client: Client =
+            client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
         let cc_id = CrossChainId {
             source_chain: "ethereum".parse().unwrap(),
             message_id: "0x13548ac28fe95805ad2b8b824472d08e3b45cbc023a5a45a912f11ea98f81e97-0"
@@ -79,7 +80,8 @@ mod tests {
     fn query_outgoing_messages_should_return_outgoing_messages() {
         let (querier, addr) = setup_queries_to_succeed();
 
-        let client: Client = client::Client::new(QuerierWrapper::new(&querier), &addr).into();
+        let client: Client =
+            client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
         let cc_id = CrossChainId {
             source_chain: "ethereum".parse().unwrap(),
             message_id: "0x13548ac28fe95805ad2b8b824472d08e3b45cbc023a5a45a912f11ea98f81e97-0"

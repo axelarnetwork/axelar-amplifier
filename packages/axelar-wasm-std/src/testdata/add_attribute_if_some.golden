@@ -1,0 +1,13 @@
+{
+  "type": "test",
+  "attributes": [
+    {
+      "key": "foo",
+      "value": "bar"
+    },
+    {
+      "key": "int",
+      "value": "3213"
+    }
+  ]
+}

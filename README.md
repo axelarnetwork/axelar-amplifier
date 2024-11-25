@@ -49,7 +49,6 @@ contracts and `ampd` that work well together.
 | gateway                                                                        | 0.2.3   |
 | multisig-prover                                                                | 0.6.0   |
 | multisig                                                                       | 0.4.1   |
-| nexus-gateway                                                                  | 0.3.0   |
 | rewards                                                                        | 0.4.0   |
 | router                                                                         | 0.4.0   |
 | service-registry                                                               | 0.4.1   |

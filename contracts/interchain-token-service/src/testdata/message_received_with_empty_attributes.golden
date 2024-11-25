@@ -1,0 +1,134 @@
+[
+  {
+    "type": "message_received",
+    "attributes": [
+      {
+        "key": "cc_id",
+        "value": "source_hash"
+      },
+      {
+        "key": "destination_chain",
+        "value": "destination"
+      },
+      {
+        "key": "message_type",
+        "value": "InterchainTransfer"
+      },
+      {
+        "key": "token_id",
+        "value": "0101010101010101010101010101010101010101010101010101010101010101"
+      },
+      {
+        "key": "source_address",
+        "value": "0101010101010101010101010101010101010101010101010101010101010101"
+      },
+      {
+        "key": "destination_address",
+        "value": "01020304"
+      },
+      {
+        "key": "amount",
+        "value": "1"
+      }
+    ]
+  },
+  {
+    "type": "message_received",
+    "attributes": [
+      {
+        "key": "cc_id",
+        "value": "source_hash"
+      },
+      {
+        "key": "destination_chain",
+        "value": "destination"
+      },
+      {
+        "key": "message_type",
+        "value": "InterchainTransfer"
+      },
+      {
+        "key": "token_id",
+        "value": "0101010101010101010101010101010101010101010101010101010101010101"
+      },
+      {
+        "key": "source_address",
+        "value": "00"
+      },
+      {
+        "key": "destination_address",
+        "value": "00"
+      },
+      {
+        "key": "amount",
+        "value": "1"
+      }
+    ]
+  },
+  {
+    "type": "message_received",
+    "attributes": [
+      {
+        "key": "cc_id",
+        "value": "source_hash"
+      },
+      {
+        "key": "destination_chain",
+        "value": "destination"
+      },
+      {
+        "key": "message_type",
+        "value": "DeployInterchainToken"
+      },
+      {
+        "key": "token_id",
+        "value": "0101010101010101010101010101010101010101010101010101010101010101"
+      },
+      {
+        "key": "name",
+        "value": "Test"
+      },
+      {
+        "key": "symbol",
+        "value": "TST"
+      },
+      {
+        "key": "decimals",
+        "value": "18"
+      }
+    ]
+  },
+  {
+    "type": "message_received",
+    "attributes": [
+      {
+        "key": "cc_id",
+        "value": "source_hash"
+      },
+      {
+        "key": "destination_chain",
+        "value": "destination"
+      },
+      {
+        "key": "message_type",
+        "value": "DeployInterchainToken"
+      },
+      {
+        "key": "token_id",
+        "value": "0101010101010101010101010101010101010101010101010101010101010101"
+      },
+      {
+        "key": "name",
+        "value": "t"
+      },
+      {
+        "key": "symbol",
+        "value": "T"
+      },
+      {
+        "key": "decimals",
+        "value": "0"
+      }
+    ]
+  }
+]

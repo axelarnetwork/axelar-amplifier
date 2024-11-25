@@ -2,6 +2,7 @@ use std::collections::HashSet;
 use std::convert::TryInto;
 
 use async_trait::async_trait;
+use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
 use axelar_wasm_std::voting::{PollId, Vote};
 use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmrs::tx::Msg;
@@ -22,15 +23,14 @@ use voting_verifier::msg::ExecuteMsg;
 use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error;
 use crate::handlers::errors::Error::DeserializeEvent;
-use crate::stellar::http_client::Client;
+use crate::stellar::rpc_client::Client;
 use crate::stellar::verifier::verify_message;
 use crate::types::TMAddress;
 
 #[serde_as]
 #[derive(Deserialize, Debug, Clone)]
 pub struct Message {
-    pub tx_id: String,
-    pub event_index: u32,
+    pub message_id: HexTxHashAndEventIndex,
     pub destination_address: ScString,
     pub destination_chain: ScString,
     #[serde_as(as = "DisplayFromStr")]
@@ -118,7 +118,7 @@ impl EventHandler for Handler {
 
         let tx_hashes: HashSet<_> = messages
             .iter()
-            .map(|message| message.tx_id.clone())
+            .map(|message| message.message_id.tx_hash_as_hex_no_prefix().to_string())
             .collect();
 
         let transaction_responses = self
@@ -129,7 +129,7 @@ impl EventHandler for Handler {
 
         let message_ids = messages
             .iter()
-            .map(|message| format!("{}-{}", message.tx_id, message.event_index))
+            .map(|message| message.message_id.to_string())
             .collect::<Vec<_>>();
 
         let votes = info_span!(
@@ -145,7 +145,7 @@ impl EventHandler for Handler {
                 .iter()
                 .map(|msg| {
                     transaction_responses
-                        .get(&msg.tx_id)
+                        .get(&msg.message_id.tx_hash_as_hex_no_prefix().to_string())
                         .map_or(Vote::NotFound, |tx_response| {
                             verify_message(&source_gateway_address, tx_response, msg)
                         })
@@ -171,6 +171,7 @@ mod tests {
     use std::collections::HashMap;
     use std::convert::TryInto;
 
+    use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
     use cosmrs::cosmwasm::MsgExecuteContract;
     use cosmrs::tx::Msg;
     use error_stack::Result;
@@ -184,7 +185,7 @@ mod tests {
     use super::PollStartedEvent;
     use crate::event_processor::EventHandler;
     use crate::handlers::tests::{into_structured_event, participants};
-    use crate::stellar::http_client::Client;
+    use crate::stellar::rpc_client::Client;
     use crate::types::{EVMAddress, Hash, TMAddress};
     use crate::PREFIX;
 
@@ -315,18 +316,26 @@ mod tests {
                     .collect(),
             },
             messages: (0..2)
-                .map(|i| TxEventConfirmation {
-                    tx_id: format!("{:x}", Hash::random()).parse().unwrap(),
-                    event_index: i,
-                    source_address: ScAddress::Contract(stellar_xdr::curr::Hash::from(
-                        Hash::random().0,
-                    ))
-                    .to_string()
-                    .try_into()
-                    .unwrap(),
-                    destination_chain: "ethereum".parse().unwrap(),
-                    destination_address: format!("0x{:x}", EVMAddress::random()).parse().unwrap(),
-                    payload_hash: Hash::random().to_fixed_bytes(),
+                .map(|i| {
+                    let msg_id = HexTxHashAndEventIndex::new(Hash::random(), i as u64);
+                    #[allow(deprecated)]
+                    // TODO: The below event uses the deprecated tx_id and event_index fields. Remove this attribute when those fields are removed
+                    TxEventConfirmation {
+                        tx_id: msg_id.tx_hash_as_hex(),
+                        event_index: u32::try_from(msg_id.event_index).unwrap(),
+                        message_id: msg_id.to_string().parse().unwrap(),
+                        source_address: ScAddress::Contract(stellar_xdr::curr::Hash::from(
+                            Hash::random().0,
+                        ))
+                        .to_string()
+                        .try_into()
+                        .unwrap(),
+                        destination_chain: "ethereum".parse().unwrap(),
+                        destination_address: format!("0x{:x}", EVMAddress::random())
+                            .parse()
+                            .unwrap(),
+                        payload_hash: Hash::random().to_fixed_bytes(),
+                    }
                 })
                 .collect::<Vec<_>>(),
         }

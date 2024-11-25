@@ -4,7 +4,7 @@
     "attributes": [
       {
         "key": "message_id",
-        "value": "0x0000000000000000000000000000000000000000000000000000000000003039-1"
+        "value": "0xb695e27bcb71c3dfd108c18e031ec966e37c7c95927c2a9fd88ec573ee690c2c-160"
       },
       {
         "key": "source_chain",
@@ -33,7 +33,7 @@
     "attributes": [
       {
         "key": "message_id",
-        "value": "0x0000000000000000000000000000000000000000000000000000000000003039-1"
+        "value": "0xb695e27bcb71c3dfd108c18e031ec966e37c7c95927c2a9fd88ec573ee690c2c-160"
       },
       {
         "key": "source_chain",

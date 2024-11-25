@@ -1,6 +1,6 @@
 [package]
 name = "router"
-version = "1.0.0"
+version = "1.1.0"
 rust-version = { workspace = true }
 edition = { workspace = true }
 description = "Router contract"
@@ -32,7 +32,9 @@ optimize = """docker run --rm -v "$(pwd)":/code \
 """
 
 [dependencies]
+axelar-core-std = { workspace = true }
 axelar-wasm-std = { workspace = true, features = ["derive"] }
+client = { workspace = true }
 cosmwasm-schema = { workspace = true }
 cosmwasm-std = { workspace = true }
 cw-storage-plus = { workspace = true }
@@ -49,10 +51,12 @@ serde_json = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]
+assert_ok = { workspace = true }
+axelar-core-std = { workspace = true, features = ["test"] }
 cw-multi-test = "0.15.1"
 hex = { version = "0.4.3", default-features = false }
 integration-tests = { workspace = true }
-rand = "0.8.5"
+rand = { workspace = true }
 
 [lints]
 workspace = true

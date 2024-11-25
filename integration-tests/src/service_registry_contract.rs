@@ -1,8 +1,9 @@
 use cosmwasm_std::Addr;
-use cw_multi_test::{App, ContractWrapper, Executor};
+use cw_multi_test::{ContractWrapper, Executor};
 use service_registry::contract::{execute, instantiate, query};
 
 use crate::contract::Contract;
+use crate::protocol::AxelarApp;
 
 #[derive(Clone)]
 pub struct ServiceRegistryContract {
@@ -10,8 +11,8 @@ pub struct ServiceRegistryContract {
 }
 
 impl ServiceRegistryContract {
-    pub fn instantiate_contract(app: &mut App, governance: Addr) -> Self {
-        let code = ContractWrapper::new(execute, instantiate, query);
+    pub fn instantiate_contract(app: &mut AxelarApp, governance: Addr) -> Self {
+        let code = ContractWrapper::new_with_empty(execute, instantiate, query);
         let code_id = app.store_code(Box::new(code));
 
         let contract_addr = app
@@ -32,8 +33,8 @@ impl ServiceRegistryContract {
 }
 
 impl Contract for ServiceRegistryContract {
-    type QMsg = service_registry::msg::QueryMsg;
-    type ExMsg = service_registry::msg::ExecuteMsg;
+    type QMsg = service_registry_api::msg::QueryMsg;
+    type ExMsg = service_registry_api::msg::ExecuteMsg;
 
     fn contract_address(&self) -> Addr {
         self.contract_addr.clone()

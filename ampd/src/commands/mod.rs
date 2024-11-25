@@ -26,6 +26,7 @@ pub mod deregister_chain_support;
 pub mod register_chain_support;
 pub mod register_public_key;
 pub mod send_tokens;
+pub mod set_rewards_proxy;
 pub mod unbond_verifier;
 pub mod verifier_address;
 
@@ -49,6 +50,8 @@ pub enum SubCommand {
     VerifierAddress,
     /// Send tokens from the verifier account to a specified address
     SendTokens(send_tokens::Args),
+    /// Set a proxy address to receive rewards, instead of receiving rewards at the verifier address
+    SetRewardsProxy(set_rewards_proxy::Args),
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
@@ -57,6 +60,19 @@ pub struct ServiceRegistryConfig {
 }
 
 impl Default for ServiceRegistryConfig {
+    fn default() -> Self {
+        Self {
+            cosmwasm_contract: AccountId::new(PREFIX, &[0; 32]).unwrap().into(),
+        }
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize, PartialEq)]
+pub struct RewardsConfig {
+    pub cosmwasm_contract: TMAddress,
+}
+
+impl Default for RewardsConfig {
     fn default() -> Self {
         Self {
             cosmwasm_contract: AccountId::new(PREFIX, &[0; 32]).unwrap().into(),

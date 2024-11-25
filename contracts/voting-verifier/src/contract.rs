@@ -7,7 +7,6 @@ use cosmwasm_std::{
 };
 use error_stack::ResultExt;
 
-use crate::contract::migrations::v0_5_0;
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{Config, CONFIG};
@@ -18,6 +17,7 @@ mod query;
 
 const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
+const BASE_VERSION: &str = "1.0.0";
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -72,7 +72,7 @@ pub fn execute(
         } => Ok(execute::verify_verifier_set(
             deps,
             env,
-            &message_id,
+            message_id,
             new_verifier_set,
         )?),
         ExecuteMsg::UpdateVotingThreshold {
@@ -111,7 +111,9 @@ pub fn migrate(
     _env: Env,
     _msg: Empty,
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
-    v0_5_0::migrate(deps.storage)?;
+    cw2::assert_contract_version(deps.storage, CONTRACT_NAME, BASE_VERSION)?;
+
+    cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     Ok(Response::default())
 }
@@ -232,7 +234,7 @@ mod test {
         deps
     }
 
-    fn message_id(id: &str, index: u32, msg_id_format: &MessageIdFormat) -> nonempty::String {
+    fn message_id(id: &str, index: u64, msg_id_format: &MessageIdFormat) -> nonempty::String {
         match msg_id_format {
             MessageIdFormat::HexTxHashAndEventIndex => HexTxHashAndEventIndex {
                 tx_hash: Keccak256::digest(id.as_bytes()).into(),
@@ -266,7 +268,7 @@ mod test {
         }
     }
 
-    fn messages(len: u32, msg_id_format: &MessageIdFormat) -> Vec<Message> {
+    fn messages(len: u64, msg_id_format: &MessageIdFormat) -> Vec<Message> {
         (0..len)
             .map(|i| Message {
                 cc_id: CrossChainId::new(source_chain(), message_id("id", i, msg_id_format))
@@ -477,7 +479,7 @@ mod test {
         let mut deps = setup(verifiers.clone(), &msg_id_format);
         let messages_count = 5;
         let messages_in_progress = 3;
-        let messages = messages(messages_count as u32, &msg_id_format);
+        let messages = messages(messages_count as u64, &msg_id_format);
 
         execute(
             deps.as_mut(),

@@ -1,9 +1,10 @@
+use axelar_core_std::nexus;
 use axelar_wasm_std::error::ContractError;
 use axelarnet_gateway::msg::ExecuteMsg as GatewayExecuteMsg;
 use axelarnet_gateway::{contract, AxelarExecutableMsg};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::testing::{mock_env, mock_info};
-use cosmwasm_std::{DepsMut, HexBinary, Response};
+use cosmwasm_std::{DepsMut, HexBinary, MessageInfo, Response};
 use router_api::{Address, ChainName, CrossChainId, Message};
 
 use crate::utils::params;
@@ -16,14 +17,15 @@ pub enum ExecuteMsg {
 
 pub fn call_contract(
     deps: DepsMut,
+    info: MessageInfo,
     destination_chain: ChainName,
     destination_address: Address,
     payload: HexBinary,
-) -> Result<Response, ContractError> {
+) -> Result<Response<nexus::execute::Message>, ContractError> {
     contract::execute(
         deps,
         mock_env(),
-        mock_info("sender", &[]),
+        info,
         GatewayExecuteMsg::CallContract {
             destination_chain,
             destination_address,
@@ -32,7 +34,10 @@ pub fn call_contract(
     )
 }
 
-pub fn route_from_router(deps: DepsMut, msgs: Vec<Message>) -> Result<Response, ContractError> {
+pub fn route_from_router(
+    deps: DepsMut,
+    msgs: Vec<Message>,
+) -> Result<Response<nexus::execute::Message>, ContractError> {
     contract::execute(
         deps,
         mock_env(),
@@ -45,11 +50,35 @@ pub fn execute_payload(
     deps: DepsMut,
     cc_id: CrossChainId,
     payload: HexBinary,
-) -> Result<Response, ContractError> {
+) -> Result<Response<nexus::execute::Message>, ContractError> {
     contract::execute(
         deps,
         mock_env(),
         mock_info("sender", &[]),
         GatewayExecuteMsg::Execute { cc_id, payload }.clone(),
+    )
+}
+
+pub fn route_to_router(
+    deps: DepsMut,
+    msgs: Vec<Message>,
+) -> Result<Response<nexus::execute::Message>, ContractError> {
+    contract::execute(
+        deps,
+        mock_env(),
+        mock_info("sender", &[]),
+        GatewayExecuteMsg::RouteMessages(msgs),
+    )
+}
+
+pub fn route_from_nexus(
+    deps: DepsMut,
+    msgs: Vec<nexus::execute::Message>,
+) -> Result<Response<nexus::execute::Message>, ContractError> {
+    contract::execute(
+        deps,
+        mock_env(),
+        mock_info("nexus", &[]),
+        GatewayExecuteMsg::RouteMessagesFromNexus(msgs),
     )
 }

@@ -1,6 +1,6 @@
 [package]
 name = "gateway"
-version = "1.0.0"
+version = "1.1.1"
 rust-version = { workspace = true }
 edition = { workspace = true }
 description = "Gateway contract"
@@ -52,7 +52,7 @@ voting-verifier = { workspace = true, features = ["library"] }
 
 [dev-dependencies]
 cw-multi-test = "0.15.1"
-rand = "0.8.5"
+rand = { workspace = true }
 
 [lints]
 workspace = true

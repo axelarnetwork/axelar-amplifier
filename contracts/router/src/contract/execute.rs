@@ -1,11 +1,14 @@
 use std::collections::HashMap;
 use std::vec;
 
+use axelar_core_std::nexus;
 use axelar_wasm_std::flagset::FlagSet;
 use axelar_wasm_std::killswitch;
 use axelar_wasm_std::msg_id::{self, MessageIdFormat};
-use cosmwasm_std::{to_json_binary, Addr, Event, Response, StdResult, Storage, WasmMsg};
-use error_stack::{ensure, report, ResultExt};
+use cosmwasm_std::{
+    to_json_binary, Addr, Event, QuerierWrapper, Response, StdResult, Storage, WasmMsg,
+};
+use error_stack::{bail, ensure, report, Report, ResultExt};
 use itertools::Itertools;
 use router_api::error::Error;
 use router_api::{ChainEndpoint, ChainName, Gateway, GatewayDirection, Message};
@@ -18,13 +21,27 @@ use crate::{events, state};
 
 pub fn register_chain(
     storage: &mut dyn Storage,
+    querier: QuerierWrapper,
     name: ChainName,
     gateway: Addr,
     msg_id_format: MessageIdFormat,
-) -> Result<Response, Error> {
-    if find_chain_for_gateway(storage, &gateway)?.is_some() {
-        return Err(Error::GatewayAlreadyRegistered);
+) -> Result<Response, Report<Error>> {
+    if find_chain_for_gateway(storage, &gateway)
+        .change_context(Error::StoreFailure)?
+        .is_some()
+    {
+        bail!(Error::GatewayAlreadyRegistered)
     }
+
+    let client: nexus::Client = client::CosmosClient::new(querier).into();
+    if client
+        .is_chain_registered(&name)
+        .change_context(Error::Nexus)?
+    {
+        Err(Report::new(Error::ChainAlreadyExists))
+            .attach_printable(format!("chain {} already exists in core", name))?
+    }
+
     chain_endpoints().update(storage, name.clone(), |chain| match chain {
         Some(_) => Err(Error::ChainAlreadyExists),
         None => Ok(ChainEndpoint {
@@ -167,7 +184,7 @@ fn validate_msgs(
     // because the source chain is registered in the core nexus module.
     // All messages received from the nexus gateway must adhere to the
     // HexTxHashAndEventIndex message ID format.
-    if sender == config.nexus_gateway {
+    if sender == config.axelarnet_gateway {
         verify_msg_ids(&msgs, &MessageIdFormat::HexTxHashAndEventIndex)?;
         return Ok(msgs);
     }
@@ -218,9 +235,9 @@ pub fn route_messages(
                 }
                 Some(destination_chain) => destination_chain.gateway.address,
                 // messages with unknown destination chains are routed to
-                // the nexus gateway if the sender is not the nexus gateway
+                // the axelarnet gateway if the sender is not the nexus gateway
                 // itself
-                None if sender != config.nexus_gateway => config.nexus_gateway.clone(),
+                None if sender != config.axelarnet_gateway => config.axelarnet_gateway.clone(),
                 _ => return Err(report!(Error::ChainNotFound)),
             };
 
@@ -244,20 +261,24 @@ pub fn route_messages(
 mod test {
     use std::collections::HashMap;
 
+    use axelar_core_std::nexus::test_utils::reply_with_is_chain_registered;
+    use axelar_wasm_std::assert_err_contains;
     use axelar_wasm_std::flagset::FlagSet;
-    use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
+    use axelar_wasm_std::msg_id::{HexTxHashAndEventIndex, MessageIdFormat};
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-    use cosmwasm_std::{Addr, Storage};
+    use cosmwasm_std::{Addr, QuerierWrapper, Storage};
     use rand::{random, RngCore};
     use router_api::error::Error;
     use router_api::{ChainEndpoint, ChainName, CrossChainId, Gateway, GatewayDirection, Message};
 
-    use super::{freeze_chains, unfreeze_chains};
+    use super::{freeze_chains, register_chain, unfreeze_chains};
     use crate::contract::execute::route_messages;
     use crate::contract::instantiate;
     use crate::events::{ChainFrozen, ChainUnfrozen};
     use crate::msg::InstantiateMsg;
     use crate::state::chain_endpoints;
+
+    const AXELARNET_GATEWAY: &str = "axelarnet_gateway";
 
     fn rand_message(source_chain: ChainName, destination_chain: ChainName) -> Message {
         let mut bytes = [0; 32];
@@ -265,7 +286,7 @@ mod test {
 
         let id = HexTxHashAndEventIndex {
             tx_hash: bytes,
-            event_index: random::<u32>(),
+            event_index: random::<u64>(),
         }
         .to_string();
 
@@ -303,7 +324,7 @@ mod test {
             InstantiateMsg {
                 admin_address: "admin".to_string(),
                 governance_address: "governance".to_string(),
-                nexus_gateway: "nexus_gateway".to_string(),
+                axelarnet_gateway: AXELARNET_GATEWAY.to_string(),
             },
         )
         .unwrap();
@@ -330,7 +351,7 @@ mod test {
             InstantiateMsg {
                 admin_address: "admin".to_string(),
                 governance_address: "governance".to_string(),
-                nexus_gateway: "nexus_gateway".to_string(),
+                axelarnet_gateway: AXELARNET_GATEWAY.to_string(),
             },
         )
         .unwrap();
@@ -371,7 +392,7 @@ mod test {
             InstantiateMsg {
                 admin_address: "admin".to_string(),
                 governance_address: "governance".to_string(),
-                nexus_gateway: "nexus_gateway".to_string(),
+                axelarnet_gateway: AXELARNET_GATEWAY.to_string(),
             },
         )
         .unwrap();
@@ -410,7 +431,7 @@ mod test {
             InstantiateMsg {
                 admin_address: "admin".to_string(),
                 governance_address: "governance".to_string(),
-                nexus_gateway: "nexus_gateway".to_string(),
+                axelarnet_gateway: AXELARNET_GATEWAY.to_string(),
             },
         )
         .unwrap();
@@ -465,7 +486,7 @@ mod test {
             InstantiateMsg {
                 admin_address: "admin".to_string(),
                 governance_address: "governance".to_string(),
-                nexus_gateway: "nexus_gateway".to_string(),
+                axelarnet_gateway: AXELARNET_GATEWAY.to_string(),
             },
         )
         .unwrap();
@@ -494,7 +515,7 @@ mod test {
 
     #[test]
     fn route_messages_from_nexus_with_invalid_message_id() {
-        let sender = Addr::unchecked("nexus_gateway");
+        let sender = Addr::unchecked(AXELARNET_GATEWAY);
         let source_chain: ChainName = "ethereum".parse().unwrap();
         let destination_chain: ChainName = "bitcoin".parse().unwrap();
 
@@ -506,7 +527,7 @@ mod test {
             InstantiateMsg {
                 admin_address: "admin".to_string(),
                 governance_address: "governance".to_string(),
-                nexus_gateway: "nexus_gateway".to_string(),
+                axelarnet_gateway: AXELARNET_GATEWAY.to_string(),
             },
         )
         .unwrap();
@@ -531,7 +552,7 @@ mod test {
             InstantiateMsg {
                 admin_address: "admin".to_string(),
                 governance_address: "governance".to_string(),
-                nexus_gateway: "nexus_gateway".to_string(),
+                axelarnet_gateway: AXELARNET_GATEWAY.to_string(),
             },
         )
         .unwrap();
@@ -583,7 +604,7 @@ mod test {
             InstantiateMsg {
                 admin_address: "admin".to_string(),
                 governance_address: "governance".to_string(),
-                nexus_gateway: "nexus_gateway".to_string(),
+                axelarnet_gateway: AXELARNET_GATEWAY.to_string(),
             },
         )
         .unwrap();
@@ -649,7 +670,7 @@ mod test {
 
     #[test]
     fn route_messages_from_nexus_to_registered_chains() {
-        let sender = Addr::unchecked("nexus_gateway");
+        let sender = Addr::unchecked(AXELARNET_GATEWAY);
         let source_chain: ChainName = "ethereum".parse().unwrap();
         let destination_chain_1: ChainName = "bitcoin".parse().unwrap();
         let destination_chain_2: ChainName = "polygon".parse().unwrap();
@@ -662,7 +683,7 @@ mod test {
             InstantiateMsg {
                 admin_address: "admin".to_string(),
                 governance_address: "governance".to_string(),
-                nexus_gateway: "nexus_gateway".to_string(),
+                axelarnet_gateway: AXELARNET_GATEWAY.to_string(),
             },
         )
         .unwrap();
@@ -713,7 +734,7 @@ mod test {
 
     #[test]
     fn route_messages_from_nexus_to_non_registered_chains() {
-        let sender = Addr::unchecked("nexus_gateway");
+        let sender = Addr::unchecked(AXELARNET_GATEWAY);
         let source_chain: ChainName = "ethereum".parse().unwrap();
         let destination_chain: ChainName = "bitcoin".parse().unwrap();
 
@@ -725,7 +746,7 @@ mod test {
             InstantiateMsg {
                 admin_address: "admin".to_string(),
                 governance_address: "governance".to_string(),
-                nexus_gateway: "nexus_gateway".to_string(),
+                axelarnet_gateway: AXELARNET_GATEWAY.to_string(),
             },
         )
         .unwrap();
@@ -755,7 +776,7 @@ mod test {
             InstantiateMsg {
                 admin_address: "admin".to_string(),
                 governance_address: "governance".to_string(),
-                nexus_gateway: "nexus_gateway".to_string(),
+                axelarnet_gateway: AXELARNET_GATEWAY.to_string(),
             },
         )
         .unwrap();
@@ -927,6 +948,26 @@ mod test {
             }
             .into()
         ));
+    }
+
+    #[test]
+    fn register_chain_with_duplicate_chain_name_in_core() {
+        let mut deps = mock_dependencies();
+        deps.querier = deps
+            .querier
+            .with_custom_handler(reply_with_is_chain_registered(true));
+
+        assert_err_contains!(
+            register_chain(
+                &mut deps.storage,
+                QuerierWrapper::new(&deps.querier),
+                "ethereum".parse().unwrap(),
+                Addr::unchecked("gateway"),
+                MessageIdFormat::HexTxHashAndEventIndex
+            ),
+            Error,
+            Error::ChainAlreadyExists
+        );
     }
 
     fn assert_chain_endpoint_frozen_status(

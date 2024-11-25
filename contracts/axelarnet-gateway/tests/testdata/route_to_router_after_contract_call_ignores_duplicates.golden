@@ -3,7 +3,7 @@
     {
       "cc_id": {
         "source_chain": "axelarnet",
-        "message_id": "0x0000000000000000000000000000000000000000000000000000000000003039-1"
+        "message_id": "0x7629eaf655df7c97a92ab9bf92089b2db9c7c131495fcb70fdab67bfe2877b13-200"
       },
       "source_address": "sender",
       "destination_chain": "destination-chain",

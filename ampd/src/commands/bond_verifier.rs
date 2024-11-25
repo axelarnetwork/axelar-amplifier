@@ -4,7 +4,7 @@ use cosmrs::tx::Msg;
 use cosmrs::Coin;
 use error_stack::Result;
 use report::ResultCompatExt;
-use service_registry::msg::ExecuteMsg;
+use service_registry_api::msg::ExecuteMsg;
 use valuable::Valuable;
 
 use crate::commands::{broadcast_tx, verifier_pub_key};

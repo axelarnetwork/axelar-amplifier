@@ -1,3 +1,4 @@
+use axelar_core_std::nexus;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::HexBinary;
 use msgs_derive::EnsurePermissions;
@@ -11,6 +12,8 @@ pub struct InstantiateMsg {
     pub chain_name: ChainName,
     /// Address of the router contract on axelar.
     pub router_address: String,
+    /// Address of the nexus module account on axelar.
+    pub nexus: String,
 }
 
 #[cw_serde]
@@ -31,13 +34,18 @@ pub enum ExecuteMsg {
     },
 
     /// Initiate a cross-chain contract call from Axelarnet to another chain.
-    /// The message will be routed to the destination chain's gateway via the router.
+    /// If the destination chain is registered with core, the message will be routed to core with an optional token.
+    /// Otherwise, the message will be routed to the destination chain's gateway via the router.
     #[permission(Any)]
     CallContract {
         destination_chain: ChainName,
         destination_address: Address,
         payload: HexBinary,
     },
+
+    /// Forward the given nexus messages to the next step of the routing layer.
+    #[permission(Specific(nexus))]
+    RouteMessagesFromNexus(Vec<nexus::execute::Message>),
 }
 
 #[cw_serde]

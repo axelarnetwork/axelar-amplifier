@@ -87,7 +87,7 @@ impl Default for Config {
             chain_id: "axelar-dojo-1".parse().unwrap(),
             tx_fetch_interval: Duration::from_millis(500),
             tx_fetch_max_retries: 10,
-            gas_adjustment: 1.0,
+            gas_adjustment: 1.2,
             gas_price: DecCoin::new(0.00005, "uaxl").unwrap(),
             batch_gas_limit: 1000000,
             queue_cap: 1000,

@@ -12,7 +12,7 @@ use event_processor::EventHandler;
 use event_sub::EventSub;
 use evm::finalizer::{pick, Finalization};
 use evm::json_rpc::EthereumClient;
-use multiversx_sdk::blockchain::CommunicationProxy;
+use multiversx_sdk::gateway::GatewayProxy;
 use queue::queued_broadcaster::QueuedBroadcaster;
 use router_api::ChainName;
 use solana::rpc::RpcCacheWrapper;
@@ -73,6 +73,7 @@ async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
         tofnd_config,
         event_processor,
         service_registry: _service_registry,
+        rewards: _rewards,
         health_check_bind_addr,
     } = cfg;
 
@@ -342,7 +343,7 @@ where
                     handlers::mvx_verify_msg::Handler::new(
                         verifier.clone(),
                         cosmwasm_contract,
-                        CommunicationProxy::new(proxy_url.to_string().trim_end_matches('/').into()),
+                        GatewayProxy::new(proxy_url.to_string().trim_end_matches('/').into()),
                         self.block_height_monitor.latest_block_height(),
                     ),
                     event_processor_config.clone(),
@@ -355,21 +356,21 @@ where
                     handlers::mvx_verify_verifier_set::Handler::new(
                         verifier.clone(),
                         cosmwasm_contract,
-                        CommunicationProxy::new(proxy_url.to_string().trim_end_matches('/').into()),
+                        GatewayProxy::new(proxy_url.to_string().trim_end_matches('/').into()),
                         self.block_height_monitor.latest_block_height(),
                     ),
                     event_processor_config.clone(),
                 ),
                 handlers::config::Config::StellarMsgVerifier {
                     cosmwasm_contract,
-                    http_url,
+                    rpc_url,
                 } => self.create_handler_task(
                     "stellar-msg-verifier",
                     handlers::stellar_verify_msg::Handler::new(
                         verifier.clone(),
                         cosmwasm_contract,
-                        stellar::http_client::Client::new(
-                            http_url.to_string().trim_end_matches('/').into(),
+                        stellar::rpc_client::Client::new(
+                            rpc_url.to_string().trim_end_matches('/').into(),
                         )
                         .change_context(Error::Connection)?,
                         self.block_height_monitor.latest_block_height(),
@@ -378,14 +379,14 @@ where
                 ),
                 handlers::config::Config::StellarVerifierSetVerifier {
                     cosmwasm_contract,
-                    http_url,
+                    rpc_url,
                 } => self.create_handler_task(
                     "stellar-verifier-set-verifier",
                     handlers::stellar_verify_verifier_set::Handler::new(
                         verifier.clone(),
                         cosmwasm_contract,
-                        stellar::http_client::Client::new(
-                            http_url.to_string().trim_end_matches('/').into(),
+                        stellar::rpc_client::Client::new(
+                            rpc_url.to_string().trim_end_matches('/').into(),
                         )
                         .change_context(Error::Connection)?,
                         self.block_height_monitor.latest_block_height(),

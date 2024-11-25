@@ -78,7 +78,7 @@ impl From<Message> for Vec<Attribute> {
 
 #[cw_serde]
 #[serde(try_from = "String")]
-#[derive(Eq, Hash)]
+#[derive(Eq, Hash, Valuable)]
 pub struct Address(nonempty::String);
 
 impl Deref for Address {
@@ -314,6 +314,13 @@ impl ChainNameRaw {
     /// Maximum length of a chain name (in bytes).
     /// This MUST NOT be changed without a corresponding change to the ChainName validation in axelar-core.
     const MAX_LEN: usize = 20;
+
+    /// Special care must be taken when using this function. Normalization means a loss of information
+    /// and can lead to the chain not being found in the database. This function should only be used if absolutely necessary.
+    pub fn normalize(&self) -> ChainName {
+        // assert: if ChainNameRaw is valid, ChainName is also valid, just lower-cased
+        ChainName::try_from(self.as_ref()).expect("invalid chain name")
+    }
 }
 
 impl FromStr for ChainNameRaw {

@@ -1,14 +1,14 @@
 use std::fmt::Debug;
 
 use axelar_wasm_std::error::ContractError;
-use axelar_wasm_std::{address, permission_control, FnExt, IntoContractError};
+use axelar_wasm_std::{address, killswitch, permission_control, FnExt, IntoContractError};
 use axelarnet_gateway::AxelarExecutableMsg;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{Addr, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response, Storage};
 use error_stack::{Report, ResultExt};
+use execute::{freeze_chain, unfreeze_chain};
 
-use crate::events::Event;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state;
 use crate::state::Config;
@@ -25,14 +25,28 @@ const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub enum Error {
     #[error("failed to execute a cross-chain message")]
     Execute,
-    #[error("failed to register an its edge contract")]
-    RegisterItsContract,
-    #[error("failed to deregsiter an its edge contract")]
-    DeregisterItsContract,
+    #[error("failed to register chains")]
+    RegisterChains,
+    #[error("failed to update chain")]
+    UpdateChain,
+    #[error("failed to freeze chain")]
+    FreezeChain,
+    #[error("failed to unfreeze chain")]
+    UnfreezeChain,
+    #[error("failed to set chain config")]
+    SetChainConfig,
+    #[error("failed to disable execution")]
+    DisableExecution,
+    #[error("failed to enable execution")]
+    EnableExecution,
     #[error("failed to query its address")]
     QueryItsContract,
     #[error("failed to query all its addresses")]
     QueryAllItsContracts,
+    #[error("failed to query a specific token instance")]
+    QueryTokenInstance,
+    #[error("failed to query the token config")]
+    QueryTokenConfig,
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -64,15 +78,9 @@ pub fn instantiate(
 
     state::save_config(deps.storage, &Config { axelarnet_gateway })?;
 
-    for (chain, address) in msg.its_contracts.iter() {
-        state::save_its_contract(deps.storage, chain, address)?;
-    }
+    killswitch::init(deps.storage, killswitch::State::Disengaged)?;
 
-    Ok(Response::new().add_events(
-        msg.its_contracts
-            .into_iter()
-            .map(|(chain, address)| Event::ItsContractRegistered { chain, address }.into()),
-    ))
+    Ok(Response::new())
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -89,13 +97,26 @@ pub fn execute(
             payload,
         }) => execute::execute_message(deps, cc_id, source_address, payload)
             .change_context(Error::Execute),
-        ExecuteMsg::RegisterItsContract { chain, address } => {
-            execute::register_its_contract(deps, chain, address)
-                .change_context(Error::RegisterItsContract)
+        ExecuteMsg::RegisterChains { chains } => {
+            execute::register_chains(deps, chains).change_context(Error::RegisterChains)
         }
-        ExecuteMsg::DeregisterItsContract { chain } => {
-            execute::deregister_its_contract(deps, chain)
-                .change_context(Error::DeregisterItsContract)
+        ExecuteMsg::UpdateChain {
+            chain,
+            its_edge_contract,
+        } => {
+            execute::update_chain(deps, chain, its_edge_contract).change_context(Error::UpdateChain)
+        }
+        ExecuteMsg::FreezeChain { chain } => {
+            freeze_chain(deps, chain).change_context(Error::FreezeChain)
+        }
+        ExecuteMsg::UnfreezeChain { chain } => {
+            unfreeze_chain(deps, chain).change_context(Error::UnfreezeChain)
+        }
+        ExecuteMsg::DisableExecution => {
+            execute::disable_execution(deps).change_context(Error::DisableExecution)
+        }
+        ExecuteMsg::EnableExecution => {
+            execute::enable_execution(deps).change_context(Error::EnableExecution)
         }
     }?
     .then(Ok)
@@ -109,10 +130,16 @@ fn match_gateway(storage: &dyn Storage, _: &ExecuteMsg) -> Result<Addr, Report<E
 pub fn query(deps: Deps, _: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
     match msg {
         QueryMsg::ItsContract { chain } => {
-            query::its_contracts(deps, chain).change_context(Error::QueryItsContract)
+            query::its_contract(deps, chain).change_context(Error::QueryItsContract)
         }
         QueryMsg::AllItsContracts => {
             query::all_its_contracts(deps).change_context(Error::QueryAllItsContracts)
+        }
+        QueryMsg::TokenInstance { chain, token_id } => {
+            query::token_instance(deps, chain, token_id).change_context(Error::QueryTokenInstance)
+        }
+        QueryMsg::TokenConfig { token_id } => {
+            query::token_config(deps, token_id).change_context(Error::QueryTokenConfig)
         }
     }?
     .then(Ok)

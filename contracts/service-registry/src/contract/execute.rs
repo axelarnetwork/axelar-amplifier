@@ -1,9 +1,12 @@
 use axelar_wasm_std::nonempty;
 use error_stack::Result;
 use router_api::ChainName;
+use service_registry_api::{self, AuthorizationState, Verifier};
+use state::VERIFIERS;
 
 use super::*;
-use crate::state::{self, AuthorizationState, Verifier, VERIFIERS};
+use crate::msg::UpdatedServiceParams;
+use crate::state::{self};
 
 #[allow(clippy::too_many_arguments)]
 pub fn register_service(
@@ -78,6 +81,32 @@ pub fn update_verifier_authorization_status(
     Ok(Response::new())
 }
 
+pub fn update_service(
+    deps: DepsMut,
+    service_name: String,
+    updated_service_params: UpdatedServiceParams,
+) -> Result<Response, ContractError> {
+    SERVICES.update(deps.storage, &service_name, |service| match service {
+        None => Err(ContractError::ServiceNotFound),
+        Some(service) => Ok(Service {
+            min_num_verifiers: updated_service_params
+                .min_num_verifiers
+                .unwrap_or(service.min_num_verifiers),
+            max_num_verifiers: updated_service_params
+                .max_num_verifiers
+                .unwrap_or(service.max_num_verifiers),
+            min_verifier_bond: updated_service_params
+                .min_verifier_bond
+                .unwrap_or(service.min_verifier_bond),
+            unbonding_period_days: updated_service_params
+                .unbonding_period_days
+                .unwrap_or(service.unbonding_period_days),
+            ..service
+        }),
+    })?;
+    Ok(Response::new())
+}
+
 pub fn bond_verifier(
     deps: DepsMut,
     info: MessageInfo,
@@ -107,7 +136,7 @@ pub fn bond_verifier(
         (&service_name.clone(), &info.sender.clone()),
         |sw| -> std::result::Result<Verifier, ContractError> {
             match sw {
-                Some(verifier) => Ok(verifier.bond(bond)?),
+                Some(verifier) => Ok(state::bond_verifier(verifier, bond)?),
                 None => Ok(Verifier {
                     address: info.sender,
                     bonding_state: BondingState::Bonded {
@@ -177,13 +206,13 @@ pub fn unbond_verifier(
         .ok_or(ContractError::VerifierNotFound)?;
 
     let coordinator: coordinator::Client =
-        client::Client::new(deps.querier, &service.coordinator_contract).into();
+        client::ContractClient::new(deps.querier, &service.coordinator_contract).into();
 
     let ready_to_unbond = coordinator
-        .ready_to_unbond(verifier.address.clone())
+        .ready_to_unbond(verifier.address.to_string())
         .change_context(ContractError::FailedToUnbondVerifier)?;
 
-    let verifier = verifier.unbond(ready_to_unbond, env.block.time)?;
+    let verifier = state::unbond_verifier(verifier, ready_to_unbond, env.block.time)?;
 
     VERIFIERS
         .save(deps.storage, (&service_name, &info.sender), &verifier)
@@ -208,8 +237,11 @@ pub fn claim_stake(
         .change_context(ContractError::StorageError)?
         .ok_or(ContractError::VerifierNotFound)?;
 
-    let (verifier, released_bond) =
-        verifier.claim_stake(env.block.time, service.unbonding_period_days as u64)?;
+    let (verifier, released_bond) = state::claim_verifier_stake(
+        verifier,
+        env.block.time,
+        service.unbonding_period_days as u64,
+    )?;
 
     VERIFIERS
         .save(deps.storage, (&service_name, &info.sender), &verifier)

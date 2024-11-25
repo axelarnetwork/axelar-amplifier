@@ -1,5 +1,5 @@
 use axelar_wasm_std::vec::VecExt;
-use cosmwasm_std::{Addr, HexBinary, WasmMsg};
+use cosmwasm_std::{Addr, Coin, CosmosMsg, HexBinary};
 use error_stack::{Result, ResultExt};
 use router_api::{Address, ChainName, CrossChainId, Message};
 
@@ -11,14 +11,14 @@ pub enum Error {
     QueryChainName(Addr),
 }
 
-impl<'a> From<client::Client<'a, ExecuteMsg, QueryMsg>> for Client<'a> {
-    fn from(client: client::Client<'a, ExecuteMsg, QueryMsg>) -> Self {
+impl<'a> From<client::ContractClient<'a, ExecuteMsg, QueryMsg>> for Client<'a> {
+    fn from(client: client::ContractClient<'a, ExecuteMsg, QueryMsg>) -> Self {
         Client { client }
     }
 }
 
 pub struct Client<'a> {
-    client: client::Client<'a, ExecuteMsg, QueryMsg>,
+    client: client::ContractClient<'a, ExecuteMsg, QueryMsg>,
 }
 
 impl<'a> Client<'a> {
@@ -27,7 +27,7 @@ impl<'a> Client<'a> {
         destination_chain: ChainName,
         destination_address: Address,
         payload: HexBinary,
-    ) -> WasmMsg {
+    ) -> CosmosMsg {
         self.client.execute(&ExecuteMsg::CallContract {
             destination_chain,
             destination_address,
@@ -35,11 +35,28 @@ impl<'a> Client<'a> {
         })
     }
 
-    pub fn execute(&self, cc_id: CrossChainId, payload: HexBinary) -> WasmMsg {
+    pub fn call_contract_with_token(
+        &self,
+        destination_chain: ChainName,
+        destination_address: Address,
+        payload: HexBinary,
+        coin: Coin,
+    ) -> CosmosMsg {
+        self.client.execute_with_funds(
+            &ExecuteMsg::CallContract {
+                destination_chain,
+                destination_address,
+                payload,
+            },
+            coin,
+        )
+    }
+
+    pub fn execute(&self, cc_id: CrossChainId, payload: HexBinary) -> CosmosMsg {
         self.client.execute(&ExecuteMsg::Execute { cc_id, payload })
     }
 
-    pub fn route_messages(&self, msgs: Vec<Message>) -> Option<WasmMsg> {
+    pub fn route_messages(&self, msgs: Vec<Message>) -> Option<CosmosMsg> {
         msgs.to_none_if_empty()
             .map(|messages| self.client.execute(&ExecuteMsg::RouteMessages(messages)))
     }
@@ -56,7 +73,9 @@ mod test {
     use std::str::FromStr;
 
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info, MockQuerier};
-    use cosmwasm_std::{from_json, to_json_binary, Addr, DepsMut, QuerierWrapper, WasmQuery};
+    use cosmwasm_std::{
+        from_json, to_json_binary, Addr, DepsMut, QuerierWrapper, WasmMsg, WasmQuery,
+    };
 
     use super::*;
     use crate::contract::{instantiate, query};
@@ -65,7 +84,8 @@ mod test {
     #[test]
     fn chain_name() {
         let (querier, _, addr) = setup();
-        let client: Client = client::Client::new(QuerierWrapper::new(&querier), &addr).into();
+        let client: Client =
+            client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
 
         assert_eq!(
             client.chain_name().unwrap(),
@@ -76,7 +96,8 @@ mod test {
     #[test]
     fn call_contract() {
         let (querier, _, addr) = setup();
-        let client: Client = client::Client::new(QuerierWrapper::new(&querier), &addr).into();
+        let client: Client =
+            client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
 
         let destination_chain: ChainName = "destination-chain".parse().unwrap();
         let destination_address: Address = "destination-address".parse().unwrap();
@@ -100,13 +121,15 @@ mod test {
                 .unwrap(),
                 funds: vec![],
             }
+            .into()
         );
     }
 
     #[test]
     fn execute_message() {
         let (querier, _, addr) = setup();
-        let client: Client = client::Client::new(QuerierWrapper::new(&querier), &addr).into();
+        let client: Client =
+            client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
 
         let payload = HexBinary::from(vec![1, 2, 3]);
         let cc_id = CrossChainId::new("source-chain", "message-id").unwrap();
@@ -120,6 +143,7 @@ mod test {
                 msg: to_json_binary(&ExecuteMsg::Execute { cc_id, payload }).unwrap(),
                 funds: vec![],
             }
+            .into()
         );
     }
 
@@ -147,6 +171,7 @@ mod test {
         let msg = InstantiateMsg {
             chain_name: "source-chain".parse().unwrap(),
             router_address: "router".to_string(),
+            nexus: "nexus".to_string(),
         };
 
         instantiate(deps, env, info, msg.clone()).unwrap();
