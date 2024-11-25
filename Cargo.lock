@@ -3357,7 +3357,7 @@ dependencies = [
 
 [[package]]
 name = "gateway"
-version = "1.1.0"
+version = "1.1.1"
 dependencies = [
  "axelar-wasm-std",
  "client",
@@ -5162,7 +5162,7 @@ checksum = "e5ce46fe64a9d73be07dcbe690a38ce1b293be448fd8ce1e6c1b8062c9f72c6a"
 
 [[package]]
 name = "multisig"
-version = "1.1.0"
+version = "1.1.1"
 dependencies = [
  "axelar-wasm-std",
  "client",
@@ -5195,7 +5195,7 @@ dependencies = [
 
 [[package]]
 name = "multisig-prover"
-version = "1.1.0"
+version = "1.1.1"
 dependencies = [
  "anyhow",
  "assert_ok",
