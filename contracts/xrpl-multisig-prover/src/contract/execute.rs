@@ -12,7 +12,7 @@ use multisig::{key::PublicKey, types::MultisigState};
 use sha3::{Keccak256, Digest};
 use xrpl_types::error::XRPLError;
 use xrpl_types::msg::XRPLMessage;
-use xrpl_types::types::canonicalize_coin_amount;
+use xrpl_types::types::canonicalize_token_amount;
 use xrpl_types::types::{
     TxHash, XRPLToken, XRPLSigner, XRPLSignedTx, XRPLPaymentAmount, XRPLAccountId,
     XRPLTokenOrXrp
@@ -256,7 +256,7 @@ pub fn construct_payment_proof(
                     } else {
                         let token_info = querier.token_info(token_id)?;
                         // TODO: handle decimal precision conversion
-                        XRPLPaymentAmount::Issued(token_info.xrpl_token, canonicalize_coin_amount(Uint128::try_from(Uint256::from(amount)).unwrap(), token_info.canonical_decimals)?)
+                        XRPLPaymentAmount::Issued(token_info.xrpl_token, canonicalize_token_amount(Uint256::from(amount), token_info.canonical_decimals)?)
                     };
 
                     let destination_address: XRPLAccountId = destination_address

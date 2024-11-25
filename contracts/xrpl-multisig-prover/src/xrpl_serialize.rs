@@ -520,10 +520,10 @@ fn field_id(type_code: u8, field_code: u8) -> Vec<u8> {
 mod tests {
     use std::str::FromStr;
 
-    use cosmwasm_std::Uint128;
+    use cosmwasm_std::Uint256;
     use multisig::key::PublicKey;
 
-    use xrpl_types::types::{canonicalize_coin_amount, XRPLCrossCurrencyOptions, XRPLCurrency, XRPLPath, XRPLToken, XRPL_TOKEN_MAX_EXPONENT, XRPL_TOKEN_MAX_MANTISSA, XRPL_TOKEN_MIN_EXPONENT, XRPL_TOKEN_MIN_MANTISSA};
+    use xrpl_types::types::{canonicalize_token_amount, XRPLCrossCurrencyOptions, XRPLCurrency, XRPLPath, XRPLToken, XRPL_TOKEN_MAX_EXPONENT, XRPL_TOKEN_MAX_MANTISSA, XRPL_TOKEN_MIN_EXPONENT, XRPL_TOKEN_MIN_MANTISSA};
 
     use super::*;
 
@@ -566,7 +566,7 @@ mod tests {
             XRPLPaymentAmount::Issued(XRPLToken {
                 issuer: XRPLAccountId::from_str("r9LqNeG6qHxjeUocjvVki2XR35weJ9mZgQ")?,
                 currency: "USD".to_string().try_into()?,
-            }, canonicalize_coin_amount(Uint128::zero(), 0)?)
+            }, canonicalize_token_amount(Uint256::zero(), 0)?)
             .xrpl_serialize()?
         );
         assert_hex_eq!(
@@ -574,7 +574,7 @@ mod tests {
             XRPLPaymentAmount::Issued(XRPLToken {
                 issuer: XRPLAccountId::from_str("r9LqNeG6qHxjeUocjvVki2XR35weJ9mZgQ")?,
                 currency: "USD".to_string().try_into()?,
-            }, canonicalize_coin_amount(Uint128::one(), 0)?)
+            }, canonicalize_token_amount(Uint256::one(), 0)?)
             .xrpl_serialize()?
         );
         // minimum absolute amount
@@ -604,7 +604,7 @@ mod tests {
             XRPLPaymentAmount::Issued(XRPLToken {
                 issuer: XRPLAccountId::from_str("r9LqNeG6qHxjeUocjvVki2XR35weJ9mZgQ")?,
                 currency: "${}".to_string().try_into()?,
-            }, canonicalize_coin_amount(Uint128::from(42u128), 0)?)
+            }, canonicalize_token_amount(Uint256::from(42u128), 0)?)
             .xrpl_serialize()?
         );
         // minimum XRP
@@ -996,7 +996,7 @@ mod tests {
                 amount: XRPLPaymentAmount::Issued(XRPLToken{
                     currency: "ETH".to_string().try_into()?,
                     issuer: XRPLAccountId::from_str("r4ZMbbb4Y3KoeexmjEeTdhqUBrYjjWdyGM")?
-                }, canonicalize_coin_amount(Uint128::from(100000000u128), 0)?),
+                }, canonicalize_token_amount(Uint256::from(100000000u128), 0)?),
                 destination: XRPLAccountId::from_str("raNVNWvhUQzFkDDTdEw3roXRJfMJFVJuQo")?,
                 cross_currency: None
             }), signers: vec![

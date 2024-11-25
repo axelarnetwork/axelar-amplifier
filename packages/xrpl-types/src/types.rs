@@ -792,7 +792,7 @@ impl TryFrom<String> for XRPLTokenAmount {
             digits = digits[1..].to_string();
         }
 
-        let mantissa = Uint128::from_str(digits.as_str()).map_err(|e| XRPLError::InvalidAmount { reason: e.to_string() })?;
+        let mantissa = Uint256::from_str(digits.as_str()).map_err(|e| XRPLError::InvalidAmount { reason: e.to_string() })?;
 
         let (mantissa, exponent) = canonicalize_mantissa(mantissa, exponent * -1)?;
 
@@ -828,10 +828,10 @@ pub enum XRPLPathStep {
 // always called when XRPLTokenAmount instantiated
 // see https://github.com/XRPLF/xrpl-dev-portal/blob/82da0e53a8d6cdf2b94a80594541d868b4d03b94/content/_code-samples/tx-serialization/py/xrpl_num.py#L19
 pub fn canonicalize_mantissa(
-    mut mantissa: Uint128,
+    mut mantissa: Uint256,
     mut exponent: i64,
 ) -> Result<(u64, i64), XRPLError> {
-    let ten = Uint128::from(10u128);
+    let ten = Uint256::from(10u128);
 
     while mantissa < MIN_MANTISSA.into() && exponent > MIN_EXPONENT {
         mantissa *= ten;
@@ -863,8 +863,8 @@ pub fn canonicalize_mantissa(
     Ok((mantissa, exponent))
 }
 
-pub fn canonicalize_coin_amount(
-    amount: Uint128,
+pub fn canonicalize_token_amount(
+    amount: Uint256,
     decimals: u8,
 ) -> Result<XRPLTokenAmount, XRPLError> {
     let (mantissa, exponent) = canonicalize_mantissa(amount, -i64::from(decimals))?;
