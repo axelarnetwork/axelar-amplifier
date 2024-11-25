@@ -839,7 +839,7 @@ pub fn canonicalize_mantissa(
     }
 
     while mantissa > MAX_MANTISSA.into() && exponent > MIN_EXPONENT {
-        if exponent > MAX_EXPONENT {
+        if exponent >= MAX_EXPONENT {
             return Err(XRPLError::InvalidAmount {
                 reason: "overflow".to_string(),
             });
