@@ -1,12 +1,11 @@
 use axelar_wasm_std::nonempty;
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::Uint256;
-use interchain_token_service::TokenId;
-use router_api::{ChainName, CrossChainId, Message};
+use interchain_token_service::{TokenId, TokenManagerType};
+use router_api::{ChainName, ChainNameRaw, CrossChainId, Message};
 use msgs_derive::EnsurePermissions;
 
 use xrpl_types::msg::{XRPLMessage, XRPLUserMessageWithPayload};
-use xrpl_types::types::{XRPLAccountId, XRPLCurrency, XRPLTokenInfo, XRPLToken, XRPLTokenOrXrp, xrpl_account_id_string};
+use xrpl_types::types::{XRPLAccountId, XRPLCurrency, XRPLToken, XRPLTokenOrXrp, xrpl_account_id_string};
 
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -34,44 +33,66 @@ pub struct InstantiateMsg {
 }
 
 #[cw_serde]
-pub struct DeployInterchainTokenParams {
+pub struct DeployInterchainToken {
+    /// The name of the token
     pub name: nonempty::String,
+    /// The symbol of the token
     pub symbol: nonempty::String,
+    /// The number of decimal places the token supports
     pub decimals: u8,
-    pub initial_supply: Uint256,
+    /// An additional minter of the token (optional). ITS on the external chain is always a minter.
     pub minter: Option<nonempty::HexBinary>,
+}
+
+#[cw_serde]
+pub struct DeployTokenManager {
+    /// The type of token manager to deploy
+    pub token_manager_type: TokenManagerType,
+    /// The parameters to be provided to the token manager contract
+    pub params: nonempty::HexBinary,
+    /// The number of decimal places the token supports
+    pub decimals: u8,
 }
 
 #[cw_serde]
 #[derive(EnsurePermissions)]
 pub enum ExecuteMsg {
-    // TODO
-    #[permission(Admin)]
-    RegisterLocalInterchainToken {
+    /// Register an XRPL token.
+    #[permission(Elevated)]
+    RegisterLocalToken {
         xrpl_token: XRPLToken,
     },
 
-    // TODO
-    #[permission(Admin)]
-    RegisterRemoteInterchainToken {
+    /// Register a remote token on the XRPL chain,
+    /// defining its XRPL currency.
+    #[permission(Elevated)]
+    RegisterRemoteToken {
         token_id: TokenId,
         xrpl_currency: XRPLCurrency,
-        canonical_decimals: u8,
     },
 
-    // TODO
-    #[permission(Admin)]
-    DeployXrpToSidechain {
-        sidechain_name: ChainName,
-        deployment_params: nonempty::HexBinary,
+    /// Register a remote token that is deployed on another chain.
+    #[permission(Elevated)]
+    RegisterTokenInstance {
+        token_id: TokenId,
+        chain: ChainNameRaw,
+        decimals: u8,
     },
 
-    // TODO
-    #[permission(Admin)]
+    /// Deploy a token manager on some destination chain.
+    #[permission(Elevated)]
+    DeployTokenManager {
+        xrpl_token: XRPLTokenOrXrp,
+        destination_chain: ChainNameRaw,
+        deploy_token_manager: DeployTokenManager,
+    },
+
+    /// Deploy an interchain token on some destination chain.
+    #[permission(Elevated)]
     DeployInterchainToken {
         xrpl_token: XRPLTokenOrXrp,
-        destination_chain: ChainName,
-        token_params: DeployInterchainTokenParams,
+        destination_chain: ChainNameRaw,
+        deploy_token: DeployInterchainToken,
     },
 
     /// Before messages that are unknown to the system can be routed, they need to be verified.
@@ -79,13 +100,13 @@ pub enum ExecuteMsg {
     #[permission(Any)]
     VerifyMessages(Vec<XRPLMessage>),
 
-    /// Forward the given messages to the next step of the routing layer.
+    /// Forward the given outgoing messages (coming to XRPL) to the next step of the routing layer.
     /// NOTE: In XRPL, this is only used to route outgoing messages, therefore they are already verified.
     /// NOTE: Should be named RouteOutgoingMessages, but we keep the name for compatibility with the router.
-    #[permission(Any)]
+    #[permission(Specific(router))]
     RouteMessages(Vec<Message>),
 
-    /// Forward the given messages to the next step of the routing layer.
+    /// Forward the given incoming messages (coming from XRPL) to the next step of the routing layer.
     /// They are reported by the relayer and need verification.
     #[permission(Any)]
     RouteIncomingMessages(Vec<XRPLUserMessageWithPayload>),
@@ -98,6 +119,12 @@ pub enum QueryMsg {
     #[returns(Vec<Message>)]
     OutgoingMessages(Vec<CrossChainId>),
 
-    #[returns(XRPLTokenInfo)]
-    TokenInfo(TokenId),
+    #[returns(XRPLToken)]
+    XrplToken(TokenId),
+
+    #[returns(u8)]
+    TokenInstanceDecimals {
+        chain_name: ChainNameRaw,
+        token_id: TokenId,
+    },
 }

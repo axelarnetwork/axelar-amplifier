@@ -47,7 +47,6 @@ pub fn instantiate(
         signing_threshold: msg.signing_threshold,
         service_name: msg.service_name,
         chain_name: msg.chain_name,
-        xrpl_evm_sidechain_chain_name: msg.xrpl_evm_sidechain_chain_name,
         verifier_set_diff_threshold: msg.verifier_set_diff_threshold,
         xrpl_multisig: msg.xrpl_multisig_address,
         xrpl_fee: msg.xrpl_fee,
@@ -75,13 +74,14 @@ pub fn execute(
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
-    let config = CONFIG.load(deps.storage)?;
+    let config = CONFIG.load(deps.storage).expect("failed to load config");
     let querier = Querier::new(deps.querier, config.clone());
 
     match msg.ensure_permissions(deps.storage, &info.sender)? {
         ExecuteMsg::TrustSet { xrpl_token } => {
             execute::construct_trust_set_proof(
                 deps.storage,
+                &querier,
                 env.contract.address,
                 &config,
                 xrpl_token,
@@ -204,8 +204,7 @@ pub fn migrate(
         )?,
         signing_threshold: msg.signing_threshold,
         service_name: msg.service_name,
-        chain_name: msg.chain_name.parse()?,
-        xrpl_evm_sidechain_chain_name: msg.xrpl_evm_sidechain_chain_name.parse()?,
+        chain_name: msg.chain_name,
         verifier_set_diff_threshold: msg.verifier_set_diff_threshold,
         xrpl_multisig: msg.xrpl_multisig_address,
         xrpl_fee: msg.xrpl_fee,

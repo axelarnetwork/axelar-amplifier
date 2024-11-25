@@ -196,9 +196,17 @@ fn xrpl_trust_line_can_be_proven() {
         issuer: XRPLAccountId::from_str("rNYjPW7NbiVDYy6K23b8ye6iZnowj4PsL7").unwrap(),
     };
 
+    test_utils::xrpl_register_local_token(
+        &mut protocol.app,
+        xrpl.admin.clone(),
+        &xrpl.gateway,
+        xrpl_token.clone()
+    );
+
     /* Create trust line */
-    let session_id = test_utils::construct_trust_set_proof_and_sign(
+    let session_id = test_utils::construct_xrpl_trust_set_proof_and_sign(
         &mut protocol,
+        xrpl.admin,
         &xrpl.multisig_prover,
         &verifiers,
         xrpl_token,
@@ -336,7 +344,7 @@ fn payment_from_xrpl_can_be_verified_and_routed_and_proven() {
     test_utils::end_poll(&mut protocol.app, &xrpl.voting_verifier, poll_id);
 
     // should be verified, now route
-    test_utils::route_xrpl_messages(&mut protocol.app, &xrpl.gateway, &xrpl_msgs_with_payload);
+    test_utils::xrpl_route_incoming_messages(&mut protocol.app, &xrpl.gateway, &xrpl_msgs_with_payload);
 
     // check that the message can be found at the outgoing gateway
     let executable_msgs =

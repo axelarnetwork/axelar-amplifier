@@ -22,7 +22,6 @@ impl XRPLMultisigProverContract {
         gateway_address: Addr,
         voting_verifier_address: Addr,
         xrpl_chain_name: ChainName,
-        xrpl_evm_sidechain_chain_name: ChainName,
         xrpl_multisig_address: XRPLAccountId,
     ) -> Self {
         let code = ContractWrapper::new_with_empty(execute, instantiate, query).with_reply(custom_reply);
@@ -44,10 +43,9 @@ impl XRPLMultisigProverContract {
                     signing_threshold: Threshold::try_from((2, 3)).unwrap().try_into().unwrap(),
                     service_name: protocol.service_name.to_string(),
                     chain_name: xrpl_chain_name,
-                    xrpl_evm_sidechain_chain_name,
+                    xrpl_multisig_address,
                     verifier_set_diff_threshold: 0,
                     xrpl_fee: 30,
-                    xrpl_multisig_address,
                     ticket_count_threshold: 1,
                     next_sequence_number: 44218446,
                     last_assigned_ticket_number: 44218195,

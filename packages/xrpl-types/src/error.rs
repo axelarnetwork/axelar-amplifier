@@ -3,14 +3,17 @@ use thiserror::Error;
 
 #[derive(Error, Debug, PartialEq)]
 pub enum XRPLError {
-    #[error(transparent)]
-    Std(#[from] StdError),
+    #[error("failed to encode signature")]
+    FailedToEncodeSignature,
 
-    #[error("invalid amount: {reason}")]
-    InvalidAmount { reason: String },
+    #[error("failed to serialize transaction")]
+    FailedToSerialize,
 
     #[error("invalid address {0}")]
     InvalidAddress(String),
+
+    #[error("invalid amount: {reason}")]
+    InvalidAmount { reason: String },
 
     #[error("invalid currency")]
     InvalidCurrency,
@@ -21,11 +24,11 @@ pub enum XRPLError {
     #[error("invalid transaction hash")]
     InvalidTxId,
 
-    #[error("failed to encode signature")]
-    FailedToEncodeSignature,
+    #[error("overflow")]
+    Overflow,
 
-    #[error("failed to serialize transaction")]
-    FailedToSerialize,
+    #[error(transparent)]
+    Std(#[from] StdError),
 }
 
 impl From<XRPLError> for StdError {

@@ -10,15 +10,14 @@ use crate::state::MultisigSession;
 
 #[cw_serde]
 pub struct InstantiateMsg {
-    /// Address that can execute all messages that either have unrestricted or admin permission level, such as Updateverifier set.
+    /// Address that can execute all messages that either have unrestricted or admin permission level.
     /// Should be set to a trusted address that can react to unexpected interruptions to the contract's operation.
     pub admin_address: String,
-    /// Address that can call all messages of unrestricted, admin and governance permission level, such as UpdateSigningThreshold.
+    /// Address that can call all messages of unrestricted, admin and governance permission level.
     /// This address can execute messages that bypasses verification checks to rescue the contract if it got into an otherwise unrecoverable state due to external forces.
     /// On mainnet, it should match the address of the Cosmos governance module.
     pub governance_address: String,
-    /// Address of the gateway on axelar associated with the destination chain. For example, if this prover is creating proofs to
-    /// be relayed to Ethereum, this is the address of the gateway on Axelar for Ethereum.
+    /// Address of the XRPL gateway on axelar.
     pub gateway_address: String,
     /// Address of the multisig contract on axelar.
     pub multisig_address: String,
@@ -26,35 +25,32 @@ pub struct InstantiateMsg {
     pub coordinator_address: String,
     /// Address of the service registry contract on axelar.
     pub service_registry_address: String,
-    /// Address of the voting verifier contract on axelar associated with the destination chain. For example, if this prover is creating
-    /// proofs to be relayed to Ethereum, this is the address of the voting verifier for Ethereum.
+    /// Address of the XRPL voting verifier contract on axelar.
     pub voting_verifier_address: String,
     /// Threshold of weighted signatures required for signing to be considered complete
     pub signing_threshold: MajorityThreshold,
     /// Name of service in the service registry for which verifiers are registered.
     pub service_name: String,
-    /// Name of chain for which this prover contract creates proofs.
+    /// Name of the XRPL chain for which this prover contract creates proofs.
     pub chain_name: ChainName,
-    /// Chain name of the XRPL EVM Sidechain.
-    pub xrpl_evm_sidechain_chain_name: ChainName,
     /// Maximum tolerable difference between currently active verifier set and registered verifier set.
     /// The verifier set registered in the service registry must be different by more than this number
     /// of verifiers before calling UpdateVerifierSet. For example, if this is set to 1, UpdateVerifierSet
     /// will fail unless the registered verifier set and active verifier set differ by more than 1.
     pub verifier_set_diff_threshold: u32,
-    /// TODO
+    /// Address of the multisig account on XRPL.
     #[serde(with = "xrpl_account_id_string")]
-    #[schemars(with = "String")] // necessary attribute in conjunction with #[serde(with ...)]
+    #[schemars(with = "String")]
     pub xrpl_multisig_address: XRPLAccountId,
-    /// TODO
+    /// Fixed fee to be set in XRPL multisig transactions.
     pub xrpl_fee: u64,
-    /// TODO
+    /// Number of available XRPL multisig tickets below which new tickets can be issued.
     pub ticket_count_threshold: u32,
-    /// TODO
+    /// List of initial available tickets that can be used in new XRPL multisig transactions.
     pub available_tickets: Vec<u32>,
-    /// TODO
+    /// Next sequence number to be used in sequential XRPL multisig transactions.
     pub next_sequence_number: u32,
-    /// TODO
+    /// The ticket number that was last assigned to the XRPL multisig account.
     pub last_assigned_ticket_number: u32,
 }
 
@@ -102,8 +98,8 @@ pub enum ProofResponse {
 #[cw_serde]
 #[derive(EnsurePermissions)]
 pub enum ExecuteMsg {
-    // Start building a proof that includes a specified message
-    // Queries the gateway for actual message contents
+    // Start building a proof that includes a specified message.
+    // Queries the gateway for actual message contents.
     #[permission(Any)]
     ConstructProof {
         cc_id: CrossChainId,
@@ -125,7 +121,7 @@ pub enum ExecuteMsg {
     #[permission(Any)]
     TicketCreate,
 
-    #[permission(Admin)]
+    #[permission(Elevated)]
     TrustSet {
         xrpl_token: XRPLToken,
     },
@@ -143,15 +139,14 @@ pub enum ExecuteMsg {
 
 #[cw_serde]
 pub struct MigrateMsg {
-    /// Address that can execute all messages that either have unrestricted or admin permission level, such as Updateverifier set.
+    /// Address that can execute all messages that either have unrestricted or admin permission level.
     /// Should be set to a trusted address that can react to unexpected interruptions to the contract's operation.
     pub admin_address: String,
-    /// Address that can call all messages of unrestricted, admin and governance permission level, such as UpdateSigningThreshold.
+    /// Address that can call all messages of unrestricted, admin and governance permission level.
     /// This address can execute messages that bypasses verification checks to rescue the contract if it got into an otherwise unrecoverable state due to external forces.
     /// On mainnet, it should match the address of the Cosmos governance module.
     pub governance_address: String,
-    /// Address of the gateway on axelar associated with the destination chain. For example, if this prover is creating proofs to
-    /// be relayed to Ethereum, this is the address of the gateway on Axelar for Ethereum.
+    /// Address of the XRPL gateway on axelar.
     pub gateway_address: String,
     /// Address of the multisig contract on axelar.
     pub multisig_address: String,
@@ -159,34 +154,31 @@ pub struct MigrateMsg {
     pub coordinator_address: String,
     /// Address of the service registry contract on axelar.
     pub service_registry_address: String,
-    /// Address of the voting verifier contract on axelar associated with the destination chain. For example, if this prover is creating
-    /// proofs to be relayed to Ethereum, this is the address of the voting verifier for Ethereum.
+    /// Address of the XRPL voting verifier contract on axelar.
     pub voting_verifier_address: String,
     /// Threshold of weighted signatures required for signing to be considered complete
     pub signing_threshold: MajorityThreshold,
     /// Name of service in the service registry for which verifiers are registered.
     pub service_name: String,
-    /// Name of chain for which this prover contract creates proofs.
-    pub chain_name: String,
-    /// Chain name of the XRPL EVM Sidechain.
-    pub xrpl_evm_sidechain_chain_name: String,
+    /// Name of the XRPL chain for which this prover contract creates proofs.
+    pub chain_name: ChainName,
     /// Maximum tolerable difference between currently active verifier set and registered verifier set.
     /// The verifier set registered in the service registry must be different by more than this number
     /// of verifiers before calling UpdateVerifierSet. For example, if this is set to 1, UpdateVerifierSet
     /// will fail unless the registered verifier set and active verifier set differ by more than 1.
     pub verifier_set_diff_threshold: u32,
-    /// TODO
+    /// Address of the multisig account on XRPL.
     #[serde(with = "xrpl_account_id_string")]
-    #[schemars(with = "String")] // necessary attribute in conjunction with #[serde(with ...)]
+    #[schemars(with = "String")]
     pub xrpl_multisig_address: XRPLAccountId,
-    /// TODO
+    /// Fixed fee to be set in XRPL multisig transactions.
     pub xrpl_fee: u64,
-    /// TODO
+    /// Number of available XRPL multisig tickets below which new tickets can be issued.
     pub ticket_count_threshold: u32,
-    /// TODO
+    /// List of initial available tickets that can be used in new XRPL multisig transactions.
     pub available_tickets: Vec<u32>,
-    /// TODO
+    /// Next sequence number to be used in sequential XRPL multisig transactions.
     pub next_sequence_number: u32,
-    /// TODO
+    /// The ticket number that was last assigned to the XRPL multisig account.
     pub last_assigned_ticket_number: u32,
 }

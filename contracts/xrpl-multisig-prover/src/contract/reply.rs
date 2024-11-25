@@ -1,4 +1,4 @@
-use cosmwasm_std::{from_json, Attribute, DepsMut, HexBinary, Reply, Response, Uint64};
+use cosmwasm_std::{from_json, DepsMut, HexBinary, Reply, Response, Uint64};
 use cw_utils::{parse_reply_execute_data, MsgExecuteContractResponse};
 use xrpl_types::types::XRPLUnsignedTx;
 
@@ -14,13 +14,12 @@ pub fn start_multisig_reply(deps: DepsMut, reply: Reply) -> Result<Response, Con
 
     match parse_reply_execute_data(reply.clone()) {
         Ok(MsgExecuteContractResponse { data: Some(data) }) => {
-            let unsigned_tx_hash = REPLY_UNSIGNED_TX_HASH.load(deps.storage)?;
-
-            let multisig_session_id: Uint64 =
-                from_json(data).map_err(|_| ContractError::InvalidContractReply {
+            let multisig_session_id: Uint64 = from_json(data)
+                .map_err(|_| ContractError::InvalidContractReply {
                     reason: "invalid multisig session ID".to_string(),
                 })?;
 
+            let unsigned_tx_hash = REPLY_UNSIGNED_TX_HASH.load(deps.storage)?;
             MULTISIG_SESSION_ID_TO_UNSIGNED_TX_HASH.save(
                 deps.storage,
                 multisig_session_id.u64(),
@@ -29,16 +28,19 @@ pub fn start_multisig_reply(deps: DepsMut, reply: Reply) -> Result<Response, Con
 
             let tx_info = UNSIGNED_TX_HASH_TO_TX_INFO.load(deps.storage, &unsigned_tx_hash)?;
 
-            let res = reply.result.unwrap();
-
-            let signing_started_attributes: Vec<_> = res
+            let signing_started_attributes: Vec<_> = reply
+                .result
+                .into_result()
+                .map_err(|e| ContractError::FailedToStartMultisigSession {
+                    reason: e,
+                })?
                 .events
                 .into_iter()
                 .filter(|e| e.ty == "wasm-signing_started")
                 .flat_map(|e| e.attributes)
                 .collect();
 
-            let expires_at: u64 = signing_started_attributes
+            let expires_at = signing_started_attributes
                 .clone()
                 .into_iter()
                 .filter(|a| a.key.eq("expires_at"))
@@ -60,23 +62,13 @@ pub fn start_multisig_reply(deps: DepsMut, reply: Reply) -> Result<Response, Con
                     )?;
                     REPLY_CROSS_CHAIN_ID.remove(deps.storage);
                 }
-                None if matches!(tx_info.unsigned_contents, XRPLUnsignedTx::Payment(_)) => {
+                None if matches!(tx_info.unsigned_tx, XRPLUnsignedTx::Payment(_)) => {
                     panic!("No reply message ID found for Payment")
                 }
                 None => (),
             }
 
-            let xrpl_signing_started_event_attributes: Vec<Attribute> = signing_started_attributes
-                .into_iter()
-                .filter(|a| !a.key.starts_with('_') && a.key != "msg")
-                .collect();
-
-            let xrpl_signing_started_event = cosmwasm_std::Event::new("xrpl_signing_started")
-                .add_attributes(xrpl_signing_started_event_attributes)
-                .add_attribute(
-                    "unsigned_tx",
-                    HexBinary::from(tx_info.unsigned_contents.xrpl_serialize()?).to_hex(),
-                );
+            REPLY_UNSIGNED_TX_HASH.remove(deps.storage);
 
             Ok(Response::new()
                 .add_event(
@@ -87,7 +79,19 @@ pub fn start_multisig_reply(deps: DepsMut, reply: Reply) -> Result<Response, Con
                     }
                     .into(),
                 )
-                .add_event(xrpl_signing_started_event))
+                .add_event(
+                    cosmwasm_std::Event::new("xrpl_signing_started")
+                        .add_attributes(
+                            signing_started_attributes
+                                .into_iter()
+                                .filter(|a| !a.key.starts_with('_') && a.key != "msg")
+                                .collect::<Vec<_>>()
+                        )
+                        .add_attribute(
+                            "unsigned_tx",
+                            HexBinary::from(tx_info.unsigned_tx.xrpl_serialize()?).to_hex(),
+                        )
+                ))
         }
         Ok(MsgExecuteContractResponse { data: None }) => Err(ContractError::InvalidContractReply {
             reason: "no data".to_string(),

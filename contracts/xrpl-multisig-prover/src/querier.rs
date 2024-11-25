@@ -2,12 +2,13 @@ use axelar_wasm_std::VerificationStatus;
 use cosmwasm_schema::serde::{de::DeserializeOwned, Serialize};
 use cosmwasm_std::{to_json_binary, QuerierWrapper, QueryRequest, Uint64, WasmQuery};
 use interchain_token_service::TokenId;
-use multisig::{key::PublicKey, multisig::Multisig};
-use router_api::{CrossChainId, Message};
+use multisig::key::PublicKey;
+use multisig::multisig::Multisig;
+use router_api::{ChainNameRaw, CrossChainId, Message};
 use service_registry::{Service, WeightedVerifier};
 use xrpl_voting_verifier::msg::MessageStatus;
 use xrpl_types::msg::XRPLMessage;
-use xrpl_types::types::XRPLTokenInfo;
+use xrpl_types::types::XRPLToken;
 
 use crate::{error::ContractError, state::Config};
 
@@ -84,11 +85,23 @@ impl<'a> Querier<'a> {
             .ok_or(ContractError::InvalidMessageId(cc_id.message_id.to_string()))
     }
 
-    pub fn token_info(&self, token_id: TokenId) -> Result<XRPLTokenInfo, ContractError> {
-        let token_info: XRPLTokenInfo = query(
+    pub fn token_instance_decimals(&self, chain_name: ChainNameRaw, token_id: TokenId) -> Result<u8, ContractError> {
+        let decimals: u8 = query(
             self.querier,
             self.config.gateway.to_string(),
-            &xrpl_gateway::msg::QueryMsg::TokenInfo(token_id),
+            &xrpl_gateway::msg::QueryMsg::TokenInstanceDecimals {
+                chain_name,
+                token_id,
+            },
+        )?;
+        Ok(decimals)
+    }
+
+    pub fn xrpl_token(&self, token_id: TokenId) -> Result<XRPLToken, ContractError> {
+        let token_info: XRPLToken = query(
+            self.querier,
+            self.config.gateway.to_string(),
+            &xrpl_gateway::msg::QueryMsg::XrplToken(token_id),
         )?;
         Ok(token_info)
     }

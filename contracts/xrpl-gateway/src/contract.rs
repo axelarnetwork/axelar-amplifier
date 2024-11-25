@@ -5,8 +5,9 @@ use axelar_wasm_std::{address, permission_control, FnExt, IntoContractError};
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response};
 use error_stack::ResultExt;
-use router_api::CrossChainId;
-use router_api::client::Router;
+use interchain_token_service::TokenId;
+use router_api::{ChainNameRaw, CrossChainId};
+use xrpl_types::types::{XRPLAccountId, XRPLCurrency, XRPLPaymentAmount, XRPLToken, XRPLTokenOrXrp};
 
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state;
@@ -20,20 +21,53 @@ const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[derive(thiserror::Error, Debug, IntoContractError)]
 pub enum Error {
+    #[error("chain {0} already registered")]
+    ChainAlreadyRegistered(ChainNameRaw),
+    #[error("chain {0} not registered")]
+    ChainNotRegistered(ChainNameRaw),
     #[error("batch contains duplicate message ids")]
     DuplicateMessageIds,
     #[error("failed to execute gateway command")]
     Execute,
     #[error("unable to generate event index")]
     EventIndex,
+    #[error("forbidden chain {0}")]
+    ForbiddenChain(ChainNameRaw),
+    #[error("invalid address")]
+    InvalidAddress,
+    #[error("invalid amount")]
+    InvalidAmount,
     #[error("invalid cross-chain id")]
     InvalidCrossChainId,
+    #[error("invalid decimals {0}")]
+    InvalidDecimals(u8),
+    #[error("invalid destination address")]
+    InvalidDestinationAddress,
+    #[error("invalid drops {0}")]
+    InvalidDrops(u64),
+    #[error("invalid source address")]
+    InvalidSourceAddress,
+    #[error("invalid token")]
+    InvalidToken,
+    #[error(
+        "invalid transfer amount {amount} to chain {destination_chain}"
+    )]
+    InvalidTransferAmount {
+        destination_chain: ChainNameRaw,
+        amount: XRPLPaymentAmount,
+    },
+    #[error("token {token_id} deployed mismatch: expected {expected}, actual {actual}")]
+    LocalTokenDeployedMismatch {
+        token_id: TokenId,
+        expected: XRPLToken,
+        actual: XRPLToken,
+    },
     #[error("failed to query message status")]
     MessageStatus,
     #[error("message with ID {0} was not sent from Axelar")]
-    OnlyAxelar(CrossChainId),
+    OnlyFromAxelar(CrossChainId),
     #[error("message with ID {0} was not sent from the ITS hub")]
-    OnlyItsHub(CrossChainId),
+    OnlyFromItsHub(CrossChainId),
     #[error("failed to query outgoing messages")]
     OutgoingMessages,
     #[error("payload hash mismatch")]
@@ -41,16 +75,48 @@ pub enum Error {
         expected: [u8; 32],
         actual: [u8; 32],
     },
-    #[error("router only")]
-    RouterOnly,
+    #[error("remote token {token_id} deployed XRPL currency mismatch: expected {expected}, actual {actual}")]
+    RemoteTokenDeployedCurrencyMismatch {
+        token_id: TokenId,
+        expected: XRPLCurrency,
+        actual: XRPLCurrency,
+    },
+    #[error("remote token with XRPL currency {xrpl_currency} deployed token ID mismatch: expected {expected}, actual {actual}")]
+    RemoteTokenDeployedIdMismatch {
+        xrpl_currency: XRPLCurrency,
+        expected: TokenId,
+        actual: TokenId,
+    },
+    #[error("remote token {token_id} deployed XRPL issuer mismatch: expected {expected}, actual {actual}")]
+    RemoteTokenDeployedIssuerMismatch {
+        token_id: TokenId,
+        expected: XRPLAccountId,
+        actual: XRPLAccountId,
+    },
     #[error("failed to save outgoing message")]
     SaveOutgoingMessage,
-    #[error("failed to query token info")]
-    TokenInfo,
-    #[error("invalid token")]
-    InvalidToken,
-    #[error("invalid address")]
-    InvalidAddress
+    #[error("state error")]
+    State,
+    #[error("token {token_id} deployed decimals mismatch: expected {expected}, actual {actual}")]
+    TokenDeployedDecimalsMismatch {
+        token_id: TokenId,
+        expected: u8,
+        actual: u8,
+    },
+    #[error("failed to query token instance decimals for token {token_id} on chain {chain_name}")]
+    TokenInstanceDecimals {
+        chain_name: ChainNameRaw,
+        token_id: TokenId,
+    },
+    #[error("token {0} not local")]
+    TokenNotLocal(XRPLTokenOrXrp),
+    #[error("token {token_id} not registered for chain {chain_name}")]
+    TokenNotRegisteredForChain {
+        token_id: TokenId,
+        chain_name: ChainNameRaw,
+    },
+    #[error("failed to query xrpl token {0}")]
+    XrplToken(TokenId),
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -79,8 +145,8 @@ pub fn instantiate(
         verifier,
         router,
         its_hub,
-        axelar_chain_name: msg.axelar_chain_name,
-        xrpl_chain_name: msg.xrpl_chain_name,
+        axelar_chain: msg.axelar_chain_name,
+        xrpl_chain: msg.xrpl_chain_name,
         xrpl_multisig: msg.xrpl_multisig_address,
     })?;
 
@@ -100,92 +166,92 @@ pub fn execute(
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
-    let config = state::load_config(deps.storage).change_context(Error::Execute)?;
-    let verifier = client::ContractClient::new(deps.querier, &config.verifier).into();
+    let config = state::load_config(deps.storage);
 
-    match msg.ensure_permissions(deps.storage, &info.sender)? {
-        ExecuteMsg::RegisterLocalInterchainToken { xrpl_token } => {
-            execute::register_local_interchain_token(
+    match msg.ensure_permissions(
+        deps.storage,
+        &info.sender,
+        |_, _| Ok::<_, error_stack::Report<Error>>(config.router.clone()),
+    )? {
+        ExecuteMsg::RegisterLocalToken { xrpl_token } => {
+            execute::register_local_token(
                 deps.storage,
                 xrpl_token,
             )
         }
-        ExecuteMsg::RegisterRemoteInterchainToken {
+        ExecuteMsg::RegisterRemoteToken {
             token_id,
             xrpl_currency,
-            canonical_decimals,
         } => {
-            execute::register_remote_interchain_token(
+            execute::register_remote_token(
                 deps.storage,
                 config.xrpl_multisig,
                 token_id,
                 xrpl_currency,
-                canonical_decimals,
             )
         }
-        ExecuteMsg::DeployXrpToSidechain {
-            sidechain_name,
-            deployment_params,
+        ExecuteMsg::RegisterTokenInstance {
+            token_id,
+            chain,
+            decimals,
         } => {
-            let router = Router::new(config.router);
-            execute::deploy_xrp_to_sidechain(
+            execute::register_token_instance(
+                deps.storage,
+                &config,
+                token_id,
+                chain,
+                decimals,
+            )
+        }
+        ExecuteMsg::DeployTokenManager {
+            xrpl_token,
+            destination_chain,
+            deploy_token_manager,
+        } => {
+            execute::deploy_token_manager(
+                deps.storage,
+                &config,
                 env.block.height,
-                &router,
-                &config.its_hub,
-                &config.axelar_chain_name,
-                &config.xrpl_chain_name,
-                &sidechain_name,
-                config.xrpl_multisig,
-                deployment_params,
+                xrpl_token,
+                destination_chain,
+                deploy_token_manager,
             )
         }
         ExecuteMsg::DeployInterchainToken {
             xrpl_token,
             destination_chain,
-            token_params,
+            deploy_token,
         } => {
-            let router = Router::new(config.router);
             execute::deploy_interchain_token(
+                deps.storage,
+                &config,
                 env.block.height,
-                &router,
-                &config.its_hub,
-                &config.axelar_chain_name,
-                config.xrpl_multisig,
-                &config.xrpl_chain_name,
                 xrpl_token,
                 destination_chain,
-                token_params,
+                deploy_token,
             )
         }
         ExecuteMsg::VerifyMessages(msgs) => {
-            execute::verify_messages(&verifier, msgs, &config.xrpl_chain_name)
+            let verifier = client::ContractClient::new(deps.querier, &config.verifier).into();
+            execute::verify_messages(&verifier, msgs, &config.xrpl_chain)
         }
         // Should be called RouteOutgoingMessage.
         // Called RouteMessages for compatibility with the router.
         ExecuteMsg::RouteMessages(msgs) => {
-            let router = Router::<Empty>::new(config.router);
-            if info.sender != router.address {
-                return Err(Error::RouterOnly).map_err(axelar_wasm_std::error::ContractError::from)
-            }
-
             execute::route_outgoing_messages(
                 deps.storage,
                 msgs,
                 config.its_hub,
-                &config.axelar_chain_name,
+                &config.axelar_chain,
             )
         }
         ExecuteMsg::RouteIncomingMessages(msgs) => {
-            let router = Router::new(config.router);
+            let verifier = client::ContractClient::new(deps.querier, &config.verifier).into();
             execute::route_incoming_messages(
                 deps.storage,
+                &config,
                 &verifier,
-                &router,
                 msgs,
-                &config.its_hub,
-                &config.axelar_chain_name,
-                &config.xrpl_multisig,
-                &config.xrpl_chain_name,
             )
         }
     }?
@@ -203,9 +269,16 @@ pub fn query(
             query::outgoing_messages(deps.storage, message_ids.iter())
                 .change_context(Error::OutgoingMessages)
         }
-        QueryMsg::TokenInfo(token_id) => {
-            query::token_info(deps.storage, token_id)
-                .change_context(Error::TokenInfo)
+        QueryMsg::XrplToken(token_id) => {
+            query::xrpl_token(deps.storage, token_id.clone())
+                .change_context(Error::XrplToken(token_id))
+        }
+        QueryMsg::TokenInstanceDecimals { chain_name, token_id } => {
+            query::token_instance_decimals(deps.storage, chain_name.clone(), token_id.clone())
+                .change_context(Error::TokenInstanceDecimals {
+                    chain_name,
+                    token_id,
+                })
         }
     }?
     .then(Ok)

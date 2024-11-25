@@ -130,7 +130,7 @@ impl XRPLSerialize for XRPLPaymentAmount {
             XRPLPaymentAmount::Issued(token, amount) => {
                 let mut buf = Vec::with_capacity(48);
                 buf.extend_from_slice(&amount.as_bytes());
-                buf.extend_from_slice(&token.currency.clone().as_bytes());
+                buf.extend_from_slice(&token.currency.as_bytes());
                 buf.extend_from_slice(token.issuer.as_ref());
                 Ok(buf)
             }
@@ -153,7 +153,7 @@ impl XRPLSerialize for HexBinary {
 
 // see https://github.com/XRPLF/xrpl-dev-portal/blob/master/content/_code-samples/tx-serialization/py/serialize.py#L92
 // may error if length too big
-pub fn encode_length(mut length: usize) -> Result<Vec<u8>, ContractError> {
+fn encode_length(mut length: usize) -> Result<Vec<u8>, ContractError> {
     if length <= 192 {
         Ok(vec![length as u8])
     } else if length <= 12480 {
@@ -243,10 +243,10 @@ impl XRPLSerialize for XRPLPathSet {
             for step in path.steps.iter() {
                 let (type_flag, first_value, opt_second_value): (u8, [u8; 20], Option<[u8; 20]>) = match step {
                     XRPLPathStep::Account(account) => (0x01, account.as_bytes(), None),
-                    XRPLPathStep::Currency(currency) => (0x10, currency.clone().as_bytes(), None),
+                    XRPLPathStep::Currency(currency) => (0x10, currency.as_bytes(), None),
                     XRPLPathStep::XRP => (0x10, <[u8; 20]>::default(), None),
                     XRPLPathStep::Issuer(issuer) => (0x20, issuer.as_bytes(), None),
-                    XRPLPathStep::Token(token) => (0x30, token.currency.clone().as_bytes(), Some(token.issuer.as_bytes())),
+                    XRPLPathStep::Token(token) => (0x30, token.currency.as_bytes(), Some(token.issuer.as_bytes())),
                 };
                 result.extend(vec![type_flag]);
                 result.extend(first_value);
@@ -311,7 +311,7 @@ impl TryInto<XRPLObject> for XRPLSignerListSetTx {
             Fee: XRPLPaymentAmount::Drops(self.fee),
             Account: self.account,
             SigningPubKey: HexBinary::from(vec![]),
-            SignerEntries: XRPLArray{ field: Field::SignerEntry, items: self.signer_entries.clone() },
+            SignerEntries: XRPLArray{ field: Field::SignerEntry, items: self.signer_entries },
         });
         obj.add_sequence(self.sequence)?;
         Ok(obj)
@@ -369,7 +369,7 @@ impl TryInto<XRPLObject> for XRPLSignedTx {
     type Error = ContractError;
 
     fn try_into(self) -> Result<XRPLObject, ContractError> {
-        let mut sorted_signers = self.signers.clone();
+        let mut sorted_signers = self.signers;
         sorted_signers.sort_by(|a, b| {
             // the Signers array must be sorted based on the numeric value of the signer addresses
             // https://xrpl.org/multi-signing.html#sending-multi-signed-transactions
@@ -398,7 +398,7 @@ impl<T: XRPLSerialize> XRPLSerialize for XRPLArray<T> {
     fn xrpl_serialize(&self) -> Result<Vec<u8>, ContractError> {
         let mut result: Vec<u8> = Vec::new();
         for item in &self.items {
-            result.extend(field_id(T::TYPE_CODE, self.field.clone().to_u8()));
+            result.extend(field_id(T::TYPE_CODE, self.field.to_u8()));
             result.extend(item.xrpl_serialize()?);
             result.extend(field_id(T::TYPE_CODE, 1));
         }

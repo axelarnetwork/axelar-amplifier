@@ -2,7 +2,7 @@ use axelar_wasm_std::error::extend_err;
 use cosmwasm_std::{to_json_binary, Binary, Storage};
 use error_stack::Result;
 use interchain_token_service::TokenId;
-use router_api::{CrossChainId, Message};
+use router_api::{ChainNameRaw, CrossChainId, Message};
 
 use crate::state;
 
@@ -17,17 +17,26 @@ pub fn outgoing_messages<'a>(
     Ok(to_json_binary(&msgs).map_err(state::Error::from)?)
 }
 
-pub fn token_info(
+pub fn xrpl_token(
     storage: &dyn Storage,
     token_id: TokenId,
 ) -> Result<Binary, state::Error> {
-    let token_info = state::load_token_info(storage, &token_id)?;
-    Ok(to_json_binary(&token_info).map_err(state::Error::from)?)
+    let xrpl_token = state::load_xrpl_token(storage, &token_id)?;
+    Ok(to_json_binary(&xrpl_token).map_err(state::Error::from)?)
+}
+
+pub fn token_instance_decimals(
+    storage: &dyn Storage,
+    chain_name: ChainNameRaw,
+    token_id: TokenId,
+) -> Result<Binary, state::Error> {
+    let decimals = state::load_token_instance_decimals(storage, chain_name, token_id)?;
+    Ok(to_json_binary(&decimals).map_err(state::Error::from)?)
 }
 
 fn accumulate_errs(
     acc: Result<Vec<Message>, state::Error>,
-    msg: std::result::Result<Message, state::Error>,
+    msg: Result<Message, state::Error>,
 ) -> Result<Vec<Message>, state::Error> {
     match (acc, msg) {
         (Ok(mut acc), Ok(msg)) => {

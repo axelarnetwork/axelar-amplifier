@@ -1,24 +1,18 @@
 use std::fmt;
 use std::str::FromStr;
 
-use axelar_wasm_std::VerificationStatus;
+use axelar_wasm_std::{VerificationStatus, Participant, nonempty};
 use interchain_token_service::TokenId;
 use router_api::{CrossChainId, FIELD_DELIMITER};
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{from_json, Binary, HexBinary, StdResult, Uint128, Uint256};
+use cosmwasm_std::{from_json, Binary, HexBinary, StdResult, Uint128, Uint256, Addr};
 use cw_storage_plus::{Key, KeyDeserialize, PrimaryKey};
 use k256::ecdsa;
 use k256::schnorr::signature::SignatureEncoding;
-use multisig::key::PublicKey;
-use multisig::key::Signature;
+use multisig::key::{PublicKey, Signature};
 use ripemd::Ripemd160;
-use sha2::Sha512;
-use sha2::{Digest, Sha256};
+use sha2::{Digest, Sha256, Sha512};
 use sha3::Keccak256;
-
-use axelar_wasm_std::Participant;
-use cosmwasm_std::Addr;
-use axelar_wasm_std::nonempty;
 
 use crate::error::XRPLError;
 
@@ -28,6 +22,33 @@ const XRPL_PAYMENT_ISSUED_HASH_PREFIX: &[u8] = b"issued";
 const XRPL_ACCOUNT_ID_LENGTH: usize = 20;
 const XRPL_CURRENCY_LENGTH: usize = 20;
 const XRPL_TX_HASH_LENGTH: usize = 32;
+
+pub const XRP_DECIMALS: u8 = 6;
+pub const XRP_MAX_UINT: u64 = 100_000_000_000_000_000u64;
+
+const HASH_PREFIX_SIGNED_TRANSACTION: [u8; 4] = [0x54, 0x58, 0x4E, 0x00];
+const HASH_PREFIX_UNSIGNED_TX_MULTI_SIGNING: [u8; 4] = [0x53, 0x4D, 0x54, 0x00];
+
+const ITS_INTERCHAIN_TOKEN_ID: &[u8] = "its-interchain-token-id".as_bytes();
+const XRP_DEPLOYER: &[u8; XRPL_ACCOUNT_ID_LENGTH] = &[0u8; XRPL_ACCOUNT_ID_LENGTH];
+
+const ALLOWED_CURRENCY_CHARS: &str =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789?!@#$%^&*<>(){}[]|";
+
+const MIN_MANTISSA: u64 = 1_000_000_000_000_000;
+const MAX_MANTISSA: u64 = 10_000_000_000_000_000 - 1;
+const MIN_EXPONENT: i64 = -96;
+const MAX_EXPONENT: i64 = 80;
+
+pub const XRPL_TOKEN_MIN_MANTISSA: u64 = MIN_MANTISSA;
+pub const XRPL_TOKEN_MAX_MANTISSA: u64 = MAX_MANTISSA;
+pub const XRPL_TOKEN_MIN_EXPONENT: i64 = MIN_EXPONENT;
+pub const XRPL_TOKEN_MAX_EXPONENT: i64 = MAX_EXPONENT;
+
+const MAX_XRPL_TOKEN_AMOUNT: XRPLTokenAmount = XRPLTokenAmount {
+    mantissa: MAX_MANTISSA,
+    exponent: MAX_EXPONENT,
+};
 
 #[cw_serde]
 #[derive(Eq, Ord, PartialOrd)]
@@ -207,20 +228,36 @@ pub struct XRPLToken {
     pub currency: XRPLCurrency,
 }
 
+impl XRPLToken {
+    pub fn is_remote(&self, xrpl_multisig: XRPLAccountId) -> bool {
+        self.issuer == xrpl_multisig
+    }
+
+    pub fn is_local(&self, xrpl_multisig: XRPLAccountId) -> bool {
+        !self.is_remote(xrpl_multisig)
+    }
+}
+
+impl fmt::Display for XRPLToken {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}/{}", self.currency, self.issuer)
+    }
+}
+
 #[cw_serde]
 pub enum XRPLTokenOrXrp {
-    Issued(XRPLToken),
     Xrp,
+    Issued(XRPLToken),
 }
 
-#[cw_serde]
-pub struct XRPLTokenInfo {
-    pub xrpl_token: XRPLToken,
-    pub canonical_decimals: u8,
+impl fmt::Display for XRPLTokenOrXrp {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            XRPLTokenOrXrp::Xrp => write!(f, "XRP"),
+            XRPLTokenOrXrp::Issued(token) => write!(f, "Issued({})", token),
+        }
+    }
 }
-
-const ITS_INTERCHAIN_TOKEN_ID: &[u8] = "its-interchain-token-id".as_bytes();
-const XRP_DEPLOYER: &[u8; 20] = &[0u8; 20];
 
 impl XRPLTokenOrXrp {
     pub fn token_id(&self) -> TokenId {
@@ -236,6 +273,17 @@ impl XRPLTokenOrXrp {
         let token_id = Keccak256::digest(vec![prefix.as_slice(), deployer, salt.as_slice()].concat());
         let token_id_slice: &[u8; 32] = token_id.as_ref();
         TokenId::new(token_id_slice.clone())
+    }
+
+    pub fn is_local(&self, xrpl_multisig: XRPLAccountId) -> bool {
+        match self {
+            XRPLTokenOrXrp::Xrp => true,
+            XRPLTokenOrXrp::Issued(token) => token.is_local(xrpl_multisig),
+        }
+    }
+
+    pub fn is_remote(&self, xrpl_multisig: XRPLAccountId) -> bool {
+        !self.is_local(xrpl_multisig)
     }
 }
 
@@ -591,9 +639,6 @@ impl XRPLSignedTx {
 
 // HASHING LOGIC
 
-const HASH_PREFIX_SIGNED_TRANSACTION: [u8; 4] = [0x54, 0x58, 0x4E, 0x00];
-const HASH_PREFIX_UNSIGNED_TX_MULTI_SIGNING: [u8; 4] = [0x53, 0x4D, 0x54, 0x00];
-
 fn xrpl_hash(prefix: [u8; 4], tx_blob: &[u8]) -> [u8; 32] {
     let mut hasher = Sha512::new_with_prefix(prefix);
     hasher.update(tx_blob);
@@ -671,9 +716,6 @@ impl fmt::Display for XRPLCurrency {
     }
 }
 
-const ALLOWED_CURRENCY_CHARS: &str =
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789?!@#$%^&*<>(){}[]|";
-
 impl TryFrom<String> for XRPLCurrency {
     type Error = XRPLError;
 
@@ -702,15 +744,25 @@ impl KeyDeserialize for XRPLCurrency {
     }
 }
 
-const MIN_MANTISSA: u64 = 1_000_000_000_000_000;
-const MAX_MANTISSA: u64 = 10_000_000_000_000_000 - 1;
-const MIN_EXPONENT: i64 = -96;
-const MAX_EXPONENT: i64 = 80;
+pub mod xrpl_currency_string {
+    use super::XRPLCurrency;
+    use serde::{Deserialize, Deserializer, Serializer};
 
-pub const XRPL_TOKEN_MIN_MANTISSA: u64 = MIN_MANTISSA;
-pub const XRPL_TOKEN_MAX_MANTISSA: u64 = MAX_MANTISSA;
-pub const XRPL_TOKEN_MIN_EXPONENT: i64 = MIN_EXPONENT;
-pub const XRPL_TOKEN_MAX_EXPONENT: i64 = MAX_EXPONENT;
+    pub fn serialize<S>(value: &XRPLCurrency, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&value.to_string())
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<XRPLCurrency, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let string = String::deserialize(deserializer)?;
+        XRPLCurrency::try_from(string).map_err(serde::de::Error::custom)
+    }
+}
 
 // XRPLTokenAmount always in canonicalized XRPL mantissa-exponent format,
 // such that MIN_MANTISSA <= mantissa <= MAX_MANTISSA (or equal to zero), MIN_EXPONENT <= exponent <= MAX_EXPONENT,
@@ -722,11 +774,14 @@ pub struct XRPLTokenAmount {
     exponent: i64,
 }
 
+impl fmt::Display for XRPLTokenAmount {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}e{}", self.mantissa, self.exponent)
+    }
+}
+
 impl XRPLTokenAmount {
-    pub const MAX: XRPLTokenAmount = XRPLTokenAmount {
-        mantissa: MAX_MANTISSA,
-        exponent: MAX_EXPONENT,
-    };
+    pub const MAX: XRPLTokenAmount = MAX_XRPL_TOKEN_AMOUNT;
 
     pub fn new(mantissa: u64, exponent: i64) -> Self {
         assert!(
@@ -746,16 +801,39 @@ impl XRPLTokenAmount {
                 .to_be_bytes()
         }
     }
+
+    pub fn scale_to_decimals(self, destination_decimals: u8) -> Result<Uint256, XRPLError> {
+        if self.mantissa == 0 {
+            return Ok(Uint256::zero());
+        }
+
+        let mantissa = Uint256::from(self.mantissa);
+        let ten = Uint256::from(10u64);
+
+        let adjusted_exponent = self.exponent + i64::from(destination_decimals);
+
+        let scaled_value = if adjusted_exponent >= 0 {
+            mantissa.checked_mul(
+                ten.checked_pow(adjusted_exponent as u32).map_err(|_| XRPLError::Overflow)?
+            ).map_err(|_| XRPLError::Overflow)
+        } else {
+            Ok(ten.checked_pow((-adjusted_exponent) as u32)
+                .map(|ten_to_neg_exp| mantissa.checked_div(ten_to_neg_exp).expect("mantissa should be divisible by 10^(-exponent)"))
+                .unwrap_or(Uint256::zero()))
+        }?;
+
+        Ok(scaled_value)
+    }
 }
 
-impl TryFrom<String> for XRPLTokenAmount {
-    type Error = XRPLError;
+impl std::str::FromStr for XRPLTokenAmount {
+    type Err = XRPLError;
 
-    fn try_from(s: String) -> Result<Self, XRPLError> {
+    fn from_str(s: &str) -> Result<Self, XRPLError> {
         let exp_separator: &[_] = &['e', 'E'];
 
         let (base_part, exponent_value) = match s.find(exp_separator) {
-            None => (s.as_str(), 0),
+            None => (s, 0),
             Some(loc) => {
                 let (base, exp) = (&s[..loc], &s[loc + 1..]);
                 (base, i64::from_str(exp).map_err(|_| XRPLError::InvalidAmount { reason: "invalid exponent".to_string() })?)
@@ -792,11 +870,20 @@ impl TryFrom<String> for XRPLTokenAmount {
             digits = digits[1..].to_string();
         }
 
-        let mantissa = Uint256::from_str(digits.as_str()).map_err(|e| XRPLError::InvalidAmount { reason: e.to_string() })?;
+        let mantissa = Uint256::from_str(digits.as_str())
+            .map_err(|e| XRPLError::InvalidAmount { reason: e.to_string() })?;
 
         let (mantissa, exponent) = canonicalize_mantissa(mantissa, exponent * -1)?;
 
         Ok(XRPLTokenAmount::new(mantissa, exponent))
+    }
+}
+
+impl TryFrom<String> for XRPLTokenAmount {
+    type Error = XRPLError;
+
+    fn try_from(s: String) -> Result<Self, XRPLError> {
+        XRPLTokenAmount::from_str(s.as_str())
     }
 }
 
@@ -873,6 +960,7 @@ pub fn canonicalize_token_amount(
 
 #[cfg(test)]
 mod tests {
+    use cosmwasm_std::Uint256;
     use super::*;
 
     #[test]
@@ -914,5 +1002,94 @@ mod tests {
             "rnBFvgZphmN39GWzUJeUitaP22Fr9be75H"
         );
         Ok(())
+    }
+
+    #[test]
+    fn test_canonicalize_token_amount() {
+        assert_eq!(
+            canonicalize_token_amount(Uint256::one(), 18).unwrap(),
+            XRPLTokenAmount::new(1_000_000_000_000_000u64, -33)
+        );
+
+        assert_eq!(
+            canonicalize_token_amount(Uint256::from(1000000000000000000u64), 18).unwrap(),
+            XRPLTokenAmount::new(1_000_000_000_000_000u64, -15)
+        );
+
+        assert_eq!(
+            canonicalize_token_amount(Uint256::from(1234567891234567891u64), 18).unwrap(),
+            XRPLTokenAmount::new(1_234_567_891_234_567u64, -15)
+        );
+    }
+
+    #[test]
+    fn test_scale_to_decimals() {
+        let amount = XRPLTokenAmount::new(1_000_000_000_000_000u64, -33);
+        assert_eq!(amount.scale_to_decimals(18).unwrap(), Uint256::one());
+
+        let amount = XRPLTokenAmount::new(1_000_000_000_000_000u64, -15);
+        assert_eq!(amount.scale_to_decimals(18).unwrap(), Uint256::from(1000000000000000000u64));
+
+        let amount = XRPLTokenAmount::new(1_234_567_891_234_567u64, -15);
+        assert_eq!(amount.scale_to_decimals(18).unwrap(), Uint256::from(1234567891234567000u64));
+
+        let amount = XRPLTokenAmount::new(9_999_999_999_999_999u64, 55);
+        assert_eq!(
+            amount.scale_to_decimals(6).unwrap(),
+            Uint256::try_from("99999999999999990000000000000000000000000000000000000000000000000000000000000").unwrap()
+        );
+
+        let amount = XRPLTokenAmount::new(9_999_999_999_999_999u64, 56);
+        let result = amount.scale_to_decimals(6);
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().to_string(), "overflow");
+    }
+
+    #[test]
+    fn test_large_exponent_handling() {
+        let amount = XRPLTokenAmount::new(9_999_999_999_999_999u64, 70);
+        let result = amount.scale_to_decimals(18);
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().to_string(), "overflow");
+    }
+
+    #[test]
+    fn test_large_mantissa_handling() {
+        let amount = XRPLTokenAmount::new(9_999_999_999_999_999u64, 0);
+        let result = amount.scale_to_decimals(18);
+        assert!(result.is_ok());
+        assert_eq!(
+            result.unwrap(),
+            Uint256::from(9999999999999999000000000000000000u128)
+        );
+    }
+
+    #[test]
+    fn test_small_mantissa_handling() {
+        let amount = XRPLTokenAmount::new(9_999_999_999_999_999u64, MIN_EXPONENT);
+        let result = amount.scale_to_decimals(18);
+        assert_eq!(result.unwrap(), Uint256::zero());
+    }
+
+    #[test]
+    fn test_extreme_scaling_down() {
+        let amount = XRPLTokenAmount::new(MAX_MANTISSA, MIN_EXPONENT);
+        let result = amount.scale_to_decimals(6);
+        assert_eq!(result.unwrap(), Uint256::zero());
+    }
+
+    #[test]
+    fn test_extreme_scaling_up() {
+        let amount = XRPLTokenAmount::new(MIN_MANTISSA, MAX_EXPONENT);
+        let result = amount.scale_to_decimals(18);
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().to_string(), "overflow");
+    }
+
+    #[test]
+    fn test_xrpl_account_id_from_string() {
+        let xrpl_account = "rNM8ue6DZpneFC4gBEJMSEdbwNEBZjs3Dy";
+        let expected_bytes: &[u8; XRPL_ACCOUNT_ID_LENGTH] = &[146, 136, 70, 186, 245, 155, 212, 140, 40, 177, 49, 133, 84, 114, 208, 76, 147, 187, 208, 183];
+        assert_eq!(XRPLAccountId::from_str(xrpl_account).unwrap().as_ref(), expected_bytes);
     }
 }

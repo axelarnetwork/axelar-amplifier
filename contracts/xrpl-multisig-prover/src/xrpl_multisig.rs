@@ -1,7 +1,7 @@
 use router_api::CrossChainId;
 use cosmwasm_std::Storage;
 use xrpl_types::types::{
-    TxHash, XRPLUnsignedTx, TxInfo, XRPLTxStatus, XRPLSequence,
+    TxHash, XRPLUnsignedTx, XRPLTxStatus, XRPLSequence,
     XRPLAccountId, XRPLPaymentAmount, XRPLCrossCurrencyOptions, XRPLToken, XRPLPaymentTx,
     XRPLTicketCreateTx, XRPLSignerListSetTx, XRPLSignerEntry, XRPLTrustSetTx,
 };
@@ -9,10 +9,10 @@ use xrpl_types::types::{
 use crate::axelar_verifiers::VerifierSet;
 use crate::error::ContractError;
 use crate::state::{
-    Config, AVAILABLE_TICKETS, CONFIRMED_TRANSACTIONS, CURRENT_VERIFIER_SET,
-    LAST_ASSIGNED_TICKET_NUMBER, LATEST_SEQUENTIAL_UNSIGNED_TX_HASH, CROSS_CHAIN_ID_TO_TICKET,
-    NEXT_SEQUENCE_NUMBER, NEXT_VERIFIER_SET, UNSIGNED_TX_HASH_TO_TX_INFO,
+    Config, TxInfo, AVAILABLE_TICKETS, CONSUMED_TICKET_TO_UNSIGNED_TX_HASH, CROSS_CHAIN_ID_TO_TICKET, CURRENT_VERIFIER_SET, LAST_ASSIGNED_TICKET_NUMBER, LATEST_SEQUENTIAL_UNSIGNED_TX_HASH, NEXT_SEQUENCE_NUMBER, NEXT_VERIFIER_SET, UNSIGNED_TX_HASH_TO_TX_INFO
 };
+
+const MAX_TICKET_COUNT: u32 = 250;
 
 fn issue_tx(
     storage: &mut dyn Storage,
@@ -21,14 +21,16 @@ fn issue_tx(
 ) -> Result<TxHash, ContractError> {
     let unsigned_tx_hash = xrpl_types::types::hash_unsigned_tx(&unsigned_tx)?;
 
+    let tx_info = TxInfo {
+        status: XRPLTxStatus::Pending,
+        unsigned_tx: unsigned_tx.clone(),
+        original_cc_id,
+    };
+
     UNSIGNED_TX_HASH_TO_TX_INFO.save(
         storage,
         &unsigned_tx_hash,
-        &TxInfo {
-            status: XRPLTxStatus::Pending,
-            unsigned_contents: unsigned_tx.clone(),
-            original_cc_id,
-        },
+        &tx_info,
     )?;
 
     match unsigned_tx.sequence() {
@@ -59,7 +61,7 @@ pub fn issue_payment(
         sequence: XRPLSequence::Ticket(ticket_number),
         amount: amount.clone(),
         destination,
-        cross_currency: cross_currency.cloned()
+        cross_currency: cross_currency.cloned(),
     };
 
     issue_tx(storage, XRPLUnsignedTx::Payment(tx), Some(cc_id.clone()))
@@ -90,10 +92,10 @@ pub fn issue_trust_set(
     let sequence_number = next_sequence_number(storage)?;
 
     let tx = XRPLTrustSetTx {
-        token: xrpl_token,
         account: config.xrpl_multisig.clone(),
         fee: config.xrpl_fee,
         sequence: XRPLSequence::Plain(sequence_number),
+        token: xrpl_token,
     };
 
     issue_tx(storage, XRPLUnsignedTx::TrustSet(tx), None)
@@ -121,30 +123,35 @@ pub fn issue_signer_list_set(
     issue_tx(storage, XRPLUnsignedTx::SignerListSet(tx), None)
 }
 
-// returns the new verifier set if it was affected
-pub fn update_tx_status(
+// returns the new verifier set, if it was affected
+pub fn confirm_tx_status(
     storage: &mut dyn Storage,
     unsigned_tx_hash: TxHash,
+    tx_info: &mut TxInfo,
     new_status: XRPLTxStatus,
 ) -> Result<Option<VerifierSet>, ContractError> {
-    let mut tx_info = UNSIGNED_TX_HASH_TO_TX_INFO.load(storage, &unsigned_tx_hash)?;
     if tx_info.status != XRPLTxStatus::Pending {
-        return Err(ContractError::TxStatusAlreadyUpdated);
+        return Err(ContractError::TxStatusAlreadyConfirmed);
     }
 
     tx_info.status = new_status.clone();
 
-    let tx_sequence_number: u32 = tx_info.unsigned_contents.sequence().clone().into();
+    let tx_sequence_number: u32 = tx_info
+        .unsigned_tx
+        .sequence()
+        .clone()
+        .into();
 
     let sequence_number_increment = tx_info
-        .unsigned_contents
+        .unsigned_tx
         .sequence_number_increment(new_status.clone());
+
     if sequence_number_increment > 0 && tx_sequence_number == NEXT_SEQUENCE_NUMBER.load(storage)? {
         NEXT_SEQUENCE_NUMBER.save(storage, &(tx_sequence_number + sequence_number_increment))?;
     }
 
     if new_status == XRPLTxStatus::Succeeded || new_status == XRPLTxStatus::FailedOnChain {
-        CONFIRMED_TRANSACTIONS.save(storage, &tx_sequence_number, &unsigned_tx_hash)?;
+        CONSUMED_TICKET_TO_UNSIGNED_TX_HASH.save(storage, &tx_sequence_number, &unsigned_tx_hash)?;
         mark_ticket_unavailable(storage, tx_sequence_number)?;
     }
 
@@ -154,7 +161,7 @@ pub fn update_tx_status(
         return Ok(None);
     }
 
-    Ok(match &tx_info.unsigned_contents {
+    Ok(match &tx_info.unsigned_tx {
         XRPLUnsignedTx::TicketCreate(tx) => {
             mark_tickets_available(
                 storage,
@@ -199,7 +206,7 @@ fn assign_ticket_number(
     // If this message ID has already been ticketed,
     // then use the same ticket number as before,
     if let Some(ticket_number) = CROSS_CHAIN_ID_TO_TICKET.may_load(storage, cc_id)? {
-        let confirmed_unsigned_tx_hash = CONFIRMED_TRANSACTIONS.may_load(storage, &ticket_number)?;
+        let confirmed_unsigned_tx_hash = CONSUMED_TICKET_TO_UNSIGNED_TX_HASH.may_load(storage, &ticket_number)?;
         // as long as it has not already been consumed
         if confirmed_unsigned_tx_hash.is_none()
         // or if it has been consumed by the same message.
@@ -216,24 +223,22 @@ fn assign_ticket_number(
 }
 
 fn next_ticket_number(storage: &dyn Storage) -> Result<u32, ContractError> {
-    let last_assigned_ticket_number: u32 = LAST_ASSIGNED_TICKET_NUMBER.load(storage)?;
-
+    let last_assigned_ticket_number = LAST_ASSIGNED_TICKET_NUMBER.load(storage)?;
     let available_tickets = AVAILABLE_TICKETS.load(storage)?;
-    if available_tickets.is_empty() {
-        return Err(ContractError::NoAvailableTickets);
+    match available_tickets.first() {
+        Some(first_ticket_number) => {
+            // find next largest in available, otherwise re-use available_tickets[0]
+            let ticket_number = available_tickets
+                .iter()
+                .find(|&x| x > &last_assigned_ticket_number)
+                .unwrap_or(first_ticket_number);
+            Ok(*ticket_number)
+        }
+        None => Err(ContractError::NoAvailableTickets),
     }
-
-    // find next largest in available, otherwise use available_tickets[0]
-    let ticket_number = available_tickets
-        .iter()
-        .find(|&x| x > &last_assigned_ticket_number)
-        .unwrap_or(&available_tickets[0]);
-    Ok(*ticket_number)
 }
 
-const MAX_TICKET_COUNT: u32 = 250;
-
-pub fn tickets_available_to_request(storage: &mut dyn Storage) -> Result<u32, ContractError> {
+pub fn num_of_tickets_to_create(storage: &mut dyn Storage) -> Result<u32, ContractError> {
     let available_tickets = AVAILABLE_TICKETS.load(storage)?;
     let available_ticket_count = u32::try_from(available_tickets.len()).expect("ticket count overflow");
     assert!(available_ticket_count <= MAX_TICKET_COUNT);
@@ -247,7 +252,7 @@ fn next_sequence_number(storage: &dyn Storage) -> Result<u32, ContractError> {
             // this might still be pending but another tx with same sequence number may be confirmed!!!
         {
             Ok(latest_sequential_tx_info
-                .unsigned_contents
+                .unsigned_tx
                 .sequence()
                 .clone()
                 .into())

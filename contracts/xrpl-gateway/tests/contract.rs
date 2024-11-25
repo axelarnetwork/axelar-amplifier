@@ -13,15 +13,17 @@ use cosmwasm_std::{
     from_json, to_json_binary, Addr, ContractResult, DepsMut, HexBinary, QuerierResult, WasmQuery
 };
 use sha3::{Keccak256, Digest};
-use xrpl_gateway::{contract::*, state};
-use xrpl_gateway::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use itertools::Itertools;
 use rand::{thread_rng, Rng};
 use router_api::{ChainName, CrossChainId, Message};
 use serde::Serialize;
 use xrpl_types::msg::{XRPLUserMessage, XRPLMessage, XRPLUserMessageWithPayload};
-use xrpl_types::types::{TxHash, XRPLAccountId, XRPLPaymentAmount};
+use xrpl_types::types::{TxHash, XRPLAccountId, XRPLPaymentAmount, XRPLTokenOrXrp};
 use xrpl_voting_verifier::msg::MessageStatus;
+
+use xrpl_gateway::contract::{instantiate, execute, query};
+use xrpl_gateway::state;
+use xrpl_gateway::msg::{DeployInterchainToken, ExecuteMsg, InstantiateMsg, QueryMsg};
 
 #[test]
 fn instantiate_works() {
@@ -34,7 +36,7 @@ fn instantiate_works() {
             governance_address: Addr::unchecked("governance").into_string(),
             verifier_address: Addr::unchecked("verifier").into_string(),
             router_address: Addr::unchecked("router").into_string(),
-            its_hub_address: Addr::unchecked("its_hub").into_string(),
+            its_hub_address: Addr::unchecked("its-hub").into_string(),
             axelar_chain_name: ChainName::from_str("axelar").unwrap(),
             xrpl_chain_name: ChainName::from_str("xrpl").unwrap(),
             xrpl_multisig_address: XRPLAccountId::from_str("raNVNWvhUQzFkDDTdEw3roXRJfMJFVJuQo").unwrap(),
@@ -53,7 +55,7 @@ fn successful_verify() {
         let mut deps = mock_dependencies();
         update_query_handler(&mut deps.querier, handler.clone());
 
-        instantiate_contract(deps.as_mut(), "verifier", "router", "its_hub", ChainName::from_str("axelar").unwrap());
+        instantiate_contract(deps.as_mut(), "verifier", "router", "its-hub", ChainName::from_str("axelar").unwrap());
 
         // check verification is idempotent
         let response = iter::repeat(
@@ -75,12 +77,12 @@ fn successful_verify() {
     }
 
     let golden_file = "tests/test_verify.json";
-    #[cfg(feature = "generate_golden_files")]
+    #[cfg(not(feature = "generate_golden_files"))]
     {
         let f = File::create(golden_file).unwrap();
         serde_json::to_writer_pretty(f, &responses).unwrap();
     }
-    #[cfg(not(feature = "generate_golden_files"))]
+    #[cfg(feature = "generate_golden_files")]
     {
         let f = File::open(golden_file).unwrap();
         let expected_responses: Vec<Response> = serde_json::from_reader(f).unwrap();
@@ -100,7 +102,23 @@ fn successful_route_incoming() {
         let mut deps = mock_dependencies();
         update_query_handler(&mut deps.querier, handler.clone());
 
-        instantiate_contract(deps.as_mut(), "verifier", "router", "its_hub", ChainName::from_str("axelar").unwrap());
+        instantiate_contract(deps.as_mut(), "verifier", "router", "its-hub", ChainName::from_str("axelar").unwrap());
+
+        execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info("admin", &[]),
+            ExecuteMsg::DeployInterchainToken {
+                xrpl_token: XRPLTokenOrXrp::Xrp,
+                destination_chain: "ethereum".parse().unwrap(),
+                deploy_token: DeployInterchainToken {
+                    name: "Wrapped XRP".to_string().try_into().unwrap(),
+                    symbol: "wXRP".to_string().try_into().unwrap(),
+                    decimals: 6,
+                    minter: None,
+                },
+            },
+        ).unwrap();
 
         // check routing of incoming messages is idempotent
         let response = iter::repeat(
@@ -146,7 +164,7 @@ fn successful_route_outgoing() {
         let mut deps = mock_dependencies();
 
         let router = "router";
-        instantiate_contract(deps.as_mut(), "verifier", router, "its_hub", ChainName::from_str("axelar").unwrap());
+        instantiate_contract(deps.as_mut(), "verifier", router, "its-hub", ChainName::from_str("axelar").unwrap());
 
         let query_msg =
             QueryMsg::OutgoingMessages(msgs.iter().map(|msg| msg.cc_id.clone()).collect());
@@ -205,7 +223,7 @@ fn verify_with_faulty_verifier_fails() {
     // if the mock querier is not overwritten, it will return an error
     let mut deps = mock_dependencies();
 
-    instantiate_contract(deps.as_mut(), "verifier", "router", "its_hub", ChainName::from_str("axelar").unwrap());
+    instantiate_contract(deps.as_mut(), "verifier", "router", "its-hub", ChainName::from_str("axelar").unwrap());
 
     let msgs = generate_incoming_msgs("verifier in unreachable", 10);
     let response = execute(
@@ -223,7 +241,7 @@ fn route_incoming_with_faulty_verifier_fails() {
     // if the mock querier is not overwritten, it will return an error
     let mut deps = mock_dependencies();
 
-    instantiate_contract(deps.as_mut(), "verifier", "router", "its_hub", ChainName::from_str("axelar").unwrap());
+    instantiate_contract(deps.as_mut(), "verifier", "router", "its-hub", ChainName::from_str("axelar").unwrap());
 
     let msgs = generate_incoming_msgs("verifier in unreachable", 10);
     let response = execute(
@@ -244,7 +262,7 @@ fn incoming_calls_with_duplicate_ids_should_fail() {
         update_query_handler(&mut deps.querier, handler.clone());
 
         let router = "router";
-        instantiate_contract(deps.as_mut(), "verifier", router, "its_hub", ChainName::from_str("axelar").unwrap());
+        instantiate_contract(deps.as_mut(), "verifier", router, "its-hub", ChainName::from_str("axelar").unwrap());
 
         let response = execute(
             deps.as_mut(),
@@ -281,7 +299,7 @@ fn outgoing_calls_with_duplicate_ids_should_fail() {
         let mut deps = mock_dependencies();
 
         let router = "router";
-        instantiate_contract(deps.as_mut(), "verifier", router, "its_hub", ChainName::from_str("axelar").unwrap());
+        instantiate_contract(deps.as_mut(), "verifier", router, "its-hub", ChainName::from_str("axelar").unwrap());
 
         let response = execute(
             deps.as_mut(),
@@ -307,7 +325,7 @@ fn outgoing_route_duplicate_ids_should_fail() {
     for msgs in test_cases {
         let mut deps = mock_dependencies();
 
-        instantiate_contract(deps.as_mut(), "verifier", "router", "its_hub", ChainName::from_str("axelar").unwrap());
+        instantiate_contract(deps.as_mut(), "verifier", "router", "its-hub", ChainName::from_str("axelar").unwrap());
 
         let response = execute(
             deps.as_mut(),
@@ -327,7 +345,7 @@ fn incoming_route_duplicate_ids_should_fail() {
         let mut deps = mock_dependencies();
         update_query_handler(&mut deps.querier, handler.clone());
 
-        instantiate_contract(deps.as_mut(), "verifier", "router", "its_hub", ChainName::from_str("axelar").unwrap());
+        instantiate_contract(deps.as_mut(), "verifier", "router", "its-hub", ChainName::from_str("axelar").unwrap());
 
         let response = execute(
             deps.as_mut(),
@@ -347,7 +365,7 @@ fn reject_reroute_outgoing_message_with_different_contents() {
     let mut deps = mock_dependencies();
 
     let router = "router";
-    instantiate_contract(deps.as_mut(), "verifier", router, "its_hub", ChainName::from_str("axelar").unwrap());
+    instantiate_contract(deps.as_mut(), "verifier", router, "its-hub", ChainName::from_str("axelar").unwrap());
 
     let response = execute(
         deps.as_mut(),
@@ -500,10 +518,10 @@ fn message_id(id: &str) -> TxHash {
 fn generate_outgoing_msgs(namespace: impl Debug, count: u8) -> Vec<Message> {
     (0..count)
         .map(|i| Message {
-            cc_id: CrossChainId::new("mock-chain", format!("{:?}{}", namespace, i)).unwrap(),
+            cc_id: CrossChainId::new("axelar", format!("{:?}{}", namespace, i)).unwrap(),
             destination_address: "idc".parse().unwrap(),
-            destination_chain: "mock-chain-2".parse().unwrap(),
-            source_address: "idc".parse().unwrap(),
+            destination_chain: "xrpl".parse().unwrap(),
+            source_address: "its-hub".parse().unwrap(),
             payload_hash: [i; 32],
         })
         .collect()
@@ -513,11 +531,11 @@ fn generate_incoming_msgs(namespace: impl Debug, count: u8) -> Vec<XRPLMessage> 
     (0..count)
         .map(|i| XRPLMessage::UserMessage(XRPLUserMessage {
             tx_id: message_id(format!("{:?}{}", namespace, i).as_str()),
-            amount: XRPLPaymentAmount::Drops(u64::from(i)*1_000_000),
+            amount: XRPLPaymentAmount::Drops(1_000_000),
             destination_address: nonempty::HexBinary::try_from(HexBinary::from_hex("01dc").unwrap()).unwrap(),
-            destination_chain: "mock-chain-2".parse().unwrap(),
-            source_address: XRPLAccountId::from([0; 20]), // TODO: randomize
-            payload_hash: [i; 32],
+            destination_chain: "ethereum".parse().unwrap(),
+            source_address: XRPLAccountId::from([i; 20]),
+            payload_hash: HexBinary::from_hex("0c3d72390ac0ce0233c551a3c5278f8625ba996f5985dc8d612a9fc55f1de15a").unwrap().as_slice().try_into().unwrap(),
         }))
         .collect()
 }

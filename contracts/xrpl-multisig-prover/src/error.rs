@@ -1,13 +1,18 @@
 use axelar_wasm_std::{nonempty, IntoContractError};
-use cosmwasm_std::StdError;
+use cosmwasm_std::{StdError, Uint256};
+use interchain_token_service::TokenId;
 use thiserror::Error;
-use router_api::ChainName;
+use router_api::{ChainName, ChainNameRaw};
 use xrpl_types::error::XRPLError;
+use xrpl_types::types::{TxHash, XRPLToken};
 
 #[derive(Error, Debug, PartialEq, IntoContractError)]
 pub enum ContractError {
     #[error("failed to serialize")]
     FailedToSerialize,
+
+    #[error("failed to start multisig session: {reason}")]
+    FailedToStartMultisigSession { reason: String },
 
     #[error("failed to update admin")]
     FailedToUpdateAdmin,
@@ -42,8 +47,17 @@ pub enum ContractError {
     #[error("invalid signer public keys")]
     InvalidSignerPublicKeys,
 
+    #[error("invalid transfer amount {amount} from chain {source_chain}")]
+    InvalidTransferAmount {
+        source_chain: ChainNameRaw,
+        amount: Uint256,
+    },
+
     #[error("invalid transaction ID {0}")]
-    InvalidTxId(String),
+    InvalidTxId(TxHash),
+
+    #[error("local token {0} not registered")]
+    LocalTokenNotRegistered(XRPLToken),
 
     #[error("failed to fetch message status")]
     MessageStatusNotFound,
@@ -93,8 +107,17 @@ pub enum ContractError {
     #[error("too many verifiers")]
     TooManyVerifiers,
 
-    #[error("transaction status is already updated")]
-    TxStatusAlreadyUpdated,
+    #[error("token {token_id} not registered for chain {chain_name}")]
+    TokenNotRegisteredForChain {
+        token_id: TokenId,
+        chain_name: ChainNameRaw,
+    },
+
+    #[error("token {0} not local")]
+    TokenNotLocal(XRPLToken),
+
+    #[error("transaction status is already confirmed")]
+    TxStatusAlreadyConfirmed,
 
     #[error("transaction status is not pending")]
     TxStatusNotPending,

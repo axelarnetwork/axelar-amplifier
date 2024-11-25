@@ -10,7 +10,7 @@
     "attributes": [],
     "events": [
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -18,15 +18,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -46,7 +46,7 @@
     "attributes": [],
     "events": [
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -54,15 +54,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -82,7 +82,7 @@
     "attributes": [],
     "events": [
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -90,15 +90,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -118,7 +118,7 @@
     "attributes": [],
     "events": [
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -126,15 +126,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -154,7 +154,7 @@
     "attributes": [],
     "events": [
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -162,15 +162,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -190,7 +190,7 @@
     "attributes": [],
     "events": [
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -198,15 +198,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -226,7 +226,7 @@
     "attributes": [],
     "events": [
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -234,15 +234,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -255,7 +255,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -263,15 +263,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -284,7 +284,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -292,15 +292,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -313,7 +313,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -321,15 +321,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -342,7 +342,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -350,15 +350,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -371,7 +371,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -379,15 +379,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -400,7 +400,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -408,15 +408,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -429,7 +429,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -437,15 +437,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -458,7 +458,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -466,15 +466,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -487,7 +487,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -495,15 +495,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -523,7 +523,7 @@
     "attributes": [],
     "events": [
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -531,15 +531,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -552,7 +552,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -560,15 +560,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -581,7 +581,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -589,15 +589,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -610,7 +610,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -618,15 +618,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -639,7 +639,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -647,15 +647,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -668,7 +668,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -676,15 +676,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -697,7 +697,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -705,15 +705,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -726,7 +726,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -734,15 +734,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -755,7 +755,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -763,15 +763,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -784,7 +784,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -792,15 +792,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -820,7 +820,7 @@
     "attributes": [],
     "events": [
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -828,15 +828,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -849,7 +849,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -857,15 +857,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -878,7 +878,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -886,15 +886,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -907,7 +907,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -915,15 +915,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -936,7 +936,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -944,15 +944,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -965,7 +965,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -973,15 +973,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -994,7 +994,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -1002,15 +1002,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -1023,7 +1023,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -1031,15 +1031,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -1052,7 +1052,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -1060,15 +1060,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -1081,7 +1081,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -1089,15 +1089,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -1117,7 +1117,7 @@
     "attributes": [],
     "events": [
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -1125,15 +1125,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -1146,7 +1146,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -1154,15 +1154,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -1175,7 +1175,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -1183,15 +1183,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -1204,7 +1204,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -1212,15 +1212,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -1233,7 +1233,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -1241,15 +1241,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -1262,7 +1262,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -1270,15 +1270,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -1291,7 +1291,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -1299,15 +1299,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -1320,7 +1320,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -1328,15 +1328,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -1349,7 +1349,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -1357,15 +1357,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -1378,7 +1378,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -1386,15 +1386,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -1414,7 +1414,7 @@
     "attributes": [],
     "events": [
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -1422,15 +1422,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -1443,7 +1443,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -1451,15 +1451,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -1472,7 +1472,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -1480,15 +1480,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -1501,7 +1501,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -1509,15 +1509,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -1530,7 +1530,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -1538,15 +1538,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -1559,7 +1559,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -1567,15 +1567,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -1588,7 +1588,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -1596,15 +1596,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -1617,7 +1617,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -1625,15 +1625,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -1646,7 +1646,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -1654,15 +1654,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -1675,7 +1675,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -1683,15 +1683,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -1711,7 +1711,7 @@
     "attributes": [],
     "events": [
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -1719,15 +1719,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -1740,7 +1740,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -1748,15 +1748,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -1769,7 +1769,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -1777,15 +1777,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -1798,7 +1798,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -1806,15 +1806,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -1827,7 +1827,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -1835,15 +1835,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -1856,7 +1856,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -1864,15 +1864,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -1885,7 +1885,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -1893,15 +1893,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -1914,7 +1914,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -1922,15 +1922,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -1943,7 +1943,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -1951,15 +1951,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -1972,7 +1972,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -1980,15 +1980,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -2008,7 +2008,7 @@
     "attributes": [],
     "events": [
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -2016,15 +2016,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -2037,7 +2037,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -2045,15 +2045,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -2066,7 +2066,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -2074,15 +2074,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -2095,7 +2095,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -2103,15 +2103,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -2124,7 +2124,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -2132,15 +2132,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -2153,7 +2153,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -2161,15 +2161,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -2182,7 +2182,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -2190,15 +2190,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -2211,7 +2211,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -2219,15 +2219,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -2240,7 +2240,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -2248,15 +2248,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -2269,7 +2269,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -2277,15 +2277,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -2298,7 +2298,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -2306,15 +2306,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -2327,7 +2327,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -2335,15 +2335,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -2356,7 +2356,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -2364,15 +2364,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -2385,7 +2385,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -2393,15 +2393,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -2414,7 +2414,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -2422,15 +2422,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -2443,7 +2443,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -2451,15 +2451,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -2472,7 +2472,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -2480,15 +2480,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -2501,7 +2501,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -2509,15 +2509,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -2530,7 +2530,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -2538,15 +2538,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -2559,7 +2559,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -2567,15 +2567,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -2588,7 +2588,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -2596,15 +2596,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -2617,7 +2617,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -2625,15 +2625,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -2646,7 +2646,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -2654,15 +2654,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -2675,7 +2675,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -2683,15 +2683,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -2704,7 +2704,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -2712,15 +2712,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -2733,7 +2733,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -2741,15 +2741,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -2762,7 +2762,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -2770,15 +2770,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -2791,7 +2791,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -2799,15 +2799,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -2820,7 +2820,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -2828,15 +2828,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -2849,7 +2849,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -2857,15 +2857,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -2878,7 +2878,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -2886,15 +2886,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -2907,7 +2907,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -2915,15 +2915,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -2936,7 +2936,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -2944,15 +2944,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -2965,7 +2965,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -2973,15 +2973,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -2994,7 +2994,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -3002,15 +3002,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -3023,7 +3023,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -3031,15 +3031,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -3052,7 +3052,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -3060,15 +3060,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -3081,7 +3081,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -3089,15 +3089,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -3110,7 +3110,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -3118,15 +3118,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -3139,7 +3139,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -3147,15 +3147,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -3168,7 +3168,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -3176,15 +3176,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -3197,7 +3197,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -3205,15 +3205,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -3226,7 +3226,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -3234,15 +3234,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -3255,7 +3255,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -3263,15 +3263,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -3284,7 +3284,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -3292,15 +3292,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -3313,7 +3313,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -3321,15 +3321,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -3342,7 +3342,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -3350,15 +3350,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -3371,7 +3371,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -3379,15 +3379,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -3400,7 +3400,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -3408,15 +3408,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -3429,7 +3429,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -3437,15 +3437,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -3458,7 +3458,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -3466,15 +3466,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -3487,7 +3487,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -3495,15 +3495,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -3516,7 +3516,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -3524,15 +3524,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -3545,7 +3545,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -3553,15 +3553,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -3574,7 +3574,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -3582,15 +3582,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -3603,7 +3603,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -3611,15 +3611,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -3632,7 +3632,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -3640,15 +3640,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -3661,7 +3661,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -3669,15 +3669,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -3690,7 +3690,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -3698,15 +3698,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
@@ -3719,7 +3719,7 @@
         ]
       },
       {
-        "type": "routing",
+        "type": "routing_outgoing",
         "attributes": [
           {
             "key": "message_id",
@@ -3727,15 +3727,15 @@
           },
           {
             "key": "source_chain",
-            "value": "mock-chain"
+            "value": "axelar"
           },
           {
             "key": "source_address",
-            "value": "idc"
+            "value": "its-hub"
           },
           {
             "key": "destination_chain",
-            "value": "mock-chain-2"
+            "value": "xrpl"
           },
           {
             "key": "destination_address",
