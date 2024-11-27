@@ -6903,6 +6903,7 @@ dependencies = [
  "rand",
  "report",
  "router-api",
+ "semver 1.0.23",
  "serde_json",
  "thiserror",
 ]
