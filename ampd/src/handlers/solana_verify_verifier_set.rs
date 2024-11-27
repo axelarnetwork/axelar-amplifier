@@ -23,8 +23,6 @@ use crate::handlers::errors::Error;
 use crate::solana::verifier_set_verifier::{parse_gateway_event, verify_verifier_set};
 use crate::types::TMAddress;
 
-use gmp_gateway::events::{ArchivedGatewayEvent, ArchivedRotateSignersEvent};
-
 type Result<T> = error_stack::Result<T, Error>;
 
 #[derive(Deserialize, Debug)]

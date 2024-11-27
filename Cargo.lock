@@ -273,6 +273,7 @@ dependencies = [
  "evm-gateway",
  "faux",
  "futures",
+ "gateway-event-stack",
  "generic-array",
  "hex",
  "humantime-serde",
@@ -934,7 +935,7 @@ dependencies = [
 [[package]]
 name = "axelar-message-primitives"
 version = "0.1.0"
-source = "git+https://github.com/eigerco/solana-axelar.git?rev=24cb744#24cb7448710527dc395fb569d150f582d9dfd32a"
+source = "git+https://github.com/eigerco/solana-axelar.git?rev=0be172e#0be172ec2d0b24e236d4131e8db46d93c98fe5f9"
 dependencies = [
  "alloy-primitives",
  "alloy-sol-types",
@@ -950,7 +951,7 @@ dependencies = [
 [[package]]
 name = "axelar-solana-encoding"
 version = "0.1.0"
-source = "git+https://github.com/eigerco/solana-axelar.git?rev=24cb744#24cb7448710527dc395fb569d150f582d9dfd32a"
+source = "git+https://github.com/eigerco/solana-axelar.git?rev=0be172e#0be172ec2d0b24e236d4131e8db46d93c98fe5f9"
 dependencies = [
  "arrayref",
  "borsh 1.5.3",
@@ -967,11 +968,10 @@ dependencies = [
 [[package]]
 name = "axelar-solana-gateway"
 version = "0.1.0"
-source = "git+https://github.com/eigerco/solana-axelar.git?rev=24cb744#24cb7448710527dc395fb569d150f582d9dfd32a"
+source = "git+https://github.com/eigerco/solana-axelar.git?rev=0be172e#0be172ec2d0b24e236d4131e8db46d93c98fe5f9"
 dependencies = [
  "axelar-message-primitives",
  "axelar-solana-encoding",
- "base64 0.21.7",
  "bincode",
  "bitvec 1.0.1",
  "borsh 1.5.3",
@@ -983,7 +983,6 @@ dependencies = [
  "num-derive 0.4.2",
  "num-traits",
  "program-utils",
- "rkyv",
  "solana-program",
  "thiserror",
 ]
@@ -3956,6 +3955,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "gateway-event-stack"
+version = "0.1.0"
+source = "git+https://github.com/eigerco/solana-axelar.git?rev=0be172e#0be172ec2d0b24e236d4131e8db46d93c98fe5f9"
+dependencies = [
+ "axelar-solana-gateway",
+ "base64 0.21.7",
+ "solana-sdk",
+ "tracing",
+]
+
+[[package]]
 name = "generic-array"
 version = "0.14.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6532,7 +6542,7 @@ version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "af1844ef2428cc3e1cb900be36181049ef3d3193c63e43026cfe202983b27a56"
 dependencies = [
- "proc-macro-crate 3.2.0",
+ "proc-macro-crate 1.1.3",
  "proc-macro2 1.0.92",
  "quote 1.0.37",
  "syn 2.0.89",
@@ -7364,7 +7374,7 @@ dependencies = [
 [[package]]
 name = "program-utils"
 version = "0.1.0"
-source = "git+https://github.com/eigerco/solana-axelar.git?rev=24cb744#24cb7448710527dc395fb569d150f582d9dfd32a"
+source = "git+https://github.com/eigerco/solana-axelar.git?rev=0be172e#0be172ec2d0b24e236d4131e8db46d93c98fe5f9"
 dependencies = [
  "rkyv",
  "solana-program",
@@ -7511,7 +7521,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "81bddcdb20abf9501610992b6759a4c888aef7d1a7247ef75e2404275ac24af1"
 dependencies = [
  "anyhow",
- "itertools 0.12.1",
+ "itertools 0.11.0",
  "proc-macro2 1.0.92",
  "quote 1.0.37",
  "syn 2.0.89",
@@ -12210,7 +12220,7 @@ version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf221c93e13a30d793f7645a0e7762c55d169dbb0a49671918a2319d289b10bb"
 dependencies = [
- "windows-sys 0.59.0",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]
