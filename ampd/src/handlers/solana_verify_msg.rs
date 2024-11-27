@@ -21,7 +21,7 @@ use voting_verifier::msg::ExecuteMsg;
 use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error;
 use crate::solana::msg_verifier::verify_message;
-use crate::solana::rpc::RpcCacheWrapper;
+use crate::solana::rpc_client::RpcCacheWrapper;
 use crate::types::TMAddress;
 
 type Result<T> = error_stack::Result<T, Error>;

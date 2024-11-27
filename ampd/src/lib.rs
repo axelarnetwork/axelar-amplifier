@@ -15,7 +15,7 @@ use evm::json_rpc::EthereumClient;
 use multiversx_sdk::gateway::GatewayProxy;
 use queue::queued_broadcaster::QueuedBroadcaster;
 use router_api::ChainName;
-use solana::rpc::RpcCacheWrapper;
+use solana::rpc_client::RpcCacheWrapper;
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::commitment_config::CommitmentConfig;
 use thiserror::Error;
