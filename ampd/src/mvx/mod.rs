@@ -27,16 +27,16 @@ impl WeightedSigners {
     pub fn hash(&self) -> Hash {
         let mut encoded: Vec<Vec<u8>> = Vec::new();
 
-        encoded.push(usize_to_u32(self.signers.len()));
+        encoded.push(usize_to_u32(self.signers.len()).to_vec());
 
         for signer in self.signers.iter() {
             encoded.push(signer.signer.to_vec());
 
-            encoded.push(usize_to_u32(signer.weight.len()));
+            encoded.push(usize_to_u32(signer.weight.len()).to_vec());
             encoded.push(signer.weight.to_vec());
         }
 
-        encoded.push(usize_to_u32(self.threshold.len()));
+        encoded.push(usize_to_u32(self.threshold.len()).to_vec());
         encoded.push(self.threshold.to_vec());
         encoded.push(self.nonce.to_vec());
 
@@ -82,8 +82,8 @@ fn uint256_to_compact_vec(value: Uint256) -> Vec<u8> {
     bytes[slice_from..].to_vec()
 }
 
-fn usize_to_u32(value: usize) -> Vec<u8> {
-    (value as u32).to_be_bytes().to_vec()
+fn usize_to_u32(value: usize) -> [u8; 4] {
+    (value as u32).to_be_bytes()
 }
 
 pub fn ed25519_key(pub_key: &PublicKey) -> Result<[u8; 32], Error> {
