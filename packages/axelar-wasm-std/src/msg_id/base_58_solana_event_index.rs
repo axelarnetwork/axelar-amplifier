@@ -5,16 +5,30 @@ use std::str::FromStr;
 use error_stack::{Report, ResultExt};
 use lazy_static::lazy_static;
 use regex::Regex;
+use serde::{Deserialize, Deserializer};
 
 use super::Error;
 use crate::nonempty;
 
 type RawSignature = [u8; 64];
 
+#[derive(Debug, Clone)]
 pub struct Base58SolanaTxSignatureAndEventIndex {
     // Base58 decoded bytes of the Solana signature.
     pub raw_signature: RawSignature,
     pub event_index: u64,
+}
+
+impl<'de> Deserialize<'de> for Base58SolanaTxSignatureAndEventIndex {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        // Deserialize the input as a string
+        let s = String::deserialize(deserializer)?;
+        // Use the FromStr implementation to parse the string into the struct
+        Base58SolanaTxSignatureAndEventIndex::from_str(&s).map_err(serde::de::Error::custom)
+    }
 }
 
 impl Base58SolanaTxSignatureAndEventIndex {

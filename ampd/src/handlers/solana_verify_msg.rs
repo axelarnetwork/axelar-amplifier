@@ -1,72 +1,75 @@
+use std::collections::{HashMap, HashSet};
+use std::convert::TryInto;
+
 use async_trait::async_trait;
+use axelar_wasm_std::msg_id::{Base58SolanaTxSignatureAndEventIndex, HexTxHashAndEventIndex};
+use axelar_wasm_std::voting::{PollId, Vote};
 use cosmrs::cosmwasm::MsgExecuteContract;
-use cosmrs::{tx::Msg, Any};
+use cosmrs::tx::Msg;
+use cosmrs::Any;
 use error_stack::ResultExt;
-use futures::stream::FuturesOrdered;
-use futures::StreamExt;
+use ethers_core::types::{TransactionReceipt, U64};
+use events::Error::EventTypeMismatch;
+use events_derive::try_from;
+use futures::future::join_all;
+use futures::FutureExt;
 use router_api::ChainName;
 use serde::Deserialize;
-use solana_sdk::signature::Signature;
-use solana_transaction_status::UiTransactionEncoding;
-use std::convert::TryInto;
-use std::str::FromStr;
-use tracing::{error, info};
-
-use axelar_wasm_std::voting::{PollId, Vote};
-use events::{Error::EventTypeMismatch, Event};
-use events_derive::try_from;
+use solana_client::nonblocking::rpc_client::RpcClient;
+use solana_sdk::pubkey::Pubkey;
 use tokio::sync::watch::Receiver;
+use tracing::{info, info_span};
+use valuable::Valuable;
 use voting_verifier::msg::ExecuteMsg;
 
 use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error;
-use crate::solana::msg_verifier::verify_message;
-use crate::solana::rpc_client::RpcCacheWrapper;
-use crate::types::TMAddress;
+use crate::handlers::errors::Error::DeserializeEvent;
+use crate::types::{Hash, TMAddress};
 
 type Result<T> = error_stack::Result<T, Error>;
 
-#[derive(Deserialize, Debug, PartialEq)]
+#[derive(Deserialize, Debug)]
 pub struct Message {
-    pub tx_id: String,
-    pub event_index: u64,
+    pub message_id: Base58SolanaTxSignatureAndEventIndex,
     pub destination_address: String,
-    pub destination_chain: router_api::ChainName,
-    pub source_address: String,
-    #[serde(with = "axelar_wasm_std::hex")]
-    pub payload_hash: [u8; 32],
+    pub destination_chain: ChainName,
+    pub source_address: Pubkey,
+    pub payload_hash: Hash,
 }
 
 #[derive(Deserialize, Debug)]
 #[try_from("wasm-messages_poll_started")]
 struct PollStartedEvent {
-    #[serde(rename = "_contract_address")]
-    contract_address: TMAddress,
     poll_id: PollId,
-    source_gateway_address: String,
     source_chain: ChainName,
+    source_gateway_address: Pubkey,
+    confirmation_height: u64,
+    expires_at: u64,
     messages: Vec<Message>,
     participants: Vec<TMAddress>,
-    expires_at: u64,
 }
 
 pub struct Handler {
     verifier: TMAddress,
-    voting_verifier: TMAddress,
-    rpc_client: RpcCacheWrapper,
+    voting_verifier_contract: TMAddress,
+    chain: ChainName,
+    rpc_client: RpcClient,
     latest_block_height: Receiver<u64>,
 }
 
 impl Handler {
     pub fn new(
         verifier: TMAddress,
-        voting_verifier: TMAddress,
-        rpc_client: RpcCacheWrapper,
+        voting_verifier_contract: TMAddress,
+        chain: ChainName,
+        rpc_client: RpcClient,
         latest_block_height: Receiver<u64>,
     ) -> Self {
         Self {
             verifier,
-            voting_verifier,
+            voting_verifier_contract,
+            chain,
             rpc_client,
             latest_block_height,
         }
@@ -75,53 +78,11 @@ impl Handler {
     fn vote_msg(&self, poll_id: PollId, votes: Vec<Vote>) -> MsgExecuteContract {
         MsgExecuteContract {
             sender: self.verifier.as_ref().clone(),
-            contract: self.voting_verifier.as_ref().clone(),
+            contract: self.voting_verifier_contract.as_ref().clone(),
             msg: serde_json::to_vec(&ExecuteMsg::Vote { poll_id, votes })
-                .expect("vote msg should serialize"), // This should serialize as inputs are controlled.
+                .expect("vote msg should serialize"),
             funds: vec![],
         }
-    }
-
-    async fn process_message(
-        &self,
-        msg: &Message,
-        source_gateway_address: &String,
-    ) -> Result<Vote> {
-        let sol_tx_signature = match Signature::from_str(&msg.tx_id) {
-            Ok(sig) => sig,
-            Err(err) => {
-                error!(
-                    tx_id = msg.tx_id.to_string(),
-                    err = err.to_string(),
-                    "Cannot decode solana tx signature"
-                );
-                return Ok(Vote::FailedOnChain);
-            }
-        };
-
-        let sol_tx = match self
-            .rpc_client
-            .get_transaction(&sol_tx_signature, UiTransactionEncoding::Json)
-            .await
-        {
-            Ok(tx) => tx,
-            Err(err) => match err.kind() {
-                // When tx is not found a null is returned.
-                solana_client::client_error::ClientErrorKind::SerdeJson(_) => {
-                    error!(
-                        tx_id = msg.tx_id,
-                        err = err.to_string(),
-                        "Cannot find solana tx signature"
-                    );
-                    return Ok(Vote::NotFound);
-                }
-                _ => {
-                    error!(tx_id = msg.tx_id, "RPC error while fetching solana tx");
-                    return Err(Error::TxReceipts)?;
-                }
-            },
-        };
-        Ok(verify_message(source_gateway_address, sol_tx, msg))
     }
 }
 
@@ -129,24 +90,27 @@ impl Handler {
 impl EventHandler for Handler {
     type Err = Error;
 
-    async fn handle(&self, event: &Event) -> Result<Vec<Any>> {
+    async fn handle(&self, event: &events::Event) -> Result<Vec<Any>> {
+        if !event.is_from_contract(self.voting_verifier_contract.as_ref()) {
+            return Ok(vec![]);
+        }
+
         let PollStartedEvent {
-            contract_address,
             poll_id,
             source_chain,
             source_gateway_address,
             messages,
-            participants,
             expires_at,
-            ..
+            confirmation_height,
+            participants,
         } = match event.try_into() as error_stack::Result<_, _> {
             Err(report) if matches!(report.current_context(), EventTypeMismatch(_)) => {
-                return Ok(vec![]);
+                return Ok(vec![])
             }
-            event => event.change_context(Error::DeserializeEvent)?,
+            event => event.change_context(DeserializeEvent)?,
         };
 
-        if self.voting_verifier != contract_address {
+        if self.chain != source_chain {
             return Ok(vec![]);
         }
 
@@ -160,16 +124,62 @@ impl EventHandler for Handler {
             return Ok(vec![]);
         }
 
-        let mut votes: Vec<Vote> = Vec::new();
-
-        let mut ord_fut: FuturesOrdered<_> = messages
+        let tx_calls = messages
             .iter()
-            .map(|msg| self.process_message(msg, &source_gateway_address))
-            .collect();
+            .map(|msg| solana_sdk::signature::Signature::from(msg.message_id.raw_signature))
+            .map(|sig| {
+                self.rpc_client
+                    .get_transaction(
+                        &sig,
+                        solana_transaction_status::UiTransactionEncoding::Base58,
+                    )
+                    .map(|tx_data_result| {
+                        tx_data_result
+                            .map(|tx_data| tx_data.transaction.meta)
+                            .ok()
+                            .flatten()
+                            .map(|tx_data| (sig, tx_data))
+                    })
+            });
 
-        while let Some(vote_result) = ord_fut.next().await {
-            votes.push(vote_result?) // If there is a failure, its due to a network error, so we abort this handler operation and all messages need to be processed again.
-        }
+        let finalized_tx_receipts = futures::future::join_all(tx_calls)
+            .await
+            .into_iter()
+            .filter_map(|tx_data| tx_data)
+            .collect::<HashMap<_, _>>();
+
+        let poll_id_str: String = poll_id.into();
+        let source_chain_str: String = source_chain.into();
+        let votes = info_span!(
+            "verify messages from Solana",
+            poll_id = poll_id_str,
+            source_chain = source_chain_str,
+            message_ids = messages
+                .iter()
+                .map(|msg| msg.message_id.to_string())
+                .collect::<Vec<String>>()
+                .as_value(),
+        )
+        .in_scope(|| {
+            info!("ready to verify messages in poll",);
+
+            let votes: Vec<_> = messages
+                .iter()
+                .map(|msg| {
+                    finalized_tx_receipts
+                        .get(&msg.message_id.raw_signature.into())
+                        .map_or(Vote::NotFound, |tx_receipt| {
+                            verify_message(&source_gateway_address, tx_receipt, msg)
+                        })
+                })
+                .collect();
+            info!(
+                votes = votes.as_value(),
+                "ready to vote for messages in poll"
+            );
+
+            votes
+        });
 
         Ok(vec![self
             .vote_msg(poll_id, votes)

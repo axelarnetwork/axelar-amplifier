@@ -1,5 +1,4 @@
 use axelar_wasm_std::voting::Vote;
-use gmp_gateway::events::{ArchivedCallContract, ArchivedGatewayEvent, GatewayEvent};
 use solana_sdk::pubkey::Pubkey;
 use solana_transaction_status::{
     option_serializer::OptionSerializer, EncodedConfirmedTransactionWithStatusMeta,
