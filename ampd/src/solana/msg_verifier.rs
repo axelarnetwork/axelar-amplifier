@@ -1,137 +1,88 @@
+use axelar_solana_gateway::processor::GatewayEvent;
 use axelar_wasm_std::voting::Vote;
+use gateway_event_stack::MatchContext;
 use solana_sdk::pubkey::Pubkey;
 use solana_transaction_status::{
     option_serializer::OptionSerializer, EncodedConfirmedTransactionWithStatusMeta,
 };
+use solana_transaction_status::{UiTransactionEncoding, UiTransactionStatusMeta};
 use std::str::FromStr;
 use std::sync::Arc;
 use tracing::error;
 
 use crate::handlers::solana_verify_msg::Message;
 
-impl PartialEq<&Message> for &ArchivedGatewayEvent {
-    fn eq(&self, msg: &&Message) -> bool {
-        match self {
-            ArchivedGatewayEvent::CallContract(ArchivedCallContract {
-                sender,
-                destination_chain,
-                destination_address,
-                payload: _,
-                payload_hash,
-            }) => {
-                let Ok(msg_sender) = Pubkey::from_str(msg.source_address.as_str()) else {
-                    return false;
-                };
-
-                sender == &msg_sender.to_bytes()
-                    && msg.destination_chain == destination_chain.as_str()
-                    && msg.destination_address == destination_address.as_str()
-                    && *payload_hash == msg.payload_hash
-            }
-            _ => false,
-        }
-    }
-}
-
 pub fn verify_message(
-    source_gateway_address: &String,
-    tx: Arc<EncodedConfirmedTransactionWithStatusMeta>,
+    source_gateway_address: &Pubkey,
+    tx: &UiTransactionStatusMeta,
     message: &Message,
 ) -> Vote {
-    let ui_tx = match &tx.transaction.transaction {
-        solana_transaction_status::EncodedTransaction::Json(tx) => tx,
+    let tx_was_successful = tx.err.is_none();
+    let desired_event_idx: usize = match message.message_id.event_index.try_into() {
+        Ok(idx) => idx,
+        Err(_) => {
+            error!("Invalid event index in message ID");
+            return Vote::NotFound;
+        }
+    };
+
+    let context = MatchContext::new(&source_gateway_address.to_string());
+
+    let logs = match tx.log_messages.as_ref() {
+        OptionSerializer::Some(logs) => logs,
         _ => {
-            error!("failed to parse solana tx.");
-            return Vote::FailedOnChain;
+            error!("Logs not attached to the transaction object");
+            return Vote::NotFound;
         }
     };
 
-    // NOTE: first signature is always tx_id
-    let tx_id = match ui_tx.signatures.first() {
-        Some(tx) => tx,
-        None => {
-            error!("failed to parse solana tx signatures.");
-            return Vote::FailedOnChain;
-        }
-    };
+    let event_stack = gateway_event_stack::build_program_event_stack(
+        &context,
+        logs,
+        gateway_event_stack::parse_gateway_logs,
+    );
 
-    let tx_meta = match &tx.transaction.meta {
-        Some(meta) => meta,
-        None => {
-            error!(
-                tx_id = tx_id,
-                "Theres no available tx metadata to parse log messages from."
-            );
-            return Vote::FailedOnChain;
-        }
-    };
+    use gateway_event_stack::ProgramInvocationState::*;
 
-    let log_messages = match &tx_meta.log_messages {
-        OptionSerializer::Some(log) => log,
-        _ => {
-            error!(tx_id = tx_id, "Theres no log messages in tx.");
-            return Vote::FailedOnChain;
-        }
-    };
+    for invocation_state in event_stack {
+        let (vote, gateway_events) = match invocation_state {
+            Succeeded(events) => (
+                {
+                    // if tx was successful and ix invocation was successful,
+                    // then the final outcome (if event can be found) will be of `Vote::SucceededOnChain`
+                    if tx_was_successful {
+                        Vote::SucceededOnChain
+                    } else {
+                        // if tx was NOT successful then we don't care if the ix invocatoin succeeded,
+                        // therefore the final outcome (if event can be found) will be of `Vote::FailedOnChain`
+                        Vote::FailedOnChain
+                    }
+                },
+                events,
+            ),
+            Failed(events) | InProgress(events) => (Vote::FailedOnChain, events),
+        };
 
-    let ui_parsed_msg = match &ui_tx.message {
-        solana_transaction_status::UiMessage::Raw(msg) => msg,
-        _ => {
-            error!(
-                tx_id = tx_id,
-                "Could not gather tx message for checking account keys."
-            );
-            return Vote::FailedOnChain;
-        }
-    };
+        if let Some((_, event)) = gateway_events
+            .into_iter()
+            .find(|(idx, _)| *idx == desired_event_idx)
+        {
+            if let GatewayEvent::CallContract(event) = event {
+                let events_are_equal = event.sender_key == message.source_address
+                    && event.payload_hash == message.payload_hash.0
+                    && message.destination_chain == event.destination_chain
+                    && event.destination_contract_address == message.destination_address;
 
-    match find_first_log_message_match(
-        tx_id,
-        log_messages,
-        message,
-        &ui_parsed_msg.account_keys,
-        source_gateway_address,
-    ) {
-        Some(_) => Vote::SucceededOnChain,
-        None => Vote::FailedOnChain,
-    }
-}
-
-// This function iterates over all Solana tx log messages
-// trying to find at least one log msg that matches the
-// Axelar provided one. For doing that, its necessary to:
-//
-// 1. Deserialize the tx log message, which contains the gateway event.
-// 2. The parsed gateway event from 1 matches the Axelar message.
-//
-// This function is only intended for use inside this crate
-// and its arguments are basically parts of the Solana tx plus
-// the Axelar counterpart for verification purposes.
-//
-// When the first matching log message is found, its index will be returned.
-fn find_first_log_message_match(
-    tx_id: &str,
-    log_messages: &[String],
-    message: &Message,
-    account_keys: &[String],
-    source_gateway_address: &String,
-) -> Option<usize> {
-    for (i, log) in log_messages.iter().enumerate() {
-        match GatewayEvent::parse_log(log) {
-            Some(parsed_ev) => {
-                let arch_gw_event = parsed_ev.parse();
-                let verified = arch_gw_event == message
-                    && *tx_id == message.tx_id
-                    && account_keys.contains(source_gateway_address);
-
-                if verified {
-                    return Some(i);
+                if events_are_equal {
+                    // proxy the desired vote status of whether the ix succeeded
+                    return vote;
                 }
+                return Vote::NotFound;
             }
-            None => continue,
         }
     }
-    None
+
+    Vote::NotFound
 }
 
 #[cfg(test)]

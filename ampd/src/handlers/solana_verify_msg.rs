@@ -17,6 +17,7 @@ use router_api::ChainName;
 use serde::Deserialize;
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::pubkey::Pubkey;
+use solana_transaction_status::UiTransactionStatusMeta;
 use tokio::sync::watch::Receiver;
 use tracing::{info, info_span};
 use valuable::Valuable;
@@ -25,6 +26,7 @@ use voting_verifier::msg::ExecuteMsg;
 use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error;
 use crate::handlers::errors::Error::DeserializeEvent;
+use crate::solana::msg_verifier::verify_message;
 use crate::types::{Hash, TMAddress};
 
 type Result<T> = error_stack::Result<T, Error>;
@@ -44,7 +46,6 @@ struct PollStartedEvent {
     poll_id: PollId,
     source_chain: ChainName,
     source_gateway_address: Pubkey,
-    confirmation_height: u64,
     expires_at: u64,
     messages: Vec<Message>,
     participants: Vec<TMAddress>,
@@ -53,7 +54,6 @@ struct PollStartedEvent {
 pub struct Handler {
     verifier: TMAddress,
     voting_verifier_contract: TMAddress,
-    chain: ChainName,
     rpc_client: RpcClient,
     latest_block_height: Receiver<u64>,
 }
@@ -62,14 +62,12 @@ impl Handler {
     pub fn new(
         verifier: TMAddress,
         voting_verifier_contract: TMAddress,
-        chain: ChainName,
         rpc_client: RpcClient,
         latest_block_height: Receiver<u64>,
     ) -> Self {
         Self {
             verifier,
             voting_verifier_contract,
-            chain,
             rpc_client,
             latest_block_height,
         }
@@ -83,6 +81,26 @@ impl Handler {
                 .expect("vote msg should serialize"),
             funds: vec![],
         }
+    }
+
+    async fn fetch_message(
+        &self,
+        msg: &Message,
+    ) -> Option<(solana_sdk::signature::Signature, UiTransactionStatusMeta)> {
+        let signature = solana_sdk::signature::Signature::from(msg.message_id.raw_signature);
+        self.rpc_client
+            .get_transaction(
+                &signature,
+                solana_transaction_status::UiTransactionEncoding::Base58,
+            )
+            .map(|tx_data_result| {
+                tx_data_result
+                    .map(|tx_data| tx_data.transaction.meta)
+                    .ok()
+                    .flatten()
+                    .map(|tx_data| (signature, tx_data))
+            })
+            .await
     }
 }
 
@@ -101,7 +119,6 @@ impl EventHandler for Handler {
             source_gateway_address,
             messages,
             expires_at,
-            confirmation_height,
             participants,
         } = match event.try_into() as error_stack::Result<_, _> {
             Err(report) if matches!(report.current_context(), EventTypeMismatch(_)) => {
@@ -109,10 +126,6 @@ impl EventHandler for Handler {
             }
             event => event.change_context(DeserializeEvent)?,
         };
-
-        if self.chain != source_chain {
-            return Ok(vec![]);
-        }
 
         if !participants.contains(&self.verifier) {
             return Ok(vec![]);
@@ -124,23 +137,7 @@ impl EventHandler for Handler {
             return Ok(vec![]);
         }
 
-        let tx_calls = messages
-            .iter()
-            .map(|msg| solana_sdk::signature::Signature::from(msg.message_id.raw_signature))
-            .map(|sig| {
-                self.rpc_client
-                    .get_transaction(
-                        &sig,
-                        solana_transaction_status::UiTransactionEncoding::Base58,
-                    )
-                    .map(|tx_data_result| {
-                        tx_data_result
-                            .map(|tx_data| tx_data.transaction.meta)
-                            .ok()
-                            .flatten()
-                            .map(|tx_data| (sig, tx_data))
-                    })
-            });
+        let tx_calls = messages.iter().map(|msg| self.fetch_message(msg));
 
         let finalized_tx_receipts = futures::future::join_all(tx_calls)
             .await
