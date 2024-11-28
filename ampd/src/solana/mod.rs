@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use futures::FutureExt;
-use serde::Deserializer;
+use serde::{Deserialize, Deserializer};
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::{pubkey::Pubkey, signature::Signature};
 use solana_transaction_status::UiTransactionStatusMeta;

@@ -15,7 +15,6 @@ use evm::json_rpc::EthereumClient;
 use multiversx_sdk::gateway::GatewayProxy;
 use queue::queued_broadcaster::QueuedBroadcaster;
 use router_api::ChainName;
-use solana::rpc_client::RpcCacheWrapper;
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::commitment_config::CommitmentConfig;
 use thiserror::Error;
@@ -395,7 +394,6 @@ where
                 ),
                 handlers::config::Config::SolanaMsgVerifier {
                     cosmwasm_contract,
-                    max_tx_cache_entries,
                     rpc_url,
                     rpc_timeout,
                 } => self.create_handler_task(
@@ -403,13 +401,10 @@ where
                     handlers::solana_verify_msg::Handler::new(
                         verifier.clone(),
                         cosmwasm_contract,
-                        RpcCacheWrapper::new(
-                            RpcClient::new_with_timeout_and_commitment(
-                                rpc_url.to_string(),
-                                rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT),
-                                CommitmentConfig::finalized(),
-                            ),
-                            NonZeroUsize::new(max_tx_cache_entries).unwrap(),
+                        RpcClient::new_with_timeout_and_commitment(
+                            rpc_url.to_string(),
+                            rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT),
+                            CommitmentConfig::finalized(),
                         ),
                         self.block_height_monitor.latest_block_height(),
                     ),
@@ -430,7 +425,8 @@ where
                             CommitmentConfig::finalized(),
                         ),
                         self.block_height_monitor.latest_block_height(),
-                    ),
+                    )
+                    .await,
                     event_processor_config.clone(),
                 ),
             };

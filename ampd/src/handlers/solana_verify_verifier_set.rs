@@ -50,18 +50,30 @@ pub struct Handler {
     verifier: TMAddress,
     voting_verifier_contract: TMAddress,
     rpc_client: RpcClient,
+    solana_gateway_domain_separator: [u8; 32],
     latest_block_height: Receiver<u64>,
 }
 
 impl Handler {
-    pub fn new(
+    pub async fn new(
         verifier: TMAddress,
         voting_verifier_contract: TMAddress,
         rpc_client: RpcClient,
         latest_block_height: Receiver<u64>,
     ) -> Self {
+        let (gateway_root_pda, ..) = axelar_solana_gateway::get_gateway_root_config_pda();
+        let config = rpc_client
+            .get_account(&gateway_root_pda)
+            .await
+            .expect("gateway account could not be fetched")
+            .data;
+        let config = borsh::from_slice::<axelar_solana_gateway::state::GatewayConfig>(&config)
+            .expect("gateway config data must be borsh encoded");
+        let domain_separator = config.domain_separator;
+
         Self {
             verifier,
+            solana_gateway_domain_separator: domain_separator,
             voting_verifier_contract,
             rpc_client,
             latest_block_height,
@@ -134,7 +146,12 @@ impl EventHandler for Handler {
             info!("ready to verify a new verifier set in poll");
 
             let vote = tx_receipt.map_or(Vote::NotFound, |(_, tx_receipt)| {
-                verify_verifier_set(&source_gateway_address, &tx_receipt, &verifier_set)
+                verify_verifier_set(
+                    &source_gateway_address,
+                    &tx_receipt,
+                    &verifier_set,
+                    &self.solana_gateway_domain_separator,
+                )
             });
             info!(
                 vote = vote.as_value(),

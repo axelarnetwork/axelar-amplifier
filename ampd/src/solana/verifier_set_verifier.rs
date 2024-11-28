@@ -1,3 +1,6 @@
+use std::collections::BTreeMap;
+
+use axelar_solana_encoding::hasher::NativeHasher;
 use axelar_solana_gateway::processor::GatewayEvent;
 use axelar_solana_gateway::processor::VerifierSetRotated;
 use axelar_wasm_std::voting::Vote;
@@ -21,26 +24,71 @@ pub fn verify_verifier_set(
     gateway_address: &Pubkey,
     tx: &UiTransactionStatusMeta,
     message: &VerifierSetConfirmation,
+    domain_separator: &[u8; 32],
 ) -> Vote {
+    use axelar_solana_encoding::types::verifier_set::verifier_set_hash;
+
     verify(
         gateway_address,
         tx,
         message.message_id.event_index,
         |gateway_event| {
             let GatewayEvent::VerifierSetRotated(VerifierSetRotated {
-                epoch,
-                verifier_set_hash,
+                verifier_set_hash: incoming_verifier_set_hash,
+                epoch: _,
             }) = gateway_event
             else {
                 return false;
             };
 
-            // todo -- re-hash the same way we re-hash within the multisig prover
-            let desired_hash = message.verifier_set.hash();
+            let Some(verifier_set) = to_verifier_set(&message.verifier_set) else {
+                error!("verifier set data structure could not be parsed");
+                return false;
+            };
 
-            return desired_hash == hash;
+            let Ok(desired_hash) =
+                verifier_set_hash::<NativeHasher>(&verifier_set, &domain_separator)
+            else {
+                error!("verifier set could not be hashed");
+                return false;
+            };
+
+            return desired_hash == incoming_verifier_set_hash;
         },
     )
+}
+
+/// Transform from Axelar VerifierSet to axelar_solana_encoding VerifierSet
+fn to_verifier_set(
+    vs: &VerifierSet,
+) -> Option<axelar_solana_encoding::types::verifier_set::VerifierSet> {
+    let mut signers = BTreeMap::new();
+
+    for (_cosmwasm_adr, signer) in vs.signers.iter() {
+        let pub_key = to_pub_key(&signer.pub_key)?;
+        let weight = signer.weight.u128();
+        signers.insert(pub_key, weight);
+    }
+
+    let verifier_set = axelar_solana_encoding::types::verifier_set::VerifierSet {
+        nonce: vs.created_at,
+        signers,
+        quorum: vs.threshold.u128(),
+    };
+    Some(verifier_set)
+}
+
+fn to_pub_key(pk: &PublicKey) -> Option<axelar_solana_encoding::types::pubkey::PublicKey> {
+    use axelar_solana_encoding::types::pubkey::ED25519_PUBKEY_LEN;
+    use axelar_solana_encoding::types::pubkey::SECP256K1_COMPRESSED_PUBKEY_LEN;
+    Some(match pk {
+        PublicKey::Ecdsa(hb) => axelar_solana_encoding::types::pubkey::PublicKey::Secp256k1(
+            hb.to_array::<SECP256K1_COMPRESSED_PUBKEY_LEN>().ok()?,
+        ),
+        PublicKey::Ed25519(hb) => axelar_solana_encoding::types::pubkey::PublicKey::Ed25519(
+            hb.to_array::<ED25519_PUBKEY_LEN>().ok()?,
+        ),
+    })
 }
 
 #[cfg(test)]
