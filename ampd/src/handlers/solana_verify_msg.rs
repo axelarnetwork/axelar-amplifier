@@ -26,6 +26,7 @@ use voting_verifier::msg::ExecuteMsg;
 use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error;
 use crate::handlers::errors::Error::DeserializeEvent;
+use crate::solana::fetch_message;
 use crate::solana::msg_verifier::verify_message;
 use crate::types::{Hash, TMAddress};
 
@@ -36,6 +37,7 @@ pub struct Message {
     pub message_id: Base58SolanaTxSignatureAndEventIndex,
     pub destination_address: String,
     pub destination_chain: ChainName,
+    #[serde(deserialize_with = "crate::solana::deserialize_pubkey")]
     pub source_address: Pubkey,
     pub payload_hash: Hash,
 }
@@ -88,19 +90,7 @@ impl Handler {
         msg: &Message,
     ) -> Option<(solana_sdk::signature::Signature, UiTransactionStatusMeta)> {
         let signature = solana_sdk::signature::Signature::from(msg.message_id.raw_signature);
-        self.rpc_client
-            .get_transaction(
-                &signature,
-                solana_transaction_status::UiTransactionEncoding::Base58,
-            )
-            .map(|tx_data_result| {
-                tx_data_result
-                    .map(|tx_data| tx_data.transaction.meta)
-                    .ok()
-                    .flatten()
-                    .map(|tx_data| (signature, tx_data))
-            })
-            .await
+        fetch_message(&self.rpc_client, signature).await
     }
 }
 

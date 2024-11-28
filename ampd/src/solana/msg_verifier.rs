@@ -12,13 +12,17 @@ use tracing::error;
 
 use crate::handlers::solana_verify_msg::Message;
 
-pub fn verify_message(
+pub fn verify<F>(
     source_gateway_address: &Pubkey,
     tx: &UiTransactionStatusMeta,
-    message: &Message,
-) -> Vote {
+    desired_event_index: impl TryInto<usize>,
+    evens_are_equal: F,
+) -> Vote
+where
+    F: Fn(GatewayEvent) -> bool,
+{
     let tx_was_successful = tx.err.is_none();
-    let desired_event_idx: usize = match message.message_id.event_index.try_into() {
+    let desired_event_idx: usize = match desired_event_index.try_into() {
         Ok(idx) => idx,
         Err(_) => {
             error!("Invalid event index in message ID");
@@ -67,22 +71,36 @@ pub fn verify_message(
             .into_iter()
             .find(|(idx, _)| *idx == desired_event_idx)
         {
-            if let GatewayEvent::CallContract(event) = event {
-                let events_are_equal = event.sender_key == message.source_address
-                    && event.payload_hash == message.payload_hash.0
-                    && message.destination_chain == event.destination_chain
-                    && event.destination_contract_address == message.destination_address;
-
-                if events_are_equal {
-                    // proxy the desired vote status of whether the ix succeeded
-                    return vote;
-                }
-                return Vote::NotFound;
+            if evens_are_equal(event) {
+                // proxy the desired vote status of whether the ix succeeded
+                return vote;
             }
+            return Vote::NotFound;
         }
     }
 
     Vote::NotFound
+}
+
+pub fn verify_message(
+    source_gateway_address: &Pubkey,
+    tx: &UiTransactionStatusMeta,
+    message: &Message,
+) -> Vote {
+    verify(
+        source_gateway_address,
+        tx,
+        message.message_id.event_index,
+        |gateway_event| {
+            let GatewayEvent::CallContract(event) = gateway_event else {
+                return false;
+            };
+            return event.sender_key == message.source_address
+                && event.payload_hash == message.payload_hash.0
+                && message.destination_chain == event.destination_chain
+                && event.destination_contract_address == message.destination_address;
+        },
+    )
 }
 
 #[cfg(test)]

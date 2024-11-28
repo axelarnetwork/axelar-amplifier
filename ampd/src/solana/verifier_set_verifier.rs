@@ -1,8 +1,12 @@
+use axelar_solana_gateway::processor::GatewayEvent;
+use axelar_solana_gateway::processor::VerifierSetRotated;
 use axelar_wasm_std::voting::Vote;
 use multisig::key::PublicKey;
 use multisig::verifier_set::VerifierSet;
 use sha3::Digest;
 use sha3::Keccak256;
+use solana_sdk::pubkey::Pubkey;
+use solana_transaction_status::UiTransactionStatusMeta;
 
 use crate::handlers::solana_verify_verifier_set::VerifierSetConfirmation;
 use solana_transaction_status::{
@@ -11,68 +15,32 @@ use solana_transaction_status::{
 use thiserror::Error;
 use tracing::error;
 
-use gmp_gateway::events::{EventContainer, GatewayEvent};
+use super::msg_verifier::verify;
 
-#[derive(Error, Debug, PartialEq)]
-pub enum VerificationError {
-    #[error("Failed to parse tx log messages")]
-    NoLogMessages,
-    #[error("Tried to get gateway event from program logs, but couldn't find anything.")]
-    NoGatewayEventFound,
-}
-
-type Result<T> = std::result::Result<T, VerificationError>;
-
-pub fn parse_gateway_event(
-    tx: &EncodedConfirmedTransactionWithStatusMeta,
-) -> Result<EventContainer> {
-    let Some(meta) = &tx.transaction.meta else {
-        return Err(VerificationError::NoLogMessages);
-    };
-
-    let OptionSerializer::Some(log_messages) = &meta.log_messages else {
-        return Err(VerificationError::NoLogMessages);
-    };
-
-    log_messages
-        .iter()
-        .find_map(GatewayEvent::parse_log)
-        .ok_or(VerificationError::NoGatewayEventFound)
-}
-
-#[tracing::instrument(name = "solana_verify_verifier_set")]
 pub fn verify_verifier_set(
-    verifier_set_conf: &VerifierSetConfirmation,
-    new_signers_hash: &[u8; 32],
+    gateway_address: &Pubkey,
+    tx: &UiTransactionStatusMeta,
+    message: &VerifierSetConfirmation,
 ) -> Vote {
-    let axelar_verifier_set_hash = hash_verifier_set(&verifier_set_conf.verifier_set);
-    if &axelar_verifier_set_hash == new_signers_hash {
-        return Vote::SucceededOnChain;
-    }
-    Vote::FailedOnChain
-}
+    verify(
+        gateway_address,
+        tx,
+        message.message_id.event_index,
+        |gateway_event| {
+            let GatewayEvent::VerifierSetRotated(VerifierSetRotated {
+                epoch,
+                verifier_set_hash,
+            }) = gateway_event
+            else {
+                return false;
+            };
 
-fn hash_verifier_set(verifier_set: &VerifierSet) -> [u8; 32] {
-    let mut hasher = Keccak256::new();
+            // todo -- re-hash the same way we re-hash within the multisig prover
+            let desired_hash = message.verifier_set.hash();
 
-    // Length prefix the bytes to be hashed to prevent hash collisions
-    let len = u32::try_from(verifier_set.signers.len())
-        .expect("impossible for the value to be larger than u32 on wasm32");
-    hasher.update(len.to_le_bytes());
-
-    verifier_set.signers.values().for_each(|signer| {
-        match signer.pub_key {
-            PublicKey::Ecdsa(_) => hasher.update(b"secp256k1"),
-            PublicKey::Ed25519(_) => hasher.update(b"ed25519"),
-        }
-        hasher.update(signer.pub_key.as_ref());
-        hasher.update(signer.weight.to_le_bytes());
-    });
-
-    hasher.update(verifier_set.threshold.to_le_bytes());
-    hasher.update(verifier_set.created_at.to_le_bytes());
-
-    hasher.finalize().into()
+            return desired_hash == hash;
+        },
+    )
 }
 
 #[cfg(test)]

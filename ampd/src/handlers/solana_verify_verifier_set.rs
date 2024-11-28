@@ -1,53 +1,54 @@
+use std::convert::TryInto;
+
 use async_trait::async_trait;
+use axelar_wasm_std::msg_id::{Base58SolanaTxSignatureAndEventIndex, HexTxHashAndEventIndex};
+use axelar_wasm_std::voting::{PollId, Vote};
 use cosmrs::cosmwasm::MsgExecuteContract;
-use cosmrs::{tx::Msg, Any};
+use cosmrs::tx::Msg;
+use cosmrs::Any;
 use error_stack::ResultExt;
 use events::Error::EventTypeMismatch;
 use events_derive::try_from;
 use multisig::verifier_set::VerifierSet;
-use serde::Deserialize;
-use solana_sdk::signature::Signature;
-use solana_transaction_status::UiTransactionEncoding;
-use std::convert::TryInto;
-use std::str::FromStr;
-use tokio::sync::watch::Receiver;
-use tracing::{error, info};
-
-use axelar_wasm_std::voting::{PollId, Vote};
 use router_api::ChainName;
+use serde::Deserialize;
 use solana_client::nonblocking::rpc_client::RpcClient;
+use solana_sdk::pubkey::Pubkey;
+use solana_transaction_status::UiTransactionStatusMeta;
+use tokio::sync::watch::Receiver;
+use tracing::{info, info_span};
+use valuable::Valuable;
 use voting_verifier::msg::ExecuteMsg;
 
 use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error;
-use crate::solana::verifier_set_verifier::{parse_gateway_event, verify_verifier_set};
+use crate::solana::fetch_message;
+use crate::solana::verifier_set_verifier::verify_verifier_set;
 use crate::types::TMAddress;
 
 type Result<T> = error_stack::Result<T, Error>;
 
 #[derive(Deserialize, Debug)]
 pub struct VerifierSetConfirmation {
-    pub tx_id: String,
-    pub event_index: u32,
+    pub message_id: Base58SolanaTxSignatureAndEventIndex,
     pub verifier_set: VerifierSet,
 }
 
 #[derive(Deserialize, Debug)]
-#[try_from("wasm-worker_set_poll_started")]
+#[try_from("wasm-verifier_set_poll_started")]
 struct PollStartedEvent {
-    #[serde(rename = "_contract_address")]
-    contract_address: TMAddress,
     verifier_set: VerifierSetConfirmation,
     poll_id: PollId,
-    _source_gateway_address: String,
+    source_chain: ChainName,
+    #[serde(deserialize_with = "crate::solana::deserialize_pubkey")]
+    source_gateway_address: Pubkey,
     expires_at: u64,
-    _confirmation_height: u64,
     participants: Vec<TMAddress>,
 }
 
 pub struct Handler {
     verifier: TMAddress,
-    voting_verifier: TMAddress,
+    voting_verifier_contract: TMAddress,
     rpc_client: RpcClient,
     latest_block_height: Receiver<u64>,
 }
@@ -55,26 +56,37 @@ pub struct Handler {
 impl Handler {
     pub fn new(
         verifier: TMAddress,
-        voting_verifier: TMAddress,
+        voting_verifier_contract: TMAddress,
         rpc_client: RpcClient,
         latest_block_height: Receiver<u64>,
     ) -> Self {
         Self {
             verifier,
-            voting_verifier,
+            voting_verifier_contract,
             rpc_client,
             latest_block_height,
         }
     }
 
-    fn vote_msg(&self, poll_id: PollId, votes: Vec<Vote>) -> MsgExecuteContract {
+    fn vote_msg(&self, poll_id: PollId, vote: Vote) -> MsgExecuteContract {
         MsgExecuteContract {
             sender: self.verifier.as_ref().clone(),
-            contract: self.voting_verifier.as_ref().clone(),
-            msg: serde_json::to_vec(&ExecuteMsg::Vote { poll_id, votes })
-                .expect("vote msg should serialize"),
+            contract: self.voting_verifier_contract.as_ref().clone(),
+            msg: serde_json::to_vec(&ExecuteMsg::Vote {
+                poll_id,
+                votes: vec![vote],
+            })
+            .expect("vote msg should serialize"),
             funds: vec![],
         }
+    }
+
+    async fn fetch_message(
+        &self,
+        msg: &VerifierSetConfirmation,
+    ) -> Option<(solana_sdk::signature::Signature, UiTransactionStatusMeta)> {
+        let signature = solana_sdk::signature::Signature::from(msg.message_id.raw_signature);
+        fetch_message(&self.rpc_client, signature).await
     }
 }
 
@@ -83,23 +95,23 @@ impl EventHandler for Handler {
     type Err = Error;
 
     async fn handle(&self, event: &events::Event) -> Result<Vec<Any>> {
+        if !event.is_from_contract(self.voting_verifier_contract.as_ref()) {
+            return Ok(vec![]);
+        }
+
         let PollStartedEvent {
-            contract_address,
             poll_id,
+            source_chain,
+            source_gateway_address,
             expires_at,
             participants,
             verifier_set,
-            ..
         } = match event.try_into() as error_stack::Result<_, _> {
             Err(report) if matches!(report.current_context(), EventTypeMismatch(_)) => {
                 return Ok(vec![])
             }
             event => event.change_context(Error::DeserializeEvent)?,
         };
-
-        if self.voting_verifier != contract_address {
-            return Ok(vec![]);
-        }
 
         if !participants.contains(&self.verifier) {
             return Ok(vec![]);
@@ -111,78 +123,31 @@ impl EventHandler for Handler {
             return Ok(vec![]);
         }
 
-        let sol_tx_signature = match Signature::from_str(&verifier_set.tx_id) {
-            Ok(sig) => sig,
-            Err(err) => {
-                error!(
-                    poll_id = poll_id.to_string(),
-                    err = err.to_string(),
-                    "Cannot decode solana tx signature"
-                );
-                return Ok(vec![self
-                    .vote_msg(poll_id, vec![Vote::FailedOnChain])
-                    .into_any()
-                    .expect("vote msg should serialize")]);
-            }
-        };
+        let tx_receipt = self.fetch_message(&verifier_set).await;
+        let vote = info_span!(
+            "verify a new verifier set for Solana",
+            poll_id = poll_id.to_string(),
+            source_chain = source_chain.to_string(),
+            id = verifier_set.message_id.to_string()
+        )
+        .in_scope(|| {
+            info!("ready to verify a new verifier set in poll");
 
-        let sol_tx = match self
-            .rpc_client
-            .get_transaction(&sol_tx_signature, UiTransactionEncoding::Json)
-            .await
-        {
-            Ok(tx) => tx,
-            Err(err) => match err.kind() {
-                solana_client::client_error::ClientErrorKind::SerdeJson(err) => {
-                    error!(
-                        tx_signature = sol_tx_signature.to_string(),
-                        err = err.to_string(),
-                        poll_id = poll_id.to_string(),
-                        "Could not find solana transaction."
-                    );
-                    return Ok(vec![self
-                        .vote_msg(poll_id, vec![Vote::NotFound])
-                        .into_any()
-                        .expect("vote msg should serialize")]);
-                }
-                _ => {
-                    error!(
-                        tx_signature = sol_tx_signature.to_string(),
-                        poll_id = poll_id.to_string(),
-                        "RPC error while fetching transaction."
-                    );
-                    return Err(Error::TxReceipts)?;
-                }
-            },
-        };
+            let vote = tx_receipt.map_or(Vote::NotFound, |(_, tx_receipt)| {
+                verify_verifier_set(&source_gateway_address, &tx_receipt, &verifier_set)
+            });
+            info!(
+                vote = vote.as_value(),
+                "ready to vote for a new verifier set in poll"
+            );
 
-        let gw_event_container =
-            parse_gateway_event(&sol_tx).map_err(|_| Error::DeserializeEvent)?;
-        let gw_event = gw_event_container.parse();
+            vote
+        });
 
-        match gw_event {
-            ArchivedGatewayEvent::SignersRotated(ArchivedRotateSignersEvent {
-                new_signers_hash,
-                ..
-            }) => {
-                let vote = verify_verifier_set(&verifier_set, new_signers_hash);
-                Ok(vec![self
-                    .vote_msg(poll_id, vec![vote])
-                    .into_any()
-                    .expect("vote msg should serialize")])
-            }
-            _ => {
-                error!(
-                    tx_signature = sol_tx_signature.to_string(),
-                    poll_id = poll_id.to_string(),
-                    "Error parsing gateway event."
-                );
-                return Ok(vec![self
-                    .vote_msg(poll_id, vec![Vote::FailedOnChain])
-                    .into_any()
-                    .expect("vote msg should serialize")]);
-            }
-        }
+        Ok(vec![self
+            .vote_msg(poll_id, vote)
+            .into_any()
+            .expect("vote msg should serialize")])
     }
 }
 
