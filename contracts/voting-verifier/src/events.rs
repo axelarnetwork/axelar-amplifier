@@ -187,7 +187,7 @@ fn parse_message_id(
             Ok((id.tx_hash_as_hex(), 0))
         }
         MessageIdFormat::Bech32m { prefix, length } => {
-            let bech32m_message_id = Bech32mFormat::from_str(prefix, *length, message_id)
+            let bech32m_message_id = Bech32mFormat::from_str(prefix, *length as usize, message_id)
                 .map_err(|_| ContractError::InvalidMessageID(message_id.into()))?;
             Ok((bech32m_message_id.to_string().try_into()?, 0))
         }

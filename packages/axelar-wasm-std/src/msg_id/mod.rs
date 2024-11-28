@@ -54,7 +54,7 @@ pub enum MessageIdFormat {
     HexTxHash,
     Bech32m {
         prefix: nonempty::String,
-        length: usize,
+        length: u32,
     },
 }
 
@@ -72,7 +72,7 @@ pub fn verify_msg_id(message_id: &str, format: &MessageIdFormat) -> Result<(), R
         }
         MessageIdFormat::HexTxHash => HexTxHash::from_str(message_id).map(|_| ()),
         MessageIdFormat::Bech32m { prefix, length } => {
-            Bech32mFormat::from_str(prefix, *length, message_id).map(|_| ())
+            Bech32mFormat::from_str(prefix, *length as usize, message_id).map(|_| ())
         }
     }
 }
