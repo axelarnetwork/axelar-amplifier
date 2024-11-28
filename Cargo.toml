@@ -75,9 +75,10 @@ stellar-xdr = { version = "21.2.0" }
 strum = { version = "0.25", default-features = false, features = ["derive"] }
 sui-gateway = { version = "^1.0.0", path = "packages/sui-gateway" }
 sui-types = { version = "^1.0.0", path = "packages/sui-types" }
+starknet-types-core = { version = "0.1.7" }
 starknet-types = { version = "^1.0.0", path = "packages/starknet-types" }
-starknet-core = "0.10.0"
-starknet-providers = "0.10.0"
+starknet-core = "0.12.0"
+starknet-providers = "0.12.0"
 syn = "2.0.68"
 thiserror = "1.0.61"
 tofn = { version = "1.1" }

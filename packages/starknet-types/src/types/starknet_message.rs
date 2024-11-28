@@ -4,7 +4,7 @@ use error_stack::{Report, ResultExt};
 use ethers_core::abi::{InvalidOutputType, Token, Tokenizable};
 use ethers_core::types::U256;
 use router_api::Message as RouterMessage;
-use starknet_core::types::FieldElement;
+use starknet_core::types::Felt;
 
 use crate::error::Error;
 
@@ -14,7 +14,7 @@ pub struct StarknetMessage {
     source_chain: String,
     message_id: String,
     source_address: String,
-    contract_address: FieldElement,
+    contract_address: Felt,
     payload_hash: U256,
 }
 
@@ -22,7 +22,7 @@ impl TryFrom<&RouterMessage> for StarknetMessage {
     type Error = Report<Error>;
 
     fn try_from(msg: &RouterMessage) -> Result<Self, Self::Error> {
-        let contract_address = FieldElement::from_str(msg.destination_address.as_str())
+        let contract_address = Felt::from_str(msg.destination_address.as_str())
             .change_context(Error::InvalidAddress)?;
 
         Ok(StarknetMessage {
@@ -67,12 +67,7 @@ impl Tokenizable for StarknetMessage {
                         )
                     })?;
 
-                let contract_address_felt: FieldElement =
-                    FieldElement::from_bytes_be(&contract_address_bytes).map_err(|_| {
-                        InvalidOutputType(
-                            "failed to convert contract_address bytes to field element (felt)".to_string(),
-                        )
-                    })?;
+                let contract_address_felt: Felt = Felt::from_bytes_be(&contract_address_bytes);
 
                 return Ok(StarknetMessage {
                     source_chain,
@@ -106,7 +101,7 @@ impl Tokenizable for StarknetMessage {
 mod tests {
     use ethers_core::abi::{InvalidOutputType, Token, Tokenizable};
     use ethers_core::types::U256;
-    use starknet_core::types::FieldElement;
+    use starknet_core::types::Felt;
 
     use super::StarknetMessage;
 
@@ -125,7 +120,7 @@ mod tests {
 
     #[test]
     fn starknet_message_from_token_should_error_on_failing_felt_conversion() {
-        // overflow the 31 byte size of a FieldElement
+        // overflow the 31 byte size of a Felt
         let starknet_msg_token = Token::Tuple(vec![
             Token::String("starknet".to_string()),
             Token::String("some_msg_id".to_string()),
@@ -205,7 +200,7 @@ mod tests {
             source_chain: "starknet".to_string(),
             message_id: "some_msg_id".to_string(),
             source_address: "some_source_address".to_string(),
-            contract_address: FieldElement::THREE,
+            contract_address: Felt::THREE,
             payload_hash: U256::from(123),
         };
 
@@ -221,7 +216,7 @@ mod tests {
             source_chain: "starknet".to_string(),
             message_id: "some_msg_id".to_string(),
             source_address: "some_source_address".to_string(),
-            contract_address: FieldElement::THREE,
+            contract_address: Felt::THREE,
             payload_hash: U256::from(123),
         };
 

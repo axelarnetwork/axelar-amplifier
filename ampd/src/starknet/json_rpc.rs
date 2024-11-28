@@ -4,9 +4,7 @@
 use async_trait::async_trait;
 use error_stack::Report;
 use mockall::automock;
-use starknet_core::types::{
-    ExecutionResult, FieldElement, FromStrError, MaybePendingTransactionReceipt, TransactionReceipt,
-};
+use starknet_core::types::{ExecutionResult, Felt, FromStrError, TransactionReceipt};
 use starknet_providers::jsonrpc::JsonRpcTransport;
 use starknet_providers::{JsonRpcClient, Provider, ProviderError};
 use starknet_types::events::contract_call::ContractCallEvent;
@@ -59,10 +57,7 @@ where
 pub trait StarknetClient {
     /// Attempts to fetch a ContractCall event, by a given `tx_hash`.
     /// Returns a tuple `(tx_hash, event)` or a `StarknetClientError`.
-    async fn get_event_by_hash(
-        &self,
-        tx_hash: FieldElement,
-    ) -> Result<Option<(FieldElement, ContractCallEvent)>>;
+    async fn get_event_by_hash(&self, tx_hash: Felt) -> Result<Option<(Felt, ContractCallEvent)>>;
 }
 
 #[async_trait]
@@ -70,52 +65,43 @@ impl<T> StarknetClient for Client<T>
 where
     T: JsonRpcTransport + Send + Sync + 'static,
 {
-    async fn get_event_by_hash(
-        &self,
-        tx_hash: FieldElement,
-    ) -> Result<Option<(FieldElement, ContractCallEvent)>> {
+    async fn get_event_by_hash(&self, tx_hash: Felt) -> Result<Option<(Felt, ContractCallEvent)>> {
         // TODO: Check ACCEPTED ON L1 times and decide if we should use it
         //
         // Finality status is always at least ACCEPTED_ON_L2 and this is what we're
         // looking for, because ACCEPTED_ON_L1 (Ethereum) will take a very long time.
         //
         // Check https://github.com/eigerco/giza-axelar-starknet/issues/90
-        let receipt_type = self
+        let receipt_with_block_info = self
             .client
             .get_transaction_receipt(tx_hash)
             .await
             .map_err(StarknetClientError::FetchingReceipt)?;
 
-        if *receipt_type.execution_result() != ExecutionResult::Succeeded {
+        if *receipt_with_block_info.receipt.execution_result() != ExecutionResult::Succeeded {
             return Err(Report::new(StarknetClientError::UnsuccessfulTx));
         }
 
-        let event: Option<(FieldElement, ContractCallEvent)> = match receipt_type {
-            // TODO: There is also a PendingReceipt type. Should we handle it?
-            //
-            // Check https://github.com/eigerco/giza-axelar-starknet/issues/90
-            MaybePendingTransactionReceipt::Receipt(receipt) => match receipt {
-                TransactionReceipt::Invoke(tx) => {
-                    // NOTE: There should be only one ContractCall event per gateway tx
-                    tx.events
-                        .iter()
-                        .filter_map(|e| {
-                            // NOTE: Here we ignore the error, because the event might
-                            // not be ContractCall and that by itself is not erroneous behavior
-                            if let Ok(cce) = ContractCallEvent::try_from(e.clone()) {
-                                Some((tx.transaction_hash, cce))
-                            } else {
-                                None
-                            }
-                        })
-                        .next()
-                }
-                TransactionReceipt::L1Handler(_) => None,
-                TransactionReceipt::Declare(_) => None,
-                TransactionReceipt::Deploy(_) => None,
-                TransactionReceipt::DeployAccount(_) => None,
-            },
-            MaybePendingTransactionReceipt::PendingReceipt(_) => None,
+        let event: Option<(Felt, ContractCallEvent)> = match receipt_with_block_info.receipt {
+            TransactionReceipt::Invoke(tx) => {
+                // NOTE: There should be only one ContractCall event per gateway tx
+                tx.events
+                    .iter()
+                    .filter_map(|e| {
+                        // NOTE: Here we ignore the error, because the event might
+                        // not be ContractCall and that by itself is not erroneous behavior
+                        if let Ok(cce) = ContractCallEvent::try_from(e.clone()) {
+                            Some((tx.transaction_hash, cce))
+                        } else {
+                            None
+                        }
+                    })
+                    .next()
+            }
+            TransactionReceipt::L1Handler(_) => None,
+            TransactionReceipt::Declare(_) => None,
+            TransactionReceipt::Deploy(_) => None,
+            TransactionReceipt::DeployAccount(_) => None,
         };
 
         Ok(event)
@@ -131,11 +117,11 @@ mod test {
     use ethers_core::types::H256;
     use serde::de::DeserializeOwned;
     use serde::Serialize;
-    use starknet_core::types::FieldElement;
+    use starknet_core::types::Felt;
     use starknet_providers::jsonrpc::{
         HttpTransportError, JsonRpcMethod, JsonRpcResponse, JsonRpcTransport,
     };
-    use starknet_providers::ProviderError;
+    use starknet_providers::{ProviderError, ProviderRequestData};
     use starknet_types::events::contract_call::ContractCallEvent;
 
     use super::{Client, StarknetClient, StarknetClientError};
@@ -143,7 +129,7 @@ mod test {
     #[tokio::test]
     async fn deploy_account_tx_fetch() {
         let mock_client = Client::new_with_transport(DeployAccountMockTransport).unwrap();
-        let contract_call_event = mock_client.get_event_by_hash(FieldElement::ONE).await;
+        let contract_call_event = mock_client.get_event_by_hash(Felt::ONE).await;
 
         assert!(contract_call_event.unwrap().is_none());
     }
@@ -151,7 +137,7 @@ mod test {
     #[tokio::test]
     async fn deploy_tx_fetch() {
         let mock_client = Client::new_with_transport(DeployMockTransport).unwrap();
-        let contract_call_event = mock_client.get_event_by_hash(FieldElement::ONE).await;
+        let contract_call_event = mock_client.get_event_by_hash(Felt::ONE).await;
 
         assert!(contract_call_event.unwrap().is_none());
     }
@@ -159,7 +145,7 @@ mod test {
     #[tokio::test]
     async fn l1_handler_tx_fetch() {
         let mock_client = Client::new_with_transport(L1HandlerMockTransport).unwrap();
-        let contract_call_event = mock_client.get_event_by_hash(FieldElement::ONE).await;
+        let contract_call_event = mock_client.get_event_by_hash(Felt::ONE).await;
 
         assert!(contract_call_event.unwrap().is_none());
     }
@@ -167,7 +153,7 @@ mod test {
     #[tokio::test]
     async fn declare_tx_fetch() {
         let mock_client = Client::new_with_transport(DeclareMockTransport).unwrap();
-        let contract_call_event = mock_client.get_event_by_hash(FieldElement::ONE).await;
+        let contract_call_event = mock_client.get_event_by_hash(Felt::ONE).await;
 
         assert!(contract_call_event.unwrap().is_none());
     }
@@ -176,7 +162,7 @@ mod test {
     async fn invalid_contract_call_event_tx_fetch() {
         let mock_client =
             Client::new_with_transport(InvalidContractCallEventMockTransport).unwrap();
-        let contract_call_event = mock_client.get_event_by_hash(FieldElement::ONE).await;
+        let contract_call_event = mock_client.get_event_by_hash(Felt::ONE).await;
 
         assert!(contract_call_event.unwrap().is_none());
     }
@@ -184,7 +170,7 @@ mod test {
     #[tokio::test]
     async fn no_events_tx_fetch() {
         let mock_client = Client::new_with_transport(NoEventsMockTransport).unwrap();
-        let contract_call_event = mock_client.get_event_by_hash(FieldElement::ONE).await;
+        let contract_call_event = mock_client.get_event_by_hash(Felt::ONE).await;
 
         assert!(contract_call_event.unwrap().is_none());
     }
@@ -192,7 +178,7 @@ mod test {
     #[tokio::test]
     async fn reverted_tx_fetch() {
         let mock_client = Client::new_with_transport(RevertedMockTransport).unwrap();
-        let contract_call_event = mock_client.get_event_by_hash(FieldElement::ONE).await;
+        let contract_call_event = mock_client.get_event_by_hash(Felt::ONE).await;
 
         assert!(contract_call_event
             .unwrap_err()
@@ -202,7 +188,7 @@ mod test {
     #[tokio::test]
     async fn failing_tx_fetch() {
         let mock_client = Client::new_with_transport(FailingMockTransport).unwrap();
-        let contract_call_event = mock_client.get_event_by_hash(FieldElement::ONE).await;
+        let contract_call_event = mock_client.get_event_by_hash(Felt::ONE).await;
 
         assert!(contract_call_event.is_err());
     }
@@ -211,17 +197,15 @@ mod test {
     async fn successful_tx_fetch() {
         let mock_client = Client::new_with_transport(ValidMockTransport).unwrap();
         let contract_call_event = mock_client
-            .get_event_by_hash(FieldElement::ONE)
+            .get_event_by_hash(Felt::ONE)
             .await
             .unwrap() // unwrap the result
             .unwrap(); // unwrap the option
 
         assert_eq!(
             contract_call_event.0,
-            FieldElement::from_str(
-                "0x0000000000000000000000000000000000000000000000000000000000000001"
-            )
-            .unwrap()
+            Felt::from_str("0x0000000000000000000000000000000000000000000000000000000000000001")
+                .unwrap()
         );
         assert_eq!(
             contract_call_event.1,
@@ -230,7 +214,7 @@ mod test {
                     "0x0000000000000000000000000000000000000000000000000000000000000002".to_owned(),
                 destination_address: String::from("hello"),
                 destination_chain: String::from("destination_chain"),
-                source_address: FieldElement::from_str(
+                source_address: Felt::from_str(
                     "0x00b3ff441a68610b30fd5e2abbf3a1548eb6ba6f3559f2862bf2dc757e5828ca"
                 )
                 .unwrap(),
@@ -247,6 +231,16 @@ mod test {
     #[async_trait]
     impl JsonRpcTransport for FailingMockTransport {
         type Error = ProviderError;
+
+        async fn send_requests<R>(
+            &self,
+            _requests: R,
+        ) -> Result<Vec<JsonRpcResponse<serde_json::Value>>, Self::Error>
+        where
+            R: AsRef<[ProviderRequestData]> + Send + Sync,
+        {
+            unimplemented!();
+        }
 
         async fn send_request<P, R>(
             &self,
@@ -266,6 +260,16 @@ mod test {
     #[async_trait]
     impl JsonRpcTransport for L1HandlerMockTransport {
         type Error = HttpTransportError;
+
+        async fn send_requests<R>(
+            &self,
+            _requests: R,
+        ) -> Result<Vec<JsonRpcResponse<serde_json::Value>>, Self::Error>
+        where
+            R: AsRef<[ProviderRequestData]> + Send + Sync,
+        {
+            unimplemented!();
+        }
 
         async fn send_request<P, R>(
             &self,
@@ -293,11 +297,14 @@ mod test {
     \"messages_sent\": [],
     \"events\": [],
     \"execution_resources\": {
-      \"steps\": 137449,
-      \"pedersen_builtin_applications\": 241,
-      \"range_check_builtin_applications\": 9402,
-      \"bitwise_builtin_applications\": 143,
-      \"ec_op_builtin_applications\": 3
+      \"data_availability\": {
+        \"l1_data_gas\": 0,
+        \"l1_gas\": 0
+      },
+      \"memory_holes\": 1176,
+      \"pedersen_builtin_applications\": 34,
+      \"range_check_builtin_applications\": 1279,
+      \"steps\": 17574
     }
   },
   \"id\": 0
@@ -313,6 +320,16 @@ mod test {
     #[async_trait]
     impl JsonRpcTransport for DeployAccountMockTransport {
         type Error = HttpTransportError;
+
+        async fn send_requests<R>(
+            &self,
+            _requests: R,
+        ) -> Result<Vec<JsonRpcResponse<serde_json::Value>>, Self::Error>
+        where
+            R: AsRef<[ProviderRequestData]> + Send + Sync,
+        {
+            unimplemented!();
+        }
 
         async fn send_request<P, R>(
             &self,
@@ -340,11 +357,14 @@ mod test {
     \"messages_sent\": [],
     \"events\": [],
     \"execution_resources\": {
-      \"steps\": 137449,
-      \"pedersen_builtin_applications\": 241,
-      \"range_check_builtin_applications\": 9402,
-      \"bitwise_builtin_applications\": 143,
-      \"ec_op_builtin_applications\": 3
+      \"data_availability\": {
+        \"l1_data_gas\": 0,
+        \"l1_gas\": 0
+      },
+      \"memory_holes\": 1176,
+      \"pedersen_builtin_applications\": 34,
+      \"range_check_builtin_applications\": 1279,
+      \"steps\": 17574
     }
   },
   \"id\": 0
@@ -360,6 +380,16 @@ mod test {
     #[async_trait]
     impl JsonRpcTransport for DeployMockTransport {
         type Error = HttpTransportError;
+
+        async fn send_requests<R>(
+            &self,
+            _requests: R,
+        ) -> Result<Vec<JsonRpcResponse<serde_json::Value>>, Self::Error>
+        where
+            R: AsRef<[ProviderRequestData]> + Send + Sync,
+        {
+            unimplemented!();
+        }
 
         async fn send_request<P, R>(
             &self,
@@ -387,11 +417,14 @@ mod test {
     \"messages_sent\": [],
     \"events\": [],
     \"execution_resources\": {
-      \"steps\": 137449,
-      \"pedersen_builtin_applications\": 241,
-      \"range_check_builtin_applications\": 9402,
-      \"bitwise_builtin_applications\": 143,
-      \"ec_op_builtin_applications\": 3
+      \"data_availability\": {
+        \"l1_data_gas\": 0,
+        \"l1_gas\": 0
+      },
+      \"memory_holes\": 1176,
+      \"pedersen_builtin_applications\": 34,
+      \"range_check_builtin_applications\": 1279,
+      \"steps\": 17574
     }
   },
   \"id\": 0
@@ -407,6 +440,16 @@ mod test {
     #[async_trait]
     impl JsonRpcTransport for DeclareMockTransport {
         type Error = HttpTransportError;
+
+        async fn send_requests<R>(
+            &self,
+            _requests: R,
+        ) -> Result<Vec<JsonRpcResponse<serde_json::Value>>, Self::Error>
+        where
+            R: AsRef<[ProviderRequestData]> + Send + Sync,
+        {
+            unimplemented!();
+        }
 
         async fn send_request<P, R>(
             &self,
@@ -433,11 +476,14 @@ mod test {
     \"messages_sent\": [],
     \"events\": [],
     \"execution_resources\": {
-      \"steps\": 137449,
-      \"pedersen_builtin_applications\": 241,
-      \"range_check_builtin_applications\": 9402,
-      \"bitwise_builtin_applications\": 143,
-      \"ec_op_builtin_applications\": 3
+      \"data_availability\": {
+        \"l1_data_gas\": 0,
+        \"l1_gas\": 0
+      },
+      \"memory_holes\": 1176,
+      \"pedersen_builtin_applications\": 34,
+      \"range_check_builtin_applications\": 1279,
+      \"steps\": 17574
     }
   },
   \"id\": 0
@@ -453,6 +499,16 @@ mod test {
     #[async_trait]
     impl JsonRpcTransport for NoEventsMockTransport {
         type Error = HttpTransportError;
+
+        async fn send_requests<R>(
+            &self,
+            _requests: R,
+        ) -> Result<Vec<JsonRpcResponse<serde_json::Value>>, Self::Error>
+        where
+            R: AsRef<[ProviderRequestData]> + Send + Sync,
+        {
+            unimplemented!();
+        }
 
         async fn send_request<P, R>(
             &self,
@@ -479,11 +535,14 @@ mod test {
     \"messages_sent\": [],
     \"events\": [],
     \"execution_resources\": {
-      \"steps\": 137449,
-      \"pedersen_builtin_applications\": 241,
-      \"range_check_builtin_applications\": 9402,
-      \"bitwise_builtin_applications\": 143,
-      \"ec_op_builtin_applications\": 3
+      \"data_availability\": {
+        \"l1_data_gas\": 0,
+        \"l1_gas\": 0
+      },
+      \"memory_holes\": 1176,
+      \"pedersen_builtin_applications\": 34,
+      \"range_check_builtin_applications\": 1279,
+      \"steps\": 17574
     }
   },
   \"id\": 0
@@ -499,6 +558,16 @@ mod test {
     #[async_trait]
     impl JsonRpcTransport for RevertedMockTransport {
         type Error = HttpTransportError;
+
+        async fn send_requests<R>(
+            &self,
+            _requests: R,
+        ) -> Result<Vec<JsonRpcResponse<serde_json::Value>>, Self::Error>
+        where
+            R: AsRef<[ProviderRequestData]> + Send + Sync,
+        {
+            unimplemented!();
+        }
 
         async fn send_request<P, R>(
             &self,
@@ -525,11 +594,14 @@ mod test {
     \"messages_sent\": [],
     \"events\": [],
     \"execution_resources\": {
-      \"steps\": 137449,
-      \"pedersen_builtin_applications\": 241,
-      \"range_check_builtin_applications\": 9402,
-      \"bitwise_builtin_applications\": 143,
-      \"ec_op_builtin_applications\": 3
+      \"data_availability\": {
+        \"l1_data_gas\": 0,
+        \"l1_gas\": 0
+      },
+      \"memory_holes\": 1176,
+      \"pedersen_builtin_applications\": 34,
+      \"range_check_builtin_applications\": 1279,
+      \"steps\": 17574
     }
   },
   \"id\": 0
@@ -545,6 +617,16 @@ mod test {
     #[async_trait]
     impl JsonRpcTransport for InvalidContractCallEventMockTransport {
         type Error = HttpTransportError;
+
+        async fn send_requests<R>(
+            &self,
+            _requests: R,
+        ) -> Result<Vec<JsonRpcResponse<serde_json::Value>>, Self::Error>
+        where
+            R: AsRef<[ProviderRequestData]> + Send + Sync,
+        {
+            unimplemented!();
+        }
 
         async fn send_request<P, R>(
             &self,
@@ -594,11 +676,14 @@ mod test {
       }
     ],
     \"execution_resources\": {
-      \"steps\": 137449,
-      \"pedersen_builtin_applications\": 241,
-      \"range_check_builtin_applications\": 9402,
-      \"bitwise_builtin_applications\": 143,
-      \"ec_op_builtin_applications\": 3
+      \"data_availability\": {
+        \"l1_data_gas\": 0,
+        \"l1_gas\": 0
+      },
+      \"memory_holes\": 1176,
+      \"pedersen_builtin_applications\": 34,
+      \"range_check_builtin_applications\": 1279,
+      \"steps\": 17574
     }
   },
   \"id\": 0
@@ -614,6 +699,16 @@ mod test {
     #[async_trait]
     impl JsonRpcTransport for ValidMockTransport {
         type Error = HttpTransportError;
+
+        async fn send_requests<R>(
+            &self,
+            _requests: R,
+        ) -> Result<Vec<JsonRpcResponse<serde_json::Value>>, Self::Error>
+        where
+            R: AsRef<[ProviderRequestData]> + Send + Sync,
+        {
+            unimplemented!();
+        }
 
         async fn send_request<P, R>(
             &self,
@@ -662,11 +757,14 @@ mod test {
       }
     ],
     \"execution_resources\": {
-      \"steps\": 137449,
-      \"pedersen_builtin_applications\": 241,
-      \"range_check_builtin_applications\": 9402,
-      \"bitwise_builtin_applications\": 143,
-      \"ec_op_builtin_applications\": 3
+      \"data_availability\": {
+        \"l1_data_gas\": 0,
+        \"l1_gas\": 0
+      },
+      \"memory_holes\": 1176,
+      \"pedersen_builtin_applications\": 34,
+      \"range_check_builtin_applications\": 1279,
+      \"steps\": 17574
     }
   },
   \"id\": 0

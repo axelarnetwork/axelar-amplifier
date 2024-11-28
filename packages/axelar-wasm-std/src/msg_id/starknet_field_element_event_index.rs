@@ -7,14 +7,15 @@ use error_stack::Report;
 use lazy_static::lazy_static;
 use regex::Regex;
 use serde_with::DeserializeFromStr;
-use starknet_core::types::FieldElement;
+use starknet_types_core::felt::Felt;
 
 use super::Error;
 use crate::nonempty;
+use crate::utils::check_for_felt_overflow;
 
 #[derive(Debug, DeserializeFromStr, Clone)]
 pub struct FieldElementAndEventIndex {
-    pub tx_hash: FieldElement,
+    pub tx_hash: Felt,
     pub event_index: u64,
 }
 
@@ -33,7 +34,7 @@ impl FieldElementAndEventIndex {
             .expect("failed to convert tx hash to non-empty string")
     }
 
-    pub fn new<T: Into<FieldElement> + FromStr>(
+    pub fn new<T: Into<Felt> + FromStr>(
         tx_id: T,
         event_index: impl Into<u64>,
     ) -> Result<Self, Error> {
@@ -44,8 +45,9 @@ impl FieldElementAndEventIndex {
     }
 }
 
-// A valid field element is max 252 bits, meaning 62 or 63 hex characters after 0x.
-// We require the hex to be 64 characters, meaning that it should be padded with zeroes.
+// A valid field element is max 252 bits, meaning max 63 hex characters after 0x.
+// We require the hex to be 64 characters, meaning that it should be padded with zeroes in order
+// for us to consider it valid.
 const PATTERN: &str = "^(0x[0-9a-f]{64})-(0|[1-9][0-9]*)$";
 lazy_static! {
     static ref REGEX: Regex = Regex::new(PATTERN).expect("invalid regex");
@@ -67,9 +69,19 @@ impl FromStr for FieldElementAndEventIndex {
             })?
             .extract();
         let tx_id_chunk = &tx_id[2..];
-        let felt = FieldElement::from_hex_be(tx_id_chunk).map_err(|_| {
+        let felt = Felt::from_hex(tx_id_chunk).map_err(|_| {
             Error::InvalidFieldElement(format!("{}", tx_id_chunk.to_string()).to_string())
         })?;
+
+        if check_for_felt_overflow(tx_id_chunk) {
+            Err(Error::InvalidFieldElement(
+                format!(
+                    "field element overflows MAX value of 2^251 + 17 * 2^192: {}",
+                    tx_id_chunk.to_string()
+                )
+                .to_string(),
+            ))?
+        }
         Ok(FieldElementAndEventIndex {
             tx_hash: felt,
             event_index: event_index
@@ -104,7 +116,7 @@ mod tests {
     use super::*;
 
     fn random_hash() -> String {
-        let field_element_max = "0800000000000011000000000000000000000000000000000000000000000000";
+        let field_element_max = "080000006B9F1BED878FCC665F2CA1A6AFD545A6B864D8400000000000000000";
         let modulus = NonZero::new(U256::from_be_hex(field_element_max)).unwrap();
         let n = U256::random_mod(&mut OsRng, &modulus);
 
@@ -133,6 +145,20 @@ mod tests {
             assert_eq!(parsed.tx_hash_as_hex(), tx_hash.try_into().unwrap(),);
             assert_eq!(parsed.to_string(), msg_id);
         }
+    }
+
+    #[test]
+    fn should_not_parse_msg_id_overflowing_felt() {
+        let res = FieldElementAndEventIndex::from_str(
+            "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff-0",
+        );
+        assert!(res.is_err());
+
+        // Felt::MAX + 1
+        let res = FieldElementAndEventIndex::from_str(
+            "0x080000006b9f1bed878fcc665f2ca1a6afd545a6b864d8400000000000000001-0",
+        );
+        assert!(res.is_err());
     }
 
     #[test]

@@ -1,7 +1,5 @@
-use std::num::TryFromIntError;
-
 use ethers_core::types::H256;
-use starknet_core::types::{FieldElement, ValueOutOfRangeError};
+use starknet_core::types::Felt;
 use starknet_core::utils::{parse_cairo_short_string, ParseCairoShortStringError};
 use thiserror::Error;
 
@@ -15,7 +13,7 @@ pub struct ContractCallEvent {
     pub from_contract_addr: String,
     pub destination_address: String,
     pub destination_chain: String,
-    pub source_address: FieldElement,
+    pub source_address: Felt,
     pub payload_hash: H256,
 }
 
@@ -27,10 +25,8 @@ pub enum ContractCallError {
     InvalidEvent(String),
     #[error("Cairo short string parse error: {0}")]
     Cairo(#[from] ParseCairoShortStringError),
-    #[error("FieldElement operation errored with out of range: {0}")]
-    FeltOutOfRange(#[from] ValueOutOfRangeError),
-    #[error("Failed int conversion: {0}")]
-    TryFromConversion(#[from] TryFromIntError),
+    #[error("Failed felt conversion: {0}")]
+    TryFromConversion(String),
     #[error("Event data/keys array index is out of bounds")]
     OutOfBound,
     #[error("ByteArray type error: {0}")]
@@ -84,7 +80,9 @@ impl TryFrom<starknet_core::types::Event> for ContractCallEvent {
         // destination_contract_address (ByteArray) is composed of FieldElements
         // from the second element to elemet X.
         let destination_address_chunks_count_felt = starknet_event.data[1];
-        let da_chunks_count: usize = u8::try_from(destination_address_chunks_count_felt)?.into();
+        let da_chunks_count: usize = u8::try_from(destination_address_chunks_count_felt)
+            .map_err(|err| ContractCallError::TryFromConversion(err.to_string()))?
+            .into();
 
         // It's + 3, because we need to offset the 0th element, pending_word and
         // pending_word_count, in addition to all chunks (da_chunks_count_usize)
@@ -140,7 +138,7 @@ mod tests {
     use std::str::FromStr;
 
     use ethers_core::types::H256;
-    use starknet_core::types::{FieldElement, FromStrError, ValueOutOfRangeError};
+    use starknet_core::types::{Felt, FromStrError};
     use starknet_core::utils::starknet_keccak;
 
     use super::ContractCallEvent;
@@ -151,15 +149,14 @@ mod tests {
     fn destination_address_chunks_offset_out_of_range() {
         let mut starknet_event = get_dummy_event();
         // longer chunk, which offsets the destination_address byte array out of range
-        starknet_event.data[1] = FieldElement::from_str(
-            "0x0000000000000000000000000000000000000000000000000000000000000001",
-        )
-        .unwrap();
+        starknet_event.data[1] =
+            Felt::from_str("0x0000000000000000000000000000000000000000000000000000000000000001")
+                .unwrap();
 
         let event = ContractCallEvent::try_from(starknet_event).unwrap_err();
         assert!(matches!(
             event,
-            ContractCallError::ByteArray(ByteArrayError::ParsingFelt(ValueOutOfRangeError))
+            ContractCallError::ByteArray(ByteArrayError::ParsingFelt(_))
         ));
     }
 
@@ -167,17 +164,17 @@ mod tests {
     fn destination_address_chunks_count_too_long() {
         let mut starknet_event = get_dummy_event();
         // too long for u32
-        starknet_event.data[1] = FieldElement::MAX;
+        starknet_event.data[1] = Felt::MAX;
 
         let event = ContractCallEvent::try_from(starknet_event).unwrap_err();
-        assert!(matches!(event, ContractCallError::FeltOutOfRange(_)));
+        assert!(matches!(event, ContractCallError::Cairo(_)));
     }
 
     #[test]
     fn invalid_dest_chain() {
         let mut starknet_event = get_dummy_event();
         // too long for Cairo long string too long
-        starknet_event.keys[1] = FieldElement::MAX;
+        starknet_event.keys[1] = Felt::MAX;
 
         let event = ContractCallEvent::try_from(starknet_event).unwrap_err();
         assert!(matches!(event, ContractCallError::Cairo(_)));
@@ -219,7 +216,7 @@ mod tests {
                 ),
                 destination_address: String::from("hello"),
                 destination_chain: String::from("destination_chain"),
-                source_address: FieldElement::from_str(
+                source_address: Felt::from_str(
                     "0x00b3ff441a68610b30fd5e2abbf3a1548eb6ba6f3559f2862bf2dc757e5828ca"
                 )
                 .unwrap(),
@@ -236,7 +233,7 @@ mod tests {
         // "hello" as destination address
         // "some_contract_address" as source address
         // "destination_chain" as destination_chain
-        let event_data: Result<Vec<FieldElement>, FromStrError> = vec![
+        let event_data: Result<Vec<Felt>, FromStrError> = vec![
             "0xb3ff441a68610b30fd5e2abbf3a1548eb6ba6f3559f2862bf2dc757e5828ca", // the caller addr
             "0x0000000000000000000000000000000000000000000000000000000000000000", // 0 data
             "0x00000000000000000000000000000000000000000000000000000068656c6c6f", // "hello"
@@ -251,7 +248,7 @@ mod tests {
             "0x000000000000000000000000000000000000000000000000000000000000006f", // o
         ]
         .into_iter()
-        .map(FieldElement::from_str)
+        .map(Felt::from_str)
         .collect();
         starknet_core::types::Event {
             // I think it's a pedersen hash in actuallity, but for the tests I think it's ok
@@ -259,7 +256,7 @@ mod tests {
             keys: vec![
                 starknet_keccak("ContractCall".as_bytes()),
                 // destination chain
-                FieldElement::from_str(
+                Felt::from_str(
                     "0x00000000000000000000000000000064657374696e6174696f6e5f636861696e",
                 )
                 .unwrap(),

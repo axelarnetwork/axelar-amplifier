@@ -4,9 +4,11 @@ use alloy_primitives::Address;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Api};
 use error_stack::{bail, Result, ResultExt};
-use starknet_core::types::FieldElement;
+use starknet_types_core::felt::Felt;
 use stellar_xdr::curr::ScAddress;
 use sui_types::SuiAddress;
+
+use crate::utils::check_for_felt_overflow;
 
 #[derive(thiserror::Error)]
 #[cw_serde]
@@ -41,9 +43,9 @@ pub fn validate_address(address: &str, format: &AddressFormat) -> Result<(), Err
                 .change_context(Error::InvalidAddress(address.to_string()))?;
         }
         AddressFormat::Starknet => {
-            // Contract addresses in Starknet are FieldElements, which are decimals in a
+            // Contract addresses in Starknet are Felts, which are decimals in a
             // prime field, which fit in 252 bytes and can't exceed that prime field.
-            // We'll only accept hex representation of the FieldElements, because they're the most
+            // We'll only accept hex representation of the Felts, because they're the most
             // commonly used representation for addresses.
             //
             // We'll only accept 64 char hex strings.
@@ -54,14 +56,31 @@ pub fn validate_address(address: &str, format: &AddressFormat) -> Result<(), Err
                 bail!(Error::InvalidAddress("0x prefix is missing".to_string()))
             }
 
-            // The address.len() also includes a `0x` prefix, which is not required.
             let trimmed_addr = address.trim_start_matches("0x");
             if trimmed_addr.len() != 64 {
-                bail!(Error::InvalidAddress(address.to_string()))
+                bail!(Error::InvalidAddress(format!(
+                    "hex string is not 64 chars: {}",
+                    address.to_string()
+                )))
             }
 
-            FieldElement::from_hex_be(address)
-                .change_context(Error::InvalidAddress(address.to_string()))?;
+            let valid_hex_felt = Felt::from_hex(address);
+            if valid_hex_felt.is_err() {
+                bail!(Error::InvalidAddress(format!(
+                    "not a valid hex field element: {}",
+                    address.to_string()
+                )))
+            }
+
+            if check_for_felt_overflow(trimmed_addr) {
+                bail!(Error::InvalidAddress(
+                    format!(
+                        "field element overflows MAX value of 2^251 + 17 * 2^192: {}",
+                        address
+                    )
+                    .to_string()
+                ))
+            }
         }
     }
 
@@ -277,8 +296,16 @@ mod tests {
             address::Error::InvalidAddress(..)
         );
 
+        let overflown_felt_with_one =
+            "0x080000006b9f1bed878fcc665f2ca1a6afd545a6b864d8400000000000000001";
+        assert_err_contains!(
+            address::validate_address(overflown_felt_with_one, &address::AddressFormat::Starknet),
+            address::Error,
+            address::Error::InvalidAddress(..)
+        );
+
         // overflowed field element (added a 64th char, other than 0)
-        let overflown_felt = "0xf282b4492e08d8b6bbec8dfe7412e42e897eef9c080c5b97be1537433e583bdc";
+        let overflown_felt = "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
         assert_err_contains!(
             address::validate_address(overflown_felt, &address::AddressFormat::Starknet),
             address::Error,
