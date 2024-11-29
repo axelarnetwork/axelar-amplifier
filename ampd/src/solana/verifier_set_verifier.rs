@@ -37,6 +37,7 @@ pub fn verify_verifier_set(
                 epoch: _,
             }) = gateway_event
             else {
+                error!("found gateway event but it's not VerifierSetRotated event");
                 return false;
             };
 
@@ -107,182 +108,87 @@ mod tests {
 
     use super::verify_verifier_set;
 
-    // #[test]
-    // fn should_not_verify_verifier_set_if_tx_id_does_not_match() {
-    //     let (gateway_address, tx_receipt, mut verifier_set) =
-    //         matching_verifier_set_and_tx_receipt();
+    #[test]
+    #[ignore = "verification of the signature is the responsibility of the handler"]
+    fn should_not_verify_verifier_set_if_tx_id_does_not_match() {
+        let (tx, mut event) = fixture_success_call_contract_tx_data();
 
-    //     verifier_set.message_id.tx_hash = Hash::random().into();
-    //     assert_eq!(
-    //         verify_verifier_set(&gateway_address, &tx_receipt, &verifier_set),
-    //         Vote::NotFound
-    //     );
-    // }
+        event.message_id.raw_signature = [0; 64];
+        assert_eq!(
+            verify_verifier_set(&GATEWAY_PROGRAM_ID, &tx, &event, &DOMAIN_SEPARATOR),
+            Vote::NotFound
+        );
+    }
 
-    // #[test]
-    // fn should_not_verify_verifier_set_if_tx_failed() {
-    //     let (gateway_address, mut tx_receipt, verifier_set) =
-    //         matching_verifier_set_and_tx_receipt();
+    #[test]
+    fn should_not_verify_verifier_set_if_tx_failed() {
+        let (mut tx, event) = fixture_success_call_contract_tx_data();
 
-    //     tx_receipt.status = Some(0u64.into());
-    //     assert_eq!(
-    //         verify_verifier_set(&gateway_address, &tx_receipt, &verifier_set),
-    //         Vote::FailedOnChain
-    //     );
-    // }
+        tx.err = Some(solana_sdk::transaction::TransactionError::AccountInUse);
+        assert_eq!(
+            verify_verifier_set(&GATEWAY_PROGRAM_ID, &tx, &event, &DOMAIN_SEPARATOR),
+            Vote::FailedOnChain
+        );
+    }
 
-    // #[test]
-    // fn should_not_verify_verifier_set_if_gateway_address_does_not_match() {
-    //     let (_, tx_receipt, verifier_set) = matching_verifier_set_and_tx_receipt();
+    #[test]
+    fn should_not_verify_verifier_set_if_gateway_address_does_not_match() {
+        let (tx, event) = fixture_success_call_contract_tx_data();
 
-    //     let gateway_address = EVMAddress::random();
-    //     assert_eq!(
-    //         verify_verifier_set(&gateway_address, &tx_receipt, &verifier_set),
-    //         Vote::NotFound
-    //     );
-    // }
+        let gateway_address = Pubkey::new_unique();
+        assert_eq!(
+            verify_verifier_set(&gateway_address, &tx, &event, &DOMAIN_SEPARATOR),
+            Vote::NotFound
+        );
+    }
 
-    // #[test]
-    // fn should_not_verify_verifier_set_if_log_index_does_not_match() {
-    //     let (gateway_address, tx_receipt, mut verifier_set) =
-    //         matching_verifier_set_and_tx_receipt();
+    #[test]
+    fn should_not_verify_verifier_set_if_log_index_does_not_match() {
+        let (tx, mut event) = fixture_success_call_contract_tx_data();
 
-    //     verifier_set.message_id.event_index = 0;
-    //     assert_eq!(
-    //         verify_verifier_set(&gateway_address, &tx_receipt, &verifier_set),
-    //         Vote::NotFound
-    //     );
-    //     verifier_set.message_id.event_index = 2;
-    //     assert_eq!(
-    //         verify_verifier_set(&gateway_address, &tx_receipt, &verifier_set),
-    //         Vote::NotFound
-    //     );
-    //     verifier_set.message_id.event_index = 3;
-    //     assert_eq!(
-    //         verify_verifier_set(&gateway_address, &tx_receipt, &verifier_set),
-    //         Vote::NotFound
-    //     );
-    // }
+        event.message_id.event_index -= 1;
+        assert_eq!(
+            verify_verifier_set(&GATEWAY_PROGRAM_ID, &tx, &event, &DOMAIN_SEPARATOR),
+            Vote::NotFound
+        );
+        event.message_id.event_index += 2;
+        assert_eq!(
+            verify_verifier_set(&GATEWAY_PROGRAM_ID, &tx, &event, &DOMAIN_SEPARATOR),
+            Vote::NotFound
+        );
+    }
 
-    // #[test]
-    // fn should_not_verify_verifier_set_if_log_index_greater_than_u32_max() {
-    //     let (gateway_address, tx_receipt, mut verifier_set) =
-    //         matching_verifier_set_and_tx_receipt();
+    #[test]
+    fn should_not_verify_verifier_set_if_log_index_greater_than_u32_max() {
+        let (tx, mut event) = fixture_success_call_contract_tx_data();
 
-    //     verifier_set.message_id.event_index = u32::MAX as u64 + 1;
-    //     assert_eq!(
-    //         verify_verifier_set(&gateway_address, &tx_receipt, &verifier_set),
-    //         Vote::NotFound
-    //     );
-    // }
+        event.message_id.event_index = u32::MAX as u64 + 1;
+        assert_eq!(
+            verify_verifier_set(&GATEWAY_PROGRAM_ID, &tx, &event, &DOMAIN_SEPARATOR),
+            Vote::NotFound
+        );
+    }
 
-    // #[test]
-    // fn should_not_verify_verifier_set_if_verifier_set_does_not_match() {
-    //     let (gateway_address, tx_receipt, mut verifier_set) =
-    //         matching_verifier_set_and_tx_receipt();
+    #[test]
+    fn should_not_verify_verifier_set_if_verifier_set_does_not_match() {
+        let (tx, mut event) = fixture_success_call_contract_tx_data();
 
-    //     verifier_set.verifier_set.threshold = Uint128::from(50u64);
-    //     assert_eq!(
-    //         verify_verifier_set(&gateway_address, &tx_receipt, &verifier_set),
-    //         Vote::NotFound
-    //     );
-    // }
+        event.verifier_set.threshold = Uint128::from(50u64);
+        assert_eq!(
+            verify_verifier_set(&GATEWAY_PROGRAM_ID, &tx, &event, &DOMAIN_SEPARATOR),
+            Vote::NotFound
+        );
+    }
 
-    // #[test]
-    // fn should_verify_verifier_set_if_correct() {
-    //     let (gateway_address, tx_receipt, verifier_set) = matching_verifier_set_and_tx_receipt();
+    #[test_log::test]
+    fn should_verify_verifier_set_if_correct() {
+        let (tx, event) = fixture_success_call_contract_tx_data();
 
-    //     assert_eq!(
-    //         verify_verifier_set(&gateway_address, &tx_receipt, &verifier_set),
-    //         Vote::SucceededOnChain
-    //     );
-    // }
-
-    // #[test]
-    // fn should_not_verify_msg_if_tx_id_does_not_match() {
-    //     let (gateway_address, tx_receipt, mut msg) = matching_msg_and_tx_receipt();
-
-    //     msg.message_id.tx_hash = Hash::random().into();
-    //     assert_eq!(
-    //         verify_message(&gateway_address, &tx_receipt, &msg),
-    //         Vote::NotFound
-    //     );
-    // }
-
-    // #[test]
-    // fn should_not_verify_msg_if_tx_failed() {
-    //     let (gateway_address, mut tx_receipt, msg) = matching_msg_and_tx_receipt();
-
-    //     tx_receipt.status = Some(0u64.into());
-    //     assert_eq!(
-    //         verify_message(&gateway_address, &tx_receipt, &msg),
-    //         Vote::FailedOnChain
-    //     );
-    // }
-
-    // #[test]
-    // fn should_not_verify_msg_if_gateway_address_does_not_match() {
-    //     let (_, tx_receipt, msg) = matching_msg_and_tx_receipt();
-
-    //     let gateway_address = EVMAddress::random();
-    //     assert_eq!(
-    //         verify_message(&gateway_address, &tx_receipt, &msg),
-    //         Vote::NotFound
-    //     );
-    // }
-
-    // #[test]
-    // fn should_not_verify_msg_if_log_index_does_not_match() {
-    //     let (gateway_address, tx_receipt, mut msg) = matching_msg_and_tx_receipt();
-
-    //     msg.message_id.event_index = 0;
-    //     assert_eq!(
-    //         verify_message(&gateway_address, &tx_receipt, &msg),
-    //         Vote::NotFound
-    //     );
-    //     msg.message_id.event_index = 2;
-    //     assert_eq!(
-    //         verify_message(&gateway_address, &tx_receipt, &msg),
-    //         Vote::NotFound
-    //     );
-    //     msg.message_id.event_index = 3;
-    //     assert_eq!(
-    //         verify_message(&gateway_address, &tx_receipt, &msg),
-    //         Vote::NotFound
-    //     );
-    // }
-
-    // #[test]
-    // fn should_not_verify_msg_if_log_index_greater_than_u32_max() {
-    //     let (gateway_address, tx_receipt, mut msg) = matching_msg_and_tx_receipt();
-
-    //     msg.message_id.event_index = u32::MAX as u64 + 1;
-    //     assert_eq!(
-    //         verify_message(&gateway_address, &tx_receipt, &msg),
-    //         Vote::NotFound
-    //     );
-    // }
-
-    // #[test]
-    // fn should_not_verify_msg_if_msg_does_not_match() {
-    //     let (gateway_address, tx_receipt, mut msg) = matching_msg_and_tx_receipt();
-
-    //     msg.source_address = EVMAddress::random();
-    //     assert_eq!(
-    //         verify_message(&gateway_address, &tx_receipt, &msg),
-    //         Vote::NotFound
-    //     );
-    // }
-
-    // #[test]
-    // fn should_verify_msg_if_correct() {
-    //     let (gateway_address, tx_receipt, msg) = matching_msg_and_tx_receipt();
-
-    //     assert_eq!(
-    //         verify_message(&gateway_address, &tx_receipt, &msg),
-    //         Vote::SucceededOnChain
-    //     );
-    // }
+        assert_eq!(
+            verify_verifier_set(&GATEWAY_PROGRAM_ID, &tx, &event, &DOMAIN_SEPARATOR),
+            Vote::SucceededOnChain
+        );
+    }
 
     const DOMAIN_SEPARATOR: [u8; 32] = [42; 32];
     const GATEWAY_PROGRAM_ID: Pubkey = axelar_solana_gateway::ID;
@@ -296,16 +202,21 @@ mod tests {
         let verifier_set = multisig::verifier_set::VerifierSet {
             signers: {
                 let mut map = BTreeMap::new();
-                map.insert("aabbcc".to_string(), multisig::msg::Signer {
+                map.insert(
+                    "aabbcc".to_string(),
+                    multisig::msg::Signer {
                         weight: 500_u128.into(),
                         address: cosmwasm_std::Addr::unchecked("axelar1abc"),
-                        pub_key: multisig::key::PublicKey::Ed25519(HexBinary::from_hex("036773a9d49a2a2f04b4aa8724d0f40e197570e4bb85f6b826da2a4ec25996d018").unwrap())
-
-                    });
+                        pub_key: multisig::key::PublicKey::Ecdsa(HexBinary::from_hex(
+                    "036773a9d49a2a2f04b4aa8724d0f40e197570e4bb85f6b826da2a4ec25996d018",
+                )
+                .unwrap()),
+                    },
+                );
                 map.insert("aabbccdd".to_string(), multisig::msg::Signer {
                         weight: 200_u128.into(),
                         address: cosmwasm_std::Addr::unchecked("axelar1abcaa"),
-                        pub_key: multisig::key::PublicKey::Ed25519(HexBinary::from_hex("038f8504c6ec6c16f2b37897d33bdb0667da32d18c7144365a47ac934abedcc0ba").unwrap())
+                        pub_key: multisig::key::PublicKey::Ecdsa(HexBinary::from_hex("038f8504c6ec6c16f2b37897d33bdb0667da32d18c7144365a47ac934abedcc0ba").unwrap())
                     });
                 map
             },
@@ -332,15 +243,15 @@ mod tests {
 
     fn fixture_success_call_contract_tx_data() -> (UiTransactionStatusMeta, VerifierSetConfirmation)
     {
-        let (base64_data, event, actual_verifier_set) = fixture_rotate_verifier_set();
+        let (base64_data, _event, actual_verifier_set) = fixture_rotate_verifier_set();
         let logs = vec![
-            "Program {GATEWAY_PROGRAM_ID} invoke [1]".to_string(),
+            format!("Program {GATEWAY_PROGRAM_ID} invoke [1]"),
             "Program log: Instruction: Rotate Signers".to_string(),
             "Program 11111111111111111111111111111111 invoke [2]".to_string(),
             "Program 11111111111111111111111111111111 success".to_string(),
-            "Program data: {base_64_data}".to_string(),
-            "Program {GATEWAY_PROGRAM_ID} consumed 11970 of 200000 compute units".to_string(),
-            "Program {GATEWAY_PROGRAM_ID} success".to_string(),
+            format!("Program data: {base64_data}"),
+            format!("Program {GATEWAY_PROGRAM_ID} consumed 11970 of 200000 compute units"),
+            format!("Program {GATEWAY_PROGRAM_ID} success"),
         ];
 
         (

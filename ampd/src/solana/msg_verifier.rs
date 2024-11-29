@@ -177,6 +177,15 @@ mod tests {
     }
 
     #[test]
+    fn should_not_verify_msg_gateway_does_not_match() {
+        let (tx, _event, mut msg) = fixture_success_call_contract_tx_data();
+        assert_eq!(
+            Vote::NotFound,
+            verify_message(&Pubkey::new_unique(), &tx, &msg)
+        );
+    }
+
+    #[test]
     fn should_fail_tx_failed() {
         let (base64_data, event) = fixture_call_contract_log();
         let logs = vec![
