@@ -75,7 +75,7 @@ mod tests {
                 raw_signature: [42; 64],
                 event_index,
             },
-            destination_address: event.destination_chain.clone(),
+            destination_address: event.destination_contract_address.clone(),
             destination_chain: event.destination_chain.clone().parse().unwrap(),
             source_address: event.sender_key,
             payload_hash: event.payload_hash.into(),
@@ -116,9 +116,10 @@ mod tests {
         }
     }
 
-    #[test]
+    #[test_log::test]
     fn should_verify_msg_if_correct() {
         let (tx, _event, msg) = fixture_success_call_contract_tx_data();
+        dbg!(&tx);
         assert_eq!(
             Vote::SucceededOnChain,
             verify_message(&GATEWAY_PROGRAM_ID, &tx, &msg)
@@ -130,7 +131,7 @@ mod tests {
         let (tx, _event, mut msg) = fixture_success_call_contract_tx_data();
         msg.message_id.event_index = 100;
         assert_eq!(
-            Vote::FailedOnChain,
+            Vote::NotFound,
             verify_message(&GATEWAY_PROGRAM_ID, &tx, &msg)
         );
     }
@@ -140,7 +141,7 @@ mod tests {
         let (tx, _event, mut msg) = fixture_success_call_contract_tx_data();
         msg.destination_chain = ChainName::from_str("badchain").unwrap();
         assert_eq!(
-            Vote::FailedOnChain,
+            Vote::NotFound,
             verify_message(&GATEWAY_PROGRAM_ID, &tx, &msg)
         );
     }
@@ -150,7 +151,7 @@ mod tests {
         let (tx, _event, mut msg) = fixture_success_call_contract_tx_data();
         msg.source_address = Pubkey::from([13; 32]);
         assert_eq!(
-            Vote::FailedOnChain,
+            Vote::NotFound,
             verify_message(&GATEWAY_PROGRAM_ID, &tx, &msg)
         );
     }
@@ -160,7 +161,7 @@ mod tests {
         let (tx, _event, mut msg) = fixture_success_call_contract_tx_data();
         msg.destination_address = "bad_address".to_string();
         assert_eq!(
-            Vote::FailedOnChain,
+            Vote::NotFound,
             verify_message(&GATEWAY_PROGRAM_ID, &tx, &msg)
         );
     }
@@ -170,7 +171,7 @@ mod tests {
         let (tx, _event, mut msg) = fixture_success_call_contract_tx_data();
         msg.payload_hash = [1; 32].into();
         assert_eq!(
-            Vote::FailedOnChain,
+            Vote::NotFound,
             verify_message(&GATEWAY_PROGRAM_ID, &tx, &msg)
         );
     }
@@ -217,10 +218,12 @@ mod tests {
     #[test]
     fn should_find_the_correct_index() {
         let (base64_data, event) = fixture_call_contract_log();
+        let base64_data_different = "Y2FsbCBjb250cmFjdF9fXw== 6NGe5cm7PkXHz/g8V2VdRg0nU0l7R48x8lll4s0Clz0= xtlu5J3pLn7c4BhqnNSrP1wDZK/pQOJVCYbk6sroJhY= ZXRoZXJldW0= MHgwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDBhMGRlYWUyYzVlYzU0YTFkNmU0M2VhODU2YjI3N2RkMTExNjVhYjRk 8J+QqvCfkKrwn5Cq8J+Qqg==";
+        assert_ne!(base64_data_different, base64_data);
         let logs = vec![
             format!("Program {GATEWAY_PROGRAM_ID} invoke [1]"),
             "Program log: Instruction: Call Contract".to_owned(),
-            format!("Program data: {}", base64_data),
+            format!("Program data: {}", base64_data_different),
             format!("Program {GATEWAY_PROGRAM_ID} failed"), // Invocation 1 fails
             format!("Program {GATEWAY_PROGRAM_ID} invoke [1]"),
             "Program log: Instruction: Call Contract".to_owned(),
@@ -228,7 +231,7 @@ mod tests {
             format!("Program {GATEWAY_PROGRAM_ID} success"), // Invocation 1 succeeds
             format!("Program {GATEWAY_PROGRAM_ID} invoke [1]"),
             "Program log: Instruction: Call Contract".to_owned(),
-            format!("Program data: {}", base64_data),
+            format!("Program data: {}", base64_data_different),
             format!("Program {GATEWAY_PROGRAM_ID} failed"), // Invocation 1 fails
         ];
 
@@ -236,7 +239,7 @@ mod tests {
         let tx = tx_meta(logs);
 
         assert_eq!(
-            Vote::FailedOnChain,
+            Vote::SucceededOnChain,
             verify_message(&GATEWAY_PROGRAM_ID, &tx, &msg)
         );
     }

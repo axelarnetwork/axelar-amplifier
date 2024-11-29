@@ -372,7 +372,6 @@ mod tests {
                     cosmwasm_contract: TMAddress::from(
                         AccountId::new("axelar", &[0u8; 32]).unwrap(),
                     ),
-                    max_tx_cache_entries: 6,
                     rpc_url: Url::from_str("http://127.0.0.1").unwrap(),
                     rpc_timeout: Some(Duration::from_secs(3)),
                 },

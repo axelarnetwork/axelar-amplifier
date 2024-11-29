@@ -85,7 +85,6 @@ rpc_url = 'http://127.0.0.1/'
 [[handlers]]
 type = 'SolanaMsgVerifier'
 cosmwasm_contract = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'
-max_tx_cache_entries = 6
 rpc_url = 'http://127.0.0.1/'
 
 [handlers.rpc_timeout]

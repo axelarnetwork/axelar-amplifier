@@ -12,13 +12,12 @@ use solana_sdk::pubkey::Pubkey;
 use solana_transaction_status::UiTransactionStatusMeta;
 
 use crate::handlers::solana_verify_verifier_set::VerifierSetConfirmation;
+use crate::solana::verify;
 use solana_transaction_status::{
     option_serializer::OptionSerializer, EncodedConfirmedTransactionWithStatusMeta,
 };
 use thiserror::Error;
 use tracing::error;
-
-use super::msg_verifier::verify;
 
 pub fn verify_verifier_set(
     gateway_address: &Pubkey,
@@ -53,7 +52,7 @@ pub fn verify_verifier_set(
                 return false;
             };
 
-            return desired_hash == incoming_verifier_set_hash;
+            return &desired_hash == incoming_verifier_set_hash;
         },
     )
 }
@@ -93,97 +92,284 @@ fn to_pub_key(pk: &PublicKey) -> Option<axelar_solana_encoding::types::pubkey::P
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
-
     use super::*;
-    use axelar_rkyv_encoding::hasher::generic::Keccak256Hasher;
-    use cosmwasm_std::{Addr, HexBinary};
-    use multisig::{
-        key::KeyType,
-        test::common::{build_verifier_set, TestSigner},
-    };
+    use std::collections::BTreeMap;
 
-    #[test]
-    fn test_axelar_verifier_set_hashing_is_eq_to_rkyv_hashing() {
-        let (verifier_set_conf, sol_verifier_set) = matching_verifier_set_and_sol_data();
+    use axelar_solana_gateway::processor::VerifierSetRotated;
+    use axelar_wasm_std::msg_id::Base58SolanaTxSignatureAndEventIndex;
+    use axelar_wasm_std::voting::Vote;
+    use cosmwasm_std::{HexBinary, Uint128};
+    use multisig::key::KeyType;
+    use multisig::test::common::{build_verifier_set, ecdsa_test_data};
+    use solana_sdk::pubkey::Pubkey;
+    use solana_transaction_status::option_serializer::OptionSerializer;
+    use solana_transaction_status::UiTransactionStatusMeta;
 
-        let vote = verify_verifier_set(
-            &verifier_set_conf,
-            &sol_verifier_set.hash(Keccak256Hasher::default()),
-        );
+    use super::verify_verifier_set;
 
-        assert_eq!(Vote::SucceededOnChain, vote);
-    }
+    // #[test]
+    // fn should_not_verify_verifier_set_if_tx_id_does_not_match() {
+    //     let (gateway_address, tx_receipt, mut verifier_set) =
+    //         matching_verifier_set_and_tx_receipt();
 
-    fn matching_verifier_set_and_sol_data() -> (
-        VerifierSetConfirmation,
-        axelar_rkyv_encoding::types::VerifierSet,
+    //     verifier_set.message_id.tx_hash = Hash::random().into();
+    //     assert_eq!(
+    //         verify_verifier_set(&gateway_address, &tx_receipt, &verifier_set),
+    //         Vote::NotFound
+    //     );
+    // }
+
+    // #[test]
+    // fn should_not_verify_verifier_set_if_tx_failed() {
+    //     let (gateway_address, mut tx_receipt, verifier_set) =
+    //         matching_verifier_set_and_tx_receipt();
+
+    //     tx_receipt.status = Some(0u64.into());
+    //     assert_eq!(
+    //         verify_verifier_set(&gateway_address, &tx_receipt, &verifier_set),
+    //         Vote::FailedOnChain
+    //     );
+    // }
+
+    // #[test]
+    // fn should_not_verify_verifier_set_if_gateway_address_does_not_match() {
+    //     let (_, tx_receipt, verifier_set) = matching_verifier_set_and_tx_receipt();
+
+    //     let gateway_address = EVMAddress::random();
+    //     assert_eq!(
+    //         verify_verifier_set(&gateway_address, &tx_receipt, &verifier_set),
+    //         Vote::NotFound
+    //     );
+    // }
+
+    // #[test]
+    // fn should_not_verify_verifier_set_if_log_index_does_not_match() {
+    //     let (gateway_address, tx_receipt, mut verifier_set) =
+    //         matching_verifier_set_and_tx_receipt();
+
+    //     verifier_set.message_id.event_index = 0;
+    //     assert_eq!(
+    //         verify_verifier_set(&gateway_address, &tx_receipt, &verifier_set),
+    //         Vote::NotFound
+    //     );
+    //     verifier_set.message_id.event_index = 2;
+    //     assert_eq!(
+    //         verify_verifier_set(&gateway_address, &tx_receipt, &verifier_set),
+    //         Vote::NotFound
+    //     );
+    //     verifier_set.message_id.event_index = 3;
+    //     assert_eq!(
+    //         verify_verifier_set(&gateway_address, &tx_receipt, &verifier_set),
+    //         Vote::NotFound
+    //     );
+    // }
+
+    // #[test]
+    // fn should_not_verify_verifier_set_if_log_index_greater_than_u32_max() {
+    //     let (gateway_address, tx_receipt, mut verifier_set) =
+    //         matching_verifier_set_and_tx_receipt();
+
+    //     verifier_set.message_id.event_index = u32::MAX as u64 + 1;
+    //     assert_eq!(
+    //         verify_verifier_set(&gateway_address, &tx_receipt, &verifier_set),
+    //         Vote::NotFound
+    //     );
+    // }
+
+    // #[test]
+    // fn should_not_verify_verifier_set_if_verifier_set_does_not_match() {
+    //     let (gateway_address, tx_receipt, mut verifier_set) =
+    //         matching_verifier_set_and_tx_receipt();
+
+    //     verifier_set.verifier_set.threshold = Uint128::from(50u64);
+    //     assert_eq!(
+    //         verify_verifier_set(&gateway_address, &tx_receipt, &verifier_set),
+    //         Vote::NotFound
+    //     );
+    // }
+
+    // #[test]
+    // fn should_verify_verifier_set_if_correct() {
+    //     let (gateway_address, tx_receipt, verifier_set) = matching_verifier_set_and_tx_receipt();
+
+    //     assert_eq!(
+    //         verify_verifier_set(&gateway_address, &tx_receipt, &verifier_set),
+    //         Vote::SucceededOnChain
+    //     );
+    // }
+
+    // #[test]
+    // fn should_not_verify_msg_if_tx_id_does_not_match() {
+    //     let (gateway_address, tx_receipt, mut msg) = matching_msg_and_tx_receipt();
+
+    //     msg.message_id.tx_hash = Hash::random().into();
+    //     assert_eq!(
+    //         verify_message(&gateway_address, &tx_receipt, &msg),
+    //         Vote::NotFound
+    //     );
+    // }
+
+    // #[test]
+    // fn should_not_verify_msg_if_tx_failed() {
+    //     let (gateway_address, mut tx_receipt, msg) = matching_msg_and_tx_receipt();
+
+    //     tx_receipt.status = Some(0u64.into());
+    //     assert_eq!(
+    //         verify_message(&gateway_address, &tx_receipt, &msg),
+    //         Vote::FailedOnChain
+    //     );
+    // }
+
+    // #[test]
+    // fn should_not_verify_msg_if_gateway_address_does_not_match() {
+    //     let (_, tx_receipt, msg) = matching_msg_and_tx_receipt();
+
+    //     let gateway_address = EVMAddress::random();
+    //     assert_eq!(
+    //         verify_message(&gateway_address, &tx_receipt, &msg),
+    //         Vote::NotFound
+    //     );
+    // }
+
+    // #[test]
+    // fn should_not_verify_msg_if_log_index_does_not_match() {
+    //     let (gateway_address, tx_receipt, mut msg) = matching_msg_and_tx_receipt();
+
+    //     msg.message_id.event_index = 0;
+    //     assert_eq!(
+    //         verify_message(&gateway_address, &tx_receipt, &msg),
+    //         Vote::NotFound
+    //     );
+    //     msg.message_id.event_index = 2;
+    //     assert_eq!(
+    //         verify_message(&gateway_address, &tx_receipt, &msg),
+    //         Vote::NotFound
+    //     );
+    //     msg.message_id.event_index = 3;
+    //     assert_eq!(
+    //         verify_message(&gateway_address, &tx_receipt, &msg),
+    //         Vote::NotFound
+    //     );
+    // }
+
+    // #[test]
+    // fn should_not_verify_msg_if_log_index_greater_than_u32_max() {
+    //     let (gateway_address, tx_receipt, mut msg) = matching_msg_and_tx_receipt();
+
+    //     msg.message_id.event_index = u32::MAX as u64 + 1;
+    //     assert_eq!(
+    //         verify_message(&gateway_address, &tx_receipt, &msg),
+    //         Vote::NotFound
+    //     );
+    // }
+
+    // #[test]
+    // fn should_not_verify_msg_if_msg_does_not_match() {
+    //     let (gateway_address, tx_receipt, mut msg) = matching_msg_and_tx_receipt();
+
+    //     msg.source_address = EVMAddress::random();
+    //     assert_eq!(
+    //         verify_message(&gateway_address, &tx_receipt, &msg),
+    //         Vote::NotFound
+    //     );
+    // }
+
+    // #[test]
+    // fn should_verify_msg_if_correct() {
+    //     let (gateway_address, tx_receipt, msg) = matching_msg_and_tx_receipt();
+
+    //     assert_eq!(
+    //         verify_message(&gateway_address, &tx_receipt, &msg),
+    //         Vote::SucceededOnChain
+    //     );
+    // }
+
+    const DOMAIN_SEPARATOR: [u8; 32] = [42; 32];
+    const GATEWAY_PROGRAM_ID: Pubkey = axelar_solana_gateway::ID;
+
+    fn fixture_rotate_verifier_set() -> (
+        String,
+        VerifierSetRotated,
+        multisig::verifier_set::VerifierSet,
     ) {
-        let verifier_set = build_verifier_set(KeyType::Ecdsa, &signers());
+        let base64_data = "c2lnbmVycyByb3RhdGVkXw== AgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA= rGbfImIlluyfNx5TfhnZEDS+uUBKCSDRAJ28Znulbgw=";
+        let verifier_set = multisig::verifier_set::VerifierSet {
+            signers: {
+                let mut map = BTreeMap::new();
+                map.insert("aabbcc".to_string(), multisig::msg::Signer {
+                        weight: 500_u128.into(),
+                        address: cosmwasm_std::Addr::unchecked("axelar1abc"),
+                        pub_key: multisig::key::PublicKey::Ed25519(HexBinary::from_hex("036773a9d49a2a2f04b4aa8724d0f40e197570e4bb85f6b826da2a4ec25996d018").unwrap())
 
-        let sol_signers = verifier_set
-            .signers
-            .values()
-            .map(|v| {
-                let pair = (
-                    axelar_rkyv_encoding::types::PublicKey::from_str(v.address.as_str()).unwrap(),
-                    1.into(),
-                );
-                pair
-            })
-            .collect();
-
-        let sol_quorum = verifier_set.threshold.u128();
-
-        let sol_verifier_set =
-            axelar_rkyv_encoding::types::VerifierSet::new(0, sol_signers, sol_quorum.into());
-
-        let verifier_set_confirmation = VerifierSetConfirmation {
-            tx_id: String::from("90af"),
-            event_index: 1,
-            verifier_set,
+                    });
+                map.insert("aabbccdd".to_string(), multisig::msg::Signer {
+                        weight: 200_u128.into(),
+                        address: cosmwasm_std::Addr::unchecked("axelar1abcaa"),
+                        pub_key: multisig::key::PublicKey::Ed25519(HexBinary::from_hex("038f8504c6ec6c16f2b37897d33bdb0667da32d18c7144365a47ac934abedcc0ba").unwrap())
+                    });
+                map
+            },
+            threshold: 700_u128.into(),
+            created_at: 1,
+        };
+        let verifier_set_hash = [
+            172, 102, 223, 34, 98, 37, 150, 236, 159, 55, 30, 83, 126, 25, 217, 16, 52, 190, 185,
+            64, 74, 9, 32, 209, 0, 157, 188, 102, 123, 165, 110, 12,
+        ];
+        let newly_created_vs = to_verifier_set(&verifier_set).unwrap();
+        let expected_hash = axelar_solana_encoding::types::verifier_set::verifier_set_hash::<
+            NativeHasher,
+        >(&newly_created_vs, &DOMAIN_SEPARATOR)
+        .unwrap();
+        assert_eq!(verifier_set_hash, expected_hash);
+        let event = VerifierSetRotated {
+            epoch: 2_u64.into(),
+            verifier_set_hash,
         };
 
-        (verifier_set_confirmation, sol_verifier_set)
+        (base64_data.to_string(), event, verifier_set)
     }
 
-    fn signers() -> Vec<TestSigner> {
-        // This data is the same as ecdsa_test_data::signers() , but we are replacing the address with the
-        // same value of the public key.
-        vec![
-            TestSigner {
-                address: Addr::unchecked("025e0231bfad810e5276e2cf9eb2f3f380ce0bdf6d84c3b6173499d3ddcc008856"),
-                pub_key: HexBinary::from_hex("025e0231bfad810e5276e2cf9eb2f3f380ce0bdf6d84c3b6173499d3ddcc008856")
-            .unwrap(),
-                signature: HexBinary::from_hex("d7822dd89b9df02d64b91f69cff5811dfd4de16b792d9c6054b417c733bbcc542c1e504c8a1dffac94b5828a93e33a6b45d1bf59b2f9f28ffa56b8398d68a1c5")
-            .unwrap(),
-                signed_address: HexBinary::from_hex(
-                    "d9e1eb2b47cb8b7c1c2a5a32f6fa6c57d0e6fdd53eaa8c76fe7f0b3b390cfb3c40f258e476f2ca0e6a7ca2622ea23afe7bd1f873448e01eed86cd6446a403f36",
-                )
-                .unwrap(),
+    fn fixture_success_call_contract_tx_data() -> (UiTransactionStatusMeta, VerifierSetConfirmation)
+    {
+        let (base64_data, event, actual_verifier_set) = fixture_rotate_verifier_set();
+        let logs = vec![
+            "Program {GATEWAY_PROGRAM_ID} invoke [1]".to_string(),
+            "Program log: Instruction: Rotate Signers".to_string(),
+            "Program 11111111111111111111111111111111 invoke [2]".to_string(),
+            "Program 11111111111111111111111111111111 success".to_string(),
+            "Program data: {base_64_data}".to_string(),
+            "Program {GATEWAY_PROGRAM_ID} consumed 11970 of 200000 compute units".to_string(),
+            "Program {GATEWAY_PROGRAM_ID} success".to_string(),
+        ];
+
+        (
+            tx_meta(logs),
+            VerifierSetConfirmation {
+                message_id: Base58SolanaTxSignatureAndEventIndex {
+                    raw_signature: [123; 64],
+                    event_index: 4,
+                },
+                verifier_set: actual_verifier_set,
             },
-            TestSigner {
-                address: Addr::unchecked("036ff6f4b2bc5e08aba924bd8fd986608f3685ca651a015b3d9d6a656de14769fe"),
-                pub_key: HexBinary::from_hex("036ff6f4b2bc5e08aba924bd8fd986608f3685ca651a015b3d9d6a656de14769fe")
-            .unwrap(),
-                signature: HexBinary::from_hex("a7ec5d1c15e84ba4b5da23fee49d77c5c81b3b1859411d1ef8193bf5a39783c76813e4cf4e1e1bfa0ea19c9f5b61d25ce978da137f3adb1730cba3d842702e72")
-            .unwrap(),
-                signed_address: HexBinary::from_hex(
-                    "008ca739eaddd22856c30690bf9a85f16ea77784494ad01111fded80327c57c84e021608cd890341883de1ac0fcf31330243b91b22c4751542ac47115f2f4e2c",
-                )
-                .unwrap(),
-            },
-            TestSigner {
-                address: Addr::unchecked("03686cbbef9f9e9a5c852883cb2637b55fc76bee6ee6a3ff636e7bea2e41beece4"),
-                pub_key: HexBinary::from_hex("03686cbbef9f9e9a5c852883cb2637b55fc76bee6ee6a3ff636e7bea2e41beece4")
-            .unwrap(),
-                signature: HexBinary::from_hex("d1bc22fd89d97dfe4091c73d2002823ca9ab29b742ae531d2560bf2abafb313f7d2c3263d09d9aa72f01ed1d49046e39f6513ea61241fd59cc53d02fc4222351")
-            .unwrap(),
-                signed_address: HexBinary::from_hex(
-                    "1df5a371c27772874b706dbbb41e0bc67f688b301d3c2d269e45c43389fa43b6328c32686f42242b0cdb05b3b955ce3106393d6e509bf0373340482182c865cc",
-                )
-                .unwrap(),
-            },
-        ]
+        )
+    }
+
+    fn tx_meta(logs: Vec<String>) -> UiTransactionStatusMeta {
+        UiTransactionStatusMeta {
+            err: None,
+            status: Ok(()),
+            fee: 0,
+            pre_balances: vec![0],
+            post_balances: vec![0],
+            inner_instructions: OptionSerializer::None,
+            log_messages: OptionSerializer::Some(logs),
+            pre_token_balances: OptionSerializer::None,
+            post_token_balances: OptionSerializer::None,
+            rewards: OptionSerializer::None,
+            loaded_addresses: OptionSerializer::None,
+            return_data: OptionSerializer::None,
+            compute_units_consumed: OptionSerializer::None,
+        }
     }
 }

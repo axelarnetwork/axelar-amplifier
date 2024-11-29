@@ -1,21 +1,18 @@
 use axelar_solana_gateway::processor::GatewayEvent;
 use axelar_wasm_std::voting::Vote;
 use gateway_event_stack::MatchContext;
-use solana_sdk::pubkey::Pubkey;
 use solana_transaction_status::{
     option_serializer::OptionSerializer, EncodedConfirmedTransactionWithStatusMeta,
 };
 use solana_transaction_status::{UiTransactionEncoding, UiTransactionStatusMeta};
 use std::str::FromStr;
-use std::str::FromStr;
 use std::sync::Arc;
-use tracing::error;
+use tracing::{error, warn};
 
 use futures::FutureExt;
 use serde::{Deserialize, Deserializer};
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::{pubkey::Pubkey, signature::Signature};
-use solana_transaction_status::UiTransactionStatusMeta;
 
 pub mod msg_verifier;
 pub mod verifier_set_verifier;
@@ -54,7 +51,7 @@ pub fn verify<F>(
     evens_are_equal: F,
 ) -> Vote
 where
-    F: Fn(GatewayEvent) -> bool,
+    F: Fn(&GatewayEvent) -> bool,
 {
     let tx_was_successful = tx.err.is_none();
     let desired_event_idx: usize = match desired_event_index.try_into() {
@@ -106,13 +103,16 @@ where
             .into_iter()
             .find(|(idx, _)| *idx == desired_event_idx)
         {
-            if evens_are_equal(event) {
+            if evens_are_equal(&event) {
                 // proxy the desired vote status of whether the ix succeeded
                 return vote;
             }
+
+            warn!(?event, "event was found, but contents were not equal");
             return Vote::NotFound;
         }
     }
 
+    warn!("not found");
     Vote::NotFound
 }

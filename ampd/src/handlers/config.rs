@@ -330,7 +330,6 @@ mod tests {
             cosmwasm_contract: TMAddress::random(PREFIX),
             rpc_url: "http://localhost:8080/".parse().unwrap(),
             rpc_timeout: None,
-            max_tx_cache_entries: 5,
         };
 
         let configs = vec![sample_config.clone(), sample_config];
