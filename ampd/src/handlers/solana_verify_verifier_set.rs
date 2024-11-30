@@ -169,180 +169,213 @@ impl<C: SolanaRpcClientProxy> EventHandler for Handler<C> {
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
+    use std::convert::TryInto;
 
-    // use axelar_wasm_std::nonempty;
-    // use multisig::{
-    //     key::KeyType,
-    //     test::common::{build_verifier_set, ecdsa_test_data},
-    // };
-    // use solana_client::rpc_request::RpcRequest;
-    // use tokio::sync::watch;
-    // use voting_verifier::events::{PollMetadata, PollStarted, VerifierSetConfirmation};
+    use cosmrs::cosmwasm::MsgExecuteContract;
+    use cosmrs::tx::Msg;
+    use cosmwasm_std;
+    use cosmwasm_std::{HexBinary, Uint128};
+    use error_stack::Result;
+    use events::Event;
+    use hex::ToHex;
+    use multisig::key::KeyType;
+    use multisig::test::common::{build_verifier_set, ecdsa_test_data, ed25519_test_data};
+    use solana_sdk::signature::Signature;
+    use solana_transaction_status::option_serializer::OptionSerializer;
+    use tokio::sync::watch;
+    use tokio::test as async_test;
+    use voting_verifier::events::{PollMetadata, PollStarted, VerifierSetConfirmation};
 
-    // use crate::{
-    //     handlers::tests::into_structured_event, solana::test_utils::rpc_client_with_recorder,
-    //     PREFIX,
-    // };
+    use super::PollStartedEvent;
+    use crate::event_processor::EventHandler;
+    use crate::handlers::tests::into_structured_event;
+    use crate::types::TMAddress;
+    use crate::PREFIX;
 
-    // use tokio::test as async_test;
+    use super::*;
 
-    // use super::*;
+    struct EmptyResponseSolanaRpc;
+    #[async_trait::async_trait]
+    impl SolanaRpcClientProxy for EmptyResponseSolanaRpc {
+        async fn get_tx(&self, _signature: &Signature) -> Option<UiTransactionStatusMeta> {
+            None
+        }
 
-    // #[async_test]
-    // async fn must_abort_if_voting_verifier_is_same_as_contract_address() {
-    //     let worker = TMAddress::random(PREFIX);
-    //     let voting_verifier = TMAddress::random(PREFIX);
+        async fn get_domain_separator(&self) -> Option<[u8; 32]> {
+            Some([42; 32])
+        }
+    }
 
-    //     let (rpc_client, rpc_recorder) = rpc_client_with_recorder();
+    struct ValidResponseSolanaRpc;
+    #[async_trait::async_trait]
+    impl SolanaRpcClientProxy for ValidResponseSolanaRpc {
+        async fn get_tx(&self, _signature: &Signature) -> Option<UiTransactionStatusMeta> {
+            Some(UiTransactionStatusMeta {
+                err: None,
+                status: Ok(()),
+                fee: 0,
+                pre_balances: vec![],
+                post_balances: vec![],
+                inner_instructions: OptionSerializer::None,
+                log_messages: OptionSerializer::None,
+                pre_token_balances: OptionSerializer::None,
+                post_token_balances: OptionSerializer::None,
+                rewards: OptionSerializer::None,
+                loaded_addresses: OptionSerializer::None,
+                return_data: OptionSerializer::None,
+                compute_units_consumed: OptionSerializer::None,
+            })
+        }
 
-    //     let expiration = 100u64;
-    //     let (_, rx) = watch::channel(expiration - 1);
+        async fn get_domain_separator(&self) -> Option<[u8; 32]> {
+            Some([42; 32])
+        }
+    }
 
-    //     let handler = Handler::new(worker.clone(), voting_verifier.clone(), rpc_client, rx);
+    #[async_test]
+    async fn not_poll_started_event() {
+        let event = into_structured_event(
+            cosmwasm_std::Event::new("transfer"),
+            &TMAddress::random(PREFIX),
+        );
 
-    //     let event = into_structured_event(
-    //         verifier_set_poll_started_event(participants(2, Some(worker.clone())), expiration),
-    //         &TMAddress::random(PREFIX),
-    //     );
+        let handler = super::Handler::new(
+            TMAddress::random(PREFIX),
+            TMAddress::random(PREFIX),
+            EmptyResponseSolanaRpc,
+            watch::channel(0).1,
+        )
+        .await;
 
-    //     let handler_result = handler.handle(&event).await.unwrap();
+        assert_eq!(handler.handle(&event).await.unwrap(), vec![]);
+    }
 
-    //     assert!(handler_result.is_empty());
-    //     assert_eq!(
-    //         None,
-    //         rpc_recorder.read().await.get(&RpcRequest::GetTransaction)
-    //     );
-    //     assert_eq!(
-    //         None,
-    //         rpc_recorder.read().await.get(&RpcRequest::GetAccountInfo)
-    //     );
-    // }
+    #[async_test]
+    async fn contract_is_not_voting_verifier() {
+        let event = into_structured_event(
+            verifier_set_poll_started_event(participants(5, None), 100),
+            &TMAddress::random(PREFIX),
+        );
 
-    // #[async_test]
-    // async fn must_abort_chain_does_not_match() {
-    //     let worker = TMAddress::random(PREFIX);
-    //     let voting_verifier = TMAddress::random(PREFIX);
+        let handler = super::Handler::new(
+            TMAddress::random(PREFIX),
+            TMAddress::random(PREFIX),
+            EmptyResponseSolanaRpc,
+            watch::channel(0).1,
+        )
+        .await;
 
-    //     let (rpc_client, rpc_recorder) = rpc_client_with_recorder();
+        assert_eq!(handler.handle(&event).await.unwrap(), vec![]);
+    }
 
-    //     let expiration = 100u64;
-    //     let (_, rx) = watch::channel(expiration - 1);
+    #[async_test]
+    async fn verifier_is_not_a_participant() {
+        let voting_verifier = TMAddress::random(PREFIX);
+        let event = into_structured_event(
+            verifier_set_poll_started_event(participants(5, None), 100),
+            &voting_verifier,
+        );
 
-    //     let handler = Handler::new(worker.clone(), voting_verifier.clone(), rpc_client, rx);
+        let handler = super::Handler::new(
+            TMAddress::random(PREFIX),
+            voting_verifier,
+            EmptyResponseSolanaRpc,
+            watch::channel(0).1,
+        )
+        .await;
 
-    //     let event = into_structured_event(
-    //         verifier_set_poll_started_event(participants(2, Some(worker.clone())), expiration),
-    //         &voting_verifier,
-    //     );
+        assert_eq!(handler.handle(&event).await.unwrap(), vec![]);
+    }
 
-    //     let handle_results = handler.handle(&event).await.unwrap();
-    //     assert!(handle_results.is_empty());
-    //     assert_eq!(
-    //         None,
-    //         rpc_recorder.read().await.get(&RpcRequest::GetTransaction)
-    //     );
-    //     assert_eq!(
-    //         None,
-    //         rpc_recorder.read().await.get(&RpcRequest::GetAccountInfo)
-    //     );
-    // }
+    #[async_test]
+    async fn should_skip_expired_poll() {
+        let voting_verifier = TMAddress::random(PREFIX);
+        let verifier = TMAddress::random(PREFIX);
+        let expiration = 100u64;
+        let event: Event = into_structured_event(
+            verifier_set_poll_started_event(
+                vec![verifier.clone()].into_iter().collect(),
+                expiration,
+            ),
+            &voting_verifier,
+        );
 
-    // #[async_test]
-    // async fn must_abort_if_worker_is_not_participant() {
-    //     let worker = TMAddress::random(PREFIX);
-    //     let voting_verifier = TMAddress::random(PREFIX);
+        let (tx, rx) = watch::channel(expiration - 1);
 
-    //     let (rpc_client, rpc_recorder) = rpc_client_with_recorder();
+        let handler =
+            super::Handler::new(verifier, voting_verifier, ValidResponseSolanaRpc, rx).await;
 
-    //     let expiration = 100u64;
-    //     let (_, rx) = watch::channel(expiration - 1);
+        // poll is not expired yet, should hit proxy
+        let actual = handler.handle(&event).await.unwrap();
+        assert_eq!(actual.len(), 1);
 
-    //     let handler = Handler::new(worker.clone(), voting_verifier.clone(), rpc_client, rx);
+        let _ = tx.send(expiration + 1);
 
-    //     let event = into_structured_event(
-    //         verifier_set_poll_started_event(participants(2, None), expiration), // worker is not here.
-    //         &voting_verifier,
-    //     );
+        // poll is expired
+        assert_eq!(handler.handle(&event).await.unwrap(), vec![]);
+    }
 
-    //     let handle_results = handler.handle(&event).await.unwrap();
-    //     assert!(handle_results.is_empty());
-    //     assert_eq!(
-    //         None,
-    //         rpc_recorder.read().await.get(&RpcRequest::GetTransaction)
-    //     );
-    //     assert_eq!(
-    //         None,
-    //         rpc_recorder.read().await.get(&RpcRequest::GetAccountInfo)
-    //     );
-    // }
+    #[async_test]
+    async fn should_vote_correctly() {
+        let voting_verifier = TMAddress::random(PREFIX);
+        let worker = TMAddress::random(PREFIX);
 
-    // #[async_test]
-    // async fn must_abort_on_expired_poll() {
-    //     let worker = TMAddress::random(PREFIX);
-    //     let voting_verifier = TMAddress::random(PREFIX);
+        let event = into_structured_event(
+            verifier_set_poll_started_event(participants(5, Some(worker.clone())), 100),
+            &voting_verifier,
+        );
 
-    //     let (rpc_client, rpc_recorder) = rpc_client_with_recorder();
+        let handler = super::Handler::new(
+            worker,
+            voting_verifier,
+            ValidResponseSolanaRpc,
+            watch::channel(0).1,
+        )
+        .await;
 
-    //     let expiration = 100u64;
-    //     let (_, rx) = watch::channel(expiration);
+        let actual = handler.handle(&event).await.unwrap();
+        assert_eq!(actual.len(), 1);
+        assert!(MsgExecuteContract::from_any(actual.first().unwrap()).is_ok());
+    }
 
-    //     let handler = Handler::new(worker.clone(), voting_verifier.clone(), rpc_client, rx);
+    fn verifier_set_poll_started_event(
+        participants: Vec<TMAddress>,
+        expires_at: u64,
+    ) -> PollStarted {
+        let signature_1 = "3GLo4z4siudHxW1BMHBbkTKy7kfbssNFaxLR5hTjhEXCUzp2Pi2VVwybc1s96pEKjRre7CcKKeLhni79zWTNUseP";
+        let event_idx_1 = 10_u32;
+        let message_id_1 = format!("{signature_1}-{event_idx_1}");
+        PollStarted::VerifierSet {
+            metadata: PollMetadata {
+                poll_id: "100".parse().unwrap(),
+                source_chain: "solana".parse().unwrap(),
+                source_gateway_address: axelar_solana_gateway::ID.to_string().parse().unwrap(),
+                confirmation_height: 15,
+                expires_at,
+                participants: participants
+                    .into_iter()
+                    .map(|addr| cosmwasm_std::Addr::unchecked(addr.to_string()))
+                    .collect(),
+            },
+            #[allow(deprecated)] // TODO: The below event uses the deprecated tx_id and event_index fields. Remove this attribute when those fields are removed
+            verifier_set: VerifierSetConfirmation {
+                tx_id: signature_1
+                    .parse()
+                    .unwrap(),
+                event_index: event_idx_1,
+                message_id: message_id_1
+                    .to_string()
+                    .try_into()
+                    .unwrap(),
+                verifier_set: build_verifier_set(KeyType::Ecdsa, &ecdsa_test_data::signers()),
+            },
+        }
+    }
 
-    //     let event = into_structured_event(
-    //         verifier_set_poll_started_event(participants(2, Some(worker.clone())), expiration),
-    //         &voting_verifier,
-    //     );
-
-    //     let handle_results = handler.handle(&event).await.unwrap();
-    //     assert!(handle_results.is_empty());
-    //     assert_eq!(
-    //         None,
-    //         rpc_recorder.read().await.get(&RpcRequest::GetTransaction)
-    //     );
-    //     assert_eq!(
-    //         None,
-    //         rpc_recorder.read().await.get(&RpcRequest::GetAccountInfo)
-    //     );
-    // }
-
-    // fn verifier_set_poll_started_event(
-    //     participants: Vec<TMAddress>,
-    //     expires_at: u64,
-    // ) -> PollStarted {
-    //     let signature_1 = "3GLo4z4siudHxW1BMHBbkTKy7kfbssNFaxLR5hTjhEXCUzp2Pi2VVwybc1s96pEKjRre7CcKKeLhni79zWTNUseP";
-    //     let event_idx_1 = 10_u32;
-    //     let message_id_1 = format!("{signature_1}-{event_idx_1}");
-
-    //     #[allow(deprecated)]
-    //     PollStarted::VerifierSet {
-    //         verifier_set: VerifierSetConfirmation {
-    //             tx_id: signature_1.parse().unwrap(),
-    //             event_index: event_idx_1,
-    //             message_id: message_id_1.parse().unwrap(),
-    //             verifier_set: build_verifier_set(KeyType::Ecdsa, &ecdsa_test_data::signers()),
-    //         },
-    //         metadata: PollMetadata {
-    //             poll_id: "100".parse().unwrap(),
-    //             source_chain: "solana".parse().unwrap(),
-    //             source_gateway_address: nonempty::String::from_str(
-    //                 "03f57d1a813febaccbe6429603f9ec57969511b76cd680452dba91fa01f54e756a",
-    //             )
-    //             .unwrap(),
-    //             confirmation_height: 1,
-    //             expires_at,
-    //             participants: participants
-    //                 .into_iter()
-    //                 .map(|addr| cosmwasm_std::Addr::unchecked(addr.to_string()))
-    //                 .collect(),
-    //         },
-    //     }
-    // }
-
-    // fn participants(n: u8, worker: Option<TMAddress>) -> Vec<TMAddress> {
-    //     (0..n)
-    //         .map(|_| TMAddress::random(PREFIX))
-    //         .chain(worker)
-    //         .collect()
-    // }
+    fn participants(n: u8, worker: Option<TMAddress>) -> Vec<TMAddress> {
+        (0..n)
+            .map(|_| TMAddress::random(PREFIX))
+            .chain(worker)
+            .collect()
+    }
 }
