@@ -13,6 +13,7 @@ use events::Error::EventTypeMismatch;
 use events_derive::try_from;
 use futures::future::join_all;
 use futures::FutureExt;
+use gateway_event_stack::MatchContext;
 use router_api::ChainName;
 use serde::Deserialize;
 use solana_client::nonblocking::rpc_client::RpcClient;
@@ -47,7 +48,6 @@ pub struct Message {
 struct PollStartedEvent {
     poll_id: PollId,
     source_chain: ChainName,
-    source_gateway_address: Pubkey,
     expires_at: u64,
     messages: Vec<Message>,
     participants: Vec<TMAddress>,
@@ -58,6 +58,7 @@ pub struct Handler<C: SolanaRpcClientProxy> {
     voting_verifier_contract: TMAddress,
     rpc_client: C,
     latest_block_height: Receiver<u64>,
+    event_match_context: MatchContext,
 }
 
 impl<C: SolanaRpcClientProxy> Handler<C> {
@@ -67,10 +68,13 @@ impl<C: SolanaRpcClientProxy> Handler<C> {
         rpc_client: C,
         latest_block_height: Receiver<u64>,
     ) -> Self {
+        let event_match_context = MatchContext::new(&axelar_solana_gateway::ID.to_string());
+
         Self {
             verifier,
             voting_verifier_contract,
             rpc_client,
+            event_match_context,
             latest_block_height,
         }
     }
@@ -90,7 +94,10 @@ impl<C: SolanaRpcClientProxy> Handler<C> {
         msg: &Message,
     ) -> Option<(solana_sdk::signature::Signature, UiTransactionStatusMeta)> {
         let signature = solana_sdk::signature::Signature::from(msg.message_id.raw_signature);
-        self.rpc_client.get_tx(&signature).await.map(|tx| (signature, tx))
+        self.rpc_client
+            .get_tx(&signature)
+            .await
+            .map(|tx| (signature, tx))
     }
 }
 
@@ -106,7 +113,6 @@ impl<C: SolanaRpcClientProxy> EventHandler for Handler<C> {
         let PollStartedEvent {
             poll_id,
             source_chain,
-            source_gateway_address,
             messages,
             expires_at,
             participants,
@@ -154,9 +160,9 @@ impl<C: SolanaRpcClientProxy> EventHandler for Handler<C> {
                 .iter()
                 .map(|msg| {
                     finalized_tx_receipts
-                        .get(&msg.message_id.raw_signature.into())
-                        .map_or(Vote::NotFound, |tx_receipt| {
-                            verify_message(&source_gateway_address, tx_receipt, msg)
+                        .get_key_value(&msg.message_id.raw_signature.into())
+                        .map_or(Vote::NotFound, |entry| {
+                            verify_message(&self.event_match_context, entry, msg)
                         })
                 })
                 .collect();
@@ -178,258 +184,169 @@ impl<C: SolanaRpcClientProxy> EventHandler for Handler<C> {
 #[cfg(test)]
 mod test {
 
+    use base64::{alphabet::STANDARD, prelude::*};
+    use events::Event;
     use solana_client::rpc_sender::RpcSender;
+    use solana_sdk::signature::Signature;
+    use solana_transaction_status::option_serializer::OptionSerializer;
     use tokio::sync::watch;
     use voting_verifier::events::{PollMetadata, PollStarted, TxEventConfirmation};
 
     use crate::{
+        handlers::tests::into_structured_event,
         types::{EVMAddress, TMAddress},
         PREFIX,
     };
 
     use super::*;
 
-    struct MockSolanaSender;
+    struct EmptyResponseSolanaRpc;
+    #[async_trait::async_trait]
+    impl SolanaRpcClientProxy for EmptyResponseSolanaRpc {
+        async fn get_tx(&self, _signature: &Signature) -> Option<UiTransactionStatusMeta> {
+            None
+        }
 
+        async fn get_domain_separator(&self) -> Option<[u8; 32]> {
+            unimplemented!()
+        }
+    }
+
+    struct ValidResponseSolanaRpc;
+    #[async_trait::async_trait]
+    impl SolanaRpcClientProxy for ValidResponseSolanaRpc {
+        async fn get_tx(&self, _signature: &Signature) -> Option<UiTransactionStatusMeta> {
+            Some(UiTransactionStatusMeta {
+                err: None,
+                status: Ok(()),
+                fee: 0,
+                pre_balances: vec![],
+                post_balances: vec![],
+                inner_instructions: OptionSerializer::None,
+                log_messages: OptionSerializer::None,
+                pre_token_balances: OptionSerializer::None,
+                post_token_balances: OptionSerializer::None,
+                rewards: OptionSerializer::None,
+                loaded_addresses: OptionSerializer::None,
+                return_data: OptionSerializer::None,
+                compute_units_consumed: OptionSerializer::None,
+            })
+        }
+
+        async fn get_domain_separator(&self) -> Option<[u8; 32]> {
+            unimplemented!()
+        }
+    }
+
+    // Should not handle event if it is not a poll started event
     #[tokio::test]
-    async fn must_correctly_broadcast_message_validation() {
-        // Setup the context
+    async fn not_poll_started_event() {
+        let event = into_structured_event(
+            cosmwasm_std::Event::new("transfer"),
+            &TMAddress::random(PREFIX),
+        );
+
+        let handler = super::Handler::new(
+            TMAddress::random(PREFIX),
+            TMAddress::random(PREFIX),
+            EmptyResponseSolanaRpc,
+            watch::channel(0).1,
+        );
+
+        assert!(handler.handle(&event).await.is_ok());
+    }
+
+    // Should not handle event if it is not emitted from voting verifier
+    #[tokio::test]
+    async fn contract_is_not_voting_verifier() {
+        let event = into_structured_event(
+            poll_started_event(participants(5, None), 100),
+            &TMAddress::random(PREFIX),
+        );
+
+        let handler = super::Handler::new(
+            TMAddress::random(PREFIX),
+            TMAddress::random(PREFIX),
+            EmptyResponseSolanaRpc,
+            watch::channel(0).1,
+        );
+
+        assert!(handler.handle(&event).await.is_ok());
+    }
+
+    // Should not handle event if worker is not a poll participant
+    #[tokio::test]
+    async fn verifier_is_not_a_participant() {
         let voting_verifier = TMAddress::random(PREFIX);
-        let worker = TMAddress::random(PREFIX);
-        let expiration = 100u64;
-        let (_, rx) = watch::channel(expiration - 1);
-
-        // todo -- what to do ? best optoin -- update solana gateway test fixtures to use solana_test_validator under the hood, then we can spin it & the gateway up in an instant
-        // Prepare the message verifier
-        let rpc_client = solana_client::nonblocking::rpc_client::RpcClient::new_sender(mock_sender, )
-        let (rpc_client, rpc_recorder) = rpc_client_with_recorder();
-
-        let event: Event = get_event(
-            get_poll_started_event(
-                participants(5, Some(worker.clone())),
-                100,
-                "solana".parse().unwrap(),
-            ),
+        let event = into_structured_event(
+            poll_started_event(participants(5, None), 100),
             &voting_verifier,
         );
 
-        let handler = super::Handler::new(worker, voting_verifier, rpc_client, rx);
-
-        let votes = handler.handle(&event).await.unwrap();
-        assert!(!votes.is_empty());
-        assert_eq!(
-            Some(&2),
-            rpc_recorder.read().await.get(&RpcRequest::GetTransaction)
+        let handler = super::Handler::new(
+            TMAddress::random(PREFIX),
+            voting_verifier,
+            EmptyResponseSolanaRpc,
+            watch::channel(0).1,
         );
+
+        assert!(handler.handle(&event).await.is_ok());
     }
 
-    // #[async_test]
-    // async fn must_skip_duplicated_tx() {
-    //     // Setup the context
-    //     let voting_verifier = TMAddress::random(PREFIX);
-    //     let worker = TMAddress::random(PREFIX);
-    //     let expiration = 100u64;
-    //     let (_, rx) = watch::channel(expiration - 1);
+    #[tokio::test]
+    async fn should_vote_correctly() {
+        let voting_verifier = TMAddress::random(PREFIX);
+        let worker = TMAddress::random(PREFIX);
+        let event = into_structured_event(
+            poll_started_event(participants(5, Some(worker.clone())), 100),
+            &voting_verifier,
+        );
 
-    //     // Prepare the message verifier
-    //     let (rpc_client, rpc_recorder) = rpc_client_with_recorder();
+        let handler = super::Handler::new(
+            worker,
+            voting_verifier,
+            ValidResponseSolanaRpc,
+            watch::channel(0).1,
+        );
 
-    //     let event: Event = get_event(
-    //         get_poll_started_event_with_duplicates(participants(5, Some(worker.clone())), 100),
-    //         &voting_verifier,
-    //     );
+        let actual = handler.handle(&event).await.unwrap();
+        assert_eq!(actual.len(), 1);
+        assert!(MsgExecuteContract::from_any(actual.first().unwrap()).is_ok());
+    }
 
-    //     let handler = super::Handler::new(
-    //         worker,
-    //         voting_verifier,
-    //         RpcCacheWrapper::new(rpc_client, NonZeroUsize::new(10).unwrap()),
-    //         rx,
-    //     );
+    #[tokio::test]
+    async fn should_skip_expired_poll() {
+        let voting_verifier = TMAddress::random(PREFIX);
+        let worker = TMAddress::random(PREFIX);
+        let expiration = 100u64;
+        let event = into_structured_event(
+            poll_started_event(participants(5, Some(worker.clone())), expiration),
+            &voting_verifier,
+        );
 
-    //     let handle_result = handler.handle(&event).await.unwrap();
-    //     assert!(!handle_result.is_empty());
-    //     assert_eq!(
-    //         Some(&1),
-    //         rpc_recorder.read().await.get(&RpcRequest::GetTransaction)
-    //     );
-    // }
+        let (tx, rx) = watch::channel(expiration - 1);
 
-    // #[async_test]
-    // async fn ignores_poll_event_if_voting_verifier_address_not_match_event_address() {
-    //     // Setup the context
-    //     let voting_verifier = TMAddress::random(PREFIX);
-    //     let worker = TMAddress::random(PREFIX);
-    //     let expiration = 100u64;
-    //     let (_, rx) = watch::channel(expiration - 1);
+        let handler = super::Handler::new(worker, voting_verifier, ValidResponseSolanaRpc, rx);
 
-    //     // Prepare the message verifier
-    //     let (rpc_client, rpc_recorder) = rpc_client_with_recorder();
+        // poll is not expired yet, should hit proxy
+        let actual = handler.handle(&event).await.unwrap();
+        assert_eq!(actual.len(), 1);
 
-    //     let event: Event = get_event(
-    //         get_poll_started_event(
-    //             participants(5, Some(worker.clone())),
-    //             100,
-    //             "solana".parse().unwrap(),
-    //         ),
-    //         &TMAddress::random(PREFIX), // A different, unexpected address comes from the event.
-    //     );
+        let _ = tx.send(expiration + 1);
 
-    //     let handler = super::Handler::new(
-    //         worker,
-    //         voting_verifier,
-    //         RpcCacheWrapper::new(rpc_client, NonZeroUsize::new(10).unwrap()),
-    //         rx,
-    //     );
+        // poll is expired
+        assert_eq!(handler.handle(&event).await.unwrap(), vec![]);
+    }
 
-    //     let handler_result = handler.handle(&event).await.unwrap();
-    //     assert!(handler_result.is_empty());
-    //     assert_eq!(
-    //         None,
-    //         rpc_recorder.read().await.get(&RpcRequest::GetTransaction)
-    //     );
-    // }
-
-    // #[async_test]
-    // async fn ignores_poll_event_if_worker_not_part_of_participants() {
-    //     // Setup the context
-    //     let voting_verifier = TMAddress::random(PREFIX);
-    //     let worker = TMAddress::random(PREFIX);
-    //     let expiration = 100u64;
-    //     let (_, rx) = watch::channel(expiration - 1);
-
-    //     // Prepare the message verifier
-    //     let (rpc_client, rpc_recorder) = rpc_client_with_recorder();
-
-    //     let event: Event = get_event(
-    //         get_poll_started_event(participants(5, None), 100, "solana".parse().unwrap()), // This worker is not in participant set. So will skip the event.
-    //         &voting_verifier,
-    //     );
-
-    //     let handler = super::Handler::new(
-    //         worker,
-    //         voting_verifier,
-    //         RpcCacheWrapper::new(rpc_client, NonZeroUsize::new(10).unwrap()),
-    //         rx,
-    //     );
-
-    //     let handler_result = handler.handle(&event).await.unwrap();
-    //     assert!(handler_result.is_empty());
-    //     assert_eq!(
-    //         None,
-    //         rpc_recorder.read().await.get(&RpcRequest::GetTransaction)
-    //     );
-    // }
-
-    // #[async_test]
-    // async fn ignores_expired_poll_event() {
-    //     // Setup the context
-    //     let voting_verifier = TMAddress::random(PREFIX);
-    //     let worker = TMAddress::random(PREFIX);
-    //     let expiration = 100u64;
-    //     let (_, rx) = watch::channel(expiration); // expired !
-
-    //     // Prepare the message verifier
-    //     let (rpc_client, rpc_recorder) = rpc_client_with_recorder();
-
-    //     let event: Event = get_event(
-    //         get_poll_started_event(
-    //             participants(5, Some(worker.clone())),
-    //             100,
-    //             "solana".parse().unwrap(),
-    //         ),
-    //         &voting_verifier,
-    //     );
-
-    //     let handler = super::Handler::new(
-    //         worker,
-    //         voting_verifier,
-    //         RpcCacheWrapper::new(rpc_client, NonZeroUsize::new(10).unwrap()),
-    //         rx,
-    //     );
-
-    //     let handler_result = handler.handle(&event).await.unwrap();
-    //     assert!(handler_result.is_empty());
-    //     assert_eq!(
-    //         None,
-    //         rpc_recorder.read().await.get(&RpcRequest::GetTransaction)
-    //     );
-    // }
-
-    // fn get_event(event: impl Into<cosmwasm_std::Event>, contract_address: &TMAddress) -> Event {
-    //     let mut event: cosmwasm_std::Event = event.into();
-
-    //     event.ty = format!("wasm-{}", event.ty);
-    //     event = event.add_attribute("_contract_address", contract_address.to_string());
-
-    //     abci::Event::new(
-    //         event.ty,
-    //         event
-    //             .attributes
-    //             .into_iter()
-    //             .map(|cosmwasm_std::Attribute { key, value }| {
-    //                 (STANDARD.encode(key), STANDARD.encode(value))
-    //             }),
-    //     )
-    //     .try_into()
-    //     .unwrap()
-    // }
-
-    // fn get_poll_started_event(
-    //     participants: Vec<TMAddress>,
-    //     expires_at: u64,
-    //     source_chain: ChainName,
-    // ) -> PollStarted {
-    //     let signature_1 = "3GLo4z4siudHxW1BMHBbkTKy7kfbssNFaxLR5hTjhEXCUzp2Pi2VVwybc1s96pEKjRre7CcKKeLhni79zWTNUseP";
-    //     let event_idx_1 = 10_u32;
-    //     let message_id_1 = format!("{signature_1}-{event_idx_1}");
-
-    //     let signature_2 = "41SgBTfsWbkdixDdVNESM6YmDAzEcKEubGPkaXmtTVUd2EhMaqPEy3qh5ReTtTb4Le4F16SSBFjQCxkekamNrFNT";
-    //     let event_idx_2 = 88_u32;
-    //     let message_id_2 = format!("{signature_2}-{event_idx_2}");
-
-    //     PollStarted::Messages {
-    //         metadata: PollMetadata {
-    //             poll_id: "100".parse().unwrap(),
-    //             source_chain,
-    //             source_gateway_address: "sol".to_string().parse().unwrap(),
-    //             confirmation_height: 15,
-    //             expires_at,
-    //             participants: participants
-    //                 .into_iter()
-    //                 .map(|addr| cosmwasm_std::Addr::unchecked(addr.to_string()))
-    //                 .collect(),
-    //         },
-    //         #[allow(deprecated)]
-    //         messages: vec![
-    //             TxEventConfirmation {
-    //                 tx_id: signature_1.parse().unwrap(),
-    //                 event_index: event_idx_1,
-    //                 source_address: "sol".to_string().parse().unwrap(),
-    //                 message_id: message_id_1.parse().unwrap(),
-    //                 destination_chain: "ethereum".parse().unwrap(),
-    //                 destination_address: format!("0x{:x}", EVMAddress::random()).parse().unwrap(),
-    //                 payload_hash: Hash::random().to_fixed_bytes(),
-    //             },
-    //             TxEventConfirmation {
-    //                 tx_id: signature_2.parse().unwrap(),
-    //                 event_index: event_idx_2,
-    //                 source_address: "sol".to_string().parse().unwrap(),
-    //                 message_id: message_id_2.parse().unwrap(),
-    //                 destination_chain: "ethereum".parse().unwrap(),
-    //                 destination_address: format!("0x{:x}", EVMAddress::random()).parse().unwrap(),
-    //                 payload_hash: Hash::random().to_fixed_bytes(),
-    //             },
-    //         ],
-    //     }
-    // }
-
-    fn get_poll_started_event_with_duplicates(
-        participants: Vec<TMAddress>,
-        expires_at: u64,
-    ) -> PollStarted {
+    fn poll_started_event(participants: Vec<TMAddress>, expires_at: u64) -> PollStarted {
         let signature_1 = "3GLo4z4siudHxW1BMHBbkTKy7kfbssNFaxLR5hTjhEXCUzp2Pi2VVwybc1s96pEKjRre7CcKKeLhni79zWTNUseP";
         let event_idx_1 = 10_u32;
         let message_id_1 = format!("{signature_1}-{event_idx_1}");
+
+        let signature_2 = "41SgBTfsWbkdixDdVNESM6YmDAzEcKEubGPkaXmtTVUd2EhMaqPEy3qh5ReTtTb4Le4F16SSBFjQCxkekamNrFNT";
+        let event_idx_2 = 88_u32;
+        let message_id_2 = format!("{signature_2}-{event_idx_2}");
+
         PollStarted::Messages {
             metadata: PollMetadata {
                 poll_id: "100".parse().unwrap(),
@@ -451,16 +368,16 @@ mod test {
                     message_id: message_id_1.parse().unwrap(),
                     destination_chain: "ethereum".parse().unwrap(),
                     destination_address: format!("0x{:x}", EVMAddress::random()).parse().unwrap(),
-                    payload_hash: [42; 32],
+                    payload_hash: Hash::random().to_fixed_bytes(),
                 },
                 TxEventConfirmation {
-                    tx_id: signature_1.parse().unwrap(),
-                    event_index: event_idx_1,
+                    tx_id: signature_2.parse().unwrap(),
+                    event_index: event_idx_2,
                     source_address: "sol".to_string().parse().unwrap(),
-                    message_id: message_id_1.parse().unwrap(),
+                    message_id: message_id_2.parse().unwrap(),
                     destination_chain: "ethereum".parse().unwrap(),
                     destination_address: format!("0x{:x}", EVMAddress::random()).parse().unwrap(),
-                    payload_hash: [42; 32],
+                    payload_hash: Hash::random().to_fixed_bytes(),
                 },
             ],
         }

@@ -2,6 +2,7 @@ use axelar_solana_gateway::processor::GatewayEvent;
 use axelar_wasm_std::voting::Vote;
 use gateway_event_stack::MatchContext;
 use solana_sdk::pubkey::Pubkey;
+use solana_sdk::signature::Signature;
 use solana_transaction_status::{
     option_serializer::OptionSerializer, EncodedConfirmedTransactionWithStatusMeta,
 };
@@ -15,38 +16,212 @@ use crate::handlers::solana_verify_msg::Message;
 use super::verify;
 
 pub fn verify_message(
-    source_gateway_address: &Pubkey,
-    tx: &UiTransactionStatusMeta,
+    match_context: &MatchContext,
+    tx: (&Signature, &UiTransactionStatusMeta),
     message: &Message,
 ) -> Vote {
-    verify(
-        source_gateway_address,
-        tx,
-        message.message_id.event_index,
-        |gateway_event| {
-            let GatewayEvent::CallContract(event) = gateway_event else {
-                return false;
-            };
-            return event.sender_key == message.source_address
-                && event.payload_hash == message.payload_hash.0
-                && message.destination_chain == event.destination_chain
-                && event.destination_contract_address == message.destination_address;
-        },
-    )
+    verify(match_context, tx, &message.message_id, |gateway_event| {
+        let GatewayEvent::CallContract(event) = gateway_event else {
+            return false;
+        };
+        return event.sender_key == message.source_address
+            && event.payload_hash == message.payload_hash.0
+            && message.destination_chain == event.destination_chain
+            && event.destination_contract_address == message.destination_address;
+    })
 }
 
 #[cfg(test)]
 mod tests {
     use axelar_solana_gateway::processor::CallContractEvent;
-    use base64::{engine::general_purpose, Engine};
 
     use std::str::FromStr;
 
     use router_api::ChainName;
 
     use super::*;
+    #[test_log::test]
+    fn should_verify_msg_if_correct() {
+        let ((signature, tx), _event, msg) = fixture_success_call_contract_tx_data();
+        dbg!(&tx);
+        assert_eq!(
+            Vote::SucceededOnChain,
+            verify_message(
+                &create_matcher(&GATEWAY_PROGRAM_ID),
+                (&signature, &tx),
+                &msg
+            )
+        );
+    }
+
+    #[test]
+    fn should_not_verify_msg_if_event_idx_is_invalid() {
+        let ((signature, tx), _event, mut msg) = fixture_success_call_contract_tx_data();
+        msg.message_id.event_index = 100;
+        assert_eq!(
+            Vote::NotFound,
+            verify_message(
+                &create_matcher(&GATEWAY_PROGRAM_ID),
+                (&signature, &tx),
+                &msg
+            )
+        );
+    }
+
+    #[test]
+    fn should_not_verify_msg_if_destination_chain_does_not_match() {
+        let ((signature, tx), _event, mut msg) = fixture_success_call_contract_tx_data();
+        msg.destination_chain = ChainName::from_str("badchain").unwrap();
+        assert_eq!(
+            Vote::NotFound,
+            verify_message(
+                &create_matcher(&GATEWAY_PROGRAM_ID),
+                (&signature, &tx),
+                &msg
+            )
+        );
+    }
+
+    #[test]
+    fn should_not_verify_msg_if_source_address_does_not_match() {
+        let ((signature, tx), _event, mut msg) = fixture_success_call_contract_tx_data();
+        msg.source_address = Pubkey::from([13; 32]);
+        assert_eq!(
+            Vote::NotFound,
+            verify_message(
+                &create_matcher(&GATEWAY_PROGRAM_ID),
+                (&signature, &tx),
+                &msg
+            )
+        );
+    }
+
+    #[test]
+    fn should_not_verify_msg_if_destination_address_does_not_match() {
+        let ((signature, tx), _event, mut msg) = fixture_success_call_contract_tx_data();
+        msg.destination_address = "bad_address".to_string();
+        assert_eq!(
+            Vote::NotFound,
+            verify_message(
+                &create_matcher(&GATEWAY_PROGRAM_ID),
+                (&signature, &tx),
+                &msg
+            )
+        );
+    }
+
+    #[test]
+    fn should_not_verify_msg_if_payload_hash_does_not_match() {
+        let ((signature, tx), _event, mut msg) = fixture_success_call_contract_tx_data();
+        msg.payload_hash = [1; 32].into();
+        assert_eq!(
+            Vote::NotFound,
+            verify_message(
+                &create_matcher(&GATEWAY_PROGRAM_ID),
+                (&signature, &tx),
+                &msg
+            )
+        );
+    }
+
+    #[test]
+    fn should_not_verify_msg_gateway_does_not_match() {
+        let ((signature, tx), _event, mut msg) = fixture_success_call_contract_tx_data();
+        assert_eq!(
+            Vote::NotFound,
+            verify_message(
+                &create_matcher(&Pubkey::new_unique()),
+                (&signature, &tx),
+                &msg
+            )
+        );
+    }
+
+    #[test]
+    fn should_fail_tx_failed() {
+        let (base64_data, event) = fixture_call_contract_log();
+        let logs = vec![
+            format!("Program {GATEWAY_PROGRAM_ID} invoke [1]"),
+            "Program log: Instruction: Call Contract".to_owned(),
+            format!("Program data: {}", base64_data),
+            format!("Program {GATEWAY_PROGRAM_ID} success"),
+        ];
+
+        let msg = create_msg_counterpart(&event, 2);
+        let signature = msg.message_id.raw_signature.into();
+        let mut tx = tx_meta(logs);
+        tx.err = Some(solana_sdk::transaction::TransactionError::AccountNotFound);
+
+        assert_eq!(
+            Vote::FailedOnChain,
+            verify_message(
+                &create_matcher(&GATEWAY_PROGRAM_ID),
+                (&signature, &tx),
+                &msg
+            )
+        );
+    }
+
+    #[test]
+    fn should_fail_tx_succeeded_with_failed_ix() {
+        let (base64_data, event) = fixture_call_contract_log();
+        let logs = vec![
+            format!("Program {GATEWAY_PROGRAM_ID} invoke [1]"),
+            "Program log: Instruction: Call Contract".to_owned(),
+            format!("Program data: {}", base64_data),
+            format!("Program {GATEWAY_PROGRAM_ID} failed"), // Invocation 1 fails
+        ];
+
+        let msg = create_msg_counterpart(&event, 2);
+        let tx = tx_meta(logs);
+        let signature = msg.message_id.raw_signature.into();
+
+        assert_eq!(
+            Vote::FailedOnChain,
+            verify_message(
+                &create_matcher(&GATEWAY_PROGRAM_ID),
+                (&signature, &tx),
+                &msg
+            )
+        );
+    }
+
+    #[test]
+    fn should_find_the_correct_index() {
+        let (base64_data, event) = fixture_call_contract_log();
+        let base64_data_different = "Y2FsbCBjb250cmFjdF9fXw== 6NGe5cm7PkXHz/g8V2VdRg0nU0l7R48x8lll4s0Clz0= xtlu5J3pLn7c4BhqnNSrP1wDZK/pQOJVCYbk6sroJhY= ZXRoZXJldW0= MHgwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDBhMGRlYWUyYzVlYzU0YTFkNmU0M2VhODU2YjI3N2RkMTExNjVhYjRk 8J+QqvCfkKrwn5Cq8J+Qqg==";
+        assert_ne!(base64_data_different, base64_data);
+        let logs = vec![
+            format!("Program {GATEWAY_PROGRAM_ID} invoke [1]"),
+            "Program log: Instruction: Call Contract".to_owned(),
+            format!("Program data: {}", base64_data_different),
+            format!("Program {GATEWAY_PROGRAM_ID} failed"), // Invocation 1 fails
+            format!("Program {GATEWAY_PROGRAM_ID} invoke [1]"),
+            "Program log: Instruction: Call Contract".to_owned(),
+            format!("Program data: {}", base64_data),
+            format!("Program {GATEWAY_PROGRAM_ID} success"), // Invocation 1 succeeds
+            format!("Program {GATEWAY_PROGRAM_ID} invoke [1]"),
+            "Program log: Instruction: Call Contract".to_owned(),
+            format!("Program data: {}", base64_data_different),
+            format!("Program {GATEWAY_PROGRAM_ID} failed"), // Invocation 1 fails
+        ];
+
+        let msg = create_msg_counterpart(&event, 6);
+        let signature = msg.message_id.raw_signature.into();
+        let tx = tx_meta(logs);
+
+        assert_eq!(
+            Vote::SucceededOnChain,
+            verify_message(
+                &create_matcher(&GATEWAY_PROGRAM_ID),
+                (&signature, &tx),
+                &msg
+            )
+        );
+    }
 
     const GATEWAY_PROGRAM_ID: Pubkey = axelar_solana_gateway::ID;
+    const RAW_SIGNATURE: [u8; 64] = [42; 64];
 
     fn fixture_call_contract_log() -> (String, CallContractEvent) {
         // this is a `CallContract` extract form other unittests
@@ -72,7 +247,7 @@ mod tests {
     fn create_msg_counterpart(event: &CallContractEvent, event_index: u64) -> Message {
         let msg = Message {
             message_id: axelar_wasm_std::msg_id::Base58SolanaTxSignatureAndEventIndex {
-                raw_signature: [42; 64],
+                raw_signature: RAW_SIGNATURE,
                 event_index,
             },
             destination_address: event.destination_contract_address.clone(),
@@ -83,8 +258,11 @@ mod tests {
         msg
     }
 
-    fn fixture_success_call_contract_tx_data(
-    ) -> (UiTransactionStatusMeta, CallContractEvent, Message) {
+    fn fixture_success_call_contract_tx_data() -> (
+        (Signature, UiTransactionStatusMeta),
+        CallContractEvent,
+        Message,
+    ) {
         let (base64_data, event) = fixture_call_contract_log();
         let logs = vec![
             format!("Program {GATEWAY_PROGRAM_ID} invoke [1]"), // Invocation 1 starts
@@ -94,8 +272,9 @@ mod tests {
         ];
 
         let msg = create_msg_counterpart(&event, 2);
+        let signature = msg.message_id.raw_signature.into();
 
-        (tx_meta(logs), event, msg)
+        ((signature, tx_meta(logs)), event, msg)
     }
 
     fn tx_meta(logs: Vec<String>) -> UiTransactionStatusMeta {
@@ -116,140 +295,7 @@ mod tests {
         }
     }
 
-    #[test_log::test]
-    fn should_verify_msg_if_correct() {
-        let (tx, _event, msg) = fixture_success_call_contract_tx_data();
-        dbg!(&tx);
-        assert_eq!(
-            Vote::SucceededOnChain,
-            verify_message(&GATEWAY_PROGRAM_ID, &tx, &msg)
-        );
-    }
-
-    #[test]
-    fn should_not_verify_msg_if_event_idx_is_invalid() {
-        let (tx, _event, mut msg) = fixture_success_call_contract_tx_data();
-        msg.message_id.event_index = 100;
-        assert_eq!(
-            Vote::NotFound,
-            verify_message(&GATEWAY_PROGRAM_ID, &tx, &msg)
-        );
-    }
-
-    #[test]
-    fn should_not_verify_msg_if_destination_chain_does_not_match() {
-        let (tx, _event, mut msg) = fixture_success_call_contract_tx_data();
-        msg.destination_chain = ChainName::from_str("badchain").unwrap();
-        assert_eq!(
-            Vote::NotFound,
-            verify_message(&GATEWAY_PROGRAM_ID, &tx, &msg)
-        );
-    }
-
-    #[test]
-    fn should_not_verify_msg_if_source_address_does_not_match() {
-        let (tx, _event, mut msg) = fixture_success_call_contract_tx_data();
-        msg.source_address = Pubkey::from([13; 32]);
-        assert_eq!(
-            Vote::NotFound,
-            verify_message(&GATEWAY_PROGRAM_ID, &tx, &msg)
-        );
-    }
-
-    #[test]
-    fn should_not_verify_msg_if_destination_address_does_not_match() {
-        let (tx, _event, mut msg) = fixture_success_call_contract_tx_data();
-        msg.destination_address = "bad_address".to_string();
-        assert_eq!(
-            Vote::NotFound,
-            verify_message(&GATEWAY_PROGRAM_ID, &tx, &msg)
-        );
-    }
-
-    #[test]
-    fn should_not_verify_msg_if_payload_hash_does_not_match() {
-        let (tx, _event, mut msg) = fixture_success_call_contract_tx_data();
-        msg.payload_hash = [1; 32].into();
-        assert_eq!(
-            Vote::NotFound,
-            verify_message(&GATEWAY_PROGRAM_ID, &tx, &msg)
-        );
-    }
-
-    #[test]
-    fn should_not_verify_msg_gateway_does_not_match() {
-        let (tx, _event, mut msg) = fixture_success_call_contract_tx_data();
-        assert_eq!(
-            Vote::NotFound,
-            verify_message(&Pubkey::new_unique(), &tx, &msg)
-        );
-    }
-
-    #[test]
-    fn should_fail_tx_failed() {
-        let (base64_data, event) = fixture_call_contract_log();
-        let logs = vec![
-            format!("Program {GATEWAY_PROGRAM_ID} invoke [1]"),
-            "Program log: Instruction: Call Contract".to_owned(),
-            format!("Program data: {}", base64_data),
-            format!("Program {GATEWAY_PROGRAM_ID} success"),
-        ];
-
-        let msg = create_msg_counterpart(&event, 2);
-        let mut tx = tx_meta(logs);
-        tx.err = Some(solana_sdk::transaction::TransactionError::AccountNotFound);
-
-        assert_eq!(
-            Vote::FailedOnChain,
-            verify_message(&GATEWAY_PROGRAM_ID, &tx, &msg)
-        );
-    }
-
-    #[test]
-    fn should_fail_tx_succeeded_with_failed_ix() {
-        let (base64_data, event) = fixture_call_contract_log();
-        let logs = vec![
-            format!("Program {GATEWAY_PROGRAM_ID} invoke [1]"),
-            "Program log: Instruction: Call Contract".to_owned(),
-            format!("Program data: {}", base64_data),
-            format!("Program {GATEWAY_PROGRAM_ID} failed"), // Invocation 1 fails
-        ];
-
-        let msg = create_msg_counterpart(&event, 2);
-        let tx = tx_meta(logs);
-
-        assert_eq!(
-            Vote::FailedOnChain,
-            verify_message(&GATEWAY_PROGRAM_ID, &tx, &msg)
-        );
-    }
-
-    #[test]
-    fn should_find_the_correct_index() {
-        let (base64_data, event) = fixture_call_contract_log();
-        let base64_data_different = "Y2FsbCBjb250cmFjdF9fXw== 6NGe5cm7PkXHz/g8V2VdRg0nU0l7R48x8lll4s0Clz0= xtlu5J3pLn7c4BhqnNSrP1wDZK/pQOJVCYbk6sroJhY= ZXRoZXJldW0= MHgwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDBhMGRlYWUyYzVlYzU0YTFkNmU0M2VhODU2YjI3N2RkMTExNjVhYjRk 8J+QqvCfkKrwn5Cq8J+Qqg==";
-        assert_ne!(base64_data_different, base64_data);
-        let logs = vec![
-            format!("Program {GATEWAY_PROGRAM_ID} invoke [1]"),
-            "Program log: Instruction: Call Contract".to_owned(),
-            format!("Program data: {}", base64_data_different),
-            format!("Program {GATEWAY_PROGRAM_ID} failed"), // Invocation 1 fails
-            format!("Program {GATEWAY_PROGRAM_ID} invoke [1]"),
-            "Program log: Instruction: Call Contract".to_owned(),
-            format!("Program data: {}", base64_data),
-            format!("Program {GATEWAY_PROGRAM_ID} success"), // Invocation 1 succeeds
-            format!("Program {GATEWAY_PROGRAM_ID} invoke [1]"),
-            "Program log: Instruction: Call Contract".to_owned(),
-            format!("Program data: {}", base64_data_different),
-            format!("Program {GATEWAY_PROGRAM_ID} failed"), // Invocation 1 fails
-        ];
-
-        let msg = create_msg_counterpart(&event, 6);
-        let tx = tx_meta(logs);
-
-        assert_eq!(
-            Vote::SucceededOnChain,
-            verify_message(&GATEWAY_PROGRAM_ID, &tx, &msg)
-        );
+    fn create_matcher(gateway_program_id: &Pubkey) -> MatchContext {
+        MatchContext::new(gateway_program_id.to_string().as_str())
     }
 }

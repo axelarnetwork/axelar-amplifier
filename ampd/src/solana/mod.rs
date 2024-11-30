@@ -1,4 +1,5 @@
 use axelar_solana_gateway::processor::GatewayEvent;
+use axelar_wasm_std::msg_id::{Base58SolanaTxSignatureAndEventIndex, Base58TxDigestAndEventIndex};
 use axelar_wasm_std::voting::Vote;
 use gateway_event_stack::MatchContext;
 use solana_transaction_status::{
@@ -58,16 +59,16 @@ where
 }
 
 pub fn verify<F>(
-    source_gateway_address: &Pubkey,
-    tx: &UiTransactionStatusMeta,
-    desired_event_index: impl TryInto<usize>,
+    match_context: &MatchContext,
+    tx: (&Signature, &UiTransactionStatusMeta),
+    message_id: &Base58SolanaTxSignatureAndEventIndex,
     evens_are_equal: F,
 ) -> Vote
 where
     F: Fn(&GatewayEvent) -> bool,
 {
-    let tx_was_successful = tx.err.is_none();
-    let desired_event_idx: usize = match desired_event_index.try_into() {
+    // the event idx cannot be larger than usize
+    let desired_event_idx: usize = match message_id.event_index.try_into() {
         Ok(idx) => idx,
         Err(_) => {
             error!("Invalid event index in message ID");
@@ -75,8 +76,14 @@ where
         }
     };
 
-    let context = MatchContext::new(&source_gateway_address.to_string());
+    // message id signatures must match
+    let (signature, tx) = tx;
+    if signature.as_ref() != message_id.raw_signature {
+        error!("signatures don't match");
+        return Vote::NotFound;
+    }
 
+    // logs must be attached to the TX
     let logs = match tx.log_messages.as_ref() {
         OptionSerializer::Some(logs) => logs,
         _ => {
@@ -85,21 +92,21 @@ where
         }
     };
 
+    // pare the events
     let event_stack = gateway_event_stack::build_program_event_stack(
-        &context,
+        &match_context,
         logs,
         gateway_event_stack::parse_gateway_logs,
     );
 
-    use gateway_event_stack::ProgramInvocationState::*;
-
     for invocation_state in event_stack {
+        use gateway_event_stack::ProgramInvocationState::*;
         let (vote, gateway_events) = match invocation_state {
             Succeeded(events) => (
                 {
                     // if tx was successful and ix invocation was successful,
                     // then the final outcome (if event can be found) will be of `Vote::SucceededOnChain`
-                    if tx_was_successful {
+                    if tx.err.is_none() {
                         Vote::SucceededOnChain
                     } else {
                         // if tx was NOT successful then we don't care if the ix invocatoin succeeded,

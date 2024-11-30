@@ -4,11 +4,13 @@ use axelar_solana_encoding::hasher::NativeHasher;
 use axelar_solana_gateway::processor::GatewayEvent;
 use axelar_solana_gateway::processor::VerifierSetRotated;
 use axelar_wasm_std::voting::Vote;
+use gateway_event_stack::MatchContext;
 use multisig::key::PublicKey;
 use multisig::verifier_set::VerifierSet;
 use sha3::Digest;
 use sha3::Keccak256;
 use solana_sdk::pubkey::Pubkey;
+use solana_sdk::signature::Signature;
 use solana_transaction_status::UiTransactionStatusMeta;
 
 use crate::handlers::solana_verify_verifier_set::VerifierSetConfirmation;
@@ -20,42 +22,36 @@ use thiserror::Error;
 use tracing::error;
 
 pub fn verify_verifier_set(
-    gateway_address: &Pubkey,
-    tx: &UiTransactionStatusMeta,
+    match_context: &MatchContext,
+    tx: (&Signature, &UiTransactionStatusMeta),
     message: &VerifierSetConfirmation,
     domain_separator: &[u8; 32],
 ) -> Vote {
     use axelar_solana_encoding::types::verifier_set::verifier_set_hash;
 
-    verify(
-        gateway_address,
-        tx,
-        message.message_id.event_index,
-        |gateway_event| {
-            let GatewayEvent::VerifierSetRotated(VerifierSetRotated {
-                verifier_set_hash: incoming_verifier_set_hash,
-                epoch: _,
-            }) = gateway_event
-            else {
-                error!("found gateway event but it's not VerifierSetRotated event");
-                return false;
-            };
+    verify(match_context, tx, &message.message_id, |gateway_event| {
+        let GatewayEvent::VerifierSetRotated(VerifierSetRotated {
+            verifier_set_hash: incoming_verifier_set_hash,
+            epoch: _,
+        }) = gateway_event
+        else {
+            error!("found gateway event but it's not VerifierSetRotated event");
+            return false;
+        };
 
-            let Some(verifier_set) = to_verifier_set(&message.verifier_set) else {
-                error!("verifier set data structure could not be parsed");
-                return false;
-            };
+        let Some(verifier_set) = to_verifier_set(&message.verifier_set) else {
+            error!("verifier set data structure could not be parsed");
+            return false;
+        };
 
-            let Ok(desired_hash) =
-                verifier_set_hash::<NativeHasher>(&verifier_set, &domain_separator)
-            else {
-                error!("verifier set could not be hashed");
-                return false;
-            };
+        let Ok(desired_hash) = verifier_set_hash::<NativeHasher>(&verifier_set, &domain_separator)
+        else {
+            error!("verifier set could not be hashed");
+            return false;
+        };
 
-            return &desired_hash == incoming_verifier_set_hash;
-        },
-    )
+        return &desired_hash == incoming_verifier_set_hash;
+    })
 }
 
 /// Transform from Axelar VerifierSet to axelar_solana_encoding VerifierSet
@@ -109,89 +105,129 @@ mod tests {
     use super::verify_verifier_set;
 
     #[test]
-    #[ignore = "verification of the signature is the responsibility of the handler"]
     fn should_not_verify_verifier_set_if_tx_id_does_not_match() {
-        let (tx, mut event) = fixture_success_call_contract_tx_data();
+        let ((signature, tx), mut event) = fixture_success_call_contract_tx_data();
 
         event.message_id.raw_signature = [0; 64];
         assert_eq!(
-            verify_verifier_set(&GATEWAY_PROGRAM_ID, &tx, &event, &DOMAIN_SEPARATOR),
+            verify_verifier_set(
+                &create_matcher(&GATEWAY_PROGRAM_ID),
+                (&signature, &tx),
+                &event,
+                &DOMAIN_SEPARATOR
+            ),
             Vote::NotFound
         );
     }
 
     #[test]
     fn should_not_verify_verifier_set_if_tx_failed() {
-        let (mut tx, event) = fixture_success_call_contract_tx_data();
+        let ((signature, mut tx), event) = fixture_success_call_contract_tx_data();
 
         tx.err = Some(solana_sdk::transaction::TransactionError::AccountInUse);
         assert_eq!(
-            verify_verifier_set(&GATEWAY_PROGRAM_ID, &tx, &event, &DOMAIN_SEPARATOR),
+            verify_verifier_set(
+                &create_matcher(&GATEWAY_PROGRAM_ID),
+                (&signature, &tx),
+                &event,
+                &DOMAIN_SEPARATOR
+            ),
             Vote::FailedOnChain
         );
     }
 
     #[test]
     fn should_not_verify_verifier_set_if_gateway_address_does_not_match() {
-        let (tx, event) = fixture_success_call_contract_tx_data();
+        let ((signature, tx), event) = fixture_success_call_contract_tx_data();
 
         let gateway_address = Pubkey::new_unique();
         assert_eq!(
-            verify_verifier_set(&gateway_address, &tx, &event, &DOMAIN_SEPARATOR),
+            verify_verifier_set(
+                &create_matcher(&gateway_address),
+                (&signature, &tx),
+                &event,
+                &DOMAIN_SEPARATOR
+            ),
             Vote::NotFound
         );
     }
 
     #[test]
     fn should_not_verify_verifier_set_if_log_index_does_not_match() {
-        let (tx, mut event) = fixture_success_call_contract_tx_data();
+        let ((signature, tx), mut event) = fixture_success_call_contract_tx_data();
 
         event.message_id.event_index -= 1;
         assert_eq!(
-            verify_verifier_set(&GATEWAY_PROGRAM_ID, &tx, &event, &DOMAIN_SEPARATOR),
+            verify_verifier_set(
+                &create_matcher(&GATEWAY_PROGRAM_ID),
+                (&signature, &tx),
+                &event,
+                &DOMAIN_SEPARATOR
+            ),
             Vote::NotFound
         );
         event.message_id.event_index += 2;
         assert_eq!(
-            verify_verifier_set(&GATEWAY_PROGRAM_ID, &tx, &event, &DOMAIN_SEPARATOR),
+            verify_verifier_set(
+                &create_matcher(&GATEWAY_PROGRAM_ID),
+                (&signature, &tx),
+                &event,
+                &DOMAIN_SEPARATOR
+            ),
             Vote::NotFound
         );
     }
 
     #[test]
     fn should_not_verify_verifier_set_if_log_index_greater_than_u32_max() {
-        let (tx, mut event) = fixture_success_call_contract_tx_data();
+        let ((signature, tx), mut event) = fixture_success_call_contract_tx_data();
 
         event.message_id.event_index = u32::MAX as u64 + 1;
         assert_eq!(
-            verify_verifier_set(&GATEWAY_PROGRAM_ID, &tx, &event, &DOMAIN_SEPARATOR),
+            verify_verifier_set(
+                &create_matcher(&GATEWAY_PROGRAM_ID),
+                (&signature, &tx),
+                &event,
+                &DOMAIN_SEPARATOR
+            ),
             Vote::NotFound
         );
     }
 
     #[test]
     fn should_not_verify_verifier_set_if_verifier_set_does_not_match() {
-        let (tx, mut event) = fixture_success_call_contract_tx_data();
+        let ((signature, tx), mut event) = fixture_success_call_contract_tx_data();
 
         event.verifier_set.threshold = Uint128::from(50u64);
         assert_eq!(
-            verify_verifier_set(&GATEWAY_PROGRAM_ID, &tx, &event, &DOMAIN_SEPARATOR),
+            verify_verifier_set(
+                &create_matcher(&GATEWAY_PROGRAM_ID),
+                (&signature, &tx),
+                &event,
+                &DOMAIN_SEPARATOR
+            ),
             Vote::NotFound
         );
     }
 
     #[test_log::test]
     fn should_verify_verifier_set_if_correct() {
-        let (tx, event) = fixture_success_call_contract_tx_data();
+        let ((signature, tx), event) = fixture_success_call_contract_tx_data();
 
         assert_eq!(
-            verify_verifier_set(&GATEWAY_PROGRAM_ID, &tx, &event, &DOMAIN_SEPARATOR),
+            verify_verifier_set(
+                &create_matcher(&GATEWAY_PROGRAM_ID),
+                (&signature, &tx),
+                &event,
+                &DOMAIN_SEPARATOR
+            ),
             Vote::SucceededOnChain
         );
     }
 
     const DOMAIN_SEPARATOR: [u8; 32] = [42; 32];
     const GATEWAY_PROGRAM_ID: Pubkey = axelar_solana_gateway::ID;
+    const RAW_SIGNATURE: [u8; 64] = [42; 64];
 
     fn fixture_rotate_verifier_set() -> (
         String,
@@ -241,8 +277,10 @@ mod tests {
         (base64_data.to_string(), event, verifier_set)
     }
 
-    fn fixture_success_call_contract_tx_data() -> (UiTransactionStatusMeta, VerifierSetConfirmation)
-    {
+    fn fixture_success_call_contract_tx_data() -> (
+        (Signature, UiTransactionStatusMeta),
+        VerifierSetConfirmation,
+    ) {
         let (base64_data, _event, actual_verifier_set) = fixture_rotate_verifier_set();
         let logs = vec![
             format!("Program {GATEWAY_PROGRAM_ID} invoke [1]"),
@@ -255,10 +293,10 @@ mod tests {
         ];
 
         (
-            tx_meta(logs),
+            (RAW_SIGNATURE.into(), tx_meta(logs)),
             VerifierSetConfirmation {
                 message_id: Base58SolanaTxSignatureAndEventIndex {
-                    raw_signature: [123; 64],
+                    raw_signature: RAW_SIGNATURE,
                     event_index: 4,
                 },
                 verifier_set: actual_verifier_set,
@@ -282,5 +320,9 @@ mod tests {
             return_data: OptionSerializer::None,
             compute_units_consumed: OptionSerializer::None,
         }
+    }
+
+    fn create_matcher(gateway_program_id: &Pubkey) -> MatchContext {
+        MatchContext::new(gateway_program_id.to_string().as_str())
     }
 }
