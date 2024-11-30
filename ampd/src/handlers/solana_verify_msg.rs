@@ -122,7 +122,6 @@ impl<C: SolanaRpcClientProxy> EventHandler for Handler<C> {
             }
             event => event.change_context(DeserializeEvent)?,
         };
-
         if !participants.contains(&self.verifier) {
             return Ok(vec![]);
         }
@@ -351,7 +350,7 @@ mod test {
             metadata: PollMetadata {
                 poll_id: "100".parse().unwrap(),
                 source_chain: "solana".parse().unwrap(),
-                source_gateway_address: "sol".to_string().parse().unwrap(),
+                source_gateway_address: Pubkey::new_unique().to_string().parse().unwrap(),
                 confirmation_height: 15,
                 expires_at,
                 participants: participants
@@ -364,7 +363,7 @@ mod test {
                 TxEventConfirmation {
                     tx_id: signature_1.parse().unwrap(),
                     event_index: event_idx_1,
-                    source_address: "sol".to_string().parse().unwrap(),
+                    source_address: Pubkey::new_unique().to_string().parse().unwrap(),
                     message_id: message_id_1.parse().unwrap(),
                     destination_chain: "ethereum".parse().unwrap(),
                     destination_address: format!("0x{:x}", EVMAddress::random()).parse().unwrap(),
@@ -373,7 +372,7 @@ mod test {
                 TxEventConfirmation {
                     tx_id: signature_2.parse().unwrap(),
                     event_index: event_idx_2,
-                    source_address: "sol".to_string().parse().unwrap(),
+                    source_address: Pubkey::new_unique().to_string().parse().unwrap(),
                     message_id: message_id_2.parse().unwrap(),
                     destination_chain: "ethereum".parse().unwrap(),
                     destination_address: format!("0x{:x}", EVMAddress::random()).parse().unwrap(),
