@@ -7,18 +7,11 @@ use axelar_wasm_std::voting::Vote;
 use gateway_event_stack::MatchContext;
 use multisig::key::PublicKey;
 use multisig::verifier_set::VerifierSet;
-use sha3::Digest;
-use sha3::Keccak256;
-use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signature::Signature;
 use solana_transaction_status::UiTransactionStatusMeta;
 
 use crate::handlers::solana_verify_verifier_set::VerifierSetConfirmation;
 use crate::solana::verify;
-use solana_transaction_status::{
-    option_serializer::OptionSerializer, EncodedConfirmedTransactionWithStatusMeta,
-};
-use thiserror::Error;
 use tracing::error;
 
 pub fn verify_verifier_set(
@@ -96,8 +89,7 @@ mod tests {
     use axelar_wasm_std::msg_id::Base58SolanaTxSignatureAndEventIndex;
     use axelar_wasm_std::voting::Vote;
     use cosmwasm_std::{HexBinary, Uint128};
-    use multisig::key::KeyType;
-    use multisig::test::common::{build_verifier_set, ecdsa_test_data};
+
     use solana_sdk::pubkey::Pubkey;
     use solana_transaction_status::option_serializer::OptionSerializer;
     use solana_transaction_status::UiTransactionStatusMeta;

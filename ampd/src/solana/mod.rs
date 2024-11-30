@@ -1,13 +1,10 @@
 use axelar_solana_gateway::processor::GatewayEvent;
-use axelar_wasm_std::msg_id::{Base58SolanaTxSignatureAndEventIndex, Base58TxDigestAndEventIndex};
+use axelar_wasm_std::msg_id::Base58SolanaTxSignatureAndEventIndex;
 use axelar_wasm_std::voting::Vote;
 use gateway_event_stack::MatchContext;
-use solana_transaction_status::{
-    option_serializer::OptionSerializer, EncodedConfirmedTransactionWithStatusMeta,
-};
-use solana_transaction_status::{UiTransactionEncoding, UiTransactionStatusMeta};
+use solana_transaction_status::option_serializer::OptionSerializer;
+use solana_transaction_status::UiTransactionStatusMeta;
 use std::str::FromStr;
-use std::sync::Arc;
 use tracing::{error, warn};
 
 use futures::FutureExt;

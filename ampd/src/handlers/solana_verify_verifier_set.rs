@@ -1,7 +1,7 @@
 use std::convert::TryInto;
 
 use async_trait::async_trait;
-use axelar_wasm_std::msg_id::{Base58SolanaTxSignatureAndEventIndex, HexTxHashAndEventIndex};
+use axelar_wasm_std::msg_id::Base58SolanaTxSignatureAndEventIndex;
 use axelar_wasm_std::voting::{PollId, Vote};
 use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmrs::tx::Msg;
@@ -13,8 +13,6 @@ use gateway_event_stack::MatchContext;
 use multisig::verifier_set::VerifierSet;
 use router_api::ChainName;
 use serde::Deserialize;
-use solana_client::nonblocking::rpc_client::RpcClient;
-use solana_sdk::pubkey::Pubkey;
 use solana_transaction_status::UiTransactionStatusMeta;
 use tokio::sync::watch::Receiver;
 use tracing::{info, info_span};
@@ -174,19 +172,17 @@ mod tests {
     use cosmrs::cosmwasm::MsgExecuteContract;
     use cosmrs::tx::Msg;
     use cosmwasm_std;
-    use cosmwasm_std::{HexBinary, Uint128};
-    use error_stack::Result;
+
     use events::Event;
-    use hex::ToHex;
+
     use multisig::key::KeyType;
-    use multisig::test::common::{build_verifier_set, ecdsa_test_data, ed25519_test_data};
+    use multisig::test::common::{build_verifier_set, ecdsa_test_data};
     use solana_sdk::signature::Signature;
     use solana_transaction_status::option_serializer::OptionSerializer;
     use tokio::sync::watch;
     use tokio::test as async_test;
     use voting_verifier::events::{PollMetadata, PollStarted, VerifierSetConfirmation};
 
-    use super::PollStartedEvent;
     use crate::event_processor::EventHandler;
     use crate::handlers::tests::into_structured_event;
     use crate::types::TMAddress;

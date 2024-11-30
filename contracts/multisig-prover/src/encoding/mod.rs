@@ -7,7 +7,6 @@ use axelar_wasm_std::hash::Hash;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::HexBinary;
 use error_stack::Result;
-use multisig::key::Signature;
 use multisig::msg::SignerWithSig;
 use multisig::verifier_set::VerifierSet;
 

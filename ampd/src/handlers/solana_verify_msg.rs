@@ -1,22 +1,18 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::convert::TryInto;
 
 use async_trait::async_trait;
-use axelar_wasm_std::msg_id::{Base58SolanaTxSignatureAndEventIndex, HexTxHashAndEventIndex};
+use axelar_wasm_std::msg_id::Base58SolanaTxSignatureAndEventIndex;
 use axelar_wasm_std::voting::{PollId, Vote};
 use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmrs::tx::Msg;
 use cosmrs::Any;
 use error_stack::ResultExt;
-use ethers_core::types::{TransactionReceipt, U64};
 use events::Error::EventTypeMismatch;
 use events_derive::try_from;
-use futures::future::join_all;
-use futures::FutureExt;
 use gateway_event_stack::MatchContext;
 use router_api::ChainName;
 use serde::Deserialize;
-use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::pubkey::Pubkey;
 use solana_transaction_status::UiTransactionStatusMeta;
 use tokio::sync::watch::Receiver;
@@ -182,10 +178,6 @@ impl<C: SolanaRpcClientProxy> EventHandler for Handler<C> {
 
 #[cfg(test)]
 mod test {
-
-    use base64::{alphabet::STANDARD, prelude::*};
-    use events::Event;
-    use solana_client::rpc_sender::RpcSender;
     use solana_sdk::signature::Signature;
     use solana_transaction_status::option_serializer::OptionSerializer;
     use tokio::sync::watch;

@@ -1,15 +1,8 @@
 use axelar_solana_gateway::processor::GatewayEvent;
 use axelar_wasm_std::voting::Vote;
 use gateway_event_stack::MatchContext;
-use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signature::Signature;
-use solana_transaction_status::{
-    option_serializer::OptionSerializer, EncodedConfirmedTransactionWithStatusMeta,
-};
-use solana_transaction_status::{UiTransactionEncoding, UiTransactionStatusMeta};
-use std::str::FromStr;
-use std::sync::Arc;
-use tracing::error;
+use solana_transaction_status::UiTransactionStatusMeta;
 
 use crate::handlers::solana_verify_msg::Message;
 
@@ -34,6 +27,8 @@ pub fn verify_message(
 #[cfg(test)]
 mod tests {
     use axelar_solana_gateway::processor::CallContractEvent;
+    use solana_sdk::pubkey::Pubkey;
+    use solana_transaction_status::option_serializer::OptionSerializer;
 
     use std::str::FromStr;
 
@@ -126,7 +121,7 @@ mod tests {
 
     #[test]
     fn should_not_verify_msg_gateway_does_not_match() {
-        let ((signature, tx), _event, mut msg) = fixture_success_call_contract_tx_data();
+        let ((signature, tx), _event, msg) = fixture_success_call_contract_tx_data();
         assert_eq!(
             Vote::NotFound,
             verify_message(

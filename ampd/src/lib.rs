@@ -1,4 +1,3 @@
-use std::num::NonZeroUsize;
 use std::time::Duration;
 
 use asyncutil::task::{CancellableTask, TaskError, TaskGroup};
