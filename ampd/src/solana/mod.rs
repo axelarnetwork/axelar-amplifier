@@ -17,12 +17,16 @@ use solana_sdk::{pubkey::Pubkey, signature::Signature};
 pub mod msg_verifier;
 pub mod verifier_set_verifier;
 
-pub async fn fetch_message(
-    rpc_client: &RpcClient,
-    signature: Signature,
-) -> Option<(Signature, UiTransactionStatusMeta)> {
-    rpc_client
-        .get_transaction(
+#[async_trait::async_trait]
+pub trait SolanaRpcClientProxy: Send + Sync + 'static {
+    async fn get_tx(&self, signature: &Signature) -> Option<UiTransactionStatusMeta>;
+    async fn get_domain_separator(&self) -> Option<[u8; 32]>;
+}
+
+#[async_trait::async_trait]
+impl SolanaRpcClientProxy for RpcClient {
+    async fn get_tx(&self, signature: &Signature) -> Option<UiTransactionStatusMeta> {
+        self.get_transaction(
             &signature,
             solana_transaction_status::UiTransactionEncoding::Base58,
         )
@@ -31,9 +35,18 @@ pub async fn fetch_message(
                 .map(|tx_data| tx_data.transaction.meta)
                 .ok()
                 .flatten()
-                .map(|tx_data| (signature, tx_data))
         })
         .await
+    }
+
+    async fn get_domain_separator(&self) -> Option<[u8; 32]> {
+        let (gateway_root_pda, ..) = axelar_solana_gateway::get_gateway_root_config_pda();
+        let config = self.get_account(&gateway_root_pda).await.ok()?.data;
+        let config =
+            borsh::from_slice::<axelar_solana_gateway::state::GatewayConfig>(&config).ok()?;
+        let domain_separator = config.domain_separator;
+        Some(domain_separator)
+    }
 }
 
 pub fn deserialize_pubkey<'de, D>(deserializer: D) -> Result<Pubkey, D::Error>
