@@ -6,11 +6,14 @@ use error_stack::Report;
 
 pub use self::base_58_event_index::Base58TxDigestAndEventIndex;
 pub use self::base_58_solana_event_index::Base58SolanaTxSignatureAndEventIndex;
+pub use self::bech32m::Bech32mFormat;
 pub use self::tx_hash::HexTxHash;
 pub use self::tx_hash_event_index::HexTxHashAndEventIndex;
+use crate::nonempty;
 
 mod base_58_event_index;
 mod base_58_solana_event_index;
+mod bech32m;
 mod tx_hash;
 mod tx_hash_event_index;
 
@@ -25,6 +28,10 @@ pub enum Error {
     InvalidTxHash(String),
     #[error("invalid tx digest in message id '{0}'")]
     InvalidTxDigest(String),
+    #[error("Invalid bech32m: '{0}'")]
+    InvalidBech32mFormat(String),
+    #[error("Invalid bech32m: '{0}'")]
+    InvalidBech32m(String),
 }
 
 /// Any message id format must implement this trait.
@@ -45,6 +52,10 @@ pub enum MessageIdFormat {
     Base58TxDigestAndEventIndex,
     Base58SolanaTxSignatureAndEventIndex,
     HexTxHash,
+    Bech32m {
+        prefix: nonempty::String,
+        length: u32,
+    },
 }
 
 // function the router calls to verify msg ids
@@ -60,6 +71,9 @@ pub fn verify_msg_id(message_id: &str, format: &MessageIdFormat) -> Result<(), R
             Base58SolanaTxSignatureAndEventIndex::from_str(message_id).map(|_| ())
         }
         MessageIdFormat::HexTxHash => HexTxHash::from_str(message_id).map(|_| ()),
+        MessageIdFormat::Bech32m { prefix, length } => {
+            Bech32mFormat::from_str(prefix, *length as usize, message_id).map(|_| ())
+        }
     }
 }
 
@@ -110,5 +124,41 @@ mod test {
         }
         .to_string();
         assert!(verify_msg_id(&msg_id, &MessageIdFormat::HexTxHashAndEventIndex).is_err());
+    }
+
+    #[test]
+    fn should_verify_bech32m() {
+        let message_id = "at1hs0xk375g4kvw53rcem9nyjsdw5lsv94fl065n77cpt0774nsyysdecaju";
+        assert!(verify_msg_id(
+            message_id,
+            &MessageIdFormat::Bech32m {
+                prefix: "at".to_string().to_string().try_into().unwrap(),
+                length: 61
+            }
+        )
+        .is_ok());
+    }
+
+    #[test]
+    fn should_not_verify_bech32m() {
+        let message_id = "aths0xk375g4kvw53rcem9nyjsdw5lsv94fl065n77cpt0774nsyysdecaju";
+        assert!(verify_msg_id(
+            message_id,
+            &MessageIdFormat::Bech32m {
+                prefix: "at".to_string().to_string().try_into().unwrap(),
+                length: 61
+            }
+        )
+        .is_err());
+
+        let message_id = "ath1s0xk375g4kvw53rcem9nyjsdw5lsv94fl065n77cpt0774nsyysdecaj";
+        assert!(verify_msg_id(
+            message_id,
+            &MessageIdFormat::Bech32m {
+                prefix: "at".to_string().to_string().try_into().unwrap(),
+                length: 61
+            }
+        )
+        .is_err());
     }
 }
