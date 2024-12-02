@@ -1705,6 +1705,7 @@ dependencies = [
  "multisig",
  "report",
  "router-api",
+ "semver 1.0.23",
  "service-registry-api",
  "thiserror",
  "tofn",
