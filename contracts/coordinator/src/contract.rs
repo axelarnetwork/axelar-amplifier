@@ -12,7 +12,7 @@ use cosmwasm_std::{
 use cw2::VersionError;
 use error_stack::report;
 use itertools::Itertools;
-use semver::{Version, VersionReq};
+use semver::Version;
 
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
