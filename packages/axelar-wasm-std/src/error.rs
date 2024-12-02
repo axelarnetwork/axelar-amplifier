@@ -39,6 +39,14 @@ impl From<cw2::VersionError> for ContractError {
     }
 }
 
+impl From<semver::Error> for ContractError {
+    fn from(err: semver::Error) -> Self {
+        ContractError {
+            report: report!(err).change_context(Error::Report),
+        }
+    }
+}
+
 impl From<permission_control::Error> for ContractError {
     fn from(err: permission_control::Error) -> Self {
         ContractError {

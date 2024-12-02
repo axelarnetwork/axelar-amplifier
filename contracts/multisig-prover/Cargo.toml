@@ -1,6 +1,6 @@
 [package]
 name = "multisig-prover"
-version = "1.1.0"
+version = "1.1.1"
 rust-version = { workspace = true }
 edition = { workspace = true }
 description = "Multisig prover contract"
@@ -54,6 +54,7 @@ msgs-derive = { workspace = true }
 multisig = { workspace = true, features = ["library"] }
 report = { workspace = true }
 router-api = { workspace = true }
+semver = { workspace = true }
 serde_json = "1.0.89"
 service-registry = { workspace = true }
 service-registry-api = { workspace = true }

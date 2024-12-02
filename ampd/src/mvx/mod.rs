@@ -3,7 +3,6 @@ use cosmwasm_std::Uint256;
 use multisig::key::PublicKey;
 use multisig::msg::Signer;
 use multisig::verifier_set::VerifierSet;
-use num_traits::ToBytes;
 use sha3::{Digest, Keccak256};
 
 use crate::mvx::error::Error;
@@ -82,14 +81,15 @@ fn uint256_to_compact_vec(value: Uint256) -> Vec<u8> {
     bytes[slice_from..].to_vec()
 }
 
+#[allow(clippy::cast_possible_truncation)]
 fn usize_to_u32(value: usize) -> [u8; 4] {
     (value as u32).to_be_bytes()
 }
 
 pub fn ed25519_key(pub_key: &PublicKey) -> Result<[u8; 32], Error> {
-    return match pub_key {
+    match pub_key {
         PublicKey::Ed25519(ed25519_key) => Ok(<[u8; 32]>::try_from(ed25519_key.as_ref())
             .expect("couldn't convert pubkey to ed25519 public key")),
         _ => Err(Error::NotEd25519Key),
-    };
+    }
 }

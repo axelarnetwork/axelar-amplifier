@@ -837,6 +837,7 @@ dependencies = [
  "alloy-primitives",
  "assert_ok",
  "axelar-wasm-std-derive",
+ "bech32 0.11.0",
  "bs58 0.5.1",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -855,6 +856,7 @@ dependencies = [
  "regex",
  "report",
  "schemars",
+ "semver 1.0.23",
  "serde",
  "serde_json",
  "serde_with 3.11.0",
@@ -3290,7 +3292,7 @@ dependencies = [
 
 [[package]]
 name = "gateway"
-version = "1.1.0"
+version = "1.1.1"
 dependencies = [
  "axelar-wasm-std",
  "client",
@@ -5035,7 +5037,7 @@ checksum = "e5ce46fe64a9d73be07dcbe690a38ce1b293be448fd8ce1e6c1b8062c9f72c6a"
 
 [[package]]
 name = "multisig"
-version = "1.1.0"
+version = "1.1.1"
 dependencies = [
  "axelar-wasm-std",
  "client",
@@ -5068,7 +5070,7 @@ dependencies = [
 
 [[package]]
 name = "multisig-prover"
-version = "1.1.0"
+version = "1.1.1"
 dependencies = [
  "anyhow",
  "assert_ok",
@@ -5099,6 +5101,7 @@ dependencies = [
  "prost 0.12.6",
  "report",
  "router-api",
+ "semver 1.0.23",
  "serde_json",
  "service-registry",
  "service-registry-api",
@@ -6901,6 +6904,7 @@ dependencies = [
  "rand",
  "report",
  "router-api",
+ "semver 1.0.23",
  "serde_json",
  "thiserror",
 ]
@@ -9477,6 +9481,7 @@ dependencies = [
  "alloy-primitives",
  "assert_ok",
  "axelar-wasm-std",
+ "bech32 0.11.0",
  "client",
  "cosmwasm-schema",
  "cosmwasm-std",
