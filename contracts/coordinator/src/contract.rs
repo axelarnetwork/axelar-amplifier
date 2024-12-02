@@ -7,9 +7,10 @@ use axelar_wasm_std::{address, permission_control, FnExt};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_json_binary, Addr, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response, Storage
+    ensure, to_json_binary, Addr, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response, Storage,
 };
-use error_stack::{report, ResultExt};
+use cw2::VersionError;
+use error_stack::report;
 use itertools::Itertools;
 use semver::{Version, VersionReq};
 
@@ -27,8 +28,13 @@ pub fn migrate(
     _msg: Empty,
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
     let old_version = Version::parse(&cw2::get_contract_version(deps.storage)?.version)?;
-    let version_requirement = VersionReq::parse(">= 1.1.0, < 1.2.0")?;
-    assert!(version_requirement.matches(&old_version));
+    ensure!(
+        old_version.major == 1 && old_version.minor == 1,
+        report!(VersionError::WrongVersion {
+            expected: "1.1.x".into(),
+            found: old_version.to_string()
+        })
+    );
 
     // this needs to be the last thing to do during migration,
     // because previous migration steps should check the old version
