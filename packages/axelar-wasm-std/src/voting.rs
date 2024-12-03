@@ -136,6 +136,7 @@ impl<'a> Prefixer<'a> for PollId {
 
 impl KeyDeserialize for PollId {
     type Output = Self;
+    const KEY_ELEMS: u16 = 1;
 
     fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
         let id =

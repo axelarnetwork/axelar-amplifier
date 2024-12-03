@@ -257,6 +257,7 @@ mod tests {
                     .encode_to_vec()
                     .into(),
             ),
+            msg_responses: vec![],
         };
 
         reply(
@@ -265,6 +266,8 @@ mod tests {
             Reply {
                 id: START_MULTISIG_REPLY_ID,
                 result: SubMsgResult::Ok(response),
+                payload: vec![].into(),
+                gas_used: 0,
             },
         )
     }
@@ -354,9 +357,9 @@ mod tests {
             assert_eq!(res.messages.len(), 0);
 
             let config = CONFIG.load(deps.as_ref().storage).unwrap();
-            assert_eq!(config.gateway, gateway_address);
-            assert_eq!(config.multisig, multisig_address);
-            assert_eq!(config.service_registry, service_registry_address);
+            assert_eq!(config.gateway.as_str(), gateway_address);
+            assert_eq!(config.multisig.as_str(), multisig_address);
+            assert_eq!(config.service_registry.as_str(), service_registry_address);
             assert_eq!(config.signing_threshold, signing_threshold);
             assert_eq!(config.service_name, service_name);
             assert_eq!(config.encoder, encoding);

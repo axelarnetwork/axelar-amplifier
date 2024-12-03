@@ -57,7 +57,7 @@ fn multisig_mock_querier_handler(
         } => to_json_binary(
             &operators
                 .iter()
-                .find(|op| op.address == verifier_address)
+                .find(|op| op.address.as_str() == verifier_address)
                 .unwrap()
                 .pub_key,
         ),

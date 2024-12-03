@@ -62,14 +62,11 @@ pub fn instantiate(
     state::save_config(deps.storage, &config)?;
     killswitch::init(deps.storage, killswitch::State::Disengaged)?;
 
-    Ok(Response::new().add_event(
-        RouterInstantiated {
-            admin,
-            governance,
-            axelarnet_gateway,
-        }
-        .into(),
-    ))
+    Ok(Response::new().add_event(RouterInstantiated {
+        admin,
+        governance,
+        axelarnet_gateway,
+    }))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]

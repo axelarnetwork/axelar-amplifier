@@ -129,14 +129,11 @@ fn execute_message_on_hub(
         destination_address,
         destination_payload,
     )?
-    .add_event(
-        Event::MessageReceived {
-            cc_id,
-            destination_chain,
-            message,
-        }
-        .into(),
-    ))
+    .add_event(Event::MessageReceived {
+        cc_id,
+        destination_chain,
+        message,
+    }))
 }
 
 fn apply_to_hub(

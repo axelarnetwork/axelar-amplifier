@@ -175,13 +175,7 @@ pub fn update_pool_params(
     let should_end = cur_epoch
         .block_height_started
         .checked_add(u64::from(new_params.epoch_duration))
-        .ok_or_else(|| {
-            OverflowError::new(
-                OverflowOperation::Add,
-                cur_epoch.block_height_started,
-                new_params.epoch_duration,
-            )
-        })
+        .ok_or_else(|| OverflowError::new(OverflowOperation::Add))
         .map_err(ContractError::from)?
         < block_height;
     let new_epoch = if should_end {

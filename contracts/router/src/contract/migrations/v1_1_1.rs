@@ -29,7 +29,7 @@ impl<'a> GatewayIndex<'a> {
     pub fn new(
         idx_fn: fn(&[u8], &ChainEndpoint) -> Addr,
         pk_namespace: &'a str,
-        idx_namespace: &'a str,
+        idx_namespace: &'static str,
     ) -> Self {
         GatewayIndex(MultiIndex::new(idx_fn, pk_namespace, idx_namespace))
     }
@@ -43,7 +43,7 @@ impl<'a> IndexList<ChainEndpoint> for ChainEndpointIndexes<'a> {
 }
 
 const CHAINS_PKEY: &str = "chains";
-fn chain_endpoints_old<'a>() -> IndexedMap<'a, String, ChainEndpoint, ChainEndpointIndexes<'a>> {
+fn chain_endpoints_old<'a>() -> IndexedMap<String, ChainEndpoint, ChainEndpointIndexes<'a>> {
     return IndexedMap::new(
         CHAINS_PKEY,
         ChainEndpointIndexes {

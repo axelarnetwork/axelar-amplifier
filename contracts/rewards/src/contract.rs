@@ -133,7 +133,7 @@ pub fn execute(
 
             Ok(Response::new()
                 .add_messages(msgs)
-                .add_event(events::Event::from(rewards_distribution).into()))
+                .add_event(events::Event::from(rewards_distribution)))
         }
         ExecuteMsg::UpdatePoolParams { params, pool_id } => {
             execute::update_pool_params(deps.storage, &pool_id, params, env.block.height)?;

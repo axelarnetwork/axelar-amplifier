@@ -53,7 +53,7 @@ pub fn register_chain(
             msg_id_format,
         }),
     })?;
-    Ok(Response::new().add_event(ChainRegistered { name, gateway }.into()))
+    Ok(Response::new().add_event(ChainRegistered { name, gateway }))
 }
 
 pub fn find_chain_for_gateway(
@@ -81,15 +81,12 @@ pub fn upgrade_gateway(
             Ok(chain)
         }
     })?;
-    Ok(Response::new().add_event(
-        GatewayUpgraded {
-            gateway: GatewayInfo {
-                chain,
-                gateway_address: contract_address,
-            },
-        }
-        .into(),
-    ))
+    Ok(Response::new().add_event(GatewayUpgraded {
+        gateway: GatewayInfo {
+            chain,
+            gateway_address: contract_address,
+        },
+    }))
 }
 
 fn freeze_specific_chain(
@@ -254,7 +251,7 @@ pub fn route_messages(
 
     Ok(Response::new()
         .add_messages(wasm_msgs)
-        .add_events(msgs.into_iter().map(|msg| MessageRouted { msg }.into())))
+        .add_events(msgs.into_iter().map(|msg| MessageRouted { msg })))
 }
 
 #[cfg(test)]

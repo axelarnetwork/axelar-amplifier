@@ -72,6 +72,7 @@ impl PrimaryKey<'_> for PoolId {
 
 impl KeyDeserialize for PoolId {
     type Output = Self;
+    const KEY_ELEMS: u16 = 2;
 
     fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
         let (chain_name, contract) = <(ChainName, Addr)>::from_vec(value)?;
@@ -110,6 +111,7 @@ impl PrimaryKey<'_> for TallyId {
 
 impl KeyDeserialize for TallyId {
     type Output = Self;
+    const KEY_ELEMS: u16 = 3;
 
     fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
         let (pool_id, epoch_num) = <(PoolId, u64)>::from_vec(value)?;

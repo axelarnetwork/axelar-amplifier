@@ -72,7 +72,7 @@ pub fn verifier_set(
 }
 
 pub struct PubKeysIndexes<'a> {
-    pub pub_key: UniqueIndex<'a, Vec<u8>, HexBinary>,
+    pub pub_key: UniqueIndex<'a, Vec<u8>, HexBinary, (Addr, KeyType)>,
 }
 
 impl IndexList<HexBinary> for PubKeysIndexes<'_> {
@@ -83,7 +83,7 @@ impl IndexList<HexBinary> for PubKeysIndexes<'_> {
 }
 
 // key type is part of the key so signers can register multiple keys with different types
-pub fn pub_keys<'a>() -> IndexedMap<'a, (Addr, KeyType), HexBinary, PubKeysIndexes<'a>> {
+pub fn pub_keys<'a>() -> IndexedMap<(Addr, KeyType), HexBinary, PubKeysIndexes<'a>> {
     let indexes = PubKeysIndexes {
         pub_key: UniqueIndex::new(|p| p.to_vec(), "pub_key__unique"),
     };
