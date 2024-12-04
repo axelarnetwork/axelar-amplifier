@@ -254,6 +254,15 @@ impl TryFrom<(Message, &MessageIdFormat)> for TxEventConfirmation {
 pub struct Voted {
     pub poll_id: PollId,
     pub voter: Addr,
+    pub votes: Vec<Vote>,
+}
+
+fn votes_to_string(votes: Vec<Vote>) -> String {
+    votes
+        .into_iter()
+        .map(|vote| vote.as_ref().to_string()) // Use `AsRefStr` for conversion to &str
+        .collect::<Vec<String>>()
+        .join(",")
 }
 
 impl From<Voted> for Event {
@@ -264,6 +273,7 @@ impl From<Voted> for Event {
                 serde_json::to_string(&other.poll_id).expect("failed to serialize poll_id"),
             )
             .add_attribute("voter", other.voter)
+            .add_attribute("votes", votes_to_string(other.votes))
     }
 }
 
