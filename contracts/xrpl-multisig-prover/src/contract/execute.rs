@@ -65,6 +65,11 @@ pub fn confirm_tx_status(
     signer_public_keys: &[PublicKey],
     tx_id: TxHash,
 ) -> Result<Response, ContractError> {
+    let num_signer_public_keys = signer_public_keys.len();
+    if num_signer_public_keys == 0 {
+        return Err(ContractError::EmptySignerPublicKeys);
+    }
+
     let unsigned_tx_hash =
         state::MULTISIG_SESSION_ID_TO_UNSIGNED_TX_HASH.load(storage, multisig_session_id.u64())?;
     let mut tx_info = state::UNSIGNED_TX_HASH_TO_TX_INFO.load(storage, &unsigned_tx_hash)?;
@@ -79,7 +84,7 @@ pub fn confirm_tx_status(
         .map(XRPLSigner::try_from)
         .collect::<Result<Vec<XRPLSigner>, XRPLError>>()?;
 
-    if xrpl_signers.len() != signer_public_keys.len() {
+    if xrpl_signers.len() != num_signer_public_keys {
         return Err(ContractError::InvalidSignerPublicKeys);
     }
 

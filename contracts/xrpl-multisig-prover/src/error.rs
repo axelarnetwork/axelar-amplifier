@@ -8,6 +8,9 @@ use xrpl_types::types::{TxHash, XRPLToken};
 
 #[derive(Error, Debug, PartialEq, IntoContractError)]
 pub enum ContractError {
+    #[error("empty signer public keys")]
+    EmptySignerPublicKeys,
+
     #[error("failed to serialize")]
     FailedToSerialize,
 
