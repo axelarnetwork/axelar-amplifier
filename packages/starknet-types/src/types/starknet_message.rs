@@ -1,8 +1,11 @@
 use std::str::FromStr;
 
 use error_stack::{Report, ResultExt};
-use ethers_core::abi::{InvalidOutputType, Token, Tokenizable};
-use ethers_core::types::U256;
+use ethers_core::abi::{
+    AbiDecode, AbiError, AbiType, Detokenize, FixedBytes, InvalidOutputType, ParamType, Token,
+    Tokenizable,
+};
+use ethers_core::types::{Address, Selector, U256};
 use router_api::Message as RouterMessage;
 use starknet_core::types::Felt;
 
@@ -11,11 +14,11 @@ use crate::error::Error;
 /// A message that is encoded in the prover and later sent to the Starknet gateway.
 #[derive(Clone, Debug, PartialEq)]
 pub struct StarknetMessage {
-    source_chain: String,
-    message_id: String,
-    source_address: String,
-    contract_address: Felt,
-    payload_hash: U256,
+    pub source_chain: String,
+    pub message_id: String,
+    pub source_address: String,
+    pub contract_address: Felt,
+    pub payload_hash: U256,
 }
 
 impl TryFrom<&RouterMessage> for StarknetMessage {
@@ -32,6 +35,25 @@ impl TryFrom<&RouterMessage> for StarknetMessage {
             contract_address,
             payload_hash: U256::from(msg.payload_hash),
         })
+    }
+}
+
+impl AbiType for StarknetMessage {
+    fn param_type() -> ParamType {
+        ParamType::Tuple(vec![
+            ethers_core::abi::ParamType::String,
+            ethers_core::abi::ParamType::String,
+            ethers_core::abi::ParamType::String,
+            ethers_core::abi::ParamType::FixedBytes(32usize),
+            <U256 as AbiType>::param_type(),
+        ])
+    }
+}
+
+impl AbiDecode for StarknetMessage {
+    fn decode(bytes: impl AsRef<[u8]>) -> Result<Self, AbiError> {
+        let tokens = ethers_core::abi::decode(&[Self::param_type()], bytes.as_ref())?;
+        Ok(<Self as Detokenize>::from_tokens(tokens)?)
     }
 }
 
