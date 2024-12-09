@@ -290,7 +290,7 @@ mod tests {
     use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
     use axelar_wasm_std::{assert_err_contains, killswitch, nonempty, permission_control};
     use cosmwasm_std::testing::{mock_dependencies, MockApi, MockQuerier};
-    use cosmwasm_std::{Addr, HexBinary, MemoryStorage, OwnedDeps, Uint256};
+    use cosmwasm_std::{HexBinary, MemoryStorage, OwnedDeps, Uint256};
     use router_api::{ChainNameRaw, CrossChainId};
 
     use crate::contract::execute::{
@@ -603,17 +603,17 @@ mod tests {
     fn init(deps: &mut OwnedDeps<MemoryStorage, MockApi, MockQuerier>) {
         assert_ok!(permission_control::set_admin(
             deps.as_mut().storage,
-            &Addr::unchecked(ADMIN)
+            &MockApi::default().addr_make(ADMIN)
         ));
         assert_ok!(permission_control::set_governance(
             deps.as_mut().storage,
-            &Addr::unchecked(GOVERNANCE)
+            &MockApi::default().addr_make(GOVERNANCE)
         ));
 
         assert_ok!(state::save_config(
             deps.as_mut().storage,
             &Config {
-                axelarnet_gateway: Addr::unchecked(AXELARNET_GATEWAY),
+                axelarnet_gateway: MockApi::default().addr_make(AXELARNET_GATEWAY),
             },
         ));
 

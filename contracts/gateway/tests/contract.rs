@@ -1,15 +1,15 @@
 use std::collections::HashMap;
 use std::fmt::Debug;
-use std::fs::File;
 use std::iter;
 
 use axelar_wasm_std::error::ContractError;
 use axelar_wasm_std::{err_contains, VerificationStatus};
-use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info, MockQuerier};
+use cosmwasm_std::testing::{
+    mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
+};
 #[cfg(not(feature = "generate_golden_files"))]
-use cosmwasm_std::Response;
 use cosmwasm_std::{
-    from_json, to_json_binary, Addr, ContractResult, DepsMut, QuerierResult, WasmQuery,
+    from_json, to_json_binary, ContractResult, OwnedDeps, QuerierResult, WasmQuery,
 };
 use gateway::contract::*;
 use gateway::msg::InstantiateMsg;
@@ -20,15 +20,22 @@ use router_api::{CrossChainId, Message};
 use serde::Serialize;
 use voting_verifier::msg::MessageStatus;
 
+const ROUTER: &str = "router";
+const VERIFIER: &str = "verifier";
+
 #[test]
 fn instantiate_works() {
+    let mut deps = mock_dependencies();
+    let verifier_address = deps.api.addr_make("verifier");
+    let router_address = deps.api.addr_make("router");
+
     let result = instantiate(
-        mock_dependencies().as_mut(),
+        deps.as_mut(),
         mock_env(),
         mock_info("sender", &[]),
         InstantiateMsg {
-            verifier_address: Addr::unchecked("verifier").into_string(),
-            router_address: Addr::unchecked("router").into_string(),
+            verifier_address: verifier_address.into_string(),
+            router_address: router_address.into_string(),
         },
     );
 
@@ -41,10 +48,8 @@ fn successful_verify() {
 
     let mut responses = vec![];
     for msgs in test_cases {
-        let mut deps = mock_dependencies();
+        let mut deps = instantiate_contract();
         update_query_handler(&mut deps.querier, handler.clone());
-
-        instantiate_contract(deps.as_mut(), "verifier", "router");
 
         // check verification is idempotent
         let response = iter::repeat(
@@ -65,21 +70,7 @@ fn successful_verify() {
         responses.push(response[0].clone());
     }
 
-    let golden_file = "tests/test_verify.json";
-    #[cfg(feature = "generate_golden_files")]
-    {
-        let f = File::create(golden_file).unwrap();
-        serde_json::to_writer_pretty(f, &responses).unwrap();
-    }
-    #[cfg(not(feature = "generate_golden_files"))]
-    {
-        let f = File::open(golden_file).unwrap();
-        let expected_responses: Vec<Response> = serde_json::from_reader(f).unwrap();
-        assert_eq!(
-            serde_json::to_string_pretty(&responses).unwrap(),
-            serde_json::to_string_pretty(&expected_responses).unwrap()
-        );
-    }
+    goldie::assert_json!(responses);
 }
 
 #[test]
@@ -88,10 +79,8 @@ fn successful_route_incoming() {
 
     let mut responses = vec![];
     for msgs in test_cases {
-        let mut deps = mock_dependencies();
+        let mut deps = instantiate_contract();
         update_query_handler(&mut deps.querier, handler.clone());
-
-        instantiate_contract(deps.as_mut(), "verifier", "router");
 
         // check routing of incoming messages is idempotent
         let response = iter::repeat(
@@ -112,18 +101,7 @@ fn successful_route_incoming() {
         responses.push(response[0].clone());
     }
 
-    let golden_file = "tests/test_route_incoming.json";
-    #[cfg(feature = "generate_golden_files")]
-    {
-        let f = File::create(golden_file).unwrap();
-        serde_json::to_writer_pretty(f, &responses).unwrap();
-    }
-    #[cfg(not(feature = "generate_golden_files"))]
-    {
-        let f = File::open(golden_file).unwrap();
-        let expected_responses: Vec<Response> = serde_json::from_reader(f).unwrap();
-        assert_eq!(responses, expected_responses);
-    }
+    goldie::assert_json!(responses);
 }
 
 #[test]
@@ -134,10 +112,8 @@ fn successful_route_outgoing() {
 
     let mut responses = vec![];
     for msgs in test_cases {
-        let mut deps = mock_dependencies();
-
-        let router = "router";
-        instantiate_contract(deps.as_mut(), "verifier", router);
+        let mut deps = instantiate_contract();
+        let router = deps.api.addr_make(ROUTER);
 
         let query_msg =
             QueryMsg::OutgoingMessages(msgs.iter().map(|msg| msg.cc_id.clone()).collect());
@@ -158,7 +134,7 @@ fn successful_route_outgoing() {
             execute(
                 deps.as_mut(),
                 mock_env(),
-                mock_info(router, &[]), // execute with router as sender
+                mock_info(router.as_str(), &[]), // execute with router as sender
                 ExecuteMsg::RouteMessages(msgs.clone()),
             )
             .unwrap(),
@@ -177,26 +153,13 @@ fn successful_route_outgoing() {
             .for_each(|response| assert_eq!(response, to_json_binary(&msgs).unwrap()));
     }
 
-    let golden_file = "tests/test_route_outgoing.json";
-    #[cfg(feature = "generate_golden_files")]
-    {
-        let f = File::create(golden_file).unwrap();
-        serde_json::to_writer_pretty(f, &responses).unwrap();
-    }
-    #[cfg(not(feature = "generate_golden_files"))]
-    {
-        let f = File::open(golden_file).unwrap();
-        let expected_responses: Vec<Response> = serde_json::from_reader(f).unwrap();
-        assert_eq!(responses, expected_responses);
-    }
+    goldie::assert_json!(responses);
 }
 
 #[test]
 fn verify_with_faulty_verifier_fails() {
     // if the mock querier is not overwritten, it will return an error
-    let mut deps = mock_dependencies();
-
-    instantiate_contract(deps.as_mut(), "verifier", "router");
+    let mut deps = instantiate_contract();
 
     let response = execute(
         deps.as_mut(),
@@ -211,9 +174,7 @@ fn verify_with_faulty_verifier_fails() {
 #[test]
 fn route_incoming_with_faulty_verifier_fails() {
     // if the mock querier is not overwritten, it will return an error
-    let mut deps = mock_dependencies();
-
-    instantiate_contract(deps.as_mut(), "verifier", "router");
+    let mut deps = instantiate_contract();
 
     let response = execute(
         deps.as_mut(),
@@ -229,11 +190,9 @@ fn route_incoming_with_faulty_verifier_fails() {
 fn calls_with_duplicate_ids_should_fail() {
     let (test_cases, handler) = test_cases_for_duplicate_msgs();
     for msgs in test_cases {
-        let mut deps = mock_dependencies();
+        let mut deps = instantiate_contract();
+        let router = deps.api.addr_make(ROUTER);
         update_query_handler(&mut deps.querier, handler.clone());
-
-        let router = "router";
-        instantiate_contract(deps.as_mut(), "verifier", router);
 
         let response = execute(
             deps.as_mut(),
@@ -254,7 +213,7 @@ fn calls_with_duplicate_ids_should_fail() {
         let response = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(router, &[]),
+            mock_info(router.as_str(), &[]),
             ExecuteMsg::RouteMessages(msgs),
         );
         assert!(response.is_err());
@@ -265,10 +224,8 @@ fn calls_with_duplicate_ids_should_fail() {
 fn route_duplicate_ids_should_fail() {
     let (test_cases, handler) = test_cases_for_duplicate_msgs();
     for msgs in test_cases {
-        let mut deps = mock_dependencies();
+        let mut deps = instantiate_contract();
         update_query_handler(&mut deps.querier, handler.clone());
-
-        instantiate_contract(deps.as_mut(), "verifier", "router");
 
         let response = execute(
             deps.as_mut(),
@@ -285,15 +242,13 @@ fn route_duplicate_ids_should_fail() {
 fn reject_reroute_outgoing_message_with_different_contents() {
     let mut msgs = generate_msgs(VerificationStatus::SucceededOnSourceChain, 10);
 
-    let mut deps = mock_dependencies();
-
-    let router = "router";
-    instantiate_contract(deps.as_mut(), "verifier", router);
+    let mut deps = instantiate_contract();
+    let router = deps.api.addr_make(ROUTER);
 
     let response = execute(
         deps.as_mut(),
         mock_env(),
-        mock_info(router, &[]),
+        mock_info(router.as_str(), &[]),
         ExecuteMsg::RouteMessages(msgs.clone()),
     );
     assert!(response.is_ok());
@@ -308,7 +263,7 @@ fn reject_reroute_outgoing_message_with_different_contents() {
     let response = execute(
         deps.as_mut(),
         mock_env(),
-        mock_info(router, &[]),
+        mock_info(router.as_str(), &[]),
         ExecuteMsg::RouteMessages(msgs.clone()),
     );
     assert!(response.is_err_and(|err| err_contains!(
@@ -469,18 +424,25 @@ fn update_query_handler<U: Serialize>(
     querier.update_wasm(handler)
 }
 
-fn instantiate_contract(deps: DepsMut, verifier: &str, router: &str) {
+fn instantiate_contract() -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
+    let mut deps = mock_dependencies();
+    let verifier_address = deps.api.addr_make(VERIFIER);
+    let router_address = deps.api.addr_make(ROUTER);
+
     let response = instantiate(
-        deps,
+        deps.as_mut(),
         mock_env(),
         mock_info("sender", &[]),
         InstantiateMsg {
-            verifier_address: Addr::unchecked(verifier).into_string(),
-            router_address: Addr::unchecked(router).into_string(),
+            verifier_address: verifier_address.into_string(),
+            router_address: router_address.into_string(),
         }
         .clone(),
     );
+
     assert!(response.is_ok());
+
+    deps
 }
 
 fn sort_msgs_by_status(

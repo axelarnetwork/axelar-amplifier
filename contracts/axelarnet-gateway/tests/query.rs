@@ -120,7 +120,12 @@ fn populate_executable_messages(
             cc_id: CrossChainId::new("source-chain", format!("hash-index-{}", i)).unwrap(),
             source_address: "source-address".parse().unwrap(),
             destination_chain: params::AXELARNET.parse().unwrap(),
-            destination_address: "destination-address".parse().unwrap(),
+            destination_address: deps
+                .api
+                .addr_make("destination-address")
+                .to_string()
+                .parse()
+                .unwrap(),
             payload_hash: Keccak256::digest(vec![i]).into(),
         })
         .collect();

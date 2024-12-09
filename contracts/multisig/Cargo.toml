@@ -63,6 +63,7 @@ thiserror = { workspace = true }
 
 [dev-dependencies]
 curve25519-dalek = "4.1.3"
+ed25519-dalek = { workspace = true, features = ["digest", "rand_core"] }
 cw-multi-test = { workspace = true }
 goldie = { workspace = true }
 hex = "0.4"

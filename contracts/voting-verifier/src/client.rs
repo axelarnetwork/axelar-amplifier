@@ -107,7 +107,7 @@ mod test {
 
     use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
     use axelar_wasm_std::{Threshold, VerificationStatus};
-    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info, MockQuerier};
+    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info, MockApi, MockQuerier};
     use cosmwasm_std::{
         from_json, Addr, DepsMut, QuerierWrapper, SystemError, Uint128, Uint64, WasmQuery,
     };
@@ -263,46 +263,56 @@ mod test {
     }
 
     fn setup_queries_to_fail() -> (MockQuerier, Addr) {
-        let addr = "voting-verifier";
+        let deps = mock_dependencies();
+        let api: MockApi = deps.api;
+        let addr = api.addr_make("voting-verifier");
+        let addr_clone = addr.clone();
 
         let mut querier = MockQuerier::default();
         querier.update_wasm(move |msg| match msg {
             WasmQuery::Smart {
                 contract_addr,
                 msg: _,
-            } if contract_addr == addr => {
+            } if contract_addr == addr.as_str() => {
                 Err(SystemError::Unknown {}).into() // simulate cryptic error seen in production
             }
             _ => panic!("unexpected query: {:?}", msg),
         });
 
-        (querier, Addr::unchecked(addr))
+        (querier, addr_clone)
     }
 
     fn setup() -> (MockQuerier, InstantiateMsg, Addr) {
-        let addr = "voting-verifier";
         let mut deps = mock_dependencies();
+        let api = deps.api;
+        let addr = api.addr_make("voting-verifier");
+        let addr_clone = addr.clone();
         let instantiate_msg = instantiate_contract(deps.as_mut());
 
         let mut querier = MockQuerier::default();
         querier.update_wasm(move |msg| match msg {
-            WasmQuery::Smart { contract_addr, msg } if contract_addr == addr => {
+            WasmQuery::Smart { contract_addr, msg } if contract_addr == addr.as_str() => {
                 let msg = from_json::<QueryMsg>(msg).unwrap();
                 Ok(query(deps.as_ref(), mock_env(), msg).into()).into()
             }
             _ => panic!("unexpected query: {:?}", msg),
         });
 
-        (querier, instantiate_msg, Addr::unchecked(addr))
+        (querier, instantiate_msg, addr_clone)
     }
 
     fn instantiate_contract(deps: DepsMut) -> InstantiateMsg {
         let env = mock_env();
         let info = mock_info("deployer", &[]);
+        let api = MockApi::default();
 
         let msg = InstantiateMsg {
-            governance_address: "governance".try_into().unwrap(),
-            service_registry_address: "service-registry".try_into().unwrap(),
+            governance_address: api.addr_make("governance").to_string().try_into().unwrap(),
+            service_registry_address: api
+                .addr_make("service-registry")
+                .to_string()
+                .try_into()
+                .unwrap(),
             service_name: "voting-verifier".try_into().unwrap(),
             source_gateway_address: "0x4F4495243837681061C4743b74B3eEdf548D56A5"
                 .try_into()
@@ -314,7 +324,7 @@ mod test {
             block_expiry: 100.try_into().unwrap(),
             confirmation_height: 10,
             source_chain: "source-chain".parse().unwrap(),
-            rewards_address: "rewards".try_into().unwrap(),
+            rewards_address: api.addr_make("rewards").to_string().try_into().unwrap(),
             msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
             address_format: axelar_wasm_std::address::AddressFormat::Eip55,
         };

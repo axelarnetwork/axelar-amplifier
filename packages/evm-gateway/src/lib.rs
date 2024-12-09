@@ -147,7 +147,7 @@ mod test {
 
     use axelar_wasm_std::nonempty;
     use axelar_wasm_std::snapshot::Participant;
-    use cosmwasm_std::{Addr, HexBinary, Uint128};
+    use cosmwasm_std::{testing::MockApi, HexBinary, Uint128};
     use multisig::key::PublicKey;
     use multisig::verifier_set::VerifierSet;
     use router_api::{CrossChainId, Message as RouterMessage};
@@ -227,7 +227,7 @@ mod test {
             .map(|i| {
                 (
                     Participant {
-                        address: Addr::unchecked(format!("verifier{i}")),
+                        address: MockApi::default().addr_make(format!("verifier{i}").as_str()),
                         weight: nonempty::Uint128::one(),
                     },
                     PublicKey::Ecdsa(HexBinary::from_hex(pub_keys[i]).unwrap()),

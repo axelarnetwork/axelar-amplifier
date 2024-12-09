@@ -82,7 +82,6 @@ impl VerifierSetConfirmation {
         let signers_hash = STANDARD.decode(signers_hash)?;
 
         let weighted_signers = WeightedSigners::from(&self.verifier_set);
-
         if signers_hash.len() != 32 || signers_hash.as_slice() != weighted_signers.hash().as_slice()
         {
             return Ok(false);
@@ -500,27 +499,29 @@ mod tests {
             .parse()
             .unwrap();
 
+        let mut signers = ed25519_test_data::signers();
+        signers.sort_by_key(|signer| signer.address.clone());
         let mut verifier_set_confirmation = VerifierSetConfirmation {
             tx_id,
             event_index: 1,
-            verifier_set: build_verifier_set(KeyType::Ed25519, &ed25519_test_data::signers()),
+            verifier_set: build_verifier_set(KeyType::Ed25519, &signers),
         };
         verifier_set_confirmation.verifier_set.created_at = 5;
 
         // 00000003 - length of new signers
-        // 45e67eaf446e6c26eb3a2b55b64339ecf3a4d1d03180bee20eb5afdd23fa644f - first new signer
+        // signers.0.pub_key - first new signer
         // 00000001 01 - length of biguint weight followed by 1 as hex
-        // c387253d29085a8036d6ae2cafb1b14699751417c0ce302cfe03da279e6b5c04 - second new signer
+        // signers.1.pub_key - second new signer
         // 00000001 01 - length of biguint weight followed by 1 as hex
-        // dd9822c7fa239dda9913ebee813ecbe69e35d88ff651548d5cc42c033a8a667b - third new signer
+        // signers.2.pub_key - third new signer
         // 00000001 01 - length of biguint weight followed by 1 as hex
         // 00000001 02 - length of biguint threshold followed by 2 as hex
         // 0000000000000000000000000000000000000000000000000000000000000005 - the nonce (created_at date as uint256)
-        let data = HexBinary::from_hex("0000000345e67eaf446e6c26eb3a2b55b64339ecf3a4d1d03180bee20eb5afdd23fa644f0000000101c387253d29085a8036d6ae2cafb1b14699751417c0ce302cfe03da279e6b5c040000000101dd9822c7fa239dda9913ebee813ecbe69e35d88ff651548d5cc42c033a8a667b000000010100000001020000000000000000000000000000000000000000000000000000000000000005")
+        let data = HexBinary::from_hex(&format!("00000003{}0000000101{}0000000101{}000000010100000001020000000000000000000000000000000000000000000000000000000000000005", signers.get(0).unwrap().pub_key.to_hex(),signers.get(1).unwrap().pub_key.to_hex(),signers.get(2).unwrap().pub_key.to_hex()))
             .unwrap();
         // This hash is generated externally using the MultiversX Gateway contract and is 100% correct
         let signers_hash =
-            HexBinary::from_hex("ad334409a09406b82c1d0f86bdc0aa8f68950c996643c884e6be66e6ea821654")
+            HexBinary::from_hex("0428071d4f8abb85c164854b7a29ff1fefccb0c392b0200ee1e2bc8784abaa3a")
                 .unwrap();
 
         let wrong_event = Events {

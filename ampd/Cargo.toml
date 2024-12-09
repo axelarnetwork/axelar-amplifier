@@ -91,6 +91,8 @@ multisig = { workspace = true, features = ["test", "library"] }
 rand = { workspace = true }
 random-string = "1.0.0"
 tokio = { workspace = true, features = ["test-util"] }
+goldie = { workspace = true }
+assert_ok = { workspace = true }
 
 [build-dependencies]
 tonic-build = "0.8.3"

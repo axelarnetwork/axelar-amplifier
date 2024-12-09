@@ -191,7 +191,7 @@ pub fn query(
 #[cfg(test)]
 mod tests {
     use assert_ok::assert_ok;
-    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
+    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info, MockApi};
     use cosmwasm_std::{coins, Addr, BlockInfo, Uint128};
     use cw_multi_test::{App, ContractWrapper, Executor};
     use router_api::ChainName;
@@ -203,14 +203,15 @@ mod tests {
     #[test]
     fn migrate_sets_contract_version() {
         let mut deps = mock_dependencies();
+        let api = deps.api;
         let env = mock_env();
-        let info = mock_info("instantiator", &[]);
+        let info = mock_info(api.addr_make("instantiator").as_str(), &[]);
         assert_ok!(instantiate(
             deps.as_mut(),
             env,
             info,
             InstantiateMsg {
-                governance_address: "governance".to_string(),
+                governance_address: api.addr_make("governance").to_string(),
                 rewards_denom: "uaxl".to_string()
             }
         ));
@@ -229,9 +230,9 @@ mod tests {
     #[test]
     fn test_rewards_flow() {
         let chain_name: ChainName = "mock-chain".parse().unwrap();
-        let user = Addr::unchecked("user");
-        let verifier = Addr::unchecked("verifier");
-        let pool_contract = Addr::unchecked("pool_contract");
+        let user = MockApi::default().addr_make("user");
+        let verifier = MockApi::default().addr_make("verifier");
+        let pool_contract = MockApi::default().addr_make("pool_contract");
 
         const AXL_DENOMINATION: &str = "uaxl";
         let mut app = App::new(|router, _, storage| {
@@ -243,7 +244,7 @@ mod tests {
         let code = ContractWrapper::new(execute, instantiate, query);
         let code_id = app.store_code(Box::new(code));
 
-        let governance_address = Addr::unchecked("governance");
+        let governance_address = MockApi::default().addr_make("governance");
         let initial_params = Params {
             epoch_duration: 10u64.try_into().unwrap(),
             rewards_per_epoch: Uint128::from(100u128).try_into().unwrap(),
@@ -252,7 +253,7 @@ mod tests {
         let contract_address = app
             .instantiate_contract(
                 code_id,
-                Addr::unchecked("router"),
+                MockApi::default().addr_make("router"),
                 &InstantiateMsg {
                     governance_address: governance_address.to_string(),
                     rewards_denom: AXL_DENOMINATION.to_string(),
@@ -380,9 +381,9 @@ mod tests {
     #[test]
     fn test_rewards_with_proxy() {
         let chain_name: ChainName = "mock-chain".parse().unwrap();
-        let user = Addr::unchecked("user");
-        let verifier = Addr::unchecked("verifier");
-        let pool_contract = Addr::unchecked("pool_contract");
+        let user = MockApi::default().addr_make("user");
+        let verifier = MockApi::default().addr_make("verifier");
+        let pool_contract = MockApi::default().addr_make("pool_contract");
 
         const AXL_DENOMINATION: &str = "uaxl";
         let mut app = App::new(|router, _, storage| {
@@ -394,7 +395,7 @@ mod tests {
         let code = ContractWrapper::new(execute, instantiate, query);
         let code_id = app.store_code(Box::new(code));
 
-        let governance_address = Addr::unchecked("governance");
+        let governance_address = MockApi::default().addr_make("governance");
         let params = Params {
             epoch_duration: 10u64.try_into().unwrap(),
             rewards_per_epoch: Uint128::from(100u128).try_into().unwrap(),
@@ -403,7 +404,7 @@ mod tests {
         let contract_address = app
             .instantiate_contract(
                 code_id,
-                Addr::unchecked("router"),
+                MockApi::default().addr_make("router"),
                 &InstantiateMsg {
                     governance_address: governance_address.to_string(),
                     rewards_denom: AXL_DENOMINATION.to_string(),
@@ -430,7 +431,7 @@ mod tests {
         )
         .unwrap();
 
-        let proxy = Addr::unchecked("proxy");
+        let proxy = MockApi::default().addr_make("proxy");
 
         app.execute_contract(
             verifier.clone(),
@@ -569,9 +570,9 @@ mod tests {
     #[test]
     fn params_updated_in_current_epoch_when_existing_tallies() {
         let chain_name: ChainName = "mock-chain".parse().unwrap();
-        let user = Addr::unchecked("user");
-        let verifier = Addr::unchecked("verifier");
-        let pool_contract = Addr::unchecked("pool_contract");
+        let user = MockApi::default().addr_make("user");
+        let verifier = MockApi::default().addr_make("verifier");
+        let pool_contract = MockApi::default().addr_make("pool_contract");
 
         const AXL_DENOMINATION: &str = "uaxl";
         let mut app = App::new(|router, _, storage| {
@@ -583,7 +584,7 @@ mod tests {
         let code = ContractWrapper::new(execute, instantiate, query);
         let code_id = app.store_code(Box::new(code));
 
-        let governance_address = Addr::unchecked("governance");
+        let governance_address = MockApi::default().addr_make("governance");
         let initial_params = Params {
             epoch_duration: 10u64.try_into().unwrap(),
             rewards_per_epoch: Uint128::from(100u128).try_into().unwrap(),
@@ -592,7 +593,7 @@ mod tests {
         let contract_address = app
             .instantiate_contract(
                 code_id,
-                Addr::unchecked("router"),
+                MockApi::default().addr_make("router"),
                 &InstantiateMsg {
                     governance_address: governance_address.to_string(),
                     rewards_denom: AXL_DENOMINATION.to_string(),
@@ -723,9 +724,9 @@ mod tests {
     #[test]
     fn params_updated_in_current_epoch_with_no_existing_tallies() {
         let chain_name: ChainName = "mock-chain".parse().unwrap();
-        let user = Addr::unchecked("user");
-        let verifier = Addr::unchecked("verifier");
-        let pool_contract = Addr::unchecked("pool_contract");
+        let user = MockApi::default().addr_make("user");
+        let verifier = MockApi::default().addr_make("verifier");
+        let pool_contract = MockApi::default().addr_make("pool_contract");
 
         const AXL_DENOMINATION: &str = "uaxl";
         let mut app = App::new(|router, _, storage| {
@@ -737,7 +738,7 @@ mod tests {
         let code = ContractWrapper::new(execute, instantiate, query);
         let code_id = app.store_code(Box::new(code));
 
-        let governance_address = Addr::unchecked("governance");
+        let governance_address = MockApi::default().addr_make("governance");
         let initial_params = Params {
             epoch_duration: 10u64.try_into().unwrap(),
             rewards_per_epoch: Uint128::from(100u128).try_into().unwrap(),
@@ -746,7 +747,7 @@ mod tests {
         let contract_address = app
             .instantiate_contract(
                 code_id,
-                Addr::unchecked("router"),
+                MockApi::default().addr_make("router"),
                 &InstantiateMsg {
                     governance_address: governance_address.to_string(),
                     rewards_denom: AXL_DENOMINATION.to_string(),
@@ -884,9 +885,9 @@ mod tests {
     #[test]
     fn params_updated_in_current_epoch_when_shortening_epoch() {
         let chain_name: ChainName = "mock-chain".parse().unwrap();
-        let user = Addr::unchecked("user");
-        let verifier = Addr::unchecked("verifier");
-        let pool_contract = Addr::unchecked("pool_contract");
+        let user = MockApi::default().addr_make("user");
+        let verifier = MockApi::default().addr_make("verifier");
+        let pool_contract = MockApi::default().addr_make("pool_contract");
 
         const AXL_DENOMINATION: &str = "uaxl";
         let mut app = App::new(|router, _, storage| {
@@ -898,7 +899,7 @@ mod tests {
         let code = ContractWrapper::new(execute, instantiate, query);
         let code_id = app.store_code(Box::new(code));
 
-        let governance_address = Addr::unchecked("governance");
+        let governance_address = MockApi::default().addr_make("governance");
         let initial_params = Params {
             epoch_duration: 10u64.try_into().unwrap(),
             rewards_per_epoch: Uint128::from(100u128).try_into().unwrap(),
@@ -907,7 +908,7 @@ mod tests {
         let contract_address = app
             .instantiate_contract(
                 code_id,
-                Addr::unchecked("router"),
+                MockApi::default().addr_make("router"),
                 &InstantiateMsg {
                     governance_address: governance_address.to_string(),
                     rewards_denom: AXL_DENOMINATION.to_string(),

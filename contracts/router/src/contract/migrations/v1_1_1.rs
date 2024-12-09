@@ -70,8 +70,7 @@ mod test {
 
     use assert_ok::assert_ok;
     use axelar_wasm_std::msg_id::MessageIdFormat;
-    use cosmwasm_std::testing::mock_dependencies;
-    use cosmwasm_std::Addr;
+    use cosmwasm_std::testing::{mock_dependencies, MockApi};
     use itertools::Itertools;
     use router_api::{ChainName, Gateway, GatewayDirection};
 
@@ -93,7 +92,7 @@ mod test {
                     &router_api::ChainEndpoint {
                         name: chain_name.clone(),
                         gateway: Gateway {
-                            address: Addr::unchecked("gateway_address"),
+                            address: MockApi::default().addr_make("gateway_address"),
                         },
                         frozen_status: GatewayDirection::None.into(),
                         msg_id_format: MessageIdFormat::HexTxHashAndEventIndex,
@@ -110,7 +109,7 @@ mod test {
                 &ChainEndpoint {
                     name: bad_chain_name.to_string(),
                     gateway: Gateway {
-                        address: Addr::unchecked("gateway_address"),
+                        address: MockApi::default().addr_make("gateway_address"),
                     },
                     frozen_status: GatewayDirection::None.into(),
                     msg_id_format: MessageIdFormat::HexTxHashAndEventIndex,

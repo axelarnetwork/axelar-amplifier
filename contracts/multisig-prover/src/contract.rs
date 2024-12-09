@@ -162,6 +162,7 @@ mod tests {
 
     pub fn setup_test_case() -> OwnedDeps<MockStorage, MockApi, MockQuerier, Empty> {
         let mut deps = mock_dependencies();
+        let api = deps.api;
 
         deps.querier.update_wasm(mock_querier_handler(
             test_data::operators(),
@@ -173,13 +174,13 @@ mod tests {
             mock_env(),
             mock_info(ADMIN, &[]),
             InstantiateMsg {
-                admin_address: ADMIN.to_string(),
-                governance_address: GOVERNANCE.to_string(),
-                gateway_address: GATEWAY_ADDRESS.to_string(),
-                multisig_address: MULTISIG_ADDRESS.to_string(),
-                coordinator_address: COORDINATOR_ADDRESS.to_string(),
-                service_registry_address: SERVICE_REGISTRY_ADDRESS.to_string(),
-                voting_verifier_address: VOTING_VERIFIER_ADDRESS.to_string(),
+                admin_address: api.addr_make(ADMIN).to_string(),
+                governance_address: api.addr_make(GOVERNANCE).to_string(),
+                gateway_address: api.addr_make(GATEWAY_ADDRESS).to_string(),
+                multisig_address: api.addr_make(MULTISIG_ADDRESS).to_string(),
+                coordinator_address: api.addr_make(COORDINATOR_ADDRESS).to_string(),
+                service_registry_address: api.addr_make(SERVICE_REGISTRY_ADDRESS).to_string(),
+                voting_verifier_address: api.addr_make(VOTING_VERIFIER_ADDRESS).to_string(),
                 signing_threshold: test_data::threshold(),
                 service_name: SERVICE_NAME.to_string(),
                 chain_name: "ganache-0".to_string(),
@@ -198,7 +199,12 @@ mod tests {
         deps: DepsMut,
     ) -> Result<Response, axelar_wasm_std::error::ContractError> {
         let msg = ExecuteMsg::UpdateVerifierSet {};
-        execute(deps, mock_env(), mock_info(ADMIN, &[]), msg)
+        execute(
+            deps,
+            mock_env(),
+            mock_info(MockApi::default().addr_make(ADMIN).as_str(), &[]),
+            msg,
+        )
     }
 
     fn confirm_verifier_set(
@@ -222,11 +228,11 @@ mod tests {
 
     fn execute_update_admin(
         deps: DepsMut,
-        sender: &str,
+        sender: Addr,
         new_admin_address: String,
     ) -> Result<Response, axelar_wasm_std::error::ContractError> {
         let msg = ExecuteMsg::UpdateAdmin { new_admin_address };
-        execute(deps, mock_env(), mock_info(sender, &[]), msg)
+        execute(deps, mock_env(), mock_info(sender.as_str(), &[]), msg)
     }
 
     fn execute_construct_proof(
@@ -241,7 +247,12 @@ mod tests {
         });
 
         let msg = ExecuteMsg::ConstructProof(message_ids);
-        execute(deps, mock_env(), mock_info(RELAYER, &[]), msg)
+        execute(
+            deps,
+            mock_env(),
+            mock_info(MockApi::default().addr_make(RELAYER).as_str(), &[]),
+            msg,
+        )
     }
 
     fn reply_construct_proof(
@@ -311,14 +322,15 @@ mod tests {
     #[test]
     #[allow(clippy::arithmetic_side_effects)]
     fn test_instantiation() {
-        let instantiator = "instantiator";
-        let admin = "admin";
-        let governance = "governance";
-        let gateway_address = "gateway_address";
-        let multisig_address = "multisig_address";
-        let coordinator_address = "coordinator_address";
-        let service_registry_address = "service_registry_address";
-        let voting_verifier_address = "voting_verifier";
+        let api = MockApi::default();
+        let instantiator = api.addr_make("instantiator");
+        let admin = api.addr_make("admin");
+        let governance = api.addr_make("governance");
+        let gateway_address = api.addr_make("gateway_address");
+        let multisig_address = api.addr_make("multisig_address");
+        let coordinator_address = api.addr_make("coordinator_address");
+        let service_registry_address = api.addr_make("service_registry_address");
+        let voting_verifier_address = api.addr_make("voting_verifier");
         let signing_threshold = Threshold::try_from((
             test_data::threshold().numerator(),
             test_data::threshold().denominator(),
@@ -329,7 +341,7 @@ mod tests {
         let service_name = "service_name";
         for encoding in [Encoder::Abi, Encoder::Bcs] {
             let mut deps = mock_dependencies();
-            let info = mock_info(instantiator, &[]);
+            let info = mock_info(instantiator.as_str(), &[]);
             let env = mock_env();
 
             let msg = InstantiateMsg {
@@ -357,28 +369,20 @@ mod tests {
             assert_eq!(res.messages.len(), 0);
 
             let config = CONFIG.load(deps.as_ref().storage).unwrap();
-            assert_eq!(config.gateway.as_str(), gateway_address);
-            assert_eq!(config.multisig.as_str(), multisig_address);
-            assert_eq!(config.service_registry.as_str(), service_registry_address);
+            assert_eq!(config.gateway, gateway_address);
+            assert_eq!(config.multisig, multisig_address);
+            assert_eq!(config.service_registry, service_registry_address);
             assert_eq!(config.signing_threshold, signing_threshold);
             assert_eq!(config.service_name, service_name);
             assert_eq!(config.encoder, encoding);
 
             assert_eq!(
-                permission_control::sender_role(
-                    deps.as_ref().storage,
-                    &address::validate_cosmwasm_address(&deps.api, admin).unwrap()
-                )
-                .unwrap(),
+                permission_control::sender_role(deps.as_ref().storage, &admin).unwrap(),
                 Permission::Admin.into()
             );
 
             assert_eq!(
-                permission_control::sender_role(
-                    deps.as_ref().storage,
-                    &address::validate_cosmwasm_address(&deps.api, governance).unwrap()
-                )
-                .unwrap(),
+                permission_control::sender_role(deps.as_ref().storage, &governance).unwrap(),
                 Permission::Governance.into()
             );
         }
@@ -455,10 +459,11 @@ mod tests {
     #[test]
     fn test_update_verifier_set_from_governance_should_succeed() {
         let mut deps = setup_test_case();
+        let api = deps.api;
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(GOVERNANCE, &[]),
+            mock_info(api.addr_make(GOVERNANCE).as_str(), &[]),
             ExecuteMsg::UpdateVerifierSet {},
         );
         assert!(res.is_ok());
@@ -467,10 +472,11 @@ mod tests {
     #[test]
     fn test_update_verifier_set_from_admin_should_succeed() {
         let mut deps = setup_test_case();
+        let api = deps.api;
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(ADMIN, &[]),
+            mock_info(api.addr_make(ADMIN).as_str(), &[]),
             ExecuteMsg::UpdateVerifierSet {},
         );
         assert!(res.is_ok());
@@ -608,7 +614,7 @@ mod tests {
 
         assert!(res.is_ok());
 
-        let res = confirm_verifier_set(deps.as_mut(), Addr::unchecked("relayer"));
+        let res = confirm_verifier_set(deps.as_mut(), MockApi::default().addr_make("relayer"));
         assert!(res.is_err());
         assert_eq!(
             res.unwrap_err().to_string(),
@@ -638,7 +644,7 @@ mod tests {
             VerificationStatus::Unknown,
         ));
 
-        let res = confirm_verifier_set(deps.as_mut(), Addr::unchecked("relayer"));
+        let res = confirm_verifier_set(deps.as_mut(), MockApi::default().addr_make("relayer"));
         assert!(res.is_err());
         assert_eq!(
             res.unwrap_err().to_string(),
@@ -651,7 +657,7 @@ mod tests {
     fn confirm_verifier_no_update_in_progress_should_fail() {
         let mut deps = setup_test_case();
 
-        let res = confirm_verifier_set(deps.as_mut(), Addr::unchecked("relayer"));
+        let res = confirm_verifier_set(deps.as_mut(), MockApi::default().addr_make("relayer"));
         assert!(res.is_err());
         assert_eq!(
             res.unwrap_err().to_string(),
@@ -721,7 +727,7 @@ mod tests {
         let mut deps = setup_test_case();
         let res = execute_update_signing_threshold(
             deps.as_mut(),
-            Addr::unchecked("random"),
+            MockApi::default().addr_make("random"),
             Threshold::try_from((6, 10)).unwrap().try_into().unwrap(),
         );
         assert!(res.is_err());
@@ -730,7 +736,7 @@ mod tests {
     #[test]
     fn governance_should_be_able_to_call_update_signing_threshold() {
         let mut deps = setup_test_case();
-        let governance = Addr::unchecked(GOVERNANCE);
+        let governance = MockApi::default().addr_make(GOVERNANCE);
         let res = execute_update_signing_threshold(
             deps.as_mut(),
             governance,
@@ -755,7 +761,7 @@ mod tests {
             });
         let new_threshold = initial_threshold.checked_add(Uint128::one()).unwrap();
 
-        let governance = Addr::unchecked(GOVERNANCE);
+        let governance = MockApi::default().addr_make(GOVERNANCE);
         execute_update_signing_threshold(
             deps,
             governance.clone(),
@@ -798,7 +804,7 @@ mod tests {
 
         execute_update_verifier_set(deps.as_mut()).unwrap();
 
-        let governance = Addr::unchecked(GOVERNANCE);
+        let governance = MockApi::default().addr_make(GOVERNANCE);
         confirm_verifier_set(deps.as_mut(), governance).unwrap();
 
         let verifier_set = query_verifier_set(deps.as_ref())
@@ -819,7 +825,7 @@ mod tests {
 
         execute_update_verifier_set(deps.as_mut()).unwrap();
 
-        let res = confirm_verifier_set(deps.as_mut(), Addr::unchecked("relayer"));
+        let res = confirm_verifier_set(deps.as_mut(), MockApi::default().addr_make("relayer"));
         assert!(res.is_ok());
 
         let verifier_set = query_verifier_set(deps.as_ref())
@@ -901,27 +907,39 @@ mod tests {
     #[test]
     fn non_governance_should_not_be_able_to_call_update_admin() {
         let mut deps = setup_test_case();
-        let res = execute_update_admin(deps.as_mut(), "unauthorized", "new admin".to_string());
+        let api = deps.api;
+        let res = execute_update_admin(
+            deps.as_mut(),
+            api.addr_make("unauthorized"),
+            "new admin".to_string(),
+        );
         assert!(res.is_err());
     }
 
     #[test]
     fn governance_should_be_able_to_call_update_admin() {
         let mut deps = setup_test_case();
-        let new_admin = "new admin";
+        let api: MockApi = deps.api;
+        let new_admin = api.addr_make("new admin");
 
-        let res = execute_update_admin(deps.as_mut(), GOVERNANCE, new_admin.to_string());
+        let res = execute_update_admin(
+            deps.as_mut(),
+            api.addr_make(GOVERNANCE),
+            new_admin.to_string(),
+        );
         assert!(res.is_ok(), "{:?}", res);
 
         assert_eq!(
-            permission_control::sender_role(deps.as_ref().storage, &Addr::unchecked(new_admin))
-                .unwrap(),
+            permission_control::sender_role(deps.as_ref().storage, &new_admin).unwrap(),
             Permission::Admin.into()
         );
 
         assert_eq!(
-            permission_control::sender_role(deps.as_ref().storage, &Addr::unchecked(ADMIN))
-                .unwrap(),
+            permission_control::sender_role(
+                deps.as_ref().storage,
+                &MockApi::default().addr_make(ADMIN)
+            )
+            .unwrap(),
             Permission::NoPrivilege.into()
         );
     }

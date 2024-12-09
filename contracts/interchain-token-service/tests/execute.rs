@@ -4,7 +4,7 @@ use assert_ok::assert_ok;
 use axelar_wasm_std::response::inspect_response_msg;
 use axelar_wasm_std::{assert_err_contains, nonempty, permission_control};
 use axelarnet_gateway::msg::ExecuteMsg as AxelarnetGatewayExecuteMsg;
-use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
+use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info, MockApi};
 use cosmwasm_std::{HexBinary, Uint256};
 use interchain_token_service::contract::{self, ExecuteError};
 use interchain_token_service::events::Event;
@@ -958,7 +958,7 @@ fn admin_or_governance_can_freeze_chain() {
     assert_ok!(contract::execute(
         deps.as_mut(),
         mock_env(),
-        mock_info(params::ADMIN, &[]),
+        mock_info(MockApi::default().addr_make(params::ADMIN).as_str(), &[]),
         ExecuteMsg::FreezeChain {
             chain: ChainNameRaw::try_from("ethereum").unwrap()
         }
@@ -967,7 +967,10 @@ fn admin_or_governance_can_freeze_chain() {
     assert_ok!(contract::execute(
         deps.as_mut(),
         mock_env(),
-        mock_info(params::GOVERNANCE, &[]),
+        mock_info(
+            MockApi::default().addr_make(params::GOVERNANCE).as_str(),
+            &[]
+        ),
         ExecuteMsg::FreezeChain {
             chain: ChainNameRaw::try_from("ethereum").unwrap()
         }
@@ -1001,7 +1004,7 @@ fn admin_or_governance_can_unfreeze_chain() {
     assert_ok!(contract::execute(
         deps.as_mut(),
         mock_env(),
-        mock_info(params::ADMIN, &[]),
+        mock_info(MockApi::default().addr_make(params::ADMIN).as_str(), &[]),
         ExecuteMsg::UnfreezeChain {
             chain: ChainNameRaw::try_from("ethereum").unwrap()
         }
@@ -1010,7 +1013,10 @@ fn admin_or_governance_can_unfreeze_chain() {
     assert_ok!(contract::execute(
         deps.as_mut(),
         mock_env(),
-        mock_info(params::GOVERNANCE, &[]),
+        mock_info(
+            MockApi::default().addr_make(params::GOVERNANCE).as_str(),
+            &[]
+        ),
         ExecuteMsg::UnfreezeChain {
             chain: ChainNameRaw::try_from("ethereum").unwrap()
         }
@@ -1061,14 +1067,17 @@ fn admin_or_governance_can_enable_execution() {
     assert_ok!(contract::execute(
         deps.as_mut(),
         mock_env(),
-        mock_info(params::ADMIN, &[]),
+        mock_info(MockApi::default().addr_make(params::ADMIN).as_str(), &[]),
         ExecuteMsg::EnableExecution
     ));
 
     assert_ok!(contract::execute(
         deps.as_mut(),
         mock_env(),
-        mock_info(params::GOVERNANCE, &[]),
+        mock_info(
+            MockApi::default().addr_make(params::GOVERNANCE).as_str(),
+            &[]
+        ),
         ExecuteMsg::EnableExecution
     ));
 }
@@ -1081,14 +1090,17 @@ fn admin_or_governance_can_disable_execution() {
     assert_ok!(contract::execute(
         deps.as_mut(),
         mock_env(),
-        mock_info(params::ADMIN, &[]),
+        mock_info(MockApi::default().addr_make(params::ADMIN).as_str(), &[]),
         ExecuteMsg::DisableExecution
     ));
 
     assert_ok!(contract::execute(
         deps.as_mut(),
         mock_env(),
-        mock_info(params::GOVERNANCE, &[]),
+        mock_info(
+            MockApi::default().addr_make(params::GOVERNANCE).as_str(),
+            &[]
+        ),
         ExecuteMsg::DisableExecution
     ));
 }

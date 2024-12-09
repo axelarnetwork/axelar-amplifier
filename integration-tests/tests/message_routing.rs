@@ -1,4 +1,4 @@
-use cosmwasm_std::{Addr, HexBinary, Uint128};
+use cosmwasm_std::{testing::MockApi, HexBinary, Uint128};
 use integration_tests::contract::Contract;
 use router_api::{CrossChainId, Message};
 
@@ -152,7 +152,8 @@ fn routing_to_incorrect_gateway_interface() {
         &protocol.router,
         &protocol.governance_address,
         &chain2.chain_name,
-        Addr::unchecked("some random address")
+        MockApi::default()
+            .addr_make("some random address")
             .to_string()
             .try_into()
             .unwrap(), // gateway address does not implement required interface,

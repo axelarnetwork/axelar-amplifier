@@ -1,3 +1,4 @@
+use cosmwasm_std::testing::MockApi;
 use cosmwasm_std::Addr;
 use cw_multi_test::{ContractWrapper, Executor};
 use rewards::contract::{execute, instantiate, query};
@@ -22,7 +23,7 @@ impl RewardsContract {
         let contract_addr = app
             .instantiate_contract(
                 code_id,
-                Addr::unchecked("anyone"),
+                MockApi::default().addr_make("anyone"),
                 &rewards::msg::InstantiateMsg {
                     governance_address: governance.to_string(),
                     rewards_denom,

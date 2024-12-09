@@ -3,7 +3,7 @@ use axelar_wasm_std::error::ContractError;
 use axelarnet_gateway::msg::ExecuteMsg as GatewayExecuteMsg;
 use axelarnet_gateway::{contract, AxelarExecutableMsg};
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::testing::{mock_env, mock_info};
+use cosmwasm_std::testing::{mock_env, mock_info, MockApi};
 use cosmwasm_std::{DepsMut, HexBinary, MessageInfo, Response};
 use router_api::{Address, ChainName, CrossChainId, Message};
 
@@ -41,7 +41,7 @@ pub fn route_from_router(
     contract::execute(
         deps,
         mock_env(),
-        mock_info(params::ROUTER, &[]),
+        mock_info(MockApi::default().addr_make(params::ROUTER).as_str(), &[]),
         GatewayExecuteMsg::RouteMessages(msgs),
     )
 }
@@ -78,7 +78,7 @@ pub fn route_from_nexus(
     contract::execute(
         deps,
         mock_env(),
-        mock_info("nexus", &[]),
+        mock_info(MockApi::default().addr_make(params::NEXUS).as_str(), &[]),
         GatewayExecuteMsg::RouteMessagesFromNexus(msgs),
     )
 }

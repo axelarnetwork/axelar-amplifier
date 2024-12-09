@@ -158,20 +158,21 @@ mod tests {
         chain_name: ChainName,
     }
 
-    fn setup(governance: &str) -> TestSetup {
-        let mut deps = mock_dependencies();
+    fn setup(
+        mut deps: OwnedDeps<MockStorage, MockApi, MockQuerier, Empty>,
+        governance: &Addr,
+    ) -> TestSetup {
         let info = mock_info("instantiator", &[]);
         let env = mock_env();
 
         let instantiate_msg = InstantiateMsg {
             governance_address: governance.to_string(),
-            service_registry: Addr::unchecked("random_service").to_string(),
+            service_registry: deps.api.addr_make("random_service").to_string(),
         };
 
-        let res = instantiate(deps.as_mut(), env.clone(), info.clone(), instantiate_msg);
-        assert!(res.is_ok());
+        instantiate(deps.as_mut(), env.clone(), info.clone(), instantiate_msg).unwrap();
 
-        let eth_prover = Addr::unchecked("eth_prover");
+        let eth_prover = deps.api.addr_make("eth_prover");
         let eth: ChainName = "Ethereum".parse().unwrap();
 
         TestSetup {
@@ -185,8 +186,9 @@ mod tests {
     #[test]
     #[allow(clippy::arithmetic_side_effects)]
     fn test_instantiation() {
-        let governance = "governance_for_coordinator";
-        let mut test_setup = setup(governance);
+        let deps = mock_dependencies();
+        let governance = deps.api.addr_make("governance_for_coordinator");
+        let mut test_setup = setup(deps, &governance);
 
         assert!(execute(
             test_setup.deps.as_mut(),
@@ -202,7 +204,7 @@ mod tests {
         assert!(execute(
             test_setup.deps.as_mut(),
             test_setup.env,
-            mock_info(governance, &[]),
+            mock_info(governance.as_str(), &[]),
             ExecuteMsg::RegisterProverContract {
                 chain_name: test_setup.chain_name.clone(),
                 new_prover_addr: test_setup.prover.to_string(),
@@ -213,13 +215,14 @@ mod tests {
 
     #[test]
     fn add_prover_from_governance_succeeds() {
-        let governance = "governance_for_coordinator";
-        let mut test_setup = setup(governance);
+        let deps = mock_dependencies();
+        let governance = deps.api.addr_make("governance_for_coordinator");
+        let mut test_setup = setup(deps, &governance);
 
         let _res = execute(
             test_setup.deps.as_mut(),
             test_setup.env,
-            mock_info(governance, &[]),
+            mock_info(governance.as_str(), &[]),
             ExecuteMsg::RegisterProverContract {
                 chain_name: test_setup.chain_name.clone(),
                 new_prover_addr: test_setup.prover.to_string(),
@@ -237,8 +240,9 @@ mod tests {
 
     #[test]
     fn add_prover_from_random_address_fails() {
-        let governance = "governance_for_coordinator";
-        let mut test_setup = setup(governance);
+        let deps = mock_dependencies();
+        let governance = deps.api.addr_make("governance_for_coordinator");
+        let mut test_setup = setup(deps, &governance);
 
         let res = execute(
             test_setup.deps.as_mut(),
@@ -263,13 +267,14 @@ mod tests {
 
     #[test]
     fn set_active_verifiers_from_prover_succeeds() {
-        let governance = "governance_for_coordinator";
-        let mut test_setup = setup(governance);
+        let deps = mock_dependencies();
+        let governance = deps.api.addr_make("governance_for_coordinator");
+        let mut test_setup = setup(deps, &governance);
 
         execute(
             test_setup.deps.as_mut(),
             test_setup.env.clone(),
-            mock_info(governance, &[]),
+            mock_info(governance.as_str(), &[]),
             ExecuteMsg::RegisterProverContract {
                 chain_name: test_setup.chain_name.clone(),
                 new_prover_addr: test_setup.prover.to_string(),
@@ -290,8 +295,9 @@ mod tests {
 
     #[test]
     fn set_active_verifiers_from_random_address_fails() {
-        let governance = "governance_for_coordinator";
-        let mut test_setup = setup(governance);
+        let deps = mock_dependencies();
+        let governance = deps.api.addr_make("governance_for_coordinator");
+        let mut test_setup = setup(deps, &governance);
 
         let res = execute(
             test_setup.deps.as_mut(),
@@ -313,8 +319,9 @@ mod tests {
 
     #[test]
     fn migrate_sets_contract_version() {
-        let governance = "governance_for_coordinator";
-        let mut test_setup = setup(governance);
+        let deps = mock_dependencies();
+        let governance = deps.api.addr_make("governance_for_coordinator");
+        let mut test_setup = setup(deps, &governance);
 
         migrate(test_setup.deps.as_mut(), mock_env(), Empty {}).unwrap();
 

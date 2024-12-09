@@ -1,5 +1,7 @@
 use axelar_wasm_std::VerificationStatus;
-use cosmwasm_std::{from_json, to_json_binary, Addr, QuerierResult, Uint128, WasmQuery};
+use cosmwasm_std::{
+    from_json, testing::MockApi, to_json_binary, QuerierResult, Uint128, WasmQuery,
+};
 use multisig::msg::Signer;
 use multisig::multisig::Multisig;
 use multisig::types::MultisigState;
@@ -23,16 +25,30 @@ pub fn mock_querier_handler(
     verifier_set_status: VerificationStatus,
 ) -> impl Fn(&WasmQuery) -> QuerierResult {
     move |wq: &WasmQuery| match wq {
-        WasmQuery::Smart { contract_addr, .. } if contract_addr == GATEWAY_ADDRESS => {
+        WasmQuery::Smart { contract_addr, .. }
+            if contract_addr == MockApi::default().addr_make(GATEWAY_ADDRESS).as_str() =>
+        {
             gateway_mock_querier_handler()
         }
-        WasmQuery::Smart { contract_addr, msg } if contract_addr == MULTISIG_ADDRESS => {
+        WasmQuery::Smart { contract_addr, msg }
+            if contract_addr == MockApi::default().addr_make(MULTISIG_ADDRESS).as_str() =>
+        {
             multisig_mock_querier_handler(from_json(msg).unwrap(), operators.clone())
         }
-        WasmQuery::Smart { contract_addr, msg } if contract_addr == SERVICE_REGISTRY_ADDRESS => {
+        WasmQuery::Smart { contract_addr, msg }
+            if contract_addr
+                == MockApi::default()
+                    .addr_make(SERVICE_REGISTRY_ADDRESS)
+                    .as_str() =>
+        {
             service_registry_mock_querier_handler(from_json(msg).unwrap(), operators.clone())
         }
-        WasmQuery::Smart { contract_addr, .. } if contract_addr == VOTING_VERIFIER_ADDRESS => {
+        WasmQuery::Smart { contract_addr, .. }
+            if contract_addr
+                == MockApi::default()
+                    .addr_make(VOTING_VERIFIER_ADDRESS)
+                    .as_str() =>
+        {
             voting_verifier_mock_querier_handler(verifier_set_status)
         }
         _ => panic!("unexpected query: {:?}", wq),
@@ -119,7 +135,7 @@ fn service_registry_mock_querier_handler(
         service_registry_api::msg::QueryMsg::Service { service_name } => {
             to_json_binary(&service_registry_api::Service {
                 name: service_name.to_string(),
-                coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS),
+                coordinator_contract: MockApi::default().addr_make(COORDINATOR_ADDRESS),
                 min_num_verifiers: 1,
                 max_num_verifiers: Some(100),
                 min_verifier_bond: Uint128::new(1).try_into().unwrap(),

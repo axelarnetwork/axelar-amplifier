@@ -115,7 +115,7 @@ pub fn save_pub_key(
 #[cfg(test)]
 mod tests {
 
-    use cosmwasm_std::testing::mock_dependencies;
+    use cosmwasm_std::testing::{mock_dependencies, MockApi};
 
     use super::*;
     use crate::test::common::ecdsa_test_data;
@@ -131,7 +131,7 @@ mod tests {
         // 1. Store first key
         save_pub_key(
             deps.as_mut().storage,
-            Addr::unchecked("1"),
+            MockApi::default().addr_make("1"),
             (KeyType::Ecdsa, pub_key.clone()).try_into().unwrap(),
         )
         .unwrap();
@@ -140,7 +140,7 @@ mod tests {
         assert_eq!(
             save_pub_key(
                 deps.as_mut().storage,
-                Addr::unchecked("2"),
+                MockApi::default().addr_make("2"),
                 (KeyType::Ecdsa, pub_key).try_into().unwrap(),
             )
             .unwrap_err(),
@@ -150,7 +150,7 @@ mod tests {
         // 3. Storing a different key succeeds
         save_pub_key(
             deps.as_mut().storage,
-            Addr::unchecked("4"),
+            MockApi::default().addr_make("4"),
             (KeyType::Ecdsa, ecdsa_test_data::pub_key())
                 .try_into()
                 .unwrap(),

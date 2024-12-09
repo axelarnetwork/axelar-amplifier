@@ -5,6 +5,7 @@ use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
 use axelar_wasm_std::voting::{PollId, Vote};
 use axelar_wasm_std::{nonempty, Participant, Threshold};
 use coordinator::msg::{ExecuteMsg as CoordinatorExecuteMsg, VerifierInfo};
+use cosmwasm_std::testing::MockApi;
 use cosmwasm_std::{
     coins, to_json_binary, Addr, Attribute, BlockInfo, Event, HexBinary, StdError, Uint128, Uint64,
 };
@@ -55,7 +56,7 @@ pub fn verify_messages(
 ) -> (PollId, PollExpiryBlock) {
     let response = gateway.execute(
         app,
-        Addr::unchecked("relayer"),
+        MockApi::default().addr_make("relayer"),
         &gateway_api::msg::ExecuteMsg::VerifyMessages(msgs.to_vec()),
     );
     assert!(response.is_ok());
@@ -74,7 +75,7 @@ pub fn verify_messages(
 pub fn route_messages(app: &mut AxelarApp, gateway: &GatewayContract, msgs: &[Message]) {
     let response = gateway.execute(
         app,
-        Addr::unchecked("relayer"),
+        MockApi::default().addr_make("relayer"),
         &gateway_api::msg::ExecuteMsg::RouteMessages(msgs.to_vec()),
     );
     assert!(response.is_ok());
@@ -175,7 +176,7 @@ pub fn vote_true_for_verifier_set(
                 votes: vec![Vote::SucceededOnChain; 1],
             },
         );
-        assert!(response.is_ok())
+        assert!(response.is_ok());
     }
 }
 
@@ -183,7 +184,7 @@ pub fn vote_true_for_verifier_set(
 pub fn end_poll(app: &mut AxelarApp, voting_verifier: &VotingVerifierContract, poll_id: PollId) {
     let response = voting_verifier.execute(
         app,
-        Addr::unchecked("relayer"),
+        MockApi::default().addr_make("relayer"),
         &voting_verifier::msg::ExecuteMsg::EndPoll { poll_id },
     );
     assert!(response.is_ok());
@@ -197,7 +198,7 @@ pub fn construct_proof_and_sign(
 ) -> Uint64 {
     let response = multisig_prover.execute(
         &mut protocol.app,
-        Addr::unchecked("relayer"),
+        MockApi::default().addr_make("relayer"),
         &multisig_prover::msg::ExecuteMsg::ConstructProof(
             messages.iter().map(|msg| msg.cc_id.clone()).collect(),
         ),
@@ -373,7 +374,7 @@ pub fn advance_at_least_to_height(app: &mut AxelarApp, desired_height: u64) {
 pub fn distribute_rewards(protocol: &mut Protocol, chain_name: &ChainName, contract_address: Addr) {
     let response = protocol.rewards.execute(
         &mut protocol.app,
-        Addr::unchecked("relayer"),
+        MockApi::default().addr_make("relayer"),
         &rewards::msg::ExecuteMsg::DistributeRewards {
             pool_id: PoolId {
                 chain_name: chain_name.clone(),
@@ -386,7 +387,7 @@ pub fn distribute_rewards(protocol: &mut Protocol, chain_name: &ChainName, contr
 }
 
 pub fn setup_protocol(service_name: nonempty::String) -> Protocol {
-    let genesis = Addr::unchecked("genesis");
+    let genesis = MockApi::default().addr_make("genesis");
     let mut app = AppBuilder::new_custom()
         .with_custom(AxelarModule {
             tx_hash_and_nonce: Box::new(|_| unimplemented!()),
@@ -403,9 +404,9 @@ pub fn setup_protocol(service_name: nonempty::String) -> Protocol {
                 .unwrap()
         });
 
-    let admin_address = Addr::unchecked("admin");
-    let governance_address = Addr::unchecked("governance");
-    let axelarnet_gateway = Addr::unchecked("axelarnet_gateway");
+    let admin_address = MockApi::default().addr_make("admin");
+    let governance_address = MockApi::default().addr_make("governance");
+    let axelarnet_gateway = MockApi::default().addr_make("axelarnet_gateway");
 
     let router = RouterContract::instantiate_contract(
         &mut app,
@@ -624,7 +625,7 @@ pub fn create_new_verifiers_vec(
     verifier_details
         .into_iter()
         .map(|(name, seed)| Verifier {
-            addr: Addr::unchecked(name),
+            addr: MockApi::default().addr_make(&name),
             supported_chains: chains.clone(),
             key_pair: generate_key(seed),
         })
@@ -647,7 +648,7 @@ pub fn update_registry_and_construct_verifier_set_update_proof(
 
     let response = chain_multisig_prover.execute(
         &mut protocol.app,
-        Addr::unchecked("relayer"),
+        MockApi::default().addr_make("relayer"),
         &multisig_prover::msg::ExecuteMsg::UpdateVerifierSet,
     );
 
@@ -702,7 +703,8 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
         voting_verifier.contract_addr.clone(),
     );
 
-    let multisig_prover_admin = Addr::unchecked(chain_name.to_string() + "prover_admin");
+    let multisig_prover_admin =
+        MockApi::default().addr_make(format!("{}_prover_admin", chain_name).as_str());
     let multisig_prover = MultisigProverContract::instantiate_contract(
         protocol,
         multisig_prover_admin.clone(),
@@ -858,7 +860,7 @@ pub fn rotate_active_verifier_set(
     let new_verifier_set = verifiers_to_verifier_set(protocol, new_verifiers);
     let (poll_id, expiry) = create_verifier_set_poll(
         &mut protocol.app,
-        Addr::unchecked("relayer"),
+        MockApi::default().addr_make("relayer"),
         &chain.voting_verifier,
         new_verifier_set.clone(),
     );
@@ -875,7 +877,7 @@ pub fn rotate_active_verifier_set(
 
     confirm_verifier_set(
         &mut protocol.app,
-        Addr::unchecked("relayer"),
+        MockApi::default().addr_make("relayer"),
         &chain.multisig_prover,
     );
 }

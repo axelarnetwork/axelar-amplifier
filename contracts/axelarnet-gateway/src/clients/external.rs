@@ -37,8 +37,8 @@ impl<'a, T> Client<'a, T> {
 
 #[cfg(test)]
 mod test {
-    use cosmwasm_std::testing::mock_dependencies;
-    use cosmwasm_std::{to_json_binary, Addr, Empty, HexBinary, WasmMsg};
+    use cosmwasm_std::testing::{mock_dependencies, MockApi};
+    use cosmwasm_std::{to_json_binary, Empty, HexBinary, WasmMsg};
     use router_api::CrossChainId;
 
     use crate::clients::external;
@@ -47,7 +47,7 @@ mod test {
     fn execute_message() {
         let deps = mock_dependencies();
 
-        let destination_addr = Addr::unchecked("axelar-executable");
+        let destination_addr = MockApi::default().addr_make("axelar-executable");
 
         let executable_msg = external::AxelarExecutableMsg {
             source_address: "source-address".parse().unwrap(),
