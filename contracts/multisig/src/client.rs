@@ -242,7 +242,6 @@ mod test {
         let verifier_address = Addr::unchecked("verifier").to_string();
         let key_type = crate::key::KeyType::Ecdsa;
         let res = client.public_key(verifier_address.clone(), key_type);
-        println!("{:?}", res);
         assert!(res.is_ok());
         goldie::assert_json!(res.unwrap());
     }
