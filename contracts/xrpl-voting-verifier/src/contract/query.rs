@@ -282,7 +282,7 @@ mod tests {
     fn user_message(id: u32) -> XRPLMessage {
         XRPLMessage::UserMessage(XRPLUserMessage {
             tx_id: TxHash::new([0; 32]),
-            source_address: XRPLAccountId::from_bytes([0; 20]),
+            source_address: XRPLAccountId::new([0; 20]),
             destination_chain: format!("destination-chain{id}").parse().unwrap(),
             destination_address: nonempty::HexBinary::try_from(HexBinary::from_hex("1234").unwrap()).unwrap(),
             payload_hash: [0; 32],

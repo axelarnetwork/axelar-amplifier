@@ -458,7 +458,7 @@ impl XRPLAccountId {
         self.0
     }
 
-    pub fn from_bytes(bytes: [u8; XRPL_ACCOUNT_ID_LENGTH]) -> Self {
+    pub fn new(bytes: [u8; XRPL_ACCOUNT_ID_LENGTH]) -> Self {
         Self(bytes)
     }
 }

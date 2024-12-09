@@ -194,7 +194,7 @@ mod test {
         (0..len)
             .map(|i| XRPLMessage::UserMessage(XRPLUserMessage {
                 tx_id: message_id("id"),
-                source_address: XRPLAccountId::from_bytes(rand::thread_rng().gen()),
+                source_address: XRPLAccountId::new(rand::thread_rng().gen()),
                 destination_chain: format!("destination-chain{i}").parse().unwrap(),
                 destination_address: nonempty::HexBinary::try_from(HexBinary::from_hex("1234").unwrap()).unwrap(),
                 payload_hash: [0; 32],
