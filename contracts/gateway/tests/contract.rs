@@ -5,7 +5,7 @@ use std::iter;
 use axelar_wasm_std::error::ContractError;
 use axelar_wasm_std::{err_contains, VerificationStatus};
 use cosmwasm_std::testing::{
-    mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
+    message_info, mock_dependencies, mock_env, MockApi, MockQuerier, MockStorage,
 };
 #[cfg(not(feature = "generate_golden_files"))]
 use cosmwasm_std::{
@@ -26,13 +26,14 @@ const VERIFIER: &str = "verifier";
 #[test]
 fn instantiate_works() {
     let mut deps = mock_dependencies();
+    let api = deps.api;
     let verifier_address = deps.api.addr_make("verifier");
     let router_address = deps.api.addr_make("router");
 
     let result = instantiate(
         deps.as_mut(),
         mock_env(),
-        mock_info("sender", &[]),
+        message_info(&api.addr_make("sender"), &[]),
         InstantiateMsg {
             verifier_address: verifier_address.into_string(),
             router_address: router_address.into_string(),
@@ -49,6 +50,7 @@ fn successful_verify() {
     let mut responses = vec![];
     for msgs in test_cases {
         let mut deps = instantiate_contract();
+        let api = deps.api;
         update_query_handler(&mut deps.querier, handler.clone());
 
         // check verification is idempotent
@@ -56,7 +58,7 @@ fn successful_verify() {
             execute(
                 deps.as_mut(),
                 mock_env(),
-                mock_info("sender", &[]),
+                message_info(&api.addr_make("sender"), &[]),
                 ExecuteMsg::VerifyMessages(msgs.clone()),
             )
             .unwrap(),
@@ -80,6 +82,7 @@ fn successful_route_incoming() {
     let mut responses = vec![];
     for msgs in test_cases {
         let mut deps = instantiate_contract();
+        let api = deps.api;
         update_query_handler(&mut deps.querier, handler.clone());
 
         // check routing of incoming messages is idempotent
@@ -87,7 +90,7 @@ fn successful_route_incoming() {
             execute(
                 deps.as_mut(),
                 mock_env(),
-                mock_info("sender", &[]),
+                message_info(&api.addr_make("sender"), &[]),
                 ExecuteMsg::RouteMessages(msgs.clone()),
             )
             .unwrap(),
@@ -134,7 +137,7 @@ fn successful_route_outgoing() {
             execute(
                 deps.as_mut(),
                 mock_env(),
-                mock_info(router.as_str(), &[]), // execute with router as sender
+                message_info(&router, &[]), // execute with router as sender
                 ExecuteMsg::RouteMessages(msgs.clone()),
             )
             .unwrap(),
@@ -160,11 +163,12 @@ fn successful_route_outgoing() {
 fn verify_with_faulty_verifier_fails() {
     // if the mock querier is not overwritten, it will return an error
     let mut deps = instantiate_contract();
+    let api = deps.api;
 
     let response = execute(
         deps.as_mut(),
         mock_env(),
-        mock_info("sender", &[]),
+        message_info(&api.addr_make("sender"), &[]),
         ExecuteMsg::VerifyMessages(generate_msgs("verifier in unreachable", 10)),
     );
 
@@ -175,11 +179,12 @@ fn verify_with_faulty_verifier_fails() {
 fn route_incoming_with_faulty_verifier_fails() {
     // if the mock querier is not overwritten, it will return an error
     let mut deps = instantiate_contract();
+    let api = deps.api;
 
     let response = execute(
         deps.as_mut(),
         mock_env(),
-        mock_info("sender", &[]),
+        message_info(&api.addr_make("sender"), &[]),
         ExecuteMsg::RouteMessages(generate_msgs("verifier in unreachable", 10)),
     );
 
@@ -191,13 +196,14 @@ fn calls_with_duplicate_ids_should_fail() {
     let (test_cases, handler) = test_cases_for_duplicate_msgs();
     for msgs in test_cases {
         let mut deps = instantiate_contract();
+        let api = deps.api;
         let router = deps.api.addr_make(ROUTER);
         update_query_handler(&mut deps.querier, handler.clone());
 
         let response = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info("sender", &[]),
+            message_info(&api.addr_make("sender"), &[]),
             ExecuteMsg::VerifyMessages(msgs.clone()),
         );
         assert!(response.is_err());
@@ -205,7 +211,7 @@ fn calls_with_duplicate_ids_should_fail() {
         let response = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info("sender", &[]),
+            message_info(&api.addr_make("sender"), &[]),
             ExecuteMsg::RouteMessages(msgs.clone()),
         );
         assert!(response.is_err());
@@ -213,7 +219,7 @@ fn calls_with_duplicate_ids_should_fail() {
         let response = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(router.as_str(), &[]),
+            message_info(&router, &[]),
             ExecuteMsg::RouteMessages(msgs),
         );
         assert!(response.is_err());
@@ -225,12 +231,13 @@ fn route_duplicate_ids_should_fail() {
     let (test_cases, handler) = test_cases_for_duplicate_msgs();
     for msgs in test_cases {
         let mut deps = instantiate_contract();
+        let api = deps.api;
         update_query_handler(&mut deps.querier, handler.clone());
 
         let response = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info("sender", &[]),
+            message_info(&api.addr_make("sender"), &[]),
             ExecuteMsg::RouteMessages(msgs),
         );
 
@@ -248,7 +255,7 @@ fn reject_reroute_outgoing_message_with_different_contents() {
     let response = execute(
         deps.as_mut(),
         mock_env(),
-        mock_info(router.as_str(), &[]),
+        message_info(&router, &[]),
         ExecuteMsg::RouteMessages(msgs.clone()),
     );
     assert!(response.is_ok());
@@ -263,7 +270,7 @@ fn reject_reroute_outgoing_message_with_different_contents() {
     let response = execute(
         deps.as_mut(),
         mock_env(),
-        mock_info(router.as_str(), &[]),
+        message_info(&router, &[]),
         ExecuteMsg::RouteMessages(msgs.clone()),
     );
     assert!(response.is_err_and(|err| err_contains!(
@@ -426,13 +433,14 @@ fn update_query_handler<U: Serialize>(
 
 fn instantiate_contract() -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
     let mut deps = mock_dependencies();
+    let api = deps.api;
     let verifier_address = deps.api.addr_make(VERIFIER);
     let router_address = deps.api.addr_make(ROUTER);
 
     let response = instantiate(
         deps.as_mut(),
         mock_env(),
-        mock_info("sender", &[]),
+        message_info(&api.addr_make("sender"), &[]),
         InstantiateMsg {
             verifier_address: verifier_address.into_string(),
             router_address: router_address.into_string(),

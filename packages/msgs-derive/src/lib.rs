@@ -57,7 +57,7 @@ use syn::{Data, DataEnum, DeriveInput, Expr, ExprCall, Ident, Path, Token, Varia
 /// #     }
 /// # }
 /// # const GATEWAY: Store = Store;
-/// # use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
+/// # use cosmwasm_std::testing::{mock_dependencies, mock_env, message_info};
 /// # fn main() {
 /// # let mocks = mock_dependencies();
 /// # let deps = mocks.as_ref();

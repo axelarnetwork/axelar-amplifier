@@ -1,5 +1,5 @@
 use axelar_wasm_std::error::ContractError;
-use cosmwasm_std::testing::{mock_env, mock_info, MockApi};
+use cosmwasm_std::testing::{message_info, mock_env, MockApi};
 use cosmwasm_std::{DepsMut, Response};
 use interchain_token_service::contract;
 use interchain_token_service::msg::InstantiateMsg;
@@ -12,7 +12,7 @@ pub fn instantiate_contract(deps: DepsMut) -> Result<Response, ContractError> {
     contract::instantiate(
         deps,
         mock_env(),
-        mock_info("sender", &[]),
+        message_info(&api.addr_make("sender"), &[]),
         InstantiateMsg {
             governance_address: api.addr_make(params::GOVERNANCE).to_string(),
             admin_address: api.addr_make(params::ADMIN).to_string(),

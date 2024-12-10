@@ -143,7 +143,7 @@ mod tests {
 
     use axelar_wasm_std::permission_control::Permission;
     use cosmwasm_std::testing::{
-        mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
+        message_info, mock_dependencies, mock_env, MockApi, MockQuerier, MockStorage,
     };
     use cosmwasm_std::{Addr, Empty, OwnedDeps};
     use router_api::ChainName;
@@ -162,7 +162,7 @@ mod tests {
         mut deps: OwnedDeps<MockStorage, MockApi, MockQuerier, Empty>,
         governance: &Addr,
     ) -> TestSetup {
-        let info = mock_info("instantiator", &[]);
+        let info = message_info(&deps.api.addr_make("instantiator"), &[]);
         let env = mock_env();
 
         let instantiate_msg = InstantiateMsg {
@@ -187,13 +187,14 @@ mod tests {
     #[allow(clippy::arithmetic_side_effects)]
     fn test_instantiation() {
         let deps = mock_dependencies();
+        let api = deps.api;
         let governance = deps.api.addr_make("governance_for_coordinator");
         let mut test_setup = setup(deps, &governance);
 
         assert!(execute(
             test_setup.deps.as_mut(),
             test_setup.env.clone(),
-            mock_info("not_governance", &[]),
+            message_info(&api.addr_make("not_governance"), &[]),
             ExecuteMsg::RegisterProverContract {
                 chain_name: test_setup.chain_name.clone(),
                 new_prover_addr: test_setup.prover.to_string(),
@@ -204,7 +205,7 @@ mod tests {
         assert!(execute(
             test_setup.deps.as_mut(),
             test_setup.env,
-            mock_info(governance.as_str(), &[]),
+            message_info(&governance, &[]),
             ExecuteMsg::RegisterProverContract {
                 chain_name: test_setup.chain_name.clone(),
                 new_prover_addr: test_setup.prover.to_string(),
@@ -222,7 +223,7 @@ mod tests {
         let _res = execute(
             test_setup.deps.as_mut(),
             test_setup.env,
-            mock_info(governance.as_str(), &[]),
+            message_info(&governance, &[]),
             ExecuteMsg::RegisterProverContract {
                 chain_name: test_setup.chain_name.clone(),
                 new_prover_addr: test_setup.prover.to_string(),
@@ -241,13 +242,14 @@ mod tests {
     #[test]
     fn add_prover_from_random_address_fails() {
         let deps = mock_dependencies();
+        let api = deps.api;
         let governance = deps.api.addr_make("governance_for_coordinator");
         let mut test_setup = setup(deps, &governance);
 
         let res = execute(
             test_setup.deps.as_mut(),
             test_setup.env,
-            mock_info("random_address", &[]),
+            message_info(&api.addr_make("random_address"), &[]),
             ExecuteMsg::RegisterProverContract {
                 chain_name: test_setup.chain_name.clone(),
                 new_prover_addr: test_setup.prover.to_string(),
@@ -274,7 +276,7 @@ mod tests {
         execute(
             test_setup.deps.as_mut(),
             test_setup.env.clone(),
-            mock_info(governance.as_str(), &[]),
+            message_info(&governance, &[]),
             ExecuteMsg::RegisterProverContract {
                 chain_name: test_setup.chain_name.clone(),
                 new_prover_addr: test_setup.prover.to_string(),
@@ -285,7 +287,7 @@ mod tests {
         let res = execute(
             test_setup.deps.as_mut(),
             test_setup.env,
-            mock_info(test_setup.prover.as_str(), &[]),
+            message_info(&test_setup.prover, &[]),
             ExecuteMsg::SetActiveVerifiers {
                 verifiers: HashSet::new(),
             },
@@ -302,7 +304,7 @@ mod tests {
         let res = execute(
             test_setup.deps.as_mut(),
             test_setup.env,
-            mock_info(test_setup.prover.as_str(), &[]),
+            message_info(&test_setup.prover, &[]),
             ExecuteMsg::SetActiveVerifiers {
                 verifiers: HashSet::new(),
             },

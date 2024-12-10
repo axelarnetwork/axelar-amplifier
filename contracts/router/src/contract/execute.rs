@@ -262,7 +262,7 @@ mod test {
     use axelar_wasm_std::assert_err_contains;
     use axelar_wasm_std::flagset::FlagSet;
     use axelar_wasm_std::msg_id::{HexTxHashAndEventIndex, MessageIdFormat};
-    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info, MockApi};
+    use cosmwasm_std::testing::{message_info, mock_dependencies, mock_env, MockApi};
     use cosmwasm_std::{QuerierWrapper, Storage};
     use rand::{random, RngCore};
     use router_api::error::Error;
@@ -318,7 +318,7 @@ mod test {
         instantiate(
             deps.as_mut(),
             mock_env(),
-            mock_info(api.addr_make("admin").as_str(), &[]),
+            message_info(&api.addr_make("admin"), &[]),
             InstantiateMsg {
                 admin_address: api.addr_make("admin").to_string(),
                 governance_address: api.addr_make("governance").to_string(),
@@ -346,7 +346,7 @@ mod test {
         instantiate(
             deps.as_mut(),
             mock_env(),
-            mock_info(api.addr_make("admin").as_str(), &[]),
+            message_info(&api.addr_make("admin"), &[]),
             InstantiateMsg {
                 admin_address: api.addr_make("admin").to_string(),
                 governance_address: api.addr_make("governance").to_string(),
@@ -388,7 +388,7 @@ mod test {
         instantiate(
             deps.as_mut(),
             mock_env(),
-            mock_info(api.addr_make("admin").as_str(), &[]),
+            message_info(&api.addr_make("admin"), &[]),
             InstantiateMsg {
                 admin_address: api.addr_make("admin").to_string(),
                 governance_address: api.addr_make("governance").to_string(),
@@ -428,7 +428,7 @@ mod test {
         instantiate(
             deps.as_mut(),
             mock_env(),
-            mock_info(api.addr_make("admin").as_str(), &[]),
+            message_info(&api.addr_make("admin"), &[]),
             InstantiateMsg {
                 admin_address: api.addr_make("admin").to_string(),
                 governance_address: api.addr_make("governance").to_string(),
@@ -484,7 +484,7 @@ mod test {
         instantiate(
             deps.as_mut(),
             mock_env(),
-            mock_info(api.addr_make("admin").as_str(), &[]),
+            message_info(&api.addr_make("admin"), &[]),
             InstantiateMsg {
                 admin_address: api.addr_make("admin").to_string(),
                 governance_address: api.addr_make("governance").to_string(),
@@ -526,7 +526,7 @@ mod test {
         instantiate(
             deps.as_mut(),
             mock_env(),
-            mock_info(api.addr_make("admin").as_str(), &[]),
+            message_info(&api.addr_make("admin"), &[]),
             InstantiateMsg {
                 admin_address: api.addr_make("admin").to_string(),
                 governance_address: api.addr_make("governance").to_string(),
@@ -552,7 +552,7 @@ mod test {
         instantiate(
             deps.as_mut(),
             mock_env(),
-            mock_info(api.addr_make("admin").as_str(), &[]),
+            message_info(&api.addr_make("admin"), &[]),
             InstantiateMsg {
                 admin_address: api.addr_make("admin").to_string(),
                 governance_address: api.addr_make("governance").to_string(),
@@ -605,7 +605,7 @@ mod test {
         instantiate(
             deps.as_mut(),
             mock_env(),
-            mock_info(api.addr_make("admin").as_str(), &[]),
+            message_info(&api.addr_make("admin"), &[]),
             InstantiateMsg {
                 admin_address: api.addr_make("admin").to_string(),
                 governance_address: api.addr_make("governance").to_string(),
@@ -685,7 +685,7 @@ mod test {
         instantiate(
             deps.as_mut(),
             mock_env(),
-            mock_info(api.addr_make("admin").as_str(), &[]),
+            message_info(&api.addr_make("admin"), &[]),
             InstantiateMsg {
                 admin_address: api.addr_make("admin").to_string(),
                 governance_address: api.addr_make("governance").to_string(),
@@ -749,7 +749,7 @@ mod test {
         instantiate(
             deps.as_mut(),
             mock_env(),
-            mock_info(api.addr_make("admin").as_str(), &[]),
+            message_info(&api.addr_make("admin"), &[]),
             InstantiateMsg {
                 admin_address: api.addr_make("admin").to_string(),
                 governance_address: api.addr_make("governance").to_string(),
@@ -780,7 +780,7 @@ mod test {
         instantiate(
             deps.as_mut(),
             mock_env(),
-            mock_info(api.addr_make("admin").as_str(), &[]),
+            message_info(&api.addr_make("admin"), &[]),
             InstantiateMsg {
                 admin_address: api.addr_make("admin").to_string(),
                 governance_address: api.addr_make("governance").to_string(),

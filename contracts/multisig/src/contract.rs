@@ -189,7 +189,7 @@ mod tests {
     use std::vec;
 
     use cosmwasm_std::testing::{
-        mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
+        message_info, mock_dependencies, mock_env, MockApi, MockQuerier, MockStorage,
     };
     use cosmwasm_std::{from_json, Addr, Empty, OwnedDeps, WasmMsg};
     use k256::elliptic_curve::rand_core;
@@ -220,7 +220,7 @@ mod tests {
         let admin = api.addr_make(ADMIN);
         let rewards = api.addr_make(REWARDS_CONTRACT);
 
-        let info = mock_info(instantiator.as_str(), &[]);
+        let info = message_info(&instantiator, &[]);
         let env = mock_env();
 
         let msg = InstantiateMsg {
@@ -237,7 +237,7 @@ mod tests {
         key_type: KeyType,
         deps: DepsMut,
     ) -> Result<(Response, VerifierSet), axelar_wasm_std::error::ContractError> {
-        let info = mock_info(MockApi::default().addr_make(PROVER).as_str(), &[]);
+        let info = message_info(&MockApi::default().addr_make(PROVER), &[]);
         let env = mock_env();
 
         let signers = match key_type {
@@ -273,7 +273,7 @@ mod tests {
         verifier_set_id: &str,
         chain_name: ChainName,
     ) -> Result<Response, axelar_wasm_std::error::ContractError> {
-        let info = mock_info(sender.as_str(), &[]);
+        let info = message_info(&sender, &[]);
         let env = mock_env();
 
         let message = ecdsa_test_data::message();
@@ -296,7 +296,7 @@ mod tests {
             session_id,
             signature: signer.signature.clone(),
         };
-        execute(deps, env, mock_info(signer.address.as_str(), &[]), msg)
+        execute(deps, env, message_info(&signer.address, &[]), msg)
     }
 
     fn do_register_key(
@@ -309,14 +309,14 @@ mod tests {
             public_key,
             signed_sender_address,
         };
-        execute(deps, mock_env(), mock_info(verifier.as_str(), &[]), msg)
+        execute(deps, mock_env(), message_info(&verifier, &[]), msg)
     }
 
     fn do_authorize_callers(
         deps: DepsMut,
         contracts: Vec<(Addr, ChainName)>,
     ) -> Result<Response, axelar_wasm_std::error::ContractError> {
-        let info = mock_info(MockApi::default().addr_make(GOVERNANCE).as_str(), &[]);
+        let info = message_info(&MockApi::default().addr_make(GOVERNANCE), &[]);
         let env = mock_env();
 
         let msg = ExecuteMsg::AuthorizeCallers {
@@ -332,7 +332,7 @@ mod tests {
         deps: DepsMut,
         contracts: Vec<(Addr, ChainName)>,
     ) -> Result<Response, axelar_wasm_std::error::ContractError> {
-        let info = mock_info(MockApi::default().addr_make(GOVERNANCE).as_str(), &[]);
+        let info = message_info(&MockApi::default().addr_make(GOVERNANCE), &[]);
         let env = mock_env();
 
         let msg = ExecuteMsg::UnauthorizeCallers {
@@ -348,7 +348,7 @@ mod tests {
         deps: DepsMut,
         sender: Addr,
     ) -> Result<Response, axelar_wasm_std::error::ContractError> {
-        let info = mock_info(sender.as_str(), &[]);
+        let info = message_info(&sender, &[]);
         let env = mock_env();
 
         let msg = ExecuteMsg::DisableSigning;
@@ -359,7 +359,7 @@ mod tests {
         deps: DepsMut,
         sender: Addr,
     ) -> Result<Response, axelar_wasm_std::error::ContractError> {
-        let info = mock_info(sender.as_str(), &[]);
+        let info = message_info(&sender, &[]);
         let env = mock_env();
 
         let msg = ExecuteMsg::EnableSigning;
@@ -1263,7 +1263,7 @@ mod tests {
     fn authorize_caller_wrong_caller() {
         let mut deps = setup().0;
 
-        let info = mock_info(deps.api.addr_make("user").as_str(), &[]);
+        let info = message_info(&deps.api.addr_make("user"), &[]);
         let env = mock_env();
 
         let msg = ExecuteMsg::AuthorizeCallers {
@@ -1288,7 +1288,7 @@ mod tests {
     fn unauthorize_caller_wrong_caller() {
         let mut deps = setup().0;
 
-        let info = mock_info(deps.api.addr_make("user").as_str(), &[]);
+        let info = message_info(&deps.api.addr_make("user"), &[]);
         let env = mock_env();
 
         let msg = ExecuteMsg::UnauthorizeCallers {

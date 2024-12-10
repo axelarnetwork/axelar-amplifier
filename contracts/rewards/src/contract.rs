@@ -191,7 +191,7 @@ pub fn query(
 #[cfg(test)]
 mod tests {
     use assert_ok::assert_ok;
-    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info, MockApi};
+    use cosmwasm_std::testing::{message_info, mock_dependencies, mock_env, MockApi};
     use cosmwasm_std::{coins, Addr, BlockInfo, Uint128};
     use cw_multi_test::{App, ContractWrapper, Executor};
     use router_api::ChainName;
@@ -205,7 +205,7 @@ mod tests {
         let mut deps = mock_dependencies();
         let api = deps.api;
         let env = mock_env();
-        let info = mock_info(api.addr_make("instantiator").as_str(), &[]);
+        let info = message_info(&api.addr_make("instantiator"), &[]);
         assert_ok!(instantiate(
             deps.as_mut(),
             env,

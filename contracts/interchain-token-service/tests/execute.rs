@@ -4,7 +4,7 @@ use assert_ok::assert_ok;
 use axelar_wasm_std::response::inspect_response_msg;
 use axelar_wasm_std::{assert_err_contains, nonempty, permission_control};
 use axelarnet_gateway::msg::ExecuteMsg as AxelarnetGatewayExecuteMsg;
-use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info, MockApi};
+use cosmwasm_std::testing::{message_info, mock_dependencies, mock_env};
 use cosmwasm_std::{HexBinary, Uint256};
 use interchain_token_service::contract::{self, ExecuteError};
 use interchain_token_service::events::Event;
@@ -730,12 +730,14 @@ fn execute_message_deploy_interchain_token_should_translate_decimals_when_max_ui
 #[test]
 fn execute_its_when_not_gateway_sender_fails() {
     let mut deps = mock_dependencies();
+    let api = deps.api;
+
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
     let result = contract::execute(
         deps.as_mut(),
         mock_env(),
-        mock_info("not-gateway", &[]),
+        message_info(&api.addr_make("not-gateway"), &[]),
         ExecuteMsg::Execute(axelarnet_gateway::AxelarExecutableMsg {
             cc_id: CrossChainId::new("source", "hash").unwrap(),
             source_address: "source".parse().unwrap(),
@@ -894,12 +896,14 @@ fn execute_message_when_invalid_message_type_fails() {
 #[test]
 fn freeze_chain_when_not_admin_fails() {
     let mut deps = mock_dependencies();
+    let api = deps.api;
+
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
     let result = contract::execute(
         deps.as_mut(),
         mock_env(),
-        mock_info("not-admin", &[]),
+        message_info(&api.addr_make("not-admin"), &[]),
         ExecuteMsg::FreezeChain {
             chain: ChainNameRaw::try_from("ethereum").unwrap(),
         },
@@ -914,12 +918,14 @@ fn freeze_chain_when_not_admin_fails() {
 #[test]
 fn unfreeze_chain_when_not_admin_fails() {
     let mut deps = mock_dependencies();
+    let api = deps.api;
+
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
     let result = contract::execute(
         deps.as_mut(),
         mock_env(),
-        mock_info("not-admin", &[]),
+        message_info(&api.addr_make("not-admin"), &[]),
         ExecuteMsg::UnfreezeChain {
             chain: ChainNameRaw::try_from("ethereum").unwrap(),
         },
@@ -934,6 +940,8 @@ fn unfreeze_chain_when_not_admin_fails() {
 #[test]
 fn admin_or_governance_can_freeze_chain() {
     let mut deps = mock_dependencies();
+    let api = deps.api;
+
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
     let chain = "ethereum".parse().unwrap();
@@ -958,7 +966,7 @@ fn admin_or_governance_can_freeze_chain() {
     assert_ok!(contract::execute(
         deps.as_mut(),
         mock_env(),
-        mock_info(MockApi::default().addr_make(params::ADMIN).as_str(), &[]),
+        message_info(&api.addr_make(params::ADMIN), &[]),
         ExecuteMsg::FreezeChain {
             chain: ChainNameRaw::try_from("ethereum").unwrap()
         }
@@ -967,10 +975,7 @@ fn admin_or_governance_can_freeze_chain() {
     assert_ok!(contract::execute(
         deps.as_mut(),
         mock_env(),
-        mock_info(
-            MockApi::default().addr_make(params::GOVERNANCE).as_str(),
-            &[]
-        ),
+        message_info(&api.addr_make(params::GOVERNANCE), &[]),
         ExecuteMsg::FreezeChain {
             chain: ChainNameRaw::try_from("ethereum").unwrap()
         }
@@ -980,6 +985,8 @@ fn admin_or_governance_can_freeze_chain() {
 #[test]
 fn admin_or_governance_can_unfreeze_chain() {
     let mut deps = mock_dependencies();
+    let api = deps.api;
+
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
     let chain = "ethereum".parse().unwrap();
@@ -1004,7 +1011,7 @@ fn admin_or_governance_can_unfreeze_chain() {
     assert_ok!(contract::execute(
         deps.as_mut(),
         mock_env(),
-        mock_info(MockApi::default().addr_make(params::ADMIN).as_str(), &[]),
+        message_info(&api.addr_make(params::ADMIN), &[]),
         ExecuteMsg::UnfreezeChain {
             chain: ChainNameRaw::try_from("ethereum").unwrap()
         }
@@ -1013,10 +1020,7 @@ fn admin_or_governance_can_unfreeze_chain() {
     assert_ok!(contract::execute(
         deps.as_mut(),
         mock_env(),
-        mock_info(
-            MockApi::default().addr_make(params::GOVERNANCE).as_str(),
-            &[]
-        ),
+        message_info(&api.addr_make(params::GOVERNANCE), &[]),
         ExecuteMsg::UnfreezeChain {
             chain: ChainNameRaw::try_from("ethereum").unwrap()
         }
@@ -1026,12 +1030,14 @@ fn admin_or_governance_can_unfreeze_chain() {
 #[test]
 fn disable_execution_when_not_admin_fails() {
     let mut deps = mock_dependencies();
+    let api = deps.api;
+
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
     let result = contract::execute(
         deps.as_mut(),
         mock_env(),
-        mock_info("not-admin", &[]),
+        message_info(&api.addr_make("not-admin"), &[]),
         ExecuteMsg::DisableExecution,
     );
     assert_err_contains!(
@@ -1044,12 +1050,14 @@ fn disable_execution_when_not_admin_fails() {
 #[test]
 fn enable_execution_when_not_admin_fails() {
     let mut deps = mock_dependencies();
+    let api = deps.api;
+
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
     let result = contract::execute(
         deps.as_mut(),
         mock_env(),
-        mock_info("not-admin", &[]),
+        message_info(&api.addr_make("not-admin"), &[]),
         ExecuteMsg::EnableExecution,
     );
     assert_err_contains!(
@@ -1062,22 +1070,21 @@ fn enable_execution_when_not_admin_fails() {
 #[test]
 fn admin_or_governance_can_enable_execution() {
     let mut deps = mock_dependencies();
+    let api = deps.api;
+
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
     assert_ok!(contract::execute(
         deps.as_mut(),
         mock_env(),
-        mock_info(MockApi::default().addr_make(params::ADMIN).as_str(), &[]),
+        message_info(&api.addr_make(params::ADMIN), &[]),
         ExecuteMsg::EnableExecution
     ));
 
     assert_ok!(contract::execute(
         deps.as_mut(),
         mock_env(),
-        mock_info(
-            MockApi::default().addr_make(params::GOVERNANCE).as_str(),
-            &[]
-        ),
+        message_info(&api.addr_make(params::GOVERNANCE), &[]),
         ExecuteMsg::EnableExecution
     ));
 }
@@ -1085,22 +1092,21 @@ fn admin_or_governance_can_enable_execution() {
 #[test]
 fn admin_or_governance_can_disable_execution() {
     let mut deps = mock_dependencies();
+    let api = deps.api;
+
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
     assert_ok!(contract::execute(
         deps.as_mut(),
         mock_env(),
-        mock_info(MockApi::default().addr_make(params::ADMIN).as_str(), &[]),
+        message_info(&api.addr_make(params::ADMIN), &[]),
         ExecuteMsg::DisableExecution
     ));
 
     assert_ok!(contract::execute(
         deps.as_mut(),
         mock_env(),
-        mock_info(
-            MockApi::default().addr_make(params::GOVERNANCE).as_str(),
-            &[]
-        ),
+        message_info(&api.addr_make(params::GOVERNANCE), &[]),
         ExecuteMsg::DisableExecution
     ));
 }

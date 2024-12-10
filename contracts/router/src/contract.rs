@@ -155,7 +155,7 @@ mod test {
     use axelar_wasm_std::error::ContractError;
     use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
     use cosmwasm_std::testing::{
-        mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
+        message_info, mock_dependencies, mock_env, MockApi, MockQuerier, MockStorage,
     };
     use cosmwasm_std::{from_json, Addr, CosmosMsg, Empty, OwnedDeps, WasmMsg};
     use permission_control::Permission;
@@ -182,7 +182,7 @@ mod test {
         instantiate(
             deps.as_mut(),
             mock_env(),
-            mock_info(api.addr_make(ADMIN_ADDRESS).as_str(), &[]),
+            message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
             InstantiateMsg {
                 admin_address: api.addr_make(ADMIN_ADDRESS).to_string(),
                 governance_address: api.addr_make(GOVERNANCE_ADDRESS).to_string(),
@@ -210,10 +210,7 @@ mod test {
         execute(
             deps,
             mock_env(),
-            mock_info(
-                MockApi::default().addr_make(GOVERNANCE_ADDRESS).as_str(),
-                &[],
-            ),
+            message_info(&MockApi::default().addr_make(GOVERNANCE_ADDRESS), &[]),
             ExecuteMsg::RegisterChain {
                 chain: chain.chain_name.clone(),
                 gateway_address: chain.gateway.to_string().try_into().unwrap(),
@@ -290,7 +287,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(eth.gateway.as_str(), &[]),
+            message_info(&eth.gateway, &[]),
             ExecuteMsg::RouteMessages(messages.clone()),
         )
         .unwrap();
@@ -302,7 +299,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(eth.gateway.as_str(), &[]),
+            message_info(&eth.gateway, &[]),
             ExecuteMsg::RouteMessages(messages.clone()),
         );
 
@@ -323,7 +320,7 @@ mod test {
         let err = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(polygon.gateway.as_str(), &[]),
+            message_info(&polygon.gateway, &[]),
             ExecuteMsg::RouteMessages(messages),
         )
         .unwrap_err();
@@ -348,7 +345,7 @@ mod test {
         let result = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(eth.gateway.as_str(), &[]),
+            message_info(&eth.gateway, &[]),
             ExecuteMsg::RouteMessages(messages),
         )
         .unwrap_err();
@@ -372,7 +369,7 @@ mod test {
         let result = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(api.addr_make(AXELARNET_GATEWAY_ADDRESS).as_str(), &[]),
+            message_info(&api.addr_make(AXELARNET_GATEWAY_ADDRESS), &[]),
             ExecuteMsg::RouteMessages(messages.clone()),
         );
         assert!(result.is_ok());
@@ -415,7 +412,7 @@ mod test {
             let res = execute(
                 deps.as_mut(),
                 mock_env(),
-                mock_info(s.gateway.as_str(), &[]),
+                message_info(&s.gateway, &[]),
                 ExecuteMsg::RouteMessages(
                     all_msgs_by_src
                         .get(&s.chain_name.to_string())
@@ -452,7 +449,7 @@ mod test {
         let err = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(api.addr_make(UNAUTHORIZED_ADDRESS).as_str(), &[]),
+            message_info(&api.addr_make(UNAUTHORIZED_ADDRESS), &[]),
             ExecuteMsg::RegisterChain {
                 chain: chain.chain_name.clone(),
                 gateway_address: chain.gateway.to_string().try_into().unwrap(),
@@ -471,7 +468,7 @@ mod test {
         let err = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(api.addr_make(ADMIN_ADDRESS).as_str(), &[]),
+            message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
             ExecuteMsg::RegisterChain {
                 chain: chain.chain_name.clone(),
                 gateway_address: chain.gateway.to_string().try_into().unwrap(),
@@ -490,7 +487,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(api.addr_make(GOVERNANCE_ADDRESS).as_str(), &[]),
+            message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
             ExecuteMsg::RegisterChain {
                 chain: chain.chain_name.clone(),
                 gateway_address: chain.gateway.to_string().try_into().unwrap(),
@@ -502,7 +499,7 @@ mod test {
         let err = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(api.addr_make(UNAUTHORIZED_ADDRESS).as_str(), &[]),
+            message_info(&api.addr_make(UNAUTHORIZED_ADDRESS), &[]),
             ExecuteMsg::FreezeChains {
                 chains: HashMap::from([(
                     chain.chain_name.clone(),
@@ -523,7 +520,7 @@ mod test {
         assert!(execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(api.addr_make(GOVERNANCE_ADDRESS).as_str(), &[]),
+            message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
             ExecuteMsg::FreezeChains {
                 chains: HashMap::from([(
                     chain.chain_name.clone(),
@@ -536,7 +533,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(api.addr_make(ADMIN_ADDRESS).as_str(), &[]),
+            message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
             ExecuteMsg::FreezeChains {
                 chains: HashMap::from([(
                     chain.chain_name.clone(),
@@ -549,7 +546,7 @@ mod test {
         let err = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(api.addr_make(UNAUTHORIZED_ADDRESS).as_str(), &[]),
+            message_info(&api.addr_make(UNAUTHORIZED_ADDRESS), &[]),
             ExecuteMsg::FreezeChains {
                 chains: HashMap::from([(chain.chain_name.clone(), GatewayDirection::None)]),
             },
@@ -566,7 +563,7 @@ mod test {
         assert!(execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(api.addr_make(GOVERNANCE_ADDRESS).as_str(), &[]),
+            message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
             ExecuteMsg::FreezeChains {
                 chains: HashMap::from([(chain.chain_name.clone(), GatewayDirection::None)]),
             },
@@ -576,7 +573,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(api.addr_make(ADMIN_ADDRESS).as_str(), &[]),
+            message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
             ExecuteMsg::FreezeChains {
                 chains: HashMap::from([(chain.chain_name.clone(), GatewayDirection::None)]),
             },
@@ -586,7 +583,7 @@ mod test {
         let err = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(api.addr_make(UNAUTHORIZED_ADDRESS).as_str(), &[]),
+            message_info(&api.addr_make(UNAUTHORIZED_ADDRESS), &[]),
             ExecuteMsg::UpgradeGateway {
                 chain: chain.chain_name.clone(),
                 contract_address: MockApi::default()
@@ -608,7 +605,7 @@ mod test {
         let err = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(api.addr_make(ADMIN_ADDRESS).as_str(), &[]),
+            message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
             ExecuteMsg::UpgradeGateway {
                 chain: chain.chain_name.clone(),
                 contract_address: MockApi::default()
@@ -630,7 +627,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(api.addr_make(GOVERNANCE_ADDRESS).as_str(), &[]),
+            message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
             ExecuteMsg::UpgradeGateway {
                 chain: chain.chain_name.clone(),
                 contract_address: MockApi::default()
@@ -657,7 +654,7 @@ mod test {
         let _ = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(api.addr_make(GOVERNANCE_ADDRESS).as_str(), &[]),
+            message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
             ExecuteMsg::UpgradeGateway {
                 chain: polygon.chain_name.clone(),
                 contract_address: new_gateway.to_string().try_into().unwrap(),
@@ -669,7 +666,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(eth.gateway.as_str(), &[]),
+            message_info(&eth.gateway, &[]),
             ExecuteMsg::RouteMessages(messages.clone()),
         )
         .unwrap();
@@ -692,7 +689,7 @@ mod test {
         let _ = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(api.addr_make(GOVERNANCE_ADDRESS).as_str(), &[]),
+            message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
             ExecuteMsg::UpgradeGateway {
                 chain: polygon.chain_name.clone(),
                 contract_address: new_gateway.to_string().try_into().unwrap(),
@@ -704,7 +701,7 @@ mod test {
         let err = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(polygon.gateway.as_str(), &[]),
+            message_info(&polygon.gateway, &[]),
             ExecuteMsg::RouteMessages(messages.clone()),
         )
         .unwrap_err();
@@ -713,7 +710,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(new_gateway.as_str(), &[]),
+            message_info(&new_gateway, &[]),
             ExecuteMsg::RouteMessages(messages.clone()),
         )
         .unwrap();
@@ -732,7 +729,7 @@ mod test {
         let err = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(eth.gateway.as_str(), &[]),
+            message_info(&eth.gateway, &[]),
             ExecuteMsg::RouteMessages(vec![message.clone()]),
         )
         .unwrap_err();
@@ -749,7 +746,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(eth.gateway.as_str(), &[]),
+            message_info(&eth.gateway, &[]),
             ExecuteMsg::RouteMessages(vec![message.clone()]),
         );
         assert!(res.is_ok());
@@ -765,7 +762,7 @@ mod test {
         let err = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(api.addr_make(GOVERNANCE_ADDRESS).as_str(), &[]),
+            message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
             ExecuteMsg::RegisterChain {
                 chain: eth.chain_name,
                 gateway_address: MockApi::default()
@@ -783,7 +780,7 @@ mod test {
         let err = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(api.addr_make(GOVERNANCE_ADDRESS).as_str(), &[]),
+            message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
             ExecuteMsg::RegisterChain {
                 chain: ChainName::from_str("ETHEREUM").unwrap(),
                 gateway_address: MockApi::default()
@@ -822,7 +819,7 @@ mod test {
         let err = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(api.addr_make(GOVERNANCE_ADDRESS).as_str(), &[]),
+            message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
             ExecuteMsg::RegisterChain {
                 chain: polygon.chain_name.clone(),
                 gateway_address: eth.gateway.to_string().try_into().unwrap(),
@@ -836,7 +833,7 @@ mod test {
         let err = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(api.addr_make(GOVERNANCE_ADDRESS).as_str(), &[]),
+            message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
             ExecuteMsg::UpgradeGateway {
                 chain: eth.chain_name,
                 contract_address: polygon.gateway.to_string().try_into().unwrap(),
@@ -859,7 +856,7 @@ mod test {
         let _ = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(api.addr_make(ADMIN_ADDRESS).as_str(), &[]),
+            message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
             ExecuteMsg::FreezeChains {
                 chains: HashMap::from([(polygon.chain_name.clone(), GatewayDirection::Incoming)]),
             },
@@ -871,7 +868,7 @@ mod test {
         let err = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(polygon.gateway.as_str(), &[]),
+            message_info(&polygon.gateway, &[]),
             ExecuteMsg::RouteMessages(vec![message.clone()]),
         )
         .unwrap_err();
@@ -887,7 +884,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(eth.gateway.as_str(), &[]),
+            message_info(&eth.gateway, &[]),
             ExecuteMsg::RouteMessages(messages.clone()),
         )
         .unwrap();
@@ -902,7 +899,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(api.addr_make(ADMIN_ADDRESS).as_str(), &[]),
+            message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
             ExecuteMsg::UnfreezeChains {
                 chains: HashMap::from([(polygon.chain_name.clone(), GatewayDirection::Incoming)]),
             },
@@ -913,7 +910,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(polygon.gateway.as_str(), &[]),
+            message_info(&polygon.gateway, &[]),
             ExecuteMsg::RouteMessages(vec![message.clone()]),
         );
         assert!(res.is_ok());
@@ -932,7 +929,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(api.addr_make(ADMIN_ADDRESS).as_str(), &[]),
+            message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
             ExecuteMsg::FreezeChains {
                 chains: HashMap::from([(polygon.chain_name.clone(), GatewayDirection::Outgoing)]),
             },
@@ -944,7 +941,7 @@ mod test {
         let err = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(eth.gateway.as_str(), &[]),
+            message_info(&eth.gateway, &[]),
             ExecuteMsg::RouteMessages(messages.clone()),
         )
         .unwrap_err();
@@ -958,7 +955,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(api.addr_make(ADMIN_ADDRESS).as_str(), &[]),
+            message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
             ExecuteMsg::UnfreezeChains {
                 chains: HashMap::from([(polygon.chain_name.clone(), GatewayDirection::Outgoing)]),
             },
@@ -968,7 +965,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(eth.gateway.as_str(), &[]),
+            message_info(&eth.gateway, &[]),
             ExecuteMsg::RouteMessages(messages.clone()),
         )
         .unwrap();
@@ -993,7 +990,7 @@ mod test {
         let _ = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(eth.gateway.as_str(), &[]),
+            message_info(&eth.gateway, &[]),
             ExecuteMsg::RouteMessages(vec![routed_msg.clone()]),
         )
         .unwrap();
@@ -1001,7 +998,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(api.addr_make(ADMIN_ADDRESS).as_str(), &[]),
+            message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
             ExecuteMsg::FreezeChains {
                 chains: HashMap::from([(
                     polygon.chain_name.clone(),
@@ -1015,7 +1012,7 @@ mod test {
         let err = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(eth.gateway.as_str(), &[]),
+            message_info(&eth.gateway, &[]),
             ExecuteMsg::RouteMessages(vec![msg.clone()]),
         )
         .unwrap_err();
@@ -1032,7 +1029,7 @@ mod test {
         let err = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(polygon.gateway.as_str(), &[]),
+            message_info(&polygon.gateway, &[]),
             ExecuteMsg::RouteMessages(vec![message.clone()]),
         )
         .unwrap_err();
@@ -1047,7 +1044,7 @@ mod test {
         let _ = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(api.addr_make(ADMIN_ADDRESS).as_str(), &[]),
+            message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
             ExecuteMsg::UnfreezeChains {
                 chains: HashMap::from([(
                     polygon.chain_name.clone(),
@@ -1062,7 +1059,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(eth.gateway.as_str(), &[]),
+            message_info(&eth.gateway, &[]),
             ExecuteMsg::RouteMessages(vec![message.clone()]),
         );
         assert!(res.is_ok());
@@ -1072,7 +1069,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(polygon.gateway.as_str(), &[]),
+            message_info(&polygon.gateway, &[]),
             ExecuteMsg::RouteMessages(vec![message.clone()]),
         );
         assert!(res.is_ok());
@@ -1123,7 +1120,7 @@ mod test {
             let res = execute(
                 deps.as_mut(),
                 mock_env(),
-                mock_info(sender.as_str(), &[]),
+                message_info(&sender, &[]),
                 ExecuteMsg::FreezeChains {
                     chains: test_case.clone(),
                 },
@@ -1159,7 +1156,7 @@ mod test {
             let res = execute(
                 deps.as_mut(),
                 mock_env(),
-                mock_info(sender.as_str(), &[]),
+                message_info(&sender, &[]),
                 ExecuteMsg::UnfreezeChains {
                     chains: HashMap::from([
                         (eth.chain_name.clone(), GatewayDirection::Bidirectional),
@@ -1199,7 +1196,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(api.addr_make(ADMIN_ADDRESS).as_str(), &[]),
+            message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
             ExecuteMsg::FreezeChains {
                 chains: HashMap::from([(
                     polygon.chain_name.clone(),
@@ -1215,7 +1212,7 @@ mod test {
         let _ = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(api.addr_make(ADMIN_ADDRESS).as_str(), &[]),
+            message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
             ExecuteMsg::UnfreezeChains {
                 chains: HashMap::from([(polygon.chain_name.clone(), GatewayDirection::Incoming)]),
             },
@@ -1227,7 +1224,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(polygon.gateway.as_str(), &[]),
+            message_info(&polygon.gateway, &[]),
             ExecuteMsg::RouteMessages(vec![message.clone()]),
         );
         assert!(res.is_ok());
@@ -1236,7 +1233,7 @@ mod test {
         let err = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(eth.gateway.as_str(), &[]),
+            message_info(&eth.gateway, &[]),
             ExecuteMsg::RouteMessages(vec![message.clone()]),
         )
         .unwrap_err();
@@ -1261,7 +1258,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(api.addr_make(ADMIN_ADDRESS).as_str(), &[]),
+            message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
             ExecuteMsg::FreezeChains {
                 chains: HashMap::from([(
                     polygon.chain_name.clone(),
@@ -1277,7 +1274,7 @@ mod test {
         let _ = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(api.addr_make(ADMIN_ADDRESS).as_str(), &[]),
+            message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
             ExecuteMsg::UnfreezeChains {
                 chains: HashMap::from([(polygon.chain_name.clone(), GatewayDirection::Outgoing)]),
             },
@@ -1289,7 +1286,7 @@ mod test {
         let err = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(polygon.gateway.as_str(), &[]),
+            message_info(&polygon.gateway, &[]),
             ExecuteMsg::RouteMessages(vec![message.clone()]),
         )
         .unwrap_err();
@@ -1305,7 +1302,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(eth.gateway.as_str(), &[]),
+            message_info(&eth.gateway, &[]),
             ExecuteMsg::RouteMessages(vec![message.clone()]),
         );
         assert!(res.is_ok());
@@ -1323,7 +1320,7 @@ mod test {
         let _ = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(api.addr_make(ADMIN_ADDRESS).as_str(), &[]),
+            message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
             ExecuteMsg::FreezeChains {
                 chains: HashMap::from([(polygon.chain_name.clone(), GatewayDirection::Incoming)]),
             },
@@ -1333,7 +1330,7 @@ mod test {
         let _ = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(api.addr_make(ADMIN_ADDRESS).as_str(), &[]),
+            message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
             ExecuteMsg::FreezeChains {
                 chains: HashMap::from([(polygon.chain_name.clone(), GatewayDirection::Outgoing)]),
             },
@@ -1346,7 +1343,7 @@ mod test {
         let err = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(eth.gateway.as_str(), &[]),
+            message_info(&eth.gateway, &[]),
             ExecuteMsg::RouteMessages(vec![message.clone()]),
         )
         .unwrap_err();
@@ -1362,7 +1359,7 @@ mod test {
         let err = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(polygon.gateway.as_str(), &[]),
+            message_info(&polygon.gateway, &[]),
             ExecuteMsg::RouteMessages(vec![message.clone()]),
         )
         .unwrap_err();
@@ -1386,7 +1383,7 @@ mod test {
         let _ = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(api.addr_make(ADMIN_ADDRESS).as_str(), &[]),
+            message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
             ExecuteMsg::FreezeChains {
                 chains: HashMap::from([(polygon.chain_name.clone(), GatewayDirection::Outgoing)]),
             },
@@ -1396,7 +1393,7 @@ mod test {
         let _ = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(api.addr_make(ADMIN_ADDRESS).as_str(), &[]),
+            message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
             ExecuteMsg::FreezeChains {
                 chains: HashMap::from([(polygon.chain_name.clone(), GatewayDirection::Incoming)]),
             },
@@ -1409,7 +1406,7 @@ mod test {
         let err = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(eth.gateway.as_str(), &[]),
+            message_info(&eth.gateway, &[]),
             ExecuteMsg::RouteMessages(vec![message.clone()]),
         )
         .unwrap_err();
@@ -1425,7 +1422,7 @@ mod test {
         let err = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(polygon.gateway.as_str(), &[]),
+            message_info(&polygon.gateway, &[]),
             ExecuteMsg::RouteMessages(vec![message.clone()]),
         )
         .unwrap_err();
@@ -1449,7 +1446,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(api.addr_make(ADMIN_ADDRESS).as_str(), &[]),
+            message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
             ExecuteMsg::FreezeChains {
                 chains: HashMap::from([(
                     polygon.chain_name.clone(),
@@ -1463,7 +1460,7 @@ mod test {
         let _ = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(api.addr_make(ADMIN_ADDRESS).as_str(), &[]),
+            message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
             ExecuteMsg::UnfreezeChains {
                 chains: HashMap::from([(polygon.chain_name.clone(), GatewayDirection::Incoming)]),
             },
@@ -1474,7 +1471,7 @@ mod test {
         let _ = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(api.addr_make(ADMIN_ADDRESS).as_str(), &[]),
+            message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
             ExecuteMsg::UnfreezeChains {
                 chains: HashMap::from([(polygon.chain_name.clone(), GatewayDirection::Outgoing)]),
             },
@@ -1487,7 +1484,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(eth.gateway.as_str(), &[]),
+            message_info(&eth.gateway, &[]),
             ExecuteMsg::RouteMessages(vec![message.clone()]),
         );
         assert!(res.is_ok());
@@ -1497,7 +1494,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(polygon.gateway.as_str(), &[]),
+            message_info(&polygon.gateway, &[]),
             ExecuteMsg::RouteMessages(vec![message.clone()]),
         );
         assert!(res.is_ok());
@@ -1515,7 +1512,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(api.addr_make(ADMIN_ADDRESS).as_str(), &[]),
+            message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
             ExecuteMsg::FreezeChains {
                 chains: HashMap::from([(
                     polygon.chain_name.clone(),
@@ -1529,7 +1526,7 @@ mod test {
         let _ = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(api.addr_make(ADMIN_ADDRESS).as_str(), &[]),
+            message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
             ExecuteMsg::UnfreezeChains {
                 chains: HashMap::from([(polygon.chain_name.clone(), GatewayDirection::Outgoing)]),
             },
@@ -1540,7 +1537,7 @@ mod test {
         let _ = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(api.addr_make(ADMIN_ADDRESS).as_str(), &[]),
+            message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
             ExecuteMsg::UnfreezeChains {
                 chains: HashMap::from([(polygon.chain_name.clone(), GatewayDirection::Incoming)]),
             },
@@ -1553,7 +1550,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(eth.gateway.as_str(), &[]),
+            message_info(&eth.gateway, &[]),
             ExecuteMsg::RouteMessages(vec![message.clone()]),
         );
         assert!(res.is_ok());
@@ -1563,7 +1560,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(polygon.gateway.as_str(), &[]),
+            message_info(&polygon.gateway, &[]),
             ExecuteMsg::RouteMessages(vec![message.clone()]),
         );
         assert!(res.is_ok());
@@ -1581,7 +1578,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(api.addr_make(ADMIN_ADDRESS).as_str(), &[]),
+            message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
             ExecuteMsg::FreezeChains {
                 chains: HashMap::from([(
                     polygon.chain_name.clone(),
@@ -1595,7 +1592,7 @@ mod test {
         let _ = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(api.addr_make(ADMIN_ADDRESS).as_str(), &[]),
+            message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
             ExecuteMsg::UnfreezeChains {
                 chains: HashMap::from([(polygon.chain_name.clone(), GatewayDirection::None)]),
             },
@@ -1607,7 +1604,7 @@ mod test {
         let err = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(eth.gateway.as_str(), &[]),
+            message_info(&eth.gateway, &[]),
             ExecuteMsg::RouteMessages(vec![message.clone()]),
         )
         .unwrap_err();
@@ -1623,7 +1620,7 @@ mod test {
         let err = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(polygon.gateway.as_str(), &[]),
+            message_info(&polygon.gateway, &[]),
             ExecuteMsg::RouteMessages(vec![message.clone()]),
         )
         .unwrap_err();
@@ -1650,7 +1647,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(eth.gateway.as_str(), &[]),
+            message_info(&eth.gateway, &[]),
             ExecuteMsg::RouteMessages(messages.clone()),
         );
 
@@ -1659,7 +1656,7 @@ mod test {
         let _ = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(api.addr_make(ADMIN_ADDRESS).as_str(), &[]),
+            message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
             ExecuteMsg::DisableRouting {},
         )
         .unwrap();
@@ -1667,7 +1664,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(eth.gateway.as_str(), &[]),
+            message_info(&eth.gateway, &[]),
             ExecuteMsg::RouteMessages(messages.clone()),
         );
         assert!(res.is_err());
@@ -1676,7 +1673,7 @@ mod test {
         let _ = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(api.addr_make(ADMIN_ADDRESS).as_str(), &[]),
+            message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
             ExecuteMsg::EnableRouting {},
         )
         .unwrap();
@@ -1684,7 +1681,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(eth.gateway.as_str(), &[]),
+            message_info(&eth.gateway, &[]),
             ExecuteMsg::RouteMessages(messages.clone()),
         );
 
@@ -1698,21 +1695,21 @@ mod test {
         assert!(execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(api.addr_make(UNAUTHORIZED_ADDRESS).as_str(), &[]),
+            message_info(&api.addr_make(UNAUTHORIZED_ADDRESS), &[]),
             ExecuteMsg::EnableRouting {},
         )
         .is_err());
         assert!(execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(api.addr_make(ADMIN_ADDRESS).as_str(), &[]),
+            message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
             ExecuteMsg::EnableRouting {},
         )
         .is_ok());
         assert!(execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(api.addr_make(GOVERNANCE_ADDRESS).as_str(), &[]),
+            message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
             ExecuteMsg::EnableRouting {},
         )
         .is_ok());
@@ -1720,21 +1717,21 @@ mod test {
         assert!(execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(api.addr_make(UNAUTHORIZED_ADDRESS).as_str(), &[]),
+            message_info(&api.addr_make(UNAUTHORIZED_ADDRESS), &[]),
             ExecuteMsg::DisableRouting {},
         )
         .is_err());
         assert!(execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(api.addr_make(ADMIN_ADDRESS).as_str(), &[]),
+            message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
             ExecuteMsg::DisableRouting {},
         )
         .is_ok());
         assert!(execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(api.addr_make(GOVERNANCE_ADDRESS).as_str(), &[]),
+            message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
             ExecuteMsg::DisableRouting {},
         )
         .is_ok());
@@ -1747,7 +1744,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(api.addr_make(ADMIN_ADDRESS).as_str(), &[]),
+            message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
             ExecuteMsg::DisableRouting {},
         )
         .unwrap();
@@ -1759,7 +1756,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(api.addr_make(ADMIN_ADDRESS).as_str(), &[]),
+            message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
             ExecuteMsg::DisableRouting {},
         )
         .unwrap();
@@ -1769,7 +1766,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(api.addr_make(ADMIN_ADDRESS).as_str(), &[]),
+            message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
             ExecuteMsg::EnableRouting {},
         )
         .unwrap();
@@ -1781,7 +1778,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(api.addr_make(ADMIN_ADDRESS).as_str(), &[]),
+            message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
             ExecuteMsg::EnableRouting {},
         )
         .unwrap();
@@ -1818,7 +1815,7 @@ mod test {
         assert!(execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(api.addr_make(AXELARNET_GATEWAY_ADDRESS).as_str(), &[]),
+            message_info(&api.addr_make(AXELARNET_GATEWAY_ADDRESS), &[]),
             ExecuteMsg::RouteMessages(generate_messages(&eth, &polygon, &mut 0, 10)),
         )
         .is_ok());

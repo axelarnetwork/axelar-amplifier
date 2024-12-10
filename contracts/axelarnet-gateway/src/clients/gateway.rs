@@ -72,7 +72,7 @@ impl<'a> Client<'a> {
 mod test {
     use std::str::FromStr;
 
-    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info, MockQuerier};
+    use cosmwasm_std::testing::{message_info, mock_dependencies, mock_env, MockQuerier};
     use cosmwasm_std::{from_json, to_json_binary, Addr, QuerierWrapper, WasmMsg, WasmQuery};
 
     use super::*;
@@ -150,7 +150,7 @@ mod test {
         let addr = deps.api.addr_make("axelarnet-gateway");
         let addr_clone = addr.clone();
         let env = mock_env();
-        let info = mock_info("deployer", &[]);
+        let info = message_info(&deps.api.addr_make("deployer"), &[]);
 
         let instantiate_msg = InstantiateMsg {
             chain_name: "source-chain".parse().unwrap(),

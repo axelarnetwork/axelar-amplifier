@@ -107,7 +107,7 @@ mod test {
 
     use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
     use axelar_wasm_std::{Threshold, VerificationStatus};
-    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info, MockApi, MockQuerier};
+    use cosmwasm_std::testing::{message_info, mock_dependencies, mock_env, MockApi, MockQuerier};
     use cosmwasm_std::{
         from_json, Addr, DepsMut, QuerierWrapper, SystemError, Uint128, Uint64, WasmQuery,
     };
@@ -303,8 +303,8 @@ mod test {
 
     fn instantiate_contract(deps: DepsMut) -> InstantiateMsg {
         let env = mock_env();
-        let info = mock_info("deployer", &[]);
         let api = MockApi::default();
+        let info = message_info(&api.addr_make("deployer"), &[]);
 
         let msg = InstantiateMsg {
             governance_address: api.addr_make("governance").to_string().try_into().unwrap(),

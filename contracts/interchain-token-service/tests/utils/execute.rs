@@ -5,7 +5,7 @@ use axelar_core_std::nexus::query::IsChainRegisteredResponse;
 use axelar_core_std::query::AxelarQueryMsg;
 use axelar_wasm_std::error::ContractError;
 use axelar_wasm_std::nonempty;
-use cosmwasm_std::testing::{mock_env, mock_info, MockApi, MockQuerier, MockStorage};
+use cosmwasm_std::testing::{message_info, mock_env, MockApi, MockQuerier, MockStorage};
 use cosmwasm_std::{
     from_json, to_json_binary, DepsMut, HexBinary, MemoryStorage, OwnedDeps, Response, Uint256,
     WasmQuery,
@@ -26,7 +26,7 @@ pub fn execute(
     contract::execute(
         deps,
         mock_env(),
-        mock_info(MockApi::default().addr_make(params::GATEWAY).as_str(), &[]),
+        message_info(&MockApi::default().addr_make(params::GATEWAY), &[]),
         ExecuteMsg::Execute(axelarnet_gateway::AxelarExecutableMsg {
             cc_id,
             source_address,
@@ -110,10 +110,7 @@ pub fn register_chains(
     contract::execute(
         deps,
         mock_env(),
-        mock_info(
-            MockApi::default().addr_make(params::GOVERNANCE).as_str(),
-            &[],
-        ),
+        message_info(&MockApi::default().addr_make(params::GOVERNANCE), &[]),
         ExecuteMsg::RegisterChains { chains },
     )
 }
@@ -126,10 +123,7 @@ pub fn update_chain(
     contract::execute(
         deps,
         mock_env(),
-        mock_info(
-            MockApi::default().addr_make(params::GOVERNANCE).as_str(),
-            &[],
-        ),
+        message_info(&MockApi::default().addr_make(params::GOVERNANCE), &[]),
         ExecuteMsg::UpdateChain {
             chain,
             its_edge_contract,
