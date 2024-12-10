@@ -1,6 +1,6 @@
 {
   "verifier": {
-    "address": "verifier",
+    "address": "cosmwasm1mtddyp3ctsrr62csx7dxf8th834aylzgsllxz2a5yw8q0gugu2csu6xpsg",
     "bonding_state": {
       "Bonded": {
         "amount": "1"

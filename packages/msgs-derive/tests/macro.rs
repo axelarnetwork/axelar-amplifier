@@ -1,7 +1,7 @@
 use std::fmt::Display;
 
 use axelar_wasm_std::permission_control;
-use cosmwasm_std::testing::MockStorage;
+use cosmwasm_std::testing::{MockApi, MockStorage};
 use cosmwasm_std::{Addr, Storage};
 use error_stack::{report, Report};
 
@@ -38,9 +38,9 @@ enum TestMsg2 {
 
 #[test]
 fn test_general_ensure_permission() {
-    let no_privilege = Addr::unchecked("regular user");
-    let admin = Addr::unchecked("admin");
-    let governance = Addr::unchecked("governance");
+    let no_privilege = MockApi::default().addr_make("regular user");
+    let admin = MockApi::default().addr_make("admin");
+    let governance = MockApi::default().addr_make("governance");
 
     let mut storage = MockStorage::new();
     permission_control::set_admin(&mut storage, &admin).unwrap();
@@ -137,20 +137,23 @@ fn test_general_ensure_permission() {
 
 #[test]
 fn ensure_specific_permissions() {
-    let no_privilege = Addr::unchecked("regular user");
-    let admin = Addr::unchecked("admin");
-    let governance = Addr::unchecked("governance");
+    let no_privilege = MockApi::default().addr_make("regular user");
+    let admin = MockApi::default().addr_make("admin");
+    let governance = MockApi::default().addr_make("governance");
 
-    let gateway1_addr = Addr::unchecked("gateway1");
-    let gateway2_addr = Addr::unchecked("gateway2");
-    let gateway3_addr = Addr::unchecked("gateway3");
+    let gateway1_addr = MockApi::default().addr_make("gateway1");
+    let gateway2_addr = MockApi::default().addr_make("gateway2");
+    let gateway3_addr = MockApi::default().addr_make("gateway3");
 
-    let gateway1 =
-        |_: &dyn Storage, _: &TestMsg2| Ok::<Addr, Report<Error>>(Addr::unchecked("gateway1"));
-    let gateway2 =
-        |_: &dyn Storage, _: &TestMsg2| Ok::<Addr, Report<Error>>(Addr::unchecked("gateway2"));
-    let gateway3 =
-        |_: &dyn Storage, _: &TestMsg2| Ok::<Addr, Report<Error>>(Addr::unchecked("gateway3"));
+    let gateway1 = |_: &dyn Storage, _: &TestMsg2| {
+        Ok::<Addr, Report<Error>>(MockApi::default().addr_make("gateway1"))
+    };
+    let gateway2 = |_: &dyn Storage, _: &TestMsg2| {
+        Ok::<Addr, Report<Error>>(MockApi::default().addr_make("gateway2"))
+    };
+    let gateway3 = |_: &dyn Storage, _: &TestMsg2| {
+        Ok::<Addr, Report<Error>>(MockApi::default().addr_make("gateway3"))
+    };
 
     let mut storage = MockStorage::new();
     permission_control::set_admin(&mut storage, &admin).unwrap();

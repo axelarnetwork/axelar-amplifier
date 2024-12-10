@@ -80,7 +80,8 @@ pub fn encode_execute_data(
 }
 #[cfg(test)]
 mod tests {
-    use cosmwasm_std::{Addr, HexBinary, Uint128};
+    use cosmwasm_std::testing::MockApi;
+    use cosmwasm_std::{HexBinary, Uint128};
     use multisig::key::KeyType::Ed25519;
     use multisig::key::Signature;
     use multisig::msg::{Signer, SignerWithSig};
@@ -346,7 +347,7 @@ mod tests {
                     (
                         addr.to_string(),
                         Signer {
-                            address: Addr::unchecked(addr),
+                            address: MockApi::default().addr_make(addr),
                             pub_key: (Ed25519, HexBinary::from_hex(pub_key).unwrap())
                                 .try_into()
                                 .unwrap(),
@@ -370,7 +371,7 @@ mod tests {
             })
             .map(|(addr, pub_key, weight, sig)| {
                 Signer {
-                    address: Addr::unchecked(addr),
+                    address: MockApi::default().addr_make(addr),
                     pub_key: (Ed25519, HexBinary::from_hex(pub_key).unwrap())
                         .try_into()
                         .unwrap(),

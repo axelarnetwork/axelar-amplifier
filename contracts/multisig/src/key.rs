@@ -212,14 +212,10 @@ impl<'a> PrimaryKey<'a> for KeyType {
 
 impl KeyDeserialize for KeyType {
     type Output = Self;
+    const KEY_ELEMS: u16 = 1;
 
     fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
-        serde_json::from_slice(value.as_slice()).map_err(|err| StdError::ParseErr {
-            target_type: "KeyType".into(),
-            msg: err.to_string(),
-            #[cfg(feature = "backtraces")]
-            backtrace: std::backtrace::Backtrace::capture(),
-        })
+        serde_json::from_slice(value.as_slice()).map_err(|err| StdError::parse_err("KeyType", err))
     }
 }
 

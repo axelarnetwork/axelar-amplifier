@@ -26,7 +26,8 @@ impl GetToken for MessageInfo {
 #[cfg(test)]
 mod tests {
     use assert_ok::assert_ok;
-    use cosmwasm_std::{coin, coins, Addr};
+    use cosmwasm_std::testing::MockApi;
+    use cosmwasm_std::{coin, coins};
 
     use super::*;
     use crate::assert_err_contains;
@@ -34,7 +35,7 @@ mod tests {
     #[test]
     fn single_token() {
         let message_info = MessageInfo {
-            sender: Addr::unchecked("sender"),
+            sender: MockApi::default().addr_make("sender"),
             funds: coins(100, "token"),
         };
 
@@ -45,7 +46,7 @@ mod tests {
     #[test]
     fn no_token() {
         let message_info = MessageInfo {
-            sender: Addr::unchecked("sender"),
+            sender: MockApi::default().addr_make("sender"),
             funds: vec![],
         };
 
@@ -56,7 +57,7 @@ mod tests {
     #[test]
     fn multiple_tokens() {
         let message_info = MessageInfo {
-            sender: Addr::unchecked("sender"),
+            sender: MockApi::default().addr_make("sender"),
             funds: vec![coin(100, "token1"), coin(200, "token2")],
         };
 

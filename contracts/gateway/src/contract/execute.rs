@@ -41,10 +41,7 @@ pub fn route_outgoing_messages(
             .change_context(Error::SaveOutgoingMessage)?;
     }
 
-    Ok(Response::new().add_events(
-        msgs.into_iter()
-            .map(|msg| GatewayEvent::Routing { msg }.into()),
-    ))
+    Ok(Response::new().add_events(msgs.into_iter().map(|msg| GatewayEvent::Routing { msg })))
 }
 
 fn apply(

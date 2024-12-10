@@ -1,5 +1,6 @@
 use axelar_wasm_std::{nonempty, IntoContractError};
 use cosmwasm_std::StdError;
+use cw_utils::ParseReplyError;
 use router_api::ChainName;
 use thiserror::Error;
 
@@ -7,6 +8,9 @@ use thiserror::Error;
 pub enum ContractError {
     #[error(transparent)]
     Std(#[from] StdError),
+
+    #[error(transparent)]
+    ParseReply(#[from] ParseReplyError),
 
     #[error("message is invalid")]
     InvalidMessage,

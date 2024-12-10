@@ -15,8 +15,6 @@ exclude = [
 crate-type = ["rlib"]
 
 [features]
-# for more explicit tests, cargo test --features=backtraces
-backtraces = ["cosmwasm-std/backtraces"]
 derive = ["dep:axelar-wasm-std-derive"]
 
 [package.metadata.scripts]
@@ -57,7 +55,7 @@ valuable = { version = "0.1.0", features = ["derive"] }
 
 [dev-dependencies]
 assert_ok = { workspace = true }
-cw-multi-test = "0.15.1"
+cw-multi-test = { workspace = true }
 goldie = { workspace = true }
 hex = { version = "0.4.3", default-features = false }
 rand = { workspace = true }

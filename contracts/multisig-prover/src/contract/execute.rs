@@ -422,8 +422,7 @@ mod tests {
     use std::collections::BTreeMap;
 
     use axelar_wasm_std::Threshold;
-    use cosmwasm_std::testing::{mock_dependencies, mock_env};
-    use cosmwasm_std::Addr;
+    use cosmwasm_std::testing::{mock_dependencies, mock_env, MockApi};
     use router_api::ChainName;
 
     use super::{different_set_in_progress, next_verifier_set, should_update_verifier_set};
@@ -547,11 +546,11 @@ mod tests {
 
     fn mock_config() -> Config {
         Config {
-            gateway: Addr::unchecked("doesn't matter"),
-            multisig: Addr::unchecked("doesn't matter"),
-            coordinator: Addr::unchecked("doesn't matter"),
-            service_registry: Addr::unchecked("doesn't matter"),
-            voting_verifier: Addr::unchecked("doesn't matter"),
+            gateway: MockApi::default().addr_make("doesn't matter"),
+            multisig: MockApi::default().addr_make("doesn't matter"),
+            coordinator: MockApi::default().addr_make("doesn't matter"),
+            service_registry: MockApi::default().addr_make("doesn't matter"),
+            voting_verifier: MockApi::default().addr_make("doesn't matter"),
             signing_threshold: Threshold::try_from((2, 3)).unwrap().try_into().unwrap(),
             service_name: "validators".to_string(),
             chain_name: ChainName::try_from("ethereum".to_owned()).unwrap(),

@@ -1,4 +1,5 @@
 use axelar_wasm_std::nonempty;
+use cosmwasm_std::testing::MockApi;
 use cosmwasm_std::Addr;
 use cw_multi_test::{ContractWrapper, Executor};
 use multisig::contract::{execute, instantiate, query};
@@ -25,7 +26,7 @@ impl MultisigContract {
         let contract_addr = app
             .instantiate_contract(
                 code_id,
-                Addr::unchecked("anyone"),
+                MockApi::default().addr_make("anyone"),
                 &multisig::msg::InstantiateMsg {
                     rewards_address: rewards_address.to_string(),
                     governance_address: governance.to_string(),

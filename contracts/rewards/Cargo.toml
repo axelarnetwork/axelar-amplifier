@@ -19,8 +19,6 @@ name = "rewards-schema"
 path = "src/bin/schema.rs"
 
 [features]
-# for more explicit tests, cargo test --features=backtraces
-backtraces = ["cosmwasm-std/backtraces"]
 # use library feature to disable all instantiate/execute/query exports
 library = []
 
@@ -47,7 +45,7 @@ thiserror = { workspace = true }
 
 [dev-dependencies]
 assert_ok = { workspace = true }
-cw-multi-test = "0.15.1"
+cw-multi-test = { workspace = true }
 
 [lints]
 workspace = true

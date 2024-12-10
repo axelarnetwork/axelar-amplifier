@@ -223,7 +223,6 @@ mod tests {
             .attach_printable(vec_attachment.clone());
 
         let error = LoggableError::from(&report);
-        println!("{}", error);
         let error_msg = format!("{}", error);
 
         assert!(error_msg.contains("internal error"));

@@ -23,6 +23,7 @@ use syn::{Data, DataEnum, DeriveInput, Expr, ExprCall, Ident, Path, Token, Varia
 /// # Example
 /// ```
 /// use cosmwasm_std::{Addr, Deps, Env, MessageInfo};
+/// use cosmwasm_std::testing::MockApi;
 /// use axelar_wasm_std::permission_control::Permission;
 /// use msgs_derive::EnsurePermissions;
 ///
@@ -52,22 +53,22 @@ use syn::{Data, DataEnum, DeriveInput, Expr, ExprCall, Ident, Path, Token, Varia
 /// # struct Store;
 /// # impl Store {
 /// #     fn load(&self, storage: &dyn cosmwasm_std::Storage) -> error_stack::Result<Addr, axelar_wasm_std::permission_control::Error> {
-/// #         Ok(Addr::unchecked("gateway"))
+/// #         Ok(MockApi::default().addr_make("gateway"))
 /// #     }
 /// # }
-/// # const GATEWAY:Store = Store;
-/// # use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
+/// # const GATEWAY: Store = Store;
+/// # use cosmwasm_std::testing::{mock_dependencies, mock_env, message_info};
 /// # fn main() {
 /// # let mocks = mock_dependencies();
 /// # let deps = mocks.as_ref();
 /// # let env = mock_env();
 /// // example how to call the execute function
 /// let info = MessageInfo{
-///    sender: Addr::unchecked("sender"),
+///    sender: MockApi::default().addr_make("sender"),
 ///    funds: vec![],
 /// };
 ///
-/// # let info_root = info;   
+/// # let info_root = info;
 /// # let info = info_root.clone();
 /// assert!(execute(deps, env, info, ExecuteMsg::AnyoneButGovernanceCanCallThis).is_ok());
 /// # let env = mock_env();
