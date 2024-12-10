@@ -1,4 +1,5 @@
-use cosmwasm_std::{testing::MockApi, BlockInfo};
+use cosmwasm_std::testing::MockApi;
+use cosmwasm_std::BlockInfo;
 use integration_tests::contract::Contract;
 use service_registry_api::msg::ExecuteMsg;
 

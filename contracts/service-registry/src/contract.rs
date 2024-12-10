@@ -2198,7 +2198,7 @@ mod test {
                 deps.as_mut(),
                 mock_env(),
                 message_info(
-                    &verifier,
+                    verifier,
                     &coins(min_verifier_bond.into_inner().u128(), AXL_DENOMINATION),
                 ),
                 ExecuteMsg::BondVerifier {
@@ -2210,7 +2210,7 @@ mod test {
             let _ = execute(
                 deps.as_mut(),
                 mock_env(),
-                message_info(&verifier, &[]),
+                message_info(verifier, &[]),
                 ExecuteMsg::RegisterChainSupport {
                     service_name: service_name.into(),
                     chains: vec![chain_name.clone()],

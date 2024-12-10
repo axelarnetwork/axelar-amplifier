@@ -60,7 +60,8 @@ impl Snapshot {
 
 #[cfg(test)]
 mod tests {
-    use cosmwasm_std::{from_json, testing::MockApi, to_json_binary, Uint64};
+    use cosmwasm_std::testing::MockApi;
+    use cosmwasm_std::{from_json, to_json_binary, Uint64};
 
     use super::*;
     use crate::Threshold;

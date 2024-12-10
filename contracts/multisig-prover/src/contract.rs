@@ -261,6 +261,7 @@ mod tests {
         let session_id = to_json_binary(&MULTISIG_SESSION_ID).unwrap();
 
         #[allow(deprecated)]
+        // TODO: use `msg_responses` instead when the cosmwasm vm is updated to 2.x.x
         let response = SubMsgResponse {
             events: vec![],
             // the reply data gets protobuf encoded when moving through the wasm module. We need to emulate this behaviour in tests as well

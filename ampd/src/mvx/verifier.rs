@@ -517,7 +517,7 @@ mod tests {
         // 00000001 01 - length of biguint weight followed by 1 as hex
         // 00000001 02 - length of biguint threshold followed by 2 as hex
         // 0000000000000000000000000000000000000000000000000000000000000005 - the nonce (created_at date as uint256)
-        let data = HexBinary::from_hex(&format!("00000003{}0000000101{}0000000101{}000000010100000001020000000000000000000000000000000000000000000000000000000000000005", signers.get(0).unwrap().pub_key.to_hex(),signers.get(1).unwrap().pub_key.to_hex(),signers.get(2).unwrap().pub_key.to_hex()))
+        let data = HexBinary::from_hex(&format!("00000003{}0000000101{}0000000101{}000000010100000001020000000000000000000000000000000000000000000000000000000000000005", signers.first().unwrap().pub_key.to_hex(),signers.get(1).unwrap().pub_key.to_hex(),signers.get(2).unwrap().pub_key.to_hex()))
             .unwrap();
         // This hash is generated externally using the MultiversX Gateway contract and is 100% correct
         let signers_hash =

@@ -107,7 +107,8 @@ where
 #[cfg(test)]
 mod tests {
     use axelar_wasm_std::hash::Hash;
-    use cosmwasm_std::{testing::MockApi, HexBinary, Uint128};
+    use cosmwasm_std::testing::MockApi;
+    use cosmwasm_std::{HexBinary, Uint128};
     use multisig::key::KeyType;
     use multisig::msg::Signer;
     use multisig::verifier_set::VerifierSet;

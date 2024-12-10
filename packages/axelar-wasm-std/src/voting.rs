@@ -400,7 +400,8 @@ impl WeightedPoll {
 
 #[cfg(test)]
 mod tests {
-    use cosmwasm_std::{testing::MockApi, Addr, Uint64};
+    use cosmwasm_std::testing::MockApi;
+    use cosmwasm_std::{Addr, Uint64};
     use rand::distributions::Alphanumeric;
     use rand::Rng;
 

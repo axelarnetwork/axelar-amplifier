@@ -926,9 +926,18 @@ mod test {
         );
         // a vector of (contract, rewards amounts) pairs
         let test_data = vec![
-            (MockApi::default().addr_make("contract_1"), vec![100, 200, 50]),
-            (MockApi::default().addr_make("contract_2"), vec![25, 500, 70]),
-            (MockApi::default().addr_make("contract_3"), vec![1000, 500, 2000]),
+            (
+                MockApi::default().addr_make("contract_1"),
+                vec![100, 200, 50],
+            ),
+            (
+                MockApi::default().addr_make("contract_2"),
+                vec![25, 500, 70],
+            ),
+            (
+                MockApi::default().addr_make("contract_3"),
+                vec![1000, 500, 2000],
+            ),
         ];
 
         let chain_name: ChainName = "mock-chain".parse().unwrap();
@@ -1088,7 +1097,10 @@ mod test {
             },
         ];
 
-        let verifiers = [MockApi::default().addr_make("verifier-1"), MockApi::default().addr_make("verifier-2")];
+        let verifiers = [
+            MockApi::default().addr_make("verifier-1"),
+            MockApi::default().addr_make("verifier-2"),
+        ];
 
         // simulate two verifiers each participating in two pools
         // the first verifier participates in 2 events, and the second in 3 events (out of a total of 3 events)

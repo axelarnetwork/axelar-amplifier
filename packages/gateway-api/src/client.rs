@@ -120,23 +120,20 @@ mod tests {
             {
                 let msg = from_json::<QueryMsg>(msg).unwrap();
                 match msg {
-                    QueryMsg::OutgoingMessages(cc_ids) => {
-                        let res = Ok(to_json_binary(
-                            &cc_ids
-                                .into_iter()
-                                .map(|cc_id| Message {
-                                    cc_id,
-                                    source_address: "foobar".parse().unwrap(),
-                                    destination_chain: "ethereum".parse().unwrap(),
-                                    destination_address: "foobar".parse().unwrap(),
-                                    payload_hash: [0u8; 32],
-                                })
-                                .collect::<Vec<Message>>(),
-                        )
-                        .into())
-                        .into();
-                        res
-                    }
+                    QueryMsg::OutgoingMessages(cc_ids) => Ok(to_json_binary(
+                        &cc_ids
+                            .into_iter()
+                            .map(|cc_id| Message {
+                                cc_id,
+                                source_address: "foobar".parse().unwrap(),
+                                destination_chain: "ethereum".parse().unwrap(),
+                                destination_address: "foobar".parse().unwrap(),
+                                payload_hash: [0u8; 32],
+                            })
+                            .collect::<Vec<Message>>(),
+                    )
+                    .into())
+                    .into(),
                 }
             }
             _ => panic!("unexpected query: {:?}", msg),

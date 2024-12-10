@@ -50,8 +50,8 @@ voting-verifier = { workspace = true, features = ["library"] }
 
 [dev-dependencies]
 cw-multi-test = { workspace = true }
-rand = { workspace = true }
 goldie = { workspace = true }
+rand = { workspace = true }
 
 [lints]
 workspace = true

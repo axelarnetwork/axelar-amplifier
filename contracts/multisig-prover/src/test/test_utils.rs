@@ -1,7 +1,6 @@
 use axelar_wasm_std::VerificationStatus;
-use cosmwasm_std::{
-    from_json, testing::MockApi, to_json_binary, QuerierResult, Uint128, WasmQuery,
-};
+use cosmwasm_std::testing::MockApi;
+use cosmwasm_std::{from_json, to_json_binary, QuerierResult, Uint128, WasmQuery};
 use multisig::msg::Signer;
 use multisig::multisig::Multisig;
 use multisig::types::MultisigState;

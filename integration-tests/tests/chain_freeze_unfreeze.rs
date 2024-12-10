@@ -1,4 +1,5 @@
-use cosmwasm_std::{testing::MockApi, HexBinary};
+use cosmwasm_std::testing::MockApi;
+use cosmwasm_std::HexBinary;
 use integration_tests::contract::Contract;
 use router_api::{CrossChainId, Message};
 

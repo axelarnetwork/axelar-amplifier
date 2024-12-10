@@ -7,7 +7,8 @@ use crate::state::{CONFIG, MULTISIG_SESSION_PAYLOAD, PAYLOAD, REPLY_TRACKER};
 
 pub fn start_multisig_reply(deps: DepsMut, reply: Reply) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
-    #[allow(deprecated)] // use `msg_responses` instead when the cosmwasm vm is updated to 2.x.x
+    #[allow(deprecated)]
+    // TODO: use `msg_responses` instead when the cosmwasm vm is updated to 2.x.x
     let data = reply
         .result
         .into_result()

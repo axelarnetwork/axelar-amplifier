@@ -1120,7 +1120,7 @@ mod test {
             let res = execute(
                 deps.as_mut(),
                 mock_env(),
-                message_info(&sender, &[]),
+                message_info(sender, &[]),
                 ExecuteMsg::FreezeChains {
                     chains: test_case.clone(),
                 },
@@ -1156,7 +1156,7 @@ mod test {
             let res = execute(
                 deps.as_mut(),
                 mock_env(),
-                message_info(&sender, &[]),
+                message_info(sender, &[]),
                 ExecuteMsg::UnfreezeChains {
                     chains: HashMap::from([
                         (eth.chain_name.clone(), GatewayDirection::Bidirectional),
