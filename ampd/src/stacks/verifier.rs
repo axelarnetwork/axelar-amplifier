@@ -10,7 +10,7 @@ use crate::handlers::stacks_verify_msg::Message;
 use crate::handlers::stacks_verify_verifier_set::VerifierSetConfirmation;
 use crate::stacks::error::Error;
 use crate::stacks::http_client::{Client, Transaction, TransactionEvents};
-use crate::stacks::its_verifier::{get_verify_contract_params, verify_contract_code};
+use crate::stacks::contract_verifier::{get_verify_contract_params, verify_contract_code};
 use crate::stacks::WeightedSigners;
 use crate::types::Hash;
 
