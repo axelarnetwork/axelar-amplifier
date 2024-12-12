@@ -1,3 +1,4 @@
+use axelar_wasm_std::msg_id::MessageIdFormat;
 use cosmwasm_std::{Addr, Attribute, Event};
 use router_api::{ChainName, GatewayDirection, Message};
 
@@ -10,6 +11,11 @@ pub struct RouterInstantiated {
 pub struct ChainRegistered {
     pub name: ChainName,
     pub gateway: Addr,
+}
+
+pub struct MessageIdFormatUpgraded {
+    pub chain: ChainName,
+    pub msg_id_format: MessageIdFormat,
 }
 
 pub struct GatewayInfo {
@@ -51,6 +57,18 @@ impl From<ChainRegistered> for Event {
         Event::new("chain_registered")
             .add_attribute("name", other.name)
             .add_attribute("gateway", other.gateway)
+    }
+}
+
+impl From<MessageIdFormatUpgraded> for Event {
+    fn from(other: MessageIdFormatUpgraded) -> Self {
+        let msg_id_format = format!("{:?}", other.msg_id_format);
+        let attrs: Vec<Attribute> = vec![
+            ("chain", other.chain.clone()).into(),
+            ("msg_id_format", &msg_id_format).into(),
+        ];
+
+        Event::new("message_id_format_upgraded").add_attributes(attrs)
     }
 }
 

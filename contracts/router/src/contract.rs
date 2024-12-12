@@ -98,6 +98,10 @@ pub fn execute(
                 msg_id_format,
             )?)
         }
+        ExecuteMsg::UpgradeMessageIdFormat {
+            chain,
+            msg_id_format,
+        } => execute::upgrade_message_id_format(deps.storage, chain, msg_id_format),
         ExecuteMsg::UpgradeGateway {
             chain,
             contract_address,

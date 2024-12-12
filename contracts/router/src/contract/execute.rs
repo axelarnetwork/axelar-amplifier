@@ -14,7 +14,8 @@ use router_api::error::Error;
 use router_api::{ChainEndpoint, ChainName, Gateway, GatewayDirection, Message};
 
 use crate::events::{
-    ChainFrozen, ChainRegistered, ChainUnfrozen, GatewayInfo, GatewayUpgraded, MessageRouted,
+    ChainFrozen, ChainRegistered, ChainUnfrozen, GatewayInfo, GatewayUpgraded,
+    MessageIdFormatUpgraded, MessageRouted,
 };
 use crate::state::{chain_endpoints, Config};
 use crate::{events, state};
@@ -64,6 +65,27 @@ pub fn find_chain_for_gateway(
         .idx
         .gateway
         .load_chain_by_gateway(storage, contract_address)
+}
+
+pub fn upgrade_message_id_format(
+    storage: &mut dyn Storage,
+    chain: ChainName,
+    msg_id_format: MessageIdFormat,
+) -> Result<Response, Error> {
+    chain_endpoints().update(storage, chain.clone(), |chain| match chain {
+        None => Err(Error::ChainNotFound),
+        Some(mut chain) => {
+            chain.msg_id_format = msg_id_format.clone();
+            Ok(chain)
+        }
+    })?;
+    Ok(Response::new().add_event(
+        MessageIdFormatUpgraded {
+            chain,
+            msg_id_format,
+        }
+        .into(),
+    ))
 }
 
 pub fn upgrade_gateway(

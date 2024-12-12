@@ -16,6 +16,12 @@ pub enum ExecuteMsg {
         gateway_address: Address,
         msg_id_format: MessageIdFormat,
     },
+    /// Changes the message id format associated with a particular chain
+    #[permission(Governance)]
+    UpgradeMessageIdFormat {
+        chain: ChainName,
+        msg_id_format: MessageIdFormat,
+    },
     /// Changes the gateway address associated with a particular chain
     #[permission(Governance)]
     UpgradeGateway {
