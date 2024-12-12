@@ -1,7 +1,10 @@
 use axelar_wasm_std::voting::Vote;
+use cosmwasm_std::HexBinary;
 use starknet_types::events::contract_call::ContractCallEvent;
+use starknet_types::events::signers_rotated::SignersRotatedEvent;
 
 use crate::handlers::starknet_verify_msg::Message;
+use crate::handlers::starknet_verify_verifier_set::VerifierSetConfirmation;
 
 /// Attempts to fetch the tx provided in `axl_msg.tx_id`.
 /// If successful, extracts and parses the ContractCall event
@@ -30,19 +33,78 @@ impl PartialEq<Message> for ContractCallEvent {
     }
 }
 
+pub fn verify_verifier_set(
+    event: &SignersRotatedEvent,
+    confirmation: &VerifierSetConfirmation,
+    source_gateway_address: &str,
+) -> Vote {
+    if event.signers.nonce != [0_u8; 32]
+        && event == confirmation
+        && event.from_address == source_gateway_address
+    {
+        Vote::SucceededOnChain
+    } else {
+        Vote::NotFound
+    }
+}
+
+impl PartialEq<VerifierSetConfirmation> for SignersRotatedEvent {
+    fn eq(&self, confirmation: &VerifierSetConfirmation) -> bool {
+        let expected = &confirmation.verifier_set;
+
+        // Convert and sort expected signers
+        let mut expected_signers = expected
+            .signers
+            .values()
+            .map(|signer| {
+                if let multisig::key::PublicKey::Ecdsa(pubkey) = &signer.pub_key {
+                    (pubkey.clone(), signer.weight.u128())
+                } else {
+                    // Skip non-ECDSA keys
+                    (HexBinary::from_hex("").unwrap(), 0)
+                }
+            })
+            .collect::<Vec<_>>();
+        expected_signers.sort();
+
+        // Convert and sort actual signers from the event
+        let mut actual_signers = self
+            .signers
+            .signers
+            .iter()
+            .map(|signer| (HexBinary::from_hex(&signer.signer).unwrap(), signer.weight))
+            .collect::<Vec<_>>();
+        actual_signers.sort();
+
+        // Compare signers, threshold, and created_at timestamp
+        actual_signers == expected_signers
+            && self.signers.threshold == expected.threshold.u128()
+            && self.epoch == expected.created_at
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
     use std::str::FromStr;
 
-    use axelar_wasm_std::msg_id::FieldElementAndEventIndex;
+    use axelar_wasm_std::msg_id::{FieldElementAndEventIndex, HexTxHashAndEventIndex};
     use axelar_wasm_std::voting::Vote;
+    use cosmwasm_std::{Addr, HexBinary, Uint128};
     use ethers_core::types::H256;
+    use multisig::msg::Signer;
+    use multisig::verifier_set::VerifierSet;
     use router_api::ChainName;
     use starknet_core::types::Felt;
     use starknet_types::events::contract_call::ContractCallEvent;
+    use starknet_types::events::signers_rotated::{
+        Signer as StarknetSigner, SignersRotatedEvent, WeightedSigners,
+    };
 
     use super::verify_msg;
     use crate::handlers::starknet_verify_msg::Message;
+    use crate::handlers::starknet_verify_verifier_set::VerifierSetConfirmation;
+    use crate::starknet::verifier::verify_verifier_set;
 
     // "hello" as payload
     // "hello" as destination address
@@ -164,5 +226,121 @@ mod tests {
             ),
             Vote::SucceededOnChain
         )
+    }
+
+    /// Verifier set - signers rotated
+
+    fn mock_valid_confirmation_signers_rotated() -> VerifierSetConfirmation {
+        VerifierSetConfirmation {
+            verifier_set: mock_valid_verifier_set_signers_rotated(),
+            message_id: HexTxHashAndEventIndex {
+                tx_hash: [0_u8; 32],
+                event_index: 0,
+            },
+        }
+    }
+
+    fn mock_valid_verifier_set_signers_rotated() -> VerifierSet {
+        let signers = vec![Signer {
+            address: Addr::unchecked("axelarvaloper1x86a8prx97ekkqej2x636utrdu23y8wupp9gk5"),
+            weight: Uint128::from(10u128),
+            pub_key: multisig::key::PublicKey::Ecdsa(
+                HexBinary::from_hex(
+                    "03d123ce370b163acd576be0e32e436bb7e63262769881d35fa3573943bf6c6f81",
+                )
+                .unwrap(),
+            ),
+        }];
+
+        let mut btree_signers = BTreeMap::new();
+        for signer in signers {
+            btree_signers.insert(signer.address.clone().to_string(), signer);
+        }
+
+        VerifierSet {
+            signers: btree_signers,
+            threshold: Uint128::one(),
+            created_at: 1,
+        }
+    }
+
+    fn mock_valid_event_signers_rotated() -> SignersRotatedEvent {
+        SignersRotatedEvent {
+            // should be the same as the source gw address
+            from_address: String::from(
+                "0x035410be6f4bf3f67f7c1bb4a93119d9d410b2f981bfafbf5dbbf5d37ae7439e",
+            ),
+            epoch: 1,
+            signers_hash: [8_u8; 32],
+            signers: WeightedSigners {
+                signers: vec![StarknetSigner {
+                    signer: String::from(
+                        "03d123ce370b163acd576be0e32e436bb7e63262769881d35fa3573943bf6c6f81",
+                    ),
+                    weight: Uint128::from(10u128).into(),
+                }],
+                threshold: Uint128::one().into(),
+                nonce: [7_u8; 32],
+            },
+        }
+    }
+
+    fn mock_second_valid_event_signers_rotated() -> SignersRotatedEvent {
+        SignersRotatedEvent {
+            from_address: String::from(
+                "0x035410be6f4bf3f67f7c1bb4a93119d9d410b2f981bfafbf5dbbf5d37ae7439e",
+            ),
+            epoch: 1,
+            signers_hash: [8_u8; 32],
+            signers: WeightedSigners {
+                signers: vec![StarknetSigner {
+                    signer: String::from(
+                        "028584592624e742ba154c02df4c0b06e4e8a957ba081083ea9fe5309492aa6c7b",
+                    ),
+                    weight: Uint128::from(10u128).into(),
+                }],
+                threshold: Uint128::one().into(),
+                nonce: [7_u8; 32],
+            },
+        }
+    }
+
+    #[test]
+    fn should_verify_verifier_set() {
+        let source_gw_address =
+            String::from("0x035410be6f4bf3f67f7c1bb4a93119d9d410b2f981bfafbf5dbbf5d37ae7439e");
+        let confirmation = mock_valid_confirmation_signers_rotated();
+        let event = mock_valid_event_signers_rotated();
+
+        assert_eq!(
+            verify_verifier_set(&event, &confirmation, &source_gw_address),
+            Vote::SucceededOnChain
+        );
+    }
+
+    #[test]
+    fn should_not_verify_verifier_set_if_nonce_zero() {
+        let mut event = mock_valid_event_signers_rotated();
+        event.signers.nonce = [0_u8; 32];
+        let gateway_address =
+            String::from("0x035410be6f4bf3f67f7c1bb4a93119d9d410b2f981bfafbf5dbbf5d37ae7439e");
+        let confirmation = mock_valid_confirmation_signers_rotated();
+
+        assert_eq!(
+            verify_verifier_set(&event, &confirmation, &gateway_address),
+            Vote::NotFound
+        );
+    }
+    #[test]
+    fn shoud_not_verify_verifier_set_if_signers_mismatch() {
+        let source_gw_address =
+            String::from("0x035410be6f4bf3f67f7c1bb4a93119d9d410b2f981bfafbf5dbbf5d37ae7439e");
+        let event = mock_second_valid_event_signers_rotated();
+        let confirmation = mock_valid_confirmation_signers_rotated();
+
+        assert_eq!(
+            verify_verifier_set(&event, &confirmation, &source_gw_address),
+            Vote::NotFound
+        );
     }
 }

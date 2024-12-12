@@ -8,6 +8,7 @@ use starknet_core::types::{ExecutionResult, Felt, FromStrError, TransactionRecei
 use starknet_providers::jsonrpc::JsonRpcTransport;
 use starknet_providers::{JsonRpcClient, Provider, ProviderError};
 use starknet_types::events::contract_call::ContractCallEvent;
+use starknet_types::events::signers_rotated::SignersRotatedEvent;
 use thiserror::Error;
 
 type Result<T> = error_stack::Result<T, StarknetClientError>;
@@ -58,6 +59,13 @@ pub trait StarknetClient {
     /// Attempts to fetch a ContractCall event, by a given `tx_hash`.
     /// Returns a tuple `(tx_hash, event)` or a `StarknetClientError`.
     async fn get_event_by_hash(&self, tx_hash: Felt) -> Result<Option<(Felt, ContractCallEvent)>>;
+
+    /// Attempts to fetch a SignersRotated event, by a given `tx_hash`.
+    /// Returns a tuple `(tx_hash, event)` or a `StarknetClientError`.
+    async fn get_event_by_hash_signers_rotated(
+        &self,
+        tx_hash: Felt,
+    ) -> Result<Option<(Felt, SignersRotatedEvent)>>;
 }
 
 #[async_trait]
@@ -106,6 +114,58 @@ where
 
         Ok(event)
     }
+
+    /// Fetches a transaction receipt by hash and extracts a SignersRotatedEvent if present
+    ///
+    /// # Arguments
+    ///
+    /// * `tx_hash` - The hash of the transaction to fetch
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(Some((tx_hash, SignersRotatedEvent)))` - If the transaction exists and contains a valid SignersRotatedEvent
+    /// * `Ok(None)` - If the transaction exists but contains no SignersRotatedEvent
+    /// * `Err(StarknetClientError)` - If there was an error fetching the receipt or the transaction failed
+    ///
+    /// # Errors
+    ///
+    /// Returns a `StarknetClientError` if:
+    /// * Failed to fetch the transaction receipt from the node
+    /// * The transaction execution was not successful
+    async fn get_event_by_hash_signers_rotated(
+        &self,
+        tx_hash: Felt,
+    ) -> Result<Option<(Felt, SignersRotatedEvent)>> {
+        let receipt_with_block_info = self
+            .client
+            .get_transaction_receipt(tx_hash)
+            .await
+            .map_err(StarknetClientError::FetchingReceipt)?;
+
+        if *receipt_with_block_info.receipt.execution_result() != ExecutionResult::Succeeded {
+            return Err(Report::new(StarknetClientError::UnsuccessfulTx));
+        }
+
+        let event: Option<(Felt, SignersRotatedEvent)> = match receipt_with_block_info.receipt {
+            TransactionReceipt::Invoke(tx) => tx
+                .events
+                .iter()
+                .filter_map(|e| {
+                    if let Ok(sre) = SignersRotatedEvent::try_from(e.clone()) {
+                        Some((tx.transaction_hash, sre))
+                    } else {
+                        None
+                    }
+                })
+                .next(),
+            TransactionReceipt::L1Handler(_) => None,
+            TransactionReceipt::Declare(_) => None,
+            TransactionReceipt::Deploy(_) => None,
+            TransactionReceipt::DeployAccount(_) => None,
+        };
+
+        Ok(event)
+    }
 }
 
 #[cfg(test)]
@@ -123,8 +183,20 @@ mod test {
     };
     use starknet_providers::{ProviderError, ProviderRequestData};
     use starknet_types::events::contract_call::ContractCallEvent;
+    use starknet_types::events::signers_rotated::SignersRotatedEvent;
 
     use super::{Client, StarknetClient, StarknetClientError};
+
+    #[tokio::test]
+    async fn invalid_signers_rotated_event_tx_fetch() {
+        let mock_client =
+            Client::new_with_transport(InvalidSignersRotatedEventMockTransport).unwrap();
+        let contract_call_event = mock_client
+            .get_event_by_hash_signers_rotated(Felt::ONE)
+            .await;
+
+        assert!(contract_call_event.unwrap().is_none());
+    }
 
     #[tokio::test]
     async fn deploy_account_tx_fetch() {
@@ -194,8 +266,47 @@ mod test {
     }
 
     #[tokio::test]
-    async fn successful_tx_fetch() {
-        let mock_client = Client::new_with_transport(ValidMockTransport).unwrap();
+    async fn successful_signers_rotated_tx_fetch() {
+        let mock_client = Client::new_with_transport(ValidMockTransportSignersRotated).unwrap();
+        let signers_rotated_event: (Felt, SignersRotatedEvent) = mock_client
+            .get_event_by_hash_signers_rotated(Felt::ONE)
+            .await
+            .unwrap() // unwrap the result
+            .unwrap(); // unwrap the option
+
+        assert_eq!(
+            signers_rotated_event.0,
+            Felt::from_str("0x0000000000000000000000000000000000000000000000000000000000000001")
+                .unwrap()
+        );
+
+        let actual: SignersRotatedEvent = signers_rotated_event.1;
+        let expected: SignersRotatedEvent = SignersRotatedEvent {
+            from_address: "0x2".to_string(),
+            epoch: 1,
+            signers_hash: [
+                226, 62, 119, 4, 210, 79, 100, 110, 94, 54, 44, 97, 64, 122, 105, 210, 212, 32, 63,
+                225, 67, 54, 50, 83, 200, 154, 39, 162, 106, 108, 184, 31,
+            ],
+            signers: starknet_types::events::signers_rotated::WeightedSigners {
+                signers: vec![starknet_types::events::signers_rotated::Signer {
+                    signer: "0x3ec7d572a0fe479768ac46355651f22a982b99cc".to_string(),
+                    weight: 1,
+                }],
+                threshold: 1,
+                nonce: [
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 47, 228, 157,
+                ],
+            },
+        };
+
+        assert_eq!(actual, expected);
+    }
+
+    #[tokio::test]
+    async fn successful_call_contract_tx_fetch() {
+        let mock_client = Client::new_with_transport(ValidMockTransportCallContract).unwrap();
         let contract_call_event = mock_client
             .get_event_by_hash(Felt::ONE)
             .await
@@ -612,6 +723,91 @@ mod test {
         }
     }
 
+    struct InvalidSignersRotatedEventMockTransport;
+
+    #[async_trait]
+    impl JsonRpcTransport for InvalidSignersRotatedEventMockTransport {
+        type Error = HttpTransportError;
+
+        async fn send_requests<R>(
+            &self,
+            _requests: R,
+        ) -> Result<Vec<JsonRpcResponse<serde_json::Value>>, Self::Error>
+        where
+            R: AsRef<[ProviderRequestData]> + Send + Sync,
+        {
+            unimplemented!();
+        }
+
+        async fn send_request<P, R>(
+            &self,
+            _method: JsonRpcMethod,
+            _params: P,
+        ) -> Result<JsonRpcResponse<R>, Self::Error>
+        where
+            P: Serialize + Send + Sync,
+            R: DeserializeOwned,
+        {
+            // garbage "data"
+            let response_mock = "{
+  \"jsonrpc\": \"2.0\",
+  \"result\": {
+    \"type\": \"INVOKE\",
+    \"transaction_hash\": \"0x000000000000000000000000000000000000000000000000000000000000001\",
+    \"actual_fee\": {
+      \"amount\": \"0x3062e4c46d4\",
+      \"unit\": \"WEI\"
+    },
+    \"execution_status\": \"SUCCEEDED\",
+    \"finality_status\": \"ACCEPTED_ON_L2\",
+    \"block_hash\": \"0x5820e3a0aaceebdbda0b308fdf666eff64f263f6ed8ee74d6f78683b65a997b\",
+    \"block_number\": 637493,
+    \"messages_sent\": [],
+    \"events\": [
+      {
+        \"from_address\": \"0x000000000000000000000000000000000000000000000000000000000000002\",
+        \"keys\": [
+          \"0x01815547484542c49542242a23bc0a1b762af99232f38c0417050825aea8fc93\",
+          \"0x0268929df65ee595bb8592323f981351efdc467d564effc6d2e54d2e666e43ca\",
+          \"0x01\",
+          \"0xd4203fe143363253c89a27a26a6cb81f\",
+          \"0xe23e7704d24f646e5e362c61407a69d2\"
+        ],
+        \"data\": [
+            \"0xb3ff441a68610b30fd5e2abbf3a1548eb6ba6f3559f2862bf2dc757e5828ca\",
+            \"0x0000000000000000000000000000000000000000000000000000000000000000\",
+            \"0x00000000000000000000000000000000000000000000000000000068656c6c6f\",
+            \"0x0000000000000000000000000000000000000000000000000000000000000001\",
+            \"0x0000000000000000000000000000000056d9517b9c948127319a09a7a36deac8\",
+            \"0x000000000000000000000000000000001c8aff950685c2ed4bc3174f3472287b\",
+            \"0x0000000000000000000000000000000000000000000000000000000000000005\",
+            \"0x0000000000000000000000000000000000000000000000000000000000000068\",
+            \"0x0000000000000000000000000000000000000000000000000000000000000065\",
+            \"0x000000000000000000000000000000000000000000000000000000000000006c\",
+            \"0x000000000000000000000000000000000000000000000000000000000000006c\",
+            \"0x000000000000000000000000000000000000000000000000000000000000006f\"
+        ]
+      }
+    ],
+    \"execution_resources\": {
+      \"data_availability\": {
+        \"l1_data_gas\": 0,
+        \"l1_gas\": 0
+      },
+      \"memory_holes\": 1176,
+      \"pedersen_builtin_applications\": 34,
+      \"range_check_builtin_applications\": 1279,
+      \"steps\": 17574
+    }
+  },
+  \"id\": 0
+}";
+            let parsed_response = serde_json::from_str(response_mock).map_err(Self::Error::Json)?;
+
+            Ok(parsed_response)
+        }
+    }
+
     struct InvalidContractCallEventMockTransport;
 
     #[async_trait]
@@ -656,8 +852,11 @@ mod test {
       {
         \"from_address\": \"0x000000000000000000000000000000000000000000000000000000000000002\",
         \"keys\": [
-          \"0x034d074b86d78f064ec0a29639fcfab989c7a3ea6343653633624b2df9ec08f6\",
-          \"0x00000000000000000000000000000064657374696e6174696f6e5f636861696e\"
+          \"0x01815547484542c49542242a23bc0a1b762af99232f38c0417050825aea8fc93\",
+          \"0x0268929df65ee595bb8592323f981351efdc467d564effc6d2e54d2e666e43ca\",
+          \"0x01\",
+          \"0xd4203fe143363253c89a27a26a6cb81f\",
+          \"0xe23e7704d24f646e5e362c61407a69d2\"
         ],
         \"data\": [
             \"0xb3ff441a68610b30fd5e2abbf3a1548eb6ba6f3559f2862bf2dc757e5828ca\",
@@ -694,10 +893,88 @@ mod test {
         }
     }
 
-    struct ValidMockTransport;
+    struct ValidMockTransportSignersRotated;
 
     #[async_trait]
-    impl JsonRpcTransport for ValidMockTransport {
+    impl JsonRpcTransport for ValidMockTransportSignersRotated {
+        type Error = HttpTransportError;
+
+        async fn send_requests<R>(
+            &self,
+            _requests: R,
+        ) -> Result<Vec<JsonRpcResponse<serde_json::Value>>, Self::Error>
+        where
+            R: AsRef<[ProviderRequestData]> + Send + Sync,
+        {
+            unimplemented!();
+        }
+
+        async fn send_request<P, R>(
+            &self,
+            _method: JsonRpcMethod,
+            _params: P,
+        ) -> Result<JsonRpcResponse<R>, Self::Error>
+        where
+            P: Serialize + Send + Sync,
+            R: DeserializeOwned,
+        {
+            let response_mock = "{
+  \"jsonrpc\": \"2.0\",
+  \"result\": {
+    \"type\": \"INVOKE\",
+    \"transaction_hash\": \"0x0000000000000000000000000000000000000000000000000000000000000001\",
+    \"actual_fee\": {
+      \"amount\": \"0x3062e4c46d4\",
+      \"unit\": \"WEI\"
+    },
+    \"execution_status\": \"SUCCEEDED\",
+    \"finality_status\": \"ACCEPTED_ON_L2\",
+    \"block_hash\": \"0x5820e3a0aaceebdbda0b308fdf666eff64f263f6ed8ee74d6f78683b65a997b\",
+    \"block_number\": 637493,
+    \"messages_sent\": [],
+    \"events\": [
+      {
+        \"from_address\": \"0x0000000000000000000000000000000000000000000000000000000000000002\",
+        \"keys\": [
+          \"0x01815547484542c49542242a23bc0a1b762af99232f38c0417050825aea8fc93\",
+          \"0x0268929df65ee595bb8592323f981351efdc467d564effc6d2e54d2e666e43ca\",
+          \"0x01\",
+          \"0xd4203fe143363253c89a27a26a6cb81f\",
+          \"0xe23e7704d24f646e5e362c61407a69d2\"
+        ],
+        \"data\": [
+            \"0x01\",
+            \"0x3ec7d572a0fe479768ac46355651f22a982b99cc\",
+            \"0x01\",
+            \"0x01\",
+            \"0x2fe49d\",
+            \"0x00\"
+        ]
+      }
+    ],
+    \"execution_resources\": {
+      \"data_availability\": {
+        \"l1_data_gas\": 0,
+        \"l1_gas\": 0
+      },
+      \"memory_holes\": 1176,
+      \"pedersen_builtin_applications\": 34,
+      \"range_check_builtin_applications\": 1279,
+      \"steps\": 17574
+    }
+  },
+  \"id\": 0
+}";
+            let parsed_response = serde_json::from_str(response_mock).map_err(Self::Error::Json)?;
+
+            Ok(parsed_response)
+        }
+    }
+
+    struct ValidMockTransportCallContract;
+
+    #[async_trait]
+    impl JsonRpcTransport for ValidMockTransportCallContract {
         type Error = HttpTransportError;
 
         async fn send_requests<R>(

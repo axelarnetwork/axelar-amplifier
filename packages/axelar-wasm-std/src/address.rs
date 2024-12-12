@@ -8,7 +8,7 @@ use starknet_types_core::felt::Felt;
 use stellar_xdr::curr::ScAddress;
 use sui_types::SuiAddress;
 
-use crate::utils::check_for_felt_overflow;
+use crate::utils::does_felt_overflow_from_str;
 
 #[derive(thiserror::Error)]
 #[cw_serde]
@@ -72,7 +72,7 @@ pub fn validate_address(address: &str, format: &AddressFormat) -> Result<(), Err
                 )))
             }
 
-            if check_for_felt_overflow(trimmed_addr) {
+            if does_felt_overflow_from_str(trimmed_addr) {
                 bail!(Error::InvalidAddress(
                     format!(
                         "field element overflows MAX value of 2^251 + 17 * 2^192: {}",

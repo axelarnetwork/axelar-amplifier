@@ -23,7 +23,16 @@ impl<T> TryMapExt<T> for Vec<T> {
 }
 
 /// since the `Felt` type doesn't error on overflow, we have to implement that check
-pub(crate) fn check_for_felt_overflow(felt_hex_str: &str) -> bool {
+pub fn does_felt_overflow_from_slice(felt_hex_slice: &[u8]) -> bool {
+    if felt_hex_slice.len() > 32 {
+        return true;
+    }
+    let felt_max_hex_str = format!("{:064x}", Felt::MAX);
+    U256::from_be_slice(felt_hex_slice) > U256::from_be_hex(&felt_max_hex_str)
+}
+
+/// since the `Felt` type doesn't error on overflow, we have to implement that check
+pub fn does_felt_overflow_from_str(felt_hex_str: &str) -> bool {
     let felt_hex_str = felt_hex_str.trim_start_matches("0x");
     let felt_max_hex_str = format!("{:064x}", Felt::MAX);
     U256::from_be_hex(felt_hex_str) > U256::from_be_hex(&felt_max_hex_str)

@@ -4,7 +4,7 @@ use starknet_core::types::Felt;
 use starknet_core::utils::starknet_keccak;
 
 pub mod contract_call;
-
+pub mod signers_rotated;
 // Since a keccak hash over a string is a deterministic operation,
 // we can use `OnceLock` to eliminate useless hash calculations.
 static CALL_CONTRACT_FELT: OnceLock<Felt> = OnceLock::new();

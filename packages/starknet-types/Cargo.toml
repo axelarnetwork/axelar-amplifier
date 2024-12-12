@@ -5,6 +5,7 @@ rust-version.workspace = true
 edition.workspace = true
 
 [dependencies]
+axelar-wasm-std = { workspace = true, features = ["derive"] }
 cosmwasm-std = { workspace = true }
 router-api = { workspace = true }
 ethers-core = { workspace = true }
@@ -14,6 +15,14 @@ error-stack = { workspace = true }
 thiserror = { workspace = true }
 itertools = { workspace = true }
 hex = { workspace = true }
+tokio = { version = "1", features = [
+  "rt",
+  "signal",
+  "rt-multi-thread",
+  "macros",
+] }
+rand = { workspace = true }
+futures = { workspace = true }
 
 [lints]
 workspace = true

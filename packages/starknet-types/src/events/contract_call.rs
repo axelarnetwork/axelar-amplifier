@@ -167,7 +167,7 @@ mod tests {
         starknet_event.data[1] = Felt::MAX;
 
         let event = ContractCallEvent::try_from(starknet_event).unwrap_err();
-        assert!(matches!(event, ContractCallError::Cairo(_)));
+        assert!(matches!(event, ContractCallError::TryFromConversion(_)));
     }
 
     #[test]
