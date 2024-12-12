@@ -52,9 +52,6 @@ pub struct Handler {
     voting_verifier_contract: TMAddress,
     http_client: Client,
     latest_block_height: Receiver<u64>,
-    its_address: String,
-    reference_native_interchain_token_code: String,
-    reference_token_manager_code: String,
 }
 
 impl Handler {
@@ -63,27 +60,12 @@ impl Handler {
         voting_verifier_contract: TMAddress,
         http_client: Client,
         latest_block_height: Receiver<u64>,
-        its_address: String,
-        reference_native_interchain_token_address: String,
-        reference_token_manager_address: String,
     ) -> error_stack::Result<Self, crate::stacks::http_client::Error> {
-        let reference_native_interchain_token_info = http_client
-            .get_contract_info(reference_native_interchain_token_address.as_str())
-            .await?;
-
-        let reference_token_manager_info = http_client
-            .get_contract_info(reference_token_manager_address.as_str())
-            .await?;
-
         Ok(Self {
             verifier,
             voting_verifier_contract,
             http_client,
             latest_block_height,
-            its_address,
-            reference_native_interchain_token_code: reference_native_interchain_token_info
-                .source_code,
-            reference_token_manager_code: reference_token_manager_info.source_code,
         })
     }
 
@@ -159,12 +141,9 @@ impl EventHandler for Handler {
                         verify_message(
                             &source_chain,
                             &source_gateway_address,
-                            &self.its_address,
                             transaction,
                             msg,
                             &self.http_client,
-                            &self.reference_native_interchain_token_code,
-                            &self.reference_token_manager_code,
                         )
                         .await
                     }
@@ -281,9 +260,6 @@ mod tests {
             voting_verifier,
             client,
             watch::channel(0).1,
-            "its_address".to_string(),
-            "native_interchain_token_code".to_string(),
-            "token_manager_code".to_string(),
         )
         .await
         .unwrap();
@@ -308,17 +284,9 @@ mod tests {
             &voting_verifier,
         );
 
-        let handler = super::Handler::new(
-            worker,
-            voting_verifier,
-            client,
-            watch::channel(0).1,
-            "its_address".to_string(),
-            "native_interchain_token_code".to_string(),
-            "token_manager_code".to_string(),
-        )
-        .await
-        .unwrap();
+        let handler = super::Handler::new(worker, voting_verifier, client, watch::channel(0).1)
+            .await
+            .unwrap();
 
         let actual = handler.handle(&event).await.unwrap();
         assert_eq!(actual.len(), 1);
@@ -345,17 +313,9 @@ mod tests {
 
         let (tx, rx) = watch::channel(expiration - 1);
 
-        let handler = super::Handler::new(
-            worker,
-            voting_verifier,
-            client,
-            rx,
-            "its_address".to_string(),
-            "native_interchain_token_code".to_string(),
-            "token_manager_code".to_string(),
-        )
-        .await
-        .unwrap();
+        let handler = super::Handler::new(worker, voting_verifier, client, rx)
+            .await
+            .unwrap();
 
         // poll is not expired yet, should hit proxy
         let actual = handler.handle(&event).await.unwrap();
@@ -380,9 +340,6 @@ mod tests {
             TMAddress::random(PREFIX),
             client,
             watch::channel(0).1,
-            "its_address".to_string(),
-            "native_interchain_token_code".to_string(),
-            "token_manager_code".to_string(),
         )
         .await
         .unwrap();

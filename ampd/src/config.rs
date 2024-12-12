@@ -137,9 +137,6 @@ mod tests {
             type = 'StacksMsgVerifier'
             cosmwasm_contract = '{}'
             http_url = 'http://localhost:8000'
-            its_address = 'its_address'
-            reference_native_interchain_token_address = 'interchain_token_address'
-            reference_token_manager_address = 'token_manager_address'
 
             [[handlers]]
             type = 'StacksVerifierSetVerifier'
@@ -370,10 +367,6 @@ mod tests {
                         AccountId::new("axelar", &[0u8; 32]).unwrap(),
                     ),
                     http_url: Url::from_str("http://127.0.0.1").unwrap(),
-                    its_address: "its_address".to_string(),
-                    reference_native_interchain_token_address: "interchain_token_address"
-                        .to_string(),
-                    reference_token_manager_address: "token_manager_address".to_string(),
                 },
                 HandlerConfig::StacksVerifierSetVerifier {
                     cosmwasm_contract: TMAddress::from(
