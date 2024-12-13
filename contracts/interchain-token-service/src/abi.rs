@@ -19,6 +19,8 @@ sol! {
         DeployTokenManager, // note, this case is not supported by the ITS hub
         SendToHub,
         ReceiveFromHub,
+        RegisterToken,
+        LinkToken
     }
 
     struct InterchainTransfer {
@@ -51,6 +53,22 @@ sol! {
         /// True source chain name when receiving a message from ITS Hub -> ITS edge destination contract
         string source_chain;
         bytes message;
+    }
+
+    struct RegisterToken {
+        uint256 messageType;
+        bytes tokenAddress;
+        uint8 decimals;
+    }
+
+    struct LinkToken {
+        uint256 messageType;
+        bytes32 tokenId;
+        uint256 tokenManagerType;
+        bytes sourceToken;
+        bytes destinationToken;
+        bool autoscaling;
+        bytes params;
     }
 }
 
@@ -101,6 +119,31 @@ impl Message {
                 minter: into_vec(minter).into(),
             }
             .abi_encode_params(),
+            Message::RegisterToken(primitives::RegisterToken { decimals, address }) => {
+                RegisterToken {
+                    messageType: MessageType::RegisterToken.into(),
+                    decimals,
+                    tokenAddress: Vec::<u8>::from(address).into(),
+                }
+                .abi_encode_params()
+            }
+            Message::LinkToken(primitives::LinkToken {
+                token_id,
+                token_manager_type,
+                source_token_address,
+                destination_token_address,
+                autoscaling,
+                params,
+            }) => LinkToken {
+                messageType: MessageType::LinkToken.into(),
+                tokenId: FixedBytes::<32>::new(token_id.into()),
+                destinationToken: Vec::<u8>::from(destination_token_address).into(),
+                sourceToken: Vec::<u8>::from(source_token_address).into(),
+                tokenManagerType: U256::from_le_bytes(token_manager_type.to_le_bytes()),
+                autoscaling,
+                params: into_vec(params).into(),
+            }
+            .abi_encode_params(),
         }
         .into()
     }
@@ -141,6 +184,47 @@ impl Message {
                     symbol: decoded.symbol.try_into().map_err(Error::NonEmpty)?,
                     decimals: decoded.decimals,
                     minter: from_vec(decoded.minter.into())?,
+                }
+                .into()
+            }
+            MessageType::RegisterToken => {
+                let decoded = RegisterToken::abi_decode_params(payload, true)
+                    .map_err(Error::AbiDecodeFailed)?;
+
+                primitives::RegisterToken {
+                    decimals: decoded.decimals,
+                    address: decoded
+                        .tokenAddress
+                        .as_ref()
+                        .to_vec()
+                        .try_into()
+                        .map_err(Error::NonEmpty)?,
+                }
+                .into()
+            }
+            MessageType::LinkToken => {
+                let decoded =
+                    LinkToken::abi_decode_params(payload, true).map_err(Error::AbiDecodeFailed)?;
+
+                primitives::LinkToken {
+                    token_id: TokenId::new(decoded.tokenId.into()),
+                    source_token_address: decoded
+                        .sourceToken
+                        .as_ref()
+                        .to_vec()
+                        .try_into()
+                        .map_err(Error::NonEmpty)?,
+                    token_manager_type: Uint256::from_le_bytes(
+                        decoded.tokenManagerType.to_le_bytes(),
+                    ),
+                    destination_token_address: decoded
+                        .destinationToken
+                        .as_ref()
+                        .to_vec()
+                        .try_into()
+                        .map_err(Error::NonEmpty)?,
+                    autoscaling: decoded.autoscaling,
+                    params: from_vec(decoded.params.into())?,
                 }
                 .into()
             }

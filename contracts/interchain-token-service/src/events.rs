@@ -2,7 +2,7 @@ use axelar_wasm_std::event::EventExt;
 use router_api::{Address, ChainNameRaw, CrossChainId};
 
 use crate::primitives::Message;
-use crate::{DeployInterchainToken, InterchainTransfer};
+use crate::{DeployInterchainToken, InterchainTransfer, LinkToken, RegisterToken};
 
 pub enum Event {
     MessageReceived {
@@ -80,6 +80,26 @@ fn make_message_event(
             .add_attribute("symbol", symbol)
             .add_attribute("decimals", decimals.to_string())
             .add_attribute_if_some("minter", minter.map(|minter| minter.to_string())),
+        Message::RegisterToken(RegisterToken { address, decimals }) => event
+            .add_attribute("decimals", decimals.to_string())
+            .add_attribute("address", address.to_string()),
+        Message::LinkToken(LinkToken {
+            token_id,
+            token_manager_type,
+            source_token_address,
+            destination_token_address,
+            autoscaling,
+            params,
+        }) => event
+            .add_attribute("token_id", token_id.to_string())
+            .add_attribute("token_manager_type", token_manager_type.to_string())
+            .add_attribute("source_token_address", source_token_address.to_string())
+            .add_attribute(
+                "destination_token_address",
+                destination_token_address.to_string(),
+            )
+            .add_attribute("autoscaling", autoscaling.to_string())
+            .add_attribute_if_some("params", params.map(|params| params.to_string())),
     }
 }
 

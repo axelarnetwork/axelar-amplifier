@@ -7,7 +7,7 @@ use cw_storage_plus::{Item, Map};
 use error_stack::{report, Result, ResultExt};
 use router_api::{Address, ChainNameRaw};
 
-use crate::{msg, TokenId};
+use crate::{msg, RegisterToken, TokenId};
 
 #[derive(thiserror::Error, Debug, IntoContractError)]
 pub enum Error {
@@ -126,10 +126,19 @@ pub struct TokenConfig {
     pub origin_chain: ChainNameRaw,
 }
 
+type TokenAddress = nonempty::HexBinary;
+#[cw_serde]
+pub struct CustomToken {
+    pub chain: ChainNameRaw,
+    pub decimals: u8,
+    pub address: TokenAddress,
+}
+
 const CONFIG: Item<Config> = Item::new("config");
 const CHAIN_CONFIGS: Map<&ChainNameRaw, ChainConfig> = Map::new("chain_configs");
 const TOKEN_INSTANCE: Map<&(ChainNameRaw, TokenId), TokenInstance> = Map::new("token_instance");
 const TOKEN_CONFIGS: Map<&TokenId, TokenConfig> = Map::new("token_configs");
+const CUSTOM_TOKENS: Map<&(ChainNameRaw, TokenAddress), CustomToken> = Map::new("custom_tokens");
 
 pub fn load_config(storage: &dyn Storage) -> Config {
     CONFIG
@@ -278,6 +287,34 @@ pub fn save_token_config(
 ) -> Result<(), Error> {
     TOKEN_CONFIGS
         .save(storage, &token_id, token_config)
+        .change_context(Error::Storage)
+}
+
+pub fn save_custom_token(
+    storage: &mut dyn Storage,
+    source_chain: ChainNameRaw,
+    register_token: RegisterToken,
+) -> Result<(), Error> {
+    CUSTOM_TOKENS
+        .save(
+            storage,
+            &(source_chain.clone(), register_token.address.clone()),
+            &CustomToken {
+                chain: source_chain,
+                decimals: register_token.decimals,
+                address: register_token.address,
+            },
+        )
+        .change_context(Error::Storage)
+}
+
+pub fn may_load_custom_token(
+    storage: &mut dyn Storage,
+    source_chain: ChainNameRaw,
+    token_address: TokenAddress,
+) -> Result<Option<CustomToken>, Error> {
+    CUSTOM_TOKENS
+        .may_load(storage, &(source_chain, token_address))
         .change_context(Error::Storage)
 }
 

@@ -2,6 +2,7 @@ use std::fmt::Display;
 
 use axelar_wasm_std::nonempty;
 use cosmwasm_schema::cw_serde;
+use cosmwasm_std::Uint256;
 use cw_storage_plus::{Key, KeyDeserialize, Prefixer, PrimaryKey};
 use router_api::ChainNameRaw;
 
@@ -29,6 +30,10 @@ pub enum Message {
     InterchainTransfer(InterchainTransfer),
     /// Deploy a new interchain token on the destination chain
     DeployInterchainToken(DeployInterchainToken),
+
+    RegisterToken(RegisterToken),
+
+    LinkToken(LinkToken),
 }
 
 #[cw_serde]
@@ -74,6 +79,36 @@ impl From<DeployInterchainToken> for Message {
     }
 }
 
+#[cw_serde]
+#[derive(Eq)]
+pub struct RegisterToken {
+    pub decimals: u8,
+    pub address: nonempty::HexBinary,
+}
+
+impl From<RegisterToken> for Message {
+    fn from(value: RegisterToken) -> Self {
+        Message::RegisterToken(value)
+    }
+}
+
+#[cw_serde]
+#[derive(Eq)]
+pub struct LinkToken {
+    pub token_id: TokenId,
+    pub token_manager_type: Uint256,
+    pub source_token_address: nonempty::HexBinary,
+    pub destination_token_address: nonempty::HexBinary,
+    pub autoscaling: bool,
+    pub params: Option<nonempty::HexBinary>,
+}
+
+impl From<LinkToken> for Message {
+    fn from(value: LinkToken) -> Self {
+        Message::LinkToken(value)
+    }
+}
+
 /// A message sent between ITS edge contracts and the ITS hub contract (defined in this crate).
 /// `HubMessage` is used to route an ITS [`Message`] between ITS edge contracts on different chains via the ITS Hub.
 #[cw_serde]
@@ -110,7 +145,9 @@ impl Message {
     pub fn token_id(&self) -> TokenId {
         match self {
             Message::InterchainTransfer(InterchainTransfer { token_id, .. })
-            | Message::DeployInterchainToken(DeployInterchainToken { token_id, .. }) => *token_id,
+            | Message::DeployInterchainToken(DeployInterchainToken { token_id, .. })
+            | Message::LinkToken(LinkToken { token_id, .. }) => *token_id,
+            Message::RegisterToken(_) => panic!("no token id associated with this message type"), // TODO is this right?
         }
     }
 }

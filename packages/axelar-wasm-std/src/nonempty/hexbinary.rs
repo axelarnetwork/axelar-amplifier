@@ -1,6 +1,9 @@
+use std::fmt::Display;
 use std::ops::Deref;
 
 use cosmwasm_schema::cw_serde;
+use cosmwasm_std::StdResult;
+use cw_storage_plus::{Key, KeyDeserialize, Prefixer, PrimaryKey};
 
 use crate::nonempty::Error;
 
@@ -46,6 +49,38 @@ impl Deref for HexBinary {
 
     fn deref(&self) -> &Self::Target {
         &self.0
+    }
+}
+
+impl Display for HexBinary {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl<'a> PrimaryKey<'a> for HexBinary {
+    type Prefix = ();
+    type SubPrefix = ();
+    type Suffix = Self;
+    type SuperSuffix = Self;
+
+    fn key(&self) -> Vec<Key> {
+        vec![Key::Ref(self.0.as_slice())]
+    }
+}
+
+impl<'a> Prefixer<'a> for HexBinary {
+    fn prefix(&self) -> Vec<Key> {
+        vec![Key::Ref(self.0.as_slice())]
+    }
+}
+
+impl KeyDeserialize for HexBinary {
+    type Output = Self;
+
+    #[inline(always)]
+    fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
+        Ok(HexBinary(cosmwasm_std::HexBinary::from(value)))
     }
 }
 
