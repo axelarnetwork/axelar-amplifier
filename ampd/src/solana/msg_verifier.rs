@@ -14,13 +14,27 @@ pub fn verify_message(
     message: &Message,
 ) -> Vote {
     verify(match_context, tx, &message.message_id, |gateway_event| {
-        let GatewayEvent::CallContract(event) = gateway_event else {
-            return false;
-        };
-        return event.sender_key == message.source_address
-            && event.payload_hash == message.payload_hash.0
-            && message.destination_chain == event.destination_chain
-            && event.destination_contract_address == message.destination_address;
+        let (sender, payload_hash, destination_chain, destination_contract_address) =
+            match gateway_event {
+                GatewayEvent::CallContract(event) => (
+                    &event.sender_key,
+                    &event.payload_hash,
+                    &event.destination_chain,
+                    &event.destination_contract_address,
+                ),
+                GatewayEvent::CallContractOffchainData(event) => (
+                    &event.sender_key,
+                    &event.payload_hash,
+                    &event.destination_chain,
+                    &event.destination_contract_address,
+                ),
+                _ => return false,
+            };
+
+        return message.source_address == *sender
+            && message.payload_hash.0 == *payload_hash
+            && message.destination_chain == *destination_chain
+            && message.destination_address == *destination_contract_address;
     })
 }
 
