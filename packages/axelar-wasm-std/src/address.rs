@@ -60,7 +60,7 @@ pub fn validate_address(address: &str, format: &AddressFormat) -> Result<(), Err
             if trimmed_addr.len() != 64 {
                 bail!(Error::InvalidAddress(format!(
                     "hex string is not 64 chars: {}",
-                    address.to_string()
+                    address
                 )))
             }
 
@@ -68,7 +68,7 @@ pub fn validate_address(address: &str, format: &AddressFormat) -> Result<(), Err
             if valid_hex_felt.is_err() {
                 bail!(Error::InvalidAddress(format!(
                     "not a valid hex field element: {}",
-                    address.to_string()
+                    address
                 )))
             }
 

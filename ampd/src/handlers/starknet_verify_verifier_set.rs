@@ -5,18 +5,17 @@
 use std::convert::TryInto;
 
 use async_trait::async_trait;
-use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
+use axelar_wasm_std::msg_id::FieldElementAndEventIndex;
 use axelar_wasm_std::voting::{PollId, Vote};
 use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmrs::tx::Msg;
 use cosmrs::Any;
-use error_stack::ResultExt;
+use error_stack::{FutureExt, ResultExt};
 use events::Error::EventTypeMismatch;
 use events::Event;
 use events_derive::try_from;
 use multisig::verifier_set::VerifierSet;
 use serde::Deserialize;
-use starknet_core::types::Felt;
 use tokio::sync::watch::Receiver;
 use tracing::{info, info_span};
 use valuable::Valuable;
@@ -28,9 +27,11 @@ use crate::starknet::json_rpc::StarknetClient;
 use crate::starknet::verifier::verify_verifier_set;
 use crate::types::TMAddress;
 
+type Result<T> = error_stack::Result<T, Error>;
+
 #[derive(Deserialize, Debug)]
 pub struct VerifierSetConfirmation {
-    pub message_id: HexTxHashAndEventIndex, // FIXME: in the future replace by FieldElementAndEventIndex
+    pub message_id: FieldElementAndEventIndex,
     pub verifier_set: VerifierSet,
 }
 
@@ -98,7 +99,7 @@ where
 {
     type Err = Error;
 
-    async fn handle(&self, event: &Event) -> error_stack::Result<Vec<Any>, Self::Err> {
+    async fn handle(&self, event: &Event) -> Result<Vec<Any>> {
         if !event.is_from_contract(self.voting_verifier_contract.as_ref()) {
             return Ok(vec![]);
         }
@@ -127,11 +128,9 @@ where
 
         let transaction_response = self
             .rpc_client
-            .get_event_by_hash_signers_rotated(Felt::from_bytes_be(
-                &verifier_set.message_id.tx_hash,
-            ))
-            .await
-            .unwrap();
+            .get_event_by_hash_signers_rotated(verifier_set.message_id.tx_hash)
+            .change_context(Error::TxReceipts)
+            .await?;
 
         let vote = info_span!(
             "verify a new verifier set",

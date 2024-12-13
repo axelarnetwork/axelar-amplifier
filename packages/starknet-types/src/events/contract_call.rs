@@ -70,11 +70,6 @@ impl TryFrom<starknet_core::types::Event> for ContractCallEvent {
         // source_address represents the original caller of the `call_contract` gateway
         // method. It is the first field in data, by the order defined in the
         // event.
-        //
-        // TODO: Not sure if `064x` is the correct formatting. Maybe we should calculate
-        // the pedersen hash of the felt as described here, to get the actual address,
-        // although I'm not sure that we can do it as described here:
-        // https://docs.starknet.io/documentation/architecture_and_concepts/Smart_Contracts/contract-address/
         let source_address = starknet_event.data[0];
 
         // destination_contract_address (ByteArray) is composed of FieldElements

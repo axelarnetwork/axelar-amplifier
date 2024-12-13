@@ -3,10 +3,8 @@ use std::str::FromStr;
 use axelar_wasm_std::utils::does_felt_overflow_from_slice;
 use error_stack::{Report, ResultExt};
 use ethers_core::abi::{
-    AbiDecode, AbiError, AbiType, Detokenize, FixedBytes, InvalidOutputType, ParamType, Token,
-    Tokenizable,
+    AbiDecode, AbiError, AbiType, Detokenize, InvalidOutputType, ParamType, Token, Tokenizable,
 };
-use ethers_core::types::{Address, Selector, U256};
 use router_api::Message as RouterMessage;
 use starknet_core::types::Felt;
 
@@ -19,7 +17,7 @@ pub struct StarknetMessage {
     pub message_id: String,
     pub source_address: String,
     pub contract_address: Felt,
-    pub payload_hash: U256,
+    pub payload_hash: ethers_core::types::U256,
 }
 
 impl TryFrom<&RouterMessage> for StarknetMessage {
@@ -34,7 +32,7 @@ impl TryFrom<&RouterMessage> for StarknetMessage {
             message_id: msg.cc_id.message_id.to_string(),
             source_address: msg.source_address.to_string(),
             contract_address,
-            payload_hash: U256::from(msg.payload_hash),
+            payload_hash: ethers_core::types::U256::from(msg.payload_hash),
         })
     }
 }
@@ -46,7 +44,7 @@ impl AbiType for StarknetMessage {
             ethers_core::abi::ParamType::String,
             ethers_core::abi::ParamType::String,
             ethers_core::abi::ParamType::FixedBytes(32usize),
-            <U256 as AbiType>::param_type(),
+            <ethers_core::types::U256 as AbiType>::param_type(),
         ])
     }
 }
@@ -91,7 +89,7 @@ impl Tokenizable for StarknetMessage {
                 }
 
                 let contract_address_felt: Felt =
-                    Felt::from_bytes_be_slice(&contract_address.as_slice());
+                    Felt::from_bytes_be_slice(contract_address.as_slice());
 
                 return Ok(StarknetMessage {
                     source_chain,
