@@ -107,9 +107,12 @@ pub fn execute(
         }
         ExecuteMsg::FreezeChains { chains } => execute::freeze_chains(deps.storage, chains),
         ExecuteMsg::UnfreezeChains { chains } => execute::unfreeze_chains(deps.storage, chains),
-        ExecuteMsg::RouteMessages(msgs) => {
-            Ok(execute::route_messages(deps.storage, info.sender, msgs)?)
-        }
+        ExecuteMsg::RouteMessages(msgs) => Ok(execute::route_messages(
+            deps.storage,
+            deps.querier,
+            info.sender,
+            msgs,
+        )?),
         ExecuteMsg::DisableRouting => execute::disable_routing(deps.storage),
         ExecuteMsg::EnableRouting => execute::enable_routing(deps.storage),
     }?
