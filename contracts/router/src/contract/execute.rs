@@ -519,13 +519,16 @@ mod test {
 
         let mut msg = rand_message(source_chain.clone(), destination_chain.clone());
         msg.cc_id = CrossChainId::new(source_chain, "foobar").unwrap();
-        assert!(route_messages(
-            &deps.storage,
-            QuerierWrapper::new(&deps.querier),
-            sender,
-            vec![msg]
-        )
-        .is_err_and(move |err| { matches!(err.current_context(), Error::InvalidMessageId) }));
+        assert_err_contains!(
+            route_messages(
+                &deps.storage,
+                QuerierWrapper::new(&deps.querier),
+                sender,
+                vec![msg]
+            ),
+            Error,
+            Error::InvalidMessageId
+        );
     }
 
     #[test]
@@ -549,13 +552,16 @@ mod test {
 
         let mut msg = rand_message(source_chain.clone(), destination_chain.clone());
         msg.cc_id = CrossChainId::new(source_chain, "foobar").unwrap();
-        assert!(route_messages(
-            &deps.storage,
-            QuerierWrapper::new(&deps.querier),
-            sender,
-            vec![msg]
-        )
-        .is_err_and(move |err| { matches!(err.current_context(), Error::InvalidMessageId) }));
+        assert_err_contains!(
+            route_messages(
+                &deps.storage,
+                QuerierWrapper::new(&deps.querier),
+                sender,
+                vec![msg]
+            ),
+            Error,
+            Error::InvalidMessageId
+        );
     }
 
     #[test]
@@ -605,13 +611,16 @@ mod test {
         )
         .unwrap();
 
-        assert!(route_messages(
-            &deps.storage,
-            QuerierWrapper::new(&deps.querier),
-            sender,
-            vec![msg]
-        )
-        .is_err_and(move |err| { matches!(err.current_context(), Error::InvalidMessageId) }));
+        assert_err_contains!(
+            route_messages(
+                &deps.storage,
+                QuerierWrapper::new(&deps.querier),
+                sender,
+                vec![msg]
+            ),
+            Error,
+            Error::InvalidMessageId
+        );
     }
 
     #[test]
