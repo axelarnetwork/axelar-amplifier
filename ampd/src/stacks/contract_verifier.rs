@@ -160,6 +160,33 @@ mod tests {
         );
     }
 
+    #[async_test]
+    async fn should_verify_msg_not_verify_contract_if_payload_does_not_contain_tuple() {
+        let client = Client::faux();
+
+        let (source_chain, gateway_address, mut tx, mut msg) =
+            get_matching_verify_contract_msg_and_tx();
+
+        // Message is still from Stacks -> Stacks and from contract -> contract,
+        // but the payload doesn't contain the verify-contract tuple
+        tx.events[1].contract_log = Some(ContractLog {
+            contract_id: gateway_address.to_string(),
+            topic: "print".to_string(),
+            value: ContractLogValue {
+                hex: "0x0c000000061164657374696e6174696f6e2d636861696e0d00000006737461636b731c64657374696e6174696f6e2d636f6e74726163742d616464726573730d00000042535431505148514b5630524a585a465931444758384d4e534e5956453356475a4a53525450475a474d2e696e746572636861696e2d746f6b656e2d73657276696365077061796c6f616402000001c40c000000080a6d6573736167652d69640d0000002c617070726f7665642d696e746572636861696e2d746f6b656e2d6465706c6f796d656e742d6d657373616765077061796c6f616402000000a60c0000000608646563696d616c7301000000000000000000000000000000120c6d696e7465722d6279746573020000000100046e616d650d000000176e61746976652d696e746572636861696e2d746f6b656e0673796d626f6c0d0000000349545408746f6b656e2d696402000000206c96e90b60cd71d0b948ae26be1046377a10f46441d595a6d5dd4f4a6a850372047479706501000000000000000000000000000000010e736f757263652d616464726573730d00000004307830300c736f757263652d636861696e0d00000008657468657265756d0d746f6b656e2d61646472657373061a6d78de7b0625dfbfc16c3a8a5735f6dc3dc3f2ce0e73616d706c652d7369702d30313008746f6b656e2d696402000000206c96e90b60cd71d0b948ae26be1046377a10f46441d595a6d5dd4f4a6a8503720a746f6b656e2d74797065010000000000000000000000000000000004747970650d000000177665726966792d696e746572636861696e2d746f6b656e0c7061796c6f61642d686173680200000020e0a3c74b09fa9fc9ce46ab8b6984ffb079f49fc08862a949a14a6eb6ad063c750673656e646572061a6d78de7b0625dfbfc16c3a8a5735f6dc3dc3f2ce18696e746572636861696e2d746f6b656e2d7365727669636504747970650d0000000d636f6e74726163742d63616c6c".to_string(),
+            }
+        });
+        msg.payload_hash = "0xe0a3c74b09fa9fc9ce46ab8b6984ffb079f49fc08862a949a14a6eb6ad063c75"
+            .parse()
+            .unwrap();
+
+        // Verification will succeed even if the payload doesn't contain the verify-contract tuple
+        assert_eq!(
+            verify_message(&source_chain, &gateway_address, &tx, &msg, &client).await,
+            Vote::SucceededOnChain
+        );
+    }
+
     fn get_matching_verify_contract_msg_and_tx() -> (ChainName, String, Transaction, Message) {
         let source_chain = "stacks";
         let gateway_address = "SP2N959SER36FZ5QT1CX9BR63W3E8X35WQCMBYYWC.axelar-gateway";

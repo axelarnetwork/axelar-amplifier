@@ -5,6 +5,7 @@ use cosmwasm_std::{
     to_json_binary, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Reply, Response,
 };
 use error_stack::ResultExt;
+use semver::{Version, VersionReq};
 
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
@@ -116,19 +117,15 @@ pub fn query(
     .map_err(axelar_wasm_std::error::ContractError::from)
 }
 
-// It is valid to migrate from any of the below versions
-const BASE_VERSION: &str = "1.1.0";
-const OLD_BASE_VERSION: &str = "1.0.0";
-const PATCH_VERSION: &str = "1.0.1";
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(
     deps: DepsMut,
     _env: Env,
     _msg: Empty,
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
-    cw2::assert_contract_version(deps.storage, CONTRACT_NAME, BASE_VERSION)
-        .or_else(|_| cw2::assert_contract_version(deps.storage, CONTRACT_NAME, PATCH_VERSION))
-        .or_else(|_| cw2::assert_contract_version(deps.storage, CONTRACT_NAME, OLD_BASE_VERSION))?;
+    let old_version = Version::parse(&cw2::get_contract_version(deps.storage)?.version)?;
+    let version_requirement = VersionReq::parse(">= 1.1.0, < 1.2.0")?;
+    assert!(version_requirement.matches(&old_version));
 
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 

@@ -131,6 +131,7 @@ mod test {
         assert_err_contains, err_contains, nonempty, MajorityThreshold, Threshold,
         VerificationStatus,
     };
+    use bech32::{Bech32m, Hrp};
     use cosmwasm_std::testing::{
         mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
     };
@@ -265,6 +266,18 @@ mod test {
             .to_string()
             .parse()
             .unwrap(),
+            MessageIdFormat::Bech32m {
+                prefix,
+                length: _length,
+            } => {
+                let data = format!("{id}-{index}");
+                let hrp = Hrp::parse(prefix).expect("valid hrp");
+                bech32::encode::<Bech32m>(hrp, data.as_bytes())
+                    .unwrap()
+                    .to_string()
+                    .parse()
+                    .unwrap()
+            }
         }
     }
 

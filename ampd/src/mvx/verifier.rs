@@ -518,8 +518,9 @@ mod tests {
         // 0000000000000000000000000000000000000000000000000000000000000005 - the nonce (created_at date as uint256)
         let data = HexBinary::from_hex("0000000345e67eaf446e6c26eb3a2b55b64339ecf3a4d1d03180bee20eb5afdd23fa644f0000000101c387253d29085a8036d6ae2cafb1b14699751417c0ce302cfe03da279e6b5c040000000101dd9822c7fa239dda9913ebee813ecbe69e35d88ff651548d5cc42c033a8a667b000000010100000001020000000000000000000000000000000000000000000000000000000000000005")
             .unwrap();
+        // This hash is generated externally using the MultiversX Gateway contract and is 100% correct
         let signers_hash =
-            HexBinary::from_hex("29f81aa379fa1f5973d05dd25e5ae4bc1afa2aa30156b1db5ec437a46ba4fd28")
+            HexBinary::from_hex("ad334409a09406b82c1d0f86bdc0aa8f68950c996643c884e6be66e6ea821654")
                 .unwrap();
 
         let wrong_event = Events {

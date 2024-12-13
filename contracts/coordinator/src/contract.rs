@@ -7,13 +7,15 @@ use axelar_wasm_std::{address, permission_control, FnExt};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_json_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response, Storage,
+    ensure, to_json_binary, Addr, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response, Storage,
 };
-use error_stack::{report, ResultExt};
+use cw2::VersionError;
+use error_stack::report;
 use itertools::Itertools;
+use semver::Version;
 
 use crate::error::ContractError;
-use crate::msg::{ExecuteMsg, InstantiateMsg, MigrationMsg, QueryMsg};
+use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{is_prover_registered, Config, CONFIG};
 
 pub const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
@@ -23,12 +25,16 @@ pub const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub fn migrate(
     deps: DepsMut,
     _env: Env,
-    msg: MigrationMsg,
+    _msg: Empty,
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
-    let service_registry = validate_cosmwasm_address(deps.api, &msg.service_registry)?;
-
-    migrations::v1_0_0::migrate(deps.storage, service_registry)
-        .change_context(ContractError::Migration)?;
+    let old_version = Version::parse(&cw2::get_contract_version(deps.storage)?.version)?;
+    ensure!(
+        old_version.major == 1 && old_version.minor == 1,
+        report!(VersionError::WrongVersion {
+            expected: "1.1.x".into(),
+            found: old_version.to_string()
+        })
+    );
 
     // this needs to be the last thing to do during migration,
     // because previous migration steps should check the old version
@@ -303,5 +309,17 @@ mod tests {
             )
             .to_string()
         ));
+    }
+
+    #[test]
+    fn migrate_sets_contract_version() {
+        let governance = "governance_for_coordinator";
+        let mut test_setup = setup(governance);
+
+        migrate(test_setup.deps.as_mut(), mock_env(), Empty {}).unwrap();
+
+        let contract_version = cw2::get_contract_version(test_setup.deps.as_mut().storage).unwrap();
+        assert_eq!(contract_version.contract, CONTRACT_NAME);
+        assert_eq!(contract_version.version, CONTRACT_VERSION);
     }
 }
