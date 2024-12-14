@@ -1,10 +1,10 @@
 [workspace]
 members = [
-    "ampd",
-    "contracts/*",
-    "external-gateways/*",
-    "integration-tests",
-    "packages/*"
+  "ampd",
+  "contracts/*",
+  "external-gateways/*",
+  "integration-tests",
+  "packages/*",
 ]
 resolver = "2"
 
@@ -13,8 +13,12 @@ rust-version = "1.78.0" # be sure there is an optimizer release supporting this 
 edition = "2021"
 
 [workspace.dependencies]
-alloy-primitives = { version = "0.7.6", default-features = false, features = ["std"] }
-alloy-sol-types = { version = "0.7.6", default-features = false, features = ["std"] }
+alloy-primitives = { version = "0.7.6", default-features = false, features = [
+  "std",
+] }
+alloy-sol-types = { version = "0.7.6", default-features = false, features = [
+  "std",
+] }
 anyhow = "1.0.89"
 assert_ok = "1.0"
 axelar-wasm-std = { version = "^1.0.0", path = "packages/axelar-wasm-std" }
@@ -31,7 +35,9 @@ cw-storage-plus = { version = "1.2.0", features = ["iterator", "macro"] }
 cw2 = "1.1.0"
 ed25519-dalek = { version = "2.1.1", default-features = false }
 error-stack = { version = "0.4.0", features = ["eyre"] }
-ethers-contract = { version = "2.0.14", default-features = false, features = ["abigen"] }
+ethers-contract = { version = "2.0.14", default-features = false, features = [
+  "abigen",
+] }
 ethers-core = "2.0.14"
 events = { version = "^1.0.0", path = "packages/events" }
 events-derive = { version = "^1.0.0", path = "packages/events-derive" }
@@ -69,6 +75,10 @@ stellar-xdr = { version = "21.2.0" }
 strum = { version = "0.25", default-features = false, features = ["derive"] }
 sui-gateway = { version = "^1.0.0", path = "packages/sui-gateway" }
 sui-types = { version = "^1.0.0", path = "packages/sui-types" }
+starknet-types-core = { version = "0.1.7" }
+starknet-types = { version = "^1.0.0", path = "packages/starknet-types" }
+starknet-core = "0.12.0"
+starknet-providers = "0.12.0"
 syn = "2.0.68"
 thiserror = "1.0.61"
 tofn = { version = "1.1" }
@@ -77,6 +87,11 @@ tokio-stream = "0.1.11"
 tokio-util = "0.7.11"
 voting-verifier = { version = "^1.1.0", path = "contracts/voting-verifier" }
 axelar-core-std = { version = "^1.0.0", path = "packages/axelar-core-std" }
+# Async
+futures-concurrency = "7.4"
+futures-util = "0.3"
+futures = "0.3"
+async-trait = "0"
 
 [workspace.lints.clippy]
 arithmetic_side_effects = "deny"
