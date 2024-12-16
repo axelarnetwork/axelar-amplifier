@@ -3,14 +3,14 @@ use std::hash::Hash;
 
 use axelar_wasm_std::msg_id::HexTxHash;
 use axelar_wasm_std::{nonempty, FnExt, VerificationStatus};
-use cosmwasm_std::{Addr, CosmosMsg, Event, HexBinary, Response, Storage, Uint256};
-use error_stack::{bail, ensure, Result, ResultExt};
+use cosmwasm_std::{wasm_execute, Addr, CosmosMsg, Event, HexBinary, Response, Storage, Uint256};
+use error_stack::{bail, ensure, report, Result, ResultExt};
 use itertools::Itertools;
 use router_api::client::Router;
 use router_api::{Address, ChainName, ChainNameRaw, CrossChainId, Message};
 use sha3::{Digest, Keccak256};
 use interchain_token_service::{self, TokenId};
-use xrpl_types::types::{XRPLAccountId, XRPLCurrency, XRPLPaymentAmount, XRPLToken, XRPLTokenOrXrp, XRP_DECIMALS, XRP_MAX_UINT};
+use xrpl_types::types::{scale_from_drops, scale_to_decimals, XRPLAccountId, XRPLCurrency, XRPLPaymentAmount, XRPLToken, XRPLTokenOrXrp};
 use xrpl_types::msg::{CrossChainMessage, XRPLMessage, XRPLUserMessageWithPayload};
 
 use crate::contract::Error;
@@ -18,8 +18,7 @@ use crate::events::XRPLGatewayEvent;
 use crate::msg::{DeployInterchainToken, DeployTokenManager};
 use crate::state::{self, Config};
 
-const MAX_TOKEN_DECIMALS: u8 = 56;
-const TOKEN_TRANSFER_PAYLOAD_HASH: [u8; 32] = [0u8; 32];
+const PURE_TOKEN_TRANSFER_PAYLOAD_HASH: [u8; 32] = [0u8; 32];
 
 pub fn verify_messages(
     verifier: &xrpl_voting_verifier::Client,
@@ -48,7 +47,7 @@ fn verify(
 }
 
 pub fn route_incoming_messages(
-    storage: &dyn Storage,
+    storage: &mut dyn Storage,
     config: &Config,
     verifier: &xrpl_voting_verifier::Client,
     msgs_with_payload: Vec<XRPLUserMessageWithPayload>,
@@ -59,15 +58,19 @@ pub fn route_incoming_messages(
     for (status, msgs) in &msgs_by_status {
         let mut its_msgs = Vec::new();
         for msg in msgs {
-            let (its_msg, payload) = to_its_message(storage, config, msg)?;
-            its_msgs.push(its_msg.clone());
-            events.extend(vec![
-                into_route_event(status, its_msg.clone()),
-                Event::from(XRPLGatewayEvent::ContractCalled {
-                    msg: its_msg,
-                    payload,
-                }),
-            ]);
+            match to_its_message_with_payload(storage, config, msg)? {
+                Some((its_msg, payload)) => {
+                    its_msgs.push(its_msg.clone());
+                    events.extend(vec![
+                        into_route_event(status, its_msg.clone()),
+                        Event::from(XRPLGatewayEvent::ContractCalled {
+                            msg: its_msg,
+                            payload,
+                        }),
+                    ]);
+                }
+                None => ()
+            }
         }
         route_msgs.extend(filter_routable_messages(*status, &its_msgs));
     }
@@ -76,83 +79,59 @@ pub fn route_incoming_messages(
     Ok(Response::new().add_messages(router.route(route_msgs)).add_events(events))
 }
 
-// Converts XRP drops to the destination chain's token amount.
-fn scale_from_drops(
-    drops: u64,
-    destination_decimals: u8,
-) -> core::result::Result<Uint256, Error> {
-    if drops > XRP_MAX_UINT {
-        return Err(Error::InvalidDrops(drops));
-    }
-
-    if destination_decimals > MAX_TOKEN_DECIMALS {
-        return Err(Error::InvalidDecimals(destination_decimals));
-    }
-
-    let source_amount = Uint256::from(drops);
-    if XRP_DECIMALS == destination_decimals {
-        return Ok(source_amount);
-    }
-
-    let scaling_factor = Uint256::from_u128(10)
-        .checked_pow(XRP_DECIMALS.abs_diff(destination_decimals).into())
-        .expect("exponent cannot be too large");
-
-    let destination_amount = if XRP_DECIMALS > destination_decimals {
-        source_amount
-            .checked_div(scaling_factor)
-            .expect("scaling factor must be non-zero")
-    } else {
-        source_amount
-            .checked_mul(scaling_factor)
-            .expect("multiplication should not overflow")
-    };
-
-    Ok(destination_amount)
-}
-
-fn to_its_message(
+fn compute_token_id(
     storage: &dyn Storage,
-    config: &Config,
-    msg_with_payload: &XRPLUserMessageWithPayload,
-) -> Result<(Message, HexBinary), Error> {
-    let user_message = &msg_with_payload.message;
-
-    match msg_with_payload.payload.clone() {
-        None => {
-            if user_message.payload_hash != TOKEN_TRANSFER_PAYLOAD_HASH {
-                return Err(Error::PayloadHashMismatch {
-                    expected: TOKEN_TRANSFER_PAYLOAD_HASH,
-                    actual: user_message.payload_hash,
-                }.into());
-            }
-        }
-        Some(payload) => {
-            let payload_hash = Keccak256::digest(payload.as_slice()).into();
-            if user_message.payload_hash != payload_hash {
-                return Err(Error::PayloadHashMismatch {
-                    expected: payload_hash,
-                    actual: user_message.payload_hash,
-                }.into());
-            }
-        }
-    }
-
-    let token_id = match user_message.amount.clone() {
-        XRPLPaymentAmount::Drops(_) => XRPLTokenOrXrp::Xrp.token_id(),
+    xrpl_multisig: XRPLAccountId,
+    amount: XRPLPaymentAmount
+) -> Result<TokenId, Error> {
+    let token_id = match amount {
+        XRPLPaymentAmount::Drops(_) => XRPLTokenOrXrp::Xrp.local_token_id(),
         XRPLPaymentAmount::Issued(token, _) => {
-            if token.is_remote(config.xrpl_multisig.clone()) {
-                state::load_token_id(storage, &token.currency)
+            if token.is_remote(xrpl_multisig) {
+                state::load_remote_token_id(storage, &token.currency)
                     .change_context(Error::InvalidToken)?
             } else {
-                XRPLTokenOrXrp::Issued(token).token_id()
+                XRPLTokenOrXrp::Issued(token).local_token_id()
             }
         }
     };
 
+    Ok(token_id)
+}
+
+fn to_its_message_with_payload(
+    storage: &mut dyn Storage,
+    config: &Config,
+    msg_with_payload: &XRPLUserMessageWithPayload,
+) -> Result<Option<(Message, HexBinary)>, Error> {
+    let user_message = &msg_with_payload.message;
+
+    match &msg_with_payload.payload {
+        None => {
+            ensure!(
+                user_message.payload_hash == PURE_TOKEN_TRANSFER_PAYLOAD_HASH,
+                Error::PayloadHashMismatch {
+                    expected: PURE_TOKEN_TRANSFER_PAYLOAD_HASH,
+                    actual: user_message.payload_hash,
+                }
+            );
+        }
+        Some(payload) => {
+            let payload_hash = Keccak256::digest(payload.as_ref()).into();
+            ensure!(
+                user_message.payload_hash == payload_hash,
+                Error::PayloadHashMismatch {
+                    expected: payload_hash,
+                    actual: user_message.payload_hash,
+                }
+            )
+        }
+    }
+
+    let token_id = compute_token_id(storage, config.xrpl_multisig.clone(), user_message.amount.clone())?;
     let source_address = nonempty::HexBinary::try_from(HexBinary::from(user_message.source_address.as_ref()))
         .change_context(Error::InvalidAddress)?;
-    let destination_address = user_message.clone().destination_address;
+    let destination_address = user_message.destination_address.clone();
     let destination_chain = ChainNameRaw::from(user_message.destination_chain.clone());
     let destination_decimals = state::load_token_instance_decimals(storage, destination_chain.clone(), token_id.clone())
         .change_context(Error::TokenNotRegisteredForChain {
@@ -160,23 +139,33 @@ fn to_its_message(
             chain_name: destination_chain.to_owned(),
         })?;
 
-    // TODO: Keep track of dust.
-    let amount = match user_message.amount.clone() {
+    let (amount, dust) = match user_message.amount.clone() {
         XRPLPaymentAmount::Drops(drops) => {
-            scale_from_drops(drops, destination_decimals)
+            let (amount, dust) = scale_from_drops(drops, destination_decimals)
                 .change_context(Error::InvalidTransferAmount {
                     destination_chain,
                     amount: user_message.amount.to_owned(),
-                })
+                })?;
+
+            (amount, XRPLPaymentAmount::Drops(dust))
         }
-        XRPLPaymentAmount::Issued(_, token_amount) => {
-            token_amount.scale_to_decimals(destination_decimals)
+        XRPLPaymentAmount::Issued(token, token_amount) => {
+            let (amount, dust) = scale_to_decimals(token_amount, destination_decimals)
                 .change_context(Error::InvalidTransferAmount {
                     destination_chain,
                     amount: user_message.amount.to_owned(),
-                })
+                })?;
+
+            (amount, XRPLPaymentAmount::Issued(token, dust))
         }
-    }?;
+    };
+
+    state::count_dust(storage, &user_message.tx_id, &token_id, dust)
+        .change_context(Error::State)?;
+
+    if amount.is_zero() {
+        return Ok(None);
+    }
 
     let payload = interchain_token_service::HubMessage::SendToHub {
         destination_chain: user_message.clone().destination_chain.into(),
@@ -184,14 +173,14 @@ fn to_its_message(
             token_id: token_id.clone(),
             source_address,
             destination_address,
-            amount: amount.try_into().map_err(|_| Error::InvalidAmount)?, // TODO: Should be no-op if truncated amount is 0.
+            amount: amount.try_into().expect("amount cannot be zero"),
             data: msg_with_payload.payload.clone(),
         },
     }.abi_encode();
     let cc_id = user_message.cc_id(config.xrpl_chain.clone().into());
     let its_msg = construct_its_hub_message(config, cc_id, payload.clone())?;
 
-    Ok((its_msg, payload))
+    Ok(Some((its_msg, payload)))
 }
 
 // because the messages came from the router, we can assume they are already verified
@@ -232,7 +221,7 @@ pub fn register_local_token(
         Error::TokenNotLocal(XRPLTokenOrXrp::Issued(xrpl_token))
     );
 
-    let token_id = XRPLTokenOrXrp::Issued(xrpl_token.clone()).token_id();
+    let token_id = xrpl_token.local_token_id();
     match state::may_load_xrpl_token(storage, &token_id)
         .change_context(Error::State)?
     {
@@ -261,7 +250,7 @@ pub fn register_remote_token(
     token_id: TokenId,
     xrpl_currency: XRPLCurrency,
 ) -> Result<Response, Error> {
-    match state::may_load_token_id(storage, &xrpl_currency)
+    match state::may_load_remote_token_id(storage, &xrpl_currency)
         .change_context(Error::State)?
     {
         Some(deployed_token_id) => {
@@ -275,7 +264,7 @@ pub fn register_remote_token(
             );
         }
         None => {
-            state::save_token_id(storage, &xrpl_currency, &token_id)
+            state::save_remote_token_id(storage, &xrpl_currency, &token_id)
                 .change_context(Error::State)?;
         }
     }
@@ -293,7 +282,7 @@ pub fn register_remote_token(
                 }
             );
             ensure!(
-                deployed_xrpl_token.issuer == xrpl_multisig,
+                deployed_xrpl_token.is_remote(xrpl_multisig.clone()),
                 Error::RemoteTokenDeployedIssuerMismatch {
                     token_id,
                     expected: deployed_xrpl_token.issuer,
@@ -338,10 +327,9 @@ pub fn register_token_instance(
     chain: ChainNameRaw,
     decimals: u8,
 ) -> Result<Response, Error> {
-    ensure!(
-        decimals <= MAX_TOKEN_DECIMALS,
-        Error::InvalidDecimals(decimals)
-    );
+    if decimals > 50 { // TODO: Don't hardcode.
+        bail!(Error::InvalidDecimals(decimals));
+    }
 
     if chain == config.xrpl_chain {
         bail!(Error::ForbiddenChain(chain));
@@ -407,7 +395,12 @@ pub fn deploy_token_manager(
     destination_chain: ChainNameRaw,
     deploy_token_manager: DeployTokenManager,
 ) -> Result<Response, Error> {
-    let token_id = xrpl_token.token_id();
+    ensure!(
+        xrpl_token.is_local(config.xrpl_multisig.clone()),
+        Error::TokenNotLocal(xrpl_token)
+    );
+
+    let token_id = xrpl_token.local_token_id();
     let its_msg = interchain_token_service::Message::DeployTokenManager {
         token_id: token_id.clone(),
         token_manager_type: deploy_token_manager.token_manager_type,
@@ -434,7 +427,12 @@ pub fn deploy_interchain_token(
     destination_chain: ChainNameRaw,
     deploy_interchain_token: DeployInterchainToken,
 ) -> Result<Response, Error> {
-    let token_id = xrpl_token.token_id();
+    ensure!(
+        xrpl_token.is_local(config.xrpl_multisig.clone()),
+        Error::TokenNotLocal(xrpl_token)
+    );
+
+    let token_id = xrpl_token.local_token_id();
     let its_msg = interchain_token_service::Message::DeployInterchainToken {
         token_id: token_id.clone(),
         name: deploy_interchain_token.name,
@@ -455,7 +453,41 @@ pub fn deploy_interchain_token(
     )
 }
 
-// TODO: potentially query nexus, similarly to how axelarnet-gateway does
+// TODO: Remove this once the prover API is imported.
+#[cosmwasm_schema::cw_serde]
+pub struct AcquireLocalDust {
+    pub token_id: TokenId,
+    pub dust: XRPLPaymentAmount,
+}
+
+pub fn offload_dust(
+    storage: &mut dyn Storage,
+    multisig_prover: Addr,
+    token_id: TokenId,
+) -> Result<Response, Error> {
+    match state::may_load_dust(storage, &token_id)
+        .change_context(Error::State)?
+    {
+        Some(dust) => {
+            state::mark_dust_offloaded(storage, &token_id);
+            Ok(Response::new()
+                .add_message(wasm_execute(
+                    multisig_prover,
+                    // TODO: Import prover API only.
+                    &AcquireLocalDust {
+                        token_id,
+                        dust,
+                    },
+                    vec![],
+                )
+                .change_context(Error::FailedToOffloadDust)?)
+            )
+        },
+        None => return Err(report!(Error::NoDustToOffload(token_id))),
+    }
+}
+
+// TODO: Potentially query nexus, similarly to how axelarnet-gateway does.
 fn unique_cross_chain_id(block_height: u64, chain_name: ChainName) -> Result<CrossChainId, Error> {
     // TODO: Retrieve the actual tx hash from core, since cosmwasm doesn't provide it.
     // Use the block height as the placeholder in the meantime.
@@ -571,29 +603,4 @@ fn flat_unzip<A, B>(x: impl Iterator<Item = (Vec<A>, Vec<B>)>) -> (Vec<A>, Vec<B
 
 fn messages_into_events<T>(msgs: Vec<T>, transform: fn(T) -> XRPLGatewayEvent) -> Vec<Event> {
     msgs.into_iter().map(|msg| transform(msg).into()).collect()
-}
-
-#[cfg(test)]
-mod test {
-    use super::*;
-
-    #[test]
-    fn test_scale_from_drops() {
-        assert_eq!(scale_from_drops(1_000_000, 18).unwrap(), Uint256::from(1_000_000_000_000_000_000u64));
-        assert_eq!(scale_from_drops(100000000000000000, 18).unwrap(), Uint256::from(100000000000000000000000000000u128));
-        assert_eq!(scale_from_drops(1_000_000, 6).unwrap(), Uint256::from(1_000_000u32));
-        assert_eq!(scale_from_drops(1_234_567, 18).unwrap(), Uint256::from(1_234_567_000_000_000_000u64));
-        assert_eq!(scale_from_drops(1_000_000, 6).unwrap(), Uint256::from(1_000_000u32));
-        assert_eq!(scale_from_drops(1, 5).unwrap(), Uint256::zero());
-    }
-
-    #[test]
-    fn test_scale_from_invalid_drops() {
-        let result = scale_from_drops(XRP_MAX_UINT + 1, 18);
-        assert!(result.is_err());
-        assert_eq!(
-            result.unwrap_err().to_string(),
-            "invalid drops 100000000000000001"
-        );
-    }
 }

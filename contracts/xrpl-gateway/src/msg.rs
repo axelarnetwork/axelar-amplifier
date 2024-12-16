@@ -1,11 +1,12 @@
 use axelar_wasm_std::nonempty;
 use cosmwasm_schema::{cw_serde, QueryResponses};
+use cosmwasm_std::Addr;
 use interchain_token_service::{TokenId, TokenManagerType};
 use router_api::{ChainName, ChainNameRaw, CrossChainId, Message};
 use msgs_derive::EnsurePermissions;
 
 use xrpl_types::msg::{XRPLMessage, XRPLUserMessageWithPayload};
-use xrpl_types::types::{XRPLAccountId, XRPLCurrency, XRPLToken, XRPLTokenOrXrp, xrpl_account_id_string};
+use xrpl_types::types::{xrpl_account_id_string, XRPLAccountId, XRPLCurrency, XRPLToken, XRPLTokenOrXrp};
 
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -110,6 +111,13 @@ pub enum ExecuteMsg {
     /// They are reported by the relayer and need verification.
     #[permission(Any)]
     RouteIncomingMessages(Vec<XRPLUserMessageWithPayload>),
+
+    /// Offload dust accrued to the multisig prover.
+    #[permission(Elevated)]
+    OffloadDust {
+        multisig_prover: Addr,
+        token_id: TokenId,
+    },
 }
 
 #[cw_serde]

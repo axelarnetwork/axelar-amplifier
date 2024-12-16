@@ -1,9 +1,6 @@
 use axelar_wasm_std::{address, permission_control, FnExt};
 use error_stack::ResultExt;
-use cosmwasm_std::{
-    entry_point, to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Reply, Response,
-};
-
+use cosmwasm_std::{entry_point, to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Reply, Response};
 use multisig::key::PublicKey;
 
 mod execute;
@@ -77,7 +74,11 @@ pub fn execute(
     let config = CONFIG.load(deps.storage).expect("failed to load config");
     let querier = Querier::new(deps.querier, config.clone());
 
-    match msg.ensure_permissions(deps.storage, &info.sender)? {
+    match msg.ensure_permissions(
+        deps.storage,
+        &info.sender,
+        |_, _| Ok::<_, error_stack::Report<ContractError>>(config.gateway.clone()),
+    )? {
         ExecuteMsg::TrustSet { xrpl_token } => {
             execute::construct_trust_set_proof(
                 deps.storage,
@@ -118,6 +119,9 @@ pub fn execute(
         ExecuteMsg::TicketCreate {} => {
             execute::construct_ticket_create_proof(deps.storage, env.contract.address, &config)
         }
+        ExecuteMsg::ClaimDust { destination_address, token_id, chain } => {
+            execute::construct_dust_claim_payment_proof(deps.storage, &querier, env.contract.address, destination_address, token_id, chain)
+        }
         ExecuteMsg::UpdateSigningThreshold {
             new_signing_threshold,
         } => {
@@ -125,6 +129,9 @@ pub fn execute(
         }
         ExecuteMsg::UpdateAdmin { new_admin_address } => {
             execute::update_admin(deps, new_admin_address)
+        }
+        ExecuteMsg::AcquireLocalDust { token_id, dust } => {
+            execute::acquire_local_dust(deps.storage, token_id, dust)
         }
     }?
     .then(Ok)

@@ -1,3 +1,5 @@
+use std::ops::Add;
+
 use axelar_wasm_std::{counter::Counter, IntoContractError};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, StdError, Storage};
@@ -5,7 +7,7 @@ use cw_storage_plus::{Item, Map};
 use error_stack::{report, Result, ResultExt};
 use interchain_token_service::TokenId;
 use router_api::{ChainName, ChainNameRaw, CrossChainId, Message};
-use xrpl_types::types::{XRPLAccountId, XRPLCurrency, XRPLToken};
+use xrpl_types::types::{TxHash, XRPLAccountId, XRPLCurrency, XRPLPaymentAmount, XRPLToken};
 
 #[cw_serde]
 pub struct Config {
@@ -21,9 +23,13 @@ const CONFIG: Item<Config> = Item::new("config");
 const OUTGOING_MESSAGES: Map<&CrossChainId, Message> = Map::new("outgoing_messages");
 const ROUTABLE_MESSAGES_INDEX: Counter<u32> = Counter::new("routable_message_index");
 
-const XRPL_CURRENCY_TO_TOKEN_ID: Map<&XRPLCurrency, TokenId> = Map::new("xrpl_currency_to_token_id");
+const XRPL_CURRENCY_TO_REMOTE_TOKEN_ID: Map<&XRPLCurrency, TokenId> = Map::new("xrpl_currency_to_remote_token_id");
 const TOKEN_ID_TO_XRPL_TOKEN: Map<&TokenId, XRPLToken> = Map::new("token_id_to_xrpl_token");
 const TOKEN_INSTACE_DECIMALS: Map<&(ChainNameRaw, TokenId), u8> = Map::new("token_instance_decimals");
+
+// TODO: XRPLPaymentAmount has XRPLToken which is redundant here.
+const DUST_ACCRUED: Map<&TokenId, XRPLPaymentAmount> = Map::new("dust_accrued");
+const DUST_COUNTED: Map<&TxHash, ()> = Map::new("dust_counted");
 
 #[derive(thiserror::Error, Debug, IntoContractError)]
 pub enum Error {
@@ -43,6 +49,52 @@ pub enum Error {
     TokenIdNotFound(XRPLCurrency),
     #[error("token instance for chain {0} and token {1} not found")]
     TokenInstanceNotFound(ChainNameRaw, TokenId),
+}
+
+fn increment_dust(storage: &mut dyn Storage, token_id: &TokenId, new_dust: XRPLPaymentAmount) -> Result<XRPLPaymentAmount, Error> {
+    DUST_ACCRUED.update(
+        storage,
+        token_id,
+        |existing_dust| {
+            match existing_dust {
+                Some(existing_dust) => existing_dust.add(new_dust),
+                None => Ok(new_dust),
+            }
+        },
+    ).change_context(Error::Storage)
+}
+
+pub fn mark_dust_offloaded(storage: &mut dyn Storage, token_id: &TokenId) {
+    DUST_ACCRUED.remove(storage, token_id)
+}
+
+pub fn may_load_dust(storage: &dyn Storage, token_id: &TokenId) -> Result<Option<XRPLPaymentAmount>, Error> {
+    DUST_ACCRUED
+        .may_load(storage, token_id)
+        .change_context(Error::Storage)
+}
+
+fn dust_counted(storage: &dyn Storage, tx_hash: &TxHash) -> Result<bool, Error> {
+    Ok(DUST_COUNTED
+        .may_load(storage, tx_hash)
+        .change_context(Error::Storage)?
+        .is_some())
+}
+
+fn mark_dust_counted(storage: &mut dyn Storage, tx_hash: &TxHash) -> Result<(), Error> {
+    DUST_COUNTED
+        .save(storage, tx_hash, &())
+        .change_context(Error::Storage)
+}
+
+pub fn count_dust(storage: &mut dyn Storage, tx_id: &TxHash, token_id: &TokenId, dust: XRPLPaymentAmount) -> Result<(), Error> {
+    if dust.is_zero() || dust_counted(storage, &tx_id)? {
+        return Ok(());
+    }
+
+    increment_dust(storage, &token_id, dust)?;
+    mark_dust_counted(storage, &tx_id)?;
+    Ok(())
 }
 
 pub fn may_load_token_instance_decimals(
@@ -156,30 +208,30 @@ pub fn increment_event_index(storage: &mut dyn Storage) -> Result<u32, Error> {
         .change_context(Error::Storage)
 }
 
-pub fn may_load_token_id(
+pub fn may_load_remote_token_id(
     storage: &dyn Storage,
     xrpl_currency: &XRPLCurrency,
 ) -> Result<Option<TokenId>, Error> {
-    XRPL_CURRENCY_TO_TOKEN_ID
+    XRPL_CURRENCY_TO_REMOTE_TOKEN_ID
         .may_load(storage, xrpl_currency)
         .change_context(Error::Storage)
 }
 
-pub fn load_token_id(
+pub fn load_remote_token_id(
     storage: &dyn Storage,
     xrpl_currency: &XRPLCurrency,
 ) -> Result<TokenId, Error> {
-    may_load_token_id(storage, xrpl_currency)
+    may_load_remote_token_id(storage, xrpl_currency)
         .change_context(Error::Storage)?
         .ok_or_else(|| report!(Error::TokenIdNotFound(xrpl_currency.to_owned())))
 }
 
-pub fn save_token_id(
+pub fn save_remote_token_id(
     storage: &mut dyn Storage,
     xrpl_currency: &XRPLCurrency,
     token_id: &TokenId
 ) -> Result<(), Error> {
-    XRPL_CURRENCY_TO_TOKEN_ID
+    XRPL_CURRENCY_TO_REMOTE_TOKEN_ID
         .save(storage, xrpl_currency, token_id)
         .change_context(Error::Storage)
 }

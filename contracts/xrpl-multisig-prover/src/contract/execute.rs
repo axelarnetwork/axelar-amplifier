@@ -1,23 +1,22 @@
 use std::collections::HashSet;
+use std::ops::Add;
 
-use axelar_wasm_std::{address, nonempty, permission_control, FnExt, VerificationStatus, MajorityThreshold};
-use interchain_token_service::HubMessage;
-use router_api::CrossChainId;
+use axelar_wasm_std::{address, permission_control, FnExt, MajorityThreshold, VerificationStatus};
+use interchain_token_service::{HubMessage, TokenId};
+use router_api::{ChainNameRaw, CrossChainId};
 use cosmwasm_std::{wasm_execute, Addr, DepsMut, Env, HexBinary, Response, Storage, SubMsg, Uint256, Uint64};
 use multisig::{key::PublicKey, types::MultisigState};
 use sha3::{Keccak256, Digest};
 use xrpl_types::error::XRPLError;
 use xrpl_types::msg::XRPLMessage;
 use xrpl_types::types::{
-    canonicalize_token_amount, XRP_DECIMALS, XRP_MAX_UINT,
-    TxHash, XRPLToken, XRPLSigner, XRPLSignedTx, XRPLPaymentAmount, XRPLAccountId,
-    XRPLTokenOrXrp
+    canonicalize_token_amount, scale_to_drops, TxHash, XRPLAccountId, XRPLPaymentAmount, XRPLSignedTx, XRPLSigner, XRPLToken, XRPLTokenOrXrp, XRPLTxStatus
 };
 
 use crate::axelar_verifiers;
 use crate::error::ContractError;
 use crate::querier::Querier;
-use crate::state::{self, Config};
+use crate::state::{self, Config, DustAmount, DustInfo, DUST};
 use crate::xrpl_multisig;
 use crate::xrpl_serialize::XRPLSerialize;
 
@@ -30,11 +29,11 @@ pub fn construct_trust_set_proof(
     config: &Config,
     xrpl_token: XRPLToken,
 ) -> Result<Response, ContractError> {
-    if !xrpl_token.is_local(config.xrpl_multisig.clone()) {
+    if xrpl_token.is_remote(config.xrpl_multisig.clone()) {
         return Err(ContractError::TokenNotLocal(xrpl_token));
     }
 
-    if querier.xrpl_token(XRPLTokenOrXrp::Issued(xrpl_token.clone()).token_id())? != xrpl_token {
+    if querier.xrpl_token(XRPLTokenOrXrp::Issued(xrpl_token.clone()).local_token_id())? != xrpl_token {
         return Err(ContractError::LocalTokenNotRegistered(xrpl_token));
     }
 
@@ -75,7 +74,7 @@ pub fn confirm_tx_status(
     let mut tx_info = state::UNSIGNED_TX_HASH_TO_TX_INFO.load(storage, &unsigned_tx_hash)?;
     let multisig_session = querier.multisig(multisig_session_id)?;
 
-    let xrpl_signers: Vec<XRPLSigner> = multisig_session
+    let xrpl_signers = multisig_session
         .verifier_set
         .signers
         .into_iter()
@@ -90,14 +89,15 @@ pub fn confirm_tx_status(
 
     let signed_tx = XRPLSignedTx::new(tx_info.unsigned_tx.clone(), xrpl_signers);
     let signed_tx_hash = xrpl_types::types::hash_signed_tx(
-        HexBinary::from(signed_tx.xrpl_serialize()?).as_slice(),
+        signed_tx.xrpl_serialize()?.as_slice(),
     )?;
 
+    // Sanity check.
     if tx_id != signed_tx_hash {
-        return Err(ContractError::InvalidTxId(tx_id));
+        return Err(ContractError::TxIdMismatch(tx_id));
     }
 
-    let message = XRPLMessage::ProverMessage(tx_id);
+    let message = XRPLMessage::ProverMessage(signed_tx_hash);
     let status = querier.message_status(message)?;
 
     match status {
@@ -108,7 +108,9 @@ pub fn confirm_tx_status(
         VerificationStatus::InProgress => {
             return Err(ContractError::TxStatusVerificationInProgress);
         },
-        _ => {}
+        VerificationStatus::SucceededOnSourceChain
+        | VerificationStatus::FailedOnSourceChain
+        | VerificationStatus::NotFoundOnSourceChain => {}
     }
 
     Ok(match xrpl_multisig::confirm_tx_status(storage, unsigned_tx_hash, &mut tx_info, status.into())? {
@@ -181,42 +183,126 @@ pub fn update_admin(deps: DepsMut, new_admin_address: String) -> Result<Response
     Ok(Response::new())
 }
 
-fn convert_scaled_uint256_to_drops(value: Uint256) -> Result<u64, ContractError> {
-    if value.gt(&XRP_MAX_UINT.into()) {
-        return Err(ContractError::Overflow);
-    }
+fn compute_xrpl_amount(
+    querier: &Querier,
+    token_id: TokenId,
+    source_chain: ChainNameRaw,
+    source_amount: Uint256,
+) -> Result<(XRPLPaymentAmount, Uint256), ContractError> {
+    let source_decimals = querier.token_instance_decimals(source_chain.clone(), token_id.clone())
+        .map_err(|_| ContractError::TokenNotRegisteredForChain {
+            token_id: token_id.to_owned(),
+            chain: source_chain.to_owned(),
+        })?;
 
-    let mut last_8 = [0u8; 8];
-    last_8.copy_from_slice(&value.to_be_bytes()[24..32]);
-    Ok(u64::from_be_bytes(last_8))
+    let is_xrp = token_id == XRPLTokenOrXrp::Xrp.local_token_id();
+    let (xrpl_amount, dust) = if is_xrp {
+        let (drops, dust) = scale_to_drops(source_amount.into(), source_decimals)
+            .map_err(|_| ContractError::InvalidTransferAmount {
+                source_chain: source_chain.to_owned(),
+                amount: source_amount.into(),
+            })?;
+
+        (XRPLPaymentAmount::Drops(drops), dust)
+    } else {
+        let token = querier.xrpl_token(token_id.clone())?;
+        let (token_amount, dust) = canonicalize_token_amount(source_amount.into(), source_decimals)
+            .map_err(|_| ContractError::InvalidTransferAmount {
+                source_chain: source_chain.to_owned(),
+                amount: source_amount.into(),
+            })?;
+
+        (XRPLPaymentAmount::Issued(token, token_amount), dust)
+    };
+
+    Ok((xrpl_amount, dust))
 }
 
-// Converts the given amount of tokens to XRP drops.
-fn scale_to_drops(
-    source_amount: nonempty::Uint256,
-    source_decimals: u8,
-) -> Result<u64, ContractError> {
-    assert!(source_decimals <= 82);
+pub fn construct_dust_claim_payment_proof(
+    storage: &mut dyn Storage,
+    querier: &Querier,
+    self_address: Addr,
+    destination_address: XRPLAccountId,
+    token_id: TokenId,
+    chain: ChainNameRaw,
+) -> Result<Response, ContractError> {
+    let config = state::CONFIG.load(storage).map_err(ContractError::from)?;
 
-    if source_decimals == XRP_DECIMALS {
-        return convert_scaled_uint256_to_drops(source_amount.into());
+    let current_dust = DUST.load(storage, &(token_id.clone(), chain.clone()))
+        .map_err(|_| ContractError::DustNotFound)?;
+
+    if current_dust.is_zero() {
+        return Err(ContractError::DustAmountTooSmall {
+            dust: current_dust,
+            token_id,
+            chain,
+        });
     }
 
-    let scaling_factor = Uint256::from_u128(10)
-        .checked_pow(source_decimals.abs_diff(XRP_DECIMALS).into())
-        .expect("exponent cannot be too large");
+    let (claimable_dust, updated_dust) = match current_dust.clone() {
+        DustAmount::Local(current_local_dust) => {
+            assert!(chain == config.chain_name, "local dust stored under invalid chain name");
+            (current_local_dust.clone(), DustAmount::Local(current_local_dust.zeroize()))
+        }
+        DustAmount::Remote(current_remote_dust) => {
+            let (claimable_dust, new_dust) = compute_xrpl_amount(
+                querier,
+                token_id.clone(),
+                chain.clone(),
+                current_remote_dust.clone(),
+            )?;
 
-    let destination_amount = if source_decimals > XRP_DECIMALS {
-        Ok(source_amount
-            .checked_div(scaling_factor)
-            .expect("scaling factor must be non-zero"))
-    } else {
-        source_amount
-            .checked_mul(scaling_factor)
-            .map_err(|_| ContractError::Overflow)
-    }?;
+            (claimable_dust, DustAmount::Remote(current_remote_dust - new_dust))
+        }
+    };
 
-    convert_scaled_uint256_to_drops(destination_amount)
+    if claimable_dust.is_zero() {
+        return Err(ContractError::DustAmountTooSmall {
+            dust: current_dust,
+            token_id,
+            chain,
+        });
+    }
+
+    let unsigned_tx_hash = xrpl_multisig::issue_payment(
+        storage,
+        &config,
+        destination_address,
+        &claimable_dust,
+        None,
+        None,
+    )?;
+
+    state::UNSIGNED_TX_HASH_TO_DUST_INFO.save(storage, &unsigned_tx_hash, &DustInfo {
+        token_id,
+        chain,
+        dust_amount: updated_dust,
+    })?;
+
+    Ok(Response::new().add_submessage(start_signing_session(storage, &config, unsigned_tx_hash, self_address, None)?))
+}
+
+pub fn acquire_local_dust(
+    storage: &mut dyn Storage,
+    token_id: TokenId,
+    dust_received: XRPLPaymentAmount,
+) -> Result<Response, ContractError> {
+    let config = state::CONFIG.load(storage).map_err(ContractError::from)?;
+    DUST.update(
+        storage,
+        &(token_id, config.chain_name.into()),
+        |maybe_existing_dust| {
+            match maybe_existing_dust {
+                Some(DustAmount::Local(mut existing_dust)) => {
+                    existing_dust = existing_dust.add(dust_received.clone())?;
+                    Ok(DustAmount::Local(existing_dust))
+                },
+                Some(DustAmount::Remote(_)) => Err(ContractError::DustAmountNotLocal),
+                None => Ok(DustAmount::Local(dust_received)),
+            }
+        }
+    )?;
+    Ok(Response::default())
 }
 
 pub fn construct_payment_proof(
@@ -241,10 +327,15 @@ pub fn construct_payment_proof(
                 }
             }
             MultisigState::Completed { .. } => {
-                // TODO: Don't throw error in this case to allow retries.
-                return Err(ContractError::PaymentAlreadyHasCompletedSigningSession(
-                    multisig_session.id
-                ));
+                let unsigned_tx_hash =
+                    state::MULTISIG_SESSION_ID_TO_UNSIGNED_TX_HASH.load(storage, multisig_session.id)?;
+                let tx_info = state::UNSIGNED_TX_HASH_TO_TX_INFO.load(storage, &unsigned_tx_hash)?;
+                match tx_info.status {
+                    XRPLTxStatus::Succeeded => return Err(ContractError::PaymentAlreadySucceeded(cc_id)),
+                    XRPLTxStatus::Pending // Fresh payment.
+                    | XRPLTxStatus::FailedOnChain // Retry.
+                    | XRPLTxStatus::Inconclusive => (),
+                }
             }
         }
     };
@@ -277,43 +368,45 @@ pub fn construct_payment_proof(
             match message {
                 // Source address (ITS on source chain) has been validated by ITS hub.
                 interchain_token_service::Message::InterchainTransfer { token_id, source_address: _, destination_address, amount: source_amount, data: _ } => {
-                    // TODO: Consider enforcing that data is None for simple payments.
                     let destination_address = XRPLAccountId::try_from(destination_address)
                         .map_err(|_| ContractError::InvalidDestinationAddress)?;
 
-                    let source_decimals = querier.token_instance_decimals(source_chain.clone(), token_id.clone())
-                        .map_err(|_| ContractError::TokenNotRegisteredForChain {
-                            token_id: token_id.to_owned(),
-                            chain_name: source_chain.to_owned(),
-                        })?;
+                    let (xrpl_amount, dust) = compute_xrpl_amount(
+                        querier,
+                        token_id.clone(),
+                        source_chain.clone(),
+                        source_amount.into(),
+                    )?;
 
-                    let is_xrp = token_id == XRPLTokenOrXrp::Xrp.token_id(); // TODO: Optimize: Don't compute hash every time.
-                    let xrpl_payment_amount = if is_xrp {
-                        let drops = scale_to_drops(source_amount, source_decimals)
-                            .map_err(|_| ContractError::InvalidTransferAmount {
-                                source_chain: source_chain.to_owned(),
-                                amount: source_amount.into(),
-                            })?;
+                    if !dust.is_zero() {
+                        if !state::DUST_COUNTED.has(storage, &cc_id) {
+                            state::DUST.update(
+                                storage,
+                                &(token_id, source_chain.clone()),
+                                |current_dust| -> Result<_, ContractError> {
+                                    match current_dust {
+                                        Some(DustAmount::Remote(current_dust)) => Ok(DustAmount::Remote(current_dust + dust)),
+                                        Some(DustAmount::Local(_)) => Err(ContractError::DustAmountNotRemote),
+                                        None => Ok(DustAmount::Remote(dust)),
+                                    }
+                                },
+                            )?;
+                            state::DUST_COUNTED.save(storage, &cc_id, &())?;
+                        }
+                    }
 
-                        XRPLPaymentAmount::Drops(drops)
-                    } else {
-                        let xrpl_token = querier.xrpl_token(token_id)?;
-                        let xrpl_token_amount = canonicalize_token_amount(source_amount.into(), source_decimals)
-                            .map_err(|_| ContractError::InvalidTransferAmount {
-                                source_chain: source_chain.to_owned(),
-                                amount: source_amount.into(),
-                            })?;
+                    if xrpl_amount.is_zero() {
+                        return Ok(Response::default());
+                    }
 
-                        XRPLPaymentAmount::Issued(xrpl_token, xrpl_token_amount)
-                    };
-
+                    // TODO: Consider enforcing that data is None for simple payments.
                     let unsigned_tx_hash = xrpl_multisig::issue_payment(
                         storage,
                         config,
                         destination_address,
-                        &xrpl_payment_amount,
-                        &cc_id,
-                        None // TODO: Handle cross-currency payments.
+                        &xrpl_amount,
+                        Some(&cc_id),
+                        None, // TODO: Handle cross-currency payments.
                     )?;
 
                     state::REPLY_CROSS_CHAIN_ID.save(storage, &cc_id)?;

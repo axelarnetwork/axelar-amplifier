@@ -1,10 +1,11 @@
 use axelar_wasm_std::MajorityThreshold;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{HexBinary, Uint64};
+use interchain_token_service::TokenId;
 use multisig::key::PublicKey;
 use msgs_derive::EnsurePermissions;
-use router_api::{ChainName, CrossChainId};
-use xrpl_types::types::{TxHash, XRPLAccountId, XRPLToken, xrpl_account_id_string, tx_hash_hex};
+use router_api::{ChainName, ChainNameRaw, CrossChainId};
+use xrpl_types::types::{tx_hash_hex, xrpl_account_id_string, TxHash, XRPLAccountId, XRPLPaymentAmount, XRPLToken};
 
 use crate::state::MultisigSession;
 
@@ -126,6 +127,15 @@ pub enum ExecuteMsg {
         xrpl_token: XRPLToken,
     },
 
+    #[permission(Elevated)]
+    ClaimDust {
+        #[serde(with = "xrpl_account_id_string")]
+        #[schemars(with = "String")]
+        destination_address: XRPLAccountId,
+        token_id: TokenId,
+        chain: ChainNameRaw,
+    },
+
     // Updates the signing threshold. The threshold currently in use does not change.
     // The verifier set must be updated and confirmed for the change to take effect.
     #[permission(Governance)]
@@ -135,6 +145,12 @@ pub enum ExecuteMsg {
 
     #[permission(Governance)]
     UpdateAdmin { new_admin_address: String },
+
+    #[permission(Specific(gateway))]
+    AcquireLocalDust {
+        token_id: TokenId,
+        dust: XRPLPaymentAmount,
+    },
 }
 
 #[cw_serde]

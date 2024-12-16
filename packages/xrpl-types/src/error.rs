@@ -18,8 +18,17 @@ pub enum XRPLError {
     #[error("invalid currency")]
     InvalidCurrency,
 
+    #[error("invalid decimals {0}")]
+    InvalidDecimals(u8),
+
+    #[error("invalid drops {0}")]
+    InvalidDrops(u64),
+
     #[error("invalid message ID {0}")]
     InvalidMessageId(String),
+
+    #[error("incompatible tokens")]
+    IncompatibleTokens,
 
     #[error("invalid transaction hash")]
     InvalidTxId,
@@ -29,6 +38,9 @@ pub enum XRPLError {
 
     #[error(transparent)]
     Std(#[from] StdError),
+
+    #[error("underflow")]
+    Underflow,
 }
 
 impl From<XRPLError> for StdError {

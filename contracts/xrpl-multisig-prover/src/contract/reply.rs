@@ -1,6 +1,5 @@
 use cosmwasm_std::{from_json, DepsMut, HexBinary, Reply, Response, Uint64};
 use cw_utils::{parse_reply_execute_data, MsgExecuteContractResponse};
-use xrpl_types::types::XRPLUnsignedTx;
 
 use crate::error::ContractError;
 use crate::events::Event;
@@ -61,9 +60,6 @@ pub fn start_multisig_reply(deps: DepsMut, reply: Reply) -> Result<Response, Con
                         },
                     )?;
                     REPLY_CROSS_CHAIN_ID.remove(deps.storage);
-                }
-                None if matches!(tx_info.unsigned_tx, XRPLUnsignedTx::Payment(_)) => {
-                    panic!("No reply message ID found for Payment")
                 }
                 None => (),
             }

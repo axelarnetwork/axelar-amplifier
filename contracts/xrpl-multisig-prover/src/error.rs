@@ -2,12 +2,30 @@ use axelar_wasm_std::{nonempty, IntoContractError};
 use cosmwasm_std::{StdError, Uint256};
 use interchain_token_service::TokenId;
 use thiserror::Error;
-use router_api::{ChainName, ChainNameRaw};
+use router_api::{ChainName, ChainNameRaw, CrossChainId};
 use xrpl_types::error::XRPLError;
-use xrpl_types::types::{TxHash, XRPLToken};
+use xrpl_types::types::{TxHash, XRPLToken, XRPLTxStatus};
+
+use crate::state::DustAmount;
 
 #[derive(Error, Debug, PartialEq, IntoContractError)]
 pub enum ContractError {
+    #[error("dust amount {dust} for token {token_id} and chain {chain} is too small")]
+    DustAmountTooSmall {
+        dust: DustAmount,
+        token_id: TokenId,
+        chain: ChainNameRaw,
+    },
+
+    #[error("dust amount not local")]
+    DustAmountNotLocal,
+
+    #[error("dust amount not remote")]
+    DustAmountNotRemote,
+
+    #[error("dust not found")]
+    DustNotFound,
+
     #[error("empty signer public keys")]
     EmptySignerPublicKeys,
 
@@ -38,6 +56,12 @@ pub enum ContractError {
         expected: ChainName,
     },
 
+    #[error("invalid dust amount {amount} with decimals {decimals}")]
+    InvalidDustAmount {
+        amount: Uint256,
+        decimals: u8,
+    },
+
     #[error("invalid message ID {0}")]
     InvalidMessageId(String),
 
@@ -56,8 +80,11 @@ pub enum ContractError {
         amount: Uint256,
     },
 
-    #[error("invalid transaction ID {0}")]
-    InvalidTxId(TxHash),
+    #[error("invalid transaction status {0}")]
+    InvalidTxStatus(XRPLTxStatus),
+
+    #[error("transaction ID {0} did not match reconstructed transaction ID")]
+    TxIdMismatch(TxHash),
 
     #[error("local token {0} not registered")]
     LocalTokenNotRegistered(XRPLToken),
@@ -95,6 +122,9 @@ pub enum ContractError {
     #[error("payment already has completed signing session with ID {0}")]
     PaymentAlreadyHasCompletedSigningSession(u64),
 
+    #[error("payment for {0} already succeeded")]
+    PaymentAlreadySucceeded(CrossChainId),
+
     #[error("failed to serialize the response")]
     SerializeResponse,
 
@@ -110,10 +140,10 @@ pub enum ContractError {
     #[error("too many verifiers")]
     TooManyVerifiers,
 
-    #[error("token {token_id} not registered for chain {chain_name}")]
+    #[error("token {token_id} not registered for chain {chain}")]
     TokenNotRegisteredForChain {
         token_id: TokenId,
-        chain_name: ChainNameRaw,
+        chain: ChainNameRaw,
     },
 
     #[error("token {0} not local")]
@@ -139,6 +169,9 @@ pub enum ContractError {
 
     #[error(transparent)]
     XRPLTypeConversionError(#[from] XRPLError),
+
+    #[error("zero dust amount to claim")]
+    ZeroDustToClaim,
 }
 
 impl From<ContractError> for StdError {

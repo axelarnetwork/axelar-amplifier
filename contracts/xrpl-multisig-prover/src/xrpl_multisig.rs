@@ -9,7 +9,7 @@ use xrpl_types::types::{
 use crate::axelar_verifiers::VerifierSet;
 use crate::error::ContractError;
 use crate::state::{
-    Config, TxInfo, AVAILABLE_TICKETS, CONSUMED_TICKET_TO_UNSIGNED_TX_HASH, CROSS_CHAIN_ID_TO_TICKET, CURRENT_VERIFIER_SET, LAST_ASSIGNED_TICKET_NUMBER, LATEST_SEQUENTIAL_UNSIGNED_TX_HASH, NEXT_SEQUENCE_NUMBER, NEXT_VERIFIER_SET, UNSIGNED_TX_HASH_TO_TX_INFO
+    Config, DustAmount, TxInfo, AVAILABLE_TICKETS, CONSUMED_TICKET_TO_UNSIGNED_TX_HASH, CROSS_CHAIN_ID_TO_TICKET, CURRENT_VERIFIER_SET, DUST, LAST_ASSIGNED_TICKET_NUMBER, LATEST_SEQUENTIAL_UNSIGNED_TX_HASH, NEXT_SEQUENCE_NUMBER, NEXT_VERIFIER_SET, UNSIGNED_TX_HASH_TO_DUST_INFO, UNSIGNED_TX_HASH_TO_TX_INFO
 };
 
 const MAX_TICKET_COUNT: u32 = 250;
@@ -17,14 +17,14 @@ const MAX_TICKET_COUNT: u32 = 250;
 fn issue_tx(
     storage: &mut dyn Storage,
     unsigned_tx: XRPLUnsignedTx,
-    original_cc_id: Option<CrossChainId>,
+    original_cc_id: Option<&CrossChainId>,
 ) -> Result<TxHash, ContractError> {
     let unsigned_tx_hash = xrpl_types::types::hash_unsigned_tx(&unsigned_tx)?;
 
     let tx_info = TxInfo {
         status: XRPLTxStatus::Pending,
         unsigned_tx: unsigned_tx.clone(),
-        original_cc_id,
+        original_cc_id: original_cc_id.cloned(),
     };
 
     UNSIGNED_TX_HASH_TO_TX_INFO.save(
@@ -50,21 +50,24 @@ pub fn issue_payment(
     config: &Config,
     destination: XRPLAccountId,
     amount: &XRPLPaymentAmount,
-    cc_id: &CrossChainId,
+    cc_id: Option<&CrossChainId>,
     cross_currency: Option<&XRPLCrossCurrencyOptions>,
 ) -> Result<TxHash, ContractError> {
-    let ticket_number = assign_ticket_number(storage, cc_id)?;
+    let sequence = match cc_id {
+        Some(cc_id) => XRPLSequence::Ticket(assign_ticket_number(storage, cc_id)?),
+        None => XRPLSequence::Plain(next_sequence_number(storage)?),
+    };
 
     let tx = XRPLPaymentTx {
         account: config.xrpl_multisig.clone(),
         fee: config.xrpl_fee,
-        sequence: XRPLSequence::Ticket(ticket_number),
+        sequence,
         amount: amount.clone(),
         destination,
         cross_currency: cross_currency.cloned(),
     };
 
-    issue_tx(storage, XRPLUnsignedTx::Payment(tx), Some(cc_id.clone()))
+    issue_tx(storage, XRPLUnsignedTx::Payment(tx), cc_id)
 }
 
 pub fn issue_ticket_create(
@@ -123,7 +126,7 @@ pub fn issue_signer_list_set(
     issue_tx(storage, XRPLUnsignedTx::SignerListSet(tx), None)
 }
 
-// returns the new verifier set, if it was affected
+// Returns the new verifier set, if it was affected.
 pub fn confirm_tx_status(
     storage: &mut dyn Storage,
     unsigned_tx_hash: TxHash,
@@ -134,14 +137,13 @@ pub fn confirm_tx_status(
         return Err(ContractError::TxStatusAlreadyConfirmed);
     }
 
+    if new_status == XRPLTxStatus::Pending || new_status == XRPLTxStatus::Inconclusive {
+        return Err(ContractError::InvalidTxStatus(new_status));
+    }
+
     tx_info.status = new_status.clone();
 
-    let tx_sequence_number: u32 = tx_info
-        .unsigned_tx
-        .sequence()
-        .clone()
-        .into();
-
+    let tx_sequence_number = u32::from(tx_info.unsigned_tx.sequence());
     let sequence_number_increment = tx_info
         .unsigned_tx
         .sequence_number_increment(new_status.clone());
@@ -157,7 +159,7 @@ pub fn confirm_tx_status(
 
     UNSIGNED_TX_HASH_TO_TX_INFO.save(storage, &unsigned_tx_hash, &tx_info)?;
 
-    if tx_info.status != XRPLTxStatus::Succeeded {
+    if new_status != XRPLTxStatus::Succeeded {
         return Ok(None);
     }
 
@@ -180,7 +182,7 @@ pub fn confirm_tx_status(
                 .map(XRPLSignerEntry::from)
                 .collect();
 
-            // sanity check
+            // Sanity check.
             if signer_entries != tx.signer_entries || tx.signer_quorum != next_verifier_set.quorum {
                 return Err(ContractError::SignerListMismatch);
             }
@@ -190,7 +192,26 @@ pub fn confirm_tx_status(
 
             Some(next_verifier_set)
         }
-        XRPLUnsignedTx::Payment(_) | XRPLUnsignedTx::TrustSet(_) => None, // nothing to do
+        XRPLUnsignedTx::Payment(_) => {
+            // Do nothing further if TX is not dust claim.
+            if tx_info.original_cc_id.is_some() {
+                return Ok(None);
+            }
+
+            let dust_info = UNSIGNED_TX_HASH_TO_DUST_INFO.load(storage, &unsigned_tx_hash)?;
+            DUST.update(
+                storage,
+                &(dust_info.token_id, dust_info.chain),
+                |current_dust| -> Result<DustAmount, ContractError> {
+                    match current_dust {
+                        Some(current_dust) => current_dust.sub(dust_info.dust_amount),
+                        None => panic!("dust amount must be set"),
+                    }
+                }
+            )?;
+            None
+        }
+        XRPLUnsignedTx::TrustSet(_) => None,
     })
 }
 
@@ -254,7 +275,6 @@ fn next_sequence_number(storage: &dyn Storage) -> Result<u32, ContractError> {
             Ok(latest_sequential_tx_info
                 .unsigned_tx
                 .sequence()
-                .clone()
                 .into())
         }
         _ => NEXT_SEQUENCE_NUMBER.load(storage).map_err(|e| e.into()),

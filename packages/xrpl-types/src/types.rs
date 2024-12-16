@@ -1,11 +1,13 @@
 use std::fmt;
 use std::str::FromStr;
+use std::cmp::min;
+use std::ops::{Add, Sub};
 
 use axelar_wasm_std::{VerificationStatus, Participant, nonempty};
 use interchain_token_service::TokenId;
 use router_api::{CrossChainId, FIELD_DELIMITER};
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{from_json, Binary, HexBinary, StdResult, Uint128, Uint256, Addr};
+use cosmwasm_std::{from_json, Addr, Binary, HexBinary, StdError, StdResult, Uint128, Uint256};
 use cw_storage_plus::{Key, KeyDeserialize, PrimaryKey};
 use k256::ecdsa;
 use k256::schnorr::signature::SignatureEncoding;
@@ -16,8 +18,11 @@ use sha3::Keccak256;
 
 use crate::error::XRPLError;
 
-const XRPL_PAYMENT_DROPS_HASH_PREFIX: &[u8] = b"drops";
-const XRPL_PAYMENT_ISSUED_HASH_PREFIX: &[u8] = b"issued";
+const XRPL_PAYMENT_DROPS_HASH_PREFIX: &[u8] = b"xrpl-payment-drops";
+const XRPL_PAYMENT_ISSUED_HASH_PREFIX: &[u8] = b"xrpl-payment-issued";
+
+const XRPL_TOKEN_XRP_HASH: [u8; 32] = [47, 42, 64, 1, 182, 138, 167, 243, 197, 122, 247, 135, 191, 37, 107, 125, 224, 33, 4, 107, 175, 207, 220, 20, 136, 198, 64, 163, 164, 50, 144, 166]; // keccak256(b"xrpl-token-xrp")
+const XRPL_TOKEN_HASH_PREFIX: &[u8] = b"xrpl-token";
 
 const XRPL_ACCOUNT_ID_LENGTH: usize = 20;
 const XRPL_CURRENCY_LENGTH: usize = 20;
@@ -26,11 +31,8 @@ const XRPL_TX_HASH_LENGTH: usize = 32;
 pub const XRP_DECIMALS: u8 = 6;
 pub const XRP_MAX_UINT: u64 = 100_000_000_000_000_000u64;
 
-const HASH_PREFIX_SIGNED_TRANSACTION: [u8; 4] = [0x54, 0x58, 0x4E, 0x00];
-const HASH_PREFIX_UNSIGNED_TX_MULTI_SIGNING: [u8; 4] = [0x53, 0x4D, 0x54, 0x00];
-
-const ITS_INTERCHAIN_TOKEN_ID: &[u8] = "its-interchain-token-id".as_bytes();
-const XRP_DEPLOYER: &[u8; XRPL_ACCOUNT_ID_LENGTH] = &[0u8; XRPL_ACCOUNT_ID_LENGTH];
+const SIGNED_TRANSACTION_HASH_PREFIX: [u8; 4] = [0x54, 0x58, 0x4E, 0x00];
+const UNSIGNED_TRANSACTION_MULTI_SIGNING_HASH_PREFIX: [u8; 4] = [0x53, 0x4D, 0x54, 0x00];
 
 const ALLOWED_CURRENCY_CHARS: &str =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789?!@#$%^&*<>(){}[]|";
@@ -74,6 +76,17 @@ pub enum XRPLTxStatus {
     Succeeded,
     FailedOnChain,
     Inconclusive,
+}
+
+impl fmt::Display for XRPLTxStatus {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            XRPLTxStatus::Pending => write!(f, "Pending"),
+            XRPLTxStatus::Succeeded => write!(f, "Succeeded"),
+            XRPLTxStatus::FailedOnChain => write!(f, "FailedOnChain"),
+            XRPLTxStatus::Inconclusive => write!(f, "Inconclusive"),
+        }
+    }
 }
 
 #[cw_serde]
@@ -229,6 +242,22 @@ pub struct XRPLToken {
 }
 
 impl XRPLToken {
+    pub fn hash(&self) -> [u8; 32] {
+        let mut hasher = Keccak256::new();
+        let delimiter_bytes = &[FIELD_DELIMITER as u8];
+        hasher.update(XRPL_TOKEN_HASH_PREFIX);
+        hasher.update(delimiter_bytes);
+        hasher.update(self.currency.as_ref());
+        hasher.update(delimiter_bytes);
+        hasher.update(self.issuer.as_ref());
+        hasher.finalize().into()
+    }
+
+    pub fn local_token_id(&self) -> TokenId {
+        // TODO: Revert if token is not local.
+        TokenId::new(self.hash())
+    }
+
     pub fn is_remote(&self, xrpl_multisig: XRPLAccountId) -> bool {
         self.issuer == xrpl_multisig
     }
@@ -238,9 +267,48 @@ impl XRPLToken {
     }
 }
 
+impl<'a> PrimaryKey<'a> for XRPLToken {
+    type Prefix = ();
+    type SubPrefix = ();
+    type Suffix = XRPLToken;
+    type SuperSuffix = XRPLToken;
+
+    fn key(&self) -> Vec<Key> {
+        vec![
+            Key::Ref(self.issuer.as_ref()),
+            Key::Ref(self.currency.as_ref()),
+        ]
+    }
+}
+
+impl KeyDeserialize for XRPLToken {
+    type Output = XRPLToken;
+
+    fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
+        if value.len() != 40 {
+            return Err(StdError::generic_err(
+                "Invalid key length for XRPLToken",
+            ));
+        }
+
+        let issuer: [u8; XRPL_ACCOUNT_ID_LENGTH] = value[0..XRPL_ACCOUNT_ID_LENGTH]
+            .try_into()
+            .map_err(|_| StdError::generic_err("Invalid issuer bytes"))?;
+
+        let currency: [u8; XRPL_CURRENCY_LENGTH] = value[XRPL_ACCOUNT_ID_LENGTH..XRPL_CURRENCY_LENGTH]
+            .try_into()
+            .map_err(|_| StdError::generic_err("Invalid currency bytes"))?;
+
+        Ok(XRPLToken {
+            issuer: XRPLAccountId(issuer),
+            currency: XRPLCurrency(currency),
+        })
+    }
+}
+
 impl fmt::Display for XRPLToken {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}/{}", self.currency, self.issuer)
+        write!(f, "{}.{}", self.currency, self.issuer)
     }
 }
 
@@ -254,25 +322,17 @@ impl fmt::Display for XRPLTokenOrXrp {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             XRPLTokenOrXrp::Xrp => write!(f, "XRP"),
-            XRPLTokenOrXrp::Issued(token) => write!(f, "Issued({})", token),
+            XRPLTokenOrXrp::Issued(token) => write!(f, "{}", token),
         }
     }
 }
 
 impl XRPLTokenOrXrp {
-    pub fn token_id(&self) -> TokenId {
-        let (deployer, salt) = match self {
-            // TODO: Hash domain separation for XRP vs Issued.
-            XRPLTokenOrXrp::Issued(token) => {
-                // TODO: Assert token.issuer != xrpl_multisig.
-                (token.issuer.as_ref(), token.currency.clone().as_bytes().to_vec())
-            },
-            XRPLTokenOrXrp::Xrp => (XRP_DEPLOYER, "XRP".as_bytes().to_vec()),
-        };
-        let prefix = Keccak256::digest(ITS_INTERCHAIN_TOKEN_ID);
-        let token_id = Keccak256::digest(vec![prefix.as_slice(), deployer, salt.as_slice()].concat());
-        let token_id_slice: &[u8; 32] = token_id.as_ref();
-        TokenId::new(token_id_slice.clone())
+    pub fn local_token_id(&self) -> TokenId {
+        match self {
+            XRPLTokenOrXrp::Xrp => TokenId::new(XRPL_TOKEN_XRP_HASH),
+            XRPLTokenOrXrp::Issued(token) => token.local_token_id(),
+        }
     }
 
     pub fn is_local(&self, xrpl_multisig: XRPLAccountId) -> bool {
@@ -320,6 +380,20 @@ impl XRPLPaymentAmount {
 
         hasher.finalize().into()
     }
+
+    pub fn zeroize(&self) -> Self {
+        match self {
+            XRPLPaymentAmount::Drops(_) => XRPLPaymentAmount::Drops(0),
+            XRPLPaymentAmount::Issued(token, _) => XRPLPaymentAmount::Issued(token.clone(), XRPLTokenAmount::ZERO),
+        }
+    }
+
+    pub fn is_zero(&self) -> bool {
+        match self {
+            &XRPLPaymentAmount::Drops(drops) => drops == 0,
+            XRPLPaymentAmount::Issued(_, amount) => amount.is_zero(),
+        }
+    }
 }
 
 impl fmt::Display for XRPLPaymentAmount {
@@ -327,6 +401,52 @@ impl fmt::Display for XRPLPaymentAmount {
         match self {
             XRPLPaymentAmount::Drops(drops) => write!(f, "Drops({})", drops),
             XRPLPaymentAmount::Issued(token, amount) => write!(f, "TokenAmount({:?},{:?})", token, amount),
+        }
+    }
+}
+
+impl Add for XRPLPaymentAmount {
+    type Output = Result<XRPLPaymentAmount, XRPLError>;
+
+    fn add(self, rhs: XRPLPaymentAmount) -> Self::Output {
+        match (self, rhs) {
+            (XRPLPaymentAmount::Drops(x), XRPLPaymentAmount::Drops(y)) => {
+                x.checked_add(y)
+                    .map(XRPLPaymentAmount::Drops)
+                    .ok_or(XRPLError::Overflow)
+            }
+            (XRPLPaymentAmount::Issued(token_x, amount_x), XRPLPaymentAmount::Issued(token_y, amount_y)) => {
+                if token_x != token_y {
+                    return Err(XRPLError::IncompatibleTokens);
+                }
+
+                let result_amount = amount_x.add(amount_y)?;
+                Ok(XRPLPaymentAmount::Issued(token_x, result_amount))
+            }
+            _ => Err(XRPLError::IncompatibleTokens),
+        }
+    }
+}
+
+impl Sub for XRPLPaymentAmount {
+    type Output = Result<XRPLPaymentAmount, XRPLError>;
+
+    fn sub(self, rhs: XRPLPaymentAmount) -> Self::Output {
+        match (self, rhs) {
+            (XRPLPaymentAmount::Drops(x), XRPLPaymentAmount::Drops(y)) => {
+                x.checked_sub(y)
+                    .map(XRPLPaymentAmount::Drops)
+                    .ok_or(XRPLError::Underflow)
+            }
+            (XRPLPaymentAmount::Issued(token_x, amount_x), XRPLPaymentAmount::Issued(token_y, amount_y)) => {
+                if token_x != token_y {
+                    return Err(XRPLError::IncompatibleTokens);
+                }
+
+                let result_amount = amount_x.sub(amount_y)?;
+                Ok(XRPLPaymentAmount::Issued(token_x, result_amount))
+            }
+            _ => Err(XRPLError::IncompatibleTokens),
         }
     }
 }
@@ -346,11 +466,11 @@ pub enum XRPLSequence {
     Ticket(u32),
 }
 
-impl From<XRPLSequence> for u32 {
-    fn from(value: XRPLSequence) -> Self {
+impl From<&XRPLSequence> for u32 {
+    fn from(value: &XRPLSequence) -> Self {
         match value {
-            XRPLSequence::Plain(sequence) => sequence,
-            XRPLSequence::Ticket(ticket) => ticket,
+            &XRPLSequence::Plain(sequence) => sequence,
+            &XRPLSequence::Ticket(ticket) => ticket,
         }
     }
 }
@@ -655,7 +775,7 @@ pub fn hash_unsigned_tx(unsigned_tx: &XRPLUnsignedTx) -> Result<TxHash, XRPLErro
 
 pub fn hash_signed_tx(encoded_signed_tx: &[u8]) -> Result<TxHash, XRPLError> {
     Ok(TxHash::new(xrpl_hash(
-        HASH_PREFIX_SIGNED_TRANSACTION,
+        SIGNED_TRANSACTION_HASH_PREFIX,
         encoded_signed_tx,
     )))
 }
@@ -667,7 +787,7 @@ pub fn message_to_sign(
     let mut tx_blob = encoded_unsigned_tx.to_vec();
     tx_blob.extend_from_slice(signer_address.as_ref());
     Ok(xrpl_hash(
-        HASH_PREFIX_UNSIGNED_TX_MULTI_SIGNING,
+        UNSIGNED_TRANSACTION_MULTI_SIGNING_HASH_PREFIX,
         tx_blob.as_slice(),
     ))
 }
@@ -783,6 +903,11 @@ impl fmt::Display for XRPLTokenAmount {
 impl XRPLTokenAmount {
     pub const MAX: XRPLTokenAmount = MAX_XRPL_TOKEN_AMOUNT;
 
+    pub const ZERO: XRPLTokenAmount = XRPLTokenAmount {
+        mantissa: 0,
+        exponent: 0,
+    };
+
     pub fn new(mantissa: u64, exponent: i64) -> Self {
         assert!(
             mantissa == 0
@@ -802,27 +927,8 @@ impl XRPLTokenAmount {
         }
     }
 
-    pub fn scale_to_decimals(self, destination_decimals: u8) -> Result<Uint256, XRPLError> {
-        if self.mantissa == 0 {
-            return Ok(Uint256::zero());
-        }
-
-        let mantissa = Uint256::from(self.mantissa);
-        let ten = Uint256::from(10u64);
-
-        let adjusted_exponent = self.exponent + i64::from(destination_decimals);
-
-        let scaled_value = if adjusted_exponent >= 0 {
-            mantissa.checked_mul(
-                ten.checked_pow(adjusted_exponent as u32).map_err(|_| XRPLError::Overflow)?
-            ).map_err(|_| XRPLError::Overflow)
-        } else {
-            Ok(ten.checked_pow((-adjusted_exponent) as u32)
-                .map(|ten_to_neg_exp| mantissa.checked_div(ten_to_neg_exp).expect("mantissa should be divisible by 10^(-exponent)"))
-                .unwrap_or(Uint256::zero()))
-        }?;
-
-        Ok(scaled_value)
+    pub fn is_zero(&self) -> bool {
+        self.mantissa == 0
     }
 }
 
@@ -884,6 +990,53 @@ impl TryFrom<String> for XRPLTokenAmount {
 
     fn try_from(s: String) -> Result<Self, XRPLError> {
         XRPLTokenAmount::from_str(s.as_str())
+    }
+}
+
+impl Add for XRPLTokenAmount {
+    type Output = Result<XRPLTokenAmount, XRPLError>;
+
+    fn add(self, rhs: XRPLTokenAmount) -> Self::Output {
+        let common_exponent = min(self.exponent, rhs.exponent);
+
+        let left_mantissa = self.mantissa
+            .checked_mul(10u64.pow((self.exponent - common_exponent) as u32))
+            .ok_or(XRPLError::Overflow)?;
+
+        let right_mantissa = rhs.mantissa
+            .checked_mul(10u64.pow((rhs.exponent - common_exponent) as u32))
+            .ok_or(XRPLError::Overflow)?;
+
+        let result_mantissa = left_mantissa
+            .checked_add(right_mantissa)
+            .ok_or(XRPLError::Overflow)?;
+
+        let (mantissa, exponent) = canonicalize_mantissa(result_mantissa.into(), common_exponent)?;
+        Ok(XRPLTokenAmount::new(mantissa, exponent))
+    }
+}
+
+impl Sub for XRPLTokenAmount {
+    type Output = Result<XRPLTokenAmount, XRPLError>;
+
+    fn sub(self, rhs: XRPLTokenAmount) -> Self::Output {
+        let common_exponent = min(self.exponent, rhs.exponent);
+
+        let left_mantissa = self.mantissa
+            .checked_mul(10u64.pow((self.exponent - common_exponent) as u32))
+            .ok_or(XRPLError::Overflow)?;
+
+        let right_mantissa = rhs.mantissa
+            .checked_mul(10u64.pow((rhs.exponent - common_exponent) as u32))
+            .ok_or(XRPLError::Overflow)?;
+
+        if left_mantissa < right_mantissa {
+            return Err(XRPLError::Underflow);
+        }
+
+        let result_mantissa = left_mantissa - right_mantissa;
+        let (mantissa, exponent) = canonicalize_mantissa(result_mantissa.into(), common_exponent)?;
+        Ok(XRPLTokenAmount::new(mantissa, exponent))
     }
 }
 
@@ -953,9 +1106,177 @@ pub fn canonicalize_mantissa(
 pub fn canonicalize_token_amount(
     amount: Uint256,
     decimals: u8,
-) -> Result<XRPLTokenAmount, XRPLError> {
+) -> Result<(XRPLTokenAmount, Uint256), XRPLError> {
     let (mantissa, exponent) = canonicalize_mantissa(amount, -i64::from(decimals))?;
-    Ok(XRPLTokenAmount::new(mantissa, exponent))
+
+    let adjusted_exponent = exponent + i64::from(decimals);
+    let dust_amount = if adjusted_exponent >= 0 {
+        amount.checked_sub(
+            Uint256::from(mantissa)
+                .checked_mul(
+                    Uint256::from(10u128).checked_pow(
+                        adjusted_exponent
+                            .try_into()
+                            .expect("exponent + decimals should be within u32 range"),
+                    ).expect("10^(exponent + decimals) should be within u256 range"),
+                ).expect("mantissa * 10^(exponent + decimals) should be within u256 range"),
+        ).expect("canonicalized amount should not be larger than original amount")
+    } else {
+        amount.checked_sub(
+            Uint256::from(mantissa)
+                .checked_div(
+                    Uint256::from(10u128).checked_pow(
+                        (-adjusted_exponent)
+                            .try_into()
+                            .expect("exponent + decimals should be within u32 range"),
+                    ).expect("10^(exponent + decimals) should be within u256 range"),
+                ).expect("mantissa * 10^(exponent + decimals) should be within u256 range"),
+        ).expect("canonicalized amount should not be larger than original amount")
+    };
+
+    Ok((XRPLTokenAmount::new(mantissa, exponent), dust_amount))
+}
+
+pub fn scale_to_decimals(amount: XRPLTokenAmount, destination_decimals: u8) -> Result<(Uint256, XRPLTokenAmount), XRPLError> {
+    if amount.mantissa == 0 {
+        return Ok((Uint256::zero(), amount));
+    }
+
+    let mantissa = Uint256::from(amount.mantissa);
+    let ten = Uint256::from(10u64);
+
+    let adjusted_exponent = amount.exponent + i64::from(destination_decimals);
+    if adjusted_exponent >= 0 {
+        Ok((
+            mantissa.checked_mul(
+                ten.checked_pow(
+                    adjusted_exponent
+                        .try_into()
+                        .expect("adjusted exponent should be positive and within u32 range")
+                    ).map_err(|_| XRPLError::Overflow)?
+            ).map_err(|_| XRPLError::Overflow)?,
+            XRPLTokenAmount::ZERO
+        ))
+    } else {
+        Ok(ten.checked_pow((-adjusted_exponent).try_into().expect("exponent should be negative and within u32 range"))
+            .map(|scaling_factor| {
+                let quotient = mantissa.checked_div(scaling_factor).expect("mantissa should be divisible by 10^(-exponent)");
+                let dust_amount = mantissa.checked_sub(
+                        quotient.checked_mul(scaling_factor)
+                            .expect("scaling factor must be non-zero")
+                    )
+                    .expect("subtraction must not overflow");
+                (
+                    quotient,
+                    if dust_amount == Uint256::zero() {
+                        XRPLTokenAmount::ZERO
+                    } else {
+                        let (dust_mantissa, dust_exponent) = canonicalize_mantissa(dust_amount, amount.exponent)
+                            .expect("dust amount should be canonicalizable");
+                        XRPLTokenAmount::new(dust_mantissa, dust_exponent)
+                    }
+                )
+            })
+            .unwrap_or((Uint256::zero(), amount)))
+    }
+}
+
+fn convert_scaled_uint256_to_u64(value: Uint256) -> u64 {
+    let mut last_8 = [0u8; 8];
+    last_8.copy_from_slice(&value.to_be_bytes()[24..32]);
+    u64::from_be_bytes(last_8)
+}
+
+fn convert_scaled_uint256_to_drops(value: Uint256) -> Result<u64, XRPLError> {
+    if value.gt(&XRP_MAX_UINT.into()) {
+        return Err(XRPLError::Overflow);
+    }
+
+    Ok(convert_scaled_uint256_to_u64(value))
+}
+
+
+// Converts XRP drops to the destination chain's token amount.
+pub fn scale_from_drops(
+    drops: u64,
+    destination_decimals: u8,
+) -> Result<(Uint256, u64), XRPLError> {
+    if drops > XRP_MAX_UINT {
+        return Err(XRPLError::InvalidDrops(drops));
+    }
+
+    if destination_decimals > 82 {
+        return Err(XRPLError::InvalidDecimals(destination_decimals));
+    }
+
+    let source_amount = Uint256::from(drops);
+    if XRP_DECIMALS == destination_decimals {
+        return Ok((source_amount, 0u64));
+    }
+
+    let scaling_factor = Uint256::from(10u8)
+        .checked_pow(XRP_DECIMALS.abs_diff(destination_decimals).into())
+        .expect("exponent cannot be too large");
+
+    let (destination_amount, dust_amount) = if XRP_DECIMALS > destination_decimals {
+        let quotient = source_amount
+            .checked_div(scaling_factor)
+            .expect("scaling factor must be non-zero");
+        (
+            quotient,
+            convert_scaled_uint256_to_u64(source_amount.checked_sub(
+                quotient.checked_mul(scaling_factor)
+                    .expect("scaling factor must be non-zero")
+            ).expect("subtraction must not overflow"))
+        )
+    } else {
+        (
+            source_amount
+                .checked_mul(scaling_factor)
+                .expect("multiplication should not overflow"),
+            0u64
+        )
+    };
+
+    Ok((destination_amount, dust_amount))
+}
+
+// Converts the given amount of tokens to XRP drops.
+pub fn scale_to_drops(
+    source_amount: Uint256,
+    source_decimals: u8,
+) -> Result<(u64, Uint256), XRPLError> {
+    if source_amount.is_zero() {
+        return Ok((0, Uint256::zero()));
+    }
+
+    if source_decimals > 82 {
+        return Err(XRPLError::InvalidDecimals(source_decimals));
+    }
+
+    if source_decimals == XRP_DECIMALS {
+        return Ok((convert_scaled_uint256_to_drops(source_amount.into())?, Uint256::zero()));
+    }
+
+    let scaling_factor = Uint256::from(10u8)
+        .checked_pow(source_decimals.abs_diff(XRP_DECIMALS).into())
+        .expect("exponent cannot be too large");
+
+    let (destination_amount, dust) = if source_decimals > XRP_DECIMALS {
+        let quotient = source_amount
+            .checked_div(scaling_factor)
+            .expect("scaling factor must be non-zero");
+        (quotient, source_amount.checked_sub(
+            quotient.checked_mul(scaling_factor)
+                .expect("scaling factor must be non-zero")
+        ).expect("subtraction must not overflow"))
+    } else {
+        (source_amount
+            .checked_mul(scaling_factor)
+            .map_err(|_| XRPLError::Overflow)?, Uint256::zero())
+    };
+
+    Ok((convert_scaled_uint256_to_drops(destination_amount)?, dust))
 }
 
 #[cfg(test)]
@@ -1008,39 +1329,70 @@ mod tests {
     fn test_canonicalize_token_amount() {
         assert_eq!(
             canonicalize_token_amount(Uint256::one(), 18).unwrap(),
-            XRPLTokenAmount::new(1_000_000_000_000_000u64, -33)
+            (
+                XRPLTokenAmount::new(1_000_000_000_000_000u64, -33),
+                Uint256::zero()
+            )
         );
 
         assert_eq!(
-            canonicalize_token_amount(Uint256::from(1000000000000000000u64), 18).unwrap(),
-            XRPLTokenAmount::new(1_000_000_000_000_000u64, -15)
+            canonicalize_token_amount(Uint256::from(1_000_000_000_000_000_000u64), 18).unwrap(),
+            (
+                XRPLTokenAmount::new(1_000_000_000_000_000u64, -15),
+                Uint256::zero()
+            )
         );
 
         assert_eq!(
-            canonicalize_token_amount(Uint256::from(1234567891234567891u64), 18).unwrap(),
-            XRPLTokenAmount::new(1_234_567_891_234_567u64, -15)
+            canonicalize_token_amount(Uint256::from(1_234_567_891_234_567_891u64), 18).unwrap(),
+            (
+                XRPLTokenAmount::new(1_234_567_891_234_567u64, -15),
+                Uint256::from(891u64)
+            )
+        );
+
+        assert_eq!(
+            canonicalize_token_amount(Uint256::from(1_234_567_891_234_567_891u64), 30).unwrap(),
+            (
+                XRPLTokenAmount::new(1_234_567_891_234_567u64, -27),
+                Uint256::from(891u64)
+            )
+        );
+
+        assert_eq!(
+            canonicalize_token_amount(Uint256::from(1_234_567_891_234_567_891u64), 6).unwrap(),
+            (
+                XRPLTokenAmount::new(1_234_567_891_234_567u64, -3),
+                Uint256::from(891u64)
+            )
         );
     }
 
     #[test]
     fn test_scale_to_decimals() {
         let amount = XRPLTokenAmount::new(1_000_000_000_000_000u64, -33);
-        assert_eq!(amount.scale_to_decimals(18).unwrap(), Uint256::one());
+        assert_eq!(scale_to_decimals(amount, 18).unwrap(), (Uint256::one(), XRPLTokenAmount::ZERO));
 
         let amount = XRPLTokenAmount::new(1_000_000_000_000_000u64, -15);
-        assert_eq!(amount.scale_to_decimals(18).unwrap(), Uint256::from(1000000000000000000u64));
+        assert_eq!(scale_to_decimals(amount, 18).unwrap(), (Uint256::from(1_000_000_000_000_000_000u64), XRPLTokenAmount::ZERO));
 
         let amount = XRPLTokenAmount::new(1_234_567_891_234_567u64, -15);
-        assert_eq!(amount.scale_to_decimals(18).unwrap(), Uint256::from(1234567891234567000u64));
+        assert_eq!(scale_to_decimals(amount, 18).unwrap(), (Uint256::from(1_234_567_891_234_567_000u64), XRPLTokenAmount::ZERO));
+
+        let amount = XRPLTokenAmount::new(1_234_567_891_234_567u64, -15);
+        assert_eq!(scale_to_decimals(amount, 6).unwrap(), (Uint256::from(1_234_567u64), XRPLTokenAmount::new(8_912_345_670_000_000u64, -22)));
 
         let amount = XRPLTokenAmount::new(9_999_999_999_999_999u64, 55);
         assert_eq!(
-            amount.scale_to_decimals(6).unwrap(),
-            Uint256::try_from("99999999999999990000000000000000000000000000000000000000000000000000000000000").unwrap()
+            scale_to_decimals(amount, 6).unwrap(),
+            (
+                Uint256::try_from("99999999999999990000000000000000000000000000000000000000000000000000000000000").unwrap(),
+                XRPLTokenAmount::ZERO
+            )
         );
 
         let amount = XRPLTokenAmount::new(9_999_999_999_999_999u64, 56);
-        let result = amount.scale_to_decimals(6);
+        let result = scale_to_decimals(amount, 6);
         assert!(result.is_err());
         assert_eq!(result.unwrap_err().to_string(), "overflow");
     }
@@ -1048,7 +1400,7 @@ mod tests {
     #[test]
     fn test_large_exponent_handling() {
         let amount = XRPLTokenAmount::new(9_999_999_999_999_999u64, 70);
-        let result = amount.scale_to_decimals(18);
+        let result = scale_to_decimals(amount, 18);
         assert!(result.is_err());
         assert_eq!(result.unwrap_err().to_string(), "overflow");
     }
@@ -1056,34 +1408,91 @@ mod tests {
     #[test]
     fn test_large_mantissa_handling() {
         let amount = XRPLTokenAmount::new(9_999_999_999_999_999u64, 0);
-        let result = amount.scale_to_decimals(18);
+        let result = scale_to_decimals(amount, 18);
         assert!(result.is_ok());
         assert_eq!(
             result.unwrap(),
-            Uint256::from(9999999999999999000000000000000000u128)
+            (
+                Uint256::from(9999999999999999000000000000000000u128),
+                XRPLTokenAmount::ZERO
+            )
         );
     }
 
     #[test]
     fn test_small_mantissa_handling() {
         let amount = XRPLTokenAmount::new(9_999_999_999_999_999u64, MIN_EXPONENT);
-        let result = amount.scale_to_decimals(18);
-        assert_eq!(result.unwrap(), Uint256::zero());
+        let result = scale_to_decimals(amount, 18);
+        assert_eq!(result.unwrap(), (Uint256::zero(), XRPLTokenAmount::new(9_999_999_999_999_999u64, MIN_EXPONENT)));
     }
 
     #[test]
     fn test_extreme_scaling_down() {
         let amount = XRPLTokenAmount::new(MAX_MANTISSA, MIN_EXPONENT);
-        let result = amount.scale_to_decimals(6);
-        assert_eq!(result.unwrap(), Uint256::zero());
+        let result = scale_to_decimals(amount, 6);
+        assert_eq!(result.unwrap(), (Uint256::zero(), XRPLTokenAmount::new(MAX_MANTISSA, MIN_EXPONENT)));
     }
 
     #[test]
     fn test_extreme_scaling_up() {
         let amount = XRPLTokenAmount::new(MIN_MANTISSA, MAX_EXPONENT);
-        let result = amount.scale_to_decimals(18);
+        let result = scale_to_decimals(amount, 18);
         assert!(result.is_err());
         assert_eq!(result.unwrap_err().to_string(), "overflow");
+    }
+
+    #[test]
+    fn test_scale_from_drops() {
+        assert_eq!(
+            scale_from_drops(1_000_000, 18).unwrap(),
+            (Uint256::from(1_000_000_000_000_000_000u64), 0u64)
+        );
+        assert_eq!(
+            scale_from_drops(100000000000000000, 18).unwrap(),
+            (Uint256::from(100000000000000000000000000000u128), 0u64)
+        );
+        assert_eq!(
+            scale_from_drops(1_000_000, 6).unwrap(),
+            (Uint256::from(1_000_000u32), 0u64)
+        );
+        assert_eq!(
+            scale_from_drops(1_234_567, 18).unwrap(),
+            (Uint256::from(1_234_567_000_000_000_000u64), 0u64)
+        );
+        assert_eq!(
+            scale_from_drops(1_000_000, 6).unwrap(),
+            (Uint256::from(1_000_000u32), 0u64)
+        );
+        assert_eq!(
+            scale_from_drops(1_000_001, 5).unwrap(),
+            (Uint256::from(100_000u32), 1u64)
+        );
+        assert_eq!(
+            scale_from_drops(1_000_123, 3).unwrap(),
+            (Uint256::from(1_000u32), 123u64)
+        );
+        assert_eq!(
+            scale_from_drops(1_123_456_789, 3).unwrap(),
+            (Uint256::from(1_123_456u32), 789u64)
+        );
+        assert_eq!(
+            scale_from_drops(1_123_456_789, 1).unwrap(),
+            (Uint256::from(11_234u32), 56_789u64)
+        );
+        assert_eq!(
+            scale_from_drops(1, 5).unwrap(),
+            (Uint256::zero(), 1u64)
+        );
+    }
+
+    #[test]
+    fn test_scale_from_invalid_drops() {
+        let result = scale_from_drops(XRP_MAX_UINT + 1, 18);
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "invalid drops 100000000000000001"
+        );
     }
 
     #[test]
@@ -1091,5 +1500,141 @@ mod tests {
         let xrpl_account = "rNM8ue6DZpneFC4gBEJMSEdbwNEBZjs3Dy";
         let expected_bytes: &[u8; XRPL_ACCOUNT_ID_LENGTH] = &[146, 136, 70, 186, 245, 155, 212, 140, 40, 177, 49, 133, 84, 114, 208, 76, 147, 187, 208, 183];
         assert_eq!(XRPLAccountId::from_str(xrpl_account).unwrap().as_ref(), expected_bytes);
+    }
+
+    #[test]
+    fn test_xrpl_token_amount_add_same_exponent() {
+        let x = XRPLTokenAmount::new(1_234_567_890_123_456, -5); // 0.01234567890123456
+        let y = XRPLTokenAmount::new(6_543_210_987_654_321, -5); // 0.06543210987654321
+
+        let result = x.add(y).unwrap();
+        assert_eq!(result.mantissa, 7_777_778_877_777_777); // 0.07777778877777777
+        assert_eq!(result.exponent, -5);
+    }
+
+    #[test]
+    fn test_xrpl_token_amount_add_different_exponents() {
+        let x = XRPLTokenAmount::new(9_876_543_210_987_654, -3); // 9876.543210987654
+        let y = XRPLTokenAmount::new(1_234_567_890_123_456, -6); // 1.234567890123456
+
+        let result = x.add(y).unwrap();
+        assert_eq!(result.mantissa, 9_877_777_778_877_777); // 9877.777778877777
+        assert_eq!(result.exponent, -3);
+    }
+
+    #[test]
+    fn test_xrpl_token_amount_sub_same_exponent() {
+        let x = XRPLTokenAmount::new(9_999_999_999_999_999, -5); // 0.09999999999999999
+        let y = XRPLTokenAmount::new(1_234_567_890_123_456, -5); // 0.01234567890123456
+
+        let result = x.sub(y).unwrap();
+        assert_eq!(result.mantissa, 8_765_432_109_876_543); // 0.08765432109876543
+        assert_eq!(result.exponent, -5);
+    }
+
+    #[test]
+    fn test_xrpl_token_amount_sub_different_exponents() {
+        let x = XRPLTokenAmount::new(9_876_543_210_987_654, -3); // 9876.543210987654
+        let y = XRPLTokenAmount::new(1_234_567_890_123_456, -6); // 1.234567890123456
+
+        let result = x.sub(y).unwrap();
+        assert_eq!(result.mantissa, 9_875_308_643_097_530); // 9875.30864309753
+        assert_eq!(result.exponent, -3);
+    }
+
+    #[test]
+    fn test_xrpl_token_amount_add_overflow() {
+        let x = XRPLTokenAmount::new(MAX_MANTISSA - 1, MAX_EXPONENT);
+        let y = XRPLTokenAmount::new(2_000_000_000_000_000, MAX_EXPONENT);
+
+        let result = x.add(y);
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().to_string(), "invalid amount: overflow");
+    }
+
+    #[test]
+    fn test_xrpl_token_amount_sub_underflow() {
+        let x = XRPLTokenAmount::new(1_000_000_000_000_000, -3);
+        let y = XRPLTokenAmount::new(9_876_543_210_987_654, -3);
+
+        let result = x.sub(y);
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().to_string(), "underflow");
+    }
+
+    #[test]
+    fn test_xrpl_token_amount_add_canonicalization() {
+        let x = XRPLTokenAmount::new(MAX_MANTISSA - 1, 0);
+        let y = XRPLTokenAmount::new(2_000_000_000_000_000, 0);
+
+        let result = x.add(y).unwrap();
+        assert_eq!(result.mantissa, 1199999999999999);
+        assert_eq!(result.exponent, 1);
+    }
+
+    #[test]
+    fn test_xrpl_token_amount_sub_exact_zero() {
+        let x = XRPLTokenAmount::new(8_765_432_109_876_543, -5);
+        let y = XRPLTokenAmount::new(8_765_432_109_876_543, -5);
+
+        let result = x.sub(y).unwrap();
+        assert_eq!(result.mantissa, 0);
+        assert_eq!(result.exponent, 1);
+    }
+
+    #[test]
+    fn test_xrpl_token_amount_edge_cases() {
+        let x = XRPLTokenAmount::new(MIN_MANTISSA, MIN_EXPONENT);
+        let y = XRPLTokenAmount::new(MIN_MANTISSA, MIN_EXPONENT);
+
+        let result = x.add(y).unwrap();
+        assert_eq!(result.mantissa, 2 * MIN_MANTISSA);
+        assert_eq!(result.exponent, MIN_EXPONENT);
+    }
+
+    #[test]
+    fn test_xrpl_payment_amount_add_drops() {
+        let x = XRPLPaymentAmount::Drops(5_123_456);
+        let y = XRPLPaymentAmount::Drops(2_000_000);
+
+        let result = x.add(y).unwrap();
+        assert_eq!(result, XRPLPaymentAmount::Drops(7_123_456));
+    }
+
+    #[test]
+    fn test_xrpl_payment_amount_sub_drops() {
+        let x = XRPLPaymentAmount::Drops(5_555_555);
+        let y = XRPLPaymentAmount::Drops(5_555_555);
+
+        let result = x.sub(y).unwrap();
+        assert_eq!(result, XRPLPaymentAmount::Drops(0));
+    }
+
+    #[test]
+    fn test_xrpl_payment_amount_add_issued() {
+        let token = XRPLToken {
+            issuer: XRPLAccountId::new([1; 20]),
+            currency: XRPLCurrency::new("ETH").unwrap(),
+        };
+
+        let x = XRPLPaymentAmount::Issued(token.clone(), XRPLTokenAmount::new(1_000_000_000_000_000, -3));
+        let y = XRPLPaymentAmount::Issued(token.clone(), XRPLTokenAmount::new(5_000_000_000_000_000, -3));
+
+        let result = x.add(y).unwrap();
+        assert_eq!(result, XRPLPaymentAmount::Issued(token, XRPLTokenAmount::new(6_000_000_000_000_000, -3)));
+    }
+
+    #[test]
+    fn test_xrpl_payment_amount_sub_issued() {
+        let token = XRPLToken {
+            issuer: XRPLAccountId::new([0; 20]),
+            currency: XRPLCurrency::new("USD").unwrap(),
+        };
+
+        let x = XRPLPaymentAmount::Issued(token.clone(), XRPLTokenAmount::new(1_234_567_891_234_567u64, -15));
+        let y = XRPLPaymentAmount::Issued(token.clone(), XRPLTokenAmount::new(1_234_567_891_234_567u64, -15));
+
+        let result = x.sub(y).unwrap();
+        assert_eq!(result, XRPLPaymentAmount::Issued(token, XRPLTokenAmount::new(0, 1)));
     }
 }
