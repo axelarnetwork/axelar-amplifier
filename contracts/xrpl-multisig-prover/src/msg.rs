@@ -143,6 +143,11 @@ pub enum ExecuteMsg {
         new_signing_threshold: MajorityThreshold,
     },
 
+    #[permission(Elevated)]
+    UpdateXrplFee {
+        new_xrpl_fee: u64,
+    },
+
     #[permission(Governance)]
     UpdateAdmin { new_admin_address: String },
 

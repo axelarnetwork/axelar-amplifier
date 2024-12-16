@@ -127,6 +127,11 @@ pub fn execute(
         } => {
             execute::update_signing_threshold(deps, new_signing_threshold)
         }
+        ExecuteMsg::UpdateXrplFee {
+            new_xrpl_fee,
+        } => {
+            execute::update_xrpl_fee(deps, new_xrpl_fee)
+        }
         ExecuteMsg::UpdateAdmin { new_admin_address } => {
             execute::update_admin(deps, new_admin_address)
         }

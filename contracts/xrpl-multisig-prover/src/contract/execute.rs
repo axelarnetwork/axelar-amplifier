@@ -175,6 +175,20 @@ pub fn update_signing_threshold(
     Ok(Response::new())
 }
 
+pub fn update_xrpl_fee(
+    deps: DepsMut,
+    new_xrpl_fee: u64,
+) -> Result<Response, ContractError> {
+    state::CONFIG.update(
+        deps.storage,
+        |mut config| -> Result<Config, ContractError> {
+            config.xrpl_fee = new_xrpl_fee;
+            Ok(config)
+        },
+    )?;
+    Ok(Response::new())
+}
+
 pub fn update_admin(deps: DepsMut, new_admin_address: String) -> Result<Response, ContractError> {
     let new_admin = address::validate_cosmwasm_address(deps.api, &new_admin_address)
         .map_err(|_| ContractError::FailedToUpdateAdmin)?;
