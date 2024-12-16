@@ -9,7 +9,7 @@ use xrpl_types::types::{
 use crate::axelar_verifiers::VerifierSet;
 use crate::error::ContractError;
 use crate::state::{
-    Config, DustAmount, TxInfo, AVAILABLE_TICKETS, CONSUMED_TICKET_TO_UNSIGNED_TX_HASH, CROSS_CHAIN_ID_TO_TICKET, CURRENT_VERIFIER_SET, DUST, LAST_ASSIGNED_TICKET_NUMBER, LATEST_SEQUENTIAL_UNSIGNED_TX_HASH, NEXT_SEQUENCE_NUMBER, NEXT_VERIFIER_SET, UNSIGNED_TX_HASH_TO_DUST_INFO, UNSIGNED_TX_HASH_TO_TX_INFO
+    Config, DustAmount, TxInfo, AVAILABLE_TICKETS, CONSUMED_TICKET_TO_UNSIGNED_TX_HASH, CROSS_CHAIN_ID_TO_TICKET, CURRENT_VERIFIER_SET, DUST, LAST_ASSIGNED_TICKET_NUMBER, LATEST_SEQUENTIAL_UNSIGNED_TX_HASH, NEXT_SEQUENCE_NUMBER, NEXT_VERIFIER_SET, TRUST_LINE, UNSIGNED_TX_HASH_TO_DUST_INFO, UNSIGNED_TX_HASH_TO_TX_INFO
 };
 
 const MAX_TICKET_COUNT: u32 = 250;
@@ -211,7 +211,10 @@ pub fn confirm_tx_status(
             )?;
             None
         }
-        XRPLUnsignedTx::TrustSet(_) => None,
+        XRPLUnsignedTx::TrustSet(tx) => {
+            TRUST_LINE.save(storage, &tx.token, &())?;
+            None
+        },
     })
 }
 

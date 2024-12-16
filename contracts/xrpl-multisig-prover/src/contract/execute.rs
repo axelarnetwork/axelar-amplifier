@@ -16,7 +16,7 @@ use xrpl_types::types::{
 use crate::axelar_verifiers;
 use crate::error::ContractError;
 use crate::querier::Querier;
-use crate::state::{self, Config, DustAmount, DustInfo, DUST};
+use crate::state::{self, Config, DustAmount, DustInfo, DUST, TRUST_LINE};
 use crate::xrpl_multisig;
 use crate::xrpl_serialize::XRPLSerialize;
 
@@ -37,7 +37,10 @@ pub fn construct_trust_set_proof(
         return Err(ContractError::LocalTokenNotRegistered(xrpl_token));
     }
 
-    // TODO: Check if trust line already exists.
+    if TRUST_LINE.has(storage, &xrpl_token) {
+        return Err(ContractError::TrustLineAlreadyExists(xrpl_token));
+    }
+
     let unsigned_tx_hash = xrpl_multisig::issue_trust_set(storage, config, xrpl_token)?;
     Ok(Response::new().add_submessage(start_signing_session(storage, config, unsigned_tx_hash, self_address, None)?))
 }

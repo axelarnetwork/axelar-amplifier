@@ -149,6 +149,9 @@ pub enum ContractError {
     #[error("token {0} not local")]
     TokenNotLocal(XRPLToken),
 
+    #[error("trust line already exists for token {0}")]
+    TrustLineAlreadyExists(XRPLToken),
+
     #[error("transaction status is already confirmed")]
     TxStatusAlreadyConfirmed,
 

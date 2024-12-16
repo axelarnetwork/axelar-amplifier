@@ -6,7 +6,7 @@ use cosmwasm_std::{Addr, Uint256};
 use interchain_token_service::TokenId;
 use router_api::{ChainName, ChainNameRaw, CrossChainId};
 use cw_storage_plus::{Item,  Map};
-use xrpl_types::types::{TxHash, XRPLAccountId, XRPLPaymentAmount, XRPLTxStatus, XRPLUnsignedTx};
+use xrpl_types::types::{TxHash, XRPLAccountId, XRPLPaymentAmount, XRPLToken, XRPLTxStatus, XRPLUnsignedTx};
 
 use crate::error::ContractError;
 use crate::axelar_verifiers::VerifierSet;
@@ -61,6 +61,7 @@ pub const CROSS_CHAIN_ID_TO_MULTISIG_SESSION: Map<&CrossChainId, MultisigSession
 pub const CONSUMED_TICKET_TO_UNSIGNED_TX_HASH: Map<&u32, TxHash> = Map::new("consumed_ticket_to_unsigned_tx_hash");
 pub const UNSIGNED_TX_HASH_TO_TX_INFO: Map<&TxHash, TxInfo> = Map::new("unsigned_tx_hash_to_tx_info");
 pub const LATEST_SEQUENTIAL_UNSIGNED_TX_HASH: Item<TxHash> = Item::new("latest_sequential_unsigned_tx_hash");
+pub const TRUST_LINE: Map<&XRPLToken, ()> = Map::new("trust_line");
 
 #[cw_serde]
 pub enum DustAmount {
