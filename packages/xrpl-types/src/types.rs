@@ -353,7 +353,12 @@ impl XRPLTokenOrXrp {
 #[derive(Eq, Hash)]
 pub enum XRPLPaymentAmount {
     Drops(u64),
-    Issued(XRPLToken, XRPLTokenAmount),
+    Issued(
+        XRPLToken,
+        #[serde(with = "xrpl_token_amount_string")]
+        #[schemars(with = "String")]
+        XRPLTokenAmount
+    ),
 }
 
 impl XRPLPaymentAmount {
@@ -1039,6 +1044,28 @@ impl Sub for XRPLTokenAmount {
         let result_mantissa = left_mantissa - right_mantissa;
         let (mantissa, exponent) = canonicalize_mantissa(result_mantissa.into(), common_exponent)?;
         Ok(XRPLTokenAmount::new(mantissa, exponent))
+    }
+}
+
+mod xrpl_token_amount_string {
+    use std::str::FromStr;
+
+    use super::XRPLTokenAmount;
+    use serde::{Deserialize, Deserializer, Serializer};
+
+    pub fn serialize<S>(value: &XRPLTokenAmount, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&value.to_string())
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<XRPLTokenAmount, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let string = String::deserialize(deserializer)?;
+        XRPLTokenAmount::from_str(&string).map_err(serde::de::Error::custom)
     }
 }
 
