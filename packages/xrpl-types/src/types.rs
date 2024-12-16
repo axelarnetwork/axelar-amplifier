@@ -236,8 +236,10 @@ impl Operator {
 #[derive(Eq, Hash)]
 pub struct XRPLToken {
     #[serde(with = "xrpl_account_id_string")]
-    #[schemars(with = "String")] // necessary attribute in conjunction with #[serde(with ...)]
+    #[schemars(with = "String")]
     pub issuer: XRPLAccountId,
+    #[serde(with = "xrpl_currency_string")]
+    #[schemars(with = "String")]
     pub currency: XRPLCurrency,
 }
 

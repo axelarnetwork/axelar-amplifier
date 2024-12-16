@@ -6,7 +6,7 @@ use router_api::{ChainName, ChainNameRaw, CrossChainId, Message};
 use msgs_derive::EnsurePermissions;
 
 use xrpl_types::msg::{XRPLMessage, XRPLUserMessageWithPayload};
-use xrpl_types::types::{xrpl_account_id_string, XRPLAccountId, XRPLCurrency, XRPLToken, XRPLTokenOrXrp};
+use xrpl_types::types::{xrpl_account_id_string, xrpl_currency_string, XRPLAccountId, XRPLCurrency, XRPLToken, XRPLTokenOrXrp};
 
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -69,6 +69,8 @@ pub enum ExecuteMsg {
     #[permission(Elevated)]
     RegisterRemoteToken {
         token_id: TokenId,
+        #[serde(with = "xrpl_currency_string")]
+        #[schemars(with = "String")]
         xrpl_currency: XRPLCurrency,
     },
 
