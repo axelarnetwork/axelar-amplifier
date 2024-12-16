@@ -3,10 +3,9 @@ use std::str::FromStr;
 use axelar_wasm_std::utils::does_felt_overflow_from_slice;
 use error_stack::{Report, ResultExt};
 use ethers_core::abi::{
-    AbiDecode, AbiError, AbiType, Detokenize, FixedBytes, InvalidOutputType, ParamType, Token,
-    Tokenizable,
+    AbiDecode, AbiError, AbiType, Detokenize, InvalidOutputType, ParamType, Token, Tokenizable,
 };
-use ethers_core::types::{Address, Selector, U256};
+use ethers_core::types::U256;
 use router_api::Message as RouterMessage;
 use starknet_core::types::Felt;
 

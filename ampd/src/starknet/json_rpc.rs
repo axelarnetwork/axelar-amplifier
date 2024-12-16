@@ -58,7 +58,10 @@ where
 pub trait StarknetClient {
     /// Attempts to fetch a ContractCall event, by a given `tx_hash`.
     /// Returns a tuple `(tx_hash, event)` or a `StarknetClientError`.
-    async fn get_event_by_hash(&self, tx_hash: Felt) -> Result<Option<(Felt, ContractCallEvent)>>;
+    async fn get_event_by_hash_contract_call(
+        &self,
+        tx_hash: Felt,
+    ) -> Result<Option<(Felt, ContractCallEvent)>>;
 
     /// Attempts to fetch a SignersRotated event, by a given `tx_hash`.
     /// Returns a tuple `(tx_hash, event)` or a `StarknetClientError`.
@@ -73,13 +76,10 @@ impl<T> StarknetClient for Client<T>
 where
     T: JsonRpcTransport + Send + Sync + 'static,
 {
-    async fn get_event_by_hash(&self, tx_hash: Felt) -> Result<Option<(Felt, ContractCallEvent)>> {
-        // TODO: Check ACCEPTED ON L1 times and decide if we should use it
-        //
-        // Finality status is always at least ACCEPTED_ON_L2 and this is what we're
-        // looking for, because ACCEPTED_ON_L1 (Ethereum) will take a very long time.
-        //
-        // Check https://github.com/eigerco/giza-axelar-starknet/issues/90
+    async fn get_event_by_hash_contract_call(
+        &self,
+        tx_hash: Felt,
+    ) -> Result<Option<(Felt, ContractCallEvent)>> {
         let receipt_with_block_info = self
             .client
             .get_transaction_receipt(tx_hash)
@@ -201,7 +201,7 @@ mod test {
     #[tokio::test]
     async fn deploy_account_tx_fetch() {
         let mock_client = Client::new_with_transport(DeployAccountMockTransport).unwrap();
-        let contract_call_event = mock_client.get_event_by_hash(Felt::ONE).await;
+        let contract_call_event = mock_client.get_event_by_hash_contract_call(Felt::ONE).await;
 
         assert!(contract_call_event.unwrap().is_none());
     }
@@ -209,7 +209,7 @@ mod test {
     #[tokio::test]
     async fn deploy_tx_fetch() {
         let mock_client = Client::new_with_transport(DeployMockTransport).unwrap();
-        let contract_call_event = mock_client.get_event_by_hash(Felt::ONE).await;
+        let contract_call_event = mock_client.get_event_by_hash_contract_call(Felt::ONE).await;
 
         assert!(contract_call_event.unwrap().is_none());
     }
@@ -217,7 +217,7 @@ mod test {
     #[tokio::test]
     async fn l1_handler_tx_fetch() {
         let mock_client = Client::new_with_transport(L1HandlerMockTransport).unwrap();
-        let contract_call_event = mock_client.get_event_by_hash(Felt::ONE).await;
+        let contract_call_event = mock_client.get_event_by_hash_contract_call(Felt::ONE).await;
 
         assert!(contract_call_event.unwrap().is_none());
     }
@@ -225,7 +225,7 @@ mod test {
     #[tokio::test]
     async fn declare_tx_fetch() {
         let mock_client = Client::new_with_transport(DeclareMockTransport).unwrap();
-        let contract_call_event = mock_client.get_event_by_hash(Felt::ONE).await;
+        let contract_call_event = mock_client.get_event_by_hash_contract_call(Felt::ONE).await;
 
         assert!(contract_call_event.unwrap().is_none());
     }
@@ -234,7 +234,7 @@ mod test {
     async fn invalid_contract_call_event_tx_fetch() {
         let mock_client =
             Client::new_with_transport(InvalidContractCallEventMockTransport).unwrap();
-        let contract_call_event = mock_client.get_event_by_hash(Felt::ONE).await;
+        let contract_call_event = mock_client.get_event_by_hash_contract_call(Felt::ONE).await;
 
         assert!(contract_call_event.unwrap().is_none());
     }
@@ -242,7 +242,7 @@ mod test {
     #[tokio::test]
     async fn no_events_tx_fetch() {
         let mock_client = Client::new_with_transport(NoEventsMockTransport).unwrap();
-        let contract_call_event = mock_client.get_event_by_hash(Felt::ONE).await;
+        let contract_call_event = mock_client.get_event_by_hash_contract_call(Felt::ONE).await;
 
         assert!(contract_call_event.unwrap().is_none());
     }
@@ -250,7 +250,7 @@ mod test {
     #[tokio::test]
     async fn reverted_tx_fetch() {
         let mock_client = Client::new_with_transport(RevertedMockTransport).unwrap();
-        let contract_call_event = mock_client.get_event_by_hash(Felt::ONE).await;
+        let contract_call_event = mock_client.get_event_by_hash_contract_call(Felt::ONE).await;
 
         assert!(contract_call_event
             .unwrap_err()
@@ -260,7 +260,7 @@ mod test {
     #[tokio::test]
     async fn failing_tx_fetch() {
         let mock_client = Client::new_with_transport(FailingMockTransport).unwrap();
-        let contract_call_event = mock_client.get_event_by_hash(Felt::ONE).await;
+        let contract_call_event = mock_client.get_event_by_hash_contract_call(Felt::ONE).await;
 
         assert!(contract_call_event.is_err());
     }
@@ -308,7 +308,7 @@ mod test {
     async fn successful_call_contract_tx_fetch() {
         let mock_client = Client::new_with_transport(ValidMockTransportCallContract).unwrap();
         let contract_call_event = mock_client
-            .get_event_by_hash(Felt::ONE)
+            .get_event_by_hash_contract_call(Felt::ONE)
             .await
             .unwrap() // unwrap the result
             .unwrap(); // unwrap the option

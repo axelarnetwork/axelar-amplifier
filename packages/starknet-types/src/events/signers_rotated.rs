@@ -281,7 +281,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_try_from_event_happy_scenario() {
-        let (keys_data, event_data, sender_address, tx_hash) = get_valid_event().await;
+        let (keys_data, event_data, sender_address, _tx_hash) = get_valid_event().await;
 
         assert!(SignersRotatedEvent::try_from(Event {
             from_address: sender_address,
@@ -293,7 +293,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_try_from_empty_event() {
-        let (_, _, sender_address, tx_hash) = get_valid_event().await;
+        let (_, _, sender_address, _tx_hash) = get_valid_event().await;
         let result = SignersRotatedEvent::try_from(Event {
             data: vec![],
             from_address: sender_address,
@@ -305,7 +305,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_try_from_event_missing_data() {
-        let (keys_data, _, sender_address, tx_hash) = get_valid_event().await;
+        let (keys_data, _, sender_address, _tx_hash) = get_valid_event().await;
         let event = SignersRotatedEvent::try_from(Event {
             data: vec![],
             from_address: sender_address,
@@ -321,7 +321,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_try_from_event_missing_keys() {
-        let (_, event_data, sender_address, tx_hash) = get_valid_event().await;
+        let (_, event_data, sender_address, _tx_hash) = get_valid_event().await;
         let event = SignersRotatedEvent::try_from(Event {
             data: event_data,
             from_address: sender_address,

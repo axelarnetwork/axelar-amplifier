@@ -88,7 +88,7 @@ mod tests {
     use std::collections::BTreeMap;
     use std::str::FromStr;
 
-    use axelar_wasm_std::msg_id::{FieldElementAndEventIndex, HexTxHashAndEventIndex};
+    use axelar_wasm_std::msg_id::FieldElementAndEventIndex;
     use axelar_wasm_std::voting::Vote;
     use cosmwasm_std::{Addr, HexBinary, Uint128};
     use ethers_core::types::H256;
@@ -233,8 +233,8 @@ mod tests {
     fn mock_valid_confirmation_signers_rotated() -> VerifierSetConfirmation {
         VerifierSetConfirmation {
             verifier_set: mock_valid_verifier_set_signers_rotated(),
-            message_id: HexTxHashAndEventIndex {
-                tx_hash: [0_u8; 32],
+            message_id: FieldElementAndEventIndex {
+                tx_hash: Felt::from_bytes_be(&[0_u8; 32]),
                 event_index: 0,
             },
         }
