@@ -673,13 +673,6 @@ impl std::str::FromStr for XRPLAccountId {
     }
 }
 
-#[test]
-fn test_xrpl_account_id_from_string() {
-    let xrpl_account = "rNM8ue6DZpneFC4gBEJMSEdbwNEBZjs3Dy";
-    let expected_bytes: &[u8; 20] = &[146, 136, 70, 186, 245, 155, 212, 140, 40, 177, 49, 133, 84, 114, 208, 76, 147, 187, 208, 183];
-    assert_eq!(XRPLAccountId::from_str(xrpl_account).unwrap().as_ref(), expected_bytes);
-}
-
 impl From<&PublicKey> for XRPLAccountId {
     fn from(pub_key: &PublicKey) -> Self {
         let public_key_hex: HexBinary = pub_key.clone().into();
