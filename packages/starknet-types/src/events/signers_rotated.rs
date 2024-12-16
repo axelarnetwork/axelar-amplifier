@@ -23,6 +23,11 @@ pub enum SignersRotatedErrors {
     #[error("incorrect epoch for transaction")]
     IncorrectEpoch,
 
+    /// Error returned when the first key doesn't correspod to the
+    /// SignersRotated event.
+    #[error("not a SignersRotated event")]
+    InvalidEvent,
+
     /// Error returned when the threshold in a transaction is invalid or
     /// unexpected.
     #[error("incorrect threshold for transaction")]

@@ -3,7 +3,6 @@ use starknet_core::types::Felt;
 use starknet_core::utils::{parse_cairo_short_string, ParseCairoShortStringError};
 use thiserror::Error;
 
-use crate::events::EventType;
 use crate::types::byte_array::{ByteArray, ByteArrayError};
 
 /// This is the event emitted by the gateway cairo contract on Starknet,
@@ -31,55 +30,40 @@ pub enum ContractCallError {
     OutOfBound,
     #[error("ByteArray type error: {0}")]
     ByteArray(#[from] ByteArrayError),
+    #[error("missing payload data for transaction")]
+    MissingPayloadData,
+    #[error("missing keys for transaction")]
+    MissingKeys,
 }
 
 impl TryFrom<starknet_core::types::Event> for ContractCallEvent {
     type Error = ContractCallError;
 
-    fn try_from(starknet_event: starknet_core::types::Event) -> Result<Self, Self::Error> {
-        if starknet_event.keys.len() != 2 {
-            return Err(ContractCallError::InvalidEvent(
-                "ContractCall should have exactly 2 event keys - event_type and destination_chain"
-                    .to_owned(),
-            ));
+    fn try_from(event: starknet_core::types::Event) -> Result<Self, Self::Error> {
+        if event.data.is_empty() {
+            return Err(ContractCallError::MissingPayloadData);
         }
-
-        // first key is always the event type
-        let event_type_felt = starknet_event.keys[0];
-        if !matches!(
-            EventType::parse(event_type_felt),
-            Some(EventType::ContractCall)
-        ) {
-            return Err(ContractCallError::InvalidEvent(
-                "not a ContractCall event".to_owned(),
-            ));
+        if event.keys.is_empty() {
+            return Err(ContractCallError::MissingKeys);
         }
 
         // `event.from_address` is the contract address, which emitted the event
-        let from_contract_addr = format!(
-            "0x{}",
-            hex::encode(starknet_event.from_address.to_bytes_be())
-        );
+        let from_contract_addr = format!("0x{}", hex::encode(event.from_address.to_bytes_be()));
 
         // destination_chain is the second key in the event keys list (the first key
         // defined from the event)
         //
         // This field, should not exceed 252 bits (a felt's length)
-        let destination_chain = parse_cairo_short_string(&starknet_event.keys[1])?;
+        let destination_chain = parse_cairo_short_string(&event.keys[1])?;
 
         // source_address represents the original caller of the `call_contract` gateway
         // method. It is the first field in data, by the order defined in the
         // event.
-        //
-        // TODO: Not sure if `064x` is the correct formatting. Maybe we should calculate
-        // the pedersen hash of the felt as described here, to get the actual address,
-        // although I'm not sure that we can do it as described here:
-        // https://docs.starknet.io/documentation/architecture_and_concepts/Smart_Contracts/contract-address/
-        let source_address = starknet_event.data[0];
+        let source_address = event.data[0];
 
         // destination_contract_address (ByteArray) is composed of FieldElements
         // from the second element to elemet X.
-        let destination_address_chunks_count_felt = starknet_event.data[1];
+        let destination_address_chunks_count_felt = event.data[1];
         let da_chunks_count: usize = u8::try_from(destination_address_chunks_count_felt)
             .map_err(|err| ContractCallError::TryFromConversion(err.to_string()))?
             .into();
@@ -89,7 +73,7 @@ impl TryFrom<starknet_core::types::Event> for ContractCallEvent {
         let da_elements_start_index: usize = 1;
         let da_elements_end_index: usize = da_chunks_count.wrapping_add(3);
         let destination_address_byte_array: ByteArray = ByteArray::try_from(
-            starknet_event
+            event
                 .data
                 .get(da_elements_start_index..=da_elements_end_index)
                 .ok_or(ContractCallError::OutOfBound)?
@@ -103,14 +87,14 @@ impl TryFrom<starknet_core::types::Event> for ContractCallEvent {
         let ph_chunk1_index: usize = da_elements_end_index.wrapping_add(1);
         let ph_chunk2_index: usize = ph_chunk1_index.wrapping_add(1);
         let mut payload_hash = [0; 32];
-        let lsb: [u8; 32] = starknet_event
+        let lsb: [u8; 32] = event
             .data
             .get(ph_chunk1_index)
             .ok_or(ContractCallError::InvalidEvent(
                 "payload_hash chunk 1 out of range".to_owned(),
             ))?
             .to_bytes_be();
-        let msb: [u8; 32] = starknet_event
+        let msb: [u8; 32] = event
             .data
             .get(ph_chunk2_index)
             .ok_or(ContractCallError::InvalidEvent(
@@ -178,28 +162,6 @@ mod tests {
 
         let event = ContractCallEvent::try_from(starknet_event).unwrap_err();
         assert!(matches!(event, ContractCallError::Cairo(_)));
-    }
-
-    #[test]
-    fn more_than_2_keys() {
-        // the payload is the word "hello"
-        let mut starknet_event = get_dummy_event();
-        starknet_event
-            .keys
-            .push(starknet_keccak("additional_element".as_bytes()));
-
-        let event = ContractCallEvent::try_from(starknet_event).unwrap_err();
-        assert!(matches!(event, ContractCallError::InvalidEvent(_)));
-    }
-
-    #[test]
-    fn wrong_event_type() {
-        // the payload is the word "hello"
-        let mut starknet_event = get_dummy_event();
-        starknet_event.keys[0] = starknet_keccak("NOTContractCall".as_bytes());
-
-        let event = ContractCallEvent::try_from(starknet_event).unwrap_err();
-        assert!(matches!(event, ContractCallError::InvalidEvent(_)));
     }
 
     #[test]
