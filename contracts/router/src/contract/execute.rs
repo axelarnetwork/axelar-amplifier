@@ -210,6 +210,7 @@ fn validate_msgs(
 
 pub fn route_messages(
     storage: &dyn Storage,
+    querier: QuerierWrapper,
     sender: Addr,
     msgs: Vec<Message>,
 ) -> error_stack::Result<Response, Error> {
@@ -219,6 +220,7 @@ pub fn route_messages(
     );
 
     let config = state::load_config(storage)?;
+    let client: nexus::Client = client::CosmosClient::new(querier).into();
 
     let msgs = validate_msgs(storage, config.clone(), &sender, msgs)?;
 
@@ -237,7 +239,12 @@ pub fn route_messages(
                 // messages with unknown destination chains are routed to
                 // the axelarnet gateway if the sender is not the nexus gateway
                 // itself
-                None if sender != config.axelarnet_gateway => config.axelarnet_gateway.clone(),
+                None if client
+                    .is_chain_registered(&destination_chain)
+                    .change_context(Error::Nexus)? =>
+                {
+                    config.axelarnet_gateway.clone()
+                }
                 _ => return Err(report!(Error::ChainNotFound)),
             };
 
@@ -330,7 +337,8 @@ mod test {
         .unwrap();
 
         assert!(route_messages(
-            deps.as_mut().storage,
+            &deps.storage,
+            QuerierWrapper::new(&deps.querier),
             sender,
             vec![rand_message(source_chain, destination_chain)]
         )
@@ -369,7 +377,8 @@ mod test {
             .unwrap();
 
         assert!(route_messages(
-            deps.as_mut().storage,
+            &deps.storage,
+            QuerierWrapper::new(&deps.querier),
             sender,
             vec![rand_message(source_chain.clone(), destination_chain)]
         )
@@ -410,7 +419,8 @@ mod test {
             .unwrap();
 
         assert!(route_messages(
-            deps.as_mut().storage,
+            &deps.storage,
+            QuerierWrapper::new(&deps.querier),
             sender,
             vec![rand_message("polygon".parse().unwrap(), destination_chain)]
         )
@@ -466,7 +476,7 @@ mod test {
             )
             .unwrap();
 
-        assert!(route_messages(deps.as_mut().storage, sender, vec![rand_message(source_chain, destination_chain.clone())])
+        assert!(route_messages(&deps.storage, QuerierWrapper::new(&deps.querier), sender, vec![rand_message(source_chain, destination_chain.clone())])
             .is_err_and(move |err| {
                 matches!(err.current_context(), Error::ChainFrozen { chain } if *chain == destination_chain)
             }));
@@ -509,8 +519,16 @@ mod test {
 
         let mut msg = rand_message(source_chain.clone(), destination_chain.clone());
         msg.cc_id = CrossChainId::new(source_chain, "foobar").unwrap();
-        assert!(route_messages(deps.as_mut().storage, sender, vec![msg])
-            .is_err_and(move |err| { matches!(err.current_context(), Error::InvalidMessageId) }));
+        assert_err_contains!(
+            route_messages(
+                &deps.storage,
+                QuerierWrapper::new(&deps.querier),
+                sender,
+                vec![msg]
+            ),
+            Error,
+            Error::InvalidMessageId
+        );
     }
 
     #[test]
@@ -534,8 +552,16 @@ mod test {
 
         let mut msg = rand_message(source_chain.clone(), destination_chain.clone());
         msg.cc_id = CrossChainId::new(source_chain, "foobar").unwrap();
-        assert!(route_messages(deps.as_mut().storage, sender, vec![msg])
-            .is_err_and(move |err| { matches!(err.current_context(), Error::InvalidMessageId) }));
+        assert_err_contains!(
+            route_messages(
+                &deps.storage,
+                QuerierWrapper::new(&deps.querier),
+                sender,
+                vec![msg]
+            ),
+            Error,
+            Error::InvalidMessageId
+        );
     }
 
     #[test]
@@ -585,8 +611,16 @@ mod test {
         )
         .unwrap();
 
-        assert!(route_messages(deps.as_mut().storage, sender, vec![msg])
-            .is_err_and(move |err| { matches!(err.current_context(), Error::InvalidMessageId) }));
+        assert_err_contains!(
+            route_messages(
+                &deps.storage,
+                QuerierWrapper::new(&deps.querier),
+                sender,
+                vec![msg]
+            ),
+            Error,
+            Error::InvalidMessageId
+        );
     }
 
     #[test]
@@ -656,7 +690,8 @@ mod test {
             .unwrap();
 
         assert!(route_messages(
-            deps.as_mut().storage,
+            &deps.storage,
+            QuerierWrapper::new(&deps.querier),
             sender,
             vec![
                 rand_message(source_chain.clone(), destination_chain_1.clone()),
@@ -720,7 +755,8 @@ mod test {
             .unwrap();
 
         assert!(route_messages(
-            deps.as_mut().storage,
+            &deps.storage,
+            QuerierWrapper::new(&deps.querier),
             sender,
             vec![
                 rand_message(source_chain.clone(), destination_chain_1.clone()),
@@ -739,6 +775,9 @@ mod test {
         let destination_chain: ChainName = "bitcoin".parse().unwrap();
 
         let mut deps = mock_dependencies();
+        deps.querier = deps
+            .querier
+            .with_custom_handler(reply_with_is_chain_registered(false));
         instantiate(
             deps.as_mut(),
             mock_env(),
@@ -752,7 +791,8 @@ mod test {
         .unwrap();
 
         assert!(route_messages(
-            deps.as_mut().storage,
+            &deps.storage,
+            QuerierWrapper::new(&deps.querier),
             sender,
             vec![rand_message(
                 source_chain.clone(),
@@ -769,6 +809,9 @@ mod test {
         let destination_chain: ChainName = "bitcoin".parse().unwrap();
 
         let mut deps = mock_dependencies();
+        deps.querier = deps
+            .querier
+            .with_custom_handler(reply_with_is_chain_registered(true));
         instantiate(
             deps.as_mut(),
             mock_env(),
@@ -798,7 +841,8 @@ mod test {
             .unwrap();
 
         assert!(route_messages(
-            deps.as_mut().storage,
+            &deps.storage,
+            QuerierWrapper::new(&deps.querier),
             sender,
             vec![rand_message(
                 source_chain.clone(),

@@ -44,6 +44,7 @@ msgs-derive = { workspace = true }
 multisig = { workspace = true, features = ["library"] }
 report = { workspace = true }
 router-api = { workspace = true }
+semver = { workspace = true }
 service-registry-api = { workspace = true }
 thiserror = { workspace = true }
 
