@@ -3426,6 +3426,7 @@ dependencies = [
 name = "gateway"
 version = "1.1.1"
 dependencies = [
+ "assert_ok",
  "axelar-wasm-std",
  "client",
  "cosmwasm-schema",
@@ -3439,6 +3440,7 @@ dependencies = [
  "rand",
  "report",
  "router-api",
+ "semver 1.0.23",
  "serde",
  "serde_json",
  "thiserror 1.0.61",
