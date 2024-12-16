@@ -115,6 +115,9 @@ pub fn execute_message(
 // right now, messages sent to the axelar chain are not forwarded on to
 // any other contract (in contrast to every other message that moves through the hub)
 // In the future, this may change, depending on the message type
+// The main use case for this at the moment is the RegisterToken message,
+// which simply informs the ITS hub of the decimals and token address of a
+// custom token, and thus needs no forwarding.
 fn execute_axelar_message(
     deps: DepsMut,
     cc_id: CrossChainId,
