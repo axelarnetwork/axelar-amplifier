@@ -43,6 +43,7 @@ gateway-api = { workspace = true }
 itertools = { workspace = true }
 report = { workspace = true }
 router-api = { workspace = true }
+semver = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
@@ -51,6 +52,7 @@ voting-verifier = { workspace = true, features = ["library"] }
 [dev-dependencies]
 cw-multi-test = { workspace = true }
 goldie = { workspace = true }
+assert_ok = { workspace = true }
 rand = { workspace = true }
 
 [lints]
