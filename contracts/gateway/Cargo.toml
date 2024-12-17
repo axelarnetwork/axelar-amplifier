@@ -50,9 +50,9 @@ thiserror = { workspace = true }
 voting-verifier = { workspace = true, features = ["library"] }
 
 [dev-dependencies]
+assert_ok = { workspace = true }
 cw-multi-test = { workspace = true }
 goldie = { workspace = true }
-assert_ok = { workspace = true }
 rand = { workspace = true }
 
 [lints]

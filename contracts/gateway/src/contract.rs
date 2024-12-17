@@ -123,8 +123,8 @@ pub fn query(
 #[cfg(test)]
 mod test {
     use assert_ok::assert_ok;
-    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-    use cosmwasm_std::{Addr, Empty};
+    use cosmwasm_std::testing::{message_info, mock_dependencies, mock_env};
+    use cosmwasm_std::Empty;
 
     use crate::contract::{instantiate, migrate, CONTRACT_NAME, CONTRACT_VERSION};
     use crate::msg::InstantiateMsg;
@@ -132,11 +132,12 @@ mod test {
     #[test]
     fn migrate_sets_contract_version() {
         let mut deps = mock_dependencies();
+        let api = deps.api;
         let env = mock_env();
-        let info = mock_info("sender", &[]);
+        let info = message_info(&api.addr_make("sender"), &[]);
         let instantiate_msg = InstantiateMsg {
-            verifier_address: Addr::unchecked("verifier").to_string(),
-            router_address: Addr::unchecked("router").to_string(),
+            verifier_address: api.addr_make("verifier").to_string(),
+            router_address: api.addr_make("router").to_string(),
         };
 
         assert_ok!(instantiate(
