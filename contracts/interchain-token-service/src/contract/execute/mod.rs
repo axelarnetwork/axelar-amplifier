@@ -111,39 +111,10 @@ pub fn execute_message(
     }
 }
 
-// messages sent to axelar are handled in a special way
-// right now, messages sent to the axelar chain are not forwarded on to
-// any other contract (in contrast to every other message that moves through the hub)
-// In the future, this may change, depending on the message type
-// The main use case for this at the moment is the RegisterToken message,
-// which simply informs the ITS hub of the decimals and token address of a
-// custom token, and thus needs no forwarding.
-fn execute_axelar_message(
-    deps: DepsMut,
-    cc_id: CrossChainId,
-    destination_chain: ChainNameRaw,
-    message: Message,
-) -> Result<Response, Error> {
-    let message = apply_to_hub(
-        deps.storage,
-        cc_id.source_chain.clone(),
-        destination_chain.clone(),
-        message,
-    )?;
-    Ok(Response::new().add_event(
-        Event::MessageReceived {
-            cc_id,
-            destination_chain,
-            message,
-        }
-        .into(),
-    ))
-}
-
-fn axelar_chain_name(deps: &DepsMut) -> Result<ChainName, Error> {
-    let config = state::load_config(deps.storage);
+fn axelar_chain_name(storage: &dyn Storage, querier: QuerierWrapper) -> Result<ChainName, Error> {
+    let config = state::load_config(storage);
     let gateway: axelarnet_gateway::Client =
-        client::ContractClient::new(deps.querier, &config.axelarnet_gateway).into();
+        client::ContractClient::new(querier, &config.axelarnet_gateway).into();
     gateway
         .chain_name()
         .change_context(Error::FailedToQueryAxelarnetGateway)
@@ -155,13 +126,6 @@ fn execute_message_on_hub(
     destination_chain: ChainNameRaw,
     message: Message,
 ) -> Result<Response, Error> {
-    if destination_chain == axelar_chain_name(&deps)? {
-        return execute_axelar_message(deps, cc_id, destination_chain, message);
-    }
-
-    let destination_address = state::load_its_contract(deps.storage, &destination_chain)
-        .change_context_lazy(|| Error::ChainNotFound(destination_chain.clone()))?;
-
     let message = apply_to_hub(
         deps.storage,
         cc_id.source_chain.clone(),
@@ -179,7 +143,6 @@ fn execute_message_on_hub(
         deps.storage,
         deps.querier,
         &destination_chain,
-        destination_address,
         destination_payload,
     )?
     .add_event(
@@ -329,7 +292,8 @@ fn apply_to_token_deployment(
 
 fn ensure_chain_not_frozen(storage: &dyn Storage, chain: &ChainNameRaw) -> Result<(), Error> {
     ensure!(
-        !state::is_chain_frozen(storage, chain).change_context(Error::State)?,
+        !state::is_chain_frozen(storage, chain)
+            .change_context_lazy(|| Error::ChainNotFound(chain.clone()))?,
         Error::ChainFrozen(chain.to_owned())
     );
 
@@ -357,9 +321,22 @@ fn send_to_destination(
     storage: &dyn Storage,
     querier: QuerierWrapper,
     destination_chain: &ChainNameRaw,
-    destination_address: Address,
     payload: HexBinary,
 ) -> Result<Response, Error> {
+    if *destination_chain == axelar_chain_name(storage, querier)? {
+        // messages sent to axelar are handled in a special way
+        // right now, messages sent to the axelar chain are not forwarded on to
+        // any other contract (in contrast to every other message that moves through the hub)
+        // In the future, this may change, depending on the message type
+        // The main use case for this at the moment is the RegisterToken message,
+        // which simply informs the ITS hub of the decimals and token address of a
+        // custom token, and thus needs no forwarding.
+        return Ok(Response::new());
+    }
+
+    let destination_address = state::load_its_contract(storage, &destination_chain)
+        .change_context_lazy(|| Error::ChainNotFound(destination_chain.clone()))?;
+
     let config = state::load_config(storage);
 
     let gateway: axelarnet_gateway::Client =
