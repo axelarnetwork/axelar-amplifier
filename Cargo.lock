@@ -234,8 +234,6 @@ dependencies = [
  "der 0.7.9",
  "deref-derive",
  "dirs",
- "ecdsa",
- "ed25519 2.2.3",
  "ed25519-dalek",
  "elliptic-curve",
  "enum-display-derive",

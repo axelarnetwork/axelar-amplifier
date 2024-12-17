@@ -10,6 +10,6 @@ pub enum Error {
     Sign,
     #[error("failed to get transaction receipts")]
     TxReceipts,
-    #[error("unsupported key type {0}")]
-    KeyType(String),
+    #[error("unsupported key type")]
+    UnsupportedKeyType,
 }
