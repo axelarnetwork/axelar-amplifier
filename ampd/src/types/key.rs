@@ -129,3 +129,63 @@ impl From<CosmosPublicKey> for PublicKey {
         (&key).into()
     }
 }
+#[cfg(test)]
+mod tests {
+    use axelar_wasm_std::assert_err_contains;
+    use rand::random;
+    use rand::rngs::OsRng;
+
+    use super::*;
+
+    #[test]
+    fn new_secp256k1() {
+        let signing_key = k256::ecdsa::SigningKey::random(&mut OsRng);
+        let verifying_key = signing_key.verifying_key();
+        let bytes = verifying_key.to_sec1_bytes();
+        let public_key = PublicKey::new_secp256k1(&bytes).unwrap();
+        assert_eq!(public_key.to_bytes(), bytes.to_vec());
+
+        let bytes: [u8; 20] = random();
+        assert_err_contains!(
+            PublicKey::new_secp256k1(bytes),
+            Error,
+            Error::InvalidRawBytes,
+        );
+    }
+
+    #[test]
+    fn new_ed25519() {
+        let signing_key = ed25519_dalek::SigningKey::generate(&mut OsRng);
+        let verifying_key = signing_key.verifying_key();
+        let bytes = verifying_key.to_bytes();
+        let public_key = PublicKey::new_ed25519(bytes).unwrap();
+        assert_eq!(public_key.to_bytes(), bytes.to_vec());
+
+        let bytes: [u8; 20] = random();
+        assert_err_contains!(PublicKey::new_ed25519(bytes), Error, Error::InvalidRawBytes,);
+    }
+
+    #[test]
+    fn conversion_to_cosmos_public_key() {
+        let signing_key = k256::ecdsa::SigningKey::random(&mut OsRng);
+        let verifying_key = signing_key.verifying_key();
+        let bytes = verifying_key.to_sec1_bytes();
+        let public_key = PublicKey::new_secp256k1(&bytes).unwrap();
+        let cosmos_public_key: CosmosPublicKey = public_key.try_into().unwrap();
+        assert_eq!(cosmos_public_key.to_bytes(), bytes.to_vec());
+
+        let signing_key = ed25519_dalek::SigningKey::generate(&mut OsRng);
+        let verifying_key = signing_key.verifying_key();
+        let bytes = verifying_key.to_bytes();
+        let public_key = PublicKey::new_ed25519(bytes).unwrap();
+        let cosmos_public_key: CosmosPublicKey = public_key.try_into().unwrap();
+        assert_eq!(cosmos_public_key.to_bytes(), bytes.to_vec());
+
+        let public_key = PublicKey::Schnorr;
+        assert_err_contains!(
+            TryInto::<CosmosPublicKey>::try_into(public_key),
+            Error,
+            Error::UnsupportedConversionForCosmosKey(_),
+        );
+    }
+}
