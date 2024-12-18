@@ -107,7 +107,8 @@ where
 #[cfg(test)]
 mod tests {
     use axelar_wasm_std::hash::Hash;
-    use cosmwasm_std::{Addr, HexBinary, Uint128};
+    use cosmwasm_std::testing::MockApi;
+    use cosmwasm_std::{HexBinary, Uint128};
     use multisig::key::KeyType;
     use multisig::msg::Signer;
     use multisig::verifier_set::VerifierSet;
@@ -123,7 +124,7 @@ mod tests {
                 (
                     "addr_1".to_string(),
                     Signer {
-                        address: Addr::unchecked("addr_1"),
+                        address: MockApi::default().addr_make("addr_1"),
                         pub_key: (
                             KeyType::Ecdsa,
                             HexBinary::from_hex("02a7ecca982c2d9ac150c629699c4c601032b42429b418799d6c08ce7d966f518b").unwrap(),
@@ -136,7 +137,7 @@ mod tests {
                 (
                     "addr_2".to_string(),
                     Signer {
-                        address: Addr::unchecked("addr_2"),
+                        address: MockApi::default().addr_make("addr_2"),
                         pub_key: (
                             KeyType::Ecdsa,
                             HexBinary::from_hex("023e44013597b8a49df193265ae443e1a9970626d4df92e4ebad677ab2aca5c13a").unwrap(),
@@ -149,7 +150,7 @@ mod tests {
                 (
                     "addr_3".to_string(),
                     Signer {
-                        address: Addr::unchecked("addr_3"),
+                        address: MockApi::default().addr_make("addr_3"),
                         pub_key: (
                             KeyType::Ecdsa,
                             HexBinary::from_hex("024fa6a34ec85dc2618d730ad68ab914ccc492e54b573172083c0fa44465f54dcc").unwrap(),
@@ -170,7 +171,7 @@ mod tests {
                 (
                     "addr_1".to_string(),
                     Signer {
-                        address: Addr::unchecked("addr_1"),
+                        address: MockApi::default().addr_make("addr_1"),
                         pub_key: (
                             KeyType::Ecdsa,
                             HexBinary::from_hex("0309613c4ae8b9ac87bdb3c4ff240a7e5f905f59754f377ccf54fbd8ce0e8ba636").unwrap(),
@@ -183,7 +184,7 @@ mod tests {
                 (
                     "addr_2".to_string(),
                     Signer {
-                        address: Addr::unchecked("addr_2"),
+                        address: MockApi::default().addr_make("addr_2"),
                         pub_key: (
                             KeyType::Ecdsa,
                             HexBinary::from_hex("032b14344bda89d1a0f1a976af94648f1b4a5df5397d008f3b2032267c11eda7c9").unwrap(),
@@ -196,7 +197,7 @@ mod tests {
                 (
                     "addr_3".to_string(),
                     Signer {
-                        address: Addr::unchecked("addr_3"),
+                        address: MockApi::default().addr_make("addr_3"),
                         pub_key: (
                             KeyType::Ecdsa,
                             HexBinary::from_hex("031fb4e7844794a28bc49e8a702c984031d8627befea844932a02e5e918f59f610").unwrap(),
@@ -225,7 +226,7 @@ mod tests {
                 (
                     "addr_1".to_string(),
                     Signer {
-                        address: Addr::unchecked("addr_1"),
+                        address: MockApi::default().addr_make("addr_1"),
                         pub_key: (
                             KeyType::Ecdsa,
                             HexBinary::from_hex("02a7ecca982c2d9ac150c629699c4c601032b42429b418799d6c08ce7d966f518b").unwrap(),
@@ -238,7 +239,7 @@ mod tests {
                 (
                     "addr_2".to_string(),
                     Signer {
-                        address: Addr::unchecked("addr_2"),
+                        address: MockApi::default().addr_make("addr_2"),
                         pub_key: (
                             KeyType::Ecdsa,
                             HexBinary::from_hex("023e44013597b8a49df193265ae443e1a9970626d4df92e4ebad677ab2aca5c13a").unwrap(),
@@ -251,7 +252,7 @@ mod tests {
                 (
                     "addr_3".to_string(),
                     Signer {
-                        address: Addr::unchecked("addr_3"),
+                        address: MockApi::default().addr_make("addr_3"),
                         pub_key: (
                             KeyType::Ecdsa,
                             HexBinary::from_hex("024fa6a34ec85dc2618d730ad68ab914ccc492e54b573172083c0fa44465f54dcc").unwrap(),

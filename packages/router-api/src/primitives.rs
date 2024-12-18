@@ -157,6 +157,7 @@ impl PrimaryKey<'_> for CrossChainId {
 
 impl KeyDeserialize for CrossChainId {
     type Output = Self;
+    const KEY_ELEMS: u16 = 2;
 
     fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
         let (source_chain, id) = <(ChainNameRaw, String)>::from_vec(value)?;
@@ -265,6 +266,7 @@ impl<'a> Prefixer<'a> for ChainName {
 
 impl KeyDeserialize for ChainName {
     type Output = Self;
+    const KEY_ELEMS: u16 = 1;
 
     #[inline(always)]
     fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
@@ -277,6 +279,7 @@ impl KeyDeserialize for ChainName {
 
 impl KeyDeserialize for &ChainName {
     type Output = ChainName;
+    const KEY_ELEMS: u16 = 1;
 
     #[inline(always)]
     fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
@@ -406,6 +409,7 @@ impl<'a> Prefixer<'a> for ChainNameRaw {
 
 impl KeyDeserialize for ChainNameRaw {
     type Output = Self;
+    const KEY_ELEMS: u16 = 1;
 
     #[inline(always)]
     fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
@@ -418,6 +422,7 @@ impl KeyDeserialize for ChainNameRaw {
 
 impl KeyDeserialize for &ChainNameRaw {
     type Output = ChainNameRaw;
+    const KEY_ELEMS: u16 = 1;
 
     #[inline(always)]
     fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {

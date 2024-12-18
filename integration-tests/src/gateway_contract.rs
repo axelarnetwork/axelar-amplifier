@@ -1,3 +1,4 @@
+use cosmwasm_std::testing::MockApi;
 use cosmwasm_std::Addr;
 use cw_multi_test::{ContractWrapper, Executor};
 use gateway::contract::{execute, instantiate, query};
@@ -22,7 +23,7 @@ impl GatewayContract {
         let contract_addr = app
             .instantiate_contract(
                 code_id,
-                Addr::unchecked("anyone"),
+                MockApi::default().addr_make("anyone"),
                 &gateway::msg::InstantiateMsg {
                     router_address: router_address.to_string(),
                     verifier_address: verifier_address.to_string(),

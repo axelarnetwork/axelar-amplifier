@@ -131,8 +131,8 @@ fn signers_weight(signatures: &HashMap<String, Signature>, verifier_set: &Verifi
 
 #[cfg(test)]
 mod tests {
-    use cosmwasm_std::testing::MockQuerier;
-    use cosmwasm_std::{to_json_binary, Addr, HexBinary, QuerierWrapper};
+    use cosmwasm_std::testing::{MockApi, MockQuerier};
+    use cosmwasm_std::{to_json_binary, HexBinary, QuerierWrapper};
 
     use super::*;
     use crate::key::KeyType;
@@ -274,7 +274,7 @@ mod tests {
                 let mut querier = MockQuerier::default();
                 querier.update_wasm(move |_| Ok(to_json_binary(&verification).into()).into());
                 let sig_verifier = Some(SignatureVerifier {
-                    address: Addr::unchecked("verifier".to_string()),
+                    address: MockApi::default().addr_make("verifier"),
                     querier: QuerierWrapper::new(&querier),
                 });
 
@@ -399,7 +399,7 @@ mod tests {
         for config in [ecdsa_setup(), ed25519_setup()] {
             let session = config.session;
             let verifier_set = config.verifier_set;
-            let invalid_participant = Addr::unchecked("not_a_participant".to_string());
+            let invalid_participant = MockApi::default().addr_make("not_a_participant");
 
             let result = match verifier_set.signers.get(&invalid_participant.to_string()) {
                 Some(signer) => Ok(&signer.pub_key),

@@ -5,10 +5,10 @@ use axelar_core_std::nexus::query::IsChainRegisteredResponse;
 use axelar_core_std::query::AxelarQueryMsg;
 use axelar_wasm_std::error::ContractError;
 use axelar_wasm_std::nonempty;
-use cosmwasm_std::testing::{mock_env, mock_info, MockApi, MockQuerier, MockStorage};
+use cosmwasm_std::testing::{message_info, mock_env, MockApi, MockQuerier, MockStorage};
 use cosmwasm_std::{
-    from_json, to_json_binary, Addr, DepsMut, HexBinary, MemoryStorage, OwnedDeps, Response,
-    Uint256, WasmQuery,
+    from_json, to_json_binary, DepsMut, HexBinary, MemoryStorage, OwnedDeps, Response, Uint256,
+    WasmQuery,
 };
 use interchain_token_service::msg::{self, ExecuteMsg, TruncationConfig};
 use interchain_token_service::{contract, HubMessage};
@@ -26,7 +26,7 @@ pub fn execute(
     contract::execute(
         deps,
         mock_env(),
-        mock_info(params::GATEWAY, &[]),
+        message_info(&MockApi::default().addr_make(params::GATEWAY), &[]),
         ExecuteMsg::Execute(axelarnet_gateway::AxelarExecutableMsg {
             cc_id,
             source_address,
@@ -45,7 +45,7 @@ pub fn execute_hub_message(
 }
 
 pub fn make_deps() -> OwnedDeps<MemoryStorage, MockApi, MockQuerier<AxelarQueryMsg>> {
-    let addr = Addr::unchecked(params::GATEWAY);
+    let addr = MockApi::default().addr_make(params::GATEWAY);
     let mut deps = OwnedDeps {
         storage: MockStorage::default(),
         api: MockApi::default(),
@@ -110,7 +110,7 @@ pub fn register_chains(
     contract::execute(
         deps,
         mock_env(),
-        mock_info(params::GOVERNANCE, &[]),
+        message_info(&MockApi::default().addr_make(params::GOVERNANCE), &[]),
         ExecuteMsg::RegisterChains { chains },
     )
 }
@@ -123,7 +123,7 @@ pub fn update_chain(
     contract::execute(
         deps,
         mock_env(),
-        mock_info(params::GOVERNANCE, &[]),
+        message_info(&MockApi::default().addr_make(params::GOVERNANCE), &[]),
         ExecuteMsg::UpdateChain {
             chain,
             its_edge_contract,

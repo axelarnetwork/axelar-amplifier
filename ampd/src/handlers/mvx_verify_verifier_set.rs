@@ -11,7 +11,7 @@ use events::Event;
 use events_derive::try_from;
 use multisig::verifier_set::VerifierSet;
 use multiversx_sdk::data::address::Address;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tokio::sync::watch::Receiver;
 use tracing::{info, info_span};
 use valuable::Valuable;
@@ -23,7 +23,7 @@ use crate::mvx::proxy::MvxProxy;
 use crate::mvx::verifier::verify_verifier_set;
 use crate::types::{Hash, TMAddress};
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Serialize)]
 pub struct VerifierSetConfirmation {
     pub tx_id: Hash,
     pub event_index: u32,
@@ -153,11 +153,11 @@ where
 mod tests {
     use std::convert::TryInto;
 
+    use assert_ok::assert_ok;
     use cosmrs::cosmwasm::MsgExecuteContract;
     use cosmrs::tx::Msg;
     use cosmwasm_std;
-    use cosmwasm_std::{HexBinary, Uint128};
-    use error_stack::Result;
+    use cosmwasm_std::Uint128;
     use events::Event;
     use hex::ToHex;
     use multisig::key::KeyType;
@@ -175,15 +175,11 @@ mod tests {
 
     #[test]
     fn should_deserialize_verifier_set_poll_started_event() {
-        let event: Result<PollStartedEvent, events::Error> = into_structured_event(
+        let event: PollStartedEvent = assert_ok!(into_structured_event(
             verifier_set_poll_started_event(participants(5, None), 100),
             &TMAddress::random(PREFIX),
         )
-        .try_into();
-
-        assert!(event.is_ok());
-
-        let event = event.unwrap();
+        .try_into());
 
         assert!(event.poll_id == 100u64.into());
         assert!(
@@ -200,22 +196,7 @@ mod tests {
         assert!(verifier_set.event_index == 1u32);
         assert!(verifier_set.verifier_set.signers.len() == 3);
         assert_eq!(verifier_set.verifier_set.threshold, Uint128::from(2u128));
-
-        let mut signers = verifier_set.verifier_set.signers.values();
-        let signer1 = signers.next().unwrap();
-        let signer2 = signers.next().unwrap();
-
-        assert_eq!(signer1.pub_key.as_ref(), HexBinary::from_hex(
-            "45e67eaf446e6c26eb3a2b55b64339ecf3a4d1d03180bee20eb5afdd23fa644f",
-        )
-            .unwrap().as_ref());
-        assert_eq!(signer1.weight, Uint128::from(1u128));
-
-        assert_eq!(signer2.pub_key.as_ref(), HexBinary::from_hex(
-            "dd9822c7fa239dda9913ebee813ecbe69e35d88ff651548d5cc42c033a8a667b",
-        )
-            .unwrap().as_ref());
-        assert_eq!(signer2.weight, Uint128::from(1u128));
+        goldie::assert_json!(verifier_set.verifier_set.signers);
     }
 
     #[async_test]

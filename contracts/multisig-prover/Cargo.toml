@@ -19,8 +19,6 @@ name = "multisig-prover-schema"
 path = "src/bin/schema.rs"
 
 [features]
-# for more explicit tests, cargo test --features=backtraces
-backtraces = ["cosmwasm-std/backtraces"]
 # use library feature to disable all instantiate/execute/query exports
 library = []
 
@@ -39,7 +37,7 @@ coordinator = { workspace = true }
 cosmwasm-schema = { workspace = true }
 cosmwasm-std = { workspace = true }
 cw-storage-plus = { workspace = true }
-cw-utils = "1.0.1"
+cw-utils = { workspace = true }
 cw2 = { workspace = true }
 error-stack = { workspace = true }
 ethers-contract = { workspace = true }
@@ -68,7 +66,7 @@ voting-verifier = { workspace = true, features = ["library"] }
 [dev-dependencies]
 anyhow = "1.0"
 assert_ok = { workspace = true }
-cw-multi-test = "0.15.1"
+cw-multi-test = { workspace = true }
 elliptic-curve = "0.13.5"
 generic-array = "0.14.7"
 goldie = { workspace = true }

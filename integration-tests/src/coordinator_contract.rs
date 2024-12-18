@@ -1,4 +1,5 @@
 use coordinator::contract::{execute, instantiate, query};
+use cosmwasm_std::testing::MockApi;
 use cosmwasm_std::Addr;
 use cw_multi_test::{ContractWrapper, Executor};
 
@@ -22,7 +23,7 @@ impl CoordinatorContract {
         let contract_addr = app
             .instantiate_contract(
                 code_id,
-                Addr::unchecked("anyone"),
+                MockApi::default().addr_make("anyone"),
                 &coordinator::msg::InstantiateMsg {
                     governance_address: governance.to_string(),
                     service_registry: service_registry.to_string(),
