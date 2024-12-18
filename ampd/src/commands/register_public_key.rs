@@ -75,7 +75,7 @@ pub async fn run(config: Config, args: Args) -> Result<Option<String>, Error> {
         .sign(
             &multisig_address.to_string(),
             address_hash.into(),
-            &multisig_key,
+            multisig_key,
             args.key_type.into(),
         )
         .await

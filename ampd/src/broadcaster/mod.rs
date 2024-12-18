@@ -34,7 +34,7 @@ use typed_builder::TypedBuilder;
 
 use crate::tofnd;
 use crate::tofnd::grpc::Multisig;
-use crate::types::{PublicKey, TMAddress};
+use crate::types::{CosmosPublicKey, TMAddress};
 
 pub mod confirm_tx;
 mod cosmos;
@@ -119,7 +119,7 @@ where
     address_prefix: String,
     #[builder(default, setter(skip))]
     acc_sequence: Option<u64>,
-    pub_key: (String, PublicKey),
+    pub_key: (String, CosmosPublicKey),
     config: Config,
 }
 
@@ -153,7 +153,7 @@ where
         })
     }
 
-    fn derive_address(&mut self) -> Result<TMAddress, Error> {
+    fn derive_address(&self) -> Result<TMAddress, Error> {
         Ok(self
             .pub_key
             .1
@@ -202,7 +202,7 @@ where
     auth_query_client: Q,
     address: TMAddress,
     acc_sequence: Option<u64>,
-    pub_key: (String, PublicKey),
+    pub_key: (String, CosmosPublicKey),
     config: Config,
 }
 
@@ -239,7 +239,7 @@ where
                 self.signer.sign(
                     self.pub_key.0.as_str(),
                     sign_digest.into(),
-                    &self.pub_key.1,
+                    (&self.pub_key.1).into(),
                     tofnd::Algorithm::Ecdsa,
                 )
             })
@@ -381,7 +381,6 @@ fn remap_account_not_found_error(
 #[cfg(test)]
 mod tests {
     use cosmrs::bank::MsgSend;
-    use cosmrs::crypto::PublicKey;
     use cosmrs::proto::cosmos::auth::v1beta1::{BaseAccount, QueryAccountResponse};
     use cosmrs::proto::cosmos::bank::v1beta1::QueryBalanceResponse;
     use cosmrs::proto::cosmos::base::abci::v1beta1::{GasInfo, TxResponse};
@@ -390,8 +389,6 @@ mod tests {
     use cosmrs::proto::Any;
     use cosmrs::tx::Msg;
     use cosmrs::{AccountId, Coin, Denom};
-    use ecdsa::SigningKey;
-    use k256::Secp256k1;
     use rand::rngs::OsRng;
     use tokio::test;
     use tonic::Status;
@@ -403,7 +400,7 @@ mod tests {
         BasicBroadcaster, Broadcaster, Config, Error, UnvalidatedBasicBroadcaster,
     };
     use crate::tofnd::grpc::MockMultisig;
-    use crate::types::TMAddress;
+    use crate::types::{CosmosPublicKey, PublicKey, TMAddress};
     use crate::PREFIX;
 
     #[test]
@@ -631,8 +628,11 @@ mod tests {
         MockBalanceQueryClient,
     > {
         let key_id = "key_uid".to_string();
-        let priv_key = SigningKey::random(&mut OsRng);
-        let pub_key: PublicKey = priv_key.verifying_key().into();
+        let priv_key = k256::ecdsa::SigningKey::random(&mut OsRng);
+        let pub_key = CosmosPublicKey::try_from(
+            PublicKey::new_secp256k1(priv_key.verifying_key().to_sec1_bytes()).unwrap(),
+        )
+        .unwrap();
         let known_denom: Denom = Config::default().gas_price.denom.clone().into();
 
         UnvalidatedBasicBroadcaster::builder()
@@ -724,7 +724,7 @@ mod tests {
     }
 
     // returns an account for the address corresponding to the given public key if that address is queried
-    fn init_mock_account_client(pub_key: PublicKey) -> MockAccountQueryClient {
+    fn init_mock_account_client(pub_key: CosmosPublicKey) -> MockAccountQueryClient {
         let address: TMAddress = pub_key.account_id(PREFIX).unwrap().into();
         let account = BaseAccount {
             address: address.to_string(),
@@ -750,15 +750,15 @@ mod tests {
     }
 
     // signs a digest if the public key matches the given private key
-    fn init_mock_signer(key_id: String, priv_key: SigningKey<Secp256k1>) -> MockMultisig {
-        let pub_key: PublicKey = priv_key.verifying_key().into();
+    fn init_mock_signer(key_id: String, priv_key: k256::ecdsa::SigningKey) -> MockMultisig {
+        let pub_key = PublicKey::new_secp256k1(priv_key.verifying_key().to_sec1_bytes()).unwrap();
 
         let mut signer = MockMultisig::default();
         signer
             .expect_sign()
             .returning(move |actual_key_uid, data, actual_pub_key, _| {
                 assert_eq!(actual_key_uid, &key_id);
-                assert_eq!(actual_pub_key, &pub_key);
+                assert_eq!(actual_pub_key, pub_key);
 
                 let (signature, _) = priv_key
                     .sign_prehash_recoverable(<Vec<u8>>::from(data).as_slice())
