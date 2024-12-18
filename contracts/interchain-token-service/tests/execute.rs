@@ -14,7 +14,7 @@ use interchain_token_service::{
 };
 use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
 use serde_json::json;
-use utils::{params, register_chains, TestMessage};
+use utils::{make_deps, params, register_chains, TestMessage};
 
 mod utils;
 
@@ -818,7 +818,7 @@ fn execute_message_when_invalid_payload_fails() {
 
 #[test]
 fn execute_message_when_unknown_chain_fails() {
-    let mut deps = mock_dependencies();
+    let mut deps = make_deps();
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
     let TestMessage {
@@ -858,7 +858,7 @@ fn execute_message_when_unknown_chain_fails() {
 
 #[test]
 fn execute_message_when_invalid_message_type_fails() {
-    let mut deps = mock_dependencies();
+    let mut deps = make_deps();
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
     let TestMessage {
