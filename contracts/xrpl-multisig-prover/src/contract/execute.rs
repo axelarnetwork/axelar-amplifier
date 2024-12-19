@@ -65,7 +65,7 @@ pub fn confirm_tx_status(
     config: &Config,
     multisig_session_id: &Uint64,
     signer_public_keys: &[PublicKey],
-    tx_id: TxHash,
+    signed_tx_hash: TxHash,
 ) -> Result<Response, ContractError> {
     let num_signer_public_keys = signer_public_keys.len();
     if num_signer_public_keys == 0 {
@@ -91,13 +91,16 @@ pub fn confirm_tx_status(
     }
 
     let signed_tx = XRPLSignedTx::new(tx_info.unsigned_tx.clone(), xrpl_signers);
-    let signed_tx_hash = xrpl_types::types::hash_signed_tx(
+    let reconstructed_signed_tx_hash = xrpl_types::types::hash_signed_tx(
         signed_tx.xrpl_serialize()?.as_slice(),
     )?;
 
     // Sanity check.
-    if tx_id != signed_tx_hash {
-        return Err(ContractError::TxIdMismatch(tx_id));
+    if signed_tx_hash != reconstructed_signed_tx_hash {
+        return Err(ContractError::TxIdMismatch {
+            actual: reconstructed_signed_tx_hash,
+            expected: signed_tx_hash,
+        });
     }
 
     let message = XRPLMessage::ProverMessage(signed_tx_hash);

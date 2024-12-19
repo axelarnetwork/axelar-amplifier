@@ -659,14 +659,14 @@ pub fn xrpl_confirm_tx_status(
     multisig_prover: &XRPLMultisigProverContract,
     signer_public_keys: Vec<PublicKey>,
     multisig_session_id: Uint64,
-    tx_id: TxHash,
+    signed_tx_hash: TxHash,
 ) {
     let response = multisig_prover.execute(
         app,
         Addr::unchecked("relayer"),
         &xrpl_multisig_prover::msg::ExecuteMsg::ConfirmTxStatus {
             multisig_session_id,
-            tx_id,
+            signed_tx_hash,
             signer_public_keys,
         },
     );

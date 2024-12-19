@@ -116,7 +116,7 @@ pub enum ExecuteMsg {
         signer_public_keys: Vec<PublicKey>,
         #[serde(with = "tx_hash_hex")]
         #[schemars(with = "String")]
-        tx_id: TxHash,
+        signed_tx_hash: TxHash,
     },
 
     #[permission(Any)]

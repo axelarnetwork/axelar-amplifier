@@ -105,7 +105,7 @@ pub fn execute(
         ExecuteMsg::ConfirmTxStatus {
             multisig_session_id,
             signer_public_keys,
-            tx_id,
+            signed_tx_hash,
         } => {
             execute::confirm_tx_status(
                 deps.storage,
@@ -113,7 +113,7 @@ pub fn execute(
                 &config,
                 &multisig_session_id,
                 &signer_public_keys,
-                tx_id,
+                signed_tx_hash,
             )
         }
         ExecuteMsg::TicketCreate {} => {

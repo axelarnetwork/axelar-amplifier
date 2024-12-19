@@ -83,8 +83,11 @@ pub enum ContractError {
     #[error("invalid transaction status {0}")]
     InvalidTxStatus(XRPLTxStatus),
 
-    #[error("transaction ID {0} did not match reconstructed transaction ID")]
-    TxIdMismatch(TxHash),
+    #[error("transaction ID {expected} did not match reconstructed transaction ID {actual}")]
+    TxIdMismatch {
+        actual: TxHash,
+        expected: TxHash,
+    },
 
     #[error("local token {0} not registered")]
     LocalTokenNotRegistered(XRPLToken),
