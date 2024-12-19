@@ -459,12 +459,9 @@ impl Sub for XRPLPaymentAmount {
 }
 
 #[cw_serde]
-pub struct XRPLMemo(pub HexBinary);
-
-impl From<XRPLMemo> for HexBinary {
-    fn from(memo: XRPLMemo) -> Self {
-        memo.0
-    }
+pub struct XRPLMemo {
+    pub memo_type: HexBinary,
+    pub memo_data: HexBinary,
 }
 
 #[cw_serde]
@@ -746,13 +743,15 @@ impl TryFrom<(multisig::key::Signature, multisig::msg::Signer)> for XRPLSigner {
 pub struct XRPLSignedTx {
     pub unsigned_tx: XRPLUnsignedTx,
     pub signers: Vec<XRPLSigner>,
+    pub multisig_session_id: u64,
 }
 
 impl XRPLSignedTx {
-    pub fn new(unsigned_tx: XRPLUnsignedTx, signers: Vec<XRPLSigner>) -> Self {
+    pub fn new(unsigned_tx: XRPLUnsignedTx, signers: Vec<XRPLSigner>, multisig_session_id: u64) -> Self {
         Self {
             unsigned_tx,
             signers,
+            multisig_session_id,
         }
     }
 }

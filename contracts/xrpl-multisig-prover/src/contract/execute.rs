@@ -90,7 +90,8 @@ pub fn confirm_tx_status(
         return Err(ContractError::InvalidSignerPublicKeys);
     }
 
-    let signed_tx = XRPLSignedTx::new(tx_info.unsigned_tx.clone(), xrpl_signers);
+    let signed_tx = XRPLSignedTx::new(tx_info.unsigned_tx.clone(), xrpl_signers, multisig_session_id.u64());
+
     let reconstructed_signed_tx_hash = xrpl_types::types::hash_signed_tx(
         signed_tx.xrpl_serialize()?.as_slice(),
     )?;
