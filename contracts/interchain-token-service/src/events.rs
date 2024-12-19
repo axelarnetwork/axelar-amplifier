@@ -31,12 +31,12 @@ impl From<Event> for cosmwasm_std::Event {
             } => make_message_event("message_received", cc_id, destination_chain, message),
             Event::ItsContractRegistered { chain, address } => {
                 cosmwasm_std::Event::new("its_contract_registered")
-                    .add_attribute("chain", chain.to_string())
-                    .add_attribute("address", address.to_string())
+                    .add_attribute_as_string("chain", chain)
+                    .add_attribute_as_string("address", address)
             }
             Event::ItsContractDeregistered { chain } => {
                 cosmwasm_std::Event::new("its_contract_deregistered")
-                    .add_attribute("chain", chain.to_string())
+                    .add_attribute_as_string("chain", chain)
             }
             Event::ExecutionDisabled => cosmwasm_std::Event::new("execution_disabled"),
             Event::ExecutionEnabled => cosmwasm_std::Event::new("execution_enabled"),
@@ -51,9 +51,9 @@ fn make_message_event(
     msg: Message,
 ) -> cosmwasm_std::Event {
     let event = cosmwasm_std::Event::new(event_name)
-        .add_attribute("cc_id", cc_id.to_string())
-        .add_attribute("destination_chain", destination_chain.to_string())
-        .add_attribute("message_type", msg.as_ref().to_string());
+        .add_attribute_as_string("cc_id", cc_id)
+        .add_attribute_as_string("destination_chain", destination_chain)
+        .add_attribute_as_string("message_type", msg.as_ref());
 
     match msg {
         Message::InterchainTransfer(InterchainTransfer {
@@ -63,10 +63,10 @@ fn make_message_event(
             amount,
             data,
         }) => event
-            .add_attribute("token_id", token_id.to_string())
-            .add_attribute("source_address", source_address.to_string())
-            .add_attribute("destination_address", destination_address.to_string())
-            .add_attribute("amount", amount.to_string())
+            .add_attribute_as_string("token_id", token_id)
+            .add_attribute_as_string("source_address", source_address)
+            .add_attribute_as_string("destination_address", destination_address)
+            .add_attribute_as_string("amount", amount)
             .add_attribute_if_some("data", data.map(|data| data.to_string())),
         Message::DeployInterchainToken(DeployInterchainToken {
             token_id,
@@ -75,14 +75,14 @@ fn make_message_event(
             decimals,
             minter,
         }) => event
-            .add_attribute("token_id", token_id.to_string())
+            .add_attribute_as_string("token_id", token_id)
             .add_attribute("name", name)
             .add_attribute("symbol", symbol)
-            .add_attribute("decimals", decimals.to_string())
+            .add_attribute_as_string("decimals", decimals)
             .add_attribute_if_some("minter", minter.map(|minter| minter.to_string())),
         Message::RegisterToken(RegisterTokenMetadata { address, decimals }) => event
-            .add_attribute("decimals", decimals.to_string())
-            .add_attribute("address", address.to_string()),
+            .add_attribute_as_string("decimals", decimals)
+            .add_attribute_as_string("address", address),
         Message::LinkToken(LinkToken {
             token_id,
             token_manager_type,
@@ -90,13 +90,10 @@ fn make_message_event(
             destination_token_address,
             params,
         }) => event
-            .add_attribute("token_id", token_id.to_string())
-            .add_attribute("token_manager_type", token_manager_type.to_string())
-            .add_attribute("source_token_address", source_token_address.to_string())
-            .add_attribute(
-                "destination_token_address",
-                destination_token_address.to_string(),
-            )
+            .add_attribute_as_string("token_id", token_id)
+            .add_attribute_as_string("token_manager_type", token_manager_type)
+            .add_attribute_as_string("source_token_address", source_token_address)
+            .add_attribute_as_string("destination_token_address", destination_token_address)
             .add_attribute_if_some("params", params.map(|params| params.to_string())),
     }
 }
