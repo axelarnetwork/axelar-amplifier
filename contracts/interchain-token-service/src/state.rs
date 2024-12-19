@@ -323,7 +323,7 @@ pub fn may_load_custom_token(
 mod tests {
     use assert_ok::assert_ok;
     use axelar_wasm_std::assert_err_contains;
-    use cosmwasm_std::testing::mock_dependencies;
+    use cosmwasm_std::testing::{mock_dependencies, MockApi};
 
     use super::*;
 
@@ -332,7 +332,7 @@ mod tests {
         let mut deps = mock_dependencies();
 
         let config = Config {
-            axelarnet_gateway: Addr::unchecked("gateway-address"),
+            axelarnet_gateway: MockApi::default().addr_make("gateway-address"),
         };
 
         assert_ok!(save_config(deps.as_mut().storage, &config));

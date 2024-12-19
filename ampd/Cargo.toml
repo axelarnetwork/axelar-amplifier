@@ -1,7 +1,7 @@
 [package]
 name = "ampd"
 edition = { workspace = true }
-version = "1.3.1"
+version = "1.4.0"
 rust-version = { workspace = true }
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -36,7 +36,7 @@ humantime-serde = "1.1.1"
 itertools = { workspace = true }
 k256 = { workspace = true }
 mockall = "0.11.3"
-move-core-types = { git = "https://github.com/mystenlabs/sui", tag = "mainnet-v1.26.2" }
+move-core-types = { git = "https://github.com/mystenlabs/sui", tag = "testnet-v1.39.1" }
 multisig = { workspace = true, features = ["library"] }
 multiversx-sdk = "0.6.1"
 num-traits = { workspace = true }
@@ -56,17 +56,10 @@ stellar = { workspace = true }
 stellar-rpc-client = "21.4.0"
 stellar-xdr = { workspace = true, features = ["serde_json"] }
 sui-gateway = { workspace = true }
-sui-json-rpc-types = { git = "https://github.com/mystenlabs/sui", tag = "mainnet-v1.26.2" }
-sui-types = { git = "https://github.com/mystenlabs/sui", features = [
-    "test-utils",
-], tag = "mainnet-v1.26.2" }
-# Need to switch to our own fork of tendermint and tendermint-rpc due to event attribute value being nullable.
-# Can switch back once https://github.com/informalsystems/tendermint-rs/issues/1216 is resolved.
-# The fix for the issue is at https://github.com/axelarnetwork/tendermint-rs/commit/e97033e20e660a7e707ea86db174ec047bbba50d.
-tendermint = { git = "https://github.com/axelarnetwork/tendermint-rs.git", branch = "v0.33.x" }
-tendermint-rpc = { git = "https://github.com/axelarnetwork/tendermint-rs.git", branch = "v0.33.x", features = [
-    "http-client",
-] }
+sui-json-rpc-types = { git = "https://github.com/mystenlabs/sui", tag = "testnet-v1.39.1" }
+sui-types = { git = "https://github.com/mystenlabs/sui", tag = "testnet-v1.39.1" }
+tendermint = "0.35.0"
+tendermint-rpc = { version = "0.35.0", features = [ "http-client" ] }
 thiserror = { workspace = true }
 tokio = { workspace = true, features = ["signal"] }
 tokio-stream = { workspace = true, features = ["sync"] }
@@ -83,10 +76,12 @@ valuable-serde = { version = "0.1.0", features = ["std"] }
 voting-verifier = { workspace = true }
 
 [dev-dependencies]
+assert_ok = { workspace = true }
 ed25519-dalek = { workspace = true, features = ["rand_core"] }
 elliptic-curve = "0.13.5"
 faux = "0.1.10"
 generic-array = "0.14.7"
+goldie = { workspace = true }
 multisig = { workspace = true, features = ["test", "library"] }
 rand = { workspace = true }
 random-string = "1.0.0"

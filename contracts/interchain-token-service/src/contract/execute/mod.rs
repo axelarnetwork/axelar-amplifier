@@ -145,14 +145,11 @@ fn execute_message_on_hub(
         &destination_chain,
         destination_payload,
     )?
-    .add_event(
-        Event::MessageReceived {
-            cc_id,
-            destination_chain,
-            message,
-        }
-        .into(),
-    ))
+    .add_event(Event::MessageReceived {
+        cc_id,
+        destination_chain,
+        message,
+    }))
 }
 
 fn apply_to_hub(
@@ -410,7 +407,7 @@ mod tests {
     use axelarnet_gateway::msg::QueryMsg;
     use cosmwasm_std::testing::{mock_dependencies, MockApi, MockQuerier};
     use cosmwasm_std::{
-        from_json, to_json_binary, Addr, HexBinary, MemoryStorage, OwnedDeps, Uint256, WasmQuery,
+        from_json, to_json_binary, HexBinary, MemoryStorage, OwnedDeps, Uint256, WasmQuery,
     };
     use router_api::{ChainName, ChainNameRaw, CrossChainId};
 
@@ -1096,17 +1093,17 @@ mod tests {
     fn init(deps: &mut OwnedDeps<MemoryStorage, MockApi, MockQuerier>) {
         assert_ok!(permission_control::set_admin(
             deps.as_mut().storage,
-            &Addr::unchecked(ADMIN)
+            &MockApi::default().addr_make(ADMIN)
         ));
         assert_ok!(permission_control::set_governance(
             deps.as_mut().storage,
-            &Addr::unchecked(GOVERNANCE)
+            &MockApi::default().addr_make(GOVERNANCE)
         ));
 
         assert_ok!(state::save_config(
             deps.as_mut().storage,
             &Config {
-                axelarnet_gateway: Addr::unchecked(AXELARNET_GATEWAY),
+                axelarnet_gateway: MockApi::default().addr_make(AXELARNET_GATEWAY),
             },
         ));
 
@@ -1130,7 +1127,9 @@ mod tests {
             ));
         }
         deps.querier.update_wasm(move |msg| match msg {
-            WasmQuery::Smart { contract_addr, msg } if contract_addr == AXELARNET_GATEWAY => {
+            WasmQuery::Smart { contract_addr, msg }
+                if contract_addr == MockApi::default().addr_make(AXELARNET_GATEWAY).as_str() =>
+            {
                 let msg = from_json::<QueryMsg>(msg).unwrap();
                 match msg {
                     QueryMsg::ChainName {} => {

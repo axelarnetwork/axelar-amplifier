@@ -1,3 +1,4 @@
+use cosmwasm_std::testing::MockApi;
 use cosmwasm_std::Addr;
 use cw_multi_test::{ContractWrapper, Executor};
 use router::contract::{execute, instantiate, query};
@@ -23,7 +24,7 @@ impl RouterContract {
         let contract_addr = app
             .instantiate_contract(
                 code_id,
-                Addr::unchecked("router"),
+                MockApi::default().addr_make("router"),
                 &router::msg::InstantiateMsg {
                     admin_address: admin.to_string(),
                     governance_address: governance.to_string(),

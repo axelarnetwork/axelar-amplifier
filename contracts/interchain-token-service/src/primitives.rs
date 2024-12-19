@@ -185,6 +185,8 @@ impl<'a> PrimaryKey<'a> for TokenId {
 
 impl KeyDeserialize for TokenId {
     type Output = TokenId;
+    const KEY_ELEMS: u16 = 1;
+
     fn from_vec(value: Vec<u8>) -> cosmwasm_std::StdResult<Self::Output> {
         let inner = <[u8; 32]>::from_vec(value)?;
         Ok(TokenId(inner))

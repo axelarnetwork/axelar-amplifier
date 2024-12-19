@@ -77,6 +77,7 @@ impl<'a> Prefixer<'a> for HexBinary {
 
 impl KeyDeserialize for HexBinary {
     type Output = Self;
+    const KEY_ELEMS: u16 = 1;
 
     #[inline(always)]
     fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
