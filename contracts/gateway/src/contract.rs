@@ -3,9 +3,11 @@ use std::fmt::Debug;
 use axelar_wasm_std::{address, FnExt};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response};
-use error_stack::ResultExt;
+use cosmwasm_std::{ensure, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response};
+use cw2::VersionError;
+use error_stack::{report, ResultExt};
 use router_api::client::Router;
+use semver::Version;
 
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state;
@@ -40,10 +42,21 @@ pub enum Error {
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(
-    _deps: DepsMut,
+    deps: DepsMut,
     _env: Env,
     _msg: Empty,
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
+    let old_version = Version::parse(&cw2::get_contract_version(deps.storage)?.version)?;
+    ensure!(
+        old_version.major == 1 && old_version.minor == 1,
+        report!(VersionError::WrongVersion {
+            expected: "1.1.x".into(),
+            found: old_version.to_string()
+        })
+    );
+
+    cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
     Ok(Response::default())
 }
 
@@ -105,4 +118,38 @@ pub fn query(
         }
     }?
     .then(Ok)
+}
+
+#[cfg(test)]
+mod test {
+    use assert_ok::assert_ok;
+    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
+    use cosmwasm_std::{Addr, Empty};
+
+    use crate::contract::{instantiate, migrate, CONTRACT_NAME, CONTRACT_VERSION};
+    use crate::msg::InstantiateMsg;
+
+    #[test]
+    fn migrate_sets_contract_version() {
+        let mut deps = mock_dependencies();
+        let env = mock_env();
+        let info = mock_info("sender", &[]);
+        let instantiate_msg = InstantiateMsg {
+            verifier_address: Addr::unchecked("verifier").to_string(),
+            router_address: Addr::unchecked("router").to_string(),
+        };
+
+        assert_ok!(instantiate(
+            deps.as_mut(),
+            env.clone(),
+            info.clone(),
+            instantiate_msg
+        ));
+
+        migrate(deps.as_mut(), mock_env(), Empty {}).unwrap();
+
+        let contract_version = cw2::get_contract_version(deps.as_mut().storage).unwrap();
+        assert_eq!(contract_version.contract, CONTRACT_NAME);
+        assert_eq!(contract_version.version, CONTRACT_VERSION);
+    }
 }

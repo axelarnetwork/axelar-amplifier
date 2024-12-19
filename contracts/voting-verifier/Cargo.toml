@@ -1,6 +1,6 @@
 [package]
 name = "voting-verifier"
-version = "1.0.0"
+version = "1.1.0"
 rust-version = { workspace = true }
 edition = { workspace = true }
 description = "Voting verifier contract"
@@ -53,6 +53,7 @@ thiserror = { workspace = true }
 [dev-dependencies]
 alloy-primitives = { version = "0.7.7", features = ["getrandom"] }
 assert_ok = { workspace = true }
+bech32 = { workspace = true }
 cw-multi-test = "0.15.1"
 goldie = { workspace = true }
 integration-tests = { workspace = true }

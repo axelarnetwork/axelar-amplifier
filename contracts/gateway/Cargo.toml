@@ -1,6 +1,6 @@
 [package]
 name = "gateway"
-version = "1.0.0"
+version = "1.1.1"
 rust-version = { workspace = true }
 edition = { workspace = true }
 description = "Gateway contract"
@@ -45,12 +45,14 @@ gateway-api = { workspace = true }
 itertools = { workspace = true }
 report = { workspace = true }
 router-api = { workspace = true }
+semver = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 voting-verifier = { workspace = true, features = ["library"] }
 
 [dev-dependencies]
+assert_ok = { workspace = true }
 cw-multi-test = "0.15.1"
 rand = { workspace = true }
 

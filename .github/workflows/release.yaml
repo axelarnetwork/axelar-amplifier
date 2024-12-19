@@ -39,17 +39,17 @@ jobs:
         run: |
           binary="${{ github.event.inputs.binary-to-release }}"
           declare -A binaries_data=(
-            ["ampd"]="ampd,/(major)|(major-ampd)/,/(minor)|(minor-ampd)/,ampd packages"
-            ["router"]="router,/(major)|(major-router)|(major-contracts)|(major-connection-router)/,/(minor)|(minor-router)|(minor-contracts)|(minor-connection-router)/,contracts/router packages"
-            ["gateway"]="gateway,/(major)|(major-gateway)|(major-contracts)/,/(minor)|(minor-gateway)|(minor-contracts)/,contracts/gateway packages"
-            ["multisig"]="multisig,/(major)|(major-multisig)|(major-contracts)/,/(minor)|(minor-multisig)|(minor-contracts)/,contracts/multisig packages"
-            ["multisig-prover"]="multisig-prover,/(major)|(major-multisig-prover)|(major-contracts)/,/(minor)|(minor-multisig-prover)|(minor-contracts)/,contracts/multisig-prover packages"
-            ["rewards"]="rewards,/(major)|(major-rewards)|(major-contracts)/,/(minor)|(minor-rewards)|(minor-contracts)/,contracts/rewards packages"
-            ["service-registry"]="service-registry,/(major)|(major-service-registry)|(major-contracts)/,/(minor)|(minor-service-registry)|(minor-contracts)/,contracts/service-registry packages"
-            ["voting-verifier"]="voting-verifier,/(major)|(major-voting-verifier)|(major-contracts)/,/(minor)|(minor-voting-verifier)|(minor-contracts)/,contracts/voting-verifier packages"
-            ["coordinator"]="coordinator,/(major)|(major-coordinator)|(major-contracts)/,/(minor)|(minor-coordinator)|(minor-contracts)/,contracts/coordinator packages"
-            ["axelarnet-gateway"]="axelarnet-gateway,/(major)|(major-axelarnet-gateway)|(major-contracts)/,/(minor)|(minor-axelarnet-gateway)|(minor-contracts)/,contracts/axelarnet-gateway packages"
-            ["interchain-token-service"]="interchain-token-service,/(major)|(major-interchain-token-service)|(major-contracts)/,/(minor)|(minor-interchain-token-service)|(minor-contracts)/,contracts/interchain-token-service packages"
+            ["ampd"]="ampd,/\(major\)|\(major-ampd\)/,/\(minor\)|\(minor-ampd\)/,ampd packages"
+            ["router"]="router,/\(major\)|\(major-router\)|\(major-contracts\)|\(major-connection-router\)/,/\(minor\)|\(minor-router\)|\(minor-contracts\)|\(minor-connection-router\)/,contracts/router packages"
+            ["gateway"]="gateway,/\(major\)|\(major-gateway\)|\(major-contracts\)/,/\(minor\)|\(minor-gateway\)|\(minor-contracts\)/,contracts/gateway packages"
+            ["multisig"]="multisig,/\(major\)|\(major-multisig\)|\(major-contracts\)/,/\(minor\)|\(minor-multisig\)|\(minor-contracts\)/,contracts/multisig packages"
+            ["multisig-prover"]="multisig-prover,/\(major\)|\(major-multisig-prover\)|\(major-contracts\)/,/\(minor\)|\(minor-multisig-prover\)|\(minor-contracts\)/,contracts/multisig-prover packages"
+            ["rewards"]="rewards,/\(major\)|\(major-rewards\)|\(major-contracts\)/,/\(minor\)|\(minor-rewards\)|\(minor-contracts\)/,contracts/rewards packages"
+            ["service-registry"]="service-registry,/\(major\)|\(major-service-registry\)|\(major-contracts\)/,/\(minor\)|\(minor-service-registry\)|\(minor-contracts\)/,contracts/service-registry packages"
+            ["voting-verifier"]="voting-verifier,/\(major\)|\(major-voting-verifier\)|\(major-contracts\)/,/\(minor\)|\(minor-voting-verifier\)|\(minor-contracts\)/,contracts/voting-verifier packages"
+            ["coordinator"]="coordinator,/\(major\)|\(major-coordinator\)|\(major-contracts\)/,/\(minor\)|\(minor-coordinator\)|\(minor-contracts\)/,contracts/coordinator packages"
+            ["axelarnet-gateway"]="axelarnet-gateway,/\(major\)|\(major-axelarnet-gateway\)|\(major-contracts\)/,/\(minor\)|\(minor-axelarnet-gateway\)|\(minor-contracts\)/,contracts/axelarnet-gateway packages"
+            ["interchain-token-service"]="interchain-token-service,/\(major\)|\(major-interchain-token-service\)|\(major-contracts\)/,/\(minor\)|\(minor-interchain-token-service\)|\(minor-contracts\)/,contracts/interchain-token-service packages"
           )
 
           if [[ -n "${binaries_data[$binary]}" ]]; then

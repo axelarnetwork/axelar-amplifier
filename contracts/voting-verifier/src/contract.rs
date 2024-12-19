@@ -7,7 +7,6 @@ use cosmwasm_std::{
 };
 use error_stack::ResultExt;
 
-use crate::contract::migrations::v0_5_0;
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{Config, CONFIG};
@@ -18,6 +17,7 @@ mod query;
 
 const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
+const BASE_VERSION: &str = "1.0.0";
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -111,7 +111,9 @@ pub fn migrate(
     _env: Env,
     _msg: Empty,
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
-    v0_5_0::migrate(deps.storage)?;
+    cw2::assert_contract_version(deps.storage, CONTRACT_NAME, BASE_VERSION)?;
+
+    cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     Ok(Response::default())
 }
@@ -129,6 +131,7 @@ mod test {
         assert_err_contains, err_contains, nonempty, MajorityThreshold, Threshold,
         VerificationStatus,
     };
+    use bech32::{Bech32m, Hrp};
     use cosmwasm_std::testing::{
         mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
     };
@@ -263,6 +266,18 @@ mod test {
             .to_string()
             .parse()
             .unwrap(),
+            MessageIdFormat::Bech32m {
+                prefix,
+                length: _length,
+            } => {
+                let data = format!("{id}-{index}");
+                let hrp = Hrp::parse(prefix).expect("valid hrp");
+                bech32::encode::<Bech32m>(hrp, data.as_bytes())
+                    .unwrap()
+                    .to_string()
+                    .parse()
+                    .unwrap()
+            }
         }
     }
 

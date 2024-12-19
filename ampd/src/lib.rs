@@ -358,14 +358,14 @@ where
                 ),
                 handlers::config::Config::StellarMsgVerifier {
                     cosmwasm_contract,
-                    http_url,
+                    rpc_url,
                 } => self.create_handler_task(
                     "stellar-msg-verifier",
                     handlers::stellar_verify_msg::Handler::new(
                         verifier.clone(),
                         cosmwasm_contract,
-                        stellar::http_client::Client::new(
-                            http_url.to_string().trim_end_matches('/').into(),
+                        stellar::rpc_client::Client::new(
+                            rpc_url.to_string().trim_end_matches('/').into(),
                         )
                         .change_context(Error::Connection)?,
                         self.block_height_monitor.latest_block_height(),
@@ -374,14 +374,14 @@ where
                 ),
                 handlers::config::Config::StellarVerifierSetVerifier {
                     cosmwasm_contract,
-                    http_url,
+                    rpc_url,
                 } => self.create_handler_task(
                     "stellar-verifier-set-verifier",
                     handlers::stellar_verify_verifier_set::Handler::new(
                         verifier.clone(),
                         cosmwasm_contract,
-                        stellar::http_client::Client::new(
-                            http_url.to_string().trim_end_matches('/').into(),
+                        stellar::rpc_client::Client::new(
+                            rpc_url.to_string().trim_end_matches('/').into(),
                         )
                         .change_context(Error::Connection)?,
                         self.block_height_monitor.latest_block_height(),

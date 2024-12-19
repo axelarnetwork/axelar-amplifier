@@ -5,8 +5,9 @@ use cosmwasm_std::{
     to_json_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response, Storage,
 };
 use router_api::error::Error;
+use semver::{Version, VersionReq};
 
-use crate::contract::migrations::v1_0_1;
+use crate::contract::migrations::v1_1_1;
 use crate::events::RouterInstantiated;
 use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 use crate::state;
@@ -18,7 +19,6 @@ mod query;
 
 pub const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 pub const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
-const BASE_VERSION: &str = "1.0.1";
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(
@@ -26,10 +26,11 @@ pub fn migrate(
     _env: Env,
     msg: MigrateMsg,
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
-    cw2::assert_contract_version(deps.storage, CONTRACT_NAME, BASE_VERSION)?;
+    let old_version = Version::parse(&cw2::get_contract_version(deps.storage)?.version)?;
+    let version_requirement = VersionReq::parse(">= 1.1.0, < 1.2.0")?;
+    assert!(version_requirement.matches(&old_version));
 
-    let axelarnet_gateway = address::validate_cosmwasm_address(deps.api, &msg.axelarnet_gateway)?;
-    v1_0_1::migrate(deps.storage, axelarnet_gateway)?;
+    v1_1_1::migrate(deps.storage, msg.chains_to_remove)?;
 
     // this needs to be the last thing to do during migration,
     // because previous migration steps should check the old version
@@ -106,9 +107,12 @@ pub fn execute(
         }
         ExecuteMsg::FreezeChains { chains } => execute::freeze_chains(deps.storage, chains),
         ExecuteMsg::UnfreezeChains { chains } => execute::unfreeze_chains(deps.storage, chains),
-        ExecuteMsg::RouteMessages(msgs) => {
-            Ok(execute::route_messages(deps.storage, info.sender, msgs)?)
-        }
+        ExecuteMsg::RouteMessages(msgs) => Ok(execute::route_messages(
+            deps.storage,
+            deps.querier,
+            info.sender,
+            msgs,
+        )?),
         ExecuteMsg::DisableRouting => execute::disable_routing(deps.storage),
         ExecuteMsg::EnableRouting => execute::enable_routing(deps.storage),
     }?
