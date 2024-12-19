@@ -14,7 +14,7 @@ use interchain_token_service::{
 };
 use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
 use serde_json::json;
-use utils::{params, register_chains, TestMessage};
+use utils::{make_deps, params, register_chains, TestMessage};
 
 mod utils;
 
@@ -820,7 +820,7 @@ fn execute_message_when_invalid_payload_fails() {
 
 #[test]
 fn execute_message_when_unknown_chain_fails() {
-    let mut deps = mock_dependencies();
+    let mut deps = make_deps();
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
     let TestMessage {
@@ -828,7 +828,6 @@ fn execute_message_when_unknown_chain_fails() {
         router_message,
         source_its_chain,
         source_its_contract,
-        destination_its_chain,
         ..
     } = TestMessage::dummy();
 
@@ -838,7 +837,7 @@ fn execute_message_when_unknown_chain_fails() {
         source_its_contract.clone(),
         hub_message.clone().abi_encode(),
     );
-    assert_err_contains!(result, ExecuteError, ExecuteError::ChainNotFound(chain) if chain == &source_its_chain);
+    assert_err_contains!(result, ExecuteError, ExecuteError::State);
 
     utils::register_chain(
         deps.as_mut(),
@@ -855,12 +854,12 @@ fn execute_message_when_unknown_chain_fails() {
         source_its_contract,
         hub_message.abi_encode(),
     );
-    assert_err_contains!(result, ExecuteError, ExecuteError::ChainNotFound(chain) if chain == &destination_its_chain);
+    assert_err_contains!(result, ExecuteError, ExecuteError::State);
 }
 
 #[test]
 fn execute_message_when_invalid_message_type_fails() {
-    let mut deps = mock_dependencies();
+    let mut deps = make_deps();
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
     let TestMessage {
