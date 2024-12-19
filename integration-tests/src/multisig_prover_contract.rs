@@ -1,5 +1,6 @@
 use axelar_core_std::query::AxelarQueryMsg;
 use axelar_wasm_std::Threshold;
+use cosmwasm_std::testing::MockApi;
 use cosmwasm_std::{Addr, DepsMut, Env};
 use cw_multi_test::{ContractWrapper, Executor};
 use multisig::key::KeyType;
@@ -31,7 +32,7 @@ impl MultisigProverContract {
         let contract_addr = app
             .instantiate_contract(
                 code_id,
-                Addr::unchecked("anyone"),
+                MockApi::default().addr_make("anyone"),
                 &multisig_prover::msg::InstantiateMsg {
                     admin_address: admin_address.to_string(),
                     governance_address: protocol.governance_address.to_string(),

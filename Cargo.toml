@@ -24,11 +24,13 @@ bcs = "0.1.5"
 bech32 = "0.11.0"
 client = { version = "^1.0.0", path = "packages/client" }
 coordinator = { version = "^1.1.0", path = "contracts/coordinator" }
-cosmwasm-schema = "1.5.5"
-cosmwasm-std = "1.5.5"
-cw-multi-test = "1.2.0"
-cw-storage-plus = { version = "1.2.0", features = ["iterator", "macro"] }
-cw2 = "1.1.0"
+cosmwasm-crypto = "2.1.4"
+cosmwasm-schema = "2.1.4"
+cosmwasm-std = "2.1.4"
+cw-multi-test = "2.2.0"
+cw-storage-plus = { version = "2.0.0", features = ["iterator", "macro"] }
+cw-utils = "2.0.0"
+cw2 = "2.0.0"
 ed25519-dalek = { version = "2.1.1", default-features = false }
 error-stack = { version = "0.4.0", features = ["eyre"] }
 ethers-contract = { version = "2.0.14", default-features = false, features = ["abigen"] }

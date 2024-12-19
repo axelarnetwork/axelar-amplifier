@@ -2,12 +2,13 @@
   "messages": [
     {
       "id": 0,
+      "payload": "",
       "msg": {
         "custom": {
           "source_chain": "source-chain",
           "source_address": "source-address",
           "destination_chain": "legacy-chain-1",
-          "destination_address": "destination-address",
+          "destination_address": "cosmwasm1wcc28lnk4t437t5l39ylyat8mqjhqmdqtmszyzjjfnc2hprg77xsajh6fh",
           "payload_hash": [
             241,
             136,
@@ -85,12 +86,13 @@
     },
     {
       "id": 0,
+      "payload": "",
       "msg": {
         "custom": {
           "source_chain": "source-chain",
           "source_address": "source-address",
           "destination_chain": "legacy-chain-2",
-          "destination_address": "destination-address",
+          "destination_address": "cosmwasm1wcc28lnk4t437t5l39ylyat8mqjhqmdqtmszyzjjfnc2hprg77xsajh6fh",
           "payload_hash": [
             241,
             136,
@@ -168,12 +170,13 @@
     },
     {
       "id": 0,
+      "payload": "",
       "msg": {
         "custom": {
           "source_chain": "source-chain",
           "source_address": "source-address",
           "destination_chain": "legacy-chain-2",
-          "destination_address": "destination-address",
+          "destination_address": "cosmwasm1wcc28lnk4t437t5l39ylyat8mqjhqmdqtmszyzjjfnc2hprg77xsajh6fh",
           "payload_hash": [
             241,
             136,
@@ -273,7 +276,7 @@
         },
         {
           "key": "destination_address",
-          "value": "destination-address"
+          "value": "cosmwasm1wcc28lnk4t437t5l39ylyat8mqjhqmdqtmszyzjjfnc2hprg77xsajh6fh"
         },
         {
           "key": "payload_hash",
@@ -302,7 +305,7 @@
         },
         {
           "key": "destination_address",
-          "value": "destination-address"
+          "value": "cosmwasm1wcc28lnk4t437t5l39ylyat8mqjhqmdqtmszyzjjfnc2hprg77xsajh6fh"
         },
         {
           "key": "payload_hash",
@@ -331,7 +334,7 @@
         },
         {
           "key": "destination_address",
-          "value": "destination-address"
+          "value": "cosmwasm1wcc28lnk4t437t5l39ylyat8mqjhqmdqtmszyzjjfnc2hprg77xsajh6fh"
         },
         {
           "key": "payload_hash",
