@@ -217,20 +217,16 @@ fn apply_to_link_token(
         source_token.decimals,
     )?;
 
-    let destination_decimals = if link_token.autoscaling {
-        state::may_load_custom_token(
-            storage,
-            destination_chain.clone(),
-            link_token.destination_token_address.clone(),
-        )
-        .change_context(Error::State)?
-        .ok_or(Error::TokenNotRegistered(
-            link_token.destination_token_address.clone(),
-        ))?
-        .decimals
-    } else {
-        source_token.decimals
-    };
+    let destination_decimals = state::may_load_custom_token(
+        storage,
+        destination_chain.clone(),
+        link_token.destination_token_address.clone(),
+    )
+    .change_context(Error::State)?
+    .ok_or(Error::TokenNotRegistered(
+        link_token.destination_token_address.clone(),
+    ))?
+    .decimals;
 
     deploy_token_to_destination_chain(
         storage,
@@ -334,7 +330,7 @@ fn send_to_destination(
         return Ok(Response::new());
     }
 
-    let destination_address = state::load_its_contract(storage, &destination_chain)
+    let destination_address = state::load_its_contract(storage, destination_chain)
         .change_context_lazy(|| Error::ChainNotFound(destination_chain.clone()))?;
 
     let config = state::load_config(storage);
@@ -733,7 +729,7 @@ mod tests {
     }
 
     #[test]
-    fn should_link_custom_tokens_with_autoscaling() {
+    fn should_link_custom_tokens_with_different_decimals() {
         let mut deps = mock_dependencies();
         init(&mut deps);
 
@@ -755,7 +751,6 @@ mod tests {
             source_decimals,
             destination_decimals,
             token_address.clone(),
-            true,
         );
 
         let transfer_amount = Uint256::from_u128(100000000u128);
@@ -802,7 +797,7 @@ mod tests {
     }
 
     #[test]
-    fn should_link_custom_tokens_with_autoscaling_but_same_decimals() {
+    fn should_link_custom_tokens_with_same_decimals() {
         let mut deps = mock_dependencies();
         init(&mut deps);
 
@@ -824,7 +819,6 @@ mod tests {
             source_decimals,
             destination_decimals,
             token_address.clone(),
-            true,
         );
 
         let transfer_amount = Uint256::from_u128(100000000u128);
@@ -868,68 +862,6 @@ mod tests {
     }
 
     #[test]
-    fn should_link_custom_tokens_without_autoscaling() {
-        let mut deps = mock_dependencies();
-        init(&mut deps);
-
-        let source_chain = ChainNameRaw::try_from(SOLANA).unwrap();
-        let destination_chain = ChainNameRaw::try_from(ETHEREUM).unwrap();
-        let source_decimals = 12u8;
-        let token_address: nonempty::HexBinary =
-            HexBinary::from_hex("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48")
-                .unwrap()
-                .try_into()
-                .unwrap();
-        let token_id = TokenId::new([1; 32]);
-        // we only register the token on the source
-        register_custom_token(
-            &mut deps,
-            source_chain.clone(),
-            source_decimals,
-            token_address.clone(),
-        );
-        link_custom_token(
-            &mut deps,
-            token_id,
-            source_chain.clone(),
-            destination_chain.clone(),
-            token_address.clone(),
-            false,
-        );
-
-        let transfer_amount = Uint256::from_u128(100000000u128);
-        let msg = Message::InterchainTransfer(InterchainTransfer {
-            token_id,
-            source_address: token_address.clone(),
-            destination_address: token_address.clone(),
-            data: None,
-            amount: transfer_amount.try_into().unwrap(),
-        });
-
-        let message = assert_ok!(apply_to_hub(
-            deps.as_mut().storage,
-            source_chain.clone(),
-            destination_chain.clone(),
-            msg.clone()
-        ));
-
-        let transfer = get_transfer(message);
-        assert_eq!(Uint256::from(transfer.amount), transfer_amount,);
-
-        // check the other direction
-        let message = assert_ok!(apply_to_hub(
-            deps.as_mut().storage,
-            destination_chain,
-            source_chain,
-            msg
-        ));
-
-        let transfer = get_transfer(message);
-
-        assert_eq!(Uint256::from(transfer.amount), transfer_amount,);
-    }
-
-    #[test]
     fn should_fail_to_link_tokens_if_not_registered_on_source() {
         let mut deps = mock_dependencies();
         init(&mut deps);
@@ -956,7 +888,6 @@ mod tests {
                 token_manager_type: Uint256::zero(),
                 source_token_address: token_address.clone(),
                 destination_token_address: token_address.clone(),
-                autoscaling: true,
                 params: None,
             }
             .into(),
@@ -1002,7 +933,6 @@ mod tests {
                 token_manager_type: Uint256::zero(),
                 source_token_address: token_address.clone(),
                 destination_token_address: token_address.clone(),
-                autoscaling: true,
                 params: None,
             }
             .into(),
@@ -1047,53 +977,6 @@ mod tests {
                 token_manager_type: Uint256::zero(),
                 source_token_address: token_address.clone(),
                 destination_token_address: token_address.clone(),
-                autoscaling: true,
-                params: None,
-            }
-            .into(),
-        };
-
-        assert_err_contains!(
-            execute_message(
-                deps.as_mut(),
-                CrossChainId {
-                    source_chain: source_chain.clone(),
-                    message_id: HexTxHashAndEventIndex::new([1u8; 32], 0u32)
-                        .to_string()
-                        .try_into()
-                        .unwrap(),
-                },
-                ITS_ADDRESS.to_string().try_into().unwrap(),
-                msg.clone().abi_encode(),
-            ),
-            Error,
-            Error::TokenNotRegistered(..)
-        );
-    }
-
-    #[test]
-    fn should_fail_to_link_tokens_if_not_registered_on_source_or_dest_and_autoscaling_is_disabled()
-    {
-        let mut deps = mock_dependencies();
-        init(&mut deps);
-
-        let source_chain = ChainNameRaw::try_from(SOLANA).unwrap();
-        let destination_chain = ChainNameRaw::try_from(ETHEREUM).unwrap();
-        let token_address: nonempty::HexBinary =
-            HexBinary::from_hex("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48")
-                .unwrap()
-                .try_into()
-                .unwrap();
-        let token_id = TokenId::new([1; 32]);
-
-        let msg = HubMessage::SendToHub {
-            destination_chain: destination_chain.clone(),
-            message: LinkToken {
-                token_id,
-                token_manager_type: Uint256::zero(),
-                source_token_address: token_address.clone(),
-                destination_token_address: token_address.clone(),
-                autoscaling: false,
                 params: None,
             }
             .into(),
@@ -1153,7 +1036,6 @@ mod tests {
         source_chain: ChainNameRaw,
         destination_chain: ChainNameRaw,
         token_address: nonempty::HexBinary,
-        autoscaling: bool,
     ) {
         let msg = HubMessage::SendToHub {
             destination_chain: destination_chain.clone(),
@@ -1162,7 +1044,6 @@ mod tests {
                 token_manager_type: Uint256::zero(),
                 source_token_address: token_address.clone(),
                 destination_token_address: token_address.clone(),
-                autoscaling,
                 params: None,
             }
             .into(),
@@ -1191,7 +1072,6 @@ mod tests {
         source_decimals: u8,
         destination_decimals: u8,
         token_address: nonempty::HexBinary,
-        autoscaling: bool,
     ) {
         register_custom_token(
             deps,
@@ -1212,7 +1092,6 @@ mod tests {
             source_chain,
             destination_chain,
             token_address,
-            autoscaling,
         );
     }
 

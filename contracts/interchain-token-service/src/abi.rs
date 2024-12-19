@@ -132,7 +132,6 @@ impl Message {
                 token_manager_type,
                 source_token_address,
                 destination_token_address,
-                autoscaling,
                 params,
             }) => LinkToken {
                 messageType: MessageType::LinkToken.into(),
@@ -140,7 +139,7 @@ impl Message {
                 destinationToken: Vec::<u8>::from(destination_token_address).into(),
                 sourceToken: Vec::<u8>::from(source_token_address).into(),
                 tokenManagerType: U256::from_le_bytes(token_manager_type.to_le_bytes()),
-                autoscaling,
+                autoscaling: false,
                 params: into_vec(params).into(),
             }
             .abi_encode_params(),
@@ -223,7 +222,6 @@ impl Message {
                         .to_vec()
                         .try_into()
                         .map_err(Error::NonEmpty)?,
-                    autoscaling: decoded.autoscaling,
                     params: from_vec(decoded.params.into())?,
                 }
                 .into()

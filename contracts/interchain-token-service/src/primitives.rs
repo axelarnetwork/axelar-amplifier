@@ -99,7 +99,6 @@ pub struct LinkToken {
     pub token_manager_type: Uint256,
     pub source_token_address: nonempty::HexBinary,
     pub destination_token_address: nonempty::HexBinary,
-    pub autoscaling: bool,
     pub params: Option<nonempty::HexBinary>,
 }
 

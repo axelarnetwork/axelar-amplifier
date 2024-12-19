@@ -88,7 +88,6 @@ fn make_message_event(
             token_manager_type,
             source_token_address,
             destination_token_address,
-            autoscaling,
             params,
         }) => event
             .add_attribute("token_id", token_id.to_string())
@@ -98,7 +97,6 @@ fn make_message_event(
                 "destination_token_address",
                 destination_token_address.to_string(),
             )
-            .add_attribute("autoscaling", autoscaling.to_string())
             .add_attribute_if_some("params", params.map(|params| params.to_string())),
     }
 }
