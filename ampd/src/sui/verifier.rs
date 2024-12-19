@@ -140,9 +140,7 @@ pub fn verify_verifier_set(
 mod tests {
     use axelar_wasm_std::msg_id::Base58TxDigestAndEventIndex;
     use axelar_wasm_std::voting::Vote;
-    use cosmrs::crypto::PublicKey;
     use cosmwasm_std::{Addr, HexBinary, Uint128};
-    use ecdsa::SigningKey;
     use move_core_types::language_storage::StructTag;
     use multisig::key::KeyType;
     use multisig::msg::Signer;
@@ -160,7 +158,7 @@ mod tests {
     use crate::handlers::sui_verify_msg::Message;
     use crate::handlers::sui_verify_verifier_set::VerifierSetConfirmation;
     use crate::sui::verifier::{verify_message, verify_verifier_set};
-    use crate::types::{EVMAddress, Hash};
+    use crate::types::{CosmosPublicKey, EVMAddress, Hash};
     use crate::PREFIX;
 
     #[test]
@@ -394,8 +392,8 @@ mod tests {
     }
 
     fn random_signer() -> Signer {
-        let priv_key = SigningKey::random(&mut OsRng);
-        let pub_key: PublicKey = priv_key.verifying_key().into();
+        let priv_key = k256::ecdsa::SigningKey::random(&mut OsRng);
+        let pub_key: CosmosPublicKey = priv_key.verifying_key().into();
         let address = Addr::unchecked(pub_key.account_id(PREFIX).unwrap());
         let pub_key = (KeyType::Ecdsa, HexBinary::from(pub_key.to_bytes()))
             .try_into()
