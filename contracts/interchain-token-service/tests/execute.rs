@@ -826,7 +826,6 @@ fn execute_message_when_unknown_chain_fails() {
         router_message,
         source_its_chain,
         source_its_contract,
-        destination_its_chain,
         ..
     } = TestMessage::dummy();
 
@@ -836,7 +835,7 @@ fn execute_message_when_unknown_chain_fails() {
         source_its_contract.clone(),
         hub_message.clone().abi_encode(),
     );
-    assert_err_contains!(result, ExecuteError, ExecuteError::ChainNotFound(chain) if chain == &source_its_chain);
+    assert_err_contains!(result, ExecuteError, ExecuteError::State);
 
     utils::register_chain(
         deps.as_mut(),
@@ -853,7 +852,7 @@ fn execute_message_when_unknown_chain_fails() {
         source_its_contract,
         hub_message.abi_encode(),
     );
-    assert_err_contains!(result, ExecuteError, ExecuteError::ChainNotFound(chain) if chain == &destination_its_chain);
+    assert_err_contains!(result, ExecuteError, ExecuteError::State);
 }
 
 #[test]

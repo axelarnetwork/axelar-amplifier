@@ -119,11 +119,11 @@ impl Message {
                 minter: into_vec(minter).into(),
             }
             .abi_encode_params(),
-            Message::RegisterToken(primitives::RegisterToken { decimals, address }) => {
+            Message::RegisterToken(primitives::RegisterTokenMetadata { decimals, address }) => {
                 RegisterToken {
                     messageType: MessageType::RegisterToken.into(),
                     decimals,
-                    tokenAddress: Vec::<u8>::from(address).into(),
+                    tokenAddress: address.to_vec().into(),
                 }
                 .abi_encode_params()
             }
@@ -136,8 +136,8 @@ impl Message {
             }) => LinkToken {
                 messageType: MessageType::LinkToken.into(),
                 tokenId: FixedBytes::<32>::new(token_id.into()),
-                destinationToken: Vec::<u8>::from(destination_token_address).into(),
-                sourceToken: Vec::<u8>::from(source_token_address).into(),
+                destinationToken: destination_token_address.to_vec().into(),
+                sourceToken: source_token_address.to_vec().into(),
                 tokenManagerType: U256::from_le_bytes(token_manager_type.to_le_bytes()),
                 autoscaling: false,
                 params: into_vec(params).into(),
@@ -187,17 +187,16 @@ impl Message {
                 .into()
             }
             MessageType::RegisterToken => {
-                let decoded = RegisterToken::abi_decode_params(payload, true)
+                let RegisterToken {
+                    tokenAddress,
+                    decimals,
+                    ..
+                } = RegisterToken::abi_decode_params(payload, true)
                     .map_err(Error::AbiDecodeFailed)?;
 
-                primitives::RegisterToken {
-                    decimals: decoded.decimals,
-                    address: decoded
-                        .tokenAddress
-                        .as_ref()
-                        .to_vec()
-                        .try_into()
-                        .map_err(Error::NonEmpty)?,
+                primitives::RegisterTokenMetadata {
+                    decimals,
+                    address: tokenAddress.to_vec().try_into().map_err(Error::NonEmpty)?,
                 }
                 .into()
             }
@@ -209,7 +208,6 @@ impl Message {
                     token_id: TokenId::new(decoded.tokenId.into()),
                     source_token_address: decoded
                         .sourceToken
-                        .as_ref()
                         .to_vec()
                         .try_into()
                         .map_err(Error::NonEmpty)?,
@@ -218,7 +216,6 @@ impl Message {
                     ),
                     destination_token_address: decoded
                         .destinationToken
-                        .as_ref()
                         .to_vec()
                         .try_into()
                         .map_err(Error::NonEmpty)?,

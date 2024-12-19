@@ -9,8 +9,8 @@ use crate::events::Event;
 use crate::primitives::HubMessage;
 use crate::state::TokenDeploymentType;
 use crate::{
-    msg, state, DeployInterchainToken, InterchainTransfer, LinkToken, Message, RegisterToken,
-    TokenId,
+    msg, state, DeployInterchainToken, InterchainTransfer, LinkToken, Message,
+    RegisterTokenMetadata, TokenId,
 };
 
 mod interceptors;
@@ -188,8 +188,8 @@ fn apply_to_hub(
 fn apply_to_register_token(
     storage: &mut dyn Storage,
     source_chain: ChainNameRaw,
-    register_token: RegisterToken,
-) -> Result<RegisterToken, Error> {
+    register_token: RegisterTokenMetadata,
+) -> Result<RegisterTokenMetadata, Error> {
     interceptors::register_custom_token(storage, source_chain, register_token.clone())?;
     Ok(register_token)
 }
@@ -288,8 +288,7 @@ fn apply_to_token_deployment(
 
 fn ensure_chain_not_frozen(storage: &dyn Storage, chain: &ChainNameRaw) -> Result<(), Error> {
     ensure!(
-        !state::is_chain_frozen(storage, chain)
-            .change_context_lazy(|| Error::ChainNotFound(chain.clone()))?,
+        !state::is_chain_frozen(storage, chain).change_context(Error::State)?,
         Error::ChainFrozen(chain.to_owned())
     );
 
@@ -302,8 +301,8 @@ fn ensure_is_its_source_address(
     source_chain: &ChainNameRaw,
     source_address: &Address,
 ) -> Result<(), Error> {
-    let source_its_contract = state::load_its_contract(storage, source_chain)
-        .change_context_lazy(|| Error::ChainNotFound(source_chain.clone()))?;
+    let source_its_contract =
+        state::load_its_contract(storage, source_chain).change_context(Error::State)?;
 
     ensure!(
         source_address == &source_its_contract,
@@ -320,7 +319,6 @@ fn send_to_destination(
     payload: HexBinary,
 ) -> Result<Response, Error> {
     if *destination_chain == axelar_chain_name(storage, querier)? {
-        // messages sent to axelar are handled in a special way
         // right now, messages sent to the axelar chain are not forwarded on to
         // any other contract (in contrast to every other message that moves through the hub)
         // In the future, this may change, depending on the message type
@@ -425,7 +423,7 @@ mod tests {
     use crate::state::{self, Config};
     use crate::{
         msg, DeployInterchainToken, HubMessage, InterchainTransfer, LinkToken, Message,
-        RegisterToken, TokenId,
+        RegisterTokenMetadata, TokenId,
     };
 
     const SOLANA: &str = "solana";
@@ -1008,7 +1006,7 @@ mod tests {
     ) {
         let msg = HubMessage::SendToHub {
             destination_chain: "axelar".try_into().unwrap(),
-            message: RegisterToken {
+            message: RegisterTokenMetadata {
                 decimals,
                 address: token_address.clone(),
             }

@@ -2,7 +2,7 @@ use axelar_wasm_std::event::EventExt;
 use router_api::{Address, ChainNameRaw, CrossChainId};
 
 use crate::primitives::Message;
-use crate::{DeployInterchainToken, InterchainTransfer, LinkToken, RegisterToken};
+use crate::{DeployInterchainToken, InterchainTransfer, LinkToken, RegisterTokenMetadata};
 
 pub enum Event {
     MessageReceived {
@@ -80,7 +80,7 @@ fn make_message_event(
             .add_attribute("symbol", symbol)
             .add_attribute("decimals", decimals.to_string())
             .add_attribute_if_some("minter", minter.map(|minter| minter.to_string())),
-        Message::RegisterToken(RegisterToken { address, decimals }) => event
+        Message::RegisterToken(RegisterTokenMetadata { address, decimals }) => event
             .add_attribute("decimals", decimals.to_string())
             .add_attribute("address", address.to_string()),
         Message::LinkToken(LinkToken {

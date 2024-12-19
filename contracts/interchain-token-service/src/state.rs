@@ -7,7 +7,7 @@ use cw_storage_plus::{Item, Map};
 use error_stack::{report, Result, ResultExt};
 use router_api::{Address, ChainNameRaw};
 
-use crate::{msg, RegisterToken, TokenId};
+use crate::{msg, RegisterTokenMetadata, TokenId};
 
 #[derive(thiserror::Error, Debug, IntoContractError)]
 pub enum Error {
@@ -127,6 +127,7 @@ pub struct TokenConfig {
 }
 
 type TokenAddress = nonempty::HexBinary;
+
 #[cw_serde]
 pub struct CustomToken {
     pub chain: ChainNameRaw,
@@ -292,17 +293,17 @@ pub fn save_token_config(
 
 pub fn save_custom_token(
     storage: &mut dyn Storage,
-    source_chain: ChainNameRaw,
-    register_token: RegisterToken,
+    chain: ChainNameRaw,
+    RegisterTokenMetadata { address, decimals }: RegisterTokenMetadata,
 ) -> Result<(), Error> {
     CUSTOM_TOKENS
         .save(
             storage,
-            &(source_chain.clone(), register_token.address.clone()),
+            &(chain.clone(), address.clone()),
             &CustomToken {
-                chain: source_chain,
-                decimals: register_token.decimals,
-                address: register_token.address,
+                chain,
+                decimals,
+                address,
             },
         )
         .change_context(Error::Storage)

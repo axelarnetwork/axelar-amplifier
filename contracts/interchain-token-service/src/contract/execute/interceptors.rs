@@ -6,7 +6,8 @@ use router_api::ChainNameRaw;
 use super::Error;
 use crate::state::{self, TokenDeploymentType};
 use crate::{
-    DeployInterchainToken, InterchainTransfer, RegisterToken, TokenConfig, TokenId, TokenInstance,
+    DeployInterchainToken, InterchainTransfer, RegisterTokenMetadata, TokenConfig, TokenId,
+    TokenInstance,
 };
 
 pub fn subtract_supply_amount(
@@ -290,7 +291,7 @@ fn destination_amount(
 pub fn register_custom_token(
     storage: &mut dyn Storage,
     source_chain: ChainNameRaw,
-    register_token: RegisterToken,
+    register_token: RegisterTokenMetadata,
 ) -> Result<(), Error> {
     let existing_token = state::may_load_custom_token(
         storage,
@@ -302,6 +303,7 @@ pub fn register_custom_token(
         existing_token.is_none(),
         Error::TokenAlreadyRegistered(register_token.address)
     );
+
     state::save_custom_token(storage, source_chain, register_token).change_context(Error::State)
 }
 
