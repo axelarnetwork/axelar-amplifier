@@ -886,6 +886,7 @@ name = "axelar-wasm-std-derive"
 version = "1.0.0"
 dependencies = [
  "axelar-wasm-std",
+ "cosmwasm-std",
  "error-stack",
  "quote 1.0.37",
  "report",
