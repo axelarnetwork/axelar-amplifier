@@ -43,7 +43,7 @@ pub fn translate_to_interchain_transfer(
     message_with_payload: &XRPLUserMessageWithPayload,
 ) -> Result<Binary, Error> {
     let interchain_transfer = execute::translate_to_interchain_transfer(storage, config, message_with_payload)?;
-    Ok(to_json_binary(&interchain_transfer.message_with_payload).map_err(Error::from)?)
+    Ok(to_json_binary(&interchain_transfer).map_err(Error::from)?)
 }
 
 fn accumulate_errs(
