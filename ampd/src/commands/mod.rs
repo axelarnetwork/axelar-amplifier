@@ -16,7 +16,7 @@ use crate::broadcaster::confirm_tx::TxConfirmer;
 use crate::broadcaster::Broadcaster;
 use crate::config::{Config as AmpdConfig, Config};
 use crate::tofnd::grpc::{Multisig, MultisigClient};
-use crate::types::{PublicKey, TMAddress};
+use crate::types::{CosmosPublicKey, TMAddress};
 use crate::{broadcaster, tofnd, Error, PREFIX};
 
 pub mod bond_verifier;
@@ -80,20 +80,22 @@ impl Default for RewardsConfig {
     }
 }
 
-async fn verifier_pub_key(config: tofnd::Config) -> Result<PublicKey, Error> {
-    MultisigClient::new(config.party_uid, config.url.clone())
+async fn verifier_pub_key(config: tofnd::Config) -> Result<CosmosPublicKey, Error> {
+    let pub_key = MultisigClient::new(config.party_uid, config.url.clone())
         .await
         .change_context(Error::Connection)
         .attach_printable(config.url.clone())?
         .keygen(&config.key_uid, tofnd::Algorithm::Ecdsa)
         .await
-        .change_context(Error::Tofnd)
+        .change_context(Error::Tofnd)?;
+
+    CosmosPublicKey::try_from(pub_key).change_context(Error::Tofnd)
 }
 
 async fn broadcast_tx(
     config: AmpdConfig,
     tx: Any,
-    pub_key: PublicKey,
+    pub_key: CosmosPublicKey,
 ) -> Result<TxResponse, Error> {
     let (confirmation_sender, mut confirmation_receiver) = tokio::sync::mpsc::channel(1);
     let (hash_to_confirm_sender, hash_to_confirm_receiver) = tokio::sync::mpsc::channel(1);
@@ -127,7 +129,7 @@ async fn broadcast_tx(
 
 async fn instantiate_broadcaster(
     config: Config,
-    pub_key: PublicKey,
+    pub_key: CosmosPublicKey,
 ) -> Result<(impl Broadcaster, TxConfirmer<ServiceClient<Channel>>), Error> {
     let AmpdConfig {
         tm_grpc,
