@@ -1,12 +1,12 @@
 use axelar_wasm_std::nonempty;
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::Addr;
+use cosmwasm_std::{Addr, HexBinary};
 use interchain_token_service::{TokenId, TokenManagerType};
 use router_api::{ChainName, ChainNameRaw, CrossChainId, Message};
 use msgs_derive::EnsurePermissions;
 
 use xrpl_types::msg::{XRPLMessage, XRPLUserMessageWithPayload};
-use xrpl_types::types::{xrpl_account_id_string, xrpl_currency_string, XRPLAccountId, XRPLCurrency, XRPLToken, XRPLTokenOrXrp};
+use xrpl_types::types::{xrpl_account_id_string, xrpl_currency_string, XRPLAccountId, XRPLCurrency, XRPLPaymentAmount, XRPLToken, XRPLTokenOrXrp};
 
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -123,6 +123,19 @@ pub enum ExecuteMsg {
 }
 
 #[cw_serde]
+pub struct MessageWithPayload {
+    pub message: Message,
+    pub payload: HexBinary,
+}
+
+#[cw_serde]
+pub struct InterchainTransfer {
+    pub message_with_payload: Option<MessageWithPayload>,
+    pub token_id: TokenId,
+    pub dust: XRPLPaymentAmount,
+}
+
+#[cw_serde]
 #[derive(QueryResponses)]
 pub enum QueryMsg {
     // messages that can be relayed to the chain corresponding to this gateway
@@ -136,5 +149,11 @@ pub enum QueryMsg {
     TokenInstanceDecimals {
         chain_name: ChainNameRaw,
         token_id: TokenId,
+    },
+
+    #[returns(InterchainTransfer)]
+    InterchainTransfer {
+        #[serde(flatten)]
+        message_with_payload: XRPLUserMessageWithPayload,
     },
 }

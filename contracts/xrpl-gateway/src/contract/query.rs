@@ -3,8 +3,11 @@ use cosmwasm_std::{to_json_binary, Binary, Storage};
 use error_stack::Result;
 use interchain_token_service::TokenId;
 use router_api::{ChainNameRaw, CrossChainId, Message};
+use xrpl_types::msg::XRPLUserMessageWithPayload;
 
-use crate::state;
+use crate::state::{self, Config};
+
+use super::{execute, Error};
 
 pub fn outgoing_messages<'a>(
     storage: &dyn Storage,
@@ -32,6 +35,15 @@ pub fn token_instance_decimals(
 ) -> Result<Binary, state::Error> {
     let decimals = state::load_token_instance_decimals(storage, chain_name, token_id)?;
     Ok(to_json_binary(&decimals).map_err(state::Error::from)?)
+}
+
+pub fn translate_to_interchain_transfer(
+    storage: &dyn Storage,
+    config: &Config,
+    message_with_payload: &XRPLUserMessageWithPayload,
+) -> Result<Binary, Error> {
+    let interchain_transfer = execute::translate_to_interchain_transfer(storage, config, message_with_payload)?;
+    Ok(to_json_binary(&interchain_transfer.message_with_payload).map_err(Error::from)?)
 }
 
 fn accumulate_errs(

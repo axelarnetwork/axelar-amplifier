@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use axelar_wasm_std::{address, permission_control, FnExt, IntoContractError};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response};
+use cosmwasm_std::{Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response, StdError};
 use error_stack::ResultExt;
 use interchain_token_service::TokenId;
 use router_api::{ChainNameRaw, CrossChainId};
@@ -101,6 +101,8 @@ pub enum Error {
     SaveOutgoingMessage,
     #[error("state error")]
     State,
+    #[error(transparent)]
+    Std(#[from] StdError),
     #[error("token {token_id} deployed decimals mismatch: expected {expected}, actual {actual}")]
     TokenDeployedDecimalsMismatch {
         token_id: TokenId,
@@ -290,6 +292,10 @@ pub fn query(
                     chain_name,
                     token_id,
                 })
+        }
+        QueryMsg::InterchainTransfer { message_with_payload } => {
+            let config = state::load_config(deps.storage);
+            query::translate_to_interchain_transfer(deps.storage, &config, &message_with_payload)
         }
     }?
     .then(Ok)

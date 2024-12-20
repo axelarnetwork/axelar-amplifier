@@ -15,7 +15,7 @@ use xrpl_types::msg::{CrossChainMessage, XRPLMessage, XRPLUserMessageWithPayload
 
 use crate::contract::Error;
 use crate::events::XRPLGatewayEvent;
-use crate::msg::{DeployInterchainToken, DeployTokenManager};
+use crate::msg::{DeployInterchainToken, DeployTokenManager, InterchainTransfer, MessageWithPayload};
 use crate::state::{self, Config};
 
 const PURE_TOKEN_TRANSFER_PAYLOAD_HASH: [u8; 32] = [0u8; 32];
@@ -58,14 +58,19 @@ pub fn route_incoming_messages(
     for (status, msgs) in &msgs_by_status {
         let mut its_msgs = Vec::new();
         for msg in msgs {
-            match to_its_message_with_payload(storage, config, msg)? {
-                Some((its_msg, payload)) => {
-                    its_msgs.push(its_msg.clone());
+            let interchain_transfer = translate_to_interchain_transfer(storage, config, msg)?;
+
+            state::count_dust(storage, &msg.message.tx_id, &interchain_transfer.token_id, interchain_transfer.dust)
+                .change_context(Error::State)?;
+
+            match interchain_transfer.message_with_payload {
+                Some(message_with_payload) => {
+                    its_msgs.push(message_with_payload.message.clone());
                     events.extend(vec![
-                        into_route_event(status, its_msg.clone()),
+                        into_route_event(status, message_with_payload.message.clone()),
                         Event::from(XRPLGatewayEvent::ContractCalled {
-                            msg: its_msg,
-                            payload,
+                            msg: message_with_payload.message,
+                            payload: message_with_payload.payload,
                         }),
                     ]);
                 }
@@ -99,14 +104,14 @@ fn compute_token_id(
     Ok(token_id)
 }
 
-fn to_its_message_with_payload(
-    storage: &mut dyn Storage,
+pub fn translate_to_interchain_transfer(
+    storage: &dyn Storage,
     config: &Config,
-    msg_with_payload: &XRPLUserMessageWithPayload,
-) -> Result<Option<(Message, HexBinary)>, Error> {
-    let user_message = &msg_with_payload.message;
+    xrpl_user_message_with_payload: &XRPLUserMessageWithPayload,
+) -> Result<InterchainTransfer, Error> {
+    let user_message = &xrpl_user_message_with_payload.message;
 
-    match &msg_with_payload.payload {
+    match &xrpl_user_message_with_payload.payload {
         None => {
             ensure!(
                 user_message.payload_hash == PURE_TOKEN_TRANSFER_PAYLOAD_HASH,
@@ -160,11 +165,12 @@ fn to_its_message_with_payload(
         }
     };
 
-    state::count_dust(storage, &user_message.tx_id, &token_id, dust)
-        .change_context(Error::State)?;
-
     if amount.is_zero() {
-        return Ok(None);
+        return Ok(InterchainTransfer {
+            message_with_payload: None,
+            token_id,
+            dust,
+        });
     }
 
     let payload = interchain_token_service::HubMessage::SendToHub {
@@ -174,13 +180,20 @@ fn to_its_message_with_payload(
             source_address,
             destination_address,
             amount: amount.try_into().expect("amount cannot be zero"),
-            data: msg_with_payload.payload.clone(),
+            data: xrpl_user_message_with_payload.payload.clone(),
         },
     }.abi_encode();
     let cc_id = user_message.cc_id(config.xrpl_chain.clone().into());
     let its_msg = construct_its_hub_message(config, cc_id, payload.clone())?;
 
-    Ok(Some((its_msg, payload)))
+    Ok(InterchainTransfer {
+        message_with_payload: Some(MessageWithPayload {
+            message: its_msg,
+            payload,
+        }),
+        token_id,
+        dust,
+    })
 }
 
 // because the messages came from the router, we can assume they are already verified
