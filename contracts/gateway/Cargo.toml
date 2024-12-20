@@ -19,8 +19,6 @@ name = "gateway-schema"
 path = "src/bin/schema.rs"
 
 [features]
-# for more explicit tests, cargo test --features=backtraces
-backtraces = ["cosmwasm-std/backtraces"]
 # use library feature to disable all instantiate/execute/query exports
 library = []
 # generate golden files for the tests
@@ -53,7 +51,8 @@ voting-verifier = { workspace = true, features = ["library"] }
 
 [dev-dependencies]
 assert_ok = { workspace = true }
-cw-multi-test = "0.15.1"
+cw-multi-test = { workspace = true }
+goldie = { workspace = true }
 rand = { workspace = true }
 
 [lints]
