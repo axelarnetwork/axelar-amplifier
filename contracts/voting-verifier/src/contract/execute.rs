@@ -258,6 +258,7 @@ pub fn vote(
         .add_event(Voted {
             poll_id,
             voter: info.sender,
+            votes,
         })
         .add_events(quorum_events.into_iter().flatten()))
 }
