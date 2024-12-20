@@ -153,7 +153,6 @@ pub enum QueryMsg {
 
     #[returns(InterchainTransfer)]
     InterchainTransfer {
-        #[serde(flatten)]
         message_with_payload: XRPLUserMessageWithPayload,
     },
 }
