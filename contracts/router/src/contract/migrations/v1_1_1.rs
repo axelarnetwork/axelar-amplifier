@@ -29,7 +29,7 @@ impl<'a> GatewayIndex<'a> {
     pub fn new(
         idx_fn: fn(&[u8], &ChainEndpoint) -> Addr,
         pk_namespace: &'a str,
-        idx_namespace: &'a str,
+        idx_namespace: &'static str,
     ) -> Self {
         GatewayIndex(MultiIndex::new(idx_fn, pk_namespace, idx_namespace))
     }
@@ -43,7 +43,7 @@ impl<'a> IndexList<ChainEndpoint> for ChainEndpointIndexes<'a> {
 }
 
 const CHAINS_PKEY: &str = "chains";
-fn chain_endpoints_old<'a>() -> IndexedMap<'a, String, ChainEndpoint, ChainEndpointIndexes<'a>> {
+fn chain_endpoints_old<'a>() -> IndexedMap<String, ChainEndpoint, ChainEndpointIndexes<'a>> {
     return IndexedMap::new(
         CHAINS_PKEY,
         ChainEndpointIndexes {
@@ -70,8 +70,7 @@ mod test {
 
     use assert_ok::assert_ok;
     use axelar_wasm_std::msg_id::MessageIdFormat;
-    use cosmwasm_std::testing::mock_dependencies;
-    use cosmwasm_std::Addr;
+    use cosmwasm_std::testing::{mock_dependencies, MockApi};
     use itertools::Itertools;
     use router_api::{ChainName, Gateway, GatewayDirection};
 
@@ -93,7 +92,7 @@ mod test {
                     &router_api::ChainEndpoint {
                         name: chain_name.clone(),
                         gateway: Gateway {
-                            address: Addr::unchecked("gateway_address"),
+                            address: MockApi::default().addr_make("gateway_address"),
                         },
                         frozen_status: GatewayDirection::None.into(),
                         msg_id_format: MessageIdFormat::HexTxHashAndEventIndex,
@@ -110,7 +109,7 @@ mod test {
                 &ChainEndpoint {
                     name: bad_chain_name.to_string(),
                     gateway: Gateway {
-                        address: Addr::unchecked("gateway_address"),
+                        address: MockApi::default().addr_make("gateway_address"),
                     },
                     frozen_status: GatewayDirection::None.into(),
                     msg_id_format: MessageIdFormat::HexTxHashAndEventIndex,

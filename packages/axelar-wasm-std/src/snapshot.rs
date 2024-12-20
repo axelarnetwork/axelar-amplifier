@@ -60,6 +60,7 @@ impl Snapshot {
 
 #[cfg(test)]
 mod tests {
+    use cosmwasm_std::testing::MockApi;
     use cosmwasm_std::{from_json, to_json_binary, Uint64};
 
     use super::*;
@@ -67,7 +68,7 @@ mod tests {
 
     fn mock_participant(address: &str, weight: nonempty::Uint128) -> Participant {
         Participant {
-            address: Addr::unchecked(address),
+            address: MockApi::default().addr_make(address),
             weight,
         }
     }
