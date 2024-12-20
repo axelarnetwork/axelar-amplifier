@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use axelar_wasm_std::{address, permission_control, FnExt, IntoContractError};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response, StdError};
+use cosmwasm_std::{Binary, Deps, DepsMut, Empty, Env, HexBinary, MessageInfo, Response, StdError};
 use error_stack::ResultExt;
 use interchain_token_service::TokenId;
 use router_api::{ChainNameRaw, CrossChainId};
@@ -74,10 +74,10 @@ pub enum Error {
     OnlyFromItsHub(CrossChainId),
     #[error("failed to query outgoing messages")]
     OutgoingMessages,
-    #[error("payload hash mismatch")]
+    #[error("payload hash mismatch: expected {expected}, actual {actual}")]
     PayloadHashMismatch {
-        expected: [u8; 32],
-        actual: [u8; 32],
+        expected: HexBinary,
+        actual: HexBinary,
     },
     #[error("remote token {token_id} deployed XRPL currency mismatch: expected {expected}, actual {actual}")]
     RemoteTokenDeployedCurrencyMismatch {

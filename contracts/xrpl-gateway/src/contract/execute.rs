@@ -116,18 +116,18 @@ pub fn translate_to_interchain_transfer(
             ensure!(
                 user_message.payload_hash == PURE_TOKEN_TRANSFER_PAYLOAD_HASH,
                 Error::PayloadHashMismatch {
-                    expected: PURE_TOKEN_TRANSFER_PAYLOAD_HASH,
-                    actual: user_message.payload_hash,
+                    expected: PURE_TOKEN_TRANSFER_PAYLOAD_HASH.into(),
+                    actual: user_message.payload_hash.into(),
                 }
             );
         }
         Some(payload) => {
-            let payload_hash = Keccak256::digest(payload.as_ref()).into();
+            let payload_hash = <[u8; 32]>::from(Keccak256::digest(payload.as_ref()));
             ensure!(
                 user_message.payload_hash == payload_hash,
                 Error::PayloadHashMismatch {
-                    expected: payload_hash,
-                    actual: user_message.payload_hash,
+                    expected: payload_hash.into(),
+                    actual: user_message.payload_hash.into(),
                 }
             )
         }
