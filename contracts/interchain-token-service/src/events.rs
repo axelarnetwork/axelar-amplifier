@@ -80,7 +80,7 @@ fn make_message_event(
             .add_attribute("symbol", symbol)
             .add_attribute_as_string("decimals", decimals)
             .add_attribute_if_some("minter", minter.map(|minter| minter.to_string())),
-        Message::RegisterToken(RegisterTokenMetadata { address, decimals }) => event
+        Message::RegisterTokenMetadata(RegisterTokenMetadata { address, decimals }) => event
             .add_attribute_as_string("decimals", decimals)
             .add_attribute_as_string("address", address),
         Message::LinkToken(LinkToken {

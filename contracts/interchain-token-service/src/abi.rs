@@ -119,14 +119,15 @@ impl Message {
                 minter: into_vec(minter).into(),
             }
             .abi_encode_params(),
-            Message::RegisterToken(primitives::RegisterTokenMetadata { decimals, address }) => {
-                RegisterToken {
-                    messageType: MessageType::RegisterToken.into(),
-                    decimals,
-                    tokenAddress: address.to_vec().into(),
-                }
-                .abi_encode_params()
+            Message::RegisterTokenMetadata(primitives::RegisterTokenMetadata {
+                decimals,
+                address,
+            }) => RegisterToken {
+                messageType: MessageType::RegisterToken.into(),
+                decimals,
+                tokenAddress: address.to_vec().into(),
             }
+            .abi_encode_params(),
             Message::LinkToken(primitives::LinkToken {
                 token_id,
                 token_manager_type,

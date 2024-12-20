@@ -170,9 +170,9 @@ fn apply_to_hub(
             apply_to_token_deployment(storage, &source_chain, &destination_chain, deploy_token)
                 .map(Message::DeployInterchainToken)?
         }
-        Message::RegisterToken(register_token) => {
+        Message::RegisterTokenMetadata(register_token) => {
             apply_to_register_token(storage, source_chain, register_token)
-                .map(Message::RegisterToken)?
+                .map(Message::RegisterTokenMetadata)?
         }
         Message::LinkToken(link_token) => {
             apply_to_link_token(storage, source_chain, destination_chain, link_token)

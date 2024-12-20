@@ -31,7 +31,7 @@ pub enum Message {
     /// Deploy a new interchain token on the destination chain
     DeployInterchainToken(DeployInterchainToken),
 
-    RegisterToken(RegisterTokenMetadata),
+    RegisterTokenMetadata(RegisterTokenMetadata),
 
     LinkToken(LinkToken),
 }
@@ -88,7 +88,7 @@ pub struct RegisterTokenMetadata {
 
 impl From<RegisterTokenMetadata> for Message {
     fn from(value: RegisterTokenMetadata) -> Self {
-        Message::RegisterToken(value)
+        Message::RegisterTokenMetadata(value)
     }
 }
 
@@ -146,7 +146,9 @@ impl Message {
             Message::InterchainTransfer(InterchainTransfer { token_id, .. })
             | Message::DeployInterchainToken(DeployInterchainToken { token_id, .. })
             | Message::LinkToken(LinkToken { token_id, .. }) => *token_id,
-            Message::RegisterToken(_) => panic!("no token id associated with this message type"),
+            Message::RegisterTokenMetadata(_) => {
+                panic!("no token id associated with this message type")
+            }
         }
     }
 }
