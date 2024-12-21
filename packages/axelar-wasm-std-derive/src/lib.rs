@@ -32,7 +32,7 @@ pub fn into_contract_error_derive(input: TokenStream) -> TokenStream {
 /// use axelar_wasm_std_derive::into_event_derive;
 ///
 /// #[derive(Serialize)]
-/// struct SomeNested {
+/// struct SomeObject {
 ///    pub some_option: Option<String>,
 ///    pub some_other_option: Option<String>,
 ///    pub some_vec: Vec<String>,
@@ -45,24 +45,24 @@ pub fn into_contract_error_derive(input: TokenStream) -> TokenStream {
 ///     pub some_uint: u64,
 ///     pub some_string: String,
 ///     pub some_bool: bool,
-///     pub some_nested: SomeNested,
+///     pub some_object: SomeObject,
 /// }
 ///
 /// let event = SomeEvent {
 ///     some_uint: 42,
 ///     some_string: "string".to_string(),
 ///     some_bool: true,
-///     some_nested: SomeNested {
+///     some_object: SomeObject {
 ///         some_option: Some("some".to_string()),
 ///         some_other_option: None,
 ///         some_vec: vec!["a".to_string(), "b".to_string()],
-///         some_map: [("a".to_string(), "b".to_string()), ("c".to_string(), "d".to_string())].iter().cloned().collect(),
+///         some_map: [("a".to_string(), "b".to_string()), ("c".to_string(), "d".to_string())].into_iter().collect(),
 ///     }
 /// };
 /// let actual_event = cosmwasm_std::Event::from(event);
 /// let expected_event = cosmwasm_std::Event::new("some_event")
 ///     .add_attribute("some_bool", "true")
-///     .add_attribute("some_nested", r#"{"some_map":{"a":"b","c":"d"},"some_option":"some","some_other_option":null,"some_vec":["a","b"]}"#)
+///     .add_attribute("some_object", r#"{"some_map":{"a":"b","c":"d"},"some_option":"some","some_other_option":null,"some_vec":["a","b"]}"#)
 ///     .add_attribute("some_string", "\"string\"")
 ///     .add_attribute("some_uint", "42");
 ///
