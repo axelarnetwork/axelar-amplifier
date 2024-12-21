@@ -890,6 +890,8 @@ dependencies = [
  "error-stack",
  "quote 1.0.37",
  "report",
+ "serde",
+ "serde_json",
  "syn 2.0.90",
  "thiserror 1.0.69",
 ]

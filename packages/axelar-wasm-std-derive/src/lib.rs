@@ -21,6 +21,53 @@ pub fn into_contract_error_derive(input: TokenStream) -> TokenStream {
     gen.into()
 }
 
+/// Derive macro to implement `From` for a struct to convert it into a `cosmwasm_std::Event`.
+///
+/// # Examples
+///
+/// ```
+/// use std::collections::HashMap;
+/// use serde::Serialize;
+///
+/// use axelar_wasm_std_derive::into_event_derive;
+///
+/// #[derive(Serialize)]
+/// struct SomeNested {
+///    pub some_option: Option<String>,
+///    pub some_other_option: Option<String>,
+///    pub some_vec: Vec<String>,
+///    pub some_map: HashMap<String, String>,
+/// }
+///
+/// #[derive(Serialize)]
+/// #[into_event_derive("some_event")]
+/// struct SomeEvent {
+///     pub some_uint: u64,
+///     pub some_string: String,
+///     pub some_bool: bool,
+///     pub some_nested: SomeNested,
+/// }
+///
+/// let event = SomeEvent {
+///     some_uint: 42,
+///     some_string: "string".to_string(),
+///     some_bool: true,
+///     some_nested: SomeNested {
+///         some_option: Some("some".to_string()),
+///         some_other_option: None,
+///         some_vec: vec!["a".to_string(), "b".to_string()],
+///         some_map: [("a".to_string(), "b".to_string()), ("c".to_string(), "d".to_string())].iter().cloned().collect(),
+///     }
+/// };
+/// let actual_event = cosmwasm_std::Event::from(event);
+/// let expected_event = cosmwasm_std::Event::new("some_event")
+///     .add_attribute("some_bool", "true")
+///     .add_attribute("some_nested", r#"{"some_map":{"a":"b","c":"d"},"some_option":"some","some_other_option":null,"some_vec":["a","b"]}"#)
+///     .add_attribute("some_string", "\"string\"")
+///     .add_attribute("some_uint", "42");
+///
+/// assert_eq!(actual_event, expected_event);
+/// ```
 #[proc_macro_attribute]
 pub fn into_event_derive(arg: TokenStream, input: TokenStream) -> TokenStream {
     let event_name = syn::parse_macro_input!(arg as syn::LitStr);
@@ -38,9 +85,7 @@ pub fn into_event_derive(arg: TokenStream, input: TokenStream) -> TokenStream {
                     .as_object()
                     .expect("event must be a json object")
                     .into_iter()
-                    .map(|(key, value)| {
-                        cosmwasm_std::Attribute::new(key, value.to_string())
-                    })
+                    .map(|(key, value)| cosmwasm_std::Attribute::new(key, value.to_string()))
                     .collect();
 
                 cosmwasm_std::Event::new(#event_name.to_string()).add_attributes(attributes)
