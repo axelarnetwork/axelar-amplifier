@@ -80,13 +80,12 @@ pub fn into_event_derive(arg: TokenStream, input: TokenStream) -> TokenStream {
 
         impl From<&#event_struct> for cosmwasm_std::Event {
             fn from(event: &#event_struct) -> Self {
-                let attributes: Vec<_> = serde_json::to_value(event)
-                    .expect("failed to serialize event")
+                let json_value = serde_json::to_value(event).expect("failed to serialize event");
+                let attributes = json_value
                     .as_object()
                     .expect("event must be a json object")
                     .into_iter()
-                    .map(|(key, value)| cosmwasm_std::Attribute::new(key, value.to_string()))
-                    .collect();
+                    .map(|(key, value)| cosmwasm_std::Attribute::new(key, value.to_string()));
 
                 cosmwasm_std::Event::new(#event_name.to_string()).add_attributes(attributes)
             }
