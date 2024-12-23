@@ -2,7 +2,7 @@ use std::fmt;
 
 use cosmwasm_std::HexBinary;
 use ed25519_dalek::PUBLIC_KEY_LENGTH;
-use error_stack::{self, report, Report, ResultExt};
+use error_stack::{self, Report, ResultExt};
 use thiserror::Error;
 
 pub type CosmosPublicKey = cosmrs::crypto::PublicKey;
@@ -21,8 +21,6 @@ pub enum Error {
 pub enum PublicKey {
     Secp256k1(k256::ecdsa::VerifyingKey),
     Ed25519(ed25519_dalek::VerifyingKey),
-    // TODO: add support for Schnorr
-    Schnorr,
 }
 
 impl PublicKey {
@@ -47,7 +45,6 @@ impl PublicKey {
         match self {
             PublicKey::Secp256k1(key) => key.to_sec1_bytes().to_vec(),
             PublicKey::Ed25519(key) => key.to_bytes().to_vec(),
-            PublicKey::Schnorr => todo!("schnorr keys are not supported yet"),
         }
     }
 }
@@ -65,7 +62,6 @@ impl fmt::Display for PublicKey {
             PublicKey::Ed25519(key) => {
                 write!(f, "ed25519: {}", HexBinary::from(key.to_bytes()).to_hex())
             }
-            PublicKey::Schnorr => todo!("schnorr keys are not supported yet"),
         }
     }
 }
@@ -100,7 +96,6 @@ impl TryFrom<&PublicKey> for CosmosPublicKey {
             )
             .expect("must be valid ed25519 key")
             .into()),
-            PublicKey::Schnorr => Err(report!(Error::UnsupportedConversionForCosmosKey(*key))),
         }
     }
 }
@@ -129,6 +124,7 @@ impl From<CosmosPublicKey> for PublicKey {
         (&key).into()
     }
 }
+
 #[cfg(test)]
 mod tests {
     use axelar_wasm_std::assert_err_contains;
@@ -180,12 +176,5 @@ mod tests {
         let public_key = PublicKey::new_ed25519(bytes).unwrap();
         let cosmos_public_key: CosmosPublicKey = public_key.try_into().unwrap();
         assert_eq!(cosmos_public_key.to_bytes(), bytes.to_vec());
-
-        let public_key = PublicKey::Schnorr;
-        assert_err_contains!(
-            TryInto::<CosmosPublicKey>::try_into(public_key),
-            Error,
-            Error::UnsupportedConversionForCosmosKey(_),
-        );
     }
 }

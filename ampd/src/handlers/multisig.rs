@@ -6,7 +6,7 @@ use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmrs::tx::Msg;
 use cosmrs::Any;
 use cosmwasm_std::{HexBinary, Uint64};
-use error_stack::{Report, ResultExt};
+use error_stack::ResultExt;
 use events_derive;
 use events_derive::try_from;
 use hex::encode;
@@ -140,7 +140,6 @@ where
                 let key_type = match pub_key {
                     PublicKey::Secp256k1(_) => tofnd::Algorithm::Ed25519,
                     PublicKey::Ed25519(_) => tofnd::Algorithm::Ecdsa,
-                    _ => return Err(Report::from(Error::UnsupportedKeyType)),
                 };
 
                 let signature = self
