@@ -61,13 +61,8 @@ sui-json-rpc-types = { git = "https://github.com/mystenlabs/sui", tag = "mainnet
 sui-types = { git = "https://github.com/mystenlabs/sui", features = [
     "test-utils",
 ], tag = "mainnet-v1.26.2" }
-# Need to switch to our own fork of tendermint and tendermint-rpc due to event attribute value being nullable.
-# Can switch back once https://github.com/informalsystems/tendermint-rs/issues/1216 is resolved.
-# The fix for the issue is at https://github.com/axelarnetwork/tendermint-rs/commit/e97033e20e660a7e707ea86db174ec047bbba50d.
-tendermint = { git = "https://github.com/axelarnetwork/tendermint-rs.git", branch = "v0.33.x" }
-tendermint-rpc = { git = "https://github.com/axelarnetwork/tendermint-rs.git", branch = "v0.33.x", features = [
-    "http-client",
-] }
+tendermint = "0.35.0"
+tendermint-rpc = { version = "0.35.0", features = [ "http-client" ] }
 thiserror = { workspace = true }
 tokio = { workspace = true, features = ["signal"] }
 tokio-stream = { workspace = true, features = ["sync"] }
