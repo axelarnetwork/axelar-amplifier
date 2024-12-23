@@ -74,6 +74,10 @@ pub enum Error {
     OnlyFromItsHub(CrossChainId),
     #[error("failed to query outgoing messages")]
     OutgoingMessages,
+    #[error("payload given but payload hash is empty")]
+    PayloadHashEmpty,
+    #[error("payload hash {0} given without full payload")]
+    PayloadHashGivenWithoutPayload(HexBinary),
     #[error("payload hash mismatch: expected {expected}, actual {actual}")]
     PayloadHashMismatch {
         expected: HexBinary,

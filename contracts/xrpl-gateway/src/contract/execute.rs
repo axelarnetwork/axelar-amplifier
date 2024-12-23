@@ -18,8 +18,6 @@ use crate::events::XRPLGatewayEvent;
 use crate::msg::{DeployInterchainToken, DeployTokenManager, InterchainTransfer, MessageWithPayload};
 use crate::state::{self, Config};
 
-const PURE_TOKEN_TRANSFER_PAYLOAD_HASH: [u8; 32] = [0u8; 32];
-
 pub fn verify_messages(
     verifier: &xrpl_voting_verifier::Client,
     msgs: Vec<XRPLMessage>,
@@ -114,22 +112,26 @@ pub fn translate_to_interchain_transfer(
     match &xrpl_user_message_with_payload.payload {
         None => {
             ensure!(
-                user_message.payload_hash == PURE_TOKEN_TRANSFER_PAYLOAD_HASH,
-                Error::PayloadHashMismatch {
-                    expected: PURE_TOKEN_TRANSFER_PAYLOAD_HASH.into(),
-                    actual: user_message.payload_hash.into(),
-                }
+                user_message.payload_hash.is_none(),
+                Error::PayloadHashGivenWithoutPayload(user_message.payload_hash.unwrap().into())
             );
         }
         Some(payload) => {
-            let payload_hash = <[u8; 32]>::from(Keccak256::digest(payload.as_ref()));
-            ensure!(
-                user_message.payload_hash == payload_hash,
-                Error::PayloadHashMismatch {
-                    expected: payload_hash.into(),
-                    actual: user_message.payload_hash.into(),
+            match user_message.payload_hash {
+                None => {
+                    return Err(report!(Error::PayloadHashEmpty));
                 }
-            )
+                Some(hash) => {
+                    let payload_hash = <[u8; 32]>::from(Keccak256::digest(payload.as_ref()));
+                    ensure!(
+                        hash == payload_hash,
+                        Error::PayloadHashMismatch {
+                            expected: payload_hash.into(),
+                            actual: hash.into(),
+                        }
+                    )
+                }
+            }
         }
     }
 

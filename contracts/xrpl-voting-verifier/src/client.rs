@@ -105,7 +105,7 @@ mod test {
             source_address: XRPLAccountId::new([0; 20]),
             destination_address: nonempty::HexBinary::try_from(HexBinary::from_hex("5678").unwrap()).unwrap(),
             destination_chain: "eth".parse().unwrap(),
-            payload_hash: [0; 32],
+            payload_hash: None,
             amount: XRPLPaymentAmount::Drops(100),
         });
 
@@ -114,7 +114,7 @@ mod test {
             source_address: XRPLAccountId::new([1; 20]),
             destination_address: nonempty::HexBinary::try_from(HexBinary::from_hex("5678").unwrap()).unwrap(),
             destination_chain: "eth".parse().unwrap(),
-            payload_hash: [0; 32],
+            payload_hash: None,
             amount: XRPLPaymentAmount::Issued(XRPLToken {
                 currency: "USD".to_string().try_into().unwrap(),
                 issuer: XRPLAccountId::new([0; 20]),
@@ -155,7 +155,7 @@ mod test {
             source_address: XRPLAccountId::new([255; 20]),
             destination_address: nonempty::HexBinary::try_from(HexBinary::from_hex("5678").unwrap()).unwrap(),
             destination_chain: "eth".parse().unwrap(),
-            payload_hash: [0; 32],
+            payload_hash: None,
             amount: XRPLPaymentAmount::Drops(200),
         })]);
 

@@ -282,7 +282,7 @@ fn payment_from_xrpl_can_be_verified_and_routed_and_proven() {
         source_address: source_address.clone(),
         destination_chain: destination_chain_name.clone(),
         destination_address: destination_address.clone(),
-        payload_hash: [0; 32],
+        payload_hash: None,
         amount,
     };
 

@@ -535,7 +535,7 @@ fn generate_incoming_msgs(namespace: impl Debug, count: u8) -> Vec<XRPLMessage> 
             destination_address: nonempty::HexBinary::try_from(HexBinary::from_hex("01dc").unwrap()).unwrap(),
             destination_chain: "ethereum".parse().unwrap(),
             source_address: XRPLAccountId::from([i; 20]),
-            payload_hash: HexBinary::from_hex("0c3d72390ac0ce0233c551a3c5278f8625ba996f5985dc8d612a9fc55f1de15a").unwrap().as_slice().try_into().unwrap(),
+            payload_hash: Some(HexBinary::from_hex("0c3d72390ac0ce0233c551a3c5278f8625ba996f5985dc8d612a9fc55f1de15a").unwrap().as_slice().try_into().unwrap()),
         }))
         .collect()
 }

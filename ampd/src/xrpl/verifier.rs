@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use sha3::{Digest, Keccak256};
 use xrpl_http_client::{Amount, ResultCategory};
 use xrpl_http_client::{Memo, Transaction::Payment, Transaction};
 use axelar_wasm_std::voting::Vote;
@@ -102,10 +103,18 @@ pub fn verify_memos(memos: Vec<Memo>, message: &XRPLUserMessage) -> bool {
         .collect();
 
     || -> Option<bool> {
+        let payload_hash: Option<[u8; 32]> = match memo_kv.get("payload_hash").clone() {
+            Some(hash) => hex::decode(&remove_0x_prefix(hash.clone())).ok()?.try_into().ok(),
+            None => match memo_kv.get("payload") {
+                Some(payload) => Keccak256::digest(hex::decode(&remove_0x_prefix(payload.clone())).ok()?).as_slice().try_into().ok(),
+                None => None,
+            },
+        };
+
         Some(
             memo_kv.get("destination_address")? == &remove_0x_prefix(message.destination_address.to_string()).to_uppercase()
             && memo_kv.get("destination_chain")? == &hex::encode_upper(message.destination_chain.to_string())
-            && hex::decode(&remove_0x_prefix(memo_kv.get("payload_hash")?.clone())).ok()? == message.payload_hash
+            && payload_hash == message.payload_hash
         )
     }().unwrap_or(false)
 }
@@ -146,7 +155,7 @@ mod test {
             source_address: XRPLAccountId::from_str("raNVNWvhUQzFkDDTdEw3roXRJfMJFVJuQo").unwrap(),
             destination_address: nonempty::HexBinary::try_from(HexBinary::from_hex("592639c10223C4EC6C0ffc670e94d289A25DD1ad").unwrap()).unwrap(),
             destination_chain: ChainName::from_str("ethereum").unwrap(),
-            payload_hash: hex::decode("4F246000525114CC0CC261973D12E9A1C53B7AA295DF41FA6A6BFD00045BF0E6").unwrap().to_vec().try_into().unwrap(),
+            payload_hash: Some(hex::decode("4F246000525114CC0CC261973D12E9A1C53B7AA295DF41FA6A6BFD00045BF0E6").unwrap().to_vec().try_into().unwrap()),
             amount: XRPLPaymentAmount::Drops(100000),
         };
         assert!(verify_memos(memos, &user_message));
