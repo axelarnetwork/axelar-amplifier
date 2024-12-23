@@ -172,7 +172,7 @@ fn xrpl_verifier_set_can_be_initialized_and_then_manually_updated() {
     println!("SignerListSet proof: {:?}", proof);
 
     let proof_msgs = vec![XRPLMessage::ProverMessage(
-        HexBinary::from_hex("26b8a34aae22662eba2d707213d8ac8e9d83ab50e4ebc877a12f43d48104f5fc")
+        HexBinary::from_hex("4525b6323774616852379ad4f77a2d9e09d7216540262f07c3f382c02f24cb60")
         .unwrap()
         .as_slice()
         .try_into()

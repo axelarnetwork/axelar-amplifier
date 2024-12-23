@@ -502,6 +502,12 @@ pub enum XRPLUnsignedTx {
     TrustSet(XRPLTrustSetTx),
 }
 
+#[cw_serde]
+pub struct XRPLUnsignedTxToSign {
+    pub unsigned_tx: XRPLUnsignedTx,
+    pub multisig_session_id: u64,
+}
+
 impl XRPLUnsignedTx {
     pub fn sequence(&self) -> &XRPLSequence {
         match self {

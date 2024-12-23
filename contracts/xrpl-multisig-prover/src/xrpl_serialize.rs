@@ -3,10 +3,7 @@ use std::cmp::Ordering;
 use cosmwasm_std::HexBinary;
 use multisig::key::PublicKey;
 use xrpl_types::types::{
-    XRPLAccountId, XRPLMemo, XRPLPathSet, XRPLSignedTx,
-    XRPLPathStep, XRPLPaymentAmount, XRPLSequence, XRPLSigner, XRPLSignerEntry,
-    XRPLTokenAmount, XRPLUnsignedTx, XRPLPaymentTx, XRPLSignerListSetTx, XRPLTicketCreateTx,
-    XRPLTrustSetTx,
+    XRPLAccountId, XRPLMemo, XRPLPathSet, XRPLPathStep, XRPLPaymentAmount, XRPLPaymentTx, XRPLSequence, XRPLSignedTx, XRPLSigner, XRPLSignerEntry, XRPLSignerListSetTx, XRPLTicketCreateTx, XRPLTokenAmount, XRPLTrustSetTx, XRPLUnsignedTx, XRPLUnsignedTxToSign
 };
 
 use crate::error::ContractError;
@@ -368,26 +365,13 @@ impl TryInto<XRPLObject> for XRPLUnsignedTx {
     }
 }
 
-impl TryInto<XRPLObject> for XRPLSignedTx {
+impl TryInto<XRPLObject> for XRPLUnsignedTxToSign {
     type Error = ContractError;
 
     fn try_into(self) -> Result<XRPLObject, ContractError> {
-        let mut sorted_signers = self.signers;
-        sorted_signers.sort_by(|a, b| {
-            // the Signers array must be sorted based on the numeric value of the signer addresses
-            // https://xrpl.org/multi-signing.html#sending-multi-signed-transactions
-            a.account.as_ref().cmp(&b.account.as_ref())
-        });
-        let mut obj: XRPLObject = self.unsigned_tx.clone().try_into()?;
-        obj.add_field(
-            Field::Signers,
-            XRPLArray {
-                field: Field::Signer,
-                items: sorted_signers,
-            },
-        )?;
+        let mut obj: XRPLObject = self.unsigned_tx.try_into()?;
 
-        assert!(self.multisig_session_id != 0);
+        assert!(self.multisig_session_id != 0, "multisig session id must not be 0");
         let memo_data = HexBinary::from(
             self.multisig_session_id
                 .to_be_bytes()
@@ -408,6 +392,34 @@ impl TryInto<XRPLObject> for XRPLSignedTx {
                     memo_data,
                 }]
             }
+        )?;
+
+        Ok(obj)
+    }
+}
+
+impl TryInto<XRPLObject> for XRPLSignedTx {
+    type Error = ContractError;
+
+    fn try_into(self) -> Result<XRPLObject, ContractError> {
+        let mut sorted_signers = self.signers;
+        sorted_signers.sort_by(|a, b| {
+            // the Signers array must be sorted based on the numeric value of the signer addresses
+            // https://xrpl.org/multi-signing.html#sending-multi-signed-transactions
+            a.account.as_ref().cmp(&b.account.as_ref())
+        });
+
+        let mut obj: XRPLObject = XRPLUnsignedTxToSign {
+            unsigned_tx: self.unsigned_tx.clone(),
+            multisig_session_id: self.multisig_session_id,
+        }.try_into()?;
+
+        obj.add_field(
+            Field::Signers,
+            XRPLArray {
+                field: Field::Signer,
+                items: sorted_signers,
+            },
         )?;
         Ok(obj)
     }

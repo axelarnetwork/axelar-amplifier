@@ -1,5 +1,6 @@
 use cosmwasm_std::{from_json, DepsMut, HexBinary, Reply, Response, Uint64};
 use cw_utils::{parse_reply_execute_data, MsgExecuteContractResponse};
+use xrpl_types::types::XRPLUnsignedTxToSign;
 
 use crate::error::ContractError;
 use crate::events::Event;
@@ -85,7 +86,12 @@ pub fn start_multisig_reply(deps: DepsMut, reply: Reply) -> Result<Response, Con
                         )
                         .add_attribute(
                             "unsigned_tx",
-                            HexBinary::from(tx_info.unsigned_tx.xrpl_serialize()?).to_hex(),
+                            HexBinary::from(
+                                XRPLUnsignedTxToSign {
+                                    unsigned_tx: tx_info.unsigned_tx,
+                                    multisig_session_id: multisig_session_id.u64()
+                                }.xrpl_serialize()?
+                            ).to_hex(),
                         )
                 ))
         }

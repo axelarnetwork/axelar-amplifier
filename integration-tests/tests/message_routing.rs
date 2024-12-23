@@ -151,7 +151,7 @@ fn xrpl_ticket_create_can_be_proven() {
     println!("TicketCreate proof: {:?}", proof);
 
     let proof_msgs = vec![XRPLMessage::ProverMessage(
-        HexBinary::from_hex("7239af200aaa34f8fc589012671698faa1c99ceec0e83aca9a5fab8aba1b5059")
+        HexBinary::from_hex("6dc2aaf6154a663eb2cabccc95d7dc806a256527b5e0c9d062e51534d8474aa4")
         .unwrap()
         .as_slice()
         .try_into()
@@ -226,7 +226,7 @@ fn xrpl_trust_line_can_be_proven() {
     println!("TrustSet proof: {:?}", proof);
 
     let proof_msgs = vec![XRPLMessage::ProverMessage(
-        HexBinary::from_hex("4953166ea79752e07e6e6a0327b301e229f72bad13c5f22e4e150a99f78a5afc")
+        HexBinary::from_hex("ecd8951f6009688f5e0001944be8cc0f6e339ffeefa65dfcb2aba64f68567aa6")
         .unwrap()
         .as_slice()
         .try_into()
@@ -557,7 +557,7 @@ fn payment_towards_xrpl_can_be_verified_and_routed_and_proven() {
     ));
 
     let proof_msgs = vec![XRPLMessage::ProverMessage(
-        HexBinary::from_hex("e7a39264a7a7677ab016438e9831476e0af1cc075f288b642ea6c3c4df22ceaa")
+        HexBinary::from_hex("600ce3aa7756b93f7f2c85036ac89d7b92ebe2bc9f3e9828dcbce3ccc472c5b1")
         .unwrap()
         .as_slice()
         .try_into()

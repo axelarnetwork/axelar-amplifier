@@ -3,7 +3,7 @@ use cosmwasm_std::{HexBinary, StdResult, Storage, Uint64};
 use multisig::key::{PublicKey, Signature};
 use multisig::types::MultisigState;
 use xrpl_types::error::XRPLError;
-use xrpl_types::types::{XRPLAccountId, XRPLTxStatus, XRPLSigner, XRPLSignedTx};
+use xrpl_types::types::{XRPLAccountId, XRPLSignedTx, XRPLSigner, XRPLTxStatus, XRPLUnsignedTxToSign};
 
 use crate::error::ContractError;
 use crate::msg::ProofResponse;
@@ -27,8 +27,11 @@ fn message_to_sign(
         return Err(ContractError::TxStatusNotPending.into());
     }
 
-    let encoded_unsigned_tx = tx_info.unsigned_tx.xrpl_serialize()?;
-    Ok(xrpl_types::types::message_to_sign(encoded_unsigned_tx, signer_xrpl_address)?)
+    let encoded_unsigned_tx_to_sign = XRPLUnsignedTxToSign {
+        unsigned_tx: tx_info.unsigned_tx,
+        multisig_session_id: multisig_session_id.u64(),
+    }.xrpl_serialize()?;
+    Ok(xrpl_types::types::message_to_sign(encoded_unsigned_tx_to_sign, signer_xrpl_address)?)
 }
 
 pub fn verify_signature(
