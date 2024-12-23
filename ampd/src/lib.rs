@@ -22,7 +22,7 @@ use tokio::time::interval;
 use tokio_util::sync::CancellationToken;
 use tonic::transport::Channel;
 use tracing::info;
-use types::TMAddress;
+use types::{CosmosPublicKey, TMAddress};
 
 use crate::config::Config;
 
@@ -101,6 +101,7 @@ async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
         .keygen(&tofnd_config.key_uid, tofnd::Algorithm::Ecdsa)
         .await
         .change_context(Error::Tofnd)?;
+    let pub_key = CosmosPublicKey::try_from(pub_key).change_context(Error::Tofnd)?;
 
     let broadcaster = broadcaster::UnvalidatedBasicBroadcaster::builder()
         .auth_query_client(auth_query_client)
