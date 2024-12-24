@@ -29,7 +29,7 @@ pub fn into_contract_error_derive(input: TokenStream) -> TokenStream {
 /// use std::collections::HashMap;
 /// use serde::Serialize;
 ///
-/// use axelar_wasm_std_derive::into_event_derive;
+/// use axelar_wasm_std_derive::into_event;
 ///
 /// #[derive(Serialize)]
 /// struct SomeObject {
@@ -40,7 +40,7 @@ pub fn into_contract_error_derive(input: TokenStream) -> TokenStream {
 /// }
 ///
 /// #[derive(Serialize)]
-/// #[into_event_derive("some_event")]
+/// #[into_event("some_event")]
 /// struct SomeEvent {
 ///     pub some_uint: u64,
 ///     pub some_string: String,
@@ -69,7 +69,7 @@ pub fn into_contract_error_derive(input: TokenStream) -> TokenStream {
 /// assert_eq!(actual_event, expected_event);
 /// ```
 #[proc_macro_attribute]
-pub fn into_event_derive(arg: TokenStream, input: TokenStream) -> TokenStream {
+pub fn into_event(arg: TokenStream, input: TokenStream) -> TokenStream {
     let event_name = syn::parse_macro_input!(arg as syn::LitStr);
     let input = syn::parse_macro_input!(input as syn::ItemStruct);
 
