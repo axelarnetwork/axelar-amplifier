@@ -87,11 +87,6 @@ tokio-stream = "0.1.11"
 tokio-util = "0.7.11"
 voting-verifier = { version = "^1.1.0", path = "contracts/voting-verifier" }
 axelar-core-std = { version = "^1.0.0", path = "packages/axelar-core-std" }
-# Async
-futures-concurrency = "7.4"
-futures-util = "0.3"
-futures = "0.3"
-async-trait = "0"
 
 [workspace.lints.clippy]
 arithmetic_side_effects = "deny"
