@@ -60,7 +60,8 @@ fn convert_uint128_to_u16(value: Uint128) -> Result<u16, ContractError> {
 }
 
 // Converts a Vec<Uint256> to Vec<u16>, scaling down with precision loss, if necessary.
-// We make sure that XRPL multisig and Axelar multisig both use the same scaled down numbers and have the same precision loss
+// We make sure that XRPL multisig and Axelar multisig both use the same scaled down numbers and have the same precision loss.
+// This conversion is necessary because XRPL multisig accounts require weights to be u16.
 fn convert_or_scale_weights(weights: &[Uint128]) -> Result<Vec<u16>, ContractError> {
     let max_weight: Option<&Uint128> = weights.iter().max();
     match max_weight {
