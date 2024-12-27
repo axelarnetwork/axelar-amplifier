@@ -80,6 +80,20 @@ fn convert_or_scale_weights(weights: &[Uint128]) -> Result<Vec<u16>, ContractErr
 
 const MAX_NUM_XRPL_MULTISIG_SIGNERS: usize = 32;
 
+fn mul_ceil(value: u64, numerator: u64, denominator: u64) -> u64 {
+    assert!(denominator > 0, "denominator must be non-zero");
+
+    let dividend = value * numerator;
+    let floor_result = dividend / denominator;
+    let remainder = dividend % denominator;
+
+    if remainder > 0 {
+        floor_result + 1
+    } else {
+        floor_result
+    }
+}
+
 pub fn active_verifiers(
     querier: &Querier,
     signing_threshold: MajorityThreshold,
@@ -125,16 +139,10 @@ pub fn active_verifiers(
         });
     }
 
-    let sum_of_weights: u32 = weights.iter().map(|w| u32::from(*w)).sum();
-
-    let quorum = u32::try_from(
-        u64::from(sum_of_weights)
-            .checked_mul(signing_threshold.numerator().into())
-            .unwrap()
-            .checked_div(signing_threshold.denominator().into())
-            .unwrap(),
-    )
-    .unwrap();
+    let sum_of_weights = weights.iter().map(|w| u64::from(*w)).sum();
+    let numerator = u64::from(signing_threshold.numerator());
+    let denominator = u64::from(signing_threshold.denominator());
+    let quorum = u32::try_from(mul_ceil(sum_of_weights, numerator, denominator)).unwrap();
 
     let verifier_set = VerifierSet {
         signers: BTreeSet::from_iter(signers),
