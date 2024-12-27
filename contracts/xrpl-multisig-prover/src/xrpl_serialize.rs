@@ -151,7 +151,7 @@ impl XRPLSerialize for HexBinary {
     }
 }
 
-// see https://github.com/XRPLF/xrpl-dev-portal/blob/master/content/_code-samples/tx-serialization/py/serialize.py#L92
+// see https://github.com/XRPLF/xrpl-dev-portal/blob/c10beb85c296e5a434166961639375d67ba0540e/_code-samples/tx-serialization/py/serialize.py#L92
 // may error if length too big
 fn encode_length(mut length: usize) -> Result<Vec<u8>, ContractError> {
     if length <= 192 {
