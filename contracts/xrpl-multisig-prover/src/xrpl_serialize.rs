@@ -234,12 +234,24 @@ impl XRPLSerialize for XRPLPathSet {
     const TYPE_CODE: u8 = 18;
 
     fn xrpl_serialize(&self) -> Result<Vec<u8>, ContractError> {
-        assert!(self.paths.len() > 0);
-        assert!(self.paths.len() <= 6);
+        if self.paths.len() == 0 {
+            return Err(ContractError::ZeroPaths);
+        }
+
+        if self.paths.len() > 6 {
+            return Err(ContractError::TooManyPaths);
+        }
+
         let mut result: Vec<u8> = Vec::new();
         for (i, path) in self.paths.iter().enumerate() {
-            assert!(path.steps.len() > 0);
-            assert!(path.steps.len() <= 8);
+            if path.steps.len() == 0 {
+                return Err(ContractError::ZeroPathSteps(path.to_owned()));
+            }
+
+            if path.steps.len() > 8 {
+                return Err(ContractError::TooManyPathSteps(path.to_owned()));
+            }
+
             for step in path.steps.iter() {
                 let (type_flag, first_value, opt_second_value): (u8, [u8; 20], Option<[u8; 20]>) = match step {
                     XRPLPathStep::Account(account) => (0x01, account.as_bytes(), None),

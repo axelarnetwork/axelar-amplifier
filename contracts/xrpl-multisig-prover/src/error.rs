@@ -4,7 +4,7 @@ use interchain_token_service::TokenId;
 use thiserror::Error;
 use router_api::{ChainName, ChainNameRaw, CrossChainId};
 use xrpl_types::error::XRPLError;
-use xrpl_types::types::{TxHash, XRPLToken, XRPLTxStatus};
+use xrpl_types::types::{TxHash, XRPLPath, XRPLToken, XRPLTxStatus};
 
 use crate::state::DustAmount;
 
@@ -137,6 +137,12 @@ pub enum ContractError {
     #[error("ticket count threshold has not been reached")]
     TicketCountThresholdNotReached,
 
+    #[error("too many paths in PathSet")]
+    TooManyPaths,
+
+    #[error("too many steps in PathSet path: {0}")]
+    TooManyPathSteps(XRPLPath),
+
     #[error("too many verifiers")]
     TooManyVerifiers,
 
@@ -175,6 +181,12 @@ pub enum ContractError {
 
     #[error("zero dust amount to claim")]
     ZeroDustToClaim,
+
+    #[error("zero paths given in PathSet")]
+    ZeroPaths,
+
+    #[error("zero steps given in PathSet path: {0}")]
+    ZeroPathSteps(XRPLPath),
 }
 
 impl From<ContractError> for StdError {

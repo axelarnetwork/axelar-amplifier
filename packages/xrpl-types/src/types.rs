@@ -1073,9 +1073,23 @@ pub struct XRPLPathSet {
     pub paths: Vec<XRPLPath>,
 }
 
+impl fmt::Display for XRPLPathSet {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let paths: Vec<String> = self.paths.iter().map(|path| path.to_string()).collect();
+        write!(f, "[{}]", paths.join(", "))
+    }
+}
+
 #[cw_serde]
 pub struct XRPLPath {
     pub steps: Vec<XRPLPathStep>,
+}
+
+impl fmt::Display for XRPLPath {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let steps: Vec<String> = self.steps.iter().map(|step| step.to_string()).collect();
+        write!(f, "[{}]", steps.join(", "))
+    }
 }
 
 #[cw_serde]
@@ -1085,6 +1099,18 @@ pub enum XRPLPathStep {
     XRP,
     Issuer(XRPLAccountId),
     Token(XRPLToken),
+}
+
+impl fmt::Display for XRPLPathStep {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            XRPLPathStep::Account(account) => write!(f, "Account({})", account),
+            XRPLPathStep::Currency(currency) => write!(f, "Currency({})", currency),
+            XRPLPathStep::XRP => write!(f, "XRP"),
+            XRPLPathStep::Issuer(issuer) => write!(f, "Issuer({})", issuer),
+            XRPLPathStep::Token(token) => write!(f, "Token({})", token),
+        }
+    }
 }
 
 // always called when XRPLTokenAmount instantiated
