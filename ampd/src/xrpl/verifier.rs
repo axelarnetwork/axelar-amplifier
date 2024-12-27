@@ -89,25 +89,30 @@ pub fn verify_amount(amount: Amount, message: &XRPLUserMessage) -> bool {
 }
 
 pub fn verify_memos(memos: Vec<Memo>, message: &XRPLUserMessage) -> bool {
-    let memo_kv: HashMap<String, String> = memos
+    let memo_kv = memos
         .into_iter()
-        .filter(|m| m.memo_type.is_some() && m.memo_data.is_some())
-        .map(|m| (String::from_utf8(hex::decode(m.memo_type.unwrap()).expect("Memo value should be hex")).ok(), m.memo_data))
-        .filter_map(|(k, v)| {
-            match (k, v) {
-                (Some(k), Some(v)) => Some((k, v)),
-                _ => None,
-            }
-        })
-        .collect();
+        .filter_map(|m| {
+            let memo_type = m
+                .memo_type
+                .and_then(|t| hex::decode(t).ok())
+                .and_then(|bytes| String::from_utf8(bytes).ok());
 
-    || -> Option<bool> {
-        Some(
-            memo_kv.get("destination_address")? == &remove_0x_prefix(message.destination_address.to_string()).to_uppercase()
-            && memo_kv.get("destination_chain")? == &hex::encode_upper(message.destination_chain.to_string())
-            && hex::decode(&remove_0x_prefix(memo_kv.get("payload_hash")?.clone())).ok()? == message.payload_hash
-        )
-    }().unwrap_or(false)
+            let memo_data = m.memo_data;
+            memo_type.zip(memo_data)
+        })
+        .collect::<HashMap<String, String>>();
+
+    let destination_address = remove_0x_prefix(message.destination_address.to_string()).to_uppercase();
+    let destination_chain = hex::encode_upper(message.destination_chain.to_string());
+
+    memo_kv.get("destination_address") == Some(&destination_address)
+        && memo_kv.get("destination_chain") == Some(&destination_chain)
+        && memo_kv
+            .get("payload_hash")
+            .and_then(|payload_hash_hex| {
+                hex::decode(remove_0x_prefix(payload_hash_hex.to_owned())).ok()
+            })
+            .map_or(false, |payload_hash| payload_hash == message.payload_hash)
 }
 
 #[cfg(test)]
