@@ -146,22 +146,16 @@ fn save_next_verifier_set(
     storage: &mut dyn Storage,
     new_verifier_set: &axelar_verifiers::VerifierSet,
 ) -> Result<(), ContractError> {
-    if different_set_in_progress(storage, new_verifier_set) {
-        return Err(ContractError::VerifierSetConfirmationInProgress);
+    if let Ok(Some(next_verifier_set)) = state::NEXT_VERIFIER_SET.may_load(storage) {
+        if next_verifier_set == *new_verifier_set {
+            return Ok(());
+        } else {
+            return Err(ContractError::VerifierSetConfirmationInProgress);
+        }
     }
 
     state::NEXT_VERIFIER_SET.save(storage, new_verifier_set)?;
     Ok(())
-}
-
-// Returns true if there is a different verifier set pending for confirmation, false if there is no
-// verifier set pending or if the pending set is the same
-fn different_set_in_progress(storage: &dyn Storage, new_verifier_set: &axelar_verifiers::VerifierSet) -> bool {
-    if let Ok(Some(next_verifier_set)) = state::NEXT_VERIFIER_SET.may_load(storage) {
-        return next_verifier_set != *new_verifier_set;
-    }
-
-    false
 }
 
 pub fn update_signing_threshold(
