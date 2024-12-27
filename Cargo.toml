@@ -52,7 +52,7 @@ msgs-derive = { version = "^1.0.0", path = "packages/msgs-derive" }
 multisig = { version = "^1.1.1", path = "contracts/multisig" }
 multisig-prover = { version = "^1.1.1", path = "contracts/multisig-prover" }
 num-traits = { version = "0.2.14", default-features = false }
-quote = "1.0.36"
+quote = "1.0.38"
 rand = "0.8.5"
 report = { version = "^1.0.0", path = "packages/report" }
 rewards = { version = "^1.2.0", path = "contracts/rewards" }
@@ -61,7 +61,7 @@ router-api = { version = "^1.0.0", path = "packages/router-api" }
 schemars = "0.8.10"
 semver = "1.0"
 serde = { version = "1.0.145", default-features = false, features = ["derive"] }
-serde_json = "1.0.89"
+serde_json = "1.0.134"
 service-registry = { version = "^1.1.0", path = "contracts/service-registry" }
 service-registry-api = { version = "^1.0.0", path = "packages/service-registry-api" }
 sha3 = { version = "0.10.8", default-features = false, features = [] }
@@ -71,7 +71,7 @@ stellar-xdr = { version = "21.2.0" }
 strum = { version = "0.25", default-features = false, features = ["derive"] }
 sui-gateway = { version = "^1.0.0", path = "packages/sui-gateway" }
 sui-types = { version = "^1.0.0", path = "packages/sui-types" }
-syn = "2.0.68"
+syn = "2.0.92"
 thiserror = "1.0.61"
 tofn = { version = "1.1" }
 tokio = "1.38.0"
@@ -79,6 +79,7 @@ tokio-stream = "0.1.11"
 tokio-util = "0.7.11"
 voting-verifier = { version = "^1.1.0", path = "contracts/voting-verifier" }
 axelar-core-std = { version = "^1.0.0", path = "packages/axelar-core-std" }
+proc-macro2 = "1.0.92"
 
 [workspace.lints.clippy]
 arithmetic_side_effects = "deny"
