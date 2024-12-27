@@ -961,7 +961,7 @@ impl std::str::FromStr for XRPLTokenAmount {
             }
         };
 
-        let exponent = match decimal_offset.checked_sub(exponent_value) {
+        let exponent = match exponent_value.checked_sub(decimal_offset) {
             Some(exponent) => exponent,
             None => {
                 return Err(XRPLError::InvalidAmount { reason: "overflow".to_string() });
@@ -979,7 +979,7 @@ impl std::str::FromStr for XRPLTokenAmount {
         let mantissa = Uint256::from_str(digits.as_str())
             .map_err(|e| XRPLError::InvalidAmount { reason: e.to_string() })?;
 
-        let (mantissa, exponent) = canonicalize_mantissa(mantissa, exponent * -1)?;
+        let (mantissa, exponent) = canonicalize_mantissa(mantissa, exponent)?;
 
         Ok(XRPLTokenAmount::new(mantissa, exponent))
     }
