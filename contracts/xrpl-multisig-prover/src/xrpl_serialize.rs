@@ -276,18 +276,6 @@ impl XRPLSerialize for XRPLPathSet {
     }
 }
 
-/*
-fn hex_encode_session_id(session_id: Uint64) -> HexBinary {
-    HexBinary::from(session_id
-        .to_be_bytes()
-        .iter()
-        .skip_while(|&&byte| byte == 0)
-        .cloned()
-        .collect::<Vec<u8>>(),
-    )
-}
-*/
-
 impl TryInto<XRPLObject> for XRPLPaymentTx {
     type Error = ContractError;
 
