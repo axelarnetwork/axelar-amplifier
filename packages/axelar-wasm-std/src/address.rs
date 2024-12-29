@@ -4,11 +4,9 @@ use alloy_primitives::Address;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Api};
 use error_stack::{bail, Result, ResultExt};
-use starknet_types_core::felt::Felt;
+use starknet_checked_felt::CheckedFelt;
 use stellar_xdr::curr::ScAddress;
 use sui_types::SuiAddress;
-
-use crate::utils::does_felt_overflow_from_str;
 
 #[derive(thiserror::Error)]
 #[cw_serde]
@@ -60,19 +58,11 @@ pub fn validate_address(address: &str, format: &AddressFormat) -> Result<(), Err
             if trimmed_addr.len() != 64 {
                 bail!(Error::InvalidAddress(format!(
                     "hex string is not 64 chars: {}",
-                    address.to_string()
+                    address
                 )))
             }
 
-            let valid_hex_felt = Felt::from_hex(address);
-            if valid_hex_felt.is_err() {
-                bail!(Error::InvalidAddress(format!(
-                    "not a valid hex field element: {}",
-                    address.to_string()
-                )))
-            }
-
-            if does_felt_overflow_from_str(trimmed_addr) {
+            if CheckedFelt::from_str(trimmed_addr).is_err() {
                 bail!(Error::InvalidAddress(
                     format!(
                         "field element overflows MAX value of 2^251 + 17 * 2^192: {}",

@@ -7,15 +7,14 @@ use error_stack::Report;
 use lazy_static::lazy_static;
 use regex::Regex;
 use serde_with::DeserializeFromStr;
-use starknet_types_core::felt::Felt;
+use starknet_checked_felt::CheckedFelt;
 
 use super::Error;
 use crate::nonempty;
-use crate::utils::does_felt_overflow_from_str;
 
 #[derive(Debug, DeserializeFromStr, Clone)]
 pub struct FieldElementAndEventIndex {
-    pub tx_hash: Felt,
+    pub tx_hash: CheckedFelt,
     pub event_index: u64,
 }
 
@@ -34,7 +33,7 @@ impl FieldElementAndEventIndex {
             .expect("failed to convert tx hash to non-empty string")
     }
 
-    pub fn new<T: Into<Felt> + FromStr>(
+    pub fn new<T: Into<CheckedFelt> + FromStr>(
         tx_id: T,
         event_index: impl Into<u64>,
     ) -> Result<Self, Error> {
@@ -69,18 +68,9 @@ impl FromStr for FieldElementAndEventIndex {
             })?
             .extract();
         let tx_id_chunk = &tx_id[2..];
-        let felt = Felt::from_hex(tx_id_chunk)
+        let felt = CheckedFelt::from_str(tx_id_chunk)
             .map_err(|_| Error::InvalidFieldElement(tx_id_chunk.to_string()))?;
 
-        if does_felt_overflow_from_str(tx_id_chunk) {
-            Err(Error::InvalidFieldElement(
-                format!(
-                    "field element overflows MAX value of 2^251 + 17 * 2^192: {}",
-                    tx_id_chunk
-                )
-                .to_string(),
-            ))?
-        }
         Ok(FieldElementAndEventIndex {
             tx_hash: felt,
             event_index: event_index
@@ -108,18 +98,23 @@ impl From<FieldElementAndEventIndex> for nonempty::String {
 
 #[cfg(test)]
 mod tests {
-
-    use crypto_bigint::rand_core::OsRng;
-    use crypto_bigint::{NonZero, RandomMod, U256};
+    use alloy_primitives::U256;
+    use rand::Rng;
 
     use super::*;
 
     fn random_hash() -> String {
-        let field_element_max = "080000006B9F1BED878FCC665F2CA1A6AFD545A6B864D8400000000000000000";
-        let modulus = NonZero::new(U256::from_be_hex(field_element_max)).unwrap();
-        let n = U256::random_mod(&mut OsRng, &modulus);
+        // Generate a random 256-bit value
+        let mut rng = rand::thread_rng();
+        let mut bytes = [0u8; 32];
+        rng.fill(&mut bytes);
+        let number = U256::from_be_bytes::<32>(bytes);
+        let max: U256 = U256::from_be_bytes::<32>([
+            8, 0, 0, 0, 0, 0, 0, 17, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0,
+        ]);
 
-        format!("0x{:064x}", n)
+        format!("0x{:064x}",(number % max))
     }
 
     fn random_event_index() -> u64 {

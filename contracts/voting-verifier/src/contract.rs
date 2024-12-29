@@ -143,7 +143,7 @@ mod test {
         AuthorizationState, BondingState, Verifier, WeightedVerifier, VERIFIER_WEIGHT,
     };
     use sha3::{Digest, Keccak256, Keccak512};
-    use starknet_core::types::Felt;
+    use starknet_checked_felt::CheckedFelt;
 
     use super::*;
     use crate::error::ContractError;
@@ -242,7 +242,7 @@ mod test {
                 let mut id_bytes: [u8; 32] = Keccak256::digest(id.as_bytes()).into();
                 id_bytes[0] = 0; // felt is ~31 bytes
                 FieldElementAndEventIndex {
-                    tx_hash: Felt::from_bytes_be(&id_bytes),
+                    tx_hash: CheckedFelt::try_from(&id_bytes).unwrap(),
                     event_index: index,
                 }
                 .to_string()
