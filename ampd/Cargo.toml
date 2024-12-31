@@ -89,6 +89,7 @@ voting-verifier = { workspace = true }
 starknet-core = { workspace = true }
 starknet-providers = { workspace = true }
 starknet-types = { workspace = true }
+starknet-checked-felt = { workspace = true }
 
 [dev-dependencies]
 ed25519-dalek = { workspace = true, features = ["rand_core"] }

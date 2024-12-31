@@ -9,6 +9,7 @@ axelar-wasm-std = { workspace = true, features = ["derive"] }
 cosmwasm-std = { workspace = true }
 router-api = { workspace = true }
 ethers-core = { workspace = true }
+starknet-checked-felt = { workspace = true }
 starknet-core = { workspace = true }
 starknet-types-core = { workspace = true }
 error-stack = { workspace = true }

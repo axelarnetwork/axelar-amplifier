@@ -1,13 +1,12 @@
 use std::str::FromStr;
 
-use axelar_wasm_std::utils::does_felt_overflow_from_slice;
 use error_stack::{Report, ResultExt};
 use ethers_core::abi::{
     AbiDecode, AbiError, AbiType, Detokenize, InvalidOutputType, ParamType, Token, Tokenizable,
 };
 use ethers_core::types::U256;
 use router_api::Message as RouterMessage;
-use starknet_core::types::Felt;
+use starknet_checked_felt::CheckedFelt;
 
 use crate::error::Error;
 
@@ -17,7 +16,7 @@ pub struct StarknetMessage {
     pub source_chain: String,
     pub message_id: String,
     pub source_address: String,
-    pub contract_address: Felt,
+    pub contract_address: CheckedFelt,
     pub payload_hash: U256,
 }
 
@@ -25,7 +24,7 @@ impl TryFrom<&RouterMessage> for StarknetMessage {
     type Error = Report<Error>;
 
     fn try_from(msg: &RouterMessage) -> Result<Self, Self::Error> {
-        let contract_address = Felt::from_str(msg.destination_address.as_str())
+        let contract_address = CheckedFelt::from_str(msg.destination_address.as_str())
             .change_context(Error::InvalidAddress)?;
 
         Ok(StarknetMessage {
@@ -82,15 +81,16 @@ impl Tokenizable for StarknetMessage {
                 tokens[3].clone(),
                 tokens[4].clone(),
             ) {
-                if does_felt_overflow_from_slice(contract_address.as_slice()) {
-                    return Err(InvalidOutputType(
-                        "failed to convert contract_address bytes to field element (felt)"
+                let contract_address_felt: CheckedFelt =
+                    CheckedFelt::try_from(contract_address.as_slice()).map_err(|e| {
+                        InvalidOutputType(
+                            format!(
+                            "failed to convert contract_address bytes to field element (felt): {}",
+                            e
+                        )
                             .to_string(),
-                    ));
-                }
-
-                let contract_address_felt: Felt =
-                    Felt::from_bytes_be_slice(&contract_address.as_slice());
+                        )
+                    })?;
 
                 return Ok(StarknetMessage {
                     source_chain,
@@ -223,7 +223,7 @@ mod tests {
             source_chain: "starknet".to_string(),
             message_id: "some_msg_id".to_string(),
             source_address: "some_source_address".to_string(),
-            contract_address: Felt::THREE,
+            contract_address: Felt::THREE.into(),
             payload_hash: U256::from(123),
         };
 
@@ -239,7 +239,7 @@ mod tests {
             source_chain: "starknet".to_string(),
             message_id: "some_msg_id".to_string(),
             source_address: "some_source_address".to_string(),
-            contract_address: Felt::THREE,
+            contract_address: Felt::THREE.into(),
             payload_hash: U256::from(123),
         };
 

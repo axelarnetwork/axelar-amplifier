@@ -126,7 +126,7 @@ where
 
         let transaction_response = self
             .rpc_client
-            .get_event_by_hash_signers_rotated(verifier_set.message_id.tx_hash)
+            .get_event_by_hash_signers_rotated(verifier_set.message_id.tx_hash.clone())
             .await
             .unwrap();
 

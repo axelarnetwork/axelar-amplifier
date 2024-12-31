@@ -26,7 +26,7 @@ pub fn verify_msg(
 
 impl PartialEq<Message> for ContractCallEvent {
     fn eq(&self, axl_msg: &Message) -> bool {
-        axl_msg.source_address == self.source_address
+        axl_msg.source_address == self.source_address.into()
             && axl_msg.destination_chain == self.destination_chain
             && axl_msg.destination_address == self.destination_address
             && axl_msg.payload_hash == self.payload_hash
@@ -96,6 +96,7 @@ mod tests {
     use multisig::verifier_set::VerifierSet;
     use router_api::ChainName;
     use starknet_core::types::Felt;
+    use starknet_checked_felt::CheckedFelt;
     use starknet_types::events::contract_call::ContractCallEvent;
     use starknet_types::events::signers_rotated::{
         Signer as StarknetSigner, SignersRotatedEvent, WeightedSigners,
@@ -117,7 +118,7 @@ mod tests {
             ),
             destination_address: String::from("destination_address"),
             destination_chain: String::from("ethereum"),
-            source_address: Felt::from_str(
+            source_address: CheckedFelt::from_str(
                 "0x00b3ff441a68610b30fd5e2abbf3a1548eb6ba6f3559f2862bf2dc757e5828ca",
             )
             .unwrap(),
@@ -131,7 +132,7 @@ mod tests {
     fn mock_valid_message() -> Message {
         Message {
             message_id: FieldElementAndEventIndex {
-                tx_hash: Felt::from_str(
+                tx_hash: CheckedFelt::from_str(
                     "0x0000000000000000000000000000000000000000000000000000000000000001",
                 )
                 .unwrap(),
@@ -139,7 +140,7 @@ mod tests {
             },
             destination_address: String::from("destination_address"),
             destination_chain: ChainName::from_str("ethereum").unwrap(),
-            source_address: Felt::from_str(
+            source_address: CheckedFelt::from_str(
                 "0x00b3ff441a68610b30fd5e2abbf3a1548eb6ba6f3559f2862bf2dc757e5828ca",
             )
             .unwrap(),
@@ -177,7 +178,7 @@ mod tests {
         assert_eq!(verify_msg(&event, &msg, &source_gw_address), Vote::NotFound);
 
         let mut event = { mock_valid_event() };
-        event.source_address = Felt::THREE;
+        event.source_address = Felt::THREE.into();
         assert_eq!(verify_msg(&event, &msg, &source_gw_address), Vote::NotFound);
 
         let mut event = { mock_valid_event() };
@@ -204,7 +205,7 @@ mod tests {
         assert_eq!(verify_msg(&event, &msg, &source_gw_address), Vote::NotFound);
 
         let mut msg = { mock_valid_message() };
-        msg.source_address = Felt::THREE;
+        msg.source_address = Felt::THREE.into();
         assert_eq!(verify_msg(&event, &msg, &source_gw_address), Vote::NotFound);
 
         let mut msg = { mock_valid_message() };
@@ -234,7 +235,7 @@ mod tests {
         VerifierSetConfirmation {
             verifier_set: mock_valid_verifier_set_signers_rotated(),
             message_id: FieldElementAndEventIndex {
-                tx_hash: Felt::from_bytes_be(&[0_u8; 32]),
+                tx_hash: CheckedFelt::try_from(&[0_u8; 32]).unwrap(),
                 event_index: 0,
             },
         }

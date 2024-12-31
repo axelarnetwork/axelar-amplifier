@@ -14,7 +14,7 @@ use futures::future::try_join_all;
 use itertools::Itertools;
 use router_api::ChainName;
 use serde::Deserialize;
-use starknet_core::types::Felt;
+use starknet_checked_felt::CheckedFelt;
 use starknet_types::events::contract_call::ContractCallEvent;
 use tokio::sync::watch::Receiver;
 use tracing::info;
@@ -34,7 +34,7 @@ pub struct Message {
     pub message_id: FieldElementAndEventIndex,
     pub destination_address: String,
     pub destination_chain: ChainName,
-    pub source_address: Felt,
+    pub source_address: CheckedFelt,
     pub payload_hash: Hash,
 }
 
@@ -132,10 +132,10 @@ where
             .collect::<Vec<_>>();
 
         // key is the tx_hash of the tx holding the event
-        let events: HashMap<Felt, ContractCallEvent> =
+        let events: HashMap<CheckedFelt, ContractCallEvent> =
             try_join_all(unique_msgs.iter().map(|msg| {
                 self.rpc_client
-                    .get_event_by_hash_contract_call(msg.message_id.tx_hash)
+                    .get_event_by_hash_contract_call(msg.message_id.tx_hash.clone())
             }))
             .change_context(Error::TxReceipts)
             .await?
@@ -195,7 +195,7 @@ mod tests {
             .expect_get_event_by_hash_contract_call()
             .returning(|_| {
                 Ok(Some((
-                    Felt::from_str(
+                    CheckedFelt::from_str(
                         "0x035410be6f4bf3f67f7c1bb4a93119d9d410b2f981bfafbf5dbbf5d37ae7439e",
                     )
                     .unwrap(),
@@ -203,7 +203,7 @@ mod tests {
                         from_contract_addr: String::from("source-gw-addr"),
                         destination_address: String::from("destination-address"),
                         destination_chain: "ethereum".parse().unwrap(),
-                        source_address: Felt::ONE,
+                        source_address: Felt::ONE.into(),
                         payload_hash: H256::from_slice(&[
                             28u8, 138, 255, 149, 6, 133, 194, 237, 75, 195, 23, 79, 52, 114, 40,
                             123, 86, 217, 81, 123, 156, 148, 129, 39, 49, 154, 9, 167, 163, 109,
@@ -238,13 +238,13 @@ mod tests {
         rpc_client
             .expect_get_event_by_hash_contract_call()
             .once()
-            .with(eq(Felt::from_str(
+            .with(eq(CheckedFelt::from_str(
                 "0x045410be6f4bf3f67f7c1bb4a93119d9d410b2f981bfafbf5dbbf5d37ae7439f",
             )
             .unwrap()))
             .returning(|_| {
                 Ok(Some((
-                    Felt::from_str(
+                    CheckedFelt::from_str(
                         "0x045410be6f4bf3f67f7c1bb4a93119d9d410b2f981bfafbf5dbbf5d37ae7439f",
                     )
                     .unwrap(),
@@ -252,7 +252,7 @@ mod tests {
                         from_contract_addr: String::from("source-gw-addr"),
                         destination_address: String::from("destination-address"),
                         destination_chain: "ethereum".parse().unwrap(),
-                        source_address: Felt::ONE,
+                        source_address: Felt::ONE.into(),
                         payload_hash: H256::from_slice(&[
                             28u8, 138, 255, 149, 6, 133, 194, 237, 75, 195, 23, 79, 52, 114, 40,
                             123, 86, 217, 81, 123, 156, 148, 129, 39, 49, 154, 9, 167, 163, 109,
