@@ -3,10 +3,11 @@ use std::str::FromStr;
 
 use alloy_primitives::U256;
 use hex::FromHexError;
+use serde::{Deserialize, Serialize};
 use starknet_types_core::felt::Felt;
 use thiserror::Error;
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, PartialOrd, Ord, Hash, Deserialize, Serialize)]
 /// A type that wraps the `starknet_types_core::felt::Felt` type
 /// and makes sure that it doesn't overflow the
 /// `starknet_types_core::felt::Felt::MAX` value
@@ -125,6 +126,12 @@ impl std::fmt::LowerHex for CheckedFelt {
         let val = self.0;
 
         std::fmt::LowerHex::fmt(&val, f)
+    }
+}
+
+impl AsRef<Felt> for CheckedFelt {
+    fn as_ref(&self) -> &Felt {
+        self.0.as_ref()
     }
 }
 
