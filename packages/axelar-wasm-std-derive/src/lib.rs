@@ -107,15 +107,19 @@ pub fn into_event(input: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(input as syn::ItemEnum);
     let event_enum = input.ident.clone();
 
-    try_into_event(input, &event_enum).unwrap_or_else(syn::Error::into_compile_error).into()
+    try_into_event(input, &event_enum)
+        .unwrap_or_else(syn::Error::into_compile_error)
+        .into()
 }
 
 fn try_into_event(input: syn::ItemEnum, event_enum: &Ident) -> Result<TokenStream2, syn::Error> {
-    let variant_matches:Vec<_> = input
+    let variant_matches: Vec<_> = input
         .variants
         .into_iter()
         .map(|variant| match variant.fields {
-            syn::Fields::Named(fields) => Ok(match_structured_variant(event_enum, &variant.ident, fields)),
+            syn::Fields::Named(fields) => {
+                Ok(match_structured_variant(event_enum, &variant.ident, fields))
+            }
             syn::Fields::Unit => Ok(match_unit_variant(event_enum, &variant.ident)),
             syn::Fields::Unnamed(_) => Err(syn::Error::new(
                 Span::call_site(),
@@ -141,14 +145,19 @@ fn try_into_event(input: syn::ItemEnum, event_enum: &Ident) -> Result<TokenStrea
     })
 }
 
-fn match_structured_variant(event_enum: &Ident, variant_name: &Ident, fields: FieldsNamed) -> TokenStream2 {
+fn match_structured_variant(
+    event_enum: &Ident,
+    variant_name: &Ident,
+    fields: FieldsNamed,
+) -> TokenStream2 {
     let event_name = variant_name.to_string().to_snake_case();
 
     // we know these are named fields, so flat_map is a safe operation to get all the identifiers
     let field_names = fields
         .named
         .into_iter()
-        .flat_map(|field| field.ident).collect::<Vec<_>>();
+        .flat_map(|field| field.ident)
+        .collect::<Vec<_>>();
 
     let field_deconstruction = field_names.iter().map(|field_name| {
         quote! { #field_name }
@@ -167,7 +176,6 @@ fn match_structured_variant(event_enum: &Ident, variant_name: &Ident, fields: Fi
             add_attribute(#attribute_name, serde_json::to_string(#field_name).expect(#error_message))
         }
     });
-
 
     let variant_pattern = iter::once(new_event).chain(add_attributes);
 
