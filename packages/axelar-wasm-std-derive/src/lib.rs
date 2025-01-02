@@ -170,6 +170,7 @@ fn match_structured_variant(
     let add_attributes = field_names.iter().map(|field_name| {
         let field_name_str = field_name.to_string();
         let attribute_name = field_name_str.to_snake_case();
+        // compute the error message outside the quote! so the resulting string will be baked in at compile time
         let error_message = format!("failed to serialize event field {}", field_name_str);
 
         quote! {
