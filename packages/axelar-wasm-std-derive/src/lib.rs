@@ -1,10 +1,11 @@
 use std::iter;
 
 use heck::ToSnakeCase;
+use itertools::Itertools;
 use proc_macro::TokenStream;
 use proc_macro2::{Ident, Span, TokenStream as TokenStream2};
 use quote::quote;
-use syn::{DeriveInput, FieldsNamed, Variant};
+use syn::{DeriveInput, FieldsNamed};
 
 #[proc_macro_derive(IntoContractError)]
 pub fn into_contract_error_derive(input: TokenStream) -> TokenStream {
@@ -106,24 +107,24 @@ pub fn into_event(input: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(input as syn::ItemEnum);
     let event_enum = input.ident.clone();
 
-    let variant_matches: Result<Vec<_>, _> = input
+    try_into_event(input, &event_enum).unwrap_or_else(syn::Error::into_compile_error).into()
+}
+
+fn try_into_event(input: syn::ItemEnum, event_enum: &Ident) -> Result<TokenStream2, syn::Error> {
+    let variant_matches:Vec<_> = input
         .variants
         .into_iter()
-        .map(|variant| match &variant.fields {
-            syn::Fields::Named(fields) => Ok(match_named_field(&event_enum, &variant, fields)),
-            syn::Fields::Unit => Ok(match_uint_field(&event_enum, &variant)),
+        .map(|variant| match variant.fields {
+            syn::Fields::Named(fields) => Ok(match_structured_variant(event_enum, &variant.ident, fields)),
+            syn::Fields::Unit => Ok(match_unit_variant(event_enum, &variant.ident)),
             syn::Fields::Unnamed(_) => Err(syn::Error::new(
                 Span::call_site(),
                 "unnamed fields are not supported",
             )),
         })
-        .collect();
-    let variant_matches = match variant_matches {
-        Ok(variant_matches) => variant_matches,
-        Err(err) => return err.to_compile_error().into(),
-    };
+        .try_collect()?;
 
-    quote! {
+    Ok(quote! {
         impl From<&#event_enum> for cosmwasm_std::Event {
             fn from(event: &#event_enum) -> Self {
                 match event {
@@ -137,40 +138,45 @@ pub fn into_event(input: TokenStream) -> TokenStream {
                 (&event).into()
             }
         }
-    }
-    .into()
+    })
 }
 
-fn match_named_field(event_enum: &Ident, variant: &Variant, fields: &FieldsNamed) -> TokenStream2 {
-    let variant_name = variant.ident.clone();
+fn match_structured_variant(event_enum: &Ident, variant_name: &Ident, fields: FieldsNamed) -> TokenStream2 {
     let event_name = variant_name.to_string().to_snake_case();
+
+    // we know these are named fields, so flat_map is a safe operation to get all the identifiers
     let field_names = fields
         .named
-        .iter()
-        .map(|field| field.ident.clone().expect("field must have a name"));
+        .into_iter()
+        .flat_map(|field| field.ident).collect::<Vec<_>>();
+
+    let field_deconstruction = field_names.iter().map(|field_name| {
+        quote! { #field_name }
+    });
 
     let new_event = quote! {
-        #event_enum::#variant_name { #(#field_names), * } => cosmwasm_std::Event::new(#event_name)
+        #event_enum::#variant_name { #(#field_deconstruction), * } => cosmwasm_std::Event::new(#event_name)
     };
-    let add_attributes = fields.named.iter().map(|field| {
-        let field_name = field.ident.clone().expect("field must have a name");
+
+    let add_attributes = field_names.iter().map(|field_name| {
         let field_name_str = field_name.to_string();
         let attribute_name = field_name_str.to_snake_case();
+        let error_message = format!("failed to serialize event field {}", field_name_str);
 
         quote! {
-            add_attribute(#attribute_name, serde_json::to_string(#field_name).expect(format!("failed to serialize event field {}", #field_name_str).as_str()))
+            add_attribute(#attribute_name, serde_json::to_string(#field_name).expect(#error_message))
         }
     });
 
-    let results = iter::once(new_event).chain(add_attributes);
+
+    let variant_pattern = iter::once(new_event).chain(add_attributes);
 
     quote! {
-        #(#results).*
+        #(#variant_pattern).*
     }
 }
 
-fn match_uint_field(event_enum: &Ident, variant: &Variant) -> TokenStream2 {
-    let variant_name = variant.ident.clone();
+fn match_unit_variant(event_enum: &Ident, variant_name: &Ident) -> TokenStream2 {
     let event_name = variant_name.to_string().to_snake_case();
 
     quote! {
