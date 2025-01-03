@@ -125,8 +125,7 @@ mod tests {
         let res = FieldElementAndEventIndex::from_str(
             "0x0670d1dd42a19cb229bb4378b58b9c3e76aa43edaaea46845cd8c456c1224d89-0",
         );
-        res.unwrap();
-        // assert!(res.is_ok());
+        assert!(res.is_ok());
 
         for _ in 0..1000 {
             let tx_hash = random_hash();
