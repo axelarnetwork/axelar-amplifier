@@ -5,7 +5,7 @@ use itertools::Itertools;
 use proc_macro::TokenStream;
 use proc_macro2::{Ident, Span, TokenStream as TokenStream2};
 use quote::quote;
-use syn::{DeriveInput, FieldsNamed};
+use syn::{DeriveInput, FieldsNamed, ItemEnum, Variant};
 
 #[proc_macro_derive(IntoContractError)]
 pub fn into_contract_error_derive(input: TokenStream) -> TokenStream {
@@ -104,23 +104,30 @@ pub fn into_contract_error_derive(input: TokenStream) -> TokenStream {
 /// ```
 #[proc_macro_derive(IntoEvent)]
 pub fn into_event(input: TokenStream) -> TokenStream {
-    let input = syn::parse_macro_input!(input as syn::ItemEnum);
-    let event_enum = input.ident.clone();
+    let ItemEnum {
+        variants,
+        ident: event_enum,
+        ..
+    } = syn::parse_macro_input!(input as syn::ItemEnum);
 
-    try_into_event(input, &event_enum)
+    try_into_event(event_enum, variants)
         .unwrap_or_else(syn::Error::into_compile_error)
         .into()
 }
 
-fn try_into_event(input: syn::ItemEnum, event_enum: &Ident) -> Result<TokenStream2, syn::Error> {
-    let variant_matches: Vec<_> = input
-        .variants
+fn try_into_event(
+    event_enum: Ident,
+    variants: impl IntoIterator<Item = Variant>,
+) -> Result<TokenStream2, syn::Error> {
+    let variant_matches: Vec<_> = variants
         .into_iter()
         .map(|variant| match variant.fields {
-            syn::Fields::Named(fields) => {
-                Ok(match_structured_variant(event_enum, &variant.ident, fields))
-            }
-            syn::Fields::Unit => Ok(match_unit_variant(event_enum, &variant.ident)),
+            syn::Fields::Named(fields) => Ok(match_structured_variant(
+                &event_enum,
+                &variant.ident,
+                fields,
+            )),
+            syn::Fields::Unit => Ok(match_unit_variant(&event_enum, &variant.ident)),
             syn::Fields::Unnamed(_) => Err(syn::Error::new(
                 Span::call_site(),
                 "unnamed fields are not supported",
@@ -157,14 +164,10 @@ fn match_structured_variant(
         .named
         .into_iter()
         .flat_map(|field| field.ident)
-        .collect::<Vec<_>>();
-
-    let field_deconstruction = field_names.iter().map(|field_name| {
-        quote! { #field_name }
-    });
+        .collect_vec();
 
     let new_event = quote! {
-        #event_enum::#variant_name { #(#field_deconstruction), * } => cosmwasm_std::Event::new(#event_name)
+        #event_enum::#variant_name { #(#field_names), * } => cosmwasm_std::Event::new(#event_name)
     };
 
     let add_attributes = field_names.iter().map(|field_name| {
