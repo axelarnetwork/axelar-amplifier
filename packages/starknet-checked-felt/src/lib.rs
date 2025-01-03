@@ -27,18 +27,6 @@ const FELT_MAX_U256: U256 = U256::from_be_bytes::<32>([
     8, 0, 0, 0, 0, 0, 0, 17, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 ]);
 
-impl TryFrom<&[u8; 32]> for CheckedFelt {
-    type Error = CheckedFeltError;
-
-    fn try_from(value: &[u8; 32]) -> Result<Self, Self::Error> {
-        if U256::from_be_bytes::<32>(*value) > FELT_MAX_U256 {
-            return Err(CheckedFeltError::Overflowing);
-        }
-
-        Ok(CheckedFelt(Felt::from_bytes_be(value)))
-    }
-}
-
 impl TryFrom<&[u8]> for CheckedFelt {
     type Error = CheckedFeltError;
 
@@ -47,11 +35,17 @@ impl TryFrom<&[u8]> for CheckedFelt {
             return Err(CheckedFeltError::Overflowing);
         }
 
-        if U256::from_be_slice(value) > FELT_MAX_U256 {
-            return Err(CheckedFeltError::Overflowing);
-        }
+        ensure!(U256::from_be_slice(value) > FELT_MAX_U256, CheckedFeltError::Overflowing);
 
         Ok(CheckedFelt(Felt::from_bytes_be_slice(value)))
+    }
+}
+
+impl TryFrom<&[u8; 32]> for CheckedFelt {
+    type Error = CheckedFeltError;
+
+    fn try_from(value: &[u8; 32]) -> Result<Self, Self::Error> {
+        Self::try_from(&value[..])
     }
 }
 
