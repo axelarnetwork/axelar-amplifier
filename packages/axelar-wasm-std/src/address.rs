@@ -41,36 +41,8 @@ pub fn validate_address(address: &str, format: &AddressFormat) -> Result<(), Err
                 .change_context(Error::InvalidAddress(address.to_string()))?;
         }
         AddressFormat::Starknet => {
-            // Contract addresses in Starknet are Felts, which are decimals in a
-            // prime field, which fit in 252 bytes and can't exceed that prime field.
-            // We'll only accept hex representation of the Felts, because they're the most
-            // commonly used representation for addresses.
-            //
-            // We'll only accept 64 char hex strings.
-            // 62 and 63 hex string chars is also a valid address but we expect those to be padded
-            // with zeroes.
-
-            if !address.starts_with("0x") {
-                bail!(Error::InvalidAddress("0x prefix is missing".to_string()))
-            }
-
-            let trimmed_addr = address.trim_start_matches("0x");
-            if trimmed_addr.len() != 64 {
-                bail!(Error::InvalidAddress(format!(
-                    "hex string is not 64 chars: {}",
-                    address
-                )))
-            }
-
-            if CheckedFelt::from_str(trimmed_addr).is_err() {
-                bail!(Error::InvalidAddress(
-                    format!(
-                        "field element overflows MAX value of 2^251 + 17 * 2^192: {}",
-                        address
-                    )
-                    .to_string()
-                ))
-            }
+            CheckedFelt::from_str(address)
+                .change_context(Error::InvalidAddress(address.to_string()))?;
         }
     }
 

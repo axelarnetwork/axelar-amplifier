@@ -67,9 +67,8 @@ impl FromStr for FieldElementAndEventIndex {
                 expected_format: PATTERN.to_string(),
             })?
             .extract();
-        let tx_id_chunk = &tx_id[2..];
-        let felt = CheckedFelt::from_str(tx_id_chunk)
-            .map_err(|_| Error::InvalidFieldElement(tx_id_chunk.to_string()))?;
+        let felt = CheckedFelt::from_str(tx_id)
+            .map_err(|e| Error::InvalidFieldElement(format!("{}: {}", e, tx_id)))?;
 
         Ok(FieldElementAndEventIndex {
             tx_hash: felt,
@@ -114,7 +113,7 @@ mod tests {
             0, 0, 0,
         ]);
 
-        format!("0x{:064x}",(number % max))
+        format!("0x{:064x}", (number % max))
     }
 
     fn random_event_index() -> u64 {
@@ -126,7 +125,8 @@ mod tests {
         let res = FieldElementAndEventIndex::from_str(
             "0x0670d1dd42a19cb229bb4378b58b9c3e76aa43edaaea46845cd8c456c1224d89-0",
         );
-        assert!(res.is_ok());
+        res.unwrap();
+        // assert!(res.is_ok());
 
         for _ in 0..1000 {
             let tx_hash = random_hash();
