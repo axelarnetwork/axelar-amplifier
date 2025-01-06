@@ -1,16 +1,16 @@
 [package]
 name = "starknet-checked-felt"
 version = "1.0.0"
-rust-version.workspace = true
-edition.workspace = true
+rust-version = { workspace = true }
+edition = { workspace = true }
 
 [dependencies]
-starknet-types-core = { workspace = true }
-error-stack = { workspace = true }
-thiserror = { workspace = true }
 alloy-primitives = { workspace = true }
+error-stack = { workspace = true }
 hex = { workspace = true }
 serde = { workspace = true }
+starknet-types-core = { workspace = true }
+thiserror = { workspace = true }
 
 [dev-dependencies]
 axelar-wasm-std = { workspace = true }
