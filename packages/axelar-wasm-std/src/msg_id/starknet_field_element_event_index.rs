@@ -113,7 +113,9 @@ mod tests {
             0, 0, 0,
         ]);
 
-        format!("0x{:064x}", (number % max))
+        let result = number.checked_rem(max).expect("modulo operation failed");
+
+        format!("0x{:064x}", result)
     }
 
     fn random_event_index() -> u64 {
