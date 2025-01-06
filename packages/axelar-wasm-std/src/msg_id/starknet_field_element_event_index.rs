@@ -47,7 +47,7 @@ impl FieldElementAndEventIndex {
 // A valid field element is max 252 bits, meaning max 63 hex characters after 0x.
 // We require the hex to be 64 characters, meaning that it should be padded with zeroes in order
 // for us to consider it valid.
-const PATTERN: &str = "^(0x[0-9a-f]{64})-(0|[1-9][0-9]*)$";
+const PATTERN: &str = "^(0x0[0-9a-f]{63})-(0|[1-9][0-9]*)$";
 lazy_static! {
     static ref REGEX: Regex = Regex::new(PATTERN).expect("invalid regex");
 }

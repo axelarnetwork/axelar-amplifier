@@ -127,11 +127,11 @@ impl std::fmt::LowerHex for CheckedFelt {
 
 #[cfg(test)]
 mod tests {
-    use hex::FromHexError;
     use std::str::FromStr;
 
     use alloy_primitives::U256;
     use axelar_wasm_std::assert_err_contains;
+    use hex::FromHexError;
     use starknet_types_core::felt::Felt;
 
     use super::{CheckedFelt, CheckedFeltError};

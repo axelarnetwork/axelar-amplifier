@@ -562,8 +562,15 @@ mod test {
 
         let messages = messages(1, &MessageIdFormat::HexTxHashAndEventIndex);
         let msg = ExecuteMsg::VerifyMessages(messages.clone());
+        let api = deps.api;
 
-        let err = execute(deps.as_mut(), mock_env(), mock_info(SENDER, &[]), msg).unwrap_err();
+        let err = execute(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make(SENDER), &[]),
+            msg,
+        )
+        .unwrap_err();
         assert_contract_err_strings_equal(
             err,
             ContractError::InvalidMessageID(messages[0].cc_id.message_id.to_string()),
