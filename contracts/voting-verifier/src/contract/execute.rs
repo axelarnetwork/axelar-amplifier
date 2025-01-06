@@ -67,24 +67,21 @@ pub fn verify_verifier_set(
         )
         .change_context(ContractError::StorageError)?;
 
-    Ok(Response::new().add_event(
-        PollStarted::VerifierSet {
-            verifier_set: VerifierSetConfirmation::new(
-                message_id,
-                config.msg_id_format,
-                new_verifier_set,
-            )?,
-            metadata: PollMetadata {
-                poll_id,
-                source_chain: config.source_chain,
-                source_gateway_address: config.source_gateway_address,
-                confirmation_height: config.confirmation_height,
-                expires_at,
-                participants,
-            },
-        }
-        .into(),
-    ))
+    Ok(Response::new().add_event(PollStarted::VerifierSet {
+        verifier_set: VerifierSetConfirmation::new(
+            message_id,
+            config.msg_id_format,
+            new_verifier_set,
+        )?,
+        metadata: PollMetadata {
+            poll_id,
+            source_chain: config.source_chain,
+            source_gateway_address: config.source_gateway_address,
+            confirmation_height: config.confirmation_height,
+            expires_at,
+            participants,
+        },
+    }))
 }
 
 pub fn verify_messages(
@@ -147,20 +144,17 @@ pub fn verify_messages(
         })
         .collect::<Result<Vec<TxEventConfirmation>, _>>()?;
 
-    Ok(Response::new().add_event(
-        PollStarted::Messages {
-            messages,
-            metadata: PollMetadata {
-                poll_id: id,
-                source_chain: config.source_chain,
-                source_gateway_address: config.source_gateway_address,
-                confirmation_height: config.confirmation_height,
-                expires_at,
-                participants,
-            },
-        }
-        .into(),
-    ))
+    Ok(Response::new().add_event(PollStarted::Messages {
+        messages,
+        metadata: PollMetadata {
+            poll_id: id,
+            source_chain: config.source_chain,
+            source_gateway_address: config.source_gateway_address,
+            confirmation_height: config.confirmation_height,
+            expires_at,
+            participants,
+        },
+    }))
 }
 
 fn poll_results(poll: &Poll) -> PollResults {
@@ -261,13 +255,11 @@ pub fn vote(
         .change_context(ContractError::StorageError)?;
 
     Ok(Response::new()
-        .add_event(
-            Voted {
-                poll_id,
-                voter: info.sender,
-            }
-            .into(),
-        )
+        .add_event(Voted {
+            poll_id,
+            voter: info.sender,
+            votes,
+        })
         .add_events(quorum_events.into_iter().flatten()))
 }
 
@@ -314,14 +306,13 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: PollId) -> Result<Response, Co
             funds: vec![],
         });
 
-    Ok(Response::new().add_messages(rewards_msgs).add_event(
-        PollEnded {
+    Ok(Response::new()
+        .add_messages(rewards_msgs)
+        .add_event(PollEnded {
             poll_id: poll_result.poll_id,
             results: poll_result.results.0.clone(),
             source_chain: config.source_chain,
-        }
-        .into(),
-    ))
+        }))
 }
 
 fn take_snapshot(deps: Deps, chain: &ChainName) -> Result<snapshot::Snapshot, ContractError> {
@@ -383,7 +374,7 @@ fn create_messages_poll(
 fn calculate_expiration(block_height: u64, block_expiry: u64) -> Result<u64, ContractError> {
     block_height
         .checked_add(block_expiry)
-        .ok_or_else(|| OverflowError::new(OverflowOperation::Add, block_height, block_expiry))
+        .ok_or_else(|| OverflowError::new(OverflowOperation::Add))
         .map_err(ContractError::from)
         .map_err(Report::from)
 }

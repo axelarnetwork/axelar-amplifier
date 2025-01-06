@@ -143,8 +143,8 @@ mod tests {
 
     #[test]
     fn validate_cosmwasm_address() {
-        let api = MockApi::default();
-        let addr = "axelar1x46rqay4d3cssq8gxxvqz8xt6nwlz4td20k38v";
+        let api = MockApi::default().with_prefix("axelar");
+        let addr = "axelar1xsyqml4kz53jk0udu9lkmr7tmg3gx08r7mjn68";
         assert_ok!(address::validate_cosmwasm_address(&api, addr));
 
         let upper_case = addr.to_uppercase();

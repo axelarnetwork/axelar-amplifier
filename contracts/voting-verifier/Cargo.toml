@@ -16,8 +16,6 @@ name = "voting-verifier-schema"
 path = "src/bin/schema.rs"
 
 [features]
-# for more explicit tests, cargo test --features=backtraces
-backtraces = ["cosmwasm-std/backtraces"]
 # use library feature to disable all instantiate/execute/query exports
 library = []
 
@@ -51,7 +49,7 @@ thiserror = { workspace = true }
 alloy-primitives = { version = "0.7.7", features = ["getrandom"] }
 assert_ok = { workspace = true }
 bech32 = { workspace = true }
-cw-multi-test = "0.15.1"
+cw-multi-test = { workspace = true }
 goldie = { workspace = true }
 integration-tests = { workspace = true }
 multisig = { workspace = true, features = ["test", "library"] }
