@@ -142,7 +142,7 @@ jobs:
           cp "$wasm_file" "../${crate_version}/${crate_name//-/_}.wasm"
           cp "$checksum_file" "../${crate_version}/"
 
-          gpg --armor --detach-sign  ../${crate_version}/${crate_name}.wasm
+          gpg --armor --detach-sign  ../${crate_version}/${crate_name//-/_}.wasm
           gpg --armor --detach-sign  ../${crate_version}/checksums.txt
 
           echo "release-artifacts-dir=./${crate_version}" >> $GITHUB_OUTPUT
