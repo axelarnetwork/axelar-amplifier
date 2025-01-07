@@ -139,7 +139,7 @@ jobs:
           fi
 
           mkdir -p "../${crate_version}"
-          cp "$wasm_file" "../${crate_version}/${crate_name}.wasm"
+          cp "$wasm_file" "../${crate_version}/${crate_name//-/_}.wasm"
           cp "$checksum_file" "../${crate_version}/"
 
           gpg --armor --detach-sign  ../${crate_version}/${crate_name}.wasm
