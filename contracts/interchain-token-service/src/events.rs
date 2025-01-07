@@ -1,14 +1,19 @@
 use axelar_wasm_std::event::EventExt;
+use axelar_wasm_std::nonempty;
 use router_api::{Address, ChainNameRaw, CrossChainId};
 
 use crate::primitives::Message;
-use crate::{DeployInterchainToken, InterchainTransfer, LinkToken, RegisterTokenMetadata};
+use crate::{DeployInterchainToken, InterchainTransfer, LinkToken};
 
 pub enum Event {
     MessageReceived {
         cc_id: CrossChainId,
         destination_chain: ChainNameRaw,
         message: Message,
+    },
+    TokenMetadataRegistered {
+        token_address: nonempty::HexBinary,
+        decimals: u8,
     },
     ItsContractRegistered {
         chain: ChainNameRaw,
@@ -29,6 +34,12 @@ impl From<Event> for cosmwasm_std::Event {
                 destination_chain,
                 message,
             } => make_message_event("message_received", cc_id, destination_chain, message),
+            Event::TokenMetadataRegistered {
+                token_address,
+                decimals,
+            } => cosmwasm_std::Event::new("token_metadata_registered")
+                .add_attribute_as_string("token_address", token_address)
+                .add_attribute_as_string("decimals", decimals),
             Event::ItsContractRegistered { chain, address } => {
                 cosmwasm_std::Event::new("its_contract_registered")
                     .add_attribute_as_string("chain", chain)
@@ -80,9 +91,6 @@ fn make_message_event(
             .add_attribute("symbol", symbol)
             .add_attribute_as_string("decimals", decimals)
             .add_attribute_if_some("minter", minter.map(|minter| minter.to_string())),
-        Message::RegisterTokenMetadata(RegisterTokenMetadata { address, decimals }) => event
-            .add_attribute_as_string("decimals", decimals)
-            .add_attribute_as_string("address", address),
         Message::LinkToken(LinkToken {
             token_id,
             token_manager_type,

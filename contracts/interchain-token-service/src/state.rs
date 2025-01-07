@@ -294,7 +294,10 @@ pub fn save_token_config(
 pub fn save_custom_token(
     storage: &mut dyn Storage,
     chain: ChainNameRaw,
-    RegisterTokenMetadata { address, decimals }: RegisterTokenMetadata,
+    RegisterTokenMetadata {
+        token_address: address,
+        decimals,
+    }: RegisterTokenMetadata,
 ) -> Result<(), Error> {
     CUSTOM_TOKENS
         .save(

@@ -19,8 +19,8 @@ sol! {
         DeployTokenManager, // note, this case is not supported by the ITS hub
         SendToHub,
         ReceiveFromHub,
-        RegisterToken,
-        LinkToken
+        LinkToken,
+        RegisterTokenMetadata,
     }
 
     struct InterchainTransfer {
@@ -55,7 +55,7 @@ sol! {
         bytes message;
     }
 
-    struct RegisterToken {
+    struct RegisterTokenMetadata {
         uint256 messageType;
         bytes tokenAddress;
         uint8 decimals;
@@ -67,7 +67,6 @@ sol! {
         uint256 tokenManagerType;
         bytes sourceToken;
         bytes destinationToken;
-        bool autoscaling;
         bytes params;
     }
 }
@@ -119,15 +118,6 @@ impl Message {
                 minter: into_vec(minter).into(),
             }
             .abi_encode_params(),
-            Message::RegisterTokenMetadata(primitives::RegisterTokenMetadata {
-                decimals,
-                address,
-            }) => RegisterToken {
-                messageType: MessageType::RegisterToken.into(),
-                decimals,
-                tokenAddress: address.to_vec().into(),
-            }
-            .abi_encode_params(),
             Message::LinkToken(primitives::LinkToken {
                 token_id,
                 token_manager_type,
@@ -140,7 +130,6 @@ impl Message {
                 destinationToken: destination_token_address.to_vec().into(),
                 sourceToken: source_token_address.to_vec().into(),
                 tokenManagerType: U256::from_le_bytes(token_manager_type.to_le_bytes()),
-                autoscaling: false,
                 params: into_vec(params).into(),
             }
             .abi_encode_params(),
@@ -184,20 +173,6 @@ impl Message {
                     symbol: decoded.symbol.try_into().map_err(Error::NonEmpty)?,
                     decimals: decoded.decimals,
                     minter: from_vec(decoded.minter.into())?,
-                }
-                .into()
-            }
-            MessageType::RegisterToken => {
-                let RegisterToken {
-                    tokenAddress,
-                    decimals,
-                    ..
-                } = RegisterToken::abi_decode_params(payload, true)
-                    .map_err(Error::AbiDecodeFailed)?;
-
-                primitives::RegisterTokenMetadata {
-                    decimals,
-                    address: tokenAddress.to_vec().try_into().map_err(Error::NonEmpty)?,
                 }
                 .into()
             }
@@ -254,6 +229,16 @@ impl HubMessage {
             }
             .abi_encode_params()
             .into(),
+            HubMessage::RegisterTokenMetadata(primitives::RegisterTokenMetadata {
+                decimals,
+                token_address,
+            }) => RegisterTokenMetadata {
+                messageType: MessageType::RegisterTokenMetadata.into(),
+                decimals,
+                tokenAddress: token_address.to_vec().into(),
+            }
+            .abi_encode_params()
+            .into(),
         }
     }
 
@@ -283,6 +268,18 @@ impl HubMessage {
                         .change_context(Error::InvalidChainName)?,
                     message: Message::abi_decode(&decoded.message)?,
                 }
+            }
+            MessageType::RegisterTokenMetadata => {
+                let RegisterTokenMetadata {
+                    tokenAddress,
+                    decimals,
+                    ..
+                } = RegisterTokenMetadata::abi_decode_params(payload, true)
+                    .map_err(Error::AbiDecodeFailed)?;
+                HubMessage::RegisterTokenMetadata(primitives::RegisterTokenMetadata {
+                    decimals,
+                    token_address: tokenAddress.to_vec().try_into().map_err(Error::NonEmpty)?,
+                })
             }
             _ => bail!(Error::InvalidMessageType),
         };

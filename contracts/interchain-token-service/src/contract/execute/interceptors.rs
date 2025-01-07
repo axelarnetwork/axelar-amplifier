@@ -296,12 +296,12 @@ pub fn register_custom_token(
     let existing_token = state::may_load_custom_token(
         storage,
         source_chain.clone(),
-        register_token.address.clone(),
+        register_token.token_address.clone(),
     )
     .change_context(Error::State)?;
     ensure!(
         existing_token.is_none(),
-        Error::TokenAlreadyRegistered(register_token.address)
+        Error::TokenAlreadyRegistered(register_token.token_address)
     );
 
     state::save_custom_token(storage, source_chain, register_token).change_context(Error::State)

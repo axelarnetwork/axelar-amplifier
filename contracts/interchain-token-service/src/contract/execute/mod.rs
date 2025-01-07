@@ -107,6 +107,9 @@ pub fn execute_message(
             destination_chain,
             message,
         } => execute_message_on_hub(deps, cc_id, destination_chain, message),
+        HubMessage::RegisterTokenMetadata(msg) => {
+            execute_register_token(deps.storage, cc_id.source_chain, msg)
+        }
         _ => bail!(Error::InvalidMessageType),
     }
 }
@@ -170,10 +173,6 @@ fn apply_to_hub(
             apply_to_token_deployment(storage, &source_chain, &destination_chain, deploy_token)
                 .map(Message::DeployInterchainToken)?
         }
-        Message::RegisterTokenMetadata(register_token) => {
-            apply_to_register_token(storage, source_chain, register_token)
-                .map(Message::RegisterTokenMetadata)?
-        }
         Message::LinkToken(link_token) => {
             apply_to_link_token(storage, source_chain, destination_chain, link_token)
                 .map(Message::LinkToken)?
@@ -182,13 +181,17 @@ fn apply_to_hub(
     .then(Result::Ok)
 }
 
-fn apply_to_register_token(
+fn execute_register_token(
     storage: &mut dyn Storage,
     source_chain: ChainNameRaw,
     register_token: RegisterTokenMetadata,
-) -> Result<RegisterTokenMetadata, Error> {
+) -> Result<Response, Error> {
+    ensure_chain_not_frozen(storage, &source_chain)?;
     interceptors::register_custom_token(storage, source_chain, register_token.clone())?;
-    Ok(register_token)
+    Ok(Response::new().add_event(Event::TokenMetadataRegistered {
+        token_address: register_token.token_address,
+        decimals: register_token.decimals,
+    }))
 }
 
 fn apply_to_link_token(
@@ -1001,14 +1004,10 @@ mod tests {
         decimals: u8,
         token_address: nonempty::HexBinary,
     ) {
-        let msg = HubMessage::SendToHub {
-            destination_chain: "axelar".try_into().unwrap(),
-            message: RegisterTokenMetadata {
-                decimals,
-                address: token_address.clone(),
-            }
-            .into(),
-        };
+        let msg = HubMessage::RegisterTokenMetadata(RegisterTokenMetadata {
+            decimals,
+            token_address: token_address.clone(),
+        });
 
         let res = assert_ok!(execute_message(
             deps.as_mut(),
