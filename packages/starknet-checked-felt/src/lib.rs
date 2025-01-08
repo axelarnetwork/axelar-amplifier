@@ -117,6 +117,12 @@ impl Deref for CheckedFelt {
     }
 }
 
+impl AsRef<Felt> for CheckedFelt {
+    fn as_ref(&self) -> &Felt {
+        self.0.as_ref()
+    }
+}
+
 impl std::fmt::LowerHex for CheckedFelt {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let val = self.0;

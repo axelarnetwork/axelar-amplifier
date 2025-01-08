@@ -33,10 +33,7 @@ impl FieldElementAndEventIndex {
             .expect("failed to convert tx hash to non-empty string")
     }
 
-    pub fn new<T: Into<CheckedFelt> + FromStr>(
-        tx_id: T,
-        event_index: impl Into<u64>,
-    ) -> Result<Self, Error> {
+    pub fn new<T: Into<CheckedFelt>>(tx_id: T, event_index: impl Into<u64>) -> Result<Self, Error> {
         Ok(Self {
             tx_hash: tx_id.into(),
             event_index: event_index.into(),
