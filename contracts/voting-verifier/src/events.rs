@@ -2,8 +2,8 @@ use std::str::FromStr;
 use std::vec::Vec;
 
 use axelar_wasm_std::msg_id::{
-    Base58SolanaTxSignatureAndEventIndex, Base58TxDigestAndEventIndex, Bech32mFormat, HexTxHash,
-    HexTxHashAndEventIndex, MessageIdFormat,
+    Base58SolanaTxSignatureAndEventIndex, Base58TxDigestAndEventIndex, Bech32mFormat,
+    FieldElementAndEventIndex, HexTxHash, HexTxHashAndEventIndex, MessageIdFormat,
 };
 use axelar_wasm_std::voting::{PollId, Vote};
 use axelar_wasm_std::{nonempty, VerificationStatus};
@@ -156,6 +156,16 @@ fn parse_message_id(
                 .map_err(|_| ContractError::InvalidMessageID(message_id.to_string()))?;
             Ok((
                 id.tx_digest_as_base58(),
+                u32::try_from(id.event_index)
+                    .map_err(|_| ContractError::InvalidMessageID(message_id.to_string()))?,
+            ))
+        }
+        MessageIdFormat::FieldElementAndEventIndex => {
+            let id = FieldElementAndEventIndex::from_str(message_id)
+                .map_err(|_| ContractError::InvalidMessageID(message_id.to_string()))?;
+
+            Ok((
+                id.tx_hash_as_hex(),
                 u32::try_from(id.event_index)
                     .map_err(|_| ContractError::InvalidMessageID(message_id.to_string()))?,
             ))
