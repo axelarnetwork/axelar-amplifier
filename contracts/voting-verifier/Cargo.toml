@@ -40,11 +40,11 @@ multisig = { workspace = true, features = ["library"] }
 report = { workspace = true }
 rewards = { workspace = true, features = ["library"] }
 router-api = { workspace = true }
+serde = { workspace = true }
 serde_json = { workspace = true }
 service-registry = { workspace = true, features = ["library"] }
 service-registry-api = { workspace = true }
 thiserror = { workspace = true }
-serde = { workspace = true }
 
 [dev-dependencies]
 alloy-primitives = { version = "0.7.7", features = ["getrandom"] }
