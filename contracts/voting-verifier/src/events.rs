@@ -1,138 +1,74 @@
 use std::str::FromStr;
 use std::vec::Vec;
 
+use axelar_wasm_std::address::AddressFormat;
 use axelar_wasm_std::msg_id::{
     Base58SolanaTxSignatureAndEventIndex, Base58TxDigestAndEventIndex, Bech32mFormat,
     FieldElementAndEventIndex, HexTxHash, HexTxHashAndEventIndex, MessageIdFormat,
 };
 use axelar_wasm_std::voting::{PollId, Vote};
-use axelar_wasm_std::{nonempty, VerificationStatus};
+use axelar_wasm_std::{nonempty, IntoEvent, MajorityThreshold, VerificationStatus};
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, Attribute, Event};
+use cosmwasm_std::{Addr, Empty};
 use multisig::verifier_set::VerifierSet;
 use router_api::{Address, ChainName, Message};
+use serde::Serialize;
 
 use crate::error::ContractError;
-use crate::state::Config;
 
-impl From<Config> for Vec<Attribute> {
-    fn from(other: Config) -> Self {
-        // destructuring the Config struct so changes to the fields don't go unnoticed
-        let Config {
-            service_name,
-            service_registry_contract,
-            source_gateway_address,
-            voting_threshold,
-            block_expiry,
-            confirmation_height,
-            source_chain,
-            rewards_contract,
-            msg_id_format,
-            address_format,
-        } = other;
-
-        vec![
-            ("service_name", service_name.to_string()),
-            (
-                "service_registry_contract",
-                service_registry_contract.to_string(),
-            ),
-            ("source_gateway_address", source_gateway_address.to_string()),
-            (
-                "voting_threshold",
-                serde_json::to_string(&voting_threshold)
-                    .expect("failed to serialize voting_threshold"),
-            ),
-            ("block_expiry", block_expiry.to_string()),
-            ("confirmation_height", confirmation_height.to_string()),
-            ("source_chain", source_chain.to_string()),
-            ("rewards_contract", rewards_contract.to_string()),
-            (
-                "msg_id_format",
-                serde_json::to_string(&msg_id_format).expect("failed to serialize msg_id_format"),
-            ),
-            (
-                "address_format",
-                serde_json::to_string(&address_format).expect("failed to serialize address_format"),
-            ),
-        ]
-        .into_iter()
-        .map(Attribute::from)
-        .collect()
-    }
-}
-
-pub struct PollMetadata {
-    pub poll_id: PollId,
-    pub source_chain: ChainName,
-    pub source_gateway_address: nonempty::String,
-    pub confirmation_height: u64,
-    pub expires_at: u64,
-    pub participants: Vec<Addr>,
-}
-
-pub enum PollStarted {
-    Messages {
+#[derive(Serialize, IntoEvent)]
+pub enum Event<T>
+where
+    T: Serialize,
+{
+    Instantiated {
+        service_registry_contract: Addr,
+        service_name: nonempty::String,
+        source_gateway_address: nonempty::String,
+        voting_threshold: MajorityThreshold,
+        block_expiry: nonempty::Uint64,
+        confirmation_height: u64,
+        source_chain: ChainName,
+        rewards_contract: Addr,
+        msg_id_format: MessageIdFormat,
+        address_format: AddressFormat,
+    },
+    MessagesPollStarted {
         messages: Vec<TxEventConfirmation>,
-        metadata: PollMetadata,
+        poll_id: PollId,
+        source_chain: ChainName,
+        source_gateway_address: nonempty::String,
+        confirmation_height: u64,
+        expires_at: u64,
+        participants: Vec<Addr>,
     },
-    VerifierSet {
+    VerifierSetPollStarted {
         verifier_set: VerifierSetConfirmation,
-        metadata: PollMetadata,
+        poll_id: PollId,
+        source_chain: ChainName,
+        source_gateway_address: nonempty::String,
+        confirmation_height: u64,
+        expires_at: u64,
+        participants: Vec<Addr>,
+    },
+    QuorumReached {
+        content: T,
+        status: VerificationStatus,
+        poll_id: PollId,
+    },
+    Voted {
+        poll_id: PollId,
+        voter: Addr,
+        votes: Vec<Vote>,
+    },
+    PollEnded {
+        poll_id: PollId,
+        source_chain: ChainName,
+        results: Vec<Option<Vote>>,
     },
 }
 
-impl From<PollMetadata> for Vec<Attribute> {
-    fn from(value: PollMetadata) -> Self {
-        vec![
-            (
-                "poll_id",
-                &serde_json::to_string(&value.poll_id).expect("failed to serialize poll_id"),
-            ),
-            ("source_chain", &value.source_chain.to_string()),
-            ("source_gateway_address", &value.source_gateway_address),
-            (
-                "confirmation_height",
-                &value.confirmation_height.to_string(),
-            ),
-            ("expires_at", &value.expires_at.to_string()),
-            (
-                "participants",
-                &serde_json::to_string(&value.participants)
-                    .expect("failed to serialize participants"),
-            ),
-        ]
-        .into_iter()
-        .map(Attribute::from)
-        .collect()
-    }
-}
-
-impl From<PollStarted> for Event {
-    fn from(other: PollStarted) -> Self {
-        match other {
-            PollStarted::Messages {
-                messages: data,
-                metadata,
-            } => Event::new("messages_poll_started")
-                .add_attribute(
-                    "messages",
-                    serde_json::to_string(&data).expect("failed to serialize messages"),
-                )
-                .add_attributes(Vec::<_>::from(metadata)),
-            PollStarted::VerifierSet {
-                verifier_set: data,
-                metadata,
-            } => Event::new("verifier_set_poll_started")
-                .add_attribute(
-                    "verifier_set",
-                    serde_json::to_string(&data)
-                        .expect("failed to serialize verifier set confirmation"),
-                )
-                .add_attributes(Vec::<_>::from(metadata)),
-        }
-    }
-}
+pub type EmptyEvent = Event<Empty>;
 
 #[cw_serde]
 pub struct VerifierSetConfirmation {
@@ -258,79 +194,6 @@ impl TryFrom<(Message, &MessageIdFormat)> for TxEventConfirmation {
             source_address: msg.source_address,
             payload_hash: msg.payload_hash,
         })
-    }
-}
-
-pub struct Voted {
-    pub poll_id: PollId,
-    pub voter: Addr,
-    pub votes: Vec<Vote>,
-}
-
-impl From<Voted> for Event {
-    fn from(other: Voted) -> Self {
-        Event::new("voted")
-            .add_attribute(
-                "poll_id",
-                serde_json::to_string(&other.poll_id).expect("failed to serialize poll_id"),
-            )
-            .add_attribute("voter", other.voter)
-            .add_attribute(
-                "votes",
-                serde_json::to_string(&other.votes).expect("failed to serialize votes"),
-            )
-    }
-}
-
-pub struct PollEnded {
-    pub poll_id: PollId,
-    pub source_chain: ChainName,
-    pub results: Vec<Option<Vote>>,
-}
-
-impl From<PollEnded> for Event {
-    fn from(other: PollEnded) -> Self {
-        Event::new("poll_ended")
-            .add_attribute(
-                "poll_id",
-                serde_json::to_string(&other.poll_id).expect("failed to serialize poll_id"),
-            )
-            .add_attribute(
-                "source_chain",
-                serde_json::to_string(&other.source_chain)
-                    .expect("failed to serialize source_chain"),
-            )
-            .add_attribute(
-                "results",
-                serde_json::to_string(&other.results).expect("failed to serialize results"),
-            )
-    }
-}
-
-pub struct QuorumReached<T> {
-    pub content: T,
-    pub status: VerificationStatus,
-    pub poll_id: PollId,
-}
-
-impl<T> From<QuorumReached<T>> for Event
-where
-    T: cosmwasm_schema::serde::Serialize,
-{
-    fn from(value: QuorumReached<T>) -> Self {
-        Event::new("quorum_reached")
-            .add_attribute(
-                "content",
-                serde_json::to_string(&value.content).expect("failed to serialize content"),
-            )
-            .add_attribute(
-                "status",
-                serde_json::to_string(&value.status).expect("failed to serialize status"),
-            )
-            .add_attribute(
-                "poll_id",
-                serde_json::to_string(&value.poll_id).expect("failed to serialize poll_id"),
-            )
     }
 }
 

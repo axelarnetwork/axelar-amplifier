@@ -228,7 +228,6 @@ mod tests {
     use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
     use base64::engine::general_purpose::STANDARD;
     use base64::Engine;
-    use cosmwasm_std;
     use error_stack::{Report, Result};
     use ethers_providers::ProviderError;
     use events::Error::{DeserializationFailed, EventTypeMismatch};
@@ -237,7 +236,7 @@ mod tests {
     use tendermint::abci;
     use tokio::sync::watch;
     use tokio::test as async_test;
-    use voting_verifier::events::{PollMetadata, PollStarted, TxEventConfirmation};
+    use voting_verifier::events::TxEventConfirmation;
 
     use super::PollStartedEvent;
     use crate::event_processor::EventHandler;
@@ -246,26 +245,28 @@ mod tests {
     use crate::types::{EVMAddress, Hash, TMAddress};
     use crate::PREFIX;
 
-    fn poll_started_event(participants: Vec<TMAddress>, expires_at: u64) -> PollStarted {
+    fn poll_started_event(
+        participants: Vec<TMAddress>,
+        expires_at: u64,
+    ) -> voting_verifier::events::EmptyEvent {
         let msg_ids = [
             HexTxHashAndEventIndex::new(Hash::random(), 0u64),
             HexTxHashAndEventIndex::new(Hash::random(), 1u64),
             HexTxHashAndEventIndex::new(Hash::random(), 10u64),
         ];
-        PollStarted::Messages {
-            metadata: PollMetadata {
-                poll_id: "100".parse().unwrap(),
-                source_chain: "ethereum".parse().unwrap(),
-                source_gateway_address: "0x4f4495243837681061c4743b74eedf548d5686a5"
-                    .parse()
-                    .unwrap(),
-                confirmation_height: 15,
-                expires_at,
-                participants: participants
-                    .into_iter()
-                    .map(|addr| cosmwasm_std::Addr::unchecked(addr.to_string()))
-                    .collect(),
-            },
+
+        voting_verifier::events::Event::MessagesPollStarted {
+            poll_id: "100".parse().unwrap(),
+            source_chain: "ethereum".parse().unwrap(),
+            source_gateway_address: "0x4f4495243837681061c4743b74eedf548d5686a5"
+                .parse()
+                .unwrap(),
+            confirmation_height: 15,
+            expires_at,
+            participants: participants
+                .into_iter()
+                .map(|addr| cosmwasm_std::Addr::unchecked(addr.to_string()))
+                .collect(),
             #[allow(deprecated)] // TODO: The below events use the deprecated tx_id and event_index fields. Remove this attribute when those fields are removed
             messages: vec![
                 TxEventConfirmation {

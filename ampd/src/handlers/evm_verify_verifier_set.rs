@@ -211,7 +211,7 @@ mod tests {
     use tendermint::abci;
     use tokio::sync::watch;
     use tokio::test as async_test;
-    use voting_verifier::events::{PollMetadata, PollStarted, VerifierSetConfirmation};
+    use voting_verifier::events::VerifierSetConfirmation;
 
     use crate::event_processor::EventHandler;
     use crate::evm::finalizer::Finalization;
@@ -269,9 +269,13 @@ mod tests {
         assert_eq!(handler.handle(&event).await.unwrap(), vec![]);
     }
 
-    fn poll_started_event(participants: Vec<TMAddress>, expires_at: u64) -> PollStarted {
+    fn poll_started_event(
+        participants: Vec<TMAddress>,
+        expires_at: u64,
+    ) -> voting_verifier::events::EmptyEvent {
         let msg_id = HexTxHashAndEventIndex::new(Hash::random(), 100u64);
-        PollStarted::VerifierSet {
+
+        voting_verifier::events::Event::VerifierSetPollStarted {
             #[allow(deprecated)] // TODO: The below event uses the deprecated tx_id and event_index fields. Remove this attribute when those fields are removed
             verifier_set: VerifierSetConfirmation {
                 tx_id: msg_id.tx_hash_as_hex(),
@@ -279,19 +283,17 @@ mod tests {
                 message_id: msg_id.to_string().parse().unwrap(),
                 verifier_set: build_verifier_set(KeyType::Ecdsa, &ecdsa_test_data::signers()),
             },
-            metadata: PollMetadata {
-                poll_id: "100".parse().unwrap(),
-                source_chain: "ethereum".parse().unwrap(),
-                source_gateway_address: "0x4f4495243837681061c4743b74eedf548d5686a5"
-                    .parse()
-                    .unwrap(),
-                confirmation_height: 15,
-                expires_at,
-                participants: participants
-                    .into_iter()
-                    .map(|addr| cosmwasm_std::Addr::unchecked(addr.to_string()))
-                    .collect(),
-            },
+            poll_id: "100".parse().unwrap(),
+            source_chain: "ethereum".parse().unwrap(),
+            source_gateway_address: "0x4f4495243837681061c4743b74eedf548d5686a5"
+                .parse()
+                .unwrap(),
+            confirmation_height: 15,
+            expires_at,
+            participants: participants
+                .into_iter()
+                .map(|addr| cosmwasm_std::Addr::unchecked(addr.to_string()))
+                .collect(),
         }
     }
 

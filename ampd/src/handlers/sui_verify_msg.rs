@@ -158,14 +158,13 @@ mod tests {
     use axelar_wasm_std::msg_id::Base58TxDigestAndEventIndex;
     use cosmrs::cosmwasm::MsgExecuteContract;
     use cosmrs::tx::Msg;
-    use cosmwasm_std;
     use error_stack::{Report, Result};
     use ethers_providers::ProviderError;
     use events::Event;
     use sui_types::base_types::{SuiAddress, TransactionDigest};
     use tokio::sync::watch;
     use tokio::test as async_test;
-    use voting_verifier::events::{PollMetadata, PollStarted, TxEventConfirmation};
+    use voting_verifier::events::TxEventConfirmation;
 
     use super::PollStartedEvent;
     use crate::event_processor::EventHandler;
@@ -325,23 +324,25 @@ mod tests {
         assert_eq!(handler.handle(&event).await.unwrap(), vec![]);
     }
 
-    fn poll_started_event(participants: Vec<TMAddress>, expires_at: u64) -> PollStarted {
+    fn poll_started_event(
+        participants: Vec<TMAddress>,
+        expires_at: u64,
+    ) -> voting_verifier::events::EmptyEvent {
         let msg_id = Base58TxDigestAndEventIndex::new(TransactionDigest::random(), 0u64);
-        PollStarted::Messages {
-            metadata: PollMetadata {
-                poll_id: "100".parse().unwrap(),
-                source_chain: "sui".parse().unwrap(),
-                source_gateway_address: SuiAddress::random_for_testing_only()
-                    .to_string()
-                    .parse()
-                    .unwrap(),
-                confirmation_height: 15,
-                expires_at,
-                participants: participants
-                    .into_iter()
-                    .map(|addr| cosmwasm_std::Addr::unchecked(addr.to_string()))
-                    .collect(),
-            },
+
+        voting_verifier::events::Event::MessagesPollStarted {
+            poll_id: "100".parse().unwrap(),
+            source_chain: "sui".parse().unwrap(),
+            source_gateway_address: SuiAddress::random_for_testing_only()
+                .to_string()
+                .parse()
+                .unwrap(),
+            confirmation_height: 15,
+            expires_at,
+            participants: participants
+                .into_iter()
+                .map(|addr| cosmwasm_std::Addr::unchecked(addr.to_string()))
+                .collect(),
             #[allow(deprecated)] // TODO: The below event uses the deprecated tx_id and event_index fields. Remove this attribute when those fields are removed
             messages: vec![TxEventConfirmation {
                 tx_id: msg_id.tx_digest_as_base58(),

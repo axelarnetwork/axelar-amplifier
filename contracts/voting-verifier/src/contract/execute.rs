@@ -5,8 +5,8 @@ use axelar_wasm_std::utils::TryMapExt;
 use axelar_wasm_std::voting::{PollId, PollResults, Vote, WeightedPoll};
 use axelar_wasm_std::{nonempty, snapshot, MajorityThreshold, VerificationStatus};
 use cosmwasm_std::{
-    to_json_binary, Deps, DepsMut, Env, Event, MessageInfo, OverflowError, OverflowOperation,
-    Response, Storage, WasmMsg,
+    to_json_binary, Deps, DepsMut, Env, MessageInfo, OverflowError, OverflowOperation, Response,
+    Storage, WasmMsg,
 };
 use error_stack::{report, Report, Result, ResultExt};
 use itertools::Itertools;
@@ -16,10 +16,7 @@ use service_registry::WeightedVerifier;
 
 use crate::contract::query::{message_status, verifier_set_status};
 use crate::error::ContractError;
-use crate::events::{
-    PollEnded, PollMetadata, PollStarted, QuorumReached, TxEventConfirmation,
-    VerifierSetConfirmation, Voted,
-};
+use crate::events::{EmptyEvent, Event, TxEventConfirmation, VerifierSetConfirmation};
 use crate::state::{
     self, poll_messages, poll_verifier_sets, Poll, PollContent, CONFIG, POLLS, POLL_ID, VOTES,
 };
@@ -67,21 +64,21 @@ pub fn verify_verifier_set(
         )
         .change_context(ContractError::StorageError)?;
 
-    Ok(Response::new().add_event(PollStarted::VerifierSet {
-        verifier_set: VerifierSetConfirmation::new(
-            message_id,
-            config.msg_id_format,
-            new_verifier_set,
-        )?,
-        metadata: PollMetadata {
+    Ok(
+        Response::new().add_event(EmptyEvent::VerifierSetPollStarted {
+            verifier_set: VerifierSetConfirmation::new(
+                message_id,
+                config.msg_id_format,
+                new_verifier_set,
+            )?,
             poll_id,
             source_chain: config.source_chain,
             source_gateway_address: config.source_gateway_address,
             confirmation_height: config.confirmation_height,
             expires_at,
             participants,
-        },
-    }))
+        }),
+    )
 }
 
 pub fn verify_messages(
@@ -144,16 +141,14 @@ pub fn verify_messages(
         })
         .collect::<Result<Vec<TxEventConfirmation>, _>>()?;
 
-    Ok(Response::new().add_event(PollStarted::Messages {
+    Ok(Response::new().add_event(EmptyEvent::MessagesPollStarted {
         messages,
-        metadata: PollMetadata {
-            poll_id: id,
-            source_chain: config.source_chain,
-            source_gateway_address: config.source_gateway_address,
-            confirmation_height: config.confirmation_height,
-            expires_at,
-            participants,
-        },
+        poll_id: id,
+        source_chain: config.source_chain,
+        source_gateway_address: config.source_gateway_address,
+        confirmation_height: config.confirmation_height,
+        expires_at,
+        participants,
     }))
 }
 
@@ -170,7 +165,7 @@ fn make_quorum_event(
     poll_id: &PollId,
     poll: &Poll,
     deps: &DepsMut,
-) -> Result<Option<Event>, ContractError> {
+) -> Result<Option<cosmwasm_std::Event>, ContractError> {
     let status = vote.map(|vote| match vote {
         Vote::SucceededOnChain => VerificationStatus::SucceededOnSourceChain,
         Vote::FailedOnChain => VerificationStatus::FailedOnSourceChain,
@@ -186,7 +181,7 @@ fn make_quorum_event(
                 .expect("message not found in poll");
 
             Ok(status.map(|status| {
-                QuorumReached {
+                Event::QuorumReached {
                     content: msg,
                     status,
                     poll_id: *poll_id,
@@ -202,7 +197,7 @@ fn make_quorum_event(
                 .expect("verifier set not found in poll");
 
             Ok(status.map(|status| {
-                QuorumReached {
+                Event::QuorumReached {
                     content: verifier_set,
                     status,
                     poll_id: *poll_id,
@@ -248,14 +243,14 @@ pub fn vote(
                 .expect("the amount of votes should never overflow u32");
             make_quorum_event(vote, idx, &poll_id, &poll, &deps)
         })
-        .collect::<Result<Vec<Option<Event>>, _>>()?;
+        .collect::<Result<Vec<_>, _>>()?;
 
     VOTES
         .save(deps.storage, (poll_id, info.sender.to_string()), &votes)
         .change_context(ContractError::StorageError)?;
 
     Ok(Response::new()
-        .add_event(Voted {
+        .add_event(EmptyEvent::Voted {
             poll_id,
             voter: info.sender,
             votes,
@@ -308,7 +303,7 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: PollId) -> Result<Response, Co
 
     Ok(Response::new()
         .add_messages(rewards_msgs)
-        .add_event(PollEnded {
+        .add_event(EmptyEvent::PollEnded {
             poll_id: poll_result.poll_id,
             results: poll_result.results.0.clone(),
             source_chain: config.source_chain,

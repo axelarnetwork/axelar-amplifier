@@ -2,12 +2,11 @@ use axelar_wasm_std::address::validate_address;
 use axelar_wasm_std::{address, permission_control, FnExt};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{
-    to_json_binary, Attribute, Binary, Deps, DepsMut, Empty, Env, Event, MessageInfo, Response,
-};
+use cosmwasm_std::{to_json_binary, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response};
 use error_stack::ResultExt;
 
 use crate::error::ContractError;
+use crate::events::EmptyEvent;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{Config, CONFIG};
 
@@ -51,8 +50,18 @@ pub fn instantiate(
     };
     CONFIG.save(deps.storage, &config)?;
 
-    Ok(Response::new()
-        .add_event(Event::new("instantiated").add_attributes(<Vec<Attribute>>::from(config))))
+    Ok(Response::new().add_event(EmptyEvent::Instantiated {
+        service_registry_contract: config.service_registry_contract,
+        service_name: config.service_name,
+        source_gateway_address: config.source_gateway_address,
+        voting_threshold: config.voting_threshold,
+        block_expiry: config.block_expiry,
+        confirmation_height: config.confirmation_height,
+        source_chain: config.source_chain,
+        rewards_contract: config.rewards_contract,
+        msg_id_format: config.msg_id_format,
+        address_format: config.address_format,
+    }))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
