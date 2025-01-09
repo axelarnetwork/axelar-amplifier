@@ -7204,6 +7204,7 @@ dependencies = [
  "error-stack",
  "flagset",
  "gateway-api",
+ "goldie",
  "hex",
  "integration-tests",
  "itertools 0.11.0",
