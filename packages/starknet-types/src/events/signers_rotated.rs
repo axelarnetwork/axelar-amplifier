@@ -213,7 +213,7 @@ impl TryFrom<starknet_core::types::Event> for SignersRotatedEvent {
 
 #[cfg(test)]
 mod tests {
-    use futures::stream::{FuturesUnordered, StreamExt};
+    // use futures::stream::{FuturesUnordered, StreamExt};
     use starknet_core::types::{EmittedEvent, Felt};
 
     use super::*;
@@ -339,10 +339,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_try_from_event_randomly_malformed_data_x1000() {
-        let mut futures = FuturesUnordered::new();
+        // let mut futures = FuturesUnordered::new();
 
         for _ in 0..1000 {
-            futures.push(async {
+            // futures.push(async {
                 let (_, event_data, sender_address, tx_hash) = get_malformed_event().await;
                 let event = EmittedEvent {
                     data: event_data,
@@ -352,20 +352,20 @@ mod tests {
                     block_hash: None,
                     block_number: None,
                 };
-                SignersRotatedEvent::try_from(Event {
+                let result = SignersRotatedEvent::try_from(Event {
                     data: event.data,
                     from_address: event.from_address,
                     keys: event.keys,
-                })
-                .is_err()
-            });
+                });
+                assert!(result.is_err());
+            // });
         }
 
         // if any conversion succeeded then it should have failed
-        while let Some(result) = futures.next().await {
-            if !result {
-                panic!("expected conversion to fail for malformed event");
-            }
-        }
+        // while let Some(result) = futures.next().await {
+            // if !result {
+                // panic!("expected conversion to fail for malformed event");
+            // }
+        // }
     }
 }

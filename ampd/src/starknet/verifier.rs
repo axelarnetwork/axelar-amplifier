@@ -1,5 +1,6 @@
 use axelar_wasm_std::voting::Vote;
 use cosmwasm_std::HexBinary;
+use starknet_core::types::Felt;
 use starknet_types::events::contract_call::ContractCallEvent;
 use starknet_types::events::signers_rotated::SignersRotatedEvent;
 
@@ -26,7 +27,7 @@ pub fn verify_msg(
 
 impl PartialEq<Message> for ContractCallEvent {
     fn eq(&self, axl_msg: &Message) -> bool {
-        axl_msg.source_address == self.source_address.into()
+        Felt::from(axl_msg.source_address.clone()) == self.source_address
             && axl_msg.destination_chain == self.destination_chain
             && axl_msg.destination_address == self.destination_address
             && axl_msg.payload_hash == self.payload_hash
@@ -95,8 +96,8 @@ mod tests {
     use multisig::msg::Signer;
     use multisig::verifier_set::VerifierSet;
     use router_api::ChainName;
-    use starknet_core::types::Felt;
     use starknet_checked_felt::CheckedFelt;
+    use starknet_core::types::Felt;
     use starknet_types::events::contract_call::ContractCallEvent;
     use starknet_types::events::signers_rotated::{
         Signer as StarknetSigner, SignersRotatedEvent, WeightedSigners,
@@ -118,7 +119,7 @@ mod tests {
             ),
             destination_address: String::from("destination_address"),
             destination_chain: String::from("ethereum"),
-            source_address: CheckedFelt::from_str(
+            source_address: Felt::from_str(
                 "0x00b3ff441a68610b30fd5e2abbf3a1548eb6ba6f3559f2862bf2dc757e5828ca",
             )
             .unwrap(),
@@ -205,7 +206,7 @@ mod tests {
         assert_eq!(verify_msg(&event, &msg, &source_gw_address), Vote::NotFound);
 
         let mut msg = { mock_valid_message() };
-        msg.source_address = Felt::THREE.into();
+        msg.source_address = CheckedFelt::try_from(&Felt::THREE.to_bytes_be()).unwrap();
         assert_eq!(verify_msg(&event, &msg, &source_gw_address), Vote::NotFound);
 
         let mut msg = { mock_valid_message() };

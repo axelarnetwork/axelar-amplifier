@@ -15,6 +15,7 @@ use itertools::Itertools;
 use router_api::ChainName;
 use serde::Deserialize;
 use starknet_checked_felt::CheckedFelt;
+use starknet_core::types::Felt;
 use starknet_types::events::contract_call::ContractCallEvent;
 use tokio::sync::watch::Receiver;
 use tracing::info;
@@ -132,7 +133,7 @@ where
             .collect::<Vec<_>>();
 
         // key is the tx_hash of the tx holding the event
-        let events: HashMap<CheckedFelt, ContractCallEvent> =
+        let events: HashMap<Felt, ContractCallEvent> =
             try_join_all(unique_msgs.iter().map(|msg| {
                 self.rpc_client
                     .get_event_by_hash_contract_call(msg.message_id.tx_hash.clone())
@@ -172,6 +173,7 @@ mod tests {
     use ethers_core::types::H256;
     use events::Event;
     use mockall::predicate::eq;
+    use starknet_core::types::Felt;
     use tendermint::abci;
     use tokio::sync::watch;
     use tokio::test as async_test;
@@ -195,7 +197,7 @@ mod tests {
             .expect_get_event_by_hash_contract_call()
             .returning(|_| {
                 Ok(Some((
-                    CheckedFelt::from_str(
+                    Felt::from_str(
                         "0x035410be6f4bf3f67f7c1bb4a93119d9d410b2f981bfafbf5dbbf5d37ae7439e",
                     )
                     .unwrap(),
@@ -244,7 +246,7 @@ mod tests {
             .unwrap()))
             .returning(|_| {
                 Ok(Some((
-                    CheckedFelt::from_str(
+                    Felt::from_str(
                         "0x045410be6f4bf3f67f7c1bb4a93119d9d410b2f981bfafbf5dbbf5d37ae7439f",
                     )
                     .unwrap(),

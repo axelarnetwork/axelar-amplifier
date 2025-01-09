@@ -122,8 +122,11 @@ impl Tokenizable for StarknetMessage {
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
+
     use ethers_core::abi::{InvalidOutputType, Token, Tokenizable};
     use ethers_core::types::U256;
+    use starknet_checked_felt::CheckedFelt;
     use starknet_core::types::Felt;
 
     use super::StarknetMessage;
@@ -159,7 +162,7 @@ mod tests {
 
         // Tested like this, because InvalidOutputType doesn't implement PartialEq
         assert!(
-            matches!(result, Err(InvalidOutputType(msg)) if msg == "failed to convert contract_address bytes to field element (felt)")
+            matches!(result, Err(InvalidOutputType(msg)) if msg == "failed to convert contract_address bytes to field element (felt): Felt value overflowing the Felt::MAX, value")
         );
     }
 
@@ -181,7 +184,7 @@ mod tests {
 
         // Tested like this, because InvalidOutputType doesn't implement PartialEq
         assert!(
-            matches!(result, Err(InvalidOutputType(msg)) if msg == "failed to convert contract_address bytes to field element (felt)")
+            matches!(result, Err(InvalidOutputType(msg)) if msg == "failed to convert contract_address bytes to field element (felt): Felt value overflowing the Felt::MAX, value")
         );
     }
 
@@ -223,7 +226,7 @@ mod tests {
             source_chain: "starknet".to_string(),
             message_id: "some_msg_id".to_string(),
             source_address: "some_source_address".to_string(),
-            contract_address: Felt::THREE.into(),
+            contract_address: CheckedFelt::from_str(&Felt::THREE.to_fixed_hex_string()).unwrap(),
             payload_hash: U256::from(123),
         };
 
@@ -239,7 +242,7 @@ mod tests {
             source_chain: "starknet".to_string(),
             message_id: "some_msg_id".to_string(),
             source_address: "some_source_address".to_string(),
-            contract_address: Felt::THREE.into(),
+            contract_address: CheckedFelt::from_str(&Felt::THREE.to_fixed_hex_string()).unwrap(),
             payload_hash: U256::from(123),
         };
 
