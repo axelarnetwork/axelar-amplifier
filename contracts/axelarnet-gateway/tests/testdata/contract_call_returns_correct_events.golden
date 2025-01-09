@@ -12,7 +12,7 @@
       },
       {
         "key": "source_address",
-        "value": "sender"
+        "value": "cosmwasm1pgm8hyk0pvphmlvfjc8wsvk4daluz5tgrw6pu5mfpemk74uxnx9qlm3aqg"
       },
       {
         "key": "destination_chain",
@@ -41,7 +41,7 @@
       },
       {
         "key": "source_address",
-        "value": "sender"
+        "value": "cosmwasm1pgm8hyk0pvphmlvfjc8wsvk4daluz5tgrw6pu5mfpemk74uxnx9qlm3aqg"
       },
       {
         "key": "destination_chain",

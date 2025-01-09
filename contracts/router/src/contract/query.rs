@@ -37,8 +37,7 @@ pub fn chains(
 #[cfg(test)]
 mod test {
     use axelar_wasm_std::flagset::FlagSet;
-    use cosmwasm_std::testing::mock_dependencies;
-    use cosmwasm_std::Addr;
+    use cosmwasm_std::testing::{mock_dependencies, MockApi};
     use router_api::error::Error;
     use router_api::{ChainEndpoint, ChainName, Gateway, GatewayDirection};
 
@@ -52,7 +51,7 @@ mod test {
         let endpoint = ChainEndpoint {
             name: chain_name.clone(),
             gateway: Gateway {
-                address: Addr::unchecked("some gateway"),
+                address: MockApi::default().addr_make("some gateway"),
             },
             frozen_status: FlagSet::from(GatewayDirection::None),
             msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
@@ -90,7 +89,7 @@ mod test {
             .map(|chain| ChainEndpoint {
                 name: chain.clone(),
                 gateway: Gateway {
-                    address: Addr::unchecked(format!("{} gateway", chain)),
+                    address: MockApi::default().addr_make(format!("{} gateway", chain).as_str()),
                 },
                 frozen_status: FlagSet::from(GatewayDirection::None),
                 msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,

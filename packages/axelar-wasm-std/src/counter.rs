@@ -4,14 +4,12 @@ use num_traits::{CheckedAdd, One};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
-pub struct Counter<'a, T: Copy + Default> {
-    item: Item<'a, T>,
+pub struct Counter<T: Copy + Default> {
+    item: Item<T>,
 }
 
-impl<'a, T: Copy + Default + One + CheckedAdd + Serialize + ToString + DeserializeOwned>
-    Counter<'a, T>
-{
-    pub const fn new(name: &'a str) -> Self {
+impl<T: Copy + Default + One + CheckedAdd + Serialize + ToString + DeserializeOwned> Counter<T> {
+    pub const fn new(name: &'static str) -> Self {
         Counter {
             item: Item::new(name),
         }
@@ -23,9 +21,9 @@ impl<'a, T: Copy + Default + One + CheckedAdd + Serialize + ToString + Deseriali
 
     pub fn incr(&self, store: &mut dyn Storage) -> StdResult<T> {
         let mut value = self.cur(store);
-        value = value.checked_add(&T::one()).ok_or_else(|| {
-            StdError::overflow(OverflowError::new(OverflowOperation::Add, value, 1))
-        })?;
+        value = value
+            .checked_add(&T::one())
+            .ok_or_else(|| StdError::overflow(OverflowError::new(OverflowOperation::Add)))?;
         self.item.save(store, &value)?;
         Ok(value)
     }

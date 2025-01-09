@@ -1,4 +1,5 @@
 use axelar_core_std::nexus;
+use cosmwasm_std::testing::MockApi;
 use router_api::{CrossChainId, Message};
 use sha3::Digest;
 
@@ -9,7 +10,11 @@ pub fn dummy_from_router(payload: &impl AsRef<[u8]>) -> Message {
         cc_id: CrossChainId::new("source-chain", "hash-index").unwrap(),
         source_address: "source-address".parse().unwrap(),
         destination_chain: params::AXELARNET.parse().unwrap(),
-        destination_address: "destination-address".parse().unwrap(),
+        destination_address: MockApi::default()
+            .addr_make("destination-address")
+            .to_string()
+            .parse()
+            .unwrap(),
         payload_hash: sha3::Keccak256::digest(payload).into(),
     }
 }

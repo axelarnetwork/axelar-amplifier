@@ -1,13 +1,16 @@
 use std::fmt;
 use std::hash::{Hash as StdHash, Hasher};
 
-use cosmrs::{crypto, AccountId};
+use cosmrs::AccountId;
 use ethers_core::types::{Address, H256};
 use serde::{Deserialize, Serialize};
 
+mod key;
+
+pub use key::{CosmosPublicKey, PublicKey};
+
 pub type EVMAddress = Address;
 pub type Hash = H256;
-pub type PublicKey = crypto::PublicKey;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TMAddress(AccountId);
@@ -38,15 +41,15 @@ impl fmt::Display for TMAddress {
 
 #[cfg(test)]
 pub mod test_utils {
-    use ecdsa::SigningKey;
     use rand::rngs::OsRng;
 
-    use crate::types::{PublicKey, TMAddress};
+    use super::CosmosPublicKey;
+    use crate::types::TMAddress;
 
     impl TMAddress {
         pub fn random(prefix: &str) -> Self {
             Self(
-                PublicKey::from(SigningKey::random(&mut OsRng).verifying_key())
+                CosmosPublicKey::from(k256::ecdsa::SigningKey::random(&mut OsRng).verifying_key())
                     .account_id(prefix)
                     .expect("failed to convert to account identifier"),
             )

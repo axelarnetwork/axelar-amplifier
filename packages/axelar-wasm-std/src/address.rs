@@ -4,6 +4,7 @@ use alloy_primitives::Address;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Api};
 use error_stack::{bail, Result, ResultExt};
+use starknet_checked_felt::CheckedFelt;
 use stellar_xdr::curr::ScAddress;
 use sui_types::SuiAddress;
 
@@ -20,6 +21,7 @@ pub enum AddressFormat {
     Sui,
     Stellar,
     Base58Solana,
+    Starknet,
 }
 
 pub fn validate_address(address: &str, format: &AddressFormat) -> Result<(), Error> {
@@ -48,6 +50,10 @@ pub fn validate_address(address: &str, format: &AddressFormat) -> Result<(), Err
             if pubkey_vec.len() != SOLANA_PUBKEY_LEN {
                 bail!(Error::InvalidAddress(address.to_string()))
             }
+        }
+        AddressFormat::Starknet => {
+            CheckedFelt::from_str(address)
+                .change_context(Error::InvalidAddress(address.to_string()))?;
         }
     }
 
@@ -148,8 +154,8 @@ mod tests {
 
     #[test]
     fn validate_cosmwasm_address() {
-        let api = MockApi::default();
-        let addr = "axelar1x46rqay4d3cssq8gxxvqz8xt6nwlz4td20k38v";
+        let api = MockApi::default().with_prefix("axelar");
+        let addr = "axelar1xsyqml4kz53jk0udu9lkmr7tmg3gx08r7mjn68";
         assert_ok!(address::validate_cosmwasm_address(&api, addr));
 
         let upper_case = addr.to_uppercase();
@@ -247,6 +253,98 @@ mod tests {
         let invalid_char_addr3 = "4f3J7t1HgX1t36k6rph2pYJrWxk9uT1RrB2K3nVHDh8DI";
         assert_err_contains!(
             address::validate_address(invalid_char_addr3, &address::AddressFormat::Base58Solana),
+            address::Error,
+            address::Error::InvalidAddress(..)
+        );
+    }
+
+    #[test]
+    fn validate_starknet_address() {
+        // 0 prefixed field element
+        // 64 chars
+        let addr = "0x0282b4492e08d8b6bbec8dfe7412e42e897eef9c080c5b97be1537433e583bdc";
+        assert_ok!(address::validate_address(
+            addr,
+            &address::AddressFormat::Starknet
+        ));
+
+        // 0x prefix removed from string, but padded with 0
+        // 64 chars
+        let zero_x_removed = "0282b4492e08d8b6bbec8dfe7412e42e897eef9c080c5b97be1537433e583bdc";
+        assert_err_contains!(
+            address::validate_address(zero_x_removed, &address::AddressFormat::Starknet),
+            address::Error,
+            address::Error::InvalidAddress(..)
+        );
+
+        // 0x0 prefix removed from string.
+        // Commonly a `0` is prefixed to the field element, in order to make it a valid hex.
+        // Originally the felt is 63 chars, which is an invalid hex by itself
+        // 63 chars
+        let zero_x_zero_removed = "282b4492e08d8b6bbec8dfe7412e42e897eef9c080c5b97be1537433e583bdc";
+        assert_err_contains!(
+            address::validate_address(zero_x_zero_removed, &address::AddressFormat::Starknet),
+            address::Error,
+            address::Error::InvalidAddress(..)
+        );
+
+        // 0 prefix removed from string, but 0x is left in.
+        // This is an invalid 63char hex by itself, but a valid field element.
+        // 63 chars.
+        let zero_removed = "0x282b4492e08d8b6bbec8dfe7412e42e897eef9c080c5b97be1537433e583bdc";
+        assert_err_contains!(
+            address::validate_address(zero_removed, &address::AddressFormat::Starknet),
+            address::Error,
+            address::Error::InvalidAddress(..)
+        );
+
+        // invalid hex (starts with `q`)
+        let invalid_hex = "0xq282b4492e08d8b6bbec8dfe7412e42e897eef9c080c5b97be1537433e583bdc";
+        assert_err_contains!(
+            address::validate_address(invalid_hex, &address::AddressFormat::Starknet),
+            address::Error,
+            address::Error::InvalidAddress(..)
+        );
+
+        // more than 64 chars is invalid
+        let more_than_64 = "0x282b4492e08d8b6bbec8dfe7412e42e897eef9c080c5b97be1537433e583bdc123";
+        assert_err_contains!(
+            address::validate_address(more_than_64, &address::AddressFormat::Starknet),
+            address::Error,
+            address::Error::InvalidAddress(..)
+        );
+
+        // less than 63 chars is invalid
+        let less_than_63 = "0x123";
+        assert_err_contains!(
+            address::validate_address(less_than_63, &address::AddressFormat::Starknet),
+            address::Error,
+            address::Error::InvalidAddress(..)
+        );
+
+        let overflown_felt_with_one =
+            "0x080000006b9f1bed878fcc665f2ca1a6afd545a6b864d8400000000000000001";
+        assert_err_contains!(
+            address::validate_address(overflown_felt_with_one, &address::AddressFormat::Starknet),
+            address::Error,
+            address::Error::InvalidAddress(..)
+        );
+
+        // overflowed field element (added a 64th char, other than 0)
+        let overflown_felt = "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
+        assert_err_contains!(
+            address::validate_address(overflown_felt, &address::AddressFormat::Starknet),
+            address::Error,
+            address::Error::InvalidAddress(..)
+        );
+
+        // uppercase string field element
+        let upper_case_invalid = addr.to_uppercase();
+        assert_err_contains!(
+            address::validate_address(
+                upper_case_invalid.as_str(),
+                &address::AddressFormat::Starknet
+            ),
             address::Error,
             address::Error::InvalidAddress(..)
         );

@@ -2,8 +2,8 @@ use std::str::FromStr;
 use std::vec::Vec;
 
 use axelar_wasm_std::msg_id::{
-    Base58SolanaTxSignatureAndEventIndex, Base58TxDigestAndEventIndex, HexTxHash,
-    HexTxHashAndEventIndex, MessageIdFormat,
+    Base58SolanaTxSignatureAndEventIndex, Base58TxDigestAndEventIndex, Bech32mFormat,
+    FieldElementAndEventIndex, HexTxHash, HexTxHashAndEventIndex, MessageIdFormat,
 };
 use axelar_wasm_std::voting::{PollId, Vote};
 use axelar_wasm_std::{nonempty, VerificationStatus};
@@ -160,6 +160,16 @@ fn parse_message_id(
                     .map_err(|_| ContractError::InvalidMessageID(message_id.to_string()))?,
             ))
         }
+        MessageIdFormat::FieldElementAndEventIndex => {
+            let id = FieldElementAndEventIndex::from_str(message_id)
+                .map_err(|_| ContractError::InvalidMessageID(message_id.to_string()))?;
+
+            Ok((
+                id.tx_hash_as_hex(),
+                u32::try_from(id.event_index)
+                    .map_err(|_| ContractError::InvalidMessageID(message_id.to_string()))?,
+            ))
+        }
         MessageIdFormat::HexTxHashAndEventIndex => {
             let id = HexTxHashAndEventIndex::from_str(message_id)
                 .map_err(|_| ContractError::InvalidMessageID(message_id.to_string()))?;
@@ -185,6 +195,11 @@ fn parse_message_id(
                 .map_err(|_| ContractError::InvalidMessageID(message_id.into()))?;
 
             Ok((id.tx_hash_as_hex(), 0))
+        }
+        MessageIdFormat::Bech32m { prefix, length } => {
+            let bech32m_message_id = Bech32mFormat::from_str(prefix, *length as usize, message_id)
+                .map_err(|_| ContractError::InvalidMessageID(message_id.into()))?;
+            Ok((bech32m_message_id.to_string().try_into()?, 0))
         }
     }
 }
@@ -249,6 +264,7 @@ impl TryFrom<(Message, &MessageIdFormat)> for TxEventConfirmation {
 pub struct Voted {
     pub poll_id: PollId,
     pub voter: Addr,
+    pub votes: Vec<Vote>,
 }
 
 impl From<Voted> for Event {
@@ -259,6 +275,10 @@ impl From<Voted> for Event {
                 serde_json::to_string(&other.poll_id).expect("failed to serialize poll_id"),
             )
             .add_attribute("voter", other.voter)
+            .add_attribute(
+                "votes",
+                serde_json::to_string(&other.votes).expect("failed to serialize votes"),
+            )
     }
 }
 

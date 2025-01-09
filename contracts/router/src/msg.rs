@@ -12,7 +12,7 @@ pub struct InstantiateMsg {
 
 #[cw_serde]
 pub struct MigrateMsg {
-    pub axelarnet_gateway: String,
+    pub chains_to_remove: Vec<String>,
 }
 
 // these messages are extracted into a separate package to avoid circular dependencies
