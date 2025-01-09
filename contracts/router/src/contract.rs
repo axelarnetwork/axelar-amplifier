@@ -1823,4 +1823,19 @@ mod test {
         )
         .is_ok());
     }
+
+    #[test]
+    fn chain_info_fails_on_unregistered_chain() {
+        let deps = setup();
+        let unregistered_chain: ChainName = "unregistered".parse().unwrap();
+
+        // Ensure that the error message doesn't change unexpectedly since the relayer depends on it
+        let err = query(
+            deps.as_ref(),
+            mock_env(),
+            QueryMsg::ChainInfo(unregistered_chain),
+        )
+        .unwrap_err();
+        goldie::assert!(err.to_string());
+    }
 }
