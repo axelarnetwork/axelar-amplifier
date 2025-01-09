@@ -6,8 +6,8 @@ edition = { workspace = true }
 description = "Multisig prover contract"
 
 exclude = [
-  "contract.wasm",
-  "hash.txt",
+    "contract.wasm",
+    "hash.txt"
 ]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -62,7 +62,6 @@ stellar-xdr = { workspace = true }
 sui-gateway = { workspace = true }
 thiserror = { workspace = true }
 voting-verifier = { workspace = true, features = ["library"] }
-axelar-solana-encoding = { workspace = true }
 
 [dev-dependencies]
 anyhow = "1.0"

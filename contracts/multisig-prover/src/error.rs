@@ -43,10 +43,6 @@ pub enum ContractError {
     #[error(transparent)]
     BcsError(#[from] bcs::Error),
 
-    // NOTE: using string "reason" because the `axelar_solana_encoding::error::Error` does not implement PartialEq
-    #[error("Solana encoding/decoding error: [0]")]
-    SolanaEncoding { reason: String },
-
     #[error("verifier set has not changed sufficiently since last update")]
     VerifierSetUnchanged,
 
