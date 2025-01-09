@@ -16,7 +16,7 @@ use service_registry::WeightedVerifier;
 
 use crate::contract::query::{message_status, verifier_set_status};
 use crate::error::ContractError;
-use crate::events::{EmptyEvent, Event, TxEventConfirmation, VerifierSetConfirmation};
+use crate::events::{Event, TxEventConfirmation, VerifierSetConfirmation};
 use crate::state::{
     self, poll_messages, poll_verifier_sets, Poll, PollContent, CONFIG, POLLS, POLL_ID, VOTES,
 };
@@ -64,21 +64,20 @@ pub fn verify_verifier_set(
         )
         .change_context(ContractError::StorageError)?;
 
-    Ok(
-        Response::new().add_event(EmptyEvent::VerifierSetPollStarted {
-            verifier_set: VerifierSetConfirmation::new(
-                message_id,
-                config.msg_id_format,
-                new_verifier_set,
-            )?,
-            poll_id,
-            source_chain: config.source_chain,
-            source_gateway_address: config.source_gateway_address,
-            confirmation_height: config.confirmation_height,
-            expires_at,
-            participants,
-        }),
-    )
+    let event: Event = Event::VerifierSetPollStarted {
+        verifier_set: VerifierSetConfirmation::new(
+            message_id,
+            config.msg_id_format,
+            new_verifier_set,
+        )?,
+        poll_id,
+        source_chain: config.source_chain,
+        source_gateway_address: config.source_gateway_address,
+        confirmation_height: config.confirmation_height,
+        expires_at,
+        participants,
+    };
+    Ok(Response::new().add_event(event))
 }
 
 pub fn verify_messages(
@@ -141,7 +140,7 @@ pub fn verify_messages(
         })
         .collect::<Result<Vec<TxEventConfirmation>, _>>()?;
 
-    Ok(Response::new().add_event(EmptyEvent::MessagesPollStarted {
+    let event: Event = Event::MessagesPollStarted {
         messages,
         poll_id: id,
         source_chain: config.source_chain,
@@ -149,7 +148,8 @@ pub fn verify_messages(
         confirmation_height: config.confirmation_height,
         expires_at,
         participants,
-    }))
+    };
+    Ok(Response::new().add_event(event))
 }
 
 fn poll_results(poll: &Poll) -> PollResults {
@@ -249,12 +249,13 @@ pub fn vote(
         .save(deps.storage, (poll_id, info.sender.to_string()), &votes)
         .change_context(ContractError::StorageError)?;
 
+    let event: Event = Event::Voted {
+        poll_id,
+        voter: info.sender,
+        votes,
+    };
     Ok(Response::new()
-        .add_event(EmptyEvent::Voted {
-            poll_id,
-            voter: info.sender,
-            votes,
-        })
+        .add_event(event)
         .add_events(quorum_events.into_iter().flatten()))
 }
 
@@ -301,13 +302,12 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: PollId) -> Result<Response, Co
             funds: vec![],
         });
 
-    Ok(Response::new()
-        .add_messages(rewards_msgs)
-        .add_event(EmptyEvent::PollEnded {
-            poll_id: poll_result.poll_id,
-            results: poll_result.results.0.clone(),
-            source_chain: config.source_chain,
-        }))
+    let event: Event = Event::PollEnded {
+        poll_id: poll_result.poll_id,
+        results: poll_result.results.0.clone(),
+        source_chain: config.source_chain.clone(),
+    };
+    Ok(Response::new().add_messages(rewards_msgs).add_event(event))
 }
 
 fn take_snapshot(deps: Deps, chain: &ChainName) -> Result<snapshot::Snapshot, ContractError> {

@@ -6,7 +6,7 @@ use cosmwasm_std::{to_json_binary, Binary, Deps, DepsMut, Empty, Env, MessageInf
 use error_stack::ResultExt;
 
 use crate::error::ContractError;
-use crate::events::EmptyEvent;
+use crate::events::Event;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{Config, CONFIG};
 
@@ -50,7 +50,7 @@ pub fn instantiate(
     };
     CONFIG.save(deps.storage, &config)?;
 
-    Ok(Response::new().add_event(EmptyEvent::Instantiated {
+    let event: Event = Event::Instantiated {
         service_registry_contract: config.service_registry_contract,
         service_name: config.service_name,
         source_gateway_address: config.source_gateway_address,
@@ -61,7 +61,8 @@ pub fn instantiate(
         rewards_contract: config.rewards_contract,
         msg_id_format: config.msg_id_format,
         address_format: config.address_format,
-    }))
+    };
+    Ok(Response::new().add_event(event))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]

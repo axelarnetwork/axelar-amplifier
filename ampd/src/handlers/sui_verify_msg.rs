@@ -327,7 +327,7 @@ mod tests {
     fn poll_started_event(
         participants: Vec<TMAddress>,
         expires_at: u64,
-    ) -> voting_verifier::events::EmptyEvent {
+    ) -> voting_verifier::events::Event {
         let msg_id = Base58TxDigestAndEventIndex::new(TransactionDigest::random(), 0u64);
 
         voting_verifier::events::Event::MessagesPollStarted {

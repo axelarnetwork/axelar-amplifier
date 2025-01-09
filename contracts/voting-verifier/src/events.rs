@@ -17,7 +17,7 @@ use serde::Serialize;
 use crate::error::ContractError;
 
 #[derive(Serialize, IntoEvent)]
-pub enum Event<T>
+pub enum Event<T = Empty>
 where
     T: Serialize,
 {
@@ -67,8 +67,6 @@ where
         results: Vec<Option<Vote>>,
     },
 }
-
-pub type EmptyEvent = Event<Empty>;
 
 #[cw_serde]
 pub struct VerifierSetConfirmation {
@@ -208,7 +206,7 @@ mod test {
     use axelar_wasm_std::voting::Vote;
     use axelar_wasm_std::{nonempty, Threshold, VerificationStatus};
     use cosmwasm_std::testing::MockApi;
-    use cosmwasm_std::{Attribute, Uint128};
+    use cosmwasm_std::Uint128;
     use multisig::key::KeyType;
     use multisig::test::common::{build_verifier_set, ecdsa_test_data};
     use multisig::verifier_set::VerifierSet;
@@ -216,8 +214,7 @@ mod test {
     use serde_json::json;
 
     use super::{TxEventConfirmation, VerifierSetConfirmation};
-    use crate::events::{PollEnded, PollMetadata, PollStarted, QuorumReached, Voted};
-    use crate::state::Config;
+    use crate::events::Event;
 
     fn random_32_bytes() -> [u8; 32] {
         let mut bytes = [0; 32];
@@ -401,9 +398,9 @@ mod test {
     fn events_should_not_change() {
         let api = MockApi::default();
 
-        let config = Config {
-            service_name: "serviceName".try_into().unwrap(),
+        let event: Event = Event::Instantiated {
             service_registry_contract: api.addr_make("serviceRegistry_contract"),
+            service_name: "serviceName".try_into().unwrap(),
             source_gateway_address: "sourceGatewayAddress".try_into().unwrap(),
             voting_threshold: Threshold::try_from((2, 3)).unwrap().try_into().unwrap(),
             block_expiry: 10u64.try_into().unwrap(),
@@ -413,10 +410,9 @@ mod test {
             msg_id_format: MessageIdFormat::HexTxHashAndEventIndex,
             address_format: AddressFormat::Eip55,
         };
-        let event_instantiated =
-            cosmwasm_std::Event::new("instantiated").add_attributes(<Vec<Attribute>>::from(config));
+        let event_instantiated: cosmwasm_std::Event = event.into();
 
-        let event_messages_poll_started: cosmwasm_std::Event = PollStarted::Messages {
+        let event: Event = Event::MessagesPollStarted {
             messages: vec![
                 TxEventConfirmation {
                     tx_id: "txId1".try_into().unwrap(),
@@ -437,58 +433,54 @@ mod test {
                     payload_hash: [1; 32],
                 },
             ],
-            metadata: PollMetadata {
-                poll_id: 1.into(),
-                source_chain: "sourceChain".try_into().unwrap(),
-                source_gateway_address: "sourceGatewayAddress".try_into().unwrap(),
-                confirmation_height: 1,
-                expires_at: 1,
-                participants: vec![
-                    api.addr_make("participant1"),
-                    api.addr_make("participant2"),
-                    api.addr_make("participant3"),
-                ],
-            },
-        }
-        .into();
+            poll_id: 1.into(),
+            source_chain: "sourceChain".try_into().unwrap(),
+            source_gateway_address: "sourceGatewayAddress".try_into().unwrap(),
+            confirmation_height: 1,
+            expires_at: 1,
+            participants: vec![
+                api.addr_make("participant1"),
+                api.addr_make("participant2"),
+                api.addr_make("participant3"),
+            ],
+        };
+        let event_messages_poll_started: cosmwasm_std::Event = event.into();
 
-        let event_verifier_set_poll_started: cosmwasm_std::Event = PollStarted::VerifierSet {
+        let event: Event = Event::VerifierSetPollStarted {
             verifier_set: VerifierSetConfirmation {
                 tx_id: "txId".try_into().unwrap(),
                 event_index: 1,
                 message_id: "messageId".try_into().unwrap(),
                 verifier_set: build_verifier_set(KeyType::Ecdsa, &ecdsa_test_data::signers()),
             },
-            metadata: PollMetadata {
-                poll_id: 2.into(),
-                source_chain: "sourceChain".try_into().unwrap(),
-                source_gateway_address: "sourceGatewayAddress".try_into().unwrap(),
-                confirmation_height: 1,
-                expires_at: 1,
-                participants: vec![
-                    api.addr_make("participant4"),
-                    api.addr_make("participant5"),
-                    api.addr_make("participant6"),
-                ],
-            },
-        }
-        .into();
+            poll_id: 2.into(),
+            source_chain: "sourceChain".try_into().unwrap(),
+            source_gateway_address: "sourceGatewayAddress".try_into().unwrap(),
+            confirmation_height: 1,
+            expires_at: 1,
+            participants: vec![
+                api.addr_make("participant4"),
+                api.addr_make("participant5"),
+                api.addr_make("participant6"),
+            ],
+        };
+        let event_verifier_set_poll_started: cosmwasm_std::Event = event.into();
 
-        let event_quorum_reached: cosmwasm_std::Event = QuorumReached {
+        let event_quorum_reached: cosmwasm_std::Event = Event::QuorumReached {
             content: "content".to_string(),
             status: VerificationStatus::NotFoundOnSourceChain,
             poll_id: 1.into(),
         }
         .into();
 
-        let event_voted: cosmwasm_std::Event = Voted {
+        let event: Event = Event::Voted {
             poll_id: 1.into(),
             voter: api.addr_make("voter"),
             votes: vec![Vote::SucceededOnChain, Vote::FailedOnChain, Vote::NotFound],
-        }
-        .into();
+        };
+        let event_voted: cosmwasm_std::Event = event.into();
 
-        let event_poll_ended: cosmwasm_std::Event = PollEnded {
+        let event: Event = Event::PollEnded {
             poll_id: 1.into(),
             source_chain: "sourceChain".try_into().unwrap(),
             results: vec![
@@ -497,8 +489,8 @@ mod test {
                 Some(Vote::NotFound),
                 None,
             ],
-        }
-        .into();
+        };
+        let event_poll_ended: cosmwasm_std::Event = event.into();
 
         goldie::assert_json!(json!({
             "event_instantiated": event_instantiated,

@@ -46,7 +46,7 @@ pub fn into_contract_error_derive(input: TokenStream) -> TokenStream {
 /// }
 ///
 /// #[derive(IntoEvent)]
-/// enum SomeEvents<T, U> where
+/// enum SomeEvents<T = Empty, U = Empty> where
 /// T: Serialize,
 /// U: Serialize
 /// {
@@ -64,15 +64,17 @@ pub fn into_contract_error_derive(input: TokenStream) -> TokenStream {
 ///     }
 /// }
 ///
-/// let actual = Event::from(SomeEvents::SomeEmptyEvent::<Empty, Empty>);
+/// let actual: SomeEvents = SomeEvents::SomeEmptyEvent;
+/// let actual: Event = actual.into();
 /// let expected = Event::new("some_empty_event");
 /// assert_eq!(actual, expected);
 ///
-/// let actual = Event::from(SomeEvents::SomeOtherEmptyEvent::<Empty, Empty> {});
+/// let actual: SomeEvents = SomeEvents::SomeOtherEmptyEvent {};
+/// let actual: Event = actual.into();
 /// let expected = Event::new("some_other_empty_event");
 /// assert_eq!(actual, expected);
 ///
-/// let actual = Event::from(SomeEvents::SomeEvent::<Empty, Empty> {
+/// let actual: SomeEvents = SomeEvents::SomeEvent {
 ///     some_uint: 42,
 ///     some_string: "some string".to_string(),
 ///     some_bool: true,
@@ -82,7 +84,8 @@ pub fn into_contract_error_derive(input: TokenStream) -> TokenStream {
 ///         some_vec: vec!["a".to_string(), "b".to_string()],
 ///         some_map: [("a".to_string(), "b".to_string()), ("c".to_string(), "d".to_string()), ("e".to_string(), "f".to_string())].into_iter().collect(),
 ///     },
-/// });
+/// };
+/// let actual: Event = actual.into();
 /// let expected = Event::new("some_event")
 ///     .add_attribute("some_uint", "42")
 ///     .add_attribute("some_string", "\"some string\"")
@@ -90,10 +93,10 @@ pub fn into_contract_error_derive(input: TokenStream) -> TokenStream {
 ///     .add_attribute("some_object", "{\"some_option\":\"some option\",\"some_other_option\":null,\"some_vec\":[\"a\",\"b\"],\"some_map\":{\"a\":\"b\",\"c\":\"d\",\"e\":\"f\"}}");
 /// assert_eq!(actual, expected);
 ///
-/// let actual = Event::from(SomeEvents::SomeGenericsEvent::<String, u64> {
+/// let actual: Event = SomeEvents::SomeGenericsEvent {
 ///     some_generics: "some generics".to_string(),
 ///     some_other_generics: 42,
-/// });
+/// }.into();
 /// let expected = Event::new("some_generics_event")
 ///     .add_attribute("some_generics", "\"some generics\"")
 ///     .add_attribute("some_other_generics", "42");

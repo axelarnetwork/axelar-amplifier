@@ -299,7 +299,7 @@ mod tests {
         assert_eq!(handler.handle(&event).await.unwrap(), vec![]);
     }
 
-    fn poll_started_event(participants: Vec<TMAddress>) -> voting_verifier::events::EmptyEvent {
+    fn poll_started_event(participants: Vec<TMAddress>) -> voting_verifier::events::Event {
         voting_verifier::events::Event::MessagesPollStarted  {
             poll_id: "100".parse().unwrap(),
             source_chain: "multiversx".parse().unwrap(),

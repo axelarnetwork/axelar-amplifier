@@ -300,7 +300,7 @@ mod tests {
     fn poll_started_event(
         participants: Vec<TMAddress>,
         expires_at: u64,
-    ) -> voting_verifier::events::EmptyEvent {
+    ) -> voting_verifier::events::Event {
         voting_verifier::events::Event::MessagesPollStarted {
             poll_id: "100".parse().unwrap(),
             source_chain: "stellar".parse().unwrap(),
