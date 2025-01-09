@@ -42,13 +42,7 @@ pub fn start_signing_session(
         .block
         .height
         .checked_add(config.block_expiry.into())
-        .ok_or_else(|| {
-            OverflowError::new(
-                OverflowOperation::Add,
-                env.block.height,
-                config.block_expiry,
-            )
-        })?;
+        .ok_or_else(|| OverflowError::new(OverflowOperation::Add))?;
 
     let signing_session = SigningSession::new(
         session_id,
@@ -72,7 +66,7 @@ pub fn start_signing_session(
 
     Ok(Response::new()
         .set_data(to_json_binary(&session_id)?)
-        .add_event(event.into()))
+        .add_event(event))
 }
 
 pub fn submit_signature(
@@ -168,13 +162,10 @@ pub fn register_pub_key(
 
     save_pub_key(deps.storage, info.sender.clone(), public_key.clone())?;
 
-    Ok(Response::new().add_event(
-        Event::PublicKeyRegistered {
-            verifier: info.sender,
-            public_key,
-        }
-        .into(),
-    ))
+    Ok(Response::new().add_event(Event::PublicKeyRegistered {
+        verifier: info.sender,
+        public_key,
+    }))
 }
 
 pub fn require_authorized_caller(
@@ -208,7 +199,6 @@ pub fn authorize_callers(
                 contract_address,
                 chain_name,
             }
-            .into()
         })),
     )
 }
@@ -227,7 +217,6 @@ pub fn unauthorize_callers(
                 contract_address,
                 chain_name,
             }
-            .into()
         })),
     )
 }
@@ -267,21 +256,16 @@ fn signing_response(
         signature,
     };
 
-    let mut response = Response::new()
-        .add_message(rewards_msg)
-        .add_event(event.into());
+    let mut response = Response::new().add_message(rewards_msg).add_event(event);
 
     if let MultisigState::Completed { completed_at } = session.state {
         if state_changed {
             // only send event if state changed
-            response = response.add_event(
-                Event::SigningCompleted {
-                    session_id: session.id,
-                    completed_at,
-                    chain_name: session.chain_name,
-                }
-                .into(),
-            )
+            response = response.add_event(Event::SigningCompleted {
+                session_id: session.id,
+                completed_at,
+                chain_name: session.chain_name,
+            })
         }
     }
 

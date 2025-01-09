@@ -9,14 +9,17 @@ edition = { workspace = true }
 proc-macro = true
 
 [dependencies]
+cosmwasm-std = { workspace = true }
 error-stack = { workspace = true }
-quote = "1.0.33"
+quote = { workspace = true }
 report = { workspace = true }
-syn = "2.0.29"
+syn = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]
 axelar-wasm-std = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
 
 [lints]
 workspace = true

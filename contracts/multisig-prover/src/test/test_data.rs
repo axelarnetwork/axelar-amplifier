@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 
 use axelar_wasm_std::{nonempty, MajorityThreshold, Participant, Threshold};
 use cosmwasm_schema::cw_serde;
+use cosmwasm_std::testing::MockApi;
 use cosmwasm_std::{Addr, HexBinary, Uint128, Uint64};
 use multisig::key::{KeyType, Signature};
 use multisig::msg::Signer;
@@ -198,7 +199,7 @@ pub fn verifier_set_from_pub_keys(pub_keys: Vec<&str>) -> VerifierSet {
         .map(|i| {
             (
                 Participant {
-                    address: Addr::unchecked(format!("verifier{i}")),
+                    address: MockApi::default().addr_make(format!("verifier{i}").as_str()),
                     weight: nonempty::Uint128::one(),
                 },
                 multisig::key::PublicKey::Ecdsa(HexBinary::from_hex(pub_keys[i]).unwrap()),

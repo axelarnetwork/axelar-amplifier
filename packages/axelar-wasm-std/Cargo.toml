@@ -12,8 +12,6 @@ exclude = ["contract.wasm", "hash.txt"]
 crate-type = ["rlib"]
 
 [features]
-# for more explicit tests, cargo test --features=backtraces
-backtraces = ["cosmwasm-std/backtraces"]
 derive = ["dep:axelar-wasm-std-derive"]
 
 [package.metadata.scripts]
@@ -59,7 +57,7 @@ crypto-bigint = { version = "0.5.5", features = ["rand_core"] }
 
 [dev-dependencies]
 assert_ok = { workspace = true }
-cw-multi-test = "0.15.1"
+cw-multi-test = { workspace = true }
 goldie = { workspace = true }
 rand = { workspace = true }
 hex = { version = "0.4.3", default-features = false }
