@@ -338,15 +338,23 @@ where
 mod test {
     use std::collections::BTreeMap;
 
+    use axelar_wasm_std::address::AddressFormat;
     use axelar_wasm_std::msg_id::{
         Base58TxDigestAndEventIndex, HexTxHash, HexTxHashAndEventIndex, MessageIdFormat,
     };
-    use axelar_wasm_std::nonempty;
-    use cosmwasm_std::Uint128;
+    use axelar_wasm_std::voting::Vote;
+    use axelar_wasm_std::{nonempty, Threshold, VerificationStatus};
+    use cosmwasm_std::testing::MockApi;
+    use cosmwasm_std::{Attribute, Uint128};
+    use multisig::key::KeyType;
+    use multisig::test::common::{build_verifier_set, ecdsa_test_data};
     use multisig::verifier_set::VerifierSet;
     use router_api::{CrossChainId, Message};
+    use serde_json::json;
 
     use super::{TxEventConfirmation, VerifierSetConfirmation};
+    use crate::events::{PollEnded, PollMetadata, PollStarted, QuorumReached, Voted};
+    use crate::state::Config;
 
     fn random_32_bytes() -> [u8; 32] {
         let mut bytes = [0; 32];
@@ -523,5 +531,119 @@ mod test {
             verifier_set,
         );
         assert!(event.is_err());
+    }
+
+    #[test]
+    #[allow(deprecated)]
+    fn events_should_not_change() {
+        let api = MockApi::default();
+
+        let config = Config {
+            service_name: "serviceName".try_into().unwrap(),
+            service_registry_contract: api.addr_make("serviceRegistry_contract"),
+            source_gateway_address: "sourceGatewayAddress".try_into().unwrap(),
+            voting_threshold: Threshold::try_from((2, 3)).unwrap().try_into().unwrap(),
+            block_expiry: 10u64.try_into().unwrap(),
+            confirmation_height: 1,
+            source_chain: "sourceChain".try_into().unwrap(),
+            rewards_contract: api.addr_make("rewardsContract"),
+            msg_id_format: MessageIdFormat::HexTxHashAndEventIndex,
+            address_format: AddressFormat::Eip55,
+        };
+        let event_instantiated =
+            cosmwasm_std::Event::new("instantiated").add_attributes(<Vec<Attribute>>::from(config));
+
+        let event_messages_poll_started: cosmwasm_std::Event = PollStarted::Messages {
+            messages: vec![
+                TxEventConfirmation {
+                    tx_id: "txId1".try_into().unwrap(),
+                    event_index: 1,
+                    message_id: "messageId".try_into().unwrap(),
+                    destination_address: "destinationAddress1".parse().unwrap(),
+                    destination_chain: "destinationChain".try_into().unwrap(),
+                    source_address: "sourceAddress1".parse().unwrap(),
+                    payload_hash: [0; 32],
+                },
+                TxEventConfirmation {
+                    tx_id: "txId2".try_into().unwrap(),
+                    event_index: 2,
+                    message_id: "messageId".try_into().unwrap(),
+                    destination_address: "destinationAddress2".parse().unwrap(),
+                    destination_chain: "destinationChain".try_into().unwrap(),
+                    source_address: "sourceAddress2".parse().unwrap(),
+                    payload_hash: [1; 32],
+                },
+            ],
+            metadata: PollMetadata {
+                poll_id: 1.into(),
+                source_chain: "sourceChain".try_into().unwrap(),
+                source_gateway_address: "sourceGatewayAddress".try_into().unwrap(),
+                confirmation_height: 1,
+                expires_at: 1,
+                participants: vec![
+                    api.addr_make("participant1"),
+                    api.addr_make("participant2"),
+                    api.addr_make("participant3"),
+                ],
+            },
+        }
+        .into();
+
+        let event_verifier_set_poll_started: cosmwasm_std::Event = PollStarted::VerifierSet {
+            verifier_set: VerifierSetConfirmation {
+                tx_id: "txId".try_into().unwrap(),
+                event_index: 1,
+                message_id: "messageId".try_into().unwrap(),
+                verifier_set: build_verifier_set(KeyType::Ecdsa, &ecdsa_test_data::signers()),
+            },
+            metadata: PollMetadata {
+                poll_id: 2.into(),
+                source_chain: "sourceChain".try_into().unwrap(),
+                source_gateway_address: "sourceGatewayAddress".try_into().unwrap(),
+                confirmation_height: 1,
+                expires_at: 1,
+                participants: vec![
+                    api.addr_make("participant4"),
+                    api.addr_make("participant5"),
+                    api.addr_make("participant6"),
+                ],
+            },
+        }
+        .into();
+
+        let event_quorum_reached: cosmwasm_std::Event = QuorumReached {
+            content: "content".to_string(),
+            status: VerificationStatus::NotFoundOnSourceChain,
+            poll_id: 1.into(),
+        }
+        .into();
+
+        let event_voted: cosmwasm_std::Event = Voted {
+            poll_id: 1.into(),
+            voter: api.addr_make("voter"),
+            votes: vec![Vote::SucceededOnChain, Vote::FailedOnChain, Vote::NotFound],
+        }
+        .into();
+
+        let event_poll_ended: cosmwasm_std::Event = PollEnded {
+            poll_id: 1.into(),
+            source_chain: "sourceChain".try_into().unwrap(),
+            results: vec![
+                Some(Vote::SucceededOnChain),
+                Some(Vote::FailedOnChain),
+                Some(Vote::NotFound),
+                None,
+            ],
+        }
+        .into();
+
+        goldie::assert_json!(json!({
+            "event_instantiated": event_instantiated,
+            "event_messages_poll_started": event_messages_poll_started,
+            "event_verifier_set_poll_started": event_verifier_set_poll_started,
+            "event_quorum_reached": event_quorum_reached,
+            "event_voted": event_voted,
+            "event_poll_ended": event_poll_ended,
+        }));
     }
 }
