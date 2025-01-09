@@ -352,10 +352,9 @@ mod test {
     use router_api::{CrossChainId, Message};
     use serde_json::json;
 
+    use super::{TxEventConfirmation, VerifierSetConfirmation};
     use crate::events::{PollEnded, PollMetadata, PollStarted, QuorumReached, Voted};
     use crate::state::Config;
-
-    use super::{TxEventConfirmation, VerifierSetConfirmation};
 
     fn random_32_bytes() -> [u8; 32] {
         let mut bytes = [0; 32];
