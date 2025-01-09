@@ -1,7 +1,4 @@
-use axelar_solana_gateway::{
-    processor::GatewayEvent,
-    state::{BytemuckedPda, GatewayConfig},
-};
+use axelar_solana_gateway::{processor::GatewayEvent, state::GatewayConfig, BytemuckedPda};
 use axelar_wasm_std::msg_id::Base58SolanaTxSignatureAndEventIndex;
 use axelar_wasm_std::voting::Vote;
 use gateway_event_stack::MatchContext;
@@ -44,7 +41,7 @@ impl SolanaRpcClientProxy for RpcClient {
         let (gateway_root_pda, ..) = axelar_solana_gateway::get_gateway_root_config_pda();
 
         let config_data = self.get_account(&gateway_root_pda).await.ok()?.data;
-        let config = *GatewayConfig::read(&config_data).ok()?;
+        let config = *GatewayConfig::read(&config_data)?;
         let domain_separator = config.domain_separator;
         Some(domain_separator)
     }
