@@ -11,6 +11,9 @@ proc-macro = true
 [dependencies]
 cosmwasm-std = { workspace = true }
 error-stack = { workspace = true }
+heck = { workspace = true }
+itertools = { workspace = true }
+proc-macro2 = { workspace = true }
 quote = { workspace = true }
 report = { workspace = true }
 syn = { workspace = true }
