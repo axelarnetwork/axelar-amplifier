@@ -132,7 +132,7 @@ type TokenAddress = nonempty::HexBinary;
 pub struct CustomToken {
     pub chain: ChainNameRaw,
     pub decimals: u8,
-    pub address: TokenAddress,
+    pub token_address: TokenAddress,
 }
 
 const CONFIG: Item<Config> = Item::new("config");
@@ -295,18 +295,18 @@ pub fn save_custom_token(
     storage: &mut dyn Storage,
     chain: ChainNameRaw,
     RegisterTokenMetadata {
-        token_address: address,
+        token_address,
         decimals,
     }: RegisterTokenMetadata,
 ) -> Result<(), Error> {
     CUSTOM_TOKENS
         .save(
             storage,
-            &(chain.clone(), address.clone()),
+            &(chain.clone(), token_address.clone()),
             &CustomToken {
                 chain,
                 decimals,
-                address,
+                token_address,
             },
         )
         .change_context(Error::Storage)

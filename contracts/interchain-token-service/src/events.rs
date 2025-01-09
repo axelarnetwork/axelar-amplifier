@@ -14,6 +14,7 @@ pub enum Event {
     TokenMetadataRegistered {
         token_address: nonempty::HexBinary,
         decimals: u8,
+        source_chain: ChainNameRaw,
     },
     ItsContractRegistered {
         chain: ChainNameRaw,
@@ -37,9 +38,11 @@ impl From<Event> for cosmwasm_std::Event {
             Event::TokenMetadataRegistered {
                 token_address,
                 decimals,
+                source_chain,
             } => cosmwasm_std::Event::new("token_metadata_registered")
                 .add_attribute_as_string("token_address", token_address)
-                .add_attribute_as_string("decimals", decimals),
+                .add_attribute_as_string("decimals", decimals)
+                .add_attribute_as_string("source_chain", source_chain),
             Event::ItsContractRegistered { chain, address } => {
                 cosmwasm_std::Event::new("its_contract_registered")
                     .add_attribute_as_string("chain", chain)

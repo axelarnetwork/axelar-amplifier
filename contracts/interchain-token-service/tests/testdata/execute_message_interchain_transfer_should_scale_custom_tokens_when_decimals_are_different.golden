@@ -1,4 +1,84 @@
 {
+  "destination_register_token_response": {
+    "attributes": [],
+    "data": null,
+    "events": [
+      {
+        "attributes": [
+          {
+            "key": "token_address",
+            "value": "0101010101010101010101010101010101010101010101010101010101010101"
+          },
+          {
+            "key": "decimals",
+            "value": "18"
+          },
+          {
+            "key": "source_chain",
+            "value": "dest-its-chain"
+          }
+        ],
+        "type": "token_metadata_registered"
+      }
+    ],
+    "messages": []
+  },
+  "link_token_response": {
+    "attributes": [],
+    "data": null,
+    "events": [
+      {
+        "attributes": [
+          {
+            "key": "cc_id",
+            "value": "source-its-chain_message-id"
+          },
+          {
+            "key": "destination_chain",
+            "value": "dest-its-chain"
+          },
+          {
+            "key": "message_type",
+            "value": "LinkToken"
+          },
+          {
+            "key": "token_id",
+            "value": "0101010101010101010101010101010101010101010101010101010101010101"
+          },
+          {
+            "key": "token_manager_type",
+            "value": "0"
+          },
+          {
+            "key": "source_token_address",
+            "value": "0101010101010101010101010101010101010101010101010101010101010101"
+          },
+          {
+            "key": "destination_token_address",
+            "value": "0101010101010101010101010101010101010101010101010101010101010101"
+          }
+        ],
+        "type": "message_received"
+      }
+    ],
+    "messages": [
+      {
+        "gas_limit": null,
+        "id": 0,
+        "msg": {
+          "wasm": {
+            "execute": {
+              "contract_addr": "cosmwasm1f6j7u6875p2cvyrgjr0d2uecyzah0kgeek38h39czwdhe5em3zys78pcnl",
+              "funds": [],
+              "msg": "eyJjYWxsX2NvbnRyYWN0Ijp7ImRlc3RpbmF0aW9uX2NoYWluIjoiZGVzdC1pdHMtY2hhaW4iLCJkZXN0aW5hdGlvbl9hZGRyZXNzIjoiZGVzdC1pdHMtY29udHJhY3QiLCJwYXlsb2FkIjoiMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwNDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwNjAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMGEwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAxMDczNmY3NTcyNjM2NTJkNjk3NDczMmQ2MzY4NjE2OTZlMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMTYwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwNTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDBjMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAxMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMTQwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAyMDAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDIwMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAifX0="
+            }
+          }
+        },
+        "payload": "",
+        "reply_on": "never"
+      }
+    ]
+  },
   "response_to_destination": {
     "attributes": [],
     "data": null,
@@ -110,5 +190,29 @@
         "reply_on": "never"
       }
     ]
+  },
+  "source_register_token_response": {
+    "attributes": [],
+    "data": null,
+    "events": [
+      {
+        "attributes": [
+          {
+            "key": "token_address",
+            "value": "0101010101010101010101010101010101010101010101010101010101010101"
+          },
+          {
+            "key": "decimals",
+            "value": "6"
+          },
+          {
+            "key": "source_chain",
+            "value": "source-its-chain"
+          }
+        ],
+        "type": "token_metadata_registered"
+      }
+    ],
+    "messages": []
   }
 }

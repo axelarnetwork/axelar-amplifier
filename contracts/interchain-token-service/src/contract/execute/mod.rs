@@ -108,7 +108,7 @@ pub fn execute_message(
             message,
         } => execute_message_on_hub(deps, cc_id, destination_chain, message),
         HubMessage::RegisterTokenMetadata(msg) => {
-            execute_register_token(deps.storage, cc_id.source_chain, msg)
+            execute_register_token_metadata(deps.storage, cc_id.source_chain, msg)
         }
         _ => bail!(Error::InvalidMessageType),
     }
@@ -181,16 +181,23 @@ fn apply_to_hub(
     .then(Result::Ok)
 }
 
-fn execute_register_token(
+fn execute_register_token_metadata(
     storage: &mut dyn Storage,
     source_chain: ChainNameRaw,
-    register_token: RegisterTokenMetadata,
+    register_token_metadata: RegisterTokenMetadata,
 ) -> Result<Response, Error> {
     ensure_chain_not_frozen(storage, &source_chain)?;
-    interceptors::register_custom_token(storage, source_chain, register_token.clone())?;
+
+    interceptors::register_custom_token(
+        storage,
+        source_chain.clone(),
+        register_token_metadata.clone(),
+    )?;
+
     Ok(Response::new().add_event(Event::TokenMetadataRegistered {
-        token_address: register_token.token_address,
-        decimals: register_token.decimals,
+        token_address: register_token_metadata.token_address,
+        decimals: register_token_metadata.decimals,
+        source_chain,
     }))
 }
 

@@ -177,25 +177,25 @@ impl Message {
                 .into()
             }
             MessageType::LinkToken => {
-                let decoded =
-                    LinkToken::abi_decode_params(payload, true).map_err(Error::AbiDecodeFailed)?;
+                let LinkToken {
+                    tokenId,
+                    tokenManagerType,
+                    sourceToken,
+                    destinationToken,
+                    params,
+                    ..
+                } = LinkToken::abi_decode_params(payload, true).map_err(Error::AbiDecodeFailed)?;
 
                 primitives::LinkToken {
-                    token_id: TokenId::new(decoded.tokenId.into()),
-                    source_token_address: decoded
-                        .sourceToken
-                        .to_vec()
+                    token_id: TokenId::new(tokenId.into()),
+                    source_token_address: Vec::<u8>::from(sourceToken)
                         .try_into()
                         .map_err(Error::NonEmpty)?,
-                    token_manager_type: Uint256::from_le_bytes(
-                        decoded.tokenManagerType.to_le_bytes(),
-                    ),
-                    destination_token_address: decoded
-                        .destinationToken
-                        .to_vec()
+                    token_manager_type: Uint256::from_le_bytes(tokenManagerType.to_le_bytes()),
+                    destination_token_address: Vec::<u8>::from(destinationToken)
                         .try_into()
                         .map_err(Error::NonEmpty)?,
-                    params: from_vec(decoded.params.into())?,
+                    params: from_vec(params.into())?,
                 }
                 .into()
             }
@@ -278,7 +278,9 @@ impl HubMessage {
                     .map_err(Error::AbiDecodeFailed)?;
                 HubMessage::RegisterTokenMetadata(primitives::RegisterTokenMetadata {
                     decimals,
-                    token_address: tokenAddress.to_vec().try_into().map_err(Error::NonEmpty)?,
+                    token_address: Vec::<u8>::from(tokenAddress)
+                        .try_into()
+                        .map_err(Error::NonEmpty)?,
                 })
             }
             _ => bail!(Error::InvalidMessageType),

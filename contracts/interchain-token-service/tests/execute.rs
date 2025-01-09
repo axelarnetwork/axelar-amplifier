@@ -256,7 +256,7 @@ fn execute_message_interchain_transfer_should_scale_custom_tokens_when_decimals_
         source_chain: source_its_chain.clone(),
         message_id: router_message.cc_id.message_id.clone(),
     };
-    assert_ok!(utils::execute_hub_message(
+    let source_register_token_response = assert_ok!(utils::execute_hub_message(
         deps.as_mut(),
         cc_id,
         source_its_contract.clone(),
@@ -271,7 +271,7 @@ fn execute_message_interchain_transfer_should_scale_custom_tokens_when_decimals_
         source_chain: destination_its_chain.clone(),
         message_id: router_message.cc_id.message_id.clone(),
     };
-    assert_ok!(utils::execute_hub_message(
+    let destination_register_token_response = assert_ok!(utils::execute_hub_message(
         deps.as_mut(),
         cc_id,
         destination_its_contract.clone(),
@@ -294,7 +294,7 @@ fn execute_message_interchain_transfer_should_scale_custom_tokens_when_decimals_
         source_chain: source_its_chain.clone(),
         message_id: router_message.cc_id.message_id.clone(),
     };
-    assert_ok!(utils::execute_hub_message(
+    let link_token_response = assert_ok!(utils::execute_hub_message(
         deps.as_mut(),
         cc_id,
         source_its_contract.clone(),
@@ -343,9 +343,11 @@ fn execute_message_interchain_transfer_should_scale_custom_tokens_when_decimals_
         hub_message,
     ));
 
-    goldie::assert_json!(
-        json!({"response_to_destination": response_to_destination, "response_to_source": response_to_source})
-    );
+    goldie::assert_json!(json!({"response_to_destination": response_to_destination,
+        "response_to_source": response_to_source,
+        "source_register_token_response": source_register_token_response,
+        "destination_register_token_response": destination_register_token_response,
+        "link_token_response" : link_token_response}));
 }
 
 #[test]
