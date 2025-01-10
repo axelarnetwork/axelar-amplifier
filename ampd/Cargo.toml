@@ -7,6 +7,8 @@ rust-version = { workspace = true }
 
 [dependencies]
 async-trait = "0.1.59"
+axelar-solana-encoding = { workspace = true }
+axelar-solana-gateway = { workspace = true }
 axelar-wasm-std = { workspace = true }
 axum = "0.7.5"
 base64 = "0.21.2"
@@ -71,7 +73,7 @@ sui-gateway = { workspace = true }
 sui-json-rpc-types = { git = "https://github.com/mystenlabs/sui", tag = "testnet-v1.39.1" }
 sui-types = { git = "https://github.com/mystenlabs/sui", tag = "testnet-v1.39.1" }
 tendermint = "0.35.0"
-tendermint-rpc = { version = "0.35.0", features = [ "http-client" ] }
+tendermint-rpc = { version = "0.35.0", features = ["http-client"] }
 thiserror = { workspace = true }
 tokio = { workspace = true, features = ["signal"] }
 tokio-stream = { workspace = true, features = ["sync"] }
@@ -90,8 +92,6 @@ url = "2.3.1"
 valuable = { version = "0.1.0", features = ["derive"] }
 valuable-serde = { version = "0.1.0", features = ["std"] }
 voting-verifier = { workspace = true }
-axelar-solana-gateway = { workspace = true }
-axelar-solana-encoding = { workspace = true }
 
 [dev-dependencies]
 assert_ok = { workspace = true }
