@@ -205,7 +205,7 @@ mod tests {
                         from_contract_addr: String::from("source-gw-addr"),
                         destination_address: String::from("destination-address"),
                         destination_chain: "ethereum".parse().unwrap(),
-                        source_address: Felt::ONE.into(),
+                        source_address: Felt::ONE,
                         payload_hash: H256::from_slice(&[
                             28u8, 138, 255, 149, 6, 133, 194, 237, 75, 195, 23, 79, 52, 114, 40,
                             123, 86, 217, 81, 123, 156, 148, 129, 39, 49, 154, 9, 167, 163, 109,
@@ -254,7 +254,7 @@ mod tests {
                         from_contract_addr: String::from("source-gw-addr"),
                         destination_address: String::from("destination-address"),
                         destination_chain: "ethereum".parse().unwrap(),
-                        source_address: Felt::ONE.into(),
+                        source_address: Felt::ONE,
                         payload_hash: H256::from_slice(&[
                             28u8, 138, 255, 149, 6, 133, 194, 237, 75, 195, 23, 79, 52, 114, 40,
                             123, 86, 217, 81, 123, 156, 148, 129, 39, 49, 154, 9, 167, 163, 109,
@@ -398,6 +398,7 @@ mod tests {
                     .collect(),
             },
             messages: vec![
+                #[allow(deprecated)] // TODO: Use message_id, on deprecating tx_id and event_index
                 TxEventConfirmation {
                     tx_id: "0x035410be6f4bf3f67f7c1bb4a93119d9d410b2f981bfafbf5dbbf5d37ae7439e"
                         .parse()
@@ -420,6 +421,7 @@ mod tests {
                     ])
                     .into(),
                 },
+                #[allow(deprecated)] // TODO: Use message_id, on deprecating tx_id and event_index
                 TxEventConfirmation {
                     tx_id: "0x045410be6f4bf3f67f7c1bb4a93119d9d410b2f981bfafbf5dbbf5d37ae7439f"
                         .parse()
@@ -463,6 +465,7 @@ mod tests {
                     .collect(),
             },
             messages: vec![
+                #[allow(deprecated)] // TODO: Use message_id, on deprecating tx_id and event_index
                 TxEventConfirmation {
                     tx_id: "0x045410be6f4bf3f67f7c1bb4a93119d9d410b2f981bfafbf5dbbf5d37ae7439f"
                         .parse()
@@ -485,6 +488,7 @@ mod tests {
                     ])
                     .into(),
                 },
+                #[allow(deprecated)] // TODO: Use message_id, on deprecating tx_id and event_index
                 TxEventConfirmation {
                     tx_id: "0x045410be6f4bf3f67f7c1bb4a93119d9d410b2f981bfafbf5dbbf5d37ae7439f"
                         .parse()

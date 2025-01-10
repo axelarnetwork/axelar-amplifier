@@ -159,7 +159,7 @@ mod tests {
         );
 
         let cfg: Config = toml::from_str(config_str.as_str()).unwrap();
-        assert_eq!(cfg.handlers.len(), 10);
+        assert_eq!(cfg.handlers.len(), 12);
     }
 
     #[test]
@@ -358,6 +358,18 @@ mod tests {
                     rpc_url: Url::from_str("http://127.0.0.1").unwrap(),
                 },
                 HandlerConfig::StellarVerifierSetVerifier {
+                    cosmwasm_contract: TMAddress::from(
+                        AccountId::new("axelar", &[0u8; 32]).unwrap(),
+                    ),
+                    rpc_url: Url::from_str("http://127.0.0.1").unwrap(),
+                },
+                HandlerConfig::StarknetMsgVerifier {
+                    cosmwasm_contract: TMAddress::from(
+                        AccountId::new("axelar", &[0u8; 32]).unwrap(),
+                    ),
+                    rpc_url: Url::from_str("http://127.0.0.1").unwrap(),
+                },
+                HandlerConfig::StarknetVerifierSetVerifier {
                     cosmwasm_contract: TMAddress::from(
                         AccountId::new("axelar", &[0u8; 32]).unwrap(),
                     ),
