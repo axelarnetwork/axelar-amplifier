@@ -1,114 +1,82 @@
 {
   "response_to_destination": {
+    "attributes": [],
+    "data": null,
+    "events": [
+      {
+        "attributes": [
+          {
+            "key": "cc_id",
+            "value": "{\"source_chain\":\"source-its-chain\",\"message_id\":\"message-id\"}"
+          },
+          {
+            "key": "destination_chain",
+            "value": "\"dest-its-chain\""
+          },
+          {
+            "key": "message",
+            "value": "{\"interchain_transfer\":{\"token_id\":\"0101010101010101010101010101010101010101010101010101010101010101\",\"source_address\":\"0101010101010101010101010101010101010101010101010101010101010101\",\"destination_address\":\"0202020202020202020202020202020202020202020202020202020202020202\",\"amount\":\"1000000\",\"data\":null}}"
+          }
+        ],
+        "type": "message_received"
+      }
+    ],
     "messages": [
       {
+        "gas_limit": null,
         "id": 0,
-        "payload": "",
         "msg": {
           "wasm": {
             "execute": {
               "contract_addr": "cosmwasm1f6j7u6875p2cvyrgjr0d2uecyzah0kgeek38h39czwdhe5em3zys78pcnl",
-              "msg": "eyJjYWxsX2NvbnRyYWN0Ijp7ImRlc3RpbmF0aW9uX2NoYWluIjoiZGVzdC1pdHMtY2hhaW4iLCJkZXN0aW5hdGlvbl9hZGRyZXNzIjoiZGVzdC1pdHMtY29udHJhY3QiLCJwYXlsb2FkIjoiMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwNDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwNjAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMGEwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAxMDczNmY3NTcyNjM2NTJkNjk3NDczMmQ2MzY4NjE2OTZlMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMTYwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMGMwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDEwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwZjQyNDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMTQwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAyMDAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDIwMDIwMjAyMDIwMjAyMDIwMjAyMDIwMjAyMDIwMjAyMDIwMjAyMDIwMjAyMDIwMjAyMDIwMjAyMDIwMjAyMDIwMjAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAifX0=",
-              "funds": []
+              "funds": [],
+              "msg": "eyJjYWxsX2NvbnRyYWN0Ijp7ImRlc3RpbmF0aW9uX2NoYWluIjoiZGVzdC1pdHMtY2hhaW4iLCJkZXN0aW5hdGlvbl9hZGRyZXNzIjoiZGVzdC1pdHMtY29udHJhY3QiLCJwYXlsb2FkIjoiMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwNDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwNjAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMGEwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAxMDczNmY3NTcyNjM2NTJkNjk3NDczMmQ2MzY4NjE2OTZlMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMTYwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMGMwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDEwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwZjQyNDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMTQwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAyMDAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDIwMDIwMjAyMDIwMjAyMDIwMjAyMDIwMjAyMDIwMjAyMDIwMjAyMDIwMjAyMDIwMjAyMDIwMjAyMDIwMjAyMDIwMjAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAifX0="
             }
           }
         },
-        "gas_limit": null,
+        "payload": "",
         "reply_on": "never"
       }
-    ],
-    "attributes": [],
-    "events": [
-      {
-        "type": "message_received",
-        "attributes": [
-          {
-            "key": "cc_id",
-            "value": "source-its-chain_message-id"
-          },
-          {
-            "key": "destination_chain",
-            "value": "dest-its-chain"
-          },
-          {
-            "key": "message_type",
-            "value": "InterchainTransfer"
-          },
-          {
-            "key": "token_id",
-            "value": "0101010101010101010101010101010101010101010101010101010101010101"
-          },
-          {
-            "key": "source_address",
-            "value": "0101010101010101010101010101010101010101010101010101010101010101"
-          },
-          {
-            "key": "destination_address",
-            "value": "0202020202020202020202020202020202020202020202020202020202020202"
-          },
-          {
-            "key": "amount",
-            "value": "1000000"
-          }
-        ]
-      }
-    ],
-    "data": null
+    ]
   },
   "response_to_source": {
+    "attributes": [],
+    "data": null,
+    "events": [
+      {
+        "attributes": [
+          {
+            "key": "cc_id",
+            "value": "{\"source_chain\":\"dest-its-chain\",\"message_id\":\"message-id\"}"
+          },
+          {
+            "key": "destination_chain",
+            "value": "\"source-its-chain\""
+          },
+          {
+            "key": "message",
+            "value": "{\"interchain_transfer\":{\"token_id\":\"0101010101010101010101010101010101010101010101010101010101010101\",\"source_address\":\"0202020202020202020202020202020202020202020202020202020202020202\",\"destination_address\":\"0101010101010101010101010101010101010101010101010101010101010101\",\"amount\":\"1000000000000000000\",\"data\":null}}"
+          }
+        ],
+        "type": "message_received"
+      }
+    ],
     "messages": [
       {
+        "gas_limit": null,
         "id": 0,
-        "payload": "",
         "msg": {
           "wasm": {
             "execute": {
               "contract_addr": "cosmwasm1f6j7u6875p2cvyrgjr0d2uecyzah0kgeek38h39czwdhe5em3zys78pcnl",
-              "msg": "eyJjYWxsX2NvbnRyYWN0Ijp7ImRlc3RpbmF0aW9uX2NoYWluIjoic291cmNlLWl0cy1jaGFpbiIsImRlc3RpbmF0aW9uX2FkZHJlc3MiOiJzb3VyY2UtaXRzLWNvbnRyYWN0IiwicGF5bG9hZCI6IjAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDQwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDYwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDBhMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMGU2NDY1NzM3NDJkNjk3NDczMmQ2MzY4NjE2OTZlMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDE2MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDBjMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAxMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwZGUwYjZiM2E3NjQwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDE0MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMjAwMjAyMDIwMjAyMDIwMjAyMDIwMjAyMDIwMjAyMDIwMjAyMDIwMjAyMDIwMjAyMDIwMjAyMDIwMjAyMDIwMjAyMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAyMDAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwIn19",
-              "funds": []
+              "funds": [],
+              "msg": "eyJjYWxsX2NvbnRyYWN0Ijp7ImRlc3RpbmF0aW9uX2NoYWluIjoic291cmNlLWl0cy1jaGFpbiIsImRlc3RpbmF0aW9uX2FkZHJlc3MiOiJzb3VyY2UtaXRzLWNvbnRyYWN0IiwicGF5bG9hZCI6IjAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDQwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDYwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDBhMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMGU2NDY1NzM3NDJkNjk3NDczMmQ2MzY4NjE2OTZlMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDE2MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDBjMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAxMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwZGUwYjZiM2E3NjQwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDE0MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMjAwMjAyMDIwMjAyMDIwMjAyMDIwMjAyMDIwMjAyMDIwMjAyMDIwMjAyMDIwMjAyMDIwMjAyMDIwMjAyMDIwMjAyMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAyMDAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwIn19"
             }
           }
         },
-        "gas_limit": null,
+        "payload": "",
         "reply_on": "never"
       }
-    ],
-    "attributes": [],
-    "events": [
-      {
-        "type": "message_received",
-        "attributes": [
-          {
-            "key": "cc_id",
-            "value": "dest-its-chain_message-id"
-          },
-          {
-            "key": "destination_chain",
-            "value": "source-its-chain"
-          },
-          {
-            "key": "message_type",
-            "value": "InterchainTransfer"
-          },
-          {
-            "key": "token_id",
-            "value": "0101010101010101010101010101010101010101010101010101010101010101"
-          },
-          {
-            "key": "source_address",
-            "value": "0202020202020202020202020202020202020202020202020202020202020202"
-          },
-          {
-            "key": "destination_address",
-            "value": "0101010101010101010101010101010101010101010101010101010101010101"
-          },
-          {
-            "key": "amount",
-            "value": "1000000000000000000"
-          }
-        ]
-      }
-    ],
-    "data": null
+    ]
   }
 }
