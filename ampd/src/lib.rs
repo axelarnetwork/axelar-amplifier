@@ -407,6 +407,22 @@ where
                     ),
                     event_processor_config.clone(),
                 ),
+                handlers::config::Config::StarknetVerifierSetVerifier {
+                    cosmwasm_contract,
+                    rpc_url,
+                } => self.create_handler_task(
+                    "starknet-verifier-set-verifier",
+                    handlers::starknet_verify_verifier_set::Handler::new(
+                        verifier.clone(),
+                        cosmwasm_contract,
+                        starknet::json_rpc::Client::new_with_transport(HttpTransport::new(
+                            &rpc_url,
+                        ))
+                        .unwrap(),
+                        self.block_height_monitor.latest_block_height(),
+                    ),
+                    event_processor_config.clone(),
+                ),
             };
             self.event_processor = self.event_processor.add_task(task);
         }

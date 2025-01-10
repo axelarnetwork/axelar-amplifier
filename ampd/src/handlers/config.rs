@@ -67,6 +67,10 @@ pub enum Config {
         cosmwasm_contract: TMAddress,
         rpc_url: Url,
     },
+    StarknetVerifierSetVerifier {
+        cosmwasm_contract: TMAddress,
+        rpc_url: Url,
+    },
 }
 
 fn validate_starknet_msg_verifier_config<'de, D>(configs: &[Config]) -> Result<(), D::Error>

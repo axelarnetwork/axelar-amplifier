@@ -132,7 +132,20 @@ mod tests {
             type = 'StellarVerifierSetVerifier'
             cosmwasm_contract = '{}'
             rpc_url = 'http://localhost:7545'
+
+            [[handlers]]
+            type = 'StarknetMsgVerifier'
+            cosmwasm_contract = '{}'
+            rpc_url = 'http://localhost:7545'
+
+            [[handlers]]
+            type = 'StarknetVerifierSetVerifier'
+            cosmwasm_contract = '{}'
+            rpc_url = 'http://localhost:7545'
+
             ",
+            TMAddress::random(PREFIX),
+            TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
