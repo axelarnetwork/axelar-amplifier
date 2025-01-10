@@ -10,7 +10,8 @@ use interchain_token_service::contract::{self, ExecuteError};
 use interchain_token_service::events::Event;
 use interchain_token_service::msg::{self, ExecuteMsg, TruncationConfig};
 use interchain_token_service::{
-    DeployInterchainToken, HubMessage, InterchainTransfer, TokenId, TokenSupply,
+    DeployInterchainToken, HubMessage, InterchainTransfer, LinkToken, RegisterTokenMetadata,
+    TokenId, TokenSupply,
 };
 use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
 use serde_json::json;
@@ -226,6 +227,127 @@ fn execute_hub_message_succeeds() {
         .collect();
 
     goldie::assert_json!(responses);
+}
+
+#[test]
+fn execute_message_interchain_transfer_should_scale_custom_tokens_when_decimals_are_different() {
+    let (
+        mut deps,
+        TestMessage {
+            router_message,
+            source_its_contract,
+            source_its_chain,
+            destination_its_chain,
+            destination_its_contract,
+            ..
+        },
+    ) = utils::setup_with_chain_configs(
+        Uint256::MAX.try_into().unwrap(),
+        6,
+        u64::MAX.try_into().unwrap(),
+        6,
+    );
+    let token_id = TokenId::new([1; 32]);
+    let hub_message = HubMessage::RegisterTokenMetadata(RegisterTokenMetadata {
+        decimals: 6,
+        token_address: HexBinary::from([1; 32]).try_into().unwrap(),
+    });
+    let cc_id = CrossChainId {
+        source_chain: source_its_chain.clone(),
+        message_id: router_message.cc_id.message_id.clone(),
+    };
+    let source_register_token_response = assert_ok!(utils::execute_hub_message(
+        deps.as_mut(),
+        cc_id,
+        source_its_contract.clone(),
+        hub_message,
+    ));
+
+    let hub_message = HubMessage::RegisterTokenMetadata(RegisterTokenMetadata {
+        decimals: 18,
+        token_address: HexBinary::from([1; 32]).try_into().unwrap(),
+    });
+    let cc_id = CrossChainId {
+        source_chain: destination_its_chain.clone(),
+        message_id: router_message.cc_id.message_id.clone(),
+    };
+    let destination_register_token_response = assert_ok!(utils::execute_hub_message(
+        deps.as_mut(),
+        cc_id,
+        destination_its_contract.clone(),
+        hub_message,
+    ));
+
+    let hub_message = HubMessage::SendToHub {
+        destination_chain: destination_its_chain.clone(),
+        message: LinkToken {
+            token_id,
+            token_manager_type: Uint256::zero(),
+            source_token_address: HexBinary::from([1; 32]).try_into().unwrap(),
+            destination_token_address: HexBinary::from([1; 32]).try_into().unwrap(),
+            params: None,
+        }
+        .into(),
+    };
+
+    let cc_id = CrossChainId {
+        source_chain: source_its_chain.clone(),
+        message_id: router_message.cc_id.message_id.clone(),
+    };
+    let link_token_response = assert_ok!(utils::execute_hub_message(
+        deps.as_mut(),
+        cc_id,
+        source_its_contract.clone(),
+        hub_message,
+    ));
+
+    // send from source to destination
+    let transfer = InterchainTransfer {
+        token_id,
+        source_address: HexBinary::from([1; 32]).try_into().unwrap(),
+        destination_address: HexBinary::from([2; 32]).try_into().unwrap(),
+        amount: Uint256::from_u128(1_000_000u128).try_into().unwrap(),
+        data: None,
+    };
+    let hub_message = HubMessage::SendToHub {
+        destination_chain: destination_its_chain.clone(),
+        message: transfer.into(),
+    };
+    let response_to_destination = assert_ok!(utils::execute_hub_message(
+        deps.as_mut(),
+        router_message.cc_id.clone(),
+        source_its_contract,
+        hub_message,
+    ));
+
+    // send back from destination to source
+    let transfer = InterchainTransfer {
+        token_id,
+        source_address: HexBinary::from([2; 32]).try_into().unwrap(),
+        destination_address: HexBinary::from([1; 32]).try_into().unwrap(),
+        amount: Uint256::from_u128(1_000_000_000_000_000_000u128)
+            .try_into()
+            .unwrap(),
+        data: None,
+    };
+    let mut cc_id = router_message.cc_id.clone();
+    cc_id.source_chain = destination_its_chain.clone();
+    let hub_message = HubMessage::SendToHub {
+        destination_chain: source_its_chain,
+        message: transfer.into(),
+    };
+    let response_to_source = assert_ok!(utils::execute_hub_message(
+        deps.as_mut(),
+        cc_id,
+        destination_its_contract,
+        hub_message,
+    ));
+
+    goldie::assert_json!(json!({"response_to_destination": response_to_destination,
+        "response_to_source": response_to_source,
+        "source_register_token_response": source_register_token_response,
+        "destination_register_token_response": destination_register_token_response,
+        "link_token_response" : link_token_response}));
 }
 
 #[test]
