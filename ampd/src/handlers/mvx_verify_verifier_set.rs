@@ -168,18 +168,20 @@ mod tests {
 
     use super::PollStartedEvent;
     use crate::event_processor::EventHandler;
-    use crate::handlers::tests::into_structured_event;
+    use crate::handlers::tests::{into_structured_event, participants};
     use crate::mvx::proxy::MockMvxProxy;
     use crate::types::TMAddress;
     use crate::PREFIX;
 
     #[test]
-    fn should_deserialize_verifier_set_poll_started_event() {
+    fn mvx_verify_verifier_set_should_deserialize_correct_event() {
         let event: PollStartedEvent = assert_ok!(into_structured_event(
             verifier_set_poll_started_event(participants(5, None), 100),
             &TMAddress::random(PREFIX),
         )
         .try_into());
+
+        goldie::assert_debug!(&event);
 
         assert!(event.poll_id == 100u64.into());
         assert!(
@@ -196,7 +198,6 @@ mod tests {
         assert!(verifier_set.event_index == 1u32);
         assert!(verifier_set.verifier_set.signers.len() == 3);
         assert_eq!(verifier_set.verifier_set.threshold, Uint128::from(2u128));
-        goldie::assert_json!(verifier_set.verifier_set.signers);
     }
 
     #[async_test]
@@ -337,12 +338,5 @@ mod tests {
                 verifier_set: build_verifier_set(KeyType::Ed25519, &ed25519_test_data::signers()),
             },
         }
-    }
-
-    fn participants(n: u8, worker: Option<TMAddress>) -> Vec<TMAddress> {
-        (0..n)
-            .map(|_| TMAddress::random(PREFIX))
-            .chain(worker)
-            .collect()
     }
 }
