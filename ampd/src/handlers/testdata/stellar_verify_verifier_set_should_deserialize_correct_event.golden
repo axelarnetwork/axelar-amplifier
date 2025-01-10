@@ -1,0 +1,118 @@
+PollStartedEvent {
+    poll_id: PollId(
+        Uint64(
+            100,
+        ),
+    ),
+    source_gateway_address: Contract(
+        Hash(0202020202020202020202020202020202020202020202020202020202020202),
+    ),
+    verifier_set: VerifierSetConfirmation {
+        message_id: HexTxHashAndEventIndex {
+            tx_hash: [
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+            ],
+            event_index: 0,
+        },
+        verifier_set: VerifierSet {
+            signers: {
+                "cosmwasm12qeyytrx2drup9gptvcqg4l6jdthymmz2lpu40rk6evs5cazf2kss8u0ey": Signer {
+                    address: Addr(
+                        "cosmwasm12qeyytrx2drup9gptvcqg4l6jdthymmz2lpu40rk6evs5cazf2kss8u0ey",
+                    ),
+                    weight: Uint128(
+                        1,
+                    ),
+                    pub_key: Ed25519(
+                        HexBinary(addc89f87bba5a4267ae308ade0e5571488836038c5955e80ceee1f92ab6dc90),
+                    ),
+                },
+                "cosmwasm1g6q4zg5fk2uyg2wnxrt63dc6p5w0ycng2tq98k5cgg0w4zngt3wqnynyv3": Signer {
+                    address: Addr(
+                        "cosmwasm1g6q4zg5fk2uyg2wnxrt63dc6p5w0ycng2tq98k5cgg0w4zngt3wqnynyv3",
+                    ),
+                    weight: Uint128(
+                        1,
+                    ),
+                    pub_key: Ed25519(
+                        HexBinary(aa91ac8c4e299502560308e1bc3e180d98152c2510cc6e2689c4d4cd40bacfbe),
+                    ),
+                },
+                "cosmwasm1jguu9vd3fty0cr949yawye8gj88n0rjvjtpxa7t93umqpn3j96mqr93mgz": Signer {
+                    address: Addr(
+                        "cosmwasm1jguu9vd3fty0cr949yawye8gj88n0rjvjtpxa7t93umqpn3j96mqr93mgz",
+                    ),
+                    weight: Uint128(
+                        1,
+                    ),
+                    pub_key: Ed25519(
+                        HexBinary(5e050b6d1aeffa8a0ea24df98dd6f13f23c67d2554ab2b57bbdcd4be90261f8b),
+                    ),
+                },
+            },
+            threshold: Uint128(
+                2,
+            ),
+            created_at: 0,
+        },
+    },
+    participants: [
+        TMAddress(
+            AccountId(
+                "axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq87nk3s",
+            ),
+        ),
+        TMAddress(
+            AccountId(
+                "axelar1qyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpuxy7hs",
+            ),
+        ),
+        TMAddress(
+            AccountId(
+                "axelar1qgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszg9nw3w",
+            ),
+        ),
+        TMAddress(
+            AccountId(
+                "axelar1qvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrnayxhw",
+            ),
+        ),
+        TMAddress(
+            AccountId(
+                "axelar1qszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyz29mj8",
+            ),
+        ),
+    ],
+    expires_at: 100,
+}

@@ -200,15 +200,13 @@ mod tests {
     use std::str::FromStr;
 
     use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
-    use base64::engine::general_purpose::STANDARD;
-    use base64::Engine;
-    use error_stack::{Report, Result};
+    use error_stack::Report;
+    use ethers_core::types::H256;
     use ethers_providers::ProviderError;
     use events::Event;
     use multisig::key::KeyType;
     use multisig::test::common::{build_verifier_set, ecdsa_test_data};
     use router_api::ChainName;
-    use tendermint::abci;
     use tokio::sync::watch;
     use tokio::test as async_test;
     use voting_verifier::events::{PollMetadata, PollStarted, VerifierSetConfirmation};
@@ -217,18 +215,19 @@ mod tests {
     use crate::evm::finalizer::Finalization;
     use crate::evm::json_rpc::MockEthereumClient;
     use crate::handlers::evm_verify_verifier_set::PollStartedEvent;
-    use crate::types::{Hash, TMAddress};
+    use crate::handlers::tests::{into_structured_event, participants};
+    use crate::types::TMAddress;
     use crate::PREFIX;
 
     #[test]
-    fn should_deserialize_correct_event() {
-        let event: Event = to_event(
+    fn evm_verify_verifier_set_should_deserialize_correct_event() {
+        let event: Event = into_structured_event(
             poll_started_event(participants(5, None), 100),
             &TMAddress::random(PREFIX),
         );
-        let event: Result<PollStartedEvent, events::Error> = event.try_into();
+        let event: PollStartedEvent = event.try_into().unwrap();
 
-        assert!(event.is_ok());
+        goldie::assert_debug!(event);
     }
 
     #[async_test]
@@ -244,7 +243,7 @@ mod tests {
         let voting_verifier = TMAddress::random(PREFIX);
         let verifier = TMAddress::random(PREFIX);
         let expiration = 100u64;
-        let event: Event = to_event(
+        let event: Event = into_structured_event(
             poll_started_event(participants(5, Some(verifier.clone())), expiration),
             &voting_verifier,
         );
@@ -270,7 +269,7 @@ mod tests {
     }
 
     fn poll_started_event(participants: Vec<TMAddress>, expires_at: u64) -> PollStarted {
-        let msg_id = HexTxHashAndEventIndex::new(Hash::random(), 100u64);
+        let msg_id = HexTxHashAndEventIndex::new(H256::repeat_byte(1), 100u64);
         PollStarted::VerifierSet {
             #[allow(deprecated)] // TODO: The below event uses the deprecated tx_id and event_index fields. Remove this attribute when those fields are removed
             verifier_set: VerifierSetConfirmation {
@@ -293,31 +292,5 @@ mod tests {
                     .collect(),
             },
         }
-    }
-
-    fn to_event(event: impl Into<cosmwasm_std::Event>, contract_address: &TMAddress) -> Event {
-        let mut event: cosmwasm_std::Event = event.into();
-
-        event.ty = format!("wasm-{}", event.ty);
-        event = event.add_attribute("_contract_address", contract_address.to_string());
-
-        abci::Event::new(
-            event.ty,
-            event
-                .attributes
-                .into_iter()
-                .map(|cosmwasm_std::Attribute { key, value }| {
-                    (STANDARD.encode(key), STANDARD.encode(value))
-                }),
-        )
-        .try_into()
-        .unwrap()
-    }
-
-    fn participants(n: u8, verifier: Option<TMAddress>) -> Vec<TMAddress> {
-        (0..n)
-            .map(|_| TMAddress::random(PREFIX))
-            .chain(verifier)
-            .collect()
     }
 }
