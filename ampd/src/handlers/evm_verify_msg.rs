@@ -235,7 +235,7 @@ mod tests {
     use router_api::ChainName;
     use tokio::sync::watch;
     use tokio::test as async_test;
-    use voting_verifier::events::{PollMetadata, PollStarted, TxEventConfirmation};
+    use voting_verifier::events::TxEventConfirmation;
 
     use super::PollStartedEvent;
     use crate::event_processor::EventHandler;
@@ -245,26 +245,28 @@ mod tests {
     use crate::types::TMAddress;
     use crate::PREFIX;
 
-    fn poll_started_event(participants: Vec<TMAddress>, expires_at: u64) -> PollStarted {
+    fn poll_started_event(
+        participants: Vec<TMAddress>,
+        expires_at: u64,
+    ) -> voting_verifier::events::Event {
         let msg_ids = [
             HexTxHashAndEventIndex::new(H256::repeat_byte(1), 0u64),
             HexTxHashAndEventIndex::new(H256::repeat_byte(2), 1u64),
             HexTxHashAndEventIndex::new(H256::repeat_byte(3), 10u64),
         ];
-        PollStarted::Messages {
-            metadata: PollMetadata {
-                poll_id: "100".parse().unwrap(),
-                source_chain: "ethereum".parse().unwrap(),
-                source_gateway_address: "0x4f4495243837681061c4743b74eedf548d5686a5"
-                    .parse()
-                    .unwrap(),
-                confirmation_height: 15,
-                expires_at,
-                participants: participants
-                    .into_iter()
-                    .map(|addr| cosmwasm_std::Addr::unchecked(addr.to_string()))
-                    .collect(),
-            },
+
+        voting_verifier::events::Event::MessagesPollStarted {
+            poll_id: "100".parse().unwrap(),
+            source_chain: "ethereum".parse().unwrap(),
+            source_gateway_address: "0x4f4495243837681061c4743b74eedf548d5686a5"
+                .parse()
+                .unwrap(),
+            confirmation_height: 15,
+            expires_at,
+            participants: participants
+                .into_iter()
+                .map(|addr| cosmwasm_std::Addr::unchecked(addr.to_string()))
+                .collect(),
             #[allow(deprecated)] // TODO: The below events use the deprecated tx_id and event_index fields. Remove this attribute when those fields are removed
             messages: vec![
                 TxEventConfirmation {
