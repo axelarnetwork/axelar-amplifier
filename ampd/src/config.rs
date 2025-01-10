@@ -145,9 +145,8 @@ mod tests {
 
             [[handlers]]
             type = 'SolanaVerifierSetVerifier'
-            chain_rpc_url = 'http://localhost'
-            cosmwasm_contract = '{}'
             rpc_url = 'http://localhost:7545'
+            cosmwasm_contract = '{}'
             ",
             TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
