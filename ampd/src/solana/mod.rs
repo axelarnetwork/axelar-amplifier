@@ -59,7 +59,7 @@ pub fn verify<F>(
     match_context: &MatchContext,
     tx: (&Signature, &UiTransactionStatusMeta),
     message_id: &Base58SolanaTxSignatureAndEventIndex,
-    evens_are_equal: F,
+    events_are_equal: F,
 ) -> Vote
 where
     F: Fn(&GatewayEvent) -> bool,
@@ -120,7 +120,7 @@ where
             .into_iter()
             .find(|(idx, _)| *idx == desired_event_idx)
         {
-            if evens_are_equal(&event) {
+            if events_are_equal(&event) {
                 // proxy the desired vote status of whether the ix succeeded
                 return vote;
             }
