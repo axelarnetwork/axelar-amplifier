@@ -1,10 +1,9 @@
-use axelar_wasm_std::event::EventExt;
-use axelar_wasm_std::nonempty;
+use axelar_wasm_std::{nonempty, IntoEvent};
 use router_api::{Address, ChainNameRaw, CrossChainId};
 
 use crate::primitives::Message;
-use crate::{DeployInterchainToken, InterchainTransfer, LinkToken};
 
+#[derive(IntoEvent)]
 pub enum Event {
     MessageReceived {
         cc_id: CrossChainId,
@@ -12,9 +11,9 @@ pub enum Event {
         message: Message,
     },
     TokenMetadataRegistered {
+        source_chain: ChainNameRaw,
         token_address: nonempty::HexBinary,
         decimals: u8,
-        source_chain: ChainNameRaw,
     },
     ItsContractRegistered {
         chain: ChainNameRaw,
@@ -25,88 +24,6 @@ pub enum Event {
     },
     ExecutionDisabled,
     ExecutionEnabled,
-}
-
-impl From<Event> for cosmwasm_std::Event {
-    fn from(event: Event) -> Self {
-        match event {
-            Event::MessageReceived {
-                cc_id,
-                destination_chain,
-                message,
-            } => make_message_event("message_received", cc_id, destination_chain, message),
-            Event::TokenMetadataRegistered {
-                token_address,
-                decimals,
-                source_chain,
-            } => cosmwasm_std::Event::new("token_metadata_registered")
-                .add_attribute_as_string("token_address", token_address)
-                .add_attribute_as_string("decimals", decimals)
-                .add_attribute_as_string("source_chain", source_chain),
-            Event::ItsContractRegistered { chain, address } => {
-                cosmwasm_std::Event::new("its_contract_registered")
-                    .add_attribute_as_string("chain", chain)
-                    .add_attribute_as_string("address", address)
-            }
-            Event::ItsContractDeregistered { chain } => {
-                cosmwasm_std::Event::new("its_contract_deregistered")
-                    .add_attribute_as_string("chain", chain)
-            }
-            Event::ExecutionDisabled => cosmwasm_std::Event::new("execution_disabled"),
-            Event::ExecutionEnabled => cosmwasm_std::Event::new("execution_enabled"),
-        }
-    }
-}
-
-fn make_message_event(
-    event_name: &str,
-    cc_id: CrossChainId,
-    destination_chain: ChainNameRaw,
-    msg: Message,
-) -> cosmwasm_std::Event {
-    let event = cosmwasm_std::Event::new(event_name)
-        .add_attribute_as_string("cc_id", cc_id)
-        .add_attribute_as_string("destination_chain", destination_chain)
-        .add_attribute_as_string("message_type", msg.as_ref());
-
-    match msg {
-        Message::InterchainTransfer(InterchainTransfer {
-            token_id,
-            source_address,
-            destination_address,
-            amount,
-            data,
-        }) => event
-            .add_attribute_as_string("token_id", token_id)
-            .add_attribute_as_string("source_address", source_address)
-            .add_attribute_as_string("destination_address", destination_address)
-            .add_attribute_as_string("amount", amount)
-            .add_attribute_if_some("data", data.map(|data| data.to_string())),
-        Message::DeployInterchainToken(DeployInterchainToken {
-            token_id,
-            name,
-            symbol,
-            decimals,
-            minter,
-        }) => event
-            .add_attribute_as_string("token_id", token_id)
-            .add_attribute("name", name)
-            .add_attribute("symbol", symbol)
-            .add_attribute_as_string("decimals", decimals)
-            .add_attribute_if_some("minter", minter.map(|minter| minter.to_string())),
-        Message::LinkToken(LinkToken {
-            token_id,
-            token_manager_type,
-            source_token_address,
-            destination_token_address,
-            params,
-        }) => event
-            .add_attribute_as_string("token_id", token_id)
-            .add_attribute_as_string("token_manager_type", token_manager_type)
-            .add_attribute_as_string("source_token_address", source_token_address)
-            .add_attribute_as_string("destination_token_address", destination_token_address)
-            .add_attribute_if_some("params", params.map(|params| params.to_string())),
-    }
 }
 
 #[cfg(test)]

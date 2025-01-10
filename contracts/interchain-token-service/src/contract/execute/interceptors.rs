@@ -304,7 +304,8 @@ pub fn register_custom_token(
         Error::TokenAlreadyRegistered(register_token.token_address)
     );
 
-    state::save_custom_token(storage, source_chain, register_token).change_context(Error::State)
+    state::save_custom_token_metadata(storage, source_chain, register_token)
+        .change_context(Error::State)
 }
 
 #[cfg(test)]
