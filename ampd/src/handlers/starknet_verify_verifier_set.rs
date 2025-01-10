@@ -61,7 +61,6 @@ where
     ///
     /// # Type Parameters
     /// * `C` - A Starknet client type that implements the [`StarknetClient`] trait
-    #[allow(dead_code)]
     pub fn new(
         verifier: TMAddress,
         voting_verifier_contract: TMAddress,

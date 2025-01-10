@@ -213,7 +213,6 @@ impl TryFrom<starknet_core::types::Event> for SignersRotatedEvent {
 
 #[cfg(test)]
 mod tests {
-    // use futures::stream::{FuturesUnordered, StreamExt};
     use starknet_core::types::{EmittedEvent, Felt};
 
     use super::*;
@@ -259,11 +258,15 @@ mod tests {
         // Randomly remove an element from either vector
         match rand::random::<bool>() {
             true if !keys_data.is_empty() => {
-                let random_index = rand::random::<usize>() % keys_data.len();
+                let random_index = rand::random::<usize>()
+                    .checked_rem(keys_data.len())
+                    .unwrap();
                 keys_data.remove(random_index);
             }
             false if !event_data.is_empty() => {
-                let random_index = rand::random::<usize>() % event_data.len();
+                let random_index = rand::random::<usize>()
+                    .checked_rem(event_data.len())
+                    .unwrap();
                 event_data.remove(random_index);
             }
             _ => {}
@@ -339,33 +342,23 @@ mod tests {
 
     #[tokio::test]
     async fn test_try_from_event_randomly_malformed_data_x1000() {
-        // let mut futures = FuturesUnordered::new();
-
         for _ in 0..1000 {
-            // futures.push(async {
-                let (_, event_data, sender_address, tx_hash) = get_malformed_event().await;
-                let event = EmittedEvent {
-                    data: event_data,
-                    from_address: sender_address,
-                    keys: vec![],
-                    transaction_hash: tx_hash,
-                    block_hash: None,
-                    block_number: None,
-                };
-                let result = SignersRotatedEvent::try_from(Event {
-                    data: event.data,
-                    from_address: event.from_address,
-                    keys: event.keys,
-                });
-                assert!(result.is_err());
-            // });
-        }
+            let (_, event_data, sender_address, tx_hash) = get_malformed_event().await;
+            let event = EmittedEvent {
+                data: event_data,
+                from_address: sender_address,
+                keys: vec![],
+                transaction_hash: tx_hash,
+                block_hash: None,
+                block_number: None,
+            };
+            let result = SignersRotatedEvent::try_from(Event {
+                data: event.data,
+                from_address: event.from_address,
+                keys: event.keys,
+            });
 
-        // if any conversion succeeded then it should have failed
-        // while let Some(result) = futures.next().await {
-            // if !result {
-                // panic!("expected conversion to fail for malformed event");
-            // }
-        // }
+            assert!(result.is_err());
+        }
     }
 }

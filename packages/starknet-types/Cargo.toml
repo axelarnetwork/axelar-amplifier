@@ -23,7 +23,6 @@ tokio = { version = "1", features = [
   "macros",
 ] }
 rand = { workspace = true }
-# futures = { workspace = true }
 
 [lints]
 workspace = true
