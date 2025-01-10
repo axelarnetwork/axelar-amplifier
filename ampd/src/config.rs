@@ -139,13 +139,13 @@ mod tests {
 
             [[handlers]]
             type = 'SolanaMsgVerifier'
-            rpc_url = 'http://127.0.0.1'
+            rpc_url = 'http://localhost'
             cosmwasm_contract = '{}'
             max_tx_cache_entries = 6
 
             [[handlers]]
             type = 'SolanaVerifierSetVerifier'
-            chain_rpc_url = 'http://127.0.0.1'
+            chain_rpc_url = 'http://localhost'
             cosmwasm_contract = '{}'
             rpc_url = 'http://localhost:7545'
             ",
