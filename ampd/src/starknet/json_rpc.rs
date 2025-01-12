@@ -37,14 +37,14 @@ pub enum StarknetClientError {
 /// client.
 pub struct Client<T>
 where
-    T: JsonRpcTransport + Send + Sync + 'static,
+    T: JsonRpcTransport + Send + Sync,
 {
     client: JsonRpcClient<T>,
 }
 
 impl<T> Client<T>
 where
-    T: JsonRpcTransport + Send + Sync + 'static,
+    T: JsonRpcTransport + Send + Sync,
 {
     /// Constructor.
     /// Expects URL of any JSON RPC entry point of Starknet, which you can find
@@ -82,6 +82,8 @@ impl<T> StarknetClient for Client<T>
 where
     T: JsonRpcTransport + Send + Sync + 'static,
 {
+    // Fetches a transaction receipt by hash and extracts one or multiple
+    // `ContractCallEvent`
     async fn get_events_by_hash_contract_call(
         &self,
         tx_hash: CheckedFelt,
@@ -123,23 +125,7 @@ where
         Ok(message_id_and_event_pairs)
     }
 
-    /// Fetches a transaction receipt by hash and extracts a SignersRotatedEvent if present
-    ///
-    /// # Arguments
-    ///
-    /// * `tx_hash` - The hash of the transaction to fetch
-    ///
-    /// # Returns
-    ///
-    /// * `Ok(Some((tx_hash, SignersRotatedEvent)))` - If the transaction exists and contains a valid SignersRotatedEvent
-    /// * `Ok(None)` - If the transaction exists but contains no SignersRotatedEvent
-    /// * `Err(StarknetClientError)` - If there was an error fetching the receipt or the transaction failed
-    ///
-    /// # Errors
-    ///
-    /// Returns a `StarknetClientError` if:
-    /// * Failed to fetch the transaction receipt from the node
-    /// * The transaction execution was not successful
+    // Fetches a transaction receipt by hash and extracts a `SignersRotatedEvent` if present
     async fn get_event_by_hash_signers_rotated(
         &self,
         tx_hash: CheckedFelt,

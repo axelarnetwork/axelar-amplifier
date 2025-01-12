@@ -60,7 +60,7 @@ assert_ok = { workspace = true }
 cw-multi-test = { workspace = true }
 goldie = { workspace = true }
 rand = { workspace = true }
-hex = { version = "0.4.3", default-features = false }
+hex = { workspace = true, default-features = false }
 
 [lints]
 workspace = true
