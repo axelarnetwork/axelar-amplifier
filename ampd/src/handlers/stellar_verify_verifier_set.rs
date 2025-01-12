@@ -167,7 +167,7 @@ mod tests {
     use crate::event_processor::EventHandler;
     use crate::handlers::tests::{into_structured_event, participants};
     use crate::stellar::rpc_client::Client;
-    use crate::types::{Hash, TMAddress};
+    use crate::types::TMAddress;
     use crate::PREFIX;
 
     #[test]
@@ -215,13 +215,14 @@ mod tests {
     }
 
     #[test]
-    fn should_deserialize_correct_event() {
+    fn stellar_verify_verifier_set_should_deserialize_correct_event() {
         let event: Event = into_structured_event(
             poll_started_event(participants(5, None), 100),
             &TMAddress::random(PREFIX),
         );
-        let event: Result<PollStartedEvent, events::Error> = event.try_into();
-        assert!(event.is_ok());
+        let event: PollStartedEvent = event.try_into().unwrap();
+
+        goldie::assert_debug!(event);
     }
 
     #[async_test]
@@ -279,14 +280,12 @@ mod tests {
     }
 
     fn poll_started_event(participants: Vec<TMAddress>, expires_at: u64) -> PollStarted {
-        let msg_id = HexTxHashAndEventIndex::new(Hash::random(), 0u64);
+        let msg_id = HexTxHashAndEventIndex::new([1; 32], 0u64);
         PollStarted::VerifierSet {
             metadata: PollMetadata {
                 poll_id: "100".parse().unwrap(),
                 source_chain: "stellar".parse().unwrap(),
-                source_gateway_address: ScAddress::Contract(stellar_xdr::curr::Hash::from(
-                    Hash::random().0,
-                ))
+                source_gateway_address: ScAddress::Contract(stellar_xdr::curr::Hash::from([2; 32]))
                 .to_string()
                 .try_into()
                 .unwrap(),

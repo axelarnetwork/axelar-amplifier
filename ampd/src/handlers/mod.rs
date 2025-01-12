@@ -18,6 +18,7 @@ mod tests {
 
     use base64::engine::general_purpose::STANDARD;
     use base64::Engine;
+    use cosmrs::AccountId;
     use events::Event;
     use tendermint::abci;
 
@@ -49,7 +50,11 @@ mod tests {
 
     pub fn participants(n: u8, verifier: Option<TMAddress>) -> Vec<TMAddress> {
         (0..n)
-            .map(|_| TMAddress::random(PREFIX))
+            .map(|i| {
+                AccountId::new(PREFIX, &[i; AccountId::MAX_LENGTH])
+                    .unwrap()
+                    .into()
+            })
             .chain(verifier)
             .collect()
     }

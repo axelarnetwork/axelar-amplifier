@@ -23,31 +23,15 @@
       "attributes": [
         {
           "key": "cc_id",
-          "value": "sui_message-id"
+          "value": "{\"source_chain\":\"sui\",\"message_id\":\"message-id\"}"
         },
         {
           "key": "destination_chain",
-          "value": "ethereum"
+          "value": "\"ethereum\""
         },
         {
-          "key": "message_type",
-          "value": "InterchainTransfer"
-        },
-        {
-          "key": "token_id",
-          "value": "0101010101010101010101010101010101010101010101010101010101010101"
-        },
-        {
-          "key": "source_address",
-          "value": "0202020202020202020202020202020202020202020202020202020202020202"
-        },
-        {
-          "key": "destination_address",
-          "value": "0101010101010101010101010101010101010101010101010101010101010101"
-        },
-        {
-          "key": "amount",
-          "value": "1000000000000000000"
+          "key": "message",
+          "value": "{\"interchain_transfer\":{\"token_id\":\"0101010101010101010101010101010101010101010101010101010101010101\",\"source_address\":\"0202020202020202020202020202020202020202020202020202020202020202\",\"destination_address\":\"0101010101010101010101010101010101010101010101010101010101010101\",\"amount\":\"1000000000000000000\",\"data\":null}}"
         }
       ]
     }

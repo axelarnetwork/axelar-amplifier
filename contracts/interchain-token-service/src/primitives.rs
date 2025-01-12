@@ -31,8 +31,6 @@ pub enum Message {
     /// Deploy a new interchain token on the destination chain
     DeployInterchainToken(DeployInterchainToken),
 
-    RegisterTokenMetadata(RegisterTokenMetadata),
-
     LinkToken(LinkToken),
 }
 
@@ -83,13 +81,7 @@ impl From<DeployInterchainToken> for Message {
 #[derive(Eq)]
 pub struct RegisterTokenMetadata {
     pub decimals: u8,
-    pub address: nonempty::HexBinary,
-}
-
-impl From<RegisterTokenMetadata> for Message {
-    fn from(value: RegisterTokenMetadata) -> Self {
-        Message::RegisterTokenMetadata(value)
-    }
+    pub token_address: nonempty::HexBinary,
 }
 
 #[cw_serde]
@@ -125,6 +117,7 @@ pub enum HubMessage {
         source_chain: ChainNameRaw,
         message: Message,
     },
+    RegisterTokenMetadata(RegisterTokenMetadata),
 }
 
 impl HubMessage {
@@ -132,6 +125,9 @@ impl HubMessage {
         match self {
             HubMessage::SendToHub { message, .. } => message,
             HubMessage::ReceiveFromHub { message, .. } => message,
+            HubMessage::RegisterTokenMetadata { .. } => {
+                panic!("no message associated with this hub message type")
+            }
         }
     }
 
@@ -146,9 +142,6 @@ impl Message {
             Message::InterchainTransfer(InterchainTransfer { token_id, .. })
             | Message::DeployInterchainToken(DeployInterchainToken { token_id, .. })
             | Message::LinkToken(LinkToken { token_id, .. }) => *token_id,
-            Message::RegisterTokenMetadata(_) => {
-                panic!("no token id associated with this message type")
-            }
         }
     }
 }

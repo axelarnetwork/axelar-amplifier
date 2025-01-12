@@ -152,7 +152,7 @@ mod tests {
     use cosmrs::cosmwasm::MsgExecuteContract;
     use cosmrs::tx::Msg;
     use cosmwasm_std;
-    use error_stack::Result;
+    use ethers_core::types::H160;
     use hex::ToHex;
     use tokio::sync::watch;
     use tokio::test as async_test;
@@ -160,22 +160,21 @@ mod tests {
 
     use super::PollStartedEvent;
     use crate::event_processor::EventHandler;
-    use crate::handlers::tests::into_structured_event;
+    use crate::handlers::tests::{into_structured_event, participants};
     use crate::mvx::proxy::MockMvxProxy;
-    use crate::types::{EVMAddress, Hash, TMAddress};
+    use crate::types::TMAddress;
     use crate::PREFIX;
 
     #[test]
-    fn should_deserialize_poll_started_event() {
-        let event: Result<PollStartedEvent, events::Error> = into_structured_event(
+    fn mvx_verify_msg_should_deserialize_correct_event() {
+        let event: PollStartedEvent = into_structured_event(
             poll_started_event(participants(5, None)),
             &TMAddress::random(PREFIX),
         )
-        .try_into();
+        .try_into()
+        .unwrap();
 
-        assert!(event.is_ok());
-
-        let event = event.unwrap();
+        goldie::assert_debug!(&event);
 
         assert!(event.poll_id == 100u64.into());
         assert!(
@@ -331,16 +330,9 @@ mod tests {
                     .parse()
                     .unwrap(),
                 destination_chain: "ethereum".parse().unwrap(),
-                destination_address: format!("0x{:x}", EVMAddress::random()).parse().unwrap(),
-                payload_hash: Hash::random().to_fixed_bytes(),
+                destination_address: format!("0x{:x}", H160::repeat_byte(2)).parse().unwrap(),
+                payload_hash: [1;32],
             }],
         }
-    }
-
-    fn participants(n: u8, worker: Option<TMAddress>) -> Vec<TMAddress> {
-        (0..n)
-            .map(|_| TMAddress::random(PREFIX))
-            .chain(worker)
-            .collect()
     }
 }
