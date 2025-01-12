@@ -54,17 +54,25 @@ impl TryFrom<starknet_core::types::Event> for ContractCallEvent {
         // defined from the event)
         //
         // This field, should not exceed 252 bits (a felt's length)
-        let destination_chain = parse_cairo_short_string(&event.keys[1])?;
+        let destination_chain =
+            parse_cairo_short_string(event.keys.get(1).ok_or(ContractCallError::InvalidEvent(
+                "destinatino chain event key missing from ContractCall event".to_owned(),
+            ))?)?;
 
         // source_address represents the original caller of the `call_contract` gateway
         // method. It is the first field in data, by the order defined in the
         // event.
-        let source_address = event.data[0];
+        let source_address = *event.data.first().ok_or(ContractCallError::InvalidEvent(
+            "source address event data missing from ContractCall event".to_owned(),
+        ))?;
 
         // destination_contract_address (ByteArray) is composed of FieldElements
         // from the second element to elemet X.
-        let destination_address_chunks_count_felt = event.data[1];
-        let da_chunks_count: usize = u8::try_from(destination_address_chunks_count_felt)
+        let destination_address_chunks_count_felt =
+            event.data.get(1).ok_or(ContractCallError::InvalidEvent(
+                "destination address length missing from ContractCall event".to_owned(),
+            ))?;
+        let da_chunks_count: usize = u8::try_from(*destination_address_chunks_count_felt)
             .map_err(|err| ContractCallError::TryFromConversion(err.to_string()))?
             .into();
 

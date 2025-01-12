@@ -2,6 +2,7 @@
 //! transaction existence
 
 use async_trait::async_trait;
+use axelar_wasm_std::msg_id::{Error as MessageFormatError, FieldElementAndEventIndex};
 use error_stack::Report;
 use mockall::automock;
 use starknet_checked_felt::CheckedFelt;
@@ -26,6 +27,10 @@ pub enum StarknetClientError {
     FeltFromString(#[from] FromStrError),
     #[error("Tx not successful")]
     UnsuccessfulTx,
+    #[error("u64 overflowed")]
+    OverflowingU64,
+    #[error("Failed to construct message_id from event: {0}")]
+    MessageIdConstruction(#[from] MessageFormatError),
 }
 
 /// Implementor of verification method(s) for given network using JSON RPC
@@ -59,10 +64,10 @@ where
 pub trait StarknetClient {
     /// Attempts to fetch a ContractCall event, by a given `tx_hash`.
     /// Returns a tuple `(tx_hash, event)` or a `StarknetClientError`.
-    async fn get_event_by_hash_contract_call(
+    async fn get_events_by_hash_contract_call(
         &self,
         tx_hash: CheckedFelt,
-    ) -> Result<Option<(Felt, ContractCallEvent)>>;
+    ) -> Result<Vec<(FieldElementAndEventIndex, ContractCallEvent)>>;
 
     /// Attempts to fetch a SignersRotated event, by a given `tx_hash`.
     /// Returns a tuple `(tx_hash, event)` or a `StarknetClientError`.
@@ -77,13 +82,13 @@ impl<T> StarknetClient for Client<T>
 where
     T: JsonRpcTransport + Send + Sync + 'static,
 {
-    async fn get_event_by_hash_contract_call(
+    async fn get_events_by_hash_contract_call(
         &self,
         tx_hash: CheckedFelt,
-    ) -> Result<Option<(Felt, ContractCallEvent)>> {
+    ) -> Result<Vec<(FieldElementAndEventIndex, ContractCallEvent)>> {
         let receipt_with_block_info = self
             .client
-            .get_transaction_receipt(tx_hash)
+            .get_transaction_receipt(tx_hash.clone())
             .await
             .map_err(StarknetClientError::FetchingReceipt)?;
 
@@ -91,29 +96,31 @@ where
             return Err(Report::new(StarknetClientError::UnsuccessfulTx));
         }
 
-        let event: Option<(Felt, ContractCallEvent)> = match receipt_with_block_info.receipt {
+        let mut message_id_and_event_pairs: Vec<(FieldElementAndEventIndex, ContractCallEvent)> =
+            vec![];
+
+        match receipt_with_block_info.receipt {
             TransactionReceipt::Invoke(tx) => {
-                // NOTE: There should be only one ContractCall event per gateway tx
-                tx.events
-                    .iter()
-                    .filter_map(|e| {
-                        // NOTE: Here we ignore the error, because the event might
-                        // not be ContractCall and that by itself is not erroneous behavior
-                        if let Ok(cce) = ContractCallEvent::try_from(e.clone()) {
-                            Some((tx.transaction_hash, cce))
-                        } else {
-                            None
-                        }
-                    })
-                    .next()
+                let mut event_index: u64 = 0;
+                for e in tx.events.clone() {
+                    if let Ok(cce) = ContractCallEvent::try_from(e.clone()) {
+                        let message_id =
+                            FieldElementAndEventIndex::new(tx_hash.clone(), event_index)
+                                .map_err(StarknetClientError::MessageIdConstruction)?;
+                        message_id_and_event_pairs.push((message_id, cce));
+                        event_index = event_index
+                            .checked_add(1)
+                            .ok_or(StarknetClientError::OverflowingU64)?;
+                    }
+                }
             }
-            TransactionReceipt::L1Handler(_) => None,
-            TransactionReceipt::Declare(_) => None,
-            TransactionReceipt::Deploy(_) => None,
-            TransactionReceipt::DeployAccount(_) => None,
+            TransactionReceipt::L1Handler(_) => (),
+            TransactionReceipt::Declare(_) => (),
+            TransactionReceipt::Deploy(_) => (),
+            TransactionReceipt::DeployAccount(_) => (),
         };
 
-        Ok(event)
+        Ok(message_id_and_event_pairs)
     }
 
     /// Fetches a transaction receipt by hash and extracts a SignersRotatedEvent if present
@@ -174,6 +181,7 @@ mod test {
 
     use std::str::FromStr;
 
+    use axelar_wasm_std::msg_id::FieldElementAndEventIndex;
     use axum::async_trait;
     use ethers_core::types::H256;
     use serde::de::DeserializeOwned;
@@ -205,81 +213,81 @@ mod test {
     #[tokio::test]
     async fn deploy_account_tx_fetch() {
         let mock_client = Client::new_with_transport(DeployAccountMockTransport).unwrap();
-        let contract_call_event = mock_client
-            .get_event_by_hash_contract_call(
+        let contract_call_events = mock_client
+            .get_events_by_hash_contract_call(
                 CheckedFelt::try_from(&Felt::ONE.to_bytes_be()).unwrap(),
             )
             .await;
 
-        assert!(contract_call_event.unwrap().is_none());
+        assert!(contract_call_events.unwrap().is_empty());
     }
 
     #[tokio::test]
     async fn deploy_tx_fetch() {
         let mock_client = Client::new_with_transport(DeployMockTransport).unwrap();
-        let contract_call_event = mock_client
-            .get_event_by_hash_contract_call(
+        let contract_call_events = mock_client
+            .get_events_by_hash_contract_call(
                 CheckedFelt::try_from(&Felt::ONE.to_bytes_be()).unwrap(),
             )
             .await;
 
-        assert!(contract_call_event.unwrap().is_none());
+        assert!(contract_call_events.unwrap().is_empty());
     }
 
     #[tokio::test]
     async fn l1_handler_tx_fetch() {
         let mock_client = Client::new_with_transport(L1HandlerMockTransport).unwrap();
-        let contract_call_event = mock_client
-            .get_event_by_hash_contract_call(
+        let contract_call_events = mock_client
+            .get_events_by_hash_contract_call(
                 CheckedFelt::try_from(&Felt::ONE.to_bytes_be()).unwrap(),
             )
             .await;
 
-        assert!(contract_call_event.unwrap().is_none());
+        assert!(contract_call_events.unwrap().is_empty());
     }
 
     #[tokio::test]
     async fn declare_tx_fetch() {
         let mock_client = Client::new_with_transport(DeclareMockTransport).unwrap();
-        let contract_call_event = mock_client
-            .get_event_by_hash_contract_call(
+        let contract_call_events = mock_client
+            .get_events_by_hash_contract_call(
                 CheckedFelt::try_from(&Felt::ONE.to_bytes_be()).unwrap(),
             )
             .await;
 
-        assert!(contract_call_event.unwrap().is_none());
+        assert!(contract_call_events.unwrap().is_empty());
     }
 
     #[tokio::test]
     async fn invalid_contract_call_event_tx_fetch() {
         let mock_client =
             Client::new_with_transport(InvalidContractCallEventMockTransport).unwrap();
-        let contract_call_event = mock_client
-            .get_event_by_hash_contract_call(
+        let contract_call_events = mock_client
+            .get_events_by_hash_contract_call(
                 CheckedFelt::try_from(&Felt::ONE.to_bytes_be()).unwrap(),
             )
             .await;
 
-        assert!(contract_call_event.unwrap().is_none());
+        assert!(contract_call_events.unwrap().is_empty());
     }
 
     #[tokio::test]
     async fn no_events_tx_fetch() {
         let mock_client = Client::new_with_transport(NoEventsMockTransport).unwrap();
-        let contract_call_event = mock_client
-            .get_event_by_hash_contract_call(
+        let contract_call_events = mock_client
+            .get_events_by_hash_contract_call(
                 CheckedFelt::try_from(&Felt::ONE.to_bytes_be()).unwrap(),
             )
             .await;
 
-        assert!(contract_call_event.unwrap().is_none());
+        assert!(contract_call_events.unwrap().is_empty());
     }
 
     #[tokio::test]
     async fn reverted_tx_fetch() {
         let mock_client = Client::new_with_transport(RevertedMockTransport).unwrap();
         let contract_call_event = mock_client
-            .get_event_by_hash_contract_call(
+            .get_events_by_hash_contract_call(
                 CheckedFelt::try_from(&Felt::ONE.to_bytes_be()).unwrap(),
             )
             .await;
@@ -293,7 +301,7 @@ mod test {
     async fn failing_tx_fetch() {
         let mock_client = Client::new_with_transport(FailingMockTransport).unwrap();
         let contract_call_event = mock_client
-            .get_event_by_hash_contract_call(
+            .get_events_by_hash_contract_call(
                 CheckedFelt::try_from(&Felt::ONE.to_bytes_be()).unwrap(),
             )
             .await;
@@ -343,23 +351,86 @@ mod test {
     }
 
     #[tokio::test]
-    async fn successful_call_contract_tx_fetch() {
-        let mock_client = Client::new_with_transport(ValidMockTransportCallContract).unwrap();
-        let contract_call_event = mock_client
-            .get_event_by_hash_contract_call(
+    async fn successful_two_call_contracts_in_one_tx_fetch() {
+        let mock_client =
+            Client::new_with_transport(ValidMockTransportTwoCallContractsInOneTx).unwrap();
+        let contract_call_events = mock_client
+            .get_events_by_hash_contract_call(
                 CheckedFelt::try_from(&Felt::ONE.to_bytes_be()).unwrap(),
             )
             .await
-            .unwrap() // unwrap the result
             .unwrap(); // unwrap the option
 
         assert_eq!(
-            contract_call_event.0,
-            Felt::from_str("0x0000000000000000000000000000000000000000000000000000000000000001")
-                .unwrap()
+            contract_call_events[0].0,
+            FieldElementAndEventIndex::from_str(
+                "0x0000000000000000000000000000000000000000000000000000000000000001-0"
+            )
+            .unwrap()
         );
         assert_eq!(
-            contract_call_event.1,
+            contract_call_events[0].1,
+            ContractCallEvent {
+                from_contract_addr:
+                    "0x0000000000000000000000000000000000000000000000000000000000000002".to_owned(),
+                destination_address: String::from("hello"),
+                destination_chain: String::from("destination_chain"),
+                source_address: Felt::from_str(
+                    "0x00b3ff441a68610b30fd5e2abbf3a1548eb6ba6f3559f2862bf2dc757e5828ca"
+                )
+                .unwrap(),
+                payload_hash: H256::from_slice(&[
+                    28u8, 138, 255, 149, 6, 133, 194, 237, 75, 195, 23, 79, 52, 114, 40, 123, 86,
+                    217, 81, 123, 156, 148, 129, 39, 49, 154, 9, 167, 163, 109, 234, 200
+                ])
+            }
+        );
+
+        assert_eq!(
+            contract_call_events[1].0,
+            FieldElementAndEventIndex::from_str(
+                "0x0000000000000000000000000000000000000000000000000000000000000001-1"
+            )
+            .unwrap()
+        );
+        assert_eq!(
+            contract_call_events[1].1,
+            ContractCallEvent {
+                from_contract_addr:
+                    "0x0000000000000000000000000000000000000000000000000000000000000002".to_owned(),
+                destination_address: String::from("hello"),
+                destination_chain: String::from("destination_chain"),
+                source_address: Felt::from_str(
+                    "0x00b3ff441a68610b30fd5e2abbf3a1548eb6ba6f3559f2862bf2dc757e5828ca"
+                )
+                .unwrap(),
+                payload_hash: H256::from_slice(&[
+                    28u8, 138, 255, 149, 6, 133, 194, 237, 75, 195, 23, 79, 52, 114, 40, 123, 86,
+                    217, 81, 123, 156, 148, 129, 39, 49, 154, 9, 167, 163, 109, 234, 200
+                ])
+            }
+        );
+    }
+
+    #[tokio::test]
+    async fn successful_call_contract_tx_fetch() {
+        let mock_client = Client::new_with_transport(ValidMockTransportCallContract).unwrap();
+        let contract_call_events = mock_client
+            .get_events_by_hash_contract_call(
+                CheckedFelt::try_from(&Felt::ONE.to_bytes_be()).unwrap(),
+            )
+            .await
+            .unwrap(); // unwrap the option
+
+        assert_eq!(
+            contract_call_events[0].0,
+            FieldElementAndEventIndex::from_str(
+                "0x0000000000000000000000000000000000000000000000000000000000000001-0"
+            )
+            .unwrap()
+        );
+        assert_eq!(
+            contract_call_events[0].1,
             ContractCallEvent {
                 from_contract_addr:
                     "0x0000000000000000000000000000000000000000000000000000000000000002".to_owned(),
@@ -1011,6 +1082,106 @@ mod test {
         }
     }
 
+    struct ValidMockTransportTwoCallContractsInOneTx;
+
+    #[async_trait]
+    impl JsonRpcTransport for ValidMockTransportTwoCallContractsInOneTx {
+        type Error = HttpTransportError;
+
+        async fn send_requests<R>(
+            &self,
+            _requests: R,
+        ) -> Result<Vec<JsonRpcResponse<serde_json::Value>>, Self::Error>
+        where
+            R: AsRef<[ProviderRequestData]> + Send + Sync,
+        {
+            unimplemented!();
+        }
+
+        async fn send_request<P, R>(
+            &self,
+            _method: JsonRpcMethod,
+            _params: P,
+        ) -> Result<JsonRpcResponse<R>, Self::Error>
+        where
+            P: Serialize + Send + Sync,
+            R: DeserializeOwned,
+        {
+            let response_mock = "{
+  \"jsonrpc\": \"2.0\",
+  \"result\": {
+    \"type\": \"INVOKE\",
+    \"transaction_hash\": \"0x0000000000000000000000000000000000000000000000000000000000000001\",
+    \"actual_fee\": {
+      \"amount\": \"0x3062e4c46d4\",
+      \"unit\": \"WEI\"
+    },
+    \"execution_status\": \"SUCCEEDED\",
+    \"finality_status\": \"ACCEPTED_ON_L2\",
+    \"block_hash\": \"0x5820e3a0aaceebdbda0b308fdf666eff64f263f6ed8ee74d6f78683b65a997b\",
+    \"block_number\": 637493,
+    \"messages_sent\": [],
+    \"events\": [
+      {
+        \"from_address\": \"0x0000000000000000000000000000000000000000000000000000000000000002\",
+        \"keys\": [
+          \"0x034d074b86d78f064ec0a29639fcfab989c7a3ea6343653633624b2df9ec08f6\",
+          \"0x00000000000000000000000000000064657374696e6174696f6e5f636861696e\"
+        ],
+        \"data\": [
+            \"0xb3ff441a68610b30fd5e2abbf3a1548eb6ba6f3559f2862bf2dc757e5828ca\",
+            \"0x0000000000000000000000000000000000000000000000000000000000000000\",
+            \"0x00000000000000000000000000000000000000000000000000000068656c6c6f\",
+            \"0x0000000000000000000000000000000000000000000000000000000000000005\",
+            \"0x0000000000000000000000000000000056d9517b9c948127319a09a7a36deac8\",
+            \"0x000000000000000000000000000000001c8aff950685c2ed4bc3174f3472287b\",
+            \"0x0000000000000000000000000000000000000000000000000000000000000005\",
+            \"0x0000000000000000000000000000000000000000000000000000000000000068\",
+            \"0x0000000000000000000000000000000000000000000000000000000000000065\",
+            \"0x000000000000000000000000000000000000000000000000000000000000006c\",
+            \"0x000000000000000000000000000000000000000000000000000000000000006c\",
+            \"0x000000000000000000000000000000000000000000000000000000000000006f\"
+        ]
+      }, {
+        \"from_address\": \"0x0000000000000000000000000000000000000000000000000000000000000002\",
+        \"keys\": [
+          \"0x034d074b86d78f064ec0a29639fcfab989c7a3ea6343653633624b2df9ec08f6\",
+          \"0x00000000000000000000000000000064657374696e6174696f6e5f636861696e\"
+        ],
+        \"data\": [
+            \"0xb3ff441a68610b30fd5e2abbf3a1548eb6ba6f3559f2862bf2dc757e5828ca\",
+            \"0x0000000000000000000000000000000000000000000000000000000000000000\",
+            \"0x00000000000000000000000000000000000000000000000000000068656c6c6f\",
+            \"0x0000000000000000000000000000000000000000000000000000000000000005\",
+            \"0x0000000000000000000000000000000056d9517b9c948127319a09a7a36deac8\",
+            \"0x000000000000000000000000000000001c8aff950685c2ed4bc3174f3472287b\",
+            \"0x0000000000000000000000000000000000000000000000000000000000000005\",
+            \"0x0000000000000000000000000000000000000000000000000000000000000068\",
+            \"0x0000000000000000000000000000000000000000000000000000000000000065\",
+            \"0x000000000000000000000000000000000000000000000000000000000000006c\",
+            \"0x000000000000000000000000000000000000000000000000000000000000006c\",
+            \"0x000000000000000000000000000000000000000000000000000000000000006f\"
+        ]
+      }
+    ],
+    \"execution_resources\": {
+      \"data_availability\": {
+        \"l1_data_gas\": 0,
+        \"l1_gas\": 0
+      },
+      \"memory_holes\": 1176,
+      \"pedersen_builtin_applications\": 34,
+      \"range_check_builtin_applications\": 1279,
+      \"steps\": 17574
+    }
+  },
+  \"id\": 0
+}";
+            let parsed_response = serde_json::from_str(response_mock).map_err(Self::Error::Json)?;
+
+            Ok(parsed_response)
+        }
+    }
     struct ValidMockTransportCallContract;
 
     #[async_trait]
