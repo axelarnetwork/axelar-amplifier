@@ -10,4 +10,6 @@ pub enum Error {
     Sign,
     #[error("failed to get transaction receipts")]
     TxReceipts,
+    #[error("starknet client failed")]
+    StarknetClient,
 }
