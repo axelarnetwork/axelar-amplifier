@@ -69,7 +69,7 @@ impl PartialEq<ContractEventBody> for VerifierSetConfirmation {
     }
 }
 
-pub fn verify_message(gateway_address: &ScAddress, tx_receipt: &TxResponse, msg: &Message) -> Vote {
+pub fn  verify_message(gateway_address: &ScAddress, tx_receipt: &TxResponse, msg: &Message) -> Vote {
     verify(
         gateway_address,
         tx_receipt,
