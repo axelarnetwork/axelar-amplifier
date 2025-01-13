@@ -175,6 +175,7 @@ mod tests {
     use cosmrs::cosmwasm::MsgExecuteContract;
     use cosmrs::tx::Msg;
     use error_stack::Result;
+    use ethers_core::types::H160;
     use events::Error::{DeserializationFailed, EventTypeMismatch};
     use events::Event;
     use stellar_xdr::curr::ScAddress;
@@ -186,7 +187,7 @@ mod tests {
     use crate::event_processor::EventHandler;
     use crate::handlers::tests::{into_structured_event, participants};
     use crate::stellar::rpc_client::Client;
-    use crate::types::{EVMAddress, Hash, TMAddress};
+    use crate::types::TMAddress;
     use crate::PREFIX;
 
     #[test]
@@ -234,13 +235,14 @@ mod tests {
     }
 
     #[test]
-    fn should_deserialize_correct_event() {
+    fn stellar_verify_msg_should_deserialize_correct_event() {
         let event: Event = into_structured_event(
             poll_started_event(participants(5, None), 100),
             &TMAddress::random(PREFIX),
         );
-        let event: Result<PollStartedEvent, events::Error> = event.try_into();
-        assert!(event.is_ok());
+        let event: PollStartedEvent = event.try_into().unwrap();
+
+        goldie::assert_debug!(event);
     }
 
     #[async_test]
@@ -302,12 +304,10 @@ mod tests {
             metadata: PollMetadata {
                 poll_id: "100".parse().unwrap(),
                 source_chain: "stellar".parse().unwrap(),
-                source_gateway_address: ScAddress::Contract(stellar_xdr::curr::Hash::from(
-                    Hash::random().0,
-                ))
-                .to_string()
-                .try_into()
-                .unwrap(),
+                source_gateway_address: ScAddress::Contract(stellar_xdr::curr::Hash::from([1; 32]))
+                    .to_string()
+                    .try_into()
+                    .unwrap(),
                 confirmation_height: 15,
                 expires_at,
                 participants: participants
@@ -317,24 +317,22 @@ mod tests {
             },
             messages: (0..2)
                 .map(|i| {
-                    let msg_id = HexTxHashAndEventIndex::new(Hash::random(), i as u64);
+                    let msg_id = HexTxHashAndEventIndex::new([3; 32], i as u64);
                     #[allow(deprecated)]
                     // TODO: The below event uses the deprecated tx_id and event_index fields. Remove this attribute when those fields are removed
                     TxEventConfirmation {
                         tx_id: msg_id.tx_hash_as_hex(),
                         event_index: u32::try_from(msg_id.event_index).unwrap(),
                         message_id: msg_id.to_string().parse().unwrap(),
-                        source_address: ScAddress::Contract(stellar_xdr::curr::Hash::from(
-                            Hash::random().0,
-                        ))
-                        .to_string()
-                        .try_into()
-                        .unwrap(),
+                        source_address: ScAddress::Contract(stellar_xdr::curr::Hash::from([2; 32]))
+                            .to_string()
+                            .try_into()
+                            .unwrap(),
                         destination_chain: "ethereum".parse().unwrap(),
-                        destination_address: format!("0x{:x}", EVMAddress::random())
+                        destination_address: format!("0x{:x}", H160::repeat_byte(i))
                             .parse()
                             .unwrap(),
-                        payload_hash: Hash::random().to_fixed_bytes(),
+                        payload_hash: [i; 32],
                     }
                 })
                 .collect::<Vec<_>>(),

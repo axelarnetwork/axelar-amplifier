@@ -1,14 +1,19 @@
-use axelar_wasm_std::event::EventExt;
+use axelar_wasm_std::{nonempty, IntoEvent};
 use router_api::{Address, ChainNameRaw, CrossChainId};
 
 use crate::primitives::Message;
-use crate::{DeployInterchainToken, InterchainTransfer};
 
+#[derive(IntoEvent)]
 pub enum Event {
     MessageReceived {
         cc_id: CrossChainId,
         destination_chain: ChainNameRaw,
         message: Message,
+    },
+    TokenMetadataRegistered {
+        source_chain: ChainNameRaw,
+        token_address: nonempty::HexBinary,
+        decimals: u8,
     },
     ItsContractRegistered {
         chain: ChainNameRaw,
@@ -19,68 +24,6 @@ pub enum Event {
     },
     ExecutionDisabled,
     ExecutionEnabled,
-}
-
-impl From<Event> for cosmwasm_std::Event {
-    fn from(event: Event) -> Self {
-        match event {
-            Event::MessageReceived {
-                cc_id,
-                destination_chain,
-                message,
-            } => make_message_event("message_received", cc_id, destination_chain, message),
-            Event::ItsContractRegistered { chain, address } => {
-                cosmwasm_std::Event::new("its_contract_registered")
-                    .add_attribute("chain", chain.to_string())
-                    .add_attribute("address", address.to_string())
-            }
-            Event::ItsContractDeregistered { chain } => {
-                cosmwasm_std::Event::new("its_contract_deregistered")
-                    .add_attribute("chain", chain.to_string())
-            }
-            Event::ExecutionDisabled => cosmwasm_std::Event::new("execution_disabled"),
-            Event::ExecutionEnabled => cosmwasm_std::Event::new("execution_enabled"),
-        }
-    }
-}
-
-fn make_message_event(
-    event_name: &str,
-    cc_id: CrossChainId,
-    destination_chain: ChainNameRaw,
-    msg: Message,
-) -> cosmwasm_std::Event {
-    let event = cosmwasm_std::Event::new(event_name)
-        .add_attribute("cc_id", cc_id.to_string())
-        .add_attribute("destination_chain", destination_chain.to_string())
-        .add_attribute("message_type", msg.as_ref().to_string());
-
-    match msg {
-        Message::InterchainTransfer(InterchainTransfer {
-            token_id,
-            source_address,
-            destination_address,
-            amount,
-            data,
-        }) => event
-            .add_attribute("token_id", token_id.to_string())
-            .add_attribute("source_address", source_address.to_string())
-            .add_attribute("destination_address", destination_address.to_string())
-            .add_attribute("amount", amount.to_string())
-            .add_attribute_if_some("data", data.map(|data| data.to_string())),
-        Message::DeployInterchainToken(DeployInterchainToken {
-            token_id,
-            name,
-            symbol,
-            decimals,
-            minter,
-        }) => event
-            .add_attribute("token_id", token_id.to_string())
-            .add_attribute("name", name)
-            .add_attribute("symbol", symbol)
-            .add_attribute("decimals", decimals.to_string())
-            .add_attribute_if_some("minter", minter.map(|minter| minter.to_string())),
-    }
 }
 
 #[cfg(test)]

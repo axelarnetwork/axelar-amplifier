@@ -1,4 +1,4 @@
-use cosmwasm_std::Addr;
+use cosmwasm_std::testing::MockApi;
 use cw_multi_test::Executor;
 use integration_tests::contract::Contract;
 use multisig_prover::msg::ExecuteMsg;
@@ -33,13 +33,13 @@ fn verifier_set_can_be_initialized_and_then_manually_updated() {
     // add third and fourth verifier
     let mut new_verifiers = Vec::new();
     let new_verifier = test_utils::Verifier {
-        addr: Addr::unchecked("verifier3"),
+        addr: MockApi::default().addr_make("verifier3"),
         supported_chains: chains.clone(),
         key_pair: test_utils::generate_key(2),
     };
     new_verifiers.push(new_verifier);
     let new_verifier = test_utils::Verifier {
-        addr: Addr::unchecked("verifier4"),
+        addr: MockApi::default().addr_make("verifier4"),
         supported_chains: chains.clone(),
         key_pair: test_utils::generate_key(3),
     };
@@ -76,7 +76,7 @@ fn verifier_set_can_be_initialized_and_then_manually_updated() {
 
     let (poll_id, expiry) = test_utils::create_verifier_set_poll(
         &mut protocol.app,
-        Addr::unchecked("relayer"),
+        MockApi::default().addr_make("relayer"),
         &ethereum.voting_verifier,
         expected_new_verifier_set.clone(),
     );
@@ -95,7 +95,7 @@ fn verifier_set_can_be_initialized_and_then_manually_updated() {
 
     test_utils::confirm_verifier_set(
         &mut protocol.app,
-        Addr::unchecked("relayer"),
+        MockApi::default().addr_make("relayer"),
         &ethereum.multisig_prover,
     );
 
@@ -168,7 +168,7 @@ fn verifier_set_cannot_be_updated_again_while_pending_verifier_is_not_yet_confir
     // starting and ending a poll for the first verifier set rotation
     test_utils::execute_verifier_set_poll(
         &mut protocol,
-        &Addr::unchecked("relayer"),
+        &MockApi::default().addr_make("relayer"),
         &ethereum.voting_verifier,
         &first_wave_of_new_verifiers,
     );
@@ -211,7 +211,7 @@ fn verifier_set_cannot_be_updated_again_while_pending_verifier_is_not_yet_confir
     // But even if there is a poll, the prover should ignore it
     test_utils::execute_verifier_set_poll(
         &mut protocol,
-        &Addr::unchecked("relayer"),
+        &MockApi::default().addr_make("relayer"),
         &ethereum.voting_verifier,
         &second_wave_of_new_verifiers,
     );
@@ -333,7 +333,7 @@ fn governance_should_confirm_new_verifier_set_without_verification() {
     // add third verifier
     let mut new_verifiers = Vec::new();
     let new_verifier = test_utils::Verifier {
-        addr: Addr::unchecked("verifier3"),
+        addr: MockApi::default().addr_make("verifier3"),
         supported_chains: chains.clone(),
         key_pair: test_utils::generate_key(2),
     };

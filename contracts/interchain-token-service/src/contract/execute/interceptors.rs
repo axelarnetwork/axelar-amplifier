@@ -5,7 +5,10 @@ use router_api::ChainNameRaw;
 
 use super::Error;
 use crate::state::{self, TokenDeploymentType};
-use crate::{DeployInterchainToken, InterchainTransfer, TokenConfig, TokenId, TokenInstance};
+use crate::{
+    DeployInterchainToken, InterchainTransfer, RegisterTokenMetadata, TokenConfig, TokenId,
+    TokenInstance,
+};
 
 pub fn subtract_supply_amount(
     storage: &mut dyn Storage,
@@ -65,32 +68,25 @@ pub fn apply_scaling_factor_to_amount(
 pub fn deploy_token_to_source_chain(
     storage: &mut dyn Storage,
     chain: &ChainNameRaw,
-    deploy_token: &DeployInterchainToken,
+    token_id: TokenId,
+    decimals: u8,
 ) -> Result<(), Error> {
-    match state::may_load_token_config(storage, &deploy_token.token_id)
-        .change_context(Error::State)?
-    {
+    match state::may_load_token_config(storage, &token_id).change_context(Error::State)? {
         Some(TokenConfig { origin_chain, .. }) => {
-            ensure_matching_original_deployment(
-                storage,
-                origin_chain,
-                chain,
-                deploy_token.token_id,
-                deploy_token.decimals,
-            )?;
+            ensure_matching_original_deployment(storage, origin_chain, chain, token_id, decimals)?;
         }
         None => {
             // Token is being deployed for the first time
             let token_config = TokenConfig {
                 origin_chain: chain.clone(),
             };
-            state::save_token_config(storage, deploy_token.token_id, &token_config)
+            state::save_token_config(storage, token_id, &token_config)
                 .and_then(|_| {
                     state::save_token_instance(
                         storage,
                         chain.clone(),
-                        deploy_token.token_id,
-                        &TokenInstance::new_on_origin(deploy_token.decimals),
+                        token_id,
+                        &TokenInstance::new_on_origin(decimals),
                     )
                 })
                 .change_context(Error::State)?;
@@ -103,14 +99,16 @@ pub fn deploy_token_to_source_chain(
 pub fn deploy_token_to_destination_chain(
     storage: &mut dyn Storage,
     chain: &ChainNameRaw,
-    deploy_token: &DeployInterchainToken,
+    token_id: TokenId,
+    decimals: u8,
+    deployment_type: TokenDeploymentType,
 ) -> Result<(), Error> {
     ensure!(
-        state::may_load_token_instance(storage, chain.clone(), deploy_token.token_id)
+        state::may_load_token_instance(storage, chain.clone(), token_id)
             .change_context(Error::State)?
             .is_none(),
         Error::TokenAlreadyDeployed {
-            token_id: deploy_token.token_id,
+            token_id,
             chain: chain.to_owned(),
         }
     );
@@ -118,8 +116,8 @@ pub fn deploy_token_to_destination_chain(
     state::save_token_instance(
         storage,
         chain.clone(),
-        deploy_token.token_id,
-        &TokenInstance::new(&deploy_token.deployment_type(), deploy_token.decimals),
+        token_id,
+        &TokenInstance::new(&deployment_type, decimals),
     )
     .change_context(Error::State)
     .map(|_| ())
@@ -290,18 +288,24 @@ fn destination_amount(
     })
 }
 
-trait DeploymentType {
-    fn deployment_type(&self) -> TokenDeploymentType;
-}
+pub fn register_custom_token(
+    storage: &mut dyn Storage,
+    source_chain: ChainNameRaw,
+    register_token: RegisterTokenMetadata,
+) -> Result<(), Error> {
+    let existing_token = state::may_load_custom_token(
+        storage,
+        source_chain.clone(),
+        register_token.token_address.clone(),
+    )
+    .change_context(Error::State)?;
+    ensure!(
+        existing_token.is_none(),
+        Error::TokenAlreadyRegistered(register_token.token_address)
+    );
 
-impl DeploymentType for DeployInterchainToken {
-    fn deployment_type(&self) -> TokenDeploymentType {
-        if self.minter.is_some() {
-            TokenDeploymentType::CustomMinter
-        } else {
-            TokenDeploymentType::Trustless
-        }
-    }
+    state::save_custom_token_metadata(storage, source_chain, register_token)
+        .change_context(Error::State)
 }
 
 #[cfg(test)]

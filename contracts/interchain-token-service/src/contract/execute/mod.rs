@@ -1,12 +1,17 @@
 use axelar_wasm_std::{killswitch, nonempty, FnExt, IntoContractError};
 use cosmwasm_std::{DepsMut, HexBinary, QuerierWrapper, Response, Storage};
 use error_stack::{bail, ensure, report, Result, ResultExt};
+use interceptors::{deploy_token_to_destination_chain, deploy_token_to_source_chain};
 use itertools::Itertools;
-use router_api::{Address, ChainNameRaw, CrossChainId};
+use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
 
 use crate::events::Event;
 use crate::primitives::HubMessage;
-use crate::{msg, state, DeployInterchainToken, InterchainTransfer, Message, TokenId};
+use crate::state::TokenDeploymentType;
+use crate::{
+    msg, state, DeployInterchainToken, InterchainTransfer, LinkToken, Message,
+    RegisterTokenMetadata, TokenId,
+};
 
 mod interceptors;
 
@@ -72,6 +77,12 @@ pub enum Error {
         token_id: TokenId,
         chain: ChainNameRaw,
     },
+    #[error("token not registered {0}")]
+    TokenNotRegistered(nonempty::HexBinary),
+    #[error("token already registered {0}")]
+    TokenAlreadyRegistered(nonempty::HexBinary),
+    #[error("failed to query axelarnet gateway for chain name")]
+    FailedToQueryAxelarnetGateway,
 }
 
 /// Executes an incoming ITS message.
@@ -96,8 +107,20 @@ pub fn execute_message(
             destination_chain,
             message,
         } => execute_message_on_hub(deps, cc_id, destination_chain, message),
+        HubMessage::RegisterTokenMetadata(msg) => {
+            execute_register_token_metadata(deps.storage, cc_id.source_chain, msg)
+        }
         _ => bail!(Error::InvalidMessageType),
     }
+}
+
+fn axelar_chain_name(storage: &dyn Storage, querier: QuerierWrapper) -> Result<ChainName, Error> {
+    let config = state::load_config(storage);
+    let gateway: axelarnet_gateway::Client =
+        client::ContractClient::new(querier, &config.axelarnet_gateway).into();
+    gateway
+        .chain_name()
+        .change_context(Error::FailedToQueryAxelarnetGateway)
 }
 
 fn execute_message_on_hub(
@@ -106,9 +129,6 @@ fn execute_message_on_hub(
     destination_chain: ChainNameRaw,
     message: Message,
 ) -> Result<Response, Error> {
-    let destination_address = state::load_its_contract(deps.storage, &destination_chain)
-        .change_context_lazy(|| Error::ChainNotFound(destination_chain.clone()))?;
-
     let message = apply_to_hub(
         deps.storage,
         cc_id.source_chain.clone(),
@@ -126,17 +146,13 @@ fn execute_message_on_hub(
         deps.storage,
         deps.querier,
         &destination_chain,
-        destination_address,
         destination_payload,
     )?
-    .add_event(
-        Event::MessageReceived {
-            cc_id,
-            destination_chain,
-            message,
-        }
-        .into(),
-    ))
+    .add_event(Event::MessageReceived {
+        cc_id,
+        destination_chain,
+        message,
+    }))
 }
 
 fn apply_to_hub(
@@ -157,8 +173,77 @@ fn apply_to_hub(
             apply_to_token_deployment(storage, &source_chain, &destination_chain, deploy_token)
                 .map(Message::DeployInterchainToken)?
         }
+        Message::LinkToken(link_token) => {
+            apply_to_link_token(storage, source_chain, destination_chain, link_token)
+                .map(Message::LinkToken)?
+        }
     }
     .then(Result::Ok)
+}
+
+fn execute_register_token_metadata(
+    storage: &mut dyn Storage,
+    source_chain: ChainNameRaw,
+    register_token_metadata: RegisterTokenMetadata,
+) -> Result<Response, Error> {
+    ensure_chain_not_frozen(storage, &source_chain)?;
+
+    interceptors::register_custom_token(
+        storage,
+        source_chain.clone(),
+        register_token_metadata.clone(),
+    )?;
+
+    Ok(Response::new().add_event(Event::TokenMetadataRegistered {
+        token_address: register_token_metadata.token_address,
+        decimals: register_token_metadata.decimals,
+        source_chain,
+    }))
+}
+
+fn apply_to_link_token(
+    storage: &mut dyn Storage,
+    source_chain: ChainNameRaw,
+    destination_chain: ChainNameRaw,
+    link_token: LinkToken,
+) -> Result<LinkToken, Error> {
+    let source_token = state::may_load_custom_token(
+        storage,
+        source_chain.clone(),
+        link_token.source_token_address.clone(),
+    )
+    .change_context(Error::State)?
+    .ok_or(Error::TokenNotRegistered(
+        link_token.source_token_address.clone(),
+    ))?;
+
+    deploy_token_to_source_chain(
+        storage,
+        &source_chain,
+        link_token.token_id,
+        source_token.decimals,
+    )?;
+
+    let destination_decimals = state::may_load_custom_token(
+        storage,
+        destination_chain.clone(),
+        link_token.destination_token_address.clone(),
+    )
+    .change_context(Error::State)?
+    .ok_or(Error::TokenNotRegistered(
+        link_token.destination_token_address.clone(),
+    ))?
+    .decimals;
+
+    deploy_token_to_destination_chain(
+        storage,
+        &destination_chain,
+        link_token.token_id,
+        destination_decimals,
+        TokenDeploymentType::CustomMinter,
+    )?;
+
+    Ok(link_token)
 }
 
 fn apply_to_transfer(
@@ -185,14 +270,25 @@ fn apply_to_token_deployment(
     destination_chain: &ChainNameRaw,
     deploy_token: DeployInterchainToken,
 ) -> Result<DeployInterchainToken, Error> {
-    interceptors::deploy_token_to_source_chain(storage, source_chain, &deploy_token)?;
+    interceptors::deploy_token_to_source_chain(
+        storage,
+        source_chain,
+        deploy_token.token_id,
+        deploy_token.decimals,
+    )?;
     let deploy_token = interceptors::calculate_scaling_factor(
         storage,
         source_chain,
         destination_chain,
         deploy_token,
     )?;
-    interceptors::deploy_token_to_destination_chain(storage, destination_chain, &deploy_token)?;
+    interceptors::deploy_token_to_destination_chain(
+        storage,
+        destination_chain,
+        deploy_token.token_id,
+        deploy_token.decimals,
+        deploy_token.deployment_type(),
+    )?;
 
     Ok(deploy_token)
 }
@@ -212,8 +308,8 @@ fn ensure_is_its_source_address(
     source_chain: &ChainNameRaw,
     source_address: &Address,
 ) -> Result<(), Error> {
-    let source_its_contract = state::load_its_contract(storage, source_chain)
-        .change_context_lazy(|| Error::ChainNotFound(source_chain.clone()))?;
+    let source_its_contract =
+        state::load_its_contract(storage, source_chain).change_context(Error::State)?;
 
     ensure!(
         source_address == &source_its_contract,
@@ -227,9 +323,21 @@ fn send_to_destination(
     storage: &dyn Storage,
     querier: QuerierWrapper,
     destination_chain: &ChainNameRaw,
-    destination_address: Address,
     payload: HexBinary,
 ) -> Result<Response, Error> {
+    if *destination_chain == axelar_chain_name(storage, querier)? {
+        // right now, messages sent to the axelar chain are not forwarded on to
+        // any other contract (in contrast to every other message that moves through the hub)
+        // In the future, this may change, depending on the message type
+        // The main use case for this at the moment is the RegisterToken message,
+        // which simply informs the ITS hub of the decimals and token address of a
+        // custom token, and thus needs no forwarding.
+        return Ok(Response::new());
+    }
+
+    let destination_address = state::load_its_contract(storage, destination_chain)
+        .change_context_lazy(|| Error::ChainNotFound(destination_chain.clone()))?;
+
     let config = state::load_config(storage);
 
     let gateway: axelarnet_gateway::Client =
@@ -287,26 +395,48 @@ pub fn update_chain(
     Ok(Response::new())
 }
 
+trait DeploymentType {
+    fn deployment_type(&self) -> TokenDeploymentType;
+}
+
+impl DeploymentType for DeployInterchainToken {
+    fn deployment_type(&self) -> TokenDeploymentType {
+        if self.minter.is_some() {
+            TokenDeploymentType::CustomMinter
+        } else {
+            TokenDeploymentType::Trustless
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use assert_ok::assert_ok;
     use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
     use axelar_wasm_std::{assert_err_contains, killswitch, nonempty, permission_control};
+    use axelarnet_gateway::msg::QueryMsg;
     use cosmwasm_std::testing::{mock_dependencies, MockApi, MockQuerier};
-    use cosmwasm_std::{Addr, HexBinary, MemoryStorage, OwnedDeps, Uint256};
-    use router_api::{ChainNameRaw, CrossChainId};
+    use cosmwasm_std::{
+        from_json, to_json_binary, HexBinary, MemoryStorage, OwnedDeps, Uint256, WasmQuery,
+    };
+    use router_api::{ChainName, ChainNameRaw, CrossChainId};
 
+    use super::apply_to_hub;
     use crate::contract::execute::{
         disable_execution, enable_execution, execute_message, freeze_chain, register_chain,
         register_chains, unfreeze_chain, update_chain, Error,
     };
     use crate::msg::TruncationConfig;
     use crate::state::{self, Config};
-    use crate::{msg, DeployInterchainToken, HubMessage, InterchainTransfer};
+    use crate::{
+        msg, DeployInterchainToken, HubMessage, InterchainTransfer, LinkToken, Message,
+        RegisterTokenMetadata, TokenId,
+    };
 
     const SOLANA: &str = "solana";
     const ETHEREUM: &str = "ethereum";
     const XRPL: &str = "xrpl";
+    const AXELAR: &str = "axelar";
 
     const ITS_ADDRESS: &str = "68d30f47F19c07bCCEf4Ac7FAE2Dc12FCa3e0dC9";
 
@@ -603,20 +733,383 @@ mod tests {
         );
     }
 
+    #[test]
+    fn should_link_custom_tokens_with_different_decimals() {
+        let mut deps = mock_dependencies();
+        init(&mut deps);
+
+        let source_chain = ChainNameRaw::try_from(SOLANA).unwrap();
+        let destination_chain = ChainNameRaw::try_from(ETHEREUM).unwrap();
+        let source_decimals = 12u8;
+        let destination_decimals = 6u8;
+        let token_address: nonempty::HexBinary =
+            HexBinary::from_hex("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48")
+                .unwrap()
+                .try_into()
+                .unwrap();
+        let token_id = TokenId::new([1; 32]);
+        register_and_link_custom_tokens(
+            &mut deps,
+            token_id,
+            source_chain.clone(),
+            destination_chain.clone(),
+            source_decimals,
+            destination_decimals,
+            token_address.clone(),
+        );
+
+        let transfer_amount = Uint256::from_u128(100000000u128);
+        let msg = Message::InterchainTransfer(InterchainTransfer {
+            token_id,
+            source_address: token_address.clone(),
+            destination_address: token_address.clone(),
+            data: None,
+            amount: transfer_amount.try_into().unwrap(),
+        });
+
+        let res = assert_ok!(apply_to_hub(
+            deps.as_mut().storage,
+            source_chain.clone(),
+            destination_chain.clone(),
+            msg.clone()
+        ));
+
+        let scaling_factor = Uint256::from_u128(10)
+            .checked_pow(source_decimals.abs_diff(destination_decimals).into())
+            .unwrap();
+
+        let transfer = get_transfer(res);
+
+        assert_eq!(
+            Uint256::from(transfer.amount),
+            transfer_amount.checked_div(scaling_factor).unwrap()
+        );
+
+        // check the other direction
+        let res = assert_ok!(apply_to_hub(
+            deps.as_mut().storage,
+            destination_chain,
+            source_chain,
+            msg
+        ));
+
+        let transfer = get_transfer(res);
+
+        assert_eq!(
+            Uint256::from(transfer.amount),
+            transfer_amount.checked_mul(scaling_factor).unwrap()
+        );
+    }
+
+    #[test]
+    fn should_link_custom_tokens_with_same_decimals() {
+        let mut deps = mock_dependencies();
+        init(&mut deps);
+
+        let source_chain = ChainNameRaw::try_from(SOLANA).unwrap();
+        let destination_chain = ChainNameRaw::try_from(ETHEREUM).unwrap();
+        let source_decimals = 12u8;
+        let destination_decimals = 12u8;
+        let token_address: nonempty::HexBinary =
+            HexBinary::from_hex("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48")
+                .unwrap()
+                .try_into()
+                .unwrap();
+        let token_id = TokenId::new([1; 32]);
+        register_and_link_custom_tokens(
+            &mut deps,
+            token_id,
+            source_chain.clone(),
+            destination_chain.clone(),
+            source_decimals,
+            destination_decimals,
+            token_address.clone(),
+        );
+
+        let transfer_amount = Uint256::from_u128(100000000u128);
+        let msg = Message::InterchainTransfer(InterchainTransfer {
+            token_id,
+            source_address: token_address.clone(),
+            destination_address: token_address.clone(),
+            data: None,
+            amount: transfer_amount.try_into().unwrap(),
+        });
+
+        let res = assert_ok!(apply_to_hub(
+            deps.as_mut().storage,
+            source_chain.clone(),
+            destination_chain.clone(),
+            msg.clone()
+        ));
+
+        let transfer = get_transfer(res);
+
+        assert_eq!(Uint256::from(transfer.amount), transfer_amount,);
+
+        // check the other direction
+        let res = assert_ok!(apply_to_hub(
+            deps.as_mut().storage,
+            destination_chain,
+            source_chain,
+            msg
+        ));
+
+        let transfer = get_transfer(res);
+
+        assert_eq!(Uint256::from(transfer.amount), transfer_amount,);
+    }
+
+    fn get_transfer(message: Message) -> InterchainTransfer {
+        match message {
+            Message::InterchainTransfer(transfer) => transfer,
+            _ => panic!("wrong msg type returned"),
+        }
+    }
+
+    #[test]
+    fn should_fail_to_link_tokens_if_not_registered_on_source() {
+        let mut deps = mock_dependencies();
+        init(&mut deps);
+
+        let source_chain = ChainNameRaw::try_from(SOLANA).unwrap();
+        let destination_chain = ChainNameRaw::try_from(ETHEREUM).unwrap();
+        let token_address: nonempty::HexBinary =
+            HexBinary::from_hex("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48")
+                .unwrap()
+                .try_into()
+                .unwrap();
+        let token_id = TokenId::new([1; 32]);
+        register_custom_token(
+            &mut deps,
+            destination_chain.clone(),
+            10u8,
+            token_address.clone(),
+        );
+
+        let msg = HubMessage::SendToHub {
+            destination_chain: destination_chain.clone(),
+            message: LinkToken {
+                token_id,
+                token_manager_type: Uint256::zero(),
+                source_token_address: token_address.clone(),
+                destination_token_address: token_address.clone(),
+                params: None,
+            }
+            .into(),
+        };
+
+        assert_err_contains!(
+            execute_message(
+                deps.as_mut(),
+                CrossChainId {
+                    source_chain: source_chain.clone(),
+                    message_id: HexTxHashAndEventIndex::new([1u8; 32], 0u32)
+                        .to_string()
+                        .try_into()
+                        .unwrap(),
+                },
+                ITS_ADDRESS.to_string().try_into().unwrap(),
+                msg.clone().abi_encode(),
+            ),
+            Error,
+            Error::TokenNotRegistered(..)
+        );
+    }
+
+    #[test]
+    fn should_fail_to_link_tokens_if_not_registered_on_destination() {
+        let mut deps = mock_dependencies();
+        init(&mut deps);
+
+        let source_chain = ChainNameRaw::try_from(SOLANA).unwrap();
+        let destination_chain = ChainNameRaw::try_from(ETHEREUM).unwrap();
+        let token_address: nonempty::HexBinary =
+            HexBinary::from_hex("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48")
+                .unwrap()
+                .try_into()
+                .unwrap();
+        let token_id = TokenId::new([1; 32]);
+        register_custom_token(&mut deps, source_chain.clone(), 10u8, token_address.clone());
+
+        let msg = HubMessage::SendToHub {
+            destination_chain: destination_chain.clone(),
+            message: LinkToken {
+                token_id,
+                token_manager_type: Uint256::zero(),
+                source_token_address: token_address.clone(),
+                destination_token_address: token_address.clone(),
+                params: None,
+            }
+            .into(),
+        };
+
+        assert_err_contains!(
+            execute_message(
+                deps.as_mut(),
+                CrossChainId {
+                    source_chain: source_chain.clone(),
+                    message_id: HexTxHashAndEventIndex::new([1u8; 32], 0u32)
+                        .to_string()
+                        .try_into()
+                        .unwrap(),
+                },
+                ITS_ADDRESS.to_string().try_into().unwrap(),
+                msg.clone().abi_encode(),
+            ),
+            Error,
+            Error::TokenNotRegistered(..)
+        );
+    }
+
+    #[test]
+    fn should_fail_to_link_tokens_if_not_registered_on_source_or_destination() {
+        let mut deps = mock_dependencies();
+        init(&mut deps);
+
+        let source_chain = ChainNameRaw::try_from(SOLANA).unwrap();
+        let destination_chain = ChainNameRaw::try_from(ETHEREUM).unwrap();
+        let token_address: nonempty::HexBinary =
+            HexBinary::from_hex("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48")
+                .unwrap()
+                .try_into()
+                .unwrap();
+        let token_id = TokenId::new([1; 32]);
+
+        let msg = HubMessage::SendToHub {
+            destination_chain: destination_chain.clone(),
+            message: LinkToken {
+                token_id,
+                token_manager_type: Uint256::zero(),
+                source_token_address: token_address.clone(),
+                destination_token_address: token_address.clone(),
+                params: None,
+            }
+            .into(),
+        };
+
+        assert_err_contains!(
+            execute_message(
+                deps.as_mut(),
+                CrossChainId {
+                    source_chain: source_chain.clone(),
+                    message_id: HexTxHashAndEventIndex::new([1u8; 32], 0u32)
+                        .to_string()
+                        .try_into()
+                        .unwrap(),
+                },
+                ITS_ADDRESS.to_string().try_into().unwrap(),
+                msg.clone().abi_encode(),
+            ),
+            Error,
+            Error::TokenNotRegistered(..)
+        );
+    }
+
+    fn register_custom_token(
+        deps: &mut OwnedDeps<MemoryStorage, MockApi, MockQuerier>,
+        chain: ChainNameRaw,
+        decimals: u8,
+        token_address: nonempty::HexBinary,
+    ) {
+        let msg = HubMessage::RegisterTokenMetadata(RegisterTokenMetadata {
+            decimals,
+            token_address: token_address.clone(),
+        });
+
+        let res = assert_ok!(execute_message(
+            deps.as_mut(),
+            CrossChainId {
+                source_chain: chain.clone(),
+                message_id: HexTxHashAndEventIndex::new([1u8; 32], 0u32)
+                    .to_string()
+                    .try_into()
+                    .unwrap(),
+            },
+            ITS_ADDRESS.to_string().try_into().unwrap(),
+            msg.clone().abi_encode(),
+        ));
+        assert_eq!(res.messages.len(), 0);
+    }
+
+    fn link_custom_token(
+        deps: &mut OwnedDeps<MemoryStorage, MockApi, MockQuerier>,
+        token_id: TokenId,
+        source_chain: ChainNameRaw,
+        destination_chain: ChainNameRaw,
+        token_address: nonempty::HexBinary,
+    ) {
+        let msg = HubMessage::SendToHub {
+            destination_chain: destination_chain.clone(),
+            message: LinkToken {
+                token_id,
+                token_manager_type: Uint256::zero(),
+                source_token_address: token_address.clone(),
+                destination_token_address: token_address.clone(),
+                params: None,
+            }
+            .into(),
+        };
+
+        let res = assert_ok!(execute_message(
+            deps.as_mut(),
+            CrossChainId {
+                source_chain: source_chain.clone(),
+                message_id: HexTxHashAndEventIndex::new([1u8; 32], 0u32)
+                    .to_string()
+                    .try_into()
+                    .unwrap(),
+            },
+            ITS_ADDRESS.to_string().try_into().unwrap(),
+            msg.clone().abi_encode(),
+        ));
+        assert_eq!(res.messages.len(), 1);
+    }
+
+    fn register_and_link_custom_tokens(
+        deps: &mut OwnedDeps<MemoryStorage, MockApi, MockQuerier>,
+        token_id: TokenId,
+        source_chain: ChainNameRaw,
+        destination_chain: ChainNameRaw,
+        source_decimals: u8,
+        destination_decimals: u8,
+        token_address: nonempty::HexBinary,
+    ) {
+        register_custom_token(
+            deps,
+            source_chain.clone(),
+            source_decimals,
+            token_address.clone(),
+        );
+        register_custom_token(
+            deps,
+            destination_chain.clone(),
+            destination_decimals,
+            token_address.clone(),
+        );
+
+        link_custom_token(
+            deps,
+            token_id,
+            source_chain,
+            destination_chain,
+            token_address,
+        );
+    }
+
     fn init(deps: &mut OwnedDeps<MemoryStorage, MockApi, MockQuerier>) {
         assert_ok!(permission_control::set_admin(
             deps.as_mut().storage,
-            &Addr::unchecked(ADMIN)
+            &MockApi::default().addr_make(ADMIN)
         ));
         assert_ok!(permission_control::set_governance(
             deps.as_mut().storage,
-            &Addr::unchecked(GOVERNANCE)
+            &MockApi::default().addr_make(GOVERNANCE)
         ));
 
         assert_ok!(state::save_config(
             deps.as_mut().storage,
             &Config {
-                axelarnet_gateway: Addr::unchecked(AXELARNET_GATEWAY),
+                axelarnet_gateway: MockApi::default().addr_make(AXELARNET_GATEWAY),
             },
         ));
 
@@ -625,7 +1118,7 @@ mod tests {
             killswitch::State::Disengaged
         ));
 
-        for chain_name in [SOLANA, ETHEREUM, XRPL] {
+        for chain_name in [SOLANA, ETHEREUM, XRPL, AXELAR] {
             let chain = ChainNameRaw::try_from(chain_name).unwrap();
             assert_ok!(register_chain(
                 deps.as_mut().storage,
@@ -633,11 +1126,25 @@ mod tests {
                     chain: chain.clone(),
                     its_edge_contract: ITS_ADDRESS.to_string().try_into().unwrap(),
                     truncation: TruncationConfig {
-                        max_uint: Uint256::one().try_into().unwrap(),
+                        max_uint: Uint256::MAX.try_into().unwrap(),
                         max_decimals_when_truncating: 16u8
                     }
                 }
             ));
         }
+        deps.querier.update_wasm(move |msg| match msg {
+            WasmQuery::Smart { contract_addr, msg }
+                if contract_addr == MockApi::default().addr_make(AXELARNET_GATEWAY).as_str() =>
+            {
+                let msg = from_json::<QueryMsg>(msg).unwrap();
+                match msg {
+                    QueryMsg::ChainName {} => {
+                        Ok(to_json_binary(&ChainName::try_from("axelar").unwrap()).into()).into()
+                    }
+                    _ => panic!("unsupported query"),
+                }
+            }
+            _ => panic!("unexpected query: {:?}", msg),
+        });
     }
 }

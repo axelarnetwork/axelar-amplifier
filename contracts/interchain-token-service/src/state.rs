@@ -7,7 +7,7 @@ use cw_storage_plus::{Item, Map};
 use error_stack::{report, Result, ResultExt};
 use router_api::{Address, ChainNameRaw};
 
-use crate::{msg, TokenId};
+use crate::{msg, RegisterTokenMetadata, TokenId};
 
 #[derive(thiserror::Error, Debug, IntoContractError)]
 pub enum Error {
@@ -126,10 +126,21 @@ pub struct TokenConfig {
     pub origin_chain: ChainNameRaw,
 }
 
+type TokenAddress = nonempty::HexBinary;
+
+#[cw_serde]
+pub struct CustomTokenMetadata {
+    pub chain: ChainNameRaw,
+    pub decimals: u8,
+    pub token_address: TokenAddress,
+}
+
 const CONFIG: Item<Config> = Item::new("config");
 const CHAIN_CONFIGS: Map<&ChainNameRaw, ChainConfig> = Map::new("chain_configs");
 const TOKEN_INSTANCE: Map<&(ChainNameRaw, TokenId), TokenInstance> = Map::new("token_instance");
 const TOKEN_CONFIGS: Map<&TokenId, TokenConfig> = Map::new("token_configs");
+const CUSTOM_TOKEN_METADATA: Map<&(ChainNameRaw, TokenAddress), CustomTokenMetadata> =
+    Map::new("custom_tokens");
 
 pub fn load_config(storage: &dyn Storage) -> Config {
     CONFIG
@@ -281,11 +292,42 @@ pub fn save_token_config(
         .change_context(Error::Storage)
 }
 
+pub fn save_custom_token_metadata(
+    storage: &mut dyn Storage,
+    chain: ChainNameRaw,
+    RegisterTokenMetadata {
+        token_address,
+        decimals,
+    }: RegisterTokenMetadata,
+) -> Result<(), Error> {
+    CUSTOM_TOKEN_METADATA
+        .save(
+            storage,
+            &(chain.clone(), token_address.clone()),
+            &CustomTokenMetadata {
+                chain,
+                decimals,
+                token_address,
+            },
+        )
+        .change_context(Error::Storage)
+}
+
+pub fn may_load_custom_token(
+    storage: &mut dyn Storage,
+    source_chain: ChainNameRaw,
+    token_address: TokenAddress,
+) -> Result<Option<CustomTokenMetadata>, Error> {
+    CUSTOM_TOKEN_METADATA
+        .may_load(storage, &(source_chain, token_address))
+        .change_context(Error::Storage)
+}
+
 #[cfg(test)]
 mod tests {
     use assert_ok::assert_ok;
     use axelar_wasm_std::assert_err_contains;
-    use cosmwasm_std::testing::mock_dependencies;
+    use cosmwasm_std::testing::{mock_dependencies, MockApi};
 
     use super::*;
 
@@ -294,7 +336,7 @@ mod tests {
         let mut deps = mock_dependencies();
 
         let config = Config {
-            axelarnet_gateway: Addr::unchecked("gateway-address"),
+            axelarnet_gateway: MockApi::default().addr_make("gateway-address"),
         };
 
         assert_ok!(save_config(deps.as_mut().storage, &config));

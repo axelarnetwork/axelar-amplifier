@@ -60,7 +60,7 @@ where
         let key = self.key(&req.key_id, algorithm).await?;
         let signature = self
             .multisig_client
-            .sign(&req.key_id, sign_digest.into(), &key, algorithm.into())
+            .sign(&req.key_id, sign_digest.into(), key, algorithm.into())
             .await
             .map_err(|err| Status::internal(err.to_string()))?;
 
@@ -85,7 +85,6 @@ where
 
 #[cfg(test)]
 mod tests {
-    use ecdsa::SigningKey;
     use k256::sha2::{Digest, Sha256};
     use mockall::predicate;
     use rand::rngs::OsRng;
@@ -104,7 +103,12 @@ mod tests {
     async fn sign_should_return_correct_signature() {
         let key_id = "key_id";
         let algorithm = proto::Algorithm::Ecdsa;
-        let key: PublicKey = SigningKey::random(&mut OsRng).verifying_key().into();
+        let key = PublicKey::new_secp256k1(
+            k256::ecdsa::SigningKey::random(&mut OsRng)
+                .verifying_key()
+                .to_sec1_bytes(),
+        )
+        .unwrap();
         let msg = b"message";
         let mut hasher = Sha256::new();
         hasher.update(msg);
@@ -123,7 +127,7 @@ mod tests {
             .with(
                 predicate::eq(key_id),
                 predicate::eq(tofnd::MessageDigest::from(sign_digest)),
-                predicate::function(move |actual: &PublicKey| actual == &key),
+                predicate::function(move |actual| *actual == key),
                 predicate::eq(tofnd::Algorithm::from(algorithm)),
             )
             .return_once(|_, _, _, _| Ok(vec![1; 64]));
@@ -162,7 +166,12 @@ mod tests {
     async fn key_should_return_correct_key() {
         let key_id = "key_id";
         let algorithm = proto::Algorithm::Ecdsa;
-        let key: PublicKey = SigningKey::random(&mut OsRng).verifying_key().into();
+        let key = PublicKey::new_secp256k1(
+            k256::ecdsa::SigningKey::random(&mut OsRng)
+                .verifying_key()
+                .to_sec1_bytes(),
+        )
+        .unwrap();
 
         let mut multisig_client = MockMultisig::default();
         multisig_client

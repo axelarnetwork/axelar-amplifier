@@ -73,7 +73,7 @@ impl<'a> Client<'a> {
 #[cfg(test)]
 mod test {
 
-    use cosmwasm_std::testing::MockQuerier;
+    use cosmwasm_std::testing::{MockApi, MockQuerier};
     use cosmwasm_std::{from_json, to_json_binary, Addr, QuerierWrapper, SystemError, WasmQuery};
 
     use crate::client::Client;
@@ -84,7 +84,7 @@ mod test {
         let (querier, addr) = setup_queries_to_fail();
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
-        let res = client.ready_to_unbond(Addr::unchecked("verifier").to_string());
+        let res = client.ready_to_unbond(MockApi::default().addr_make("verifier").to_string());
 
         assert!(res.is_err());
         goldie::assert!(res.unwrap_err().to_string());
@@ -95,7 +95,7 @@ mod test {
         let (querier, addr) = setup_queries_to_succeed();
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
-        let res = client.ready_to_unbond(Addr::unchecked("verifier").to_string());
+        let res = client.ready_to_unbond(MockApi::default().addr_make("verifier").to_string());
 
         assert!(res.is_ok());
         goldie::assert_json!(res.unwrap());
@@ -109,13 +109,13 @@ mod test {
             WasmQuery::Smart {
                 contract_addr,
                 msg: _,
-            } if contract_addr == addr => {
+            } if contract_addr == MockApi::default().addr_make(addr).as_str() => {
                 Err(SystemError::Unknown {}).into() // simulate cryptic error seen in production
             }
             _ => panic!("unexpected query: {:?}", msg),
         });
 
-        (querier, Addr::unchecked(addr))
+        (querier, MockApi::default().addr_make(addr))
     }
 
     fn setup_queries_to_succeed() -> (MockQuerier, Addr) {
@@ -123,7 +123,9 @@ mod test {
 
         let mut querier = MockQuerier::default();
         querier.update_wasm(move |msg| match msg {
-            WasmQuery::Smart { contract_addr, msg } if contract_addr == addr => {
+            WasmQuery::Smart { contract_addr, msg }
+                if contract_addr == MockApi::default().addr_make(addr).as_str() =>
+            {
                 let msg = from_json::<QueryMsg>(msg).unwrap();
                 match msg {
                     QueryMsg::ReadyToUnbond {
@@ -138,6 +140,6 @@ mod test {
             _ => panic!("unexpected query: {:?}", msg),
         });
 
-        (querier, Addr::unchecked(addr))
+        (querier, MockApi::default().addr_make(addr))
     }
 }

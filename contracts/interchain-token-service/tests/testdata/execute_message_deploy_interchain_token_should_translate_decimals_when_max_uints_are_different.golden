@@ -13,31 +13,15 @@
         "attributes": [
           {
             "key": "cc_id",
-            "value": "source-its-chain_message-id"
+            "value": "{\"source_chain\":\"source-its-chain\",\"message_id\":\"message-id\"}"
           },
           {
             "key": "destination_chain",
-            "value": "dest-its-chain"
+            "value": "\"dest-its-chain\""
           },
           {
-            "key": "message_type",
-            "value": "DeployInterchainToken"
-          },
-          {
-            "key": "token_id",
-            "value": "0101010101010101010101010101010101010101010101010101010101010101"
-          },
-          {
-            "key": "name",
-            "value": "Test"
-          },
-          {
-            "key": "symbol",
-            "value": "TST"
-          },
-          {
-            "key": "decimals",
-            "value": "6"
+            "key": "message",
+            "value": "{\"deploy_interchain_token\":{\"token_id\":\"0101010101010101010101010101010101010101010101010101010101010101\",\"name\":\"Test\",\"symbol\":\"TST\",\"decimals\":6,\"minter\":null}}"
           }
         ],
         "type": "message_received"
@@ -50,12 +34,13 @@
         "msg": {
           "wasm": {
             "execute": {
-              "contract_addr": "gateway",
+              "contract_addr": "cosmwasm1f6j7u6875p2cvyrgjr0d2uecyzah0kgeek38h39czwdhe5em3zys78pcnl",
               "funds": [],
               "msg": "eyJjYWxsX2NvbnRyYWN0Ijp7ImRlc3RpbmF0aW9uX2NoYWluIjoiZGVzdC1pdHMtY2hhaW4iLCJkZXN0aW5hdGlvbl9hZGRyZXNzIjoiZGVzdC1pdHMtY29udHJhY3QiLCJwYXlsb2FkIjoiMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwNDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwNjAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMGEwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAxMDczNmY3NTcyNjM2NTJkNjk3NDczMmQ2MzY4NjE2OTZlMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMTYwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMTAxMDEwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMGMwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDEwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDYwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMTQwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwNDU0NjU3Mzc0MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAzNTQ1MzU0MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAifX0="
             }
           }
         },
+        "payload": "",
         "reply_on": "never"
       }
     ]
