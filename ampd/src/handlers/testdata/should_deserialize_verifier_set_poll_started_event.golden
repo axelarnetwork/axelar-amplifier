@@ -1,0 +1,116 @@
+PollStartedEvent {
+    poll_id: PollId(
+        Uint64(
+            100,
+        ),
+    ),
+    source_gateway_address: "SP2N959SER36FZ5QT1CX9BR63W3E8X35WQCMBYYWC.axelar-gateway",
+    verifier_set: VerifierSetConfirmation {
+        message_id: HexTxHashAndEventIndex {
+            tx_hash: [
+                195,
+                151,
+                90,
+                159,
+                221,
+                27,
+                149,
+                159,
+                140,
+                71,
+                141,
+                140,
+                7,
+                92,
+                40,
+                73,
+                70,
+                45,
+                150,
+                192,
+                113,
+                12,
+                147,
+                172,
+                14,
+                177,
+                200,
+                84,
+                110,
+                156,
+                194,
+                92,
+            ],
+            event_index: 1,
+        },
+        verifier_set: VerifierSet {
+            signers: {
+                "cosmwasm12qeyytrx2drup9gptvcqg4l6jdthymmz2lpu40rk6evs5cazf2kss8u0ey": Signer {
+                    address: Addr(
+                        "cosmwasm12qeyytrx2drup9gptvcqg4l6jdthymmz2lpu40rk6evs5cazf2kss8u0ey",
+                    ),
+                    weight: Uint128(
+                        1,
+                    ),
+                    pub_key: Ecdsa(
+                        HexBinary(02d530fb1b8fcfb978c37d8d74d4a79ca840a01df457e48a81bbe01bc962820921),
+                    ),
+                },
+                "cosmwasm1g6q4zg5fk2uyg2wnxrt63dc6p5w0ycng2tq98k5cgg0w4zngt3wqnynyv3": Signer {
+                    address: Addr(
+                        "cosmwasm1g6q4zg5fk2uyg2wnxrt63dc6p5w0ycng2tq98k5cgg0w4zngt3wqnynyv3",
+                    ),
+                    weight: Uint128(
+                        1,
+                    ),
+                    pub_key: Ecdsa(
+                        HexBinary(0354f1838e4dbc30d4c612633b9dc54c06ead9723bb164afee0bcc516cbb156985),
+                    ),
+                },
+                "cosmwasm1jguu9vd3fty0cr949yawye8gj88n0rjvjtpxa7t93umqpn3j96mqr93mgz": Signer {
+                    address: Addr(
+                        "cosmwasm1jguu9vd3fty0cr949yawye8gj88n0rjvjtpxa7t93umqpn3j96mqr93mgz",
+                    ),
+                    weight: Uint128(
+                        1,
+                    ),
+                    pub_key: Ecdsa(
+                        HexBinary(03c6dee9a36c078363104b04ace62841d441dc05848f7e1e31674b3c04e621f9dc),
+                    ),
+                },
+            },
+            threshold: Uint128(
+                2,
+            ),
+            created_at: 0,
+        },
+    },
+    participants: [
+        TMAddress(
+            AccountId(
+                "axelar1d2zgz8q2mhmxtfc8t5hrkhx9xda6qmngec9us9",
+            ),
+        ),
+        TMAddress(
+            AccountId(
+                "axelar14g63t426c3h5cl2cw3h0zxwnfg6ma3kvq8m6pv",
+            ),
+        ),
+        TMAddress(
+            AccountId(
+                "axelar160uaz54ychpwxu53kjc9nnnr8erqjl7venycju",
+            ),
+        ),
+        TMAddress(
+            AccountId(
+                "axelar1aw353kawk8lu6t9u29wwkpvx930y6cgf9l956l",
+            ),
+        ),
+        TMAddress(
+            AccountId(
+                "axelar1pfuaup09s7lqu0y65v0vv4v9730lvca35k5wlq",
+            ),
+        ),
+    ],
+    expires_at: 100,
+}

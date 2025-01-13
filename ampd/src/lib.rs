@@ -40,6 +40,7 @@ mod health_check;
 mod json_rpc;
 mod mvx;
 mod queue;
+mod stacks;
 mod stellar;
 mod sui;
 mod tm_client;
@@ -51,6 +52,7 @@ pub use grpc::{client, proto};
 
 use crate::asyncutil::future::RetryPolicy;
 use crate::broadcaster::confirm_tx::TxConfirmer;
+use crate::stacks::http_client::Client;
 
 const PREFIX: &str = "axelar";
 const DEFAULT_RPC_TIMEOUT: Duration = Duration::from_secs(3);
@@ -385,6 +387,34 @@ where
                             rpc_url.to_string().trim_end_matches('/').into(),
                         )
                         .change_context(Error::Connection)?,
+                        self.block_height_monitor.latest_block_height(),
+                    ),
+                    event_processor_config.clone(),
+                ),
+                handlers::config::Config::StacksMsgVerifier {
+                    cosmwasm_contract,
+                    http_url,
+                } => self.create_handler_task(
+                    "stacks-msg-verifier",
+                    handlers::stacks_verify_msg::Handler::new(
+                        verifier.clone(),
+                        cosmwasm_contract,
+                        Client::new_http(http_url.to_string().trim_end_matches('/').into()),
+                        self.block_height_monitor.latest_block_height(),
+                    )
+                    .await
+                    .change_context(Error::Connection)?,
+                    event_processor_config.clone(),
+                ),
+                handlers::config::Config::StacksVerifierSetVerifier {
+                    cosmwasm_contract,
+                    http_url,
+                } => self.create_handler_task(
+                    "stacks-verifier-set-verifier",
+                    handlers::stacks_verify_verifier_set::Handler::new(
+                        verifier.clone(),
+                        cosmwasm_contract,
+                        Client::new_http(http_url.to_string().trim_end_matches('/').into()),
                         self.block_height_monitor.latest_block_height(),
                     ),
                     event_processor_config.clone(),
