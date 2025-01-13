@@ -9,7 +9,6 @@ use thiserror::Error;
 use crate::types::Hash;
 
 const GET_TRANSACTION: &str = "extended/v1/tx/0x";
-const GET_CONTRACT_INFO: &str = "extended/v1/contract/";
 
 const STATUS_SUCCESS: &str = "success";
 
@@ -19,8 +18,6 @@ pub enum Error {
     Client,
     #[error("invalid tx hash")]
     TxHash,
-    #[error("invalid contract")]
-    Contract,
 }
 
 #[derive(Debug, Deserialize, Default)]
@@ -38,22 +35,14 @@ pub struct ContractLog {
 #[derive(Debug, Deserialize, Default)]
 pub struct TransactionEvents {
     pub event_index: u64,
-    pub tx_id: String,
     pub contract_log: Option<ContractLog>,
 }
 
 #[derive(Debug, Deserialize, Default)]
 pub struct Transaction {
     pub tx_id: Hash,
-    pub nonce: u64,
-    pub sender_address: String,
     pub tx_status: String, // 'success'
     pub events: Vec<TransactionEvents>,
-}
-
-#[derive(Debug, Deserialize, Default)]
-pub struct ContractInfo {
-    pub source_code: String,
 }
 
 #[cfg_attr(test, faux::create)]
@@ -110,21 +99,6 @@ impl Client {
             .await
             .map_err(|_| Error::TxHash)?
             .json::<Transaction>()
-            .await
-            .map_err(|_| Error::Client)
-    }
-
-    pub async fn get_contract_info(&self, contract_id: &str) -> Result<ContractInfo, Error> {
-        let endpoint = GET_CONTRACT_INFO.to_string() + contract_id;
-
-        let endpoint = self.get_endpoint(endpoint.as_str());
-
-        self.client
-            .get(endpoint)
-            .send()
-            .await
-            .map_err(|_| Error::Contract)?
-            .json::<ContractInfo>()
             .await
             .map_err(|_| Error::Client)
     }
@@ -232,21 +206,12 @@ mod tests {
                 .parse()
                 .unwrap()
         );
-        assert_eq!(transaction.nonce, 2);
-        assert_eq!(
-            transaction.sender_address,
-            "SP3F7B2PGN7TVMTNBS1HBJBEC6M64DMCY944MXDD0"
-        );
         assert_eq!(transaction.tx_status, "success");
         assert_eq!(transaction.events.len(), 2);
 
         let event = transaction.events.get(0).unwrap();
 
         assert_eq!(event.event_index, 0);
-        assert_eq!(
-            event.tx_id,
-            "0xee0049faf8dde5507418140ed72bd64f73cc001b08de98e0c16a3a8d9f2c38cf"
-        );
         assert!(event.contract_log.is_some());
 
         let contract_log = event.contract_log.as_ref().unwrap();
@@ -261,10 +226,6 @@ mod tests {
         let token_event = transaction.events.get(1).unwrap();
 
         assert_eq!(token_event.event_index, 1);
-        assert_eq!(
-            token_event.tx_id,
-            "0xea34df6d263a274ec852b04f3d9bc13b989811f263c58e02293504c3e66164fd"
-        );
         assert!(token_event.contract_log.is_none());
     }
 

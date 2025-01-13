@@ -143,12 +143,12 @@ impl EventHandler for Handler {
 mod tests {
     use std::convert::TryInto;
 
+    use assert_ok::assert_ok;
     use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
     use cosmrs::cosmwasm::MsgExecuteContract;
     use cosmrs::tx::Msg;
     use cosmwasm_std;
     use cosmwasm_std::{HexBinary, Uint128};
-    use error_stack::Result;
     use multisig::key::KeyType;
     use multisig::test::common::{build_verifier_set, ecdsa_test_data};
     use tokio::sync::watch;
@@ -164,15 +164,13 @@ mod tests {
 
     #[test]
     fn should_deserialize_verifier_set_poll_started_event() {
-        let event: Result<PollStartedEvent, events::Error> = into_structured_event(
+        let event: PollStartedEvent = assert_ok!(into_structured_event(
             verifier_set_poll_started_event(participants(5, None), 100),
             &TMAddress::random(PREFIX),
         )
-        .try_into();
+        .try_into());
 
-        assert!(event.is_ok());
-
-        let event = event.unwrap();
+        goldie::assert_debug!(&event);
 
         assert!(event.poll_id == 100u64.into());
         assert!(
@@ -193,7 +191,7 @@ mod tests {
         assert_eq!(
             signer1.pub_key.as_ref(),
             HexBinary::from_hex(
-                "025e0231bfad810e5276e2cf9eb2f3f380ce0bdf6d84c3b6173499d3ddcc008856",
+                "02d530fb1b8fcfb978c37d8d74d4a79ca840a01df457e48a81bbe01bc962820921",
             )
             .unwrap()
             .as_ref()
@@ -203,7 +201,7 @@ mod tests {
         assert_eq!(
             signer2.pub_key.as_ref(),
             HexBinary::from_hex(
-                "036ff6f4b2bc5e08aba924bd8fd986608f3685ca651a015b3d9d6a656de14769fe",
+                "0354f1838e4dbc30d4c612633b9dc54c06ead9723bb164afee0bcc516cbb156985",
             )
             .unwrap()
             .as_ref()

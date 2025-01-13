@@ -4,23 +4,21 @@ use clarity::vm::types::{
     Value,
 };
 use clarity::vm::ClarityName;
-use router_api::ChainName;
 
 use crate::handlers::stacks_verify_msg::Message;
 use crate::handlers::stacks_verify_verifier_set::VerifierSetConfirmation;
-use crate::stacks::contract_verifier::{get_verify_contract_params, verify_contract_code};
 use crate::stacks::error::Error;
-use crate::stacks::http_client::{Client, Transaction, TransactionEvents};
+use crate::stacks::http_client::{Transaction, TransactionEvents};
 use crate::stacks::WeightedSigners;
 use crate::types::Hash;
 
-pub const PRINT_TOPIC: &str = "print";
+const PRINT_TOPIC: &str = "print";
 
-pub const CONTRACT_CALL_TYPE: &str = "contract-call";
+const CONTRACT_CALL_TYPE: &str = "contract-call";
 const SIGNERS_ROTATED_TYPE: &str = "signers-rotated";
 
 impl Message {
-    pub fn eq_event(
+    fn eq_event(
         &self,
         event: &TransactionEvents,
         new_payload_hash: Option<Hash>,
@@ -191,50 +189,17 @@ fn find_event<'a>(
     Some(event)
 }
 
-pub async fn verify_message(
-    source_chain: &ChainName,
+pub fn verify_message(
     gateway_address: &String,
     transaction: &Transaction,
     message: &Message,
-    http_client: &Client,
 ) -> Vote {
     if message.message_id.tx_hash != transaction.tx_id.as_bytes() {
         return Vote::NotFound;
     }
 
     match find_event(transaction, gateway_address, message.message_id.event_index) {
-        Some(event) => {
-            if !message.eq_event(event, None).unwrap_or(false) {
-                return Vote::NotFound;
-            }
-
-            if &message.destination_chain != source_chain
-                && message.destination_address != message.source_address
-            {
-                return Vote::SucceededOnChain;
-            }
-
-            // In case message is from Stacks -> Stacks and the same contract to itself,
-            // try to see if we need to verify if a contract was deployed
-            let result = get_verify_contract_params(event);
-
-            // Only verify contracts if we can decode verify contract params
-            if result.is_none() {
-                return Vote::SucceededOnChain;
-            }
-
-            let (reference_address, contract_address) = result.unwrap();
-
-            // If we can not verify the contract, consider the transaction as failed
-            if !verify_contract_code(http_client, reference_address, contract_address)
-                .await
-                .unwrap_or(false)
-            {
-                return Vote::FailedOnChain;
-            }
-
-            Vote::SucceededOnChain
-        }
+        Some(event) if message.eq_event(event, None).unwrap_or(false) => Vote::SucceededOnChain,
         _ => Vote::NotFound,
     }
 }
@@ -267,13 +232,12 @@ mod tests {
     use cosmwasm_std::{HexBinary, Uint128};
     use multisig::key::KeyType;
     use multisig::test::common::{build_verifier_set, ecdsa_test_data};
-    use router_api::ChainName;
     use tokio::test as async_test;
 
     use crate::handlers::stacks_verify_msg::Message;
     use crate::handlers::stacks_verify_verifier_set::VerifierSetConfirmation;
     use crate::stacks::http_client::{
-        Client, ContractLog, ContractLogValue, Transaction, TransactionEvents,
+        ContractLog, ContractLogValue, Transaction, TransactionEvents,
     };
     use crate::stacks::verifier::{verify_message, verify_verifier_set, SIGNERS_ROTATED_TYPE};
     use crate::types::Hash;
@@ -281,73 +245,58 @@ mod tests {
     // test verify message
     #[async_test]
     async fn should_not_verify_tx_id_does_not_match() {
-        let (source_chain, gateway_address, tx, mut msg) = get_matching_msg_and_tx();
+        let (gateway_address, tx, mut msg) = get_matching_msg_and_tx();
 
         msg.message_id.tx_hash = Hash::random().into();
 
-        assert_eq!(
-            verify_message(&source_chain, &gateway_address, &tx, &msg, &Client::faux(),).await,
-            Vote::NotFound
-        );
+        assert_eq!(verify_message(&gateway_address, &tx, &msg), Vote::NotFound);
     }
 
     #[async_test]
     async fn should_not_verify_no_log_for_event_index() {
-        let (source_chain, gateway_address, tx, mut msg) = get_matching_msg_and_tx();
+        let (gateway_address, tx, mut msg) = get_matching_msg_and_tx();
 
         msg.message_id.event_index = 2;
 
-        assert_eq!(
-            verify_message(&source_chain, &gateway_address, &tx, &msg, &Client::faux(),).await,
-            Vote::NotFound
-        );
+        assert_eq!(verify_message(&gateway_address, &tx, &msg), Vote::NotFound);
     }
 
     #[async_test]
     async fn should_not_verify_event_index_does_not_match() {
-        let (source_chain, gateway_address, tx, mut msg) = get_matching_msg_and_tx();
+        let (gateway_address, tx, mut msg) = get_matching_msg_and_tx();
 
         msg.message_id.event_index = 0;
 
-        assert_eq!(
-            verify_message(&source_chain, &gateway_address, &tx, &msg, &Client::faux(),).await,
-            Vote::NotFound
-        );
+        assert_eq!(verify_message(&gateway_address, &tx, &msg), Vote::NotFound);
     }
 
     #[async_test]
     async fn should_not_verify_not_gateway() {
-        let (source_chain, gateway_address, mut tx, msg) = get_matching_msg_and_tx();
+        let (gateway_address, mut tx, msg) = get_matching_msg_and_tx();
 
         let transaction_events = tx.events.get_mut(1).unwrap();
         let contract_call = transaction_events.contract_log.as_mut().unwrap();
 
         contract_call.contract_id = "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM".to_string();
 
-        assert_eq!(
-            verify_message(&source_chain, &gateway_address, &tx, &msg, &Client::faux(),).await,
-            Vote::NotFound
-        );
+        assert_eq!(verify_message(&gateway_address, &tx, &msg), Vote::NotFound);
     }
 
     #[async_test]
     async fn should_not_verify_invalid_topic() {
-        let (source_chain, gateway_address, mut tx, msg) = get_matching_msg_and_tx();
+        let (gateway_address, mut tx, msg) = get_matching_msg_and_tx();
 
         let transaction_events = tx.events.get_mut(1).unwrap();
         let contract_call = transaction_events.contract_log.as_mut().unwrap();
 
         contract_call.topic = "other".to_string();
 
-        assert_eq!(
-            verify_message(&source_chain, &gateway_address, &tx, &msg, &Client::faux(),).await,
-            Vote::NotFound
-        );
+        assert_eq!(verify_message(&gateway_address, &tx, &msg), Vote::NotFound);
     }
 
     #[async_test]
     async fn should_not_verify_invalid_type() {
-        let (source_chain, gateway_address, mut tx, msg) = get_matching_msg_and_tx();
+        let (gateway_address, mut tx, msg) = get_matching_msg_and_tx();
 
         let transaction_events = tx.events.get_mut(1).unwrap();
         let contract_call = transaction_events.contract_log.as_mut().unwrap();
@@ -360,68 +309,53 @@ mod tests {
             .unwrap()
             .to_string();
 
-        assert_eq!(
-            verify_message(&source_chain, &gateway_address, &tx, &msg, &Client::faux(),).await,
-            Vote::NotFound
-        );
+        assert_eq!(verify_message(&gateway_address, &tx, &msg), Vote::NotFound);
     }
 
     #[async_test]
     async fn should_not_verify_invalid_sender() {
-        let (source_chain, gateway_address, tx, mut msg) = get_matching_msg_and_tx();
+        let (gateway_address, tx, mut msg) = get_matching_msg_and_tx();
 
         msg.source_address = "SP2N959SER36FZ5QT1CX9BR63W3E8X35WQCMBYYWC.axelar-gateway".to_string();
 
-        assert_eq!(
-            verify_message(&source_chain, &gateway_address, &tx, &msg, &Client::faux(),).await,
-            Vote::NotFound
-        );
+        assert_eq!(verify_message(&gateway_address, &tx, &msg), Vote::NotFound);
     }
 
     #[async_test]
     async fn should_not_verify_invalid_destination_chain() {
-        let (source_chain, gateway_address, tx, mut msg) = get_matching_msg_and_tx();
+        let (gateway_address, tx, mut msg) = get_matching_msg_and_tx();
 
         msg.destination_chain = "other".parse().unwrap();
 
-        assert_eq!(
-            verify_message(&source_chain, &gateway_address, &tx, &msg, &Client::faux(),).await,
-            Vote::NotFound
-        );
+        assert_eq!(verify_message(&gateway_address, &tx, &msg), Vote::NotFound);
     }
 
     #[async_test]
     async fn should_not_verify_invalid_destination_address() {
-        let (source_chain, gateway_address, tx, mut msg) = get_matching_msg_and_tx();
+        let (gateway_address, tx, mut msg) = get_matching_msg_and_tx();
 
         msg.destination_address = "other".parse().unwrap();
 
-        assert_eq!(
-            verify_message(&source_chain, &gateway_address, &tx, &msg, &Client::faux(),).await,
-            Vote::NotFound
-        );
+        assert_eq!(verify_message(&gateway_address, &tx, &msg), Vote::NotFound);
     }
 
     #[async_test]
     async fn should_not_verify_invalid_payload_hash() {
-        let (source_chain, gateway_address, tx, mut msg) = get_matching_msg_and_tx();
+        let (gateway_address, tx, mut msg) = get_matching_msg_and_tx();
 
         msg.payload_hash = "0xaa38573718f5cd6d7e5a90adcdebd28b097f99574ad6febffea9a40adb17f4aa"
             .parse()
             .unwrap();
 
-        assert_eq!(
-            verify_message(&source_chain, &gateway_address, &tx, &msg, &Client::faux(),).await,
-            Vote::NotFound
-        );
+        assert_eq!(verify_message(&gateway_address, &tx, &msg), Vote::NotFound);
     }
 
     #[async_test]
     async fn should_verify_msg() {
-        let (source_chain, gateway_address, tx, msg) = get_matching_msg_and_tx();
+        let (gateway_address, tx, msg) = get_matching_msg_and_tx();
 
         assert_eq!(
-            verify_message(&source_chain, &gateway_address, &tx, &msg, &Client::faux(),).await,
+            verify_message(&gateway_address, &tx, &msg),
             Vote::SucceededOnChain
         );
     }
@@ -535,8 +469,7 @@ mod tests {
         );
     }
 
-    fn get_matching_msg_and_tx() -> (ChainName, String, Transaction, Message) {
-        let source_chain = "stacks";
+    fn get_matching_msg_and_tx() -> (String, Transaction, Message) {
         let gateway_address = "SP2N959SER36FZ5QT1CX9BR63W3E8X35WQCMBYYWC.axelar-gateway";
 
         let message_id = HexTxHashAndEventIndex::new(Hash::random(), 1u64);
@@ -553,13 +486,11 @@ mod tests {
 
         let wrong_event = TransactionEvents {
             event_index: 0,
-            tx_id: message_id.tx_hash_as_hex().to_string(),
             contract_log: None,
         };
 
         let event = TransactionEvents {
             event_index: 1,
-            tx_id: message_id.tx_hash_as_hex().to_string(),
             contract_log: Some(ContractLog {
                 contract_id: gateway_address.to_string(),
                 topic: "print".to_string(),
@@ -571,18 +502,11 @@ mod tests {
 
         let transaction = Transaction {
             tx_id: message_id.tx_hash.into(),
-            nonce: 1,
-            sender_address: "whatever".to_string(),
             tx_status: "success".to_string(),
             events: vec![wrong_event, event],
         };
 
-        (
-            source_chain.parse().unwrap(),
-            gateway_address.to_string(),
-            transaction,
-            msg,
-        )
+        (gateway_address.to_string(), transaction, msg)
     }
 
     fn get_matching_verifier_set_and_tx() -> (String, Transaction, VerifierSetConfirmation) {
@@ -597,12 +521,11 @@ mod tests {
 
         let wrong_event = TransactionEvents {
             event_index: 0,
-            tx_id: message_id.tx_hash_as_hex().to_string(),
             contract_log: None,
         };
 
         let signers_hash =
-            HexBinary::from_hex("6925aafa48d1c99f0fd9bdd98b00fc319462a3ecbf2bbb8379c975a26a0c0c46")
+            HexBinary::from_hex("adea9dbea0104ab812b94209a9f3262f0f203a748d8f27e508f8457693637c76")
                 .unwrap();
 
         let value = Value::from(
@@ -622,7 +545,6 @@ mod tests {
 
         let event = TransactionEvents {
             event_index: 1,
-            tx_id: message_id.tx_hash_as_hex().to_string(),
             contract_log: Some(ContractLog {
                 contract_id: gateway_address.to_string(),
                 topic: "print".to_string(),
@@ -634,8 +556,6 @@ mod tests {
 
         let transaction = Transaction {
             tx_id: message_id.tx_hash.into(),
-            nonce: 1,
-            sender_address: "whatever".to_string(),
             tx_status: "success".to_string(),
             events: vec![wrong_event, event],
         };

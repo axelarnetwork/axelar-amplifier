@@ -11,7 +11,6 @@ use error_stack::ResultExt;
 use events::Error::EventTypeMismatch;
 use events::Event;
 use events_derive::try_from;
-use futures::future;
 use router_api::ChainName;
 use serde::Deserialize;
 use tokio::sync::watch::Receiver;
@@ -132,26 +131,19 @@ impl EventHandler for Handler {
             source_chain = source_chain.to_string(),
             message_ids = message_ids.as_value()
         )
-        .in_scope(|| async {
+        .in_scope(|| {
             info!("ready to verify messages in poll",);
 
-            let futures = messages.iter().map(|msg| async {
-                match transactions.get(&msg.message_id.tx_hash.into()) {
-                    Some(transaction) => {
-                        verify_message(
-                            &source_chain,
-                            &source_gateway_address,
-                            transaction,
-                            msg,
-                            &self.http_client,
-                        )
-                        .await
-                    }
-                    None => Vote::NotFound,
-                }
-            });
-
-            let votes: Vec<Vote> = future::join_all(futures).await;
+            let votes: Vec<Vote> = messages
+                .iter()
+                .map(|msg| {
+                    transactions
+                        .get(&msg.message_id.tx_hash.into())
+                        .map_or(Vote::NotFound, |transaction| {
+                            verify_message(&source_gateway_address, transaction, msg)
+                        })
+                })
+                .collect();
 
             info!(
                 votes = votes.as_value(),
@@ -159,8 +151,7 @@ impl EventHandler for Handler {
             );
 
             votes
-        })
-        .await;
+        });
 
         Ok(vec![self
             .vote_msg(poll_id, votes)
@@ -186,7 +177,7 @@ mod tests {
     use super::{Handler, Message, PollStartedEvent};
     use crate::event_processor::EventHandler;
     use crate::handlers::tests::into_structured_event;
-    use crate::stacks::http_client::{Client, ContractInfo};
+    use crate::stacks::http_client::Client;
     use crate::types::{EVMAddress, Hash, TMAddress};
     use crate::PREFIX;
 
@@ -244,12 +235,7 @@ mod tests {
     // Should not handle event if worker is not a poll participant
     #[async_test]
     async fn verifier_is_not_a_participant() {
-        let mut client = Client::faux();
-        faux::when!(client.get_contract_info).then(|_| {
-            Ok(ContractInfo {
-                source_code: "()".to_string(),
-            })
-        });
+        let client = Client::faux();
 
         let voting_verifier = TMAddress::random(PREFIX);
         let event =
@@ -270,11 +256,6 @@ mod tests {
     #[async_test]
     async fn should_vote_correctly() {
         let mut client = Client::faux();
-        faux::when!(client.get_contract_info).then(|_| {
-            Ok(ContractInfo {
-                source_code: "()".to_string(),
-            })
-        });
         faux::when!(client.get_transactions).then(|_| HashMap::new());
 
         let voting_verifier = TMAddress::random(PREFIX);
@@ -296,11 +277,6 @@ mod tests {
     #[async_test]
     async fn should_skip_expired_poll() {
         let mut client = Client::faux();
-        faux::when!(client.get_contract_info).then(|_| {
-            Ok(ContractInfo {
-                source_code: "()".to_string(),
-            })
-        });
         faux::when!(client.get_transactions).then(|_| HashMap::new());
 
         let voting_verifier = TMAddress::random(PREFIX);
@@ -328,12 +304,7 @@ mod tests {
     }
 
     async fn get_handler() -> Handler {
-        let mut client = Client::faux();
-        faux::when!(client.get_contract_info).then(|_| {
-            Ok(ContractInfo {
-                source_code: "()".to_string(),
-            })
-        });
+        let client = Client::faux();
 
         let handler = Handler::new(
             TMAddress::random(PREFIX),
@@ -364,7 +335,9 @@ mod tests {
                     .map(|addr| cosmwasm_std::Addr::unchecked(addr.to_string()))
                     .collect(),
             },
-            #[allow(deprecated)] // TODO: The below events use the deprecated tx_id and event_index fields. Remove this attribute when those fields are removed
+            #[allow(
+                deprecated
+            )] // TODO: The below events use the deprecated tx_id and event_index fields. Remove this attribute when those fields are removed
             messages: vec![TxEventConfirmation {
                 tx_id: msg_id.tx_hash_as_hex(),
                 event_index: u32::try_from(msg_id.event_index).unwrap(),

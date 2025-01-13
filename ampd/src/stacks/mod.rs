@@ -13,7 +13,6 @@ use sha3::{Digest, Keccak256};
 
 use crate::stacks::error::Error;
 
-mod contract_verifier;
 mod error;
 pub(crate) mod http_client;
 pub(crate) mod verifier;
