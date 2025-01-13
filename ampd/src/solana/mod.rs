@@ -25,7 +25,7 @@ pub trait SolanaRpcClientProxy: Send + Sync + 'static {
 impl SolanaRpcClientProxy for RpcClient {
     async fn get_tx(&self, signature: &Signature) -> Option<UiTransactionStatusMeta> {
         self.get_transaction(
-            &signature,
+            signature,
             solana_transaction_status::UiTransactionEncoding::Base58,
         )
         .map(|tx_data_result| {
@@ -91,7 +91,7 @@ where
 
     // pare the events
     let event_stack = gateway_event_stack::build_program_event_stack(
-        &match_context,
+        match_context,
         logs,
         gateway_event_stack::parse_gateway_logs,
     );

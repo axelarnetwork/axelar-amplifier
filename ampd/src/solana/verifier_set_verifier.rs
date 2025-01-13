@@ -37,13 +37,13 @@ pub fn verify_verifier_set(
             return false;
         };
 
-        let Ok(desired_hash) = verifier_set_hash::<NativeHasher>(&verifier_set, &domain_separator)
+        let Ok(desired_hash) = verifier_set_hash::<NativeHasher>(&verifier_set, domain_separator)
         else {
             error!("verifier set could not be hashed");
             return false;
         };
 
-        return &desired_hash == incoming_verifier_set_hash;
+        &desired_hash == incoming_verifier_set_hash
     })
 }
 

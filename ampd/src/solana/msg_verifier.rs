@@ -31,10 +31,10 @@ pub fn verify_message(
                 _ => return false,
             };
 
-        return message.source_address == *sender
+        message.source_address == *sender
             && message.payload_hash.0 == *payload_hash
             && message.destination_chain == *destination_chain
-            && message.destination_address == *destination_contract_address;
+            && message.destination_address == *destination_contract_address
     })
 }
 
