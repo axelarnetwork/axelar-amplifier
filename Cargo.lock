@@ -926,7 +926,7 @@ dependencies = [
 [[package]]
 name = "axelar-message-primitives"
 version = "0.1.0"
-source = "git+https://github.com/eigerco/solana-axelar.git?rev=11334d8#11334d8543bf2a0724aa4ba6e0844433a429470f"
+source = "git+https://github.com/eigerco/solana-axelar.git?rev=2688729#2688729914266692ca7817befa95ed0951a097c1"
 dependencies = [
  "alloy-primitives",
  "alloy-sol-types",
@@ -942,7 +942,7 @@ dependencies = [
 [[package]]
 name = "axelar-solana-encoding"
 version = "0.1.0"
-source = "git+https://github.com/eigerco/solana-axelar.git?rev=11334d8#11334d8543bf2a0724aa4ba6e0844433a429470f"
+source = "git+https://github.com/eigerco/solana-axelar.git?rev=2688729#2688729914266692ca7817befa95ed0951a097c1"
 dependencies = [
  "arrayref",
  "borsh 1.5.3",
@@ -959,7 +959,7 @@ dependencies = [
 [[package]]
 name = "axelar-solana-gas-service"
 version = "0.1.0"
-source = "git+https://github.com/eigerco/solana-axelar.git?rev=11334d8#11334d8543bf2a0724aa4ba6e0844433a429470f"
+source = "git+https://github.com/eigerco/solana-axelar.git?rev=2688729#2688729914266692ca7817befa95ed0951a097c1"
 dependencies = [
  "borsh 1.5.3",
  "bytemuck",
@@ -973,7 +973,7 @@ dependencies = [
 [[package]]
 name = "axelar-solana-gateway"
 version = "0.1.0"
-source = "git+https://github.com/eigerco/solana-axelar.git?rev=11334d8#11334d8543bf2a0724aa4ba6e0844433a429470f"
+source = "git+https://github.com/eigerco/solana-axelar.git?rev=2688729#2688729914266692ca7817befa95ed0951a097c1"
 dependencies = [
  "axelar-message-primitives",
  "axelar-solana-encoding",
@@ -3988,7 +3988,7 @@ dependencies = [
 [[package]]
 name = "gateway-event-stack"
 version = "0.1.0"
-source = "git+https://github.com/eigerco/solana-axelar.git?rev=11334d8#11334d8543bf2a0724aa4ba6e0844433a429470f"
+source = "git+https://github.com/eigerco/solana-axelar.git?rev=2688729#2688729914266692ca7817befa95ed0951a097c1"
 dependencies = [
  "axelar-solana-gas-service",
  "axelar-solana-gateway",
@@ -7391,7 +7391,7 @@ dependencies = [
 [[package]]
 name = "program-utils"
 version = "0.1.0"
-source = "git+https://github.com/eigerco/solana-axelar.git?rev=11334d8#11334d8543bf2a0724aa4ba6e0844433a429470f"
+source = "git+https://github.com/eigerco/solana-axelar.git?rev=2688729#2688729914266692ca7817befa95ed0951a097c1"
 dependencies = [
  "borsh 1.5.3",
  "bytemuck",
@@ -8268,7 +8268,7 @@ dependencies = [
 [[package]]
 name = "role-management"
 version = "0.1.0"
-source = "git+https://github.com/eigerco/solana-axelar.git?rev=11334d8#11334d8543bf2a0724aa4ba6e0844433a429470f"
+source = "git+https://github.com/eigerco/solana-axelar.git?rev=2688729#2688729914266692ca7817befa95ed0951a097c1"
 dependencies = [
  "bincode",
  "bitflags 2.6.0",

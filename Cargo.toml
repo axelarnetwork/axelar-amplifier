@@ -74,9 +74,9 @@ service-registry = { version = "^1.1.0", path = "contracts/service-registry" }
 service-registry-api = { version = "^1.0.0", path = "packages/service-registry-api" }
 sha3 = { version = "0.10.8", default-features = false, features = [] }
 signature-verifier-api = { version = "^1.0.0", path = "packages/signature-verifier-api" }
-axelar-solana-encoding = { git = "https://github.com/eigerco/solana-axelar.git", rev = "11334d8" }
-gateway-event-stack = { git = "https://github.com/eigerco/solana-axelar.git", rev = "11334d8" }
-axelar-solana-gateway = { git = "https://github.com/eigerco/solana-axelar.git", rev = "11334d8" }
+axelar-solana-encoding = { git = "https://github.com/eigerco/solana-axelar.git", rev = "2688729" }
+gateway-event-stack = { git = "https://github.com/eigerco/solana-axelar.git", rev = "2688729" }
+axelar-solana-gateway = { git = "https://github.com/eigerco/solana-axelar.git", rev = "2688729" }
 stellar = { version = "^1.0.0", path = "external-gateways/stellar" }
 stellar-xdr = { version = "21.2.0" }
 strum = { version = "0.25", default-features = false, features = ["derive"] }
