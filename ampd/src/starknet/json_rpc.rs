@@ -9,9 +9,10 @@ use starknet_checked_felt::CheckedFelt;
 use starknet_core::types::{ExecutionResult, Felt, FromStrError, TransactionReceipt};
 use starknet_providers::jsonrpc::JsonRpcTransport;
 use starknet_providers::{JsonRpcClient, Provider, ProviderError};
-use starknet_types::events::contract_call::ContractCallEvent;
-use starknet_types::events::signers_rotated::SignersRotatedEvent;
 use thiserror::Error;
+
+use crate::types::starknet::events::contract_call::ContractCallEvent;
+use crate::types::starknet::events::signers_rotated::SignersRotatedEvent;
 
 type Result<T> = error_stack::Result<T, StarknetClientError>;
 
@@ -183,10 +184,10 @@ mod test {
         HttpTransportError, JsonRpcMethod, JsonRpcResponse, JsonRpcTransport,
     };
     use starknet_providers::{ProviderError, ProviderRequestData};
-    use starknet_types::events::contract_call::ContractCallEvent;
-    use starknet_types::events::signers_rotated::SignersRotatedEvent;
 
     use super::{Client, StarknetClient, StarknetClientError};
+    use crate::types::starknet::events::contract_call::ContractCallEvent;
+    use crate::types::starknet::events::signers_rotated::SignersRotatedEvent;
 
     #[tokio::test]
     async fn invalid_signers_rotated_event_tx_fetch() {
@@ -325,8 +326,8 @@ mod test {
                 226, 62, 119, 4, 210, 79, 100, 110, 94, 54, 44, 97, 64, 122, 105, 210, 212, 32, 63,
                 225, 67, 54, 50, 83, 200, 154, 39, 162, 106, 108, 184, 31,
             ],
-            signers: starknet_types::events::signers_rotated::WeightedSigners {
-                signers: vec![starknet_types::events::signers_rotated::Signer {
+            signers: crate::types::starknet::events::signers_rotated::WeightedSigners {
+                signers: vec![crate::types::starknet::events::signers_rotated::Signer {
                     signer: "0x3ec7d572a0fe479768ac46355651f22a982b99cc".to_string(),
                     weight: 1,
                 }],

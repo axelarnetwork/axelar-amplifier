@@ -15,7 +15,6 @@ use itertools::Itertools;
 use router_api::ChainName;
 use serde::Deserialize;
 use starknet_checked_felt::CheckedFelt;
-use starknet_types::events::contract_call::ContractCallEvent;
 use tokio::sync::watch::Receiver;
 use tracing::info;
 use voting_verifier::msg::ExecuteMsg;
@@ -25,6 +24,7 @@ use crate::handlers::errors::Error;
 use crate::handlers::errors::Error::DeserializeEvent;
 use crate::starknet::json_rpc::StarknetClient;
 use crate::starknet::verifier::verify_msg;
+use crate::types::starknet::events::contract_call::ContractCallEvent;
 use crate::types::{Hash, TMAddress};
 
 type Result<T> = error_stack::Result<T, Error>;

@@ -1,11 +1,11 @@
 use axelar_wasm_std::voting::Vote;
 use cosmwasm_std::HexBinary;
 use starknet_core::types::Felt;
-use starknet_types::events::contract_call::ContractCallEvent;
-use starknet_types::events::signers_rotated::SignersRotatedEvent;
 
 use crate::handlers::starknet_verify_msg::Message;
 use crate::handlers::starknet_verify_verifier_set::VerifierSetConfirmation;
+use crate::types::starknet::events::contract_call::ContractCallEvent;
+use crate::types::starknet::events::signers_rotated::SignersRotatedEvent;
 
 /// Attempts to fetch the tx provided in `axl_msg.tx_id`.
 /// If successful, extracts and parses the ContractCall event
@@ -98,15 +98,15 @@ mod tests {
     use router_api::ChainName;
     use starknet_checked_felt::CheckedFelt;
     use starknet_core::types::Felt;
-    use starknet_types::events::contract_call::ContractCallEvent;
-    use starknet_types::events::signers_rotated::{
-        Signer as StarknetSigner, SignersRotatedEvent, WeightedSigners,
-    };
 
     use super::verify_msg;
     use crate::handlers::starknet_verify_msg::Message;
     use crate::handlers::starknet_verify_verifier_set::VerifierSetConfirmation;
     use crate::starknet::verifier::verify_verifier_set;
+    use crate::types::starknet::events::contract_call::ContractCallEvent;
+    use crate::types::starknet::events::signers_rotated::{
+        Signer as StarknetSigner, SignersRotatedEvent, WeightedSigners,
+    };
 
     // "hello" as payload
     // "hello" as destination address

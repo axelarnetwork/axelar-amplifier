@@ -3,7 +3,7 @@ use starknet_core::types::Felt;
 use starknet_core::utils::{parse_cairo_short_string, ParseCairoShortStringError};
 use thiserror::Error;
 
-use crate::types::byte_array::{ByteArray, ByteArrayError};
+use crate::types::starknet::byte_array::{ByteArray, ByteArrayError};
 
 /// This is the event emitted by the gateway cairo contract on Starknet,
 /// when the call_contract method is called from a third party.
@@ -134,8 +134,8 @@ mod tests {
     use starknet_core::utils::starknet_keccak;
 
     use super::ContractCallEvent;
-    use crate::events::contract_call::ContractCallError;
-    use crate::types::byte_array::ByteArrayError;
+    use crate::types::starknet::byte_array::ByteArrayError;
+    use crate::types::starknet::events::contract_call::ContractCallError;
 
     #[test]
     fn destination_address_chunks_offset_out_of_range() {

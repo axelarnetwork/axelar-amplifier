@@ -7,8 +7,13 @@ use ethers_core::abi::{
 use ethers_core::types::U256;
 use router_api::Message as RouterMessage;
 use starknet_checked_felt::CheckedFelt;
+use thiserror::Error;
 
-use crate::error::Error;
+#[derive(Error, Debug)]
+pub enum Error {
+    #[error("invalid starknet address")]
+    InvalidAddress,
+}
 
 /// A message that is encoded in the prover and later sent to the Starknet gateway.
 #[derive(Clone, Debug, PartialEq)]
@@ -127,7 +132,7 @@ mod tests {
     use ethers_core::abi::{InvalidOutputType, Token, Tokenizable};
     use ethers_core::types::U256;
     use starknet_checked_felt::CheckedFelt;
-    use starknet_core::types::Felt;
+    use starknet_types_core::felt::Felt;
 
     use super::StarknetMessage;
 

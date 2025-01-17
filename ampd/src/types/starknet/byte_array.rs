@@ -9,8 +9,7 @@ use thiserror::Error;
 ///
 /// ## Example usage with the string "hello"
 ///
-/// ```rust
-/// use starknet_types::types::byte_array::ByteArray;
+/// use ampd::types::starknet::byte_array::ByteArray;
 /// use std::str::FromStr;
 /// use starknet_core::types::Felt;
 /// use starknet_core::types::FromStrError;
@@ -26,7 +25,6 @@ use thiserror::Error;
 ///
 /// let byte_array = ByteArray::try_from(data.unwrap());
 /// assert!(byte_array.is_ok());
-/// ```
 ///
 /// For more info:
 /// https://docs.starknet.io/documentation/architecture_and_concepts/Smart_Contracts/serialization_of_Cairo_types/#serialization_of_byte_arrays
@@ -137,8 +135,7 @@ impl ByteArray {
     ///
     /// ## Example usage with the string "hello"
     ///
-    /// ```rust
-    /// use starknet_types::types::byte_array::ByteArray;
+    /// use ampd::types::starknet::byte_array::ByteArray;
     /// use std::str::FromStr;
     /// use starknet_core::types::Felt;
     /// use starknet_core::types::FromStrError;
@@ -154,7 +151,6 @@ impl ByteArray {
     ///
     /// let byte_array = ByteArray::try_from(data.unwrap()).unwrap();
     /// assert_eq!("hello", byte_array.try_to_string().unwrap());
-    /// ```
     ///
     /// Additional documentation you can find here:
     /// https://docs.starknet.io/documentation/architecture_and_concepts/Smart_Contracts/serialization_of_Cairo_types/#serialization_of_byte_arrays
