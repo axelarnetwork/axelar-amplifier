@@ -104,16 +104,21 @@ where
         match receipt_with_block_info.receipt {
             TransactionReceipt::Invoke(tx) => {
                 let mut event_index: u64 = 0;
+                // The RPC node always returns the events in the same order,
+                // so we can be sure that the msg ids will have the same indexes
+                // when iterating them
                 for e in tx.events.clone() {
                     if let Ok(cce) = ContractCallEvent::try_from(e.clone()) {
                         let message_id =
                             FieldElementAndEventIndex::new(tx_hash.clone(), event_index)
                                 .map_err(StarknetClientError::MessageIdConstruction)?;
                         message_id_and_event_pairs.push((message_id, cce));
-                        event_index = event_index
-                            .checked_add(1)
-                            .ok_or(StarknetClientError::OverflowingU64)?;
                     }
+                    // we iterate regardless of the event type,
+                    // because that's what we do in the relayer
+                    event_index = event_index
+                        .checked_add(1)
+                        .ok_or(StarknetClientError::OverflowingU64)?;
                 }
             }
             TransactionReceipt::L1Handler(_) => (),
