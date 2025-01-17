@@ -145,15 +145,13 @@ where
 
         let mut votes = vec![];
         for msg in unique_msgs {
-            if !events.contains_key(&msg.message_id) {
-                votes.push(Vote::NotFound);
-                continue;
+            match events.remove(&msg.message_id) {
+                Some(gateway_event) => {
+                    votes.push(verify_msg(&gateway_event, msg, &source_gateway_address));
+                }
+
+                None => votes.push(Vote::NotFound),
             }
-            votes.push(verify_msg(
-                &events.remove(&msg.message_id).unwrap(), // safe to unwrap, because of previous check
-                msg,
-                &source_gateway_address,
-            ));
         }
 
         Ok(vec![self
