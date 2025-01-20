@@ -309,15 +309,18 @@ pub fn migrate_from_version(input: TokenStream, item: TokenStream) -> TokenStrea
 
     let gen = quote! {
         pub fn #fn_name(#fn_inputs) #fn_output {
+            let contract_name = env!("CARGO_PKG_NAME");
+            let contract_version = env!("CARGO_PKG_VERSION");
+
             let old_version = semver::Version::parse(&cw2::get_contract_version(#deps.storage)?.version)?;
             let version_requirement = semver::VersionReq::parse(#base_version_req)?;
-            assert!(version_requirement.matches(&old_version));
+            assert!(version_requirement.matches(&old_version), "{} contract migration from version {} to {} is not supported", contract_name, old_version, contract_version);
 
             let result = (|| {
                 #fn_block
             })();
 
-            cw2::set_contract_version(#deps.storage, env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"))?;
+            cw2::set_contract_version(#deps.storage, contract_name, contract_version)?;
 
             result
         }
