@@ -282,3 +282,68 @@ fn match_unit_variant(event_enum: &Ident, variant_name: &Ident) -> TokenStream2 
         #event_enum::#variant_name => cosmwasm_std::Event::new(#event_name)
     }
 }
+
+#[proc_macro_attribute]
+pub fn migrate_from_version(input: TokenStream, item: TokenStream) -> TokenStream {
+    let base_version_req = syn::parse_macro_input!(input as syn::LitStr).value();
+    let annotated_fn = syn::parse_macro_input!(item as syn::ItemFn);
+
+    let fn_name = &annotated_fn.sig.ident;
+    let fn_inputs = &annotated_fn.sig.inputs;
+    let fn_output = &annotated_fn.sig.output;
+    let fn_block = &annotated_fn.block;
+
+    if fn_name != "migrate" {
+        return syn::Error::new(
+            fn_name.span(),
+            "#[migrate_from_version] can only be applied to a 'migrate' function",
+        )
+        .to_compile_error()
+        .into();
+    }
+
+    let deps = match deps_ident(&annotated_fn.sig) {
+        Ok(deps) => deps,
+        Err(e) => return e.to_compile_error().into(),
+    };
+
+    let gen = quote! {
+        pub fn #fn_name(#fn_inputs) #fn_output {
+            let old_version = semver::Version::parse(&cw2::get_contract_version(#deps.storage)?.version)?;
+            let version_requirement = semver::VersionReq::parse(#base_version_req)?;
+            assert!(version_requirement.matches(&old_version));
+
+            let result = (|| {
+                #fn_block
+            })();
+
+            cw2::set_contract_version(#deps.storage, env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"))?;
+
+            result
+        }
+    };
+
+    gen.into()
+}
+
+fn deps_ident(sig: &syn::Signature) -> Result<syn::Ident, syn::Error> {
+    let first_param = sig
+        .inputs
+        .first()
+        .ok_or_else(|| syn::Error::new(sig.ident.span(), "missing parameters definition"))?;
+
+    if let syn::FnArg::Typed(syn::PatType { ty, pat, .. }) = first_param {
+        if let syn::Type::Path(syn::TypePath { path, .. }) = &**ty {
+            if path.is_ident("DepsMut") {
+                if let syn::Pat::Ident(pat_ident) = &**pat {
+                    return Ok(pat_ident.ident.clone());
+                }
+            }
+        }
+    }
+
+    Err(syn::Error::new(
+        sig.ident.span(),
+        "first parameter must be of type DepsMut",
+    ))
+}
