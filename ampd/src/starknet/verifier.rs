@@ -57,15 +57,17 @@ impl PartialEq<VerifierSetConfirmation> for SignersRotatedEvent {
         let mut expected_signers = expected
             .signers
             .values()
-            .map(|signer| {
-                if let multisig::key::PublicKey::Ecdsa(pubkey) = &signer.pub_key {
-                    (pubkey.clone(), signer.weight.u128())
-                } else {
-                    // Skip non-ECDSA keys
-                    (HexBinary::from_hex("").unwrap(), 0)
+            .filter_map(|signer| match &signer.pub_key {
+                multisig::key::PublicKey::Ecdsa(pubkey) => {
+                    Some((pubkey.clone(), signer.weight.u128()))
                 }
+                _ => None,
             })
             .collect::<Vec<_>>();
+
+        if expected_signers.is_empty() {
+            return false;
+        }
         expected_signers.sort();
 
         // Convert and sort actual signers from the event
