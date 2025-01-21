@@ -39,10 +39,7 @@ pub fn verify_verifier_set(
     confirmation: &VerifierSetConfirmation,
     source_gateway_address: &str,
 ) -> Vote {
-    if event.signers.nonce != [0_u8; 32]
-        && event == confirmation
-        && event.from_address == source_gateway_address
-    {
+    if event == confirmation && event.from_address == source_gateway_address {
         Vote::SucceededOnChain
     } else {
         Vote::NotFound
