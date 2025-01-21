@@ -20,7 +20,7 @@ pub const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 pub const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-#[migrate_from_version(">= 1.1.0, < 1.2.0")]
+#[migrate_from_version("1.1")]
 pub fn migrate(
     deps: DepsMut,
     _env: Env,

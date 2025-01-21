@@ -283,29 +283,92 @@ fn match_unit_variant(event_enum: &Ident, variant_name: &Ident) -> TokenStream2 
     }
 }
 
+/// Attribute macro for handling contract version migrations. Must be applied to the `migrate` contract entrypoint.
+/// Checks if migrating from the current version is supported and sets the new version. The base version must be a valid semver without patch, pre, or build.
+///
+/// # Example
+/// ```
+/// use cosmwasm_std::{ DepsMut, Env, Response, Empty};
+/// use axelar_wasm_std_derive::migrate_from_version;
+///
+/// #[migrate_from_version("1.1")]
+/// pub fn migrate(
+///     deps: DepsMut,
+///     _env: Env,
+///     _msg: Empty,
+/// ) -> Result<Response, axelar_wasm_std::error::ContractError> {
+///     // migration logic
+///     Ok(Response::default())
+/// }
+/// ```
+///
+/// ```compile_fail
+/// use cosmwasm_std::{ DepsMut, Env, Response, Empty};
+/// use axelar_wasm_std_derive::migrate_from_version;
+///
+/// #[migrate_from_version("1.1")] // compilation error because the macro is not applied to a function `migrate`
+/// pub fn execute(
+///     deps: DepsMut,
+///     _env: Env,
+///     _msg: Empty,
+/// ) -> Result<Response, axelar_wasm_std::error::ContractError> {
+///     Ok(Response::default())
+/// }
+/// ```
+///
+/// ```compile_fail
+/// use cosmwasm_std::{ Deps, Env, Response, Empty};
+/// use axelar_wasm_std_derive::migrate_from_version;
+///
+/// #[migrate_from_version("1.1")] // compilation error because it cannot parse a `DepsMut` parameter
+/// pub fn migrate(
+///     deps: Deps,
+///     _env: Env,
+///     _msg: Empty,
+/// ) -> Result<Response, axelar_wasm_std::error::ContractError> {
+///     Ok(Response::default())
+/// }
+/// ```
+///
+/// ```compile_fail
+/// #[migrate_from_version("~1.1.0")] // compilation error because the base version is not formatted correctly
+/// pub fn migrate(
+///     deps: DepsMut,
+///     _env: Env,
+///     _msg: Empty,
+/// ) -> Result<Response, axelar_wasm_std::error::ContractError> {
+///     Ok(Response::default())
+/// }
+/// ```
+///
 #[proc_macro_attribute]
 pub fn migrate_from_version(input: TokenStream, item: TokenStream) -> TokenStream {
-    let base_version_req = syn::parse_macro_input!(input as syn::LitStr).value();
+    let base_version_req = syn::parse_macro_input!(input as syn::LitStr);
     let annotated_fn = syn::parse_macro_input!(item as syn::ItemFn);
 
+    try_migrate_from_version(base_version_req, annotated_fn)
+        .unwrap_or_else(syn::Error::into_compile_error)
+        .into()
+}
+
+fn try_migrate_from_version(
+    base_version: syn::LitStr,
+    annotated_fn: syn::ItemFn,
+) -> syn::Result<TokenStream2> {
     let fn_name = &annotated_fn.sig.ident;
     let fn_inputs = &annotated_fn.sig.inputs;
     let fn_output = &annotated_fn.sig.output;
     let fn_block = &annotated_fn.block;
 
     if fn_name != "migrate" {
-        return syn::Error::new(
+        return Err(syn::Error::new(
             fn_name.span(),
             "#[migrate_from_version] can only be applied to a 'migrate' function",
-        )
-        .to_compile_error()
-        .into();
+        ));
     }
 
-    let deps = match deps_ident(&annotated_fn.sig) {
-        Ok(deps) => deps,
-        Err(e) => return e.to_compile_error().into(),
-    };
+    let base_semver_req = base_semver_req(&base_version)?;
+    let deps = deps_ident(&annotated_fn.sig)?;
 
     let gen = quote! {
         pub fn #fn_name(#fn_inputs) #fn_output {
@@ -313,23 +376,36 @@ pub fn migrate_from_version(input: TokenStream, item: TokenStream) -> TokenStrea
             let contract_version = env!("CARGO_PKG_VERSION");
 
             let old_version = semver::Version::parse(&cw2::get_contract_version(#deps.storage)?.version)?;
-            let version_requirement = semver::VersionReq::parse(#base_version_req)?;
+            let version_requirement = semver::VersionReq::parse(#base_semver_req)?;
             assert!(version_requirement.matches(&old_version), "{} contract migration from version {} to {} is not supported", contract_name, old_version, contract_version);
-
-            let result = (|| {
-                #fn_block
-            })();
 
             cw2::set_contract_version(#deps.storage, contract_name, contract_version)?;
 
-            result
+            #fn_block
         }
     };
 
-    gen.into()
+    Ok(gen)
 }
 
-fn deps_ident(sig: &syn::Signature) -> Result<syn::Ident, syn::Error> {
+fn base_semver_req(base_version: &syn::LitStr) -> syn::Result<String> {
+    const ERROR: &str =
+        "base version format must be semver without patch, pre, or build. Example: '1.2'";
+
+    let base_semver = semver::Version::parse(&format!("{}.0", base_version.value()))
+        .map_err(|_| syn::Error::new(base_version.span(), ERROR))
+        .and_then(|version| {
+            if version.patch == 0 && version.pre.is_empty() && version.build.is_empty() {
+                Ok(version)
+            } else {
+                Err(syn::Error::new(base_version.span(), ERROR))
+            }
+        })?;
+
+    Ok(format!("~{}.{}.0", base_semver.major, base_semver.minor))
+}
+
+fn deps_ident(sig: &syn::Signature) -> syn::Result<syn::Ident> {
     let first_param = sig
         .inputs
         .first()
