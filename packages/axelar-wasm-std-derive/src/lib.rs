@@ -5,7 +5,7 @@ use itertools::Itertools;
 use proc_macro::TokenStream;
 use proc_macro2::{Ident, Span, TokenStream as TokenStream2};
 use quote::quote;
-use syn::{DeriveInput, FieldsNamed, Generics, ItemEnum, Variant};
+use syn::{spanned::Spanned, DeriveInput, FieldsNamed, Generics, ItemEnum, Variant};
 
 #[proc_macro_derive(IntoContractError)]
 pub fn into_contract_error_derive(input: TokenStream) -> TokenStream {
@@ -283,7 +283,7 @@ fn match_unit_variant(event_enum: &Ident, variant_name: &Ident) -> TokenStream2 
     }
 }
 
-/// Attribute macro for handling contract version migrations. Must be applied to the `migrate` contract entrypoint.
+/// Attribute macro for handling contract version migrations. Must be applied to the `migrate` contract entry point.
 /// Checks if migrating from the current version is supported and sets the new version. The base version must be a valid semver without patch, pre, or build.
 ///
 /// # Example
@@ -360,15 +360,8 @@ fn try_migrate_from_version(
     let fn_output = &annotated_fn.sig.output;
     let fn_block = &annotated_fn.block;
 
-    if fn_name != "migrate" {
-        return Err(syn::Error::new(
-            fn_name.span(),
-            "#[migrate_from_version] can only be applied to a 'migrate' function",
-        ));
-    }
-
     let base_semver_req = base_semver_req(&base_version)?;
-    let deps = deps_ident(&annotated_fn.sig)?;
+    let deps = validate_migrate_signature(&annotated_fn.sig)?;
 
     let gen = quote! {
         pub fn #fn_name(#fn_inputs) #fn_output {
@@ -389,40 +382,59 @@ fn try_migrate_from_version(
 }
 
 fn base_semver_req(base_version: &syn::LitStr) -> syn::Result<String> {
-    const ERROR: &str =
-        "base version format must be semver without patch, pre, or build. Example: '1.2'";
-
     let base_semver = semver::Version::parse(&format!("{}.0", base_version.value()))
-        .map_err(|_| syn::Error::new(base_version.span(), ERROR))
+        .map_err(|_| syn::Error::new(base_version.span(), "base version format must be semver without patch, pre, or build. Example: '1.2'"))
         .and_then(|version| {
             if version.patch == 0 && version.pre.is_empty() && version.build.is_empty() {
                 Ok(version)
             } else {
-                Err(syn::Error::new(base_version.span(), ERROR))
+                Err(syn::Error::new(base_version.span(), "base version format must be semver without patch, pre, or build. Example: '1.2'"))
             }
         })?;
 
     Ok(format!("~{}.{}.0", base_semver.major, base_semver.minor))
 }
 
-fn deps_ident(sig: &syn::Signature) -> syn::Result<syn::Ident> {
-    let first_param = sig
-        .inputs
-        .first()
-        .ok_or_else(|| syn::Error::new(sig.ident.span(), "missing parameters definition"))?;
-
-    if let syn::FnArg::Typed(syn::PatType { ty, pat, .. }) = first_param {
-        if let syn::Type::Path(syn::TypePath { path, .. }) = &**ty {
-            if path.is_ident("DepsMut") {
-                if let syn::Pat::Ident(pat_ident) = &**pat {
-                    return Ok(pat_ident.ident.clone());
-                }
-            }
-        }
+fn validate_migrate_signature(sig: &syn::Signature) -> syn::Result<syn::Ident> {
+    if sig.ident != "migrate"
+        || sig.inputs.len() != 3
+        || !matches!(sig.output, syn::ReturnType::Type(_, _))
+    {
+        return Err(syn::Error::new(
+            sig.ident.span(),
+            "invalid function signature for 'migrate' entry point",
+        ));
     }
 
-    Err(syn::Error::new(
-        sig.ident.span(),
-        "first parameter must be of type DepsMut",
-    ))
+    validate_migrate_param(&sig.inputs[1], "Env")?;
+    validate_migrate_param(&sig.inputs[0], "DepsMut")
+}
+
+fn validate_migrate_param(param: &syn::FnArg, expected_type: &str) -> syn::Result<syn::Ident> {
+    let (ty, pat) = match param {
+        syn::FnArg::Typed(syn::PatType { ty, pat, .. }) => (ty, pat),
+        _ => {
+            return Err(syn::Error::new(
+                param.span(),
+                format!(
+                    "parameter for 'migrate' entry point expected to be of type {}",
+                    expected_type
+                ),
+            ));
+        }
+    };
+    match (&**ty, &**pat) {
+        (syn::Type::Path(syn::TypePath { path, .. }), syn::Pat::Ident(pat_ident))
+            if path.is_ident(expected_type) =>
+        {
+            Ok(pat_ident.ident.clone())
+        }
+        _ => Err(syn::Error::new(
+            ty.span(),
+            format!(
+                "parameter for 'migrate' entry point expected to be of type {}",
+                expected_type
+            ),
+        )),
+    }
 }
