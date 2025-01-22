@@ -5,7 +5,8 @@ use itertools::Itertools;
 use proc_macro::TokenStream;
 use proc_macro2::{Ident, Span, TokenStream as TokenStream2};
 use quote::quote;
-use syn::{spanned::Spanned, DeriveInput, FieldsNamed, Generics, ItemEnum, Variant};
+use syn::spanned::Spanned;
+use syn::{DeriveInput, FieldsNamed, Generics, ItemEnum, Variant};
 
 #[proc_macro_derive(IntoContractError)]
 pub fn into_contract_error_derive(input: TokenStream) -> TokenStream {
