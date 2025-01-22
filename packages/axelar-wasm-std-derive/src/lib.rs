@@ -366,14 +366,17 @@ fn try_migrate_from_version(
 
     let gen = quote! {
         pub fn #fn_name(#fn_inputs) #fn_output {
-            let contract_name = env!("CARGO_PKG_NAME");
-            let contract_version = env!("CARGO_PKG_VERSION");
+            let pkg_name = env!("CARGO_PKG_NAME");
+            let pkg_version = env!("CARGO_PKG_VERSION");
 
-            let old_version = semver::Version::parse(&cw2::get_contract_version(#deps.storage)?.version)?;
+            let contract_version = cw2::get_contract_version(#deps.storage)?;
+            assert_eq!(contract_version.contract, pkg_name, "cannot migrate from {} contract to {} contract", contract_version.contract, pkg_name);
+
+            let old_version = semver::Version::parse(&contract_version.version)?;
             let version_requirement = semver::VersionReq::parse(#base_semver_req)?;
-            assert!(version_requirement.matches(&old_version), "{} contract migration from version {} to {} is not supported", contract_name, old_version, contract_version);
+            assert!(version_requirement.matches(&old_version), "base version {} does not match {} version requirement", old_version, #base_semver_req);
 
-            cw2::set_contract_version(#deps.storage, contract_name, contract_version)?;
+            cw2::set_contract_version(#deps.storage, pkg_name, pkg_version)?;
 
             #fn_block
         }

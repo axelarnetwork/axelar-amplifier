@@ -884,6 +884,7 @@ dependencies = [
 name = "axelar-wasm-std-derive"
 version = "1.0.0"
 dependencies = [
+ "assert_ok",
  "axelar-wasm-std",
  "cosmwasm-std",
  "cw2",

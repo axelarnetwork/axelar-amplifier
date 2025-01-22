@@ -21,7 +21,8 @@ syn = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]
-axelar-wasm-std = { workspace = true }
+assert_ok = { workspace = true }
+axelar-wasm-std = { workspace = true, features = ["derive"] }
 cw2 = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
