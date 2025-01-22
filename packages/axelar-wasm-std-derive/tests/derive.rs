@@ -1,7 +1,6 @@
 use assert_ok::assert_ok;
 use axelar_wasm_std::error::ContractError;
-use axelar_wasm_std::migrate_from_version;
-use axelar_wasm_std::IntoContractError;
+use axelar_wasm_std::{migrate_from_version, IntoContractError};
 use cosmwasm_std::testing::{mock_dependencies, mock_env};
 use cosmwasm_std::{DepsMut, Empty, Env, Response};
 use thiserror::Error;
