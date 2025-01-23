@@ -300,19 +300,21 @@ pub fn register_custom_token(
     )
     .change_context(Error::State)?;
 
-    if let Some(registered_token) = existing_token {
+    if let Some(existing_token) = existing_token {
         ensure!(
-            registered_token.decimals == register_token.decimals,
+            existing_token.decimals == register_token.decimals,
             Error::TokenDecimalsMismatch {
                 token_address: register_token.token_address,
-                existing_decimals: registered_token.decimals,
+                existing_decimals: existing_token.decimals,
                 new_decimals: register_token.decimals
             }
         );
+    } else {
+        state::save_custom_token_metadata(storage, source_chain, register_token)
+            .change_context(Error::State)?;
     }
 
-    state::save_custom_token_metadata(storage, source_chain, register_token)
-        .change_context(Error::State)
+    Ok(())
 }
 
 #[cfg(test)]
