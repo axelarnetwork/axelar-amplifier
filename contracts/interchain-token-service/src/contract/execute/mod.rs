@@ -79,8 +79,12 @@ pub enum Error {
     },
     #[error("token not registered {0}")]
     TokenNotRegistered(nonempty::HexBinary),
-    #[error("token already registered {0}")]
-    TokenAlreadyRegistered(nonempty::HexBinary),
+    #[error("attempted to register token {token_address} with {new_decimals} but already registered with {existing_decimals} decimals")]
+    TokenDecimalsMismatch {
+        token_address: nonempty::HexBinary,
+        existing_decimals: u8,
+        new_decimals: u8,
+    },
     #[error("failed to query axelarnet gateway for chain name")]
     FailedToQueryAxelarnetGateway,
 }
