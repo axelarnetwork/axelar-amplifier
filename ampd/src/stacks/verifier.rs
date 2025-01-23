@@ -504,6 +504,7 @@ mod tests {
             tx_id: message_id.tx_hash.into(),
             tx_status: "success".to_string(),
             events: vec![wrong_event, event],
+            block_height: 10,
         };
 
         (gateway_address.to_string(), transaction, msg)
@@ -558,6 +559,7 @@ mod tests {
             tx_id: message_id.tx_hash.into(),
             tx_status: "success".to_string(),
             events: vec![wrong_event, event],
+            block_height: 10,
         };
 
         (

@@ -20,6 +20,7 @@ use voting_verifier::msg::ExecuteMsg;
 
 use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error;
+use crate::stacks::finalizer::latest_finalized_block_height;
 use crate::stacks::http_client::Client;
 use crate::stacks::verifier::verify_message;
 use crate::types::{Hash, TMAddress};
@@ -41,6 +42,7 @@ struct PollStartedEvent {
     poll_id: PollId,
     source_chain: ChainName,
     source_gateway_address: String,
+    confirmation_height: u64,
     messages: Vec<Message>,
     participants: Vec<TMAddress>,
     expires_at: u64,
@@ -92,6 +94,7 @@ impl EventHandler for Handler {
             poll_id,
             source_chain,
             source_gateway_address,
+            confirmation_height,
             messages,
             participants,
             expires_at,
@@ -114,11 +117,19 @@ impl EventHandler for Handler {
             return Ok(vec![]);
         }
 
+        let latest_finalized_block_height =
+            latest_finalized_block_height(&self.http_client, confirmation_height)
+                .await
+                .change_context(Error::Finalizer)?;
+
         let tx_hashes: HashSet<Hash> = messages
             .iter()
             .map(|message| message.message_id.tx_hash.into())
             .collect();
-        let transactions = self.http_client.get_transactions(tx_hashes).await;
+        let transactions = self
+            .http_client
+            .get_finalized_transactions(tx_hashes, latest_finalized_block_height)
+            .await;
 
         let message_ids = messages
             .iter()
@@ -170,19 +181,20 @@ mod tests {
     use cosmrs::tx::Msg;
     use cosmwasm_std;
     use error_stack::Result;
+    use ethers_core::types::{H160, U64};
     use tokio::sync::watch;
     use tokio::test as async_test;
     use voting_verifier::events::{PollMetadata, PollStarted, TxEventConfirmation};
 
     use super::{Handler, Message, PollStartedEvent};
     use crate::event_processor::EventHandler;
-    use crate::handlers::tests::into_structured_event;
-    use crate::stacks::http_client::Client;
+    use crate::handlers::tests::{into_structured_event, participants};
+    use crate::stacks::http_client::{Block, Client};
     use crate::types::{EVMAddress, Hash, TMAddress};
     use crate::PREFIX;
 
     #[test]
-    fn should_deserialize_poll_started_event() {
+    fn stacks_should_deserialize_poll_started_event() {
         let event: Result<PollStartedEvent, events::Error> = into_structured_event(
             poll_started_event(participants(5, None)),
             &TMAddress::random(PREFIX),
@@ -193,11 +205,14 @@ mod tests {
 
         let event = event.unwrap();
 
+        goldie::assert_debug!(&event);
+
         assert!(event.poll_id == 100u64.into());
         assert!(
             event.source_gateway_address
                 == "SP2N959SER36FZ5QT1CX9BR63W3E8X35WQCMBYYWC.axelar-gateway"
         );
+        assert!(event.confirmation_height == 15);
 
         let message: &Message = event.messages.first().unwrap();
 
@@ -256,7 +271,8 @@ mod tests {
     #[async_test]
     async fn should_vote_correctly() {
         let mut client = Client::faux();
-        faux::when!(client.get_transactions).then(|_| HashMap::new());
+        faux::when!(client.get_latest_block).then(|_| Ok(Block { height: 1 }));
+        faux::when!(client.get_finalized_transactions).then(|_| HashMap::new());
 
         let voting_verifier = TMAddress::random(PREFIX);
         let worker = TMAddress::random(PREFIX);
@@ -277,7 +293,8 @@ mod tests {
     #[async_test]
     async fn should_skip_expired_poll() {
         let mut client = Client::faux();
-        faux::when!(client.get_transactions).then(|_| HashMap::new());
+        faux::when!(client.get_latest_block).then(|_| Ok(Block { height: 1 }));
+        faux::when!(client.get_finalized_transactions).then(|_| HashMap::new());
 
         let voting_verifier = TMAddress::random(PREFIX);
         let worker = TMAddress::random(PREFIX);
@@ -319,7 +336,7 @@ mod tests {
     }
 
     fn poll_started_event(participants: Vec<TMAddress>) -> PollStarted {
-        let msg_id = HexTxHashAndEventIndex::new(Hash::random(), 1u64);
+        let msg_id = HexTxHashAndEventIndex::new(Hash::from([3; 32]), 1u64);
 
         PollStarted::Messages {
             metadata: PollMetadata {
@@ -344,16 +361,9 @@ mod tests {
                 message_id: msg_id.to_string().parse().unwrap(),
                 source_address: "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM".parse().unwrap(),
                 destination_chain: "ethereum".parse().unwrap(),
-                destination_address: format!("0x{:x}", EVMAddress::random()).parse().unwrap(),
-                payload_hash: Hash::random().to_fixed_bytes(),
+                destination_address: format!("0x{:x}", H160::repeat_byte(2)).parse().unwrap(),
+                payload_hash: [1; 32],
             }],
         }
-    }
-
-    fn participants(n: u8, worker: Option<TMAddress>) -> Vec<TMAddress> {
-        (0..n)
-            .map(|_| TMAddress::random(PREFIX))
-            .chain(worker)
-            .collect()
     }
 }

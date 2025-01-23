@@ -19,9 +19,12 @@ use voting_verifier::msg::ExecuteMsg;
 
 use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error;
+use crate::stacks::finalizer::latest_finalized_block_height;
 use crate::stacks::http_client::Client;
 use crate::stacks::verifier::verify_verifier_set;
 use crate::types::TMAddress;
+
+type Result<T> = error_stack::Result<T, Error>;
 
 #[derive(Deserialize, Debug)]
 pub struct VerifierSetConfirmation {
@@ -37,6 +40,7 @@ struct PollStartedEvent {
     verifier_set: VerifierSetConfirmation,
     participants: Vec<TMAddress>,
     expires_at: u64,
+    confirmation_height: u64,
 }
 
 pub struct Handler {
@@ -79,7 +83,7 @@ impl Handler {
 impl EventHandler for Handler {
     type Err = Error;
 
-    async fn handle(&self, event: &Event) -> error_stack::Result<Vec<Any>, Error> {
+    async fn handle(&self, event: &Event) -> Result<Vec<Any>> {
         if !event.is_from_contract(self.voting_verifier_contract.as_ref()) {
             return Ok(vec![]);
         }
@@ -90,6 +94,7 @@ impl EventHandler for Handler {
             verifier_set,
             participants,
             expires_at,
+            confirmation_height,
             ..
         } = match event.try_into() as error_stack::Result<_, _> {
             Err(report) if matches!(report.current_context(), EventTypeMismatch(_)) => {
@@ -108,9 +113,17 @@ impl EventHandler for Handler {
             return Ok(vec![]);
         }
 
+        let latest_finalized_block_height =
+            latest_finalized_block_height(&self.http_client, confirmation_height)
+                .await
+                .change_context(Error::Finalizer)?;
+
         let transaction = self
             .http_client
-            .get_valid_transaction(&verifier_set.message_id.tx_hash.into())
+            .get_valid_transaction(
+                &verifier_set.message_id.tx_hash.into(),
+                latest_finalized_block_height,
+            )
             .await;
 
         let vote = info_span!(
@@ -157,13 +170,13 @@ mod tests {
 
     use super::PollStartedEvent;
     use crate::event_processor::EventHandler;
-    use crate::handlers::tests::into_structured_event;
-    use crate::stacks::http_client::Client;
+    use crate::handlers::tests::{into_structured_event, participants};
+    use crate::stacks::http_client::{Block, Client};
     use crate::types::{Hash, TMAddress};
     use crate::PREFIX;
 
     #[test]
-    fn should_deserialize_verifier_set_poll_started_event() {
+    fn stacks_should_deserialize_verifier_set_poll_started_event() {
         let event: PollStartedEvent = assert_ok!(into_structured_event(
             verifier_set_poll_started_event(participants(5, None), 100),
             &TMAddress::random(PREFIX),
@@ -177,6 +190,7 @@ mod tests {
             event.source_gateway_address
                 == "SP2N959SER36FZ5QT1CX9BR63W3E8X35WQCMBYYWC.axelar-gateway"
         );
+        assert!(event.confirmation_height == 15);
 
         let verifier_set = event.verifier_set;
 
@@ -264,6 +278,7 @@ mod tests {
     #[async_test]
     async fn should_skip_expired_poll() {
         let mut client = Client::faux();
+        faux::when!(client.get_latest_block).then(|_| Ok(Block { height: 1 }));
         faux::when!(client.get_valid_transaction).then(|_| None);
 
         let voting_verifier = TMAddress::random(PREFIX);
@@ -294,6 +309,7 @@ mod tests {
     #[async_test]
     async fn should_vote_correctly() {
         let mut client = Client::faux();
+        faux::when!(client.get_latest_block).then(|_| Ok(Block { height: 1 }));
         faux::when!(client.get_valid_transaction).then(|_| None);
 
         let voting_verifier = TMAddress::random(PREFIX);
@@ -315,7 +331,7 @@ mod tests {
         participants: Vec<TMAddress>,
         expires_at: u64,
     ) -> PollStarted {
-        let msg_id = HexTxHashAndEventIndex::new(Hash::random(), 1u64);
+        let msg_id = HexTxHashAndEventIndex::new(Hash::from([3; 32]), 1u64);
 
         PollStarted::VerifierSet {
             metadata: PollMetadata {
@@ -331,7 +347,9 @@ mod tests {
                     .map(|addr| cosmwasm_std::Addr::unchecked(addr.to_string()))
                     .collect(),
             },
-            #[allow(deprecated)] // TODO: The below events use the deprecated tx_id and event_index fields. Remove this attribute when those fields are removed
+            #[allow(
+                deprecated
+            )] // TODO: The below events use the deprecated tx_id and event_index fields. Remove this attribute when those fields are removed
             verifier_set: VerifierSetConfirmation {
                 tx_id: msg_id.tx_hash_as_hex(),
                 event_index: u32::try_from(msg_id.event_index).unwrap(),
@@ -339,12 +357,5 @@ mod tests {
                 verifier_set: build_verifier_set(KeyType::Ecdsa, &ecdsa_test_data::signers()),
             },
         }
-    }
-
-    fn participants(n: u8, worker: Option<TMAddress>) -> Vec<TMAddress> {
-        (0..n)
-            .map(|_| TMAddress::random(PREFIX))
-            .chain(worker)
-            .collect()
     }
 }

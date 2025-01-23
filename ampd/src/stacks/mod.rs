@@ -14,6 +14,7 @@ use sha3::{Digest, Keccak256};
 use crate::stacks::error::Error;
 
 mod error;
+pub(crate) mod finalizer;
 pub(crate) mod http_client;
 pub(crate) mod verifier;
 

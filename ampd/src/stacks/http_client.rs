@@ -9,6 +9,7 @@ use thiserror::Error;
 use crate::types::Hash;
 
 const GET_TRANSACTION: &str = "extended/v1/tx/0x";
+const GET_LATEST_BLOCK: &str = "extended/v2/blocks/latest";
 
 const STATUS_SUCCESS: &str = "success";
 
@@ -43,6 +44,12 @@ pub struct Transaction {
     pub tx_id: Hash,
     pub tx_status: String, // 'success'
     pub events: Vec<TransactionEvents>,
+    pub block_height: u64,
+}
+
+#[derive(Debug, Deserialize, Default)]
+pub struct Block {
+    pub height: u64,
 }
 
 #[cfg_attr(test, faux::create)]
@@ -60,13 +67,17 @@ impl Client {
         }
     }
 
-    pub async fn get_transactions(&self, tx_hashes: HashSet<Hash>) -> HashMap<Hash, Transaction> {
+    pub async fn get_finalized_transactions(
+        &self,
+        tx_hashes: HashSet<Hash>,
+        finalized_block_height: u64,
+    ) -> HashMap<Hash, Transaction> {
         let tx_hashes = Vec::from_iter(tx_hashes);
 
         let txs = join_all(
             tx_hashes
                 .iter()
-                .map(|tx_hash| self.get_valid_transaction(tx_hash)),
+                .map(|tx_hash| self.get_valid_transaction(tx_hash, finalized_block_height)),
         )
         .await;
 
@@ -81,11 +92,30 @@ impl Client {
             .collect()
     }
 
-    pub async fn get_valid_transaction(&self, tx_hash: &Hash) -> Option<Transaction> {
+    pub async fn get_valid_transaction(
+        &self,
+        tx_hash: &Hash,
+        finalized_block_height: u64,
+    ) -> Option<Transaction> {
         self.get_transaction(tx_hash.encode_hex::<String>().as_str())
             .await
             .ok()
-            .filter(Self::is_valid_transaction)
+            .filter(|tx| Self::is_valid_transaction(tx, finalized_block_height))
+    }
+
+    pub async fn get_latest_block(&self) -> Result<Block, Error> {
+        let endpoint = GET_LATEST_BLOCK.to_string();
+
+        let endpoint = self.get_endpoint(endpoint.as_str());
+
+        self.client
+            .get(endpoint)
+            .send()
+            .await
+            .map_err(|_| Error::Client)?
+            .json::<Block>()
+            .await
+            .map_err(|_| Error::Client)
     }
 
     async fn get_transaction(&self, tx_id: &str) -> Result<Transaction, Error> {
@@ -107,14 +137,14 @@ impl Client {
         format!("{}/{}", self.api_url, endpoint)
     }
 
-    fn is_valid_transaction(tx: &Transaction) -> bool {
-        tx.tx_status == *STATUS_SUCCESS
+    fn is_valid_transaction(tx: &Transaction, finalized_block_height: u64) -> bool {
+        tx.tx_status == *STATUS_SUCCESS && tx.block_height <= finalized_block_height
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{Client, Transaction};
+    use super::{Block, Client, Transaction};
 
     #[test]
     fn parse_transaction() {
@@ -208,6 +238,7 @@ mod tests {
         );
         assert_eq!(transaction.tx_status, "success");
         assert_eq!(transaction.events.len(), 2);
+        assert_eq!(transaction.block_height, 168868);
 
         let event = transaction.events.get(0).unwrap();
 
@@ -230,22 +261,73 @@ mod tests {
     }
 
     #[test]
+    fn parse_block() {
+        let data = r#"
+{
+    "canonical": true,
+    "height": 88985,
+    "hash": "0x894846ccdee69ffd2ad13dc8d929a8e5736f15dd19e40e7f16a859fde3fc1842",
+    "block_time": 1737640361,
+    "block_time_iso": "2025-01-23T13:52:41.000Z",
+    "tenure_height": 6675,
+    "index_block_hash": "0xce5225b888af1f5f16d385b069d945ff88d1a9af1598ee7acc04d8f4a54b03b2",
+    "parent_block_hash": "0x001d520837162c69ff91ad3ae11fba242d69f5d184665558ecf7f02ad87aeccc",
+    "parent_index_block_hash": "0x7134f2499b7d9fc6bfe384ac18daa905cd845dc53b93ab5c7922494272a7a9ca",
+    "burn_block_time": 1737640346,
+    "burn_block_time_iso": "2025-01-23T13:52:26.000Z",
+    "burn_block_hash": "0x3bbaaa8b360ea9be2594e8f3710d8be41cc13cf7b228f54a0733cbaa552d2f47",
+    "burn_block_height": 9037,
+    "miner_txid": "0x188f36850652abb30d315b777d3274f0a0440466cddd331af9be67b4d678a698",
+    "tx_count": 1,
+    "execution_cost_read_count": 0,
+    "execution_cost_read_length": 0,
+    "execution_cost_runtime": 0,
+    "execution_cost_write_count": 0,
+    "execution_cost_write_length": 0
+}
+        "#;
+
+        let block = serde_json::from_str::<Block>(data).unwrap();
+        assert_eq!(block.height, 88985);
+    }
+
+    #[test]
     fn should_not_be_valid_transaction_invalid_status() {
         let tx = Transaction {
             tx_status: "pending".into(),
             ..Transaction::default()
         };
 
-        assert!(!Client::is_valid_transaction(&tx));
+        assert!(!Client::is_valid_transaction(&tx, 1));
+    }
+
+    #[test]
+    fn should_not_be_valid_transaction_invalid_block_height() {
+        let tx = Transaction {
+            tx_status: "success".into(),
+            block_height: 2,
+            ..Transaction::default()
+        };
+
+        assert!(!Client::is_valid_transaction(&tx, 1));
     }
 
     #[test]
     fn should_be_valid_transaction() {
         let tx = Transaction {
             tx_status: "success".into(),
+            block_height: 1,
             ..Transaction::default()
         };
 
-        assert!(Client::is_valid_transaction(&tx));
+        assert!(Client::is_valid_transaction(&tx, 1));
+
+        let tx = Transaction {
+            tx_status: "success".into(),
+            block_height: 1,
+            ..Transaction::default()
+        };
+
+        assert!(Client::is_valid_transaction(&tx, 2));
     }
 }
