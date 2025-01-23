@@ -58,7 +58,7 @@ fn should_fail_version_migration_if_not_supported() {
 }
 
 #[test]
-#[should_panic(expected = "cannot migrate from wrong-base-contract contract")]
+#[should_panic(expected = "contract name mismatch: actual wrong-base-contract, expected ")]
 fn should_fail_version_migration_using_wrong_contract() {
     let mut deps = mock_dependencies();
     let base_contract = "wrong-base-contract";

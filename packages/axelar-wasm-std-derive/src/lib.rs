@@ -304,42 +304,45 @@ fn match_unit_variant(event_enum: &Ident, variant_name: &Ident) -> TokenStream2 
 /// ```
 ///
 /// ```compile_fail
-/// use cosmwasm_std::{ DepsMut, Env, Response, Empty};
-/// use axelar_wasm_std_derive::migrate_from_version;
+/// # use cosmwasm_std::{ DepsMut, Env, Response, Empty};
+/// # use axelar_wasm_std_derive::migrate_from_version;
 ///
-/// #[migrate_from_version("1.1")] // compilation error because the macro is not applied to a function `migrate`
-/// pub fn execute(
-///     deps: DepsMut,
-///     _env: Env,
-///     _msg: Empty,
-/// ) -> Result<Response, axelar_wasm_std::error::ContractError> {
-///     Ok(Response::default())
-/// }
+/// # #[migrate_from_version("1.1")] // compilation error because the macro is not applied to a function `migrate`
+/// # pub fn execute(
+/// #     deps: DepsMut,
+/// #     _env: Env,
+/// #     _msg: Empty,
+/// # ) -> Result<Response, axelar_wasm_std::error::ContractError> {
+/// #     Ok(Response::default())
+/// # }
 /// ```
 ///
 /// ```compile_fail
-/// use cosmwasm_std::{ Deps, Env, Response, Empty};
-/// use axelar_wasm_std_derive::migrate_from_version;
+/// # use cosmwasm_std::{ Deps, Env, Response, Empty};
+/// # use axelar_wasm_std_derive::migrate_from_version;
 ///
-/// #[migrate_from_version("1.1")] // compilation error because it cannot parse a `DepsMut` parameter
-/// pub fn migrate(
-///     deps: Deps,
-///     _env: Env,
-///     _msg: Empty,
-/// ) -> Result<Response, axelar_wasm_std::error::ContractError> {
-///     Ok(Response::default())
-/// }
+/// # #[migrate_from_version("1.1")] // compilation error because it cannot parse a `DepsMut` parameter
+/// # pub fn migrate(
+/// #     deps: Deps,
+/// #     _env: Env,
+/// #     _msg: Empty,
+/// # ) -> Result<Response, axelar_wasm_std::error::ContractError> {
+/// #     Ok(Response::default())
+/// # }
 /// ```
 ///
 /// ```compile_fail
-/// #[migrate_from_version("~1.1.0")] // compilation error because the base version is not formatted correctly
-/// pub fn migrate(
-///     deps: DepsMut,
-///     _env: Env,
-///     _msg: Empty,
-/// ) -> Result<Response, axelar_wasm_std::error::ContractError> {
-///     Ok(Response::default())
-/// }
+/// # use cosmwasm_std::{ DepsMut, Env, Response, Empty};
+/// # use axelar_wasm_std_derive::migrate_from_version;
+///
+/// # #[migrate_from_version("~1.1.0")] // compilation error because the base version is not formatted correctly
+/// # pub fn migrate(
+/// #     deps: DepsMut,
+/// #     _env: Env,
+/// #     _msg: Empty,
+/// # ) -> Result<Response, axelar_wasm_std::error::ContractError> {
+/// #     Ok(Response::default())
+/// # }
 /// ```
 ///
 #[proc_macro_attribute]
@@ -370,11 +373,11 @@ fn try_migrate_from_version(
             let pkg_version = env!("CARGO_PKG_VERSION");
 
             let contract_version = cw2::get_contract_version(#deps.storage)?;
-            assert_eq!(contract_version.contract, pkg_name, "cannot migrate from {} contract to {} contract", contract_version.contract, pkg_name);
+            assert_eq!(contract_version.contract, pkg_name, "contract name mismatch: actual {}, expected {}", contract_version.contract, pkg_name);
 
-            let old_version = semver::Version::parse(&contract_version.version)?;
+            let curr_version = semver::Version::parse(&contract_version.version)?;
             let version_requirement = semver::VersionReq::parse(#base_semver_req)?;
-            assert!(version_requirement.matches(&old_version), "base version {} does not match {} version requirement", old_version, #base_semver_req);
+            assert!(version_requirement.matches(&curr_version), "base version {} does not match {} version requirement", curr_version, #base_semver_req);
 
             cw2::set_contract_version(#deps.storage, pkg_name, pkg_version)?;
 
