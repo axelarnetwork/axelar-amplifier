@@ -4276,7 +4276,7 @@ dependencies = [
 
 [[package]]
 name = "interchain-token-service"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "alloy-primitives",
  "alloy-sol-types",
