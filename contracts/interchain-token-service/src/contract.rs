@@ -129,8 +129,8 @@ fn match_gateway(storage: &dyn Storage, _: &ExecuteMsg) -> Result<Addr, Report<E
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
     match msg {
-        QueryMsg::ItsContract { chain } => {
-            query::its_contract(deps, chain).change_context(Error::QueryItsContract)
+        QueryMsg::ChainConfig { chain } => {
+            query::chain_config(deps, chain).change_context(Error::QueryItsContract)
         }
         QueryMsg::AllItsContracts => {
             query::all_its_contracts(deps).change_context(Error::QueryAllItsContracts)
