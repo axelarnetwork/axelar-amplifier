@@ -6,7 +6,8 @@ use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmrs::tx::Msg;
 use cosmrs::Any;
 use cosmwasm_std::{HexBinary, Uint64};
-use error_stack::ResultExt;
+use ecdsa::VerifyingKey;
+use error_stack::{Report, ResultExt};
 use events_derive;
 use events_derive::try_from;
 use hex::encode;
@@ -44,7 +45,22 @@ where
 
     keys_by_address
         .into_iter()
-        .map(|(address, pk)| Ok((address, pk.try_into().map_err(D::Error::custom)?)))
+        .map(|(address, pk)| match pk {
+            multisig::key::PublicKey::Ecdsa(hex) => Ok((
+                address,
+                VerifyingKey::from_sec1_bytes(hex.as_ref())
+                    .map_err(D::Error::custom)?
+                    .into(),
+            )),
+
+            multisig::key::PublicKey::Ed25519(hex) => {
+                let pk: cosmrs::tendermint::PublicKey =
+                    cosmrs::tendermint::crypto::ed25519::VerificationKey::try_from(hex.as_ref())
+                        .map_err(D::Error::custom)?
+                        .into();
+                Ok((address, pk.into()))
+            }
+        })
         .collect()
 }
 
@@ -137,9 +153,10 @@ where
 
         match pub_keys.get(&self.verifier) {
             Some(pub_key) => {
-                let key_type = match pub_key {
-                    PublicKey::Secp256k1(_) => tofnd::Algorithm::Ed25519,
-                    PublicKey::Ed25519(_) => tofnd::Algorithm::Ecdsa,
+                let key_type = match pub_key.type_url() {
+                    PublicKey::ED25519_TYPE_URL => tofnd::Algorithm::Ed25519,
+                    PublicKey::SECP256K1_TYPE_URL => tofnd::Algorithm::Ecdsa,
+                    unspported => return Err(Report::from(Error::KeyType(unspported.to_string()))),
                 };
 
                 let signature = self
@@ -147,7 +164,7 @@ where
                     .sign(
                         self.multisig.to_string().as_str(),
                         msg.clone(),
-                        *pub_key,
+                        pub_key,
                         key_type,
                     )
                     .await
@@ -179,6 +196,7 @@ mod test {
     use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
     use cosmrs::AccountId;
     use cosmwasm_std::{HexBinary, Uint64};
+    use ecdsa::SigningKey;
     use error_stack::{Report, Result};
     use multisig::events::Event;
     use multisig::types::MsgToSign;
@@ -191,18 +209,21 @@ mod test {
 
     use super::*;
     use crate::broadcaster::MockBroadcaster;
-    use crate::tofnd;
     use crate::tofnd::grpc::MockMultisig;
+    use crate::{tofnd, types};
 
     const MULTISIG_ADDRESS: &str = "axelarvaloper1zh9wrak6ke4n6fclj5e8yk397czv430ygs5jz7";
-    const PREFIX: &str = "axelar";
+
+    fn rand_account() -> TMAddress {
+        types::PublicKey::from(SigningKey::random(&mut OsRng).verifying_key())
+            .account_id("axelar")
+            .unwrap()
+            .into()
+    }
 
     fn rand_public_key() -> multisig::key::PublicKey {
         multisig::key::PublicKey::Ecdsa(HexBinary::from(
-            k256::ecdsa::SigningKey::random(&mut OsRng)
-                .verifying_key()
-                .to_sec1_bytes()
-                .to_vec(),
+            types::PublicKey::from(SigningKey::random(&mut OsRng).verifying_key()).to_bytes(),
         ))
     }
 
@@ -223,7 +244,7 @@ mod test {
 
     fn signing_started_event() -> events::Event {
         let pub_keys = (0..10)
-            .map(|_| (TMAddress::random(PREFIX).to_string(), rand_public_key()))
+            .map(|_| (rand_account().to_string(), rand_public_key()))
             .collect::<HashMap<String, multisig::key::PublicKey>>();
 
         let poll_started = Event::SigningStarted {
@@ -254,7 +275,7 @@ mod test {
     // this returns an event that is named SigningStarted, but some expected fields are missing
     fn signing_started_event_with_missing_fields(contract_address: &str) -> events::Event {
         let pub_keys = (0..10)
-            .map(|_| (TMAddress::random(PREFIX).to_string(), rand_public_key()))
+            .map(|_| (rand_account().to_string(), rand_public_key()))
             .collect::<HashMap<String, multisig::key::PublicKey>>();
 
         let poll_started = Event::SigningStarted {
@@ -326,7 +347,7 @@ mod test {
         let invalid_pub_key: [u8; 32] = rand::random();
         let mut map: HashMap<String, multisig::key::PublicKey> = HashMap::new();
         map.insert(
-            TMAddress::random(PREFIX).to_string(),
+            rand_account().to_string(),
             multisig::key::PublicKey::Ecdsa(HexBinary::from(invalid_pub_key.as_slice())),
         );
         match event {
@@ -359,7 +380,7 @@ mod test {
         let client = MockMultisig::default();
 
         let handler = handler(
-            TMAddress::random(PREFIX),
+            rand_account(),
             TMAddress::from(MULTISIG_ADDRESS.parse::<AccountId>().unwrap()),
             client,
             100u64,
@@ -368,7 +389,7 @@ mod test {
         assert_eq!(
             handler
                 .handle(&signing_started_event_with_missing_fields(
-                    &TMAddress::random(PREFIX).to_string()
+                    &rand_account().to_string()
                 ))
                 .await
                 .unwrap(),
@@ -381,7 +402,7 @@ mod test {
         let client = MockMultisig::default();
 
         let handler = handler(
-            TMAddress::random(PREFIX),
+            rand_account(),
             TMAddress::from(MULTISIG_ADDRESS.parse::<AccountId>().unwrap()),
             client,
             100u64,
@@ -397,12 +418,7 @@ mod test {
     async fn should_not_handle_event_if_multisig_address_does_not_match() {
         let client = MockMultisig::default();
 
-        let handler = handler(
-            TMAddress::random(PREFIX),
-            TMAddress::random(PREFIX),
-            client,
-            100u64,
-        );
+        let handler = handler(rand_account(), rand_account(), client, 100u64);
 
         assert_eq!(
             handler.handle(&signing_started_event()).await.unwrap(),
@@ -418,7 +434,7 @@ mod test {
             .returning(move |_, _, _, _| Err(Report::from(tofnd::error::Error::SignFailed)));
 
         let handler = handler(
-            TMAddress::random(PREFIX),
+            rand_account(),
             TMAddress::from(MULTISIG_ADDRESS.parse::<AccountId>().unwrap()),
             client,
             100u64,

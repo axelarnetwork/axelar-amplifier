@@ -10,7 +10,7 @@ use report::ResultCompatExt;
 use thiserror::Error;
 use typed_builder::TypedBuilder;
 
-use crate::types::CosmosPublicKey;
+use crate::types::PublicKey;
 
 const DUMMY_CHAIN_ID: &str = "dummy_chain_id";
 const DUMMY_ACC_NUMBER: u64 = 0;
@@ -29,7 +29,7 @@ where
     M: IntoIterator<Item = Any>,
 {
     msgs: M,
-    pub_key: CosmosPublicKey,
+    pub_key: PublicKey,
     acc_sequence: u64,
     #[builder(default = zero_fee())]
     fee: Fee,
@@ -110,13 +110,13 @@ mod tests {
     use tokio::test;
 
     use super::{Error, Tx, DUMMY_CHAIN_ID};
-    use crate::types::CosmosPublicKey;
+    use crate::types::PublicKey;
 
     #[test]
     async fn sign_with_should_produce_the_correct_tx() {
         let priv_key = ecdsa::SigningKey::random(&mut OsRng);
         let priv_key_bytes = priv_key.to_bytes();
-        let pub_key: CosmosPublicKey = priv_key.verifying_key().into();
+        let pub_key: PublicKey = priv_key.verifying_key().into();
         let acc_number = 100;
         let acc_sequence = 1000;
         let chain_id: Id = DUMMY_CHAIN_ID.parse().unwrap();
@@ -160,7 +160,7 @@ mod tests {
 
     #[test]
     async fn with_dummy_sig_should_produce_the_correct_tx() {
-        let pub_key: CosmosPublicKey = ecdsa::SigningKey::random(&mut OsRng).verifying_key().into();
+        let pub_key: PublicKey = ecdsa::SigningKey::random(&mut OsRng).verifying_key().into();
         let acc_sequence = 1000;
         let msgs = vec![dummy_msg(), dummy_msg(), dummy_msg()];
 

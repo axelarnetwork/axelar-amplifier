@@ -150,7 +150,7 @@ mod test {
     use crate::stellar::verifier::{
         verify_message, verify_verifier_set, TOPIC_CONTRACT_CALLED, TOPIC_SIGNERS_ROTATED,
     };
-    use crate::types::{CosmosPublicKey, EVMAddress, Hash};
+    use crate::types::{EVMAddress, Hash};
     use crate::PREFIX;
 
     #[test]
@@ -396,8 +396,8 @@ mod test {
     }
 
     pub fn random_signer() -> Signer {
-        let priv_key = k256::ecdsa::SigningKey::random(&mut OsRng);
-        let pub_key: CosmosPublicKey = priv_key.verifying_key().into();
+        let priv_key: ecdsa::SigningKey<k256::Secp256k1> = ecdsa::SigningKey::random(&mut OsRng);
+        let pub_key: cosmrs::crypto::PublicKey = priv_key.verifying_key().into();
 
         let ed25519_pub_key = SigningKey::generate(&mut OsRng).verifying_key().to_bytes();
 

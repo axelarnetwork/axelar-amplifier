@@ -1,7 +1,9 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use error_stack::ResultExt;
+use cosmrs::tendermint::public_key::PublicKey as TMPublicKey;
+use error_stack::{Report, ResultExt};
+use k256::Secp256k1;
 use mockall::automock;
 use tokio::sync::Mutex;
 use tonic::transport::Channel;
@@ -25,7 +27,7 @@ pub trait Multisig {
         &self,
         key_uid: &str,
         data: MessageDigest,
-        pub_key: PublicKey,
+        pub_key: &PublicKey,
         algorithm: Algorithm,
     ) -> Result<Signature>;
 }
@@ -72,11 +74,12 @@ impl Multisig for MultisigClient {
             .change_context(Error::Grpc)
             .and_then(|response| match response {
                 KeygenResponse::PubKey(pub_key) => match algorithm {
-                    Algorithm::Ecdsa => PublicKey::new_secp256k1(&pub_key),
-                    Algorithm::Ed25519 => PublicKey::new_ed25519(&pub_key),
+                    Algorithm::Ecdsa => TMPublicKey::from_raw_secp256k1(&pub_key),
+                    Algorithm::Ed25519 => TMPublicKey::from_raw_ed25519(&pub_key),
                 }
-                .change_context(Error::ParsingFailed)
-                .attach_printable(format!("{{ invalid_value = {:?} }}", pub_key)),
+                .ok_or_else(|| Report::new(Error::ParsingFailed))
+                .attach_printable(format!("{{ invalid_value = {:?} }}", pub_key))
+                .map(Into::into),
                 KeygenResponse::Error(error_msg) => {
                     Err(TofndError::ExecutionFailed(error_msg)).change_context(Error::KeygenFailed)
                 }
@@ -87,7 +90,7 @@ impl Multisig for MultisigClient {
         &self,
         key_uid: &str,
         data: MessageDigest,
-        pub_key: PublicKey,
+        pub_key: &PublicKey,
         algorithm: Algorithm,
     ) -> Result<Signature> {
         let request = SignRequest {
@@ -112,14 +115,13 @@ impl Multisig for MultisigClient {
             .change_context(Error::Grpc)
             .and_then(|response| match response {
                 SignResponse::Signature(signature) => match algorithm {
-                    Algorithm::Ecdsa => {
-                        k256::ecdsa::Signature::from_der(&signature).map(|sig| sig.to_vec())
-                    }
-                    Algorithm::Ed25519 => {
-                        ed25519_dalek::Signature::from_slice(&signature).map(|sig| sig.to_vec())
-                    }
-                }
-                .change_context(Error::ParsingFailed),
+                    Algorithm::Ecdsa => ecdsa::Signature::<Secp256k1>::from_der(&signature)
+                        .map(|sig| sig.to_vec())
+                        .change_context(Error::ParsingFailed),
+                    Algorithm::Ed25519 => ed25519::Signature::from_slice(&signature)
+                        .map(|sig| sig.to_vec())
+                        .change_context(Error::ParsingFailed),
+                },
 
                 SignResponse::Error(error_msg) => {
                     Err(TofndError::ExecutionFailed(error_msg)).change_context(Error::SignFailed)

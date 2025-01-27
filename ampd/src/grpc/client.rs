@@ -82,12 +82,7 @@ mod tests {
     #[test]
     async fn key_should_work() {
         let key_id = "key_id";
-        let key = PublicKey::new_secp256k1(
-            SigningKey::random(&mut OsRng)
-                .verifying_key()
-                .to_sec1_bytes(),
-        )
-        .unwrap();
+        let key: PublicKey = SigningKey::random(&mut OsRng).verifying_key().into();
         let algorithm = Algorithm::Ed25519;
 
         let mut multisig_client = MockMultisig::new();
@@ -128,13 +123,8 @@ mod tests {
     #[test]
     async fn sign_should_work() {
         let key_id = "key_id";
-        let algorithm = Algorithm::Ecdsa;
-        let key = PublicKey::new_secp256k1(
-            SigningKey::random(&mut OsRng)
-                .verifying_key()
-                .to_sec1_bytes(),
-        )
-        .unwrap();
+        let algorithm = Algorithm::Ed25519;
+        let key: PublicKey = SigningKey::random(&mut OsRng).verifying_key().into();
         let msg = b"message";
         let mut hasher = Sha256::new();
         hasher.update(msg);
@@ -153,7 +143,7 @@ mod tests {
             .with(
                 predicate::eq(key_id),
                 predicate::eq(tofnd::MessageDigest::from(sign_digest)),
-                predicate::function(move |actual| *actual == key),
+                predicate::function(move |actual: &PublicKey| actual == &key),
                 predicate::eq(tofnd::Algorithm::from(algorithm)),
             )
             .return_once(|_, _, _, _| Ok(vec![1; 64]));
