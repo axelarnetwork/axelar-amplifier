@@ -2,16 +2,16 @@
 //! transaction existence
 
 use async_trait::async_trait;
-use axelar_wasm_std::msg_id::{Error as MessageFormatError, FieldElementAndEventIndex};
+use axelar_wasm_std::msg_id::FieldElementAndEventIndex;
 use error_stack::Report;
 use mockall::automock;
 use starknet_checked_felt::CheckedFelt;
-use starknet_core::types::{ExecutionResult, Felt, FromStrError, TransactionReceipt};
+use starknet_core::types::{ExecutionResult, Felt, TransactionReceipt};
 use starknet_providers::jsonrpc::JsonRpcTransport;
 use starknet_providers::{JsonRpcClient, Provider, ProviderError};
 use thiserror::Error;
 
-use crate::types::starknet::events::contract_call::ContractCallEvent;
+use crate::types::starknet::events::contract_call::{ContractCallError, ContractCallEvent};
 use crate::types::starknet::events::signers_rotated::SignersRotatedEvent;
 
 type Result<T> = error_stack::Result<T, StarknetClientError>;
@@ -19,19 +19,15 @@ type Result<T> = error_stack::Result<T, StarknetClientError>;
 #[derive(Debug, Error)]
 pub enum StarknetClientError {
     #[error(transparent)]
+    ContractCallError(#[from] ContractCallError),
+    #[error(transparent)]
     UrlParseError(#[from] url::ParseError),
     #[error(transparent)]
     JsonDeserializeError(#[from] serde_json::Error),
     #[error("Failed to fetch tx receipt: {0}")]
     FetchingReceipt(#[from] ProviderError),
-    #[error("Failed to create field element from string: {0}")]
-    FeltFromString(#[from] FromStrError),
     #[error("Tx not successful")]
     UnsuccessfulTx,
-    #[error("u64 overflowed")]
-    OverflowingU64,
-    #[error("Failed to construct message_id from event: {0}")]
-    MessageIdConstruction(#[from] MessageFormatError),
 }
 
 /// Implementor of verification method(s) for given network using JSON RPC
@@ -63,12 +59,12 @@ where
 #[automock]
 #[async_trait]
 pub trait StarknetClient {
-    /// Attempts to fetch a ContractCall event, by a given `tx_hash`.
-    /// Returns a tuple `(tx_hash, event)` or a `StarknetClientError`.
+    /// Attempts to fetch a ContractCall event, by a given `message_id`.
+    /// Returns the event or a `StarknetClientError`.
     async fn get_events_by_hash_contract_call(
         &self,
-        tx_hash: CheckedFelt,
-    ) -> Result<Vec<(FieldElementAndEventIndex, ContractCallEvent)>>;
+        message_id: FieldElementAndEventIndex,
+    ) -> Option<(FieldElementAndEventIndex, ContractCallEvent)>;
 
     /// Attempts to fetch a SignersRotated event, by a given `tx_hash`.
     /// Returns a tuple `(tx_hash, event)` or a `StarknetClientError`.
@@ -87,48 +83,32 @@ where
     // `ContractCallEvent`
     async fn get_events_by_hash_contract_call(
         &self,
-        tx_hash: CheckedFelt,
-    ) -> Result<Vec<(FieldElementAndEventIndex, ContractCallEvent)>> {
+        message_id: FieldElementAndEventIndex,
+    ) -> Option<(FieldElementAndEventIndex, ContractCallEvent)> {
         let receipt_with_block_info = self
             .client
-            .get_transaction_receipt(tx_hash.clone())
+            .get_transaction_receipt(message_id.tx_hash.clone())
             .await
-            .map_err(StarknetClientError::FetchingReceipt)?;
+            .ok()?;
 
         if *receipt_with_block_info.receipt.execution_result() != ExecutionResult::Succeeded {
-            return Err(Report::new(StarknetClientError::UnsuccessfulTx));
+            return None;
         }
-
-        let mut message_id_and_event_pairs: Vec<(FieldElementAndEventIndex, ContractCallEvent)> =
-            vec![];
 
         match receipt_with_block_info.receipt {
             TransactionReceipt::Invoke(tx) => {
-                let mut event_index: u64 = 0;
-                // The RPC node always returns the events in the same order,
-                // so we can be sure that the msg ids will have the same indexes
-                // when iterating them
-                for e in tx.events.clone() {
-                    if let Ok(cce) = ContractCallEvent::try_from(e.clone()) {
-                        let message_id =
-                            FieldElementAndEventIndex::new(tx_hash.clone(), event_index)
-                                .map_err(StarknetClientError::MessageIdConstruction)?;
-                        message_id_and_event_pairs.push((message_id, cce));
-                    }
-                    // we iterate regardless of the event type,
-                    // because that's what we do in the relayer
-                    event_index = event_index
-                        .checked_add(1)
-                        .ok_or(StarknetClientError::OverflowingU64)?;
-                }
-            }
-            TransactionReceipt::L1Handler(_) => (),
-            TransactionReceipt::Declare(_) => (),
-            TransactionReceipt::Deploy(_) => (),
-            TransactionReceipt::DeployAccount(_) => (),
-        };
+                let event_index: usize = message_id.event_index.try_into().ok()?;
+                let event = tx.events.get(event_index)?;
 
-        Ok(message_id_and_event_pairs)
+                ContractCallEvent::try_from(event.clone())
+                    .map(|cce| (message_id, cce))
+                    .ok()
+            }
+            TransactionReceipt::L1Handler(_) => None,
+            TransactionReceipt::Declare(_) => None,
+            TransactionReceipt::Deploy(_) => None,
+            TransactionReceipt::DeployAccount(_) => None,
+        }
     }
 
     // Fetches a transaction receipt by hash and extracts a `SignersRotatedEvent` if present
@@ -206,48 +186,52 @@ mod test {
     async fn deploy_account_tx_fetch() {
         let mock_client = Client::new_with_transport(DeployAccountMockTransport).unwrap();
         let contract_call_events = mock_client
-            .get_events_by_hash_contract_call(
-                CheckedFelt::try_from(&Felt::ONE.to_bytes_be()).unwrap(),
-            )
+            .get_events_by_hash_contract_call(FieldElementAndEventIndex {
+                tx_hash: CheckedFelt::try_from(&Felt::ONE.to_bytes_be()).unwrap(),
+                event_index: 0,
+            })
             .await;
 
-        assert!(contract_call_events.unwrap().is_empty());
+        assert!(contract_call_events.is_none());
     }
 
     #[tokio::test]
     async fn deploy_tx_fetch() {
         let mock_client = Client::new_with_transport(DeployMockTransport).unwrap();
         let contract_call_events = mock_client
-            .get_events_by_hash_contract_call(
-                CheckedFelt::try_from(&Felt::ONE.to_bytes_be()).unwrap(),
-            )
+            .get_events_by_hash_contract_call(FieldElementAndEventIndex {
+                tx_hash: CheckedFelt::try_from(&Felt::ONE.to_bytes_be()).unwrap(),
+                event_index: 0,
+            })
             .await;
 
-        assert!(contract_call_events.unwrap().is_empty());
+        assert!(contract_call_events.is_none());
     }
 
     #[tokio::test]
     async fn l1_handler_tx_fetch() {
         let mock_client = Client::new_with_transport(L1HandlerMockTransport).unwrap();
         let contract_call_events = mock_client
-            .get_events_by_hash_contract_call(
-                CheckedFelt::try_from(&Felt::ONE.to_bytes_be()).unwrap(),
-            )
+            .get_events_by_hash_contract_call(FieldElementAndEventIndex {
+                tx_hash: CheckedFelt::try_from(&Felt::ONE.to_bytes_be()).unwrap(),
+                event_index: 0,
+            })
             .await;
 
-        assert!(contract_call_events.unwrap().is_empty());
+        assert!(contract_call_events.is_none());
     }
 
     #[tokio::test]
     async fn declare_tx_fetch() {
         let mock_client = Client::new_with_transport(DeclareMockTransport).unwrap();
         let contract_call_events = mock_client
-            .get_events_by_hash_contract_call(
-                CheckedFelt::try_from(&Felt::ONE.to_bytes_be()).unwrap(),
-            )
+            .get_events_by_hash_contract_call(FieldElementAndEventIndex {
+                tx_hash: CheckedFelt::try_from(&Felt::ONE.to_bytes_be()).unwrap(),
+                event_index: 0,
+            })
             .await;
 
-        assert!(contract_call_events.unwrap().is_empty());
+        assert!(contract_call_events.is_none());
     }
 
     #[tokio::test]
@@ -255,50 +239,52 @@ mod test {
         let mock_client =
             Client::new_with_transport(InvalidContractCallEventMockTransport).unwrap();
         let contract_call_events = mock_client
-            .get_events_by_hash_contract_call(
-                CheckedFelt::try_from(&Felt::ONE.to_bytes_be()).unwrap(),
-            )
+            .get_events_by_hash_contract_call(FieldElementAndEventIndex {
+                tx_hash: CheckedFelt::try_from(&Felt::ONE.to_bytes_be()).unwrap(),
+                event_index: 0,
+            })
             .await;
 
-        assert!(contract_call_events.unwrap().is_empty());
+        assert!(contract_call_events.is_none());
     }
 
     #[tokio::test]
     async fn no_events_tx_fetch() {
         let mock_client = Client::new_with_transport(NoEventsMockTransport).unwrap();
         let contract_call_events = mock_client
-            .get_events_by_hash_contract_call(
-                CheckedFelt::try_from(&Felt::ONE.to_bytes_be()).unwrap(),
-            )
+            .get_events_by_hash_contract_call(FieldElementAndEventIndex {
+                tx_hash: CheckedFelt::try_from(&Felt::ONE.to_bytes_be()).unwrap(),
+                event_index: 0,
+            })
             .await;
 
-        assert!(contract_call_events.unwrap().is_empty());
+        assert!(contract_call_events.is_none());
     }
 
     #[tokio::test]
     async fn reverted_tx_fetch() {
         let mock_client = Client::new_with_transport(RevertedMockTransport).unwrap();
         let contract_call_event = mock_client
-            .get_events_by_hash_contract_call(
-                CheckedFelt::try_from(&Felt::ONE.to_bytes_be()).unwrap(),
-            )
+            .get_events_by_hash_contract_call(FieldElementAndEventIndex {
+                tx_hash: CheckedFelt::try_from(&Felt::ONE.to_bytes_be()).unwrap(),
+                event_index: 0,
+            })
             .await;
 
-        assert!(contract_call_event
-            .unwrap_err()
-            .contains::<StarknetClientError>());
+        assert!(contract_call_event.is_none())
     }
 
     #[tokio::test]
     async fn failing_tx_fetch() {
         let mock_client = Client::new_with_transport(FailingMockTransport).unwrap();
         let contract_call_event = mock_client
-            .get_events_by_hash_contract_call(
-                CheckedFelt::try_from(&Felt::ONE.to_bytes_be()).unwrap(),
-            )
+            .get_events_by_hash_contract_call(FieldElementAndEventIndex {
+                tx_hash: CheckedFelt::try_from(&Felt::ONE.to_bytes_be()).unwrap(),
+                event_index: 0,
+            })
             .await;
 
-        assert!(contract_call_event.is_err());
+        assert!(contract_call_event.is_none());
     }
 
     #[tokio::test]
@@ -347,21 +333,22 @@ mod test {
         let mock_client =
             Client::new_with_transport(ValidMockTransportTwoCallContractsInOneTx).unwrap();
         let contract_call_events = mock_client
-            .get_events_by_hash_contract_call(
-                CheckedFelt::try_from(&Felt::ONE.to_bytes_be()).unwrap(),
-            )
+            .get_events_by_hash_contract_call(FieldElementAndEventIndex {
+                tx_hash: CheckedFelt::try_from(&Felt::ONE.to_bytes_be()).unwrap(),
+                event_index: 0,
+            })
             .await
             .unwrap(); // unwrap the option
 
         assert_eq!(
-            contract_call_events[0].0,
+            contract_call_events.0,
             FieldElementAndEventIndex::from_str(
                 "0x0000000000000000000000000000000000000000000000000000000000000001-0"
             )
             .unwrap()
         );
         assert_eq!(
-            contract_call_events[0].1,
+            contract_call_events.1,
             ContractCallEvent {
                 from_contract_addr:
                     "0x0000000000000000000000000000000000000000000000000000000000000002".to_owned(),
@@ -378,15 +365,23 @@ mod test {
             }
         );
 
+        let contract_call_events_1 = mock_client
+            .get_events_by_hash_contract_call(FieldElementAndEventIndex {
+                tx_hash: CheckedFelt::try_from(&Felt::ONE.to_bytes_be()).unwrap(),
+                event_index: 1,
+            })
+            .await
+            .unwrap(); // unwrap the option
+
         assert_eq!(
-            contract_call_events[1].0,
+            contract_call_events_1.0,
             FieldElementAndEventIndex::from_str(
                 "0x0000000000000000000000000000000000000000000000000000000000000001-1"
             )
             .unwrap()
         );
         assert_eq!(
-            contract_call_events[1].1,
+            contract_call_events_1.1,
             ContractCallEvent {
                 from_contract_addr:
                     "0x0000000000000000000000000000000000000000000000000000000000000002".to_owned(),
@@ -408,21 +403,22 @@ mod test {
     async fn successful_call_contract_tx_fetch() {
         let mock_client = Client::new_with_transport(ValidMockTransportCallContract).unwrap();
         let contract_call_events = mock_client
-            .get_events_by_hash_contract_call(
-                CheckedFelt::try_from(&Felt::ONE.to_bytes_be()).unwrap(),
-            )
+            .get_events_by_hash_contract_call(FieldElementAndEventIndex {
+                tx_hash: CheckedFelt::try_from(&Felt::ONE.to_bytes_be()).unwrap(),
+                event_index: 0,
+            })
             .await
             .unwrap(); // unwrap the option
 
         assert_eq!(
-            contract_call_events[0].0,
+            contract_call_events.0,
             FieldElementAndEventIndex::from_str(
                 "0x0000000000000000000000000000000000000000000000000000000000000001-0"
             )
             .unwrap()
         );
         assert_eq!(
-            contract_call_events[0].1,
+            contract_call_events.1,
             ContractCallEvent {
                 from_contract_addr:
                     "0x0000000000000000000000000000000000000000000000000000000000000002".to_owned(),

@@ -7,10 +7,10 @@ use axelar_wasm_std::voting::{PollId, Vote};
 use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmrs::tx::Msg;
 use cosmrs::Any;
-use error_stack::{FutureExt, ResultExt};
+use error_stack::ResultExt;
 use events::Error::EventTypeMismatch;
 use events_derive::try_from;
-use futures::future::try_join_all;
+use futures::future::join_all;
 use itertools::Itertools;
 use router_api::ChainName;
 use serde::Deserialize;
@@ -133,12 +133,11 @@ where
 
         // key is the message_id of the tx holding the event
         let mut events: HashMap<FieldElementAndEventIndex, ContractCallEvent> =
-            try_join_all(unique_msgs.iter().map(|msg| {
+            join_all(unique_msgs.iter().map(|msg| {
                 self.rpc_client
-                    .get_events_by_hash_contract_call(msg.message_id.tx_hash.clone())
+                    .get_events_by_hash_contract_call(msg.message_id.clone())
             }))
-            .change_context(Error::TxReceipts)
-            .await?
+            .await
             .into_iter()
             .flatten()
             .collect();
@@ -193,42 +192,42 @@ mod tests {
         rpc_client
             .expect_get_events_by_hash_contract_call()
             .returning(|_| {
-                Ok(vec![
-                    (
-                        FieldElementAndEventIndex::from_str(
-                            "0x035410be6f4bf3f67f7c1bb4a93119d9d410b2f981bfafbf5dbbf5d37ae7439e-0",
-                        )
-                        .unwrap(),
-                        ContractCallEvent {
-                            from_contract_addr: String::from("source-gw-addr"),
-                            destination_address: String::from("destination-address"),
-                            destination_chain: "ethereum".parse().unwrap(),
-                            source_address: Felt::ONE,
-                            payload_hash: H256::from_slice(&[
-                                28u8, 138, 255, 149, 6, 133, 194, 237, 75, 195, 23, 79, 52, 114,
-                                40, 123, 86, 217, 81, 123, 156, 148, 129, 39, 49, 154, 9, 167, 163,
-                                109, 234, 200,
-                            ]),
-                        },
-                    ),
-                    (
-                        FieldElementAndEventIndex::from_str(
-                            "0x035410be6f4bf3f67f7c1bb4a93119d9d410b2f981bfafbf5dbbf5d37ae7439e-1",
-                        )
-                        .unwrap(),
-                        ContractCallEvent {
-                            from_contract_addr: String::from("source-gw-addr"),
-                            destination_address: String::from("destination-address-1"),
-                            destination_chain: "ethereum-1".parse().unwrap(),
-                            source_address: Felt::TWO,
-                            payload_hash: H256::from_slice(&[
-                                28u8, 138, 255, 149, 6, 133, 194, 237, 75, 195, 23, 79, 52, 114,
-                                40, 123, 86, 217, 81, 123, 156, 148, 129, 39, 49, 154, 9, 167, 163,
-                                109, 234, 200,
-                            ]),
-                        },
-                    ),
-                ])
+                Some((
+                    FieldElementAndEventIndex::from_str(
+                        "0x035410be6f4bf3f67f7c1bb4a93119d9d410b2f981bfafbf5dbbf5d37ae7439e-0",
+                    )
+                    .unwrap(),
+                    ContractCallEvent {
+                        from_contract_addr: String::from("source-gw-addr"),
+                        destination_address: String::from("destination-address"),
+                        destination_chain: "ethereum".parse().unwrap(),
+                        source_address: Felt::ONE,
+                        payload_hash: H256::from_slice(&[
+                            28u8, 138, 255, 149, 6, 133, 194, 237, 75, 195, 23, 79, 52, 114, 40,
+                            123, 86, 217, 81, 123, 156, 148, 129, 39, 49, 154, 9, 167, 163, 109,
+                            234, 200,
+                        ]),
+                    },
+                ))
+            })
+            .returning(|_| {
+                Some((
+                    FieldElementAndEventIndex::from_str(
+                        "0x035410be6f4bf3f67f7c1bb4a93119d9d410b2f981bfafbf5dbbf5d37ae7439e-1",
+                    )
+                    .unwrap(),
+                    ContractCallEvent {
+                        from_contract_addr: String::from("source-gw-addr"),
+                        destination_address: String::from("destination-address-1"),
+                        destination_chain: "ethereum-1".parse().unwrap(),
+                        source_address: Felt::TWO,
+                        payload_hash: H256::from_slice(&[
+                            28u8, 138, 255, 149, 6, 133, 194, 237, 75, 195, 23, 79, 52, 114, 40,
+                            123, 86, 217, 81, 123, 156, 148, 129, 39, 49, 154, 9, 167, 163, 109,
+                            234, 200,
+                        ]),
+                    },
+                ))
             });
 
         let event: Event = get_event(
@@ -259,7 +258,7 @@ mod tests {
         rpc_client
             .expect_get_events_by_hash_contract_call()
             .returning(|_| {
-                Ok(vec![(
+                Some((
                     FieldElementAndEventIndex::from_str(
                         "0x035410be6f4bf3f67f7c1bb4a93119d9d410b2f981bfafbf5dbbf5d37ae7439e-0",
                     )
@@ -275,7 +274,7 @@ mod tests {
                             234, 200,
                         ]),
                     },
-                )])
+                ))
             });
 
         let event: Event = get_event(
@@ -303,14 +302,17 @@ mod tests {
         rpc_client
             .expect_get_events_by_hash_contract_call()
             .once()
-            .with(eq(CheckedFelt::from_str(
-                "0x045410be6f4bf3f67f7c1bb4a93119d9d410b2f981bfafbf5dbbf5d37ae7439f",
-            )
-            .unwrap()))
+            .with(eq(FieldElementAndEventIndex {
+                tx_hash: CheckedFelt::from_str(
+                    "0x045410be6f4bf3f67f7c1bb4a93119d9d410b2f981bfafbf5dbbf5d37ae7439f",
+                )
+                .unwrap(),
+                event_index: 1,
+            }))
             .returning(|_| {
-                Ok(vec![(
+                Some((
                     FieldElementAndEventIndex::from_str(
-                        "0x045410be6f4bf3f67f7c1bb4a93119d9d410b2f981bfafbf5dbbf5d37ae7439f-0",
+                        "0x045410be6f4bf3f67f7c1bb4a93119d9d410b2f981bfafbf5dbbf5d37ae7439f-1",
                     )
                     .unwrap(),
                     ContractCallEvent {
@@ -324,7 +326,7 @@ mod tests {
                             234, 200,
                         ]),
                     },
-                )])
+                ))
             });
 
         let event: Event = get_event(
