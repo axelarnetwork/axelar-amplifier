@@ -80,7 +80,6 @@ sui-gateway = { version = "^1.0.0", path = "packages/sui-gateway" }
 sui-types = { version = "^1.0.0", path = "packages/sui-types" }
 starknet-checked-felt = { version = "^1.0.0", path = "packages/starknet-checked-felt" }
 starknet-types-core = { version = "0.1.7" }
-starknet-message = { version = "^1.0.0", path = "packages/starknet-message" }
 starknet-core = "0.12.0"
 starknet-providers = "0.12.0"
 syn = "2.0.92"

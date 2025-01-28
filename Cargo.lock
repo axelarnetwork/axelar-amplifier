@@ -8313,18 +8313,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "starknet-message"
-version = "1.0.0"
-dependencies = [
- "error-stack",
- "ethers-core",
- "router-api",
- "starknet-checked-felt",
- "starknet-types-core",
- "thiserror 1.0.69",
-]
-
-[[package]]
 name = "starknet-providers"
 version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
