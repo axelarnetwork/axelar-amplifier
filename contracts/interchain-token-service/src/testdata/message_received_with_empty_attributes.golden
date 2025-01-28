@@ -4,31 +4,15 @@
     "attributes": [
       {
         "key": "cc_id",
-        "value": "source_hash"
+        "value": "{\"source_chain\":\"source\",\"message_id\":\"hash\"}"
       },
       {
         "key": "destination_chain",
-        "value": "destination"
+        "value": "\"destination\""
       },
       {
-        "key": "message_type",
-        "value": "InterchainTransfer"
-      },
-      {
-        "key": "token_id",
-        "value": "0101010101010101010101010101010101010101010101010101010101010101"
-      },
-      {
-        "key": "source_address",
-        "value": "0101010101010101010101010101010101010101010101010101010101010101"
-      },
-      {
-        "key": "destination_address",
-        "value": "01020304"
-      },
-      {
-        "key": "amount",
-        "value": "1"
+        "key": "message",
+        "value": "{\"interchain_transfer\":{\"token_id\":\"0101010101010101010101010101010101010101010101010101010101010101\",\"source_address\":\"0101010101010101010101010101010101010101010101010101010101010101\",\"destination_address\":\"01020304\",\"amount\":\"1\",\"data\":null}}"
       }
     ]
   },
@@ -37,31 +21,15 @@
     "attributes": [
       {
         "key": "cc_id",
-        "value": "source_hash"
+        "value": "{\"source_chain\":\"source\",\"message_id\":\"hash\"}"
       },
       {
         "key": "destination_chain",
-        "value": "destination"
+        "value": "\"destination\""
       },
       {
-        "key": "message_type",
-        "value": "InterchainTransfer"
-      },
-      {
-        "key": "token_id",
-        "value": "0101010101010101010101010101010101010101010101010101010101010101"
-      },
-      {
-        "key": "source_address",
-        "value": "00"
-      },
-      {
-        "key": "destination_address",
-        "value": "00"
-      },
-      {
-        "key": "amount",
-        "value": "1"
+        "key": "message",
+        "value": "{\"interchain_transfer\":{\"token_id\":\"0101010101010101010101010101010101010101010101010101010101010101\",\"source_address\":\"00\",\"destination_address\":\"00\",\"amount\":\"1\",\"data\":null}}"
       }
     ]
   },
@@ -70,31 +38,15 @@
     "attributes": [
       {
         "key": "cc_id",
-        "value": "source_hash"
+        "value": "{\"source_chain\":\"source\",\"message_id\":\"hash\"}"
       },
       {
         "key": "destination_chain",
-        "value": "destination"
+        "value": "\"destination\""
       },
       {
-        "key": "message_type",
-        "value": "DeployInterchainToken"
-      },
-      {
-        "key": "token_id",
-        "value": "0101010101010101010101010101010101010101010101010101010101010101"
-      },
-      {
-        "key": "name",
-        "value": "Test"
-      },
-      {
-        "key": "symbol",
-        "value": "TST"
-      },
-      {
-        "key": "decimals",
-        "value": "18"
+        "key": "message",
+        "value": "{\"deploy_interchain_token\":{\"token_id\":\"0101010101010101010101010101010101010101010101010101010101010101\",\"name\":\"Test\",\"symbol\":\"TST\",\"decimals\":18,\"minter\":null}}"
       }
     ]
   },
@@ -103,60 +55,15 @@
     "attributes": [
       {
         "key": "cc_id",
-        "value": "source_hash"
+        "value": "{\"source_chain\":\"source\",\"message_id\":\"hash\"}"
       },
       {
         "key": "destination_chain",
-        "value": "destination"
+        "value": "\"destination\""
       },
       {
-        "key": "message_type",
-        "value": "DeployInterchainToken"
-      },
-      {
-        "key": "token_id",
-        "value": "0101010101010101010101010101010101010101010101010101010101010101"
-      },
-      {
-        "key": "name",
-        "value": "t"
-      },
-      {
-        "key": "symbol",
-        "value": "T"
-      },
-      {
-        "key": "decimals",
-        "value": "0"
-      }
-    ]
-  },
-  {
-    "type": "message_received",
-    "attributes": [
-      {
-        "key": "cc_id",
-        "value": "source_hash"
-      },
-      {
-        "key": "destination_chain",
-        "value": "destination"
-      },
-      {
-        "key": "message_type",
-        "value": "DeployTokenManager"
-      },
-      {
-        "key": "token_id",
-        "value": "0101010101010101010101010101010101010101010101010101010101010101"
-      },
-      {
-        "key": "token_manager_type",
-        "value": "MintBurn"
-      },
-      {
-        "key": "params",
-        "value": "00"
+        "key": "message",
+        "value": "{\"deploy_interchain_token\":{\"token_id\":\"0101010101010101010101010101010101010101010101010101010101010101\",\"name\":\"t\",\"symbol\":\"T\",\"decimals\":0,\"minter\":null}}"
       }
     ]
   }

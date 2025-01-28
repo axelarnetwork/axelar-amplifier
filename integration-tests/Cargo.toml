@@ -15,8 +15,6 @@ exclude = [
 crate-type = ["rlib"]
 
 [features]
-# for more explicit tests, cargo test --features=backtraces
-backtraces = ["cosmwasm-std/backtraces"]
 # use library feature to disable all instantiate/execute/query exports
 library = []
 
@@ -34,7 +32,8 @@ axelar-wasm-std = { workspace = true }
 axelarnet-gateway = { workspace = true }
 coordinator = { workspace = true }
 cosmwasm-std = { workspace = true }
-cw-multi-test = "0.15.1"
+cw-multi-test = { workspace = true }
+cw-storage-plus = { workspace = true }
 error-stack = { workspace = true }
 gateway = { workspace = true }
 gateway-api = { workspace = true }

@@ -1,5 +1,5 @@
 use cosmwasm_std::{from_json, DepsMut, HexBinary, Reply, Response, Uint64};
-use cw_utils::{parse_reply_execute_data, MsgExecuteContractResponse};
+use cw_utils::{parse_execute_response_data, MsgExecuteContractResponse, ParseReplyError};
 use xrpl_types::types::XRPLUnsignedTxToSign;
 
 use crate::error::ContractError;
@@ -11,8 +11,17 @@ use crate::state::{
 
 pub fn start_multisig_reply(deps: DepsMut, reply: Reply) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
+    #[allow(deprecated)]
+    // TODO: use `msg_responses` instead when the cosmwasm vm is updated to 2.x.x
+    let data = reply
+        .result
+        .clone()
+        .into_result()
+        .map_err(ParseReplyError::SubMsgFailure)?
+        .data
+        .ok_or_else(|| ParseReplyError::ParseFailure("missing reply data".to_owned()))?;
 
-    match parse_reply_execute_data(reply.clone()) {
+    match parse_execute_response_data(data.as_slice()) {
         Ok(MsgExecuteContractResponse { data: Some(data) }) => {
             let multisig_session_id: Uint64 = from_json(data)
                 .map_err(|_| ContractError::InvalidContractReply {
@@ -50,11 +59,12 @@ pub fn start_multisig_reply(deps: DepsMut, reply: Reply) -> Result<Response, Con
                 .parse()
                 .expect("violated invariant: expires_at is not a number");
 
-            match REPLY_CROSS_CHAIN_ID.may_load(deps.storage)? {
+            let opt_cc_id = REPLY_CROSS_CHAIN_ID.may_load(deps.storage)?;
+            match &opt_cc_id {
                 Some(cc_id) => {
                     CROSS_CHAIN_ID_TO_MULTISIG_SESSION.save(
                         deps.storage,
-                        &cc_id,
+                        cc_id,
                         &MultisigSession {
                             id: multisig_session_id.u64(),
                             expires_at,
@@ -63,7 +73,7 @@ pub fn start_multisig_reply(deps: DepsMut, reply: Reply) -> Result<Response, Con
                     REPLY_CROSS_CHAIN_ID.remove(deps.storage);
                 }
                 None => (),
-            }
+            };
 
             REPLY_UNSIGNED_TX_HASH.remove(deps.storage);
 
@@ -71,10 +81,9 @@ pub fn start_multisig_reply(deps: DepsMut, reply: Reply) -> Result<Response, Con
                 .add_event(
                     Event::ProofUnderConstruction {
                         destination_chain: config.chain_name,
-                        unsigned_tx_hash,
+                        unsigned_tx_hash: unsigned_tx_hash.clone(),
                         multisig_session_id,
                     }
-                    .into(),
                 )
                 .add_event(
                     cosmwasm_std::Event::new("xrpl_signing_started")
@@ -89,7 +98,8 @@ pub fn start_multisig_reply(deps: DepsMut, reply: Reply) -> Result<Response, Con
                             HexBinary::from(
                                 XRPLUnsignedTxToSign {
                                     unsigned_tx: tx_info.unsigned_tx,
-                                    multisig_session_id: multisig_session_id.u64()
+                                    multisig_session_id: multisig_session_id.u64(),
+                                    cc_id: opt_cc_id,
                                 }.xrpl_serialize()?
                             ).to_hex(),
                         )

@@ -2,6 +2,7 @@ use std::collections::HashSet;
 use std::convert::TryInto;
 
 use async_trait::async_trait;
+use axelar_wasm_std::msg_id::Base58TxDigestAndEventIndex;
 use axelar_wasm_std::voting::{PollId, Vote};
 use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmrs::tx::Msg;
@@ -11,7 +12,7 @@ use events::Error::EventTypeMismatch;
 use events::Event;
 use events_derive::try_from;
 use serde::Deserialize;
-use sui_types::base_types::{SuiAddress, TransactionDigest};
+use sui_types::base_types::SuiAddress;
 use tokio::sync::watch::Receiver;
 use tracing::info;
 use voting_verifier::msg::ExecuteMsg;
@@ -26,8 +27,7 @@ type Result<T> = error_stack::Result<T, Error>;
 
 #[derive(Deserialize, Debug)]
 pub struct Message {
-    pub tx_id: TransactionDigest,
-    pub event_index: u32,
+    pub message_id: Base58TxDigestAndEventIndex,
     pub destination_address: String,
     pub destination_chain: router_api::ChainName,
     pub source_address: SuiAddress,
@@ -122,7 +122,10 @@ where
 
         // Does not assume voting verifier emits unique tx ids.
         // RPC will throw an error if the input contains any duplicate, deduplicate tx ids to avoid unnecessary failures.
-        let deduplicated_tx_ids: HashSet<_> = messages.iter().map(|msg| msg.tx_id).collect();
+        let deduplicated_tx_ids: HashSet<_> = messages
+            .iter()
+            .map(|msg| msg.message_id.tx_digest.into())
+            .collect();
         let transaction_blocks = self
             .rpc_client
             .finalized_transaction_blocks(deduplicated_tx_ids)
@@ -133,7 +136,7 @@ where
             .iter()
             .map(|msg| {
                 transaction_blocks
-                    .get(&msg.tx_id)
+                    .get(&msg.message_id.tx_digest.into())
                     .map_or(Vote::NotFound, |tx_block| {
                         verify_message(&source_gateway_address, tx_block, msg)
                     })
@@ -152,13 +155,15 @@ mod tests {
     use std::collections::HashMap;
     use std::convert::TryInto;
 
+    use axelar_wasm_std::msg_id::Base58TxDigestAndEventIndex;
     use cosmrs::cosmwasm::MsgExecuteContract;
     use cosmrs::tx::Msg;
     use cosmwasm_std;
-    use error_stack::{Report, Result};
+    use error_stack::Report;
+    use ethers_core::types::H160;
     use ethers_providers::ProviderError;
     use events::Event;
-    use sui_types::base_types::{SuiAddress, TransactionDigest};
+    use sui_types::base_types::{SuiAddress, SUI_ADDRESS_LENGTH};
     use tokio::sync::watch;
     use tokio::test as async_test;
     use voting_verifier::events::{PollMetadata, PollStarted, TxEventConfirmation};
@@ -166,21 +171,22 @@ mod tests {
     use super::PollStartedEvent;
     use crate::event_processor::EventHandler;
     use crate::handlers::errors::Error;
-    use crate::handlers::tests::into_structured_event;
+    use crate::handlers::tests::{into_structured_event, participants};
     use crate::sui::json_rpc::MockSuiClient;
-    use crate::types::{EVMAddress, Hash, TMAddress};
+    use crate::types::TMAddress;
 
     const PREFIX: &str = "axelar";
 
     #[test]
-    fn should_deserialize_poll_started_event() {
-        let event: Result<PollStartedEvent, events::Error> = into_structured_event(
+    fn sui_verify_msg_should_deserialize_correct_event() {
+        let event: PollStartedEvent = into_structured_event(
             poll_started_event(participants(5, None), 100),
             &TMAddress::random(PREFIX),
         )
-        .try_into();
+        .try_into()
+        .unwrap();
 
-        assert!(event.is_ok());
+        goldie::assert_debug!(event);
     }
 
     // Should not handle event if it is not a poll started event
@@ -322,11 +328,13 @@ mod tests {
     }
 
     fn poll_started_event(participants: Vec<TMAddress>, expires_at: u64) -> PollStarted {
+        let msg_id = Base58TxDigestAndEventIndex::new([1; 32], 0u64);
         PollStarted::Messages {
             metadata: PollMetadata {
                 poll_id: "100".parse().unwrap(),
                 source_chain: "sui".parse().unwrap(),
-                source_gateway_address: SuiAddress::random_for_testing_only()
+                source_gateway_address: SuiAddress::from_bytes([3; SUI_ADDRESS_LENGTH])
+                    .unwrap()
                     .to_string()
                     .parse()
                     .unwrap(),
@@ -337,24 +345,20 @@ mod tests {
                     .map(|addr| cosmwasm_std::Addr::unchecked(addr.to_string()))
                     .collect(),
             },
+            #[allow(deprecated)] // TODO: The below event uses the deprecated tx_id and event_index fields. Remove this attribute when those fields are removed
             messages: vec![TxEventConfirmation {
-                tx_id: TransactionDigest::random().to_string().parse().unwrap(),
-                event_index: 0,
-                source_address: SuiAddress::random_for_testing_only()
+                tx_id: msg_id.tx_digest_as_base58(),
+                event_index: u32::try_from(msg_id.event_index).unwrap(),
+                message_id: msg_id.to_string().parse().unwrap(),
+                source_address: SuiAddress::from_bytes([4; SUI_ADDRESS_LENGTH])
+                    .unwrap()
                     .to_string()
                     .parse()
                     .unwrap(),
                 destination_chain: "ethereum".parse().unwrap(),
-                destination_address: format!("0x{:x}", EVMAddress::random()).parse().unwrap(),
-                payload_hash: Hash::random().to_fixed_bytes(),
+                destination_address: format!("0x{:x}", H160::repeat_byte(3)).parse().unwrap(),
+                payload_hash: [2; 32],
             }],
         }
-    }
-
-    fn participants(n: u8, verifier: Option<TMAddress>) -> Vec<TMAddress> {
-        (0..n)
-            .map(|_| TMAddress::random(PREFIX))
-            .chain(verifier)
-            .collect()
     }
 }

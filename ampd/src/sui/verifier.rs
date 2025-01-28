@@ -107,9 +107,9 @@ pub fn verify_message(
     transaction_block: &SuiTransactionBlockResponse,
     message: &Message,
 ) -> Vote {
-    match find_event(transaction_block, message.event_index as u64) {
+    match find_event(transaction_block, message.message_id.event_index) {
         Some(event)
-            if transaction_block.digest == message.tx_id
+            if transaction_block.digest == message.message_id.tx_digest.into()
                 && event.type_ == EventType::ContractCall.struct_tag(gateway_address)
                 && event == message =>
         {
@@ -124,9 +124,9 @@ pub fn verify_verifier_set(
     transaction_block: &SuiTransactionBlockResponse,
     confirmation: &VerifierSetConfirmation,
 ) -> Vote {
-    match find_event(transaction_block, confirmation.event_index as u64) {
+    match find_event(transaction_block, confirmation.message_id.event_index) {
         Some(event)
-            if transaction_block.digest == confirmation.tx_id
+            if transaction_block.digest == confirmation.message_id.tx_digest.into()
                 && event.type_ == EventType::SignersRotated.struct_tag(gateway_address)
                 && event == confirmation =>
         {
@@ -138,10 +138,9 @@ pub fn verify_verifier_set(
 
 #[cfg(test)]
 mod tests {
+    use axelar_wasm_std::msg_id::Base58TxDigestAndEventIndex;
     use axelar_wasm_std::voting::Vote;
-    use cosmrs::crypto::PublicKey;
     use cosmwasm_std::{Addr, HexBinary, Uint128};
-    use ecdsa::SigningKey;
     use move_core_types::language_storage::StructTag;
     use multisig::key::KeyType;
     use multisig::msg::Signer;
@@ -159,14 +158,14 @@ mod tests {
     use crate::handlers::sui_verify_msg::Message;
     use crate::handlers::sui_verify_verifier_set::VerifierSetConfirmation;
     use crate::sui::verifier::{verify_message, verify_verifier_set};
-    use crate::types::{EVMAddress, Hash};
+    use crate::types::{CosmosPublicKey, EVMAddress, Hash};
     use crate::PREFIX;
 
     #[test]
     fn should_not_verify_msg_if_tx_id_does_not_match() {
         let (gateway_address, tx_receipt, mut msg) = matching_msg_and_tx_block();
 
-        msg.tx_id = TransactionDigest::random();
+        msg.message_id.tx_digest = TransactionDigest::random().into();
         assert_eq!(
             verify_message(&gateway_address, &tx_receipt, &msg),
             Vote::NotFound
@@ -177,7 +176,7 @@ mod tests {
     fn should_not_verify_msg_if_event_index_does_not_match() {
         let (gateway_address, tx_receipt, mut msg) = matching_msg_and_tx_block();
 
-        msg.event_index = rand::random::<u32>();
+        msg.message_id.event_index = rand::random::<u64>();
         assert_eq!(
             verify_message(&gateway_address, &tx_receipt, &msg),
             Vote::NotFound
@@ -275,7 +274,7 @@ mod tests {
     #[test]
     fn should_not_verify_verifier_set_if_event_seq_mismatch() {
         let (gateway_address, tx_block, mut verifier_set) = matching_verifier_set_and_tx_block();
-        verifier_set.event_index = rand::random();
+        verifier_set.message_id.event_index = rand::random();
 
         assert_eq!(
             verify_verifier_set(&gateway_address, &tx_block, &verifier_set),
@@ -347,8 +346,10 @@ mod tests {
         let gateway_address = SuiAddress::random_for_testing_only();
 
         let msg = Message {
-            tx_id: TransactionDigest::random(),
-            event_index: rand::random::<u32>(),
+            message_id: Base58TxDigestAndEventIndex::new(
+                TransactionDigest::random(),
+                rand::random::<u64>(),
+            ),
             source_address: SuiAddress::random_for_testing_only(),
             destination_chain: rand_chain_name(),
             destination_address: format!("0x{:x}", EVMAddress::random()).parse().unwrap(),
@@ -364,8 +365,8 @@ mod tests {
         };
         let event = SuiEvent {
             id: EventID {
-                tx_digest: msg.tx_id,
-                event_seq: msg.event_index as u64,
+                tx_digest: msg.message_id.tx_digest.into(),
+                event_seq: msg.message_id.event_index,
             },
             package_id: gateway_address.into(),
             transaction_module: "gateway".parse().unwrap(),
@@ -382,7 +383,7 @@ mod tests {
         };
 
         let tx_block = SuiTransactionBlockResponse {
-            digest: msg.tx_id,
+            digest: msg.message_id.tx_digest.into(),
             events: Some(SuiTransactionBlockEvents { data: vec![event] }),
             ..Default::default()
         };
@@ -391,8 +392,8 @@ mod tests {
     }
 
     fn random_signer() -> Signer {
-        let priv_key = SigningKey::random(&mut OsRng);
-        let pub_key: PublicKey = priv_key.verifying_key().into();
+        let priv_key = k256::ecdsa::SigningKey::random(&mut OsRng);
+        let pub_key: CosmosPublicKey = priv_key.verifying_key().into();
         let address = Addr::unchecked(pub_key.account_id(PREFIX).unwrap());
         let pub_key = (KeyType::Ecdsa, HexBinary::from(pub_key.to_bytes()))
             .try_into()
@@ -415,8 +416,10 @@ mod tests {
         let created_at = rand::random();
         let threshold = Uint128::one();
         let verifier_set_confirmation = VerifierSetConfirmation {
-            tx_id: TransactionDigest::random(),
-            event_index: rand::random(),
+            message_id: Base58TxDigestAndEventIndex::new(
+                TransactionDigest::random(),
+                rand::random::<u64>(),
+            ),
             verifier_set: VerifierSet {
                 signers: signers
                     .iter()
@@ -451,8 +454,8 @@ mod tests {
         };
         let event = SuiEvent {
             id: EventID {
-                tx_digest: verifier_set_confirmation.tx_id,
-                event_seq: verifier_set_confirmation.event_index as u64,
+                tx_digest: verifier_set_confirmation.message_id.tx_digest.into(),
+                event_seq: verifier_set_confirmation.message_id.event_index,
             },
             package_id: gateway_address.into(),
             transaction_module: "gateway".parse().unwrap(),
@@ -469,7 +472,7 @@ mod tests {
         };
 
         let tx_block = SuiTransactionBlockResponse {
-            digest: verifier_set_confirmation.tx_id,
+            digest: verifier_set_confirmation.message_id.tx_digest.into(),
             events: Some(SuiTransactionBlockEvents { data: vec![event] }),
             ..Default::default()
         };

@@ -14,8 +14,8 @@ pub struct Config {
     pub verifier: Addr,
     pub router: Addr,
     pub its_hub: Addr,
-    pub axelar_chain: ChainName,
-    pub xrpl_chain: ChainName,
+    pub its_hub_chain_name: ChainName,
+    pub chain_name: ChainName,
     pub xrpl_multisig: XRPLAccountId,
 }
 
@@ -23,7 +23,9 @@ const CONFIG: Item<Config> = Item::new("config");
 const OUTGOING_MESSAGES: Map<&CrossChainId, Message> = Map::new("outgoing_messages");
 const ROUTABLE_MESSAGES_INDEX: Counter<u32> = Counter::new("routable_message_index");
 
+const XRP_TOKEN_ID: Item<TokenId> = Item::new("xrp_token_id");
 const XRPL_CURRENCY_TO_REMOTE_TOKEN_ID: Map<&XRPLCurrency, TokenId> = Map::new("xrpl_currency_to_remote_token_id");
+const XRPL_TOKEN_TO_LOCAL_TOKEN_ID: Map<&XRPLToken, TokenId> = Map::new("xrpl_token_to_local_token_id");
 const TOKEN_ID_TO_XRPL_TOKEN: Map<&TokenId, XRPLToken> = Map::new("token_id_to_xrpl_token");
 const TOKEN_INSTACE_DECIMALS: Map<&(ChainNameRaw, TokenId), u8> = Map::new("token_instance_decimals");
 
@@ -47,8 +49,22 @@ pub enum Error {
     TokenNotFound(TokenId),
     #[error("token ID for XRPL currency {0} not found")]
     TokenIdNotFound(XRPLCurrency),
+    #[error("token ID for XRPL token {0} not found")]
+    TokenIdNotFoundForToken(XRPLToken),
     #[error("token instance for chain {0} and token {1} not found")]
     TokenInstanceNotFound(ChainNameRaw, TokenId),
+}
+
+pub fn save_xrp_token_id(storage: &mut dyn Storage, token_id: &TokenId) -> Result<(), Error> {
+    XRP_TOKEN_ID
+        .save(storage, token_id)
+        .change_context(Error::Storage)
+}
+
+pub fn load_xrp_token_id(storage: &dyn Storage) -> Result<TokenId, Error> {
+    XRP_TOKEN_ID
+        .load(storage)
+        .change_context(Error::Storage)
 }
 
 fn increment_dust(storage: &mut dyn Storage, token_id: &TokenId, new_dust: XRPLPaymentAmount) -> Result<XRPLPaymentAmount, Error> {
@@ -190,6 +206,34 @@ pub fn load_xrpl_token(
     may_load_xrpl_token(storage, token_id)
         .change_context(Error::Storage)?
         .ok_or_else(|| report!(Error::TokenNotFound(token_id.to_owned())))
+}
+
+pub fn may_load_local_token_id(
+    storage: &dyn Storage,
+    xrpl_token: &XRPLToken,
+) -> Result<Option<TokenId>, Error> {
+    XRPL_TOKEN_TO_LOCAL_TOKEN_ID
+        .may_load(storage, xrpl_token)
+        .change_context(Error::Storage)
+}
+
+pub fn load_local_token_id(
+    storage: &dyn Storage,
+    xrpl_token: &XRPLToken,
+) -> Result<TokenId, Error> {
+    may_load_local_token_id(storage, xrpl_token)
+        .change_context(Error::Storage)?
+        .ok_or_else(|| report!(Error::TokenIdNotFoundForToken(xrpl_token.to_owned())))
+}
+
+pub fn save_local_token_id(
+    storage: &mut dyn Storage,
+    xrpl_token: &XRPLToken,
+    token_id: &TokenId,
+) -> Result<(), Error> {
+    XRPL_TOKEN_TO_LOCAL_TOKEN_ID
+        .save(storage, xrpl_token, token_id)
+        .change_context(Error::Storage)
 }
 
 pub fn save_xrpl_token(

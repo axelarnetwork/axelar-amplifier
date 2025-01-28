@@ -106,6 +106,14 @@ impl<'a> Querier<'a> {
         Ok(token_info)
     }
 
+    pub fn xrp_token_id(&self) -> Result<TokenId, ContractError> {
+        query(
+            self.querier,
+            self.config.gateway.to_string(),
+            &xrpl_gateway::msg::QueryMsg::XrpTokenId,
+        )
+    }
+
     pub fn message_status(
         &self,
         message: XRPLMessage,

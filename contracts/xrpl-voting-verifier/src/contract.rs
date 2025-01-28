@@ -92,14 +92,16 @@ pub fn migrate(
 
 #[cfg(test)]
 mod test {
+    use std::str::FromStr;
+
     use axelar_wasm_std::voting::Vote;
     use axelar_wasm_std::{
         nonempty, MajorityThreshold, Threshold, VerificationStatus
     };
     use cosmwasm_std::testing::{
-        mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
+        message_info, mock_dependencies, mock_env, MockApi, MockQuerier, MockStorage
     };
-    use cosmwasm_std::{from_json, Addr, Empty, Fraction, HexBinary, OwnedDeps, Uint64, WasmQuery};
+    use cosmwasm_std::{from_json, Empty, Fraction, HexBinary, OwnedDeps, Uint64, WasmQuery};
     use rand::Rng;
     use router_api::ChainName;
     use service_registry::{
@@ -114,6 +116,7 @@ mod test {
     use super::*;
 
     const SENDER: &str = "sender";
+    const ADMIN: &str = "admin";
     const SERVICE_REGISTRY_ADDRESS: &str = "service_registry_address";
     const REWARDS_ADDRESS: &str = "rewards_address";
     const SERVICE_NAME: &str = "service_name";
@@ -132,7 +135,7 @@ mod test {
         let mut verifiers = vec![];
         for i in 0..num_verifiers {
             verifiers.push(Verifier {
-                address: Addr::unchecked(format!("addr{}", i)),
+                address: MockApi::default().addr_make(format!("addr{}", i).as_str()),
                 bonding_state: BondingState::Bonded {
                     amount: nonempty::Uint128::try_from(100u128).unwrap(),
                 },
@@ -145,27 +148,29 @@ mod test {
 
     fn setup(verifiers: Vec<Verifier>) -> OwnedDeps<MockStorage, MockApi, MockQuerier, Empty> {
         let mut deps = mock_dependencies();
+        let api = deps.api;
+        let service_registry = api.addr_make(SERVICE_REGISTRY_ADDRESS);
 
         instantiate(
             deps.as_mut(),
             mock_env(),
-            mock_info("admin", &[]),
+            message_info(&api.addr_make(ADMIN), &[]),
             InstantiateMsg {
-                governance_address: GOVERNANCE.parse().unwrap(),
-                service_registry_address: SERVICE_REGISTRY_ADDRESS.parse().unwrap(),
+                governance_address: api.addr_make(GOVERNANCE).as_str().parse().unwrap(),
+                service_registry_address: service_registry.as_str().parse().unwrap(),
                 service_name: SERVICE_NAME.parse().unwrap(),
-                source_gateway_address: XRPLAccountId::from([0u8; 20]),
+                source_gateway_address: XRPLAccountId::from_str("rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh").unwrap(),
                 voting_threshold: initial_voting_threshold(),
                 block_expiry: POLL_BLOCK_EXPIRY.try_into().unwrap(),
                 confirmation_height: 100,
                 source_chain: source_chain(),
-                rewards_address: REWARDS_ADDRESS.parse().unwrap(),
+                rewards_address: api.addr_make(REWARDS_ADDRESS).as_str().parse().unwrap(),
             },
         )
         .unwrap();
 
         deps.querier.update_wasm(move |wq| match wq {
-            WasmQuery::Smart { contract_addr, .. } if contract_addr == SERVICE_REGISTRY_ADDRESS => {
+            WasmQuery::Smart { contract_addr, .. } if contract_addr == service_registry.as_str() => {
                 Ok(to_json_binary(
                     &verifiers
                         .clone()
@@ -221,6 +226,7 @@ mod test {
     fn should_not_verify_messages_if_in_progress() {
         let verifiers = verifiers(2);
         let mut deps = setup(verifiers.clone());
+        let api = deps.api;
         let messages_count = 5;
         let messages_in_progress = 3;
         let messages = messages(messages_count as u32);
@@ -228,7 +234,7 @@ mod test {
         execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(SENDER, &[]),
+            message_info(&api.addr_make(SENDER), &[]),
             ExecuteMsg::VerifyMessages(
                 messages[0..messages_in_progress].to_vec(), // verify a subset of the messages
             ),
@@ -238,7 +244,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(SENDER, &[]),
+            message_info(&api.addr_make(SENDER), &[]),
             ExecuteMsg::VerifyMessages(
                 messages.clone(), // verify all messages including the ones from previous execution
             ),
@@ -273,13 +279,14 @@ mod test {
     fn should_retry_if_message_not_verified() {
         let verifiers = verifiers(2);
         let mut deps = setup(verifiers.clone());
+        let api = deps.api;
         let messages = messages(5);
 
         let msg = ExecuteMsg::VerifyMessages(messages.clone());
         execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(SENDER, &[]),
+            message_info(&api.addr_make(SENDER), &[]),
             msg.clone(),
         )
         .unwrap();
@@ -303,7 +310,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env_expired(),
-            mock_info(SENDER, &[]),
+            message_info(&api.addr_make(SENDER), &[]),
             msg,
         )
         .unwrap();
@@ -335,6 +342,7 @@ mod test {
     fn should_retry_if_status_not_final() {
         let verifiers = verifiers(2);
         let mut deps = setup(verifiers.clone());
+        let api = deps.api;
 
         let messages = messages(4);
 
@@ -345,7 +353,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(SENDER, &[]),
+            message_info(&api.addr_make(SENDER), &[]),
             msg_verify.clone(),
         );
         assert!(res.is_ok());
@@ -371,7 +379,7 @@ mod test {
             let res = execute(
                 deps.as_mut(),
                 mock_env(),
-                mock_info(verifier.address.as_str(), &[]),
+                message_info(&verifier.address, &[]),
                 msg,
             );
             assert!(res.is_ok());
@@ -386,7 +394,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env_expired(),
-            mock_info(SENDER, &[]),
+            message_info(&api.addr_make(SENDER), &[]),
             msg,
         );
         assert!(res.is_ok());
@@ -422,7 +430,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env_expired(),
-            mock_info(SENDER, &[]),
+            message_info(&api.addr_make(SENDER), &[]),
             msg_verify,
         );
         assert!(res.is_ok());
@@ -476,6 +484,7 @@ mod test {
     fn should_query_status_in_progress_when_no_consensus_and_poll_not_ended() {
         let verifiers = verifiers(2);
         let mut deps = setup(verifiers.clone());
+        let api = deps.api;
 
         let messages = messages(10);
 
@@ -483,7 +492,7 @@ mod test {
         execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(SENDER, &[]),
+            message_info(&api.addr_make(SENDER), &[]),
             ExecuteMsg::VerifyMessages(messages.clone()),
         )
         .unwrap();
@@ -507,6 +516,7 @@ mod test {
     fn should_query_status_failed_to_verify_when_no_consensus_and_poll_expired() {
         let verifiers = verifiers(2);
         let mut deps = setup(verifiers.clone());
+        let api = deps.api;
 
         let messages = messages(10);
 
@@ -514,7 +524,7 @@ mod test {
         execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(SENDER, &[]),
+            message_info(&api.addr_make(SENDER), &[]),
             ExecuteMsg::VerifyMessages(messages.clone()),
         )
         .unwrap();
@@ -550,6 +560,7 @@ mod test {
         for (consensus_vote, expected_status) in test_cases {
             let verifiers = verifiers(2);
             let mut deps = setup(verifiers.clone());
+            let api = deps.api;
 
             let messages = messages(10);
 
@@ -557,7 +568,7 @@ mod test {
             execute(
                 deps.as_mut(),
                 mock_env(),
-                mock_info(SENDER, &[]),
+                message_info(&api.addr_make(SENDER), &[]),
                 ExecuteMsg::VerifyMessages(messages.clone()),
             )
             .unwrap();
@@ -571,7 +582,7 @@ mod test {
                 execute(
                     deps.as_mut(),
                     mock_env(),
-                    mock_info(verifier.address.as_str(), &[]),
+                    message_info(&verifier.address, &[]),
                     vote_msg.clone(),
                 )
                 .unwrap();
@@ -581,7 +592,7 @@ mod test {
             execute(
                 deps.as_mut(),
                 mock_env_expired(),
-                mock_info(SENDER, &[]),
+                message_info(&api.addr_make(SENDER), &[]),
                 ExecuteMsg::EndPoll {
                     poll_id: Uint64::one().into(),
                 },
@@ -606,6 +617,7 @@ mod test {
     fn should_be_able_to_update_threshold_and_then_query_new_threshold() {
         let verifiers = verifiers(2);
         let mut deps = setup(verifiers.clone());
+        let api = deps.api;
 
         let new_voting_threshold: MajorityThreshold = Threshold::try_from((
             initial_voting_threshold().numerator().u64() + 1,
@@ -618,7 +630,7 @@ mod test {
         execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(GOVERNANCE, &[]),
+            message_info(&api.addr_make(GOVERNANCE), &[]),
             ExecuteMsg::UpdateVotingThreshold {
                 new_voting_threshold,
             },
@@ -639,13 +651,14 @@ mod test {
             .div_ceil(initial_threshold.denominator().u64());
 
         let mut deps = setup(verifiers.clone());
+        let api = deps.api;
 
         let messages = messages(1);
 
         execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(SENDER, &[]),
+            message_info(&api.addr_make(SENDER), &[]),
             ExecuteMsg::VerifyMessages(messages.clone()),
         )
         .unwrap();
@@ -663,7 +676,7 @@ mod test {
             let res = execute(
                 deps.as_mut(),
                 mock_env(),
-                mock_info(verifier.address.as_str(), &[]),
+                message_info(&verifier.address, &[]),
                 msg,
             );
             assert!(res.is_ok());
@@ -680,7 +693,7 @@ mod test {
         execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(GOVERNANCE, &[]),
+            message_info(&api.addr_make(GOVERNANCE), &[]),
             ExecuteMsg::UpdateVotingThreshold {
                 new_voting_threshold,
             },
@@ -690,7 +703,7 @@ mod test {
         execute(
             deps.as_mut(),
             mock_env_expired(),
-            mock_info(SENDER, &[]),
+            message_info(&api.addr_make(SENDER), &[]),
             ExecuteMsg::EndPoll {
                 poll_id: 1u64.into(),
             },
@@ -723,6 +736,7 @@ mod test {
             .div_ceil(initial_threshold.denominator().u64());
 
         let mut deps = setup(verifiers.clone());
+        let api = deps.api;
 
         // increase the threshold prior to starting a poll
         let new_voting_threshold: MajorityThreshold =
@@ -734,7 +748,7 @@ mod test {
         execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(GOVERNANCE, &[]),
+            message_info(&api.addr_make(GOVERNANCE), &[]),
             ExecuteMsg::UpdateVotingThreshold {
                 new_voting_threshold,
             },
@@ -747,7 +761,7 @@ mod test {
         execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(SENDER, &[]),
+            message_info(&api.addr_make(SENDER), &[]),
             ExecuteMsg::VerifyMessages(messages.clone()),
         )
         .unwrap();
@@ -767,7 +781,7 @@ mod test {
             let res = execute(
                 deps.as_mut(),
                 mock_env(),
-                mock_info(verifier.address.as_str(), &[]),
+                message_info(&verifier.address, &[]),
                 msg,
             );
             assert!(res.is_ok());
@@ -776,7 +790,7 @@ mod test {
         execute(
             deps.as_mut(),
             mock_env_expired(),
-            mock_info(SENDER, &[]),
+            message_info(&api.addr_make(SENDER), &[]),
             ExecuteMsg::EndPoll {
                 poll_id: 1u64.into(),
             },
@@ -805,6 +819,7 @@ mod test {
     fn should_emit_event_when_verification_succeeds() {
         let verifiers = verifiers(3);
         let mut deps = setup(verifiers.clone());
+        let api = deps.api;
         let threshold = initial_voting_threshold();
         // this test depends on the threshold being 2/3
         assert_eq!(
@@ -821,7 +836,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(SENDER, &[]),
+            message_info(&api.addr_make(SENDER), &[]),
             msg_verify.clone(),
         );
         assert!(res.is_ok());
@@ -853,7 +868,7 @@ mod test {
             let res = execute(
                 deps.as_mut(),
                 mock_env(),
-                mock_info(verifier.address.as_str(), &[]),
+                message_info(&verifier.address, &[]),
                 msg,
             )
             .unwrap();

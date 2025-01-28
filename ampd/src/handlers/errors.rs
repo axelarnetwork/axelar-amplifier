@@ -7,8 +7,6 @@ pub enum Error {
     DeserializeEvent,
     #[error("failed to get the latest finalized block")]
     Finalizer,
-    #[error("unsupported key type {0}")]
-    KeyType(String),
     #[error("failed to prepare message for signing")]
     MessageToSign,
     #[error("failed to parse public key")]

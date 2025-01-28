@@ -372,7 +372,7 @@ impl TryInto<XRPLObject> for XRPLUnsignedTxToSign {
         let mut obj: XRPLObject = self.unsigned_tx.try_into()?;
 
         assert!(self.multisig_session_id != 0, "multisig session id must not be 0");
-        let memo_data = HexBinary::from(
+        let multisig_session_id = HexBinary::from(
             self.multisig_session_id
                 .to_be_bytes()
                 .iter()
@@ -381,16 +381,35 @@ impl TryInto<XRPLObject> for XRPLUnsignedTxToSign {
                 .collect::<Vec<u8>>()
         );
 
+        let mut memos = vec![
+            XRPLMemo {
+                memo_type: HexBinary::from_hex(
+                    "6d756c74697369675f73657373696f6e5f6964" // hex("multisig_session_id")
+                ).unwrap(),
+                memo_data: multisig_session_id,
+            },
+        ];
+
+        if let Some(cc_id) = self.cc_id {
+            memos.push(XRPLMemo {
+                memo_type: HexBinary::from_hex(
+                    "736f757263655f636861696e" // hex("source_chain")
+                ).unwrap(),
+                memo_data: cc_id.source_chain.to_string().as_bytes().into(),
+            });
+            memos.push(XRPLMemo {
+                memo_type: HexBinary::from_hex(
+                    "6d6573736167655f6964" // hex("message_id")
+                ).unwrap(),
+                memo_data: cc_id.message_id.as_bytes().into(),
+            });
+        }
+
         obj.add_field(
             Field::Memos,
             XRPLArray {
                 field: Field::Memo,
-                items: vec![XRPLMemo {
-                    memo_type: HexBinary::from_hex(
-                        "6d756c74697369675f73657373696f6e5f6964" // hex("multisig_session_id")
-                    ).unwrap(),
-                    memo_data,
-                }]
+                items: memos,
             }
         )?;
 
@@ -412,6 +431,7 @@ impl TryInto<XRPLObject> for XRPLSignedTx {
         let mut obj: XRPLObject = XRPLUnsignedTxToSign {
             unsigned_tx: self.unsigned_tx.clone(),
             multisig_session_id: self.multisig_session_id,
+            cc_id: self.cc_id,
         }.try_into()?;
 
         obj.add_field(
@@ -986,6 +1006,7 @@ mod tests {
                 }
             ],
             multisig_session_id: 1337,
+            cc_id: None
         };
         let encoded_signed_tx = &signed_tx.xrpl_serialize()?;
         assert_hex_eq!(
@@ -1019,6 +1040,7 @@ mod tests {
                 },
             ],
             multisig_session_id: 10,
+            cc_id: None,
         };
         let encoded_signed_tx = &signed_tx.xrpl_serialize()?;
         assert_hex_eq!(
@@ -1055,6 +1077,7 @@ mod tests {
                 },
             ],
             multisig_session_id: 1,
+            cc_id: None,
         };
         let encoded_signed_tx = &signed_tx.xrpl_serialize()?;
         assert_hex_eq!(
@@ -1086,6 +1109,7 @@ mod tests {
                 },
             ],
             multisig_session_id: 1,
+            cc_id: None,
         };
         let encoded_signed_tx = signed_tx.xrpl_serialize()?;
         assert_hex_eq!(
@@ -1127,6 +1151,7 @@ mod tests {
                 },
             ],
             multisig_session_id: 1,
+            cc_id: None,
         };
         let encoded_signed_tx = signed_tx.xrpl_serialize()?;
         assert_hex_eq!(

@@ -4,8 +4,9 @@ use axelar_wasm_std::{
     nonempty, voting::{PollId, Vote}, Participant, Threshold
 };
 use axelarnet_gateway::ExecutableMessage;
+use interchain_token_service::TokenId;
 use rand::RngCore;
-use xrpl_gateway::msg::DeployInterchainToken;
+use xrpl_gateway::msg::TokenMetadata;
 use xrpl_types::{msg::{XRPLMessage, XRPLUserMessageWithPayload}, types::XRPLTokenOrXrp};
 use xrpl_types::types::{TxHash, XRPLAccountId, XRPLToken};
 use std::collections::{HashMap, HashSet};
@@ -13,6 +14,7 @@ use std::collections::{HashMap, HashSet};
 use axelar_core_std::nexus::query::{IsChainRegisteredResponse, TxHashAndNonceResponse};
 use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
 use coordinator::msg::{ExecuteMsg as CoordinatorExecuteMsg, VerifierInfo};
+use cosmwasm_std::{testing::MockApi, Uint256};
 use cosmwasm_std::{
     coins, to_json_binary, Addr, Attribute, BlockInfo, Event, HexBinary, StdError, Uint128, Uint64,
 };
@@ -71,7 +73,7 @@ pub fn verify_messages(
 ) -> (PollId, PollExpiryBlock) {
     let response = gateway.execute(
         app,
-        Addr::unchecked("relayer"),
+        MockApi::default().addr_make("relayer"),
         &gateway_api::msg::ExecuteMsg::VerifyMessages(msgs.to_vec()),
     );
     assert!(response.is_ok());
@@ -94,7 +96,7 @@ pub fn verify_xrpl_messages(
 ) -> (PollId, PollExpiryBlock) {
     let response = gateway.execute(
         app,
-        Addr::unchecked("relayer"),
+        MockApi::default().addr_make("relayer"),
         &xrpl_gateway::msg::ExecuteMsg::VerifyMessages(msgs.to_vec()),
     );
     assert!(response.is_ok());
@@ -113,7 +115,7 @@ pub fn verify_xrpl_messages(
 pub fn route_messages(app: &mut AxelarApp, gateway: &GatewayContract, msgs: &[Message]) {
     let response = gateway.execute(
         app,
-        Addr::unchecked("relayer"),
+        MockApi::default().addr_make("relayer"),
         &gateway_api::msg::ExecuteMsg::RouteMessages(msgs.to_vec()),
     );
     assert!(response.is_ok());
@@ -122,42 +124,86 @@ pub fn route_messages(app: &mut AxelarApp, gateway: &GatewayContract, msgs: &[Me
 pub fn xrpl_route_incoming_messages(app: &mut AxelarApp, gateway: &XRPLGatewayContract, msgs: &[XRPLUserMessageWithPayload]) {
     let response = gateway.execute(
         app,
-        Addr::unchecked("relayer"),
+        MockApi::default().addr_make("relayer"),
         &xrpl_gateway::msg::ExecuteMsg::RouteIncomingMessages(msgs.to_vec()),
     );
     assert!(response.is_ok());
 }
 
-pub fn xrpl_deploy_interchain_token(
+pub fn xrpl_register_xrp(
     app: &mut AxelarApp,
     admin: Addr,
     gateway: &XRPLGatewayContract,
-    xrpl_token: XRPLTokenOrXrp,
-    destination_chain: ChainNameRaw,
-    deploy_token: DeployInterchainToken,
+    salt: [u8; 32],
 ) {
     let response = gateway.execute(
         app,
         admin,
-        &xrpl_gateway::msg::ExecuteMsg::DeployInterchainToken {
+        &xrpl_gateway::msg::ExecuteMsg::RegisterXrp { salt },
+    );
+    assert!(response.is_ok());
+}
+
+pub fn xrpl_deploy_remote_token(
+    app: &mut AxelarApp,
+    admin: Addr,
+    gateway: &XRPLGatewayContract,
+    axelarnet_gateway: &AxelarnetGatewayContract,
+    xrpl_token: XRPLTokenOrXrp,
+    destination_chain: ChainNameRaw,
+    token_metadata: TokenMetadata,
+) {
+    let response = gateway.execute(
+        app,
+        admin,
+        &xrpl_gateway::msg::ExecuteMsg::DeployRemoteToken {
             xrpl_token,
             destination_chain,
-            deploy_token,
+            token_metadata,
         }
     );
     assert!(response.is_ok());
+
+    let response = response.unwrap();
+    let event = response.events.iter()
+        .find(|e| e.ty == "wasm-contract_called")
+        .expect("Event with type 'wasm-contract_called' not found");
+
+    let message_id = event.attributes.iter()
+        .find(|attr| attr.key == "message_id")
+        .expect("Attribute 'message_id' not found")
+        .value.clone();
+
+    let source_chain = event.attributes.iter()
+        .find(|attr| attr.key == "source_chain")
+        .expect("Attribute 'source_chain' not found")
+        .value.clone();
+
+    let payload = event.attributes.iter()
+        .find(|attr| attr.key == "payload")
+        .expect("Attribute 'payload' not found")
+        .value.clone();
+
+    execute_axelarnet_gateway_message(
+        app,
+        axelarnet_gateway,
+        CrossChainId::new(source_chain, message_id).unwrap(),
+        HexBinary::from_hex(payload.as_str()).unwrap(),
+    );
 }
 
 pub fn xrpl_register_local_token(
     app: &mut AxelarApp,
     admin: Addr,
     gateway: &XRPLGatewayContract,
+    salt: [u8; 32],
     xrpl_token: XRPLToken,
 ) {
     let response = gateway.execute(
         app,
         admin,
         &xrpl_gateway::msg::ExecuteMsg::RegisterLocalToken {
+            salt,
             xrpl_token,
         }
     );
@@ -263,7 +309,7 @@ where T::ExMsg: serde::ser::Serialize + std::fmt::Debug,
                 Vote::SucceededOnChain,
             ),
         );
-        assert!(response.is_ok())
+        assert!(response.is_ok());
     }
 }
 
@@ -273,7 +319,7 @@ where T::ExMsg: serde::ser::Serialize + std::fmt::Debug,
 {
     let response = voting_verifier.execute(
         app,
-        Addr::unchecked("relayer"),
+        MockApi::default().addr_make("relayer"),
         &T::construct_end_poll_message(poll_id),
     );
     assert!(response.is_ok());
@@ -287,7 +333,7 @@ pub fn construct_proof_and_sign(
 ) -> Uint64 {
     let response = multisig_prover.execute(
         &mut protocol.app,
-        Addr::unchecked("relayer"),
+        MockApi::default().addr_make("relayer"),
         &multisig_prover::msg::ExecuteMsg::ConstructProof(
             messages.iter().map(|msg| msg.cc_id.clone()).collect(),
         ),
@@ -369,7 +415,7 @@ pub fn construct_xrpl_ticket_create_proof_and_sign(
 ) -> Uint64 {
     let response = multisig_prover.execute(
         &mut protocol.app,
-        Addr::unchecked("relayer"),
+        MockApi::default().addr_make("relayer"),
         &xrpl_multisig_prover::msg::ExecuteMsg::TicketCreate,
     );
     assert!(response.is_ok());
@@ -383,12 +429,12 @@ pub fn construct_xrpl_trust_set_proof_and_sign(
     admin: Addr,
     multisig_prover: &XRPLMultisigProverContract,
     verifiers: &Vec<Verifier>,
-    xrpl_token: XRPLToken,
+    token_id: TokenId,
 ) -> Uint64 {
     let response = multisig_prover.execute(
         &mut protocol.app,
         admin,
-        &xrpl_multisig_prover::msg::ExecuteMsg::TrustSet { xrpl_token },
+        &xrpl_multisig_prover::msg::ExecuteMsg::TrustSet { token_id },
     );
     assert!(response.is_ok());
     let response = response.unwrap();
@@ -406,7 +452,7 @@ pub fn construct_xrpl_payment_proof_and_sign(
 ) -> Uint64 {
     let response = multisig_prover.execute(
         &mut protocol.app,
-        Addr::unchecked("relayer"),
+        MockApi::default().addr_make("relayer"),
         &xrpl_multisig_prover::msg::ExecuteMsg::ConstructProof {
             cc_id: message.cc_id.clone(),
             payload,
@@ -527,14 +573,14 @@ pub fn routable_messages_from_axelarnet_gateway(
 
 
 pub fn execute_axelarnet_gateway_message(
-    protocol: &mut Protocol,
+    app: &mut AxelarApp,
     gateway: &AxelarnetGatewayContract,
     message_id: CrossChainId,
     payload: HexBinary,
 ) -> String {
     let response = gateway.execute(
-        &mut protocol.app,
-        Addr::unchecked("relayer"),
+        app,
+        MockApi::default().addr_make("relayer"),
         &axelarnet_gateway::msg::ExecuteMsg::Execute {
             cc_id: message_id,
             payload,
@@ -562,7 +608,7 @@ pub fn route_axelarnet_gateway_messages(
 ) -> () {
     let response = gateway.execute(
         &mut protocol.app,
-        Addr::unchecked("relayer"),
+        MockApi::default().addr_make("relayer"),
         &axelarnet_gateway::msg::ExecuteMsg::RouteMessages(messages),
     );
     assert!(response.is_ok());
@@ -572,14 +618,22 @@ pub fn set_its_address(
     protocol: &mut Protocol,
     its_hub: &InterchainTokenServiceContract,
     its_chain: ChainName,
-    its_address: Address,
+    its_edge_contract: Address,
+    max_uint: nonempty::Uint256,
+    max_decimals_when_truncating: u8,
 ) -> () {
     let response = its_hub.execute(
         &mut protocol.app,
         protocol.governance_address.clone(),
-        &interchain_token_service::msg::ExecuteMsg::RegisterItsContract {
-            chain: its_chain.into(),
-            address: its_address,
+        &interchain_token_service::msg::ExecuteMsg::RegisterChains {
+            chains: vec![interchain_token_service::msg::ChainConfig {
+                chain: its_chain.into(),
+                its_edge_contract,
+                truncation: interchain_token_service::msg::TruncationConfig {
+                    max_uint,
+                    max_decimals_when_truncating,
+                },
+            }],
         },
     );
     assert!(response.is_ok());
@@ -627,7 +681,7 @@ pub fn verifier_set_from_prover(
     query_response.unwrap().unwrap().verifier_set
 }
 
-pub fn get_xrpl_verifier_set_from_prover(
+pub fn xrpl_verifier_set_from_prover(
     app: &mut AxelarApp,
     multisig_prover: &XRPLMultisigProverContract,
 ) -> multisig::verifier_set::VerifierSet {
@@ -639,7 +693,7 @@ pub fn get_xrpl_verifier_set_from_prover(
     query_response.unwrap()
 }
 
-pub fn get_xrpl_proof(
+pub fn xrpl_proof(
     app: &mut AxelarApp,
     multisig_prover: &XRPLMultisigProverContract,
     multisig_session_id: &Uint64,
@@ -654,6 +708,37 @@ pub fn get_xrpl_proof(
     query_response.unwrap()
 }
 
+pub fn xrp_token_id(
+    app: &mut AxelarApp,
+    gateway: &XRPLGatewayContract,
+) -> TokenId {
+    let query_response: Result<TokenId, StdError> = gateway.query(
+        app,
+        &xrpl_gateway::msg::QueryMsg::XrpTokenId,
+    );
+    assert!(query_response.is_ok());
+
+    query_response.unwrap()
+}
+
+pub fn linked_token_id(
+    app: &mut AxelarApp,
+    gateway: &XRPLGatewayContract,
+    deployer: Addr,
+    salt: [u8; 32],
+) -> TokenId {
+    let query_response: Result<TokenId, StdError> = gateway.query(
+        app,
+        &xrpl_gateway::msg::QueryMsg::LinkedTokenId {
+            deployer,
+            salt,
+        },
+    );
+    assert!(query_response.is_ok());
+
+    query_response.unwrap()
+}
+
 pub fn xrpl_confirm_tx_status(
     app: &mut AxelarApp,
     multisig_prover: &XRPLMultisigProverContract,
@@ -663,13 +748,14 @@ pub fn xrpl_confirm_tx_status(
 ) {
     let response = multisig_prover.execute(
         app,
-        Addr::unchecked("relayer"),
+        MockApi::default().addr_make("relayer"),
         &xrpl_multisig_prover::msg::ExecuteMsg::ConfirmTxStatus {
             multisig_session_id,
             signed_tx_hash,
             signer_public_keys,
         },
     );
+    println!("{:?}", response);
     assert!(response.is_ok());
 }
 
@@ -732,7 +818,7 @@ pub fn advance_at_least_to_height(app: &mut AxelarApp, desired_height: u64) {
 pub fn distribute_rewards(protocol: &mut Protocol, chain_name: &ChainName, contract_address: Addr) {
     let response = protocol.rewards.execute(
         &mut protocol.app,
-        Addr::unchecked("relayer"),
+        MockApi::default().addr_make("relayer"),
         &rewards::msg::ExecuteMsg::DistributeRewards {
             pool_id: PoolId {
                 chain_name: chain_name.clone(),
@@ -745,7 +831,7 @@ pub fn distribute_rewards(protocol: &mut Protocol, chain_name: &ChainName, contr
 }
 
 pub fn setup_protocol(service_name: nonempty::String) -> Protocol {
-    let genesis = Addr::unchecked("genesis");
+    let genesis = MockApi::default().addr_make("genesis");
     let mut app = AppBuilder::new_custom()
         .with_custom(AxelarModule {
             tx_hash_and_nonce: Box::new(|_| {
@@ -770,9 +856,9 @@ pub fn setup_protocol(service_name: nonempty::String) -> Protocol {
                 .unwrap()
         });
 
-    let admin_address = Addr::unchecked("admin");
-    let governance_address = Addr::unchecked("governance");
-    let axelarnet_gateway = Addr::unchecked("axelarnet_gateway");
+    let admin_address = MockApi::default().addr_make("admin");
+    let governance_address = MockApi::default().addr_make("governance");
+    let axelarnet_gateway = MockApi::default().addr_make("axelarnet_gateway");
 
     let router = RouterContract::instantiate_contract(
         &mut app,
@@ -1027,7 +1113,7 @@ pub fn create_new_verifiers_vec(
     verifier_details
         .into_iter()
         .map(|(name, seed)| Verifier {
-            addr: Addr::unchecked(name),
+            addr: MockApi::default().addr_make(&name),
             supported_chains: chains.clone(),
             key_pair: generate_key(seed),
         })
@@ -1050,7 +1136,7 @@ pub fn update_registry_and_construct_verifier_set_update_proof(
 
     let response = chain_multisig_prover.execute(
         &mut protocol.app,
-        Addr::unchecked("relayer"),
+        MockApi::default().addr_make("relayer"),
         &multisig_prover::msg::ExecuteMsg::UpdateVerifierSet,
     );
 
@@ -1107,6 +1193,7 @@ pub struct XRPLChain {
     pub multisig_prover: XRPLMultisigProverContract,
     pub chain_name: ChainName,
     pub its_address: Address,
+    pub xrp_token_id: TokenId,
 }
 
 pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
@@ -1122,7 +1209,8 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
         voting_verifier.contract_addr.clone(),
     );
 
-    let multisig_prover_admin = Addr::unchecked(chain_name.to_string() + "_prover_admin");
+    let multisig_prover_admin =
+        MockApi::default().addr_make(format!("{}_prover_admin", chain_name).as_str());
     let multisig_prover = MultisigProverContract::instantiate_contract(
         protocol,
         multisig_prover_admin.clone(),
@@ -1248,7 +1336,7 @@ pub fn setup_axelarnet(
         &mut protocol.app,
         chain_name.clone(),
         protocol.router.contract_address().clone(),
-        "nexus".to_string(),
+        MockApi::default().addr_make("nexus").to_string(),
     );
 
     let response = protocol.router.execute(
@@ -1308,7 +1396,7 @@ pub fn setup_xrpl(
     let xrpl_chain_name = ChainName::from_str("xrpl").unwrap();
     let xrpl_multisig = XRPLAccountId::from_str("rfEf91bLxrTVC76vw1W3Ur8Jk4Lwujskmb").unwrap();
 
-    let admin = Addr::unchecked(xrpl_chain_name.to_string() + "_admin");
+    let admin = MockApi::default().addr_make(format!("{}_admin", xrpl_chain_name).as_str());
 
     let voting_verifier = XRPLVotingVerifierContract::instantiate_contract(
         protocol,
@@ -1449,6 +1537,9 @@ pub fn setup_xrpl(
     );
     assert!(response.is_ok());
 
+    xrpl_register_xrp(&mut protocol.app, admin.clone(), &gateway, [123; 32]);
+    let xrp_token_id = xrp_token_id(&mut protocol.app, &gateway);
+
     XRPLChain {
         admin,
         gateway,
@@ -1456,6 +1547,7 @@ pub fn setup_xrpl(
         multisig_prover,
         chain_name: xrpl_chain_name,
         its_address: Address::try_from(xrpl_multisig.to_string()).unwrap(),
+        xrp_token_id,
     }
 }
 
@@ -1500,7 +1592,7 @@ pub fn rotate_active_verifier_set(
     let new_verifier_set = verifiers_to_verifier_set(protocol, new_verifiers);
     let (poll_id, expiry) = create_verifier_set_poll(
         &mut protocol.app,
-        Addr::unchecked("relayer"),
+        MockApi::default().addr_make("relayer"),
         &chain.voting_verifier,
         new_verifier_set.clone(),
     );
@@ -1518,7 +1610,7 @@ pub fn rotate_active_verifier_set(
 
     confirm_verifier_set(
         &mut protocol.app,
-        Addr::unchecked("relayer"),
+        MockApi::default().addr_make("relayer"),
         &chain.multisig_prover,
     );
 }
@@ -1589,35 +1681,45 @@ pub fn setup_xrpl_source_test_case() -> XRPLSourceTestCase {
     register_verifiers(&mut protocol, &verifiers, min_verifier_bond);
 
     let axelarnet = setup_axelarnet(&mut protocol, chains.get(1).unwrap().clone());
-    let its_contracts: HashMap<ChainNameRaw, Address> = vec![]
-        .into_iter()
-        .collect::<HashMap<_, _>>();
 
-    let its_hub_admin = Addr::unchecked("its_hub_admin");
+    let its_hub_admin = MockApi::default().addr_make("its_hub_admin");
     let its_hub = InterchainTokenServiceContract::instantiate_contract(
         &mut protocol.app,
         axelarnet.gateway.contract_addr.clone(),
         protocol.governance_address.clone(),
         its_hub_admin,
-        its_contracts,
     );
 
     let xrpl = setup_xrpl(&mut protocol, its_hub.contract_addr.clone(), axelarnet.chain_name.clone());
-    set_its_address(&mut protocol, &its_hub, xrpl.chain_name.clone(), xrpl.its_address.clone());
+    set_its_address(
+        &mut protocol,
+        &its_hub,
+        xrpl.chain_name.clone(),
+        xrpl.its_address.clone(),
+        Uint256::MAX.try_into().unwrap(),
+        u8::MAX,
+    );
 
     let destination_chain = setup_chain(&mut protocol, chains.get(2).unwrap().clone());
-    set_its_address(&mut protocol, &its_hub, destination_chain.chain_name.clone(), destination_chain.its_address.clone());
+    set_its_address(
+        &mut protocol,
+        &its_hub,
+        destination_chain.chain_name.clone(),
+        destination_chain.its_address.clone(),
+        Uint256::MAX.try_into().unwrap(),
+        u8::MAX,
+    );
 
-    xrpl_deploy_interchain_token(
+    xrpl_deploy_remote_token(
         &mut protocol.app,
         xrpl.admin.clone(),
         &xrpl.gateway,
+        &axelarnet.gateway,
         XRPLTokenOrXrp::Xrp,
         destination_chain.chain_name.clone().into(),
-        DeployInterchainToken {
+        TokenMetadata {
             name: "Wrapped XRP".try_into().unwrap(),
             symbol: "wXRP".try_into().unwrap(),
-            decimals: 18,
             minter: None,
         },
     );
@@ -1645,6 +1747,26 @@ pub struct XRPLDestinationTestCase {
     pub unbonding_period_days: u16,
 }
 
+pub fn override_token_supply_for_chain(
+    app: &mut AxelarApp,
+    its_hub: Addr,
+    chain_name: ChainName,
+    token_id: interchain_token_service::TokenId,
+    supply: interchain_token_service::TokenSupply,
+    decimals: u8
+) {
+    const TOKEN_INSTANCE: cw_storage_plus::Map<&(ChainNameRaw, interchain_token_service::TokenId), interchain_token_service::TokenInstance> = cw_storage_plus::Map::new("token_instance");
+    let mut storage = app.contract_storage_mut(&its_hub);
+    TOKEN_INSTANCE.save(
+        &mut *storage,
+        &(ChainNameRaw::from(chain_name), token_id),
+        &interchain_token_service::TokenInstance {
+            supply,
+            decimals,
+        }
+    ).unwrap();
+}
+
 pub fn setup_xrpl_destination_test_case() -> XRPLDestinationTestCase {
     let mut protocol = setup_protocol("validators".try_into().unwrap());
     let chains = vec![
@@ -1663,35 +1785,45 @@ pub fn setup_xrpl_destination_test_case() -> XRPLDestinationTestCase {
     register_verifiers(&mut protocol, &verifiers, min_verifier_bond);
 
     let axelarnet = setup_axelarnet(&mut protocol, chains.get(1).unwrap().clone());
-    let its_contracts: HashMap<ChainNameRaw, Address> = vec![]
-        .into_iter()
-        .collect::<HashMap<_, _>>();
 
-    let its_hub_admin = Addr::unchecked("its_hub_admin");
+    let its_hub_admin = MockApi::default().addr_make("its_hub_admin");
     let its_hub = InterchainTokenServiceContract::instantiate_contract(
         &mut protocol.app,
         axelarnet.gateway.contract_addr.clone(),
         protocol.governance_address.clone(),
         its_hub_admin,
-        its_contracts,
     );
 
     let source_chain = setup_chain(&mut protocol, chains.first().unwrap().clone());
-    set_its_address(&mut protocol, &its_hub, source_chain.chain_name.clone(), source_chain.its_address.clone());
+    set_its_address(
+        &mut protocol,
+        &its_hub,
+        source_chain.chain_name.clone(),
+        source_chain.its_address.clone(),
+        Uint256::MAX.try_into().unwrap(),
+        u8::MAX,
+    );
 
     let xrpl = setup_xrpl(&mut protocol, its_hub.contract_addr.clone(), axelarnet.chain_name.clone());
-    set_its_address(&mut protocol, &its_hub, xrpl.chain_name.clone(), xrpl.its_address.clone());
+    set_its_address(
+        &mut protocol,
+        &its_hub,
+        xrpl.chain_name.clone(),
+        xrpl.its_address.clone(),
+        Uint256::MAX.try_into().unwrap(),
+        u8::MAX,
+    );
 
-    xrpl_deploy_interchain_token(
+    xrpl_deploy_remote_token(
         &mut protocol.app,
         xrpl.admin.clone(),
         &xrpl.gateway,
+        &axelarnet.gateway,
         XRPLTokenOrXrp::Xrp,
         source_chain.chain_name.clone().into(),
-        DeployInterchainToken {
+        TokenMetadata {
             name: "Wrapped XRP".try_into().unwrap(),
             symbol: "wXRP".try_into().unwrap(),
-            decimals: 18,
             minter: None,
         },
     );

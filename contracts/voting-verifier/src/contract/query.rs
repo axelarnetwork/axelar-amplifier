@@ -162,8 +162,8 @@ mod tests {
     use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
     use axelar_wasm_std::voting::{PollId, Tallies, Vote, WeightedPoll};
     use axelar_wasm_std::{nonempty, Participant, Snapshot, Threshold};
-    use cosmwasm_std::testing::{mock_dependencies, mock_env};
-    use cosmwasm_std::{Addr, Uint128, Uint64};
+    use cosmwasm_std::testing::{mock_dependencies, mock_env, MockApi};
+    use cosmwasm_std::{Uint128, Uint64};
     use itertools::Itertools;
     use router_api::CrossChainId;
 
@@ -300,7 +300,7 @@ mod tests {
             )
             .unwrap();
 
-        let messages = (0..poll.poll_size as u32).map(message);
+        let messages = (0..poll.poll_size as u64).map(message);
         messages.clone().enumerate().for_each(|(idx, msg)| {
             poll_messages()
                 .save(
@@ -321,7 +321,7 @@ mod tests {
         );
     }
 
-    fn message(id: u32) -> Message {
+    fn message(id: u64) -> Message {
         Message {
             cc_id: CrossChainId::new(
                 "source-chain",
@@ -344,7 +344,7 @@ mod tests {
         let participants: nonempty::Vec<Participant> = vec!["addr1", "addr2", "addr3"]
             .into_iter()
             .map(|participant| Participant {
-                address: Addr::unchecked(participant),
+                address: MockApi::default().addr_make(participant),
                 weight: nonempty::Uint128::try_from(Uint128::one()).unwrap(),
             })
             .collect::<Vec<Participant>>()

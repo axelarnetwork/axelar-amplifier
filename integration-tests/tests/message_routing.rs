@@ -2,12 +2,13 @@ use std::str::FromStr;
 
 use axelar_wasm_std::nonempty;
 use router_api::{Address, CrossChainId, Message};
-use cosmwasm_std::{Addr, HexBinary, Uint128};
 use multisig::key::KeyType;
+use cosmwasm_std::testing::MockApi;
+use cosmwasm_std::{HexBinary, Uint128, Uint256};
 use integration_tests::contract::Contract;
 use xrpl_types::msg::{CrossChainMessage, XRPLUserMessage, XRPLMessage, XRPLUserMessageWithPayload};
-use xrpl_types::types::{TxHash, XRPLAccountId, XRPLCurrency, XRPLPaymentAmount, XRPLToken, XRPLTokenOrXrp};
-use interchain_token_service as its;
+use xrpl_types::types::{hash_signed_tx, TxHash, XRPLAccountId, XRPLCurrency, XRPLPaymentAmount, XRPLToken};
+use interchain_token_service;
 use ethers_core::utils::keccak256;
 
 use crate::test_utils::AXL_DENOMINATION;
@@ -139,7 +140,7 @@ fn xrpl_ticket_create_can_be_proven() {
         &verifiers,
     );
 
-    let proof = test_utils::get_xrpl_proof(
+    let proof = test_utils::xrpl_proof(
         &mut protocol.app,
         &xrpl.multisig_prover,
         &session_id,
@@ -196,11 +197,20 @@ fn xrpl_trust_line_can_be_proven() {
         issuer: XRPLAccountId::from_str("rNYjPW7NbiVDYy6K23b8ye6iZnowj4PsL7").unwrap(),
     };
 
+    let salt = [42; 32];
     test_utils::xrpl_register_local_token(
         &mut protocol.app,
         xrpl.admin.clone(),
         &xrpl.gateway,
-        xrpl_token.clone()
+        salt,
+        xrpl_token.clone(),
+    );
+
+    let token_id = test_utils::linked_token_id(
+        &mut protocol.app,
+        &xrpl.gateway,
+        xrpl.admin.clone(),
+        salt,
     );
 
     /* Create trust line */
@@ -209,12 +219,12 @@ fn xrpl_trust_line_can_be_proven() {
         xrpl.admin,
         &xrpl.multisig_prover,
         &verifiers,
-        xrpl_token,
+        token_id,
     );
 
     // TODO: deduplicate all next steps with TicketCreate
 
-    let proof = test_utils::get_xrpl_proof(
+    let proof = test_utils::xrpl_proof(
         &mut protocol.app,
         &xrpl.multisig_prover,
         &session_id,
@@ -293,16 +303,18 @@ fn payment_from_xrpl_can_be_verified_and_routed_and_proven() {
         payload: payload.clone(),
     };
 
-    let interchain_transfer_msg = its::Message::InterchainTransfer {
-        token_id: XRPLTokenOrXrp::Xrp.local_token_id(),
-        source_address: nonempty::HexBinary::try_from(HexBinary::from(source_address.as_bytes())).unwrap(),
-        destination_address,
-        amount: nonempty::Uint256::try_from(1000000000000000000u64).unwrap(),
-        // amount: Uint256::from(1000000u128), // 1 XRP
-        data: payload,
-    };
+    let interchain_transfer_msg = interchain_token_service::Message::InterchainTransfer(
+        interchain_token_service::InterchainTransfer {
+            token_id: xrpl.xrp_token_id,
+            source_address: nonempty::HexBinary::try_from(HexBinary::from(source_address.as_bytes())).unwrap(),
+            destination_address,
+            // amount: nonempty::Uint256::try_from(1000000000000000000u64).unwrap(),
+            amount: nonempty::Uint256::try_from(1000000u64).unwrap(), // 1 XRP
+            data: payload,
+        }
+    );
 
-    let wrapped_payload = its::HubMessage::SendToHub {
+    let wrapped_payload = interchain_token_service::HubMessage::SendToHub {
         message: interchain_transfer_msg.clone(),
         destination_chain: destination_chain_name.clone().into(),
     }.abi_encode();
@@ -357,7 +369,7 @@ fn payment_from_xrpl_can_be_verified_and_routed_and_proven() {
     };
 
     let its_hub_msg_id = test_utils::execute_axelarnet_gateway_message(
-        &mut protocol,
+        &mut protocol.app,
         &axelarnet.gateway,
         wrapped_msg.cc_id.clone(),
         HexBinary::from(wrapped_payload),
@@ -438,6 +450,15 @@ fn payment_towards_xrpl_can_be_verified_and_routed_and_proven() {
         ..
     } = test_utils::setup_xrpl_destination_test_case();
 
+    test_utils::override_token_supply_for_chain(
+        &mut protocol.app,
+        its_hub.contract_addr.clone(),
+        source_chain.chain_name.clone(),
+        xrpl.xrp_token_id,
+        interchain_token_service::TokenSupply::Tracked(Uint256::MAX),
+        6,
+    );
+
     let source_address: Address = "0x95181d16cfb23Bc493668C17d973F061e30F2EAF"
         .to_string()
         .try_into()
@@ -446,18 +467,21 @@ fn payment_towards_xrpl_can_be_verified_and_routed_and_proven() {
     let destination_address: XRPLAccountId = XRPLAccountId::from_str("raNVNWvhUQzFkDDTdEw3roXRJfMJFVJuQo").unwrap();
 
     let destination_chain = xrpl.chain_name.clone();
-    let amount = nonempty::Uint256::try_from(1000000000000000000u64).unwrap(); // 1 wrapped-XRP
+    // let amount = nonempty::Uint256::try_from(1000000000000000000u64).unwrap(); // 1 wrapped-XRP
+    let amount = nonempty::Uint256::try_from(1000000u64).unwrap(); // 1 wrapped-XRP
     let payload: Option<nonempty::HexBinary> = None;
 
-    let interchain_transfer_msg = its::Message::InterchainTransfer {
-        token_id: XRPLTokenOrXrp::Xrp.local_token_id(),
-        source_address: nonempty::HexBinary::try_from(HexBinary::from(source_address.as_bytes())).unwrap(),
-        destination_address: nonempty::HexBinary::try_from(HexBinary::from(destination_address.as_bytes())).unwrap(),
-        amount,
-        data: payload,
-    };
+    let interchain_transfer_msg = interchain_token_service::Message::InterchainTransfer(
+        interchain_token_service::InterchainTransfer {
+            token_id: xrpl.xrp_token_id,
+            source_address: nonempty::HexBinary::try_from(HexBinary::from(source_address.as_bytes())).unwrap(),
+            destination_address: nonempty::HexBinary::try_from(HexBinary::from(destination_address.as_bytes())).unwrap(),
+            amount,
+            data: payload,
+        },
+    );
 
-    let wrapped_payload = its::HubMessage::SendToHub {
+    let wrapped_payload = interchain_token_service::HubMessage::SendToHub {
         message: interchain_transfer_msg.clone(),
         destination_chain: destination_chain.into(),
     }.abi_encode();
@@ -510,7 +534,7 @@ fn payment_towards_xrpl_can_be_verified_and_routed_and_proven() {
     };
 
     let its_hub_msg_id = test_utils::execute_axelarnet_gateway_message(
-        &mut protocol,
+        &mut protocol.app,
         &axelarnet.gateway,
         wrapped_msg.cc_id.clone(),
         HexBinary::from(wrapped_payload),
@@ -538,13 +562,13 @@ fn payment_towards_xrpl_can_be_verified_and_routed_and_proven() {
         &xrpl.multisig_prover,
         routable_msgs.first().unwrap().clone(),
         &verifiers,
-        its::HubMessage::ReceiveFromHub {
+        interchain_token_service::HubMessage::ReceiveFromHub {
             source_chain: source_chain.chain_name.clone().into(),
             message: interchain_transfer_msg,
         }.abi_encode(),
     );
 
-    let proof = test_utils::get_xrpl_proof(
+    let proof = test_utils::xrpl_proof(
         &mut protocol.app,
         &xrpl.multisig_prover,
         &session_id,
@@ -556,13 +580,14 @@ fn payment_towards_xrpl_can_be_verified_and_routed_and_proven() {
         xrpl_multisig_prover::msg::ProofResponse::Completed { .. }
     ));
 
-    let proof_msgs = vec![XRPLMessage::ProverMessage(
-        HexBinary::from_hex("600ce3aa7756b93f7f2c85036ac89d7b92ebe2bc9f3e9828dcbce3ccc472c5b1")
-        .unwrap()
-        .as_slice()
-        .try_into()
-        .unwrap(),
-    )];
+    let signed_tx_hash = match proof {
+        xrpl_multisig_prover::msg::ProofResponse::Completed { tx_blob, .. } => {
+            hash_signed_tx(tx_blob.as_slice()).unwrap()
+        }
+        _ => unreachable!()
+    };
+
+    let proof_msgs = vec![XRPLMessage::ProverMessage(signed_tx_hash)];
 
     let (poll_id, expiry) = test_utils::verify_xrpl_messages(
         &mut protocol.app,
@@ -653,7 +678,8 @@ fn routing_to_incorrect_gateway_interface() {
         &protocol.router,
         &protocol.governance_address,
         &chain2.chain_name,
-        Addr::unchecked("some random address")
+        MockApi::default()
+            .addr_make("some random address")
             .to_string()
             .try_into()
             .unwrap(), // gateway address does not implement required interface,

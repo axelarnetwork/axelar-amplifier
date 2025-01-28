@@ -1,5 +1,6 @@
 use axelar_wasm_std::{nonempty, IntoContractError};
 use cosmwasm_std::{StdError, Uint256};
+use cw_utils::ParseReplyError;
 use interchain_token_service::TokenId;
 use thiserror::Error;
 use router_api::{ChainName, ChainNameRaw, CrossChainId};
@@ -112,6 +113,9 @@ pub enum ContractError {
 
     #[error("overflow error")]
     Overflow,
+
+    #[error(transparent)]
+    ParseReply(#[from] ParseReplyError),
 
     #[error("payload hash mismatch")]
     PayloadHashMismatch {

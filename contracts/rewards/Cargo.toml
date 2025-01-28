@@ -1,6 +1,6 @@
 [package]
 name = "rewards"
-version = "1.1.0"
+version = "1.2.0"
 rust-version = { workspace = true }
 edition = { workspace = true }
 description = "Validator rewards contract"
@@ -19,8 +19,6 @@ name = "rewards-schema"
 path = "src/bin/schema.rs"
 
 [features]
-# for more explicit tests, cargo test --features=backtraces
-backtraces = ["cosmwasm-std/backtraces"]
 # use library feature to disable all instantiate/execute/query exports
 library = []
 
@@ -46,7 +44,8 @@ serde_json = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]
-cw-multi-test = "0.15.1"
+assert_ok = { workspace = true }
+cw-multi-test = { workspace = true }
 
 [lints]
 workspace = true

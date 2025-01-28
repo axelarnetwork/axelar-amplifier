@@ -79,7 +79,7 @@ impl<'a> PollMessagesIndex<'a> {
     fn new(
         idx_fn: fn(&[u8], &PollContent<XRPLMessage>) -> (String, u32),
         pk_namespace: &'a str,
-        idx_namespace: &'a str,
+        idx_namespace: &'static str,
     ) -> Self {
         PollMessagesIndex(MultiIndex::new(idx_fn, pk_namespace, idx_namespace))
     }
@@ -117,7 +117,7 @@ impl<'a> PollMessagesIndex<'a> {
 const POLL_MESSAGES_PKEY_NAMESPACE: &str = "poll_messages";
 const POLL_MESSAGES_IDX_NAMESPACE: &str = "poll_messages_idx";
 
-pub fn poll_messages<'a>() -> IndexedMap<'a, &'a Hash, PollContent<XRPLMessage>, PollMessagesIndex<'a>>
+pub fn poll_messages<'a>() -> IndexedMap<&'a Hash, PollContent<XRPLMessage>, PollMessagesIndex<'a>>
 {
     IndexedMap::new(
         POLL_MESSAGES_PKEY_NAMESPACE,

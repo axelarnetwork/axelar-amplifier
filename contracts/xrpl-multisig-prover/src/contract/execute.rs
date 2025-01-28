@@ -10,7 +10,7 @@ use sha3::{Keccak256, Digest};
 use xrpl_types::error::XRPLError;
 use xrpl_types::msg::XRPLMessage;
 use xrpl_types::types::{
-    canonicalize_token_amount, scale_to_drops, TxHash, XRPLAccountId, XRPLPaymentAmount, XRPLSignedTx, XRPLSigner, XRPLToken, XRPLTokenOrXrp, XRPLTxStatus
+    canonicalize_token_amount, TxHash, XRPLAccountId, XRPLPaymentAmount, XRPLSignedTx, XRPLSigner, XRPLTxStatus, XRP_MAX_UINT
 };
 
 use crate::axelar_verifiers;
@@ -27,14 +27,11 @@ pub fn construct_trust_set_proof(
     querier: &Querier,
     self_address: Addr,
     config: &Config,
-    xrpl_token: XRPLToken,
+    token_id: TokenId,
 ) -> Result<Response, ContractError> {
+    let xrpl_token = querier.xrpl_token(token_id)?;
     if xrpl_token.is_remote(config.xrpl_multisig.clone()) {
         return Err(ContractError::TokenNotLocal(xrpl_token));
-    }
-
-    if querier.xrpl_token(XRPLTokenOrXrp::Issued(xrpl_token.clone()).local_token_id())? != xrpl_token {
-        return Err(ContractError::LocalTokenNotRegistered(xrpl_token));
     }
 
     if TRUST_LINE.has(storage, &xrpl_token) {
@@ -90,7 +87,12 @@ pub fn confirm_tx_status(
         return Err(ContractError::InvalidSignerPublicKeys);
     }
 
-    let signed_tx = XRPLSignedTx::new(tx_info.unsigned_tx.clone(), xrpl_signers, multisig_session_id.u64());
+    let signed_tx = XRPLSignedTx::new(
+        tx_info.unsigned_tx.clone(),
+        xrpl_signers,
+        multisig_session_id.u64(),
+        tx_info.original_cc_id.clone(),
+    );
 
     let reconstructed_signed_tx_hash = xrpl_types::types::hash_signed_tx(
         signed_tx.xrpl_serialize()?.as_slice(),
@@ -210,30 +212,31 @@ fn compute_xrpl_amount(
     source_chain: ChainNameRaw,
     source_amount: Uint256,
 ) -> Result<(XRPLPaymentAmount, Uint256), ContractError> {
-    let source_decimals = querier.token_instance_decimals(source_chain.clone(), token_id.clone())
-        .map_err(|_| ContractError::TokenNotRegisteredForChain {
-            token_id: token_id.to_owned(),
-            chain: source_chain.to_owned(),
-        })?;
-
-    let is_xrp = token_id == XRPLTokenOrXrp::Xrp.local_token_id();
-    let (xrpl_amount, dust) = if is_xrp {
-        let (drops, dust) = scale_to_drops(source_amount.into(), source_decimals)
-            .map_err(|_| ContractError::InvalidTransferAmount {
+    let xrp_token_id = querier.xrp_token_id()?;
+    let (xrpl_amount, dust) = if token_id == xrp_token_id {
+        if source_amount > Uint256::from(XRP_MAX_UINT) {
+            return Err(ContractError::InvalidTransferAmount {
                 source_chain: source_chain.to_owned(),
                 amount: source_amount.into(),
-            })?;
+            });
+        }
 
-        (XRPLPaymentAmount::Drops(drops), dust)
+        let drops = u64::from_be_bytes(source_amount.to_be_bytes()[24..].try_into().unwrap());
+        (XRPLPaymentAmount::Drops(drops), Uint256::zero())
     } else {
-        let token = querier.xrpl_token(token_id.clone())?;
+        let xrpl_token = querier.xrpl_token(token_id.clone())?;
+        let source_decimals = querier.token_instance_decimals(source_chain.clone(), token_id.clone())
+            .map_err(|_| ContractError::TokenNotRegisteredForChain {
+                token_id: token_id.to_owned(),
+                chain: source_chain.to_owned(),
+            })?;
         let (token_amount, dust) = canonicalize_token_amount(source_amount.into(), source_decimals)
             .map_err(|_| ContractError::InvalidTransferAmount {
                 source_chain: source_chain.to_owned(),
                 amount: source_amount.into(),
             })?;
 
-        (XRPLPaymentAmount::Issued(token, token_amount), dust)
+        (XRPLPaymentAmount::Issued(xrpl_token, token_amount), dust)
     };
 
     Ok((xrpl_amount, dust))
@@ -385,25 +388,28 @@ pub fn construct_payment_proof(
         HubMessage::SendToHub { .. } => {
             Err(ContractError::InvalidPayload)
         },
+        HubMessage::RegisterTokenMetadata { .. } => {
+            Err(ContractError::InvalidPayload)
+        },
         HubMessage::ReceiveFromHub { source_chain, message } => {
             match message {
                 // Source address (ITS on source chain) has been validated by ITS hub.
-                interchain_token_service::Message::InterchainTransfer { token_id, source_address: _, destination_address, amount: source_amount, data: _ } => {
-                    let destination_address = XRPLAccountId::try_from(destination_address)
+                interchain_token_service::Message::InterchainTransfer(interchain_transfer) => {
+                    let destination_address = XRPLAccountId::try_from(interchain_transfer.destination_address)
                         .map_err(|_| ContractError::InvalidDestinationAddress)?;
 
                     let (xrpl_amount, dust) = compute_xrpl_amount(
                         querier,
-                        token_id.clone(),
+                        interchain_transfer.token_id.clone(),
                         source_chain.clone(),
-                        source_amount.into(),
+                        interchain_transfer.amount.into(),
                     )?;
 
                     if !dust.is_zero() {
                         if !state::DUST_COUNTED.has(storage, &cc_id) {
                             state::DUST.update(
                                 storage,
-                                &(token_id, source_chain.clone()),
+                                &(interchain_transfer.token_id, source_chain.clone()),
                                 |current_dust| -> Result<_, ContractError> {
                                     match current_dust {
                                         Some(DustAmount::Remote(current_dust)) => Ok(DustAmount::Remote(current_dust + dust)),
@@ -433,10 +439,10 @@ pub fn construct_payment_proof(
                     state::REPLY_CROSS_CHAIN_ID.save(storage, &cc_id)?;
                     Ok(Response::new().add_submessage(start_signing_session(storage, config, unsigned_tx_hash, self_address, None)?))
                 },
-                interchain_token_service::Message::DeployInterchainToken { .. } => {
+                interchain_token_service::Message::DeployInterchainToken(_) => {
                     Err(ContractError::InvalidPayload)
                 },
-                interchain_token_service::Message::DeployTokenManager { .. } => {
+                interchain_token_service::Message::LinkToken(_) => {
                     Err(ContractError::InvalidPayload)
                 },
             }

@@ -1,3 +1,4 @@
+use cosmwasm_std::testing::MockApi;
 use cosmwasm_std::BlockInfo;
 use integration_tests::contract::Contract;
 use service_registry_api::msg::ExecuteMsg;
@@ -284,7 +285,10 @@ fn claim_stake_when_jailed_fails() {
         protocol.governance_address.clone(),
         &ExecuteMsg::JailVerifiers {
             service_name: protocol.service_name.to_string(),
-            verifiers: vec!["verifier1".to_string(), "verifier2".to_string()],
+            verifiers: vec![
+                MockApi::default().addr_make("verifier1").to_string(),
+                MockApi::default().addr_make("verifier2").to_string(),
+            ],
         },
     );
     assert!(response.is_ok());

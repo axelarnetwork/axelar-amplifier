@@ -79,13 +79,13 @@ pub fn execute(
         &info.sender,
         |_, _| Ok::<_, error_stack::Report<ContractError>>(config.gateway.clone()),
     )? {
-        ExecuteMsg::TrustSet { xrpl_token } => {
+        ExecuteMsg::TrustSet { token_id } => {
             execute::construct_trust_set_proof(
                 deps.storage,
                 &querier,
                 env.contract.address,
                 &config,
-                xrpl_token,
+                token_id,
             )
         }
         ExecuteMsg::ConstructProof { cc_id, payload } => {

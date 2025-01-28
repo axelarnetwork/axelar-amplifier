@@ -21,7 +21,7 @@ use tokio::time::interval;
 use tokio_util::sync::CancellationToken;
 use tonic::transport::Channel;
 use tracing::info;
-use types::TMAddress;
+use types::{CosmosPublicKey, TMAddress};
 use xrpl::json_rpc::XRPLClient;
 
 use crate::config::Config;
@@ -102,6 +102,7 @@ async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
         .keygen(&tofnd_config.key_uid, tofnd::Algorithm::Ecdsa)
         .await
         .change_context(Error::Tofnd)?;
+    let pub_key = CosmosPublicKey::try_from(pub_key).change_context(Error::Tofnd)?;
 
     let broadcaster = broadcaster::UnvalidatedBasicBroadcaster::builder()
         .auth_query_client(auth_query_client)
@@ -424,14 +425,14 @@ where
                 ),
                 handlers::config::Config::StellarMsgVerifier {
                     cosmwasm_contract,
-                    http_url,
+                    rpc_url,
                 } => self.create_handler_task(
                     "stellar-msg-verifier",
                     handlers::stellar_verify_msg::Handler::new(
                         verifier.clone(),
                         cosmwasm_contract,
-                        stellar::http_client::Client::new(
-                            http_url.to_string().trim_end_matches('/').into(),
+                        stellar::rpc_client::Client::new(
+                            rpc_url.to_string().trim_end_matches('/').into(),
                         )
                         .change_context(Error::Connection)?,
                         self.block_height_monitor.latest_block_height(),
@@ -440,14 +441,14 @@ where
                 ),
                 handlers::config::Config::StellarVerifierSetVerifier {
                     cosmwasm_contract,
-                    http_url,
+                    rpc_url,
                 } => self.create_handler_task(
                     "stellar-verifier-set-verifier",
                     handlers::stellar_verify_verifier_set::Handler::new(
                         verifier.clone(),
                         cosmwasm_contract,
-                        stellar::http_client::Client::new(
-                            http_url.to_string().trim_end_matches('/').into(),
+                        stellar::rpc_client::Client::new(
+                            rpc_url.to_string().trim_end_matches('/').into(),
                         )
                         .change_context(Error::Connection)?,
                         self.block_height_monitor.latest_block_height(),

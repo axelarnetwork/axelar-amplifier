@@ -34,7 +34,7 @@ fn parse_message_id(message_id: &str) -> Result<(nonempty::Vec<u8>, u64), Error>
     let tx_id = nonempty::Vec::<u8>::try_from(id.tx_hash.to_vec())
         .change_context(Error::InvalidMessageId(message_id.into()))?;
 
-    Ok((tx_id, id.event_index.into()))
+    Ok((tx_id, id.event_index))
 }
 
 impl From<router_api::Message> for Message {
@@ -102,7 +102,7 @@ mod test {
             destination_address: "something else".parse().unwrap(),
             payload_hash: [1; 32],
             source_tx_id: msg_id.tx_hash.to_vec().try_into().unwrap(),
-            source_tx_index: msg_id.event_index as u64,
+            source_tx_index: msg_id.event_index,
             id: msg_id.to_string(),
         };
 

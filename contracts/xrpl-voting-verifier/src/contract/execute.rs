@@ -5,11 +5,10 @@ use axelar_wasm_std::voting::{PollId, PollResults, Vote, WeightedPoll};
 use axelar_wasm_std::{snapshot, MajorityThreshold, VerificationStatus};
 use cosmwasm_std::{
     to_json_binary, Deps, DepsMut, Env, Event, MessageInfo, OverflowError, OverflowOperation,
-    QueryRequest, Response, Storage, WasmMsg, WasmQuery,
+    Response, Storage, WasmMsg,
 };
 use error_stack::{Report, report};
 use itertools::Itertools;
-use service_registry::msg::QueryMsg;
 use service_registry::WeightedVerifier;
 use xrpl_types::msg::XRPLMessage;
 
@@ -25,11 +24,11 @@ pub fn update_voting_threshold(
     CONFIG
         .update(
             deps.storage,
-            |mut config| -> Result<_, ContractError> {
+            |mut config| -> Result<_, cosmwasm_std::StdError> {
                 config.voting_threshold = new_voting_threshold;
                 Ok(config)
-        }
-    )?;
+            },
+        )?;
     Ok(Response::new())
 }
 
@@ -93,7 +92,6 @@ pub fn verify_messages(
                 participants,
             },
         }
-        .into(),
     ))
 }
 
@@ -186,7 +184,6 @@ pub fn vote(
                 poll_id,
                 voter: info.sender,
             }
-            .into(),
         )
         .add_events(quorum_events.into_iter().flatten()))
 }
@@ -235,25 +232,18 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: PollId) -> Result<Response, Co
             poll_id: poll_result.poll_id,
             results: poll_result.results.0.clone(),
         }
-        .into(),
     ))
 }
 
 fn take_snapshot(deps: Deps) -> Result<snapshot::Snapshot, ContractError> {
     let config = CONFIG.load(deps.storage)?;
 
-    // todo: add chain param to query after service registry updated
-    // query service registry for active verifiers
-    let active_verifiers_query = QueryMsg::ActiveVerifiers {
-        service_name: config.service_name.to_string(),
-        chain_name: config.source_chain,
-    };
+    let service_registry: service_registry_api::Client =
+        client::ContractClient::new(deps.querier, &config.service_registry_contract).into();
 
-    let verifiers: Vec<WeightedVerifier> =
-        deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: config.service_registry_contract.to_string(),
-            msg: to_json_binary(&active_verifiers_query)?,
-        }))?;
+    let verifiers: Vec<WeightedVerifier> = service_registry
+        .active_verifiers(config.service_name.into(), config.source_chain.to_owned())
+        .map_err(|_| ContractError::FailedToBuildSnapshot)?; // TODO: use custom error
 
     let participants = verifiers
         .into_iter()
@@ -283,6 +273,6 @@ fn create_messages_poll(
 fn calculate_expiration(block_height: u64, block_expiry: u64) -> Result<u64, ContractError> {
     block_height
         .checked_add(block_expiry)
-        .ok_or_else(|| OverflowError::new(OverflowOperation::Add, block_height, block_expiry))
+        .ok_or_else(|| OverflowError::new(OverflowOperation::Add))
         .map_err(ContractError::from)
 }

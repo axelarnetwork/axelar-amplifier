@@ -19,8 +19,6 @@ name = "xrpl-voting-verifier-schema"
 path = "src/bin/schema.rs"
 
 [features]
-# for more explicit tests, cargo test --features=backtraces
-backtraces = ["cosmwasm-std/backtraces"]
 # use library feature to disable all instantiate/execute/query exports
 library = []
 
@@ -48,6 +46,7 @@ router-api = { workspace = true }
 sha3 = { workspace = true }
 serde_json = { workspace = true }
 service-registry = { workspace = true, features = ["library"] }
+service-registry-api = { workspace = true }
 thiserror = { workspace = true }
 xrpl-types = { workspace = true }
 

@@ -1,6 +1,6 @@
 [package]
 name = "coordinator"
-version = "1.0.0"
+version = "1.1.0"
 rust-version = { workspace = true }
 edition = { workspace = true }
 description = "Amplifier info aggregation for external use, alongside contract management, instantiation and migration"
@@ -19,8 +19,6 @@ name = "coordinator-schema"
 path = "src/bin/schema.rs"
 
 [features]
-# for more explicit tests, cargo test --features=backtraces
-backtraces = ["cosmwasm-std/backtraces"]
 # use library feature to disable all instantiate/execute/query exports
 library = []
 
@@ -44,11 +42,12 @@ msgs-derive = { workspace = true }
 multisig = { workspace = true, features = ["library"] }
 report = { workspace = true }
 router-api = { workspace = true }
+semver = { workspace = true }
 service-registry-api = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]
-cw-multi-test = "0.15.1"
+cw-multi-test = { workspace = true }
 goldie = { workspace = true }
 integration-tests = { workspace = true }
 tofn = { workspace = true }

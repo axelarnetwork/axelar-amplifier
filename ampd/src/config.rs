@@ -126,12 +126,12 @@ mod tests {
             [[handlers]]
             type = 'StellarMsgVerifier'
             cosmwasm_contract = '{}'
-            http_url = 'http://localhost:8000'
+            rpc_url = 'http://localhost:7545'
 
             [[handlers]]
             type = 'StellarVerifierSetVerifier'
             cosmwasm_contract = '{}'
-            http_url = 'http://localhost:8000'
+            rpc_url = 'http://localhost:7545'
             ",
             TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
@@ -342,13 +342,13 @@ mod tests {
                     cosmwasm_contract: TMAddress::from(
                         AccountId::new("axelar", &[0u8; 32]).unwrap(),
                     ),
-                    http_url: Url::from_str("http://127.0.0.1").unwrap(),
+                    rpc_url: Url::from_str("http://127.0.0.1").unwrap(),
                 },
                 HandlerConfig::StellarVerifierSetVerifier {
                     cosmwasm_contract: TMAddress::from(
                         AccountId::new("axelar", &[0u8; 32]).unwrap(),
                     ),
-                    http_url: Url::from_str("http://127.0.0.1").unwrap(),
+                    rpc_url: Url::from_str("http://127.0.0.1").unwrap(),
                 },
             ],
             ..Config::default()

@@ -84,7 +84,7 @@ impl<'a> Client<'a> {
 #[cfg(test)]
 mod test {
     use axelar_wasm_std::{nonempty, Threshold, VerificationStatus};
-    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info, MockQuerier};
+    use cosmwasm_std::testing::{message_info, mock_dependencies, mock_env, MockApi, MockQuerier};
     use cosmwasm_std::{
         from_json, Addr, DepsMut, HexBinary, QuerierWrapper, SystemError, Uint64, WasmQuery
     };
@@ -221,13 +221,18 @@ mod test {
 
     fn instantiate_contract(deps: DepsMut) -> InstantiateMsg {
         let env = mock_env();
-        let info = mock_info("deployer", &[]);
+        let api = MockApi::default();
+        let info = message_info(&api.addr_make("deployer"), &[]);
 
         let msg = InstantiateMsg {
-            governance_address: "governance".try_into().unwrap(),
-            service_registry_address: "service-registry".try_into().unwrap(),
+            governance_address: api.addr_make("governance").to_string().try_into().unwrap(),
+            service_registry_address: api
+                .addr_make("service-registry")
+                .to_string()
+                .try_into()
+                .unwrap(),
             service_name: "voting-verifier".try_into().unwrap(),
-            source_gateway_address: [0; 20].into(),
+            source_gateway_address: "rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh".to_string().try_into().unwrap(),
             voting_threshold: Threshold::try_from((Uint64::new(2), Uint64::new(3)))
                 .unwrap()
                 .try_into()
@@ -235,7 +240,7 @@ mod test {
             block_expiry: 100.try_into().unwrap(),
             confirmation_height: 10,
             source_chain: "source-chain".parse().unwrap(),
-            rewards_address: "rewards".try_into().unwrap(),
+            rewards_address: api.addr_make("rewards").to_string().try_into().unwrap(),
         };
 
         instantiate(deps, env, info.clone(), msg.clone()).unwrap();

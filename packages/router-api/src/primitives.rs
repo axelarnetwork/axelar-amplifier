@@ -157,6 +157,7 @@ impl PrimaryKey<'_> for CrossChainId {
 
 impl KeyDeserialize for CrossChainId {
     type Output = Self;
+    const KEY_ELEMS: u16 = 2;
 
     fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
         let (source_chain, id) = <(ChainNameRaw, String)>::from_vec(value)?;
@@ -265,6 +266,7 @@ impl<'a> Prefixer<'a> for ChainName {
 
 impl KeyDeserialize for ChainName {
     type Output = Self;
+    const KEY_ELEMS: u16 = 1;
 
     #[inline(always)]
     fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
@@ -277,6 +279,7 @@ impl KeyDeserialize for ChainName {
 
 impl KeyDeserialize for &ChainName {
     type Output = ChainName;
+    const KEY_ELEMS: u16 = 1;
 
     #[inline(always)]
     fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
@@ -314,6 +317,13 @@ impl ChainNameRaw {
     /// Maximum length of a chain name (in bytes).
     /// This MUST NOT be changed without a corresponding change to the ChainName validation in axelar-core.
     const MAX_LEN: usize = 20;
+
+    /// Special care must be taken when using this function. Normalization means a loss of information
+    /// and can lead to the chain not being found in the database. This function should only be used if absolutely necessary.
+    pub fn normalize(&self) -> ChainName {
+        // assert: if ChainNameRaw is valid, ChainName is also valid, just lower-cased
+        ChainName::try_from(self.as_ref()).expect("invalid chain name")
+    }
 }
 
 impl FromStr for ChainNameRaw {
@@ -399,6 +409,7 @@ impl<'a> Prefixer<'a> for ChainNameRaw {
 
 impl KeyDeserialize for ChainNameRaw {
     type Output = Self;
+    const KEY_ELEMS: u16 = 1;
 
     #[inline(always)]
     fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
@@ -411,6 +422,7 @@ impl KeyDeserialize for ChainNameRaw {
 
 impl KeyDeserialize for &ChainNameRaw {
     type Output = ChainNameRaw;
+    const KEY_ELEMS: u16 = 1;
 
     #[inline(always)]
     fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {

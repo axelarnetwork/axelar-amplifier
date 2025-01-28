@@ -30,6 +30,7 @@ fn message_to_sign(
     let encoded_unsigned_tx_to_sign = XRPLUnsignedTxToSign {
         unsigned_tx: tx_info.unsigned_tx,
         multisig_session_id: multisig_session_id.u64(),
+        cc_id: tx_info.original_cc_id,
     }.xrpl_serialize()?;
     Ok(xrpl_types::types::message_to_sign(encoded_unsigned_tx_to_sign, signer_xrpl_address)?)
 }
@@ -70,7 +71,13 @@ pub fn proof(
                 .map(XRPLSigner::try_from)
                 .collect::<Result<Vec<_>, XRPLError>>()?;
 
-            let signed_tx = XRPLSignedTx::new(tx_info.unsigned_tx, xrpl_signers, multisig_session_id.u64());
+            let signed_tx = XRPLSignedTx::new(
+                tx_info.unsigned_tx,
+                xrpl_signers,
+                multisig_session_id.u64(),
+                tx_info.original_cc_id,
+            );
+
             let tx_blob = HexBinary::from(signed_tx.xrpl_serialize()?);
             ProofResponse::Completed {
                 unsigned_tx_hash,

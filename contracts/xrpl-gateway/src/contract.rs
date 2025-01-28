@@ -45,6 +45,8 @@ pub enum Error {
     InvalidDecimals(u8),
     #[error("invalid destination address")]
     InvalidDestinationAddress,
+    #[error("invalid destination chain {0}")]
+    InvalidDestinationChain(ChainNameRaw),
     #[error("invalid drops {0}")]
     InvalidDrops(u64),
     #[error("invalid source address")]
@@ -58,6 +60,14 @@ pub enum Error {
         destination_chain: ChainNameRaw,
         amount: XRPLPaymentAmount,
     },
+    #[error("failed to query linked token id")]
+    LinkedTokenId,
+    #[error("token {xrpl_token} deployed mismatch: expected {expected}, actual {actual}")]
+    LocalTokenDeployedIdMismatch {
+        xrpl_token: XRPLToken,
+        expected: TokenId,
+        actual: TokenId,
+    },
     #[error("token {token_id} deployed mismatch: expected {expected}, actual {actual}")]
     LocalTokenDeployedMismatch {
         token_id: TokenId,
@@ -68,9 +78,9 @@ pub enum Error {
     MessageStatus,
     #[error("no dust to offload for token {0}")]
     NoDustToOffload(TokenId),
-    #[error("message with ID {0} was not sent from Axelar")]
-    OnlyFromAxelar(CrossChainId),
-    #[error("message with ID {0} was not sent from the ITS hub")]
+    #[error("message with ID {0} was not sent from ITS Hub chain")]
+    OnlyFromItsHubChain(CrossChainId),
+    #[error("message with ID {0} was not sent from the ITS Hub")]
     OnlyFromItsHub(CrossChainId),
     #[error("failed to query outgoing messages")]
     OutgoingMessages,
@@ -127,6 +137,8 @@ pub enum Error {
     },
     #[error("failed to query xrpl token {0}")]
     XrplToken(TokenId),
+    #[error("failed to query xrp token ID")]
+    XrpTokenId,
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -155,8 +167,8 @@ pub fn instantiate(
         verifier,
         router,
         its_hub,
-        axelar_chain: msg.axelar_chain_name,
-        xrpl_chain: msg.xrpl_chain_name,
+        its_hub_chain_name: msg.its_hub_chain_name,
+        chain_name: msg.chain_name.clone(),
         xrpl_multisig: msg.xrpl_multisig_address,
     })?;
 
@@ -183,9 +195,15 @@ pub fn execute(
         &info.sender,
         |_, _| Ok::<_, error_stack::Report<Error>>(config.router.clone()),
     )? {
-        ExecuteMsg::RegisterLocalToken { xrpl_token } => {
+        ExecuteMsg::RegisterTokenMetadata { xrpl_token } => {
+            execute::register_token_metadata(&config, env.block.height, xrpl_token)
+        }
+        ExecuteMsg::RegisterLocalToken { salt, xrpl_token } => {
             execute::register_local_token(
                 deps.storage,
+                &config,
+                info.sender,
+                salt,
                 xrpl_token,
             )
         }
@@ -198,6 +216,14 @@ pub fn execute(
                 config.xrpl_multisig,
                 token_id,
                 xrpl_currency,
+            )
+        }
+        ExecuteMsg::RegisterXrp { salt } => {
+            execute::register_xrp(
+                deps.storage,
+                &config,
+                info.sender,
+                salt,
             )
         }
         ExecuteMsg::RegisterTokenInstance {
@@ -213,37 +239,38 @@ pub fn execute(
                 decimals,
             )
         }
-        ExecuteMsg::DeployTokenManager {
-            xrpl_token,
+        ExecuteMsg::LinkToken {
+            salt,
             destination_chain,
-            deploy_token_manager,
+            link_token,
         } => {
-            execute::deploy_token_manager(
+            execute::link_token(
                 deps.storage,
                 &config,
                 env.block.height,
-                xrpl_token,
+                info.sender,
+                salt,
                 destination_chain,
-                deploy_token_manager,
+                link_token,
             )
         }
-        ExecuteMsg::DeployInterchainToken {
+        ExecuteMsg::DeployRemoteToken {
             xrpl_token,
             destination_chain,
-            deploy_token,
+            token_metadata,
         } => {
-            execute::deploy_interchain_token(
+            execute::deploy_remote_token(
                 deps.storage,
                 &config,
                 env.block.height,
                 xrpl_token,
                 destination_chain,
-                deploy_token,
+                token_metadata,
             )
         }
         ExecuteMsg::VerifyMessages(msgs) => {
             let verifier = client::ContractClient::new(deps.querier, &config.verifier).into();
-            execute::verify_messages(&verifier, msgs, &config.xrpl_chain)
+            execute::verify_messages(&verifier, msgs, &config.chain_name)
         }
         // Should be called RouteOutgoingMessage.
         // Called RouteMessages for compatibility with the router.
@@ -252,7 +279,7 @@ pub fn execute(
                 deps.storage,
                 msgs,
                 config.its_hub,
-                &config.axelar_chain,
+                &config.its_hub_chain_name,
             )
         }
         ExecuteMsg::RouteIncomingMessages(msgs) => {
@@ -289,6 +316,17 @@ pub fn query(
         QueryMsg::XrplToken(token_id) => {
             query::xrpl_token(deps.storage, token_id.clone())
                 .change_context(Error::XrplToken(token_id))
+        }
+        QueryMsg::XrpTokenId => {
+            query::xrp_token_id(deps.storage)
+                .change_context(Error::XrpTokenId)
+        }
+        QueryMsg::LinkedTokenId {
+            deployer,
+            salt,
+        } => {
+            query::linked_token_id(deps.storage, deployer.clone(), salt)
+                .change_context(Error::LinkedTokenId)
         }
         QueryMsg::TokenInstanceDecimals { chain_name, token_id } => {
             query::token_instance_decimals(deps.storage, chain_name.clone(), token_id.clone())

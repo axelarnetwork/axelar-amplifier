@@ -16,7 +16,7 @@ impl AxelarnetGatewayContract {
         app: &mut AxelarApp,
         chain_name: ChainName,
         router_address: Addr,
-        nexus_gateway: String,
+        nexus: String,
     ) -> Self {
         let code = ContractWrapper::new_with_empty(execute, instantiate, query);
         let code_id = app.store_code(Box::new(code));
@@ -28,7 +28,7 @@ impl AxelarnetGatewayContract {
                 &axelarnet_gateway::msg::InstantiateMsg {
                     chain_name,
                     router_address: router_address.to_string(),
-                    nexus_gateway,
+                    nexus,
                 },
                 &[],
                 "axelarnet_gateway",

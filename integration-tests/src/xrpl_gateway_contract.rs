@@ -18,8 +18,8 @@ impl XRPLGatewayContract {
         router_address: Addr,
         verifier_address: Addr,
         its_hub_address: Addr,
-        axelar_chain_name: ChainName,
-        xrpl_chain_name: ChainName,
+        its_hub_chain_name: ChainName,
+        chain_name: ChainName,
         xrpl_multisig_address: XRPLAccountId,
     ) -> Self {
         let code = ContractWrapper::new_with_empty(
@@ -39,8 +39,8 @@ impl XRPLGatewayContract {
                     router_address: router_address.to_string(),
                     verifier_address: verifier_address.to_string(),
                     its_hub_address: its_hub_address.to_string(),
-                    axelar_chain_name,
-                    xrpl_chain_name,
+                    its_hub_chain_name,
+                    chain_name,
                     xrpl_multisig_address,
                 },
                 &[],

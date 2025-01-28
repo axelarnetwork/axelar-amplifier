@@ -7,13 +7,15 @@ use axelar_wasm_std::{address, permission_control, FnExt};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_json_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response, Storage,
+    ensure, to_json_binary, Addr, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response, Storage,
 };
-use error_stack::{report, ResultExt};
+use cw2::VersionError;
+use error_stack::report;
 use itertools::Itertools;
+use semver::Version;
 
 use crate::error::ContractError;
-use crate::msg::{ExecuteMsg, InstantiateMsg, MigrationMsg, QueryMsg};
+use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{is_prover_registered, Config, CONFIG};
 
 pub const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
@@ -23,12 +25,16 @@ pub const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub fn migrate(
     deps: DepsMut,
     _env: Env,
-    msg: MigrationMsg,
+    _msg: Empty,
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
-    let service_registry = validate_cosmwasm_address(deps.api, &msg.service_registry)?;
-
-    migrations::v1_0_0::migrate(deps.storage, service_registry)
-        .change_context(ContractError::Migration)?;
+    let old_version = Version::parse(&cw2::get_contract_version(deps.storage)?.version)?;
+    ensure!(
+        old_version.major == 1 && old_version.minor == 1,
+        report!(VersionError::WrongVersion {
+            expected: "1.1.x".into(),
+            found: old_version.to_string()
+        })
+    );
 
     // this needs to be the last thing to do during migration,
     // because previous migration steps should check the old version
@@ -137,7 +143,7 @@ mod tests {
 
     use axelar_wasm_std::permission_control::Permission;
     use cosmwasm_std::testing::{
-        mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
+        message_info, mock_dependencies, mock_env, MockApi, MockQuerier, MockStorage,
     };
     use cosmwasm_std::{Addr, Empty, OwnedDeps};
     use router_api::ChainName;
@@ -152,20 +158,21 @@ mod tests {
         chain_name: ChainName,
     }
 
-    fn setup(governance: &str) -> TestSetup {
-        let mut deps = mock_dependencies();
-        let info = mock_info("instantiator", &[]);
+    fn setup(
+        mut deps: OwnedDeps<MockStorage, MockApi, MockQuerier, Empty>,
+        governance: &Addr,
+    ) -> TestSetup {
+        let info = message_info(&deps.api.addr_make("instantiator"), &[]);
         let env = mock_env();
 
         let instantiate_msg = InstantiateMsg {
             governance_address: governance.to_string(),
-            service_registry: Addr::unchecked("random_service").to_string(),
+            service_registry: deps.api.addr_make("random_service").to_string(),
         };
 
-        let res = instantiate(deps.as_mut(), env.clone(), info.clone(), instantiate_msg);
-        assert!(res.is_ok());
+        instantiate(deps.as_mut(), env.clone(), info.clone(), instantiate_msg).unwrap();
 
-        let eth_prover = Addr::unchecked("eth_prover");
+        let eth_prover = deps.api.addr_make("eth_prover");
         let eth: ChainName = "Ethereum".parse().unwrap();
 
         TestSetup {
@@ -179,13 +186,15 @@ mod tests {
     #[test]
     #[allow(clippy::arithmetic_side_effects)]
     fn test_instantiation() {
-        let governance = "governance_for_coordinator";
-        let mut test_setup = setup(governance);
+        let deps = mock_dependencies();
+        let api = deps.api;
+        let governance = deps.api.addr_make("governance_for_coordinator");
+        let mut test_setup = setup(deps, &governance);
 
         assert!(execute(
             test_setup.deps.as_mut(),
             test_setup.env.clone(),
-            mock_info("not_governance", &[]),
+            message_info(&api.addr_make("not_governance"), &[]),
             ExecuteMsg::RegisterProverContract {
                 chain_name: test_setup.chain_name.clone(),
                 new_prover_addr: test_setup.prover.to_string(),
@@ -196,7 +205,7 @@ mod tests {
         assert!(execute(
             test_setup.deps.as_mut(),
             test_setup.env,
-            mock_info(governance, &[]),
+            message_info(&governance, &[]),
             ExecuteMsg::RegisterProverContract {
                 chain_name: test_setup.chain_name.clone(),
                 new_prover_addr: test_setup.prover.to_string(),
@@ -207,13 +216,14 @@ mod tests {
 
     #[test]
     fn add_prover_from_governance_succeeds() {
-        let governance = "governance_for_coordinator";
-        let mut test_setup = setup(governance);
+        let deps = mock_dependencies();
+        let governance = deps.api.addr_make("governance_for_coordinator");
+        let mut test_setup = setup(deps, &governance);
 
         let _res = execute(
             test_setup.deps.as_mut(),
             test_setup.env,
-            mock_info(governance, &[]),
+            message_info(&governance, &[]),
             ExecuteMsg::RegisterProverContract {
                 chain_name: test_setup.chain_name.clone(),
                 new_prover_addr: test_setup.prover.to_string(),
@@ -231,13 +241,15 @@ mod tests {
 
     #[test]
     fn add_prover_from_random_address_fails() {
-        let governance = "governance_for_coordinator";
-        let mut test_setup = setup(governance);
+        let deps = mock_dependencies();
+        let api = deps.api;
+        let governance = deps.api.addr_make("governance_for_coordinator");
+        let mut test_setup = setup(deps, &governance);
 
         let res = execute(
             test_setup.deps.as_mut(),
             test_setup.env,
-            mock_info("random_address", &[]),
+            message_info(&api.addr_make("random_address"), &[]),
             ExecuteMsg::RegisterProverContract {
                 chain_name: test_setup.chain_name.clone(),
                 new_prover_addr: test_setup.prover.to_string(),
@@ -257,13 +269,14 @@ mod tests {
 
     #[test]
     fn set_active_verifiers_from_prover_succeeds() {
-        let governance = "governance_for_coordinator";
-        let mut test_setup = setup(governance);
+        let deps = mock_dependencies();
+        let governance = deps.api.addr_make("governance_for_coordinator");
+        let mut test_setup = setup(deps, &governance);
 
         execute(
             test_setup.deps.as_mut(),
             test_setup.env.clone(),
-            mock_info(governance, &[]),
+            message_info(&governance, &[]),
             ExecuteMsg::RegisterProverContract {
                 chain_name: test_setup.chain_name.clone(),
                 new_prover_addr: test_setup.prover.to_string(),
@@ -274,7 +287,7 @@ mod tests {
         let res = execute(
             test_setup.deps.as_mut(),
             test_setup.env,
-            mock_info(test_setup.prover.as_str(), &[]),
+            message_info(&test_setup.prover, &[]),
             ExecuteMsg::SetActiveVerifiers {
                 verifiers: HashSet::new(),
             },
@@ -284,13 +297,14 @@ mod tests {
 
     #[test]
     fn set_active_verifiers_from_random_address_fails() {
-        let governance = "governance_for_coordinator";
-        let mut test_setup = setup(governance);
+        let deps = mock_dependencies();
+        let governance = deps.api.addr_make("governance_for_coordinator");
+        let mut test_setup = setup(deps, &governance);
 
         let res = execute(
             test_setup.deps.as_mut(),
             test_setup.env,
-            mock_info(test_setup.prover.as_str(), &[]),
+            message_info(&test_setup.prover, &[]),
             ExecuteMsg::SetActiveVerifiers {
                 verifiers: HashSet::new(),
             },
@@ -303,5 +317,18 @@ mod tests {
             )
             .to_string()
         ));
+    }
+
+    #[test]
+    fn migrate_sets_contract_version() {
+        let deps = mock_dependencies();
+        let governance = deps.api.addr_make("governance_for_coordinator");
+        let mut test_setup = setup(deps, &governance);
+
+        migrate(test_setup.deps.as_mut(), mock_env(), Empty {}).unwrap();
+
+        let contract_version = cw2::get_contract_version(test_setup.deps.as_mut().storage).unwrap();
+        assert_eq!(contract_version.contract, CONTRACT_NAME);
+        assert_eq!(contract_version.version, CONTRACT_VERSION);
     }
 }

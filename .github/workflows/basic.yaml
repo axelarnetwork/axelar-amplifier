@@ -44,7 +44,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --locked
+          args: --locked --no-fail-fast
         env:
           RUSTFLAGS: --cfg tracing_unstable
           RUST_BACKTRACE: 1

@@ -5,7 +5,7 @@ use interchain_token_service::TokenId;
 use multisig::key::PublicKey;
 use msgs_derive::EnsurePermissions;
 use router_api::{ChainName, ChainNameRaw, CrossChainId};
-use xrpl_types::types::{tx_hash_hex, xrpl_account_id_string, TxHash, XRPLAccountId, XRPLPaymentAmount, XRPLToken};
+use xrpl_types::types::{tx_hash_hex, xrpl_account_id_string, TxHash, XRPLAccountId, XRPLPaymentAmount};
 
 use crate::state::MultisigSession;
 
@@ -124,7 +124,7 @@ pub enum ExecuteMsg {
 
     #[permission(Elevated)]
     TrustSet {
-        xrpl_token: XRPLToken,
+        token_id: TokenId,
     },
 
     #[permission(Elevated)]

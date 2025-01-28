@@ -1,9 +1,12 @@
+// use axelar_core_std::nexus;
 use axelar_wasm_std::error::ContractError;
 use axelar_wasm_std::{address, FnExt, IntoContractError};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{to_json_binary, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response};
-use error_stack::ResultExt;
+use cosmwasm_std::{
+    to_json_binary, Addr, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response, Storage,
+};
+use error_stack::{Report, ResultExt};
 
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{self, Config};
@@ -55,7 +58,7 @@ pub fn instantiate(
     let config = Config {
         chain_name: msg.chain_name,
         router: address::validate_cosmwasm_address(deps.api, &msg.router_address)?,
-        nexus_gateway: address::validate_cosmwasm_address(deps.api, &msg.nexus_gateway)?,
+        nexus: address::validate_cosmwasm_address(deps.api, &msg.nexus)?,
     };
 
     state::save_config(deps.storage, &config)?;
@@ -69,7 +72,7 @@ pub fn execute(
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
-    match msg.ensure_permissions(deps.storage, &info.sender)? {
+    match msg.ensure_permissions(deps.storage, &info.sender, match_nexus)? {
         ExecuteMsg::CallContract {
             destination_chain,
             destination_address,
@@ -85,10 +88,15 @@ pub fn execute(
             },
         )
         .change_context(Error::CallContract),
-        ExecuteMsg::RouteMessages(msgs) => execute::route_messages(deps.storage, info.sender, msgs)
-            .change_context(Error::RouteMessages),
+        ExecuteMsg::RouteMessages(msgs) => {
+            execute::route_messages(deps.storage, deps.querier, info.sender, msgs)
+                .change_context(Error::RouteMessages)
+        }
         ExecuteMsg::Execute { cc_id, payload } => {
             execute::execute(deps, cc_id, payload).change_context(Error::Execute)
+        }
+        ExecuteMsg::RouteMessagesFromNexus(msgs) => {
+            Ok(execute::route_messages_from_nexus(deps.storage, msgs)?)
         }
     }?
     .then(Ok)
@@ -108,6 +116,10 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
         QueryMsg::ChainName => to_json_binary(&query::chain_name(deps.storage)),
     }?
     .then(Ok)
+}
+
+fn match_nexus(storage: &dyn Storage, _: &ExecuteMsg) -> Result<Addr, Report<Error>> {
+    Ok(state::load_config(storage).nexus)
 }
 
 #[cfg(test)]

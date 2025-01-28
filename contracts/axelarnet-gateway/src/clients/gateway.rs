@@ -72,10 +72,8 @@ impl<'a> Client<'a> {
 mod test {
     use std::str::FromStr;
 
-    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info, MockQuerier};
-    use cosmwasm_std::{
-        from_json, to_json_binary, Addr, DepsMut, QuerierWrapper, WasmMsg, WasmQuery,
-    };
+    use cosmwasm_std::testing::{message_info, mock_dependencies, mock_env, MockQuerier};
+    use cosmwasm_std::{from_json, to_json_binary, Addr, QuerierWrapper, WasmMsg, WasmQuery};
 
     use super::*;
     use crate::contract::{instantiate, query};
@@ -148,34 +146,29 @@ mod test {
     }
 
     fn setup() -> (MockQuerier, InstantiateMsg, Addr) {
-        let addr = "axelarnet-gateway";
         let mut deps = mock_dependencies();
-        let instantiate_msg = instantiate_contract(deps.as_mut());
+        let addr = deps.api.addr_make("axelarnet-gateway");
+        let addr_clone = addr.clone();
+        let env = mock_env();
+        let info = message_info(&deps.api.addr_make("deployer"), &[]);
+
+        let instantiate_msg = InstantiateMsg {
+            chain_name: "source-chain".parse().unwrap(),
+            router_address: deps.api.addr_make("router").to_string(),
+            nexus: deps.api.addr_make("nexus").to_string(),
+        };
+
+        instantiate(deps.as_mut(), env, info, instantiate_msg.clone()).unwrap();
 
         let mut querier = MockQuerier::default();
         querier.update_wasm(move |msg| match msg {
-            WasmQuery::Smart { contract_addr, msg } if contract_addr == addr => {
+            WasmQuery::Smart { contract_addr, msg } if contract_addr == addr.as_str() => {
                 let msg = from_json::<QueryMsg>(msg).unwrap();
                 Ok(query(deps.as_ref(), mock_env(), msg).into()).into()
             }
             _ => panic!("unexpected query: {:?}", msg),
         });
 
-        (querier, instantiate_msg, Addr::unchecked(addr))
-    }
-
-    fn instantiate_contract(deps: DepsMut) -> InstantiateMsg {
-        let env = mock_env();
-        let info = mock_info("deployer", &[]);
-
-        let msg = InstantiateMsg {
-            chain_name: "source-chain".parse().unwrap(),
-            router_address: "router".to_string(),
-            nexus_gateway: "nexus-gateway".to_string(),
-        };
-
-        instantiate(deps, env, info, msg.clone()).unwrap();
-
-        msg
+        (querier, instantiate_msg, addr_clone)
     }
 }

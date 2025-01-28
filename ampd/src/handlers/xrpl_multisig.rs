@@ -6,7 +6,6 @@ use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmrs::tx::Msg;
 use cosmrs::Any;
 use cosmwasm_std::{HexBinary, Uint64};
-use ecdsa::VerifyingKey;
 use error_stack::ResultExt;
 use hex::encode;
 use serde::de::Error as DeserializeError;
@@ -47,22 +46,7 @@ where
 
     keys_by_address
         .into_iter()
-        .map(|(address, pk)| match pk {
-            multisig::key::PublicKey::Ecdsa(hex) => Ok((
-                address,
-                VerifyingKey::from_sec1_bytes(hex.as_ref())
-                    .map_err(D::Error::custom)?
-                    .into(),
-            )),
-
-            multisig::key::PublicKey::Ed25519(hex) => {
-                let pk: cosmrs::tendermint::PublicKey =
-                    cosmrs::tendermint::crypto::ed25519::VerificationKey::try_from(hex.as_ref())
-                        .map_err(D::Error::custom)?
-                        .into();
-                Ok((address, pk.into()))
-            }
-        })
+        .map(|(address, pk)| Ok((address, pk.try_into().map_err(D::Error::custom)?)))
         .collect()
 }
 
@@ -152,7 +136,7 @@ where
         }
 
         match pub_keys.get(&self.verifier) {
-            Some(pub_key) => {
+            Some(&pub_key) => {
                 let pub_key_hex = HexBinary::from(pub_key.to_bytes());
                 let multisig_pub_key = multisig::key::PublicKey::try_from((multisig::key::KeyType::Ecdsa, pub_key_hex)).map_err(|_e| Error::PublicKey)?;
                 let xrpl_address = XRPLAccountId::from(&multisig_pub_key);
@@ -196,7 +180,6 @@ mod test {
     use cosmrs::AccountId;
     use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
     use cosmwasm_std::{HexBinary, Uint64};
-    use ecdsa::SigningKey;
     use error_stack::{Report, Result};
     use rand::rngs::OsRng;
     use tendermint::abci;
@@ -208,22 +191,18 @@ mod test {
     use crate::broadcaster::MockBroadcaster;
     use crate::tofnd;
     use crate::tofnd::grpc::MockMultisig;
-    use crate::types;
 
     use super::*;
 
     const MULTISIG_PROVER_ADDRESS: &str = "axelarvaloper1zh9wrak6ke4n6fclj5e8yk397czv430ygs5jz7";
-
-    fn rand_account() -> TMAddress {
-        types::PublicKey::from(SigningKey::random(&mut OsRng).verifying_key())
-            .account_id("axelar")
-            .unwrap()
-            .into()
-    }
+    const PREFIX: &str = "axelar";
 
     fn rand_public_key() -> multisig::key::PublicKey {
         multisig::key::PublicKey::Ecdsa(HexBinary::from(
-            types::PublicKey::from(SigningKey::random(&mut OsRng).verifying_key()).to_bytes(),
+            k256::ecdsa::SigningKey::random(&mut OsRng)
+                .verifying_key()
+                .to_sec1_bytes()
+                .to_vec(),
         ))
     }
 
@@ -234,8 +213,8 @@ mod test {
 
     fn signing_started_event() -> events::Event {
         let pub_keys = (0..10)
-            .map(|_| (rand_account().to_string(), rand_public_key()))
-            .collect::<HashMap<String, PublicKey>>();
+            .map(|_| (TMAddress::random(PREFIX).to_string(), rand_public_key()))
+            .collect::<HashMap<String, multisig::key::PublicKey>>();
 
         let poll_started = XRPLSigningStarted {
             session_id: Uint64::one(),
@@ -261,7 +240,7 @@ mod test {
         .unwrap()
     }
 
-    fn get_handler(
+    fn handler(
         verifier: TMAddress,
         multisig: TMAddress,
         multisig_prover: TMAddress,
@@ -305,7 +284,7 @@ mod test {
         let invalid_pub_key: [u8; 32] = rand::random();
         let mut map: HashMap<String, PublicKey> = HashMap::new();
         map.insert(
-            rand_account().to_string(),
+            TMAddress::random(PREFIX).to_string(),
             PublicKey::Ecdsa(HexBinary::from(invalid_pub_key.as_slice())),
         );
         match event {
@@ -337,7 +316,13 @@ mod test {
     async fn should_not_handle_event_if_multisig_prover_address_does_not_match() {
         let client = MockMultisig::default();
 
-        let handler = get_handler(rand_account(), rand_account(), rand_account(), client, 100u64);
+        let handler = handler(
+            TMAddress::random(PREFIX),
+            TMAddress::random(PREFIX),
+            TMAddress::random(PREFIX),
+            client,
+            100u64
+        );
 
         assert_eq!(
             handler.handle(&signing_started_event()).await.unwrap(),
@@ -352,9 +337,9 @@ mod test {
             .expect_sign()
             .returning(move |_, _, _, _| Err(Report::from(tofnd::error::Error::SignFailed)));
 
-        let handler = get_handler(
-            rand_account(),
-            rand_account(),
+        let handler = handler(
+            TMAddress::random(PREFIX),
+            TMAddress::random(PREFIX),
             TMAddress::from(MULTISIG_PROVER_ADDRESS.parse::<AccountId>().unwrap()),
             client,
             100u64,
@@ -376,9 +361,9 @@ mod test {
         let event = signing_started_event();
         let signing_started: XRPLSigningStartedEvent = ((&event).try_into() as Result<_, _>).unwrap();
         let verifier = signing_started.pub_keys.keys().next().unwrap().clone();
-        let handler = get_handler(
+        let handler = handler(
             verifier,
-            rand_account(),
+            TMAddress::random(PREFIX),
             TMAddress::from(MULTISIG_PROVER_ADDRESS.parse::<AccountId>().unwrap()),
             client,
             99u64,
@@ -400,9 +385,9 @@ mod test {
         let event = signing_started_event();
         let signing_started: XRPLSigningStartedEvent = ((&event).try_into() as Result<_, _>).unwrap();
         let verifier = signing_started.pub_keys.keys().next().unwrap().clone();
-        let handler = get_handler(
+        let handler = handler(
             verifier,
-            rand_account(),
+            TMAddress::random(PREFIX),
             TMAddress::from(MULTISIG_PROVER_ADDRESS.parse::<AccountId>().unwrap()),
             client,
             101u64,

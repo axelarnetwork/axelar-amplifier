@@ -4,10 +4,9 @@ use std::cmp::min;
 use std::ops::{Add, Sub};
 
 use axelar_wasm_std::{VerificationStatus, Participant, nonempty};
-use interchain_token_service::TokenId;
 use router_api::{CrossChainId, FIELD_DELIMITER};
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{from_json, Addr, Binary, HexBinary, StdError, StdResult, Uint128, Uint256};
+use cosmwasm_std::{Addr, HexBinary, StdError, StdResult, Uint128, Uint256};
 use cw_storage_plus::{Key, KeyDeserialize, PrimaryKey};
 use k256::ecdsa;
 use k256::schnorr::signature::SignatureEncoding;
@@ -21,14 +20,12 @@ use crate::error::XRPLError;
 const XRPL_PAYMENT_DROPS_HASH_PREFIX: &[u8] = b"xrpl-payment-drops";
 const XRPL_PAYMENT_ISSUED_HASH_PREFIX: &[u8] = b"xrpl-payment-issued";
 
-const XRPL_TOKEN_XRP_HASH: [u8; 32] = [47, 42, 64, 1, 182, 138, 167, 243, 197, 122, 247, 135, 191, 37, 107, 125, 224, 33, 4, 107, 175, 207, 220, 20, 136, 198, 64, 163, 164, 50, 144, 166]; // keccak256(b"xrpl-token-xrp")
-const XRPL_TOKEN_HASH_PREFIX: &[u8] = b"xrpl-token";
-
 const XRPL_ACCOUNT_ID_LENGTH: usize = 20;
 const XRPL_CURRENCY_LENGTH: usize = 20;
 const XRPL_TX_HASH_LENGTH: usize = 32;
 
 pub const XRP_DECIMALS: u8 = 6;
+pub const XRPL_ISSUED_TOKEN_DECIMALS: u8 = 15;
 pub const XRP_MAX_UINT: u64 = 100_000_000_000_000_000u64;
 
 const SIGNED_TRANSACTION_HASH_PREFIX: [u8; 4] = [0x54, 0x58, 0x4E, 0x00];
@@ -165,9 +162,11 @@ impl<'a> PrimaryKey<'a> for TxHash {
 
 impl KeyDeserialize for TxHash {
     type Output = TxHash;
+    const KEY_ELEMS: u16 = 1;
 
     fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
-        from_json(Binary::from(value))
+        let inner = <[u8; XRPL_TX_HASH_LENGTH]>::from_vec(value)?;
+        Ok(TxHash(inner))
     }
 }
 
@@ -244,20 +243,11 @@ pub struct XRPLToken {
 }
 
 impl XRPLToken {
-    pub fn hash(&self) -> [u8; 32] {
-        let mut hasher = Keccak256::new();
-        let delimiter_bytes = &[FIELD_DELIMITER as u8];
-        hasher.update(XRPL_TOKEN_HASH_PREFIX);
-        hasher.update(delimiter_bytes);
-        hasher.update(self.currency.as_ref());
-        hasher.update(delimiter_bytes);
-        hasher.update(self.issuer.as_ref());
-        hasher.finalize().into()
-    }
-
-    pub fn local_token_id(&self) -> TokenId {
-        // TODO: Revert if token is not local.
-        TokenId::new(self.hash())
+    pub fn as_bytes(&self) -> Vec<u8> {
+        let mut bytes = Vec::with_capacity(40);
+        bytes.extend_from_slice(self.issuer.as_ref());
+        bytes.extend_from_slice(self.currency.as_ref());
+        bytes
     }
 
     pub fn is_remote(&self, xrpl_multisig: XRPLAccountId) -> bool {
@@ -285,6 +275,7 @@ impl<'a> PrimaryKey<'a> for XRPLToken {
 
 impl KeyDeserialize for XRPLToken {
     type Output = XRPLToken;
+    const KEY_ELEMS: u16 = 2;
 
     fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
         if value.len() != 40 {
@@ -330,13 +321,6 @@ impl fmt::Display for XRPLTokenOrXrp {
 }
 
 impl XRPLTokenOrXrp {
-    pub fn local_token_id(&self) -> TokenId {
-        match self {
-            XRPLTokenOrXrp::Xrp => TokenId::new(XRPL_TOKEN_XRP_HASH),
-            XRPLTokenOrXrp::Issued(token) => token.local_token_id(),
-        }
-    }
-
     pub fn is_local(&self, xrpl_multisig: XRPLAccountId) -> bool {
         match self {
             XRPLTokenOrXrp::Xrp => true,
@@ -506,6 +490,7 @@ pub enum XRPLUnsignedTx {
 pub struct XRPLUnsignedTxToSign {
     pub unsigned_tx: XRPLUnsignedTx,
     pub multisig_session_id: u64,
+    pub cc_id: Option<CrossChainId>,
 }
 
 impl XRPLUnsignedTx {
@@ -750,14 +735,21 @@ pub struct XRPLSignedTx {
     pub unsigned_tx: XRPLUnsignedTx,
     pub signers: Vec<XRPLSigner>,
     pub multisig_session_id: u64,
+    pub cc_id: Option<CrossChainId>,
 }
 
 impl XRPLSignedTx {
-    pub fn new(unsigned_tx: XRPLUnsignedTx, signers: Vec<XRPLSigner>, multisig_session_id: u64) -> Self {
+    pub fn new(
+        unsigned_tx: XRPLUnsignedTx,
+        signers: Vec<XRPLSigner>,
+        multisig_session_id: u64,
+        cc_id: Option<CrossChainId>
+    ) -> Self {
         Self {
             unsigned_tx,
             signers,
             multisig_session_id,
+            cc_id,
         }
     }
 }
@@ -862,8 +854,9 @@ impl<'a> PrimaryKey<'a> for XRPLCurrency {
 
 impl KeyDeserialize for XRPLCurrency {
     type Output = XRPLCurrency;
+    const KEY_ELEMS: u16 = 1;
 
-    fn from_vec(value: Vec<u8>) -> cosmwasm_std::StdResult<Self::Output> {
+    fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
         let inner = <[u8; XRPL_CURRENCY_LENGTH]>::from_vec(value)?;
         Ok(XRPLCurrency(inner))
     }

@@ -5,6 +5,11 @@ pub trait EventExt {
     where
         K: Into<String>,
         V: Into<String>;
+
+    fn add_attribute_as_string<K, V>(self, key: K, value: V) -> Self
+    where
+        K: Into<String>,
+        V: ToString;
 }
 
 impl EventExt for Event {
@@ -17,6 +22,14 @@ impl EventExt for Event {
             Some(value) => self.add_attribute(key, value),
             None => self,
         }
+    }
+
+    fn add_attribute_as_string<K, V>(self, key: K, value: V) -> Self
+    where
+        K: Into<String>,
+        V: ToString,
+    {
+        self.add_attribute(key, value.to_string())
     }
 }
 

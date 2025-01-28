@@ -6,11 +6,11 @@ use std::str::FromStr;
 
 use axelar_wasm_std::error::ContractError;
 use axelar_wasm_std::{err_contains, nonempty, VerificationStatus};
-use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info, MockQuerier};
+use cosmwasm_std::testing::{message_info, mock_dependencies, mock_env, MockApi, MockQuerier, MockStorage};
 #[cfg(not(feature = "generate_golden_files"))]
 use cosmwasm_std::Response;
 use cosmwasm_std::{
-    from_json, to_json_binary, Addr, ContractResult, DepsMut, HexBinary, QuerierResult, WasmQuery
+    from_json, to_json_binary, ContractResult, HexBinary, OwnedDeps, QuerierResult, WasmQuery
 };
 use sha3::{Keccak256, Digest};
 use itertools::Itertools;
@@ -23,22 +23,25 @@ use xrpl_voting_verifier::msg::MessageStatus;
 
 use xrpl_gateway::contract::{instantiate, execute, query};
 use xrpl_gateway::state;
-use xrpl_gateway::msg::{DeployInterchainToken, ExecuteMsg, InstantiateMsg, QueryMsg};
+use xrpl_gateway::msg::{ExecuteMsg, InstantiateMsg, QueryMsg, TokenMetadata};
 
 #[test]
 fn instantiate_works() {
+    let mut deps = mock_dependencies();
+    let api = deps.api;
+
     let result = instantiate(
-        mock_dependencies().as_mut(),
+        deps.as_mut(),
         mock_env(),
-        mock_info("sender", &[]),
+        message_info(&api.addr_make("sender"), &[]),
         InstantiateMsg {
-            admin_address: Addr::unchecked("admin").into_string(),
-            governance_address: Addr::unchecked("governance").into_string(),
-            verifier_address: Addr::unchecked("verifier").into_string(),
-            router_address: Addr::unchecked("router").into_string(),
-            its_hub_address: Addr::unchecked("its-hub").into_string(),
-            axelar_chain_name: ChainName::from_str("axelar").unwrap(),
-            xrpl_chain_name: ChainName::from_str("xrpl").unwrap(),
+            admin_address: api.addr_make("admin").into_string(),
+            governance_address: api.addr_make("governance").into_string(),
+            verifier_address: api.addr_make("verifier").into_string(),
+            router_address: api.addr_make("router").into_string(),
+            its_hub_address: api.addr_make("its-hub").into_string(),
+            its_hub_chain_name: ChainName::from_str("axelar").unwrap(),
+            chain_name: ChainName::from_str("xrpl").unwrap(),
             xrpl_multisig_address: XRPLAccountId::from_str("raNVNWvhUQzFkDDTdEw3roXRJfMJFVJuQo").unwrap(),
         },
     );
@@ -52,17 +55,16 @@ fn successful_verify() {
 
     let mut responses = vec![];
     for msgs in test_cases {
-        let mut deps = mock_dependencies();
+        let mut deps = instantiate_contract("verifier", "router", "its-hub", ChainName::from_str("axelar").unwrap());
+        let api = deps.api;
         update_query_handler(&mut deps.querier, handler.clone());
-
-        instantiate_contract(deps.as_mut(), "verifier", "router", "its-hub", ChainName::from_str("axelar").unwrap());
 
         // check verification is idempotent
         let response = iter::repeat(
             execute(
                 deps.as_mut(),
                 mock_env(),
-                mock_info("sender", &[]),
+                message_info(&api.addr_make("sender"), &[]),
                 ExecuteMsg::VerifyMessages(msgs),
             )
             .unwrap(),
@@ -77,12 +79,12 @@ fn successful_verify() {
     }
 
     let golden_file = "tests/test_verify.json";
-    #[cfg(not(feature = "generate_golden_files"))]
+    #[cfg(feature = "generate_golden_files")]
     {
         let f = File::create(golden_file).unwrap();
         serde_json::to_writer_pretty(f, &responses).unwrap();
     }
-    #[cfg(feature = "generate_golden_files")]
+    #[cfg(not(feature = "generate_golden_files"))]
     {
         let f = File::open(golden_file).unwrap();
         let expected_responses: Vec<Response> = serde_json::from_reader(f).unwrap();
@@ -99,22 +101,27 @@ fn successful_route_incoming() {
 
     let mut responses = vec![];
     for msgs in test_cases {
-        let mut deps = mock_dependencies();
+        let mut deps = instantiate_contract("verifier", "router", "its-hub", ChainName::from_str("axelar").unwrap());
+        let api = deps.api;
         update_query_handler(&mut deps.querier, handler.clone());
-
-        instantiate_contract(deps.as_mut(), "verifier", "router", "its-hub", ChainName::from_str("axelar").unwrap());
 
         execute(
             deps.as_mut(),
             mock_env(),
-            mock_info("admin", &[]),
-            ExecuteMsg::DeployInterchainToken {
+            message_info(&api.addr_make("admin"), &[]),
+            ExecuteMsg::RegisterXrp { salt: [0; 32] },
+        ).unwrap();
+
+        execute(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make("admin"), &[]),
+            ExecuteMsg::DeployRemoteToken {
                 xrpl_token: XRPLTokenOrXrp::Xrp,
                 destination_chain: "ethereum".parse().unwrap(),
-                deploy_token: DeployInterchainToken {
+                token_metadata: TokenMetadata {
                     name: "Wrapped XRP".to_string().try_into().unwrap(),
                     symbol: "wXRP".to_string().try_into().unwrap(),
-                    decimals: 6,
                     minter: None,
                 },
             },
@@ -125,7 +132,7 @@ fn successful_route_incoming() {
             execute(
                 deps.as_mut(),
                 mock_env(),
-                mock_info("sender", &[]),
+                message_info(&api.addr_make("sender"), &[]),
                 ExecuteMsg::RouteIncomingMessages(messages_with_payload(msgs.clone())),
             )
             .unwrap(),
@@ -161,10 +168,9 @@ fn successful_route_outgoing() {
 
     let mut responses = vec![];
     for msgs in test_cases {
-        let mut deps = mock_dependencies();
-
         let router = "router";
-        instantiate_contract(deps.as_mut(), "verifier", router, "its-hub", ChainName::from_str("axelar").unwrap());
+        let mut deps = instantiate_contract("verifier", router, "its-hub", ChainName::from_str("axelar").unwrap());
+        let router_address = deps.api.addr_make(router);
 
         let query_msg =
             QueryMsg::OutgoingMessages(msgs.iter().map(|msg| msg.cc_id.clone()).collect());
@@ -185,7 +191,7 @@ fn successful_route_outgoing() {
             execute(
                 deps.as_mut(),
                 mock_env(),
-                mock_info(router, &[]), // execute with router as sender
+                message_info(&router_address, &[]), // execute with router as sender
                 ExecuteMsg::RouteMessages(msgs.clone()),
             )
             .unwrap(),
@@ -221,15 +227,14 @@ fn successful_route_outgoing() {
 #[test]
 fn verify_with_faulty_verifier_fails() {
     // if the mock querier is not overwritten, it will return an error
-    let mut deps = mock_dependencies();
-
-    instantiate_contract(deps.as_mut(), "verifier", "router", "its-hub", ChainName::from_str("axelar").unwrap());
+    let mut deps = instantiate_contract("verifier", "router", "its-hub", ChainName::from_str("axelar").unwrap());
+    let api = deps.api;
 
     let msgs = generate_incoming_msgs("verifier in unreachable", 10);
     let response = execute(
         deps.as_mut(),
         mock_env(),
-        mock_info("sender", &[]),
+        message_info(&api.addr_make("sender"), &[]),
         ExecuteMsg::VerifyMessages(msgs),
     );
 
@@ -239,15 +244,14 @@ fn verify_with_faulty_verifier_fails() {
 #[test]
 fn route_incoming_with_faulty_verifier_fails() {
     // if the mock querier is not overwritten, it will return an error
-    let mut deps = mock_dependencies();
-
-    instantiate_contract(deps.as_mut(), "verifier", "router", "its-hub", ChainName::from_str("axelar").unwrap());
+    let mut deps = instantiate_contract("verifier", "router", "its-hub", ChainName::from_str("axelar").unwrap());
+    let api = deps.api;
 
     let msgs = generate_incoming_msgs("verifier in unreachable", 10);
     let response = execute(
         deps.as_mut(),
         mock_env(),
-        mock_info("sender", &[]),
+        message_info(&api.addr_make("sender"), &[]),
         ExecuteMsg::RouteIncomingMessages(messages_with_payload(msgs)),
     );
 
@@ -258,16 +262,15 @@ fn route_incoming_with_faulty_verifier_fails() {
 fn incoming_calls_with_duplicate_ids_should_fail() {
     let (test_cases, handler) = test_cases_for_duplicate_msgs();
     for msgs in test_cases {
-        let mut deps = mock_dependencies();
-        update_query_handler(&mut deps.querier, handler.clone());
-
         let router = "router";
-        instantiate_contract(deps.as_mut(), "verifier", router, "its-hub", ChainName::from_str("axelar").unwrap());
+        let mut deps = instantiate_contract("verifier", router, "its-hub", ChainName::from_str("axelar").unwrap());
+        let api = deps.api;
+        update_query_handler(&mut deps.querier, handler.clone());
 
         let response = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info("sender", &[]),
+            message_info(&api.addr_make("sender"), &[]),
             ExecuteMsg::VerifyMessages(msgs.clone()),
         );
         assert!(response.is_err());
@@ -277,7 +280,7 @@ fn incoming_calls_with_duplicate_ids_should_fail() {
         let response = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info("sender", &[]),
+            message_info(&api.addr_make("sender"), &[]),
             ExecuteMsg::RouteIncomingMessages(msgs_with_payload.clone()),
         );
         assert!(response.is_err());
@@ -285,7 +288,7 @@ fn incoming_calls_with_duplicate_ids_should_fail() {
         let response = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(router, &[]),
+            message_info(&api.addr_make(router), &[]),
             ExecuteMsg::RouteIncomingMessages(msgs_with_payload),
         );
         assert!(response.is_err());
@@ -296,15 +299,14 @@ fn incoming_calls_with_duplicate_ids_should_fail() {
 fn outgoing_calls_with_duplicate_ids_should_fail() {
     let test_cases = outgoing_test_cases_for_duplicate_msgs();
     for msgs in test_cases {
-        let mut deps = mock_dependencies();
-
         let router = "router";
-        instantiate_contract(deps.as_mut(), "verifier", router, "its-hub", ChainName::from_str("axelar").unwrap());
+        let mut deps = instantiate_contract("verifier", router, "its-hub", ChainName::from_str("axelar").unwrap());
+        let api = deps.api;
 
         let response = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info("sender", &[]),
+            message_info(&api.addr_make("sender"), &[]),
             ExecuteMsg::RouteMessages(msgs.clone()),
         );
         assert!(response.is_err());
@@ -312,7 +314,7 @@ fn outgoing_calls_with_duplicate_ids_should_fail() {
         let response = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(router, &[]),
+            message_info(&api.addr_make(router), &[]),
             ExecuteMsg::RouteMessages(msgs),
         );
         assert!(response.is_err());
@@ -323,14 +325,13 @@ fn outgoing_calls_with_duplicate_ids_should_fail() {
 fn outgoing_route_duplicate_ids_should_fail() {
     let test_cases = outgoing_test_cases_for_duplicate_msgs();
     for msgs in test_cases {
-        let mut deps = mock_dependencies();
-
-        instantiate_contract(deps.as_mut(), "verifier", "router", "its-hub", ChainName::from_str("axelar").unwrap());
+        let mut deps = instantiate_contract("verifier", "router", "its-hub", ChainName::from_str("axelar").unwrap());
+        let api = deps.api;
 
         let response = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info("sender", &[]),
+            message_info(&api.addr_make("sender"), &[]),
             ExecuteMsg::RouteMessages(msgs),
         );
 
@@ -342,15 +343,14 @@ fn outgoing_route_duplicate_ids_should_fail() {
 fn incoming_route_duplicate_ids_should_fail() {
     let (test_cases, handler) = test_cases_for_duplicate_msgs();
     for msgs in test_cases {
-        let mut deps = mock_dependencies();
+        let mut deps = instantiate_contract("verifier", "router", "its-hub", ChainName::from_str("axelar").unwrap());
+        let api = deps.api;
         update_query_handler(&mut deps.querier, handler.clone());
-
-        instantiate_contract(deps.as_mut(), "verifier", "router", "its-hub", ChainName::from_str("axelar").unwrap());
 
         let response = execute(
             deps.as_mut(),
             mock_env(),
-            mock_info("sender", &[]),
+            message_info(&api.addr_make("sender"), &[]),
             ExecuteMsg::RouteIncomingMessages(messages_with_payload(msgs)),
         );
 
@@ -360,17 +360,19 @@ fn incoming_route_duplicate_ids_should_fail() {
 
 #[test]
 fn reject_reroute_outgoing_message_with_different_contents() {
-    let mut msgs = generate_outgoing_msgs(VerificationStatus::SucceededOnSourceChain, 10);
-
-    let mut deps = mock_dependencies();
-
     let router = "router";
-    instantiate_contract(deps.as_mut(), "verifier", router, "its-hub", ChainName::from_str("axelar").unwrap());
+    let its_hub = "its-hub";
+    let mut deps = instantiate_contract("verifier", router, its_hub, ChainName::from_str("axelar").unwrap());
+    let api = deps.api;
+    let mut msgs = generate_outgoing_msgs(
+        VerificationStatus::SucceededOnSourceChain,
+        10,
+    );
 
     let response = execute(
         deps.as_mut(),
         mock_env(),
-        mock_info(router, &[]),
+        message_info(&api.addr_make(router), &[]),
         ExecuteMsg::RouteMessages(msgs.clone()),
     );
     assert!(response.is_ok());
@@ -385,7 +387,7 @@ fn reject_reroute_outgoing_message_with_different_contents() {
     let response = execute(
         deps.as_mut(),
         mock_env(),
-        mock_info(router, &[]),
+        message_info(&api.addr_make(router), &[]),
         ExecuteMsg::RouteMessages(msgs.clone()),
     );
     assert!(response.is_err_and(|err| err_contains!(
@@ -521,7 +523,7 @@ fn generate_outgoing_msgs(namespace: impl Debug, count: u8) -> Vec<Message> {
             cc_id: CrossChainId::new("axelar", format!("{:?}{}", namespace, i)).unwrap(),
             destination_address: "idc".parse().unwrap(),
             destination_chain: "xrpl".parse().unwrap(),
-            source_address: "its-hub".parse().unwrap(),
+            source_address: MockApi::default().addr_make("its-hub").as_str().parse().unwrap(),
             payload_hash: [i; 32],
         })
         .collect()
@@ -634,29 +636,33 @@ fn update_query_handler<U: Serialize>(
 }
 
 fn instantiate_contract(
-    deps: DepsMut,
     verifier: &str,
     router: &str,
     its_hub: &str,
-    axelar_chain_name: ChainName,
-) {
+    its_hub_chain_name: ChainName,
+) -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
+    let mut deps = mock_dependencies();
+    let api = deps.api;
     let response = instantiate(
-        deps,
+        deps.as_mut(),
         mock_env(),
-        mock_info("sender", &[]),
+        message_info(&api.addr_make("sender"), &[]),
         InstantiateMsg {
-            admin_address: Addr::unchecked("admin").into_string(),
-            governance_address: Addr::unchecked("governance").into_string(),
-            verifier_address: Addr::unchecked(verifier).into_string(),
-            router_address: Addr::unchecked(router).into_string(),
-            its_hub_address: Addr::unchecked(its_hub).into_string(),
-            axelar_chain_name,
-            xrpl_chain_name: ChainName::from_str("xrpl").unwrap(),
+            admin_address: api.addr_make("admin").into_string(),
+            governance_address: api.addr_make("governance").into_string(),
+            verifier_address: api.addr_make(verifier).into_string(),
+            router_address: api.addr_make(router).into_string(),
+            its_hub_address: api.addr_make(its_hub).into_string(),
+            its_hub_chain_name,
+            chain_name: ChainName::from_str("xrpl").unwrap(),
             xrpl_multisig_address: XRPLAccountId::from_str("raNVNWvhUQzFkDDTdEw3roXRJfMJFVJuQo").unwrap(),
         }
         .clone(),
     );
+
     assert!(response.is_ok());
+
+    deps
 }
 
 fn sort_msgs_by_status<K, V>(

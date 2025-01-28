@@ -8,6 +8,9 @@ pub enum ContractError {
     #[error("empty batch of messages")]
     EmptyMessages,
 
+    #[error("failed to build verifier snapshot")]
+    FailedToBuildSnapshot,
+
     #[error("invalid source gateway address")]
     InvalidSourceGatewayAddress,
 

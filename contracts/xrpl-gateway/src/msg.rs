@@ -1,7 +1,7 @@
 use axelar_wasm_std::nonempty;
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{Addr, HexBinary};
-use interchain_token_service::{TokenId, TokenManagerType};
+use cosmwasm_std::{Addr, HexBinary, Uint256};
+use interchain_token_service::TokenId;
 use router_api::{ChainName, ChainNameRaw, CrossChainId, Message};
 use msgs_derive::EnsurePermissions;
 
@@ -23,10 +23,10 @@ pub struct InstantiateMsg {
     pub router_address: String,
     /// Address of the ITS Hub contract on axelar.
     pub its_hub_address: String,
-    /// Chain name of the axelar chain.
-    pub axelar_chain_name: ChainName,
+    /// Chain name of the ITS Hub chain.
+    pub its_hub_chain_name: ChainName,
     /// Chain name of the XRPL chain.
-    pub xrpl_chain_name: ChainName,
+    pub chain_name: ChainName,
     /// Address of the Axelar Gateway multisig account on XRPL.
     #[serde(with = "xrpl_account_id_string")]
     #[schemars(with = "String")] // necessary attribute in conjunction with #[serde(with ...)]
@@ -34,33 +34,40 @@ pub struct InstantiateMsg {
 }
 
 #[cw_serde]
-pub struct DeployInterchainToken {
+pub struct TokenMetadata {
     /// The name of the token
     pub name: nonempty::String,
     /// The symbol of the token
     pub symbol: nonempty::String,
-    /// The number of decimal places the token supports
-    pub decimals: u8,
     /// An additional minter of the token (optional). ITS on the external chain is always a minter.
     pub minter: Option<nonempty::HexBinary>,
 }
 
 #[cw_serde]
-pub struct DeployTokenManager {
+pub struct LinkToken {
     /// The type of token manager to deploy
-    pub token_manager_type: TokenManagerType,
+    pub token_manager_type: Uint256,
+    /// The address of the token on the destination chain
+    pub destination_token_address: nonempty::HexBinary,
     /// The parameters to be provided to the token manager contract
-    pub params: nonempty::HexBinary,
-    /// The number of decimal places the token supports
-    pub decimals: u8,
+    pub params: Option<nonempty::HexBinary>,
 }
 
 #[cw_serde]
 #[derive(EnsurePermissions)]
 pub enum ExecuteMsg {
-    /// Register an XRPL token.
+    /// Register XRPL token metadata for custom token linking.
+    #[permission(Elevated)]
+    RegisterTokenMetadata {
+        xrpl_token: XRPLTokenOrXrp,
+    },
+
+    /// Register an XRPL token as an interchain token.
     #[permission(Elevated)]
     RegisterLocalToken {
+        #[serde(with = "axelar_wasm_std::hex")]
+        #[schemars(with = "String")]
+        salt: [u8; 32],
         xrpl_token: XRPLToken,
     },
 
@@ -74,6 +81,14 @@ pub enum ExecuteMsg {
         xrpl_currency: XRPLCurrency,
     },
 
+    /// Register XRP as an interchain token.
+    #[permission(Elevated)]
+    RegisterXrp {
+        #[serde(with = "axelar_wasm_std::hex")]
+        #[schemars(with = "String")]
+        salt: [u8; 32],
+    },
+
     /// Register a remote token that is deployed on another chain.
     #[permission(Elevated)]
     RegisterTokenInstance {
@@ -84,18 +99,20 @@ pub enum ExecuteMsg {
 
     /// Deploy a token manager on some destination chain.
     #[permission(Elevated)]
-    DeployTokenManager {
-        xrpl_token: XRPLTokenOrXrp,
+    LinkToken {
+        #[serde(with = "axelar_wasm_std::hex")]
+        #[schemars(with = "String")]
+        salt: [u8; 32],
         destination_chain: ChainNameRaw,
-        deploy_token_manager: DeployTokenManager,
+        link_token: LinkToken,
     },
 
-    /// Deploy an interchain token on some destination chain.
+    /// Deploy a token on some destination chain.
     #[permission(Elevated)]
-    DeployInterchainToken {
+    DeployRemoteToken {
         xrpl_token: XRPLTokenOrXrp,
         destination_chain: ChainNameRaw,
-        deploy_token: DeployInterchainToken,
+        token_metadata: TokenMetadata,
     },
 
     /// Before messages that are unknown to the system can be routed, they need to be verified.
@@ -144,6 +161,17 @@ pub enum QueryMsg {
 
     #[returns(XRPLToken)]
     XrplToken(TokenId),
+
+    #[returns(TokenId)]
+    XrpTokenId,
+
+    #[returns(TokenId)]
+    LinkedTokenId {
+        #[serde(with = "axelar_wasm_std::hex")]
+        #[schemars(with = "String")]
+        salt: [u8; 32],
+        deployer: Addr,
+    },
 
     #[returns(u8)]
     TokenInstanceDecimals {

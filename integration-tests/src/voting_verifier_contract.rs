@@ -1,5 +1,6 @@
 use axelar_wasm_std::voting::{Vote, PollId};
 use axelar_wasm_std::MajorityThreshold;
+use cosmwasm_std::testing::MockApi;
 use cosmwasm_std::Addr;
 use cw_multi_test::{ContractWrapper, Executor};
 use router_api::ChainName;
@@ -26,7 +27,7 @@ impl VotingVerifierContract {
         let contract_addr = app
             .instantiate_contract(
                 code_id,
-                Addr::unchecked("anyone"),
+                MockApi::default().addr_make("anyone"),
                 &voting_verifier::msg::InstantiateMsg {
                     governance_address: protocol.governance_address.to_string().try_into().unwrap(),
                     service_registry_address: protocol

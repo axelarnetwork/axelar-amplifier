@@ -1,5 +1,5 @@
 use axelar_wasm_std::error::extend_err;
-use cosmwasm_std::{to_json_binary, Binary, Storage};
+use cosmwasm_std::{to_json_binary, Addr, Binary, Storage};
 use error_stack::Result;
 use interchain_token_service::TokenId;
 use router_api::{ChainNameRaw, CrossChainId, Message};
@@ -7,7 +7,7 @@ use xrpl_types::msg::XRPLUserMessageWithPayload;
 
 use crate::state::{self, Config};
 
-use super::{execute, Error};
+use super::{execute::{self, chain_name_hash}, Error};
 
 pub fn outgoing_messages<'a>(
     storage: &dyn Storage,
@@ -26,6 +26,24 @@ pub fn xrpl_token(
 ) -> Result<Binary, state::Error> {
     let xrpl_token = state::load_xrpl_token(storage, &token_id)?;
     Ok(to_json_binary(&xrpl_token).map_err(state::Error::from)?)
+}
+
+pub fn xrp_token_id(
+    storage: &dyn Storage,
+) -> Result<Binary, state::Error> {
+    let token_id = state::load_xrp_token_id(storage)?;
+    Ok(to_json_binary(&token_id).map_err(state::Error::from)?)
+}
+
+pub fn linked_token_id(
+    storage: &dyn Storage,
+    deployer: Addr,
+    salt: [u8; 32],
+) -> Result<Binary, state::Error> {
+    let config = state::load_config(storage);
+    let chain_name_hash = chain_name_hash(config.chain_name);
+    let linked_token_id = execute::linked_token_id(chain_name_hash, deployer, salt);
+    Ok(to_json_binary(&linked_token_id).map_err(state::Error::from)?)
 }
 
 pub fn token_instance_decimals(
