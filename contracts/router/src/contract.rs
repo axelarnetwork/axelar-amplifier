@@ -1,4 +1,4 @@
-use axelar_wasm_std::{address, killswitch, migrate_from_version, permission_control, FnExt};
+use axelar_wasm_std::{address, killswitch, permission_control, FnExt};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
@@ -6,9 +6,8 @@ use cosmwasm_std::{
 };
 use router_api::error::Error;
 
-use crate::contract::migrations::v1_1_1;
 use crate::events::RouterInstantiated;
-use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
+use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state;
 use crate::state::{load_chain_by_gateway, load_config, Config};
 
@@ -16,19 +15,10 @@ mod execute;
 mod migrations;
 mod query;
 
+pub use migrations::migrate;
+
 pub const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 pub const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
-
-#[cfg_attr(not(feature = "library"), entry_point)]
-#[migrate_from_version("1.1")]
-pub fn migrate(
-    deps: DepsMut,
-    _env: Env,
-    msg: MigrateMsg,
-) -> Result<Response, axelar_wasm_std::error::ContractError> {
-    v1_1_1::migrate(deps.storage, msg.chains_to_remove)?;
-    Ok(Response::default())
-}
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
