@@ -21,15 +21,15 @@ pub enum Error {
 pub fn chain_config(deps: Deps, chain: ChainNameRaw) -> Result<Binary, Error> {
     let state_config: Option<StateChainConfig> =
         may_load_chain_config(deps.storage, &chain).change_context(Error::State)?;
-    let msg_config = state_config.map(|config| MsgChainConfig {
+    to_json_binary(&state_config.map(|config| MsgChainConfig {
         chain,
         its_edge_contract: config.its_address,
         truncation: MsgTruncationConfig {
             max_uint: config.truncation.max_uint,
             max_decimals_when_truncating: config.truncation.max_decimals_when_truncating,
         },
-    });
-    to_json_binary(&msg_config).change_context(Error::JsonSerialization)
+    }))
+    .change_context(Error::JsonSerialization)
 }
 
 pub fn all_its_contracts(deps: Deps) -> Result<Binary, Error> {
