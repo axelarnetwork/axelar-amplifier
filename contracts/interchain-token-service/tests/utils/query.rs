@@ -4,14 +4,14 @@ use axelar_wasm_std::error::ContractError;
 use cosmwasm_std::testing::mock_env;
 use cosmwasm_std::{from_json, Deps};
 use interchain_token_service::contract::query;
-use interchain_token_service::msg::{ChainConfig, QueryMsg};
+use interchain_token_service::msg::{ChainConfigResponse, QueryMsg};
 use interchain_token_service::{TokenConfig, TokenId, TokenInstance};
 use router_api::{Address, ChainNameRaw};
 
 pub fn query_chain_config(
     deps: Deps,
     chain: ChainNameRaw,
-) -> Result<Option<ChainConfig>, ContractError> {
+) -> Result<Option<ChainConfigResponse>, ContractError> {
     let bin = query(deps, mock_env(), QueryMsg::ChainConfig { chain })?;
     Ok(from_json(bin)?)
 }
@@ -44,7 +44,7 @@ pub fn query_token_config(
     Ok(from_json(bin)?)
 }
 
-pub fn assert_chain_configs_match(original: &ChainConfig, queried: &ChainConfig) {
+pub fn assert_chain_configs_match(original: &ChainConfigResponse, queried: &ChainConfigResponse) {
     assert_eq!(
         original.chain, queried.chain,
         "Chain name mismatch. Expected: {:?}, Got: {:?}",
@@ -66,5 +66,10 @@ pub fn assert_chain_configs_match(original: &ChainConfig, queried: &ChainConfig)
         "Max decimals mismatch. Expected: {:?}, Got: {:?}",
         original.truncation.max_decimals_when_truncating,
         queried.truncation.max_decimals_when_truncating
+    );
+    assert_eq!(
+        original.frozen, queried.frozen,
+        "Frozen status mismatch. Expected: {:?}, Got: {:?}",
+        original.frozen, queried.frozen
     );
 }

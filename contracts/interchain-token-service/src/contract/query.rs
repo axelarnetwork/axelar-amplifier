@@ -3,7 +3,7 @@ use cosmwasm_std::{to_json_binary, Binary, Deps};
 use error_stack::{Result, ResultExt};
 use router_api::ChainNameRaw;
 
-use crate::msg::{ChainConfig as MsgChainConfig, TruncationConfig as MsgTruncationConfig};
+use crate::msg::{ChainConfigResponse, TruncationConfig as MsgTruncationConfig};
 use crate::state::{
     load_all_its_contracts, may_load_chain_config, may_load_token_config, may_load_token_instance,
     ChainConfig as StateChainConfig,
@@ -21,13 +21,14 @@ pub enum Error {
 pub fn chain_config(deps: Deps, chain: ChainNameRaw) -> Result<Binary, Error> {
     let state_config: Option<StateChainConfig> =
         may_load_chain_config(deps.storage, &chain).change_context(Error::State)?;
-    to_json_binary(&state_config.map(|config| MsgChainConfig {
+    to_json_binary(&state_config.map(|config| ChainConfigResponse {
         chain,
         its_edge_contract: config.its_address,
         truncation: MsgTruncationConfig {
             max_uint: config.truncation.max_uint,
             max_decimals_when_truncating: config.truncation.max_decimals_when_truncating,
         },
+        frozen: config.frozen,
     }))
     .change_context(Error::JsonSerialization)
 }

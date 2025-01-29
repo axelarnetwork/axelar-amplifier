@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use assert_ok::assert_ok;
 use cosmwasm_std::testing::mock_dependencies;
 use cosmwasm_std::Uint256;
-use interchain_token_service::msg::{ChainConfig, TruncationConfig};
+use interchain_token_service::msg::{ChainConfigResponse, TruncationConfig};
 use interchain_token_service::TokenId;
 use router_api::{Address, ChainNameRaw};
 
@@ -28,13 +28,14 @@ fn query_chain_config() {
     )
     .unwrap();
 
-    let original_chain_config = ChainConfig {
+    let original_chain_config = ChainConfigResponse {
         chain: chain.clone(),
         its_edge_contract: address.clone(),
         truncation: TruncationConfig {
             max_uint: Uint256::MAX.try_into().unwrap(),
             max_decimals_when_truncating: u8::MAX,
         },
+        frozen: false,
     };
 
     let chain_config = assert_ok!(utils::query_chain_config(deps.as_ref(), chain.clone()));
