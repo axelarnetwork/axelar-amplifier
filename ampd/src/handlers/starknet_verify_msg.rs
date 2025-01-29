@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::convert::TryInto;
 
 use async_trait::async_trait;
@@ -24,7 +23,6 @@ use crate::handlers::errors::Error;
 use crate::handlers::errors::Error::DeserializeEvent;
 use crate::starknet::json_rpc::StarknetClient;
 use crate::starknet::verifier::verify_msg;
-use crate::types::starknet::events::contract_call::ContractCallEvent;
 use crate::types::{Hash, TMAddress};
 
 type Result<T> = error_stack::Result<T, Error>;
@@ -126,32 +124,22 @@ where
             return Ok(vec![]);
         }
 
-        let unique_msgs = messages
-            .iter()
-            .unique_by(|msg| msg.message_id.to_string())
-            .collect::<Vec<_>>();
-
-        // key is the message_id of the tx holding the event
-        let mut events: HashMap<FieldElementAndEventIndex, ContractCallEvent> =
-            join_all(unique_msgs.iter().map(|msg| {
-                self.rpc_client
-                    .get_events_by_hash_contract_call(msg.message_id.clone())
-            }))
-            .await
-            .into_iter()
-            .flatten()
-            .collect();
-
-        let mut votes = vec![];
-        for msg in unique_msgs {
-            match events.remove(&msg.message_id) {
-                Some(gateway_event) => {
-                    votes.push(verify_msg(&gateway_event, msg, &source_gateway_address));
-                }
-
-                None => votes.push(Vote::NotFound),
-            }
-        }
+        let votes = join_all(
+            messages
+                .iter()
+                .unique_by(|msg| msg.message_id.to_string())
+                .map(|msg| async {
+                    match self
+                        .rpc_client
+                        .get_events_by_hash_contract_call(msg.message_id.clone())
+                        .await
+                    {
+                        Some(event) => verify_msg(&event, msg, &source_gateway_address),
+                        None => Vote::NotFound,
+                    }
+                }),
+        )
+        .await;
 
         Ok(vec![self
             .vote_msg(poll_id, votes)
@@ -164,6 +152,7 @@ where
 mod tests {
     use std::str::FromStr;
 
+    use crate::types::starknet::events::contract_call::ContractCallEvent;
     use base64::engine::general_purpose::STANDARD;
     use base64::Engine;
     use ethers_core::types::H256;
@@ -192,42 +181,28 @@ mod tests {
         rpc_client
             .expect_get_events_by_hash_contract_call()
             .returning(|_| {
-                Some((
-                    FieldElementAndEventIndex::from_str(
-                        "0x035410be6f4bf3f67f7c1bb4a93119d9d410b2f981bfafbf5dbbf5d37ae7439e-0",
-                    )
-                    .unwrap(),
-                    ContractCallEvent {
-                        from_contract_addr: String::from("source-gw-addr"),
-                        destination_address: String::from("destination-address"),
-                        destination_chain: "ethereum".parse().unwrap(),
-                        source_address: Felt::ONE,
-                        payload_hash: H256::from_slice(&[
-                            28u8, 138, 255, 149, 6, 133, 194, 237, 75, 195, 23, 79, 52, 114, 40,
-                            123, 86, 217, 81, 123, 156, 148, 129, 39, 49, 154, 9, 167, 163, 109,
-                            234, 200,
-                        ]),
-                    },
-                ))
+                Some(ContractCallEvent {
+                    from_contract_addr: String::from("source-gw-addr"),
+                    destination_address: String::from("destination-address"),
+                    destination_chain: "ethereum".parse().unwrap(),
+                    source_address: Felt::ONE,
+                    payload_hash: H256::from_slice(&[
+                        28u8, 138, 255, 149, 6, 133, 194, 237, 75, 195, 23, 79, 52, 114, 40, 123,
+                        86, 217, 81, 123, 156, 148, 129, 39, 49, 154, 9, 167, 163, 109, 234, 200,
+                    ]),
+                })
             })
             .returning(|_| {
-                Some((
-                    FieldElementAndEventIndex::from_str(
-                        "0x035410be6f4bf3f67f7c1bb4a93119d9d410b2f981bfafbf5dbbf5d37ae7439e-1",
-                    )
-                    .unwrap(),
-                    ContractCallEvent {
-                        from_contract_addr: String::from("source-gw-addr"),
-                        destination_address: String::from("destination-address-1"),
-                        destination_chain: "ethereum-1".parse().unwrap(),
-                        source_address: Felt::TWO,
-                        payload_hash: H256::from_slice(&[
-                            28u8, 138, 255, 149, 6, 133, 194, 237, 75, 195, 23, 79, 52, 114, 40,
-                            123, 86, 217, 81, 123, 156, 148, 129, 39, 49, 154, 9, 167, 163, 109,
-                            234, 200,
-                        ]),
-                    },
-                ))
+                Some(ContractCallEvent {
+                    from_contract_addr: String::from("source-gw-addr"),
+                    destination_address: String::from("destination-address-1"),
+                    destination_chain: "ethereum-1".parse().unwrap(),
+                    source_address: Felt::TWO,
+                    payload_hash: H256::from_slice(&[
+                        28u8, 138, 255, 149, 6, 133, 194, 237, 75, 195, 23, 79, 52, 114, 40, 123,
+                        86, 217, 81, 123, 156, 148, 129, 39, 49, 154, 9, 167, 163, 109, 234, 200,
+                    ]),
+                })
             });
 
         let event: Event = get_event(
@@ -258,23 +233,16 @@ mod tests {
         rpc_client
             .expect_get_events_by_hash_contract_call()
             .returning(|_| {
-                Some((
-                    FieldElementAndEventIndex::from_str(
-                        "0x035410be6f4bf3f67f7c1bb4a93119d9d410b2f981bfafbf5dbbf5d37ae7439e-0",
-                    )
-                    .unwrap(),
-                    ContractCallEvent {
-                        from_contract_addr: String::from("source-gw-addr"),
-                        destination_address: String::from("destination-address"),
-                        destination_chain: "ethereum".parse().unwrap(),
-                        source_address: Felt::ONE,
-                        payload_hash: H256::from_slice(&[
-                            28u8, 138, 255, 149, 6, 133, 194, 237, 75, 195, 23, 79, 52, 114, 40,
-                            123, 86, 217, 81, 123, 156, 148, 129, 39, 49, 154, 9, 167, 163, 109,
-                            234, 200,
-                        ]),
-                    },
-                ))
+                Some(ContractCallEvent {
+                    from_contract_addr: String::from("source-gw-addr"),
+                    destination_address: String::from("destination-address"),
+                    destination_chain: "ethereum".parse().unwrap(),
+                    source_address: Felt::ONE,
+                    payload_hash: H256::from_slice(&[
+                        28u8, 138, 255, 149, 6, 133, 194, 237, 75, 195, 23, 79, 52, 114, 40, 123,
+                        86, 217, 81, 123, 156, 148, 129, 39, 49, 154, 9, 167, 163, 109, 234, 200,
+                    ]),
+                })
             });
 
         let event: Event = get_event(
@@ -310,23 +278,16 @@ mod tests {
                 event_index: 1,
             }))
             .returning(|_| {
-                Some((
-                    FieldElementAndEventIndex::from_str(
-                        "0x045410be6f4bf3f67f7c1bb4a93119d9d410b2f981bfafbf5dbbf5d37ae7439f-1",
-                    )
-                    .unwrap(),
-                    ContractCallEvent {
-                        from_contract_addr: String::from("source-gw-addr"),
-                        destination_address: String::from("destination-address"),
-                        destination_chain: "ethereum".parse().unwrap(),
-                        source_address: Felt::ONE,
-                        payload_hash: H256::from_slice(&[
-                            28u8, 138, 255, 149, 6, 133, 194, 237, 75, 195, 23, 79, 52, 114, 40,
-                            123, 86, 217, 81, 123, 156, 148, 129, 39, 49, 154, 9, 167, 163, 109,
-                            234, 200,
-                        ]),
-                    },
-                ))
+                Some(ContractCallEvent {
+                    from_contract_addr: String::from("source-gw-addr"),
+                    destination_address: String::from("destination-address"),
+                    destination_chain: "ethereum".parse().unwrap(),
+                    source_address: Felt::ONE,
+                    payload_hash: H256::from_slice(&[
+                        28u8, 138, 255, 149, 6, 133, 194, 237, 75, 195, 23, 79, 52, 114, 40, 123,
+                        86, 217, 81, 123, 156, 148, 129, 39, 49, 154, 9, 167, 163, 109, 234, 200,
+                    ]),
+                })
             });
 
         let event: Event = get_event(

@@ -64,7 +64,7 @@ pub trait StarknetClient {
     async fn get_events_by_hash_contract_call(
         &self,
         message_id: FieldElementAndEventIndex,
-    ) -> Option<(FieldElementAndEventIndex, ContractCallEvent)>;
+    ) -> Option<ContractCallEvent>;
 
     /// Attempts to fetch a SignersRotated event, by a given `tx_hash`.
     /// Returns a tuple `(tx_hash, event)` or a `StarknetClientError`.
@@ -84,7 +84,7 @@ where
     async fn get_events_by_hash_contract_call(
         &self,
         message_id: FieldElementAndEventIndex,
-    ) -> Option<(FieldElementAndEventIndex, ContractCallEvent)> {
+    ) -> Option<ContractCallEvent> {
         let receipt_with_block_info = self
             .client
             .get_transaction_receipt(message_id.tx_hash.clone())
@@ -100,14 +100,9 @@ where
                 let event_index: usize = message_id.event_index.try_into().ok()?;
                 let event = tx.events.get(event_index)?;
 
-                ContractCallEvent::try_from(event.clone())
-                    .map(|cce| (message_id, cce))
-                    .ok()
+                ContractCallEvent::try_from(event.clone()).ok()
             }
-            TransactionReceipt::L1Handler(_) => None,
-            TransactionReceipt::Declare(_) => None,
-            TransactionReceipt::Deploy(_) => None,
-            TransactionReceipt::DeployAccount(_) => None,
+            _ => None,
         }
     }
 
@@ -138,10 +133,7 @@ where
                     }
                 })
                 .next(),
-            TransactionReceipt::L1Handler(_) => None,
-            TransactionReceipt::Declare(_) => None,
-            TransactionReceipt::Deploy(_) => None,
-            TransactionReceipt::DeployAccount(_) => None,
+            _ => None,
         };
 
         Ok(event)
@@ -165,7 +157,7 @@ mod test {
     };
     use starknet_providers::{ProviderError, ProviderRequestData};
 
-    use super::{Client, StarknetClient, StarknetClientError};
+    use super::{Client, StarknetClient};
     use crate::types::starknet::events::contract_call::ContractCallEvent;
     use crate::types::starknet::events::signers_rotated::SignersRotatedEvent;
 
@@ -341,14 +333,7 @@ mod test {
             .unwrap(); // unwrap the option
 
         assert_eq!(
-            contract_call_events.0,
-            FieldElementAndEventIndex::from_str(
-                "0x0000000000000000000000000000000000000000000000000000000000000001-0"
-            )
-            .unwrap()
-        );
-        assert_eq!(
-            contract_call_events.1,
+            contract_call_events,
             ContractCallEvent {
                 from_contract_addr:
                     "0x0000000000000000000000000000000000000000000000000000000000000002".to_owned(),
@@ -374,14 +359,7 @@ mod test {
             .unwrap(); // unwrap the option
 
         assert_eq!(
-            contract_call_events_1.0,
-            FieldElementAndEventIndex::from_str(
-                "0x0000000000000000000000000000000000000000000000000000000000000001-1"
-            )
-            .unwrap()
-        );
-        assert_eq!(
-            contract_call_events_1.1,
+            contract_call_events_1,
             ContractCallEvent {
                 from_contract_addr:
                     "0x0000000000000000000000000000000000000000000000000000000000000002".to_owned(),
@@ -411,14 +389,7 @@ mod test {
             .unwrap(); // unwrap the option
 
         assert_eq!(
-            contract_call_events.0,
-            FieldElementAndEventIndex::from_str(
-                "0x0000000000000000000000000000000000000000000000000000000000000001-0"
-            )
-            .unwrap()
-        );
-        assert_eq!(
-            contract_call_events.1,
+            contract_call_events,
             ContractCallEvent {
                 from_contract_addr:
                     "0x0000000000000000000000000000000000000000000000000000000000000002".to_owned(),
