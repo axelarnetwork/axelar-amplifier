@@ -41,7 +41,7 @@ mod health_check;
 mod json_rpc;
 mod mvx;
 mod queue;
-pub(crate) mod starknet;
+mod starknet;
 mod stellar;
 mod sui;
 mod tm_client;
@@ -402,7 +402,7 @@ where
                         starknet::json_rpc::Client::new_with_transport(HttpTransport::new(
                             &rpc_url,
                         ))
-                        .unwrap(),
+                        .change_context(Error::Connection)?,
                         self.block_height_monitor.latest_block_height(),
                     ),
                     event_processor_config.clone(),
@@ -418,7 +418,7 @@ where
                         starknet::json_rpc::Client::new_with_transport(HttpTransport::new(
                             &rpc_url,
                         ))
-                        .unwrap(),
+                        .change_context(Error::Connection)?,
                         self.block_height_monitor.latest_block_height(),
                     ),
                     event_processor_config.clone(),
