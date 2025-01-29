@@ -5,6 +5,7 @@ use itertools::Itertools;
 use proc_macro::TokenStream;
 use proc_macro2::{Ident, Span, TokenStream as TokenStream2};
 use quote::quote;
+use syn::spanned::Spanned;
 use syn::{DeriveInput, FieldsNamed, Generics, ItemEnum, Variant};
 
 #[proc_macro_derive(IntoContractError)]
@@ -280,5 +281,167 @@ fn match_unit_variant(event_enum: &Ident, variant_name: &Ident) -> TokenStream2 
 
     quote! {
         #event_enum::#variant_name => cosmwasm_std::Event::new(#event_name)
+    }
+}
+
+/// Attribute macro for handling contract version migrations. Must be applied to the `migrate` contract entry point.
+/// Checks if migrating from the current version is supported and sets the new version. The base version must be a valid semver without patch, pre, or build.
+///
+/// # Example
+/// ```
+/// use cosmwasm_std::{ DepsMut, Env, Response, Empty};
+/// use axelar_wasm_std_derive::migrate_from_version;
+///
+/// #[migrate_from_version("1.1")]
+/// pub fn migrate(
+///     deps: DepsMut,
+///     _env: Env,
+///     _msg: Empty,
+/// ) -> Result<Response, axelar_wasm_std::error::ContractError> {
+///     // migration logic
+///     Ok(Response::default())
+/// }
+/// ```
+///
+/// ```compile_fail
+/// # use cosmwasm_std::{ DepsMut, Env, Response, Empty};
+/// # use axelar_wasm_std_derive::migrate_from_version;
+///
+/// # #[migrate_from_version("1.1")] // compilation error because the macro is not applied to a function `migrate`
+/// # pub fn execute(
+/// #     deps: DepsMut,
+/// #     _env: Env,
+/// #     _msg: Empty,
+/// # ) -> Result<Response, axelar_wasm_std::error::ContractError> {
+/// #     Ok(Response::default())
+/// # }
+/// ```
+///
+/// ```compile_fail
+/// # use cosmwasm_std::{ Deps, Env, Response, Empty};
+/// # use axelar_wasm_std_derive::migrate_from_version;
+///
+/// # #[migrate_from_version("1.1")] // compilation error because it cannot parse a `DepsMut` parameter
+/// # pub fn migrate(
+/// #     deps: Deps,
+/// #     _env: Env,
+/// #     _msg: Empty,
+/// # ) -> Result<Response, axelar_wasm_std::error::ContractError> {
+/// #     Ok(Response::default())
+/// # }
+/// ```
+///
+/// ```compile_fail
+/// # use cosmwasm_std::{ DepsMut, Env, Response, Empty};
+/// # use axelar_wasm_std_derive::migrate_from_version;
+///
+/// # #[migrate_from_version("~1.1.0")] // compilation error because the base version is not formatted correctly
+/// # pub fn migrate(
+/// #     deps: DepsMut,
+/// #     _env: Env,
+/// #     _msg: Empty,
+/// # ) -> Result<Response, axelar_wasm_std::error::ContractError> {
+/// #     Ok(Response::default())
+/// # }
+/// ```
+///
+#[proc_macro_attribute]
+pub fn migrate_from_version(input: TokenStream, item: TokenStream) -> TokenStream {
+    let base_version_req = syn::parse_macro_input!(input as syn::LitStr);
+    let annotated_fn = syn::parse_macro_input!(item as syn::ItemFn);
+
+    try_migrate_from_version(base_version_req, annotated_fn)
+        .unwrap_or_else(syn::Error::into_compile_error)
+        .into()
+}
+
+fn try_migrate_from_version(
+    base_version: syn::LitStr,
+    annotated_fn: syn::ItemFn,
+) -> syn::Result<TokenStream2> {
+    let fn_name = &annotated_fn.sig.ident;
+    let fn_inputs = &annotated_fn.sig.inputs;
+    let fn_output = &annotated_fn.sig.output;
+    let fn_block = &annotated_fn.block;
+
+    let base_semver_req = base_semver_req(&base_version)?;
+    let deps = validate_migrate_signature(&annotated_fn.sig)?;
+
+    let gen = quote! {
+        pub fn #fn_name(#fn_inputs) #fn_output {
+            let pkg_name = env!("CARGO_PKG_NAME");
+            let pkg_version = env!("CARGO_PKG_VERSION");
+
+            let contract_version = cw2::get_contract_version(#deps.storage)?;
+            assert_eq!(contract_version.contract, pkg_name, "contract name mismatch: actual {}, expected {}", contract_version.contract, pkg_name);
+
+            let curr_version = semver::Version::parse(&contract_version.version)?;
+            let version_requirement = semver::VersionReq::parse(#base_semver_req)?;
+            assert!(version_requirement.matches(&curr_version), "base version {} does not match {} version requirement", curr_version, #base_semver_req);
+
+            cw2::set_contract_version(#deps.storage, pkg_name, pkg_version)?;
+
+            #fn_block
+        }
+    };
+
+    Ok(gen)
+}
+
+fn base_semver_req(base_version: &syn::LitStr) -> syn::Result<String> {
+    let base_semver = semver::Version::parse(&format!("{}.0", base_version.value()))
+        .map_err(|_| syn::Error::new(base_version.span(), "base version format must be semver without patch, pre, or build. Example: '1.2'"))
+        .and_then(|version| {
+            if version.patch == 0 && version.pre.is_empty() && version.build.is_empty() {
+                Ok(version)
+            } else {
+                Err(syn::Error::new(base_version.span(), "base version format must be semver without patch, pre, or build. Example: '1.2'"))
+            }
+        })?;
+
+    Ok(format!("~{}.{}.0", base_semver.major, base_semver.minor))
+}
+
+fn validate_migrate_signature(sig: &syn::Signature) -> syn::Result<syn::Ident> {
+    if sig.ident != "migrate"
+        || sig.inputs.len() != 3
+        || !matches!(sig.output, syn::ReturnType::Type(_, _))
+    {
+        return Err(syn::Error::new(
+            sig.ident.span(),
+            "invalid function signature for 'migrate' entry point",
+        ));
+    }
+
+    validate_migrate_param(&sig.inputs[1], "Env")?;
+    validate_migrate_param(&sig.inputs[0], "DepsMut")
+}
+
+fn validate_migrate_param(param: &syn::FnArg, expected_type: &str) -> syn::Result<syn::Ident> {
+    let (ty, pat) = match param {
+        syn::FnArg::Typed(syn::PatType { ty, pat, .. }) => (ty, pat),
+        _ => {
+            return Err(syn::Error::new(
+                param.span(),
+                format!(
+                    "parameter for 'migrate' entry point expected to be of type {}",
+                    expected_type
+                ),
+            ));
+        }
+    };
+    match (&**ty, &**pat) {
+        (syn::Type::Path(syn::TypePath { path, .. }), syn::Pat::Ident(pat_ident))
+            if path.is_ident(expected_type) =>
+        {
+            Ok(pat_ident.ident.clone())
+        }
+        _ => Err(syn::Error::new(
+            ty.span(),
+            format!(
+                "parameter for 'migrate' entry point expected to be of type {}",
+                expected_type
+            ),
+        )),
     }
 }
