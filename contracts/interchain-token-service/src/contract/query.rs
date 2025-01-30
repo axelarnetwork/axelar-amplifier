@@ -13,7 +13,7 @@ pub enum Error {
     State,
 }
 
-pub fn chain_config(deps: Deps, chain: ChainNameRaw) -> Result<Binary, Error> {
+pub fn its_chain(deps: Deps, chain: ChainNameRaw) -> Result<Binary, Error> {
     let state_config: Option<state::ChainConfig> =
         state::may_load_chain_config(deps.storage, &chain).change_context(Error::State)?;
     to_json_binary(&state_config.map(|config| msg::ChainConfigResponse {

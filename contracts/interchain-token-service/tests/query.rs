@@ -38,11 +38,11 @@ fn query_chain_config() {
         frozen: false,
     };
 
-    let chain_config = assert_ok!(utils::query_chain_config(deps.as_ref(), chain.clone()));
+    let chain_config = assert_ok!(utils::query_its_chain(deps.as_ref(), chain.clone()));
     utils::assert_chain_configs_match(&original_chain_config, &chain_config.unwrap());
 
     // case sensitive query
-    let chain_config = assert_ok!(utils::query_chain_config(
+    let chain_config = assert_ok!(utils::query_its_chain(
         deps.as_ref(),
         "ethereum".parse().unwrap()
     ));
@@ -57,11 +57,11 @@ fn query_chain_config() {
         new_address.clone()
     ));
 
-    let chain_config = assert_ok!(utils::query_chain_config(deps.as_ref(), chain.clone()));
+    let chain_config = assert_ok!(utils::query_its_chain(deps.as_ref(), chain.clone()));
     assert_eq!(chain_config.unwrap().its_edge_contract, new_address);
 
     let non_existent_chain: ChainNameRaw = "non-existent-chain".parse().unwrap();
-    let chain_config = assert_ok!(utils::query_chain_config(deps.as_ref(), non_existent_chain));
+    let chain_config = assert_ok!(utils::query_its_chain(deps.as_ref(), non_existent_chain));
     assert_eq!(chain_config, None);
 }
 

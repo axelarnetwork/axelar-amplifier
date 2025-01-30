@@ -79,7 +79,7 @@ pub struct ChainConfigResponse {
 pub enum QueryMsg {
     /// Query the configuration registered for a chain
     #[returns(Option<ChainConfigResponse>)]
-    ChainConfig { chain: ChainNameRaw },
+    ITSChain { chain: ChainNameRaw },
 
     /// Query all registered ITS contract addresses
     #[returns(HashMap<ChainNameRaw, Address>)]

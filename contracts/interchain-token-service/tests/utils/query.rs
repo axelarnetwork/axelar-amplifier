@@ -8,11 +8,11 @@ use interchain_token_service::msg::{ChainConfigResponse, QueryMsg};
 use interchain_token_service::{TokenConfig, TokenId, TokenInstance};
 use router_api::{Address, ChainNameRaw};
 
-pub fn query_chain_config(
+pub fn query_its_chain(
     deps: Deps,
     chain: ChainNameRaw,
 ) -> Result<Option<ChainConfigResponse>, ContractError> {
-    let bin = query(deps, mock_env(), QueryMsg::ChainConfig { chain })?;
+    let bin = query(deps, mock_env(), QueryMsg::ITSChain { chain })?;
     Ok(from_json(bin)?)
 }
 
