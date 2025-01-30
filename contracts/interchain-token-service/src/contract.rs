@@ -39,8 +39,8 @@ pub enum Error {
     DisableExecution,
     #[error("failed to enable execution")]
     EnableExecution,
-    #[error("failed to query its address")]
-    QueryItsContract,
+    #[error("failed to query chain config")]
+    QueryChainConfig,
     #[error("failed to query all its addresses")]
     QueryAllItsContracts,
     #[error("failed to query a specific token instance")]
@@ -130,7 +130,7 @@ fn match_gateway(storage: &dyn Storage, _: &ExecuteMsg) -> Result<Addr, Report<E
 pub fn query(deps: Deps, _: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
     match msg {
         QueryMsg::ChainConfig { chain } => {
-            query::chain_config(deps, chain).change_context(Error::QueryItsContract)
+            query::chain_config(deps, chain).change_context(Error::QueryChainConfig)
         }
         QueryMsg::AllItsContracts => {
             query::all_its_contracts(deps).change_context(Error::QueryAllItsContracts)
