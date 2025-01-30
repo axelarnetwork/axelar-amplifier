@@ -3,9 +3,7 @@ use cosmwasm_std::{to_json_binary, Binary, Deps};
 use error_stack::{Result, ResultExt};
 use router_api::ChainNameRaw;
 
-use crate::msg;
-use crate::state;
-use crate::TokenId;
+use crate::{msg, state, TokenId};
 
 #[derive(thiserror::Error, Debug, IntoContractError)]
 pub enum Error {
