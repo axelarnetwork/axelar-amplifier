@@ -49,6 +49,7 @@ serde_with = { version = "3.11.0", features = ["macros"] }
 sha3 = { workspace = true }
 starknet-checked-felt = { workspace = true }
 stellar-xdr = { workspace = true }
+starknet-types-core = { workspace = true }
 strum = { workspace = true }
 sui-types = { workspace = true }
 thiserror = { workspace = true }
@@ -58,8 +59,8 @@ valuable = { version = "0.1.0", features = ["derive"] }
 assert_ok = { workspace = true }
 cw-multi-test = { workspace = true }
 goldie = { workspace = true }
-hex = { version = "0.4.3", default-features = false }
 rand = { workspace = true }
+hex = { workspace = true, default-features = false }
 
 [lints]
 workspace = true
