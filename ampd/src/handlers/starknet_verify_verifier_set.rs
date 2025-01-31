@@ -125,9 +125,8 @@ where
 
         let transaction_response = self
             .rpc_client
-            .get_event_by_hash_signers_rotated(verifier_set.message_id.tx_hash.clone())
-            .await
-            .change_context(Error::StarknetClient)?;
+            .get_event_by_message_id_signers_rotated(verifier_set.message_id.clone())
+            .await;
 
         let vote = info_span!(
             "verify a new verifier set",
@@ -137,9 +136,12 @@ where
         .in_scope(|| {
             info!("ready to verify verifier set in poll",);
 
-            let vote = transaction_response.map_or(Vote::NotFound, |tx_receipt| {
-                verify_verifier_set(&tx_receipt.1, &verifier_set, &source_gateway_address)
-            });
+            let vote = match transaction_response {
+                None => Vote::NotFound,
+                Some(tx_receipt) => {
+                    verify_verifier_set(&tx_receipt, &verifier_set, &source_gateway_address)
+                }
+            };
 
             info!(
                 vote = vote.as_value(),
@@ -164,7 +166,7 @@ mod tests {
     use axelar_wasm_std::msg_id::FieldElementAndEventIndex;
     use base64::engine::general_purpose::STANDARD;
     use base64::Engine;
-    use error_stack::{Report, Result};
+    use error_stack::Result;
     use ethers_core::types::U256;
     use events::Event;
     use multisig::key::KeyType;
@@ -178,7 +180,7 @@ mod tests {
 
     use crate::event_processor::EventHandler;
     use crate::handlers::starknet_verify_verifier_set::PollStartedEvent;
-    use crate::starknet::json_rpc::{MockStarknetClient, StarknetClientError};
+    use crate::starknet::json_rpc::MockStarknetClient;
     use crate::types::TMAddress;
     use crate::PREFIX;
 
@@ -198,8 +200,8 @@ mod tests {
         let mut rpc_client = MockStarknetClient::new();
         // mock the rpc client as erroring. If the handler successfully ignores the poll, we won't hit this
         rpc_client
-            .expect_get_event_by_hash_signers_rotated()
-            .returning(|_| Err(Report::from(StarknetClientError::UnsuccessfulTx)));
+            .expect_get_event_by_message_id_signers_rotated()
+            .returning(|_| None);
 
         let voting_verifier = TMAddress::random(PREFIX);
         let verifier = TMAddress::random(PREFIX);
@@ -212,9 +214,6 @@ mod tests {
         let (tx, rx) = watch::channel(expiration - 1);
 
         let handler = super::Handler::new(verifier, voting_verifier, rpc_client, rx);
-
-        // poll is not expired yet, should hit rpc error
-        assert!(handler.handle(&event).await.is_err());
 
         let _ = tx.send(expiration + 1);
 
@@ -245,7 +244,7 @@ mod tests {
         let random_felt = CheckedFelt::from_str(&random_hash()).unwrap();
         let msg_id = FieldElementAndEventIndex::new(random_felt, 100u64).unwrap();
         PollStarted::VerifierSet {
-            #[allow(deprecated)] // TODO: The below event uses the deprecated tx_id and event_index fields. Remove this attribute when those fields are removed
+            #[allow(deprecated)]
             verifier_set: VerifierSetConfirmation {
                 tx_id: msg_id.tx_hash_as_hex(),
                 event_index: u32::try_from(msg_id.event_index).unwrap(),
@@ -255,9 +254,10 @@ mod tests {
             metadata: PollMetadata {
                 poll_id: "100".parse().unwrap(),
                 source_chain: "starknet-devnet-v1".parse().unwrap(),
-                source_gateway_address: "0x049ec69cd2e0c987857fbda7966ff59077e2e92c18959bdb9b0012438c452047"
-                    .parse()
-                    .unwrap(),
+                source_gateway_address:
+                    "0x049ec69cd2e0c987857fbda7966ff59077e2e92c18959bdb9b0012438c452047"
+                        .parse()
+                        .unwrap(),
                 confirmation_height: 15,
                 expires_at,
                 participants: participants

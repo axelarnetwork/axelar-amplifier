@@ -3,10 +3,8 @@
 
 use async_trait::async_trait;
 use axelar_wasm_std::msg_id::FieldElementAndEventIndex;
-use error_stack::Report;
 use mockall::automock;
-use starknet_checked_felt::CheckedFelt;
-use starknet_core::types::{ExecutionResult, Felt, TransactionReceipt};
+use starknet_core::types::{ExecutionResult, TransactionReceipt};
 use starknet_providers::jsonrpc::JsonRpcTransport;
 use starknet_providers::{JsonRpcClient, Provider, ProviderError};
 use thiserror::Error;
@@ -26,8 +24,6 @@ pub enum StarknetClientError {
     JsonDeserializeError(#[from] serde_json::Error),
     #[error("Failed to fetch tx receipt: {0}")]
     FetchingReceipt(#[from] ProviderError),
-    #[error("Tx not successful")]
-    UnsuccessfulTx,
 }
 
 /// Implementor of verification method(s) for given network using JSON RPC
@@ -61,17 +57,17 @@ where
 pub trait StarknetClient {
     /// Attempts to fetch a ContractCall event, by a given `message_id`.
     /// Returns the event or a `StarknetClientError`.
-    async fn get_events_by_hash_contract_call(
+    async fn get_event_by_message_id_contract_call(
         &self,
         message_id: FieldElementAndEventIndex,
     ) -> Option<ContractCallEvent>;
 
     /// Attempts to fetch a SignersRotated event, by a given `tx_hash`.
     /// Returns a tuple `(tx_hash, event)` or a `StarknetClientError`.
-    async fn get_event_by_hash_signers_rotated(
+    async fn get_event_by_message_id_signers_rotated(
         &self,
-        tx_hash: CheckedFelt,
-    ) -> Result<Option<(Felt, SignersRotatedEvent)>>;
+        message_id: FieldElementAndEventIndex,
+    ) -> Option<SignersRotatedEvent>;
 }
 
 #[async_trait]
@@ -81,7 +77,7 @@ where
 {
     // Fetches a transaction receipt by hash and extracts one or multiple
     // `ContractCallEvent`
-    async fn get_events_by_hash_contract_call(
+    async fn get_event_by_message_id_contract_call(
         &self,
         message_id: FieldElementAndEventIndex,
     ) -> Option<ContractCallEvent> {
@@ -107,36 +103,30 @@ where
     }
 
     // Fetches a transaction receipt by hash and extracts a `SignersRotatedEvent` if present
-    async fn get_event_by_hash_signers_rotated(
+    async fn get_event_by_message_id_signers_rotated(
         &self,
-        tx_hash: CheckedFelt,
-    ) -> Result<Option<(Felt, SignersRotatedEvent)>> {
+        message_id: FieldElementAndEventIndex,
+    ) -> Option<SignersRotatedEvent> {
         let receipt_with_block_info = self
             .client
-            .get_transaction_receipt(tx_hash)
+            .get_transaction_receipt(message_id.tx_hash.clone())
             .await
-            .map_err(StarknetClientError::FetchingReceipt)?;
+            .ok()?;
 
         if *receipt_with_block_info.receipt.execution_result() != ExecutionResult::Succeeded {
-            return Err(Report::new(StarknetClientError::UnsuccessfulTx));
-        }
-
-        let event: Option<(Felt, SignersRotatedEvent)> = match receipt_with_block_info.receipt {
-            TransactionReceipt::Invoke(tx) => tx
-                .events
-                .iter()
-                .filter_map(|e| {
-                    if let Ok(sre) = SignersRotatedEvent::try_from(e.clone()) {
-                        Some((tx.transaction_hash, sre))
-                    } else {
-                        None
-                    }
-                })
-                .next(),
-            _ => None,
+            return None;
         };
 
-        Ok(event)
+        // get event from receipt by index
+        match receipt_with_block_info.receipt {
+            TransactionReceipt::Invoke(tx) => {
+                let event_index: usize = message_id.event_index.try_into().ok()?;
+                let event = tx.events.get(event_index)?;
+
+                SignersRotatedEvent::try_from(event.clone()).ok()
+            }
+            _ => None,
+        }
     }
 }
 
@@ -166,19 +156,20 @@ mod test {
         let mock_client =
             Client::new_with_transport(InvalidSignersRotatedEventMockTransport).unwrap();
         let contract_call_event = mock_client
-            .get_event_by_hash_signers_rotated(
-                CheckedFelt::try_from(&Felt::ONE.to_bytes_be()).unwrap(),
-            )
+            .get_event_by_message_id_signers_rotated(FieldElementAndEventIndex {
+                tx_hash: CheckedFelt::try_from(&Felt::ONE.to_bytes_be()).unwrap(),
+                event_index: 0,
+            })
             .await;
 
-        assert!(contract_call_event.unwrap().is_none());
+        assert!(contract_call_event.is_none());
     }
 
     #[tokio::test]
     async fn deploy_account_tx_fetch() {
         let mock_client = Client::new_with_transport(DeployAccountMockTransport).unwrap();
         let contract_call_events = mock_client
-            .get_events_by_hash_contract_call(FieldElementAndEventIndex {
+            .get_event_by_message_id_contract_call(FieldElementAndEventIndex {
                 tx_hash: CheckedFelt::try_from(&Felt::ONE.to_bytes_be()).unwrap(),
                 event_index: 0,
             })
@@ -191,7 +182,7 @@ mod test {
     async fn deploy_tx_fetch() {
         let mock_client = Client::new_with_transport(DeployMockTransport).unwrap();
         let contract_call_events = mock_client
-            .get_events_by_hash_contract_call(FieldElementAndEventIndex {
+            .get_event_by_message_id_contract_call(FieldElementAndEventIndex {
                 tx_hash: CheckedFelt::try_from(&Felt::ONE.to_bytes_be()).unwrap(),
                 event_index: 0,
             })
@@ -204,7 +195,7 @@ mod test {
     async fn l1_handler_tx_fetch() {
         let mock_client = Client::new_with_transport(L1HandlerMockTransport).unwrap();
         let contract_call_events = mock_client
-            .get_events_by_hash_contract_call(FieldElementAndEventIndex {
+            .get_event_by_message_id_contract_call(FieldElementAndEventIndex {
                 tx_hash: CheckedFelt::try_from(&Felt::ONE.to_bytes_be()).unwrap(),
                 event_index: 0,
             })
@@ -217,7 +208,7 @@ mod test {
     async fn declare_tx_fetch() {
         let mock_client = Client::new_with_transport(DeclareMockTransport).unwrap();
         let contract_call_events = mock_client
-            .get_events_by_hash_contract_call(FieldElementAndEventIndex {
+            .get_event_by_message_id_contract_call(FieldElementAndEventIndex {
                 tx_hash: CheckedFelt::try_from(&Felt::ONE.to_bytes_be()).unwrap(),
                 event_index: 0,
             })
@@ -231,7 +222,7 @@ mod test {
         let mock_client =
             Client::new_with_transport(InvalidContractCallEventMockTransport).unwrap();
         let contract_call_events = mock_client
-            .get_events_by_hash_contract_call(FieldElementAndEventIndex {
+            .get_event_by_message_id_contract_call(FieldElementAndEventIndex {
                 tx_hash: CheckedFelt::try_from(&Felt::ONE.to_bytes_be()).unwrap(),
                 event_index: 0,
             })
@@ -244,7 +235,7 @@ mod test {
     async fn no_events_tx_fetch() {
         let mock_client = Client::new_with_transport(NoEventsMockTransport).unwrap();
         let contract_call_events = mock_client
-            .get_events_by_hash_contract_call(FieldElementAndEventIndex {
+            .get_event_by_message_id_contract_call(FieldElementAndEventIndex {
                 tx_hash: CheckedFelt::try_from(&Felt::ONE.to_bytes_be()).unwrap(),
                 event_index: 0,
             })
@@ -257,7 +248,7 @@ mod test {
     async fn reverted_tx_fetch() {
         let mock_client = Client::new_with_transport(RevertedMockTransport).unwrap();
         let contract_call_event = mock_client
-            .get_events_by_hash_contract_call(FieldElementAndEventIndex {
+            .get_event_by_message_id_contract_call(FieldElementAndEventIndex {
                 tx_hash: CheckedFelt::try_from(&Felt::ONE.to_bytes_be()).unwrap(),
                 event_index: 0,
             })
@@ -270,7 +261,7 @@ mod test {
     async fn failing_tx_fetch() {
         let mock_client = Client::new_with_transport(FailingMockTransport).unwrap();
         let contract_call_event = mock_client
-            .get_events_by_hash_contract_call(FieldElementAndEventIndex {
+            .get_event_by_message_id_contract_call(FieldElementAndEventIndex {
                 tx_hash: CheckedFelt::try_from(&Felt::ONE.to_bytes_be()).unwrap(),
                 event_index: 0,
             })
@@ -282,21 +273,16 @@ mod test {
     #[tokio::test]
     async fn successful_signers_rotated_tx_fetch() {
         let mock_client = Client::new_with_transport(ValidMockTransportSignersRotated).unwrap();
-        let signers_rotated_event: (Felt, SignersRotatedEvent) = mock_client
-            .get_event_by_hash_signers_rotated(
-                CheckedFelt::try_from(&Felt::ONE.to_bytes_be()).unwrap(),
-            )
+        let signers_rotated_event = mock_client
+            .get_event_by_message_id_signers_rotated(FieldElementAndEventIndex {
+                tx_hash: CheckedFelt::try_from(&Felt::ONE.to_bytes_be()).unwrap(),
+                event_index: 0,
+            })
             .await
-            .unwrap() // unwrap the result
-            .unwrap(); // unwrap the option
+            .unwrap();
 
-        assert_eq!(
-            signers_rotated_event.0,
-            Felt::from_str("0x0000000000000000000000000000000000000000000000000000000000000001")
-                .unwrap()
-        );
+        assert_eq!(signers_rotated_event.from_address, "0x2".to_string());
 
-        let actual: SignersRotatedEvent = signers_rotated_event.1;
         let expected: SignersRotatedEvent = SignersRotatedEvent {
             from_address: "0x2".to_string(),
             epoch: 1,
@@ -317,7 +303,7 @@ mod test {
             },
         };
 
-        assert_eq!(actual, expected);
+        assert_eq!(signers_rotated_event, expected);
     }
 
     #[tokio::test]
@@ -325,7 +311,7 @@ mod test {
         let mock_client =
             Client::new_with_transport(ValidMockTransportTwoCallContractsInOneTx).unwrap();
         let contract_call_events = mock_client
-            .get_events_by_hash_contract_call(FieldElementAndEventIndex {
+            .get_event_by_message_id_contract_call(FieldElementAndEventIndex {
                 tx_hash: CheckedFelt::try_from(&Felt::ONE.to_bytes_be()).unwrap(),
                 event_index: 0,
             })
@@ -351,7 +337,7 @@ mod test {
         );
 
         let contract_call_events_1 = mock_client
-            .get_events_by_hash_contract_call(FieldElementAndEventIndex {
+            .get_event_by_message_id_contract_call(FieldElementAndEventIndex {
                 tx_hash: CheckedFelt::try_from(&Felt::ONE.to_bytes_be()).unwrap(),
                 event_index: 1,
             })
@@ -381,7 +367,7 @@ mod test {
     async fn successful_call_contract_tx_fetch() {
         let mock_client = Client::new_with_transport(ValidMockTransportCallContract).unwrap();
         let contract_call_events = mock_client
-            .get_events_by_hash_contract_call(FieldElementAndEventIndex {
+            .get_event_by_message_id_contract_call(FieldElementAndEventIndex {
                 tx_hash: CheckedFelt::try_from(&Felt::ONE.to_bytes_be()).unwrap(),
                 event_index: 0,
             })
