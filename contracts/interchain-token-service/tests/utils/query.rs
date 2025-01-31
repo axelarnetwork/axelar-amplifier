@@ -12,7 +12,7 @@ pub fn query_its_chain(
     deps: Deps,
     chain: ChainNameRaw,
 ) -> Result<Option<ChainConfigResponse>, ContractError> {
-    let bin = query(deps, mock_env(), QueryMsg::ITSChain { chain })?;
+    let bin = query(deps, mock_env(), QueryMsg::ItsChain { chain })?;
     Ok(from_json(bin)?)
 }
 

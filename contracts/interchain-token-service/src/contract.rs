@@ -129,7 +129,7 @@ fn match_gateway(storage: &dyn Storage, _: &ExecuteMsg) -> Result<Addr, Report<E
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
     match msg {
-        QueryMsg::ITSChain { chain } => {
+        QueryMsg::ItsChain { chain } => {
             query::its_chain(deps, chain).change_context(Error::QueryChainConfig)
         }
         QueryMsg::AllItsContracts => {
