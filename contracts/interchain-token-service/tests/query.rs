@@ -39,7 +39,7 @@ fn query_chain_config() {
     };
 
     let chain_config = assert_ok!(utils::query_its_chain(deps.as_ref(), chain.clone()));
-    utils::assert_chain_configs_match(&original_chain_config, &chain_config.unwrap());
+    assert_eq!(chain_config.unwrap(), original_chain_config);
 
     // case sensitive query
     let chain_config = assert_ok!(utils::query_its_chain(

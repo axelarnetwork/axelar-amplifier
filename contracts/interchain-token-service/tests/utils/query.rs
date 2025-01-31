@@ -43,33 +43,3 @@ pub fn query_token_config(
     let bin = query(deps, mock_env(), QueryMsg::TokenConfig { token_id })?;
     Ok(from_json(bin)?)
 }
-
-pub fn assert_chain_configs_match(original: &ChainConfigResponse, queried: &ChainConfigResponse) {
-    assert_eq!(
-        original.chain, queried.chain,
-        "Chain name mismatch. Expected: {:?}, Got: {:?}",
-        original.chain, queried.chain
-    );
-    assert_eq!(
-        original.its_edge_contract, queried.its_edge_contract,
-        "ITS edge contract mismatch. Expected: {:?}, Got: {:?}",
-        original.its_edge_contract, queried.its_edge_contract
-    );
-    assert_eq!(
-        original.truncation.max_uint, queried.truncation.max_uint,
-        "Max uint mismatch. Expected: {:?}, Got: {:?}",
-        original.truncation.max_uint, queried.truncation.max_uint
-    );
-    assert_eq!(
-        original.truncation.max_decimals_when_truncating,
-        queried.truncation.max_decimals_when_truncating,
-        "Max decimals mismatch. Expected: {:?}, Got: {:?}",
-        original.truncation.max_decimals_when_truncating,
-        queried.truncation.max_decimals_when_truncating
-    );
-    assert_eq!(
-        original.frozen, queried.frozen,
-        "Frozen status mismatch. Expected: {:?}, Got: {:?}",
-        original.frozen, queried.frozen
-    );
-}
