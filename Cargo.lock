@@ -885,14 +885,17 @@ dependencies = [
 name = "axelar-wasm-std-derive"
 version = "1.0.0"
 dependencies = [
+ "assert_ok",
  "axelar-wasm-std",
  "cosmwasm-std",
+ "cw2",
  "error-stack",
  "heck 0.5.0",
  "itertools 0.11.0",
  "proc-macro2 1.0.92",
  "quote 1.0.38",
  "report",
+ "semver 1.0.23",
  "serde",
  "serde_json",
  "syn 2.0.96",
@@ -4221,7 +4224,7 @@ dependencies = [
 
 [[package]]
 name = "interchain-token-service"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "alloy-primitives",
  "alloy-sol-types",

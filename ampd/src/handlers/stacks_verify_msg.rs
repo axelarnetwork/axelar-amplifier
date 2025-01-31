@@ -181,7 +181,7 @@ mod tests {
     use cosmrs::tx::Msg;
     use cosmwasm_std;
     use error_stack::Result;
-    use ethers_core::types::{H160, U64};
+    use ethers_core::types::H160;
     use tokio::sync::watch;
     use tokio::test as async_test;
     use voting_verifier::events::{PollMetadata, PollStarted, TxEventConfirmation};
@@ -190,7 +190,7 @@ mod tests {
     use crate::event_processor::EventHandler;
     use crate::handlers::tests::{into_structured_event, participants};
     use crate::stacks::http_client::{Block, Client};
-    use crate::types::{EVMAddress, Hash, TMAddress};
+    use crate::types::{Hash, TMAddress};
     use crate::PREFIX;
 
     #[test]
