@@ -118,6 +118,7 @@ impl<C: SolanaRpcClientProxy> EventHandler for Handler<C> {
             }
             event => event.change_context(DeserializeEvent)?,
         };
+        
         if !participants.contains(&self.verifier) {
             return Ok(vec![]);
         }
