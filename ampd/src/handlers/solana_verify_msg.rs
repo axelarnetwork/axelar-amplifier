@@ -137,12 +137,10 @@ impl<C: SolanaRpcClientProxy> EventHandler for Handler<C> {
             .filter_map(|tx_data| tx_data)
             .collect::<HashMap<_, _>>();
 
-        let poll_id_str: String = poll_id.into();
-        let source_chain_str: String = source_chain.into();
         let votes = info_span!(
             "verify messages from Solana",
-            poll_id = poll_id_str,
-            source_chain = source_chain_str,
+            poll_id = poll_id.to_string(),
+            source_chain = source_chain.to_string(),
             message_ids = messages
                 .iter()
                 .map(|msg| msg.message_id.to_string())
