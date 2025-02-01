@@ -113,7 +113,6 @@ type = "SolanaMsgVerifier"
 cosmwasm_contract = "axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6"
 chain_name = "solana"
 chain_rpc_url = "https://api.devnet.solana.com"
-max_tx_cache_entries = 6
 
 [[handlers]]
 cosmwasm_contract = "axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6"
