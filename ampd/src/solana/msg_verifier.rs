@@ -16,12 +16,15 @@ pub fn verify_message(
     verify(match_context, tx, &message.message_id, |gateway_event| {
         let (sender, payload_hash, destination_chain, destination_contract_address) =
             match gateway_event {
+                // This event is emitted when a contract call is initiated to an external chain.
                 GatewayEvent::CallContract(event) => (
                     &event.sender_key,
                     &event.payload_hash,
                     &event.destination_chain,
                     &event.destination_contract_address,
                 ),
+                // This event is emitted when a contract call is initiated to an external chain with call data
+                // being passed offchain.
                 GatewayEvent::CallContractOffchainData(event) => (
                     &event.sender_key,
                     &event.payload_hash,
