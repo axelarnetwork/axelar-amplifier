@@ -89,7 +89,7 @@ where
         }
     };
 
-    // pare the events
+    // compare the events
     let event_stack = gateway_event_stack::build_program_event_stack(
         match_context,
         logs,
