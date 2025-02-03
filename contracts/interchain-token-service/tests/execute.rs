@@ -38,8 +38,9 @@ fn register_update_its_contract_succeeds() {
         Uint256::MAX.try_into().unwrap(),
         u8::MAX
     ));
-    let res = assert_ok!(utils::query_its_contract(deps.as_ref(), chain.clone()));
-    assert_eq!(res, Some(address));
+
+    let chain_config = assert_ok!(utils::query_its_chain(deps.as_ref(), chain.clone()));
+    assert_eq!(chain_config.unwrap().its_edge_contract, address);
 
     let new_address: Address = "0x9999999990123456789012345678901234567890"
         .parse()
@@ -49,8 +50,8 @@ fn register_update_its_contract_succeeds() {
         chain.clone(),
         new_address.clone()
     ));
-    let res = assert_ok!(utils::query_its_contract(deps.as_ref(), chain.clone()));
-    assert_eq!(res, Some(new_address));
+    let res = assert_ok!(utils::query_its_chain(deps.as_ref(), chain.clone()));
+    assert_eq!(res.unwrap().its_edge_contract, new_address);
 }
 
 #[test]
@@ -121,11 +122,8 @@ fn register_multiple_chains_succeeds() {
     assert_ok!(register_chains(deps.as_mut(), chains.clone()));
 
     for chain in chains {
-        let res = assert_ok!(utils::query_its_contract(
-            deps.as_ref(),
-            chain.chain.clone()
-        ));
-        assert_eq!(res, Some(chain.its_edge_contract));
+        let res = assert_ok!(utils::query_its_chain(deps.as_ref(), chain.chain.clone()));
+        assert_eq!(res.unwrap().its_edge_contract, chain.its_edge_contract);
     }
 }
 
