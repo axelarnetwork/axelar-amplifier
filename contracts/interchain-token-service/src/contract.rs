@@ -143,7 +143,7 @@ pub fn query(deps: Deps, _: Env, msg: QueryMsg) -> Result<Binary, ContractError>
         QueryMsg::TokenConfig { token_id } => {
             query::token_config(deps, token_id).change_context(Error::QueryTokenConfig)
         }
-        QueryMsg::IsContractEnabled => {
+        QueryMsg::IsEnabled => {
             query::is_contract_enabled(deps).change_context(Error::QueryContractStatus)
         }
     }?

@@ -45,6 +45,6 @@ pub fn query_token_config(
 }
 
 pub fn query_is_contract_enabled(deps: Deps) -> Result<bool, ContractError> {
-    let bin = query(deps, mock_env(), QueryMsg::IsContractEnabled {})?;
+    let bin = query(deps, mock_env(), QueryMsg::IsEnabled {})?;
     Ok(from_json(bin)?)
 }

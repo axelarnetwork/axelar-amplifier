@@ -98,5 +98,5 @@ pub enum QueryMsg {
 
     /// Query the state of contract (enabled/disabled)
     #[returns(bool)]
-    IsContractEnabled,
+    IsEnabled,
 }
