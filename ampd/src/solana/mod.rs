@@ -1,7 +1,6 @@
 use axelar_solana_gateway::{processor::GatewayEvent, state::GatewayConfig, BytemuckedPda};
 use axelar_wasm_std::msg_id::Base58SolanaTxSignatureAndEventIndex;
 use axelar_wasm_std::voting::Vote;
-use gateway_event_stack::MatchContext;
 use solana_transaction_status::option_serializer::OptionSerializer;
 use solana_transaction_status::UiTransactionStatusMeta;
 use std::str::FromStr;
@@ -56,7 +55,6 @@ where
 }
 
 pub fn verify<F>(
-    match_context: &MatchContext,
     tx: (&Signature, &UiTransactionStatusMeta),
     message_id: &Base58SolanaTxSignatureAndEventIndex,
     events_are_equal: F,
@@ -64,6 +62,19 @@ pub fn verify<F>(
 where
     F: Fn(&GatewayEvent) -> bool,
 {
+    // message id signatures must match
+    let (signature, tx) = tx;
+    if signature.as_ref() != message_id.raw_signature {
+        error!("signatures don't match");
+        return Vote::NotFound;
+    }
+
+    // the tx must be successful
+    if tx.err.is_some() {
+        error!("Transaction failed");
+        return Vote::FailedOnChain;
+    }
+
     // the event idx cannot be larger than usize
     let desired_event_idx: usize = match message_id.event_index.try_into() {
         Ok(idx) => idx,
@@ -72,13 +83,6 @@ where
             return Vote::NotFound;
         }
     };
-
-    // message id signatures must match
-    let (signature, tx) = tx;
-    if signature.as_ref() != message_id.raw_signature {
-        error!("signatures don't match");
-        return Vote::NotFound;
-    }
 
     // logs must be attached to the TX
     let logs = match tx.log_messages.as_ref() {
@@ -89,47 +93,56 @@ where
         }
     };
 
-    // compare the events
-    let event_stack = gateway_event_stack::build_program_event_stack(
-        match_context,
-        logs,
-        gateway_event_stack::parse_gateway_logs,
-    );
+    // Check in the logs in a backward way the invocation comes from the gateway
+    if !event_comes_from_gateway(logs, desired_event_idx) {
+        error!("Event does not come from the gateway");
+        return Vote::NotFound;
+    }
+    // Check that the event index is in the logs
+    let Some(event_log) = logs.get(desired_event_idx) else {
+        error!("Event index is out of bounds");
+        return Vote::NotFound;
+    };
 
-    for invocation_state in event_stack {
-        use gateway_event_stack::ProgramInvocationState::*;
-        let (vote, gateway_events) = match invocation_state {
-            Succeeded(events) => (
-                {
-                    // if tx was successful and ix invocation was successful,
-                    // then the final outcome (if event can be found) will be of `Vote::SucceededOnChain`
-                    if tx.err.is_none() {
-                        Vote::SucceededOnChain
-                    } else {
-                        // if tx was NOT successful then we don't care if the ix invocatoin succeeded,
-                        // therefore the final outcome (if event can be found) will be of `Vote::FailedOnChain`
-                        Vote::FailedOnChain
-                    }
-                },
-                events,
-            ),
-            Failed(events) | InProgress(events) => (Vote::FailedOnChain, events),
-        };
-
-        if let Some((_, event)) = gateway_events
-            .into_iter()
-            .find(|(idx, _)| *idx == desired_event_idx)
-        {
-            if events_are_equal(&event) {
-                // proxy the desired vote status of whether the ix succeeded
-                return vote;
-            }
-
-            warn!(?event, "event was found, but contents were not equal");
+    // Second ensure we can parse the event
+    let event = match gateway_event_stack::parse_gateway_logs(event_log) {
+        Ok(ev) => ev,
+        Err(err) => {
+            error!("Cannot parse the gateway log: {}", err);
             return Vote::NotFound;
         }
-    }
+    };
 
-    warn!("not found");
-    Vote::NotFound
+    if events_are_equal(&event) {
+        Vote::SucceededOnChain
+    } else {
+        warn!(?event, "event was found, but contents were not equal");
+        Vote::NotFound
+    }
+}
+
+// Check backward in the logs if the invocation comes from the gateway program,
+// skipping native program invocations
+fn event_comes_from_gateway(logs: &[String], desired_event_idx: usize) -> bool {
+    let solana_gateway_id = axelar_solana_gateway::id().to_string();
+    let system_program_id = solana_sdk::system_program::id().to_string();
+
+    for log in logs.iter().take(desired_event_idx).rev() {
+        let parts: Vec<&str> = log.split(' ').collect();
+
+        if parts.len() < 3 && parts.len() > 4 {
+            continue;
+        }
+        if parts[0] == "Program" && parts[2] == "invoke" {
+            if parts[1] == system_program_id {
+                continue;
+            }
+            if parts[1] == solana_gateway_id {
+                return true;
+            } else {
+                break;
+            }
+        }
+    }
+    false
 }
