@@ -43,3 +43,8 @@ pub fn query_token_config(
     let bin = query(deps, mock_env(), QueryMsg::TokenConfig { token_id })?;
     Ok(from_json(bin)?)
 }
+
+pub fn query_is_contract_enabled(deps: Deps) -> Result<bool, ContractError> {
+    let bin = query(deps, mock_env(), QueryMsg::IsEnabled {})?;
+    Ok(from_json(bin)?)
+}
