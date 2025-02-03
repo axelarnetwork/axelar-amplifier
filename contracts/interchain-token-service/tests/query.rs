@@ -120,10 +120,10 @@ fn query_contract_enable_disable_lifecycle() {
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
     let enabled = utils::query_is_contract_enabled(deps.as_ref()).unwrap();
-    assert_eq!(enabled, true);
+    assert!(enabled);
 
     utils::disable_contract_execution(deps.as_mut()).unwrap();
 
     let enabled = utils::query_is_contract_enabled(deps.as_ref()).unwrap();
-    assert_eq!(enabled, false);
+    assert!(!enabled);
 }
