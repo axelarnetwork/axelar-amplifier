@@ -54,6 +54,17 @@ pub enum ExecuteMsg {
 }
 
 #[cw_serde]
+pub enum ChainStatusFilter {
+    Frozen,
+    Active,
+}
+
+#[cw_serde]
+pub struct ChainConfigFilter {
+    pub status: Option<ChainStatusFilter>,
+}
+
+#[cw_serde]
 pub struct ChainConfig {
     pub chain: ChainNameRaw,
     pub its_edge_contract: Address,
@@ -84,6 +95,10 @@ pub enum QueryMsg {
     /// Query all registered ITS contract addresses
     #[returns(HashMap<ChainNameRaw, Address>)]
     AllItsContracts,
+
+    /// Query all chain configs with optional frozen filter
+    #[returns(Vec<ChainConfigResponse>)]
+    ItsChains { filter: Option<ChainConfigFilter> },
 
     /// Query a token instance on a specific chain
     #[returns(Option<TokenInstance>)]

@@ -34,6 +34,12 @@ pub fn all_its_contracts(deps: Deps) -> Result<Binary, Error> {
     to_json_binary(&contract_addresses).change_context(Error::JsonSerialization)
 }
 
+pub fn its_chains(deps: Deps, filter: Option<msg::ChainConfigFilter>) -> Result<Binary, Error> {
+    let chain_configs =
+        state::load_filtered_chain_configs(deps.storage, filter).change_context(Error::State)?;
+    to_json_binary(&chain_configs).change_context(Error::JsonSerialization)
+}
+
 pub fn token_instance(deps: Deps, chain: ChainNameRaw, token_id: TokenId) -> Result<Binary, Error> {
     let token_instance = state::may_load_token_instance(deps.storage, chain, token_id)
         .change_context(Error::State)?;
