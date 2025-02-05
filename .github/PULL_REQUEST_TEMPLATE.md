@@ -23,4 +23,4 @@
 
 ## Expected Behaviour
 
-## Other Notes
+## Notes
