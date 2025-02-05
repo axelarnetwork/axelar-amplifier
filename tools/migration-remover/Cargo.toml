@@ -8,8 +8,14 @@ description = "Tool to remove a contract's migration code and reset the `migrate
 [dependencies]
 clap = { version = "4.2.7", features = ["derive", "cargo"] }
 error-stack = { workspace = true }
-regex = "1.10"
 thiserror = { workspace = true }
+toml = "0.8.19"
+
+[dev-dependencies]
+axelar-wasm-std = { workspace = true, features = ["derive"] }
+cosmwasm-std = { workspace = true }
+cw2 = { workspace = true }
+semver = { workspace = true }
 
 [lints]
 workspace = true
