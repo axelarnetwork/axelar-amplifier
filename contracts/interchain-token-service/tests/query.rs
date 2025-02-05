@@ -3,7 +3,9 @@ use std::collections::HashMap;
 use assert_ok::assert_ok;
 use cosmwasm_std::testing::mock_dependencies;
 use cosmwasm_std::Uint256;
-use interchain_token_service::msg::{ChainConfigResponse, TruncationConfig};
+use interchain_token_service::msg::{
+    ChainConfigFilter, ChainConfigResponse, ChainStatusFilter, TruncationConfig,
+};
 use interchain_token_service::TokenId;
 use router_api::{Address, ChainNameRaw};
 
@@ -126,4 +128,117 @@ fn query_contract_enable_disable_lifecycle() {
 
     let enabled = utils::query_is_contract_enabled(deps.as_ref()).unwrap();
     assert!(!enabled);
+}
+
+#[test]
+fn query_chains_config() {
+    let mut deps = mock_dependencies();
+    utils::instantiate_contract(deps.as_mut()).unwrap();
+
+    let eth_chain: ChainNameRaw = "Ethereum".parse().unwrap();
+    let eth_address: Address = "0x1234567890123456789012345678901234567890"
+        .parse()
+        .unwrap();
+
+    utils::register_chain(
+        deps.as_mut(),
+        eth_chain.clone(),
+        eth_address.clone(),
+        Uint256::MAX.try_into().unwrap(),
+        u8::MAX,
+    )
+    .unwrap();
+
+    let poly_chain: ChainNameRaw = "Polygon".parse().unwrap();
+    let poly_address: Address = "0x1234567890123456789012345678901234567890"
+        .parse()
+        .unwrap();
+
+    utils::register_chain(
+        deps.as_mut(),
+        poly_chain.clone(),
+        poly_address.clone(),
+        Uint256::MAX.try_into().unwrap(),
+        u8::MAX,
+    )
+    .unwrap();
+
+    // no filtering
+    let all_chain_configs = assert_ok!(utils::query_its_chains(deps.as_ref(), None));
+    let expected_chain_configs = vec![
+        utils::create_expected_chain_config(
+            eth_chain.clone(),
+            eth_address.clone(),
+            Uint256::MAX.try_into().unwrap(),
+            u8::MAX,
+            false,
+        ),
+        utils::create_expected_chain_config(
+            poly_chain.clone(),
+            poly_address.clone(),
+            Uint256::MAX.try_into().unwrap(),
+            u8::MAX,
+            false,
+        ),
+    ];
+
+    for (a, e) in all_chain_configs.iter().zip(expected_chain_configs.iter()) {
+        assert_eq!(a, e);
+    }
+
+    // filter active chains, should be the same as all chains
+    let active_chain_configs = assert_ok!(utils::query_its_chains(
+        deps.as_ref(),
+        Some(ChainConfigFilter {
+            status: Some(ChainStatusFilter::Active),
+        })
+    ));
+    for (a, e) in active_chain_configs
+        .iter()
+        .zip(expected_chain_configs.iter())
+    {
+        assert_eq!(a, e);
+    }
+
+    // filter frozen chains, should be empty
+    let frozen_chain_configs = assert_ok!(utils::query_its_chains(
+        deps.as_ref(),
+        Some(ChainConfigFilter {
+            status: Some(ChainStatusFilter::Frozen),
+        })
+    ));
+    assert_eq!(frozen_chain_configs, vec![]);
+
+    // freeze a chain and query again
+    utils::freeze_chain(deps.as_mut(), eth_chain.clone()).unwrap();
+    let frozen_chain_configs = assert_ok!(utils::query_its_chains(
+        deps.as_ref(),
+        Some(ChainConfigFilter {
+            status: Some(ChainStatusFilter::Frozen),
+        })
+    ));
+    let expected_frozen_chain_configs = vec![utils::create_expected_chain_config(
+        eth_chain,
+        eth_address,
+        Uint256::MAX.try_into().unwrap(),
+        u8::MAX,
+        true,
+    )];
+    assert_eq!(frozen_chain_configs, expected_frozen_chain_configs);
+
+    // filter for active chains after freeze
+    let active_chain_configs = assert_ok!(utils::query_its_chains(
+        deps.as_ref(),
+        Some(ChainConfigFilter {
+            status: Some(ChainStatusFilter::Active),
+        })
+    ));
+    let expected_active_chain_configs = vec![utils::create_expected_chain_config(
+        poly_chain,
+        poly_address,
+        Uint256::MAX.try_into().unwrap(),
+        u8::MAX,
+        false,
+    )];
+    assert_eq!(active_chain_configs, expected_active_chain_configs);
 }
