@@ -165,7 +165,7 @@ fn query_chains_config() {
 
     // no filtering
     let all_chain_configs = assert_ok!(utils::query_its_chains(deps.as_ref(), None));
-    let expected_chain_configs = vec![
+    let expected_chain_configs = [
         utils::create_expected_chain_config(
             eth_chain.clone(),
             eth_address.clone(),
@@ -217,7 +217,7 @@ fn query_chains_config() {
             status: Some(ChainStatusFilter::Frozen),
         })
     ));
-    let expected_frozen_chain_configs = vec![utils::create_expected_chain_config(
+    let expected_frozen_chain_configs = [utils::create_expected_chain_config(
         eth_chain,
         eth_address,
         Uint256::MAX.try_into().unwrap(),
@@ -233,7 +233,7 @@ fn query_chains_config() {
             status: Some(ChainStatusFilter::Active),
         })
     ));
-    let expected_active_chain_configs = vec![utils::create_expected_chain_config(
+    let expected_active_chain_configs = [utils::create_expected_chain_config(
         poly_chain,
         poly_address,
         Uint256::MAX.try_into().unwrap(),
