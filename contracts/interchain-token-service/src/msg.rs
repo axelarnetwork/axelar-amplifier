@@ -95,4 +95,8 @@ pub enum QueryMsg {
     /// Query the configuration parameters for a token
     #[returns(Option<TokenConfig>)]
     TokenConfig { token_id: TokenId },
+
+    /// Query the state of contract (enabled/disabled)
+    #[returns(bool)]
+    IsEnabled,
 }
