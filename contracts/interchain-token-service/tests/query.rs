@@ -113,3 +113,17 @@ fn query_token_chain_config() {
     let config = utils::query_token_instance(deps.as_ref(), chain, token_id).unwrap();
     assert_eq!(config, None);
 }
+
+#[test]
+fn query_contract_enable_disable_lifecycle() {
+    let mut deps = mock_dependencies();
+    utils::instantiate_contract(deps.as_mut()).unwrap();
+
+    let enabled = utils::query_is_contract_enabled(deps.as_ref()).unwrap();
+    assert!(enabled);
+
+    utils::disable_contract_execution(deps.as_mut()).unwrap();
+
+    let enabled = utils::query_is_contract_enabled(deps.as_ref()).unwrap();
+    assert!(!enabled);
+}

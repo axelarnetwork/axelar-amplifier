@@ -131,6 +131,15 @@ pub fn update_chain(
     )
 }
 
+pub fn disable_contract_execution(deps: DepsMut) -> Result<Response, ContractError> {
+    contract::execute(
+        deps,
+        mock_env(),
+        message_info(&MockApi::default().addr_make(params::GOVERNANCE), &[]),
+        ExecuteMsg::DisableExecution,
+    )
+}
+
 pub fn setup_multiple_chains(
     configs: Vec<(ChainNameRaw, Address, nonempty::Uint256, u8)>,
 ) -> (
