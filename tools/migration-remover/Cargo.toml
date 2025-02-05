@@ -5,6 +5,9 @@ rust-version = { workspace = true }
 edition = { workspace = true }
 description = "Tool to remove a contract's migration code and reset the `migrate` entry point"
 
+[features]
+library = []
+
 [dependencies]
 clap = { version = "4.2.7", features = ["derive", "cargo"] }
 error-stack = { workspace = true }

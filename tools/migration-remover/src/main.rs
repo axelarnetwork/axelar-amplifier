@@ -36,7 +36,7 @@ fn next_migrate_version_req(cargo_toml_path: PathBuf) -> Result<String, Error> {
         .and_then(|version| version.as_str())
         .ok_or(Error::Cargo)?;
 
-    Ok(version.split(".").take(2).collect::<Vec<_>>().join("."))
+    Ok(version.split('.').take(2).collect::<Vec<_>>().join("."))
 }
 
 fn read_template(contract_root_dir: &Path) -> Result<String, Error> {
