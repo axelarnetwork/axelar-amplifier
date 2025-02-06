@@ -778,7 +778,7 @@ mod tests {
         let msg = HubMessage::SendToHub {
             destination_chain: solana.clone(),
             message: DeployInterchainToken {
-                token_id: token_id,
+                token_id,
                 name: "Test".parse().unwrap(),
                 symbol: "TEST".parse().unwrap(),
                 decimals: 18,
@@ -818,7 +818,7 @@ mod tests {
 
         // transfers should be scaled appropriately
         let transfer = InterchainTransfer {
-            token_id: token_id,
+            token_id,
             amount: Uint256::from_u128(1000000000000).try_into().unwrap(),
             source_address: its_address(),
             destination_address: its_address(),
@@ -849,7 +849,7 @@ mod tests {
         let msg = HubMessage::SendToHub {
             destination_chain: solana.clone(),
             message: DeployInterchainToken {
-                token_id: token_id,
+                token_id,
                 name: "Test".parse().unwrap(),
                 symbol: "TEST".parse().unwrap(),
                 decimals: 18,
@@ -901,7 +901,7 @@ mod tests {
 
         // transfers should not be scaled, since decimals are the same
         let transfer = InterchainTransfer {
-            token_id: token_id,
+            token_id,
             amount: Uint256::from_u128(1000000000000).try_into().unwrap(),
             source_address: its_address(),
             destination_address: its_address(),
