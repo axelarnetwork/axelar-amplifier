@@ -17,8 +17,6 @@ mod interceptors;
 
 #[derive(thiserror::Error, Debug, IntoContractError)]
 pub enum Error {
-    #[error("chain not found {0}")]
-    ChainNotFound(ChainNameRaw),
     #[error("unknown its address {0}")]
     UnknownItsContract(Address),
     #[error("failed to decode payload")]
@@ -47,6 +45,8 @@ pub enum Error {
     State,
     #[error("chain {0} already registered")]
     ChainAlreadyRegistered(ChainNameRaw),
+    #[error("chain {0} not registered")]
+    ChainNotRegistered(ChainNameRaw),
     #[error("token {token_id} not deployed on chain {chain}")]
     TokenNotDeployed {
         token_id: TokenId,
@@ -340,7 +340,7 @@ fn send_to_destination(
     }
 
     let destination_address = state::load_its_contract(storage, destination_chain)
-        .change_context_lazy(|| Error::ChainNotFound(destination_chain.clone()))?;
+        .change_context_lazy(|| Error::ChainNotRegistered(destination_chain.clone()))?;
 
     let config = state::load_config(storage);
 
@@ -390,13 +390,21 @@ fn register_chain(storage: &mut dyn Storage, config: msg::ChainConfig) -> Result
     }
 }
 
-pub fn update_chain(
-    deps: DepsMut,
-    chain: ChainNameRaw,
-    its_address: Address,
-) -> Result<Response, Error> {
-    state::update_its_contract(deps.storage, &chain, its_address).change_context(Error::State)?;
-    Ok(Response::new())
+pub fn update_chains(deps: DepsMut, chains: Vec<msg::ChainConfig>) -> Result<Response, Error> {
+    chains
+        .into_iter()
+        .map(|chain_config| update_chain(deps.storage, chain_config))
+        .try_collect::<_, Vec<Response>, _>()?
+        .then(|_| Ok(Response::new()))
+}
+
+fn update_chain(storage: &mut dyn Storage, config: msg::ChainConfig) -> Result<Response, Error> {
+    match state::may_load_chain_config(storage, &config.chain).change_context(Error::State)? {
+        None => bail!(Error::ChainNotRegistered(config.chain)),
+        Some(_) => state::save_chain_config(storage, &config.chain.clone(), config)
+            .change_context(Error::State)?
+            .then(|_| Ok(Response::new())),
+    }
 }
 
 trait DeploymentType {
@@ -421,14 +429,14 @@ mod tests {
     use axelarnet_gateway::msg::QueryMsg;
     use cosmwasm_std::testing::{mock_dependencies, MockApi, MockQuerier};
     use cosmwasm_std::{
-        from_json, to_json_binary, HexBinary, MemoryStorage, OwnedDeps, Uint256, WasmQuery,
+        from_json, to_json_binary, HexBinary, MemoryStorage, OwnedDeps, Uint128, Uint256, WasmQuery,
     };
     use router_api::{ChainName, ChainNameRaw, CrossChainId};
 
     use super::apply_to_hub;
     use crate::contract::execute::{
-        disable_execution, enable_execution, execute_message, freeze_chain, register_chain,
-        register_chains, unfreeze_chain, update_chain, Error,
+        apply_to_transfer, disable_execution, enable_execution, execute_message, freeze_chain,
+        register_chain, register_chains, unfreeze_chain, update_chains, Error,
     };
     use crate::msg::TruncationConfig;
     use crate::state::{self, Config};
@@ -724,17 +732,188 @@ mod tests {
     }
 
     #[test]
-    fn update_chain_fails_if_not_registered() {
+    fn update_chains_fails_if_not_registered() {
         let mut deps = mock_dependencies();
         assert_err_contains!(
-            update_chain(
+            update_chains(
                 deps.as_mut(),
-                SOLANA.parse().unwrap(),
-                ITS_ADDRESS.parse().unwrap()
+                vec![msg::ChainConfig {
+                    chain: SOLANA.parse().unwrap(),
+                    its_edge_contract: ITS_ADDRESS.to_string().try_into().unwrap(),
+                    truncation: TruncationConfig {
+                        max_uint: Uint256::MAX.try_into().unwrap(),
+                        max_decimals_when_truncating: 16u8,
+                    },
+                }]
             ),
             Error,
-            Error::State
+            Error::ChainNotRegistered(..)
         );
+    }
+
+    #[test]
+    fn update_max_uint_and_decimals_should_affect_new_tokens() {
+        let mut deps = mock_dependencies();
+        init(&mut deps);
+
+        let token_id: TokenId = [7u8; 32].into();
+        let solana = ChainNameRaw::try_from(SOLANA).unwrap();
+        let ethereum = ChainNameRaw::try_from(ETHEREUM).unwrap();
+
+        // update the max_uint to u128 max (previously was u256 max) and reduce decimals when truncating to 6
+        let new_decimals = 6u8;
+        assert_ok!(update_chains(
+            deps.as_mut(),
+            vec![msg::ChainConfig {
+                chain: solana.clone(),
+                its_edge_contract: ITS_ADDRESS.to_string().try_into().unwrap(),
+                truncation: TruncationConfig {
+                    max_uint: Uint128::MAX.try_into().unwrap(),
+                    max_decimals_when_truncating: new_decimals,
+                },
+            }]
+        ));
+
+        // now deploy a token with 18 decimals. Should truncate to 6
+        let msg = HubMessage::SendToHub {
+            destination_chain: solana.clone(),
+            message: DeployInterchainToken {
+                token_id: token_id.clone(),
+                name: "Test".parse().unwrap(),
+                symbol: "TEST".parse().unwrap(),
+                decimals: 18,
+                minter: None,
+            }
+            .into(),
+        };
+        let cc_id = CrossChainId {
+            source_chain: ethereum.clone(),
+            message_id: HexTxHashAndEventIndex::new([1u8; 32], 0u32).into(),
+        };
+
+        assert_ok!(execute_message(
+            deps.as_mut(),
+            cc_id.clone(),
+            ITS_ADDRESS.to_string().try_into().unwrap(),
+            msg.clone().abi_encode(),
+        ));
+
+        // destination token instance should use 6 decimals
+        let destination_token_instance = assert_ok!(state::may_load_token_instance(
+            deps.as_mut().storage,
+            solana.clone(),
+            token_id.clone()
+        ));
+        assert!(destination_token_instance.is_some());
+        assert_eq!(destination_token_instance.unwrap().decimals, new_decimals);
+
+        // source instance should use 18
+        let source_token_instance = assert_ok!(state::may_load_token_instance(
+            deps.as_mut().storage,
+            ethereum.clone(),
+            token_id.clone()
+        ));
+        assert!(source_token_instance.is_some());
+        assert_eq!(source_token_instance.unwrap().decimals, 18u8);
+
+        // transfers should be scaled appropriately
+        let transfer = InterchainTransfer {
+            token_id: token_id.clone(),
+            amount: Uint256::from_u128(1000000000000).try_into().unwrap(),
+            source_address: its_address(),
+            destination_address: its_address(),
+            data: None,
+        };
+        let transformed_transfer = assert_ok!(apply_to_transfer(
+            deps.as_mut().storage,
+            ethereum,
+            solana,
+            transfer.clone(),
+        ));
+        assert_eq!(
+            transformed_transfer.amount,
+            Uint256::one().try_into().unwrap()
+        );
+    }
+
+    #[test]
+    fn update_max_uint_and_decimals_should_not_affect_existing_tokens() {
+        let mut deps = mock_dependencies();
+        init(&mut deps);
+
+        let token_id: TokenId = [7u8; 32].into();
+        let solana = ChainNameRaw::try_from(SOLANA).unwrap();
+        let ethereum = ChainNameRaw::try_from(ETHEREUM).unwrap();
+
+        // deploy a token with 18 decimals
+        let msg = HubMessage::SendToHub {
+            destination_chain: solana.clone(),
+            message: DeployInterchainToken {
+                token_id: token_id.clone(),
+                name: "Test".parse().unwrap(),
+                symbol: "TEST".parse().unwrap(),
+                decimals: 18,
+                minter: None,
+            }
+            .into(),
+        };
+        let cc_id = CrossChainId {
+            source_chain: ethereum.clone(),
+            message_id: HexTxHashAndEventIndex::new([1u8; 32], 0u32).into(),
+        };
+
+        assert_ok!(execute_message(
+            deps.as_mut(),
+            cc_id.clone(),
+            ITS_ADDRESS.to_string().try_into().unwrap(),
+            msg.clone().abi_encode(),
+        ));
+
+        // update the max_uint to u128 max (previously was u256 max) and reduce decimals when truncating to 6
+        assert_ok!(update_chains(
+            deps.as_mut(),
+            vec![msg::ChainConfig {
+                chain: solana.clone(),
+                its_edge_contract: ITS_ADDRESS.to_string().try_into().unwrap(),
+                truncation: TruncationConfig {
+                    max_uint: Uint128::MAX.try_into().unwrap(),
+                    max_decimals_when_truncating: 6u8,
+                },
+            }]
+        ));
+
+        // previously deployed tokens should have 18 decimals, unaffected by the config update
+        let destination_token_instance = assert_ok!(state::may_load_token_instance(
+            deps.as_mut().storage,
+            solana.clone(),
+            token_id.clone()
+        ));
+        assert!(destination_token_instance.is_some());
+        assert_eq!(destination_token_instance.unwrap().decimals, 18u8);
+
+        let source_token_instance = assert_ok!(state::may_load_token_instance(
+            deps.as_mut().storage,
+            ethereum.clone(),
+            token_id.clone()
+        ));
+        assert!(source_token_instance.is_some());
+        assert_eq!(source_token_instance.unwrap().decimals, 18u8);
+
+        // transfers should not be scaled, since decimals are the same
+        let transfer = InterchainTransfer {
+            token_id: token_id.clone(),
+            amount: Uint256::from_u128(1000000000000).try_into().unwrap(),
+            source_address: its_address(),
+            destination_address: its_address(),
+            data: None,
+        };
+        let transformed_transfer = assert_ok!(apply_to_transfer(
+            deps.as_mut().storage,
+            ethereum,
+            solana,
+            transfer.clone(),
+        ));
+        assert_eq!(transformed_transfer.amount, transfer.amount);
     }
 
     #[test]
@@ -1131,7 +1310,7 @@ mod tests {
                     its_edge_contract: ITS_ADDRESS.to_string().try_into().unwrap(),
                     truncation: TruncationConfig {
                         max_uint: Uint256::MAX.try_into().unwrap(),
-                        max_decimals_when_truncating: 16u8
+                        max_decimals_when_truncating: 18u8
                     }
                 }
             ));
