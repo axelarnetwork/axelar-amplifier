@@ -79,6 +79,10 @@ fn main() -> Result<(), Error> {
     Ok(())
 }
 
-// tests that `template.rs` compiles correctly
+// tests that `template.rs` compiles correctly and content can be re-exported
 #[cfg(test)]
 mod template;
+#[cfg(test)]
+pub use template::migrate;
+#[cfg(test)]
+pub use template::MigrateMsg;

@@ -12,7 +12,7 @@ use crate::state;
 use crate::state::{load_chain_by_gateway, load_config, Config};
 
 mod execute;
-mod migrations;
+pub(crate) mod migrations;
 mod query;
 
 pub use migrations::migrate;
