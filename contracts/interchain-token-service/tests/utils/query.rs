@@ -58,26 +58,31 @@ pub fn query_its_chains(
     Ok(from_json(bin)?)
 }
 
-pub fn create_expected_chain_config(
-    chain: ChainNameRaw,
-    address: Address,
-    max_uint: nonempty::Uint256,
-    max_decimals: u8,
-    frozen: bool,
-) -> ChainConfigResponse {
+pub struct ChainData {
+    pub chain: ChainNameRaw,
+    pub address: Address,
+    pub max_uint: nonempty::Uint256,
+    pub max_decimals: u8,
+}
+
+pub fn create_config_response(chain_data: &ChainData, frozen: bool) -> ChainConfigResponse {
     ChainConfigResponse {
-        chain,
-        its_edge_contract: address,
+        chain: chain_data.chain.clone(),
+        its_edge_contract: chain_data.address.clone(),
         truncation: TruncationConfig {
-            max_uint,
-            max_decimals_when_truncating: max_decimals,
+            max_uint: chain_data.max_uint,
+            max_decimals_when_truncating: chain_data.max_decimals,
         },
         frozen,
     }
 }
 
-pub fn field_by_field_check(actual: Vec<ChainConfigResponse>, expected: Vec<ChainConfigResponse>) {
+pub fn assert_configs_equal(
+    actual: &Vec<ChainConfigResponse>,
+    expected: &Vec<ChainConfigResponse>,
+) {
+    assert_eq!(actual.len(), expected.len(), "Different number of configs");
     for (a, e) in actual.iter().zip(expected.iter()) {
-        assert_eq!(a, e);
+        assert_eq!(a, e, "Config mismatch for chain {}", e.chain);
     }
 }
