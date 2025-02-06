@@ -167,7 +167,7 @@ impl From<TokenId> for [u8; 32] {
     }
 }
 
-impl<'a> PrimaryKey<'a> for TokenId {
+impl PrimaryKey<'_> for TokenId {
     type Prefix = ();
     type SubPrefix = ();
     type Suffix = Self;
@@ -188,7 +188,7 @@ impl KeyDeserialize for TokenId {
     }
 }
 
-impl<'a> Prefixer<'a> for TokenId {
+impl Prefixer<'_> for TokenId {
     fn prefix(&self) -> Vec<Key> {
         self.key()
     }

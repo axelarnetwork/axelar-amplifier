@@ -145,7 +145,7 @@ pub fn poll_messages<'a>() -> IndexedMap<&'a Hash, PollContent<Message>, PollMes
     )
 }
 
-impl<'a> IndexList<PollContent<Message>> for PollMessagesIndex<'a> {
+impl IndexList<PollContent<Message>> for PollMessagesIndex<'_> {
     fn get_indexes(&'_ self) -> Box<dyn Iterator<Item = &'_ dyn Index<PollContent<Message>>> + '_> {
         let v: Vec<&dyn Index<PollContent<Message>>> = vec![&self.0];
         Box::new(v.into_iter())
@@ -200,7 +200,7 @@ pub fn poll_verifier_sets<'a>(
     )
 }
 
-impl<'a> IndexList<PollContent<VerifierSet>> for PollVerifierSetsIndex<'a> {
+impl IndexList<PollContent<VerifierSet>> for PollVerifierSetsIndex<'_> {
     fn get_indexes(
         &'_ self,
     ) -> Box<dyn Iterator<Item = &'_ dyn Index<PollContent<VerifierSet>>> + '_> {

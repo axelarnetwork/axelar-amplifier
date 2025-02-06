@@ -76,7 +76,6 @@ use syn::{Data, DataEnum, DeriveInput, Expr, ExprCall, Ident, Path, Token, Varia
 /// assert!(execute(deps, env, info, ExecuteMsg::OnlyGatewayCanCallThis).is_err());
 /// # }
 /// ```
-
 #[proc_macro_derive(EnsurePermissions, attributes(permission))]
 pub fn derive_ensure_permissions(input: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(input as DeriveInput);
