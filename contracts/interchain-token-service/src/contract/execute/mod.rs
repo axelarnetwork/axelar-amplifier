@@ -778,7 +778,7 @@ mod tests {
         let msg = HubMessage::SendToHub {
             destination_chain: solana.clone(),
             message: DeployInterchainToken {
-                token_id: token_id.clone(),
+                token_id: token_id,
                 name: "Test".parse().unwrap(),
                 symbol: "TEST".parse().unwrap(),
                 decimals: 18,
@@ -802,7 +802,7 @@ mod tests {
         let destination_token_instance = assert_ok!(state::may_load_token_instance(
             deps.as_mut().storage,
             solana.clone(),
-            token_id.clone()
+            token_id,
         ));
         assert!(destination_token_instance.is_some());
         assert_eq!(destination_token_instance.unwrap().decimals, new_decimals);
@@ -811,14 +811,14 @@ mod tests {
         let source_token_instance = assert_ok!(state::may_load_token_instance(
             deps.as_mut().storage,
             ethereum.clone(),
-            token_id.clone()
+            token_id,
         ));
         assert!(source_token_instance.is_some());
         assert_eq!(source_token_instance.unwrap().decimals, 18u8);
 
         // transfers should be scaled appropriately
         let transfer = InterchainTransfer {
-            token_id: token_id.clone(),
+            token_id: token_id,
             amount: Uint256::from_u128(1000000000000).try_into().unwrap(),
             source_address: its_address(),
             destination_address: its_address(),
@@ -849,7 +849,7 @@ mod tests {
         let msg = HubMessage::SendToHub {
             destination_chain: solana.clone(),
             message: DeployInterchainToken {
-                token_id: token_id.clone(),
+                token_id: token_id,
                 name: "Test".parse().unwrap(),
                 symbol: "TEST".parse().unwrap(),
                 decimals: 18,
@@ -886,7 +886,7 @@ mod tests {
         let destination_token_instance = assert_ok!(state::may_load_token_instance(
             deps.as_mut().storage,
             solana.clone(),
-            token_id.clone()
+            token_id
         ));
         assert!(destination_token_instance.is_some());
         assert_eq!(destination_token_instance.unwrap().decimals, 18u8);
@@ -894,14 +894,14 @@ mod tests {
         let source_token_instance = assert_ok!(state::may_load_token_instance(
             deps.as_mut().storage,
             ethereum.clone(),
-            token_id.clone()
+            token_id
         ));
         assert!(source_token_instance.is_some());
         assert_eq!(source_token_instance.unwrap().decimals, 18u8);
 
         // transfers should not be scaled, since decimals are the same
         let transfer = InterchainTransfer {
-            token_id: token_id.clone(),
+            token_id: token_id,
             amount: Uint256::from_u128(1000000000000).try_into().unwrap(),
             source_address: its_address(),
             destination_address: its_address(),
