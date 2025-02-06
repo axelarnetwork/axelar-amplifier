@@ -67,21 +67,36 @@ pub struct TruncationConfig {
 }
 
 #[cw_serde]
+pub struct ChainConfigResponse {
+    pub chain: ChainNameRaw,
+    pub its_edge_contract: Address,
+    pub truncation: TruncationConfig,
+    pub frozen: bool,
+}
+
+#[cw_serde]
 #[derive(QueryResponses)]
 pub enum QueryMsg {
-    /// Query the ITS contract address registered for a chain
-    #[returns(Option<Address>)]
-    ItsContract { chain: ChainNameRaw },
+    /// Query the configuration registered for a chain
+    #[returns(Option<ChainConfigResponse>)]
+    ItsChain { chain: ChainNameRaw },
+
     /// Query all registered ITS contract addresses
     #[returns(HashMap<ChainNameRaw, Address>)]
     AllItsContracts,
+
     /// Query a token instance on a specific chain
     #[returns(Option<TokenInstance>)]
     TokenInstance {
         chain: ChainNameRaw,
         token_id: TokenId,
     },
+
     /// Query the configuration parameters for a token
     #[returns(Option<TokenConfig>)]
     TokenConfig { token_id: TokenId },
+
+    /// Query the state of contract (enabled/disabled)
+    #[returns(bool)]
+    IsEnabled,
 }

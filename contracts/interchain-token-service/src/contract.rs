@@ -39,14 +39,16 @@ pub enum Error {
     DisableExecution,
     #[error("failed to enable execution")]
     EnableExecution,
-    #[error("failed to query its address")]
-    QueryItsContract,
+    #[error("failed to query chain config")]
+    QueryChainConfig,
     #[error("failed to query all its addresses")]
     QueryAllItsContracts,
     #[error("failed to query a specific token instance")]
     QueryTokenInstance,
     #[error("failed to query the token config")]
     QueryTokenConfig,
+    #[error("failed to query the status of contract")]
+    QueryContractStatus,
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -129,8 +131,8 @@ fn match_gateway(storage: &dyn Storage, _: &ExecuteMsg) -> Result<Addr, Report<E
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
     match msg {
-        QueryMsg::ItsContract { chain } => {
-            query::its_contract(deps, chain).change_context(Error::QueryItsContract)
+        QueryMsg::ItsChain { chain } => {
+            query::its_chain(deps, chain).change_context(Error::QueryChainConfig)
         }
         QueryMsg::AllItsContracts => {
             query::all_its_contracts(deps).change_context(Error::QueryAllItsContracts)
@@ -140,6 +142,9 @@ pub fn query(deps: Deps, _: Env, msg: QueryMsg) -> Result<Binary, ContractError>
         }
         QueryMsg::TokenConfig { token_id } => {
             query::token_config(deps, token_id).change_context(Error::QueryTokenConfig)
+        }
+        QueryMsg::IsEnabled => {
+            query::is_contract_enabled(deps).change_context(Error::QueryContractStatus)
         }
     }?
     .then(Ok)
