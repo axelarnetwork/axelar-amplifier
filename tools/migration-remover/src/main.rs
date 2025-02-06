@@ -24,6 +24,7 @@ struct Args {
 }
 
 const CONTRACTS_RELATIVE_PATH: &str = "../../contracts/";
+const MIGRATIONS_MOD_RELATIVE_PATH: &str = "src/contract/migrations";
 const TEMPLATE_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/src/template.rs");
 
 fn next_migrate_version_req(cargo_toml_path: PathBuf) -> Result<String, Error> {
@@ -53,7 +54,7 @@ fn read_template(contract_root_dir: &Path) -> Result<String, Error> {
 }
 
 fn reset_migration_mod(contract_root_dir: &Path, content: &str) -> Result<(), Error> {
-    let migrations_mod_dir = contract_root_dir.join("src/contract/migrations");
+    let migrations_mod_dir = contract_root_dir.join(MIGRATIONS_MOD_RELATIVE_PATH);
 
     fs::remove_dir_all(&migrations_mod_dir)
         .and_then(|_| fs::create_dir(&migrations_mod_dir))
