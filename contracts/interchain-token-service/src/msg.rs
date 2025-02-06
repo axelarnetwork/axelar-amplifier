@@ -60,8 +60,8 @@ pub enum ChainStatusFilter {
 }
 
 #[cw_serde]
-pub struct ChainConfigFilter {
-    pub status: Option<ChainStatusFilter>,
+pub struct ChainFilter {
+    pub frozen_status: Option<ChainStatusFilter>,
 }
 
 #[cw_serde]
@@ -98,7 +98,7 @@ pub enum QueryMsg {
 
     /// Query all chain configs with optional frozen filter
     #[returns(Vec<ChainConfigResponse>)]
-    ItsChains { filter: Option<ChainConfigFilter> },
+    ItsChains { filter: Option<ChainFilter> },
 
     /// Query a token instance on a specific chain
     #[returns(Option<TokenInstance>)]

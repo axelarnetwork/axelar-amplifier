@@ -4,7 +4,7 @@ use assert_ok::assert_ok;
 use cosmwasm_std::testing::mock_dependencies;
 use cosmwasm_std::Uint256;
 use interchain_token_service::msg::{
-    ChainConfigFilter, ChainConfigResponse, ChainStatusFilter, TruncationConfig,
+    ChainConfigResponse, ChainFilter, ChainStatusFilter, TruncationConfig,
 };
 use interchain_token_service::TokenId;
 use router_api::{Address, ChainNameRaw};
@@ -181,30 +181,22 @@ fn query_chains_config() {
             false,
         ),
     ];
-
-    for (a, e) in all_chain_configs.iter().zip(expected_chain_configs.iter()) {
-        assert_eq!(a, e);
-    }
+    utils::field_by_field_check(all_chain_configs, expected_chain_configs.to_vec());
 
     // filter active chains, should be the same as all chains
     let active_chain_configs = assert_ok!(utils::query_its_chains(
         deps.as_ref(),
-        Some(ChainConfigFilter {
-            status: Some(ChainStatusFilter::Active),
+        Some(ChainFilter {
+            frozen_status: Some(ChainStatusFilter::Active),
         })
     ));
-    for (a, e) in active_chain_configs
-        .iter()
-        .zip(expected_chain_configs.iter())
-    {
-        assert_eq!(a, e);
-    }
+    utils::field_by_field_check(active_chain_configs, expected_chain_configs.to_vec());
 
     // filter frozen chains, should be empty
     let frozen_chain_configs = assert_ok!(utils::query_its_chains(
         deps.as_ref(),
-        Some(ChainConfigFilter {
-            status: Some(ChainStatusFilter::Frozen),
+        Some(ChainFilter {
+            frozen_status: Some(ChainStatusFilter::Frozen),
         })
     ));
     assert_eq!(frozen_chain_configs, vec![]);
@@ -213,8 +205,8 @@ fn query_chains_config() {
     utils::freeze_chain(deps.as_mut(), eth_chain.clone()).unwrap();
     let frozen_chain_configs = assert_ok!(utils::query_its_chains(
         deps.as_ref(),
-        Some(ChainConfigFilter {
-            status: Some(ChainStatusFilter::Frozen),
+        Some(ChainFilter {
+            frozen_status: Some(ChainStatusFilter::Frozen),
         })
     ));
     let expected_frozen_chain_configs = [utils::create_expected_chain_config(
@@ -229,8 +221,8 @@ fn query_chains_config() {
     // filter for active chains after freeze
     let active_chain_configs = assert_ok!(utils::query_its_chains(
         deps.as_ref(),
-        Some(ChainConfigFilter {
-            status: Some(ChainStatusFilter::Active),
+        Some(ChainFilter {
+            frozen_status: Some(ChainStatusFilter::Active),
         })
     ));
     let expected_active_chain_configs = [utils::create_expected_chain_config(

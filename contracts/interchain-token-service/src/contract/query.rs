@@ -34,10 +34,28 @@ pub fn all_its_contracts(deps: Deps) -> Result<Binary, Error> {
     to_json_binary(&contract_addresses).change_context(Error::JsonSerialization)
 }
 
-pub fn its_chains(deps: Deps, filter: Option<msg::ChainConfigFilter>) -> Result<Binary, Error> {
-    let chain_configs =
-        state::load_filtered_chain_configs(deps.storage, filter).change_context(Error::State)?;
+pub fn its_chains(deps: Deps, filter: Option<msg::ChainFilter>) -> Result<Binary, Error> {
+    let state_configs = state::load_chain_configs(deps.storage).change_context(Error::State)?;
+
+    let chain_configs = match filter {
+        Some(filter) if filter.frozen_status.is_some() => state_configs
+            .into_iter()
+            .filter(|config| matches_filter(config, filter.frozen_status.as_ref()))
+            .collect(),
+        _ => state_configs,
+    };
     to_json_binary(&chain_configs).change_context(Error::JsonSerialization)
+}
+
+fn matches_filter(
+    config: &msg::ChainConfigResponse,
+    status: Option<&msg::ChainStatusFilter>,
+) -> bool {
+    match status {
+        Some(msg::ChainStatusFilter::Frozen) => config.frozen,
+        Some(msg::ChainStatusFilter::Active) => !config.frozen,
+        None => true,
+    }
 }
 
 pub fn token_instance(deps: Deps, chain: ChainNameRaw, token_id: TokenId) -> Result<Binary, Error> {

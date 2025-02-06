@@ -5,9 +5,7 @@ use axelar_wasm_std::nonempty;
 use cosmwasm_std::testing::mock_env;
 use cosmwasm_std::{from_json, Deps};
 use interchain_token_service::contract::query;
-use interchain_token_service::msg::{
-    ChainConfigFilter, ChainConfigResponse, QueryMsg, TruncationConfig,
-};
+use interchain_token_service::msg::{ChainConfigResponse, ChainFilter, QueryMsg, TruncationConfig};
 use interchain_token_service::{TokenConfig, TokenId, TokenInstance};
 use router_api::{Address, ChainNameRaw};
 
@@ -54,7 +52,7 @@ pub fn query_is_contract_enabled(deps: Deps) -> Result<bool, ContractError> {
 
 pub fn query_its_chains(
     deps: Deps,
-    filter: Option<ChainConfigFilter>,
+    filter: Option<ChainFilter>,
 ) -> Result<Vec<ChainConfigResponse>, ContractError> {
     let bin = query(deps, mock_env(), QueryMsg::ItsChains { filter })?;
     Ok(from_json(bin)?)
@@ -75,5 +73,11 @@ pub fn create_expected_chain_config(
             max_decimals_when_truncating: max_decimals,
         },
         frozen,
+    }
+}
+
+pub fn field_by_field_check(actual: Vec<ChainConfigResponse>, expected: Vec<ChainConfigResponse>) {
+    for (a, e) in actual.iter().zip(expected.iter()) {
+        assert_eq!(a, e);
     }
 }

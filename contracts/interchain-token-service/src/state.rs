@@ -170,10 +170,7 @@ pub fn load_chain_config(
         .ok_or_else(|| report!(Error::ChainNotFound(chain.to_owned())))
 }
 
-pub fn load_filtered_chain_configs(
-    storage: &dyn Storage,
-    filter: Option<msg::ChainConfigFilter>,
-) -> Result<Vec<msg::ChainConfigResponse>, Error> {
+pub fn load_chain_configs(storage: &dyn Storage) -> Result<Vec<msg::ChainConfigResponse>, Error> {
     let configs = CHAIN_CONFIGS
         .range(storage, None, None, Order::Ascending)
         .map(|res| {
@@ -191,25 +188,7 @@ pub fn load_filtered_chain_configs(
                 })
         })
         .collect::<Result<Vec<_>, _>>()?;
-
-    Ok(match filter {
-        Some(filter) if filter.status.is_some() => configs
-            .into_iter()
-            .filter(|config| matches_filter(config, filter.status.as_ref()))
-            .collect(),
-        _ => configs,
-    })
-}
-
-fn matches_filter(
-    config: &msg::ChainConfigResponse,
-    status: Option<&msg::ChainStatusFilter>,
-) -> bool {
-    match status {
-        Some(msg::ChainStatusFilter::Frozen) => config.frozen,
-        Some(msg::ChainStatusFilter::Active) => !config.frozen,
-        None => true,
-    }
+    Ok(configs)
 }
 
 pub fn save_chain_config(
