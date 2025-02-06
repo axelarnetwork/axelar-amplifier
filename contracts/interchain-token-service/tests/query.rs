@@ -223,7 +223,7 @@ fn query_chains_config() {
     .unwrap();
     utils::assert_configs_equal(
         &frozen_chains,
-        &vec![utils::create_config_response(&test_config.eth, true)],
+        &[utils::create_config_response(&test_config.eth, true)],
     );
 
     let active_chains = utils::query_its_chains(
@@ -235,6 +235,6 @@ fn query_chains_config() {
     .unwrap();
     utils::assert_configs_equal(
         &active_chains,
-        &vec![utils::create_config_response(&test_config.polygon, false)],
+        &[utils::create_config_response(&test_config.polygon, false)],
     );
 }

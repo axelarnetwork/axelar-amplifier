@@ -78,8 +78,8 @@ pub fn create_config_response(chain_data: &ChainData, frozen: bool) -> ChainConf
 }
 
 pub fn assert_configs_equal(
-    actual: &Vec<ChainConfigResponse>,
-    expected: &Vec<ChainConfigResponse>,
+    actual: &[ChainConfigResponse],
+    expected: &[ChainConfigResponse],
 ) {
     assert_eq!(actual.len(), expected.len(), "Different number of configs");
     for (a, e) in actual.iter().zip(expected.iter()) {
