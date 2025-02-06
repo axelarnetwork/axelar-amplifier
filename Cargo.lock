@@ -877,7 +877,6 @@ dependencies = [
  "serde_with",
  "sha3",
  "starknet-checked-felt",
- "starknet-types-core",
  "stellar-xdr",
  "strum 0.25.0",
  "sui-types 1.0.0",
