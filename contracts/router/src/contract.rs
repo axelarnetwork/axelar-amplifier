@@ -1,11 +1,10 @@
-use axelar_wasm_std::{address, killswitch, permission_control, FnExt};
+use axelar_wasm_std::{address, killswitch, migrate_from_version, permission_control, FnExt};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     to_json_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response, Storage,
 };
 use router_api::error::Error;
-use semver::{Version, VersionReq};
 
 use crate::contract::migrations::v1_1_1;
 use crate::events::RouterInstantiated;
@@ -21,21 +20,13 @@ pub const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 pub const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[cfg_attr(not(feature = "library"), entry_point)]
+#[migrate_from_version("1.1")]
 pub fn migrate(
     deps: DepsMut,
     _env: Env,
     msg: MigrateMsg,
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
-    let old_version = Version::parse(&cw2::get_contract_version(deps.storage)?.version)?;
-    let version_requirement = VersionReq::parse(">= 1.1.0, < 1.2.0")?;
-    assert!(version_requirement.matches(&old_version));
-
     v1_1_1::migrate(deps.storage, msg.chains_to_remove)?;
-
-    // this needs to be the last thing to do during migration,
-    // because previous migration steps should check the old version
-    cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-
     Ok(Response::default())
 }
 

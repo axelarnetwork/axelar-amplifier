@@ -3,13 +3,14 @@ use std::collections::HashMap;
 use assert_ok::assert_ok;
 use cosmwasm_std::testing::mock_dependencies;
 use cosmwasm_std::Uint256;
+use interchain_token_service::msg::{ChainConfigResponse, TruncationConfig};
 use interchain_token_service::TokenId;
 use router_api::{Address, ChainNameRaw};
 
 mod utils;
 
 #[test]
-fn query_its_contract() {
+fn query_chain_config() {
     let mut deps = mock_dependencies();
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
@@ -27,15 +28,25 @@ fn query_its_contract() {
     )
     .unwrap();
 
-    let queried_address = assert_ok!(utils::query_its_contract(deps.as_ref(), chain.clone()));
-    assert_eq!(queried_address, Some(address));
+    let original_chain_config = ChainConfigResponse {
+        chain: chain.clone(),
+        its_edge_contract: address.clone(),
+        truncation: TruncationConfig {
+            max_uint: Uint256::MAX.try_into().unwrap(),
+            max_decimals_when_truncating: u8::MAX,
+        },
+        frozen: false,
+    };
+
+    let chain_config = assert_ok!(utils::query_its_chain(deps.as_ref(), chain.clone()));
+    assert_eq!(chain_config.unwrap(), original_chain_config);
 
     // case sensitive query
-    let queried_address = assert_ok!(utils::query_its_contract(
+    let chain_config = assert_ok!(utils::query_its_chain(
         deps.as_ref(),
         "ethereum".parse().unwrap()
     ));
-    assert_eq!(queried_address, None);
+    assert_eq!(chain_config, None);
 
     let new_address: Address = "0x9999999990123456789012345678901234567890"
         .parse()
@@ -46,12 +57,12 @@ fn query_its_contract() {
         new_address.clone()
     ));
 
-    let queried_address = assert_ok!(utils::query_its_contract(deps.as_ref(), chain.clone()));
-    assert_eq!(queried_address, Some(new_address));
+    let chain_config = assert_ok!(utils::query_its_chain(deps.as_ref(), chain.clone()));
+    assert_eq!(chain_config.unwrap().its_edge_contract, new_address);
 
     let non_existent_chain: ChainNameRaw = "non-existent-chain".parse().unwrap();
-    let queried_address = assert_ok!(utils::query_its_contract(deps.as_ref(), non_existent_chain));
-    assert_eq!(queried_address, None);
+    let chain_config = assert_ok!(utils::query_its_chain(deps.as_ref(), non_existent_chain));
+    assert_eq!(chain_config, None);
 }
 
 #[test]
@@ -101,4 +112,18 @@ fn query_token_chain_config() {
 
     let config = utils::query_token_instance(deps.as_ref(), chain, token_id).unwrap();
     assert_eq!(config, None);
+}
+
+#[test]
+fn query_contract_enable_disable_lifecycle() {
+    let mut deps = mock_dependencies();
+    utils::instantiate_contract(deps.as_mut()).unwrap();
+
+    let enabled = utils::query_is_contract_enabled(deps.as_ref()).unwrap();
+    assert!(enabled);
+
+    utils::disable_contract_execution(deps.as_mut()).unwrap();
+
+    let enabled = utils::query_is_contract_enabled(deps.as_ref()).unwrap();
+    assert!(!enabled);
 }

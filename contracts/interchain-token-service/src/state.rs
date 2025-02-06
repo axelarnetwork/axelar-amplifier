@@ -36,7 +36,7 @@ pub struct Config {
 pub struct ChainConfig {
     pub truncation: TruncationConfig,
     pub its_address: Address,
-    frozen: bool,
+    pub frozen: bool,
 }
 
 #[cw_serde]

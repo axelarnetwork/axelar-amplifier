@@ -4,15 +4,15 @@ use axelar_wasm_std::error::ContractError;
 use cosmwasm_std::testing::mock_env;
 use cosmwasm_std::{from_json, Deps};
 use interchain_token_service::contract::query;
-use interchain_token_service::msg::QueryMsg;
+use interchain_token_service::msg::{ChainConfigResponse, QueryMsg};
 use interchain_token_service::{TokenConfig, TokenId, TokenInstance};
 use router_api::{Address, ChainNameRaw};
 
-pub fn query_its_contract(
+pub fn query_its_chain(
     deps: Deps,
     chain: ChainNameRaw,
-) -> Result<Option<Address>, ContractError> {
-    let bin = query(deps, mock_env(), QueryMsg::ItsContract { chain })?;
+) -> Result<Option<ChainConfigResponse>, ContractError> {
+    let bin = query(deps, mock_env(), QueryMsg::ItsChain { chain })?;
     Ok(from_json(bin)?)
 }
 
@@ -41,5 +41,10 @@ pub fn query_token_config(
     token_id: TokenId,
 ) -> Result<Option<TokenConfig>, ContractError> {
     let bin = query(deps, mock_env(), QueryMsg::TokenConfig { token_id })?;
+    Ok(from_json(bin)?)
+}
+
+pub fn query_is_contract_enabled(deps: Deps) -> Result<bool, ContractError> {
+    let bin = query(deps, mock_env(), QueryMsg::IsEnabled {})?;
     Ok(from_json(bin)?)
 }
