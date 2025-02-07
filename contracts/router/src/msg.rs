@@ -13,4 +13,4 @@ pub struct InstantiateMsg {
 // these messages are extracted into a separate package to avoid circular dependencies
 pub use router_api::msg::{ExecuteMsg, QueryMsg};
 
-pub use crate::contract::migrations::MigrateMsg;
+pub use crate::contract::MigrateMsg;

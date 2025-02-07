@@ -12,10 +12,10 @@ use crate::state;
 use crate::state::{load_chain_by_gateway, load_config, Config};
 
 mod execute;
-pub(crate) mod migrations;
+mod migrations;
 mod query;
 
-pub use migrations::migrate;
+pub use migrations::{migrate, MigrateMsg};
 
 pub const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 pub const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
