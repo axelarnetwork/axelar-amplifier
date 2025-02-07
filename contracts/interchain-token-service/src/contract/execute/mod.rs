@@ -2,7 +2,6 @@ use axelar_wasm_std::{killswitch, nonempty, FnExt, IntoContractError};
 use cosmwasm_std::{DepsMut, HexBinary, QuerierWrapper, Response, Storage};
 use error_stack::{bail, ensure, report, Result, ResultExt};
 use interceptors::{deploy_token_to_destination_chain, deploy_token_to_source_chain};
-use itertools::Itertools;
 use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
 
 use crate::events::Event;
