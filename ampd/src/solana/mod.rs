@@ -121,14 +121,14 @@ where
 
 // Check backward in the logs if the invocation comes from the gateway program,
 // skipping native program invocations and returning the data log if the event comes from the gateway.
-// 
+//
 // Example logs input (indexes are just for reference):
-// 
-// 1. Program gtwLjHAsfKAR6GWB4hzTUAA1w4SDdFMKamtGA5ttMEe invoke [1] 
-// 2. Program log: Instruction: Call Contract", 
-// 3. Program data: Y2FsbCBjb250cmFjdF9fXw== 6NGe5cm7PkXHz/g8V2VdRg0nU0l7R48x8lll4s0Clz0= xtlu5J3pLn7c4BhqnNSrP1wDZK/pQOJVCYbk6sroJhY= ZXRoZXJldW0= MHgwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA2YzIwNjAzYzdiODc2NjgyYzEyMTczYmRlZjlhMWRjYTUyOGYxNGZk 8J+QqvCfkKrwn5Cq8J+Qqg==", 
+//
+// 1. Program gtwLjHAsfKAR6GWB4hzTUAA1w4SDdFMKamtGA5ttMEe invoke [1]
+// 2. Program log: Instruction: Call Contract",
+// 3. Program data: Y2FsbCBjb250cmFjdF9fXw== 6NGe5cm7PkXHz/g8V2VdRg0nU0l7R48x8lll4s0Clz0= xtlu5J3pLn7c4BhqnNSrP1wDZK/pQOJVCYbk6sroJhY= ZXRoZXJldW0= MHgwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA2YzIwNjAzYzdiODc2NjgyYzEyMTczYmRlZjlhMWRjYTUyOGYxNGZk 8J+QqvCfkKrwn5Cq8J+Qqg==",
 // 4. Program gtwLjHAsfKAR6GWB4hzTUAA1w4SDdFMKamtGA5ttMEe success"
-// 
+//
 // In the above log example, this function would return the data log at 3, if and only if the event comes from the gateway,
 // which is determined by scanning log lines backwards till we find the pattern "Program <gateway_id> invoke" at 1 for the first time.
 // It will fail if it finds any other invocation before the gateway invocation, except for the system program. In that case it will omit it and
@@ -168,9 +168,9 @@ fn event_comes_from_gateway(
             if program_id == solana_gateway_id {
                 // We return the data log to be processed by further functions if we confirm the log comes from the gateway
                 return Ok(data_log);
-            } else {
-                break;
             }
+
+            break;
         }
     }
     Err("Log does not belong to the gateway program".into())
