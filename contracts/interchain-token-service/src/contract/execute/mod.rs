@@ -376,35 +376,37 @@ pub fn enable_execution(deps: DepsMut) -> Result<Response, Error> {
 pub fn register_chains(deps: DepsMut, chains: Vec<msg::ChainConfig>) -> Result<Response, Error> {
     chains
         .into_iter()
-        .map(|chain_config| register_chain(deps.storage, chain_config))
-        .try_collect::<_, Vec<Response>, _>()?
-        .then(|_| Ok(Response::new()))
+        .try_for_each(|chain_config| register_chain(deps.storage, chain_config))?;
+
+    Ok(Response::new())
 }
 
-fn register_chain(storage: &mut dyn Storage, config: msg::ChainConfig) -> Result<Response, Error> {
+fn register_chain(storage: &mut dyn Storage, config: msg::ChainConfig) -> Result<(), Error> {
     match state::may_load_chain_config(storage, &config.chain).change_context(Error::State)? {
         Some(_) => bail!(Error::ChainAlreadyRegistered(config.chain)),
         None => state::save_chain_config(storage, &config.chain.clone(), config)
-            .change_context(Error::State)?
-            .then(|_| Ok(Response::new())),
-    }
+            .change_context(Error::State)?,
+    };
+
+    Ok(())
 }
 
 pub fn update_chains(deps: DepsMut, chains: Vec<msg::ChainConfig>) -> Result<Response, Error> {
     chains
         .into_iter()
-        .map(|chain_config| update_chain(deps.storage, chain_config))
-        .try_collect::<_, Vec<Response>, _>()?
-        .then(|_| Ok(Response::new()))
+        .try_for_each(|chain_config| update_chain(deps.storage, chain_config))?;
+
+    Ok(Response::new())
 }
 
-fn update_chain(storage: &mut dyn Storage, config: msg::ChainConfig) -> Result<Response, Error> {
+fn update_chain(storage: &mut dyn Storage, config: msg::ChainConfig) -> Result<(), Error> {
     match state::may_load_chain_config(storage, &config.chain).change_context(Error::State)? {
         None => bail!(Error::ChainNotRegistered(config.chain)),
         Some(_) => state::save_chain_config(storage, &config.chain.clone(), config)
-            .change_context(Error::State)?
-            .then(|_| Ok(Response::new())),
-    }
+            .change_context(Error::State)?,
+    };
+
+    Ok(())
 }
 
 trait DeploymentType {
