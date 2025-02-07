@@ -1,0 +1,24 @@
+[package]
+name = "migration-remover"
+version = "1.0.0"
+rust-version = { workspace = true }
+edition = { workspace = true }
+description = "Tool to remove a contract's migration code and reset the `migrate` entry point"
+
+[features]
+library = []
+
+[dependencies]
+clap = { version = "4.2.7", features = ["derive", "cargo"] }
+error-stack = { workspace = true }
+thiserror = { workspace = true }
+toml = "0.8.19"
+
+[dev-dependencies]
+axelar-wasm-std = { workspace = true, features = ["derive"] }
+cosmwasm-std = { workspace = true }
+cw2 = { workspace = true }
+semver = { workspace = true }
+
+[lints]
+workspace = true

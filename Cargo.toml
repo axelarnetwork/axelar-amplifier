@@ -5,6 +5,7 @@ members = [
   "external-gateways/*",
   "integration-tests",
   "packages/*",
+  "tools/*",
 ]
 resolver = "2"
 
