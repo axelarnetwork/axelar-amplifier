@@ -10,7 +10,6 @@ use cosmrs::Any;
 use error_stack::ResultExt;
 use events::Error::EventTypeMismatch;
 use events_derive::try_from;
-use gateway_event_stack::MatchContext;
 use router_api::ChainName;
 use serde::Deserialize;
 use solana_sdk::pubkey::Pubkey;
@@ -54,7 +53,6 @@ pub struct Handler<C: SolanaRpcClientProxy> {
     voting_verifier_contract: TMAddress,
     rpc_client: C,
     latest_block_height: Receiver<u64>,
-    event_match_context: MatchContext,
 }
 
 impl<C: SolanaRpcClientProxy> Handler<C> {
@@ -64,13 +62,11 @@ impl<C: SolanaRpcClientProxy> Handler<C> {
         rpc_client: C,
         latest_block_height: Receiver<u64>,
     ) -> Self {
-        let event_match_context = MatchContext::new(&axelar_solana_gateway::ID.to_string());
 
         Self {
             verifier,
             voting_verifier_contract,
             rpc_client,
-            event_match_context,
             latest_block_height,
         }
     }
@@ -118,6 +114,7 @@ impl<C: SolanaRpcClientProxy> EventHandler for Handler<C> {
             }
             event => event.change_context(DeserializeEvent)?,
         };
+        
         if !participants.contains(&self.verifier) {
             return Ok(vec![]);
         }
@@ -136,12 +133,10 @@ impl<C: SolanaRpcClientProxy> EventHandler for Handler<C> {
             .filter_map(|tx_data| tx_data)
             .collect::<HashMap<_, _>>();
 
-        let poll_id_str: String = poll_id.into();
-        let source_chain_str: String = source_chain.into();
         let votes = info_span!(
             "verify messages from Solana",
-            poll_id = poll_id_str,
-            source_chain = source_chain_str,
+            poll_id = poll_id.to_string(),
+            source_chain = source_chain.to_string(),
             message_ids = messages
                 .iter()
                 .map(|msg| msg.message_id.to_string())
@@ -157,7 +152,7 @@ impl<C: SolanaRpcClientProxy> EventHandler for Handler<C> {
                     finalized_tx_receipts
                         .get_key_value(&msg.message_id.raw_signature.into())
                         .map_or(Vote::NotFound, |entry| {
-                            verify_message(&self.event_match_context, entry, msg)
+                            verify_message(entry, msg)
                         })
                 })
                 .collect();

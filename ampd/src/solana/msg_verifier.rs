@@ -1,6 +1,5 @@
 use axelar_solana_gateway::processor::GatewayEvent;
 use axelar_wasm_std::voting::Vote;
-use gateway_event_stack::MatchContext;
 use solana_sdk::signature::Signature;
 use solana_transaction_status::UiTransactionStatusMeta;
 
@@ -8,20 +7,19 @@ use crate::handlers::solana_verify_msg::Message;
 
 use super::verify;
 
-pub fn verify_message(
-    match_context: &MatchContext,
-    tx: (&Signature, &UiTransactionStatusMeta),
-    message: &Message,
-) -> Vote {
-    verify(match_context, tx, &message.message_id, |gateway_event| {
+pub fn verify_message(tx: (&Signature, &UiTransactionStatusMeta), message: &Message) -> Vote {
+    verify(tx, &message.message_id, |gateway_event| {
         let (sender, payload_hash, destination_chain, destination_contract_address) =
             match gateway_event {
+                // This event is emitted when a contract call is initiated to an external chain.
                 GatewayEvent::CallContract(event) => (
                     &event.sender_key,
                     &event.payload_hash,
                     &event.destination_chain,
                     &event.destination_contract_address,
                 ),
+                // This event is emitted when a contract call is initiated to an external chain with call data
+                // being passed offchain.
                 GatewayEvent::CallContractOffchainData(event) => (
                     &event.sender_key,
                     &event.payload_hash,
@@ -55,11 +53,7 @@ mod tests {
         dbg!(&tx);
         assert_eq!(
             Vote::SucceededOnChain,
-            verify_message(
-                &create_matcher(&GATEWAY_PROGRAM_ID),
-                (&signature, &tx),
-                &msg
-            )
+            verify_message((&signature, &tx), &msg)
         );
     }
 
@@ -67,83 +61,41 @@ mod tests {
     fn should_not_verify_msg_if_event_idx_is_invalid() {
         let ((signature, tx), _event, mut msg) = fixture_success_call_contract_tx_data();
         msg.message_id.event_index = 100;
-        assert_eq!(
-            Vote::NotFound,
-            verify_message(
-                &create_matcher(&GATEWAY_PROGRAM_ID),
-                (&signature, &tx),
-                &msg
-            )
-        );
+        assert_eq!(Vote::NotFound, verify_message((&signature, &tx), &msg));
     }
 
     #[test]
     fn should_not_verify_msg_if_destination_chain_does_not_match() {
         let ((signature, tx), _event, mut msg) = fixture_success_call_contract_tx_data();
         msg.destination_chain = ChainName::from_str("badchain").unwrap();
-        assert_eq!(
-            Vote::NotFound,
-            verify_message(
-                &create_matcher(&GATEWAY_PROGRAM_ID),
-                (&signature, &tx),
-                &msg
-            )
-        );
+        assert_eq!(Vote::NotFound, verify_message((&signature, &tx), &msg));
     }
 
     #[test]
     fn should_not_verify_msg_if_source_address_does_not_match() {
         let ((signature, tx), _event, mut msg) = fixture_success_call_contract_tx_data();
         msg.source_address = Pubkey::from([13; 32]);
-        assert_eq!(
-            Vote::NotFound,
-            verify_message(
-                &create_matcher(&GATEWAY_PROGRAM_ID),
-                (&signature, &tx),
-                &msg
-            )
-        );
+        assert_eq!(Vote::NotFound, verify_message((&signature, &tx), &msg));
     }
 
     #[test]
     fn should_not_verify_msg_if_destination_address_does_not_match() {
         let ((signature, tx), _event, mut msg) = fixture_success_call_contract_tx_data();
         msg.destination_address = "bad_address".to_string();
-        assert_eq!(
-            Vote::NotFound,
-            verify_message(
-                &create_matcher(&GATEWAY_PROGRAM_ID),
-                (&signature, &tx),
-                &msg
-            )
-        );
+        assert_eq!(Vote::NotFound, verify_message((&signature, &tx), &msg));
     }
 
     #[test]
     fn should_not_verify_msg_if_payload_hash_does_not_match() {
         let ((signature, tx), _event, mut msg) = fixture_success_call_contract_tx_data();
         msg.payload_hash = [1; 32].into();
-        assert_eq!(
-            Vote::NotFound,
-            verify_message(
-                &create_matcher(&GATEWAY_PROGRAM_ID),
-                (&signature, &tx),
-                &msg
-            )
-        );
+        assert_eq!(Vote::NotFound, verify_message((&signature, &tx), &msg));
     }
 
     #[test]
     fn should_not_verify_msg_gateway_does_not_match() {
-        let ((signature, tx), _event, msg) = fixture_success_call_contract_tx_data();
-        assert_eq!(
-            Vote::NotFound,
-            verify_message(
-                &create_matcher(&Pubkey::new_unique()),
-                (&signature, &tx),
-                &msg
-            )
-        );
+        let ((signature, tx), _event, msg) = fixture_bad_gateway_call_contract_tx_data();
+        assert_eq!(Vote::NotFound, verify_message((&signature, &tx), &msg));
     }
 
     #[test]
@@ -161,38 +113,7 @@ mod tests {
         let mut tx = tx_meta(logs);
         tx.err = Some(solana_sdk::transaction::TransactionError::AccountNotFound);
 
-        assert_eq!(
-            Vote::FailedOnChain,
-            verify_message(
-                &create_matcher(&GATEWAY_PROGRAM_ID),
-                (&signature, &tx),
-                &msg
-            )
-        );
-    }
-
-    #[test]
-    fn should_fail_tx_succeeded_with_failed_ix() {
-        let (base64_data, event) = fixture_call_contract_log();
-        let logs = vec![
-            format!("Program {GATEWAY_PROGRAM_ID} invoke [1]"),
-            "Program log: Instruction: Call Contract".to_owned(),
-            format!("Program data: {}", base64_data),
-            format!("Program {GATEWAY_PROGRAM_ID} failed"), // Invocation 1 fails
-        ];
-
-        let msg = create_msg_counterpart(&event, 2);
-        let tx = tx_meta(logs);
-        let signature = msg.message_id.raw_signature.into();
-
-        assert_eq!(
-            Vote::FailedOnChain,
-            verify_message(
-                &create_matcher(&GATEWAY_PROGRAM_ID),
-                (&signature, &tx),
-                &msg
-            )
-        );
+        assert_eq!(Vote::FailedOnChain, verify_message((&signature, &tx), &msg));
     }
 
     #[test]
@@ -221,11 +142,7 @@ mod tests {
 
         assert_eq!(
             Vote::SucceededOnChain,
-            verify_message(
-                &create_matcher(&GATEWAY_PROGRAM_ID),
-                (&signature, &tx),
-                &msg
-            )
+            verify_message((&signature, &tx), &msg)
         );
     }
 
@@ -286,6 +203,27 @@ mod tests {
         ((signature, tx_meta(logs)), event, msg)
     }
 
+    fn fixture_bad_gateway_call_contract_tx_data() -> (
+        (Signature, UiTransactionStatusMeta),
+        CallContractEvent,
+        Message,
+    ) {
+        let bad_gateway = Pubkey::new_unique();
+
+        let (base64_data, event) = fixture_call_contract_log();
+        let logs = vec![
+            format!("Program {bad_gateway} invoke [1]"), // Invocation 1 starts
+            "Program log: Instruction: Call Contract".to_owned(),
+            format!("Program data: {}", base64_data),
+            format!("Program {bad_gateway} success"), // Invocation 1 succeeds
+        ];
+
+        let msg = create_msg_counterpart(&event, 2);
+        let signature = msg.message_id.raw_signature.into();
+
+        ((signature, tx_meta(logs)), event, msg)
+    }
+
     fn tx_meta(logs: Vec<String>) -> UiTransactionStatusMeta {
         UiTransactionStatusMeta {
             err: None,
@@ -302,9 +240,5 @@ mod tests {
             return_data: OptionSerializer::None,
             compute_units_consumed: OptionSerializer::None,
         }
-    }
-
-    fn create_matcher(gateway_program_id: &Pubkey) -> MatchContext {
-        MatchContext::new(gateway_program_id.to_string().as_str())
     }
 }

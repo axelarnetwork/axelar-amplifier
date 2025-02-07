@@ -4,7 +4,6 @@ use axelar_solana_encoding::hasher::NativeHasher;
 use axelar_solana_gateway::processor::GatewayEvent;
 use axelar_solana_gateway::processor::VerifierSetRotated;
 use axelar_wasm_std::voting::Vote;
-use gateway_event_stack::MatchContext;
 use multisig::key::PublicKey;
 use multisig::verifier_set::VerifierSet;
 use solana_sdk::signature::Signature;
@@ -15,14 +14,13 @@ use crate::solana::verify;
 use tracing::error;
 
 pub fn verify_verifier_set(
-    match_context: &MatchContext,
     tx: (&Signature, &UiTransactionStatusMeta),
     message: &VerifierSetConfirmation,
     domain_separator: &[u8; 32],
 ) -> Vote {
     use axelar_solana_encoding::types::verifier_set::verifier_set_hash;
 
-    verify(match_context, tx, &message.message_id, |gateway_event| {
+    verify(tx, &message.message_id, |gateway_event| {
         let GatewayEvent::VerifierSetRotated(VerifierSetRotated {
             verifier_set_hash: incoming_verifier_set_hash,
             epoch: _,
@@ -102,12 +100,7 @@ mod tests {
 
         event.message_id.raw_signature = [0; 64];
         assert_eq!(
-            verify_verifier_set(
-                &create_matcher(&GATEWAY_PROGRAM_ID),
-                (&signature, &tx),
-                &event,
-                &DOMAIN_SEPARATOR
-            ),
+            verify_verifier_set((&signature, &tx), &event, &DOMAIN_SEPARATOR),
             Vote::NotFound
         );
     }
@@ -118,28 +111,17 @@ mod tests {
 
         tx.err = Some(solana_sdk::transaction::TransactionError::AccountInUse);
         assert_eq!(
-            verify_verifier_set(
-                &create_matcher(&GATEWAY_PROGRAM_ID),
-                (&signature, &tx),
-                &event,
-                &DOMAIN_SEPARATOR
-            ),
+            verify_verifier_set((&signature, &tx), &event, &DOMAIN_SEPARATOR),
             Vote::FailedOnChain
         );
     }
 
     #[test]
     fn should_not_verify_verifier_set_if_gateway_address_does_not_match() {
-        let ((signature, tx), event) = fixture_success_call_contract_tx_data();
+        let ((signature, tx), event) = fixture_bad_gateway_call_contract_tx_data();
 
-        let gateway_address = Pubkey::new_unique();
         assert_eq!(
-            verify_verifier_set(
-                &create_matcher(&gateway_address),
-                (&signature, &tx),
-                &event,
-                &DOMAIN_SEPARATOR
-            ),
+            verify_verifier_set((&signature, &tx), &event, &DOMAIN_SEPARATOR),
             Vote::NotFound
         );
     }
@@ -150,22 +132,12 @@ mod tests {
 
         event.message_id.event_index -= 1;
         assert_eq!(
-            verify_verifier_set(
-                &create_matcher(&GATEWAY_PROGRAM_ID),
-                (&signature, &tx),
-                &event,
-                &DOMAIN_SEPARATOR
-            ),
+            verify_verifier_set((&signature, &tx), &event, &DOMAIN_SEPARATOR),
             Vote::NotFound
         );
         event.message_id.event_index += 2;
         assert_eq!(
-            verify_verifier_set(
-                &create_matcher(&GATEWAY_PROGRAM_ID),
-                (&signature, &tx),
-                &event,
-                &DOMAIN_SEPARATOR
-            ),
+            verify_verifier_set((&signature, &tx), &event, &DOMAIN_SEPARATOR),
             Vote::NotFound
         );
     }
@@ -176,12 +148,7 @@ mod tests {
 
         event.message_id.event_index = u32::MAX as u64 + 1;
         assert_eq!(
-            verify_verifier_set(
-                &create_matcher(&GATEWAY_PROGRAM_ID),
-                (&signature, &tx),
-                &event,
-                &DOMAIN_SEPARATOR
-            ),
+            verify_verifier_set((&signature, &tx), &event, &DOMAIN_SEPARATOR),
             Vote::NotFound
         );
     }
@@ -192,12 +159,7 @@ mod tests {
 
         event.verifier_set.threshold = Uint128::from(50u64);
         assert_eq!(
-            verify_verifier_set(
-                &create_matcher(&GATEWAY_PROGRAM_ID),
-                (&signature, &tx),
-                &event,
-                &DOMAIN_SEPARATOR
-            ),
+            verify_verifier_set((&signature, &tx), &event, &DOMAIN_SEPARATOR),
             Vote::NotFound
         );
     }
@@ -207,12 +169,7 @@ mod tests {
         let ((signature, tx), event) = fixture_success_call_contract_tx_data();
 
         assert_eq!(
-            verify_verifier_set(
-                &create_matcher(&GATEWAY_PROGRAM_ID),
-                (&signature, &tx),
-                &event,
-                &DOMAIN_SEPARATOR
-            ),
+            verify_verifier_set((&signature, &tx), &event, &DOMAIN_SEPARATOR),
             Vote::SucceededOnChain
         );
     }
@@ -296,6 +253,35 @@ mod tests {
         )
     }
 
+    fn fixture_bad_gateway_call_contract_tx_data() -> (
+        (Signature, UiTransactionStatusMeta),
+        VerifierSetConfirmation,
+    ) {
+        let gateway_address = Pubkey::new_unique();
+
+        let (base64_data, _event, actual_verifier_set) = fixture_rotate_verifier_set();
+        let logs = vec![
+            format!("Program {gateway_address} invoke [1]"),
+            "Program log: Instruction: Rotate Signers".to_string(),
+            "Program 11111111111111111111111111111111 invoke [2]".to_string(),
+            "Program 11111111111111111111111111111111 success".to_string(),
+            format!("Program data: {base64_data}"),
+            format!("Program {gateway_address} consumed 11970 of 200000 compute units"),
+            format!("Program {gateway_address} success"),
+        ];
+
+        (
+            (RAW_SIGNATURE.into(), tx_meta(logs)),
+            VerifierSetConfirmation {
+                message_id: Base58SolanaTxSignatureAndEventIndex {
+                    raw_signature: RAW_SIGNATURE,
+                    event_index: 4,
+                },
+                verifier_set: actual_verifier_set,
+            },
+        )
+    }
+
     fn tx_meta(logs: Vec<String>) -> UiTransactionStatusMeta {
         UiTransactionStatusMeta {
             err: None,
@@ -314,7 +300,4 @@ mod tests {
         }
     }
 
-    fn create_matcher(gateway_program_id: &Pubkey) -> MatchContext {
-        MatchContext::new(gateway_program_id.to_string().as_str())
-    }
 }

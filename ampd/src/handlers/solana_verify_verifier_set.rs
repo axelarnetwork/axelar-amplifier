@@ -9,7 +9,6 @@ use cosmrs::Any;
 use error_stack::ResultExt;
 use events::Error::EventTypeMismatch;
 use events_derive::try_from;
-use gateway_event_stack::MatchContext;
 use multisig::verifier_set::VerifierSet;
 use router_api::ChainName;
 use serde::Deserialize;
@@ -49,7 +48,6 @@ pub struct Handler<C: SolanaRpcClientProxy> {
     rpc_client: C,
     solana_gateway_domain_separator: [u8; 32],
     latest_block_height: Receiver<u64>,
-    event_match_context: MatchContext,
 }
 
 impl<C: SolanaRpcClientProxy> Handler<C> {
@@ -63,12 +61,10 @@ impl<C: SolanaRpcClientProxy> Handler<C> {
             .get_domain_separator()
             .await
             .expect("cannot start handler without fetching domain separator for Solana");
-        let event_match_context = MatchContext::new(&axelar_solana_gateway::ID.to_string());
 
         Self {
             verifier,
             solana_gateway_domain_separator: domain_separator,
-            event_match_context,
             voting_verifier_contract,
             rpc_client,
             latest_block_height,
@@ -144,7 +140,6 @@ impl<C: SolanaRpcClientProxy> EventHandler for Handler<C> {
 
             let vote = tx_receipt.map_or(Vote::NotFound, |(signature, tx_receipt)| {
                 verify_verifier_set(
-                    &self.event_match_context,
                     (&signature, &tx_receipt),
                     &verifier_set,
                     &self.solana_gateway_domain_separator,

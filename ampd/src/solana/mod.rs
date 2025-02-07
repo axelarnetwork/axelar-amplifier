@@ -1,7 +1,6 @@
 use axelar_solana_gateway::{processor::GatewayEvent, state::GatewayConfig, BytemuckedPda};
 use axelar_wasm_std::msg_id::Base58SolanaTxSignatureAndEventIndex;
 use axelar_wasm_std::voting::Vote;
-use gateway_event_stack::MatchContext;
 use solana_transaction_status::option_serializer::OptionSerializer;
 use solana_transaction_status::UiTransactionStatusMeta;
 use std::str::FromStr;
@@ -56,7 +55,6 @@ where
 }
 
 pub fn verify<F>(
-    match_context: &MatchContext,
     tx: (&Signature, &UiTransactionStatusMeta),
     message_id: &Base58SolanaTxSignatureAndEventIndex,
     events_are_equal: F,
@@ -64,6 +62,19 @@ pub fn verify<F>(
 where
     F: Fn(&GatewayEvent) -> bool,
 {
+    // message id signatures must match
+    let (signature, tx) = tx;
+    if signature.as_ref() != message_id.raw_signature {
+        error!("signatures don't match");
+        return Vote::NotFound;
+    }
+
+    // the tx must be successful
+    if tx.err.is_some() {
+        error!("Transaction failed");
+        return Vote::FailedOnChain;
+    }
+
     // the event idx cannot be larger than usize
     let desired_event_idx: usize = match message_id.event_index.try_into() {
         Ok(idx) => idx,
@@ -72,13 +83,6 @@ where
             return Vote::NotFound;
         }
     };
-
-    // message id signatures must match
-    let (signature, tx) = tx;
-    if signature.as_ref() != message_id.raw_signature {
-        error!("signatures don't match");
-        return Vote::NotFound;
-    }
 
     // logs must be attached to the TX
     let logs = match tx.log_messages.as_ref() {
@@ -89,47 +93,85 @@ where
         }
     };
 
-    // pare the events
-    let event_stack = gateway_event_stack::build_program_event_stack(
-        match_context,
-        logs,
-        gateway_event_stack::parse_gateway_logs,
-    );
-
-    for invocation_state in event_stack {
-        use gateway_event_stack::ProgramInvocationState::*;
-        let (vote, gateway_events) = match invocation_state {
-            Succeeded(events) => (
-                {
-                    // if tx was successful and ix invocation was successful,
-                    // then the final outcome (if event can be found) will be of `Vote::SucceededOnChain`
-                    if tx.err.is_none() {
-                        Vote::SucceededOnChain
-                    } else {
-                        // if tx was NOT successful then we don't care if the ix invocatoin succeeded,
-                        // therefore the final outcome (if event can be found) will be of `Vote::FailedOnChain`
-                        Vote::FailedOnChain
-                    }
-                },
-                events,
-            ),
-            Failed(events) | InProgress(events) => (Vote::FailedOnChain, events),
-        };
-
-        if let Some((_, event)) = gateway_events
-            .into_iter()
-            .find(|(idx, _)| *idx == desired_event_idx)
-        {
-            if events_are_equal(&event) {
-                // proxy the desired vote status of whether the ix succeeded
-                return vote;
-            }
-
-            warn!(?event, "event was found, but contents were not equal");
+    // Check in the logs in a backward way the invocation comes from the gateway
+    let log = match event_comes_from_gateway(logs, desired_event_idx) {
+        Ok(log) => log,
+        Err(err) => {
+            error!("Cannot find the gateway log: {}", err);
             return Vote::NotFound;
         }
-    }
+    };
 
-    warn!("not found");
-    Vote::NotFound
+    // Second ensure we can parse the event
+    let event = match gateway_event_stack::parse_gateway_logs(&log) {
+        Ok(ev) => ev,
+        Err(err) => {
+            error!("Cannot parse the gateway log: {}", err);
+            return Vote::NotFound;
+        }
+    };
+
+    if events_are_equal(&event) {
+        Vote::SucceededOnChain
+    } else {
+        warn!(?event, "event was found, but contents were not equal");
+        Vote::NotFound
+    }
+}
+
+// Check backward in the logs if the invocation comes from the gateway program,
+// skipping native program invocations and returning the data log if the event comes from the gateway.
+//
+// Example logs input (indexes are just for reference):
+//
+// 1. Program gtwLjHAsfKAR6GWB4hzTUAA1w4SDdFMKamtGA5ttMEe invoke [1]
+// 2. Program log: Instruction: Call Contract",
+// 3. Program data: Y2FsbCBjb250cmFjdF9fXw== 6NGe5cm7PkXHz/g8V2VdRg0nU0l7R48x8lll4s0Clz0= xtlu5J3pLn7c4BhqnNSrP1wDZK/pQOJVCYbk6sroJhY= ZXRoZXJldW0= MHgwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA2YzIwNjAzYzdiODc2NjgyYzEyMTczYmRlZjlhMWRjYTUyOGYxNGZk 8J+QqvCfkKrwn5Cq8J+Qqg==",
+// 4. Program gtwLjHAsfKAR6GWB4hzTUAA1w4SDdFMKamtGA5ttMEe success"
+//
+// In the above log example, this function would return the data log at 3, if and only if the event comes from the gateway,
+// which is determined by scanning log lines backwards till we find the pattern "Program <gateway_id> invoke" at 1 for the first time.
+// It will fail if it finds any other invocation before the gateway invocation, except for the system program. In that case it will omit it and
+// continue scanning.
+fn event_comes_from_gateway(
+    logs: &[String],
+    desired_event_idx: usize,
+) -> Result<&str, Box<dyn std::error::Error>> {
+    let solana_gateway_id = axelar_solana_gateway::id().to_string();
+    let system_program_id = solana_sdk::system_program::id().to_string();
+
+    // From the logs, we take only the logs from the desired event index to the first log
+    let mut logs = logs
+        .iter()
+        .take(
+            desired_event_idx
+                .checked_add(1)
+                .expect("To add 1 to index count to get elem take"),
+        )
+        .rev(); // +1 because take() gets n elements, not index based.
+
+    // This is the log that, if the event comes from the gateway, will contain the target data log
+    // It will be returned if the event comes from the gateway.
+    let data_log = logs.next().ok_or("Cannot find the first log")?;
+
+    for log in logs {
+        let mut parts = log.split(' ');
+
+        let program = parts.next().ok_or("Cannot find program log part")?;
+        let program_id = parts.next().ok_or("Cannot find program_id log part")?;
+        let action = parts.next().ok_or("Cannot find action log part")?;
+
+        if program == "Program" && action == "invoke" {
+            if program_id == system_program_id {
+                continue;
+            }
+            if program_id == solana_gateway_id {
+                // We return the data log to be processed by further functions if we confirm the log comes from the gateway
+                return Ok(data_log);
+            }
+
+            break;
+        }
+    }
+    Err("Log does not belong to the gateway program".into())
 }

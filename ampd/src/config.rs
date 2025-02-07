@@ -141,7 +141,6 @@ mod tests {
             type = 'SolanaMsgVerifier'
             rpc_url = 'http://localhost'
             cosmwasm_contract = '{}'
-            max_tx_cache_entries = 6
 
             [[handlers]]
             type = 'SolanaVerifierSetVerifier'
