@@ -1,6 +1,7 @@
 use axelar_wasm_std::{killswitch, IntoContractError};
-use cosmwasm_std::{to_json_binary, Binary, Deps};
+use cosmwasm_std::{to_json_binary, Binary, Deps, Order};
 use error_stack::{Result, ResultExt};
+use itertools::Itertools;
 use router_api::ChainNameRaw;
 
 use crate::{msg, state, TokenId};
@@ -35,27 +36,30 @@ pub fn all_its_contracts(deps: Deps) -> Result<Binary, Error> {
 }
 
 pub fn its_chains(deps: Deps, filter: Option<msg::ChainFilter>) -> Result<Binary, Error> {
-    let state_configs = state::load_chain_configs(deps.storage).change_context(Error::State)?;
+    let state_chain_configs = state::load_chain_configs();
 
-    let chain_configs = match filter {
-        Some(filter) if filter.frozen_status.is_some() => state_configs
+    let chain_config_responses: Vec<msg::ChainConfigResponse> = state_chain_configs
+        .range(deps.storage, None, None, Order::Ascending)
+        .map(|r| r.change_context(Error::State))
+        .map_ok(|(chain, config)| msg::ChainConfigResponse {
+            chain,
+            its_edge_contract: config.its_address,
+            truncation: msg::TruncationConfig {
+                max_uint: config.truncation.max_uint,
+                max_decimals_when_truncating: config.truncation.max_decimals_when_truncating,
+            },
+            frozen: config.frozen,
+        })
+        .try_collect()?;
+
+    let filtered_chain_configs = match &filter {
+        Some(filter) => chain_config_responses
             .into_iter()
-            .filter(|config| matches_filter(config, filter.frozen_status.as_ref()))
+            .filter(|config| filter.matches(config))
             .collect(),
-        _ => state_configs,
+        None => chain_config_responses,
     };
-    to_json_binary(&chain_configs).change_context(Error::JsonSerialization)
-}
-
-fn matches_filter(
-    config: &msg::ChainConfigResponse,
-    status: Option<&msg::ChainStatusFilter>,
-) -> bool {
-    match status {
-        Some(msg::ChainStatusFilter::Frozen) => config.frozen,
-        Some(msg::ChainStatusFilter::Active) => !config.frozen,
-        None => true,
-    }
+    to_json_binary(&filtered_chain_configs).change_context(Error::JsonSerialization)
 }
 
 pub fn token_instance(deps: Deps, chain: ChainNameRaw, token_id: TokenId) -> Result<Binary, Error> {

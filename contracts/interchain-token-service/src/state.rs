@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use axelar_wasm_std::{nonempty, FnExt, IntoContractError};
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, Order, OverflowError, StdError, Storage, Uint256};
+use cosmwasm_std::{Addr, OverflowError, StdError, Storage, Uint256};
 use cw_storage_plus::{Item, Map};
 use error_stack::{report, Result, ResultExt};
 use router_api::{Address, ChainNameRaw};
@@ -170,25 +170,8 @@ pub fn load_chain_config(
         .ok_or_else(|| report!(Error::ChainNotFound(chain.to_owned())))
 }
 
-pub fn load_chain_configs(storage: &dyn Storage) -> Result<Vec<msg::ChainConfigResponse>, Error> {
-    let configs = CHAIN_CONFIGS
-        .range(storage, None, None, Order::Ascending)
-        .map(|res| {
-            res.change_context(Error::Storage)
-                .map(|(chain, config)| msg::ChainConfigResponse {
-                    chain,
-                    its_edge_contract: config.its_address,
-                    truncation: msg::TruncationConfig {
-                        max_uint: config.truncation.max_uint,
-                        max_decimals_when_truncating: config
-                            .truncation
-                            .max_decimals_when_truncating,
-                    },
-                    frozen: config.frozen,
-                })
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    Ok(configs)
+pub fn load_chain_configs() -> Map<&'static ChainNameRaw, ChainConfig> {
+    CHAIN_CONFIGS
 }
 
 pub fn save_chain_config(
