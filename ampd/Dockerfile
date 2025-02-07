@@ -9,6 +9,7 @@ COPY ./packages ./packages
 COPY ./contracts ./contracts
 COPY ./integration-tests ./integration-tests
 COPY ./external-gateways ./external-gateways
+COPY ./tools ./tools
 COPY ./.cargo ./.cargo
 
 # build dependencies separately

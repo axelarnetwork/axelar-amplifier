@@ -27,16 +27,14 @@ pub enum ExecuteMsg {
     /// For each chain, register the ITS contract and set config parameters.
     /// Each chain's ITS contract has to be whitelisted before
     /// ITS Hub can send cross-chain messages to it, or receive messages from it.
-    /// If an ITS contract is already set for the chain, an error is returned.
+    /// If any chain is already registered, an error is returned.
     #[permission(Governance)]
     RegisterChains { chains: Vec<ChainConfig> },
 
-    /// Update the address of the ITS contract registered to the specified chain
+    /// For each chain, update the ITS contract and config parameters.
+    /// If any chain has not been registered, returns an error
     #[permission(Governance)]
-    UpdateChain {
-        chain: ChainNameRaw,
-        its_edge_contract: Address,
-    },
+    UpdateChains { chains: Vec<ChainConfig> },
 
     /// Freeze execution of ITS messages for a particular chain
     #[permission(Elevated)]
@@ -67,21 +65,36 @@ pub struct TruncationConfig {
 }
 
 #[cw_serde]
+pub struct ChainConfigResponse {
+    pub chain: ChainNameRaw,
+    pub its_edge_contract: Address,
+    pub truncation: TruncationConfig,
+    pub frozen: bool,
+}
+
+#[cw_serde]
 #[derive(QueryResponses)]
 pub enum QueryMsg {
-    /// Query the ITS contract address registered for a chain
-    #[returns(Option<Address>)]
-    ItsContract { chain: ChainNameRaw },
+    /// Query the configuration registered for a chain
+    #[returns(Option<ChainConfigResponse>)]
+    ItsChain { chain: ChainNameRaw },
+
     /// Query all registered ITS contract addresses
     #[returns(HashMap<ChainNameRaw, Address>)]
     AllItsContracts,
+
     /// Query a token instance on a specific chain
     #[returns(Option<TokenInstance>)]
     TokenInstance {
         chain: ChainNameRaw,
         token_id: TokenId,
     },
+
     /// Query the configuration parameters for a token
     #[returns(Option<TokenConfig>)]
     TokenConfig { token_id: TokenId },
+
+    /// Query the state of contract (enabled/disabled)
+    #[returns(bool)]
+    IsEnabled,
 }

@@ -159,10 +159,11 @@ mod tests {
     use cosmrs::cosmwasm::MsgExecuteContract;
     use cosmrs::tx::Msg;
     use cosmwasm_std;
-    use error_stack::{Report, Result};
+    use error_stack::Report;
+    use ethers_core::types::H160;
     use ethers_providers::ProviderError;
     use events::Event;
-    use sui_types::base_types::{SuiAddress, TransactionDigest};
+    use sui_types::base_types::{SuiAddress, SUI_ADDRESS_LENGTH};
     use tokio::sync::watch;
     use tokio::test as async_test;
     use voting_verifier::events::{PollMetadata, PollStarted, TxEventConfirmation};
@@ -170,21 +171,22 @@ mod tests {
     use super::PollStartedEvent;
     use crate::event_processor::EventHandler;
     use crate::handlers::errors::Error;
-    use crate::handlers::tests::into_structured_event;
+    use crate::handlers::tests::{into_structured_event, participants};
     use crate::sui::json_rpc::MockSuiClient;
-    use crate::types::{EVMAddress, Hash, TMAddress};
+    use crate::types::TMAddress;
 
     const PREFIX: &str = "axelar";
 
     #[test]
-    fn should_deserialize_poll_started_event() {
-        let event: Result<PollStartedEvent, events::Error> = into_structured_event(
+    fn sui_verify_msg_should_deserialize_correct_event() {
+        let event: PollStartedEvent = into_structured_event(
             poll_started_event(participants(5, None), 100),
             &TMAddress::random(PREFIX),
         )
-        .try_into();
+        .try_into()
+        .unwrap();
 
-        assert!(event.is_ok());
+        goldie::assert_debug!(event);
     }
 
     // Should not handle event if it is not a poll started event
@@ -326,12 +328,13 @@ mod tests {
     }
 
     fn poll_started_event(participants: Vec<TMAddress>, expires_at: u64) -> PollStarted {
-        let msg_id = Base58TxDigestAndEventIndex::new(TransactionDigest::random(), 0u64);
+        let msg_id = Base58TxDigestAndEventIndex::new([1; 32], 0u64);
         PollStarted::Messages {
             metadata: PollMetadata {
                 poll_id: "100".parse().unwrap(),
                 source_chain: "sui".parse().unwrap(),
-                source_gateway_address: SuiAddress::random_for_testing_only()
+                source_gateway_address: SuiAddress::from_bytes([3; SUI_ADDRESS_LENGTH])
+                    .unwrap()
                     .to_string()
                     .parse()
                     .unwrap(),
@@ -347,21 +350,15 @@ mod tests {
                 tx_id: msg_id.tx_digest_as_base58(),
                 event_index: u32::try_from(msg_id.event_index).unwrap(),
                 message_id: msg_id.to_string().parse().unwrap(),
-                source_address: SuiAddress::random_for_testing_only()
+                source_address: SuiAddress::from_bytes([4; SUI_ADDRESS_LENGTH])
+                    .unwrap()
                     .to_string()
                     .parse()
                     .unwrap(),
                 destination_chain: "ethereum".parse().unwrap(),
-                destination_address: format!("0x{:x}", EVMAddress::random()).parse().unwrap(),
-                payload_hash: Hash::random().to_fixed_bytes(),
+                destination_address: format!("0x{:x}", H160::repeat_byte(3)).parse().unwrap(),
+                payload_hash: [2; 32],
             }],
         }
-    }
-
-    fn participants(n: u8, verifier: Option<TMAddress>) -> Vec<TMAddress> {
-        (0..n)
-            .map(|_| TMAddress::random(PREFIX))
-            .chain(verifier)
-            .collect()
     }
 }

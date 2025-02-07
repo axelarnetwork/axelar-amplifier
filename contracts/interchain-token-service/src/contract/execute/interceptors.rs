@@ -296,15 +296,25 @@ pub fn register_custom_token(
     let existing_token = state::may_load_custom_token(
         storage,
         source_chain.clone(),
-        register_token.address.clone(),
+        register_token.token_address.clone(),
     )
     .change_context(Error::State)?;
-    ensure!(
-        existing_token.is_none(),
-        Error::TokenAlreadyRegistered(register_token.address)
-    );
 
-    state::save_custom_token(storage, source_chain, register_token).change_context(Error::State)
+    if let Some(existing_token) = existing_token {
+        ensure!(
+            existing_token.decimals == register_token.decimals,
+            Error::TokenDecimalsMismatch {
+                token_address: register_token.token_address,
+                existing_decimals: existing_token.decimals,
+                new_decimals: register_token.decimals
+            }
+        );
+    } else {
+        state::save_custom_token_metadata(storage, source_chain, register_token)
+            .change_context(Error::State)?;
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]
@@ -312,14 +322,63 @@ mod test {
     use assert_ok::assert_ok;
     use axelar_wasm_std::assert_err_contains;
     use cosmwasm_std::testing::MockStorage;
-    use cosmwasm_std::Uint256;
+    use cosmwasm_std::{HexBinary, Uint256};
     use router_api::ChainNameRaw;
 
-    use super::Error;
+    use super::{register_custom_token, Error};
     use crate::contract::execute::interceptors;
     use crate::msg::TruncationConfig;
     use crate::state::{self, TokenDeploymentType};
-    use crate::{msg, DeployInterchainToken, InterchainTransfer, TokenInstance};
+    use crate::{
+        msg, DeployInterchainToken, InterchainTransfer, RegisterTokenMetadata, TokenInstance,
+    };
+
+    #[test]
+    fn register_custom_token_allows_reregistration() {
+        let mut storage = MockStorage::new();
+        let source_chain = ChainNameRaw::try_from("source-chain").unwrap();
+        let register_token_msg = RegisterTokenMetadata {
+            decimals: 6,
+            token_address: HexBinary::from([0; 32]).try_into().unwrap(),
+        };
+        assert_ok!(register_custom_token(
+            &mut storage,
+            source_chain.clone(),
+            register_token_msg.clone()
+        ));
+        assert_ok!(register_custom_token(
+            &mut storage,
+            source_chain,
+            register_token_msg
+        ));
+    }
+
+    #[test]
+    fn register_custom_token_errors_on_decimals_mismatch() {
+        let mut storage = MockStorage::new();
+        let source_chain = ChainNameRaw::try_from("source-chain").unwrap();
+        let register_token_msg = RegisterTokenMetadata {
+            decimals: 6,
+            token_address: HexBinary::from([0; 32]).try_into().unwrap(),
+        };
+        assert_ok!(register_custom_token(
+            &mut storage,
+            source_chain.clone(),
+            register_token_msg.clone()
+        ));
+        assert_err_contains!(
+            register_custom_token(
+                &mut storage,
+                source_chain,
+                RegisterTokenMetadata {
+                    decimals: 12,
+                    ..register_token_msg
+                }
+            ),
+            Error,
+            Error::TokenDecimalsMismatch { .. }
+        );
+    }
 
     #[test]
     fn apply_scaling_factor_to_amount_when_source_decimals_are_bigger() {
