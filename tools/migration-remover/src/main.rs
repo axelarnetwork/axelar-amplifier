@@ -80,9 +80,13 @@ fn main() -> Result<(), Error> {
     Ok(())
 }
 
-// tests that `template.rs` compiles correctly and content can be re-exported
+// Tests that `template.rs` compiles correctly
 #[cfg(test)]
 mod template;
+
+// Re-exports template content to:
+// 1. Test that content can be re-exported
+// 2. Prevent dead_code warnings in `template.rs`
 #[cfg(test)]
 pub use template::migrate;
 #[cfg(test)]
