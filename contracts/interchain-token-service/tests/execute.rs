@@ -5,7 +5,7 @@ use axelar_wasm_std::response::inspect_response_msg;
 use axelar_wasm_std::{assert_err_contains, nonempty, permission_control};
 use axelarnet_gateway::msg::ExecuteMsg as AxelarnetGatewayExecuteMsg;
 use cosmwasm_std::testing::{message_info, mock_dependencies, mock_env};
-use cosmwasm_std::{HexBinary, Uint256};
+use cosmwasm_std::{HexBinary, Uint128, Uint256};
 use interchain_token_service::contract::{self, ExecuteError};
 use interchain_token_service::events::Event;
 use interchain_token_service::msg::{self, ExecuteMsg, TruncationConfig};
@@ -48,7 +48,9 @@ fn register_update_its_contract_succeeds() {
     assert_ok!(utils::update_chain(
         deps.as_mut(),
         chain.clone(),
-        new_address.clone()
+        new_address.clone(),
+        Uint128::MAX.try_into().unwrap(),
+        18u8
     ));
     let res = assert_ok!(utils::query_its_chain(deps.as_ref(), chain.clone()));
     assert_eq!(res.unwrap().its_edge_contract, new_address);
@@ -98,7 +100,9 @@ fn update_unknown_chain_fails() {
             chain,
             "0x1234567890123456789012345678901234567890"
                 .parse()
-                .unwrap()
+                .unwrap(),
+            Uint256::MAX.try_into().unwrap(),
+            u8::MAX
         ),
         Error,
         Error::UpdateChain
