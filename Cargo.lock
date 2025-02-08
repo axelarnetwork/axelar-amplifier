@@ -277,7 +277,7 @@ dependencies = [
  "goldie",
  "hex",
  "humantime-serde",
- "itertools 0.11.0",
+ "itertools 0.14.0",
  "k256",
  "mockall 0.11.4",
  "move-core-types",
@@ -1013,7 +1013,7 @@ dependencies = [
  "goldie",
  "hex",
  "into-inner-derive",
- "itertools 0.11.0",
+ "itertools 0.14.0",
  "lazy_static",
  "num-traits",
  "rand 0.8.5",
@@ -1043,7 +1043,7 @@ dependencies = [
  "cw2",
  "error-stack",
  "heck 0.5.0",
- "itertools 0.11.0",
+ "itertools 0.14.0",
  "proc-macro2 1.0.93",
  "quote 1.0.38",
  "report",
@@ -1070,7 +1070,7 @@ dependencies = [
  "error-stack",
  "goldie",
  "hex",
- "itertools 0.11.0",
+ "itertools 0.14.0",
  "msgs-derive",
  "rand 0.8.5",
  "report",
@@ -1851,9 +1851,9 @@ dependencies = [
 
 [[package]]
 name = "cc"
-version = "1.2.12"
+version = "1.2.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "755717a7de9ec452bf7f3f1a3099085deabd7f2962b861dae91ecd7a365903d2"
+checksum = "c7777341816418c02e033934a09f20dc0ccaf65a5201ef8a450ae0105a573fda"
 dependencies = [
  "jobserver",
  "libc",
@@ -2218,7 +2218,7 @@ dependencies = [
  "error-stack",
  "goldie",
  "integration-tests",
- "itertools 0.11.0",
+ "itertools 0.14.0",
  "msgs-derive",
  "multisig",
  "report",
@@ -3984,7 +3984,7 @@ dependencies = [
  "error-stack",
  "gateway-api",
  "goldie",
- "itertools 0.11.0",
+ "itertools 0.14.0",
  "rand 0.8.5",
  "report",
  "router-api",
@@ -6038,7 +6038,7 @@ dependencies = [
  "axelar-wasm-std",
  "cosmwasm-std",
  "error-stack",
- "itertools 0.11.0",
+ "itertools 0.14.0",
  "proc-macro2 1.0.93",
  "quote 1.0.38",
  "syn 2.0.98",
@@ -8092,7 +8092,7 @@ version = "1.0.0"
 dependencies = [
  "error-stack",
  "eyre",
- "itertools 0.11.0",
+ "itertools 0.14.0",
  "thiserror 1.0.69",
  "valuable",
 ]
@@ -8401,7 +8401,7 @@ dependencies = [
  "goldie",
  "hex",
  "integration-tests",
- "itertools 0.11.0",
+ "itertools 0.14.0",
  "mockall 0.12.1",
  "msgs-derive",
  "rand 0.8.5",
@@ -9175,7 +9175,7 @@ dependencies = [
  "error-stack",
  "goldie",
  "integration-tests",
- "itertools 0.11.0",
+ "itertools 0.14.0",
  "msgs-derive",
  "report",
  "router-api",
@@ -12550,7 +12550,7 @@ dependencies = [
  "error-stack",
  "goldie",
  "integration-tests",
- "itertools 0.11.0",
+ "itertools 0.14.0",
  "msgs-derive",
  "multisig",
  "rand 0.8.5",

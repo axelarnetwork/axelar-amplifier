@@ -57,7 +57,7 @@ where
 }
 
 #[async_trait]
-impl<'a, C> Finalizer for RPCFinalizer<'a, C>
+impl<C> Finalizer for RPCFinalizer<'_, C>
 where
     C: EthereumClient + Send + Sync,
 {
@@ -95,7 +95,7 @@ where
 }
 
 #[async_trait]
-impl<'a, C> Finalizer for ConfirmationHeightFinalizer<'a, C>
+impl<C> Finalizer for ConfirmationHeightFinalizer<'_, C>
 where
     C: EthereumClient + Send + Sync,
 {

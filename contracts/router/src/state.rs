@@ -79,7 +79,7 @@ impl<'a> GatewayIndex<'a> {
 const CHAINS_PKEY: &str = "chains";
 
 pub fn chain_endpoints<'a>() -> IndexedMap<ChainName, ChainEndpoint, ChainEndpointIndexes<'a>> {
-    return IndexedMap::new(
+    IndexedMap::new(
         CHAINS_PKEY,
         ChainEndpointIndexes {
             gateway: GatewayIndex::new(
@@ -88,10 +88,10 @@ pub fn chain_endpoints<'a>() -> IndexedMap<ChainName, ChainEndpoint, ChainEndpoi
                 "gateways",
             ),
         },
-    );
+    )
 }
 
-impl<'a> IndexList<ChainEndpoint> for ChainEndpointIndexes<'a> {
+impl IndexList<ChainEndpoint> for ChainEndpointIndexes<'_> {
     fn get_indexes(&'_ self) -> Box<dyn Iterator<Item = &'_ dyn Index<ChainEndpoint>> + '_> {
         let v: Vec<&dyn Index<ChainEndpoint>> = vec![&self.gateway.0];
         Box::new(v.into_iter())
