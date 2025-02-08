@@ -91,14 +91,12 @@ jobs:
             (cd $C && cargo build --release --lib --target wasm32-unknown-unknown --locked)
           done
 
-      # cosmwasm-check v1.3.x is used to check for compatibility with wasmvm v1.3.x used by Axelar
-      # Older rust toolchain is required to install cosmwasm-check v1.3.x
       - name: Install cosmwasm-check
         uses: actions-rs/cargo@v1
         with:
           command: install
           toolchain: 1.81.0
-          args: --version 1.3.4 --locked cosmwasm-check
+          args: --version 2.2.1 --locked cosmwasm-check
 
       - name: Check wasm contracts
         run: cosmwasm-check ./target/wasm32-unknown-unknown/release/*.wasm
