@@ -257,7 +257,7 @@ dependencies = [
  "goldie",
  "hex",
  "humantime-serde",
- "itertools 0.11.0",
+ "itertools 0.14.0",
  "k256",
  "mockall 0.11.4",
  "move-core-types",
@@ -860,7 +860,7 @@ dependencies = [
  "goldie",
  "hex",
  "into-inner-derive",
- "itertools 0.11.0",
+ "itertools 0.14.0",
  "lazy_static",
  "num-traits",
  "rand",
@@ -890,7 +890,7 @@ dependencies = [
  "cw2",
  "error-stack",
  "heck 0.5.0",
- "itertools 0.11.0",
+ "itertools 0.14.0",
  "proc-macro2 1.0.92",
  "quote 1.0.38",
  "report",
@@ -917,7 +917,7 @@ dependencies = [
  "error-stack",
  "goldie",
  "hex",
- "itertools 0.11.0",
+ "itertools 0.14.0",
  "msgs-derive",
  "rand",
  "report",
@@ -1791,7 +1791,7 @@ dependencies = [
  "error-stack",
  "goldie",
  "integration-tests",
- "itertools 0.11.0",
+ "itertools 0.14.0",
  "msgs-derive",
  "multisig",
  "report",
@@ -3399,7 +3399,7 @@ dependencies = [
  "error-stack",
  "gateway-api",
  "goldie",
- "itertools 0.11.0",
+ "itertools 0.14.0",
  "rand",
  "report",
  "router-api",
@@ -4375,6 +4375,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "itertools"
+version = "0.14.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2b192c782037fadd9cfa75548310488aabdbf3d2da73885b31bd0abd03351285"
+dependencies = [
+ "either",
+]
+
+[[package]]
 name = "itoa"
 version = "1.0.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5234,7 +5243,7 @@ dependencies = [
  "axelar-wasm-std",
  "cosmwasm-std",
  "error-stack",
- "itertools 0.11.0",
+ "itertools 0.14.0",
  "proc-macro2 1.0.92",
  "quote 1.0.38",
  "syn 2.0.96",
@@ -6997,7 +7006,7 @@ version = "1.0.0"
 dependencies = [
  "error-stack",
  "eyre",
- "itertools 0.11.0",
+ "itertools 0.14.0",
  "thiserror 1.0.69",
  "valuable",
 ]
@@ -7224,7 +7233,7 @@ dependencies = [
  "goldie",
  "hex",
  "integration-tests",
- "itertools 0.11.0",
+ "itertools 0.14.0",
  "mockall 0.12.1",
  "msgs-derive",
  "rand",
@@ -7909,7 +7918,7 @@ dependencies = [
  "error-stack",
  "goldie",
  "integration-tests",
- "itertools 0.11.0",
+ "itertools 0.14.0",
  "msgs-derive",
  "report",
  "router-api",
@@ -9984,7 +9993,7 @@ dependencies = [
  "error-stack",
  "goldie",
  "integration-tests",
- "itertools 0.11.0",
+ "itertools 0.14.0",
  "msgs-derive",
  "multisig",
  "rand",

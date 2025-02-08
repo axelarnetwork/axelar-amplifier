@@ -48,7 +48,7 @@ impl From<&Url> for url::Url {
 }
 
 struct UrlVisitor;
-impl<'a> Visitor<'a> for UrlVisitor {
+impl Visitor<'_> for UrlVisitor {
     type Value = Url;
 
     fn expecting(&self, formatter: &mut Formatter) -> std::fmt::Result {

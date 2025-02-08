@@ -10,8 +10,15 @@ members = [
 resolver = "2"
 
 [workspace.package]
-rust-version = "1.78.0" # be sure there is an optimizer release supporting this version before updating. See https://github.com/CosmWasm/optimizer
+rust-version = "1.81.0" # be sure there is an optimizer release supporting this version before updating. See https://github.com/CosmWasm/optimizer
 edition = "2021"
+
+[workspace.metadata.scripts]
+optimize = """docker run --rm -v "$(pwd)":/code \
+  --mount type=volume,source="$(basename "$(pwd)")_cache",target=/code/target \
+  --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
+  cosmwasm/optimizer:0.16.1
+"""
 
 [workspace.dependencies]
 alloy-primitives = { version = "0.7.6", default-features = false, features = [
@@ -53,7 +60,7 @@ hex = "0.4.3"
 integration-tests = { version = "^1.0.0", path = "integration-tests" }
 interchain-token-service = { version = "^1.1.0", path = "contracts/interchain-token-service" }
 into-inner-derive = { version = "^1.0.0", path = "packages/into-inner-derive" }
-itertools = "0.11.0"
+itertools = "0.14.0"
 k256 = { version = "0.13.1", features = ["ecdsa"] }
 mockall = "0.12.1"
 msgs-derive = { version = "^1.0.0", path = "packages/msgs-derive" }
