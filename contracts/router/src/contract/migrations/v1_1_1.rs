@@ -35,7 +35,7 @@ impl<'a> GatewayIndex<'a> {
     }
 }
 
-impl<'a> IndexList<ChainEndpoint> for ChainEndpointIndexes<'a> {
+impl IndexList<ChainEndpoint> for ChainEndpointIndexes<'_> {
     fn get_indexes(&'_ self) -> Box<dyn Iterator<Item = &'_ dyn Index<ChainEndpoint>> + '_> {
         let v: Vec<&dyn Index<ChainEndpoint>> = vec![&self.gateway.0];
         Box::new(v.into_iter())
@@ -44,7 +44,7 @@ impl<'a> IndexList<ChainEndpoint> for ChainEndpointIndexes<'a> {
 
 const CHAINS_PKEY: &str = "chains";
 fn chain_endpoints_old<'a>() -> IndexedMap<String, ChainEndpoint, ChainEndpointIndexes<'a>> {
-    return IndexedMap::new(
+    IndexedMap::new(
         CHAINS_PKEY,
         ChainEndpointIndexes {
             gateway: GatewayIndex::new(
@@ -53,7 +53,7 @@ fn chain_endpoints_old<'a>() -> IndexedMap<String, ChainEndpoint, ChainEndpointI
                 "gateways",
             ),
         },
-    );
+    )
 }
 
 pub fn migrate(storage: &mut dyn Storage, chains_to_remove: Vec<String>) -> Result<(), Error> {

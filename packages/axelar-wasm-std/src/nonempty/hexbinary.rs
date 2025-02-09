@@ -58,7 +58,7 @@ impl Display for HexBinary {
     }
 }
 
-impl<'a> PrimaryKey<'a> for HexBinary {
+impl PrimaryKey<'_> for HexBinary {
     type Prefix = ();
     type SubPrefix = ();
     type Suffix = Self;
@@ -69,7 +69,7 @@ impl<'a> PrimaryKey<'a> for HexBinary {
     }
 }
 
-impl<'a> Prefixer<'a> for HexBinary {
+impl Prefixer<'_> for HexBinary {
     fn prefix(&self) -> Vec<Key> {
         vec![Key::Ref(self.0.as_slice())]
     }

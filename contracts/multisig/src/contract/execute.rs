@@ -188,10 +188,9 @@ pub fn authorize_callers(
 ) -> Result<Response, ContractError> {
     contracts
         .iter()
-        .map(|(contract_address, chain_name)| {
+        .try_for_each(|(contract_address, chain_name)| {
             AUTHORIZED_CALLERS.save(deps.storage, contract_address, chain_name)
-        })
-        .try_collect()?;
+        })?;
 
     Ok(
         Response::new().add_events(contracts.into_iter().map(|(contract_address, chain_name)| {
