@@ -115,8 +115,15 @@ pub enum QueryMsg {
     AllItsContracts,
 
     /// Query all chain configs with optional frozen filter
+    // The list is paginated by:
+    // - start_after: the chain name to start after, which the next page of results should start.
+    // - limit: limit the number of chains returned, default is u32::MAX.
     #[returns(Vec<ChainConfigResponse>)]
-    ItsChains { filter: Option<ChainFilter> },
+    ItsChains {
+        filter: Option<ChainFilter>,
+        start_after: Option<ChainNameRaw>,
+        limit: Option<u32>,
+    },
 
     /// Query a token instance on a specific chain
     #[returns(Option<TokenInstance>)]

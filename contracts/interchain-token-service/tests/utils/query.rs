@@ -53,8 +53,18 @@ pub fn query_is_contract_enabled(deps: Deps) -> Result<bool, ContractError> {
 pub fn query_its_chains(
     deps: Deps,
     filter: Option<ChainFilter>,
+    start_after: Option<ChainNameRaw>,
+    limit: Option<u32>,
 ) -> Result<Vec<ChainConfigResponse>, ContractError> {
-    let bin = query(deps, mock_env(), QueryMsg::ItsChains { filter })?;
+    let bin = query(
+        deps,
+        mock_env(),
+        QueryMsg::ItsChains {
+            filter,
+            start_after,
+            limit,
+        },
+    )?;
     Ok(from_json(bin)?)
 }
 

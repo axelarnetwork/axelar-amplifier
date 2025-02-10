@@ -1,10 +1,14 @@
 use axelar_wasm_std::{killswitch, IntoContractError};
 use cosmwasm_std::{to_json_binary, Binary, Deps, Order};
+use cw_storage_plus::Bound;
 use error_stack::{Result, ResultExt};
 use itertools::Itertools;
 use router_api::ChainNameRaw;
 
 use crate::{msg, state, TokenId};
+
+// Pagination limit
+const DEFAULT_LIMIT: u32 = u32::MAX;
 
 #[derive(thiserror::Error, Debug, IntoContractError)]
 pub enum Error {
@@ -35,11 +39,19 @@ pub fn all_its_contracts(deps: Deps) -> Result<Binary, Error> {
     to_json_binary(&contract_addresses).change_context(Error::JsonSerialization)
 }
 
-pub fn its_chains(deps: Deps, filter: Option<msg::ChainFilter>) -> Result<Binary, Error> {
+pub fn its_chains(
+    deps: Deps,
+    filter: Option<msg::ChainFilter>,
+    start_after: Option<ChainNameRaw>,
+    limit: Option<u32>,
+) -> Result<Binary, Error> {
     let state_chain_configs = state::load_chain_configs();
 
-    let chain_config_responses: Vec<msg::ChainConfigResponse> = state_chain_configs
-        .range(deps.storage, None, None, Order::Ascending)
+    let limit = limit.unwrap_or(DEFAULT_LIMIT) as usize;
+    let start = start_after.as_ref().map(Bound::exclusive);
+
+    let filtered_chain_configs: Vec<_> = state_chain_configs
+        .range(deps.storage, start, None, Order::Ascending)
         .map(|r| r.change_context(Error::State))
         .map_ok(|(chain, config)| msg::ChainConfigResponse {
             chain,
@@ -50,15 +62,10 @@ pub fn its_chains(deps: Deps, filter: Option<msg::ChainFilter>) -> Result<Binary
             },
             frozen: config.frozen,
         })
+        .filter_ok(|config| !filter.clone().is_some_and(|f| !f.matches(config)))
+        .take(limit)
         .try_collect()?;
 
-    let filtered_chain_configs = match &filter {
-        Some(filter) => chain_config_responses
-            .into_iter()
-            .filter(|config| filter.matches(config))
-            .collect(),
-        None => chain_config_responses,
-    };
     to_json_binary(&filtered_chain_configs).change_context(Error::JsonSerialization)
 }
 

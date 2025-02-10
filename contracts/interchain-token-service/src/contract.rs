@@ -139,9 +139,12 @@ pub fn query(deps: Deps, _: Env, msg: QueryMsg) -> Result<Binary, ContractError>
         QueryMsg::AllItsContracts => {
             query::all_its_contracts(deps).change_context(Error::QueryAllItsContracts)
         }
-        QueryMsg::ItsChains { filter } => {
-            query::its_chains(deps, filter).change_context(Error::QueryAllChainConfigs)
-        }
+        QueryMsg::ItsChains {
+            filter,
+            start_after,
+            limit,
+        } => query::its_chains(deps, filter, start_after, limit)
+            .change_context(Error::QueryAllChainConfigs),
         QueryMsg::TokenInstance { chain, token_id } => {
             query::token_instance(deps, chain, token_id).change_context(Error::QueryTokenInstance)
         }

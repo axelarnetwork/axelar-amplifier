@@ -184,7 +184,7 @@ fn query_chains_config() {
     let mut test_config = ChainConfigTest::setup();
 
     // Test all chains
-    let all_chains = utils::query_its_chains(test_config.deps.as_ref(), None).unwrap();
+    let all_chains = utils::query_its_chains(test_config.deps.as_ref(), None, None, None).unwrap();
     let expected = vec![
         utils::create_config_response(&test_config.eth, false),
         utils::create_config_response(&test_config.polygon, false),
@@ -197,6 +197,8 @@ fn query_chains_config() {
         Some(ChainFilter {
             frozen_status: Some(ChainStatusFilter::Active),
         }),
+        None,
+        None,
     )
     .unwrap();
     utils::assert_configs_equal(&active_chains, &expected);
@@ -207,6 +209,8 @@ fn query_chains_config() {
         Some(ChainFilter {
             frozen_status: Some(ChainStatusFilter::Frozen),
         }),
+        None,
+        None,
     )
     .unwrap();
     assert!(frozen_chains.is_empty());
@@ -219,6 +223,8 @@ fn query_chains_config() {
         Some(ChainFilter {
             frozen_status: Some(ChainStatusFilter::Frozen),
         }),
+        None,
+        None,
     )
     .unwrap();
     utils::assert_configs_equal(
@@ -231,6 +237,8 @@ fn query_chains_config() {
         Some(ChainFilter {
             frozen_status: Some(ChainStatusFilter::Active),
         }),
+        None,
+        None,
     )
     .unwrap();
     utils::assert_configs_equal(
