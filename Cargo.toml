@@ -43,6 +43,7 @@ cw-multi-test = "2.2.0"
 cw-storage-plus = { version = "2.0.0", features = ["iterator", "macro"] }
 cw-utils = "2.0.0"
 cw2 = "2.0.0"
+bs58 = "0.5.1"
 ed25519-dalek = { version = "2.1.1", default-features = false }
 error-stack = { version = "0.4.0", features = ["eyre"] }
 ethers-contract = { version = "2.0.14", default-features = false, features = [
@@ -81,6 +82,9 @@ service-registry = { version = "^1.1.0", path = "contracts/service-registry" }
 service-registry-api = { version = "^1.0.0", path = "packages/service-registry-api" }
 sha3 = { version = "0.10.8", default-features = false, features = [] }
 signature-verifier-api = { version = "^1.0.0", path = "packages/signature-verifier-api" }
+axelar-solana-encoding = { git = "https://github.com/eigerco/solana-axelar.git", rev = "2688729" }
+gateway-event-stack = { git = "https://github.com/eigerco/solana-axelar.git", rev = "2688729" }
+axelar-solana-gateway = { git = "https://github.com/eigerco/solana-axelar.git", rev = "2688729" }
 stellar = { version = "^1.0.0", path = "external-gateways/stellar" }
 stellar-xdr = { version = "21.2.0" }
 strum = { version = "0.25", default-features = false, features = ["derive"] }
@@ -113,3 +117,12 @@ debug-assertions = false
 codegen-units = 1
 incremental = false
 overflow-checks = true
+
+[patch.crates-io]
+# aes-gcm-siv 0.10.3 and curve25519-dalek 3.x pin zeroize to <1.4
+# which conflicts with other dependencies requiring zeroize ^1.5.
+# We’re patching both crates to unpin zeroize.
+#
+# For curve25519-dalek we’re using commit from a PR, see
+# https://github.com/dalek-cryptography/curve25519-dalek/pull/606
+curve25519-dalek = { git = "https://github.com/dalek-cryptography/curve25519-dalek", rev = "8274d5cbb6fc3f38cdc742b4798173895cd2a290" }
