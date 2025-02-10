@@ -1,4 +1,4 @@
-use axelar_wasm_std::IntoContractError;
+use axelar_wasm_std::{killswitch, IntoContractError};
 use cosmwasm_std::{to_json_binary, Binary, Deps};
 use error_stack::{Result, ResultExt};
 use router_api::ChainNameRaw;
@@ -44,4 +44,9 @@ pub fn token_config(deps: Deps, token_id: TokenId) -> Result<Binary, Error> {
     let token_config =
         state::may_load_token_config(deps.storage, &token_id).change_context(Error::State)?;
     to_json_binary(&token_config).change_context(Error::JsonSerialization)
+}
+
+pub fn is_contract_enabled(deps: Deps) -> Result<Binary, Error> {
+    to_json_binary(&killswitch::is_contract_active(deps.storage))
+        .change_context(Error::JsonSerialization)
 }

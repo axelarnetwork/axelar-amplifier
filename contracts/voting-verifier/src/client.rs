@@ -43,7 +43,7 @@ pub struct Client<'a> {
     client: client::ContractClient<'a, ExecuteMsg, QueryMsg>,
 }
 
-impl<'a> Client<'a> {
+impl Client<'_> {
     pub fn verify_messages(&self, messages: Vec<Message>) -> Option<CosmosMsg> {
         messages
             .to_none_if_empty()

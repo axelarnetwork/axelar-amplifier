@@ -17,7 +17,7 @@ pub struct VerifierPerChainIndexes<'a> {
     >,
 }
 
-impl<'a> IndexList<()> for VerifierPerChainIndexes<'a> {
+impl IndexList<()> for VerifierPerChainIndexes<'_> {
     fn get_indexes(&'_ self) -> Box<dyn Iterator<Item = &'_ dyn Index<()>> + '_> {
         let v: Vec<&dyn Index<()>> = vec![&self.verifier_address];
         Box::new(v.into_iter())

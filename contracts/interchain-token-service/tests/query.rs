@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use assert_ok::assert_ok;
 use cosmwasm_std::testing::mock_dependencies;
-use cosmwasm_std::Uint256;
+use cosmwasm_std::{Uint128, Uint256};
 use interchain_token_service::msg::{ChainConfigResponse, TruncationConfig};
 use interchain_token_service::TokenId;
 use router_api::{Address, ChainNameRaw};
@@ -54,7 +54,9 @@ fn query_chain_config() {
     assert_ok!(utils::update_chain(
         deps.as_mut(),
         chain.clone(),
-        new_address.clone()
+        new_address.clone(),
+        Uint128::MAX.try_into().unwrap(),
+        18,
     ));
 
     let chain_config = assert_ok!(utils::query_its_chain(deps.as_ref(), chain.clone()));
@@ -112,4 +114,18 @@ fn query_token_chain_config() {
 
     let config = utils::query_token_instance(deps.as_ref(), chain, token_id).unwrap();
     assert_eq!(config, None);
+}
+
+#[test]
+fn query_contract_enable_disable_lifecycle() {
+    let mut deps = mock_dependencies();
+    utils::instantiate_contract(deps.as_mut()).unwrap();
+
+    let enabled = utils::query_is_contract_enabled(deps.as_ref()).unwrap();
+    assert!(enabled);
+
+    utils::disable_contract_execution(deps.as_mut()).unwrap();
+
+    let enabled = utils::query_is_contract_enabled(deps.as_ref()).unwrap();
+    assert!(!enabled);
 }

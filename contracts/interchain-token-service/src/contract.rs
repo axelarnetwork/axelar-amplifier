@@ -47,6 +47,8 @@ pub enum Error {
     QueryTokenInstance,
     #[error("failed to query the token config")]
     QueryTokenConfig,
+    #[error("failed to query the status of contract")]
+    QueryContractStatus,
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -100,11 +102,8 @@ pub fn execute(
         ExecuteMsg::RegisterChains { chains } => {
             execute::register_chains(deps, chains).change_context(Error::RegisterChains)
         }
-        ExecuteMsg::UpdateChain {
-            chain,
-            its_edge_contract,
-        } => {
-            execute::update_chain(deps, chain, its_edge_contract).change_context(Error::UpdateChain)
+        ExecuteMsg::UpdateChains { chains } => {
+            execute::update_chains(deps, chains).change_context(Error::UpdateChain)
         }
         ExecuteMsg::FreezeChain { chain } => {
             freeze_chain(deps, chain).change_context(Error::FreezeChain)
@@ -140,6 +139,9 @@ pub fn query(deps: Deps, _: Env, msg: QueryMsg) -> Result<Binary, ContractError>
         }
         QueryMsg::TokenConfig { token_id } => {
             query::token_config(deps, token_id).change_context(Error::QueryTokenConfig)
+        }
+        QueryMsg::IsEnabled => {
+            query::is_contract_enabled(deps).change_context(Error::QueryContractStatus)
         }
     }?
     .then(Ok)
