@@ -178,7 +178,7 @@ mod tests {
         assert_eq!(verify_msg(&event, &msg, &source_gw_address), Vote::NotFound);
 
         let mut event = { mock_valid_event() };
-        event.source_address = Felt::THREE.into();
+        event.source_address = Felt::THREE;
         assert_eq!(verify_msg(&event, &msg, &source_gw_address), Vote::NotFound);
 
         let mut event = { mock_valid_event() };
