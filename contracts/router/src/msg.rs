@@ -10,10 +10,7 @@ pub struct InstantiateMsg {
     pub axelarnet_gateway: String,
 }
 
-#[cw_serde]
-pub struct MigrateMsg {
-    pub chains_to_remove: Vec<String>,
-}
-
 // these messages are extracted into a separate package to avoid circular dependencies
 pub use router_api::msg::{ExecuteMsg, QueryMsg};
+
+pub use crate::contract::MigrateMsg;

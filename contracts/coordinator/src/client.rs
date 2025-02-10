@@ -47,7 +47,7 @@ pub struct Client<'a> {
     client: client::ContractClient<'a, ExecuteMsg, QueryMsg>,
 }
 
-impl<'a> Client<'a> {
+impl Client<'_> {
     pub fn register_prover_contract(
         &self,
         chain_name: ChainName,

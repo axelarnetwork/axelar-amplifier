@@ -83,7 +83,7 @@ impl KeyDeserialize for PoolId {
     }
 }
 
-impl<'a> Prefixer<'a> for PoolId {
+impl Prefixer<'_> for PoolId {
     fn prefix(&self) -> Vec<Key> {
         self.key()
     }
