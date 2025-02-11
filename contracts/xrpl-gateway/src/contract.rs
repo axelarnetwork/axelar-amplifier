@@ -31,8 +31,6 @@ pub enum Error {
     Execute,
     #[error("unable to generate event index")]
     EventIndex,
-    #[error("failed to offload dust")]
-    FailedToOffloadDust,
     #[error("forbidden chain {0}")]
     ForbiddenChain(ChainNameRaw),
     #[error("invalid address")]
@@ -76,8 +74,6 @@ pub enum Error {
     },
     #[error("failed to query message status")]
     MessageStatus,
-    #[error("no dust to offload for token {0}")]
-    NoDustToOffload(TokenId),
     #[error("message with ID {0} was not sent from ITS Hub chain")]
     OnlyFromItsHubChain(CrossChainId),
     #[error("message with ID {0} was not sent from the ITS Hub")]
@@ -289,13 +285,6 @@ pub fn execute(
                 &config,
                 &verifier,
                 msgs,
-            )
-        }
-        ExecuteMsg::OffloadDust { multisig_prover, token_id } => {
-            execute::offload_dust(
-                deps.storage,
-                multisig_prover,
-                token_id,
             )
         }
     }?

@@ -3,7 +3,7 @@ use std::hash::Hash;
 
 use axelar_wasm_std::msg_id::HexTxHash;
 use axelar_wasm_std::{nonempty, FnExt, VerificationStatus};
-use cosmwasm_std::{wasm_execute, Addr, CosmosMsg, Event, HexBinary, Response, Storage, Uint256};
+use cosmwasm_std::{Addr, CosmosMsg, Event, HexBinary, Response, Storage, Uint256};
 use error_stack::{bail, ensure, report, Result, ResultExt};
 use itertools::Itertools;
 use router_api::client::Router;
@@ -546,40 +546,6 @@ pub fn deploy_remote_token(
 
     let hub_msg = interchain_token_service::HubMessage::SendToHub { destination_chain, message: its_msg };
     route_hub_message(config, block_height, hub_msg)
-}
-
-// TODO: Remove this once the prover API is imported.
-#[cosmwasm_schema::cw_serde]
-pub struct AcquireLocalDust {
-    pub token_id: TokenId,
-    pub dust: XRPLPaymentAmount,
-}
-
-pub fn offload_dust(
-    storage: &mut dyn Storage,
-    multisig_prover: Addr,
-    token_id: TokenId,
-) -> Result<Response, Error> {
-    match state::may_load_dust(storage, &token_id)
-        .change_context(Error::State)?
-    {
-        Some(dust) => {
-            state::mark_dust_offloaded(storage, &token_id);
-            Ok(Response::new()
-                .add_message(wasm_execute(
-                    multisig_prover,
-                    // TODO: Import prover API only.
-                    &AcquireLocalDust {
-                        token_id,
-                        dust,
-                    },
-                    vec![],
-                )
-                .change_context(Error::FailedToOffloadDust)?)
-            )
-        },
-        None => return Err(report!(Error::NoDustToOffload(token_id))),
-    }
 }
 
 // TODO: Potentially query nexus, similarly to how axelarnet-gateway does.

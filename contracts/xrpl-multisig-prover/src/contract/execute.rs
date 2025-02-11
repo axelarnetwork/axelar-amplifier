@@ -1,5 +1,4 @@
 use std::collections::HashSet;
-use std::ops::Add;
 
 use axelar_wasm_std::{address, permission_control, FnExt, MajorityThreshold, VerificationStatus};
 use interchain_token_service::{HubMessage, TokenId};
@@ -16,7 +15,7 @@ use xrpl_types::types::{
 use crate::axelar_verifiers;
 use crate::error::ContractError;
 use crate::querier::Querier;
-use crate::state::{self, Config, DustAmount, DustInfo, DUST, TRUST_LINE};
+use crate::state::{self, Config, DustAmount, TRUST_LINE};
 use crate::xrpl_multisig;
 use crate::xrpl_serialize::XRPLSerialize;
 
@@ -240,93 +239,6 @@ fn compute_xrpl_amount(
     };
 
     Ok((xrpl_amount, dust))
-}
-
-pub fn construct_dust_claim_payment_proof(
-    storage: &mut dyn Storage,
-    querier: &Querier,
-    self_address: Addr,
-    destination_address: XRPLAccountId,
-    token_id: TokenId,
-    chain: ChainNameRaw,
-) -> Result<Response, ContractError> {
-    let config = state::CONFIG.load(storage).map_err(ContractError::from)?;
-
-    let current_dust = DUST.load(storage, &(token_id.clone(), chain.clone()))
-        .map_err(|_| ContractError::DustNotFound)?;
-
-    if current_dust.is_zero() {
-        return Err(ContractError::DustAmountTooSmall {
-            dust: current_dust,
-            token_id,
-            chain,
-        });
-    }
-
-    let (claimable_dust, updated_dust) = match current_dust.clone() {
-        DustAmount::Local(current_local_dust) => {
-            assert!(chain == config.chain_name, "local dust stored under invalid chain name");
-            (current_local_dust.clone(), DustAmount::Local(current_local_dust.zeroize()))
-        }
-        DustAmount::Remote(current_remote_dust) => {
-            let (claimable_dust, new_dust) = compute_xrpl_amount(
-                querier,
-                token_id.clone(),
-                chain.clone(),
-                current_remote_dust.clone(),
-            )?;
-
-            (claimable_dust, DustAmount::Remote(current_remote_dust - new_dust))
-        }
-    };
-
-    if claimable_dust.is_zero() {
-        return Err(ContractError::DustAmountTooSmall {
-            dust: current_dust,
-            token_id,
-            chain,
-        });
-    }
-
-    let unsigned_tx_hash = xrpl_multisig::issue_payment(
-        storage,
-        &config,
-        destination_address,
-        &claimable_dust,
-        None,
-        None,
-    )?;
-
-    state::UNSIGNED_TX_HASH_TO_DUST_INFO.save(storage, &unsigned_tx_hash, &DustInfo {
-        token_id,
-        chain,
-        dust_amount: updated_dust,
-    })?;
-
-    Ok(Response::new().add_submessage(start_signing_session(storage, &config, unsigned_tx_hash, self_address, None)?))
-}
-
-pub fn acquire_local_dust(
-    storage: &mut dyn Storage,
-    token_id: TokenId,
-    dust_received: XRPLPaymentAmount,
-) -> Result<Response, ContractError> {
-    let config = state::CONFIG.load(storage).map_err(ContractError::from)?;
-    DUST.update(
-        storage,
-        &(token_id, config.chain_name.into()),
-        |maybe_existing_dust| {
-            match maybe_existing_dust {
-                Some(DustAmount::Local(mut existing_dust)) => {
-                    existing_dust = existing_dust.add(dust_received.clone())?;
-                    Ok(DustAmount::Local(existing_dust))
-                },
-                Some(DustAmount::Remote(_)) => Err(ContractError::DustAmountNotLocal),
-                None => Ok(DustAmount::Local(dust_received)),
-            }
-        }
-    )?;
-    Ok(Response::default())
 }
 
 pub fn construct_payment_proof(

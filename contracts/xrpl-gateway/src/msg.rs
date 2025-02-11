@@ -130,13 +130,6 @@ pub enum ExecuteMsg {
     /// They are reported by the relayer and need verification.
     #[permission(Any)]
     RouteIncomingMessages(Vec<XRPLUserMessageWithPayload>),
-
-    /// Offload dust accrued to the multisig prover.
-    #[permission(Elevated)]
-    OffloadDust {
-        multisig_prover: Addr,
-        token_id: TokenId,
-    },
 }
 
 #[cw_serde]
