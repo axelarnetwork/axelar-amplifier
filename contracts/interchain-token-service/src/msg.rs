@@ -59,7 +59,7 @@ pub enum ChainStatusFilter {
 
 #[cw_serde]
 pub struct ChainFilter {
-    pub frozen_status: Option<ChainStatusFilter>,
+    pub status: Option<ChainStatusFilter>,
 }
 
 impl ChainStatusFilter {
@@ -73,7 +73,7 @@ impl ChainStatusFilter {
 
 impl ChainFilter {
     pub fn matches(&self, config: &ChainConfigResponse) -> bool {
-        match &self.frozen_status {
+        match &self.status {
             Some(frozen_status) => frozen_status.matches(config),
             None => true,
         }

@@ -197,7 +197,7 @@ fn query_chains_config() {
     let active_chains = utils::query_its_chains(
         test_config.deps.as_ref(),
         Some(ChainFilter {
-            frozen_status: Some(ChainStatusFilter::Active),
+            status: Some(ChainStatusFilter::Active),
         }),
         None,
         None,
@@ -209,7 +209,7 @@ fn query_chains_config() {
     let frozen_chains = utils::query_its_chains(
         test_config.deps.as_ref(),
         Some(ChainFilter {
-            frozen_status: Some(ChainStatusFilter::Frozen),
+            status: Some(ChainStatusFilter::Frozen),
         }),
         None,
         None,
@@ -223,7 +223,7 @@ fn query_chains_config() {
     let frozen_chains = utils::query_its_chains(
         test_config.deps.as_ref(),
         Some(ChainFilter {
-            frozen_status: Some(ChainStatusFilter::Frozen),
+            status: Some(ChainStatusFilter::Frozen),
         }),
         None,
         None,
@@ -237,7 +237,7 @@ fn query_chains_config() {
     let active_chains = utils::query_its_chains(
         test_config.deps.as_ref(),
         Some(ChainFilter {
-            frozen_status: Some(ChainStatusFilter::Active),
+            status: Some(ChainStatusFilter::Active),
         }),
         None,
         None,
