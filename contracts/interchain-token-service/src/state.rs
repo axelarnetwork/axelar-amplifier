@@ -41,15 +41,15 @@ pub struct ChainConfig {
 
 #[cw_serde]
 pub struct TruncationConfig {
-    pub max_uint: nonempty::Uint256, // The maximum uint value that is supported by the chain's token standard
-    pub max_decimals_when_truncating: u8, // The maximum number of decimals that is preserved when deploying from a chain with a larger max_uint
+    pub max_uint_bits: u32, // The maximum number of bits used to represent unsigned integer values that is supported by the chain's token standard
+    pub max_decimals_when_truncating: u8, // The maximum number of decimals that is preserved when deploying from a chain with a larger max unsigned integer
 }
 
 impl From<msg::ChainConfig> for ChainConfig {
     fn from(value: msg::ChainConfig) -> Self {
         Self {
             truncation: TruncationConfig {
-                max_uint: value.truncation.max_uint,
+                max_uint_bits: value.truncation.max_uint_bits,
                 max_decimals_when_truncating: value.truncation.max_decimals_when_truncating,
             },
             its_address: value.its_edge_contract,
@@ -360,7 +360,7 @@ mod tests {
                 chain: chain1.clone(),
                 its_edge_contract: address1.clone(),
                 truncation: msg::TruncationConfig {
-                    max_uint: Uint256::MAX.try_into().unwrap(),
+                    max_uint_bits: 256u32,
                     max_decimals_when_truncating: 16u8
                 }
             }
@@ -372,7 +372,7 @@ mod tests {
                 chain: chain2.clone(),
                 its_edge_contract: address2.clone(),
                 truncation: msg::TruncationConfig {
-                    max_uint: Uint256::MAX.try_into().unwrap(),
+                    max_uint_bits: 256u32,
                     max_decimals_when_truncating: 16u8
                 }
             }

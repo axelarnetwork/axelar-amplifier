@@ -4,11 +4,9 @@ use axelar_core_std::nexus;
 use axelar_core_std::nexus::query::IsChainRegisteredResponse;
 use axelar_core_std::query::AxelarQueryMsg;
 use axelar_wasm_std::error::ContractError;
-use axelar_wasm_std::nonempty;
 use cosmwasm_std::testing::{message_info, mock_env, MockApi, MockQuerier, MockStorage};
 use cosmwasm_std::{
-    from_json, to_json_binary, DepsMut, HexBinary, MemoryStorage, OwnedDeps, Response, Uint256,
-    WasmQuery,
+    from_json, to_json_binary, DepsMut, HexBinary, MemoryStorage, OwnedDeps, Response, WasmQuery,
 };
 use interchain_token_service::msg::{self, ExecuteMsg, TruncationConfig};
 use interchain_token_service::{contract, HubMessage};
@@ -87,7 +85,7 @@ pub fn register_chain(
     deps: DepsMut,
     chain: ChainNameRaw,
     its_edge_contract: Address,
-    max_uint: nonempty::Uint256,
+    max_uint_bits: u32,
     max_decimals_when_truncating: u8,
 ) -> Result<Response, ContractError> {
     register_chains(
@@ -96,7 +94,7 @@ pub fn register_chain(
             chain,
             its_edge_contract,
             truncation: TruncationConfig {
-                max_uint,
+                max_uint_bits,
                 max_decimals_when_truncating,
             },
         }],
@@ -119,7 +117,7 @@ pub fn update_chain(
     deps: DepsMut,
     chain: ChainNameRaw,
     its_edge_contract: Address,
-    max_uint: nonempty::Uint256,
+    max_uint_bits: u32,
     max_decimals_when_truncating: u8,
 ) -> Result<Response, ContractError> {
     update_chains(
@@ -128,7 +126,7 @@ pub fn update_chain(
             chain,
             its_edge_contract,
             truncation: TruncationConfig {
-                max_uint,
+                max_uint_bits,
                 max_decimals_when_truncating,
             },
         }],
@@ -157,7 +155,7 @@ pub fn disable_contract_execution(deps: DepsMut) -> Result<Response, ContractErr
 }
 
 pub fn setup_multiple_chains(
-    configs: Vec<(ChainNameRaw, Address, nonempty::Uint256, u8)>,
+    configs: Vec<(ChainNameRaw, Address, u32, u8)>,
 ) -> (
     OwnedDeps<MemoryStorage, MockApi, MockQuerier<AxelarQueryMsg>>,
     TestMessage,
@@ -178,9 +176,9 @@ pub fn setup_multiple_chains(
 }
 
 pub fn setup_with_chain_configs(
-    source_max_uint: nonempty::Uint256,
+    source_max_uint: u32,
     source_max_target_decimals: u8,
-    destination_max_uint: nonempty::Uint256,
+    destination_max_uint: u32,
     destination_max_target_decimals: u8,
 ) -> (
     OwnedDeps<MemoryStorage, MockApi, MockQuerier<AxelarQueryMsg>>,
@@ -237,7 +235,7 @@ pub fn setup() -> (
         deps.as_mut(),
         source_its_chain.clone(),
         source_its_contract.clone(),
-        Uint256::MAX.try_into().unwrap(),
+        256,
         u8::MAX,
     )
     .unwrap();
@@ -245,7 +243,7 @@ pub fn setup() -> (
         deps.as_mut(),
         destination_its_chain.clone(),
         destination_its_contract.clone(),
-        Uint256::MAX.try_into().unwrap(),
+        256,
         u8::MAX,
     )
     .unwrap();

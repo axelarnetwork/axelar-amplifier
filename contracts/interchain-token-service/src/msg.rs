@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use axelar_wasm_std::nonempty;
 use axelarnet_gateway::AxelarExecutableMsg;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use msgs_derive::EnsurePermissions;
@@ -60,8 +59,8 @@ pub struct ChainConfig {
 
 #[cw_serde]
 pub struct TruncationConfig {
-    pub max_uint: nonempty::Uint256, // The maximum uint value that is supported by the chain's token standard
-    pub max_decimals_when_truncating: u8, // The maximum number of decimals that is preserved when deploying from a chain with a larger max_uint
+    pub max_uint_bits: u32, // The maximum number of bits used by the chain to represent unsigned integers
+    pub max_decimals_when_truncating: u8, // The maximum number of decimals that is preserved when deploying from a chain with a larger max unsigned integer
 }
 
 #[cw_serde]
