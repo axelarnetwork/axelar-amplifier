@@ -104,11 +104,8 @@ pub fn execute(
         ExecuteMsg::RegisterChains { chains } => {
             execute::register_chains(deps, chains).change_context(Error::RegisterChains)
         }
-        ExecuteMsg::UpdateChain {
-            chain,
-            its_edge_contract,
-        } => {
-            execute::update_chain(deps, chain, its_edge_contract).change_context(Error::UpdateChain)
+        ExecuteMsg::UpdateChains { chains } => {
+            execute::update_chains(deps, chains).change_context(Error::UpdateChain)
         }
         ExecuteMsg::FreezeChain { chain } => {
             freeze_chain(deps, chain).change_context(Error::FreezeChain)

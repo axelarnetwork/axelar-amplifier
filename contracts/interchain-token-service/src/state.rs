@@ -184,22 +184,6 @@ pub fn save_chain_config(
         .change_context(Error::Storage)
 }
 
-pub fn update_its_contract(
-    storage: &mut dyn Storage,
-    chain: &ChainNameRaw,
-    its_address: Address,
-) -> Result<ChainConfig, Error> {
-    CHAIN_CONFIGS
-        .update(storage, chain, |config| match config {
-            Some(config) => Ok(ChainConfig {
-                its_address,
-                ..config
-            }),
-            None => Err(StdError::not_found("config not found")),
-        })
-        .change_context(Error::ChainNotFound(chain.to_owned()))
-}
-
 pub fn may_load_its_contract(
     storage: &dyn Storage,
     chain: &ChainNameRaw,

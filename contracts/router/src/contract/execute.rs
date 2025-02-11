@@ -223,7 +223,7 @@ pub fn route_messages(
 
     let wasm_msgs = msgs
         .iter()
-        .group_by(|msg| msg.destination_chain.to_owned())
+        .chunk_by(|msg| msg.destination_chain.to_owned())
         .into_iter()
         .map(|(destination_chain, msgs)| {
             let gateway = match state::load_chain_by_chain_name(storage, &destination_chain)? {

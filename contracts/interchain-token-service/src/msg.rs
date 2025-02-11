@@ -27,16 +27,14 @@ pub enum ExecuteMsg {
     /// For each chain, register the ITS contract and set config parameters.
     /// Each chain's ITS contract has to be whitelisted before
     /// ITS Hub can send cross-chain messages to it, or receive messages from it.
-    /// If an ITS contract is already set for the chain, an error is returned.
+    /// If any chain is already registered, an error is returned.
     #[permission(Governance)]
     RegisterChains { chains: Vec<ChainConfig> },
 
-    /// Update the address of the ITS contract registered to the specified chain
+    /// For each chain, update the ITS contract and config parameters.
+    /// If any chain has not been registered, returns an error
     #[permission(Governance)]
-    UpdateChain {
-        chain: ChainNameRaw,
-        its_edge_contract: Address,
-    },
+    UpdateChains { chains: Vec<ChainConfig> },
 
     /// Freeze execution of ITS messages for a particular chain
     #[permission(Elevated)]

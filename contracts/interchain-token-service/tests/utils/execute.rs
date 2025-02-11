@@ -119,15 +119,31 @@ pub fn update_chain(
     deps: DepsMut,
     chain: ChainNameRaw,
     its_edge_contract: Address,
+    max_uint: nonempty::Uint256,
+    max_decimals_when_truncating: u8,
+) -> Result<Response, ContractError> {
+    update_chains(
+        deps,
+        vec![msg::ChainConfig {
+            chain,
+            its_edge_contract,
+            truncation: TruncationConfig {
+                max_uint,
+                max_decimals_when_truncating,
+            },
+        }],
+    )
+}
+
+pub fn update_chains(
+    deps: DepsMut,
+    chains: Vec<msg::ChainConfig>,
 ) -> Result<Response, ContractError> {
     contract::execute(
         deps,
         mock_env(),
         message_info(&MockApi::default().addr_make(params::GOVERNANCE), &[]),
-        ExecuteMsg::UpdateChain {
-            chain,
-            its_edge_contract,
-        },
+        ExecuteMsg::UpdateChains { chains },
     )
 }
 

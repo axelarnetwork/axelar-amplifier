@@ -195,7 +195,7 @@ impl Signature {
     }
 }
 
-impl<'a> PrimaryKey<'a> for KeyType {
+impl PrimaryKey<'_> for KeyType {
     type Prefix = ();
     type SubPrefix = ();
     type Suffix = Self;

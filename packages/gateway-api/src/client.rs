@@ -31,7 +31,7 @@ pub struct Client<'a> {
     client: client::ContractClient<'a, ExecuteMsg, QueryMsg>,
 }
 
-impl<'a> Client<'a> {
+impl Client<'_> {
     pub fn outgoing_messages(&self, message_ids: Vec<CrossChainId>) -> Result<Vec<Message>> {
         let msg = QueryMsg::OutgoingMessages(message_ids);
         self.client.query(&msg).change_context_lazy(|| msg.into())
