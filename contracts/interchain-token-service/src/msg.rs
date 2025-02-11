@@ -62,23 +62,6 @@ pub struct ChainFilter {
     pub status: Option<ChainStatusFilter>,
 }
 
-impl ChainStatusFilter {
-    pub fn matches(&self, config: &ChainConfigResponse) -> bool {
-        match self {
-            ChainStatusFilter::Frozen => config.frozen,
-            ChainStatusFilter::Active => !config.frozen,
-        }
-    }
-}
-
-impl ChainFilter {
-    pub fn matches(&self, config: &ChainConfigResponse) -> bool {
-        match &self.status {
-            Some(frozen_status) => frozen_status.matches(config),
-            None => true,
-        }
-    }
-}
 
 #[cw_serde]
 pub struct ChainConfig {
