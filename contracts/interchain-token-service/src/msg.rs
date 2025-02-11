@@ -62,7 +62,6 @@ pub struct ChainFilter {
     pub status: Option<ChainStatusFilter>,
 }
 
-
 #[cw_serde]
 pub struct ChainConfig {
     pub chain: ChainNameRaw,
