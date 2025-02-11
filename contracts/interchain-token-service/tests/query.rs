@@ -99,7 +99,9 @@ fn query_chain_config() {
     assert_ok!(utils::update_chain(
         test_config.deps.as_mut(),
         test_config.eth.chain.clone(),
-        new_address.clone()
+        new_address.clone(),
+        Uint256::MAX.try_into().unwrap(),
+        18,
     ));
 
     let chain_config = assert_ok!(utils::query_its_chain(
