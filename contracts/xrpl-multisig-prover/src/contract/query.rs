@@ -6,7 +6,7 @@ use xrpl_types::error::XRPLError;
 use xrpl_types::types::{XRPLAccountId, XRPLSignedTx, XRPLSigner, XRPLTxStatus, XRPLUnsignedTxToSign};
 
 use crate::error::ContractError;
-use crate::msg::ProofResponse;
+use crate::msg::{ProofResponse, ProofStatus};
 use crate::querier::Querier;
 use crate::xrpl_serialize::XRPLSerialize;
 use crate::state::{
@@ -60,8 +60,8 @@ pub fn proof(
 
     let multisig_session = querier.multisig(multisig_session_id)?;
 
-    let response = match multisig_session.state {
-        MultisigState::Pending => ProofResponse::Pending { unsigned_tx_hash },
+    let status = match multisig_session.state {
+        MultisigState::Pending => ProofStatus::Pending,
         MultisigState::Completed { .. } => {
             let xrpl_signers: Vec<XRPLSigner> = multisig_session
                 .verifier_set
@@ -77,16 +77,12 @@ pub fn proof(
                 multisig_session_id.u64(),
                 tx_info.original_cc_id,
             );
-
-            let tx_blob = HexBinary::from(signed_tx.xrpl_serialize()?);
-            ProofResponse::Completed {
-                unsigned_tx_hash,
-                tx_blob,
-            }
+            let execute_data = HexBinary::from(signed_tx.xrpl_serialize()?);
+            ProofStatus::Completed { execute_data }
         }
     };
 
-    Ok(response)
+    Ok(ProofResponse { unsigned_tx_hash, status })
 }
 
 pub fn current_verifier_set(storage: &dyn Storage) -> StdResult<Option<multisig::verifier_set::VerifierSet>> {

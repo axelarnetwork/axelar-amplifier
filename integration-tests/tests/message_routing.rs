@@ -146,8 +146,8 @@ fn xrpl_ticket_create_can_be_proven() {
         &session_id,
     );
     assert!(matches!(
-        proof,
-        xrpl_multisig_prover::msg::ProofResponse::Completed { .. }
+        proof.status,
+        xrpl_multisig_prover::msg::ProofStatus::Completed { .. }
     ));
     println!("TicketCreate proof: {:?}", proof);
 
@@ -230,8 +230,8 @@ fn xrpl_trust_line_can_be_proven() {
         &session_id,
     );
     assert!(matches!(
-        proof,
-        xrpl_multisig_prover::msg::ProofResponse::Completed { .. }
+        proof.status,
+        xrpl_multisig_prover::msg::ProofStatus::Completed { .. }
     ));
     println!("TrustSet proof: {:?}", proof);
 
@@ -575,14 +575,13 @@ fn payment_towards_xrpl_can_be_verified_and_routed_and_proven() {
     );
     println!("Payment proof: {:?}", proof);
     assert!(matches!(
-        //proof.status,
-        proof,
-        xrpl_multisig_prover::msg::ProofResponse::Completed { .. }
+        proof.status,
+        xrpl_multisig_prover::msg::ProofStatus::Completed { .. }
     ));
 
-    let signed_tx_hash = match proof {
-        xrpl_multisig_prover::msg::ProofResponse::Completed { tx_blob, .. } => {
-            hash_signed_tx(tx_blob.as_slice()).unwrap()
+    let signed_tx_hash = match proof.status {
+        xrpl_multisig_prover::msg::ProofStatus::Completed { execute_data } => {
+            hash_signed_tx(execute_data.as_slice()).unwrap()
         }
         _ => unreachable!()
     };

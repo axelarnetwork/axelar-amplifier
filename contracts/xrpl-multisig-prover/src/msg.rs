@@ -81,19 +81,17 @@ pub enum QueryMsg {
 }
 
 #[cw_serde]
-#[serde(tag = "status")]
-pub enum ProofResponse {
-    Completed {
-        #[serde(with = "tx_hash_hex")]
-        #[schemars(with = "String")]
-        unsigned_tx_hash: TxHash,
-        tx_blob: HexBinary,
-    },
-    Pending {
-        #[serde(with = "tx_hash_hex")]
-        #[schemars(with = "String")]
-        unsigned_tx_hash: TxHash,
-    },
+pub enum ProofStatus {
+    Pending,
+    Completed { execute_data: HexBinary }, // encoded data and proof sent to destination gateway
+}
+
+#[cw_serde]
+pub struct ProofResponse {
+    #[serde(with = "tx_hash_hex")]
+    #[schemars(with = "String")]
+    pub unsigned_tx_hash: TxHash,
+    pub status: ProofStatus,
 }
 
 #[cw_serde]

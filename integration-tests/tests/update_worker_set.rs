@@ -167,8 +167,8 @@ fn xrpl_verifier_set_can_be_initialized_and_then_manually_updated() {
         &session_id,
     );
     assert!(matches!(
-        proof,
-        xrpl_multisig_prover::msg::ProofResponse::Completed { .. }
+        proof.status,
+        xrpl_multisig_prover::msg::ProofStatus::Completed { .. }
     ));
     println!("SignerListSet proof: {:?}", proof);
 
