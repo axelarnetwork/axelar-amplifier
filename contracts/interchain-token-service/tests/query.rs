@@ -248,3 +248,80 @@ fn query_chains_config() {
         &[utils::create_config_response(&test_config.polygon, false)],
     );
 }
+
+#[test]
+fn query_chains_pagination() {
+    let mut test_config = ChainConfigTest::setup();
+
+    let chains = vec![
+        ("Chain1", "0x1234567890123456789012345678901234567890"),
+        ("Chain2", "0x1234567890123456789012345678901234567891"),
+        ("Chain3", "0x1234567890123456789012345678901234567892"),
+        ("Chain4", "0x1234567890123456789012345678901234567893"),
+        ("Chain5", "0x1234567890123456789012345678901234567894"),
+    ];
+
+    for (chain_name, address) in chains {
+        utils::register_chain(
+            test_config.deps.as_mut(),
+            chain_name.parse().unwrap(),
+            address.parse().unwrap(),
+            test_config.eth.max_uint,
+            test_config.eth.max_decimals,
+        )
+        .unwrap();
+    }
+
+    let first_page =
+        utils::query_its_chains(test_config.deps.as_ref(), None, None, Some(2)).unwrap();
+
+    assert_eq!(first_page.len(), 2);
+    let last_chain_name = first_page.last().unwrap().chain.clone();
+
+    let second_page = utils::query_its_chains(
+        test_config.deps.as_ref(),
+        None,
+        Some(last_chain_name),
+        Some(2),
+    )
+    .unwrap();
+
+    assert_eq!(second_page.len(), 2);
+    assert_ne!(
+        first_page.last().unwrap().chain,
+        second_page.first().unwrap().chain
+    );
+
+    utils::freeze_chain(test_config.deps.as_mut(), "Chain1".parse().unwrap()).unwrap();
+    utils::freeze_chain(test_config.deps.as_mut(), "Chain3".parse().unwrap()).unwrap();
+    utils::freeze_chain(test_config.deps.as_mut(), "Chain5".parse().unwrap()).unwrap();
+
+    let frozen_first_page = utils::query_its_chains(
+        test_config.deps.as_ref(),
+        Some(ChainFilter {
+            status: Some(ChainStatusFilter::Frozen),
+        }),
+        None,
+        Some(2),
+    )
+    .unwrap();
+
+    assert_eq!(frozen_first_page.len(), 2);
+    let last_frozen_chain = frozen_first_page.last().unwrap().chain.clone();
+
+    let frozen_second_page = utils::query_its_chains(
+        test_config.deps.as_ref(),
+        Some(ChainFilter {
+            status: Some(ChainStatusFilter::Frozen),
+        }),
+        Some(last_frozen_chain),
+        Some(2),
+    )
+    .unwrap();
+
+    assert_ne!(
+        frozen_first_page.last().unwrap().chain,
+        frozen_second_page.first().unwrap().chain
+    );
+    assert_eq!(frozen_second_page.len(), 1);
+}
