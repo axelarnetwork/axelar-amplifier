@@ -35,35 +35,50 @@ pub fn all_its_contracts(deps: Deps) -> Result<Binary, Error> {
     to_json_binary(&contract_addresses).change_context(Error::JsonSerialization)
 }
 
+fn convert_chain_filter_option(
+    message_chain_filter: Option<msg::ChainFilter>,
+) -> impl Fn(&state::ChainConfig) -> bool + 'static {
+    move |config| match &message_chain_filter {
+        None => true,
+        Some(filter) => convert_chain_filter(filter)(config),
+    }
+}
+
+fn convert_chain_filter(
+    message_chain_filter: &msg::ChainFilter,
+) -> impl Fn(&state::ChainConfig) -> bool + '_ {
+    move |config| match &message_chain_filter.status {
+        Some(status) => match status {
+            msg::ChainStatusFilter::Frozen => config.frozen,
+            msg::ChainStatusFilter::Active => !config.frozen,
+        },
+        None => true,
+    }
+}
+
 pub fn its_chains(
     deps: Deps,
     filter: Option<msg::ChainFilter>,
     start_after: Option<ChainNameRaw>,
     limit: Option<u32>,
 ) -> Result<Binary, Error> {
-    let filter_fn = |config: &state::ChainConfig| {
-        filter.as_ref().map_or(true, |f| match &f.status {
-            Some(status) => match status {
-                msg::ChainStatusFilter::Frozen => config.frozen,
-                msg::ChainStatusFilter::Active => !config.frozen,
-            },
-            None => true,
-        })
-    };
-
-    let filtered_chain_configs: Vec<_> =
-        state::load_chain_configs(deps.storage, filter_fn, start_after, limit)
-            .map(|r| r.change_context(Error::State))
-            .map_ok(|(chain, config)| msg::ChainConfigResponse {
-                chain,
-                its_edge_contract: config.its_address,
-                truncation: msg::TruncationConfig {
-                    max_uint: config.truncation.max_uint,
-                    max_decimals_when_truncating: config.truncation.max_decimals_when_truncating,
-                },
-                frozen: config.frozen,
-            })
-            .try_collect()?;
+    let filtered_chain_configs: Vec<_> = state::load_chain_configs(
+        deps.storage,
+        convert_chain_filter_option(filter),
+        start_after,
+        limit,
+    )
+    .map(|r| r.change_context(Error::State))
+    .map_ok(|(chain, config)| msg::ChainConfigResponse {
+        chain,
+        its_edge_contract: config.its_address,
+        truncation: msg::TruncationConfig {
+            max_uint: config.truncation.max_uint,
+            max_decimals_when_truncating: config.truncation.max_decimals_when_truncating,
+        },
+        frozen: config.frozen,
+    })
+    .try_collect()?;
 
     to_json_binary(&filtered_chain_configs).change_context(Error::JsonSerialization)
 }
