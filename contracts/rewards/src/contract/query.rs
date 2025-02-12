@@ -42,7 +42,6 @@ pub fn participation(
             Epoch::current(&current_params, block_height)?.epoch_num
         }
     };
-
     let tally = state::load_epoch_tally(storage, pool_id, epoch_num)?;
 
     match tally {
@@ -51,7 +50,7 @@ pub fn participation(
             event_count: tally.event_count,
             participation: tally.verifier_participation(),
             rewards_by_verifier: tally.rewards_by_verifier(),
-            epoch: tally.epoch,
+            epoch: tally.epoch.into(),
             params: tally.params,
         })),
     }
@@ -241,7 +240,9 @@ mod tests {
             event_count: tally.event_count,
             participation: tally.verifier_participation(),
             rewards_by_verifier: tally.rewards_by_verifier(),
-            epoch: Epoch::current(&current_params.clone(), block_height).unwrap(),
+            epoch: Epoch::current(&current_params.clone(), block_height)
+                .unwrap()
+                .into(),
             params: current_params.params.clone(),
         };
 
