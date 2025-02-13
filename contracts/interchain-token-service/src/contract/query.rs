@@ -60,7 +60,7 @@ pub fn its_chains(
     deps: Deps,
     filter: Option<msg::ChainFilter>,
     start_after: Option<ChainNameRaw>,
-    limit: Option<u32>,
+    limit: u32,
 ) -> Result<Binary, Error> {
     let filtered_chain_configs: Vec<_> = state::load_chain_configs(
         deps.storage,

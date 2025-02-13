@@ -186,7 +186,7 @@ fn query_chains_config() {
     let mut test_config = ChainConfigTest::setup();
 
     // Test all chains
-    let all_chains = utils::query_its_chains(test_config.deps.as_ref(), None, None, None).unwrap();
+    let all_chains = utils::query_its_chains(test_config.deps.as_ref(), None, None, 2).unwrap();
     let expected = vec![
         utils::create_config_response(&test_config.eth, false),
         utils::create_config_response(&test_config.polygon, false),
@@ -200,7 +200,7 @@ fn query_chains_config() {
             status: Some(ChainStatusFilter::Active),
         }),
         None,
-        None,
+        2,
     )
     .unwrap();
     utils::assert_configs_equal(&active_chains, &expected);
@@ -212,7 +212,7 @@ fn query_chains_config() {
             status: Some(ChainStatusFilter::Frozen),
         }),
         None,
-        None,
+        1,
     )
     .unwrap();
     assert!(frozen_chains.is_empty());
@@ -226,7 +226,7 @@ fn query_chains_config() {
             status: Some(ChainStatusFilter::Frozen),
         }),
         None,
-        None,
+        1,
     )
     .unwrap();
     utils::assert_configs_equal(
@@ -240,7 +240,7 @@ fn query_chains_config() {
             status: Some(ChainStatusFilter::Active),
         }),
         None,
-        None,
+        1,
     )
     .unwrap();
     utils::assert_configs_equal(
@@ -272,19 +272,13 @@ fn query_chains_pagination() {
         .unwrap();
     }
 
-    let first_page =
-        utils::query_its_chains(test_config.deps.as_ref(), None, None, Some(2)).unwrap();
+    let first_page = utils::query_its_chains(test_config.deps.as_ref(), None, None, 2).unwrap();
 
     assert_eq!(first_page.len(), 2);
     let last_chain_name = first_page.last().unwrap().chain.clone();
 
-    let second_page = utils::query_its_chains(
-        test_config.deps.as_ref(),
-        None,
-        Some(last_chain_name),
-        Some(2),
-    )
-    .unwrap();
+    let second_page =
+        utils::query_its_chains(test_config.deps.as_ref(), None, Some(last_chain_name), 2).unwrap();
 
     assert_eq!(second_page.len(), 2);
     assert_ne!(
@@ -302,7 +296,7 @@ fn query_chains_pagination() {
             status: Some(ChainStatusFilter::Frozen),
         }),
         None,
-        Some(2),
+        2,
     )
     .unwrap();
 
@@ -315,7 +309,7 @@ fn query_chains_pagination() {
             status: Some(ChainStatusFilter::Frozen),
         }),
         Some(last_frozen_chain),
-        Some(2),
+        2,
     )
     .unwrap();
 

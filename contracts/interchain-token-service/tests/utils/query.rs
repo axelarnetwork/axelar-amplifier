@@ -54,7 +54,7 @@ pub fn query_its_chains(
     deps: Deps,
     filter: Option<ChainFilter>,
     start_after: Option<ChainNameRaw>,
-    limit: Option<u32>,
+    limit: u32,
 ) -> Result<Vec<ChainConfigResponse>, ContractError> {
     let bin = query(
         deps,

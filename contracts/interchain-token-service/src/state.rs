@@ -10,9 +10,6 @@ use router_api::{Address, ChainNameRaw};
 
 use crate::{msg, RegisterTokenMetadata, TokenId};
 
-// Pagination limit
-const DEFAULT_LIMIT: u32 = u32::MAX;
-
 #[derive(thiserror::Error, Debug, IntoContractError)]
 pub enum Error {
     #[error("ITS contract got into an invalid state, its config is missing")]
@@ -178,16 +175,15 @@ pub fn load_chain_configs<'a>(
     storage: &'a dyn Storage,
     filter: impl Fn(&ChainConfig) -> bool + 'a,
     start_after: Option<ChainNameRaw>,
-    limit: Option<u32>,
+    limit: u32,
 ) -> impl Iterator<Item = Result<(ChainNameRaw, ChainConfig), Error>> + 'a {
     let start = start_after.as_ref().map(Bound::exclusive);
-    let limit = limit.unwrap_or(DEFAULT_LIMIT) as usize;
 
     CHAIN_CONFIGS
         .range(storage, start, None, Order::Ascending)
         .map(|r| r.change_context(Error::Storage))
         .filter_ok(move |(_, config)| filter(config))
-        .take(limit)
+        .take(limit as usize)
 }
 
 pub fn save_chain_config(
