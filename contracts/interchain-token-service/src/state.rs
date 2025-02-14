@@ -7,6 +7,7 @@ use cw_storage_plus::{Item, Map};
 use error_stack::{report, Result, ResultExt};
 use router_api::{Address, ChainNameRaw};
 
+use crate::shared::NumBits;
 use crate::{msg, RegisterTokenMetadata, TokenId};
 
 #[derive(thiserror::Error, Debug, IntoContractError)]
@@ -41,7 +42,7 @@ pub struct ChainConfig {
 
 #[cw_serde]
 pub struct TruncationConfig {
-    pub max_uint_bits: u32, // The maximum number of bits used to represent unsigned integer values that is supported by the chain's token standard
+    pub max_uint_bits: NumBits, // The maximum number of bits used to represent unsigned integer values that is supported by the chain's token standard
     pub max_decimals_when_truncating: u8, // The maximum number of decimals that is preserved when deploying from a chain with a larger max unsigned integer
 }
 
@@ -360,7 +361,7 @@ mod tests {
                 chain: chain1.clone(),
                 its_edge_contract: address1.clone(),
                 truncation: msg::TruncationConfig {
-                    max_uint_bits: 256u32,
+                    max_uint_bits: 256.try_into().unwrap(),
                     max_decimals_when_truncating: 16u8
                 }
             }
@@ -372,7 +373,7 @@ mod tests {
                 chain: chain2.clone(),
                 its_edge_contract: address2.clone(),
                 truncation: msg::TruncationConfig {
-                    max_uint_bits: 256u32,
+                    max_uint_bits: 256.try_into().unwrap(),
                     max_decimals_when_truncating: 16u8
                 }
             }

@@ -33,7 +33,7 @@ fn register_update_its_contract_succeeds() {
         deps.as_mut(),
         chain.clone(),
         address.clone(),
-        256,
+        256.try_into().unwrap(),
         u8::MAX
     ));
 
@@ -47,7 +47,7 @@ fn register_update_its_contract_succeeds() {
         deps.as_mut(),
         chain.clone(),
         new_address.clone(),
-        128,
+        128.try_into().unwrap(),
         18u8
     ));
     let res = assert_ok!(utils::query_its_chain(deps.as_ref(), chain.clone()));
@@ -68,12 +68,18 @@ fn reregistering_same_chain_fails() {
         deps.as_mut(),
         chain.clone(),
         address.clone(),
-        256,
+        256.try_into().unwrap(),
         u8::MAX
     ));
 
     assert_err_contains!(
-        utils::register_chain(deps.as_mut(), chain.clone(), address.clone(), 256, u8::MAX),
+        utils::register_chain(
+            deps.as_mut(),
+            chain.clone(),
+            address.clone(),
+            256.try_into().unwrap(),
+            u8::MAX
+        ),
         Error,
         Error::RegisterChains
     );
@@ -93,7 +99,7 @@ fn update_unknown_chain_fails() {
             "0x1234567890123456789012345678901234567890"
                 .parse()
                 .unwrap(),
-            256,
+            256.try_into().unwrap(),
             u8::MAX
         ),
         Error,
@@ -111,7 +117,7 @@ fn register_multiple_chains_succeeds() {
             its_edge_contract: i.to_string().parse().unwrap(),
             truncation: TruncationConfig {
                 max_decimals_when_truncating: 18u8,
-                max_uint_bits: 256,
+                max_uint_bits: 256.try_into().unwrap(),
             },
         })
         .collect();
@@ -133,7 +139,7 @@ fn register_multiple_chains_fails_if_one_invalid() {
             its_edge_contract: i.to_string().parse().unwrap(),
             truncation: TruncationConfig {
                 max_decimals_when_truncating: 18u8,
-                max_uint_bits: 256,
+                max_uint_bits: 256.try_into().unwrap(),
             },
         })
         .collect();
@@ -854,7 +860,7 @@ fn execute_message_when_unknown_source_address_fails() {
         deps.as_mut(),
         source_its_chain,
         source_its_contract,
-        256,
+        256.try_into().unwrap(),
         u8::MAX,
     )
     .unwrap();
@@ -889,7 +895,7 @@ fn execute_message_when_invalid_payload_fails() {
         deps.as_mut(),
         source_its_chain,
         source_its_contract.clone(),
-        256,
+        256.try_into().unwrap(),
         u8::MAX,
     )
     .unwrap();
@@ -929,7 +935,7 @@ fn execute_message_when_unknown_chain_fails() {
         deps.as_mut(),
         source_its_chain,
         source_its_contract.clone(),
-        256,
+        256.try_into().unwrap(),
         u8::MAX,
     )
     .unwrap();
@@ -960,7 +966,7 @@ fn execute_message_when_invalid_message_type_fails() {
         deps.as_mut(),
         source_its_chain.clone(),
         source_its_contract.clone(),
-        256,
+        256.try_into().unwrap(),
         u8::MAX,
     )
     .unwrap();
@@ -1041,7 +1047,7 @@ fn admin_or_governance_can_freeze_chain() {
         deps.as_mut(),
         chain,
         address,
-        max_uint,
+        max_uint.try_into().unwrap(),
         decimals
     ));
 
@@ -1083,7 +1089,7 @@ fn admin_or_governance_can_unfreeze_chain() {
         deps.as_mut(),
         chain,
         address,
-        max_uint,
+        max_uint.try_into().unwrap(),
         decimals
     ));
 
@@ -1207,7 +1213,7 @@ fn set_chain_config_should_succeed() {
         deps.as_mut(),
         chain,
         address,
-        max_uint,
+        max_uint.try_into().unwrap(),
         decimals
     ));
 }
@@ -1229,11 +1235,17 @@ fn set_chain_config_should_fail_if_chain_config_is_already_set() {
         deps.as_mut(),
         chain.clone(),
         address.clone(),
-        max_uint,
+        max_uint.try_into().unwrap(),
         decimals
     ));
     assert_err_contains!(
-        utils::register_chain(deps.as_mut(), chain, address, max_uint, decimals),
+        utils::register_chain(
+            deps.as_mut(),
+            chain,
+            address,
+            max_uint.try_into().unwrap(),
+            decimals
+        ),
         ExecuteError,
         ExecuteError::ChainAlreadyRegistered(_)
     )
@@ -1596,7 +1608,7 @@ fn deploy_interchain_token_from_non_origin_chain_fails() {
         deps.as_mut(),
         another_source_chain.clone(),
         source_its_contract.clone(),
-        256,
+        256.try_into().unwrap(),
         u8::MAX,
     ));
     let another_destination_chain: ChainNameRaw = "another-dest-chain".parse().unwrap();
@@ -1604,7 +1616,7 @@ fn deploy_interchain_token_from_non_origin_chain_fails() {
         deps.as_mut(),
         another_destination_chain.clone(),
         source_its_contract.clone(),
-        256,
+        256.try_into().unwrap(),
         u8::MAX,
     ));
 
@@ -1649,7 +1661,7 @@ fn deploy_interchain_token_to_multiple_destination_succeeds() {
         deps.as_mut(),
         another_chain.clone(),
         source_its_contract.clone(),
-        256,
+        256.try_into().unwrap(),
         u8::MAX,
     ));
 

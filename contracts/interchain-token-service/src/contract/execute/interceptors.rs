@@ -271,7 +271,7 @@ fn destination_amount(
             })?
     };
 
-    if amount_overflows(destination_amount, destination_max_uint_bits) {
+    if amount_overflows(destination_amount, *destination_max_uint_bits) {
         bail!(Error::InvalidTransferAmount {
             source_chain: source_chain.to_owned(),
             destination_chain: destination_chain.to_owned(),
@@ -293,7 +293,7 @@ fn amount_overflows(amount: Uint256, target_chain_max_bits: u32) -> bool {
         Ok(res) => res.gt(&Uint256::zero()),
         // this overflow error occurs when trying to shift 256 bits or more.
         // But this can only happen if max_bits is >= 256, and amount itself is only 256 bits.
-        // So in this can, amount cannot possibly overflow the max uint of the target chain
+        // So in this case, amount cannot possibly overflow the max uint of the target chain
         Err(OverflowError { operation: _ }) => false,
     }
 }
@@ -329,6 +329,7 @@ pub fn register_custom_token(
 
 #[cfg(test)]
 mod test {
+
     use assert_ok::assert_ok;
     use axelar_wasm_std::assert_err_contains;
     use cosmwasm_std::testing::MockStorage;
@@ -424,7 +425,7 @@ mod test {
                 chain: destination_chain.clone(),
                 its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
                 truncation: TruncationConfig {
-                    max_uint_bits: 32u32,
+                    max_uint_bits: 32u32.try_into().unwrap(),
                     max_decimals_when_truncating: 6,
                 },
             },
@@ -477,7 +478,7 @@ mod test {
                 chain: destination_chain.clone(),
                 its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
                 truncation: TruncationConfig {
-                    max_uint_bits: 64,
+                    max_uint_bits: 64.try_into().unwrap(),
                     max_decimals_when_truncating: 6,
                 },
             },
@@ -530,7 +531,7 @@ mod test {
                 chain: destination_chain.clone(),
                 its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
                 truncation: TruncationConfig {
-                    max_uint_bits: 64,
+                    max_uint_bits: 64.try_into().unwrap(),
                     max_decimals_when_truncating: 6,
                 },
             },
@@ -558,7 +559,7 @@ mod test {
             token_id: [1u8; 32].into(),
             source_address: b"source_address".to_vec().try_into().unwrap(),
             destination_address: b"destination_address".to_vec().try_into().unwrap(),
-            amount: Uint256::from(1_000_000_000_000u128).try_into().unwrap(),
+            amount: Uint256::from(u64::MAX).try_into().unwrap(),
             data: None,
         };
 
@@ -583,7 +584,7 @@ mod test {
                 chain: destination_chain.clone(),
                 its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
                 truncation: TruncationConfig {
-                    max_uint_bits: 10,
+                    max_uint_bits: 32.try_into().unwrap(),
                     max_decimals_when_truncating: 6,
                 },
             },
@@ -636,7 +637,7 @@ mod test {
                 chain: destination_chain.clone(),
                 its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
                 truncation: TruncationConfig {
-                    max_uint_bits: 10,
+                    max_uint_bits: 32.try_into().unwrap(),
                     max_decimals_when_truncating: 6,
                 },
             },
@@ -668,7 +669,7 @@ mod test {
                 chain: source_chain.clone(),
                 its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
                 truncation: TruncationConfig {
-                    max_uint_bits: 256,
+                    max_uint_bits: 256.try_into().unwrap(),
                     max_decimals_when_truncating: 12,
                 },
             },
@@ -681,7 +682,7 @@ mod test {
                 chain: destination_chain.clone(),
                 its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
                 truncation: TruncationConfig {
-                    max_uint_bits: 128,
+                    max_uint_bits: 128.try_into().unwrap(),
                     max_decimals_when_truncating: 6,
                 },
             },
@@ -732,7 +733,7 @@ mod test {
                 chain: source_chain.clone(),
                 its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
                 truncation: TruncationConfig {
-                    max_uint_bits: 128,
+                    max_uint_bits: 128.try_into().unwrap(),
                     max_decimals_when_truncating: 6,
                 },
             },
@@ -745,7 +746,7 @@ mod test {
                 chain: destination_chain.clone(),
                 its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
                 truncation: TruncationConfig {
-                    max_uint_bits: 256,
+                    max_uint_bits: 256.try_into().unwrap(),
                     max_decimals_when_truncating: 6,
                 },
             },
