@@ -95,7 +95,7 @@ pub fn register_chain(
             chain,
             its_edge_contract,
             truncation: TruncationConfig {
-                max_uint_bits: max_uint_bits,
+                max_uint_bits,
                 max_decimals_when_truncating,
             },
         }],
@@ -127,7 +127,7 @@ pub fn update_chain(
             chain,
             its_edge_contract,
             truncation: TruncationConfig {
-                max_uint_bits: max_uint_bits,
+                max_uint_bits,
                 max_decimals_when_truncating,
             },
         }],
