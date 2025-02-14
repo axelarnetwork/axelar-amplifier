@@ -6,7 +6,17 @@ use cosmwasm_std::{Addr, Uint128, Uint64};
 use msgs_derive::EnsurePermissions;
 use router_api::{Address, ChainName};
 
-use crate::state::{Epoch, PoolId};
+#[cw_serde]
+pub struct Epoch {
+    pub epoch_num: u64,
+    pub block_height_started: u64,
+}
+
+#[cw_serde]
+pub struct PoolId {
+    pub chain_name: ChainName,
+    pub contract: String,
+}
 
 #[cw_serde]
 pub struct InstantiateMsg {
