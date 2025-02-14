@@ -9,11 +9,10 @@ use router_api::{Address, ChainNameRaw};
 use crate::state::{TokenConfig, TokenInstance};
 use crate::TokenId;
 
-// Pagination limit
-const DEFAULT_LIMIT: u32 = 30;
+const DEFAULT_PAGINATION_LIMIT: u32 = 30;
 
 const fn default_pagination_limit() -> u32 {
-    DEFAULT_LIMIT
+    DEFAULT_PAGINATION_LIMIT
 }
 
 #[cw_serde]
