@@ -33,12 +33,6 @@ impl XRPLMessage {
     }
 }
 
-impl From<XRPLUserMessageWithPayload> for XRPLMessage {
-    fn from(other: XRPLUserMessageWithPayload) -> Self {
-        XRPLMessage::UserMessage(other.message)
-    }
-}
-
 #[cw_serde]
 #[derive(Eq, Hash)]
 pub struct XRPLUserMessage {
@@ -128,16 +122,31 @@ impl XRPLUserMessage {
     }
 }
 
+impl Into<XRPLMessage> for XRPLUserMessage {
+    fn into(self) -> XRPLMessage {
+        XRPLMessage::UserMessage(self)
+    }
+}
+
 #[cw_serde]
 #[derive(Eq, Hash)]
-pub struct XRPLUserMessageWithPayload {
-    pub message: XRPLUserMessage,
+pub struct WithPayload<T: Clone + Into<XRPLMessage>> {
+    pub message: T,
     pub payload: Option<nonempty::HexBinary>,
 }
 
-impl From<XRPLUserMessageWithPayload> for XRPLUserMessage {
-    fn from(other: XRPLUserMessageWithPayload) -> Self {
-        other.message
+impl WithPayload<XRPLUserMessage> {
+    pub fn new(message: XRPLUserMessage, payload: Option<nonempty::HexBinary>) -> Self {
+        Self {
+            message,
+            payload,
+        }
+    }
+}
+
+impl<T: Clone + Into<XRPLMessage>> Into<XRPLMessage> for WithPayload<T> {
+    fn into(self) -> XRPLMessage {
+        self.message.into()
     }
 }
 
@@ -178,8 +187,8 @@ impl CrossChainMessage for XRPLUserMessage {
     }
 }
 
-impl CrossChainMessage for XRPLUserMessageWithPayload {
+impl<T: Clone + Into<XRPLMessage>> CrossChainMessage for WithPayload<T> {
     fn cc_id(&self, source_chain: ChainNameRaw) -> CrossChainId {
-        self.message.cc_id(source_chain)
+        self.message.clone().into().cc_id(source_chain)
     }
 }

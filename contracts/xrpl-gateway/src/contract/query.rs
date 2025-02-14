@@ -3,7 +3,7 @@ use cosmwasm_std::{to_json_binary, Addr, Binary, Storage};
 use error_stack::Result;
 use interchain_token_service::TokenId;
 use router_api::{ChainNameRaw, CrossChainId, Message};
-use xrpl_types::msg::XRPLUserMessageWithPayload;
+use xrpl_types::msg::{WithPayload, XRPLUserMessage};
 
 use crate::state::{self, Config};
 
@@ -58,7 +58,7 @@ pub fn token_instance_decimals(
 pub fn translate_to_interchain_transfer(
     storage: &dyn Storage,
     config: &Config,
-    message_with_payload: &XRPLUserMessageWithPayload,
+    message_with_payload: &WithPayload<XRPLUserMessage>,
 ) -> Result<Binary, Error> {
     let interchain_transfer = execute::translate_to_interchain_transfer(storage, config, message_with_payload)?;
     Ok(to_json_binary(&interchain_transfer).map_err(Error::from)?)

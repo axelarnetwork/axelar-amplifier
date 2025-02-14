@@ -7,7 +7,8 @@ use axelarnet_gateway::ExecutableMessage;
 use interchain_token_service::TokenId;
 use rand::RngCore;
 use xrpl_gateway::msg::TokenMetadata;
-use xrpl_types::{msg::{XRPLMessage, XRPLUserMessageWithPayload}, types::XRPLTokenOrXrp};
+use xrpl_types::msg::{WithPayload, XRPLMessage, XRPLUserMessage};
+use xrpl_types::types::XRPLTokenOrXrp;
 use xrpl_types::types::{TxHash, XRPLAccountId, XRPLToken};
 use std::collections::{HashMap, HashSet};
 
@@ -121,7 +122,7 @@ pub fn route_messages(app: &mut AxelarApp, gateway: &GatewayContract, msgs: &[Me
     assert!(response.is_ok());
 }
 
-pub fn xrpl_route_incoming_messages(app: &mut AxelarApp, gateway: &XRPLGatewayContract, msgs: &[XRPLUserMessageWithPayload]) {
+pub fn xrpl_route_incoming_messages(app: &mut AxelarApp, gateway: &XRPLGatewayContract, msgs: &[WithPayload<XRPLUserMessage>]) {
     let response = gateway.execute(
         app,
         MockApi::default().addr_make("relayer"),

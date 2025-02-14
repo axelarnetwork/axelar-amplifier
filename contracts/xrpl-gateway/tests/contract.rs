@@ -17,7 +17,7 @@ use itertools::Itertools;
 use rand::{thread_rng, Rng};
 use router_api::{ChainName, CrossChainId, Message};
 use serde::Serialize;
-use xrpl_types::msg::{XRPLUserMessage, XRPLMessage, XRPLUserMessageWithPayload};
+use xrpl_types::msg::{WithPayload, XRPLMessage, XRPLUserMessage};
 use xrpl_types::types::{TxHash, XRPLAccountId, XRPLPaymentAmount, XRPLTokenOrXrp};
 use xrpl_voting_verifier::msg::MessageStatus;
 
@@ -542,7 +542,7 @@ fn generate_incoming_msgs(namespace: impl Debug, count: u8) -> Vec<XRPLMessage> 
         .collect()
 }
 
-fn messages_with_payload(msgs: Vec<XRPLMessage>) -> Vec<XRPLUserMessageWithPayload> {
+fn messages_with_payload(msgs: Vec<XRPLMessage>) -> Vec<WithPayload<XRPLUserMessage>> {
     msgs.into_iter().map(|msg| {
         let user_message = if let XRPLMessage::UserMessage(user_message) = msg {
             user_message
@@ -550,10 +550,10 @@ fn messages_with_payload(msgs: Vec<XRPLMessage>) -> Vec<XRPLUserMessageWithPaylo
             panic!("only user messages are supported")
         };
 
-        return XRPLUserMessageWithPayload {
-            message: user_message,
-            payload: Some(nonempty::HexBinary::try_from(HexBinary::from_hex("0123456789abcdef").unwrap()).unwrap()),
-        }
+        return WithPayload::new(
+            user_message,
+            Some(nonempty::HexBinary::try_from(HexBinary::from_hex("0123456789abcdef").unwrap()).unwrap()),
+        );
     }).collect()
 }
 

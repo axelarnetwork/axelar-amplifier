@@ -5,7 +5,7 @@ use interchain_token_service::TokenId;
 use router_api::{ChainName, ChainNameRaw, CrossChainId, Message};
 use msgs_derive::EnsurePermissions;
 
-use xrpl_types::msg::{XRPLMessage, XRPLUserMessageWithPayload};
+use xrpl_types::msg::{WithPayload, XRPLMessage, XRPLUserMessage};
 use xrpl_types::types::{xrpl_account_id_string, xrpl_currency_string, XRPLAccountId, XRPLCurrency, XRPLPaymentAmount, XRPLToken, XRPLTokenOrXrp};
 
 #[cw_serde]
@@ -129,7 +129,7 @@ pub enum ExecuteMsg {
     /// Forward the given incoming messages (coming from XRPL) to the next step of the routing layer.
     /// They are reported by the relayer and need verification.
     #[permission(Any)]
-    RouteIncomingMessages(Vec<XRPLUserMessageWithPayload>),
+    RouteIncomingMessages(Vec<WithPayload<XRPLUserMessage>>),
 }
 
 #[cw_serde]
@@ -174,6 +174,6 @@ pub enum QueryMsg {
 
     #[returns(InterchainTransfer)]
     InterchainTransfer {
-        message_with_payload: XRPLUserMessageWithPayload,
+        message_with_payload: WithPayload<XRPLUserMessage>,
     },
 }
