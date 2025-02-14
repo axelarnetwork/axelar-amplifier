@@ -2,25 +2,12 @@ FROM rust:1.81-bookworm as builder
 RUN apt-get update && apt-get install -y clang protobuf-compiler cmake
 
 WORKDIR /ampd
-COPY ./Cargo.toml ./Cargo.toml
-COPY ./Cargo.lock ./Cargo.lock
-COPY ./ampd/Cargo.toml ./ampd/Cargo.toml
-COPY ./packages ./packages
-COPY ./contracts ./contracts
-COPY ./integration-tests ./integration-tests
-COPY ./external-gateways ./external-gateways
-COPY ./tools ./tools
-COPY ./.cargo ./.cargo
+COPY . .
 
-# build dependencies separately
-RUN mkdir ampd/src && echo 'fn main() {}' > ampd/src/main.rs
-RUN cargo build --release
-
-COPY ./ampd/proto ./ampd/proto
-COPY ./ampd/src ./ampd/src
-COPY ./ampd/build.rs ./ampd/build.rs
-
-RUN cargo install --locked --path ./ampd
+RUN --mount=type=cache,target=/ampd/target/ \
+    --mount=type=cache,target=/usr/local/cargo/git/db \
+    --mount=type=cache,target=/usr/local/cargo/registry/ \
+    cargo install --locked --path ./ampd && cp /ampd/target/release/ampd /usr/local/bin
 
 FROM debian:bookworm-slim AS runner
 RUN apt-get update && apt-get install -y ca-certificates libssl3 && rm -rf /var/lib/apt/lists/*
@@ -28,7 +15,7 @@ RUN addgroup --system --gid 1001 axelard && adduser --home /home/axelard --syste
 WORKDIR /home/axelard
 RUN mkdir /.ampd && chown axelard /.ampd
 USER axelard
-COPY --from=builder /ampd/target/release/ampd /usr/local/bin
+COPY --from=builder /usr/local/bin/ampd /usr/local/bin
 COPY ./entrypoint.sh ./
 
 ENTRYPOINT ["./entrypoint.sh"]
