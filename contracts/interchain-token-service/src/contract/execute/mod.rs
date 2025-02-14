@@ -430,7 +430,7 @@ mod tests {
     use axelarnet_gateway::msg::QueryMsg;
     use cosmwasm_std::testing::{mock_dependencies, MockApi, MockQuerier};
     use cosmwasm_std::{
-        from_json, to_json_binary, HexBinary, MemoryStorage, OwnedDeps, Uint128, Uint256, WasmQuery,
+        from_json, to_json_binary, HexBinary, MemoryStorage, OwnedDeps, Uint256, WasmQuery,
     };
     use router_api::{ChainName, ChainNameRaw, CrossChainId};
 
@@ -681,7 +681,7 @@ mod tests {
                 chain: SOLANA.parse().unwrap(),
                 its_edge_contract: ITS_ADDRESS.to_string().try_into().unwrap(),
                 truncation: TruncationConfig {
-                    max_uint: Uint256::one().try_into().unwrap(),
+                    max_uint_bits: 256.try_into().unwrap(),
                     max_decimals_when_truncating: 16u8
                 }
             }
@@ -693,7 +693,7 @@ mod tests {
                     chain: SOLANA.parse().unwrap(),
                     its_edge_contract: ITS_ADDRESS.to_string().try_into().unwrap(),
                     truncation: TruncationConfig {
-                        max_uint: Uint256::one().try_into().unwrap(),
+                        max_uint_bits: 256.try_into().unwrap(),
                         max_decimals_when_truncating: 16u8
                     }
                 }
@@ -711,7 +711,7 @@ mod tests {
                 chain: SOLANA.parse().unwrap(),
                 its_edge_contract: ITS_ADDRESS.to_string().try_into().unwrap(),
                 truncation: TruncationConfig {
-                    max_uint: Uint256::MAX.try_into().unwrap(),
+                    max_uint_bits: 256.try_into().unwrap(),
                     max_decimals_when_truncating: 16u8,
                 },
             },
@@ -719,7 +719,7 @@ mod tests {
                 chain: XRPL.parse().unwrap(),
                 its_edge_contract: ITS_ADDRESS.to_string().try_into().unwrap(),
                 truncation: TruncationConfig {
-                    max_uint: Uint256::MAX.try_into().unwrap(),
+                    max_uint_bits: 256.try_into().unwrap(),
                     max_decimals_when_truncating: 16u8,
                 },
             },
@@ -742,7 +742,7 @@ mod tests {
                     chain: SOLANA.parse().unwrap(),
                     its_edge_contract: ITS_ADDRESS.to_string().try_into().unwrap(),
                     truncation: TruncationConfig {
-                        max_uint: Uint256::MAX.try_into().unwrap(),
+                        max_uint_bits: 256.try_into().unwrap(),
                         max_decimals_when_truncating: 16u8,
                     },
                 }]
@@ -769,7 +769,7 @@ mod tests {
                 chain: solana.clone(),
                 its_edge_contract: ITS_ADDRESS.to_string().try_into().unwrap(),
                 truncation: TruncationConfig {
-                    max_uint: Uint128::MAX.try_into().unwrap(),
+                    max_uint_bits: 128.try_into().unwrap(),
                     max_decimals_when_truncating: new_decimals,
                 },
             }]
@@ -877,7 +877,7 @@ mod tests {
                 chain: solana.clone(),
                 its_edge_contract: ITS_ADDRESS.to_string().try_into().unwrap(),
                 truncation: TruncationConfig {
-                    max_uint: Uint128::MAX.try_into().unwrap(),
+                    max_uint_bits: 128.try_into().unwrap(),
                     max_decimals_when_truncating: 6u8,
                 },
             }]
@@ -1310,7 +1310,7 @@ mod tests {
                     chain: chain.clone(),
                     its_edge_contract: ITS_ADDRESS.to_string().try_into().unwrap(),
                     truncation: TruncationConfig {
-                        max_uint: Uint256::MAX.try_into().unwrap(),
+                        max_uint_bits: 256.try_into().unwrap(),
                         max_decimals_when_truncating: 18u8
                     }
                 }

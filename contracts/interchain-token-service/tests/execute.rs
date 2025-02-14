@@ -1,11 +1,9 @@
-use std::str::FromStr;
-
 use assert_ok::assert_ok;
 use axelar_wasm_std::response::inspect_response_msg;
 use axelar_wasm_std::{assert_err_contains, nonempty, permission_control};
 use axelarnet_gateway::msg::ExecuteMsg as AxelarnetGatewayExecuteMsg;
 use cosmwasm_std::testing::{message_info, mock_dependencies, mock_env};
-use cosmwasm_std::{HexBinary, Uint128, Uint256};
+use cosmwasm_std::{HexBinary, Uint256};
 use interchain_token_service::contract::{self, ExecuteError};
 use interchain_token_service::events::Event;
 use interchain_token_service::msg::{self, ExecuteMsg, TruncationConfig};
@@ -35,7 +33,7 @@ fn register_update_its_contract_succeeds() {
         deps.as_mut(),
         chain.clone(),
         address.clone(),
-        Uint256::MAX.try_into().unwrap(),
+        256.try_into().unwrap(),
         u8::MAX
     ));
 
@@ -49,7 +47,7 @@ fn register_update_its_contract_succeeds() {
         deps.as_mut(),
         chain.clone(),
         new_address.clone(),
-        Uint128::MAX.try_into().unwrap(),
+        128.try_into().unwrap(),
         18u8
     ));
     let res = assert_ok!(utils::query_its_chain(deps.as_ref(), chain.clone()));
@@ -70,7 +68,7 @@ fn reregistering_same_chain_fails() {
         deps.as_mut(),
         chain.clone(),
         address.clone(),
-        Uint256::MAX.try_into().unwrap(),
+        256.try_into().unwrap(),
         u8::MAX
     ));
 
@@ -79,7 +77,7 @@ fn reregistering_same_chain_fails() {
             deps.as_mut(),
             chain.clone(),
             address.clone(),
-            Uint256::MAX.try_into().unwrap(),
+            256.try_into().unwrap(),
             u8::MAX
         ),
         Error,
@@ -101,7 +99,7 @@ fn update_unknown_chain_fails() {
             "0x1234567890123456789012345678901234567890"
                 .parse()
                 .unwrap(),
-            Uint256::MAX.try_into().unwrap(),
+            256.try_into().unwrap(),
             u8::MAX
         ),
         Error,
@@ -119,7 +117,7 @@ fn register_multiple_chains_succeeds() {
             its_edge_contract: i.to_string().parse().unwrap(),
             truncation: TruncationConfig {
                 max_decimals_when_truncating: 18u8,
-                max_uint: Uint256::MAX.try_into().unwrap(),
+                max_uint_bits: 256.try_into().unwrap(),
             },
         })
         .collect();
@@ -141,7 +139,7 @@ fn register_multiple_chains_fails_if_one_invalid() {
             its_edge_contract: i.to_string().parse().unwrap(),
             truncation: TruncationConfig {
                 max_decimals_when_truncating: 18u8,
-                max_uint: Uint256::MAX.try_into().unwrap(),
+                max_uint_bits: 256.try_into().unwrap(),
             },
         })
         .collect();
@@ -243,12 +241,7 @@ fn execute_message_interchain_transfer_should_scale_custom_tokens_when_decimals_
             destination_its_contract,
             ..
         },
-    ) = utils::setup_with_chain_configs(
-        Uint256::MAX.try_into().unwrap(),
-        6,
-        u64::MAX.try_into().unwrap(),
-        6,
-    );
+    ) = utils::setup_with_chain_configs(256, 6, 64, 6);
     let token_id = TokenId::new([1; 32]);
     let hub_message = HubMessage::RegisterTokenMetadata(RegisterTokenMetadata {
         decimals: 6,
@@ -365,12 +358,7 @@ fn execute_message_interchain_transfer_should_scale_the_amount_when_source_decim
             destination_its_contract,
             ..
         },
-    ) = utils::setup_with_chain_configs(
-        Uint256::MAX.try_into().unwrap(),
-        6,
-        u64::MAX.try_into().unwrap(),
-        6,
-    );
+    ) = utils::setup_with_chain_configs(256, 6, 64, 6);
     let token_id = TokenId::new([1; 32]);
     let deploy_token = DeployInterchainToken {
         token_id,
@@ -448,21 +436,16 @@ fn execute_message_interchain_transfer_should_scale_correctly_in_3_chain_cycle()
         (
             "ethereum".parse().unwrap(),
             source_its_contract.clone(),
-            Uint256::MAX.try_into().unwrap(),
+            256,
             u8::MAX,
         ),
         (
             "stellar".parse().unwrap(),
             source_its_contract.clone(),
-            Uint256::from(u128::MAX).try_into().unwrap(),
+            128,
             12,
         ),
-        (
-            "sui".parse().unwrap(),
-            source_its_contract.clone(),
-            Uint256::from(u64::MAX).try_into().unwrap(),
-            6,
-        ),
+        ("sui".parse().unwrap(), source_its_contract.clone(), 64, 6),
     ];
 
     let (mut deps, TestMessage { router_message, .. }) =
@@ -601,21 +584,16 @@ fn execute_message_interchain_transfer_should_scale_correctly_in_3_chain_cycle_w
         (
             "ethereum".parse().unwrap(),
             source_its_contract.clone(),
-            Uint256::MAX.try_into().unwrap(),
+            256,
             u8::MAX,
         ),
         (
             "stellar".parse().unwrap(),
             source_its_contract.clone(),
-            Uint256::from(u128::MAX).try_into().unwrap(),
+            128,
             12,
         ),
-        (
-            "sui".parse().unwrap(),
-            source_its_contract.clone(),
-            Uint256::from(u64::MAX).try_into().unwrap(),
-            6,
-        ),
+        ("sui".parse().unwrap(), source_its_contract.clone(), 64, 6),
     ];
 
     let (mut deps, TestMessage { router_message, .. }) =
@@ -756,12 +734,7 @@ fn execute_message_deploy_interchain_token_should_translate_decimals_when_max_ui
             destination_its_chain,
             ..
         },
-    ) = utils::setup_with_chain_configs(
-        Uint256::MAX.try_into().unwrap(),
-        6,
-        u64::MAX.try_into().unwrap(),
-        6,
-    );
+    ) = utils::setup_with_chain_configs(256, 6, 64, 6);
 
     let token_id = TokenId::new([1; 32]);
     let message = DeployInterchainToken {
@@ -809,12 +782,7 @@ fn execute_message_deploy_interchain_token_should_translate_decimals_when_max_ui
             destination_its_chain,
             ..
         },
-    ) = utils::setup_with_chain_configs(
-        Uint256::MAX.try_into().unwrap(),
-        6,
-        Uint256::MAX.try_into().unwrap(),
-        6,
-    );
+    ) = utils::setup_with_chain_configs(256, 6, 256, 6);
 
     let token_id = TokenId::new([1; 32]);
     let message = DeployInterchainToken {
@@ -892,7 +860,7 @@ fn execute_message_when_unknown_source_address_fails() {
         deps.as_mut(),
         source_its_chain,
         source_its_contract,
-        Uint256::MAX.try_into().unwrap(),
+        256.try_into().unwrap(),
         u8::MAX,
     )
     .unwrap();
@@ -927,7 +895,7 @@ fn execute_message_when_invalid_payload_fails() {
         deps.as_mut(),
         source_its_chain,
         source_its_contract.clone(),
-        Uint256::MAX.try_into().unwrap(),
+        256.try_into().unwrap(),
         u8::MAX,
     )
     .unwrap();
@@ -967,7 +935,7 @@ fn execute_message_when_unknown_chain_fails() {
         deps.as_mut(),
         source_its_chain,
         source_its_contract.clone(),
-        Uint256::MAX.try_into().unwrap(),
+        256.try_into().unwrap(),
         u8::MAX,
     )
     .unwrap();
@@ -998,7 +966,7 @@ fn execute_message_when_invalid_message_type_fails() {
         deps.as_mut(),
         source_its_chain.clone(),
         source_its_contract.clone(),
-        Uint256::MAX.try_into().unwrap(),
+        256.try_into().unwrap(),
         u8::MAX,
     )
     .unwrap();
@@ -1068,10 +1036,7 @@ fn admin_or_governance_can_freeze_chain() {
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
     let chain = "ethereum".parse().unwrap();
-    let max_uint = Uint256::from_str("120000000000000000000000000")
-        .unwrap()
-        .try_into()
-        .unwrap();
+    let max_uint = 256;
     let decimals = 18;
 
     let address: Address = "0x1234567890123456789012345678901234567890"
@@ -1082,7 +1047,7 @@ fn admin_or_governance_can_freeze_chain() {
         deps.as_mut(),
         chain,
         address,
-        max_uint,
+        max_uint.try_into().unwrap(),
         decimals
     ));
 
@@ -1113,10 +1078,7 @@ fn admin_or_governance_can_unfreeze_chain() {
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
     let chain = "ethereum".parse().unwrap();
-    let max_uint = Uint256::from_str("120000000000000000000000000")
-        .unwrap()
-        .try_into()
-        .unwrap();
+    let max_uint = 256;
     let decimals = 18;
 
     let address: Address = "0x1234567890123456789012345678901234567890"
@@ -1127,7 +1089,7 @@ fn admin_or_governance_can_unfreeze_chain() {
         deps.as_mut(),
         chain,
         address,
-        max_uint,
+        max_uint.try_into().unwrap(),
         decimals
     ));
 
@@ -1237,10 +1199,7 @@ fn admin_or_governance_can_disable_execution() {
 #[test]
 fn set_chain_config_should_succeed() {
     let chain = "ethereum".parse().unwrap();
-    let max_uint = Uint256::from_str("120000000000000000000000000")
-        .unwrap()
-        .try_into()
-        .unwrap();
+    let max_uint = 256;
     let decimals = 18;
 
     let address: Address = "0x1234567890123456789012345678901234567890"
@@ -1254,7 +1213,7 @@ fn set_chain_config_should_succeed() {
         deps.as_mut(),
         chain,
         address,
-        max_uint,
+        max_uint.try_into().unwrap(),
         decimals
     ));
 }
@@ -1262,10 +1221,7 @@ fn set_chain_config_should_succeed() {
 #[test]
 fn set_chain_config_should_fail_if_chain_config_is_already_set() {
     let chain: ChainNameRaw = "ethereum".parse().unwrap();
-    let max_uint = Uint256::from_str("120000000000000000000000000")
-        .unwrap()
-        .try_into()
-        .unwrap();
+    let max_uint = 256;
     let decimals = 18;
 
     let address: Address = "0x1234567890123456789012345678901234567890"
@@ -1279,11 +1235,17 @@ fn set_chain_config_should_fail_if_chain_config_is_already_set() {
         deps.as_mut(),
         chain.clone(),
         address.clone(),
-        max_uint,
+        max_uint.try_into().unwrap(),
         decimals
     ));
     assert_err_contains!(
-        utils::register_chain(deps.as_mut(), chain, address, max_uint, decimals),
+        utils::register_chain(
+            deps.as_mut(),
+            chain,
+            address,
+            max_uint.try_into().unwrap(),
+            decimals
+        ),
         ExecuteError,
         ExecuteError::ChainAlreadyRegistered(_)
     )
@@ -1646,7 +1608,7 @@ fn deploy_interchain_token_from_non_origin_chain_fails() {
         deps.as_mut(),
         another_source_chain.clone(),
         source_its_contract.clone(),
-        Uint256::MAX.try_into().unwrap(),
+        256.try_into().unwrap(),
         u8::MAX,
     ));
     let another_destination_chain: ChainNameRaw = "another-dest-chain".parse().unwrap();
@@ -1654,7 +1616,7 @@ fn deploy_interchain_token_from_non_origin_chain_fails() {
         deps.as_mut(),
         another_destination_chain.clone(),
         source_its_contract.clone(),
-        Uint256::MAX.try_into().unwrap(),
+        256.try_into().unwrap(),
         u8::MAX,
     ));
 
@@ -1699,7 +1661,7 @@ fn deploy_interchain_token_to_multiple_destination_succeeds() {
         deps.as_mut(),
         another_chain.clone(),
         source_its_contract.clone(),
-        Uint256::MAX.try_into().unwrap(),
+        256.try_into().unwrap(),
         u8::MAX,
     ));
 

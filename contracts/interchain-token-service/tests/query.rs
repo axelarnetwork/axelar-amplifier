@@ -2,7 +2,6 @@ use std::collections::HashMap;
 
 use assert_ok::assert_ok;
 use cosmwasm_std::testing::mock_dependencies;
-use cosmwasm_std::{Uint128, Uint256};
 use interchain_token_service::msg::{ChainConfigResponse, TruncationConfig};
 use interchain_token_service::TokenId;
 use router_api::{Address, ChainNameRaw};
@@ -23,7 +22,7 @@ fn query_chain_config() {
         deps.as_mut(),
         chain.clone(),
         address.clone(),
-        Uint256::MAX.try_into().unwrap(),
+        256.try_into().unwrap(),
         u8::MAX,
     )
     .unwrap();
@@ -32,7 +31,7 @@ fn query_chain_config() {
         chain: chain.clone(),
         its_edge_contract: address.clone(),
         truncation: TruncationConfig {
-            max_uint: Uint256::MAX.try_into().unwrap(),
+            max_uint_bits: 256.try_into().unwrap(),
             max_decimals_when_truncating: u8::MAX,
         },
         frozen: false,
@@ -55,7 +54,7 @@ fn query_chain_config() {
         deps.as_mut(),
         chain.clone(),
         new_address.clone(),
-        Uint128::MAX.try_into().unwrap(),
+        128.try_into().unwrap(),
         18,
     ));
 
@@ -94,7 +93,7 @@ fn query_all_its_contracts() {
             deps.as_mut(),
             chain.clone(),
             address.clone(),
-            Uint256::MAX.try_into().unwrap(),
+            256.try_into().unwrap(),
             u8::MAX,
         )
         .unwrap();
