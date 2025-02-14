@@ -12,7 +12,7 @@ use starknet_checked_felt::CheckedFelt;
 use super::Error;
 use crate::nonempty;
 
-#[derive(Debug, DeserializeFromStr, Clone)]
+#[derive(Debug, DeserializeFromStr, Clone, Hash, Eq, PartialEq)]
 pub struct FieldElementAndEventIndex {
     pub tx_hash: CheckedFelt,
     pub event_index: u64,
