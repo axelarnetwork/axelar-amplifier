@@ -98,18 +98,12 @@ pub fn execute(
         ExecuteMsg::UpdateVerifierSet {} => {
             execute::update_verifier_set(deps.storage, &querier, env)
         }
-        ExecuteMsg::ConfirmTxStatus {
-            multisig_session_id,
-            signer_public_keys,
-            signed_tx_hash,
-        } => {
-            execute::confirm_tx_status(
+        ExecuteMsg::ConfirmProverMessage { prover_message } => {
+            execute::confirm_prover_message(
                 deps.storage,
                 &querier,
                 &config,
-                &multisig_session_id,
-                &signer_public_keys,
-                signed_tx_hash,
+                prover_message,
             )
         }
         ExecuteMsg::TicketCreate {} => {

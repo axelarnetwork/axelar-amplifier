@@ -7,9 +7,8 @@ use axelarnet_gateway::ExecutableMessage;
 use interchain_token_service::TokenId;
 use rand::RngCore;
 use xrpl_gateway::msg::TokenMetadata;
-use xrpl_types::msg::{WithPayload, XRPLMessage, XRPLUserMessage};
-use xrpl_types::types::XRPLTokenOrXrp;
-use xrpl_types::types::{TxHash, XRPLAccountId, XRPLToken};
+use xrpl_types::msg::{WithPayload, XRPLMessage, XRPLUserMessage, XRPLProverMessage};
+use xrpl_types::types::{XRPLAccountId, XRPLToken, XRPLTokenOrXrp};
 use std::collections::{HashMap, HashSet};
 
 use axelar_core_std::nexus::query::{IsChainRegisteredResponse, TxHashAndNonceResponse};
@@ -740,20 +739,16 @@ pub fn linked_token_id(
     query_response.unwrap()
 }
 
-pub fn xrpl_confirm_tx_status(
+pub fn xrpl_confirm_prover_message(
     app: &mut AxelarApp,
     multisig_prover: &XRPLMultisigProverContract,
-    signer_public_keys: Vec<PublicKey>,
-    multisig_session_id: Uint64,
-    signed_tx_hash: TxHash,
+    prover_message: XRPLProverMessage,
 ) {
     let response = multisig_prover.execute(
         app,
         MockApi::default().addr_make("relayer"),
-        &xrpl_multisig_prover::msg::ExecuteMsg::ConfirmTxStatus {
-            multisig_session_id,
-            signed_tx_hash,
-            signer_public_keys,
+        &xrpl_multisig_prover::msg::ExecuteMsg::ConfirmProverMessage {
+            prover_message,
         },
     );
     println!("{:?}", response);

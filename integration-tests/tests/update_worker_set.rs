@@ -1,13 +1,11 @@
 use router_api::ChainName;
-use cosmwasm_std::HexBinary;
 use cosmwasm_std::testing::MockApi;
 use cw_multi_test::Executor;
-use multisig::key::KeyType;
 use integration_tests::contract::Contract;
 use multisig_prover::msg::ExecuteMsg;
 use service_registry::WeightedVerifier;
 use test_utils::Verifier;
-use xrpl_types::msg::XRPLMessage;
+use xrpl_types::{msg::{XRPLMessage, XRPLProverMessage}, types::hash_signed_tx};
 use service_registry_api::msg::QueryMsg as ServiceRegistryQueryMsg;
 
 pub mod test_utils;
@@ -172,13 +170,19 @@ fn xrpl_verifier_set_can_be_initialized_and_then_manually_updated() {
     ));
     println!("SignerListSet proof: {:?}", proof);
 
-    let proof_msgs = vec![XRPLMessage::ProverMessage(
-        HexBinary::from_hex("e4cc013528bdb43a3b4305de52698bfacf7c5cc460205df88f9e6bbb5aad3544")
-        .unwrap()
-        .as_slice()
-        .try_into()
-        .unwrap(),
-    )];
+    let signed_tx_hash = match proof.status {
+        xrpl_multisig_prover::msg::ProofStatus::Completed { execute_data } => {
+            hash_signed_tx(execute_data.as_slice()).unwrap()
+        }
+        _ => unreachable!()
+    };
+
+    let prover_message = XRPLProverMessage {
+        tx_id: signed_tx_hash,
+        unsigned_tx_hash: proof.unsigned_tx_hash,
+    };
+
+    let proof_msgs = vec![XRPLMessage::ProverMessage(prover_message.clone())];
 
     let (poll_id, expiry) = test_utils::verify_xrpl_messages(
         &mut protocol.app,
@@ -195,12 +199,10 @@ fn xrpl_verifier_set_can_be_initialized_and_then_manually_updated() {
     test_utils::advance_at_least_to_height(&mut protocol.app, expiry);
     test_utils::end_poll(&mut protocol.app, &xrpl.voting_verifier, poll_id);
 
-    test_utils::xrpl_confirm_tx_status(
+    test_utils::xrpl_confirm_prover_message(
         &mut protocol.app,
         &xrpl.multisig_prover,
-        initial_verifiers.iter().map(|w| (KeyType::Ecdsa, HexBinary::from(w.key_pair.encoded_verifying_key())).try_into().unwrap()).collect(),
-        session_id,
-        proof_msgs[0].tx_id(),
+        prover_message,
     );
 
     let new_verifier_set =

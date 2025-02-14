@@ -29,7 +29,7 @@ fn message_to_sign(
 
     let encoded_unsigned_tx_to_sign = XRPLUnsignedTxToSign {
         unsigned_tx: tx_info.unsigned_tx,
-        multisig_session_id: multisig_session_id.u64(),
+        unsigned_tx_hash,
         cc_id: tx_info.original_cc_id,
     }.xrpl_serialize()?;
     Ok(xrpl_types::types::message_to_sign(encoded_unsigned_tx_to_sign, signer_xrpl_address)?)
@@ -74,7 +74,7 @@ pub fn proof(
             let signed_tx = XRPLSignedTx::new(
                 tx_info.unsigned_tx,
                 xrpl_signers,
-                multisig_session_id.u64(),
+                unsigned_tx_hash.clone(),
                 tx_info.original_cc_id,
             );
             let execute_data = HexBinary::from(signed_tx.xrpl_serialize()?);

@@ -2,11 +2,10 @@ use std::str::FromStr;
 
 use axelar_wasm_std::nonempty;
 use router_api::{Address, CrossChainId, Message};
-use multisig::key::KeyType;
 use cosmwasm_std::testing::MockApi;
 use cosmwasm_std::{HexBinary, Uint128, Uint256};
 use integration_tests::contract::Contract;
-use xrpl_types::msg::{WithPayload, CrossChainMessage, XRPLUserMessage, XRPLMessage};
+use xrpl_types::msg::{WithPayload, CrossChainMessage, XRPLMessage, XRPLProverMessage, XRPLUserMessage};
 use xrpl_types::types::{hash_signed_tx, TxHash, XRPLAccountId, XRPLCurrency, XRPLPaymentAmount, XRPLToken};
 use interchain_token_service;
 use ethers_core::utils::keccak256;
@@ -151,13 +150,19 @@ fn xrpl_ticket_create_can_be_proven() {
     ));
     println!("TicketCreate proof: {:?}", proof);
 
-    let proof_msgs = vec![XRPLMessage::ProverMessage(
-        HexBinary::from_hex("6dc2aaf6154a663eb2cabccc95d7dc806a256527b5e0c9d062e51534d8474aa4")
-        .unwrap()
-        .as_slice()
-        .try_into()
-        .unwrap(),
-    )];
+    let signed_tx_hash = match proof.status {
+        xrpl_multisig_prover::msg::ProofStatus::Completed { execute_data } => {
+            hash_signed_tx(execute_data.as_slice()).unwrap()
+        }
+        _ => unreachable!()
+    };
+
+    let prover_message = XRPLProverMessage {
+        tx_id: signed_tx_hash,
+        unsigned_tx_hash: proof.unsigned_tx_hash,
+    };
+
+    let proof_msgs = vec![XRPLMessage::ProverMessage(prover_message.clone())];
 
     let (poll_id, expiry) = test_utils::verify_xrpl_messages(
         &mut protocol.app,
@@ -174,12 +179,10 @@ fn xrpl_ticket_create_can_be_proven() {
     test_utils::advance_at_least_to_height(&mut protocol.app, expiry);
     test_utils::end_poll(&mut protocol.app, &xrpl.voting_verifier, poll_id);
 
-    test_utils::xrpl_confirm_tx_status(
+    test_utils::xrpl_confirm_prover_message(
         &mut protocol.app,
         &xrpl.multisig_prover,
-        verifiers.iter().map(|w| (KeyType::Ecdsa, HexBinary::from(w.key_pair.encoded_verifying_key())).try_into().unwrap()).collect(),
-        session_id,
-        proof_msgs[0].tx_id(),
+        prover_message,
     );
 }
 
@@ -235,13 +238,19 @@ fn xrpl_trust_line_can_be_proven() {
     ));
     println!("TrustSet proof: {:?}", proof);
 
-    let proof_msgs = vec![XRPLMessage::ProverMessage(
-        HexBinary::from_hex("ecd8951f6009688f5e0001944be8cc0f6e339ffeefa65dfcb2aba64f68567aa6")
-        .unwrap()
-        .as_slice()
-        .try_into()
-        .unwrap(),
-    )];
+    let signed_tx_hash = match proof.status {
+        xrpl_multisig_prover::msg::ProofStatus::Completed { execute_data } => {
+            hash_signed_tx(execute_data.as_slice()).unwrap()
+        }
+        _ => unreachable!()
+    };
+
+    let prover_message = XRPLProverMessage {
+        tx_id: signed_tx_hash,
+        unsigned_tx_hash: proof.unsigned_tx_hash,
+    };
+
+    let proof_msgs = vec![XRPLMessage::ProverMessage(prover_message.clone())];
 
     let (poll_id, expiry) = test_utils::verify_xrpl_messages(
         &mut protocol.app,
@@ -258,12 +267,10 @@ fn xrpl_trust_line_can_be_proven() {
     test_utils::advance_at_least_to_height(&mut protocol.app, expiry);
     test_utils::end_poll(&mut protocol.app, &xrpl.voting_verifier, poll_id);
 
-    test_utils::xrpl_confirm_tx_status(
+    test_utils::xrpl_confirm_prover_message(
         &mut protocol.app,
         &xrpl.multisig_prover,
-        verifiers.iter().map(|w| (KeyType::Ecdsa, HexBinary::from(w.key_pair.encoded_verifying_key())).try_into().unwrap()).collect(),
-        session_id,
-        proof_msgs[0].tx_id(),
+        prover_message,
     );
 }
 
@@ -586,7 +593,10 @@ fn payment_towards_xrpl_can_be_verified_and_routed_and_proven() {
         _ => unreachable!()
     };
 
-    let proof_msgs = vec![XRPLMessage::ProverMessage(signed_tx_hash)];
+    let proof_msgs = vec![XRPLMessage::ProverMessage(XRPLProverMessage {
+        tx_id: signed_tx_hash.clone(),
+        unsigned_tx_hash: proof.unsigned_tx_hash.clone(),
+    })];
 
     let (poll_id, expiry) = test_utils::verify_xrpl_messages(
         &mut protocol.app,
@@ -603,12 +613,13 @@ fn payment_towards_xrpl_can_be_verified_and_routed_and_proven() {
     test_utils::advance_at_least_to_height(&mut protocol.app, expiry);
     test_utils::end_poll(&mut protocol.app, &xrpl.voting_verifier, poll_id);
 
-    test_utils::xrpl_confirm_tx_status(
+    test_utils::xrpl_confirm_prover_message(
         &mut protocol.app,
         &xrpl.multisig_prover,
-        verifiers.iter().map(|w| (KeyType::Ecdsa, HexBinary::from(w.key_pair.encoded_verifying_key())).try_into().unwrap()).collect(),
-        session_id,
-        proof_msgs[0].tx_id(),
+        XRPLProverMessage {
+            tx_id: signed_tx_hash,
+            unsigned_tx_hash: proof.unsigned_tx_hash,
+        },
     );
 
     // Advance the height to be able to distribute rewards

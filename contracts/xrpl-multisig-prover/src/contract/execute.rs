@@ -4,12 +4,11 @@ use axelar_wasm_std::{address, permission_control, FnExt, MajorityThreshold, Ver
 use interchain_token_service::{HubMessage, TokenId};
 use router_api::{ChainNameRaw, CrossChainId};
 use cosmwasm_std::{wasm_execute, Addr, DepsMut, Env, HexBinary, Response, Storage, SubMsg, Uint256, Uint64};
-use multisig::{key::PublicKey, types::MultisigState};
+use multisig::types::MultisigState;
 use sha3::{Keccak256, Digest};
-use xrpl_types::error::XRPLError;
-use xrpl_types::msg::XRPLMessage;
+use xrpl_types::msg::{XRPLMessage, XRPLProverMessage};
 use xrpl_types::types::{
-    canonicalize_token_amount, TxHash, XRPLAccountId, XRPLPaymentAmount, XRPLSignedTx, XRPLSigner, XRPLTxStatus, XRP_MAX_UINT
+    canonicalize_token_amount, TxHash, XRPLAccountId, XRPLPaymentAmount, XRPLTxStatus, XRP_MAX_UINT
 };
 
 use crate::axelar_verifiers;
@@ -17,7 +16,6 @@ use crate::error::ContractError;
 use crate::querier::Querier;
 use crate::state::{self, Config, DustAmount, TRUST_LINE};
 use crate::xrpl_multisig;
-use crate::xrpl_serialize::XRPLSerialize;
 
 use super::START_MULTISIG_REPLY_ID;
 
@@ -55,57 +53,13 @@ pub fn construct_ticket_create_proof(
     Ok(Response::new().add_submessage(start_signing_session(storage, config, unsigned_tx_hash, self_address, None)?))
 }
 
-pub fn confirm_tx_status(
+pub fn confirm_prover_message(
     storage: &mut dyn Storage,
     querier: &Querier,
     config: &Config,
-    multisig_session_id: &Uint64,
-    signer_public_keys: &[PublicKey],
-    signed_tx_hash: TxHash,
+    prover_message: XRPLProverMessage,
 ) -> Result<Response, ContractError> {
-    let num_signer_public_keys = signer_public_keys.len();
-    if num_signer_public_keys == 0 {
-        return Err(ContractError::EmptySignerPublicKeys);
-    }
-
-    let unsigned_tx_hash =
-        state::MULTISIG_SESSION_ID_TO_UNSIGNED_TX_HASH.load(storage, multisig_session_id.u64())?;
-    let mut tx_info = state::UNSIGNED_TX_HASH_TO_TX_INFO.load(storage, &unsigned_tx_hash)?;
-    let multisig_session = querier.multisig(multisig_session_id)?;
-
-    let xrpl_signers = multisig_session
-        .verifier_set
-        .signers
-        .into_iter()
-        .filter(|(_, signer)| signer_public_keys.contains(&signer.pub_key))
-        .filter_map(|(signer_address, signer)| multisig_session.signatures.get(&signer_address).cloned().zip(Some(signer)))
-        .map(XRPLSigner::try_from)
-        .collect::<Result<Vec<XRPLSigner>, XRPLError>>()?;
-
-    if xrpl_signers.len() != num_signer_public_keys {
-        return Err(ContractError::InvalidSignerPublicKeys);
-    }
-
-    let signed_tx = XRPLSignedTx::new(
-        tx_info.unsigned_tx.clone(),
-        xrpl_signers,
-        multisig_session_id.u64(),
-        tx_info.original_cc_id.clone(),
-    );
-
-    let reconstructed_signed_tx_hash = xrpl_types::types::hash_signed_tx(
-        signed_tx.xrpl_serialize()?.as_slice(),
-    )?;
-
-    // Sanity check.
-    if signed_tx_hash != reconstructed_signed_tx_hash {
-        return Err(ContractError::TxIdMismatch {
-            actual: reconstructed_signed_tx_hash,
-            expected: signed_tx_hash,
-        });
-    }
-
-    let message = XRPLMessage::ProverMessage(signed_tx_hash);
+    let message = XRPLMessage::ProverMessage(prover_message.clone());
     let status = querier.message_status(message)?;
 
     match status {
@@ -121,7 +75,7 @@ pub fn confirm_tx_status(
         | VerificationStatus::NotFoundOnSourceChain => {}
     }
 
-    Ok(match xrpl_multisig::confirm_tx_status(storage, unsigned_tx_hash, &mut tx_info, status.into())? {
+    Ok(match xrpl_multisig::confirm_prover_message(storage, prover_message.unsigned_tx_hash, status.into())? {
         None => Response::default(),
         Some(confirmed_verifier_set) => {
             Response::new()

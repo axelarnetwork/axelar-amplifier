@@ -127,12 +127,12 @@ pub fn issue_signer_list_set(
 }
 
 // Returns the new verifier set, if it was affected.
-pub fn confirm_tx_status(
+pub fn confirm_prover_message(
     storage: &mut dyn Storage,
     unsigned_tx_hash: TxHash,
-    tx_info: &mut TxInfo,
     new_status: XRPLTxStatus,
 ) -> Result<Option<VerifierSet>, ContractError> {
+    let mut tx_info = UNSIGNED_TX_HASH_TO_TX_INFO.load(storage, &unsigned_tx_hash)?;
     if tx_info.status != XRPLTxStatus::Pending {
         return Err(ContractError::TxStatusAlreadyConfirmed);
     }

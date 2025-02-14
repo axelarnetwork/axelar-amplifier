@@ -3,7 +3,7 @@ use std::cmp::Ordering;
 use cosmwasm_std::HexBinary;
 use multisig::key::PublicKey;
 use xrpl_types::types::{
-    XRPLAccountId, XRPLMemo, XRPLPathSet, XRPLPathStep, XRPLPaymentAmount, XRPLPaymentTx, XRPLSequence, XRPLSignedTx, XRPLSigner, XRPLSignerEntry, XRPLSignerListSetTx, XRPLTicketCreateTx, XRPLTokenAmount, XRPLTrustSetTx, XRPLUnsignedTx, XRPLUnsignedTxToSign
+    hash_unsigned_tx, XRPLAccountId, XRPLMemo, XRPLPathSet, XRPLPathStep, XRPLPaymentAmount, XRPLPaymentTx, XRPLSequence, XRPLSignedTx, XRPLSigner, XRPLSignerEntry, XRPLSignerListSetTx, XRPLTicketCreateTx, XRPLTokenAmount, XRPLTrustSetTx, XRPLUnsignedTx, XRPLUnsignedTxToSign
 };
 
 use crate::error::ContractError;
@@ -369,24 +369,14 @@ impl TryInto<XRPLObject> for XRPLUnsignedTxToSign {
     type Error = ContractError;
 
     fn try_into(self) -> Result<XRPLObject, ContractError> {
-        let mut obj: XRPLObject = self.unsigned_tx.try_into()?;
-
-        assert!(self.multisig_session_id != 0, "multisig session id must not be 0");
-        let multisig_session_id = HexBinary::from(
-            self.multisig_session_id
-                .to_be_bytes()
-                .iter()
-                .skip_while(|&&byte| byte == 0)
-                .cloned()
-                .collect::<Vec<u8>>()
-        );
+        let mut obj: XRPLObject = self.unsigned_tx.clone().try_into()?;
 
         let mut memos = vec![
             XRPLMemo {
                 memo_type: HexBinary::from_hex(
-                    "6d756c74697369675f73657373696f6e5f6964" // hex("multisig_session_id")
+                    "756e7369676e65645f74785f68617368" // hex("unsigned_tx_hash")
                 ).unwrap(),
-                memo_data: multisig_session_id,
+                memo_data: HexBinary::from(xrpl_types::types::hash_unsigned_tx(&self.unsigned_tx)?)
             },
         ];
 
@@ -430,7 +420,7 @@ impl TryInto<XRPLObject> for XRPLSignedTx {
 
         let mut obj: XRPLObject = XRPLUnsignedTxToSign {
             unsigned_tx: self.unsigned_tx.clone(),
-            multisig_session_id: self.multisig_session_id,
+            unsigned_tx_hash: hash_unsigned_tx(&self.unsigned_tx)?,
             cc_id: self.cc_id,
         }.try_into()?;
 
@@ -984,15 +974,17 @@ mod tests {
 
     #[test]
     fn serialize_xrpl_signed_xrp_payment_transaction() -> Result<(), ContractError> {
+        let unsigned_tx = &XRPLUnsignedTx::Payment(XRPLPaymentTx {
+            account: XRPLAccountId::from_str("rfEf91bLxrTVC76vw1W3Ur8Jk4Lwujskmb")?,
+            fee: 30,
+            sequence: XRPLSequence::Ticket(44218193),
+            amount: XRPLPaymentAmount::Drops(100000000),
+            destination: XRPLAccountId::from_str("rfgqgX62inhKsfti1NR6FeMS8NcQJCFniG")?,
+            cross_currency: None,
+        });
+
         let signed_tx = XRPLSignedTx {
-            unsigned_tx: XRPLUnsignedTx::Payment(XRPLPaymentTx {
-                account: XRPLAccountId::from_str("rfEf91bLxrTVC76vw1W3Ur8Jk4Lwujskmb")?,
-                fee: 30,
-                sequence: XRPLSequence::Ticket(44218193),
-                amount: XRPLPaymentAmount::Drops(100000000),
-                destination: XRPLAccountId::from_str("rfgqgX62inhKsfti1NR6FeMS8NcQJCFniG")?,
-                cross_currency: None,
-            }),
+            unsigned_tx: unsigned_tx.clone(),
             signers: vec![
                 XRPLSigner{
                     account: XRPLAccountId::from_str("r3mJFUQeVQma7qucT4iQSNCWuijVCPcicZ")?,
@@ -1005,12 +997,12 @@ mod tests {
                     signing_pub_key: pub_key_from_hex("036FF6F4B2BC5E08ABA924BD8FD986608F3685CA651A015B3D9D6A656DE14769FE")?
                 }
             ],
-            multisig_session_id: 1337,
+            unsigned_tx_hash: hash_unsigned_tx(unsigned_tx).unwrap(),
             cc_id: None
         };
         let encoded_signed_tx = &signed_tx.xrpl_serialize()?;
         assert_hex_eq!(
-            "12000022000000002400000000202902a2b751614000000005f5e10068400000000000001e73008114447bb6e37ca4d5d89fc2e2470a64632da9bdd9e4831449599d50e0c1ac0cfc8d3b2a30830f3738eacc3ef3e0107321025e0231bfad810e5276e2cf9eb2f3f380ce0bdf6d84c3b6173499d3ddcc00885674463044022023dd4545108d411008fc9a76a58e1573ab0f8786413c8f38a92b1e2eaed60014022012a0a7890bfd0f0c8ea2c342107f65d4c91cac29aaf3cf2840350bf3fb91e0458114552a0d8efcf978186ca9c37112b502d3728da9efe1e0107321036ff6f4b2bc5e08aba924bd8fd986608f3685ca651a015b3d9d6a656de14769fe74473045022100fc1490c236ad05a306eb5fd89072f14fefc19ed35eb61bacd294d10e0910edb102205a4cf0c0a759d7158a8fee2f526c70277910de88bf85564a1b3142ae635c9ce98114ba058ab3573ea34dc934d60e719a12de6c213de2e1f1f9ea7c136d756c74697369675f73657373696f6e5f69647d020539e1f1",
+            "12000022000000002400000000202902a2b751614000000005f5e10068400000000000001e73008114447bb6e37ca4d5d89fc2e2470a64632da9bdd9e4831449599d50e0c1ac0cfc8d3b2a30830f3738eacc3ef3e0107321025e0231bfad810e5276e2cf9eb2f3f380ce0bdf6d84c3b6173499d3ddcc00885674463044022023dd4545108d411008fc9a76a58e1573ab0f8786413c8f38a92b1e2eaed60014022012a0a7890bfd0f0c8ea2c342107f65d4c91cac29aaf3cf2840350bf3fb91e0458114552a0d8efcf978186ca9c37112b502d3728da9efe1e0107321036ff6f4b2bc5e08aba924bd8fd986608f3685ca651a015b3d9d6a656de14769fe74473045022100fc1490c236ad05a306eb5fd89072f14fefc19ed35eb61bacd294d10e0910edb102205a4cf0c0a759d7158a8fee2f526c70277910de88bf85564a1b3142ae635c9ce98114ba058ab3573ea34dc934d60e719a12de6c213de2e1f1f9ea7c10756e7369676e65645f74785f686173687d2044da209578512405c3f4e0d80e84d1a09eea3c548920c2286950c216b37a6b8de1f1",
             encoded_signed_tx
         );
         Ok(())
@@ -1018,15 +1010,16 @@ mod tests {
 
     #[test]
     fn tx_serialization_sort_signers() -> Result<(), ContractError> {
+        let unsigned_tx = &XRPLUnsignedTx::Payment(XRPLPaymentTx {
+            account: XRPLAccountId::from_str("rfEf91bLxrTVC76vw1W3Ur8Jk4Lwujskmb")?,
+            fee: 30,
+            sequence: XRPLSequence::Ticket(44218193),
+            amount: XRPLPaymentAmount::Drops(100000000),
+            destination: XRPLAccountId::from_str("rfgqgX62inhKsfti1NR6FeMS8NcQJCFniG")?,
+            cross_currency: None
+        });
         let signed_tx = XRPLSignedTx {
-            unsigned_tx: XRPLUnsignedTx::Payment(XRPLPaymentTx {
-                account: XRPLAccountId::from_str("rfEf91bLxrTVC76vw1W3Ur8Jk4Lwujskmb")?,
-                fee: 30,
-                sequence: XRPLSequence::Ticket(44218193),
-                amount: XRPLPaymentAmount::Drops(100000000),
-                destination: XRPLAccountId::from_str("rfgqgX62inhKsfti1NR6FeMS8NcQJCFniG")?,
-                cross_currency: None
-            }),
+            unsigned_tx: unsigned_tx.clone(),
             signers: vec![
                 XRPLSigner{
                     account: XRPLAccountId::from_str("rHxbKjRSFUUyuiio1jnFhimJRVAYYaGj7f")?,
@@ -1039,12 +1032,12 @@ mod tests {
                     signing_pub_key: pub_key_from_hex("025E0231BFAD810E5276E2CF9EB2F3F380CE0BDF6D84C3B6173499D3DDCC008856")?
                 },
             ],
-            multisig_session_id: 10,
+            unsigned_tx_hash: hash_unsigned_tx(unsigned_tx).unwrap(),
             cc_id: None,
         };
         let encoded_signed_tx = &signed_tx.xrpl_serialize()?;
         assert_hex_eq!(
-            "12000022000000002400000000202902a2b751614000000005f5e10068400000000000001e73008114447bb6e37ca4d5d89fc2e2470a64632da9bdd9e4831449599d50e0c1ac0cfc8d3b2a30830f3738eacc3ef3e0107321025e0231bfad810e5276e2cf9eb2f3f380ce0bdf6d84c3b6173499d3ddcc00885674463044022023dd4545108d411008fc9a76a58e1573ab0f8786413c8f38a92b1e2eaed60014022012a0a7890bfd0f0c8ea2c342107f65d4c91cac29aaf3cf2840350bf3fb91e0458114552a0d8efcf978186ca9c37112b502d3728da9efe1e0107321036ff6f4b2bc5e08aba924bd8fd986608f3685ca651a015b3d9d6a656de14769fe74473045022100fc1490c236ad05a306eb5fd89072f14fefc19ed35eb61bacd294d10e0910edb102205a4cf0c0a759d7158a8fee2f526c70277910de88bf85564a1b3142ae635c9ce98114ba058ab3573ea34dc934d60e719a12de6c213de2e1f1f9ea7c136d756c74697369675f73657373696f6e5f69647d010ae1f1",
+            "12000022000000002400000000202902a2b751614000000005f5e10068400000000000001e73008114447bb6e37ca4d5d89fc2e2470a64632da9bdd9e4831449599d50e0c1ac0cfc8d3b2a30830f3738eacc3ef3e0107321025e0231bfad810e5276e2cf9eb2f3f380ce0bdf6d84c3b6173499d3ddcc00885674463044022023dd4545108d411008fc9a76a58e1573ab0f8786413c8f38a92b1e2eaed60014022012a0a7890bfd0f0c8ea2c342107f65d4c91cac29aaf3cf2840350bf3fb91e0458114552a0d8efcf978186ca9c37112b502d3728da9efe1e0107321036ff6f4b2bc5e08aba924bd8fd986608f3685ca651a015b3d9d6a656de14769fe74473045022100fc1490c236ad05a306eb5fd89072f14fefc19ed35eb61bacd294d10e0910edb102205a4cf0c0a759d7158a8fee2f526c70277910de88bf85564a1b3142ae635c9ce98114ba058ab3573ea34dc934d60e719a12de6c213de2e1f1f9ea7c10756e7369676e65645f74785f686173687d2044da209578512405c3f4e0d80e84d1a09eea3c548920c2286950c216b37a6b8de1f1",
             encoded_signed_tx
         );
         Ok(())
@@ -1052,18 +1045,19 @@ mod tests {
 
     #[test]
     fn tx_serialization_ed25519_signers() -> Result<(), ContractError> {
+        let unsigned_tx = &XRPLUnsignedTx::Payment(XRPLPaymentTx {
+            account: XRPLAccountId::from_str("r4ZMbbb4Y3KoeexmjEeTdhqUBrYjjWdyGM")?,
+            fee: 30,
+            sequence: XRPLSequence::Ticket(45205896),
+            amount: XRPLPaymentAmount::Issued(XRPLToken{
+                currency: "ETH".to_string().try_into()?,
+                issuer: XRPLAccountId::from_str("r4ZMbbb4Y3KoeexmjEeTdhqUBrYjjWdyGM")?
+            }, canonicalize_token_amount(Uint256::from(100000000u128), 0)?.0),
+            destination: XRPLAccountId::from_str("raNVNWvhUQzFkDDTdEw3roXRJfMJFVJuQo")?,
+            cross_currency: None
+        });
         let signed_tx = XRPLSignedTx {
-            unsigned_tx: XRPLUnsignedTx::Payment(XRPLPaymentTx {
-                account: XRPLAccountId::from_str("r4ZMbbb4Y3KoeexmjEeTdhqUBrYjjWdyGM")?,
-                fee: 30,
-                sequence: XRPLSequence::Ticket(45205896),
-                amount: XRPLPaymentAmount::Issued(XRPLToken{
-                    currency: "ETH".to_string().try_into()?,
-                    issuer: XRPLAccountId::from_str("r4ZMbbb4Y3KoeexmjEeTdhqUBrYjjWdyGM")?
-                }, canonicalize_token_amount(Uint256::from(100000000u128), 0)?.0),
-                destination: XRPLAccountId::from_str("raNVNWvhUQzFkDDTdEw3roXRJfMJFVJuQo")?,
-                cross_currency: None
-            }),
+            unsigned_tx: unsigned_tx.clone(),
             signers: vec![
                 XRPLSigner{
                     account: XRPLAccountId::from_str("rBTmbPMAWghUv52pCCtkLYh5SPVy2PuDSj")?,
@@ -1076,12 +1070,12 @@ mod tests {
                     signing_pub_key: PublicKey::Ed25519(HexBinary::from_hex("dd9822c7fa239dda9913ebee813ecbe69e35d88ff651548d5cc42c033a8a667b")?)
                 },
             ],
-            multisig_session_id: 1,
+            unsigned_tx_hash: hash_unsigned_tx(unsigned_tx).unwrap(),
             cc_id: None,
         };
         let encoded_signed_tx = &signed_tx.xrpl_serialize()?;
         assert_hex_eq!(
-            "12000022000000002400000000202902b1c98861d6838d7ea4c680000000000000000000000000004554480000000000ec792533bc26024cfaa5ddc2d04128e59581309c68400000000000001e73008114ec792533bc26024cfaa5ddc2d04128e59581309c831439659aaad4dc8603798352fcf954419a67977536f3e0107321eddd9822c7fa239dda9913ebee813ecbe69e35d88ff651548d5cc42c033a8a667b744076cf2097d7038b90445cb952ae52cbdbe6d55fe7c0562493fe3d9aae5e05a66a43777cbcdaa89233cafd4d1d0f9b02db0619b9bb14957cc3adaa8d7d343e010681142b3cf7b1986f5cb4efef11f933f40ec3106412c2e1e0107321ed45e67eaf446e6c26eb3a2b55b64339ecf3a4d1d03180bee20eb5afdd23fa644f7440531b9e854c81aefa573c00df1603c3de80c1f3680d39a80f3fb725a0388d177e3ec5e28ad6760d9eef8203feb1fc61f9d9451f777114b97943e5702b54589e09811472c14c0db6cef64a87cc3d152d7b0e917d372be7e1f1f9ea7c136d756c74697369675f73657373696f6e5f69647d0101e1f1",
+            "12000022000000002400000000202902b1c98861d6838d7ea4c680000000000000000000000000004554480000000000ec792533bc26024cfaa5ddc2d04128e59581309c68400000000000001e73008114ec792533bc26024cfaa5ddc2d04128e59581309c831439659aaad4dc8603798352fcf954419a67977536f3e0107321eddd9822c7fa239dda9913ebee813ecbe69e35d88ff651548d5cc42c033a8a667b744076cf2097d7038b90445cb952ae52cbdbe6d55fe7c0562493fe3d9aae5e05a66a43777cbcdaa89233cafd4d1d0f9b02db0619b9bb14957cc3adaa8d7d343e010681142b3cf7b1986f5cb4efef11f933f40ec3106412c2e1e0107321ed45e67eaf446e6c26eb3a2b55b64339ecf3a4d1d03180bee20eb5afdd23fa644f7440531b9e854c81aefa573c00df1603c3de80c1f3680d39a80f3fb725a0388d177e3ec5e28ad6760d9eef8203feb1fc61f9d9451f777114b97943e5702b54589e09811472c14c0db6cef64a87cc3d152d7b0e917d372be7e1f1f9ea7c10756e7369676e65645f74785f686173687d202893fb5fe45be95cbe22a0fe4232f34e4922bced0b6b7e2bddb151c825107978e1f1",
             encoded_signed_tx
         );
         Ok(())
@@ -1089,13 +1083,14 @@ mod tests {
 
     #[test]
     fn serialize_xrpl_signed_xrp_ticket_create_transaction() -> Result<(), ContractError> {
+        let unsigned_tx = &XRPLUnsignedTx::TicketCreate(XRPLTicketCreateTx {
+            account: XRPLAccountId::from_str("rfEf91bLxrTVC76vw1W3Ur8Jk4Lwujskmb")?,
+            fee: 30,
+            sequence: XRPLSequence::Plain(44218194),
+            ticket_count: 3,
+        });
         let signed_tx = XRPLSignedTx {
-            unsigned_tx: XRPLUnsignedTx::TicketCreate(XRPLTicketCreateTx {
-                account: XRPLAccountId::from_str("rfEf91bLxrTVC76vw1W3Ur8Jk4Lwujskmb")?,
-                fee: 30,
-                sequence: XRPLSequence::Plain(44218194),
-                ticket_count: 3,
-            }),
+            unsigned_tx: unsigned_tx.clone(),
             signers: vec![
                 XRPLSigner{
                     account: XRPLAccountId::from_str("r3mJFUQeVQma7qucT4iQSNCWuijVCPcicZ")?,
@@ -1108,12 +1103,12 @@ mod tests {
                     signing_pub_key: pub_key_from_hex("036FF6F4B2BC5E08ABA924BD8FD986608F3685CA651A015B3D9D6A656DE14769FE")?
                 },
             ],
-            multisig_session_id: 1,
+            unsigned_tx_hash: hash_unsigned_tx(unsigned_tx).unwrap(),
             cc_id: None,
         };
         let encoded_signed_tx = signed_tx.xrpl_serialize()?;
         assert_hex_eq!(
-            "12000a22000000002402a2b75220280000000368400000000000001e73008114447bb6e37ca4d5d89fc2e2470a64632da9bdd9e4f3e0107321025e0231bfad810e5276e2cf9eb2f3f380ce0bdf6d84c3b6173499d3ddcc0088567446304402203c10d5295ae4a34fd702355b075e951cf9ffe3a73f8b7557fb68e5df64d87d3702200945d65baad7f10a14ea57e08914005f412709d10f27d868d63be3052f30363f8114552a0d8efcf978186ca9c37112b502d3728da9efe1e0107321036ff6f4b2bc5e08aba924bd8fd986608f3685ca651a015b3d9d6a656de14769fe74473045022100ef2cbac3b2d81e1e3502b064ba198d9d0d3f1ffe6604dac5019c53c262b5f9e7022000808a438bd5ca808649dcda6766d2ba0e8fa7e94150675f73fc41b2f73c9c588114ba058ab3573ea34dc934d60e719a12de6c213de2e1f1f9ea7c136d756c74697369675f73657373696f6e5f69647d0101e1f1",
+            "12000a22000000002402a2b75220280000000368400000000000001e73008114447bb6e37ca4d5d89fc2e2470a64632da9bdd9e4f3e0107321025e0231bfad810e5276e2cf9eb2f3f380ce0bdf6d84c3b6173499d3ddcc0088567446304402203c10d5295ae4a34fd702355b075e951cf9ffe3a73f8b7557fb68e5df64d87d3702200945d65baad7f10a14ea57e08914005f412709d10f27d868d63be3052f30363f8114552a0d8efcf978186ca9c37112b502d3728da9efe1e0107321036ff6f4b2bc5e08aba924bd8fd986608f3685ca651a015b3d9d6a656de14769fe74473045022100ef2cbac3b2d81e1e3502b064ba198d9d0d3f1ffe6604dac5019c53c262b5f9e7022000808a438bd5ca808649dcda6766d2ba0e8fa7e94150675f73fc41b2f73c9c588114ba058ab3573ea34dc934d60e719a12de6c213de2e1f1f9ea7c10756e7369676e65645f74785f686173687d20524cc690da4fcee21d3e8907929e325ad21b52bbb99f1e31b1b19a82054a00f9e1f1",
             encoded_signed_tx
         );
         Ok(())
@@ -1121,23 +1116,24 @@ mod tests {
 
     #[test]
     fn serialize_xrpl_signed_signer_list_set_transaction() -> Result<(), ContractError> {
+        let unsigned_tx = &XRPLUnsignedTx::SignerListSet(XRPLSignerListSetTx {
+            account: XRPLAccountId::from_str("rfEf91bLxrTVC76vw1W3Ur8Jk4Lwujskmb")?,
+            fee: 30,
+            sequence: XRPLSequence::Plain(44218445),
+            signer_quorum: 3,
+            signer_entries: vec![
+                XRPLSignerEntry{
+                    account: XRPLAccountId::from_str("r3mJFUQeVQma7qucT4iQSNCWuijVCPcicZ")?,
+                    signer_weight: 2
+                },
+                XRPLSignerEntry{
+                    account: XRPLAccountId::from_str("rHxbKjRSFUUyuiio1jnFhimJRVAYYaGj7f")?,
+                    signer_weight: 1
+                },
+            ],
+        });
         let signed_tx = XRPLSignedTx {
-            unsigned_tx: XRPLUnsignedTx::SignerListSet(XRPLSignerListSetTx {
-                account: XRPLAccountId::from_str("rfEf91bLxrTVC76vw1W3Ur8Jk4Lwujskmb")?,
-                fee: 30,
-                sequence: XRPLSequence::Plain(44218445),
-                signer_quorum: 3,
-                signer_entries: vec![
-                    XRPLSignerEntry{
-                        account: XRPLAccountId::from_str("r3mJFUQeVQma7qucT4iQSNCWuijVCPcicZ")?,
-                        signer_weight: 2
-                    },
-                    XRPLSignerEntry{
-                        account: XRPLAccountId::from_str("rHxbKjRSFUUyuiio1jnFhimJRVAYYaGj7f")?,
-                        signer_weight: 1
-                    }
-                ],
-            }),
+            unsigned_tx: unsigned_tx.clone(),
             signers: vec![
                 XRPLSigner{
                     account: XRPLAccountId::from_str("r3mJFUQeVQma7qucT4iQSNCWuijVCPcicZ")?,
@@ -1150,12 +1146,12 @@ mod tests {
                     signing_pub_key: pub_key_from_hex("036FF6F4B2BC5E08ABA924BD8FD986608F3685CA651A015B3D9D6A656DE14769FE")?,
                 },
             ],
-            multisig_session_id: 1,
+            unsigned_tx_hash: hash_unsigned_tx(unsigned_tx).unwrap(),
             cc_id: None,
         };
         let encoded_signed_tx = signed_tx.xrpl_serialize()?;
         assert_hex_eq!(
-            "12000c22000000002402a2b84d20230000000368400000000000001e73008114447bb6e37ca4d5d89fc2e2470a64632da9bdd9e4f3e0107321025e0231bfad810e5276e2cf9eb2f3f380ce0bdf6d84c3b6173499d3ddcc00885674473045022100b94b346a418be9ef5aee7806ee984e3e9b48eb4ed48e79b5bfb69c607167023e02206b14bd72b69206d14dada82accdd2539d275719fb187ece2a46bac9025877b398114552a0d8efcf978186ca9c37112b502d3728da9efe1e0107321036ff6f4b2bc5e08aba924bd8fd986608f3685ca651a015b3d9d6a656de14769fe74463044022072a1028ff972d9d6e950810af72443eee352adb1bc54b1112983842c857c464502206d74a77387979a47863f08f9191611d142c2bd6b32d5c750ef58513c5669f21a8114ba058ab3573ea34dc934d60e719a12de6c213de2e1f1f4eb1300028114552a0d8efcf978186ca9c37112b502d3728da9efe1eb1300018114ba058ab3573ea34dc934d60e719a12de6c213de2e1f1f9ea7c136d756c74697369675f73657373696f6e5f69647d0101e1f1",
+            "12000c22000000002402a2b84d20230000000368400000000000001e73008114447bb6e37ca4d5d89fc2e2470a64632da9bdd9e4f3e0107321025e0231bfad810e5276e2cf9eb2f3f380ce0bdf6d84c3b6173499d3ddcc00885674473045022100b94b346a418be9ef5aee7806ee984e3e9b48eb4ed48e79b5bfb69c607167023e02206b14bd72b69206d14dada82accdd2539d275719fb187ece2a46bac9025877b398114552a0d8efcf978186ca9c37112b502d3728da9efe1e0107321036ff6f4b2bc5e08aba924bd8fd986608f3685ca651a015b3d9d6a656de14769fe74463044022072a1028ff972d9d6e950810af72443eee352adb1bc54b1112983842c857c464502206d74a77387979a47863f08f9191611d142c2bd6b32d5c750ef58513c5669f21a8114ba058ab3573ea34dc934d60e719a12de6c213de2e1f1f4eb1300028114552a0d8efcf978186ca9c37112b502d3728da9efe1eb1300018114ba058ab3573ea34dc934d60e719a12de6c213de2e1f1f9ea7c10756e7369676e65645f74785f686173687d2062cb02b5530c4c2c241dfa7616e338805d5a7845532281e4025138cf3c84c901e1f1",
             encoded_signed_tx
         );
         Ok(())

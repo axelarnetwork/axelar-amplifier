@@ -98,7 +98,7 @@ pub fn start_multisig_reply(deps: DepsMut, reply: Reply) -> Result<Response, Con
                             HexBinary::from(
                                 XRPLUnsignedTxToSign {
                                     unsigned_tx: tx_info.unsigned_tx,
-                                    multisig_session_id: multisig_session_id.u64(),
+                                    unsigned_tx_hash,
                                     cc_id: opt_cc_id,
                                 }.xrpl_serialize()?
                             ).to_hex(),

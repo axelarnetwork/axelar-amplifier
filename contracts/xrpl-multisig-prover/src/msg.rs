@@ -2,9 +2,9 @@ use axelar_wasm_std::MajorityThreshold;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{HexBinary, Uint64};
 use interchain_token_service::TokenId;
-use multisig::key::PublicKey;
 use msgs_derive::EnsurePermissions;
 use router_api::{ChainName, CrossChainId};
+use xrpl_types::msg::XRPLProverMessage;
 use xrpl_types::types::{tx_hash_hex, xrpl_account_id_string, TxHash, XRPLAccountId};
 
 use crate::state::MultisigSession;
@@ -109,12 +109,8 @@ pub enum ExecuteMsg {
     UpdateVerifierSet,
 
     #[permission(Any)]
-    ConfirmTxStatus {
-        multisig_session_id: Uint64,
-        signer_public_keys: Vec<PublicKey>,
-        #[serde(with = "tx_hash_hex")]
-        #[schemars(with = "String")]
-        signed_tx_hash: TxHash,
+    ConfirmProverMessage {
+        prover_message: XRPLProverMessage,
     },
 
     #[permission(Any)]

@@ -489,7 +489,7 @@ pub enum XRPLUnsignedTx {
 #[cw_serde]
 pub struct XRPLUnsignedTxToSign {
     pub unsigned_tx: XRPLUnsignedTx,
-    pub multisig_session_id: u64,
+    pub unsigned_tx_hash: TxHash,
     pub cc_id: Option<CrossChainId>,
 }
 
@@ -734,7 +734,7 @@ impl TryFrom<(multisig::key::Signature, multisig::msg::Signer)> for XRPLSigner {
 pub struct XRPLSignedTx {
     pub unsigned_tx: XRPLUnsignedTx,
     pub signers: Vec<XRPLSigner>,
-    pub multisig_session_id: u64,
+    pub unsigned_tx_hash: TxHash,
     pub cc_id: Option<CrossChainId>,
 }
 
@@ -742,13 +742,13 @@ impl XRPLSignedTx {
     pub fn new(
         unsigned_tx: XRPLUnsignedTx,
         signers: Vec<XRPLSigner>,
-        multisig_session_id: u64,
+        unsigned_tx_hash: TxHash,
         cc_id: Option<CrossChainId>
     ) -> Self {
         Self {
             unsigned_tx,
             signers,
-            multisig_session_id,
+            unsigned_tx_hash,
             cc_id,
         }
     }
