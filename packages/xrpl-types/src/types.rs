@@ -959,7 +959,7 @@ impl std::str::FromStr for XRPLTokenAmount {
             }
         };
 
-        let exponent = match decimal_offset.checked_sub(exponent_value) {
+        let exponent = match exponent_value.checked_sub(decimal_offset) {
             Some(exponent) => exponent,
             None => {
                 return Err(XRPLError::InvalidAmount { reason: "overflow".to_string() });
@@ -977,7 +977,7 @@ impl std::str::FromStr for XRPLTokenAmount {
         let mantissa = Uint256::from_str(digits.as_str())
             .map_err(|e| XRPLError::InvalidAmount { reason: e.to_string() })?;
 
-        let (mantissa, exponent) = canonicalize_mantissa(mantissa, exponent * -1)?;
+        let (mantissa, exponent) = canonicalize_mantissa(mantissa, exponent)?;
 
         Ok(XRPLTokenAmount::new(mantissa, exponent))
     }
@@ -1071,9 +1071,23 @@ pub struct XRPLPathSet {
     pub paths: Vec<XRPLPath>,
 }
 
+impl fmt::Display for XRPLPathSet {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let paths: Vec<String> = self.paths.iter().map(|path| path.to_string()).collect();
+        write!(f, "[{}]", paths.join(", "))
+    }
+}
+
 #[cw_serde]
 pub struct XRPLPath {
     pub steps: Vec<XRPLPathStep>,
+}
+
+impl fmt::Display for XRPLPath {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let steps: Vec<String> = self.steps.iter().map(|step| step.to_string()).collect();
+        write!(f, "[{}]", steps.join(", "))
+    }
 }
 
 #[cw_serde]
@@ -1083,6 +1097,18 @@ pub enum XRPLPathStep {
     XRP,
     Issuer(XRPLAccountId),
     Token(XRPLToken),
+}
+
+impl fmt::Display for XRPLPathStep {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            XRPLPathStep::Account(account) => write!(f, "Account({})", account),
+            XRPLPathStep::Currency(currency) => write!(f, "Currency({})", currency),
+            XRPLPathStep::XRP => write!(f, "XRP"),
+            XRPLPathStep::Issuer(issuer) => write!(f, "Issuer({})", issuer),
+            XRPLPathStep::Token(token) => write!(f, "Token({})", token),
+        }
+    }
 }
 
 // always called when XRPLTokenAmount instantiated

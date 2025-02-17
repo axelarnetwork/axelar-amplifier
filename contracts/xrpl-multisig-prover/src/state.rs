@@ -89,7 +89,7 @@ impl DustAmount {
     pub fn add(self, other: Self) -> Result<Self, ContractError> {
         match (self, other) {
             (DustAmount::Local(a), DustAmount::Local(b)) => Ok(DustAmount::Local(a.add(b)?)),
-            (DustAmount::Remote(a), DustAmount::Remote(b)) => Ok(DustAmount::Remote(a + b)),
+            (DustAmount::Remote(a), DustAmount::Remote(b)) => Ok(DustAmount::Remote(a.checked_add(b).map_err(|_| ContractError::Overflow)?)),
             _ => panic!("cannot add local and remote dust amounts"),
         }
     }
@@ -97,7 +97,7 @@ impl DustAmount {
     pub fn sub(self, other: Self) -> Result<Self, ContractError> {
         match (self, other) {
             (DustAmount::Local(a), DustAmount::Local(b)) => Ok(DustAmount::Local(a.sub(b)?)),
-            (DustAmount::Remote(a), DustAmount::Remote(b)) => Ok(DustAmount::Remote(a - b)),
+            (DustAmount::Remote(a), DustAmount::Remote(b)) => Ok(DustAmount::Remote(a.checked_sub(b).map_err(|_| ContractError::Overflow)?)),
             _ => panic!("cannot subtract local and remote dust amounts"),
         }
     }

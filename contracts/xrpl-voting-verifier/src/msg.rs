@@ -28,7 +28,8 @@ pub struct InstantiateMsg {
     pub service_registry_address: nonempty::String,
     /// Name of service in the service registry for which verifiers are registered.
     pub service_name: nonempty::String,
-    /// Axelar's gateway contract address on the source chain (i.e., the XRPL multisig address)
+    /// Axelar's gateway contract address on the source chain (i.e., the XRPL multisig address).
+    /// This XRPL multisig account is controlled by the multisig prover contract.
     #[serde(with = "xrpl_account_id_string")]
     #[schemars(with = "String")] // necessary attribute in conjunction with #[serde(with ...)]
     pub source_gateway_address: XRPLAccountId,
