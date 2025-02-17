@@ -9,7 +9,7 @@ use router_api::{Address, ChainNameRaw};
 use crate::state::{TokenConfig, TokenInstance};
 use crate::TokenId;
 
-const DEFAULT_PAGINATION_LIMIT: u32 = 30;
+pub const DEFAULT_PAGINATION_LIMIT: u32 = 30;
 
 const fn default_pagination_limit() -> u32 {
     DEFAULT_PAGINATION_LIMIT
@@ -64,6 +64,7 @@ pub enum ChainStatusFilter {
 }
 
 #[cw_serde]
+#[derive(Default)]
 pub struct ChainFilter {
     pub status: Option<ChainStatusFilter>,
 }

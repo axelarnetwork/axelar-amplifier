@@ -35,23 +35,10 @@ pub fn all_its_contracts(deps: Deps) -> Result<Binary, Error> {
     to_json_binary(&contract_addresses).change_context(Error::JsonSerialization)
 }
 
-fn convert_chain_filter_option(
-    message_chain_filter: Option<msg::ChainFilter>,
-) -> impl Fn(&state::ChainConfig) -> bool + 'static {
-    move |config| match &message_chain_filter {
-        None => true,
-        Some(filter) => convert_chain_filter(filter)(config),
-    }
-}
-
-fn convert_chain_filter(
-    message_chain_filter: &msg::ChainFilter,
-) -> impl Fn(&state::ChainConfig) -> bool + '_ {
-    move |config| match &message_chain_filter.status {
-        Some(status) => match status {
-            msg::ChainStatusFilter::Frozen => config.frozen,
-            msg::ChainStatusFilter::Active => !config.frozen,
-        },
+fn convert_chain_filter(chain_filter: msg::ChainFilter) -> impl Fn(&state::ChainConfig) -> bool {
+    move |config| match &chain_filter.status {
+        Some(msg::ChainStatusFilter::Frozen) => config.frozen,
+        Some(msg::ChainStatusFilter::Active) => !config.frozen,
         None => true,
     }
 }
@@ -64,7 +51,7 @@ pub fn its_chains(
 ) -> Result<Binary, Error> {
     let filtered_chain_configs: Vec<_> = state::load_chain_configs(
         deps.storage,
-        convert_chain_filter_option(filter),
+        convert_chain_filter(filter.unwrap_or_default()),
         start_after,
         limit,
     )

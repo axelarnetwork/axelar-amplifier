@@ -2,9 +2,10 @@ use std::collections::HashMap;
 
 use assert_ok::assert_ok;
 use cosmwasm_std::testing::{mock_dependencies, MockApi, MockQuerier, MockStorage};
-use cosmwasm_std::{Empty, OwnedDeps, Uint256};
+use cosmwasm_std::{from_json, Empty, OwnedDeps, Uint256};
 use interchain_token_service::msg::{
-    ChainConfigResponse, ChainFilter, ChainStatusFilter, TruncationConfig,
+    ChainConfigResponse, ChainFilter, ChainStatusFilter, QueryMsg, TruncationConfig,
+    DEFAULT_PAGINATION_LIMIT,
 };
 use interchain_token_service::TokenId;
 use router_api::{Address, ChainNameRaw};
@@ -318,4 +319,24 @@ fn query_chains_pagination() {
         frozen_second_page.first().unwrap().chain
     );
     assert_eq!(frozen_second_page.len(), 1);
+}
+
+#[test]
+fn test_empty_its_chains_query_deserialization() {
+    let empty_query = r#"{"its_chains":{}}"#;
+
+    let query_msg: QueryMsg = from_json(empty_query).unwrap();
+
+    match query_msg {
+        QueryMsg::ItsChains {
+            filter,
+            start_after,
+            limit,
+        } => {
+            assert_eq!(filter, None);
+            assert_eq!(start_after, None);
+            assert_eq!(limit, DEFAULT_PAGINATION_LIMIT);
+        }
+        _ => panic!("Expected ItsChains variant"),
+    }
 }
