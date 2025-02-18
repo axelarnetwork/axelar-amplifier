@@ -1,10 +1,10 @@
-use itertools::Itertools;
 use std::collections::hash_map::RandomState;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use axelar_wasm_std::MajorityThreshold;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Fraction, HexBinary, Uint128};
+use itertools::Itertools;
 use multisig::key::KeyType;
 use multisig::msg::Signer;
 use service_registry::WeightedVerifier;
@@ -106,9 +106,10 @@ pub fn active_verifiers(
         .into_iter()
         .filter_map(|verifier| {
             let address = verifier.verifier_info.address.clone();
-            querier.public_key(address.to_string())
-            .ok()
-            .map(|pk| (verifier, pk))
+            querier
+                .public_key(address.to_string())
+                .ok()
+                .map(|pk| (verifier, pk))
         })
         .collect::<Vec<_>>();
 
@@ -160,7 +161,8 @@ pub fn should_update_verifier_set(
     max_diff: usize,
 ) -> bool {
     new_verifiers.threshold != cur_verifiers.threshold
-        || signers_symetric_difference_count(&new_verifiers.signers, &cur_verifiers.signers) > max_diff
+        || signers_symetric_difference_count(&new_verifiers.signers, &cur_verifiers.signers)
+            > max_diff
 }
 
 fn signers_symetric_difference_count(

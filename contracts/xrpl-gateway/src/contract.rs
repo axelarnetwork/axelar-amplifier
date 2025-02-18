@@ -7,7 +7,9 @@ use cosmwasm_std::{Binary, Deps, DepsMut, Empty, Env, HexBinary, MessageInfo, Re
 use error_stack::ResultExt;
 use interchain_token_service::TokenId;
 use router_api::{ChainNameRaw, CrossChainId};
-use xrpl_types::types::{XRPLAccountId, XRPLCurrency, XRPLPaymentAmount, XRPLToken, XRPLTokenOrXrp};
+use xrpl_types::types::{
+    XRPLAccountId, XRPLCurrency, XRPLPaymentAmount, XRPLToken, XRPLTokenOrXrp,
+};
 
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state;
@@ -51,9 +53,7 @@ pub enum Error {
     InvalidSourceAddress,
     #[error("invalid token")]
     InvalidToken,
-    #[error(
-        "invalid transfer amount {amount} to chain {destination_chain}"
-    )]
+    #[error("invalid transfer amount {amount} to chain {destination_chain}")]
     InvalidTransferAmount {
         destination_chain: ChainNameRaw,
         amount: XRPLPaymentAmount,
@@ -159,14 +159,17 @@ pub fn instantiate(
     let verifier = address::validate_cosmwasm_address(deps.api, &msg.verifier_address)?;
     let its_hub = address::validate_cosmwasm_address(deps.api, &msg.its_hub_address)?;
 
-    state::save_config(deps.storage, &Config {
-        verifier,
-        router,
-        its_hub,
-        its_hub_chain_name: msg.its_hub_chain_name,
-        chain_name: msg.chain_name.clone(),
-        xrpl_multisig: msg.xrpl_multisig_address,
-    })?;
+    state::save_config(
+        deps.storage,
+        &Config {
+            verifier,
+            router,
+            its_hub,
+            its_hub_chain_name: msg.its_hub_chain_name,
+            chain_name: msg.chain_name.clone(),
+            xrpl_multisig: msg.xrpl_multisig_address,
+        },
+    )?;
 
     permission_control::set_admin(deps.storage, &deps.api.addr_validate(&msg.admin_address)?)?;
     permission_control::set_governance(
@@ -186,106 +189,72 @@ pub fn execute(
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
     let config = state::load_config(deps.storage);
 
-    match msg.ensure_permissions(
-        deps.storage,
-        &info.sender,
-        |_, _| Ok::<_, error_stack::Report<Error>>(config.router.clone()),
-    )? {
+    match msg.ensure_permissions(deps.storage, &info.sender, |_, _| {
+        Ok::<_, error_stack::Report<Error>>(config.router.clone())
+    })? {
         ExecuteMsg::RegisterTokenMetadata { xrpl_token } => {
             execute::register_token_metadata(&config, env.block.height, xrpl_token)
         }
         ExecuteMsg::RegisterLocalToken { salt, xrpl_token } => {
-            execute::register_local_token(
-                deps.storage,
-                &config,
-                info.sender,
-                salt,
-                xrpl_token,
-            )
+            execute::register_local_token(deps.storage, &config, info.sender, salt, xrpl_token)
         }
         ExecuteMsg::RegisterRemoteToken {
             token_id,
             xrpl_currency,
-        } => {
-            execute::register_remote_token(
-                deps.storage,
-                config.xrpl_multisig,
-                token_id,
-                xrpl_currency,
-            )
-        }
+        } => execute::register_remote_token(
+            deps.storage,
+            config.xrpl_multisig,
+            token_id,
+            xrpl_currency,
+        ),
         ExecuteMsg::RegisterXrp { salt } => {
-            execute::register_xrp(
-                deps.storage,
-                &config,
-                info.sender,
-                salt,
-            )
+            execute::register_xrp(deps.storage, &config, info.sender, salt)
         }
         ExecuteMsg::RegisterTokenInstance {
             token_id,
             chain,
             decimals,
-        } => {
-            execute::register_token_instance(
-                deps.storage,
-                &config,
-                token_id,
-                chain,
-                decimals,
-            )
-        }
+        } => execute::register_token_instance(deps.storage, &config, token_id, chain, decimals),
         ExecuteMsg::LinkToken {
             salt,
             destination_chain,
             link_token,
-        } => {
-            execute::link_token(
-                deps.storage,
-                &config,
-                env.block.height,
-                info.sender,
-                salt,
-                destination_chain,
-                link_token,
-            )
-        }
+        } => execute::link_token(
+            deps.storage,
+            &config,
+            env.block.height,
+            info.sender,
+            salt,
+            destination_chain,
+            link_token,
+        ),
         ExecuteMsg::DeployRemoteToken {
             xrpl_token,
             destination_chain,
             token_metadata,
-        } => {
-            execute::deploy_remote_token(
-                deps.storage,
-                &config,
-                env.block.height,
-                xrpl_token,
-                destination_chain,
-                token_metadata,
-            )
-        }
+        } => execute::deploy_remote_token(
+            deps.storage,
+            &config,
+            env.block.height,
+            xrpl_token,
+            destination_chain,
+            token_metadata,
+        ),
         ExecuteMsg::VerifyMessages(msgs) => {
             let verifier = client::ContractClient::new(deps.querier, &config.verifier).into();
             execute::verify_messages(&verifier, msgs, &config.chain_name)
         }
         // Should be called RouteOutgoingMessage.
         // Called RouteMessages for compatibility with the router.
-        ExecuteMsg::RouteMessages(msgs) => {
-            execute::route_outgoing_messages(
-                deps.storage,
-                msgs,
-                config.its_hub,
-                &config.its_hub_chain_name,
-            )
-        }
+        ExecuteMsg::RouteMessages(msgs) => execute::route_outgoing_messages(
+            deps.storage,
+            msgs,
+            config.its_hub,
+            &config.its_hub_chain_name,
+        ),
         ExecuteMsg::RouteIncomingMessages(msgs) => {
             let verifier = client::ContractClient::new(deps.querier, &config.verifier).into();
-            execute::route_incoming_messages(
-                deps.storage,
-                &config,
-                &verifier,
-                msgs,
-            )
+            execute::route_incoming_messages(deps.storage, &config, &verifier, msgs)
         }
     }?
     .then(Ok)
@@ -303,28 +272,24 @@ pub fn query(
                 .change_context(Error::OutgoingMessages)
         }
         QueryMsg::XrplToken(token_id) => {
-            query::xrpl_token(deps.storage, token_id)
-                .change_context(Error::XrplToken(token_id))
+            query::xrpl_token(deps.storage, token_id).change_context(Error::XrplToken(token_id))
         }
-        QueryMsg::XrpTokenId => {
-            query::xrp_token_id(deps.storage)
-                .change_context(Error::XrpTokenId)
-        }
-        QueryMsg::LinkedTokenId {
-            deployer,
-            salt,
-        } => {
+        QueryMsg::XrpTokenId => query::xrp_token_id(deps.storage).change_context(Error::XrpTokenId),
+        QueryMsg::LinkedTokenId { deployer, salt } => {
             query::linked_token_id(deps.storage, deployer.clone(), salt)
                 .change_context(Error::LinkedTokenId)
         }
-        QueryMsg::TokenInstanceDecimals { chain_name, token_id } => {
-            query::token_instance_decimals(deps.storage, chain_name.clone(), token_id)
-                .change_context(Error::TokenInstanceDecimals {
-                    chain_name,
-                    token_id,
-                })
-        }
-        QueryMsg::InterchainTransfer { message_with_payload } => {
+        QueryMsg::TokenInstanceDecimals {
+            chain_name,
+            token_id,
+        } => query::token_instance_decimals(deps.storage, chain_name.clone(), token_id)
+            .change_context(Error::TokenInstanceDecimals {
+                chain_name,
+                token_id,
+            }),
+        QueryMsg::InterchainTransfer {
+            message_with_payload,
+        } => {
             let config = state::load_config(deps.storage);
             query::translate_to_interchain_transfer(deps.storage, &config, &message_with_payload)
         }

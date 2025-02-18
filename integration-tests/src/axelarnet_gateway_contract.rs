@@ -1,7 +1,7 @@
+use axelarnet_gateway::contract::{execute, instantiate, query};
 use cosmwasm_std::Addr;
 use cw_multi_test::{ContractWrapper, Executor};
 use router_api::ChainName;
-use axelarnet_gateway::contract::{execute, instantiate, query};
 
 use crate::contract::Contract;
 use crate::protocol::AxelarApp;

@@ -4,10 +4,12 @@ use xrpl_types::types::XRPLUnsignedTxToSign;
 
 use crate::error::ContractError;
 use crate::events::Event;
-use crate::xrpl_serialize::XRPLSerialize;
 use crate::state::{
-    CONFIG, MultisigSession, CROSS_CHAIN_ID_TO_MULTISIG_SESSION, MULTISIG_SESSION_ID_TO_UNSIGNED_TX_HASH, REPLY_CROSS_CHAIN_ID, REPLY_UNSIGNED_TX_HASH, UNSIGNED_TX_HASH_TO_TX_INFO
+    MultisigSession, CONFIG, CROSS_CHAIN_ID_TO_MULTISIG_SESSION,
+    MULTISIG_SESSION_ID_TO_UNSIGNED_TX_HASH, REPLY_CROSS_CHAIN_ID, REPLY_UNSIGNED_TX_HASH,
+    UNSIGNED_TX_HASH_TO_TX_INFO,
 };
+use crate::xrpl_serialize::XRPLSerialize;
 
 pub fn start_multisig_reply(deps: DepsMut, reply: Reply) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
@@ -23,8 +25,8 @@ pub fn start_multisig_reply(deps: DepsMut, reply: Reply) -> Result<Response, Con
 
     match parse_execute_response_data(data.as_slice()) {
         Ok(MsgExecuteContractResponse { data: Some(data) }) => {
-            let multisig_session_id: Uint64 = from_json(data)
-                .map_err(|_| ContractError::InvalidContractReply {
+            let multisig_session_id: Uint64 =
+                from_json(data).map_err(|_| ContractError::InvalidContractReply {
                     reason: "invalid multisig session ID".to_string(),
                 })?;
 
@@ -40,9 +42,7 @@ pub fn start_multisig_reply(deps: DepsMut, reply: Reply) -> Result<Response, Con
             let signing_started_attributes: Vec<_> = reply
                 .result
                 .into_result()
-                .map_err(|e| ContractError::FailedToStartMultisigSession {
-                    reason: e,
-                })?
+                .map_err(|e| ContractError::FailedToStartMultisigSession { reason: e })?
                 .events
                 .into_iter()
                 .filter(|e| e.ty == "wasm-signing_started")
@@ -51,7 +51,8 @@ pub fn start_multisig_reply(deps: DepsMut, reply: Reply) -> Result<Response, Con
 
             let expires_at = signing_started_attributes
                 .clone()
-                .into_iter().find(|a| a.key.eq("expires_at"))
+                .into_iter()
+                .find(|a| a.key.eq("expires_at"))
                 .expect("violated invariant: wasm-signing_started event missing expires_at")
                 .value
                 .parse()
@@ -76,20 +77,18 @@ pub fn start_multisig_reply(deps: DepsMut, reply: Reply) -> Result<Response, Con
             REPLY_UNSIGNED_TX_HASH.remove(deps.storage);
 
             Ok(Response::new()
-                .add_event(
-                    Event::ProofUnderConstruction {
-                        destination_chain: config.chain_name,
-                        unsigned_tx_hash: unsigned_tx_hash.clone(),
-                        multisig_session_id,
-                    }
-                )
+                .add_event(Event::ProofUnderConstruction {
+                    destination_chain: config.chain_name,
+                    unsigned_tx_hash: unsigned_tx_hash.clone(),
+                    multisig_session_id,
+                })
                 .add_event(
                     cosmwasm_std::Event::new("xrpl_signing_started")
                         .add_attributes(
                             signing_started_attributes
                                 .into_iter()
                                 .filter(|a| !a.key.starts_with('_') && a.key != "msg")
-                                .collect::<Vec<_>>()
+                                .collect::<Vec<_>>(),
                         )
                         .add_attribute(
                             "unsigned_tx",
@@ -98,9 +97,11 @@ pub fn start_multisig_reply(deps: DepsMut, reply: Reply) -> Result<Response, Con
                                     unsigned_tx: tx_info.unsigned_tx,
                                     unsigned_tx_hash,
                                     cc_id: opt_cc_id,
-                                }.xrpl_serialize()?
-                            ).to_hex(),
-                        )
+                                }
+                                .xrpl_serialize()?,
+                            )
+                            .to_hex(),
+                        ),
                 ))
         }
         Ok(MsgExecuteContractResponse { data: None }) => Err(ContractError::InvalidContractReply {

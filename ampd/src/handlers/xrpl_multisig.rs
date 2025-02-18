@@ -7,23 +7,22 @@ use cosmrs::tx::Msg;
 use cosmrs::Any;
 use cosmwasm_std::{HexBinary, Uint64};
 use error_stack::ResultExt;
+use events::Error::EventTypeMismatch;
+use events_derive;
+use events_derive::try_from;
 use hex::encode;
+use multisig::msg::ExecuteMsg;
 use serde::de::Error as DeserializeError;
 use serde::{Deserialize, Deserializer};
 use tokio::sync::watch::Receiver;
 use tracing::info;
-
-use events::Error::EventTypeMismatch;
-use events_derive;
-use events_derive::try_from;
-use multisig::msg::ExecuteMsg;
 use xrpl_types::types::XRPLAccountId;
-use crate::types::*;
 
 use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error::{self, DeserializeEvent};
 use crate::tofnd::grpc::Multisig;
 use crate::tofnd::{Algorithm, MessageDigest};
+use crate::types::*;
 
 #[derive(Debug, Deserialize)]
 #[try_from("wasm-xrpl_signing_started")]
@@ -138,10 +137,17 @@ where
         match pub_keys.get(&self.verifier) {
             Some(&pub_key) => {
                 let pub_key_hex = HexBinary::from(pub_key.to_bytes());
-                let multisig_pub_key = multisig::key::PublicKey::try_from((multisig::key::KeyType::Ecdsa, pub_key_hex)).map_err(|_e| Error::PublicKey)?;
+                let multisig_pub_key = multisig::key::PublicKey::try_from((
+                    multisig::key::KeyType::Ecdsa,
+                    pub_key_hex,
+                ))
+                .map_err(|_e| Error::PublicKey)?;
                 let xrpl_address = XRPLAccountId::from(&multisig_pub_key);
 
-                let msg_digest = MessageDigest::from(xrpl_types::types::message_to_sign(unsigned_tx.to_vec(), &xrpl_address).map_err(|_e| Error::MessageToSign)?);
+                let msg_digest = MessageDigest::from(
+                    xrpl_types::types::message_to_sign(unsigned_tx.to_vec(), &xrpl_address)
+                        .map_err(|_e| Error::MessageToSign)?,
+                );
 
                 let signature = self
                     .signer
@@ -177,22 +183,20 @@ mod test {
 
     use base64::engine::general_purpose::STANDARD;
     use base64::Engine;
-    use cosmrs::AccountId;
     use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
+    use cosmrs::AccountId;
     use cosmwasm_std::{HexBinary, Uint64};
     use error_stack::{Report, Result};
+    use multisig::key::PublicKey;
     use rand::rngs::OsRng;
     use tendermint::abci;
     use tokio::sync::watch;
-
     use xrpl_multisig_prover::events::Event::XRPLSigningStarted;
-    use multisig::key::PublicKey;
 
+    use super::*;
     use crate::broadcaster::MockBroadcaster;
     use crate::tofnd;
     use crate::tofnd::grpc::MockMultisig;
-
-    use super::*;
 
     const MULTISIG_PROVER_ADDRESS: &str = "axelarvaloper1zh9wrak6ke4n6fclj5e8yk397czv430ygs5jz7";
     const PREFIX: &str = "axelar";
@@ -321,7 +325,7 @@ mod test {
             TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
             client,
-            100u64
+            100u64,
         );
 
         assert_eq!(
@@ -359,7 +363,8 @@ mod test {
             .returning(move |_, _, _, _| Err(Report::from(tofnd::error::Error::SignFailed)));
 
         let event = signing_started_event();
-        let signing_started: XRPLSigningStartedEvent = ((&event).try_into() as Result<_, _>).unwrap();
+        let signing_started: XRPLSigningStartedEvent =
+            ((&event).try_into() as Result<_, _>).unwrap();
         let verifier = signing_started.pub_keys.keys().next().unwrap().clone();
         let handler = handler(
             verifier,
@@ -383,7 +388,8 @@ mod test {
             .returning(move |_, _, _, _| Err(Report::from(tofnd::error::Error::SignFailed)));
 
         let event = signing_started_event();
-        let signing_started: XRPLSigningStartedEvent = ((&event).try_into() as Result<_, _>).unwrap();
+        let signing_started: XRPLSigningStartedEvent =
+            ((&event).try_into() as Result<_, _>).unwrap();
         let verifier = signing_started.pub_keys.keys().next().unwrap().clone();
         let handler = handler(
             verifier,

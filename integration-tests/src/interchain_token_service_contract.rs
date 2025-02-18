@@ -1,7 +1,8 @@
 use cosmwasm_std::Addr;
 use cw_multi_test::{ContractWrapper, Executor};
 
-use crate::{contract::Contract, protocol::AxelarApp};
+use crate::contract::Contract;
+use crate::protocol::AxelarApp;
 
 #[derive(Clone)]
 pub struct InterchainTokenServiceContract {

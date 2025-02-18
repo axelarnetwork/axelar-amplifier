@@ -1,6 +1,6 @@
 use cosmwasm_schema::write_api;
-use xrpl_gateway::msg::InstantiateMsg;
 use gateway_api::msg::{ExecuteMsg, QueryMsg};
+use xrpl_gateway::msg::InstantiateMsg;
 
 fn main() {
     write_api! {

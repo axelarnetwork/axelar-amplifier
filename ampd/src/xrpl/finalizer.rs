@@ -100,7 +100,8 @@ where
     C: XRPLClient + Send + Sync,
 {
     async fn latest_validated_ledger_index(&self) -> Result<u32> {
-        let ledger_index = self.rpc_client
+        let ledger_index = self
+            .rpc_client
             .validated_ledger()
             .await
             .change_context(Error::JsonRPC)?

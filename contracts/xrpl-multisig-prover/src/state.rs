@@ -3,13 +3,15 @@ use std::ops::{Add, Sub};
 use axelar_wasm_std::MajorityThreshold;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Uint256};
+use cw_storage_plus::{Item, Map};
 use interchain_token_service::TokenId;
 use router_api::{ChainName, ChainNameRaw, CrossChainId};
-use cw_storage_plus::{Item,  Map};
-use xrpl_types::types::{TxHash, XRPLAccountId, XRPLPaymentAmount, XRPLToken, XRPLTxStatus, XRPLUnsignedTx};
+use xrpl_types::types::{
+    TxHash, XRPLAccountId, XRPLPaymentAmount, XRPLToken, XRPLTxStatus, XRPLUnsignedTx,
+};
 
-use crate::error::ContractError;
 use crate::axelar_verifiers::VerifierSet;
+use crate::error::ContractError;
 
 #[cw_serde]
 pub struct Config {
@@ -42,7 +44,8 @@ pub const LAST_ASSIGNED_TICKET_NUMBER: Item<u32> = Item::new("last_assigned_tick
 pub const AVAILABLE_TICKETS: Item<Vec<u32>> = Item::new("available_tickets");
 
 #[cw_serde]
-pub struct MultisigSession { // TODO: rename
+pub struct MultisigSession {
+    // TODO: rename
     pub id: u64,
     pub expires_at: u64,
 }
@@ -54,19 +57,23 @@ pub struct TxInfo {
     pub original_cc_id: Option<CrossChainId>,
 }
 
-pub const MULTISIG_SESSION_ID_TO_UNSIGNED_TX_HASH: Map<u64, TxHash> = Map::new("multisig_session_id_to_unsigned_tx_hash");
+pub const MULTISIG_SESSION_ID_TO_UNSIGNED_TX_HASH: Map<u64, TxHash> =
+    Map::new("multisig_session_id_to_unsigned_tx_hash");
 pub const CROSS_CHAIN_ID_TO_TICKET: Map<&CrossChainId, u32> = Map::new("cross_chain_id_to_ticket");
 pub const CROSS_CHAIN_ID_TO_MULTISIG_SESSION: Map<&CrossChainId, MultisigSession> =
     Map::new("cross_chain_id_to_multisig_session");
-pub const CONSUMED_TICKET_TO_UNSIGNED_TX_HASH: Map<&u32, TxHash> = Map::new("consumed_ticket_to_unsigned_tx_hash");
-pub const UNSIGNED_TX_HASH_TO_TX_INFO: Map<&TxHash, TxInfo> = Map::new("unsigned_tx_hash_to_tx_info");
-pub const LATEST_SEQUENTIAL_UNSIGNED_TX_HASH: Item<TxHash> = Item::new("latest_sequential_unsigned_tx_hash");
+pub const CONSUMED_TICKET_TO_UNSIGNED_TX_HASH: Map<&u32, TxHash> =
+    Map::new("consumed_ticket_to_unsigned_tx_hash");
+pub const UNSIGNED_TX_HASH_TO_TX_INFO: Map<&TxHash, TxInfo> =
+    Map::new("unsigned_tx_hash_to_tx_info");
+pub const LATEST_SEQUENTIAL_UNSIGNED_TX_HASH: Item<TxHash> =
+    Item::new("latest_sequential_unsigned_tx_hash");
 pub const TRUST_LINE: Map<&XRPLToken, ()> = Map::new("trust_line");
 
 #[cw_serde]
 pub enum DustAmount {
     Local(XRPLPaymentAmount),
-    Remote(Uint256)
+    Remote(Uint256),
 }
 
 impl std::fmt::Display for DustAmount {
@@ -89,7 +96,9 @@ impl DustAmount {
     pub fn add(self, other: Self) -> Result<Self, ContractError> {
         match (self, other) {
             (DustAmount::Local(a), DustAmount::Local(b)) => Ok(DustAmount::Local(a.add(b)?)),
-            (DustAmount::Remote(a), DustAmount::Remote(b)) => Ok(DustAmount::Remote(a.checked_add(b).map_err(|_| ContractError::Overflow)?)),
+            (DustAmount::Remote(a), DustAmount::Remote(b)) => Ok(DustAmount::Remote(
+                a.checked_add(b).map_err(|_| ContractError::Overflow)?,
+            )),
             _ => panic!("cannot add local and remote dust amounts"),
         }
     }
@@ -97,7 +106,9 @@ impl DustAmount {
     pub fn sub(self, other: Self) -> Result<Self, ContractError> {
         match (self, other) {
             (DustAmount::Local(a), DustAmount::Local(b)) => Ok(DustAmount::Local(a.sub(b)?)),
-            (DustAmount::Remote(a), DustAmount::Remote(b)) => Ok(DustAmount::Remote(a.checked_sub(b).map_err(|_| ContractError::Overflow)?)),
+            (DustAmount::Remote(a), DustAmount::Remote(b)) => Ok(DustAmount::Remote(
+                a.checked_sub(b).map_err(|_| ContractError::Overflow)?,
+            )),
             _ => panic!("cannot subtract local and remote dust amounts"),
         }
     }
@@ -125,7 +136,8 @@ pub struct DustInfo {
 }
 
 pub const DUST: Map<&(TokenId, ChainNameRaw), DustAmount> = Map::new("dust");
-pub const UNSIGNED_TX_HASH_TO_DUST_INFO: Map<&TxHash, DustInfo> = Map::new("unsigned_tx_hash_to_dust_info");
+pub const UNSIGNED_TX_HASH_TO_DUST_INFO: Map<&TxHash, DustInfo> =
+    Map::new("unsigned_tx_hash_to_dust_info");
 pub const DUST_COUNTED: Map<&CrossChainId, ()> = Map::new("dust_counted");
 
 pub const CURRENT_VERIFIER_SET: Item<VerifierSet> = Item::new("current_verifier_set");

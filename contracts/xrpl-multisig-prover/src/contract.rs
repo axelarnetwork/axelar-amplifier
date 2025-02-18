@@ -1,6 +1,6 @@
 use axelar_wasm_std::{address, permission_control, FnExt};
-use error_stack::ResultExt;
 use cosmwasm_std::{to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Reply, Response};
+use error_stack::ResultExt;
 use multisig::key::PublicKey;
 
 mod execute;
@@ -8,11 +8,10 @@ mod query;
 mod reply;
 
 use crate::error::ContractError;
-use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg, MigrateMsg};
+use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 use crate::querier::Querier;
 use crate::state::{
-    Config, AVAILABLE_TICKETS, CONFIG, LAST_ASSIGNED_TICKET_NUMBER,
-    NEXT_SEQUENCE_NUMBER,
+    Config, AVAILABLE_TICKETS, CONFIG, LAST_ASSIGNED_TICKET_NUMBER, NEXT_SEQUENCE_NUMBER,
 };
 
 pub const START_MULTISIG_REPLY_ID: u64 = 1;
@@ -75,50 +74,35 @@ pub fn execute(
     let querier = Querier::new(deps.querier, config.clone());
 
     match msg.ensure_permissions(deps.storage, &info.sender)? {
-        ExecuteMsg::TrustSet { token_id } => {
-            execute::construct_trust_set_proof(
-                deps.storage,
-                &querier,
-                env.contract.address,
-                &config,
-                token_id,
-            )
-        }
-        ExecuteMsg::ConstructProof { cc_id, payload } => {
-            execute::construct_payment_proof(
-                deps.storage,
-                &querier,
-                env.contract.address,
-                env.block.height,
-                &config,
-                cc_id,
-                payload,
-            )
-        }
+        ExecuteMsg::TrustSet { token_id } => execute::construct_trust_set_proof(
+            deps.storage,
+            &querier,
+            env.contract.address,
+            &config,
+            token_id,
+        ),
+        ExecuteMsg::ConstructProof { cc_id, payload } => execute::construct_payment_proof(
+            deps.storage,
+            &querier,
+            env.contract.address,
+            env.block.height,
+            &config,
+            cc_id,
+            payload,
+        ),
         ExecuteMsg::UpdateVerifierSet {} => {
             execute::update_verifier_set(deps.storage, &querier, env)
         }
         ExecuteMsg::ConfirmProverMessage { prover_message } => {
-            execute::confirm_prover_message(
-                deps.storage,
-                &querier,
-                &config,
-                prover_message,
-            )
+            execute::confirm_prover_message(deps.storage, &querier, &config, prover_message)
         }
         ExecuteMsg::TicketCreate {} => {
             execute::construct_ticket_create_proof(deps.storage, env.contract.address, &config)
         }
         ExecuteMsg::UpdateSigningThreshold {
             new_signing_threshold,
-        } => {
-            execute::update_signing_threshold(deps, new_signing_threshold)
-        }
-        ExecuteMsg::UpdateXrplFee {
-            new_xrpl_fee,
-        } => {
-            execute::update_xrpl_fee(deps, new_xrpl_fee)
-        }
+        } => execute::update_signing_threshold(deps, new_signing_threshold),
+        ExecuteMsg::UpdateXrplFee { new_xrpl_fee } => execute::update_xrpl_fee(deps, new_xrpl_fee),
         ExecuteMsg::UpdateAdmin { new_admin_address } => {
             execute::update_admin(deps, new_admin_address)
         }
@@ -143,18 +127,14 @@ pub fn reply(
 pub fn query(
     deps: Deps,
     _env: Env,
-    msg: QueryMsg
+    msg: QueryMsg,
 ) -> Result<Binary, axelar_wasm_std::error::ContractError> {
     let config = CONFIG.load(deps.storage)?;
     let querier = Querier::new(deps.querier, config.clone());
     match msg {
         QueryMsg::Proof {
             multisig_session_id,
-        } => to_json_binary(&query::proof(
-            deps.storage,
-            querier,
-            &multisig_session_id,
-        )?),
+        } => to_json_binary(&query::proof(deps.storage, querier, &multisig_session_id)?),
         QueryMsg::VerifySignature {
             session_id,
             message: _,
@@ -168,7 +148,9 @@ pub fn query(
             &multisig::key::Signature::try_from((multisig::key::KeyType::Ecdsa, signature))
                 .map_err(|_| ContractError::InvalidSignature)?,
         )?),
-        QueryMsg::CurrentVerifierSet {} => to_json_binary(&query::current_verifier_set(deps.storage)?),
+        QueryMsg::CurrentVerifierSet {} => {
+            to_json_binary(&query::current_verifier_set(deps.storage)?)
+        }
         QueryMsg::NextVerifierSet {} => to_json_binary(&query::next_verifier_set(deps.storage)?),
         QueryMsg::MultisigSession { cc_id } => {
             to_json_binary(&query::multisig_session(deps.storage, &cc_id)?)

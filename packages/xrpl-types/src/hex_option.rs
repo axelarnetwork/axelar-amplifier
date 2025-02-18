@@ -2,7 +2,10 @@ use cosmwasm_std::HexBinary;
 use serde::de::Error;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-pub fn serialize<S, const N: usize>(value: &Option<[u8; N]>, serializer: S) -> Result<S::Ok, S::Error>
+pub fn serialize<S, const N: usize>(
+    value: &Option<[u8; N]>,
+    serializer: S,
+) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
 {

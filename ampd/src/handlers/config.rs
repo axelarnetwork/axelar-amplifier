@@ -190,7 +190,10 @@ mod tests {
         ";
 
         let chain_config: Chain<EVMFinalization> = toml::from_str(chain_config_toml).unwrap();
-        assert_eq!(chain_config.finalization, EVMFinalization::RPCFinalizedBlock);
+        assert_eq!(
+            chain_config.finalization,
+            EVMFinalization::RPCFinalizedBlock
+        );
     }
 
     #[test]

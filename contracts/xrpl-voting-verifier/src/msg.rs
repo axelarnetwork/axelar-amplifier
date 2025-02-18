@@ -4,7 +4,7 @@ use cosmwasm_schema::{cw_serde, QueryResponses};
 use msgs_derive::EnsurePermissions;
 use router_api::ChainName;
 use xrpl_types::msg::XRPLMessage;
-use xrpl_types::types::{XRPLAccountId, xrpl_account_id_string};
+use xrpl_types::types::{xrpl_account_id_string, XRPLAccountId};
 
 #[cw_serde]
 pub struct MessageStatus {

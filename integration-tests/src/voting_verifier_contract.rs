@@ -1,4 +1,4 @@
-use axelar_wasm_std::voting::{Vote, PollId};
+use axelar_wasm_std::voting::{PollId, Vote};
 use axelar_wasm_std::MajorityThreshold;
 use cosmwasm_std::testing::MockApi;
 use cosmwasm_std::Addr;

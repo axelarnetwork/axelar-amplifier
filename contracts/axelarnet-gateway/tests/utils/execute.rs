@@ -34,10 +34,7 @@ pub fn call_contract(
     )
 }
 
-pub fn route_from_router(
-    deps: DepsMut,
-    msgs: Vec<Message>,
-) -> Result<Response, ContractError> {
+pub fn route_from_router(deps: DepsMut, msgs: Vec<Message>) -> Result<Response, ContractError> {
     contract::execute(
         deps,
         mock_env(),
@@ -59,10 +56,7 @@ pub fn execute_payload(
     )
 }
 
-pub fn route_to_router(
-    deps: DepsMut,
-    msgs: Vec<Message>,
-) -> Result<Response, ContractError> {
+pub fn route_to_router(deps: DepsMut, msgs: Vec<Message>) -> Result<Response, ContractError> {
     contract::execute(
         deps,
         mock_env(),

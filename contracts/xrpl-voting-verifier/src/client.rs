@@ -86,9 +86,9 @@ mod test {
     use axelar_wasm_std::{nonempty, Threshold, VerificationStatus};
     use cosmwasm_std::testing::{message_info, mock_dependencies, mock_env, MockApi, MockQuerier};
     use cosmwasm_std::{
-        from_json, Addr, DepsMut, HexBinary, QuerierWrapper, SystemError, Uint64, WasmQuery
+        from_json, Addr, DepsMut, HexBinary, QuerierWrapper, SystemError, Uint64, WasmQuery,
     };
-    use xrpl_types::msg::{XRPLUserMessage, XRPLMessage};
+    use xrpl_types::msg::{XRPLMessage, XRPLUserMessage};
     use xrpl_types::types::{TxHash, XRPLAccountId, XRPLPaymentAmount, XRPLToken, XRPLTokenAmount};
 
     use crate::contract::{instantiate, query};
@@ -98,12 +98,16 @@ mod test {
     #[test]
     fn query_messages_status() {
         let (querier, _, addr) = setup();
-        let client: Client = client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
+        let client: Client =
+            client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
 
         let msg_1 = XRPLMessage::UserMessage(XRPLUserMessage {
             tx_id: TxHash::new([0; 32]),
             source_address: XRPLAccountId::new([0; 20]),
-            destination_address: nonempty::HexBinary::try_from(HexBinary::from_hex("5678").unwrap()).unwrap(),
+            destination_address: nonempty::HexBinary::try_from(
+                HexBinary::from_hex("5678").unwrap(),
+            )
+            .unwrap(),
             destination_chain: "eth".parse().unwrap(),
             payload_hash: None,
             amount: XRPLPaymentAmount::Drops(100),
@@ -112,13 +116,19 @@ mod test {
         let msg_2 = XRPLMessage::UserMessage(XRPLUserMessage {
             tx_id: TxHash::new([1; 32]),
             source_address: XRPLAccountId::new([1; 20]),
-            destination_address: nonempty::HexBinary::try_from(HexBinary::from_hex("5678").unwrap()).unwrap(),
+            destination_address: nonempty::HexBinary::try_from(
+                HexBinary::from_hex("5678").unwrap(),
+            )
+            .unwrap(),
             destination_chain: "eth".parse().unwrap(),
             payload_hash: None,
-            amount: XRPLPaymentAmount::Issued(XRPLToken {
-                currency: "USD".to_string().try_into().unwrap(),
-                issuer: XRPLAccountId::new([0; 20]),
-            }, XRPLTokenAmount::try_from("1e15".to_string()).unwrap()),
+            amount: XRPLPaymentAmount::Issued(
+                XRPLToken {
+                    currency: "USD".to_string().try_into().unwrap(),
+                    issuer: XRPLAccountId::new([0; 20]),
+                },
+                XRPLTokenAmount::try_from("1e15".to_string()).unwrap(),
+            ),
         });
 
         assert!(client.messages_status(vec![]).unwrap().is_empty());
@@ -153,7 +163,10 @@ mod test {
         let res = client.messages_status(vec![XRPLMessage::UserMessage(XRPLUserMessage {
             tx_id: TxHash::new([0; 32]),
             source_address: XRPLAccountId::new([255; 20]),
-            destination_address: nonempty::HexBinary::try_from(HexBinary::from_hex("5678").unwrap()).unwrap(),
+            destination_address: nonempty::HexBinary::try_from(
+                HexBinary::from_hex("5678").unwrap(),
+            )
+            .unwrap(),
             destination_chain: "eth".parse().unwrap(),
             payload_hash: None,
             amount: XRPLPaymentAmount::Drops(200),
@@ -232,7 +245,10 @@ mod test {
                 .try_into()
                 .unwrap(),
             service_name: "voting-verifier".try_into().unwrap(),
-            source_gateway_address: "rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh".to_string().try_into().unwrap(),
+            source_gateway_address: "rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh"
+                .to_string()
+                .try_into()
+                .unwrap(),
             voting_threshold: Threshold::try_from((Uint64::new(2), Uint64::new(3)))
                 .unwrap()
                 .try_into()

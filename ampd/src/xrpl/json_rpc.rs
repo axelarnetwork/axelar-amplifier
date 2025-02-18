@@ -1,7 +1,10 @@
 use async_trait::async_trait;
 use cosmwasm_std::HexBinary;
 use mockall::automock;
-use xrpl_http_client::{error, Client, LedgerIndex, LedgerRequest, LedgerResponse, RetrieveLedgerSpec, TxRequest, TxResponse};
+use xrpl_http_client::{
+    error, Client, LedgerIndex, LedgerRequest, LedgerResponse, RetrieveLedgerSpec, TxRequest,
+    TxResponse,
+};
 
 type Result<T> = error_stack::Result<T, error::Error>;
 

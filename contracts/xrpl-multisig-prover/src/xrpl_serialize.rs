@@ -3,7 +3,9 @@ use std::cmp::Ordering;
 use cosmwasm_std::HexBinary;
 use multisig::key::PublicKey;
 use xrpl_types::types::{
-    hash_unsigned_tx, XRPLAccountId, XRPLMemo, XRPLPathSet, XRPLPathStep, XRPLPaymentAmount, XRPLPaymentTx, XRPLSequence, XRPLSignedTx, XRPLSigner, XRPLSignerEntry, XRPLSignerListSetTx, XRPLTicketCreateTx, XRPLTokenAmount, XRPLTrustSetTx, XRPLUnsignedTx, XRPLUnsignedTxToSign
+    hash_unsigned_tx, XRPLAccountId, XRPLMemo, XRPLPathSet, XRPLPathStep, XRPLPaymentAmount,
+    XRPLPaymentTx, XRPLSequence, XRPLSignedTx, XRPLSigner, XRPLSignerEntry, XRPLSignerListSetTx,
+    XRPLTicketCreateTx, XRPLTokenAmount, XRPLTrustSetTx, XRPLUnsignedTx, XRPLUnsignedTxToSign,
 };
 
 use crate::error::ContractError;
@@ -40,7 +42,7 @@ pub enum Field {
     Signer,
     LimitAmount,
     SendMax,
-    Paths
+    Paths,
 }
 
 impl Field {
@@ -69,7 +71,7 @@ impl Field {
             Field::Signer => 16,
             Field::LimitAmount => 3,
             Field::SendMax => 9,
-            Field::Paths => 1
+            Field::Paths => 1,
         }
     }
 }
@@ -207,7 +209,6 @@ impl TryInto<XRPLObject> for XRPLSignerEntry {
     }
 }
 
-
 impl TryInto<XRPLObject> for XRPLMemo {
     type Error = ContractError;
 
@@ -253,13 +254,18 @@ impl XRPLSerialize for XRPLPathSet {
             }
 
             for step in path.steps.iter() {
-                let (type_flag, first_value, opt_second_value): (u8, [u8; 20], Option<[u8; 20]>) = match step {
-                    XRPLPathStep::Account(account) => (0x01, account.as_bytes(), None),
-                    XRPLPathStep::Currency(currency) => (0x10, currency.as_bytes(), None),
-                    XRPLPathStep::XRP => (0x10, <[u8; 20]>::default(), None),
-                    XRPLPathStep::Issuer(issuer) => (0x20, issuer.as_bytes(), None),
-                    XRPLPathStep::Token(token) => (0x30, token.currency.as_bytes(), Some(token.issuer.as_bytes())),
-                };
+                let (type_flag, first_value, opt_second_value): (u8, [u8; 20], Option<[u8; 20]>) =
+                    match step {
+                        XRPLPathStep::Account(account) => (0x01, account.as_bytes(), None),
+                        XRPLPathStep::Currency(currency) => (0x10, currency.as_bytes(), None),
+                        XRPLPathStep::XRP => (0x10, <[u8; 20]>::default(), None),
+                        XRPLPathStep::Issuer(issuer) => (0x20, issuer.as_bytes(), None),
+                        XRPLPathStep::Token(token) => (
+                            0x30,
+                            token.currency.as_bytes(),
+                            Some(token.issuer.as_bytes()),
+                        ),
+                    };
                 result.extend(vec![type_flag]);
                 result.extend(first_value);
                 if let Some(second_value) = opt_second_value {
@@ -371,26 +377,27 @@ impl TryInto<XRPLObject> for XRPLUnsignedTxToSign {
     fn try_into(self) -> Result<XRPLObject, ContractError> {
         let mut obj: XRPLObject = self.unsigned_tx.clone().try_into()?;
 
-        let mut memos = vec![
-            XRPLMemo {
-                memo_type: HexBinary::from_hex(
-                    "756e7369676e65645f74785f68617368" // hex("unsigned_tx_hash")
-                ).unwrap(),
-                memo_data: HexBinary::from(xrpl_types::types::hash_unsigned_tx(&self.unsigned_tx)?)
-            },
-        ];
+        let mut memos = vec![XRPLMemo {
+            memo_type: HexBinary::from_hex(
+                "756e7369676e65645f74785f68617368", // hex("unsigned_tx_hash")
+            )
+            .unwrap(),
+            memo_data: HexBinary::from(xrpl_types::types::hash_unsigned_tx(&self.unsigned_tx)?),
+        }];
 
         if let Some(cc_id) = self.cc_id {
             memos.push(XRPLMemo {
                 memo_type: HexBinary::from_hex(
-                    "736f757263655f636861696e" // hex("source_chain")
-                ).unwrap(),
+                    "736f757263655f636861696e", // hex("source_chain")
+                )
+                .unwrap(),
                 memo_data: cc_id.source_chain.to_string().as_bytes().into(),
             });
             memos.push(XRPLMemo {
                 memo_type: HexBinary::from_hex(
-                    "6d6573736167655f6964" // hex("message_id")
-                ).unwrap(),
+                    "6d6573736167655f6964", // hex("message_id")
+                )
+                .unwrap(),
                 memo_data: cc_id.message_id.as_bytes().into(),
             });
         }
@@ -400,7 +407,7 @@ impl TryInto<XRPLObject> for XRPLUnsignedTxToSign {
             XRPLArray {
                 field: Field::Memo,
                 items: memos,
-            }
+            },
         )?;
 
         Ok(obj)
@@ -422,7 +429,8 @@ impl TryInto<XRPLObject> for XRPLSignedTx {
             unsigned_tx: self.unsigned_tx.clone(),
             unsigned_tx_hash: hash_unsigned_tx(&self.unsigned_tx)?,
             cc_id: self.cc_id,
-        }.try_into()?;
+        }
+        .try_into()?;
 
         obj.add_field(
             Field::Signers,
@@ -568,8 +576,11 @@ mod tests {
 
     use cosmwasm_std::Uint256;
     use multisig::key::PublicKey;
-
-    use xrpl_types::types::{canonicalize_token_amount, XRPLCrossCurrencyOptions, XRPLCurrency, XRPLPath, XRPLToken, XRPL_TOKEN_MAX_EXPONENT, XRPL_TOKEN_MAX_MANTISSA, XRPL_TOKEN_MIN_EXPONENT, XRPL_TOKEN_MIN_MANTISSA};
+    use xrpl_types::types::{
+        canonicalize_token_amount, XRPLCrossCurrencyOptions, XRPLCurrency, XRPLPath, XRPLToken,
+        XRPL_TOKEN_MAX_EXPONENT, XRPL_TOKEN_MAX_MANTISSA, XRPL_TOKEN_MIN_EXPONENT,
+        XRPL_TOKEN_MIN_MANTISSA,
+    };
 
     use super::*;
 
@@ -730,63 +741,56 @@ mod tests {
         assert_hex_eq!(
             "01000000000000000000000000000000000000000100",
             XRPLPathSet {
-                paths: vec![
-                    XRPLPath {
-                        steps: vec![XRPLPathStep::Account(
-                            XRPLAccountId::from_str("rrrrrrrrrrrrrrrrrrrrBZbvji").unwrap()
-                        )]
-                    }
-                ]
-            }.xrpl_serialize()?
+                paths: vec![XRPLPath {
+                    steps: vec![XRPLPathStep::Account(
+                        XRPLAccountId::from_str("rrrrrrrrrrrrrrrrrrrrBZbvji").unwrap()
+                    )]
+                }]
+            }
+            .xrpl_serialize()?
         );
         assert_hex_eq!(
             "20000000000000000000000000000000000000000100",
             XRPLPathSet {
-                paths: vec![
-                    XRPLPath {
-                        steps: vec![XRPLPathStep::Issuer(
-                            XRPLAccountId::from_str("rrrrrrrrrrrrrrrrrrrrBZbvji").unwrap()
-                        )]
-                    }
-                ]
-            }.xrpl_serialize()?
+                paths: vec![XRPLPath {
+                    steps: vec![XRPLPathStep::Issuer(
+                        XRPLAccountId::from_str("rrrrrrrrrrrrrrrrrrrrBZbvji").unwrap()
+                    )]
+                }]
+            }
+            .xrpl_serialize()?
         );
         assert_hex_eq!(
             "10000000000000000000000000000000000000000000",
             XRPLPathSet {
-                paths: vec![
-                    XRPLPath {
-                        steps: vec![XRPLPathStep::XRP]
-                    }
-                ]
-            }.xrpl_serialize()?
+                paths: vec![XRPLPath {
+                    steps: vec![XRPLPathStep::XRP]
+                }]
+            }
+            .xrpl_serialize()?
         );
         assert_hex_eq!(
             "10000000000000000000000000555344000000000000",
             XRPLPathSet {
-                paths: vec![
-                    XRPLPath {
-                        steps: vec![XRPLPathStep::Currency(
-                            "USD".to_string().try_into().unwrap()
-                        )]
-                    }
-                ]
-            }.xrpl_serialize()?
+                paths: vec![XRPLPath {
+                    steps: vec![XRPLPathStep::Currency(
+                        "USD".to_string().try_into().unwrap()
+                    )]
+                }]
+            }
+            .xrpl_serialize()?
         );
         assert_hex_eq!(
             "300000000000000000000000005553440000000000000000000000000000000000000000000000000100",
             XRPLPathSet {
-                paths: vec![
-                    XRPLPath {
-                        steps: vec![XRPLPathStep::Token(
-                            XRPLToken {
-                                issuer: XRPLAccountId::from_str("rrrrrrrrrrrrrrrrrrrrBZbvji")?,
-                                currency: "USD".to_string().try_into()?,
-                            }
-                        )]
-                    }
-                ]
-            }.xrpl_serialize()?
+                paths: vec![XRPLPath {
+                    steps: vec![XRPLPathStep::Token(XRPLToken {
+                        issuer: XRPLAccountId::from_str("rrrrrrrrrrrrrrrrrrrrBZbvji")?,
+                        currency: "USD".to_string().try_into()?,
+                    })]
+                }]
+            }
+            .xrpl_serialize()?
         );
         assert_hex_eq!(
             "100000000000000000000000000000000000000000010000000000000000000000000000000000000001FF100000000000000000000000004555520000000000300000000000000000000000005553440000000000000000000000000000000000000000000000000100",
@@ -834,7 +838,7 @@ mod tests {
                 XRPLTokenAmount::new(3369568318000000u64, -16),
             ),
             destination: XRPLAccountId::from_str("rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh")?,
-            cross_currency: None
+            cross_currency: None,
         };
         let encoded_unsigned_tx = XRPLUnsignedTx::Payment(unsigned_tx).xrpl_serialize()?;
         assert_hex_eq!(
@@ -858,7 +862,7 @@ mod tests {
                 XRPLTokenAmount::new(3369568318000000u64, -16),
             ),
             destination: XRPLAccountId::from_str("rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh")?,
-            cross_currency: Some(XRPLCrossCurrencyOptions{
+            cross_currency: Some(XRPLCrossCurrencyOptions {
                 send_max: XRPLPaymentAmount::Issued(
                     XRPLToken {
                         currency: "USD".to_string().try_into()?,
@@ -866,8 +870,8 @@ mod tests {
                     },
                     XRPLTokenAmount::new(8765432100000000u64, -16),
                 ),
-                paths: None
-            })
+                paths: None,
+            }),
         };
         let encoded_unsigned_tx = XRPLUnsignedTx::Payment(unsigned_tx).xrpl_serialize()?;
         assert_hex_eq!(
@@ -891,7 +895,7 @@ mod tests {
                 XRPLTokenAmount::new(3369568318000000u64, -16),
             ),
             destination: XRPLAccountId::from_str("rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh")?,
-            cross_currency: Some(XRPLCrossCurrencyOptions{
+            cross_currency: Some(XRPLCrossCurrencyOptions {
                 send_max: XRPLPaymentAmount::Issued(
                     XRPLToken {
                         currency: "USD".to_string().try_into()?,
@@ -904,27 +908,23 @@ mod tests {
                         XRPLPath {
                             steps: vec![
                                 XRPLPathStep::XRP,
-                                XRPLPathStep::Account(
-                                    XRPLAccountId::from_str("rrrrrrrrrrrrrrrrrrrrBZbvji")?,
-                                )
-                            ]
+                                XRPLPathStep::Account(XRPLAccountId::from_str(
+                                    "rrrrrrrrrrrrrrrrrrrrBZbvji",
+                                )?),
+                            ],
                         },
                         XRPLPath {
                             steps: vec![
-                                XRPLPathStep::Currency(
-                                    "EUR".to_string().try_into()?
-                                ),
-                                XRPLPathStep::Token(
-                                    XRPLToken {
-                                        issuer: XRPLAccountId::from_str("rrrrrrrrrrrrrrrrrrrrBZbvji")?,
-                                        currency: "USD".to_string().try_into()?,
-                                    }
-                                ),
-                            ]
-                        }
-                    ]
-                })
-            })
+                                XRPLPathStep::Currency("EUR".to_string().try_into()?),
+                                XRPLPathStep::Token(XRPLToken {
+                                    issuer: XRPLAccountId::from_str("rrrrrrrrrrrrrrrrrrrrBZbvji")?,
+                                    currency: "USD".to_string().try_into()?,
+                                }),
+                            ],
+                        },
+                    ],
+                }),
+            }),
         };
         let encoded_unsigned_tx = XRPLUnsignedTx::Payment(unsigned_tx).xrpl_serialize()?;
         assert_hex_eq!(
@@ -942,7 +942,7 @@ mod tests {
             sequence: XRPLSequence::Plain(1),
             amount: XRPLPaymentAmount::Drops(1000),
             destination: XRPLAccountId::from_str("rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh")?,
-            cross_currency: None
+            cross_currency: None,
         };
         let encoded_unsigned_tx = &XRPLUnsignedTx::Payment(tx).xrpl_serialize()?;
         assert_hex_eq!(
@@ -956,7 +956,7 @@ mod tests {
             sequence: XRPLSequence::Plain(43497363),
             amount: XRPLPaymentAmount::Drops(1000000000),
             destination: XRPLAccountId::from_str("rw2521mDNXyKzHBrFGZ5Rj4wzUjS9FbiZq")?,
-            cross_currency: None
+            cross_currency: None,
         };
         let encoded_unsigned_tx = &XRPLUnsignedTx::Payment(tx).xrpl_serialize()?;
         assert_hex_eq!(
@@ -1014,7 +1014,7 @@ mod tests {
             sequence: XRPLSequence::Ticket(44218193),
             amount: XRPLPaymentAmount::Drops(100000000),
             destination: XRPLAccountId::from_str("rfgqgX62inhKsfti1NR6FeMS8NcQJCFniG")?,
-            cross_currency: None
+            cross_currency: None,
         });
         let signed_tx = XRPLSignedTx {
             unsigned_tx: unsigned_tx.clone(),
@@ -1047,12 +1047,15 @@ mod tests {
             account: XRPLAccountId::from_str("r4ZMbbb4Y3KoeexmjEeTdhqUBrYjjWdyGM")?,
             fee: 30,
             sequence: XRPLSequence::Ticket(45205896),
-            amount: XRPLPaymentAmount::Issued(XRPLToken{
-                currency: "ETH".to_string().try_into()?,
-                issuer: XRPLAccountId::from_str("r4ZMbbb4Y3KoeexmjEeTdhqUBrYjjWdyGM")?
-            }, canonicalize_token_amount(Uint256::from(100000000u128), 0)?.0),
+            amount: XRPLPaymentAmount::Issued(
+                XRPLToken {
+                    currency: "ETH".to_string().try_into()?,
+                    issuer: XRPLAccountId::from_str("r4ZMbbb4Y3KoeexmjEeTdhqUBrYjjWdyGM")?,
+                },
+                canonicalize_token_amount(Uint256::from(100000000u128), 0)?.0,
+            ),
             destination: XRPLAccountId::from_str("raNVNWvhUQzFkDDTdEw3roXRJfMJFVJuQo")?,
-            cross_currency: None
+            cross_currency: None,
         });
         let signed_tx = XRPLSignedTx {
             unsigned_tx: unsigned_tx.clone(),
@@ -1120,13 +1123,13 @@ mod tests {
             sequence: XRPLSequence::Plain(44218445),
             signer_quorum: 3,
             signer_entries: vec![
-                XRPLSignerEntry{
+                XRPLSignerEntry {
                     account: XRPLAccountId::from_str("r3mJFUQeVQma7qucT4iQSNCWuijVCPcicZ")?,
-                    signer_weight: 2
+                    signer_weight: 2,
                 },
-                XRPLSignerEntry{
+                XRPLSignerEntry {
                     account: XRPLAccountId::from_str("rHxbKjRSFUUyuiio1jnFhimJRVAYYaGj7f")?,
-                    signer_weight: 1
+                    signer_weight: 1,
                 },
             ],
         });

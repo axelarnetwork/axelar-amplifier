@@ -2,8 +2,8 @@ use axelar_wasm_std::{nonempty, IntoContractError};
 use cosmwasm_std::{StdError, Uint256};
 use cw_utils::ParseReplyError;
 use interchain_token_service::TokenId;
-use thiserror::Error;
 use router_api::{ChainName, ChainNameRaw, CrossChainId};
+use thiserror::Error;
 use xrpl_types::error::XRPLError;
 use xrpl_types::types::{TxHash, XRPLPath, XRPLToken, XRPLTxStatus};
 
@@ -58,10 +58,7 @@ pub enum ContractError {
     },
 
     #[error("invalid dust amount {amount} with decimals {decimals}")]
-    InvalidDustAmount {
-        amount: Uint256,
-        decimals: u8,
-    },
+    InvalidDustAmount { amount: Uint256, decimals: u8 },
 
     #[error("invalid message ID {0}")]
     InvalidMessageId(String),
@@ -85,10 +82,7 @@ pub enum ContractError {
     InvalidTxStatus(XRPLTxStatus),
 
     #[error("transaction ID {expected} did not match reconstructed transaction ID {actual}")]
-    TxIdMismatch {
-        actual: TxHash,
-        expected: TxHash,
-    },
+    TxIdMismatch { actual: TxHash, expected: TxHash },
 
     #[error("local token {0} not registered")]
     LocalTokenNotRegistered(XRPLToken),
