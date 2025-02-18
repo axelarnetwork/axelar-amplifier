@@ -62,8 +62,8 @@ fn convert_max_uint_to_max_bits(max_uint: nonempty::Uint256) -> Result<NumBits, 
     let fixed_cases = [256, 128, 64, 32];
     for case in fixed_cases {
         // some chains were incorrectly registered with the max number of bits as the max uint
-        if *max_uint == Uint256::from_u128(case) {
-            return NumBits::try_from(case as u32).map_err(|err| err.into());
+        if *max_uint == Uint256::from_u128(case as u128) {
+            return NumBits::try_from(case).map_err(|err| err.into());
         }
     }
     // Need to add one to correctly get the number of bits. This will round down if the result is not a power of two
@@ -111,7 +111,7 @@ mod test {
 
         for (chain, config) in &old_configs {
             OLD_CHAIN_CONFIGS
-                .save(&mut deps.storage, &chain, &config)
+                .save(&mut deps.storage, chain, config)
                 .unwrap();
         }
 
