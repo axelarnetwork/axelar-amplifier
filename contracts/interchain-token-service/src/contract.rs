@@ -14,6 +14,7 @@ use crate::state;
 use crate::state::Config;
 
 mod execute;
+mod migrations;
 mod query;
 
 pub use execute::Error as ExecuteError;
@@ -55,9 +56,7 @@ pub enum Error {
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(deps: DepsMut, _env: Env, _msg: Empty) -> Result<Response, ContractError> {
-    // Implement migration logic if needed
-
-    // TODO migrate max uint to max uint bits
+    migrations::v1_1_0::migrate(deps.storage)?;
 
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
