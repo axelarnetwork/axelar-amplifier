@@ -10210,6 +10210,7 @@ dependencies = [
  "report",
  "rewards",
  "router-api",
+ "serde",
  "serde_json",
  "service-registry",
  "service-registry-api",

@@ -164,7 +164,7 @@ mod tests {
     use multisig::test::common::{build_verifier_set, ed25519_test_data};
     use tokio::sync::watch;
     use tokio::test as async_test;
-    use voting_verifier::events::{PollMetadata, PollStarted, VerifierSetConfirmation};
+    use voting_verifier::events::VerifierSetConfirmation;
 
     use super::PollStartedEvent;
     use crate::event_processor::EventHandler;
@@ -309,22 +309,20 @@ mod tests {
     fn verifier_set_poll_started_event(
         participants: Vec<TMAddress>,
         expires_at: u64,
-    ) -> PollStarted {
-        PollStarted::VerifierSet {
-            metadata: PollMetadata {
-                poll_id: "100".parse().unwrap(),
-                source_chain: "multiversx".parse().unwrap(),
-                source_gateway_address:
-                    "erd1qqqqqqqqqqqqqpgqsvzyz88e8v8j6x3wquatxuztnxjwnw92kkls6rdtzx"
-                        .parse()
-                        .unwrap(),
-                confirmation_height: 15,
-                expires_at,
-                participants: participants
-                    .into_iter()
-                    .map(|addr| cosmwasm_std::Addr::unchecked(addr.to_string()))
-                    .collect(),
-            },
+    ) -> voting_verifier::events::Event {
+        voting_verifier::events::Event::VerifierSetPollStarted {
+            poll_id: "100".parse().unwrap(),
+            source_chain: "multiversx".parse().unwrap(),
+            source_gateway_address:
+                "erd1qqqqqqqqqqqqqpgqsvzyz88e8v8j6x3wquatxuztnxjwnw92kkls6rdtzx"
+                    .parse()
+                    .unwrap(),
+            confirmation_height: 15,
+            expires_at,
+            participants: participants
+                .into_iter()
+                .map(|addr| cosmwasm_std::Addr::unchecked(addr.to_string()))
+                .collect(),
             #[allow(deprecated)] // TODO: The below event uses the deprecated tx_id and event_index fields. Remove this attribute when those fields are removed
             verifier_set: VerifierSetConfirmation {
                 tx_id: "dfaf64de66510723f2efbacd7ead3c4f8c856aed1afc2cb30254552aeda47312"
