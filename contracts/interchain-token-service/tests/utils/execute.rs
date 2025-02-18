@@ -146,6 +146,15 @@ pub fn update_chains(
     )
 }
 
+pub fn freeze_chain(deps: DepsMut, chain: ChainNameRaw) -> Result<Response, ContractError> {
+    contract::execute(
+        deps,
+        mock_env(),
+        message_info(&MockApi::default().addr_make(params::GOVERNANCE), &[]),
+        ExecuteMsg::FreezeChain { chain },
+    )
+}
+
 pub fn disable_contract_execution(deps: DepsMut) -> Result<Response, ContractError> {
     contract::execute(
         deps,

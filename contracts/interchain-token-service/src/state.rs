@@ -2,9 +2,10 @@ use std::collections::HashMap;
 
 use axelar_wasm_std::{nonempty, FnExt, IntoContractError};
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, OverflowError, StdError, Storage, Uint256};
-use cw_storage_plus::{Item, Map};
+use cosmwasm_std::{Addr, Order, OverflowError, StdError, Storage, Uint256};
+use cw_storage_plus::{Bound, Item, Map};
 use error_stack::{report, Result, ResultExt};
+use itertools::Itertools;
 use router_api::{Address, ChainNameRaw};
 
 use crate::shared::NumBits;
@@ -169,6 +170,21 @@ pub fn load_chain_config(
     may_load_chain_config(storage, chain)
         .change_context(Error::Storage)?
         .ok_or_else(|| report!(Error::ChainNotFound(chain.to_owned())))
+}
+
+pub fn load_chain_configs<'a>(
+    storage: &'a dyn Storage,
+    filter: impl Fn(&ChainConfig) -> bool + 'a,
+    start_after: Option<ChainNameRaw>,
+    limit: u32,
+) -> impl Iterator<Item = Result<(ChainNameRaw, ChainConfig), Error>> + 'a {
+    let start = start_after.as_ref().map(Bound::exclusive);
+
+    CHAIN_CONFIGS
+        .range(storage, start, None, Order::Ascending)
+        .map(|r| r.change_context(Error::Storage))
+        .filter_ok(move |(_, config)| filter(config))
+        .take(limit as usize)
 }
 
 pub fn save_chain_config(

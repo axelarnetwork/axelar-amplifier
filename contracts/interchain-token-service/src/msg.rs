@@ -9,6 +9,12 @@ use crate::shared::NumBits;
 use crate::state::{TokenConfig, TokenInstance};
 use crate::TokenId;
 
+pub const DEFAULT_PAGINATION_LIMIT: u32 = 30;
+
+const fn default_pagination_limit() -> u32 {
+    DEFAULT_PAGINATION_LIMIT
+}
+
 #[cw_serde]
 pub struct InstantiateMsg {
     pub governance_address: String,
@@ -52,6 +58,18 @@ pub enum ExecuteMsg {
 }
 
 #[cw_serde]
+pub enum ChainStatusFilter {
+    Frozen,
+    Active,
+}
+
+#[cw_serde]
+#[derive(Default)]
+pub struct ChainFilter {
+    pub status: Option<ChainStatusFilter>,
+}
+
+#[cw_serde]
 pub struct ChainConfig {
     pub chain: ChainNameRaw,
     pub its_edge_contract: Address,
@@ -82,6 +100,18 @@ pub enum QueryMsg {
     /// Query all registered ITS contract addresses
     #[returns(HashMap<ChainNameRaw, Address>)]
     AllItsContracts,
+
+    /// Query all chain configs with optional frozen filter
+    // The list is paginated by:
+    // - start_after: the chain name to start after, which the next page of results should start.
+    // - limit: limit the number of chains returned, default is u32::MAX.
+    #[returns(Vec<ChainConfigResponse>)]
+    ItsChains {
+        filter: Option<ChainFilter>,
+        start_after: Option<ChainNameRaw>,
+        #[serde(default = "default_pagination_limit")]
+        limit: u32,
+    },
 
     /// Query a token instance on a specific chain
     #[returns(Option<TokenInstance>)]
