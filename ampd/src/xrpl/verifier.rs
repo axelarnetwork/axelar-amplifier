@@ -26,7 +26,7 @@ pub fn verify_message(
     tx: &Transaction,
     message: &XRPLMessage,
 ) -> Vote {
-    let memos = parse_memos(tx.common().memos.clone().unwrap_or(vec![]));
+    let memos = parse_memos(tx.common().memos.clone().unwrap_or_default());
     let is_valid_message = match message {
         XRPLMessage::ProverMessage(prover_message) => is_valid_prover_message(tx, multisig_address, prover_message, memos),
         XRPLMessage::UserMessage(user_message) => is_valid_user_message(tx, multisig_address, user_message, memos),
@@ -80,14 +80,14 @@ pub fn is_valid_user_message(
             && verify_memos(memos, message)
             && payment_tx.flags.is_empty(); // TODO: whitelist specific flags
     }
-    return false;
+    false
 }
 
 pub fn is_successful_tx(tx: &Transaction) -> bool {
     if let Some(meta) = &tx.common().meta {
         return meta.transaction_result.category() == ResultCategory::Tes;
     }
-    return false;
+    false
 }
 
 fn remove_0x_prefix(s: String) -> String {

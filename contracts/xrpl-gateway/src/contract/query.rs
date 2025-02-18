@@ -74,7 +74,7 @@ fn accumulate_errs(
             Ok(acc)
         }
         (Err(report), Ok(_)) => Err(report),
-        (acc, Err(msg_err)) => extend_err(acc, msg_err.into()),
+        (acc, Err(msg_err)) => extend_err(acc, msg_err),
     }
 }
 

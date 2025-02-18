@@ -24,7 +24,7 @@ fn message_to_sign(
 
     let tx_info = UNSIGNED_TX_HASH_TO_TX_INFO.load(storage, &unsigned_tx_hash)?;
     if tx_info.status != XRPLTxStatus::Pending {
-        return Err(ContractError::TxStatusNotPending.into());
+        return Err(ContractError::TxStatusNotPending);
     }
 
     let encoded_unsigned_tx_to_sign = XRPLUnsignedTxToSign {

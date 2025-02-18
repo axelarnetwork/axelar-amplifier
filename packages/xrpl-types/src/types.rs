@@ -108,9 +108,9 @@ impl TxHash {
     }
 }
 
-impl Into<[u8; XRPL_TX_HASH_LENGTH]> for TxHash {
-    fn into(self) -> [u8; XRPL_TX_HASH_LENGTH] {
-        self.0
+impl From<TxHash> for [u8; XRPL_TX_HASH_LENGTH] {
+    fn from(hash: TxHash) -> Self {
+        hash.0
     }
 }
 
@@ -192,9 +192,9 @@ pub mod tx_hash_hex {
     }
 }
 
-impl Into<XRPLTxStatus> for VerificationStatus {
-    fn into(self) -> XRPLTxStatus {
-        match self {
+impl From<VerificationStatus> for XRPLTxStatus {
+    fn from(val: VerificationStatus) -> Self {
+        match val {
             VerificationStatus::SucceededOnSourceChain => XRPLTxStatus::Succeeded, // message was found and its execution was successful
             VerificationStatus::FailedOnSourceChain => XRPLTxStatus::FailedOnChain, // message was found but its execution failed
             VerificationStatus::NotFoundOnSourceChain // message was not found on source chain
@@ -1301,7 +1301,7 @@ pub fn scale_to_drops(
     }
 
     if source_decimals == XRP_DECIMALS {
-        return Ok((convert_scaled_uint256_to_drops(source_amount.into())?, Uint256::zero()));
+        return Ok((convert_scaled_uint256_to_drops(source_amount)?, Uint256::zero()));
     }
 
     let scaling_factor = Uint256::from(10u8)

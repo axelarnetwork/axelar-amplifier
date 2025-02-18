@@ -69,12 +69,9 @@ impl From<XRPLUserMessage> for Vec<Attribute> {
             ("amount", other.amount.to_string()).into(),
         ];
 
-        match other.payload_hash {
-            Some(hash) => array.push(
-                ("payload_hash", HexBinary::from(hash).to_string()).into(),
-            ),
-            None => (),
-        }
+        if let Some(hash) = other.payload_hash { array.push(
+            ("payload_hash", HexBinary::from(hash).to_string()).into(),
+        ) }
 
         array
     }
@@ -138,21 +135,18 @@ impl XRPLUserMessage {
         hasher.update(delimiter_bytes);
         hasher.update(self.amount.hash());
 
-        match self.payload_hash {
-            Some(hash) => {
-                hasher.update(delimiter_bytes);
-                hasher.update(&hash);
-            },
-            None => {},
+        if let Some(hash) = self.payload_hash {
+            hasher.update(delimiter_bytes);
+            hasher.update(hash);
         }
 
         hasher.finalize().into()
     }
 }
 
-impl Into<XRPLMessage> for XRPLUserMessage {
-    fn into(self) -> XRPLMessage {
-        XRPLMessage::UserMessage(self)
+impl From<XRPLUserMessage> for XRPLMessage {
+    fn from(val: XRPLUserMessage) -> Self {
+        XRPLMessage::UserMessage(val)
     }
 }
 
@@ -172,9 +166,9 @@ impl WithPayload<XRPLUserMessage> {
     }
 }
 
-impl<T: Clone + Into<XRPLMessage>> Into<XRPLMessage> for WithPayload<T> {
-    fn into(self) -> XRPLMessage {
-        self.message.into()
+impl<T: Clone + Into<XRPLMessage>> From<WithPayload<T>> for XRPLMessage {
+    fn from(val: WithPayload<T>) -> Self {
+        val.message.into()
     }
 }
 

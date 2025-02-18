@@ -164,23 +164,23 @@ fn compute_xrpl_amount(
         if source_amount > Uint256::from(XRP_MAX_UINT) {
             return Err(ContractError::InvalidTransferAmount {
                 source_chain: source_chain.to_owned(),
-                amount: source_amount.into(),
+                amount: source_amount,
             });
         }
 
         let drops = u64::from_be_bytes(source_amount.to_be_bytes()[24..].try_into().unwrap());
         (XRPLPaymentAmount::Drops(drops), Uint256::zero())
     } else {
-        let xrpl_token = querier.xrpl_token(token_id.clone())?;
-        let source_decimals = querier.token_instance_decimals(source_chain.clone(), token_id.clone())
+        let xrpl_token = querier.xrpl_token(token_id)?;
+        let source_decimals = querier.token_instance_decimals(source_chain.clone(), token_id)
             .map_err(|_| ContractError::TokenNotRegisteredForChain {
                 token_id: token_id.to_owned(),
                 chain: source_chain.to_owned(),
             })?;
-        let (token_amount, dust) = canonicalize_token_amount(source_amount.into(), source_decimals)
+        let (token_amount, dust) = canonicalize_token_amount(source_amount, source_decimals)
             .map_err(|_| ContractError::InvalidTransferAmount {
                 source_chain: source_chain.to_owned(),
-                amount: source_amount.into(),
+                amount: source_amount,
             })?;
 
         (XRPLPaymentAmount::Issued(xrpl_token, token_amount), dust)
@@ -260,26 +260,24 @@ pub fn construct_payment_proof(
 
                     let (xrpl_amount, dust) = compute_xrpl_amount(
                         querier,
-                        interchain_transfer.token_id.clone(),
+                        interchain_transfer.token_id,
                         source_chain.clone(),
                         interchain_transfer.amount.into(),
                     )?;
 
-                    if !dust.is_zero() {
-                        if !state::DUST_COUNTED.has(storage, &cc_id) {
-                            state::DUST.update(
-                                storage,
-                                &(interchain_transfer.token_id, source_chain.clone()),
-                                |current_dust| -> Result<_, ContractError> {
-                                    match current_dust {
-                                        Some(DustAmount::Remote(current_dust)) => Ok(DustAmount::Remote(current_dust + dust)),
-                                        Some(DustAmount::Local(_)) => Err(ContractError::DustAmountNotRemote),
-                                        None => Ok(DustAmount::Remote(dust)),
-                                    }
-                                },
-                            )?;
-                            state::DUST_COUNTED.save(storage, &cc_id, &())?;
-                        }
+                    if !dust.is_zero() && !state::DUST_COUNTED.has(storage, &cc_id) {
+                        state::DUST.update(
+                            storage,
+                            &(interchain_transfer.token_id, source_chain.clone()),
+                            |current_dust| -> Result<_, ContractError> {
+                                match current_dust {
+                                    Some(DustAmount::Remote(current_dust)) => Ok(DustAmount::Remote(current_dust + dust)),
+                                    Some(DustAmount::Local(_)) => Err(ContractError::DustAmountNotRemote),
+                                    None => Ok(DustAmount::Remote(dust)),
+                                }
+                            },
+                        )?;
+                        state::DUST_COUNTED.save(storage, &cc_id, &())?;
                     }
 
                     if xrpl_amount.is_zero() {

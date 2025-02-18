@@ -104,12 +104,12 @@ fn mark_dust_counted(storage: &mut dyn Storage, tx_hash: &TxHash) -> Result<(), 
 }
 
 pub fn count_dust(storage: &mut dyn Storage, tx_id: &TxHash, token_id: &TokenId, dust: XRPLPaymentAmount) -> Result<(), Error> {
-    if dust.is_zero() || dust_counted(storage, &tx_id)? {
+    if dust.is_zero() || dust_counted(storage, tx_id)? {
         return Ok(());
     }
 
-    increment_dust(storage, &token_id, dust)?;
-    mark_dust_counted(storage, &tx_id)?;
+    increment_dust(storage, token_id, dust)?;
+    mark_dust_counted(storage, tx_id)?;
     Ok(())
 }
 
@@ -119,7 +119,7 @@ pub fn may_load_token_instance_decimals(
     token_id: TokenId,
 ) -> Result<Option<u8>, Error> {
     TOKEN_INSTACE_DECIMALS
-        .may_load(storage, &(chain_name.clone(), token_id.clone()))
+        .may_load(storage, &(chain_name.clone(), token_id))
         .change_context(Error::Storage)
 }
 
@@ -128,7 +128,7 @@ pub fn load_token_instance_decimals(
     chain_name: ChainNameRaw,
     token_id: TokenId,
 ) -> Result<u8, Error> {
-    may_load_token_instance_decimals(storage, chain_name.clone(), token_id.clone())
+    may_load_token_instance_decimals(storage, chain_name.clone(), token_id)
         .change_context(Error::Storage)?
         .ok_or_else(|| report!(Error::TokenInstanceNotFound(chain_name, token_id)))
 }

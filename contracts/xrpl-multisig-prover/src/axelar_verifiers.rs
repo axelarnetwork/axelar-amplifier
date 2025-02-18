@@ -118,7 +118,7 @@ pub fn active_verifiers(
     }
 
     let service = querier.service()?;
-    if num_of_verifiers < service.min_num_verifiers.try_into().expect("minimum number of verifiers is too large") {
+    if num_of_verifiers < service.min_num_verifiers.into() {
         return Err(ContractError::NotEnoughVerifiers);
     }
 
@@ -229,7 +229,7 @@ mod tests {
         let scaled_weights = convert_or_scale_weights(&weights).unwrap();
         assert_eq!(scaled_weights, vec![0, 2, 39, 524, 65535]);
 
-        let scaled_weights = convert_or_scale_weights(&vec![]).unwrap();
+        let scaled_weights = convert_or_scale_weights(&[]).unwrap();
         assert_eq!(scaled_weights, vec![] as Vec<u16>);
     }
 }

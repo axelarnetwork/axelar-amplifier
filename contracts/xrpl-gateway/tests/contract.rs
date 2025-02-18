@@ -550,10 +550,10 @@ fn messages_with_payload(msgs: Vec<XRPLMessage>) -> Vec<WithPayload<XRPLUserMess
             panic!("only user messages are supported")
         };
 
-        return WithPayload::new(
+        WithPayload::new(
             user_message,
             Some(nonempty::HexBinary::try_from(HexBinary::from_hex("0123456789abcdef").unwrap()).unwrap()),
-        );
+        )
     }).collect()
 }
 

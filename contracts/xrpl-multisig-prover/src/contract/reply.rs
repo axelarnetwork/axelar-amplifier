@@ -51,9 +51,7 @@ pub fn start_multisig_reply(deps: DepsMut, reply: Reply) -> Result<Response, Con
 
             let expires_at = signing_started_attributes
                 .clone()
-                .into_iter()
-                .filter(|a| a.key.eq("expires_at"))
-                .next()
+                .into_iter().find(|a| a.key.eq("expires_at"))
                 .expect("violated invariant: wasm-signing_started event missing expires_at")
                 .value
                 .parse()

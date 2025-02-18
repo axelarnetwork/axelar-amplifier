@@ -303,7 +303,7 @@ pub fn query(
                 .change_context(Error::OutgoingMessages)
         }
         QueryMsg::XrplToken(token_id) => {
-            query::xrpl_token(deps.storage, token_id.clone())
+            query::xrpl_token(deps.storage, token_id)
                 .change_context(Error::XrplToken(token_id))
         }
         QueryMsg::XrpTokenId => {
@@ -318,7 +318,7 @@ pub fn query(
                 .change_context(Error::LinkedTokenId)
         }
         QueryMsg::TokenInstanceDecimals { chain_name, token_id } => {
-            query::token_instance_decimals(deps.storage, chain_name.clone(), token_id.clone())
+            query::token_instance_decimals(deps.storage, chain_name.clone(), token_id)
                 .change_context(Error::TokenInstanceDecimals {
                     chain_name,
                     token_id,

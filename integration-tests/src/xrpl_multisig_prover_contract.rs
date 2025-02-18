@@ -49,10 +49,8 @@ impl XRPLMultisigProverContract {
                     ticket_count_threshold: 1,
                     next_sequence_number: 44218446,
                     last_assigned_ticket_number: 44218195,
-                    available_tickets: vec![
-                        vec![],
-                        (44218195..44218200).collect::<Vec<_>>()
-                    ].concat(),
+                    available_tickets: [vec![],
+                        (44218195..44218200).collect::<Vec<_>>()].concat(),
                 },
                 &[],
                 "xrpl_multisig_prover",

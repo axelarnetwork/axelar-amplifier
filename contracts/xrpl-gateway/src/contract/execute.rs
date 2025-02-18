@@ -61,18 +61,15 @@ pub fn route_incoming_messages(
             state::count_dust(storage, &msg.message.tx_id, &interchain_transfer.token_id, interchain_transfer.dust)
                 .change_context(Error::State)?;
 
-            match interchain_transfer.message_with_payload {
-                Some(message_with_payload) => {
-                    its_msgs.push(message_with_payload.message.clone());
-                    events.extend(vec![
-                        into_route_event(status, message_with_payload.message.clone()),
-                        Event::from(XRPLGatewayEvent::ContractCalled {
-                            msg: message_with_payload.message,
-                            payload: message_with_payload.payload,
-                        }),
-                    ]);
-                }
-                None => ()
+            if let Some(message_with_payload) = interchain_transfer.message_with_payload {
+                its_msgs.push(message_with_payload.message.clone());
+                events.extend(vec![
+                    into_route_event(status, message_with_payload.message.clone()),
+                    Event::from(XRPLGatewayEvent::ContractCalled {
+                        msg: message_with_payload.message,
+                        payload: message_with_payload.payload,
+                    }),
+                ]);
             }
         }
         route_msgs.extend(filter_routable_messages(*status, &its_msgs));
@@ -87,7 +84,7 @@ const PREFIX_CUSTOM_TOKEN_SALT: &[u8] = b"custom-token-salt";
 const TOKEN_FACTORY_DEPLOYER: &str = "";
 
 fn token_id(salt: [u8; 32]) -> TokenId {
-    let token_id: [u8; 32] = Keccak256::digest(&[
+    let token_id: [u8; 32] = Keccak256::digest([
         Keccak256::digest(PREFIX_TOKEN_ID).as_slice(),
         Addr::unchecked(TOKEN_FACTORY_DEPLOYER).as_bytes(),
         &salt,
@@ -96,7 +93,7 @@ fn token_id(salt: [u8; 32]) -> TokenId {
 }
 
 fn linked_token_deploy_salt(chain_name_hash: [u8; 32], deployer: Addr, salt: [u8; 32]) -> [u8; 32] {
-    Keccak256::digest(&[
+    Keccak256::digest([
         Keccak256::digest(PREFIX_CUSTOM_TOKEN_SALT).as_slice(),
         &chain_name_hash,
         deployer.as_bytes(),
@@ -117,7 +114,7 @@ fn load_token_id(storage: &dyn Storage, xrpl_multisig: XRPLAccountId, token: &XR
         state::load_remote_token_id(storage, &token.currency)
             .change_context(Error::InvalidToken)?
     } else {
-        state::load_local_token_id(storage, &token)
+        state::load_local_token_id(storage, token)
             .change_context(Error::InvalidToken)?
     };
 
@@ -173,7 +170,7 @@ pub fn translate_to_interchain_transfer(
             (Uint256::from(drops), XRPLPaymentAmount::Drops(0u64))
         }
         XRPLPaymentAmount::Issued(token, token_amount) => {
-            let destination_decimals = state::load_token_instance_decimals(storage, destination_chain.clone(), token_id.clone())
+            let destination_decimals = state::load_token_instance_decimals(storage, destination_chain.clone(), token_id)
                 .change_context(Error::TokenNotRegisteredForChain {
                     token_id: token_id.to_owned(),
                     chain_name: destination_chain.to_owned(),
@@ -201,7 +198,7 @@ pub fn translate_to_interchain_transfer(
         destination_chain: user_message.clone().destination_chain.into(),
         message: interchain_token_service::Message::InterchainTransfer(
             interchain_token_service::InterchainTransfer {
-                token_id: token_id.clone(),
+                token_id,
                 source_address,
                 destination_address,
                 amount: amount.try_into().expect("amount cannot be zero"),
@@ -229,7 +226,7 @@ pub fn route_outgoing_messages(
     its_hub: Addr,
     its_hub_chain_name: &ChainName,
 ) -> Result<Response, Error> {
-    let msgs = check_for_duplicates(verified, its_hub_chain_name.into())?;
+    let msgs = check_for_duplicates(verified, its_hub_chain_name)?;
 
     for msg in msgs.iter() {
         if msg.source_address.to_string() != its_hub.to_string() {
@@ -428,14 +425,14 @@ pub fn register_token_instance(
         bail!(Error::ForbiddenChain(chain));
     }
 
-    match state::may_load_token_instance_decimals(storage, chain.clone(), token_id.clone())
+    match state::may_load_token_instance_decimals(storage, chain.clone(), token_id)
         .change_context(Error::State)?
     {
         Some(expected_decimals) => {
             ensure!(
                 decimals == expected_decimals,
                 Error::TokenDeployedDecimalsMismatch {
-                    token_id: token_id.clone(),
+                    token_id,
                     expected: expected_decimals,
                     actual: decimals,
                 }
@@ -490,13 +487,13 @@ pub fn link_token(
         XRPLTokenOrXrp::Xrp
     } else {
         let token = state::load_xrpl_token(storage, &token_id).change_context(Error::InvalidToken)?;
-        register_token_instance(storage, config, token_id.clone(), destination_chain.clone(), XRPL_ISSUED_TOKEN_DECIMALS)?;
+        register_token_instance(storage, config, token_id, destination_chain.clone(), XRPL_ISSUED_TOKEN_DECIMALS)?;
         XRPLTokenOrXrp::Issued(token)
     };
 
     let its_msg = interchain_token_service::Message::LinkToken(
         interchain_token_service::LinkToken {
-            token_id: token_id,
+            token_id,
             token_manager_type: link_token.token_manager_type,
             source_token_address: nonempty::HexBinary::try_from(xrpl_token.to_string().as_bytes().to_vec()).change_context(Error::InvalidToken)?,
             destination_token_address: link_token.destination_token_address,
@@ -533,11 +530,11 @@ pub fn deploy_remote_token(
         )
     };
 
-    register_token_instance(storage, config, token_id.clone(), destination_chain.clone(), destination_decimals)?;
+    register_token_instance(storage, config, token_id, destination_chain.clone(), destination_decimals)?;
 
     let its_msg = interchain_token_service::Message::DeployInterchainToken(
         interchain_token_service::DeployInterchainToken{
-            token_id: token_id.clone(),
+            token_id,
             name: token_metadata.name,
             symbol: token_metadata.symbol,
             decimals: destination_decimals,
@@ -598,7 +595,6 @@ fn group_by_first<K, V>(msgs_with_status: impl IntoIterator<Item = (K, V)>) -> V
 where K: Hash + Eq + Ord + Copy {
     msgs_with_status
         .into_iter()
-        .map(|(status, msg)| (status, msg))
         .into_group_map()
         .into_iter()
         // sort by verification status so the order of messages is deterministic

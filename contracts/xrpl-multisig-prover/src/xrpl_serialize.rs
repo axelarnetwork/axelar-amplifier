@@ -234,7 +234,7 @@ impl XRPLSerialize for XRPLPathSet {
     const TYPE_CODE: u8 = 18;
 
     fn xrpl_serialize(&self) -> Result<Vec<u8>, ContractError> {
-        if self.paths.len() == 0 {
+        if self.paths.is_empty() {
             return Err(ContractError::ZeroPaths);
         }
 
@@ -244,7 +244,7 @@ impl XRPLSerialize for XRPLPathSet {
 
         let mut result: Vec<u8> = Vec::new();
         for (i, path) in self.paths.iter().enumerate() {
-            if path.steps.len() == 0 {
+            if path.steps.is_empty() {
                 return Err(ContractError::ZeroPathSteps(path.to_owned()));
             }
 
@@ -415,7 +415,7 @@ impl TryInto<XRPLObject> for XRPLSignedTx {
         sorted_signers.sort_by(|a, b| {
             // the Signers array must be sorted based on the numeric value of the signer addresses
             // https://xrpl.org/multi-signing.html#sending-multi-signed-transactions
-            a.account.as_ref().cmp(&b.account.as_ref())
+            a.account.as_ref().cmp(b.account.as_ref())
         });
 
         let mut obj: XRPLObject = XRPLUnsignedTxToSign {
@@ -555,12 +555,10 @@ fn field_id(type_code: u8, field_code: u8) -> Vec<u8> {
         } else {
             vec![type_code << 4, field_code]
         }
+    } else if field_code < 16 {
+        vec![field_code, type_code]
     } else {
-        if field_code < 16 {
-            vec![field_code, type_code]
-        } else {
-            vec![0, type_code, field_code]
-        }
+        vec![0, type_code, field_code]
     }
 }
 

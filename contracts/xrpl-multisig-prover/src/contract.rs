@@ -1,6 +1,6 @@
 use axelar_wasm_std::{address, permission_control, FnExt};
 use error_stack::ResultExt;
-use cosmwasm_std::{entry_point, to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Reply, Response};
+use cosmwasm_std::{to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Reply, Response};
 use multisig::key::PublicKey;
 
 mod execute;
