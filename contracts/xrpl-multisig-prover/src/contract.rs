@@ -1,4 +1,6 @@
 use axelar_wasm_std::{address, permission_control, FnExt};
+#[cfg(not(feature = "library"))]
+use cosmwasm_std::entry_point;
 use cosmwasm_std::{to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Reply, Response};
 use error_stack::ResultExt;
 use multisig::key::PublicKey;
