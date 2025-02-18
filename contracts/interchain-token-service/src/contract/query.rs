@@ -21,7 +21,7 @@ pub fn its_chain(deps: Deps, chain: ChainNameRaw) -> Result<Binary, Error> {
         chain,
         its_edge_contract: config.its_address,
         truncation: msg::TruncationConfig {
-            max_uint: config.truncation.max_uint,
+            max_uint_bits: config.truncation.max_uint_bits,
             max_decimals_when_truncating: config.truncation.max_decimals_when_truncating,
         },
         frozen: config.frozen,
@@ -60,7 +60,7 @@ pub fn its_chains(
         chain,
         its_edge_contract: config.its_address,
         truncation: msg::TruncationConfig {
-            max_uint: config.truncation.max_uint,
+            max_uint_bits: config.truncation.max_uint_bits,
             max_decimals_when_truncating: config.truncation.max_decimals_when_truncating,
         },
         frozen: config.frozen,

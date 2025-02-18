@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use assert_ok::assert_ok;
 use cosmwasm_std::testing::{mock_dependencies, MockApi, MockQuerier, MockStorage};
-use cosmwasm_std::{from_json, Empty, OwnedDeps, Uint256};
+use cosmwasm_std::{from_json, Empty, OwnedDeps};
 use interchain_token_service::msg::{
     ChainConfigResponse, ChainFilter, ChainStatusFilter, QueryMsg, TruncationConfig,
     DEFAULT_PAGINATION_LIMIT,
@@ -28,8 +28,8 @@ impl ChainConfigTest {
             address: "0x1234567890123456789012345678901234567890"
                 .parse()
                 .unwrap(),
-            max_uint: Uint256::MAX.try_into().unwrap(),
-            max_decimals: u8::MAX,
+            max_uint_bits: 256.try_into().unwrap(),
+            max_decimals: 18,
         };
 
         let polygon = utils::ChainData {
@@ -37,8 +37,8 @@ impl ChainConfigTest {
             address: "0x1234567890123456789012345678901234567890"
                 .parse()
                 .unwrap(),
-            max_uint: Uint256::MAX.try_into().unwrap(),
-            max_decimals: u8::MAX,
+            max_uint_bits: 256.try_into().unwrap(),
+            max_decimals: 18,
         };
 
         let mut test_config = Self { deps, eth, polygon };
@@ -51,7 +51,7 @@ impl ChainConfigTest {
             self.deps.as_mut(),
             self.eth.chain.clone(),
             self.eth.address.clone(),
-            self.eth.max_uint,
+            self.eth.max_uint_bits.clone(),
             self.eth.max_decimals,
         )
         .unwrap();
@@ -60,7 +60,7 @@ impl ChainConfigTest {
             self.deps.as_mut(),
             self.polygon.chain.clone(),
             self.polygon.address.clone(),
-            self.polygon.max_uint,
+            self.polygon.max_uint_bits.clone(),
             self.polygon.max_decimals,
         )
         .unwrap();
@@ -75,7 +75,7 @@ fn query_chain_config() {
         chain: test_config.eth.chain.clone(),
         its_edge_contract: test_config.eth.address.clone(),
         truncation: TruncationConfig {
-            max_uint: test_config.eth.max_uint,
+            max_uint_bits: test_config.eth.max_uint_bits,
             max_decimals_when_truncating: test_config.eth.max_decimals,
         },
         frozen: false,
@@ -101,7 +101,7 @@ fn query_chain_config() {
         test_config.deps.as_mut(),
         test_config.eth.chain.clone(),
         new_address.clone(),
-        Uint256::MAX.try_into().unwrap(),
+        128.try_into().unwrap(),
         18,
     ));
 
@@ -146,7 +146,7 @@ fn query_all_its_contracts() {
             deps.as_mut(),
             chain.clone(),
             address.clone(),
-            Uint256::MAX.try_into().unwrap(),
+            256.try_into().unwrap(),
             u8::MAX,
         )
         .unwrap();
@@ -267,7 +267,7 @@ fn query_chains_pagination() {
             test_config.deps.as_mut(),
             chain_name.parse().unwrap(),
             address.parse().unwrap(),
-            test_config.eth.max_uint,
+            test_config.eth.max_uint_bits.clone(),
             test_config.eth.max_decimals,
         )
         .unwrap();

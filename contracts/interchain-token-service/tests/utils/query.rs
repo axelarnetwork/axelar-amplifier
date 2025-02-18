@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 
 use axelar_wasm_std::error::ContractError;
-use axelar_wasm_std::nonempty;
 use cosmwasm_std::testing::mock_env;
 use cosmwasm_std::{from_json, Deps};
 use interchain_token_service::contract::query;
 use interchain_token_service::msg::{ChainConfigResponse, ChainFilter, QueryMsg, TruncationConfig};
+use interchain_token_service::shared::NumBits;
 use interchain_token_service::{TokenConfig, TokenId, TokenInstance};
 use router_api::{Address, ChainNameRaw};
 
@@ -71,7 +71,7 @@ pub fn query_its_chains(
 pub struct ChainData {
     pub chain: ChainNameRaw,
     pub address: Address,
-    pub max_uint: nonempty::Uint256,
+    pub max_uint_bits: NumBits,
     pub max_decimals: u8,
 }
 
@@ -80,7 +80,7 @@ pub fn create_config_response(chain_data: &ChainData, frozen: bool) -> ChainConf
         chain: chain_data.chain.clone(),
         its_edge_contract: chain_data.address.clone(),
         truncation: TruncationConfig {
-            max_uint: chain_data.max_uint,
+            max_uint_bits: chain_data.max_uint_bits.clone(),
             max_decimals_when_truncating: chain_data.max_decimals,
         },
         frozen,

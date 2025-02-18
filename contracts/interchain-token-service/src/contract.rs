@@ -57,6 +57,8 @@ pub enum Error {
 pub fn migrate(deps: DepsMut, _env: Env, _msg: Empty) -> Result<Response, ContractError> {
     // Implement migration logic if needed
 
+    // TODO migrate max uint to max uint bits
+
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     Ok(Response::default())
