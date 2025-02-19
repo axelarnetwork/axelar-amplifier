@@ -65,6 +65,15 @@ impl Display for HexTxHash {
     }
 }
 
+impl From<HexTxHash> for nonempty::String {
+    fn from(msg_id: HexTxHash) -> Self {
+        msg_id
+            .to_string()
+            .try_into()
+            .expect("failed to convert msg id to non-empty string")
+    }
+}
+
 #[cfg(test)]
 mod tests {
 
