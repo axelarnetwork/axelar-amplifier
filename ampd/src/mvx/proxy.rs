@@ -58,7 +58,10 @@ impl MvxProxy for GatewayProxy {
     }
 
     fn is_valid_transaction(tx: &TransactionOnNetwork) -> bool {
-        tx.hash.is_some() && tx.logs.is_some() && tx.status == *STATUS_SUCCESS
+        tx.hash.is_some()
+            && tx.logs.is_some()
+            && tx.status == *STATUS_SUCCESS
+            && tx.notarized_at_source_in_meta_nonce.is_some()
     }
 }
 
@@ -110,6 +113,25 @@ mod tests {
     }
 
     #[test]
+    fn should_not_be_valid_transaction_invalid_notarized_at_source_in_meta_nonce() {
+        let tx = TransactionOnNetwork {
+            hash: Some("txHash".into()),
+            logs: Some(ApiLogs {
+                address: Address::from_bech32_string(
+                    "erd1qqqqqqqqqqqqqpgqhe8t5jewej70zupmh44jurgn29psua5l2jps3ntjj3",
+                )
+                    .unwrap(),
+                events: vec![],
+            }),
+            status: "success".into(),
+            notarized_at_source_in_meta_nonce: None,
+            ..TransactionOnNetwork::default()
+        };
+
+        assert!(!GatewayProxy::is_valid_transaction(&tx));
+    }
+
+    #[test]
     fn should_be_valid_transaction() {
         let tx = TransactionOnNetwork {
             hash: Some("txHash".into()),
@@ -121,6 +143,7 @@ mod tests {
                 events: vec![],
             }),
             status: "success".into(),
+            notarized_at_source_in_meta_nonce: Some(1),
             ..TransactionOnNetwork::default()
         };
 
