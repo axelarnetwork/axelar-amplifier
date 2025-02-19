@@ -7,7 +7,6 @@ use axelar_wasm_std::voting::{PollId, Vote};
 use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmrs::tx::Msg;
 use cosmrs::Any;
-use cosmwasm_std::HexBinary;
 use error_stack::ResultExt;
 use events::Error::EventTypeMismatch;
 use events_derive::try_from;
@@ -91,30 +90,12 @@ where
         .filter_map(std::result::Result::unwrap_or_default)
         .filter_map(|tx_res| {
             let tx_common = tx_res.tx.common();
-            let (ledger_index, tx_hash) = (tx_common.ledger_index, tx_common.hash.clone());
+            let (ledger_index, tx_hash) = (tx_common.ledger_index?, tx_common.hash.clone()?);
 
-            (|| -> Result<_> {
-                Ok(
-                    if ledger_index
-                        .unwrap_or(u32::MAX)
-                        .le(&latest_validated_ledger_index)
-                        && tx_hash.is_some()
-                    {
-                        let tx_hash = TxHash::try_from(
-                            HexBinary::from_hex(tx_hash.unwrap().as_str()).map_err(Error::from)?,
-                        )
-                        .ok();
-                        if let Some(tx_hash) = tx_hash {
-                            Some((tx_hash, tx_res.tx))
-                        } else {
-                            None
-                        }
-                    } else {
-                        None
-                    },
-                )
-            })()
-            .unwrap_or(None)
+            if ledger_index.ge(&latest_validated_ledger_index) {
+                return None;
+            }
+            Some((TxHash::try_from(tx_hash).ok()?, tx_res.tx))
         })
         .collect())
     }
