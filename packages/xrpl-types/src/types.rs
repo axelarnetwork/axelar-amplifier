@@ -132,6 +132,7 @@ impl From<TxHash> for HexBinary {
         HexBinary::from(hash.0)
     }
 }
+
 impl TryFrom<HexBinary> for TxHash {
     type Error = XRPLError;
 
@@ -169,6 +170,14 @@ impl KeyDeserialize for TxHash {
     fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
         let inner = <[u8; XRPL_TX_HASH_LENGTH]>::from_vec(value)?;
         Ok(TxHash(inner))
+    }
+}
+
+impl TryFrom<String> for TxHash {
+    type Error = XRPLError;
+
+    fn try_from(tx_hash: String) -> Result<Self, XRPLError> {
+        TxHash::try_from(HexBinary::from_hex(tx_hash.as_str())?)
     }
 }
 
