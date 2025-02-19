@@ -145,7 +145,12 @@ impl XRPLSerialize for HexBinary {
     fn xrpl_serialize(&self) -> Result<Vec<u8>, ContractError> {
         let len_encoded = encode_length(self.len())?;
         let contents = self.to_vec();
-        let mut result = Vec::with_capacity(len_encoded.len() + contents.len());
+        let mut result = Vec::with_capacity(
+            len_encoded
+                .len()
+                .checked_add(contents.len())
+                .ok_or(ContractError::Overflow)?,
+        );
         result.extend(len_encoded);
         result.extend(contents);
         Ok(result)
@@ -156,16 +161,25 @@ impl XRPLSerialize for HexBinary {
 // may error if length too big
 fn encode_length(mut length: usize) -> Result<Vec<u8>, ContractError> {
     if length <= 192 {
-        Ok(vec![length as u8])
-    } else if length <= 12480 {
-        length -= 193;
-        Ok(vec![193 + (length >> 8) as u8, (length & 0xff) as u8])
-    } else if length <= 918744 {
-        length -= 12481;
         Ok(vec![
-            241 + (length >> 16) as u8,
-            ((length >> 8) & 0xff) as u8,
-            (length & 0xff) as u8,
+            u8::try_from(length).map_err(|_| ContractError::Overflow)?
+        ])
+    } else if length <= 12480 {
+        length = length.saturating_sub(193);
+        Ok(vec![
+            193u8
+                .checked_add(u8::try_from(length >> 8).map_err(|_| ContractError::Overflow)?)
+                .ok_or(ContractError::Overflow)?,
+            u8::try_from(length & 0xff).map_err(|_| ContractError::Overflow)?,
+        ])
+    } else if length <= 918744 {
+        length = length.saturating_sub(12481);
+        Ok(vec![
+            241u8
+                .checked_add(u8::try_from(length >> 16).map_err(|_| ContractError::Overflow)?)
+                .ok_or(ContractError::Overflow)?,
+            u8::try_from((length >> 8) & 0xff).map_err(|_| ContractError::Overflow)?,
+            u8::try_from(length & 0xff).map_err(|_| ContractError::Overflow)?,
         ])
     } else {
         Err(ContractError::InvalidBlobLength)
@@ -272,7 +286,7 @@ impl XRPLSerialize for XRPLPathSet {
                     result.extend(second_value);
                 }
             }
-            if i != self.paths.len() - 1 {
+            if i != self.paths.len().saturating_sub(1) {
                 result.extend(vec![0xff]); // "continue"
             } else {
                 result.extend(vec![0x00]); // "end"

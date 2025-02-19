@@ -287,7 +287,11 @@ pub fn construct_payment_proof(
                             |current_dust| -> Result<_, ContractError> {
                                 match current_dust {
                                     Some(DustAmount::Remote(current_dust)) => {
-                                        Ok(DustAmount::Remote(current_dust + dust))
+                                        Ok(DustAmount::Remote(
+                                            current_dust
+                                                .checked_add(dust)
+                                                .map_err(|_| ContractError::Overflow)?,
+                                        ))
                                     }
                                     Some(DustAmount::Local(_)) => {
                                         Err(ContractError::DustAmountNotRemote)

@@ -97,11 +97,7 @@ pub fn is_successful_tx(tx: &Transaction) -> bool {
 }
 
 fn remove_0x_prefix(s: String) -> String {
-    if s.starts_with("0x") {
-        s[2..].to_string()
-    } else {
-        s
-    }
+    s.strip_prefix("0x").unwrap_or(&s).to_string()
 }
 
 pub fn verify_amount(amount: Amount, message: &XRPLUserMessage) -> bool {

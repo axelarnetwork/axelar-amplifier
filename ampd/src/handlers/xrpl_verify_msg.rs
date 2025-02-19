@@ -110,10 +110,10 @@ where
                             HexBinary::from_hex(tx_hash.unwrap().as_str()).map_err(Error::from)?,
                         )
                         .ok();
-                        if tx_hash.is_none() {
-                            None
+                        if let Some(tx_hash) = tx_hash {
+                            Some((tx_hash, tx_res.tx))
                         } else {
-                            Some((tx_hash.unwrap(), tx_res.tx))
+                            None
                         }
                     } else {
                         None

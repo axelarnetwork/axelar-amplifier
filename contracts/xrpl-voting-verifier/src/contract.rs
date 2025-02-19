@@ -218,7 +218,9 @@ mod test {
                     )
                     .unwrap(),
                     payload_hash: None,
-                    amount: XRPLPaymentAmount::Drops(u64::from(i) * 1_000_000),
+                    amount: XRPLPaymentAmount::Drops(
+                        u64::from(i).checked_mul(1_000_000).expect("overflow"),
+                    ),
                 })
             })
             .collect()
@@ -617,7 +619,7 @@ mod test {
 
             // check status corresponds to votes
             let statuses: Vec<MessageStatus> = from_json(
-                &query(
+                query(
                     deps.as_ref(),
                     mock_env(),
                     QueryMsg::MessagesStatus(messages.clone()),

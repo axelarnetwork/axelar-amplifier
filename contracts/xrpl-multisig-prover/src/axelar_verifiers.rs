@@ -84,12 +84,16 @@ const MAX_NUM_XRPL_MULTISIG_SIGNERS: usize = 32;
 fn mul_ceil(value: u64, numerator: u64, denominator: u64) -> u64 {
     assert!(denominator > 0, "denominator must be non-zero");
 
-    let dividend = value * numerator;
-    let floor_result = dividend / denominator;
-    let remainder = dividend % denominator;
+    let dividend = value
+        .checked_mul(numerator)
+        .expect("Multiplication overflow");
+    let floor_result = dividend.checked_div(denominator).expect("Division by zero");
+    let remainder = dividend
+        .checked_rem(denominator)
+        .expect("Denominator must be non-zero");
 
     if remainder > 0 {
-        floor_result + 1
+        floor_result.checked_add(1).unwrap()
     } else {
         floor_result
     }

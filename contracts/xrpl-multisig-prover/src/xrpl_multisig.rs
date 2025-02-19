@@ -148,7 +148,12 @@ pub fn confirm_prover_message(
         .sequence_number_increment(new_status.clone());
 
     if sequence_number_increment > 0 && tx_sequence_number == NEXT_SEQUENCE_NUMBER.load(storage)? {
-        NEXT_SEQUENCE_NUMBER.save(storage, &(tx_sequence_number + sequence_number_increment))?;
+        NEXT_SEQUENCE_NUMBER.save(
+            storage,
+            &(tx_sequence_number
+                .checked_add(sequence_number_increment)
+                .ok_or(ContractError::Overflow)?),
+        )?;
     }
 
     if new_status == XRPLTxStatus::Succeeded || new_status == XRPLTxStatus::FailedOnChain {
@@ -170,7 +175,13 @@ pub fn confirm_prover_message(
         XRPLUnsignedTx::TicketCreate(tx) => {
             mark_tickets_available(
                 storage,
-                (tx_sequence_number + 1)..(tx_sequence_number + tx.ticket_count + 1),
+                tx_sequence_number
+                    .checked_add(1)
+                    .ok_or(ContractError::Overflow)?
+                    ..tx_sequence_number
+                        .checked_add(tx.ticket_count)
+                        .and_then(|sum| sum.checked_add(1))
+                        .ok_or(ContractError::Overflow)?,
             )?;
             None
         }
@@ -272,7 +283,9 @@ pub fn num_of_tickets_to_create(storage: &mut dyn Storage) -> Result<u32, Contra
     let available_ticket_count =
         u32::try_from(available_tickets.len()).expect("ticket count overflow");
     assert!(available_ticket_count <= MAX_TICKET_COUNT);
-    Ok(MAX_TICKET_COUNT - available_ticket_count)
+    MAX_TICKET_COUNT
+        .checked_sub(available_ticket_count)
+        .ok_or(ContractError::Overflow)
 }
 
 fn next_sequence_number(storage: &dyn Storage) -> Result<u32, ContractError> {
