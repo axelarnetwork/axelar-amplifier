@@ -15,7 +15,7 @@ pub enum QueryMsg {
     IsChainRegistered { chain: String },
 }
 
-#[derive(Clone, Debug, PartialEq, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct TxHashAndNonceResponse {
     pub tx_hash: [u8; 32],
     pub nonce: u64,
