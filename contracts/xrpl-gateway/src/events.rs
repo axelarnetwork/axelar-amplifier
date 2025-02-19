@@ -22,11 +22,21 @@ impl From<XRPLGatewayEvent> for Event {
     fn from(other: XRPLGatewayEvent) -> Self {
         match other {
             XRPLGatewayEvent::Verifying { msg } => make_message_event("verifying", msg),
-            XRPLGatewayEvent::AlreadyVerified { msg } => make_message_event("already_verified", msg),
-            XRPLGatewayEvent::AlreadyRejected { msg } => make_message_event("already_rejected", msg),
-            XRPLGatewayEvent::RoutingIncoming { msg } => make_message_event("routing_incoming", msg),
-            XRPLGatewayEvent::RoutingOutgoing { msg } => make_message_event("routing_outgoing", msg),
-            XRPLGatewayEvent::UnfitForRouting { msg } => make_message_event("unfit_for_routing", msg),
+            XRPLGatewayEvent::AlreadyVerified { msg } => {
+                make_message_event("already_verified", msg)
+            }
+            XRPLGatewayEvent::AlreadyRejected { msg } => {
+                make_message_event("already_rejected", msg)
+            }
+            XRPLGatewayEvent::RoutingIncoming { msg } => {
+                make_message_event("routing_incoming", msg)
+            }
+            XRPLGatewayEvent::RoutingOutgoing { msg } => {
+                make_message_event("routing_outgoing", msg)
+            }
+            XRPLGatewayEvent::UnfitForRouting { msg } => {
+                make_message_event("unfit_for_routing", msg)
+            }
             XRPLGatewayEvent::ContractCalled { msg, payload } => {
                 make_message_event("contract_called", msg)
                     .add_attribute("payload", payload.to_string())

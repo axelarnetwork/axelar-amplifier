@@ -1,14 +1,18 @@
 use std::str::FromStr;
 
 use axelar_wasm_std::nonempty;
-use router_api::{Address, CrossChainId, Message};
 use cosmwasm_std::testing::MockApi;
 use cosmwasm_std::{HexBinary, Uint128, Uint256};
-use integration_tests::contract::Contract;
-use xrpl_types::msg::{WithPayload, CrossChainMessage, XRPLMessage, XRPLProverMessage, XRPLUserMessage};
-use xrpl_types::types::{hash_signed_tx, TxHash, XRPLAccountId, XRPLCurrency, XRPLPaymentAmount, XRPLToken};
-use interchain_token_service;
 use ethers_core::utils::keccak256;
+use integration_tests::contract::Contract;
+use interchain_token_service;
+use router_api::{Address, CrossChainId, Message};
+use xrpl_types::msg::{
+    CrossChainMessage, WithPayload, XRPLMessage, XRPLProverMessage, XRPLUserMessage,
+};
+use xrpl_types::types::{
+    hash_signed_tx, TxHash, XRPLAccountId, XRPLCurrency, XRPLPaymentAmount, XRPLToken,
+};
 
 use crate::test_utils::AXL_DENOMINATION;
 
@@ -139,11 +143,7 @@ fn xrpl_ticket_create_can_be_proven() {
         &verifiers,
     );
 
-    let proof = test_utils::xrpl_proof(
-        &mut protocol.app,
-        &xrpl.multisig_prover,
-        &session_id,
-    );
+    let proof = test_utils::xrpl_proof(&mut protocol.app, &xrpl.multisig_prover, &session_id);
     assert!(matches!(
         proof.status,
         xrpl_multisig_prover::msg::ProofStatus::Completed { .. }
@@ -154,7 +154,7 @@ fn xrpl_ticket_create_can_be_proven() {
         xrpl_multisig_prover::msg::ProofStatus::Completed { execute_data } => {
             hash_signed_tx(execute_data.as_slice()).unwrap()
         }
-        _ => unreachable!()
+        _ => unreachable!(),
     };
 
     let prover_message = XRPLProverMessage {
@@ -164,11 +164,8 @@ fn xrpl_ticket_create_can_be_proven() {
 
     let proof_msgs = vec![XRPLMessage::ProverMessage(prover_message.clone())];
 
-    let (poll_id, expiry) = test_utils::verify_xrpl_messages(
-        &mut protocol.app,
-        &xrpl.gateway,
-        &proof_msgs,
-    );
+    let (poll_id, expiry) =
+        test_utils::verify_xrpl_messages(&mut protocol.app, &xrpl.gateway, &proof_msgs);
     test_utils::vote_success(
         &mut protocol.app,
         &xrpl.voting_verifier,
@@ -209,12 +206,8 @@ fn xrpl_trust_line_can_be_proven() {
         xrpl_token.clone(),
     );
 
-    let token_id = test_utils::linked_token_id(
-        &mut protocol.app,
-        &xrpl.gateway,
-        xrpl.admin.clone(),
-        salt,
-    );
+    let token_id =
+        test_utils::linked_token_id(&mut protocol.app, &xrpl.gateway, xrpl.admin.clone(), salt);
 
     /* Create trust line */
     let session_id = test_utils::construct_xrpl_trust_set_proof_and_sign(
@@ -227,11 +220,7 @@ fn xrpl_trust_line_can_be_proven() {
 
     // TODO: deduplicate all next steps with TicketCreate
 
-    let proof = test_utils::xrpl_proof(
-        &mut protocol.app,
-        &xrpl.multisig_prover,
-        &session_id,
-    );
+    let proof = test_utils::xrpl_proof(&mut protocol.app, &xrpl.multisig_prover, &session_id);
     assert!(matches!(
         proof.status,
         xrpl_multisig_prover::msg::ProofStatus::Completed { .. }
@@ -242,7 +231,7 @@ fn xrpl_trust_line_can_be_proven() {
         xrpl_multisig_prover::msg::ProofStatus::Completed { execute_data } => {
             hash_signed_tx(execute_data.as_slice()).unwrap()
         }
-        _ => unreachable!()
+        _ => unreachable!(),
     };
 
     let prover_message = XRPLProverMessage {
@@ -252,11 +241,8 @@ fn xrpl_trust_line_can_be_proven() {
 
     let proof_msgs = vec![XRPLMessage::ProverMessage(prover_message.clone())];
 
-    let (poll_id, expiry) = test_utils::verify_xrpl_messages(
-        &mut protocol.app,
-        &xrpl.gateway,
-        &proof_msgs,
-    );
+    let (poll_id, expiry) =
+        test_utils::verify_xrpl_messages(&mut protocol.app, &xrpl.gateway, &proof_msgs);
     test_utils::vote_success(
         &mut protocol.app,
         &xrpl.voting_verifier,
@@ -274,7 +260,6 @@ fn xrpl_trust_line_can_be_proven() {
     );
 }
 
-
 #[test]
 fn payment_from_xrpl_can_be_verified_and_routed_and_proven() {
     let test_utils::XRPLSourceTestCase {
@@ -287,8 +272,12 @@ fn payment_from_xrpl_can_be_verified_and_routed_and_proven() {
         ..
     } = test_utils::setup_xrpl_source_test_case();
 
-    let source_address: XRPLAccountId = XRPLAccountId::from_str("raNVNWvhUQzFkDDTdEw3roXRJfMJFVJuQo").unwrap();
-    let destination_address: nonempty::HexBinary = nonempty::HexBinary::try_from(HexBinary::from_hex("95181d16cfb23Bc493668C17d973F061e30F2EAF").unwrap()).unwrap();
+    let source_address: XRPLAccountId =
+        XRPLAccountId::from_str("raNVNWvhUQzFkDDTdEw3roXRJfMJFVJuQo").unwrap();
+    let destination_address: nonempty::HexBinary = nonempty::HexBinary::try_from(
+        HexBinary::from_hex("95181d16cfb23Bc493668C17d973F061e30F2EAF").unwrap(),
+    )
+    .unwrap();
 
     let destination_chain_name = destination_chain.chain_name.clone();
     let amount = XRPLPaymentAmount::Drops(1000000); // 1 XRP
@@ -305,26 +294,27 @@ fn payment_from_xrpl_can_be_verified_and_routed_and_proven() {
 
     let xrpl_msg = XRPLMessage::UserMessage(xrpl_user_msg.clone());
 
-    let xrpl_msg_with_payload = WithPayload::new(
-        xrpl_user_msg,
-        payload.clone(),
-    );
+    let xrpl_msg_with_payload = WithPayload::new(xrpl_user_msg, payload.clone());
 
     let interchain_transfer_msg = interchain_token_service::Message::InterchainTransfer(
         interchain_token_service::InterchainTransfer {
             token_id: xrpl.xrp_token_id,
-            source_address: nonempty::HexBinary::try_from(HexBinary::from(source_address.as_bytes())).unwrap(),
+            source_address: nonempty::HexBinary::try_from(HexBinary::from(
+                source_address.as_bytes(),
+            ))
+            .unwrap(),
             destination_address,
             // amount: nonempty::Uint256::try_from(1000000000000000000u64).unwrap(),
             amount: nonempty::Uint256::try_from(1000000u64).unwrap(), // 1 XRP
             data: payload,
-        }
+        },
     );
 
     let wrapped_payload = interchain_token_service::HubMessage::SendToHub {
         message: interchain_transfer_msg.clone(),
         destination_chain: destination_chain_name.clone().into(),
-    }.abi_encode();
+    }
+    .abi_encode();
 
     let wrapped_msg = Message {
         cc_id: CrossChainId {
@@ -363,13 +353,22 @@ fn payment_from_xrpl_can_be_verified_and_routed_and_proven() {
     test_utils::end_poll(&mut protocol.app, &xrpl.voting_verifier, poll_id);
 
     // should be verified, now route
-    test_utils::xrpl_route_incoming_messages(&mut protocol.app, &xrpl.gateway, &xrpl_msgs_with_payload);
+    test_utils::xrpl_route_incoming_messages(
+        &mut protocol.app,
+        &xrpl.gateway,
+        &xrpl_msgs_with_payload,
+    );
 
     // check that the message can be found at the outgoing gateway
-    let executable_msgs =
-        test_utils::executable_messages_from_axelarnet_gateway(&mut protocol.app, &axelarnet.gateway, &xrpl_msg_ids);
+    let executable_msgs = test_utils::executable_messages_from_axelarnet_gateway(
+        &mut protocol.app,
+        &axelarnet.gateway,
+        &xrpl_msg_ids,
+    );
     assert_eq!(executable_msgs.len(), 1);
-    if let axelarnet_gateway::ExecutableMessage::Approved(approved_msg) = executable_msgs.first().unwrap() {
+    if let axelarnet_gateway::ExecutableMessage::Approved(approved_msg) =
+        executable_msgs.first().unwrap()
+    {
         assert_eq!(*approved_msg, wrapped_msg)
     } else {
         unreachable!()
@@ -388,14 +387,21 @@ fn payment_from_xrpl_can_be_verified_and_routed_and_proven() {
         wrapped_msgs.clone(),
     );
 
-    let its_hub_msg_ids = vec![CrossChainId::new(axelarnet.chain_name.clone(), its_hub_msg_id).unwrap()];
-    let routable_msgs =
-        test_utils::routable_messages_from_axelarnet_gateway(&mut protocol.app, &axelarnet.gateway, &its_hub_msg_ids);
+    let its_hub_msg_ids =
+        vec![CrossChainId::new(axelarnet.chain_name.clone(), its_hub_msg_id).unwrap()];
+    let routable_msgs = test_utils::routable_messages_from_axelarnet_gateway(
+        &mut protocol.app,
+        &axelarnet.gateway,
+        &its_hub_msg_ids,
+    );
     assert_eq!(routable_msgs.len(), 1);
 
     // check that the message can be found at the outgoing gateway
-    let found_msgs =
-        test_utils::messages_from_gateway(&mut protocol.app, &destination_chain.gateway, &its_hub_msg_ids);
+    let found_msgs = test_utils::messages_from_gateway(
+        &mut protocol.app,
+        &destination_chain.gateway,
+        &its_hub_msg_ids,
+    );
     assert_eq!(found_msgs, routable_msgs);
 
     // trigger signing and submit all necessary signatures
@@ -406,7 +412,11 @@ fn payment_from_xrpl_can_be_verified_and_routed_and_proven() {
         &verifiers,
     );
 
-    let proof = test_utils::proof(&mut protocol.app, &destination_chain.multisig_prover, &session_id);
+    let proof = test_utils::proof(
+        &mut protocol.app,
+        &destination_chain.multisig_prover,
+        &session_id,
+    );
 
     // proof should be complete by now
     assert!(matches!(
@@ -428,7 +438,11 @@ fn payment_from_xrpl_can_be_verified_and_routed_and_proven() {
     );
 
     let protocol_multisig_address = protocol.multisig.contract_addr.clone();
-    test_utils::distribute_rewards(&mut protocol, &destination_chain_name, protocol_multisig_address);
+    test_utils::distribute_rewards(
+        &mut protocol,
+        &destination_chain_name,
+        protocol_multisig_address,
+    );
 
     // rewards split evenly amongst all verifiers, but there are two contracts that rewards should have been distributed for
     let expected_rewards = Uint128::from(protocol.rewards_params.rewards_per_epoch)
@@ -471,7 +485,8 @@ fn payment_towards_xrpl_can_be_verified_and_routed_and_proven() {
         .try_into()
         .unwrap();
 
-    let destination_address: XRPLAccountId = XRPLAccountId::from_str("raNVNWvhUQzFkDDTdEw3roXRJfMJFVJuQo").unwrap();
+    let destination_address: XRPLAccountId =
+        XRPLAccountId::from_str("raNVNWvhUQzFkDDTdEw3roXRJfMJFVJuQo").unwrap();
 
     let destination_chain = xrpl.chain_name.clone();
     // let amount = nonempty::Uint256::try_from(1000000000000000000u64).unwrap(); // 1 wrapped-XRP
@@ -481,8 +496,14 @@ fn payment_towards_xrpl_can_be_verified_and_routed_and_proven() {
     let interchain_transfer_msg = interchain_token_service::Message::InterchainTransfer(
         interchain_token_service::InterchainTransfer {
             token_id: xrpl.xrp_token_id,
-            source_address: nonempty::HexBinary::try_from(HexBinary::from(source_address.as_bytes())).unwrap(),
-            destination_address: nonempty::HexBinary::try_from(HexBinary::from(destination_address.as_bytes())).unwrap(),
+            source_address: nonempty::HexBinary::try_from(HexBinary::from(
+                source_address.as_bytes(),
+            ))
+            .unwrap(),
+            destination_address: nonempty::HexBinary::try_from(HexBinary::from(
+                destination_address.as_bytes(),
+            ))
+            .unwrap(),
             amount,
             data: payload,
         },
@@ -491,7 +512,8 @@ fn payment_towards_xrpl_can_be_verified_and_routed_and_proven() {
     let wrapped_payload = interchain_token_service::HubMessage::SendToHub {
         message: interchain_transfer_msg.clone(),
         destination_chain: destination_chain.into(),
-    }.abi_encode();
+    }
+    .abi_encode();
 
     let wrapped_msg = Message {
         cc_id: CrossChainId {
@@ -531,10 +553,15 @@ fn payment_towards_xrpl_can_be_verified_and_routed_and_proven() {
     test_utils::route_messages(&mut protocol.app, &source_chain.gateway, &wrapped_msgs);
 
     // check that the message can be found at the outgoing gateway
-    let executable_msgs =
-        test_utils::executable_messages_from_axelarnet_gateway(&mut protocol.app, &axelarnet.gateway, &wrapped_msg_ids);
+    let executable_msgs = test_utils::executable_messages_from_axelarnet_gateway(
+        &mut protocol.app,
+        &axelarnet.gateway,
+        &wrapped_msg_ids,
+    );
     assert_eq!(executable_msgs.len(), 1);
-    if let axelarnet_gateway::ExecutableMessage::Approved(approved_msg) = executable_msgs.first().unwrap() {
+    if let axelarnet_gateway::ExecutableMessage::Approved(approved_msg) =
+        executable_msgs.first().unwrap()
+    {
         assert_eq!(*approved_msg, wrapped_msg)
     } else {
         unreachable!()
@@ -553,9 +580,13 @@ fn payment_towards_xrpl_can_be_verified_and_routed_and_proven() {
         wrapped_msgs.clone(),
     );
 
-    let its_hub_msg_ids = vec![CrossChainId::new(axelarnet.chain_name.clone(), its_hub_msg_id).unwrap()];
-    let routable_msgs =
-        test_utils::routable_messages_from_axelarnet_gateway(&mut protocol.app, &axelarnet.gateway, &its_hub_msg_ids);
+    let its_hub_msg_ids =
+        vec![CrossChainId::new(axelarnet.chain_name.clone(), its_hub_msg_id).unwrap()];
+    let routable_msgs = test_utils::routable_messages_from_axelarnet_gateway(
+        &mut protocol.app,
+        &axelarnet.gateway,
+        &its_hub_msg_ids,
+    );
     assert_eq!(routable_msgs.len(), 1);
 
     // check that the message can be found at the outgoing gateway
@@ -572,14 +603,11 @@ fn payment_towards_xrpl_can_be_verified_and_routed_and_proven() {
         interchain_token_service::HubMessage::ReceiveFromHub {
             source_chain: source_chain.chain_name.clone().into(),
             message: interchain_transfer_msg,
-        }.abi_encode(),
+        }
+        .abi_encode(),
     );
 
-    let proof = test_utils::xrpl_proof(
-        &mut protocol.app,
-        &xrpl.multisig_prover,
-        &session_id,
-    );
+    let proof = test_utils::xrpl_proof(&mut protocol.app, &xrpl.multisig_prover, &session_id);
     println!("Payment proof: {:?}", proof);
     assert!(matches!(
         proof.status,
@@ -590,7 +618,7 @@ fn payment_towards_xrpl_can_be_verified_and_routed_and_proven() {
         xrpl_multisig_prover::msg::ProofStatus::Completed { execute_data } => {
             hash_signed_tx(execute_data.as_slice()).unwrap()
         }
-        _ => unreachable!()
+        _ => unreachable!(),
     };
 
     let proof_msgs = vec![XRPLMessage::ProverMessage(XRPLProverMessage {
@@ -598,11 +626,8 @@ fn payment_towards_xrpl_can_be_verified_and_routed_and_proven() {
         unsigned_tx_hash: proof.unsigned_tx_hash.clone(),
     })];
 
-    let (poll_id, expiry) = test_utils::verify_xrpl_messages(
-        &mut protocol.app,
-        &xrpl.gateway,
-        &proof_msgs
-    );
+    let (poll_id, expiry) =
+        test_utils::verify_xrpl_messages(&mut protocol.app, &xrpl.gateway, &proof_msgs);
     test_utils::vote_success(
         &mut protocol.app,
         &xrpl.voting_verifier,
@@ -628,11 +653,23 @@ fn payment_towards_xrpl_can_be_verified_and_routed_and_proven() {
         u64::from(protocol.rewards_params.epoch_duration) * 2,
     );
 
-    test_utils::distribute_rewards(&mut protocol, &xrpl.chain_name, xrpl.voting_verifier.contract_addr.clone());
-    test_utils::distribute_rewards(&mut protocol, &source_chain.chain_name, source_chain.voting_verifier.contract_addr.clone());
+    test_utils::distribute_rewards(
+        &mut protocol,
+        &xrpl.chain_name,
+        xrpl.voting_verifier.contract_addr.clone(),
+    );
+    test_utils::distribute_rewards(
+        &mut protocol,
+        &source_chain.chain_name,
+        source_chain.voting_verifier.contract_addr.clone(),
+    );
 
     let protocol_multisig_address = protocol.multisig.contract_addr.clone();
-    test_utils::distribute_rewards(&mut protocol, &source_chain.chain_name, protocol_multisig_address);
+    test_utils::distribute_rewards(
+        &mut protocol,
+        &source_chain.chain_name,
+        protocol_multisig_address,
+    );
 
     // rewards split evenly amongst all workers, but there are two contracts that rewards should have been distributed for
     let expected_rewards = Uint128::from(protocol.rewards_params.rewards_per_epoch)
@@ -648,7 +685,6 @@ fn payment_towards_xrpl_can_be_verified_and_routed_and_proven() {
         assert_eq!(balance.amount, expected_rewards);
     }
 }
-
 
 #[test]
 fn routing_to_incorrect_gateway_interface() {

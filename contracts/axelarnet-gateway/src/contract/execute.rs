@@ -160,11 +160,7 @@ pub fn route_messages(
         })
 }
 
-pub fn execute(
-    deps: DepsMut,
-    cc_id: CrossChainId,
-    payload: HexBinary,
-) -> Result<Response> {
+pub fn execute(deps: DepsMut, cc_id: CrossChainId, payload: HexBinary) -> Result<Response> {
     let payload_hash: [u8; 32] = Keccak256::digest(payload.as_slice()).into();
     let msg = state::mark_as_executed(
         deps.storage,
@@ -254,10 +250,7 @@ fn prepare_for_execution(
 }
 
 /// Route messages to the router, ignore unknown messages.
-fn route_to_router(
-    router: &Router,
-    msgs: Vec<Message>,
-) -> Result<CosmosMsgWithEvent> {
+fn route_to_router(router: &Router, msgs: Vec<Message>) -> Result<CosmosMsgWithEvent> {
     Ok((
         router.route(msgs.clone()).into_iter().collect(),
         msgs.into_iter()

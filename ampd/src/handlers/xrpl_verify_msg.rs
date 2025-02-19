@@ -3,24 +3,23 @@ use std::convert::TryInto;
 
 use async_trait::async_trait;
 use axelar_wasm_std::msg_id::HexTxHash;
+use axelar_wasm_std::voting::{PollId, Vote};
 use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmrs::tx::Msg;
 use cosmrs::Any;
 use cosmwasm_std::HexBinary;
 use error_stack::ResultExt;
+use events::Error::EventTypeMismatch;
+use events_derive::try_from;
 use futures::future::join_all;
 use serde::Deserialize;
-use axelar_wasm_std::voting::{PollId, Vote};
 use tokio::sync::watch::Receiver;
-use valuable::Valuable;
-
-use events_derive::try_from;
-use voting_verifier::msg::ExecuteMsg;
-use events::Error::EventTypeMismatch;
 use tracing::{info, info_span};
+use valuable::Valuable;
+use voting_verifier::msg::ExecuteMsg;
 use xrpl_http_client::Transaction;
 use xrpl_types::msg::XRPLMessage;
-use xrpl_types::types::{TxHash, XRPLAccountId, xrpl_account_id_string};
+use xrpl_types::types::{xrpl_account_id_string, TxHash, XRPLAccountId};
 
 use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error;
@@ -101,21 +100,27 @@ where
             let (ledger_index, tx_hash) = (tx_common.ledger_index, tx_common.hash.clone());
 
             (|| -> Result<_> {
-                Ok(if ledger_index
-                    .unwrap_or(u32::MAX)
-                    .le(&latest_validated_ledger_index)
-                    && tx_hash.is_some()
-                {
-                    let tx_hash = TxHash::try_from(HexBinary::from_hex(tx_hash.unwrap().as_str()).map_err(Error::from)?).ok();
-                    if tx_hash.is_none() {
-                        None
+                Ok(
+                    if ledger_index
+                        .unwrap_or(u32::MAX)
+                        .le(&latest_validated_ledger_index)
+                        && tx_hash.is_some()
+                    {
+                        let tx_hash = TxHash::try_from(
+                            HexBinary::from_hex(tx_hash.unwrap().as_str()).map_err(Error::from)?,
+                        )
+                        .ok();
+                        if tx_hash.is_none() {
+                            None
+                        } else {
+                            Some((tx_hash.unwrap(), tx_res.tx))
+                        }
                     } else {
-                        Some((tx_hash.unwrap(), tx_res.tx))
-                    }
-                } else {
-                    None
-                })
-            })().unwrap_or(None)
+                        None
+                    },
+                )
+            })()
+            .unwrap_or(None)
         })
         .collect())
     }
@@ -168,9 +173,7 @@ where
         }
 
         let tx_ids: HashSet<_> = messages.iter().map(|message| message.tx_id()).collect();
-        let validated_txs = self
-            .validated_txs(tx_ids, confirmation_height)
-            .await?;
+        let validated_txs = self.validated_txs(tx_ids, confirmation_height).await?;
 
         let poll_id_str: String = poll_id.into();
         let message_ids = messages

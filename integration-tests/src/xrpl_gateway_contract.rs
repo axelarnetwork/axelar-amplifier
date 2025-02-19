@@ -3,7 +3,8 @@ use cw_multi_test::{ContractWrapper, Executor};
 use router_api::ChainName;
 use xrpl_types::types::XRPLAccountId;
 
-use crate::{contract::Contract, protocol::AxelarApp};
+use crate::contract::Contract;
+use crate::protocol::AxelarApp;
 
 #[derive(Clone)]
 pub struct XRPLGatewayContract {

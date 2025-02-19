@@ -1,12 +1,13 @@
-use router_api::ChainName;
 use cosmwasm_std::testing::MockApi;
 use cw_multi_test::Executor;
 use integration_tests::contract::Contract;
 use multisig_prover::msg::ExecuteMsg;
+use router_api::ChainName;
 use service_registry::WeightedVerifier;
-use test_utils::Verifier;
-use xrpl_types::{msg::{XRPLMessage, XRPLProverMessage}, types::hash_signed_tx};
 use service_registry_api::msg::QueryMsg as ServiceRegistryQueryMsg;
+use test_utils::Verifier;
+use xrpl_types::msg::{XRPLMessage, XRPLProverMessage};
+use xrpl_types::types::hash_signed_tx;
 
 pub mod test_utils;
 
@@ -103,7 +104,8 @@ fn verifier_set_can_be_initialized_and_then_manually_updated() {
         &ethereum.multisig_prover,
     );
 
-    let new_verifier_set = test_utils::verifier_set_from_prover(&mut protocol.app, &ethereum.multisig_prover);
+    let new_verifier_set =
+        test_utils::verifier_set_from_prover(&mut protocol.app, &ethereum.multisig_prover);
 
     assert_eq!(new_verifier_set, expected_new_verifier_set);
 }
@@ -124,7 +126,8 @@ fn xrpl_verifier_set_can_be_initialized_and_then_manually_updated() {
     } = test_utils::setup_xrpl_destination_test_case();
     let initial_verifiers = verifiers; // TODO
 
-    let simulated_verifier_set = test_utils::xrpl_verifiers_to_verifier_set(&mut protocol, &initial_verifiers);
+    let simulated_verifier_set =
+        test_utils::xrpl_verifiers_to_verifier_set(&mut protocol, &initial_verifiers);
 
     let verifier_set =
         test_utils::xrpl_verifier_set_from_prover(&mut protocol.app, &xrpl.multisig_prover);
@@ -146,7 +149,8 @@ fn xrpl_verifier_set_can_be_initialized_and_then_manually_updated() {
     };
     new_verifiers.push(new_verifier);
 
-    let expected_new_verifier_set = test_utils::xrpl_verifiers_to_verifier_set(&mut protocol, &new_verifiers);
+    let expected_new_verifier_set =
+        test_utils::xrpl_verifiers_to_verifier_set(&mut protocol, &new_verifiers);
 
     test_utils::register_verifiers(&mut protocol, &new_verifiers, min_verifier_bond);
 
@@ -159,11 +163,7 @@ fn xrpl_verifier_set_can_be_initialized_and_then_manually_updated() {
         &initial_verifiers,
     );
 
-    let proof = test_utils::xrpl_proof(
-        &mut protocol.app,
-        &xrpl.multisig_prover,
-        &session_id,
-    );
+    let proof = test_utils::xrpl_proof(&mut protocol.app, &xrpl.multisig_prover, &session_id);
     assert!(matches!(
         proof.status,
         xrpl_multisig_prover::msg::ProofStatus::Completed { .. }
@@ -174,7 +174,7 @@ fn xrpl_verifier_set_can_be_initialized_and_then_manually_updated() {
         xrpl_multisig_prover::msg::ProofStatus::Completed { execute_data } => {
             hash_signed_tx(execute_data.as_slice()).unwrap()
         }
-        _ => unreachable!()
+        _ => unreachable!(),
     };
 
     let prover_message = XRPLProverMessage {
@@ -184,11 +184,8 @@ fn xrpl_verifier_set_can_be_initialized_and_then_manually_updated() {
 
     let proof_msgs = vec![XRPLMessage::ProverMessage(prover_message.clone())];
 
-    let (poll_id, expiry) = test_utils::verify_xrpl_messages(
-        &mut protocol.app,
-        &xrpl.gateway,
-        &proof_msgs
-    );
+    let (poll_id, expiry) =
+        test_utils::verify_xrpl_messages(&mut protocol.app, &xrpl.gateway, &proof_msgs);
     test_utils::vote_success(
         &mut protocol.app,
         &xrpl.voting_verifier,

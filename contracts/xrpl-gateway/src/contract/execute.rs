@@ -1,17 +1,20 @@
-use std::str::FromStr;
 use std::hash::Hash;
+use std::str::FromStr;
 
 use axelar_wasm_std::msg_id::HexTxHash;
 use axelar_wasm_std::{nonempty, FnExt, VerificationStatus};
 use cosmwasm_std::{Addr, CosmosMsg, Event, HexBinary, Response, Storage, Uint256};
 use error_stack::{bail, ensure, report, Result, ResultExt};
+use interchain_token_service::{self, TokenId};
 use itertools::Itertools;
 use router_api::client::Router;
 use router_api::{Address, ChainName, ChainNameRaw, CrossChainId, Message};
 use sha3::{Digest, Keccak256};
-use interchain_token_service::{self, TokenId};
-use xrpl_types::types::{scale_to_decimals, XRPLAccountId, XRPLCurrency, XRPLPaymentAmount, XRPLToken, XRPLTokenOrXrp, XRPL_ISSUED_TOKEN_DECIMALS, XRP_DECIMALS};
 use xrpl_types::msg::{CrossChainMessage, WithPayload, XRPLMessage, XRPLUserMessage};
+use xrpl_types::types::{
+    scale_to_decimals, XRPLAccountId, XRPLCurrency, XRPLPaymentAmount, XRPLToken, XRPLTokenOrXrp,
+    XRPL_ISSUED_TOKEN_DECIMALS, XRP_DECIMALS,
+};
 
 use crate::contract::Error;
 use crate::events::XRPLGatewayEvent;
@@ -58,28 +61,32 @@ pub fn route_incoming_messages(
         for msg in msgs {
             let interchain_transfer = translate_to_interchain_transfer(storage, config, msg)?;
 
-            state::count_dust(storage, &msg.message.tx_id, &interchain_transfer.token_id, interchain_transfer.dust)
-                .change_context(Error::State)?;
+            state::count_dust(
+                storage,
+                &msg.message.tx_id,
+                &interchain_transfer.token_id,
+                interchain_transfer.dust,
+            )
+            .change_context(Error::State)?;
 
-            match interchain_transfer.message_with_payload {
-                Some(message_with_payload) => {
-                    its_msgs.push(message_with_payload.message.clone());
-                    events.extend(vec![
-                        into_route_event(status, message_with_payload.message.clone()),
-                        Event::from(XRPLGatewayEvent::ContractCalled {
-                            msg: message_with_payload.message,
-                            payload: message_with_payload.payload,
-                        }),
-                    ]);
-                }
-                None => ()
+            if let Some(message_with_payload) = interchain_transfer.message_with_payload {
+                its_msgs.push(message_with_payload.message.clone());
+                events.extend(vec![
+                    into_route_event(status, message_with_payload.message.clone()),
+                    Event::from(XRPLGatewayEvent::ContractCalled {
+                        msg: message_with_payload.message,
+                        payload: message_with_payload.payload,
+                    }),
+                ]);
             }
         }
         route_msgs.extend(filter_routable_messages(*status, &its_msgs));
     }
 
     let router = Router::new(config.router.clone());
-    Ok(Response::new().add_messages(router.route(route_msgs)).add_events(events))
+    Ok(Response::new()
+        .add_messages(router.route(route_msgs))
+        .add_events(events))
 }
 
 const PREFIX_TOKEN_ID: &[u8] = b"its-interchain-token-id";
@@ -87,21 +94,29 @@ const PREFIX_CUSTOM_TOKEN_SALT: &[u8] = b"custom-token-salt";
 const TOKEN_FACTORY_DEPLOYER: &str = "";
 
 fn token_id(salt: [u8; 32]) -> TokenId {
-    let token_id: [u8; 32] = Keccak256::digest(&[
-        Keccak256::digest(PREFIX_TOKEN_ID).as_slice(),
-        Addr::unchecked(TOKEN_FACTORY_DEPLOYER).as_bytes(),
-        &salt,
-    ].concat()).into();
+    let token_id: [u8; 32] = Keccak256::digest(
+        [
+            Keccak256::digest(PREFIX_TOKEN_ID).as_slice(),
+            Addr::unchecked(TOKEN_FACTORY_DEPLOYER).as_bytes(),
+            &salt,
+        ]
+        .concat(),
+    )
+    .into();
     TokenId::new(token_id)
 }
 
 fn linked_token_deploy_salt(chain_name_hash: [u8; 32], deployer: Addr, salt: [u8; 32]) -> [u8; 32] {
-    Keccak256::digest(&[
-        Keccak256::digest(PREFIX_CUSTOM_TOKEN_SALT).as_slice(),
-        &chain_name_hash,
-        deployer.as_bytes(),
-        &salt,
-    ].concat()).into()
+    Keccak256::digest(
+        [
+            Keccak256::digest(PREFIX_CUSTOM_TOKEN_SALT).as_slice(),
+            &chain_name_hash,
+            deployer.as_bytes(),
+            &salt,
+        ]
+        .concat(),
+    )
+    .into()
 }
 
 pub fn linked_token_id(chain_name_hash: [u8; 32], deployer: Addr, salt: [u8; 32]) -> TokenId {
@@ -112,13 +127,15 @@ pub fn chain_name_hash(chain_name: ChainName) -> [u8; 32] {
     Keccak256::digest(chain_name.to_string()).into()
 }
 
-fn load_token_id(storage: &dyn Storage, xrpl_multisig: XRPLAccountId, token: &XRPLToken) -> Result<TokenId, Error> {
+fn load_token_id(
+    storage: &dyn Storage,
+    xrpl_multisig: XRPLAccountId,
+    token: &XRPLToken,
+) -> Result<TokenId, Error> {
     let token_id = if token.is_remote(xrpl_multisig.clone()) {
-        state::load_remote_token_id(storage, &token.currency)
-            .change_context(Error::InvalidToken)?
+        state::load_remote_token_id(storage, &token.currency).change_context(Error::InvalidToken)?
     } else {
-        state::load_local_token_id(storage, &token)
-            .change_context(Error::InvalidToken)?
+        state::load_local_token_id(storage, token).change_context(Error::InvalidToken)?
     };
 
     Ok(token_id)
@@ -139,42 +156,44 @@ pub fn translate_to_interchain_transfer(
                 Error::PayloadHashGivenWithoutPayload(user_message.payload_hash.unwrap().into())
             );
         }
-        Some(payload) => {
-            match user_message.payload_hash {
-                None => {
-                    return Err(report!(Error::PayloadHashEmpty));
-                }
-                Some(hash) => {
-                    let payload_hash = <[u8; 32]>::from(Keccak256::digest(payload.as_ref()));
-                    ensure!(
-                        hash == payload_hash,
-                        Error::PayloadHashMismatch {
-                            expected: payload_hash.into(),
-                            actual: hash.into(),
-                        }
-                    )
-                }
+        Some(payload) => match user_message.payload_hash {
+            None => {
+                return Err(report!(Error::PayloadHashEmpty));
             }
-        }
+            Some(hash) => {
+                let payload_hash = <[u8; 32]>::from(Keccak256::digest(payload.as_ref()));
+                ensure!(
+                    hash == payload_hash,
+                    Error::PayloadHashMismatch {
+                        expected: payload_hash.into(),
+                        actual: hash.into(),
+                    }
+                )
+            }
+        },
     }
 
     let token_id = match &user_message.amount {
-        XRPLPaymentAmount::Drops(_) => state::load_xrp_token_id(storage).change_context(Error::InvalidToken)?,
-        XRPLPaymentAmount::Issued(token, _) => load_token_id(storage, config.xrpl_multisig.clone(), token)?,
+        XRPLPaymentAmount::Drops(_) => {
+            state::load_xrp_token_id(storage).change_context(Error::InvalidToken)?
+        }
+        XRPLPaymentAmount::Issued(token, _) => {
+            load_token_id(storage, config.xrpl_multisig.clone(), token)?
+        }
     };
 
-    let source_address = nonempty::HexBinary::try_from(HexBinary::from(user_message.source_address.as_ref()))
-        .change_context(Error::InvalidAddress)?;
+    let source_address =
+        nonempty::HexBinary::try_from(HexBinary::from(user_message.source_address.as_ref()))
+            .change_context(Error::InvalidAddress)?;
     let destination_address = user_message.destination_address.clone();
     let destination_chain = ChainNameRaw::from(user_message.destination_chain.clone());
 
     let (amount, dust) = match user_message.amount.clone() {
-        XRPLPaymentAmount::Drops(drops) => {
-            (Uint256::from(drops), XRPLPaymentAmount::Drops(0u64))
-        }
+        XRPLPaymentAmount::Drops(drops) => (Uint256::from(drops), XRPLPaymentAmount::Drops(0u64)),
         XRPLPaymentAmount::Issued(token, token_amount) => {
-            let destination_decimals = state::load_token_instance_decimals(storage, destination_chain.clone(), token_id.clone())
-                .change_context(Error::TokenNotRegisteredForChain {
+            let destination_decimals =
+                state::load_token_instance_decimals(storage, destination_chain.clone(), token_id)
+                    .change_context(Error::TokenNotRegisteredForChain {
                     token_id: token_id.to_owned(),
                     chain_name: destination_chain.to_owned(),
                 })?;
@@ -201,14 +220,15 @@ pub fn translate_to_interchain_transfer(
         destination_chain: user_message.clone().destination_chain.into(),
         message: interchain_token_service::Message::InterchainTransfer(
             interchain_token_service::InterchainTransfer {
-                token_id: token_id.clone(),
+                token_id,
                 source_address,
                 destination_address,
                 amount: amount.try_into().expect("amount cannot be zero"),
                 data: payload.clone(),
             },
         ),
-    }.abi_encode();
+    }
+    .abi_encode();
     let cc_id = user_message.cc_id(config.chain_name.clone().into());
     let its_msg = construct_its_hub_message(config, cc_id, payload.clone())?;
 
@@ -229,7 +249,7 @@ pub fn route_outgoing_messages(
     its_hub: Addr,
     its_hub_chain_name: &ChainName,
 ) -> Result<Response, Error> {
-    let msgs = check_for_duplicates(verified, its_hub_chain_name.into())?;
+    let msgs = check_for_duplicates(verified, its_hub_chain_name)?;
 
     for msg in msgs.iter() {
         if msg.source_address.to_string() != its_hub.to_string() {
@@ -237,7 +257,7 @@ pub fn route_outgoing_messages(
         }
 
         if msg.cc_id.source_chain != its_hub_chain_name.clone() {
-            return Err(Error::OnlyFromItsHubChain(msg.cc_id.clone()).into())
+            return Err(Error::OnlyFromItsHubChain(msg.cc_id.clone()).into());
         }
 
         state::save_outgoing_message(storage, &msg.cc_id, msg)
@@ -245,7 +265,8 @@ pub fn route_outgoing_messages(
     }
 
     Ok(Response::new().add_events(
-        msgs.into_iter().map(|msg| XRPLGatewayEvent::RoutingOutgoing { msg }),
+        msgs.into_iter()
+            .map(|msg| XRPLGatewayEvent::RoutingOutgoing { msg }),
     ))
 }
 
@@ -260,8 +281,11 @@ pub fn register_token_metadata(
                 XRPLTokenOrXrp::Xrp => XRP_DECIMALS,
                 XRPLTokenOrXrp::Issued(_) => XRPL_ISSUED_TOKEN_DECIMALS,
             },
-            token_address: nonempty::HexBinary::try_from(xrpl_token.to_string().as_bytes().to_vec()).change_context(Error::InvalidToken)?,
-        }
+            token_address: nonempty::HexBinary::try_from(
+                xrpl_token.to_string().as_bytes().to_vec(),
+            )
+            .change_context(Error::InvalidToken)?,
+        },
     );
 
     route_hub_message(config, block_height, hub_msg)
@@ -275,8 +299,7 @@ pub fn register_xrp(
 ) -> Result<Response, Error> {
     let chain_name_hash = chain_name_hash(config.chain_name.clone());
     let token_id = linked_token_id(chain_name_hash, sender, salt);
-    state::save_xrp_token_id(storage, &token_id)
-        .change_context(Error::State)?;
+    state::save_xrp_token_id(storage, &token_id).change_context(Error::State)?;
 
     Ok(Response::default())
 }
@@ -296,9 +319,7 @@ pub fn register_local_token(
     let chain_name_hash = chain_name_hash(config.chain_name.clone());
     let token_id = linked_token_id(chain_name_hash, sender, salt);
 
-    match state::may_load_local_token_id(storage, &xrpl_token)
-        .change_context(Error::State)?
-    {
+    match state::may_load_local_token_id(storage, &xrpl_token).change_context(Error::State)? {
         Some(deployed_token_id) => {
             ensure!(
                 deployed_token_id == token_id,
@@ -315,9 +336,7 @@ pub fn register_local_token(
         }
     }
 
-    match state::may_load_xrpl_token(storage, &token_id)
-        .change_context(Error::State)?
-    {
+    match state::may_load_xrpl_token(storage, &token_id).change_context(Error::State)? {
         Some(deployed_xrpl_token) => {
             ensure!(
                 deployed_xrpl_token == xrpl_token,
@@ -329,8 +348,7 @@ pub fn register_local_token(
             );
         }
         None => {
-            state::save_xrpl_token(storage, &token_id, &xrpl_token)
-                .change_context(Error::State)?;
+            state::save_xrpl_token(storage, &token_id, &xrpl_token).change_context(Error::State)?;
         }
     }
 
@@ -343,9 +361,7 @@ pub fn register_remote_token(
     token_id: TokenId,
     xrpl_currency: XRPLCurrency,
 ) -> Result<Response, Error> {
-    match state::may_load_remote_token_id(storage, &xrpl_currency)
-        .change_context(Error::State)?
-    {
+    match state::may_load_remote_token_id(storage, &xrpl_currency).change_context(Error::State)? {
         Some(deployed_token_id) => {
             ensure!(
                 deployed_token_id == token_id,
@@ -362,9 +378,7 @@ pub fn register_remote_token(
         }
     }
 
-    match state::may_load_xrpl_token(storage, &token_id)
-        .change_context(Error::State)?
-    {
+    match state::may_load_xrpl_token(storage, &token_id).change_context(Error::State)? {
         Some(deployed_xrpl_token) => {
             ensure!(
                 deployed_xrpl_token.currency == xrpl_currency,
@@ -389,8 +403,7 @@ pub fn register_remote_token(
                 issuer: xrpl_multisig.clone(),
             };
 
-            state::save_xrpl_token(storage, &token_id, &xrpl_token)
-                .change_context(Error::State)?;
+            state::save_xrpl_token(storage, &token_id, &xrpl_token).change_context(Error::State)?;
         }
     }
 
@@ -420,7 +433,8 @@ pub fn register_token_instance(
     chain: ChainNameRaw,
     decimals: u8,
 ) -> Result<Response, Error> {
-    if decimals > 50 { // TODO: Don't hardcode.
+    if decimals > 50 {
+        // TODO: Don't hardcode.
         bail!(Error::InvalidDecimals(decimals));
     }
 
@@ -428,14 +442,14 @@ pub fn register_token_instance(
         bail!(Error::ForbiddenChain(chain));
     }
 
-    match state::may_load_token_instance_decimals(storage, chain.clone(), token_id.clone())
+    match state::may_load_token_instance_decimals(storage, chain.clone(), token_id)
         .change_context(Error::State)?
     {
         Some(expected_decimals) => {
             ensure!(
                 decimals == expected_decimals,
                 Error::TokenDeployedDecimalsMismatch {
-                    token_id: token_id.clone(),
+                    token_id,
                     expected: expected_decimals,
                     actual: decimals,
                 }
@@ -463,8 +477,13 @@ fn route_hub_message(
     Ok(Response::new()
         .add_messages(router.route(vec![its_msg.clone()]))
         .add_events(vec![
-            XRPLGatewayEvent::RoutingIncoming { msg: its_msg.clone() },
-            XRPLGatewayEvent::ContractCalled { msg: its_msg, payload },
+            XRPLGatewayEvent::RoutingIncoming {
+                msg: its_msg.clone(),
+            },
+            XRPLGatewayEvent::ContractCalled {
+                msg: its_msg,
+                payload,
+            },
         ]))
 }
 
@@ -489,22 +508,34 @@ pub fn link_token(
     let xrpl_token = if token_id == xrp_token_id {
         XRPLTokenOrXrp::Xrp
     } else {
-        let token = state::load_xrpl_token(storage, &token_id).change_context(Error::InvalidToken)?;
-        register_token_instance(storage, config, token_id.clone(), destination_chain.clone(), XRPL_ISSUED_TOKEN_DECIMALS)?;
+        let token =
+            state::load_xrpl_token(storage, &token_id).change_context(Error::InvalidToken)?;
+        register_token_instance(
+            storage,
+            config,
+            token_id,
+            destination_chain.clone(),
+            XRPL_ISSUED_TOKEN_DECIMALS,
+        )?;
         XRPLTokenOrXrp::Issued(token)
     };
 
-    let its_msg = interchain_token_service::Message::LinkToken(
-        interchain_token_service::LinkToken {
-            token_id: token_id,
+    let its_msg =
+        interchain_token_service::Message::LinkToken(interchain_token_service::LinkToken {
+            token_id,
             token_manager_type: link_token.token_manager_type,
-            source_token_address: nonempty::HexBinary::try_from(xrpl_token.to_string().as_bytes().to_vec()).change_context(Error::InvalidToken)?,
+            source_token_address: nonempty::HexBinary::try_from(
+                xrpl_token.to_string().as_bytes().to_vec(),
+            )
+            .change_context(Error::InvalidToken)?,
             destination_token_address: link_token.destination_token_address,
             params: link_token.params,
-        }
-    );
+        });
 
-    let hub_msg = interchain_token_service::HubMessage::SendToHub { destination_chain, message: its_msg };
+    let hub_msg = interchain_token_service::HubMessage::SendToHub {
+        destination_chain,
+        message: its_msg,
+    };
     route_hub_message(config, block_height, hub_msg)
 }
 
@@ -530,22 +561,31 @@ pub fn deploy_remote_token(
             // load_token_id(storage, config.xrpl_multisig.clone(), &xrpl_token)?,
             state::load_local_token_id(storage, &xrpl_token).change_context(Error::InvalidToken)?,
             XRPL_ISSUED_TOKEN_DECIMALS,
-        )
+        ),
     };
 
-    register_token_instance(storage, config, token_id.clone(), destination_chain.clone(), destination_decimals)?;
+    register_token_instance(
+        storage,
+        config,
+        token_id,
+        destination_chain.clone(),
+        destination_decimals,
+    )?;
 
     let its_msg = interchain_token_service::Message::DeployInterchainToken(
-        interchain_token_service::DeployInterchainToken{
-            token_id: token_id.clone(),
+        interchain_token_service::DeployInterchainToken {
+            token_id,
             name: token_metadata.name,
             symbol: token_metadata.symbol,
             decimals: destination_decimals,
             minter: token_metadata.minter,
-        }
+        },
     );
 
-    let hub_msg = interchain_token_service::HubMessage::SendToHub { destination_chain, message: its_msg };
+    let hub_msg = interchain_token_service::HubMessage::SendToHub {
+        destination_chain,
+        message: its_msg,
+    };
     route_hub_message(config, block_height, hub_msg)
 }
 
@@ -563,23 +603,32 @@ fn group_by_status<T>(
     msgs: Vec<T>,
     source_chain: &ChainName,
 ) -> Result<Vec<(VerificationStatus, Vec<T>)>, Error>
-where T: Into<XRPLMessage> + CrossChainMessage + Clone {
+where
+    T: Into<XRPLMessage> + CrossChainMessage + Clone,
+{
     let msgs = check_for_duplicates(msgs, source_chain)?;
     let msgs_status = fetch_msgs_status(verifier, msgs)?;
     let msgs_by_status = group_by_first(msgs_status);
     Ok(msgs_by_status)
 }
 
-fn fetch_msgs_status<T: Into<XRPLMessage> + Clone>(verifier: &xrpl_voting_verifier::Client, msgs: Vec<T>) -> Result<Vec<(VerificationStatus, T)>, Error> {
-    Ok(verifier.messages_status(msgs.clone().into_iter().map(|m| m.into()).collect())
-    .change_context(Error::MessageStatus)?
-    .into_iter()
-    .zip(msgs)
-    .map(|(msg_status, msg)| (msg_status.status, msg))
-    .collect::<Vec<_>>())
+fn fetch_msgs_status<T: Into<XRPLMessage> + Clone>(
+    verifier: &xrpl_voting_verifier::Client,
+    msgs: Vec<T>,
+) -> Result<Vec<(VerificationStatus, T)>, Error> {
+    Ok(verifier
+        .messages_status(msgs.clone().into_iter().map(|m| m.into()).collect())
+        .change_context(Error::MessageStatus)?
+        .into_iter()
+        .zip(msgs)
+        .map(|(msg_status, msg)| (msg_status.status, msg))
+        .collect::<Vec<_>>())
 }
 
-fn check_for_duplicates<T: CrossChainMessage>(msgs: Vec<T>, source_chain: &ChainName) -> Result<Vec<T>, Error> {
+fn check_for_duplicates<T: CrossChainMessage>(
+    msgs: Vec<T>,
+    source_chain: &ChainName,
+) -> Result<Vec<T>, Error> {
     let duplicates: Vec<_> = msgs
         .iter()
         // the following two map instructions are separated on purpose
@@ -595,10 +644,11 @@ fn check_for_duplicates<T: CrossChainMessage>(msgs: Vec<T>, source_chain: &Chain
 }
 
 fn group_by_first<K, V>(msgs_with_status: impl IntoIterator<Item = (K, V)>) -> Vec<(K, Vec<V>)>
-where K: Hash + Eq + Ord + Copy {
+where
+    K: Hash + Eq + Ord + Copy,
+{
     msgs_with_status
         .into_iter()
-        .map(|(status, msg)| (status, msg))
         .into_group_map()
         .into_iter()
         // sort by verification status so the order of messages is deterministic
@@ -608,7 +658,10 @@ where K: Hash + Eq + Ord + Copy {
 
 // not all messages are verifiable, so it's better to only take a reference and allocate a vector on demand
 // instead of requiring the caller to allocate a vector for every message
-fn filter_verifiable_messages(status: VerificationStatus, msgs: &[XRPLMessage]) -> Vec<XRPLMessage> {
+fn filter_verifiable_messages(
+    status: VerificationStatus,
+    msgs: &[XRPLMessage],
+) -> Vec<XRPLMessage> {
     match status {
         VerificationStatus::Unknown
         | VerificationStatus::NotFoundOnSourceChain

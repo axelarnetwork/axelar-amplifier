@@ -3,14 +3,14 @@ mod errors;
 pub mod evm_verify_msg;
 pub mod evm_verify_verifier_set;
 pub mod multisig;
-pub mod xrpl_multisig;
 pub mod mvx_verify_msg;
 pub mod mvx_verify_verifier_set;
 pub(crate) mod stellar_verify_msg;
 pub(crate) mod stellar_verify_verifier_set;
 pub mod sui_verify_msg;
-pub mod xrpl_verify_msg;
 pub mod sui_verify_verifier_set;
+pub mod xrpl_multisig;
+pub mod xrpl_verify_msg;
 
 #[cfg(test)]
 mod tests {

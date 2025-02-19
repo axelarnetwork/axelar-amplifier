@@ -109,17 +109,13 @@ pub enum ExecuteMsg {
     UpdateVerifierSet,
 
     #[permission(Any)]
-    ConfirmProverMessage {
-        prover_message: XRPLProverMessage,
-    },
+    ConfirmProverMessage { prover_message: XRPLProverMessage },
 
     #[permission(Any)]
     TicketCreate,
 
     #[permission(Elevated)]
-    TrustSet {
-        token_id: TokenId,
-    },
+    TrustSet { token_id: TokenId },
 
     // Updates the signing threshold. The threshold currently in use does not change.
     // The verifier set must be updated and confirmed for the change to take effect.
@@ -129,9 +125,7 @@ pub enum ExecuteMsg {
     },
 
     #[permission(Elevated)]
-    UpdateXrplFee {
-        new_xrpl_fee: u64,
-    },
+    UpdateXrplFee { new_xrpl_fee: u64 },
 
     #[permission(Governance)]
     UpdateAdmin { new_admin_address: String },

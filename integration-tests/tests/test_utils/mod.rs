@@ -1,49 +1,48 @@
-use std::{ops::Add, str::FromStr};
-
-use axelar_wasm_std::{
-    nonempty, voting::{PollId, Vote}, Participant, Threshold
-};
-use axelarnet_gateway::ExecutableMessage;
-use interchain_token_service::TokenId;
-use rand::RngCore;
-use xrpl_gateway::msg::TokenMetadata;
-use xrpl_types::msg::{WithPayload, XRPLMessage, XRPLUserMessage, XRPLProverMessage};
-use xrpl_types::types::{XRPLAccountId, XRPLToken, XRPLTokenOrXrp};
 use std::collections::{HashMap, HashSet};
+use std::ops::Add;
+use std::str::FromStr;
 
 use axelar_core_std::nexus::query::{IsChainRegisteredResponse, TxHashAndNonceResponse};
 use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
+use axelar_wasm_std::voting::{PollId, Vote};
+use axelar_wasm_std::{nonempty, Participant, Threshold};
+use axelarnet_gateway::ExecutableMessage;
 use coordinator::msg::{ExecuteMsg as CoordinatorExecuteMsg, VerifierInfo};
-use cosmwasm_std::{testing::MockApi, Uint256};
+use cosmwasm_std::testing::MockApi;
 use cosmwasm_std::{
-    coins, to_json_binary, Addr, Attribute, BlockInfo, Event, HexBinary, StdError, Uint128, Uint64,
+    coins, to_json_binary, Addr, Attribute, BlockInfo, Event, HexBinary, StdError, Uint128,
+    Uint256, Uint64,
 };
 use cw_multi_test::{AppBuilder, AppResponse, Executor};
-use integration_tests::{contract::Contract, interchain_token_service_contract::InterchainTokenServiceContract, voting_verifier_contract::VotingContract, xrpl_gateway_contract::XRPLGatewayContract};
+use integration_tests::axelarnet_gateway_contract::AxelarnetGatewayContract;
+use integration_tests::contract::Contract;
 use integration_tests::coordinator_contract::CoordinatorContract;
 use integration_tests::gateway_contract::GatewayContract;
-use integration_tests::axelarnet_gateway_contract::AxelarnetGatewayContract;
+use integration_tests::interchain_token_service_contract::InterchainTokenServiceContract;
 use integration_tests::multisig_contract::MultisigContract;
 use integration_tests::multisig_prover_contract::MultisigProverContract;
-use integration_tests::xrpl_multisig_prover_contract::XRPLMultisigProverContract;
 use integration_tests::protocol::{AxelarApp, AxelarModule, Protocol};
 use integration_tests::rewards_contract::RewardsContract;
 use integration_tests::router_contract::RouterContract;
 use integration_tests::service_registry_contract::ServiceRegistryContract;
-use integration_tests::voting_verifier_contract::VotingVerifierContract;
+use integration_tests::voting_verifier_contract::{VotingContract, VotingVerifierContract};
+use integration_tests::xrpl_gateway_contract::XRPLGatewayContract;
+use integration_tests::xrpl_multisig_prover_contract::XRPLMultisigProverContract;
 use integration_tests::xrpl_voting_verifier_contract::XRPLVotingVerifierContract;
+use interchain_token_service::TokenId;
 use k256::ecdsa;
-use sha3::{Digest, Keccak256};
-
-use multisig::{
-    key::{KeyType, PublicKey},
-    verifier_set::VerifierSet,
-};
+use multisig::key::{KeyType, PublicKey};
+use multisig::verifier_set::VerifierSet;
 use multisig_prover::msg::VerifierSetResponse;
+use rand::RngCore;
 use rewards::PoolId;
 use router_api::{Address, ChainName, ChainNameRaw, CrossChainId, GatewayDirection, Message};
 use service_registry_api::msg::ExecuteMsg;
+use sha3::{Digest, Keccak256};
 use tofn::ecdsa::KeyPair;
+use xrpl_gateway::msg::TokenMetadata;
+use xrpl_types::msg::{WithPayload, XRPLMessage, XRPLProverMessage, XRPLUserMessage};
+use xrpl_types::types::{XRPLAccountId, XRPLToken, XRPLTokenOrXrp};
 
 pub const AXL_DENOMINATION: &str = "uaxl";
 
@@ -121,7 +120,11 @@ pub fn route_messages(app: &mut AxelarApp, gateway: &GatewayContract, msgs: &[Me
     assert!(response.is_ok());
 }
 
-pub fn xrpl_route_incoming_messages(app: &mut AxelarApp, gateway: &XRPLGatewayContract, msgs: &[WithPayload<XRPLUserMessage>]) {
+pub fn xrpl_route_incoming_messages(
+    app: &mut AxelarApp,
+    gateway: &XRPLGatewayContract,
+    msgs: &[WithPayload<XRPLUserMessage>],
+) {
     let response = gateway.execute(
         app,
         MockApi::default().addr_make("relayer"),
@@ -160,29 +163,40 @@ pub fn xrpl_deploy_remote_token(
             xrpl_token,
             destination_chain,
             token_metadata,
-        }
+        },
     );
     assert!(response.is_ok());
 
     let response = response.unwrap();
-    let event = response.events.iter()
+    let event = response
+        .events
+        .iter()
         .find(|e| e.ty == "wasm-contract_called")
         .expect("Event with type 'wasm-contract_called' not found");
 
-    let message_id = event.attributes.iter()
+    let message_id = event
+        .attributes
+        .iter()
         .find(|attr| attr.key == "message_id")
         .expect("Attribute 'message_id' not found")
-        .value.clone();
+        .value
+        .clone();
 
-    let source_chain = event.attributes.iter()
+    let source_chain = event
+        .attributes
+        .iter()
         .find(|attr| attr.key == "source_chain")
         .expect("Attribute 'source_chain' not found")
-        .value.clone();
+        .value
+        .clone();
 
-    let payload = event.attributes.iter()
+    let payload = event
+        .attributes
+        .iter()
         .find(|attr| attr.key == "payload")
         .expect("Attribute 'payload' not found")
-        .value.clone();
+        .value
+        .clone();
 
     execute_axelarnet_gateway_message(
         app,
@@ -202,10 +216,7 @@ pub fn xrpl_register_local_token(
     let response = gateway.execute(
         app,
         admin,
-        &xrpl_gateway::msg::ExecuteMsg::RegisterLocalToken {
-            salt,
-            xrpl_token,
-        }
+        &xrpl_gateway::msg::ExecuteMsg::RegisterLocalToken { salt, xrpl_token },
     );
     assert!(response.is_ok());
 }
@@ -296,18 +307,14 @@ pub fn vote_success<T: VotingContract>(
     messages_len: usize,
     verifiers: &Vec<Verifier>,
     poll_id: PollId,
-)
-where T::ExMsg: serde::ser::Serialize + std::fmt::Debug,
+) where
+    T::ExMsg: serde::ser::Serialize + std::fmt::Debug,
 {
     for verifier in verifiers {
         let response = voting_verifier.execute(
             app,
             verifier.addr.clone(),
-            &T::construct_vote_message(
-                poll_id,
-                messages_len,
-                Vote::SucceededOnChain,
-            ),
+            &T::construct_vote_message(poll_id, messages_len, Vote::SucceededOnChain),
         );
         assert!(response.is_ok());
     }
@@ -315,7 +322,8 @@ where T::ExMsg: serde::ser::Serialize + std::fmt::Debug,
 
 /// Ends the poll. Be sure the current block height has advanced at least to the poll expiration, else this will fail
 pub fn end_poll<T: VotingContract>(app: &mut AxelarApp, voting_verifier: &T, poll_id: PollId)
-where T::ExMsg: serde::ser::Serialize + std::fmt::Debug,
+where
+    T::ExMsg: serde::ser::Serialize + std::fmt::Debug,
 {
     let response = voting_verifier.execute(
         app,
@@ -442,7 +450,6 @@ pub fn construct_xrpl_trust_set_proof_and_sign(
     sign_xrpl_proof(protocol, verifiers, response)
 }
 
-
 pub fn construct_xrpl_payment_proof_and_sign(
     protocol: &mut Protocol,
     multisig_prover: &XRPLMultisigProverContract,
@@ -495,18 +502,16 @@ pub fn sign_xrpl_proof(
             .expect("couldn't get unsigned_tx");
 
     for verifier in verifiers {
-        let xrpl_signer_address = XRPLAccountId::from(
-            &multisig::key::PublicKey::Ecdsa(verifier.key_pair.encoded_verifying_key().into())
-        );
+        let xrpl_signer_address = XRPLAccountId::from(&multisig::key::PublicKey::Ecdsa(
+            verifier.key_pair.encoded_verifying_key().into(),
+        ));
 
-        let msg = xrpl_types::types::message_to_sign(unsigned_tx.to_vec(), &xrpl_signer_address).unwrap();
+        let msg =
+            xrpl_types::types::message_to_sign(unsigned_tx.to_vec(), &xrpl_signer_address).unwrap();
 
         let signature = tofn::ecdsa::sign(
             verifier.key_pair.signing_key(),
-            &msg
-                .as_slice()
-                .try_into()
-                .unwrap(),
+            &msg.as_slice().try_into().unwrap(),
         )
         .unwrap();
 
@@ -516,7 +521,9 @@ pub fn sign_xrpl_proof(
             &multisig::msg::ExecuteMsg::SubmitSignature {
                 session_id,
                 // TODO: why from_der and then back to_der?
-                signature: HexBinary::from(ecdsa::Signature::from_der(&signature).unwrap().to_vec()),
+                signature: HexBinary::from(
+                    ecdsa::Signature::from_der(&signature).unwrap().to_vec(),
+                ),
             },
         );
         assert!(response.is_ok());
@@ -547,7 +554,7 @@ pub fn executable_messages_from_axelarnet_gateway(
     let query_response: Result<Vec<ExecutableMessage>, StdError> = gateway.query(
         app,
         &axelarnet_gateway::msg::QueryMsg::ExecutableMessages {
-            cc_ids: message_ids.to_owned()
+            cc_ids: message_ids.to_owned(),
         },
     );
     assert!(query_response.is_ok());
@@ -563,14 +570,13 @@ pub fn routable_messages_from_axelarnet_gateway(
     let query_response: Result<Vec<Message>, StdError> = gateway.query(
         app,
         &axelarnet_gateway::msg::QueryMsg::RoutableMessages {
-            cc_ids: message_ids.to_owned()
+            cc_ids: message_ids.to_owned(),
         },
     );
     assert!(query_response.is_ok());
 
     query_response.unwrap()
 }
-
 
 pub fn execute_axelarnet_gateway_message(
     app: &mut AxelarApp,
@@ -698,24 +704,20 @@ pub fn xrpl_proof(
     multisig_prover: &XRPLMultisigProverContract,
     multisig_session_id: &Uint64,
 ) -> xrpl_multisig_prover::msg::ProofResponse {
-    let query_response: Result<xrpl_multisig_prover::msg::ProofResponse, StdError> = multisig_prover.query(
-        app,
-        &xrpl_multisig_prover::msg::QueryMsg::Proof {
-            multisig_session_id: *multisig_session_id,
-        },
-    );
+    let query_response: Result<xrpl_multisig_prover::msg::ProofResponse, StdError> =
+        multisig_prover.query(
+            app,
+            &xrpl_multisig_prover::msg::QueryMsg::Proof {
+                multisig_session_id: *multisig_session_id,
+            },
+        );
     assert!(query_response.is_ok());
     query_response.unwrap()
 }
 
-pub fn xrp_token_id(
-    app: &mut AxelarApp,
-    gateway: &XRPLGatewayContract,
-) -> TokenId {
-    let query_response: Result<TokenId, StdError> = gateway.query(
-        app,
-        &xrpl_gateway::msg::QueryMsg::XrpTokenId,
-    );
+pub fn xrp_token_id(app: &mut AxelarApp, gateway: &XRPLGatewayContract) -> TokenId {
+    let query_response: Result<TokenId, StdError> =
+        gateway.query(app, &xrpl_gateway::msg::QueryMsg::XrpTokenId);
     assert!(query_response.is_ok());
 
     query_response.unwrap()
@@ -729,10 +731,7 @@ pub fn linked_token_id(
 ) -> TokenId {
     let query_response: Result<TokenId, StdError> = gateway.query(
         app,
-        &xrpl_gateway::msg::QueryMsg::LinkedTokenId {
-            deployer,
-            salt,
-        },
+        &xrpl_gateway::msg::QueryMsg::LinkedTokenId { deployer, salt },
     );
     assert!(query_response.is_ok());
 
@@ -747,9 +746,7 @@ pub fn xrpl_confirm_prover_message(
     let response = multisig_prover.execute(
         app,
         MockApi::default().addr_make("relayer"),
-        &xrpl_multisig_prover::msg::ExecuteMsg::ConfirmProverMessage {
-            prover_message,
-        },
+        &xrpl_multisig_prover::msg::ExecuteMsg::ConfirmProverMessage { prover_message },
     );
     println!("{:?}", response);
     assert!(response.is_ok());
@@ -1067,7 +1064,10 @@ pub fn verifiers_to_verifier_set(
 }
 
 // TODO: fix duplication
-pub fn xrpl_verifiers_to_verifier_set(protocol: &mut Protocol, verifiers: &Vec<Verifier>) -> VerifierSet {
+pub fn xrpl_verifiers_to_verifier_set(
+    protocol: &mut Protocol,
+    verifiers: &Vec<Verifier>,
+) -> VerifierSet {
     // get public keys
     let mut pub_keys = vec![];
     for verifier in verifiers {
@@ -1088,10 +1088,7 @@ pub fn xrpl_verifiers_to_verifier_set(protocol: &mut Protocol, verifiers: &Vec<V
 
     let total_weight = participants
         .iter()
-        .fold(
-            Uint128::zero(),
-            |acc, p| acc.add(Uint128::from(p.weight))
-        );
+        .fold(Uint128::zero(), |acc, p| acc.add(Uint128::from(p.weight)));
 
     let pubkeys_by_participant = participants.into_iter().zip(pub_keys).collect();
 
@@ -1157,7 +1154,13 @@ pub fn execute_verifier_set_poll(
     );
 
     // Vote for the verifier set
-    vote_success(&mut protocol.app, voting_verifier, 1, new_verifiers, poll_id);
+    vote_success(
+        &mut protocol.app,
+        voting_verifier,
+        1,
+        new_verifiers,
+        poll_id,
+    );
 
     // Advance to expiration height
     advance_at_least_to_height(&mut protocol.app, expiry);
@@ -1324,10 +1327,7 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
     }
 }
 
-pub fn setup_axelarnet(
-    protocol: &mut Protocol,
-    chain_name: ChainName,
-) -> AxelarnetChain {
+pub fn setup_axelarnet(protocol: &mut Protocol, chain_name: ChainName) -> AxelarnetChain {
     let gateway = AxelarnetGatewayContract::instantiate_contract(
         &mut protocol.app,
         chain_name.clone(),
@@ -1401,7 +1401,7 @@ pub fn setup_xrpl(
         xrpl_chain_name.clone(),
     );
 
-    let gateway= XRPLGatewayContract::instantiate_contract(
+    let gateway = XRPLGatewayContract::instantiate_contract(
         &mut protocol.app,
         admin.clone(),
         protocol.governance_address.clone(),
@@ -1686,7 +1686,11 @@ pub fn setup_xrpl_source_test_case() -> XRPLSourceTestCase {
         its_hub_admin,
     );
 
-    let xrpl = setup_xrpl(&mut protocol, its_hub.contract_addr.clone(), axelarnet.chain_name.clone());
+    let xrpl = setup_xrpl(
+        &mut protocol,
+        its_hub.contract_addr.clone(),
+        axelarnet.chain_name.clone(),
+    );
     set_its_address(
         &mut protocol,
         &its_hub,
@@ -1749,18 +1753,20 @@ pub fn override_token_supply_for_chain(
     chain_name: ChainName,
     token_id: interchain_token_service::TokenId,
     supply: interchain_token_service::TokenSupply,
-    decimals: u8
+    decimals: u8,
 ) {
-    const TOKEN_INSTANCE: cw_storage_plus::Map<&(ChainNameRaw, interchain_token_service::TokenId), interchain_token_service::TokenInstance> = cw_storage_plus::Map::new("token_instance");
+    const TOKEN_INSTANCE: cw_storage_plus::Map<
+        &(ChainNameRaw, interchain_token_service::TokenId),
+        interchain_token_service::TokenInstance,
+    > = cw_storage_plus::Map::new("token_instance");
     let mut storage = app.contract_storage_mut(&its_hub);
-    TOKEN_INSTANCE.save(
-        &mut *storage,
-        &(ChainNameRaw::from(chain_name), token_id),
-        &interchain_token_service::TokenInstance {
-            supply,
-            decimals,
-        }
-    ).unwrap();
+    TOKEN_INSTANCE
+        .save(
+            &mut *storage,
+            &(ChainNameRaw::from(chain_name), token_id),
+            &interchain_token_service::TokenInstance { supply, decimals },
+        )
+        .unwrap();
 }
 
 pub fn setup_xrpl_destination_test_case() -> XRPLDestinationTestCase {
@@ -1800,7 +1806,11 @@ pub fn setup_xrpl_destination_test_case() -> XRPLDestinationTestCase {
         u8::MAX,
     );
 
-    let xrpl = setup_xrpl(&mut protocol, its_hub.contract_addr.clone(), axelarnet.chain_name.clone());
+    let xrpl = setup_xrpl(
+        &mut protocol,
+        its_hub.contract_addr.clone(),
+        axelarnet.chain_name.clone(),
+    );
     set_its_address(
         &mut protocol,
         &its_hub,

@@ -7,7 +7,7 @@ use cosmwasm_std::{
     to_json_binary, Deps, DepsMut, Env, Event, MessageInfo, OverflowError, OverflowOperation,
     Response, Storage, WasmMsg,
 };
-use error_stack::{Report, report};
+use error_stack::{report, Report};
 use itertools::Itertools;
 use service_registry::WeightedVerifier;
 use xrpl_types::msg::XRPLMessage;
@@ -21,14 +21,13 @@ pub fn update_voting_threshold(
     deps: DepsMut,
     new_voting_threshold: MajorityThreshold,
 ) -> Result<Response, ContractError> {
-    CONFIG
-        .update(
-            deps.storage,
-            |mut config| -> Result<_, cosmwasm_std::StdError> {
-                config.voting_threshold = new_voting_threshold;
-                Ok(config)
-            },
-        )?;
+    CONFIG.update(
+        deps.storage,
+        |mut config| -> Result<_, cosmwasm_std::StdError> {
+            config.voting_threshold = new_voting_threshold;
+            Ok(config)
+        },
+    )?;
     Ok(Response::new())
 }
 
@@ -81,18 +80,16 @@ pub fn verify_messages(
             .map_err(ContractError::from)?;
     }
 
-    Ok(Response::new().add_event(
-        PollStarted::Messages {
-            messages: msgs_to_verify,
-            metadata: PollMetadata {
-                poll_id: id,
-                source_gateway_address: config.source_gateway_address,
-                confirmation_height: config.confirmation_height,
-                expires_at,
-                participants,
-            },
-        }
-    ))
+    Ok(Response::new().add_event(PollStarted::Messages {
+        messages: msgs_to_verify,
+        metadata: PollMetadata {
+            poll_id: id,
+            source_gateway_address: config.source_gateway_address,
+            confirmation_height: config.confirmation_height,
+            expires_at,
+            participants,
+        },
+    }))
 }
 
 fn poll_results(poll: &Poll) -> PollResults {
@@ -121,14 +118,12 @@ fn make_quorum_event(
                 .load_message(deps.storage, *poll_id, index_in_poll)?
                 .expect("message not found in poll");
 
-            Ok(
-                QuorumReached {
-                    content: msg,
-                    status,
-                    poll_id: *poll_id,
-                }
-                .into()
-            )
+            Ok(QuorumReached {
+                content: msg,
+                status,
+                poll_id: *poll_id,
+            }
+            .into())
         }
     }
 }
@@ -161,30 +156,26 @@ pub fn vote(
 
     let mut quorum_events = Vec::new();
     for (index_in_poll, vote) in poll_results.iter().enumerate() {
-        let idx = u32::try_from(index_in_poll)
-            .expect("the amount of votes should never overflow u32");
+        let idx =
+            u32::try_from(index_in_poll).expect("the amount of votes should never overflow u32");
         match vote {
             None => quorum_events.push(None),
-            Some(vote) => {
-                quorum_events.push(Some(make_quorum_event(
-                    vote.clone(),
-                    idx,
-                    &poll_id,
-                    &poll,
-                    &deps,
-                )?))
-            }
+            Some(vote) => quorum_events.push(Some(make_quorum_event(
+                vote.clone(),
+                idx,
+                &poll_id,
+                &poll,
+                &deps,
+            )?)),
         }
     }
     VOTES.save(deps.storage, (poll_id, info.sender.to_string()), &votes)?;
 
     Ok(Response::new()
-        .add_event(
-            Voted {
-                poll_id,
-                voter: info.sender,
-            }
-        )
+        .add_event(Voted {
+            poll_id,
+            voter: info.sender,
+        })
         .add_events(quorum_events.into_iter().flatten()))
 }
 
@@ -204,9 +195,7 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: PollId) -> Result<Response, Co
         .try_collect()?;
 
     let poll_result = match &poll {
-        Poll::Messages(poll) => {
-            poll.state(HashMap::from_iter(votes))
-        }
+        Poll::Messages(poll) => poll.state(HashMap::from_iter(votes)),
     };
 
     // TODO: change rewards contract interface to accept a list of addresses to avoid creating multiple wasm messages
@@ -227,12 +216,12 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: PollId) -> Result<Response, Co
             funds: vec![],
         });
 
-    Ok(Response::new().add_messages(rewards_msgs).add_event(
-        PollEnded {
+    Ok(Response::new()
+        .add_messages(rewards_msgs)
+        .add_event(PollEnded {
             poll_id: poll_result.poll_id,
             results: poll_result.results.0.clone(),
-        }
-    ))
+        }))
 }
 
 fn take_snapshot(deps: Deps) -> Result<snapshot::Snapshot, ContractError> {

@@ -3,7 +3,6 @@ use std::convert::TryInto;
 use std::str::FromStr;
 
 use async_trait::async_trait;
-use router_api::ChainName;
 use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmrs::tx::Msg;
 use cosmrs::Any;
@@ -13,6 +12,7 @@ use events_derive;
 use events_derive::try_from;
 use hex::encode;
 use multisig::msg::ExecuteMsg;
+use router_api::ChainName;
 use serde::de::Error as DeserializeError;
 use serde::{Deserialize, Deserializer};
 use tokio::sync::watch::Receiver;

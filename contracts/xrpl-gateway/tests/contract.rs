@@ -6,24 +6,25 @@ use std::str::FromStr;
 
 use axelar_wasm_std::error::ContractError;
 use axelar_wasm_std::{err_contains, nonempty, VerificationStatus};
-use cosmwasm_std::testing::{message_info, mock_dependencies, mock_env, MockApi, MockQuerier, MockStorage};
+use cosmwasm_std::testing::{
+    message_info, mock_dependencies, mock_env, MockApi, MockQuerier, MockStorage,
+};
 #[cfg(not(feature = "generate_golden_files"))]
 use cosmwasm_std::Response;
 use cosmwasm_std::{
-    from_json, to_json_binary, ContractResult, HexBinary, OwnedDeps, QuerierResult, WasmQuery
+    from_json, to_json_binary, ContractResult, HexBinary, OwnedDeps, QuerierResult, WasmQuery,
 };
-use sha3::{Keccak256, Digest};
 use itertools::Itertools;
 use rand::{thread_rng, Rng};
 use router_api::{ChainName, CrossChainId, Message};
 use serde::Serialize;
+use sha3::{Digest, Keccak256};
+use xrpl_gateway::contract::{execute, instantiate, query};
+use xrpl_gateway::msg::{ExecuteMsg, InstantiateMsg, QueryMsg, TokenMetadata};
+use xrpl_gateway::state;
 use xrpl_types::msg::{WithPayload, XRPLMessage, XRPLUserMessage};
 use xrpl_types::types::{TxHash, XRPLAccountId, XRPLPaymentAmount, XRPLTokenOrXrp};
 use xrpl_voting_verifier::msg::MessageStatus;
-
-use xrpl_gateway::contract::{instantiate, execute, query};
-use xrpl_gateway::state;
-use xrpl_gateway::msg::{ExecuteMsg, InstantiateMsg, QueryMsg, TokenMetadata};
 
 #[test]
 fn instantiate_works() {
@@ -42,7 +43,8 @@ fn instantiate_works() {
             its_hub_address: api.addr_make("its-hub").into_string(),
             its_hub_chain_name: ChainName::from_str("axelar").unwrap(),
             chain_name: ChainName::from_str("xrpl").unwrap(),
-            xrpl_multisig_address: XRPLAccountId::from_str("raNVNWvhUQzFkDDTdEw3roXRJfMJFVJuQo").unwrap(),
+            xrpl_multisig_address: XRPLAccountId::from_str("raNVNWvhUQzFkDDTdEw3roXRJfMJFVJuQo")
+                .unwrap(),
         },
     );
 
@@ -55,7 +57,12 @@ fn successful_verify() {
 
     let mut responses = vec![];
     for msgs in test_cases {
-        let mut deps = instantiate_contract("verifier", "router", "its-hub", ChainName::from_str("axelar").unwrap());
+        let mut deps = instantiate_contract(
+            "verifier",
+            "router",
+            "its-hub",
+            ChainName::from_str("axelar").unwrap(),
+        );
         let api = deps.api;
         update_query_handler(&mut deps.querier, handler.clone());
 
@@ -101,7 +108,12 @@ fn successful_route_incoming() {
 
     let mut responses = vec![];
     for msgs in test_cases {
-        let mut deps = instantiate_contract("verifier", "router", "its-hub", ChainName::from_str("axelar").unwrap());
+        let mut deps = instantiate_contract(
+            "verifier",
+            "router",
+            "its-hub",
+            ChainName::from_str("axelar").unwrap(),
+        );
         let api = deps.api;
         update_query_handler(&mut deps.querier, handler.clone());
 
@@ -110,7 +122,8 @@ fn successful_route_incoming() {
             mock_env(),
             message_info(&api.addr_make("admin"), &[]),
             ExecuteMsg::RegisterXrp { salt: [0; 32] },
-        ).unwrap();
+        )
+        .unwrap();
 
         execute(
             deps.as_mut(),
@@ -125,7 +138,8 @@ fn successful_route_incoming() {
                     minter: None,
                 },
             },
-        ).unwrap();
+        )
+        .unwrap();
 
         // check routing of incoming messages is idempotent
         let response = iter::repeat(
@@ -169,7 +183,12 @@ fn successful_route_outgoing() {
     let mut responses = vec![];
     for msgs in test_cases {
         let router = "router";
-        let mut deps = instantiate_contract("verifier", router, "its-hub", ChainName::from_str("axelar").unwrap());
+        let mut deps = instantiate_contract(
+            "verifier",
+            router,
+            "its-hub",
+            ChainName::from_str("axelar").unwrap(),
+        );
         let router_address = deps.api.addr_make(router);
 
         let query_msg =
@@ -227,7 +246,12 @@ fn successful_route_outgoing() {
 #[test]
 fn verify_with_faulty_verifier_fails() {
     // if the mock querier is not overwritten, it will return an error
-    let mut deps = instantiate_contract("verifier", "router", "its-hub", ChainName::from_str("axelar").unwrap());
+    let mut deps = instantiate_contract(
+        "verifier",
+        "router",
+        "its-hub",
+        ChainName::from_str("axelar").unwrap(),
+    );
     let api = deps.api;
 
     let msgs = generate_incoming_msgs("verifier in unreachable", 10);
@@ -244,7 +268,12 @@ fn verify_with_faulty_verifier_fails() {
 #[test]
 fn route_incoming_with_faulty_verifier_fails() {
     // if the mock querier is not overwritten, it will return an error
-    let mut deps = instantiate_contract("verifier", "router", "its-hub", ChainName::from_str("axelar").unwrap());
+    let mut deps = instantiate_contract(
+        "verifier",
+        "router",
+        "its-hub",
+        ChainName::from_str("axelar").unwrap(),
+    );
     let api = deps.api;
 
     let msgs = generate_incoming_msgs("verifier in unreachable", 10);
@@ -263,7 +292,12 @@ fn incoming_calls_with_duplicate_ids_should_fail() {
     let (test_cases, handler) = test_cases_for_duplicate_msgs();
     for msgs in test_cases {
         let router = "router";
-        let mut deps = instantiate_contract("verifier", router, "its-hub", ChainName::from_str("axelar").unwrap());
+        let mut deps = instantiate_contract(
+            "verifier",
+            router,
+            "its-hub",
+            ChainName::from_str("axelar").unwrap(),
+        );
         let api = deps.api;
         update_query_handler(&mut deps.querier, handler.clone());
 
@@ -300,7 +334,12 @@ fn outgoing_calls_with_duplicate_ids_should_fail() {
     let test_cases = outgoing_test_cases_for_duplicate_msgs();
     for msgs in test_cases {
         let router = "router";
-        let mut deps = instantiate_contract("verifier", router, "its-hub", ChainName::from_str("axelar").unwrap());
+        let mut deps = instantiate_contract(
+            "verifier",
+            router,
+            "its-hub",
+            ChainName::from_str("axelar").unwrap(),
+        );
         let api = deps.api;
 
         let response = execute(
@@ -325,7 +364,12 @@ fn outgoing_calls_with_duplicate_ids_should_fail() {
 fn outgoing_route_duplicate_ids_should_fail() {
     let test_cases = outgoing_test_cases_for_duplicate_msgs();
     for msgs in test_cases {
-        let mut deps = instantiate_contract("verifier", "router", "its-hub", ChainName::from_str("axelar").unwrap());
+        let mut deps = instantiate_contract(
+            "verifier",
+            "router",
+            "its-hub",
+            ChainName::from_str("axelar").unwrap(),
+        );
         let api = deps.api;
 
         let response = execute(
@@ -343,7 +387,12 @@ fn outgoing_route_duplicate_ids_should_fail() {
 fn incoming_route_duplicate_ids_should_fail() {
     let (test_cases, handler) = test_cases_for_duplicate_msgs();
     for msgs in test_cases {
-        let mut deps = instantiate_contract("verifier", "router", "its-hub", ChainName::from_str("axelar").unwrap());
+        let mut deps = instantiate_contract(
+            "verifier",
+            "router",
+            "its-hub",
+            ChainName::from_str("axelar").unwrap(),
+        );
         let api = deps.api;
         update_query_handler(&mut deps.querier, handler.clone());
 
@@ -362,12 +411,14 @@ fn incoming_route_duplicate_ids_should_fail() {
 fn reject_reroute_outgoing_message_with_different_contents() {
     let router = "router";
     let its_hub = "its-hub";
-    let mut deps = instantiate_contract("verifier", router, its_hub, ChainName::from_str("axelar").unwrap());
-    let api = deps.api;
-    let mut msgs = generate_outgoing_msgs(
-        VerificationStatus::SucceededOnSourceChain,
-        10,
+    let mut deps = instantiate_contract(
+        "verifier",
+        router,
+        its_hub,
+        ChainName::from_str("axelar").unwrap(),
     );
+    let api = deps.api;
+    let mut msgs = generate_outgoing_msgs(VerificationStatus::SucceededOnSourceChain, 10);
 
     let response = execute(
         deps.as_mut(),
@@ -523,7 +574,11 @@ fn generate_outgoing_msgs(namespace: impl Debug, count: u8) -> Vec<Message> {
             cc_id: CrossChainId::new("axelar", format!("{:?}{}", namespace, i)).unwrap(),
             destination_address: "idc".parse().unwrap(),
             destination_chain: "xrpl".parse().unwrap(),
-            source_address: MockApi::default().addr_make("its-hub").as_str().parse().unwrap(),
+            source_address: MockApi::default()
+                .addr_make("its-hub")
+                .as_str()
+                .parse()
+                .unwrap(),
             payload_hash: [i; 32],
         })
         .collect()
@@ -531,30 +586,48 @@ fn generate_outgoing_msgs(namespace: impl Debug, count: u8) -> Vec<Message> {
 
 fn generate_incoming_msgs(namespace: impl Debug, count: u8) -> Vec<XRPLMessage> {
     (0..count)
-        .map(|i| XRPLMessage::UserMessage(XRPLUserMessage {
-            tx_id: message_id(format!("{:?}{}", namespace, i).as_str()),
-            amount: XRPLPaymentAmount::Drops(1_000_000),
-            destination_address: nonempty::HexBinary::try_from(HexBinary::from_hex("01dc").unwrap()).unwrap(),
-            destination_chain: "ethereum".parse().unwrap(),
-            source_address: XRPLAccountId::from([i; 20]),
-            payload_hash: Some(HexBinary::from_hex("0c3d72390ac0ce0233c551a3c5278f8625ba996f5985dc8d612a9fc55f1de15a").unwrap().as_slice().try_into().unwrap()),
-        }))
+        .map(|i| {
+            XRPLMessage::UserMessage(XRPLUserMessage {
+                tx_id: message_id(format!("{:?}{}", namespace, i).as_str()),
+                amount: XRPLPaymentAmount::Drops(1_000_000),
+                destination_address: nonempty::HexBinary::try_from(
+                    HexBinary::from_hex("01dc").unwrap(),
+                )
+                .unwrap(),
+                destination_chain: "ethereum".parse().unwrap(),
+                source_address: XRPLAccountId::from([i; 20]),
+                payload_hash: Some(
+                    HexBinary::from_hex(
+                        "0c3d72390ac0ce0233c551a3c5278f8625ba996f5985dc8d612a9fc55f1de15a",
+                    )
+                    .unwrap()
+                    .as_slice()
+                    .try_into()
+                    .unwrap(),
+                ),
+            })
+        })
         .collect()
 }
 
 fn messages_with_payload(msgs: Vec<XRPLMessage>) -> Vec<WithPayload<XRPLUserMessage>> {
-    msgs.into_iter().map(|msg| {
-        let user_message = if let XRPLMessage::UserMessage(user_message) = msg {
-            user_message
-        } else {
-            panic!("only user messages are supported")
-        };
+    msgs.into_iter()
+        .map(|msg| {
+            let user_message = if let XRPLMessage::UserMessage(user_message) = msg {
+                user_message
+            } else {
+                panic!("only user messages are supported")
+            };
 
-        return WithPayload::new(
-            user_message,
-            Some(nonempty::HexBinary::try_from(HexBinary::from_hex("0123456789abcdef").unwrap()).unwrap()),
-        );
-    }).collect()
+            WithPayload::new(
+                user_message,
+                Some(
+                    nonempty::HexBinary::try_from(HexBinary::from_hex("0123456789abcdef").unwrap())
+                        .unwrap(),
+                ),
+            )
+        })
+        .collect()
 }
 
 #[allow(clippy::arithmetic_side_effects)]
@@ -597,8 +670,9 @@ fn map_status_by_msg(
 
 fn correctly_working_verifier_handler(
     status_by_msg: HashMap<XRPLMessage, VerificationStatus>,
-) -> impl Fn(xrpl_voting_verifier::msg::QueryMsg) -> Result<Vec<MessageStatus>, ContractError> + Clone + 'static
-{
+) -> impl Fn(xrpl_voting_verifier::msg::QueryMsg) -> Result<Vec<MessageStatus>, ContractError>
+       + Clone
+       + 'static {
     move |msg: xrpl_voting_verifier::msg::QueryMsg| -> Result<Vec<MessageStatus>, ContractError> {
         match msg {
             xrpl_voting_verifier::msg::QueryMsg::MessagesStatus(messages) => Ok(messages
@@ -655,7 +729,8 @@ fn instantiate_contract(
             its_hub_address: api.addr_make(its_hub).into_string(),
             its_hub_chain_name,
             chain_name: ChainName::from_str("xrpl").unwrap(),
-            xrpl_multisig_address: XRPLAccountId::from_str("raNVNWvhUQzFkDDTdEw3roXRJfMJFVJuQo").unwrap(),
+            xrpl_multisig_address: XRPLAccountId::from_str("raNVNWvhUQzFkDDTdEw3roXRJfMJFVJuQo")
+                .unwrap(),
         }
         .clone(),
     );
@@ -665,10 +740,10 @@ fn instantiate_contract(
     deps
 }
 
-fn sort_msgs_by_status<K, V>(
-    msgs: HashMap<K, V>,
-) -> impl Iterator<Item = V>
-where K: std::cmp::Ord + Copy {
+fn sort_msgs_by_status<K, V>(msgs: HashMap<K, V>) -> impl Iterator<Item = V>
+where
+    K: std::cmp::Ord + Copy,
+{
     msgs.into_iter()
         .sorted_by_key(|(status, _)| *status)
         .map(|(_, msgs)| msgs)

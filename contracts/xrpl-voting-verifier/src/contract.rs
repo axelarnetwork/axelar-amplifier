@@ -29,13 +29,20 @@ pub fn instantiate(
 
     let config = Config {
         service_name: msg.service_name,
-        service_registry_contract: address::validate_cosmwasm_address(deps.api, &msg.service_registry_address)?,
-        source_gateway_address: msg.source_gateway_address.to_string().try_into().map_err(|_| ContractError::InvalidSourceGatewayAddress)?,
+        service_registry_contract: address::validate_cosmwasm_address(
+            deps.api,
+            &msg.service_registry_address,
+        )?,
+        source_gateway_address: msg
+            .source_gateway_address
+            .to_string()
+            .try_into()
+            .map_err(|_| ContractError::InvalidSourceGatewayAddress)?,
         voting_threshold: msg.voting_threshold,
         block_expiry: msg.block_expiry,
         confirmation_height: msg.confirmation_height,
         source_chain: msg.source_chain,
-        rewards_contract:address::validate_cosmwasm_address(deps.api, &msg.rewards_address)?,
+        rewards_contract: address::validate_cosmwasm_address(deps.api, &msg.rewards_address)?,
     };
     CONFIG.save(deps.storage, &config)?;
 
@@ -67,15 +74,17 @@ pub fn execute(
 pub fn query(
     deps: Deps,
     env: Env,
-    msg: QueryMsg
+    msg: QueryMsg,
 ) -> Result<Binary, axelar_wasm_std::error::ContractError> {
     match msg {
         QueryMsg::Poll { poll_id } => {
             to_json_binary(&query::poll_response(deps, env.block.height, poll_id)?)
         }
-        QueryMsg::MessagesStatus(messages) => {
-            to_json_binary(&query::messages_status(deps.storage, &messages, env.block.height)?)
-        }
+        QueryMsg::MessagesStatus(messages) => to_json_binary(&query::messages_status(
+            deps.storage,
+            &messages,
+            env.block.height,
+        )?),
         QueryMsg::CurrentThreshold => to_json_binary(&query::voting_threshold(deps)?),
     }?
     .then(Ok)
@@ -95,11 +104,9 @@ mod test {
     use std::str::FromStr;
 
     use axelar_wasm_std::voting::Vote;
-    use axelar_wasm_std::{
-        nonempty, MajorityThreshold, Threshold, VerificationStatus
-    };
+    use axelar_wasm_std::{nonempty, MajorityThreshold, Threshold, VerificationStatus};
     use cosmwasm_std::testing::{
-        message_info, mock_dependencies, mock_env, MockApi, MockQuerier, MockStorage
+        message_info, mock_dependencies, mock_env, MockApi, MockQuerier, MockStorage,
     };
     use cosmwasm_std::{from_json, Empty, Fraction, HexBinary, OwnedDeps, Uint64, WasmQuery};
     use rand::Rng;
@@ -111,9 +118,8 @@ mod test {
     use xrpl_types::msg::{XRPLMessage, XRPLUserMessage};
     use xrpl_types::types::{TxHash, XRPLAccountId, XRPLPaymentAmount};
 
-    use crate::msg::MessageStatus;
-
     use super::*;
+    use crate::msg::MessageStatus;
 
     const SENDER: &str = "sender";
     const ADMIN: &str = "admin";
@@ -159,7 +165,10 @@ mod test {
                 governance_address: api.addr_make(GOVERNANCE).as_str().parse().unwrap(),
                 service_registry_address: service_registry.as_str().parse().unwrap(),
                 service_name: SERVICE_NAME.parse().unwrap(),
-                source_gateway_address: XRPLAccountId::from_str("rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh").unwrap(),
+                source_gateway_address: XRPLAccountId::from_str(
+                    "rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh",
+                )
+                .unwrap(),
                 voting_threshold: initial_voting_threshold(),
                 block_expiry: POLL_BLOCK_EXPIRY.try_into().unwrap(),
                 confirmation_height: 100,
@@ -170,7 +179,9 @@ mod test {
         .unwrap();
 
         deps.querier.update_wasm(move |wq| match wq {
-            WasmQuery::Smart { contract_addr, .. } if contract_addr == service_registry.as_str() => {
+            WasmQuery::Smart { contract_addr, .. }
+                if contract_addr == service_registry.as_str() =>
+            {
                 Ok(to_json_binary(
                     &verifiers
                         .clone()
@@ -197,14 +208,19 @@ mod test {
 
     fn messages(len: u32) -> Vec<XRPLMessage> {
         (0..len)
-            .map(|i| XRPLMessage::UserMessage(XRPLUserMessage {
-                tx_id: message_id("id"),
-                source_address: XRPLAccountId::new(rand::thread_rng().gen()),
-                destination_chain: format!("destination-chain{i}").parse().unwrap(),
-                destination_address: nonempty::HexBinary::try_from(HexBinary::from_hex("1234").unwrap()).unwrap(),
-                payload_hash: None,
-                amount: XRPLPaymentAmount::Drops(u64::from(i)*1_000_000),
-            }))
+            .map(|i| {
+                XRPLMessage::UserMessage(XRPLUserMessage {
+                    tx_id: message_id("id"),
+                    source_address: XRPLAccountId::new(rand::thread_rng().gen()),
+                    destination_chain: format!("destination-chain{i}").parse().unwrap(),
+                    destination_address: nonempty::HexBinary::try_from(
+                        HexBinary::from_hex("1234").unwrap(),
+                    )
+                    .unwrap(),
+                    payload_hash: None,
+                    amount: XRPLPaymentAmount::Drops(u64::from(i) * 1_000_000),
+                })
+            })
             .collect()
     }
 
@@ -874,7 +890,9 @@ mod test {
             .unwrap();
 
             let verify_event =
-                |res: &Response, expected_message: XRPLMessage, expected_status: VerificationStatus| {
+                |res: &Response,
+                 expected_message: XRPLMessage,
+                 expected_status: VerificationStatus| {
                     let mut iter = res.events.iter();
 
                     let event = iter.find(|event| event.ty == "quorum_reached").unwrap();

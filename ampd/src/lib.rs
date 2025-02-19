@@ -330,17 +330,18 @@ where
                 handlers::config::Config::XRPLMsgVerifier {
                     cosmwasm_contract,
                     chain,
-                    rpc_timeout
+                    rpc_timeout,
                 } => {
                     let rpc_client = xrpl_http_client::Client::builder()
                         .base_url(chain.rpc_url.as_str())
                         .http_client(
                             reqwest::ClientBuilder::new()
-                            .connect_timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
-                            .timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
-                            .build()
-                            .change_context(Error::Connection)?,
-                        ).build();
+                                .connect_timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
+                                .timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
+                                .build()
+                                .change_context(Error::Connection)?,
+                        )
+                        .build();
 
                     check_xrpl_finalizer(&chain.name, &chain.finalization, &rpc_client).await?;
 
@@ -354,28 +355,31 @@ where
                                 .base_url(chain.rpc_url.as_str())
                                 .http_client(
                                     reqwest::ClientBuilder::new()
-                                    .connect_timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
-                                    .timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
-                                    .build()
-                                    .change_context(Error::Connection)?,
-                                ).build(),
+                                        .connect_timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
+                                        .timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
+                                        .build()
+                                        .change_context(Error::Connection)?,
+                                )
+                                .build(),
                             self.block_height_monitor.latest_block_height(),
                         ),
                         event_processor_config.clone(),
                     )
                 }
-                handlers::config::Config::XRPLMultisigSigner { multisig_contract, multisig_prover_contract } => self
-                    .create_handler_task(
-                        "xrpl-multisig-signer",
-                        handlers::xrpl_multisig::Handler::new(
-                            verifier.clone(),
-                            multisig_contract,
-                            multisig_prover_contract,
-                            self.multisig_client.clone(),
-                            self.block_height_monitor.latest_block_height(),
-                        ),
-                        event_processor_config.clone(),
+                handlers::config::Config::XRPLMultisigSigner {
+                    multisig_contract,
+                    multisig_prover_contract,
+                } => self.create_handler_task(
+                    "xrpl-multisig-signer",
+                    handlers::xrpl_multisig::Handler::new(
+                        verifier.clone(),
+                        multisig_contract,
+                        multisig_prover_contract,
+                        self.multisig_client.clone(),
+                        self.block_height_monitor.latest_block_height(),
                     ),
+                    event_processor_config.clone(),
+                ),
                 handlers::config::Config::SuiVerifierSetVerifier {
                     cosmwasm_contract,
                     rpc_url,

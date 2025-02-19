@@ -2,11 +2,13 @@ use axelar_wasm_std::nonempty;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, HexBinary, Uint256};
 use interchain_token_service::TokenId;
-use router_api::{ChainName, ChainNameRaw, CrossChainId, Message};
 use msgs_derive::EnsurePermissions;
-
+use router_api::{ChainName, ChainNameRaw, CrossChainId, Message};
 use xrpl_types::msg::{WithPayload, XRPLMessage, XRPLUserMessage};
-use xrpl_types::types::{xrpl_account_id_string, xrpl_currency_string, XRPLAccountId, XRPLCurrency, XRPLPaymentAmount, XRPLToken, XRPLTokenOrXrp};
+use xrpl_types::types::{
+    xrpl_account_id_string, xrpl_currency_string, XRPLAccountId, XRPLCurrency, XRPLPaymentAmount,
+    XRPLToken, XRPLTokenOrXrp,
+};
 
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -58,9 +60,7 @@ pub struct LinkToken {
 pub enum ExecuteMsg {
     /// Register XRPL token metadata for custom token linking.
     #[permission(Elevated)]
-    RegisterTokenMetadata {
-        xrpl_token: XRPLTokenOrXrp,
-    },
+    RegisterTokenMetadata { xrpl_token: XRPLTokenOrXrp },
 
     /// Register an XRPL token as an interchain token.
     #[permission(Elevated)]

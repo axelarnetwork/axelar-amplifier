@@ -1,16 +1,18 @@
 use axelar_wasm_std::VerificationStatus;
-use cosmwasm_schema::serde::{de::DeserializeOwned, Serialize};
+use cosmwasm_schema::serde::de::DeserializeOwned;
+use cosmwasm_schema::serde::Serialize;
 use cosmwasm_std::{to_json_binary, QuerierWrapper, QueryRequest, Uint64, WasmQuery};
 use interchain_token_service::TokenId;
 use multisig::key::PublicKey;
 use multisig::multisig::Multisig;
 use router_api::{ChainNameRaw, CrossChainId, Message};
 use service_registry::{Service, WeightedVerifier};
-use xrpl_voting_verifier::msg::MessageStatus;
 use xrpl_types::msg::XRPLMessage;
 use xrpl_types::types::XRPLToken;
+use xrpl_voting_verifier::msg::MessageStatus;
 
-use crate::{error::ContractError, state::Config};
+use crate::error::ContractError;
+use crate::state::Config;
 
 fn query<U, T>(
     querier: QuerierWrapper,
@@ -75,17 +77,21 @@ impl<'a> Querier<'a> {
         let messages: Vec<Message> = query(
             self.querier,
             self.config.gateway.to_string(),
-            &xrpl_gateway::msg::QueryMsg::OutgoingMessages(
-                vec![cc_id.clone()],
-            ),
+            &xrpl_gateway::msg::QueryMsg::OutgoingMessages(vec![cc_id.clone()]),
         )?;
         messages
             .first()
             .cloned()
-            .ok_or(ContractError::InvalidMessageId(cc_id.message_id.to_string()))
+            .ok_or(ContractError::InvalidMessageId(
+                cc_id.message_id.to_string(),
+            ))
     }
 
-    pub fn token_instance_decimals(&self, chain_name: ChainNameRaw, token_id: TokenId) -> Result<u8, ContractError> {
+    pub fn token_instance_decimals(
+        &self,
+        chain_name: ChainNameRaw,
+        token_id: TokenId,
+    ) -> Result<u8, ContractError> {
         let decimals: u8 = query(
             self.querier,
             self.config.gateway.to_string(),
@@ -121,25 +127,18 @@ impl<'a> Querier<'a> {
         let messages_status: Vec<MessageStatus> = query(
             self.querier,
             self.config.voting_verifier.to_string(),
-            &xrpl_voting_verifier::msg::QueryMsg::MessagesStatus(
-                vec![message],
-            ),
+            &xrpl_voting_verifier::msg::QueryMsg::MessagesStatus(vec![message]),
         )?;
-        let message_status = messages_status.first().ok_or(ContractError::MessageStatusNotFound)?;
+        let message_status = messages_status
+            .first()
+            .ok_or(ContractError::MessageStatusNotFound)?;
         Ok(message_status.status)
     }
 
-    pub fn multisig(
-        &self,
-        multisig_session_id: &Uint64,
-    ) -> Result<Multisig, ContractError> {
+    pub fn multisig(&self, multisig_session_id: &Uint64) -> Result<Multisig, ContractError> {
         let query_msg = multisig::msg::QueryMsg::Multisig {
             session_id: *multisig_session_id,
         };
-        query(
-            self.querier,
-            self.config.multisig.to_string(),
-            &query_msg,
-        )
+        query(self.querier, self.config.multisig.to_string(), &query_msg)
     }
 }

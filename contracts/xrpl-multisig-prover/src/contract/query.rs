@@ -1,18 +1,20 @@
-use router_api::CrossChainId;
 use cosmwasm_std::{HexBinary, StdResult, Storage, Uint64};
 use multisig::key::{PublicKey, Signature};
 use multisig::types::MultisigState;
+use router_api::CrossChainId;
 use xrpl_types::error::XRPLError;
-use xrpl_types::types::{XRPLAccountId, XRPLSignedTx, XRPLSigner, XRPLTxStatus, XRPLUnsignedTxToSign};
+use xrpl_types::types::{
+    XRPLAccountId, XRPLSignedTx, XRPLSigner, XRPLTxStatus, XRPLUnsignedTxToSign,
+};
 
 use crate::error::ContractError;
 use crate::msg::{ProofResponse, ProofStatus};
 use crate::querier::Querier;
-use crate::xrpl_serialize::XRPLSerialize;
 use crate::state::{
-    MultisigSession, CROSS_CHAIN_ID_TO_MULTISIG_SESSION, NEXT_VERIFIER_SET,
-    CURRENT_VERIFIER_SET, MULTISIG_SESSION_ID_TO_UNSIGNED_TX_HASH, UNSIGNED_TX_HASH_TO_TX_INFO,
+    MultisigSession, CROSS_CHAIN_ID_TO_MULTISIG_SESSION, CURRENT_VERIFIER_SET,
+    MULTISIG_SESSION_ID_TO_UNSIGNED_TX_HASH, NEXT_VERIFIER_SET, UNSIGNED_TX_HASH_TO_TX_INFO,
 };
+use crate::xrpl_serialize::XRPLSerialize;
 
 fn message_to_sign(
     storage: &dyn Storage,
@@ -24,15 +26,19 @@ fn message_to_sign(
 
     let tx_info = UNSIGNED_TX_HASH_TO_TX_INFO.load(storage, &unsigned_tx_hash)?;
     if tx_info.status != XRPLTxStatus::Pending {
-        return Err(ContractError::TxStatusNotPending.into());
+        return Err(ContractError::TxStatusNotPending);
     }
 
     let encoded_unsigned_tx_to_sign = XRPLUnsignedTxToSign {
         unsigned_tx: tx_info.unsigned_tx,
         unsigned_tx_hash,
         cc_id: tx_info.original_cc_id,
-    }.xrpl_serialize()?;
-    Ok(xrpl_types::types::message_to_sign(encoded_unsigned_tx_to_sign, signer_xrpl_address)?)
+    }
+    .xrpl_serialize()?;
+    Ok(xrpl_types::types::message_to_sign(
+        encoded_unsigned_tx_to_sign,
+        signer_xrpl_address,
+    )?)
 }
 
 pub fn verify_signature(
@@ -67,7 +73,13 @@ pub fn proof(
                 .verifier_set
                 .signers
                 .into_iter()
-                .filter_map(|(signer_address, signer)| multisig_session.signatures.get(&signer_address).cloned().zip(Some(signer)))
+                .filter_map(|(signer_address, signer)| {
+                    multisig_session
+                        .signatures
+                        .get(&signer_address)
+                        .cloned()
+                        .zip(Some(signer))
+                })
                 .map(XRPLSigner::try_from)
                 .collect::<Result<Vec<_>, XRPLError>>()?;
 
@@ -82,16 +94,23 @@ pub fn proof(
         }
     };
 
-    Ok(ProofResponse { unsigned_tx_hash, status })
+    Ok(ProofResponse {
+        unsigned_tx_hash,
+        status,
+    })
 }
 
-pub fn current_verifier_set(storage: &dyn Storage) -> StdResult<Option<multisig::verifier_set::VerifierSet>> {
+pub fn current_verifier_set(
+    storage: &dyn Storage,
+) -> StdResult<Option<multisig::verifier_set::VerifierSet>> {
     CURRENT_VERIFIER_SET
         .may_load(storage)
         .map(|op| op.map(|set| set.into()))
 }
 
-pub fn next_verifier_set(storage: &dyn Storage) -> StdResult<Option<multisig::verifier_set::VerifierSet>> {
+pub fn next_verifier_set(
+    storage: &dyn Storage,
+) -> StdResult<Option<multisig::verifier_set::VerifierSet>> {
     NEXT_VERIFIER_SET
         .may_load(storage)
         .map(|op| op.map(|set| set.into()))

@@ -5,9 +5,9 @@ use interchain_token_service::TokenId;
 use router_api::{ChainNameRaw, CrossChainId, Message};
 use xrpl_types::msg::{WithPayload, XRPLUserMessage};
 
+use super::execute::{self, chain_name_hash};
+use super::Error;
 use crate::state::{self, Config};
-
-use super::{execute::{self, chain_name_hash}, Error};
 
 pub fn outgoing_messages<'a>(
     storage: &dyn Storage,
@@ -20,17 +20,12 @@ pub fn outgoing_messages<'a>(
     Ok(to_json_binary(&msgs).map_err(state::Error::from)?)
 }
 
-pub fn xrpl_token(
-    storage: &dyn Storage,
-    token_id: TokenId,
-) -> Result<Binary, state::Error> {
+pub fn xrpl_token(storage: &dyn Storage, token_id: TokenId) -> Result<Binary, state::Error> {
     let xrpl_token = state::load_xrpl_token(storage, &token_id)?;
     Ok(to_json_binary(&xrpl_token).map_err(state::Error::from)?)
 }
 
-pub fn xrp_token_id(
-    storage: &dyn Storage,
-) -> Result<Binary, state::Error> {
+pub fn xrp_token_id(storage: &dyn Storage) -> Result<Binary, state::Error> {
     let token_id = state::load_xrp_token_id(storage)?;
     Ok(to_json_binary(&token_id).map_err(state::Error::from)?)
 }
@@ -60,7 +55,8 @@ pub fn translate_to_interchain_transfer(
     config: &Config,
     message_with_payload: &WithPayload<XRPLUserMessage>,
 ) -> Result<Binary, Error> {
-    let interchain_transfer = execute::translate_to_interchain_transfer(storage, config, message_with_payload)?;
+    let interchain_transfer =
+        execute::translate_to_interchain_transfer(storage, config, message_with_payload)?;
     Ok(to_json_binary(&interchain_transfer).map_err(Error::from)?)
 }
 
@@ -74,7 +70,7 @@ fn accumulate_errs(
             Ok(acc)
         }
         (Err(report), Ok(_)) => Err(report),
-        (acc, Err(msg_err)) => extend_err(acc, msg_err.into()),
+        (acc, Err(msg_err)) => extend_err(acc, msg_err),
     }
 }
 

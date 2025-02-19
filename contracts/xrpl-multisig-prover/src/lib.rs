@@ -1,9 +1,9 @@
+mod axelar_verifiers;
 pub mod contract;
 pub mod error;
 pub mod events;
 pub mod msg;
-mod state;
-mod axelar_verifiers;
 mod querier;
+mod state;
 mod xrpl_multisig;
 mod xrpl_serialize;

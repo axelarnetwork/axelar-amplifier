@@ -3,9 +3,9 @@ use axelar_wasm_std::{MajorityThreshold, VerificationStatus};
 use cosmwasm_std::{Deps, Storage};
 use xrpl_types::msg::XRPLMessage;
 
-use crate::state::{poll_messages, Poll, PollContent, CONFIG, POLLS};
 use crate::error::ContractError;
 use crate::msg::{MessageStatus, PollData, PollResponse};
+use crate::state::{poll_messages, Poll, PollContent, CONFIG, POLLS};
 
 pub fn voting_threshold(deps: Deps) -> Result<MajorityThreshold, ContractError> {
     Ok(CONFIG.load(deps.storage)?.voting_threshold)
@@ -284,7 +284,10 @@ mod tests {
             tx_id: TxHash::new([0; 32]),
             source_address: XRPLAccountId::new([0; 20]),
             destination_chain: format!("destination-chain{id}").parse().unwrap(),
-            destination_address: nonempty::HexBinary::try_from(HexBinary::from_hex("1234").unwrap()).unwrap(),
+            destination_address: nonempty::HexBinary::try_from(
+                HexBinary::from_hex("1234").unwrap(),
+            )
+            .unwrap(),
             payload_hash: None,
             amount: XRPLPaymentAmount::Drops(100),
         })

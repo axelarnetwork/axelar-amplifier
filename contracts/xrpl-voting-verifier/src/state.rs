@@ -103,7 +103,11 @@ impl<'a> PollMessagesIndex<'a> {
         }
     }
 
-    pub fn load_messages(&self, storage: &dyn Storage, poll_id: PollId) -> StdResult<Vec<XRPLMessage>> {
+    pub fn load_messages(
+        &self,
+        storage: &dyn Storage,
+        poll_id: PollId,
+    ) -> StdResult<Vec<XRPLMessage>> {
         poll_messages()
             .idx
             .0
@@ -130,7 +134,9 @@ pub fn poll_messages<'a>() -> IndexedMap<&'a Hash, PollContent<XRPLMessage>, Pol
 }
 
 impl<'a> IndexList<PollContent<XRPLMessage>> for PollMessagesIndex<'a> {
-    fn get_indexes(&'_ self) -> Box<dyn Iterator<Item = &'_ dyn Index<PollContent<XRPLMessage>>> + '_> {
+    fn get_indexes(
+        &'_ self,
+    ) -> Box<dyn Iterator<Item = &'_ dyn Index<PollContent<XRPLMessage>>> + '_> {
         let v: Vec<&dyn Index<PollContent<XRPLMessage>>> = vec![&self.0];
         Box::new(v.into_iter())
     }

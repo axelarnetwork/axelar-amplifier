@@ -1,10 +1,10 @@
-use itertools::Itertools;
 use std::collections::hash_map::RandomState;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use axelar_wasm_std::MajorityThreshold;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Fraction, HexBinary, Uint128};
+use itertools::Itertools;
 use multisig::key::KeyType;
 use multisig::msg::Signer;
 use service_registry::WeightedVerifier;
@@ -106,9 +106,10 @@ pub fn active_verifiers(
         .into_iter()
         .filter_map(|verifier| {
             let address = verifier.verifier_info.address.clone();
-            querier.public_key(address.to_string())
-            .ok()
-            .map(|pk| (verifier, pk))
+            querier
+                .public_key(address.to_string())
+                .ok()
+                .map(|pk| (verifier, pk))
         })
         .collect::<Vec<_>>();
 
@@ -118,7 +119,7 @@ pub fn active_verifiers(
     }
 
     let service = querier.service()?;
-    if num_of_verifiers < service.min_num_verifiers.try_into().expect("minimum number of verifiers is too large") {
+    if num_of_verifiers < service.min_num_verifiers.into() {
         return Err(ContractError::NotEnoughVerifiers);
     }
 
@@ -160,7 +161,8 @@ pub fn should_update_verifier_set(
     max_diff: usize,
 ) -> bool {
     new_verifiers.threshold != cur_verifiers.threshold
-        || signers_symetric_difference_count(&new_verifiers.signers, &cur_verifiers.signers) > max_diff
+        || signers_symetric_difference_count(&new_verifiers.signers, &cur_verifiers.signers)
+            > max_diff
 }
 
 fn signers_symetric_difference_count(
@@ -229,7 +231,7 @@ mod tests {
         let scaled_weights = convert_or_scale_weights(&weights).unwrap();
         assert_eq!(scaled_weights, vec![0, 2, 39, 524, 65535]);
 
-        let scaled_weights = convert_or_scale_weights(&vec![]).unwrap();
+        let scaled_weights = convert_or_scale_weights(&[]).unwrap();
         assert_eq!(scaled_weights, vec![] as Vec<u16>);
     }
 }
