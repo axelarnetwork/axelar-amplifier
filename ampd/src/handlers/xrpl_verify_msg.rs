@@ -36,7 +36,6 @@ struct PollStartedEvent {
     poll_id: PollId,
     #[serde(with = "xrpl_account_id_string")]
     source_gateway_address: XRPLAccountId,
-    confirmation_height: u32,
     expires_at: u64,
     messages: Vec<XRPLMessage>,
     participants: Vec<TMAddress>,
@@ -73,19 +72,14 @@ where
         }
     }
 
-    async fn validated_txs<T>(
-        &self,
-        tx_ids: T,
-        confirmation_height: u32,
-    ) -> Result<HashMap<TxHash, Transaction>>
+    async fn validated_txs<T>(&self, tx_ids: T) -> Result<HashMap<TxHash, Transaction>>
     where
         T: IntoIterator<Item = TxHash>,
     {
-        let latest_validated_ledger_index =
-            finalizer::pick(&self.finalizer_type, &self.rpc_client, confirmation_height)
-                .latest_validated_ledger_index()
-                .await
-                .change_context(Error::Finalizer)?;
+        let latest_validated_ledger_index = finalizer::pick(&self.finalizer_type, &self.rpc_client)
+            .latest_validated_ledger_index()
+            .await
+            .change_context(Error::Finalizer)?;
 
         Ok(join_all(
             tx_ids
@@ -153,7 +147,6 @@ where
             source_gateway_address,
             messages,
             expires_at,
-            confirmation_height,
             participants,
         } = match event.try_into() as error_stack::Result<_, _> {
             Err(report) if matches!(report.current_context(), EventTypeMismatch(_)) => {
@@ -173,7 +166,7 @@ where
         }
 
         let tx_ids: HashSet<_> = messages.iter().map(|message| message.tx_id()).collect();
-        let validated_txs = self.validated_txs(tx_ids, confirmation_height).await?;
+        let validated_txs = self.validated_txs(tx_ids).await?;
 
         let poll_id_str: String = poll_id.into();
         let message_ids = messages

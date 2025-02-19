@@ -178,7 +178,7 @@ async fn check_xrpl_finalizer<'a, C>(
 where
     C: XRPLClient + Send + Sync,
 {
-    let _ = xrpl::finalizer::pick(finalization, rpc_client, 0u32)
+    let _ = xrpl::finalizer::pick(finalization, rpc_client)
         .latest_validated_ledger_index()
         .await
         .change_context_lazy(|| Error::InvalidFinalizerType(chain_name.to_owned()))?;
