@@ -48,14 +48,18 @@ pub struct Client<'a> {
 }
 
 impl Client<'_> {
-    pub fn register_prover_contract(
+    pub fn register_contract_addresses(
         &self,
         chain_name: ChainName,
-        new_prover_addr: String,
+        prover_address: String,
+        gateway_address: String,
+        voting_verifier_address: String,
     ) -> CosmosMsg {
-        self.client.execute(&ExecuteMsg::RegisterProverContract {
+        self.client.execute(&ExecuteMsg::RegisterContractAddresses {
             chain_name,
-            new_prover_addr,
+            prover_address,
+            gateway_address,
+            voting_verifier_address,
         })
     }
 

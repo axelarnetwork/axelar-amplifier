@@ -25,4 +25,13 @@ pub enum ContractError {
 
     #[error("failed to migrate contract state")]
     Migration,
+
+    #[error("chain is not registered")]
+    ChainNotRegistered,
+
+    #[error("gateway is not registered")]
+    GatewayNotRegistered,
+
+    #[error("verifier is not registered")]
+    VerifierNotRegistered,
 }

@@ -17,9 +17,11 @@ pub struct InstantiateMsg {
 #[derive(EnsurePermissions)]
 pub enum ExecuteMsg {
     #[permission(Governance)]
-    RegisterProverContract {
+    RegisterContractAddresses {
         chain_name: ChainName,
-        new_prover_addr: String,
+        prover_address: String,
+        gateway_address: String,
+        voting_verifier_address: String,
     },
     #[permission(Specific(prover))]
     SetActiveVerifiers { verifiers: HashSet<String> },
