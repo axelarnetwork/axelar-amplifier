@@ -9,7 +9,9 @@ use cosmwasm_std::{Addr, HexBinary, StdError, StdResult, Uint128, Uint256};
 use cw_storage_plus::{Key, KeyDeserialize, PrimaryKey};
 use k256::ecdsa;
 use k256::schnorr::signature::SignatureEncoding;
+use lazy_static::lazy_static;
 use multisig::key::{PublicKey, Signature};
+use regex::Regex;
 use ripemd::Ripemd160;
 use router_api::{CrossChainId, FIELD_DELIMITER};
 use sha2::{Digest, Sha256, Sha512};
@@ -31,8 +33,10 @@ pub const XRP_MAX_UINT: u64 = 100_000_000_000_000_000u64;
 const SIGNED_TRANSACTION_HASH_PREFIX: [u8; 4] = [0x54, 0x58, 0x4E, 0x00];
 const UNSIGNED_TRANSACTION_MULTI_SIGNING_HASH_PREFIX: [u8; 4] = [0x53, 0x4D, 0x54, 0x00];
 
-const ALLOWED_CURRENCY_CHARS: &str =
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789?!@#$%^&*<>(){}[]|";
+lazy_static! {
+    static ref CURRENCY_CODE_REGEX: Regex =
+        Regex::new(r"^[A-Za-z0-9\?\!@#\$%\^&\*<>\(\)\{\}\[\]\|]{3}$").unwrap();
+}
 
 const MIN_MANTISSA: u64 = 1_000_000_000_000_000;
 const MAX_MANTISSA: u64 = 10_000_000_000_000_000 - 1;
@@ -817,7 +821,7 @@ pub struct XRPLCurrency([u8; XRPL_CURRENCY_LENGTH]);
 
 impl XRPLCurrency {
     pub fn new(s: &str) -> Result<Self, XRPLError> {
-        if s.len() != 3 || s == "XRP" || !s.chars().all(|c| ALLOWED_CURRENCY_CHARS.contains(c)) {
+        if s == "XRP" || !CURRENCY_CODE_REGEX.is_match(s) {
             return Err(XRPLError::InvalidCurrency);
         }
 
