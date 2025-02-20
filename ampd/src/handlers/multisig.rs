@@ -150,8 +150,8 @@ where
         match pub_keys.get(&self.verifier) {
             Some(pub_key) => {
                 let key_type = match pub_key {
-                    PublicKey::Secp256k1(_) => tofnd::Algorithm::Ed25519,
-                    PublicKey::Ed25519(_) => tofnd::Algorithm::Ecdsa,
+                    PublicKey::Ed25519(_) => tofnd::Algorithm::Ed25519,
+                    PublicKey::Secp256k1(_) => tofnd::Algorithm::Ecdsa,
                 };
 
                 let signature = self
