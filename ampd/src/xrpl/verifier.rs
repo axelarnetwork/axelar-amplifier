@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::io::{Error, ErrorKind};
 
 use axelar_wasm_std::voting::Vote;
 use xrpl_http_client::Transaction::Payment;
@@ -96,10 +97,6 @@ pub fn is_successful_tx(tx: &Transaction) -> bool {
     false
 }
 
-fn remove_0x_prefix(s: String) -> String {
-    s.strip_prefix("0x").unwrap_or(&s).to_string()
-}
-
 pub fn verify_amount(amount: Amount, message: &XRPLUserMessage) -> bool {
     || -> Option<bool> {
         let amount = match amount {
@@ -119,17 +116,14 @@ pub fn verify_amount(amount: Amount, message: &XRPLUserMessage) -> bool {
 }
 
 pub fn verify_memos(memos: HashMap<String, String>, message: &XRPLUserMessage) -> bool {
-    let destination_address =
-        remove_0x_prefix(message.destination_address.to_string()).to_uppercase();
+    let destination_address = message.destination_address.to_string().to_uppercase();
     let destination_chain = hex::encode_upper(message.destination_chain.to_string());
 
     memos.get("destination_address") == Some(&destination_address)
         && memos.get("destination_chain") == Some(&destination_chain)
         && memos
             .get("payload_hash")
-            .and_then(|payload_hash_hex| {
-                hex::decode(remove_0x_prefix(payload_hash_hex.to_owned())).ok()
-            })
+            .and_then(|payload_hash_hex| hex::decode(payload_hash_hex.to_owned()).ok())
             .map_or(false, |payload_hash| {
                 message.payload_hash == payload_hash.try_into().ok()
             })
