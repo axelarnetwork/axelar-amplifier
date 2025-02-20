@@ -49,11 +49,15 @@ pub enum Error {
     QueryTokenConfig,
     #[error("failed to query the status of contract")]
     QueryContractStatus,
+    #[error("failed to query chain configs")]
+    QueryAllChainConfigs,
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(deps: DepsMut, _env: Env, _msg: Empty) -> Result<Response, ContractError> {
     // Implement migration logic if needed
+
+    // TODO migrate max uint to max uint bits
 
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
@@ -134,6 +138,12 @@ pub fn query(deps: Deps, _: Env, msg: QueryMsg) -> Result<Binary, ContractError>
         QueryMsg::AllItsContracts => {
             query::all_its_contracts(deps).change_context(Error::QueryAllItsContracts)
         }
+        QueryMsg::ItsChains {
+            filter,
+            start_after,
+            limit,
+        } => query::its_chains(deps, filter, start_after, limit)
+            .change_context(Error::QueryAllChainConfigs),
         QueryMsg::TokenInstance { chain, token_id } => {
             query::token_instance(deps, chain, token_id).change_context(Error::QueryTokenInstance)
         }
