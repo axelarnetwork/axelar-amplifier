@@ -24,6 +24,7 @@ pub const XRP_DECIMALS: u8 = 6;
 pub const XRPL_ISSUED_TOKEN_DECIMALS: u8 = 15;
 pub const XRP_MAX_UINT: u64 = 100_000_000_000_000_000u64;
 
+// https://xrpl.org/docs/references/protocol/data-types/basic-data-types#hash-prefixes
 const UNSIGNED_TRANSACTION_MULTI_SIGNING_HASH_PREFIX: [u8; 4] = [0x53, 0x4D, 0x54, 0x00];
 
 lazy_static! {
