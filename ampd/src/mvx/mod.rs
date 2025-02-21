@@ -26,16 +26,16 @@ impl WeightedSigners {
     pub fn hash(&self) -> Hash {
         let mut encoded: Vec<Vec<u8>> = Vec::new();
 
-        encoded.push(usize_to_u32(self.signers.len()).to_vec());
+        encoded.push(usize_to_u32_as_bytes(self.signers.len()).to_vec());
 
         for signer in self.signers.iter() {
             encoded.push(signer.signer.to_vec());
 
-            encoded.push(usize_to_u32(signer.weight.len()).to_vec());
+            encoded.push(usize_to_u32_as_bytes(signer.weight.len()).to_vec());
             encoded.push(signer.weight.to_vec());
         }
 
-        encoded.push(usize_to_u32(self.threshold.len()).to_vec());
+        encoded.push(usize_to_u32_as_bytes(self.threshold.len()).to_vec());
         encoded.push(self.threshold.to_vec());
         encoded.push(self.nonce.to_vec());
 
@@ -82,7 +82,7 @@ fn uint256_to_compact_vec(value: Uint256) -> Vec<u8> {
 }
 
 #[allow(clippy::cast_possible_truncation)]
-fn usize_to_u32(value: usize) -> [u8; 4] {
+fn usize_to_u32_as_bytes(value: usize) -> [u8; 4] {
     (value as u32).to_be_bytes()
 }
 
