@@ -118,8 +118,8 @@ pub fn verify_amount(amount: Amount, message: &XRPLUserMessage) -> bool {
 }
 
 pub fn verify_memos(memos: HashMap<String, String>, message: &XRPLUserMessage) -> bool {
-    let expected_destination_address = message.destination_address.to_string().to_uppercase();
-    let expected_destination_chain = hex::encode_upper(message.destination_chain.to_string());
+    let expected_destination_address = message.destination_address.to_string();
+    let expected_destination_chain = hex::encode(message.destination_chain.to_string());
 
     let is_valid_payload_hash = match &message.payload_hash {
         Some(expected_hash) => memos
@@ -133,8 +133,9 @@ pub fn verify_memos(memos: HashMap<String, String>, message: &XRPLUserMessage) -
         None => !memos.contains_key("payload"),
     };
 
-    memos.get("destination_address") == Some(&expected_destination_address)
-        && memos.get("destination_chain") == Some(&expected_destination_chain)
+    memos.get("destination_address").map(|s| s.to_lowercase()) == Some(expected_destination_address)
+        && memos.get("destination_chain").map(|s| s.to_lowercase())
+            == Some(expected_destination_chain)
         && is_valid_payload_hash
 }
 
