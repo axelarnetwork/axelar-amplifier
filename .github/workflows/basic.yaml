@@ -6,6 +6,7 @@ on:
   push:
     branches:
       - main
+      - xrpl
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
