@@ -57,6 +57,9 @@ pub struct XRPLProverMessage {
     #[serde(with = "tx_hash_hex")]
     #[schemars(with = "String")]
     pub tx_id: TxHash,
+
+    /// The hash of the unsigned XRPL transaction. This is used to verify
+    /// the transaction that was posted, while ignoring the signatures.
     #[serde(with = "tx_hash_hex")]
     #[schemars(with = "String")]
     pub unsigned_tx_hash: TxHash,
