@@ -1,5 +1,5 @@
+use sha3::{Digest, Keccak256};
 use std::collections::HashMap;
-use std::io::{Error, ErrorKind};
 
 use axelar_wasm_std::voting::Vote;
 use xrpl_http_client::Transaction::Payment;
@@ -116,17 +116,24 @@ pub fn verify_amount(amount: Amount, message: &XRPLUserMessage) -> bool {
 }
 
 pub fn verify_memos(memos: HashMap<String, String>, message: &XRPLUserMessage) -> bool {
-    let destination_address = message.destination_address.to_string().to_uppercase();
-    let destination_chain = hex::encode_upper(message.destination_chain.to_string());
+    let expected_destination_address = message.destination_address.to_string().to_uppercase();
+    let expected_destination_chain = hex::encode_upper(message.destination_chain.to_string());
 
-    memos.get("destination_address") == Some(&destination_address)
-        && memos.get("destination_chain") == Some(&destination_chain)
-        && memos
-            .get("payload_hash")
-            .and_then(|payload_hash_hex| hex::decode(payload_hash_hex.to_owned()).ok())
-            .map_or(false, |payload_hash| {
-                message.payload_hash == payload_hash.try_into().ok()
+    let is_valid_payload_hash = match &message.payload_hash {
+        Some(expected_hash) => memos
+            .get("payload")
+            .map(|memo_payload| {
+                hex::decode(memo_payload)
+                    .map(|decoded| Keccak256::digest(decoded).to_vec() == *expected_hash)
+                    .unwrap_or(false)
             })
+            .unwrap_or(false),
+        None => !memos.contains_key("payload"),
+    };
+
+    memos.get("destination_address") == Some(&expected_destination_address)
+        && memos.get("destination_chain") == Some(&expected_destination_chain)
+        && is_valid_payload_hash
 }
 
 #[cfg(test)]
@@ -146,24 +153,22 @@ mod test {
     fn test_verify_memos() {
         let memos = vec![
             Memo {
-                memo_type: Some("64657374696E6174696F6E5F61646472657373".to_string()),
+                memo_type: Some("64657374696E6174696F6E5F61646472657373".to_string()), // destination_address
                 memo_data: Some("592639C10223C4EC6C0FFC670E94D289A25DD1AD".to_string()),
                 memo_format: None,
             },
             Memo {
-                memo_type: Some("64657374696E6174696F6E5F636861696E".to_string()),
+                memo_type: Some("64657374696E6174696F6E5F636861696E".to_string()), // destination_chain
                 memo_data: Some("657468657265756D".to_string()),
                 memo_format: None,
             },
             Memo {
-                memo_type: Some("7061796C6F61645F68617368".to_string()),
-                memo_data: Some(
-                    "4F246000525114CC0CC261973D12E9A1C53B7AA295DF41FA6A6BFD00045BF0E6".to_string(),
-                ),
+                memo_type: Some("7061796c6f6164".to_string()), // payload
+                memo_data: Some("0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000e474d5020776f726b7320746f6f3f000000000000000000000000000000000000".to_string()),
                 memo_format: None,
             },
         ];
-        let user_message = XRPLUserMessage {
+        let mut user_message = XRPLUserMessage {
             tx_id: TxHash::new([0; 32]),
             source_address: XRPLAccountId::from_str("raNVNWvhUQzFkDDTdEw3roXRJfMJFVJuQo").unwrap(),
             destination_address: nonempty::HexBinary::try_from(
@@ -172,7 +177,7 @@ mod test {
             .unwrap(),
             destination_chain: ChainName::from_str("ethereum").unwrap(),
             payload_hash: Some(
-                hex::decode("4F246000525114CC0CC261973D12E9A1C53B7AA295DF41FA6A6BFD00045BF0E6")
+                hex::decode("40e7ed31929500a6a4945765612bac44a71fe18ef7a1bf3d904811558b41354f")
                     .unwrap()
                     .to_vec()
                     .try_into()
@@ -180,6 +185,46 @@ mod test {
             ),
             amount: XRPLPaymentAmount::Drops(100000),
         };
-        assert!(verify_memos(parse_memos(memos), &user_message));
+        assert!(verify_memos(parse_memos(memos.clone()), &user_message));
+
+        user_message.payload_hash = None;
+        assert!(!verify_memos(parse_memos(memos.clone()), &user_message));
+    }
+
+    #[test]
+    fn test_verify_memos_no_payload() {
+        let memos = vec![
+            Memo {
+                memo_type: Some("64657374696E6174696F6E5F61646472657373".to_string()), // destination_address
+                memo_data: Some("592639C10223C4EC6C0FFC670E94D289A25DD1AD".to_string()),
+                memo_format: None,
+            },
+            Memo {
+                memo_type: Some("64657374696E6174696F6E5F636861696E".to_string()), // destination_chain
+                memo_data: Some("657468657265756D".to_string()),
+                memo_format: None,
+            },
+        ];
+        let mut user_message = XRPLUserMessage {
+            tx_id: TxHash::new([0; 32]),
+            source_address: XRPLAccountId::from_str("raNVNWvhUQzFkDDTdEw3roXRJfMJFVJuQo").unwrap(),
+            destination_address: nonempty::HexBinary::try_from(
+                HexBinary::from_hex("592639c10223C4EC6C0ffc670e94d289A25DD1ad").unwrap(),
+            )
+            .unwrap(),
+            destination_chain: ChainName::from_str("ethereum").unwrap(),
+            payload_hash: None,
+            amount: XRPLPaymentAmount::Drops(100000),
+        };
+        assert!(verify_memos(parse_memos(memos.clone()), &user_message));
+
+        user_message.payload_hash = Some(
+            hex::decode("8a7adf72777a40d790e327be8af2fdb35c2c557f3555c587aae9bc155a9020a8")
+                .unwrap()
+                .to_vec()
+                .try_into()
+                .unwrap(),
+        );
+        assert!(!verify_memos(parse_memos(memos.clone()), &user_message));
     }
 }
