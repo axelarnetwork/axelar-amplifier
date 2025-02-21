@@ -98,18 +98,12 @@ impl From<XRPLProverMessage> for Vec<Attribute> {
 
 impl From<XRPLMessage> for Vec<Attribute> {
     fn from(other: XRPLMessage) -> Self {
-        match other {
-            XRPLMessage::ProverMessage(msg) => {
-                let mut res: Vec<Attribute> = msg.into();
-                res.push(("type", "prover_message").into());
-                res
-            }
-            XRPLMessage::UserMessage(msg) => {
-                let mut res: Vec<Attribute> = msg.into();
-                res.push(("type", "user_message").into());
-                res
-            }
-        }
+        let (mut attrs, msg_type): (Self, &str) = match other {
+            XRPLMessage::ProverMessage(msg) => (msg.into(), "prover_message"),
+            XRPLMessage::UserMessage(msg) => (msg.into(), "user_message"),
+        };
+        attrs.push(("type", msg_type).into());
+        attrs
     }
 }
 
