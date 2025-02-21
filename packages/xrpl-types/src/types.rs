@@ -339,7 +339,7 @@ fn xrpl_hash(prefix: [u8; 4], tx_blob: &[u8]) -> [u8; 32] {
     let mut hasher = Sha512::new_with_prefix(prefix);
     hasher.update(tx_blob);
     let digest: [u8; 64] = hasher.finalize().into();
-    digest[..32].try_into().unwrap()
+    digest[..32].try_into().expect("digest should be 32 bytes")
 }
 
 pub fn message_to_sign(
