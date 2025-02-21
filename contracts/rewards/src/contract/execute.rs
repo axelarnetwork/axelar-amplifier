@@ -132,10 +132,10 @@ pub fn create_pool(
     storage: &mut dyn Storage,
     params: Params,
     block_height: u64,
-    pool_id: &PoolId,
+    pool_id: PoolId,
 ) -> Result<(), ContractError> {
     ensure!(
-        !state::pool_exists(storage, pool_id)?,
+        !state::pool_exists(storage, &pool_id)?,
         ContractError::RewardsPoolAlreadyExists
     );
 
@@ -707,7 +707,7 @@ mod test {
 
         update_pool_params(
             mock_deps.as_mut().storage,
-            &pool_id.clone(),
+            &pool_id,
             new_params.clone(),
             cur_height,
         )
@@ -840,7 +840,7 @@ mod test {
         };
         update_pool_params(
             mock_deps.as_mut().storage,
-            &pool_id.clone(),
+            &pool_id,
             new_params.clone(),
             cur_height,
         )
@@ -957,7 +957,7 @@ mod test {
                     participation_threshold: participation_threshold.try_into().unwrap(),
                 },
                 block_height_started,
-                &pool_id,
+                pool_id.clone(),
             )
             .unwrap();
 
