@@ -74,6 +74,8 @@ pub fn is_valid_user_message(
         let tx_amount = payment_tx.amount.clone();
         match tx.common().meta.clone() {
             Some(tx_meta) => {
+                // Context:
+                // https://xrpl.org/docs/concepts/payment-types/partial-payments#partial-payments-exploit
                 if tx_meta.delivered_amount != Some(tx_amount.clone()) {
                     return false;
                 }
