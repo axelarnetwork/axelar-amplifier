@@ -194,7 +194,7 @@ impl CrossChainMessage for TxHash {
             source_chain,
             message_id: format!("0x{}", HexBinary::from(self.clone()).to_hex())
                 .try_into()
-                .unwrap(),
+                .expect("message_id conversion should never fail"),
         }
     }
 }
@@ -205,7 +205,7 @@ impl CrossChainMessage for XRPLProverMessage {
             source_chain,
             message_id: format!("0x{}", HexBinary::from(self.tx_id.clone()).to_hex())
                 .try_into()
-                .unwrap(),
+                .expect("message_id conversion should never fail"),
         }
     }
 }
@@ -216,7 +216,7 @@ impl CrossChainMessage for XRPLUserMessage {
             source_chain,
             message_id: format!("0x{}", HexBinary::from(self.tx_id.clone()).to_hex())
                 .try_into()
-                .unwrap(),
+                .expect("message_id conversion should never fail"),
         }
     }
 }
