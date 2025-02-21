@@ -160,11 +160,11 @@ pub fn create_pool(
 
 pub fn update_pool_params(
     storage: &mut dyn Storage,
-    pool_id: PoolId,
+    pool_id: &PoolId,
     new_params: Params,
     block_height: u64,
 ) -> Result<(), ContractError> {
-    let cur_epoch = state::current_epoch(storage, &pool_id, block_height)?;
+    let cur_epoch = state::current_epoch(storage, pool_id, block_height)?;
 
     // If the param update reduces the epoch duration such that the current epoch immediately ends,
     // start a new epoch at this block, incrementing the current epoch number by 1.
@@ -195,7 +195,7 @@ pub fn update_pool_params(
         created_at: new_epoch.clone(),
     };
 
-    state::update_pool_params(storage, &pool_id, &new_params_snapshot)?;
+    state::update_pool_params(storage, pool_id, &new_params_snapshot)?;
 
     let cur_tally = state::load_epoch_tally(storage, pool_id.clone(), cur_epoch.epoch_num)?;
     if let Some(mut tally) = cur_tally {
@@ -643,7 +643,7 @@ mod test {
 
         update_pool_params(
             mock_deps.as_mut().storage,
-            pool_id.clone(),
+            &pool_id,
             new_params.clone(),
             cur_height,
         )
@@ -707,7 +707,7 @@ mod test {
 
         update_pool_params(
             mock_deps.as_mut().storage,
-            pool_id.clone(),
+            &pool_id,
             new_params.clone(),
             cur_height,
         )
@@ -777,7 +777,7 @@ mod test {
         };
         update_pool_params(
             mock_deps.as_mut().storage,
-            pool_id.clone(),
+            &pool_id,
             new_params.clone(),
             cur_height,
         )
@@ -840,7 +840,7 @@ mod test {
         };
         update_pool_params(
             mock_deps.as_mut().storage,
-            pool_id.clone(),
+            &pool_id,
             new_params.clone(),
             cur_height,
         )

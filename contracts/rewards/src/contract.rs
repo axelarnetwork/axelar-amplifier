@@ -134,7 +134,7 @@ pub fn execute(
         ExecuteMsg::UpdatePoolParams { params, pool_id } => {
             execute::update_pool_params(
                 deps.storage,
-                PoolId::try_from_msg_pool_id(deps.api, pool_id)?,
+                &PoolId::try_from_msg_pool_id(deps.api, pool_id)?,
                 params,
                 env.block.height,
             )?;
