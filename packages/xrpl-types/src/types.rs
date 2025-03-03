@@ -24,7 +24,6 @@ const XRPL_PAYMENT_ISSUED_HASH_PREFIX: &[u8] = b"xrpl-payment-issued";
 
 const XRPL_ACCOUNT_ID_LENGTH: usize = 20;
 const XRPL_CURRENCY_LENGTH: usize = 20;
-const XRPL_TX_HASH_LENGTH: usize = 32;
 
 pub const XRP_DECIMALS: u8 = 6;
 pub const XRPL_ISSUED_TOKEN_DECIMALS: u8 = 15;
@@ -88,125 +87,6 @@ impl fmt::Display for XRPLTxStatus {
             XRPLTxStatus::FailedOnChain => write!(f, "FailedOnChain"),
             XRPLTxStatus::Inconclusive => write!(f, "Inconclusive"),
         }
-    }
-}
-
-#[cw_serde]
-#[derive(Eq, Hash)]
-pub struct TxHash([u8; XRPL_TX_HASH_LENGTH]);
-
-impl AsRef<[u8; XRPL_TX_HASH_LENGTH]> for TxHash {
-    fn as_ref(&self) -> &[u8; XRPL_TX_HASH_LENGTH] {
-        &self.0
-    }
-}
-
-impl fmt::Display for TxHash {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", HexBinary::from(self.0))
-    }
-}
-
-impl TxHash {
-    pub fn new(hash: [u8; XRPL_TX_HASH_LENGTH]) -> Self {
-        Self(hash)
-    }
-}
-
-impl From<TxHash> for [u8; XRPL_TX_HASH_LENGTH] {
-    fn from(hash: TxHash) -> Self {
-        hash.0
-    }
-}
-
-impl TryFrom<CrossChainId> for TxHash {
-    type Error = XRPLError;
-    fn try_from(cc_id: CrossChainId) -> Result<Self, XRPLError> {
-        let message_id = cc_id.message_id.as_str();
-        Ok(Self(
-            HexBinary::from_hex(message_id)?
-                .to_vec()
-                .try_into()
-                .map_err(|_| XRPLError::InvalidMessageId(message_id.to_string()))?,
-        ))
-    }
-}
-
-impl From<TxHash> for HexBinary {
-    fn from(hash: TxHash) -> Self {
-        HexBinary::from(hash.0)
-    }
-}
-
-impl TryFrom<HexBinary> for TxHash {
-    type Error = XRPLError;
-
-    fn try_from(tx_hash: HexBinary) -> Result<Self, XRPLError> {
-        let slice: &[u8] = tx_hash.as_slice();
-        slice.try_into()
-    }
-}
-
-impl TryFrom<&[u8]> for TxHash {
-    type Error = XRPLError;
-
-    fn try_from(tx_hash: &[u8]) -> Result<Self, XRPLError> {
-        Ok(Self(
-            tx_hash.try_into().map_err(|_| XRPLError::InvalidTxId)?,
-        ))
-    }
-}
-
-impl<'a> PrimaryKey<'a> for TxHash {
-    type Prefix = ();
-    type SubPrefix = ();
-    type Suffix = TxHash;
-    type SuperSuffix = TxHash;
-
-    fn key(&self) -> Vec<Key> {
-        vec![Key::Ref(self.0.as_slice())]
-    }
-}
-
-impl KeyDeserialize for TxHash {
-    type Output = TxHash;
-    const KEY_ELEMS: u16 = 1;
-
-    fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
-        let inner = <[u8; XRPL_TX_HASH_LENGTH]>::from_vec(value)?;
-        Ok(TxHash(inner))
-    }
-}
-
-impl TryFrom<String> for TxHash {
-    type Error = XRPLError;
-
-    fn try_from(tx_hash: String) -> Result<Self, XRPLError> {
-        TxHash::try_from(HexBinary::from_hex(tx_hash.as_str())?)
-    }
-}
-
-pub mod tx_hash_hex {
-    use cosmwasm_std::HexBinary;
-    use serde::de::Error;
-    use serde::{Deserialize, Deserializer, Serialize, Serializer};
-
-    use super::TxHash;
-
-    pub fn serialize<S>(value: &TxHash, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        HexBinary::from(value.as_ref()).serialize(serializer)
-    }
-
-    pub fn deserialize<'de, D>(deserializer: D) -> Result<TxHash, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        HexBinary::deserialize(deserializer)?
-            .try_into()
-            .map_err(Error::custom)
     }
 }
 

@@ -1,3 +1,4 @@
+use axelar_wasm_std::msg_id::HexTxHash;
 use axelar_wasm_std::nonempty;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Attribute, HexBinary};
@@ -5,7 +6,7 @@ use router_api::{ChainName, ChainNameRaw, CrossChainId, Message, FIELD_DELIMITER
 use sha3::{Digest, Keccak256};
 
 use crate::hex_option;
-use crate::types::{tx_hash_hex, xrpl_account_id_string, TxHash, XRPLAccountId, XRPLPaymentAmount};
+use crate::types::{xrpl_account_id_string, XRPLAccountId, XRPLPaymentAmount};
 
 #[cw_serde]
 #[derive(Eq, Hash)]
@@ -15,7 +16,7 @@ pub enum XRPLMessage {
 }
 
 impl XRPLMessage {
-    pub fn tx_id(&self) -> TxHash {
+    pub fn tx_id(&self) -> HexTxHash {
         match self {
             XRPLMessage::ProverMessage(prover_message) => prover_message.tx_id.clone(),
             XRPLMessage::UserMessage(user_message) => user_message.tx_id.clone(),
@@ -34,9 +35,8 @@ impl XRPLMessage {
 #[cw_serde]
 #[derive(Eq, Hash)]
 pub struct XRPLUserMessage {
-    #[serde(with = "tx_hash_hex")]
     #[schemars(with = "String")] // necessary attribute in conjunction with #[serde(with ...)]
-    pub tx_id: TxHash,
+    pub tx_id: HexTxHash,
     #[serde(with = "xrpl_account_id_string")]
     #[schemars(with = "String")]
     pub source_address: XRPLAccountId,
@@ -54,21 +54,19 @@ pub struct XRPLUserMessage {
 #[cw_serde]
 #[derive(Eq, Hash)]
 pub struct XRPLProverMessage {
-    #[serde(with = "tx_hash_hex")]
     #[schemars(with = "String")]
-    pub tx_id: TxHash,
+    pub tx_id: HexTxHash,
 
     /// The hash of the unsigned XRPL transaction. This is used to verify
     /// the transaction that was posted, while ignoring the signatures.
-    #[serde(with = "tx_hash_hex")]
     #[schemars(with = "String")]
-    pub unsigned_tx_hash: TxHash,
+    pub unsigned_tx_hash: HexTxHash,
 }
 
 impl From<XRPLUserMessage> for Vec<Attribute> {
     fn from(other: XRPLUserMessage) -> Self {
         let mut array = vec![
-            ("tx_id", HexBinary::from(other.tx_id).to_string()).into(),
+            ("tx_id", other.tx_id.tx_hash_as_hex(false)).into(),
             ("source_address", other.source_address.to_string()).into(),
             ("destination_chain", other.destination_chain).into(),
             ("destination_address", other.destination_address.to_string()).into(),
@@ -86,10 +84,10 @@ impl From<XRPLUserMessage> for Vec<Attribute> {
 impl From<XRPLProverMessage> for Vec<Attribute> {
     fn from(other: XRPLProverMessage) -> Self {
         vec![
-            ("tx_id", HexBinary::from(other.tx_id).to_string()).into(),
+            ("tx_id", other.tx_id.tx_hash_as_hex(false)).into(),
             (
                 "unsigned_tx_hash",
-                HexBinary::from(other.unsigned_tx_hash).to_string(),
+                other.unsigned_tx_hash.tx_hash_as_hex(false),
             )
                 .into(),
         ]
@@ -112,9 +110,9 @@ impl XRPLProverMessage {
         let mut hasher = Keccak256::new();
         let delimiter_bytes = &[FIELD_DELIMITER as u8];
 
-        hasher.update(self.tx_id.as_ref());
+        hasher.update(self.tx_id.tx_hash.as_ref());
         hasher.update(delimiter_bytes);
-        hasher.update(self.unsigned_tx_hash.as_ref());
+        hasher.update(self.unsigned_tx_hash.tx_hash.as_ref());
 
         hasher.finalize().into()
     }
@@ -125,7 +123,7 @@ impl XRPLUserMessage {
         let mut hasher = Keccak256::new();
         let delimiter_bytes = &[FIELD_DELIMITER as u8];
 
-        hasher.update(self.tx_id.as_ref());
+        hasher.update(self.tx_id.tx_hash.as_ref());
         hasher.update(delimiter_bytes);
         hasher.update(self.source_address.as_ref());
         hasher.update(delimiter_bytes);
@@ -188,22 +186,11 @@ impl CrossChainMessage for XRPLMessage {
     }
 }
 
-impl CrossChainMessage for TxHash {
-    fn cc_id(&self, source_chain: ChainNameRaw) -> CrossChainId {
-        CrossChainId {
-            source_chain,
-            message_id: format!("0x{}", HexBinary::from(self.clone()).to_hex())
-                .try_into()
-                .expect("message_id conversion should never fail"),
-        }
-    }
-}
-
 impl CrossChainMessage for XRPLProverMessage {
     fn cc_id(&self, source_chain: ChainNameRaw) -> CrossChainId {
         CrossChainId {
             source_chain,
-            message_id: format!("0x{}", HexBinary::from(self.tx_id.clone()).to_hex())
+            message_id: format!("0x{}", HexBinary::from(self.tx_id.tx_hash.clone()).to_hex())
                 .try_into()
                 .expect("message_id conversion should never fail"),
         }
@@ -214,7 +201,7 @@ impl CrossChainMessage for XRPLUserMessage {
     fn cc_id(&self, source_chain: ChainNameRaw) -> CrossChainId {
         CrossChainId {
             source_chain,
-            message_id: format!("0x{}", HexBinary::from(self.tx_id.clone()).to_hex())
+            message_id: format!("0x{}", HexBinary::from(self.tx_id.tx_hash.clone()).to_hex())
                 .try_into()
                 .expect("message_id conversion should never fail"),
         }

@@ -143,11 +143,12 @@ pub fn verify_memos(memos: HashMap<String, String>, message: &XRPLUserMessage) -
 mod test {
     use std::str::FromStr;
 
+    use axelar_wasm_std::msg_id::HexTxHash;
     use axelar_wasm_std::nonempty;
     use router_api::ChainName;
     use xrpl_http_client::Memo;
     use xrpl_types::msg::XRPLUserMessage;
-    use xrpl_types::types::{TxHash, XRPLAccountId, XRPLPaymentAmount};
+    use xrpl_types::types::{XRPLAccountId, XRPLPaymentAmount};
 
     use crate::xrpl::verifier::{parse_memos, verify_memos};
 
@@ -171,7 +172,7 @@ mod test {
             },
         ];
         let mut user_message = XRPLUserMessage {
-            tx_id: TxHash::new([0; 32]),
+            tx_id: HexTxHash::new([0; 32]),
             source_address: XRPLAccountId::from_str("raNVNWvhUQzFkDDTdEw3roXRJfMJFVJuQo").unwrap(),
             destination_address: nonempty::String::try_from(
                 "592639c10223c4ec6c0ffc670e94d289a25dd1ad".to_string(),
@@ -208,7 +209,7 @@ mod test {
             },
         ];
         let mut user_message = XRPLUserMessage {
-            tx_id: TxHash::new([0; 32]),
+            tx_id: HexTxHash::new([0; 32]),
             source_address: XRPLAccountId::from_str("raNVNWvhUQzFkDDTdEw3roXRJfMJFVJuQo").unwrap(),
             destination_address: nonempty::String::try_from(
                 "592639c10223c4ec6c0ffc670e94d289a25dd1ad".to_string(),
