@@ -2,7 +2,7 @@ use axelar_wasm_std::msg_id::HexTxHash;
 use axelar_wasm_std::nonempty;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Attribute, HexBinary};
-use router_api::{ChainName, ChainNameRaw, CrossChainId, FIELD_DELIMITER};
+use router_api::{ChainName, FIELD_DELIMITER};
 use sha3::{Digest, Keccak256};
 
 use crate::hex_option;
@@ -145,40 +145,5 @@ impl XRPLUserMessage {
 impl From<XRPLUserMessage> for XRPLMessage {
     fn from(val: XRPLUserMessage) -> Self {
         XRPLMessage::UserMessage(val)
-    }
-}
-
-pub trait CrossChainMessage {
-    fn cc_id(&self, source_chain: ChainNameRaw) -> CrossChainId;
-}
-
-impl CrossChainMessage for XRPLMessage {
-    fn cc_id(&self, source_chain: ChainNameRaw) -> CrossChainId {
-        match self {
-            XRPLMessage::ProverMessage(prover_message) => prover_message.cc_id(source_chain),
-            XRPLMessage::UserMessage(user_message) => user_message.cc_id(source_chain),
-        }
-    }
-}
-
-impl CrossChainMessage for XRPLProverMessage {
-    fn cc_id(&self, source_chain: ChainNameRaw) -> CrossChainId {
-        CrossChainId {
-            source_chain,
-            message_id: format!("0x{}", HexBinary::from(self.tx_id.tx_hash.clone()).to_hex())
-                .try_into()
-                .expect("message_id conversion should never fail"),
-        }
-    }
-}
-
-impl CrossChainMessage for XRPLUserMessage {
-    fn cc_id(&self, source_chain: ChainNameRaw) -> CrossChainId {
-        CrossChainId {
-            source_chain,
-            message_id: format!("0x{}", HexBinary::from(self.tx_id.tx_hash.clone()).to_hex())
-                .try_into()
-                .expect("message_id conversion should never fail"),
-        }
     }
 }
