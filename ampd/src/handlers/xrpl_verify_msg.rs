@@ -12,6 +12,7 @@ use error_stack::ResultExt;
 use events::Error::EventTypeMismatch;
 use events_derive::try_from;
 use futures::future::join_all;
+use router_api::ChainName;
 use serde::Deserialize;
 use tokio::sync::watch::Receiver;
 use tracing::{info, info_span};
@@ -34,6 +35,7 @@ type Result<T> = error_stack::Result<T, Error>;
 #[try_from("wasm-messages_poll_started")]
 struct PollStartedEvent {
     poll_id: PollId,
+    source_chain: ChainName,
     #[serde(with = "xrpl_account_id_string")]
     source_gateway_address: XRPLAccountId,
     expires_at: u64,
@@ -126,6 +128,7 @@ where
 
         let PollStartedEvent {
             poll_id,
+            source_chain,
             source_gateway_address,
             messages,
             expires_at,
@@ -151,6 +154,7 @@ where
         let validated_txs = self.validated_txs(tx_ids).await?;
 
         let poll_id_str: String = poll_id.into();
+        let source_chain_str: String = source_chain.into();
         let message_ids = messages
             .iter()
             .map(|message| message.tx_id().tx_hash_as_hex(true))
@@ -159,6 +163,7 @@ where
         let votes = info_span!(
             "verify messages from XRPL chain",
             poll_id = poll_id_str,
+            source_chain = source_chain_str,
             message_ids = message_ids.as_value()
         )
         .in_scope(|| {
