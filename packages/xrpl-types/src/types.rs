@@ -84,6 +84,25 @@ pub enum XRPLPaymentAmount {
     ),
 }
 
+impl PartialOrd for XRPLPaymentAmount {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        match (self, other) {
+            (XRPLPaymentAmount::Drops(a), XRPLPaymentAmount::Drops(b)) => a.partial_cmp(b),
+            (
+                XRPLPaymentAmount::Issued(token_a, amount_a),
+                XRPLPaymentAmount::Issued(token_b, amount_b),
+            ) => {
+                if token_a == token_b {
+                    amount_a.partial_cmp(amount_b)
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        }
+    }
+}
+
 impl XRPLPaymentAmount {
     pub fn hash(&self) -> [u8; 32] {
         let mut hasher = Keccak256::new();
@@ -367,6 +386,56 @@ impl XRPLTokenAmount {
 
     pub fn is_zero(&self) -> bool {
         self.mantissa == 0
+    }
+}
+
+impl PartialOrd for XRPLTokenAmount {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        // If either amount is zero, we can compare directly
+        if self.mantissa == 0 {
+            return if other.mantissa == 0 {
+                Some(std::cmp::Ordering::Equal)
+            } else {
+                Some(std::cmp::Ordering::Less)
+            };
+        }
+        if other.mantissa == 0 {
+            return Some(std::cmp::Ordering::Greater);
+        }
+
+        // Need to adjust mantissas to compare with same exponent
+        let exp_diff = self.exponent - other.exponent;
+        if exp_diff == 0 {
+            // Same exponent, compare mantissas directly
+            return Some(self.mantissa.cmp(&other.mantissa));
+        }
+
+        // Need to adjust mantissas to compare with same exponent
+        let (adjusted_mantissa, adjusted_other_mantissa) = if exp_diff > 0 {
+            // self has larger exponent (e.g., 15e2 vs 150e1)
+            // Multiply other's mantissa by 10^exp_diff to normalize
+            match other.mantissa.checked_mul(10u64.pow(exp_diff as u32)) {
+                Some(adjusted) => (self.mantissa, adjusted),
+                None => {
+                    // If multiplication would overflow, self must be larger
+                    // This happens when the difference in exponents is so large
+                    // that adjusting would exceed u64::MAX
+                    return Some(std::cmp::Ordering::Greater);
+                }
+            }
+        } else {
+            // other has larger exponent (e.g., 150e1 vs 15e2)
+            // Multiply self's mantissa by 10^(-exp_diff) to normalize
+            match self.mantissa.checked_mul(10u64.pow((-exp_diff) as u32)) {
+                Some(adjusted) => (adjusted, other.mantissa),
+                None => {
+                    // Multiplication would overflow, so other must be larger
+                    return Some(std::cmp::Ordering::Less);
+                }
+            }
+        };
+
+        Some(adjusted_mantissa.cmp(&adjusted_other_mantissa))
     }
 }
 
@@ -925,5 +994,25 @@ mod tests {
             XRPLAccountId::from_str(xrpl_account).unwrap().as_ref(),
             expected_bytes
         );
+    }
+
+    #[test]
+    fn test_token_amount_comparison() {
+        let a1 = XRPLTokenAmount::new(1_500_000_000_000_000, -15); // 1.5
+        let a2 = XRPLTokenAmount::new(1_500_000_000_000_000, -15); // 1.5
+        assert_eq!(a1.partial_cmp(&a2), Some(std::cmp::Ordering::Equal));
+
+        let b1 = XRPLTokenAmount::new(1_500_000_000_000_000, -15); // 1.5
+        let b2 = XRPLTokenAmount::new(2_500_000_000_000_000, -15); // 2.5
+        assert_eq!(b1.partial_cmp(&b2), Some(std::cmp::Ordering::Less));
+
+        let c1 = XRPLTokenAmount::new(1_500_000_000_000_000, -13); // 150
+        let c2 = XRPLTokenAmount::new(2_500_000_000_000_000, -15); // 2.5
+        assert_eq!(c1.partial_cmp(&c2), Some(std::cmp::Ordering::Greater));
+
+        let e1 = XRPLTokenAmount::ZERO;
+        let e2 = XRPLTokenAmount::new(1_500_000_000_000_000, -15);
+        assert_eq!(e1.partial_cmp(&e2), Some(std::cmp::Ordering::Less));
+        assert_eq!(e2.partial_cmp(&e1), Some(std::cmp::Ordering::Greater));
     }
 }

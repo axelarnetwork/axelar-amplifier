@@ -117,6 +117,31 @@ pub fn verify_amount(amount: Amount, message: &XRPLUserMessage) -> bool {
     .unwrap_or(false)
 }
 
+pub fn verify_gas_fee_amount(message: &XRPLUserMessage, memos: HashMap<String, String>) -> bool {
+    || -> Option<bool> {
+        let gas_fee_amount_str: String = match memos.get("gas_fee_amount") {
+            None => return Some(false),
+            Some(amount) => amount.to_string(),
+        };
+
+        let gas_fee_amount = match message.amount.clone() {
+            XRPLPaymentAmount::Issued(token, _) => XRPLPaymentAmount::Issued(
+                XRPLToken {
+                    issuer: token.issuer.try_into().ok()?,
+                    currency: token.currency.try_into().ok()?,
+                },
+                gas_fee_amount_str.try_into().ok()?,
+            ),
+            XRPLPaymentAmount::Drops(_) => {
+                XRPLPaymentAmount::Drops(gas_fee_amount_str.parse().ok()?)
+            }
+        };
+
+        Some(gas_fee_amount == message.gas_fee_amount && gas_fee_amount <= message.amount)
+    }()
+    .unwrap_or(false)
+}
+
 pub fn verify_memos(memos: HashMap<String, String>, message: &XRPLUserMessage) -> bool {
     let expected_destination_address = message.destination_address.to_string();
     let expected_destination_chain = hex::encode(message.destination_chain.to_string());
@@ -137,6 +162,7 @@ pub fn verify_memos(memos: HashMap<String, String>, message: &XRPLUserMessage) -
         && memos.get("destination_chain").map(|s| s.to_lowercase())
             == Some(expected_destination_chain)
         && is_valid_payload_hash
+        && verify_gas_fee_amount(message, memos.clone())
 }
 
 #[cfg(test)]
@@ -170,6 +196,11 @@ mod test {
                 memo_data: Some("0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000e474d5020776f726b7320746f6f3f000000000000000000000000000000000000".to_string()),
                 memo_format: None,
             },
+            Memo {
+                memo_type: Some("6761735F6665655F616D6F756E74".to_string()), // gas_fee_amount
+                memo_data: Some("50000".to_string()),
+                memo_format: None,
+            },
         ];
         let mut user_message = XRPLUserMessage {
             tx_id: HexTxHash::new([0; 32]),
@@ -187,6 +218,7 @@ mod test {
                     .unwrap(),
             ),
             amount: XRPLPaymentAmount::Drops(100000),
+            gas_fee_amount: XRPLPaymentAmount::Drops(50000),
         };
         assert!(verify_memos(parse_memos(memos.clone()), &user_message));
 
@@ -207,6 +239,11 @@ mod test {
                 memo_data: Some("657468657265756D".to_string()),
                 memo_format: None,
             },
+            Memo {
+                memo_type: Some("6761735F6665655F616D6F756E74".to_string()), // gas_fee_amount
+                memo_data: Some("50000".to_string()),
+                memo_format: None,
+            },
         ];
         let mut user_message = XRPLUserMessage {
             tx_id: HexTxHash::new([0; 32]),
@@ -218,6 +255,7 @@ mod test {
             destination_chain: ChainName::from_str("ethereum").unwrap(),
             payload_hash: None,
             amount: XRPLPaymentAmount::Drops(100000),
+            gas_fee_amount: XRPLPaymentAmount::Drops(50000),
         };
         assert!(verify_memos(parse_memos(memos.clone()), &user_message));
 
