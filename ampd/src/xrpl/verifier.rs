@@ -172,8 +172,8 @@ mod test {
         let user_message = XRPLUserMessage {
             tx_id: TxHash::new([0; 32]),
             source_address: XRPLAccountId::from_str("raNVNWvhUQzFkDDTdEw3roXRJfMJFVJuQo").unwrap(),
-            destination_address: nonempty::HexBinary::try_from(
-                HexBinary::from_hex("592639c10223C4EC6C0ffc670e94d289A25DD1ad").unwrap(),
+            destination_address: nonempty::String::try_from(
+                "592639c10223C4EC6C0ffc670e94d289A25DD1ad".to_string(),
             )
             .unwrap(),
             destination_chain: ChainName::from_str("ethereum").unwrap(),

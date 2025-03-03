@@ -213,10 +213,7 @@ mod test {
                     tx_id: message_id("id"),
                     source_address: XRPLAccountId::new(rand::thread_rng().gen()),
                     destination_chain: format!("destination-chain{i}").parse().unwrap(),
-                    destination_address: nonempty::HexBinary::try_from(
-                        HexBinary::from_hex("1234").unwrap(),
-                    )
-                    .unwrap(),
+                    destination_address: nonempty::String::try_from("1234").unwrap(),
                     payload_hash: None,
                     amount: XRPLPaymentAmount::Drops(
                         u64::from(i).checked_mul(1_000_000).expect("overflow"),

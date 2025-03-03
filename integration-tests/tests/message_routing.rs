@@ -274,10 +274,8 @@ fn payment_from_xrpl_can_be_verified_and_routed_and_proven() {
 
     let source_address: XRPLAccountId =
         XRPLAccountId::from_str("raNVNWvhUQzFkDDTdEw3roXRJfMJFVJuQo").unwrap();
-    let destination_address: nonempty::HexBinary = nonempty::HexBinary::try_from(
-        HexBinary::from_hex("95181d16cfb23Bc493668C17d973F061e30F2EAF").unwrap(),
-    )
-    .unwrap();
+    let destination_address: nonempty::String =
+        nonempty::String::try_from("95181d16cfb23Bc493668C17d973F061e30F2EAF").unwrap();
 
     let destination_chain_name = destination_chain.chain_name.clone();
     let amount = XRPLPaymentAmount::Drops(1000000); // 1 XRP
@@ -303,7 +301,10 @@ fn payment_from_xrpl_can_be_verified_and_routed_and_proven() {
                 source_address.as_bytes(),
             ))
             .unwrap(),
-            destination_address,
+            destination_address: nonempty::HexBinary::try_from(
+                HexBinary::from_hex(&destination_address).unwrap(),
+            )
+            .unwrap(),
             // amount: nonempty::Uint256::try_from(1000000000000000000u64).unwrap(),
             amount: nonempty::Uint256::try_from(1000000u64).unwrap(), // 1 XRP
             data: payload,

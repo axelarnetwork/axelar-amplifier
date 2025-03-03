@@ -590,10 +590,7 @@ fn generate_incoming_msgs(namespace: impl Debug, count: u8) -> Vec<XRPLMessage> 
             XRPLMessage::UserMessage(XRPLUserMessage {
                 tx_id: message_id(format!("{:?}{}", namespace, i).as_str()),
                 amount: XRPLPaymentAmount::Drops(1_000_000),
-                destination_address: nonempty::HexBinary::try_from(
-                    HexBinary::from_hex("01dc").unwrap(),
-                )
-                .unwrap(),
+                destination_address: nonempty::String::try_from("01dc").unwrap(),
                 destination_chain: "ethereum".parse().unwrap(),
                 source_address: XRPLAccountId::from([i; 20]),
                 payload_hash: Some(

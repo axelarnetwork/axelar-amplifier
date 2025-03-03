@@ -104,10 +104,7 @@ mod test {
         let msg_1 = XRPLMessage::UserMessage(XRPLUserMessage {
             tx_id: TxHash::new([0; 32]),
             source_address: XRPLAccountId::new([0; 20]),
-            destination_address: nonempty::HexBinary::try_from(
-                HexBinary::from_hex("5678").unwrap(),
-            )
-            .unwrap(),
+            destination_address: nonempty::String::try_from("5678").unwrap(),
             destination_chain: "eth".parse().unwrap(),
             payload_hash: None,
             amount: XRPLPaymentAmount::Drops(100),
@@ -116,10 +113,7 @@ mod test {
         let msg_2 = XRPLMessage::UserMessage(XRPLUserMessage {
             tx_id: TxHash::new([1; 32]),
             source_address: XRPLAccountId::new([1; 20]),
-            destination_address: nonempty::HexBinary::try_from(
-                HexBinary::from_hex("5678").unwrap(),
-            )
-            .unwrap(),
+            destination_address: nonempty::String::try_from("5678").unwrap(),
             destination_chain: "eth".parse().unwrap(),
             payload_hash: None,
             amount: XRPLPaymentAmount::Issued(
@@ -163,10 +157,7 @@ mod test {
         let res = client.messages_status(vec![XRPLMessage::UserMessage(XRPLUserMessage {
             tx_id: TxHash::new([0; 32]),
             source_address: XRPLAccountId::new([255; 20]),
-            destination_address: nonempty::HexBinary::try_from(
-                HexBinary::from_hex("5678").unwrap(),
-            )
-            .unwrap(),
+            destination_address: nonempty::String::try_from("5678").unwrap(),
             destination_chain: "eth".parse().unwrap(),
             payload_hash: None,
             amount: XRPLPaymentAmount::Drops(200),

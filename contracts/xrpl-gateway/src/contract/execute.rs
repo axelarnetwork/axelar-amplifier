@@ -222,7 +222,11 @@ pub fn translate_to_interchain_transfer(
             interchain_token_service::InterchainTransfer {
                 token_id,
                 source_address,
-                destination_address,
+                destination_address: nonempty::HexBinary::try_from(
+                    HexBinary::from_hex(&destination_address)
+                        .change_context(Error::InvalidAddress)?,
+                )
+                .change_context(Error::InvalidAddress)?,
                 amount: amount.try_into().expect("amount cannot be zero"),
                 data: payload.clone(),
             },
