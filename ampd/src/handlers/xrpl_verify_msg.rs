@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet};
 use std::convert::TryInto;
+use std::str::FromStr;
 
 use async_trait::async_trait;
 use axelar_wasm_std::msg_id::HexTxHash;
@@ -18,7 +19,7 @@ use valuable::Valuable;
 use voting_verifier::msg::ExecuteMsg;
 use xrpl_http_client::Transaction;
 use xrpl_types::msg::XRPLMessage;
-use xrpl_types::types::{xrpl_account_id_string, TxHash, XRPLAccountId};
+use xrpl_types::types::{xrpl_account_id_string, XRPLAccountId};
 
 use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error;
@@ -71,9 +72,9 @@ where
         }
     }
 
-    async fn validated_txs<T>(&self, tx_ids: T) -> Result<HashMap<TxHash, Transaction>>
+    async fn validated_txs<T>(&self, tx_ids: T) -> Result<HashMap<HexTxHash, Transaction>>
     where
-        T: IntoIterator<Item = TxHash>,
+        T: IntoIterator<Item = HexTxHash>,
     {
         let latest_validated_ledger_index = finalizer::pick(&self.finalizer_type, &self.rpc_client)
             .latest_validated_ledger_index()
@@ -83,7 +84,7 @@ where
         Ok(join_all(
             tx_ids
                 .into_iter()
-                .map(|tx_id| self.rpc_client.tx(tx_id.into())),
+                .map(|tx_id| self.rpc_client.tx(tx_id.tx_hash)),
         )
         .await
         .into_iter()
@@ -95,7 +96,7 @@ where
             if ledger_index.ge(&latest_validated_ledger_index) {
                 return None;
             }
-            Some((TxHash::try_from(tx_hash).ok()?, tx_res.tx))
+            Some((HexTxHash::from_str(&tx_hash).ok()?, tx_res.tx))
         })
         .collect())
     }
@@ -152,7 +153,7 @@ where
         let poll_id_str: String = poll_id.into();
         let message_ids = messages
             .iter()
-            .map(|message| HexTxHash::new(message.tx_id()).to_string())
+            .map(|message| message.tx_id().tx_hash_as_hex(true))
             .collect::<Vec<_>>();
 
         let votes = info_span!(

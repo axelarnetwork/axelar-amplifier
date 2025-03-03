@@ -18,7 +18,6 @@ const XRPL_PAYMENT_ISSUED_HASH_PREFIX: &[u8] = b"xrpl-payment-issued";
 
 const XRPL_ACCOUNT_ID_LENGTH: usize = 20;
 const XRPL_CURRENCY_LENGTH: usize = 20;
-const XRPL_TX_HASH_LENGTH: usize = 32;
 
 pub const XRP_DECIMALS: u8 = 6;
 pub const XRPL_ISSUED_TOKEN_DECIMALS: u8 = 15;
@@ -46,91 +45,6 @@ const MAX_XRPL_TOKEN_AMOUNT: XRPLTokenAmount = XRPLTokenAmount {
     mantissa: MAX_MANTISSA,
     exponent: MAX_EXPONENT,
 };
-
-#[cw_serde]
-#[derive(Eq, Hash)]
-pub struct TxHash([u8; XRPL_TX_HASH_LENGTH]);
-
-impl AsRef<[u8; XRPL_TX_HASH_LENGTH]> for TxHash {
-    fn as_ref(&self) -> &[u8; XRPL_TX_HASH_LENGTH] {
-        &self.0
-    }
-}
-
-impl fmt::Display for TxHash {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", HexBinary::from(self.0))
-    }
-}
-
-impl TxHash {
-    pub fn new(hash: [u8; XRPL_TX_HASH_LENGTH]) -> Self {
-        Self(hash)
-    }
-}
-
-impl From<TxHash> for [u8; XRPL_TX_HASH_LENGTH] {
-    fn from(hash: TxHash) -> Self {
-        hash.0
-    }
-}
-
-impl From<TxHash> for HexBinary {
-    fn from(hash: TxHash) -> Self {
-        HexBinary::from(hash.0)
-    }
-}
-
-impl TryFrom<HexBinary> for TxHash {
-    type Error = XRPLError;
-
-    fn try_from(tx_hash: HexBinary) -> Result<Self, XRPLError> {
-        let slice: &[u8] = tx_hash.as_slice();
-        slice.try_into()
-    }
-}
-
-impl TryFrom<&[u8]> for TxHash {
-    type Error = XRPLError;
-
-    fn try_from(tx_hash: &[u8]) -> Result<Self, XRPLError> {
-        Ok(Self(
-            tx_hash.try_into().map_err(|_| XRPLError::InvalidTxId)?,
-        ))
-    }
-}
-
-impl TryFrom<String> for TxHash {
-    type Error = XRPLError;
-
-    fn try_from(tx_hash: String) -> Result<Self, XRPLError> {
-        TxHash::try_from(HexBinary::from_hex(tx_hash.as_str())?)
-    }
-}
-
-pub mod tx_hash_hex {
-    use cosmwasm_std::HexBinary;
-    use serde::de::Error;
-    use serde::{Deserialize, Deserializer, Serialize, Serializer};
-
-    use super::TxHash;
-
-    pub fn serialize<S>(value: &TxHash, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        HexBinary::from(value.as_ref()).serialize(serializer)
-    }
-
-    pub fn deserialize<'de, D>(deserializer: D) -> Result<TxHash, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        HexBinary::deserialize(deserializer)?
-            .try_into()
-            .map_err(Error::custom)
-    }
-}
 
 #[cw_serde]
 #[derive(Eq, Hash)]
