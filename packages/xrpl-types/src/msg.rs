@@ -2,7 +2,7 @@ use axelar_wasm_std::msg_id::HexTxHash;
 use axelar_wasm_std::nonempty;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Attribute, HexBinary};
-use router_api::{ChainName, ChainNameRaw, CrossChainId, Message, FIELD_DELIMITER};
+use router_api::{ChainName, ChainNameRaw, CrossChainId, FIELD_DELIMITER};
 use sha3::{Digest, Keccak256};
 
 use crate::hex_option;
@@ -150,12 +150,6 @@ impl From<XRPLUserMessage> for XRPLMessage {
 
 pub trait CrossChainMessage {
     fn cc_id(&self, source_chain: ChainNameRaw) -> CrossChainId;
-}
-
-impl CrossChainMessage for Message {
-    fn cc_id(&self, _: ChainNameRaw) -> CrossChainId {
-        self.cc_id.clone()
-    }
 }
 
 impl CrossChainMessage for XRPLMessage {
