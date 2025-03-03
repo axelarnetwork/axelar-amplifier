@@ -41,7 +41,7 @@ pub struct XRPLUserMessage {
     #[schemars(with = "String")]
     pub source_address: XRPLAccountId,
     pub destination_chain: ChainName,
-    pub destination_address: nonempty::HexBinary,
+    pub destination_address: nonempty::String,
     /// for better user experience, the payload hash gets encoded into hex at the edges (input/output),
     /// but internally, we treat it as raw bytes to enforce its format.
     #[serde(with = "hex_option")]
@@ -131,7 +131,7 @@ impl XRPLUserMessage {
         hasher.update(delimiter_bytes);
         hasher.update(self.destination_chain.as_ref());
         hasher.update(delimiter_bytes);
-        hasher.update(self.destination_address.as_ref());
+        hasher.update(self.destination_address.as_str());
         hasher.update(delimiter_bytes);
         hasher.update(self.amount.hash());
 

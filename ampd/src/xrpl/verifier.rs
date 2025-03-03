@@ -144,7 +144,6 @@ mod test {
     use std::str::FromStr;
 
     use axelar_wasm_std::nonempty;
-    use cosmwasm_std::HexBinary;
     use router_api::ChainName;
     use xrpl_http_client::Memo;
     use xrpl_types::msg::XRPLUserMessage;
@@ -174,8 +173,8 @@ mod test {
         let mut user_message = XRPLUserMessage {
             tx_id: TxHash::new([0; 32]),
             source_address: XRPLAccountId::from_str("raNVNWvhUQzFkDDTdEw3roXRJfMJFVJuQo").unwrap(),
-            destination_address: nonempty::HexBinary::try_from(
-                HexBinary::from_hex("592639c10223C4EC6C0ffc670e94d289A25DD1ad").unwrap(),
+            destination_address: nonempty::String::try_from(
+                "592639c10223c4ec6c0ffc670e94d289a25dd1ad".to_string(),
             )
             .unwrap(),
             destination_chain: ChainName::from_str("ethereum").unwrap(),
@@ -211,8 +210,8 @@ mod test {
         let mut user_message = XRPLUserMessage {
             tx_id: TxHash::new([0; 32]),
             source_address: XRPLAccountId::from_str("raNVNWvhUQzFkDDTdEw3roXRJfMJFVJuQo").unwrap(),
-            destination_address: nonempty::HexBinary::try_from(
-                HexBinary::from_hex("592639c10223C4EC6C0ffc670e94d289A25DD1ad").unwrap(),
+            destination_address: nonempty::String::try_from(
+                "592639c10223c4ec6c0ffc670e94d289a25dd1ad".to_string(),
             )
             .unwrap(),
             destination_chain: ChainName::from_str("ethereum").unwrap(),
