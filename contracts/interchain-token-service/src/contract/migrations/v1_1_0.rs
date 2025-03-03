@@ -67,6 +67,7 @@ fn convert_max_uint_to_max_bits(max_uint: nonempty::Uint256) -> Result<NumBits, 
         }
     }
     // Need to add one to correctly get the number of bits. This will round down if the result is not a power of two
+    #[allow(clippy::arithmetic_side_effects)] // can't possibly overflow
     NumBits::try_from((Uint512::from(*max_uint) + Uint512::one()).ilog2()).map_err(|err| err.into())
 }
 
