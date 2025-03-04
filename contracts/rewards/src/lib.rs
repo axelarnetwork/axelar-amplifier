@@ -4,4 +4,4 @@ pub mod events;
 pub mod msg;
 mod state;
 
-pub use state::{Epoch, PoolId};
+pub use msg::{Epoch, PoolId};
