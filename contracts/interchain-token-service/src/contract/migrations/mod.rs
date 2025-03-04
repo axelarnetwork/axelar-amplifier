@@ -6,9 +6,11 @@ use cosmwasm_std::{DepsMut, Empty, Env, Response};
 
 pub mod v1_1_0;
 
+pub type MigrateMsg = Empty;
+
 #[cfg_attr(not(feature = "library"), entry_point)]
 #[migrate_from_version("1.1")]
-pub fn migrate(deps: DepsMut, _env: Env, _msg: Empty) -> Result<Response, ContractError> {
+pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
     v1_1_0::migrate(deps.storage)?;
     Ok(Response::default())
 }

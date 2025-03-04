@@ -18,7 +18,7 @@ mod migrations;
 mod query;
 
 pub use execute::Error as ExecuteError;
-pub use migrations::migrate;
+pub use migrations::{migrate, MigrateMsg};
 
 const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
