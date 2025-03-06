@@ -537,7 +537,7 @@ impl TryFrom<HexBinary> for XRPLAccountId {
 impl fmt::Display for XRPLAccountId {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let mut payload = Vec::<u8>::with_capacity(25);
-        payload.extend(&[0x00]);
+        payload.push(0x00);
         payload.extend_from_slice(self.as_ref());
 
         let checksum_hash1 = Sha256::digest(payload.clone());
