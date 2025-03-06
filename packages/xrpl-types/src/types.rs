@@ -540,7 +540,7 @@ impl fmt::Display for XRPLAccountId {
         payload.push(0x00);
         payload.extend_from_slice(self.as_ref());
 
-        let checksum_hash1 = Sha256::digest(payload.clone());
+        let checksum_hash1 = Sha256::digest(&payload);
         let checksum_hash2 = Sha256::digest(checksum_hash1);
         let checksum = &checksum_hash2[0..4];
 
