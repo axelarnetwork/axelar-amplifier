@@ -291,7 +291,7 @@ impl KeyDeserialize for XRPLToken {
             .map_err(|_| StdError::generic_err("Invalid issuer bytes"))?;
 
         let currency: [u8; XRPL_CURRENCY_LENGTH] = value
-            [XRPL_ACCOUNT_ID_LENGTH..XRPL_CURRENCY_LENGTH]
+            [XRPL_ACCOUNT_ID_LENGTH..(XRPL_ACCOUNT_ID_LENGTH + XRPL_CURRENCY_LENGTH)]
             .try_into()
             .map_err(|_| StdError::generic_err("Invalid currency bytes"))?;
 
@@ -1814,6 +1814,16 @@ mod tests {
         assert_eq!(
             result,
             XRPLPaymentAmount::Issued(token, XRPLTokenAmount::new(0, 1))
+        );
+    }
+
+    #[test]
+    fn test_xrpl_token_key_deserialize() {
+        let issuer = XRPLAccountId::from_str("rDTXLQ7ZKZVKz33zJbHjgVShjsBnqMBhmN").unwrap();
+        let currency = XRPLCurrency::new("USD").unwrap();
+        assert_eq!(
+            XRPLToken::from_vec(vec![issuer.as_bytes(), currency.as_bytes()].concat()).unwrap(),
+            XRPLToken { issuer, currency }
         );
     }
 }
