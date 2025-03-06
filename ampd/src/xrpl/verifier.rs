@@ -121,7 +121,13 @@ pub fn verify_gas_fee_amount(message: &XRPLUserMessage, memos: HashMap<String, S
     || -> Option<bool> {
         let gas_fee_amount_str: String = match memos.get("gas_fee_amount") {
             None => return Some(false),
-            Some(amount) => amount.to_string(),
+            Some(amount) => match hex::decode(amount) {
+                Ok(decoded) => match String::from_utf8(decoded) {
+                    Ok(s) => s,
+                    Err(_) => return Some(false),
+                },
+                Err(_) => return Some(false),
+            },
         };
 
         let gas_fee_amount = match message.amount.clone() {
@@ -143,7 +149,7 @@ pub fn verify_gas_fee_amount(message: &XRPLUserMessage, memos: HashMap<String, S
 }
 
 pub fn verify_memos(memos: HashMap<String, String>, message: &XRPLUserMessage) -> bool {
-    let expected_destination_address = message.destination_address.to_string();
+    let expected_destination_address = hex::encode(message.destination_address.to_string());
     let expected_destination_chain = hex::encode(message.destination_chain.to_string());
 
     let is_valid_payload_hash = match &message.payload_hash {
@@ -183,7 +189,7 @@ mod test {
         let memos = vec![
             Memo {
                 memo_type: Some("64657374696E6174696F6E5F61646472657373".to_string()), // destination_address
-                memo_data: Some("592639C10223C4EC6C0FFC670E94D289A25DD1AD".to_string()),
+                memo_data: Some("35393236333963313032323363346563366330666663363730653934643238396132356464316164".to_string()), // 592639c10223c4ec6c0ffc670e94d289a25dd1ad
                 memo_format: None,
             },
             Memo {
@@ -198,7 +204,7 @@ mod test {
             },
             Memo {
                 memo_type: Some("6761735F6665655F616D6F756E74".to_string()), // gas_fee_amount
-                memo_data: Some("50000".to_string()),
+                memo_data: Some("3530303030".to_string()), // 50000
                 memo_format: None,
             },
         ];
@@ -231,7 +237,7 @@ mod test {
         let memos = vec![
             Memo {
                 memo_type: Some("64657374696E6174696F6E5F61646472657373".to_string()), // destination_address
-                memo_data: Some("592639C10223C4EC6C0FFC670E94D289A25DD1AD".to_string()),
+                memo_data: Some("35393236333963313032323363346563366330666663363730653934643238396132356464316164".to_string()), // 592639c10223c4ec6c0ffc670e94d289a25dd1ad
                 memo_format: None,
             },
             Memo {
@@ -241,7 +247,7 @@ mod test {
             },
             Memo {
                 memo_type: Some("6761735F6665655F616D6F756E74".to_string()), // gas_fee_amount
-                memo_data: Some("50000".to_string()),
+                memo_data: Some("3530303030".to_string()), // 50000
                 memo_format: None,
             },
         ];
