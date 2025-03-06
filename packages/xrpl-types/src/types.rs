@@ -695,7 +695,11 @@ pub fn hash_unsigned_tx(unsigned_tx: &XRPLUnsignedTx) -> Result<HexTxHash, XRPLE
     let encoded_unsigned_tx =
         serde_json::to_vec(unsigned_tx).map_err(|_| XRPLError::FailedToSerialize)?;
 
-    Ok(HexTxHash::from_str(&hex::encode(Sha256::digest(encoded_unsigned_tx))).unwrap())
+    Ok(HexTxHash::from_str(&format!(
+        "0x{}",
+        hex::encode(Sha256::digest(encoded_unsigned_tx))
+    ))
+    .unwrap())
 }
 
 pub fn hash_signed_tx(encoded_signed_tx: &[u8]) -> Result<HexTxHash, XRPLError> {
