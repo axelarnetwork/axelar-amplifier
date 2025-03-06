@@ -126,6 +126,9 @@ pub enum ContractError {
     #[error("payment for {0} already succeeded")]
     PaymentAlreadySucceeded(CrossChainId),
 
+    #[error("payment without original cross-chain ID")]
+    PaymentMissingCrossChainId,
+
     #[error("failed to serialize the response")]
     SerializeResponse,
 
