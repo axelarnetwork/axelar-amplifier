@@ -1,3 +1,4 @@
+use axelar_wasm_std::msg_id::HexTxHash;
 use axelar_wasm_std::MajorityThreshold;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{HexBinary, Uint64};
@@ -5,7 +6,7 @@ use interchain_token_service::TokenId;
 use msgs_derive::EnsurePermissions;
 use router_api::{ChainName, CrossChainId};
 use xrpl_types::msg::XRPLProverMessage;
-use xrpl_types::types::{tx_hash_hex, xrpl_account_id_string, TxHash, XRPLAccountId};
+use xrpl_types::types::{xrpl_account_id_string, XRPLAccountId};
 
 use crate::state::MultisigSession;
 
@@ -88,9 +89,8 @@ pub enum ProofStatus {
 
 #[cw_serde]
 pub struct ProofResponse {
-    #[serde(with = "tx_hash_hex")]
     #[schemars(with = "String")]
-    pub unsigned_tx_hash: TxHash,
+    pub unsigned_tx_hash: HexTxHash,
     pub status: ProofStatus,
 }
 

@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 
+use axelar_wasm_std::msg_id::HexTxHash;
 use axelar_wasm_std::{address, permission_control, FnExt, MajorityThreshold, VerificationStatus};
 use cosmwasm_std::{
     wasm_execute, Addr, DepsMut, Env, HexBinary, Response, Storage, SubMsg, Uint256, Uint64,
@@ -10,7 +11,7 @@ use router_api::{ChainNameRaw, CrossChainId};
 use sha3::{Digest, Keccak256};
 use xrpl_types::msg::{XRPLMessage, XRPLProverMessage};
 use xrpl_types::types::{
-    canonicalize_token_amount, TxHash, XRPLAccountId, XRPLPaymentAmount, XRPLTxStatus, XRP_MAX_UINT,
+    canonicalize_token_amount, XRPLAccountId, XRPLPaymentAmount, XRPLTxStatus, XRP_MAX_UINT,
 };
 
 use super::START_MULTISIG_REPLY_ID;
@@ -340,7 +341,7 @@ pub fn construct_payment_proof(
 fn start_signing_session(
     storage: &mut dyn Storage,
     config: &Config,
-    unsigned_tx_hash: TxHash,
+    unsigned_tx_hash: HexTxHash,
     self_address: Addr,
     verifier_set_id: Option<String>,
 ) -> Result<SubMsg<cosmwasm_std::Empty>, ContractError> {
@@ -358,7 +359,7 @@ fn start_signing_session(
 
     let start_sig_msg: multisig::msg::ExecuteMsg = multisig::msg::ExecuteMsg::StartSigningSession {
         verifier_set_id,
-        msg: unsigned_tx_hash.into(),
+        msg: unsigned_tx_hash.tx_hash.into(),
         chain_name: config.chain_name.clone(),
         sig_verifier: Some(self_address.into()),
     };

@@ -2,6 +2,7 @@ use core::fmt;
 use std::fmt::Display;
 use std::str::FromStr;
 
+use cosmwasm_schema::cw_serde;
 use cosmwasm_std::HexBinary;
 use error_stack::{ensure, Report, ResultExt};
 use lazy_static::lazy_static;
@@ -12,7 +13,8 @@ use crate::hash::Hash;
 use crate::nonempty;
 use serde::{Deserialize, Serialize};
 
-#[derive(Eq, PartialEq, Clone, Hash, Debug, Serialize, Deserialize)]
+#[cw_serde]
+#[derive(Eq, Hash)]
 pub struct HexTxHash {
     #[serde(flatten)]
     pub tx_hash: Hash,

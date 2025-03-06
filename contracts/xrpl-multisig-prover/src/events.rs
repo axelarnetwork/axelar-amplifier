@@ -1,15 +1,15 @@
 use std::collections::HashMap;
 
+use axelar_wasm_std::msg_id::HexTxHash;
 use cosmwasm_std::{HexBinary, Uint64};
 use multisig::key::PublicKey;
 use router_api::ChainName;
 use serde_json::to_string;
-use xrpl_types::types::TxHash;
 
 pub enum Event {
     ProofUnderConstruction {
         destination_chain: ChainName,
-        unsigned_tx_hash: TxHash,
+        unsigned_tx_hash: HexTxHash,
         multisig_session_id: Uint64,
     },
     XRPLSigningStarted {

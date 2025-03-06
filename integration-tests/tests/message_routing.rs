@@ -1,5 +1,6 @@
 use std::str::FromStr;
 
+use axelar_wasm_std::msg_id::HexTxHash;
 use axelar_wasm_std::nonempty;
 use cosmwasm_std::testing::MockApi;
 use cosmwasm_std::{HexBinary, Uint128, Uint256};
@@ -11,7 +12,7 @@ use xrpl_types::msg::{
     CrossChainMessage, WithPayload, XRPLMessage, XRPLProverMessage, XRPLUserMessage,
 };
 use xrpl_types::types::{
-    hash_signed_tx, TxHash, XRPLAccountId, XRPLCurrency, XRPLPaymentAmount, XRPLToken,
+    hash_signed_tx, XRPLAccountId, XRPLCurrency, XRPLPaymentAmount, XRPLToken,
 };
 
 use crate::test_utils::AXL_DENOMINATION;
@@ -279,15 +280,17 @@ fn payment_from_xrpl_can_be_verified_and_routed_and_proven() {
 
     let destination_chain_name = destination_chain.chain_name.clone();
     let amount = XRPLPaymentAmount::Drops(1000000); // 1 XRP
+    let gas_fee_amount = XRPLPaymentAmount::Drops(100); // 1 XRP
     let payload: Option<nonempty::HexBinary> = None;
 
     let xrpl_user_msg = XRPLUserMessage {
-        tx_id: TxHash::new([0; 32]), // TODO
+        tx_id: HexTxHash::new([0; 32]), // TODO
         source_address: source_address.clone(),
         destination_chain: destination_chain_name.clone(),
         destination_address: destination_address.clone(),
         payload_hash: None,
         amount,
+        gas_fee_amount,
     };
 
     let xrpl_msg = XRPLMessage::UserMessage(xrpl_user_msg.clone());

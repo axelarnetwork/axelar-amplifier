@@ -117,13 +117,14 @@ fn voting_completed(poll: &Poll, cur_block_height: u64) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use axelar_wasm_std::msg_id::HexTxHash;
     use axelar_wasm_std::voting::{PollId, Tallies, Vote, WeightedPoll};
     use axelar_wasm_std::{nonempty, Participant, Snapshot, Threshold};
     use cosmwasm_std::testing::{mock_dependencies, mock_env};
     use cosmwasm_std::{Addr, HexBinary, Uint128, Uint64};
     use itertools::Itertools;
     use xrpl_types::msg::XRPLUserMessage;
-    use xrpl_types::types::{TxHash, XRPLAccountId, XRPLPaymentAmount};
+    use xrpl_types::types::{XRPLAccountId, XRPLPaymentAmount};
 
     use super::*;
     use crate::state::PollContent;
@@ -281,12 +282,13 @@ mod tests {
 
     fn user_message(id: u32) -> XRPLMessage {
         XRPLMessage::UserMessage(XRPLUserMessage {
-            tx_id: TxHash::new([0; 32]),
+            tx_id: HexTxHash::new([0; 32]),
             source_address: XRPLAccountId::new([0; 20]),
             destination_chain: format!("destination-chain{id}").parse().unwrap(),
             destination_address: nonempty::String::try_from("1234").unwrap(),
             payload_hash: None,
             amount: XRPLPaymentAmount::Drops(100),
+            gas_fee_amount: XRPLPaymentAmount::Drops(100),
         })
     }
 

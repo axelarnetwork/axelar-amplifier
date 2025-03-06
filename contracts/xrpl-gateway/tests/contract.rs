@@ -5,6 +5,7 @@ use std::iter;
 use std::str::FromStr;
 
 use axelar_wasm_std::error::ContractError;
+use axelar_wasm_std::msg_id::HexTxHash;
 use axelar_wasm_std::{err_contains, nonempty, VerificationStatus};
 use cosmwasm_std::testing::{
     message_info, mock_dependencies, mock_env, MockApi, MockQuerier, MockStorage,
@@ -23,7 +24,7 @@ use xrpl_gateway::contract::{execute, instantiate, query};
 use xrpl_gateway::msg::{ExecuteMsg, InstantiateMsg, QueryMsg, TokenMetadata};
 use xrpl_gateway::state;
 use xrpl_types::msg::{WithPayload, XRPLMessage, XRPLUserMessage};
-use xrpl_types::types::{TxHash, XRPLAccountId, XRPLPaymentAmount, XRPLTokenOrXrp};
+use xrpl_types::types::{XRPLAccountId, XRPLPaymentAmount, XRPLTokenOrXrp};
 use xrpl_voting_verifier::msg::MessageStatus;
 
 #[test]
@@ -563,9 +564,9 @@ fn generate_incoming_msgs_with_all_statuses(
         .collect::<HashMap<VerificationStatus, Vec<_>>>()
 }
 
-fn message_id(id: &str) -> TxHash {
+fn message_id(id: &str) -> HexTxHash {
     let digest: [u8; 32] = Keccak256::digest(id.as_bytes()).into();
-    TxHash::new(digest)
+    HexTxHash::new(digest)
 }
 
 fn generate_outgoing_msgs(namespace: impl Debug, count: u8) -> Vec<Message> {
@@ -602,6 +603,7 @@ fn generate_incoming_msgs(namespace: impl Debug, count: u8) -> Vec<XRPLMessage> 
                     .try_into()
                     .unwrap(),
                 ),
+                gas_fee_amount: XRPLPaymentAmount::Drops(1_000_000),
             })
         })
         .collect()

@@ -1,9 +1,10 @@
+use axelar_wasm_std::msg_id::HexTxHash;
 use cosmwasm_std::Storage;
 use router_api::CrossChainId;
 use xrpl_types::types::{
-    TxHash, XRPLAccountId, XRPLCrossCurrencyOptions, XRPLPaymentAmount, XRPLPaymentTx,
-    XRPLSequence, XRPLSignerEntry, XRPLSignerListSetTx, XRPLTicketCreateTx, XRPLToken,
-    XRPLTrustSetTx, XRPLTxStatus, XRPLUnsignedTx,
+    XRPLAccountId, XRPLCrossCurrencyOptions, XRPLPaymentAmount, XRPLPaymentTx, XRPLSequence,
+    XRPLSignerEntry, XRPLSignerListSetTx, XRPLTicketCreateTx, XRPLToken, XRPLTrustSetTx,
+    XRPLTxStatus, XRPLUnsignedTx,
 };
 
 use crate::axelar_verifiers::VerifierSet;
@@ -21,7 +22,7 @@ fn issue_tx(
     storage: &mut dyn Storage,
     unsigned_tx: XRPLUnsignedTx,
     original_cc_id: Option<&CrossChainId>,
-) -> Result<TxHash, ContractError> {
+) -> Result<HexTxHash, ContractError> {
     let unsigned_tx_hash = xrpl_types::types::hash_unsigned_tx(&unsigned_tx)?;
 
     let tx_info = TxInfo {
@@ -30,14 +31,14 @@ fn issue_tx(
         original_cc_id: original_cc_id.cloned(),
     };
 
-    UNSIGNED_TX_HASH_TO_TX_INFO.save(storage, &unsigned_tx_hash, &tx_info)?;
+    UNSIGNED_TX_HASH_TO_TX_INFO.save(storage, &unsigned_tx_hash.tx_hash, &tx_info)?;
 
     match unsigned_tx.sequence() {
         XRPLSequence::Ticket(ticket_number) => {
             LAST_ASSIGNED_TICKET_NUMBER.save(storage, ticket_number)?;
         }
         XRPLSequence::Plain(_) => {
-            LATEST_SEQUENTIAL_UNSIGNED_TX_HASH.save(storage, &unsigned_tx_hash)?;
+            LATEST_SEQUENTIAL_UNSIGNED_TX_HASH.save(storage, &unsigned_tx_hash.tx_hash)?;
         }
     };
 
@@ -51,7 +52,7 @@ pub fn issue_payment(
     amount: &XRPLPaymentAmount,
     cc_id: Option<&CrossChainId>,
     cross_currency: Option<&XRPLCrossCurrencyOptions>,
-) -> Result<TxHash, ContractError> {
+) -> Result<HexTxHash, ContractError> {
     let sequence = match cc_id {
         Some(cc_id) => XRPLSequence::Ticket(assign_ticket_number(storage, cc_id)?),
         None => XRPLSequence::Plain(next_sequence_number(storage)?),
@@ -73,7 +74,7 @@ pub fn issue_ticket_create(
     storage: &mut dyn Storage,
     config: &Config,
     ticket_count: u32,
-) -> Result<TxHash, ContractError> {
+) -> Result<HexTxHash, ContractError> {
     let sequence_number = next_sequence_number(storage)?;
 
     let tx = XRPLTicketCreateTx {
@@ -90,7 +91,7 @@ pub fn issue_trust_set(
     storage: &mut dyn Storage,
     config: &Config,
     xrpl_token: XRPLToken,
-) -> Result<TxHash, ContractError> {
+) -> Result<HexTxHash, ContractError> {
     let sequence_number = next_sequence_number(storage)?;
 
     let tx = XRPLTrustSetTx {
@@ -107,7 +108,7 @@ pub fn issue_signer_list_set(
     storage: &mut dyn Storage,
     config: &Config,
     verifier_set: VerifierSet,
-) -> Result<TxHash, ContractError> {
+) -> Result<HexTxHash, ContractError> {
     let sequence_number = next_sequence_number(storage)?;
 
     let tx = XRPLSignerListSetTx {
@@ -128,10 +129,10 @@ pub fn issue_signer_list_set(
 // Returns the new verifier set, if it was affected.
 pub fn confirm_prover_message(
     storage: &mut dyn Storage,
-    unsigned_tx_hash: TxHash,
+    unsigned_tx_hash: HexTxHash,
     new_status: XRPLTxStatus,
 ) -> Result<Option<VerifierSet>, ContractError> {
-    let mut tx_info = UNSIGNED_TX_HASH_TO_TX_INFO.load(storage, &unsigned_tx_hash)?;
+    let mut tx_info = UNSIGNED_TX_HASH_TO_TX_INFO.load(storage, &unsigned_tx_hash.tx_hash)?;
     if tx_info.status != XRPLTxStatus::Pending {
         return Err(ContractError::TxStatusAlreadyConfirmed);
     }
@@ -160,12 +161,12 @@ pub fn confirm_prover_message(
         CONSUMED_TICKET_TO_UNSIGNED_TX_HASH.save(
             storage,
             &tx_sequence_number,
-            &unsigned_tx_hash,
+            &unsigned_tx_hash.tx_hash,
         )?;
         mark_ticket_unavailable(storage, tx_sequence_number)?;
     }
 
-    UNSIGNED_TX_HASH_TO_TX_INFO.save(storage, &unsigned_tx_hash, &tx_info)?;
+    UNSIGNED_TX_HASH_TO_TX_INFO.save(storage, &unsigned_tx_hash.tx_hash, &tx_info)?;
 
     if new_status != XRPLTxStatus::Succeeded {
         return Ok(None);
@@ -213,7 +214,8 @@ pub fn confirm_prover_message(
                 return Ok(None);
             }
 
-            let dust_info = UNSIGNED_TX_HASH_TO_DUST_INFO.load(storage, &unsigned_tx_hash)?;
+            let dust_info =
+                UNSIGNED_TX_HASH_TO_DUST_INFO.load(storage, &unsigned_tx_hash.tx_hash)?;
             DUST.update(
                 storage,
                 &(dust_info.token_id, dust_info.chain),

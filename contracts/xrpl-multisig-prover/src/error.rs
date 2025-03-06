@@ -1,3 +1,4 @@
+use axelar_wasm_std::msg_id::HexTxHash;
 use axelar_wasm_std::{nonempty, IntoContractError};
 use cosmwasm_std::{StdError, Uint256};
 use cw_utils::ParseReplyError;
@@ -5,7 +6,7 @@ use interchain_token_service::TokenId;
 use router_api::{ChainName, ChainNameRaw, CrossChainId};
 use thiserror::Error;
 use xrpl_types::error::XRPLError;
-use xrpl_types::types::{TxHash, XRPLPath, XRPLToken, XRPLTxStatus};
+use xrpl_types::types::{XRPLPath, XRPLToken, XRPLTxStatus};
 
 use crate::state::DustAmount;
 
@@ -82,7 +83,10 @@ pub enum ContractError {
     InvalidTxStatus(XRPLTxStatus),
 
     #[error("transaction ID {expected} did not match reconstructed transaction ID {actual}")]
-    TxIdMismatch { actual: TxHash, expected: TxHash },
+    TxIdMismatch {
+        actual: HexTxHash,
+        expected: HexTxHash,
+    },
 
     #[error("local token {0} not registered")]
     LocalTokenNotRegistered(XRPLToken),

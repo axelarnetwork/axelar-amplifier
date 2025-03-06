@@ -1,14 +1,15 @@
 use std::ops::Add;
 
-use axelar_wasm_std::counter::Counter;
+use axelar_wasm_std::hash::Hash;
 use axelar_wasm_std::IntoContractError;
+use axelar_wasm_std::{counter::Counter, msg_id::HexTxHash};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, StdError, Storage};
 use cw_storage_plus::{Item, Map};
 use error_stack::{report, Result, ResultExt};
 use interchain_token_service::TokenId;
 use router_api::{ChainName, ChainNameRaw, CrossChainId, Message};
-use xrpl_types::types::{TxHash, XRPLAccountId, XRPLCurrency, XRPLPaymentAmount, XRPLToken};
+use xrpl_types::types::{XRPLAccountId, XRPLCurrency, XRPLPaymentAmount, XRPLToken};
 
 #[cw_serde]
 pub struct Config {
@@ -35,7 +36,7 @@ const TOKEN_INSTACE_DECIMALS: Map<&(ChainNameRaw, TokenId), u8> =
 
 // TODO: XRPLPaymentAmount has XRPLToken which is redundant here.
 const DUST_ACCRUED: Map<&TokenId, XRPLPaymentAmount> = Map::new("dust_accrued");
-const DUST_COUNTED: Map<&TxHash, ()> = Map::new("dust_counted");
+const DUST_COUNTED: Map<&Hash, ()> = Map::new("dust_counted");
 
 #[derive(thiserror::Error, Debug, IntoContractError)]
 pub enum Error {
@@ -95,22 +96,22 @@ pub fn may_load_dust(
         .change_context(Error::Storage)
 }
 
-fn dust_counted(storage: &dyn Storage, tx_hash: &TxHash) -> Result<bool, Error> {
+fn dust_counted(storage: &dyn Storage, tx_hash: &HexTxHash) -> Result<bool, Error> {
     Ok(DUST_COUNTED
-        .may_load(storage, tx_hash)
+        .may_load(storage, &tx_hash.tx_hash)
         .change_context(Error::Storage)?
         .is_some())
 }
 
-fn mark_dust_counted(storage: &mut dyn Storage, tx_hash: &TxHash) -> Result<(), Error> {
+fn mark_dust_counted(storage: &mut dyn Storage, tx_hash: &HexTxHash) -> Result<(), Error> {
     DUST_COUNTED
-        .save(storage, tx_hash, &())
+        .save(storage, &tx_hash.tx_hash, &())
         .change_context(Error::Storage)
 }
 
 pub fn count_dust(
     storage: &mut dyn Storage,
-    tx_id: &TxHash,
+    tx_id: &HexTxHash,
     token_id: &TokenId,
     dust: XRPLPaymentAmount,
 ) -> Result<(), Error> {

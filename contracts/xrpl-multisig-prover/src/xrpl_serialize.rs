@@ -396,7 +396,7 @@ impl TryInto<XRPLObject> for XRPLUnsignedTxToSign {
                 "756e7369676e65645f74785f68617368", // hex("unsigned_tx_hash")
             )
             .unwrap(),
-            memo_data: HexBinary::from(xrpl_types::types::hash_unsigned_tx(&self.unsigned_tx)?),
+            memo_data: HexBinary::from(xrpl_types::types::hash_unsigned_tx(&self.unsigned_tx)?.tx_hash),
         }];
 
         if let Some(cc_id) = self.cc_id {

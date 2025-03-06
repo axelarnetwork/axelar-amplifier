@@ -3,10 +3,12 @@ use std::fmt;
 use std::ops::{Add, Sub};
 use std::str::FromStr;
 
+use axelar_wasm_std::msg_id::HexTxHash;
 use axelar_wasm_std::{nonempty, Participant, VerificationStatus};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, HexBinary, StdError, StdResult, Uint128, Uint256};
 use cw_storage_plus::{Key, KeyDeserialize, PrimaryKey};
+use hex;
 use k256::ecdsa;
 use k256::schnorr::signature::SignatureEncoding;
 use lazy_static::lazy_static;
@@ -413,7 +415,7 @@ pub enum XRPLUnsignedTx {
 #[cw_serde]
 pub struct XRPLUnsignedTxToSign {
     pub unsigned_tx: XRPLUnsignedTx,
-    pub unsigned_tx_hash: TxHash,
+    pub unsigned_tx_hash: HexTxHash,
     pub cc_id: Option<CrossChainId>,
 }
 
@@ -660,7 +662,7 @@ impl TryFrom<(multisig::key::Signature, multisig::msg::Signer)> for XRPLSigner {
 pub struct XRPLSignedTx {
     pub unsigned_tx: XRPLUnsignedTx,
     pub signers: Vec<XRPLSigner>,
-    pub unsigned_tx_hash: TxHash,
+    pub unsigned_tx_hash: HexTxHash,
     pub cc_id: Option<CrossChainId>,
 }
 
@@ -668,7 +670,7 @@ impl XRPLSignedTx {
     pub fn new(
         unsigned_tx: XRPLUnsignedTx,
         signers: Vec<XRPLSigner>,
-        unsigned_tx_hash: TxHash,
+        unsigned_tx_hash: HexTxHash,
         cc_id: Option<CrossChainId>,
     ) -> Self {
         Self {
@@ -689,15 +691,15 @@ fn xrpl_hash(prefix: [u8; 4], tx_blob: &[u8]) -> [u8; 32] {
     digest[..32].try_into().expect("digest should be 32 bytes")
 }
 
-pub fn hash_unsigned_tx(unsigned_tx: &XRPLUnsignedTx) -> Result<TxHash, XRPLError> {
+pub fn hash_unsigned_tx(unsigned_tx: &XRPLUnsignedTx) -> Result<HexTxHash, XRPLError> {
     let encoded_unsigned_tx =
         serde_json::to_vec(unsigned_tx).map_err(|_| XRPLError::FailedToSerialize)?;
 
-    Ok(TxHash::new(Sha256::digest(encoded_unsigned_tx).into()))
+    Ok(HexTxHash::from_str(&hex::encode(Sha256::digest(encoded_unsigned_tx))).unwrap())
 }
 
-pub fn hash_signed_tx(encoded_signed_tx: &[u8]) -> Result<TxHash, XRPLError> {
-    Ok(TxHash::new(xrpl_hash(
+pub fn hash_signed_tx(encoded_signed_tx: &[u8]) -> Result<HexTxHash, XRPLError> {
+    Ok(HexTxHash::new(xrpl_hash(
         SIGNED_TRANSACTION_HASH_PREFIX,
         encoded_signed_tx,
     )))

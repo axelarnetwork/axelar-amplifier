@@ -1,3 +1,4 @@
+use axelar_wasm_std::msg_id::HexTxHash;
 use cosmwasm_std::{HexBinary, StdResult, Storage, Uint64};
 use multisig::key::{PublicKey, Signature};
 use multisig::types::MultisigState;
@@ -31,7 +32,7 @@ fn message_to_sign(
 
     let encoded_unsigned_tx_to_sign = XRPLUnsignedTxToSign {
         unsigned_tx: tx_info.unsigned_tx,
-        unsigned_tx_hash,
+        unsigned_tx_hash: HexTxHash::new(unsigned_tx_hash),
         cc_id: tx_info.original_cc_id,
     }
     .xrpl_serialize()?;
@@ -86,7 +87,7 @@ pub fn proof(
             let signed_tx = XRPLSignedTx::new(
                 tx_info.unsigned_tx,
                 xrpl_signers,
-                unsigned_tx_hash.clone(),
+                HexTxHash::new(unsigned_tx_hash),
                 tx_info.original_cc_id,
             );
             let execute_data = HexBinary::from(signed_tx.xrpl_serialize()?);
@@ -95,7 +96,7 @@ pub fn proof(
     };
 
     Ok(ProofResponse {
-        unsigned_tx_hash,
+        unsigned_tx_hash: HexTxHash::new(unsigned_tx_hash),
         status,
     })
 }

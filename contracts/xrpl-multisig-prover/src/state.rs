@@ -1,5 +1,7 @@
 use std::ops::{Add, Sub};
 
+use axelar_wasm_std::hash::Hash;
+use axelar_wasm_std::msg_id::HexTxHash;
 use axelar_wasm_std::MajorityThreshold;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Uint256};
@@ -7,7 +9,7 @@ use cw_storage_plus::{Item, Map};
 use interchain_token_service::TokenId;
 use router_api::{ChainName, ChainNameRaw, CrossChainId};
 use xrpl_types::types::{
-    TxHash, XRPLAccountId, XRPLPaymentAmount, XRPLToken, XRPLTxStatus, XRPLUnsignedTx,
+    XRPLAccountId, XRPLPaymentAmount, XRPLToken, XRPLTxStatus, XRPLUnsignedTx,
 };
 
 use crate::axelar_verifiers::VerifierSet;
@@ -30,7 +32,7 @@ pub struct Config {
 }
 
 pub const CONFIG: Item<Config> = Item::new("config");
-pub const REPLY_UNSIGNED_TX_HASH: Item<TxHash> = Item::new("reply_unsigned_tx_hash");
+pub const REPLY_UNSIGNED_TX_HASH: Item<HexTxHash> = Item::new("reply_unsigned_tx_hash");
 pub const REPLY_CROSS_CHAIN_ID: Item<CrossChainId> = Item::new("reply_cross_chain_id");
 
 // The next seq. no. is affected by the number of tickets created,
@@ -57,16 +59,15 @@ pub struct TxInfo {
     pub original_cc_id: Option<CrossChainId>,
 }
 
-pub const MULTISIG_SESSION_ID_TO_UNSIGNED_TX_HASH: Map<u64, TxHash> =
+pub const MULTISIG_SESSION_ID_TO_UNSIGNED_TX_HASH: Map<u64, Hash> =
     Map::new("multisig_session_id_to_unsigned_tx_hash");
 pub const CROSS_CHAIN_ID_TO_TICKET: Map<&CrossChainId, u32> = Map::new("cross_chain_id_to_ticket");
 pub const CROSS_CHAIN_ID_TO_MULTISIG_SESSION: Map<&CrossChainId, MultisigSession> =
     Map::new("cross_chain_id_to_multisig_session");
-pub const CONSUMED_TICKET_TO_UNSIGNED_TX_HASH: Map<&u32, TxHash> =
+pub const CONSUMED_TICKET_TO_UNSIGNED_TX_HASH: Map<&u32, Hash> =
     Map::new("consumed_ticket_to_unsigned_tx_hash");
-pub const UNSIGNED_TX_HASH_TO_TX_INFO: Map<&TxHash, TxInfo> =
-    Map::new("unsigned_tx_hash_to_tx_info");
-pub const LATEST_SEQUENTIAL_UNSIGNED_TX_HASH: Item<TxHash> =
+pub const UNSIGNED_TX_HASH_TO_TX_INFO: Map<&Hash, TxInfo> = Map::new("unsigned_tx_hash_to_tx_info");
+pub const LATEST_SEQUENTIAL_UNSIGNED_TX_HASH: Item<Hash> =
     Item::new("latest_sequential_unsigned_tx_hash");
 pub const TRUST_LINE: Map<&XRPLToken, ()> = Map::new("trust_line");
 
@@ -136,7 +137,7 @@ pub struct DustInfo {
 }
 
 pub const DUST: Map<&(TokenId, ChainNameRaw), DustAmount> = Map::new("dust");
-pub const UNSIGNED_TX_HASH_TO_DUST_INFO: Map<&TxHash, DustInfo> =
+pub const UNSIGNED_TX_HASH_TO_DUST_INFO: Map<&Hash, DustInfo> =
     Map::new("unsigned_tx_hash_to_dust_info");
 pub const DUST_COUNTED: Map<&CrossChainId, ()> = Map::new("dust_counted");
 

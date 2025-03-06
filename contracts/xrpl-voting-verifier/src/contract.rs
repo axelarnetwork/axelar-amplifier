@@ -103,6 +103,7 @@ pub fn migrate(
 mod test {
     use std::str::FromStr;
 
+    use axelar_wasm_std::msg_id::HexTxHash;
     use axelar_wasm_std::voting::Vote;
     use axelar_wasm_std::{nonempty, MajorityThreshold, Threshold, VerificationStatus};
     use cosmwasm_std::testing::{
@@ -116,7 +117,7 @@ mod test {
     };
     use sha3::{Digest, Keccak256};
     use xrpl_types::msg::{XRPLMessage, XRPLUserMessage};
-    use xrpl_types::types::{TxHash, XRPLAccountId, XRPLPaymentAmount};
+    use xrpl_types::types::{XRPLAccountId, XRPLPaymentAmount};
 
     use super::*;
     use crate::msg::MessageStatus;
@@ -201,9 +202,9 @@ mod test {
         deps
     }
 
-    fn message_id(id: &str) -> TxHash {
+    fn message_id(id: &str) -> HexTxHash {
         let digest: [u8; 32] = Keccak256::digest(id.as_bytes()).into();
-        TxHash::new(digest)
+        HexTxHash::new(digest)
     }
 
     fn messages(len: u32) -> Vec<XRPLMessage> {
@@ -216,6 +217,9 @@ mod test {
                     destination_address: nonempty::String::try_from("1234").unwrap(),
                     payload_hash: None,
                     amount: XRPLPaymentAmount::Drops(
+                        u64::from(i).checked_mul(1_000_000).expect("overflow"),
+                    ),
+                    gas_fee_amount: XRPLPaymentAmount::Drops(
                         u64::from(i).checked_mul(1_000_000).expect("overflow"),
                     ),
                 })

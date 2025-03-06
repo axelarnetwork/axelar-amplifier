@@ -34,10 +34,11 @@ pub fn start_multisig_reply(deps: DepsMut, reply: Reply) -> Result<Response, Con
             MULTISIG_SESSION_ID_TO_UNSIGNED_TX_HASH.save(
                 deps.storage,
                 multisig_session_id.u64(),
-                &unsigned_tx_hash,
+                &unsigned_tx_hash.tx_hash,
             )?;
 
-            let tx_info = UNSIGNED_TX_HASH_TO_TX_INFO.load(deps.storage, &unsigned_tx_hash)?;
+            let tx_info =
+                UNSIGNED_TX_HASH_TO_TX_INFO.load(deps.storage, &unsigned_tx_hash.tx_hash)?;
 
             let signing_started_attributes: Vec<_> = reply
                 .result

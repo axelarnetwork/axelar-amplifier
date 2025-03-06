@@ -10872,6 +10872,7 @@ dependencies = [
  "cosmwasm-std 2.1.5",
  "cw-storage-plus 2.0.0",
  "error-stack",
+ "hex",
  "interchain-token-service",
  "k256",
  "lazy_static",

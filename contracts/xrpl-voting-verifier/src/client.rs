@@ -83,13 +83,14 @@ impl<'a> Client<'a> {
 
 #[cfg(test)]
 mod test {
+    use axelar_wasm_std::msg_id::HexTxHash;
     use axelar_wasm_std::{nonempty, Threshold, VerificationStatus};
     use cosmwasm_std::testing::{message_info, mock_dependencies, mock_env, MockApi, MockQuerier};
     use cosmwasm_std::{
         from_json, Addr, DepsMut, HexBinary, QuerierWrapper, SystemError, Uint64, WasmQuery,
     };
     use xrpl_types::msg::{XRPLMessage, XRPLUserMessage};
-    use xrpl_types::types::{TxHash, XRPLAccountId, XRPLPaymentAmount, XRPLToken, XRPLTokenAmount};
+    use xrpl_types::types::{XRPLAccountId, XRPLPaymentAmount, XRPLToken, XRPLTokenAmount};
 
     use crate::contract::{instantiate, query};
     use crate::msg::{InstantiateMsg, MessageStatus, QueryMsg};
@@ -102,16 +103,17 @@ mod test {
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
 
         let msg_1 = XRPLMessage::UserMessage(XRPLUserMessage {
-            tx_id: TxHash::new([0; 32]),
+            tx_id: HexTxHash::new([0; 32]),
             source_address: XRPLAccountId::new([0; 20]),
             destination_address: nonempty::String::try_from("5678").unwrap(),
             destination_chain: "eth".parse().unwrap(),
             payload_hash: None,
             amount: XRPLPaymentAmount::Drops(100),
+            gas_fee_amount: XRPLPaymentAmount::Drops(100),
         });
 
         let msg_2 = XRPLMessage::UserMessage(XRPLUserMessage {
-            tx_id: TxHash::new([1; 32]),
+            tx_id: HexTxHash::new([1; 32]),
             source_address: XRPLAccountId::new([1; 20]),
             destination_address: nonempty::String::try_from("5678").unwrap(),
             destination_chain: "eth".parse().unwrap(),
@@ -122,6 +124,13 @@ mod test {
                     issuer: XRPLAccountId::new([0; 20]),
                 },
                 XRPLTokenAmount::try_from("1e15".to_string()).unwrap(),
+            ),
+            gas_fee_amount: XRPLPaymentAmount::Issued(
+                XRPLToken {
+                    currency: "USD".to_string().try_into().unwrap(),
+                    issuer: XRPLAccountId::new([0; 20]),
+                },
+                XRPLTokenAmount::try_from("100".to_string()).unwrap(),
             ),
         });
 
@@ -155,12 +164,13 @@ mod test {
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
         let res = client.messages_status(vec![XRPLMessage::UserMessage(XRPLUserMessage {
-            tx_id: TxHash::new([0; 32]),
+            tx_id: HexTxHash::new([0; 32]),
             source_address: XRPLAccountId::new([255; 20]),
             destination_address: nonempty::String::try_from("5678").unwrap(),
             destination_chain: "eth".parse().unwrap(),
             payload_hash: None,
             amount: XRPLPaymentAmount::Drops(200),
+            gas_fee_amount: XRPLPaymentAmount::Drops(200),
         })]);
 
         assert!(res.is_err());
