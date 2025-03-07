@@ -409,39 +409,60 @@ impl PartialOrd for XRPLTokenAmount {
             return Some(std::cmp::Ordering::Greater);
         }
 
-        // Need to adjust mantissas to compare with same exponent
-        let exp_diff = self.exponent - other.exponent;
-        if exp_diff == 0 {
-            // Same exponent, compare mantissas directly
-            return Some(self.mantissa.cmp(&other.mantissa));
-        }
+        //  Determine the smallest exponent.
+        //  We'll scale each mantissa so that BOTH numbers become
+        //  conceptually represented at this min_exp.
+        //  Example:
+        //     self = (mantissa=1, exponent=-2) => 0.01
+        //     other = (mantissa=1, exponent=0) => 1.0
+        //     min_exp = -2
+        //  We will scale the mantissa of the side that has a bigger exponent
+        //  so that it effectively also uses exponent = -2.
+        let min_exp = self.exponent.min(other.exponent);
 
-        // Need to adjust mantissas to compare with same exponent
-        let (adjusted_mantissa, adjusted_other_mantissa) = if exp_diff > 0 {
-            // self has larger exponent (e.g., 15e2 vs 150e1)
-            // Multiply other's mantissa by 10^exp_diff to normalize
-            match other.mantissa.checked_mul(10u64.pow(exp_diff as u32)) {
-                Some(adjusted) => (self.mantissa, adjusted),
-                None => {
-                    // If multiplication would overflow, self must be larger
-                    // This happens when the difference in exponents is so large
-                    // that adjusting would exceed u64::MAX
-                    return Some(std::cmp::Ordering::Greater);
-                }
-            }
-        } else {
-            // other has larger exponent (e.g., 150e1 vs 15e2)
-            // Multiply self's mantissa by 10^(-exp_diff) to normalize
-            match self.mantissa.checked_mul(10u64.pow((-exp_diff) as u32)) {
-                Some(adjusted) => (adjusted, other.mantissa),
-                None => {
-                    // Multiplication would overflow, so other must be larger
-                    return Some(std::cmp::Ordering::Less);
-                }
+        //  Calculate how much each side needs to be scaled.
+        //  scale_self = (min_exp - self.exponent)
+        //  scale_other = (min_exp - other.exponent)
+        //
+        //  If self.exponent is already equal to min_exp, scale_self = 0
+        //    => no multiplication.
+        //  If self.exponent > min_exp, scale_self will be a positive number
+        //    => we multiply self.mantissa by 10^(scale_self).
+        //
+        //  Note: We use (min_exp as i64) - (self.exponent as i64) first to
+        //  avoid negative underflow, then take the absolute value for 10^() calls.
+        let scale_self = (min_exp as i64) - (self.exponent as i64);
+        let scale_other = (min_exp as i64) - (other.exponent as i64);
+
+        // Make these nonnegative for use with 10^(...)
+        let scale_self = scale_self.abs() as u32;
+        let scale_other = scale_other.abs() as u32;
+
+        //  "Scale up" each mantissa where needed. We use `checked_mul` to safely
+        //  detect overflow. If we can't multiply (overflow), assume the scaled
+        //  number is so large that it dominates the comparison.
+        let adjusted_self_mantissa = match self.mantissa.checked_mul(10u64.pow(scale_self)) {
+            Some(val) => val,
+            None => {
+                // If this side overflows when scaling, it means it was originally
+                // the side with the larger exponent (less negative) and got multiplied
+                // by a large power of 10. That indicates it's certainly bigger
+                // in actual numeric value.
+                return Some(std::cmp::Ordering::Greater);
             }
         };
 
-        Some(adjusted_mantissa.cmp(&adjusted_other_mantissa))
+        let adjusted_other_mantissa = match other.mantissa.checked_mul(10u64.pow(scale_other)) {
+            Some(val) => val,
+            None => {
+                // Same idea: if the other side overflows when scaling,
+                // it effectively dwarfs the 'self' side numerically,
+                // so we say self < other.
+                return Some(std::cmp::Ordering::Less);
+            }
+        };
+
+        Some(adjusted_self_mantissa.cmp(&adjusted_other_mantissa))
     }
 }
 
@@ -1016,9 +1037,21 @@ mod tests {
         let c2 = XRPLTokenAmount::new(2_500_000_000_000_000, -15); // 2.5
         assert_eq!(c1.partial_cmp(&c2), Some(std::cmp::Ordering::Greater));
 
-        let e1 = XRPLTokenAmount::ZERO;
-        let e2 = XRPLTokenAmount::new(1_500_000_000_000_000, -15);
+        let d1 = XRPLTokenAmount::new(1_000_000_000_000_000, -2);
+        let d2 = XRPLTokenAmount::new(1_000_000_000_000_000, 0);
+        assert_eq!(d1.partial_cmp(&d2), Some(std::cmp::Ordering::Less));
+
+        let e1 = XRPLTokenAmount::new(1_000_000_000_000_000, -2);
+        let e2 = XRPLTokenAmount::new(1_000_000_000_000_000, 1);
         assert_eq!(e1.partial_cmp(&e2), Some(std::cmp::Ordering::Less));
-        assert_eq!(e2.partial_cmp(&e1), Some(std::cmp::Ordering::Greater));
+
+        let f1 = XRPLTokenAmount::ZERO;
+        let f2 = XRPLTokenAmount::new(1_500_000_000_000_000, -15);
+        assert_eq!(f1.partial_cmp(&f2), Some(std::cmp::Ordering::Less));
+        assert_eq!(f2.partial_cmp(&f1), Some(std::cmp::Ordering::Greater));
+
+        let g1 = XRPLTokenAmount::new(1_000_000_000_000_000, 1);
+        let g2 = XRPLTokenAmount::new(1_000_000_000_000_000, -2);
+        assert_eq!(g1.partial_cmp(&g2), Some(std::cmp::Ordering::Greater));
     }
 }
