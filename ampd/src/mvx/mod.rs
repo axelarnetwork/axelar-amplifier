@@ -26,7 +26,7 @@ impl WeightedSigners {
     pub fn hash(&self) -> Hash {
         let mut encoded: Vec<Vec<u8>> = Vec::new();
 
-        encoded.push(usize_to_u32_as_bytes(self.signers.len()).to_vec());
+        encoded.push(usize_to_bytes(self.signers.len()));
 
         for signer in self.signers.iter() {
             encoded.push(signer.signer.to_vec());
@@ -81,9 +81,8 @@ fn uint256_to_compact_vec(value: Uint256) -> Vec<u8> {
     bytes[slice_from..].to_vec()
 }
 
-#[allow(clippy::cast_possible_truncation)]
-fn usize_to_u32_as_bytes(value: usize) -> [u8; 4] {
-    (value as u32).to_be_bytes()
+fn usize_to_bytes(value: usize) -> Vec<u8> {
+    u32::try_from(value).expect("value must be u32").to_be_bytes().to_vec()
 }
 
 pub fn ed25519_key(pub_key: &PublicKey) -> Result<[u8; 32], Error> {
