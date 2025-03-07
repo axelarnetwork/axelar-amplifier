@@ -14,8 +14,8 @@ use crate::nonempty;
 
 #[cw_serde]
 #[derive(Eq, Hash)]
+#[serde(transparent)]
 pub struct HexTxHash {
-    #[serde(flatten)]
     pub tx_hash: Hash,
 }
 
