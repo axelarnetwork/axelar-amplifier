@@ -11,7 +11,6 @@ use regex::Regex;
 use super::Error;
 use crate::hash::Hash;
 use crate::nonempty;
-use serde::{Deserialize, Serialize};
 
 #[cw_serde]
 #[derive(Eq, Hash)]
