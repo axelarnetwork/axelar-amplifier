@@ -87,7 +87,7 @@ mod test {
     use axelar_wasm_std::{nonempty, Threshold, VerificationStatus};
     use cosmwasm_std::testing::{message_info, mock_dependencies, mock_env, MockApi, MockQuerier};
     use cosmwasm_std::{
-        from_json, Addr, DepsMut, HexBinary, QuerierWrapper, SystemError, Uint64, WasmQuery,
+        from_json, Addr, DepsMut, QuerierWrapper, SystemError, Uint64, WasmQuery,
     };
     use xrpl_types::msg::{XRPLMessage, XRPLUserMessage};
     use xrpl_types::types::{XRPLAccountId, XRPLPaymentAmount, XRPLToken, XRPLTokenAmount};

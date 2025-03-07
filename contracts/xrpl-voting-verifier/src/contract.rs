@@ -109,7 +109,7 @@ mod test {
     use cosmwasm_std::testing::{
         message_info, mock_dependencies, mock_env, MockApi, MockQuerier, MockStorage,
     };
-    use cosmwasm_std::{from_json, Empty, Fraction, HexBinary, OwnedDeps, Uint64, WasmQuery};
+    use cosmwasm_std::{from_json, Empty, Fraction, OwnedDeps, Uint64, WasmQuery};
     use rand::Rng;
     use router_api::ChainName;
     use service_registry::{

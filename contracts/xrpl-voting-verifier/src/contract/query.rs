@@ -121,7 +121,7 @@ mod tests {
     use axelar_wasm_std::voting::{PollId, Tallies, Vote, WeightedPoll};
     use axelar_wasm_std::{nonempty, Participant, Snapshot, Threshold};
     use cosmwasm_std::testing::{mock_dependencies, mock_env};
-    use cosmwasm_std::{Addr, HexBinary, Uint128, Uint64};
+    use cosmwasm_std::{Addr, Uint128, Uint64};
     use itertools::Itertools;
     use xrpl_types::msg::XRPLUserMessage;
     use xrpl_types::types::{XRPLAccountId, XRPLPaymentAmount};
