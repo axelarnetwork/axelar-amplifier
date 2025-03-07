@@ -31,11 +31,11 @@ impl WeightedSigners {
         for signer in self.signers.iter() {
             encoded.push(signer.signer.to_vec());
 
-            encoded.push(usize_to_u32_as_bytes(signer.weight.len()).to_vec());
+            encoded.push(usize_to_bytes(signer.weight.len()));
             encoded.push(signer.weight.to_vec());
         }
 
-        encoded.push(usize_to_u32_as_bytes(self.threshold.len()).to_vec());
+        encoded.push(usize_to_bytes(self.threshold.len()));
         encoded.push(self.threshold.to_vec());
         encoded.push(self.nonce.to_vec());
 
@@ -82,7 +82,10 @@ fn uint256_to_compact_vec(value: Uint256) -> Vec<u8> {
 }
 
 fn usize_to_bytes(value: usize) -> Vec<u8> {
-    u32::try_from(value).expect("value must be u32").to_be_bytes().to_vec()
+    u32::try_from(value)
+        .expect("value must be u32")
+        .to_be_bytes()
+        .to_vec()
 }
 
 pub fn ed25519_key(pub_key: &PublicKey) -> Result<[u8; 32], Error> {

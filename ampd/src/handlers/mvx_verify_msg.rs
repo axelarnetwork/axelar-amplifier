@@ -140,26 +140,26 @@ where
                 .collect::<Vec<String>>()
                 .as_value(),
         )
-            .in_scope(|| {
-                info!("ready to verify messages in poll",);
+        .in_scope(|| {
+            info!("ready to verify messages in poll",);
 
-                let votes: Vec<Vote> = messages
-                    .iter()
-                    .map(|msg| {
-                        transactions_info
-                            .get(&msg.message_id.tx_hash.into())
-                            .map_or(Vote::NotFound, |transaction| {
-                                verify_message(&source_gateway_address, transaction, msg)
-                            })
-                    })
-                    .collect();
-                info!(
+            let votes: Vec<Vote> = messages
+                .iter()
+                .map(|msg| {
+                    transactions_info
+                        .get(&msg.message_id.tx_hash.into())
+                        .map_or(Vote::NotFound, |transaction| {
+                            verify_message(&source_gateway_address, transaction, msg)
+                        })
+                })
+                .collect();
+            info!(
                 votes = votes.as_value(),
                 "ready to vote for messages in poll"
             );
 
-                votes
-            });
+            votes
+        });
 
         Ok(vec![self
             .vote_msg(poll_id, votes)

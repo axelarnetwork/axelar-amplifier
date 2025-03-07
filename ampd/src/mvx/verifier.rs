@@ -162,13 +162,6 @@ pub fn verify_verifier_set(
 
 #[cfg(test)]
 mod tests {
-    use crate::handlers::mvx_verify_msg::Message;
-    use crate::handlers::mvx_verify_verifier_set::VerifierSetConfirmation;
-    use crate::mvx::verifier::{
-        verify_message, verify_verifier_set, CONTRACT_CALL_EVENT, CONTRACT_CALL_IDENTIFIER,
-        ROTATE_SIGNERS_IDENTIFIER, SIGNERS_ROTATED_EVENT,
-    };
-    use crate::types::{EVMAddress, Hash};
     use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
     use axelar_wasm_std::voting::Vote;
     use base64::engine::general_purpose::STANDARD;
@@ -179,6 +172,14 @@ mod tests {
     use multisig::test::common::{build_verifier_set, ed25519_test_data};
     use multiversx_sdk::data::address::Address;
     use multiversx_sdk::data::transaction::{ApiLogs, Events, LogData, TransactionOnNetwork};
+
+    use crate::handlers::mvx_verify_msg::Message;
+    use crate::handlers::mvx_verify_verifier_set::VerifierSetConfirmation;
+    use crate::mvx::verifier::{
+        verify_message, verify_verifier_set, CONTRACT_CALL_EVENT, CONTRACT_CALL_IDENTIFIER,
+        ROTATE_SIGNERS_IDENTIFIER, SIGNERS_ROTATED_EVENT,
+    };
+    use crate::types::{EVMAddress, Hash};
 
     // test verify message
     #[test]

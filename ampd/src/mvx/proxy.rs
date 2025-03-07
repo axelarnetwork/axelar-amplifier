@@ -57,6 +57,11 @@ impl MvxProxy for GatewayProxy {
             .filter(Self::is_valid_transaction)
     }
 
+    /// First check if a transaction has hash & logs which are required in order to parse events.
+    /// Then make sure transactions are included on the blockchain (STATUS_SUCCESS) and
+    /// are final (included in a hyperblock by checking notarized_at_source_in_meta_nonce).
+    /// For more information regarding finality see:
+    /// https://docs.multiversx.com/integrators/egld-integration-guide/#finality-of-the-transactions--number-of-confirmations
     fn is_valid_transaction(tx: &TransactionOnNetwork) -> bool {
         tx.hash.is_some()
             && tx.logs.is_some()
@@ -120,7 +125,7 @@ mod tests {
                 address: Address::from_bech32_string(
                     "erd1qqqqqqqqqqqqqpgqhe8t5jewej70zupmh44jurgn29psua5l2jps3ntjj3",
                 )
-                    .unwrap(),
+                .unwrap(),
                 events: vec![],
             }),
             status: "success".into(),
