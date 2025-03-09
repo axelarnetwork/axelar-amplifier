@@ -28,6 +28,9 @@ pub enum ContractError {
     #[error("dust amount not remote")]
     DustAmountNotRemote,
 
+    #[error("dust amount type mismatch: cannot add/subtract different dust amount types")]
+    DustAmountTypeMismatch,
+
     #[error("dust not found")]
     DustNotFound,
 

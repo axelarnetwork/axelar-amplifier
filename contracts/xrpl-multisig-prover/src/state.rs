@@ -100,7 +100,7 @@ impl DustAmount {
             (DustAmount::Remote(a), DustAmount::Remote(b)) => Ok(DustAmount::Remote(
                 a.checked_add(b).map_err(|_| ContractError::Overflow)?,
             )),
-            _ => panic!("cannot add local and remote dust amounts"),
+            _ => Err(ContractError::DustAmountTypeMismatch),
         }
     }
 
@@ -110,7 +110,7 @@ impl DustAmount {
             (DustAmount::Remote(a), DustAmount::Remote(b)) => Ok(DustAmount::Remote(
                 a.checked_sub(b).map_err(|_| ContractError::Overflow)?,
             )),
-            _ => panic!("cannot subtract local and remote dust amounts"),
+            _ => Err(ContractError::DustAmountTypeMismatch),
         }
     }
 
