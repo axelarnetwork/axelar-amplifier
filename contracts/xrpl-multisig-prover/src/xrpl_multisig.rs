@@ -316,11 +316,9 @@ fn mark_tickets_available(
 }
 
 fn mark_ticket_unavailable(storage: &mut dyn Storage, ticket: u32) -> Result<(), ContractError> {
-    AVAILABLE_TICKETS.update(storage, |available_tickets| -> Result<_, ContractError> {
-        Ok(available_tickets
-            .into_iter()
-            .filter(|&x| x != ticket)
-            .collect())
+    AVAILABLE_TICKETS.update(storage, |mut available_tickets| -> Result<_, ContractError> {
+        available_tickets.retain(|&x| x != ticket);
+        Ok(available_tickets)
     })?;
     Ok(())
 }
