@@ -133,13 +133,6 @@ pub enum ExecuteMsg {
 
 #[cw_serde]
 pub struct MigrateMsg {
-    /// Address that can execute all messages that either have unrestricted or admin permission level.
-    /// Should be set to a trusted address that can react to unexpected interruptions to the contract's operation.
-    pub admin_address: String,
-    /// Address that can call all messages of unrestricted, admin and governance permission level.
-    /// This address can execute messages that bypasses verification checks to rescue the contract if it got into an otherwise unrecoverable state due to external forces.
-    /// On mainnet, it should match the address of the Cosmos governance module.
-    pub governance_address: String,
     /// Address of the XRPL gateway on axelar.
     pub gateway_address: String,
     /// Address of the multisig contract on axelar.
