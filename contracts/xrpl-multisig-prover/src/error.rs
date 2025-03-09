@@ -154,6 +154,9 @@ pub enum ContractError {
     #[error("ticket count threshold has not been reached")]
     TicketCountThresholdNotReached,
 
+    #[error("too many available tickets")]
+    TooManyAvailableTickets,
+
     #[error("too many paths in PathSet")]
     TooManyPaths,
 

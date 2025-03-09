@@ -270,8 +270,12 @@ fn next_ticket_number(storage: &dyn Storage) -> Result<u32, ContractError> {
 pub fn num_of_tickets_to_create(storage: &mut dyn Storage) -> Result<u32, ContractError> {
     let available_tickets = AVAILABLE_TICKETS.load(storage)?;
     let available_ticket_count =
-        u32::try_from(available_tickets.len()).expect("ticket count overflow");
-    assert!(available_ticket_count <= MAX_TICKET_COUNT);
+        u32::try_from(available_tickets.len()).map_err(|_| ContractError::TooManyAvailableTickets)?;
+
+    if available_ticket_count > MAX_TICKET_COUNT {
+        return Err(ContractError::TooManyAvailableTickets);
+    }
+
     MAX_TICKET_COUNT
         .checked_sub(available_ticket_count)
         .ok_or(ContractError::Overflow)
