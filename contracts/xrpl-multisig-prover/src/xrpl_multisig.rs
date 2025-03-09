@@ -305,12 +305,14 @@ fn mark_tickets_available(
     storage: &mut dyn Storage,
     tickets: impl Iterator<Item = u32>,
 ) -> Result<(), ContractError> {
-    AVAILABLE_TICKETS.update(storage, |available_tickets| -> Result<_, ContractError> {
-        let mut new_available_tickets = available_tickets.clone();
-        new_available_tickets.extend(tickets);
-        Ok(new_available_tickets)
-    })?;
-    Ok(())
+    let mut available_tickets = AVAILABLE_TICKETS.load(storage)?;
+    available_tickets.extend(tickets);
+
+    if available_tickets.len() > MAX_TICKET_COUNT as usize {
+        return Err(ContractError::TooManyAvailableTickets);
+    }
+
+    Ok(AVAILABLE_TICKETS.save(storage, &available_tickets)?)
 }
 
 fn mark_ticket_unavailable(storage: &mut dyn Storage, ticket: u32) -> Result<(), ContractError> {
