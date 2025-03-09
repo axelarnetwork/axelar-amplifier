@@ -1915,6 +1915,7 @@ mod tests {
         assert_eq!(g1.partial_cmp(&g2), Some(std::cmp::Ordering::Greater));
     }
 
+    #[test]
     fn test_xrpl_token_key_deserialize() {
         let issuer = XRPLAccountId::from_str("rDTXLQ7ZKZVKz33zJbHjgVShjsBnqMBhmN").unwrap();
         let currency = XRPLCurrency::new("USD").unwrap();
