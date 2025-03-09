@@ -428,6 +428,14 @@ impl XRPLUnsignedTx {
             XRPLUnsignedTx::TrustSet(tx) => &tx.sequence,
         }
     }
+
+    pub fn is_sequential(&self) -> bool {
+        match self.sequence() {
+            XRPLSequence::Plain(_) => true,
+            XRPLSequence::Ticket(_) => false,
+        }
+    }
+
     pub fn sequence_number_increment(&self, status: XRPLTxStatus) -> Result<u32, XRPLError> {
         if status == XRPLTxStatus::Pending || status == XRPLTxStatus::Inconclusive {
             return Ok(0);

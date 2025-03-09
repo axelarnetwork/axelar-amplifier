@@ -33,14 +33,9 @@ fn issue_tx(
 
     UNSIGNED_TX_HASH_TO_TX_INFO.save(storage, &unsigned_tx_hash.tx_hash, &tx_info)?;
 
-    match unsigned_tx.sequence() {
-        XRPLSequence::Ticket(ticket_number) => {
-            LAST_ASSIGNED_TICKET_NUMBER.save(storage, ticket_number)?;
-        }
-        XRPLSequence::Plain(_) => {
-            LATEST_SEQUENTIAL_UNSIGNED_TX_HASH.save(storage, &unsigned_tx_hash.tx_hash)?;
-        }
-    };
+    if unsigned_tx.is_sequential() {
+        LATEST_SEQUENTIAL_UNSIGNED_TX_HASH.save(storage, &unsigned_tx_hash.tx_hash)?;
+    }
 
     Ok(unsigned_tx_hash)
 }
@@ -248,19 +243,21 @@ fn assign_ticket_number(
     Ok(new_ticket_number)
 }
 
-fn next_ticket_number(storage: &dyn Storage) -> Result<u32, ContractError> {
+fn next_ticket_number(storage: &mut dyn Storage) -> Result<u32, ContractError> {
     let last_assigned_ticket_number = LAST_ASSIGNED_TICKET_NUMBER.load(storage)?;
     let available_tickets = AVAILABLE_TICKETS.load(storage)?;
-    match available_tickets.first() {
-        Some(first_ticket_number) => {
-            // find next largest in available, otherwise re-use available_tickets[0]
-            let ticket_number = available_tickets
-                .iter()
-                .find(|&x| x > &last_assigned_ticket_number)
-                .unwrap_or(first_ticket_number);
-            Ok(*ticket_number)
-        }
-        None => Err(ContractError::NoAvailableTickets),
+    if let Some(first_ticket_number) = available_tickets.first() {
+        // find next largest in available, otherwise re-use available_tickets[0]
+        let ticket_number = available_tickets
+            .iter()
+            .find(|&x| x > &last_assigned_ticket_number)
+            .unwrap_or(first_ticket_number);
+
+        LAST_ASSIGNED_TICKET_NUMBER.save(storage, ticket_number)?;
+
+        Ok(*ticket_number)
+    } else {
+        Err(ContractError::NoAvailableTickets)
     }
 }
 
