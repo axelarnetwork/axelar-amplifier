@@ -428,12 +428,12 @@ impl XRPLUnsignedTx {
             XRPLUnsignedTx::TrustSet(tx) => &tx.sequence,
         }
     }
-    pub fn sequence_number_increment(&self, status: XRPLTxStatus) -> u32 {
+    pub fn sequence_number_increment(&self, status: XRPLTxStatus) -> Result<u32, XRPLError> {
         if status == XRPLTxStatus::Pending || status == XRPLTxStatus::Inconclusive {
-            return 0;
+            return Ok(0);
         }
 
-        match self {
+        Ok(match self {
             XRPLUnsignedTx::Payment(tx) => match tx.sequence {
                 XRPLSequence::Plain(_) => 1,
                 XRPLSequence::Ticket(_) => 0,
@@ -443,7 +443,7 @@ impl XRPLUnsignedTx {
                 XRPLSequence::Ticket(_) => 0,
             },
             XRPLUnsignedTx::TicketCreate(tx) => match status {
-                XRPLTxStatus::Succeeded => tx.ticket_count.checked_add(1).unwrap(),
+                XRPLTxStatus::Succeeded => tx.ticket_count.checked_add(1).ok_or(XRPLError::Overflow)?,
                 XRPLTxStatus::FailedOnChain => 1,
                 XRPLTxStatus::Inconclusive | XRPLTxStatus::Pending => unreachable!(),
             },
@@ -451,7 +451,7 @@ impl XRPLUnsignedTx {
                 XRPLSequence::Plain(_) => 1,
                 XRPLSequence::Ticket(_) => 0,
             },
-        }
+        })
     }
 }
 

@@ -146,7 +146,7 @@ pub fn confirm_prover_message(
     let tx_sequence_number = u32::from(tx_info.unsigned_tx.sequence());
     let sequence_number_increment = tx_info
         .unsigned_tx
-        .sequence_number_increment(new_status.clone());
+        .sequence_number_increment(new_status.clone())?;
 
     if sequence_number_increment > 0 && tx_sequence_number == NEXT_SEQUENCE_NUMBER.load(storage)? {
         NEXT_SEQUENCE_NUMBER.save(
