@@ -10,10 +10,10 @@ use xrpl_types::types::{
 use crate::axelar_verifiers::VerifierSet;
 use crate::error::ContractError;
 use crate::state::{
-    Config, DustAmount, TxInfo, AVAILABLE_TICKETS, CONSUMED_TICKET_TO_UNSIGNED_TX_HASH,
-    CROSS_CHAIN_ID_TO_TICKET, CURRENT_VERIFIER_SET, DUST, LAST_ASSIGNED_TICKET_NUMBER,
+    Config, TxInfo, AVAILABLE_TICKETS, CONSUMED_TICKET_TO_UNSIGNED_TX_HASH,
+    CROSS_CHAIN_ID_TO_TICKET, CURRENT_VERIFIER_SET, LAST_ASSIGNED_TICKET_NUMBER,
     LATEST_SEQUENTIAL_UNSIGNED_TX_HASH, NEXT_SEQUENCE_NUMBER, NEXT_VERIFIER_SET, TRUST_LINE,
-    UNSIGNED_TX_HASH_TO_DUST_INFO, UNSIGNED_TX_HASH_TO_TX_INFO,
+    UNSIGNED_TX_HASH_TO_TX_INFO,
 };
 
 const MAX_TICKET_COUNT: u32 = 250;
@@ -209,23 +209,10 @@ pub fn confirm_prover_message(
             Some(next_verifier_set)
         }
         XRPLUnsignedTx::Payment(_) => {
-            // Do nothing further if TX is not dust claim.
-            if tx_info.original_cc_id.is_some() {
-                return Ok(None);
+            if tx_info.original_cc_id.is_none() {
+                return Err(ContractError::PaymentMissingCrossChainId);
             }
 
-            let dust_info =
-                UNSIGNED_TX_HASH_TO_DUST_INFO.load(storage, &unsigned_tx_hash.tx_hash)?;
-            DUST.update(
-                storage,
-                &(dust_info.token_id, dust_info.chain),
-                |current_dust| -> Result<DustAmount, ContractError> {
-                    match current_dust {
-                        Some(current_dust) => current_dust.sub(dust_info.dust_amount),
-                        None => panic!("dust amount must be set"),
-                    }
-                },
-            )?;
             None
         }
         XRPLUnsignedTx::TrustSet(tx) => {

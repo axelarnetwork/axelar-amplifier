@@ -137,8 +137,6 @@ pub struct DustInfo {
 }
 
 pub const DUST: Map<&(TokenId, ChainNameRaw), DustAmount> = Map::new("dust");
-pub const UNSIGNED_TX_HASH_TO_DUST_INFO: Map<&Hash, DustInfo> =
-    Map::new("unsigned_tx_hash_to_dust_info");
 pub const DUST_COUNTED: Map<&CrossChainId, ()> = Map::new("dust_counted");
 
 pub const CURRENT_VERIFIER_SET: Item<VerifierSet> = Item::new("current_verifier_set");
