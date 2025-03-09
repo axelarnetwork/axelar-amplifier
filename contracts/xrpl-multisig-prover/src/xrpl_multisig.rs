@@ -50,13 +50,10 @@ pub fn issue_payment(
     config: &Config,
     destination: XRPLAccountId,
     amount: &XRPLPaymentAmount,
-    cc_id: Option<&CrossChainId>,
+    cc_id: &CrossChainId,
     cross_currency: Option<&XRPLCrossCurrencyOptions>,
 ) -> Result<HexTxHash, ContractError> {
-    let sequence = match cc_id {
-        Some(cc_id) => XRPLSequence::Ticket(assign_ticket_number(storage, cc_id)?),
-        None => XRPLSequence::Plain(next_sequence_number(storage)?),
-    };
+    let sequence = XRPLSequence::Ticket(assign_ticket_number(storage, cc_id)?);
 
     let tx = XRPLPaymentTx {
         account: config.xrpl_multisig.clone(),
@@ -67,7 +64,7 @@ pub fn issue_payment(
         cross_currency: cross_currency.cloned(),
     };
 
-    issue_tx(storage, XRPLUnsignedTx::Payment(tx), cc_id)
+    issue_tx(storage, XRPLUnsignedTx::Payment(tx), Some(cc_id))
 }
 
 pub fn issue_ticket_create(

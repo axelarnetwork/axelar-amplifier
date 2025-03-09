@@ -314,7 +314,7 @@ pub fn construct_payment_proof(
                         config,
                         destination_address,
                         &xrpl_amount,
-                        Some(&cc_id),
+                        &cc_id,
                         None, // TODO: Handle cross-currency payments.
                     )?;
 
