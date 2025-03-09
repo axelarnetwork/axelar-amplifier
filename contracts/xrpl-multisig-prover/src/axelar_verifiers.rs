@@ -81,22 +81,21 @@ fn convert_or_scale_weights(weights: &[Uint128]) -> Result<Vec<u16>, ContractErr
 
 const MAX_NUM_XRPL_MULTISIG_SIGNERS: usize = 32;
 
-fn mul_ceil(value: u64, numerator: u64, denominator: u64) -> u64 {
-    assert!(denominator > 0, "denominator must be non-zero");
-
+fn mul_ceil(value: u64, numerator: u64, denominator: u64) -> Result<u64, ContractError> {
     let dividend = value
         .checked_mul(numerator)
-        .expect("Multiplication overflow");
-    let floor_result = dividend.checked_div(denominator).expect("Division by zero");
+        .ok_or(ContractError::Overflow)?;
+
+    let floor_result = dividend.checked_div(denominator).ok_or(ContractError::DivisionByZero)?;
     let remainder = dividend
         .checked_rem(denominator)
-        .expect("Denominator must be non-zero");
+        .ok_or(ContractError::DivisionByZero)?;
 
-    if remainder > 0 {
-        floor_result.checked_add(1).unwrap()
+    Ok(if remainder > 0 {
+        floor_result.checked_add(1).ok_or(ContractError::Overflow)?
     } else {
         floor_result
-    }
+    })
 }
 
 pub fn active_verifiers(
@@ -148,11 +147,11 @@ pub fn active_verifiers(
     let sum_of_weights = weights.iter().map(|w| u64::from(*w)).sum();
     let numerator = u64::from(signing_threshold.numerator());
     let denominator = u64::from(signing_threshold.denominator());
-    let quorum = u32::try_from(mul_ceil(sum_of_weights, numerator, denominator)).unwrap();
+    let quorum = mul_ceil(sum_of_weights, numerator, denominator)?;
 
     let verifier_set = VerifierSet {
         signers: BTreeSet::from_iter(signers),
-        quorum,
+        quorum: u32::try_from(quorum).map_err(|_| ContractError::QuorumTooLarge(quorum))?,
         created_at: block_height,
     };
 

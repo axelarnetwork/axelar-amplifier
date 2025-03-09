@@ -12,6 +12,9 @@ use crate::state::DustAmount;
 
 #[derive(Error, Debug, PartialEq, IntoContractError)]
 pub enum ContractError {
+    #[error("division by zero error")]
+    DivisionByZero,
+
     #[error("dust amount {dust} for token {token_id} and chain {chain} is too small")]
     DustAmountTooSmall {
         dust: DustAmount,
@@ -129,6 +132,9 @@ pub enum ContractError {
 
     #[error("payment for {0} already succeeded")]
     PaymentAlreadySucceeded(CrossChainId),
+
+    #[error("quorum does not fit in u32: {0}")]
+    QuorumTooLarge(u64),
 
     #[error("failed to serialize the response")]
     SerializeResponse,
