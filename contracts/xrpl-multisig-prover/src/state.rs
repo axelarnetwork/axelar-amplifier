@@ -1,5 +1,3 @@
-use std::ops::{Add, Sub};
-
 use axelar_wasm_std::hash::Hash;
 use axelar_wasm_std::msg_id::HexTxHash;
 use axelar_wasm_std::MajorityThreshold;
@@ -9,11 +7,10 @@ use cw_storage_plus::{Item, Map};
 use interchain_token_service::TokenId;
 use router_api::{ChainName, ChainNameRaw, CrossChainId};
 use xrpl_types::types::{
-    XRPLAccountId, XRPLPaymentAmount, XRPLToken, XRPLTxStatus, XRPLUnsignedTx,
+    XRPLAccountId, XRPLToken, XRPLTxStatus, XRPLUnsignedTx,
 };
 
 use crate::axelar_verifiers::VerifierSet;
-use crate::error::ContractError;
 
 #[cw_serde]
 pub struct Config {
@@ -71,72 +68,7 @@ pub const LATEST_SEQUENTIAL_UNSIGNED_TX_HASH: Item<Hash> =
     Item::new("latest_sequential_unsigned_tx_hash");
 pub const TRUST_LINE: Map<&XRPLToken, ()> = Map::new("trust_line");
 
-#[cw_serde]
-pub enum DustAmount {
-    Local(XRPLPaymentAmount),
-    Remote(Uint256),
-}
-
-impl std::fmt::Display for DustAmount {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            DustAmount::Local(amount) => write!(f, "{}", amount),
-            DustAmount::Remote(amount) => write!(f, "{}", amount),
-        }
-    }
-}
-
-impl DustAmount {
-    pub fn is_zero(&self) -> bool {
-        match self {
-            DustAmount::Local(amount) => amount.is_zero(),
-            DustAmount::Remote(amount) => amount.is_zero(),
-        }
-    }
-
-    pub fn add(self, other: Self) -> Result<Self, ContractError> {
-        match (self, other) {
-            (DustAmount::Local(a), DustAmount::Local(b)) => Ok(DustAmount::Local(a.add(b)?)),
-            (DustAmount::Remote(a), DustAmount::Remote(b)) => Ok(DustAmount::Remote(
-                a.checked_add(b).map_err(|_| ContractError::Overflow)?,
-            )),
-            _ => Err(ContractError::DustAmountTypeMismatch),
-        }
-    }
-
-    pub fn sub(self, other: Self) -> Result<Self, ContractError> {
-        match (self, other) {
-            (DustAmount::Local(a), DustAmount::Local(b)) => Ok(DustAmount::Local(a.sub(b)?)),
-            (DustAmount::Remote(a), DustAmount::Remote(b)) => Ok(DustAmount::Remote(
-                a.checked_sub(b).map_err(|_| ContractError::Overflow)?,
-            )),
-            _ => Err(ContractError::DustAmountTypeMismatch),
-        }
-    }
-
-    pub fn unwrap_local(self) -> Result<XRPLPaymentAmount, ContractError> {
-        match self {
-            DustAmount::Local(amount) => Ok(amount),
-            _ => Err(ContractError::DustAmountNotLocal),
-        }
-    }
-
-    pub fn unwrap_remote(self) -> Result<Uint256, ContractError> {
-        match self {
-            DustAmount::Remote(amount) => Ok(amount),
-            _ => Err(ContractError::DustAmountNotRemote),
-        }
-    }
-}
-
-#[cw_serde]
-pub struct DustInfo {
-    pub token_id: TokenId,
-    pub chain: ChainNameRaw,
-    pub dust_amount: DustAmount,
-}
-
-pub const DUST: Map<&(TokenId, ChainNameRaw), DustAmount> = Map::new("dust");
+pub const DUST: Map<&(TokenId, ChainNameRaw), Uint256> = Map::new("dust");
 pub const DUST_COUNTED: Map<&CrossChainId, ()> = Map::new("dust_counted");
 
 pub const CURRENT_VERIFIER_SET: Item<VerifierSet> = Item::new("current_verifier_set");

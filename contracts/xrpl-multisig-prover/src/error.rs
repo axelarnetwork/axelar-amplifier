@@ -7,33 +7,12 @@ use router_api::{ChainName, ChainNameRaw, CrossChainId};
 use thiserror::Error;
 use xrpl_types::error::XRPLError;
 use xrpl_types::msg::XRPLMessage;
-use xrpl_types::types::{XRPLPath, XRPLToken, XRPLTxStatus};
-
-use crate::state::DustAmount;
+use xrpl_types::types::{AxelarSigner, XRPLPath, XRPLToken, XRPLTxStatus};
 
 #[derive(Error, Debug, PartialEq, IntoContractError)]
 pub enum ContractError {
     #[error("division by zero error")]
     DivisionByZero,
-
-    #[error("dust amount {dust} for token {token_id} and chain {chain} is too small")]
-    DustAmountTooSmall {
-        dust: DustAmount,
-        token_id: TokenId,
-        chain: ChainNameRaw,
-    },
-
-    #[error("dust amount not local")]
-    DustAmountNotLocal,
-
-    #[error("dust amount not remote")]
-    DustAmountNotRemote,
-
-    #[error("dust amount type mismatch: cannot add/subtract different dust amount types")]
-    DustAmountTypeMismatch,
-
-    #[error("dust not found")]
-    DustNotFound,
 
     #[error("empty signer public keys")]
     EmptySignerPublicKeys,
@@ -91,9 +70,6 @@ pub enum ContractError {
         actual: ChainName,
         expected: ChainName,
     },
-
-    #[error("invalid dust amount {amount} with decimals {decimals}")]
-    InvalidDustAmount { amount: Uint256, decimals: u8 },
 
     #[error("invalid message ID {0}")]
     InvalidMessageId(String),
@@ -223,9 +199,6 @@ pub enum ContractError {
 
     #[error(transparent)]
     XRPLTypeConversionError(#[from] XRPLError),
-
-    #[error("zero dust amount to claim")]
-    ZeroDustToClaim,
 
     #[error("zero paths given in PathSet")]
     ZeroPaths,

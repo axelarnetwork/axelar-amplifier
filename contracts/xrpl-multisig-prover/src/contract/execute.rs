@@ -17,7 +17,7 @@ use xrpl_types::types::{
 
 use super::START_MULTISIG_REPLY_ID;
 use crate::error::ContractError;
-use crate::state::{self, Config, DustAmount, TRUST_LINE};
+use crate::state::{self, Config, TRUST_LINE};
 use crate::{axelar_verifiers, xrpl_multisig};
 
 pub fn construct_trust_set_proof(
@@ -314,17 +314,13 @@ pub fn construct_payment_proof(
                             &(interchain_transfer.token_id, source_chain.clone()),
                             |current_dust| -> Result<_, ContractError> {
                                 match current_dust {
-                                    Some(DustAmount::Remote(current_dust)) => {
-                                        Ok(DustAmount::Remote(
-                                            current_dust
-                                                .checked_add(dust)
-                                                .map_err(|_| ContractError::Overflow)?,
-                                        ))
+                                    Some(current_dust) => {
+                                        Ok(current_dust
+                                            .checked_add(dust)
+                                            .map_err(|_| ContractError::Overflow)?,
+                                        )
                                     }
-                                    Some(DustAmount::Local(_)) => {
-                                        Err(ContractError::DustAmountNotRemote)
-                                    }
-                                    None => Ok(DustAmount::Remote(dust)),
+                                    None => Ok(dust),
                                 }
                             },
                         )?;
