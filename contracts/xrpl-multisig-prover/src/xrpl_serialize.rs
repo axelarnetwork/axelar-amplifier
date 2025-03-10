@@ -130,7 +130,7 @@ impl XRPLSerialize for XRPLPaymentAmount {
             }
             XRPLPaymentAmount::Issued(token, amount) => {
                 let mut buf = Vec::with_capacity(48);
-                buf.extend_from_slice(&amount.as_bytes());
+                buf.extend_from_slice(&amount.as_bytes()?);
                 buf.extend_from_slice(&token.currency.as_bytes());
                 buf.extend_from_slice(token.issuer.as_ref());
                 Ok(buf)

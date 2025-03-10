@@ -36,7 +36,7 @@ const UNSIGNED_TRANSACTION_MULTI_SIGNING_HASH_PREFIX: [u8; 4] = [0x53, 0x4D, 0x5
 
 lazy_static! {
     static ref CURRENCY_CODE_REGEX: Regex =
-        Regex::new(r"^[A-Za-z0-9\?\!@#\$%\^&\*<>\(\)\{\}\[\]\|]{3}$").unwrap();
+        Regex::new(r"^[A-Za-z0-9\?\!@#\$%\^&\*<>\(\)\{\}\[\]\|]{3}$").expect("valid regex");
 }
 
 const MIN_MANTISSA: u64 = 1_000_000_000_000_000;
@@ -62,13 +62,16 @@ pub struct AxelarSigner {
     pub pub_key: PublicKey,
 }
 
-impl From<AxelarSigner> for Participant {
-    fn from(signer: AxelarSigner) -> Self {
-        let weight = nonempty::Uint128::try_from(Uint128::from(u128::from(signer.weight))).unwrap();
-        Self {
+impl TryFrom<AxelarSigner> for Participant {
+    type Error = XRPLError;
+    fn try_from(signer: AxelarSigner) -> Result<Self, XRPLError> {
+        let weight = nonempty::Uint128::try_from(Uint128::from(u128::from(signer.weight)))
+            .map_err(|_| XRPLError::InvalidSignerWeight(signer.weight))?;
+
+        Ok(Self {
             address: signer.address,
             weight,
-        }
+        })
     }
 }
 
@@ -325,7 +328,7 @@ impl Add for XRPLPaymentAmount {
             (XRPLPaymentAmount::Drops(x), XRPLPaymentAmount::Drops(y)) => x
                 .checked_add(y)
                 .map(XRPLPaymentAmount::Drops)
-                .ok_or(XRPLError::Overflow),
+                .ok_or(XRPLError::AdditionOverflow),
             (
                 XRPLPaymentAmount::Issued(token_x, amount_x),
                 XRPLPaymentAmount::Issued(token_y, amount_y),
@@ -350,7 +353,7 @@ impl Sub for XRPLPaymentAmount {
             (XRPLPaymentAmount::Drops(x), XRPLPaymentAmount::Drops(y)) => x
                 .checked_sub(y)
                 .map(XRPLPaymentAmount::Drops)
-                .ok_or(XRPLError::Underflow),
+                .ok_or(XRPLError::SubtractionUnderflow),
             (
                 XRPLPaymentAmount::Issued(token_x, amount_x),
                 XRPLPaymentAmount::Issued(token_y, amount_y),
@@ -450,9 +453,10 @@ impl XRPLUnsignedTx {
                 XRPLSequence::Ticket(_) => 0,
             },
             XRPLUnsignedTx::TicketCreate(tx) => match status {
-                XRPLTxStatus::Succeeded => {
-                    tx.ticket_count.checked_add(1).ok_or(XRPLError::Overflow)?
-                }
+                XRPLTxStatus::Succeeded => tx
+                    .ticket_count
+                    .checked_add(1)
+                    .ok_or(XRPLError::AdditionOverflow)?,
                 XRPLTxStatus::FailedOnChain => 1,
                 XRPLTxStatus::Inconclusive | XRPLTxStatus::Pending => unreachable!(),
             },
@@ -762,7 +766,7 @@ impl From<XRPLCurrency> for [u8; XRPL_CURRENCY_LENGTH] {
 impl fmt::Display for XRPLCurrency {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let str = std::str::from_utf8(&self.0[12..15])
-            .expect("Currency code should always be valid UTF-8")
+            .expect("currency code should always be valid UTF-8")
             .to_string();
         write!(f, "{}", str)
     }
@@ -851,16 +855,22 @@ impl XRPLTokenAmount {
         Self { mantissa, exponent }
     }
 
-    pub fn as_bytes(&self) -> [u8; 8] {
-        if self.mantissa == 0 {
+    pub fn as_bytes(&self) -> Result<[u8; 8], XRPLError> {
+        Ok(if self.mantissa == 0 {
             0x8000000000000000u64.to_be_bytes()
         } else {
             // not xrp-bit | positive bit | 8 bits exponent | 54 bits mantissa
             (0xC000000000000000u64
-                | (u64::try_from(self.exponent.checked_add(97).unwrap()).unwrap() << 54)
+                | (u64::try_from(
+                    self.exponent
+                        .checked_add(97)
+                        .ok_or(XRPLError::ExponentOverflow)?,
+                )
+                .map_err(|_| XRPLError::InvalidExponent)?
+                    << 54)
                 | self.mantissa)
                 .to_be_bytes()
-        }
+        })
     }
 
     pub fn is_zero(&self) -> bool {
@@ -911,10 +921,11 @@ impl PartialOrd for XRPLTokenAmount {
         let scale_self = scale_self.abs() as u32;
         let scale_other = scale_other.abs() as u32;
 
+        let ten = 10u64;
         //  "Scale up" each mantissa where needed. We use `checked_mul` to safely
         //  detect overflow. If we can't multiply (overflow), assume the scaled
         //  number is so large that it dominates the comparison.
-        let adjusted_self_mantissa = match self.mantissa.checked_mul(10u64.pow(scale_self)) {
+        let adjusted_self_mantissa = match self.mantissa.checked_mul(ten.pow(scale_self)) {
             Some(val) => val,
             None => {
                 // If this side overflows when scaling, it means it was originally
@@ -925,7 +936,7 @@ impl PartialOrd for XRPLTokenAmount {
             }
         };
 
-        let adjusted_other_mantissa = match other.mantissa.checked_mul(10u64.pow(scale_other)) {
+        let adjusted_other_mantissa = match other.mantissa.checked_mul(ten.pow(scale_other)) {
             Some(val) => val,
             None => {
                 // Same idea: if the other side overflows when scaling,
@@ -950,13 +961,13 @@ impl std::str::FromStr for XRPLTokenAmount {
             Some(loc) => {
                 let (base, exp) = (
                     &s[..loc],
-                    &s[loc.checked_add(1).ok_or(XRPLError::InvalidAmount {
+                    &s[loc.checked_add(1).ok_or(XRPLError::InvalidTokenAmount {
                         reason: "exponent out of bounds".to_string(),
                     })?..],
                 );
                 (
                     base,
-                    i64::from_str(exp).map_err(|_| XRPLError::InvalidAmount {
+                    i64::from_str(exp).map_err(|_| XRPLError::InvalidTokenAmount {
                         reason: "invalid exponent".to_string(),
                     })?,
                 )
@@ -964,7 +975,7 @@ impl std::str::FromStr for XRPLTokenAmount {
         };
 
         if base_part.is_empty() {
-            return Err(XRPLError::InvalidAmount {
+            return Err(XRPLError::InvalidTokenAmount {
                 reason: "base part empty".to_string(),
             });
         }
@@ -974,7 +985,7 @@ impl std::str::FromStr for XRPLTokenAmount {
             Some(loc) => {
                 let (lead, trail) = (
                     &base_part[..loc],
-                    &base_part[loc.checked_add(1).ok_or(XRPLError::InvalidAmount {
+                    &base_part[loc.checked_add(1).ok_or(XRPLError::InvalidTokenAmount {
                         reason: "decimal point out of bounds".to_string(),
                     })?..],
                 );
@@ -988,14 +999,14 @@ impl std::str::FromStr for XRPLTokenAmount {
         let exponent = match exponent_value.checked_sub(decimal_offset) {
             Some(exponent) => exponent,
             None => {
-                return Err(XRPLError::InvalidAmount {
+                return Err(XRPLError::InvalidTokenAmount {
                     reason: "overflow".to_string(),
                 });
             }
         };
 
         if digits.starts_with('-') {
-            return Err(XRPLError::InvalidAmount {
+            return Err(XRPLError::InvalidTokenAmount {
                 reason: "negative amount".to_string(),
             });
         }
@@ -1005,7 +1016,7 @@ impl std::str::FromStr for XRPLTokenAmount {
         }
 
         let mantissa =
-            Uint256::from_str(digits.as_str()).map_err(|e| XRPLError::InvalidAmount {
+            Uint256::from_str(digits.as_str()).map_err(|e| XRPLError::InvalidTokenAmount {
                 reason: e.to_string(),
             })?;
 
@@ -1028,38 +1039,39 @@ impl Add for XRPLTokenAmount {
 
     fn add(self, rhs: XRPLTokenAmount) -> Self::Output {
         let common_exponent = min(self.exponent, rhs.exponent);
+        let ten = 10u64;
 
         let left_mantissa = self
             .mantissa
             .checked_mul(
-                10u64.pow(
+                ten.pow(
                     u32::try_from(
                         self.exponent
                             .checked_sub(common_exponent)
-                            .ok_or(XRPLError::Overflow)?,
+                            .ok_or(XRPLError::SubtractionUnderflow)?,
                     )
-                    .map_err(|_| XRPLError::Overflow)?,
+                    .map_err(|_| XRPLError::InvalidExponent)?,
                 ),
             )
-            .ok_or(XRPLError::Overflow)?;
+            .ok_or(XRPLError::MultiplicationOverflow)?;
 
         let right_mantissa = rhs
             .mantissa
             .checked_mul(
-                10u64.pow(
+                ten.pow(
                     u32::try_from(
                         rhs.exponent
                             .checked_sub(common_exponent)
-                            .ok_or(XRPLError::Overflow)?,
+                            .ok_or(XRPLError::SubtractionUnderflow)?,
                     )
-                    .map_err(|_| XRPLError::Overflow)?,
+                    .map_err(|_| XRPLError::InvalidExponent)?,
                 ),
             )
-            .ok_or(XRPLError::Overflow)?;
+            .ok_or(XRPLError::MultiplicationOverflow)?;
 
         let result_mantissa = left_mantissa
             .checked_add(right_mantissa)
-            .ok_or(XRPLError::Overflow)?;
+            .ok_or(XRPLError::AdditionOverflow)?;
 
         let (mantissa, exponent) = canonicalize_mantissa(result_mantissa.into(), common_exponent)?;
         Ok(XRPLTokenAmount::new(mantissa, exponent))
@@ -1071,34 +1083,35 @@ impl Sub for XRPLTokenAmount {
 
     fn sub(self, rhs: XRPLTokenAmount) -> Self::Output {
         let common_exponent = min(self.exponent, rhs.exponent);
+        let ten = 10u64;
 
         let left_mantissa = self
             .mantissa
             .checked_mul(
-                10u64.pow(
+                ten.pow(
                     u32::try_from(
                         self.exponent
                             .checked_sub(common_exponent)
-                            .ok_or(XRPLError::Overflow)?,
+                            .ok_or(XRPLError::SubtractionUnderflow)?,
                     )
-                    .map_err(|_| XRPLError::Overflow)?,
+                    .map_err(|_| XRPLError::InvalidExponent)?,
                 ),
             )
-            .ok_or(XRPLError::Overflow)?;
+            .ok_or(XRPLError::MultiplicationOverflow)?;
 
         let right_mantissa = rhs
             .mantissa
             .checked_mul(
-                10u64.pow(
+                ten.pow(
                     u32::try_from(
                         rhs.exponent
                             .checked_sub(common_exponent)
-                            .ok_or(XRPLError::Overflow)?,
+                            .ok_or(XRPLError::SubtractionUnderflow)?,
                     )
-                    .map_err(|_| XRPLError::Overflow)?,
+                    .map_err(|_| XRPLError::InvalidExponent)?,
                 ),
             )
-            .ok_or(XRPLError::Overflow)?;
+            .ok_or(XRPLError::MultiplicationOverflow)?;
 
         if left_mantissa < right_mantissa {
             return Err(XRPLError::Underflow);
@@ -1106,7 +1119,8 @@ impl Sub for XRPLTokenAmount {
 
         let result_mantissa = left_mantissa
             .checked_sub(right_mantissa)
-            .ok_or(XRPLError::Overflow)?;
+            .ok_or(XRPLError::SubtractionUnderflow)?;
+
         let (mantissa, exponent) = canonicalize_mantissa(result_mantissa.into(), common_exponent)?;
         Ok(XRPLTokenAmount::new(mantissa, exponent))
     }
@@ -1192,43 +1206,40 @@ pub fn canonicalize_mantissa(
     mut mantissa: Uint256,
     mut exponent: i64,
 ) -> Result<(u64, i64), XRPLError> {
-    let ten = Uint256::from(10u128);
+    let ten = Uint256::from(10u8);
 
     while mantissa < MIN_MANTISSA.into() && exponent > MIN_EXPONENT {
         mantissa = mantissa
             .checked_mul(ten)
-            .map_err(|_| XRPLError::InvalidAmount {
-                reason: "multiplication overflow".to_string(),
-            })?;
-        exponent = exponent.checked_sub(1).ok_or(XRPLError::InvalidAmount {
-            reason: "exponent underflow".to_string(),
-        })?;
+            .map_err(|_| XRPLError::MultiplicationOverflow)?;
+
+        exponent = exponent
+            .checked_sub(1)
+            .ok_or(XRPLError::SubtractionUnderflow)?;
     }
 
     while mantissa > MAX_MANTISSA.into() && exponent > MIN_EXPONENT {
         if exponent >= MAX_EXPONENT {
-            return Err(XRPLError::InvalidAmount {
-                reason: "overflow".to_string(),
-            });
+            return Err(XRPLError::ExponentOverflow);
         }
+
         mantissa = mantissa
             .checked_div(ten)
-            .map_err(|_| XRPLError::InvalidAmount {
-                reason: "division overflow".to_string(),
-            })?;
-        exponent = exponent.checked_add(1).ok_or(XRPLError::InvalidAmount {
-            reason: "exponent overflow".to_string(),
-        })?;
+            .map_err(|_| XRPLError::DivisionByZero)?;
+
+        exponent = exponent.checked_add(1).ok_or(XRPLError::AdditionOverflow)?;
     }
 
     if exponent < MIN_EXPONENT || mantissa < MIN_MANTISSA.into() {
         return Ok((0, 1));
     }
 
-    if exponent > MAX_EXPONENT || mantissa > MAX_MANTISSA.into() {
-        return Err(XRPLError::InvalidAmount {
-            reason: format!("overflow exponent {} mantissa {}", exponent, mantissa).to_string(),
-        });
+    if exponent > MAX_EXPONENT {
+        return Err(XRPLError::ExponentOverflow)?;
+    }
+
+    if mantissa > MAX_MANTISSA.into() {
+        return Err(XRPLError::MantissaOverflow)?;
     }
 
     let mantissa = u64::from_be_bytes(
@@ -1246,51 +1257,50 @@ pub fn canonicalize_token_amount(
 ) -> Result<(XRPLTokenAmount, Uint256), XRPLError> {
     let neg_decimals = i64::from(decimals)
         .checked_neg()
-        .ok_or(XRPLError::InvalidAmount {
-            reason: "overflow".to_string(),
-        })?;
+        .ok_or(XRPLError::InvalidDecimals(decimals))?;
+
     let (mantissa, exponent) = canonicalize_mantissa(amount, neg_decimals)?;
 
-    let adjusted_exponent =
-        exponent
-            .checked_add(i64::from(decimals))
-            .ok_or(XRPLError::InvalidAmount {
-                reason: "exponent overflow".to_string(),
-            })?;
+    let adjusted_exponent = exponent
+        .checked_add(i64::from(decimals))
+        .ok_or(XRPLError::ExponentOverflow)?;
+
+    let ten = Uint256::from(10u8);
+
     let dust_amount = if adjusted_exponent >= 0 {
-        amount
-            .checked_sub(
-                Uint256::from(mantissa)
-                    .checked_mul(
-                        Uint256::from(10u128)
-                            .checked_pow(
-                                adjusted_exponent
-                                    .try_into()
-                                    .expect("exponent + decimals should be within u32 range"),
-                            )
-                            .expect("10^(exponent + decimals) should be within u256 range"),
-                    )
-                    .expect("mantissa * 10^(exponent + decimals) should be within u256 range"),
+        let scaling_factor = ten
+            .checked_pow(
+                adjusted_exponent
+                    .try_into()
+                    .map_err(|_| XRPLError::InvalidExponent)?,
             )
-            .expect("canonicalized amount should not be larger than original amount")
+            .map_err(|_| XRPLError::ExponentiationOverflow)?;
+
+        let canonical_value = Uint256::from(mantissa)
+            .checked_mul(scaling_factor)
+            .map_err(|_| XRPLError::MultiplicationOverflow)?;
+
+        amount
+            .checked_sub(canonical_value)
+            .map_err(|_| XRPLError::CanonicalizedAmountExceedsOriginal)?
     } else {
-        amount
-            .checked_sub(
-                Uint256::from(mantissa)
-                    .checked_div(
-                        Uint256::from(10u128)
-                            .checked_pow(
-                                adjusted_exponent
-                                    .checked_neg()
-                                    .expect("adjusted_exponent cannot be MIN")
-                                    .try_into()
-                                    .expect("exponent + decimals should be within u32 range"),
-                            )
-                            .expect("10^(exponent + decimals) should be within u256 range"),
-                    )
-                    .expect("mantissa * 10^(exponent + decimals) should be within u256 range"),
+        let scaling_factor = ten
+            .checked_pow(
+                adjusted_exponent
+                    .checked_neg()
+                    .ok_or(XRPLError::ExponentiationOverflow)?
+                    .try_into()
+                    .map_err(|_| XRPLError::InvalidExponent)?,
             )
-            .expect("canonicalized amount should not be larger than original amount")
+            .map_err(|_| XRPLError::ExponentiationOverflow)?;
+
+        let canonical_value = Uint256::from(mantissa)
+            .checked_div(scaling_factor)
+            .map_err(|_| XRPLError::DivisionByZero)?;
+
+        amount
+            .checked_sub(canonical_value)
+            .map_err(|_| XRPLError::CanonicalizedAmountExceedsOriginal)?
     };
 
     Ok((XRPLTokenAmount::new(mantissa, exponent), dust_amount))
@@ -1305,59 +1315,66 @@ pub fn scale_to_decimals(
     }
 
     let mantissa = Uint256::from(amount.mantissa);
-    let ten = Uint256::from(10u64);
+    let ten = Uint256::from(10u8);
 
     let adjusted_exponent = amount
         .exponent
         .checked_add(i64::from(destination_decimals))
-        .ok_or(XRPLError::Overflow)?;
+        .ok_or(XRPLError::AdditionOverflow)?;
+
     if adjusted_exponent >= 0 {
-        Ok((
-            mantissa
-                .checked_mul(
-                    ten.checked_pow(
-                        adjusted_exponent
-                            .try_into()
-                            .expect("adjusted exponent should be positive and within u32 range"),
-                    )
-                    .map_err(|_| XRPLError::Overflow)?,
-                )
-                .map_err(|_| XRPLError::Overflow)?,
-            XRPLTokenAmount::ZERO,
-        ))
-    } else {
-        Ok(ten
+        let scaling_factor = ten
             .checked_pow(
                 adjusted_exponent
-                    .checked_neg()
-                    .expect("adjusted_exponent should be negative")
                     .try_into()
-                    .expect("exponent should be negative and within u32 range"),
+                    // adjusted exponent is positive and within u32 range
+                    .map_err(|_| XRPLError::InvalidExponent)?,
             )
-            .map(|scaling_factor| {
-                let quotient = mantissa
-                    .checked_div(scaling_factor)
-                    .expect("mantissa should be divisible by 10^(-exponent)");
-                let dust_amount = mantissa
-                    .checked_sub(
-                        quotient
-                            .checked_mul(scaling_factor)
-                            .expect("scaling factor must be non-zero"),
-                    )
-                    .expect("subtraction must not overflow");
-                (
-                    quotient,
-                    if dust_amount == Uint256::zero() {
-                        XRPLTokenAmount::ZERO
-                    } else {
-                        let (dust_mantissa, dust_exponent) =
-                            canonicalize_mantissa(dust_amount, amount.exponent)
-                                .expect("dust amount should be canonicalizable");
-                        XRPLTokenAmount::new(dust_mantissa, dust_exponent)
-                    },
+            .map_err(|_| XRPLError::ExponentiationOverflow)?;
+
+        let scaled_mantissa = mantissa
+            .checked_mul(scaling_factor)
+            .map_err(|_| XRPLError::MultiplicationOverflow)?;
+
+        Ok((scaled_mantissa, XRPLTokenAmount::ZERO))
+    } else {
+        ten.checked_pow(
+            adjusted_exponent
+                .checked_neg()
+                .ok_or(XRPLError::NegationOverflow)?
+                .try_into()
+                .map_err(|_| XRPLError::InvalidExponent)?,
+        )
+        .map(|scaling_factor| {
+            let quotient = mantissa
+                .checked_div(scaling_factor)
+                .map_err(|_| XRPLError::DivisionByZero)?;
+
+            let dust_amount = mantissa
+                .checked_sub(
+                    quotient
+                        .checked_mul(scaling_factor)
+                        .map_err(|_| XRPLError::MultiplicationOverflow)?,
                 )
-            })
-            .unwrap_or((Uint256::zero(), amount)))
+                .map_err(|_| XRPLError::SubtractionUnderflow)?;
+
+            Ok((
+                quotient,
+                if dust_amount == Uint256::zero() {
+                    XRPLTokenAmount::ZERO
+                } else {
+                    let (dust_mantissa, dust_exponent) =
+                        canonicalize_mantissa(dust_amount, amount.exponent).map_err(|_| {
+                            XRPLError::FailedToCanonicalizeMatissa {
+                                mantissa: dust_amount,
+                                exponent: amount.exponent,
+                            }
+                        })?;
+                    XRPLTokenAmount::new(dust_mantissa, dust_exponent)
+                },
+            ))
+        })
+        .unwrap_or(Ok((Uint256::zero(), amount)))
     }
 }
 
@@ -1369,7 +1386,7 @@ fn convert_scaled_uint256_to_u64(value: Uint256) -> u64 {
 
 fn convert_scaled_uint256_to_drops(value: Uint256) -> Result<u64, XRPLError> {
     if value.gt(&XRP_MAX_UINT.into()) {
-        return Err(XRPLError::Overflow);
+        return Err(XRPLError::DropsTooLarge);
     }
 
     Ok(convert_scaled_uint256_to_u64(value))
@@ -1378,7 +1395,7 @@ fn convert_scaled_uint256_to_drops(value: Uint256) -> Result<u64, XRPLError> {
 // Converts XRP drops to the destination chain's token amount.
 pub fn scale_from_drops(drops: u64, destination_decimals: u8) -> Result<(Uint256, u64), XRPLError> {
     if drops > XRP_MAX_UINT {
-        return Err(XRPLError::InvalidDrops(drops));
+        return Err(XRPLError::DropsTooLarge);
     }
 
     if destination_decimals > 82 {
@@ -1390,33 +1407,31 @@ pub fn scale_from_drops(drops: u64, destination_decimals: u8) -> Result<(Uint256
         return Ok((source_amount, 0u64));
     }
 
-    let scaling_factor = Uint256::from(10u8)
+    let ten = Uint256::from(10u8);
+    let scaling_factor = ten
         .checked_pow(XRP_DECIMALS.abs_diff(destination_decimals).into())
-        .expect("exponent cannot be too large");
+        .map_err(|_| XRPLError::ExponentiationOverflow)?;
 
     let (destination_amount, dust_amount) = if XRP_DECIMALS > destination_decimals {
         let quotient = source_amount
             .checked_div(scaling_factor)
-            .expect("scaling factor must be non-zero");
-        (
-            quotient,
-            convert_scaled_uint256_to_u64(
-                source_amount
-                    .checked_sub(
-                        quotient
-                            .checked_mul(scaling_factor)
-                            .expect("scaling factor must be non-zero"),
-                    )
-                    .expect("subtraction must not overflow"),
-            ),
-        )
+            .map_err(|_| XRPLError::DivisionByZero)?;
+
+        let product = quotient
+            .checked_mul(scaling_factor)
+            .map_err(|_| XRPLError::MultiplicationOverflow)?;
+
+        let remainder = source_amount
+            .checked_sub(product)
+            .map_err(|_| XRPLError::SubtractionUnderflow)?;
+
+        (quotient, convert_scaled_uint256_to_u64(remainder))
     } else {
-        (
-            source_amount
-                .checked_mul(scaling_factor)
-                .expect("multiplication should not overflow"),
-            0u64,
-        )
+        let product = source_amount
+            .checked_mul(scaling_factor)
+            .map_err(|_| XRPLError::MultiplicationOverflow)?;
+
+        (product, 0u64)
     };
 
     Ok((destination_amount, dust_amount))
@@ -1442,31 +1457,31 @@ pub fn scale_to_drops(
         ));
     }
 
-    let scaling_factor = Uint256::from(10u8)
+    let ten = Uint256::from(10u8);
+    let scaling_factor = ten
         .checked_pow(source_decimals.abs_diff(XRP_DECIMALS).into())
-        .expect("exponent cannot be too large");
+        .map_err(|_| XRPLError::ExponentiationOverflow)?;
 
     let (destination_amount, dust) = if source_decimals > XRP_DECIMALS {
         let quotient = source_amount
             .checked_div(scaling_factor)
-            .expect("scaling factor must be non-zero");
-        (
-            quotient,
-            source_amount
-                .checked_sub(
-                    quotient
-                        .checked_mul(scaling_factor)
-                        .expect("scaling factor must be non-zero"),
-                )
-                .expect("subtraction must not overflow"),
-        )
+            .map_err(|_| XRPLError::DivisionByZero)?;
+
+        let product = quotient
+            .checked_mul(scaling_factor)
+            .map_err(|_| XRPLError::MultiplicationOverflow)?;
+
+        let remainder = source_amount
+            .checked_sub(product)
+            .map_err(|_| XRPLError::SubtractionUnderflow)?;
+
+        (quotient, remainder)
     } else {
-        (
-            source_amount
-                .checked_mul(scaling_factor)
-                .map_err(|_| XRPLError::Overflow)?,
-            Uint256::zero(),
-        )
+        let product = source_amount
+            .checked_mul(scaling_factor)
+            .map_err(|_| XRPLError::MultiplicationOverflow)?;
+
+        (product, Uint256::zero())
     };
 
     Ok((convert_scaled_uint256_to_drops(destination_amount)?, dust))
@@ -1612,7 +1627,7 @@ mod tests {
         let amount = XRPLTokenAmount::new(9_999_999_999_999_999u64, 56);
         let result = scale_to_decimals(amount, 6);
         assert!(result.is_err());
-        assert_eq!(result.unwrap_err().to_string(), "overflow");
+        assert_eq!(result.unwrap_err().to_string(), "multiplication overflow");
     }
 
     #[test]
@@ -1620,7 +1635,7 @@ mod tests {
         let amount = XRPLTokenAmount::new(9_999_999_999_999_999u64, 70);
         let result = scale_to_decimals(amount, 18);
         assert!(result.is_err());
-        assert_eq!(result.unwrap_err().to_string(), "overflow");
+        assert_eq!(result.unwrap_err().to_string(), "exponentiation overflow");
     }
 
     #[test]
@@ -1668,7 +1683,7 @@ mod tests {
         let amount = XRPLTokenAmount::new(MIN_MANTISSA, MAX_EXPONENT);
         let result = scale_to_decimals(amount, 18);
         assert!(result.is_err());
-        assert_eq!(result.unwrap_err().to_string(), "overflow");
+        assert_eq!(result.unwrap_err().to_string(), "exponentiation overflow");
     }
 
     #[test]
@@ -1716,10 +1731,7 @@ mod tests {
     fn test_scale_from_invalid_drops() {
         let result = scale_from_drops(XRP_MAX_UINT + 1, 18);
         assert!(result.is_err());
-        assert_eq!(
-            result.unwrap_err().to_string(),
-            "invalid drops 100000000000000001"
-        );
+        assert_eq!(result.unwrap_err().to_string(), "drops too large");
     }
 
     #[test]
@@ -1782,7 +1794,7 @@ mod tests {
 
         let result = x.add(y);
         assert!(result.is_err());
-        assert_eq!(result.unwrap_err().to_string(), "invalid amount: overflow");
+        assert_eq!(result.unwrap_err().to_string(), "exponent overflow");
     }
 
     #[test]
