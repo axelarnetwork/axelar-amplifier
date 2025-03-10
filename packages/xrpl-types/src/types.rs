@@ -200,9 +200,15 @@ impl KeyDeserialize for XRPLToken {
     }
 }
 
+impl XRPLToken {
+    pub fn to_string(&self) -> String {
+        format!("{}.{}", self.currency, self.issuer)
+    }
+}
+
 impl fmt::Display for XRPLToken {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}.{}", self.currency, self.issuer)
+        write!(f, "{}", self.to_string())
     }
 }
 
@@ -212,12 +218,18 @@ pub enum XRPLTokenOrXrp {
     Issued(XRPLToken),
 }
 
+impl XRPLTokenOrXrp {
+    pub fn to_string(&self) -> String {
+        match self {
+            XRPLTokenOrXrp::Xrp => "XRP".to_string(),
+            XRPLTokenOrXrp::Issued(token) => token.to_string(),
+        }
+    }
+}
+
 impl fmt::Display for XRPLTokenOrXrp {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            XRPLTokenOrXrp::Xrp => write!(f, "XRP"),
-            XRPLTokenOrXrp::Issued(token) => write!(f, "{}", token),
-        }
+        write!(f, "{}", self.to_string())
     }
 }
 
