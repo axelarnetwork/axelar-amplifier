@@ -66,9 +66,15 @@ impl XRPLToken {
     }
 }
 
+impl XRPLToken {
+    pub fn to_string(&self) -> String {
+        format!("{}.{}", self.currency, self.issuer)
+    }
+}
+
 impl fmt::Display for XRPLToken {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}.{}", self.currency, self.issuer)
+        write!(f, "{}", self.to_string())
     }
 }
 
