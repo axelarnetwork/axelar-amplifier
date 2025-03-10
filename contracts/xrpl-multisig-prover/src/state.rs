@@ -6,9 +6,7 @@ use cosmwasm_std::{Addr, Uint256};
 use cw_storage_plus::{Item, Map};
 use interchain_token_service::TokenId;
 use router_api::{ChainName, ChainNameRaw, CrossChainId};
-use xrpl_types::types::{
-    XRPLAccountId, XRPLToken, XRPLTxStatus, XRPLUnsignedTx,
-};
+use xrpl_types::types::{XRPLAccountId, XRPLToken, XRPLTxStatus, XRPLUnsignedTx};
 
 use crate::axelar_verifiers::VerifierSet;
 

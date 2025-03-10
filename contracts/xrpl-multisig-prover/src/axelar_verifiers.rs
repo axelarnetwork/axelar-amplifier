@@ -32,7 +32,10 @@ impl TryFrom<VerifierSet> for multisig::verifier_set::VerifierSet {
             .signers
             .into_iter()
             .map(|s| {
-                let participant: Participant = s.clone().try_into().map_err(|_| ContractError::InvalidSigner(s.to_owned()))?;
+                let participant: Participant = s
+                    .clone()
+                    .try_into()
+                    .map_err(|_| ContractError::InvalidSigner(s.to_owned()))?;
                 Ok((participant, s.pub_key))
             })
             .collect::<Result<Vec<_>, Self::Error>>()?;

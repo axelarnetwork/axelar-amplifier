@@ -314,12 +314,9 @@ pub fn construct_payment_proof(
                             &(interchain_transfer.token_id, source_chain.clone()),
                             |current_dust| -> Result<_, ContractError> {
                                 match current_dust {
-                                    Some(current_dust) => {
-                                        Ok(current_dust
-                                            .checked_add(dust)
-                                            .map_err(|_| ContractError::Overflow)?,
-                                        )
-                                    }
+                                    Some(current_dust) => Ok(current_dust
+                                        .checked_add(dust)
+                                        .map_err(|_| ContractError::Overflow)?),
                                     None => Ok(dust),
                                 }
                             },
