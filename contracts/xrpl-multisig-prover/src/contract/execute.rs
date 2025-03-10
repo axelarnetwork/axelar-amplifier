@@ -108,7 +108,7 @@ pub fn confirm_prover_message(
                 .add_message(wasm_execute(
                     config.multisig.clone(),
                     &multisig::msg::ExecuteMsg::RegisterVerifierSet {
-                        verifier_set: confirmed_verifier_set.clone().into(),
+                        verifier_set: confirmed_verifier_set.clone().try_into()?,
                     },
                     vec![],
                 )?)
@@ -373,10 +373,12 @@ fn start_signing_session(
     let verifier_set_id = match verifier_set_id {
         Some(id) => id,
         None => {
-            let cur_verifier_set = state::CURRENT_VERIFIER_SET
+            let cur_verifier_set: multisig::verifier_set::VerifierSet = state::CURRENT_VERIFIER_SET
                 .load(storage)
-                .map_err(|_| ContractError::NoVerifierSet)?;
-            Into::<multisig::verifier_set::VerifierSet>::into(cur_verifier_set).id()
+                .map_err(|_| ContractError::NoVerifierSet)?
+                .try_into()?;
+
+            cur_verifier_set.id()
         }
     };
 
@@ -415,7 +417,7 @@ pub fn update_verifier_set(
                 wasm_execute(
                     config.multisig,
                     &multisig::msg::ExecuteMsg::RegisterVerifierSet {
-                        verifier_set: new_verifier_set.into(),
+                        verifier_set: new_verifier_set.try_into()?,
                     },
                     vec![],
                 )
@@ -438,7 +440,7 @@ pub fn update_verifier_set(
                     &config,
                     unsigned_tx_hash,
                     env.contract.address,
-                    Some(multisig::verifier_set::VerifierSet::from(cur_verifier_set).id()),
+                    Some(multisig::verifier_set::VerifierSet::try_from(cur_verifier_set)?.id()),
                 )?)
                 .add_message(
                     wasm_execute(
@@ -489,8 +491,8 @@ fn next_verifier_set(
     match cur_verifier_set {
         Some(cur_verifier_set) => {
             if axelar_verifiers::should_update_verifier_set(
-                &new_verifier_set.clone().into(),
-                &cur_verifier_set.into(),
+                &new_verifier_set.clone().try_into()?,
+                &cur_verifier_set.try_into()?,
                 config.verifier_set_diff_threshold as usize,
             ) {
                 Ok(Some(new_verifier_set))

@@ -80,6 +80,9 @@ pub enum ContractError {
     #[error("invalid signature")]
     InvalidSignature,
 
+    #[error("invalid signer {0:?}")]
+    InvalidSigner(AxelarSigner),
+
     #[error("invalid signer public keys")]
     InvalidSignerPublicKeys,
 

@@ -110,7 +110,7 @@ pub fn current_verifier_set(
 ) -> StdResult<Option<multisig::verifier_set::VerifierSet>> {
     CURRENT_VERIFIER_SET
         .may_load(storage)
-        .map(|op| op.map(|set| set.into()))
+        .map(|op| op.and_then(|set| set.try_into().ok()))
 }
 
 pub fn next_verifier_set(
@@ -118,7 +118,7 @@ pub fn next_verifier_set(
 ) -> StdResult<Option<multisig::verifier_set::VerifierSet>> {
     NEXT_VERIFIER_SET
         .may_load(storage)
-        .map(|op| op.map(|set| set.into()))
+        .map(|op| op.and_then(|set| set.try_into().ok()))
 }
 
 pub fn multisig_session(

@@ -1,10 +1,11 @@
 use std::collections::hash_map::RandomState;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
+use axelar_wasm_std::Participant;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Fraction, HexBinary, QuerierWrapper, Uint128};
 use itertools::Itertools;
-use multisig::key::KeyType;
+use multisig::key::{KeyType, PublicKey};
 use multisig::msg::Signer;
 use service_registry::WeightedVerifier;
 use xrpl_types::types::AxelarSigner;
@@ -23,18 +24,24 @@ pub struct VerifierSet {
     pub created_at: u64,
 }
 
-impl From<VerifierSet> for multisig::verifier_set::VerifierSet {
-    fn from(verifier_set: VerifierSet) -> Self {
-        let participants = verifier_set
+impl TryFrom<VerifierSet> for multisig::verifier_set::VerifierSet {
+    type Error = ContractError;
+    fn try_from(verifier_set: VerifierSet) -> Result<Self, Self::Error> {
+        let threshold = Uint128::from(u128::from(verifier_set.quorum));
+        let participants: Vec<(Participant, PublicKey)> = verifier_set
             .signers
             .into_iter()
-            .map(|s| (s.clone().into(), s.pub_key))
-            .collect();
-        multisig::verifier_set::VerifierSet::new(
+            .map(|s| {
+                let participant: Participant = s.clone().try_into().map_err(|_| ContractError::InvalidSigner(s.to_owned()))?;
+                Ok((participant, s.pub_key))
+            })
+            .collect::<Result<Vec<_>, Self::Error>>()?;
+
+        Ok(multisig::verifier_set::VerifierSet::new(
             participants,
-            Uint128::from(u128::from(verifier_set.quorum)),
+            threshold,
             verifier_set.created_at,
-        )
+        ))
     }
 }
 
