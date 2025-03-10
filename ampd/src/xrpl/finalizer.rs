@@ -46,7 +46,7 @@ where
 }
 
 #[async_trait]
-impl<'a, C> Finalizer for ValidatedLedgerFinalizer<'a, C>
+impl<C> Finalizer for ValidatedLedgerFinalizer<'_, C>
 where
     C: XRPLClient + Send + Sync,
 {

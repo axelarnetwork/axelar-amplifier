@@ -60,19 +60,16 @@ pub fn start_multisig_reply(deps: DepsMut, reply: Reply) -> Result<Response, Con
                 .expect("violated invariant: expires_at is not a number");
 
             let opt_cc_id = REPLY_CROSS_CHAIN_ID.may_load(deps.storage)?;
-            match &opt_cc_id {
-                Some(cc_id) => {
-                    CROSS_CHAIN_ID_TO_MULTISIG_SESSION.save(
-                        deps.storage,
-                        cc_id,
-                        &MultisigSession {
-                            id: multisig_session_id.u64(),
-                            expires_at,
-                        },
-                    )?;
-                    REPLY_CROSS_CHAIN_ID.remove(deps.storage);
-                }
-                None => (),
+            if let Some(cc_id) = &opt_cc_id {
+                CROSS_CHAIN_ID_TO_MULTISIG_SESSION.save(
+                    deps.storage,
+                    cc_id,
+                    &MultisigSession {
+                        id: multisig_session_id.u64(),
+                        expires_at,
+                    },
+                )?;
+                REPLY_CROSS_CHAIN_ID.remove(deps.storage);
             };
 
             REPLY_UNSIGNED_TX_HASH.remove(deps.storage);

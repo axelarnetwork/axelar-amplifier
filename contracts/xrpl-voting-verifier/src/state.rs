@@ -133,7 +133,7 @@ pub fn poll_messages<'a>() -> IndexedMap<&'a Hash, PollContent<XRPLMessage>, Pol
     )
 }
 
-impl<'a> IndexList<PollContent<XRPLMessage>> for PollMessagesIndex<'a> {
+impl IndexList<PollContent<XRPLMessage>> for PollMessagesIndex<'_> {
     fn get_indexes(
         &'_ self,
     ) -> Box<dyn Iterator<Item = &'_ dyn Index<PollContent<XRPLMessage>>> + '_> {

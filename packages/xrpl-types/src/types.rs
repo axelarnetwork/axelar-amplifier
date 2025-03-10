@@ -161,7 +161,7 @@ impl XRPLToken {
     }
 }
 
-impl<'a> PrimaryKey<'a> for XRPLToken {
+impl PrimaryKey<'_> for XRPLToken {
     type Prefix = ();
     type SubPrefix = ();
     type Suffix = XRPLToken;
@@ -780,7 +780,7 @@ impl TryFrom<String> for XRPLCurrency {
     }
 }
 
-impl<'a> PrimaryKey<'a> for XRPLCurrency {
+impl PrimaryKey<'_> for XRPLCurrency {
     type Prefix = ();
     type SubPrefix = ();
     type Suffix = XRPLCurrency;
@@ -914,12 +914,12 @@ impl PartialOrd for XRPLTokenAmount {
         //
         //  Note: We use (min_exp as i64) - (self.exponent as i64) first to
         //  avoid negative underflow, then take the absolute value for 10^() calls.
-        let scale_self = (min_exp as i64) - (self.exponent as i64);
-        let scale_other = (min_exp as i64) - (other.exponent as i64);
+        let scale_self = min_exp - self.exponent;
+        let scale_other = min_exp - other.exponent;
 
         // Make these nonnegative for use with 10^(...)
-        let scale_self = scale_self.abs() as u32;
-        let scale_other = scale_other.abs() as u32;
+        let scale_self = scale_self.unsigned_abs() as u32;
+        let scale_other = scale_other.unsigned_abs() as u32;
 
         let ten = 10u64;
         //  "Scale up" each mantissa where needed. We use `checked_mul` to safely
@@ -1235,11 +1235,11 @@ pub fn canonicalize_mantissa(
     }
 
     if exponent > MAX_EXPONENT {
-        return Err(XRPLError::ExponentOverflow)?;
+        Err(XRPLError::ExponentOverflow)?;
     }
 
     if mantissa > MAX_MANTISSA.into() {
-        return Err(XRPLError::MantissaOverflow)?;
+        Err(XRPLError::MantissaOverflow)?;
     }
 
     let mantissa = u64::from_be_bytes(
@@ -1938,7 +1938,7 @@ mod tests {
         let issuer = XRPLAccountId::from_str("rDTXLQ7ZKZVKz33zJbHjgVShjsBnqMBhmN").unwrap();
         let currency = XRPLCurrency::new("USD").unwrap();
         assert_eq!(
-            XRPLToken::from_vec(vec![issuer.as_bytes(), currency.as_bytes()].concat()).unwrap(),
+            XRPLToken::from_vec([issuer.as_bytes(), currency.as_bytes()].concat()).unwrap(),
             XRPLToken { issuer, currency }
         );
     }
