@@ -8,7 +8,6 @@ use axelar_wasm_std::{nonempty, Participant, VerificationStatus};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, HexBinary, StdError, StdResult, Uint128, Uint256};
 use cw_storage_plus::{Key, KeyDeserialize, PrimaryKey};
-use hex;
 use k256::ecdsa;
 use k256::schnorr::signature::SignatureEncoding;
 use lazy_static::lazy_static;
@@ -705,11 +704,8 @@ pub fn hash_unsigned_tx(unsigned_tx: &XRPLUnsignedTx) -> Result<HexTxHash, XRPLE
     let encoded_unsigned_tx =
         serde_json::to_vec(unsigned_tx).map_err(|_| XRPLError::FailedToSerialize)?;
 
-    Ok(HexTxHash::from_str(&format!(
-        "0x{}",
-        hex::encode(Sha256::digest(encoded_unsigned_tx))
-    ))
-    .unwrap())
+    let hash: [u8; 32] = Sha256::digest(encoded_unsigned_tx.as_slice()).into();
+    Ok(HexTxHash::new(hash))
 }
 
 pub fn hash_signed_tx(encoded_signed_tx: &[u8]) -> Result<HexTxHash, XRPLError> {
