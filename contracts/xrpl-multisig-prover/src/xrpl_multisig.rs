@@ -263,8 +263,8 @@ fn next_ticket_number(storage: &mut dyn Storage) -> Result<u32, ContractError> {
 
 pub fn num_of_tickets_to_create(storage: &mut dyn Storage) -> Result<u32, ContractError> {
     let available_tickets = AVAILABLE_TICKETS.load(storage)?;
-    let available_ticket_count =
-        u32::try_from(available_tickets.len()).map_err(|_| ContractError::TooManyAvailableTickets)?;
+    let available_ticket_count = u32::try_from(available_tickets.len())
+        .map_err(|_| ContractError::TooManyAvailableTickets)?;
 
     if available_ticket_count > MAX_TICKET_COUNT {
         return Err(ContractError::TooManyAvailableTickets);
@@ -310,9 +310,12 @@ fn mark_tickets_available(
 }
 
 fn mark_ticket_unavailable(storage: &mut dyn Storage, ticket: u32) -> Result<(), ContractError> {
-    AVAILABLE_TICKETS.update(storage, |mut available_tickets| -> Result<_, ContractError> {
-        available_tickets.retain(|&x| x != ticket);
-        Ok(available_tickets)
-    })?;
+    AVAILABLE_TICKETS.update(
+        storage,
+        |mut available_tickets| -> Result<_, ContractError> {
+            available_tickets.retain(|&x| x != ticket);
+            Ok(available_tickets)
+        },
+    )?;
     Ok(())
 }

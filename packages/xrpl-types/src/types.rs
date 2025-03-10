@@ -451,7 +451,9 @@ impl XRPLUnsignedTx {
                 XRPLSequence::Ticket(_) => 0,
             },
             XRPLUnsignedTx::TicketCreate(tx) => match status {
-                XRPLTxStatus::Succeeded => tx.ticket_count.checked_add(1).ok_or(XRPLError::Overflow)?,
+                XRPLTxStatus::Succeeded => {
+                    tx.ticket_count.checked_add(1).ok_or(XRPLError::Overflow)?
+                }
                 XRPLTxStatus::FailedOnChain => 1,
                 XRPLTxStatus::Inconclusive | XRPLTxStatus::Pending => unreachable!(),
             },

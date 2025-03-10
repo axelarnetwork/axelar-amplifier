@@ -87,7 +87,9 @@ fn mul_ceil(value: u64, numerator: u64, denominator: u64) -> Result<u64, Contrac
         .checked_mul(numerator)
         .ok_or(ContractError::Overflow)?;
 
-    let floor_result = dividend.checked_div(denominator).ok_or(ContractError::DivisionByZero)?;
+    let floor_result = dividend
+        .checked_div(denominator)
+        .ok_or(ContractError::DivisionByZero)?;
     let remainder = dividend
         .checked_rem(denominator)
         .ok_or(ContractError::DivisionByZero)?;
