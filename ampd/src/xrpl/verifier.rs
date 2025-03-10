@@ -7,16 +7,17 @@ use xrpl_http_client::{Amount, Memo, ResultCategory, Transaction};
 use xrpl_types::msg::{XRPLMessage, XRPLProverMessage, XRPLUserMessage};
 use xrpl_types::types::{XRPLAccountId, XRPLPaymentAmount, XRPLToken};
 
-fn parse_memos(memos: Vec<Memo>) -> HashMap<String, String> {
+fn parse_memos(memos: &Vec<Memo>) -> HashMap<String, String> {
     memos
-        .into_iter()
+        .iter()
         .filter_map(|m| {
             let memo_type = m
                 .memo_type
+                .as_ref()
                 .and_then(|t| hex::decode(t).ok())
                 .and_then(|bytes| String::from_utf8(bytes).ok());
 
-            let memo_data = m.memo_data;
+            let memo_data = m.memo_data.clone();
             memo_type.zip(memo_data)
         })
         .collect::<HashMap<String, String>>()
@@ -27,7 +28,7 @@ pub fn verify_message(
     tx: &Transaction,
     message: &XRPLMessage,
 ) -> Vote {
-    let memos = parse_memos(tx.common().memos.clone().unwrap_or_default());
+    let memos = parse_memos(tx.common().memos.as_ref().unwrap_or(&vec![]));
     let is_valid_message = match message {
         XRPLMessage::ProverMessage(prover_message) => {
             is_valid_prover_message(tx, multisig_address, prover_message, memos)
@@ -86,7 +87,7 @@ pub fn is_valid_user_message(
         return payment_tx.destination == multisig_address.to_string()
             && message.source_address.to_string() == tx.common().account
             && verify_amount(tx_amount, message)
-            && verify_memos(memos, message)
+            && verify_memos(&memos, message)
             && payment_tx.flags.is_empty(); // TODO: whitelist specific flags
     }
     false
@@ -148,7 +149,7 @@ pub fn verify_gas_fee_amount(message: &XRPLUserMessage, memos: HashMap<String, S
     .unwrap_or(false)
 }
 
-pub fn verify_memos(memos: HashMap<String, String>, message: &XRPLUserMessage) -> bool {
+pub fn verify_memos(memos: &HashMap<String, String>, message: &XRPLUserMessage) -> bool {
     let expected_destination_address = hex::encode(message.destination_address.to_string());
     let expected_destination_chain = hex::encode(message.destination_chain.to_string());
 
@@ -226,10 +227,10 @@ mod test {
             amount: XRPLPaymentAmount::Drops(100000),
             gas_fee_amount: XRPLPaymentAmount::Drops(50000),
         };
-        assert!(verify_memos(parse_memos(memos.clone()), &user_message));
+        assert!(verify_memos(&parse_memos(&memos), &user_message));
 
         user_message.payload_hash = None;
-        assert!(!verify_memos(parse_memos(memos.clone()), &user_message));
+        assert!(!verify_memos(&parse_memos(&memos), &user_message));
     }
 
     #[test]
@@ -263,7 +264,7 @@ mod test {
             amount: XRPLPaymentAmount::Drops(100000),
             gas_fee_amount: XRPLPaymentAmount::Drops(50000),
         };
-        assert!(verify_memos(parse_memos(memos.clone()), &user_message));
+        assert!(verify_memos(&parse_memos(&memos), &user_message));
 
         user_message.payload_hash = Some(
             hex::decode("8a7adf72777a40d790e327be8af2fdb35c2c557f3555c587aae9bc155a9020a8")
@@ -272,6 +273,6 @@ mod test {
                 .try_into()
                 .unwrap(),
         );
-        assert!(!verify_memos(parse_memos(memos.clone()), &user_message));
+        assert!(!verify_memos(&parse_memos(&memos), &user_message));
     }
 }
