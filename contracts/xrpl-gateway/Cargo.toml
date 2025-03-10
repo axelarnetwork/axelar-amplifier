@@ -54,6 +54,7 @@ xrpl-voting-verifier = { workspace = true, features = ["library"] }
 
 [dev-dependencies]
 cw-multi-test = "0.15.1"
+goldie = { workspace = true }
 rand = { workspace = true }
 
 [lints]

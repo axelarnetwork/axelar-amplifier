@@ -3,7 +3,8 @@ use std::collections::HashSet;
 use axelar_wasm_std::msg_id::HexTxHash;
 use axelar_wasm_std::{address, permission_control, FnExt, MajorityThreshold, VerificationStatus};
 use cosmwasm_std::{
-    wasm_execute, Addr, DepsMut, Env, HexBinary, Response, Storage, SubMsg, Uint256, Uint64,
+    wasm_execute, Addr, DepsMut, Env, HexBinary, QuerierWrapper, Response, Storage, SubMsg,
+    Uint256, Uint64,
 };
 use interchain_token_service::{HubMessage, TokenId};
 use multisig::types::MultisigState;
@@ -16,18 +17,19 @@ use xrpl_types::types::{
 
 use super::START_MULTISIG_REPLY_ID;
 use crate::error::ContractError;
-use crate::querier::Querier;
 use crate::state::{self, Config, DustAmount, TRUST_LINE};
 use crate::{axelar_verifiers, xrpl_multisig};
 
 pub fn construct_trust_set_proof(
     storage: &mut dyn Storage,
-    querier: &Querier,
+    gateway: xrpl_gateway::Client,
     self_address: Addr,
     config: &Config,
     token_id: TokenId,
 ) -> Result<Response, ContractError> {
-    let xrpl_token = querier.xrpl_token(token_id)?;
+    let xrpl_token = gateway
+        .xrpl_token(token_id)
+        .map_err(|_| ContractError::FailedToGetXrplToken(token_id))?;
     if xrpl_token.is_remote(config.xrpl_multisig.clone()) {
         return Err(ContractError::TokenNotLocal(xrpl_token));
     }
@@ -68,12 +70,20 @@ pub fn construct_ticket_create_proof(
 
 pub fn confirm_prover_message(
     storage: &mut dyn Storage,
-    querier: &Querier,
+    querier: QuerierWrapper,
     config: &Config,
     prover_message: XRPLProverMessage,
 ) -> Result<Response, ContractError> {
     let message = XRPLMessage::ProverMessage(prover_message.clone());
-    let status = querier.message_status(message)?;
+    let voting_verifier: xrpl_voting_verifier::Client =
+        client::ContractClient::new(querier, &config.voting_verifier).into();
+    let messages_status = voting_verifier
+        .messages_status(vec![message.clone()])
+        .map_err(|_| ContractError::FailedToGetMessagesStatus(vec![message.to_owned()]))?;
+    let status = messages_status
+        .first()
+        .ok_or(ContractError::FailedToGetMessageStatus(message))?
+        .status;
 
     match status {
         VerificationStatus::Unknown | VerificationStatus::FailedToVerify => {
@@ -167,12 +177,15 @@ pub fn update_admin(deps: DepsMut, new_admin_address: String) -> Result<Response
 }
 
 fn compute_xrpl_amount(
-    querier: &Querier,
+    gateway: xrpl_gateway::Client,
     token_id: TokenId,
     source_chain: ChainNameRaw,
     source_amount: Uint256,
 ) -> Result<(XRPLPaymentAmount, Uint256), ContractError> {
-    let xrp_token_id = querier.xrp_token_id()?;
+    let xrp_token_id = gateway
+        .xrp_token_id()
+        .map_err(|_| ContractError::FailedToGetXrpTokenId)?;
+
     let (xrpl_amount, dust) = if token_id == xrp_token_id {
         if source_amount > Uint256::from(XRP_MAX_UINT) {
             return Err(ContractError::InvalidTransferAmount {
@@ -184,10 +197,12 @@ fn compute_xrpl_amount(
         let drops = u64::from_be_bytes(source_amount.to_be_bytes()[24..].try_into().unwrap());
         (XRPLPaymentAmount::Drops(drops), Uint256::zero())
     } else {
-        let xrpl_token = querier.xrpl_token(token_id)?;
-        let source_decimals = querier
+        let xrpl_token = gateway
+            .xrpl_token(token_id)
+            .map_err(|_| ContractError::FailedToGetXrplToken(token_id))?;
+        let source_decimals = gateway
             .token_instance_decimals(source_chain.clone(), token_id)
-            .map_err(|_| ContractError::TokenNotRegisteredForChain {
+            .map_err(|_| ContractError::FailedToGetTokenInstanceDecimals {
                 token_id: token_id.to_owned(),
                 chain: source_chain.to_owned(),
             })?;
@@ -205,18 +220,24 @@ fn compute_xrpl_amount(
 
 pub fn construct_payment_proof(
     storage: &mut dyn Storage,
-    querier: &Querier,
+    querier: QuerierWrapper,
+    gateway: xrpl_gateway::Client,
     self_address: Addr,
     block_height: u64,
     config: &Config,
     cc_id: CrossChainId, // TODO: Optimize: Source chain is always axelar.
     payload: HexBinary,
 ) -> Result<Response, ContractError> {
+    let multisig: multisig::Client = client::ContractClient::new(querier, &config.multisig).into();
     // Prevent creating a duplicate signing session before the previous one expires
     if let Some(multisig_session) =
         state::CROSS_CHAIN_ID_TO_MULTISIG_SESSION.may_load(storage, &cc_id)?
     {
-        match querier.multisig(&Uint64::from(multisig_session.id))?.state {
+        match multisig
+            .multisig(Uint64::from(multisig_session.id))
+            .map_err(|_| ContractError::FailedToGetMultisigSession(multisig_session.id))?
+            .state
+        {
             MultisigState::Pending => {
                 if multisig_session.expires_at <= block_height {
                     return Err(ContractError::PaymentAlreadyHasActiveSigningSession(
@@ -230,7 +251,7 @@ pub fn construct_payment_proof(
                 let tx_info =
                     state::UNSIGNED_TX_HASH_TO_TX_INFO.load(storage, &unsigned_tx_hash)?;
                 match tx_info.status {
-                    XRPLTxStatus::Succeeded => return Err(ContractError::PaymentAlreadySucceeded(cc_id)),
+                    XRPLTxStatus::Succeeded => return Err(ContractError::PaymentAlreadySucceeded(cc_id.to_owned())),
                     XRPLTxStatus::Pending // Fresh payment.
                     | XRPLTxStatus::FailedOnChain // Retry.
                     | XRPLTxStatus::Inconclusive => (),
@@ -239,14 +260,20 @@ pub fn construct_payment_proof(
         }
     };
 
-    let message = querier.outgoing_message(&cc_id)?;
+    let messages = gateway
+        .outgoing_messages(vec![cc_id.clone()])
+        .map_err(|_| ContractError::FailedToGetMessages)?;
+
+    let message = messages
+        .first()
+        .ok_or(ContractError::MessageNotFound(cc_id.to_owned()))?;
 
     // Message source chain (Axelar) and source address (ITS hub) has been validated by the gateway.
     // TODO: Check with Axelar if this destination chain check is necessary.
     if message.destination_chain != config.chain_name {
         return Err(ContractError::InvalidDestinationChain {
             expected: config.chain_name.clone(),
-            actual: message.destination_chain,
+            actual: message.destination_chain.clone(),
         });
     }
 
@@ -275,7 +302,7 @@ pub fn construct_payment_proof(
                             .map_err(|_| ContractError::InvalidDestinationAddress)?;
 
                     let (xrpl_amount, dust) = compute_xrpl_amount(
-                        querier,
+                        gateway,
                         interchain_transfer.token_id,
                         source_chain.clone(),
                         interchain_transfer.amount.into(),
@@ -371,7 +398,7 @@ fn start_signing_session(
 
 pub fn update_verifier_set(
     storage: &mut dyn Storage,
-    querier: &Querier,
+    querier: QuerierWrapper,
     env: Env,
 ) -> Result<Response, ContractError> {
     let config = state::CONFIG.load(storage).map_err(ContractError::from)?;
@@ -382,11 +409,8 @@ pub fn update_verifier_set(
     match cur_verifier_set {
         None => {
             // if no verifier set, just store it and return
-            let new_verifier_set = axelar_verifiers::active_verifiers(
-                querier,
-                config.signing_threshold,
-                env.block.height,
-            )?;
+            let new_verifier_set =
+                axelar_verifiers::make_verifier_set(&config, querier, env.block.height)?;
             state::CURRENT_VERIFIER_SET
                 .save(storage, &new_verifier_set)
                 .map_err(ContractError::from)?;
@@ -455,7 +479,7 @@ fn all_active_verifiers(storage: &mut dyn Storage) -> Result<HashSet<String>, Co
 
 fn next_verifier_set(
     storage: &mut dyn Storage,
-    querier: &Querier,
+    querier: QuerierWrapper,
     env: &Env,
     config: &Config,
 ) -> Result<Option<axelar_verifiers::VerifierSet>, ContractError> {
@@ -464,8 +488,7 @@ fn next_verifier_set(
         return Ok(Some(pending_verifier_set));
     }
     let cur_verifier_set = state::CURRENT_VERIFIER_SET.may_load(storage)?;
-    let new_verifier_set =
-        axelar_verifiers::active_verifiers(querier, config.signing_threshold, env.block.height)?;
+    let new_verifier_set = axelar_verifiers::make_verifier_set(config, querier, env.block.height)?;
 
     match cur_verifier_set {
         Some(cur_verifier_set) => {

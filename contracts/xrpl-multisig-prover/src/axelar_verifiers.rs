@@ -1,9 +1,8 @@
 use std::collections::hash_map::RandomState;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
-use axelar_wasm_std::MajorityThreshold;
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Fraction, HexBinary, Uint128};
+use cosmwasm_std::{Fraction, HexBinary, QuerierWrapper, Uint128};
 use itertools::Itertools;
 use multisig::key::KeyType;
 use multisig::msg::Signer;
@@ -11,7 +10,9 @@ use service_registry::WeightedVerifier;
 use xrpl_types::types::AxelarSigner;
 
 use crate::error::ContractError;
-use crate::querier::Querier;
+use crate::state::Config;
+
+const XRPL_KEY_TYPE: KeyType = KeyType::Ecdsa;
 
 #[cw_serde]
 pub struct VerifierSet {
@@ -98,36 +99,46 @@ fn mul_ceil(value: u64, numerator: u64, denominator: u64) -> Result<u64, Contrac
     })
 }
 
-pub fn active_verifiers(
-    querier: &Querier,
-    signing_threshold: MajorityThreshold,
+pub fn make_verifier_set(
+    config: &Config,
+    querier: QuerierWrapper,
     block_height: u64,
 ) -> Result<VerifierSet, ContractError> {
-    let verifiers: Vec<WeightedVerifier> = querier.active_verifiers()?;
+    let service_registry: service_registry_api::Client =
+        client::ContractClient::new(querier, &config.service_registry).into();
 
-    let verifiers_with_pubkeys = verifiers
+    let verifiers: Vec<WeightedVerifier> = service_registry
+        .active_verifiers(config.service_name.clone(), config.chain_name.to_owned())
+        .map_err(|_| ContractError::FailedToBuildVerifierSet)?;
+
+    let min_num_verifiers = service_registry
+        .service(config.service_name.clone())
+        .map_err(|_| ContractError::FailedToBuildVerifierSet)?
+        .min_num_verifiers;
+
+    let multisig: multisig::Client = client::ContractClient::new(querier, &config.multisig).into();
+
+    let participants_with_pubkeys = verifiers
         .into_iter()
         .filter_map(|verifier| {
-            let address = verifier.verifier_info.address.clone();
-            querier
-                .public_key(address.to_string())
-                .ok()
-                .map(|pk| (verifier, pk))
+            match multisig.public_key(verifier.verifier_info.address.to_string(), XRPL_KEY_TYPE) {
+                Ok(pub_key) => Some((verifier, pub_key)),
+                Err(_) => None,
+            }
         })
         .collect::<Vec<_>>();
 
-    let num_of_verifiers = verifiers_with_pubkeys.len();
-    if num_of_verifiers > MAX_NUM_XRPL_MULTISIG_SIGNERS {
-        return Err(ContractError::TooManyVerifiers);
-    }
-
-    let service = querier.service()?;
-    if num_of_verifiers < service.min_num_verifiers.into() {
+    let num_of_participants = participants_with_pubkeys.len();
+    if num_of_participants < min_num_verifiers as usize {
         return Err(ContractError::NotEnoughVerifiers);
     }
 
+    if num_of_participants > MAX_NUM_XRPL_MULTISIG_SIGNERS {
+        return Err(ContractError::TooManyVerifiers);
+    }
+
     let weights = convert_or_scale_weights(
-        verifiers_with_pubkeys
+        participants_with_pubkeys
             .clone()
             .iter()
             .map(|(verifier, _)| Uint128::from(verifier.weight))
@@ -136,7 +147,7 @@ pub fn active_verifiers(
     )?;
 
     let mut signers: Vec<AxelarSigner> = vec![];
-    for (i, (verifier, pub_key)) in verifiers_with_pubkeys.iter().enumerate() {
+    for (i, (verifier, pub_key)) in participants_with_pubkeys.iter().enumerate() {
         signers.push(AxelarSigner {
             address: verifier.verifier_info.address.clone(),
             weight: weights[i],
@@ -145,6 +156,7 @@ pub fn active_verifiers(
     }
 
     let sum_of_weights = weights.iter().map(|w| u64::from(*w)).sum();
+    let signing_threshold = config.signing_threshold;
     let numerator = u64::from(signing_threshold.numerator());
     let denominator = u64::from(signing_threshold.denominator());
     let quorum = mul_ceil(sum_of_weights, numerator, denominator)?;

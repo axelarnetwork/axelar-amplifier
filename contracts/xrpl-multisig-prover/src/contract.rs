@@ -11,7 +11,6 @@ mod reply;
 
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
-use crate::querier::Querier;
 use crate::state::{
     Config, AVAILABLE_TICKETS, CONFIG, LAST_ASSIGNED_TICKET_NUMBER, NEXT_SEQUENCE_NUMBER,
 };
@@ -73,19 +72,21 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
     let config = CONFIG.load(deps.storage).expect("failed to load config");
-    let querier = Querier::new(deps.querier, config.clone());
+    let gateway: xrpl_gateway::Client =
+        client::ContractClient::new(deps.querier, &config.gateway).into();
 
     match msg.ensure_permissions(deps.storage, &info.sender)? {
         ExecuteMsg::TrustSet { token_id } => execute::construct_trust_set_proof(
             deps.storage,
-            &querier,
+            gateway,
             env.contract.address,
             &config,
             token_id,
         ),
         ExecuteMsg::ConstructProof { cc_id, payload } => execute::construct_payment_proof(
             deps.storage,
-            &querier,
+            deps.querier,
+            gateway,
             env.contract.address,
             env.block.height,
             &config,
@@ -93,10 +94,10 @@ pub fn execute(
             payload,
         ),
         ExecuteMsg::UpdateVerifierSet {} => {
-            execute::update_verifier_set(deps.storage, &querier, env)
+            execute::update_verifier_set(deps.storage, deps.querier, env)
         }
         ExecuteMsg::ConfirmProverMessage { prover_message } => {
-            execute::confirm_prover_message(deps.storage, &querier, &config, prover_message)
+            execute::confirm_prover_message(deps.storage, deps.querier, &config, prover_message)
         }
         ExecuteMsg::TicketCreate {} => {
             execute::construct_ticket_create_proof(deps.storage, env.contract.address, &config)
@@ -132,11 +133,15 @@ pub fn query(
     msg: QueryMsg,
 ) -> Result<Binary, axelar_wasm_std::error::ContractError> {
     let config = CONFIG.load(deps.storage)?;
-    let querier = Querier::new(deps.querier, config.clone());
     match msg {
         QueryMsg::Proof {
             multisig_session_id,
-        } => to_json_binary(&query::proof(deps.storage, querier, &multisig_session_id)?),
+        } => to_json_binary(&query::proof(
+            deps.storage,
+            deps.querier,
+            &config.multisig,
+            multisig_session_id,
+        )?),
         QueryMsg::VerifySignature {
             session_id,
             message: _,

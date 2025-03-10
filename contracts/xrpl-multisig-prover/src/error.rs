@@ -6,6 +6,7 @@ use interchain_token_service::TokenId;
 use router_api::{ChainName, ChainNameRaw, CrossChainId};
 use thiserror::Error;
 use xrpl_types::error::XRPLError;
+use xrpl_types::msg::XRPLMessage;
 use xrpl_types::types::{XRPLPath, XRPLToken, XRPLTxStatus};
 
 use crate::state::DustAmount;
@@ -36,6 +37,33 @@ pub enum ContractError {
 
     #[error("empty signer public keys")]
     EmptySignerPublicKeys,
+
+    #[error("failed to build verifier set")]
+    FailedToBuildVerifierSet,
+
+    #[error("failed to get token instance decimals for token with ID {token_id} on chain {chain} from gateway")]
+    FailedToGetTokenInstanceDecimals {
+        token_id: TokenId,
+        chain: ChainNameRaw,
+    },
+
+    #[error("failed to get token with ID {0} from gateway")]
+    FailedToGetXrplToken(TokenId),
+
+    #[error("failed to get XRP token ID from gateway")]
+    FailedToGetXrpTokenId,
+
+    #[error("failed to get outgoing messages from gateway")]
+    FailedToGetMessages,
+
+    #[error("failed to get messages status from gateway. messages: {0:?}")]
+    FailedToGetMessagesStatus(Vec<XRPLMessage>),
+
+    #[error("failed to get message status from gateway. message: {0:?}")]
+    FailedToGetMessageStatus(XRPLMessage),
+
+    #[error("failed to get multisig session with ID {0} from multisig")]
+    FailedToGetMultisigSession(u64),
 
     #[error("failed to serialize")]
     FailedToSerialize,
@@ -99,6 +127,9 @@ pub enum ContractError {
 
     #[error("failed to fetch message status")]
     MessageStatusNotFound,
+
+    #[error("outgoing message {0} not found on gateway")]
+    MessageNotFound(CrossChainId),
 
     #[error("no available tickets")]
     NoAvailableTickets,
@@ -165,12 +196,6 @@ pub enum ContractError {
 
     #[error("too many verifiers")]
     TooManyVerifiers,
-
-    #[error("token {token_id} not registered for chain {chain}")]
-    TokenNotRegisteredForChain {
-        token_id: TokenId,
-        chain: ChainNameRaw,
-    },
 
     #[error("token {0} not local")]
     TokenNotLocal(XRPLToken),

@@ -1,5 +1,5 @@
 use axelar_wasm_std::msg_id::HexTxHash;
-use cosmwasm_std::{HexBinary, StdResult, Storage, Uint64};
+use cosmwasm_std::{Addr, HexBinary, QuerierWrapper, StdResult, Storage, Uint64};
 use multisig::key::{PublicKey, Signature};
 use multisig::types::MultisigState;
 use router_api::CrossChainId;
@@ -10,7 +10,6 @@ use xrpl_types::types::{
 
 use crate::error::ContractError;
 use crate::msg::{ProofResponse, ProofStatus};
-use crate::querier::Querier;
 use crate::state::{
     MultisigSession, CROSS_CHAIN_ID_TO_MULTISIG_SESSION, CURRENT_VERIFIER_SET,
     MULTISIG_SESSION_ID_TO_UNSIGNED_TX_HASH, NEXT_VERIFIER_SET, UNSIGNED_TX_HASH_TO_TX_INFO,
@@ -57,15 +56,20 @@ pub fn verify_signature(
 
 pub fn proof(
     storage: &dyn Storage,
-    querier: Querier,
-    multisig_session_id: &Uint64,
+    querier: QuerierWrapper,
+    multisig_address: &Addr,
+    multisig_session_id: Uint64,
 ) -> StdResult<ProofResponse> {
     let unsigned_tx_hash =
         MULTISIG_SESSION_ID_TO_UNSIGNED_TX_HASH.load(storage, multisig_session_id.u64())?;
 
     let tx_info = UNSIGNED_TX_HASH_TO_TX_INFO.load(storage, &unsigned_tx_hash)?;
 
-    let multisig_session = querier.multisig(multisig_session_id)?;
+    let multisig: multisig::Client = client::ContractClient::new(querier, multisig_address).into();
+
+    let multisig_session = multisig
+        .multisig(multisig_session_id)
+        .map_err(|_| ContractError::FailedToGetMultisigSession(multisig_session_id.u64()))?;
 
     let status = match multisig_session.state {
         MultisigState::Pending => ProofStatus::Pending,
