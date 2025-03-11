@@ -188,9 +188,9 @@ fn try_load_token_instance(
 ///
 /// The destination chain's token decimals are calculated and saved as following:
 /// 1) If the source chain's `max_uint` is less than or equal to the destination chain's `max_uint`,
-///   the source chain's token decimals are used.
+///     the source chain's token decimals are used.
 /// 2) Otherwise, the minimum of the source chain's token decimals and the source chain's
-///  `max_target_decimals` is used.
+///     `max_target_decimals` is used.
 fn destination_token_decimals(
     storage: &dyn Storage,
     source_chain: &ChainNameRaw,
