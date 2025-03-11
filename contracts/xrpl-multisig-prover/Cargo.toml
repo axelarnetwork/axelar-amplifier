@@ -40,8 +40,8 @@ cw-storage-plus = { workspace = true }
 cw-utils = { workspace = true }
 cw2 = { workspace = true }
 error-stack = { workspace = true }
-itertools = "0.11.0"
 interchain-token-service = { workspace = true, features = ["library"] }
+itertools = "0.11.0"
 k256 = { workspace = true, features = ["ecdsa"] }
 msgs-derive = { workspace = true }
 multisig = { workspace = true, features = ["library"] }

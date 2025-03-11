@@ -45,9 +45,9 @@ itertools = { workspace = true }
 msgs-derive = { workspace = true }
 report = { workspace = true }
 router-api = { workspace = true }
-sha3 = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+sha3 = { workspace = true }
 thiserror = { workspace = true }
 xrpl-types = { workspace = true }
 xrpl-voting-verifier = { workspace = true, features = ["library"] }
