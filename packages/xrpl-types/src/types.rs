@@ -201,14 +201,14 @@ impl KeyDeserialize for XRPLToken {
 }
 
 impl XRPLToken {
-    pub fn to_string(&self) -> String {
+    pub fn serialize(&self) -> String {
         format!("{}.{}", self.currency, self.issuer)
     }
 }
 
 impl fmt::Display for XRPLToken {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.to_string())
+        write!(f, "{}", self.serialize())
     }
 }
 
@@ -219,17 +219,17 @@ pub enum XRPLTokenOrXrp {
 }
 
 impl XRPLTokenOrXrp {
-    pub fn to_string(&self) -> String {
+    pub fn serialize(&self) -> String {
         match self {
             XRPLTokenOrXrp::Xrp => "XRP".to_string(),
-            XRPLTokenOrXrp::Issued(token) => token.to_string(),
+            XRPLTokenOrXrp::Issued(token) => token.serialize(),
         }
     }
 }
 
 impl fmt::Display for XRPLTokenOrXrp {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.to_string())
+        write!(f, "{}", self.serialize())
     }
 }
 
@@ -923,15 +923,19 @@ impl PartialOrd for XRPLTokenAmount {
         //    => no multiplication.
         //  If self.exponent > min_exp, scale_self will be a positive number
         //    => we multiply self.mantissa by 10^(scale_self).
-        //
-        //  Note: We use (min_exp as i64) - (self.exponent as i64) first to
-        //  avoid negative underflow, then take the absolute value for 10^() calls.
-        let scale_self = min_exp - self.exponent;
-        let scale_other = min_exp - other.exponent;
-
-        // Make these nonnegative for use with 10^(...)
-        let scale_self = scale_self.unsigned_abs() as u32;
-        let scale_other = scale_other.unsigned_abs() as u32;
+        let scale_self = u32::try_from(
+            self.exponent
+                .checked_sub(min_exp)
+                .expect("scale_self underflow"),
+        )
+        .expect("scale_self too large for u32");
+        let scale_other = u32::try_from(
+            other
+                .exponent
+                .checked_sub(min_exp)
+                .expect("scale_other underflow"),
+        )
+        .expect("scale_other too large for u32");
 
         let ten = 10u64;
         //  "Scale up" each mantissa where needed. We use `checked_mul` to safely

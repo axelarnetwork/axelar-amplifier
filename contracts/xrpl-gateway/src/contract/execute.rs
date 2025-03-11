@@ -286,7 +286,7 @@ pub fn register_token_metadata(
                 XRPLTokenOrXrp::Issued(_) => XRPL_ISSUED_TOKEN_DECIMALS,
             },
             token_address: nonempty::HexBinary::try_from(
-                xrpl_token.to_string().as_bytes().to_vec(),
+                xrpl_token.serialize().as_bytes().to_vec(),
             )
             .change_context(Error::InvalidToken)?,
         },
@@ -529,7 +529,7 @@ pub fn link_token(
             token_id,
             token_manager_type: link_token.token_manager_type,
             source_token_address: nonempty::HexBinary::try_from(
-                xrpl_token.to_string().as_bytes().to_vec(),
+                xrpl_token.serialize().as_bytes().to_vec(),
             )
             .change_context(Error::InvalidToken)?,
             destination_token_address: link_token.destination_token_address,
