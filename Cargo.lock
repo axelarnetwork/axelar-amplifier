@@ -4385,8 +4385,10 @@ dependencies = [
  "cosmwasm-std",
  "cw-multi-test",
  "error-stack",
+ "ethers-core",
  "gateway",
  "gateway-api",
+ "interchain-token-service",
  "k256",
  "multisig",
  "multisig-prover",
@@ -10852,6 +10854,7 @@ dependencies = [
  "cosmwasm-std",
  "cw-storage-plus",
  "error-stack",
+ "hex",
  "interchain-token-service",
  "k256",
  "lazy_static",
@@ -10861,9 +10864,6 @@ dependencies = [
  "router-api",
  "serde",
  "serde_json",
- "sha2 0.10.8",
- "sha3",
- "thiserror 1.0.69",
 ]
 
 [[package]]
