@@ -3,10 +3,8 @@ use cosmwasm_std::{Addr, CosmosMsg};
 use error_stack::ResultExt;
 use interchain_token_service::TokenId;
 use router_api::{ChainNameRaw, CrossChainId, Message};
-use xrpl_types::{
-    msg::{WithPayload, XRPLMessage, XRPLUserMessage},
-    types::XRPLToken,
-};
+use xrpl_types::msg::{WithPayload, XRPLMessage, XRPLUserMessage};
+use xrpl_types::types::XRPLToken;
 
 use crate::msg::{ExecuteMsg, InterchainTransfer, QueryMsg};
 
