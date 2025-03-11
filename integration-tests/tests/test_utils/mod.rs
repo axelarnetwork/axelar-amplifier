@@ -611,7 +611,7 @@ pub fn route_axelarnet_gateway_messages(
     protocol: &mut Protocol,
     gateway: &AxelarnetGatewayContract,
     messages: Vec<Message>,
-) -> () {
+) {
     let response = gateway.execute(
         &mut protocol.app,
         MockApi::default().addr_make("relayer"),
@@ -627,7 +627,7 @@ pub fn set_its_address(
     its_edge_contract: Address,
     max_uint: nonempty::Uint256,
     max_decimals_when_truncating: u8,
-) -> () {
+) {
     let response = its_hub.execute(
         &mut protocol.app,
         protocol.governance_address.clone(),
@@ -1094,7 +1094,7 @@ pub fn xrpl_verifiers_to_verifier_set(
 
     VerifierSet::new(
         pubkeys_by_participant,
-        total_weight.mul_ceil((2u64, 3u64)).into(),
+        total_weight.mul_ceil((2u64, 3u64)),
         protocol.app.block_info().height,
     )
 }

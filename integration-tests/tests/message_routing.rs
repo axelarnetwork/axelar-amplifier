@@ -6,7 +6,6 @@ use cosmwasm_std::testing::MockApi;
 use cosmwasm_std::{HexBinary, Uint128, Uint256};
 use ethers_core::utils::keccak256;
 use integration_tests::contract::Contract;
-use interchain_token_service;
 use router_api::{Address, CrossChainId, Message};
 use xrpl_types::msg::{
     CrossChainMessage, WithPayload, XRPLMessage, XRPLProverMessage, XRPLUserMessage,
@@ -382,7 +381,7 @@ fn payment_from_xrpl_can_be_verified_and_routed_and_proven() {
         &mut protocol.app,
         &axelarnet.gateway,
         wrapped_msg.cc_id.clone(),
-        HexBinary::from(wrapped_payload),
+        wrapped_payload,
     );
 
     test_utils::route_axelarnet_gateway_messages(
@@ -575,7 +574,7 @@ fn payment_towards_xrpl_can_be_verified_and_routed_and_proven() {
         &mut protocol.app,
         &axelarnet.gateway,
         wrapped_msg.cc_id.clone(),
-        HexBinary::from(wrapped_payload),
+        wrapped_payload,
     );
 
     test_utils::route_axelarnet_gateway_messages(
