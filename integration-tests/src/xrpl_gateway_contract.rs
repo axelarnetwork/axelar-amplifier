@@ -11,6 +11,7 @@ pub struct XRPLGatewayContract {
     pub contract_addr: Addr,
 }
 
+#[allow(clippy::too_many_arguments)]
 impl XRPLGatewayContract {
     pub fn instantiate_contract(
         app: &mut AxelarApp,

@@ -11,6 +11,7 @@ use crate::msg::{ExecuteMsg, InterchainTransfer, QueryMsg};
 type Result<T> = error_stack::Result<T, Error>;
 
 #[derive(thiserror::Error, Debug)]
+#[allow(clippy::large_enum_variant)]
 pub enum Error {
     #[error("failed to query interchain transfer for {message_with_payload:?}")]
     InterchainTransfer {

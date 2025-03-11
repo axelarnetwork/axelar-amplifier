@@ -147,6 +147,7 @@ pub struct InterchainTransfer {
 
 #[cw_serde]
 #[derive(QueryResponses)]
+#[allow(clippy::large_enum_variant)]
 pub enum QueryMsg {
     // messages that can be relayed to the chain corresponding to this gateway
     #[returns(Vec<Message>)]
