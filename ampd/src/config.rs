@@ -131,7 +131,7 @@ mod tests {
             [[handlers]]
             type = 'StellarVerifierSetVerifier'
             cosmwasm_contract = '{}'
-            rpc_url = 'http://localhost:8000'
+            rpc_url = 'http://localhost:7545'
 
             [[handlers]]
             type = 'StarknetMsgVerifier'

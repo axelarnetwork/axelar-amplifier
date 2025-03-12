@@ -114,12 +114,6 @@ chain_name = 'avalanche'
 chain_rpc_url = "https://api.avax-test.network/ext/bc/C/rpc"
 
 [[handlers]]
-type = 'StarknetMsgVerifier'
-cosmwasm_contract = 'axelar1f7qqgp0zk8489s69xxszut07kxse7y5j6j5tune36x75dc9ftfsssdkf2u'
-chain = 'starknet-devnet-v1'
-rpc_url = "https://starknet-sepolia.public.blastapi.io/rpc/v0_7"
-
-[[handlers]]
 type = "SolanaMsgVerifier"
 cosmwasm_contract = "axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6"
 chain_name = "solana"
