@@ -44,14 +44,14 @@ type="MultisigSigner"
 chain_name=[chain name. Not necessary in the Sui case]
 chain_rpc_url=[URL of JSON-RPC endpoint for external chain]
 cosmwasm_contract=[verifier contract address]
-type=[handler type. Could be EvmMsgVerifier | SuiMsgVerifier | SolanaMsgVerifier]
+type=[handler type. Could be EvmMsgVerifier | SuiMsgVerifier  | StarknetMsgVerifier | SolanaMsgVerifier]
 
 # handler to verify verifier set rotations. One per supported chain
 [[handlers]]
 chain_name=[chain name. Not necessary in the Sui case]
 chain_rpc_url=[URL of JSON-RPC endpoint for external chain]
 cosmwasm_contract=[verifier contract address]
-type=[handler type. Could be EvmVerifierSetVerifier | SuiVerifierSetVerifier | SolanaVerifierSetVerifier]
+type=[handler type. Could be EvmVerifierSetVerifier | SuiVerifierSetVerifier | StarknetVerifierSetVerifier | SolanaVerifierSetVerifier]
 ```
 
 Below is an example config for connecting to a local axelard node and local tofnd process, and verifying transactions
@@ -101,12 +101,23 @@ cosmwasm_contract = 'axelar14lh98gp06zdqh5r9qj3874hdmfzs4sh5tkfzg3cyty4xeqsufdjq
 chain_name = 'avalanche'
 chain_rpc_url = "https://api.avax-test.network/ext/bc/C/rpc"
 
+[[handlers]]
+type = 'StarknetMsgVerifier'
+cosmwasm_contract = 'axelar1f7qqgp0zk8489s69xxszut07kxse7y5j6j5tune36x75dc9ftfsssdkf2u'
+chain = 'starknet-devnet-v1'
+rpc_url = "https://starknet-sepolia.public.blastapi.io/rpc/v0_7"
 
 [[handlers]]
 type = 'EvmVerifierSetVerifier'
 cosmwasm_contract = 'axelar14lh98gp06zdqh5r9qj3874hdmfzs4sh5tkfzg3cyty4xeqsufdjqedt3q8'
 chain_name = 'avalanche'
 chain_rpc_url = "https://api.avax-test.network/ext/bc/C/rpc"
+
+[[handlers]]
+type = 'StarknetMsgVerifier'
+cosmwasm_contract = 'axelar1f7qqgp0zk8489s69xxszut07kxse7y5j6j5tune36x75dc9ftfsssdkf2u'
+chain = 'starknet-devnet-v1'
+rpc_url = "https://starknet-sepolia.public.blastapi.io/rpc/v0_7"
 
 [[handlers]]
 type = "SolanaMsgVerifier"
@@ -119,7 +130,6 @@ cosmwasm_contract = "axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq
 type = "SolanaVerifierSetVerifier"
 chain_name = "solana"
 chain_rpc_url = "https://api.devnet.solana.com"
-
 ```
 
 By default, ampd loads the config file from `~/.ampd/config.toml` when running any command.

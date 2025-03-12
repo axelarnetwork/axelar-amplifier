@@ -14,6 +14,7 @@ use evm::json_rpc::EthereumClient;
 use multiversx_sdk::gateway::GatewayProxy;
 use queue::queued_broadcaster::QueuedBroadcaster;
 use router_api::ChainName;
+use starknet_providers::jsonrpc::HttpTransport;
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::commitment_config::CommitmentConfig;
 use thiserror::Error;
@@ -42,6 +43,7 @@ mod health_check;
 mod json_rpc;
 mod mvx;
 mod queue;
+mod starknet;
 mod solana;
 mod stellar;
 mod sui;
@@ -387,6 +389,38 @@ where
                         stellar::rpc_client::Client::new(
                             rpc_url.to_string().trim_end_matches('/').into(),
                         )
+                        .change_context(Error::Connection)?,
+                        self.block_height_monitor.latest_block_height(),
+                    ),
+                    event_processor_config.clone(),
+                ),
+                handlers::config::Config::StarknetMsgVerifier {
+                    cosmwasm_contract,
+                    rpc_url,
+                } => self.create_handler_task(
+                    "starknet-msg-verifier",
+                    handlers::starknet_verify_msg::Handler::new(
+                        verifier.clone(),
+                        cosmwasm_contract,
+                        starknet::json_rpc::Client::new_with_transport(HttpTransport::new(
+                            &rpc_url,
+                        ))
+                        .change_context(Error::Connection)?,
+                        self.block_height_monitor.latest_block_height(),
+                    ),
+                    event_processor_config.clone(),
+                ),
+                handlers::config::Config::StarknetVerifierSetVerifier {
+                    cosmwasm_contract,
+                    rpc_url,
+                } => self.create_handler_task(
+                    "starknet-verifier-set-verifier",
+                    handlers::starknet_verify_verifier_set::Handler::new(
+                        verifier.clone(),
+                        cosmwasm_contract,
+                        starknet::json_rpc::Client::new_with_transport(HttpTransport::new(
+                            &rpc_url,
+                        ))
                         .change_context(Error::Connection)?,
                         self.block_height_monitor.latest_block_height(),
                     ),

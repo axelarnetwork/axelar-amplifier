@@ -63,6 +63,14 @@ pub enum Config {
         cosmwasm_contract: TMAddress,
         rpc_url: Url,
     },
+    StarknetMsgVerifier {
+        cosmwasm_contract: TMAddress,
+        rpc_url: Url,
+    },
+    StarknetVerifierSetVerifier {
+        cosmwasm_contract: TMAddress,
+        rpc_url: Url,
+    },
     SolanaMsgVerifier {
         cosmwasm_contract: TMAddress,
         rpc_url: Url,
@@ -73,6 +81,22 @@ pub enum Config {
         rpc_url: Url,
         rpc_timeout: Option<Duration>,
     },
+}
+
+fn validate_starknet_msg_verifier_config<'de, D>(configs: &[Config]) -> Result<(), D::Error>
+where
+    D: Deserializer<'de>,
+{
+    match configs
+        .iter()
+        .filter(|config| matches!(config, Config::StarknetMsgVerifier { .. }))
+        .count()
+    {
+        count if count > 1 => Err(de::Error::custom(
+            "only one Starknet msg verifier config is allowed",
+        )),
+        _ => Ok(()),
+    }
 }
 
 fn validate_evm_verifier_set_verifier_configs<'de, D>(configs: &[Config]) -> Result<(), D::Error>
@@ -143,6 +167,7 @@ where
 {
     let configs: Vec<Config> = Deserialize::deserialize(deserializer)?;
 
+    validate_starknet_msg_verifier_config::<D>(&configs)?;
     validate_evm_msg_verifier_configs::<D>(&configs)?;
     validate_evm_verifier_set_verifier_configs::<D>(&configs)?;
 

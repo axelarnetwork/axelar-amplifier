@@ -5,6 +5,8 @@ use cw_storage_plus::{Item, Map};
 use error_stack::report;
 use router_api::{ChainName, CrossChainId, Message};
 
+use crate::msg;
+
 const CONFIG: Item<Config> = Item::new("config");
 const ROUTABLE_MESSAGES: Map<&CrossChainId, Message> = Map::new("routable_messages");
 const EXECUTABLE_MESSAGES: Map<&CrossChainId, ExecutableMessage> = Map::new("executable_messages");
@@ -48,6 +50,15 @@ impl ExecutableMessage {
     pub fn msg(&self) -> &Message {
         match self {
             ExecutableMessage::Approved(msg) | ExecutableMessage::Executed(msg) => msg,
+        }
+    }
+}
+
+impl From<ExecutableMessage> for msg::ExecutableMessage {
+    fn from(value: ExecutableMessage) -> Self {
+        match value {
+            ExecutableMessage::Approved(msg) => msg::ExecutableMessage::Approved(msg),
+            ExecutableMessage::Executed(msg) => msg::ExecutableMessage::Executed(msg),
         }
     }
 }
