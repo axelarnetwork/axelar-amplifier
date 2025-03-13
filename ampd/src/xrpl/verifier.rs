@@ -7,7 +7,7 @@ use xrpl_http_client::{Amount, Memo, ResultCategory, Transaction};
 use xrpl_types::msg::{XRPLMessage, XRPLProverMessage, XRPLUserMessage};
 use xrpl_types::types::{XRPLAccountId, XRPLPaymentAmount, XRPLToken};
 
-fn parse_memos(memos: &Vec<Memo>) -> HashMap<String, String> {
+fn parse_memos(memos: &[Memo]) -> HashMap<String, String> {
     memos
         .iter()
         .filter_map(|m| {
@@ -134,8 +134,8 @@ pub fn verify_gas_fee_amount(message: &XRPLUserMessage, memos: HashMap<String, S
         let gas_fee_amount = match message.amount.clone() {
             XRPLPaymentAmount::Issued(token, _) => XRPLPaymentAmount::Issued(
                 XRPLToken {
-                    issuer: token.issuer.try_into().ok()?,
-                    currency: token.currency.try_into().ok()?,
+                    issuer: token.issuer,
+                    currency: token.currency,
                 },
                 gas_fee_amount_str.try_into().ok()?,
             ),
