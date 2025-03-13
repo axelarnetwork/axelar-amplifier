@@ -79,10 +79,12 @@ pub fn confirm_prover_message(
         client::ContractClient::new(querier, &config.voting_verifier).into();
     let messages_status = voting_verifier
         .messages_status(vec![message.clone()])
-        .map_err(|_| ContractError::FailedToGetMessagesStatus(vec![message.to_owned()]))?;
+        .map_err(|_| {
+            ContractError::FailedToGetMessagesStatus(Box::new(vec![message.to_owned()]))
+        })?;
     let status = messages_status
         .first()
-        .ok_or(ContractError::FailedToGetMessageStatus(message))?
+        .ok_or(ContractError::FailedToGetMessageStatus(Box::new(message)))?
         .status;
 
     match status {
@@ -218,6 +220,7 @@ fn compute_xrpl_amount(
     Ok((xrpl_amount, dust))
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn construct_payment_proof(
     storage: &mut dyn Storage,
     querier: QuerierWrapper,

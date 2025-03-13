@@ -223,7 +223,7 @@ fn destination_token_decimals(
 /// The calculation is done as following:
 /// 1) `destination_amount` = `source_amount` * 10 ^ (`destination_chain_decimals` - `source_chain_decimals`)
 /// 3) If new_amount is greater than the destination chain's `max_uint`, the translation
-/// fails.
+///     fails.
 /// 4) If new_amount is zero, the translation fails.
 fn destination_amount(
     storage: &dyn Storage,

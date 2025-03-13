@@ -36,10 +36,10 @@ pub enum ContractError {
     FailedToGetMessages,
 
     #[error("failed to get messages status from gateway. messages: {0:?}")]
-    FailedToGetMessagesStatus(Vec<XRPLMessage>),
+    FailedToGetMessagesStatus(Box<Vec<XRPLMessage>>),
 
     #[error("failed to get message status from gateway. message: {0:?}")]
-    FailedToGetMessageStatus(XRPLMessage),
+    FailedToGetMessageStatus(Box<XRPLMessage>),
 
     #[error("failed to get multisig session with ID {0} from multisig")]
     FailedToGetMultisigSession(u64),
