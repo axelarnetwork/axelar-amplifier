@@ -4,6 +4,7 @@ use std::convert::TryInto;
 use async_trait::async_trait;
 use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
 use axelar_wasm_std::voting::{PollId, Vote};
+use clarity::vm::types::PrincipalData;
 use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmrs::tx::Msg;
 use cosmrs::Any;
@@ -25,14 +26,15 @@ use crate::stacks::http_client::Client;
 use crate::stacks::verifier::verify_message;
 use crate::types::{Hash, TMAddress};
 
-type Result<T> = error_stack::Result<T, Error>;
+type CustomResult<T> = error_stack::Result<T, Error>;
 
 #[derive(Deserialize, Debug)]
 pub struct Message {
     pub message_id: HexTxHashAndEventIndex,
     pub destination_address: String,
     pub destination_chain: ChainName,
-    pub source_address: String,
+    #[serde(with = "crate::stacks::principal_data_proxy")]
+    pub source_address: PrincipalData,
     pub payload_hash: Hash,
 }
 
@@ -41,7 +43,8 @@ pub struct Message {
 struct PollStartedEvent {
     poll_id: PollId,
     source_chain: ChainName,
-    source_gateway_address: String,
+    #[serde(with = "crate::stacks::principal_data_proxy")]
+    source_gateway_address: PrincipalData,
     confirmation_height: u64,
     messages: Vec<Message>,
     participants: Vec<TMAddress>,
@@ -85,7 +88,7 @@ impl Handler {
 impl EventHandler for Handler {
     type Err = Error;
 
-    async fn handle(&self, event: &Event) -> Result<Vec<Any>> {
+    async fn handle(&self, event: &Event) -> CustomResult<Vec<Any>> {
         if !event.is_from_contract(self.voting_verifier_contract.as_ref()) {
             return Ok(vec![]);
         }
@@ -128,7 +131,7 @@ impl EventHandler for Handler {
             .collect();
         let transactions = self
             .http_client
-            .get_finalized_transactions(tx_hashes, latest_finalized_block_height)
+            .finalized_transactions(tx_hashes, latest_finalized_block_height)
             .await;
 
         let message_ids = messages
@@ -209,7 +212,7 @@ mod tests {
 
         assert!(event.poll_id == 100u64.into());
         assert!(
-            event.source_gateway_address
+            event.source_gateway_address.to_string()
                 == "SP2N959SER36FZ5QT1CX9BR63W3E8X35WQCMBYYWC.axelar-gateway"
         );
         assert!(event.confirmation_height == 15);
@@ -218,7 +221,7 @@ mod tests {
 
         assert!(message.message_id.event_index == 1u64);
         assert!(message.destination_chain == "ethereum");
-        assert!(message.source_address == "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM");
+        assert!(message.source_address.to_string() == "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM");
     }
 
     // Should not handle event if it is not a poll started event
@@ -229,7 +232,7 @@ mod tests {
             &TMAddress::random(PREFIX),
         );
 
-        let handler = get_handler().await;
+        let handler = test_handler().await;
 
         assert!(handler.handle(&event).await.is_ok());
     }
@@ -242,7 +245,7 @@ mod tests {
             &TMAddress::random(PREFIX),
         );
 
-        let handler = get_handler().await;
+        let handler = test_handler().await;
 
         assert!(handler.handle(&event).await.is_ok());
     }
@@ -271,8 +274,8 @@ mod tests {
     #[async_test]
     async fn should_vote_correctly() {
         let mut client = Client::faux();
-        faux::when!(client.get_latest_block).then(|_| Ok(Block { height: 1 }));
-        faux::when!(client.get_finalized_transactions).then(|_| HashMap::new());
+        faux::when!(client.latest_block).then(|_| Ok(Block { height: 1 }));
+        faux::when!(client.finalized_transactions).then(|_| HashMap::new());
 
         let voting_verifier = TMAddress::random(PREFIX);
         let worker = TMAddress::random(PREFIX);
@@ -293,8 +296,8 @@ mod tests {
     #[async_test]
     async fn should_skip_expired_poll() {
         let mut client = Client::faux();
-        faux::when!(client.get_latest_block).then(|_| Ok(Block { height: 1 }));
-        faux::when!(client.get_finalized_transactions).then(|_| HashMap::new());
+        faux::when!(client.latest_block).then(|_| Ok(Block { height: 1 }));
+        faux::when!(client.finalized_transactions).then(|_| HashMap::new());
 
         let voting_verifier = TMAddress::random(PREFIX);
         let worker = TMAddress::random(PREFIX);
@@ -320,7 +323,7 @@ mod tests {
         assert_eq!(handler.handle(&event).await.unwrap(), vec![]);
     }
 
-    async fn get_handler() -> Handler {
+    async fn test_handler() -> Handler {
         let client = Client::faux();
 
         let handler = Handler::new(

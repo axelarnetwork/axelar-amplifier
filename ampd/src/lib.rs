@@ -399,7 +399,7 @@ where
                     handlers::stacks_verify_msg::Handler::new(
                         verifier.clone(),
                         cosmwasm_contract,
-                        Client::new_http(http_url.to_string().trim_end_matches('/').into()),
+                        Client::new_http(http_url),
                         self.block_height_monitor.latest_block_height(),
                     )
                     .await
@@ -414,7 +414,7 @@ where
                     handlers::stacks_verify_verifier_set::Handler::new(
                         verifier.clone(),
                         cosmwasm_contract,
-                        Client::new_http(http_url.to_string().trim_end_matches('/').into()),
+                        Client::new_http(http_url),
                         self.block_height_monitor.latest_block_height(),
                     ),
                     event_processor_config.clone(),

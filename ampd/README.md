@@ -55,7 +55,7 @@ type=[handler type. Could be EvmVerifierSetVerifier | SuiVerifierSetVerifier]
 ```
 
 Below is an example config for connecting to a local axelard node and local tofnd process, and verifying transactions
-from Avalanche testnet and Sui testnet.
+from Avalanche testnet, Sui testnet and Stacks testnet.
 
 ```yaml
 health_check_bind_addr="0.0.0.0:3000"
@@ -96,11 +96,20 @@ cosmwasm_contract = 'axelar1hmdc9verjjfttcsav57nhcjm7hfcrpg08tqk9phcceulzurnfqns
 rpc_url = "https://fullnode.testnet.sui.io:443"
 
 [[handlers]]
+type = 'StacksMsgVerifier'
+cosmwasm_contract = 'axelar1mjlvl44v8er50nxjxcuugd4prafzxj4r84q84pf3ntgte6crnywsrk0s5e'
+http_url = 'https://api.testnet.hiro.so' # Stacks Hiro API URL
+
+[[handlers]]
+type = 'StacksVerifierSetVerifier'
+cosmwasm_contract = 'axelar1mjlvl44v8er50nxjxcuugd4prafzxj4r84q84pf3ntgte6crnywsrk0s5e'
+http_url = 'https://api.testnet.hiro.so' # Stacks Hiro API URL
+
+[[handlers]]
 type = 'EvmMsgVerifier'
 cosmwasm_contract = 'axelar14lh98gp06zdqh5r9qj3874hdmfzs4sh5tkfzg3cyty4xeqsufdjqedt3q8'
 chain_name = 'avalanche'
 chain_rpc_url = "https://api.avax-test.network/ext/bc/C/rpc"
-
 
 [[handlers]]
 type = 'EvmVerifierSetVerifier'

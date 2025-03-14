@@ -7,9 +7,10 @@ use serde::Deserialize;
 use thiserror::Error;
 
 use crate::types::Hash;
+use crate::url::Url;
 
-const GET_TRANSACTION: &str = "extended/v1/tx/0x";
-const GET_LATEST_BLOCK: &str = "extended/v2/blocks/latest";
+const TRANSACTION: &str = "extended/v1/tx/0x";
+const LATEST_BLOCK: &str = "extended/v2/blocks/latest";
 
 const STATUS_SUCCESS: &str = "success";
 
@@ -60,14 +61,14 @@ pub struct Client {
 
 #[cfg_attr(test, faux::methods)]
 impl Client {
-    pub fn new_http(api_url: String) -> Self {
+    pub fn new_http(api_url: Url) -> Self {
         Client {
-            api_url,
+            api_url: api_url.to_string().trim_end_matches('/').into(),
             client: reqwest::Client::new(),
         }
     }
 
-    pub async fn get_finalized_transactions(
+    pub async fn finalized_transactions(
         &self,
         tx_hashes: HashSet<Hash>,
         finalized_block_height: u64,
@@ -77,7 +78,7 @@ impl Client {
         let txs = join_all(
             tx_hashes
                 .iter()
-                .map(|tx_hash| self.get_valid_transaction(tx_hash, finalized_block_height)),
+                .map(|tx_hash| self.valid_transaction(tx_hash, finalized_block_height)),
         )
         .await;
 
@@ -92,21 +93,21 @@ impl Client {
             .collect()
     }
 
-    pub async fn get_valid_transaction(
+    pub async fn valid_transaction(
         &self,
         tx_hash: &Hash,
         finalized_block_height: u64,
     ) -> Option<Transaction> {
-        self.get_transaction(tx_hash.encode_hex::<String>().as_str())
+        self.transaction(tx_hash.encode_hex::<String>().as_str())
             .await
             .ok()
             .filter(|tx| Self::is_valid_transaction(tx, finalized_block_height))
     }
 
-    pub async fn get_latest_block(&self) -> Result<Block, Error> {
-        let endpoint = GET_LATEST_BLOCK.to_string();
+    pub async fn latest_block(&self) -> Result<Block, Error> {
+        let endpoint = LATEST_BLOCK.to_string();
 
-        let endpoint = self.get_endpoint(endpoint.as_str());
+        let endpoint = self.endpoint(endpoint.as_str());
 
         self.client
             .get(endpoint)
@@ -118,10 +119,10 @@ impl Client {
             .map_err(|_| Error::Client)
     }
 
-    async fn get_transaction(&self, tx_id: &str) -> Result<Transaction, Error> {
-        let endpoint = GET_TRANSACTION.to_string() + tx_id;
+    async fn transaction(&self, tx_id: &str) -> Result<Transaction, Error> {
+        let endpoint = TRANSACTION.to_string() + tx_id;
 
-        let endpoint = self.get_endpoint(endpoint.as_str());
+        let endpoint = self.endpoint(endpoint.as_str());
 
         self.client
             .get(endpoint)
@@ -133,7 +134,7 @@ impl Client {
             .map_err(|_| Error::Client)
     }
 
-    fn get_endpoint(&self, endpoint: &str) -> String {
+    fn endpoint(&self, endpoint: &str) -> String {
         format!("{}/{}", self.api_url, endpoint)
     }
 

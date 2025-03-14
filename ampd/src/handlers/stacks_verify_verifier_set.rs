@@ -3,6 +3,7 @@ use std::convert::TryInto;
 use async_trait::async_trait;
 use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
 use axelar_wasm_std::voting::{PollId, Vote};
+use clarity::vm::types::PrincipalData;
 use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmrs::tx::Msg;
 use cosmrs::Any;
@@ -36,7 +37,8 @@ pub struct VerifierSetConfirmation {
 #[try_from("wasm-verifier_set_poll_started")]
 struct PollStartedEvent {
     poll_id: PollId,
-    source_gateway_address: String,
+    #[serde(with = "crate::stacks::principal_data_proxy")]
+    source_gateway_address: PrincipalData,
     verifier_set: VerifierSetConfirmation,
     participants: Vec<TMAddress>,
     expires_at: u64,
@@ -120,7 +122,7 @@ impl EventHandler for Handler {
 
         let transaction = self
             .http_client
-            .get_valid_transaction(
+            .valid_transaction(
                 &verifier_set.message_id.tx_hash.into(),
                 latest_finalized_block_height,
             )
@@ -187,7 +189,7 @@ mod tests {
 
         assert!(event.poll_id == 100u64.into());
         assert!(
-            event.source_gateway_address
+            event.source_gateway_address.to_string()
                 == "SP2N959SER36FZ5QT1CX9BR63W3E8X35WQCMBYYWC.axelar-gateway"
         );
         assert!(event.confirmation_height == 15);
@@ -278,8 +280,8 @@ mod tests {
     #[async_test]
     async fn should_skip_expired_poll() {
         let mut client = Client::faux();
-        faux::when!(client.get_latest_block).then(|_| Ok(Block { height: 1 }));
-        faux::when!(client.get_valid_transaction).then(|_| None);
+        faux::when!(client.latest_block).then(|_| Ok(Block { height: 1 }));
+        faux::when!(client.valid_transaction).then(|_| None);
 
         let voting_verifier = TMAddress::random(PREFIX);
         let verifier = TMAddress::random(PREFIX);
@@ -309,8 +311,8 @@ mod tests {
     #[async_test]
     async fn should_vote_correctly() {
         let mut client = Client::faux();
-        faux::when!(client.get_latest_block).then(|_| Ok(Block { height: 1 }));
-        faux::when!(client.get_valid_transaction).then(|_| None);
+        faux::when!(client.latest_block).then(|_| Ok(Block { height: 1 }));
+        faux::when!(client.valid_transaction).then(|_| None);
 
         let voting_verifier = TMAddress::random(PREFIX);
         let worker = TMAddress::random(PREFIX);

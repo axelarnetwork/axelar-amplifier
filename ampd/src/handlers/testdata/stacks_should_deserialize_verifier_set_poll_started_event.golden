@@ -4,7 +4,14 @@ PollStartedEvent {
             100,
         ),
     ),
-    source_gateway_address: "SP2N959SER36FZ5QT1CX9BR63W3E8X35WQCMBYYWC.axelar-gateway",
+    source_gateway_address: Contract(
+        QualifiedContractIdentifier {
+            issuer: StandardPrincipalData(SP2N959SER36FZ5QT1CX9BR63W3E8X35WQCMBYYWC),
+            name: ContractName(
+                "axelar-gateway",
+            ),
+        },
+    ),
     verifier_set: VerifierSetConfirmation {
         message_id: HexTxHashAndEventIndex {
             tx_hash: [

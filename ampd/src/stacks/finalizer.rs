@@ -10,7 +10,7 @@ pub async fn latest_finalized_block_height<H>(
 where
     H: Into<U64>,
 {
-    let block = http_client.get_latest_block().await?;
+    let block = http_client.latest_block().await?;
 
     let block_number: U64 = block.height.into();
 
@@ -32,7 +32,7 @@ mod tests {
     #[async_test]
     async fn latest_finalized_block_height_should_work() {
         let mut client = Client::faux();
-        faux::when!(client.get_latest_block).then(|_| Ok(Block { height: 10 }));
+        faux::when!(client.latest_block).then(|_| Ok(Block { height: 10 }));
 
         assert_eq!(10, latest_finalized_block_height(&client, 1).await.unwrap());
 

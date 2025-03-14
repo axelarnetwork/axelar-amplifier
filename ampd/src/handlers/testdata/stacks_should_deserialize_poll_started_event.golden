@@ -7,7 +7,14 @@ PollStartedEvent {
     source_chain: ChainName(
         "stacks",
     ),
-    source_gateway_address: "SP2N959SER36FZ5QT1CX9BR63W3E8X35WQCMBYYWC.axelar-gateway",
+    source_gateway_address: Contract(
+        QualifiedContractIdentifier {
+            issuer: StandardPrincipalData(SP2N959SER36FZ5QT1CX9BR63W3E8X35WQCMBYYWC),
+            name: ContractName(
+                "axelar-gateway",
+            ),
+        },
+    ),
     confirmation_height: 15,
     messages: [
         Message {
@@ -52,7 +59,9 @@ PollStartedEvent {
             destination_chain: ChainName(
                 "ethereum",
             ),
-            source_address: "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM",
+            source_address: Standard(
+                StandardPrincipalData(ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM),
+            ),
             payload_hash: 0x0101010101010101010101010101010101010101010101010101010101010101,
         },
     ],

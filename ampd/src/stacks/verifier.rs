@@ -73,9 +73,10 @@ impl Message {
                 return Ok(false);
             }
 
-            if !data.get("sender")?.eq(&Value::from(PrincipalData::parse(
-                self.source_address.as_str(),
-            )?)) {
+            if !data
+                .get("sender")?
+                .eq(&Value::from(self.source_address.clone()))
+            {
                 return Ok(false);
             }
 
@@ -174,7 +175,7 @@ impl VerifierSetConfirmation {
 
 fn find_event<'a>(
     transaction: &'a Transaction,
-    gateway_address: &String,
+    gateway_address: &PrincipalData,
     log_index: u64,
 ) -> Option<&'a TransactionEvents> {
     let event = transaction
@@ -182,7 +183,12 @@ fn find_event<'a>(
         .iter()
         .find(|el| el.event_index == log_index)?;
 
-    if !event.contract_log.as_ref()?.contract_id.eq(gateway_address) {
+    if !event
+        .contract_log
+        .as_ref()?
+        .contract_id
+        .eq(&gateway_address.to_string())
+    {
         return None;
     }
 
@@ -190,7 +196,7 @@ fn find_event<'a>(
 }
 
 pub fn verify_message(
-    gateway_address: &String,
+    gateway_address: &PrincipalData,
     transaction: &Transaction,
     message: &Message,
 ) -> Vote {
@@ -205,7 +211,7 @@ pub fn verify_message(
 }
 
 pub fn verify_verifier_set(
-    gateway_address: &String,
+    gateway_address: &PrincipalData,
     transaction: &Transaction,
     verifier_set: VerifierSetConfirmation,
 ) -> Vote {
@@ -227,7 +233,7 @@ pub fn verify_verifier_set(
 mod tests {
     use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
     use axelar_wasm_std::voting::Vote;
-    use clarity::vm::types::TupleData;
+    use clarity::vm::types::{PrincipalData, TupleData};
     use clarity::vm::{ClarityName, Value};
     use cosmwasm_std::{HexBinary, Uint128};
     use multisig::key::KeyType;
@@ -316,7 +322,9 @@ mod tests {
     async fn should_not_verify_invalid_sender() {
         let (gateway_address, tx, mut msg) = get_matching_msg_and_tx();
 
-        msg.source_address = "SP2N959SER36FZ5QT1CX9BR63W3E8X35WQCMBYYWC.axelar-gateway".to_string();
+        msg.source_address =
+            PrincipalData::parse("SP2N959SER36FZ5QT1CX9BR63W3E8X35WQCMBYYWC.axelar-gateway")
+                .unwrap();
 
         assert_eq!(verify_message(&gateway_address, &tx, &msg), Vote::NotFound);
     }
@@ -469,14 +477,17 @@ mod tests {
         );
     }
 
-    fn get_matching_msg_and_tx() -> (String, Transaction, Message) {
-        let gateway_address = "SP2N959SER36FZ5QT1CX9BR63W3E8X35WQCMBYYWC.axelar-gateway";
+    fn get_matching_msg_and_tx() -> (PrincipalData, Transaction, Message) {
+        let gateway_address =
+            PrincipalData::parse("SP2N959SER36FZ5QT1CX9BR63W3E8X35WQCMBYYWC.axelar-gateway")
+                .unwrap();
 
         let message_id = HexTxHashAndEventIndex::new(Hash::random(), 1u64);
 
         let msg = Message {
             message_id: message_id.clone(),
-            source_address: "ST2CY5V39NHDPWSXMW9QDT3HC3GD6Q6XX4CFRK9AG".to_string(),
+            source_address: PrincipalData::parse("ST2CY5V39NHDPWSXMW9QDT3HC3GD6Q6XX4CFRK9AG")
+                .unwrap(),
             destination_chain: "Destination".parse().unwrap(),
             destination_address: "0x123abc".to_string(),
             payload_hash: "0x9ed02951dbf029855b46b102cc960362732569e83d00a49a7575d7aed229890e"
@@ -507,11 +518,13 @@ mod tests {
             block_height: 10,
         };
 
-        (gateway_address.to_string(), transaction, msg)
+        (gateway_address, transaction, msg)
     }
 
-    fn get_matching_verifier_set_and_tx() -> (String, Transaction, VerifierSetConfirmation) {
-        let gateway_address = "SP2N959SER36FZ5QT1CX9BR63W3E8X35WQCMBYYWC.axelar-gateway";
+    fn get_matching_verifier_set_and_tx() -> (PrincipalData, Transaction, VerifierSetConfirmation) {
+        let gateway_address =
+            PrincipalData::parse("SP2N959SER36FZ5QT1CX9BR63W3E8X35WQCMBYYWC.axelar-gateway")
+                .unwrap();
         let message_id = HexTxHashAndEventIndex::new(Hash::random(), 1u64);
 
         let mut verifier_set_confirmation = VerifierSetConfirmation {
@@ -562,10 +575,6 @@ mod tests {
             block_height: 10,
         };
 
-        (
-            gateway_address.to_string(),
-            transaction,
-            verifier_set_confirmation,
-        )
+        (gateway_address, transaction, verifier_set_confirmation)
     }
 }
