@@ -242,7 +242,7 @@ pub fn execute(
         ),
         ExecuteMsg::VerifyMessages(msgs) => {
             let verifier = client::ContractClient::new(deps.querier, &config.verifier).into();
-            execute::verify_messages(&verifier, msgs, &config.chain_name)
+            execute::verify_messages(&verifier, msgs)
         }
         // Should be called RouteOutgoingMessage.
         // Called RouteMessages for compatibility with the router.

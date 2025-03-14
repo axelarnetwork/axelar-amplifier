@@ -10,7 +10,7 @@ use itertools::Itertools;
 use router_api::client::Router;
 use router_api::{Address, ChainName, ChainNameRaw, CrossChainId, Message};
 use sha3::{Digest, Keccak256};
-use xrpl_types::msg::{CrossChainMessage, WithPayload, XRPLMessage, XRPLUserMessage};
+use xrpl_types::msg::{WithPayload, XRPLMessage, XRPLUserMessage};
 use xrpl_types::types::{
     scale_to_decimals, XRPLAccountId, XRPLCurrency, XRPLPaymentAmount, XRPLToken, XRPLTokenOrXrp,
     XRPL_ISSUED_TOKEN_DECIMALS, XRP_DECIMALS,
@@ -24,9 +24,8 @@ use crate::state::{self, Config};
 pub fn verify_messages(
     verifier: &xrpl_voting_verifier::Client,
     msgs: Vec<XRPLMessage>,
-    source_chain: &ChainName,
 ) -> Result<Response, Error> {
-    let msgs_by_status = group_by_status(verifier, msgs, source_chain)?;
+    let msgs_by_status = group_by_status(verifier, msgs)?;
     let (msgs, events) = verify(verifier, msgs_by_status);
     Ok(Response::new().add_messages(msgs).add_events(events))
 }
@@ -53,7 +52,7 @@ pub fn route_incoming_messages(
     verifier: &xrpl_voting_verifier::Client,
     msgs_with_payload: Vec<WithPayload<XRPLUserMessage>>,
 ) -> Result<Response, Error> {
-    let msgs_by_status = group_by_status(verifier, msgs_with_payload, &config.chain_name)?;
+    let msgs_by_status = group_by_status(verifier, msgs_with_payload)?;
     let mut route_msgs = Vec::new();
     let mut events = Vec::new();
     for (status, msgs) in &msgs_by_status {
@@ -253,7 +252,7 @@ pub fn route_outgoing_messages(
     its_hub: Addr,
     its_hub_chain_name: &ChainName,
 ) -> Result<Response, Error> {
-    let msgs = check_for_duplicates(verified, its_hub_chain_name)?;
+    let msgs = check_for_duplicates(verified, |m| m.cc_id.clone())?;
 
     for msg in msgs.iter() {
         if msg.source_address.to_string() != its_hub.to_string() {
@@ -605,12 +604,14 @@ fn unique_cross_chain_id(block_height: u64, chain_name: ChainName) -> Result<Cro
 fn group_by_status<T>(
     verifier: &xrpl_voting_verifier::Client,
     msgs: Vec<T>,
-    source_chain: &ChainName,
 ) -> Result<Vec<(VerificationStatus, Vec<T>)>, Error>
 where
-    T: Into<XRPLMessage> + CrossChainMessage + Clone,
+    T: Into<XRPLMessage> + Clone,
 {
-    let msgs = check_for_duplicates(msgs, source_chain)?;
+    let msgs = check_for_duplicates(msgs, |m| {
+        let msg: XRPLMessage = m.clone().into();
+        msg.tx_id()
+    })?;
     let msgs_status = fetch_msgs_status(verifier, msgs)?;
     let msgs_by_status = group_by_first(msgs_status);
     Ok(msgs_by_status)
@@ -629,21 +630,25 @@ fn fetch_msgs_status<T: Into<XRPLMessage> + Clone>(
         .collect::<Vec<_>>())
 }
 
-fn check_for_duplicates<T: CrossChainMessage>(
-    msgs: Vec<T>,
-    source_chain: &ChainName,
-) -> Result<Vec<T>, Error> {
+fn check_for_duplicates<T, F, Id>(msgs: Vec<T>, id_extractor: F) -> Result<Vec<T>, Error>
+where
+    T: Clone,
+    Id: Eq + Hash + ToString,
+    F: Fn(&T) -> Id,
+{
     let duplicates: Vec<_> = msgs
         .iter()
         // the following two map instructions are separated on purpose
         // so the duplicate check is done on the typed id instead of just a string
-        .map(|m| m.cc_id(source_chain.clone().into()))
+        .map(&id_extractor)
         .duplicates()
-        .map(|cc_id| cc_id.to_string())
+        .map(|id| id.to_string())
         .collect();
+
     if !duplicates.is_empty() {
         return Err(Error::DuplicateMessageIds).attach_printable(duplicates.iter().join(", "));
     }
+
     Ok(msgs)
 }
 
