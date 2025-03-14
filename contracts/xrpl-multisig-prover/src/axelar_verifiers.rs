@@ -67,7 +67,10 @@ fn convert_uint128_to_u16(value: Uint128) -> Result<u16, ContractError> {
         return Err(ContractError::Overflow);
     }
     let bytes = value.to_le_bytes();
-    Ok(u16::from(bytes[0]) | u16::from(bytes[1]).checked_shl(8).unwrap()) // this unwrap is never supposed to fail
+    Ok(u16::from(bytes[0])
+        | u16::from(bytes[1])
+            .checked_shl(8)
+            .expect("unexpected overflow")) // this is never supposed to fail
 }
 
 // Converts a Vec<Uint256> to Vec<u16>, scaling down with precision loss, if necessary.
