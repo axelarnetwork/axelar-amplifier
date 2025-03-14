@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use axelar_wasm_std::msg_id::HexTxHash;
 use cosmwasm_std::{HexBinary, Uint64};
 use multisig::key::PublicKey;
-use router_api::ChainName;
+use router_api::{ChainName, CrossChainId};
 use serde_json::to_string;
 
 pub enum Event {
@@ -11,6 +11,7 @@ pub enum Event {
         destination_chain: ChainName,
         unsigned_tx_hash: HexTxHash,
         multisig_session_id: Uint64,
+        msg_ids: Option<Vec<CrossChainId>>,
     },
     XRPLSigningStarted {
         session_id: Uint64,
@@ -28,6 +29,7 @@ impl From<Event> for cosmwasm_std::Event {
                 destination_chain,
                 unsigned_tx_hash,
                 multisig_session_id,
+                msg_ids,
             } => cosmwasm_std::Event::new("proof_under_construction")
                 .add_attribute(
                     "destination_chain",
@@ -39,6 +41,10 @@ impl From<Event> for cosmwasm_std::Event {
                     "multisig_session_id",
                     to_string(&multisig_session_id)
                         .expect("violated invariant: multisig_session_id is not serializable"),
+                )
+                .add_attribute(
+                    "msg_ids",
+                    to_string(&msg_ids).expect("violated invariant: msg_ids are not serializable"),
                 ),
             Event::XRPLSigningStarted {
                 session_id,

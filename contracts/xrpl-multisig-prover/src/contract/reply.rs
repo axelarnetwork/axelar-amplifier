@@ -79,6 +79,7 @@ pub fn start_multisig_reply(deps: DepsMut, reply: Reply) -> Result<Response, Con
                     destination_chain: config.chain_name,
                     unsigned_tx_hash: unsigned_tx_hash.clone(),
                     multisig_session_id,
+                    msg_ids: opt_cc_id.clone().map(|cc_id| vec![cc_id]),
                 })
                 .add_event(
                     cosmwasm_std::Event::new("xrpl_signing_started")
