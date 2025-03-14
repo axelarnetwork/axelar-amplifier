@@ -106,8 +106,11 @@ pub fn start_multisig_reply(deps: DepsMut, reply: Reply) -> Result<Response, Con
         Ok(MsgExecuteContractResponse { data: None }) => Err(ContractError::InvalidContractReply {
             reason: "no data".to_string(),
         }),
-        Err(_) => {
-            unreachable!("violated invariant: replied failed submessage with ReplyOn::Success")
+        Err(e) => {
+            unreachable!(
+                "violated invariant: replied failed submessage with ReplyOn::Success: {:?}",
+                e
+            )
         }
     }
 }
