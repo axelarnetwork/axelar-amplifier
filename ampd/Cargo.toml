@@ -13,7 +13,6 @@ axelar-wasm-std = { workspace = true }
 axum = "0.7.5"
 base64 = "0.21.2"
 bcs = { workspace = true }
-borsh = { version = "1.2.0", features = ["derive"] }
 clap = { version = "4.2.7", features = ["derive", "cargo"] }
 config = "0.13.2"
 cosmrs = { version = "0.14.0", features = ["cosmwasm", "grpc"] }
@@ -54,14 +53,8 @@ router-api = { workspace = true }
 serde = { version = "1.0.147", features = ["derive"] }
 serde_json = { workspace = true }
 serde_with = "3.2.0"
-service-registry = { workspace = true }
-solana-account-decoder = "=2.0.16"
 solana-client = "=2.0.16"
-solana-program = "=2.0.16"
 solana-sdk = "=2.0.16"
-solana-rpc-client-api = "=2.0.16"
-solana-version = "=2.0.16"
-solana-zk-token-sdk = "=2.0.16"
 solana-transaction-status = "=2.0.16"
 gateway-event-stack = { workspace = true }
 service-registry-api = { workspace = true }
