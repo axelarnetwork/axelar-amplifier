@@ -365,8 +365,7 @@ mod tests {
         )
         .await;
 
-        assert!(result_with_timeout.is_ok());
-        assert!(result_with_timeout.unwrap().is_ok());
+        assert_ok!(assert_ok!(result_with_timeout));
     }
 
     #[tokio::test]
