@@ -123,7 +123,7 @@ where
                 if let Err(err) = broadcaster.broadcast(msg.clone()).await {
                     warn!(
                         err = LoggableError::from(&err).as_value(),
-                        "failed to broadcast message {:?}", msg
+                        "failed to broadcast message {:?} for event {}", msg, event
                     )
                 }
             }
@@ -177,6 +177,7 @@ enum StreamStatus {
 mod tests {
     use std::time::Duration;
 
+    use assert_ok::assert_ok;
     use async_trait::async_trait;
     use cosmrs::bank::MsgSend;
     use cosmrs::tx::Msg;
