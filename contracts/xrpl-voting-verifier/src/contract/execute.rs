@@ -105,6 +105,8 @@ fn make_quorum_event(
     poll: &Poll,
     deps: &DepsMut,
 ) -> Result<Event, ContractError> {
+    let config = CONFIG.load(deps.storage).expect("failed to load config");
+
     let status = match vote {
         Vote::SucceededOnChain => VerificationStatus::SucceededOnSourceChain,
         Vote::FailedOnChain => VerificationStatus::FailedOnSourceChain,
@@ -118,8 +120,9 @@ fn make_quorum_event(
                 .load_message(deps.storage, *poll_id, index_in_poll)?
                 .expect("message not found in poll");
 
+            let wrapped_msg = msg.with_cc_id(config.source_chain.into());
             Ok(QuorumReached {
-                content: msg,
+                content: wrapped_msg,
                 status,
                 poll_id: *poll_id,
             }

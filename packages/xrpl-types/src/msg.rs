@@ -10,6 +10,21 @@ use crate::types::{xrpl_account_id_string, XRPLAccountId, XRPLPaymentAmount};
 
 #[cw_serde]
 #[derive(Eq, Hash)]
+pub struct WithCrossChainId<T> {
+    #[serde(flatten)]
+    pub content: T,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cc_id: Option<CrossChainId>,
+}
+
+impl<T> WithCrossChainId<T> {
+    pub fn new(content: T, cc_id: Option<CrossChainId>) -> Self {
+        Self { content, cc_id }
+    }
+}
+
+#[cw_serde]
+#[derive(Eq, Hash)]
 pub enum XRPLMessage {
     ProverMessage(XRPLProverMessage),
     UserMessage(XRPLUserMessage),
@@ -21,6 +36,17 @@ impl XRPLMessage {
             XRPLMessage::ProverMessage(prover_message) => prover_message.tx_id.clone(),
             XRPLMessage::UserMessage(user_message) => user_message.tx_id.clone(),
         }
+    }
+
+    pub fn cc_id(&self, source_chain: ChainNameRaw) -> Option<CrossChainId> {
+        match self {
+            XRPLMessage::UserMessage(user_message) => Some(user_message.cc_id(source_chain)),
+            XRPLMessage::ProverMessage(_) => None,
+        }
+    }
+
+    pub fn with_cc_id(&self, source_chain: ChainNameRaw) -> WithCrossChainId<Self> {
+        WithCrossChainId::new(self.clone(), self.cc_id(source_chain))
     }
 
     pub fn hash(&self) -> [u8; 32] {

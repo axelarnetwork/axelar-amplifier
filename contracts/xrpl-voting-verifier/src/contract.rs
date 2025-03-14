@@ -116,7 +116,7 @@ mod test {
         AuthorizationState, BondingState, Verifier, WeightedVerifier, VERIFIER_WEIGHT,
     };
     use sha3::{Digest, Keccak256};
-    use xrpl_types::msg::{XRPLMessage, XRPLUserMessage};
+    use xrpl_types::msg::{WithCrossChainId, XRPLMessage, XRPLUserMessage};
     use xrpl_types::types::{XRPLAccountId, XRPLPaymentAmount};
 
     use super::*;
@@ -900,7 +900,7 @@ mod test {
 
                     let event = iter.find(|event| event.ty == "quorum_reached").unwrap();
 
-                    let msg: XRPLMessage = serde_json::from_str(
+                    let msg_with_cc_id: WithCrossChainId<XRPLMessage> = serde_json::from_str(
                         &event
                             .attributes
                             .iter()
@@ -909,7 +909,7 @@ mod test {
                             .value,
                     )
                     .unwrap();
-                    assert_eq!(msg, expected_message);
+                    assert_eq!(msg_with_cc_id.content, expected_message);
 
                     let status: VerificationStatus = serde_json::from_str(
                         &event
