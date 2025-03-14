@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 
 use axelar_solana_encoding::hasher::NativeHasher;
+use axelar_solana_encoding::types::verifier_set::verifier_set_hash;
 use axelar_solana_gateway::processor::GatewayEvent;
 use axelar_solana_gateway::processor::VerifierSetRotated;
 use axelar_wasm_std::voting::Vote;
@@ -18,8 +19,6 @@ pub fn verify_verifier_set(
     message: &VerifierSetConfirmation,
     domain_separator: &[u8; 32],
 ) -> Vote {
-    use axelar_solana_encoding::types::verifier_set::verifier_set_hash;
-
     verify(tx, &message.message_id, |gateway_event| {
         let GatewayEvent::VerifierSetRotated(VerifierSetRotated {
             verifier_set_hash: incoming_verifier_set_hash,
@@ -299,5 +298,4 @@ mod tests {
             compute_units_consumed: OptionSerializer::None,
         }
     }
-
 }
