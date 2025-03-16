@@ -133,20 +133,6 @@ pub fn xrpl_route_incoming_messages(
     assert!(response.is_ok());
 }
 
-pub fn xrpl_register_xrp(
-    app: &mut AxelarApp,
-    admin: Addr,
-    gateway: &XRPLGatewayContract,
-    salt: [u8; 32],
-) {
-    let response = gateway.execute(
-        app,
-        admin,
-        &xrpl_gateway::msg::ExecuteMsg::RegisterXrp { salt },
-    );
-    assert!(response.is_ok());
-}
-
 pub fn xrpl_deploy_remote_token(
     app: &mut AxelarApp,
     admin: Addr,
@@ -1401,6 +1387,7 @@ pub fn setup_xrpl(
         xrpl_chain_name.clone(),
     );
 
+    let xrp_token_id_salt = [123; 32];
     let gateway = XRPLGatewayContract::instantiate_contract(
         &mut protocol.app,
         admin.clone(),
@@ -1411,6 +1398,7 @@ pub fn setup_xrpl(
         axelar_chain_name,
         xrpl_chain_name.clone(),
         xrpl_multisig.clone(),
+        xrp_token_id_salt,
     );
 
     let multisig_prover = XRPLMultisigProverContract::instantiate_contract(
@@ -1533,7 +1521,6 @@ pub fn setup_xrpl(
     );
     assert!(response.is_ok());
 
-    xrpl_register_xrp(&mut protocol.app, admin.clone(), &gateway, [123; 32]);
     let xrp_token_id = xrp_token_id(&mut protocol.app, &gateway);
 
     XRPLChain {

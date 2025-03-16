@@ -14,6 +14,7 @@ use xrpl_types::types::{
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state;
 use crate::state::Config;
+use crate::token_id;
 
 mod execute;
 mod query;
@@ -150,7 +151,7 @@ pub fn migrate(
 pub fn instantiate(
     deps: DepsMut,
     _env: Env,
-    _msg: MessageInfo,
+    info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
@@ -158,6 +159,10 @@ pub fn instantiate(
     let router = address::validate_cosmwasm_address(deps.api, &msg.router_address)?;
     let verifier = address::validate_cosmwasm_address(deps.api, &msg.verifier_address)?;
     let its_hub = address::validate_cosmwasm_address(deps.api, &msg.its_hub_address)?;
+
+    let chain_name_hash = token_id::chain_name_hash(msg.chain_name.clone());
+    let xrp_token_id =
+        token_id::linked_token_id(chain_name_hash, info.sender, msg.xrp_token_id_salt);
 
     state::save_config(
         deps.storage,
@@ -168,6 +173,7 @@ pub fn instantiate(
             its_hub_chain_name: msg.its_hub_chain_name,
             chain_name: msg.chain_name.clone(),
             xrpl_multisig: msg.xrpl_multisig_address,
+            xrp_token_id,
         },
     )?;
 
@@ -207,9 +213,6 @@ pub fn execute(
             token_id,
             xrpl_currency,
         ),
-        ExecuteMsg::RegisterXrp { salt } => {
-            execute::register_xrp(deps.storage, &config, info.sender, salt)
-        }
         ExecuteMsg::RegisterTokenInstance {
             token_id,
             chain,

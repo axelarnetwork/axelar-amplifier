@@ -46,6 +46,7 @@ fn instantiate_works() {
             chain_name: ChainName::from_str("xrpl").unwrap(),
             xrpl_multisig_address: XRPLAccountId::from_str("raNVNWvhUQzFkDDTdEw3roXRJfMJFVJuQo")
                 .unwrap(),
+            xrp_token_id_salt: [0; 32],
         },
     );
 
@@ -117,14 +118,6 @@ fn successful_route_incoming() {
         );
         let api = deps.api;
         update_query_handler(&mut deps.querier, handler.clone());
-
-        execute(
-            deps.as_mut(),
-            mock_env(),
-            message_info(&api.addr_make("admin"), &[]),
-            ExecuteMsg::RegisterXrp { salt: [0; 32] },
-        )
-        .unwrap();
 
         execute(
             deps.as_mut(),
@@ -730,6 +723,7 @@ fn instantiate_contract(
             chain_name: ChainName::from_str("xrpl").unwrap(),
             xrpl_multisig_address: XRPLAccountId::from_str("raNVNWvhUQzFkDDTdEw3roXRJfMJFVJuQo")
                 .unwrap(),
+            xrp_token_id_salt: [0; 32],
         }
         .clone(),
     );

@@ -20,6 +20,7 @@ use crate::contract::Error;
 use crate::events::XRPLGatewayEvent;
 use crate::msg::{InterchainTransfer, LinkToken, MessageWithPayload, TokenMetadata};
 use crate::state::{self, Config};
+use crate::token_id;
 
 pub fn verify_messages(
     verifier: &xrpl_voting_verifier::Client,
@@ -88,44 +89,6 @@ pub fn route_incoming_messages(
         .add_events(events))
 }
 
-const PREFIX_TOKEN_ID: &[u8] = b"its-interchain-token-id";
-const PREFIX_CUSTOM_TOKEN_SALT: &[u8] = b"custom-token-salt";
-const TOKEN_FACTORY_DEPLOYER: &str = "";
-
-fn token_id(salt: [u8; 32]) -> TokenId {
-    let token_id: [u8; 32] = Keccak256::digest(
-        [
-            Keccak256::digest(PREFIX_TOKEN_ID).as_slice(),
-            Addr::unchecked(TOKEN_FACTORY_DEPLOYER).as_bytes(),
-            &salt,
-        ]
-        .concat(),
-    )
-    .into();
-    TokenId::new(token_id)
-}
-
-fn linked_token_deploy_salt(chain_name_hash: [u8; 32], deployer: Addr, salt: [u8; 32]) -> [u8; 32] {
-    Keccak256::digest(
-        [
-            Keccak256::digest(PREFIX_CUSTOM_TOKEN_SALT).as_slice(),
-            &chain_name_hash,
-            deployer.as_bytes(),
-            &salt,
-        ]
-        .concat(),
-    )
-    .into()
-}
-
-pub fn linked_token_id(chain_name_hash: [u8; 32], deployer: Addr, salt: [u8; 32]) -> TokenId {
-    token_id(linked_token_deploy_salt(chain_name_hash, deployer, salt))
-}
-
-pub fn chain_name_hash(chain_name: ChainName) -> [u8; 32] {
-    Keccak256::digest(chain_name.to_string()).into()
-}
-
 fn load_token_id(
     storage: &dyn Storage,
     xrpl_multisig: XRPLAccountId,
@@ -173,9 +136,7 @@ pub fn translate_to_interchain_transfer(
     }
 
     let token_id = match &user_message.amount {
-        XRPLPaymentAmount::Drops(_) => {
-            state::load_xrp_token_id(storage).change_context(Error::InvalidToken)?
-        }
+        XRPLPaymentAmount::Drops(_) => config.xrp_token_id,
         XRPLPaymentAmount::Issued(token, _) => {
             load_token_id(storage, config.xrpl_multisig.clone(), token)?
         }
@@ -294,19 +255,6 @@ pub fn register_token_metadata(
     route_hub_message(config, block_height, hub_msg)
 }
 
-pub fn register_xrp(
-    storage: &mut dyn Storage,
-    config: &Config,
-    sender: Addr,
-    salt: [u8; 32],
-) -> Result<Response, Error> {
-    let chain_name_hash = chain_name_hash(config.chain_name.clone());
-    let token_id = linked_token_id(chain_name_hash, sender, salt);
-    state::save_xrp_token_id(storage, &token_id).change_context(Error::State)?;
-
-    Ok(Response::default())
-}
-
 pub fn register_local_token(
     storage: &mut dyn Storage,
     config: &Config,
@@ -319,8 +267,8 @@ pub fn register_local_token(
         Error::TokenNotLocal(XRPLTokenOrXrp::Issued(xrpl_token))
     );
 
-    let chain_name_hash = chain_name_hash(config.chain_name.clone());
-    let token_id = linked_token_id(chain_name_hash, sender, salt);
+    let chain_name_hash = token_id::chain_name_hash(config.chain_name.clone());
+    let token_id = token_id::linked_token_id(chain_name_hash, sender, salt);
 
     match state::may_load_local_token_id(storage, &xrpl_token).change_context(Error::State)? {
         Some(deployed_token_id) => {
@@ -504,11 +452,10 @@ pub fn link_token(
         Error::InvalidDestinationChain(destination_chain)
     );
 
-    let chain_name_hash = chain_name_hash(config.chain_name.clone());
-    let token_id = linked_token_id(chain_name_hash, sender, salt);
+    let chain_name_hash = token_id::chain_name_hash(config.chain_name.clone());
+    let token_id = token_id::linked_token_id(chain_name_hash, sender, salt);
 
-    let xrp_token_id = state::load_xrp_token_id(storage).change_context(Error::InvalidToken)?;
-    let xrpl_token = if token_id == xrp_token_id {
+    let xrpl_token = if token_id == config.xrp_token_id {
         XRPLTokenOrXrp::Xrp
     } else {
         let token =
@@ -556,10 +503,7 @@ pub fn deploy_remote_token(
     );
 
     let (token_id, destination_decimals) = match token {
-        XRPLTokenOrXrp::Xrp => (
-            state::load_xrp_token_id(storage).change_context(Error::InvalidToken)?,
-            XRP_DECIMALS,
-        ),
+        XRPLTokenOrXrp::Xrp => (config.xrp_token_id, XRP_DECIMALS),
         XRPLTokenOrXrp::Issued(xrpl_token) => (
             // load_token_id(storage, config.xrpl_multisig.clone(), &xrpl_token)?,
             state::load_local_token_id(storage, &xrpl_token).change_context(Error::InvalidToken)?,

@@ -33,6 +33,10 @@ pub struct InstantiateMsg {
     #[serde(with = "xrpl_account_id_string")]
     #[schemars(with = "String")] // necessary attribute in conjunction with #[serde(with ...)]
     pub xrpl_multisig_address: XRPLAccountId,
+    /// The salt used to generate the token ID for the XRP token.
+    #[serde(with = "axelar_wasm_std::hex")]
+    #[schemars(with = "String")]
+    pub xrp_token_id_salt: [u8; 32],
 }
 
 #[cw_serde]
@@ -79,14 +83,6 @@ pub enum ExecuteMsg {
         #[serde(with = "xrpl_currency_string")]
         #[schemars(with = "String")]
         xrpl_currency: XRPLCurrency,
-    },
-
-    /// Register XRP as an interchain token.
-    #[permission(Elevated)]
-    RegisterXrp {
-        #[serde(with = "axelar_wasm_std::hex")]
-        #[schemars(with = "String")]
-        salt: [u8; 32],
     },
 
     /// Register a remote token that is deployed on another chain.

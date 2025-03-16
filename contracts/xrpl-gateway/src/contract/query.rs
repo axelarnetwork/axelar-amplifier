@@ -5,9 +5,9 @@ use interchain_token_service::TokenId;
 use router_api::{ChainNameRaw, CrossChainId, Message};
 use xrpl_types::msg::{WithPayload, XRPLUserMessage};
 
-use super::execute::{self, chain_name_hash};
-use super::Error;
+use super::{execute, Error};
 use crate::state::{self, Config};
+use crate::token_id;
 
 pub fn outgoing_messages<'a>(
     storage: &dyn Storage,
@@ -26,7 +26,8 @@ pub fn xrpl_token(storage: &dyn Storage, token_id: TokenId) -> Result<Binary, st
 }
 
 pub fn xrp_token_id(storage: &dyn Storage) -> Result<Binary, state::Error> {
-    let token_id = state::load_xrp_token_id(storage)?;
+    let config = state::load_config(storage);
+    let token_id = config.xrp_token_id;
     Ok(to_json_binary(&token_id).map_err(state::Error::from)?)
 }
 
@@ -36,8 +37,8 @@ pub fn linked_token_id(
     salt: [u8; 32],
 ) -> Result<Binary, state::Error> {
     let config = state::load_config(storage);
-    let chain_name_hash = chain_name_hash(config.chain_name);
-    let linked_token_id = execute::linked_token_id(chain_name_hash, deployer, salt);
+    let chain_name_hash = token_id::chain_name_hash(config.chain_name);
+    let linked_token_id = token_id::linked_token_id(chain_name_hash, deployer, salt);
     Ok(to_json_binary(&linked_token_id).map_err(state::Error::from)?)
 }
 

@@ -20,13 +20,13 @@ pub struct Config {
     pub its_hub_chain_name: ChainName,
     pub chain_name: ChainName,
     pub xrpl_multisig: XRPLAccountId,
+    pub xrp_token_id: TokenId,
 }
 
 const CONFIG: Item<Config> = Item::new("config");
 const OUTGOING_MESSAGES: Map<&CrossChainId, Message> = Map::new("outgoing_messages");
 const ROUTABLE_MESSAGES_INDEX: Counter<u32> = Counter::new("routable_message_index");
 
-const XRP_TOKEN_ID: Item<TokenId> = Item::new("xrp_token_id");
 const XRPL_CURRENCY_TO_REMOTE_TOKEN_ID: Map<&XRPLCurrency, TokenId> =
     Map::new("xrpl_currency_to_remote_token_id");
 const XRPL_TOKEN_TO_LOCAL_TOKEN_ID: Map<&XRPLToken, TokenId> =
@@ -59,16 +59,6 @@ pub enum Error {
     TokenIdNotFoundForToken(XRPLToken),
     #[error("token instance for chain {0} and token {1} not found")]
     TokenInstanceNotFound(ChainNameRaw, TokenId),
-}
-
-pub fn save_xrp_token_id(storage: &mut dyn Storage, token_id: &TokenId) -> Result<(), Error> {
-    XRP_TOKEN_ID
-        .save(storage, token_id)
-        .change_context(Error::Storage)
-}
-
-pub fn load_xrp_token_id(storage: &dyn Storage) -> Result<TokenId, Error> {
-    XRP_TOKEN_ID.load(storage).change_context(Error::Storage)
 }
 
 fn increment_dust(
