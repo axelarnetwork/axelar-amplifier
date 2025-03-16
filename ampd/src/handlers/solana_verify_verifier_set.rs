@@ -163,9 +163,11 @@ impl<C: SolanaRpcClientProxy> EventHandler for Handler<C> {
 #[cfg(test)]
 mod tests {
     use std::convert::TryInto;
+    use std::str::FromStr;
 
     use cosmrs::cosmwasm::MsgExecuteContract;
     use cosmrs::tx::Msg;
+    use cosmrs::AccountId;
     use cosmwasm_std;
 
     use events::Event;
@@ -223,6 +225,18 @@ mod tests {
         }
     }
 
+    #[test]
+    fn solana_verify_verifier_set_should_deserialize_correct_event() {
+        let event: PollStartedEvent = into_structured_event(
+            verifier_set_poll_started_event(participants(None), 100),
+            &TMAddress::random(PREFIX),
+        )
+        .try_into()
+        .unwrap();
+
+        goldie::assert_debug!(event);
+    }
+
     #[async_test]
     async fn not_poll_started_event() {
         let event = into_structured_event(
@@ -244,7 +258,7 @@ mod tests {
     #[async_test]
     async fn contract_is_not_voting_verifier() {
         let event = into_structured_event(
-            verifier_set_poll_started_event(participants(5, None), 100),
+            verifier_set_poll_started_event(participants(None), 100),
             &TMAddress::random(PREFIX),
         );
 
@@ -263,7 +277,7 @@ mod tests {
     async fn verifier_is_not_a_participant() {
         let voting_verifier = TMAddress::random(PREFIX);
         let event = into_structured_event(
-            verifier_set_poll_started_event(participants(5, None), 100),
+            verifier_set_poll_started_event(participants(None), 100),
             &voting_verifier,
         );
 
@@ -312,7 +326,7 @@ mod tests {
         let worker = TMAddress::random(PREFIX);
 
         let event = into_structured_event(
-            verifier_set_poll_started_event(participants(5, Some(worker.clone())), 100),
+            verifier_set_poll_started_event(participants(Some(worker.clone())), 100),
             &voting_verifier,
         );
 
@@ -363,10 +377,29 @@ mod tests {
         }
     }
 
-    fn participants(n: u8, worker: Option<TMAddress>) -> Vec<TMAddress> {
-        (0..n)
-            .map(|_| TMAddress::random(PREFIX))
-            .chain(worker)
-            .collect()
+    fn participants(worker: Option<TMAddress>) -> Vec<TMAddress> {
+        let mut participants = vec![
+            AccountId::from_str("axelar1hg8mfs0pauxmxt5n76ndnlrye235zgz877l727")
+                .unwrap()
+                .into(),
+            AccountId::from_str("axelar19neataahn59zsgex8479u9my28e0rae8c3hd6g")
+                .unwrap()
+                .into(),
+            AccountId::from_str("axelar1fjh9eftylh82egzvcldmv5jyfuscvehqvxr8es")
+                .unwrap()
+                .into(),
+            AccountId::from_str("axelar1s3gutkdnlr7gn9meanysm2muhz4g7w4x63ay0q")
+                .unwrap()
+                .into(),
+            AccountId::from_str("axelar1k4mztxaugnqwf0hfp878785z887clvq2vkt7tq")
+                .unwrap()
+                .into(),
+        ];
+
+        if let Some(worker) = worker {
+            participants.push(worker);
+        }
+
+        participants
     }
 }

@@ -62,7 +62,6 @@ impl<C: SolanaRpcClientProxy> Handler<C> {
         rpc_client: C,
         latest_block_height: Receiver<u64>,
     ) -> Self {
-
         Self {
             verifier,
             voting_verifier_contract,
@@ -114,7 +113,7 @@ impl<C: SolanaRpcClientProxy> EventHandler for Handler<C> {
             }
             event => event.change_context(DeserializeEvent)?,
         };
-        
+
         if !participants.contains(&self.verifier) {
             return Ok(vec![]);
         }
@@ -151,9 +150,7 @@ impl<C: SolanaRpcClientProxy> EventHandler for Handler<C> {
                 .map(|msg| {
                     finalized_tx_receipts
                         .get_key_value(&msg.message_id.raw_signature.into())
-                        .map_or(Vote::NotFound, |entry| {
-                            verify_message(entry, msg)
-                        })
+                        .map_or(Vote::NotFound, |entry| verify_message(entry, msg))
                 })
                 .collect();
             info!(
@@ -173,16 +170,15 @@ impl<C: SolanaRpcClientProxy> EventHandler for Handler<C> {
 
 #[cfg(test)]
 mod test {
+    use std::str::FromStr;
+
+    use cosmrs::AccountId;
     use solana_sdk::signature::Signature;
     use solana_transaction_status::option_serializer::OptionSerializer;
     use tokio::sync::watch;
     use voting_verifier::events::{PollMetadata, PollStarted, TxEventConfirmation};
 
-    use crate::{
-        handlers::tests::into_structured_event,
-        types::{EVMAddress, TMAddress},
-        PREFIX,
-    };
+    use crate::{handlers::tests::into_structured_event, types::TMAddress, PREFIX};
 
     use super::*;
 
@@ -224,6 +220,18 @@ mod test {
         }
     }
 
+    #[test]
+    fn solana_verify_msg_should_deserialize_correct_event() {
+        let event: PollStartedEvent = into_structured_event(
+            poll_started_event(participants(None), 100),
+            &TMAddress::random(PREFIX),
+        )
+        .try_into()
+        .unwrap();
+
+        goldie::assert_debug!(event);
+    }
+
     // Should not handle event if it is not a poll started event
     #[tokio::test]
     async fn not_poll_started_event() {
@@ -246,7 +254,7 @@ mod test {
     #[tokio::test]
     async fn contract_is_not_voting_verifier() {
         let event = into_structured_event(
-            poll_started_event(participants(5, None), 100),
+            poll_started_event(participants(None), 100),
             &TMAddress::random(PREFIX),
         );
 
@@ -265,7 +273,7 @@ mod test {
     async fn verifier_is_not_a_participant() {
         let voting_verifier = TMAddress::random(PREFIX);
         let event = into_structured_event(
-            poll_started_event(participants(5, None), 100),
+            poll_started_event(participants(None), 100),
             &voting_verifier,
         );
 
@@ -284,7 +292,7 @@ mod test {
         let voting_verifier = TMAddress::random(PREFIX);
         let worker = TMAddress::random(PREFIX);
         let event = into_structured_event(
-            poll_started_event(participants(5, Some(worker.clone())), 100),
+            poll_started_event(participants(Some(worker.clone())), 100),
             &voting_verifier,
         );
 
@@ -306,7 +314,7 @@ mod test {
         let worker = TMAddress::random(PREFIX);
         let expiration = 100u64;
         let event = into_structured_event(
-            poll_started_event(participants(5, Some(worker.clone())), expiration),
+            poll_started_event(participants(Some(worker.clone())), expiration),
             &voting_verifier,
         );
 
@@ -333,11 +341,14 @@ mod test {
         let event_idx_2 = 88_u32;
         let message_id_2 = format!("{signature_2}-{event_idx_2}");
 
+        let source_gateway_address =
+            Pubkey::from_str("4uX3jFnWLa4vBPyWJKd2XnUEX6JvP8q1BG7mTwQYhQeL").unwrap();
+
         PollStarted::Messages {
             metadata: PollMetadata {
                 poll_id: "100".parse().unwrap(),
                 source_chain: "solana".parse().unwrap(),
-                source_gateway_address: Pubkey::new_unique().to_string().parse().unwrap(),
+                source_gateway_address: source_gateway_address.to_string().parse().unwrap(),
                 confirmation_height: 15,
                 expires_at,
                 participants: participants
@@ -350,29 +361,64 @@ mod test {
                 TxEventConfirmation {
                     tx_id: signature_1.parse().unwrap(),
                     event_index: event_idx_1,
-                    source_address: Pubkey::new_unique().to_string().parse().unwrap(),
+                    source_address: Pubkey::from_str(
+                        "9Tp4XJZLQKdM82BHYfNAG6V3RWpLC7Y5mXo1UqKZFTJ3",
+                    )
+                    .unwrap()
+                    .to_string()
+                    .parse()
+                    .unwrap(),
                     message_id: message_id_1.parse().unwrap(),
                     destination_chain: "ethereum".parse().unwrap(),
-                    destination_address: format!("0x{:x}", EVMAddress::random()).parse().unwrap(),
-                    payload_hash: Hash::random().to_fixed_bytes(),
+                    destination_address: "0x3ad1f33ef5814e7adb43ed7fb39f9b45053ecab1"
+                        .parse()
+                        .unwrap(),
+                    payload_hash: Hash::from_slice(&[1; 32]).to_fixed_bytes(),
                 },
                 TxEventConfirmation {
                     tx_id: signature_2.parse().unwrap(),
                     event_index: event_idx_2,
-                    source_address: Pubkey::new_unique().to_string().parse().unwrap(),
+                    source_address: Pubkey::from_str(
+                        "H1QLZVpX7B4WMNY5UqKZG3RFTJ9M82BXoLQF26TJCY5N",
+                    )
+                    .unwrap()
+                    .to_string()
+                    .parse()
+                    .unwrap(),
                     message_id: message_id_2.parse().unwrap(),
                     destination_chain: "ethereum".parse().unwrap(),
-                    destination_address: format!("0x{:x}", EVMAddress::random()).parse().unwrap(),
-                    payload_hash: Hash::random().to_fixed_bytes(),
+                    destination_address: "0x3ad1f33ef5814e7adb43ed7fb39f9b45053ecab2"
+                        .parse()
+                        .unwrap(),
+                    payload_hash: Hash::from_slice(&[2; 32]).to_fixed_bytes(),
                 },
             ],
         }
     }
 
-    fn participants(n: u8, worker: Option<TMAddress>) -> Vec<TMAddress> {
-        (0..n)
-            .map(|_| TMAddress::random(PREFIX))
-            .chain(worker)
-            .collect()
+    fn participants(worker: Option<TMAddress>) -> Vec<TMAddress> {
+        let mut participants = vec![
+            AccountId::from_str("axelar1hg8mfs0pauxmxt5n76ndnlrye235zgz877l727")
+                .unwrap()
+                .into(),
+            AccountId::from_str("axelar19neataahn59zsgex8479u9my28e0rae8c3hd6g")
+                .unwrap()
+                .into(),
+            AccountId::from_str("axelar1fjh9eftylh82egzvcldmv5jyfuscvehqvxr8es")
+                .unwrap()
+                .into(),
+            AccountId::from_str("axelar1s3gutkdnlr7gn9meanysm2muhz4g7w4x63ay0q")
+                .unwrap()
+                .into(),
+            AccountId::from_str("axelar1k4mztxaugnqwf0hfp878785z887clvq2vkt7tq")
+                .unwrap()
+                .into(),
+        ];
+
+        if let Some(worker) = worker {
+            participants.push(worker);
+        }
+
+        participants
     }
 }
