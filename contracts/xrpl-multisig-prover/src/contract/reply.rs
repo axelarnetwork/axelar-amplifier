@@ -6,7 +6,7 @@ use crate::error::ContractError;
 use crate::events::Event;
 use crate::state::{
     MultisigSession, CONFIG, CROSS_CHAIN_ID_TO_MULTISIG_SESSION,
-    MULTISIG_SESSION_ID_TO_UNSIGNED_TX_HASH, REPLY_CROSS_CHAIN_ID, REPLY_UNSIGNED_TX_HASH,
+    MULTISIG_SESSION_ID_TO_UNSIGNED_TX_HASH, REPLY_UNSIGNED_TX_HASH,
     UNSIGNED_TX_HASH_TO_TX_INFO,
 };
 use crate::xrpl_serialize::XRPLSerialize;
@@ -59,8 +59,7 @@ pub fn start_multisig_reply(deps: DepsMut, reply: Reply) -> Result<Response, Con
                 .parse()
                 .expect("violated invariant: expires_at is not a number");
 
-            let opt_cc_id = REPLY_CROSS_CHAIN_ID.may_load(deps.storage)?;
-            if let Some(cc_id) = &opt_cc_id {
+            if let Some(cc_id) = &tx_info.original_cc_id {
                 CROSS_CHAIN_ID_TO_MULTISIG_SESSION.save(
                     deps.storage,
                     cc_id,
@@ -69,7 +68,6 @@ pub fn start_multisig_reply(deps: DepsMut, reply: Reply) -> Result<Response, Con
                         expires_at,
                     },
                 )?;
-                REPLY_CROSS_CHAIN_ID.remove(deps.storage);
             };
 
             REPLY_UNSIGNED_TX_HASH.remove(deps.storage);
@@ -79,7 +77,7 @@ pub fn start_multisig_reply(deps: DepsMut, reply: Reply) -> Result<Response, Con
                     destination_chain: config.chain_name,
                     unsigned_tx_hash: unsigned_tx_hash.clone(),
                     multisig_session_id,
-                    msg_ids: opt_cc_id.clone().map(|cc_id| vec![cc_id]),
+                    msg_ids: tx_info.original_cc_id.clone().map(|cc_id| vec![cc_id]),
                 })
                 .add_event(
                     cosmwasm_std::Event::new("xrpl_signing_started")
@@ -95,7 +93,7 @@ pub fn start_multisig_reply(deps: DepsMut, reply: Reply) -> Result<Response, Con
                                 XRPLUnsignedTxToSign {
                                     unsigned_tx: tx_info.unsigned_tx,
                                     unsigned_tx_hash,
-                                    cc_id: opt_cc_id,
+                                    cc_id: tx_info.original_cc_id,
                                 }
                                 .xrpl_serialize()?,
                             )

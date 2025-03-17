@@ -341,7 +341,6 @@ pub fn construct_payment_proof(
                         None, // TODO: Handle cross-currency payments.
                     )?;
 
-                    state::REPLY_CROSS_CHAIN_ID.save(storage, &cc_id)?;
                     Ok(Response::new().add_submessage(start_signing_session(
                         storage,
                         config,

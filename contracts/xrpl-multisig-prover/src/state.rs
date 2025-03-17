@@ -28,7 +28,6 @@ pub struct Config {
 
 pub const CONFIG: Item<Config> = Item::new("config");
 pub const REPLY_UNSIGNED_TX_HASH: Item<HexTxHash> = Item::new("reply_unsigned_tx_hash");
-pub const REPLY_CROSS_CHAIN_ID: Item<CrossChainId> = Item::new("reply_cross_chain_id");
 
 // The next seq. no. is affected by the number of tickets created,
 // not solely on the last sequence number used.
