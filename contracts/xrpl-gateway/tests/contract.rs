@@ -596,7 +596,7 @@ fn generate_incoming_msgs(namespace: impl Debug, count: u8) -> Vec<XRPLMessage> 
                     .try_into()
                     .unwrap(),
                 ),
-                gas_fee_amount: XRPLPaymentAmount::Drops(1_000_000),
+                gas_fee_amount: XRPLPaymentAmount::Drops(1_000),
             })
         })
         .collect()

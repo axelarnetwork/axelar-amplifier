@@ -1,4 +1,5 @@
 use std::hash::Hash;
+use std::ops::Sub;
 use std::str::FromStr;
 
 use axelar_wasm_std::msg_id::HexTxHash;
@@ -150,7 +151,16 @@ pub fn translate_to_interchain_transfer(
     let destination_address = user_message.destination_address.clone();
     let destination_chain = ChainNameRaw::from(user_message.destination_chain.clone());
 
-    let (amount, dust) = match user_message.amount.clone() {
+    let transfer_amount = user_message
+        .amount
+        .clone()
+        .sub(user_message.gas_fee_amount.clone())
+        .change_context(Error::InvalidGasFeeAmount {
+            amount: user_message.amount.to_owned(),
+            gas_fee_amount: user_message.gas_fee_amount.to_owned(),
+        })?;
+
+    let (amount, dust) = match transfer_amount.clone() {
         XRPLPaymentAmount::Drops(drops) => (Uint256::from(drops), XRPLPaymentAmount::Drops(0u64)),
         XRPLPaymentAmount::Issued(token, token_amount) => {
             let destination_decimals =
@@ -163,7 +173,7 @@ pub fn translate_to_interchain_transfer(
             let (amount, dust) = scale_to_decimals(token_amount, destination_decimals)
                 .change_context(Error::InvalidTransferAmount {
                     destination_chain,
-                    amount: user_message.amount.to_owned(),
+                    amount: transfer_amount.to_owned(),
                 })?;
 
             (amount, XRPLPaymentAmount::Issued(token, dust))
