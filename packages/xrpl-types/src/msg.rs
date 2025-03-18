@@ -190,6 +190,7 @@ impl From<XRPLCallContractMessage> for Vec<Attribute> {
             ("destination_chain", other.destination_chain).into(),
             ("destination_address", other.destination_address.to_string()).into(),
             ("payload_hash", HexBinary::from(other.payload_hash).to_string()).into(),
+            ("gas_fee_amount", other.gas_fee_amount.to_string()).into(),
         ]
     }
 }
@@ -300,6 +301,8 @@ impl XRPLCallContractMessage {
         hasher.update(self.destination_address.as_str());
         hasher.update(delimiter_bytes);
         hasher.update(self.payload_hash);
+        hasher.update(delimiter_bytes);
+        hasher.update(self.gas_fee_amount.hash());
 
         hasher.finalize().into()
     }
