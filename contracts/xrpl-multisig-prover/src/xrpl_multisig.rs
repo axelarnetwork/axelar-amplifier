@@ -17,6 +17,7 @@ use crate::state::{
 };
 
 const MAX_TICKET_COUNT: u32 = 250;
+const MAX_SIGNERS: u64 = 32;
 
 fn issue_tx(
     storage: &mut dyn Storage,
@@ -40,6 +41,10 @@ fn issue_tx(
     Ok(unsigned_tx_hash)
 }
 
+fn tx_fee(config: &Config) -> u64 {
+    config.xrpl_transaction_fee * (1 + MAX_SIGNERS)
+}
+
 pub fn issue_payment(
     storage: &mut dyn Storage,
     config: &Config,
@@ -49,10 +54,11 @@ pub fn issue_payment(
     cross_currency: Option<&XRPLCrossCurrencyOptions>,
 ) -> Result<HexTxHash, ContractError> {
     let ticket_number = assign_ticket_number(storage, cc_id)?;
+    let fee = tx_fee(config);
 
     let tx = XRPLPaymentTx {
         account: config.xrpl_multisig.clone(),
-        fee: config.xrpl_transaction_fee,
+        fee,
         sequence: XRPLSequence::Ticket(ticket_number),
         amount: amount.clone(),
         destination,
@@ -68,10 +74,11 @@ pub fn issue_ticket_create(
     ticket_count: u32,
 ) -> Result<HexTxHash, ContractError> {
     let sequence_number = next_sequence_number(storage)?;
+    let fee = tx_fee(config);
 
     let tx = XRPLTicketCreateTx {
         account: config.xrpl_multisig.clone(),
-        fee: config.xrpl_transaction_fee,
+        fee,
         sequence: XRPLSequence::Plain(sequence_number),
         ticket_count,
     };
@@ -85,10 +92,11 @@ pub fn issue_trust_set(
     xrpl_token: XRPLToken,
 ) -> Result<HexTxHash, ContractError> {
     let sequence_number = next_sequence_number(storage)?;
+    let fee = tx_fee(config);
 
     let tx = XRPLTrustSetTx {
         account: config.xrpl_multisig.clone(),
-        fee: config.xrpl_transaction_fee,
+        fee,
         sequence: XRPLSequence::Plain(sequence_number),
         token: xrpl_token,
     };
@@ -102,10 +110,11 @@ pub fn issue_signer_list_set(
     verifier_set: VerifierSet,
 ) -> Result<HexTxHash, ContractError> {
     let sequence_number = next_sequence_number(storage)?;
+    let fee = tx_fee(config);
 
     let tx = XRPLSignerListSetTx {
         account: config.xrpl_multisig.clone(),
-        fee: config.xrpl_transaction_fee,
+        fee,
         sequence: XRPLSequence::Plain(sequence_number),
         signer_quorum: verifier_set.quorum,
         signer_entries: verifier_set
