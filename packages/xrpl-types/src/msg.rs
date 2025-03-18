@@ -2,11 +2,26 @@ use axelar_wasm_std::msg_id::HexTxHash;
 use axelar_wasm_std::nonempty;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Attribute, HexBinary};
-use router_api::{ChainName, FIELD_DELIMITER};
+use router_api::{ChainName, ChainNameRaw, CrossChainId, FIELD_DELIMITER};
 use sha3::{Digest, Keccak256};
 
 use crate::hex_option;
 use crate::types::{xrpl_account_id_string, XRPLAccountId, XRPLPaymentAmount};
+
+#[cw_serde]
+#[derive(Eq, Hash)]
+pub struct WithCrossChainId<T> {
+    #[serde(flatten)]
+    pub content: T,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cc_id: Option<CrossChainId>,
+}
+
+impl<T> WithCrossChainId<T> {
+    pub fn new(content: T, cc_id: Option<CrossChainId>) -> Self {
+        Self { content, cc_id }
+    }
+}
 
 #[cw_serde]
 #[derive(Eq, Hash)]
@@ -21,6 +36,17 @@ impl XRPLMessage {
             XRPLMessage::ProverMessage(prover_message) => prover_message.tx_id.clone(),
             XRPLMessage::UserMessage(user_message) => user_message.tx_id.clone(),
         }
+    }
+
+    pub fn cc_id(&self, source_chain: ChainNameRaw) -> Option<CrossChainId> {
+        match self {
+            XRPLMessage::UserMessage(user_message) => Some(user_message.cc_id(source_chain)),
+            XRPLMessage::ProverMessage(_) => None,
+        }
+    }
+
+    pub fn with_cc_id(&self, source_chain: ChainNameRaw) -> WithCrossChainId<Self> {
+        WithCrossChainId::new(self.clone(), self.cc_id(source_chain))
     }
 
     pub fn hash(&self) -> [u8; 32] {
@@ -141,10 +167,38 @@ impl XRPLUserMessage {
 
         hasher.finalize().into()
     }
+
+    pub fn cc_id(&self, source_chain: ChainNameRaw) -> CrossChainId {
+        CrossChainId {
+            source_chain,
+            message_id: format!("0x{}", HexBinary::from(self.tx_id.tx_hash).to_hex())
+                .try_into()
+                .expect("message_id conversion should never fail"),
+        }
+    }
 }
 
 impl From<XRPLUserMessage> for XRPLMessage {
     fn from(val: XRPLUserMessage) -> Self {
         XRPLMessage::UserMessage(val)
+    }
+}
+
+#[cw_serde]
+#[derive(Eq, Hash)]
+pub struct WithPayload<T: Clone + Into<XRPLMessage>> {
+    pub message: T,
+    pub payload: Option<nonempty::HexBinary>,
+}
+
+impl WithPayload<XRPLUserMessage> {
+    pub fn new(message: XRPLUserMessage, payload: Option<nonempty::HexBinary>) -> Self {
+        Self { message, payload }
+    }
+}
+
+impl<T: Clone + Into<XRPLMessage>> From<WithPayload<T>> for XRPLMessage {
+    fn from(val: WithPayload<T>) -> Self {
+        val.message.into()
     }
 }
