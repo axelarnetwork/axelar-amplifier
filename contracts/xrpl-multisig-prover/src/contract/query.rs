@@ -75,16 +75,8 @@ pub fn proof(
         MultisigState::Pending => ProofStatus::Pending,
         MultisigState::Completed { .. } => {
             let xrpl_signers: Vec<XRPLSigner> = multisig_session
-                .verifier_set
-                .signers
+                .optimize_signatures()
                 .into_iter()
-                .filter_map(|(signer_address, signer)| {
-                    multisig_session
-                        .signatures
-                        .get(&signer_address)
-                        .cloned()
-                        .zip(Some(signer))
-                })
                 .map(XRPLSigner::try_from)
                 .collect::<Result<Vec<_>, XRPLError>>()?;
 

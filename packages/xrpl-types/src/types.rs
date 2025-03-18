@@ -658,13 +658,13 @@ pub struct XRPLSigner {
     pub signing_pub_key: PublicKey,
 }
 
-impl TryFrom<(multisig::key::Signature, multisig::msg::Signer)> for XRPLSigner {
+impl TryFrom<multisig::msg::SignerWithSig> for XRPLSigner {
     type Error = XRPLError;
 
-    fn try_from(
-        (signature, axelar_signer): (multisig::key::Signature, multisig::msg::Signer),
-    ) -> Result<Self, XRPLError> {
-        let txn_signature = match axelar_signer.pub_key {
+    fn try_from(signer_with_sig: multisig::msg::SignerWithSig) -> Result<Self, XRPLError> {
+        let multisig::msg::SignerWithSig { signer, signature } = signer_with_sig;
+
+        let txn_signature = match signer.pub_key {
             multisig::key::PublicKey::Ecdsa(_) => HexBinary::from(
                 ecdsa::Signature::to_der(
                     &ecdsa::Signature::try_from(signature.as_ref())
@@ -672,12 +672,12 @@ impl TryFrom<(multisig::key::Signature, multisig::msg::Signer)> for XRPLSigner {
                 )
                 .to_vec(),
             ),
-            _ => unimplemented!("Unsupported public key type"),
+            _ => return Err(XRPLError::UnsupportedKeyType),
         };
 
         Ok(XRPLSigner {
-            account: XRPLAccountId::from(&axelar_signer.pub_key),
-            signing_pub_key: axelar_signer.pub_key.clone(),
+            account: XRPLAccountId::from(&signer.pub_key),
+            signing_pub_key: signer.pub_key,
             txn_signature,
         })
     }

@@ -77,6 +77,9 @@ pub enum XRPLError {
 
     #[error("underflow")]
     Underflow,
+
+    #[error("unsupported key type")]
+    UnsupportedKeyType,
 }
 
 impl From<XRPLError> for StdError {
