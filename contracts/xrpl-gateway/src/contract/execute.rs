@@ -116,7 +116,7 @@ pub fn route_incoming_messages(
                     msgs_to_route.push(message.clone());
                     events.push(into_route_event(status, message.clone()));
                 }
-                _ => {}
+                _ => return Err(report!(Error::UnsupportedIncomingMessage(msg.message.to_owned()))),
             }
         }
         route_msgs.extend(filter_routable_messages(*status, &msgs_to_route));

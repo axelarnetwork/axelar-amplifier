@@ -7,6 +7,7 @@ use cosmwasm_std::{Binary, Deps, DepsMut, Empty, Env, HexBinary, MessageInfo, Re
 use error_stack::ResultExt;
 use interchain_token_service::TokenId;
 use router_api::{ChainNameRaw, CrossChainId};
+use xrpl_types::msg::XRPLMessage;
 use xrpl_types::types::{
     XRPLAccountId, XRPLCurrency, XRPLPaymentAmount, XRPLToken, XRPLTokenOrXrp,
 };
@@ -141,6 +142,8 @@ pub enum Error {
         token_id: TokenId,
         chain_name: ChainNameRaw,
     },
+    #[error("message {0:?} is not a valid incoming message")]
+    UnsupportedIncomingMessage(XRPLMessage),
     #[error("failed to query xrpl token {0}")]
     XrplToken(TokenId),
     #[error("failed to query xrp token ID")]
