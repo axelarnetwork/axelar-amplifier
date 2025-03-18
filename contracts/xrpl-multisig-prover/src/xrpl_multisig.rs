@@ -52,7 +52,7 @@ pub fn issue_payment(
 
     let tx = XRPLPaymentTx {
         account: config.xrpl_multisig.clone(),
-        fee: config.xrpl_fee,
+        fee: config.xrpl_transaction_fee,
         sequence: XRPLSequence::Ticket(ticket_number),
         amount: amount.clone(),
         destination,
@@ -71,7 +71,7 @@ pub fn issue_ticket_create(
 
     let tx = XRPLTicketCreateTx {
         account: config.xrpl_multisig.clone(),
-        fee: config.xrpl_fee,
+        fee: config.xrpl_transaction_fee,
         sequence: XRPLSequence::Plain(sequence_number),
         ticket_count,
     };
@@ -88,7 +88,7 @@ pub fn issue_trust_set(
 
     let tx = XRPLTrustSetTx {
         account: config.xrpl_multisig.clone(),
-        fee: config.xrpl_fee,
+        fee: config.xrpl_transaction_fee,
         sequence: XRPLSequence::Plain(sequence_number),
         token: xrpl_token,
     };
@@ -105,7 +105,7 @@ pub fn issue_signer_list_set(
 
     let tx = XRPLSignerListSetTx {
         account: config.xrpl_multisig.clone(),
-        fee: config.xrpl_fee,
+        fee: config.xrpl_transaction_fee,
         sequence: XRPLSequence::Plain(sequence_number),
         signer_quorum: verifier_set.quorum,
         signer_entries: verifier_set

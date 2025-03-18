@@ -46,7 +46,7 @@ impl XRPLMultisigProverContract {
                     chain_name: xrpl_chain_name,
                     xrpl_multisig_address,
                     verifier_set_diff_threshold: 0,
-                    xrpl_fee: 30,
+                    xrpl_transaction_fee: 30,
                     ticket_count_threshold: 1,
                     next_sequence_number: 44218446,
                     last_assigned_ticket_number: 44218195,

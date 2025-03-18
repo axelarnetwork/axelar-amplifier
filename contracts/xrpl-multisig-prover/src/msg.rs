@@ -44,8 +44,10 @@ pub struct InstantiateMsg {
     #[serde(with = "xrpl_account_id_string")]
     #[schemars(with = "String")]
     pub xrpl_multisig_address: XRPLAccountId,
-    /// Fixed fee to be set in XRPL multisig transactions.
-    pub xrpl_fee: u64,
+    /// Fee amount (in drops) to be set in XRPL multisig transactions (i.e., prover transactions).
+    /// Since all prover transactions are multi-signed, the fee specified in the transaction is
+    /// xrpl_transaction_fee * (1 + number_of_signers).
+    pub xrpl_transaction_fee: u64,
     /// Number of available XRPL multisig tickets below which new tickets can be issued.
     pub ticket_count_threshold: u32,
     /// List of initial available tickets that can be used in new XRPL multisig transactions.
@@ -125,7 +127,7 @@ pub enum ExecuteMsg {
     },
 
     #[permission(Elevated)]
-    UpdateXrplFee { new_xrpl_fee: u64 },
+    UpdateXrplTransactionFee { new_transaction_fee: u64 },
 
     #[permission(Governance)]
     UpdateAdmin { new_admin_address: String },
@@ -158,8 +160,10 @@ pub struct MigrateMsg {
     #[serde(with = "xrpl_account_id_string")]
     #[schemars(with = "String")]
     pub xrpl_multisig_address: XRPLAccountId,
-    /// Fixed fee to be set in XRPL multisig transactions.
-    pub xrpl_fee: u64,
+    /// Fee amount (in drops) to be set in XRPL multisig transactions (i.e., prover transactions).
+    /// Since all prover transactions are multi-signed, the fee specified in the transaction is
+    /// xrpl_transaction_fee * (1 + number_of_signers).
+    pub xrpl_transaction_fee: u64,
     /// Number of available XRPL multisig tickets below which new tickets can be issued.
     pub ticket_count_threshold: u32,
     /// List of initial available tickets that can be used in new XRPL multisig transactions.

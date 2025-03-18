@@ -159,11 +159,14 @@ pub fn update_signing_threshold(
     Ok(Response::new())
 }
 
-pub fn update_xrpl_fee(deps: DepsMut, new_xrpl_fee: u64) -> Result<Response, ContractError> {
+pub fn update_xrpl_transaction_fee(
+    deps: DepsMut,
+    new_transaction_fee: u64,
+) -> Result<Response, ContractError> {
     state::CONFIG.update(
         deps.storage,
         |mut config| -> Result<Config, ContractError> {
-            config.xrpl_fee = new_xrpl_fee;
+            config.xrpl_transaction_fee = new_transaction_fee;
             Ok(config)
         },
     )?;

@@ -46,7 +46,7 @@ pub fn instantiate(
         chain_name: msg.chain_name,
         verifier_set_diff_threshold: msg.verifier_set_diff_threshold,
         xrpl_multisig: msg.xrpl_multisig_address,
-        xrpl_fee: msg.xrpl_fee,
+        xrpl_transaction_fee: msg.xrpl_transaction_fee,
         ticket_count_threshold: msg.ticket_count_threshold,
     };
     CONFIG.save(deps.storage, &config)?;
@@ -105,7 +105,9 @@ pub fn execute(
         ExecuteMsg::UpdateSigningThreshold {
             new_signing_threshold,
         } => execute::update_signing_threshold(deps, new_signing_threshold),
-        ExecuteMsg::UpdateXrplFee { new_xrpl_fee } => execute::update_xrpl_fee(deps, new_xrpl_fee),
+        ExecuteMsg::UpdateXrplTransactionFee {
+            new_transaction_fee,
+        } => execute::update_xrpl_transaction_fee(deps, new_transaction_fee),
         ExecuteMsg::UpdateAdmin { new_admin_address } => {
             execute::update_admin(deps, new_admin_address)
         }
@@ -192,7 +194,7 @@ pub fn migrate(
         chain_name: msg.chain_name,
         verifier_set_diff_threshold: msg.verifier_set_diff_threshold,
         xrpl_multisig: msg.xrpl_multisig_address,
-        xrpl_fee: msg.xrpl_fee,
+        xrpl_transaction_fee: msg.xrpl_transaction_fee,
         ticket_count_threshold: msg.ticket_count_threshold,
     };
     CONFIG.save(deps.storage, &config)?;

@@ -22,7 +22,7 @@ pub struct Config {
     pub service_name: String,
     pub chain_name: ChainName,
     pub verifier_set_diff_threshold: u32,
-    pub xrpl_fee: u64,
+    pub xrpl_transaction_fee: u64,
     pub ticket_count_threshold: u32,
 }
 
