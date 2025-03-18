@@ -1,9 +1,8 @@
-use std::collections::hash_map::RandomState;
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet};
 
 use axelar_wasm_std::Participant;
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Fraction, HexBinary, QuerierWrapper, Uint128};
+use cosmwasm_std::{Fraction, QuerierWrapper, Uint128};
 use itertools::Itertools;
 use multisig::key::{KeyType, PublicKey};
 use multisig::msg::Signer;
@@ -45,20 +44,6 @@ impl TryFrom<VerifierSet> for multisig::verifier_set::VerifierSet {
             threshold,
             verifier_set.created_at,
         ))
-    }
-}
-
-impl VerifierSet {
-    pub fn pub_keys_by_address(&self) -> HashMap<String, (KeyType, HexBinary), RandomState> {
-        self.signers
-            .iter()
-            .map(|signer| {
-                (
-                    signer.address.to_string(),
-                    (KeyType::Ecdsa, signer.pub_key.as_ref().into()),
-                )
-            })
-            .collect()
     }
 }
 
