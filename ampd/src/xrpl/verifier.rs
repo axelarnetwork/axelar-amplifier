@@ -5,7 +5,8 @@ use sha3::{Digest, Keccak256};
 use xrpl_http_client::Transaction::Payment;
 use xrpl_http_client::{Amount, Memo, PaymentTransaction, ResultCategory, Transaction};
 use xrpl_types::msg::{
-    XRPLAddGasMessage, XRPLAddReservesMessage, XRPLMessage, XRPLProverMessage, XRPLUserMessage,
+    XRPLAddGasMessage, XRPLAddReservesMessage, XRPLInterchainTransferMessage, XRPLMessage,
+    XRPLProverMessage,
 };
 use xrpl_types::types::{XRPLAccountId, XRPLPaymentAmount, XRPLToken};
 
@@ -35,8 +36,13 @@ pub fn verify_message(
         XRPLMessage::ProverMessage(prover_message) => {
             is_valid_prover_message(tx, multisig_address, prover_message, memos)
         }
-        XRPLMessage::UserMessage(user_message) => {
-            is_valid_user_message(tx, multisig_address, user_message, memos)
+        XRPLMessage::InterchainTransferMessage(interchain_transfer_message) => {
+            is_valid_interchain_transfer_message(
+                tx,
+                multisig_address,
+                interchain_transfer_message,
+                memos,
+            )
         }
         XRPLMessage::AddGasMessage(add_gas_message) => {
             is_valid_add_gas_message(tx, multisig_address, add_gas_message, memos)
@@ -85,10 +91,10 @@ fn verify_payment_flags(payment_tx: &PaymentTransaction) -> bool {
     payment_tx.flags.is_empty() // TODO: whitelist specific flags
 }
 
-pub fn is_valid_user_message(
+pub fn is_valid_interchain_transfer_message(
     tx: &Transaction,
     multisig_address: &XRPLAccountId,
-    message: &XRPLUserMessage,
+    message: &XRPLInterchainTransferMessage,
     memos: &HashMap<String, String>,
 ) -> bool {
     if let Payment(payment_tx) = &tx {
@@ -103,7 +109,10 @@ pub fn is_valid_user_message(
     }
 }
 
-fn verify_user_memos(memos: &HashMap<String, String>, message: &XRPLUserMessage) -> bool {
+fn verify_user_memos(
+    memos: &HashMap<String, String>,
+    message: &XRPLInterchainTransferMessage,
+) -> bool {
     verify_memo(memos, "type", "interchain_transfer".to_string())
         && verify_memo(
             memos,
@@ -189,7 +198,10 @@ pub fn verify_amount(expected_amount: XRPLPaymentAmount, actual_amount: Amount) 
     .unwrap_or(false)
 }
 
-pub fn verify_gas_fee_amount(message: &XRPLUserMessage, memos: &HashMap<String, String>) -> bool {
+pub fn verify_gas_fee_amount(
+    message: &XRPLInterchainTransferMessage,
+    memos: &HashMap<String, String>,
+) -> bool {
     || -> Option<bool> {
         let gas_fee_amount_str = match memos
             .get("gas_fee_amount")
@@ -218,7 +230,10 @@ pub fn verify_gas_fee_amount(message: &XRPLUserMessage, memos: &HashMap<String, 
     .unwrap_or(false)
 }
 
-pub fn verify_payload_hash(memos: &HashMap<String, String>, message: &XRPLUserMessage) -> bool {
+pub fn verify_payload_hash(
+    memos: &HashMap<String, String>,
+    message: &XRPLInterchainTransferMessage,
+) -> bool {
     match &message.payload_hash {
         Some(expected_hash) => memos
             .get("payload")
@@ -240,7 +255,7 @@ mod test {
     use axelar_wasm_std::nonempty;
     use router_api::ChainName;
     use xrpl_http_client::Memo;
-    use xrpl_types::msg::XRPLUserMessage;
+    use xrpl_types::msg::XRPLInterchainTransferMessage;
     use xrpl_types::types::{XRPLAccountId, XRPLPaymentAmount};
 
     use crate::xrpl::verifier::{parse_memos, verify_user_memos};
@@ -274,7 +289,7 @@ mod test {
                 memo_format: None,
             },
         ];
-        let mut user_message = XRPLUserMessage {
+        let mut interchain_transfer_message = XRPLInterchainTransferMessage {
             tx_id: HexTxHash::new([0; 32]),
             source_address: XRPLAccountId::from_str("raNVNWvhUQzFkDDTdEw3roXRJfMJFVJuQo").unwrap(),
             destination_address: nonempty::String::try_from(
@@ -292,10 +307,16 @@ mod test {
             amount: XRPLPaymentAmount::Drops(100000),
             gas_fee_amount: XRPLPaymentAmount::Drops(50000),
         };
-        assert!(verify_user_memos(&parse_memos(&memos), &user_message));
+        assert!(verify_user_memos(
+            &parse_memos(&memos),
+            &interchain_transfer_message
+        ));
 
-        user_message.payload_hash = None;
-        assert!(!verify_user_memos(&parse_memos(&memos), &user_message));
+        interchain_transfer_message.payload_hash = None;
+        assert!(!verify_user_memos(
+            &parse_memos(&memos),
+            &interchain_transfer_message
+        ));
     }
 
     #[test]
@@ -322,7 +343,7 @@ mod test {
                 memo_format: None,
             },
         ];
-        let mut user_message = XRPLUserMessage {
+        let mut interchain_transfer_message = XRPLInterchainTransferMessage {
             tx_id: HexTxHash::new([0; 32]),
             source_address: XRPLAccountId::from_str("raNVNWvhUQzFkDDTdEw3roXRJfMJFVJuQo").unwrap(),
             destination_address: nonempty::String::try_from(
@@ -334,15 +355,21 @@ mod test {
             amount: XRPLPaymentAmount::Drops(100000),
             gas_fee_amount: XRPLPaymentAmount::Drops(50000),
         };
-        assert!(verify_user_memos(&parse_memos(&memos), &user_message));
+        assert!(verify_user_memos(
+            &parse_memos(&memos),
+            &interchain_transfer_message
+        ));
 
-        user_message.payload_hash = Some(
+        interchain_transfer_message.payload_hash = Some(
             hex::decode("8a7adf72777a40d790e327be8af2fdb35c2c557f3555c587aae9bc155a9020a8")
                 .unwrap()
                 .to_vec()
                 .try_into()
                 .unwrap(),
         );
-        assert!(!verify_user_memos(&parse_memos(&memos), &user_message));
+        assert!(!verify_user_memos(
+            &parse_memos(&memos),
+            &interchain_transfer_message
+        ));
     }
 }

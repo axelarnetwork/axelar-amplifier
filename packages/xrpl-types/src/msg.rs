@@ -27,7 +27,7 @@ impl<T> WithCrossChainId<T> {
 #[derive(Eq, Hash)]
 pub enum XRPLMessage {
     ProverMessage(XRPLProverMessage),
-    UserMessage(XRPLUserMessage),
+    InterchainTransferMessage(XRPLInterchainTransferMessage),
     AddGasMessage(XRPLAddGasMessage),
     AddReservesMessage(XRPLAddReservesMessage),
 }
@@ -36,7 +36,7 @@ impl XRPLMessage {
     pub fn tx_id(&self) -> HexTxHash {
         match self {
             XRPLMessage::ProverMessage(prover_message) => prover_message.tx_id.clone(),
-            XRPLMessage::UserMessage(user_message) => user_message.tx_id.clone(),
+            XRPLMessage::InterchainTransferMessage(interchain_transfer_message) => interchain_transfer_message.tx_id.clone(),
             XRPLMessage::AddGasMessage(add_gas_message) => add_gas_message.tx_id.clone(),
             XRPLMessage::AddReservesMessage(add_reserves_message) => {
                 add_reserves_message.tx_id.clone()
@@ -46,7 +46,7 @@ impl XRPLMessage {
 
     pub fn cc_id(&self, source_chain: ChainNameRaw) -> Option<CrossChainId> {
         match self {
-            XRPLMessage::UserMessage(user_message) => Some(user_message.cc_id(source_chain)),
+            XRPLMessage::InterchainTransferMessage(interchain_transfer_message) => Some(interchain_transfer_message.cc_id(source_chain)),
             XRPLMessage::ProverMessage(_) => None,
             XRPLMessage::AddGasMessage(_) => None,
             XRPLMessage::AddReservesMessage(_) => None,
@@ -60,7 +60,7 @@ impl XRPLMessage {
     pub fn hash(&self) -> [u8; 32] {
         match self {
             XRPLMessage::ProverMessage(prover_message) => prover_message.hash(),
-            XRPLMessage::UserMessage(user_message) => user_message.hash(),
+            XRPLMessage::InterchainTransferMessage(interchain_transfer_message) => interchain_transfer_message.hash(),
             XRPLMessage::AddGasMessage(add_gas_message) => add_gas_message.hash(),
             XRPLMessage::AddReservesMessage(add_reserves_message) => {
                 add_reserves_message.hash()
@@ -74,7 +74,7 @@ impl XRPLMessage {
 /// Such messages are verified by the XRPL Voting Verifier and routed by the Router.
 #[cw_serde]
 #[derive(Eq, Hash)]
-pub struct XRPLUserMessage {
+pub struct XRPLInterchainTransferMessage {
     #[schemars(with = "String")] // necessary attribute in conjunction with #[serde(with ...)]
     pub tx_id: HexTxHash,
     #[serde(with = "xrpl_account_id_string")]
@@ -111,7 +111,7 @@ pub struct XRPLProverMessage {
 
 /// Represents an XRPL `Payment` transaction towards the XRPL multisig,
 /// performed by an XRPL user who wishes to top-up the gas paid
-/// for an existing interchain transfer and/or GMP call (see `XRPLUserMessage`).
+/// for an existing interchain transfer and/or GMP call (see `XRPLInterchainTransferMessage`).
 /// Such messages are verified by the XRPL Voting Verifier and confirmed on the XRPL Gateway.
 #[cw_serde]
 #[derive(Eq, Hash)]
@@ -135,8 +135,8 @@ pub struct XRPLAddReservesMessage {
     pub amount: u64,
 }
 
-impl From<XRPLUserMessage> for Vec<Attribute> {
-    fn from(other: XRPLUserMessage) -> Self {
+impl From<XRPLInterchainTransferMessage> for Vec<Attribute> {
+    fn from(other: XRPLInterchainTransferMessage) -> Self {
         let mut array = vec![
             ("tx_id", other.tx_id.tx_hash_as_hex_no_prefix()).into(),
             ("source_address", other.source_address.to_string()).into(),
@@ -188,7 +188,7 @@ impl From<XRPLAddReservesMessage> for Vec<Attribute> {
 impl From<XRPLMessage> for Vec<Attribute> {
     fn from(other: XRPLMessage) -> Self {
         let (mut attrs, msg_type): (Self, &str) = match other {
-            XRPLMessage::UserMessage(msg) => (msg.into(), "user_message"),
+            XRPLMessage::InterchainTransferMessage(msg) => (msg.into(), "interchain_transfer_message"),
             XRPLMessage::ProverMessage(msg) => (msg.into(), "prover_message"),
             XRPLMessage::AddGasMessage(msg) => (msg.into(), "add_gas_message"),
             XRPLMessage::AddReservesMessage(msg) => (msg.into(), "add_reserves_message"),
@@ -211,7 +211,7 @@ impl XRPLProverMessage {
     }
 }
 
-impl XRPLUserMessage {
+impl XRPLInterchainTransferMessage {
     pub fn hash(&self) -> [u8; 32] {
         let mut hasher = Keccak256::new();
         let delimiter_bytes = &[FIELD_DELIMITER as u8];
@@ -276,9 +276,9 @@ impl XRPLAddReservesMessage {
     }
 }
 
-impl From<XRPLUserMessage> for XRPLMessage {
-    fn from(val: XRPLUserMessage) -> Self {
-        XRPLMessage::UserMessage(val)
+impl From<XRPLInterchainTransferMessage> for XRPLMessage {
+    fn from(val: XRPLInterchainTransferMessage) -> Self {
+        XRPLMessage::InterchainTransferMessage(val)
     }
 }
 
@@ -289,8 +289,8 @@ pub struct WithPayload<T: Clone + Into<XRPLMessage>> {
     pub payload: Option<nonempty::HexBinary>,
 }
 
-impl WithPayload<XRPLUserMessage> {
-    pub fn new(message: XRPLUserMessage, payload: Option<nonempty::HexBinary>) -> Self {
+impl WithPayload<XRPLInterchainTransferMessage> {
+    pub fn new(message: XRPLInterchainTransferMessage, payload: Option<nonempty::HexBinary>) -> Self {
         Self { message, payload }
     }
 }
