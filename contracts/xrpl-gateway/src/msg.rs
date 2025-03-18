@@ -147,7 +147,7 @@ pub struct InterchainTransfer {
 
 #[cw_serde]
 pub struct CallContract {
-    pub message_with_payload: MessageWithPayload,
+    pub message: Message,
     pub gas_token_id: TokenId,
 }
 
