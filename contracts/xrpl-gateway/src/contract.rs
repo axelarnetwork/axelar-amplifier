@@ -86,6 +86,8 @@ pub enum Error {
     OnlyFromItsHub(CrossChainId),
     #[error("failed to query outgoing messages")]
     OutgoingMessages,
+    #[error("ABI encoded payload was empty")]
+    PayloadEncodingFailed,
     #[error("payload given but payload hash is empty")]
     PayloadHashEmpty,
     #[error("payload hash {0} given without full payload")]
@@ -95,6 +97,8 @@ pub enum Error {
         expected: HexBinary,
         actual: HexBinary,
     },
+    #[error("payload wasn't given")]
+    PayloadMissing,
     #[error("remote token {token_id} deployed XRPL currency mismatch: expected {expected}, actual {actual}")]
     RemoteTokenDeployedCurrencyMismatch {
         token_id: TokenId,
@@ -299,11 +303,9 @@ pub fn query(
                 chain_name,
                 token_id,
             }),
-        QueryMsg::InterchainTransfer {
-            message_with_payload,
-        } => {
+        QueryMsg::InterchainTransfer { message, payload } => {
             let config = state::load_config(deps.storage);
-            query::translate_to_interchain_transfer(deps.storage, &config, &message_with_payload)
+            query::translate_to_interchain_transfer(deps.storage, &config, &message, payload)
         }
     }?
     .then(Ok)

@@ -291,8 +291,7 @@ fn payment_from_xrpl_can_be_verified_and_routed_and_proven() {
     };
 
     let xrpl_msg = XRPLMessage::InterchainTransferMessage(xrpl_interchain_transfer_msg.clone());
-
-    let xrpl_msg_with_payload = WithPayload::new(xrpl_interchain_transfer_msg.clone(), payload.clone());
+    let xrpl_msg_with_payload = WithPayload::new(xrpl_msg.clone(), payload.clone());
 
     let its_interchain_transfer_msg = interchain_token_service::Message::InterchainTransfer(
         interchain_token_service::InterchainTransfer {

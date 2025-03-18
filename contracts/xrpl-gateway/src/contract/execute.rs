@@ -11,7 +11,7 @@ use itertools::Itertools;
 use router_api::client::Router;
 use router_api::{Address, ChainName, ChainNameRaw, CrossChainId, Message};
 use sha3::{Digest, Keccak256};
-use xrpl_types::msg::{WithPayload, XRPLAddGasMessage, XRPLMessage, XRPLInterchainTransferMessage};
+use xrpl_types::msg::{WithPayload, XRPLAddGasMessage, XRPLCallContractMessage, XRPLInterchainTransferMessage, XRPLMessage};
 use xrpl_types::types::{
     scale_to_decimals, XRPLAccountId, XRPLCurrency, XRPLPaymentAmount, XRPLToken, XRPLTokenOrXrp,
     XRPL_ISSUED_TOKEN_DECIMALS, XRP_DECIMALS,
@@ -19,7 +19,7 @@ use xrpl_types::types::{
 
 use crate::contract::Error;
 use crate::events::XRPLGatewayEvent;
-use crate::msg::{InterchainTransfer, LinkToken, MessageWithPayload, TokenMetadata};
+use crate::msg::{CallContract, InterchainTransfer, LinkToken, MessageWithPayload, TokenMetadata};
 use crate::state::{self, Config};
 use crate::token_id;
 
@@ -52,46 +52,74 @@ pub fn route_incoming_messages(
     storage: &mut dyn Storage,
     config: &Config,
     verifier: &xrpl_voting_verifier::Client,
-    msgs_with_payload: Vec<WithPayload<XRPLInterchainTransferMessage>>,
+    msgs_with_payload: Vec<WithPayload<XRPLMessage>>,
 ) -> Result<Response, Error> {
     let msgs_by_status = group_by_status(verifier, msgs_with_payload)?;
     let mut route_msgs = Vec::new();
     let mut events = Vec::new();
     for (status, msgs) in &msgs_by_status {
-        let mut its_msgs = Vec::new();
+        let mut msgs_to_route = Vec::new();
         for msg in msgs {
-            let interchain_transfer = translate_to_interchain_transfer(storage, config, msg)?;
+            match msg.message.clone() {
+                XRPLMessage::InterchainTransferMessage(interchain_transfer_message) => {
+                    let its_interchain_transfer = translate_to_interchain_transfer(storage, config, &interchain_transfer_message, msg.payload.clone())?;
 
-            if status == &VerificationStatus::SucceededOnSourceChain {
-                state::count_gas(
-                    storage,
-                    &msg.message.tx_id,
-                    &interchain_transfer.token_id,
-                    msg.message.gas_fee_amount.clone(),
-                )
-                .change_context(Error::State)?;
+                    if status == &VerificationStatus::SucceededOnSourceChain {
+                        state::count_gas(
+                            storage,
+                            &interchain_transfer_message.tx_id,
+                            &its_interchain_transfer.token_id,
+                            interchain_transfer_message.gas_fee_amount.clone(),
+                        )
+                        .change_context(Error::State)?;
 
-                state::count_dust(
-                    storage,
-                    &msg.message.tx_id,
-                    &interchain_transfer.token_id,
-                    interchain_transfer.dust,
-                )
-                .change_context(Error::State)?;
-            }
+                        state::count_dust(
+                            storage,
+                            &interchain_transfer_message.tx_id,
+                            &its_interchain_transfer.token_id,
+                            its_interchain_transfer.dust,
+                        )
+                        .change_context(Error::State)?;
+                    }
 
-            if let Some(message_with_payload) = interchain_transfer.message_with_payload {
-                its_msgs.push(message_with_payload.message.clone());
-                events.extend(vec![
-                    into_route_event(status, message_with_payload.message.clone()),
-                    Event::from(XRPLGatewayEvent::ContractCalled {
-                        msg: message_with_payload.message,
-                        payload: message_with_payload.payload,
-                    }),
-                ]);
+                    if let Some(message_with_payload) = its_interchain_transfer.message_with_payload {
+                        msgs_to_route.push(message_with_payload.message.clone());
+                        events.extend(vec![
+                            into_route_event(status, message_with_payload.message.clone()),
+                            Event::from(XRPLGatewayEvent::ContractCalled {
+                                msg: message_with_payload.message,
+                                payload: message_with_payload.payload.into(),
+                            }),
+                        ]);
+                    }
+                }
+                XRPLMessage::CallContractMessage(call_contract_message) => {
+                    let router_message = translate_to_router_message(storage, config, &call_contract_message, msg.payload.clone())?;
+
+                    if status == &VerificationStatus::SucceededOnSourceChain {
+                        state::count_gas(
+                            storage,
+                            &call_contract_message.tx_id,
+                            &router_message.gas_token_id,
+                            call_contract_message.gas_fee_amount.clone(),
+                        )
+                        .change_context(Error::State)?;
+                    }
+
+                    let message_with_payload = router_message.message_with_payload;
+                    msgs_to_route.push(message_with_payload.message.clone());
+                    events.extend(vec![
+                        into_route_event(status, message_with_payload.message.clone()),
+                        Event::from(XRPLGatewayEvent::ContractCalled {
+                            msg: message_with_payload.message.to_owned(),
+                            payload: message_with_payload.payload.into(),
+                        }),
+                    ]);
+                }
+                _ => {}
             }
         }
-        route_msgs.extend(filter_routable_messages(*status, &its_msgs));
+        route_msgs.extend(filter_routable_messages(*status, &msgs_to_route));
     }
 
     let router = Router::new(config.router.clone());
@@ -152,12 +180,10 @@ pub fn confirm_add_gas_messages(
 pub fn translate_to_interchain_transfer(
     storage: &dyn Storage,
     config: &Config,
-    message_with_payload: &WithPayload<XRPLInterchainTransferMessage>,
+    interchain_transfer_message: &XRPLInterchainTransferMessage,
+    payload: Option<nonempty::HexBinary>,
 ) -> Result<InterchainTransfer, Error> {
-    let interchain_transfer_message = &message_with_payload.message;
-    let payload = &message_with_payload.payload;
-
-    match payload {
+    match payload.clone() {
         None => {
             ensure!(
                 interchain_transfer_message.payload_hash.is_none(),
@@ -181,12 +207,7 @@ pub fn translate_to_interchain_transfer(
         },
     }
 
-    let token_id = match &interchain_transfer_message.amount {
-        XRPLPaymentAmount::Drops(_) => config.xrp_token_id,
-        XRPLPaymentAmount::Issued(token, _) => {
-            load_token_id(storage, config.xrpl_multisig.clone(), token)?
-        }
-    };
+    let token_id = payment_amount_to_token_id(storage, config, &interchain_transfer_message.amount)?;
 
     let source_address =
         nonempty::HexBinary::try_from(HexBinary::from(interchain_transfer_message.source_address.as_ref()))
@@ -248,16 +269,66 @@ pub fn translate_to_interchain_transfer(
         ),
     }
     .abi_encode();
+
     let cc_id = interchain_transfer_message.cc_id(config.chain_name.clone().into());
-    let its_msg = construct_its_hub_message(config, cc_id, payload.clone())?;
+    let its_msg = construct_its_hub_message(config, cc_id, payload.clone().into())?;
 
     Ok(InterchainTransfer {
         message_with_payload: Some(MessageWithPayload {
             message: its_msg,
-            payload,
+            payload: TryInto::<nonempty::HexBinary>::try_into(payload).change_context(Error::PayloadEncodingFailed)?,
         }),
         token_id,
         dust,
+    })
+}
+
+pub fn translate_to_router_message(
+    storage: &dyn Storage,
+    config: &Config,
+    call_contract_message: &XRPLCallContractMessage,
+    payload: Option<nonempty::HexBinary>,
+) -> Result<CallContract, Error> {
+    let (payload, payload_hash) = match payload {
+        None => return Err(report!(Error::PayloadMissing)),
+        Some(payload) => {
+            let payload_hash = <[u8; 32]>::from(Keccak256::digest(payload.as_ref()));
+            let expected_payload_hash = call_contract_message.payload_hash;
+            ensure!(
+                payload_hash == expected_payload_hash,
+                Error::PayloadHashMismatch {
+                    expected: expected_payload_hash.into(),
+                    actual: payload_hash.into(),
+                }
+            );
+            (payload, payload_hash)
+        }
+    };
+
+    let gas_token_id = payment_amount_to_token_id(storage, config, &call_contract_message.gas_fee_amount)?;
+    let source_address =
+        nonempty::HexBinary::try_from(HexBinary::from(call_contract_message.source_address.as_ref()))
+            .change_context(Error::InvalidAddress)?;
+    let destination_address = call_contract_message.destination_address.clone();
+    let destination_chain = ChainName::from(call_contract_message.destination_chain.clone());
+
+    let cc_id = call_contract_message.cc_id(config.chain_name.clone().into());
+    let message = Message {
+        cc_id,
+        source_address: Address::from_str(&source_address.to_string())
+            .change_context(Error::InvalidSourceAddress)?,
+        destination_address: Address::from_str(&destination_address)
+            .change_context(Error::InvalidDestinationAddress)?,
+        destination_chain,
+        payload_hash,
+    };
+
+    Ok(CallContract {
+        message_with_payload: MessageWithPayload {
+            message,
+            payload,
+        },
+        gas_token_id,
     })
 }
 

@@ -1,9 +1,10 @@
+use axelar_wasm_std::nonempty;
 use axelar_wasm_std::vec::VecExt;
 use cosmwasm_std::{Addr, CosmosMsg};
 use error_stack::ResultExt;
 use interchain_token_service::TokenId;
 use router_api::{ChainNameRaw, CrossChainId, Message};
-use xrpl_types::msg::{WithPayload, XRPLMessage, XRPLInterchainTransferMessage};
+use xrpl_types::msg::{XRPLMessage, XRPLInterchainTransferMessage};
 use xrpl_types::types::XRPLToken;
 
 use crate::msg::{ExecuteMsg, InterchainTransfer, QueryMsg};
@@ -13,9 +14,10 @@ type Result<T> = error_stack::Result<T, Error>;
 #[derive(thiserror::Error, Debug)]
 #[allow(clippy::large_enum_variant)]
 pub enum Error {
-    #[error("failed to query interchain transfer for {message_with_payload:?}")]
+    #[error("failed to query interchain transfer for message {message:?} with payload {payload:?}")]
     InterchainTransfer {
-        message_with_payload: WithPayload<XRPLInterchainTransferMessage>,
+        message: XRPLInterchainTransferMessage,
+        payload: Option<nonempty::HexBinary>,
     },
 
     #[error("failed to query linked token id. salt: {salt:?}, deployer: {deployer}")]
@@ -43,9 +45,11 @@ impl From<QueryMsg> for Error {
     fn from(value: QueryMsg) -> Self {
         match value {
             QueryMsg::InterchainTransfer {
-                message_with_payload,
+                message,
+                payload,
             } => Error::InterchainTransfer {
-                message_with_payload,
+                message,
+                payload,
             },
             QueryMsg::LinkedTokenId { salt, deployer } => Error::LinkedTokenId { salt, deployer },
             QueryMsg::OutgoingMessages(message_ids) => Error::OutgoingMessages(message_ids),
@@ -75,10 +79,12 @@ pub struct Client<'a> {
 impl Client<'_> {
     pub fn interchain_transfer(
         &self,
-        message_with_payload: WithPayload<XRPLInterchainTransferMessage>,
+        message: XRPLInterchainTransferMessage,
+        payload: Option<nonempty::HexBinary>,
     ) -> Result<InterchainTransfer> {
         let msg = QueryMsg::InterchainTransfer {
-            message_with_payload,
+            message,
+            payload,
         };
         self.client.query(&msg).change_context_lazy(|| msg.into())
     }

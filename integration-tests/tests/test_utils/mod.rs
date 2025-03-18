@@ -41,7 +41,7 @@ use service_registry_api::msg::ExecuteMsg;
 use sha3::{Digest, Keccak256};
 use tofn::ecdsa::KeyPair;
 use xrpl_gateway::msg::TokenMetadata;
-use xrpl_types::msg::{WithPayload, XRPLMessage, XRPLProverMessage, XRPLInterchainTransferMessage};
+use xrpl_types::msg::{WithPayload, XRPLMessage, XRPLProverMessage};
 use xrpl_types::types::{XRPLAccountId, XRPLToken, XRPLTokenOrXrp};
 
 pub const AXL_DENOMINATION: &str = "uaxl";
@@ -123,7 +123,7 @@ pub fn route_messages(app: &mut AxelarApp, gateway: &GatewayContract, msgs: &[Me
 pub fn xrpl_route_incoming_messages(
     app: &mut AxelarApp,
     gateway: &XRPLGatewayContract,
-    msgs: &[WithPayload<XRPLInterchainTransferMessage>],
+    msgs: &[WithPayload<XRPLMessage>],
 ) {
     let response = gateway.execute(
         app,

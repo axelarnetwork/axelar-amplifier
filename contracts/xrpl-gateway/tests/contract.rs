@@ -602,17 +602,13 @@ fn generate_incoming_msgs(namespace: impl Debug, count: u8) -> Vec<XRPLMessage> 
         .collect()
 }
 
-fn messages_with_payload(msgs: Vec<XRPLMessage>) -> Vec<WithPayload<XRPLInterchainTransferMessage>> {
+fn messages_with_payload(msgs: Vec<XRPLMessage>) -> Vec<WithPayload<XRPLMessage>> {
     msgs.into_iter()
         .map(|msg| {
-            let interchain_transfer_message = if let XRPLMessage::InterchainTransferMessage(interchain_transfer_message) = msg {
-                interchain_transfer_message
-            } else {
-                panic!("only interchain transfers are supported")
-            };
+            assert!(matches!(msg, XRPLMessage::InterchainTransferMessage(_)), "only interchain transfer messages are supported");
 
             WithPayload::new(
-                interchain_transfer_message,
+                msg,
                 Some(
                     nonempty::HexBinary::try_from(HexBinary::from_hex("0123456789abcdef").unwrap())
                         .unwrap(),
