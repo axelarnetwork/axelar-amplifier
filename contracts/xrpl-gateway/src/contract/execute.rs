@@ -11,7 +11,7 @@ use itertools::Itertools;
 use router_api::client::Router;
 use router_api::{Address, ChainName, ChainNameRaw, CrossChainId, Message};
 use sha3::{Digest, Keccak256};
-use xrpl_types::msg::{WithPayload, XRPLMessage, XRPLUserMessage};
+use xrpl_types::msg::{WithPayload, XRPLAddGasMessage, XRPLMessage, XRPLUserMessage};
 use xrpl_types::types::{
     scale_to_decimals, XRPLAccountId, XRPLCurrency, XRPLPaymentAmount, XRPLToken, XRPLTokenOrXrp,
     XRPL_ISSUED_TOKEN_DECIMALS, XRP_DECIMALS,
@@ -63,6 +63,14 @@ pub fn route_incoming_messages(
             let interchain_transfer = translate_to_interchain_transfer(storage, config, msg)?;
 
             if status == &VerificationStatus::SucceededOnSourceChain {
+                state::count_gas(
+                    storage,
+                    &msg.message.tx_id,
+                    &interchain_transfer.token_id,
+                    msg.message.gas_fee_amount.clone(),
+                )
+                .change_context(Error::State)?;
+
                 state::count_dust(
                     storage,
                     &msg.message.tx_id,
@@ -104,6 +112,41 @@ fn load_token_id(
     };
 
     Ok(token_id)
+}
+
+pub fn payment_amount_to_token_id(
+    storage: &dyn Storage,
+    config: &Config,
+    amount: &XRPLPaymentAmount,
+) -> Result<TokenId, Error> {
+    match amount {
+        XRPLPaymentAmount::Drops(_) => Ok(config.xrp_token_id),
+        XRPLPaymentAmount::Issued(token, _) => {
+            load_token_id(storage, config.xrpl_multisig.clone(), token)
+        }
+    }
+}
+
+pub fn confirm_add_gas_messages(
+    storage: &mut dyn Storage,
+    config: &Config,
+    verifier: &xrpl_voting_verifier::Client,
+    messages: Vec<XRPLAddGasMessage>,
+) -> Result<Response, Error> {
+    let msgs_by_status = group_by_status(verifier, messages)?;
+    let successful_msgs = msgs_by_status
+        .iter()
+        .filter(|(status, _)| *status == VerificationStatus::SucceededOnSourceChain)
+        .flat_map(|(_, msgs)| msgs)
+        .collect::<Vec<_>>();
+
+    for msg in successful_msgs {
+        let token_id = payment_amount_to_token_id(storage, config, &msg.amount)?;
+        state::count_gas(storage, &msg.tx_id, &token_id, msg.amount.clone())
+            .change_context(Error::State)?;
+    }
+
+    Ok(Response::default())
 }
 
 pub fn translate_to_interchain_transfer(
@@ -652,14 +695,18 @@ fn into_verify_events(status: VerificationStatus, msgs: Vec<XRPLMessage>) -> Vec
     }
 }
 
-// not all messages are routable, so it's better to only take a reference and allocate a vector on demand
-// instead of requiring the caller to allocate a vector for every message
-fn filter_routable_messages(status: VerificationStatus, msgs: &[Message]) -> Vec<Message> {
+fn filter_successful_messages<T: Clone>(status: VerificationStatus, msgs: &[T]) -> Vec<T> {
     if status == VerificationStatus::SucceededOnSourceChain {
         msgs.to_vec()
     } else {
         vec![]
     }
+}
+
+// not all messages are routable, so it's better to only take a reference and allocate a vector on demand
+// instead of requiring the caller to allocate a vector for every message
+fn filter_routable_messages(status: VerificationStatus, msgs: &[Message]) -> Vec<Message> {
+    filter_successful_messages(status, msgs)
 }
 
 fn into_route_event(status: &VerificationStatus, msg: Message) -> Event {

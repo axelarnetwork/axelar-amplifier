@@ -264,6 +264,10 @@ pub fn execute(
             let verifier = client::ContractClient::new(deps.querier, &config.verifier).into();
             execute::route_incoming_messages(deps.storage, &config, &verifier, msgs)
         }
+        ExecuteMsg::ConfirmAddGasMessages(msgs) => {
+            let verifier = client::ContractClient::new(deps.querier, &config.verifier).into();
+            execute::confirm_add_gas_messages(deps.storage, &config, &verifier, msgs)
+        }
     }?
     .then(Ok)
 }

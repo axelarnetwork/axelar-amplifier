@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use axelar_wasm_std::voting::Vote;
 use sha3::{Digest, Keccak256};
 use xrpl_http_client::Transaction::Payment;
-use xrpl_http_client::{Amount, Memo, ResultCategory, Transaction};
-use xrpl_types::msg::{XRPLMessage, XRPLProverMessage, XRPLUserMessage};
+use xrpl_http_client::{Amount, Memo, PaymentTransaction, ResultCategory, Transaction};
+use xrpl_types::msg::{XRPLAddGasMessage, XRPLAddReservesMessage, XRPLMessage, XRPLProverMessage, XRPLUserMessage};
 use xrpl_types::types::{XRPLAccountId, XRPLPaymentAmount, XRPLToken};
 
 fn parse_memos(memos: &[Memo]) -> HashMap<String, String> {
@@ -17,7 +17,9 @@ fn parse_memos(memos: &[Memo]) -> HashMap<String, String> {
                 .and_then(|t| hex::decode(t).ok())
                 .and_then(|bytes| String::from_utf8(bytes).ok());
 
-            let memo_data = m.memo_data.clone();
+            let memo_data = m
+                .memo_data
+                .clone();
             memo_type.zip(memo_data)
         })
         .collect::<HashMap<String, String>>()
@@ -28,13 +30,19 @@ pub fn verify_message(
     tx: &Transaction,
     message: &XRPLMessage,
 ) -> Vote {
-    let memos = parse_memos(tx.common().memos.as_ref().unwrap_or(&vec![]));
+    let memos = &parse_memos(tx.common().memos.as_ref().unwrap_or(&vec![]));
     let is_valid_message = match message {
         XRPLMessage::ProverMessage(prover_message) => {
             is_valid_prover_message(tx, multisig_address, prover_message, memos)
         }
         XRPLMessage::UserMessage(user_message) => {
             is_valid_user_message(tx, multisig_address, user_message, memos)
+        }
+        XRPLMessage::AddGasMessage(add_gas_message) => {
+            is_valid_add_gas_message(tx, multisig_address, add_gas_message, memos)
+        }
+        XRPLMessage::AddReservesMessage(add_reserves_message) => {
+            is_valid_add_reserves_message(tx, multisig_address, add_reserves_message, memos)
         }
     };
 
@@ -54,42 +62,83 @@ pub fn is_validated_tx(tx: &Transaction) -> bool {
     matches!(tx.common().validated, Some(true))
 }
 
+fn verify_memo(memos: &HashMap<String, String>, key: &str, expected_value: String) -> bool {
+    memos.get(key).map(|s| s.to_lowercase()) == Some(hex::encode(expected_value))
+}
+
 pub fn is_valid_prover_message(
     tx: &Transaction,
     multisig_address: &XRPLAccountId,
     message: &XRPLProverMessage,
-    memos: HashMap<String, String>,
+    memos: &HashMap<String, String>,
 ) -> bool {
-    let expected_unsigned_tx_hash = hex::encode(message.unsigned_tx_hash.tx_hash_as_hex(false).to_string());
     tx.common().account == multisig_address.to_string()
-        && memos.get("unsigned_tx_hash").map(|s| s.to_lowercase())
-            == Some(expected_unsigned_tx_hash)
+        && verify_memo(memos, "type", "proof".to_string())
+        && verify_memo(memos, "unsigned_tx_hash", message.unsigned_tx_hash.to_string())
+}
+
+fn verify_payment_flags(payment_tx: &PaymentTransaction) -> bool {
+    payment_tx.flags.is_empty() // TODO: whitelist specific flags
 }
 
 pub fn is_valid_user_message(
     tx: &Transaction,
     multisig_address: &XRPLAccountId,
     message: &XRPLUserMessage,
-    memos: HashMap<String, String>,
+    memos: &HashMap<String, String>,
 ) -> bool {
     if let Payment(payment_tx) = &tx {
-        let tx_amount = payment_tx.amount.clone();
-        match tx.common().meta.clone() {
-            Some(tx_meta) => {
-                // Context:
-                // https://xrpl.org/docs/concepts/payment-types/partial-payments#partial-payments-exploit
-                if tx_meta.delivered_amount != Some(tx_amount.clone()) {
-                    return false;
-                }
-            }
-            None => return false,
-        }
-
-        return payment_tx.destination == multisig_address.to_string()
+        payment_tx.destination == multisig_address.to_string()
             && message.source_address.to_string() == tx.common().account
-            && verify_amount(tx_amount, message)
-            && verify_memos(&memos, message)
-            && payment_tx.flags.is_empty(); // TODO: whitelist specific flags
+            && verify_delivered_full_amount(tx, payment_tx.amount.clone())
+            && verify_amount(message.amount.clone(), payment_tx.amount.clone())
+            && verify_user_memos(memos, message)
+            && verify_payment_flags(payment_tx)
+    } else {
+        false
+    }
+}
+
+fn verify_user_memos(memos: &HashMap<String, String>, message: &XRPLUserMessage) -> bool {
+    verify_memo(memos, "type", "interchain_transfer".to_string())
+        && verify_memo(memos, "destination_chain", message.destination_chain.to_string())
+        && verify_memo(memos, "destination_address", message.destination_address.to_string())
+        && verify_payload_hash(memos, message)
+        && verify_gas_fee_amount(message, memos)
+}
+
+fn is_valid_add_gas_message(
+    tx: &Transaction,
+    multisig_address: &XRPLAccountId,
+    message: &XRPLAddGasMessage,
+    memos: &HashMap<String, String>,
+) -> bool {
+    if let Payment(payment_tx) = &tx {
+        payment_tx.destination == multisig_address.to_string()
+            && verify_delivered_full_amount(tx, payment_tx.amount.clone())
+            && verify_amount(message.amount.clone(), payment_tx.amount.clone())
+            && verify_memo(memos, "type", "add_gas".to_string())
+            && verify_memo(memos, "tx_id", message.msg_tx_id.to_string())
+            && verify_payment_flags(payment_tx)
+    } else {
+        false
+    }
+}
+
+fn is_valid_add_reserves_message(
+    tx: &Transaction,
+    multisig_address: &XRPLAccountId,
+    message: &XRPLAddReservesMessage,
+    memos: &HashMap<String, String>,
+) -> bool {
+    if let Payment(payment_tx) = &tx {
+        if let Amount::Drops(amount) = payment_tx.amount.clone() {
+            return payment_tx.destination == multisig_address.to_string()
+                && verify_delivered_full_amount(tx, payment_tx.amount.clone())
+                && amount == message.amount.to_string()
+                && verify_memo(memos, "type", "add_fee_reserve".to_string())
+                && verify_payment_flags(payment_tx);
+        }
     }
     false
 }
@@ -101,9 +150,18 @@ pub fn is_successful_tx(tx: &Transaction) -> bool {
     false
 }
 
-pub fn verify_amount(amount: Amount, message: &XRPLUserMessage) -> bool {
+// Context:
+// https://xrpl.org/docs/concepts/payment-types/partial-payments#partial-payments-exploit
+fn verify_delivered_full_amount(tx: &Transaction, expected_amount: Amount) -> bool {
+    if let Some(meta) = &tx.common().meta {
+        return meta.delivered_amount == Some(expected_amount);
+    }
+    false
+}
+
+pub fn verify_amount(expected_amount: XRPLPaymentAmount, actual_amount: Amount) -> bool {
     || -> Option<bool> {
-        let amount = match amount {
+        let amount = match actual_amount {
             Amount::Issued(a) => XRPLPaymentAmount::Issued(
                 XRPLToken {
                     issuer: a.issuer.try_into().ok()?,
@@ -114,22 +172,20 @@ pub fn verify_amount(amount: Amount, message: &XRPLUserMessage) -> bool {
             Amount::Drops(a) => XRPLPaymentAmount::Drops(a.parse().ok()?),
         };
 
-        Some(amount == message.amount)
+        Some(amount == expected_amount)
     }()
     .unwrap_or(false)
 }
 
-pub fn verify_gas_fee_amount(message: &XRPLUserMessage, memos: HashMap<String, String>) -> bool {
+pub fn verify_gas_fee_amount(message: &XRPLUserMessage, memos: &HashMap<String, String>) -> bool {
     || -> Option<bool> {
-        let gas_fee_amount_str: String = match memos.get("gas_fee_amount") {
-            None => return Some(false),
-            Some(amount) => match hex::decode(amount) {
-                Ok(decoded) => match String::from_utf8(decoded) {
-                    Ok(s) => s,
-                    Err(_) => return Some(false),
-                },
-                Err(_) => return Some(false),
-            },
+        let gas_fee_amount_str = match memos
+            .get("gas_fee_amount")
+            .and_then(|amount| hex::decode(amount).ok())
+            .and_then(|decoded| String::from_utf8(decoded).ok())
+        {
+            Some(gas_fee_amount_str) => gas_fee_amount_str,
+            None => return None,
         };
 
         let gas_fee_amount = match message.amount.clone() {
@@ -150,11 +206,8 @@ pub fn verify_gas_fee_amount(message: &XRPLUserMessage, memos: HashMap<String, S
     .unwrap_or(false)
 }
 
-pub fn verify_memos(memos: &HashMap<String, String>, message: &XRPLUserMessage) -> bool {
-    let expected_destination_address = hex::encode(message.destination_address.to_string());
-    let expected_destination_chain = hex::encode(message.destination_chain.to_string());
-
-    let is_valid_payload_hash = match &message.payload_hash {
+pub fn verify_payload_hash(memos: &HashMap<String, String>, message: &XRPLUserMessage) -> bool {
+    match &message.payload_hash {
         Some(expected_hash) => memos
             .get("payload")
             .map(|memo_payload| {
@@ -164,13 +217,7 @@ pub fn verify_memos(memos: &HashMap<String, String>, message: &XRPLUserMessage) 
             })
             .unwrap_or(false),
         None => !memos.contains_key("payload"),
-    };
-
-    memos.get("destination_address").map(|s| s.to_lowercase()) == Some(expected_destination_address)
-        && memos.get("destination_chain").map(|s| s.to_lowercase())
-            == Some(expected_destination_chain)
-        && is_valid_payload_hash
-        && verify_gas_fee_amount(message, memos.clone())
+    }
 }
 
 #[cfg(test)]
@@ -184,11 +231,16 @@ mod test {
     use xrpl_types::msg::XRPLUserMessage;
     use xrpl_types::types::{XRPLAccountId, XRPLPaymentAmount};
 
-    use crate::xrpl::verifier::{parse_memos, verify_memos};
+    use crate::xrpl::verifier::{parse_memos, verify_user_memos};
 
     #[test]
-    fn test_verify_memos() {
+    fn test_verify_user_memos() {
         let memos = vec![
+            Memo {
+                memo_type: Some("74797065".to_string()), // type
+                memo_data: Some("696E746572636861696E5F7472616E73666572".to_string()), // interchain_transfer
+                memo_format: None,
+            },
             Memo {
                 memo_type: Some("64657374696E6174696F6E5F61646472657373".to_string()), // destination_address
                 memo_data: Some("35393236333963313032323363346563366330666663363730653934643238396132356464316164".to_string()), // 592639c10223c4ec6c0ffc670e94d289a25dd1ad
@@ -228,15 +280,20 @@ mod test {
             amount: XRPLPaymentAmount::Drops(100000),
             gas_fee_amount: XRPLPaymentAmount::Drops(50000),
         };
-        assert!(verify_memos(&parse_memos(&memos), &user_message));
+        assert!(verify_user_memos(&parse_memos(&memos), &user_message));
 
         user_message.payload_hash = None;
-        assert!(!verify_memos(&parse_memos(&memos), &user_message));
+        assert!(!verify_user_memos(&parse_memos(&memos), &user_message));
     }
 
     #[test]
-    fn test_verify_memos_no_payload() {
+    fn test_verify_user_memos_no_payload() {
         let memos = vec![
+            Memo {
+                memo_type: Some("74797065".to_string()), // type
+                memo_data: Some("696E746572636861696E5F7472616E73666572".to_string()), // interchain_transfer
+                memo_format: None,
+            },
             Memo {
                 memo_type: Some("64657374696E6174696F6E5F61646472657373".to_string()), // destination_address
                 memo_data: Some("35393236333963313032323363346563366330666663363730653934643238396132356464316164".to_string()), // 592639c10223c4ec6c0ffc670e94d289a25dd1ad
@@ -265,7 +322,7 @@ mod test {
             amount: XRPLPaymentAmount::Drops(100000),
             gas_fee_amount: XRPLPaymentAmount::Drops(50000),
         };
-        assert!(verify_memos(&parse_memos(&memos), &user_message));
+        assert!(verify_user_memos(&parse_memos(&memos), &user_message));
 
         user_message.payload_hash = Some(
             hex::decode("8a7adf72777a40d790e327be8af2fdb35c2c557f3555c587aae9bc155a9020a8")
@@ -274,6 +331,6 @@ mod test {
                 .try_into()
                 .unwrap(),
         );
-        assert!(!verify_memos(&parse_memos(&memos), &user_message));
+        assert!(!verify_user_memos(&parse_memos(&memos), &user_message));
     }
 }

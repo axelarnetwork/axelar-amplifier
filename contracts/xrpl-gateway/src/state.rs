@@ -39,6 +39,9 @@ const TOKEN_INSTACE_DECIMALS: Map<&(ChainNameRaw, TokenId), u8> =
 const DUST_ACCRUED: Map<&TokenId, XRPLPaymentAmount> = Map::new("dust_accrued");
 const DUST_COUNTED: Map<&Hash, ()> = Map::new("dust_counted");
 
+const GAS_ACCRUED: Map<&TokenId, XRPLPaymentAmount> = Map::new("gas_accrued");
+const GAS_COUNTED: Map<&Hash, ()> = Map::new("gas_counted");
+
 #[derive(thiserror::Error, Debug, IntoContractError)]
 pub enum Error {
     #[error(transparent)]
@@ -112,6 +115,47 @@ pub fn count_dust(
 
     increment_dust(storage, token_id, dust)?;
     mark_dust_counted(storage, tx_id)?;
+    Ok(())
+}
+
+fn increment_gas(
+    storage: &mut dyn Storage,
+    token_id: &TokenId,
+    new_gas: XRPLPaymentAmount,
+) -> Result<XRPLPaymentAmount, Error> {
+    GAS_ACCRUED
+        .update(storage, token_id, |existing_gas| match existing_gas {
+            Some(existing_gas) => existing_gas.add(new_gas),
+            None => Ok(new_gas),
+        })
+        .change_context(Error::Storage)
+}
+
+fn gas_counted(storage: &dyn Storage, tx_hash: &HexTxHash) -> Result<bool, Error> {
+    Ok(GAS_COUNTED
+        .may_load(storage, &tx_hash.tx_hash)
+        .change_context(Error::Storage)?
+        .is_some())
+}
+
+fn mark_gas_counted(storage: &mut dyn Storage, tx_hash: &HexTxHash) -> Result<(), Error> {
+    GAS_COUNTED
+        .save(storage, &tx_hash.tx_hash, &())
+        .change_context(Error::Storage)
+}
+
+pub fn count_gas(
+    storage: &mut dyn Storage,
+    tx_id: &HexTxHash,
+    token_id: &TokenId,
+    gas: XRPLPaymentAmount,
+) -> Result<(), Error> {
+    if gas.is_zero() || gas_counted(storage, tx_id)? {
+        return Ok(());
+    }
+
+    increment_gas(storage, token_id, gas)?;
+    mark_gas_counted(storage, tx_id)?;
     Ok(())
 }
 
