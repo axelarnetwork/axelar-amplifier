@@ -160,13 +160,11 @@ fn is_valid_add_reserves_message(
     memos: &HashMap<String, String>,
 ) -> bool {
     if let Payment(payment_tx) = &tx {
-        if let Amount::Drops(amount) = payment_tx.amount.clone() {
-            return payment_tx.destination == multisig_address.to_string()
-                && verify_delivered_full_amount(tx, payment_tx.amount.clone())
-                && amount == message.amount.to_string()
-                && verify_memo(memos, "type", "add_fee_reserve".to_string())
-                && verify_payment_flags(payment_tx);
-        }
+        return payment_tx.destination == multisig_address.to_string()
+            && verify_delivered_full_amount(tx, payment_tx.amount.clone())
+            && verify_amount(XRPLPaymentAmount::Drops(message.amount), payment_tx.amount.clone())
+            && verify_memo(memos, "type", "add_fee_reserve".to_string())
+            && verify_payment_flags(payment_tx);
     }
     false
 }
