@@ -101,7 +101,7 @@ pub fn route_incoming_messages(
                     let CallContract {
                         message,
                         gas_token_id,
-                    } = translate_to_router_message(storage, config, &call_contract_message)?;
+                    } = translate_to_call_contract(storage, config, &call_contract_message)?;
 
                     if status == &VerificationStatus::SucceededOnSourceChain {
                         state::count_gas(
@@ -283,7 +283,7 @@ pub fn translate_to_interchain_transfer(
     })
 }
 
-pub fn translate_to_router_message(
+pub fn translate_to_call_contract(
     storage: &dyn Storage,
     config: &Config,
     call_contract_message: &XRPLCallContractMessage,

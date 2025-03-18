@@ -4,7 +4,7 @@ use cosmwasm_std::{to_json_binary, Addr, Binary, Storage};
 use error_stack::Result;
 use interchain_token_service::TokenId;
 use router_api::{ChainNameRaw, CrossChainId, Message};
-use xrpl_types::msg::XRPLInterchainTransferMessage;
+use xrpl_types::msg::{XRPLCallContractMessage, XRPLInterchainTransferMessage};
 
 use super::{execute, Error};
 use crate::state::{self, Config};
@@ -61,6 +61,15 @@ pub fn translate_to_interchain_transfer(
     let interchain_transfer =
         execute::translate_to_interchain_transfer(storage, config, message, payload)?;
     Ok(to_json_binary(&interchain_transfer).map_err(Error::from)?)
+}
+
+pub fn translate_to_call_contract(
+    storage: &dyn Storage,
+    config: &Config,
+    message: &XRPLCallContractMessage,
+) -> Result<Binary, Error> {
+    let call_contract = execute::translate_to_call_contract(storage, config, message)?;
+    Ok(to_json_binary(&call_contract).map_err(Error::from)?)
 }
 
 fn accumulate_errs(

@@ -4,7 +4,7 @@ use cosmwasm_std::{Addr, CosmosMsg};
 use error_stack::ResultExt;
 use interchain_token_service::TokenId;
 use router_api::{ChainNameRaw, CrossChainId, Message};
-use xrpl_types::msg::{XRPLMessage, XRPLInterchainTransferMessage};
+use xrpl_types::msg::{XRPLCallContractMessage, XRPLInterchainTransferMessage, XRPLMessage};
 use xrpl_types::types::XRPLToken;
 
 use crate::msg::{ExecuteMsg, InterchainTransfer, QueryMsg};
@@ -18,6 +18,11 @@ pub enum Error {
     InterchainTransfer {
         message: XRPLInterchainTransferMessage,
         payload: Option<nonempty::HexBinary>,
+    },
+
+    #[error("failed to query call contract for message {message:?}")]
+    CallContract {
+        message: XRPLCallContractMessage,
     },
 
     #[error("failed to query linked token id. salt: {salt:?}, deployer: {deployer}")]
@@ -51,6 +56,7 @@ impl From<QueryMsg> for Error {
                 message,
                 payload,
             },
+            QueryMsg::CallContract { message } => Error::CallContract { message },
             QueryMsg::LinkedTokenId { salt, deployer } => Error::LinkedTokenId { salt, deployer },
             QueryMsg::OutgoingMessages(message_ids) => Error::OutgoingMessages(message_ids),
             QueryMsg::TokenInstanceDecimals {
