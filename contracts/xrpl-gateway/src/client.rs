@@ -3,7 +3,7 @@ use cosmwasm_std::{Addr, CosmosMsg};
 use error_stack::ResultExt;
 use interchain_token_service::TokenId;
 use router_api::{ChainNameRaw, CrossChainId, Message};
-use xrpl_types::msg::{WithPayload, XRPLMessage, XRPLUserMessage};
+use xrpl_types::msg::{WithPayload, XRPLMessage, XRPLInterchainTransferMessage};
 use xrpl_types::types::XRPLToken;
 
 use crate::msg::{ExecuteMsg, InterchainTransfer, QueryMsg};
@@ -15,7 +15,7 @@ type Result<T> = error_stack::Result<T, Error>;
 pub enum Error {
     #[error("failed to query interchain transfer for {message_with_payload:?}")]
     InterchainTransfer {
-        message_with_payload: WithPayload<XRPLUserMessage>,
+        message_with_payload: WithPayload<XRPLInterchainTransferMessage>,
     },
 
     #[error("failed to query linked token id. salt: {salt:?}, deployer: {deployer}")]
@@ -75,7 +75,7 @@ pub struct Client<'a> {
 impl Client<'_> {
     pub fn interchain_transfer(
         &self,
-        message_with_payload: WithPayload<XRPLUserMessage>,
+        message_with_payload: WithPayload<XRPLInterchainTransferMessage>,
     ) -> Result<InterchainTransfer> {
         let msg = QueryMsg::InterchainTransfer {
             message_with_payload,

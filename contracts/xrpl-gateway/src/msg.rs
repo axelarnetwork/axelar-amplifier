@@ -4,7 +4,7 @@ use cosmwasm_std::{Addr, HexBinary, Uint256};
 use interchain_token_service::TokenId;
 use msgs_derive::EnsurePermissions;
 use router_api::{ChainName, ChainNameRaw, CrossChainId, Message};
-use xrpl_types::msg::{WithPayload, XRPLAddGasMessage, XRPLMessage, XRPLUserMessage};
+use xrpl_types::msg::{WithPayload, XRPLAddGasMessage, XRPLMessage, XRPLInterchainTransferMessage};
 use xrpl_types::types::{
     xrpl_account_id_string, xrpl_currency_string, XRPLAccountId, XRPLCurrency, XRPLPaymentAmount,
     XRPLToken, XRPLTokenOrXrp,
@@ -125,7 +125,7 @@ pub enum ExecuteMsg {
     /// Forward the given incoming messages (coming from XRPL) to the next step of the routing layer.
     /// They are reported by the relayer and need verification.
     #[permission(Any)]
-    RouteIncomingMessages(Vec<WithPayload<XRPLUserMessage>>),
+    RouteIncomingMessages(Vec<WithPayload<XRPLInterchainTransferMessage>>),
 
     /// Confirm verified gas top-up messages.
     #[permission(Any)]
@@ -175,6 +175,6 @@ pub enum QueryMsg {
 
     #[returns(InterchainTransfer)]
     InterchainTransfer {
-        message_with_payload: WithPayload<XRPLUserMessage>,
+        message_with_payload: WithPayload<XRPLInterchainTransferMessage>,
     },
 }

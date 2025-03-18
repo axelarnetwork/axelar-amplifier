@@ -11,7 +11,7 @@ use itertools::Itertools;
 use router_api::client::Router;
 use router_api::{Address, ChainName, ChainNameRaw, CrossChainId, Message};
 use sha3::{Digest, Keccak256};
-use xrpl_types::msg::{WithPayload, XRPLAddGasMessage, XRPLMessage, XRPLUserMessage};
+use xrpl_types::msg::{WithPayload, XRPLAddGasMessage, XRPLMessage, XRPLInterchainTransferMessage};
 use xrpl_types::types::{
     scale_to_decimals, XRPLAccountId, XRPLCurrency, XRPLPaymentAmount, XRPLToken, XRPLTokenOrXrp,
     XRPL_ISSUED_TOKEN_DECIMALS, XRP_DECIMALS,
@@ -52,7 +52,7 @@ pub fn route_incoming_messages(
     storage: &mut dyn Storage,
     config: &Config,
     verifier: &xrpl_voting_verifier::Client,
-    msgs_with_payload: Vec<WithPayload<XRPLUserMessage>>,
+    msgs_with_payload: Vec<WithPayload<XRPLInterchainTransferMessage>>,
 ) -> Result<Response, Error> {
     let msgs_by_status = group_by_status(verifier, msgs_with_payload)?;
     let mut route_msgs = Vec::new();
@@ -152,19 +152,19 @@ pub fn confirm_add_gas_messages(
 pub fn translate_to_interchain_transfer(
     storage: &dyn Storage,
     config: &Config,
-    message_with_payload: &WithPayload<XRPLUserMessage>,
+    message_with_payload: &WithPayload<XRPLInterchainTransferMessage>,
 ) -> Result<InterchainTransfer, Error> {
-    let user_message = &message_with_payload.message;
+    let interchain_transfer_message = &message_with_payload.message;
     let payload = &message_with_payload.payload;
 
     match payload {
         None => {
             ensure!(
-                user_message.payload_hash.is_none(),
-                Error::PayloadHashGivenWithoutPayload(user_message.payload_hash.unwrap().into())
+                interchain_transfer_message.payload_hash.is_none(),
+                Error::PayloadHashGivenWithoutPayload(interchain_transfer_message.payload_hash.unwrap().into())
             );
         }
-        Some(payload) => match user_message.payload_hash {
+        Some(payload) => match interchain_transfer_message.payload_hash {
             None => {
                 return Err(report!(Error::PayloadHashEmpty));
             }
@@ -181,7 +181,7 @@ pub fn translate_to_interchain_transfer(
         },
     }
 
-    let token_id = match &user_message.amount {
+    let token_id = match &interchain_transfer_message.amount {
         XRPLPaymentAmount::Drops(_) => config.xrp_token_id,
         XRPLPaymentAmount::Issued(token, _) => {
             load_token_id(storage, config.xrpl_multisig.clone(), token)?
@@ -189,18 +189,18 @@ pub fn translate_to_interchain_transfer(
     };
 
     let source_address =
-        nonempty::HexBinary::try_from(HexBinary::from(user_message.source_address.as_ref()))
+        nonempty::HexBinary::try_from(HexBinary::from(interchain_transfer_message.source_address.as_ref()))
             .change_context(Error::InvalidAddress)?;
-    let destination_address = user_message.destination_address.clone();
-    let destination_chain = ChainNameRaw::from(user_message.destination_chain.clone());
+    let destination_address = interchain_transfer_message.destination_address.clone();
+    let destination_chain = ChainNameRaw::from(interchain_transfer_message.destination_chain.clone());
 
-    let transfer_amount = user_message
+    let transfer_amount = interchain_transfer_message
         .amount
         .clone()
-        .sub(user_message.gas_fee_amount.clone())
+        .sub(interchain_transfer_message.gas_fee_amount.clone())
         .change_context(Error::InvalidGasFeeAmount {
-            amount: user_message.amount.to_owned(),
-            gas_fee_amount: user_message.gas_fee_amount.to_owned(),
+            amount: interchain_transfer_message.amount.to_owned(),
+            gas_fee_amount: interchain_transfer_message.gas_fee_amount.to_owned(),
         })?;
 
     let (amount, dust) = match transfer_amount.clone() {
@@ -232,7 +232,7 @@ pub fn translate_to_interchain_transfer(
     }
 
     let payload = interchain_token_service::HubMessage::SendToHub {
-        destination_chain: user_message.clone().destination_chain.into(),
+        destination_chain: interchain_transfer_message.clone().destination_chain.into(),
         message: interchain_token_service::Message::InterchainTransfer(
             interchain_token_service::InterchainTransfer {
                 token_id,
@@ -248,7 +248,7 @@ pub fn translate_to_interchain_transfer(
         ),
     }
     .abi_encode();
-    let cc_id = user_message.cc_id(config.chain_name.clone().into());
+    let cc_id = interchain_transfer_message.cc_id(config.chain_name.clone().into());
     let its_msg = construct_its_hub_message(config, cc_id, payload.clone())?;
 
     Ok(InterchainTransfer {

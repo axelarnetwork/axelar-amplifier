@@ -116,7 +116,7 @@ mod test {
         AuthorizationState, BondingState, Verifier, WeightedVerifier, VERIFIER_WEIGHT,
     };
     use sha3::{Digest, Keccak256};
-    use xrpl_types::msg::{WithCrossChainId, XRPLMessage, XRPLUserMessage};
+    use xrpl_types::msg::{WithCrossChainId, XRPLMessage, XRPLInterchainTransferMessage};
     use xrpl_types::types::{XRPLAccountId, XRPLPaymentAmount};
 
     use super::*;
@@ -210,7 +210,7 @@ mod test {
     fn messages(len: u32) -> Vec<XRPLMessage> {
         (0..len)
             .map(|i| {
-                XRPLMessage::UserMessage(XRPLUserMessage {
+                XRPLMessage::InterchainTransferMessage(XRPLInterchainTransferMessage {
                     tx_id: message_id("id"),
                     source_address: XRPLAccountId::new(rand::thread_rng().gen()),
                     destination_chain: format!("destination-chain{i}").parse().unwrap(),

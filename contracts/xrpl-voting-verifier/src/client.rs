@@ -87,7 +87,7 @@ mod test {
     use axelar_wasm_std::{nonempty, Threshold, VerificationStatus};
     use cosmwasm_std::testing::{message_info, mock_dependencies, mock_env, MockApi, MockQuerier};
     use cosmwasm_std::{from_json, Addr, DepsMut, QuerierWrapper, SystemError, Uint64, WasmQuery};
-    use xrpl_types::msg::{XRPLMessage, XRPLUserMessage};
+    use xrpl_types::msg::{XRPLMessage, XRPLInterchainTransferMessage};
     use xrpl_types::types::{XRPLAccountId, XRPLPaymentAmount, XRPLToken, XRPLTokenAmount};
 
     use crate::contract::{instantiate, query};
@@ -100,7 +100,7 @@ mod test {
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
 
-        let msg_1 = XRPLMessage::UserMessage(XRPLUserMessage {
+        let msg_1 = XRPLMessage::InterchainTransferMessage(XRPLInterchainTransferMessage {
             tx_id: HexTxHash::new([0; 32]),
             source_address: XRPLAccountId::new([0; 20]),
             destination_address: nonempty::String::try_from("5678").unwrap(),
@@ -110,7 +110,7 @@ mod test {
             gas_fee_amount: XRPLPaymentAmount::Drops(100),
         });
 
-        let msg_2 = XRPLMessage::UserMessage(XRPLUserMessage {
+        let msg_2 = XRPLMessage::InterchainTransferMessage(XRPLInterchainTransferMessage {
             tx_id: HexTxHash::new([1; 32]),
             source_address: XRPLAccountId::new([1; 20]),
             destination_address: nonempty::String::try_from("5678").unwrap(),
@@ -161,7 +161,7 @@ mod test {
         let (querier, addr) = setup_queries_to_fail();
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
-        let res = client.messages_status(vec![XRPLMessage::UserMessage(XRPLUserMessage {
+        let res = client.messages_status(vec![XRPLMessage::InterchainTransferMessage(XRPLInterchainTransferMessage {
             tx_id: HexTxHash::new([0; 32]),
             source_address: XRPLAccountId::new([255; 20]),
             destination_address: nonempty::String::try_from("5678").unwrap(),
