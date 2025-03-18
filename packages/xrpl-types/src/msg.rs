@@ -33,6 +33,29 @@ pub enum XRPLMessage {
     AddReservesMessage(XRPLAddReservesMessage),
 }
 
+#[cw_serde]
+#[derive(Eq, Hash)]
+pub enum XRPLMessageType {
+    Proof,
+    InterchainTransfer,
+    CallContract,
+    AddGas,
+    AddReserves,
+}
+
+impl std::fmt::Display for XRPLMessageType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            XRPLMessageType::Proof => "proof",
+            XRPLMessageType::InterchainTransfer => "interchain_transfer",
+            XRPLMessageType::CallContract => "call_contract",
+            XRPLMessageType::AddGas => "add_gas",
+            XRPLMessageType::AddReserves => "add_reserves",
+        };
+        write!(f, "{}", s)
+    }
+}
+
 impl XRPLMessage {
     pub fn tx_id(&self) -> HexTxHash {
         match self {

@@ -4,7 +4,7 @@ use axelar_wasm_std::voting::Vote;
 use sha3::{Digest, Keccak256};
 use xrpl_http_client::Transaction::Payment;
 use xrpl_http_client::{Amount, Memo, PaymentTransaction, ResultCategory, Transaction};
-use xrpl_types::msg::{XRPLAddGasMessage, XRPLAddReservesMessage, XRPLCallContractMessage, XRPLInterchainTransferMessage, XRPLMessage, XRPLProverMessage};
+use xrpl_types::msg::{XRPLAddGasMessage, XRPLAddReservesMessage, XRPLCallContractMessage, XRPLInterchainTransferMessage, XRPLMessage, XRPLMessageType, XRPLProverMessage};
 use xrpl_types::types::{XRPLAccountId, XRPLPaymentAmount, XRPLToken};
 
 fn parse_memos(memos: &[Memo]) -> HashMap<String, String> {
@@ -76,7 +76,7 @@ pub fn is_valid_prover_message(
     memos: &HashMap<String, String>,
 ) -> bool {
     tx.common().account == multisig_address.to_string()
-        && verify_memo(memos, "type", "proof".to_string())
+        && verify_memo(memos, "type", XRPLMessageType::Proof.to_string())
         && verify_memo(memos, "unsigned_tx_hash", message.unsigned_tx_hash.tx_hash_as_hex(false).to_string())
 }
 
@@ -121,7 +121,7 @@ pub fn is_valid_call_contract_message(
 }
 
 fn verify_interchain_transfer_memos(memos: &HashMap<String, String>, message: &XRPLInterchainTransferMessage) -> bool {
-    verify_memo(memos, "type", "interchain_transfer".to_string())
+    verify_memo(memos, "type", XRPLMessageType::InterchainTransfer.to_string())
         && verify_memo(memos, "destination_chain", message.destination_chain.to_string())
         && verify_memo(memos, "destination_address", message.destination_address.to_string())
         && verify_payload_hash(memos, message)
@@ -129,7 +129,7 @@ fn verify_interchain_transfer_memos(memos: &HashMap<String, String>, message: &X
 }
 
 fn verify_call_contract_memos(memos: &HashMap<String, String>, message: &XRPLCallContractMessage) -> bool {
-    verify_memo(memos, "type", "call_contract".to_string())
+    verify_memo(memos, "type", XRPLMessageType::CallContract.to_string())
         && verify_memo(memos, "destination_chain", message.destination_chain.to_string())
         && verify_memo(memos, "destination_address", message.destination_address.to_string())
         && verify_payload(memos, message.payload_hash)
@@ -145,7 +145,7 @@ fn is_valid_add_gas_message(
         payment_tx.destination == multisig_address.to_string()
             && verify_delivered_full_amount(tx, payment_tx.amount.clone())
             && verify_amount(message.amount.clone(), payment_tx.amount.clone())
-            && verify_memo(memos, "type", "add_gas".to_string())
+            && verify_memo(memos, "type", XRPLMessageType::AddGas.to_string())
             && verify_memo(memos, "tx_id", message.msg_tx_id.to_string())
             && verify_payment_flags(payment_tx)
     } else {
@@ -163,7 +163,7 @@ fn is_valid_add_reserves_message(
         return payment_tx.destination == multisig_address.to_string()
             && verify_delivered_full_amount(tx, payment_tx.amount.clone())
             && verify_amount(XRPLPaymentAmount::Drops(message.amount), payment_tx.amount.clone())
-            && verify_memo(memos, "type", "add_fee_reserve".to_string())
+            && verify_memo(memos, "type", XRPLMessageType::AddReserves.to_string())
             && verify_payment_flags(payment_tx);
     }
     false
