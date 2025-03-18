@@ -402,6 +402,15 @@ pub struct XRPLUnsignedTxToSign {
 }
 
 impl XRPLUnsignedTx {
+    pub fn fee(&self) -> u64 {
+        match self {
+            XRPLUnsignedTx::Payment(tx) => tx.fee,
+            XRPLUnsignedTx::TicketCreate(tx) => tx.fee,
+            XRPLUnsignedTx::SignerListSet(tx) => tx.fee,
+            XRPLUnsignedTx::TrustSet(tx) => tx.fee,
+        }
+    }
+
     pub fn sequence(&self) -> &XRPLSequence {
         match self {
             XRPLUnsignedTx::Payment(tx) => &tx.sequence,
