@@ -20,9 +20,10 @@ pub enum Error {
         payload: Option<nonempty::HexBinary>,
     },
 
-    #[error("failed to query call contract for message {message:?}")]
+    #[error("failed to query call contract for message {message:?} with payload {payload:?}")]
     CallContract {
         message: XRPLCallContractMessage,
+        payload: nonempty::HexBinary,
     },
 
     #[error("failed to query linked token id. salt: {salt:?}, deployer: {deployer}")]
@@ -56,7 +57,7 @@ impl From<QueryMsg> for Error {
                 message,
                 payload,
             },
-            QueryMsg::CallContract { message } => Error::CallContract { message },
+            QueryMsg::CallContract { message, payload } => Error::CallContract { message, payload },
             QueryMsg::LinkedTokenId { salt, deployer } => Error::LinkedTokenId { salt, deployer },
             QueryMsg::OutgoingMessages(message_ids) => Error::OutgoingMessages(message_ids),
             QueryMsg::TokenInstanceDecimals {

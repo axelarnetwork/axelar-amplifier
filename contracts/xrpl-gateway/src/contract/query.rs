@@ -67,8 +67,9 @@ pub fn translate_to_call_contract(
     storage: &dyn Storage,
     config: &Config,
     message: &XRPLCallContractMessage,
+    payload: nonempty::HexBinary,
 ) -> Result<Binary, Error> {
-    let call_contract = execute::translate_to_call_contract(storage, config, message)?;
+    let call_contract = execute::translate_to_call_contract(storage, config, message, payload)?;
     Ok(to_json_binary(&call_contract).map_err(Error::from)?)
 }
 

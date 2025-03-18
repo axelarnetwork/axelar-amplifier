@@ -310,9 +310,9 @@ pub fn query(
             let config = state::load_config(deps.storage);
             query::translate_to_interchain_transfer(deps.storage, &config, &message, payload)
         }
-        QueryMsg::CallContract { message } => {
+        QueryMsg::CallContract { message, payload } => {
             let config = state::load_config(deps.storage);
-            query::translate_to_call_contract(deps.storage, &config, &message)
+            query::translate_to_call_contract(deps.storage, &config, &message, payload)
         }
     }?
     .then(Ok)

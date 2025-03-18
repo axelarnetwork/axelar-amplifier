@@ -140,6 +140,7 @@ pub struct MessageWithPayload {
 
 #[cw_serde]
 pub struct InterchainTransfer {
+    // When the amount is zero, route_incoming_messages is a no-op.
     pub message_with_payload: Option<MessageWithPayload>,
     pub token_id: TokenId,
     pub dust: XRPLPaymentAmount,
@@ -147,7 +148,7 @@ pub struct InterchainTransfer {
 
 #[cw_serde]
 pub struct CallContract {
-    pub message: Message,
+    pub message_with_payload: MessageWithPayload,
     pub gas_token_id: TokenId,
 }
 
@@ -188,5 +189,6 @@ pub enum QueryMsg {
     #[returns(CallContract)]
     CallContract {
         message: XRPLCallContractMessage,
+        payload: nonempty::HexBinary,
     },
 }
