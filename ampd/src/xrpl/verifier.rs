@@ -60,9 +60,10 @@ pub fn is_valid_prover_message(
     message: &XRPLProverMessage,
     memos: HashMap<String, String>,
 ) -> bool {
+    let expected_unsigned_tx_hash = hex::encode(message.unsigned_tx_hash.tx_hash_as_hex(false).to_string());
     tx.common().account == multisig_address.to_string()
-        && memos.get("unsigned_tx_hash")
-            == Some(&message.unsigned_tx_hash.to_string().to_uppercase())
+        && memos.get("unsigned_tx_hash").map(|s| s.to_lowercase())
+            == Some(expected_unsigned_tx_hash)
 }
 
 pub fn is_valid_user_message(
