@@ -392,10 +392,7 @@ impl TryInto<XRPLObject> for XRPLUnsignedTxToSign {
         let mut obj: XRPLObject = self.unsigned_tx.clone().try_into()?;
 
         let mut memos = vec![XRPLMemo {
-            memo_type: HexBinary::from_hex(
-                "756e7369676e65645f74785f68617368", // hex("unsigned_tx_hash")
-            )
-            .unwrap(),
+            memo_type: "unsigned_tx_hash".to_string().as_bytes().into(),
             memo_data: hash_unsigned_tx(&self.unsigned_tx)?
                 .tx_hash_as_hex(false)
                 .as_bytes()
@@ -404,17 +401,11 @@ impl TryInto<XRPLObject> for XRPLUnsignedTxToSign {
 
         if let Some(cc_id) = self.cc_id {
             memos.push(XRPLMemo {
-                memo_type: HexBinary::from_hex(
-                    "736f757263655f636861696e", // hex("source_chain")
-                )
-                .unwrap(),
+                memo_type: "source_chain".to_string().as_bytes().into(),
                 memo_data: cc_id.source_chain.to_string().as_bytes().into(),
             });
             memos.push(XRPLMemo {
-                memo_type: HexBinary::from_hex(
-                    "6d6573736167655f6964", // hex("message_id")
-                )
-                .unwrap(),
+                memo_type: "message_id".to_string().as_bytes().into(),
                 memo_data: cc_id.message_id.as_bytes().into(),
             });
         }
