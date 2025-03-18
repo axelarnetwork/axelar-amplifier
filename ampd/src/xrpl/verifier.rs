@@ -80,11 +80,7 @@ pub fn is_valid_prover_message(
 ) -> bool {
     tx.common().account == multisig_address.to_string()
         && verify_memo(memos, "type", "proof".to_string())
-        && verify_memo(
-            memos,
-            "unsigned_tx_hash",
-            message.unsigned_tx_hash.to_string(),
-        )
+        && verify_memo(memos, "unsigned_tx_hash", message.unsigned_tx_hash.tx_hash_as_hex(false).to_string())
 }
 
 fn verify_payment_flags(payment_tx: &PaymentTransaction) -> bool {
