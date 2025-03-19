@@ -40,6 +40,7 @@ lazy_static! {
         Regex::new(r"^[A-Za-z0-9\?\!@#\$%\^&\*<>\(\)\{\}\[\]\|]{3}$").expect("valid regex");
 }
 
+// https://xrpl.org/docs/references/protocol/binary-format#token-amount-format
 const MIN_MANTISSA: u64 = 1_000_000_000_000_000;
 const MAX_MANTISSA: u64 = 10_000_000_000_000_000 - 1;
 const MIN_EXPONENT: i8 = -96;
