@@ -35,6 +35,10 @@ const TOKEN_ID_TO_XRPL_TOKEN: Map<&TokenId, XRPLToken> = Map::new("token_id_to_x
 const TOKEN_INSTACE_DECIMALS: Map<&(ChainNameRaw, TokenId), u8> =
     Map::new("token_instance_decimals");
 
+// TODO: XRPLPaymentAmount has XRPLToken which is redundant here.
+const DUST_ACCRUED: Map<&TokenId, XRPLPaymentAmount> = Map::new("dust_accrued");
+const DUST_COUNTED: Map<&Hash, ()> = Map::new("dust_counted");
+
 #[derive(thiserror::Error, Debug, IntoContractError)]
 pub enum Error {
     #[error(transparent)]
@@ -55,6 +59,60 @@ pub enum Error {
     TokenIdNotFoundForToken(XRPLToken),
     #[error("token instance for chain {0} and token {1} not found")]
     TokenInstanceNotFound(ChainNameRaw, TokenId),
+}
+
+fn increment_dust(
+    storage: &mut dyn Storage,
+    token_id: &TokenId,
+    new_dust: XRPLPaymentAmount,
+) -> Result<XRPLPaymentAmount, Error> {
+    DUST_ACCRUED
+        .update(storage, token_id, |existing_dust| match existing_dust {
+            Some(existing_dust) => existing_dust.add(new_dust),
+            None => Ok(new_dust),
+        })
+        .change_context(Error::Storage)
+}
+
+pub fn mark_dust_offloaded(storage: &mut dyn Storage, token_id: &TokenId) {
+    DUST_ACCRUED.remove(storage, token_id)
+}
+
+pub fn may_load_dust(
+    storage: &dyn Storage,
+    token_id: &TokenId,
+) -> Result<Option<XRPLPaymentAmount>, Error> {
+    DUST_ACCRUED
+        .may_load(storage, token_id)
+        .change_context(Error::Storage)
+}
+
+fn dust_counted(storage: &dyn Storage, tx_hash: &HexTxHash) -> Result<bool, Error> {
+    Ok(DUST_COUNTED
+        .may_load(storage, &tx_hash.tx_hash)
+        .change_context(Error::Storage)?
+        .is_some())
+}
+
+fn mark_dust_counted(storage: &mut dyn Storage, tx_hash: &HexTxHash) -> Result<(), Error> {
+    DUST_COUNTED
+        .save(storage, &tx_hash.tx_hash, &())
+        .change_context(Error::Storage)
+}
+
+pub fn count_dust(
+    storage: &mut dyn Storage,
+    tx_id: &HexTxHash,
+    token_id: &TokenId,
+    dust: XRPLPaymentAmount,
+) -> Result<(), Error> {
+    if dust.is_zero() || dust_counted(storage, tx_id)? {
+        return Ok(());
+    }
+
+    increment_dust(storage, token_id, dust)?;
+    mark_dust_counted(storage, tx_id)?;
+    Ok(())
 }
 
 pub fn may_load_token_instance_decimals(
