@@ -6,6 +6,7 @@ use router_api::{ChainName, ChainNameRaw, CrossChainId, FIELD_DELIMITER};
 use sha3::{Digest, Keccak256};
 
 use crate::hex_option;
+use crate::hex_tx_hash;
 use crate::types::{xrpl_account_id_string, XRPLAccountId, XRPLPaymentAmount};
 
 #[cw_serde]
@@ -102,7 +103,7 @@ impl XRPLMessage {
 #[cw_serde]
 #[derive(Eq, Hash)]
 pub struct XRPLInterchainTransferMessage {
-    #[serde(with = "crate::tx_hash_hex")]
+    #[serde(with = "hex_tx_hash")]
     #[schemars(with = "String")] // necessary attribute in conjunction with #[serde(with ...)]
     pub tx_id: HexTxHash,
     #[serde(with = "xrpl_account_id_string")]
@@ -127,7 +128,7 @@ pub struct XRPLInterchainTransferMessage {
 #[cw_serde]
 #[derive(Eq, Hash)]
 pub struct XRPLCallContractMessage {
-    #[serde(with = "crate::tx_hash_hex")]
+    #[serde(with = "hex_tx_hash")]
     #[schemars(with = "String")] // necessary attribute in conjunction with #[serde(with ...)]
     pub tx_id: HexTxHash,
     #[serde(with = "xrpl_account_id_string")]
@@ -151,13 +152,13 @@ pub struct XRPLCallContractMessage {
 #[cw_serde]
 #[derive(Eq, Hash)]
 pub struct XRPLProverMessage {
-    #[serde(with = "crate::tx_hash_hex")]
+    #[serde(with = "hex_tx_hash")]
     #[schemars(with = "String")]
     pub tx_id: HexTxHash,
 
     /// The hash of the unsigned XRPL transaction. This is used to confirm
     /// the transaction's status, while ignoring the signatures.
-    #[serde(with = "crate::tx_hash_hex")]
+    #[serde(with = "hex_tx_hash")]
     #[schemars(with = "String")]
     pub unsigned_tx_hash: HexTxHash,
 }
@@ -169,12 +170,12 @@ pub struct XRPLProverMessage {
 #[cw_serde]
 #[derive(Eq, Hash)]
 pub struct XRPLAddGasMessage {
-    #[serde(with = "crate::tx_hash_hex")]
+    #[serde(with = "hex_tx_hash")]
     #[schemars(with = "String")]
     pub tx_id: HexTxHash,
     /// The transaction hash of the original user message
     /// that this gas top-up is for.
-    #[serde(with = "crate::tx_hash_hex")]
+    #[serde(with = "hex_tx_hash")]
     #[schemars(with = "String")]
     pub msg_tx_id: HexTxHash,
     pub amount: XRPLPaymentAmount,
@@ -191,7 +192,7 @@ pub struct XRPLAddGasMessage {
 #[cw_serde]
 #[derive(Eq, Hash)]
 pub struct XRPLAddReservesMessage {
-    #[serde(with = "crate::tx_hash_hex")]
+    #[serde(with = "hex_tx_hash")]
     #[schemars(with = "String")]
     pub tx_id: HexTxHash,
     pub amount: u64,
