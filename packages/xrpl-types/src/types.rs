@@ -15,7 +15,6 @@ use multisig::key::PublicKey;
 use regex::Regex;
 use ripemd::Ripemd160;
 use router_api::{CrossChainId, FIELD_DELIMITER};
-use serde::Deserialize;
 use sha2::{Digest, Sha256, Sha512};
 use sha3::Keccak256;
 
@@ -25,7 +24,7 @@ const XRPL_PAYMENT_DROPS_HASH_PREFIX: &[u8] = b"xrpl-payment-drops";
 const XRPL_PAYMENT_ISSUED_HASH_PREFIX: &[u8] = b"xrpl-payment-issued";
 
 const XRPL_ACCOUNT_ID_LENGTH: usize = 20;
-const XRPL_CURRENCY_LENGTH: usize = 40;
+const XRPL_CURRENCY_LENGTH: usize = 20;
 
 pub const XRP_DECIMALS: u8 = 6;
 pub const XRPL_ISSUED_TOKEN_DECIMALS: u8 = 15;
@@ -720,47 +719,9 @@ pub fn message_to_sign(
     ))
 }
 
-mod array_40_bytes {
-    use super::*;
-    use serde::{Deserializer, Serializer};
-    use std::str;
-
-    pub fn serialize<S>(bytes: &[u8; 40], serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let s = str::from_utf8(bytes).map_err(serde::ser::Error::custom)?;
-        serializer.serialize_str(s)
-    }
-
-    pub fn deserialize<'de, D>(deserializer: D) -> Result<[u8; 40], D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let s = String::deserialize(deserializer)?;
-        let bytes = s.as_bytes();
-
-        if bytes.len() != 40 {
-            return Err(serde::de::Error::custom("invalid length"));
-        }
-
-        let mut arr = [0u8; 40];
-        arr.copy_from_slice(bytes);
-        Ok(arr)
-    }
-}
-
 #[cw_serde]
 #[derive(Eq, Hash)]
-
-pub struct XRPLCurrency(
-    #[serde(
-        serialize_with = "array_40_bytes::serialize",
-        deserialize_with = "array_40_bytes::deserialize"
-    )]
-    #[schemars(with = "String")]
-    [u8; XRPL_CURRENCY_LENGTH],
-);
+pub struct XRPLCurrency([u8; XRPL_CURRENCY_LENGTH]);
 
 impl XRPLCurrency {
     fn is_standard_currency(s: &str) -> bool {
@@ -783,7 +744,10 @@ impl XRPLCurrency {
             Ok(XRPLCurrency(bytes))
         } else {
             Ok(XRPLCurrency(
-                s.as_bytes().try_into().expect("should be 40 bytes"),
+                hex::decode(s)
+                    .map_err(|_| XRPLError::InvalidCurrency)?
+                    .try_into()
+                    .expect("should be 20 bytes"),
             ))
         }
     }
