@@ -22,7 +22,7 @@ pub enum XRPLError {
     ExponentiationOverflow,
 
     #[error("failed to canonicalize matissa {mantissa} with exponent {exponent}")]
-    FailedToCanonicalizeMatissa { mantissa: Uint256, exponent: i64 },
+    FailedToCanonicalizeMatissa { mantissa: Uint256, exponent: i8 },
 
     #[error("failed to encode signature")]
     FailedToEncodeSignature,
