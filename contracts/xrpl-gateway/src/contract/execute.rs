@@ -62,16 +62,6 @@ pub fn route_incoming_messages(
         for msg in msgs {
             let interchain_transfer = translate_to_interchain_transfer(storage, config, msg)?;
 
-            if status == &VerificationStatus::SucceededOnSourceChain {
-                state::count_dust(
-                    storage,
-                    &msg.message.tx_id,
-                    &interchain_transfer.token_id,
-                    interchain_transfer.dust,
-                )
-                .change_context(Error::State)?;
-            }
-
             if let Some(message_with_payload) = interchain_transfer.message_with_payload {
                 its_msgs.push(message_with_payload.message.clone());
                 events.extend(vec![

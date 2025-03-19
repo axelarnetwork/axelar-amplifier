@@ -65,8 +65,5 @@ pub const LATEST_SEQUENTIAL_UNSIGNED_TX_HASH: Item<Hash> =
     Item::new("latest_sequential_unsigned_tx_hash");
 pub const TRUST_LINE: Map<&XRPLToken, ()> = Map::new("trust_line");
 
-pub const DUST: Map<&(TokenId, ChainNameRaw), Uint256> = Map::new("dust");
-pub const DUST_COUNTED: Map<&CrossChainId, ()> = Map::new("dust_counted");
-
 pub const CURRENT_VERIFIER_SET: Item<VerifierSet> = Item::new("current_verifier_set");
 pub const NEXT_VERIFIER_SET: Item<VerifierSet> = Item::new("next_verifier_set");

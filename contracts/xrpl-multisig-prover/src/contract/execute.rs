@@ -307,28 +307,12 @@ pub fn construct_payment_proof(
                         XRPLAccountId::try_from(interchain_transfer.destination_address)
                             .map_err(|_| ContractError::InvalidDestinationAddress)?;
 
-                    let (xrpl_amount, dust) = compute_xrpl_amount(
+                    let (xrpl_amount, _) = compute_xrpl_amount(
                         gateway,
                         interchain_transfer.token_id,
                         source_chain.clone(),
                         interchain_transfer.amount.into(),
                     )?;
-
-                    if !dust.is_zero() && !state::DUST_COUNTED.has(storage, &cc_id) {
-                        state::DUST.update(
-                            storage,
-                            &(interchain_transfer.token_id, source_chain.clone()),
-                            |current_dust| -> Result<_, ContractError> {
-                                match current_dust {
-                                    Some(current_dust) => Ok(current_dust
-                                        .checked_add(dust)
-                                        .map_err(|_| ContractError::Overflow)?),
-                                    None => Ok(dust),
-                                }
-                            },
-                        )?;
-                        state::DUST_COUNTED.save(storage, &cc_id, &())?;
-                    }
 
                     if xrpl_amount.is_zero() {
                         return Ok(Response::default());
