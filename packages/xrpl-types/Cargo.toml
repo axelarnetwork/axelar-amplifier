@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 axelar-wasm-std = { workspace = true }
-bs58 = "0.5.0"
+bs58 = { workspace = true }
 cosmwasm-schema = { workspace = true }
 cosmwasm-std = { workspace = true }
 cw-storage-plus = { workspace = true }
