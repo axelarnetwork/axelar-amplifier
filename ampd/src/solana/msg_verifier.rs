@@ -3,9 +3,8 @@ use axelar_wasm_std::voting::Vote;
 use solana_sdk::signature::Signature;
 use solana_transaction_status::UiTransactionStatusMeta;
 
-use crate::handlers::solana_verify_msg::Message;
-
 use super::verify;
+use crate::handlers::solana_verify_msg::Message;
 
 pub fn verify_message(tx: (&Signature, &UiTransactionStatusMeta), message: &Message) -> Vote {
     verify(tx, &message.message_id, |gateway_event| {
@@ -38,13 +37,12 @@ pub fn verify_message(tx: (&Signature, &UiTransactionStatusMeta), message: &Mess
 
 #[cfg(test)]
 mod tests {
-    use axelar_solana_gateway::processor::CallContractEvent;
-    use solana_sdk::pubkey::Pubkey;
-    use solana_transaction_status::option_serializer::OptionSerializer;
-
     use std::str::FromStr;
 
+    use axelar_solana_gateway::processor::CallContractEvent;
     use router_api::ChainName;
+    use solana_sdk::pubkey::Pubkey;
+    use solana_transaction_status::option_serializer::OptionSerializer;
 
     use super::*;
     #[test_log::test]

@@ -2,17 +2,16 @@ use std::collections::BTreeMap;
 
 use axelar_solana_encoding::hasher::NativeHasher;
 use axelar_solana_encoding::types::verifier_set::verifier_set_hash;
-use axelar_solana_gateway::processor::GatewayEvent;
-use axelar_solana_gateway::processor::VerifierSetRotated;
+use axelar_solana_gateway::processor::{GatewayEvent, VerifierSetRotated};
 use axelar_wasm_std::voting::Vote;
 use multisig::key::PublicKey;
 use multisig::verifier_set::VerifierSet;
 use solana_sdk::signature::Signature;
 use solana_transaction_status::UiTransactionStatusMeta;
+use tracing::error;
 
 use crate::handlers::solana_verify_verifier_set::VerifierSetConfirmation;
 use crate::solana::verify;
-use tracing::error;
 
 pub fn verify_verifier_set(
     tx: (&Signature, &UiTransactionStatusMeta),
@@ -65,8 +64,9 @@ fn to_verifier_set(
 }
 
 fn to_pub_key(pk: &PublicKey) -> Option<axelar_solana_encoding::types::pubkey::PublicKey> {
-    use axelar_solana_encoding::types::pubkey::ED25519_PUBKEY_LEN;
-    use axelar_solana_encoding::types::pubkey::SECP256K1_COMPRESSED_PUBKEY_LEN;
+    use axelar_solana_encoding::types::pubkey::{
+        ED25519_PUBKEY_LEN, SECP256K1_COMPRESSED_PUBKEY_LEN,
+    };
     Some(match pk {
         PublicKey::Ecdsa(hb) => axelar_solana_encoding::types::pubkey::PublicKey::Secp256k1(
             hb.to_array::<SECP256K1_COMPRESSED_PUBKEY_LEN>().ok()?,
@@ -79,19 +79,17 @@ fn to_pub_key(pk: &PublicKey) -> Option<axelar_solana_encoding::types::pubkey::P
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::collections::BTreeMap;
 
     use axelar_solana_gateway::processor::VerifierSetRotated;
     use axelar_wasm_std::msg_id::Base58SolanaTxSignatureAndEventIndex;
     use axelar_wasm_std::voting::Vote;
     use cosmwasm_std::{HexBinary, Uint128};
-
     use solana_sdk::pubkey::Pubkey;
     use solana_transaction_status::option_serializer::OptionSerializer;
     use solana_transaction_status::UiTransactionStatusMeta;
 
-    use super::verify_verifier_set;
+    use super::*;
 
     #[test]
     fn should_not_verify_verifier_set_if_tx_id_does_not_match() {

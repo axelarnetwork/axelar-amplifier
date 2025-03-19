@@ -1,15 +1,18 @@
-use axelar_solana_gateway::{processor::GatewayEvent, state::GatewayConfig, BytemuckedPda};
+use std::str::FromStr;
+
+use axelar_solana_gateway::processor::GatewayEvent;
+use axelar_solana_gateway::state::GatewayConfig;
+use axelar_solana_gateway::BytemuckedPda;
 use axelar_wasm_std::msg_id::Base58SolanaTxSignatureAndEventIndex;
 use axelar_wasm_std::voting::Vote;
-use solana_transaction_status::option_serializer::OptionSerializer;
-use solana_transaction_status::UiTransactionStatusMeta;
-use std::str::FromStr;
-use tracing::{error, warn};
-
 use futures::FutureExt;
 use serde::{Deserialize, Deserializer};
 use solana_client::nonblocking::rpc_client::RpcClient;
-use solana_sdk::{pubkey::Pubkey, signature::Signature};
+use solana_sdk::pubkey::Pubkey;
+use solana_sdk::signature::Signature;
+use solana_transaction_status::option_serializer::OptionSerializer;
+use solana_transaction_status::UiTransactionStatusMeta;
+use tracing::{error, warn};
 
 pub mod msg_verifier;
 pub mod verifier_set_verifier;

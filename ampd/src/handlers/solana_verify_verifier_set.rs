@@ -176,9 +176,7 @@ mod tests {
     use cosmrs::tx::Msg;
     use cosmrs::AccountId;
     use cosmwasm_std;
-
     use events::Event;
-
     use multisig::key::KeyType;
     use multisig::test::common::{build_verifier_set, ecdsa_test_data};
     use solana_sdk::signature::Signature;
@@ -187,12 +185,11 @@ mod tests {
     use tokio::test as async_test;
     use voting_verifier::events::{PollMetadata, PollStarted, VerifierSetConfirmation};
 
+    use super::*;
     use crate::event_processor::EventHandler;
     use crate::handlers::tests::into_structured_event;
     use crate::types::TMAddress;
     use crate::PREFIX;
-
-    use super::*;
 
     struct EmptyResponseSolanaRpc;
     #[async_trait::async_trait]

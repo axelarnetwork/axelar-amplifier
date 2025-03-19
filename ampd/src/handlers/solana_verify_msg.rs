@@ -185,9 +185,10 @@ mod test {
     use tokio::sync::watch;
     use voting_verifier::events::{PollMetadata, PollStarted, TxEventConfirmation};
 
-    use crate::{handlers::tests::into_structured_event, types::TMAddress, PREFIX};
-
     use super::*;
+    use crate::handlers::tests::into_structured_event;
+    use crate::types::TMAddress;
+    use crate::PREFIX;
 
     struct EmptyResponseSolanaRpc;
     #[async_trait::async_trait]
