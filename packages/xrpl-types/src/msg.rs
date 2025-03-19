@@ -93,7 +93,7 @@ pub struct XRPLProverMessage {
 impl From<XRPLUserMessage> for Vec<Attribute> {
     fn from(other: XRPLUserMessage) -> Self {
         let mut array = vec![
-            ("tx_id", other.tx_id.tx_hash_as_hex(false)).into(),
+            ("tx_id", other.tx_id.tx_hash_as_hex_no_prefix()).into(),
             ("source_address", other.source_address.to_string()).into(),
             ("destination_chain", other.destination_chain).into(),
             ("destination_address", other.destination_address.to_string()).into(),
@@ -111,10 +111,10 @@ impl From<XRPLUserMessage> for Vec<Attribute> {
 impl From<XRPLProverMessage> for Vec<Attribute> {
     fn from(other: XRPLProverMessage) -> Self {
         vec![
-            ("tx_id", other.tx_id.tx_hash_as_hex(false)).into(),
+            ("tx_id", other.tx_id.tx_hash_as_hex_no_prefix()).into(),
             (
                 "unsigned_tx_hash",
-                other.unsigned_tx_hash.tx_hash_as_hex(false),
+                other.unsigned_tx_hash.tx_hash_as_hex_no_prefix(),
             )
                 .into(),
         ]
@@ -171,9 +171,7 @@ impl XRPLUserMessage {
     pub fn cc_id(&self, source_chain: ChainNameRaw) -> CrossChainId {
         CrossChainId {
             source_chain,
-            message_id: format!("0x{}", HexBinary::from(self.tx_id.tx_hash).to_hex())
-                .try_into()
-                .expect("message_id conversion should never fail"),
+            message_id: self.tx_id.tx_hash_as_hex(),
         }
     }
 }
