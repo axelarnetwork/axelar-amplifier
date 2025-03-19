@@ -21,17 +21,14 @@ pub struct HexTxHash {
 }
 
 impl HexTxHash {
-    pub fn tx_hash_as_hex(&self) -> nonempty::String {
-        format!("0x{}", HexBinary::from(self.tx_hash).to_hex())
-            .try_into()
-            .expect("hex string cannot be empty")
-    }
-
-    pub fn tx_hash_as_hex_no_prefix(&self) -> nonempty::String {
-        HexBinary::from(self.tx_hash)
-            .to_hex()
-            .try_into()
-            .expect("hex string cannot be empty")
+    pub fn tx_hash_as_hex(&self, hex_prefix: bool) -> nonempty::String {
+        let hex = HexBinary::from(self.tx_hash).to_hex();
+        let result = if hex_prefix {
+            format!("0x{}", hex)
+        } else {
+            hex
+        };
+        result.try_into().expect("hex string cannot be empty")
     }
 
     pub fn new(tx_id: impl Into<[u8; 32]>) -> Self {
@@ -112,7 +109,10 @@ mod tests {
 
             let res = HexTxHash::from_str(&msg_id);
             let parsed = res.unwrap();
-            assert_eq!(parsed.tx_hash_as_hex(), msg_id.clone().try_into().unwrap());
+            assert_eq!(
+                parsed.tx_hash_as_hex(true),
+                msg_id.clone().try_into().unwrap()
+            );
             assert_eq!(parsed.to_string(), msg_id);
         }
     }

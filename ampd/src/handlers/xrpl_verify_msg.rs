@@ -157,7 +157,7 @@ where
         let source_chain_str: String = source_chain.into();
         let message_ids = messages
             .iter()
-            .map(|message| message.tx_id().tx_hash_as_hex())
+            .map(|message| message.tx_id().tx_hash_as_hex(true))
             .collect::<Vec<_>>();
 
         let votes = info_span!(

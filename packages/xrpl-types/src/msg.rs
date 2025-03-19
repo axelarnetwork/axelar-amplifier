@@ -93,7 +93,7 @@ pub struct XRPLProverMessage {
 impl From<XRPLUserMessage> for Vec<Attribute> {
     fn from(other: XRPLUserMessage) -> Self {
         let mut array = vec![
-            ("tx_id", other.tx_id.tx_hash_as_hex_no_prefix()).into(),
+            ("tx_id", other.tx_id.tx_hash_as_hex(false)).into(),
             ("source_address", other.source_address.to_string()).into(),
             ("destination_chain", other.destination_chain).into(),
             ("destination_address", other.destination_address.to_string()).into(),
@@ -111,10 +111,10 @@ impl From<XRPLUserMessage> for Vec<Attribute> {
 impl From<XRPLProverMessage> for Vec<Attribute> {
     fn from(other: XRPLProverMessage) -> Self {
         vec![
-            ("tx_id", other.tx_id.tx_hash_as_hex_no_prefix()).into(),
+            ("tx_id", other.tx_id.tx_hash_as_hex(false)).into(),
             (
                 "unsigned_tx_hash",
-                other.unsigned_tx_hash.tx_hash_as_hex_no_prefix(),
+                other.unsigned_tx_hash.tx_hash_as_hex(false),
             )
                 .into(),
         ]
