@@ -82,7 +82,7 @@ stellar-xdr = { version = "21.2.0" }
 strum = { version = "0.25", default-features = false, features = ["derive"] }
 sui-gateway = { version = "^1.0.0", path = "packages/sui-gateway" }
 sui-types = { version = "^1.0.0", path = "packages/sui-types" }
-starknet-checked-felt = { version = "^1.0.0", path = "packages/starknet-checked-felt" }
+starknet-checked-felt = { git = "https://github.com/commonprefix/axelar-amplifier", branch = "xrpl-ampd" }
 starknet-types-core = { version = "0.1.7" }
 starknet-core = "0.12.0"
 starknet-providers = "0.12.0"

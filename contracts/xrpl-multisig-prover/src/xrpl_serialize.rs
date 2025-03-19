@@ -268,15 +268,15 @@ impl XRPLSerialize for XRPLPathSet {
             }
 
             for step in path.steps.iter() {
-                let (type_flag, first_value, opt_second_value): (u8, [u8; 20], Option<[u8; 20]>) =
+                let (type_flag, first_value, opt_second_value): (u8, &[u8], Option<[u8; 20]>) =
                     match step {
-                        XRPLPathStep::Account(account) => (0x01, account.as_bytes(), None),
-                        XRPLPathStep::Currency(currency) => (0x10, currency.as_bytes(), None),
-                        XRPLPathStep::XRP => (0x10, <[u8; 20]>::default(), None),
-                        XRPLPathStep::Issuer(issuer) => (0x20, issuer.as_bytes(), None),
+                        XRPLPathStep::Account(account) => (0x01, &account.as_bytes(), None),
+                        XRPLPathStep::Currency(currency) => (0x10, &currency.as_bytes(), None),
+                        XRPLPathStep::XRP => (0x10, &<[u8; 20]>::default(), None),
+                        XRPLPathStep::Issuer(issuer) => (0x20, &issuer.as_bytes(), None),
                         XRPLPathStep::Token(token) => (
                             0x30,
-                            token.currency.as_bytes(),
+                            &token.currency.as_bytes(),
                             Some(token.issuer.as_bytes()),
                         ),
                     };
@@ -399,7 +399,7 @@ impl TryInto<XRPLObject> for XRPLUnsignedTxToSign {
             XRPLMemo {
                 memo_type: "unsigned_tx_hash".to_string().as_bytes().into(),
                 memo_data: hash_unsigned_tx(&self.unsigned_tx)?
-                    .tx_hash_as_hex(false)
+                    .tx_hash_as_hex_no_prefix()
                     .as_bytes()
                     .into(),
             },

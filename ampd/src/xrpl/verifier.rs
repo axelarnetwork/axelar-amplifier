@@ -4,7 +4,10 @@ use axelar_wasm_std::voting::Vote;
 use sha3::{Digest, Keccak256};
 use xrpl_http_client::Transaction::Payment;
 use xrpl_http_client::{Amount, Memo, PaymentTransaction, ResultCategory, Transaction};
-use xrpl_types::msg::{XRPLAddGasMessage, XRPLAddReservesMessage, XRPLCallContractMessage, XRPLInterchainTransferMessage, XRPLMessage, XRPLMessageType, XRPLProverMessage};
+use xrpl_types::msg::{
+    XRPLAddGasMessage, XRPLAddReservesMessage, XRPLCallContractMessage,
+    XRPLInterchainTransferMessage, XRPLMessage, XRPLMessageType, XRPLProverMessage,
+};
 use xrpl_types::types::{XRPLAccountId, XRPLPaymentAmount, XRPLToken};
 
 fn parse_memos(memos: &[Memo]) -> HashMap<String, String> {
@@ -17,9 +20,7 @@ fn parse_memos(memos: &[Memo]) -> HashMap<String, String> {
                 .and_then(|t| hex::decode(t).ok())
                 .and_then(|bytes| String::from_utf8(bytes).ok());
 
-            let memo_data = m
-                .memo_data
-                .clone();
+            let memo_data = m.memo_data.clone();
             memo_type.zip(memo_data)
         })
         .collect::<HashMap<String, String>>()
@@ -36,7 +37,12 @@ pub fn verify_message(
             is_valid_prover_message(tx, multisig_address, prover_message, memos)
         }
         XRPLMessage::InterchainTransferMessage(interchain_transfer_message) => {
-            is_valid_interchain_transfer_message(tx, multisig_address, interchain_transfer_message, memos)
+            is_valid_interchain_transfer_message(
+                tx,
+                multisig_address,
+                interchain_transfer_message,
+                memos,
+            )
         }
         XRPLMessage::CallContractMessage(call_contract_message) => {
             is_valid_call_contract_message(tx, multisig_address, call_contract_message, memos)
@@ -77,7 +83,14 @@ pub fn is_valid_prover_message(
 ) -> bool {
     tx.common().account == multisig_address.to_string()
         && verify_memo(memos, "type", XRPLMessageType::Proof.to_string())
-        && verify_memo(memos, "unsigned_tx_hash", message.unsigned_tx_hash.tx_hash_as_hex(false).to_string())
+        && verify_memo(
+            memos,
+            "unsigned_tx_hash",
+            message
+                .unsigned_tx_hash
+                .tx_hash_as_hex_no_prefix()
+                .to_string(),
+        )
 }
 
 fn verify_payment_flags(payment_tx: &PaymentTransaction) -> bool {
@@ -120,18 +133,41 @@ pub fn is_valid_call_contract_message(
     }
 }
 
-fn verify_interchain_transfer_memos(memos: &HashMap<String, String>, message: &XRPLInterchainTransferMessage) -> bool {
-    verify_memo(memos, "type", XRPLMessageType::InterchainTransfer.to_string())
-        && verify_memo(memos, "destination_chain", message.destination_chain.to_string())
-        && verify_memo(memos, "destination_address", message.destination_address.to_string())
-        && verify_payload_hash(memos, message)
+fn verify_interchain_transfer_memos(
+    memos: &HashMap<String, String>,
+    message: &XRPLInterchainTransferMessage,
+) -> bool {
+    verify_memo(
+        memos,
+        "type",
+        XRPLMessageType::InterchainTransfer.to_string(),
+    ) && verify_memo(
+        memos,
+        "destination_chain",
+        message.destination_chain.to_string(),
+    ) && verify_memo(
+        memos,
+        "destination_address",
+        message.destination_address.to_string(),
+    ) && verify_payload_hash(memos, message)
         && verify_gas_fee_amount(message, memos)
 }
 
-fn verify_call_contract_memos(memos: &HashMap<String, String>, message: &XRPLCallContractMessage) -> bool {
+fn verify_call_contract_memos(
+    memos: &HashMap<String, String>,
+    message: &XRPLCallContractMessage,
+) -> bool {
     verify_memo(memos, "type", XRPLMessageType::CallContract.to_string())
-        && verify_memo(memos, "destination_chain", message.destination_chain.to_string())
-        && verify_memo(memos, "destination_address", message.destination_address.to_string())
+        && verify_memo(
+            memos,
+            "destination_chain",
+            message.destination_chain.to_string(),
+        )
+        && verify_memo(
+            memos,
+            "destination_address",
+            message.destination_address.to_string(),
+        )
         && verify_payload(memos, message.payload_hash)
 }
 
@@ -162,7 +198,10 @@ fn is_valid_add_reserves_message(
     if let Payment(payment_tx) = &tx {
         return payment_tx.destination == multisig_address.to_string()
             && verify_delivered_full_amount(tx, payment_tx.amount.clone())
-            && verify_amount(XRPLPaymentAmount::Drops(message.amount), payment_tx.amount.clone())
+            && verify_amount(
+                XRPLPaymentAmount::Drops(message.amount),
+                payment_tx.amount.clone(),
+            )
             && verify_memo(memos, "type", XRPLMessageType::AddReserves.to_string())
             && verify_payment_flags(payment_tx);
     }
@@ -203,7 +242,10 @@ pub fn verify_amount(expected_amount: XRPLPaymentAmount, actual_amount: Amount) 
     .unwrap_or(false)
 }
 
-pub fn verify_gas_fee_amount(message: &XRPLInterchainTransferMessage, memos: &HashMap<String, String>) -> bool {
+pub fn verify_gas_fee_amount(
+    message: &XRPLInterchainTransferMessage,
+    memos: &HashMap<String, String>,
+) -> bool {
     || -> Option<bool> {
         let gas_fee_amount_str = match memos
             .get("gas_fee_amount")
@@ -233,14 +275,20 @@ pub fn verify_gas_fee_amount(message: &XRPLInterchainTransferMessage, memos: &Ha
 }
 
 pub fn verify_payload(memos: &HashMap<String, String>, expected_payload_hash: [u8; 32]) -> bool {
-    memos.get("payload").map(|memo_payload| {
-        hex::decode(memo_payload)
-            .map(|decoded| Keccak256::digest(decoded).to_vec() == expected_payload_hash)
-            .unwrap_or(false)
-    }).unwrap_or(false)
+    memos
+        .get("payload")
+        .map(|memo_payload| {
+            hex::decode(memo_payload)
+                .map(|decoded| Keccak256::digest(decoded).to_vec() == expected_payload_hash)
+                .unwrap_or(false)
+        })
+        .unwrap_or(false)
 }
 
-pub fn verify_payload_hash(memos: &HashMap<String, String>, message: &XRPLInterchainTransferMessage) -> bool {
+pub fn verify_payload_hash(
+    memos: &HashMap<String, String>,
+    message: &XRPLInterchainTransferMessage,
+) -> bool {
     match &message.payload_hash {
         Some(expected_hash) => verify_payload(memos, *expected_hash),
         None => !memos.contains_key("payload"),
@@ -307,10 +355,16 @@ mod test {
             amount: XRPLPaymentAmount::Drops(100000),
             gas_fee_amount: XRPLPaymentAmount::Drops(50000),
         };
-        assert!(verify_interchain_transfer_memos(&parse_memos(&memos), &interchain_transfer_message));
+        assert!(verify_interchain_transfer_memos(
+            &parse_memos(&memos),
+            &interchain_transfer_message
+        ));
 
         interchain_transfer_message.payload_hash = None;
-        assert!(!verify_interchain_transfer_memos(&parse_memos(&memos), &interchain_transfer_message));
+        assert!(!verify_interchain_transfer_memos(
+            &parse_memos(&memos),
+            &interchain_transfer_message
+        ));
     }
 
     #[test]
@@ -349,7 +403,10 @@ mod test {
             amount: XRPLPaymentAmount::Drops(100000),
             gas_fee_amount: XRPLPaymentAmount::Drops(50000),
         };
-        assert!(verify_interchain_transfer_memos(&parse_memos(&memos), &interchain_transfer_message));
+        assert!(verify_interchain_transfer_memos(
+            &parse_memos(&memos),
+            &interchain_transfer_message
+        ));
 
         interchain_transfer_message.payload_hash = Some(
             hex::decode("8a7adf72777a40d790e327be8af2fdb35c2c557f3555c587aae9bc155a9020a8")
@@ -358,6 +415,9 @@ mod test {
                 .try_into()
                 .unwrap(),
         );
-        assert!(!verify_interchain_transfer_memos(&parse_memos(&memos), &interchain_transfer_message));
+        assert!(!verify_interchain_transfer_memos(
+            &parse_memos(&memos),
+            &interchain_transfer_message
+        ));
     }
 }
