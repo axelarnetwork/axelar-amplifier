@@ -61,8 +61,12 @@ impl XRPLMessage {
     pub fn tx_id(&self) -> HexTxHash {
         match self {
             XRPLMessage::ProverMessage(prover_message) => prover_message.tx_id.clone(),
-            XRPLMessage::InterchainTransferMessage(interchain_transfer_message) => interchain_transfer_message.tx_id.clone(),
-            XRPLMessage::CallContractMessage(call_contract_message) => call_contract_message.tx_id.clone(),
+            XRPLMessage::InterchainTransferMessage(interchain_transfer_message) => {
+                interchain_transfer_message.tx_id.clone()
+            }
+            XRPLMessage::CallContractMessage(call_contract_message) => {
+                call_contract_message.tx_id.clone()
+            }
             XRPLMessage::AddGasMessage(add_gas_message) => add_gas_message.tx_id.clone(),
             XRPLMessage::AddReservesMessage(add_reserves_message) => {
                 add_reserves_message.tx_id.clone()
@@ -72,8 +76,12 @@ impl XRPLMessage {
 
     pub fn cc_id(&self, source_chain: ChainNameRaw) -> Option<CrossChainId> {
         match self {
-            XRPLMessage::InterchainTransferMessage(interchain_transfer_message) => Some(interchain_transfer_message.cc_id(source_chain)),
-            XRPLMessage::CallContractMessage(call_contract_message) => Some(call_contract_message.cc_id(source_chain)),
+            XRPLMessage::InterchainTransferMessage(interchain_transfer_message) => {
+                Some(interchain_transfer_message.cc_id(source_chain))
+            }
+            XRPLMessage::CallContractMessage(call_contract_message) => {
+                Some(call_contract_message.cc_id(source_chain))
+            }
             XRPLMessage::ProverMessage(_) => None,
             XRPLMessage::AddGasMessage(_) => None,
             XRPLMessage::AddReservesMessage(_) => None,
@@ -87,12 +95,12 @@ impl XRPLMessage {
     pub fn hash(&self) -> [u8; 32] {
         match self {
             XRPLMessage::ProverMessage(prover_message) => prover_message.hash(),
-            XRPLMessage::InterchainTransferMessage(interchain_transfer_message) => interchain_transfer_message.hash(),
+            XRPLMessage::InterchainTransferMessage(interchain_transfer_message) => {
+                interchain_transfer_message.hash()
+            }
             XRPLMessage::CallContractMessage(call_contract_message) => call_contract_message.hash(),
             XRPLMessage::AddGasMessage(add_gas_message) => add_gas_message.hash(),
-            XRPLMessage::AddReservesMessage(add_reserves_message) => {
-                add_reserves_message.hash()
-            },
+            XRPLMessage::AddReservesMessage(add_reserves_message) => add_reserves_message.hash(),
         }
     }
 }
@@ -219,11 +227,15 @@ impl From<XRPLInterchainTransferMessage> for Vec<Attribute> {
 impl From<XRPLCallContractMessage> for Vec<Attribute> {
     fn from(other: XRPLCallContractMessage) -> Self {
         vec![
-            ("tx_id", other.tx_id.tx_hash_as_hex(false)).into(),
+            ("tx_id", other.tx_id.tx_hash_as_hex_no_prefix()).into(),
             ("source_address", other.source_address.to_string()).into(),
             ("destination_chain", other.destination_chain).into(),
             ("destination_address", other.destination_address.to_string()).into(),
-            ("payload_hash", HexBinary::from(other.payload_hash).to_string()).into(),
+            (
+                "payload_hash",
+                HexBinary::from(other.payload_hash).to_string(),
+            )
+                .into(),
             ("gas_fee_amount", other.gas_fee_amount.to_string()).into(),
         ]
     }
@@ -245,8 +257,8 @@ impl From<XRPLProverMessage> for Vec<Attribute> {
 impl From<XRPLAddGasMessage> for Vec<Attribute> {
     fn from(other: XRPLAddGasMessage) -> Self {
         vec![
-            ("tx_id", other.tx_id.tx_hash_as_hex(false)).into(),
-            ("msg_tx_id", other.msg_tx_id.tx_hash_as_hex(false)).into(),
+            ("tx_id", other.tx_id.tx_hash_as_hex_no_prefix()).into(),
+            ("msg_tx_id", other.msg_tx_id.tx_hash_as_hex_no_prefix()).into(),
             ("amount", other.amount.to_string()).into(),
         ]
     }
@@ -255,7 +267,7 @@ impl From<XRPLAddGasMessage> for Vec<Attribute> {
 impl From<XRPLAddReservesMessage> for Vec<Attribute> {
     fn from(other: XRPLAddReservesMessage) -> Self {
         vec![
-            ("tx_id", other.tx_id.tx_hash_as_hex(false)).into(),
+            ("tx_id", other.tx_id.tx_hash_as_hex_no_prefix()).into(),
             ("amount", other.amount.to_string()).into(),
         ]
     }
@@ -264,7 +276,9 @@ impl From<XRPLAddReservesMessage> for Vec<Attribute> {
 impl From<XRPLMessage> for Vec<Attribute> {
     fn from(other: XRPLMessage) -> Self {
         let (mut attrs, msg_type): (Self, &str) = match other {
-            XRPLMessage::InterchainTransferMessage(msg) => (msg.into(), "interchain_transfer_message"),
+            XRPLMessage::InterchainTransferMessage(msg) => {
+                (msg.into(), "interchain_transfer_message")
+            }
             XRPLMessage::CallContractMessage(msg) => (msg.into(), "call_contract_message"),
             XRPLMessage::ProverMessage(msg) => (msg.into(), "prover_message"),
             XRPLMessage::AddGasMessage(msg) => (msg.into(), "add_gas_message"),
