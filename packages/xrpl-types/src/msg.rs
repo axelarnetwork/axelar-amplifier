@@ -102,6 +102,7 @@ impl XRPLMessage {
 #[cw_serde]
 #[derive(Eq, Hash)]
 pub struct XRPLInterchainTransferMessage {
+    #[serde(with = "tx_hash_hex")]
     #[schemars(with = "String")] // necessary attribute in conjunction with #[serde(with ...)]
     pub tx_id: HexTxHash,
     #[serde(with = "xrpl_account_id_string")]
@@ -126,6 +127,7 @@ pub struct XRPLInterchainTransferMessage {
 #[cw_serde]
 #[derive(Eq, Hash)]
 pub struct XRPLCallContractMessage {
+    #[serde(with = "tx_hash_hex")]
     #[schemars(with = "String")] // necessary attribute in conjunction with #[serde(with ...)]
     pub tx_id: HexTxHash,
     #[serde(with = "xrpl_account_id_string")]
@@ -149,11 +151,13 @@ pub struct XRPLCallContractMessage {
 #[cw_serde]
 #[derive(Eq, Hash)]
 pub struct XRPLProverMessage {
+    #[serde(with = "tx_hash_hex")]
     #[schemars(with = "String")]
     pub tx_id: HexTxHash,
 
     /// The hash of the unsigned XRPL transaction. This is used to confirm
     /// the transaction's status, while ignoring the signatures.
+    #[serde(with = "tx_hash_hex")]
     #[schemars(with = "String")]
     pub unsigned_tx_hash: HexTxHash,
 }
@@ -165,9 +169,13 @@ pub struct XRPLProverMessage {
 #[cw_serde]
 #[derive(Eq, Hash)]
 pub struct XRPLAddGasMessage {
+    #[serde(with = "tx_hash_hex")]
+    #[schemars(with = "String")]
     pub tx_id: HexTxHash,
     /// The transaction hash of the original user message
     /// that this gas top-up is for.
+    #[serde(with = "tx_hash_hex")]
+    #[schemars(with = "String")]
     pub msg_tx_id: HexTxHash,
     pub amount: XRPLPaymentAmount,
 }
@@ -183,6 +191,8 @@ pub struct XRPLAddGasMessage {
 #[cw_serde]
 #[derive(Eq, Hash)]
 pub struct XRPLAddReservesMessage {
+    #[serde(with = "tx_hash_hex")]
+    #[schemars(with = "String")]
     pub tx_id: HexTxHash,
     pub amount: u64,
 }
@@ -396,5 +406,30 @@ impl WithPayload<XRPLMessage> {
 impl<T: Clone + Into<XRPLMessage>> From<WithPayload<T>> for XRPLMessage {
     fn from(val: WithPayload<T>) -> Self {
         val.message.into()
+    }
+}
+
+pub mod tx_hash_hex {
+    use std::str::FromStr;
+
+    use cosmwasm_std::HexBinary;
+    use serde::de::Error;
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+    use super::HexTxHash;
+
+    pub fn serialize<S>(value: &HexTxHash, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        HexBinary::from(value.tx_hash.as_ref()).serialize(serializer)
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<HexTxHash, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let hex = HexBinary::deserialize(deserializer)?.to_string();
+        HexTxHash::from_str(&format!("0x{}", hex)).map_err(Error::custom)
     }
 }
