@@ -72,11 +72,13 @@ pub enum Config {
         rpc_url: Url,
     },
     SolanaMsgVerifier {
+        chain_name: ChainName,
         cosmwasm_contract: TMAddress,
         rpc_url: Url,
         rpc_timeout: Option<Duration>,
     },
     SolanaVerifierSetVerifier {
+        chain_name: ChainName,
         cosmwasm_contract: TMAddress,
         rpc_url: Url,
         rpc_timeout: Option<Duration>,
@@ -210,6 +212,9 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
+
+    use router_api::ChainName;
     use serde_json::to_value;
 
     use crate::evm::finalizer::Finalization;
@@ -352,6 +357,7 @@ mod tests {
         );
 
         let sample_config = Config::SolanaMsgVerifier {
+            chain_name: ChainName::from_str("solana").unwrap(),
             cosmwasm_contract: TMAddress::random(PREFIX),
             rpc_url: "http://localhost:8080/".parse().unwrap(),
             rpc_timeout: None,
@@ -366,6 +372,7 @@ mod tests {
         );
 
         let sample_config = Config::SolanaVerifierSetVerifier {
+            chain_name: ChainName::from_str("solana").unwrap(),
             cosmwasm_contract: TMAddress::random(PREFIX),
             rpc_url: "http://localhost:8080/".parse().unwrap(),
             rpc_timeout: None,

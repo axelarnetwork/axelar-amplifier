@@ -145,6 +145,7 @@ mod tests {
 
             [[handlers]]
             type = 'SolanaMsgVerifier'
+            chain_name = 'solana'
             cosmwasm_contract = '{}'
             rpc_url = 'http://127.0.0.1'
 
@@ -154,6 +155,7 @@ mod tests {
 
             [[handlers]]
             type = 'SolanaVerifierSetVerifier'
+            chain_name = 'solana'
             cosmwasm_contract = '{}'
             rpc_url = 'http://127.0.0.1'
 
@@ -395,6 +397,7 @@ mod tests {
                     rpc_url: Url::from_str("http://127.0.0.1").unwrap(),
                 },
                 HandlerConfig::SolanaMsgVerifier {
+                    chain_name: ChainName::from_str("solana").unwrap(),
                     cosmwasm_contract: TMAddress::from(
                         AccountId::new("axelar", &[0u8; 32]).unwrap(),
                     ),
@@ -402,6 +405,7 @@ mod tests {
                     rpc_timeout: Some(Duration::from_secs(3)),
                 },
                 HandlerConfig::SolanaVerifierSetVerifier {
+                    chain_name: ChainName::from_str("solana").unwrap(),
                     cosmwasm_contract: TMAddress::from(
                         AccountId::new("axelar", &[0u8; 32]).unwrap(),
                     ),

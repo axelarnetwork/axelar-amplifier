@@ -94,6 +94,7 @@ rpc_url = 'http://127.0.0.1/'
 
 [[handlers]]
 type = 'SolanaMsgVerifier'
+chain_name = 'solana'
 cosmwasm_contract = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'
 rpc_url = 'http://127.0.0.1/'
 
@@ -103,6 +104,7 @@ nanos = 0
 
 [[handlers]]
 type = 'SolanaVerifierSetVerifier'
+chain_name = 'solana'
 cosmwasm_contract = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'
 rpc_url = 'http://127.0.0.1/'
 

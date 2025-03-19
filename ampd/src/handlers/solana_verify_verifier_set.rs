@@ -43,6 +43,7 @@ struct PollStartedEvent {
 }
 
 pub struct Handler<C: SolanaRpcClientProxy> {
+    chain_name: ChainName,
     verifier: TMAddress,
     voting_verifier_contract: TMAddress,
     rpc_client: C,
@@ -52,6 +53,7 @@ pub struct Handler<C: SolanaRpcClientProxy> {
 
 impl<C: SolanaRpcClientProxy> Handler<C> {
     pub async fn new(
+        chain_name: ChainName,
         verifier: TMAddress,
         voting_verifier_contract: TMAddress,
         rpc_client: C,
@@ -63,6 +65,7 @@ impl<C: SolanaRpcClientProxy> Handler<C> {
             .expect("cannot start handler without fetching domain separator for Solana");
 
         Self {
+            chain_name,
             verifier,
             solana_gateway_domain_separator: domain_separator,
             voting_verifier_contract,
@@ -117,6 +120,10 @@ impl<C: SolanaRpcClientProxy> EventHandler for Handler<C> {
             }
             event => event.change_context(Error::DeserializeEvent)?,
         };
+
+        if source_chain != self.chain_name {
+            return Ok(vec![]);
+        }
 
         if !participants.contains(&self.verifier) {
             return Ok(vec![]);
@@ -245,6 +252,7 @@ mod tests {
         );
 
         let handler = super::Handler::new(
+            ChainName::from_str("solana").unwrap(),
             TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
             EmptyResponseSolanaRpc,
@@ -263,6 +271,7 @@ mod tests {
         );
 
         let handler = super::Handler::new(
+            ChainName::from_str("solana").unwrap(),
             TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
             EmptyResponseSolanaRpc,
@@ -282,6 +291,7 @@ mod tests {
         );
 
         let handler = super::Handler::new(
+            ChainName::from_str("solana").unwrap(),
             TMAddress::random(PREFIX),
             voting_verifier,
             EmptyResponseSolanaRpc,
@@ -307,8 +317,14 @@ mod tests {
 
         let (tx, rx) = watch::channel(expiration - 1);
 
-        let handler =
-            super::Handler::new(verifier, voting_verifier, ValidResponseSolanaRpc, rx).await;
+        let handler = super::Handler::new(
+            ChainName::from_str("solana").unwrap(),
+            verifier,
+            voting_verifier,
+            ValidResponseSolanaRpc,
+            rx,
+        )
+        .await;
 
         // poll is not expired yet, should hit proxy
         let actual = handler.handle(&event).await.unwrap();
@@ -331,6 +347,7 @@ mod tests {
         );
 
         let handler = super::Handler::new(
+            ChainName::from_str("solana").unwrap(),
             worker,
             voting_verifier,
             ValidResponseSolanaRpc,

@@ -427,12 +427,14 @@ where
                     event_processor_config.clone(),
                 ),
                 handlers::config::Config::SolanaMsgVerifier {
+                    chain_name,
                     cosmwasm_contract,
                     rpc_url,
                     rpc_timeout,
                 } => self.create_handler_task(
                     "solana-msg-verifier",
                     handlers::solana_verify_msg::Handler::new(
+                        chain_name,
                         verifier.clone(),
                         cosmwasm_contract,
                         RpcClient::new_with_timeout_and_commitment(
@@ -445,12 +447,14 @@ where
                     event_processor_config.clone(),
                 ),
                 handlers::config::Config::SolanaVerifierSetVerifier {
+                    chain_name,
                     cosmwasm_contract,
                     rpc_url,
                     rpc_timeout,
                 } => self.create_handler_task(
                     "solana-verifier-set-verifier",
                     handlers::solana_verify_verifier_set::Handler::new(
+                        chain_name,
                         verifier.clone(),
                         cosmwasm_contract,
                         RpcClient::new_with_timeout_and_commitment(
