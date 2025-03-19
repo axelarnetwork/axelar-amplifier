@@ -6,12 +6,12 @@ use std::str::FromStr;
 use axelar_wasm_std::msg_id::HexTxHash;
 use axelar_wasm_std::{nonempty, Participant, VerificationStatus};
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, HexBinary, StdError, StdResult, Uint128, Uint256};
+use cosmwasm_std::{Addr, HexBinary, StdError, StdResult, Uint256};
 use cw_storage_plus::{Key, KeyDeserialize, PrimaryKey};
 use k256::ecdsa;
 use k256::schnorr::signature::SignatureEncoding;
 use lazy_static::lazy_static;
-use multisig::key::{PublicKey, Signature};
+use multisig::key::PublicKey;
 use regex::Regex;
 use ripemd::Ripemd160;
 use router_api::{CrossChainId, FIELD_DELIMITER};
@@ -65,7 +65,7 @@ pub struct AxelarSigner {
 impl TryFrom<AxelarSigner> for Participant {
     type Error = XRPLError;
     fn try_from(signer: AxelarSigner) -> Result<Self, XRPLError> {
-        let weight = nonempty::Uint128::try_from(Uint128::from(u128::from(signer.weight)))
+        let weight = nonempty::Uint128::try_from(u128::from(signer.weight))
             .map_err(|_| XRPLError::InvalidSignerWeight(signer.weight))?;
 
         Ok(Self {
@@ -116,24 +116,6 @@ pub struct TxInfo {
 }
 
 #[cw_serde]
-#[derive(Ord, PartialOrd, Eq)]
-pub struct Operator {
-    pub address: HexBinary,
-    pub weight: Uint256,
-    pub signature: Option<Signature>,
-}
-
-impl Operator {
-    pub fn with_signature(self, sig: Signature) -> Operator {
-        Operator {
-            address: self.address,
-            weight: self.weight,
-            signature: Some(sig),
-        }
-    }
-}
-
-#[cw_serde]
 #[derive(Eq, Hash)]
 pub struct XRPLToken {
     #[serde(with = "xrpl_account_id_string")]
@@ -146,18 +128,18 @@ pub struct XRPLToken {
 
 impl XRPLToken {
     pub fn as_bytes(&self) -> Vec<u8> {
-        let mut bytes = Vec::with_capacity(40);
+        let mut bytes = Vec::with_capacity(XRPL_ACCOUNT_ID_LENGTH + XRPL_CURRENCY_LENGTH);
         bytes.extend_from_slice(self.issuer.as_ref());
         bytes.extend_from_slice(self.currency.as_ref());
         bytes
     }
 
-    pub fn is_remote(&self, xrpl_multisig: XRPLAccountId) -> bool {
-        self.issuer == xrpl_multisig
+    pub fn is_local(&self, xrpl_multisig: XRPLAccountId) -> bool {
+        self.issuer != xrpl_multisig
     }
 
-    pub fn is_local(&self, xrpl_multisig: XRPLAccountId) -> bool {
-        !self.is_remote(xrpl_multisig)
+    pub fn is_remote(&self, xrpl_multisig: XRPLAccountId) -> bool {
+        !self.is_local(xrpl_multisig)
     }
 }
 
@@ -180,7 +162,7 @@ impl KeyDeserialize for XRPLToken {
     const KEY_ELEMS: u16 = 2;
 
     fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
-        if value.len() != 40 {
+        if value.len() != XRPL_ACCOUNT_ID_LENGTH + XRPL_CURRENCY_LENGTH {
             return Err(StdError::generic_err("Invalid key length for XRPLToken"));
         }
 
@@ -265,12 +247,8 @@ impl PartialOrd for XRPLPaymentAmount {
             (
                 XRPLPaymentAmount::Issued(token_a, amount_a),
                 XRPLPaymentAmount::Issued(token_b, amount_b),
-            ) => {
-                if token_a == token_b {
-                    amount_a.partial_cmp(amount_b)
-                } else {
-                    None
-                }
+            ) if token_a == token_b => {
+                amount_a.partial_cmp(amount_b)
             }
             _ => None,
         }
@@ -344,13 +322,8 @@ impl Add for XRPLPaymentAmount {
             (
                 XRPLPaymentAmount::Issued(token_x, amount_x),
                 XRPLPaymentAmount::Issued(token_y, amount_y),
-            ) => {
-                if token_x != token_y {
-                    return Err(XRPLError::IncompatibleTokens);
-                }
-
-                let result_amount = amount_x.add(amount_y)?;
-                Ok(XRPLPaymentAmount::Issued(token_x, result_amount))
+            ) if token_x == token_y => {
+                Ok(XRPLPaymentAmount::Issued(token_x, amount_x.add(amount_y)?))
             }
             _ => Err(XRPLError::IncompatibleTokens),
         }
@@ -369,14 +342,9 @@ impl Sub for XRPLPaymentAmount {
             (
                 XRPLPaymentAmount::Issued(token_x, amount_x),
                 XRPLPaymentAmount::Issued(token_y, amount_y),
-            ) => {
-                if token_x != token_y {
-                    return Err(XRPLError::IncompatibleTokens);
-                }
-
-                let result_amount = amount_x.sub(amount_y)?;
-                Ok(XRPLPaymentAmount::Issued(token_x, result_amount))
-            }
+            ) if token_x == token_y => {
+                Ok(XRPLPaymentAmount::Issued(token_x, amount_x.sub(amount_y)?))
+            },
             _ => Err(XRPLError::IncompatibleTokens),
         }
     }
