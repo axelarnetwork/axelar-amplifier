@@ -42,13 +42,13 @@ lazy_static! {
 // https://xrpl.org/docs/references/protocol/binary-format#token-amount-format
 const MIN_MANTISSA: u64 = 1_000_000_000_000_000;
 const MAX_MANTISSA: u64 = 10_000_000_000_000_000 - 1;
-const MIN_EXPONENT: i8 = -96;
-const MAX_EXPONENT: i8 = 80;
+const MIN_EXPONENT: i64 = -96;
+const MAX_EXPONENT: i64 = 80;
 
 pub const XRPL_TOKEN_MIN_MANTISSA: u64 = MIN_MANTISSA;
 pub const XRPL_TOKEN_MAX_MANTISSA: u64 = MAX_MANTISSA;
-pub const XRPL_TOKEN_MIN_EXPONENT: i8 = MIN_EXPONENT;
-pub const XRPL_TOKEN_MAX_EXPONENT: i8 = MAX_EXPONENT;
+pub const XRPL_TOKEN_MIN_EXPONENT: i64 = MIN_EXPONENT;
+pub const XRPL_TOKEN_MAX_EXPONENT: i64 = MAX_EXPONENT;
 
 const MAX_XRPL_TOKEN_AMOUNT: XRPLTokenAmount = XRPLTokenAmount {
     mantissa: MAX_MANTISSA,
@@ -819,7 +819,7 @@ pub mod xrpl_currency_string {
 #[derive(Eq, Hash)]
 pub struct XRPLTokenAmount {
     mantissa: u64,
-    exponent: i8,
+    exponent: i64,
 }
 
 impl fmt::Display for XRPLTokenAmount {
@@ -836,7 +836,7 @@ impl XRPLTokenAmount {
         exponent: 0,
     };
 
-    pub fn new(mantissa: u64, exponent: i8) -> Self {
+    pub fn new(mantissa: u64, exponent: i64) -> Self {
         assert!(
             mantissa == 0
                 || ((MIN_MANTISSA..=MAX_MANTISSA).contains(&mantissa)
@@ -961,7 +961,7 @@ impl std::str::FromStr for XRPLTokenAmount {
                 );
                 (
                     base,
-                    i8::from_str(exp).map_err(|_| XRPLError::InvalidTokenAmount {
+                    i64::from_str(exp).map_err(|_| XRPLError::InvalidTokenAmount {
                         reason: "invalid exponent".to_string(),
                     })?,
                 )
@@ -986,11 +986,7 @@ impl std::str::FromStr for XRPLTokenAmount {
                 let mut digits = String::from(lead);
                 digits.push_str(trail);
                 let trail_digits = trail.chars().filter(|c| *c != '_').count();
-                let decimal_offset =
-                    i8::try_from(trail_digits).map_err(|_| XRPLError::InvalidTokenAmount {
-                        reason: "decimal offset too large".to_string(),
-                    })?;
-                (digits, decimal_offset)
+                (digits, trail_digits as i64)
             }
         };
 
@@ -1202,8 +1198,8 @@ impl fmt::Display for XRPLPathStep {
 // see https://github.com/XRPLF/xrpl-dev-portal/blob/82da0e53a8d6cdf2b94a80594541d868b4d03b94/content/_code-samples/tx-serialization/py/xrpl_num.py#L19
 pub fn canonicalize_mantissa(
     mut mantissa: Uint256,
-    mut exponent: i8,
-) -> Result<(u64, i8), XRPLError> {
+    mut exponent: i64,
+) -> Result<(u64, i64), XRPLError> {
     let ten = Uint256::from(10u8);
 
     while mantissa < MIN_MANTISSA.into() && exponent > MIN_EXPONENT {
@@ -1253,15 +1249,14 @@ pub fn canonicalize_token_amount(
     amount: Uint256,
     decimals: u8,
 ) -> Result<(XRPLTokenAmount, Uint256), XRPLError> {
-    let neg_decimals = i8::try_from(decimals)
-        .map_err(|_| XRPLError::InvalidDecimals(decimals))?
+    let neg_decimals = i64::from(decimals)
         .checked_neg()
         .ok_or(XRPLError::InvalidDecimals(decimals))?;
 
     let (mantissa, exponent) = canonicalize_mantissa(amount, neg_decimals)?;
 
     let adjusted_exponent = exponent
-        .checked_add(i8::try_from(decimals).map_err(|_| XRPLError::InvalidDecimals(decimals))?)
+        .checked_add(i64::from(decimals))
         .ok_or(XRPLError::ExponentOverflow)?;
 
     let ten = Uint256::from(10u8);
@@ -1318,7 +1313,7 @@ pub fn scale_to_decimals(
 
     let adjusted_exponent = amount
         .exponent
-        .checked_add(i8::try_from(destination_decimals).map_err(|_| XRPLError::InvalidExponent)?)
+        .checked_add(i64::from(destination_decimals))
         .ok_or(XRPLError::AdditionOverflow)?;
 
     if adjusted_exponent >= 0 {
