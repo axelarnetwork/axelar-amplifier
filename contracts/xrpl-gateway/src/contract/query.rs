@@ -5,6 +5,7 @@ use error_stack::Result;
 use interchain_token_service::TokenId;
 use router_api::{ChainNameRaw, CrossChainId, Message};
 use xrpl_types::msg::{XRPLCallContractMessage, XRPLInterchainTransferMessage};
+use xrpl_types::types::XRPLToken;
 
 use super::{execute, Error};
 use crate::state::{self, Config};
@@ -29,6 +30,12 @@ pub fn xrpl_token(storage: &dyn Storage, token_id: TokenId) -> Result<Binary, st
 pub fn xrp_token_id(storage: &dyn Storage) -> Result<Binary, state::Error> {
     let config = state::load_config(storage);
     let token_id = config.xrp_token_id;
+    Ok(to_json_binary(&token_id).map_err(state::Error::from)?)
+}
+
+pub fn xrpl_token_id(storage: &dyn Storage, token: &XRPLToken) -> Result<Binary, state::Error> {
+    let config = state::load_config(storage);
+    let token_id = state::load_token_id(storage, config.xrpl_multisig, token)?;
     Ok(to_json_binary(&token_id).map_err(state::Error::from)?)
 }
 

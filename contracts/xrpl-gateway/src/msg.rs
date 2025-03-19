@@ -164,6 +164,9 @@ pub enum QueryMsg {
     XrplToken(TokenId),
 
     #[returns(TokenId)]
+    XrplTokenId(XRPLToken),
+
+    #[returns(TokenId)]
     XrpTokenId,
 
     #[returns(TokenId)]

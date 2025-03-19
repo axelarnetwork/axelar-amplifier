@@ -43,6 +43,9 @@ pub enum Error {
     #[error("failed to query xrpl token for token id: {0}")]
     XrplToken(TokenId),
 
+    #[error("failed to query token id for xrpl token: {0}")]
+    XrplTokenId(XRPLToken),
+
     #[error("failed to query xrp token id")]
     XrpTokenId,
 }
@@ -68,6 +71,7 @@ impl From<QueryMsg> for Error {
                 token_id,
             },
             QueryMsg::XrplToken(token_id) => Error::XrplToken(token_id),
+            QueryMsg::XrplTokenId(token) => Error::XrplTokenId(token),
             QueryMsg::XrpTokenId => Error::XrpTokenId,
         }
     }

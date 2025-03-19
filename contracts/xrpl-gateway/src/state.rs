@@ -190,6 +190,20 @@ pub fn save_token_instance_decimals(
         .change_context(Error::Storage)
 }
 
+pub fn load_token_id(
+    storage: &dyn Storage,
+    xrpl_multisig: XRPLAccountId,
+    token: &XRPLToken,
+) -> Result<TokenId, Error> {
+    let token_id = if token.is_remote(xrpl_multisig.clone()) {
+        load_remote_token_id(storage, &token.currency)?
+    } else {
+        load_local_token_id(storage, token)?
+    };
+
+    Ok(token_id)
+}
+
 pub fn load_config(storage: &dyn Storage) -> Config {
     CONFIG.load(storage).expect("failed to load config")
 }

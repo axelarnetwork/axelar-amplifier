@@ -135,20 +135,6 @@ pub fn route_incoming_messages(
         .add_events(events))
 }
 
-fn load_token_id(
-    storage: &dyn Storage,
-    xrpl_multisig: XRPLAccountId,
-    token: &XRPLToken,
-) -> Result<TokenId, Error> {
-    let token_id = if token.is_remote(xrpl_multisig.clone()) {
-        state::load_remote_token_id(storage, &token.currency).change_context(Error::InvalidToken)?
-    } else {
-        state::load_local_token_id(storage, token).change_context(Error::InvalidToken)?
-    };
-
-    Ok(token_id)
-}
-
 pub fn payment_amount_to_token_id(
     storage: &dyn Storage,
     config: &Config,
@@ -157,7 +143,8 @@ pub fn payment_amount_to_token_id(
     match amount {
         XRPLPaymentAmount::Drops(_) => Ok(config.xrp_token_id),
         XRPLPaymentAmount::Issued(token, _) => {
-            load_token_id(storage, config.xrpl_multisig.clone(), token)
+            state::load_token_id(storage, config.xrpl_multisig.clone(), token)
+                .change_context(Error::State)
         }
     }
 }
