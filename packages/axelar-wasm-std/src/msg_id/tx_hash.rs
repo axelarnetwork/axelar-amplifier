@@ -2,7 +2,6 @@ use core::fmt;
 use std::fmt::Display;
 use std::str::FromStr;
 
-use cosmwasm_schema::cw_serde;
 use cosmwasm_std::HexBinary;
 use error_stack::{ensure, Report, ResultExt};
 use lazy_static::lazy_static;
@@ -12,22 +11,15 @@ use super::Error;
 use crate::hash::Hash;
 use crate::nonempty;
 
-#[cw_serde]
-#[derive(Eq, Hash)]
-#[serde(transparent)]
 pub struct HexTxHash {
     pub tx_hash: Hash,
 }
 
 impl HexTxHash {
-    pub fn tx_hash_as_hex(&self, hex_prefix: bool) -> nonempty::String {
-        let hex = HexBinary::from(self.tx_hash).to_hex();
-        let result = if hex_prefix {
-            format!("0x{}", hex)
-        } else {
-            hex
-        };
-        result.try_into().expect("hex string cannot be empty")
+    pub fn tx_hash_as_hex(&self) -> nonempty::String {
+        format!("0x{}", HexBinary::from(self.tx_hash).to_hex())
+            .try_into()
+            .expect("failed to convert tx hash to non-empty string")
     }
 
     pub fn new(tx_id: impl Into<[u8; 32]>) -> Self {
@@ -73,15 +65,6 @@ impl Display for HexTxHash {
     }
 }
 
-impl From<HexTxHash> for nonempty::String {
-    fn from(msg_id: HexTxHash) -> Self {
-        msg_id
-            .to_string()
-            .try_into()
-            .expect("failed to convert msg id to non-empty string")
-    }
-}
-
 #[cfg(test)]
 mod tests {
 
@@ -108,10 +91,7 @@ mod tests {
 
             let res = HexTxHash::from_str(&msg_id);
             let parsed = res.unwrap();
-            assert_eq!(
-                parsed.tx_hash_as_hex(true),
-                msg_id.clone().try_into().unwrap()
-            );
+            assert_eq!(parsed.tx_hash_as_hex(), msg_id.clone().try_into().unwrap());
             assert_eq!(parsed.to_string(), msg_id);
         }
     }

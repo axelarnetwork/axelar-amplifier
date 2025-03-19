@@ -117,7 +117,7 @@ impl CheckedAdd for PollId {
     }
 }
 
-impl PrimaryKey<'_> for PollId {
+impl<'a> PrimaryKey<'a> for PollId {
     type Prefix = ();
     type SubPrefix = ();
     type Suffix = Self;
@@ -128,7 +128,7 @@ impl PrimaryKey<'_> for PollId {
     }
 }
 
-impl Prefixer<'_> for PollId {
+impl<'a> Prefixer<'a> for PollId {
     fn prefix(&self) -> Vec<Key> {
         vec![Key::Val64(self.0.to_be_bytes())]
     }
