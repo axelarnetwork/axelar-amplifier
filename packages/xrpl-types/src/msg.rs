@@ -171,9 +171,7 @@ impl XRPLUserMessage {
     pub fn cc_id(&self, source_chain: ChainNameRaw) -> CrossChainId {
         CrossChainId {
             source_chain,
-            message_id: format!("0x{}", HexBinary::from(self.tx_id.tx_hash).to_hex())
-                .try_into()
-                .expect("message_id conversion should never fail"),
+            message_id: self.tx_id.tx_hash_as_hex(),
         }
     }
 }
