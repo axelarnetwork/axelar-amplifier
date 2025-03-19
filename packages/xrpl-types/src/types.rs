@@ -11,7 +11,7 @@ use cw_storage_plus::{Key, KeyDeserialize, PrimaryKey};
 use k256::ecdsa;
 use k256::schnorr::signature::SignatureEncoding;
 use lazy_static::lazy_static;
-use multisig::key::{PublicKey, Signature};
+use multisig::key::PublicKey;
 use regex::Regex;
 use ripemd::Ripemd160;
 use router_api::{CrossChainId, FIELD_DELIMITER};
@@ -65,7 +65,7 @@ pub struct AxelarSigner {
 impl TryFrom<AxelarSigner> for Participant {
     type Error = XRPLError;
     fn try_from(signer: AxelarSigner) -> Result<Self, XRPLError> {
-        let weight = nonempty::Uint128::try_from(Uint128::from(u128::from(signer.weight)))
+        let weight = nonempty::Uint128::try_from(u128::from(signer.weight))
             .map_err(|_| XRPLError::InvalidSignerWeight(signer.weight))?;
 
         Ok(Self {
@@ -113,24 +113,6 @@ pub struct TxInfo {
     pub status: XRPLTxStatus,
     pub unsigned_contents: XRPLUnsignedTx,
     pub original_cc_id: Option<CrossChainId>,
-}
-
-#[cw_serde]
-#[derive(Ord, PartialOrd, Eq)]
-pub struct Operator {
-    pub address: HexBinary,
-    pub weight: Uint256,
-    pub signature: Option<Signature>,
-}
-
-impl Operator {
-    pub fn with_signature(self, sig: Signature) -> Operator {
-        Operator {
-            address: self.address,
-            weight: self.weight,
-            signature: Some(sig),
-        }
-    }
 }
 
 #[cw_serde]
