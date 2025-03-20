@@ -2,23 +2,27 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fs::File;
 use std::iter;
+use std::marker::PhantomData;
 use std::str::FromStr;
 
+use axelar_core_std::nexus;
+use axelar_core_std::query::AxelarQueryMsg;
 use axelar_wasm_std::error::ContractError;
 use axelar_wasm_std::msg_id::HexTxHash;
 use axelar_wasm_std::{err_contains, nonempty, VerificationStatus};
 use cosmwasm_std::testing::{
-    message_info, mock_dependencies, mock_env, MockApi, MockQuerier, MockStorage,
+    message_info, mock_dependencies, mock_env, MockApi, MockQuerier, MockQuerierCustomHandlerResult, MockStorage
 };
 #[cfg(not(feature = "generate_golden_files"))]
 use cosmwasm_std::Response;
 use cosmwasm_std::{
-    from_json, to_json_binary, ContractResult, HexBinary, OwnedDeps, QuerierResult, WasmQuery,
+    from_json, to_json_binary, Api, ContractResult, CustomQuery, Deps, DepsMut, Empty, HexBinary, OwnedDeps, Querier, QuerierResult, QuerierWrapper, Storage, SystemResult, WasmQuery
 };
 use itertools::Itertools;
-use rand::{thread_rng, Rng};
+use rand::{thread_rng, Rng, RngCore};
 use router_api::{ChainName, CrossChainId, Message};
 use serde::Serialize;
+use serde_json::json;
 use sha3::{Digest, Keccak256};
 use xrpl_gateway::contract::{execute, instantiate, query};
 use xrpl_gateway::msg::{ExecuteMsg, InstantiateMsg, QueryMsg, TokenMetadata};
@@ -59,7 +63,9 @@ fn successful_verify() {
 
     let mut responses = vec![];
     for msgs in test_cases {
-        let mut deps = instantiate_contract(
+        let mut deps = mock_axelar_dependencies();
+        instantiate_contract(
+            deps.as_default_mut(),
             "verifier",
             "router",
             "its-hub",
@@ -71,7 +77,7 @@ fn successful_verify() {
         // check verification is idempotent
         let response = iter::repeat(
             execute(
-                deps.as_mut(),
+                deps.as_default_mut(),
                 mock_env(),
                 message_info(&api.addr_make("sender"), &[]),
                 ExecuteMsg::VerifyMessages(msgs),
@@ -110,7 +116,13 @@ fn successful_route_incoming() {
 
     let mut responses = vec![];
     for msgs in test_cases {
-        let mut deps = instantiate_contract(
+        let mut tx_hash = [0u8; 32];
+        rand::thread_rng().fill_bytes(&mut tx_hash);
+        let nonce = rand::random();
+
+        let mut deps = mock_axelar_dependencies();
+        instantiate_contract(
+            deps.as_default_mut(),
             "verifier",
             "router",
             "its-hub",
@@ -118,9 +130,10 @@ fn successful_route_incoming() {
         );
         let api = deps.api;
         update_query_handler(&mut deps.querier, handler.clone());
+        deps.querier = deps.querier.with_custom_handler(axelar_query_handler(tx_hash, nonce));
 
         execute(
-            deps.as_mut(),
+            deps.as_default_mut(),
             mock_env(),
             message_info(&api.addr_make("admin"), &[]),
             ExecuteMsg::DeployRemoteToken {
@@ -138,7 +151,7 @@ fn successful_route_incoming() {
         // check routing of incoming messages is idempotent
         let response = iter::repeat(
             execute(
-                deps.as_mut(),
+                deps.as_default_mut(),
                 mock_env(),
                 message_info(&api.addr_make("sender"), &[]),
                 ExecuteMsg::RouteIncomingMessages(messages_with_payload(msgs.clone())),
@@ -177,7 +190,9 @@ fn successful_route_outgoing() {
     let mut responses = vec![];
     for msgs in test_cases {
         let router = "router";
-        let mut deps = instantiate_contract(
+        let mut deps = mock_dependencies();
+        instantiate_contract(
+            deps.as_mut(),
             "verifier",
             router,
             "its-hub",
@@ -240,7 +255,9 @@ fn successful_route_outgoing() {
 #[test]
 fn verify_with_faulty_verifier_fails() {
     // if the mock querier is not overwritten, it will return an error
-    let mut deps = instantiate_contract(
+    let mut deps = mock_dependencies();
+    instantiate_contract(
+        deps.as_mut(),
         "verifier",
         "router",
         "its-hub",
@@ -262,7 +279,9 @@ fn verify_with_faulty_verifier_fails() {
 #[test]
 fn route_incoming_with_faulty_verifier_fails() {
     // if the mock querier is not overwritten, it will return an error
-    let mut deps = instantiate_contract(
+    let mut deps = mock_dependencies();
+    instantiate_contract(
+        deps.as_mut(),
         "verifier",
         "router",
         "its-hub",
@@ -286,7 +305,9 @@ fn incoming_calls_with_duplicate_ids_should_fail() {
     let (test_cases, handler) = test_cases_for_duplicate_msgs();
     for msgs in test_cases {
         let router = "router";
-        let mut deps = instantiate_contract(
+        let mut deps = mock_axelar_dependencies();
+        instantiate_contract(
+            deps.as_default_mut(),
             "verifier",
             router,
             "its-hub",
@@ -296,7 +317,7 @@ fn incoming_calls_with_duplicate_ids_should_fail() {
         update_query_handler(&mut deps.querier, handler.clone());
 
         let response = execute(
-            deps.as_mut(),
+            deps.as_default_mut(),
             mock_env(),
             message_info(&api.addr_make("sender"), &[]),
             ExecuteMsg::VerifyMessages(msgs.clone()),
@@ -306,7 +327,7 @@ fn incoming_calls_with_duplicate_ids_should_fail() {
         let msgs_with_payload = messages_with_payload(msgs.clone());
 
         let response = execute(
-            deps.as_mut(),
+            deps.as_default_mut(),
             mock_env(),
             message_info(&api.addr_make("sender"), &[]),
             ExecuteMsg::RouteIncomingMessages(msgs_with_payload.clone()),
@@ -314,7 +335,7 @@ fn incoming_calls_with_duplicate_ids_should_fail() {
         assert!(response.is_err());
 
         let response = execute(
-            deps.as_mut(),
+            deps.as_default_mut(),
             mock_env(),
             message_info(&api.addr_make(router), &[]),
             ExecuteMsg::RouteIncomingMessages(msgs_with_payload),
@@ -328,7 +349,9 @@ fn outgoing_calls_with_duplicate_ids_should_fail() {
     let test_cases = outgoing_test_cases_for_duplicate_msgs();
     for msgs in test_cases {
         let router = "router";
-        let mut deps = instantiate_contract(
+        let mut deps = mock_dependencies();
+        instantiate_contract(
+            deps.as_mut(),
             "verifier",
             router,
             "its-hub",
@@ -358,7 +381,9 @@ fn outgoing_calls_with_duplicate_ids_should_fail() {
 fn outgoing_route_duplicate_ids_should_fail() {
     let test_cases = outgoing_test_cases_for_duplicate_msgs();
     for msgs in test_cases {
-        let mut deps = instantiate_contract(
+        let mut deps = mock_dependencies();
+        instantiate_contract(
+            deps.as_mut(),
             "verifier",
             "router",
             "its-hub",
@@ -381,7 +406,9 @@ fn outgoing_route_duplicate_ids_should_fail() {
 fn incoming_route_duplicate_ids_should_fail() {
     let (test_cases, handler) = test_cases_for_duplicate_msgs();
     for msgs in test_cases {
-        let mut deps = instantiate_contract(
+        let mut deps = mock_axelar_dependencies();
+        instantiate_contract(
+            deps.as_default_mut(),
             "verifier",
             "router",
             "its-hub",
@@ -391,7 +418,7 @@ fn incoming_route_duplicate_ids_should_fail() {
         update_query_handler(&mut deps.querier, handler.clone());
 
         let response = execute(
-            deps.as_mut(),
+            deps.as_default_mut(),
             mock_env(),
             message_info(&api.addr_make("sender"), &[]),
             ExecuteMsg::RouteIncomingMessages(messages_with_payload(msgs)),
@@ -405,7 +432,9 @@ fn incoming_route_duplicate_ids_should_fail() {
 fn reject_reroute_outgoing_message_with_different_contents() {
     let router = "router";
     let its_hub = "its-hub";
-    let mut deps = instantiate_contract(
+    let mut deps = mock_dependencies();
+    instantiate_contract(
+        deps.as_mut(),
         "verifier",
         router,
         its_hub,
@@ -684,7 +713,7 @@ fn correctly_working_verifier_handler(
 }
 
 fn update_query_handler<U: Serialize>(
-    querier: &mut MockQuerier,
+    querier: &mut MockQuerier<AxelarQueryMsg>,
     handler: impl Fn(xrpl_voting_verifier::msg::QueryMsg) -> Result<U, ContractError> + 'static,
 ) {
     let handler = move |msg: &WasmQuery| match msg {
@@ -700,16 +729,72 @@ fn update_query_handler<U: Serialize>(
     querier.update_wasm(handler)
 }
 
+fn mock_axelar_dependencies(
+) -> OwnedDeps<MockStorage, MockApi, MockQuerier<AxelarQueryMsg>, AxelarQueryMsg> {
+    OwnedDeps {
+        storage: MockStorage::default(),
+        api: MockApi::default(),
+        querier: MockQuerier::<AxelarQueryMsg>::new(&[("contract", &[])]),
+        custom_query_type: PhantomData,
+    }
+}
+
+fn axelar_query_handler(
+    tx_hash: [u8; 32],
+    nonce: u32,
+) -> impl Fn(&AxelarQueryMsg) -> MockQuerierCustomHandlerResult {
+    move |query| {
+        let result = match query {
+            AxelarQueryMsg::Nexus(nexus_query) => match nexus_query {
+                nexus::query::QueryMsg::TxHashAndNonce {} => json!({
+                    "tx_hash": tx_hash,
+                    "nonce": nonce,
+                }),
+                _ => unreachable!("unexpected nexus query {:?}", nexus_query),
+            },
+            _ => unreachable!("unexpected query request {:?}", query),
+        }
+        .to_string()
+        .as_bytes()
+        .into();
+
+        SystemResult::Ok(ContractResult::Ok(result))
+    }
+}
+
+pub trait OwnedDepsExt {
+    fn as_default_mut(&mut self) -> DepsMut<Empty>;
+    fn as_default_deps(&self) -> Deps<Empty>;
+}
+
+impl<S: Storage, A: Api, Q: Querier, C: CustomQuery> OwnedDepsExt for OwnedDeps<S, A, Q, C> {
+    fn as_default_mut(&'_ mut self) -> DepsMut<'_, Empty> {
+        DepsMut {
+            storage: &mut self.storage,
+            api: &self.api,
+            querier: QuerierWrapper::new(&self.querier),
+        }
+    }
+
+    fn as_default_deps(&'_ self) -> Deps<'_, Empty> {
+        Deps {
+            storage: &self.storage,
+            api: &self.api,
+            querier: QuerierWrapper::new(&self.querier),
+        }
+    }
+}
+
 fn instantiate_contract(
+    deps: DepsMut,
     verifier: &str,
     router: &str,
     its_hub: &str,
     its_hub_chain_name: ChainName,
-) -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
-    let mut deps = mock_dependencies();
-    let api = deps.api;
+) {
+    let api = MockApi::default();
     let response = instantiate(
-        deps.as_mut(),
+        deps,
         mock_env(),
         message_info(&api.addr_make("sender"), &[]),
         InstantiateMsg {
@@ -728,8 +813,6 @@ fn instantiate_contract(
     );
 
     assert!(response.is_ok());
-
-    deps
 }
 
 fn sort_msgs_by_status<K, V>(msgs: HashMap<K, V>) -> impl Iterator<Item = V>

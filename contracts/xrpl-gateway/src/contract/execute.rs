@@ -2,6 +2,7 @@ use std::hash::Hash;
 use std::ops::Sub;
 use std::str::FromStr;
 
+use axelar_core_std::nexus;
 use axelar_wasm_std::msg_id::HexTxHash;
 use axelar_wasm_std::{nonempty, FnExt, VerificationStatus};
 use cosmwasm_std::{Addr, CosmosMsg, Event, HexBinary, Response, Storage, Uint256};
@@ -25,6 +26,8 @@ use crate::events::XRPLGatewayEvent;
 use crate::msg::{CallContract, InterchainTransfer, LinkToken, MessageWithPayload, TokenMetadata};
 use crate::state::{self, Config};
 use crate::token_id;
+
+const PREFIX_CROSS_CHAIN_ID: &[u8] = b"cross-chain-id";
 
 pub fn verify_messages(
     verifier: &xrpl_voting_verifier::Client,
@@ -376,7 +379,7 @@ pub fn route_outgoing_messages(
 
 pub fn register_token_metadata(
     config: &Config,
-    block_height: u64,
+    nexus_client: &nexus::Client,
     xrpl_token: XRPLTokenOrXrp,
 ) -> Result<Response, Error> {
     let hub_msg = interchain_token_service::HubMessage::RegisterTokenMetadata(
@@ -392,7 +395,7 @@ pub fn register_token_metadata(
         },
     );
 
-    route_hub_message(config, block_height, hub_msg)
+    route_hub_message(config, nexus_client, hub_msg)
 }
 
 pub fn register_local_token(
@@ -557,11 +560,11 @@ pub fn register_token_instance(
 
 fn route_hub_message(
     config: &Config,
-    block_height: u64,
+    nexus_client: &nexus::Client,
     hub_message: interchain_token_service::HubMessage,
 ) -> Result<Response, Error> {
     let payload = hub_message.abi_encode();
-    let cc_id = unique_cross_chain_id(block_height, config.chain_name.clone())?;
+    let cc_id = unique_cross_chain_id(&nexus_client, config.chain_name.clone())?;
     let its_msg = construct_its_hub_message(config, cc_id, payload.clone())?;
 
     let router = Router::new(config.router.clone());
@@ -581,7 +584,7 @@ fn route_hub_message(
 pub fn link_token(
     storage: &mut dyn Storage,
     config: &Config,
-    block_height: u64,
+    nexus_client: &nexus::Client,
     sender: Addr,
     salt: [u8; 32],
     destination_chain: ChainNameRaw,
@@ -626,13 +629,13 @@ pub fn link_token(
         destination_chain,
         message: its_msg,
     };
-    route_hub_message(config, block_height, hub_msg)
+    route_hub_message(config, nexus_client, hub_msg)
 }
 
 pub fn deploy_remote_token(
     storage: &mut dyn Storage,
     config: &Config,
-    block_height: u64,
+    nexus_client: &nexus::Client,
     token: XRPLTokenOrXrp,
     destination_chain: ChainNameRaw,
     token_metadata: TokenMetadata,
@@ -673,16 +676,28 @@ pub fn deploy_remote_token(
         destination_chain,
         message: its_msg,
     };
-    route_hub_message(config, block_height, hub_msg)
+    route_hub_message(config, nexus_client, hub_msg)
 }
 
-// TODO: Potentially query nexus, similarly to how axelarnet-gateway does.
-fn unique_cross_chain_id(block_height: u64, chain_name: ChainName) -> Result<CrossChainId, Error> {
-    // TODO: Retrieve the actual tx hash from core, since cosmwasm doesn't provide it.
-    // Use the block height as the placeholder in the meantime.
-    let message_id = HexTxHash::new(Uint256::from(block_height).to_be_bytes());
+fn hash_cross_chain_id(tx_hash: [u8; 32], nonce: u64) -> [u8; 32] {
+    Keccak256::digest(
+        [
+            Keccak256::digest(PREFIX_CROSS_CHAIN_ID).as_slice(),
+            tx_hash.as_slice(),
+            nonce.to_be_bytes().as_slice(),
+        ]
+        .concat()
+    ).into()
+}
 
-    CrossChainId::new(chain_name, message_id).change_context(Error::InvalidCrossChainId)
+/// Query Nexus module in core to generate an unique cross chain id.
+fn unique_cross_chain_id(client: &nexus::Client, chain_name: ChainName) -> Result<CrossChainId, Error> {
+    let nexus::query::TxHashAndNonceResponse { tx_hash, nonce } =
+        client.tx_hash_and_nonce().change_context(Error::Nexus)?;
+
+    let tx_id = hash_cross_chain_id(tx_hash, nonce);
+    CrossChainId::new(chain_name, HexTxHash::new(tx_id))
+        .change_context(Error::InvalidCrossChainId)
 }
 
 fn group_by_status<T>(
