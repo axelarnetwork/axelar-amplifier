@@ -12,6 +12,7 @@ use router_api::Message;
 
 use crate::error::ContractError;
 use crate::payload::Payload;
+use axelar_solana_encoding::types::pubkey::{ED25519_PUBKEY_LEN, SECP256K1_COMPRESSED_PUBKEY_LEN};
 
 pub fn encode_execute_data(
     signers_with_sigs: Vec<SignerWithSig>,
@@ -90,9 +91,6 @@ fn to_verifier_set(
 fn to_pub_key(
     pk: &PublicKey,
 ) -> error_stack::Result<axelar_solana_encoding::types::pubkey::PublicKey, ContractError> {
-    use axelar_solana_encoding::types::pubkey::{
-        ED25519_PUBKEY_LEN, SECP256K1_COMPRESSED_PUBKEY_LEN,
-    };
     Ok(match pk {
         PublicKey::Ecdsa(hb) => axelar_solana_encoding::types::pubkey::PublicKey::Secp256k1(
             hb.to_array::<SECP256K1_COMPRESSED_PUBKEY_LEN>()
