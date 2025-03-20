@@ -53,6 +53,9 @@ pub enum ContractError {
     #[error("failed to update admin")]
     FailedToUpdateAdmin,
 
+    #[error("insufficient fee reserve: current fee reserve {current} cannot cover the required fee reserve {required}")]
+    InsufficientFeeReserve { current: u64, required: u64 },
+
     #[error("invalid amount: {reason}")]
     InvalidAmount { reason: String },
 
@@ -193,6 +196,9 @@ pub enum ContractError {
 
     #[error("transaction status is still being verified")]
     TxStatusVerificationInProgress,
+
+    #[error("underflow error")]
+    Underflow,
 
     #[error("a verifier set confirmation already in progress")]
     VerifierSetConfirmationInProgress,

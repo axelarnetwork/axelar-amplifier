@@ -10,14 +10,14 @@ use interchain_token_service::{HubMessage, TokenId};
 use multisig::types::MultisigState;
 use router_api::{ChainNameRaw, CrossChainId};
 use sha3::{Digest, Keccak256};
-use xrpl_types::msg::{XRPLMessage, XRPLProverMessage};
+use xrpl_types::msg::{XRPLAddReservesMessage, XRPLMessage, XRPLProverMessage};
 use xrpl_types::types::{
     canonicalize_token_amount, XRPLAccountId, XRPLPaymentAmount, XRPLTxStatus, XRP_MAX_UINT,
 };
 
 use super::START_MULTISIG_REPLY_ID;
 use crate::error::ContractError;
-use crate::state::{self, Config, TRUST_LINE};
+use crate::state::{self, Config, FEE_RESERVE, FEE_RESERVE_TOP_UP_COUNTED, TRUST_LINE};
 use crate::{axelar_verifiers, xrpl_multisig};
 
 pub fn construct_trust_set_proof(
@@ -75,17 +75,7 @@ pub fn confirm_prover_message(
     prover_message: XRPLProverMessage,
 ) -> Result<Response, ContractError> {
     let message = XRPLMessage::ProverMessage(prover_message.clone());
-    let voting_verifier: xrpl_voting_verifier::Client =
-        client::ContractClient::new(querier, &config.voting_verifier).into();
-    let messages_status = voting_verifier
-        .messages_status(vec![message.clone()])
-        .map_err(|_| {
-            ContractError::FailedToGetMessagesStatus(Box::new(vec![message.to_owned()]))
-        })?;
-    let status = messages_status
-        .first()
-        .ok_or(ContractError::FailedToGetMessageStatus(Box::new(message)))?
-        .status;
+    let status = message_status(querier, config, message)?;
 
     match status {
         VerificationStatus::Unknown | VerificationStatus::FailedToVerify => {
@@ -99,34 +89,87 @@ pub fn confirm_prover_message(
         | VerificationStatus::NotFoundOnSourceChain => {}
     }
 
-    Ok(
-        match xrpl_multisig::confirm_prover_message(
-            storage,
-            prover_message.unsigned_tx_hash,
-            status.into(),
-        )? {
-            None => Response::default(),
-            Some(confirmed_verifier_set) => Response::new()
-                .add_message(wasm_execute(
-                    config.multisig.clone(),
-                    &multisig::msg::ExecuteMsg::RegisterVerifierSet {
-                        verifier_set: confirmed_verifier_set.clone().try_into()?,
-                    },
-                    vec![],
-                )?)
-                .add_message(wasm_execute(
-                    config.coordinator.clone(),
-                    &coordinator::msg::ExecuteMsg::SetActiveVerifiers {
-                        verifiers: confirmed_verifier_set
-                            .signers
-                            .iter()
-                            .map(|signer| signer.address.to_string())
-                            .collect::<HashSet<String>>(),
-                    },
-                    vec![],
-                )?),
-        },
-    )
+    if let Some(confirmed_verifier_set) = xrpl_multisig::confirm_prover_message(
+        storage,
+        prover_message.unsigned_tx_hash,
+        status.into(),
+    )? {
+        return Ok(Response::new()
+            .add_message(wasm_execute(
+                config.multisig.clone(),
+                &multisig::msg::ExecuteMsg::RegisterVerifierSet {
+                    verifier_set: confirmed_verifier_set.clone().try_into()?,
+                },
+                vec![],
+            )?)
+            .add_message(wasm_execute(
+                config.coordinator.clone(),
+                &coordinator::msg::ExecuteMsg::SetActiveVerifiers {
+                    verifiers: confirmed_verifier_set
+                        .signers
+                        .iter()
+                        .map(|signer| signer.address.to_string())
+                        .collect::<HashSet<String>>(),
+                },
+                vec![],
+            )?));
+    }
+
+    Ok(Response::default())
+}
+
+pub fn confirm_add_reserves_message(
+    storage: &mut dyn Storage,
+    querier: QuerierWrapper,
+    config: &Config,
+    add_reserves_message: XRPLAddReservesMessage,
+) -> Result<Response, ContractError> {
+    let message = XRPLMessage::AddReservesMessage(add_reserves_message.clone());
+    let status = message_status(querier, config, message)?;
+
+    if status != VerificationStatus::SucceededOnSourceChain {
+        return Ok(Response::default());
+    }
+
+    let fee_added = add_reserves_message.amount;
+    let tx_id = add_reserves_message.tx_id.tx_hash;
+    if fee_added != 0u64
+        && FEE_RESERVE_TOP_UP_COUNTED
+            .may_load(storage, &tx_id)?
+            .is_none()
+    {
+        let new_fee_reserve = match FEE_RESERVE.may_load(storage)? {
+            Some(current_fee_reserve) => current_fee_reserve
+                .checked_add(fee_added)
+                .ok_or(ContractError::Overflow)?,
+            None => fee_added,
+        };
+
+        FEE_RESERVE.save(storage, &new_fee_reserve)?;
+        FEE_RESERVE_TOP_UP_COUNTED.save(storage, &tx_id, &())?;
+    }
+
+    Ok(Response::default())
+}
+
+fn message_status(
+    querier: QuerierWrapper,
+    config: &Config,
+    message: XRPLMessage,
+) -> Result<VerificationStatus, ContractError> {
+    let voting_verifier: xrpl_voting_verifier::Client =
+        client::ContractClient::new(querier, &config.voting_verifier).into();
+    let messages_status = voting_verifier
+        .messages_status(vec![message.clone()])
+        .map_err(|_| {
+            ContractError::FailedToGetMessagesStatus(Box::new(vec![message.to_owned()]))
+        })?;
+    let status = messages_status
+        .first()
+        .ok_or(ContractError::FailedToGetMessageStatus(Box::new(message)))?
+        .status;
+
+    Ok(status)
 }
 
 fn save_next_verifier_set(
@@ -153,6 +196,22 @@ pub fn update_signing_threshold(
         deps.storage,
         |mut config| -> Result<Config, ContractError> {
             config.signing_threshold = new_signing_threshold;
+            Ok(config)
+        },
+    )?;
+    Ok(Response::new())
+}
+
+pub fn update_xrpl_reserves(
+    deps: DepsMut,
+    new_base_reserve: u64,
+    new_owner_reserve: u64,
+) -> Result<Response, ContractError> {
+    state::CONFIG.update(
+        deps.storage,
+        |mut config| -> Result<Config, ContractError> {
+            config.xrpl_base_reserve = new_base_reserve;
+            config.xrpl_owner_reserve = new_owner_reserve;
             Ok(config)
         },
     )?;

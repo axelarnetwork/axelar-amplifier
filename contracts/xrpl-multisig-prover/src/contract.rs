@@ -12,7 +12,8 @@ mod reply;
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 use crate::state::{
-    Config, AVAILABLE_TICKETS, CONFIG, LAST_ASSIGNED_TICKET_NUMBER, NEXT_SEQUENCE_NUMBER,
+    Config, AVAILABLE_TICKETS, CONFIG, FEE_RESERVE, LAST_ASSIGNED_TICKET_NUMBER,
+    NEXT_SEQUENCE_NUMBER,
 };
 
 pub const START_MULTISIG_REPLY_ID: u64 = 1;
@@ -47,6 +48,8 @@ pub fn instantiate(
         verifier_set_diff_threshold: msg.verifier_set_diff_threshold,
         xrpl_multisig: msg.xrpl_multisig_address,
         xrpl_transaction_fee: msg.xrpl_transaction_fee,
+        xrpl_base_reserve: msg.xrpl_base_reserve,
+        xrpl_owner_reserve: msg.xrpl_owner_reserve,
         ticket_count_threshold: msg.ticket_count_threshold,
     };
     CONFIG.save(deps.storage, &config)?;
@@ -60,6 +63,7 @@ pub fn instantiate(
     NEXT_SEQUENCE_NUMBER.save(deps.storage, &msg.next_sequence_number)?;
     LAST_ASSIGNED_TICKET_NUMBER.save(deps.storage, &msg.last_assigned_ticket_number)?;
     AVAILABLE_TICKETS.save(deps.storage, &msg.available_tickets)?;
+    FEE_RESERVE.save(deps.storage, &msg.initial_fee_reserve)?;
 
     Ok(Response::default())
 }
@@ -108,8 +112,20 @@ pub fn execute(
         ExecuteMsg::UpdateXrplTransactionFee {
             new_transaction_fee,
         } => execute::update_xrpl_transaction_fee(deps, new_transaction_fee),
+        ExecuteMsg::UpdateXrplReserves {
+            new_base_reserve,
+            new_owner_reserve,
+        } => execute::update_xrpl_reserves(deps, new_base_reserve, new_owner_reserve),
         ExecuteMsg::UpdateAdmin { new_admin_address } => {
             execute::update_admin(deps, new_admin_address)
+        }
+        ExecuteMsg::ConfirmAddReservesMessage { add_reserves_message } => {
+            execute::confirm_add_reserves_message(
+                deps.storage,
+                deps.querier,
+                &config,
+                add_reserves_message,
+            )
         }
     }?
     .then(Ok)
@@ -195,6 +211,8 @@ pub fn migrate(
         verifier_set_diff_threshold: msg.verifier_set_diff_threshold,
         xrpl_multisig: msg.xrpl_multisig_address,
         xrpl_transaction_fee: msg.xrpl_transaction_fee,
+        xrpl_base_reserve: msg.xrpl_base_reserve,
+        xrpl_owner_reserve: msg.xrpl_owner_reserve,
         ticket_count_threshold: msg.ticket_count_threshold,
     };
     CONFIG.save(deps.storage, &config)?;
@@ -202,6 +220,7 @@ pub fn migrate(
     NEXT_SEQUENCE_NUMBER.save(deps.storage, &msg.next_sequence_number)?;
     LAST_ASSIGNED_TICKET_NUMBER.save(deps.storage, &msg.last_assigned_ticket_number)?;
     AVAILABLE_TICKETS.save(deps.storage, &msg.available_tickets)?;
+    FEE_RESERVE.save(deps.storage, &msg.initial_fee_reserve)?;
 
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
     Ok(Response::default())

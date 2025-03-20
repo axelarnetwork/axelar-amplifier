@@ -23,7 +23,7 @@ use sha3::{Digest, Keccak256};
 use xrpl_gateway::contract::{execute, instantiate, query};
 use xrpl_gateway::msg::{ExecuteMsg, InstantiateMsg, QueryMsg, TokenMetadata};
 use xrpl_gateway::state;
-use xrpl_types::msg::{WithPayload, XRPLMessage, XRPLUserMessage};
+use xrpl_types::msg::{WithPayload, XRPLMessage, XRPLInterchainTransferMessage};
 use xrpl_types::types::{XRPLAccountId, XRPLPaymentAmount, XRPLTokenOrXrp};
 use xrpl_voting_verifier::msg::MessageStatus;
 
@@ -581,7 +581,7 @@ fn generate_outgoing_msgs(namespace: impl Debug, count: u8) -> Vec<Message> {
 fn generate_incoming_msgs(namespace: impl Debug, count: u8) -> Vec<XRPLMessage> {
     (0..count)
         .map(|i| {
-            XRPLMessage::UserMessage(XRPLUserMessage {
+            XRPLMessage::InterchainTransferMessage(XRPLInterchainTransferMessage {
                 tx_id: message_id(format!("{:?}{}", namespace, i).as_str()),
                 amount: XRPLPaymentAmount::Drops(1_000_000),
                 destination_address: nonempty::String::try_from("01dc").unwrap(),
@@ -602,17 +602,13 @@ fn generate_incoming_msgs(namespace: impl Debug, count: u8) -> Vec<XRPLMessage> 
         .collect()
 }
 
-fn messages_with_payload(msgs: Vec<XRPLMessage>) -> Vec<WithPayload<XRPLUserMessage>> {
+fn messages_with_payload(msgs: Vec<XRPLMessage>) -> Vec<WithPayload<XRPLMessage>> {
     msgs.into_iter()
         .map(|msg| {
-            let user_message = if let XRPLMessage::UserMessage(user_message) = msg {
-                user_message
-            } else {
-                panic!("only user messages are supported")
-            };
+            assert!(matches!(msg, XRPLMessage::InterchainTransferMessage(_)), "only interchain transfer messages are supported");
 
             WithPayload::new(
-                user_message,
+                msg,
                 Some(
                     nonempty::HexBinary::try_from(HexBinary::from_hex("0123456789abcdef").unwrap())
                         .unwrap(),

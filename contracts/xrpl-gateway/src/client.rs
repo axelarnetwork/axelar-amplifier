@@ -1,9 +1,10 @@
+use axelar_wasm_std::nonempty;
 use axelar_wasm_std::vec::VecExt;
 use cosmwasm_std::{Addr, CosmosMsg};
 use error_stack::ResultExt;
 use interchain_token_service::TokenId;
 use router_api::{ChainNameRaw, CrossChainId, Message};
-use xrpl_types::msg::{WithPayload, XRPLMessage, XRPLUserMessage};
+use xrpl_types::msg::{XRPLCallContractMessage, XRPLInterchainTransferMessage, XRPLMessage};
 use xrpl_types::types::XRPLToken;
 
 use crate::msg::{ExecuteMsg, InterchainTransfer, QueryMsg};
@@ -13,9 +14,16 @@ type Result<T> = error_stack::Result<T, Error>;
 #[derive(thiserror::Error, Debug)]
 #[allow(clippy::large_enum_variant)]
 pub enum Error {
-    #[error("failed to query interchain transfer for {message_with_payload:?}")]
+    #[error("failed to query interchain transfer for message {message:?} with payload {payload:?}")]
     InterchainTransfer {
-        message_with_payload: WithPayload<XRPLUserMessage>,
+        message: XRPLInterchainTransferMessage,
+        payload: Option<nonempty::HexBinary>,
+    },
+
+    #[error("failed to query call contract for message {message:?} with payload {payload:?}")]
+    CallContract {
+        message: XRPLCallContractMessage,
+        payload: nonempty::HexBinary,
     },
 
     #[error("failed to query linked token id. salt: {salt:?}, deployer: {deployer}")]
@@ -35,6 +43,9 @@ pub enum Error {
     #[error("failed to query xrpl token for token id: {0}")]
     XrplToken(TokenId),
 
+    #[error("failed to query token id for xrpl token: {0}")]
+    XrplTokenId(XRPLToken),
+
     #[error("failed to query xrp token id")]
     XrpTokenId,
 }
@@ -43,10 +54,13 @@ impl From<QueryMsg> for Error {
     fn from(value: QueryMsg) -> Self {
         match value {
             QueryMsg::InterchainTransfer {
-                message_with_payload,
+                message,
+                payload,
             } => Error::InterchainTransfer {
-                message_with_payload,
+                message,
+                payload,
             },
+            QueryMsg::CallContract { message, payload } => Error::CallContract { message, payload },
             QueryMsg::LinkedTokenId { salt, deployer } => Error::LinkedTokenId { salt, deployer },
             QueryMsg::OutgoingMessages(message_ids) => Error::OutgoingMessages(message_ids),
             QueryMsg::TokenInstanceDecimals {
@@ -57,6 +71,7 @@ impl From<QueryMsg> for Error {
                 token_id,
             },
             QueryMsg::XrplToken(token_id) => Error::XrplToken(token_id),
+            QueryMsg::XrplTokenId(token) => Error::XrplTokenId(token),
             QueryMsg::XrpTokenId => Error::XrpTokenId,
         }
     }
@@ -75,10 +90,12 @@ pub struct Client<'a> {
 impl Client<'_> {
     pub fn interchain_transfer(
         &self,
-        message_with_payload: WithPayload<XRPLUserMessage>,
+        message: XRPLInterchainTransferMessage,
+        payload: Option<nonempty::HexBinary>,
     ) -> Result<InterchainTransfer> {
         let msg = QueryMsg::InterchainTransfer {
-            message_with_payload,
+            message,
+            payload,
         };
         self.client.query(&msg).change_context_lazy(|| msg.into())
     }

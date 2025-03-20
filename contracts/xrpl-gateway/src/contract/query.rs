@@ -1,9 +1,11 @@
 use axelar_wasm_std::error::extend_err;
+use axelar_wasm_std::nonempty;
 use cosmwasm_std::{to_json_binary, Addr, Binary, Storage};
 use error_stack::Result;
 use interchain_token_service::TokenId;
 use router_api::{ChainNameRaw, CrossChainId, Message};
-use xrpl_types::msg::{WithPayload, XRPLUserMessage};
+use xrpl_types::msg::{XRPLCallContractMessage, XRPLInterchainTransferMessage};
+use xrpl_types::types::XRPLToken;
 
 use super::{execute, Error};
 use crate::state::{self, Config};
@@ -31,6 +33,12 @@ pub fn xrp_token_id(storage: &dyn Storage) -> Result<Binary, state::Error> {
     Ok(to_json_binary(&token_id).map_err(state::Error::from)?)
 }
 
+pub fn xrpl_token_id(storage: &dyn Storage, token: &XRPLToken) -> Result<Binary, state::Error> {
+    let config = state::load_config(storage);
+    let token_id = state::load_token_id(storage, config.xrpl_multisig, token)?;
+    Ok(to_json_binary(&token_id).map_err(state::Error::from)?)
+}
+
 pub fn linked_token_id(
     storage: &dyn Storage,
     deployer: Addr,
@@ -54,11 +62,22 @@ pub fn token_instance_decimals(
 pub fn translate_to_interchain_transfer(
     storage: &dyn Storage,
     config: &Config,
-    message_with_payload: &WithPayload<XRPLUserMessage>,
+    message: &XRPLInterchainTransferMessage,
+    payload: Option<nonempty::HexBinary>,
 ) -> Result<Binary, Error> {
     let interchain_transfer =
-        execute::translate_to_interchain_transfer(storage, config, message_with_payload)?;
+        execute::translate_to_interchain_transfer(storage, config, message, payload)?;
     Ok(to_json_binary(&interchain_transfer).map_err(Error::from)?)
+}
+
+pub fn translate_to_call_contract(
+    storage: &dyn Storage,
+    config: &Config,
+    message: &XRPLCallContractMessage,
+    payload: nonempty::HexBinary,
+) -> Result<Binary, Error> {
+    let call_contract = execute::translate_to_call_contract(storage, config, message, payload)?;
+    Ok(to_json_binary(&call_contract).map_err(Error::from)?)
 }
 
 fn accumulate_errs(

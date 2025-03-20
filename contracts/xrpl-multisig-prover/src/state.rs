@@ -23,6 +23,8 @@ pub struct Config {
     pub chain_name: ChainName,
     pub verifier_set_diff_threshold: u32,
     pub xrpl_transaction_fee: u64,
+    pub xrpl_base_reserve: u64,
+    pub xrpl_owner_reserve: u64,
     pub ticket_count_threshold: u32,
 }
 
@@ -64,9 +66,13 @@ pub const UNSIGNED_TX_HASH_TO_TX_INFO: Map<&Hash, TxInfo> = Map::new("unsigned_t
 pub const LATEST_SEQUENTIAL_UNSIGNED_TX_HASH: Item<Hash> =
     Item::new("latest_sequential_unsigned_tx_hash");
 pub const TRUST_LINE: Map<&XRPLToken, ()> = Map::new("trust_line");
+pub const SEQUENCE_NUMBER_ASSIGNED: Map<&u32, ()> = Map::new("sequence_number_assigned");
 
 pub const DUST: Map<&(TokenId, ChainNameRaw), Uint256> = Map::new("dust");
 pub const DUST_COUNTED: Map<&CrossChainId, ()> = Map::new("dust_counted");
+
+pub const FEE_RESERVE: Item<u64> = Item::new("fee_reserve");
+pub const FEE_RESERVE_TOP_UP_COUNTED: Map<&Hash, ()> = Map::new("fee_reserve_top_up_counted");
 
 pub const CURRENT_VERIFIER_SET: Item<VerifierSet> = Item::new("current_verifier_set");
 pub const NEXT_VERIFIER_SET: Item<VerifierSet> = Item::new("next_verifier_set");

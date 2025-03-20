@@ -39,6 +39,9 @@ const TOKEN_INSTACE_DECIMALS: Map<&(ChainNameRaw, TokenId), u8> =
 const DUST_ACCRUED: Map<&TokenId, XRPLPaymentAmount> = Map::new("dust_accrued");
 const DUST_COUNTED: Map<&Hash, ()> = Map::new("dust_counted");
 
+const GAS_ACCRUED: Map<&TokenId, XRPLPaymentAmount> = Map::new("gas_accrued");
+const GAS_COUNTED: Map<&Hash, ()> = Map::new("gas_counted");
+
 #[derive(thiserror::Error, Debug, IntoContractError)]
 pub enum Error {
     #[error(transparent)]
@@ -115,6 +118,47 @@ pub fn count_dust(
     Ok(())
 }
 
+fn increment_gas(
+    storage: &mut dyn Storage,
+    token_id: &TokenId,
+    new_gas: XRPLPaymentAmount,
+) -> Result<XRPLPaymentAmount, Error> {
+    GAS_ACCRUED
+        .update(storage, token_id, |existing_gas| match existing_gas {
+            Some(existing_gas) => existing_gas.add(new_gas),
+            None => Ok(new_gas),
+        })
+        .change_context(Error::Storage)
+}
+
+fn gas_counted(storage: &dyn Storage, tx_hash: &HexTxHash) -> Result<bool, Error> {
+    Ok(GAS_COUNTED
+        .may_load(storage, &tx_hash.tx_hash)
+        .change_context(Error::Storage)?
+        .is_some())
+}
+
+fn mark_gas_counted(storage: &mut dyn Storage, tx_hash: &HexTxHash) -> Result<(), Error> {
+    GAS_COUNTED
+        .save(storage, &tx_hash.tx_hash, &())
+        .change_context(Error::Storage)
+}
+
+pub fn count_gas(
+    storage: &mut dyn Storage,
+    tx_id: &HexTxHash,
+    token_id: &TokenId,
+    gas: XRPLPaymentAmount,
+) -> Result<(), Error> {
+    if gas.is_zero() || gas_counted(storage, tx_id)? {
+        return Ok(());
+    }
+
+    increment_gas(storage, token_id, gas)?;
+    mark_gas_counted(storage, tx_id)?;
+    Ok(())
+}
+
 pub fn may_load_token_instance_decimals(
     storage: &dyn Storage,
     chain_name: ChainNameRaw,
@@ -144,6 +188,20 @@ pub fn save_token_instance_decimals(
     TOKEN_INSTACE_DECIMALS
         .save(storage, &(chain_name, token_id), &decimals)
         .change_context(Error::Storage)
+}
+
+pub fn load_token_id(
+    storage: &dyn Storage,
+    xrpl_multisig: XRPLAccountId,
+    token: &XRPLToken,
+) -> Result<TokenId, Error> {
+    let token_id = if token.is_remote(xrpl_multisig.clone()) {
+        load_remote_token_id(storage, &token.currency)?
+    } else {
+        load_local_token_id(storage, token)?
+    };
+
+    Ok(token_id)
 }
 
 pub fn load_config(storage: &dyn Storage) -> Config {

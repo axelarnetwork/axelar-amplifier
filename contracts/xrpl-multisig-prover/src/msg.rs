@@ -5,7 +5,7 @@ use cosmwasm_std::{HexBinary, Uint64};
 use interchain_token_service::TokenId;
 use msgs_derive::EnsurePermissions;
 use router_api::{ChainName, CrossChainId};
-use xrpl_types::msg::XRPLProverMessage;
+use xrpl_types::msg::{XRPLAddReservesMessage, XRPLProverMessage};
 use xrpl_types::types::{xrpl_account_id_string, XRPLAccountId};
 
 use crate::state::MultisigSession;
@@ -48,6 +48,14 @@ pub struct InstantiateMsg {
     /// Since all prover transactions are multi-signed, the fee specified in the transaction is
     /// xrpl_transaction_fee * (1 + number_of_signers).
     pub xrpl_transaction_fee: u64,
+    /// Minimum amount of XRP (in drops) for an XRPL account to be active.
+    pub xrpl_base_reserve: u64,
+    /// Additional XRP (in drops) required on top of the base reserve for each 'object'
+    /// (e.g., tickets, etc.) held by an XRPL account.
+    pub xrpl_owner_reserve: u64,
+    /// Initial amount of XRP (in drops) locked in the XRPL multisig account
+    /// to cover the reserve requirements and prover transaction fees.
+    pub initial_fee_reserve: u64,
     /// Number of available XRPL multisig tickets below which new tickets can be issued.
     pub ticket_count_threshold: u32,
     /// List of initial available tickets that can be used in new XRPL multisig transactions.
@@ -114,6 +122,11 @@ pub enum ExecuteMsg {
     ConfirmProverMessage { prover_message: XRPLProverMessage },
 
     #[permission(Any)]
+    ConfirmAddReservesMessage {
+        add_reserves_message: XRPLAddReservesMessage,
+    },
+
+    #[permission(Any)]
     TicketCreate,
 
     #[permission(Elevated)]
@@ -128,6 +141,12 @@ pub enum ExecuteMsg {
 
     #[permission(Elevated)]
     UpdateXrplTransactionFee { new_transaction_fee: u64 },
+
+    #[permission(Elevated)]
+    UpdateXrplReserves {
+        new_base_reserve: u64,
+        new_owner_reserve: u64,
+    },
 
     #[permission(Governance)]
     UpdateAdmin { new_admin_address: String },
@@ -164,6 +183,14 @@ pub struct MigrateMsg {
     /// Since all prover transactions are multi-signed, the fee specified in the transaction is
     /// xrpl_transaction_fee * (1 + number_of_signers).
     pub xrpl_transaction_fee: u64,
+    /// Minimum amount of XRP (in drops) for an XRPL account to be active.
+    pub xrpl_base_reserve: u64,
+    /// Additional XRP (in drops) required on top of the base reserve for each 'object'
+    /// (e.g., tickets, etc.) held by an XRPL account.
+    pub xrpl_owner_reserve: u64,
+    /// Initial amount of XRP (in drops) locked in the XRPL multisig account
+    /// to cover the reserve requirements and prover transaction fees.
+    pub initial_fee_reserve: u64,
     /// Number of available XRPL multisig tickets below which new tickets can be issued.
     pub ticket_count_threshold: u32,
     /// List of initial available tickets that can be used in new XRPL multisig transactions.

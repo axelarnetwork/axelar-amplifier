@@ -1,10 +1,10 @@
 use axelar_wasm_std::nonempty;
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{Addr, HexBinary, Uint256};
+use cosmwasm_std::{Addr, Uint256};
 use interchain_token_service::TokenId;
 use msgs_derive::EnsurePermissions;
 use router_api::{ChainName, ChainNameRaw, CrossChainId, Message};
-use xrpl_types::msg::{WithPayload, XRPLMessage, XRPLUserMessage};
+use xrpl_types::msg::{WithPayload, XRPLAddGasMessage, XRPLCallContractMessage, XRPLInterchainTransferMessage, XRPLMessage};
 use xrpl_types::types::{
     xrpl_account_id_string, xrpl_currency_string, XRPLAccountId, XRPLCurrency, XRPLPaymentAmount,
     XRPLToken, XRPLTokenOrXrp,
@@ -125,20 +125,31 @@ pub enum ExecuteMsg {
     /// Forward the given incoming messages (coming from XRPL) to the next step of the routing layer.
     /// They are reported by the relayer and need verification.
     #[permission(Any)]
-    RouteIncomingMessages(Vec<WithPayload<XRPLUserMessage>>),
+    RouteIncomingMessages(Vec<WithPayload<XRPLMessage>>),
+
+    /// Confirm verified gas top-up messages.
+    #[permission(Any)]
+    ConfirmAddGasMessages(Vec<XRPLAddGasMessage>),
 }
 
 #[cw_serde]
 pub struct MessageWithPayload {
     pub message: Message,
-    pub payload: HexBinary,
+    pub payload: nonempty::HexBinary,
 }
 
 #[cw_serde]
 pub struct InterchainTransfer {
+    // When the amount is zero, route_incoming_messages is a no-op.
     pub message_with_payload: Option<MessageWithPayload>,
     pub token_id: TokenId,
     pub dust: XRPLPaymentAmount,
+}
+
+#[cw_serde]
+pub struct CallContract {
+    pub message_with_payload: MessageWithPayload,
+    pub gas_token_id: TokenId,
 }
 
 #[cw_serde]
@@ -151,6 +162,9 @@ pub enum QueryMsg {
 
     #[returns(XRPLToken)]
     XrplToken(TokenId),
+
+    #[returns(TokenId)]
+    XrplTokenId(XRPLToken),
 
     #[returns(TokenId)]
     XrpTokenId,
@@ -171,6 +185,13 @@ pub enum QueryMsg {
 
     #[returns(InterchainTransfer)]
     InterchainTransfer {
-        message_with_payload: WithPayload<XRPLUserMessage>,
+        message: XRPLInterchainTransferMessage,
+        payload: Option<nonempty::HexBinary>,
+    },
+
+    #[returns(CallContract)]
+    CallContract {
+        message: XRPLCallContractMessage,
+        payload: nonempty::HexBinary,
     },
 }

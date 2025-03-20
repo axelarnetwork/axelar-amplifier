@@ -7,6 +7,7 @@ use cosmwasm_std::{Binary, Deps, DepsMut, Empty, Env, HexBinary, MessageInfo, Re
 use error_stack::ResultExt;
 use interchain_token_service::TokenId;
 use router_api::{ChainNameRaw, CrossChainId};
+use xrpl_types::msg::XRPLMessage;
 use xrpl_types::types::{
     XRPLAccountId, XRPLCurrency, XRPLPaymentAmount, XRPLToken, XRPLTokenOrXrp,
 };
@@ -86,6 +87,8 @@ pub enum Error {
     OnlyFromItsHub(CrossChainId),
     #[error("failed to query outgoing messages")]
     OutgoingMessages,
+    #[error("ABI encoded payload was empty")]
+    PayloadEncodingFailed,
     #[error("payload given but payload hash is empty")]
     PayloadHashEmpty,
     #[error("payload hash {0} given without full payload")]
@@ -95,6 +98,8 @@ pub enum Error {
         expected: HexBinary,
         actual: HexBinary,
     },
+    #[error("payload wasn't given")]
+    PayloadMissing,
     #[error("remote token {token_id} deployed XRPL currency mismatch: expected {expected}, actual {actual}")]
     RemoteTokenDeployedCurrencyMismatch {
         token_id: TokenId,
@@ -137,8 +142,12 @@ pub enum Error {
         token_id: TokenId,
         chain_name: ChainNameRaw,
     },
+    #[error("message {0:?} is not a valid incoming message")]
+    UnsupportedIncomingMessage(XRPLMessage),
     #[error("failed to query xrpl token {0}")]
     XrplToken(TokenId),
+    #[error("failed to query xrpl token id for {0}")]
+    XrplTokenId(XRPLToken),
     #[error("failed to query xrp token ID")]
     XrpTokenId,
 }
@@ -264,6 +273,10 @@ pub fn execute(
             let verifier = client::ContractClient::new(deps.querier, &config.verifier).into();
             execute::route_incoming_messages(deps.storage, &config, &verifier, msgs)
         }
+        ExecuteMsg::ConfirmAddGasMessages(msgs) => {
+            let verifier = client::ContractClient::new(deps.querier, &config.verifier).into();
+            execute::confirm_add_gas_messages(deps.storage, &config, &verifier, msgs)
+        }
     }?
     .then(Ok)
 }
@@ -282,6 +295,10 @@ pub fn query(
         QueryMsg::XrplToken(token_id) => {
             query::xrpl_token(deps.storage, token_id).change_context(Error::XrplToken(token_id))
         }
+        QueryMsg::XrplTokenId(xrpl_token) => {
+            query::xrpl_token_id(deps.storage, &xrpl_token)
+                .change_context(Error::XrplTokenId(xrpl_token))
+        }
         QueryMsg::XrpTokenId => query::xrp_token_id(deps.storage).change_context(Error::XrpTokenId),
         QueryMsg::LinkedTokenId { deployer, salt } => {
             query::linked_token_id(deps.storage, deployer.clone(), salt)
@@ -295,11 +312,13 @@ pub fn query(
                 chain_name,
                 token_id,
             }),
-        QueryMsg::InterchainTransfer {
-            message_with_payload,
-        } => {
+        QueryMsg::InterchainTransfer { message, payload } => {
             let config = state::load_config(deps.storage);
-            query::translate_to_interchain_transfer(deps.storage, &config, &message_with_payload)
+            query::translate_to_interchain_transfer(deps.storage, &config, &message, payload)
+        }
+        QueryMsg::CallContract { message, payload } => {
+            let config = state::load_config(deps.storage);
+            query::translate_to_call_contract(deps.storage, &config, &message, payload)
         }
     }?
     .then(Ok)

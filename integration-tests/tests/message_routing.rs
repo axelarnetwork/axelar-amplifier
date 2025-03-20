@@ -7,7 +7,7 @@ use cosmwasm_std::{HexBinary, Uint128, Uint256};
 use ethers_core::utils::keccak256;
 use integration_tests::contract::Contract;
 use router_api::{Address, CrossChainId, Message};
-use xrpl_types::msg::{WithPayload, XRPLMessage, XRPLProverMessage, XRPLUserMessage};
+use xrpl_types::msg::{WithPayload, XRPLMessage, XRPLProverMessage, XRPLInterchainTransferMessage};
 use xrpl_types::types::{
     hash_signed_tx, XRPLAccountId, XRPLCurrency, XRPLPaymentAmount, XRPLToken,
 };
@@ -280,7 +280,7 @@ fn payment_from_xrpl_can_be_verified_and_routed_and_proven() {
     let gas_fee_amount = 100; // 1 XRP
     let payload: Option<nonempty::HexBinary> = None;
 
-    let xrpl_user_msg = XRPLUserMessage {
+    let xrpl_interchain_transfer_msg = XRPLInterchainTransferMessage {
         tx_id: HexTxHash::new([0; 32]), // TODO
         source_address: source_address.clone(),
         destination_chain: destination_chain_name.clone(),
@@ -290,11 +290,10 @@ fn payment_from_xrpl_can_be_verified_and_routed_and_proven() {
         gas_fee_amount: XRPLPaymentAmount::Drops(gas_fee_amount),
     };
 
-    let xrpl_msg = XRPLMessage::UserMessage(xrpl_user_msg.clone());
+    let xrpl_msg = XRPLMessage::InterchainTransferMessage(xrpl_interchain_transfer_msg.clone());
+    let xrpl_msg_with_payload = WithPayload::new(xrpl_msg.clone(), payload.clone());
 
-    let xrpl_msg_with_payload = WithPayload::new(xrpl_user_msg.clone(), payload.clone());
-
-    let interchain_transfer_msg = interchain_token_service::Message::InterchainTransfer(
+    let its_interchain_transfer_msg = interchain_token_service::Message::InterchainTransfer(
         interchain_token_service::InterchainTransfer {
             token_id: xrpl.xrp_token_id,
             source_address: nonempty::HexBinary::try_from(HexBinary::from(
@@ -311,7 +310,7 @@ fn payment_from_xrpl_can_be_verified_and_routed_and_proven() {
     );
 
     let wrapped_payload = interchain_token_service::HubMessage::SendToHub {
-        message: interchain_transfer_msg.clone(),
+        message: its_interchain_transfer_msg.clone(),
         destination_chain: destination_chain_name.clone().into(),
     }
     .abi_encode();
@@ -333,7 +332,7 @@ fn payment_from_xrpl_can_be_verified_and_routed_and_proven() {
     let wrapped_msgs = vec![wrapped_msg.clone()];
     let xrpl_msgs = vec![xrpl_msg.clone()];
     let xrpl_msgs_with_payload = vec![xrpl_msg_with_payload.clone()];
-    let xrpl_msg_ids = vec![xrpl_user_msg.cc_id(xrpl.chain_name.clone().into())];
+    let xrpl_msg_ids = vec![xrpl_interchain_transfer_msg.cc_id(xrpl.chain_name.clone().into())];
 
     // start the flow by submitting the message to the gateway
     let (poll_id, expiry) =

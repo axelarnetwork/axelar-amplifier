@@ -6,8 +6,7 @@ use crate::error::ContractError;
 use crate::events::Event;
 use crate::state::{
     MultisigSession, CONFIG, CROSS_CHAIN_ID_TO_MULTISIG_SESSION,
-    MULTISIG_SESSION_ID_TO_UNSIGNED_TX_HASH, REPLY_UNSIGNED_TX_HASH,
-    UNSIGNED_TX_HASH_TO_TX_INFO,
+    MULTISIG_SESSION_ID_TO_UNSIGNED_TX_HASH, REPLY_UNSIGNED_TX_HASH, UNSIGNED_TX_HASH_TO_TX_INFO,
 };
 use crate::xrpl_serialize::XRPLSerialize;
 

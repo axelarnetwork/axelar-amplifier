@@ -123,7 +123,7 @@ mod tests {
     use cosmwasm_std::testing::{mock_dependencies, mock_env};
     use cosmwasm_std::{Addr, Uint128, Uint64};
     use itertools::Itertools;
-    use xrpl_types::msg::XRPLUserMessage;
+    use xrpl_types::msg::XRPLInterchainTransferMessage;
     use xrpl_types::types::{XRPLAccountId, XRPLPaymentAmount};
 
     use super::*;
@@ -144,7 +144,7 @@ mod tests {
             )
             .unwrap();
 
-        let msg = user_message(1);
+        let msg = interchain_transfer_message(1);
         poll_messages()
             .save(
                 deps.as_mut().storage,
@@ -180,7 +180,7 @@ mod tests {
             )
             .unwrap();
 
-        let msg = user_message(1);
+        let msg = interchain_transfer_message(1);
         poll_messages()
             .save(
                 deps.as_mut().storage,
@@ -216,7 +216,7 @@ mod tests {
             )
             .unwrap();
 
-        let msg = user_message(1);
+        let msg = interchain_transfer_message(1);
         poll_messages()
             .save(
                 deps.as_mut().storage,
@@ -237,7 +237,7 @@ mod tests {
     #[test]
     fn verification_status_not_verified() {
         let deps = mock_dependencies();
-        let msg = user_message(1);
+        let msg = interchain_transfer_message(1);
 
         assert_eq!(
             vec![MessageStatus::new(msg.clone(), VerificationStatus::Unknown)],
@@ -259,7 +259,7 @@ mod tests {
             )
             .unwrap();
 
-        let messages = (0..poll.poll_size as u32).map(user_message);
+        let messages = (0..poll.poll_size as u32).map(interchain_transfer_message);
         messages.clone().enumerate().for_each(|(idx, msg)| {
             poll_messages()
                 .save(
@@ -280,8 +280,8 @@ mod tests {
         );
     }
 
-    fn user_message(id: u32) -> XRPLMessage {
-        XRPLMessage::UserMessage(XRPLUserMessage {
+    fn interchain_transfer_message(id: u32) -> XRPLMessage {
+        XRPLMessage::InterchainTransferMessage(XRPLInterchainTransferMessage {
             tx_id: HexTxHash::new([0; 32]),
             source_address: XRPLAccountId::new([0; 20]),
             destination_chain: format!("destination-chain{id}").parse().unwrap(),
