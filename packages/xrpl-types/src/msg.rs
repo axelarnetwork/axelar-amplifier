@@ -187,6 +187,9 @@ pub struct XRPLAddGasMessage {
     #[schemars(with = "String")]
     pub msg_tx_id: HexTxHash,
     pub amount: XRPLPaymentAmount,
+    #[serde(with = "xrpl_account_id_string")]
+    #[schemars(with = "String")]
+    pub source_address: XRPLAccountId,
 }
 
 /// Represents an XRPL `Payment` transaction towards the XRPL multisig,
@@ -260,6 +263,7 @@ impl From<XRPLAddGasMessage> for Vec<Attribute> {
             ("tx_id", other.tx_id.tx_hash_as_hex_no_prefix()).into(),
             ("msg_tx_id", other.msg_tx_id.tx_hash_as_hex_no_prefix()).into(),
             ("amount", other.amount.to_string()).into(),
+            ("source_address", other.source_address.to_string()).into(),
         ]
     }
 }
@@ -373,6 +377,8 @@ impl XRPLAddGasMessage {
         hasher.update(self.msg_tx_id.tx_hash.as_ref());
         hasher.update(delimiter_bytes);
         hasher.update(self.amount.hash());
+        hasher.update(delimiter_bytes);
+        hasher.update(self.source_address.as_ref());
 
         hasher.finalize().into()
     }

@@ -42,13 +42,13 @@ lazy_static! {
 // https://xrpl.org/docs/references/protocol/binary-format#token-amount-format
 const MIN_MANTISSA: u64 = 1_000_000_000_000_000;
 const MAX_MANTISSA: u64 = 10_000_000_000_000_000 - 1;
-const MIN_EXPONENT: i8 = -96;
-const MAX_EXPONENT: i8 = 80;
+const MIN_EXPONENT: i64 = -96;
+const MAX_EXPONENT: i64 = 80;
 
 pub const XRPL_TOKEN_MIN_MANTISSA: u64 = MIN_MANTISSA;
 pub const XRPL_TOKEN_MAX_MANTISSA: u64 = MAX_MANTISSA;
-pub const XRPL_TOKEN_MIN_EXPONENT: i8 = MIN_EXPONENT;
-pub const XRPL_TOKEN_MAX_EXPONENT: i8 = MAX_EXPONENT;
+pub const XRPL_TOKEN_MIN_EXPONENT: i64 = MIN_EXPONENT;
+pub const XRPL_TOKEN_MAX_EXPONENT: i64 = MAX_EXPONENT;
 
 const MAX_XRPL_TOKEN_AMOUNT: XRPLTokenAmount = XRPLTokenAmount {
     mantissa: MAX_MANTISSA,
@@ -248,7 +248,9 @@ impl PartialOrd for XRPLPaymentAmount {
             (
                 XRPLPaymentAmount::Issued(token_a, amount_a),
                 XRPLPaymentAmount::Issued(token_b, amount_b),
-            ) if token_a == token_b => amount_a.partial_cmp(amount_b),
+            ) if token_a == token_b => {
+                amount_a.partial_cmp(amount_b)
+            }
             _ => None,
         }
     }
@@ -343,7 +345,7 @@ impl Sub for XRPLPaymentAmount {
                 XRPLPaymentAmount::Issued(token_y, amount_y),
             ) if token_x == token_y => {
                 Ok(XRPLPaymentAmount::Issued(token_x, amount_x.sub(amount_y)?))
-            }
+            },
             _ => Err(XRPLError::IncompatibleTokens),
         }
     }
@@ -724,32 +726,14 @@ pub fn message_to_sign(
 pub struct XRPLCurrency([u8; XRPL_CURRENCY_LENGTH]);
 
 impl XRPLCurrency {
-    fn is_standard_currency(s: &str) -> bool {
-        s != "XRP" && CURRENCY_CODE_REGEX.is_match(s)
-    }
-
-    fn is_valid_nonstandard_currency(s: &str) -> bool {
-        s.len() == 40 && s.chars().all(|c| c.is_ascii_hexdigit()) && s.starts_with("00")
-    }
-
     pub fn new(s: &str) -> Result<Self, XRPLError> {
-        if !Self::is_standard_currency(s) && !Self::is_valid_nonstandard_currency(s) {
+        if s == "XRP" || !CURRENCY_CODE_REGEX.is_match(s) {
             return Err(XRPLError::InvalidCurrency);
         }
 
-        if Self::is_standard_currency(s) {
-            let mut bytes = [0u8; XRPL_CURRENCY_LENGTH];
-            let start_pos = XRPL_CURRENCY_LENGTH - 3;
-            bytes[start_pos..XRPL_CURRENCY_LENGTH].copy_from_slice(s.as_bytes());
-            Ok(XRPLCurrency(bytes))
-        } else {
-            Ok(XRPLCurrency(
-                hex::decode(s)
-                    .map_err(|_| XRPLError::InvalidCurrency)?
-                    .try_into()
-                    .expect("should be 20 bytes"),
-            ))
-        }
+        let mut buffer = [0u8; XRPL_CURRENCY_LENGTH];
+        buffer[12..15].copy_from_slice(s.as_bytes());
+        Ok(XRPLCurrency(buffer))
     }
 
     pub fn as_bytes(&self) -> [u8; XRPL_CURRENCY_LENGTH] {
@@ -835,7 +819,7 @@ pub mod xrpl_currency_string {
 #[derive(Eq, Hash)]
 pub struct XRPLTokenAmount {
     mantissa: u64,
-    exponent: i8,
+    exponent: i64,
 }
 
 impl fmt::Display for XRPLTokenAmount {
@@ -852,7 +836,7 @@ impl XRPLTokenAmount {
         exponent: 0,
     };
 
-    pub fn new(mantissa: u64, exponent: i8) -> Self {
+    pub fn new(mantissa: u64, exponent: i64) -> Self {
         assert!(
             mantissa == 0
                 || ((MIN_MANTISSA..=MAX_MANTISSA).contains(&mantissa)
@@ -977,7 +961,7 @@ impl std::str::FromStr for XRPLTokenAmount {
                 );
                 (
                     base,
-                    i8::from_str(exp).map_err(|_| XRPLError::InvalidTokenAmount {
+                    i64::from_str(exp).map_err(|_| XRPLError::InvalidTokenAmount {
                         reason: "invalid exponent".to_string(),
                     })?,
                 )
@@ -1002,11 +986,7 @@ impl std::str::FromStr for XRPLTokenAmount {
                 let mut digits = String::from(lead);
                 digits.push_str(trail);
                 let trail_digits = trail.chars().filter(|c| *c != '_').count();
-                let decimal_offset =
-                    i8::try_from(trail_digits).map_err(|_| XRPLError::InvalidTokenAmount {
-                        reason: "decimal offset too large".to_string(),
-                    })?;
-                (digits, decimal_offset)
+                (digits, trail_digits as i64)
             }
         };
 
@@ -1218,8 +1198,8 @@ impl fmt::Display for XRPLPathStep {
 // see https://github.com/XRPLF/xrpl-dev-portal/blob/82da0e53a8d6cdf2b94a80594541d868b4d03b94/content/_code-samples/tx-serialization/py/xrpl_num.py#L19
 pub fn canonicalize_mantissa(
     mut mantissa: Uint256,
-    mut exponent: i8,
-) -> Result<(u64, i8), XRPLError> {
+    mut exponent: i64,
+) -> Result<(u64, i64), XRPLError> {
     let ten = Uint256::from(10u8);
 
     while mantissa < MIN_MANTISSA.into() && exponent > MIN_EXPONENT {
@@ -1269,15 +1249,14 @@ pub fn canonicalize_token_amount(
     amount: Uint256,
     decimals: u8,
 ) -> Result<(XRPLTokenAmount, Uint256), XRPLError> {
-    let neg_decimals = i8::try_from(decimals)
-        .map_err(|_| XRPLError::InvalidDecimals(decimals))?
+    let neg_decimals = i64::from(decimals)
         .checked_neg()
         .ok_or(XRPLError::InvalidDecimals(decimals))?;
 
     let (mantissa, exponent) = canonicalize_mantissa(amount, neg_decimals)?;
 
     let adjusted_exponent = exponent
-        .checked_add(i8::try_from(decimals).map_err(|_| XRPLError::InvalidDecimals(decimals))?)
+        .checked_add(i64::from(decimals))
         .ok_or(XRPLError::ExponentOverflow)?;
 
     let ten = Uint256::from(10u8);
@@ -1334,7 +1313,7 @@ pub fn scale_to_decimals(
 
     let adjusted_exponent = amount
         .exponent
-        .checked_add(i8::try_from(destination_decimals).map_err(|_| XRPLError::InvalidExponent)?)
+        .checked_add(i64::from(destination_decimals))
         .ok_or(XRPLError::AdditionOverflow)?;
 
     if adjusted_exponent >= 0 {
@@ -1953,13 +1932,7 @@ mod tests {
         let issuer = XRPLAccountId::from_str("rDTXLQ7ZKZVKz33zJbHjgVShjsBnqMBhmN").unwrap();
         let currency = XRPLCurrency::new("USD").unwrap();
         assert_eq!(
-            XRPLToken::from_vec({
-                let mut vec = Vec::with_capacity(XRPL_ACCOUNT_ID_LENGTH + XRPL_CURRENCY_LENGTH);
-                vec.extend_from_slice(issuer.as_ref());
-                vec.extend_from_slice(currency.as_ref());
-                vec
-            })
-            .unwrap(),
+            XRPLToken::from_vec([issuer.as_bytes(), currency.as_bytes()].concat()).unwrap(),
             XRPLToken { issuer, currency }
         );
     }
