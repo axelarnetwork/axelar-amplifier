@@ -3,6 +3,7 @@ use std::vec::Vec;
 use axelar_wasm_std::voting::{PollId, Vote};
 use axelar_wasm_std::{nonempty, VerificationStatus};
 use cosmwasm_std::{Addr, Attribute, Event};
+use router_api::ChainName;
 use xrpl_types::msg::XRPLMessage;
 
 use crate::state::Config;
@@ -46,6 +47,7 @@ impl From<Config> for Vec<Attribute> {
 
 pub struct PollMetadata {
     pub poll_id: PollId,
+    pub source_chain: ChainName,
     pub source_gateway_address: nonempty::String,
     pub confirmation_height: u32,
     pub expires_at: u64,
@@ -66,6 +68,7 @@ impl From<PollMetadata> for Vec<Attribute> {
                 "poll_id",
                 &serde_json::to_string(&value.poll_id).expect("failed to serialize poll_id"),
             ),
+            ("source_chain", &value.source_chain.to_string()),
             ("source_gateway_address", &value.source_gateway_address),
             (
                 "confirmation_height",

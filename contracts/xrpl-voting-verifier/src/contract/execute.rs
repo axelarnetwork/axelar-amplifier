@@ -84,6 +84,7 @@ pub fn verify_messages(
         messages: msgs_to_verify,
         metadata: PollMetadata {
             poll_id: id,
+            source_chain: config.source_chain,
             source_gateway_address: config.source_gateway_address,
             confirmation_height: config.confirmation_height,
             expires_at,
