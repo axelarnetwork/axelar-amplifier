@@ -179,6 +179,7 @@ fn is_valid_add_gas_message(
 ) -> bool {
     if let Payment(payment_tx) = &tx {
         payment_tx.destination == multisig_address.to_string()
+            && message.source_address.to_string() == tx.common().account
             && verify_delivered_full_amount(tx, payment_tx.amount.clone())
             && verify_amount(message.amount.clone(), payment_tx.amount.clone())
             && verify_memo(memos, "type", XRPLMessageType::AddGas.to_string())
