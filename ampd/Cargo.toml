@@ -46,7 +46,6 @@ report = { workspace = true }
 reqwest = { version = "0.11.24", default-features = false }
 rewards = { workspace = true }
 router-api = { workspace = true }
-schemars = { workspace = true }
 serde = { version = "1.0.147", features = ["derive"] }
 serde_json = { workspace = true }
 serde_with = "3.2.0"
@@ -74,8 +73,6 @@ url = "2.3.1"
 valuable = { version = "0.1.0", features = ["derive"] }
 valuable-serde = { version = "0.1.0", features = ["std"] }
 voting-verifier = { workspace = true }
-xrpl-types = { workspace = true }
-xrpl_http_client = { version = "0.15.0" }
 
 [dev-dependencies]
 assert_ok = { workspace = true }
@@ -88,7 +85,6 @@ multisig = { workspace = true, features = ["test", "library"] }
 rand = { workspace = true }
 random-string = "1.0.0"
 tokio = { workspace = true, features = ["test-util"] }
-xrpl-multisig-prover = { workspace = true }
 
 [build-dependencies]
 tonic-build = "0.8.3"

@@ -6,15 +6,16 @@ use serde::de::{self, Deserializer};
 use serde::{Deserialize, Serialize};
 use serde_with::with_prefix;
 
+use crate::evm::finalizer::Finalization;
 use crate::types::TMAddress;
 use crate::url::Url;
 
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
-pub struct Chain<F> {
+pub struct Chain {
     pub name: ChainName,
     pub rpc_url: Url,
     #[serde(default)]
-    pub finalization: F,
+    pub finalization: Finalization,
 }
 
 with_prefix!(chain "chain_");
@@ -24,13 +25,13 @@ pub enum Config {
     EvmMsgVerifier {
         cosmwasm_contract: TMAddress,
         #[serde(flatten, with = "chain")]
-        chain: Chain<crate::evm::finalizer::Finalization>,
+        chain: Chain,
         rpc_timeout: Option<Duration>,
     },
     EvmVerifierSetVerifier {
         cosmwasm_contract: TMAddress,
         #[serde(flatten, with = "chain")]
-        chain: Chain<crate::evm::finalizer::Finalization>,
+        chain: Chain,
         rpc_timeout: Option<Duration>,
     },
     MultisigSigner {
@@ -45,16 +46,6 @@ pub enum Config {
         cosmwasm_contract: TMAddress,
         rpc_url: Url,
         rpc_timeout: Option<Duration>,
-    },
-    XRPLMsgVerifier {
-        cosmwasm_contract: TMAddress,
-        #[serde(flatten, with = "chain")]
-        chain: Chain<crate::xrpl::finalizer::Finalization>,
-        rpc_timeout: Option<Duration>,
-    },
-    XRPLMultisigSigner {
-        multisig_prover_contract: TMAddress,
-        multisig_contract: TMAddress,
     },
     MvxMsgVerifier {
         cosmwasm_contract: TMAddress,
@@ -146,7 +137,6 @@ where
     validate_evm_verifier_set_verifier_configs::<D>(&configs)?;
 
     ensure_unique_config!(&configs, Config::MultisigSigner, "Multisig signer")?;
-    ensure_unique_config!(&configs, Config::XRPLMsgVerifier, "XRPL message verifier")?;
     ensure_unique_config!(&configs, Config::SuiMsgVerifier, "Sui message verifier")?;
     ensure_unique_config!(
         &configs,
@@ -177,7 +167,7 @@ where
 mod tests {
     use serde_json::to_value;
 
-    use crate::evm::finalizer::Finalization as EVMFinalization;
+    use crate::evm::finalizer::Finalization;
     use crate::handlers::config::{deserialize_handler_configs, Chain, Config};
     use crate::types::TMAddress;
     use crate::PREFIX;
@@ -189,11 +179,8 @@ mod tests {
         rpc_url = 'http://127.0.0.1/'
         ";
 
-        let chain_config: Chain<EVMFinalization> = toml::from_str(chain_config_toml).unwrap();
-        assert_eq!(
-            chain_config.finalization,
-            EVMFinalization::RPCFinalizedBlock
-        );
+        let chain_config: Chain = toml::from_str(chain_config_toml).unwrap();
+        assert_eq!(chain_config.finalization, Finalization::RPCFinalizedBlock);
     }
 
     #[test]

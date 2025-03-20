@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 use std::convert::TryInto;
-use std::str::FromStr;
 
 use async_trait::async_trait;
 use cosmrs::cosmwasm::MsgExecuteContract;
@@ -12,7 +11,6 @@ use events_derive;
 use events_derive::try_from;
 use hex::encode;
 use multisig::msg::ExecuteMsg;
-use router_api::ChainName;
 use serde::de::Error as DeserializeError;
 use serde::{Deserialize, Deserializer};
 use tokio::sync::watch::Receiver;
@@ -33,7 +31,6 @@ struct SigningStartedEvent {
     #[serde(with = "hex")]
     msg: MessageDigest,
     expires_at: u64,
-    chain: ChainName,
 }
 
 fn deserialize_public_keys<'de, D>(
@@ -111,7 +108,6 @@ where
             pub_keys,
             msg,
             expires_at,
-            chain,
         } = match event.try_into() as error_stack::Result<_, _> {
             Err(report)
                 if matches!(
@@ -123,14 +119,6 @@ where
             }
             result => result.change_context(DeserializeEvent)?,
         };
-
-        if chain.eq(&ChainName::from_str("XRPL").unwrap()) {
-            info!(
-                session_id = session_id.to_string(),
-                "skipping XRP signing session"
-            );
-            return Ok(vec![]);
-        }
 
         info!(
             session_id = session_id,
@@ -150,8 +138,8 @@ where
         match pub_keys.get(&self.verifier) {
             Some(pub_key) => {
                 let key_type = match pub_key {
-                    PublicKey::Secp256k1(_) => tofnd::Algorithm::Ecdsa,
-                    PublicKey::Ed25519(_) => tofnd::Algorithm::Ed25519,
+                    PublicKey::Secp256k1(_) => tofnd::Algorithm::Ed25519,
+                    PublicKey::Ed25519(_) => tofnd::Algorithm::Ecdsa,
                 };
 
                 let signature = self

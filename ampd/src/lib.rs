@@ -9,6 +9,7 @@ use cosmrs::proto::cosmos::tx::v1beta1::service_client::ServiceClient;
 use error_stack::{FutureExt, Result, ResultExt};
 use event_processor::EventHandler;
 use event_sub::EventSub;
+use evm::finalizer::{pick, Finalization};
 use evm::json_rpc::EthereumClient;
 use multiversx_sdk::gateway::GatewayProxy;
 use queue::queued_broadcaster::QueuedBroadcaster;
@@ -22,7 +23,6 @@ use tokio_util::sync::CancellationToken;
 use tonic::transport::Channel;
 use tracing::info;
 use types::{CosmosPublicKey, TMAddress};
-use xrpl::json_rpc::XRPLClient;
 
 use crate::config::Config;
 
@@ -46,7 +46,6 @@ mod tm_client;
 mod tofnd;
 mod types;
 mod url;
-mod xrpl;
 
 pub use grpc::{client, proto};
 
@@ -152,32 +151,16 @@ async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
     .await
 }
 
-async fn check_evm_finalizer<'a, C>(
+async fn check_finalizer<'a, C>(
     chain_name: &ChainName,
-    finalization: &evm::finalizer::Finalization,
+    finalization: &Finalization,
     rpc_client: &'a C,
 ) -> Result<(), Error>
 where
     C: EthereumClient + Send + Sync,
 {
-    let _ = evm::finalizer::pick(finalization, rpc_client, 0)
+    let _ = pick(finalization, rpc_client, 0)
         .latest_finalized_block_height()
-        .await
-        .change_context_lazy(|| Error::InvalidFinalizerType(chain_name.to_owned()))?;
-
-    Ok(())
-}
-
-async fn check_xrpl_finalizer<'a, C>(
-    chain_name: &ChainName,
-    finalization: &xrpl::finalizer::Finalization,
-    rpc_client: &'a C,
-) -> Result<(), Error>
-where
-    C: XRPLClient + Send + Sync,
-{
-    let _ = xrpl::finalizer::pick(finalization, rpc_client)
-        .latest_validated_ledger_index()
         .await
         .change_context_lazy(|| Error::InvalidFinalizerType(chain_name.to_owned()))?;
 
@@ -251,7 +234,7 @@ where
                             .change_context(Error::Connection)?,
                     );
 
-                    check_evm_finalizer(&chain.name, &chain.finalization, &rpc_client).await?;
+                    check_finalizer(&chain.name, &chain.finalization, &rpc_client).await?;
 
                     self.create_handler_task(
                         format!("{}-msg-verifier", chain.name),
@@ -280,7 +263,7 @@ where
                             .change_context(Error::Connection)?,
                     );
 
-                    check_evm_finalizer(&chain.name, &chain.finalization, &rpc_client).await?;
+                    check_finalizer(&chain.name, &chain.finalization, &rpc_client).await?;
 
                     self.create_handler_task(
                         format!("{}-verifier-set-verifier", chain.name),
@@ -323,59 +306,6 @@ where
                                 .build()
                                 .change_context(Error::Connection)?,
                         ),
-                        self.block_height_monitor.latest_block_height(),
-                    ),
-                    event_processor_config.clone(),
-                ),
-                handlers::config::Config::XRPLMsgVerifier {
-                    cosmwasm_contract,
-                    chain,
-                    rpc_timeout,
-                } => {
-                    let rpc_client = xrpl_http_client::Client::builder()
-                        .base_url(chain.rpc_url.as_str())
-                        .http_client(
-                            reqwest::ClientBuilder::new()
-                                .connect_timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
-                                .timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
-                                .build()
-                                .change_context(Error::Connection)?,
-                        )
-                        .build();
-
-                    check_xrpl_finalizer(&chain.name, &chain.finalization, &rpc_client).await?;
-
-                    self.create_handler_task(
-                        format!("{}-msg-verifier", chain.name),
-                        handlers::xrpl_verify_msg::Handler::new(
-                            verifier.clone(),
-                            cosmwasm_contract,
-                            chain.finalization,
-                            xrpl_http_client::Client::builder()
-                                .base_url(chain.rpc_url.as_str())
-                                .http_client(
-                                    reqwest::ClientBuilder::new()
-                                        .connect_timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
-                                        .timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
-                                        .build()
-                                        .change_context(Error::Connection)?,
-                                )
-                                .build(),
-                            self.block_height_monitor.latest_block_height(),
-                        ),
-                        event_processor_config.clone(),
-                    )
-                }
-                handlers::config::Config::XRPLMultisigSigner {
-                    multisig_contract,
-                    multisig_prover_contract,
-                } => self.create_handler_task(
-                    "xrpl-multisig-signer",
-                    handlers::xrpl_multisig::Handler::new(
-                        verifier.clone(),
-                        multisig_contract,
-                        multisig_prover_contract,
-                        self.multisig_client.clone(),
                         self.block_height_monitor.latest_block_height(),
                     ),
                     event_processor_config.clone(),
