@@ -1,5 +1,6 @@
 mod abi;
 mod bcs;
+mod solana;
 mod stellar_xdr;
 
 use axelar_wasm_std::hash::Hash;

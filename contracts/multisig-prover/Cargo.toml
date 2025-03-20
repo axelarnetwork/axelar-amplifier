@@ -54,6 +54,7 @@ stellar-xdr = { workspace = true }
 sui-gateway = { workspace = true }
 thiserror = { workspace = true }
 voting-verifier = { workspace = true, features = ["library"] }
+axelar-solana-encoding = { workspace = true }
 
 [dev-dependencies]
 anyhow = "1.0"

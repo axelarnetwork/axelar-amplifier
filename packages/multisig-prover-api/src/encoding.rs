@@ -5,6 +5,7 @@ use cosmwasm_schema::cw_serde;
 pub enum Encoder {
     Abi,
     Bcs,
+    Solana,
     StellarXdr,
     Solana,
 }
