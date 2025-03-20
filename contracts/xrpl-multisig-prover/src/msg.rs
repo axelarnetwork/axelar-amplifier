@@ -7,6 +7,7 @@ use msgs_derive::EnsurePermissions;
 use router_api::{ChainName, CrossChainId};
 use xrpl_types::msg::{XRPLAddReservesMessage, XRPLProverMessage};
 use xrpl_types::types::{xrpl_account_id_string, XRPLAccountId};
+use xrpl_types::hex_tx_hash;
 
 use crate::state::MultisigSession;
 
@@ -100,6 +101,7 @@ pub enum ProofStatus {
 #[cw_serde]
 pub struct ProofResponse {
     #[schemars(with = "String")]
+    #[serde(with = "hex_tx_hash")]
     pub unsigned_tx_hash: HexTxHash,
     pub status: ProofStatus,
 }
