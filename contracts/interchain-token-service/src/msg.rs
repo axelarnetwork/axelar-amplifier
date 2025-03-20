@@ -5,6 +5,7 @@ use cosmwasm_schema::{cw_serde, QueryResponses};
 use msgs_derive::EnsurePermissions;
 use router_api::{Address, ChainNameRaw};
 
+pub use crate::contract::MigrateMsg;
 use crate::shared::NumBits;
 use crate::state::{TokenConfig, TokenInstance};
 use crate::TokenId;
