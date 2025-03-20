@@ -90,6 +90,7 @@ starknet-checked-felt = { version = "^1.0.0", path = "packages/starknet-checked-
 starknet-types-core = { version = "0.1.7" }
 starknet-core = "0.12.0"
 starknet-providers = "0.12.0"
+axelar-solana-encoding = { git = "https://github.com/eigerco/solana-axelar.git", rev = "57444dc" }
 syn = "2.0.92"
 thiserror = "1.0.61"
 tofn = { version = "1.1" }
