@@ -98,7 +98,8 @@ where
             if ledger_index.ge(&latest_validated_ledger_index) {
                 return None;
             }
-            Some((HexTxHash::from_str(&tx_hash).ok()?, tx_res.tx))
+            let hex_tx_hash = HexTxHash::from_str(&format!("0x{}", tx_hash.to_lowercase())).ok()?;
+            Some((hex_tx_hash, tx_res.tx))
         })
         .collect())
     }
