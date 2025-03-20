@@ -9,7 +9,7 @@ members = [
 resolver = "2"
 
 [workspace.package]
-rust-version = "1.78.0" # be sure there is an optimizer release supporting this version before updating. See https://github.com/CosmWasm/optimizer
+rust-version = "1.81.0" # be sure there is an optimizer release supporting this version before updating. See https://github.com/CosmWasm/optimizer
 edition = "2021"
 
 [workspace.dependencies]
