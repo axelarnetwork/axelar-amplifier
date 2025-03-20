@@ -4354,6 +4354,7 @@ dependencies = [
  "report",
  "router-api",
  "schemars",
+ "semver 1.0.25",
  "serde",
  "serde_json",
  "sha3",

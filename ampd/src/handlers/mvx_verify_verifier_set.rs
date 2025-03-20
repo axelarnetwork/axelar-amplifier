@@ -1,6 +1,7 @@
 use std::convert::TryInto;
 
 use async_trait::async_trait;
+use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
 use axelar_wasm_std::voting::{PollId, Vote};
 use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmrs::tx::Msg;
@@ -11,7 +12,7 @@ use events::Event;
 use events_derive::try_from;
 use multisig::verifier_set::VerifierSet;
 use multiversx_sdk::data::address::Address;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use tokio::sync::watch::Receiver;
 use tracing::{info, info_span};
 use valuable::Valuable;
@@ -21,12 +22,11 @@ use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error;
 use crate::mvx::proxy::MvxProxy;
 use crate::mvx::verifier::verify_verifier_set;
-use crate::types::{Hash, TMAddress};
+use crate::types::TMAddress;
 
-#[derive(Deserialize, Debug, Serialize)]
+#[derive(Deserialize, Debug)]
 pub struct VerifierSetConfirmation {
-    pub tx_id: Hash,
-    pub event_index: u32,
+    pub message_id: HexTxHashAndEventIndex,
     pub verifier_set: VerifierSet,
 }
 
@@ -120,13 +120,13 @@ where
 
         let transaction_info = self
             .blockchain
-            .transaction_info_with_results(&verifier_set.tx_id)
+            .transaction_info_with_results(&verifier_set.message_id.tx_hash.into())
             .await;
 
         let vote = info_span!(
             "verify a new verifier set for MultiversX",
             poll_id = poll_id.to_string(),
-            id = format!("{}_{}", verifier_set.tx_id, verifier_set.event_index)
+            id = verifier_set.message_id.to_string(),
         )
         .in_scope(|| {
             info!("ready to verify a new worker set in poll");
@@ -192,10 +192,10 @@ mod tests {
         let verifier_set = event.verifier_set;
 
         assert!(
-            verifier_set.tx_id.encode_hex::<String>()
+            verifier_set.message_id.tx_hash.encode_hex::<String>()
                 == "dfaf64de66510723f2efbacd7ead3c4f8c856aed1afc2cb30254552aeda47312"
         );
-        assert!(verifier_set.event_index == 1u32);
+        assert!(verifier_set.message_id.event_index == 1u64);
         assert!(verifier_set.verifier_set.signers.len() == 3);
         assert_eq!(verifier_set.verifier_set.threshold, Uint128::from(2u128));
     }
@@ -329,7 +329,7 @@ mod tests {
                     .parse()
                     .unwrap(),
                 event_index: 1,
-                message_id: "dfaf64de66510723f2efbacd7ead3c4f8c856aed1afc2cb30254552aeda47312-1"
+                message_id: "0xdfaf64de66510723f2efbacd7ead3c4f8c856aed1afc2cb30254552aeda47312-1"
                     .to_string()
                     .try_into()
                     .unwrap(),
