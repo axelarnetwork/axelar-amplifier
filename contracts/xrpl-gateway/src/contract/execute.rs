@@ -291,7 +291,7 @@ pub fn translate_to_interchain_transfer(
     .abi_encode();
 
     let cc_id = interchain_transfer_message.cc_id(config.chain_name.clone().into());
-    let its_msg = construct_its_hub_message(config, cc_id, payload.clone().into())?;
+    let its_msg = construct_its_hub_message(config, cc_id, payload.clone())?;
 
     Ok(InterchainTransfer {
         message_with_payload: Some(MessageWithPayload {
@@ -327,7 +327,7 @@ pub fn translate_to_call_contract(
     ))
     .change_context(Error::InvalidAddress)?;
     let destination_address = call_contract_message.destination_address.clone();
-    let destination_chain = ChainName::from(call_contract_message.destination_chain.clone());
+    let destination_chain = call_contract_message.destination_chain.clone();
 
     let cc_id = call_contract_message.cc_id(config.chain_name.clone().into());
     let message = Message {
