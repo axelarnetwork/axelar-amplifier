@@ -10,7 +10,7 @@ use xrpl_types::msg::{
 };
 use xrpl_types::types::{XRPLAccountId, XRPLPaymentAmount, XRPLToken};
 
-fn parse_memos(memos: &Vec<Memo>) -> HashMap<String, String> {
+fn parse_memos(memos: &[Memo]) -> HashMap<String, String> {
     memos
         .iter()
         .filter_map(|m| {
@@ -248,20 +248,16 @@ pub fn verify_gas_fee_amount(
     memos: &HashMap<String, String>,
 ) -> bool {
     || -> Option<bool> {
-        let gas_fee_amount_str = match memos
+        let gas_fee_amount_str = memos
             .get("gas_fee_amount")
             .and_then(|amount| hex::decode(amount).ok())
-            .and_then(|decoded| String::from_utf8(decoded).ok())
-        {
-            Some(gas_fee_amount_str) => gas_fee_amount_str,
-            None => return None,
-        };
+            .and_then(|decoded| String::from_utf8(decoded).ok())?;
 
         let gas_fee_amount = match message.amount.clone() {
             XRPLPaymentAmount::Issued(token, _) => XRPLPaymentAmount::Issued(
                 XRPLToken {
-                    issuer: token.issuer.try_into().ok()?,
-                    currency: token.currency.try_into().ok()?,
+                    issuer: token.issuer,
+                    currency: token.currency,
                 },
                 gas_fee_amount_str.try_into().ok()?,
             ),

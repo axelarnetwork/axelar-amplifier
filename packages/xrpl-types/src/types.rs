@@ -248,9 +248,7 @@ impl PartialOrd for XRPLPaymentAmount {
             (
                 XRPLPaymentAmount::Issued(token_a, amount_a),
                 XRPLPaymentAmount::Issued(token_b, amount_b),
-            ) if token_a == token_b => {
-                amount_a.partial_cmp(amount_b)
-            }
+            ) if token_a == token_b => amount_a.partial_cmp(amount_b),
             _ => None,
         }
     }
@@ -345,7 +343,7 @@ impl Sub for XRPLPaymentAmount {
                 XRPLPaymentAmount::Issued(token_y, amount_y),
             ) if token_x == token_y => {
                 Ok(XRPLPaymentAmount::Issued(token_x, amount_x.sub(amount_y)?))
-            },
+            }
             _ => Err(XRPLError::IncompatibleTokens),
         }
     }

@@ -111,10 +111,7 @@ mod tests {
 
             let res = HexTxHash::from_str(&msg_id);
             let parsed = res.unwrap();
-            assert_eq!(
-                parsed.tx_hash_as_hex(),
-                msg_id.clone().try_into().unwrap()
-            );
+            assert_eq!(parsed.tx_hash_as_hex(), msg_id.clone().try_into().unwrap());
             assert_eq!(parsed.to_string(), msg_id);
         }
     }

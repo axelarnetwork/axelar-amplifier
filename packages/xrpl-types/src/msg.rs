@@ -5,9 +5,8 @@ use cosmwasm_std::{Attribute, HexBinary};
 use router_api::{ChainName, ChainNameRaw, CrossChainId, FIELD_DELIMITER};
 use sha3::{Digest, Keccak256};
 
-use crate::hex_option;
-use crate::hex_tx_hash;
 use crate::types::{xrpl_account_id_string, XRPLAccountId, XRPLPaymentAmount};
+use crate::{hex_option, hex_tx_hash};
 
 #[cw_serde]
 #[derive(Eq, Hash)]

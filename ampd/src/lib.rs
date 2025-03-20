@@ -154,10 +154,10 @@ async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
     .await
 }
 
-async fn check_evm_finalizer<'a, C>(
+async fn check_evm_finalizer<C>(
     chain_name: &ChainName,
     finalization: &evm::finalizer::Finalization,
-    rpc_client: &'a C,
+    rpc_client: &C,
 ) -> Result<(), Error>
 where
     C: EthereumClient + Send + Sync,
@@ -170,10 +170,10 @@ where
     Ok(())
 }
 
-async fn check_xrpl_finalizer<'a, C>(
+async fn check_xrpl_finalizer<C>(
     chain_name: &ChainName,
     finalization: &xrpl::finalizer::Finalization,
-    rpc_client: &'a C,
+    rpc_client: &C,
 ) -> Result<(), Error>
 where
     C: XRPLClient + Send + Sync,
