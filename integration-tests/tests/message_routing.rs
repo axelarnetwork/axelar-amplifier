@@ -7,7 +7,7 @@ use cosmwasm_std::{HexBinary, Uint128, Uint256};
 use ethers_core::utils::keccak256;
 use integration_tests::contract::Contract;
 use router_api::{Address, CrossChainId, Message};
-use xrpl_types::msg::{WithPayload, XRPLMessage, XRPLProverMessage, XRPLInterchainTransferMessage};
+use xrpl_types::msg::{WithPayload, XRPLInterchainTransferMessage, XRPLMessage, XRPLProverMessage};
 use xrpl_types::types::{
     hash_signed_tx, XRPLAccountId, XRPLCurrency, XRPLPaymentAmount, XRPLToken,
 };

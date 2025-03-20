@@ -295,10 +295,8 @@ pub fn query(
         QueryMsg::XrplToken(token_id) => {
             query::xrpl_token(deps.storage, token_id).change_context(Error::XrplToken(token_id))
         }
-        QueryMsg::XrplTokenId(xrpl_token) => {
-            query::xrpl_token_id(deps.storage, &xrpl_token)
-                .change_context(Error::XrplTokenId(xrpl_token))
-        }
+        QueryMsg::XrplTokenId(xrpl_token) => query::xrpl_token_id(deps.storage, &xrpl_token)
+            .change_context(Error::XrplTokenId(xrpl_token)),
         QueryMsg::XrpTokenId => query::xrp_token_id(deps.storage).change_context(Error::XrpTokenId),
         QueryMsg::LinkedTokenId { deployer, salt } => {
             query::linked_token_id(deps.storage, deployer.clone(), salt)

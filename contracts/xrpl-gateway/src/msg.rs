@@ -4,7 +4,10 @@ use cosmwasm_std::{Addr, Uint256};
 use interchain_token_service::TokenId;
 use msgs_derive::EnsurePermissions;
 use router_api::{ChainName, ChainNameRaw, CrossChainId, Message};
-use xrpl_types::msg::{WithPayload, XRPLAddGasMessage, XRPLCallContractMessage, XRPLInterchainTransferMessage, XRPLMessage};
+use xrpl_types::msg::{
+    WithPayload, XRPLAddGasMessage, XRPLCallContractMessage, XRPLInterchainTransferMessage,
+    XRPLMessage,
+};
 use xrpl_types::types::{
     xrpl_account_id_string, xrpl_currency_string, XRPLAccountId, XRPLCurrency, XRPLPaymentAmount,
     XRPLToken, XRPLTokenOrXrp,

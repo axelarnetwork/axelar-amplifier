@@ -119,14 +119,14 @@ pub fn execute(
         ExecuteMsg::UpdateAdmin { new_admin_address } => {
             execute::update_admin(deps, new_admin_address)
         }
-        ExecuteMsg::ConfirmAddReservesMessage { add_reserves_message } => {
-            execute::confirm_add_reserves_message(
-                deps.storage,
-                deps.querier,
-                &config,
-                add_reserves_message,
-            )
-        }
+        ExecuteMsg::ConfirmAddReservesMessage {
+            add_reserves_message,
+        } => execute::confirm_add_reserves_message(
+            deps.storage,
+            deps.querier,
+            &config,
+            add_reserves_message,
+        ),
     }?
     .then(Ok)
 }

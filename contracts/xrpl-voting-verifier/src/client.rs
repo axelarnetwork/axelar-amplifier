@@ -87,7 +87,7 @@ mod test {
     use axelar_wasm_std::{nonempty, Threshold, VerificationStatus};
     use cosmwasm_std::testing::{message_info, mock_dependencies, mock_env, MockApi, MockQuerier};
     use cosmwasm_std::{from_json, Addr, DepsMut, QuerierWrapper, SystemError, Uint64, WasmQuery};
-    use xrpl_types::msg::{XRPLMessage, XRPLInterchainTransferMessage};
+    use xrpl_types::msg::{XRPLInterchainTransferMessage, XRPLMessage};
     use xrpl_types::types::{XRPLAccountId, XRPLPaymentAmount, XRPLToken, XRPLTokenAmount};
 
     use crate::contract::{instantiate, query};
@@ -161,15 +161,17 @@ mod test {
         let (querier, addr) = setup_queries_to_fail();
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
-        let res = client.messages_status(vec![XRPLMessage::InterchainTransferMessage(XRPLInterchainTransferMessage {
-            tx_id: HexTxHash::new([0; 32]),
-            source_address: XRPLAccountId::new([255; 20]),
-            destination_address: nonempty::String::try_from("5678").unwrap(),
-            destination_chain: "eth".parse().unwrap(),
-            payload_hash: None,
-            amount: XRPLPaymentAmount::Drops(200),
-            gas_fee_amount: XRPLPaymentAmount::Drops(200),
-        })]);
+        let res = client.messages_status(vec![XRPLMessage::InterchainTransferMessage(
+            XRPLInterchainTransferMessage {
+                tx_id: HexTxHash::new([0; 32]),
+                source_address: XRPLAccountId::new([255; 20]),
+                destination_address: nonempty::String::try_from("5678").unwrap(),
+                destination_chain: "eth".parse().unwrap(),
+                payload_hash: None,
+                amount: XRPLPaymentAmount::Drops(200),
+                gas_fee_amount: XRPLPaymentAmount::Drops(200),
+            },
+        )]);
 
         assert!(res.is_err());
         goldie::assert!(res.unwrap_err().to_string());

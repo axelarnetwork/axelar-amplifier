@@ -23,7 +23,7 @@ use sha3::{Digest, Keccak256};
 use xrpl_gateway::contract::{execute, instantiate, query};
 use xrpl_gateway::msg::{ExecuteMsg, InstantiateMsg, QueryMsg, TokenMetadata};
 use xrpl_gateway::state;
-use xrpl_types::msg::{WithPayload, XRPLMessage, XRPLInterchainTransferMessage};
+use xrpl_types::msg::{WithPayload, XRPLInterchainTransferMessage, XRPLMessage};
 use xrpl_types::types::{XRPLAccountId, XRPLPaymentAmount, XRPLTokenOrXrp};
 use xrpl_voting_verifier::msg::MessageStatus;
 
@@ -605,7 +605,10 @@ fn generate_incoming_msgs(namespace: impl Debug, count: u8) -> Vec<XRPLMessage> 
 fn messages_with_payload(msgs: Vec<XRPLMessage>) -> Vec<WithPayload<XRPLMessage>> {
     msgs.into_iter()
         .map(|msg| {
-            assert!(matches!(msg, XRPLMessage::InterchainTransferMessage(_)), "only interchain transfer messages are supported");
+            assert!(
+                matches!(msg, XRPLMessage::InterchainTransferMessage(_)),
+                "only interchain transfer messages are supported"
+            );
 
             WithPayload::new(
                 msg,

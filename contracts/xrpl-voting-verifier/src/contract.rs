@@ -116,7 +116,7 @@ mod test {
         AuthorizationState, BondingState, Verifier, WeightedVerifier, VERIFIER_WEIGHT,
     };
     use sha3::{Digest, Keccak256};
-    use xrpl_types::msg::{WithCrossChainId, XRPLMessage, XRPLInterchainTransferMessage};
+    use xrpl_types::msg::{WithCrossChainId, XRPLInterchainTransferMessage, XRPLMessage};
     use xrpl_types::types::{XRPLAccountId, XRPLPaymentAmount};
 
     use super::*;

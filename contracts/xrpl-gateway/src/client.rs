@@ -14,7 +14,9 @@ type Result<T> = error_stack::Result<T, Error>;
 #[derive(thiserror::Error, Debug)]
 #[allow(clippy::large_enum_variant)]
 pub enum Error {
-    #[error("failed to query interchain transfer for message {message:?} with payload {payload:?}")]
+    #[error(
+        "failed to query interchain transfer for message {message:?} with payload {payload:?}"
+    )]
     InterchainTransfer {
         message: XRPLInterchainTransferMessage,
         payload: Option<nonempty::HexBinary>,
@@ -53,13 +55,9 @@ pub enum Error {
 impl From<QueryMsg> for Error {
     fn from(value: QueryMsg) -> Self {
         match value {
-            QueryMsg::InterchainTransfer {
-                message,
-                payload,
-            } => Error::InterchainTransfer {
-                message,
-                payload,
-            },
+            QueryMsg::InterchainTransfer { message, payload } => {
+                Error::InterchainTransfer { message, payload }
+            }
             QueryMsg::CallContract { message, payload } => Error::CallContract { message, payload },
             QueryMsg::LinkedTokenId { salt, deployer } => Error::LinkedTokenId { salt, deployer },
             QueryMsg::OutgoingMessages(message_ids) => Error::OutgoingMessages(message_ids),
@@ -93,10 +91,7 @@ impl Client<'_> {
         message: XRPLInterchainTransferMessage,
         payload: Option<nonempty::HexBinary>,
     ) -> Result<InterchainTransfer> {
-        let msg = QueryMsg::InterchainTransfer {
-            message,
-            payload,
-        };
+        let msg = QueryMsg::InterchainTransfer { message, payload };
         self.client.query(&msg).change_context_lazy(|| msg.into())
     }
 

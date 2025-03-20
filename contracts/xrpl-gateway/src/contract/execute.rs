@@ -11,7 +11,10 @@ use itertools::Itertools;
 use router_api::client::Router;
 use router_api::{Address, ChainName, ChainNameRaw, CrossChainId, Message};
 use sha3::{Digest, Keccak256};
-use xrpl_types::msg::{WithPayload, XRPLAddGasMessage, XRPLCallContractMessage, XRPLInterchainTransferMessage, XRPLMessage};
+use xrpl_types::msg::{
+    WithPayload, XRPLAddGasMessage, XRPLCallContractMessage, XRPLInterchainTransferMessage,
+    XRPLMessage,
+};
 use xrpl_types::types::{
     scale_to_decimals, XRPLAccountId, XRPLCurrency, XRPLPaymentAmount, XRPLToken, XRPLTokenOrXrp,
     XRPL_ISSUED_TOKEN_DECIMALS, XRP_DECIMALS,
@@ -66,7 +69,12 @@ pub fn route_incoming_messages(
                         message_with_payload,
                         token_id,
                         dust,
-                    } = translate_to_interchain_transfer(storage, config, &interchain_transfer_message, msg.payload.clone())?;
+                    } = translate_to_interchain_transfer(
+                        storage,
+                        config,
+                        &interchain_transfer_message,
+                        msg.payload.clone(),
+                    )?;
 
                     if status == &VerificationStatus::SucceededOnSourceChain {
                         state::count_gas(
@@ -98,7 +106,12 @@ pub fn route_incoming_messages(
                     let CallContract {
                         message_with_payload,
                         gas_token_id,
-                    } = translate_to_call_contract(storage, config, &call_contract_message, payload.clone())?;
+                    } = translate_to_call_contract(
+                        storage,
+                        config,
+                        &call_contract_message,
+                        payload.clone(),
+                    )?;
 
                     if status == &VerificationStatus::SucceededOnSourceChain {
                         state::count_gas(
@@ -112,10 +125,18 @@ pub fn route_incoming_messages(
 
                     Some(message_with_payload)
                 }
-                _ => return Err(report!(Error::UnsupportedIncomingMessage(msg.message.to_owned()))),
+                _ => {
+                    return Err(report!(Error::UnsupportedIncomingMessage(
+                        msg.message.to_owned()
+                    )))
+                }
             };
 
-            if let Some(MessageWithPayload { message: msg, payload }) = message_with_payload {
+            if let Some(MessageWithPayload {
+                message: msg,
+                payload,
+            }) = message_with_payload
+            {
                 msgs_to_route.push(msg.clone());
                 events.extend(vec![
                     into_route_event(status, msg.clone()),
@@ -181,7 +202,9 @@ pub fn translate_to_interchain_transfer(
         None => {
             ensure!(
                 interchain_transfer_message.payload_hash.is_none(),
-                Error::PayloadHashGivenWithoutPayload(interchain_transfer_message.payload_hash.unwrap().into())
+                Error::PayloadHashGivenWithoutPayload(
+                    interchain_transfer_message.payload_hash.unwrap().into()
+                )
             );
         }
         Some(payload) => match interchain_transfer_message.payload_hash {
@@ -201,13 +224,16 @@ pub fn translate_to_interchain_transfer(
         },
     }
 
-    let token_id = payment_amount_to_token_id(storage, config, &interchain_transfer_message.amount)?;
+    let token_id =
+        payment_amount_to_token_id(storage, config, &interchain_transfer_message.amount)?;
 
-    let source_address =
-        nonempty::HexBinary::try_from(HexBinary::from(interchain_transfer_message.source_address.as_ref()))
-            .change_context(Error::InvalidAddress)?;
+    let source_address = nonempty::HexBinary::try_from(HexBinary::from(
+        interchain_transfer_message.source_address.as_ref(),
+    ))
+    .change_context(Error::InvalidAddress)?;
     let destination_address = interchain_transfer_message.destination_address.clone();
-    let destination_chain = ChainNameRaw::from(interchain_transfer_message.destination_chain.clone());
+    let destination_chain =
+        ChainNameRaw::from(interchain_transfer_message.destination_chain.clone());
 
     let transfer_amount = interchain_transfer_message
         .amount
@@ -270,7 +296,8 @@ pub fn translate_to_interchain_transfer(
     Ok(InterchainTransfer {
         message_with_payload: Some(MessageWithPayload {
             message: its_msg,
-            payload: TryInto::<nonempty::HexBinary>::try_into(payload).change_context(Error::PayloadEncodingFailed)?,
+            payload: TryInto::<nonempty::HexBinary>::try_into(payload)
+                .change_context(Error::PayloadEncodingFailed)?,
         }),
         token_id,
         dust,
@@ -293,10 +320,12 @@ pub fn translate_to_call_contract(
         }
     );
 
-    let gas_token_id = payment_amount_to_token_id(storage, config, &call_contract_message.gas_fee_amount)?;
-    let source_address =
-        nonempty::HexBinary::try_from(HexBinary::from(call_contract_message.source_address.as_ref()))
-            .change_context(Error::InvalidAddress)?;
+    let gas_token_id =
+        payment_amount_to_token_id(storage, config, &call_contract_message.gas_fee_amount)?;
+    let source_address = nonempty::HexBinary::try_from(HexBinary::from(
+        call_contract_message.source_address.as_ref(),
+    ))
+    .change_context(Error::InvalidAddress)?;
     let destination_address = call_contract_message.destination_address.clone();
     let destination_chain = ChainName::from(call_contract_message.destination_chain.clone());
 
@@ -312,10 +341,7 @@ pub fn translate_to_call_contract(
     };
 
     Ok(CallContract {
-        message_with_payload: MessageWithPayload {
-            message,
-            payload,
-        },
+        message_with_payload: MessageWithPayload { message, payload },
         gas_token_id,
     })
 }
