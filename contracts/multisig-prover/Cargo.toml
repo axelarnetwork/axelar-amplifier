@@ -30,6 +30,7 @@ optimize = """docker run --rm -v "$(pwd)":/code \
 """
 
 [dependencies]
+axelar-solana-encoding = { workspace = true }
 axelar-wasm-std = { workspace = true, features = ["derive"] }
 bcs = "0.1.5"
 client = { workspace = true }
@@ -62,7 +63,6 @@ stellar-xdr = { workspace = true }
 sui-gateway = { workspace = true }
 thiserror = { workspace = true }
 voting-verifier = { workspace = true, features = ["library"] }
-axelar-solana-encoding = { workspace = true }
 
 [dev-dependencies]
 anyhow = "1.0"
