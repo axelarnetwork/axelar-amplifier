@@ -43,7 +43,7 @@ impl From<Event> for cosmwasm_std::Event {
                         .expect("violated invariant: multisig_session_id is not serializable"),
                 )
                 .add_attribute(
-                    "msg_ids",
+                    "message_ids",
                     to_string(&msg_ids).expect("violated invariant: msg_ids are not serializable"),
                 ),
             Event::XRPLSigningStarted {
