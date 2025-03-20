@@ -20,6 +20,7 @@ pub enum AddressFormat {
     Eip55,
     Sui,
     Stellar,
+    Base58Solana,
     Starknet,
 }
 
@@ -42,6 +43,19 @@ pub fn validate_address(address: &str, format: &AddressFormat) -> Result<(), Err
             }
             ScAddress::from_str(address)
                 .change_context(Error::InvalidAddress(address.to_string()))?;
+        }
+        AddressFormat::Base58Solana => {
+            const SOLANA_PUBKEY_LEN: usize = 32;
+            const MAX_BASE58_LEN: usize = 44;
+            if address.len() > MAX_BASE58_LEN {
+                bail!(Error::InvalidAddress(address.to_string()));
+            }
+            let pubkey_vec = bs58::decode(address)
+                .into_vec()
+                .change_context(Error::InvalidAddress(address.to_string()))?;
+            if pubkey_vec.len() != SOLANA_PUBKEY_LEN {
+                bail!(Error::InvalidAddress(address.to_string()))
+            }
         }
         AddressFormat::Starknet => {
             CheckedFelt::from_str(address)
@@ -218,6 +232,59 @@ mod tests {
         let lower_case = invalid.to_lowercase();
         assert_err_contains!(
             address::validate_address(&lower_case, &address::AddressFormat::Stellar),
+            address::Error,
+            address::Error::InvalidAddress(..)
+        );
+    }
+
+    #[test]
+    fn validate_solana_address() {
+        use crate::{address, assert_err_contains};
+        // Valid Solana address
+        let addr = "4f3J7t1HgX1t36k6rph2pYJrWxk9uT1RrB2K3nVHDh8D";
+        assert_ok!(address::validate_address(
+            addr,
+            &address::AddressFormat::Base58Solana
+        ));
+        // Invalid address: contains invalid character '0' (zero)
+        let invalid_char_addr = "4f3J7t1HgX1t36k6rph2pYJrWxk9uT1RrB2K3nVHDh8D0";
+        assert_err_contains!(
+            address::validate_address(invalid_char_addr, &address::AddressFormat::Base58Solana),
+            address::Error,
+            address::Error::InvalidAddress(..)
+        );
+        // Invalid address: contains invalid character 'O'
+        let invalid_char_addr2 = "4f3J7t1HgX1t36k6rph2pYJrWxk9uT1RrB2K3nVHDh8DO";
+        assert_err_contains!(
+            address::validate_address(invalid_char_addr2, &address::AddressFormat::Base58Solana),
+            address::Error,
+            address::Error::InvalidAddress(..)
+        );
+        // Invalid address: incorrect length (too short)
+        let short_addr = "4f3J7t1HgX1t36k6rph2pYJrWxk9uT1RrB2K3nVHDh";
+        assert_err_contains!(
+            address::validate_address(short_addr, &address::AddressFormat::Base58Solana),
+            address::Error,
+            address::Error::InvalidAddress(..)
+        );
+        // Invalid address: incorrect length (too long)
+        let long_addr = format!("{}A", addr);
+        assert_err_contains!(
+            address::validate_address(&long_addr, &address::AddressFormat::Base58Solana),
+            address::Error,
+            address::Error::InvalidAddress(..)
+        );
+        // Invalid address: contains invalid character 'I'
+        let invalid_char_addr3 = "4f3J7t1HgX1t36k6rph2pYJrWxk9uT1RrB2K3nVHDh8DI";
+        assert_err_contains!(
+            address::validate_address(invalid_char_addr3, &address::AddressFormat::Base58Solana),
+            address::Error,
+            address::Error::InvalidAddress(..)
+        );
+        // Invalid address: contains invalid character 'l'
+        let invalid_char_addr4 = "4f3J7t1HgX1t36k6rph2pYJrWxk9uT1RrB2K3nVHDh8Dl";
+        assert_err_contains!(
+            address::validate_address(invalid_char_addr4, &address::AddressFormat::Base58Solana),
             address::Error,
             address::Error::InvalidAddress(..)
         );
