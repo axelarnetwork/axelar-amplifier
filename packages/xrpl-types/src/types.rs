@@ -26,6 +26,8 @@ const XRPL_PAYMENT_ISSUED_HASH_PREFIX: &[u8] = b"xrpl-payment-issued";
 const XRPL_ACCOUNT_ID_LENGTH: usize = 20;
 const XRPL_CURRENCY_LENGTH: usize = 20;
 
+const XRP_RESERVED_CURRENCY: &str = "XRP";
+
 pub const XRP_DECIMALS: u8 = 6;
 pub const XRPL_ISSUED_TOKEN_DECIMALS: u8 = 15;
 pub const XRP_MAX_UINT: u64 = 100_000_000_000_000_000u64;
@@ -736,14 +738,24 @@ pub fn message_to_sign(
 pub struct XRPLCurrency([u8; XRPL_CURRENCY_LENGTH]);
 
 impl XRPLCurrency {
+    // This currency is disallowed in XRPL
+    pub const XRP: Self = Self::from_str(XRP_RESERVED_CURRENCY);
+
     pub fn new(s: &str) -> Result<Self, XRPLError> {
-        if s == "XRP" || !CURRENCY_CODE_REGEX.is_match(s) {
+        if s == XRP_RESERVED_CURRENCY || !CURRENCY_CODE_REGEX.is_match(s) {
             return Err(XRPLError::InvalidCurrency);
         }
 
+        Ok(Self::from_str(s))
+    }
+
+    const fn from_str(s: &str) -> Self {
+        let bytes = s.as_bytes();
         let mut buffer = [0u8; XRPL_CURRENCY_LENGTH];
-        buffer[12..15].copy_from_slice(s.as_bytes());
-        Ok(XRPLCurrency(buffer))
+        buffer[12] = bytes[0];
+        buffer[13] = bytes[1];
+        buffer[14] = bytes[2];
+        XRPLCurrency(buffer)
     }
 
     pub fn as_bytes(&self) -> [u8; XRPL_CURRENCY_LENGTH] {
