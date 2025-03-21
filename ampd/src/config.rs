@@ -103,7 +103,6 @@ mod tests {
             [[handlers]]
             type = 'MultisigSigner'
             cosmwasm_contract = '{}'
-            chain_name = 'Ethereum'
 
             [[handlers]]
             type = 'SuiMsgVerifier'
@@ -325,7 +324,6 @@ mod tests {
                     cosmwasm_contract: TMAddress::from(
                         AccountId::new("axelar", &[0u8; 32]).unwrap(),
                     ),
-                    chain_name: ChainName::from_str("Ethereum").unwrap(),
                 },
                 HandlerConfig::SuiMsgVerifier {
                     cosmwasm_contract: TMAddress::from(
