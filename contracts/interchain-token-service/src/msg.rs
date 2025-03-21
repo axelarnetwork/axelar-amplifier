@@ -8,7 +8,7 @@ use router_api::{Address, ChainNameRaw};
 pub use crate::contract::MigrateMsg;
 use crate::shared::NumBits;
 use crate::state::{TokenConfig, TokenInstance};
-use crate::TokenId;
+use crate::{TokenId, TokenSupply};
 
 pub const DEFAULT_PAGINATION_LIMIT: u32 = 30;
 
@@ -30,6 +30,15 @@ pub enum ExecuteMsg {
     /// Execute a cross-chain message received by the axelarnet-gateway from another chain
     #[permission(Specific(gateway))]
     Execute(AxelarExecutableMsg),
+
+    #[permission(Elevated)]
+    RegisterP2pTokenInstance {
+        instance_chain: ChainNameRaw,
+        origin_chain: ChainNameRaw,
+        token_id: TokenId,
+        decimals: u8,
+        supply: TokenSupply,
+    },
 
     /// For each chain, register the ITS contract and set config parameters.
     /// Each chain's ITS contract has to be whitelisted before
