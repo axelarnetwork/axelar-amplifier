@@ -665,7 +665,7 @@ pub fn deploy_remote_token(
             name: token_metadata.name,
             symbol: token_metadata.symbol,
             decimals: destination_decimals,
-            minter: token_metadata.minter,
+            minter: None,
         },
     );
 

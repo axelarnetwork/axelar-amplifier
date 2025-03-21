@@ -1703,7 +1703,6 @@ pub fn setup_xrpl_source_test_case() -> XRPLSourceTestCase {
         TokenMetadata {
             name: "Wrapped XRP".try_into().unwrap(),
             symbol: "wXRP".try_into().unwrap(),
-            minter: None,
         },
     );
 
@@ -1813,7 +1812,6 @@ pub fn setup_xrpl_destination_test_case() -> XRPLDestinationTestCase {
         TokenMetadata {
             name: "Wrapped XRP".try_into().unwrap(),
             symbol: "wXRP".try_into().unwrap(),
-            minter: None,
         },
     );
 

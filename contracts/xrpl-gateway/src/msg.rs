@@ -44,8 +44,6 @@ pub struct TokenMetadata {
     pub name: nonempty::String,
     /// The symbol of the token
     pub symbol: nonempty::String,
-    /// An additional minter of the token (optional). ITS on the external chain is always a minter.
-    pub minter: Option<nonempty::HexBinary>,
 }
 
 #[cw_serde]

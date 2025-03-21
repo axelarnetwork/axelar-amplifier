@@ -141,7 +141,6 @@ fn successful_route_incoming() {
                 token_metadata: TokenMetadata {
                     name: "Wrapped XRP".to_string().try_into().unwrap(),
                     symbol: "wXRP".to_string().try_into().unwrap(),
-                    minter: None,
                 },
             },
         )
