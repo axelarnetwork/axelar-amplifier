@@ -797,7 +797,7 @@ dependencies = [
  "pin-project-lite",
  "tokio",
  "zstd 0.13.3",
- "zstd-safe 7.2.3",
+ "zstd-safe 7.2.4",
 ]
 
 [[package]]
@@ -924,7 +924,7 @@ dependencies = [
 [[package]]
 name = "axelar-message-primitives"
 version = "0.1.0"
-source = "git+https://github.com/eigerco/solana-axelar.git?rev=57444dc#57444dcc3d4e16bb165c0e26eda5b8ba43e86347"
+source = "git+https://github.com/eigerco/solana-axelar.git?rev=e6ab452#e6ab45274029b50aed71c6c966e08162ad076f8e"
 dependencies = [
  "alloy-primitives",
  "alloy-sol-types",
@@ -940,7 +940,7 @@ dependencies = [
 [[package]]
 name = "axelar-solana-encoding"
 version = "0.1.0"
-source = "git+https://github.com/eigerco/solana-axelar.git?rev=57444dc#57444dcc3d4e16bb165c0e26eda5b8ba43e86347"
+source = "git+https://github.com/eigerco/solana-axelar.git?rev=e6ab452#e6ab45274029b50aed71c6c966e08162ad076f8e"
 dependencies = [
  "arrayref",
  "borsh 1.5.6",
@@ -957,7 +957,7 @@ dependencies = [
 [[package]]
 name = "axelar-solana-gas-service-events"
 version = "0.1.0"
-source = "git+https://github.com/eigerco/solana-axelar.git?rev=57444dc#57444dcc3d4e16bb165c0e26eda5b8ba43e86347"
+source = "git+https://github.com/eigerco/solana-axelar.git?rev=e6ab452#e6ab45274029b50aed71c6c966e08162ad076f8e"
 dependencies = [
  "solana-program",
  "thiserror 1.0.69",
@@ -966,7 +966,7 @@ dependencies = [
 [[package]]
 name = "axelar-solana-gateway"
 version = "0.1.0"
-source = "git+https://github.com/eigerco/solana-axelar.git?rev=57444dc#57444dcc3d4e16bb165c0e26eda5b8ba43e86347"
+source = "git+https://github.com/eigerco/solana-axelar.git?rev=e6ab452#e6ab45274029b50aed71c6c966e08162ad076f8e"
 dependencies = [
  "axelar-message-primitives",
  "axelar-solana-encoding",
@@ -974,6 +974,7 @@ dependencies = [
  "bitvec 1.0.1",
  "borsh 1.5.6",
  "bytemuck",
+ "bytemuck_derive",
  "ed25519-dalek 2.1.1",
  "hex",
  "itertools 0.12.1",
@@ -1766,9 +1767,9 @@ dependencies = [
 
 [[package]]
 name = "bytemuck_derive"
-version = "1.9.1"
+version = "1.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9d35fadd3de6c82a550b136427123552b401efdab9859130f1cf485fbdea40af"
+checksum = "0cc8b54b395f2fcfbb3d90c47b01c7f444d94d05bdeb775811dec868ac3bbc26"
 dependencies = [
  "proc-macro2 1.0.94",
  "quote 1.0.40",
@@ -1843,9 +1844,9 @@ dependencies = [
 
 [[package]]
 name = "cc"
-version = "1.2.16"
+version = "1.2.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "be714c154be609ec7f5dad223a33bf1482fff90472de28f7362806e6d4832b8c"
+checksum = "1fcb57c740ae1daf453ae85f16e37396f672b039e00d9d866e07ddb24e328e3a"
 dependencies = [
  "jobserver",
  "libc",
@@ -4010,7 +4011,7 @@ dependencies = [
 [[package]]
 name = "gateway-event-stack"
 version = "0.1.0"
-source = "git+https://github.com/eigerco/solana-axelar.git?rev=57444dc#57444dcc3d4e16bb165c0e26eda5b8ba43e86347"
+source = "git+https://github.com/eigerco/solana-axelar.git?rev=e6ab452#e6ab45274029b50aed71c6c966e08162ad076f8e"
 dependencies = [
  "axelar-solana-gas-service-events",
  "axelar-solana-gateway",
@@ -5026,9 +5027,9 @@ checksum = "469fb0b9cefa57e3ef31275ee7cacb78f2fdca44e4765491884a2b119d4eb130"
 
 [[package]]
 name = "iri-string"
-version = "0.7.7"
+version = "0.7.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dc0f0a572e8ffe56e2ff4f769f32ffe919282c3916799f8b68688b6030063bea"
+checksum = "dbc5ebe9c3a1a7a5127f920a418f7585e9e758e911d0466ed004f393b0e380b2"
 dependencies = [
  "memchr",
  "serde",
@@ -7288,7 +7289,7 @@ version = "0.2.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "85eae3c4ed2f50dcfe72643da4befc30deadb458a9b590d720cde2f2b1e97da9"
 dependencies = [
- "zerocopy 0.8.23",
+ "zerocopy 0.8.24",
 ]
 
 [[package]]
@@ -7469,10 +7470,11 @@ dependencies = [
 [[package]]
 name = "program-utils"
 version = "0.1.0"
-source = "git+https://github.com/eigerco/solana-axelar.git?rev=57444dc#57444dcc3d4e16bb165c0e26eda5b8ba43e86347"
+source = "git+https://github.com/eigerco/solana-axelar.git?rev=e6ab452#e6ab45274029b50aed71c6c966e08162ad076f8e"
 dependencies = [
  "borsh 1.5.6",
  "bytemuck",
+ "bytemuck_derive",
  "rkyv",
  "solana-program",
 ]
@@ -7875,7 +7877,7 @@ checksum = "3779b94aeb87e8bd4e834cee3650289ee9e0d5677f976ecdb6d219e5f4f6cd94"
 dependencies = [
  "rand_chacha 0.9.0",
  "rand_core 0.9.3",
- "zerocopy 0.8.23",
+ "zerocopy 0.8.24",
 ]
 
 [[package]]
@@ -8383,7 +8385,7 @@ dependencies = [
 [[package]]
 name = "role-management"
 version = "0.1.0"
-source = "git+https://github.com/eigerco/solana-axelar.git?rev=57444dc#57444dcc3d4e16bb165c0e26eda5b8ba43e86347"
+source = "git+https://github.com/eigerco/solana-axelar.git?rev=e6ab452#e6ab45274029b50aed71c6c966e08162ad076f8e"
 dependencies = [
  "bincode",
  "bitflags 2.9.0",
@@ -10559,9 +10561,9 @@ dependencies = [
 
 [[package]]
 name = "starknet-core"
-version = "0.12.1"
+version = "0.12.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "37abf0af45a3b866dd108880ace9949ae7830f6830adb8963024302ae9e82c24"
+checksum = "ab44b2157b7f4697d58375cc8b8dbac8dfb6be79f13fd80c9f59634d2ac972c7"
 dependencies = [
  "base64 0.21.7",
  "crypto-bigint",
@@ -11297,9 +11299,9 @@ dependencies = [
 
 [[package]]
 name = "tempfile"
-version = "3.19.0"
+version = "3.19.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "488960f40a3fd53d72c2a29a58722561dee8afdd175bd88e3db4677d7b2ba600"
+checksum = "7437ac7763b9b123ccf33c338a5cc1bac6f69b45a136c19bdd8a65e3916435bf"
 dependencies = [
  "fastrand 2.3.0",
  "getrandom 0.3.2",
@@ -13181,11 +13183,11 @@ dependencies = [
 
 [[package]]
 name = "zerocopy"
-version = "0.8.23"
+version = "0.8.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fd97444d05a4328b90e75e503a34bad781f14e28a823ad3557f0750df1ebcbc6"
+checksum = "2586fea28e186957ef732a5f8b3be2da217d65c5969d4b1e17f973ebbe876879"
 dependencies = [
- "zerocopy-derive 0.8.23",
+ "zerocopy-derive 0.8.24",
 ]
 
 [[package]]
@@ -13201,9 +13203,9 @@ dependencies = [
 
 [[package]]
 name = "zerocopy-derive"
-version = "0.8.23"
+version = "0.8.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6352c01d0edd5db859a63e2605f4ea3183ddbd15e2c4a9e7d32184df75e4f154"
+checksum = "a996a8f63c5c4448cd959ac1bab0aaa3306ccfd060472f85943ee0750f0169be"
 dependencies = [
  "proc-macro2 1.0.94",
  "quote 1.0.40",
@@ -13288,7 +13290,7 @@ version = "0.13.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e91ee311a569c327171651566e07972200e76fcfe2242a4fa446149a3881c08a"
 dependencies = [
- "zstd-safe 7.2.3",
+ "zstd-safe 7.2.4",
 ]
 
 [[package]]
@@ -13303,18 +13305,18 @@ dependencies = [
 
 [[package]]
 name = "zstd-safe"
-version = "7.2.3"
+version = "7.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f3051792fbdc2e1e143244dc28c60f73d8470e93f3f9cbd0ead44da5ed802722"
+checksum = "8f49c4d5f0abb602a93fb8736af2a4f4dd9512e36f7f570d66e65ff867ed3b9d"
 dependencies = [
  "zstd-sys",
 ]
 
 [[package]]
 name = "zstd-sys"
-version = "2.0.14+zstd.1.5.7"
+version = "2.0.15+zstd.1.5.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8fb060d4926e4ac3a3ad15d864e99ceb5f343c6b34f5bd6d81ae6ed417311be5"
+checksum = "eb81183ddd97d0c74cedf1d50d85c8d08c1b8b68ee863bdee9e706eedba1a237"
 dependencies = [
  "cc",
  "pkg-config",
