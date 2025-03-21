@@ -273,7 +273,6 @@ dependencies = [
  "reqwest 0.11.27",
  "rewards 1.2.0",
  "router-api 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
- "schemars",
  "serde",
  "serde_json",
  "serde_with",
@@ -302,9 +301,6 @@ dependencies = [
  "valuable",
  "valuable-serde",
  "voting-verifier",
- "xrpl-multisig-prover",
- "xrpl-types",
- "xrpl_http_client",
 ]
 
 [[package]]
@@ -858,7 +854,7 @@ dependencies = [
 [[package]]
 name = "axelar-core-std"
 version = "1.0.0"
-source = "git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd#a1b3164679314c72eb562bf530966fc1ee8d11e1"
+source = "git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd#f49ea53ceea410a3736d5449c7b25014b212dac8"
 dependencies = [
  "axelar-wasm-std 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
  "client 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
@@ -913,7 +909,7 @@ dependencies = [
 [[package]]
 name = "axelar-wasm-std"
 version = "1.0.0"
-source = "git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd#a1b3164679314c72eb562bf530966fc1ee8d11e1"
+source = "git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd#f49ea53ceea410a3736d5449c7b25014b212dac8"
 dependencies = [
  "alloy-primitives",
  "axelar-wasm-std-derive 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
@@ -966,7 +962,7 @@ dependencies = [
 [[package]]
 name = "axelar-wasm-std-derive"
 version = "1.0.0"
-source = "git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd#a1b3164679314c72eb562bf530966fc1ee8d11e1"
+source = "git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd#f49ea53ceea410a3736d5449c7b25014b212dac8"
 dependencies = [
  "cosmwasm-std 2.2.2",
  "error-stack",
@@ -1010,7 +1006,7 @@ dependencies = [
 [[package]]
 name = "axelarnet-gateway"
 version = "1.0.0"
-source = "git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd#a1b3164679314c72eb562bf530966fc1ee8d11e1"
+source = "git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd#f49ea53ceea410a3736d5449c7b25014b212dac8"
 dependencies = [
  "axelar-core-std 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
  "axelar-wasm-std 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
@@ -1293,7 +1289,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "db40d3dfbeab4e031d78c844642fa0caa0b0db11ce1607ac9d2986dff1405c69"
 dependencies = [
  "bs58 0.5.1",
- "hmac 0.12.1",
+ "hmac",
  "k256",
  "once_cell",
  "pbkdf2",
@@ -1769,7 +1765,7 @@ dependencies = [
 [[package]]
 name = "client"
 version = "1.0.0"
-source = "git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd#a1b3164679314c72eb562bf530966fc1ee8d11e1"
+source = "git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd#f49ea53ceea410a3736d5449c7b25014b212dac8"
 dependencies = [
  "cosmwasm-std 2.2.2",
  "error-stack",
@@ -2257,16 +2253,6 @@ dependencies = [
  "generic-array",
  "rand_core 0.6.4",
  "typenum",
-]
-
-[[package]]
-name = "crypto-mac"
-version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b584a330336237c1eecd3e94266efb216c56ed91225d634cb2991c5f3fd1aeab"
-dependencies = [
- "generic-array",
- "subtle",
 ]
 
 [[package]]
@@ -3001,27 +2987,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "aa18ce2bc66555b3218614519ac839ddb759a7d6720732f979ef8d13be147ecd"
 dependencies = [
  "once_cell",
- "proc-macro2 1.0.94",
- "quote 1.0.40",
- "syn 2.0.100",
-]
-
-[[package]]
-name = "enumflags2"
-version = "0.7.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ba2f4b465f5318854c6f8dd686ede6c0a9dc67d4b1ac241cf0eb51521a309147"
-dependencies = [
- "enumflags2_derive",
- "serde",
-]
-
-[[package]]
-name = "enumflags2_derive"
-version = "0.7.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fc4caf64a58d7a6d65ab00639b046ff54399a39f5f2554728895ace4b297cd79"
-dependencies = [
  "proc-macro2 1.0.94",
  "quote 1.0.40",
  "syn 2.0.100",
@@ -4038,17 +4003,7 @@ version = "0.12.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7b5f8eb2ad728638ea2c7d47a21db23b7b58a72ed6a38256b8a1849f15fbbdf7"
 dependencies = [
- "hmac 0.12.1",
-]
-
-[[package]]
-name = "hmac"
-version = "0.8.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "126888268dcc288495a26bf004b38c5fdbb31682f992c84ceb046a1f0fe38840"
-dependencies = [
- "crypto-mac",
- "digest 0.9.0",
+ "hmac",
 ]
 
 [[package]]
@@ -4058,17 +4013,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6c49c37c09c17a53d937dfbb742eb3a961d65a994e6bcdcf37e7399d0cc8ab5e"
 dependencies = [
  "digest 0.10.7",
-]
-
-[[package]]
-name = "hmac-drbg"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "17ea0a1394df5b6574da6e0c1ade9e78868c9fb0a4e5ef4428e32da4676b85b1"
-dependencies = [
- "digest 0.9.0",
- "generic-array",
- "hmac 0.8.1",
 ]
 
 [[package]]
@@ -4288,19 +4232,6 @@ dependencies = [
  "pin-project-lite",
  "tokio",
  "tower-service",
-]
-
-[[package]]
-name = "hyper-tls"
-version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d6183ddfa99b85da61a140bea0efc93fdf56ceaa041b37d553518030827f9905"
-dependencies = [
- "bytes",
- "hyper 0.14.32",
- "native-tls",
- "tokio",
- "tokio-native-tls",
 ]
 
 [[package]]
@@ -4717,7 +4648,7 @@ dependencies = [
 [[package]]
 name = "interchain-token-service"
 version = "1.1.0"
-source = "git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd#a1b3164679314c72eb562bf530966fc1ee8d11e1"
+source = "git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd#f49ea53ceea410a3736d5449c7b25014b212dac8"
 dependencies = [
  "alloy-primitives",
  "alloy-sol-types",
@@ -4759,7 +4690,7 @@ dependencies = [
 [[package]]
 name = "into-inner-derive"
 version = "1.0.0"
-source = "git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd#a1b3164679314c72eb562bf530966fc1ee8d11e1"
+source = "git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd#f49ea53ceea410a3736d5449c7b25014b212dac8"
 dependencies = [
  "error-stack",
  "quote 1.0.40",
@@ -5173,54 +5104,6 @@ checksum = "c0ff37bd590ca25063e35af745c343cb7a0271906fb7b37e4813e8f79f00268d"
 dependencies = [
  "bitflags 2.9.0",
  "libc",
-]
-
-[[package]]
-name = "libsecp256k1"
-version = "0.7.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e79019718125edc905a079a70cfa5f3820bc76139fc91d6f9abc27ea2a887139"
-dependencies = [
- "arrayref",
- "base64 0.22.1",
- "digest 0.9.0",
- "hmac-drbg",
- "libsecp256k1-core",
- "libsecp256k1-gen-ecmult",
- "libsecp256k1-gen-genmult",
- "rand 0.8.5",
- "serde",
- "sha2 0.9.9",
- "typenum",
-]
-
-[[package]]
-name = "libsecp256k1-core"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5be9b9bb642d8522a44d533eab56c16c738301965504753b03ad1de3425d5451"
-dependencies = [
- "crunchy",
- "digest 0.9.0",
- "subtle",
-]
-
-[[package]]
-name = "libsecp256k1-gen-ecmult"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3038c808c55c87e8a172643a7d87187fc6c4174468159cb3090659d55bcb4809"
-dependencies = [
- "libsecp256k1-core",
-]
-
-[[package]]
-name = "libsecp256k1-gen-genmult"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3db8d6ba2cec9eacc40e6e8ccc98931840301f1006e95647ceb2dd5c3aa06f7c"
-dependencies = [
- "libsecp256k1-core",
 ]
 
 [[package]]
@@ -5744,7 +5627,7 @@ dependencies = [
 [[package]]
 name = "msgs-derive"
 version = "1.0.0"
-source = "git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd#a1b3164679314c72eb562bf530966fc1ee8d11e1"
+source = "git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd#f49ea53ceea410a3736d5449c7b25014b212dac8"
 dependencies = [
  "axelar-wasm-std 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
  "cosmwasm-std 2.2.2",
@@ -5863,7 +5746,7 @@ dependencies = [
 [[package]]
 name = "multisig"
 version = "1.1.1"
-source = "git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd#a1b3164679314c72eb562bf530966fc1ee8d11e1"
+source = "git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd#f49ea53ceea410a3736d5449c7b25014b212dac8"
 dependencies = [
  "axelar-wasm-std 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
  "client 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
@@ -5948,7 +5831,7 @@ dependencies = [
  "bip39",
  "ctr",
  "hex",
- "hmac 0.12.1",
+ "hmac",
  "itertools 0.13.0",
  "log",
  "pbkdf2",
@@ -6628,7 +6511,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f8ed6a7761f76e3b9f92dfb0a60a6a6477c61024b775147ff0973a02653abaf2"
 dependencies = [
  "digest 0.10.7",
- "hmac 0.12.1",
+ "hmac",
 ]
 
 [[package]]
@@ -7628,7 +7511,7 @@ dependencies = [
 [[package]]
 name = "report"
 version = "1.0.0"
-source = "git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd#a1b3164679314c72eb562bf530966fc1ee8d11e1"
+source = "git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd#f49ea53ceea410a3736d5449c7b25014b212dac8"
 dependencies = [
  "error-stack",
  "eyre",
@@ -7653,12 +7536,10 @@ dependencies = [
  "http-body 0.4.6",
  "hyper 0.14.32",
  "hyper-rustls 0.24.2",
- "hyper-tls 0.5.0",
  "ipnet",
  "js-sys",
  "log",
  "mime",
- "native-tls",
  "once_cell",
  "percent-encoding",
  "pin-project-lite",
@@ -7671,7 +7552,6 @@ dependencies = [
  "sync_wrapper 0.1.2",
  "system-configuration 0.5.1",
  "tokio",
- "tokio-native-tls",
  "tokio-rustls 0.24.1",
  "tower-service",
  "url",
@@ -7700,7 +7580,7 @@ dependencies = [
  "http-body-util",
  "hyper 1.6.0",
  "hyper-rustls 0.27.5",
- "hyper-tls 0.6.0",
+ "hyper-tls",
  "hyper-util",
  "ipnet",
  "js-sys",
@@ -7755,7 +7635,7 @@ dependencies = [
 [[package]]
 name = "rewards"
 version = "1.2.0"
-source = "git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd#a1b3164679314c72eb562bf530966fc1ee8d11e1"
+source = "git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd#f49ea53ceea410a3736d5449c7b25014b212dac8"
 dependencies = [
  "axelar-wasm-std 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
  "cosmwasm-schema 2.2.2",
@@ -7777,7 +7657,7 @@ version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f8dd2a808d456c4a54e300a23e9f5a67e122c3024119acbfd73e3bf664491cb2"
 dependencies = [
- "hmac 0.12.1",
+ "hmac",
  "subtle",
 ]
 
@@ -7940,7 +7820,7 @@ dependencies = [
 [[package]]
 name = "router-api"
 version = "1.0.0"
-source = "git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd#a1b3164679314c72eb562bf530966fc1ee8d11e1"
+source = "git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd#f49ea53ceea410a3736d5449c7b25014b212dac8"
 dependencies = [
  "axelar-wasm-std 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
  "client 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
@@ -8828,7 +8708,7 @@ dependencies = [
 [[package]]
 name = "signature-verifier-api"
 version = "1.0.0"
-source = "git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd#a1b3164679314c72eb562bf530966fc1ee8d11e1"
+source = "git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd#f49ea53ceea410a3736d5449c7b25014b212dac8"
 dependencies = [
  "cosmwasm-schema 2.2.2",
  "cosmwasm-std 2.2.2",
@@ -8990,7 +8870,7 @@ dependencies = [
 [[package]]
 name = "starknet-checked-felt"
 version = "1.0.0"
-source = "git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd#a1b3164679314c72eb562bf530966fc1ee8d11e1"
+source = "git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd#f49ea53ceea410a3736d5449c7b25014b212dac8"
 dependencies = [
  "alloy-primitives",
  "error-stack",
@@ -9488,7 +9368,7 @@ dependencies = [
 [[package]]
 name = "sui-types"
 version = "1.0.0"
-source = "git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd#a1b3164679314c72eb562bf530966fc1ee8d11e1"
+source = "git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd#f49ea53ceea410a3736d5449c7b25014b212dac8"
 dependencies = [
  "error-stack",
  "hex",
@@ -9983,7 +9863,7 @@ dependencies = [
  "ecdsa",
  "ed25519 2.2.3",
  "ed25519-dalek",
- "hmac 0.12.1",
+ "hmac",
  "k256",
  "rand 0.8.5",
  "rand_chacha 0.3.1",
@@ -11353,6 +11233,7 @@ dependencies = [
 name = "xrpl-gateway"
 version = "1.0.2"
 dependencies = [
+ "axelar-core-std 1.0.0",
  "axelar-wasm-std 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
  "client 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
  "cosmwasm-schema 2.2.2",
@@ -11416,7 +11297,7 @@ dependencies = [
 [[package]]
 name = "xrpl-types"
 version = "1.0.0"
-source = "git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd#a1b3164679314c72eb562bf530966fc1ee8d11e1"
+source = "git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd#f49ea53ceea410a3736d5449c7b25014b212dac8"
 dependencies = [
  "axelar-wasm-std 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
  "bs58 0.5.1",
@@ -11466,70 +11347,6 @@ dependencies = [
  "sha3",
  "thiserror 1.0.69",
  "xrpl-types",
-]
-
-[[package]]
-name = "xrpl_api"
-version = "0.15.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c4576f242134156dea2cf7ead1ea2e2efe890a4588d9b1564a5256f0ffb8f246"
-dependencies = [
- "enumflags2",
- "serde",
- "serde_json",
- "xrpl_types",
-]
-
-[[package]]
-name = "xrpl_binary_codec"
-version = "0.15.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3b963e7cacf52dec89c6333984dfee9d1495cfa5b65cb867846fd4582e09af59"
-dependencies = [
- "ascii",
- "bs58 0.5.1",
- "enumflags2",
- "hex",
- "libsecp256k1",
- "serde",
- "serde_json",
- "sha2 0.10.8",
- "thiserror 1.0.69",
- "xrpl_types",
-]
-
-[[package]]
-name = "xrpl_http_client"
-version = "0.15.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c5e60c050783dbb46974d508a45c4b292ecc2b8de0e4db11180a27de6d25581e"
-dependencies = [
- "libsecp256k1",
- "reqwest 0.11.27",
- "serde",
- "serde_json",
- "sha2 0.10.8",
- "thiserror 1.0.69",
- "tokio",
- "tracing",
- "xrpl_api",
- "xrpl_binary_codec",
- "xrpl_types",
-]
-
-[[package]]
-name = "xrpl_types"
-version = "0.15.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4d2955eacb8e921944c530d30daa941af3e93750b88d95dff3702dd9711f044b"
-dependencies = [
- "ascii",
- "bs58 0.5.1",
- "enumflags2",
- "hex",
- "serde",
- "serde_json",
- "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -11694,18 +11511,18 @@ dependencies = [
 
 [[package]]
 name = "zstd-safe"
-version = "7.2.3"
+version = "7.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f3051792fbdc2e1e143244dc28c60f73d8470e93f3f9cbd0ead44da5ed802722"
+checksum = "8f49c4d5f0abb602a93fb8736af2a4f4dd9512e36f7f570d66e65ff867ed3b9d"
 dependencies = [
  "zstd-sys",
 ]
 
 [[package]]
 name = "zstd-sys"
-version = "2.0.14+zstd.1.5.7"
+version = "2.0.15+zstd.1.5.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8fb060d4926e4ac3a3ad15d864e99ceb5f343c6b34f5bd6d81ae6ed417311be5"
+checksum = "eb81183ddd97d0c74cedf1d50d85c8d08c1b8b68ee863bdee9e706eedba1a237"
 dependencies = [
  "cc",
  "pkg-config",
