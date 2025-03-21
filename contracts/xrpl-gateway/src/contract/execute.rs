@@ -393,10 +393,7 @@ pub fn register_token_metadata(
     let hub_msg = interchain_token_service::HubMessage::RegisterTokenMetadata(
         interchain_token_service::RegisterTokenMetadata {
             decimals: xrpl_token.decimals(),
-            token_address: nonempty::HexBinary::try_from(
-                xrpl_token.serialize().as_bytes().to_vec(),
-            )
-            .change_context(Error::InvalidToken)?,
+            token_address: xrpl_token.token_address(),
         },
     );
 
