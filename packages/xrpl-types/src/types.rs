@@ -215,6 +215,11 @@ impl XRPLTokenOrXrp {
             XRPLTokenOrXrp::Issued(_) => XRPL_ISSUED_TOKEN_DECIMALS,
         }
     }
+
+    pub fn token_address(&self) -> nonempty::HexBinary {
+        nonempty::HexBinary::try_from(self.serialize().as_bytes().to_vec())
+            .expect("token address should be nonempty")
+    }
 }
 
 impl fmt::Display for XRPLTokenOrXrp {
