@@ -43,6 +43,7 @@ nanos = 0
 [[handlers]]
 type = 'MultisigSigner'
 cosmwasm_contract = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'
+chain_name = 'ethereum'
 
 [[handlers]]
 type = 'SuiMsgVerifier'
