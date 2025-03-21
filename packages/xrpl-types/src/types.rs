@@ -738,24 +738,38 @@ pub fn message_to_sign(
 pub struct XRPLCurrency([u8; XRPL_CURRENCY_LENGTH]);
 
 impl XRPLCurrency {
-    // This currency is disallowed in XRPL
-    pub const XRP: Self = Self::from_str(XRP_RESERVED_CURRENCY);
-
     pub fn new(s: &str) -> Result<Self, XRPLError> {
-        if s == XRP_RESERVED_CURRENCY || !CURRENCY_CODE_REGEX.is_match(s) {
+        if !Self::is_standard_currency(s) && !Self::is_valid_nonstandard_currency(s) {
             return Err(XRPLError::InvalidCurrency);
         }
 
         Ok(Self::from_str(s))
     }
 
-    const fn from_str(s: &str) -> Self {
-        let bytes = s.as_bytes();
-        let mut buffer = [0u8; XRPL_CURRENCY_LENGTH];
-        buffer[12] = bytes[0];
-        buffer[13] = bytes[1];
-        buffer[14] = bytes[2];
-        XRPLCurrency(buffer)
+    fn is_standard_currency(s: &str) -> bool {
+        s != XRP_RESERVED_CURRENCY && CURRENCY_CODE_REGEX.is_match(s)
+    }
+
+    fn is_valid_nonstandard_currency(s: &str) -> bool {
+        if let Ok(hex) = HexBinary::from_hex(s) {
+            hex.len() == 20 && hex[0] == 0
+        } else {
+            false
+        }
+    }
+
+    // https://xrpl.org/docs/references/protocol/binary-format#currency-codes
+    fn from_str(s: &str) -> Self {
+        if Self::is_standard_currency(s) {
+            let bytes = s.as_bytes();
+            let mut buffer = [0u8; XRPL_CURRENCY_LENGTH];
+            buffer[12] = bytes[0];
+            buffer[13] = bytes[1];
+            buffer[14] = bytes[2];
+            XRPLCurrency(buffer)
+        } else {
+            XRPLCurrency(s.as_bytes().try_into().expect("should be 20 bytes"))
+        }
     }
 
     pub fn as_bytes(&self) -> [u8; XRPL_CURRENCY_LENGTH] {
