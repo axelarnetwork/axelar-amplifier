@@ -1,6 +1,7 @@
 use std::array::TryFromSliceError;
 use std::collections::BTreeMap;
 
+use axelar_solana_encoding::types::pubkey::{ED25519_PUBKEY_LEN, SECP256K1_COMPRESSED_PUBKEY_LEN};
 use axelar_wasm_std::hash::Hash;
 use cosmwasm_std::HexBinary;
 use itertools::Itertools;
@@ -12,7 +13,6 @@ use router_api::Message;
 
 use crate::error::ContractError;
 use crate::payload::Payload;
-use axelar_solana_encoding::types::pubkey::{ED25519_PUBKEY_LEN, SECP256K1_COMPRESSED_PUBKEY_LEN};
 
 pub fn encode_execute_data(
     signers_with_sigs: Vec<SignerWithSig>,
