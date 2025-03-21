@@ -124,14 +124,6 @@ where
             result => result.change_context(DeserializeEvent)?,
         };
 
-        if chain.eq(&ChainName::from_str("XRPL").unwrap()) {
-            info!(
-                session_id = session_id.to_string(),
-                "skipping XRP signing session"
-            );
-            return Ok(vec![]);
-        }
-
         info!(
             session_id = session_id,
             msg = encode(&msg),
