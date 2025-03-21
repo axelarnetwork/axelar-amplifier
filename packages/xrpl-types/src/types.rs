@@ -208,6 +208,13 @@ impl XRPLTokenOrXrp {
             XRPLTokenOrXrp::Issued(token) => token.serialize(),
         }
     }
+
+    pub fn decimals(&self) -> u8 {
+        match self {
+            XRPLTokenOrXrp::Xrp => XRP_DECIMALS,
+            XRPLTokenOrXrp::Issued(_) => XRPL_ISSUED_TOKEN_DECIMALS,
+        }
+    }
 }
 
 impl fmt::Display for XRPLTokenOrXrp {
