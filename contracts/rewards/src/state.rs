@@ -3,13 +3,13 @@ use std::ops::Deref;
 
 use axelar_wasm_std::{nonempty, Threshold};
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, StdResult, Storage, Uint128};
+use cosmwasm_std::{Addr, Api, StdResult, Storage, Uint128};
 use cw_storage_plus::{Item, Key, KeyDeserialize, Map, Prefixer, PrimaryKey};
 use error_stack::{Result, ResultExt};
 use router_api::ChainName;
 
 use crate::error::ContractError;
-use crate::msg::Params;
+use crate::msg::{self, Params};
 
 /// Maps a (pool id, epoch number) pair to a tally for that epoch and rewards pool
 const TALLIES: Map<TallyId, EpochTally> = Map::new("tallies");
@@ -54,6 +54,16 @@ impl PoolId {
             chain_name,
             contract,
         }
+    }
+
+    pub fn try_from_msg_pool_id(
+        api: &dyn Api,
+        pool_id: msg::PoolId,
+    ) -> Result<Self, axelar_wasm_std::address::Error> {
+        Ok(Self::new(
+            pool_id.chain_name,
+            axelar_wasm_std::address::validate_cosmwasm_address(api, pool_id.contract.as_str())?,
+        ))
     }
 }
 
@@ -210,6 +220,15 @@ impl Event {
 pub struct Epoch {
     pub epoch_num: u64,
     pub block_height_started: u64,
+}
+
+impl From<Epoch> for msg::Epoch {
+    fn from(epoch: Epoch) -> Self {
+        Self {
+            epoch_num: epoch.epoch_num,
+            block_height_started: epoch.block_height_started,
+        }
+    }
 }
 
 impl Epoch {
@@ -470,6 +489,7 @@ impl<T> Deref for StorageState<T> {
 mod test {
     use std::collections::HashMap;
 
+    use axelar_wasm_std::assert_err_contains;
     use cosmwasm_std::testing::{mock_dependencies, MockApi};
     use cosmwasm_std::{Uint128, Uint64};
     use router_api::ChainName;
@@ -478,6 +498,31 @@ mod test {
     use crate::error::ContractError;
     use crate::msg::Params;
     use crate::state::ParamsSnapshot;
+
+    #[test]
+    fn pool_id_try_from_msg_pool_id() {
+        let api = MockApi::default();
+        let contract = api.addr_make("some contract");
+        let chain_name: ChainName = "chain".parse().unwrap();
+
+        let pool_id = msg::PoolId {
+            chain_name: chain_name.clone(),
+            contract: contract.to_string(),
+        };
+        let pool_id = PoolId::try_from_msg_pool_id(&api, pool_id).unwrap();
+        assert_eq!(pool_id.chain_name, chain_name);
+        assert_eq!(pool_id.contract, contract);
+
+        let pool_id = msg::PoolId {
+            chain_name: chain_name.clone(),
+            contract: "invalidaddress".to_string(),
+        };
+        assert_err_contains!(
+            PoolId::try_from_msg_pool_id(&api, pool_id),
+            axelar_wasm_std::address::Error,
+            axelar_wasm_std::address::Error::InvalidAddress(_)
+        );
+    }
 
     /// Test that the rewards are
     /// - distributed evenly to all verifiers that reach quorum
