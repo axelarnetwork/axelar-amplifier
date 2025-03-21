@@ -25,7 +25,7 @@ optimize = """docker run --rm -v "$(pwd)":/code \
 alloy-primitives = { workspace = true }
 axelar-wasm-std-derive = { workspace = true, optional = true }
 bech32 = { workspace = true }
-bs58 = "0.5.1"
+bs58 = { workspace = true }
 cosmwasm-schema = { workspace = true }
 cosmwasm-std = { workspace = true }
 cw-storage-plus = { workspace = true }
@@ -58,7 +58,7 @@ valuable = { version = "0.1.0", features = ["derive"] }
 assert_ok = { workspace = true }
 cw-multi-test = { workspace = true }
 goldie = { workspace = true }
-hex = { workspace = true, default-features = false }
+hex = { workspace = true }
 rand = { workspace = true }
 
 [lints]
