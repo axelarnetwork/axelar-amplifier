@@ -1,5 +1,6 @@
 use std::fmt::Debug;
 
+use axelar_core_std::nexus;
 use axelar_wasm_std::{address, permission_control, FnExt, IntoContractError};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
@@ -81,6 +82,8 @@ pub enum Error {
     },
     #[error("failed to query message status")]
     MessageStatus,
+    #[error("failed to query the nexus module")]
+    Nexus,
     #[error("message with ID {0} was not sent from ITS Hub chain")]
     OnlyFromItsHubChain(CrossChainId),
     #[error("message with ID {0} was not sent from the ITS Hub")]
@@ -203,7 +206,7 @@ pub fn instantiate(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
-    env: Env,
+    _env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
@@ -213,7 +216,8 @@ pub fn execute(
         Ok::<_, error_stack::Report<Error>>(config.router.clone())
     })? {
         ExecuteMsg::RegisterTokenMetadata { xrpl_token } => {
-            execute::register_token_metadata(&config, env.block.height, xrpl_token)
+            let nexus_client: nexus::Client = client::CosmosClient::new(deps.querier).into();
+            execute::register_token_metadata(&config, &nexus_client, xrpl_token)
         }
         ExecuteMsg::RegisterLocalToken { salt, xrpl_token } => {
             execute::register_local_token(deps.storage, &config, info.sender, salt, xrpl_token)
@@ -236,27 +240,33 @@ pub fn execute(
             salt,
             destination_chain,
             link_token,
-        } => execute::link_token(
-            deps.storage,
-            &config,
-            env.block.height,
-            info.sender,
-            salt,
-            destination_chain,
-            link_token,
-        ),
+        } => {
+            let nexus_client: nexus::Client = client::CosmosClient::new(deps.querier).into();
+            execute::link_token(
+                deps.storage,
+                &config,
+                &nexus_client,
+                info.sender,
+                salt,
+                destination_chain,
+                link_token,
+            )
+        },
         ExecuteMsg::DeployRemoteToken {
             xrpl_token,
             destination_chain,
             token_metadata,
-        } => execute::deploy_remote_token(
-            deps.storage,
-            &config,
-            env.block.height,
-            xrpl_token,
-            destination_chain,
-            token_metadata,
-        ),
+        } => {
+            let nexus_client: nexus::Client = client::CosmosClient::new(deps.querier).into();
+            execute::deploy_remote_token(
+                deps.storage,
+                &config,
+                &nexus_client,
+                xrpl_token,
+                destination_chain,
+                token_metadata,
+            )
+        },
         ExecuteMsg::VerifyMessages(msgs) => {
             let verifier = client::ContractClient::new(deps.querier, &config.verifier).into();
             execute::verify_messages(&verifier, msgs)
