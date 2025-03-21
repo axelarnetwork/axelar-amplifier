@@ -219,6 +219,7 @@ pub fn migrate(
 
     NEXT_SEQUENCE_NUMBER.save(deps.storage, &msg.next_sequence_number)?;
     LAST_ASSIGNED_TICKET_NUMBER.save(deps.storage, &msg.last_assigned_ticket_number)?;
+    LATEST_SEQUENTIAL_UNSIGNED_TX_HASH.remove(deps.storage);
     AVAILABLE_TICKETS.save(deps.storage, &msg.available_tickets)?;
     FEE_RESERVE.save(deps.storage, &msg.initial_fee_reserve)?;
 
