@@ -185,8 +185,8 @@ fn is_valid_add_gas_message(
             && verify_memo(memos, "type", XRPLMessageType::AddGas.to_string())
             && verify_memo(
                 memos,
-                "tx_id",
-                message.msg_tx_id.tx_hash_as_hex_no_prefix().to_string(),
+                "msg_id",
+                message.msg_id.tx_hash_as_hex_no_prefix().to_string(),
             )
             && verify_payment_flags(payment_tx)
     } else {

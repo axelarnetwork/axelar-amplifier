@@ -184,7 +184,7 @@ pub struct XRPLAddGasMessage {
     /// that this gas top-up is for.
     #[serde(with = "hex_tx_hash")]
     #[schemars(with = "String")]
-    pub msg_tx_id: HexTxHash,
+    pub msg_id: HexTxHash,
     pub amount: XRPLPaymentAmount,
     #[serde(with = "xrpl_account_id_string")]
     #[schemars(with = "String")]
@@ -260,7 +260,7 @@ impl From<XRPLAddGasMessage> for Vec<Attribute> {
     fn from(other: XRPLAddGasMessage) -> Self {
         vec![
             ("tx_id", other.tx_id.tx_hash_as_hex_no_prefix()).into(),
-            ("msg_tx_id", other.msg_tx_id.tx_hash_as_hex_no_prefix()).into(),
+            ("msg_id", other.msg_id.tx_hash_as_hex_no_prefix()).into(),
             ("amount", other.amount.to_string()).into(),
             ("source_address", other.source_address.to_string()).into(),
         ]
@@ -373,7 +373,7 @@ impl XRPLAddGasMessage {
 
         hasher.update(self.tx_id.tx_hash.as_ref());
         hasher.update(delimiter_bytes);
-        hasher.update(self.msg_tx_id.tx_hash.as_ref());
+        hasher.update(self.msg_id.tx_hash.as_ref());
         hasher.update(delimiter_bytes);
         hasher.update(self.amount.hash());
         hasher.update(delimiter_bytes);
