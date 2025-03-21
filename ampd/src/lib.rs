@@ -281,12 +281,13 @@ where
                         event_processor_config.clone(),
                     )
                 }
-                handlers::config::Config::MultisigSigner { cosmwasm_contract } => self
+                handlers::config::Config::MultisigSigner { cosmwasm_contract, chain_name } => self
                     .create_handler_task(
                         "multisig-signer",
                         handlers::multisig::Handler::new(
                             verifier.clone(),
                             cosmwasm_contract,
+                            chain_name,
                             self.multisig_client.clone(),
                             self.block_height_monitor.latest_block_height(),
                         ),

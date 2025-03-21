@@ -36,6 +36,7 @@ pub enum Config {
     },
     MultisigSigner {
         cosmwasm_contract: TMAddress,
+        chain_name: ChainName,
     },
     SuiMsgVerifier {
         cosmwasm_contract: TMAddress,
@@ -201,12 +202,25 @@ where
 
 #[cfg(test)]
 mod tests {
+    use rand::distributions::Alphanumeric;
+    use rand::Rng;
+    use router_api::ChainName;
     use serde_json::to_value;
 
     use crate::evm::finalizer::Finalization;
     use crate::handlers::config::{deserialize_handler_configs, Chain, Config};
     use crate::types::TMAddress;
     use crate::PREFIX;
+
+    fn rand_chain_name() -> ChainName {
+        rand::thread_rng()
+            .sample_iter(&Alphanumeric)
+            .take(10)
+            .map(char::from)
+            .collect::<String>()
+            .try_into()
+            .unwrap()
+    }
 
     #[test]
     fn finalizer_should_default_to_ethereum() {
@@ -227,9 +241,11 @@ mod tests {
         let configs = vec![
             Config::MultisigSigner {
                 cosmwasm_contract: TMAddress::random(PREFIX),
+                chain_name: rand_chain_name(),
             },
             Config::MultisigSigner {
                 cosmwasm_contract: TMAddress::random(PREFIX),
+                chain_name: rand_chain_name(),
             },
         ];
 
