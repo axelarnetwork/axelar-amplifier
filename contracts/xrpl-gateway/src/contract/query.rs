@@ -1,6 +1,6 @@
 use axelar_wasm_std::error::extend_err;
 use axelar_wasm_std::nonempty;
-use cosmwasm_std::{to_json_binary, Addr, Binary, Storage};
+use cosmwasm_std::{to_json_binary, Binary, Storage};
 use error_stack::Result;
 use interchain_token_service::TokenId;
 use router_api::{ChainNameRaw, CrossChainId, Message};
@@ -41,12 +41,12 @@ pub fn xrpl_token_id(storage: &dyn Storage, token: &XRPLToken) -> Result<Binary,
 
 pub fn linked_token_id(
     storage: &dyn Storage,
-    deployer: Addr,
-    salt: [u8; 32],
+    xrpl_token: &XRPLToken,
 ) -> Result<Binary, state::Error> {
     let config = state::load_config(storage);
     let chain_name_hash = token_id::chain_name_hash(config.chain_name);
-    let linked_token_id = token_id::linked_token_id(chain_name_hash, deployer, salt);
+    let salt = token_id::currency_hash(&xrpl_token.currency);
+    let linked_token_id = token_id::linked_token_id(chain_name_hash, &xrpl_token.issuer, salt);
     Ok(to_json_binary(&linked_token_id).map_err(state::Error::from)?)
 }
 

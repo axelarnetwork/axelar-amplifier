@@ -195,17 +195,15 @@ fn xrpl_trust_line_can_be_proven() {
         issuer: XRPLAccountId::from_str("rNYjPW7NbiVDYy6K23b8ye6iZnowj4PsL7").unwrap(),
     };
 
-    let salt = [42; 32];
     test_utils::xrpl_register_local_token(
         &mut protocol.app,
         xrpl.admin.clone(),
         &xrpl.gateway,
-        salt,
         xrpl_token.clone(),
     );
 
     let token_id =
-        test_utils::linked_token_id(&mut protocol.app, &xrpl.gateway, xrpl.admin.clone(), salt);
+        test_utils::linked_token_id(&mut protocol.app, &xrpl.gateway, xrpl_token);
 
     /* Create trust line */
     let session_id = test_utils::construct_xrpl_trust_set_proof_and_sign(

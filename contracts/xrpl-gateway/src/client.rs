@@ -1,6 +1,6 @@
 use axelar_wasm_std::nonempty;
 use axelar_wasm_std::vec::VecExt;
-use cosmwasm_std::{Addr, CosmosMsg};
+use cosmwasm_std::CosmosMsg;
 use error_stack::ResultExt;
 use interchain_token_service::TokenId;
 use router_api::{ChainNameRaw, CrossChainId, Message};
@@ -28,8 +28,8 @@ pub enum Error {
         payload: nonempty::HexBinary,
     },
 
-    #[error("failed to query linked token id. salt: {salt:?}, deployer: {deployer}")]
-    LinkedTokenId { salt: [u8; 32], deployer: Addr },
+    #[error("failed to query linked token id for xrpl token: {0}")]
+    LinkedTokenId(XRPLToken),
 
     #[error("failed to query gateway for outgoing messages. message ids: {0:?}")]
     OutgoingMessages(Vec<CrossChainId>),
@@ -59,7 +59,7 @@ impl From<QueryMsg> for Error {
                 Error::InterchainTransfer { message, payload }
             }
             QueryMsg::CallContract { message, payload } => Error::CallContract { message, payload },
-            QueryMsg::LinkedTokenId { salt, deployer } => Error::LinkedTokenId { salt, deployer },
+            QueryMsg::LinkedTokenId(token_id) => Error::LinkedTokenId(token_id),
             QueryMsg::OutgoingMessages(message_ids) => Error::OutgoingMessages(message_ids),
             QueryMsg::TokenInstanceDecimals {
                 chain_name,
@@ -95,8 +95,8 @@ impl Client<'_> {
         self.client.query(&msg).change_context_lazy(|| msg.into())
     }
 
-    pub fn linked_token_id(&self, salt: [u8; 32], deployer: Addr) -> Result<TokenId> {
-        let msg = QueryMsg::LinkedTokenId { salt, deployer };
+    pub fn linked_token_id(&self, xrpl_token: XRPLToken) -> Result<TokenId> {
+        let msg = QueryMsg::LinkedTokenId(xrpl_token);
         self.client.query(&msg).change_context_lazy(|| msg.into())
     }
 

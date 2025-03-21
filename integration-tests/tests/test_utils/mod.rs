@@ -196,13 +196,12 @@ pub fn xrpl_register_local_token(
     app: &mut AxelarApp,
     admin: Addr,
     gateway: &XRPLGatewayContract,
-    salt: [u8; 32],
     xrpl_token: XRPLToken,
 ) {
     let response = gateway.execute(
         app,
         admin,
-        &xrpl_gateway::msg::ExecuteMsg::RegisterLocalToken { salt, xrpl_token },
+        &xrpl_gateway::msg::ExecuteMsg::RegisterLocalToken { xrpl_token },
     );
     assert!(response.is_ok());
 }
@@ -712,12 +711,11 @@ pub fn xrp_token_id(app: &mut AxelarApp, gateway: &XRPLGatewayContract) -> Token
 pub fn linked_token_id(
     app: &mut AxelarApp,
     gateway: &XRPLGatewayContract,
-    deployer: Addr,
-    salt: [u8; 32],
+    xrpl_token: XRPLToken,
 ) -> TokenId {
     let query_response: Result<TokenId, StdError> = gateway.query(
         app,
-        &xrpl_gateway::msg::QueryMsg::LinkedTokenId { deployer, salt },
+        &xrpl_gateway::msg::QueryMsg::LinkedTokenId(xrpl_token),
     );
     assert!(query_response.is_ok());
 
@@ -1387,7 +1385,6 @@ pub fn setup_xrpl(
         xrpl_chain_name.clone(),
     );
 
-    let xrp_token_id_salt = [123; 32];
     let gateway = XRPLGatewayContract::instantiate_contract(
         &mut protocol.app,
         admin.clone(),
@@ -1398,7 +1395,6 @@ pub fn setup_xrpl(
         axelar_chain_name,
         xrpl_chain_name.clone(),
         xrpl_multisig.clone(),
-        xrp_token_id_salt,
     );
 
     let multisig_prover = XRPLMultisigProverContract::instantiate_contract(

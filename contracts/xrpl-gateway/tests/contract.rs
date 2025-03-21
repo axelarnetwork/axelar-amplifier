@@ -50,7 +50,6 @@ fn instantiate_works() {
             chain_name: ChainName::from_str("xrpl").unwrap(),
             xrpl_multisig_address: XRPLAccountId::from_str("raNVNWvhUQzFkDDTdEw3roXRJfMJFVJuQo")
                 .unwrap(),
-            xrp_token_id_salt: [0; 32],
         },
     );
 
@@ -807,7 +806,6 @@ fn instantiate_contract(
             chain_name: ChainName::from_str("xrpl").unwrap(),
             xrpl_multisig_address: XRPLAccountId::from_str("raNVNWvhUQzFkDDTdEw3roXRJfMJFVJuQo")
                 .unwrap(),
-            xrp_token_id_salt: [0; 32],
         }
         .clone(),
     );

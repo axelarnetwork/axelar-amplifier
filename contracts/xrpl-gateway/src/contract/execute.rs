@@ -403,8 +403,6 @@ pub fn register_token_metadata(
 pub fn register_local_token(
     storage: &mut dyn Storage,
     config: &Config,
-    sender: Addr,
-    salt: [u8; 32],
     xrpl_token: XRPLToken,
 ) -> Result<Response, Error> {
     ensure!(
@@ -413,7 +411,8 @@ pub fn register_local_token(
     );
 
     let chain_name_hash = token_id::chain_name_hash(config.chain_name.clone());
-    let token_id = token_id::linked_token_id(chain_name_hash, sender, salt);
+    let salt = token_id::currency_hash(&xrpl_token.currency);
+    let token_id = token_id::linked_token_id(chain_name_hash, &xrpl_token.issuer, salt);
 
     match state::may_load_local_token_id(storage, &xrpl_token).change_context(Error::State)? {
         Some(deployed_token_id) => {
@@ -587,8 +586,7 @@ pub fn link_token(
     storage: &mut dyn Storage,
     config: &Config,
     nexus_client: &nexus::Client,
-    sender: Addr,
-    salt: [u8; 32],
+    token_id: TokenId,
     destination_chain: ChainNameRaw,
     link_token: LinkToken,
 ) -> Result<Response, Error> {
@@ -596,9 +594,6 @@ pub fn link_token(
         destination_chain != config.chain_name,
         Error::InvalidDestinationChain(destination_chain)
     );
-
-    let chain_name_hash = token_id::chain_name_hash(config.chain_name.clone());
-    let token_id = token_id::linked_token_id(chain_name_hash, sender, salt);
 
     let xrpl_token = if token_id == config.xrp_token_id {
         XRPLTokenOrXrp::Xrp

@@ -1,6 +1,6 @@
 use axelar_wasm_std::nonempty;
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{Addr, Uint256};
+use cosmwasm_std::Uint256;
 use interchain_token_service::TokenId;
 use msgs_derive::EnsurePermissions;
 use router_api::{ChainName, ChainNameRaw, CrossChainId, Message};
@@ -36,10 +36,6 @@ pub struct InstantiateMsg {
     #[serde(with = "xrpl_account_id_string")]
     #[schemars(with = "String")] // necessary attribute in conjunction with #[serde(with ...)]
     pub xrpl_multisig_address: XRPLAccountId,
-    /// The salt used to generate the token ID for the XRP token.
-    #[serde(with = "axelar_wasm_std::hex")]
-    #[schemars(with = "String")]
-    pub xrp_token_id_salt: [u8; 32],
 }
 
 #[cw_serde]
@@ -72,9 +68,6 @@ pub enum ExecuteMsg {
     /// Register an XRPL token as an interchain token.
     #[permission(Elevated)]
     RegisterLocalToken {
-        #[serde(with = "axelar_wasm_std::hex")]
-        #[schemars(with = "String")]
-        salt: [u8; 32],
         xrpl_token: XRPLToken,
     },
 
@@ -99,9 +92,7 @@ pub enum ExecuteMsg {
     /// Deploy a token manager on some destination chain.
     #[permission(Elevated)]
     LinkToken {
-        #[serde(with = "axelar_wasm_std::hex")]
-        #[schemars(with = "String")]
-        salt: [u8; 32],
+        token_id: TokenId,
         destination_chain: ChainNameRaw,
         link_token: LinkToken,
     },
@@ -176,12 +167,7 @@ pub enum QueryMsg {
     XrpTokenId,
 
     #[returns(TokenId)]
-    LinkedTokenId {
-        #[serde(with = "axelar_wasm_std::hex")]
-        #[schemars(with = "String")]
-        salt: [u8; 32],
-        deployer: Addr,
-    },
+    LinkedTokenId(XRPLToken),
 
     #[returns(u8)]
     TokenInstanceDecimals {

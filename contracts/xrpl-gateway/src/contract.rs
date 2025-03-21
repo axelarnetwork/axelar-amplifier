@@ -1,4 +1,5 @@
 use std::fmt::Debug;
+use std::str::FromStr;
 
 use axelar_core_std::nexus;
 use axelar_wasm_std::{address, permission_control, FnExt, IntoContractError};
@@ -23,6 +24,9 @@ mod query;
 
 const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
+
+// https://xrpl.org/docs/concepts/accounts/addresses#special-addresses
+const XRP_ISSUER: &str = "rrrrrrrrrrrrrrrrrrrrrhoLvTp";
 
 #[derive(thiserror::Error, Debug, IntoContractError)]
 pub enum Error {
@@ -170,7 +174,7 @@ pub fn migrate(
 pub fn instantiate(
     deps: DepsMut,
     _env: Env,
-    info: MessageInfo,
+    _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
@@ -179,9 +183,11 @@ pub fn instantiate(
     let verifier = address::validate_cosmwasm_address(deps.api, &msg.verifier_address)?;
     let its_hub = address::validate_cosmwasm_address(deps.api, &msg.its_hub_address)?;
 
+    let xrp_issuer = XRPLAccountId::from_str(XRP_ISSUER).expect("invalid XRP issuer");
     let chain_name_hash = token_id::chain_name_hash(msg.chain_name.clone());
+    let salt = token_id::currency_hash(&XRPLCurrency::XRP);
     let xrp_token_id =
-        token_id::linked_token_id(chain_name_hash, info.sender, msg.xrp_token_id_salt);
+        token_id::linked_token_id(chain_name_hash, &xrp_issuer, salt);
 
     state::save_config(
         deps.storage,
@@ -221,8 +227,8 @@ pub fn execute(
             let nexus_client: nexus::Client = client::CosmosClient::new(deps.querier).into();
             execute::register_token_metadata(&config, &nexus_client, xrpl_token)
         }
-        ExecuteMsg::RegisterLocalToken { salt, xrpl_token } => {
-            execute::register_local_token(deps.storage, &config, info.sender, salt, xrpl_token)
+        ExecuteMsg::RegisterLocalToken { xrpl_token } => {
+            execute::register_local_token(deps.storage, &config, xrpl_token)
         }
         ExecuteMsg::RegisterRemoteToken {
             token_id,
@@ -239,7 +245,7 @@ pub fn execute(
             decimals,
         } => execute::register_token_instance(deps.storage, &config, token_id, chain, decimals),
         ExecuteMsg::LinkToken {
-            salt,
+            token_id,
             destination_chain,
             link_token,
         } => {
@@ -248,8 +254,7 @@ pub fn execute(
                 deps.storage,
                 &config,
                 &nexus_client,
-                info.sender,
-                salt,
+                token_id,
                 destination_chain,
                 link_token,
             )
@@ -313,8 +318,8 @@ pub fn query(
         QueryMsg::XrplTokenId(xrpl_token) => query::xrpl_token_id(deps.storage, &xrpl_token)
             .change_context(Error::XrplTokenId(xrpl_token)),
         QueryMsg::XrpTokenId => query::xrp_token_id(deps.storage).change_context(Error::XrpTokenId),
-        QueryMsg::LinkedTokenId { deployer, salt } => {
-            query::linked_token_id(deps.storage, deployer.clone(), salt)
+        QueryMsg::LinkedTokenId(xrpl_token) => {
+            query::linked_token_id(deps.storage, &xrpl_token)
                 .change_context(Error::LinkedTokenId)
         }
         QueryMsg::TokenInstanceDecimals {
