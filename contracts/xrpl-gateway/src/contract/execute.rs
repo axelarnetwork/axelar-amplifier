@@ -18,7 +18,7 @@ use xrpl_types::msg::{
 };
 use xrpl_types::types::{
     scale_to_decimals, XRPLAccountId, XRPLCurrency, XRPLPaymentAmount, XRPLToken, XRPLTokenOrXrp,
-    XRPL_ISSUED_TOKEN_DECIMALS, XRP_DECIMALS,
+    XRPL_ISSUED_TOKEN_DECIMALS,
 };
 
 use crate::contract::Error;
@@ -392,10 +392,7 @@ pub fn register_token_metadata(
 ) -> Result<Response, Error> {
     let hub_msg = interchain_token_service::HubMessage::RegisterTokenMetadata(
         interchain_token_service::RegisterTokenMetadata {
-            decimals: match xrpl_token {
-                XRPLTokenOrXrp::Xrp => XRP_DECIMALS,
-                XRPLTokenOrXrp::Issued(_) => XRPL_ISSUED_TOKEN_DECIMALS,
-            },
+            decimals: xrpl_token.decimals(),
             token_address: nonempty::HexBinary::try_from(
                 xrpl_token.serialize().as_bytes().to_vec(),
             )
@@ -653,12 +650,12 @@ pub fn deploy_remote_token(
         Error::InvalidDestinationChain(destination_chain)
     );
 
-    let (token_id, destination_decimals) = match token {
-        XRPLTokenOrXrp::Xrp => (config.xrp_token_id, XRP_DECIMALS),
+    let (token_id, destination_decimals) = match &token {
+        XRPLTokenOrXrp::Xrp => (config.xrp_token_id, token.decimals()),
         XRPLTokenOrXrp::Issued(xrpl_token) => (
             // load_token_id(storage, config.xrpl_multisig.clone(), &xrpl_token)?,
-            state::load_local_token_id(storage, &xrpl_token).change_context(Error::InvalidToken)?,
-            XRPL_ISSUED_TOKEN_DECIMALS,
+            state::load_local_token_id(storage, xrpl_token).change_context(Error::InvalidToken)?,
+            token.decimals(),
         ),
     };
 
