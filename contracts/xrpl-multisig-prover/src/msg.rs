@@ -90,6 +90,9 @@ pub enum QueryMsg {
 
     #[returns(Option<MultisigSession>)]
     MultisigSession { cc_id: CrossChainId },
+
+    #[returns(u32)]
+    TicketCreate,
 }
 
 #[cw_serde]

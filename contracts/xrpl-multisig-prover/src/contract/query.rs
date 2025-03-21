@@ -14,6 +14,7 @@ use crate::state::{
     MultisigSession, CROSS_CHAIN_ID_TO_MULTISIG_SESSION, CURRENT_VERIFIER_SET,
     MULTISIG_SESSION_ID_TO_UNSIGNED_TX_HASH, NEXT_VERIFIER_SET, UNSIGNED_TX_HASH_TO_TX_INFO,
 };
+use crate::xrpl_multisig;
 use crate::xrpl_serialize::XRPLSerialize;
 
 fn message_to_sign(
@@ -118,4 +119,16 @@ pub fn multisig_session(
     cc_id: &CrossChainId,
 ) -> StdResult<Option<MultisigSession>> {
     CROSS_CHAIN_ID_TO_MULTISIG_SESSION.may_load(storage, cc_id)
+}
+
+pub fn ticket_create(
+    storage: &dyn Storage,
+    ticket_count_threshold: u32,
+) -> Result<u32, ContractError> {
+    let ticket_count = xrpl_multisig::num_of_tickets_to_create(storage)?;
+    if ticket_count < ticket_count_threshold {
+        return Err(ContractError::TicketCountThresholdNotReached);
+    }
+
+    Ok(ticket_count)
 }
