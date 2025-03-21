@@ -9,7 +9,7 @@ use crate::primitives::HubMessage;
 use crate::state::TokenDeploymentType;
 use crate::{
     msg, state, DeployInterchainToken, InterchainTransfer, LinkToken, Message,
-    RegisterTokenMetadata, TokenId,
+    RegisterTokenMetadata, TokenConfig, TokenId, TokenInstance, TokenSupply,
 };
 
 mod interceptors;
@@ -61,6 +61,11 @@ pub enum Error {
         token_id: TokenId,
         origin_chain: ChainNameRaw,
         chain: ChainNameRaw,
+    },
+    #[error("token {token_id} already registered with different origin chain {origin_chain}")]
+    WrongOriginChain {
+        token_id: TokenId,
+        origin_chain: ChainNameRaw,
     },
     #[error(
         "token {token_id} deployed from chain {chain} with different decimals than original deployment"
@@ -408,6 +413,49 @@ fn update_chain(storage: &mut dyn Storage, config: msg::ChainConfig) -> Result<(
     Ok(())
 }
 
+pub fn register_p2p_token_instance(
+    deps: DepsMut,
+    token_id: TokenId,
+    instance_chain: ChainNameRaw,
+    origin_chain: ChainNameRaw,
+    decimals: u8,
+    supply: TokenSupply,
+) -> Result<Response, Error> {
+    if state::may_load_token_instance(deps.storage, instance_chain.clone(), token_id)
+        .change_context(Error::State)?
+        .is_some()
+    {
+        return Err(report!(Error::TokenAlreadyDeployed {
+            token_id,
+            chain: instance_chain
+        }));
+    }
+
+    state::save_token_instance(
+        deps.storage,
+        instance_chain.clone(),
+        token_id,
+        &TokenInstance { supply, decimals },
+    )
+    .change_context(Error::State)?;
+
+    match state::may_load_token_config(deps.storage, &token_id).change_context(Error::State)? {
+        Some(token_config) => {
+            ensure!(
+                token_config.origin_chain == origin_chain,
+                report!(Error::WrongOriginChain {
+                    token_id,
+                    origin_chain: token_config.origin_chain
+                })
+            );
+        }
+        None => state::save_token_config(deps.storage, token_id, &TokenConfig { origin_chain })
+            .change_context(Error::State)?,
+    }
+
+    Ok(Response::new())
+}
+
 trait DeploymentType {
     fn deployment_type(&self) -> TokenDeploymentType;
 }
@@ -434,7 +482,7 @@ mod tests {
     };
     use router_api::{ChainName, ChainNameRaw, CrossChainId};
 
-    use super::apply_to_hub;
+    use super::{apply_to_hub, register_p2p_token_instance};
     use crate::contract::execute::{
         apply_to_transfer, disable_execution, enable_execution, execute_message, freeze_chain,
         register_chain, register_chains, unfreeze_chain, update_chains, Error,
@@ -443,7 +491,7 @@ mod tests {
     use crate::state::{self, Config};
     use crate::{
         msg, DeployInterchainToken, HubMessage, InterchainTransfer, LinkToken, Message,
-        RegisterTokenMetadata, TokenId,
+        RegisterTokenMetadata, TokenId, TokenSupply,
     };
 
     const SOLANA: &str = "solana";
@@ -1186,6 +1234,153 @@ mod tests {
             ),
             Error,
             Error::TokenNotRegistered(..)
+        );
+    }
+
+    #[test]
+    fn should_register_p2p_tokens() {
+        let mut deps = mock_dependencies();
+        init(&mut deps);
+
+        let origin_chain = ChainNameRaw::try_from("ethereum").unwrap();
+        let instance_chains: Vec<ChainNameRaw> = ["ethereum", "avalanche", "polygon"]
+            .into_iter()
+            .map(|e| e.try_into().unwrap())
+            .collect();
+        let token_id = TokenId::new([1; 32]);
+        let decimals = 18;
+        let supply = TokenSupply::Tracked(Uint256::one());
+        for chain in instance_chains {
+            assert_ok!(register_p2p_token_instance(
+                deps.as_mut(),
+                token_id,
+                chain,
+                origin_chain.clone(),
+                decimals,
+                supply.clone()
+            ));
+        }
+    }
+
+    #[test]
+    fn should_not_register_same_p2p_token_twice() {
+        let mut deps = mock_dependencies();
+        init(&mut deps);
+
+        let origin_chain: ChainNameRaw = "ethereum".try_into().unwrap();
+        let instance_chain: ChainNameRaw = "avalance".try_into().unwrap();
+        let token_id = TokenId::new([1; 32]);
+        let decimals = 18;
+        let supply = TokenSupply::Tracked(Uint256::one());
+        assert_ok!(register_p2p_token_instance(
+            deps.as_mut(),
+            token_id,
+            instance_chain.clone(),
+            origin_chain.clone(),
+            decimals,
+            supply.clone()
+        ));
+        let res = register_p2p_token_instance(
+            deps.as_mut(),
+            token_id,
+            instance_chain.clone(),
+            origin_chain.clone(),
+            decimals,
+            supply.clone(),
+        );
+        assert_err_contains!(res, Error, Error::TokenAlreadyDeployed { .. });
+    }
+
+    #[test]
+    fn should_not_register_p2p_token_with_different_origin() {
+        let mut deps = mock_dependencies();
+        init(&mut deps);
+
+        let origin_chain: ChainNameRaw = "ethereum".try_into().unwrap();
+        let instance_chain: ChainNameRaw = "avalance".try_into().unwrap();
+        let token_id = TokenId::new([1; 32]);
+        let decimals = 18;
+        let supply = TokenSupply::Tracked(Uint256::one());
+        assert_ok!(register_p2p_token_instance(
+            deps.as_mut(),
+            token_id,
+            origin_chain.clone(),
+            origin_chain.clone(),
+            decimals,
+            supply.clone()
+        ));
+        let wrong_origin_chain: ChainNameRaw = "polygon".try_into().unwrap();
+        let res = register_p2p_token_instance(
+            deps.as_mut(),
+            token_id,
+            instance_chain,
+            wrong_origin_chain,
+            decimals,
+            supply.clone(),
+        );
+        assert_err_contains!(res, Error, Error::WrongOriginChain { .. });
+    }
+
+    #[test]
+    fn register_p2p_token_should_init_balance_tracking() {
+        let mut deps = mock_dependencies();
+        init(&mut deps);
+
+        let origin_chain: ChainNameRaw = ETHEREUM.try_into().unwrap();
+        let instance_chain: ChainNameRaw = SOLANA.try_into().unwrap();
+        let token_id = TokenId::new([1; 32]);
+        let decimals = 18;
+        assert_ok!(register_p2p_token_instance(
+            deps.as_mut(),
+            token_id,
+            origin_chain.clone(),
+            origin_chain.clone(),
+            decimals,
+            TokenSupply::Untracked
+        ));
+
+        let supply = TokenSupply::Tracked(Uint256::one());
+        assert_ok!(register_p2p_token_instance(
+            deps.as_mut(),
+            token_id,
+            instance_chain.clone(),
+            origin_chain.clone(),
+            decimals,
+            supply.clone(),
+        ));
+
+        let token_address: nonempty::HexBinary =
+            HexBinary::from_hex("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48")
+                .unwrap()
+                .try_into()
+                .unwrap();
+
+        let transfer_amount = Uint256::from_u128(1u128);
+        let msg = Message::InterchainTransfer(InterchainTransfer {
+            token_id,
+            source_address: token_address.clone(),
+            destination_address: token_address.clone(),
+            data: None,
+            amount: transfer_amount.try_into().unwrap(),
+        });
+
+        // initial supply is one token. first transfer should succeed
+        assert_ok!(apply_to_hub(
+            deps.as_mut().storage,
+            instance_chain.clone(),
+            origin_chain.clone(),
+            msg.clone()
+        ));
+
+        assert_err_contains!(
+            apply_to_hub(
+                deps.as_mut().storage,
+                instance_chain.clone(),
+                origin_chain.clone(),
+                msg.clone()
+            ),
+            Error,
+            Error::TokenSupplyInvariantViolated { .. }
         );
     }
 
