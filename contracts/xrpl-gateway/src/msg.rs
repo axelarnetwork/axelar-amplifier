@@ -133,6 +133,9 @@ pub enum ExecuteMsg {
     /// Confirm verified gas top-up messages.
     #[permission(Any)]
     ConfirmAddGasMessages(Vec<XRPLAddGasMessage>),
+
+    #[permission(Governance)]
+    UpdateAdmin { new_admin_address: String },
 }
 
 #[cw_serde]

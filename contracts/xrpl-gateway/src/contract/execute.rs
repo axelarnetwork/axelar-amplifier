@@ -4,8 +4,8 @@ use std::str::FromStr;
 
 use axelar_core_std::nexus;
 use axelar_wasm_std::msg_id::HexTxHash;
-use axelar_wasm_std::{nonempty, FnExt, VerificationStatus};
-use cosmwasm_std::{Addr, CosmosMsg, Event, HexBinary, Response, Storage, Uint256};
+use axelar_wasm_std::{address, nonempty, permission_control, FnExt, VerificationStatus};
+use cosmwasm_std::{Addr, CosmosMsg, DepsMut, Event, HexBinary, Response, Storage, Uint256};
 use error_stack::{bail, ensure, report, Result, ResultExt};
 use interchain_token_service::{self, TokenId};
 use itertools::Itertools;
@@ -193,6 +193,14 @@ pub fn confirm_add_gas_messages(
     }
 
     Ok(Response::default())
+}
+
+pub fn update_admin(deps: DepsMut, new_admin_address: String) -> Result<Response, Error> {
+    let new_admin = address::validate_cosmwasm_address(deps.api, &new_admin_address)
+        .map_err(|_| Error::FailedToUpdateAdmin)?;
+    permission_control::set_admin(deps.storage, &new_admin)
+        .map_err(|_| Error::FailedToUpdateAdmin)?;
+    Ok(Response::new())
 }
 
 pub fn translate_to_interchain_transfer(

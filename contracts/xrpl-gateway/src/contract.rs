@@ -153,6 +153,8 @@ pub enum Error {
     XrplTokenId(XRPLToken),
     #[error("failed to query xrp token ID")]
     XrpTokenId,
+    #[error("failed to update admin")]
+    FailedToUpdateAdmin,
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -286,6 +288,9 @@ pub fn execute(
         ExecuteMsg::ConfirmAddGasMessages(msgs) => {
             let verifier = client::ContractClient::new(deps.querier, &config.verifier).into();
             execute::confirm_add_gas_messages(deps.storage, &config, &verifier, msgs)
+        }
+        ExecuteMsg::UpdateAdmin { new_admin_address } => {
+            execute::update_admin(deps, new_admin_address)
         }
     }?
     .then(Ok)
