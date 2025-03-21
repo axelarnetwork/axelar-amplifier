@@ -6,15 +6,16 @@ use serde::de::{self, Deserializer};
 use serde::{Deserialize, Serialize};
 use serde_with::with_prefix;
 
+use crate::evm::finalizer::Finalization;
 use crate::types::TMAddress;
 use crate::url::Url;
 
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
-pub struct Chain<F> {
+pub struct Chain {
     pub name: ChainName,
     pub rpc_url: Url,
     #[serde(default)]
-    pub finalization: F,
+    pub finalization: Finalization,
 }
 
 with_prefix!(chain "chain_");
@@ -24,17 +25,18 @@ pub enum Config {
     EvmMsgVerifier {
         cosmwasm_contract: TMAddress,
         #[serde(flatten, with = "chain")]
-        chain: Chain<crate::evm::finalizer::Finalization>,
+        chain: Chain,
         rpc_timeout: Option<Duration>,
     },
     EvmVerifierSetVerifier {
         cosmwasm_contract: TMAddress,
         #[serde(flatten, with = "chain")]
-        chain: Chain<crate::evm::finalizer::Finalization>,
+        chain: Chain,
         rpc_timeout: Option<Duration>,
     },
     MultisigSigner {
         cosmwasm_contract: TMAddress,
+        chain_name: ChainName,
     },
     SuiMsgVerifier {
         cosmwasm_contract: TMAddress,
@@ -48,8 +50,8 @@ pub enum Config {
     },
     XRPLMsgVerifier {
         cosmwasm_contract: TMAddress,
-        #[serde(flatten, with = "chain")]
-        chain: Chain<crate::xrpl::finalizer::Finalization>,
+        chain_name: ChainName,
+        chain_rpc_url: Url,
         rpc_timeout: Option<Duration>,
     },
     XRPLMultisigSigner {
@@ -200,12 +202,25 @@ where
 
 #[cfg(test)]
 mod tests {
+    use rand::distributions::Alphanumeric;
+    use rand::Rng;
+    use router_api::ChainName;
     use serde_json::to_value;
 
-    use crate::evm::finalizer::Finalization as EVMFinalization;
+    use crate::evm::finalizer::Finalization;
     use crate::handlers::config::{deserialize_handler_configs, Chain, Config};
     use crate::types::TMAddress;
     use crate::PREFIX;
+
+    fn rand_chain_name() -> ChainName {
+        rand::thread_rng()
+            .sample_iter(&Alphanumeric)
+            .take(10)
+            .map(char::from)
+            .collect::<String>()
+            .try_into()
+            .unwrap()
+    }
 
     #[test]
     fn finalizer_should_default_to_ethereum() {
@@ -214,10 +229,10 @@ mod tests {
         rpc_url = 'http://127.0.0.1/'
         ";
 
-        let chain_config: Chain<EVMFinalization> = toml::from_str(chain_config_toml).unwrap();
+        let chain_config: Chain = toml::from_str(chain_config_toml).unwrap();
         assert_eq!(
             chain_config.finalization,
-            EVMFinalization::RPCFinalizedBlock
+            Finalization::RPCFinalizedBlock
         );
     }
 
@@ -226,9 +241,11 @@ mod tests {
         let configs = vec![
             Config::MultisigSigner {
                 cosmwasm_contract: TMAddress::random(PREFIX),
+                chain_name: rand_chain_name(),
             },
             Config::MultisigSigner {
                 cosmwasm_contract: TMAddress::random(PREFIX),
+                chain_name: rand_chain_name(),
             },
         ];
 

@@ -1,10 +1,7 @@
 use async_trait::async_trait;
 use cosmwasm_std::HexBinary;
 use mockall::automock;
-use xrpl_http_client::{
-    error, Client, LedgerIndex, LedgerRequest, LedgerResponse, RetrieveLedgerSpec, TxRequest,
-    TxResponse,
-};
+use xrpl_http_client::{error, Client, TxRequest, TxResponse};
 
 type Result<T> = error_stack::Result<T, error::Error>;
 
@@ -12,7 +9,6 @@ type Result<T> = error_stack::Result<T, error::Error>;
 #[async_trait]
 pub trait XRPLClient {
     async fn tx(&self, tx_id: [u8; 32]) -> Result<Option<TxResponse>>;
-    async fn validated_ledger(&self) -> Result<LedgerResponse<String>>;
 }
 
 #[async_trait]
@@ -23,14 +19,5 @@ impl XRPLClient for Client {
             error::Error::Api(reason) if reason == "txnNotFound" => Ok(None),
             _ => Err(err.into()),
         })
-    }
-
-    async fn validated_ledger(&self) -> Result<LedgerResponse<String>> {
-        let mut req = LedgerRequest::default();
-        req.ledger_spec = RetrieveLedgerSpec {
-            ledger_index: Some(LedgerIndex::Validated),
-            ledger_hash: None,
-        };
-        self.call(req).await.map_err(Into::into)
     }
 }

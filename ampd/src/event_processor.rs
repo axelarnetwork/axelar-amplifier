@@ -30,8 +30,6 @@ pub trait EventHandler {
 pub enum Error {
     #[error("could not consume events from stream")]
     EventStream,
-    #[error("failed to broadcast transaction")]
-    Broadcaster,
     #[error("handler stopped prematurely")]
     Tasks(#[from] TaskError),
 }
@@ -122,10 +120,12 @@ where
     match future::with_retry(|| handler.handle(event), retry_policy).await {
         Ok(msgs) => {
             for msg in msgs {
-                broadcaster
-                    .broadcast(msg)
-                    .await
-                    .change_context(Error::Broadcaster)?;
+                if let Err(err) = broadcaster.broadcast(msg.clone()).await {
+                    warn!(
+                        err = LoggableError::from(&err).as_value(),
+                        "failed to broadcast message {:?}", msg
+                    )
+                }
             }
         }
         Err(err) => {
@@ -190,7 +190,7 @@ mod tests {
 
     use crate::event_processor;
     use crate::event_processor::{consume_events, Config, Error, EventHandler};
-    use crate::queue::queued_broadcaster::MockBroadcasterClient;
+    use crate::queue::queued_broadcaster::{Error as BroadcasterError, MockBroadcasterClient};
 
     pub fn setup_event_config(
         retry_delay_value: Duration,
@@ -316,6 +316,41 @@ mod tests {
             .expect_broadcast()
             .times(2)
             .returning(|_| Ok(()));
+
+        let result_with_timeout = timeout(
+            Duration::from_secs(3),
+            consume_events(
+                "handler".to_string(),
+                handler,
+                broadcaster,
+                stream::iter(events),
+                event_config,
+                CancellationToken::new(),
+            ),
+        )
+        .await;
+
+        assert!(result_with_timeout.is_ok());
+        assert!(result_with_timeout.unwrap().is_ok());
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn return_ok_when_broadcaster_fails() {
+        let events: Vec<Result<Event, event_processor::Error>> =
+            vec![Ok(Event::BlockEnd(0_u32.into()))];
+
+        let mut handler = MockEventHandler::new();
+        handler
+            .expect_handle()
+            .once()
+            .returning(|_| Ok(vec![dummy_msg(), dummy_msg()]));
+
+        let event_config = setup_event_config(Duration::from_secs(1), Duration::from_secs(1000));
+        let mut broadcaster = MockBroadcasterClient::new();
+        broadcaster
+            .expect_broadcast()
+            .times(2)
+            .returning(|_| Err(report!(BroadcasterError::EstimateFee)));
 
         let result_with_timeout = timeout(
             Duration::from_secs(3),

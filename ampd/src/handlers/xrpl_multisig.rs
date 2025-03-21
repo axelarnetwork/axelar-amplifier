@@ -121,7 +121,7 @@ where
 
         info!(
             session_id = session_id,
-            msg = encode(&unsigned_tx),
+            msg = unsigned_tx.to_hex(),
             "get xrpl signing request",
         );
 
