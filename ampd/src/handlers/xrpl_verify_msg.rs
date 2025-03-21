@@ -25,7 +25,6 @@ use xrpl_types::types::{xrpl_account_id_string, XRPLAccountId};
 use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error;
 use crate::types::TMAddress;
-use crate::xrpl::finalizer::{self, Finalization};
 use crate::xrpl::json_rpc::XRPLClient;
 use crate::xrpl::verifier::verify_message;
 
@@ -49,7 +48,6 @@ where
 {
     verifier: TMAddress,
     voting_verifier_contract: TMAddress,
-    finalizer_type: Finalization,
     rpc_client: C,
     latest_block_height: Receiver<u64>,
 }
@@ -61,14 +59,12 @@ where
     pub fn new(
         verifier: TMAddress,
         voting_verifier_contract: TMAddress,
-        finalizer_type: Finalization,
         rpc_client: C,
         latest_block_height: Receiver<u64>,
     ) -> Self {
         Self {
             verifier,
             voting_verifier_contract,
-            finalizer_type,
             rpc_client,
             latest_block_height,
         }
@@ -78,11 +74,6 @@ where
     where
         T: IntoIterator<Item = HexTxHash>,
     {
-        let latest_validated_ledger_index = finalizer::pick(&self.finalizer_type, &self.rpc_client)
-            .latest_validated_ledger_index()
-            .await
-            .change_context(Error::Finalizer)?;
-
         Ok(join_all(
             tx_ids
                 .into_iter()
@@ -93,9 +84,9 @@ where
         .filter_map(std::result::Result::unwrap_or_default)
         .filter_map(|tx_res| {
             let tx_common = tx_res.tx.common();
-            let (ledger_index, tx_hash) = (tx_common.ledger_index?, tx_common.hash.clone()?);
+            let tx_hash = tx_common.hash.clone()?;
 
-            if ledger_index.ge(&latest_validated_ledger_index) {
+            if tx_common.validated != Some(true) {
                 return None;
             }
             let hex_tx_hash = HexTxHash::from_str(&format!("0x{}", tx_hash.to_lowercase())).ok()?;
