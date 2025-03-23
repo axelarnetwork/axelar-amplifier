@@ -11,6 +11,7 @@ use xrpl_types::types::AxelarSigner;
 
 use crate::error::ContractError;
 use crate::state::Config;
+use crate::xrpl_multisig;
 
 const XRPL_KEY_TYPE: KeyType = KeyType::Ecdsa;
 
@@ -78,8 +79,6 @@ fn convert_or_scale_weights(weights: &[Uint128]) -> Result<Vec<u16>, ContractErr
     }
 }
 
-const MAX_NUM_XRPL_MULTISIG_SIGNERS: usize = 32;
-
 fn mul_ceil(value: u64, numerator: u64, denominator: u64) -> Result<u64, ContractError> {
     let dividend = value
         .checked_mul(numerator)
@@ -116,9 +115,11 @@ pub fn make_verifier_set(
         .map_err(|_| ContractError::FailedToBuildVerifierSet)?
         .min_num_verifiers;
 
+    let max_num_verifiers = xrpl_multisig::MAX_SIGNERS;
+
     let multisig: multisig::Client = client::ContractClient::new(querier, &config.multisig).into();
 
-    let participants_with_pubkeys = verifiers
+    let mut participants_with_pubkeys = verifiers
         .into_iter()
         .filter_map(|verifier| {
             match multisig.public_key(verifier.verifier_info.address.to_string(), XRPL_KEY_TYPE) {
@@ -133,8 +134,9 @@ pub fn make_verifier_set(
         return Err(ContractError::NotEnoughVerifiers);
     }
 
-    if num_of_participants > MAX_NUM_XRPL_MULTISIG_SIGNERS {
-        return Err(ContractError::TooManyVerifiers);
+    if num_of_participants > max_num_verifiers as usize {
+        participants_with_pubkeys.sort_by(|(a, _), (b, _)| a.weight.into_inner().cmp(&b.weight.into_inner()));
+        participants_with_pubkeys.truncate(max_num_verifiers as usize);
     }
 
     let weights = convert_or_scale_weights(

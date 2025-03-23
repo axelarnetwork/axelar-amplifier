@@ -176,9 +176,6 @@ pub enum ContractError {
     #[error("too many steps in PathSet path: {0}")]
     TooManyPathSteps(XRPLPath),
 
-    #[error("too many verifiers")]
-    TooManyVerifiers,
-
     #[error("token {0} not local")]
     TokenNotLocal(XRPLToken),
 

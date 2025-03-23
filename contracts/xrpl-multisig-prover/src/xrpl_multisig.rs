@@ -17,7 +17,7 @@ use crate::state::{
 };
 
 const MAX_TICKET_COUNT: u32 = 250;
-const MAX_SIGNERS: u64 = 32;
+pub const MAX_SIGNERS: u8 = 32;
 const XRPL_MULTISIG_OWNED_OBJECTS: u32 = MAX_TICKET_COUNT + 1; // 1 for the multisig account itself
 
 fn issue_tx(
@@ -47,7 +47,7 @@ fn tx_fee(
     config: &Config,
     sequence_number: u32,
 ) -> Result<u64, ContractError> {
-    let tx_fee = config.xrpl_transaction_fee * (1 + MAX_SIGNERS);
+    let tx_fee = config.xrpl_transaction_fee * (1 + u64::from(MAX_SIGNERS));
 
     let new_sequence_number = SEQUENCE_NUMBER_ASSIGNED
         .may_load(storage, &sequence_number)?
