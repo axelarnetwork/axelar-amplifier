@@ -1,4 +1,3 @@
-use cosmwasm_std::Addr;
 use interchain_token_service::TokenId;
 use router_api::ChainName;
 use sha3::{Digest, Keccak256};
@@ -6,13 +5,13 @@ use xrpl_types::types::{XRPLAccountId, XRPLCurrency};
 
 const PREFIX_TOKEN_ID: &[u8] = b"its-interchain-token-id";
 const PREFIX_CUSTOM_TOKEN_SALT: &[u8] = b"custom-token-salt";
-const TOKEN_FACTORY_DEPLOYER: &str = "";
+const TOKEN_FACTORY_DEPLOYER: &[u8; 32] = &[0; 32];
 
 fn token_id(salt: [u8; 32]) -> TokenId {
     let token_id: [u8; 32] = Keccak256::digest(
         [
             Keccak256::digest(PREFIX_TOKEN_ID).as_slice(),
-            Addr::unchecked(TOKEN_FACTORY_DEPLOYER).as_bytes(),
+            TOKEN_FACTORY_DEPLOYER,
             &salt,
         ]
         .concat(),
