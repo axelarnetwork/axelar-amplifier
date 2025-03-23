@@ -826,3 +826,51 @@ fn flat_unzip<A, B>(x: impl Iterator<Item = (Vec<A>, Vec<B>)>) -> (Vec<A>, Vec<B
 fn messages_into_events<T>(msgs: Vec<T>, transform: fn(T) -> XRPLGatewayEvent) -> Vec<Event> {
     msgs.into_iter().map(|msg| transform(msg).into()).collect()
 }
+
+#[cfg(test)]
+mod test {
+    use std::str::FromStr;
+
+    use axelar_core_std::nexus;
+    use axelar_core_std::query::AxelarQueryMsg;
+    use cosmwasm_std::testing::{MockQuerier, MockQuerierCustomHandlerResult};
+    use cosmwasm_std::{ContractResult, QuerierWrapper, SystemResult};
+    use router_api::ChainName;
+    use serde::de::DeserializeOwned;
+    use serde_json::json;
+
+    pub fn reply_with_tx_hash_and_nonce<C>(
+        tx_hash: [u8; 32],
+        nonce: u64,
+    ) -> impl Fn(&C) -> MockQuerierCustomHandlerResult
+    where
+        C: DeserializeOwned,
+    {
+        move |_| {
+            SystemResult::Ok(ContractResult::Ok(
+                json!({
+                    "tx_hash": tx_hash,
+                    "nonce": nonce,
+                })
+                .to_string()
+                .as_bytes()
+                .into(),
+            ))
+        }
+    }
+
+    #[test]
+    pub fn unique_cross_chain_id() {
+        let tx_hash = [0u8; 32];
+        let nonce = 0;
+
+        let querier: MockQuerier<AxelarQueryMsg> =
+            MockQuerier::new(&[]).with_custom_handler(reply_with_tx_hash_and_nonce(tx_hash, nonce));
+
+        let client: nexus::Client = client::CosmosClient::new(QuerierWrapper::new(&querier)).into();
+
+        let chain_name = ChainName::from_str("xrpl").unwrap();
+        let cc_id = super::unique_cross_chain_id(&client, chain_name).unwrap();
+        goldie::assert!(cc_id.to_string());
+    }
+}
