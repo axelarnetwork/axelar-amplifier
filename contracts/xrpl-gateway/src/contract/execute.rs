@@ -676,24 +676,24 @@ pub fn deploy_remote_token(
     route_hub_message(config, nexus_client, hub_msg)
 }
 
-fn hash_cross_chain_id(tx_hash: [u8; 32], nonce: u64) -> [u8; 32] {
-    Keccak256::digest(
+fn generate_message_id(client: &nexus::Client) -> Result<[u8; 32], Error> {
+    let nexus::query::TxHashAndNonceResponse { tx_hash, nonce } =
+        client.tx_hash_and_nonce().change_context(Error::Nexus)?;
+
+    Ok(Keccak256::digest(
         [
             Keccak256::digest(PREFIX_CROSS_CHAIN_ID).as_slice(),
             tx_hash.as_slice(),
             nonce.to_be_bytes().as_slice(),
         ]
         .concat()
-    ).into()
+    ).into())
 }
 
 /// Query Nexus module in core to generate an unique cross chain id.
 fn unique_cross_chain_id(client: &nexus::Client, chain_name: ChainName) -> Result<CrossChainId, Error> {
-    let nexus::query::TxHashAndNonceResponse { tx_hash, nonce } =
-        client.tx_hash_and_nonce().change_context(Error::Nexus)?;
-
-    let tx_id = hash_cross_chain_id(tx_hash, nonce);
-    CrossChainId::new(chain_name, HexTxHash::new(tx_id))
+    let msg_id = generate_message_id(client)?;
+    CrossChainId::new(chain_name, HexTxHash::new(msg_id))
         .change_context(Error::InvalidCrossChainId)
 }
 
