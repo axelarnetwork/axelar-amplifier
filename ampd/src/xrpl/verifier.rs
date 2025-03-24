@@ -67,7 +67,7 @@ pub fn verify_message(
 }
 
 // sanity check
-pub fn is_validated_tx(tx: &Transaction) -> bool {
+fn is_validated_tx(tx: &Transaction) -> bool {
     matches!(tx.common().validated, Some(true))
 }
 
@@ -75,7 +75,7 @@ fn verify_memo(memos: &HashMap<String, String>, key: &str, expected_value: Strin
     memos.get(key).map(|s| s.to_lowercase()) == Some(hex::encode(expected_value))
 }
 
-pub fn is_valid_prover_message(
+fn is_valid_prover_message(
     tx: &Transaction,
     multisig_address: &XRPLAccountId,
     message: &XRPLProverMessage,
@@ -97,7 +97,7 @@ fn verify_payment_flags(payment_tx: &PaymentTransaction) -> bool {
     payment_tx.flags.is_empty() // TODO: whitelist specific flags
 }
 
-pub fn is_valid_interchain_transfer_message(
+fn is_valid_interchain_transfer_message(
     tx: &Transaction,
     multisig_address: &XRPLAccountId,
     message: &XRPLInterchainTransferMessage,
@@ -115,7 +115,7 @@ pub fn is_valid_interchain_transfer_message(
     }
 }
 
-pub fn is_valid_call_contract_message(
+fn is_valid_call_contract_message(
     tx: &Transaction,
     multisig_address: &XRPLAccountId,
     message: &XRPLCallContractMessage,
@@ -150,7 +150,7 @@ fn verify_interchain_transfer_memos(
         "destination_address",
         message.destination_address.to_string(),
     ) && verify_payload_hash(memos, message)
-        && verify_gas_fee_amount(message, memos)
+        && verify_gas_fee_amount(memos, message)
 }
 
 fn verify_call_contract_memos(
@@ -213,7 +213,7 @@ fn is_valid_add_reserves_message(
     false
 }
 
-pub fn is_successful_tx(tx: &Transaction) -> bool {
+fn is_successful_tx(tx: &Transaction) -> bool {
     if let Some(meta) = &tx.common().meta {
         return meta.transaction_result.category() == ResultCategory::Tes;
     }
@@ -229,7 +229,7 @@ fn verify_delivered_full_amount(tx: &Transaction, expected_amount: Amount) -> bo
     false
 }
 
-pub fn verify_amount(expected_amount: XRPLPaymentAmount, actual_amount: Amount) -> bool {
+fn verify_amount(expected_amount: XRPLPaymentAmount, actual_amount: Amount) -> bool {
     || -> Option<bool> {
         let amount = match actual_amount {
             Amount::Issued(a) => XRPLPaymentAmount::Issued(
@@ -247,9 +247,9 @@ pub fn verify_amount(expected_amount: XRPLPaymentAmount, actual_amount: Amount) 
     .unwrap_or(false)
 }
 
-pub fn verify_gas_fee_amount(
-    message: &XRPLInterchainTransferMessage,
+fn verify_gas_fee_amount(
     memos: &HashMap<String, String>,
+    message: &XRPLInterchainTransferMessage,
 ) -> bool {
     || -> Option<bool> {
         let gas_fee_amount_str = memos
@@ -275,7 +275,7 @@ pub fn verify_gas_fee_amount(
     .unwrap_or(false)
 }
 
-pub fn verify_payload(memos: &HashMap<String, String>, expected_payload_hash: [u8; 32]) -> bool {
+fn verify_payload(memos: &HashMap<String, String>, expected_payload_hash: [u8; 32]) -> bool {
     memos
         .get("payload")
         .map(|memo_payload| {
@@ -286,7 +286,7 @@ pub fn verify_payload(memos: &HashMap<String, String>, expected_payload_hash: [u
         .unwrap_or(false)
 }
 
-pub fn verify_payload_hash(
+fn verify_payload_hash(
     memos: &HashMap<String, String>,
     message: &XRPLInterchainTransferMessage,
 ) -> bool {

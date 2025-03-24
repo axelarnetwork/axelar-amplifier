@@ -408,6 +408,35 @@ pub enum XRPLUnsignedTx {
 }
 
 #[cw_serde]
+pub enum XRPLUnsignedTxType {
+    Payment,
+    SignerListSet,
+    TicketCreate,
+    TrustSet,
+}
+
+impl XRPLUnsignedTxType {
+    pub fn object_count_increment(&self) -> u8 {
+        match self {
+            // Payments do not increment the object count.
+            XRPLUnsignedTxType::Payment => 0,
+            // SignerListSet only increments the object count
+            // if the signer list is not empty, so on multisig deployment.
+            // We consider this 1 object a fixed cost to the reserve.
+            // The reserve should always have sufficient XRP to cover that.
+            XRPLUnsignedTxType::SignerListSet => 0,
+            // Since the target ticket count is always 250 (the max),
+            // we consider those 250 objects as a fixed cost to the reserve.
+            // The reserve should always have sufficient XRP to cover that.
+            // Hence, each TicketCreate does not increment the object count.
+            XRPLUnsignedTxType::TicketCreate => 0,
+            // Each new trust line increments the object count by 1.
+            XRPLUnsignedTxType::TrustSet => 1,
+        }
+    }
+}
+
+#[cw_serde]
 pub struct XRPLUnsignedTxToSign {
     pub unsigned_tx: XRPLUnsignedTx,
     pub unsigned_tx_hash: HexTxHash,
