@@ -144,8 +144,8 @@ runs:
         inputs.dry-run == 'false' &&
         steps.semantic-version.outputs.changed == 'true'
       run: |
-        git config --global user.email "devops@interoplabs.io"
-        git config --global user.name "Interop Labs CI"
+        git config --global user.email "devops@commonprefix.com"
+        git config --global user.name "Common Prefix CI"
         cargo release -x \
           --no-confirm \
           --no-push \
