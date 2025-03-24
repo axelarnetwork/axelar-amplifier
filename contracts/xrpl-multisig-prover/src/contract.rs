@@ -1,7 +1,9 @@
 use axelar_wasm_std::{address, permission_control, FnExt};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Reply, Response};
+use cosmwasm_std::{
+    to_json_binary, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Reply, Response,
+};
 use error_stack::ResultExt;
 use multisig::key::PublicKey;
 
@@ -10,16 +12,17 @@ mod query;
 mod reply;
 
 use crate::error::ContractError;
-use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
+use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{
     Config, AVAILABLE_TICKETS, CONFIG, FEE_RESERVE, LAST_ASSIGNED_TICKET_NUMBER,
-    LATEST_SEQUENTIAL_UNSIGNED_TX_HASH, NEXT_SEQUENCE_NUMBER,
+    NEXT_SEQUENCE_NUMBER,
 };
 
 pub const START_MULTISIG_REPLY_ID: u64 = 1;
 
 const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
+const BASE_VERSION: &str = "1.0.0";
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -191,40 +194,11 @@ pub fn query(
 pub fn migrate(
     deps: DepsMut,
     _env: Env,
-    msg: MigrateMsg,
+    _msg: Empty,
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
-    CONFIG.remove(deps.storage);
-
-    let config = Config {
-        gateway: address::validate_cosmwasm_address(deps.api, &msg.gateway_address)?,
-        multisig: address::validate_cosmwasm_address(deps.api, &msg.multisig_address)?,
-        coordinator: address::validate_cosmwasm_address(deps.api, &msg.coordinator_address)?,
-        service_registry: address::validate_cosmwasm_address(
-            deps.api,
-            &msg.service_registry_address,
-        )?,
-        voting_verifier: address::validate_cosmwasm_address(
-            deps.api,
-            &msg.voting_verifier_address,
-        )?,
-        signing_threshold: msg.signing_threshold,
-        service_name: msg.service_name,
-        chain_name: msg.chain_name,
-        verifier_set_diff_threshold: msg.verifier_set_diff_threshold,
-        xrpl_multisig: msg.xrpl_multisig_address,
-        xrpl_transaction_fee: msg.xrpl_transaction_fee,
-        xrpl_base_reserve: msg.xrpl_base_reserve,
-        xrpl_owner_reserve: msg.xrpl_owner_reserve,
-        ticket_count_threshold: msg.ticket_count_threshold,
-    };
-    CONFIG.save(deps.storage, &config)?;
-
-    NEXT_SEQUENCE_NUMBER.save(deps.storage, &msg.next_sequence_number)?;
-    LAST_ASSIGNED_TICKET_NUMBER.save(deps.storage, &msg.last_assigned_ticket_number)?;
-    LATEST_SEQUENTIAL_UNSIGNED_TX_HASH.remove(deps.storage);
-    AVAILABLE_TICKETS.save(deps.storage, &msg.available_tickets)?;
-    FEE_RESERVE.save(deps.storage, &msg.initial_fee_reserve)?;
+    cw2::assert_contract_version(deps.storage, CONTRACT_NAME, BASE_VERSION)?;
 
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
     Ok(Response::default())
 }
