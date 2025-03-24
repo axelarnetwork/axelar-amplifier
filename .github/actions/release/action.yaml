@@ -120,21 +120,6 @@ runs:
           echo "Tag is unique. OK to proceed"
         fi
 
-    - name: Check major and minor releases are from main branch only
-      id: validate-branch
-      shell: bash
-      if:
-        steps.semantic-version.outputs.changed == 'true' &&
-        (steps.semantic-version.outputs.version_type == 'major' ||
-        steps.semantic-version.outputs.version_type == 'minor')
-      run: |
-        if [[ "${{ github.ref }}" != "refs/heads/main" ]]; then
-          echo "Major and Minor releases are only allowed from main branch"
-          exit 1
-        else
-          echo "Release from main branch. OK to proceed"
-        fi
-
     - name: Install cargo-release
       shell: bash
       working-directory: ${{ runner.temp }}
