@@ -9,7 +9,7 @@ use xrpl_types::msg::{
     XRPLMessage,
 };
 use xrpl_types::types::{
-    xrpl_account_id_string, xrpl_currency_string, XRPLAccountId, XRPLCurrency, XRPLPaymentAmount,
+    xrpl_account_id_string, xrpl_currency_string, XRPLAccountId, XRPLCurrency,
     XRPLToken, XRPLTokenOrXrp,
 };
 
@@ -138,7 +138,6 @@ pub struct InterchainTransfer {
     // When the amount is zero, route_incoming_messages is a no-op.
     pub message_with_payload: Option<MessageWithPayload>,
     pub token_id: TokenId,
-    pub dust: XRPLPaymentAmount,
 }
 
 #[cw_serde]

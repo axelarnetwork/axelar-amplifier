@@ -2,10 +2,9 @@ use axelar_wasm_std::hash::Hash;
 use axelar_wasm_std::msg_id::HexTxHash;
 use axelar_wasm_std::MajorityThreshold;
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, Uint256};
+use cosmwasm_std::Addr;
 use cw_storage_plus::{Item, Map};
-use interchain_token_service::TokenId;
-use router_api::{ChainName, ChainNameRaw, CrossChainId};
+use router_api::{ChainName, CrossChainId};
 use xrpl_types::types::{XRPLAccountId, XRPLToken, XRPLTxStatus, XRPLUnsignedTx};
 
 use crate::axelar_verifiers::VerifierSet;
@@ -68,9 +67,6 @@ pub const LATEST_SEQUENTIAL_UNSIGNED_TX_HASH: Item<Hash> =
 pub const TRUST_LINE: Map<&XRPLToken, ()> = Map::new("trust_line");
 pub const TRUST_LINE_COUNT: Item<u64> = Item::new("trust_line_count");
 pub const SEQUENCE_NUMBER_MAX_OBJECT_COUNT: Map<&u32, u8> = Map::new("sequence_number_max_object_count");
-
-pub const DUST: Map<&(TokenId, ChainNameRaw), Uint256> = Map::new("dust");
-pub const DUST_COUNTED: Map<&CrossChainId, ()> = Map::new("dust_counted");
 
 pub const FEE_RESERVE: Item<u64> = Item::new("fee_reserve");
 pub const FEE_RESERVE_TOP_UP_COUNTED: Map<&Hash, ()> = Map::new("fee_reserve_top_up_counted");

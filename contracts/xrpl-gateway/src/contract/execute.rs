@@ -71,7 +71,6 @@ pub fn route_incoming_messages(
                     let InterchainTransfer {
                         message_with_payload,
                         token_id,
-                        dust,
                     } = translate_to_interchain_transfer(
                         storage,
                         config,
@@ -85,14 +84,6 @@ pub fn route_incoming_messages(
                             &interchain_transfer_message.tx_id,
                             &token_id,
                             interchain_transfer_message.gas_fee_amount.clone(),
-                        )
-                        .change_context(Error::State)?;
-
-                        state::count_dust(
-                            storage,
-                            &interchain_transfer_message.tx_id,
-                            &token_id,
-                            dust,
                         )
                         .change_context(Error::State)?;
                     }
@@ -255,9 +246,9 @@ pub fn translate_to_interchain_transfer(
             gas_fee_amount: interchain_transfer_message.gas_fee_amount.to_owned(),
         })?;
 
-    let (amount, dust) = match transfer_amount.clone() {
-        XRPLPaymentAmount::Drops(drops) => (Uint256::from(drops), XRPLPaymentAmount::Drops(0u64)),
-        XRPLPaymentAmount::Issued(token, token_amount) => {
+    let amount = match transfer_amount.clone() {
+        XRPLPaymentAmount::Drops(drops) => Uint256::from(drops),
+        XRPLPaymentAmount::Issued(_token, token_amount) => {
             let destination_decimals =
                 state::load_token_instance_decimals(storage, destination_chain.clone(), token_id)
                     .change_context(Error::TokenNotRegisteredForChain {
@@ -265,13 +256,13 @@ pub fn translate_to_interchain_transfer(
                     chain_name: destination_chain.to_owned(),
                 })?;
 
-            let (amount, dust) = scale_to_decimals(token_amount, destination_decimals)
+            let (amount, _dust) = scale_to_decimals(token_amount, destination_decimals)
                 .change_context(Error::InvalidTransferAmount {
                     destination_chain,
                     amount: transfer_amount.to_owned(),
                 })?;
 
-            (amount, XRPLPaymentAmount::Issued(token, dust))
+            amount
         }
     };
 
@@ -279,7 +270,6 @@ pub fn translate_to_interchain_transfer(
         return Ok(InterchainTransfer {
             message_with_payload: None,
             token_id,
-            dust,
         });
     }
 
@@ -311,7 +301,6 @@ pub fn translate_to_interchain_transfer(
                 .change_context(Error::PayloadEncodingFailed)?,
         }),
         token_id,
-        dust,
     })
 }
 

@@ -245,12 +245,12 @@ fn compute_xrpl_amount(
     token_id: TokenId,
     source_chain: ChainNameRaw,
     source_amount: Uint256,
-) -> Result<(XRPLPaymentAmount, Uint256), ContractError> {
+) -> Result<XRPLPaymentAmount, ContractError> {
     let xrp_token_id = gateway
         .xrp_token_id()
         .map_err(|_| ContractError::FailedToGetXrpTokenId)?;
 
-    let (xrpl_amount, dust) = if token_id == xrp_token_id {
+    let xrpl_amount = if token_id == xrp_token_id {
         if source_amount > Uint256::from(XRP_MAX_UINT) {
             return Err(ContractError::InvalidTransferAmount {
                 source_chain: source_chain.to_owned(),
@@ -259,7 +259,7 @@ fn compute_xrpl_amount(
         }
 
         let drops = u64::from_be_bytes(source_amount.to_be_bytes()[24..].try_into().unwrap());
-        (XRPLPaymentAmount::Drops(drops), Uint256::zero())
+        XRPLPaymentAmount::Drops(drops)
     } else {
         let xrpl_token = gateway
             .xrpl_token(token_id)
@@ -270,16 +270,16 @@ fn compute_xrpl_amount(
                 token_id: token_id.to_owned(),
                 chain: source_chain.to_owned(),
             })?;
-        let (token_amount, dust) = canonicalize_token_amount(source_amount, source_decimals)
+        let (token_amount, _dust) = canonicalize_token_amount(source_amount, source_decimals)
             .map_err(|_| ContractError::InvalidTransferAmount {
                 source_chain: source_chain.to_owned(),
                 amount: source_amount,
             })?;
 
-        (XRPLPaymentAmount::Issued(xrpl_token, token_amount), dust)
+        XRPLPaymentAmount::Issued(xrpl_token, token_amount)
     };
 
-    Ok((xrpl_amount, dust))
+    Ok(xrpl_amount)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -366,28 +366,12 @@ pub fn construct_payment_proof(
                         XRPLAccountId::try_from(interchain_transfer.destination_address)
                             .map_err(|_| ContractError::InvalidDestinationAddress)?;
 
-                    let (xrpl_amount, dust) = compute_xrpl_amount(
+                    let xrpl_amount = compute_xrpl_amount(
                         gateway,
                         interchain_transfer.token_id,
                         source_chain.clone(),
                         interchain_transfer.amount.into(),
                     )?;
-
-                    if !dust.is_zero() && !state::DUST_COUNTED.has(storage, &cc_id) {
-                        state::DUST.update(
-                            storage,
-                            &(interchain_transfer.token_id, source_chain.clone()),
-                            |current_dust| -> Result<_, ContractError> {
-                                match current_dust {
-                                    Some(current_dust) => Ok(current_dust
-                                        .checked_add(dust)
-                                        .map_err(|_| ContractError::Overflow)?),
-                                    None => Ok(dust),
-                                }
-                            },
-                        )?;
-                        state::DUST_COUNTED.save(storage, &cc_id, &())?;
-                    }
 
                     if xrpl_amount.is_zero() {
                         return Ok(Response::default());
