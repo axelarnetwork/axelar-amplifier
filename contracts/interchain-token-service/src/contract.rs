@@ -5,7 +5,7 @@ use axelar_wasm_std::{address, killswitch, permission_control, FnExt, IntoContra
 use axelarnet_gateway::AxelarExecutableMsg;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{Addr, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response, Storage};
+use cosmwasm_std::{Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response, Storage};
 use error_stack::{Report, ResultExt};
 use execute::{freeze_chain, unfreeze_chain};
 
@@ -14,9 +14,11 @@ use crate::state;
 use crate::state::Config;
 
 mod execute;
+mod migrations;
 mod query;
 
 pub use execute::Error as ExecuteError;
+pub use migrations::{migrate, MigrateMsg};
 
 const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -51,17 +53,6 @@ pub enum Error {
     QueryContractStatus,
     #[error("failed to query chain configs")]
     QueryAllChainConfigs,
-}
-
-#[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, _msg: Empty) -> Result<Response, ContractError> {
-    // Implement migration logic if needed
-
-    // TODO migrate max uint to max uint bits
-
-    cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-
-    Ok(Response::default())
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]

@@ -378,7 +378,7 @@ pub fn distribute_rewards(protocol: &mut Protocol, chain_name: &ChainName, contr
         &rewards::msg::ExecuteMsg::DistributeRewards {
             pool_id: PoolId {
                 chain_name: chain_name.clone(),
-                contract: contract_address,
+                contract: contract_address.to_string(),
             },
             epoch_count: None,
         },
@@ -767,7 +767,7 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
         &rewards::msg::ExecuteMsg::CreatePool {
             pool_id: PoolId {
                 chain_name: chain_name.clone(),
-                contract: voting_verifier.contract_addr.clone(),
+                contract: voting_verifier.contract_addr.to_string(),
             },
             params: rewards_params.clone(),
         },
@@ -780,7 +780,7 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
         &rewards::msg::ExecuteMsg::CreatePool {
             pool_id: PoolId {
                 chain_name: chain_name.clone(),
-                contract: protocol.multisig.contract_addr.clone(),
+                contract: protocol.multisig.contract_addr.to_string(),
             },
             params: rewards_params,
         },
@@ -793,7 +793,7 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
         &rewards::msg::ExecuteMsg::AddRewards {
             pool_id: PoolId {
                 chain_name: chain_name.clone(),
-                contract: voting_verifier.contract_addr.clone(),
+                contract: voting_verifier.contract_addr.to_string(),
             },
         },
         &coins(1000, AXL_DENOMINATION),
@@ -806,7 +806,7 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
         &rewards::msg::ExecuteMsg::AddRewards {
             pool_id: PoolId {
                 chain_name: chain_name.clone(),
-                contract: protocol.multisig.contract_addr.clone(),
+                contract: protocol.multisig.contract_addr.to_string(),
             },
         },
         &coins(1000, AXL_DENOMINATION),
