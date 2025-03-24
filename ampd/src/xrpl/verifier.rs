@@ -150,7 +150,7 @@ fn verify_interchain_transfer_memos(
         "destination_address",
         message.destination_address.to_string(),
     ) && verify_payload_hash(memos, message)
-        && verify_gas_fee_amount(message, memos)
+        && verify_gas_fee_amount(memos, message)
 }
 
 fn verify_call_contract_memos(
@@ -248,8 +248,8 @@ fn verify_amount(expected_amount: XRPLPaymentAmount, actual_amount: Amount) -> b
 }
 
 fn verify_gas_fee_amount(
-    message: &XRPLInterchainTransferMessage,
     memos: &HashMap<String, String>,
+    message: &XRPLInterchainTransferMessage,
 ) -> bool {
     || -> Option<bool> {
         let gas_fee_amount_str = memos
