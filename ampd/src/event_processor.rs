@@ -123,7 +123,7 @@ where
                 if let Err(err) = broadcaster.broadcast(msg.clone()).await {
                     warn!(
                         err = LoggableError::from(&err).as_value(),
-                        "failed to broadcast message {:?}", msg
+                        "failed to broadcast message {:?} for event {}", msg, event
                     )
                 }
             }
