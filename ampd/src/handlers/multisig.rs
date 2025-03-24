@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 use std::convert::TryInto;
-use std::str::FromStr;
 
 use async_trait::async_trait;
 use cosmrs::cosmwasm::MsgExecuteContract;
@@ -12,7 +11,6 @@ use events_derive;
 use events_derive::try_from;
 use hex::encode;
 use multisig::msg::ExecuteMsg;
-use router_api::ChainName;
 use serde::de::Error as DeserializeError;
 use serde::{Deserialize, Deserializer};
 use tokio::sync::watch::Receiver;
@@ -33,7 +31,6 @@ struct SigningStartedEvent {
     #[serde(with = "hex")]
     msg: MessageDigest,
     expires_at: u64,
-    chain: ChainName,
 }
 
 fn deserialize_public_keys<'de, D>(
@@ -111,7 +108,7 @@ where
             pub_keys,
             msg,
             expires_at,
-            chain,
+            ..
         } = match event.try_into() as error_stack::Result<_, _> {
             Err(report)
                 if matches!(
