@@ -125,7 +125,7 @@ pub struct XRPLInterchainTransferMessage {
     pub payload_hash: Option<[u8; 32]>,
     /// The total amount of tokens sent to the XRPL multisig,
     /// including the gas fee.
-    pub amount: XRPLPaymentAmount,
+    pub transfer_amount: XRPLPaymentAmount,
     pub gas_fee_amount: XRPLPaymentAmount,
 }
 
@@ -215,7 +215,8 @@ impl From<XRPLInterchainTransferMessage> for Vec<Attribute> {
             ("source_address", other.source_address.to_string()).into(),
             ("destination_chain", other.destination_chain).into(),
             ("destination_address", other.destination_address.to_string()).into(),
-            ("amount", other.amount.to_string()).into(),
+            ("transfer_amount", other.transfer_amount.to_string()).into(),
+            ("gas_fee_amount", other.gas_fee_amount.to_string()).into(),
         ];
 
         if let Some(hash) = other.payload_hash {
@@ -318,7 +319,7 @@ impl XRPLInterchainTransferMessage {
         hasher.update(delimiter_bytes);
         hasher.update(self.destination_address.as_str());
         hasher.update(delimiter_bytes);
-        hasher.update(self.amount.hash());
+        hasher.update(self.transfer_amount.hash());
 
         if let Some(hash) = self.payload_hash {
             hasher.update(delimiter_bytes);

@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::ops::Add;
 
 use axelar_wasm_std::voting::Vote;
 use sha3::{Digest, Keccak256};
@@ -24,6 +25,10 @@ fn parse_memos(memos: &[Memo]) -> HashMap<String, String> {
             memo_type.zip(memo_data)
         })
         .collect::<HashMap<String, String>>()
+}
+
+fn verify_equal_amount(expected_amount: XRPLPaymentAmount, actual_amount: Amount) -> bool {
+    verify_amount(expected_amount, actual_amount, |a, b| a == b)
 }
 
 pub fn verify_message(
@@ -104,10 +109,19 @@ fn is_valid_interchain_transfer_message(
     memos: &HashMap<String, String>,
 ) -> bool {
     if let Payment(payment_tx) = &tx {
+        let total_amount = match message
+            .transfer_amount
+            .clone()
+            .add(message.gas_fee_amount.clone())
+        {
+            Ok(amount) => amount,
+            Err(_) => return false,
+        };
+
         payment_tx.destination == multisig_address.to_string()
             && message.source_address.to_string() == tx.common().account
             && verify_delivered_full_amount(tx, payment_tx.amount.clone())
-            && verify_amount(message.amount.clone(), payment_tx.amount.clone())
+            && verify_amount(total_amount, payment_tx.amount.clone(), |a, b| a <= b)
             && verify_interchain_transfer_memos(memos, message)
             && verify_payment_flags(payment_tx)
     } else {
@@ -125,7 +139,7 @@ fn is_valid_call_contract_message(
         payment_tx.destination == multisig_address.to_string()
             && message.source_address.to_string() == tx.common().account
             && verify_delivered_full_amount(tx, payment_tx.amount.clone())
-            && verify_amount(message.gas_fee_amount.clone(), payment_tx.amount.clone())
+            && verify_equal_amount(message.gas_fee_amount.clone(), payment_tx.amount.clone())
             && verify_call_contract_memos(memos, message)
             && verify_payment_flags(payment_tx)
     } else {
@@ -181,7 +195,7 @@ fn is_valid_add_gas_message(
         payment_tx.destination == multisig_address.to_string()
             && message.source_address.to_string() == tx.common().account
             && verify_delivered_full_amount(tx, payment_tx.amount.clone())
-            && verify_amount(message.amount.clone(), payment_tx.amount.clone())
+            && verify_equal_amount(message.amount.clone(), payment_tx.amount.clone())
             && verify_memo(memos, "type", XRPLMessageType::AddGas.to_string())
             && verify_memo(
                 memos,
@@ -203,7 +217,7 @@ fn is_valid_add_reserves_message(
     if let Payment(payment_tx) = &tx {
         return payment_tx.destination == multisig_address.to_string()
             && verify_delivered_full_amount(tx, payment_tx.amount.clone())
-            && verify_amount(
+            && verify_equal_amount(
                 XRPLPaymentAmount::Drops(message.amount),
                 payment_tx.amount.clone(),
             )
@@ -229,7 +243,11 @@ fn verify_delivered_full_amount(tx: &Transaction, expected_amount: Amount) -> bo
     false
 }
 
-fn verify_amount(expected_amount: XRPLPaymentAmount, actual_amount: Amount) -> bool {
+fn verify_amount(
+    expected_amount: XRPLPaymentAmount,
+    actual_amount: Amount,
+    cmp: impl Fn(XRPLPaymentAmount, XRPLPaymentAmount) -> bool,
+) -> bool {
     || -> Option<bool> {
         let amount = match actual_amount {
             Amount::Issued(a) => XRPLPaymentAmount::Issued(
@@ -242,7 +260,7 @@ fn verify_amount(expected_amount: XRPLPaymentAmount, actual_amount: Amount) -> b
             Amount::Drops(a) => XRPLPaymentAmount::Drops(a.parse().ok()?),
         };
 
-        Some(amount == expected_amount)
+        Some(cmp(expected_amount, amount))
     }()
     .unwrap_or(false)
 }
@@ -257,7 +275,7 @@ fn verify_gas_fee_amount(
             .and_then(|amount| hex::decode(amount).ok())
             .and_then(|decoded| String::from_utf8(decoded).ok())?;
 
-        let gas_fee_amount = match message.amount.clone() {
+        let gas_fee_amount = match message.transfer_amount.clone() {
             XRPLPaymentAmount::Issued(token, _) => XRPLPaymentAmount::Issued(
                 XRPLToken {
                     issuer: token.issuer,
@@ -270,7 +288,7 @@ fn verify_gas_fee_amount(
             }
         };
 
-        Some(gas_fee_amount == message.gas_fee_amount && gas_fee_amount <= message.amount)
+        Some(gas_fee_amount == message.gas_fee_amount)
     }()
     .unwrap_or(false)
 }
@@ -353,7 +371,7 @@ mod test {
                     .try_into()
                     .unwrap(),
             ),
-            amount: XRPLPaymentAmount::Drops(100000),
+            transfer_amount: XRPLPaymentAmount::Drops(100000),
             gas_fee_amount: XRPLPaymentAmount::Drops(50000),
         };
         assert!(verify_interchain_transfer_memos(
@@ -401,7 +419,7 @@ mod test {
             .unwrap(),
             destination_chain: ChainName::from_str("ethereum").unwrap(),
             payload_hash: None,
-            amount: XRPLPaymentAmount::Drops(100000),
+            transfer_amount: XRPLPaymentAmount::Drops(100000),
             gas_fee_amount: XRPLPaymentAmount::Drops(50000),
         };
         assert!(verify_interchain_transfer_memos(
