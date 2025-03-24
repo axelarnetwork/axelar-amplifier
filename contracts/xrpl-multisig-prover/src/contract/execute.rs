@@ -267,7 +267,7 @@ fn compute_xrpl_amount(
                 token_id: token_id.to_owned(),
                 chain: source_chain.to_owned(),
             })?;
-        let (token_amount, _dust) = canonicalize_token_amount(source_amount, source_decimals)
+        let token_amount = canonicalize_token_amount(source_amount, source_decimals)
             .map_err(|_| ContractError::InvalidTransferAmount {
                 source_chain: source_chain.to_owned(),
                 amount: source_amount,

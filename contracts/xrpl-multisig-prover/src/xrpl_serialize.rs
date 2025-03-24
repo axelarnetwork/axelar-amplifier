@@ -637,7 +637,7 @@ mod tests {
             XRPLPaymentAmount::Issued(XRPLToken {
                 issuer: XRPLAccountId::from_str("r9LqNeG6qHxjeUocjvVki2XR35weJ9mZgQ")?,
                 currency: "USD".to_string().try_into()?,
-            }, canonicalize_token_amount(Uint256::zero(), 0)?.0)
+            }, canonicalize_token_amount(Uint256::zero(), 0)?)
             .xrpl_serialize()?
         );
         assert_hex_eq!(
@@ -645,7 +645,7 @@ mod tests {
             XRPLPaymentAmount::Issued(XRPLToken {
                 issuer: XRPLAccountId::from_str("r9LqNeG6qHxjeUocjvVki2XR35weJ9mZgQ")?,
                 currency: "USD".to_string().try_into()?,
-            }, canonicalize_token_amount(Uint256::one(), 0)?.0)
+            }, canonicalize_token_amount(Uint256::one(), 0)?)
             .xrpl_serialize()?
         );
         // minimum absolute amount
@@ -675,7 +675,7 @@ mod tests {
             XRPLPaymentAmount::Issued(XRPLToken {
                 issuer: XRPLAccountId::from_str("r9LqNeG6qHxjeUocjvVki2XR35weJ9mZgQ")?,
                 currency: "${}".to_string().try_into()?,
-            }, canonicalize_token_amount(Uint256::from(42u128), 0)?.0)
+            }, canonicalize_token_amount(Uint256::from(42u128), 0)?)
             .xrpl_serialize()?
         );
         // minimum XRP
@@ -1066,7 +1066,7 @@ mod tests {
                     currency: "ETH".to_string().try_into()?,
                     issuer: XRPLAccountId::from_str("r4ZMbbb4Y3KoeexmjEeTdhqUBrYjjWdyGM")?,
                 },
-                canonicalize_token_amount(Uint256::from(100000000u128), 0)?.0,
+                canonicalize_token_amount(Uint256::from(100000000u128), 0)?,
             ),
             destination: XRPLAccountId::from_str("raNVNWvhUQzFkDDTdEw3roXRJfMJFVJuQo")?,
             cross_currency: None,

@@ -256,7 +256,7 @@ pub fn translate_to_interchain_transfer(
                     chain_name: destination_chain.to_owned(),
                 })?;
 
-            let (amount, _dust) = scale_to_decimals(token_amount, destination_decimals)
+            let amount = scale_to_decimals(token_amount, destination_decimals)
                 .change_context(Error::InvalidTransferAmount {
                     destination_chain,
                     amount: transfer_amount.to_owned(),
