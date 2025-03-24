@@ -239,7 +239,7 @@ pub fn translate_to_interchain_transfer(
         payment_amount_to_token_id(storage, config, &interchain_transfer_message.amount)?;
 
     let source_address = nonempty::HexBinary::try_from(HexBinary::from(
-        interchain_transfer_message.source_address.as_ref(),
+        interchain_transfer_message.source_address.to_string().as_bytes(),
     ))
     .change_context(Error::InvalidAddress)?;
     let destination_address = interchain_transfer_message.destination_address.clone();
@@ -333,17 +333,14 @@ pub fn translate_to_call_contract(
 
     let gas_token_id =
         payment_amount_to_token_id(storage, config, &call_contract_message.gas_fee_amount)?;
-    let source_address = nonempty::HexBinary::try_from(HexBinary::from(
-        call_contract_message.source_address.as_ref(),
-    ))
-    .change_context(Error::InvalidAddress)?;
+    let source_address = call_contract_message.source_address.to_string();
     let destination_address = call_contract_message.destination_address.clone();
     let destination_chain = call_contract_message.destination_chain.clone();
 
     let cc_id = call_contract_message.cc_id(config.chain_name.clone().into());
     let message = Message {
         cc_id,
-        source_address: Address::from_str(&source_address.to_string())
+        source_address: Address::from_str(&source_address)
             .change_context(Error::InvalidSourceAddress)?,
         destination_address: Address::from_str(&destination_address)
             .change_context(Error::InvalidDestinationAddress)?,
