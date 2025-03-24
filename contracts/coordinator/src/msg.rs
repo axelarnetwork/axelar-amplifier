@@ -17,6 +17,11 @@ pub struct InstantiateMsg {
 #[derive(EnsurePermissions)]
 pub enum ExecuteMsg {
     #[permission(Governance)]
+    RegisterProverContract {
+        chain_name: ChainName,
+        new_prover_addr: String,
+    },
+    #[permission(Governance)]
     RegisterContractAddresses {
         chain_name: ChainName,
         prover_address: String,

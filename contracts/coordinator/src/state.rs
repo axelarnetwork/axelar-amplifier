@@ -140,7 +140,7 @@ pub fn is_prover_registered(
     storage: &dyn Storage,
     prover_address: ProverAddress,
 ) -> Result<bool, ContractError> {
-    Ok(CHAIN_CONTRACTS_MAP
+    Ok(CHAIN_PROVER_INDEXED_MAP
         .idx
         .by_prover
         .item(storage, prover_address)?
