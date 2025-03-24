@@ -1551,10 +1551,7 @@ mod tests {
     #[test]
     fn test_scale_to_decimals() {
         let amount = XRPLTokenAmount::new(1_000_000_000_000_000u64, -33);
-        assert_eq!(
-            scale_to_decimals(amount, 18).unwrap(),
-            Uint256::one()
-        );
+        assert_eq!(scale_to_decimals(amount, 18).unwrap(), Uint256::one());
 
         let amount = XRPLTokenAmount::new(1_000_000_000_000_000u64, -15);
         assert_eq!(
@@ -1612,20 +1609,14 @@ mod tests {
     fn test_small_mantissa_handling() {
         let amount = XRPLTokenAmount::new(9_999_999_999_999_999u64, MIN_EXPONENT);
         let result = scale_to_decimals(amount, 18);
-        assert_eq!(
-            result.unwrap(),
-            Uint256::zero()
-        );
+        assert_eq!(result.unwrap(), Uint256::zero());
     }
 
     #[test]
     fn test_extreme_scaling_down() {
         let amount = XRPLTokenAmount::new(MAX_MANTISSA, MIN_EXPONENT);
         let result = scale_to_decimals(amount, 6);
-        assert_eq!(
-            result.unwrap(),
-            Uint256::zero(),
-        );
+        assert_eq!(result.unwrap(), Uint256::zero(),);
     }
 
     #[test]

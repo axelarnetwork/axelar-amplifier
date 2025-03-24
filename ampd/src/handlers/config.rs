@@ -216,10 +216,7 @@ mod tests {
         ";
 
         let chain_config: Chain = toml::from_str(chain_config_toml).unwrap();
-        assert_eq!(
-            chain_config.finalization,
-            Finalization::RPCFinalizedBlock
-        );
+        assert_eq!(chain_config.finalization, Finalization::RPCFinalizedBlock);
     }
 
     #[test]

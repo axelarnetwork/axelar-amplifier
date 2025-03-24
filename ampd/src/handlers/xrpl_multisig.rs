@@ -22,7 +22,7 @@ use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error::{self, DeserializeEvent};
 use crate::tofnd::grpc::Multisig;
 use crate::tofnd::{Algorithm, MessageDigest};
-use crate::types::{TMAddress, PublicKey};
+use crate::types::{PublicKey, TMAddress};
 
 #[derive(Debug, Deserialize)]
 #[try_from("wasm-xrpl_signing_started")]
