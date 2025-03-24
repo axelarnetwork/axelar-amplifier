@@ -732,7 +732,6 @@ pub fn xrpl_confirm_prover_message(
         MockApi::default().addr_make("relayer"),
         &xrpl_multisig_prover::msg::ExecuteMsg::ConfirmProverMessage { prover_message },
     );
-    println!("{:?}", response);
     assert!(response.is_ok());
 }
 
