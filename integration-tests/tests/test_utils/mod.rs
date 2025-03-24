@@ -713,10 +713,8 @@ pub fn linked_token_id(
     gateway: &XRPLGatewayContract,
     xrpl_token: XRPLToken,
 ) -> TokenId {
-    let query_response: Result<TokenId, StdError> = gateway.query(
-        app,
-        &xrpl_gateway::msg::QueryMsg::LinkedTokenId(xrpl_token),
-    );
+    let query_response: Result<TokenId, StdError> =
+        gateway.query(app, &xrpl_gateway::msg::QueryMsg::LinkedTokenId(xrpl_token));
     assert!(query_response.is_ok());
 
     query_response.unwrap()

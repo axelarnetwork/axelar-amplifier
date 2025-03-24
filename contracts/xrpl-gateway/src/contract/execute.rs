@@ -225,8 +225,11 @@ pub fn translate_to_interchain_transfer(
         },
     }
 
-    let token_id =
-        payment_amount_to_token_id(storage, config, &interchain_transfer_message.transfer_amount)?;
+    let token_id = payment_amount_to_token_id(
+        storage,
+        config,
+        &interchain_transfer_message.transfer_amount,
+    )?;
 
     let source_address = nonempty::HexBinary::try_from(HexBinary::from(
         interchain_transfer_message.source_address.as_ref(),
@@ -248,13 +251,12 @@ pub fn translate_to_interchain_transfer(
                     chain_name: destination_chain.to_owned(),
                 })?;
 
-            let amount = scale_to_decimals(token_amount, destination_decimals)
-                .change_context(Error::InvalidTransferAmount {
+            scale_to_decimals(token_amount, destination_decimals).change_context(
+                Error::InvalidTransferAmount {
                     destination_chain,
                     amount: transfer_amount.to_owned(),
-                })?;
-
-            amount
+                },
+            )?
         }
     };
 
@@ -667,15 +669,18 @@ fn generate_message_id(client: &nexus::Client) -> Result<[u8; 32], Error> {
             tx_hash.as_slice(),
             nonce.to_be_bytes().as_slice(),
         ]
-        .concat()
-    ).into())
+        .concat(),
+    )
+    .into())
 }
 
 /// Query Nexus module in core to generate an unique cross chain id.
-fn unique_cross_chain_id(client: &nexus::Client, chain_name: ChainName) -> Result<CrossChainId, Error> {
+fn unique_cross_chain_id(
+    client: &nexus::Client,
+    chain_name: ChainName,
+) -> Result<CrossChainId, Error> {
     let msg_id = generate_message_id(client)?;
-    CrossChainId::new(chain_name, HexTxHash::new(msg_id))
-        .change_context(Error::InvalidCrossChainId)
+    CrossChainId::new(chain_name, HexTxHash::new(msg_id)).change_context(Error::InvalidCrossChainId)
 }
 
 fn group_by_status<T>(

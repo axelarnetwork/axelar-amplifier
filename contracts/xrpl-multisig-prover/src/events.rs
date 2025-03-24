@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
-use axelar_wasm_std::{msg_id::HexTxHash, IntoEvent};
+use axelar_wasm_std::msg_id::HexTxHash;
+use axelar_wasm_std::IntoEvent;
 use cosmwasm_std::{HexBinary, Uint64};
 use multisig::key::PublicKey;
 use router_api::{ChainName, CrossChainId};

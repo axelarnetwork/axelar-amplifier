@@ -135,7 +135,8 @@ pub fn make_verifier_set(
     }
 
     if num_of_participants > max_num_verifiers as usize {
-        participants_with_pubkeys.sort_by(|(a, _), (b, _)| a.weight.into_inner().cmp(&b.weight.into_inner()));
+        participants_with_pubkeys
+            .sort_by(|(a, _), (b, _)| a.weight.into_inner().cmp(&b.weight.into_inner()));
         participants_with_pubkeys.truncate(max_num_verifiers as usize);
     }
 

@@ -9,8 +9,8 @@ use xrpl_types::msg::{
     XRPLMessage,
 };
 use xrpl_types::types::{
-    xrpl_account_id_string, xrpl_currency_string, XRPLAccountId, XRPLCurrency,
-    XRPLToken, XRPLTokenOrXrp,
+    xrpl_account_id_string, xrpl_currency_string, XRPLAccountId, XRPLCurrency, XRPLToken,
+    XRPLTokenOrXrp,
 };
 
 #[cw_serde]
@@ -65,9 +65,7 @@ pub enum ExecuteMsg {
 
     /// Register an XRPL token as an interchain token.
     #[permission(Elevated)]
-    RegisterLocalToken {
-        xrpl_token: XRPLToken,
-    },
+    RegisterLocalToken { xrpl_token: XRPLToken },
 
     /// Register a remote token on the XRPL chain,
     /// defining its XRPL currency.

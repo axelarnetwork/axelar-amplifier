@@ -12,7 +12,8 @@ mod reply;
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 use crate::state::{
-    Config, AVAILABLE_TICKETS, CONFIG, FEE_RESERVE, LAST_ASSIGNED_TICKET_NUMBER, LATEST_SEQUENTIAL_UNSIGNED_TX_HASH, NEXT_SEQUENCE_NUMBER
+    Config, AVAILABLE_TICKETS, CONFIG, FEE_RESERVE, LAST_ASSIGNED_TICKET_NUMBER,
+    LATEST_SEQUENTIAL_UNSIGNED_TX_HASH, NEXT_SEQUENCE_NUMBER,
 };
 
 pub const START_MULTISIG_REPLY_ID: u64 = 1;
@@ -172,14 +173,15 @@ pub fn query(
             &multisig::key::Signature::try_from((multisig::key::KeyType::Ecdsa, signature))
                 .map_err(|_| ContractError::InvalidSignature)?,
         )?),
-        QueryMsg::CurrentVerifierSet => {
-            to_json_binary(&query::current_verifier_set(deps.storage)?)
-        }
+        QueryMsg::CurrentVerifierSet => to_json_binary(&query::current_verifier_set(deps.storage)?),
         QueryMsg::NextVerifierSet => to_json_binary(&query::next_verifier_set(deps.storage)?),
         QueryMsg::MultisigSession { cc_id } => {
             to_json_binary(&query::multisig_session(deps.storage, &cc_id)?)
         }
-        QueryMsg::TicketCreate => to_json_binary(&query::ticket_create(deps.storage, config.ticket_count_threshold)?),
+        QueryMsg::TicketCreate => to_json_binary(&query::ticket_create(
+            deps.storage,
+            config.ticket_count_threshold,
+        )?),
     }
     .change_context(ContractError::SerializeResponse)
     .map_err(axelar_wasm_std::error::ContractError::from)

@@ -15,9 +15,8 @@ use xrpl_types::types::{
 };
 
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
-use crate::state;
 use crate::state::Config;
-use crate::token_id;
+use crate::{state, token_id};
 
 mod execute;
 mod query;
@@ -181,8 +180,7 @@ pub fn instantiate(
     let xrp_issuer = XRPLAccountId::from_str(XRP_ISSUER).expect("invalid XRP issuer");
     let chain_name_hash = token_id::chain_name_hash(msg.chain_name.clone());
     let salt = token_id::currency_hash(&XRPLCurrency::XRP);
-    let xrp_token_id =
-        token_id::linked_token_id(chain_name_hash, &xrp_issuer, salt);
+    let xrp_token_id = token_id::linked_token_id(chain_name_hash, &xrp_issuer, salt);
 
     state::save_config(
         deps.storage,
@@ -253,7 +251,7 @@ pub fn execute(
                 destination_chain,
                 link_token,
             )
-        },
+        }
         ExecuteMsg::DeployRemoteToken {
             xrpl_token,
             destination_chain,
@@ -268,7 +266,7 @@ pub fn execute(
                 destination_chain,
                 token_metadata,
             )
-        },
+        }
         ExecuteMsg::VerifyMessages(msgs) => {
             let verifier = client::ContractClient::new(deps.querier, &config.verifier).into();
             execute::verify_messages(&verifier, msgs)
@@ -314,8 +312,7 @@ pub fn query(
             .change_context(Error::XrplTokenId(xrpl_token)),
         QueryMsg::XrpTokenId => query::xrp_token_id(deps.storage).change_context(Error::XrpTokenId),
         QueryMsg::LinkedTokenId(xrpl_token) => {
-            query::linked_token_id(deps.storage, &xrpl_token)
-                .change_context(Error::LinkedTokenId)
+            query::linked_token_id(deps.storage, &xrpl_token).change_context(Error::LinkedTokenId)
         }
         QueryMsg::TokenInstanceDecimals {
             chain_name,

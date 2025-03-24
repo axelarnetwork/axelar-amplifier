@@ -202,8 +202,7 @@ fn xrpl_trust_line_can_be_proven() {
         xrpl_token.clone(),
     );
 
-    let token_id =
-        test_utils::linked_token_id(&mut protocol.app, &xrpl.gateway, xrpl_token);
+    let token_id = test_utils::linked_token_id(&mut protocol.app, &xrpl.gateway, xrpl_token);
 
     /* Create trust line */
     let session_id = test_utils::construct_xrpl_trust_set_proof_and_sign(

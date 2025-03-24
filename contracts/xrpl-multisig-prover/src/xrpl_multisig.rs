@@ -10,7 +10,10 @@ use xrpl_types::types::{
 use crate::axelar_verifiers::VerifierSet;
 use crate::error::ContractError;
 use crate::state::{
-    Config, TxInfo, AVAILABLE_TICKETS, CONSUMED_TICKET_TO_UNSIGNED_TX_HASH, CROSS_CHAIN_ID_TO_TICKET, CURRENT_VERIFIER_SET, FEE_RESERVE, LAST_ASSIGNED_TICKET_NUMBER, LATEST_SEQUENTIAL_UNSIGNED_TX_HASH, NEXT_SEQUENCE_NUMBER, NEXT_VERIFIER_SET, SEQUENCE_NUMBER_MAX_OBJECT_COUNT, TRUST_LINE, TRUST_LINE_COUNT, UNSIGNED_TX_HASH_TO_TX_INFO
+    Config, TxInfo, AVAILABLE_TICKETS, CONSUMED_TICKET_TO_UNSIGNED_TX_HASH,
+    CROSS_CHAIN_ID_TO_TICKET, CURRENT_VERIFIER_SET, FEE_RESERVE, LAST_ASSIGNED_TICKET_NUMBER,
+    LATEST_SEQUENTIAL_UNSIGNED_TX_HASH, NEXT_SEQUENCE_NUMBER, NEXT_VERIFIER_SET,
+    SEQUENCE_NUMBER_MAX_OBJECT_COUNT, TRUST_LINE, TRUST_LINE_COUNT, UNSIGNED_TX_HASH_TO_TX_INFO,
 };
 
 const MAX_TICKET_COUNT: u32 = 250;
@@ -44,7 +47,7 @@ fn should_assert_sufficient_reserve(
     previous_max_object_count_opt: Option<u8>,
 ) -> bool {
     // Fee reserve should be checked if:
-    if let Some(previous_max_object_count) =  previous_max_object_count_opt {
+    if let Some(previous_max_object_count) = previous_max_object_count_opt {
         // Sequence number has already been assigned
         if tx_object_count > previous_max_object_count {
             // but none of the TXs that it's been assigned to
@@ -66,7 +69,8 @@ fn ensure_sufficient_fee_reserve(
     tx_fee: u64,
     tx_object_count: u8,
 ) -> Result<(), ContractError> {
-    let previous_max_object_count_opt = SEQUENCE_NUMBER_MAX_OBJECT_COUNT.may_load(storage, &sequence_number)?;
+    let previous_max_object_count_opt =
+        SEQUENCE_NUMBER_MAX_OBJECT_COUNT.may_load(storage, &sequence_number)?;
     if should_assert_sufficient_reserve(tx_object_count, previous_max_object_count_opt) {
         let current_reserve = FEE_RESERVE.load(storage)?;
         let account_reserve = account_reserve(storage, config)?;
@@ -101,14 +105,17 @@ fn tx_fee(
 ) -> Result<u64, ContractError> {
     let tx_fee = config.xrpl_transaction_fee * (1 + u64::from(MAX_SIGNERS));
     let owned_object_increment = tx_type.object_count_increment();
-    ensure_sufficient_fee_reserve(storage, config, sequence_number, tx_fee, owned_object_increment)?;
+    ensure_sufficient_fee_reserve(
+        storage,
+        config,
+        sequence_number,
+        tx_fee,
+        owned_object_increment,
+    )?;
     Ok(tx_fee)
 }
 
-pub fn account_reserve(
-    storage: &dyn Storage,
-    config: &Config,
-) -> Result<u64, ContractError> {
+pub fn account_reserve(storage: &dyn Storage, config: &Config) -> Result<u64, ContractError> {
     let trust_line_count = TRUST_LINE_COUNT.load(storage).unwrap_or_default();
     let owned_objects = u64::from(XRPL_MULTISIG_FIXED_OWNED_OBJECTS) + trust_line_count;
     let total_reserve = config.xrpl_base_reserve + config.xrpl_owner_reserve * owned_objects;
@@ -144,7 +151,12 @@ pub fn issue_ticket_create(
     ticket_count: u32,
 ) -> Result<HexTxHash, ContractError> {
     let sequence_number = next_sequence_number(storage)?;
-    let fee = tx_fee(storage, config, sequence_number, XRPLUnsignedTxType::TicketCreate)?;
+    let fee = tx_fee(
+        storage,
+        config,
+        sequence_number,
+        XRPLUnsignedTxType::TicketCreate,
+    )?;
 
     let tx = XRPLTicketCreateTx {
         account: config.xrpl_multisig.clone(),
@@ -162,7 +174,12 @@ pub fn issue_trust_set(
     xrpl_token: XRPLToken,
 ) -> Result<HexTxHash, ContractError> {
     let sequence_number = next_sequence_number(storage)?;
-    let fee = tx_fee(storage, config, sequence_number, XRPLUnsignedTxType::TrustSet)?;
+    let fee = tx_fee(
+        storage,
+        config,
+        sequence_number,
+        XRPLUnsignedTxType::TrustSet,
+    )?;
 
     let tx = XRPLTrustSetTx {
         account: config.xrpl_multisig.clone(),
@@ -180,7 +197,12 @@ pub fn issue_signer_list_set(
     verifier_set: VerifierSet,
 ) -> Result<HexTxHash, ContractError> {
     let sequence_number = next_sequence_number(storage)?;
-    let fee = tx_fee(storage, config, sequence_number, XRPLUnsignedTxType::SignerListSet)?;
+    let fee = tx_fee(
+        storage,
+        config,
+        sequence_number,
+        XRPLUnsignedTxType::SignerListSet,
+    )?;
 
     let tx = XRPLSignerListSetTx {
         account: config.xrpl_multisig.clone(),

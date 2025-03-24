@@ -20,7 +20,11 @@ fn token_id(salt: [u8; 32]) -> TokenId {
     TokenId::new(token_id)
 }
 
-fn linked_token_deploy_salt(chain_name_hash: [u8; 32], deployer: &XRPLAccountId, salt: [u8; 32]) -> [u8; 32] {
+fn linked_token_deploy_salt(
+    chain_name_hash: [u8; 32],
+    deployer: &XRPLAccountId,
+    salt: [u8; 32],
+) -> [u8; 32] {
     Keccak256::digest(
         [
             Keccak256::digest(PREFIX_CUSTOM_TOKEN_SALT).as_slice(),
@@ -33,7 +37,11 @@ fn linked_token_deploy_salt(chain_name_hash: [u8; 32], deployer: &XRPLAccountId,
     .into()
 }
 
-pub fn linked_token_id(chain_name_hash: [u8; 32], deployer: &XRPLAccountId, salt: [u8; 32]) -> TokenId {
+pub fn linked_token_id(
+    chain_name_hash: [u8; 32],
+    deployer: &XRPLAccountId,
+    salt: [u8; 32],
+) -> TokenId {
     token_id(linked_token_deploy_salt(chain_name_hash, deployer, salt))
 }
 

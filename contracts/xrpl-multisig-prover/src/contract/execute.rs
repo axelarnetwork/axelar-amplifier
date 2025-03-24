@@ -108,8 +108,7 @@ pub fn confirm_prover_message(
 
         return Ok(Response::new()
             .add_message(multisig.register_verifier_set(confirmed_verifier_set.try_into()?))
-            .add_message(coordinator.set_active_verifiers(active_verifiers))
-        );
+            .add_message(coordinator.set_active_verifiers(active_verifiers)));
     }
 
     Ok(Response::default())
@@ -267,10 +266,12 @@ fn compute_xrpl_amount(
                 token_id: token_id.to_owned(),
                 chain: source_chain.to_owned(),
             })?;
-        let token_amount = canonicalize_token_amount(source_amount, source_decimals)
-            .map_err(|_| ContractError::InvalidTransferAmount {
-                source_chain: source_chain.to_owned(),
-                amount: source_amount,
+        let token_amount =
+            canonicalize_token_amount(source_amount, source_decimals).map_err(|_| {
+                ContractError::InvalidTransferAmount {
+                    source_chain: source_chain.to_owned(),
+                    amount: source_amount,
+                }
             })?;
 
         XRPLPaymentAmount::Issued(xrpl_token, token_amount)
@@ -446,8 +447,7 @@ pub fn update_verifier_set(
     let coordinator: coordinator::Client =
         client::ContractClient::new(querier, &config.coordinator).into();
 
-    let multisig: multisig::Client =
-        client::ContractClient::new(querier, &config.multisig).into();
+    let multisig: multisig::Client = client::ContractClient::new(querier, &config.multisig).into();
 
     let cur_verifier_set = state::CURRENT_VERIFIER_SET
         .may_load(storage)
@@ -462,9 +462,8 @@ pub fn update_verifier_set(
                 .save(storage, &new_verifier_set)
                 .map_err(ContractError::from)?;
 
-            Ok(Response::new().add_message(
-                multisig.register_verifier_set(new_verifier_set.try_into()?)
-            ))
+            Ok(Response::new()
+                .add_message(multisig.register_verifier_set(new_verifier_set.try_into()?)))
         }
         Some(cur_verifier_set) => {
             let new_verifier_set = next_verifier_set(storage, querier, &env, &config)?
@@ -484,8 +483,7 @@ pub fn update_verifier_set(
                     env.contract.address,
                     Some(multisig::verifier_set::VerifierSet::try_from(cur_verifier_set)?.id()),
                 )?)
-                .add_message(coordinator.set_active_verifiers(verifier_union_set))
-            )
+                .add_message(coordinator.set_active_verifiers(verifier_union_set)))
         }
     }
 }

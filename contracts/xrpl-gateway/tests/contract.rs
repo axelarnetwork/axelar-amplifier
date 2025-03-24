@@ -11,12 +11,14 @@ use axelar_wasm_std::error::ContractError;
 use axelar_wasm_std::msg_id::HexTxHash;
 use axelar_wasm_std::{err_contains, nonempty, VerificationStatus};
 use cosmwasm_std::testing::{
-    message_info, mock_dependencies, mock_env, MockApi, MockQuerier, MockQuerierCustomHandlerResult, MockStorage
+    message_info, mock_dependencies, mock_env, MockApi, MockQuerier,
+    MockQuerierCustomHandlerResult, MockStorage,
 };
 #[cfg(not(feature = "generate_golden_files"))]
 use cosmwasm_std::Response;
 use cosmwasm_std::{
-    from_json, to_json_binary, Api, ContractResult, CustomQuery, Deps, DepsMut, Empty, HexBinary, OwnedDeps, Querier, QuerierResult, QuerierWrapper, Storage, SystemResult, WasmQuery
+    from_json, to_json_binary, Api, ContractResult, CustomQuery, Deps, DepsMut, Empty, HexBinary,
+    OwnedDeps, Querier, QuerierResult, QuerierWrapper, Storage, SystemResult, WasmQuery,
 };
 use itertools::Itertools;
 use rand::{thread_rng, Rng, RngCore};
@@ -129,7 +131,9 @@ fn successful_route_incoming() {
         );
         let api = deps.api;
         update_query_handler(&mut deps.querier, handler.clone());
-        deps.querier = deps.querier.with_custom_handler(axelar_query_handler(tx_hash, nonce));
+        deps.querier = deps
+            .querier
+            .with_custom_handler(axelar_query_handler(tx_hash, nonce));
 
         execute(
             deps.as_default_mut(),

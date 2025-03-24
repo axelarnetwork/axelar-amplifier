@@ -66,7 +66,8 @@ pub const LATEST_SEQUENTIAL_UNSIGNED_TX_HASH: Item<Hash> =
     Item::new("latest_sequential_unsigned_tx_hash");
 pub const TRUST_LINE: Map<&XRPLToken, ()> = Map::new("trust_line");
 pub const TRUST_LINE_COUNT: Item<u64> = Item::new("trust_line_count");
-pub const SEQUENCE_NUMBER_MAX_OBJECT_COUNT: Map<&u32, u8> = Map::new("sequence_number_max_object_count");
+pub const SEQUENCE_NUMBER_MAX_OBJECT_COUNT: Map<&u32, u8> =
+    Map::new("sequence_number_max_object_count");
 
 pub const FEE_RESERVE: Item<u64> = Item::new("fee_reserve");
 pub const FEE_RESERVE_TOP_UP_COUNTED: Map<&Hash, ()> = Map::new("fee_reserve_top_up_counted");
