@@ -1,15 +1,16 @@
 use axelar_wasm_std::{killswitch, nonempty, FnExt, IntoContractError};
-use cosmwasm_std::{DepsMut, HexBinary, QuerierWrapper, Response, Storage};
+use cosmwasm_std::{DepsMut, HexBinary, QuerierWrapper, Response, Storage, Uint256};
 use error_stack::{bail, ensure, report, Result, ResultExt};
 use interceptors::{deploy_token_to_destination_chain, deploy_token_to_source_chain};
 use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
 
 use crate::events::Event;
+use crate::msg::SupplyModifier;
 use crate::primitives::HubMessage;
 use crate::state::TokenDeploymentType;
 use crate::{
     msg, state, DeployInterchainToken, InterchainTransfer, LinkToken, Message,
-    RegisterTokenMetadata, TokenId,
+    RegisterTokenMetadata, TokenId, TokenSupply,
 };
 
 mod interceptors;
@@ -86,6 +87,8 @@ pub enum Error {
     },
     #[error("failed to query axelarnet gateway for chain name")]
     FailedToQueryAxelarnetGateway,
+    #[error("supply modification overflowed. existing supply {0:?}")]
+    ModifySupplyOverflow(TokenSupply),
 }
 
 /// Executes an incoming ITS message.
@@ -408,6 +411,43 @@ fn update_chain(storage: &mut dyn Storage, config: msg::ChainConfig) -> Result<(
     Ok(())
 }
 
+pub fn modify_supply(
+    deps: DepsMut,
+    chain: ChainNameRaw,
+    token_id: TokenId,
+    supply_modifier: SupplyModifier,
+) -> Result<Response, Error> {
+    let mut token_instance = state::may_load_token_instance(deps.storage, chain.clone(), token_id)
+        .change_context(Error::State)?
+        .ok_or(Error::TokenNotDeployed {
+            token_id,
+            chain: chain.clone(),
+        })?;
+
+    // set supply to tracked if untracked
+    if TokenSupply::Untracked == token_instance.supply {
+        token_instance.supply = TokenSupply::Tracked(Uint256::zero());
+    }
+
+    token_instance.supply = match supply_modifier {
+        SupplyModifier::IncreaseSupply(amount) => token_instance
+            .supply
+            .clone()
+            .checked_add(amount)
+            .change_context(Error::ModifySupplyOverflow(token_instance.supply))?,
+        SupplyModifier::DecreaseSupply(amount) => token_instance
+            .supply
+            .clone()
+            .checked_sub(amount)
+            .change_context(Error::ModifySupplyOverflow(token_instance.supply))?,
+    };
+
+    state::save_token_instance(deps.storage, chain.clone(), token_id, &token_instance)
+        .change_context(Error::State)?;
+
+    Ok(Response::new())
+}
+
 trait DeploymentType {
     fn deployment_type(&self) -> TokenDeploymentType;
 }
@@ -430,14 +470,16 @@ mod tests {
     use axelarnet_gateway::msg::QueryMsg;
     use cosmwasm_std::testing::{mock_dependencies, MockApi, MockQuerier};
     use cosmwasm_std::{
-        from_json, to_json_binary, HexBinary, MemoryStorage, OwnedDeps, Uint256, WasmQuery,
+        from_json, to_json_binary, DepsMut, HexBinary, MemoryStorage, OwnedDeps, Response, Uint256,
+        WasmQuery,
     };
+    use error_stack::Result;
     use router_api::{ChainName, ChainNameRaw, CrossChainId};
 
     use super::apply_to_hub;
     use crate::contract::execute::{
         apply_to_transfer, disable_execution, enable_execution, execute_message, freeze_chain,
-        register_chain, register_chains, unfreeze_chain, update_chains, Error,
+        modify_supply, register_chain, register_chains, unfreeze_chain, update_chains, Error,
     };
     use crate::msg::TruncationConfig;
     use crate::state::{self, Config};
@@ -457,11 +499,200 @@ mod tests {
     const GOVERNANCE: &str = "governance";
     const AXELARNET_GATEWAY: &str = "axelarnet-gateway";
 
-    fn its_address() -> nonempty::HexBinary {
-        HexBinary::from_hex(ITS_ADDRESS)
-            .unwrap()
-            .try_into()
-            .unwrap()
+    #[test]
+    fn should_be_able_to_transfer() {
+        let mut deps = mock_dependencies();
+        init(&mut deps);
+
+        assert_ok!(do_deploy(deps.as_mut(), ethereum(), solana(), token_id()));
+
+        assert_ok!(do_transfer(
+            deps.as_mut(),
+            ethereum(),
+            solana(),
+            token_id(),
+            Uint256::one().try_into().unwrap()
+        ));
+    }
+
+    #[test]
+    fn should_not_be_able_to_transfer_more_than_supply() {
+        let mut deps = mock_dependencies();
+        init(&mut deps);
+
+        assert_ok!(do_deploy(deps.as_mut(), ethereum(), solana(), token_id()));
+
+        assert_err_contains!(
+            do_transfer(
+                deps.as_mut(),
+                solana(),
+                ethereum(),
+                token_id(),
+                Uint256::one().try_into().unwrap()
+            ),
+            Error,
+            Error::TokenSupplyInvariantViolated { .. }
+        );
+    }
+
+    #[test]
+    fn should_be_able_to_increase_supply() {
+        let mut deps = mock_dependencies();
+        init(&mut deps);
+
+        assert_ok!(do_deploy(deps.as_mut(), ethereum(), solana(), token_id()));
+
+        assert_ok!(modify_supply(
+            deps.as_mut(),
+            solana(),
+            token_id(),
+            msg::SupplyModifier::IncreaseSupply(Uint256::one().try_into().unwrap())
+        ));
+
+        assert_ok!(do_transfer(
+            deps.as_mut(),
+            solana(),
+            ethereum(),
+            token_id(),
+            Uint256::one().try_into().unwrap()
+        ));
+    }
+
+    #[test]
+    fn should_be_able_to_decrease_supply() {
+        let mut deps = mock_dependencies();
+        init(&mut deps);
+
+        assert_ok!(do_deploy(deps.as_mut(), ethereum(), solana(), token_id()));
+
+        assert_ok!(do_transfer(
+            deps.as_mut(),
+            ethereum(),
+            solana(),
+            token_id(),
+            Uint256::from_u128(100u128).try_into().unwrap()
+        ));
+
+        assert_ok!(modify_supply(
+            deps.as_mut(),
+            solana(),
+            token_id(),
+            msg::SupplyModifier::DecreaseSupply(Uint256::from_u128(50u128).try_into().unwrap())
+        ));
+
+        assert_err_contains!(
+            do_transfer(
+                deps.as_mut(),
+                solana(),
+                ethereum(),
+                token_id(),
+                Uint256::from_u128(100u128).try_into().unwrap()
+            ),
+            Error,
+            Error::TokenSupplyInvariantViolated { .. }
+        );
+    }
+
+    #[test]
+    fn should_be_able_to_set_supply_on_untracked() {
+        let mut deps = mock_dependencies();
+        init(&mut deps);
+
+        assert_ok!(do_deploy_custom_minter(
+            deps.as_mut(),
+            ethereum(),
+            solana(),
+            token_id(),
+            its_address()
+        ));
+
+        assert_ok!(modify_supply(
+            deps.as_mut(),
+            solana(),
+            token_id(),
+            msg::SupplyModifier::IncreaseSupply(Uint256::from_u128(50u128).try_into().unwrap())
+        ));
+
+        assert_err_contains!(
+            do_transfer(
+                deps.as_mut(),
+                solana(),
+                ethereum(),
+                token_id(),
+                Uint256::from_u128(100u128).try_into().unwrap()
+            ),
+            Error,
+            Error::TokenSupplyInvariantViolated { .. }
+        );
+    }
+
+    #[test]
+    fn should_not_be_able_to_set_supply_on_not_deployed_token() {
+        let mut deps = mock_dependencies();
+        init(&mut deps);
+
+        assert_err_contains!(
+            modify_supply(
+                deps.as_mut(),
+                solana(),
+                token_id(),
+                msg::SupplyModifier::IncreaseSupply(Uint256::from_u128(50u128).try_into().unwrap())
+            ),
+            Error,
+            Error::TokenNotDeployed { .. }
+        );
+
+        // deploy the token
+        assert_ok!(do_deploy(deps.as_mut(), ethereum(), solana(), token_id()));
+
+        // token id exists now, but try to modify supply on a chain where it is not yet deployed
+        assert_err_contains!(
+            modify_supply(
+                deps.as_mut(),
+                ChainNameRaw::try_from(XRPL).unwrap(),
+                token_id(),
+                msg::SupplyModifier::IncreaseSupply(Uint256::from_u128(50u128).try_into().unwrap())
+            ),
+            Error,
+            Error::TokenNotDeployed { .. }
+        );
+    }
+
+    #[test]
+    fn modify_supply_should_detect_overflow_underflow() {
+        let mut deps = mock_dependencies();
+        init(&mut deps);
+
+        assert_ok!(do_deploy(deps.as_mut(), ethereum(), solana(), token_id()));
+
+        assert_ok!(modify_supply(
+            deps.as_mut(),
+            solana(),
+            token_id(),
+            msg::SupplyModifier::IncreaseSupply(Uint256::one().try_into().unwrap())
+        ));
+
+        assert_err_contains!(
+            modify_supply(
+                deps.as_mut(),
+                solana(),
+                token_id(),
+                msg::SupplyModifier::IncreaseSupply(Uint256::MAX.try_into().unwrap())
+            ),
+            Error,
+            Error::ModifySupplyOverflow { .. }
+        );
+
+        assert_err_contains!(
+            modify_supply(
+                deps.as_mut(),
+                solana(),
+                token_id(),
+                msg::SupplyModifier::DecreaseSupply(Uint256::MAX.try_into().unwrap())
+            ),
+            Error,
+            Error::ModifySupplyOverflow { .. }
+        );
     }
 
     #[test]
@@ -1187,6 +1418,129 @@ mod tests {
             Error,
             Error::TokenNotRegistered(..)
         );
+    }
+
+    // Below are various helper functions to assist with writing tests
+
+    fn its_address() -> nonempty::HexBinary {
+        HexBinary::from_hex(ITS_ADDRESS)
+            .unwrap()
+            .try_into()
+            .unwrap()
+    }
+
+    // most tests only need one token id
+    fn token_id() -> TokenId {
+        TokenId::new([7u8; 32])
+    }
+
+    fn solana() -> ChainNameRaw {
+        SOLANA.try_into().unwrap()
+    }
+
+    fn ethereum() -> ChainNameRaw {
+        ETHEREUM.try_into().unwrap()
+    }
+
+    fn cc_id(source_chain: ChainNameRaw) -> CrossChainId {
+        CrossChainId {
+            source_chain,
+            message_id: HexTxHashAndEventIndex::new([1u8; 32], 0u32).into(),
+        }
+    }
+
+    fn do_transfer(
+        deps: DepsMut,
+        from: ChainNameRaw,
+        to: ChainNameRaw,
+        token_id: TokenId,
+        amount: nonempty::Uint256,
+    ) -> Result<Response, Error> {
+        let msg = HubMessage::SendToHub {
+            destination_chain: to,
+            message: InterchainTransfer {
+                token_id,
+                source_address: its_address(),
+                destination_address: its_address(),
+                amount,
+                data: None,
+            }
+            .into(),
+        };
+        execute_message(
+            deps,
+            cc_id(from),
+            ITS_ADDRESS.to_string().try_into().unwrap(),
+            msg.abi_encode(),
+        )
+    }
+
+    fn do_deploy(
+        deps: DepsMut,
+        from: ChainNameRaw,
+        to: ChainNameRaw,
+        token_id: TokenId,
+    ) -> Result<Response, Error> {
+        do_deploy_helper(
+            deps,
+            from,
+            to,
+            token_id,
+            "Test".parse().unwrap(),
+            "TEST".parse().unwrap(),
+            18,
+            None,
+        )
+    }
+
+    fn do_deploy_custom_minter(
+        deps: DepsMut,
+        from: ChainNameRaw,
+        to: ChainNameRaw,
+        token_id: TokenId,
+        minter: nonempty::HexBinary,
+    ) -> Result<Response, Error> {
+        do_deploy_helper(
+            deps,
+            from,
+            to,
+            token_id,
+            "Test".parse().unwrap(),
+            "TEST".parse().unwrap(),
+            18,
+            Some(minter),
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn do_deploy_helper(
+        deps: DepsMut,
+        from: ChainNameRaw,
+        to: ChainNameRaw,
+        token_id: TokenId,
+        name: nonempty::String,
+        symbol: nonempty::String,
+        decimals: u8,
+        minter: Option<nonempty::HexBinary>,
+    ) -> Result<Response, Error> {
+        let msg = HubMessage::SendToHub {
+            destination_chain: to,
+            message: DeployInterchainToken {
+                token_id,
+                name,
+                symbol,
+                decimals,
+                minter,
+            }
+            .into(),
+        };
+
+        execute_message(
+            deps,
+            cc_id(from),
+            ITS_ADDRESS.to_string().try_into().unwrap(),
+            msg.clone().abi_encode(),
+        )
     }
 
     fn register_custom_token(
