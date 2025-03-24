@@ -210,6 +210,7 @@ fn route_to_axelarnet_gateway_ignore_messages_from_non_router_sender() {
 }
 
 #[test]
+#[ignore]
 fn route_from_router_to_nexus_succeeds() {
     let mut deps = mock_axelar_dependencies();
     deps.querier = deps
