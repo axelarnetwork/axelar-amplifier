@@ -53,8 +53,8 @@ pub enum ContractError {
     #[error("failed to update admin")]
     FailedToUpdateAdmin,
 
-    #[error("insufficient fee reserve: current fee reserve {current} cannot cover the required fee reserve {required}")]
-    InsufficientFeeReserve { current: u64, required: u64 },
+    #[error("insufficient fee reserve: current fee reserve of {current_reserve} drops cannot cover the required fee reserve of {required_reserve} drops")]
+    InsufficientFeeReserve { current_reserve: u64, required_reserve: u64 },
 
     #[error("invalid amount: {reason}")]
     InvalidAmount { reason: String },

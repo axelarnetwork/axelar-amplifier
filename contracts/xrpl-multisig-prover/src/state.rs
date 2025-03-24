@@ -66,7 +66,8 @@ pub const UNSIGNED_TX_HASH_TO_TX_INFO: Map<&Hash, TxInfo> = Map::new("unsigned_t
 pub const LATEST_SEQUENTIAL_UNSIGNED_TX_HASH: Item<Hash> =
     Item::new("latest_sequential_unsigned_tx_hash");
 pub const TRUST_LINE: Map<&XRPLToken, ()> = Map::new("trust_line");
-pub const SEQUENCE_NUMBER_ASSIGNED: Map<&u32, ()> = Map::new("sequence_number_assigned");
+pub const TRUST_LINE_COUNT: Item<u64> = Item::new("trust_line_count");
+pub const SEQUENCE_NUMBER_MAX_OBJECT_COUNT: Map<&u32, u8> = Map::new("sequence_number_max_object_count");
 
 pub const DUST: Map<&(TokenId, ChainNameRaw), Uint256> = Map::new("dust");
 pub const DUST_COUNTED: Map<&CrossChainId, ()> = Map::new("dust_counted");
