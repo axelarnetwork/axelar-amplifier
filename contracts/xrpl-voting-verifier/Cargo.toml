@@ -1,6 +1,6 @@
 [package]
 name = "xrpl-voting-verifier"
-version = "1.0.0"
+version = "0.0.0"
 rust-version = { workspace = true }
 edition = { workspace = true }
 description = "XRPL voting verifier contract"
