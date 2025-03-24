@@ -141,18 +141,9 @@ pub fn ecdsa_key(pub_key: &PublicKey) -> Result<Vec<u8>, Error> {
 }
 
 // Implement custom serde deserialize for PrincipalData
-pub mod principal_data_proxy {
-    use clarity::vm::types::{PrincipalData, QualifiedContractIdentifier, StandardPrincipalData};
-    use serde::{Deserialize, Deserializer, Serialize};
-
-    // This is used indirectly by using #[serde(with = "crate::stacks::principal_data_proxy")]
-    #[allow(dead_code)]
-    #[derive(Serialize, Deserialize, Debug)]
-    #[serde(remote = "clarity::vm::types::PrincipalData")]
-    pub enum PrincipalDataDef {
-        Standard(StandardPrincipalData),
-        Contract(QualifiedContractIdentifier),
-    }
+pub mod principal_data_serde {
+    use clarity::vm::types::PrincipalData;
+    use serde::{Deserialize, Deserializer};
 
     pub fn deserialize<'de, D>(deserializer: D) -> Result<PrincipalData, D::Error>
     where

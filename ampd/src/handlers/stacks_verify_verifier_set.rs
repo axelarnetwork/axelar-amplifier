@@ -37,7 +37,7 @@ pub struct VerifierSetConfirmation {
 #[try_from("wasm-verifier_set_poll_started")]
 struct PollStartedEvent {
     poll_id: PollId,
-    #[serde(with = "crate::stacks::principal_data_proxy")]
+    #[serde(with = "crate::stacks::principal_data_serde")]
     source_gateway_address: PrincipalData,
     verifier_set: VerifierSetConfirmation,
     participants: Vec<TMAddress>,

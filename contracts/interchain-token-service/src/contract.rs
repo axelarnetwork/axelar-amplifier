@@ -5,7 +5,7 @@ use axelar_wasm_std::{address, killswitch, permission_control, FnExt, IntoContra
 use axelarnet_gateway::AxelarExecutableMsg;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{Addr, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response, Storage};
+use cosmwasm_std::{Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response, Storage};
 use error_stack::{Report, ResultExt};
 use execute::{freeze_chain, unfreeze_chain};
 
@@ -14,9 +14,11 @@ use crate::state;
 use crate::state::Config;
 
 mod execute;
+mod migrations;
 mod query;
 
 pub use execute::Error as ExecuteError;
+pub use migrations::{migrate, MigrateMsg};
 
 const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -47,15 +49,10 @@ pub enum Error {
     QueryTokenInstance,
     #[error("failed to query the token config")]
     QueryTokenConfig,
-}
-
-#[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, _msg: Empty) -> Result<Response, ContractError> {
-    // Implement migration logic if needed
-
-    cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-
-    Ok(Response::default())
+    #[error("failed to query the status of contract")]
+    QueryContractStatus,
+    #[error("failed to query chain configs")]
+    QueryAllChainConfigs,
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -100,11 +97,8 @@ pub fn execute(
         ExecuteMsg::RegisterChains { chains } => {
             execute::register_chains(deps, chains).change_context(Error::RegisterChains)
         }
-        ExecuteMsg::UpdateChain {
-            chain,
-            its_edge_contract,
-        } => {
-            execute::update_chain(deps, chain, its_edge_contract).change_context(Error::UpdateChain)
+        ExecuteMsg::UpdateChains { chains } => {
+            execute::update_chains(deps, chains).change_context(Error::UpdateChain)
         }
         ExecuteMsg::FreezeChain { chain } => {
             freeze_chain(deps, chain).change_context(Error::FreezeChain)
@@ -135,11 +129,20 @@ pub fn query(deps: Deps, _: Env, msg: QueryMsg) -> Result<Binary, ContractError>
         QueryMsg::AllItsContracts => {
             query::all_its_contracts(deps).change_context(Error::QueryAllItsContracts)
         }
+        QueryMsg::ItsChains {
+            filter,
+            start_after,
+            limit,
+        } => query::its_chains(deps, filter, start_after, limit)
+            .change_context(Error::QueryAllChainConfigs),
         QueryMsg::TokenInstance { chain, token_id } => {
             query::token_instance(deps, chain, token_id).change_context(Error::QueryTokenInstance)
         }
         QueryMsg::TokenConfig { token_id } => {
             query::token_config(deps, token_id).change_context(Error::QueryTokenConfig)
+        }
+        QueryMsg::IsEnabled => {
+            query::is_contract_enabled(deps).change_context(Error::QueryContractStatus)
         }
     }?
     .then(Ok)

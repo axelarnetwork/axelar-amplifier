@@ -134,6 +134,16 @@ mod tests {
             rpc_url = 'http://localhost:7545'
 
             [[handlers]]
+            type = 'StarknetMsgVerifier'
+            cosmwasm_contract = '{}'
+            rpc_url = 'http://localhost:7545'
+
+            [[handlers]]
+            type = 'StarknetVerifierSetVerifier'
+            cosmwasm_contract = '{}'
+            rpc_url = 'http://localhost:7545'
+
+            [[handlers]]
             type = 'StacksMsgVerifier'
             cosmwasm_contract = '{}'
             http_url = 'http://localhost:8000'
@@ -155,10 +165,12 @@ mod tests {
             TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
+            TMAddress::random(PREFIX),
+            TMAddress::random(PREFIX),
         );
 
         let cfg: Config = toml::from_str(config_str.as_str()).unwrap();
-        assert_eq!(cfg.handlers.len(), 12);
+        assert_eq!(cfg.handlers.len(), 14);
     }
 
     #[test]
@@ -357,6 +369,18 @@ mod tests {
                     rpc_url: Url::from_str("http://127.0.0.1").unwrap(),
                 },
                 HandlerConfig::StellarVerifierSetVerifier {
+                    cosmwasm_contract: TMAddress::from(
+                        AccountId::new("axelar", &[0u8; 32]).unwrap(),
+                    ),
+                    rpc_url: Url::from_str("http://127.0.0.1").unwrap(),
+                },
+                HandlerConfig::StarknetMsgVerifier {
+                    cosmwasm_contract: TMAddress::from(
+                        AccountId::new("axelar", &[0u8; 32]).unwrap(),
+                    ),
+                    rpc_url: Url::from_str("http://127.0.0.1").unwrap(),
+                },
+                HandlerConfig::StarknetVerifierSetVerifier {
                     cosmwasm_contract: TMAddress::from(
                         AccountId::new("axelar", &[0u8; 32]).unwrap(),
                     ),

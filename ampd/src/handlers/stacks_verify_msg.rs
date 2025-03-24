@@ -33,7 +33,7 @@ pub struct Message {
     pub message_id: HexTxHashAndEventIndex,
     pub destination_address: String,
     pub destination_chain: ChainName,
-    #[serde(with = "crate::stacks::principal_data_proxy")]
+    #[serde(with = "crate::stacks::principal_data_serde")]
     pub source_address: PrincipalData,
     pub payload_hash: Hash,
 }
@@ -43,7 +43,7 @@ pub struct Message {
 struct PollStartedEvent {
     poll_id: PollId,
     source_chain: ChainName,
-    #[serde(with = "crate::stacks::principal_data_proxy")]
+    #[serde(with = "crate::stacks::principal_data_serde")]
     source_gateway_address: PrincipalData,
     confirmation_height: u64,
     messages: Vec<Message>,

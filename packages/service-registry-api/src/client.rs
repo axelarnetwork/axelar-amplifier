@@ -56,7 +56,7 @@ pub struct Client<'a> {
     client: client::ContractClient<'a, ExecuteMsg, QueryMsg>,
 }
 
-impl<'a> Client<'a> {
+impl Client<'_> {
     // TODO: add execute methods
 
     pub fn active_verifiers(

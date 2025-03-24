@@ -139,7 +139,7 @@ pub fn route_messages(
     };
 
     msgs.into_iter()
-        .group_by(|msg| msg.destination_chain.to_owned())
+        .chunk_by(|msg| msg.destination_chain.to_owned())
         .into_iter()
         .try_fold(Response::new(), |acc, (dest_chain, msgs)| {
             let (messages, events) = match determine_routing_destination(
