@@ -122,7 +122,7 @@ where
         info!(
             session_id = session_id,
             msg = unsigned_tx.to_hex(),
-            "get xrpl signing request",
+            "get signing request",
         );
 
         let latest_block_height = *self.latest_block_height.borrow();
