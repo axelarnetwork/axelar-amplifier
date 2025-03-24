@@ -11232,7 +11232,7 @@ dependencies = [
 
 [[package]]
 name = "xrpl-gateway"
-version = "1.0.2"
+version = "1.0.0"
 dependencies = [
  "axelar-core-std 1.0.0",
  "axelar-wasm-std 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
@@ -11261,7 +11261,7 @@ dependencies = [
 
 [[package]]
 name = "xrpl-multisig-prover"
-version = "0.1.1"
+version = "1.0.0"
 dependencies = [
  "anyhow",
  "ascii",
