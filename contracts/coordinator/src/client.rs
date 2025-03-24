@@ -58,7 +58,7 @@ impl Client<'_> {
             new_prover_addr,
         })
     }
-    
+
     pub fn register_contract_addresses(
         &self,
         chain_name: ChainName,

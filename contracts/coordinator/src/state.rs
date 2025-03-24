@@ -25,10 +25,10 @@ pub fn load_config(storage: &dyn Storage) -> Config {
 
 #[cw_serde]
 pub struct ChainContractsRecord {
-    chain_name: ChainName,
-    prover_address: ProverAddress,
-    gateway_address: GatewayAddress,
-    verifier_address: VerifierAddress,
+    pub chain_name: ChainName,
+    pub prover_address: ProverAddress,
+    pub gateway_address: GatewayAddress,
+    pub verifier_address: VerifierAddress,
 }
 
 pub struct ChainContractsIndexes<'a> {
@@ -74,10 +74,11 @@ pub fn save_chain_contracts(
         gateway_address,
         verifier_address,
     };
-    CHAIN_CONTRACTS_MAP.save(storage, chain, &record);
+    CHAIN_CONTRACTS_MAP.save(storage, chain, &record)?;
     Ok(())
 }
 
+#[allow(dead_code)] // Used in tests, might be useful in future query
 pub fn get_contracts_by_chain(
     storage: &dyn Storage,
     chain_name: ChainName,
@@ -87,6 +88,7 @@ pub fn get_contracts_by_chain(
         .ok_or(ContractError::ChainNotRegistered)
 }
 
+#[allow(dead_code)] // Used in tests, might be useful in future query
 pub fn get_contracts_by_prover(
     storage: &dyn Storage,
     prover_address: ProverAddress,
@@ -99,6 +101,7 @@ pub fn get_contracts_by_prover(
         .ok_or(ContractError::ProverNotRegistered)
 }
 
+#[allow(dead_code)] // Used in tests, might be useful in future query
 pub fn get_contracts_by_gateway(
     storage: &dyn Storage,
     gateway_address: GatewayAddress,
@@ -111,6 +114,7 @@ pub fn get_contracts_by_gateway(
         .ok_or(ContractError::GatewayNotRegistered)
 }
 
+#[allow(dead_code)] // Used in tests, might be useful in future query
 pub fn get_contracts_by_verifier(
     storage: &dyn Storage,
     verifier_address: VerifierAddress,
