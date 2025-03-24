@@ -1,5 +1,4 @@
 use std::hash::Hash;
-use std::ops::Sub;
 use std::str::FromStr;
 
 use axelar_core_std::nexus;
@@ -227,7 +226,7 @@ pub fn translate_to_interchain_transfer(
     }
 
     let token_id =
-        payment_amount_to_token_id(storage, config, &interchain_transfer_message.amount)?;
+        payment_amount_to_token_id(storage, config, &interchain_transfer_message.transfer_amount)?;
 
     let source_address = nonempty::HexBinary::try_from(HexBinary::from(
         interchain_transfer_message.source_address.to_string().as_bytes(),
@@ -237,14 +236,7 @@ pub fn translate_to_interchain_transfer(
     let destination_chain =
         ChainNameRaw::from(interchain_transfer_message.destination_chain.clone());
 
-    let transfer_amount = interchain_transfer_message
-        .amount
-        .clone()
-        .sub(interchain_transfer_message.gas_fee_amount.clone())
-        .change_context(Error::InvalidGasFeeAmount {
-            amount: interchain_transfer_message.amount.to_owned(),
-            gas_fee_amount: interchain_transfer_message.gas_fee_amount.to_owned(),
-        })?;
+    let transfer_amount = &interchain_transfer_message.transfer_amount;
 
     let amount = match transfer_amount.clone() {
         XRPLPaymentAmount::Drops(drops) => Uint256::from(drops),

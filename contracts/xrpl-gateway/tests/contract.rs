@@ -610,7 +610,8 @@ fn generate_incoming_msgs(namespace: impl Debug, count: u8) -> Vec<XRPLMessage> 
         .map(|i| {
             XRPLMessage::InterchainTransferMessage(XRPLInterchainTransferMessage {
                 tx_id: message_id(format!("{:?}{}", namespace, i).as_str()),
-                amount: XRPLPaymentAmount::Drops(1_000_000),
+                transfer_amount: XRPLPaymentAmount::Drops(999_000),
+                gas_fee_amount: XRPLPaymentAmount::Drops(1_000),
                 destination_address: nonempty::String::try_from("01dc").unwrap(),
                 destination_chain: "ethereum".parse().unwrap(),
                 source_address: XRPLAccountId::from([i; 20]),
@@ -623,7 +624,6 @@ fn generate_incoming_msgs(namespace: impl Debug, count: u8) -> Vec<XRPLMessage> 
                     .try_into()
                     .unwrap(),
                 ),
-                gas_fee_amount: XRPLPaymentAmount::Drops(1_000),
             })
         })
         .collect()

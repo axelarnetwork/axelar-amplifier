@@ -106,7 +106,7 @@ mod test {
             destination_address: nonempty::String::try_from("5678").unwrap(),
             destination_chain: "eth".parse().unwrap(),
             payload_hash: None,
-            amount: XRPLPaymentAmount::Drops(100),
+            transfer_amount: XRPLPaymentAmount::Drops(100),
             gas_fee_amount: XRPLPaymentAmount::Drops(100),
         });
 
@@ -116,7 +116,7 @@ mod test {
             destination_address: nonempty::String::try_from("5678").unwrap(),
             destination_chain: "eth".parse().unwrap(),
             payload_hash: None,
-            amount: XRPLPaymentAmount::Issued(
+            transfer_amount: XRPLPaymentAmount::Issued(
                 XRPLToken {
                     currency: "USD".to_string().try_into().unwrap(),
                     issuer: XRPLAccountId::new([0; 20]),
@@ -168,7 +168,7 @@ mod test {
                 destination_address: nonempty::String::try_from("5678").unwrap(),
                 destination_chain: "eth".parse().unwrap(),
                 payload_hash: None,
-                amount: XRPLPaymentAmount::Drops(200),
+                transfer_amount: XRPLPaymentAmount::Drops(200),
                 gas_fee_amount: XRPLPaymentAmount::Drops(200),
             },
         )]);
