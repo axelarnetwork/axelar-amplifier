@@ -7,17 +7,9 @@ on:
         description: Binary to release
         type: choice
         options:
-          - ampd
-          - router
-          - gateway
-          - multisig
-          - multisig-prover
-          - rewards
-          - service-registry
-          - voting-verifier
-          - coordinator
-          - axelarnet-gateway
-          - interchain-token-service
+          - xrpl-multisig-prover
+          - xrpl-gateway
+          - xrpl-voting-verifier
       dry-run:
         description: Dry run
         type: boolean
@@ -39,17 +31,9 @@ jobs:
         run: |
           binary="${{ github.event.inputs.binary-to-release }}"
           declare -A binaries_data=(
-            ["ampd"]="ampd,/\(major\)|\(major-ampd\)/,/\(minor\)|\(minor-ampd\)/,ampd packages"
-            ["router"]="router,/\(major\)|\(major-router\)|\(major-contracts\)|\(major-connection-router\)/,/\(minor\)|\(minor-router\)|\(minor-contracts\)|\(minor-connection-router\)/,contracts/router packages"
-            ["gateway"]="gateway,/\(major\)|\(major-gateway\)|\(major-contracts\)/,/\(minor\)|\(minor-gateway\)|\(minor-contracts\)/,contracts/gateway packages"
-            ["multisig"]="multisig,/\(major\)|\(major-multisig\)|\(major-contracts\)/,/\(minor\)|\(minor-multisig\)|\(minor-contracts\)/,contracts/multisig packages"
-            ["multisig-prover"]="multisig-prover,/\(major\)|\(major-multisig-prover\)|\(major-contracts\)/,/\(minor\)|\(minor-multisig-prover\)|\(minor-contracts\)/,contracts/multisig-prover packages"
-            ["rewards"]="rewards,/\(major\)|\(major-rewards\)|\(major-contracts\)/,/\(minor\)|\(minor-rewards\)|\(minor-contracts\)/,contracts/rewards packages"
-            ["service-registry"]="service-registry,/\(major\)|\(major-service-registry\)|\(major-contracts\)/,/\(minor\)|\(minor-service-registry\)|\(minor-contracts\)/,contracts/service-registry packages"
-            ["voting-verifier"]="voting-verifier,/\(major\)|\(major-voting-verifier\)|\(major-contracts\)/,/\(minor\)|\(minor-voting-verifier\)|\(minor-contracts\)/,contracts/voting-verifier packages"
-            ["coordinator"]="coordinator,/\(major\)|\(major-coordinator\)|\(major-contracts\)/,/\(minor\)|\(minor-coordinator\)|\(minor-contracts\)/,contracts/coordinator packages"
-            ["axelarnet-gateway"]="axelarnet-gateway,/\(major\)|\(major-axelarnet-gateway\)|\(major-contracts\)/,/\(minor\)|\(minor-axelarnet-gateway\)|\(minor-contracts\)/,contracts/axelarnet-gateway packages"
-            ["interchain-token-service"]="interchain-token-service,/\(major\)|\(major-interchain-token-service\)|\(major-contracts\)/,/\(minor\)|\(minor-interchain-token-service\)|\(minor-contracts\)/,contracts/interchain-token-service packages"
+            ["xrpl-voting-verifier"]="xrpl-voting-verifier,/\(major\)|\(major-xrpl-voting-verifier\)|\(major-contracts\)/,/\(minor\)|\(minor-xrpl-voting-verifier\)|\(minor-contracts\)/,contracts/xrpl-voting-verifier packages"
+            ["xrpl-multisig-prover"]="xrpl-multisig-prover,/\(major\)|\(major-xrpl-multisig-prover\)|\(major-contracts\)/,/\(minor\)|\(minor-xrpl-multisig-prover\)|\(minor-contracts\)/,contracts/xrpl-multisig-prover packages"
+            ["xrpl-gateway"]="xrpl-gateway,/\(major\)|\(major-xrpl-gateway\)|\(major-contracts\)/,/\(minor\)|\(minor-xrpl-gateway\)|\(minor-contracts\)/,contracts/xrpl-gateway packages"
           )
 
           if [[ -n "${binaries_data[$binary]}" ]]; then
