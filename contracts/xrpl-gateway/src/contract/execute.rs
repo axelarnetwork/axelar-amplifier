@@ -1,5 +1,4 @@
 use std::hash::Hash;
-use std::ops::Sub;
 use std::str::FromStr;
 
 use axelar_core_std::nexus;
@@ -227,24 +226,17 @@ pub fn translate_to_interchain_transfer(
     }
 
     let token_id =
-        payment_amount_to_token_id(storage, config, &interchain_transfer_message.amount)?;
+        payment_amount_to_token_id(storage, config, &interchain_transfer_message.transfer_amount)?;
 
     let source_address = nonempty::HexBinary::try_from(HexBinary::from(
-        interchain_transfer_message.source_address.to_string().as_bytes(),
+        interchain_transfer_message.source_address.as_ref(),
     ))
     .change_context(Error::InvalidAddress)?;
     let destination_address = interchain_transfer_message.destination_address.clone();
     let destination_chain =
         ChainNameRaw::from(interchain_transfer_message.destination_chain.clone());
 
-    let transfer_amount = interchain_transfer_message
-        .amount
-        .clone()
-        .sub(interchain_transfer_message.gas_fee_amount.clone())
-        .change_context(Error::InvalidGasFeeAmount {
-            amount: interchain_transfer_message.amount.to_owned(),
-            gas_fee_amount: interchain_transfer_message.gas_fee_amount.to_owned(),
-        })?;
+    let transfer_amount = &interchain_transfer_message.transfer_amount;
 
     let amount = match transfer_amount.clone() {
         XRPLPaymentAmount::Drops(drops) => Uint256::from(drops),
@@ -256,7 +248,7 @@ pub fn translate_to_interchain_transfer(
                     chain_name: destination_chain.to_owned(),
                 })?;
 
-            let (amount, _dust) = scale_to_decimals(token_amount, destination_decimals)
+            let amount = scale_to_decimals(token_amount, destination_decimals)
                 .change_context(Error::InvalidTransferAmount {
                     destination_chain,
                     amount: transfer_amount.to_owned(),
@@ -322,14 +314,17 @@ pub fn translate_to_call_contract(
 
     let gas_token_id =
         payment_amount_to_token_id(storage, config, &call_contract_message.gas_fee_amount)?;
-    let source_address = call_contract_message.source_address.to_string();
+    let source_address = nonempty::HexBinary::try_from(HexBinary::from(
+        call_contract_message.source_address.as_ref(),
+    ))
+    .change_context(Error::InvalidAddress)?;
     let destination_address = call_contract_message.destination_address.clone();
     let destination_chain = call_contract_message.destination_chain.clone();
 
     let cc_id = call_contract_message.cc_id(config.chain_name.clone().into());
     let message = Message {
         cc_id,
-        source_address: Address::from_str(&source_address)
+        source_address: Address::from_str(&source_address.to_string())
             .change_context(Error::InvalidSourceAddress)?,
         destination_address: Address::from_str(&destination_address)
             .change_context(Error::InvalidDestinationAddress)?,

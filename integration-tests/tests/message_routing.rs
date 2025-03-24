@@ -274,8 +274,8 @@ fn payment_from_xrpl_can_be_verified_and_routed_and_proven() {
         nonempty::String::try_from("95181d16cfb23Bc493668C17d973F061e30F2EAF").unwrap();
 
     let destination_chain_name = destination_chain.chain_name.clone();
-    let amount = 1000000; // 1 XRP
-    let gas_fee_amount = 100; // 1 XRP
+    let transfer_amount = 1000000; // 1 XRP
+    let gas_fee_amount = 100; // 100 drops
     let payload: Option<nonempty::HexBinary> = None;
 
     let xrpl_interchain_transfer_msg = XRPLInterchainTransferMessage {
@@ -284,7 +284,7 @@ fn payment_from_xrpl_can_be_verified_and_routed_and_proven() {
         destination_chain: destination_chain_name.clone(),
         destination_address: destination_address.clone(),
         payload_hash: None,
-        amount: XRPLPaymentAmount::Drops(amount),
+        transfer_amount: XRPLPaymentAmount::Drops(transfer_amount),
         gas_fee_amount: XRPLPaymentAmount::Drops(gas_fee_amount),
     };
 
@@ -295,14 +295,14 @@ fn payment_from_xrpl_can_be_verified_and_routed_and_proven() {
         interchain_token_service::InterchainTransfer {
             token_id: xrpl.xrp_token_id,
             source_address: nonempty::HexBinary::try_from(HexBinary::from(
-                source_address.to_string().as_bytes(),
+                source_address.as_bytes(),
             ))
             .unwrap(),
             destination_address: nonempty::HexBinary::try_from(
                 HexBinary::from_hex(&destination_address).unwrap(),
             )
             .unwrap(),
-            amount: nonempty::Uint256::try_from(amount - gas_fee_amount).unwrap(),
+            amount: nonempty::Uint256::try_from(transfer_amount).unwrap(),
             data: payload,
         },
     );

@@ -216,7 +216,7 @@ mod test {
                     destination_chain: format!("destination-chain{i}").parse().unwrap(),
                     destination_address: nonempty::String::try_from("1234").unwrap(),
                     payload_hash: None,
-                    amount: XRPLPaymentAmount::Drops(
+                    transfer_amount: XRPLPaymentAmount::Drops(
                         u64::from(i).checked_mul(1_000_000).expect("overflow"),
                     ),
                     gas_fee_amount: XRPLPaymentAmount::Drops(

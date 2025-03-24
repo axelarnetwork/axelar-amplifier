@@ -56,11 +56,6 @@ pub enum Error {
     InvalidDestinationChain(ChainNameRaw),
     #[error("invalid drops {0}")]
     InvalidDrops(u64),
-    #[error("gas fee amount {gas_fee_amount} is greater than the full deposit amount {amount}")]
-    InvalidGasFeeAmount {
-        gas_fee_amount: XRPLPaymentAmount,
-        amount: XRPLPaymentAmount,
-    },
     #[error("invalid source address")]
     InvalidSourceAddress,
     #[error("invalid token")]

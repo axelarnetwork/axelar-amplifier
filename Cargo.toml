@@ -45,7 +45,7 @@ events = { version = "^1.0.0", path = "packages/events" }
 events-derive = { version = "^1.0.0", path = "packages/events-derive" }
 evm-gateway = { version = "^1.0.0", path = "packages/evm-gateway" }
 xrpl-types = { git = "https://github.com/commonprefix/axelar-amplifier", branch = "xrpl-ampd" }
-xrpl-multisig-prover = { version = "^0.1.0", path = "contracts/xrpl-multisig-prover" }
+xrpl-multisig-prover = { version = "^1.0.0", path = "contracts/xrpl-multisig-prover" }
 xrpl-voting-verifier = { version = "^1.0.0", path = "contracts/xrpl-voting-verifier" }
 xrpl-gateway = { version = "^1.0.0", path = "contracts/xrpl-gateway" }
 gateway = { version = "^1.1.1", path = "contracts/gateway" }
