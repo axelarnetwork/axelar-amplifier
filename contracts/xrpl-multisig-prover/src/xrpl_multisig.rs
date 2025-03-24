@@ -74,8 +74,17 @@ fn ensure_sufficient_fee_reserve(
     if should_assert_sufficient_reserve(tx_object_count, previous_max_object_count_opt) {
         let current_reserve = FEE_RESERVE.load(storage)?;
         let account_reserve = account_reserve(storage, config)?;
-        let tx_reserve_increment = tx_fee + config.xrpl_owner_reserve * u64::from(tx_object_count);
-        let required_reserve = account_reserve + tx_reserve_increment;
+        let tx_reserve_increment = tx_fee
+            .checked_add(
+                config
+                    .xrpl_owner_reserve
+                    .checked_mul(u64::from(tx_object_count))
+                    .ok_or(ContractError::Overflow)?,
+            )
+            .ok_or(ContractError::Overflow)?;
+        let required_reserve = account_reserve
+            .checked_add(tx_reserve_increment)
+            .ok_or(ContractError::Overflow)?;
         if current_reserve < required_reserve {
             return Err(ContractError::InsufficientFeeReserve {
                 current_reserve,
@@ -103,7 +112,10 @@ fn tx_fee(
     sequence_number: u32,
     tx_type: XRPLUnsignedTxType,
 ) -> Result<u64, ContractError> {
-    let tx_fee = config.xrpl_transaction_fee * (1 + u64::from(MAX_SIGNERS));
+    let tx_fee = config
+        .xrpl_transaction_fee
+        .checked_mul(u64::from(1 + MAX_SIGNERS))
+        .ok_or(ContractError::Overflow)?;
     let owned_object_increment = tx_type.object_count_increment();
     ensure_sufficient_fee_reserve(
         storage,
@@ -117,8 +129,18 @@ fn tx_fee(
 
 pub fn account_reserve(storage: &dyn Storage, config: &Config) -> Result<u64, ContractError> {
     let trust_line_count = TRUST_LINE_COUNT.load(storage).unwrap_or_default();
-    let owned_objects = u64::from(XRPL_MULTISIG_FIXED_OWNED_OBJECTS) + trust_line_count;
-    let total_reserve = config.xrpl_base_reserve + config.xrpl_owner_reserve * owned_objects;
+    let owned_objects = u64::from(XRPL_MULTISIG_FIXED_OWNED_OBJECTS)
+        .checked_add(trust_line_count)
+        .ok_or(ContractError::Overflow)?;
+    let total_reserve = config
+        .xrpl_base_reserve
+        .checked_add(
+            config
+                .xrpl_owner_reserve
+                .checked_mul(owned_objects)
+                .ok_or(ContractError::Overflow)?,
+        )
+        .ok_or(ContractError::Overflow)?;
     Ok(total_reserve)
 }
 
@@ -312,7 +334,10 @@ pub fn confirm_prover_message(
             if TRUST_LINE.may_load(storage, &tx.token)?.is_none() {
                 TRUST_LINE.save(storage, &tx.token, &())?;
                 let count = TRUST_LINE_COUNT.may_load(storage)?.unwrap_or_default();
-                TRUST_LINE_COUNT.save(storage, &(count + 1))?;
+                TRUST_LINE_COUNT.save(
+                    storage,
+                    &(count.checked_add(1).ok_or(ContractError::Overflow)?),
+                )?;
             }
 
             None
