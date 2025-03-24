@@ -38,7 +38,7 @@ const UNSIGNED_TRANSACTION_MULTI_SIGNING_HASH_PREFIX: [u8; 4] = [0x53, 0x4D, 0x5
 
 lazy_static! {
     static ref CURRENCY_CODE_REGEX: Regex =
-        Regex::new(r"^(?!000)[A-Za-z0-9\?\!@#\$%\^&\*<>\(\)\{\}\[\]\|]{3}$").expect("valid regex");
+        Regex::new(r"^[A-Za-z0-9\?\!@#\$%\^&\*<>\(\)\{\}\[\]\|]{3}$").expect("valid regex");
 }
 
 // https://xrpl.org/docs/references/protocol/binary-format#token-amount-format
@@ -751,7 +751,7 @@ impl XRPLCurrency {
     }
 
     fn is_standard_currency(s: &str) -> bool {
-        s != XRP_RESERVED_CURRENCY && CURRENCY_CODE_REGEX.is_match(s)
+        s != XRP_RESERVED_CURRENCY && CURRENCY_CODE_REGEX.is_match(s) && s != "000"
     }
 
     fn is_valid_nonstandard_currency(s: &str) -> bool {
