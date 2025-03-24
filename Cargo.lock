@@ -11323,7 +11323,7 @@ dependencies = [
 
 [[package]]
 name = "xrpl-voting-verifier"
-version = "0.0.0"
+version = "1.0.0"
 dependencies = [
  "axelar-wasm-std 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
  "client 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
