@@ -1317,64 +1317,21 @@ pub fn canonicalize_mantissa(
 pub fn canonicalize_token_amount(
     amount: Uint256,
     decimals: u8,
-) -> Result<(XRPLTokenAmount, Uint256), XRPLError> {
+) -> Result<XRPLTokenAmount, XRPLError> {
     let neg_decimals = i64::from(decimals)
         .checked_neg()
         .ok_or(XRPLError::InvalidDecimals(decimals))?;
 
     let (mantissa, exponent) = canonicalize_mantissa(amount, neg_decimals)?;
-
-    let adjusted_exponent = exponent
-        .checked_add(i64::from(decimals))
-        .ok_or(XRPLError::ExponentOverflow)?;
-
-    let ten = Uint256::from(10u8);
-
-    let dust_amount = if adjusted_exponent >= 0 {
-        let scaling_factor = ten
-            .checked_pow(
-                adjusted_exponent
-                    .try_into()
-                    .map_err(|_| XRPLError::InvalidExponent)?,
-            )
-            .map_err(|_| XRPLError::ExponentiationOverflow)?;
-
-        let canonical_value = Uint256::from(mantissa)
-            .checked_mul(scaling_factor)
-            .map_err(|_| XRPLError::MultiplicationOverflow)?;
-
-        amount
-            .checked_sub(canonical_value)
-            .map_err(|_| XRPLError::CanonicalizedAmountExceedsOriginal)?
-    } else {
-        let scaling_factor = ten
-            .checked_pow(
-                adjusted_exponent
-                    .checked_neg()
-                    .ok_or(XRPLError::ExponentiationOverflow)?
-                    .try_into()
-                    .map_err(|_| XRPLError::InvalidExponent)?,
-            )
-            .map_err(|_| XRPLError::ExponentiationOverflow)?;
-
-        let canonical_value = Uint256::from(mantissa)
-            .checked_div(scaling_factor)
-            .map_err(|_| XRPLError::DivisionByZero)?;
-
-        amount
-            .checked_sub(canonical_value)
-            .map_err(|_| XRPLError::CanonicalizedAmountExceedsOriginal)?
-    };
-
-    Ok((XRPLTokenAmount::new(mantissa, exponent), dust_amount))
+    Ok(XRPLTokenAmount::new(mantissa, exponent))
 }
 
 pub fn scale_to_decimals(
     amount: XRPLTokenAmount,
     destination_decimals: u8,
-) -> Result<(Uint256, XRPLTokenAmount), XRPLError> {
+) -> Result<Uint256, XRPLError> {
     if amount.mantissa == 0 {
-        return Ok((Uint256::zero(), amount));
+        return Ok(Uint256::zero());
     }
 
     let mantissa = Uint256::from(amount.mantissa);
@@ -1399,7 +1356,7 @@ pub fn scale_to_decimals(
             .checked_mul(scaling_factor)
             .map_err(|_| XRPLError::MultiplicationOverflow)?;
 
-        Ok((scaled_mantissa, XRPLTokenAmount::ZERO))
+        Ok(scaled_mantissa)
     } else {
         ten.checked_pow(
             adjusted_exponent
@@ -1413,31 +1370,9 @@ pub fn scale_to_decimals(
                 .checked_div(scaling_factor)
                 .map_err(|_| XRPLError::DivisionByZero)?;
 
-            let dust_amount = mantissa
-                .checked_sub(
-                    quotient
-                        .checked_mul(scaling_factor)
-                        .map_err(|_| XRPLError::MultiplicationOverflow)?,
-                )
-                .map_err(|_| XRPLError::SubtractionUnderflow)?;
-
-            Ok((
-                quotient,
-                if dust_amount == Uint256::zero() {
-                    XRPLTokenAmount::ZERO
-                } else {
-                    let (dust_mantissa, dust_exponent) =
-                        canonicalize_mantissa(dust_amount, amount.exponent).map_err(|_| {
-                            XRPLError::FailedToCanonicalizeMatissa {
-                                mantissa: dust_amount,
-                                exponent: amount.exponent,
-                            }
-                        })?;
-                    XRPLTokenAmount::new(dust_mantissa, dust_exponent)
-                },
-            ))
+            Ok(quotient)
         })
-        .unwrap_or(Ok((Uint256::zero(), amount)))
+        .unwrap_or(Ok(Uint256::zero()))
     }
 }
 
@@ -1456,7 +1391,7 @@ fn convert_scaled_uint256_to_drops(value: Uint256) -> Result<u64, XRPLError> {
 }
 
 // Converts XRP drops to the destination chain's token amount.
-pub fn scale_from_drops(drops: u64, destination_decimals: u8) -> Result<(Uint256, u64), XRPLError> {
+pub fn scale_from_drops(drops: u64, destination_decimals: u8) -> Result<Uint256, XRPLError> {
     if drops > XRP_MAX_UINT {
         return Err(XRPLError::DropsTooLarge);
     }
@@ -1467,7 +1402,7 @@ pub fn scale_from_drops(drops: u64, destination_decimals: u8) -> Result<(Uint256
 
     let source_amount = Uint256::from(drops);
     if XRP_DECIMALS == destination_decimals {
-        return Ok((source_amount, 0u64));
+        return Ok(source_amount);
     }
 
     let ten = Uint256::from(10u8);
@@ -1475,29 +1410,17 @@ pub fn scale_from_drops(drops: u64, destination_decimals: u8) -> Result<(Uint256
         .checked_pow(XRP_DECIMALS.abs_diff(destination_decimals).into())
         .map_err(|_| XRPLError::ExponentiationOverflow)?;
 
-    let (destination_amount, dust_amount) = if XRP_DECIMALS > destination_decimals {
-        let quotient = source_amount
+    let destination_amount = if XRP_DECIMALS > destination_decimals {
+        source_amount
             .checked_div(scaling_factor)
-            .map_err(|_| XRPLError::DivisionByZero)?;
-
-        let product = quotient
-            .checked_mul(scaling_factor)
-            .map_err(|_| XRPLError::MultiplicationOverflow)?;
-
-        let remainder = source_amount
-            .checked_sub(product)
-            .map_err(|_| XRPLError::SubtractionUnderflow)?;
-
-        (quotient, convert_scaled_uint256_to_u64(remainder))
+            .map_err(|_| XRPLError::DivisionByZero)?
     } else {
-        let product = source_amount
+        source_amount
             .checked_mul(scaling_factor)
-            .map_err(|_| XRPLError::MultiplicationOverflow)?;
-
-        (product, 0u64)
+            .map_err(|_| XRPLError::MultiplicationOverflow)?
     };
 
-    Ok((destination_amount, dust_amount))
+    Ok(destination_amount)
 }
 
 // Converts the given amount of tokens to XRP drops.
@@ -1601,42 +1524,27 @@ mod tests {
     fn test_canonicalize_token_amount() {
         assert_eq!(
             canonicalize_token_amount(Uint256::one(), 18).unwrap(),
-            (
-                XRPLTokenAmount::new(1_000_000_000_000_000u64, -33),
-                Uint256::zero()
-            )
+            XRPLTokenAmount::new(1_000_000_000_000_000u64, -33)
         );
 
         assert_eq!(
             canonicalize_token_amount(Uint256::from(1_000_000_000_000_000_000u64), 18).unwrap(),
-            (
-                XRPLTokenAmount::new(1_000_000_000_000_000u64, -15),
-                Uint256::zero()
-            )
+            XRPLTokenAmount::new(1_000_000_000_000_000u64, -15)
         );
 
         assert_eq!(
             canonicalize_token_amount(Uint256::from(1_234_567_891_234_567_891u64), 18).unwrap(),
-            (
-                XRPLTokenAmount::new(1_234_567_891_234_567u64, -15),
-                Uint256::from(891u64)
-            )
+            XRPLTokenAmount::new(1_234_567_891_234_567u64, -15)
         );
 
         assert_eq!(
             canonicalize_token_amount(Uint256::from(1_234_567_891_234_567_891u64), 30).unwrap(),
-            (
-                XRPLTokenAmount::new(1_234_567_891_234_567u64, -27),
-                Uint256::from(891u64)
-            )
+            XRPLTokenAmount::new(1_234_567_891_234_567u64, -27)
         );
 
         assert_eq!(
             canonicalize_token_amount(Uint256::from(1_234_567_891_234_567_891u64), 6).unwrap(),
-            (
-                XRPLTokenAmount::new(1_234_567_891_234_567u64, -3),
-                Uint256::from(891u64)
-            )
+            XRPLTokenAmount::new(1_234_567_891_234_567u64, -3)
         );
     }
 
@@ -1645,46 +1553,34 @@ mod tests {
         let amount = XRPLTokenAmount::new(1_000_000_000_000_000u64, -33);
         assert_eq!(
             scale_to_decimals(amount, 18).unwrap(),
-            (Uint256::one(), XRPLTokenAmount::ZERO)
+            Uint256::one()
         );
 
         let amount = XRPLTokenAmount::new(1_000_000_000_000_000u64, -15);
         assert_eq!(
             scale_to_decimals(amount, 18).unwrap(),
-            (
-                Uint256::from(1_000_000_000_000_000_000u64),
-                XRPLTokenAmount::ZERO
-            )
+            Uint256::from(1_000_000_000_000_000_000u64)
         );
 
         let amount = XRPLTokenAmount::new(1_234_567_891_234_567u64, -15);
         assert_eq!(
             scale_to_decimals(amount, 18).unwrap(),
-            (
-                Uint256::from(1_234_567_891_234_567_000u64),
-                XRPLTokenAmount::ZERO
-            )
+            Uint256::from(1_234_567_891_234_567_000u64)
         );
 
         let amount = XRPLTokenAmount::new(1_234_567_891_234_567u64, -15);
         assert_eq!(
             scale_to_decimals(amount, 6).unwrap(),
-            (
-                Uint256::from(1_234_567u64),
-                XRPLTokenAmount::new(8_912_345_670_000_000u64, -22)
-            )
+            Uint256::from(1_234_567u64)
         );
 
         let amount = XRPLTokenAmount::new(9_999_999_999_999_999u64, 55);
         assert_eq!(
             scale_to_decimals(amount, 6).unwrap(),
-            (
-                Uint256::try_from(
-                    "99999999999999990000000000000000000000000000000000000000000000000000000000000"
-                )
-                .unwrap(),
-                XRPLTokenAmount::ZERO
+            Uint256::try_from(
+                "99999999999999990000000000000000000000000000000000000000000000000000000000000"
             )
+            .unwrap()
         );
 
         let amount = XRPLTokenAmount::new(9_999_999_999_999_999u64, 56);
@@ -1708,10 +1604,7 @@ mod tests {
         assert!(result.is_ok());
         assert_eq!(
             result.unwrap(),
-            (
-                Uint256::from(9999999999999999000000000000000000u128),
-                XRPLTokenAmount::ZERO
-            )
+            Uint256::from(9999999999999999000000000000000000u128)
         );
     }
 
@@ -1721,10 +1614,7 @@ mod tests {
         let result = scale_to_decimals(amount, 18);
         assert_eq!(
             result.unwrap(),
-            (
-                Uint256::zero(),
-                XRPLTokenAmount::new(9_999_999_999_999_999u64, MIN_EXPONENT)
-            )
+            Uint256::zero()
         );
     }
 
@@ -1734,10 +1624,7 @@ mod tests {
         let result = scale_to_decimals(amount, 6);
         assert_eq!(
             result.unwrap(),
-            (
-                Uint256::zero(),
-                XRPLTokenAmount::new(MAX_MANTISSA, MIN_EXPONENT)
-            )
+            Uint256::zero(),
         );
     }
 
@@ -1753,41 +1640,41 @@ mod tests {
     fn test_scale_from_drops() {
         assert_eq!(
             scale_from_drops(1_000_000, 18).unwrap(),
-            (Uint256::from(1_000_000_000_000_000_000u64), 0u64)
+            Uint256::from(1_000_000_000_000_000_000u64)
         );
         assert_eq!(
             scale_from_drops(100000000000000000, 18).unwrap(),
-            (Uint256::from(100000000000000000000000000000u128), 0u64)
+            Uint256::from(100000000000000000000000000000u128)
         );
         assert_eq!(
             scale_from_drops(1_000_000, 6).unwrap(),
-            (Uint256::from(1_000_000u32), 0u64)
+            Uint256::from(1_000_000u32)
         );
         assert_eq!(
             scale_from_drops(1_234_567, 18).unwrap(),
-            (Uint256::from(1_234_567_000_000_000_000u64), 0u64)
+            Uint256::from(1_234_567_000_000_000_000u64)
         );
         assert_eq!(
             scale_from_drops(1_000_000, 6).unwrap(),
-            (Uint256::from(1_000_000u32), 0u64)
+            Uint256::from(1_000_000u32)
         );
         assert_eq!(
             scale_from_drops(1_000_001, 5).unwrap(),
-            (Uint256::from(100_000u32), 1u64)
+            Uint256::from(100_000u32)
         );
         assert_eq!(
             scale_from_drops(1_000_123, 3).unwrap(),
-            (Uint256::from(1_000u32), 123u64)
+            Uint256::from(1_000u32)
         );
         assert_eq!(
             scale_from_drops(1_123_456_789, 3).unwrap(),
-            (Uint256::from(1_123_456u32), 789u64)
+            Uint256::from(1_123_456u32)
         );
         assert_eq!(
             scale_from_drops(1_123_456_789, 1).unwrap(),
-            (Uint256::from(11_234u32), 56_789u64)
+            Uint256::from(11_234u32)
         );
-        assert_eq!(scale_from_drops(1, 5).unwrap(), (Uint256::zero(), 1u64));
+        assert_eq!(scale_from_drops(1, 5).unwrap(), Uint256::zero());
     }
 
     #[test]
