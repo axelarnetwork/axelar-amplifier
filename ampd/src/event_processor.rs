@@ -177,6 +177,7 @@ enum StreamStatus {
 mod tests {
     use std::time::Duration;
 
+    use assert_ok::assert_ok;
     use async_trait::async_trait;
     use cosmrs::bank::MsgSend;
     use cosmrs::tx::Msg;
@@ -365,8 +366,7 @@ mod tests {
         )
         .await;
 
-        assert!(result_with_timeout.is_ok());
-        assert!(result_with_timeout.unwrap().is_ok());
+        assert_ok!(assert_ok!(result_with_timeout));
     }
 
     #[tokio::test]

@@ -35,7 +35,6 @@ pub mod config;
 mod event_processor;
 mod event_sub;
 mod evm;
-mod grpc;
 mod handlers;
 mod health_check;
 mod json_rpc;
@@ -49,8 +48,6 @@ mod tofnd;
 mod types;
 mod url;
 mod xrpl;
-
-pub use grpc::{client, proto};
 
 use crate::asyncutil::future::RetryPolicy;
 use crate::broadcaster::confirm_tx::TxConfirmer;
