@@ -21,7 +21,7 @@ pub struct Client<'a> {
     client: client::ContractClient<'a, ExecuteMsg, QueryMsg>,
 }
 
-impl<'a> Client<'a> {
+impl Client<'_> {
     pub fn call_contract(
         &self,
         destination_chain: ChainName,

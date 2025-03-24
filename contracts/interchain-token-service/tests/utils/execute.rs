@@ -58,7 +58,7 @@ pub fn make_deps() -> OwnedDeps<MemoryStorage, MockApi, MockQuerier<AxelarQueryM
         WasmQuery::Smart { contract_addr, msg } if contract_addr == &addr.to_string() => {
             let msg = from_json::<axelarnet_gateway::msg::QueryMsg>(msg).unwrap();
             match msg {
-                axelarnet_gateway::msg::QueryMsg::ChainName {} => {
+                axelarnet_gateway::msg::QueryMsg::ChainName => {
                     Ok(to_json_binary(&ChainName::try_from("axelar").unwrap()).into()).into()
                 }
                 _ => panic!("unsupported query"),

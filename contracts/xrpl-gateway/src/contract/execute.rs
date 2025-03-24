@@ -551,7 +551,7 @@ fn route_hub_message(
     hub_message: interchain_token_service::HubMessage,
 ) -> Result<Response, Error> {
     let payload = hub_message.abi_encode();
-    let cc_id = unique_cross_chain_id(&nexus_client, config.chain_name.clone())?;
+    let cc_id = unique_cross_chain_id(nexus_client, config.chain_name.clone())?;
     let its_msg = construct_its_hub_message(config, cc_id, payload.clone())?;
 
     let router = Router::new(config.router.clone());

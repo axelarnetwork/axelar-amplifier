@@ -191,7 +191,7 @@ pub fn authorize_callers(
         .map(|(contract_address, chain_name)| {
             AUTHORIZED_CALLERS.save(deps.storage, contract_address, chain_name)
         })
-        .try_collect()?;
+        .try_collect::<_, (), _>()?;
 
     Ok(
         Response::new().add_events(contracts.into_iter().map(|(contract_address, chain_name)| {

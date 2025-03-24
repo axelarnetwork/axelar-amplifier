@@ -56,7 +56,7 @@ impl From<Vec<u8>> for PayloadId {
     }
 }
 
-impl<'a> PrimaryKey<'a> for PayloadId {
+impl PrimaryKey<'_> for PayloadId {
     type Prefix = ();
     type SubPrefix = ();
     type Suffix = PayloadId;

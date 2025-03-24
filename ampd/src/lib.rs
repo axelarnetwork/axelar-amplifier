@@ -151,10 +151,10 @@ async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
     .await
 }
 
-async fn check_finalizer<'a, C>(
+async fn check_finalizer<C>(
     chain_name: &ChainName,
     finalization: &Finalization,
-    rpc_client: &'a C,
+    rpc_client: &C,
 ) -> Result<(), Error>
 where
     C: EthereumClient + Send + Sync,

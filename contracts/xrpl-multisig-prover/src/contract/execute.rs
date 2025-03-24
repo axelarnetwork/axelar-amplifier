@@ -463,7 +463,7 @@ pub fn update_verifier_set(
                 .map_err(ContractError::from)?;
 
             Ok(Response::new().add_message(
-                multisig.register_verifier_set(new_verifier_set.try_into().map_err(ContractError::from)?)
+                multisig.register_verifier_set(new_verifier_set.try_into()?)
             ))
         }
         Some(cur_verifier_set) => {

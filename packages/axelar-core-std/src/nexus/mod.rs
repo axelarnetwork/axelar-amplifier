@@ -32,7 +32,7 @@ impl<'a> From<client::CosmosClient<'a, execute::Message>> for Client<'a> {
     }
 }
 
-impl<'a> Client<'a> {
+impl Client<'_> {
     pub fn tx_hash_and_nonce(&self) -> Result<query::TxHashAndNonceResponse> {
         self.inner
             .query(QueryMsg::TxHashAndNonce {})

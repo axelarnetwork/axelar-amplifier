@@ -247,7 +247,7 @@ impl PartialEq<&str> for ChainName {
     }
 }
 
-impl<'a> PrimaryKey<'a> for ChainName {
+impl PrimaryKey<'_> for ChainName {
     type Prefix = ();
     type SubPrefix = ();
     type Suffix = Self;
@@ -258,7 +258,7 @@ impl<'a> PrimaryKey<'a> for ChainName {
     }
 }
 
-impl<'a> Prefixer<'a> for ChainName {
+impl Prefixer<'_> for ChainName {
     fn prefix(&self) -> Vec<Key> {
         vec![Key::Ref(self.0.as_bytes())]
     }
@@ -390,7 +390,7 @@ impl PartialEq<&str> for ChainNameRaw {
     }
 }
 
-impl<'a> PrimaryKey<'a> for ChainNameRaw {
+impl PrimaryKey<'_> for ChainNameRaw {
     type Prefix = ();
     type SubPrefix = ();
     type Suffix = Self;
@@ -401,7 +401,7 @@ impl<'a> PrimaryKey<'a> for ChainNameRaw {
     }
 }
 
-impl<'a> Prefixer<'a> for ChainNameRaw {
+impl Prefixer<'_> for ChainNameRaw {
     fn prefix(&self) -> Vec<Key> {
         vec![Key::Ref(self.0.as_bytes())]
     }

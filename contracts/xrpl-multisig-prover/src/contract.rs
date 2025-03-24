@@ -96,13 +96,13 @@ pub fn execute(
             cc_id,
             payload,
         ),
-        ExecuteMsg::UpdateVerifierSet {} => {
+        ExecuteMsg::UpdateVerifierSet => {
             execute::update_verifier_set(deps.storage, deps.querier, env)
         }
         ExecuteMsg::ConfirmProverMessage { prover_message } => {
             execute::confirm_prover_message(deps.storage, deps.querier, &config, prover_message)
         }
-        ExecuteMsg::TicketCreate {} => {
+        ExecuteMsg::TicketCreate => {
             execute::construct_ticket_create_proof(deps.storage, env.contract.address, &config)
         }
         ExecuteMsg::UpdateSigningThreshold {
@@ -172,14 +172,14 @@ pub fn query(
             &multisig::key::Signature::try_from((multisig::key::KeyType::Ecdsa, signature))
                 .map_err(|_| ContractError::InvalidSignature)?,
         )?),
-        QueryMsg::CurrentVerifierSet {} => {
+        QueryMsg::CurrentVerifierSet => {
             to_json_binary(&query::current_verifier_set(deps.storage)?)
         }
-        QueryMsg::NextVerifierSet {} => to_json_binary(&query::next_verifier_set(deps.storage)?),
+        QueryMsg::NextVerifierSet => to_json_binary(&query::next_verifier_set(deps.storage)?),
         QueryMsg::MultisigSession { cc_id } => {
             to_json_binary(&query::multisig_session(deps.storage, &cc_id)?)
         }
-        QueryMsg::TicketCreate {} => to_json_binary(&query::ticket_create(deps.storage, config.ticket_count_threshold)?),
+        QueryMsg::TicketCreate => to_json_binary(&query::ticket_create(deps.storage, config.ticket_count_threshold)?),
     }
     .change_context(ContractError::SerializeResponse)
     .map_err(axelar_wasm_std::error::ContractError::from)
