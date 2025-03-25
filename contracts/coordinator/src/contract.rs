@@ -11,12 +11,11 @@ use cosmwasm_std::{
 };
 use error_stack::report;
 use itertools::Itertools;
+pub use migrations::{migrate, MigrateMsg};
 
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{is_prover_registered, Config, CONFIG};
-
-pub use migrations::{migrate, MigrateMsg};
 
 pub const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 pub const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");

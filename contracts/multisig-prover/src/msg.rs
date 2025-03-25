@@ -6,10 +6,9 @@ use msgs_derive::EnsurePermissions;
 use multisig::key::KeyType;
 use router_api::CrossChainId;
 
+pub use crate::contract::MigrateMsg;
 use crate::encoding::Encoder;
 use crate::payload::Payload;
-
-pub use crate::contract::MigrateMsg;
 
 #[cw_serde]
 pub struct InstantiateMsg {
