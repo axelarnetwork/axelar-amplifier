@@ -9,6 +9,8 @@ use router_api::CrossChainId;
 use crate::encoding::Encoder;
 use crate::payload::Payload;
 
+pub use crate::contract::MigrateMsg;
+
 #[cw_serde]
 pub struct InstantiateMsg {
     /// Address that can execute all messages that either have unrestricted or admin permission level, such as Updateverifier set.

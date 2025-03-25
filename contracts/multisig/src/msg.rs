@@ -10,6 +10,8 @@ use crate::key::{KeyType, PublicKey, Signature};
 use crate::multisig::Multisig;
 use crate::verifier_set::VerifierSet;
 
+pub use crate::contract::MigrateMsg;
+
 #[cw_serde]
 pub struct InstantiateMsg {
     /// the governance address is allowed to modify the authorized caller list for this contract
