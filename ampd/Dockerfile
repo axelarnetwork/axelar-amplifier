@@ -5,6 +5,7 @@ WORKDIR /ampd
 COPY ./Cargo.toml ./Cargo.toml
 COPY ./Cargo.lock ./Cargo.lock
 COPY ./ampd/Cargo.toml ./ampd/Cargo.toml
+COPY ./ampd-handlers ./ampd-handlers
 COPY ./packages ./packages
 COPY ./contracts ./contracts
 COPY ./integration-tests ./integration-tests
