@@ -1,11 +1,8 @@
-[submodule "ampd-proto"]
+[submodule "ampd-proto-ampd"]
 	path = ampd/ampd-proto
-	url = https://github.com/axelarnetwork/grpc-protobuf.git  #TODO: change this later to the correct repo
+	url = https://github.com/axelarnetwork/ampd-proto.git
 	branch = main
-	fetchRecurseSubmodules = true
-
-[submodule "ampd-proto"]
+[submodule "ampd-proto-sdk"]
 	path = packages/ampd-sdk/ampd-proto
-	url = https://github.com/axelarnetwork/grpc-protobuf.git  #TODO: change this later to the correct repo
+	url = https://github.com/axelarnetwork/ampd-proto.git
 	branch = main
-	fetchRecurseSubmodules = true
