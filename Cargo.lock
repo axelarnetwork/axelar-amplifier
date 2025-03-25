@@ -230,7 +230,7 @@ version = "1.4.0"
 dependencies = [
  "assert_ok",
  "async-trait",
- "axelar-wasm-std 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "axelar-wasm-std 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "axum 0.7.9",
  "base64 0.21.7",
  "bcs",
@@ -261,7 +261,7 @@ dependencies = [
  "k256",
  "mockall 0.11.4",
  "move-core-types",
- "multisig 1.1.1 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "multisig 1.1.1 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "multiversx-sdk",
  "num-traits",
  "openssl",
@@ -272,7 +272,7 @@ dependencies = [
  "report 1.0.0",
  "reqwest 0.11.27",
  "rewards 1.2.0",
- "router-api 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "router-api 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "serde",
  "serde_json",
  "serde_with",
@@ -837,14 +837,14 @@ name = "axelar-core-std"
 version = "1.0.0"
 dependencies = [
  "assert_ok",
- "axelar-wasm-std 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
- "client 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "axelar-wasm-std 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
+ "client 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "cosmwasm-std 2.2.2",
  "error-stack",
  "goldie",
  "hex",
  "rand 0.8.5",
- "router-api 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "router-api 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "schemars",
  "serde",
  "serde_json",
@@ -854,13 +854,13 @@ dependencies = [
 [[package]]
 name = "axelar-core-std"
 version = "1.0.0"
-source = "git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd#4f3f538f71aecb9d34abfc7d25a35a67a346c0cc"
+source = "git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0#a95eb40d9c1a3844218f99fe39197e7b8a39c3ce"
 dependencies = [
- "axelar-wasm-std 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
- "client 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "axelar-wasm-std 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
+ "client 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "cosmwasm-std 2.2.2",
  "error-stack",
- "router-api 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "router-api 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "schemars",
  "serde",
  "serde_json",
@@ -898,7 +898,7 @@ dependencies = [
  "serde_json",
  "serde_with",
  "sha3",
- "starknet-checked-felt 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "starknet-checked-felt 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "stellar-xdr",
  "strum 0.25.0",
  "sui-types 1.0.0",
@@ -909,10 +909,10 @@ dependencies = [
 [[package]]
 name = "axelar-wasm-std"
 version = "1.0.0"
-source = "git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd#4f3f538f71aecb9d34abfc7d25a35a67a346c0cc"
+source = "git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0#a95eb40d9c1a3844218f99fe39197e7b8a39c3ce"
 dependencies = [
  "alloy-primitives",
- "axelar-wasm-std-derive 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "axelar-wasm-std-derive 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "bech32 0.11.0",
  "bs58 0.5.1",
  "cosmwasm-schema 2.2.2",
@@ -921,22 +921,22 @@ dependencies = [
  "cw2 2.0.0",
  "error-stack",
  "flagset",
- "into-inner-derive 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "into-inner-derive 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "itertools 0.14.0",
  "lazy_static",
  "num-traits",
  "regex",
- "report 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "report 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "schemars",
  "semver 1.0.26",
  "serde",
  "serde_json",
  "serde_with",
  "sha3",
- "starknet-checked-felt 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "starknet-checked-felt 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "stellar-xdr",
  "strum 0.25.0",
- "sui-types 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "sui-types 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "thiserror 1.0.69",
  "valuable",
 ]
@@ -945,7 +945,7 @@ dependencies = [
 name = "axelar-wasm-std-derive"
 version = "1.0.0"
 dependencies = [
- "axelar-wasm-std 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "axelar-wasm-std 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "cosmwasm-std 2.2.2",
  "error-stack",
  "heck 0.5.0",
@@ -962,7 +962,7 @@ dependencies = [
 [[package]]
 name = "axelar-wasm-std-derive"
 version = "1.0.0"
-source = "git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd#4f3f538f71aecb9d34abfc7d25a35a67a346c0cc"
+source = "git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0#a95eb40d9c1a3844218f99fe39197e7b8a39c3ce"
 dependencies = [
  "cosmwasm-std 2.2.2",
  "error-stack",
@@ -970,7 +970,7 @@ dependencies = [
  "itertools 0.14.0",
  "proc-macro2 1.0.94",
  "quote 1.0.40",
- "report 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "report 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "semver 1.0.26",
  "syn 2.0.100",
  "thiserror 1.0.69",
@@ -982,8 +982,8 @@ version = "1.0.0"
 dependencies = [
  "assert_ok",
  "axelar-core-std 1.0.0",
- "axelar-wasm-std 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
- "client 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "axelar-wasm-std 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
+ "client 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "cosmwasm-schema 2.2.2",
  "cosmwasm-std 2.2.2",
  "cw-multi-test 2.3.2",
@@ -996,7 +996,7 @@ dependencies = [
  "msgs-derive 1.0.0",
  "rand 0.8.5",
  "report 1.0.0",
- "router-api 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "router-api 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "serde",
  "serde_json",
  "sha3",
@@ -1006,20 +1006,20 @@ dependencies = [
 [[package]]
 name = "axelarnet-gateway"
 version = "1.0.0"
-source = "git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd#4f3f538f71aecb9d34abfc7d25a35a67a346c0cc"
+source = "git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0#a95eb40d9c1a3844218f99fe39197e7b8a39c3ce"
 dependencies = [
- "axelar-core-std 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
- "axelar-wasm-std 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
- "client 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "axelar-core-std 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
+ "axelar-wasm-std 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
+ "client 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "cosmwasm-schema 2.2.2",
  "cosmwasm-std 2.2.2",
  "cw-storage-plus 2.0.0",
  "cw2 2.0.0",
  "error-stack",
  "itertools 0.14.0",
- "msgs-derive 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
- "report 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
- "router-api 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "msgs-derive 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
+ "report 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
+ "router-api 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "serde",
  "serde_json",
  "sha3",
@@ -1765,7 +1765,7 @@ dependencies = [
 [[package]]
 name = "client"
 version = "1.0.0"
-source = "git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd#4f3f538f71aecb9d34abfc7d25a35a67a346c0cc"
+source = "git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0#a95eb40d9c1a3844218f99fe39197e7b8a39c3ce"
 dependencies = [
  "cosmwasm-std 2.2.2",
  "error-stack",
@@ -1917,8 +1917,8 @@ dependencies = [
 name = "coordinator"
 version = "1.1.0"
 dependencies = [
- "axelar-wasm-std 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
- "client 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "axelar-wasm-std 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
+ "client 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "cosmwasm-schema 2.2.2",
  "cosmwasm-std 2.2.2",
  "cw-multi-test 2.3.2",
@@ -1929,9 +1929,9 @@ dependencies = [
  "integration-tests",
  "itertools 0.11.0",
  "msgs-derive 1.0.0",
- "multisig 1.1.1 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "multisig 1.1.1 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "report 1.0.0",
- "router-api 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "router-api 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "semver 1.0.26",
  "service-registry-api",
  "thiserror 1.0.69",
@@ -3212,7 +3212,7 @@ checksum = "0206175f82b8d6bf6652ff7d71a1e27fd2e4efde587fd368662814d6ec1d9ce0"
 name = "events"
 version = "1.0.0"
 dependencies = [
- "axelar-wasm-std 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "axelar-wasm-std 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "base64 0.21.7",
  "cosmrs",
  "error-stack",
@@ -3237,14 +3237,14 @@ dependencies = [
 name = "evm-gateway"
 version = "1.0.0"
 dependencies = [
- "axelar-wasm-std 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "axelar-wasm-std 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "cosmwasm-std 2.2.2",
  "error-stack",
  "ethers-contract",
  "ethers-core",
  "k256",
- "multisig 1.1.1 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
- "router-api 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "multisig 1.1.1 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
+ "router-api 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "sha3",
  "thiserror 1.0.69",
 ]
@@ -3707,8 +3707,8 @@ name = "gateway"
 version = "1.1.1"
 dependencies = [
  "assert_ok",
- "axelar-wasm-std 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
- "client 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "axelar-wasm-std 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
+ "client 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "cosmwasm-schema 2.2.2",
  "cosmwasm-std 2.2.2",
  "cw-multi-test 2.3.2",
@@ -3720,7 +3720,7 @@ dependencies = [
  "itertools 0.11.0",
  "rand 0.8.5",
  "report 1.0.0",
- "router-api 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "router-api 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "semver 1.0.26",
  "serde",
  "serde_json",
@@ -3732,14 +3732,14 @@ dependencies = [
 name = "gateway-api"
 version = "1.0.0"
 dependencies = [
- "axelar-wasm-std 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
- "client 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "axelar-wasm-std 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
+ "client 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "cosmwasm-schema 2.2.2",
  "cosmwasm-std 2.2.2",
  "error-stack",
  "goldie",
  "msgs-derive 1.0.0",
- "router-api 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "router-api 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "thiserror 1.0.69",
 ]
 
@@ -4583,7 +4583,7 @@ version = "1.0.0"
 dependencies = [
  "anyhow",
  "axelar-core-std 1.0.0",
- "axelar-wasm-std 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "axelar-wasm-std 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "axelarnet-gateway 1.0.0",
  "coordinator",
  "cosmwasm-std 2.2.2",
@@ -4595,13 +4595,13 @@ dependencies = [
  "gateway-api",
  "interchain-token-service 1.1.0",
  "k256",
- "multisig 1.1.1 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "multisig 1.1.1 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "multisig-prover",
  "rand 0.8.5",
  "report 1.0.0",
  "rewards 1.2.0",
  "router",
- "router-api 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "router-api 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "schemars",
  "serde",
  "serde_json",
@@ -4624,9 +4624,9 @@ dependencies = [
  "alloy-sol-types",
  "assert_ok",
  "axelar-core-std 1.0.0",
- "axelar-wasm-std 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "axelar-wasm-std 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "axelarnet-gateway 1.0.0",
- "client 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "client 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "cosmwasm-schema 2.2.2",
  "cosmwasm-std 2.2.2",
  "cw-storage-plus 2.0.0",
@@ -4637,7 +4637,7 @@ dependencies = [
  "itertools 0.11.0",
  "msgs-derive 1.0.0",
  "report 1.0.0",
- "router-api 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "router-api 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "schemars",
  "serde",
  "serde_json",
@@ -4649,14 +4649,14 @@ dependencies = [
 [[package]]
 name = "interchain-token-service"
 version = "1.1.0"
-source = "git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd#4f3f538f71aecb9d34abfc7d25a35a67a346c0cc"
+source = "git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0#a95eb40d9c1a3844218f99fe39197e7b8a39c3ce"
 dependencies = [
  "alloy-primitives",
  "alloy-sol-types",
- "axelar-core-std 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
- "axelar-wasm-std 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
- "axelarnet-gateway 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
- "client 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "axelar-core-std 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
+ "axelar-wasm-std 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
+ "axelarnet-gateway 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
+ "client 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "cosmwasm-schema 2.2.2",
  "cosmwasm-std 2.2.2",
  "cw-storage-plus 2.0.0",
@@ -4664,9 +4664,9 @@ dependencies = [
  "error-stack",
  "hex",
  "itertools 0.11.0",
- "msgs-derive 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
- "report 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
- "router-api 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "msgs-derive 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
+ "report 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
+ "router-api 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "schemars",
  "semver 1.0.26",
  "serde",
@@ -4680,7 +4680,7 @@ dependencies = [
 name = "into-inner-derive"
 version = "1.0.0"
 dependencies = [
- "axelar-wasm-std 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "axelar-wasm-std 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "error-stack",
  "quote 1.0.40",
  "report 1.0.0",
@@ -4691,11 +4691,11 @@ dependencies = [
 [[package]]
 name = "into-inner-derive"
 version = "1.0.0"
-source = "git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd#4f3f538f71aecb9d34abfc7d25a35a67a346c0cc"
+source = "git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0#a95eb40d9c1a3844218f99fe39197e7b8a39c3ce"
 dependencies = [
  "error-stack",
  "quote 1.0.40",
- "report 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "report 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "syn 2.0.100",
  "thiserror 1.0.69",
 ]
@@ -5616,7 +5616,7 @@ dependencies = [
 name = "msgs-derive"
 version = "1.0.0"
 dependencies = [
- "axelar-wasm-std 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "axelar-wasm-std 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "cosmwasm-std 2.2.2",
  "error-stack",
  "itertools 0.11.0",
@@ -5628,9 +5628,9 @@ dependencies = [
 [[package]]
 name = "msgs-derive"
 version = "1.0.0"
-source = "git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd#4f3f538f71aecb9d34abfc7d25a35a67a346c0cc"
+source = "git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0#a95eb40d9c1a3844218f99fe39197e7b8a39c3ce"
 dependencies = [
- "axelar-wasm-std 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "axelar-wasm-std 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "cosmwasm-std 2.2.2",
  "error-stack",
  "itertools 0.14.0",
@@ -5715,8 +5715,8 @@ checksum = "e5ce46fe64a9d73be07dcbe690a38ce1b293be448fd8ce1e6c1b8062c9f72c6a"
 name = "multisig"
 version = "1.1.1"
 dependencies = [
- "axelar-wasm-std 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
- "client 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "axelar-wasm-std 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
+ "client 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "cosmwasm-crypto 2.2.2",
  "cosmwasm-schema 2.2.2",
  "cosmwasm-std 2.2.2",
@@ -5736,7 +5736,7 @@ dependencies = [
  "msgs-derive 1.0.0",
  "report 1.0.0",
  "rewards 1.2.0",
- "router-api 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "router-api 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "serde",
  "serde_json",
  "sha3",
@@ -5747,10 +5747,10 @@ dependencies = [
 [[package]]
 name = "multisig"
 version = "1.1.1"
-source = "git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd#4f3f538f71aecb9d34abfc7d25a35a67a346c0cc"
+source = "git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0#a95eb40d9c1a3844218f99fe39197e7b8a39c3ce"
 dependencies = [
- "axelar-wasm-std 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
- "client 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "axelar-wasm-std 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
+ "client 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "cosmwasm-crypto 2.2.2",
  "cosmwasm-schema 2.2.2",
  "cosmwasm-std 2.2.2",
@@ -5763,14 +5763,14 @@ dependencies = [
  "getrandom 0.2.15",
  "itertools 0.11.0",
  "k256",
- "msgs-derive 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
- "report 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
- "rewards 1.2.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
- "router-api 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "msgs-derive 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
+ "report 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
+ "rewards 1.2.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
+ "router-api 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "serde",
  "serde_json",
  "sha3",
- "signature-verifier-api 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "signature-verifier-api 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "thiserror 1.0.69",
 ]
 
@@ -5780,9 +5780,9 @@ version = "1.1.1"
 dependencies = [
  "anyhow",
  "assert_ok",
- "axelar-wasm-std 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "axelar-wasm-std 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "bcs",
- "client 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "client 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "coordinator",
  "cosmwasm-schema 2.2.2",
  "cosmwasm-std 2.2.2",
@@ -5803,10 +5803,10 @@ dependencies = [
  "itertools 0.11.0",
  "k256",
  "msgs-derive 1.0.0",
- "multisig 1.1.1 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "multisig 1.1.1 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "prost 0.12.6",
  "report 1.0.0",
- "router-api 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "router-api 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "semver 1.0.26",
  "serde_json",
  "service-registry",
@@ -7512,7 +7512,7 @@ dependencies = [
 [[package]]
 name = "report"
 version = "1.0.0"
-source = "git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd#4f3f538f71aecb9d34abfc7d25a35a67a346c0cc"
+source = "git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0#a95eb40d9c1a3844218f99fe39197e7b8a39c3ce"
 dependencies = [
  "error-stack",
  "eyre",
@@ -7618,7 +7618,7 @@ name = "rewards"
 version = "1.2.0"
 dependencies = [
  "assert_ok",
- "axelar-wasm-std 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "axelar-wasm-std 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "cosmwasm-schema 2.2.2",
  "cosmwasm-std 2.2.2",
  "cw-multi-test 2.3.2",
@@ -7628,7 +7628,7 @@ dependencies = [
  "itertools 0.11.0",
  "msgs-derive 1.0.0",
  "report 1.0.0",
- "router-api 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "router-api 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "serde_json",
  "thiserror 1.0.69",
 ]
@@ -7636,18 +7636,18 @@ dependencies = [
 [[package]]
 name = "rewards"
 version = "1.2.0"
-source = "git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd#4f3f538f71aecb9d34abfc7d25a35a67a346c0cc"
+source = "git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0#a95eb40d9c1a3844218f99fe39197e7b8a39c3ce"
 dependencies = [
- "axelar-wasm-std 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "axelar-wasm-std 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "cosmwasm-schema 2.2.2",
  "cosmwasm-std 2.2.2",
  "cw-storage-plus 2.0.0",
  "cw2 2.0.0",
  "error-stack",
  "itertools 0.11.0",
- "msgs-derive 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
- "report 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
- "router-api 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "msgs-derive 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
+ "report 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
+ "router-api 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "serde_json",
  "thiserror 1.0.69",
 ]
@@ -7771,8 +7771,8 @@ version = "1.2.0"
 dependencies = [
  "assert_ok",
  "axelar-core-std 1.0.0",
- "axelar-wasm-std 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
- "client 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "axelar-wasm-std 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
+ "client 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "cosmwasm-schema 2.2.2",
  "cosmwasm-std 2.2.2",
  "cw-multi-test 2.3.2",
@@ -7789,7 +7789,7 @@ dependencies = [
  "msgs-derive 1.0.0",
  "rand 0.8.5",
  "report 1.0.0",
- "router-api 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "router-api 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "semver 1.0.26",
  "serde_json",
  "thiserror 1.0.69",
@@ -7799,8 +7799,8 @@ dependencies = [
 name = "router-api"
 version = "1.0.0"
 dependencies = [
- "axelar-wasm-std 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
- "client 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "axelar-wasm-std 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
+ "client 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "cosmwasm-schema 2.2.2",
  "cosmwasm-std 2.2.2",
  "cw-storage-plus 2.0.0",
@@ -7821,17 +7821,17 @@ dependencies = [
 [[package]]
 name = "router-api"
 version = "1.0.0"
-source = "git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd#4f3f538f71aecb9d34abfc7d25a35a67a346c0cc"
+source = "git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0#a95eb40d9c1a3844218f99fe39197e7b8a39c3ce"
 dependencies = [
- "axelar-wasm-std 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
- "client 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "axelar-wasm-std 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
+ "client 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "cosmwasm-schema 2.2.2",
  "cosmwasm-std 2.2.2",
  "cw-storage-plus 2.0.0",
  "error-stack",
  "flagset",
- "msgs-derive 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
- "report 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "msgs-derive 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
+ "report 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "schemars",
  "serde",
  "serde_json",
@@ -8526,8 +8526,8 @@ dependencies = [
 name = "service-registry"
 version = "1.1.0"
 dependencies = [
- "axelar-wasm-std 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
- "client 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "axelar-wasm-std 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
+ "client 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "coordinator",
  "cosmwasm-schema 2.2.2",
  "cosmwasm-std 2.2.2",
@@ -8540,7 +8540,7 @@ dependencies = [
  "itertools 0.11.0",
  "msgs-derive 1.0.0",
  "report 1.0.0",
- "router-api 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "router-api 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "schemars",
  "serde",
  "service-registry-api",
@@ -8551,8 +8551,8 @@ dependencies = [
 name = "service-registry-api"
 version = "1.0.0"
 dependencies = [
- "axelar-wasm-std 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
- "client 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "axelar-wasm-std 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
+ "client 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "cosmwasm-schema 2.2.2",
  "cosmwasm-std 2.2.2",
  "cw-storage-plus 2.0.0",
@@ -8560,7 +8560,7 @@ dependencies = [
  "goldie",
  "msgs-derive 1.0.0",
  "report 1.0.0",
- "router-api 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "router-api 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "schemars",
  "serde",
  "thiserror 1.0.69",
@@ -8709,7 +8709,7 @@ dependencies = [
 [[package]]
 name = "signature-verifier-api"
 version = "1.0.0"
-source = "git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd#4f3f538f71aecb9d34abfc7d25a35a67a346c0cc"
+source = "git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0#a95eb40d9c1a3844218f99fe39197e7b8a39c3ce"
 dependencies = [
  "cosmwasm-schema 2.2.2",
  "cosmwasm-std 2.2.2",
@@ -8860,7 +8860,7 @@ name = "starknet-checked-felt"
 version = "1.0.0"
 dependencies = [
  "alloy-primitives",
- "axelar-wasm-std 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "axelar-wasm-std 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "error-stack",
  "hex",
  "serde",
@@ -8871,7 +8871,7 @@ dependencies = [
 [[package]]
 name = "starknet-checked-felt"
 version = "1.0.0"
-source = "git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd#4f3f538f71aecb9d34abfc7d25a35a67a346c0cc"
+source = "git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0#a95eb40d9c1a3844218f99fe39197e7b8a39c3ce"
 dependencies = [
  "alloy-primitives",
  "error-stack",
@@ -8905,14 +8905,14 @@ checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 name = "stellar"
 version = "1.0.0"
 dependencies = [
- "axelar-wasm-std 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "axelar-wasm-std 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "cosmwasm-std 2.2.2",
  "error-stack",
  "goldie",
  "hex",
- "multisig 1.1.1 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "multisig 1.1.1 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "rand 0.8.5",
- "router-api 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "router-api 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "serde",
  "serde_json",
  "sha3",
@@ -9100,9 +9100,9 @@ dependencies = [
  "cosmwasm-std 2.2.2",
  "error-stack",
  "hex",
- "multisig 1.1.1 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "multisig 1.1.1 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "rand 0.8.5",
- "router-api 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "router-api 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "serde",
  "serde_json",
  "sha3",
@@ -9369,7 +9369,7 @@ dependencies = [
 [[package]]
 name = "sui-types"
 version = "1.0.0"
-source = "git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd#4f3f538f71aecb9d34abfc7d25a35a67a346c0cc"
+source = "git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0#a95eb40d9c1a3844218f99fe39197e7b8a39c3ce"
 dependencies = [
  "error-stack",
  "hex",
@@ -10636,9 +10636,9 @@ version = "1.1.0"
 dependencies = [
  "alloy-primitives",
  "assert_ok",
- "axelar-wasm-std 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "axelar-wasm-std 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "bech32 0.11.0",
- "client 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "client 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "cosmwasm-schema 2.2.2",
  "cosmwasm-std 2.2.2",
  "cw-multi-test 2.3.2",
@@ -10649,16 +10649,16 @@ dependencies = [
  "integration-tests",
  "itertools 0.11.0",
  "msgs-derive 1.0.0",
- "multisig 1.1.1 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "multisig 1.1.1 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "rand 0.8.5",
  "report 1.0.0",
  "rewards 1.2.0",
- "router-api 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "router-api 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "serde_json",
  "service-registry",
  "service-registry-api",
  "sha3",
- "starknet-checked-felt 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "starknet-checked-felt 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "thiserror 1.0.69",
 ]
 
@@ -11235,8 +11235,8 @@ name = "xrpl-gateway"
 version = "1.0.0"
 dependencies = [
  "axelar-core-std 1.0.0",
- "axelar-wasm-std 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
- "client 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "axelar-wasm-std 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
+ "client 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "cosmwasm-schema 2.2.2",
  "cosmwasm-std 2.2.2",
  "cw-multi-test 0.15.1",
@@ -11250,7 +11250,7 @@ dependencies = [
  "msgs-derive 1.0.0",
  "rand 0.8.5",
  "report 1.0.0",
- "router-api 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "router-api 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "serde",
  "serde_json",
  "sha3",
@@ -11265,8 +11265,8 @@ version = "1.0.0"
 dependencies = [
  "anyhow",
  "ascii",
- "axelar-wasm-std 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
- "client 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "axelar-wasm-std 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
+ "client 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "coordinator",
  "cosmwasm-schema 2.2.2",
  "cosmwasm-std 2.2.2",
@@ -11281,10 +11281,10 @@ dependencies = [
  "itertools 0.11.0",
  "k256",
  "msgs-derive 1.0.0",
- "multisig 1.1.1 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "multisig 1.1.1 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "report 1.0.0",
  "ripemd",
- "router-api 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "router-api 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "serde_json",
  "service-registry",
  "service-registry-api",
@@ -11298,22 +11298,22 @@ dependencies = [
 [[package]]
 name = "xrpl-types"
 version = "1.0.0"
-source = "git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd#4f3f538f71aecb9d34abfc7d25a35a67a346c0cc"
+source = "git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0#a95eb40d9c1a3844218f99fe39197e7b8a39c3ce"
 dependencies = [
- "axelar-wasm-std 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "axelar-wasm-std 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "bs58 0.5.1",
  "cosmwasm-schema 2.2.2",
  "cosmwasm-std 2.2.2",
  "cw-storage-plus 2.0.0",
  "error-stack",
  "hex",
- "interchain-token-service 1.1.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "interchain-token-service 1.1.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "k256",
  "lazy_static",
- "multisig 1.1.1 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "multisig 1.1.1 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "regex",
  "ripemd",
- "router-api 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "router-api 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "serde",
  "serde_json",
  "sha2 0.10.8",
@@ -11325,8 +11325,8 @@ dependencies = [
 name = "xrpl-voting-verifier"
 version = "1.0.0"
 dependencies = [
- "axelar-wasm-std 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
- "client 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "axelar-wasm-std 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
+ "client 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "cosmwasm-schema 2.2.2",
  "cosmwasm-std 2.2.2",
  "cw-multi-test 0.15.1",
@@ -11337,11 +11337,11 @@ dependencies = [
  "integration-tests",
  "itertools 0.11.0",
  "msgs-derive 1.0.0",
- "multisig 1.1.1 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "multisig 1.1.1 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "rand 0.8.5",
  "report 1.0.0",
  "rewards 1.2.0",
- "router-api 1.0.0 (git+https://github.com/commonprefix/axelar-amplifier?branch=xrpl-ampd)",
+ "router-api 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.5.0)",
  "serde_json",
  "service-registry",
  "service-registry-api",
