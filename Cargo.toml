@@ -1,6 +1,7 @@
 [workspace]
 members = [
-  "ampd",
+  "ampd", 
+  "ampd-handlers",
   "contracts/*",
   "external-gateways/*",
   "integration-tests",
