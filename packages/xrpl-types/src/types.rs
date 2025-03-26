@@ -1102,41 +1102,41 @@ impl Add for XRPLTokenAmount {
 
     fn add(self, rhs: XRPLTokenAmount) -> Self::Output {
         let common_exponent = min(self.exponent, rhs.exponent);
-        let ten = 10u64;
+        let ten = Uint256::from(10u8);
 
-        let left_mantissa = self
-            .mantissa
+        let left_mantissa = Uint256::from(self.mantissa)
             .checked_mul(
-                ten.pow(
+                ten.checked_pow(
                     u32::try_from(
                         self.exponent
                             .checked_sub(common_exponent)
                             .ok_or(XRPLError::SubtractionUnderflow)?,
                     )
                     .map_err(|_| XRPLError::InvalidExponent)?,
-                ),
+                )
+                .map_err(|_| XRPLError::ExponentiationOverflow)?,
             )
-            .ok_or(XRPLError::MultiplicationOverflow)?;
+            .map_err(|_| XRPLError::MultiplicationOverflow)?;
 
-        let right_mantissa = rhs
-            .mantissa
+        let right_mantissa = Uint256::from(rhs.mantissa)
             .checked_mul(
-                ten.pow(
+                ten.checked_pow(
                     u32::try_from(
                         rhs.exponent
                             .checked_sub(common_exponent)
                             .ok_or(XRPLError::SubtractionUnderflow)?,
                     )
                     .map_err(|_| XRPLError::InvalidExponent)?,
-                ),
+                )
+                .map_err(|_| XRPLError::ExponentiationOverflow)?,
             )
-            .ok_or(XRPLError::MultiplicationOverflow)?;
+            .map_err(|_| XRPLError::MultiplicationOverflow)?;
 
         let result_mantissa = left_mantissa
             .checked_add(right_mantissa)
-            .ok_or(XRPLError::AdditionOverflow)?;
+            .map_err(|_| XRPLError::AdditionOverflow)?;
 
-        let (mantissa, exponent) = canonicalize_mantissa(result_mantissa.into(), common_exponent)?;
+        let (mantissa, exponent) = canonicalize_mantissa(result_mantissa, common_exponent)?;
         Ok(XRPLTokenAmount::new(mantissa, exponent))
     }
 }
@@ -1146,35 +1146,35 @@ impl Sub for XRPLTokenAmount {
 
     fn sub(self, rhs: XRPLTokenAmount) -> Self::Output {
         let common_exponent = min(self.exponent, rhs.exponent);
-        let ten = 10u64;
+        let ten = Uint256::from(10u8);
 
-        let left_mantissa = self
-            .mantissa
+        let left_mantissa = Uint256::from(self.mantissa)
             .checked_mul(
-                ten.pow(
+                ten.checked_pow(
                     u32::try_from(
                         self.exponent
                             .checked_sub(common_exponent)
                             .ok_or(XRPLError::SubtractionUnderflow)?,
                     )
                     .map_err(|_| XRPLError::InvalidExponent)?,
-                ),
+                )
+                .map_err(|_| XRPLError::ExponentiationOverflow)?,
             )
-            .ok_or(XRPLError::MultiplicationOverflow)?;
+            .map_err(|_| XRPLError::MultiplicationOverflow)?;
 
-        let right_mantissa = rhs
-            .mantissa
+        let right_mantissa = Uint256::from(rhs.mantissa)
             .checked_mul(
-                ten.pow(
+                ten.checked_pow(
                     u32::try_from(
                         rhs.exponent
                             .checked_sub(common_exponent)
                             .ok_or(XRPLError::SubtractionUnderflow)?,
                     )
                     .map_err(|_| XRPLError::InvalidExponent)?,
-                ),
+                )
+                .map_err(|_| XRPLError::ExponentiationOverflow)?,
             )
-            .ok_or(XRPLError::MultiplicationOverflow)?;
+            .map_err(|_| XRPLError::MultiplicationOverflow)?;
 
         if left_mantissa < right_mantissa {
             return Err(XRPLError::Underflow);
@@ -1182,9 +1182,9 @@ impl Sub for XRPLTokenAmount {
 
         let result_mantissa = left_mantissa
             .checked_sub(right_mantissa)
-            .ok_or(XRPLError::SubtractionUnderflow)?;
+            .map_err(|_| XRPLError::SubtractionUnderflow)?;
 
-        let (mantissa, exponent) = canonicalize_mantissa(result_mantissa.into(), common_exponent)?;
+        let (mantissa, exponent) = canonicalize_mantissa(result_mantissa, common_exponent)?;
         Ok(XRPLTokenAmount::new(mantissa, exponent))
     }
 }
@@ -1872,6 +1872,18 @@ mod tests {
         let g1 = XRPLTokenAmount::new(1_000_000_000_000_000, 1);
         let g2 = XRPLTokenAmount::new(1_000_000_000_000_000, -2);
         assert_eq!(g1.partial_cmp(&g2), Some(std::cmp::Ordering::Greater));
+    }
+
+    #[test]
+    fn test_xrpl_token_amount_add_sub_large_exponent_diff() {
+        let transfer_amount = XRPLTokenAmount::from_str("2000000000000000e-21").unwrap();
+        let gas_fee_amount = XRPLTokenAmount::from_str("0e1").unwrap();
+
+        let result = transfer_amount.clone().add(gas_fee_amount.clone()).unwrap();
+        assert_eq!(result, XRPLTokenAmount::new(2000000000000000, -21));
+
+        let result = transfer_amount.sub(gas_fee_amount).unwrap();
+        assert_eq!(result, XRPLTokenAmount::new(2000000000000000, -21));
     }
 
     #[test]
