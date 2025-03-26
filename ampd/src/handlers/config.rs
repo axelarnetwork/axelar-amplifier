@@ -47,6 +47,16 @@ pub enum Config {
         rpc_url: Url,
         rpc_timeout: Option<Duration>,
     },
+    XRPLMsgVerifier {
+        cosmwasm_contract: TMAddress,
+        chain_name: ChainName,
+        chain_rpc_url: Url,
+        rpc_timeout: Option<Duration>,
+    },
+    XRPLMultisigSigner {
+        multisig_prover_contract: TMAddress,
+        multisig_contract: TMAddress,
+    },
     MvxMsgVerifier {
         cosmwasm_contract: TMAddress,
         proxy_url: Url,
@@ -162,6 +172,7 @@ where
     validate_evm_verifier_set_verifier_configs::<D>(&configs)?;
 
     ensure_unique_config!(&configs, Config::MultisigSigner, "Multisig signer")?;
+    ensure_unique_config!(&configs, Config::XRPLMsgVerifier, "XRPL message verifier")?;
     ensure_unique_config!(&configs, Config::SuiMsgVerifier, "Sui message verifier")?;
     ensure_unique_config!(
         &configs,
