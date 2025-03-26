@@ -23,6 +23,7 @@ pub fn load_config(storage: &dyn Storage) -> Config {
         .expect("coordinator config must be set during instantiation")
 }
 
+/// Records the contract addresses for a specific chain
 #[cw_serde]
 pub struct ChainContractsRecord {
     pub chain_name: ChainName,
@@ -84,8 +85,8 @@ pub fn get_contracts_by_chain(
     chain_name: ChainName,
 ) -> Result<ChainContractsRecord, ContractError> {
     CHAIN_CONTRACTS_MAP
-        .may_load(storage, chain_name)?
-        .ok_or(ContractError::ChainNotRegistered)
+        .may_load(storage, chain_name.clone())?
+        .ok_or(ContractError::ChainNotRegistered(chain_name))
 }
 
 #[allow(dead_code)] // Used in tests, might be useful in future query
@@ -96,9 +97,9 @@ pub fn get_contracts_by_prover(
     CHAIN_CONTRACTS_MAP
         .idx
         .by_prover
-        .item(storage, prover_address)?
+        .item(storage, prover_address.clone())?
         .map(|(_, record)| record)
-        .ok_or(ContractError::ProverNotRegistered)
+        .ok_or(ContractError::ProverNotRegistered(prover_address))
 }
 
 #[allow(dead_code)] // Used in tests, might be useful in future query
@@ -109,9 +110,9 @@ pub fn get_contracts_by_gateway(
     CHAIN_CONTRACTS_MAP
         .idx
         .by_gateway
-        .item(storage, gateway_address)?
+        .item(storage, gateway_address.clone())?
         .map(|(_, record)| record)
-        .ok_or(ContractError::GatewayNotRegistered)
+        .ok_or(ContractError::GatewayNotRegistered(gateway_address))
 }
 
 #[allow(dead_code)] // Used in tests, might be useful in future query
@@ -122,11 +123,12 @@ pub fn get_contracts_by_verifier(
     CHAIN_CONTRACTS_MAP
         .idx
         .by_verifier
-        .item(storage, verifier_address)?
+        .item(storage, verifier_address.clone())?
         .map(|(_, record)| record)
-        .ok_or(ContractError::VerifierNotRegistered)
+        .ok_or(ContractError::VerifierNotRegistered(verifier_address))
 }
 
+// Legacy prover storage - maintained for backward compatibility
 #[index_list(ProverAddress)]
 struct ChainProverIndexes<'a> {
     pub by_prover: UniqueIndex<'a, ProverAddress, ProverAddress, ChainName>,
@@ -157,8 +159,8 @@ pub fn load_prover_by_chain(
     chain_name: ChainName,
 ) -> Result<ProverAddress, ContractError> {
     CHAIN_PROVER_INDEXED_MAP
-        .may_load(storage, chain_name)?
-        .ok_or(ContractError::ProverNotRegistered)
+        .may_load(storage, chain_name.clone())?
+        .ok_or(ContractError::ChainNotRegistered(chain_name))
 }
 
 pub fn save_prover_for_chain(

@@ -118,7 +118,7 @@ fn find_prover_address(
         if is_prover_registered(storage, sender.clone())? {
             Ok(sender.clone())
         } else {
-            Err(report!(ContractError::ProverNotRegistered))
+            Err(report!(ContractError::ProverNotRegistered(sender.clone())))
         }
     }
 }
