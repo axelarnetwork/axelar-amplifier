@@ -939,11 +939,8 @@ impl XRPLTokenAmount {
 
 impl PartialOrd for XRPLTokenAmount {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        let common_exponent = min(self.exponent, other.exponent);
-
-        let (self_mantissa, other_mantissa) =
-            scale_to_common_exponent(self, other, common_exponent)
-                .expect("scale_to_common_exponent should not fail");
+        let (self_mantissa, other_mantissa, _min_exponent) =
+            scale_to_min_exponent(self, other).expect("scale_to_min_exponent should not fail");
 
         Some(self_mantissa.cmp(&other_mantissa))
     }
@@ -1037,16 +1034,13 @@ impl Add for XRPLTokenAmount {
     type Output = Result<XRPLTokenAmount, XRPLError>;
 
     fn add(self, rhs: XRPLTokenAmount) -> Self::Output {
-        let common_exponent = min(self.exponent, rhs.exponent);
-
-        let (left_mantissa, right_mantissa) =
-            scale_to_common_exponent(&self, &rhs, common_exponent)?;
+        let (left_mantissa, right_mantissa, min_exponent) = scale_to_min_exponent(&self, &rhs)?;
 
         let result_mantissa = left_mantissa
             .checked_add(right_mantissa)
             .map_err(|_| XRPLError::AdditionOverflow)?;
 
-        let (mantissa, exponent) = canonicalize_mantissa(result_mantissa, common_exponent)?;
+        let (mantissa, exponent) = canonicalize_mantissa(result_mantissa, min_exponent)?;
         Ok(XRPLTokenAmount::new(mantissa, exponent))
     }
 }
@@ -1055,10 +1049,7 @@ impl Sub for XRPLTokenAmount {
     type Output = Result<XRPLTokenAmount, XRPLError>;
 
     fn sub(self, rhs: XRPLTokenAmount) -> Self::Output {
-        let common_exponent = min(self.exponent, rhs.exponent);
-
-        let (left_mantissa, right_mantissa) =
-            scale_to_common_exponent(&self, &rhs, common_exponent)?;
+        let (left_mantissa, right_mantissa, min_exponent) = scale_to_min_exponent(&self, &rhs)?;
 
         if left_mantissa < right_mantissa {
             return Err(XRPLError::Underflow);
@@ -1068,7 +1059,7 @@ impl Sub for XRPLTokenAmount {
             .checked_sub(right_mantissa)
             .map_err(|_| XRPLError::SubtractionUnderflow)?;
 
-        let (mantissa, exponent) = canonicalize_mantissa(result_mantissa, common_exponent)?;
+        let (mantissa, exponent) = canonicalize_mantissa(result_mantissa, min_exponent)?;
         Ok(XRPLTokenAmount::new(mantissa, exponent))
     }
 }
@@ -1260,11 +1251,11 @@ pub fn scale_to_decimals(
     }
 }
 
-pub fn scale_to_common_exponent(
+pub fn scale_to_min_exponent(
     left: &XRPLTokenAmount,
     right: &XRPLTokenAmount,
-    common_exponent: i64,
-) -> Result<(Uint256, Uint256), XRPLError> {
+) -> Result<(Uint256, Uint256, i64), XRPLError> {
+    let min_exponent = min(left.exponent, right.exponent);
     let ten = Uint256::from(10u8);
 
     let left_mantissa = Uint256::from(left.mantissa)
@@ -1272,7 +1263,7 @@ pub fn scale_to_common_exponent(
             ten.checked_pow(
                 u32::try_from(
                     left.exponent
-                        .checked_sub(common_exponent)
+                        .checked_sub(min_exponent)
                         .ok_or(XRPLError::SubtractionUnderflow)?,
                 )
                 .map_err(|_| XRPLError::InvalidExponent)?,
@@ -1287,7 +1278,7 @@ pub fn scale_to_common_exponent(
                 u32::try_from(
                     right
                         .exponent
-                        .checked_sub(common_exponent)
+                        .checked_sub(min_exponent)
                         .ok_or(XRPLError::SubtractionUnderflow)?,
                 )
                 .map_err(|_| XRPLError::InvalidExponent)?,
@@ -1296,7 +1287,7 @@ pub fn scale_to_common_exponent(
         )
         .map_err(|_| XRPLError::MultiplicationOverflow)?;
 
-    Ok((left_mantissa, right_mantissa))
+    Ok((left_mantissa, right_mantissa, min_exponent))
 }
 
 fn convert_scaled_uint256_to_u64(value: Uint256) -> u64 {
