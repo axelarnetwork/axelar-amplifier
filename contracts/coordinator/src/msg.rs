@@ -21,6 +21,13 @@ pub enum ExecuteMsg {
         chain_name: ChainName,
         new_prover_addr: String,
     },
+    #[permission(Governance)]
+    RegisterContractAddresses {
+        chain_name: ChainName,
+        prover_address: String,
+        gateway_address: String,
+        voting_verifier_address: String,
+    },
     #[permission(Specific(prover))]
     SetActiveVerifiers { verifiers: HashSet<String> },
 }
