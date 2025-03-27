@@ -1420,6 +1420,50 @@ mod tests {
         );
     }
 
+    #[test]
+    fn should_modify_supply_on_custom_tokens() {
+        let mut deps = mock_dependencies();
+        init(&mut deps);
+
+        register_and_link_custom_tokens(
+            &mut deps,
+            token_id(),
+            ethereum(),
+            solana(),
+            18,
+            18,
+            its_address(),
+        );
+
+        assert_ok!(modify_supply(
+            deps.as_mut(),
+            solana(),
+            token_id(),
+            msg::SupplyModifier::IncreaseSupply(Uint256::from_u128(50u128).try_into().unwrap())
+        ));
+
+        assert_err_contains!(
+            do_transfer(
+                deps.as_mut(),
+                solana(),
+                ethereum(),
+                token_id(),
+                Uint256::from_u128(100u128).try_into().unwrap()
+            ),
+            Error,
+            Error::TokenSupplyInvariantViolated { .. }
+        );
+
+        // a smaller transfer should succeed
+        assert_ok!(do_transfer(
+            deps.as_mut(),
+            solana(),
+            ethereum(),
+            token_id(),
+            Uint256::from_u128(50u128).try_into().unwrap()
+        ));
+    }
+
     // Below are various helper functions to assist with writing tests
 
     fn its_address() -> nonempty::HexBinary {

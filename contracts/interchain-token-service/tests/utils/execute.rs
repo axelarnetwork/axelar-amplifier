@@ -8,9 +8,9 @@ use cosmwasm_std::testing::{message_info, mock_env, MockApi, MockQuerier, MockSt
 use cosmwasm_std::{
     from_json, to_json_binary, DepsMut, HexBinary, MemoryStorage, OwnedDeps, Response, WasmQuery,
 };
-use interchain_token_service::msg::{self, ExecuteMsg, TruncationConfig};
+use interchain_token_service::msg::{self, ExecuteMsg, SupplyModifier, TruncationConfig};
 use interchain_token_service::shared::NumBits;
-use interchain_token_service::{contract, HubMessage};
+use interchain_token_service::{contract, HubMessage, TokenId};
 use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
 
 use super::{instantiate_contract, TestMessage};
@@ -161,6 +161,25 @@ pub fn disable_contract_execution(deps: DepsMut) -> Result<Response, ContractErr
         mock_env(),
         message_info(&MockApi::default().addr_make(params::GOVERNANCE), &[]),
         ExecuteMsg::DisableExecution,
+    )
+}
+
+pub fn modify_supply(
+    deps: DepsMut,
+    chain: ChainNameRaw,
+    supply_modifier: SupplyModifier,
+    token_id: TokenId,
+    sender: &str,
+) -> Result<Response, ContractError> {
+    contract::execute(
+        deps,
+        mock_env(),
+        message_info(&MockApi::default().addr_make(sender), &[]),
+        ExecuteMsg::ModifySupply {
+            chain,
+            token_id,
+            supply_modifier,
+        },
     )
 }
 
