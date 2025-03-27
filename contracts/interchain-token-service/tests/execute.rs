@@ -1113,6 +1113,48 @@ fn admin_or_governance_can_unfreeze_chain() {
 }
 
 #[test]
+fn admin_or_governance_can_modify_supply() {
+    let mut deps = mock_dependencies();
+    let api = deps.api;
+
+    utils::instantiate_contract(deps.as_mut()).unwrap();
+
+    let chain = "ethereum".parse().unwrap();
+    let max_uint = 256;
+    let decimals = 18;
+
+    let address: Address = "0x1234567890123456789012345678901234567890"
+        .parse()
+        .unwrap();
+
+    assert_ok!(utils::register_chain(
+        deps.as_mut(),
+        chain,
+        address,
+        max_uint.try_into().unwrap(),
+        decimals
+    ));
+
+    assert_ok!(contract::execute(
+        deps.as_mut(),
+        mock_env(),
+        message_info(&api.addr_make(params::ADMIN), &[]),
+        ExecuteMsg::UnfreezeChain {
+            chain: ChainNameRaw::try_from("ethereum").unwrap()
+        }
+    ));
+
+    assert_ok!(contract::execute(
+        deps.as_mut(),
+        mock_env(),
+        message_info(&api.addr_make(params::GOVERNANCE), &[]),
+        ExecuteMsg::UnfreezeChain {
+            chain: ChainNameRaw::try_from("ethereum").unwrap()
+        }
+    ));
+}
+
+#[test]
 fn disable_execution_when_not_admin_fails() {
     let mut deps = mock_dependencies();
     let api = deps.api;
@@ -1675,4 +1717,102 @@ fn deploy_interchain_token_to_multiple_destination_succeeds() {
         source_its_contract.clone(),
         msg.clone(),
     ));
+}
+
+#[test]
+fn admin_or_governance_should_modify_supply() {
+    let (
+        mut deps,
+        TestMessage {
+            router_message,
+            source_its_contract,
+            destination_its_chain,
+            ..
+        },
+    ) = utils::setup();
+
+    let token_id = TokenId::new([1; 32]);
+    let deploy_token = DeployInterchainToken {
+        token_id,
+        name: "Test".try_into().unwrap(),
+        symbol: "TST".try_into().unwrap(),
+        decimals: 18,
+        minter: None,
+    }
+    .into();
+    let hub_message = HubMessage::SendToHub {
+        destination_chain: destination_its_chain.clone(),
+        message: deploy_token,
+    };
+
+    // deploy the token first to be able to modify the supply
+    assert_ok!(utils::execute_hub_message(
+        deps.as_mut(),
+        router_message.cc_id.clone(),
+        source_its_contract.clone(),
+        hub_message,
+    ));
+
+    assert_ok!(utils::modify_supply(
+        deps.as_mut(),
+        destination_its_chain.clone(),
+        msg::SupplyModifier::IncreaseSupply(Uint256::one().try_into().unwrap()),
+        token_id,
+        params::GOVERNANCE
+    ));
+
+    assert_ok!(utils::modify_supply(
+        deps.as_mut(),
+        destination_its_chain,
+        msg::SupplyModifier::IncreaseSupply(Uint256::one().try_into().unwrap()),
+        token_id,
+        params::ADMIN
+    ));
+}
+
+#[test]
+fn non_admin_or_governance_should_not_modify_supply() {
+    let (
+        mut deps,
+        TestMessage {
+            router_message,
+            source_its_contract,
+            destination_its_chain,
+            ..
+        },
+    ) = utils::setup();
+
+    let token_id = TokenId::new([1; 32]);
+    let deploy_token = DeployInterchainToken {
+        token_id,
+        name: "Test".try_into().unwrap(),
+        symbol: "TST".try_into().unwrap(),
+        decimals: 18,
+        minter: None,
+    }
+    .into();
+    let hub_message = HubMessage::SendToHub {
+        destination_chain: destination_its_chain.clone(),
+        message: deploy_token,
+    };
+
+    // deploy the token first to be able to modify the supply
+    assert_ok!(utils::execute_hub_message(
+        deps.as_mut(),
+        router_message.cc_id.clone(),
+        source_its_contract.clone(),
+        hub_message,
+    ));
+
+    assert_err_contains!(
+        utils::modify_supply(
+            deps.as_mut(),
+            destination_its_chain.clone(),
+            msg::SupplyModifier::IncreaseSupply(Uint256::one().try_into().unwrap()),
+            token_id,
+            "random"
+        ),
+        permission_control::Error,
+        permission_control::Error::PermissionDenied { .. }
+    );
 }

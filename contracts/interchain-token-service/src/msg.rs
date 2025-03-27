@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use axelar_wasm_std::nonempty;
 use axelarnet_gateway::AxelarExecutableMsg;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use msgs_derive::EnsurePermissions;
@@ -38,6 +39,17 @@ pub enum ExecuteMsg {
     #[permission(Governance)]
     RegisterChains { chains: Vec<ChainConfig> },
 
+    // Increase or decrease the supply for a given token and chain.
+    // If the supply is untracked, this command will attempt to set it.
+    // Errors if the token is not deployed to the specified chain, or if
+    // the supply modification overflows or underflows
+    #[permission(Elevated)]
+    ModifySupply {
+        chain: ChainNameRaw,
+        token_id: TokenId,
+        supply_modifier: SupplyModifier,
+    },
+
     /// For each chain, update the ITS contract and config parameters.
     /// If any chain has not been registered, returns an error
     #[permission(Governance)]
@@ -62,6 +74,12 @@ pub enum ExecuteMsg {
 pub enum ChainStatusFilter {
     Frozen,
     Active,
+}
+
+#[cw_serde]
+pub enum SupplyModifier {
+    IncreaseSupply(nonempty::Uint256),
+    DecreaseSupply(nonempty::Uint256),
 }
 
 #[cw_serde]
