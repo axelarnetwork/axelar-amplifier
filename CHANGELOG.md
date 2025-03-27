@@ -2,7 +2,13 @@
 
 ## [Unreleased](https://github.com/axelarnetwork/axelar-amplifier/tree/HEAD)
 
-[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/ampd-v1.5.0..HEAD)
+[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/ampd-v1.5.1..HEAD)
+
+## [v1.5.1](https://github.com/axelarnetwork/axelar-amplifier/tree/ampd-v1.5.1) (2025-03-26)
+
+[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/ampd-v1.5.0..ampd-v1.5.1)
+
+- Fix arithmetic operations with XRPLTokenAmount [#780](https://github.com/axelarnetwork/axelar-amplifier/pull/780)
 
 ## [v1.5.0](https://github.com/axelarnetwork/axelar-amplifier/tree/ampd-v1.5.0) (2025-03-24)
 
