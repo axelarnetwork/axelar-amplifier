@@ -31,9 +31,9 @@ jobs:
         run: |
           binary="${{ github.event.inputs.binary-to-release }}"
           declare -A binaries_data=(
-            ["xrpl-voting-verifier"]="xrpl-voting-verifier,/\(major\)|\(major-xrpl-voting-verifier\)|\(major-contracts\)/,/\(minor\)|\(minor-xrpl-voting-verifier\)|\(minor-contracts\)/,contracts/xrpl-voting-verifier packages"
-            ["xrpl-multisig-prover"]="xrpl-multisig-prover,/\(major\)|\(major-xrpl-multisig-prover\)|\(major-contracts\)/,/\(minor\)|\(minor-xrpl-multisig-prover\)|\(minor-contracts\)/,contracts/xrpl-multisig-prover packages"
-            ["xrpl-gateway"]="xrpl-gateway,/\(major\)|\(major-xrpl-gateway\)|\(major-contracts\)/,/\(minor\)|\(minor-xrpl-gateway\)|\(minor-contracts\)/,contracts/xrpl-gateway packages"
+            ["xrpl-voting-verifier"]="xrpl-voting-verifier,/\(major\)|\(major-xrpl-voting-verifier\)|\(major-contracts\)/,/\(minor\)|\(minor-xrpl-voting-verifier\)|\(minor-contracts\)/,contracts/xrpl-voting-verifier packages Cargo.toml"
+            ["xrpl-multisig-prover"]="xrpl-multisig-prover,/\(major\)|\(major-xrpl-multisig-prover\)|\(major-contracts\)/,/\(minor\)|\(minor-xrpl-multisig-prover\)|\(minor-contracts\)/,contracts/xrpl-multisig-prover packages Cargo.toml"
+            ["xrpl-gateway"]="xrpl-gateway,/\(major\)|\(major-xrpl-gateway\)|\(major-contracts\)/,/\(minor\)|\(minor-xrpl-gateway\)|\(minor-contracts\)/,contracts/xrpl-gateway packages Cargo.toml"
           )
 
           if [[ -n "${binaries_data[$binary]}" ]]; then
