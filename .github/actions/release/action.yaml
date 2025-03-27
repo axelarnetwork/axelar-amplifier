@@ -151,7 +151,7 @@ runs:
       run: |
         cargo release -p ${{ inputs.binary-to-release }} \
           ${{ steps.semantic-version.outputs.version_type }} \
-          --allow-branch "*" \
+          --allow-branch "main,releases/*" \
           -v
 
     - name: Release cargo crate
