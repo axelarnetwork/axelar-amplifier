@@ -10,7 +10,7 @@ use cosmwasm_std::{
 };
 use interchain_token_service::msg::{self, ExecuteMsg, TruncationConfig};
 use interchain_token_service::shared::NumBits;
-use interchain_token_service::{contract, HubMessage};
+use interchain_token_service::{contract, HubMessage, TokenId, TokenSupply};
 use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
 
 use super::{instantiate_contract, TestMessage};
@@ -111,6 +111,29 @@ pub fn register_chains(
         mock_env(),
         message_info(&MockApi::default().addr_make(params::GOVERNANCE), &[]),
         ExecuteMsg::RegisterChains { chains },
+    )
+}
+
+pub fn register_p2p_token_instance(
+    deps: DepsMut,
+    sender: &str,
+    token_id: TokenId,
+    origin_chain: ChainNameRaw,
+    instance_chain: ChainNameRaw,
+    decimals: u8,
+    supply: TokenSupply,
+) -> Result<Response, ContractError> {
+    contract::execute(
+        deps,
+        mock_env(),
+        message_info(&MockApi::default().addr_make(sender), &[]),
+        ExecuteMsg::RegisterP2pTokenInstance {
+            instance_chain,
+            origin_chain,
+            token_id,
+            decimals,
+            supply,
+        },
     )
 }
 
