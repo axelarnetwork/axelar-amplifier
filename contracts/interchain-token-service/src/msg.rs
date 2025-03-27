@@ -31,6 +31,9 @@ pub enum ExecuteMsg {
     #[permission(Specific(gateway))]
     Execute(AxelarExecutableMsg),
 
+    /// Registers an existing ITS token with the hub. This is useful for tokens that were deployed
+    /// before the hub existed and have operated in p2p mode. Both instance_chain and origin_chain
+    /// must be registered with the hub.
     #[permission(Elevated)]
     RegisterP2pTokenInstance {
         instance_chain: ChainNameRaw,
