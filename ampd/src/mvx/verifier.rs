@@ -46,7 +46,7 @@ impl Message {
         let destination_chain = match ChainName::try_from(destination_chain) {
             Ok(chain) => chain,
             Err(e) => {
-                debug!("failed to parse destination chain {:?}", e);
+                debug!(error = e, "failed to parse destination chain");
                 return Ok(false);
             }
         };
