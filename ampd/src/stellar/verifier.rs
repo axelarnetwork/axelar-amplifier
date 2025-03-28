@@ -34,7 +34,7 @@ impl PartialEq<ContractEventBody> for Message {
 
         let matches_destination_chain = match destination_chain {
             ScVal::String(s) => match ChainName::try_from(s.to_string()) {
-                Ok(chain) => chain == self.destination_chain.to_string(),
+                Ok(chain) => chain == self.destination_chain,
                 Err(e) => {
                     debug!(error = ?e, "failed to parse destination chain");
                     false
@@ -208,7 +208,7 @@ mod test {
     #[test]
     fn should_not_verify_msg_if_destination_chain_does_not_match() {
         let (gateway_address, tx_response, mut msg) = matching_msg_and_tx_block();
-        msg.destination_chain = ScString::from(StringM::from_str("different-chain").unwrap());
+        msg.destination_chain = "different-chain".parse().unwrap();
 
         assert_eq!(
             verify_message(&gateway_address, &tx_response, &msg),
@@ -308,12 +308,14 @@ mod test {
 
         let signing_key = SigningKey::generate(&mut OsRng);
 
+        let destination_chain = "Ethereum";
+
         let msg = Message {
             message_id: HexTxHashAndEventIndex::new(Hash::random(), 0u64),
             source_address: ScAddress::Account(AccountId(PublicKey::PublicKeyTypeEd25519(
                 Uint256::from(signing_key.verifying_key().to_bytes()),
             ))),
-            destination_chain: ScString::from(StringM::from_str("ethereum").unwrap()),
+            destination_chain: destination_chain.parse().unwrap(),
             destination_address: ScString::from(
                 StringM::try_from(format!("0x{:x}", EVMAddress::random()).to_bytes().unwrap())
                     .unwrap(),
@@ -325,7 +327,9 @@ mod test {
             topics: vec![
                 ScVal::Symbol(ScSymbol(StringM::from_str(TOPIC_CONTRACT_CALLED).unwrap())),
                 ScVal::Address(msg.source_address.clone()),
-                ScVal::String(msg.destination_chain.clone()),
+                ScVal::String(ScString::from(
+                    StringM::from_str(destination_chain).unwrap(),
+                )),
                 ScVal::String(msg.destination_address.clone()),
                 ScVal::Bytes(msg.payload_hash.clone()),
             ]
