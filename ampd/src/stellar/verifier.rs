@@ -1,8 +1,10 @@
 use std::str::FromStr;
 
 use axelar_wasm_std::voting::Vote;
+use router_api::ChainName;
 use stellar::WeightedSigners;
 use stellar_xdr::curr::{BytesM, ContractEventBody, ScAddress, ScBytes, ScSymbol, ScVal, StringM};
+use tracing::debug;
 
 use crate::handlers::stellar_verify_msg::Message;
 use crate::handlers::stellar_verify_verifier_set::VerifierSetConfirmation;
@@ -30,10 +32,21 @@ impl PartialEq<ContractEventBody> for Message {
         )
         .into();
 
+        let destination_chain = match destination_chain {
+            ScVal::String(s) => match ChainName::try_from(s.to_string()) {
+                Ok(chain) => chain.to_string(),
+                Err(e) => {
+                    debug!("failed to parse destination chain {:?}", e);
+                    return false;
+                }
+            },
+            _ => return false,
+        };
+
         expected_topic == *symbol
             && (ScVal::Address(self.source_address.clone()) == *source_address)
             && (ScVal::Bytes(self.payload_hash.clone()) == *payload_hash)
-            && (ScVal::String(self.destination_chain.clone()) == *destination_chain)
+            && self.destination_chain.to_string() == destination_chain
             && (ScVal::String(self.destination_address.clone()) == *destination_address)
     }
 }
