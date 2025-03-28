@@ -42,16 +42,16 @@ impl PartialEq<&Message> for &SuiEvent {
                 payload_hash,
                 ..
             }) => {
-                let destination_chain = match ChainName::try_from(destination_chain) {
-                    Ok(chain) => chain,
+                let matches_destination_chain = match ChainName::try_from(destination_chain) {
+                    Ok(chain) => msg.destination_chain == chain,
                     Err(e) => {
                         debug!(error = ?e, "failed to parse destination chain");
                         return false;
                     }
                 };
 
-                msg.source_address.as_ref() == source_id.as_bytes()
-                    && msg.destination_chain == destination_chain
+                matches_destination_chain
+                    && msg.source_address.as_ref() == source_id.as_bytes()
                     && msg.destination_address == destination_address
                     && msg.payload_hash.to_fixed_bytes().to_vec() == payload_hash.to_vec()
             }

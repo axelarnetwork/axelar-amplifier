@@ -17,18 +17,18 @@ impl PartialEq<IAxelarGatewayEventsWithLog<'_>> for &Message {
 
         match event {
             IAxelarAmplifierGatewayEvents::ContractCallFilter(event) => {
-                let destination_chain = match ChainName::try_from(event.destination_chain.as_ref())
-                {
-                    Ok(chain) => chain,
-                    Err(e) => {
-                        debug!(error = ?e, "failed to parse destination chain");
-                        return false;
-                    }
-                };
+                let matches_destination_chain =
+                    match ChainName::try_from(event.destination_chain.as_ref()) {
+                        Ok(chain) => self.destination_chain == chain,
+                        Err(e) => {
+                            debug!(error = ?e, "failed to parse destination chain");
+                            return false;
+                        }
+                    };
 
-                log.transaction_hash == Some(self.message_id.tx_hash.into())
+                matches_destination_chain
+                    && log.transaction_hash == Some(self.message_id.tx_hash.into())
                     && event.sender == self.source_address
-                    && self.destination_chain == destination_chain
                     && event.destination_contract_address == self.destination_address
                     && event.payload_hash == self.payload_hash.as_bytes()
             }

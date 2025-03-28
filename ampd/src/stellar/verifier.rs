@@ -32,9 +32,9 @@ impl PartialEq<ContractEventBody> for Message {
         )
         .into();
 
-        let destination_chain = match destination_chain {
+        let matches_destination_chain = match destination_chain {
             ScVal::String(s) => match ChainName::try_from(s.to_string()) {
-                Ok(chain) => chain.to_string(),
+                Ok(chain) => self.destination_chain.to_string() == chain.to_string(),
                 Err(e) => {
                     debug!(error = ?e, "failed to parse destination chain");
                     return false;
@@ -43,10 +43,10 @@ impl PartialEq<ContractEventBody> for Message {
             _ => return false,
         };
 
-        expected_topic == *symbol
+        matches_destination_chain
+            && expected_topic == *symbol
             && (ScVal::Address(self.source_address.clone()) == *source_address)
             && (ScVal::Bytes(self.payload_hash.clone()) == *payload_hash)
-            && self.destination_chain.to_string() == destination_chain
             && (ScVal::String(self.destination_address.clone()) == *destination_address)
     }
 }

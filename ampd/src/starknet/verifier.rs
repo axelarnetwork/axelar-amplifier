@@ -29,16 +29,16 @@ pub fn verify_msg(
 
 impl PartialEq<Message> for ContractCallEvent {
     fn eq(&self, axl_msg: &Message) -> bool {
-        let destination_chain = match ChainName::try_from(self.destination_chain.as_ref()) {
-            Ok(chain) => chain,
+        let matches_destination_chain = match ChainName::try_from(self.destination_chain.as_ref()) {
+            Ok(chain) => axl_msg.destination_chain == chain,
             Err(e) => {
                 debug!(error = ?e, "failed to parse destination chain");
                 return false;
             }
         };
 
-        Felt::from(axl_msg.source_address.clone()) == self.source_address
-            && axl_msg.destination_chain == destination_chain
+        matches_destination_chain
+            && Felt::from(axl_msg.source_address.clone()) == self.source_address
             && axl_msg.destination_address == self.destination_address
             && axl_msg.payload_hash == self.payload_hash
     }

@@ -43,13 +43,8 @@ impl Message {
         let destination_chain = topics.get(2).ok_or(Error::PropertyEmpty)?;
         let destination_chain = STANDARD.decode(destination_chain)?;
         let destination_chain = String::from_utf8(destination_chain)?;
-        let destination_chain = match ChainName::try_from(destination_chain) {
-            Ok(chain) => chain,
-            Err(e) => {
-                debug!(error = ?e, "failed to parse destination chain");
-                return Ok(false);
-            }
-        };
+        let destination_chain = ChainName::try_from(destination_chain)
+            .inspect_err(|e| debug!(error = ?e, "failed to parse destination chain"))?;
         if destination_chain != self.destination_chain.as_ref() {
             return Ok(false);
         }
