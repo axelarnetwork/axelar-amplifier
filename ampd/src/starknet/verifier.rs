@@ -32,7 +32,7 @@ impl PartialEq<Message> for ContractCallEvent {
         let destination_chain = match ChainName::try_from(self.destination_chain.as_ref()) {
             Ok(chain) => chain,
             Err(e) => {
-                debug!(error = e, "failed to parse destination chain");
+                debug!(error = ?e, "failed to parse destination chain");
                 return false;
             }
         };
