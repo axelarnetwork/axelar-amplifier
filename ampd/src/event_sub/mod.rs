@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use error_stack::report;
 use error_stack::{Report, Result};
 use events::Event;
 use futures::{future, StreamExt, TryStreamExt};
@@ -21,7 +22,11 @@ use crate::tm_client::TmClient;
 
 pub mod stream;
 
+// Maximum number of blocks to process in parallel
+const BLOCK_PROCESSING_BUFFER: usize = 10;
+// Interval to poll for new blocks
 const POLL_INTERVAL: Duration = Duration::from_secs(5);
+// Retry policy for block processing and event retrival
 const BLOCK_PROCESSING_RETRY_POLICY: RetryPolicy = RetryPolicy::RepeatConstant {
     sleep: Duration::from_secs(3),
     max_attempts: 3,
@@ -92,10 +97,15 @@ impl<T: TmClient + Sync> EventPublisher<T> {
                     Some(event) => {
                         let event = event
                             .inspect_err(|err| {
-                                error!(err = LoggableError::from(err).as_value(), "failed to subscribe to events");
+                                error!(err = LoggableError::from(err).as_value(), "failed to retrieve to events");
                             })
                             .map_err(|err| err.current_context().clone());
-                        let _ = self.tx.send(event);
+
+                        let _ = self.tx.send(event)
+                            .map_err(Report::new)
+                            .inspect_err(|err| {
+                                error!(err = LoggableError::from(err).as_value(), "failed to send event to subscribers");
+                            });
                     },
                     None => {
                         break;

@@ -15,8 +15,6 @@ use crate::tm_client::TmClient;
 type Error = super::Error;
 type Result<T> = error_stack::Result<T, Error>;
 
-const BLOCK_PROCESSING_BUFFER: usize = 10;
-
 pub async fn blocks<T>(
     tm_client: &T,
     poll_interval: Duration,
@@ -46,7 +44,7 @@ where
 {
     block_stream
         .map(move |block_height| process_block(tm_client, block_height, retry_policy))
-        .buffered(BLOCK_PROCESSING_BUFFER)
+        .buffered(super::BLOCK_PROCESSING_BUFFER)
         .flat_map(|result| {
             result.map_or_else(
                 |err| stream::iter(vec![Err(err)]),
@@ -114,20 +112,29 @@ struct BlockState {
 }
 
 impl BlockState {
-    async fn update<T>(mut self, tm_client: &T, interval: &mut Interval) -> Result<Self>
+    async fn update<T>(
+        mut self,
+        tm_client: &T,
+        interval: &mut Interval,
+        token: &CancellationToken,
+    ) -> Result<Option<Self>>
     where
         T: TmClient,
     {
-        while self.current > self.latest {
+        while !token.is_cancelled() && self.current > self.latest {
             self.latest = interval
                 .tick()
                 .then(|_| latest_block_height(tm_client))
                 .await?;
         }
 
-        self.current = self.current.increment();
-
-        Ok(self)
+        match token.is_cancelled() {
+            true => return Ok(None),
+            false => {
+                self.current = self.current.increment();
+                Ok(Some(self))
+            }
+        }
     }
 
     fn stream<T>(
@@ -144,12 +151,9 @@ impl BlockState {
             |(block_state, tm_client, mut interval, token)| async move {
                 let current = block_state.current;
 
-                if token.is_cancelled() {
-                    return None;
-                }
-
-                match block_state.update(tm_client, &mut interval).await {
-                    Ok(block_state) => {
+                match block_state.update(tm_client, &mut interval, &token).await {
+                    Ok(None) => None,
+                    Ok(Some(block_state)) => {
                         Some((Ok(current), (block_state, tm_client, interval, token)))
                     }
                     Err(err) => Some((Err(err), (block_state, tm_client, interval, token))),
@@ -182,7 +186,7 @@ mod tests {
     async fn event_stream_should_stream_error_if_block_stream_streams_error() {
         let tm_client = MockTmClient::new();
 
-        let retry_pocily = RetryPolicy::RepeatConstant {
+        let retry_policy = RetryPolicy::RepeatConstant {
             sleep: Duration::from_millis(100),
             max_attempts: 3,
         };
@@ -191,7 +195,7 @@ mod tests {
             Err(report!(Error::LatestBlockQuery)),
             Err(report!(Error::LatestBlockQuery)),
         ]);
-        let mut stream = events(&tm_client, block_stream, retry_pocily);
+        let mut stream = events(&tm_client, block_stream, retry_policy);
 
         assert_err_contains!(stream.next().await.unwrap(), Error, Error::LatestBlockQuery);
         assert_err_contains!(stream.next().await.unwrap(), Error, Error::LatestBlockQuery);
@@ -267,12 +271,12 @@ mod tests {
                 }
             });
 
-        let retry_pocily = RetryPolicy::RepeatConstant {
+        let retry_policy = RetryPolicy::RepeatConstant {
             sleep: Duration::from_millis(100),
             max_attempts: 3,
         };
         let block_stream = stream::iter(vec![Ok(1u32.into()), Ok(2u32.into())]);
-        let mut stream = events(&tm_client, block_stream, retry_pocily);
+        let mut stream = events(&tm_client, block_stream, retry_policy);
 
         assert!(matches!(
             stream.next().await.unwrap(),
@@ -328,12 +332,12 @@ mod tests {
                 }
             });
 
-        let retry_pocily = RetryPolicy::RepeatConstant {
+        let retry_policy = RetryPolicy::RepeatConstant {
             sleep: Duration::from_millis(100),
             max_attempts: 3,
         };
         let block_stream = stream::iter(vec![Ok(1u32.into()), Ok(2u32.into())]);
-        let stream = events(&tm_client, block_stream, retry_pocily);
+        let stream = events(&tm_client, block_stream, retry_policy);
 
         let events: Vec<_> = stream.collect().await;
 
@@ -371,6 +375,31 @@ mod tests {
         assert!(blocks(&tm_client, interval, CancellationToken::new())
             .await
             .is_err());
+    }
+
+    #[tokio::test]
+    async fn block_stream_can_be_cancelled() {
+        let block: tendermint::Block =
+            serde_json::from_str(include_str!("../tests/axelar_block.json")).unwrap();
+        let interval = std::time::Duration::from_millis(100);
+
+        let token = CancellationToken::new();
+        let child_token = token.child_token();
+        let handle = tokio::spawn(async move {
+            let mut tm_client = MockTmClient::new();
+            tm_client.expect_latest_block().returning(move || {
+                Ok(tm_client::BlockResponse {
+                    block_id: Default::default(),
+                    block: block.clone(),
+                })
+            });
+            let mut stream = blocks(&tm_client, interval, child_token).await.unwrap();
+
+            while let Some(_) = stream.next().await {}
+        });
+
+        token.cancel();
+        assert!(handle.await.is_ok());
     }
 
     #[tokio::test]
