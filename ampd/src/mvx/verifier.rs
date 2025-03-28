@@ -5,6 +5,8 @@ use hex::ToHex;
 use multiversx_sdk::data::address::Address;
 use multiversx_sdk::data::transaction::{Events, TransactionOnNetwork};
 use num_traits::cast;
+use router_api::ChainName;
+use tracing::debug;
 
 use crate::handlers::mvx_verify_msg::Message;
 use crate::handlers::mvx_verify_verifier_set::VerifierSetConfirmation;
@@ -41,6 +43,8 @@ impl Message {
         let destination_chain = topics.get(2).ok_or(Error::PropertyEmpty)?;
         let destination_chain = STANDARD.decode(destination_chain)?;
         let destination_chain = String::from_utf8(destination_chain)?;
+        let destination_chain = ChainName::try_from(destination_chain)
+            .inspect_err(|e| debug!(error = ?e, "failed to parse destination chain"))?;
         if destination_chain != self.destination_chain.as_ref() {
             return Ok(false);
         }
