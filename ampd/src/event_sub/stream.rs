@@ -1,10 +1,9 @@
 use std::iter;
 use std::time::Duration;
 
-use axelar_wasm_std::FnExt;
 use error_stack::ResultExt;
 use events::Event;
-use futures::{stream, Stream, StreamExt};
+use futures::{stream, FutureExt, Stream, StreamExt};
 use tendermint::block;
 use tokio::time::{interval, Interval};
 use tokio_util::sync::CancellationToken;
@@ -25,10 +24,7 @@ where
 {
     latest_block_height(tm_client)
         .await
-        .map(|latest| BlockState {
-            current: latest,
-            latest,
-        })
+        .map(BlockState::new)
         .map(|block_state| block_state.stream(tm_client, interval(poll_interval), token))
         .map(Box::pin)
 }
@@ -112,6 +108,13 @@ struct BlockState {
 }
 
 impl BlockState {
+    fn new(latest: block::Height) -> Self {
+        Self {
+            current: latest,
+            latest,
+        }
+    }
+
     async fn update<T>(
         mut self,
         tm_client: &T,
@@ -129,7 +132,7 @@ impl BlockState {
         }
 
         match token.is_cancelled() {
-            true => return Ok(None),
+            true => Ok(None),
             false => {
                 self.current = self.current.increment();
                 Ok(Some(self))
@@ -395,7 +398,7 @@ mod tests {
             });
             let mut stream = blocks(&tm_client, interval, child_token).await.unwrap();
 
-            while let Some(_) = stream.next().await {}
+            while stream.next().await.is_some() {}
         });
 
         token.cancel();

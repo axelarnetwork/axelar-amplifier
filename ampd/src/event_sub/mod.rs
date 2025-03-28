@@ -1,6 +1,5 @@
 use std::time::Duration;
 
-use error_stack::report;
 use error_stack::{Report, Result};
 use events::Event;
 use futures::{future, StreamExt, TryStreamExt};
