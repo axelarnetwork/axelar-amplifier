@@ -34,7 +34,7 @@ impl PartialEq<ContractEventBody> for Message {
 
         let matches_destination_chain = match destination_chain {
             ScVal::String(s) => match ChainName::try_from(s.to_string()) {
-                Ok(chain) => self.destination_chain.to_string() == chain.to_string(),
+                Ok(chain) => chain == self.destination_chain.to_string(),
                 Err(e) => {
                     debug!(error = ?e, "failed to parse destination chain");
                     false
