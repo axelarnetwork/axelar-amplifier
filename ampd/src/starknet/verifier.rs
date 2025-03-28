@@ -33,7 +33,7 @@ impl PartialEq<Message> for ContractCallEvent {
             Ok(chain) => axl_msg.destination_chain == chain,
             Err(e) => {
                 debug!(error = ?e, "failed to parse destination chain");
-                return false;
+                false
             }
         };
 

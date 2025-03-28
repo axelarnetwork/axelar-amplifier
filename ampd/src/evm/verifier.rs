@@ -22,7 +22,7 @@ impl PartialEq<IAxelarGatewayEventsWithLog<'_>> for &Message {
                         Ok(chain) => self.destination_chain == chain,
                         Err(e) => {
                             debug!(error = ?e, "failed to parse destination chain");
-                            return false;
+                            false
                         }
                     };
 

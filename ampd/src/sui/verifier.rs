@@ -46,7 +46,7 @@ impl PartialEq<&Message> for &SuiEvent {
                     Ok(chain) => msg.destination_chain == chain,
                     Err(e) => {
                         debug!(error = ?e, "failed to parse destination chain");
-                        return false;
+                        false
                     }
                 };
 

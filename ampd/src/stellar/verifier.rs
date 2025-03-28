@@ -37,10 +37,10 @@ impl PartialEq<ContractEventBody> for Message {
                 Ok(chain) => self.destination_chain.to_string() == chain.to_string(),
                 Err(e) => {
                     debug!(error = ?e, "failed to parse destination chain");
-                    return false;
+                    false
                 }
             },
-            _ => return false,
+            _ => false,
         };
 
         matches_destination_chain
