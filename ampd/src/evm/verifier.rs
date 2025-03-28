@@ -3,6 +3,7 @@ use ethers_contract::EthLogDecode;
 use ethers_core::types::{Log, TransactionReceipt, H256};
 use evm_gateway::{IAxelarAmplifierGatewayEvents, WeightedSigners};
 use router_api::ChainName;
+use tracing::debug;
 
 use crate::handlers::evm_verify_msg::Message;
 use crate::handlers::evm_verify_verifier_set::VerifierSetConfirmation;
@@ -16,11 +17,18 @@ impl PartialEq<IAxelarGatewayEventsWithLog<'_>> for &Message {
 
         match event {
             IAxelarAmplifierGatewayEvents::ContractCallFilter(event) => {
+                let destination_chain = match ChainName::try_from(event.destination_chain.as_ref())
+                {
+                    Ok(chain) => chain,
+                    Err(e) => {
+                        debug!("failed to parse destination chain {:?}", e);
+                        return false;
+                    }
+                };
+
                 log.transaction_hash == Some(self.message_id.tx_hash.into())
                     && event.sender == self.source_address
-                    && self.destination_chain
-                        == ChainName::try_from(event.destination_chain.as_ref())
-                            .expect("failed to parse to ChainName")
+                    && self.destination_chain == destination_chain
                     && event.destination_contract_address == self.destination_address
                     && event.payload_hash == self.payload_hash.as_bytes()
             }

@@ -7,6 +7,7 @@ use sui_gateway::events::{ContractCall, SignersRotated};
 use sui_gateway::{WeightedSigner, WeightedSigners};
 use sui_json_rpc_types::{SuiEvent, SuiTransactionBlockResponse};
 use sui_types::base_types::SuiAddress;
+use tracing::debug;
 
 use crate::handlers::sui_verify_msg::Message;
 use crate::handlers::sui_verify_verifier_set::VerifierSetConfirmation;
@@ -41,10 +42,16 @@ impl PartialEq<&Message> for &SuiEvent {
                 payload_hash,
                 ..
             }) => {
+                let destination_chain = match ChainName::try_from(destination_chain) {
+                    Ok(chain) => chain,
+                    Err(e) => {
+                        debug!("failed to parse destination chain {:?}", e);
+                        return false;
+                    }
+                };
+
                 msg.source_address.as_ref() == source_id.as_bytes()
-                    && msg.destination_chain
-                        == ChainName::try_from(destination_chain)
-                            .expect("failed to parse to ChainName")
+                    && msg.destination_chain == destination_chain
                     && msg.destination_address == destination_address
                     && msg.payload_hash.to_fixed_bytes().to_vec() == payload_hash.to_vec()
             }

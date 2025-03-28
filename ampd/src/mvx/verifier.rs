@@ -42,9 +42,7 @@ impl Message {
         let destination_chain = topics.get(2).ok_or(Error::PropertyEmpty)?;
         let destination_chain = STANDARD.decode(destination_chain)?;
         let destination_chain = String::from_utf8(destination_chain)?;
-        if ChainName::try_from(destination_chain).expect("failed to parse to ChainName")
-            != self.destination_chain.as_ref()
-        {
+        if ChainName::try_from(destination_chain)? != self.destination_chain.as_ref() {
             return Ok(false);
         }
 
