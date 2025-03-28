@@ -9,21 +9,19 @@ use tendermint::block;
 use tokio::time::{interval, Interval};
 use tokio_util::sync::CancellationToken;
 
-use crate::{
-    asyncutil::future::{with_retry, RetryPolicy},
-    tm_client::TmClient,
-};
+use crate::asyncutil::future::{with_retry, RetryPolicy};
+use crate::tm_client::TmClient;
 
 type Error = super::Error;
 type Result<T> = error_stack::Result<T, Error>;
 
 const BLOCK_PROCESSING_BUFFER: usize = 10;
 
-pub async fn blocks<'a, T>(
-    tm_client: &'a T,
+pub async fn blocks<T>(
+    tm_client: &T,
     poll_interval: Duration,
     token: CancellationToken,
-) -> Result<impl Stream<Item = Result<block::Height>> + 'a>
+) -> Result<impl Stream<Item = Result<block::Height>> + '_>
 where
     T: TmClient,
 {
@@ -132,12 +130,12 @@ impl BlockState {
         Ok(self)
     }
 
-    fn stream<'a, T>(
+    fn stream<T>(
         self,
-        tm_client: &'a T,
+        tm_client: &T,
         interval: Interval,
         token: CancellationToken,
-    ) -> impl Stream<Item = Result<block::Height>> + 'a
+    ) -> impl Stream<Item = Result<block::Height>> + '_
     where
         T: TmClient,
     {

@@ -128,8 +128,7 @@ mod tests {
     use events::Event;
     use futures::stream::StreamExt;
     use random_string::generate;
-    use tendermint::abci;
-    use tendermint::block;
+    use tendermint::{abci, block};
     use tokio_util::sync::CancellationToken;
 
     use crate::event_sub::{Error, EventPublisher, EventSub};
