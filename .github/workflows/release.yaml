@@ -8,6 +8,7 @@ on:
         type: choice
         options:
           - ampd
+          - ampd-sdk
           - router
           - gateway
           - multisig
@@ -33,6 +34,7 @@ jobs:
         with:
           fetch-depth: 0
           token: ${{ secrets.INTEROP_CI_ACTION_TOKEN }}
+      
       - name: Setup variables for sub-project to release
         id: setup-variables
         shell: bash
@@ -40,6 +42,7 @@ jobs:
           binary="${{ github.event.inputs.binary-to-release }}"
           declare -A binaries_data=(
             ["ampd"]="ampd,/\(major\)|\(major-ampd\)/,/\(minor\)|\(minor-ampd\)/,ampd packages"
+            ["ampd-sdk"]="ampd-sdk,/\(major\)|\(major-ampd-sdk\)/,/\(minor\)|\(minor-ampd-sdk\)/,packages/ampd-sdk"
             ["router"]="router,/\(major\)|\(major-router\)|\(major-contracts\)|\(major-connection-router\)/,/\(minor\)|\(minor-router\)|\(minor-contracts\)|\(minor-connection-router\)/,contracts/router packages"
             ["gateway"]="gateway,/\(major\)|\(major-gateway\)|\(major-contracts\)/,/\(minor\)|\(minor-gateway\)|\(minor-contracts\)/,contracts/gateway packages"
             ["multisig"]="multisig,/\(major\)|\(major-multisig\)|\(major-contracts\)/,/\(minor\)|\(minor-multisig\)|\(minor-contracts\)/,contracts/multisig packages"
