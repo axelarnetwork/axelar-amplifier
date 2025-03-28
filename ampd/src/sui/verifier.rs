@@ -2,6 +2,7 @@ use axelar_wasm_std::voting::Vote;
 use axelar_wasm_std::{self};
 use cosmwasm_std::HexBinary;
 use move_core_types::language_storage::StructTag;
+use router_api::ChainName;
 use sui_gateway::events::{ContractCall, SignersRotated};
 use sui_gateway::{WeightedSigner, WeightedSigners};
 use sui_json_rpc_types::{SuiEvent, SuiTransactionBlockResponse};
@@ -41,7 +42,9 @@ impl PartialEq<&Message> for &SuiEvent {
                 ..
             }) => {
                 msg.source_address.as_ref() == source_id.as_bytes()
-                    && msg.destination_chain == destination_chain
+                    && msg.destination_chain
+                        == ChainName::try_from(destination_chain)
+                            .expect("failed to parse to ChainName")
                     && msg.destination_address == destination_address
                     && msg.payload_hash.to_fixed_bytes().to_vec() == payload_hash.to_vec()
             }

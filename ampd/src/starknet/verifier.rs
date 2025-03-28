@@ -1,5 +1,6 @@
 use axelar_wasm_std::voting::Vote;
 use cosmwasm_std::HexBinary;
+use router_api::ChainName;
 use starknet_core::types::Felt;
 
 use crate::handlers::starknet_verify_msg::Message;
@@ -28,7 +29,9 @@ pub fn verify_msg(
 impl PartialEq<Message> for ContractCallEvent {
     fn eq(&self, axl_msg: &Message) -> bool {
         Felt::from(axl_msg.source_address.clone()) == self.source_address
-            && axl_msg.destination_chain == self.destination_chain
+            && axl_msg.destination_chain
+                == ChainName::try_from(self.destination_chain.as_ref())
+                    .expect("failed to parse to ChainName")
             && axl_msg.destination_address == self.destination_address
             && axl_msg.payload_hash == self.payload_hash
     }
