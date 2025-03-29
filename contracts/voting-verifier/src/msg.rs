@@ -7,6 +7,8 @@ use msgs_derive::EnsurePermissions;
 use multisig::verifier_set::VerifierSet;
 use router_api::{ChainName, Message};
 
+pub use crate::contract::MigrateMsg;
+
 #[cw_serde]
 pub struct InstantiateMsg {
     /// Address that can call all messages of unrestricted governance permission level, like UpdateVotingThreshold.

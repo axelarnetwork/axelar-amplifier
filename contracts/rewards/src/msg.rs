@@ -6,6 +6,8 @@ use cosmwasm_std::{Addr, Uint128, Uint64};
 use msgs_derive::EnsurePermissions;
 use router_api::{Address, ChainName};
 
+pub use crate::contract::MigrateMsg;
+
 #[cw_serde]
 pub struct Epoch {
     pub epoch_num: u64,
