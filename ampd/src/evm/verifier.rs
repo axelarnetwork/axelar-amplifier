@@ -133,6 +133,8 @@ pub fn verify_verifier_set(
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
+
     use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
     use axelar_wasm_std::voting::Vote;
     use cosmwasm_std::Uint128;
@@ -326,6 +328,16 @@ mod tests {
         );
     }
 
+    #[test]
+    fn should_verify_msg_if_chain_uses_different_casing() {
+        let (gateway_address, tx_receipt, msg) = msg_and_tx_receipt_with_different_chain_casing();
+
+        assert_eq!(
+            verify_message(&gateway_address, &tx_receipt, &msg),
+            Vote::SucceededOnChain
+        );
+    }
+
     fn matching_verifier_set_and_tx_receipt(
     ) -> (EVMAddress, TransactionReceipt, VerifierSetConfirmation) {
         let tx_id = Hash::random();
@@ -364,12 +376,11 @@ mod tests {
         (gateway_address, tx_receipt, verifier_set)
     }
 
-    fn matching_msg_and_tx_receipt() -> (EVMAddress, TransactionReceipt, Message) {
+    fn mock_message(destination_chain: &str) -> Message {
         let tx_id = Hash::random();
         let log_index = 1;
-        let gateway_address = EVMAddress::random();
 
-        let msg = Message {
+        Message {
             message_id: HexTxHashAndEventIndex::new(tx_id, log_index as u64)
                 .to_string()
                 .parse()
@@ -377,30 +388,73 @@ mod tests {
             source_address: "0xd48e199950589a4336e4dc43bd2c72ba0c0baa86"
                 .parse()
                 .unwrap(),
-            destination_chain: "ethereum-2".parse().unwrap(),
+            destination_chain: destination_chain.parse().unwrap(),
             destination_address: "0xb9845f9247a85Ee592273a79605f34E8607d7e75".into(),
             payload_hash: "0x9fcef596d62dca8e51b6ba3414901947c0e6821d4483b2f3327ce87c2d4e662e"
                 .parse()
                 .unwrap(),
+        }
+    }
+
+    fn mock_tx_receipt(
+        destination_chain: &str,
+        gateway_address: ethers_core::types::H160,
+        msg: &Message,
+    ) -> TransactionReceipt {
+        let tx_id = msg.message_id.tx_hash.into();
+        let log_index = msg.message_id.event_index.into();
+
+        let filter = ContractCallFilter {
+            sender: msg.source_address.clone(),
+            destination_chain: destination_chain.into(),
+            destination_contract_address: msg.destination_address.clone(),
+            payload_hash: msg.payload_hash.into(),
+            payload: ethers_core::types::Bytes::from_str("0x627566666572").unwrap(),
         };
-        let log = Log{
+
+        let data = ethers_core::abi::encode(&[
+            Token::String(filter.destination_chain.clone()),
+            Token::String(filter.destination_contract_address.clone()),
+            Token::Bytes(filter.payload.to_vec()),
+        ]);
+
+        let log = Log {
             transaction_hash: Some(tx_id),
-            log_index: Some(log_index.into()),
+            log_index: Some(log_index),
             address: gateway_address,
             topics: vec![
                 ContractCallFilter::signature(),
-                "0x000000000000000000000000d48e199950589a4336e4dc43bd2c72ba0c0baa86".parse().unwrap(),
-                "0x9fcef596d62dca8e51b6ba3414901947c0e6821d4483b2f3327ce87c2d4e662e".parse().unwrap(),
+                H256::from(filter.sender),
+                filter.payload_hash.into(),
             ],
-            data : "0x000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000a00000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000000a657468657265756d2d3200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002a3078623938343566393234376138354565353932323733613739363035663334453836303764376537350000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000066275666665720000000000000000000000000000000000000000000000000000".parse().unwrap(),
+            data: data.into(),
             ..Default::default()
         };
-        let tx_receipt = TransactionReceipt {
+
+        TransactionReceipt {
             transaction_hash: tx_id,
             status: Some(1u64.into()),
             logs: vec![Log::default(), log, Log::default()],
             ..Default::default()
-        };
+        }
+    }
+
+    fn matching_msg_and_tx_receipt() -> (EVMAddress, TransactionReceipt, Message) {
+        let gateway_address = EVMAddress::random();
+
+        let destination_chain = "ethereum-2";
+        let msg = mock_message(destination_chain);
+        let tx_receipt = mock_tx_receipt(destination_chain, gateway_address, &msg);
+
+        (gateway_address, tx_receipt, msg)
+    }
+
+    fn msg_and_tx_receipt_with_different_chain_casing() -> (EVMAddress, TransactionReceipt, Message)
+    {
+        let gateway_address = EVMAddress::random();
+
+        let msg = mock_message("ethereum-2");
+        let tx_receipt = mock_tx_receipt("Ethereum-2", gateway_address, &msg);
 
         (gateway_address, tx_receipt, msg)
     }
