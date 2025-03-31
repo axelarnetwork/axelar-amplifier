@@ -211,16 +211,6 @@ mod tests {
     use crate::types::TMAddress;
     use crate::PREFIX;
 
-    fn rand_chain_name() -> ChainName {
-        rand::thread_rng()
-            .sample_iter(&Alphanumeric)
-            .take(10)
-            .map(char::from)
-            .collect::<String>()
-            .try_into()
-            .unwrap()
-    }
-
     #[test]
     fn finalizer_should_default_to_ethereum() {
         let chain_config_toml = "
