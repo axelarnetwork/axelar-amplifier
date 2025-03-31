@@ -66,7 +66,7 @@ impl Client<'_> {
         gateway_address: String,
         voting_verifier_address: String,
     ) -> CosmosMsg {
-        self.client.execute(&ExecuteMsg::RegisterContractAddresses {
+        self.client.execute(&ExecuteMsg::RegisterChain {
             chain_name,
             prover_address,
             gateway_address,

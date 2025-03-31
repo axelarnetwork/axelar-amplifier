@@ -82,7 +82,7 @@ pub fn execute(
             let new_prover_addr = validate_cosmwasm_address(deps.api, &new_prover_addr)?;
             execute::register_prover(deps, chain_name, new_prover_addr)
         }
-        ExecuteMsg::RegisterContractAddresses {
+        ExecuteMsg::RegisterChain {
             chain_name,
             prover_address,
             gateway_address,
@@ -313,7 +313,7 @@ mod tests {
             test_setup.deps.as_mut(),
             test_setup.env,
             message_info(&governance, &[]),
-            ExecuteMsg::RegisterContractAddresses {
+            ExecuteMsg::RegisterChain {
                 chain_name: test_setup.chain_name.clone(),
                 prover_address: test_setup.prover.to_string(),
                 gateway_address: test_setup.gateway.to_string(),
