@@ -239,6 +239,22 @@ mod tests {
         )
     }
 
+    #[test]
+    fn shoud_verify_event_if_chain_uses_different_casing() {
+        let msg = mock_valid_message();
+        let mut event = mock_valid_event();
+        event.destination_chain = msg.destination_chain.to_string().to_uppercase();
+
+        assert_eq!(
+            verify_msg(
+                &event,
+                &msg,
+                &String::from("0x035410be6f4bf3f67f7c1bb4a93119d9d410b2f981bfafbf5dbbf5d37ae7439e"),
+            ),
+            Vote::SucceededOnChain
+        )
+    }
+
     /// Verifier set - signers rotated
 
     fn mock_valid_confirmation_signers_rotated() -> VerifierSetConfirmation {
