@@ -251,6 +251,16 @@ mod test {
     }
 
     #[test]
+    fn should_verify_msg_if_chain_uses_different_casing() {
+        let (gateway_address, tx_response, msg) = msg_and_tx_response_with_different_chain_casing();
+
+        assert_eq!(
+            verify_message(&gateway_address, &tx_response, &msg),
+            Vote::SucceededOnChain
+        );
+    }
+
+    #[test]
     fn should_not_verify_verifier_set_if_tx_id_does_not_match() {
         let (gateway_address, tx_response, mut confirmation) = matching_verifier_set_and_tx_block();
         confirmation.message_id.tx_hash = Hash::random().into();
@@ -302,15 +312,10 @@ mod test {
         );
     }
 
-    fn matching_msg_and_tx_block() -> (ScAddress, TxResponse, Message) {
-        let account_id = stellar_xdr::curr::Hash::from(Hash::random().0);
-        let gateway_address = ScAddress::Contract(account_id.clone());
-
+    fn mock_message(destination_chain: &str) -> Message {
         let signing_key = SigningKey::generate(&mut OsRng);
 
-        let destination_chain = "Ethereum";
-
-        let msg = Message {
+        Message {
             message_id: HexTxHashAndEventIndex::new(Hash::random(), 0u64),
             source_address: ScAddress::Account(AccountId(PublicKey::PublicKeyTypeEd25519(
                 Uint256::from(signing_key.verifying_key().to_bytes()),
@@ -321,8 +326,14 @@ mod test {
                     .unwrap(),
             ),
             payload_hash: ScBytes(BytesM::try_from(Hash::random().to_fixed_bytes()).unwrap()),
-        };
+        }
+    }
 
+    fn mock_tx_response(
+        destination_chain: &str,
+        account_id: stellar_xdr::curr::Hash,
+        msg: &Message,
+    ) -> TxResponse {
         let event_body = ContractEventBody::V0(ContractEventV0 {
             topics: vec![
                 ScVal::Symbol(ScSymbol(StringM::from_str(TOPIC_CONTRACT_CALLED).unwrap())),
@@ -345,11 +356,30 @@ mod test {
             body: event_body,
         };
 
-        let tx_response = TxResponse {
+        TxResponse {
             transaction_hash: msg.message_id.tx_hash_as_hex_no_prefix().to_string(),
             successful: true,
             contract_events: vec![event].try_into().unwrap(),
-        };
+        }
+    }
+
+    fn matching_msg_and_tx_block() -> (ScAddress, TxResponse, Message) {
+        let account_id = stellar_xdr::curr::Hash::from(Hash::random().0);
+        let gateway_address = ScAddress::Contract(account_id.clone());
+
+        let destination_chain = "ethereum";
+        let msg = mock_message(destination_chain);
+        let tx_response = mock_tx_response(destination_chain, account_id, &msg);
+
+        (gateway_address, tx_response, msg)
+    }
+
+    fn msg_and_tx_response_with_different_chain_casing() -> (ScAddress, TxResponse, Message) {
+        let account_id = stellar_xdr::curr::Hash::from(Hash::random().0);
+        let gateway_address = ScAddress::Contract(account_id.clone());
+
+        let msg = mock_message("ethereum");
+        let tx_response = mock_tx_response("Ethereum", account_id, &msg);
 
         (gateway_address, tx_response, msg)
     }
