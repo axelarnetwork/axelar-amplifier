@@ -5,6 +5,8 @@ use hex::ToHex;
 use multiversx_sdk::data::address::Address;
 use multiversx_sdk::data::transaction::{Events, TransactionOnNetwork};
 use num_traits::cast;
+use router_api::ChainName;
+use tracing::debug;
 
 use crate::handlers::mvx_verify_msg::Message;
 use crate::handlers::mvx_verify_verifier_set::VerifierSetConfirmation;
@@ -41,6 +43,8 @@ impl Message {
         let destination_chain = topics.get(2).ok_or(Error::PropertyEmpty)?;
         let destination_chain = STANDARD.decode(destination_chain)?;
         let destination_chain = String::from_utf8(destination_chain)?;
+        let destination_chain = ChainName::try_from(destination_chain)
+            .inspect_err(|e| debug!(error = ?e, "failed to parse destination chain"))?;
         if destination_chain != self.destination_chain.as_ref() {
             return Ok(false);
         }
@@ -288,6 +292,16 @@ mod tests {
         );
     }
 
+    #[test]
+    fn should_verify_msg_if_chain_uses_different_casing() {
+        let (gateway_address, tx, msg) = msg_and_tx_on_network_with_different_chain_casing();
+
+        assert_eq!(
+            verify_message(&gateway_address, &tx, &msg),
+            Vote::SucceededOnChain
+        );
+    }
+
     // test verify worker set
     #[test]
     fn should_not_verify_verifier_set_if_tx_id_does_not_match() {
@@ -401,11 +415,7 @@ mod tests {
         );
     }
 
-    fn get_matching_msg_and_tx() -> (Address, TransactionOnNetwork, Message) {
-        let gateway_address = Address::from_bech32_string(
-            "erd1qqqqqqqqqqqqqpgqsvzyz88e8v8j6x3wquatxuztnxjwnw92kkls6rdtzx",
-        )
-        .unwrap();
+    fn mock_message(destination_chain: &str) -> Message {
         let source_address = Address::from_bech32_string(
             "erd1qqqqqqqqqqqqqpgqzqvm5ywqqf524efwrhr039tjs29w0qltkklsa05pk7",
         )
@@ -414,16 +424,21 @@ mod tests {
             .parse()
             .unwrap();
 
-        let msg = Message {
+        Message {
             tx_id,
             event_index: 1,
             source_address,
-            destination_chain: "ethereum".parse().unwrap(),
+            destination_chain: destination_chain.parse().unwrap(),
             destination_address: format!("0x{:x}", EVMAddress::random()).parse().unwrap(),
             payload_hash: Hash::random(),
-        };
+        }
+    }
 
-        // Only the first 32 bytes matter for data
+    fn mock_tx_on_network(
+        destination_chain: &str,
+        gateway_address: &Address,
+        msg: &Message,
+    ) -> TransactionOnNetwork {
         let payload_hash = msg.payload_hash;
 
         let wrong_event = Events {
@@ -440,7 +455,7 @@ mod tests {
             topics: Some(vec![
                 STANDARD.encode(CONTRACT_CALL_EVENT),
                 STANDARD.encode(msg.source_address.clone().to_bytes()),
-                STANDARD.encode(msg.destination_chain.to_string()),
+                STANDARD.encode(destination_chain),
                 STANDARD.encode(msg.destination_address.clone()),
                 STANDARD.encode(payload_hash),
             ]),
@@ -451,7 +466,8 @@ mod tests {
             "erd1qqqqqqqqqqqqqpgqzqvm5ywqqf524efwrhr039tjs29w0qltkklsa05pk7",
         )
         .unwrap();
-        let tx_block = TransactionOnNetwork {
+
+        TransactionOnNetwork {
             hash: Some(msg.tx_id.encode_hex::<String>()),
             logs: Some(ApiLogs {
                 address: other_address.clone(),
@@ -485,7 +501,31 @@ mod tests {
             hyperblock_hash: Some("".into()),
             smart_contract_results: vec![],
             processing_type_on_destination: "".into(),
-        };
+        }
+    }
+
+    fn get_matching_msg_and_tx() -> (Address, TransactionOnNetwork, Message) {
+        let gateway_address = Address::from_bech32_string(
+            "erd1qqqqqqqqqqqqqpgqsvzyz88e8v8j6x3wquatxuztnxjwnw92kkls6rdtzx",
+        )
+        .unwrap();
+
+        let destination_chain = "ethereum";
+        let msg = mock_message(destination_chain);
+        let tx_block = mock_tx_on_network(destination_chain, &gateway_address, &msg);
+
+        (gateway_address, tx_block, msg)
+    }
+
+    fn msg_and_tx_on_network_with_different_chain_casing(
+    ) -> (Address, TransactionOnNetwork, Message) {
+        let gateway_address = Address::from_bech32_string(
+            "erd1qqqqqqqqqqqqqpgqsvzyz88e8v8j6x3wquatxuztnxjwnw92kkls6rdtzx",
+        )
+        .unwrap();
+
+        let msg = mock_message("ethereum");
+        let tx_block = mock_tx_on_network("Ethereum", &gateway_address, &msg);
 
         (gateway_address, tx_block, msg)
     }

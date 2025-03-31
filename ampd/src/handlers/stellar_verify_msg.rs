@@ -32,7 +32,7 @@ use crate::types::TMAddress;
 pub struct Message {
     pub message_id: HexTxHashAndEventIndex,
     pub destination_address: ScString,
-    pub destination_chain: ScString,
+    pub destination_chain: ChainName,
     #[serde_as(as = "DisplayFromStr")]
     pub source_address: ScAddress,
     pub payload_hash: ScBytes,
