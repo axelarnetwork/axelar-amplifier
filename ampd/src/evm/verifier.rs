@@ -405,7 +405,7 @@ mod tests {
         let log_index = msg.message_id.event_index.into();
 
         let filter = ContractCallFilter {
-            sender: msg.source_address.clone(),
+            sender: msg.source_address,
             destination_chain: destination_chain.into(),
             destination_contract_address: msg.destination_address.clone(),
             payload_hash: msg.payload_hash.into(),
