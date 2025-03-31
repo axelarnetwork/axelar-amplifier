@@ -424,7 +424,7 @@ mod tests {
             .parse()
             .unwrap();
 
-        let msg = Message {
+        Message {
             tx_id,
             event_index: 1,
             source_address,
