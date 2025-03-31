@@ -36,9 +36,9 @@ pub enum ExecuteMsg {
     /// must be registered with the hub.
     #[permission(Elevated)]
     RegisterP2pTokenInstance {
-        instance_chain: ChainNameRaw,
-        origin_chain: ChainNameRaw,
+        chain: ChainNameRaw,
         token_id: TokenId,
+        origin_chain: ChainNameRaw,
         decimals: u8,
         supply: TokenSupply,
     },

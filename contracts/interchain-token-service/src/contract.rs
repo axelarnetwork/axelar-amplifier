@@ -97,15 +97,15 @@ pub fn execute(
         }) => execute::execute_message(deps, cc_id, source_address, payload)
             .change_context(Error::Execute),
         ExecuteMsg::RegisterP2pTokenInstance {
-            instance_chain,
-            origin_chain,
+            chain,
             token_id,
+            origin_chain,
             decimals,
             supply,
         } => execute::register_p2p_token_instance(
             deps,
             token_id,
-            instance_chain,
+            chain,
             origin_chain,
             decimals,
             supply,

@@ -119,7 +119,7 @@ pub fn register_p2p_token_instance(
     sender: &str,
     token_id: TokenId,
     origin_chain: ChainNameRaw,
-    instance_chain: ChainNameRaw,
+    chain: ChainNameRaw,
     decimals: u8,
     supply: TokenSupply,
 ) -> Result<Response, ContractError> {
@@ -128,7 +128,7 @@ pub fn register_p2p_token_instance(
         mock_env(),
         message_info(&MockApi::default().addr_make(sender), &[]),
         ExecuteMsg::RegisterP2pTokenInstance {
-            instance_chain,
+            chain,
             origin_chain,
             token_id,
             decimals,
