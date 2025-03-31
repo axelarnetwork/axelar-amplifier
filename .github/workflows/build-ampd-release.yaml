@@ -39,7 +39,7 @@ jobs:
     needs: extract-semver
     strategy:
       matrix:
-        os: [ ubuntu-22.04, macos-latest ]
+        os: [ ubuntu-22.04, macos-14 ]
         arch: [ amd64, arm64 ]
 
     permissions:
@@ -78,7 +78,7 @@ jobs:
       - name: build and sign darwin binaries
         env:
           SEMVER: ${{ needs.extract-semver.outputs.semver }}
-        if: matrix.os == 'macos-latest'
+        if: matrix.os == 'macos-14'
         run: |
           OS="darwin"
           ARCH="${{ matrix.arch }}"
@@ -138,7 +138,7 @@ jobs:
               elif [[ "${{ matrix.arch }}" == "arm64" ]]; then
                 EXPECTED="ELF 64-bit LSB pie executable, ARM aarch64"
               fi
-            elif [[ "${{ matrix.os }}" == "macos-latest" ]]; then
+            elif [[ "${{ matrix.os }}" == "macos-14" ]]; then
               OUTPUT=$(file "$binary" | cut -d: -f2-)
               if [[ "${{ matrix.arch }}" == "amd64" ]]; then
                 EXPECTED="Mach-O 64-bit executable x86_64"
