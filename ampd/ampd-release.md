@@ -20,8 +20,8 @@ This document outlines the step-by-step process for releasing a new version of `
    - **IMPORTANT**: Enable "Dry run" to verify everything works correctly and make a note of the updated tag.
 
 
-### 2. Update the Changelog
-
+### 2. Ensure the Changelog is updated
+In general, Changelog should be kept up-to-date in every PR that makes changes to `ampd`.
 1. Create a PR to update the root level `CHANGELOG.md` file based on the new tag from step 1.
 2. Update the changelog header section with the new version information.
 
