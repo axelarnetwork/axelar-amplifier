@@ -201,9 +201,6 @@ where
 
 #[cfg(test)]
 mod tests {
-    use rand::distributions::Alphanumeric;
-    use rand::Rng;
-    use router_api::ChainName;
     use serde_json::to_value;
 
     use crate::evm::finalizer::Finalization;
