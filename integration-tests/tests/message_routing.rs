@@ -280,7 +280,7 @@ fn payment_from_xrpl_can_be_verified_and_routed_and_proven() {
     let xrpl_interchain_transfer_msg = XRPLInterchainTransferMessage {
         tx_id: HexTxHash::new([0; 32]), // TODO
         source_address: source_address.clone(),
-        destination_chain: destination_chain_name.clone(),
+        destination_chain: destination_chain_name.clone().into(),
         destination_address: destination_address.clone(),
         payload_hash: None,
         transfer_amount: XRPLPaymentAmount::Drops(transfer_amount),
