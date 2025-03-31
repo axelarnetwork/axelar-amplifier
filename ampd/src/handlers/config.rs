@@ -172,7 +172,6 @@ where
     validate_evm_msg_verifier_configs::<D>(&configs)?;
     validate_evm_verifier_set_verifier_configs::<D>(&configs)?;
 
-    ensure_unique_config!(&configs, Config::MultisigSigner, "Multisig signer")?;
     ensure_unique_config!(&configs, Config::XRPLMsgVerifier, "XRPL message verifier")?;
     ensure_unique_config!(&configs, Config::SuiMsgVerifier, "Sui message verifier")?;
     ensure_unique_config!(
@@ -235,23 +234,6 @@ mod tests {
 
     #[test]
     fn unique_config_validation() {
-        let configs = vec![
-            Config::MultisigSigner {
-                cosmwasm_contract: TMAddress::random(PREFIX),
-                chain_name: rand_chain_name(),
-            },
-            Config::MultisigSigner {
-                cosmwasm_contract: TMAddress::random(PREFIX),
-                chain_name: rand_chain_name(),
-            },
-        ];
-
-        assert!(
-            matches!(deserialize_handler_configs(to_value(configs).unwrap()),
-                Err(e) if e.to_string().contains("only one Multisig signer config is allowed")
-            )
-        );
-
         let configs = vec![
             Config::SuiMsgVerifier {
                 cosmwasm_contract: TMAddress::random(PREFIX),
