@@ -159,7 +159,6 @@ mod tests {
     use multisig::verifier_set::VerifierSet;
     use rand::rngs::OsRng;
     use random_string::generate;
-    use router_api::ChainName;
     use serde_json::json;
     use sui_gateway::events::{ContractCall, SignersRotated};
     use sui_gateway::{WeightedSigner, WeightedSigners};
@@ -210,7 +209,7 @@ mod tests {
     fn should_not_verify_msg_if_destination_chain_does_not_match() {
         let (gateway_address, tx_receipt, mut msg) = matching_msg_and_tx_block();
 
-        msg.destination_chain = rand_chain_name();
+        msg.destination_chain = rand_chain_name().parse().unwrap();
         assert_eq!(
             verify_message(&gateway_address, &tx_receipt, &msg),
             Vote::NotFound
@@ -242,6 +241,15 @@ mod tests {
     #[test]
     fn should_verify_msg_if_correct() {
         let (gateway_address, tx_block, msg) = matching_msg_and_tx_block();
+        assert_eq!(
+            verify_message(&gateway_address, &tx_block, &msg),
+            Vote::SucceededOnChain
+        );
+    }
+
+    #[test]
+    fn should_verify_msg_if_chain_uses_different_casing() {
+        let (gateway_address, tx_block, msg) = msg_and_tx_block_with_different_chain_casing();
         assert_eq!(
             verify_message(&gateway_address, &tx_block, &msg),
             Vote::SucceededOnChain
@@ -354,23 +362,27 @@ mod tests {
         );
     }
 
-    fn matching_msg_and_tx_block() -> (SuiAddress, SuiTransactionBlockResponse, Message) {
-        let gateway_address = SuiAddress::random_for_testing_only();
-
-        let msg = Message {
+    fn mock_message(destination_chain: &str) -> Message {
+        Message {
             message_id: Base58TxDigestAndEventIndex::new(
                 TransactionDigest::random(),
                 rand::random::<u64>(),
             ),
             source_address: SuiAddress::random_for_testing_only(),
-            destination_chain: rand_chain_name(),
+            destination_chain: destination_chain.parse().unwrap(),
             destination_address: format!("0x{:x}", EVMAddress::random()).parse().unwrap(),
             payload_hash: Hash::random(),
-        };
+        }
+    }
 
+    fn mock_tx_block(
+        destination_chain: &str,
+        gateway_address: SuiAddress,
+        msg: &Message,
+    ) -> SuiTransactionBlockResponse {
         let contract_call = ContractCall {
             destination_address: msg.destination_address.clone(),
-            destination_chain: msg.destination_chain.to_string(),
+            destination_chain: destination_chain.to_string(),
             payload: msg.payload_hash.to_fixed_bytes().to_vec(),
             payload_hash: msg.payload_hash.to_fixed_bytes(),
             source_id: msg.source_address.to_string().parse().unwrap(),
@@ -394,11 +406,29 @@ mod tests {
             timestamp_ms: None,
         };
 
-        let tx_block = SuiTransactionBlockResponse {
+        SuiTransactionBlockResponse {
             digest: msg.message_id.tx_digest.into(),
             events: Some(SuiTransactionBlockEvents { data: vec![event] }),
             ..Default::default()
-        };
+        }
+    }
+
+    fn matching_msg_and_tx_block() -> (SuiAddress, SuiTransactionBlockResponse, Message) {
+        let gateway_address = SuiAddress::random_for_testing_only();
+
+        let destination_chain = rand_chain_name();
+        let msg = mock_message(&destination_chain);
+        let tx_block = mock_tx_block(&destination_chain, gateway_address, &msg);
+
+        (gateway_address, tx_block, msg)
+    }
+
+    fn msg_and_tx_block_with_different_chain_casing(
+    ) -> (SuiAddress, SuiTransactionBlockResponse, Message) {
+        let gateway_address = SuiAddress::random_for_testing_only();
+
+        let msg = mock_message("ethereum");
+        let tx_block = mock_tx_block("Ethereum", gateway_address, &msg);
 
         (gateway_address, tx_block, msg)
     }
@@ -492,8 +522,8 @@ mod tests {
         (gateway_address, tx_block, verifier_set_confirmation)
     }
 
-    fn rand_chain_name() -> ChainName {
+    fn rand_chain_name() -> String {
         let charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
-        generate(8, charset).parse().unwrap()
+        generate(8, charset)
     }
 }
