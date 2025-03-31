@@ -103,14 +103,14 @@ where
 
 #[derive(Copy, Clone)]
 struct BlockState {
-    current: block::Height,
+    next_to_stream: block::Height,
     latest: block::Height,
 }
 
 impl BlockState {
     fn new(latest: block::Height) -> Self {
         Self {
-            current: latest,
+            next_to_stream: latest,
             latest,
         }
     }
@@ -124,7 +124,7 @@ impl BlockState {
     where
         T: TmClient,
     {
-        while !token.is_cancelled() && self.current > self.latest {
+        while !token.is_cancelled() && self.next_to_stream > self.latest {
             self.latest = interval
                 .tick()
                 .then(|_| latest_block_height(tm_client))
@@ -134,7 +134,7 @@ impl BlockState {
         match token.is_cancelled() {
             true => Ok(None),
             false => {
-                self.current = self.current.increment();
+                self.next_to_stream = self.next_to_stream.increment();
                 Ok(Some(self))
             }
         }
@@ -152,12 +152,12 @@ impl BlockState {
         futures::stream::unfold(
             (self, tm_client, interval, token),
             |(block_state, tm_client, mut interval, token)| async move {
-                let current = block_state.current;
+                let to_stream = block_state.next_to_stream;
 
                 match block_state.update(tm_client, &mut interval, &token).await {
                     Ok(None) => None,
                     Ok(Some(block_state)) => {
-                        Some((Ok(current), (block_state, tm_client, interval, token)))
+                        Some((Ok(to_stream), (block_state, tm_client, interval, token)))
                     }
                     Err(err) => Some((Err(err), (block_state, tm_client, interval, token))),
                 }
