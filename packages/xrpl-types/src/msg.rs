@@ -2,7 +2,7 @@ use axelar_wasm_std::msg_id::HexTxHash;
 use axelar_wasm_std::nonempty;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Attribute, HexBinary};
-use router_api::{ChainName, ChainNameRaw, CrossChainId, FIELD_DELIMITER};
+use router_api::{ChainNameRaw, CrossChainId, FIELD_DELIMITER};
 use sha3::{Digest, Keccak256};
 
 use crate::types::{xrpl_account_id_string, XRPLAccountId, XRPLPaymentAmount};
@@ -116,7 +116,7 @@ pub struct XRPLInterchainTransferMessage {
     #[serde(with = "xrpl_account_id_string")]
     #[schemars(with = "String")]
     pub source_address: XRPLAccountId,
-    pub destination_chain: ChainName,
+    pub destination_chain: ChainNameRaw,
     pub destination_address: nonempty::String,
     /// for better user experience, the payload hash gets encoded into hex at the edges (input/output),
     /// but internally, we treat it as raw bytes to enforce its format.
@@ -141,7 +141,7 @@ pub struct XRPLCallContractMessage {
     #[serde(with = "xrpl_account_id_string")]
     #[schemars(with = "String")]
     pub source_address: XRPLAccountId,
-    pub destination_chain: ChainName,
+    pub destination_chain: ChainNameRaw,
     pub destination_address: nonempty::String,
     /// for better user experience, the payload hash gets encoded into hex at the edges (input/output),
     /// but internally, we treat it as raw bytes to enforce its format.
