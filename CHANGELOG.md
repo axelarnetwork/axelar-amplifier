@@ -2,9 +2,23 @@
 
 ## [Unreleased](https://github.com/axelarnetwork/axelar-amplifier/tree/HEAD)
 
-[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/ampd-v1.4.0..HEAD)
+[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/ampd-v1.5.1..HEAD)
 
-## [v1.4.0](https://github.com/axelarnetwork/axelar-amplifier/tree/ampd-v1.3.0) (2024-12-12)
+## [v1.5.1](https://github.com/axelarnetwork/axelar-amplifier/tree/ampd-v1.5.1) (2025-03-26)
+
+[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/ampd-v1.5.0..ampd-v1.5.1)
+
+- Fix arithmetic operations with XRPLTokenAmount [#780](https://github.com/axelarnetwork/axelar-amplifier/pull/780)
+
+## [v1.5.0](https://github.com/axelarnetwork/axelar-amplifier/tree/ampd-v1.5.0) (2025-03-24)
+
+[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/ampd-v1.4.0..ampd-v1.5.0)
+
+- Add support for Starknet GMP [#731](https://github.com/axelarnetwork/axelar-amplifier/pull/731)
+- Add support for XRPL GMP and token transfers [#764](https://github.com/axelarnetwork/axelar-amplifier/pull/764)
+- Ignore fee estimation failures [#767](https://github.com/axelarnetwork/axelar-amplifier/pull/767)
+
+## [v1.4.0](https://github.com/axelarnetwork/axelar-amplifier/tree/ampd-v1.4.0) (2024-12-12)
 
 [Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/ampd-v1.3.0..ampd-v1.4.0)
 
