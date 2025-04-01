@@ -7,6 +7,11 @@ on:
         description: Github tag to release binaries for (reusing an existing tag will make the pipeline fail)
         required: true
         default: latest
+      dry_run:
+        description: Run in dry-run mode (no uploads to S3, no GitHub releases, no Docker pushes)
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   extract-semver:
@@ -170,6 +175,7 @@ jobs:
           done
 
       - name: Upload binaries to release
+        if: ${{ !github.event.inputs.dry-run }}
         uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
@@ -179,6 +185,7 @@ jobs:
           file_glob: true
 
       - name: Upload binaries to S3
+        if: ${{ !github.event.inputs.dry-run }}
         env:
           S3_PATH: s3://axelar-releases/ampd/${{ needs.extract-semver.outputs.semver }}
         run: |
@@ -192,9 +199,10 @@ jobs:
           cp -R ./ampdbin/. "./${version}/"
           echo "release-dir=./${version}" >> $GITHUB_OUTPUT
           echo "r2-destination-dir=./releases/ampd/" >> $GITHUB_OUTPUT
-          
 
-      - uses: ryand56/r2-upload-action@latest
+      - name: Upload to R2
+        if: ${{ !github.event.inputs.dry-run }}
+        uses: ryand56/r2-upload-action@v1.3.2
         with:
           r2-account-id: ${{ secrets.R2_ACCOUNT_ID }}
           r2-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_CF }}
@@ -210,6 +218,7 @@ jobs:
       contents: write
       packages: write
       id-token: write
+    if: ${{ !github.event.inputs.dry-run }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -246,6 +255,7 @@ jobs:
       contents: write
       packages: write
       id-token: write
+    if: ${{ !github.event.inputs.dry-run }}
     steps:
       - name: Install Cosign
         uses: sigstore/cosign-installer@v3.3.0
