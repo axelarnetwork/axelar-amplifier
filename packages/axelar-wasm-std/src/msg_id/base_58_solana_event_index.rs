@@ -16,7 +16,7 @@ type RawSignature = [u8; 64];
 pub struct Base58SolanaTxSignatureAndEventIndex {
     // Base58 decoded bytes of the Solana signature.
     pub raw_signature: RawSignature,
-    pub event_index: u32,
+    pub event_index: u64,
 }
 
 impl Base58SolanaTxSignatureAndEventIndex {
@@ -27,7 +27,7 @@ impl Base58SolanaTxSignatureAndEventIndex {
             .expect("failed to convert tx hash to non-empty string")
     }
 
-    pub fn new(tx_id: impl Into<RawSignature>, event_index: impl Into<u32>) -> Self {
+    pub fn new(tx_id: impl Into<RawSignature>, event_index: impl Into<u64>) -> Self {
         Self {
             raw_signature: tx_id.into(),
             event_index: event_index.into(),
@@ -104,7 +104,7 @@ mod tests {
         bs58::encode(random_bytes()).into_string()
     }
 
-    fn random_event_index() -> u32 {
+    fn random_event_index() -> u64 {
         rand::random()
     }
 

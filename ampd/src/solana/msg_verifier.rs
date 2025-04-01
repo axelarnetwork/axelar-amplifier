@@ -168,7 +168,7 @@ mod tests {
         (base64_data.to_string(), event)
     }
 
-    fn create_msg_counterpart(event: &CallContractEvent, event_index: u32) -> Message {
+    fn create_msg_counterpart(event: &CallContractEvent, event_index: u64) -> Message {
         let msg = Message {
             message_id: axelar_wasm_std::msg_id::Base58SolanaTxSignatureAndEventIndex {
                 raw_signature: RAW_SIGNATURE,

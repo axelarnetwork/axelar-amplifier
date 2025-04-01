@@ -140,6 +140,17 @@ mod tests {
     }
 
     #[test]
+    fn should_not_verify_verifier_set_if_log_index_greater_than_u32_max() {
+        let ((signature, tx), mut event) = fixture_success_call_contract_tx_data();
+
+        event.message_id.event_index = u32::MAX as u64 + 1;
+        assert_eq!(
+            verify_verifier_set((&signature, &tx), &event, &DOMAIN_SEPARATOR),
+            Vote::NotFound
+        );
+    }
+
+    #[test]
     fn should_not_verify_verifier_set_if_verifier_set_does_not_match() {
         let ((signature, tx), mut event) = fixture_success_call_contract_tx_data();
 
