@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use std::str::FromStr;
 
 use axelar_wasm_std::msg_id::HexTxHash;
 use axelar_wasm_std::{address, permission_control, FnExt, MajorityThreshold, VerificationStatus};
@@ -361,8 +362,12 @@ pub fn construct_payment_proof(
                 // Source address (ITS on source chain) has been validated by ITS hub.
                 interchain_token_service::Message::InterchainTransfer(interchain_transfer) => {
                     let destination_address =
-                        XRPLAccountId::try_from(interchain_transfer.destination_address)
-                            .map_err(|_| ContractError::InvalidDestinationAddress)?;
+                        std::str::from_utf8(interchain_transfer.destination_address.as_slice())
+                            .map_err(|_| ContractError::InvalidDestinationAddress)
+                            .and_then(|s| {
+                                XRPLAccountId::from_str(s)
+                                    .map_err(|_| ContractError::InvalidDestinationAddress)
+                            })?;
 
                     let xrpl_amount = compute_xrpl_amount(
                         gateway,
