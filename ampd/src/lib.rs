@@ -37,7 +37,6 @@ pub mod config;
 mod event_processor;
 mod event_sub;
 mod evm;
-mod grpc;
 mod handlers;
 mod health_check;
 mod json_rpc;
@@ -51,8 +50,7 @@ mod tm_client;
 mod tofnd;
 mod types;
 mod url;
-
-pub use grpc::{client, proto};
+mod xrpl;
 
 use crate::asyncutil::future::RetryPolicy;
 use crate::broadcaster::confirm_tx::TxConfirmer;
@@ -156,10 +154,10 @@ async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
     .await
 }
 
-async fn check_finalizer<'a, C>(
+async fn check_finalizer<C>(
     chain_name: &ChainName,
     finalization: &Finalization,
-    rpc_client: &'a C,
+    rpc_client: &C,
 ) -> Result<(), Error>
 where
     C: EthereumClient + Send + Sync,
@@ -283,17 +281,20 @@ where
                         event_processor_config.clone(),
                     )
                 }
-                handlers::config::Config::MultisigSigner { cosmwasm_contract } => self
-                    .create_handler_task(
-                        "multisig-signer",
-                        handlers::multisig::Handler::new(
-                            verifier.clone(),
-                            cosmwasm_contract,
-                            self.multisig_client.clone(),
-                            self.block_height_monitor.latest_block_height(),
-                        ),
-                        event_processor_config.clone(),
+                handlers::config::Config::MultisigSigner {
+                    cosmwasm_contract,
+                    chain_name,
+                } => self.create_handler_task(
+                    "multisig-signer",
+                    handlers::multisig::Handler::new(
+                        verifier.clone(),
+                        cosmwasm_contract,
+                        chain_name,
+                        self.multisig_client.clone(),
+                        self.block_height_monitor.latest_block_height(),
                     ),
+                    event_processor_config.clone(),
+                ),
                 handlers::config::Config::SuiMsgVerifier {
                     cosmwasm_contract,
                     rpc_url,
@@ -311,6 +312,48 @@ where
                                 .build()
                                 .change_context(Error::Connection)?,
                         ),
+                        self.block_height_monitor.latest_block_height(),
+                    ),
+                    event_processor_config.clone(),
+                ),
+                handlers::config::Config::XRPLMsgVerifier {
+                    cosmwasm_contract,
+                    chain_name,
+                    chain_rpc_url,
+                    rpc_timeout,
+                } => {
+                    let rpc_client = xrpl_http_client::Client::builder()
+                        .base_url(chain_rpc_url.as_str())
+                        .http_client(
+                            reqwest::ClientBuilder::new()
+                                .connect_timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
+                                .timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
+                                .build()
+                                .change_context(Error::Connection)?,
+                        )
+                        .build();
+
+                    self.create_handler_task(
+                        format!("{}-msg-verifier", chain_name),
+                        handlers::xrpl_verify_msg::Handler::new(
+                            verifier.clone(),
+                            cosmwasm_contract,
+                            rpc_client,
+                            self.block_height_monitor.latest_block_height(),
+                        ),
+                        event_processor_config.clone(),
+                    )
+                }
+                handlers::config::Config::XRPLMultisigSigner {
+                    multisig_contract,
+                    multisig_prover_contract,
+                } => self.create_handler_task(
+                    "xrpl-multisig-signer",
+                    handlers::xrpl_multisig::Handler::new(
+                        verifier.clone(),
+                        multisig_contract,
+                        multisig_prover_contract,
+                        self.multisig_client.clone(),
                         self.block_height_monitor.latest_block_height(),
                     ),
                     event_processor_config.clone(),

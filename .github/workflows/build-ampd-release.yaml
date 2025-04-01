@@ -60,6 +60,7 @@ jobs:
           fetch-depth: '0'
           ref: ${{ github.event.inputs.tag }}
           submodules: recursive
+          token: ${{ secrets.AMPD_PROTO_REPO_ACCESS_TOKEN }}
 
       - name: Set up Rust
         uses: actions-rs/toolchain@v1
@@ -216,6 +217,7 @@ jobs:
           fetch-depth: '0'
           ref: ${{ github.event.inputs.tag }}
           submodules: recursive
+          token: ${{ secrets.AMPD_PROTO_REPO_ACCESS_TOKEN }}
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
