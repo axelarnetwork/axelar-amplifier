@@ -9,7 +9,6 @@ on:
         default: latest
       dry_run:
         description: Run in dry-run mode (no uploads to S3, no GitHub releases, no Docker pushes)
-        required: false
         default: true
         type: boolean
 
