@@ -45,6 +45,9 @@ jobs:
       matrix:
         os: [ ubuntu-22.04, macos-14 ]
         arch: [ amd64, arm64 ]
+        exclude:
+          - os: macos-14
+            arch: amd64
 
     permissions:
       contents: write
