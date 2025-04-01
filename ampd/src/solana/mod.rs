@@ -78,11 +78,12 @@ where
         return Vote::FailedOnChain;
     }
 
-    // the event idx cannot be larger than usize
+    // the event idx cannot be larger than usize. However, a valid event will never have an index larger than usize,
+    // as the native arch will be 64 bit, and the event index is a u64.
     let desired_event_idx: usize = match message_id.event_index.try_into() {
         Ok(idx) => idx,
         Err(_) => {
-            error!("Invalid event index in message ID");
+            error!("Cannot fit event index into system usize. Index was: {}, but current system usize is: {}", message_id.event_index, usize::MAX);
             return Vote::NotFound;
         }
     };
