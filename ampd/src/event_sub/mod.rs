@@ -21,7 +21,15 @@ use crate::tm_client::TmClient;
 
 pub mod stream;
 
-// Maximum number of blocks to process in parallel
+// The maximum number of blocks to process concurrently.
+// - A value of 1 ensures sequential processing, preventing the event sub
+//   from downloading events from multiple blocks simultaneously. This minimizes
+//   memory usage but may slow down event processing.
+// - Higher values enable parallel block processing, improving throughput but
+//   increasing memory usage and potential resource contention.
+// - Setting this too high may cause excessive memory consumption, while setting
+//   it too low may lead to slower processing and underutilization of downstream
+//   consumers.
 const BLOCK_PROCESSING_BUFFER: usize = 10;
 // Interval to poll for new blocks
 const POLL_INTERVAL: Duration = Duration::from_secs(5);
