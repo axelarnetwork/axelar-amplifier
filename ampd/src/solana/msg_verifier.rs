@@ -1,7 +1,11 @@
+use std::str::FromStr;
+
 use axelar_solana_gateway::processor::GatewayEvent;
 use axelar_wasm_std::voting::Vote;
+use router_api::ChainName;
 use solana_sdk::signature::Signature;
 use solana_transaction_status::UiTransactionStatusMeta;
+use tracing::error;
 
 use super::verify;
 use crate::handlers::solana_verify_msg::Message;
@@ -28,9 +32,17 @@ pub fn verify_message(tx: (&Signature, &UiTransactionStatusMeta), message: &Mess
                 _ => return false,
             };
 
+        let destination_chain = match ChainName::from_str(destination_chain) {
+            Ok(cn) => cn,
+            Err(err) => {
+                error!("Cannot parse destination chain from event: {}", err);
+                return false;
+            }
+        };
+
         message.source_address == *sender
             && message.payload_hash.0 == *payload_hash
-            && message.destination_chain == *destination_chain
+            && message.destination_chain == destination_chain
             && message.destination_address == *destination_contract_address
     })
 }
