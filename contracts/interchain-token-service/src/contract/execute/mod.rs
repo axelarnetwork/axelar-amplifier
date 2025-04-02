@@ -1,10 +1,11 @@
 use axelar_wasm_std::{killswitch, nonempty, FnExt, IntoContractError};
-use cosmwasm_std::{DepsMut, HexBinary, QuerierWrapper, Response, Storage};
+use cosmwasm_std::{DepsMut, HexBinary, QuerierWrapper, Response, Storage, Uint256};
 use error_stack::{bail, ensure, report, Result, ResultExt};
 use interceptors::{deploy_token_to_destination_chain, deploy_token_to_source_chain};
 use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
 
 use crate::events::Event;
+use crate::msg::SupplyModifier;
 use crate::primitives::HubMessage;
 use crate::state::TokenDeploymentType;
 use crate::{
@@ -91,6 +92,8 @@ pub enum Error {
     },
     #[error("failed to query axelarnet gateway for chain name")]
     FailedToQueryAxelarnetGateway,
+    #[error("supply modification overflowed. existing supply {0:?}")]
+    ModifySupplyOverflow(TokenSupply),
 }
 
 /// Executes an incoming ITS message.
@@ -424,6 +427,47 @@ fn update_chain(storage: &mut dyn Storage, config: msg::ChainConfig) -> Result<(
     Ok(())
 }
 
+pub fn modify_supply(
+    deps: DepsMut,
+    chain: ChainNameRaw,
+    token_id: TokenId,
+    supply_modifier: SupplyModifier,
+) -> Result<Response, Error> {
+    let mut token_instance = state::may_load_token_instance(deps.storage, chain.clone(), token_id)
+        .change_context(Error::State)?
+        .ok_or(Error::TokenNotDeployed {
+            token_id,
+            chain: chain.clone(),
+        })?;
+
+    // set supply to tracked if untracked
+    if token_instance.supply == TokenSupply::Untracked {
+        token_instance.supply = TokenSupply::Tracked(Uint256::zero());
+    }
+
+    token_instance.supply = match supply_modifier {
+        SupplyModifier::IncreaseSupply(amount) => token_instance
+            .supply
+            .clone()
+            .checked_add(amount)
+            .change_context(Error::ModifySupplyOverflow(token_instance.supply))?,
+        SupplyModifier::DecreaseSupply(amount) => token_instance
+            .supply
+            .clone()
+            .checked_sub(amount)
+            .change_context(Error::ModifySupplyOverflow(token_instance.supply))?,
+    };
+
+    state::save_token_instance(deps.storage, chain.clone(), token_id, &token_instance)
+        .change_context(Error::State)?;
+
+    Ok(Response::new().add_event(Event::SupplyModified {
+        token_id,
+        chain,
+        supply_modifier,
+    }))
+}
+
 pub fn register_p2p_token_instance(
     deps: DepsMut,
     token_id: TokenId,
@@ -488,6 +532,7 @@ impl DeploymentType for DeployInterchainToken {
 
 #[cfg(test)]
 mod tests {
+
     use assert_ok::assert_ok;
     use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
     use axelar_wasm_std::{assert_err_contains, killswitch, nonempty, permission_control};
@@ -497,13 +542,13 @@ mod tests {
         from_json, to_json_binary, DepsMut, HexBinary, MemoryStorage, OwnedDeps, Response, Uint256,
         WasmQuery,
     };
-    use error_stack::Result;
+    use error_stack::{report, Result};
     use router_api::{ChainName, ChainNameRaw, CrossChainId};
 
     use super::{apply_to_hub, register_p2p_token_instance};
     use crate::contract::execute::{
         apply_to_transfer, disable_execution, enable_execution, execute_message, freeze_chain,
-        register_chain, register_chains, unfreeze_chain, update_chains, Error,
+        modify_supply, register_chain, register_chains, unfreeze_chain, update_chains, Error,
     };
     use crate::msg::TruncationConfig;
     use crate::state::{self, Config};
@@ -522,6 +567,273 @@ mod tests {
     const ADMIN: &str = "admin";
     const GOVERNANCE: &str = "governance";
     const AXELARNET_GATEWAY: &str = "axelarnet-gateway";
+
+    #[test]
+    fn should_be_able_to_transfer() {
+        let mut deps = mock_dependencies();
+        init(&mut deps);
+
+        assert_ok!(deploy_token(
+            deps.as_mut(),
+            ethereum(),
+            solana(),
+            token_id()
+        ));
+
+        assert_ok!(transfer_token(
+            deps.as_mut(),
+            ethereum(),
+            solana(),
+            token_id(),
+            Uint256::one().try_into().unwrap()
+        ));
+    }
+
+    #[test]
+    fn should_not_be_able_to_transfer_more_than_supply() {
+        let mut deps = mock_dependencies();
+        init(&mut deps);
+        let origin_chain = ethereum();
+        let remote_chain = solana();
+
+        assert_ok!(deploy_token(
+            deps.as_mut(),
+            origin_chain.clone(),
+            remote_chain.clone(),
+            token_id()
+        ));
+
+        let starting_supply =
+            assert_ok!(get_supply(deps.as_mut(), remote_chain.clone(), token_id()));
+        assert_eq!(starting_supply, TokenSupply::Tracked(Uint256::zero()));
+
+        // we try to transfer from the remote chain to the origin chain, which should fail
+        // since the token was just deployed and thus there is no supply on remote chain yet
+        assert_err_contains!(
+            transfer_token(
+                deps.as_mut(),
+                remote_chain,
+                origin_chain,
+                token_id(),
+                Uint256::one().try_into().unwrap()
+            ),
+            Error,
+            Error::TokenSupplyInvariantViolated { .. }
+        );
+    }
+
+    #[test]
+    fn should_be_able_to_increase_supply() {
+        let mut deps = mock_dependencies();
+        init(&mut deps);
+
+        assert_ok!(deploy_token(
+            deps.as_mut(),
+            ethereum(),
+            solana(),
+            token_id()
+        ));
+
+        let starting_supply = assert_ok!(get_supply(deps.as_mut(), solana(), token_id()));
+        assert_eq!(starting_supply, TokenSupply::Tracked(Uint256::zero()));
+
+        let supply_increase = Uint256::from_u128(100).try_into().unwrap();
+        assert_ok!(modify_supply(
+            deps.as_mut(),
+            solana(),
+            token_id(),
+            msg::SupplyModifier::IncreaseSupply(supply_increase)
+        ));
+
+        let expected_supply = assert_ok!(starting_supply.checked_add(supply_increase));
+        let result_supply = assert_ok!(get_supply(deps.as_mut(), solana(), token_id()));
+
+        assert_eq!(result_supply, expected_supply);
+
+        // transfer from solana to ethereum should succeed, since we manually set the supply
+        // otherwise this would fail, since there have been no transfers to solana and thus no supply
+        assert_ok!(transfer_token(
+            deps.as_mut(),
+            solana(),
+            ethereum(),
+            token_id(),
+            Uint256::one().try_into().unwrap()
+        ));
+    }
+
+    #[test]
+    fn should_be_able_to_decrease_supply() {
+        let mut deps = mock_dependencies();
+        init(&mut deps);
+
+        assert_ok!(deploy_token(
+            deps.as_mut(),
+            ethereum(),
+            solana(),
+            token_id()
+        ));
+
+        // perform a transfer to add some token supply to solana
+        let initial_transfer = Uint256::from_u128(100).try_into().unwrap();
+        assert_ok!(transfer_token(
+            deps.as_mut(),
+            ethereum(),
+            solana(),
+            token_id(),
+            initial_transfer
+        ));
+
+        let current_supply = assert_ok!(get_supply(deps.as_mut(), solana(), token_id()));
+        assert_eq!(current_supply, TokenSupply::Tracked(*initial_transfer));
+
+        let supply_decrease = initial_transfer;
+        assert_ok!(modify_supply(
+            deps.as_mut(),
+            solana(),
+            token_id(),
+            msg::SupplyModifier::DecreaseSupply(supply_decrease)
+        ));
+
+        let expected_supply = assert_ok!(current_supply.checked_sub(supply_decrease));
+        let result_supply = assert_ok!(get_supply(deps.as_mut(), solana(), token_id()));
+        assert_eq!(result_supply, expected_supply);
+
+        // transfer from solana to ethereum should fail. We transferred 100 tokens to solana at the start of the test,
+        // but then manually decreased the supply, so there should not be 100 tokens to transfer from solana
+        assert_err_contains!(
+            transfer_token(
+                deps.as_mut(),
+                solana(),
+                ethereum(),
+                token_id(),
+                initial_transfer
+            ),
+            Error,
+            Error::TokenSupplyInvariantViolated { .. }
+        );
+    }
+
+    #[test]
+    fn should_be_able_to_set_supply_on_untracked() {
+        let mut deps = mock_dependencies();
+        init(&mut deps);
+
+        assert_ok!(deploy_token_custom_minter(
+            deps.as_mut(),
+            ethereum(),
+            solana(),
+            token_id(),
+            its_address()
+        ));
+
+        let supply_increase = Uint256::from_u128(50);
+        let expected_supply = TokenSupply::Tracked(supply_increase);
+        assert_ok!(modify_supply(
+            deps.as_mut(),
+            solana(),
+            token_id(),
+            msg::SupplyModifier::IncreaseSupply(supply_increase.try_into().unwrap())
+        ));
+
+        let result_supply = assert_ok!(get_supply(deps.as_mut(), solana(), token_id()));
+        assert_eq!(result_supply, expected_supply);
+
+        // try to transfer more than the supply we just set, should fail
+        assert_err_contains!(
+            transfer_token(
+                deps.as_mut(),
+                solana(),
+                ethereum(),
+                token_id(),
+                supply_increase
+                    .checked_add(Uint256::one())
+                    .unwrap()
+                    .try_into()
+                    .unwrap(),
+            ),
+            Error,
+            Error::TokenSupplyInvariantViolated { .. }
+        );
+    }
+
+    #[test]
+    fn should_not_be_able_to_set_supply_on_not_deployed_token() {
+        let mut deps = mock_dependencies();
+        init(&mut deps);
+
+        assert_err_contains!(
+            modify_supply(
+                deps.as_mut(),
+                solana(),
+                token_id(),
+                msg::SupplyModifier::IncreaseSupply(Uint256::from_u128(50u128).try_into().unwrap())
+            ),
+            Error,
+            Error::TokenNotDeployed { .. }
+        );
+
+        // deploy the token
+        assert_ok!(deploy_token(
+            deps.as_mut(),
+            ethereum(),
+            solana(),
+            token_id()
+        ));
+
+        // token id exists now, but try to modify supply on a chain where it is not yet deployed
+        assert_err_contains!(
+            modify_supply(
+                deps.as_mut(),
+                ChainNameRaw::try_from(XRPL).unwrap(),
+                token_id(),
+                msg::SupplyModifier::IncreaseSupply(Uint256::from_u128(50u128).try_into().unwrap())
+            ),
+            Error,
+            Error::TokenNotDeployed { .. }
+        );
+    }
+
+    #[test]
+    fn modify_supply_should_detect_overflow_underflow() {
+        let mut deps = mock_dependencies();
+        init(&mut deps);
+
+        assert_ok!(deploy_token(
+            deps.as_mut(),
+            ethereum(),
+            solana(),
+            token_id()
+        ));
+
+        assert_ok!(modify_supply(
+            deps.as_mut(),
+            solana(),
+            token_id(),
+            msg::SupplyModifier::IncreaseSupply(Uint256::one().try_into().unwrap())
+        ));
+
+        assert_err_contains!(
+            modify_supply(
+                deps.as_mut(),
+                solana(),
+                token_id(),
+                msg::SupplyModifier::IncreaseSupply(Uint256::MAX.try_into().unwrap())
+            ),
+            Error,
+            Error::ModifySupplyOverflow { .. }
+        );
+
+        assert_err_contains!(
+            modify_supply(
+                deps.as_mut(),
+                solana(),
+                token_id(),
+                msg::SupplyModifier::DecreaseSupply(Uint256::MAX.try_into().unwrap())
+            ),
+            Error,
+            Error::ModifySupplyOverflow { .. }
+        );
+    }
 
     #[test]
     fn should_be_able_to_disable_and_enable_execution() {
@@ -1249,6 +1561,50 @@ mod tests {
     }
 
     #[test]
+    fn should_modify_supply_on_custom_tokens() {
+        let mut deps = mock_dependencies();
+        init(&mut deps);
+
+        register_and_link_custom_tokens(
+            &mut deps,
+            token_id(),
+            ethereum(),
+            solana(),
+            18,
+            18,
+            its_address(),
+        );
+
+        assert_ok!(modify_supply(
+            deps.as_mut(),
+            solana(),
+            token_id(),
+            msg::SupplyModifier::IncreaseSupply(Uint256::from_u128(50u128).try_into().unwrap())
+        ));
+
+        assert_err_contains!(
+            transfer_token(
+                deps.as_mut(),
+                solana(),
+                ethereum(),
+                token_id(),
+                Uint256::from_u128(100u128).try_into().unwrap()
+            ),
+            Error,
+            Error::TokenSupplyInvariantViolated { .. }
+        );
+
+        // a smaller transfer should succeed
+        assert_ok!(transfer_token(
+            deps.as_mut(),
+            solana(),
+            ethereum(),
+            token_id(),
+            Uint256::from_u128(50u128).try_into().unwrap()
+        ));
+    }
+
+    #[test]
     fn should_register_p2p_tokens() {
         let mut deps = mock_dependencies();
         init(&mut deps);
@@ -1471,12 +1827,12 @@ mod tests {
         TokenId::new([7u8; 32])
     }
 
-    fn solana() -> ChainNameRaw {
-        SOLANA.try_into().unwrap()
-    }
-
     fn xrpl() -> ChainNameRaw {
         XRPL.try_into().unwrap()
+    }
+
+    fn solana() -> ChainNameRaw {
+        SOLANA.try_into().unwrap()
     }
 
     fn ethereum() -> ChainNameRaw {
@@ -1488,6 +1844,17 @@ mod tests {
             source_chain,
             message_id: HexTxHashAndEventIndex::new([1u8; 32], 0u32).into(),
         }
+    }
+
+    fn get_supply(
+        deps: DepsMut,
+        chain: ChainNameRaw,
+        token_id: TokenId,
+    ) -> Result<TokenSupply, Error> {
+        state::may_load_token_instance(deps.storage, chain.clone(), token_id)
+            .unwrap()
+            .ok_or(report!(Error::TokenNotDeployed { token_id, chain }))
+            .map(|token| token.supply)
     }
 
     fn transfer_token(
@@ -1531,6 +1898,25 @@ mod tests {
             "TEST".parse().unwrap(),
             18,
             None,
+        )
+    }
+
+    fn deploy_token_custom_minter(
+        deps: DepsMut,
+        from: ChainNameRaw,
+        to: ChainNameRaw,
+        token_id: TokenId,
+        minter: nonempty::HexBinary,
+    ) -> Result<Response, Error> {
+        deploy_token_with_metadata(
+            deps,
+            from,
+            to,
+            token_id,
+            "Test".parse().unwrap(),
+            "TEST".parse().unwrap(),
+            18,
+            Some(minter),
         )
     }
 

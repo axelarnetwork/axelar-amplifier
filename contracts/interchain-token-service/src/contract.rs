@@ -27,6 +27,8 @@ const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub enum Error {
     #[error("failed to execute a cross-chain message")]
     Execute,
+    #[error("failed to modify supply")]
+    ModifySupply,
     #[error("failed to register chains")]
     RegisterChains,
     #[error("failed to register p2p token instance")]
@@ -111,6 +113,12 @@ pub fn execute(
             supply,
         )
         .change_context(Error::RegisterP2pTokenInstance),
+        ExecuteMsg::ModifySupply {
+            chain,
+            token_id,
+            supply_modifier,
+        } => execute::modify_supply(deps, chain, token_id, supply_modifier)
+            .change_context(Error::ModifySupply),
         ExecuteMsg::RegisterChains { chains } => {
             execute::register_chains(deps, chains).change_context(Error::RegisterChains)
         }
