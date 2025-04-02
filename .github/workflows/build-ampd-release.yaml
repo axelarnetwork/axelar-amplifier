@@ -7,6 +7,10 @@ on:
         description: Github tag to release binaries for (reusing an existing tag will make the pipeline fail)
         required: true
         default: latest
+      dry_run:
+        description: Run in dry-run mode (set to false to actually release)
+        required: true
+        default: 'true'
 
 jobs:
   extract-semver:
@@ -39,8 +43,11 @@ jobs:
     needs: extract-semver
     strategy:
       matrix:
-        os: [ ubuntu-22.04, macos-12 ]
+        os: [ ubuntu-22.04, macos-14 ]
         arch: [ amd64, arm64 ]
+        exclude:
+          - os: macos-14
+            arch: amd64
 
     permissions:
       contents: write
@@ -78,7 +85,7 @@ jobs:
       - name: build and sign darwin binaries
         env:
           SEMVER: ${{ needs.extract-semver.outputs.semver }}
-        if: matrix.os == 'macos-12'
+        if: matrix.os == 'macos-14'
         run: |
           OS="darwin"
           ARCH="${{ matrix.arch }}"
@@ -138,7 +145,7 @@ jobs:
               elif [[ "${{ matrix.arch }}" == "arm64" ]]; then
                 EXPECTED="ELF 64-bit LSB pie executable, ARM aarch64"
               fi
-            elif [[ "${{ matrix.os }}" == "macos-12" ]]; then
+            elif [[ "${{ matrix.os }}" == "macos-14" ]]; then
               OUTPUT=$(file "$binary" | cut -d: -f2-)
               if [[ "${{ matrix.arch }}" == "amd64" ]]; then
                 EXPECTED="Mach-O 64-bit executable x86_64"
@@ -170,6 +177,7 @@ jobs:
           done
 
       - name: Upload binaries to release
+        if: ${{ github.event.inputs.dry-run == 'false' }}
         uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
@@ -179,6 +187,7 @@ jobs:
           file_glob: true
 
       - name: Upload binaries to S3
+        if: ${{ github.event.inputs.dry-run == 'false' }}
         env:
           S3_PATH: s3://axelar-releases/ampd/${{ needs.extract-semver.outputs.semver }}
         run: |
@@ -192,9 +201,10 @@ jobs:
           cp -R ./ampdbin/. "./${version}/"
           echo "release-dir=./${version}" >> $GITHUB_OUTPUT
           echo "r2-destination-dir=./releases/ampd/" >> $GITHUB_OUTPUT
-          
 
-      - uses: ryand56/r2-upload-action@latest
+      - name: Upload to R2
+        if: ${{ github.event.inputs.dry-run == 'false' }}
+        uses: ryand56/r2-upload-action@v1.3.2
         with:
           r2-account-id: ${{ secrets.R2_ACCOUNT_ID }}
           r2-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_CF }}
@@ -210,6 +220,7 @@ jobs:
       contents: write
       packages: write
       id-token: write
+    if: ${{ github.event.inputs.dry-run == 'false' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -246,6 +257,7 @@ jobs:
       contents: write
       packages: write
       id-token: write
+    if: ${{ github.event.inputs.dry-run == 'false' }}
     steps:
       - name: Install Cosign
         uses: sigstore/cosign-installer@v3.3.0

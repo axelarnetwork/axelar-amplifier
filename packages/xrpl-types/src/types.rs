@@ -785,7 +785,7 @@ impl XRPLCurrency {
 
     fn is_valid_nonstandard_currency(s: &str) -> bool {
         if let Ok(hex) = HexBinary::from_hex(s) {
-            hex.len() == 20 && hex[0] == 0
+            hex.len() == 20 && hex[0] != 0
         } else {
             false
         }
@@ -1814,5 +1814,20 @@ mod tests {
             XRPLToken::from_vec([issuer.as_bytes(), currency.as_bytes()].concat()).unwrap(),
             XRPLToken { issuer, currency }
         );
+    }
+
+    #[test]
+    fn test_xrpl_currency_format() {
+        assert!(XRPLCurrency::is_valid_nonstandard_currency(
+            "524C555344000000000000000000000000000000" // RLUSD
+        ));
+
+        assert!(!XRPLCurrency::is_valid_nonstandard_currency(
+            "0000000000000000000000005852500000000000" // XRP
+        ));
+
+        assert!(!XRPLCurrency::is_standard_currency("RLUSD"));
+        assert!(!XRPLCurrency::is_standard_currency("XRP"));
+        assert!(XRPLCurrency::is_standard_currency("USD"));
     }
 }
