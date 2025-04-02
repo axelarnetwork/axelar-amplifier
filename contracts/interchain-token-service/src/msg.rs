@@ -8,7 +8,7 @@ use router_api::{Address, ChainNameRaw};
 pub use crate::contract::MigrateMsg;
 use crate::shared::NumBits;
 use crate::state::{TokenConfig, TokenInstance};
-use crate::TokenId;
+use crate::{TokenId, TokenSupply};
 
 pub const DEFAULT_PAGINATION_LIMIT: u32 = 30;
 
@@ -30,6 +30,18 @@ pub enum ExecuteMsg {
     /// Execute a cross-chain message received by the axelarnet-gateway from another chain
     #[permission(Specific(gateway))]
     Execute(AxelarExecutableMsg),
+
+    /// Registers an existing ITS token with the hub. This is useful for tokens that were deployed
+    /// before the hub existed and have operated in p2p mode. Both instance_chain and origin_chain
+    /// must be registered with the hub.
+    #[permission(Elevated)]
+    RegisterP2pTokenInstance {
+        chain: ChainNameRaw,
+        token_id: TokenId,
+        origin_chain: ChainNameRaw,
+        decimals: u8,
+        supply: TokenSupply,
+    },
 
     /// For each chain, register the ITS contract and set config parameters.
     /// Each chain's ITS contract has to be whitelisted before
