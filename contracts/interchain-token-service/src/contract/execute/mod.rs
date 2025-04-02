@@ -458,10 +458,7 @@ pub fn register_p2p_token_instance(
         .change_context(Error::State)?
         .is_some()
     {
-        bail!(Error::TokenAlreadyDeployed {
-            token_id,
-            chain
-        });
+        bail!(Error::TokenAlreadyDeployed { token_id, chain });
     }
 
     state::save_token_instance(
