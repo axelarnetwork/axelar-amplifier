@@ -106,6 +106,7 @@ impl From<PollStarted> for Event {
 pub struct Voted {
     pub poll_id: PollId,
     pub voter: Addr,
+    pub votes: Vec<Vote>,
 }
 
 impl From<Voted> for Event {
@@ -116,11 +117,16 @@ impl From<Voted> for Event {
                 serde_json::to_string(&other.poll_id).expect("failed to serialize poll_id"),
             )
             .add_attribute("voter", other.voter)
+            .add_attribute(
+                "votes",
+                serde_json::to_string(&other.votes).expect("failed to serialize votes"),
+            )
     }
 }
 
 pub struct PollEnded {
     pub poll_id: PollId,
+    pub source_chain: ChainName,
     pub results: Vec<Option<Vote>>,
 }
 
@@ -130,6 +136,11 @@ impl From<PollEnded> for Event {
             .add_attribute(
                 "poll_id",
                 serde_json::to_string(&other.poll_id).expect("failed to serialize poll_id"),
+            )
+            .add_attribute(
+                "source_chain",
+                serde_json::to_string(&other.source_chain)
+                    .expect("failed to serialize source_chain"),
             )
             .add_attribute(
                 "results",
