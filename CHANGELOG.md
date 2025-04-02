@@ -8,7 +8,7 @@
 
 [Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/ampd-v1.5.1..ampd-v1.6.0)
 
-- Separate multisig config per chain [#772](https://github.com/axelarnetwork/axelar-amplifier/pull/772)
+- Separate multisig config per chain [#772](https://github.com/axelarnetwork/axelar-amplifier/pull/772) and [#790](https://github.com/axelarnetwork/axelar-amplifier/pull/790)
 - Refactor event sub to support gRPC subscribe [#777](https://github.com/axelarnetwork/axelar-amplifier/pull/777)
 - Make chain names case insensitive in ampd verification [#785](https://github.com/axelarnetwork/axelar-amplifier/pull/785) and [#787](https://github.com/axelarnetwork/axelar-amplifier/pull/787)
 - Use case sensitive destination chain in XRPL gateway and verifier [#788](https://github.com/axelarnetwork/axelar-amplifier/pull/788)
