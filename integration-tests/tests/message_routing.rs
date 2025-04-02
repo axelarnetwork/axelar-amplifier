@@ -294,7 +294,7 @@ fn payment_from_xrpl_can_be_verified_and_routed_and_proven() {
         interchain_token_service::InterchainTransfer {
             token_id: xrpl.xrp_token_id,
             source_address: nonempty::HexBinary::try_from(HexBinary::from(
-                source_address.as_bytes(),
+                source_address.to_string().as_bytes(),
             ))
             .unwrap(),
             destination_address: nonempty::HexBinary::try_from(
@@ -497,7 +497,7 @@ fn payment_towards_xrpl_can_be_verified_and_routed_and_proven() {
             ))
             .unwrap(),
             destination_address: nonempty::HexBinary::try_from(HexBinary::from(
-                destination_address.as_bytes(),
+                destination_address.to_string().as_bytes(),
             ))
             .unwrap(),
             amount,
