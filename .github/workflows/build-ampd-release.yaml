@@ -39,7 +39,11 @@ jobs:
           else
             echo "Lowercase dry_run is not 'false'"
           fi
-
+      
+      - name: Random step
+        if: github.event.inputs.dry_run == 'false'
+        run: |
+         echo "This step will only run if dry_run is 'false'"
 
   # extract-semver:
   #   runs-on: ubuntu-22.04
