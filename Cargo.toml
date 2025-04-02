@@ -21,12 +21,12 @@ alloy-sol-types = { version = "0.7.6", default-features = false, features = [
 ] }
 anyhow = "1.0.89"
 assert_ok = "1.0"
-axelar-wasm-std = { git = "https://github.com/axelarnetwork/axelar-amplifier", tag = "ampd-v1.5.1" }
+axelar-wasm-std = { git = "https://github.com/axelarnetwork/axelar-amplifier", tag = "ampd-v1.6.0" }
 axelar-wasm-std-derive = { version = "^1.0.0", path = "packages/axelar-wasm-std-derive" }
 axelarnet-gateway = { version = "^1.0.0", path = "contracts/axelarnet-gateway" }
 bcs = "0.1.5"
 bech32 = "0.11.0"
-client = { git = "https://github.com/axelarnetwork/axelar-amplifier", tag = "ampd-v1.5.1" }
+client = { git = "https://github.com/axelarnetwork/axelar-amplifier", tag = "ampd-v1.6.0" }
 coordinator = { version = "^1.1.0", path = "contracts/coordinator" }
 cosmwasm-crypto = "2.1.4"
 cosmwasm-schema = "2.1.4"
@@ -44,7 +44,7 @@ ethers-core = "2.0.14"
 events = { version = "^1.0.0", path = "packages/events" }
 events-derive = { version = "^1.0.0", path = "packages/events-derive" }
 evm-gateway = { version = "^1.0.0", path = "packages/evm-gateway" }
-xrpl-types = { git = "https://github.com/axelarnetwork/axelar-amplifier", tag = "ampd-v1.5.1" }
+xrpl-types = { git = "https://github.com/axelarnetwork/axelar-amplifier", tag = "ampd-v1.6.0" }
 xrpl-multisig-prover = { version = "^1.0.0", path = "contracts/xrpl-multisig-prover" }
 xrpl-voting-verifier = { version = "^1.0.0", path = "contracts/xrpl-voting-verifier" }
 xrpl-gateway = { version = "^1.0.1", path = "contracts/xrpl-gateway" }
@@ -60,7 +60,7 @@ itertools = "0.11.0"
 k256 = { version = "0.13.1", features = ["ecdsa"] }
 mockall = "0.12.1"
 msgs-derive = { version = "^1.0.0", path = "packages/msgs-derive" }
-multisig = { git = "https://github.com/axelarnetwork/axelar-amplifier", tag = "ampd-v1.5.1" }
+multisig = { git = "https://github.com/axelarnetwork/axelar-amplifier", tag = "ampd-v1.6.0" }
 multisig-prover = { version = "^1.1.1", path = "contracts/multisig-prover" }
 num-traits = { version = "0.2.14", default-features = false }
 quote = "1.0.38"
@@ -68,7 +68,7 @@ rand = "0.8.5"
 report = { version = "^1.0.0", path = "packages/report" }
 rewards = { version = "^1.2.0", path = "contracts/rewards" }
 router = { version = "^1.2.0", path = "contracts/router" }
-router-api = { git = "https://github.com/axelarnetwork/axelar-amplifier", tag = "ampd-v1.5.1" }
+router-api = { git = "https://github.com/axelarnetwork/axelar-amplifier", tag = "ampd-v1.6.0" }
 schemars = "0.8.10"
 semver = "1.0"
 serde = { version = "1.0.145", default-features = false, features = ["derive"] }
@@ -82,7 +82,7 @@ stellar-xdr = { version = "21.2.0" }
 strum = { version = "0.25", default-features = false, features = ["derive"] }
 sui-gateway = { version = "^1.0.0", path = "packages/sui-gateway" }
 sui-types = { version = "^1.0.0", path = "packages/sui-types" }
-starknet-checked-felt = { git = "https://github.com/axelarnetwork/axelar-amplifier", tag = "ampd-v1.5.1" }
+starknet-checked-felt = { git = "https://github.com/axelarnetwork/axelar-amplifier", tag = "ampd-v1.6.0" }
 starknet-types-core = { version = "0.1.7" }
 starknet-core = "0.12.0"
 starknet-providers = "0.12.0"

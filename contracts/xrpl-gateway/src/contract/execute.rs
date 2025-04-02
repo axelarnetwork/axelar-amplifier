@@ -236,8 +236,7 @@ pub fn translate_to_interchain_transfer(
     ))
     .change_context(Error::InvalidAddress)?;
     let destination_address = interchain_transfer_message.destination_address.clone();
-    let destination_chain =
-        ChainNameRaw::from(interchain_transfer_message.destination_chain.clone());
+    let destination_chain = interchain_transfer_message.destination_chain.clone();
 
     let transfer_amount = &interchain_transfer_message.transfer_amount;
 
@@ -268,7 +267,7 @@ pub fn translate_to_interchain_transfer(
     }
 
     let payload = interchain_token_service::HubMessage::SendToHub {
-        destination_chain: interchain_transfer_message.clone().destination_chain.into(),
+        destination_chain: interchain_transfer_message.clone().destination_chain,
         message: interchain_token_service::Message::InterchainTransfer(
             interchain_token_service::InterchainTransfer {
                 token_id,
@@ -321,7 +320,7 @@ pub fn translate_to_call_contract(
     ))
     .change_context(Error::InvalidAddress)?;
     let destination_address = call_contract_message.destination_address.clone();
-    let destination_chain = call_contract_message.destination_chain.clone();
+    let destination_chain = call_contract_message.destination_chain.normalize();
 
     let cc_id = call_contract_message.cc_id(config.chain_name.clone().into());
     let message = Message {
