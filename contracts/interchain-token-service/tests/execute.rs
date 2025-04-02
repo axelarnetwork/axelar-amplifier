@@ -1720,6 +1720,54 @@ fn deploy_interchain_token_to_multiple_destination_succeeds() {
 }
 
 #[test]
+fn register_p2p_token_succeeds() {
+    let (
+        mut deps,
+        TestMessage {
+            source_its_chain,
+            destination_its_chain,
+            ..
+        },
+    ) = utils::setup();
+
+    assert_ok!(utils::register_p2p_token_instance(
+        deps.as_mut(),
+        params::GOVERNANCE,
+        TokenId::new([1; 32]),
+        source_its_chain,
+        destination_its_chain,
+        18u8,
+        TokenSupply::Untracked
+    ));
+}
+
+#[test]
+fn register_p2p_token_should_fail_when_called_by_non_elevated_account() {
+    let (
+        mut deps,
+        TestMessage {
+            source_its_chain,
+            destination_its_chain,
+            ..
+        },
+    ) = utils::setup();
+
+    assert_err_contains!(
+        utils::register_p2p_token_instance(
+            deps.as_mut(),
+            "someone",
+            TokenId::new([1; 32]),
+            source_its_chain,
+            destination_its_chain,
+            18u8,
+            TokenSupply::Untracked
+        ),
+        permission_control::Error,
+        permission_control::Error::PermissionDenied { .. }
+    );
+}
+
+#[test]
 fn admin_or_governance_should_modify_supply() {
     let (
         mut deps,

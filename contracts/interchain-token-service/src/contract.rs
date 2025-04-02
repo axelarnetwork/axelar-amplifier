@@ -31,6 +31,8 @@ pub enum Error {
     ModifySupply,
     #[error("failed to register chains")]
     RegisterChains,
+    #[error("failed to register p2p token instance")]
+    RegisterP2pTokenInstance,
     #[error("failed to update chain")]
     UpdateChain,
     #[error("failed to freeze chain")]
@@ -96,6 +98,21 @@ pub fn execute(
             payload,
         }) => execute::execute_message(deps, cc_id, source_address, payload)
             .change_context(Error::Execute),
+        ExecuteMsg::RegisterP2pTokenInstance {
+            chain,
+            token_id,
+            origin_chain,
+            decimals,
+            supply,
+        } => execute::register_p2p_token_instance(
+            deps,
+            token_id,
+            chain,
+            origin_chain,
+            decimals,
+            supply,
+        )
+        .change_context(Error::RegisterP2pTokenInstance),
         ExecuteMsg::ModifySupply {
             chain,
             token_id,

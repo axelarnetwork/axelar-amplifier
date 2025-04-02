@@ -36,6 +36,7 @@ pub enum Config {
     },
     MultisigSigner {
         cosmwasm_contract: TMAddress,
+        chain_name: ChainName,
     },
     SuiMsgVerifier {
         cosmwasm_contract: TMAddress,
@@ -46,6 +47,16 @@ pub enum Config {
         cosmwasm_contract: TMAddress,
         rpc_url: Url,
         rpc_timeout: Option<Duration>,
+    },
+    XRPLMsgVerifier {
+        cosmwasm_contract: TMAddress,
+        chain_name: ChainName,
+        chain_rpc_url: Url,
+        rpc_timeout: Option<Duration>,
+    },
+    XRPLMultisigSigner {
+        multisig_prover_contract: TMAddress,
+        multisig_contract: TMAddress,
     },
     MvxMsgVerifier {
         cosmwasm_contract: TMAddress,
@@ -161,7 +172,7 @@ where
     validate_evm_msg_verifier_configs::<D>(&configs)?;
     validate_evm_verifier_set_verifier_configs::<D>(&configs)?;
 
-    ensure_unique_config!(&configs, Config::MultisigSigner, "Multisig signer")?;
+    ensure_unique_config!(&configs, Config::XRPLMsgVerifier, "XRPL message verifier")?;
     ensure_unique_config!(&configs, Config::SuiMsgVerifier, "Sui message verifier")?;
     ensure_unique_config!(
         &configs,
@@ -210,21 +221,6 @@ mod tests {
 
     #[test]
     fn unique_config_validation() {
-        let configs = vec![
-            Config::MultisigSigner {
-                cosmwasm_contract: TMAddress::random(PREFIX),
-            },
-            Config::MultisigSigner {
-                cosmwasm_contract: TMAddress::random(PREFIX),
-            },
-        ];
-
-        assert!(
-            matches!(deserialize_handler_configs(to_value(configs).unwrap()),
-                Err(e) if e.to_string().contains("only one Multisig signer config is allowed")
-            )
-        );
-
         let configs = vec![
             Config::SuiMsgVerifier {
                 cosmwasm_contract: TMAddress::random(PREFIX),

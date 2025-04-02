@@ -10,7 +10,7 @@ use crate::primitives::HubMessage;
 use crate::state::TokenDeploymentType;
 use crate::{
     msg, state, DeployInterchainToken, InterchainTransfer, LinkToken, Message,
-    RegisterTokenMetadata, TokenId, TokenSupply,
+    RegisterTokenMetadata, TokenConfig, TokenId, TokenInstance, TokenSupply,
 };
 
 mod interceptors;
@@ -62,6 +62,11 @@ pub enum Error {
         token_id: TokenId,
         origin_chain: ChainNameRaw,
         chain: ChainNameRaw,
+    },
+    #[error("token {token_id} already registered with different origin chain {origin_chain}")]
+    WrongOriginChain {
+        token_id: TokenId,
+        origin_chain: ChainNameRaw,
     },
     #[error(
         "token {token_id} deployed from chain {chain} with different decimals than original deployment"
@@ -325,6 +330,17 @@ fn ensure_is_its_source_address(
     Ok(())
 }
 
+fn ensure_chain_is_registered(storage: &dyn Storage, chain: ChainNameRaw) -> Result<(), Error> {
+    ensure!(
+        state::may_load_chain_config(storage, &chain)
+            .change_context(Error::State)?
+            .is_some(),
+        Error::ChainNotRegistered(chain)
+    );
+
+    Ok(())
+}
+
 fn send_to_destination(
     storage: &dyn Storage,
     querier: QuerierWrapper,
@@ -448,6 +464,54 @@ pub fn modify_supply(
     Ok(Response::new())
 }
 
+pub fn register_p2p_token_instance(
+    deps: DepsMut,
+    token_id: TokenId,
+    chain: ChainNameRaw,
+    origin_chain: ChainNameRaw,
+    decimals: u8,
+    supply: TokenSupply,
+) -> Result<Response, Error> {
+    ensure_chain_is_registered(deps.storage, chain.clone())?;
+    ensure_chain_is_registered(deps.storage, origin_chain.clone())?;
+
+    match state::may_load_token_config(deps.storage, &token_id).change_context(Error::State)? {
+        Some(TokenConfig {
+            origin_chain: stored_origin_chain,
+        }) => {
+            // Each token has a single global config, which is set the first time the token is deployed
+            // Subsequent deployments should not modify the existing config
+            // However, if a config exists, we need to check that the origin chain matches
+            ensure!(
+                stored_origin_chain == origin_chain,
+                Error::WrongOriginChain {
+                    token_id,
+                    origin_chain: stored_origin_chain
+                }
+            );
+        }
+        None => state::save_token_config(deps.storage, token_id, &TokenConfig { origin_chain })
+            .change_context(Error::State)?,
+    }
+
+    if state::may_load_token_instance(deps.storage, chain.clone(), token_id)
+        .change_context(Error::State)?
+        .is_some()
+    {
+        bail!(Error::TokenAlreadyDeployed { token_id, chain });
+    }
+
+    state::save_token_instance(
+        deps.storage,
+        chain.clone(),
+        token_id,
+        &TokenInstance { supply, decimals },
+    )
+    .change_context(Error::State)?;
+
+    Ok(Response::new())
+}
+
 trait DeploymentType {
     fn deployment_type(&self) -> TokenDeploymentType;
 }
@@ -476,7 +540,7 @@ mod tests {
     use error_stack::Result;
     use router_api::{ChainName, ChainNameRaw, CrossChainId};
 
-    use super::apply_to_hub;
+    use super::{apply_to_hub, register_p2p_token_instance};
     use crate::contract::execute::{
         apply_to_transfer, disable_execution, enable_execution, execute_message, freeze_chain,
         modify_supply, register_chain, register_chains, unfreeze_chain, update_chains, Error,
@@ -485,7 +549,7 @@ mod tests {
     use crate::state::{self, Config};
     use crate::{
         msg, DeployInterchainToken, HubMessage, InterchainTransfer, LinkToken, Message,
-        RegisterTokenMetadata, TokenId,
+        RegisterTokenMetadata, TokenId, TokenSupply,
     };
 
     const SOLANA: &str = "solana";
@@ -504,9 +568,14 @@ mod tests {
         let mut deps = mock_dependencies();
         init(&mut deps);
 
-        assert_ok!(do_deploy(deps.as_mut(), ethereum(), solana(), token_id()));
+        assert_ok!(deploy_token(
+            deps.as_mut(),
+            ethereum(),
+            solana(),
+            token_id()
+        ));
 
-        assert_ok!(do_transfer(
+        assert_ok!(transfer_token(
             deps.as_mut(),
             ethereum(),
             solana(),
@@ -520,10 +589,15 @@ mod tests {
         let mut deps = mock_dependencies();
         init(&mut deps);
 
-        assert_ok!(do_deploy(deps.as_mut(), ethereum(), solana(), token_id()));
+        assert_ok!(deploy_token(
+            deps.as_mut(),
+            ethereum(),
+            solana(),
+            token_id()
+        ));
 
         assert_err_contains!(
-            do_transfer(
+            transfer_token(
                 deps.as_mut(),
                 solana(),
                 ethereum(),
@@ -540,7 +614,12 @@ mod tests {
         let mut deps = mock_dependencies();
         init(&mut deps);
 
-        assert_ok!(do_deploy(deps.as_mut(), ethereum(), solana(), token_id()));
+        assert_ok!(deploy_token(
+            deps.as_mut(),
+            ethereum(),
+            solana(),
+            token_id()
+        ));
 
         assert_ok!(modify_supply(
             deps.as_mut(),
@@ -549,7 +628,7 @@ mod tests {
             msg::SupplyModifier::IncreaseSupply(Uint256::one().try_into().unwrap())
         ));
 
-        assert_ok!(do_transfer(
+        assert_ok!(transfer_token(
             deps.as_mut(),
             solana(),
             ethereum(),
@@ -563,9 +642,14 @@ mod tests {
         let mut deps = mock_dependencies();
         init(&mut deps);
 
-        assert_ok!(do_deploy(deps.as_mut(), ethereum(), solana(), token_id()));
+        assert_ok!(deploy_token(
+            deps.as_mut(),
+            ethereum(),
+            solana(),
+            token_id()
+        ));
 
-        assert_ok!(do_transfer(
+        assert_ok!(transfer_token(
             deps.as_mut(),
             ethereum(),
             solana(),
@@ -581,7 +665,7 @@ mod tests {
         ));
 
         assert_err_contains!(
-            do_transfer(
+            transfer_token(
                 deps.as_mut(),
                 solana(),
                 ethereum(),
@@ -598,7 +682,7 @@ mod tests {
         let mut deps = mock_dependencies();
         init(&mut deps);
 
-        assert_ok!(do_deploy_custom_minter(
+        assert_ok!(deploy_token_custom_minter(
             deps.as_mut(),
             ethereum(),
             solana(),
@@ -614,7 +698,7 @@ mod tests {
         ));
 
         assert_err_contains!(
-            do_transfer(
+            transfer_token(
                 deps.as_mut(),
                 solana(),
                 ethereum(),
@@ -643,7 +727,12 @@ mod tests {
         );
 
         // deploy the token
-        assert_ok!(do_deploy(deps.as_mut(), ethereum(), solana(), token_id()));
+        assert_ok!(deploy_token(
+            deps.as_mut(),
+            ethereum(),
+            solana(),
+            token_id()
+        ));
 
         // token id exists now, but try to modify supply on a chain where it is not yet deployed
         assert_err_contains!(
@@ -663,7 +752,12 @@ mod tests {
         let mut deps = mock_dependencies();
         init(&mut deps);
 
-        assert_ok!(do_deploy(deps.as_mut(), ethereum(), solana(), token_id()));
+        assert_ok!(deploy_token(
+            deps.as_mut(),
+            ethereum(),
+            solana(),
+            token_id()
+        ));
 
         assert_ok!(modify_supply(
             deps.as_mut(),
@@ -1443,7 +1537,7 @@ mod tests {
         ));
 
         assert_err_contains!(
-            do_transfer(
+            transfer_token(
                 deps.as_mut(),
                 solana(),
                 ethereum(),
@@ -1455,13 +1549,222 @@ mod tests {
         );
 
         // a smaller transfer should succeed
-        assert_ok!(do_transfer(
+        assert_ok!(transfer_token(
             deps.as_mut(),
             solana(),
             ethereum(),
             token_id(),
             Uint256::from_u128(50u128).try_into().unwrap()
         ));
+    }
+
+    #[test]
+    fn should_register_p2p_tokens() {
+        let mut deps = mock_dependencies();
+        init(&mut deps);
+
+        let origin_chain = ethereum();
+        let instance_chains: Vec<ChainNameRaw> = vec![solana(), ethereum()];
+        let decimals = 18;
+        let supply = TokenSupply::Tracked(Uint256::one());
+
+        for chain in instance_chains {
+            assert_ok!(register_p2p_token_instance(
+                deps.as_mut(),
+                token_id(),
+                chain,
+                origin_chain.clone(),
+                decimals,
+                supply.clone()
+            ));
+        }
+
+        assert_ok!(transfer_token(
+            deps.as_mut(),
+            ethereum(),
+            solana(),
+            token_id(),
+            Uint256::one().try_into().unwrap()
+        ));
+    }
+
+    #[test]
+    fn should_transfer_between_p2p_tokens_and_hub_deployed_tokens() {
+        let mut deps = mock_dependencies();
+        init(&mut deps);
+
+        // deploy to solana via the hub
+        assert_ok!(deploy_token(
+            deps.as_mut(),
+            ethereum(),
+            solana(),
+            token_id()
+        ));
+
+        // register instance of same token deployed on xrpl
+        assert_ok!(register_p2p_token_instance(
+            deps.as_mut(),
+            token_id(),
+            xrpl(),
+            ethereum(),
+            18,
+            TokenSupply::Tracked(Uint256::one())
+        ));
+
+        // test transfer in both directions
+        assert_ok!(transfer_token(
+            deps.as_mut(),
+            xrpl(),
+            solana(),
+            token_id(),
+            Uint256::one().try_into().unwrap()
+        ));
+
+        assert_ok!(transfer_token(
+            deps.as_mut(),
+            solana(),
+            xrpl(),
+            token_id(),
+            Uint256::one().try_into().unwrap()
+        ));
+    }
+
+    #[test]
+    fn should_not_register_same_p2p_token_twice() {
+        let mut deps = mock_dependencies();
+        init(&mut deps);
+
+        let decimals = 18;
+        let supply = TokenSupply::Tracked(Uint256::one());
+        assert_ok!(register_p2p_token_instance(
+            deps.as_mut(),
+            token_id(),
+            solana(),
+            ethereum(),
+            decimals,
+            supply.clone()
+        ));
+        let res = register_p2p_token_instance(
+            deps.as_mut(),
+            token_id(),
+            solana(),
+            ethereum(),
+            decimals,
+            supply.clone(),
+        );
+        assert_err_contains!(res, Error, Error::TokenAlreadyDeployed { .. });
+    }
+
+    #[test]
+    fn should_not_register_p2p_token_with_different_origin() {
+        let mut deps = mock_dependencies();
+        init(&mut deps);
+
+        let origin_chain = ethereum();
+        let instance_chain = solana();
+        let decimals = 18;
+        let supply = TokenSupply::Tracked(Uint256::one());
+        assert_ok!(register_p2p_token_instance(
+            deps.as_mut(),
+            token_id(),
+            origin_chain.clone(),
+            origin_chain.clone(),
+            decimals,
+            supply.clone()
+        ));
+        let wrong_origin_chain = xrpl();
+        let res = register_p2p_token_instance(
+            deps.as_mut(),
+            token_id(),
+            instance_chain,
+            wrong_origin_chain,
+            decimals,
+            supply.clone(),
+        );
+        assert_err_contains!(res, Error, Error::WrongOriginChain { .. });
+    }
+
+    #[test]
+    fn should_not_register_p2p_token_with_unregistered_chain() {
+        let mut deps = mock_dependencies();
+        init(&mut deps);
+
+        let decimals = 18;
+        let supply = TokenSupply::Tracked(Uint256::one());
+        assert_err_contains!(
+            register_p2p_token_instance(
+                deps.as_mut(),
+                token_id(),
+                ChainNameRaw::try_from("bananas").unwrap(),
+                ethereum(),
+                decimals,
+                supply.clone()
+            ),
+            Error,
+            Error::ChainNotRegistered { .. }
+        );
+
+        assert_err_contains!(
+            register_p2p_token_instance(
+                deps.as_mut(),
+                token_id(),
+                ethereum(),
+                ChainNameRaw::try_from("bananas").unwrap(),
+                decimals,
+                supply.clone()
+            ),
+            Error,
+            Error::ChainNotRegistered { .. }
+        );
+    }
+
+    #[test]
+    fn register_p2p_token_should_init_balance_tracking() {
+        let mut deps = mock_dependencies();
+        init(&mut deps);
+
+        let decimals = 18;
+        assert_ok!(register_p2p_token_instance(
+            deps.as_mut(),
+            token_id(),
+            ethereum(),
+            ethereum(),
+            decimals,
+            TokenSupply::Untracked
+        ));
+
+        let supply = TokenSupply::Tracked(Uint256::one());
+        assert_ok!(register_p2p_token_instance(
+            deps.as_mut(),
+            token_id(),
+            solana(),
+            ethereum(),
+            decimals,
+            supply.clone(),
+        ));
+
+        let transfer_amount = Uint256::one().try_into().unwrap();
+
+        // initial supply is one token. first transfer should succeed
+        assert_ok!(transfer_token(
+            deps.as_mut(),
+            solana(),
+            ethereum(),
+            token_id(),
+            transfer_amount
+        ));
+
+        assert_err_contains!(
+            transfer_token(
+                deps.as_mut(),
+                solana(),
+                ethereum(),
+                token_id(),
+                transfer_amount
+            ),
+            Error,
+            Error::TokenSupplyInvariantViolated { .. }
+        );
     }
 
     // Below are various helper functions to assist with writing tests
@@ -1476,6 +1779,10 @@ mod tests {
     // most tests only need one token id
     fn token_id() -> TokenId {
         TokenId::new([7u8; 32])
+    }
+
+    fn xrpl() -> ChainNameRaw {
+        XRPL.try_into().unwrap()
     }
 
     fn solana() -> ChainNameRaw {
@@ -1493,7 +1800,7 @@ mod tests {
         }
     }
 
-    fn do_transfer(
+    fn transfer_token(
         deps: DepsMut,
         from: ChainNameRaw,
         to: ChainNameRaw,
@@ -1519,13 +1826,13 @@ mod tests {
         )
     }
 
-    fn do_deploy(
+    fn deploy_token(
         deps: DepsMut,
         from: ChainNameRaw,
         to: ChainNameRaw,
         token_id: TokenId,
     ) -> Result<Response, Error> {
-        do_deploy_helper(
+        deploy_token_with_metadata(
             deps,
             from,
             to,
@@ -1537,14 +1844,14 @@ mod tests {
         )
     }
 
-    fn do_deploy_custom_minter(
+    fn deploy_token_custom_minter(
         deps: DepsMut,
         from: ChainNameRaw,
         to: ChainNameRaw,
         token_id: TokenId,
         minter: nonempty::HexBinary,
     ) -> Result<Response, Error> {
-        do_deploy_helper(
+        deploy_token_with_metadata(
             deps,
             from,
             to,
@@ -1557,7 +1864,7 @@ mod tests {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn do_deploy_helper(
+    fn deploy_token_with_metadata(
         deps: DepsMut,
         from: ChainNameRaw,
         to: ChainNameRaw,
