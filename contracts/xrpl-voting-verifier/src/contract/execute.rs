@@ -179,6 +179,7 @@ pub fn vote(
         .add_event(Voted {
             poll_id,
             voter: info.sender,
+            votes,
         })
         .add_events(quorum_events.into_iter().flatten()))
 }
@@ -225,6 +226,7 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: PollId) -> Result<Response, Co
         .add_event(PollEnded {
             poll_id: poll_result.poll_id,
             results: poll_result.results.0.clone(),
+            source_chain: config.source_chain,
         }))
 }
 
