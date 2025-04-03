@@ -132,7 +132,6 @@ impl<C: SolanaRpcClientProxy> EventHandler for Handler<C> {
         }
 
         let tx_calls = messages.iter().map(|msg| self.fetch_message(msg));
-        #[allow(clippy::filter_map_identity)]
         let finalized_tx_receipts = futures::future::join_all(tx_calls)
             .await
             .into_iter()
