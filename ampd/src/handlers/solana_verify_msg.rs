@@ -136,7 +136,7 @@ impl<C: SolanaRpcClientProxy> EventHandler for Handler<C> {
         let finalized_tx_receipts = futures::future::join_all(tx_calls)
             .await
             .into_iter()
-            .filter_map(|tx_data| tx_data)
+            .flatten()
             .collect::<HashMap<_, _>>();
 
         let votes = info_span!(
