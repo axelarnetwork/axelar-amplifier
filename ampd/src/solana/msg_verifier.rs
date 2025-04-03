@@ -181,7 +181,7 @@ mod tests {
     }
 
     fn create_msg_counterpart(event: &CallContractEvent, event_index: u64) -> Message {
-        let msg = Message {
+        Message {
             message_id: axelar_wasm_std::msg_id::Base58SolanaTxSignatureAndEventIndex {
                 raw_signature: RAW_SIGNATURE,
                 event_index,
@@ -190,8 +190,7 @@ mod tests {
             destination_chain: event.destination_chain.clone().parse().unwrap(),
             source_address: event.sender_key,
             payload_hash: event.payload_hash.into(),
-        };
-        msg
+        }
     }
 
     fn fixture_success_call_contract_tx_data() -> (
