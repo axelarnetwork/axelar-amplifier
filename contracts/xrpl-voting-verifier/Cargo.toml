@@ -5,7 +5,7 @@ rust-version = { workspace = true }
 edition = { workspace = true }
 description = "XRPL voting verifier contract"
 
-exclude = ["contract.wasm", "hash.txt"]
+exclude = ["hash.txt", "contract.wasm"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [lib]
