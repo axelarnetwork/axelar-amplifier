@@ -6,7 +6,7 @@ use cosmwasm_std::{Fraction, QuerierWrapper, Uint128};
 use itertools::Itertools;
 use multisig::key::{KeyType, PublicKey};
 use multisig::msg::Signer;
-use service_registry::WeightedVerifier;
+use service_registry_api::WeightedVerifier;
 use xrpl_types::types::AxelarSigner;
 
 use crate::error::ContractError;
