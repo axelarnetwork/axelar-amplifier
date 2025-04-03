@@ -144,7 +144,28 @@ mod tests {
             cosmwasm_contract = '{}'
             rpc_url = 'http://localhost:7545'
 
+            [[handlers]]
+            type = 'SolanaMsgVerifier'
+            chain_name = 'solana'
+            cosmwasm_contract = '{}'
+            rpc_url = 'http://127.0.0.1'
+
+            [handlers.rpc_timeout]
+            secs = 3
+            nanos = 0
+
+            [[handlers]]
+            type = 'SolanaVerifierSetVerifier'
+            chain_name = 'solana'
+            cosmwasm_contract = '{}'
+            rpc_url = 'http://127.0.0.1'
+
+            [handlers.rpc_timeout]
+            secs = 3
+            nanos = 0
             ",
+            TMAddress::random(PREFIX),
+            TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
@@ -160,7 +181,7 @@ mod tests {
         );
 
         let cfg: Config = toml::from_str(config_str.as_str()).unwrap();
-        assert_eq!(cfg.handlers.len(), 12);
+        assert_eq!(cfg.handlers.len(), 14);
     }
 
     #[test]
@@ -376,6 +397,22 @@ mod tests {
                         AccountId::new("axelar", &[0u8; 32]).unwrap(),
                     ),
                     rpc_url: Url::from_str("http://127.0.0.1").unwrap(),
+                },
+                HandlerConfig::SolanaMsgVerifier {
+                    chain_name: ChainName::from_str("solana").unwrap(),
+                    cosmwasm_contract: TMAddress::from(
+                        AccountId::new("axelar", &[0u8; 32]).unwrap(),
+                    ),
+                    rpc_url: Url::from_str("http://127.0.0.1").unwrap(),
+                    rpc_timeout: Some(Duration::from_secs(3)),
+                },
+                HandlerConfig::SolanaVerifierSetVerifier {
+                    chain_name: ChainName::from_str("solana").unwrap(),
+                    cosmwasm_contract: TMAddress::from(
+                        AccountId::new("axelar", &[0u8; 32]).unwrap(),
+                    ),
+                    rpc_url: Url::from_str("http://127.0.0.1").unwrap(),
+                    rpc_timeout: Some(Duration::from_secs(3)),
                 },
             ],
             ..Config::default()
