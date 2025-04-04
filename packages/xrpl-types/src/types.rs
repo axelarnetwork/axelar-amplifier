@@ -829,9 +829,18 @@ impl From<XRPLCurrency> for [u8; XRPL_CURRENCY_LENGTH] {
 
 impl fmt::Display for XRPLCurrency {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let str = std::str::from_utf8(&self.0[12..15])
-            .expect("currency code should always be valid UTF-8")
-            .to_string();
+        let str = match self.0[0] {
+            0x00 => {
+                // standard currency
+                std::str::from_utf8(&self.0[12..15])
+                    .expect("currency code should always be valid UTF-8")
+                    .to_string()
+            }
+            _ => {
+                // nonstandard currency
+                hex::encode(self.0)
+            }
+        };
         write!(f, "{}", str)
     }
 }
@@ -1823,9 +1832,10 @@ mod tests {
 
     #[test]
     fn test_xrpl_currency_format() {
-        let rlusd = "524C555344000000000000000000000000000000";
-        assert!(XRPLCurrency::is_valid_nonstandard_currency(rlusd));
-        assert!(XRPLCurrency::new(rlusd).is_ok());
+        let rlusd_str = "524C555344000000000000000000000000000000";
+        let rlusd = XRPLCurrency::new(rlusd_str);
+        assert!(rlusd.is_ok());
+        assert_eq!(rlusd.unwrap().to_string(), rlusd_str.to_lowercase());
 
         let xrp = "0000000000000000000000005852500000000000";
         assert!(!XRPLCurrency::is_valid_nonstandard_currency(xrp));
@@ -1833,7 +1843,10 @@ mod tests {
         assert!(!XRPLCurrency::is_standard_currency("RLUSD"));
         assert!(!XRPLCurrency::is_standard_currency("XRP"));
 
-        assert!(XRPLCurrency::is_standard_currency("USD"));
-        assert!(XRPLCurrency::new("USD").is_ok());
+        let usd_str = "USD";
+        assert!(XRPLCurrency::is_standard_currency(usd_str));
+        let usd = XRPLCurrency::new(usd_str);
+        assert!(usd.is_ok());
+        assert_eq!(usd.unwrap().to_string(), usd_str);
     }
 }
