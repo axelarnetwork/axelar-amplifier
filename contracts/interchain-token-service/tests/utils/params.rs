@@ -3,3 +3,4 @@ pub const ROUTER: &str = "router";
 pub const GATEWAY: &str = "gateway";
 pub const GOVERNANCE: &str = "governance";
 pub const ADMIN: &str = "admin";
+pub const OPERATOR: &str = "operator";

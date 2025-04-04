@@ -21,6 +21,7 @@ const fn default_pagination_limit() -> u32 {
 pub struct InstantiateMsg {
     pub governance_address: String,
     pub admin_address: String,
+    pub operator_address: String,
     /// The address of the axelarnet-gateway contract on Amplifier
     pub axelarnet_gateway_address: String,
 }
@@ -35,7 +36,7 @@ pub enum ExecuteMsg {
     /// Registers an existing ITS token with the hub. This is useful for tokens that were deployed
     /// before the hub existed and have operated in p2p mode. Both instance_chain and origin_chain
     /// must be registered with the hub.
-    #[permission(Elevated)]
+    #[permission(Elevated, Specific(operator))]
     RegisterP2pTokenInstance {
         chain: ChainNameRaw,
         token_id: TokenId,
@@ -55,7 +56,7 @@ pub enum ExecuteMsg {
     // If the supply is untracked, this command will attempt to set it.
     // Errors if the token is not deployed to the specified chain, or if
     // the supply modification overflows or underflows
-    #[permission(Elevated)]
+    #[permission(Elevated, Specific(operator))]
     ModifySupply {
         chain: ChainNameRaw,
         token_id: TokenId,

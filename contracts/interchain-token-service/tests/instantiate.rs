@@ -22,6 +22,7 @@ fn instantiate_with_args_succeeds() {
     let governance_address = deps.api.addr_make(params::GOVERNANCE);
     let admin_address = deps.api.addr_make(params::ADMIN);
     let axelarnet_gateway_address = deps.api.addr_make(params::GATEWAY);
+    let operator_address = deps.api.addr_make(params::OPERATOR);
 
     let mut response = assert_ok!(contract::instantiate(
         deps.as_mut(),
@@ -31,6 +32,7 @@ fn instantiate_with_args_succeeds() {
             governance_address: governance_address.to_string(),
             admin_address: admin_address.to_string(),
             axelarnet_gateway_address: axelarnet_gateway_address.to_string(),
+            operator_address: operator_address.to_string(),
         },
     ));
 
@@ -70,6 +72,7 @@ fn invalid_gateway_address() {
         governance_address: utils::params::GOVERNANCE.to_string(),
         admin_address: utils::params::ADMIN.to_string(),
         axelarnet_gateway_address: "".to_string(),
+        operator_address: utils::params::OPERATOR.to_string(),
     };
     assert_err_contains!(
         contract::instantiate(

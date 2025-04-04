@@ -32,6 +32,7 @@ pub enum Error {
 #[cw_serde]
 pub struct Config {
     pub axelarnet_gateway: Addr,
+    pub operator: Addr,
 }
 
 #[cw_serde]
@@ -338,6 +339,7 @@ mod tests {
 
         let config = Config {
             axelarnet_gateway: MockApi::default().addr_make("gateway-address"),
+            operator: MockApi::default().addr_make("operator-address"),
         };
 
         assert_ok!(save_config(deps.as_mut().storage, &config));
