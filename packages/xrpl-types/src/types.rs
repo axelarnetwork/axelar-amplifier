@@ -802,7 +802,12 @@ impl XRPLCurrency {
     }
 
     fn from_nonstandard_str(s: &str) -> Self {
-        XRPLCurrency(s.as_bytes().try_into().expect("should be 20 bytes"))
+        XRPLCurrency(
+            hex::decode(s)
+                .expect("invalid nonstandard currency hex")
+                .try_into()
+                .expect("should be 20 bytes"),
+        )
     }
 
     pub fn as_bytes(&self) -> [u8; XRPL_CURRENCY_LENGTH] {
@@ -1818,16 +1823,17 @@ mod tests {
 
     #[test]
     fn test_xrpl_currency_format() {
-        assert!(XRPLCurrency::is_valid_nonstandard_currency(
-            "524C555344000000000000000000000000000000" // RLUSD
-        ));
+        let rlusd = "524C555344000000000000000000000000000000";
+        assert!(XRPLCurrency::is_valid_nonstandard_currency(rlusd));
+        assert!(XRPLCurrency::new(rlusd).is_ok());
 
-        assert!(!XRPLCurrency::is_valid_nonstandard_currency(
-            "0000000000000000000000005852500000000000" // XRP
-        ));
+        let xrp = "0000000000000000000000005852500000000000";
+        assert!(!XRPLCurrency::is_valid_nonstandard_currency(xrp));
 
         assert!(!XRPLCurrency::is_standard_currency("RLUSD"));
         assert!(!XRPLCurrency::is_standard_currency("XRP"));
+
         assert!(XRPLCurrency::is_standard_currency("USD"));
+        assert!(XRPLCurrency::new("USD").is_ok());
     }
 }
