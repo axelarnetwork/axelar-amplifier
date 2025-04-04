@@ -2056,6 +2056,7 @@ mod tests {
             deps.as_mut().storage,
             &Config {
                 axelarnet_gateway: MockApi::default().addr_make(AXELARNET_GATEWAY),
+                operator: MockApi::default().addr_make("operator-address")
             },
         ));
 
