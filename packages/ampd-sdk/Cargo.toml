@@ -7,8 +7,8 @@ edition = { workspace = true }
 [dependencies]
 async-trait = "0.1.59"
 error-stack = { workspace = true }
-mockall = "0.11.3"
-tonic = "0.9.2"
+mockall = { workspace = true }
+tonic = { workspace = true }
 
 [build-dependencies]
 tonic-build = "0.9.2"

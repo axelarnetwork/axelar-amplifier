@@ -14,22 +14,11 @@ use super::proto::{
 #[automock]
 #[async_trait]
 pub trait GRPCClient {
+    // TODO: This trait's methods should return our own types raher than the generated protobuf ones
     async fn subscribe(
         &self,
         request: SubscribeRequest,
     ) -> Result<Streaming<SubscribeResponse>, Status>;
-
-    async fn broadcast(&self, request: BroadcastRequest) -> Result<BroadcastResponse, Status>;
-
-    async fn query(&self, request: QueryRequest) -> Result<QueryResponse, Status>;
-
-    async fn address(&self, request: AddressRequest) -> Result<AddressResponse, Status>;
-
-    async fn contracts(&self, request: ContractsRequest) -> Result<ContractsResponse, Status>;
-
-    async fn sign(&self, request: SignRequest) -> Result<SignResponse, Status>;
-
-    async fn key(&self, request: KeyRequest) -> Result<KeyResponse, Status>;
 }
 
 pub struct Client {
@@ -60,36 +49,6 @@ impl GRPCClient for Client {
         &self,
         request: SubscribeRequest,
     ) -> Result<Streaming<SubscribeResponse>, Status> {
-        todo!()
-    }
-
-    async fn broadcast(
-        &self,
-        request: BroadcastRequest,
-    ) -> Result<BroadcastResponse, tonic::Status> {
-        todo!()
-    }
-
-    async fn query(&self, request: QueryRequest) -> Result<QueryResponse, tonic::Status> {
-        todo!()
-    }
-
-    async fn address(&self, request: AddressRequest) -> Result<AddressResponse, tonic::Status> {
-        todo!()
-    }
-
-    async fn contracts(
-        &self,
-        request: ContractsRequest,
-    ) -> Result<ContractsResponse, tonic::Status> {
-        todo!()
-    }
-
-    async fn sign(&self, request: SignRequest) -> Result<SignResponse, tonic::Status> {
-        todo!()
-    }
-
-    async fn key(&self, request: KeyRequest) -> Result<KeyResponse, tonic::Status> {
         todo!()
     }
 }
