@@ -26,7 +26,10 @@ const XRPL_PAYMENT_ISSUED_HASH_PREFIX: &[u8] = b"xrpl-payment-issued";
 const XRPL_ACCOUNT_ID_LENGTH: usize = 20;
 const XRPL_CURRENCY_LENGTH: usize = 20;
 
-const XRP_RESERVED_CURRENCY: &str = "XRP";
+const XRP_RESERVED_CURRENCY: [u8; XRPL_CURRENCY_LENGTH] = [
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, b'X', b'R', b'P', 0, 0, 0, 0, 0,
+];
+const ZERO_RESERVED_CURRENCY: [u8; XRPL_CURRENCY_LENGTH] = [0; XRPL_CURRENCY_LENGTH];
 
 pub const XRP_DECIMALS: u8 = 6;
 pub const XRPL_ISSUED_TOKEN_DECIMALS: u8 = 15;
@@ -37,8 +40,10 @@ const SIGNED_TRANSACTION_HASH_PREFIX: [u8; 4] = [0x54, 0x58, 0x4E, 0x00];
 const UNSIGNED_TRANSACTION_MULTI_SIGNING_HASH_PREFIX: [u8; 4] = [0x53, 0x4D, 0x54, 0x00];
 
 lazy_static! {
-    static ref CURRENCY_CODE_REGEX: Regex =
+    static ref STANDARD_CURRENCY_CODE_REGEX: Regex =
         Regex::new(r"^[A-Za-z0-9\?\!@#\$%\^&\*<>\(\)\{\}\[\]\|]{3}$").expect("valid regex");
+    static ref NON_STANDARD_CURRENCY_CODE_REGEX: Regex =
+        Regex::new(r"^[A-Fa-f0-9]{40}$").expect("valid regex");
 }
 
 // https://xrpl.org/docs/references/protocol/binary-format#token-amount-format
@@ -768,41 +773,41 @@ pub struct XRPLCurrency([u8; XRPL_CURRENCY_LENGTH]);
 
 impl XRPLCurrency {
     // This currency is disallowed in XRPL
-    pub const XRP: Self = Self::from_standard_str(XRP_RESERVED_CURRENCY);
-
-    pub fn new(s: &str) -> Result<Self, XRPLError> {
-        if Self::is_standard_currency(s) {
-            return Ok(Self::from_standard_str(s));
-        } else if Self::is_valid_nonstandard_currency(s) {
-            return Ok(Self::from_nonstandard_str(s));
-        }
-        Err(XRPLError::InvalidCurrency)
-    }
-
-    fn is_standard_currency(s: &str) -> bool {
-        s != XRP_RESERVED_CURRENCY && CURRENCY_CODE_REGEX.is_match(s) && s != "000"
-    }
-
-    fn is_valid_nonstandard_currency(s: &str) -> bool {
-        if let Ok(hex) = HexBinary::from_hex(s) {
-            hex.len() == 20 && hex[0] != 0
-        } else {
-            false
-        }
-    }
+    pub const XRP: Self = Self(XRP_RESERVED_CURRENCY);
 
     // https://xrpl.org/docs/references/protocol/binary-format#currency-codes
-    const fn from_standard_str(s: &str) -> Self {
-        let bytes = s.as_bytes();
-        let mut buffer = [0u8; XRPL_CURRENCY_LENGTH];
-        buffer[12] = bytes[0];
-        buffer[13] = bytes[1];
-        buffer[14] = bytes[2];
-        XRPLCurrency(buffer)
+    pub fn new(s: &str) -> Result<Self, XRPLError> {
+        let bytes = Self::parse_standard(s)
+            .or_else(|| Self::parse_non_standard(s))
+            .ok_or_else(|| XRPLError::InvalidCurrency(s.to_string()))?;
+
+        if Self::is_reserved(bytes) {
+            return Err(XRPLError::ReservedCurrency(s.to_string()));
+        }
+
+        Ok(Self(bytes))
     }
 
-    fn from_nonstandard_str(s: &str) -> Self {
-        XRPLCurrency(s.as_bytes().try_into().expect("should be 20 bytes"))
+    fn parse_standard(s: &str) -> Option<[u8; XRPL_CURRENCY_LENGTH]> {
+        if STANDARD_CURRENCY_CODE_REGEX.is_match(s) {
+            let mut bytes = [0u8; XRPL_CURRENCY_LENGTH];
+            bytes[12..15].copy_from_slice(s.as_bytes());
+            Some(bytes)
+        } else {
+            None
+        }
+    }
+
+    fn parse_non_standard(s: &str) -> Option<[u8; XRPL_CURRENCY_LENGTH]> {
+        if NON_STANDARD_CURRENCY_CODE_REGEX.is_match(s) && !s.starts_with("00") {
+            HexBinary::from_hex(s).ok()?.as_slice().try_into().ok()
+        } else {
+            None
+        }
+    }
+
+    fn is_reserved(bytes: [u8; XRPL_CURRENCY_LENGTH]) -> bool {
+        bytes == XRP_RESERVED_CURRENCY || bytes == ZERO_RESERVED_CURRENCY
     }
 
     pub fn as_bytes(&self) -> [u8; XRPL_CURRENCY_LENGTH] {
@@ -824,9 +829,18 @@ impl From<XRPLCurrency> for [u8; XRPL_CURRENCY_LENGTH] {
 
 impl fmt::Display for XRPLCurrency {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let str = std::str::from_utf8(&self.0[12..15])
-            .expect("currency code should always be valid UTF-8")
-            .to_string();
+        let str = match self.0[0] {
+            0x00 => {
+                // standard currency
+                std::str::from_utf8(&self.0[12..15])
+                    .expect("standard currency code should always be valid UTF-8")
+                    .to_string()
+            }
+            _ => {
+                // non-standard currency
+                HexBinary::from(self.0).to_string()
+            }
+        };
         write!(f, "{}", str)
     }
 }
@@ -1817,17 +1831,46 @@ mod tests {
     }
 
     #[test]
-    fn test_xrpl_currency_format() {
-        assert!(XRPLCurrency::is_valid_nonstandard_currency(
-            "524C555344000000000000000000000000000000" // RLUSD
-        ));
+    fn test_invalid_currency_formats() {
+        assert!(XRPLCurrency::new("").is_err());
+        assert!(XRPLCurrency::new("invalid").is_err());
+        assert!(XRPLCurrency::new(
+            "524C555344000000000000000000000000000000524C555344000000000000000000000000000000"
+        )
+        .is_err());
+        assert!(XRPLCurrency::new("00524C5553440000000000000000000000000000").is_err());
+    }
 
-        assert!(!XRPLCurrency::is_valid_nonstandard_currency(
-            "0000000000000000000000005852500000000000" // XRP
-        ));
+    #[test]
+    fn test_valid_standard_currency() {
+        let zeros_str = "000";
+        let zeros = XRPLCurrency::new(zeros_str);
+        assert!(zeros.is_ok());
+        assert_eq!(zeros.unwrap().to_string(), zeros_str);
 
-        assert!(!XRPLCurrency::is_standard_currency("RLUSD"));
-        assert!(!XRPLCurrency::is_standard_currency("XRP"));
-        assert!(XRPLCurrency::is_standard_currency("USD"));
+        let usd_str = "USD";
+        let usd = XRPLCurrency::new(usd_str);
+        assert!(usd.is_ok());
+        assert_eq!(usd.unwrap().to_string(), usd_str);
+    }
+
+    #[test]
+    fn test_valid_non_standard_currency() {
+        let rlusd_hex = "524C555344000000000000000000000000000000";
+        let rlusd = XRPLCurrency::new(rlusd_hex);
+        assert!(rlusd.is_ok());
+        assert_eq!(rlusd.unwrap().to_string(), rlusd_hex.to_lowercase());
+    }
+
+    #[test]
+    fn test_reserved_standard_currency() {
+        assert!(XRPLCurrency::new("XRP").is_err());
+        assert!(XRPLCurrency::new("\0\0\0").is_err());
+    }
+
+    #[test]
+    fn test_reserved_non_standard_currency() {
+        assert!(XRPLCurrency::new("0000000000000000000000005852500000000000").is_err());
+        assert!(XRPLCurrency::new("0000000000000000000000000000000000000000").is_err());
     }
 }

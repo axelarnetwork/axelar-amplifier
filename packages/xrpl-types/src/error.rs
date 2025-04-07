@@ -36,8 +36,8 @@ pub enum XRPLError {
     #[error("invalid token amount: {reason}")]
     InvalidTokenAmount { reason: String },
 
-    #[error("invalid currency")]
-    InvalidCurrency,
+    #[error("invalid currency {0}")]
+    InvalidCurrency(String),
 
     #[error("invalid decimals {0}")]
     InvalidDecimals(u8),
@@ -68,6 +68,9 @@ pub enum XRPLError {
 
     #[error("overflow")]
     Overflow,
+
+    #[error("reserved currency {0}")]
+    ReservedCurrency(String),
 
     #[error(transparent)]
     Std(#[from] StdError),
