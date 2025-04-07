@@ -198,7 +198,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: clippy
-          args: --all-targets -- -D warnings -A deprecated
+          args: --all-targets -- -D warnings -A deprecated -A clippy::doc_lazy_continuation
 
       - name: Check Diff
         # fails if any changes not committed
