@@ -27,8 +27,12 @@ const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub enum Error {
     #[error("failed to execute a cross-chain message")]
     Execute,
+    #[error("failed to modify supply")]
+    ModifySupply,
     #[error("failed to register chains")]
     RegisterChains,
+    #[error("failed to register p2p token instance")]
+    RegisterP2pTokenInstance,
     #[error("failed to update chain")]
     UpdateChain,
     #[error("failed to freeze chain")]
@@ -66,6 +70,7 @@ pub fn instantiate(
 
     let admin = address::validate_cosmwasm_address(deps.api, &msg.admin_address)?;
     let governance = address::validate_cosmwasm_address(deps.api, &msg.governance_address)?;
+    let operator = address::validate_cosmwasm_address(deps.api, &msg.operator_address)?;
 
     permission_control::set_admin(deps.storage, &admin)?;
     permission_control::set_governance(deps.storage, &governance)?;
@@ -73,7 +78,13 @@ pub fn instantiate(
     let axelarnet_gateway =
         address::validate_cosmwasm_address(deps.api, &msg.axelarnet_gateway_address)?;
 
-    state::save_config(deps.storage, &Config { axelarnet_gateway })?;
+    state::save_config(
+        deps.storage,
+        &Config {
+            axelarnet_gateway,
+            operator,
+        },
+    )?;
 
     killswitch::init(deps.storage, killswitch::State::Disengaged)?;
 
@@ -87,13 +98,34 @@ pub fn execute(
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
-    match msg.ensure_permissions(deps.storage, &info.sender, match_gateway)? {
+    match msg.ensure_permissions(deps.storage, &info.sender, match_gateway, match_operator)? {
         ExecuteMsg::Execute(AxelarExecutableMsg {
             cc_id,
             source_address,
             payload,
         }) => execute::execute_message(deps, cc_id, source_address, payload)
             .change_context(Error::Execute),
+        ExecuteMsg::RegisterP2pTokenInstance {
+            chain,
+            token_id,
+            origin_chain,
+            decimals,
+            supply,
+        } => execute::register_p2p_token_instance(
+            deps,
+            token_id,
+            chain,
+            origin_chain,
+            decimals,
+            supply,
+        )
+        .change_context(Error::RegisterP2pTokenInstance),
+        ExecuteMsg::ModifySupply {
+            chain,
+            token_id,
+            supply_modifier,
+        } => execute::modify_supply(deps, chain, token_id, supply_modifier)
+            .change_context(Error::ModifySupply),
         ExecuteMsg::RegisterChains { chains } => {
             execute::register_chains(deps, chains).change_context(Error::RegisterChains)
         }
@@ -118,6 +150,10 @@ pub fn execute(
 
 fn match_gateway(storage: &dyn Storage, _: &ExecuteMsg) -> Result<Addr, Report<Error>> {
     Ok(state::load_config(storage).axelarnet_gateway)
+}
+
+fn match_operator(storage: &dyn Storage, _: &ExecuteMsg) -> Result<Addr, Report<Error>> {
+    Ok(state::load_config(storage).operator)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]

@@ -10,7 +10,7 @@ use crate::evm::finalizer::Finalization;
 use crate::types::TMAddress;
 use crate::url::Url;
 
-#[derive(Debug, Deserialize, Serialize, PartialEq)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct Chain {
     pub name: ChainName,
     pub rpc_url: Url,
@@ -19,7 +19,7 @@ pub struct Chain {
 }
 
 with_prefix!(chain "chain_");
-#[derive(Debug, Deserialize, Serialize, PartialEq)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 #[serde(tag = "type")]
 pub enum Config {
     EvmMsgVerifier {
@@ -36,6 +36,7 @@ pub enum Config {
     },
     MultisigSigner {
         cosmwasm_contract: TMAddress,
+        chain_name: ChainName,
     },
     SuiMsgVerifier {
         cosmwasm_contract: TMAddress,
@@ -80,6 +81,18 @@ pub enum Config {
     StarknetVerifierSetVerifier {
         cosmwasm_contract: TMAddress,
         rpc_url: Url,
+    },
+    SolanaMsgVerifier {
+        chain_name: ChainName,
+        cosmwasm_contract: TMAddress,
+        rpc_url: Url,
+        rpc_timeout: Option<Duration>,
+    },
+    SolanaVerifierSetVerifier {
+        chain_name: ChainName,
+        cosmwasm_contract: TMAddress,
+        rpc_url: Url,
+        rpc_timeout: Option<Duration>,
     },
 }
 
@@ -171,7 +184,6 @@ where
     validate_evm_msg_verifier_configs::<D>(&configs)?;
     validate_evm_verifier_set_verifier_configs::<D>(&configs)?;
 
-    ensure_unique_config!(&configs, Config::MultisigSigner, "Multisig signer")?;
     ensure_unique_config!(&configs, Config::XRPLMsgVerifier, "XRPL message verifier")?;
     ensure_unique_config!(&configs, Config::SuiMsgVerifier, "Sui message verifier")?;
     ensure_unique_config!(
@@ -195,12 +207,25 @@ where
         Config::StellarVerifierSetVerifier,
         "Stellar verifier set verifier"
     )?;
+    ensure_unique_config!(
+        &configs,
+        Config::SolanaMsgVerifier,
+        "Solana message verifier"
+    )?;
+    ensure_unique_config!(
+        &configs,
+        Config::SolanaVerifierSetVerifier,
+        "Solana verifier set verifier"
+    )?;
 
     Ok(configs)
 }
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
+
+    use router_api::ChainName;
     use serde_json::to_value;
 
     use crate::evm::finalizer::Finalization;
@@ -221,21 +246,6 @@ mod tests {
 
     #[test]
     fn unique_config_validation() {
-        let configs = vec![
-            Config::MultisigSigner {
-                cosmwasm_contract: TMAddress::random(PREFIX),
-            },
-            Config::MultisigSigner {
-                cosmwasm_contract: TMAddress::random(PREFIX),
-            },
-        ];
-
-        assert!(
-            matches!(deserialize_handler_configs(to_value(configs).unwrap()),
-                Err(e) if e.to_string().contains("only one Multisig signer config is allowed")
-            )
-        );
-
         let configs = vec![
             Config::SuiMsgVerifier {
                 cosmwasm_contract: TMAddress::random(PREFIX),
@@ -339,6 +349,36 @@ mod tests {
         assert!(
             matches!(deserialize_handler_configs(to_value(configs).unwrap()),
                 Err(e) if e.to_string().contains("only one Stellar verifier set verifier config is allowed")
+            )
+        );
+
+        let sample_config = Config::SolanaMsgVerifier {
+            chain_name: ChainName::from_str("solana").unwrap(),
+            cosmwasm_contract: TMAddress::random(PREFIX),
+            rpc_url: "http://localhost:8080/".parse().unwrap(),
+            rpc_timeout: None,
+        };
+
+        let configs = vec![sample_config.clone(), sample_config];
+
+        assert!(
+            matches!(deserialize_handler_configs(to_value(configs).unwrap()),
+                Err(e) if e.to_string().contains("only one Solana message verifier config is allowed")
+            )
+        );
+
+        let sample_config = Config::SolanaVerifierSetVerifier {
+            chain_name: ChainName::from_str("solana").unwrap(),
+            cosmwasm_contract: TMAddress::random(PREFIX),
+            rpc_url: "http://localhost:8080/".parse().unwrap(),
+            rpc_timeout: None,
+        };
+
+        let configs = vec![sample_config.clone(), sample_config];
+
+        assert!(
+            matches!(deserialize_handler_configs(to_value(configs).unwrap()),
+                Err(e) if e.to_string().contains("only one Solana verifier set verifier config is allowed")
             )
         );
     }

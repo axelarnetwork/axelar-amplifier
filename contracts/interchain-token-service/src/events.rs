@@ -1,7 +1,9 @@
 use axelar_wasm_std::{nonempty, IntoEvent};
 use router_api::{Address, ChainNameRaw, CrossChainId};
 
+use crate::msg::SupplyModifier;
 use crate::primitives::Message;
+use crate::TokenId;
 
 #[derive(IntoEvent)]
 pub enum Event {
@@ -24,6 +26,11 @@ pub enum Event {
     },
     ExecutionDisabled,
     ExecutionEnabled,
+    SupplyModified {
+        token_id: TokenId,
+        chain: ChainNameRaw,
+        supply_modifier: SupplyModifier,
+    },
 }
 
 #[cfg(test)]

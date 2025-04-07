@@ -2,7 +2,23 @@
 
 ## [Unreleased](https://github.com/axelarnetwork/axelar-amplifier/tree/HEAD)
 
-[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/ampd-v1.5.0..HEAD)
+[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/ampd-v1.6.0..HEAD)
+
+## [v1.6.0](https://github.com/axelarnetwork/axelar-amplifier/tree/ampd-v1.6.0) (2025-04-02)
+
+[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/ampd-v1.5.1..ampd-v1.6.0)
+
+- Separate multisig config per chain [#772](https://github.com/axelarnetwork/axelar-amplifier/pull/772) and [#790](https://github.com/axelarnetwork/axelar-amplifier/pull/790)
+- Refactor event sub to support gRPC subscribe [#777](https://github.com/axelarnetwork/axelar-amplifier/pull/777)
+- Make chain names case insensitive in ampd verification [#785](https://github.com/axelarnetwork/axelar-amplifier/pull/785) and [#787](https://github.com/axelarnetwork/axelar-amplifier/pull/787)
+- Use case sensitive destination chain in XRPL gateway and verifier [#788](https://github.com/axelarnetwork/axelar-amplifier/pull/788)
+- Fix expected format for non-standard XRPL currencies [#789](https://github.com/axelarnetwork/axelar-amplifier/pull/789)
+
+## [v1.5.1](https://github.com/axelarnetwork/axelar-amplifier/tree/ampd-v1.5.1) (2025-03-26)
+
+[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/ampd-v1.5.0..ampd-v1.5.1)
+
+- Fix arithmetic operations with XRPLTokenAmount [#780](https://github.com/axelarnetwork/axelar-amplifier/pull/780)
 
 ## [v1.5.0](https://github.com/axelarnetwork/axelar-amplifier/tree/ampd-v1.5.0) (2025-03-24)
 

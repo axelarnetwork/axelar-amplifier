@@ -320,7 +320,7 @@ mod test {
 
     use axelar_wasm_std::msg_id::HexTxHash;
     use axelar_wasm_std::nonempty;
-    use router_api::ChainName;
+    use router_api::ChainNameRaw;
     use xrpl_http_client::Memo;
     use xrpl_types::msg::XRPLInterchainTransferMessage;
     use xrpl_types::types::{XRPLAccountId, XRPLPaymentAmount};
@@ -342,7 +342,7 @@ mod test {
             },
             Memo {
                 memo_type: Some("64657374696E6174696F6E5F636861696E".to_string()), // destination_chain
-                memo_data: Some("657468657265756D".to_string()),
+                memo_data: Some("457468657265756D".to_string()),
                 memo_format: None,
             },
             Memo {
@@ -363,7 +363,7 @@ mod test {
                 "592639c10223c4ec6c0ffc670e94d289a25dd1ad".to_string(),
             )
             .unwrap(),
-            destination_chain: ChainName::from_str("ethereum").unwrap(),
+            destination_chain: ChainNameRaw::from_str("Ethereum").unwrap(),
             payload_hash: Some(
                 hex::decode("40e7ed31929500a6a4945765612bac44a71fe18ef7a1bf3d904811558b41354f")
                     .unwrap()
@@ -417,7 +417,7 @@ mod test {
                 "592639c10223c4ec6c0ffc670e94d289a25dd1ad".to_string(),
             )
             .unwrap(),
-            destination_chain: ChainName::from_str("ethereum").unwrap(),
+            destination_chain: ChainNameRaw::from_str("ethereum").unwrap(),
             payload_hash: None,
             transfer_amount: XRPLPaymentAmount::Drops(100000),
             gas_fee_amount: XRPLPaymentAmount::Drops(50000),

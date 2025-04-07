@@ -26,7 +26,10 @@ const XRPL_PAYMENT_ISSUED_HASH_PREFIX: &[u8] = b"xrpl-payment-issued";
 const XRPL_ACCOUNT_ID_LENGTH: usize = 20;
 const XRPL_CURRENCY_LENGTH: usize = 20;
 
-const XRP_RESERVED_CURRENCY: &str = "XRP";
+const XRP_RESERVED_CURRENCY: [u8; XRPL_CURRENCY_LENGTH] = [
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, b'X', b'R', b'P', 0, 0, 0, 0, 0,
+];
+const ZERO_RESERVED_CURRENCY: [u8; XRPL_CURRENCY_LENGTH] = [0; XRPL_CURRENCY_LENGTH];
 
 pub const XRP_DECIMALS: u8 = 6;
 pub const XRPL_ISSUED_TOKEN_DECIMALS: u8 = 15;
@@ -37,8 +40,10 @@ const SIGNED_TRANSACTION_HASH_PREFIX: [u8; 4] = [0x54, 0x58, 0x4E, 0x00];
 const UNSIGNED_TRANSACTION_MULTI_SIGNING_HASH_PREFIX: [u8; 4] = [0x53, 0x4D, 0x54, 0x00];
 
 lazy_static! {
-    static ref CURRENCY_CODE_REGEX: Regex =
+    static ref STANDARD_CURRENCY_CODE_REGEX: Regex =
         Regex::new(r"^[A-Za-z0-9\?\!@#\$%\^&\*<>\(\)\{\}\[\]\|]{3}$").expect("valid regex");
+    static ref NON_STANDARD_CURRENCY_CODE_REGEX: Regex =
+        Regex::new(r"^[A-Fa-f0-9]{40}$").expect("valid regex");
 }
 
 // https://xrpl.org/docs/references/protocol/binary-format#token-amount-format
@@ -768,41 +773,41 @@ pub struct XRPLCurrency([u8; XRPL_CURRENCY_LENGTH]);
 
 impl XRPLCurrency {
     // This currency is disallowed in XRPL
-    pub const XRP: Self = Self::from_standard_str(XRP_RESERVED_CURRENCY);
-
-    pub fn new(s: &str) -> Result<Self, XRPLError> {
-        if Self::is_standard_currency(s) {
-            return Ok(Self::from_standard_str(s));
-        } else if Self::is_valid_nonstandard_currency(s) {
-            return Ok(Self::from_nonstandard_str(s));
-        }
-        Err(XRPLError::InvalidCurrency)
-    }
-
-    fn is_standard_currency(s: &str) -> bool {
-        s != XRP_RESERVED_CURRENCY && CURRENCY_CODE_REGEX.is_match(s) && s != "000"
-    }
-
-    fn is_valid_nonstandard_currency(s: &str) -> bool {
-        if let Ok(hex) = HexBinary::from_hex(s) {
-            hex.len() == 20 && hex[0] == 0
-        } else {
-            false
-        }
-    }
+    pub const XRP: Self = Self(XRP_RESERVED_CURRENCY);
 
     // https://xrpl.org/docs/references/protocol/binary-format#currency-codes
-    const fn from_standard_str(s: &str) -> Self {
-        let bytes = s.as_bytes();
-        let mut buffer = [0u8; XRPL_CURRENCY_LENGTH];
-        buffer[12] = bytes[0];
-        buffer[13] = bytes[1];
-        buffer[14] = bytes[2];
-        XRPLCurrency(buffer)
+    pub fn new(s: &str) -> Result<Self, XRPLError> {
+        let bytes = Self::parse_standard(s)
+            .or_else(|| Self::parse_non_standard(s))
+            .ok_or_else(|| XRPLError::InvalidCurrency(s.to_string()))?;
+
+        if Self::is_reserved(bytes) {
+            return Err(XRPLError::ReservedCurrency(s.to_string()));
+        }
+
+        Ok(Self(bytes))
     }
 
-    fn from_nonstandard_str(s: &str) -> Self {
-        XRPLCurrency(s.as_bytes().try_into().expect("should be 20 bytes"))
+    fn parse_standard(s: &str) -> Option<[u8; XRPL_CURRENCY_LENGTH]> {
+        if STANDARD_CURRENCY_CODE_REGEX.is_match(s) {
+            let mut bytes = [0u8; XRPL_CURRENCY_LENGTH];
+            bytes[12..15].copy_from_slice(s.as_bytes());
+            Some(bytes)
+        } else {
+            None
+        }
+    }
+
+    fn parse_non_standard(s: &str) -> Option<[u8; XRPL_CURRENCY_LENGTH]> {
+        if NON_STANDARD_CURRENCY_CODE_REGEX.is_match(s) && !s.starts_with("00") {
+            HexBinary::from_hex(s).ok()?.as_slice().try_into().ok()
+        } else {
+            None
+        }
+    }
+
+    fn is_reserved(bytes: [u8; XRPL_CURRENCY_LENGTH]) -> bool {
+        bytes == XRP_RESERVED_CURRENCY || bytes == ZERO_RESERVED_CURRENCY
     }
 
     pub fn as_bytes(&self) -> [u8; XRPL_CURRENCY_LENGTH] {
@@ -824,9 +829,18 @@ impl From<XRPLCurrency> for [u8; XRPL_CURRENCY_LENGTH] {
 
 impl fmt::Display for XRPLCurrency {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let str = std::str::from_utf8(&self.0[12..15])
-            .expect("currency code should always be valid UTF-8")
-            .to_string();
+        let str = match self.0[0] {
+            0x00 => {
+                // standard currency
+                std::str::from_utf8(&self.0[12..15])
+                    .expect("standard currency code should always be valid UTF-8")
+                    .to_string()
+            }
+            _ => {
+                // non-standard currency
+                HexBinary::from(self.0).to_string()
+            }
+        };
         write!(f, "{}", str)
     }
 }
@@ -939,77 +953,10 @@ impl XRPLTokenAmount {
 
 impl PartialOrd for XRPLTokenAmount {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        // If either amount is zero, we can compare directly
-        if self.mantissa == 0 {
-            return if other.mantissa == 0 {
-                Some(std::cmp::Ordering::Equal)
-            } else {
-                Some(std::cmp::Ordering::Less)
-            };
-        }
-        if other.mantissa == 0 {
-            return Some(std::cmp::Ordering::Greater);
-        }
+        let (self_mantissa, other_mantissa, _min_exponent) =
+            scale_to_min_exponent(self, other).expect("scale_to_min_exponent should not fail");
 
-        //  Determine the smallest exponent.
-        //  We'll scale each mantissa so that BOTH numbers become
-        //  conceptually represented at this min_exp.
-        //  Example:
-        //     self = (mantissa=1, exponent=-2) => 0.01
-        //     other = (mantissa=1, exponent=0) => 1.0
-        //     min_exp = -2
-        //  We will scale the mantissa of the side that has a bigger exponent
-        //  so that it effectively also uses exponent = -2.
-        let min_exp = self.exponent.min(other.exponent);
-
-        //  Calculate how much each side needs to be scaled.
-        //  scale_self = (min_exp - self.exponent)
-        //  scale_other = (min_exp - other.exponent)
-        //
-        //  If self.exponent is already equal to min_exp, scale_self = 0
-        //    => no multiplication.
-        //  If self.exponent > min_exp, scale_self will be a positive number
-        //    => we multiply self.mantissa by 10^(scale_self).
-        let scale_self = u32::try_from(
-            self.exponent
-                .checked_sub(min_exp)
-                .expect("scale_self underflow"),
-        )
-        .expect("scale_self too large for u32");
-        let scale_other = u32::try_from(
-            other
-                .exponent
-                .checked_sub(min_exp)
-                .expect("scale_other underflow"),
-        )
-        .expect("scale_other too large for u32");
-
-        let ten = 10u64;
-        //  "Scale up" each mantissa where needed. We use `checked_mul` to safely
-        //  detect overflow. If we can't multiply (overflow), assume the scaled
-        //  number is so large that it dominates the comparison.
-        let adjusted_self_mantissa = match self.mantissa.checked_mul(ten.pow(scale_self)) {
-            Some(val) => val,
-            None => {
-                // If this side overflows when scaling, it means it was originally
-                // the side with the larger exponent (less negative) and got multiplied
-                // by a large power of 10. That indicates it's certainly bigger
-                // in actual numeric value.
-                return Some(std::cmp::Ordering::Greater);
-            }
-        };
-
-        let adjusted_other_mantissa = match other.mantissa.checked_mul(ten.pow(scale_other)) {
-            Some(val) => val,
-            None => {
-                // Same idea: if the other side overflows when scaling,
-                // it effectively dwarfs the 'self' side numerically,
-                // so we say self < other.
-                return Some(std::cmp::Ordering::Less);
-            }
-        };
-
-        Some(adjusted_self_mantissa.cmp(&adjusted_other_mantissa))
+        Some(self_mantissa.cmp(&other_mantissa))
     }
 }
 
@@ -1101,42 +1048,13 @@ impl Add for XRPLTokenAmount {
     type Output = Result<XRPLTokenAmount, XRPLError>;
 
     fn add(self, rhs: XRPLTokenAmount) -> Self::Output {
-        let common_exponent = min(self.exponent, rhs.exponent);
-        let ten = 10u64;
-
-        let left_mantissa = self
-            .mantissa
-            .checked_mul(
-                ten.pow(
-                    u32::try_from(
-                        self.exponent
-                            .checked_sub(common_exponent)
-                            .ok_or(XRPLError::SubtractionUnderflow)?,
-                    )
-                    .map_err(|_| XRPLError::InvalidExponent)?,
-                ),
-            )
-            .ok_or(XRPLError::MultiplicationOverflow)?;
-
-        let right_mantissa = rhs
-            .mantissa
-            .checked_mul(
-                ten.pow(
-                    u32::try_from(
-                        rhs.exponent
-                            .checked_sub(common_exponent)
-                            .ok_or(XRPLError::SubtractionUnderflow)?,
-                    )
-                    .map_err(|_| XRPLError::InvalidExponent)?,
-                ),
-            )
-            .ok_or(XRPLError::MultiplicationOverflow)?;
+        let (left_mantissa, right_mantissa, min_exponent) = scale_to_min_exponent(&self, &rhs)?;
 
         let result_mantissa = left_mantissa
             .checked_add(right_mantissa)
-            .ok_or(XRPLError::AdditionOverflow)?;
+            .map_err(|_| XRPLError::AdditionOverflow)?;
 
-        let (mantissa, exponent) = canonicalize_mantissa(result_mantissa.into(), common_exponent)?;
+        let (mantissa, exponent) = canonicalize_mantissa(result_mantissa, min_exponent)?;
         Ok(XRPLTokenAmount::new(mantissa, exponent))
     }
 }
@@ -1145,36 +1063,7 @@ impl Sub for XRPLTokenAmount {
     type Output = Result<XRPLTokenAmount, XRPLError>;
 
     fn sub(self, rhs: XRPLTokenAmount) -> Self::Output {
-        let common_exponent = min(self.exponent, rhs.exponent);
-        let ten = 10u64;
-
-        let left_mantissa = self
-            .mantissa
-            .checked_mul(
-                ten.pow(
-                    u32::try_from(
-                        self.exponent
-                            .checked_sub(common_exponent)
-                            .ok_or(XRPLError::SubtractionUnderflow)?,
-                    )
-                    .map_err(|_| XRPLError::InvalidExponent)?,
-                ),
-            )
-            .ok_or(XRPLError::MultiplicationOverflow)?;
-
-        let right_mantissa = rhs
-            .mantissa
-            .checked_mul(
-                ten.pow(
-                    u32::try_from(
-                        rhs.exponent
-                            .checked_sub(common_exponent)
-                            .ok_or(XRPLError::SubtractionUnderflow)?,
-                    )
-                    .map_err(|_| XRPLError::InvalidExponent)?,
-                ),
-            )
-            .ok_or(XRPLError::MultiplicationOverflow)?;
+        let (left_mantissa, right_mantissa, min_exponent) = scale_to_min_exponent(&self, &rhs)?;
 
         if left_mantissa < right_mantissa {
             return Err(XRPLError::Underflow);
@@ -1182,9 +1071,9 @@ impl Sub for XRPLTokenAmount {
 
         let result_mantissa = left_mantissa
             .checked_sub(right_mantissa)
-            .ok_or(XRPLError::SubtractionUnderflow)?;
+            .map_err(|_| XRPLError::SubtractionUnderflow)?;
 
-        let (mantissa, exponent) = canonicalize_mantissa(result_mantissa.into(), common_exponent)?;
+        let (mantissa, exponent) = canonicalize_mantissa(result_mantissa, min_exponent)?;
         Ok(XRPLTokenAmount::new(mantissa, exponent))
     }
 }
@@ -1374,6 +1263,45 @@ pub fn scale_to_decimals(
         })
         .unwrap_or(Ok(Uint256::zero()))
     }
+}
+
+pub fn scale_to_min_exponent(
+    left: &XRPLTokenAmount,
+    right: &XRPLTokenAmount,
+) -> Result<(Uint256, Uint256, i64), XRPLError> {
+    let min_exponent = min(left.exponent, right.exponent);
+    let ten = Uint256::from(10u8);
+
+    let left_mantissa = Uint256::from(left.mantissa)
+        .checked_mul(
+            ten.checked_pow(
+                u32::try_from(
+                    left.exponent
+                        .checked_sub(min_exponent)
+                        .ok_or(XRPLError::SubtractionUnderflow)?,
+                )
+                .map_err(|_| XRPLError::InvalidExponent)?,
+            )
+            .map_err(|_| XRPLError::ExponentiationOverflow)?,
+        )
+        .map_err(|_| XRPLError::MultiplicationOverflow)?;
+
+    let right_mantissa = Uint256::from(right.mantissa)
+        .checked_mul(
+            ten.checked_pow(
+                u32::try_from(
+                    right
+                        .exponent
+                        .checked_sub(min_exponent)
+                        .ok_or(XRPLError::SubtractionUnderflow)?,
+                )
+                .map_err(|_| XRPLError::InvalidExponent)?,
+            )
+            .map_err(|_| XRPLError::ExponentiationOverflow)?,
+        )
+        .map_err(|_| XRPLError::MultiplicationOverflow)?;
+
+    Ok((left_mantissa, right_mantissa, min_exponent))
 }
 
 fn convert_scaled_uint256_to_u64(value: Uint256) -> u64 {
@@ -1875,6 +1803,24 @@ mod tests {
     }
 
     #[test]
+    fn test_xrpl_token_amount_add_sub_large_exponent_diff() {
+        let a1 = XRPLTokenAmount::from_str("2000000000000000e-21").unwrap();
+        let a2 = XRPLTokenAmount::from_str("0e1").unwrap();
+
+        let result = a1.clone().add(a2.clone()).unwrap();
+        assert_eq!(result, XRPLTokenAmount::new(2000000000000000, -21));
+
+        let result = a1.clone().sub(a2.clone()).unwrap();
+        assert_eq!(result, XRPLTokenAmount::new(2000000000000000, -21));
+
+        let b1 = XRPLTokenAmount::from_str("2000000000000000e-21").unwrap();
+        let b2 = XRPLTokenAmount::from_str("1e1").unwrap();
+
+        assert_eq!(b1.partial_cmp(&b2), Some(std::cmp::Ordering::Less));
+        assert_eq!(b2.partial_cmp(&b1), Some(std::cmp::Ordering::Greater));
+    }
+
+    #[test]
     fn test_xrpl_token_key_deserialize() {
         let issuer = XRPLAccountId::from_str("rDTXLQ7ZKZVKz33zJbHjgVShjsBnqMBhmN").unwrap();
         let currency = XRPLCurrency::new("USD").unwrap();
@@ -1882,5 +1828,49 @@ mod tests {
             XRPLToken::from_vec([issuer.as_bytes(), currency.as_bytes()].concat()).unwrap(),
             XRPLToken { issuer, currency }
         );
+    }
+
+    #[test]
+    fn test_invalid_currency_formats() {
+        assert!(XRPLCurrency::new("").is_err());
+        assert!(XRPLCurrency::new("invalid").is_err());
+        assert!(XRPLCurrency::new(
+            "524C555344000000000000000000000000000000524C555344000000000000000000000000000000"
+        )
+        .is_err());
+        assert!(XRPLCurrency::new("00524C5553440000000000000000000000000000").is_err());
+    }
+
+    #[test]
+    fn test_valid_standard_currency() {
+        let zeros_str = "000";
+        let zeros = XRPLCurrency::new(zeros_str);
+        assert!(zeros.is_ok());
+        assert_eq!(zeros.unwrap().to_string(), zeros_str);
+
+        let usd_str = "USD";
+        let usd = XRPLCurrency::new(usd_str);
+        assert!(usd.is_ok());
+        assert_eq!(usd.unwrap().to_string(), usd_str);
+    }
+
+    #[test]
+    fn test_valid_non_standard_currency() {
+        let rlusd_hex = "524C555344000000000000000000000000000000";
+        let rlusd = XRPLCurrency::new(rlusd_hex);
+        assert!(rlusd.is_ok());
+        assert_eq!(rlusd.unwrap().to_string(), rlusd_hex.to_lowercase());
+    }
+
+    #[test]
+    fn test_reserved_standard_currency() {
+        assert!(XRPLCurrency::new("XRP").is_err());
+        assert!(XRPLCurrency::new("\0\0\0").is_err());
+    }
+
+    #[test]
+    fn test_reserved_non_standard_currency() {
+        assert!(XRPLCurrency::new("0000000000000000000000005852500000000000").is_err());
+        assert!(XRPLCurrency::new("0000000000000000000000000000000000000000").is_err());
     }
 }
