@@ -92,7 +92,7 @@ pub fn execute(
             let gateway_address = validate_cosmwasm_address(deps.api, &gateway_address)?;
             let voting_verifier_address =
                 validate_cosmwasm_address(deps.api, &voting_verifier_address)?;
-            execute::register_contract_addresses(
+            execute::register_chain(
                 deps,
                 chain_name,
                 prover_address,
@@ -168,8 +168,8 @@ mod tests {
 
     use super::*;
     use crate::state::{
-        get_contracts_by_chain, get_contracts_by_gateway, get_contracts_by_prover,
-        get_contracts_by_verifier, load_prover_by_chain, ChainContractsRecord,
+        contracts_by_chain, contracts_by_gateway, contracts_by_prover, contracts_by_verifier,
+        load_prover_by_chain, ChainContractsRecord,
     };
 
     struct TestSetup {
@@ -322,21 +322,21 @@ mod tests {
         )
         .unwrap();
 
-        let record_response_by_chain = get_contracts_by_chain(
+        let record_response_by_chain = contracts_by_chain(
             test_setup.deps.as_ref().storage,
             test_setup.chain_name.clone(),
         );
         assert_eq!(record_response_by_chain.unwrap(), test_setup.chain_record);
 
         let record_response_by_prover =
-            get_contracts_by_prover(test_setup.deps.as_ref().storage, test_setup.prover.clone());
+            contracts_by_prover(test_setup.deps.as_ref().storage, test_setup.prover.clone());
         assert_eq!(record_response_by_prover.unwrap(), test_setup.chain_record);
 
         let record_response_by_gateway =
-            get_contracts_by_gateway(test_setup.deps.as_ref().storage, test_setup.gateway.clone());
+            contracts_by_gateway(test_setup.deps.as_ref().storage, test_setup.gateway.clone());
         assert_eq!(record_response_by_gateway.unwrap(), test_setup.chain_record);
 
-        let record_response_by_verifier = get_contracts_by_verifier(
+        let record_response_by_verifier = contracts_by_verifier(
             test_setup.deps.as_ref().storage,
             test_setup.verifier.clone(),
         );

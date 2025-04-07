@@ -80,7 +80,7 @@ pub fn save_chain_contracts(
 }
 
 #[allow(dead_code)] // Used in tests, might be useful in future query
-pub fn get_contracts_by_chain(
+pub fn contracts_by_chain(
     storage: &dyn Storage,
     chain_name: ChainName,
 ) -> Result<ChainContractsRecord, ContractError> {
@@ -90,7 +90,7 @@ pub fn get_contracts_by_chain(
 }
 
 #[allow(dead_code)] // Used in tests, might be useful in future query
-pub fn get_contracts_by_prover(
+pub fn contracts_by_prover(
     storage: &dyn Storage,
     prover_address: ProverAddress,
 ) -> Result<ChainContractsRecord, ContractError> {
@@ -103,7 +103,7 @@ pub fn get_contracts_by_prover(
 }
 
 #[allow(dead_code)] // Used in tests, might be useful in future query
-pub fn get_contracts_by_gateway(
+pub fn contracts_by_gateway(
     storage: &dyn Storage,
     gateway_address: GatewayAddress,
 ) -> Result<ChainContractsRecord, ContractError> {
@@ -116,7 +116,7 @@ pub fn get_contracts_by_gateway(
 }
 
 #[allow(dead_code)] // Used in tests, might be useful in future query
-pub fn get_contracts_by_verifier(
+pub fn contracts_by_verifier(
     storage: &dyn Storage,
     verifier_address: VerifierAddress,
 ) -> Result<ChainContractsRecord, ContractError> {

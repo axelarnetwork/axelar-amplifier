@@ -59,7 +59,7 @@ impl Client<'_> {
         })
     }
 
-    pub fn register_contract_addresses(
+    pub fn register_chain(
         &self,
         chain_name: ChainName,
         prover_address: String,

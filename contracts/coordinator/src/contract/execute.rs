@@ -15,7 +15,7 @@ pub fn register_prover(
     Ok(Response::new())
 }
 
-pub fn register_contract_addresses(
+pub fn register_chain(
     deps: DepsMut,
     chain_name: ChainName,
     prover_addr: Addr,
