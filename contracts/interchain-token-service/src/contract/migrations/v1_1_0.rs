@@ -1,13 +1,21 @@
 use axelar_wasm_std::error::ContractError;
 use axelar_wasm_std::nonempty;
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Order, Storage, Uint256, Uint512};
-use cw_storage_plus::Map;
+use cosmwasm_std::{Addr, DepsMut, Order, Uint256, Uint512};
+use cw_storage_plus::{Item, Map};
 use itertools::Itertools;
 use router_api::{Address, ChainNameRaw};
 
+use super::MigrateMsg;
 use crate::shared::NumBits;
-use crate::state;
+use crate::state::{self, Config};
+
+#[cw_serde]
+pub struct OldConfig {
+    pub axelarnet_gateway: Addr,
+}
+
+const OLD_CONFIG: Item<OldConfig> = Item::new("config");
 
 #[cw_serde]
 pub struct ChainConfig {
@@ -25,9 +33,19 @@ pub struct TruncationConfig {
 const OLD_CHAIN_CONFIGS: Map<&ChainNameRaw, ChainConfig> = Map::new("chain_configs");
 const NEW_CHAIN_CONFIGS: Map<&ChainNameRaw, state::ChainConfig> = Map::new("chain_configs");
 
-pub fn migrate(storage: &mut dyn Storage) -> Result<(), ContractError> {
+pub fn migrate(deps: DepsMut, msg: MigrateMsg) -> Result<(), ContractError> {
+    let operator =
+        axelar_wasm_std::address::validate_cosmwasm_address(deps.api, &msg.operator_address)?;
+    let old_config = OLD_CONFIG.load(deps.storage)?;
+    state::save_config(
+        deps.storage,
+        &Config {
+            operator,
+            axelarnet_gateway: old_config.axelarnet_gateway,
+        },
+    )?;
     let old_configs: Vec<_> = OLD_CHAIN_CONFIGS
-        .range(storage, None, None, Order::Ascending)
+        .range(deps.storage, None, None, Order::Ascending)
         .try_collect()?;
 
     let transformed_configs: Vec<(ChainNameRaw, state::ChainConfig)> = old_configs
@@ -52,7 +70,7 @@ pub fn migrate(storage: &mut dyn Storage) -> Result<(), ContractError> {
         .try_collect()?;
 
     for (chain, config) in transformed_configs {
-        NEW_CHAIN_CONFIGS.save(storage, &chain, &config)?;
+        NEW_CHAIN_CONFIGS.save(deps.storage, &chain, &config)?;
     }
 
     Ok(())
@@ -74,17 +92,27 @@ fn convert_max_uint_to_max_bits(max_uint: nonempty::Uint256) -> Result<NumBits, 
 #[cfg(test)]
 mod test {
     use assert_ok::assert_ok;
-    use cosmwasm_std::testing::mock_dependencies;
+    use cosmwasm_std::testing::{mock_dependencies, MockApi};
     use cosmwasm_std::Uint256;
     use router_api::{Address, ChainNameRaw};
 
     use super::{migrate, ChainConfig, OLD_CHAIN_CONFIGS};
-    use crate::contract::migrations::v1_1_0::NEW_CHAIN_CONFIGS;
+    use crate::contract::migrations::v1_1_0::{OldConfig, NEW_CHAIN_CONFIGS, OLD_CONFIG};
+    use crate::contract::migrations::MigrateMsg;
     use crate::shared::NumBits;
+    use crate::state;
 
     #[test]
     fn should_migrate_max_uints() {
         let mut deps = mock_dependencies();
+        OLD_CONFIG
+            .save(
+                &mut deps.storage,
+                &OldConfig {
+                    axelarnet_gateway: MockApi::default().addr_make("axelarnet-gateway"),
+                },
+            )
+            .unwrap();
         let old_configs = [
             (
                 ChainNameRaw::try_from("ethereum").unwrap(),
@@ -116,7 +144,12 @@ mod test {
                 .unwrap();
         }
 
-        assert_ok!(migrate(&mut deps.storage));
+        assert_ok!(migrate(
+            deps.as_mut(),
+            MigrateMsg {
+                operator_address: MockApi::default().addr_make("operator").to_string()
+            }
+        ));
 
         for (chain, old_config) in old_configs {
             let new_config = NEW_CHAIN_CONFIGS.load(&deps.storage, &chain).unwrap();
@@ -131,5 +164,29 @@ mod test {
                 NumBits::try_from(256).unwrap()
             );
         }
+    }
+
+    #[test]
+    fn should_set_operator() {
+        let mut deps = mock_dependencies();
+        OLD_CONFIG
+            .save(
+                &mut deps.storage,
+                &OldConfig {
+                    axelarnet_gateway: MockApi::default().addr_make("axelarnet-gateway"),
+                },
+            )
+            .unwrap();
+
+        let expected_operator = MockApi::default().addr_make("operator");
+        assert_ok!(migrate(
+            deps.as_mut(),
+            MigrateMsg {
+                operator_address: expected_operator.to_string()
+            }
+        ));
+
+        let found_operator = state::load_config(&deps.storage).operator;
+        assert_eq!(found_operator, expected_operator);
     }
 }
