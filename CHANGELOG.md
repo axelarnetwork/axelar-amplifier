@@ -2,7 +2,14 @@
 
 ## [Unreleased](https://github.com/axelarnetwork/axelar-amplifier/tree/HEAD)
 
-[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/ampd-v1.6.0..HEAD)
+[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/ampd-v1.7.0..HEAD)
+
+## [v1.7.0](https://github.com/axelarnetwork/axelar-amplifier/tree/ampd-v1.7.0) (2025-04-07)
+
+[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/ampd-v1.6.0..ampd-v1.7.0)
+
+- Add Solana support to ampd [#744](https://github.com/axelarnetwork/axelar-amplifier/pull/744)
+- Fix parsing of non-standard XRPL currencies [#797](https://github.com/axelarnetwork/axelar-amplifier/pull/797)
 
 ## [v1.6.0](https://github.com/axelarnetwork/axelar-amplifier/tree/ampd-v1.6.0) (2025-04-02)
 
