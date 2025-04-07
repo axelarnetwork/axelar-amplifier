@@ -102,7 +102,6 @@ tofn = { version = "1.1" }
 tokio = "1.38.0"
 tokio-stream = "0.1.11"
 tokio-util = "0.7.11"
-tonic = "0.9.2"
 voting-verifier = { version = "^1.1.0", path = "contracts/voting-verifier" }
 axelar-core-std = { version = "^1.0.0", path = "packages/axelar-core-std" }
 proc-macro2 = "1.0.92"
