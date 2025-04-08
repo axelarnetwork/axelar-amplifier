@@ -12,8 +12,8 @@ use crate::error::ContractError;
 use crate::state::{
     Config, TxInfo, AVAILABLE_TICKETS, CONSUMED_TICKET_TO_UNSIGNED_TX_HASH,
     CROSS_CHAIN_ID_TO_TICKET, CURRENT_VERIFIER_SET, FEE_RESERVE, LAST_ASSIGNED_TICKET_NUMBER,
-    LATEST_SEQUENTIAL_UNSIGNED_TX_HASH, NEXT_SEQUENCE_NUMBER, NEXT_VERIFIER_SET,
-    SEQUENCE_NUMBER_MAX_OBJECT_COUNT, TRUST_LINE, TRUST_LINE_COUNT, UNSIGNED_TX_HASH_TO_TX_INFO,
+    NEXT_SEQUENCE_NUMBER, NEXT_VERIFIER_SET, SEQUENCE_NUMBER_MAX_OBJECT_COUNT, TRUST_LINE,
+    TRUST_LINE_COUNT, UNSIGNED_TX_HASH_TO_TX_INFO,
 };
 
 const MAX_TICKET_COUNT: u32 = 250;
@@ -34,10 +34,6 @@ fn issue_tx(
     };
 
     UNSIGNED_TX_HASH_TO_TX_INFO.save(storage, &unsigned_tx_hash.tx_hash, &tx_info)?;
-
-    if unsigned_tx.is_sequential() {
-        LATEST_SEQUENTIAL_UNSIGNED_TX_HASH.save(storage, &unsigned_tx_hash.tx_hash)?;
-    }
 
     Ok(unsigned_tx_hash)
 }
@@ -407,23 +403,7 @@ pub fn num_of_tickets_to_create(storage: &dyn Storage) -> Result<u32, ContractEr
 }
 
 fn next_sequence_number(storage: &dyn Storage) -> Result<u32, ContractError> {
-    match load_latest_sequential_tx_info(storage)? {
-        Some(latest_sequential_tx_info)
-            if latest_sequential_tx_info.status == XRPLTxStatus::Pending =>
-        // this might still be pending but another tx with same sequence number may be confirmed!!!
-        {
-            Ok(latest_sequential_tx_info.unsigned_tx.sequence().into())
-        }
-        _ => NEXT_SEQUENCE_NUMBER.load(storage).map_err(|e| e.into()),
-    }
-}
-
-fn load_latest_sequential_tx_info(storage: &dyn Storage) -> Result<Option<TxInfo>, ContractError> {
-    LATEST_SEQUENTIAL_UNSIGNED_TX_HASH
-        .may_load(storage)?
-        .map_or(Ok(None), |tx_hash| {
-            Ok(UNSIGNED_TX_HASH_TO_TX_INFO.may_load(storage, &tx_hash)?)
-        })
+    NEXT_SEQUENCE_NUMBER.load(storage).map_err(|e| e.into())
 }
 
 fn mark_tickets_available(
