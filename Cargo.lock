@@ -11278,7 +11278,7 @@ dependencies = [
 
 [[package]]
 name = "xrpl-gateway"
-version = "1.1.0"
+version = "1.1.1"
 dependencies = [
  "axelar-core-std 1.0.0",
  "axelar-wasm-std 1.0.0 (git+https://github.com/axelarnetwork/axelar-amplifier?tag=ampd-v1.7.0)",
