@@ -7,6 +7,10 @@ use msgs_derive::EnsurePermissions;
 use router_api::ChainName;
 use service_registry_api::Verifier;
 
+type ProverAddress = Addr;
+type GatewayAddress = Addr;
+type VerifierAddress = Addr;
+
 #[cw_serde]
 pub struct InstantiateMsg {
     pub governance_address: String,
@@ -46,6 +50,9 @@ pub enum QueryMsg {
         service_name: String,
         verifier: String,
     },
+
+    #[returns(ChainContractsRecord)]
+    ChainContractsInfo(ChainContractsKey),
 }
 
 #[cw_serde]
@@ -54,4 +61,19 @@ pub struct VerifierInfo {
     pub weight: nonempty::Uint128,
     pub supported_chains: Vec<ChainName>,
     pub actively_signing_for: HashSet<Addr>,
+}
+
+#[cw_serde]
+pub enum ChainContractsKey {
+    ProverAddress(ProverAddress),
+    GatewayAddress(GatewayAddress),
+    VerifierAddress(VerifierAddress),
+}
+
+#[cw_serde]
+pub struct ChainContractsRecord {
+    pub chain_name: ChainName,
+    pub prover_address: ProverAddress,
+    pub gateway_address: GatewayAddress,
+    pub verifier_address: VerifierAddress,
 }

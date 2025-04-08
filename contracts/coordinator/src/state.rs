@@ -46,7 +46,7 @@ impl IndexList<ChainContractsRecord> for ChainContractsIndexes<'_> {
     }
 }
 
-const CHAIN_CONTRACTS_MAP: IndexedMap<ChainName, ChainContractsRecord, ChainContractsIndexes> =
+pub const CHAIN_CONTRACTS_MAP: IndexedMap<ChainName, ChainContractsRecord, ChainContractsIndexes> =
     IndexedMap::new(
         "chain_contracts_map",
         ChainContractsIndexes {
