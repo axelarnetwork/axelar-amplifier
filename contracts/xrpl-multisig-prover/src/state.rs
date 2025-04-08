@@ -62,8 +62,6 @@ pub const CROSS_CHAIN_ID_TO_MULTISIG_SESSION: Map<&CrossChainId, MultisigSession
 pub const CONSUMED_TICKET_TO_UNSIGNED_TX_HASH: Map<&u32, Hash> =
     Map::new("consumed_ticket_to_unsigned_tx_hash");
 pub const UNSIGNED_TX_HASH_TO_TX_INFO: Map<&Hash, TxInfo> = Map::new("unsigned_tx_hash_to_tx_info");
-pub const LATEST_SEQUENTIAL_UNSIGNED_TX_HASH: Item<Hash> =
-    Item::new("latest_sequential_unsigned_tx_hash");
 pub const TRUST_LINE: Map<&XRPLToken, ()> = Map::new("trust_line");
 pub const TRUST_LINE_COUNT: Item<u64> = Item::new("trust_line_count");
 pub const SEQUENCE_NUMBER_MAX_OBJECT_COUNT: Map<&u32, u8> =
