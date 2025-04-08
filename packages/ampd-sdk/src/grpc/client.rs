@@ -11,10 +11,10 @@ use super::proto::{SubscribeRequest, SubscribeResponse};
 #[derive(Error, Debug)]
 pub enum Error {
     #[error("failed to connect to the grpc endpoint")]
-    GRpcConnection(#[from] tonic::transport::Error),
+    GrpcConnection(#[from] tonic::transport::Error),
 
     #[error("failed to execute gRPC request")]
-    GRpcRequest(#[from] tonic::Status),
+    GrpcRequest(#[from] tonic::Status),
 }
 
 #[automock]
@@ -29,32 +29,32 @@ pub trait Client {
 }
 
 #[allow(dead_code)]
-pub struct GRPCClient {
+pub struct GrpcClient {
     pub blockchain: BlockchainServiceClient<transport::Channel>,
     pub crypto: CryptoServiceClient<transport::Channel>,
 }
 
 #[allow(dead_code)]
-pub async fn new(url: &str) -> Result<GRPCClient, Error> {
+pub async fn new(url: &str) -> Result<GrpcClient, Error> {
     let endpoint = transport::Endpoint::from_shared(url.to_string())
-        .map_err(Into::into) // Convert to Error::GRpcConnection via #[from]
+        .map_err(Into::into) // Convert to Error::GrpcConnection via #[from]
         .map_err(Report::new)?;
 
     let conn = endpoint
         .connect()
         .await
-        .map_err(Into::into) // Convert to Error::GRpcConnection via #[from]
+        .map_err(Into::into) // Convert to Error::GrpcConnection via #[from]
         .map_err(Report::new)?;
 
     let blockchain = BlockchainServiceClient::new(conn.clone());
     let crypto = CryptoServiceClient::new(conn);
 
-    Ok(GRPCClient { blockchain, crypto })
+    Ok(GrpcClient { blockchain, crypto })
 }
 
 #[async_trait]
 #[allow(clippy::todo)]
-impl Client for GRPCClient {
+impl Client for GrpcClient {
     async fn subscribe(
         &self,
         _request: SubscribeRequest,
