@@ -1,11 +1,21 @@
 use async_trait::async_trait;
 use error_stack::{Report, Result};
 use mockall::automock;
-use tonic::{codegen, transport, Status, Streaming};
+use thiserror::Error;
+use tonic::{codegen, transport, Streaming};
 
 use super::proto::blockchain_service_client::BlockchainServiceClient;
 use super::proto::crypto_service_client::CryptoServiceClient;
 use super::proto::{SubscribeRequest, SubscribeResponse};
+
+#[derive(Error, Debug)]
+pub enum Error {
+    #[error("failed to connect to the grpc endpoint")]
+    GRpcConnection(#[from] tonic::transport::Error),
+
+    #[error("failed to execute gRPC request")]
+    GRpcRequest(#[from] tonic::Status),
+}
 
 #[automock]
 #[async_trait]
@@ -15,7 +25,7 @@ pub trait GRPCClient {
     async fn subscribe(
         &self,
         request: SubscribeRequest,
-    ) -> Result<Streaming<SubscribeResponse>, Status>;
+    ) -> Result<Streaming<SubscribeResponse>, Error>;
 }
 
 #[allow(dead_code)]
@@ -25,16 +35,16 @@ pub struct Client {
 }
 
 #[allow(dead_code)]
-pub async fn new<D>(dst: D) -> Result<Client, transport::Error>
+pub async fn new<D>(dst: D) -> Result<Client, Error>
 where
     D: TryInto<transport::Endpoint>,
     D::Error: Into<codegen::StdError>,
 {
     let conn = transport::Endpoint::new(dst)
-        .map_err(Report::new)?
+        .map_err(|e| Report::new(Error::GRpcConnection(e)))?
         .connect()
         .await
-        .map_err(Report::new)?;
+        .map_err(|e| Report::new(Error::GRpcConnection(e)))?;
 
     let blockchain = BlockchainServiceClient::new(conn.clone());
     let crypto = CryptoServiceClient::new(conn);
@@ -48,7 +58,7 @@ impl GRPCClient for Client {
     async fn subscribe(
         &self,
         _request: SubscribeRequest,
-    ) -> Result<Streaming<SubscribeResponse>, Status> {
+    ) -> Result<Streaming<SubscribeResponse>, Error> {
         todo!()
     }
 }

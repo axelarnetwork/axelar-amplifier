@@ -11,6 +11,7 @@ mockall = { workspace = true }
 prost = "0.13.5"
 prost-types = "0.13.5"
 tonic = "0.13.0"
+thiserror = { workspace = true }
 
 [build-dependencies]
 tonic-build = "0.13.0"
