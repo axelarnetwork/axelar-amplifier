@@ -36,7 +36,8 @@ pub struct GrpcClient {
 
 #[allow(dead_code)]
 pub async fn new(url: &str) -> Result<GrpcClient, Error> {
-    let endpoint = transport::Endpoint::from_shared(url.to_string())
+    let endpoint: transport::Endpoint = url
+        .parse()
         .map_err(Into::into) // Convert to Error::GrpcConnection via #[from]
         .map_err(Report::new)?;
 
