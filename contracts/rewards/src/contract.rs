@@ -2,7 +2,7 @@ use axelar_wasm_std::{address, nonempty, permission_control};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_json_binary, BankMsg, Binary, Coin, Deps, DepsMut, Empty, Env, MessageInfo, Response,
+    to_json_binary, BankMsg, Binary, Coin, Deps, DepsMut, Env, MessageInfo, Response,
 };
 use error_stack::ResultExt;
 use itertools::Itertools;
@@ -16,22 +16,10 @@ mod execute;
 mod migrations;
 mod query;
 
+pub use migrations::{migrate, MigrateMsg};
+
 const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
-const BASE_VERSION: &str = "1.2.0";
-
-#[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(
-    deps: DepsMut,
-    _env: Env,
-    _msg: Empty,
-) -> Result<Response, axelar_wasm_std::error::ContractError> {
-    cw2::assert_contract_version(deps.storage, CONTRACT_NAME, BASE_VERSION)?;
-
-    cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-
-    Ok(Response::default())
-}
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -208,37 +196,13 @@ pub fn query(
 
 #[cfg(test)]
 mod tests {
-    use assert_ok::assert_ok;
-    use cosmwasm_std::testing::{message_info, mock_dependencies, mock_env, MockApi};
+    use cosmwasm_std::testing::MockApi;
     use cosmwasm_std::{coins, Addr, BlockInfo, Uint128};
     use cw_multi_test::{App, ContractWrapper, Executor};
     use router_api::ChainName;
 
     use super::*;
     use crate::msg::{ExecuteMsg, InstantiateMsg, Params, PoolId, QueryMsg, RewardsPool};
-
-    #[test]
-    fn migrate_sets_contract_version() {
-        let mut deps = mock_dependencies();
-        let api = deps.api;
-        let env = mock_env();
-        let info = message_info(&api.addr_make("instantiator"), &[]);
-        assert_ok!(instantiate(
-            deps.as_mut(),
-            env,
-            info,
-            InstantiateMsg {
-                governance_address: api.addr_make("governance").to_string(),
-                rewards_denom: "uaxl".to_string()
-            }
-        ));
-
-        migrate(deps.as_mut(), mock_env(), Empty {}).unwrap();
-
-        let contract_version = cw2::get_contract_version(deps.as_mut().storage).unwrap();
-        assert_eq!(contract_version.contract, CONTRACT_NAME);
-        assert_eq!(contract_version.version, CONTRACT_VERSION);
-    }
 
     /// Tests that the contract entry points (instantiate, query and execute) work as expected.
     /// Instantiates the contract and calls each of the 4 ExecuteMsg variants.

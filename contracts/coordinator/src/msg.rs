@@ -7,6 +7,8 @@ use msgs_derive::EnsurePermissions;
 use router_api::ChainName;
 use service_registry_api::Verifier;
 
+pub use crate::contract::MigrateMsg;
+
 #[cw_serde]
 pub struct InstantiateMsg {
     pub governance_address: String,
