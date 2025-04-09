@@ -208,3 +208,77 @@ impl IndexList<PollContent<VerifierSet>> for PollVerifierSetsIndex<'_> {
         Box::new(v.into_iter())
     }
 }
+
+#[cfg(test)]
+mod test {
+    use crate::contract::execute;
+    use crate::msg::ExecuteMsg;
+    use base64::{engine::general_purpose::STANDARD, Engine as _};
+    use cosmrs::proto;
+    use cosmrs::proto::traits::Message;
+    use cosmwasm_std::testing::{mock_dependencies, mock_env};
+    use cosmwasm_std::{Addr, MessageInfo, Storage};
+    use prost_types::Any;
+    use serde::{Deserialize, Serialize};
+    use std::fs;
+
+    #[derive(Deserialize, Serialize, Clone, Debug)]
+    struct Data {
+        models: Vec<Model>,
+    }
+
+    #[derive(Deserialize, Serialize, Clone, Debug)]
+    struct Model {
+        key: String,
+        value: String,
+    }
+
+    #[derive(Deserialize, Serialize, Clone, Debug)]
+    struct AnyRaw {
+        type_url: String,
+        value: Vec<u8>,
+    }
+
+    #[test]
+    fn reconstruct_ampd_broadcast_error() {
+        let mut deps = mock_dependencies();
+        let env = mock_env();
+
+        let data: Data = serde_json::from_str(
+            fs::read_to_string("./src/testdata/data.txt")
+                .unwrap()
+                .as_ref(),
+        )
+        .unwrap();
+
+        for Model { key, value } in data.models.into_iter() {
+            let key_bz = hex::decode(&key).unwrap();
+            let value_bz = STANDARD.decode(&value).unwrap();
+
+            deps.storage.set(key_bz.as_slice(), value_bz.as_slice());
+        }
+
+        let message_json: AnyRaw = serde_json::from_str(
+            fs::read_to_string("./src/testdata/message.json")
+                .unwrap()
+                .as_ref(),
+        )
+        .unwrap();
+        
+        let message =
+            proto::cosmwasm::wasm::v1::MsgExecuteContract::decode(message_json.value.as_slice())
+                .unwrap();
+
+        let vote: ExecuteMsg = serde_json::from_slice(&message.msg).unwrap();
+        execute(
+            deps.as_mut(),
+            env,
+            MessageInfo {
+                sender: Addr::unchecked("sender"),
+                funds: vec![],
+            },
+            vote,
+        )
+        .unwrap();
+    }
+}

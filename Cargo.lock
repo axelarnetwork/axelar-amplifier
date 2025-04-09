@@ -254,7 +254,7 @@ dependencies = [
  "bcs",
  "clap 4.5.34",
  "config",
- "cosmrs",
+ "cosmrs 0.14.0",
  "cosmwasm-std",
  "der 0.7.9",
  "deref-derive",
@@ -2287,13 +2287,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "cosmos-sdk-proto"
+version = "0.27.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "95ac39be7373404accccaede7cc1ec942ccef14f0ca18d209967a756bf1dbb1f"
+dependencies = [
+ "prost 0.13.5",
+ "tendermint-proto 0.40.3",
+]
+
+[[package]]
 name = "cosmrs"
 version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "af13955d6f356272e6def9ff5e2450a7650df536d8934f47052a20c76513d2f6"
 dependencies = [
  "bip32",
- "cosmos-sdk-proto",
+ "cosmos-sdk-proto 0.19.0",
  "ecdsa",
  "eyre",
  "getrandom 0.2.15",
@@ -2303,6 +2313,26 @@ dependencies = [
  "serde_json",
  "subtle-encoding",
  "tendermint 0.32.2",
+ "thiserror 1.0.69",
+]
+
+[[package]]
+name = "cosmrs"
+version = "0.22.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "34e74fa7a22930fe0579bef560f2d64b78415d4c47b9dd976c0635136809471d"
+dependencies = [
+ "bip32",
+ "cosmos-sdk-proto 0.27.0",
+ "ecdsa",
+ "eyre",
+ "k256",
+ "rand_core 0.6.4",
+ "serde",
+ "serde_json",
+ "signature 2.2.0",
+ "subtle-encoding",
+ "tendermint 0.40.3",
  "thiserror 1.0.69",
 ]
 
@@ -3511,7 +3541,7 @@ version = "1.0.0"
 dependencies = [
  "axelar-wasm-std",
  "base64 0.21.7",
- "cosmrs",
+ "cosmrs 0.14.0",
  "error-stack",
  "serde_json",
  "tendermint 0.35.0",
@@ -11478,6 +11508,36 @@ dependencies = [
 ]
 
 [[package]]
+name = "tendermint"
+version = "0.40.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ab2972a56891bc9173eaebdd51290bc848e448aa281881f3a4712bd8fe1899b3"
+dependencies = [
+ "bytes",
+ "digest 0.10.7",
+ "ed25519 2.2.3",
+ "ed25519-consensus",
+ "flex-error",
+ "futures",
+ "k256",
+ "num-traits",
+ "once_cell",
+ "prost 0.13.5",
+ "ripemd",
+ "serde",
+ "serde_bytes",
+ "serde_json",
+ "serde_repr",
+ "sha2 0.10.8",
+ "signature 2.2.0",
+ "subtle",
+ "subtle-encoding",
+ "tendermint-proto 0.40.3",
+ "time",
+ "zeroize",
+]
+
+[[package]]
 name = "tendermint-config"
 version = "0.35.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -11521,6 +11581,21 @@ dependencies = [
  "num-traits",
  "prost 0.12.6",
  "prost-types 0.12.6",
+ "serde",
+ "serde_bytes",
+ "subtle-encoding",
+ "time",
+]
+
+[[package]]
+name = "tendermint-proto"
+version = "0.40.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ca44b9eaaa98e8440fbafe5593b8a32a1c395c094ac566b3eb50497f8bd2bee0"
+dependencies = [
+ "bytes",
+ "flex-error",
+ "prost 0.13.5",
  "serde",
  "serde_bytes",
  "subtle-encoding",
@@ -12623,8 +12698,10 @@ dependencies = [
  "alloy-primitives",
  "assert_ok",
  "axelar-wasm-std",
+ "base64 0.22.1",
  "bech32 0.11.0",
  "client",
+ "cosmrs 0.22.0",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-multi-test",
@@ -12632,14 +12709,18 @@ dependencies = [
  "cw2",
  "error-stack",
  "goldie",
+ "hex",
  "integration-tests",
  "itertools 0.14.0",
  "msgs-derive",
  "multisig",
+ "prost 0.11.9",
+ "prost-types 0.11.9",
  "rand 0.8.5",
  "report",
  "rewards",
  "router-api",
+ "serde",
  "serde_json",
  "service-registry",
  "service-registry-api",

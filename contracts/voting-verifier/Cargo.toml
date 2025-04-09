@@ -55,7 +55,14 @@ integration-tests = { workspace = true }
 multisig = { workspace = true, features = ["test", "library"] }
 rand = { workspace = true }
 sha3 = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+base64 = "0.22.1"
+hex = "0.4.3"
+cosmrs = { version = "0.22.0", features = ["cosmwasm"] }
 starknet-checked-felt = { workspace = true }
+prost-types = "0.11.9"
+prost = "0.11.9"
 
 [lints]
 workspace = true
