@@ -3,9 +3,7 @@ use std::time::Duration;
 use asyncutil::task::{CancellableTask, TaskError, TaskGroup};
 use block_height_monitor::BlockHeightMonitor;
 use broadcaster::Broadcaster;
-use cosmrs::proto::cosmos::auth::v1beta1::query_client::QueryClient as AuthQueryClient;
-use cosmrs::proto::cosmos::bank::v1beta1::query_client::QueryClient as BankQueryClient;
-use cosmrs::proto::cosmos::tx::v1beta1::service_client::ServiceClient;
+use cosmos::CosmosGRpcClient;
 use error_stack::{FutureExt, Result, ResultExt};
 use event_processor::EventHandler;
 use event_sub::EventSub;
@@ -23,7 +21,6 @@ use tokio::signal::unix::{signal, SignalKind};
 use tokio::sync::mpsc;
 use tokio::time::interval;
 use tokio_util::sync::CancellationToken;
-use tonic::transport::Channel;
 use tracing::info;
 use types::{CosmosPublicKey, TMAddress};
 
@@ -34,6 +31,7 @@ mod block_height_monitor;
 mod broadcaster;
 pub mod commands;
 pub mod config;
+mod cosmos;
 mod event_processor;
 mod event_sub;
 mod evm;
@@ -78,15 +76,7 @@ async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
     let tm_client = tendermint_rpc::HttpClient::new(tm_jsonrpc.to_string().as_str())
         .change_context(Error::Connection)
         .attach_printable(tm_jsonrpc.clone())?;
-    let service_client = ServiceClient::connect(tm_grpc.to_string())
-        .await
-        .change_context(Error::Connection)
-        .attach_printable(tm_grpc.clone())?;
-    let auth_query_client = AuthQueryClient::connect(tm_grpc.to_string())
-        .await
-        .change_context(Error::Connection)
-        .attach_printable(tm_grpc.clone())?;
-    let bank_query_client = BankQueryClient::connect(tm_grpc.to_string())
+    let cosmos_client = cosmos::CosmosGRpcClient::new(tm_grpc.as_str())
         .await
         .change_context(Error::Connection)
         .attach_printable(tm_grpc.clone())?;
@@ -107,10 +97,8 @@ async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
     let pub_key = CosmosPublicKey::try_from(pub_key).change_context(Error::Tofnd)?;
 
     let broadcaster = broadcaster::UnvalidatedBasicBroadcaster::builder()
-        .auth_query_client(auth_query_client)
-        .bank_query_client(bank_query_client)
         .address_prefix(PREFIX.to_string())
-        .client(service_client.clone())
+        .client(cosmos_client.clone())
         .signer(multisig_client.clone())
         .pub_key((tofnd_config.key_uid, pub_key))
         .config(broadcast.clone())
@@ -127,7 +115,7 @@ async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
     );
 
     let tx_confirmer = TxConfirmer::new(
-        service_client,
+        cosmos_client,
         RetryPolicy::RepeatConstant {
             sleep: broadcast.tx_fetch_interval,
             max_attempts: broadcast.tx_fetch_max_retries.saturating_add(1).into(),
@@ -178,7 +166,7 @@ where
     event_subscriber: event_sub::EventSubscriber,
     event_processor: TaskGroup<event_processor::Error>,
     broadcaster: QueuedBroadcaster<T>,
-    tx_confirmer: TxConfirmer<ServiceClient<Channel>>,
+    tx_confirmer: TxConfirmer<CosmosGRpcClient>,
     multisig_client: MultisigClient,
     block_height_monitor: BlockHeightMonitor<tendermint_rpc::HttpClient>,
     health_check_server: health_check::Server,
@@ -192,7 +180,7 @@ where
     fn new(
         tm_client: tendermint_rpc::HttpClient,
         broadcaster: QueuedBroadcaster<T>,
-        tx_confirmer: TxConfirmer<ServiceClient<Channel>>,
+        tx_confirmer: TxConfirmer<CosmosGRpcClient>,
         multisig_client: MultisigClient,
         event_buffer_cap: usize,
         block_height_monitor: BlockHeightMonitor<tendermint_rpc::HttpClient>,
@@ -545,7 +533,7 @@ where
 
     fn create_broadcaster_task(
         broadcaster: QueuedBroadcaster<T>,
-        confirmer: TxConfirmer<ServiceClient<Channel>>,
+        confirmer: TxConfirmer<CosmosGRpcClient>,
     ) -> TaskGroup<Error> {
         let (tx_hash_sender, tx_hash_receiver) = mpsc::channel(1000);
         let (tx_response_sender, tx_response_receiver) = mpsc::channel(1000);
