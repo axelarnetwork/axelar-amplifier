@@ -326,9 +326,15 @@ mod tests {
         )
         .unwrap();
 
-        let record_response_by_chain = contracts_by_chain(
-            test_setup.deps.as_ref().storage,
-            test_setup.chain_name.clone(),
+        let record_response_by_chain: StdResult<ChainContractsRecord> = cosmwasm_std::from_json(
+            query(
+                test_setup.deps.as_ref(),
+                test_setup.env.clone(),
+                QueryMsg::ChainContractsInfo(ChainContractsKey::ChainName(
+                    test_setup.chain_name.clone(),
+                )),
+            )
+            .unwrap(),
         );
 
         assert_eq!(record_response_by_chain.unwrap(), test_setup.chain_record);

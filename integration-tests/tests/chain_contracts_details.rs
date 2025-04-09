@@ -12,6 +12,13 @@ fn chain_contracts_information_should_be_consistent_in_coordinator() {
 
     let ethereum_by = test_utils::chain_contracts_info_from_coordinator(
         &mut protocol,
+        ChainContractsKey::ChainName(ethereum.chain_name.clone()),
+    );
+
+    test_utils::assert_chain_contracts_details_are_equal(ethereum_by, &ethereum);
+
+    let ethereum_by = test_utils::chain_contracts_info_from_coordinator(
+        &mut protocol,
         ChainContractsKey::GatewayAddress(ethereum.gateway.contract_addr.clone()),
     );
 

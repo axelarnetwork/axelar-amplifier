@@ -65,6 +65,7 @@ pub struct VerifierInfo {
 
 #[cw_serde]
 pub enum ChainContractsKey {
+    ChainName(ChainName),
     ProverAddress(ProverAddress),
     GatewayAddress(GatewayAddress),
     VerifierAddress(VerifierAddress),
@@ -76,4 +77,15 @@ pub struct ChainContractsRecord {
     pub prover_address: ProverAddress,
     pub gateway_address: GatewayAddress,
     pub verifier_address: VerifierAddress,
+}
+
+impl From<crate::state::ChainContractsRecord> for ChainContractsRecord {
+    fn from(chain_contracts_record: crate::state::ChainContractsRecord) -> Self {
+        ChainContractsRecord {
+            chain_name: chain_contracts_record.chain_name,
+            prover_address: chain_contracts_record.prover_address,
+            gateway_address: chain_contracts_record.gateway_address,
+            verifier_address: chain_contracts_record.verifier_address,
+        }
+    }
 }

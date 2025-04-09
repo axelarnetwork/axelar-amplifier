@@ -21,6 +21,9 @@ pub enum Error {
         verifier_address: String,
     },
 
+    #[error("failed to execute ChainContractsInfo query at coordinator contract. chain name {0}")]
+    ChainNameNotRegistered(String),
+
     #[error("failed to execute ChainContractsInfo query at coordinator contract. gateway {0}")]
     GatewayNotRegistered(Addr),
 
@@ -47,10 +50,13 @@ impl From<QueryMsg> for Error {
                     Error::GatewayNotRegistered(gateway_addr)
                 }
                 ChainContractsKey::ProverAddress(prover_addr) => {
-                    Error::GatewayNotRegistered(prover_addr)
+                    Error::ProverNotRegistered(prover_addr)
                 }
                 ChainContractsKey::VerifierAddress(verifier_addr) => {
-                    Error::GatewayNotRegistered(verifier_addr)
+                    Error::VerifierNotRegistered(verifier_addr)
+                }
+                ChainContractsKey::ChainName(chain_name) => {
+                    Error::ChainNameNotRegistered(chain_name.into())
                 }
             },
         }

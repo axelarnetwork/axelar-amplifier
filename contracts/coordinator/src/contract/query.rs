@@ -2,12 +2,15 @@ use std::collections::HashSet;
 
 use cosmwasm_std::{Addr, Deps, Order, StdResult};
 use error_stack::{Result, ResultExt};
-use itertools::{chain, Itertools};
+use itertools::Itertools;
 use service_registry_api::msg::VerifierDetails;
 
 use crate::error::ContractError;
 use crate::msg::{ChainContractsKey, ChainContractsRecord, VerifierInfo};
-use crate::state::{load_config, CHAIN_CONTRACTS_MAP, VERIFIER_PROVER_INDEXED_MAP};
+use crate::state::{
+    contracts_by_chain, contracts_by_gateway, contracts_by_prover, contracts_by_verifier,
+    load_config, VERIFIER_PROVER_INDEXED_MAP,
+};
 
 pub fn check_verifier_ready_to_unbond(deps: Deps, verifier_address: Addr) -> StdResult<bool> {
     Ok(!is_verifier_in_any_verifier_set(deps, &verifier_address))
@@ -66,41 +69,20 @@ pub fn get_chain_contracts_info(
     chain_contracts_key: ChainContractsKey,
 ) -> Result<ChainContractsRecord, ContractError> {
     match chain_contracts_key {
-        ChainContractsKey::ProverAddress(prover_addr) => Ok(CHAIN_CONTRACTS_MAP
-            .idx
-            .by_prover
-            .item(deps.storage, prover_addr.clone())
-            .change_context(ContractError::VerifierNotRegistered(prover_addr.clone()))?
-            .ok_or(ContractError::VerifierNotRegistered(prover_addr.clone()))
-            .map(|v| ChainContractsRecord {
-                chain_name: v.1.chain_name,
-                prover_address: v.1.prover_address,
-                gateway_address: v.1.gateway_address,
-                verifier_address: v.1.verifier_address,
-            })?),
-        ChainContractsKey::GatewayAddress(gateway_addr) => Ok(CHAIN_CONTRACTS_MAP
-            .idx
-            .by_gateway
-            .item(deps.storage, gateway_addr.clone())
-            .change_context(ContractError::VerifierNotRegistered(gateway_addr.clone()))?
-            .ok_or(ContractError::VerifierNotRegistered(gateway_addr.clone()))
-            .map(|v| ChainContractsRecord {
-                chain_name: v.1.chain_name,
-                prover_address: v.1.prover_address,
-                gateway_address: v.1.gateway_address,
-                verifier_address: v.1.verifier_address,
-            })?),
-        ChainContractsKey::VerifierAddress(verifier_addr) => Ok(CHAIN_CONTRACTS_MAP
-            .idx
-            .by_verifier
-            .item(deps.storage, verifier_addr.clone())
-            .change_context(ContractError::VerifierNotRegistered(verifier_addr.clone()))?
-            .ok_or(ContractError::VerifierNotRegistered(verifier_addr.clone()))
-            .map(|v| ChainContractsRecord {
-                chain_name: v.1.chain_name,
-                prover_address: v.1.prover_address,
-                gateway_address: v.1.gateway_address,
-                verifier_address: v.1.verifier_address,
-            })?),
+        ChainContractsKey::ChainName(chain_name) => {
+            Ok(contracts_by_chain(deps.storage, chain_name.clone())?.into())
+        }
+
+        ChainContractsKey::ProverAddress(prover_addr) => {
+            Ok(contracts_by_prover(deps.storage, prover_addr.clone())?.into())
+        }
+
+        ChainContractsKey::GatewayAddress(gateway_addr) => {
+            Ok(contracts_by_gateway(deps.storage, gateway_addr.clone())?.into())
+        }
+
+        ChainContractsKey::VerifierAddress(verifier_addr) => {
+            Ok(contracts_by_verifier(deps.storage, verifier_addr.clone())?.into())
+        }
     }
 }
