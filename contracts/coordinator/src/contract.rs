@@ -171,7 +171,7 @@ mod tests {
     use cosmwasm_std::testing::{
         message_info, mock_dependencies, mock_env, MockApi, MockQuerier, MockStorage,
     };
-    use cosmwasm_std::{Addr, Empty, OwnedDeps};
+    use cosmwasm_std::{Addr, Empty, OwnedDeps, StdResult};
     use router_api::ChainName;
 
     use super::*;
@@ -179,6 +179,8 @@ mod tests {
         contracts_by_chain, contracts_by_gateway, contracts_by_prover, contracts_by_verifier,
         load_prover_by_chain, ChainContractsRecord,
     };
+
+    use crate::msg::{ChainContractsKey};
 
     struct TestSetup {
         deps: OwnedDeps<MockStorage, MockApi, MockQuerier, Empty>,
@@ -319,7 +321,7 @@ mod tests {
 
         let _res = execute(
             test_setup.deps.as_mut(),
-            test_setup.env,
+            test_setup.env.clone(),
             message_info(&governance, &[]),
             ExecuteMsg::RegisterChain {
                 chain_name: test_setup.chain_name.clone(),
@@ -334,20 +336,37 @@ mod tests {
             test_setup.deps.as_ref().storage,
             test_setup.chain_name.clone(),
         );
+
         assert_eq!(record_response_by_chain.unwrap(), test_setup.chain_record);
 
-        let record_response_by_prover =
-            contracts_by_prover(test_setup.deps.as_ref().storage, test_setup.prover.clone());
-        assert_eq!(record_response_by_prover.unwrap(), test_setup.chain_record);
-
-        let record_response_by_gateway =
-            contracts_by_gateway(test_setup.deps.as_ref().storage, test_setup.gateway.clone());
+        let record_response_by_gateway: StdResult<ChainContractsRecord> = cosmwasm_std::from_json(query(
+            test_setup.deps.as_ref(),
+            test_setup.env.clone(), 
+            QueryMsg::ChainContractsInfo(
+                ChainContractsKey::GatewayAddress(
+                    test_setup.gateway.clone()
+                )),
+        ).unwrap());
         assert_eq!(record_response_by_gateway.unwrap(), test_setup.chain_record);
 
-        let record_response_by_verifier = contracts_by_verifier(
-            test_setup.deps.as_ref().storage,
-            test_setup.verifier.clone(),
-        );
+        let record_response_by_prover: StdResult<ChainContractsRecord> = cosmwasm_std::from_json(query(
+            test_setup.deps.as_ref(),
+            test_setup.env.clone(), 
+            QueryMsg::ChainContractsInfo(
+                ChainContractsKey::ProverAddress(
+                    test_setup.prover.clone()
+                )),
+        ).unwrap());
+        assert_eq!(record_response_by_prover.unwrap(), test_setup.chain_record);
+
+        let record_response_by_verifier: StdResult<ChainContractsRecord> = cosmwasm_std::from_json(query(
+            test_setup.deps.as_ref(),
+            test_setup.env.clone(), 
+            QueryMsg::ChainContractsInfo(
+                ChainContractsKey::VerifierAddress(
+                    test_setup.verifier.clone()
+                )),
+        ).unwrap());
         assert_eq!(
             record_response_by_verifier.unwrap(),
             test_setup.chain_record
