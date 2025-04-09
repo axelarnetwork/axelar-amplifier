@@ -1,10 +1,10 @@
 use std::collections::HashSet;
 
-use cosmwasm_std::{CosmosMsg, Addr};
+use cosmwasm_std::{Addr, CosmosMsg};
 use error_stack::{Result, ResultExt};
 use router_api::ChainName;
 
-use crate::msg::{ExecuteMsg, QueryMsg, ChainContractsKey, ChainContractsRecord};
+use crate::msg::{ChainContractsKey, ChainContractsRecord, ExecuteMsg, QueryMsg};
 
 #[derive(thiserror::Error, Debug, PartialEq)]
 pub enum Error {
@@ -21,19 +21,13 @@ pub enum Error {
         verifier_address: String,
     },
 
-    #[error(
-        "failed to execute ChainContractsInfo query at coordinator contract. gateway {0}"
-    )]
+    #[error("failed to execute ChainContractsInfo query at coordinator contract. gateway {0}")]
     GatewayNotRegistered(Addr),
 
-    #[error(
-        "failed to execute ChainContractsInfo query at coordinator contract. prover {0}"
-    )]
+    #[error("failed to execute ChainContractsInfo query at coordinator contract. prover {0}")]
     ProverNotRegistered(Addr),
 
-    #[error(
-        "failed to execute ChainContractsInfo query at coordinator contract. verifier {0}"
-    )]
+    #[error("failed to execute ChainContractsInfo query at coordinator contract. verifier {0}")]
     VerifierNotRegistered(Addr),
 }
 
@@ -48,21 +42,17 @@ impl From<QueryMsg> for Error {
                 service_name,
                 verifier_address: verifier,
             },
-            QueryMsg::ChainContractsInfo(
-                chain_contracts_key,
-            ) => {
-                match chain_contracts_key {
-                    ChainContractsKey::GatewayAddress(
-                        gateway_addr,
-                    ) => Error::GatewayNotRegistered(gateway_addr),
-                    ChainContractsKey::ProverAddress(
-                        prover_addr,
-                    ) => Error::GatewayNotRegistered(prover_addr),
-                    ChainContractsKey::VerifierAddress(
-                        verifier_addr,
-                    ) => Error::GatewayNotRegistered(verifier_addr),
+            QueryMsg::ChainContractsInfo(chain_contracts_key) => match chain_contracts_key {
+                ChainContractsKey::GatewayAddress(gateway_addr) => {
+                    Error::GatewayNotRegistered(gateway_addr)
                 }
-            }
+                ChainContractsKey::ProverAddress(prover_addr) => {
+                    Error::GatewayNotRegistered(prover_addr)
+                }
+                ChainContractsKey::VerifierAddress(verifier_addr) => {
+                    Error::GatewayNotRegistered(verifier_addr)
+                }
+            },
         }
     }
 }
@@ -114,7 +104,10 @@ impl Client<'_> {
         self.client.query(&msg).change_context_lazy(|| msg.into())
     }
 
-    pub fn chain_contracts(&self, chain_contracts_key: ChainContractsKey) -> Result<ChainContractsRecord, Error> {
+    pub fn chain_contracts(
+        &self,
+        chain_contracts_key: ChainContractsKey,
+    ) -> Result<ChainContractsRecord, Error> {
         let msg = QueryMsg::ChainContractsInfo(chain_contracts_key);
         self.client.query(&msg).change_context_lazy(|| msg.into())
     }
@@ -185,9 +178,7 @@ mod test {
                         service_name: _,
                         verifier: _,
                     } => Ok(to_json_binary(&true).into()).into(),
-                    QueryMsg::ChainContractsInfo(
-                        _
-                    ) => Ok(to_json_binary(&true).into()).into(),
+                    QueryMsg::ChainContractsInfo(_) => Ok(to_json_binary(&true).into()).into(),
                 }
             }
             _ => panic!("unexpected query: {:?}", msg),

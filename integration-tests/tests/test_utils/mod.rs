@@ -4,7 +4,9 @@ use axelar_core_std::nexus::query::IsChainRegisteredResponse;
 use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
 use axelar_wasm_std::voting::{PollId, Vote};
 use axelar_wasm_std::{nonempty, Participant, Threshold};
-use coordinator::msg::{ExecuteMsg as CoordinatorExecuteMsg, VerifierInfo, ChainContractsRecord, ChainContractsKey};
+use coordinator::msg::{
+    ChainContractsKey, ChainContractsRecord, ExecuteMsg as CoordinatorExecuteMsg, VerifierInfo,
+};
 use cosmwasm_std::testing::MockApi;
 use cosmwasm_std::{
     coins, to_json_binary, Addr, Attribute, BlockInfo, Event, HexBinary, StdError, Uint128, Uint64,
@@ -358,9 +360,7 @@ pub fn chain_contracts_info_from_coordinator(
 ) -> ChainContractsRecord {
     let query_response: Result<ChainContractsRecord, StdError> = protocol.coordinator.query(
         &protocol.app,
-        &coordinator::msg::QueryMsg::ChainContractsInfo (
-            chain_contracts_key
-        ),
+        &coordinator::msg::QueryMsg::ChainContractsInfo(chain_contracts_key),
     );
     assert!(query_response.is_ok());
 
@@ -371,10 +371,22 @@ pub fn assert_chain_contracts_details_are_equal(
     chain_contracts_record: ChainContractsRecord,
     chain_contracts: &Chain,
 ) {
-    assert_eq!(chain_contracts_record.gateway_address, chain_contracts.gateway.contract_addr);
-    assert_eq!(chain_contracts_record.prover_address, chain_contracts.multisig_prover.contract_addr);
-    assert_eq!(chain_contracts_record.verifier_address, chain_contracts.voting_verifier.contract_addr);
-    assert_eq!(chain_contracts_record.chain_name, chain_contracts.chain_name);
+    assert_eq!(
+        chain_contracts_record.gateway_address,
+        chain_contracts.gateway.contract_addr
+    );
+    assert_eq!(
+        chain_contracts_record.prover_address,
+        chain_contracts.multisig_prover.contract_addr
+    );
+    assert_eq!(
+        chain_contracts_record.verifier_address,
+        chain_contracts.voting_verifier.contract_addr
+    );
+    assert_eq!(
+        chain_contracts_record.chain_name,
+        chain_contracts.chain_name
+    );
 }
 
 #[allow(clippy::arithmetic_side_effects)]

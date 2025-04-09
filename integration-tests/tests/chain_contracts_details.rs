@@ -12,31 +12,22 @@ fn chain_contracts_information_should_be_consistent_in_coordinator() {
 
     let ethereum_by = test_utils::chain_contracts_info_from_coordinator(
         &mut protocol,
-        ChainContractsKey::GatewayAddress(ethereum.gateway.contract_addr.clone())
+        ChainContractsKey::GatewayAddress(ethereum.gateway.contract_addr.clone()),
     );
 
-    test_utils::assert_chain_contracts_details_are_equal(
-        ethereum_by, 
-        &ethereum
-    );
+    test_utils::assert_chain_contracts_details_are_equal(ethereum_by, &ethereum);
 
     let ethereum_by = test_utils::chain_contracts_info_from_coordinator(
         &mut protocol,
-        ChainContractsKey::ProverAddress(ethereum.multisig_prover.contract_addr.clone())
+        ChainContractsKey::ProverAddress(ethereum.multisig_prover.contract_addr.clone()),
     );
 
-    test_utils::assert_chain_contracts_details_are_equal(
-        ethereum_by, 
-        &ethereum
-    );
+    test_utils::assert_chain_contracts_details_are_equal(ethereum_by, &ethereum);
 
     let ethereum_by = test_utils::chain_contracts_info_from_coordinator(
         &mut protocol,
-        ChainContractsKey::VerifierAddress(ethereum.voting_verifier.contract_addr.clone())
+        ChainContractsKey::VerifierAddress(ethereum.voting_verifier.contract_addr.clone()),
     );
 
-    test_utils::assert_chain_contracts_details_are_equal(
-        ethereum_by, 
-        &ethereum
-    );
+    test_utils::assert_chain_contracts_details_are_equal(ethereum_by, &ethereum);
 }
