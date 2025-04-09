@@ -4,9 +4,7 @@ use axelar_core_std::nexus::query::IsChainRegisteredResponse;
 use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
 use axelar_wasm_std::voting::{PollId, Vote};
 use axelar_wasm_std::{nonempty, Participant, Threshold};
-use coordinator::msg::{
-    ChainContractsKey, ChainContractsRecord, ExecuteMsg as CoordinatorExecuteMsg, VerifierInfo,
-};
+use coordinator::msg::{ChainContractsRecord, ExecuteMsg as CoordinatorExecuteMsg, VerifierInfo};
 use cosmwasm_std::testing::MockApi;
 use cosmwasm_std::{
     coins, to_json_binary, Addr, Attribute, BlockInfo, Event, HexBinary, StdError, Uint128, Uint64,

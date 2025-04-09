@@ -171,10 +171,7 @@ mod tests {
 
     use super::*;
     use crate::msg::ChainContractsKey;
-    use crate::state::{
-        contracts_by_chain, contracts_by_gateway, contracts_by_prover, contracts_by_verifier,
-        load_prover_by_chain, ChainContractsRecord,
-    };
+    use crate::state::{load_prover_by_chain, ChainContractsRecord};
 
     struct TestSetup {
         deps: OwnedDeps<MockStorage, MockApi, MockQuerier, Empty>,
