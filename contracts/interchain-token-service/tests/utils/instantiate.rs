@@ -17,6 +17,7 @@ pub fn instantiate_contract(deps: DepsMut) -> Result<Response, ContractError> {
             governance_address: api.addr_make(params::GOVERNANCE).to_string(),
             admin_address: api.addr_make(params::ADMIN).to_string(),
             axelarnet_gateway_address: api.addr_make(params::GATEWAY).to_string(),
+            operator_address: api.addr_make(params::OPERATOR).to_string(),
         },
     )
 }

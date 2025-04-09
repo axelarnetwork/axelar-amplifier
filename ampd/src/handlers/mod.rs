@@ -5,6 +5,8 @@ pub mod evm_verify_verifier_set;
 pub mod multisig;
 pub mod mvx_verify_msg;
 pub mod mvx_verify_verifier_set;
+pub mod solana_verify_msg;
+pub mod solana_verify_verifier_set;
 pub mod stacks_verify_msg;
 pub mod stacks_verify_verifier_set;
 pub mod starknet_verify_msg;
@@ -13,6 +15,8 @@ pub(crate) mod stellar_verify_msg;
 pub(crate) mod stellar_verify_verifier_set;
 pub mod sui_verify_msg;
 pub mod sui_verify_verifier_set;
+pub mod xrpl_multisig;
+pub mod xrpl_verify_msg;
 
 #[cfg(test)]
 mod tests {
