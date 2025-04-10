@@ -163,7 +163,19 @@ mod tests {
             [handlers.rpc_timeout]
             secs = 3
             nanos = 0
+
+            [[handlers]]
+            type = 'StacksMsgVerifier'
+            cosmwasm_contract = '{}'
+            http_url = 'http://localhost:8000'
+
+            [[handlers]]
+            type = 'StacksVerifierSetVerifier'
+            cosmwasm_contract = '{}'
+            http_url = 'http://localhost:8000'
             ",
+            TMAddress::random(PREFIX),
+            TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
@@ -181,7 +193,7 @@ mod tests {
         );
 
         let cfg: Config = toml::from_str(config_str.as_str()).unwrap();
-        assert_eq!(cfg.handlers.len(), 14);
+        assert_eq!(cfg.handlers.len(), 16);
     }
 
     #[test]
@@ -413,6 +425,18 @@ mod tests {
                     ),
                     rpc_url: Url::from_str("http://127.0.0.1").unwrap(),
                     rpc_timeout: Some(Duration::from_secs(3)),
+                },
+                HandlerConfig::StacksMsgVerifier {
+                    cosmwasm_contract: TMAddress::from(
+                        AccountId::new("axelar", &[0u8; 32]).unwrap(),
+                    ),
+                    http_url: Url::from_str("http://127.0.0.1").unwrap(),
+                },
+                HandlerConfig::StacksVerifierSetVerifier {
+                    cosmwasm_contract: TMAddress::from(
+                        AccountId::new("axelar", &[0u8; 32]).unwrap(),
+                    ),
+                    http_url: Url::from_str("http://127.0.0.1").unwrap(),
                 },
             ],
             ..Config::default()
