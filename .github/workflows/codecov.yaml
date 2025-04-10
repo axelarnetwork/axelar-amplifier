@@ -18,6 +18,8 @@ jobs:
       CARGO_TERM_COLOR: always
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - name: Install stable toolchain
         uses: actions-rs/toolchain@v1
