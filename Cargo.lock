@@ -343,9 +343,13 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "error-stack",
+ "events",
+ "futures",
  "mockall 0.12.1",
  "prost 0.13.5",
  "prost-types 0.13.5",
+ "serde_json",
+ "tendermint 0.35.0",
  "thiserror 1.0.69",
  "tonic 0.13.0",
  "tonic-build 0.13.0",

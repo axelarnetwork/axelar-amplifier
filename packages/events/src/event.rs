@@ -55,7 +55,8 @@ impl Event {
         }
     }
 
-    fn contract_address(&self) -> Option<AccountId> {
+    pub fn contract_address(&self) -> Option<AccountId> {
+        // need to be public!
         match self {
             Event::Abci {
                 event_type: _,
