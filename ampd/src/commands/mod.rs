@@ -1,14 +1,10 @@
 use clap::Subcommand;
-use cosmrs::proto::cosmos::auth::v1beta1::query_client::QueryClient as AuthQueryClient;
-use cosmrs::proto::cosmos::bank::v1beta1::query_client::QueryClient as BankQueryClient;
 use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
-use cosmrs::proto::cosmos::tx::v1beta1::service_client::ServiceClient;
 use cosmrs::proto::Any;
 use cosmrs::AccountId;
 use error_stack::{report, FutureExt, Result, ResultExt};
 use futures::TryFutureExt;
 use serde::{Deserialize, Serialize};
-use tonic::transport::Channel;
 use valuable::Valuable;
 
 use crate::asyncutil::future::RetryPolicy;
@@ -17,7 +13,7 @@ use crate::broadcaster::Broadcaster;
 use crate::config::{Config as AmpdConfig, Config};
 use crate::tofnd::grpc::{Multisig, MultisigClient};
 use crate::types::{CosmosPublicKey, TMAddress};
-use crate::{broadcaster, tofnd, Error, PREFIX};
+use crate::{broadcaster, cosmos, tofnd, Error, PREFIX};
 
 pub mod bond_verifier;
 pub mod claim_stake;
@@ -130,32 +126,24 @@ async fn broadcast_tx(
 async fn instantiate_broadcaster(
     config: Config,
     pub_key: CosmosPublicKey,
-) -> Result<(impl Broadcaster, TxConfirmer<ServiceClient<Channel>>), Error> {
+) -> Result<(impl Broadcaster, TxConfirmer<cosmos::CosmosGRpcClient>), Error> {
     let AmpdConfig {
         tm_grpc,
         broadcast,
         tofnd_config,
         ..
     } = config;
-    let service_client = ServiceClient::connect(tm_grpc.to_string())
+    let cosmos_client = cosmos::CosmosGRpcClient::new(tm_grpc.as_str())
         .await
         .change_context(Error::Connection)
         .attach_printable(tm_grpc.clone())?;
-    let auth_query_client = AuthQueryClient::connect(tm_grpc.to_string())
-        .await
-        .change_context(Error::Connection)
-        .attach_printable(tm_grpc.clone())?;
-    let bank_query_client = BankQueryClient::connect(tm_grpc.to_string())
-        .await
-        .change_context(Error::Connection)
-        .attach_printable(tm_grpc)?;
     let multisig_client = MultisigClient::new(tofnd_config.party_uid, tofnd_config.url.clone())
         .await
         .change_context(Error::Connection)
         .attach_printable(tofnd_config.url)?;
 
     let confirmer = TxConfirmer::new(
-        service_client.clone(),
+        cosmos_client.clone(),
         RetryPolicy::RepeatConstant {
             sleep: broadcast.tx_fetch_interval,
             max_attempts: broadcast.tx_fetch_max_retries.saturating_add(1).into(),
@@ -163,10 +151,8 @@ async fn instantiate_broadcaster(
     );
 
     let basic_broadcaster = broadcaster::UnvalidatedBasicBroadcaster::builder()
-        .client(service_client)
+        .client(cosmos_client)
         .signer(multisig_client)
-        .auth_query_client(auth_query_client)
-        .bank_query_client(bank_query_client)
         .pub_key((tofnd_config.key_uid, pub_key))
         .config(broadcast)
         .address_prefix(PREFIX.to_string())

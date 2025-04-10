@@ -5,9 +5,7 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use axelar_wasm_std::FnExt;
-use cosmrs::proto::cosmos::auth::v1beta1::{
-    BaseAccount, QueryAccountRequest, QueryAccountResponse,
-};
+use cosmrs::proto::cosmos::auth::v1beta1::{BaseAccount, QueryAccountRequest};
 use cosmrs::proto::cosmos::bank::v1beta1::QueryBalanceRequest;
 use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
 use cosmrs::proto::cosmos::tx::v1beta1::{BroadcastMode, BroadcastTxRequest, SimulateRequest};
@@ -27,17 +25,15 @@ use prost_types::Any;
 use report::ResultCompatExt;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use tonic::{Code, Status};
 use tracing::info;
 use tx::Tx;
 use typed_builder::TypedBuilder;
 
-use crate::tofnd;
 use crate::tofnd::grpc::Multisig;
 use crate::types::{CosmosPublicKey, TMAddress};
+use crate::{cosmos, tofnd};
 
 pub mod confirm_tx;
-mod cosmos;
 mod dec_coin;
 mod tx;
 
@@ -105,17 +101,13 @@ pub trait Broadcaster {
 }
 
 #[derive(TypedBuilder)]
-pub struct UnvalidatedBasicBroadcaster<T, S, A, B>
+pub struct UnvalidatedBasicBroadcaster<T, S>
 where
-    T: cosmos::BroadcastClient + Send,
+    T: cosmos::CosmosClient + Send,
     S: Multisig + Send + Sync,
-    A: cosmos::AccountQueryClient + Send,
-    B: cosmos::BalanceQueryClient,
 {
     client: T,
     signer: S,
-    auth_query_client: A,
-    bank_query_client: B,
     address_prefix: String,
     #[builder(default, setter(skip))]
     acc_sequence: Option<u64>,
@@ -123,14 +115,12 @@ where
     config: Config,
 }
 
-impl<T, S, A, B> UnvalidatedBasicBroadcaster<T, S, A, B>
+impl<T, S> UnvalidatedBasicBroadcaster<T, S>
 where
-    T: cosmos::BroadcastClient + Send,
+    T: cosmos::CosmosClient + Send,
     S: Multisig + Send + Sync,
-    A: cosmos::AccountQueryClient + Send,
-    B: cosmos::BalanceQueryClient,
 {
-    pub async fn validate_fee_denomination(mut self) -> Result<BasicBroadcaster<T, S, A>, Error> {
+    pub async fn validate_fee_denomination(mut self) -> Result<BasicBroadcaster<T, S>, Error> {
         let denom: Denom = self.config.gas_price.denom.clone().into();
         let address: TMAddress = self.derive_address()?;
 
@@ -145,7 +135,6 @@ where
         Ok(BasicBroadcaster {
             client: self.client,
             signer: self.signer,
-            auth_query_client: self.auth_query_client,
             address: address.clone(),
             acc_sequence: self.acc_sequence,
             pub_key: self.pub_key,
@@ -164,18 +153,20 @@ where
 
     async fn balance(&mut self, address: TMAddress, denom: Denom) -> Result<Coin, Error> {
         let coin = self
-            .bank_query_client
+            .client
             .balance(QueryBalanceRequest {
                 address: address.to_string(),
                 denom: denom.to_string(),
             })
             .await
-            .and_then(|response| {
-                response
-                    .balance
-                    .ok_or(Status::not_found("balance not found"))
-            })
-            .change_context(Error::QueryBalance { address, denom })?;
+            .map(|response| response.balance)
+            .map_err(|err| {
+                err.change_context(Error::QueryBalance {
+                    address: address.clone(),
+                    denom: denom.clone(),
+                })
+            })?
+            .ok_or(report!(Error::QueryBalance { address, denom }))?;
 
         ResultCompatExt::change_context(
             coin.try_into(),
@@ -191,15 +182,13 @@ fn extract_non_zero_amount(coin: Coin) -> Option<Amount> {
 }
 
 #[derive(Debug)]
-pub struct BasicBroadcaster<T, S, Q>
+pub struct BasicBroadcaster<T, S>
 where
-    T: cosmos::BroadcastClient + Send,
+    T: cosmos::CosmosClient + Send,
     S: Multisig + Send + Sync,
-    Q: cosmos::AccountQueryClient + Send,
 {
     client: T,
     signer: S,
-    auth_query_client: Q,
     address: TMAddress,
     acc_sequence: Option<u64>,
     pub_key: (String, CosmosPublicKey),
@@ -207,11 +196,10 @@ where
 }
 
 #[async_trait]
-impl<T, S, Q> Broadcaster for BasicBroadcaster<T, S, Q>
+impl<T, S> Broadcaster for BasicBroadcaster<T, S>
 where
-    T: cosmos::BroadcastClient + Send,
+    T: cosmos::CosmosClient + Send,
     S: Multisig + Send + Sync,
-    Q: cosmos::AccountQueryClient + Send,
 {
     fn sender_address(&self) -> TMAddress {
         self.address.clone()
@@ -255,7 +243,9 @@ where
             .client
             .broadcast_tx(tx)
             .change_context(Error::Broadcast)
-            .await?;
+            .await?
+            .tx_response
+            .ok_or(report!(Error::Broadcast))?;
 
         info!(
             tx_hash = response.txhash,
@@ -284,11 +274,10 @@ where
     }
 }
 
-impl<T, S, Q> BasicBroadcaster<T, S, Q>
+impl<T, S> BasicBroadcaster<T, S>
 where
-    T: cosmos::BroadcastClient + Send,
+    T: cosmos::CosmosClient + Send,
     S: Multisig + Send + Sync,
-    Q: cosmos::AccountQueryClient + Send,
 {
     async fn acc_number_and_sequence(&mut self) -> Result<(u64, u64), Error> {
         let request = QueryAccountRequest {
@@ -296,10 +285,9 @@ where
         };
 
         let response = self
-            .auth_query_client
+            .client
             .account(request)
             .await
-            .then(remap_account_not_found_error)
             .change_context(Error::QueryAccount {
                 address: self.address.clone(),
             })?;
@@ -368,34 +356,26 @@ fn decode_base_account(account: Any) -> Result<BaseAccount, Error> {
         .attach_printable_lazy(|| format!("{{ value = {:?} }}", account.value))
 }
 
-fn remap_account_not_found_error(
-    response: core::result::Result<QueryAccountResponse, Status>,
-) -> core::result::Result<QueryAccountResponse, Status> {
-    if matches!(response.clone(), Err(status) if status.code() == Code::NotFound) {
-        Ok(QueryAccountResponse { account: None })
-    } else {
-        response
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use cosmrs::bank::MsgSend;
     use cosmrs::proto::cosmos::auth::v1beta1::{BaseAccount, QueryAccountResponse};
     use cosmrs::proto::cosmos::bank::v1beta1::QueryBalanceResponse;
     use cosmrs::proto::cosmos::base::abci::v1beta1::{GasInfo, TxResponse};
-    use cosmrs::proto::cosmos::tx::v1beta1::{GetTxResponse, SimulateResponse};
+    use cosmrs::proto::cosmos::tx::v1beta1::{
+        BroadcastTxResponse, GetTxResponse, SimulateResponse,
+    };
     use cosmrs::proto::traits::MessageExt;
     use cosmrs::proto::Any;
     use cosmrs::tx::Msg;
     use cosmrs::{AccountId, Coin, Denom};
+    use k256::ecdsa::SigningKey;
     use rand::rngs::OsRng;
+    use report::ErrorExt;
     use tokio::test;
     use tonic::Status;
 
-    use crate::broadcaster::cosmos::{
-        MockAccountQueryClient, MockBalanceQueryClient, MockBroadcastClient,
-    };
+    use crate::broadcaster::cosmos::MockCosmosClient;
     use crate::broadcaster::{
         BasicBroadcaster, Broadcaster, Config, Error, UnvalidatedBasicBroadcaster,
     };
@@ -405,10 +385,18 @@ mod tests {
 
     #[test]
     async fn broadcaster_has_incorrect_fee_denomination_return_error() {
+        let key_id = "key_uid".to_string();
         let known_denom = "some/other/denom".parse().unwrap();
+        let priv_key = k256::ecdsa::SigningKey::random(&mut OsRng);
 
-        let broadcaster =
-            init_unvalidated_broadcaster(Some(init_mock_balance_client(known_denom)), None, None);
+        let signer = init_mock_signer(&key_id, &priv_key);
+        let client = setup_balance_mock(MockCosmosClient::new(), &known_denom);
+        let broadcaster = init_unvalidated_broadcaster(
+            client,
+            signer,
+            key_id,
+            PublicKey::new_secp256k1(priv_key.verifying_key().to_sec1_bytes()).unwrap(),
+        );
 
         let report = broadcaster.validate_fee_denomination().await.unwrap_err();
         assert!(matches!(
@@ -419,7 +407,18 @@ mod tests {
 
     #[test]
     async fn broadcaster_has_correct_fee_denomination_return_validated_broadcaster() {
-        let broadcaster = init_unvalidated_broadcaster(None, None, None);
+        let key_id = "key_uid".to_string();
+        let known_denom: Denom = Config::default().gas_price.denom.clone().into();
+        let priv_key = k256::ecdsa::SigningKey::random(&mut OsRng);
+
+        let signer = init_mock_signer(&key_id, &priv_key);
+        let client = setup_balance_mock(MockCosmosClient::new(), &known_denom);
+        let broadcaster = init_unvalidated_broadcaster(
+            client,
+            signer,
+            key_id,
+            PublicKey::new_secp256k1(priv_key.verifying_key().to_sec1_bytes()).unwrap(),
+        );
 
         let result = broadcaster.validate_fee_denomination().await;
         assert!(result.is_ok());
@@ -427,13 +426,25 @@ mod tests {
 
     #[test]
     async fn gas_estimation_call_failed() {
-        let mut client = MockBroadcastClient::new();
+        let key_id = "key_uid".to_string();
+        let known_denom: Denom = Config::default().gas_price.denom.clone().into();
+        let priv_key = k256::ecdsa::SigningKey::random(&mut OsRng);
+
+        let signer = init_mock_signer(&key_id, &priv_key);
+        let mut client = setup_account_mock(
+            setup_balance_mock(MockCosmosClient::new(), &known_denom),
+            &priv_key,
+        );
         client
             .expect_simulate()
-            .returning(|_| Err(Status::unavailable("unavailable service")));
-
-        let mut broadcaster = init_validated_broadcaster(None, None, Some(client)).await;
-
+            .returning(|_| Err(Status::unavailable("unavailable service").into_report()));
+        let mut broadcaster = init_validated_broadcaster(
+            client,
+            signer,
+            key_id,
+            PublicKey::new_secp256k1(priv_key.verifying_key().to_sec1_bytes()).unwrap(),
+        )
+        .await;
         let msgs = vec![dummy_msg()];
 
         assert!(matches!(
@@ -448,15 +459,28 @@ mod tests {
 
     #[test]
     async fn gas_estimation_none_response() {
-        let mut client = MockBroadcastClient::new();
-        client.expect_simulate().returning(|_| {
+        let key_id = "key_uid".to_string();
+        let known_denom: Denom = Config::default().gas_price.denom.clone().into();
+        let priv_key = k256::ecdsa::SigningKey::random(&mut OsRng);
+
+        let signer = init_mock_signer(&key_id, &priv_key);
+        let mut client = setup_account_mock(
+            setup_balance_mock(MockCosmosClient::new(), &known_denom),
+            &priv_key,
+        );
+        client.expect_simulate().once().returning(|_| {
             Ok(SimulateResponse {
                 gas_info: None,
                 result: None,
             })
         });
-
-        let mut broadcaster = init_validated_broadcaster(None, None, Some(client)).await;
+        let mut broadcaster = init_validated_broadcaster(
+            client,
+            signer,
+            key_id,
+            PublicKey::new_secp256k1(priv_key.verifying_key().to_sec1_bytes()).unwrap(),
+        )
+        .await;
         let msgs = vec![dummy_msg()];
 
         assert!(matches!(
@@ -471,7 +495,15 @@ mod tests {
 
     #[test]
     async fn broadcast_failed() {
-        let mut client = MockBroadcastClient::new();
+        let key_id = "key_uid".to_string();
+        let known_denom: Denom = Config::default().gas_price.denom.clone().into();
+        let priv_key = k256::ecdsa::SigningKey::random(&mut OsRng);
+
+        let signer = init_mock_signer(&key_id, &priv_key);
+        let mut client = setup_account_mock(
+            setup_balance_mock(MockCosmosClient::new(), &known_denom),
+            &priv_key,
+        );
         client.expect_simulate().returning(|_| {
             Ok(SimulateResponse {
                 gas_info: Some(GasInfo {
@@ -483,9 +515,14 @@ mod tests {
         });
         client
             .expect_broadcast_tx()
-            .returning(|_| Err(Status::aborted("failed")));
-
-        let mut broadcaster = init_validated_broadcaster(None, None, Some(client)).await;
+            .returning(|_| Err(Status::aborted("failed").into_report()));
+        let mut broadcaster = init_validated_broadcaster(
+            client,
+            signer,
+            key_id,
+            PublicKey::new_secp256k1(priv_key.verifying_key().to_sec1_bytes()).unwrap(),
+        )
+        .await;
         let msgs = vec![dummy_msg()];
 
         assert!(matches!(
@@ -500,7 +537,22 @@ mod tests {
 
     #[test]
     async fn broadcast_confirmed() {
-        let mut broadcaster = init_validated_broadcaster(None, None, None).await;
+        let key_id = "key_uid".to_string();
+        let known_denom: Denom = Config::default().gas_price.denom.clone().into();
+        let priv_key = k256::ecdsa::SigningKey::random(&mut OsRng);
+
+        let signer = init_mock_signer(&key_id, &priv_key);
+        let client = setup_broadcast_mock(setup_account_mock(
+            setup_balance_mock(MockCosmosClient::new(), &known_denom),
+            &priv_key,
+        ));
+        let mut broadcaster = init_validated_broadcaster(
+            client,
+            signer,
+            key_id,
+            PublicKey::new_secp256k1(priv_key.verifying_key().to_sec1_bytes()).unwrap(),
+        )
+        .await;
         let msgs = vec![dummy_msg()];
 
         assert_eq!(broadcaster.acc_sequence, None);
@@ -510,32 +562,41 @@ mod tests {
 
     #[test]
     async fn broadcast_confirmed_in_mem_acc_sequence_mismatch_with_on_chain() {
-        let mut auth_query_client = MockAccountQueryClient::new();
+        let key_id = "key_uid".to_string();
+        let known_denom: Denom = Config::default().gas_price.denom.clone().into();
+        let priv_key = k256::ecdsa::SigningKey::random(&mut OsRng);
+
+        let signer = init_mock_signer(&key_id, &priv_key);
+        let mut client =
+            setup_broadcast_mock(setup_balance_mock(MockCosmosClient::new(), &known_denom));
         let mut call_count = 0;
-        auth_query_client
-            .expect_account()
-            .returning(move |request| {
-                let mut account = BaseAccount {
-                    address: request.address,
-                    pub_key: None,
-                    account_number: 7,
-                    sequence: 0,
-                };
+        client.expect_account().returning(move |request| {
+            let mut account = BaseAccount {
+                address: request.address,
+                pub_key: None,
+                account_number: 7,
+                sequence: 0,
+            };
 
-                call_count += 1;
+            call_count += 1;
 
-                account.sequence = match call_count {
-                    1 => 0,
-                    2 => 10,
-                    _ => 0,
-                };
+            account.sequence = match call_count {
+                1 => 0,
+                2 => 10,
+                _ => 0,
+            };
 
-                Ok(QueryAccountResponse {
-                    account: Some(account.to_any().unwrap()),
-                })
-            });
-
-        let mut broadcaster = init_validated_broadcaster(None, Some(auth_query_client), None).await;
+            Ok(QueryAccountResponse {
+                account: Some(account.to_any().unwrap()),
+            })
+        });
+        let mut broadcaster = init_validated_broadcaster(
+            client,
+            signer,
+            key_id,
+            PublicKey::new_secp256k1(priv_key.verifying_key().to_sec1_bytes()).unwrap(),
+        )
+        .await;
 
         assert_eq!(broadcaster.acc_sequence, None);
         assert!(broadcaster.broadcast(vec![dummy_msg()]).await.is_ok());
@@ -548,12 +609,23 @@ mod tests {
 
     #[test]
     async fn account_query_failed_return_error() {
-        let mut client = MockAccountQueryClient::new();
+        let key_id = "key_uid".to_string();
+        let known_denom: Denom = Config::default().gas_price.denom.clone().into();
+        let priv_key = k256::ecdsa::SigningKey::random(&mut OsRng);
+
+        let signer = init_mock_signer(&key_id, &priv_key);
+        let mut client =
+            setup_broadcast_mock(setup_balance_mock(MockCosmosClient::new(), &known_denom));
         client
             .expect_account()
-            .returning(|_| Err(Status::aborted("aborted")));
-
-        let mut broadcaster = init_validated_broadcaster(None, Some(client), None).await;
+            .returning(|_| Err(Status::aborted("aborted").into_report()));
+        let mut broadcaster = init_validated_broadcaster(
+            client,
+            signer,
+            key_id,
+            PublicKey::new_secp256k1(priv_key.verifying_key().to_sec1_bytes()).unwrap(),
+        )
+        .await;
 
         for report in [
             broadcaster.broadcast(vec![dummy_msg()]).await.unwrap_err(),
@@ -570,12 +642,23 @@ mod tests {
 
     #[test]
     async fn account_not_found_returns_error() {
-        let mut client = MockAccountQueryClient::new();
+        let key_id = "key_uid".to_string();
+        let known_denom: Denom = Config::default().gas_price.denom.clone().into();
+        let priv_key = k256::ecdsa::SigningKey::random(&mut OsRng);
+
+        let signer = init_mock_signer(&key_id, &priv_key);
+        let mut client =
+            setup_broadcast_mock(setup_balance_mock(MockCosmosClient::new(), &known_denom));
         client
             .expect_account()
             .returning(|_| Ok(QueryAccountResponse { account: None }));
-
-        let mut broadcaster = init_validated_broadcaster(None, Some(client), None).await;
+        let mut broadcaster = init_validated_broadcaster(
+            client,
+            signer,
+            key_id,
+            PublicKey::new_secp256k1(priv_key.verifying_key().to_sec1_bytes()).unwrap(),
+        )
+        .await;
 
         for report in [
             broadcaster.broadcast(vec![dummy_msg()]).await.unwrap_err(),
@@ -592,7 +675,13 @@ mod tests {
 
     #[test]
     async fn malformed_account_query_response_return_error() {
-        let mut client = MockAccountQueryClient::new();
+        let key_id = "key_uid".to_string();
+        let known_denom: Denom = Config::default().gas_price.denom.clone().into();
+        let priv_key = k256::ecdsa::SigningKey::random(&mut OsRng);
+
+        let signer = init_mock_signer(&key_id, &priv_key);
+        let mut client =
+            setup_broadcast_mock(setup_balance_mock(MockCosmosClient::new(), &known_denom));
         client.expect_account().returning(|_| {
             Ok(QueryAccountResponse {
                 account: Some(Any {
@@ -601,8 +690,13 @@ mod tests {
                 }),
             })
         });
-
-        let mut broadcaster = init_validated_broadcaster(None, Some(client), None).await;
+        let mut broadcaster = init_validated_broadcaster(
+            client,
+            signer,
+            key_id,
+            PublicKey::new_secp256k1(priv_key.verifying_key().to_sec1_bytes()).unwrap(),
+        )
+        .await;
 
         for report in [
             broadcaster.broadcast(vec![dummy_msg()]).await.unwrap_err(),
@@ -618,55 +712,33 @@ mod tests {
     }
 
     fn init_unvalidated_broadcaster(
-        balance_client_override: Option<MockBalanceQueryClient>,
-        auth_client_override: Option<MockAccountQueryClient>,
-        broadcast_client_override: Option<MockBroadcastClient>,
-    ) -> UnvalidatedBasicBroadcaster<
-        MockBroadcastClient,
-        MockMultisig,
-        MockAccountQueryClient,
-        MockBalanceQueryClient,
-    > {
-        let key_id = "key_uid".to_string();
-        let priv_key = k256::ecdsa::SigningKey::random(&mut OsRng);
-        let pub_key = CosmosPublicKey::try_from(
-            PublicKey::new_secp256k1(priv_key.verifying_key().to_sec1_bytes()).unwrap(),
-        )
-        .unwrap();
-        let known_denom: Denom = Config::default().gas_price.denom.clone().into();
-
+        client: MockCosmosClient,
+        signer: MockMultisig,
+        key_id: String,
+        pub_key: PublicKey,
+    ) -> UnvalidatedBasicBroadcaster<MockCosmosClient, MockMultisig> {
         UnvalidatedBasicBroadcaster::builder()
-            .client(broadcast_client_override.unwrap_or_else(init_mock_broadcaster_client))
-            .signer(init_mock_signer(key_id.clone(), priv_key))
-            .auth_query_client(
-                auth_client_override.unwrap_or_else(|| init_mock_account_client(pub_key)),
-            )
-            .bank_query_client(
-                balance_client_override.unwrap_or(init_mock_balance_client(known_denom)),
-            )
+            .client(client)
+            .signer(signer)
             .address_prefix(PREFIX.to_string())
-            .pub_key((key_id, pub_key))
+            .pub_key((key_id, CosmosPublicKey::try_from(pub_key).unwrap()))
             .config(Config::default())
             .build()
     }
 
     async fn init_validated_broadcaster(
-        balance_client_override: Option<MockBalanceQueryClient>,
-        auth_client_override: Option<MockAccountQueryClient>,
-        broadcast_client_override: Option<MockBroadcastClient>,
-    ) -> BasicBroadcaster<MockBroadcastClient, MockMultisig, MockAccountQueryClient> {
-        init_unvalidated_broadcaster(
-            balance_client_override,
-            auth_client_override,
-            broadcast_client_override,
-        )
-        .validate_fee_denomination()
-        .await
-        .unwrap()
+        client: MockCosmosClient,
+        signer: MockMultisig,
+        key_id: String,
+        pub_key: PublicKey,
+    ) -> BasicBroadcaster<MockCosmosClient, MockMultisig> {
+        init_unvalidated_broadcaster(client, signer, key_id, pub_key)
+            .validate_fee_denomination()
+            .await
+            .unwrap()
     }
 
-    fn init_mock_broadcaster_client() -> MockBroadcastClient {
-        let mut client = MockBroadcastClient::new();
+    fn setup_broadcast_mock(mut client: MockCosmosClient) -> MockCosmosClient {
         client.expect_simulate().returning(|_| {
             Ok(SimulateResponse {
                 gas_info: Some(GasInfo {
@@ -676,9 +748,11 @@ mod tests {
                 result: None,
             })
         });
-        client
-            .expect_broadcast_tx()
-            .returning(|_| Ok(TxResponse::default()));
+        client.expect_broadcast_tx().returning(|_| {
+            Ok(BroadcastTxResponse {
+                tx_response: Some(TxResponse::default()),
+            })
+        });
         client.expect_tx().returning(|_| {
             Ok(GetTxResponse {
                 tx_response: Some(TxResponse {
@@ -692,40 +766,43 @@ mod tests {
         client
     }
 
-    // returns a non-zero balance if the denom in the request is known, a zero balance otherwise
-    fn init_mock_balance_client(known_denom: Denom) -> MockBalanceQueryClient {
-        let mut bank_query_client = MockBalanceQueryClient::new();
-        bank_query_client
-            .expect_balance()
-            .returning(move |request| {
-                if request.denom.eq(known_denom.as_ref()) {
-                    Ok(QueryBalanceResponse {
-                        balance: Some(
-                            Coin {
-                                amount: 1,
-                                denom: known_denom.clone(),
-                            }
-                            .into(),
-                        ),
-                    })
-                } else {
-                    Ok(QueryBalanceResponse {
-                        balance: Some(
-                            Coin {
-                                amount: 0,
-                                denom: request.denom.parse().unwrap(),
-                            }
-                            .into(),
-                        ),
-                    })
-                }
-            });
-        bank_query_client
+    fn setup_balance_mock(mut client: MockCosmosClient, known_denom: &Denom) -> MockCosmosClient {
+        let known_denom = known_denom.clone();
+
+        client.expect_balance().returning(move |request| {
+            if request.denom.eq(known_denom.as_ref()) {
+                Ok(QueryBalanceResponse {
+                    balance: Some(
+                        Coin {
+                            amount: 1,
+                            denom: known_denom.clone(),
+                        }
+                        .into(),
+                    ),
+                })
+            } else {
+                Ok(QueryBalanceResponse {
+                    balance: Some(
+                        Coin {
+                            amount: 0,
+                            denom: request.denom.parse().unwrap(),
+                        }
+                        .into(),
+                    ),
+                })
+            }
+        });
+
+        client
     }
 
-    // returns an account for the address corresponding to the given public key if that address is queried
-    fn init_mock_account_client(pub_key: CosmosPublicKey) -> MockAccountQueryClient {
-        let address: TMAddress = pub_key.account_id(PREFIX).unwrap().into();
+    fn setup_account_mock(mut client: MockCosmosClient, priv_key: &SigningKey) -> MockCosmosClient {
+        let pub_key = PublicKey::new_secp256k1(priv_key.verifying_key().to_sec1_bytes()).unwrap();
+        let address: TMAddress = CosmosPublicKey::try_from(pub_key)
+            .unwrap()
+            .account_id(PREFIX)
+            .unwrap()
+            .into();
         let account = BaseAccount {
             address: address.to_string(),
             pub_key: None,
@@ -733,24 +810,23 @@ mod tests {
             sequence: 0,
         };
 
-        let mut auth_query_client = MockAccountQueryClient::new();
-        auth_query_client
-            .expect_account()
-            .returning(move |request| {
-                if request.address == address.to_string() {
-                    Ok(QueryAccountResponse {
-                        account: Some(account.to_any().unwrap()),
-                    })
-                } else {
-                    Ok(QueryAccountResponse { account: None })
-                }
-            });
+        client.expect_account().returning(move |request| {
+            if request.address == address.to_string() {
+                Ok(QueryAccountResponse {
+                    account: Some(account.to_any().unwrap()),
+                })
+            } else {
+                Ok(QueryAccountResponse { account: None })
+            }
+        });
 
-        auth_query_client
+        client
     }
 
     // signs a digest if the public key matches the given private key
-    fn init_mock_signer(key_id: String, priv_key: k256::ecdsa::SigningKey) -> MockMultisig {
+    fn init_mock_signer(key_id: &str, priv_key: &SigningKey) -> MockMultisig {
+        let key_id = key_id.to_string();
+        let priv_key = priv_key.clone();
         let pub_key = PublicKey::new_secp256k1(priv_key.verifying_key().to_sec1_bytes()).unwrap();
 
         let mut signer = MockMultisig::default();

@@ -2,12 +2,11 @@ use std::sync::Arc;
 
 use axelar_wasm_std::FnExt;
 use cosmrs::proto::cosmos::tx::v1beta1::{GetTxRequest, GetTxResponse};
-use error_stack::{bail, Report, Result};
+use error_stack::{report, Report, Result};
 use futures::{StreamExt, TryFutureExt};
 use thiserror::Error;
 use tokio::sync::{mpsc, Mutex};
 use tokio_stream::wrappers::ReceiverStream;
-use tonic::Status;
 use tracing::{debug, error, trace};
 
 use super::cosmos;
@@ -47,15 +46,15 @@ impl From<cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse> for TxResponse
 pub enum Error {
     #[error("failed confirming tx due to tx not found: {tx_hash}")]
     Confirmation { tx_hash: String },
-    #[error("failed confirming tx due to grpc error {status}: {tx_hash}")]
-    Grpc { status: Status, tx_hash: String },
+    #[error("failed confirming tx due to grpc error: {tx_hash}")]
+    Grpc { tx_hash: String },
     #[error("failed sending tx response")]
     SendTxRes(#[from] Box<mpsc::error::SendError<TxResponse>>),
 }
 
 pub struct TxConfirmer<T>
 where
-    T: cosmos::BroadcastClient,
+    T: cosmos::CosmosClient,
 {
     client: T,
     retry_policy: RetryPolicy,
@@ -63,7 +62,7 @@ where
 
 impl<T> TxConfirmer<T>
 where
-    T: cosmos::BroadcastClient,
+    T: cosmos::CosmosClient,
 {
     pub fn new(client: T, retry_policy: RetryPolicy) -> Self {
         Self {
@@ -106,7 +105,7 @@ where
 }
 
 async fn confirm_tx_with_retry(
-    client: Arc<Mutex<impl cosmos::BroadcastClient>>,
+    client: Arc<Mutex<impl cosmos::CosmosClient>>,
     tx_hash: String,
     retry_policy: RetryPolicy,
 ) -> Result<TxResponse, Error> {
@@ -115,7 +114,7 @@ async fn confirm_tx_with_retry(
 
 // do to limitations of lambdas and lifetime issues this needs to be a separate function
 async fn confirm_tx(
-    client: Arc<Mutex<impl cosmos::BroadcastClient>>,
+    client: Arc<Mutex<impl cosmos::CosmosClient>>,
     tx_hash: String,
 ) -> Result<TxResponse, Error> {
     let req = GetTxRequest {
@@ -132,17 +131,16 @@ async fn confirm_tx(
 
 fn evaluate_tx_response(
     tx_hash: String,
-) -> impl Fn(core::result::Result<GetTxResponse, Status>) -> Result<TxResponse, Error> {
+) -> impl Fn(Result<GetTxResponse, cosmos::Error>) -> Result<TxResponse, Error> {
     move |response| match response {
-        Err(status) => bail!(Error::Grpc {
-            status,
-            tx_hash: tx_hash.clone()
-        }),
+        Err(err) => Err(err.change_context(Error::Grpc {
+            tx_hash: tx_hash.clone(),
+        })),
         Ok(GetTxResponse {
             tx_response: None, ..
-        }) => bail!(Error::Confirmation {
-            tx_hash: tx_hash.clone()
-        }),
+        }) => Err(report!(Error::Confirmation {
+            tx_hash: tx_hash.clone(),
+        })),
         Ok(GetTxResponse {
             tx_response: Some(response),
             ..
@@ -168,12 +166,13 @@ mod test {
 
     use cosmrs::proto::cosmos::tx::v1beta1::GetTxRequest;
     use mockall::predicate;
+    use report::ErrorExt;
     use tokio::sync::mpsc;
     use tokio::test;
 
     use super::{Error, TxConfirmer, TxResponse, TxStatus};
     use crate::asyncutil::future::RetryPolicy;
-    use crate::broadcaster::cosmos::MockBroadcastClient;
+    use crate::broadcaster::cosmos::MockCosmosClient;
 
     #[test]
     async fn should_confirm_successful_tx_and_send_it_back() {
@@ -188,7 +187,7 @@ mod test {
             ..Default::default()
         };
 
-        let mut client = MockBroadcastClient::new();
+        let mut client = MockCosmosClient::new();
         client
             .expect_tx()
             .with(predicate::eq(GetTxRequest {
@@ -235,7 +234,7 @@ mod test {
             ..Default::default()
         };
 
-        let mut client = MockBroadcastClient::new();
+        let mut client = MockCosmosClient::new();
         client
             .expect_tx()
             .with(predicate::eq(GetTxRequest {
@@ -273,7 +272,7 @@ mod test {
     async fn should_retry_when_tx_is_not_found() {
         let tx_hash = "tx_hash".to_string();
 
-        let mut client = MockBroadcastClient::new();
+        let mut client = MockCosmosClient::new();
         client
             .expect_tx()
             .with(predicate::eq(GetTxRequest {
@@ -307,7 +306,7 @@ mod test {
     async fn should_retry_when_grpc_error() {
         let tx_hash = "tx_hash".to_string();
 
-        let mut client = MockBroadcastClient::new();
+        let mut client = MockCosmosClient::new();
         client
             .expect_tx()
             .with(predicate::eq(GetTxRequest {
@@ -315,10 +314,7 @@ mod test {
             }))
             .times(3)
             .returning(|_| {
-                Err(tonic::Status::new(
-                    tonic::Code::Internal,
-                    "internal server error",
-                ))
+                Err(tonic::Status::new(tonic::Code::Internal, "internal error").into_report())
             });
 
         let sleep = Duration::from_millis(100);
@@ -338,7 +334,7 @@ mod test {
         tx_confirmer_sender.send(tx_hash.clone()).await.unwrap();
         assert!(matches!(
             handle.await.unwrap().unwrap_err().current_context(),
-            Error::Grpc { tx_hash: actual, status } if *actual == tx_hash && status.code() == tonic::Code::Internal
+            Error::Grpc { tx_hash: actual } if *actual == tx_hash
         ));
     }
 }
