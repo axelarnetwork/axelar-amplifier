@@ -1,0 +1,6 @@
+{
+  "chain_name": "axelar",
+  "prover_address": "prover",
+  "gateway_address": "gateway",
+  "verifier_address": "verifier"
+}

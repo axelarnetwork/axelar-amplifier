@@ -7,6 +7,12 @@ use msgs_derive::EnsurePermissions;
 use router_api::ChainName;
 use service_registry_api::Verifier;
 
+use crate::state::ChainContractsRecord;
+
+type ProverAddress = Addr;
+type GatewayAddress = Addr;
+type VerifierAddress = Addr;
+
 #[cw_serde]
 pub struct InstantiateMsg {
     pub governance_address: String,
@@ -46,6 +52,9 @@ pub enum QueryMsg {
         service_name: String,
         verifier: String,
     },
+
+    #[returns(ChainContractsRecord)]
+    ChainContractsInfo(ChainContractsKey),
 }
 
 #[cw_serde]
@@ -54,4 +63,31 @@ pub struct VerifierInfo {
     pub weight: nonempty::Uint128,
     pub supported_chains: Vec<ChainName>,
     pub actively_signing_for: HashSet<Addr>,
+}
+
+#[cw_serde]
+pub enum ChainContractsKey {
+    ChainName(ChainName),
+    ProverAddress(ProverAddress),
+    GatewayAddress(GatewayAddress),
+    VerifierAddress(VerifierAddress),
+}
+
+#[cw_serde]
+pub struct ChainContractsResponse {
+    pub chain_name: ChainName,
+    pub prover_address: ProverAddress,
+    pub gateway_address: GatewayAddress,
+    pub verifier_address: VerifierAddress,
+}
+
+impl From<ChainContractsRecord> for ChainContractsResponse {
+    fn from(chain_contracts_record: ChainContractsRecord) -> Self {
+        ChainContractsResponse {
+            chain_name: chain_contracts_record.chain_name,
+            prover_address: chain_contracts_record.prover_address,
+            gateway_address: chain_contracts_record.gateway_address,
+            verifier_address: chain_contracts_record.verifier_address,
+        }
+    }
 }
