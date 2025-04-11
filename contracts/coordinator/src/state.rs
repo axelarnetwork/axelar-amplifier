@@ -46,7 +46,7 @@ impl IndexList<ChainContractsRecord> for ChainContractsIndexes<'_> {
     }
 }
 
-pub const CHAIN_CONTRACTS_MAP: IndexedMap<ChainName, ChainContractsRecord, ChainContractsIndexes> =
+const CHAIN_CONTRACTS_MAP: IndexedMap<ChainName, ChainContractsRecord, ChainContractsIndexes> =
     IndexedMap::new(
         "chain_contracts_map",
         ChainContractsIndexes {
@@ -79,53 +79,51 @@ pub fn save_chain_contracts(
     Ok(())
 }
 
-#[allow(dead_code)] // Used in tests, might be useful in future query
 pub fn contracts_by_chain(
     storage: &dyn Storage,
-    chain_name: ChainName,
+    chain_name: &ChainName,
 ) -> Result<ChainContractsRecord, ContractError> {
     CHAIN_CONTRACTS_MAP
         .may_load(storage, chain_name.clone())?
-        .ok_or(ContractError::ChainNotRegistered(chain_name))
+        .ok_or(ContractError::ChainNotRegistered(chain_name.clone()))
 }
 
-#[allow(dead_code)] // Used in tests, might be useful in future query
 pub fn contracts_by_prover(
     storage: &dyn Storage,
-    prover_address: ProverAddress,
+    prover_address: &ProverAddress,
 ) -> Result<ChainContractsRecord, ContractError> {
     CHAIN_CONTRACTS_MAP
         .idx
         .by_prover
         .item(storage, prover_address.clone())?
         .map(|(_, record)| record)
-        .ok_or(ContractError::ProverNotRegistered(prover_address))
+        .ok_or(ContractError::ProverNotRegistered(prover_address.clone()))
 }
 
-#[allow(dead_code)] // Used in tests, might be useful in future query
 pub fn contracts_by_gateway(
     storage: &dyn Storage,
-    gateway_address: GatewayAddress,
+    gateway_address: &GatewayAddress,
 ) -> Result<ChainContractsRecord, ContractError> {
     CHAIN_CONTRACTS_MAP
         .idx
         .by_gateway
         .item(storage, gateway_address.clone())?
         .map(|(_, record)| record)
-        .ok_or(ContractError::GatewayNotRegistered(gateway_address))
+        .ok_or(ContractError::GatewayNotRegistered(gateway_address.clone()))
 }
 
-#[allow(dead_code)] // Used in tests, might be useful in future query
 pub fn contracts_by_verifier(
     storage: &dyn Storage,
-    verifier_address: VerifierAddress,
+    verifier_address: &VerifierAddress,
 ) -> Result<ChainContractsRecord, ContractError> {
     CHAIN_CONTRACTS_MAP
         .idx
         .by_verifier
         .item(storage, verifier_address.clone())?
         .map(|(_, record)| record)
-        .ok_or(ContractError::VerifierNotRegistered(verifier_address))
+        .ok_or(ContractError::VerifierNotRegistered(
+            verifier_address.clone(),
+        ))
 }
 
 // Legacy prover storage - maintained for backward compatibility

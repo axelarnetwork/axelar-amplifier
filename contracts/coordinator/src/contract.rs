@@ -150,9 +150,9 @@ pub fn query(
                 verifier_address,
             )?)?
         }
-        QueryMsg::ChainContractsInfo(chain_contracts_key) => {
-            to_json_binary(&query::get_chain_contracts_info(deps, chain_contracts_key)?)?
-        }
+        QueryMsg::ChainContractsInfo(chain_contracts_key) => to_json_binary(
+            &query::get_chain_contracts_info(deps, &chain_contracts_key)?,
+        )?,
     }
     .then(Ok)
 }
@@ -334,6 +334,7 @@ mod tests {
             .unwrap(),
         );
 
+        assert!(record_response_by_chain.is_ok());
         assert_eq!(record_response_by_chain.unwrap(), test_setup.chain_record);
 
         let record_response_by_gateway: StdResult<ChainContractsRecord> = cosmwasm_std::from_json(
@@ -346,6 +347,8 @@ mod tests {
             )
             .unwrap(),
         );
+
+        assert!(record_response_by_gateway.is_ok());
         assert_eq!(record_response_by_gateway.unwrap(), test_setup.chain_record);
 
         let record_response_by_prover: StdResult<ChainContractsRecord> = cosmwasm_std::from_json(
@@ -358,6 +361,8 @@ mod tests {
             )
             .unwrap(),
         );
+
+        assert!(record_response_by_prover.is_ok());
         assert_eq!(record_response_by_prover.unwrap(), test_setup.chain_record);
 
         let record_response_by_verifier: StdResult<ChainContractsRecord> = cosmwasm_std::from_json(
@@ -370,6 +375,8 @@ mod tests {
             )
             .unwrap(),
         );
+
+        assert!(record_response_by_verifier.is_ok());
         assert_eq!(
             record_response_by_verifier.unwrap(),
             test_setup.chain_record

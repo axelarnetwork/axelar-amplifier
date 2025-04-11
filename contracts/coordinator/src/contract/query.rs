@@ -6,7 +6,7 @@ use itertools::Itertools;
 use service_registry_api::msg::VerifierDetails;
 
 use crate::error::ContractError;
-use crate::msg::{ChainContractsKey, ChainContractsRecord, VerifierInfo};
+use crate::msg::{ChainContractsKey, ChainContractsResponse, VerifierInfo};
 use crate::state::{
     contracts_by_chain, contracts_by_gateway, contracts_by_prover, contracts_by_verifier,
     load_config, VERIFIER_PROVER_INDEXED_MAP,
@@ -66,23 +66,23 @@ fn get_provers_for_verifier(
 
 pub fn get_chain_contracts_info(
     deps: Deps,
-    chain_contracts_key: ChainContractsKey,
-) -> Result<ChainContractsRecord, ContractError> {
+    chain_contracts_key: &ChainContractsKey,
+) -> Result<ChainContractsResponse, ContractError> {
     match chain_contracts_key {
         ChainContractsKey::ChainName(chain_name) => {
-            Ok(contracts_by_chain(deps.storage, chain_name.clone())?.into())
+            Ok(contracts_by_chain(deps.storage, chain_name)?.into())
         }
 
         ChainContractsKey::ProverAddress(prover_addr) => {
-            Ok(contracts_by_prover(deps.storage, prover_addr.clone())?.into())
+            Ok(contracts_by_prover(deps.storage, prover_addr)?.into())
         }
 
         ChainContractsKey::GatewayAddress(gateway_addr) => {
-            Ok(contracts_by_gateway(deps.storage, gateway_addr.clone())?.into())
+            Ok(contracts_by_gateway(deps.storage, gateway_addr)?.into())
         }
 
         ChainContractsKey::VerifierAddress(verifier_addr) => {
-            Ok(contracts_by_verifier(deps.storage, verifier_addr.clone())?.into())
+            Ok(contracts_by_verifier(deps.storage, verifier_addr)?.into())
         }
     }
 }

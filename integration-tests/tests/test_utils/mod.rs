@@ -4,7 +4,7 @@ use axelar_core_std::nexus::query::IsChainRegisteredResponse;
 use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
 use axelar_wasm_std::voting::{PollId, Vote};
 use axelar_wasm_std::{nonempty, Participant, Threshold};
-use coordinator::msg::{ChainContractsRecord, ExecuteMsg as CoordinatorExecuteMsg, VerifierInfo};
+use coordinator::msg::{ChainContractsResponse, ExecuteMsg as CoordinatorExecuteMsg, VerifierInfo};
 use cosmwasm_std::testing::MockApi;
 use cosmwasm_std::{
     coins, to_json_binary, Addr, Attribute, BlockInfo, Event, HexBinary, StdError, Uint128, Uint64,
@@ -355,8 +355,8 @@ pub fn assert_verifier_details_are_equal(
 pub fn chain_contracts_info_from_coordinator(
     protocol: &mut Protocol,
     chain_contracts_key: coordinator::msg::ChainContractsKey,
-) -> ChainContractsRecord {
-    let query_response: Result<ChainContractsRecord, StdError> = protocol.coordinator.query(
+) -> ChainContractsResponse {
+    let query_response: Result<ChainContractsResponse, StdError> = protocol.coordinator.query(
         &protocol.app,
         &coordinator::msg::QueryMsg::ChainContractsInfo(chain_contracts_key),
     );
@@ -366,7 +366,7 @@ pub fn chain_contracts_info_from_coordinator(
 }
 
 pub fn assert_chain_contracts_details_are_equal(
-    chain_contracts_record: ChainContractsRecord,
+    chain_contracts_record: ChainContractsResponse,
     chain_contracts: &Chain,
 ) {
     assert_eq!(

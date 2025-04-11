@@ -4,7 +4,7 @@ use cosmwasm_std::{Addr, CosmosMsg};
 use error_stack::{Result, ResultExt};
 use router_api::ChainName;
 
-use crate::msg::{ChainContractsKey, ChainContractsRecord, ExecuteMsg, QueryMsg};
+use crate::msg::{ChainContractsKey, ChainContractsResponse, ExecuteMsg, QueryMsg};
 
 #[derive(thiserror::Error, Debug, PartialEq)]
 pub enum Error {
@@ -113,7 +113,7 @@ impl Client<'_> {
     pub fn chain_contracts(
         &self,
         chain_contracts_key: ChainContractsKey,
-    ) -> Result<ChainContractsRecord, Error> {
+    ) -> Result<ChainContractsResponse, Error> {
         let msg = QueryMsg::ChainContractsInfo(chain_contracts_key);
         self.client.query(&msg).change_context_lazy(|| msg.into())
     }
@@ -128,7 +128,7 @@ mod test {
     use cosmwasm_std::{from_json, to_json_binary, Addr, QuerierWrapper, SystemError, WasmQuery};
 
     use crate::client::Client;
-    use crate::msg::{ChainContractsKey, ChainContractsRecord, QueryMsg};
+    use crate::msg::{ChainContractsKey, ChainContractsResponse, QueryMsg};
 
     #[test]
     fn query_ready_to_unbond_returns_error_when_query_fails() {
@@ -268,14 +268,16 @@ mod test {
                         service_name: _,
                         verifier: _,
                     } => Ok(to_json_binary(&true).into()).into(),
-                    QueryMsg::ChainContractsInfo(_) => Ok(to_json_binary(&ChainContractsRecord {
-                        chain_name: router_api::ChainName::from_str("axelar").unwrap(),
-                        prover_address: Addr::unchecked("prover"),
-                        verifier_address: Addr::unchecked("verifier"),
-                        gateway_address: Addr::unchecked("gateway"),
-                    })
-                    .into())
-                    .into(),
+                    QueryMsg::ChainContractsInfo(_) => {
+                        Ok(to_json_binary(&ChainContractsResponse {
+                            chain_name: router_api::ChainName::from_str("axelar").unwrap(),
+                            prover_address: Addr::unchecked("prover"),
+                            verifier_address: Addr::unchecked("verifier"),
+                            gateway_address: Addr::unchecked("gateway"),
+                        })
+                        .into())
+                        .into()
+                    }
                 }
             }
             _ => panic!("unexpected query: {:?}", msg),
