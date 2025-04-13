@@ -351,6 +351,7 @@ dependencies = [
  "serde_json",
  "tendermint 0.35.0",
  "thiserror 1.0.69",
+ "tokio-stream",
  "tonic 0.13.0",
  "tonic-build 0.13.0",
 ]

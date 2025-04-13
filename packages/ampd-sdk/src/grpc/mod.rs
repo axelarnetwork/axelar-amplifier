@@ -1,4 +1,4 @@
-mod proto {
+pub mod proto {
     tonic::include_proto!("ampd.v1");
 }
 

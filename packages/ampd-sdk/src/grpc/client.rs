@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::pin::Pin;
 
 use async_trait::async_trait;
 use error_stack::{Report, Result};
@@ -7,12 +8,13 @@ use futures::StreamExt;
 use mockall::automock;
 use tendermint::block;
 use thiserror::Error;
-use tonic::{transport, Streaming};
+use tokio_stream::Stream;
+use tonic::transport;
 
 use super::proto;
 use super::proto::blockchain_service_client::BlockchainServiceClient;
 use super::proto::crypto_service_client::CryptoServiceClient;
-use super::proto::{subscribe_response, EventBlockBegin, EventBlockEnd};
+use super::proto::subscribe_response;
 
 #[derive(Error, Debug)]
 pub enum Error {
@@ -21,18 +23,27 @@ pub enum Error {
 
     #[error("failed to execute gRPC request")]
     GrpcRequest(#[from] tonic::Status),
+
+    #[error("failed to convert block height {block_height}")]
+    BlockHeightConversion { block_height: u64 },
+
+    #[error("missing event in response")]
+    InvalidResponse,
 }
 
-#[automock]
+type AbciEventTypeFilter = String;
+
+#[automock(type Stream = tokio_stream::Iter<std::vec::IntoIter<Result<Event, Error>>>;)]
 #[async_trait]
 #[allow(dead_code)]
 pub trait Client {
-    // TODO: This trait's methods should return our own types rather than the generated protobuf ones
+    type Stream: Stream<Item = Result<Event, Error>>;
+
     async fn subscribe(
-        &self,
-        filters: Vec<Event>,
+        &mut self,
+        filters: Vec<AbciEventTypeFilter>,
         include_block_begin_end: bool,
-    ) -> Result<Streaming<Event>, Error>;
+    ) -> Result<Self::Stream, Error>;
 }
 
 #[allow(dead_code)]
@@ -64,16 +75,15 @@ pub async fn new(url: &str) -> Result<GrpcClient, Error> {
 #[async_trait]
 #[allow(clippy::todo)]
 impl Client for GrpcClient {
+    type Stream = Pin<Box<dyn Stream<Item = Result<Event, Error>> + Send>>;
+
     async fn subscribe(
-        &self,
-        filters: Vec<Event>,
+        &mut self,
+        filters: Vec<AbciEventTypeFilter>,
         include_block_begin_end: bool,
-    ) -> Result<Streaming<Event>, Error> {
+    ) -> Result<Self::Stream, Error> {
         let request = proto::SubscribeRequest {
-            filters: filters
-                .into_iter()
-                .map(|event| proto::Event::from(event))
-                .collect(),
+            filters: filters.into_iter().map(proto::Event::from).collect(),
             include_block_begin_end,
         };
 
@@ -81,32 +91,51 @@ impl Client for GrpcClient {
             .blockchain
             .subscribe(request)
             .await
-            .map_err(Into::into)
+            .map_err(Error::GrpcRequest)
             .map_err(Report::new)?;
 
-        let h = streaming_response.into_inner();
+        let transformed_stream = streaming_response.into_inner().map(|result| match result {
+            Ok(response) => match response.event {
+                Some(event) => match Event::try_from(event) {
+                    Ok(converted_event) => Ok(converted_event),
+                    Err(err) => Err(err),
+                },
+                None => Err(Report::new(Error::InvalidResponse)),
+            },
+            Err(e) => Err(Report::new(Error::GrpcRequest(e))),
+        });
 
-        let transformed_response = streaming_response
-            .into_inner()
-            .map(|proto_response| Event::from(proto_response.event.unwrap()))
-            .collect(); 
-        Ok(transformed_response) // this piece is still WIP, need to figure out a way to return vector of Event:event from SubscribeResponse:event 
+        Ok(Box::pin(transformed_stream))
     }
 }
 
-impl From<subscribe_response::Event> for Event {
-    fn from(event: subscribe_response::Event) -> Self {
+impl TryFrom<subscribe_response::Event> for Event {
+    type Error = Report<Error>;
+
+    fn try_from(event: subscribe_response::Event) -> Result<Event, Error> {
         match event {
             subscribe_response::Event::BlockBegin(block_start) => {
-                Self::BlockBegin(block::Height::from(block_start.height as u32))
-            } // might be problematic converting from u64 to u32
+                block::Height::try_from(block_start.height)
+                    .map_err(|_| {
+                        Report::new(Error::BlockHeightConversion {
+                            block_height: block_start.height,
+                        })
+                    })
+                    .map(Self::BlockBegin)
+            }
             subscribe_response::Event::BlockEnd(block_end) => {
-                Self::BlockEnd(block::Height::from(block_end.height as u32))
-            } // same issue
-            subscribe_response::Event::Abci(abci) => Self::Abci {
+                block::Height::try_from(block_end.height)
+                    .map_err(|_| {
+                        Report::new(Error::BlockHeightConversion {
+                            block_height: block_end.height,
+                        })
+                    })
+                    .map(Self::BlockEnd)
+            }
+            subscribe_response::Event::Abci(abci) => Ok(Self::Abci {
                 event_type: abci.r#type,
                 attributes: convert_attributes(&abci.attributes),
-            },
+            }),
         }
     }
 }
@@ -162,6 +191,16 @@ impl From<Event> for proto::Event {
             r#type: event_type,
             contract: contract_address,
             attributes,
+        }
+    }
+}
+
+impl From<AbciEventTypeFilter> for proto::Event {
+    fn from(event_type: AbciEventTypeFilter) -> Self {
+        Self {
+            r#type: event_type,
+            contract: String::new(),
+            attributes: HashMap::new(),
         }
     }
 }
