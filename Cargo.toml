@@ -29,6 +29,7 @@ alloy-sol-types = { version = "0.7.6", default-features = false, features = [
   "std",
 ] }
 anyhow = "1.0.89"
+ampd-proto = { version = "^0.1.0", path = "packages/ampd-proto" }
 assert_ok = "1.0"
 axelar-wasm-std = { version = "^1.0.0", path = "packages/axelar-wasm-std" }
 axelar-wasm-std-derive = { version = "^1.0.0", path = "packages/axelar-wasm-std-derive" }

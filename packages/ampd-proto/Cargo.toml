@@ -1,19 +1,13 @@
 [package]
-name = "ampd-sdk"
+name = "ampd-proto"
 version = "0.1.0"
 rust-version = { workspace = true }
 edition = { workspace = true }
 
 [dependencies]
-ampd-proto = { workspace = true }
-async-trait = "0.1.59"
 error-stack = { workspace = true }
-events = { workspace = true }
-futures = "0.3.25"
-mockall = { workspace = true }
 prost = "0.13.5"
 prost-types = "0.13.5"
-serde_json = { workspace = true }
 tendermint = "0.35.0"
 thiserror = { workspace = true }
 tokio-stream = { workspace = true }

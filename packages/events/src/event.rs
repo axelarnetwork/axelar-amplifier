@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fmt::Display;
 
 use axelar_wasm_std::FnExt;
@@ -10,6 +11,8 @@ use tendermint::{abci, block};
 
 use crate::errors::DecodingError;
 use crate::Error;
+
+pub type AbciEventTypeFilter = String;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Event {
@@ -110,6 +113,92 @@ fn decode_event_attribute(attribute: &EventAttribute) -> Result<(String, String)
 
 fn base64_to_utf8(base64_str: &str) -> std::result::Result<String, DecodingError> {
     Ok(STANDARD.decode(base64_str)?.then(String::from_utf8)?)
+}
+
+impl TryFrom<ampd_proto::subscribe_response::Event> for Event {
+    type Error = Report<Error>;
+
+    fn try_from(event: ampd_proto::subscribe_response::Event) -> Result<Event, Error> {
+        match event {
+            ampd_proto::subscribe_response::Event::BlockBegin(block_start) => {
+                block::Height::try_from(block_start.height)
+                    .map_err(|_| {
+                        Report::new(Error::BlockHeightConversion {
+                            block_height: block_start.height,
+                        })
+                    })
+                    .map(Self::BlockBegin)
+            }
+            ampd_proto::subscribe_response::Event::BlockEnd(block_end) => {
+                block::Height::try_from(block_end.height)
+                    .map_err(|_| {
+                        Report::new(Error::BlockHeightConversion {
+                            block_height: block_end.height,
+                        })
+                    })
+                    .map(Self::BlockEnd)
+            }
+            ampd_proto::subscribe_response::Event::Abci(abci) => Ok(Self::Abci {
+                event_type: abci.r#type,
+                attributes: convert_attributes(&abci.attributes),
+            }),
+        }
+    }
+}
+
+fn convert_attributes(
+    proto_attrs: &HashMap<String, String>,
+) -> serde_json::Map<String, serde_json::Value> {
+    let mut result = serde_json::Map::new();
+
+    for (key, value) in proto_attrs {
+        let json_value = serde_json::from_str(value)
+            .unwrap_or_else(|_| serde_json::Value::String(value.clone()));
+
+        result.insert(key.clone(), json_value);
+    }
+
+    result
+}
+
+impl From<Event> for ampd_proto::Event {
+    fn from(event: Event) -> Self {
+        let contract_address = if let Event::Abci { .. } = &event {
+            event
+                .contract_address()
+                .map(|addr| addr.to_string())
+                .unwrap_or_default()
+        } else {
+            String::new()
+        };
+
+        let (event_type, attributes) = match event {
+            Event::BlockBegin(_) | Event::BlockEnd(_) => {
+                let type_name = if matches!(event, Event::BlockBegin(_)) {
+                    "block_begin"
+                } else {
+                    "block_end"
+                };
+                (type_name.to_string(), HashMap::new())
+            }
+            Event::Abci {
+                event_type,
+                attributes,
+            } => (
+                event_type,
+                attributes
+                    .into_iter()
+                    .map(|(key, value)| (key, value.to_string()))
+                    .collect(),
+            ),
+        };
+
+        Self {
+            r#type: event_type,
+            contract: contract_address,
+            attributes,
+        }
+    }
 }
 
 #[cfg(test)]
