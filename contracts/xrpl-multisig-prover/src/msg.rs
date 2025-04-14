@@ -153,6 +153,6 @@ pub enum ExecuteMsg {
         new_owner_reserve: u64,
     },
 
-    #[permission(Governance)]
+    #[permission(Elevated)]
     UpdateAdmin { new_admin_address: String },
 }
