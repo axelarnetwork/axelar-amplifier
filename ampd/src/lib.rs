@@ -46,6 +46,8 @@ mod stellar;
 mod sui;
 mod tm_client;
 mod tofnd;
+#[allow(dead_code)]
+mod tx_broadcaster;
 mod types;
 mod url;
 mod xrpl;
