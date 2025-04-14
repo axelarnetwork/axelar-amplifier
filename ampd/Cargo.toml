@@ -45,6 +45,7 @@ num-traits = { workspace = true }
 openssl = { version = "0.10.35", features = [
   "vendored",
 ] } # Needed to make arm compilation work by forcing vendoring
+pin-project-lite = "0.2.16"
 prost = "0.11.9"
 prost-types = "0.11.9"
 report = { workspace = true }

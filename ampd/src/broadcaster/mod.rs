@@ -35,7 +35,7 @@ use crate::{cosmos, tofnd};
 
 pub mod confirm_tx;
 mod dec_coin;
-mod tx;
+pub mod tx;
 
 #[derive(Error, Debug)]
 pub enum Error {
