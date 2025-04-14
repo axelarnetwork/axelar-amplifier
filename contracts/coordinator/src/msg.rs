@@ -53,7 +53,7 @@ pub enum QueryMsg {
         verifier: String,
     },
 
-    #[returns(ChainContractsRecord)]
+    #[returns(ChainContractsResponse)]
     ChainContractsInfo(ChainContractsKey),
 }
 
