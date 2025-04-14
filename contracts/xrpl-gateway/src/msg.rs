@@ -121,7 +121,7 @@ pub enum ExecuteMsg {
     #[permission(Any)]
     ConfirmAddGasMessages(Vec<XRPLAddGasMessage>),
 
-    #[permission(Governance)]
+    #[permission(Elevated)]
     UpdateAdmin { new_admin_address: String },
 }
 
