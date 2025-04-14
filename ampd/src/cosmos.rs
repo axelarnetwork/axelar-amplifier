@@ -19,9 +19,9 @@ type Result<T> = error_stack::Result<T, Error>;
 #[derive(Error, Debug)]
 pub enum Error {
     #[error("failed to connect to the grpc endpoint")]
-    GRpcConnection(#[from] tonic::transport::Error),
+    GrpcConnection(#[from] tonic::transport::Error),
     #[error("failed to make the grpc request")]
-    GRpcRequest(#[from] tonic::Status),
+    GrpcRequest(#[from] tonic::Status),
 }
 
 #[automock]
