@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::fmt::Display;
 
 use axelar_wasm_std::FnExt;
@@ -32,12 +32,16 @@ impl Display for Event {
             Event::Abci {
                 event_type,
                 attributes,
-            } => write!(
-                f,
-                "Abci {{ event_type: {}, attributes: {} }}",
-                event_type,
-                serde_json::to_string(attributes).expect("event attributes must be serializable")
-            ),
+            } => {
+                let sorted_map: BTreeMap<_, _> = attributes.iter().collect();
+
+                write!(
+                    f,
+                    "Abci {{ event_type: {}, attributes: {} }}",
+                    event_type,
+                    serde_json::to_string(&sorted_map).expect("attributes must be serializable")
+                )
+            }
         }
     }
 }

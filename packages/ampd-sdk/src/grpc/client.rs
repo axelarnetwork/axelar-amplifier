@@ -6,7 +6,7 @@ use ampd_proto::blockchain_service_client::BlockchainServiceClient;
 use ampd_proto::crypto_service_client::CryptoServiceClient;
 use ampd_proto::SubscribeRequest;
 use async_trait::async_trait;
-use error_stack::{Report, Result};
+use error_stack::{report, Report, Result};
 use events::{AbciEventTypeFilter, Event};
 use futures::StreamExt;
 use mockall::automock;
@@ -99,12 +99,10 @@ impl Client for GrpcClient {
 
         let transformed_stream = streaming_response.into_inner().map(|result| match result {
             Ok(response) => match response.event {
-                Some(event) => {
-                    Event::try_from(event).map_err(|_| Report::new(Error::EventConversion))
-                }
-                None => Err(Report::new(Error::InvalidResponse)),
+                Some(event) => Event::try_from(event).map_err(|_| report!(Error::EventConversion)),
+                None => Err(report!(Error::InvalidResponse)),
             },
-            Err(e) => Err(Report::new(Error::GrpcRequest(e))),
+            Err(e) => Err(report!(Error::GrpcRequest(e))),
         });
 
         Ok(Box::pin(transformed_stream))
