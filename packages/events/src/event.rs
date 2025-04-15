@@ -5,7 +5,7 @@ use axelar_wasm_std::FnExt;
 use base64::engine::general_purpose::STANDARD;
 use base64::Engine;
 use cosmrs::AccountId;
-use error_stack::{Report, Result, ResultExt};
+use error_stack::{report, Report, Result, ResultExt};
 use tendermint::abci::EventAttribute;
 use tendermint::{abci, block};
 
@@ -162,42 +162,32 @@ fn convert_attributes(
     result
 }
 
-impl From<Event> for ampd_proto::Event {
-    fn from(event: Event) -> Self {
-        let contract_address = if let Event::Abci { .. } = &event {
-            event
-                .contract_address()
-                .map(|addr| addr.to_string())
-                .unwrap_or_default()
-        } else {
-            String::new()
-        };
+impl TryFrom<Event> for ampd_proto::Event {
+    type Error = Report<Error>;
 
-        let (event_type, attributes) = match event {
-            Event::BlockBegin(_) | Event::BlockEnd(_) => {
-                let type_name = if matches!(event, Event::BlockBegin(_)) {
-                    "block_begin"
-                } else {
-                    "block_end"
-                };
-                (type_name.to_string(), HashMap::new())
-            }
+    fn try_from(event: Event) -> Result<ampd_proto::Event, Error> {
+        let contract_address = event
+            .contract_address()
+            .map(|addr| addr.to_string())
+            .unwrap_or_default();
+
+        match event {
             Event::Abci {
                 event_type,
                 attributes,
-            } => (
-                event_type,
-                attributes
+            } => {
+                let proto_attrs = attributes
                     .into_iter()
                     .map(|(key, value)| (key, value.to_string()))
-                    .collect(),
-            ),
-        };
+                    .collect();
 
-        Self {
-            r#type: event_type,
-            contract: contract_address,
-            attributes,
+                Ok(Self {
+                    r#type: event_type,
+                    contract: contract_address,
+                    attributes: proto_attrs,
+                })
+            }
+            _ => Err(report!(Error::InvalidEventType)),
         }
     }
 }
@@ -222,14 +212,6 @@ mod test {
             event_type: "some_event".to_string(),
             attributes,
         }
-    }
-
-    fn create_and_check_proto_event_with_type(event: Event, expected_type: &str) {
-        let converted_proto = ampd_proto::Event::from(event);
-
-        assert_eq!(converted_proto.r#type, expected_type);
-        assert!(converted_proto.attributes.is_empty());
-        assert_eq!(converted_proto.contract, "");
     }
 
     #[test]
@@ -293,8 +275,6 @@ mod test {
         assert!(
             matches!(domain_event, Event::BlockBegin(h) if h == block::Height::try_from(height).unwrap())
         );
-
-        create_and_check_proto_event_with_type(domain_event, "block_begin");
     }
 
     #[test]
@@ -310,8 +290,6 @@ mod test {
         assert!(
             matches!(domain_event, Event::BlockEnd(h) if h == block::Height::try_from(height).unwrap())
         );
-
-        create_and_check_proto_event_with_type(domain_event, "block_end");
     }
 
     #[test]
@@ -339,7 +317,10 @@ mod test {
 
         goldie::assert!(&domain_event.to_string());
 
-        let converted_proto = ampd_proto::Event::from(domain_event);
+        let converted_proto_res = ampd_proto::Event::try_from(domain_event);
+        assert!(converted_proto_res.is_ok());
+        let converted_proto = converted_proto_res.unwrap();
+
         assert_eq!(converted_proto.r#type, "test_event");
         assert_eq!(converted_proto.contract, contract_address_string,);
         assert_eq!(
