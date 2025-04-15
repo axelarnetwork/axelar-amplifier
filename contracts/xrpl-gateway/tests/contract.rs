@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 use std::fmt::Debug;
-use std::fs::File;
 use std::iter;
 use std::marker::PhantomData;
 use std::str::FromStr;
@@ -15,7 +14,6 @@ use cosmwasm_std::testing::{
     MockQuerierCustomHandlerResult, MockStorage,
 };
 #[cfg(not(feature = "generate_golden_files"))]
-use cosmwasm_std::Response;
 use cosmwasm_std::{
     from_json, to_json_binary, Api, ContractResult, CustomQuery, Deps, DepsMut, Empty, HexBinary,
     OwnedDeps, Querier, QuerierResult, QuerierWrapper, Storage, SystemResult, WasmQuery,
@@ -94,21 +92,7 @@ fn successful_verify() {
         responses.push(response[0].clone());
     }
 
-    let golden_file = "tests/test_verify.json";
-    #[cfg(feature = "generate_golden_files")]
-    {
-        let f = File::create(golden_file).unwrap();
-        serde_json::to_writer_pretty(f, &responses).unwrap();
-    }
-    #[cfg(not(feature = "generate_golden_files"))]
-    {
-        let f = File::open(golden_file).unwrap();
-        let expected_responses: Vec<Response> = serde_json::from_reader(f).unwrap();
-        assert_eq!(
-            serde_json::to_string_pretty(&responses).unwrap(),
-            serde_json::to_string_pretty(&expected_responses).unwrap()
-        );
-    }
+    goldie::assert_json!(responses);
 }
 
 #[test]
@@ -169,18 +153,7 @@ fn successful_route_incoming() {
         responses.push(response[0].clone());
     }
 
-    let golden_file = "tests/test_route_incoming.json";
-    #[cfg(feature = "generate_golden_files")]
-    {
-        let f = File::create(golden_file).unwrap();
-        serde_json::to_writer_pretty(f, &responses).unwrap();
-    }
-    #[cfg(not(feature = "generate_golden_files"))]
-    {
-        let f = File::open(golden_file).unwrap();
-        let expected_responses: Vec<Response> = serde_json::from_reader(f).unwrap();
-        assert_eq!(responses, expected_responses);
-    }
+    goldie::assert_json!(responses);
 }
 
 #[test]
@@ -240,18 +213,7 @@ fn successful_route_outgoing() {
             .for_each(|response| assert_eq!(response, to_json_binary(&msgs).unwrap()));
     }
 
-    let golden_file = "tests/test_route_outgoing.json";
-    #[cfg(feature = "generate_golden_files")]
-    {
-        let f = File::create(golden_file).unwrap();
-        serde_json::to_writer_pretty(f, &responses).unwrap();
-    }
-    #[cfg(not(feature = "generate_golden_files"))]
-    {
-        let f = File::open(golden_file).unwrap();
-        let expected_responses: Vec<Response> = serde_json::from_reader(f).unwrap();
-        assert_eq!(responses, expected_responses);
-    }
+    goldie::assert_json!(responses);
 }
 
 #[test]
