@@ -303,7 +303,7 @@ pub fn construct_payment_proof(
             .state
         {
             MultisigState::Pending => {
-                if multisig_session.expires_at <= block_height {
+                if multisig_session.expires_at >= block_height {
                     return Err(ContractError::PaymentAlreadyHasActiveSigningSession(
                         multisig_session.id,
                     ));
