@@ -6,7 +6,7 @@ use ampd_proto::blockchain_service_client::BlockchainServiceClient;
 use ampd_proto::crypto_service_client::CryptoServiceClient;
 use ampd_proto::SubscribeRequest;
 use async_trait::async_trait;
-use error_stack::{report, Report, Result};
+use error_stack::{report, Report, Result, ResultExt};
 use events::{AbciEventTypeFilter, Event};
 use futures::StreamExt;
 use mockall::automock;
@@ -45,6 +45,7 @@ pub trait Client {
 #[allow(dead_code)]
 #[derive(Clone)]
 pub struct GrpcClient {
+    // TODO: separate trait (with automock) for blockchain and crypto to make testing easier
     pub blockchain: BlockchainServiceClient<transport::Channel>,
     pub crypto: CryptoServiceClient<transport::Channel>,
 }
@@ -69,7 +70,6 @@ pub async fn new(url: &str) -> Result<GrpcClient, Error> {
 }
 
 #[async_trait]
-#[allow(clippy::todo)]
 impl Client for GrpcClient {
     type Stream = Pin<Box<dyn Stream<Item = Result<Event, Error>> + Send>>;
 
@@ -82,7 +82,7 @@ impl Client for GrpcClient {
             filters: filters
                 .into_iter()
                 .map(|filter| ampd_proto::Event {
-                    r#type: filter,
+                    r#type: filter.event_type,
                     contract: String::new(),
                     attributes: HashMap::new(),
                 })
@@ -99,7 +99,7 @@ impl Client for GrpcClient {
 
         let transformed_stream = streaming_response.into_inner().map(|result| match result {
             Ok(response) => match response.event {
-                Some(event) => Event::try_from(event).map_err(|_| report!(Error::EventConversion)),
+                Some(event) => Event::try_from(event).change_context(Error::EventConversion),
                 None => Err(report!(Error::InvalidResponse)),
             },
             Err(e) => Err(report!(Error::GrpcRequest(e))),

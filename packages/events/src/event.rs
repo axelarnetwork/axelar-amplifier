@@ -12,7 +12,9 @@ use tendermint::{abci, block};
 use crate::errors::DecodingError;
 use crate::Error;
 
-pub type AbciEventTypeFilter = String;
+pub struct AbciEventTypeFilter {
+    pub event_type: String,
+}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Event {
@@ -125,19 +127,15 @@ impl TryFrom<ampd_proto::subscribe_response::Event> for Event {
         match event {
             ampd_proto::subscribe_response::Event::BlockBegin(block_start) => {
                 block::Height::try_from(block_start.height)
-                    .map_err(|_| {
-                        Report::new(Error::BlockHeightConversion {
-                            block_height: block_start.height,
-                        })
+                    .change_context_lazy(|| Error::BlockHeightConversion {
+                        block_height: block_start.height,
                     })
                     .map(Self::BlockBegin)
             }
             ampd_proto::subscribe_response::Event::BlockEnd(block_end) => {
                 block::Height::try_from(block_end.height)
-                    .map_err(|_| {
-                        Report::new(Error::BlockHeightConversion {
-                            block_height: block_end.height,
-                        })
+                    .change_context_lazy(|| Error::BlockHeightConversion {
+                        block_height: block_end.height,
                     })
                     .map(Self::BlockEnd)
             }

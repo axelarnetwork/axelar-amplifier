@@ -341,12 +341,8 @@ version = "0.1.0"
 name = "ampd-proto"
 version = "0.1.0"
 dependencies = [
- "error-stack",
  "prost 0.13.5",
  "prost-types 0.13.5",
- "tendermint 0.35.0",
- "thiserror 1.0.69",
- "tokio-stream",
  "tonic 0.13.0",
  "tonic-build 0.13.0",
 ]

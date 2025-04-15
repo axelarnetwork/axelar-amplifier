@@ -5,12 +5,8 @@ rust-version = { workspace = true }
 edition = { workspace = true }
 
 [dependencies]
-error-stack = { workspace = true }
 prost = "0.13.5"
 prost-types = "0.13.5"
-tendermint = "0.35.0"
-thiserror = { workspace = true }
-tokio-stream = { workspace = true }
 tonic = "0.13.0"
 
 [build-dependencies]
