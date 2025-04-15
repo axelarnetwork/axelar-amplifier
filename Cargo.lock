@@ -3589,6 +3589,7 @@ dependencies = [
  "base64 0.21.7",
  "cosmrs",
  "error-stack",
+ "goldie",
  "serde_json",
  "tendermint 0.35.0",
  "thiserror 1.0.69",

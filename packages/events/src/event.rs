@@ -59,7 +59,6 @@ impl Event {
     }
 
     pub fn contract_address(&self) -> Option<AccountId> {
-        // need to be public!
         match self {
             Event::Abci {
                 event_type: _,
@@ -203,9 +202,11 @@ impl From<Event> for ampd_proto::Event {
 
 #[cfg(test)]
 mod test {
+    use std::collections::HashMap;
     use std::str::FromStr;
 
     use cosmrs::AccountId;
+    use tendermint::block;
 
     use crate::Event;
 
@@ -219,6 +220,14 @@ mod test {
             event_type: "some_event".to_string(),
             attributes,
         }
+    }
+
+    fn create_and_check_proto_event_with_type(event: Event, expected_type: &str) {
+        let converted_proto = ampd_proto::Event::from(event);
+
+        assert_eq!(converted_proto.r#type, expected_type);
+        assert!(converted_proto.attributes.is_empty());
+        assert_eq!(converted_proto.contract, "");
     }
 
     #[test]
@@ -265,5 +274,90 @@ mod test {
         };
 
         assert!(!event_without_contract_address.is_from_contract(&contract_address));
+    }
+
+    #[test]
+    fn block_begin_event_conversion_should_succeed() {
+        let height: u64 = 12345;
+        let proto_event =
+            ampd_proto::subscribe_response::Event::BlockBegin(ampd_proto::EventBlockBegin {
+                height,
+            });
+
+        let domain_event_response = Event::try_from(proto_event);
+        assert!(domain_event_response.is_ok());
+        let domain_event = domain_event_response.unwrap();
+
+        assert!(
+            matches!(domain_event, Event::BlockBegin(h) if h == block::Height::try_from(height).unwrap())
+        );
+
+        create_and_check_proto_event_with_type(domain_event, "block_begin");
+    }
+
+    #[test]
+    fn block_end_event_conversion_should_succeed() {
+        let height: u64 = 54321;
+        let proto_event =
+            ampd_proto::subscribe_response::Event::BlockEnd(ampd_proto::EventBlockEnd { height });
+
+        let domain_event_response = Event::try_from(proto_event);
+        assert!(domain_event_response.is_ok());
+        let domain_event = domain_event_response.unwrap();
+
+        assert!(
+            matches!(domain_event, Event::BlockEnd(h) if h == block::Height::try_from(height).unwrap())
+        );
+
+        create_and_check_proto_event_with_type(domain_event, "block_end");
+    }
+
+    #[test]
+    fn abci_event_conversion_should_succeed() {
+        let contract_address_string =
+            "axelarvaloper1zh9wrak6ke4n6fclj5e8yk397czv430ygs5jz7".to_string();
+
+        let mut attrs = HashMap::new();
+        attrs.insert("key1".to_string(), "value1".to_string());
+        attrs.insert("key2".to_string(), "42".to_string());
+        attrs.insert(
+            "_contract_address".to_string(),
+            contract_address_string.clone(),
+        );
+
+        let proto_event = ampd_proto::subscribe_response::Event::Abci(ampd_proto::Event {
+            r#type: "test_event".to_string(),
+            contract: contract_address_string.clone(),
+            attributes: attrs,
+        });
+
+        let domain_event_response = Event::try_from(proto_event.clone());
+        assert!(domain_event_response.is_ok());
+        let domain_event = domain_event_response.unwrap();
+
+        goldie::assert!(&domain_event.to_string());
+
+        let converted_proto = ampd_proto::Event::from(domain_event);
+        assert_eq!(converted_proto.r#type, "test_event");
+        assert_eq!(converted_proto.contract, contract_address_string,);
+        assert_eq!(
+            converted_proto.attributes.get("key1").unwrap(),
+            "\"value1\""
+        );
+        assert_eq!(converted_proto.attributes.get("key2").unwrap(), "42");
+    }
+
+    #[test]
+    fn invalid_block_height_conversion_should_fail() {
+        let max_height: u64 = u64::MAX;
+        let proto_event =
+            ampd_proto::subscribe_response::Event::BlockBegin(ampd_proto::EventBlockBegin {
+                height: max_height,
+            });
+
+        let result = Event::try_from(proto_event);
+        assert!(result.is_err());
+
+        goldie::assert!(&result.unwrap_err().to_string());
     }
 }
