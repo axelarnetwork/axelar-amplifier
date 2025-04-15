@@ -353,13 +353,19 @@ fn assign_ticket_number(
     // If this message ID has already been ticketed,
     // then use the same ticket number as before,
     if let Some(ticket_number) = CROSS_CHAIN_ID_TO_TICKET.may_load(storage, cc_id)? {
-        let confirmed_unsigned_tx_hash =
-            CONSUMED_TICKET_TO_UNSIGNED_TX_HASH.may_load(storage, &ticket_number)?;
-        // as long as it has not already been consumed
-        if confirmed_unsigned_tx_hash.is_none()
-        // or if it has been consumed by the same message.
-        || UNSIGNED_TX_HASH_TO_TX_INFO.load(storage, &confirmed_unsigned_tx_hash.unwrap())?.original_cc_id.as_ref() == Some(cc_id)
+        if let Some(confirmed_unsigned_tx_hash) =
+            CONSUMED_TICKET_TO_UNSIGNED_TX_HASH.may_load(storage, &ticket_number)?
         {
+            let tx_info = UNSIGNED_TX_HASH_TO_TX_INFO.load(storage, &confirmed_unsigned_tx_hash)?;
+            // if it has been consumed by the same message
+            if tx_info.original_cc_id.as_ref() == Some(cc_id)
+                // and the TX was not an on-chain failure (to allow retries)
+                && tx_info.status != XRPLTxStatus::FailedOnChain
+            {
+                return Ok(ticket_number);
+            }
+        } else {
+            // or as long as it has not already been consumed
             return Ok(ticket_number);
         }
     }
