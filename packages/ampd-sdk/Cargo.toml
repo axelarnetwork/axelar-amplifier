@@ -6,15 +6,15 @@ edition = { workspace = true }
 
 [dependencies]
 ampd-proto = { workspace = true }
-async-trait = "0.1.59"
+async-trait = { workspace = true }
 error-stack = { workspace = true }
 events = { workspace = true }
-futures = "0.3.25"
+futures = { workspace = true }
 mockall = { workspace = true }
 prost = "0.13.5"
 prost-types = "0.13.5"
 serde_json = { workspace = true }
-tendermint = "0.35.0"
+tendermint = { workspace = true }
 thiserror = { workspace = true }
 tokio-stream = { workspace = true }
 tonic = "0.13.0"
