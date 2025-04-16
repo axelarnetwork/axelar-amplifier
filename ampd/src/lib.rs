@@ -3,7 +3,7 @@ use std::time::Duration;
 use asyncutil::task::{CancellableTask, TaskError, TaskGroup};
 use block_height_monitor::BlockHeightMonitor;
 use broadcaster::Broadcaster;
-use cosmos::CosmosGRpcClient;
+use cosmos::CosmosGrpcClient;
 use error_stack::{FutureExt, Result, ResultExt};
 use event_processor::EventHandler;
 use event_sub::EventSub;
@@ -76,7 +76,7 @@ async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
     let tm_client = tendermint_rpc::HttpClient::new(tm_jsonrpc.to_string().as_str())
         .change_context(Error::Connection)
         .attach_printable(tm_jsonrpc.clone())?;
-    let cosmos_client = cosmos::CosmosGRpcClient::new(tm_grpc.as_str())
+    let cosmos_client = cosmos::CosmosGrpcClient::new(tm_grpc.as_str())
         .await
         .change_context(Error::Connection)
         .attach_printable(tm_grpc.clone())?;
@@ -166,7 +166,7 @@ where
     event_subscriber: event_sub::EventSubscriber,
     event_processor: TaskGroup<event_processor::Error>,
     broadcaster: QueuedBroadcaster<T>,
-    tx_confirmer: TxConfirmer<CosmosGRpcClient>,
+    tx_confirmer: TxConfirmer<CosmosGrpcClient>,
     multisig_client: MultisigClient,
     block_height_monitor: BlockHeightMonitor<tendermint_rpc::HttpClient>,
     health_check_server: health_check::Server,
@@ -180,7 +180,7 @@ where
     fn new(
         tm_client: tendermint_rpc::HttpClient,
         broadcaster: QueuedBroadcaster<T>,
-        tx_confirmer: TxConfirmer<CosmosGRpcClient>,
+        tx_confirmer: TxConfirmer<CosmosGrpcClient>,
         multisig_client: MultisigClient,
         event_buffer_cap: usize,
         block_height_monitor: BlockHeightMonitor<tendermint_rpc::HttpClient>,
@@ -533,7 +533,7 @@ where
 
     fn create_broadcaster_task(
         broadcaster: QueuedBroadcaster<T>,
-        confirmer: TxConfirmer<CosmosGRpcClient>,
+        confirmer: TxConfirmer<CosmosGrpcClient>,
     ) -> TaskGroup<Error> {
         let (tx_hash_sender, tx_hash_receiver) = mpsc::channel(1000);
         let (tx_response_sender, tx_response_receiver) = mpsc::channel(1000);

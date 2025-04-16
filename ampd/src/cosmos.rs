@@ -36,14 +36,29 @@ pub trait CosmosClient {
     async fn balance(&mut self, request: QueryBalanceRequest) -> Result<QueryBalanceResponse>;
 }
 
+/// CosmosGrpcClient implements the CosmosClient trait to interact with Cosmos blockchain nodes via gRPC.
+///
+/// # Clone Implementation
+///
+/// This struct derives the `Clone` trait, which enables creating copies of the client instance.
+/// When `clone()` is called on a CosmosGrpcClient:
+///
+/// - A new CosmosGrpcClient instance is created with cloned fields
+/// - The underlying gRPC clients (auth, bank, service) are cloned
+/// - The tonic::transport::Channel is cloned, but this doesn't create a new TCP connection
+///   Instead, it creates a new reference to the same underlying connection pool
+///
+/// This cloning approach is efficient for concurrent operations since it allows multiple
+/// client instances to share the same connection resources while maintaining independent state.
+///
 #[derive(Clone)]
-pub struct CosmosGRpcClient {
+pub struct CosmosGrpcClient {
     auth: AuthQueryClient<Channel>,
     bank: BankQueryClient<Channel>,
     service: ServiceClient<Channel>,
 }
 
-impl CosmosGRpcClient {
+impl CosmosGrpcClient {
     pub async fn new(url: &str) -> Result<Self> {
         let endpoint: tonic::transport::Endpoint = url.parse().map_err(ErrorExt::into_report)?;
         let conn = endpoint.connect().await.map_err(ErrorExt::into_report)?;
@@ -57,7 +72,7 @@ impl CosmosGRpcClient {
 }
 
 #[async_trait]
-impl CosmosClient for CosmosGRpcClient {
+impl CosmosClient for CosmosGrpcClient {
     async fn broadcast_tx(&mut self, request: BroadcastTxRequest) -> Result<BroadcastTxResponse> {
         self.service
             .broadcast_tx(request)

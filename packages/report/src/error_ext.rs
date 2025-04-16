@@ -19,24 +19,24 @@ where
     /// use report::ErrorExt;
     ///
     /// #[derive(Error, Debug)]
-    /// enum InnerError {
-    ///     #[error("An inner error occurred")]
-    ///     Inner,
+    /// enum OriginalError {
+    ///     #[error("An original error occurred")]
+    ///     Original,
     /// }
     ///
     /// #[derive(Error, Debug)]
-    /// enum OutterError {
-    ///     #[error("An outter error occurred")]
-    ///     Outter(#[from] InnerError),
-    ///     #[error("Another outter error occurred")]
-    ///     AnotherOutter
+    /// enum ConvertedError {
+    ///     #[error("an converted error occurred")]
+    ///     Converted(#[from] OriginalError),
+    ///     #[error("another converted error occurred")]
+    ///     AnotherConverted
     /// }
     ///
-    /// let error: Report<OutterError> = InnerError::Inner.into_report();
+    /// let error: Report<ConvertedError> = OriginalError::Original.into_report();
     ///
     /// assert!(matches!(
     ///     error.current_context(),
-    ///     OutterError::Outter(InnerError::Inner)
+    ///     ConvertedError::Converted(OriginalError::Original)
     /// ));
     /// ```
     fn into_report(self) -> Report<Err> {

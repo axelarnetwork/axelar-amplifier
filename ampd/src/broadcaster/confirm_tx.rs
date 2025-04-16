@@ -44,9 +44,9 @@ impl From<cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse> for TxResponse
 
 #[derive(Error, Debug)]
 pub enum Error {
-    #[error("failed confirming tx due to tx not found: {tx_hash}")]
+    #[error("failed confirming tx {tx_hash} due to tx not found")]
     Confirmation { tx_hash: String },
-    #[error("failed confirming tx due to grpc error: {tx_hash}")]
+    #[error("failed confirming tx {tx_hash} due to grpc error")]
     Grpc { tx_hash: String },
     #[error("failed sending tx response")]
     SendTxRes(#[from] Box<mpsc::error::SendError<TxResponse>>),

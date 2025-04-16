@@ -126,14 +126,14 @@ async fn broadcast_tx(
 async fn instantiate_broadcaster(
     config: Config,
     pub_key: CosmosPublicKey,
-) -> Result<(impl Broadcaster, TxConfirmer<cosmos::CosmosGRpcClient>), Error> {
+) -> Result<(impl Broadcaster, TxConfirmer<cosmos::CosmosGrpcClient>), Error> {
     let AmpdConfig {
         tm_grpc,
         broadcast,
         tofnd_config,
         ..
     } = config;
-    let cosmos_client = cosmos::CosmosGRpcClient::new(tm_grpc.as_str())
+    let cosmos_client = cosmos::CosmosGrpcClient::new(tm_grpc.as_str())
         .await
         .change_context(Error::Connection)
         .attach_printable(tm_grpc.clone())?;
