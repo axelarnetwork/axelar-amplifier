@@ -30,7 +30,7 @@ pub enum Error {
     InvalidResponse,
 }
 
-#[automock(type Stream = tokio_stream::Iter<vec::IntoIter<Result<Event, Error>>>;)]
+#[automock(type Stream = Pin<Box<dyn Stream<Item = Result<Event, Error>> + Send>>;)]
 #[async_trait]
 #[allow(dead_code)]
 pub trait Client {

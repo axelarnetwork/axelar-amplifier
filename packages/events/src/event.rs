@@ -162,36 +162,6 @@ fn convert_attributes(
     result
 }
 
-impl TryFrom<Event> for ampd_proto::Event {
-    type Error = Report<Error>;
-
-    fn try_from(event: Event) -> Result<ampd_proto::Event, Error> {
-        let contract_address = event
-            .contract_address()
-            .map(|addr| addr.to_string())
-            .unwrap_or_default();
-
-        match event {
-            Event::Abci {
-                event_type,
-                attributes,
-            } => {
-                let proto_attrs = attributes
-                    .into_iter()
-                    .map(|(key, value)| (key, value.to_string()))
-                    .collect();
-
-                Ok(Self {
-                    r#type: event_type,
-                    contract: contract_address,
-                    attributes: proto_attrs,
-                })
-            }
-            _ => Err(report!(Error::InvalidEventType)),
-        }
-    }
-}
-
 #[cfg(test)]
 mod test {
     use std::collections::HashMap;
@@ -316,34 +286,6 @@ mod test {
         let domain_event = domain_event_response.unwrap();
 
         goldie::assert!(&domain_event.to_string());
-    }
-
-    #[test]
-    fn abci_event_conversion_from_event_type_should_succeed() {
-        let contract_address_string =
-            "axelarvaloper1zh9wrak6ke4n6fclj5e8yk397czv430ygs5jz7".to_string();
-
-        let mut json_attrs = serde_json::Map::new();
-        json_attrs.insert(
-            "key1".to_string(),
-            serde_json::Value::String("value1".to_string()),
-        );
-        json_attrs.insert("key2".to_string(), serde_json::json!(42));
-        json_attrs.insert(
-            "_contract_address".to_string(),
-            serde_json::Value::String(contract_address_string.clone()),
-        );
-
-        let event = Event::Abci {
-            event_type: "test_event".to_string(),
-            attributes: json_attrs,
-        };
-
-        let converted_proto_res = ampd_proto::Event::try_from(event);
-        assert!(converted_proto_res.is_ok());
-        let converted_proto = converted_proto_res.unwrap();
-
-        goldie::assert!(&converted_proto.to_string());
     }
 
     #[test]
