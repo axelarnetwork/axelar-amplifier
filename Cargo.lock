@@ -343,6 +343,7 @@ version = "0.1.0"
 dependencies = [
  "prost 0.13.5",
  "prost-types 0.13.5",
+ "serde_json",
  "tonic 0.13.0",
  "tonic-build 0.13.0",
 ]

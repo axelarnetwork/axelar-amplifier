@@ -293,7 +293,7 @@ mod test {
     }
 
     #[test]
-    fn abci_event_conversion_should_succeed() {
+    fn abci_event_conversion_from_ampd_proto_should_succeed() {
         let contract_address_string =
             "axelarvaloper1zh9wrak6ke4n6fclj5e8yk397czv430ygs5jz7".to_string();
 
@@ -316,18 +316,34 @@ mod test {
         let domain_event = domain_event_response.unwrap();
 
         goldie::assert!(&domain_event.to_string());
+    }
 
-        let converted_proto_res = ampd_proto::Event::try_from(domain_event);
+    #[test]
+    fn abci_event_conversion_from_event_type_should_succeed() {
+        let contract_address_string =
+            "axelarvaloper1zh9wrak6ke4n6fclj5e8yk397czv430ygs5jz7".to_string();
+
+        let mut json_attrs = serde_json::Map::new();
+        json_attrs.insert(
+            "key1".to_string(),
+            serde_json::Value::String("value1".to_string()),
+        );
+        json_attrs.insert("key2".to_string(), serde_json::json!(42));
+        json_attrs.insert(
+            "_contract_address".to_string(),
+            serde_json::Value::String(contract_address_string.clone()),
+        );
+
+        let event = Event::Abci {
+            event_type: "test_event".to_string(),
+            attributes: json_attrs,
+        };
+
+        let converted_proto_res = ampd_proto::Event::try_from(event);
         assert!(converted_proto_res.is_ok());
         let converted_proto = converted_proto_res.unwrap();
 
-        assert_eq!(converted_proto.r#type, "test_event");
-        assert_eq!(converted_proto.contract, contract_address_string,);
-        assert_eq!(
-            converted_proto.attributes.get("key1").unwrap(),
-            "\"value1\""
-        );
-        assert_eq!(converted_proto.attributes.get("key2").unwrap(), "42");
+        goldie::assert!(&converted_proto.to_string());
     }
 
     #[test]

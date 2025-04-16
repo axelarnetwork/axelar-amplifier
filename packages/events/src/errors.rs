@@ -10,7 +10,7 @@ pub enum Error {
     DecodingAttributesFailed,
     #[error("failed to convert block height {block_height}")]
     BlockHeightConversion { block_height: u64 },
-    #[error("Invalid source event type, expected ABCI event type")]
+    #[error("invalid source event type, expected ABCI event type")]
     InvalidEventType,
 }
 

@@ -7,6 +7,7 @@ edition = { workspace = true }
 [dependencies]
 prost = "0.13.5"
 prost-types = "0.13.5"
+serde_json = { workspace = true }
 tonic = "0.13.0"
 
 [build-dependencies]
