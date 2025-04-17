@@ -5,7 +5,7 @@ use axelar_wasm_std::FnExt;
 use base64::engine::general_purpose::STANDARD;
 use base64::Engine;
 use cosmrs::AccountId;
-use error_stack::{report, Report, Result, ResultExt};
+use error_stack::{Report, Result, ResultExt};
 use tendermint::abci::EventAttribute;
 use tendermint::{abci, block};
 
