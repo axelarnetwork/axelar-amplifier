@@ -7,18 +7,6 @@ use xrpl_types::msg::XRPLMessage;
 use xrpl_types::types::{xrpl_account_id_string, XRPLAccountId};
 
 #[cw_serde]
-pub struct MessageStatus {
-    pub message: XRPLMessage,
-    pub status: VerificationStatus,
-}
-
-impl MessageStatus {
-    pub fn new(message: XRPLMessage, status: VerificationStatus) -> Self {
-        Self { message, status }
-    }
-}
-
-#[cw_serde]
 pub struct InstantiateMsg {
     /// Address that can call all messages of unrestricted governance permission level, like UpdateVotingThreshold.
     /// It can execute messages that bypasses verification checks to rescue the contract if it got into an otherwise unrecoverable state due to external forces.
@@ -29,7 +17,7 @@ pub struct InstantiateMsg {
     /// Name of service in the service registry for which verifiers are registered.
     pub service_name: nonempty::String,
     /// Axelar's gateway contract address on the source chain (i.e., the XRPL multisig address).
-    /// This XRPL multisig account is controlled by the multisig prover contract.
+    /// This XRPL multisig account is controlled by Axelar verifiers, via transactions created on the XRPLMultisigProver.
     #[serde(with = "xrpl_account_id_string")]
     #[schemars(with = "String")] // necessary attribute in conjunction with #[serde(with ...)]
     pub source_gateway_address: XRPLAccountId,
@@ -91,4 +79,16 @@ pub enum QueryMsg {
 
     #[returns(MajorityThreshold)]
     CurrentThreshold,
+}
+
+#[cw_serde]
+pub struct MessageStatus {
+    pub message: XRPLMessage,
+    pub status: VerificationStatus,
+}
+
+impl MessageStatus {
+    pub fn new(message: XRPLMessage, status: VerificationStatus) -> Self {
+        Self { message, status }
+    }
 }

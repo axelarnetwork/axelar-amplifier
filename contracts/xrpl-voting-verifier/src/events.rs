@@ -175,3 +175,124 @@ where
             )
     }
 }
+
+#[cfg(test)]
+mod test {
+    use axelar_wasm_std::msg_id::HexTxHash;
+    use axelar_wasm_std::voting::Vote;
+    use axelar_wasm_std::{nonempty, Threshold, VerificationStatus};
+    use cosmwasm_std::testing::MockApi;
+    use cosmwasm_std::Attribute;
+    use serde_json::json;
+    use xrpl_types::msg::{
+        XRPLAddGasMessage, XRPLAddReservesMessage, XRPLCallContractMessage,
+        XRPLInterchainTransferMessage, XRPLMessage,
+    };
+    use xrpl_types::types::XRPLPaymentAmount;
+
+    use crate::events::{PollEnded, PollMetadata, PollStarted, QuorumReached, Voted};
+    use crate::state::Config;
+
+    #[test]
+    fn events_should_not_change() {
+        let api = MockApi::default();
+
+        let config = Config {
+            service_name: "serviceName".try_into().unwrap(),
+            service_registry_contract: api.addr_make("serviceRegistry_contract"),
+            source_gateway_address: "sourceGatewayAddress".try_into().unwrap(),
+            voting_threshold: Threshold::try_from((2, 3)).unwrap().try_into().unwrap(),
+            block_expiry: 10u64.try_into().unwrap(),
+            confirmation_height: 1,
+            source_chain: "sourceChain".try_into().unwrap(),
+            rewards_contract: api.addr_make("rewardsContract"),
+        };
+        let event_instantiated =
+            cosmwasm_std::Event::new("instantiated").add_attributes(<Vec<Attribute>>::from(config));
+
+        let event_messages_poll_started: cosmwasm_std::Event = PollStarted::Messages {
+            messages: vec![
+                XRPLMessage::CallContractMessage(XRPLCallContractMessage {
+                    tx_id: HexTxHash::new([0; 32]),
+                    source_address: "raNVNWvhUQzFkDDTdEw3roXRJfMJFVJuQo".parse().unwrap(),
+                    destination_chain: "destinationChain".try_into().unwrap(),
+                    destination_address: nonempty::String::try_from(
+                        "95181d16cfb23Bc493668C17d973F061e30F2EAF",
+                    )
+                    .unwrap(),
+                    payload_hash: [1; 32],
+                    gas_fee_amount: XRPLPaymentAmount::Drops(100),
+                }),
+                XRPLMessage::InterchainTransferMessage(XRPLInterchainTransferMessage {
+                    tx_id: HexTxHash::new([2; 32]),
+                    source_address: "raNVNWvhUQzFkDDTdEw3roXRJfMJFVJuQo".parse().unwrap(),
+                    destination_chain: "destinationChain".try_into().unwrap(),
+                    destination_address: nonempty::String::try_from(
+                        "95181d16cfb23Bc493668C17d973F061e30F2EAF",
+                    )
+                    .unwrap(),
+                    payload_hash: None,
+                    transfer_amount: XRPLPaymentAmount::Drops(1000000),
+                    gas_fee_amount: XRPLPaymentAmount::Drops(100),
+                }),
+                XRPLMessage::AddGasMessage(XRPLAddGasMessage {
+                    tx_id: HexTxHash::new([3; 32]),
+                    msg_id: HexTxHash::new([4; 32]),
+                    amount: XRPLPaymentAmount::Drops(100000),
+                    source_address: "raNVNWvhUQzFkDDTdEw3roXRJfMJFVJuQo".parse().unwrap(),
+                }),
+                XRPLMessage::AddReservesMessage(XRPLAddReservesMessage {
+                    tx_id: HexTxHash::new([5; 32]),
+                    amount: 123456789,
+                }),
+            ],
+            metadata: PollMetadata {
+                poll_id: 1.into(),
+                source_chain: "sourceChain".try_into().unwrap(),
+                source_gateway_address: "sourceGatewayAddress".try_into().unwrap(),
+                confirmation_height: 1,
+                expires_at: 1,
+                participants: vec![
+                    api.addr_make("participant1"),
+                    api.addr_make("participant2"),
+                    api.addr_make("participant3"),
+                ],
+            },
+        }
+        .into();
+
+        let event_quorum_reached: cosmwasm_std::Event = QuorumReached {
+            content: "content".to_string(),
+            status: VerificationStatus::NotFoundOnSourceChain,
+            poll_id: 1.into(),
+        }
+        .into();
+
+        let event_voted: cosmwasm_std::Event = Voted {
+            poll_id: 1.into(),
+            voter: api.addr_make("voter"),
+            votes: vec![Vote::SucceededOnChain, Vote::FailedOnChain, Vote::NotFound],
+        }
+        .into();
+
+        let event_poll_ended: cosmwasm_std::Event = PollEnded {
+            poll_id: 1.into(),
+            source_chain: "sourceChain".try_into().unwrap(),
+            results: vec![
+                Some(Vote::SucceededOnChain),
+                Some(Vote::FailedOnChain),
+                Some(Vote::NotFound),
+                None,
+            ],
+        }
+        .into();
+
+        goldie::assert_json!(json!({
+            "event_instantiated": event_instantiated,
+            "event_messages_poll_started": event_messages_poll_started,
+            "event_quorum_reached": event_quorum_reached,
+            "event_voted": event_voted,
+            "event_poll_ended": event_poll_ended,
+        }));
+    }
+}

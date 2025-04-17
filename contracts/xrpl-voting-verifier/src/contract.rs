@@ -106,9 +106,8 @@ pub fn migrate(
 
 #[cfg(test)]
 mod test {
-    use std::str::FromStr;
-
     use axelar_wasm_std::msg_id::HexTxHash;
+    use axelar_wasm_std::nonempty::Uint128;
     use axelar_wasm_std::voting::Vote;
     use axelar_wasm_std::{nonempty, MajorityThreshold, Threshold, VerificationStatus};
     use cosmwasm_std::testing::{
@@ -149,7 +148,7 @@ mod test {
             verifiers.push(Verifier {
                 address: MockApi::default().addr_make(format!("addr{}", i).as_str()),
                 bonding_state: BondingState::Bonded {
-                    amount: nonempty::Uint128::try_from(100u128).unwrap(),
+                    amount: Uint128::try_from(100u128).unwrap(),
                 },
                 authorization_state: AuthorizationState::Authorized,
                 service_name: SERVICE_NAME.parse().unwrap(),
@@ -171,10 +170,7 @@ mod test {
                 governance_address: api.addr_make(GOVERNANCE).as_str().parse().unwrap(),
                 service_registry_address: service_registry.as_str().parse().unwrap(),
                 service_name: SERVICE_NAME.parse().unwrap(),
-                source_gateway_address: XRPLAccountId::from_str(
-                    "rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh",
-                )
-                .unwrap(),
+                source_gateway_address: "rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh".parse().unwrap(),
                 voting_threshold: initial_voting_threshold(),
                 block_expiry: POLL_BLOCK_EXPIRY.try_into().unwrap(),
                 confirmation_height: 100,

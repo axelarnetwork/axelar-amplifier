@@ -31,4 +31,12 @@ pub enum ContractError {
 
     #[error(transparent)]
     VoteError(#[from] voting::Error),
+
+    // Generic error to wrap cw_storage_plus errors
+    // This should only be used for things that shouldn't happen, such as encountering
+    // an error when loading data that should load successfully. For errors that can
+    // happen in the normal course of things, such as a user querying for a poll that doesn't
+    // exist, use a more descriptive error.
+    #[error("storage error")]
+    StorageError,
 }

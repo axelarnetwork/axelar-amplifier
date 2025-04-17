@@ -1,6 +1,7 @@
 use axelar_wasm_std::voting::{PollId, PollStatus, Vote};
 use axelar_wasm_std::{MajorityThreshold, VerificationStatus};
 use cosmwasm_std::{Deps, Storage};
+use error_stack::{Result, ResultExt};
 use xrpl_types::msg::XRPLMessage;
 
 use crate::error::ContractError;
@@ -8,7 +9,10 @@ use crate::msg::{MessageStatus, PollData, PollResponse};
 use crate::state::{poll_messages, Poll, PollContent, CONFIG, POLLS};
 
 pub fn voting_threshold(deps: Deps) -> Result<MajorityThreshold, ContractError> {
-    Ok(CONFIG.load(deps.storage)?.voting_threshold)
+    Ok(CONFIG
+        .load(deps.storage)
+        .change_context(ContractError::StorageError)?
+        .voting_threshold)
 }
 
 pub fn messages_status(
@@ -30,7 +34,9 @@ pub fn message_status(
     message: &XRPLMessage,
     cur_block_height: u64,
 ) -> Result<VerificationStatus, ContractError> {
-    let loaded_poll_content = poll_messages().may_load(storage, &message.hash())?;
+    let loaded_poll_content = poll_messages()
+        .may_load(storage, &message.hash())
+        .change_context(ContractError::StorageError)?;
 
     Ok(verification_status(
         storage,
@@ -45,10 +51,15 @@ pub fn poll_response(
     current_block_height: u64,
     poll_id: PollId,
 ) -> Result<PollResponse, ContractError> {
-    let poll = POLLS.load(deps.storage, poll_id)?;
+    let poll = POLLS
+        .load(deps.storage, poll_id)
+        .change_context(ContractError::PollNotFound)?;
     let (data, status) = match &poll {
         Poll::Messages(poll) => {
-            let msgs = poll_messages().idx.load_messages(deps.storage, poll_id)?;
+            let msgs = poll_messages()
+                .idx
+                .load_messages(deps.storage, poll_id)
+                .change_context(ContractError::StorageError)?;
             assert_eq!(
                 poll.tallies.len(),
                 msgs.len(),
@@ -120,8 +131,8 @@ mod tests {
     use axelar_wasm_std::msg_id::HexTxHash;
     use axelar_wasm_std::voting::{PollId, Tallies, Vote, WeightedPoll};
     use axelar_wasm_std::{nonempty, Participant, Snapshot, Threshold};
-    use cosmwasm_std::testing::{mock_dependencies, mock_env};
-    use cosmwasm_std::{Addr, Uint128, Uint64};
+    use cosmwasm_std::testing::{mock_dependencies, mock_env, MockApi};
+    use cosmwasm_std::{Uint128, Uint64};
     use itertools::Itertools;
     use xrpl_types::msg::XRPLInterchainTransferMessage;
     use xrpl_types::types::{XRPLAccountId, XRPLPaymentAmount};
@@ -144,7 +155,7 @@ mod tests {
             )
             .unwrap();
 
-        let msg = interchain_transfer_message(1);
+        let msg = message(1);
         poll_messages()
             .save(
                 deps.as_mut().storage,
@@ -180,7 +191,7 @@ mod tests {
             )
             .unwrap();
 
-        let msg = interchain_transfer_message(1);
+        let msg = message(1);
         poll_messages()
             .save(
                 deps.as_mut().storage,
@@ -216,7 +227,7 @@ mod tests {
             )
             .unwrap();
 
-        let msg = interchain_transfer_message(1);
+        let msg = message(1);
         poll_messages()
             .save(
                 deps.as_mut().storage,
@@ -237,7 +248,7 @@ mod tests {
     #[test]
     fn verification_status_not_verified() {
         let deps = mock_dependencies();
-        let msg = interchain_transfer_message(1);
+        let msg = message(1);
 
         assert_eq!(
             vec![MessageStatus::new(msg.clone(), VerificationStatus::Unknown)],
@@ -259,7 +270,7 @@ mod tests {
             )
             .unwrap();
 
-        let messages = (0..poll.poll_size as u32).map(interchain_transfer_message);
+        let messages = (0..poll.poll_size as u32).map(message);
         messages.clone().enumerate().for_each(|(idx, msg)| {
             poll_messages()
                 .save(
@@ -280,7 +291,7 @@ mod tests {
         );
     }
 
-    fn interchain_transfer_message(id: u32) -> XRPLMessage {
+    fn message(id: u32) -> XRPLMessage {
         XRPLMessage::InterchainTransferMessage(XRPLInterchainTransferMessage {
             tx_id: HexTxHash::new([0; 32]),
             source_address: XRPLAccountId::new([0; 20]),
@@ -296,7 +307,7 @@ mod tests {
         let participants: nonempty::Vec<Participant> = vec!["addr1", "addr2", "addr3"]
             .into_iter()
             .map(|participant| Participant {
-                address: Addr::unchecked(participant),
+                address: MockApi::default().addr_make(participant),
                 weight: nonempty::Uint128::try_from(Uint128::one()).unwrap(),
             })
             .collect::<Vec<Participant>>()
