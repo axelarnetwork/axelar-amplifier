@@ -338,15 +338,32 @@ name = "ampd-handlers"
 version = "0.1.0"
 
 [[package]]
+name = "ampd-proto"
+version = "0.1.0"
+dependencies = [
+ "prost 0.13.5",
+ "prost-types 0.13.5",
+ "serde_json",
+ "tonic 0.13.0",
+ "tonic-build 0.13.0",
+]
+
+[[package]]
 name = "ampd-sdk"
 version = "0.1.0"
 dependencies = [
+ "ampd-proto",
  "async-trait",
  "error-stack",
+ "events",
+ "futures",
  "mockall 0.12.1",
  "prost 0.13.5",
  "prost-types 0.13.5",
+ "serde_json",
+ "tendermint 0.35.0",
  "thiserror 1.0.69",
+ "tokio-stream",
  "tonic 0.13.0",
  "tonic-build 0.13.0",
 ]
@@ -3565,10 +3582,12 @@ checksum = "0206175f82b8d6bf6652ff7d71a1e27fd2e4efde587fd368662814d6ec1d9ce0"
 name = "events"
 version = "1.0.0"
 dependencies = [
+ "ampd-proto",
  "axelar-wasm-std",
  "base64 0.21.7",
  "cosmrs",
  "error-stack",
+ "goldie",
  "serde_json",
  "tendermint 0.35.0",
  "thiserror 1.0.69",

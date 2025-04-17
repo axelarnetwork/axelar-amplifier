@@ -1,8 +1,4 @@
-[submodule "ampd-proto-ampd"]
-	path = ampd/ampd-proto
-	url = https://github.com/axelarnetwork/ampd-proto.git
-	branch = main
-[submodule "ampd-proto-sdk"]
-	path = packages/ampd-sdk/ampd-proto
+[submodule "packages/ampd-proto/proto-files"]
+	path = packages/ampd-proto/proto-files
 	url = https://github.com/axelarnetwork/ampd-proto.git
 	branch = main
