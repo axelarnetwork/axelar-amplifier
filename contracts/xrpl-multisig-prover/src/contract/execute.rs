@@ -379,7 +379,7 @@ pub fn construct_payment_proof(
                         return Ok(Response::default());
                     }
 
-                    // TODO: Consider enforcing that data is None for simple payments.
+                    // TODO: Consider enforcing that payload is None for simple payments.
                     let unsigned_tx_hash = xrpl_multisig::issue_payment(
                         storage,
                         config,
