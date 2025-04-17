@@ -58,6 +58,9 @@ anyhow = "1.0"
 cw-multi-test = { workspace = true }
 elliptic-curve = "0.13.5"
 generic-array = "0.14.7"
+goldie = { workspace = true }
+prost = "0.12.4"
+service-registry = { workspace = true }
 
 [lints]
 workspace = true
