@@ -1,6 +1,6 @@
 [workspace]
 members = [
-  "ampd", 
+  "ampd",
   "ampd-handlers",
   "contracts/*",
   "external-gateways/*",
@@ -99,9 +99,9 @@ starknet-checked-felt = { version = "^1.0.0", path = "packages/starknet-checked-
 starknet-types-core = { version = "0.1.7" }
 starknet-core = "0.12.0"
 starknet-providers = "0.12.0"
-axelar-solana-encoding = { git = "https://github.com/eigerco/solana-axelar.git", rev = "e6ab452" }
-gateway-event-stack = { git = "https://github.com/eigerco/solana-axelar.git", rev = "e6ab452" }
-axelar-solana-gateway = { git = "https://github.com/eigerco/solana-axelar.git", rev = "e6ab452" }
+axelar-solana-encoding = { git = "https://github.com/eigerco/solana-axelar.git", rev = "f167d2b" }
+gateway-event-stack = { git = "https://github.com/eigerco/solana-axelar.git", rev = "f167d2b" }
+axelar-solana-gateway = { git = "https://github.com/eigerco/solana-axelar.git", rev = "f167d2b" }
 syn = "2.0.92"
 tendermint = "0.35.0"
 thiserror = "1.0.61"
@@ -130,12 +130,3 @@ debug-assertions = false
 codegen-units = 1
 incremental = false
 overflow-checks = true
-
-[patch.crates-io]
-# aes-gcm-siv 0.10.3 and curve25519-dalek 3.x pin zeroize to <1.4
-# which conflicts with other dependencies requiring zeroize ^1.5.
-# We’re patching both crates to unpin zeroize.
-#
-# For curve25519-dalek we’re using commit from a PR, see
-# https://github.com/dalek-cryptography/curve25519-dalek/pull/606
-curve25519-dalek = { git = "https://github.com/dalek-cryptography/curve25519-dalek", rev = "8274d5cbb6fc3f38cdc742b4798173895cd2a290" }
