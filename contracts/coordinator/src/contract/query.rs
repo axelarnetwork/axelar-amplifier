@@ -6,8 +6,11 @@ use itertools::Itertools;
 use service_registry_api::msg::VerifierDetails;
 
 use crate::error::ContractError;
-use crate::msg::VerifierInfo;
-use crate::state::{load_config, VERIFIER_PROVER_INDEXED_MAP};
+use crate::msg::{ChainContractsKey, ChainContractsResponse, VerifierInfo};
+use crate::state::{
+    contracts_by_chain, contracts_by_gateway, contracts_by_prover, contracts_by_verifier,
+    load_config, VERIFIER_PROVER_INDEXED_MAP,
+};
 
 pub fn check_verifier_ready_to_unbond(deps: Deps, verifier_address: Addr) -> StdResult<bool> {
     Ok(!is_verifier_in_any_verifier_set(deps, &verifier_address))
@@ -59,4 +62,27 @@ fn get_provers_for_verifier(
         .try_collect();
 
     provers.change_context(ContractError::FailedToGetProversForVerifier)
+}
+
+pub fn get_chain_contracts_info(
+    deps: Deps,
+    chain_contracts_key: ChainContractsKey,
+) -> Result<ChainContractsResponse, ContractError> {
+    match chain_contracts_key {
+        ChainContractsKey::ChainName(chain_name) => {
+            Ok(contracts_by_chain(deps.storage, chain_name)?.into())
+        }
+
+        ChainContractsKey::ProverAddress(prover_addr) => {
+            Ok(contracts_by_prover(deps.storage, prover_addr)?.into())
+        }
+
+        ChainContractsKey::GatewayAddress(gateway_addr) => {
+            Ok(contracts_by_gateway(deps.storage, gateway_addr)?.into())
+        }
+
+        ChainContractsKey::VerifierAddress(verifier_addr) => {
+            Ok(contracts_by_verifier(deps.storage, verifier_addr)?.into())
+        }
+    }
 }
