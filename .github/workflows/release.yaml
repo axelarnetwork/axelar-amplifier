@@ -33,6 +33,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          submodules: recursive
           token: ${{ secrets.INTEROP_CI_ACTION_TOKEN }}
       
       - name: Setup variables for sub-project to release

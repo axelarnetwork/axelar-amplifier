@@ -59,6 +59,21 @@ impl Client<'_> {
         })
     }
 
+    pub fn register_chain(
+        &self,
+        chain_name: ChainName,
+        prover_address: String,
+        gateway_address: String,
+        voting_verifier_address: String,
+    ) -> CosmosMsg {
+        self.client.execute(&ExecuteMsg::RegisterChain {
+            chain_name,
+            prover_address,
+            gateway_address,
+            voting_verifier_address,
+        })
+    }
+
     pub fn set_active_verifiers(&self, verifiers: HashSet<String>) -> CosmosMsg {
         self.client
             .execute(&ExecuteMsg::SetActiveVerifiers { verifiers })

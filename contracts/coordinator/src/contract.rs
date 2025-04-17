@@ -59,6 +59,24 @@ pub fn execute(
             let new_prover_addr = validate_cosmwasm_address(deps.api, &new_prover_addr)?;
             execute::register_prover(deps, chain_name, new_prover_addr)
         }
+        ExecuteMsg::RegisterChain {
+            chain_name,
+            prover_address,
+            gateway_address,
+            voting_verifier_address,
+        } => {
+            let prover_address = validate_cosmwasm_address(deps.api, &prover_address)?;
+            let gateway_address = validate_cosmwasm_address(deps.api, &gateway_address)?;
+            let voting_verifier_address =
+                validate_cosmwasm_address(deps.api, &voting_verifier_address)?;
+            execute::register_chain(
+                deps,
+                chain_name,
+                prover_address,
+                gateway_address,
+                voting_verifier_address,
+            )
+        }
         ExecuteMsg::SetActiveVerifiers { verifiers } => {
             let verifiers = verifiers
                 .iter()
@@ -77,7 +95,7 @@ fn find_prover_address(
         if is_prover_registered(storage, sender.clone())? {
             Ok(sender.clone())
         } else {
-            Err(report!(ContractError::ProverNotRegistered))
+            Err(report!(ContractError::ProverNotRegistered(sender.clone())))
         }
     }
 }
@@ -126,13 +144,19 @@ mod tests {
     use router_api::ChainName;
 
     use super::*;
-    use crate::state::load_prover_by_chain;
+    use crate::state::{
+        contracts_by_chain, contracts_by_gateway, contracts_by_prover, contracts_by_verifier,
+        load_prover_by_chain, ChainContractsRecord,
+    };
 
     struct TestSetup {
         deps: OwnedDeps<MockStorage, MockApi, MockQuerier, Empty>,
         env: Env,
         prover: Addr,
+        gateway: Addr,
+        verifier: Addr,
         chain_name: ChainName,
+        chain_record: ChainContractsRecord,
     }
 
     fn setup(
@@ -150,13 +174,25 @@ mod tests {
         instantiate(deps.as_mut(), env.clone(), info.clone(), instantiate_msg).unwrap();
 
         let eth_prover = deps.api.addr_make("eth_prover");
+        let eth_gateway = deps.api.addr_make("eth_gateway");
+        let eth_voting_verifier = deps.api.addr_make("eth_voting_verifier");
         let eth: ChainName = "Ethereum".parse().unwrap();
+
+        let chain_record = ChainContractsRecord {
+            chain_name: eth.clone(),
+            prover_address: eth_prover.clone(),
+            gateway_address: eth_gateway.clone(),
+            verifier_address: eth_voting_verifier.clone(),
+        };
 
         TestSetup {
             deps,
             env,
             prover: eth_prover,
+            gateway: eth_gateway,
+            verifier: eth_voting_verifier,
             chain_name: eth,
+            chain_record,
         }
     }
 
@@ -241,6 +277,49 @@ mod tests {
                 }
             )
             .to_string()
+        );
+    }
+
+    #[test]
+    fn register_contract_addresses_from_governance_succeeds() {
+        let deps = mock_dependencies();
+        let governance = deps.api.addr_make("governance_for_coordinator");
+        let mut test_setup = setup(deps, &governance);
+
+        let _res = execute(
+            test_setup.deps.as_mut(),
+            test_setup.env,
+            message_info(&governance, &[]),
+            ExecuteMsg::RegisterChain {
+                chain_name: test_setup.chain_name.clone(),
+                prover_address: test_setup.prover.to_string(),
+                gateway_address: test_setup.gateway.to_string(),
+                voting_verifier_address: test_setup.verifier.to_string(),
+            },
+        )
+        .unwrap();
+
+        let record_response_by_chain = contracts_by_chain(
+            test_setup.deps.as_ref().storage,
+            test_setup.chain_name.clone(),
+        );
+        assert_eq!(record_response_by_chain.unwrap(), test_setup.chain_record);
+
+        let record_response_by_prover =
+            contracts_by_prover(test_setup.deps.as_ref().storage, test_setup.prover.clone());
+        assert_eq!(record_response_by_prover.unwrap(), test_setup.chain_record);
+
+        let record_response_by_gateway =
+            contracts_by_gateway(test_setup.deps.as_ref().storage, test_setup.gateway.clone());
+        assert_eq!(record_response_by_gateway.unwrap(), test_setup.chain_record);
+
+        let record_response_by_verifier = contracts_by_verifier(
+            test_setup.deps.as_ref().storage,
+            test_setup.verifier.clone(),
+        );
+        assert_eq!(
+            record_response_by_verifier.unwrap(),
+            test_setup.chain_record
         );
     }
 

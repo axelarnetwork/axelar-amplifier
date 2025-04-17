@@ -1720,7 +1720,7 @@ fn deploy_interchain_token_to_multiple_destination_succeeds() {
 }
 
 #[test]
-fn register_p2p_token_succeeds() {
+fn register_p2p_token_has_correct_access_control() {
     let (
         mut deps,
         TestMessage {
@@ -1730,15 +1730,20 @@ fn register_p2p_token_succeeds() {
         },
     ) = utils::setup();
 
-    assert_ok!(utils::register_p2p_token_instance(
-        deps.as_mut(),
-        params::GOVERNANCE,
-        TokenId::new([1; 32]),
-        source_its_chain,
-        destination_its_chain,
-        18u8,
-        TokenSupply::Untracked
-    ));
+    for (i, caller) in [params::OPERATOR, params::GOVERNANCE, params::ADMIN]
+        .iter()
+        .enumerate()
+    {
+        assert_ok!(utils::register_p2p_token_instance(
+            deps.as_mut(),
+            caller,
+            TokenId::new([i.try_into().unwrap(); 32]),
+            source_its_chain.clone(),
+            destination_its_chain.clone(),
+            18u8,
+            TokenSupply::Untracked
+        ));
+    }
 }
 
 #[test]
@@ -1768,7 +1773,7 @@ fn register_p2p_token_should_fail_when_called_by_non_elevated_account() {
 }
 
 #[test]
-fn admin_or_governance_should_modify_supply() {
+fn modify_supply_has_correct_access_control() {
     let (
         mut deps,
         TestMessage {
@@ -1801,25 +1806,19 @@ fn admin_or_governance_should_modify_supply() {
         hub_message,
     ));
 
-    assert_ok!(utils::modify_supply(
-        deps.as_mut(),
-        destination_its_chain.clone(),
-        msg::SupplyModifier::IncreaseSupply(Uint256::one().try_into().unwrap()),
-        token_id,
-        params::GOVERNANCE
-    ));
-
-    assert_ok!(utils::modify_supply(
-        deps.as_mut(),
-        destination_its_chain,
-        msg::SupplyModifier::IncreaseSupply(Uint256::one().try_into().unwrap()),
-        token_id,
-        params::ADMIN
-    ));
+    for caller in [params::OPERATOR, params::ADMIN, params::GOVERNANCE] {
+        assert_ok!(utils::modify_supply(
+            deps.as_mut(),
+            destination_its_chain.clone(),
+            msg::SupplyModifier::IncreaseSupply(Uint256::one().try_into().unwrap()),
+            token_id,
+            caller
+        ));
+    }
 }
 
 #[test]
-fn non_admin_or_governance_should_not_modify_supply() {
+fn non_admin_or_governance_or_operator_should_not_modify_supply() {
     let (
         mut deps,
         TestMessage {
