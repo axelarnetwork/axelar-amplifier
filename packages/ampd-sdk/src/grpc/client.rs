@@ -46,7 +46,6 @@ pub trait Client {
 #[allow(dead_code)]
 #[derive(Clone)]
 pub struct GrpcClient {
-    // TODO: separate trait (with automock) for blockchain and crypto to make testing easier
     pub blockchain: BlockchainServiceClient<transport::Channel>,
     pub crypto: CryptoServiceClient<transport::Channel>,
 }
