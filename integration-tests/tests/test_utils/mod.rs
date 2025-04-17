@@ -41,7 +41,9 @@ use service_registry_api::msg::ExecuteMsg;
 use sha3::{Digest, Keccak256};
 use tofn::ecdsa::KeyPair;
 use xrpl_gateway::msg::TokenMetadata;
-use xrpl_types::msg::{WithPayload, XRPLMessage, XRPLProverMessage};
+use xrpl_types::msg::{
+    WithPayload, XRPLAddGasMessage, XRPLAddReservesMessage, XRPLMessage, XRPLProverMessage,
+};
 use xrpl_types::types::{XRPLAccountId, XRPLToken, XRPLTokenOrXrp};
 
 pub const AXL_DENOMINATION: &str = "uaxl";
@@ -129,6 +131,34 @@ pub fn xrpl_route_incoming_messages(
         app,
         MockApi::default().addr_make("relayer"),
         &xrpl_gateway::msg::ExecuteMsg::RouteIncomingMessages(msgs.to_vec()),
+    );
+    assert!(response.is_ok());
+}
+
+pub fn xrpl_confirm_add_gas_messages(
+    app: &mut AxelarApp,
+    gateway: &XRPLGatewayContract,
+    msgs: &[XRPLAddGasMessage],
+) {
+    let response = gateway.execute(
+        app,
+        MockApi::default().addr_make("relayer"),
+        &xrpl_gateway::msg::ExecuteMsg::ConfirmAddGasMessages(msgs.to_vec()),
+    );
+    assert!(response.is_ok());
+}
+
+pub fn xrpl_confirm_add_reserves_message(
+    app: &mut AxelarApp,
+    multisig_prover: &XRPLMultisigProverContract,
+    add_reserves_message: XRPLAddReservesMessage,
+) {
+    let response = multisig_prover.execute(
+        app,
+        MockApi::default().addr_make("relayer"),
+        &xrpl_multisig_prover::msg::ExecuteMsg::ConfirmAddReservesMessage {
+            add_reserves_message,
+        },
     );
     assert!(response.is_ok());
 }
