@@ -4,6 +4,7 @@ use axelar_wasm_std::nonempty;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, HexBinary, Order, StdResult, Storage, Uint64};
 use cw_storage_plus::{Index, IndexList, IndexedMap, Item, Map, UniqueIndex};
+use error_stack::ResultExt;
 use router_api::ChainName;
 
 use crate::key::{KeyType, KeyTyped, PublicKey, Signature};
@@ -63,12 +64,12 @@ pub fn save_signature(
 pub fn verifier_set(
     store: &dyn Storage,
     verifier_set_id: &str,
-) -> Result<VerifierSet, ContractError> {
-    VERIFIER_SETS.load(store, verifier_set_id).map_err(|_| {
+) -> error_stack::Result<VerifierSet, ContractError> {
+    VERIFIER_SETS.load(store, verifier_set_id).change_context(
         ContractError::NoActiveVerifierSetFound {
             verifier_set_id: verifier_set_id.to_string(),
-        }
-    })
+        },
+    )
 }
 
 pub struct PubKeysIndexes<'a> {

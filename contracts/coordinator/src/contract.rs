@@ -7,12 +7,11 @@ use axelar_wasm_std::{address, permission_control, FnExt};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    ensure, to_json_binary, Addr, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response, Storage,
+    to_json_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response, Storage,
 };
-use cw2::VersionError;
 use error_stack::report;
 use itertools::Itertools;
-use semver::Version;
+pub use migrations::{migrate, MigrateMsg};
 
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
@@ -20,28 +19,6 @@ use crate::state::{is_prover_registered, Config, CONFIG};
 
 pub const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 pub const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
-
-#[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(
-    deps: DepsMut,
-    _env: Env,
-    _msg: Empty,
-) -> Result<Response, axelar_wasm_std::error::ContractError> {
-    let old_version = Version::parse(&cw2::get_contract_version(deps.storage)?.version)?;
-    ensure!(
-        old_version.major == 1 && old_version.minor == 1,
-        report!(VersionError::WrongVersion {
-            expected: "1.1.x".into(),
-            found: old_version.to_string()
-        })
-    );
-
-    // this needs to be the last thing to do during migration,
-    // because previous migration steps should check the old version
-    cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-
-    Ok(Response::default())
-}
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -150,6 +127,9 @@ pub fn query(
                 verifier_address,
             )?)?
         }
+        QueryMsg::ChainContractsInfo(chain_contracts_key) => {
+            to_json_binary(&query::get_chain_contracts_info(deps, chain_contracts_key)?)?
+        }
     }
     .then(Ok)
 }
@@ -163,14 +143,12 @@ mod tests {
     use cosmwasm_std::testing::{
         message_info, mock_dependencies, mock_env, MockApi, MockQuerier, MockStorage,
     };
-    use cosmwasm_std::{Addr, Empty, OwnedDeps};
+    use cosmwasm_std::{Addr, Empty, OwnedDeps, StdResult};
     use router_api::ChainName;
 
     use super::*;
-    use crate::state::{
-        contracts_by_chain, contracts_by_gateway, contracts_by_prover, contracts_by_verifier,
-        load_prover_by_chain, ChainContractsRecord,
-    };
+    use crate::msg::ChainContractsKey;
+    use crate::state::{load_prover_by_chain, ChainContractsRecord};
 
     struct TestSetup {
         deps: OwnedDeps<MockStorage, MockApi, MockQuerier, Empty>,
@@ -311,7 +289,7 @@ mod tests {
 
         let _res = execute(
             test_setup.deps.as_mut(),
-            test_setup.env,
+            test_setup.env.clone(),
             message_info(&governance, &[]),
             ExecuteMsg::RegisterChain {
                 chain_name: test_setup.chain_name.clone(),
@@ -322,24 +300,60 @@ mod tests {
         )
         .unwrap();
 
-        let record_response_by_chain = contracts_by_chain(
-            test_setup.deps.as_ref().storage,
-            test_setup.chain_name.clone(),
+        let record_response_by_chain: StdResult<ChainContractsRecord> = cosmwasm_std::from_json(
+            query(
+                test_setup.deps.as_ref(),
+                test_setup.env.clone(),
+                QueryMsg::ChainContractsInfo(ChainContractsKey::ChainName(
+                    test_setup.chain_name.clone(),
+                )),
+            )
+            .unwrap(),
         );
+
+        assert!(record_response_by_chain.is_ok());
         assert_eq!(record_response_by_chain.unwrap(), test_setup.chain_record);
 
-        let record_response_by_prover =
-            contracts_by_prover(test_setup.deps.as_ref().storage, test_setup.prover.clone());
-        assert_eq!(record_response_by_prover.unwrap(), test_setup.chain_record);
+        let record_response_by_gateway: StdResult<ChainContractsRecord> = cosmwasm_std::from_json(
+            query(
+                test_setup.deps.as_ref(),
+                test_setup.env.clone(),
+                QueryMsg::ChainContractsInfo(ChainContractsKey::GatewayAddress(
+                    test_setup.gateway.clone(),
+                )),
+            )
+            .unwrap(),
+        );
 
-        let record_response_by_gateway =
-            contracts_by_gateway(test_setup.deps.as_ref().storage, test_setup.gateway.clone());
+        assert!(record_response_by_gateway.is_ok());
         assert_eq!(record_response_by_gateway.unwrap(), test_setup.chain_record);
 
-        let record_response_by_verifier = contracts_by_verifier(
-            test_setup.deps.as_ref().storage,
-            test_setup.verifier.clone(),
+        let record_response_by_prover: StdResult<ChainContractsRecord> = cosmwasm_std::from_json(
+            query(
+                test_setup.deps.as_ref(),
+                test_setup.env.clone(),
+                QueryMsg::ChainContractsInfo(ChainContractsKey::ProverAddress(
+                    test_setup.prover.clone(),
+                )),
+            )
+            .unwrap(),
         );
+
+        assert!(record_response_by_prover.is_ok());
+        assert_eq!(record_response_by_prover.unwrap(), test_setup.chain_record);
+
+        let record_response_by_verifier: StdResult<ChainContractsRecord> = cosmwasm_std::from_json(
+            query(
+                test_setup.deps.as_ref(),
+                test_setup.env.clone(),
+                QueryMsg::ChainContractsInfo(ChainContractsKey::VerifierAddress(
+                    test_setup.verifier.clone(),
+                )),
+            )
+            .unwrap(),
+        );
+
+        assert!(record_response_by_verifier.is_ok());
         assert_eq!(
             record_response_by_verifier.unwrap(),
             test_setup.chain_record
