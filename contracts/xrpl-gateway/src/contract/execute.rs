@@ -626,7 +626,6 @@ pub fn deploy_remote_token(
     let (token_id, destination_decimals) = match &token {
         XRPLTokenOrXrp::Xrp => (config.xrp_token_id, token.decimals()),
         XRPLTokenOrXrp::Issued(xrpl_token) => (
-            // load_token_id(storage, config.xrpl_multisig.clone(), &xrpl_token)?,
             state::load_local_token_id(storage, xrpl_token).change_context(Error::InvalidToken)?,
             token.decimals(),
         ),
