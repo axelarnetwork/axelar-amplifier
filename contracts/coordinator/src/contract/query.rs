@@ -66,7 +66,7 @@ fn get_provers_for_verifier(
 
 pub fn get_chain_contracts_info(
     deps: Deps,
-    chain_contracts_key: &ChainContractsKey,
+    chain_contracts_key: ChainContractsKey,
 ) -> Result<ChainContractsResponse, ContractError> {
     match chain_contracts_key {
         ChainContractsKey::ChainName(chain_name) => {

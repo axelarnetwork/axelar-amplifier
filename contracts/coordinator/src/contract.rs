@@ -150,9 +150,9 @@ pub fn query(
                 verifier_address,
             )?)?
         }
-        QueryMsg::ChainContractsInfo(chain_contracts_key) => to_json_binary(
-            &query::get_chain_contracts_info(deps, &chain_contracts_key)?,
-        )?,
+        QueryMsg::ChainContractsInfo(chain_contracts_key) => {
+            to_json_binary(&query::get_chain_contracts_info(deps, chain_contracts_key)?)?
+        }
     }
     .then(Ok)
 }

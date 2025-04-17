@@ -6,6 +6,7 @@ use cw_storage_plus::{index_list, Index, IndexList, IndexedMap, Item, MultiIndex
 use router_api::ChainName;
 
 use crate::error::ContractError;
+use crate::msg::ChainContractsResponse;
 
 type ProverAddress = Addr;
 type GatewayAddress = Addr;
@@ -30,6 +31,17 @@ pub struct ChainContractsRecord {
     pub prover_address: ProverAddress,
     pub gateway_address: GatewayAddress,
     pub verifier_address: VerifierAddress,
+}
+
+impl From<ChainContractsRecord> for ChainContractsResponse {
+    fn from(chain_contracts_record: ChainContractsRecord) -> Self {
+        ChainContractsResponse {
+            chain_name: chain_contracts_record.chain_name,
+            prover_address: chain_contracts_record.prover_address,
+            gateway_address: chain_contracts_record.gateway_address,
+            verifier_address: chain_contracts_record.verifier_address,
+        }
+    }
 }
 
 pub struct ChainContractsIndexes<'a> {
@@ -81,49 +93,47 @@ pub fn save_chain_contracts(
 
 pub fn contracts_by_chain(
     storage: &dyn Storage,
-    chain_name: &ChainName,
+    chain_name: ChainName,
 ) -> Result<ChainContractsRecord, ContractError> {
     CHAIN_CONTRACTS_MAP
         .may_load(storage, chain_name.clone())?
-        .ok_or(ContractError::ChainNotRegistered(chain_name.clone()))
+        .ok_or(ContractError::ChainNotRegistered(chain_name))
 }
 
 pub fn contracts_by_prover(
     storage: &dyn Storage,
-    prover_address: &ProverAddress,
+    prover_address: ProverAddress,
 ) -> Result<ChainContractsRecord, ContractError> {
     CHAIN_CONTRACTS_MAP
         .idx
         .by_prover
         .item(storage, prover_address.clone())?
         .map(|(_, record)| record)
-        .ok_or(ContractError::ProverNotRegistered(prover_address.clone()))
+        .ok_or(ContractError::ProverNotRegistered(prover_address))
 }
 
 pub fn contracts_by_gateway(
     storage: &dyn Storage,
-    gateway_address: &GatewayAddress,
+    gateway_address: GatewayAddress,
 ) -> Result<ChainContractsRecord, ContractError> {
     CHAIN_CONTRACTS_MAP
         .idx
         .by_gateway
         .item(storage, gateway_address.clone())?
         .map(|(_, record)| record)
-        .ok_or(ContractError::GatewayNotRegistered(gateway_address.clone()))
+        .ok_or(ContractError::GatewayNotRegistered(gateway_address))
 }
 
 pub fn contracts_by_verifier(
     storage: &dyn Storage,
-    verifier_address: &VerifierAddress,
+    verifier_address: VerifierAddress,
 ) -> Result<ChainContractsRecord, ContractError> {
     CHAIN_CONTRACTS_MAP
         .idx
         .by_verifier
         .item(storage, verifier_address.clone())?
         .map(|(_, record)| record)
-        .ok_or(ContractError::VerifierNotRegistered(
-            verifier_address.clone(),
-        ))
+        .ok_or(ContractError::VerifierNotRegistered(verifier_address))
 }
 
 // Legacy prover storage - maintained for backward compatibility

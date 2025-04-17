@@ -7,8 +7,6 @@ use msgs_derive::EnsurePermissions;
 use router_api::ChainName;
 use service_registry_api::Verifier;
 
-use crate::state::ChainContractsRecord;
-
 type ProverAddress = Addr;
 type GatewayAddress = Addr;
 type VerifierAddress = Addr;
@@ -79,15 +77,4 @@ pub struct ChainContractsResponse {
     pub prover_address: ProverAddress,
     pub gateway_address: GatewayAddress,
     pub verifier_address: VerifierAddress,
-}
-
-impl From<ChainContractsRecord> for ChainContractsResponse {
-    fn from(chain_contracts_record: ChainContractsRecord) -> Self {
-        ChainContractsResponse {
-            chain_name: chain_contracts_record.chain_name,
-            prover_address: chain_contracts_record.prover_address,
-            gateway_address: chain_contracts_record.gateway_address,
-            verifier_address: chain_contracts_record.verifier_address,
-        }
-    }
 }
