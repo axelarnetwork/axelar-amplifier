@@ -27,6 +27,7 @@ use crate::state::{self, Config};
 use crate::token_id;
 
 const PREFIX_CROSS_CHAIN_ID: &[u8] = b"cross-chain-id";
+const MAX_TOKEN_DECIMALS: u8 = 50;
 
 pub fn verify_messages(
     verifier: &xrpl_voting_verifier::Client,
@@ -509,8 +510,7 @@ pub fn register_token_instance(
     chain: ChainNameRaw,
     decimals: u8,
 ) -> Result<Response, Error> {
-    if decimals > 50 {
-        // TODO: Don't hardcode.
+    if decimals > MAX_TOKEN_DECIMALS {
         bail!(Error::InvalidDecimals(decimals));
     }
 
