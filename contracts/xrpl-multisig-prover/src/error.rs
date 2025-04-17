@@ -35,7 +35,7 @@ pub enum ContractError {
     #[error("failed to get outgoing messages from gateway")]
     FailedToGetMessages,
 
-    #[error("failed to get messages status from gateway. messages: {0:?}")]
+    #[error("failed to get messages status from voting verifier. messages: {0:?}")]
     FailedToGetMessagesStatus(Box<Vec<XRPLMessage>>),
 
     #[error("failed to get message status from gateway. message: {0:?}")]
