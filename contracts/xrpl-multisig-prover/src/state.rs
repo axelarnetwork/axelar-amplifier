@@ -42,7 +42,6 @@ pub const AVAILABLE_TICKETS: Item<Vec<u32>> = Item::new("available_tickets");
 
 #[cw_serde]
 pub struct MultisigSession {
-    // TODO: rename
     pub id: u64,
     pub expires_at: u64,
 }

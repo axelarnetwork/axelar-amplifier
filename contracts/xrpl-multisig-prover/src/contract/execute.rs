@@ -289,7 +289,7 @@ pub fn construct_payment_proof(
     self_address: Addr,
     block_height: u64,
     config: &Config,
-    cc_id: CrossChainId, // TODO: Optimize: Source chain is always axelar.
+    cc_id: CrossChainId,
     payload: HexBinary,
 ) -> Result<Response, ContractError> {
     let multisig: multisig::Client = client::ContractClient::new(querier, &config.multisig).into();
@@ -333,7 +333,6 @@ pub fn construct_payment_proof(
         .ok_or(ContractError::MessageNotFound(cc_id.to_owned()))?;
 
     // Message source chain (Axelar) and source address (ITS hub) has been validated by the gateway.
-    // TODO: Check with Axelar if this destination chain check is necessary.
     if message.destination_chain != config.chain_name {
         return Err(ContractError::InvalidDestinationChain {
             expected: config.chain_name.clone(),
