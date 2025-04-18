@@ -436,3 +436,333 @@ fn mark_ticket_unavailable(storage: &mut dyn Storage, ticket: u32) -> Result<(),
     )?;
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use std::convert::TryInto;
+    use std::str::FromStr;
+
+    use axelar_wasm_std::msg_id::HexTxHash;
+    use cosmwasm_std::testing::{mock_dependencies, MockApi, MockQuerier};
+    use cosmwasm_std::{MemoryStorage, OwnedDeps};
+    use router_api::CrossChainId;
+
+    use super::*;
+    use crate::error::ContractError;
+    use crate::state::{
+        TxInfo, AVAILABLE_TICKETS, CONSUMED_TICKET_TO_UNSIGNED_TX_HASH, CROSS_CHAIN_ID_TO_TICKET,
+        LAST_ASSIGNED_TICKET_NUMBER, UNSIGNED_TX_HASH_TO_TX_INFO,
+    };
+
+    fn cc_id(suffix: &str) -> CrossChainId {
+        CrossChainId {
+            source_chain: format!("testchain{}", suffix).parse().unwrap(),
+            message_id: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                .try_into()
+                .unwrap(),
+        }
+    }
+
+    fn hex_tx_hash() -> HexTxHash {
+        HexTxHash::from_str("0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
+            .unwrap()
+    }
+
+    fn tx_info(cc_id: &CrossChainId, ticket: u32, status: XRPLTxStatus) -> TxInfo {
+        let payment_tx = XRPLPaymentTx {
+            account: "rnEuTcp28kFC5mFHFqazaLNzVgwMMgdWGg".parse().unwrap(),
+            fee: 10,
+            sequence: XRPLSequence::Ticket(ticket),
+            amount: XRPLPaymentAmount::Drops(1000000),
+            destination: "rKCwAJ38bkyzNZjfSZkLi5Q29U72nBmygw".parse().unwrap(),
+            cross_currency: None,
+        };
+
+        TxInfo {
+            status,
+            unsigned_tx: XRPLUnsignedTx::Payment(payment_tx),
+            original_cc_id: Some(cc_id.clone()),
+        }
+    }
+
+    fn setup_deps_with_available_tickets(
+        available_tickets: Vec<u32>,
+        last_assigned: u32,
+    ) -> OwnedDeps<MemoryStorage, MockApi, MockQuerier> {
+        let mut deps = mock_dependencies();
+        LAST_ASSIGNED_TICKET_NUMBER
+            .save(deps.as_mut().storage, &last_assigned)
+            .unwrap();
+        AVAILABLE_TICKETS
+            .save(deps.as_mut().storage, &available_tickets)
+            .unwrap();
+        deps
+    }
+
+    #[test]
+    fn assign_new_ticket_to_new_cc_id() {
+        let mut deps = setup_deps_with_available_tickets(vec![1, 2, 3], 0);
+        let cc_id = cc_id("1");
+
+        let ticket = assign_ticket_number(deps.as_mut().storage, &cc_id).unwrap();
+        assert_eq!(ticket, 1);
+
+        let stored_ticket = CROSS_CHAIN_ID_TO_TICKET
+            .load(deps.as_ref().storage, &cc_id)
+            .unwrap();
+        assert_eq!(stored_ticket, 1);
+
+        let last_ticket = LAST_ASSIGNED_TICKET_NUMBER
+            .load(deps.as_ref().storage)
+            .unwrap();
+        assert_eq!(last_ticket, 1);
+    }
+
+    #[test]
+    fn assign_existing_ticket_when_not_consumed() {
+        let mut deps = setup_deps_with_available_tickets(vec![1, 2, 3], 0);
+        let cc_id = cc_id("2");
+
+        CROSS_CHAIN_ID_TO_TICKET
+            .save(deps.as_mut().storage, &cc_id, &2)
+            .unwrap();
+
+        let ticket = assign_ticket_number(deps.as_mut().storage, &cc_id).unwrap();
+        assert_eq!(ticket, 2);
+    }
+
+    #[test]
+    fn assign_existing_ticket_when_consumed_successful() {
+        let mut deps = setup_deps_with_available_tickets(vec![1, 2, 3, 4], 0);
+        let cc_id = cc_id("3");
+        let assigned_ticket = 3;
+        CROSS_CHAIN_ID_TO_TICKET
+            .save(deps.as_mut().storage, &cc_id, &assigned_ticket)
+            .unwrap();
+
+        let HexTxHash { tx_hash } = hex_tx_hash();
+        CONSUMED_TICKET_TO_UNSIGNED_TX_HASH
+            .save(deps.as_mut().storage, &assigned_ticket, &tx_hash)
+            .unwrap();
+
+        let tx_info = tx_info(&cc_id, assigned_ticket, XRPLTxStatus::Pending);
+        UNSIGNED_TX_HASH_TO_TX_INFO
+            .save(deps.as_mut().storage, &tx_hash, &tx_info)
+            .unwrap();
+
+        let ticket = assign_ticket_number(deps.as_mut().storage, &cc_id).unwrap();
+        assert_eq!(ticket, assigned_ticket);
+    }
+
+    #[test]
+    fn assign_new_ticket_when_consumed_failed_on_chain() {
+        let mut deps = setup_deps_with_available_tickets(vec![5, 6, 7], 4);
+        let cc_id = cc_id("4");
+        let assigned_ticket = 4;
+        CROSS_CHAIN_ID_TO_TICKET
+            .save(deps.as_mut().storage, &cc_id, &assigned_ticket)
+            .unwrap();
+
+        let HexTxHash { tx_hash } = hex_tx_hash();
+        CONSUMED_TICKET_TO_UNSIGNED_TX_HASH
+            .save(deps.as_mut().storage, &assigned_ticket, &tx_hash)
+            .unwrap();
+
+        let tx_info = tx_info(&cc_id, assigned_ticket, XRPLTxStatus::FailedOnChain);
+        UNSIGNED_TX_HASH_TO_TX_INFO
+            .save(deps.as_mut().storage, &tx_hash, &tx_info)
+            .unwrap();
+
+        let ticket = assign_ticket_number(deps.as_mut().storage, &cc_id).unwrap();
+        assert_eq!(ticket, 5);
+
+        let new_ticket = CROSS_CHAIN_ID_TO_TICKET
+            .load(deps.as_ref().storage, &cc_id)
+            .unwrap();
+        assert_eq!(new_ticket, 5);
+    }
+
+    #[test]
+    fn assign_new_ticket_when_ticket_consumed_by_different_msg() {
+        let mut deps = setup_deps_with_available_tickets(vec![10, 11, 12], 9);
+        let cc_id_original = cc_id("orig");
+        let cc_id_new = cc_id("new");
+
+        CROSS_CHAIN_ID_TO_TICKET
+            .save(deps.as_mut().storage, &cc_id_new, &9)
+            .unwrap();
+
+        let HexTxHash { tx_hash } = hex_tx_hash();
+        CONSUMED_TICKET_TO_UNSIGNED_TX_HASH
+            .save(deps.as_mut().storage, &9, &tx_hash)
+            .unwrap();
+
+        let tx_info = tx_info(&cc_id_original, 9, XRPLTxStatus::Succeeded);
+        UNSIGNED_TX_HASH_TO_TX_INFO
+            .save(deps.as_mut().storage, &tx_hash, &tx_info)
+            .unwrap();
+
+        let ticket = assign_ticket_number(deps.as_mut().storage, &cc_id_new).unwrap();
+        assert_eq!(ticket, 10);
+
+        let new_ticket = CROSS_CHAIN_ID_TO_TICKET
+            .load(deps.as_ref().storage, &cc_id_new)
+            .unwrap();
+        assert_eq!(new_ticket, 10);
+    }
+
+    #[test]
+    fn assign_ticket_no_available_tickets() {
+        let mut deps = setup_deps_with_available_tickets(vec![], 0);
+        let cc_id = cc_id("5");
+
+        let res = assign_ticket_number(deps.as_mut().storage, &cc_id);
+        assert!(res.is_err());
+        assert_eq!(res.unwrap_err(), ContractError::NoAvailableTickets);
+    }
+
+    #[test]
+    fn next_ticket_number_error_when_no_available_tickets() {
+        let mut deps = setup_deps_with_available_tickets(vec![], 10);
+        let res = next_ticket_number(deps.as_mut().storage);
+        assert!(res.is_err());
+        assert_eq!(res.unwrap_err(), ContractError::NoAvailableTickets);
+
+        let last = LAST_ASSIGNED_TICKET_NUMBER
+            .load(deps.as_ref().storage)
+            .unwrap();
+        assert_eq!(last, 10);
+    }
+
+    #[test]
+    fn next_ticket_number_wraps_around() {
+        let mut deps = setup_deps_with_available_tickets(vec![1, 2, 3], 3);
+        let ticket = next_ticket_number(deps.as_mut().storage).unwrap();
+        assert_eq!(ticket, 1);
+
+        let updated = LAST_ASSIGNED_TICKET_NUMBER
+            .load(deps.as_ref().storage)
+            .unwrap();
+        assert_eq!(updated, 1);
+    }
+
+    #[test]
+    fn next_ticket_number_selects_first_largest() {
+        let mut deps = setup_deps_with_available_tickets(vec![5, 6, 7], 5);
+        let ticket = next_ticket_number(deps.as_mut().storage).unwrap();
+        assert_eq!(ticket, 6);
+
+        let updated = LAST_ASSIGNED_TICKET_NUMBER
+            .load(deps.as_ref().storage)
+            .unwrap();
+        assert_eq!(updated, 6);
+    }
+
+    #[test]
+    fn next_ticket_number_single_ticket_pool() {
+        let mut deps = setup_deps_with_available_tickets(vec![42], 41);
+        let ticket = next_ticket_number(deps.as_mut().storage).unwrap();
+        assert_eq!(ticket, 42);
+        let updated = LAST_ASSIGNED_TICKET_NUMBER
+            .load(deps.as_ref().storage)
+            .unwrap();
+        assert_eq!(updated, 42);
+
+        let mut deps = setup_deps_with_available_tickets(vec![42], 42);
+        let ticket = next_ticket_number(deps.as_mut().storage).unwrap();
+        assert_eq!(ticket, 42);
+        let updated = LAST_ASSIGNED_TICKET_NUMBER
+            .load(deps.as_ref().storage)
+            .unwrap();
+        assert_eq!(updated, 42);
+    }
+
+    #[test]
+    fn next_ticket_number_repeated_calls_unsorted() {
+        // Available tickets should be sorted, to avoid this.
+        let mut deps = setup_deps_with_available_tickets(vec![3, 1, 2], 1);
+
+        let t1 = next_ticket_number(deps.as_mut().storage).unwrap();
+        assert_eq!(t1, 3);
+        let last = LAST_ASSIGNED_TICKET_NUMBER
+            .load(deps.as_ref().storage)
+            .unwrap();
+        assert_eq!(last, 3);
+
+        let t2 = next_ticket_number(deps.as_mut().storage).unwrap();
+        assert_eq!(t2, 3);
+        let last = LAST_ASSIGNED_TICKET_NUMBER
+            .load(deps.as_ref().storage)
+            .unwrap();
+        assert_eq!(last, 3);
+
+        let t3 = next_ticket_number(deps.as_mut().storage).unwrap();
+        assert_eq!(t3, 3);
+        let last = LAST_ASSIGNED_TICKET_NUMBER
+            .load(deps.as_ref().storage)
+            .unwrap();
+        assert_eq!(last, 3);
+    }
+
+    #[test]
+    fn num_of_tickets_to_create_empty() {
+        let deps = setup_deps_with_available_tickets(vec![], 0);
+        let result = super::num_of_tickets_to_create(deps.as_ref().storage).unwrap();
+        assert_eq!(result, MAX_TICKET_COUNT);
+    }
+
+    #[test]
+    fn num_of_tickets_to_create_some() {
+        let deps = setup_deps_with_available_tickets((0..10).collect(), 0);
+        let result = super::num_of_tickets_to_create(deps.as_ref().storage).unwrap();
+        assert_eq!(result, MAX_TICKET_COUNT - 10);
+    }
+
+    #[test]
+    fn num_of_tickets_to_create_zero_when_full() {
+        let full: Vec<u32> = (0..MAX_TICKET_COUNT).collect();
+        let deps = setup_deps_with_available_tickets(full, 0);
+        let result = super::num_of_tickets_to_create(deps.as_ref().storage).unwrap();
+        assert_eq!(result, 0);
+    }
+
+    #[test]
+    fn num_of_tickets_to_create_throws_when_too_many_available_tickets() {
+        let mut over: Vec<u32> = (0..MAX_TICKET_COUNT).collect();
+        over.push(MAX_TICKET_COUNT);
+        let deps = setup_deps_with_available_tickets(over, 0);
+
+        let res = num_of_tickets_to_create(deps.as_ref().storage);
+        assert!(res.is_err());
+        assert_eq!(res.unwrap_err(), ContractError::TooManyAvailableTickets);
+    }
+
+    #[test]
+    fn mark_ticket_unavailable() {
+        let mut deps = setup_deps_with_available_tickets(vec![1, 2, 3, 2], 0);
+        super::mark_ticket_unavailable(deps.as_mut().storage, 2).unwrap();
+        let remaining = AVAILABLE_TICKETS.load(deps.as_ref().storage).unwrap();
+        assert_eq!(remaining, vec![1, 3]);
+    }
+
+    #[test]
+    fn mark_tickets_available() {
+        let mut deps = setup_deps_with_available_tickets(vec![5], 0);
+        super::mark_tickets_available(deps.as_mut().storage, vec![1, 2, 3].into_iter()).unwrap();
+        let all = AVAILABLE_TICKETS.load(deps.as_ref().storage).unwrap();
+        assert_eq!(all, vec![5, 1, 2, 3]);
+    }
+
+    #[test]
+    fn mark_tickets_available_throws_when_too_many_available_tickets() {
+        let full: Vec<u32> = (0..MAX_TICKET_COUNT).collect();
+        let mut deps = setup_deps_with_available_tickets(full.clone(), 0);
+
+        let res = super::mark_tickets_available(deps.as_mut().storage, std::iter::once(0));
+        assert!(res.is_err());
+        assert_eq!(res.unwrap_err(), ContractError::TooManyAvailableTickets);
+
+        let unchanged = AVAILABLE_TICKETS.load(deps.as_ref().storage).unwrap();
+        assert_eq!(unchanged, full);
+    }
+}
