@@ -1,8 +1,12 @@
-use cosmrs::tx::MessageExt;
-use cosmrs::Any;
-use error_stack::report;
+use std::ops::Mul;
+
+use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
+use cosmrs::tx::{Fee, MessageExt};
+use cosmrs::{Any, Coin};
+use error_stack::{report, ResultExt};
 use k256::sha2::{Digest, Sha256};
-use report::LoggableError;
+use num_traits::cast;
+use report::{LoggableError, ResultCompatExt};
 use thiserror::Error;
 use tokio::sync::mpsc;
 use tokio_stream::StreamExt;
@@ -11,9 +15,7 @@ use typed_builder::TypedBuilder;
 use valuable::Valuable;
 
 use crate::broadcaster::dec_coin::DecCoin;
-use crate::cosmos;
-use crate::tofnd::grpc::Multisig;
-use crate::tofnd::{self};
+use crate::{cosmos, tofnd};
 
 mod broadcaster;
 mod msg_queue;
@@ -27,6 +29,8 @@ pub enum Error {
     EnqueueMsg(#[from] mpsc::error::SendError<msg_queue::QueueMsg>),
     #[error("failed to estimate gas")]
     EstimateGas,
+    #[error("failed to estimate tx fee")]
+    EstimateFee,
     #[error("failed to query account")]
     QueryAccount,
     #[error("invalid public key")]
@@ -42,7 +46,7 @@ pub struct BroadcasterTask<T, Q, S>
 where
     T: cosmos::CosmosClient,
     Q: futures::Stream<Item = Vec<msg_queue::QueueMsg>> + Unpin,
-    S: Multisig,
+    S: tofnd::grpc::Multisig,
 {
     broadcaster: broadcaster::Broadcaster<T>,
     msg_queue: Q,
@@ -56,7 +60,7 @@ impl<T, Q, S> BroadcasterTask<T, Q, S>
 where
     T: cosmos::CosmosClient,
     Q: futures::Stream<Item = Vec<msg_queue::QueueMsg>> + Unpin,
-    S: Multisig,
+    S: tofnd::grpc::Multisig,
 {
     pub async fn run(mut self) -> Result<()> {
         while let Some(msgs) = self.msg_queue.next().await {
@@ -80,57 +84,66 @@ where
                         "failed to broadcast tx",
                     );
                 });
-            self.handle_tx_res(tx_res, msgs).await?;
+            self.handle_tx_res(tx_res, msgs);
         }
 
         Ok(())
     }
 
-    async fn broadcast(
-        &mut self,
-        msgs: impl IntoIterator<Item = Any>,
-    ) -> Result<cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse> {
+    async fn estimate_fee(&mut self, batch_req: Any) -> Result<Fee> {
+        let gas = self
+            .broadcaster
+            .sim_cx()
+            .await
+            .estimate_gas(vec![batch_req])
+            .await
+            .change_context(Error::EstimateGas)?;
+        let gas = gas as f64 * self.gas_adjustment;
+
+        Ok(Fee::from_amount_and_gas(
+            Coin::new(
+                cast(gas.mul(self.gas_price.amount).ceil()).ok_or(report!(Error::EstimateFee))?,
+                self.gas_price.denom.as_ref(),
+            )
+            .change_context(Error::EstimateFee)?,
+            cast::<f64, u64>(gas).ok_or(report!(Error::EstimateFee))?,
+        ))
+    }
+
+    async fn broadcast(&mut self, msgs: impl IntoIterator<Item = Any>) -> Result<TxResponse> {
         let batch_req = proto::axelar::auxiliary::v1beta1::BatchRequest {
             sender: self.broadcaster.address.as_ref().to_bytes(),
             messages: msgs.into_iter().collect(),
         }
         .to_any()
         .expect("failed to serialize proto message for batch request");
+        let fee = self.estimate_fee(batch_req.clone()).await?;
         let pub_key = self.broadcaster.pub_key;
 
         self.broadcaster
             .broadcast_cx()
             .await
-            .broadcast(
-                vec![batch_req],
-                |sign_doc| {
-                    let mut hasher = Sha256::new();
-                    hasher.update(sign_doc);
+            .broadcast(vec![batch_req], fee, |sign_doc| {
+                let mut hasher = Sha256::new();
+                hasher.update(sign_doc);
 
-                    let sign_digest: [u8; 32] = hasher
-                        .finalize()
-                        .to_vec()
-                        .try_into()
-                        .expect("hash size must be 32");
+                let sign_digest: [u8; 32] = hasher
+                    .finalize()
+                    .to_vec()
+                    .try_into()
+                    .expect("hash size must be 32");
 
-                    self.signer.sign(
-                        &self.key_id,
-                        sign_digest.into(),
-                        pub_key.into(),
-                        tofnd::Algorithm::Ecdsa,
-                    )
-                },
-                self.gas_adjustment,
-                self.gas_price.clone(),
-            )
+                self.signer.sign(
+                    &self.key_id,
+                    sign_digest.into(),
+                    pub_key.into(),
+                    tofnd::Algorithm::Ecdsa,
+                )
+            })
             .await
     }
 
-    async fn handle_tx_res(
-        &mut self,
-        tx_res: Result<cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse>,
-        msgs: Vec<msg_queue::QueueMsg>,
-    ) -> Result<()> {
+    fn handle_tx_res(&mut self, tx_res: Result<TxResponse>, msgs: Vec<msg_queue::QueueMsg>) {
         let tx_hash = tx_res.map(|res| res.txhash);
 
         msgs.into_iter().enumerate().for_each(|(i, msg)| {
@@ -144,12 +157,6 @@ where
                 }
             };
         });
-
-        if tx_hash.is_err() {
-            self.broadcaster.reset().await
-        } else {
-            Ok(())
-        }
     }
 }
 
@@ -211,7 +218,6 @@ mod tests {
         let base_account = create_base_account(&address);
 
         let (receivers, queue_msgs): (Vec<_>, Vec<_>) = (0..2)
-            .into_iter()
             .map(|_| {
                 let (tx, rx) = oneshot::channel();
                 let msg = QueueMsg {
@@ -468,7 +474,6 @@ mod tests {
         let address = pub_key.account_id(PREFIX).unwrap().into();
         let chain_id: tendermint::chain::Id = "test-chain-id".parse().unwrap();
         let base_account = create_base_account(&address);
-        let reset_account = create_base_account(&address);
 
         let (tx, rx) = oneshot::channel();
         let queue_msgs = vec![QueueMsg {
@@ -486,6 +491,8 @@ mod tests {
 
         let mut seq = Sequence::new();
         let mut mock_client = cosmos::MockCosmosClient::new();
+
+        // Account query for initialization
         mock_client
             .expect_account()
             .once()
@@ -495,6 +502,8 @@ mod tests {
                     account: Some(base_account.to_any().unwrap()),
                 })
             });
+
+        // Simulate for fee estimation
         mock_client
             .expect_simulate()
             .once()
@@ -508,15 +517,11 @@ mod tests {
                     result: None,
                 })
             });
-        mock_client
-            .expect_account()
-            .once()
-            .in_sequence(&mut seq)
-            .return_once(move |_| {
-                Ok(QueryAccountResponse {
-                    account: Some(reset_account.to_any().unwrap()),
-                })
-            });
+
+        // BroadcastCx is initialized but fails at signing stage,
+        // so no additional account query is needed for reset
+        // since reset happens within the broadcast_cx but won't execute
+        // if we fail before the actual broadcast call
 
         let broadcaster = broadcaster::Broadcaster::new(mock_client, chain_id, pub_key)
             .await
@@ -783,8 +788,8 @@ mod tests {
         let expected_denom = "uaxl";
         let base_account = create_base_account(&address);
         let simulated_gas_used = 100000u64;
-        let expected_gas_limit = (simulated_gas_used as f64 * gas_adjustment) as u64; // 200000
-        let expected_fee_amount = (expected_gas_limit as f64 * gas_price_amount).ceil() as u64; // 200000 * 0.025 = 5000
+        let expected_gas_limit = 200000u64; // 100000 * 2 = 200000
+        let expected_fee_amount = 5000u64; // 200000 * 0.025 = 5000
 
         let (tx, rx) = oneshot::channel();
         let queue_msgs = vec![QueueMsg {

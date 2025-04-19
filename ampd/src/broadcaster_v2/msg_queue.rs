@@ -164,10 +164,7 @@ impl Queue {
             None => {
                 let results = self.pop_all();
 
-                self.gas_cost = self
-                    .gas_cost
-                    .checked_add(msg.gas)
-                    .expect("gas must not overflow");
+                self.gas_cost = msg.gas;
                 self.msgs.push(msg);
 
                 Some(results)

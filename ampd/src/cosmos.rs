@@ -1,5 +1,3 @@
-use std::ops::Mul;
-
 use async_trait::async_trait;
 use cosmrs::proto::cosmos::auth::v1beta1::query_client::QueryClient as AuthQueryClient;
 use cosmrs::proto::cosmos::auth::v1beta1::{
@@ -13,18 +11,16 @@ use cosmrs::proto::cosmos::tx::v1beta1::{
     BroadcastMode, BroadcastTxRequest, BroadcastTxResponse, GetTxRequest, GetTxResponse,
     SimulateRequest, SimulateResponse, TxRaw,
 };
-use cosmrs::tx::{Fee, MessageExt};
-use cosmrs::{Any, Coin, Gas};
+use cosmrs::tx::MessageExt;
+use cosmrs::{Any, Gas};
 use error_stack::{report, ResultExt};
 use mockall::mock;
-use num_traits::cast;
 use prost::Message;
-use report::{ErrorExt, ResultCompatExt};
+use report::ErrorExt;
 use thiserror::Error;
 use tonic::transport::Channel;
 use tonic::Response;
 
-use crate::broadcaster::dec_coin::DecCoin;
 use crate::broadcaster::tx::Tx;
 use crate::types::{CosmosPublicKey, TMAddress};
 
@@ -42,8 +38,6 @@ pub enum Error {
     AccountMissing,
     #[error("tx response is missing in the broadcast tx response")]
     TxResponseMissing,
-    #[error("failed to estimate tx fee")]
-    FeeEstimation,
     #[error("failed to decode the query response")]
     MalformedResponse,
     #[error("failed to build tx")]
@@ -219,30 +213,6 @@ where
         .and_then(|res| res.tx_response.ok_or(report!(Error::TxResponseMissing)))
 }
 
-pub async fn estimate_fee<T>(
-    client: &mut T,
-    msgs: Vec<Any>,
-    pub_key: CosmosPublicKey,
-    acc_sequence: u64,
-    gas_adjustment: f64,
-    gas_price: DecCoin,
-) -> Result<Fee>
-where
-    T: CosmosClient,
-{
-    let gas = estimate_gas(client, msgs, pub_key, acc_sequence).await?;
-    let gas = gas as f64 * gas_adjustment;
-
-    Ok(Fee::from_amount_and_gas(
-        Coin::new(
-            cast(gas.mul(gas_price.amount).ceil()).ok_or(report!(Error::FeeEstimation))?,
-            gas_price.denom.as_ref(),
-        )
-        .change_context(Error::FeeEstimation)?,
-        cast::<f64, u64>(gas).ok_or(report!(Error::FeeEstimation))?,
-    ))
-}
-
 fn decode_base_account(account: Any) -> Result<BaseAccount> {
     BaseAccount::decode(&account.value[..]).change_context(Error::MalformedResponse)
 }
@@ -371,5 +341,49 @@ mod tests {
         let actual = account(&mut mock_client, &address).await;
 
         assert_err_contains!(actual, Error, Error::MalformedResponse);
+    }
+
+    #[tokio::test]
+    async fn broadcast_success() {
+        let tx_raw = TxRaw {
+            body_bytes: vec![1, 2, 3],
+            auth_info_bytes: vec![4, 5, 6],
+            signatures: vec![vec![7, 8, 9]],
+        };
+
+        let mut mock_client = MockCosmosClient::new();
+        mock_client
+            .expect_broadcast_tx()
+            .withf(|req| req.mode == BroadcastMode::Sync as i32)
+            .return_once(|_| {
+                Ok(BroadcastTxResponse {
+                    tx_response: Some(TxResponse {
+                        txhash: "ABC123".to_string(),
+                        ..Default::default()
+                    }),
+                })
+            });
+
+        let actual = broadcast(&mut mock_client, tx_raw).await;
+
+        assert_eq!(actual.unwrap().txhash, "ABC123");
+    }
+
+    #[tokio::test]
+    async fn broadcast_tx_response_missing() {
+        let tx_raw = TxRaw {
+            body_bytes: vec![1, 2, 3],
+            auth_info_bytes: vec![4, 5, 6],
+            signatures: vec![vec![7, 8, 9]],
+        };
+
+        let mut mock_client = MockCosmosClient::new();
+        mock_client
+            .expect_broadcast_tx()
+            .return_once(|_| Ok(BroadcastTxResponse { tx_response: None }));
+
+        let actual = broadcast(&mut mock_client, tx_raw).await;
+
+        assert_err_contains!(actual, Error, Error::TxResponseMissing);
     }
 }
