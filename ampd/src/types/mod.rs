@@ -7,6 +7,8 @@ use serde::{Deserialize, Serialize};
 
 mod key;
 pub(crate) mod starknet;
+#[cfg(test)]
+pub use key::test_utils::random_cosmos_public_key;
 pub use key::{CosmosPublicKey, PublicKey};
 
 pub type EVMAddress = Address;
@@ -41,15 +43,13 @@ impl fmt::Display for TMAddress {
 
 #[cfg(test)]
 pub mod test_utils {
-    use rand::rngs::OsRng;
-
-    use super::CosmosPublicKey;
+    use super::key::test_utils::random_cosmos_public_key;
     use crate::types::TMAddress;
 
     impl TMAddress {
         pub fn random(prefix: &str) -> Self {
             Self(
-                CosmosPublicKey::from(k256::ecdsa::SigningKey::random(&mut OsRng).verifying_key())
+                random_cosmos_public_key()
                     .account_id(prefix)
                     .expect("failed to convert to account identifier"),
             )

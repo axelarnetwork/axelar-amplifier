@@ -154,6 +154,12 @@ impl Display for FiniteAmount {
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
 pub struct Denom(cosmrs::Denom);
 
+impl AsRef<str> for Denom {
+    fn as_ref(&self) -> &str {
+        self.0.as_ref()
+    }
+}
+
 impl TryFrom<cosmrs::Denom> for Denom {
     type Error = Report<Error>;
 

@@ -126,6 +126,17 @@ impl From<CosmosPublicKey> for PublicKey {
 }
 
 #[cfg(test)]
+pub mod test_utils {
+    use rand::rngs::OsRng;
+
+    use super::CosmosPublicKey;
+
+    pub fn random_cosmos_public_key() -> CosmosPublicKey {
+        CosmosPublicKey::from(k256::ecdsa::SigningKey::random(&mut OsRng).verifying_key())
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use axelar_wasm_std::assert_err_contains;
     use rand::random;
