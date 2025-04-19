@@ -1,3 +1,5 @@
+use std::ops::Mul;
+
 use async_trait::async_trait;
 use cosmrs::proto::cosmos::auth::v1beta1::query_client::QueryClient as AuthQueryClient;
 use cosmrs::proto::cosmos::auth::v1beta1::{
@@ -5,21 +7,24 @@ use cosmrs::proto::cosmos::auth::v1beta1::{
 };
 use cosmrs::proto::cosmos::bank::v1beta1::query_client::QueryClient as BankQueryClient;
 use cosmrs::proto::cosmos::bank::v1beta1::{QueryBalanceRequest, QueryBalanceResponse};
+use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
 use cosmrs::proto::cosmos::tx::v1beta1::service_client::ServiceClient;
 use cosmrs::proto::cosmos::tx::v1beta1::{
-    BroadcastTxRequest, BroadcastTxResponse, GetTxRequest, GetTxResponse, SimulateRequest,
-    SimulateResponse,
+    BroadcastMode, BroadcastTxRequest, BroadcastTxResponse, GetTxRequest, GetTxResponse,
+    SimulateRequest, SimulateResponse, TxRaw,
 };
-use cosmrs::tx::MessageExt;
-use cosmrs::Any;
+use cosmrs::tx::{Fee, MessageExt};
+use cosmrs::{Any, Coin, Gas};
 use error_stack::{report, ResultExt};
 use mockall::mock;
+use num_traits::cast;
 use prost::Message;
-use report::ErrorExt;
+use report::{ErrorExt, ResultCompatExt};
 use thiserror::Error;
 use tonic::transport::Channel;
 use tonic::Response;
 
+use crate::broadcaster::dec_coin::DecCoin;
 use crate::broadcaster::tx::Tx;
 use crate::types::{CosmosPublicKey, TMAddress};
 
@@ -31,14 +36,18 @@ pub enum Error {
     GrpcConnection(#[from] tonic::transport::Error),
     #[error("failed to make the grpc request")]
     GrpcRequest(#[from] tonic::Status),
-    #[error("failed building tx")]
-    TxBuilding,
     #[error("gas info is missing in the query response")]
     GasInfoMissing,
     #[error("account is missing in the query response")]
     AccountMissing,
+    #[error("tx response is missing in the broadcast tx response")]
+    TxResponseMissing,
+    #[error("failed to estimate tx fee")]
+    FeeEstimation,
     #[error("failed to decode the query response")]
     MalformedResponse,
+    #[error("failed to build tx")]
+    TxBuilding,
 }
 
 mock! {
@@ -156,7 +165,7 @@ pub async fn estimate_gas<T>(
     msgs: Vec<Any>,
     pub_key: CosmosPublicKey,
     acc_sequence: u64,
-) -> Result<u64>
+) -> Result<Gas>
 where
     T: CosmosClient,
 {
@@ -193,6 +202,45 @@ where
         .await
         .and_then(|res| res.account.ok_or(report!(Error::AccountMissing)))
         .and_then(decode_base_account)
+}
+
+pub async fn broadcast<T>(client: &mut T, tx: TxRaw) -> Result<TxResponse>
+where
+    T: CosmosClient,
+{
+    let tx = BroadcastTxRequest {
+        tx_bytes: tx.to_bytes().change_context(Error::TxBuilding)?,
+        mode: BroadcastMode::Sync as i32,
+    };
+
+    client
+        .broadcast_tx(tx)
+        .await
+        .and_then(|res| res.tx_response.ok_or(report!(Error::TxResponseMissing)))
+}
+
+pub async fn estimate_fee<T>(
+    client: &mut T,
+    msgs: Vec<Any>,
+    pub_key: CosmosPublicKey,
+    acc_sequence: u64,
+    gas_adjustment: f64,
+    gas_price: DecCoin,
+) -> Result<Fee>
+where
+    T: CosmosClient,
+{
+    let gas = estimate_gas(client, msgs, pub_key, acc_sequence).await?;
+    let gas = gas as f64 * gas_adjustment;
+
+    Ok(Fee::from_amount_and_gas(
+        Coin::new(
+            cast(gas.mul(gas_price.amount).ceil()).ok_or(report!(Error::FeeEstimation))?,
+            gas_price.denom.as_ref(),
+        )
+        .change_context(Error::FeeEstimation)?,
+        cast::<f64, u64>(gas).ok_or(report!(Error::FeeEstimation))?,
+    ))
 }
 
 fn decode_base_account(account: Any) -> Result<BaseAccount> {

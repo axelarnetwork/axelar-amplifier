@@ -3,7 +3,6 @@ use core::task::{Context, Poll};
 use std::future::Future;
 
 use cosmrs::{Any, Gas};
-use error_stack::ResultExt;
 use futures::Stream;
 use pin_project_lite::pin_project;
 use report::ErrorExt;
@@ -13,8 +12,7 @@ use tokio_stream::adapters::Fuse;
 use tokio_stream::wrappers::ReceiverStream;
 use tokio_stream::StreamExt;
 
-use super::{Error, Result};
-use crate::broadcaster_v2::account;
+use super::{broadcaster, Result};
 use crate::cosmos;
 
 #[derive(Debug)]
@@ -30,8 +28,7 @@ where
     T: cosmos::CosmosClient,
 {
     tx: mpsc::Sender<QueueMsg>,
-    cosmos_client: T,
-    account_manager: account::AccountManager<T>,
+    broadcaster: broadcaster::Broadcaster<T>,
 }
 
 impl<T> MsgQueueClient<T>
@@ -54,15 +51,12 @@ where
         msg: Any,
         tx_res_callback: Option<oneshot::Sender<Result<(String, u64)>>>,
     ) -> Result<()> {
-        let sequence = self.account_manager.curr_sequence().await;
-        let gas = cosmos::estimate_gas(
-            &mut self.cosmos_client,
-            vec![msg.clone()],
-            self.account_manager.pub_key(),
-            sequence,
-        )
-        .await
-        .change_context(Error::EstimateGas)?;
+        let gas = self
+            .broadcaster
+            .sim_cx()
+            .await
+            .estimate_gas(vec![msg.clone()])
+            .await?;
         let msg = QueueMsg {
             msg,
             gas,
@@ -86,8 +80,7 @@ pin_project! {
 
 impl MsgQueue {
     pub fn new_msg_queue_and_client<T>(
-        cosmos_client: T,
-        account_manager: account::AccountManager<T>,
+        broadcaster: broadcaster::Broadcaster<T>,
         msg_cap: usize,
         gas_cap: Gas,
         duration: time::Duration,
@@ -104,11 +97,7 @@ impl MsgQueue {
                 queue: Queue::new(gas_cap),
                 duration,
             }),
-            MsgQueueClient {
-                tx,
-                cosmos_client,
-                account_manager,
-            },
+            MsgQueueClient { broadcaster, tx },
         ))
     }
 }
@@ -217,6 +206,7 @@ mod tests {
     use cosmrs::tx::MessageExt;
 
     use super::*;
+    use crate::broadcaster_v2::Error;
     use crate::types::{random_cosmos_public_key, TMAddress};
     use crate::PREFIX;
 
@@ -237,11 +227,6 @@ mod tests {
                 account: Some(base_account_any),
             })
         });
-        let account_manager =
-            account::AccountManager::new(cosmos_client, random_cosmos_public_key())
-                .await
-                .unwrap();
-        let mut cosmos_client = cosmos::MockCosmosClient::new();
         cosmos_client.expect_simulate().return_once(move |_| {
             Ok(SimulateResponse {
                 gas_info: Some(GasInfo {
@@ -251,10 +236,16 @@ mod tests {
                 result: None,
             })
         });
+        let broadcaster = broadcaster::Broadcaster::new(
+            cosmos_client,
+            "chain-id".parse().unwrap(),
+            random_cosmos_public_key(),
+        )
+        .await
+        .unwrap();
 
         let (mut msg_queue, mut msg_queue_client) = MsgQueue::new_msg_queue_and_client(
-            cosmos_client,
-            account_manager,
+            broadcaster,
             10,
             gas_cap,
             time::Duration::from_secs(1),
@@ -290,11 +281,6 @@ mod tests {
                 account: Some(base_account_any),
             })
         });
-        let account_manager =
-            account::AccountManager::new(cosmos_client, random_cosmos_public_key())
-                .await
-                .unwrap();
-        let mut cosmos_client = cosmos::MockCosmosClient::new();
         cosmos_client.expect_simulate().return_once(move |_| {
             Ok(SimulateResponse {
                 gas_info: Some(GasInfo {
@@ -304,10 +290,16 @@ mod tests {
                 result: None,
             })
         });
+        let broadcaster = broadcaster::Broadcaster::new(
+            cosmos_client,
+            "chain-id".parse().unwrap(),
+            random_cosmos_public_key(),
+        )
+        .await
+        .unwrap();
 
         let (mut msg_queue, mut msg_queue_client) = MsgQueue::new_msg_queue_and_client(
-            cosmos_client,
-            account_manager,
+            broadcaster,
             10,
             gas_cap,
             time::Duration::from_secs(1),
@@ -339,20 +331,22 @@ mod tests {
                 account: Some(base_account_any),
             })
         });
-        let account_manager =
-            account::AccountManager::new(cosmos_client, random_cosmos_public_key())
-                .await
-                .unwrap();
-        let mut cosmos_client = cosmos::MockCosmosClient::new();
         cosmos_client.expect_simulate().return_once(move |_| {
             Ok(SimulateResponse {
                 gas_info: None,
                 result: None,
             })
         });
-        let (_msg_queue, mut msg_queue_client) = MsgQueue::new_msg_queue_and_client(
+        let broadcaster = broadcaster::Broadcaster::new(
             cosmos_client,
-            account_manager,
+            "chain-id".parse().unwrap(),
+            random_cosmos_public_key(),
+        )
+        .await
+        .unwrap();
+
+        let (_msg_queue, mut msg_queue_client) = MsgQueue::new_msg_queue_and_client(
+            broadcaster,
             10,
             1000u64,
             time::Duration::from_secs(1),
@@ -383,11 +377,6 @@ mod tests {
                 account: Some(base_account_any),
             })
         });
-        let account_manager =
-            account::AccountManager::new(cosmos_client, random_cosmos_public_key())
-                .await
-                .unwrap();
-        let mut cosmos_client = cosmos::MockCosmosClient::new();
         cosmos_client.expect_simulate().return_once(move |_| {
             Ok(SimulateResponse {
                 gas_info: Some(GasInfo {
@@ -397,10 +386,16 @@ mod tests {
                 result: None,
             })
         });
+        let broadcaster = broadcaster::Broadcaster::new(
+            cosmos_client,
+            "chain-id".parse().unwrap(),
+            random_cosmos_public_key(),
+        )
+        .await
+        .unwrap();
 
         let (mut msg_queue, mut msg_queue_client) = MsgQueue::new_msg_queue_and_client(
-            cosmos_client,
-            account_manager,
+            broadcaster,
             10,
             gas_cap,
             time::Duration::from_secs(3),
@@ -437,11 +432,6 @@ mod tests {
                 account: Some(base_account_any),
             })
         });
-        let account_manager =
-            account::AccountManager::new(cosmos_client, random_cosmos_public_key())
-                .await
-                .unwrap();
-        let mut cosmos_client = cosmos::MockCosmosClient::new();
         cosmos_client
             .expect_simulate()
             .times(msg_count)
@@ -454,10 +444,16 @@ mod tests {
                     result: None,
                 })
             });
+        let broadcaster = broadcaster::Broadcaster::new(
+            cosmos_client,
+            "chain-id".parse().unwrap(),
+            random_cosmos_public_key(),
+        )
+        .await
+        .unwrap();
 
         let (mut msg_queue, mut msg_queue_client) = MsgQueue::new_msg_queue_and_client(
-            cosmos_client,
-            account_manager,
+            broadcaster,
             10,
             gas_cap,
             time::Duration::from_secs(3),
@@ -497,11 +493,6 @@ mod tests {
                 account: Some(base_account_any),
             })
         });
-        let account_manager =
-            account::AccountManager::new(cosmos_client, random_cosmos_public_key())
-                .await
-                .unwrap();
-        let mut cosmos_client = cosmos::MockCosmosClient::new();
         cosmos_client
             .expect_simulate()
             .times(2)
@@ -514,10 +505,16 @@ mod tests {
                     result: None,
                 })
             });
+        let broadcaster = broadcaster::Broadcaster::new(
+            cosmos_client,
+            "chain-id".parse().unwrap(),
+            random_cosmos_public_key(),
+        )
+        .await
+        .unwrap();
 
         let (mut msg_queue, mut msg_queue_client) = MsgQueue::new_msg_queue_and_client(
-            cosmos_client,
-            account_manager,
+            broadcaster,
             10,
             gas_cap,
             time::Duration::from_secs(1),

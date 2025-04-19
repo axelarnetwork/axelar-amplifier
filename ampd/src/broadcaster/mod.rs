@@ -34,7 +34,7 @@ use crate::types::{CosmosPublicKey, TMAddress};
 use crate::{cosmos, tofnd};
 
 pub mod confirm_tx;
-mod dec_coin;
+pub mod dec_coin;
 pub mod tx;
 
 #[derive(Error, Debug)]
