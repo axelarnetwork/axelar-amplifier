@@ -886,7 +886,6 @@ mod tests {
         let broadcast_count = 50u64;
 
         let gas_estimate_handles: Vec<_> = (0..gas_estimate_count)
-            .into_iter()
             .map(|_| {
                 let mut broadcaster_clone = broadcaster.clone();
 
@@ -901,7 +900,6 @@ mod tests {
             })
             .collect();
         let broadcast_handles: Vec<_> = (0..broadcast_count)
-            .into_iter()
             .map(|_| {
                 let mut broadcaster_clone = broadcaster.clone();
                 let gas_price_clone = gas_price.clone();

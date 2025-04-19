@@ -211,7 +211,6 @@ mod tests {
         let base_account = create_base_account(&address);
 
         let (receivers, queue_msgs): (Vec<_>, Vec<_>) = (0..2)
-            .into_iter()
             .map(|_| {
                 let (tx, rx) = oneshot::channel();
                 let msg = QueueMsg {
@@ -783,8 +782,8 @@ mod tests {
         let expected_denom = "uaxl";
         let base_account = create_base_account(&address);
         let simulated_gas_used = 100000u64;
-        let expected_gas_limit = (simulated_gas_used as f64 * gas_adjustment) as u64; // 200000
-        let expected_fee_amount = (expected_gas_limit as f64 * gas_price_amount).ceil() as u64; // 200000 * 0.025 = 5000
+        let expected_gas_limit = 200000u64; // 100000 * 2 = 200000
+        let expected_fee_amount = 5000u64; // 200000 * 0.025 = 5000
 
         let (tx, rx) = oneshot::channel();
         let queue_msgs = vec![QueueMsg {
