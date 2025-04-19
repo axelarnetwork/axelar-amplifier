@@ -1,3 +1,4 @@
+use std::collections::{BTreeMap, HashMap};
 use std::fmt::Display;
 
 use axelar_wasm_std::FnExt;
@@ -10,6 +11,10 @@ use tendermint::{abci, block};
 
 use crate::errors::DecodingError;
 use crate::Error;
+
+pub struct AbciEventTypeFilter {
+    pub event_type: String,
+}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Event {
@@ -29,12 +34,16 @@ impl Display for Event {
             Event::Abci {
                 event_type,
                 attributes,
-            } => write!(
-                f,
-                "Abci {{ event_type: {}, attributes: {} }}",
-                event_type,
-                serde_json::to_string(attributes).expect("event attributes must be serializable")
-            ),
+            } => {
+                let sorted_map: BTreeMap<_, _> = attributes.iter().collect();
+
+                write!(
+                    f,
+                    "Abci {{ event_type: {}, attributes: {} }}",
+                    event_type,
+                    serde_json::to_string(&sorted_map).expect("attributes must be serializable")
+                )
+            }
         }
     }
 }
@@ -55,7 +64,7 @@ impl Event {
         }
     }
 
-    fn contract_address(&self) -> Option<AccountId> {
+    pub fn contract_address(&self) -> Option<AccountId> {
         match self {
             Event::Abci {
                 event_type: _,
@@ -111,11 +120,55 @@ fn base64_to_utf8(base64_str: &str) -> std::result::Result<String, DecodingError
     Ok(STANDARD.decode(base64_str)?.then(String::from_utf8)?)
 }
 
+impl TryFrom<ampd_proto::subscribe_response::Event> for Event {
+    type Error = Report<Error>;
+
+    fn try_from(event: ampd_proto::subscribe_response::Event) -> Result<Event, Error> {
+        match event {
+            ampd_proto::subscribe_response::Event::BlockBegin(block_start) => {
+                block::Height::try_from(block_start.height)
+                    .change_context_lazy(|| Error::BlockHeightConversion {
+                        block_height: block_start.height,
+                    })
+                    .map(Self::BlockBegin)
+            }
+            ampd_proto::subscribe_response::Event::BlockEnd(block_end) => {
+                block::Height::try_from(block_end.height)
+                    .change_context_lazy(|| Error::BlockHeightConversion {
+                        block_height: block_end.height,
+                    })
+                    .map(Self::BlockEnd)
+            }
+            ampd_proto::subscribe_response::Event::Abci(abci) => Ok(Self::Abci {
+                event_type: abci.r#type,
+                attributes: convert_attributes(&abci.attributes),
+            }),
+        }
+    }
+}
+
+fn convert_attributes(
+    proto_attrs: &HashMap<String, String>,
+) -> serde_json::Map<String, serde_json::Value> {
+    let mut result = serde_json::Map::new();
+
+    for (key, value) in proto_attrs {
+        let json_value = serde_json::from_str(value)
+            .unwrap_or_else(|_| serde_json::Value::String(value.clone()));
+
+        result.insert(key.clone(), json_value);
+    }
+
+    result
+}
+
 #[cfg(test)]
 mod test {
+    use std::collections::HashMap;
     use std::str::FromStr;
 
     use cosmrs::AccountId;
+    use tendermint::block;
 
     use crate::Event;
 
@@ -175,5 +228,77 @@ mod test {
         };
 
         assert!(!event_without_contract_address.is_from_contract(&contract_address));
+    }
+
+    #[test]
+    fn block_begin_event_conversion_should_succeed() {
+        let height: u64 = 12345;
+        let proto_event =
+            ampd_proto::subscribe_response::Event::BlockBegin(ampd_proto::EventBlockBegin {
+                height,
+            });
+
+        let domain_event_response = Event::try_from(proto_event);
+        assert!(domain_event_response.is_ok());
+        let domain_event = domain_event_response.unwrap();
+
+        assert!(
+            matches!(domain_event, Event::BlockBegin(h) if h == block::Height::try_from(height).unwrap())
+        );
+    }
+
+    #[test]
+    fn block_end_event_conversion_should_succeed() {
+        let height: u64 = 54321;
+        let proto_event =
+            ampd_proto::subscribe_response::Event::BlockEnd(ampd_proto::EventBlockEnd { height });
+
+        let domain_event_response = Event::try_from(proto_event);
+        assert!(domain_event_response.is_ok());
+        let domain_event = domain_event_response.unwrap();
+
+        assert!(
+            matches!(domain_event, Event::BlockEnd(h) if h == block::Height::try_from(height).unwrap())
+        );
+    }
+
+    #[test]
+    fn abci_event_conversion_from_ampd_proto_should_succeed() {
+        let contract_address_string =
+            "axelarvaloper1zh9wrak6ke4n6fclj5e8yk397czv430ygs5jz7".to_string();
+
+        let mut attrs = HashMap::new();
+        attrs.insert("key1".to_string(), "value1".to_string());
+        attrs.insert("key2".to_string(), "42".to_string());
+        attrs.insert(
+            "_contract_address".to_string(),
+            contract_address_string.clone(),
+        );
+
+        let proto_event = ampd_proto::subscribe_response::Event::Abci(ampd_proto::Event {
+            r#type: "test_event".to_string(),
+            contract: contract_address_string.clone(),
+            attributes: attrs,
+        });
+
+        let domain_event_response = Event::try_from(proto_event.clone());
+        assert!(domain_event_response.is_ok());
+        let domain_event = domain_event_response.unwrap();
+
+        goldie::assert!(&domain_event.to_string());
+    }
+
+    #[test]
+    fn invalid_block_height_conversion_should_fail() {
+        let max_height: u64 = u64::MAX;
+        let proto_event =
+            ampd_proto::subscribe_response::Event::BlockBegin(ampd_proto::EventBlockBegin {
+                height: max_height,
+            });
+
+        let result = Event::try_from(proto_event);
+        assert!(result.is_err());
+
+        goldie::assert!(&result.unwrap_err().to_string());
     }
 }

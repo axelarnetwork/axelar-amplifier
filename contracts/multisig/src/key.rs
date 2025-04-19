@@ -4,6 +4,7 @@ use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{HexBinary, StdError, StdResult};
 use cw_storage_plus::{KeyDeserialize, PrimaryKey};
 use enum_display_derive::Display;
+use error_stack::{Report, ResultExt};
 use serde::de::Error;
 use serde::{Deserialize, Deserializer};
 
@@ -231,12 +232,12 @@ fn check_ecdsa_format(pub_key: HexBinary) -> Result<HexBinary, ContractError> {
 fn validate_and_normalize_public_key(
     key_type: KeyType,
     pub_key: HexBinary,
-) -> Result<HexBinary, ContractError> {
+) -> error_stack::Result<HexBinary, ContractError> {
     match key_type {
         KeyType::Ecdsa => Ok(k256::PublicKey::from_sec1_bytes(
             check_ecdsa_format(pub_key)?.as_slice(),
         )
-        .map_err(|_| ContractError::InvalidPublicKey)?
+        .change_context(ContractError::InvalidPublicKey)?
         .to_sec1_bytes()
         .as_ref()
         .into()),
@@ -244,19 +245,18 @@ fn validate_and_normalize_public_key(
         // Function `from_bytes()` will internally decompress into an EdwardsPoint which can only represent a valid point on the curve
         // See https://docs.rs/curve25519-dalek/latest/curve25519_dalek/edwards/index.html#validity-checking
         KeyType::Ed25519 => Ok(ed25519_dalek::VerifyingKey::from_bytes(
-            pub_key
-                .as_slice()
-                .try_into()
-                .map_err(|_| ContractError::InvalidPublicKey)?,
+            &pub_key
+                .to_array()
+                .change_context(ContractError::InvalidPublicKey)?,
         )
-        .map_err(|_| ContractError::InvalidPublicKey)?
+        .change_context(ContractError::InvalidPublicKey)?
         .to_bytes()
         .into()),
     }
 }
 
 impl TryFrom<(KeyType, HexBinary)> for PublicKey {
-    type Error = ContractError;
+    type Error = Report<ContractError>;
 
     fn try_from((key_type, pub_key): (KeyType, HexBinary)) -> Result<Self, Self::Error> {
         let pub_key = validate_and_normalize_public_key(key_type, pub_key)?;
@@ -364,7 +364,9 @@ mod ecdsa_tests {
         let uncompressed_pub_key = HexBinary::from_hex("049bb8e80670371f45508b5f8f59946a7c4dea4b3a23a036cf24c1f40993f4a1daad1716de8bd664ecb4596648d722a4685293de208c1d2da9361b9cba74c3d1ec").unwrap();
 
         assert_eq!(
-            PublicKey::try_from((KeyType::Ecdsa, uncompressed_pub_key.clone())).unwrap_err(),
+            *PublicKey::try_from((KeyType::Ecdsa, uncompressed_pub_key.clone()))
+                .unwrap_err()
+                .current_context(),
             ContractError::InvalidPublicKey
         );
     }
@@ -386,7 +388,10 @@ mod ecdsa_tests {
             KeyType::Ecdsa,
             HexBinary::from(invalid_compressed_point.as_bytes()),
         );
-        assert_eq!(result.unwrap_err(), ContractError::InvalidPublicKey);
+        assert_eq!(
+            *result.unwrap_err().current_context(),
+            ContractError::InvalidPublicKey
+        );
     }
 
     #[test]
@@ -526,7 +531,9 @@ mod ed25519_tests {
     fn test_try_from_hexbinary_to_ed25519_public_key_fails() {
         let hex = HexBinary::from_hex("049b").unwrap();
         assert_eq!(
-            PublicKey::try_from((KeyType::Ed25519, hex.clone())).unwrap_err(),
+            *PublicKey::try_from((KeyType::Ed25519, hex.clone()))
+                .unwrap_err()
+                .current_context(),
             ContractError::InvalidPublicKey
         );
     }
@@ -545,7 +552,10 @@ mod ed25519_tests {
             KeyType::Ed25519,
             HexBinary::from(invalid_compressed_point.as_bytes()),
         );
-        assert_eq!(result.unwrap_err(), ContractError::InvalidPublicKey);
+        assert_eq!(
+            *result.unwrap_err().current_context(),
+            ContractError::InvalidPublicKey
+        );
     }
 
     #[test]

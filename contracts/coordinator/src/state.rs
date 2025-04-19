@@ -6,6 +6,7 @@ use cw_storage_plus::{index_list, Index, IndexList, IndexedMap, Item, MultiIndex
 use router_api::ChainName;
 
 use crate::error::ContractError;
+use crate::msg::ChainContractsResponse;
 
 type ProverAddress = Addr;
 type GatewayAddress = Addr;
@@ -30,6 +31,17 @@ pub struct ChainContractsRecord {
     pub prover_address: ProverAddress,
     pub gateway_address: GatewayAddress,
     pub verifier_address: VerifierAddress,
+}
+
+impl From<ChainContractsRecord> for ChainContractsResponse {
+    fn from(chain_contracts_record: ChainContractsRecord) -> Self {
+        ChainContractsResponse {
+            chain_name: chain_contracts_record.chain_name,
+            prover_address: chain_contracts_record.prover_address,
+            gateway_address: chain_contracts_record.gateway_address,
+            verifier_address: chain_contracts_record.verifier_address,
+        }
+    }
 }
 
 pub struct ChainContractsIndexes<'a> {
@@ -79,7 +91,6 @@ pub fn save_chain_contracts(
     Ok(())
 }
 
-#[allow(dead_code)] // Used in tests, might be useful in future query
 pub fn contracts_by_chain(
     storage: &dyn Storage,
     chain_name: ChainName,
@@ -89,7 +100,6 @@ pub fn contracts_by_chain(
         .ok_or(ContractError::ChainNotRegistered(chain_name))
 }
 
-#[allow(dead_code)] // Used in tests, might be useful in future query
 pub fn contracts_by_prover(
     storage: &dyn Storage,
     prover_address: ProverAddress,
@@ -102,7 +112,6 @@ pub fn contracts_by_prover(
         .ok_or(ContractError::ProverNotRegistered(prover_address))
 }
 
-#[allow(dead_code)] // Used in tests, might be useful in future query
 pub fn contracts_by_gateway(
     storage: &dyn Storage,
     gateway_address: GatewayAddress,
@@ -115,7 +124,6 @@ pub fn contracts_by_gateway(
         .ok_or(ContractError::GatewayNotRegistered(gateway_address))
 }
 
-#[allow(dead_code)] // Used in tests, might be useful in future query
 pub fn contracts_by_verifier(
     storage: &dyn Storage,
     verifier_address: VerifierAddress,

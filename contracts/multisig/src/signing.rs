@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, HexBinary, Uint128, Uint64};
+use error_stack::{bail, ResultExt};
 use router_api::ChainName;
 use signature_verifier_api::client::SignatureVerifier;
 
@@ -64,9 +65,9 @@ pub fn validate_session_signature(
     pub_key: &PublicKey,
     block_height: u64,
     sig_verifier: Option<SignatureVerifier>,
-) -> Result<(), ContractError> {
+) -> error_stack::Result<(), ContractError> {
     if session.expires_at < block_height {
-        return Err(ContractError::SigningSessionClosed {
+        bail!(ContractError::SigningSessionClosed {
             session_id: session.id,
         });
     }
@@ -85,7 +86,7 @@ pub fn validate_session_signature(
                 )
             },
         )
-        .map_err(|_| ContractError::InvalidSignature {
+        .change_context(ContractError::InvalidSignature {
             session_id: session.id,
             signer: signer.into(),
         })?;
@@ -291,7 +292,7 @@ mod tests {
                     assert!(result.is_ok());
                 } else {
                     assert_eq!(
-                        result.unwrap_err(),
+                        *result.unwrap_err().current_context(),
                         ContractError::InvalidSignature {
                             session_id: session.id,
                             signer: signer.clone().into(),
@@ -352,7 +353,7 @@ mod tests {
             );
 
             assert_eq!(
-                result.unwrap_err(),
+                *result.unwrap_err().current_context(),
                 ContractError::SigningSessionClosed {
                     session_id: session.id,
                 }
@@ -385,7 +386,7 @@ mod tests {
                 validate_session_signature(&session, &signer, &invalid_sig, pub_key, 0, None);
 
             assert_eq!(
-                result.unwrap_err(),
+                *result.unwrap_err().current_context(),
                 ContractError::InvalidSignature {
                     session_id: session.id,
                     signer: signer.into(),
