@@ -56,7 +56,7 @@ impl From<Vec<u8>> for PayloadId {
     }
 }
 
-impl<'a> PrimaryKey<'a> for PayloadId {
+impl PrimaryKey<'_> for PayloadId {
     type Prefix = ();
     type SubPrefix = ();
     type Suffix = PayloadId;
@@ -69,6 +69,7 @@ impl<'a> PrimaryKey<'a> for PayloadId {
 
 impl KeyDeserialize for PayloadId {
     type Output = PayloadId;
+    const KEY_ELEMS: u16 = 1;
 
     fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
         Ok(from_json(value).expect("violated invariant: PayloadId is not deserializable"))

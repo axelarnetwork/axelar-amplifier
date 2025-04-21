@@ -8,6 +8,10 @@ pub enum Error {
     EventTypeMismatch(String),
     #[error("failed to decode event attribute")]
     DecodingAttributesFailed,
+    #[error("failed to convert block height {block_height}")]
+    BlockHeightConversion { block_height: u64 },
+    #[error("invalid source event type, expected ABCI event type")]
+    InvalidEventType,
 }
 
 #[derive(Error, Debug)]

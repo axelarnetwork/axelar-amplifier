@@ -6,13 +6,22 @@ use cosmwasm_schema::{cw_serde, QueryResponses};
 use msgs_derive::EnsurePermissions;
 use router_api::{Address, ChainNameRaw};
 
+pub use crate::contract::MigrateMsg;
+use crate::shared::NumBits;
 use crate::state::{TokenConfig, TokenInstance};
-use crate::TokenId;
+use crate::{TokenId, TokenSupply};
+
+pub const DEFAULT_PAGINATION_LIMIT: u32 = 30;
+
+const fn default_pagination_limit() -> u32 {
+    DEFAULT_PAGINATION_LIMIT
+}
 
 #[cw_serde]
 pub struct InstantiateMsg {
     pub governance_address: String,
     pub admin_address: String,
+    pub operator_address: String,
     /// The address of the axelarnet-gateway contract on Amplifier
     pub axelarnet_gateway_address: String,
 }
@@ -24,19 +33,40 @@ pub enum ExecuteMsg {
     #[permission(Specific(gateway))]
     Execute(AxelarExecutableMsg),
 
+    /// Registers an existing ITS token with the hub. This is useful for tokens that were deployed
+    /// before the hub existed and have operated in p2p mode. Both instance_chain and origin_chain
+    /// must be registered with the hub.
+    #[permission(Elevated, Specific(operator))]
+    RegisterP2pTokenInstance {
+        chain: ChainNameRaw,
+        token_id: TokenId,
+        origin_chain: ChainNameRaw,
+        decimals: u8,
+        supply: TokenSupply,
+    },
+
     /// For each chain, register the ITS contract and set config parameters.
     /// Each chain's ITS contract has to be whitelisted before
     /// ITS Hub can send cross-chain messages to it, or receive messages from it.
-    /// If an ITS contract is already set for the chain, an error is returned.
+    /// If any chain is already registered, an error is returned.
     #[permission(Governance)]
     RegisterChains { chains: Vec<ChainConfig> },
 
-    /// Update the address of the ITS contract registered to the specified chain
-    #[permission(Governance)]
-    UpdateChain {
+    // Increase or decrease the supply for a given token and chain.
+    // If the supply is untracked, this command will attempt to set it.
+    // Errors if the token is not deployed to the specified chain, or if
+    // the supply modification overflows or underflows
+    #[permission(Elevated, Specific(operator))]
+    ModifySupply {
         chain: ChainNameRaw,
-        its_edge_contract: Address,
+        token_id: TokenId,
+        supply_modifier: SupplyModifier,
     },
+
+    /// For each chain, update the ITS contract and config parameters.
+    /// If any chain has not been registered, returns an error
+    #[permission(Governance)]
+    UpdateChains { chains: Vec<ChainConfig> },
 
     /// Freeze execution of ITS messages for a particular chain
     #[permission(Elevated)]
@@ -54,6 +84,24 @@ pub enum ExecuteMsg {
 }
 
 #[cw_serde]
+pub enum ChainStatusFilter {
+    Frozen,
+    Active,
+}
+
+#[cw_serde]
+pub enum SupplyModifier {
+    IncreaseSupply(nonempty::Uint256),
+    DecreaseSupply(nonempty::Uint256),
+}
+
+#[cw_serde]
+#[derive(Default)]
+pub struct ChainFilter {
+    pub status: Option<ChainStatusFilter>,
+}
+
+#[cw_serde]
 pub struct ChainConfig {
     pub chain: ChainNameRaw,
     pub its_edge_contract: Address,
@@ -62,26 +110,53 @@ pub struct ChainConfig {
 
 #[cw_serde]
 pub struct TruncationConfig {
-    pub max_uint: nonempty::Uint256, // The maximum uint value that is supported by the chain's token standard
-    pub max_decimals_when_truncating: u8, // The maximum number of decimals that is preserved when deploying from a chain with a larger max_uint
+    pub max_uint_bits: NumBits, // The maximum number of bits used by the chain to represent unsigned integers
+    pub max_decimals_when_truncating: u8, // The maximum number of decimals that is preserved when deploying from a chain with a larger max unsigned integer
+}
+
+#[cw_serde]
+pub struct ChainConfigResponse {
+    pub chain: ChainNameRaw,
+    pub its_edge_contract: Address,
+    pub truncation: TruncationConfig,
+    pub frozen: bool,
 }
 
 #[cw_serde]
 #[derive(QueryResponses)]
 pub enum QueryMsg {
-    /// Query the ITS contract address registered for a chain
-    #[returns(Option<Address>)]
-    ItsContract { chain: ChainNameRaw },
+    /// Query the configuration registered for a chain
+    #[returns(Option<ChainConfigResponse>)]
+    ItsChain { chain: ChainNameRaw },
+
     /// Query all registered ITS contract addresses
     #[returns(HashMap<ChainNameRaw, Address>)]
     AllItsContracts,
+
+    /// Query all chain configs with optional frozen filter
+    // The list is paginated by:
+    // - start_after: the chain name to start after, which the next page of results should start.
+    // - limit: limit the number of chains returned, default is u32::MAX.
+    #[returns(Vec<ChainConfigResponse>)]
+    ItsChains {
+        filter: Option<ChainFilter>,
+        start_after: Option<ChainNameRaw>,
+        #[serde(default = "default_pagination_limit")]
+        limit: u32,
+    },
+
     /// Query a token instance on a specific chain
     #[returns(Option<TokenInstance>)]
     TokenInstance {
         chain: ChainNameRaw,
         token_id: TokenId,
     },
+
     /// Query the configuration parameters for a token
     #[returns(Option<TokenConfig>)]
     TokenConfig { token_id: TokenId },
+
+    /// Query the state of contract (enabled/disabled)
+    #[returns(bool)]
+    IsEnabled,
 }

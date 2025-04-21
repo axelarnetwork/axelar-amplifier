@@ -110,7 +110,7 @@ pub fn call_contract(
         payload: call_contract.payload,
     };
 
-    route_messages(storage, querier, info.sender, vec![msg]).map(|res| res.add_event(event.into()))
+    route_messages(storage, querier, info.sender, vec![msg]).map(|res| res.add_event(event))
 }
 
 pub fn route_messages(
@@ -139,7 +139,7 @@ pub fn route_messages(
     };
 
     msgs.into_iter()
-        .group_by(|msg| msg.destination_chain.to_owned())
+        .chunk_by(|msg| msg.destination_chain.to_owned())
         .into_iter()
         .try_fold(Response::new(), |acc, (dest_chain, msgs)| {
             let (messages, events) = match determine_routing_destination(
@@ -186,7 +186,7 @@ pub fn execute(
 
     Response::new()
         .add_message(external::Client::new(deps.querier, &destination).execute(executable_msg))
-        .add_event(AxelarnetGatewayEvent::MessageExecuted { msg }.into())
+        .add_event(AxelarnetGatewayEvent::MessageExecuted { msg })
         .then(Ok)
 }
 

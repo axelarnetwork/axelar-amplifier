@@ -75,7 +75,7 @@ pub async fn run(config: Config, args: Args) -> Result<Option<String>, Error> {
         .sign(
             &multisig_address.to_string(),
             address_hash.into(),
-            &multisig_key,
+            multisig_key,
             args.key_type.into(),
         )
         .await
@@ -111,7 +111,10 @@ fn multisig_address(config: &Config) -> Result<TMAddress, Error> {
         .handlers
         .iter()
         .find_map(|config| {
-            if let handlers::config::Config::MultisigSigner { cosmwasm_contract } = config {
+            if let handlers::config::Config::MultisigSigner {
+                cosmwasm_contract, ..
+            } = config
+            {
                 Some(cosmwasm_contract.clone())
             } else {
                 None

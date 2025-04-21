@@ -96,7 +96,7 @@ impl<'a> PollMessagesIndex<'a> {
     fn new(
         idx_fn: fn(&[u8], &PollContent<Message>) -> (String, u32),
         pk_namespace: &'a str,
-        idx_namespace: &'a str,
+        idx_namespace: &'static str,
     ) -> Self {
         PollMessagesIndex(MultiIndex::new(idx_fn, pk_namespace, idx_namespace))
     }
@@ -134,8 +134,7 @@ impl<'a> PollMessagesIndex<'a> {
 const POLL_MESSAGES_PKEY_NAMESPACE: &str = "poll_messages";
 const POLL_MESSAGES_IDX_NAMESPACE: &str = "poll_messages_idx";
 
-pub fn poll_messages<'a>() -> IndexedMap<'a, &'a Hash, PollContent<Message>, PollMessagesIndex<'a>>
-{
+pub fn poll_messages<'a>() -> IndexedMap<&'a Hash, PollContent<Message>, PollMessagesIndex<'a>> {
     IndexedMap::new(
         POLL_MESSAGES_PKEY_NAMESPACE,
         PollMessagesIndex::new(
@@ -146,7 +145,7 @@ pub fn poll_messages<'a>() -> IndexedMap<'a, &'a Hash, PollContent<Message>, Pol
     )
 }
 
-impl<'a> IndexList<PollContent<Message>> for PollMessagesIndex<'a> {
+impl IndexList<PollContent<Message>> for PollMessagesIndex<'_> {
     fn get_indexes(&'_ self) -> Box<dyn Iterator<Item = &'_ dyn Index<PollContent<Message>>> + '_> {
         let v: Vec<&dyn Index<PollContent<Message>>> = vec![&self.0];
         Box::new(v.into_iter())
@@ -162,7 +161,7 @@ impl<'a> PollVerifierSetsIndex<'a> {
     fn new(
         idx_fn: fn(&[u8], &PollContent<VerifierSet>) -> String,
         pk_namespace: &'a str,
-        idx_namespace: &'a str,
+        idx_namespace: &'static str,
     ) -> Self {
         PollVerifierSetsIndex(MultiIndex::new(idx_fn, pk_namespace, idx_namespace))
     }
@@ -190,7 +189,7 @@ const POLL_VERIFIER_SETS_PKEY_NAMESPACE: &str = "poll_verifier_sets";
 const POLL_VERIFIER_SETS_IDX_NAMESPACE: &str = "poll_verifier_sets_idx";
 
 pub fn poll_verifier_sets<'a>(
-) -> IndexedMap<'a, &'a Hash, PollContent<VerifierSet>, PollVerifierSetsIndex<'a>> {
+) -> IndexedMap<&'a Hash, PollContent<VerifierSet>, PollVerifierSetsIndex<'a>> {
     IndexedMap::new(
         POLL_VERIFIER_SETS_PKEY_NAMESPACE,
         PollVerifierSetsIndex::new(
@@ -201,7 +200,7 @@ pub fn poll_verifier_sets<'a>(
     )
 }
 
-impl<'a> IndexList<PollContent<VerifierSet>> for PollVerifierSetsIndex<'a> {
+impl IndexList<PollContent<VerifierSet>> for PollVerifierSetsIndex<'_> {
     fn get_indexes(
         &'_ self,
     ) -> Box<dyn Iterator<Item = &'_ dyn Index<PollContent<VerifierSet>>> + '_> {

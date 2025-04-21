@@ -31,7 +31,7 @@ pub struct Client<'a> {
     client: client::ContractClient<'a, ExecuteMsg, QueryMsg>,
 }
 
-impl<'a> Client<'a> {
+impl Client<'_> {
     pub fn outgoing_messages(&self, message_ids: Vec<CrossChainId>) -> Result<Vec<Message>> {
         let msg = QueryMsg::OutgoingMessages(message_ids);
         self.client.query(&msg).change_context_lazy(|| msg.into())
@@ -52,7 +52,7 @@ impl<'a> Client<'a> {
 
 #[cfg(test)]
 mod tests {
-    use cosmwasm_std::testing::MockQuerier;
+    use cosmwasm_std::testing::{MockApi, MockQuerier};
     use cosmwasm_std::{from_json, to_json_binary, Addr, QuerierWrapper, SystemError, WasmQuery};
     use router_api::{CrossChainId, Message};
 
@@ -89,7 +89,6 @@ mod tests {
                 .unwrap(),
         };
         let res = client.outgoing_messages(vec![cc_id.clone()]);
-        println!("{:?}", res);
         assert!(res.is_ok());
         goldie::assert_json!(res.unwrap());
     }
@@ -102,13 +101,13 @@ mod tests {
             WasmQuery::Smart {
                 contract_addr,
                 msg: _,
-            } if contract_addr == addr => {
+            } if contract_addr == MockApi::default().addr_make(addr).as_str() => {
                 Err(SystemError::Unknown {}).into() // simulate cryptic error seen in production
             }
             _ => panic!("unexpected query: {:?}", msg),
         });
 
-        (querier, Addr::unchecked(addr))
+        (querier, MockApi::default().addr_make(addr))
     }
 
     fn setup_queries_to_succeed() -> (MockQuerier, Addr) {
@@ -116,33 +115,30 @@ mod tests {
 
         let mut querier = MockQuerier::default();
         querier.update_wasm(move |msg| match msg {
-            WasmQuery::Smart { contract_addr, msg } if contract_addr == addr => {
+            WasmQuery::Smart { contract_addr, msg }
+                if contract_addr == MockApi::default().addr_make(addr).as_str() =>
+            {
                 let msg = from_json::<QueryMsg>(msg).unwrap();
                 match msg {
-                    QueryMsg::OutgoingMessages(cc_ids) => {
-                        println!("returning ok");
-                        let res = Ok(to_json_binary(
-                            &cc_ids
-                                .into_iter()
-                                .map(|cc_id| Message {
-                                    cc_id,
-                                    source_address: "foobar".parse().unwrap(),
-                                    destination_chain: "ethereum".parse().unwrap(),
-                                    destination_address: "foobar".parse().unwrap(),
-                                    payload_hash: [0u8; 32],
-                                })
-                                .collect::<Vec<Message>>(),
-                        )
-                        .into())
-                        .into();
-                        println!("made res");
-                        res
-                    }
+                    QueryMsg::OutgoingMessages(cc_ids) => Ok(to_json_binary(
+                        &cc_ids
+                            .into_iter()
+                            .map(|cc_id| Message {
+                                cc_id,
+                                source_address: "foobar".parse().unwrap(),
+                                destination_chain: "ethereum".parse().unwrap(),
+                                destination_address: "foobar".parse().unwrap(),
+                                payload_hash: [0u8; 32],
+                            })
+                            .collect::<Vec<Message>>(),
+                    )
+                    .into())
+                    .into(),
                 }
             }
             _ => panic!("unexpected query: {:?}", msg),
         });
 
-        (querier, Addr::unchecked(addr))
+        (querier, MockApi::default().addr_make(addr))
     }
 }

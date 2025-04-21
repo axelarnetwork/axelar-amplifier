@@ -1,6 +1,6 @@
 [package]
 name = "interchain-token-service"
-version = "0.1.0"
+version = "1.2.0"
 rust-version = { workspace = true }
 edition = { workspace = true }
 
@@ -18,8 +18,6 @@ name = "interchain-token-service-schema"
 path = "src/bin/schema.rs"
 
 [features]
-# for more explicit tests, cargo test --features=backtraces
-backtraces = ["cosmwasm-std/backtraces"]
 # use library feature to disable all instantiate/execute/query exports
 library = []
 
@@ -27,7 +25,7 @@ library = []
 optimize = """docker run --rm -v "$(pwd)":/code \
   --mount type=volume,source="$(basename "$(pwd)")_cache",target=/code/target \
   --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
-  cosmwasm/optimizer:0.16.0
+  cosmwasm/optimizer:0.16.1
 """
 
 [dependencies]
@@ -48,6 +46,7 @@ msgs-derive = { workspace = true }
 report = { workspace = true }
 router-api = { workspace = true }
 schemars = { workspace = true }
+semver = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 sha3 = { workspace = true }

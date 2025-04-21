@@ -226,15 +226,13 @@ mod tests {
     use std::str::FromStr;
 
     use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
-    use base64::engine::general_purpose::STANDARD;
-    use base64::Engine;
     use cosmwasm_std;
     use error_stack::{Report, Result};
+    use ethers_core::types::{H160, H256};
     use ethers_providers::ProviderError;
     use events::Error::{DeserializationFailed, EventTypeMismatch};
     use events::Event;
     use router_api::ChainName;
-    use tendermint::abci;
     use tokio::sync::watch;
     use tokio::test as async_test;
     use voting_verifier::events::{PollMetadata, PollStarted, TxEventConfirmation};
@@ -243,14 +241,15 @@ mod tests {
     use crate::event_processor::EventHandler;
     use crate::evm::finalizer::Finalization;
     use crate::evm::json_rpc::MockEthereumClient;
-    use crate::types::{EVMAddress, Hash, TMAddress};
+    use crate::handlers::tests::{into_structured_event, participants};
+    use crate::types::TMAddress;
     use crate::PREFIX;
 
     fn poll_started_event(participants: Vec<TMAddress>, expires_at: u64) -> PollStarted {
         let msg_ids = [
-            HexTxHashAndEventIndex::new(Hash::random(), 0u64),
-            HexTxHashAndEventIndex::new(Hash::random(), 1u64),
-            HexTxHashAndEventIndex::new(Hash::random(), 10u64),
+            HexTxHashAndEventIndex::new(H256::repeat_byte(1), 0u64),
+            HexTxHashAndEventIndex::new(H256::repeat_byte(2), 1u64),
+            HexTxHashAndEventIndex::new(H256::repeat_byte(3), 10u64),
         ];
         PollStarted::Messages {
             metadata: PollMetadata {
@@ -272,28 +271,28 @@ mod tests {
                     tx_id: msg_ids[0].tx_hash_as_hex(),
                     event_index: u32::try_from(msg_ids[0].event_index).unwrap(),
                     message_id: msg_ids[0].to_string().parse().unwrap(),
-                    source_address: format!("0x{:x}", EVMAddress::random()).parse().unwrap(),
+                    source_address: format!("0x{:x}", H160::repeat_byte(1)).parse().unwrap(),
                     destination_chain: "ethereum".parse().unwrap(),
-                    destination_address: format!("0x{:x}", EVMAddress::random()).parse().unwrap(),
-                    payload_hash: Hash::random().to_fixed_bytes(),
+                    destination_address: format!("0x{:x}", H160::repeat_byte(2)).parse().unwrap(),
+                    payload_hash: H256::repeat_byte(4).to_fixed_bytes(),
                 },
                 TxEventConfirmation {
                     tx_id: msg_ids[1].tx_hash_as_hex(),
                     event_index: u32::try_from(msg_ids[1].event_index).unwrap(),
                     message_id: msg_ids[1].to_string().parse().unwrap(),
-                    source_address: format!("0x{:x}", EVMAddress::random()).parse().unwrap(),
+                    source_address: format!("0x{:x}", H160::repeat_byte(3)).parse().unwrap(),
                     destination_chain: "ethereum".parse().unwrap(),
-                    destination_address: format!("0x{:x}", EVMAddress::random()).parse().unwrap(),
-                    payload_hash: Hash::random().to_fixed_bytes(),
+                    destination_address: format!("0x{:x}", H160::repeat_byte(4)).parse().unwrap(),
+                    payload_hash: H256::repeat_byte(5).to_fixed_bytes(),
                 },
                 TxEventConfirmation {
                     tx_id: msg_ids[2].tx_hash_as_hex(),
                     event_index: u32::try_from(msg_ids[2].event_index).unwrap(),
                     message_id: msg_ids[2].to_string().parse().unwrap(),
-                    source_address: format!("0x{:x}", EVMAddress::random()).parse().unwrap(),
+                    source_address: format!("0x{:x}", H160::repeat_byte(5)).parse().unwrap(),
                     destination_chain: "ethereum".parse().unwrap(),
-                    destination_address: format!("0x{:x}", EVMAddress::random()).parse().unwrap(),
-                    payload_hash: Hash::random().to_fixed_bytes(),
+                    destination_address: format!("0x{:x}", H160::repeat_byte(6)).parse().unwrap(),
+                    payload_hash: H256::repeat_byte(6).to_fixed_bytes(),
                 },
             ],
         }
@@ -302,7 +301,7 @@ mod tests {
     #[test]
     fn should_not_deserialize_incorrect_event() {
         // incorrect event type
-        let mut event: Event = to_event(
+        let mut event: Event = into_structured_event(
             poll_started_event(participants(5, None), 100),
             &TMAddress::random(PREFIX),
         );
@@ -322,7 +321,7 @@ mod tests {
         ));
 
         // invalid field
-        let mut event: Event = to_event(
+        let mut event: Event = into_structured_event(
             poll_started_event(participants(5, None), 100),
             &TMAddress::random(PREFIX),
         );
@@ -344,13 +343,14 @@ mod tests {
     }
 
     #[test]
-    fn should_deserialize_correct_event() {
-        let event: Event = to_event(
+    fn evm_verify_msg_should_deserialize_correct_event() {
+        let event: Event = into_structured_event(
             poll_started_event(participants(5, None), 100),
             &TMAddress::random(PREFIX),
         );
-        let event: Result<PollStartedEvent, events::Error> = event.try_into();
-        assert!(event.is_ok());
+        let event: PollStartedEvent = event.try_into().unwrap();
+
+        goldie::assert_debug!(event);
     }
 
     #[async_test]
@@ -366,7 +366,7 @@ mod tests {
         let voting_verifier_contract = TMAddress::random(PREFIX);
         let verifier = TMAddress::random(PREFIX);
         let expiration = 100u64;
-        let event: Event = to_event(
+        let event: Event = into_structured_event(
             poll_started_event(participants(5, Some(verifier.clone())), expiration),
             &voting_verifier_contract,
         );
@@ -389,31 +389,5 @@ mod tests {
 
         // poll is expired, should not hit rpc error now
         assert_eq!(handler.handle(&event).await.unwrap(), vec![]);
-    }
-
-    fn to_event(event: impl Into<cosmwasm_std::Event>, contract_address: &TMAddress) -> Event {
-        let mut event: cosmwasm_std::Event = event.into();
-
-        event.ty = format!("wasm-{}", event.ty);
-        event = event.add_attribute("_contract_address", contract_address.to_string());
-
-        abci::Event::new(
-            event.ty,
-            event
-                .attributes
-                .into_iter()
-                .map(|cosmwasm_std::Attribute { key, value }| {
-                    (STANDARD.encode(key), STANDARD.encode(value))
-                }),
-        )
-        .try_into()
-        .unwrap()
-    }
-
-    fn participants(n: u8, verifier: Option<TMAddress>) -> Vec<TMAddress> {
-        (0..n)
-            .map(|_| TMAddress::random(PREFIX))
-            .chain(verifier)
-            .collect()
     }
 }

@@ -117,7 +117,7 @@ impl CheckedAdd for PollId {
     }
 }
 
-impl<'a> PrimaryKey<'a> for PollId {
+impl PrimaryKey<'_> for PollId {
     type Prefix = ();
     type SubPrefix = ();
     type Suffix = Self;
@@ -128,7 +128,7 @@ impl<'a> PrimaryKey<'a> for PollId {
     }
 }
 
-impl<'a> Prefixer<'a> for PollId {
+impl Prefixer<'_> for PollId {
     fn prefix(&self) -> Vec<Key> {
         vec![Key::Val64(self.0.to_be_bytes())]
     }
@@ -136,6 +136,7 @@ impl<'a> Prefixer<'a> for PollId {
 
 impl KeyDeserialize for PollId {
     type Output = Self;
+    const KEY_ELEMS: u16 = 1;
 
     fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
         let id =
@@ -399,6 +400,7 @@ impl WeightedPoll {
 
 #[cfg(test)]
 mod tests {
+    use cosmwasm_std::testing::MockApi;
     use cosmwasm_std::{Addr, Uint64};
     use rand::distributions::Alphanumeric;
     use rand::Rng;
@@ -419,7 +421,9 @@ mod tests {
         let votes = vec![Vote::SucceededOnChain, Vote::SucceededOnChain];
 
         assert_eq!(
-            poll.participation.get("addr1").unwrap(),
+            poll.participation
+                .get(MockApi::default().addr_make("addr1").as_str())
+                .unwrap(),
             &Participation {
                 weight: nonempty::Uint128::try_from(Uint128::from(100u64)).unwrap(),
                 voted: false
@@ -427,11 +431,13 @@ mod tests {
         );
 
         let poll = poll
-            .cast_vote(1, &Addr::unchecked("addr1"), votes.clone())
+            .cast_vote(1, &MockApi::default().addr_make("addr1"), votes.clone())
             .unwrap();
 
         assert_eq!(
-            poll.participation.get("addr1").unwrap(),
+            poll.participation
+                .get(MockApi::default().addr_make("addr1").as_str())
+                .unwrap(),
             &Participation {
                 weight: nonempty::Uint128::try_from(Uint128::from(100u64)).unwrap(),
                 voted: true
@@ -456,7 +462,7 @@ mod tests {
             .collect();
 
         assert_eq!(
-            poll.cast_vote(1, &Addr::unchecked(rand_addr.as_str()), votes),
+            poll.cast_vote(1, &MockApi::default().addr_make(rand_addr.as_str()), votes),
             Err(Error::NotParticipant)
         );
     }
@@ -470,7 +476,7 @@ mod tests {
         );
         let votes = vec![Vote::SucceededOnChain, Vote::SucceededOnChain];
         assert_eq!(
-            poll.cast_vote(2, &Addr::unchecked("addr1"), votes),
+            poll.cast_vote(2, &MockApi::default().addr_make("addr1"), votes),
             Err(Error::PollExpired)
         );
     }
@@ -480,7 +486,7 @@ mod tests {
         let poll = new_poll(2, 2, vec!["addr1", "addr2"]);
         let votes = vec![Vote::SucceededOnChain];
         assert_eq!(
-            poll.cast_vote(1, &Addr::unchecked("addr1"), votes),
+            poll.cast_vote(1, &MockApi::default().addr_make("addr1"), votes),
             Err(Error::InvalidVoteSize)
         );
     }
@@ -491,10 +497,10 @@ mod tests {
         let votes = vec![Vote::SucceededOnChain, Vote::SucceededOnChain];
 
         let poll = poll
-            .cast_vote(1, &Addr::unchecked("addr1"), votes.clone())
+            .cast_vote(1, &MockApi::default().addr_make("addr1"), votes.clone())
             .unwrap();
         assert_eq!(
-            poll.cast_vote(1, &Addr::unchecked("addr1"), votes),
+            poll.cast_vote(1, &MockApi::default().addr_make("addr1"), votes),
             Err(Error::AlreadyVoted)
         );
     }
@@ -516,7 +522,10 @@ mod tests {
     fn should_conclude_poll() {
         let poll = new_poll(2, 2, vec!["addr1", "addr2", "addr3"]);
         let votes = vec![Vote::SucceededOnChain, Vote::SucceededOnChain];
-        let voters = [Addr::unchecked("addr1"), Addr::unchecked("addr2")];
+        let voters = [
+            MockApi::default().addr_make("addr1"),
+            MockApi::default().addr_make("addr2"),
+        ];
 
         let poll = poll
             .cast_vote(1, &voters[0], votes.clone())
@@ -541,7 +550,10 @@ mod tests {
                     Some(Vote::SucceededOnChain),
                     Some(Vote::SucceededOnChain)
                 ]),
-                consensus_participants: vec!["addr1".to_string(), "addr2".to_string(),],
+                consensus_participants: vec![
+                    MockApi::default().addr_make("addr1").to_string(),
+                    MockApi::default().addr_make("addr2").to_string(),
+                ],
             }
         );
     }
@@ -552,9 +564,9 @@ mod tests {
         let votes = vec![Vote::SucceededOnChain, Vote::SucceededOnChain];
         let wrong_votes = vec![Vote::FailedOnChain, Vote::FailedOnChain];
         let voters = [
-            Addr::unchecked("addr1"),
-            Addr::unchecked("addr2"),
-            Addr::unchecked("addr3"),
+            MockApi::default().addr_make("addr1"),
+            MockApi::default().addr_make("addr2"),
+            MockApi::default().addr_make("addr3"),
         ];
         let voting_history: Vec<(&Addr, Vec<Vote>)> = voters
             .iter()
@@ -591,7 +603,10 @@ mod tests {
                     Some(Vote::SucceededOnChain),
                     Some(Vote::SucceededOnChain)
                 ]),
-                consensus_participants: vec!["addr1".to_string(), "addr3".to_string(),],
+                consensus_participants: vec![
+                    MockApi::default().addr_make("addr3").to_string(),
+                    MockApi::default().addr_make("addr1").to_string(),
+                ],
             }
         );
     }
@@ -609,7 +624,7 @@ mod tests {
         let participants: nonempty::Vec<Participant> = participants
             .into_iter()
             .map(|participant| Participant {
-                address: Addr::unchecked(participant),
+                address: MockApi::default().addr_make(participant),
                 weight: nonempty::Uint128::try_from(Uint128::from(100u64)).unwrap(),
             })
             .collect::<Vec<Participant>>()

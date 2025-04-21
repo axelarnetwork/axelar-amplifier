@@ -4,6 +4,7 @@ use axelar_wasm_std::nonempty;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, HexBinary, Order, StdResult, Storage, Uint64};
 use cw_storage_plus::{Index, IndexList, IndexedMap, Item, Map, UniqueIndex};
+use error_stack::ResultExt;
 use router_api::ChainName;
 
 use crate::key::{KeyType, KeyTyped, PublicKey, Signature};
@@ -63,16 +64,16 @@ pub fn save_signature(
 pub fn verifier_set(
     store: &dyn Storage,
     verifier_set_id: &str,
-) -> Result<VerifierSet, ContractError> {
-    VERIFIER_SETS.load(store, verifier_set_id).map_err(|_| {
+) -> error_stack::Result<VerifierSet, ContractError> {
+    VERIFIER_SETS.load(store, verifier_set_id).change_context(
         ContractError::NoActiveVerifierSetFound {
             verifier_set_id: verifier_set_id.to_string(),
-        }
-    })
+        },
+    )
 }
 
 pub struct PubKeysIndexes<'a> {
-    pub pub_key: UniqueIndex<'a, Vec<u8>, HexBinary>,
+    pub pub_key: UniqueIndex<'a, Vec<u8>, HexBinary, (Addr, KeyType)>,
 }
 
 impl IndexList<HexBinary> for PubKeysIndexes<'_> {
@@ -83,7 +84,7 @@ impl IndexList<HexBinary> for PubKeysIndexes<'_> {
 }
 
 // key type is part of the key so signers can register multiple keys with different types
-pub fn pub_keys<'a>() -> IndexedMap<'a, (Addr, KeyType), HexBinary, PubKeysIndexes<'a>> {
+pub fn pub_keys<'a>() -> IndexedMap<(Addr, KeyType), HexBinary, PubKeysIndexes<'a>> {
     let indexes = PubKeysIndexes {
         pub_key: UniqueIndex::new(|p| p.to_vec(), "pub_key__unique"),
     };
@@ -115,7 +116,7 @@ pub fn save_pub_key(
 #[cfg(test)]
 mod tests {
 
-    use cosmwasm_std::testing::mock_dependencies;
+    use cosmwasm_std::testing::{mock_dependencies, MockApi};
 
     use super::*;
     use crate::test::common::ecdsa_test_data;
@@ -131,7 +132,7 @@ mod tests {
         // 1. Store first key
         save_pub_key(
             deps.as_mut().storage,
-            Addr::unchecked("1"),
+            MockApi::default().addr_make("1"),
             (KeyType::Ecdsa, pub_key.clone()).try_into().unwrap(),
         )
         .unwrap();
@@ -140,7 +141,7 @@ mod tests {
         assert_eq!(
             save_pub_key(
                 deps.as_mut().storage,
-                Addr::unchecked("2"),
+                MockApi::default().addr_make("2"),
                 (KeyType::Ecdsa, pub_key).try_into().unwrap(),
             )
             .unwrap_err(),
@@ -150,7 +151,7 @@ mod tests {
         // 3. Storing a different key succeeds
         save_pub_key(
             deps.as_mut().storage,
-            Addr::unchecked("4"),
+            MockApi::default().addr_make("4"),
             (KeyType::Ecdsa, ecdsa_test_data::pub_key())
                 .try_into()
                 .unwrap(),

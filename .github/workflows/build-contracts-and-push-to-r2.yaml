@@ -114,7 +114,7 @@ jobs:
           docker run --rm -v "$(pwd)":/code \
           --mount type=volume,source="$(basename "$(pwd)")_cache",target=/code/target \
           --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
-          cosmwasm/optimizer:0.16.0
+          cosmwasm/optimizer:0.16.1
 
           commit_hash=$(git rev-parse --short HEAD)
           cd ..
@@ -139,10 +139,10 @@ jobs:
           fi
 
           mkdir -p "../${crate_version}"
-          cp "$wasm_file" "../${crate_version}/${crate_name}.wasm"
+          cp "$wasm_file" "../${crate_version}/${crate_name//-/_}.wasm"
           cp "$checksum_file" "../${crate_version}/"
 
-          gpg --armor --detach-sign  ../${crate_version}/${crate_name}.wasm
+          gpg --armor --detach-sign  ../${crate_version}/${crate_name//-/_}.wasm
           gpg --armor --detach-sign  ../${crate_version}/checksums.txt
 
           echo "release-artifacts-dir=./${crate_version}" >> $GITHUB_OUTPUT

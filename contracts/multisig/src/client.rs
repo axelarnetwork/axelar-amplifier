@@ -65,7 +65,7 @@ pub struct Client<'a> {
     client: client::ContractClient<'a, ExecuteMsg, QueryMsg>,
 }
 
-impl<'a> Client<'a> {
+impl Client<'_> {
     pub fn start_signing_session(
         &self,
         verifier_set_id: String,
@@ -160,7 +160,7 @@ impl<'a> Client<'a> {
 #[cfg(test)]
 mod test {
 
-    use cosmwasm_std::testing::MockQuerier;
+    use cosmwasm_std::testing::{MockApi, MockQuerier};
     use cosmwasm_std::{
         from_json, to_json_binary, Addr, QuerierWrapper, SystemError, Uint64, WasmQuery,
     };
@@ -226,7 +226,7 @@ mod test {
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
 
-        let verifier_address = Addr::unchecked("verifier").to_string();
+        let verifier_address = MockApi::default().addr_make("verifier").to_string();
         let key_type = crate::key::KeyType::Ecdsa;
         let res = client.public_key(verifier_address.clone(), key_type);
         assert!(res.is_err());
@@ -239,10 +239,9 @@ mod test {
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
 
-        let verifier_address = Addr::unchecked("verifier").to_string();
+        let verifier_address = MockApi::default().addr_make("verifier").to_string();
         let key_type = crate::key::KeyType::Ecdsa;
         let res = client.public_key(verifier_address.clone(), key_type);
-        println!("{:?}", res);
         assert!(res.is_ok());
         goldie::assert_json!(res.unwrap());
     }
@@ -253,7 +252,7 @@ mod test {
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
 
-        let contract_address = Addr::unchecked("prover").to_string();
+        let contract_address = MockApi::default().addr_make("prover").to_string();
         let chain_name = "ethereum".parse().unwrap();
         let res = client.is_caller_authorized(contract_address, chain_name);
         assert!(res.is_err());
@@ -266,7 +265,7 @@ mod test {
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
 
-        let contract_address = Addr::unchecked("prover").to_string();
+        let contract_address = MockApi::default().addr_make("prover").to_string();
         let chain_name = "ethereum".parse().unwrap();
         let res = client.is_caller_authorized(contract_address, chain_name);
         assert!(res.is_ok());
@@ -281,13 +280,13 @@ mod test {
             WasmQuery::Smart {
                 contract_addr,
                 msg: _,
-            } if contract_addr == addr => {
+            } if contract_addr == MockApi::default().addr_make(addr).as_str() => {
                 Err(SystemError::Unknown {}).into() // simulate cryptic error seen in production
             }
             _ => panic!("unexpected query: {:?}", msg),
         });
 
-        (querier, Addr::unchecked(addr))
+        (querier, MockApi::default().addr_make(addr))
     }
 
     fn setup_queries_to_succeed() -> (MockQuerier, Addr) {
@@ -295,7 +294,9 @@ mod test {
 
         let mut querier = MockQuerier::default();
         querier.update_wasm(move |msg| match msg {
-            WasmQuery::Smart { contract_addr, msg } if contract_addr == addr => {
+            WasmQuery::Smart { contract_addr, msg }
+                if contract_addr == MockApi::default().addr_make(addr).as_str() =>
+            {
                 let msg = from_json::<QueryMsg>(msg).unwrap();
                 match msg {
                     QueryMsg::Multisig { session_id: _ } => Ok(to_json_binary(&Multisig {
@@ -340,6 +341,6 @@ mod test {
             _ => panic!("unexpected query: {:?}", msg),
         });
 
-        (querier, Addr::unchecked(addr))
+        (querier, MockApi::default().addr_make(addr))
     }
 }

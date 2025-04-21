@@ -1,8 +1,10 @@
 use std::str::FromStr;
 
 use axelar_wasm_std::voting::Vote;
+use router_api::ChainName;
 use stellar::WeightedSigners;
 use stellar_xdr::curr::{BytesM, ContractEventBody, ScAddress, ScBytes, ScSymbol, ScVal, StringM};
+use tracing::debug;
 
 use crate::handlers::stellar_verify_msg::Message;
 use crate::handlers::stellar_verify_verifier_set::VerifierSetConfirmation;
@@ -30,10 +32,21 @@ impl PartialEq<ContractEventBody> for Message {
         )
         .into();
 
-        expected_topic == *symbol
+        let matches_destination_chain = match destination_chain {
+            ScVal::String(s) => match ChainName::try_from(s.to_string()) {
+                Ok(chain) => chain == self.destination_chain,
+                Err(e) => {
+                    debug!(error = ?e, "failed to parse destination chain");
+                    false
+                }
+            },
+            _ => false,
+        };
+
+        matches_destination_chain
+            && expected_topic == *symbol
             && (ScVal::Address(self.source_address.clone()) == *source_address)
             && (ScVal::Bytes(self.payload_hash.clone()) == *payload_hash)
-            && (ScVal::String(self.destination_chain.clone()) == *destination_chain)
             && (ScVal::String(self.destination_address.clone()) == *destination_address)
     }
 }
@@ -150,7 +163,7 @@ mod test {
     use crate::stellar::verifier::{
         verify_message, verify_verifier_set, TOPIC_CONTRACT_CALLED, TOPIC_SIGNERS_ROTATED,
     };
-    use crate::types::{EVMAddress, Hash};
+    use crate::types::{CosmosPublicKey, EVMAddress, Hash};
     use crate::PREFIX;
 
     #[test]
@@ -195,7 +208,7 @@ mod test {
     #[test]
     fn should_not_verify_msg_if_destination_chain_does_not_match() {
         let (gateway_address, tx_response, mut msg) = matching_msg_and_tx_block();
-        msg.destination_chain = ScString::from(StringM::from_str("different-chain").unwrap());
+        msg.destination_chain = "different-chain".parse().unwrap();
 
         assert_eq!(
             verify_message(&gateway_address, &tx_response, &msg),
@@ -230,6 +243,16 @@ mod test {
     #[test]
     fn should_verify_msg_if_correct() {
         let (gateway_address, tx_response, msg) = matching_msg_and_tx_block();
+
+        assert_eq!(
+            verify_message(&gateway_address, &tx_response, &msg),
+            Vote::SucceededOnChain
+        );
+    }
+
+    #[test]
+    fn should_verify_msg_if_chain_uses_different_casing() {
+        let (gateway_address, tx_response, msg) = msg_and_tx_response_with_different_chain_casing();
 
         assert_eq!(
             verify_message(&gateway_address, &tx_response, &msg),
@@ -289,30 +312,35 @@ mod test {
         );
     }
 
-    fn matching_msg_and_tx_block() -> (ScAddress, TxResponse, Message) {
-        let account_id = stellar_xdr::curr::Hash::from(Hash::random().0);
-        let gateway_address = ScAddress::Contract(account_id.clone());
-
+    fn mock_message(destination_chain: &str) -> Message {
         let signing_key = SigningKey::generate(&mut OsRng);
 
-        let msg = Message {
+        Message {
             message_id: HexTxHashAndEventIndex::new(Hash::random(), 0u64),
             source_address: ScAddress::Account(AccountId(PublicKey::PublicKeyTypeEd25519(
                 Uint256::from(signing_key.verifying_key().to_bytes()),
             ))),
-            destination_chain: ScString::from(StringM::from_str("ethereum").unwrap()),
+            destination_chain: destination_chain.parse().unwrap(),
             destination_address: ScString::from(
                 StringM::try_from(format!("0x{:x}", EVMAddress::random()).to_bytes().unwrap())
                     .unwrap(),
             ),
             payload_hash: ScBytes(BytesM::try_from(Hash::random().to_fixed_bytes()).unwrap()),
-        };
+        }
+    }
 
+    fn mock_tx_response(
+        destination_chain: &str,
+        account_id: stellar_xdr::curr::Hash,
+        msg: &Message,
+    ) -> TxResponse {
         let event_body = ContractEventBody::V0(ContractEventV0 {
             topics: vec![
                 ScVal::Symbol(ScSymbol(StringM::from_str(TOPIC_CONTRACT_CALLED).unwrap())),
                 ScVal::Address(msg.source_address.clone()),
-                ScVal::String(msg.destination_chain.clone()),
+                ScVal::String(ScString::from(
+                    StringM::from_str(destination_chain).unwrap(),
+                )),
                 ScVal::String(msg.destination_address.clone()),
                 ScVal::Bytes(msg.payload_hash.clone()),
             ]
@@ -328,11 +356,30 @@ mod test {
             body: event_body,
         };
 
-        let tx_response = TxResponse {
+        TxResponse {
             transaction_hash: msg.message_id.tx_hash_as_hex_no_prefix().to_string(),
             successful: true,
             contract_events: vec![event].try_into().unwrap(),
-        };
+        }
+    }
+
+    fn matching_msg_and_tx_block() -> (ScAddress, TxResponse, Message) {
+        let account_id = stellar_xdr::curr::Hash::from(Hash::random().0);
+        let gateway_address = ScAddress::Contract(account_id.clone());
+
+        let destination_chain = "ethereum";
+        let msg = mock_message(destination_chain);
+        let tx_response = mock_tx_response(destination_chain, account_id, &msg);
+
+        (gateway_address, tx_response, msg)
+    }
+
+    fn msg_and_tx_response_with_different_chain_casing() -> (ScAddress, TxResponse, Message) {
+        let account_id = stellar_xdr::curr::Hash::from(Hash::random().0);
+        let gateway_address = ScAddress::Contract(account_id.clone());
+
+        let msg = mock_message("ethereum");
+        let tx_response = mock_tx_response("Ethereum", account_id, &msg);
 
         (gateway_address, tx_response, msg)
     }
@@ -396,8 +443,8 @@ mod test {
     }
 
     pub fn random_signer() -> Signer {
-        let priv_key: ecdsa::SigningKey<k256::Secp256k1> = ecdsa::SigningKey::random(&mut OsRng);
-        let pub_key: cosmrs::crypto::PublicKey = priv_key.verifying_key().into();
+        let priv_key = k256::ecdsa::SigningKey::random(&mut OsRng);
+        let pub_key: CosmosPublicKey = priv_key.verifying_key().into();
 
         let ed25519_pub_key = SigningKey::generate(&mut OsRng).verifying_key().to_bytes();
 

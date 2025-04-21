@@ -56,7 +56,7 @@ pub struct Client<'a> {
     client: client::ContractClient<'a, ExecuteMsg, QueryMsg>,
 }
 
-impl<'a> Client<'a> {
+impl Client<'_> {
     // TODO: add execute methods
 
     pub fn active_verifiers(
@@ -89,7 +89,7 @@ impl<'a> Client<'a> {
 mod test {
 
     use axelar_wasm_std::nonempty::Uint128;
-    use cosmwasm_std::testing::MockQuerier;
+    use cosmwasm_std::testing::{MockApi, MockQuerier};
     use cosmwasm_std::{from_json, to_json_binary, Addr, QuerierWrapper, SystemError, WasmQuery};
     use router_api::ChainName;
 
@@ -129,7 +129,7 @@ mod test {
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
         let service_name = "verifiers".to_string();
-        let verifier = Addr::unchecked("verifier").to_string();
+        let verifier = MockApi::default().addr_make("verifier").to_string();
         let res = client.verifier(service_name.clone(), verifier.clone());
 
         assert!(res.is_err());
@@ -142,7 +142,7 @@ mod test {
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
         let service_name = "verifiers".to_string();
-        let verifier = Addr::unchecked("verifier").to_string();
+        let verifier = MockApi::default().addr_make("verifier").to_string();
         let res = client.verifier(service_name.clone(), verifier.clone());
 
         assert!(res.is_ok());
@@ -174,28 +174,32 @@ mod test {
     }
 
     fn setup_queries_to_fail() -> (MockQuerier, Addr) {
-        let addr = "service-registry";
+        let api = MockApi::default();
+        let addr = api.addr_make("service-registry");
+        let addr_clone = addr.clone();
 
         let mut querier = MockQuerier::default();
         querier.update_wasm(move |msg| match msg {
             WasmQuery::Smart {
                 contract_addr,
                 msg: _,
-            } if contract_addr == addr => {
+            } if contract_addr == addr.as_str() => {
                 Err(SystemError::Unknown {}).into() // simulate cryptic error seen in production
             }
             _ => panic!("unexpected query: {:?}", msg),
         });
 
-        (querier, Addr::unchecked(addr))
+        (querier, addr_clone)
     }
 
     fn setup_queries_to_succeed() -> (MockQuerier, Addr) {
-        let addr = "service-registry";
+        let api = MockApi::default();
+        let addr = api.addr_make("service-registry");
+        let addr_clone = addr.clone();
 
         let mut querier = MockQuerier::default();
         querier.update_wasm(move |msg| match msg {
-            WasmQuery::Smart { contract_addr, msg } if contract_addr == addr => {
+            WasmQuery::Smart { contract_addr, msg } if contract_addr == addr.as_str() => {
                 let msg = from_json::<QueryMsg>(msg).unwrap();
                 match msg {
                     QueryMsg::ActiveVerifiers {
@@ -203,7 +207,7 @@ mod test {
                         chain_name: _,
                     } => Ok(to_json_binary(&vec![WeightedVerifier {
                         verifier_info: Verifier {
-                            address: Addr::unchecked("verifier"),
+                            address: api.addr_make("verifier"),
                             bonding_state: crate::BondingState::Bonded {
                                 amount: Uint128::one(),
                             },
@@ -216,7 +220,7 @@ mod test {
                     .into(),
                     QueryMsg::Service { service_name } => Ok(to_json_binary(&Service {
                         name: service_name,
-                        coordinator_contract: Addr::unchecked("coordinator"),
+                        coordinator_contract: api.addr_make("coordinator"),
                         min_num_verifiers: 1,
                         max_num_verifiers: None,
                         min_verifier_bond: Uint128::one(),
@@ -231,7 +235,7 @@ mod test {
                         verifier,
                     } => Ok(to_json_binary(&VerifierDetails {
                         verifier: Verifier {
-                            address: Addr::unchecked(verifier),
+                            address: api.addr_make(&verifier),
                             bonding_state: crate::BondingState::Bonded {
                                 amount: Uint128::one(),
                             },
@@ -248,6 +252,6 @@ mod test {
             _ => panic!("unexpected query: {:?}", msg),
         });
 
-        (querier, Addr::unchecked(addr))
+        (querier, addr_clone)
     }
 }

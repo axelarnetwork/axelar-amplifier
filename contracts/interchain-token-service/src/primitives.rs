@@ -2,6 +2,7 @@ use std::fmt::Display;
 
 use axelar_wasm_std::nonempty;
 use cosmwasm_schema::cw_serde;
+use cosmwasm_std::Uint256;
 use cw_storage_plus::{Key, KeyDeserialize, Prefixer, PrimaryKey};
 use router_api::ChainNameRaw;
 
@@ -29,6 +30,8 @@ pub enum Message {
     InterchainTransfer(InterchainTransfer),
     /// Deploy a new interchain token on the destination chain
     DeployInterchainToken(DeployInterchainToken),
+
+    LinkToken(LinkToken),
 }
 
 #[cw_serde]
@@ -74,6 +77,29 @@ impl From<DeployInterchainToken> for Message {
     }
 }
 
+#[cw_serde]
+#[derive(Eq)]
+pub struct RegisterTokenMetadata {
+    pub decimals: u8,
+    pub token_address: nonempty::HexBinary,
+}
+
+#[cw_serde]
+#[derive(Eq)]
+pub struct LinkToken {
+    pub token_id: TokenId,
+    pub token_manager_type: Uint256,
+    pub source_token_address: nonempty::HexBinary,
+    pub destination_token_address: nonempty::HexBinary,
+    pub params: Option<nonempty::HexBinary>,
+}
+
+impl From<LinkToken> for Message {
+    fn from(value: LinkToken) -> Self {
+        Message::LinkToken(value)
+    }
+}
+
 /// A message sent between ITS edge contracts and the ITS hub contract (defined in this crate).
 /// `HubMessage` is used to route an ITS [`Message`] between ITS edge contracts on different chains via the ITS Hub.
 #[cw_serde]
@@ -91,6 +117,7 @@ pub enum HubMessage {
         source_chain: ChainNameRaw,
         message: Message,
     },
+    RegisterTokenMetadata(RegisterTokenMetadata),
 }
 
 impl HubMessage {
@@ -98,6 +125,9 @@ impl HubMessage {
         match self {
             HubMessage::SendToHub { message, .. } => message,
             HubMessage::ReceiveFromHub { message, .. } => message,
+            HubMessage::RegisterTokenMetadata { .. } => {
+                panic!("no message associated with this hub message type")
+            }
         }
     }
 
@@ -110,7 +140,8 @@ impl Message {
     pub fn token_id(&self) -> TokenId {
         match self {
             Message::InterchainTransfer(InterchainTransfer { token_id, .. })
-            | Message::DeployInterchainToken(DeployInterchainToken { token_id, .. }) => *token_id,
+            | Message::DeployInterchainToken(DeployInterchainToken { token_id, .. })
+            | Message::LinkToken(LinkToken { token_id, .. }) => *token_id,
         }
     }
 }
@@ -136,7 +167,7 @@ impl From<TokenId> for [u8; 32] {
     }
 }
 
-impl<'a> PrimaryKey<'a> for TokenId {
+impl PrimaryKey<'_> for TokenId {
     type Prefix = ();
     type SubPrefix = ();
     type Suffix = Self;
@@ -149,13 +180,15 @@ impl<'a> PrimaryKey<'a> for TokenId {
 
 impl KeyDeserialize for TokenId {
     type Output = TokenId;
+    const KEY_ELEMS: u16 = 1;
+
     fn from_vec(value: Vec<u8>) -> cosmwasm_std::StdResult<Self::Output> {
         let inner = <[u8; 32]>::from_vec(value)?;
         Ok(TokenId(inner))
     }
 }
 
-impl<'a> Prefixer<'a> for TokenId {
+impl Prefixer<'_> for TokenId {
     fn prefix(&self) -> Vec<Key> {
         self.key()
     }

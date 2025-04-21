@@ -5,18 +5,13 @@ rust-version = { workspace = true }
 edition = { workspace = true }
 description = "Amplifier Integration Tests"
 
-exclude = [
-    "contract.wasm",
-    "hash.txt"
-]
+exclude = ["contract.wasm", "hash.txt"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [lib]
 crate-type = ["rlib"]
 
 [features]
-# for more explicit tests, cargo test --features=backtraces
-backtraces = ["cosmwasm-std/backtraces"]
 # use library feature to disable all instantiate/execute/query exports
 library = []
 
@@ -24,7 +19,7 @@ library = []
 optimize = """docker run --rm -v "$(pwd)":/code \
   --mount type=volume,source="$(basename "$(pwd)")_cache",target=/code/target \
   --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
-  cosmwasm/optimizer:0.16.0
+  cosmwasm/optimizer:0.16.1
 """
 
 [dependencies]
@@ -33,10 +28,12 @@ axelar-core-std = { workspace = true }
 axelar-wasm-std = { workspace = true }
 coordinator = { workspace = true }
 cosmwasm-std = { workspace = true }
-cw-multi-test = "0.15.1"
+cw-multi-test = { workspace = true }
 error-stack = { workspace = true }
+ethers-core = { workspace = true }
 gateway = { workspace = true }
 gateway-api = { workspace = true }
+interchain-token-service = { workspace = true }
 k256 = { workspace = true }
 multisig = { workspace = true }
 multisig-prover = { workspace = true }

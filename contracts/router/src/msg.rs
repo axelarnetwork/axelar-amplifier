@@ -1,4 +1,8 @@
 use cosmwasm_schema::cw_serde;
+// these messages are extracted into a separate package to avoid circular dependencies
+pub use router_api::msg::{ExecuteMsg, QueryMsg};
+
+pub use crate::contract::MigrateMsg;
 
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -9,11 +13,3 @@ pub struct InstantiateMsg {
     // the address of the axelarnet gateway
     pub axelarnet_gateway: String,
 }
-
-#[cw_serde]
-pub struct MigrateMsg {
-    pub axelarnet_gateway: String,
-}
-
-// these messages are extracted into a separate package to avoid circular dependencies
-pub use router_api::msg::{ExecuteMsg, QueryMsg};

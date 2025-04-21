@@ -2,12 +2,14 @@ use std::collections::HashMap;
 
 use axelar_wasm_std::{nonempty, FnExt, IntoContractError};
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, OverflowError, StdError, Storage, Uint256};
-use cw_storage_plus::{Item, Map};
+use cosmwasm_std::{Addr, Order, OverflowError, StdError, Storage, Uint256};
+use cw_storage_plus::{Bound, Item, Map};
 use error_stack::{report, Result, ResultExt};
+use itertools::Itertools;
 use router_api::{Address, ChainNameRaw};
 
-use crate::{msg, TokenId};
+use crate::shared::NumBits;
+use crate::{msg, RegisterTokenMetadata, TokenId};
 
 #[derive(thiserror::Error, Debug, IntoContractError)]
 pub enum Error {
@@ -30,26 +32,27 @@ pub enum Error {
 #[cw_serde]
 pub struct Config {
     pub axelarnet_gateway: Addr,
+    pub operator: Addr,
 }
 
 #[cw_serde]
 pub struct ChainConfig {
     pub truncation: TruncationConfig,
     pub its_address: Address,
-    frozen: bool,
+    pub frozen: bool,
 }
 
 #[cw_serde]
 pub struct TruncationConfig {
-    pub max_uint: nonempty::Uint256, // The maximum uint value that is supported by the chain's token standard
-    pub max_decimals_when_truncating: u8, // The maximum number of decimals that is preserved when deploying from a chain with a larger max_uint
+    pub max_uint_bits: NumBits, // The maximum number of bits used to represent unsigned integer values that is supported by the chain's token standard
+    pub max_decimals_when_truncating: u8, // The maximum number of decimals that is preserved when deploying from a chain with a larger max unsigned integer
 }
 
 impl From<msg::ChainConfig> for ChainConfig {
     fn from(value: msg::ChainConfig) -> Self {
         Self {
             truncation: TruncationConfig {
-                max_uint: value.truncation.max_uint,
+                max_uint_bits: value.truncation.max_uint_bits,
                 max_decimals_when_truncating: value.truncation.max_decimals_when_truncating,
             },
             its_address: value.its_edge_contract,
@@ -126,10 +129,21 @@ pub struct TokenConfig {
     pub origin_chain: ChainNameRaw,
 }
 
+type TokenAddress = nonempty::HexBinary;
+
+#[cw_serde]
+pub struct CustomTokenMetadata {
+    pub chain: ChainNameRaw,
+    pub decimals: u8,
+    pub token_address: TokenAddress,
+}
+
 const CONFIG: Item<Config> = Item::new("config");
 const CHAIN_CONFIGS: Map<&ChainNameRaw, ChainConfig> = Map::new("chain_configs");
 const TOKEN_INSTANCE: Map<&(ChainNameRaw, TokenId), TokenInstance> = Map::new("token_instance");
 const TOKEN_CONFIGS: Map<&TokenId, TokenConfig> = Map::new("token_configs");
+const CUSTOM_TOKEN_METADATA: Map<&(ChainNameRaw, TokenAddress), CustomTokenMetadata> =
+    Map::new("custom_tokens");
 
 pub fn load_config(storage: &dyn Storage) -> Config {
     CONFIG
@@ -159,6 +173,21 @@ pub fn load_chain_config(
         .ok_or_else(|| report!(Error::ChainNotFound(chain.to_owned())))
 }
 
+pub fn load_chain_configs<'a>(
+    storage: &'a dyn Storage,
+    filter: impl Fn(&ChainConfig) -> bool + 'a,
+    start_after: Option<ChainNameRaw>,
+    limit: u32,
+) -> impl Iterator<Item = Result<(ChainNameRaw, ChainConfig), Error>> + 'a {
+    let start = start_after.as_ref().map(Bound::exclusive);
+
+    CHAIN_CONFIGS
+        .range(storage, start, None, Order::Ascending)
+        .map(|r| r.change_context(Error::Storage))
+        .filter_ok(move |(_, config)| filter(config))
+        .take(limit as usize)
+}
+
 pub fn save_chain_config(
     storage: &mut dyn Storage,
     chain: &ChainNameRaw,
@@ -167,22 +196,6 @@ pub fn save_chain_config(
     CHAIN_CONFIGS
         .save(storage, chain, &config.into())
         .change_context(Error::Storage)
-}
-
-pub fn update_its_contract(
-    storage: &mut dyn Storage,
-    chain: &ChainNameRaw,
-    its_address: Address,
-) -> Result<ChainConfig, Error> {
-    CHAIN_CONFIGS
-        .update(storage, chain, |config| match config {
-            Some(config) => Ok(ChainConfig {
-                its_address,
-                ..config
-            }),
-            None => Err(StdError::not_found("config not found")),
-        })
-        .change_context(Error::ChainNotFound(chain.to_owned()))
 }
 
 pub fn may_load_its_contract(
@@ -281,11 +294,42 @@ pub fn save_token_config(
         .change_context(Error::Storage)
 }
 
+pub fn save_custom_token_metadata(
+    storage: &mut dyn Storage,
+    chain: ChainNameRaw,
+    RegisterTokenMetadata {
+        token_address,
+        decimals,
+    }: RegisterTokenMetadata,
+) -> Result<(), Error> {
+    CUSTOM_TOKEN_METADATA
+        .save(
+            storage,
+            &(chain.clone(), token_address.clone()),
+            &CustomTokenMetadata {
+                chain,
+                decimals,
+                token_address,
+            },
+        )
+        .change_context(Error::Storage)
+}
+
+pub fn may_load_custom_token(
+    storage: &mut dyn Storage,
+    source_chain: ChainNameRaw,
+    token_address: TokenAddress,
+) -> Result<Option<CustomTokenMetadata>, Error> {
+    CUSTOM_TOKEN_METADATA
+        .may_load(storage, &(source_chain, token_address))
+        .change_context(Error::Storage)
+}
+
 #[cfg(test)]
 mod tests {
     use assert_ok::assert_ok;
     use axelar_wasm_std::assert_err_contains;
-    use cosmwasm_std::testing::mock_dependencies;
+    use cosmwasm_std::testing::{mock_dependencies, MockApi};
 
     use super::*;
 
@@ -294,7 +338,8 @@ mod tests {
         let mut deps = mock_dependencies();
 
         let config = Config {
-            axelarnet_gateway: Addr::unchecked("gateway-address"),
+            axelarnet_gateway: MockApi::default().addr_make("gateway-address"),
+            operator: MockApi::default().addr_make("operator-address"),
         };
 
         assert_ok!(save_config(deps.as_mut().storage, &config));
@@ -334,7 +379,7 @@ mod tests {
                 chain: chain1.clone(),
                 its_edge_contract: address1.clone(),
                 truncation: msg::TruncationConfig {
-                    max_uint: Uint256::MAX.try_into().unwrap(),
+                    max_uint_bits: 256.try_into().unwrap(),
                     max_decimals_when_truncating: 16u8
                 }
             }
@@ -346,7 +391,7 @@ mod tests {
                 chain: chain2.clone(),
                 its_edge_contract: address2.clone(),
                 truncation: msg::TruncationConfig {
-                    max_uint: Uint256::MAX.try_into().unwrap(),
+                    max_uint_bits: 256.try_into().unwrap(),
                     max_decimals_when_truncating: 16u8
                 }
             }

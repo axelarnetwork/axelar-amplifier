@@ -5,6 +5,8 @@ use hex::ToHex;
 use multiversx_sdk::data::address::Address;
 use multiversx_sdk::data::transaction::{Events, TransactionOnNetwork};
 use num_traits::cast;
+use router_api::ChainName;
+use tracing::debug;
 
 use crate::handlers::mvx_verify_msg::Message;
 use crate::handlers::mvx_verify_verifier_set::VerifierSetConfirmation;
@@ -41,6 +43,8 @@ impl Message {
         let destination_chain = topics.get(2).ok_or(Error::PropertyEmpty)?;
         let destination_chain = STANDARD.decode(destination_chain)?;
         let destination_chain = String::from_utf8(destination_chain)?;
+        let destination_chain = ChainName::try_from(destination_chain)
+            .inspect_err(|e| debug!(error = ?e, "failed to parse destination chain"))?;
         if destination_chain != self.destination_chain.as_ref() {
             return Ok(false);
         }
@@ -82,7 +86,6 @@ impl VerifierSetConfirmation {
         let signers_hash = STANDARD.decode(signers_hash)?;
 
         let weighted_signers = WeightedSigners::from(&self.verifier_set);
-
         if signers_hash.len() != 32 || signers_hash.as_slice() != weighted_signers.hash().as_slice()
         {
             return Ok(false);
@@ -95,7 +98,7 @@ impl VerifierSetConfirmation {
 fn find_event<'a>(
     transaction: &'a TransactionOnNetwork,
     gateway_address: &Address,
-    log_index: u32,
+    log_index: u64,
 ) -> Option<&'a Events> {
     let log_index: usize = cast(log_index).expect("log_index must be a valid usize");
 
@@ -119,9 +122,9 @@ pub fn verify_message(
         return Vote::NotFound;
     }
 
-    match find_event(transaction, gateway_address, message.event_index) {
+    match find_event(transaction, gateway_address, message.message_id.event_index) {
         Some(event)
-            if hash == message.tx_id.encode_hex::<String>().as_str()
+            if hash == message.message_id.tx_hash.encode_hex::<String>().as_str()
                 && message.eq_event(event).unwrap_or(false) =>
         {
             Vote::SucceededOnChain
@@ -141,9 +144,18 @@ pub fn verify_verifier_set(
         return Vote::NotFound;
     }
 
-    match find_event(transaction, gateway_address, verifier_set.event_index) {
+    match find_event(
+        transaction,
+        gateway_address,
+        verifier_set.message_id.event_index,
+    ) {
         Some(event)
-            if hash == verifier_set.tx_id.encode_hex::<String>().as_str()
+            if hash
+                == verifier_set
+                    .message_id
+                    .tx_hash
+                    .encode_hex::<String>()
+                    .as_str()
                 && verifier_set.eq_event(event).unwrap_or(false) =>
         {
             Vote::SucceededOnChain
@@ -154,6 +166,7 @@ pub fn verify_verifier_set(
 
 #[cfg(test)]
 mod tests {
+    use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
     use axelar_wasm_std::voting::Vote;
     use base64::engine::general_purpose::STANDARD;
     use base64::Engine;
@@ -177,9 +190,7 @@ mod tests {
     fn should_not_verify_msg_if_tx_id_does_not_match() {
         let (gateway_address, tx, mut msg) = get_matching_msg_and_tx();
 
-        msg.tx_id = "ffaf64de66510723f2efbacd7ead3c4f8c856aed1afc2cb30254552aeda47313"
-            .parse()
-            .unwrap();
+        msg.message_id.tx_hash = Hash::random().into();
         assert_eq!(verify_message(&gateway_address, &tx, &msg), Vote::NotFound);
     }
 
@@ -195,7 +206,7 @@ mod tests {
     fn should_not_verify_msg_if_no_log_for_event_index() {
         let (gateway_address, tx, mut msg) = get_matching_msg_and_tx();
 
-        msg.event_index = 2;
+        msg.message_id.event_index = 2;
         assert_eq!(verify_message(&gateway_address, &tx, &msg), Vote::NotFound);
     }
 
@@ -203,7 +214,7 @@ mod tests {
     fn should_not_verify_msg_if_event_index_does_not_match() {
         let (gateway_address, tx, mut msg) = get_matching_msg_and_tx();
 
-        msg.event_index = 0;
+        msg.message_id.event_index = 0;
         assert_eq!(verify_message(&gateway_address, &tx, &msg), Vote::NotFound);
     }
 
@@ -288,14 +299,22 @@ mod tests {
         );
     }
 
+    #[test]
+    fn should_verify_msg_if_chain_uses_different_casing() {
+        let (gateway_address, tx, msg) = msg_and_tx_on_network_with_different_chain_casing();
+
+        assert_eq!(
+            verify_message(&gateway_address, &tx, &msg),
+            Vote::SucceededOnChain
+        );
+    }
+
     // test verify worker set
     #[test]
     fn should_not_verify_verifier_set_if_tx_id_does_not_match() {
         let (gateway_address, tx, mut verifier_set) = get_matching_verifier_set_and_tx();
 
-        verifier_set.tx_id = "ffaf64de66510723f2efbacd7ead3c4f8c856aed1afc2cb30254552aeda47313"
-            .parse()
-            .unwrap();
+        verifier_set.message_id.tx_hash = Hash::random().into();
         assert_eq!(
             verify_verifier_set(&gateway_address, &tx, verifier_set),
             Vote::NotFound
@@ -317,7 +336,7 @@ mod tests {
     fn should_not_verify_verifier_set_if_no_log_for_event_index() {
         let (gateway_address, tx, mut verifier_set) = get_matching_verifier_set_and_tx();
 
-        verifier_set.event_index = 2;
+        verifier_set.message_id.event_index = 2;
         assert_eq!(
             verify_verifier_set(&gateway_address, &tx, verifier_set),
             Vote::NotFound
@@ -328,7 +347,7 @@ mod tests {
     fn should_not_verify_verifier_set_if_event_index_does_not_match() {
         let (gateway_address, tx, mut verifier_set) = get_matching_verifier_set_and_tx();
 
-        verifier_set.event_index = 0;
+        verifier_set.message_id.event_index = 0;
         assert_eq!(
             verify_verifier_set(&gateway_address, &tx, verifier_set),
             Vote::NotFound
@@ -401,29 +420,28 @@ mod tests {
         );
     }
 
-    fn get_matching_msg_and_tx() -> (Address, TransactionOnNetwork, Message) {
-        let gateway_address = Address::from_bech32_string(
-            "erd1qqqqqqqqqqqqqpgqsvzyz88e8v8j6x3wquatxuztnxjwnw92kkls6rdtzx",
-        )
-        .unwrap();
+    fn mock_message(destination_chain: &str) -> Message {
         let source_address = Address::from_bech32_string(
             "erd1qqqqqqqqqqqqqpgqzqvm5ywqqf524efwrhr039tjs29w0qltkklsa05pk7",
         )
         .unwrap();
-        let tx_id = "dfaf64de66510723f2efbacd7ead3c4f8c856aed1afc2cb30254552aeda47312"
-            .parse()
-            .unwrap();
 
-        let msg = Message {
-            tx_id,
-            event_index: 1,
+        let message_id = HexTxHashAndEventIndex::new(Hash::random(), 1u64);
+
+        Message {
+            message_id,
             source_address,
-            destination_chain: "ethereum".parse().unwrap(),
+            destination_chain: destination_chain.parse().unwrap(),
             destination_address: format!("0x{:x}", EVMAddress::random()).parse().unwrap(),
             payload_hash: Hash::random(),
-        };
+        }
+    }
 
-        // Only the first 32 bytes matter for data
+    fn mock_tx_on_network(
+        destination_chain: &str,
+        gateway_address: &Address,
+        msg: &Message,
+    ) -> TransactionOnNetwork {
         let payload_hash = msg.payload_hash;
 
         let wrong_event = Events {
@@ -440,7 +458,7 @@ mod tests {
             topics: Some(vec![
                 STANDARD.encode(CONTRACT_CALL_EVENT),
                 STANDARD.encode(msg.source_address.clone().to_bytes()),
-                STANDARD.encode(msg.destination_chain.to_string()),
+                STANDARD.encode(destination_chain),
                 STANDARD.encode(msg.destination_address.clone()),
                 STANDARD.encode(payload_hash),
             ]),
@@ -451,8 +469,9 @@ mod tests {
             "erd1qqqqqqqqqqqqqpgqzqvm5ywqqf524efwrhr039tjs29w0qltkklsa05pk7",
         )
         .unwrap();
-        let tx_block = TransactionOnNetwork {
-            hash: Some(msg.tx_id.encode_hex::<String>()),
+
+        TransactionOnNetwork {
+            hash: Some(msg.message_id.tx_hash.encode_hex::<String>()),
             logs: Some(ApiLogs {
                 address: other_address.clone(),
                 events: vec![wrong_event, event],
@@ -485,7 +504,31 @@ mod tests {
             hyperblock_hash: Some("".into()),
             smart_contract_results: vec![],
             processing_type_on_destination: "".into(),
-        };
+        }
+    }
+
+    fn get_matching_msg_and_tx() -> (Address, TransactionOnNetwork, Message) {
+        let gateway_address = Address::from_bech32_string(
+            "erd1qqqqqqqqqqqqqpgqsvzyz88e8v8j6x3wquatxuztnxjwnw92kkls6rdtzx",
+        )
+        .unwrap();
+
+        let destination_chain = "ethereum";
+        let msg = mock_message(destination_chain);
+        let tx_block = mock_tx_on_network(destination_chain, &gateway_address, &msg);
+
+        (gateway_address, tx_block, msg)
+    }
+
+    fn msg_and_tx_on_network_with_different_chain_casing(
+    ) -> (Address, TransactionOnNetwork, Message) {
+        let gateway_address = Address::from_bech32_string(
+            "erd1qqqqqqqqqqqqqpgqsvzyz88e8v8j6x3wquatxuztnxjwnw92kkls6rdtzx",
+        )
+        .unwrap();
+
+        let msg = mock_message("ethereum");
+        let tx_block = mock_tx_on_network("Ethereum", &gateway_address, &msg);
 
         (gateway_address, tx_block, msg)
     }
@@ -496,30 +539,30 @@ mod tests {
             "erd1qqqqqqqqqqqqqpgqsvzyz88e8v8j6x3wquatxuztnxjwnw92kkls6rdtzx",
         )
         .unwrap();
-        let tx_id = "dfaf64de66510723f2efbacd7ead3c4f8c856aed1afc2cb30254552aeda47312"
-            .parse()
-            .unwrap();
+        let message_id = HexTxHashAndEventIndex::new(Hash::random(), 1u64);
 
+        let mut signers = ed25519_test_data::signers();
+        signers.sort_by_key(|signer| signer.address.clone());
         let mut verifier_set_confirmation = VerifierSetConfirmation {
-            tx_id,
-            event_index: 1,
-            verifier_set: build_verifier_set(KeyType::Ed25519, &ed25519_test_data::signers()),
+            message_id,
+            verifier_set: build_verifier_set(KeyType::Ed25519, &signers),
         };
         verifier_set_confirmation.verifier_set.created_at = 5;
 
         // 00000003 - length of new signers
-        // 45e67eaf446e6c26eb3a2b55b64339ecf3a4d1d03180bee20eb5afdd23fa644f - first new signer
+        // signers.0.pub_key - first new signer
         // 00000001 01 - length of biguint weight followed by 1 as hex
-        // c387253d29085a8036d6ae2cafb1b14699751417c0ce302cfe03da279e6b5c04 - second new signer
+        // signers.1.pub_key - second new signer
         // 00000001 01 - length of biguint weight followed by 1 as hex
-        // dd9822c7fa239dda9913ebee813ecbe69e35d88ff651548d5cc42c033a8a667b - third new signer
+        // signers.2.pub_key - third new signer
         // 00000001 01 - length of biguint weight followed by 1 as hex
         // 00000001 02 - length of biguint threshold followed by 2 as hex
         // 0000000000000000000000000000000000000000000000000000000000000005 - the nonce (created_at date as uint256)
-        let data = HexBinary::from_hex("0000000345e67eaf446e6c26eb3a2b55b64339ecf3a4d1d03180bee20eb5afdd23fa644f0000000101c387253d29085a8036d6ae2cafb1b14699751417c0ce302cfe03da279e6b5c040000000101dd9822c7fa239dda9913ebee813ecbe69e35d88ff651548d5cc42c033a8a667b000000010100000001020000000000000000000000000000000000000000000000000000000000000005")
+        let data = HexBinary::from_hex(&format!("00000003{}0000000101{}0000000101{}000000010100000001020000000000000000000000000000000000000000000000000000000000000005", signers.first().unwrap().pub_key.to_hex(),signers.get(1).unwrap().pub_key.to_hex(),signers.get(2).unwrap().pub_key.to_hex()))
             .unwrap();
+        // This hash is generated externally using the MultiversX Gateway contract and is 100% correct
         let signers_hash =
-            HexBinary::from_hex("29f81aa379fa1f5973d05dd25e5ae4bc1afa2aa30156b1db5ec437a46ba4fd28")
+            HexBinary::from_hex("0428071d4f8abb85c164854b7a29ff1fefccb0c392b0200ee1e2bc8784abaa3a")
                 .unwrap();
 
         let wrong_event = Events {
@@ -546,7 +589,12 @@ mod tests {
         )
         .unwrap();
         let tx_block = TransactionOnNetwork {
-            hash: Some(tx_id.encode_hex::<String>()),
+            hash: Some(
+                verifier_set_confirmation
+                    .message_id
+                    .tx_hash
+                    .encode_hex::<String>(),
+            ),
             logs: Some(ApiLogs {
                 address: other_address.clone(),
                 events: vec![wrong_event, event],

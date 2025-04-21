@@ -5,10 +5,16 @@ pub mod evm_verify_verifier_set;
 pub mod multisig;
 pub mod mvx_verify_msg;
 pub mod mvx_verify_verifier_set;
+pub mod solana_verify_msg;
+pub mod solana_verify_verifier_set;
+pub mod starknet_verify_msg;
+pub mod starknet_verify_verifier_set;
 pub(crate) mod stellar_verify_msg;
 pub(crate) mod stellar_verify_verifier_set;
 pub mod sui_verify_msg;
 pub mod sui_verify_verifier_set;
+pub mod xrpl_multisig;
+pub mod xrpl_verify_msg;
 
 #[cfg(test)]
 mod tests {
@@ -16,6 +22,7 @@ mod tests {
 
     use base64::engine::general_purpose::STANDARD;
     use base64::Engine;
+    use cosmrs::AccountId;
     use events::Event;
     use tendermint::abci;
 
@@ -47,7 +54,11 @@ mod tests {
 
     pub fn participants(n: u8, verifier: Option<TMAddress>) -> Vec<TMAddress> {
         (0..n)
-            .map(|_| TMAddress::random(PREFIX))
+            .map(|i| {
+                AccountId::new(PREFIX, &[i; AccountId::MAX_LENGTH])
+                    .unwrap()
+                    .into()
+            })
             .chain(verifier)
             .collect()
     }

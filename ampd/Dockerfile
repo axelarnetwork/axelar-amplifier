@@ -1,14 +1,16 @@
-FROM rust:1.78-bookworm as builder
+FROM rust:1.81-bookworm as builder
 RUN apt-get update && apt-get install -y clang protobuf-compiler cmake
 
 WORKDIR /ampd
 COPY ./Cargo.toml ./Cargo.toml
 COPY ./Cargo.lock ./Cargo.lock
 COPY ./ampd/Cargo.toml ./ampd/Cargo.toml
+COPY ./ampd-handlers ./ampd-handlers
 COPY ./packages ./packages
 COPY ./contracts ./contracts
 COPY ./integration-tests ./integration-tests
 COPY ./external-gateways ./external-gateways
+COPY ./tools ./tools
 COPY ./.cargo ./.cargo
 
 # build dependencies separately

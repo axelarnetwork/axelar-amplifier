@@ -52,7 +52,7 @@ impl<'a> GatewayIndex<'a> {
     pub fn new(
         idx_fn: fn(&[u8], &ChainEndpoint) -> Addr,
         pk_namespace: &'a str,
-        idx_namespace: &'a str,
+        idx_namespace: &'static str,
     ) -> Self {
         GatewayIndex(MultiIndex::new(idx_fn, pk_namespace, idx_namespace))
     }
@@ -78,8 +78,8 @@ impl<'a> GatewayIndex<'a> {
 
 const CHAINS_PKEY: &str = "chains";
 
-pub fn chain_endpoints<'a>() -> IndexedMap<'a, ChainName, ChainEndpoint, ChainEndpointIndexes<'a>> {
-    return IndexedMap::new(
+pub fn chain_endpoints<'a>() -> IndexedMap<ChainName, ChainEndpoint, ChainEndpointIndexes<'a>> {
+    IndexedMap::new(
         CHAINS_PKEY,
         ChainEndpointIndexes {
             gateway: GatewayIndex::new(
@@ -88,10 +88,10 @@ pub fn chain_endpoints<'a>() -> IndexedMap<'a, ChainName, ChainEndpoint, ChainEn
                 "gateways",
             ),
         },
-    );
+    )
 }
 
-impl<'a> IndexList<ChainEndpoint> for ChainEndpointIndexes<'a> {
+impl IndexList<ChainEndpoint> for ChainEndpointIndexes<'_> {
     fn get_indexes(&'_ self) -> Box<dyn Iterator<Item = &'_ dyn Index<ChainEndpoint>> + '_> {
         let v: Vec<&dyn Index<ChainEndpoint>> = vec![&self.gateway.0];
         Box::new(v.into_iter())

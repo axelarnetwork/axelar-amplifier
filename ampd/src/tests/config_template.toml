@@ -43,6 +43,7 @@ nanos = 0
 [[handlers]]
 type = 'MultisigSigner'
 cosmwasm_contract = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'
+chain_name = 'ethereum'
 
 [[handlers]]
 type = 'SuiMsgVerifier'
@@ -81,6 +82,36 @@ rpc_url = 'http://127.0.0.1/'
 type = 'StellarVerifierSetVerifier'
 cosmwasm_contract = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'
 rpc_url = 'http://127.0.0.1/'
+
+[[handlers]]
+type = 'StarknetMsgVerifier'
+cosmwasm_contract = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'
+rpc_url = 'http://127.0.0.1/'
+
+[[handlers]]
+type = 'StarknetVerifierSetVerifier'
+cosmwasm_contract = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'
+rpc_url = 'http://127.0.0.1/'
+
+[[handlers]]
+type = 'SolanaMsgVerifier'
+chain_name = 'solana'
+cosmwasm_contract = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'
+rpc_url = 'http://127.0.0.1/'
+
+[handlers.rpc_timeout]
+secs = 3
+nanos = 0
+
+[[handlers]]
+type = 'SolanaVerifierSetVerifier'
+chain_name = 'solana'
+cosmwasm_contract = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'
+rpc_url = 'http://127.0.0.1/'
+
+[handlers.rpc_timeout]
+secs = 3
+nanos = 0
 
 [tofnd_config]
 url = 'http://localhost:50051/'

@@ -1,6 +1,6 @@
 [package]
 name = "multisig"
-version = "1.0.0"
+version = "1.1.1"
 rust-version = { workspace = true }
 edition = { workspace = true }
 description = "Multisig contract"
@@ -20,8 +20,6 @@ path = "src/bin/schema.rs"
 
 [features]
 default = ["secp256k1", "ed25519"]
-# for more explicit tests, cargo test --features=backtraces
-backtraces = ["cosmwasm-std/backtraces"]
 # use library feature to disable all instantiate/execute/query exports
 library = []
 # use this feature to enable secp256k1 for signature verification
@@ -35,17 +33,17 @@ test = []
 optimize = """docker run --rm -v "$(pwd)":/code \
   --mount type=volume,source="$(basename "$(pwd)")_cache",target=/code/target \
   --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
-  cosmwasm/optimizer:0.16.0
+  cosmwasm/optimizer:0.16.1
 """
 
 [dependencies]
 axelar-wasm-std = { workspace = true, features = ["derive"] }
 client = { workspace = true }
-cosmwasm-crypto = "1.2.7"
+cosmwasm-crypto = { workspace = true }
 cosmwasm-schema = { workspace = true }
 cosmwasm-std = { workspace = true }
 cw-storage-plus = { workspace = true }
-cw-utils = "1.0.1"
+cw-utils = { workspace = true }
 cw2 = { workspace = true }
 ed25519-dalek = { workspace = true }
 enum-display-derive = "0.1.1"
@@ -57,6 +55,7 @@ msgs-derive = { workspace = true }
 report = { workspace = true }
 rewards = { workspace = true, features = ["library"] }
 router-api = { workspace = true }
+semver = { workspace = true }
 serde = { version = "1.0.145", default-features = false, features = ["derive"] }
 serde_json = "1.0.89"
 sha3 = { workspace = true }
@@ -64,8 +63,9 @@ signature-verifier-api = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]
-curve25519-dalek = "4.1.1"
-cw-multi-test = "0.15.1"
+curve25519-dalek = "4.1.3"
+cw-multi-test = { workspace = true }
+ed25519-dalek = { workspace = true, features = ["digest", "rand_core"] }
 goldie = { workspace = true }
 hex = "0.4"
 

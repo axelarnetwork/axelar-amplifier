@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, HexBinary, Uint128, Uint64};
+use error_stack::{bail, ResultExt};
 use router_api::ChainName;
 use signature_verifier_api::client::SignatureVerifier;
 
@@ -64,9 +65,9 @@ pub fn validate_session_signature(
     pub_key: &PublicKey,
     block_height: u64,
     sig_verifier: Option<SignatureVerifier>,
-) -> Result<(), ContractError> {
+) -> error_stack::Result<(), ContractError> {
     if session.expires_at < block_height {
-        return Err(ContractError::SigningSessionClosed {
+        bail!(ContractError::SigningSessionClosed {
             session_id: session.id,
         });
     }
@@ -85,7 +86,7 @@ pub fn validate_session_signature(
                 )
             },
         )
-        .map_err(|_| ContractError::InvalidSignature {
+        .change_context(ContractError::InvalidSignature {
             session_id: session.id,
             signer: signer.into(),
         })?;
@@ -131,8 +132,8 @@ fn signers_weight(signatures: &HashMap<String, Signature>, verifier_set: &Verifi
 
 #[cfg(test)]
 mod tests {
-    use cosmwasm_std::testing::MockQuerier;
-    use cosmwasm_std::{to_json_binary, Addr, HexBinary, QuerierWrapper};
+    use cosmwasm_std::testing::{MockApi, MockQuerier};
+    use cosmwasm_std::{to_json_binary, HexBinary, QuerierWrapper};
 
     use super::*;
     use crate::key::KeyType;
@@ -274,7 +275,7 @@ mod tests {
                 let mut querier = MockQuerier::default();
                 querier.update_wasm(move |_| Ok(to_json_binary(&verification).into()).into());
                 let sig_verifier = Some(SignatureVerifier {
-                    address: Addr::unchecked("verifier".to_string()),
+                    address: MockApi::default().addr_make("verifier"),
                     querier: QuerierWrapper::new(&querier),
                 });
 
@@ -291,7 +292,7 @@ mod tests {
                     assert!(result.is_ok());
                 } else {
                     assert_eq!(
-                        result.unwrap_err(),
+                        *result.unwrap_err().current_context(),
                         ContractError::InvalidSignature {
                             session_id: session.id,
                             signer: signer.clone().into(),
@@ -352,7 +353,7 @@ mod tests {
             );
 
             assert_eq!(
-                result.unwrap_err(),
+                *result.unwrap_err().current_context(),
                 ContractError::SigningSessionClosed {
                     session_id: session.id,
                 }
@@ -385,7 +386,7 @@ mod tests {
                 validate_session_signature(&session, &signer, &invalid_sig, pub_key, 0, None);
 
             assert_eq!(
-                result.unwrap_err(),
+                *result.unwrap_err().current_context(),
                 ContractError::InvalidSignature {
                     session_id: session.id,
                     signer: signer.into(),
@@ -399,7 +400,7 @@ mod tests {
         for config in [ecdsa_setup(), ed25519_setup()] {
             let session = config.session;
             let verifier_set = config.verifier_set;
-            let invalid_participant = Addr::unchecked("not_a_participant".to_string());
+            let invalid_participant = MockApi::default().addr_make("not_a_participant");
 
             let result = match verifier_set.signers.get(&invalid_participant.to_string()) {
                 Some(signer) => Ok(&signer.pub_key),

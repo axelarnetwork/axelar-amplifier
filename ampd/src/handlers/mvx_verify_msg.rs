@@ -2,6 +2,7 @@ use std::collections::HashSet;
 use std::convert::TryInto;
 
 use async_trait::async_trait;
+use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
 use axelar_wasm_std::voting::{PollId, Vote};
 use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmrs::tx::Msg;
@@ -13,7 +14,8 @@ use events_derive::try_from;
 use multiversx_sdk::data::address::Address;
 use serde::Deserialize;
 use tokio::sync::watch::Receiver;
-use tracing::info;
+use tracing::{info, info_span};
+use valuable::Valuable;
 use voting_verifier::msg::ExecuteMsg;
 
 use crate::event_processor::EventHandler;
@@ -26,8 +28,7 @@ type Result<T> = error_stack::Result<T, Error>;
 
 #[derive(Deserialize, Debug)]
 pub struct Message {
-    pub tx_id: Hash,
-    pub event_index: u32,
+    pub message_id: HexTxHashAndEventIndex,
     pub destination_address: String,
     pub destination_chain: router_api::ChainName,
     pub source_address: Address,
@@ -120,22 +121,45 @@ where
             return Ok(vec![]);
         }
 
-        let tx_hashes: HashSet<_> = messages.iter().map(|message| message.tx_id).collect();
+        let tx_hashes: HashSet<Hash> = messages
+            .iter()
+            .map(|message| message.message_id.tx_hash.into())
+            .collect();
         let transactions_info = self
             .blockchain
             .transactions_info_with_results(tx_hashes)
             .await;
 
-        let votes: Vec<Vote> = messages
-            .iter()
-            .map(|msg| {
-                transactions_info
-                    .get(&msg.tx_id)
-                    .map_or(Vote::NotFound, |transaction| {
-                        verify_message(&source_gateway_address, transaction, msg)
-                    })
-            })
-            .collect();
+        let poll_id_str: String = poll_id.into();
+        let votes = info_span!(
+            "verify messages for MultiversX",
+            poll_id = poll_id_str,
+            message_ids = messages
+                .iter()
+                .map(|msg| msg.message_id.to_string())
+                .collect::<Vec<String>>()
+                .as_value(),
+        )
+        .in_scope(|| {
+            info!("ready to verify messages in poll",);
+
+            let votes: Vec<Vote> = messages
+                .iter()
+                .map(|msg| {
+                    transactions_info
+                        .get(&msg.message_id.tx_hash.into())
+                        .map_or(Vote::NotFound, |transaction| {
+                            verify_message(&source_gateway_address, transaction, msg)
+                        })
+                })
+                .collect();
+            info!(
+                votes = votes.as_value(),
+                "ready to vote for messages in poll"
+            );
+
+            votes
+        });
 
         Ok(vec![self
             .vote_msg(poll_id, votes)
@@ -152,7 +176,7 @@ mod tests {
     use cosmrs::cosmwasm::MsgExecuteContract;
     use cosmrs::tx::Msg;
     use cosmwasm_std;
-    use error_stack::Result;
+    use ethers_core::types::H160;
     use hex::ToHex;
     use tokio::sync::watch;
     use tokio::test as async_test;
@@ -160,22 +184,21 @@ mod tests {
 
     use super::PollStartedEvent;
     use crate::event_processor::EventHandler;
-    use crate::handlers::tests::into_structured_event;
+    use crate::handlers::tests::{into_structured_event, participants};
     use crate::mvx::proxy::MockMvxProxy;
-    use crate::types::{EVMAddress, Hash, TMAddress};
+    use crate::types::TMAddress;
     use crate::PREFIX;
 
     #[test]
-    fn should_deserialize_poll_started_event() {
-        let event: Result<PollStartedEvent, events::Error> = into_structured_event(
+    fn mvx_verify_msg_should_deserialize_correct_event() {
+        let event: PollStartedEvent = into_structured_event(
             poll_started_event(participants(5, None)),
             &TMAddress::random(PREFIX),
         )
-        .try_into();
+        .try_into()
+        .unwrap();
 
-        assert!(event.is_ok());
-
-        let event = event.unwrap();
+        goldie::assert_debug!(&event);
 
         assert!(event.poll_id == 100u64.into());
         assert!(
@@ -186,10 +209,10 @@ mod tests {
         let message = event.messages.first().unwrap();
 
         assert!(
-            message.tx_id.encode_hex::<String>()
+            message.message_id.tx_hash.encode_hex::<String>()
                 == "dfaf64de66510723f2efbacd7ead3c4f8c856aed1afc2cb30254552aeda47312",
         );
-        assert!(message.event_index == 1u32);
+        assert!(message.message_id.event_index == 1u64);
         assert!(message.destination_chain == "ethereum");
         assert!(
             message.source_address.to_bech32_string().unwrap()
@@ -331,16 +354,9 @@ mod tests {
                     .parse()
                     .unwrap(),
                 destination_chain: "ethereum".parse().unwrap(),
-                destination_address: format!("0x{:x}", EVMAddress::random()).parse().unwrap(),
-                payload_hash: Hash::random().to_fixed_bytes(),
+                destination_address: format!("0x{:x}", H160::repeat_byte(2)).parse().unwrap(),
+                payload_hash: [1;32],
             }],
         }
-    }
-
-    fn participants(n: u8, worker: Option<TMAddress>) -> Vec<TMAddress> {
-        (0..n)
-            .map(|_| TMAddress::random(PREFIX))
-            .chain(worker)
-            .collect()
     }
 }

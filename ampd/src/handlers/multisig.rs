@@ -6,12 +6,12 @@ use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmrs::tx::Msg;
 use cosmrs::Any;
 use cosmwasm_std::{HexBinary, Uint64};
-use ecdsa::VerifyingKey;
-use error_stack::{Report, ResultExt};
+use error_stack::ResultExt;
 use events_derive;
 use events_derive::try_from;
 use hex::encode;
 use multisig::msg::ExecuteMsg;
+use router_api::ChainName;
 use serde::de::Error as DeserializeError;
 use serde::{Deserialize, Deserializer};
 use tokio::sync::watch::Receiver;
@@ -32,6 +32,7 @@ struct SigningStartedEvent {
     #[serde(with = "hex")]
     msg: MessageDigest,
     expires_at: u64,
+    chain: ChainName,
 }
 
 fn deserialize_public_keys<'de, D>(
@@ -45,28 +46,14 @@ where
 
     keys_by_address
         .into_iter()
-        .map(|(address, pk)| match pk {
-            multisig::key::PublicKey::Ecdsa(hex) => Ok((
-                address,
-                VerifyingKey::from_sec1_bytes(hex.as_ref())
-                    .map_err(D::Error::custom)?
-                    .into(),
-            )),
-
-            multisig::key::PublicKey::Ed25519(hex) => {
-                let pk: cosmrs::tendermint::PublicKey =
-                    cosmrs::tendermint::crypto::ed25519::VerificationKey::try_from(hex.as_ref())
-                        .map_err(D::Error::custom)?
-                        .into();
-                Ok((address, pk.into()))
-            }
-        })
+        .map(|(address, pk)| Ok((address, pk.try_into().map_err(D::Error::custom)?)))
         .collect()
 }
 
 pub struct Handler<S> {
     verifier: TMAddress,
     multisig: TMAddress,
+    chain: ChainName,
     signer: S,
     latest_block_height: Receiver<u64>,
 }
@@ -78,12 +65,14 @@ where
     pub fn new(
         verifier: TMAddress,
         multisig: TMAddress,
+        chain: ChainName,
         signer: S,
         latest_block_height: Receiver<u64>,
     ) -> Self {
         Self {
             verifier,
             multisig,
+            chain,
             signer,
             latest_block_height,
         }
@@ -124,6 +113,7 @@ where
             pub_keys,
             msg,
             expires_at,
+            chain,
         } = match event.try_into() as error_stack::Result<_, _> {
             Err(report)
                 if matches!(
@@ -135,6 +125,15 @@ where
             }
             result => result.change_context(DeserializeEvent)?,
         };
+
+        if !chain.eq(&self.chain) {
+            info!(
+                session_id = session_id.to_string(),
+                chain = chain.to_string(),
+                "skipping signing session for different chain"
+            );
+            return Ok(vec![]);
+        }
 
         info!(
             session_id = session_id,
@@ -153,10 +152,9 @@ where
 
         match pub_keys.get(&self.verifier) {
             Some(pub_key) => {
-                let key_type = match pub_key.type_url() {
-                    PublicKey::ED25519_TYPE_URL => tofnd::Algorithm::Ed25519,
-                    PublicKey::SECP256K1_TYPE_URL => tofnd::Algorithm::Ecdsa,
-                    unspported => return Err(Report::from(Error::KeyType(unspported.to_string()))),
+                let key_type = match pub_key {
+                    PublicKey::Secp256k1(_) => tofnd::Algorithm::Ecdsa,
+                    PublicKey::Ed25519(_) => tofnd::Algorithm::Ed25519,
                 };
 
                 let signature = self
@@ -164,7 +162,7 @@ where
                     .sign(
                         self.multisig.to_string().as_str(),
                         msg.clone(),
-                        pub_key,
+                        *pub_key,
                         key_type,
                     )
                     .await
@@ -196,34 +194,28 @@ mod test {
     use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
     use cosmrs::AccountId;
     use cosmwasm_std::{HexBinary, Uint64};
-    use ecdsa::SigningKey;
     use error_stack::{Report, Result};
     use multisig::events::Event;
     use multisig::types::MsgToSign;
-    use rand::distributions::Alphanumeric;
     use rand::rngs::OsRng;
-    use rand::Rng;
     use router_api::ChainName;
     use tendermint::abci;
     use tokio::sync::watch;
 
     use super::*;
     use crate::broadcaster::MockBroadcaster;
+    use crate::tofnd;
     use crate::tofnd::grpc::MockMultisig;
-    use crate::{tofnd, types};
 
     const MULTISIG_ADDRESS: &str = "axelarvaloper1zh9wrak6ke4n6fclj5e8yk397czv430ygs5jz7";
-
-    fn rand_account() -> TMAddress {
-        types::PublicKey::from(SigningKey::random(&mut OsRng).verifying_key())
-            .account_id("axelar")
-            .unwrap()
-            .into()
-    }
+    const PREFIX: &str = "axelar";
 
     fn rand_public_key() -> multisig::key::PublicKey {
         multisig::key::PublicKey::Ecdsa(HexBinary::from(
-            types::PublicKey::from(SigningKey::random(&mut OsRng).verifying_key()).to_bytes(),
+            k256::ecdsa::SigningKey::random(&mut OsRng)
+                .verifying_key()
+                .to_sec1_bytes()
+                .to_vec(),
         ))
     }
 
@@ -232,19 +224,9 @@ mod test {
         HexBinary::from(digest.as_slice())
     }
 
-    fn rand_chain_name() -> ChainName {
-        rand::thread_rng()
-            .sample_iter(&Alphanumeric)
-            .take(10)
-            .map(char::from)
-            .collect::<String>()
-            .try_into()
-            .unwrap()
-    }
-
     fn signing_started_event() -> events::Event {
         let pub_keys = (0..10)
-            .map(|_| (rand_account().to_string(), rand_public_key()))
+            .map(|_| (TMAddress::random(PREFIX).to_string(), rand_public_key()))
             .collect::<HashMap<String, multisig::key::PublicKey>>();
 
         let poll_started = Event::SigningStarted {
@@ -252,7 +234,7 @@ mod test {
             verifier_set_id: "verifier_set_id".to_string(),
             pub_keys,
             msg: MsgToSign::unchecked(rand_message()),
-            chain_name: rand_chain_name(),
+            chain_name: "Ethereum".parse().unwrap(),
             expires_at: 100u64,
         };
 
@@ -275,7 +257,7 @@ mod test {
     // this returns an event that is named SigningStarted, but some expected fields are missing
     fn signing_started_event_with_missing_fields(contract_address: &str) -> events::Event {
         let pub_keys = (0..10)
-            .map(|_| (rand_account().to_string(), rand_public_key()))
+            .map(|_| (TMAddress::random(PREFIX).to_string(), rand_public_key()))
             .collect::<HashMap<String, multisig::key::PublicKey>>();
 
         let poll_started = Event::SigningStarted {
@@ -283,7 +265,7 @@ mod test {
             verifier_set_id: "verifier_set_id".to_string(),
             pub_keys,
             msg: MsgToSign::unchecked(rand_message()),
-            chain_name: rand_chain_name(),
+            chain_name: "Ethereum".parse().unwrap(),
             expires_at: 100u64,
         };
 
@@ -307,6 +289,7 @@ mod test {
     fn handler(
         verifier: TMAddress,
         multisig: TMAddress,
+        chain: ChainName,
         signer: MockMultisig,
         latest_block_height: u64,
     ) -> Handler<MockMultisig> {
@@ -317,7 +300,7 @@ mod test {
 
         let (_, rx) = watch::channel(latest_block_height);
 
-        Handler::new(verifier, multisig, signer, rx)
+        Handler::new(verifier, multisig, chain, signer, rx)
     }
 
     #[test]
@@ -347,7 +330,7 @@ mod test {
         let invalid_pub_key: [u8; 32] = rand::random();
         let mut map: HashMap<String, multisig::key::PublicKey> = HashMap::new();
         map.insert(
-            rand_account().to_string(),
+            TMAddress::random(PREFIX).to_string(),
             multisig::key::PublicKey::Ecdsa(HexBinary::from(invalid_pub_key.as_slice())),
         );
         match event {
@@ -380,8 +363,9 @@ mod test {
         let client = MockMultisig::default();
 
         let handler = handler(
-            rand_account(),
+            TMAddress::random(PREFIX),
             TMAddress::from(MULTISIG_ADDRESS.parse::<AccountId>().unwrap()),
+            "Ethereum".parse().unwrap(),
             client,
             100u64,
         );
@@ -389,7 +373,7 @@ mod test {
         assert_eq!(
             handler
                 .handle(&signing_started_event_with_missing_fields(
-                    &rand_account().to_string()
+                    &TMAddress::random(PREFIX).to_string()
                 ))
                 .await
                 .unwrap(),
@@ -402,8 +386,9 @@ mod test {
         let client = MockMultisig::default();
 
         let handler = handler(
-            rand_account(),
+            TMAddress::random(PREFIX),
             TMAddress::from(MULTISIG_ADDRESS.parse::<AccountId>().unwrap()),
+            "Ethereum".parse().unwrap(),
             client,
             100u64,
         );
@@ -418,7 +403,13 @@ mod test {
     async fn should_not_handle_event_if_multisig_address_does_not_match() {
         let client = MockMultisig::default();
 
-        let handler = handler(rand_account(), rand_account(), client, 100u64);
+        let handler = handler(
+            TMAddress::random(PREFIX),
+            TMAddress::random(PREFIX),
+            "Ethereum".parse().unwrap(),
+            client,
+            100u64,
+        );
 
         assert_eq!(
             handler.handle(&signing_started_event()).await.unwrap(),
@@ -434,8 +425,9 @@ mod test {
             .returning(move |_, _, _, _| Err(Report::from(tofnd::error::Error::SignFailed)));
 
         let handler = handler(
-            rand_account(),
+            TMAddress::random(PREFIX),
             TMAddress::from(MULTISIG_ADDRESS.parse::<AccountId>().unwrap()),
+            "Ethereum".parse().unwrap(),
             client,
             100u64,
         );
@@ -459,6 +451,7 @@ mod test {
         let handler = handler(
             verifier,
             TMAddress::from(MULTISIG_ADDRESS.parse::<AccountId>().unwrap()),
+            "Ethereum".parse().unwrap(),
             client,
             99u64,
         );
@@ -482,8 +475,30 @@ mod test {
         let handler = handler(
             verifier,
             TMAddress::from(MULTISIG_ADDRESS.parse::<AccountId>().unwrap()),
+            "Ethereum".parse().unwrap(),
             client,
             101u64,
+        );
+
+        assert_eq!(handler.handle(&event).await.unwrap(), vec![]);
+    }
+
+    #[tokio::test]
+    async fn should_not_handle_event_for_different_chain() {
+        let mut client = MockMultisig::default();
+        client
+            .expect_sign()
+            .returning(move |_, _, _, _| Err(Report::from(tofnd::error::Error::SignFailed)));
+
+        let event = signing_started_event();
+        let signing_started: SigningStartedEvent = ((&event).try_into() as Result<_, _>).unwrap();
+        let verifier = signing_started.pub_keys.keys().next().unwrap().clone();
+        let handler = handler(
+            verifier,
+            TMAddress::from(MULTISIG_ADDRESS.parse::<AccountId>().unwrap()),
+            "wrong-chain-name".parse().unwrap(),
+            client,
+            100u64,
         );
 
         assert_eq!(handler.handle(&event).await.unwrap(), vec![]);

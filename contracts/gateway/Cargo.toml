@@ -1,6 +1,6 @@
 [package]
 name = "gateway"
-version = "1.0.0"
+version = "1.1.1"
 rust-version = { workspace = true }
 edition = { workspace = true }
 description = "Gateway contract"
@@ -19,8 +19,6 @@ name = "gateway-schema"
 path = "src/bin/schema.rs"
 
 [features]
-# for more explicit tests, cargo test --features=backtraces
-backtraces = ["cosmwasm-std/backtraces"]
 # use library feature to disable all instantiate/execute/query exports
 library = []
 # generate golden files for the tests
@@ -30,7 +28,7 @@ generate_golden_files = []
 optimize = """docker run --rm -v "$(pwd)":/code \
   --mount type=volume,source="$(basename "$(pwd)")_cache",target=/code/target \
   --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
-  cosmwasm/optimizer:0.16.0
+  cosmwasm/optimizer:0.16.1
 """
 
 [dependencies]
@@ -45,13 +43,16 @@ gateway-api = { workspace = true }
 itertools = { workspace = true }
 report = { workspace = true }
 router-api = { workspace = true }
+semver = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 voting-verifier = { workspace = true, features = ["library"] }
 
 [dev-dependencies]
-cw-multi-test = "0.15.1"
+assert_ok = { workspace = true }
+cw-multi-test = { workspace = true }
+goldie = { workspace = true }
 rand = { workspace = true }
 
 [lints]

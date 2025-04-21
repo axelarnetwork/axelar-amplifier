@@ -5,7 +5,7 @@ use axelar_wasm_std::{address, killswitch, permission_control, FnExt, IntoContra
 use axelarnet_gateway::AxelarExecutableMsg;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{Addr, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response, Storage};
+use cosmwasm_std::{Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response, Storage};
 use error_stack::{Report, ResultExt};
 use execute::{freeze_chain, unfreeze_chain};
 
@@ -14,9 +14,11 @@ use crate::state;
 use crate::state::Config;
 
 mod execute;
+mod migrations;
 mod query;
 
 pub use execute::Error as ExecuteError;
+pub use migrations::{migrate, MigrateMsg};
 
 const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -25,8 +27,12 @@ const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub enum Error {
     #[error("failed to execute a cross-chain message")]
     Execute,
+    #[error("failed to modify supply")]
+    ModifySupply,
     #[error("failed to register chains")]
     RegisterChains,
+    #[error("failed to register p2p token instance")]
+    RegisterP2pTokenInstance,
     #[error("failed to update chain")]
     UpdateChain,
     #[error("failed to freeze chain")]
@@ -39,23 +45,18 @@ pub enum Error {
     DisableExecution,
     #[error("failed to enable execution")]
     EnableExecution,
-    #[error("failed to query its address")]
-    QueryItsContract,
+    #[error("failed to query chain config")]
+    QueryChainConfig,
     #[error("failed to query all its addresses")]
     QueryAllItsContracts,
     #[error("failed to query a specific token instance")]
     QueryTokenInstance,
     #[error("failed to query the token config")]
     QueryTokenConfig,
-}
-
-#[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, _msg: Empty) -> Result<Response, ContractError> {
-    // Implement migration logic if needed
-
-    cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-
-    Ok(Response::default())
+    #[error("failed to query the status of contract")]
+    QueryContractStatus,
+    #[error("failed to query chain configs")]
+    QueryAllChainConfigs,
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -69,6 +70,7 @@ pub fn instantiate(
 
     let admin = address::validate_cosmwasm_address(deps.api, &msg.admin_address)?;
     let governance = address::validate_cosmwasm_address(deps.api, &msg.governance_address)?;
+    let operator = address::validate_cosmwasm_address(deps.api, &msg.operator_address)?;
 
     permission_control::set_admin(deps.storage, &admin)?;
     permission_control::set_governance(deps.storage, &governance)?;
@@ -76,7 +78,13 @@ pub fn instantiate(
     let axelarnet_gateway =
         address::validate_cosmwasm_address(deps.api, &msg.axelarnet_gateway_address)?;
 
-    state::save_config(deps.storage, &Config { axelarnet_gateway })?;
+    state::save_config(
+        deps.storage,
+        &Config {
+            axelarnet_gateway,
+            operator,
+        },
+    )?;
 
     killswitch::init(deps.storage, killswitch::State::Disengaged)?;
 
@@ -90,21 +98,39 @@ pub fn execute(
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
-    match msg.ensure_permissions(deps.storage, &info.sender, match_gateway)? {
+    match msg.ensure_permissions(deps.storage, &info.sender, match_gateway, match_operator)? {
         ExecuteMsg::Execute(AxelarExecutableMsg {
             cc_id,
             source_address,
             payload,
         }) => execute::execute_message(deps, cc_id, source_address, payload)
             .change_context(Error::Execute),
+        ExecuteMsg::RegisterP2pTokenInstance {
+            chain,
+            token_id,
+            origin_chain,
+            decimals,
+            supply,
+        } => execute::register_p2p_token_instance(
+            deps,
+            token_id,
+            chain,
+            origin_chain,
+            decimals,
+            supply,
+        )
+        .change_context(Error::RegisterP2pTokenInstance),
+        ExecuteMsg::ModifySupply {
+            chain,
+            token_id,
+            supply_modifier,
+        } => execute::modify_supply(deps, chain, token_id, supply_modifier)
+            .change_context(Error::ModifySupply),
         ExecuteMsg::RegisterChains { chains } => {
             execute::register_chains(deps, chains).change_context(Error::RegisterChains)
         }
-        ExecuteMsg::UpdateChain {
-            chain,
-            its_edge_contract,
-        } => {
-            execute::update_chain(deps, chain, its_edge_contract).change_context(Error::UpdateChain)
+        ExecuteMsg::UpdateChains { chains } => {
+            execute::update_chains(deps, chains).change_context(Error::UpdateChain)
         }
         ExecuteMsg::FreezeChain { chain } => {
             freeze_chain(deps, chain).change_context(Error::FreezeChain)
@@ -126,20 +152,33 @@ fn match_gateway(storage: &dyn Storage, _: &ExecuteMsg) -> Result<Addr, Report<E
     Ok(state::load_config(storage).axelarnet_gateway)
 }
 
+fn match_operator(storage: &dyn Storage, _: &ExecuteMsg) -> Result<Addr, Report<Error>> {
+    Ok(state::load_config(storage).operator)
+}
+
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
     match msg {
-        QueryMsg::ItsContract { chain } => {
-            query::its_contract(deps, chain).change_context(Error::QueryItsContract)
+        QueryMsg::ItsChain { chain } => {
+            query::its_chain(deps, chain).change_context(Error::QueryChainConfig)
         }
         QueryMsg::AllItsContracts => {
             query::all_its_contracts(deps).change_context(Error::QueryAllItsContracts)
         }
+        QueryMsg::ItsChains {
+            filter,
+            start_after,
+            limit,
+        } => query::its_chains(deps, filter, start_after, limit)
+            .change_context(Error::QueryAllChainConfigs),
         QueryMsg::TokenInstance { chain, token_id } => {
             query::token_instance(deps, chain, token_id).change_context(Error::QueryTokenInstance)
         }
         QueryMsg::TokenConfig { token_id } => {
             query::token_config(deps, token_id).change_context(Error::QueryTokenConfig)
+        }
+        QueryMsg::IsEnabled => {
+            query::is_contract_enabled(deps).change_context(Error::QueryContractStatus)
         }
     }?
     .then(Ok)

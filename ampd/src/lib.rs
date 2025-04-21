@@ -3,9 +3,7 @@ use std::time::Duration;
 use asyncutil::task::{CancellableTask, TaskError, TaskGroup};
 use block_height_monitor::BlockHeightMonitor;
 use broadcaster::Broadcaster;
-use cosmrs::proto::cosmos::auth::v1beta1::query_client::QueryClient as AuthQueryClient;
-use cosmrs::proto::cosmos::bank::v1beta1::query_client::QueryClient as BankQueryClient;
-use cosmrs::proto::cosmos::tx::v1beta1::service_client::ServiceClient;
+use cosmos::CosmosGrpcClient;
 use error_stack::{FutureExt, Result, ResultExt};
 use event_processor::EventHandler;
 use event_sub::EventSub;
@@ -14,15 +12,17 @@ use evm::json_rpc::EthereumClient;
 use multiversx_sdk::gateway::GatewayProxy;
 use queue::queued_broadcaster::QueuedBroadcaster;
 use router_api::ChainName;
+use solana_client::nonblocking::rpc_client::RpcClient;
+use solana_sdk::commitment_config::CommitmentConfig;
+use starknet_providers::jsonrpc::HttpTransport;
 use thiserror::Error;
 use tofnd::grpc::{Multisig, MultisigClient};
 use tokio::signal::unix::{signal, SignalKind};
 use tokio::sync::mpsc;
 use tokio::time::interval;
 use tokio_util::sync::CancellationToken;
-use tonic::transport::Channel;
 use tracing::info;
-use types::TMAddress;
+use types::{CosmosPublicKey, TMAddress};
 
 use crate::config::Config;
 
@@ -31,23 +31,24 @@ mod block_height_monitor;
 mod broadcaster;
 pub mod commands;
 pub mod config;
+mod cosmos;
 mod event_processor;
 mod event_sub;
 mod evm;
-mod grpc;
 mod handlers;
 mod health_check;
 mod json_rpc;
 mod mvx;
 mod queue;
+mod solana;
+mod starknet;
 mod stellar;
 mod sui;
 mod tm_client;
 mod tofnd;
 mod types;
 mod url;
-
-pub use grpc::{client, proto};
+mod xrpl;
 
 use crate::asyncutil::future::RetryPolicy;
 use crate::broadcaster::confirm_tx::TxConfirmer;
@@ -75,15 +76,7 @@ async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
     let tm_client = tendermint_rpc::HttpClient::new(tm_jsonrpc.to_string().as_str())
         .change_context(Error::Connection)
         .attach_printable(tm_jsonrpc.clone())?;
-    let service_client = ServiceClient::connect(tm_grpc.to_string())
-        .await
-        .change_context(Error::Connection)
-        .attach_printable(tm_grpc.clone())?;
-    let auth_query_client = AuthQueryClient::connect(tm_grpc.to_string())
-        .await
-        .change_context(Error::Connection)
-        .attach_printable(tm_grpc.clone())?;
-    let bank_query_client = BankQueryClient::connect(tm_grpc.to_string())
+    let cosmos_client = cosmos::CosmosGrpcClient::new(tm_grpc.as_str())
         .await
         .change_context(Error::Connection)
         .attach_printable(tm_grpc.clone())?;
@@ -101,12 +94,11 @@ async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
         .keygen(&tofnd_config.key_uid, tofnd::Algorithm::Ecdsa)
         .await
         .change_context(Error::Tofnd)?;
+    let pub_key = CosmosPublicKey::try_from(pub_key).change_context(Error::Tofnd)?;
 
     let broadcaster = broadcaster::UnvalidatedBasicBroadcaster::builder()
-        .auth_query_client(auth_query_client)
-        .bank_query_client(bank_query_client)
         .address_prefix(PREFIX.to_string())
-        .client(service_client.clone())
+        .client(cosmos_client.clone())
         .signer(multisig_client.clone())
         .pub_key((tofnd_config.key_uid, pub_key))
         .config(broadcast.clone())
@@ -123,7 +115,7 @@ async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
     );
 
     let tx_confirmer = TxConfirmer::new(
-        service_client,
+        cosmos_client,
         RetryPolicy::RepeatConstant {
             sleep: broadcast.tx_fetch_interval,
             max_attempts: broadcast.tx_fetch_max_retries.saturating_add(1).into(),
@@ -150,10 +142,10 @@ async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
     .await
 }
 
-async fn check_finalizer<'a, C>(
+async fn check_finalizer<C>(
     chain_name: &ChainName,
     finalization: &Finalization,
-    rpc_client: &'a C,
+    rpc_client: &C,
 ) -> Result<(), Error>
 where
     C: EthereumClient + Send + Sync,
@@ -174,7 +166,7 @@ where
     event_subscriber: event_sub::EventSubscriber,
     event_processor: TaskGroup<event_processor::Error>,
     broadcaster: QueuedBroadcaster<T>,
-    tx_confirmer: TxConfirmer<ServiceClient<Channel>>,
+    tx_confirmer: TxConfirmer<CosmosGrpcClient>,
     multisig_client: MultisigClient,
     block_height_monitor: BlockHeightMonitor<tendermint_rpc::HttpClient>,
     health_check_server: health_check::Server,
@@ -188,7 +180,7 @@ where
     fn new(
         tm_client: tendermint_rpc::HttpClient,
         broadcaster: QueuedBroadcaster<T>,
-        tx_confirmer: TxConfirmer<ServiceClient<Channel>>,
+        tx_confirmer: TxConfirmer<CosmosGrpcClient>,
         multisig_client: MultisigClient,
         event_buffer_cap: usize,
         block_height_monitor: BlockHeightMonitor<tendermint_rpc::HttpClient>,
@@ -277,17 +269,20 @@ where
                         event_processor_config.clone(),
                     )
                 }
-                handlers::config::Config::MultisigSigner { cosmwasm_contract } => self
-                    .create_handler_task(
-                        "multisig-signer",
-                        handlers::multisig::Handler::new(
-                            verifier.clone(),
-                            cosmwasm_contract,
-                            self.multisig_client.clone(),
-                            self.block_height_monitor.latest_block_height(),
-                        ),
-                        event_processor_config.clone(),
+                handlers::config::Config::MultisigSigner {
+                    cosmwasm_contract,
+                    chain_name,
+                } => self.create_handler_task(
+                    "multisig-signer",
+                    handlers::multisig::Handler::new(
+                        verifier.clone(),
+                        cosmwasm_contract,
+                        chain_name,
+                        self.multisig_client.clone(),
+                        self.block_height_monitor.latest_block_height(),
                     ),
+                    event_processor_config.clone(),
+                ),
                 handlers::config::Config::SuiMsgVerifier {
                     cosmwasm_contract,
                     rpc_url,
@@ -305,6 +300,48 @@ where
                                 .build()
                                 .change_context(Error::Connection)?,
                         ),
+                        self.block_height_monitor.latest_block_height(),
+                    ),
+                    event_processor_config.clone(),
+                ),
+                handlers::config::Config::XRPLMsgVerifier {
+                    cosmwasm_contract,
+                    chain_name,
+                    chain_rpc_url,
+                    rpc_timeout,
+                } => {
+                    let rpc_client = xrpl_http_client::Client::builder()
+                        .base_url(chain_rpc_url.as_str())
+                        .http_client(
+                            reqwest::ClientBuilder::new()
+                                .connect_timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
+                                .timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
+                                .build()
+                                .change_context(Error::Connection)?,
+                        )
+                        .build();
+
+                    self.create_handler_task(
+                        format!("{}-msg-verifier", chain_name),
+                        handlers::xrpl_verify_msg::Handler::new(
+                            verifier.clone(),
+                            cosmwasm_contract,
+                            rpc_client,
+                            self.block_height_monitor.latest_block_height(),
+                        ),
+                        event_processor_config.clone(),
+                    )
+                }
+                handlers::config::Config::XRPLMultisigSigner {
+                    multisig_contract,
+                    multisig_prover_contract,
+                } => self.create_handler_task(
+                    "xrpl-multisig-signer",
+                    handlers::xrpl_multisig::Handler::new(
+                        verifier.clone(),
+                        multisig_contract,
+                        multisig_prover_contract,
+                        self.multisig_client.clone(),
                         self.block_height_monitor.latest_block_height(),
                     ),
                     event_processor_config.clone(),
@@ -388,6 +425,79 @@ where
                     ),
                     event_processor_config.clone(),
                 ),
+                handlers::config::Config::StarknetMsgVerifier {
+                    cosmwasm_contract,
+                    rpc_url,
+                } => self.create_handler_task(
+                    "starknet-msg-verifier",
+                    handlers::starknet_verify_msg::Handler::new(
+                        verifier.clone(),
+                        cosmwasm_contract,
+                        starknet::json_rpc::Client::new_with_transport(HttpTransport::new(
+                            &rpc_url,
+                        ))
+                        .change_context(Error::Connection)?,
+                        self.block_height_monitor.latest_block_height(),
+                    ),
+                    event_processor_config.clone(),
+                ),
+                handlers::config::Config::StarknetVerifierSetVerifier {
+                    cosmwasm_contract,
+                    rpc_url,
+                } => self.create_handler_task(
+                    "starknet-verifier-set-verifier",
+                    handlers::starknet_verify_verifier_set::Handler::new(
+                        verifier.clone(),
+                        cosmwasm_contract,
+                        starknet::json_rpc::Client::new_with_transport(HttpTransport::new(
+                            &rpc_url,
+                        ))
+                        .change_context(Error::Connection)?,
+                        self.block_height_monitor.latest_block_height(),
+                    ),
+                    event_processor_config.clone(),
+                ),
+                handlers::config::Config::SolanaMsgVerifier {
+                    chain_name,
+                    cosmwasm_contract,
+                    rpc_url,
+                    rpc_timeout,
+                } => self.create_handler_task(
+                    "solana-msg-verifier",
+                    handlers::solana_verify_msg::Handler::new(
+                        chain_name,
+                        verifier.clone(),
+                        cosmwasm_contract,
+                        RpcClient::new_with_timeout_and_commitment(
+                            rpc_url.to_string(),
+                            rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT),
+                            CommitmentConfig::finalized(),
+                        ),
+                        self.block_height_monitor.latest_block_height(),
+                    ),
+                    event_processor_config.clone(),
+                ),
+                handlers::config::Config::SolanaVerifierSetVerifier {
+                    chain_name,
+                    cosmwasm_contract,
+                    rpc_url,
+                    rpc_timeout,
+                } => self.create_handler_task(
+                    "solana-verifier-set-verifier",
+                    handlers::solana_verify_verifier_set::Handler::new(
+                        chain_name,
+                        verifier.clone(),
+                        cosmwasm_contract,
+                        RpcClient::new_with_timeout_and_commitment(
+                            rpc_url.to_string(),
+                            rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT),
+                            CommitmentConfig::finalized(),
+                        ),
+                        self.block_height_monitor.latest_block_height(),
+                    )
+                    .await,
+                    event_processor_config.clone(),
+                ),
             };
             self.event_processor = self.event_processor.add_task(task);
         }
@@ -423,7 +533,7 @@ where
 
     fn create_broadcaster_task(
         broadcaster: QueuedBroadcaster<T>,
-        confirmer: TxConfirmer<ServiceClient<Channel>>,
+        confirmer: TxConfirmer<CosmosGrpcClient>,
     ) -> TaskGroup<Error> {
         let (tx_hash_sender, tx_hash_receiver) = mpsc::channel(1000);
         let (tx_response_sender, tx_response_receiver) = mpsc::channel(1000);

@@ -1,6 +1,6 @@
 [package]
 name = "service-registry"
-version = "1.0.0"
+version = "1.1.0"
 rust-version = { workspace = true }
 edition = { workspace = true }
 description = "Contract handling the service registrations"
@@ -19,8 +19,6 @@ name = "service-registry-schema"
 path = "src/bin/schema.rs"
 
 [features]
-# for more explicit tests, cargo test --features=backtraces
-backtraces = ["cosmwasm-std/backtraces"]
 # use library feature to disable all instantiate/execute/query exports
 library = []
 
@@ -28,7 +26,7 @@ library = []
 optimize = """docker run --rm -v "$(pwd)":/code \
   --mount type=volume,source="$(basename "$(pwd)")_cache",target=/code/target \
   --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
-  cosmwasm/optimizer:0.16.0
+  cosmwasm/optimizer:0.16.1
 """
 
 [dependencies]
@@ -45,12 +43,13 @@ msgs-derive = { workspace = true }
 report = { workspace = true }
 router-api = { workspace = true }
 schemars = "0.8.10"
+semver = { workspace = true }
 serde = { version = "1.0.145", default-features = false, features = ["derive"] }
 service-registry-api = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]
-cw-multi-test = "0.15.1"
+cw-multi-test ={ workspace = true }
 goldie = { workspace = true }
 integration-tests = { workspace = true }
 

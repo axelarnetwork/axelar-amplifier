@@ -17,7 +17,7 @@ pub struct VerifierPerChainIndexes<'a> {
     >,
 }
 
-impl<'a> IndexList<()> for VerifierPerChainIndexes<'a> {
+impl IndexList<()> for VerifierPerChainIndexes<'_> {
     fn get_indexes(&'_ self) -> Box<dyn Iterator<Item = &'_ dyn Index<()>> + '_> {
         let v: Vec<&dyn Index<()>> = vec![&self.verifier_address];
         Box::new(v.into_iter())
@@ -161,7 +161,7 @@ mod tests {
     use std::vec;
 
     use axelar_wasm_std::nonempty;
-    use cosmwasm_std::testing::mock_dependencies;
+    use cosmwasm_std::testing::{mock_dependencies, MockApi};
     use cosmwasm_std::{Timestamp, Uint128};
     use service_registry_api::{AuthorizationState, BondingState, Verifier};
 
@@ -170,7 +170,7 @@ mod tests {
     #[test]
     fn register_single_verifier_chain_single_call_success() {
         let mut deps = mock_dependencies();
-        let verifier = Addr::unchecked("verifier");
+        let verifier = MockApi::default().addr_make("verifier");
         let service_name = "validators";
         let chain_name = ChainName::from_str("ethereum").unwrap();
         let chains = vec![chain_name.clone()];
@@ -186,7 +186,7 @@ mod tests {
     #[test]
     fn register_multiple_verifier_chains_single_call_success() {
         let mut deps = mock_dependencies();
-        let verifier = Addr::unchecked("verifier");
+        let verifier = MockApi::default().addr_make("verifier");
         let service_name = "validators";
         let chain_names = vec![
             ChainName::from_str("ethereum").unwrap(),
@@ -205,7 +205,7 @@ mod tests {
     #[test]
     fn register_multiple_verifier_chains_multiple_calls_success() {
         let mut deps = mock_dependencies();
-        let verifier = Addr::unchecked("verifier");
+        let verifier = MockApi::default().addr_make("verifier");
         let service_name = "validators";
 
         let first_chain_name = ChainName::from_str("ethereum").unwrap();
@@ -232,7 +232,7 @@ mod tests {
     #[test]
     fn deregister_single_supported_chain_success() {
         let mut deps = mock_dependencies();
-        let verifier = Addr::unchecked("verifier");
+        let verifier = MockApi::default().addr_make("verifier");
         let service_name = "validators";
         let chain_name = ChainName::from_str("ethereum").unwrap();
         let chains = vec![chain_name.clone()];
@@ -256,7 +256,7 @@ mod tests {
     #[test]
     fn deregister_one_of_supported_chains_success() {
         let mut deps = mock_dependencies();
-        let verifier = Addr::unchecked("verifier");
+        let verifier = MockApi::default().addr_make("verifier");
         let service_name = "validators";
         let chain_names = vec![
             ChainName::from_str("ethereum").unwrap(),
@@ -282,7 +282,7 @@ mod tests {
     #[test]
     fn deregister_unsupported_chain_success() {
         let mut deps = mock_dependencies();
-        let verifier = Addr::unchecked("verifier");
+        let verifier = MockApi::default().addr_make("verifier");
         let service_name = "validators";
         let chain_name = ChainName::from_str("ethereum").unwrap();
         let chains = vec![chain_name.clone()];
@@ -299,7 +299,7 @@ mod tests {
     #[test]
     fn test_bonded_add_bond() {
         let verifier = Verifier {
-            address: Addr::unchecked("verifier"),
+            address: MockApi::default().addr_make("verifier"),
             bonding_state: BondingState::Bonded {
                 amount: Uint128::from(100u32).try_into().unwrap(),
             },
@@ -320,7 +320,7 @@ mod tests {
     #[test]
     fn test_requested_unbonding_add_bond() {
         let verifier = Verifier {
-            address: Addr::unchecked("verifier"),
+            address: MockApi::default().addr_make("verifier"),
             bonding_state: BondingState::RequestedUnbonding {
                 amount: Uint128::from(100u32).try_into().unwrap(),
             },
@@ -341,7 +341,7 @@ mod tests {
     #[test]
     fn test_unbonding_add_bond() {
         let verifier = Verifier {
-            address: Addr::unchecked("verifier"),
+            address: MockApi::default().addr_make("verifier"),
             bonding_state: BondingState::Unbonding {
                 amount: Uint128::from(100u32).try_into().unwrap(),
                 unbonded_at: Timestamp::from_nanos(0),
@@ -363,7 +363,7 @@ mod tests {
     #[test]
     fn test_unbonded_add_bond() {
         let verifier = Verifier {
-            address: Addr::unchecked("verifier"),
+            address: MockApi::default().addr_make("verifier"),
             bonding_state: BondingState::Unbonded,
             authorization_state: AuthorizationState::Authorized,
             service_name: "validators".to_string(),
@@ -384,7 +384,7 @@ mod tests {
         let bonding_state = BondingState::Unbonded;
 
         let verifier = Verifier {
-            address: Addr::unchecked("verifier"),
+            address: MockApi::default().addr_make("verifier"),
             bonding_state: bonding_state.clone(),
             authorization_state: AuthorizationState::Authorized,
             service_name: "validators".to_string(),
@@ -403,7 +403,7 @@ mod tests {
         };
 
         let verifier = Verifier {
-            address: Addr::unchecked("verifier"),
+            address: MockApi::default().addr_make("verifier"),
             bonding_state: bonding_state.clone(),
             authorization_state: AuthorizationState::Authorized,
             service_name: "validators".to_string(),
@@ -417,7 +417,7 @@ mod tests {
     #[test]
     fn test_bonded_unbond() {
         let verifier = Verifier {
-            address: Addr::unchecked("verifier"),
+            address: MockApi::default().addr_make("verifier"),
             bonding_state: BondingState::Bonded {
                 amount: Uint128::from(100u32).try_into().unwrap(),
             },
@@ -440,7 +440,7 @@ mod tests {
     #[test]
     fn test_bonded_unbond_cant_unbond() {
         let verifier = Verifier {
-            address: Addr::unchecked("verifier"),
+            address: MockApi::default().addr_make("verifier"),
             bonding_state: BondingState::Bonded {
                 amount: Uint128::from(100u32).try_into().unwrap(),
             },
@@ -462,7 +462,7 @@ mod tests {
     #[test]
     fn test_requested_unbonding_unbond() {
         let verifier = Verifier {
-            address: Addr::unchecked("verifier"),
+            address: MockApi::default().addr_make("verifier"),
             bonding_state: BondingState::RequestedUnbonding {
                 amount: Uint128::from(100u32).try_into().unwrap(),
             },
@@ -485,7 +485,7 @@ mod tests {
     #[test]
     fn test_requested_unbonding_cant_unbond() {
         let verifier = Verifier {
-            address: Addr::unchecked("verifier"),
+            address: MockApi::default().addr_make("verifier"),
             bonding_state: BondingState::RequestedUnbonding {
                 amount: Uint128::from(100u32).try_into().unwrap(),
             },
@@ -512,7 +512,7 @@ mod tests {
         };
 
         let verifier = Verifier {
-            address: Addr::unchecked("verifier"),
+            address: MockApi::default().addr_make("verifier"),
             bonding_state: bonding_state.clone(),
             authorization_state: AuthorizationState::Authorized,
             service_name: "validators".to_string(),
@@ -538,7 +538,7 @@ mod tests {
         let bonding_state = BondingState::Unbonded;
 
         let verifier = Verifier {
-            address: Addr::unchecked("verifier"),
+            address: MockApi::default().addr_make("verifier"),
             bonding_state: bonding_state.clone(),
             authorization_state: AuthorizationState::Authorized,
             service_name: "validators".to_string(),
@@ -565,7 +565,7 @@ mod tests {
             amount: Uint128::from(100u32).try_into().unwrap(),
         };
         let verifier = Verifier {
-            address: Addr::unchecked("verifier"),
+            address: MockApi::default().addr_make("verifier"),
             bonding_state: bonding_state.clone(),
             authorization_state: AuthorizationState::Authorized,
             service_name: "validators".to_string(),
@@ -592,7 +592,7 @@ mod tests {
             amount: Uint128::from(100u32).try_into().unwrap(),
         };
         let verifier = Verifier {
-            address: Addr::unchecked("verifier"),
+            address: MockApi::default().addr_make("verifier"),
             bonding_state: bonding_state.clone(),
             authorization_state: AuthorizationState::Authorized,
             service_name: "validators".to_string(),
@@ -620,7 +620,7 @@ mod tests {
             unbonded_at: Timestamp::from_nanos(0),
         };
         let verifier = Verifier {
-            address: Addr::unchecked("verifier"),
+            address: MockApi::default().addr_make("verifier"),
             bonding_state: bonding_state.clone(),
             authorization_state: AuthorizationState::Authorized,
             service_name: "validators".to_string(),
@@ -650,7 +650,7 @@ mod tests {
     fn test_unbonded_claim_stake() {
         let bonding_state = BondingState::Unbonded;
         let verifier = Verifier {
-            address: Addr::unchecked("verifier"),
+            address: MockApi::default().addr_make("verifier"),
             bonding_state: bonding_state.clone(),
             authorization_state: AuthorizationState::Authorized,
             service_name: "validators".to_string(),
@@ -674,7 +674,7 @@ mod tests {
     #[test]
     fn jailed_verifier_cannot_unbond() {
         let verifier = Verifier {
-            address: Addr::unchecked("verifier"),
+            address: MockApi::default().addr_make("verifier"),
             bonding_state: BondingState::Bonded {
                 amount: Uint128::from(100u32).try_into().unwrap(),
             },
@@ -690,7 +690,7 @@ mod tests {
     #[test]
     fn jailed_verifier_cannot_claim_stake() {
         let verifier = Verifier {
-            address: Addr::unchecked("verifier"),
+            address: MockApi::default().addr_make("verifier"),
             bonding_state: BondingState::Unbonding {
                 amount: Uint128::from(100u32).try_into().unwrap(),
                 unbonded_at: Timestamp::from_nanos(0),
