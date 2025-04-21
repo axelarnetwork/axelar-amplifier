@@ -31,7 +31,7 @@ impl Default for Config {
         Self {
             tm_jsonrpc: "http://localhost:26657".parse().unwrap(),
             tm_grpc: "tcp://localhost:9090".parse().unwrap(),
-            tm_grpc_timeout: Duration::from_secs(3),
+            tm_grpc_timeout: Duration::from_secs(5),
             broadcast: broadcaster::Config::default(),
             handlers: vec![],
             tofnd_config: TofndConfig::default(),
@@ -284,7 +284,7 @@ mod tests {
             key_uid = '{key_uid}'
 
             [tofnd_config.timeout]
-            secs = 3
+            secs = 5
             nanos = 0
             ",
         );
