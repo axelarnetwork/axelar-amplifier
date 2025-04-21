@@ -64,6 +64,7 @@ async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
     let Config {
         tm_jsonrpc,
         tm_grpc,
+        tm_grpc_timeout,
         broadcast,
         handlers,
         tofnd_config,
@@ -76,14 +77,18 @@ async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
     let tm_client = tendermint_rpc::HttpClient::new(tm_jsonrpc.to_string().as_str())
         .change_context(Error::Connection)
         .attach_printable(tm_jsonrpc.clone())?;
-    let cosmos_client = cosmos::CosmosGrpcClient::new(tm_grpc.as_str())
+    let cosmos_client = cosmos::CosmosGrpcClient::new(tm_grpc.as_str(), tm_grpc_timeout)
         .await
         .change_context(Error::Connection)
         .attach_printable(tm_grpc.clone())?;
-    let multisig_client = MultisigClient::new(tofnd_config.party_uid, tofnd_config.url.clone())
-        .await
-        .change_context(Error::Connection)
-        .attach_printable(tofnd_config.url)?;
+    let multisig_client = MultisigClient::new(
+        tofnd_config.party_uid,
+        tofnd_config.url.as_str(),
+        tofnd_config.timeout,
+    )
+    .await
+    .change_context(Error::Connection)
+    .attach_printable(tofnd_config.url)?;
 
     let block_height_monitor = BlockHeightMonitor::connect(tm_client.clone())
         .await

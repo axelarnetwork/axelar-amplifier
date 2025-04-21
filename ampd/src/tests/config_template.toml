@@ -2,6 +2,10 @@ health_check_bind_addr = '0.0.0.0:3000'
 tm_jsonrpc = 'http://localhost:26657/'
 tm_grpc = 'tcp://localhost:9090'
 
+[tm_grpc_timeout]
+secs = 3
+nanos = 0
+
 [event_processor]
 retry_delay = '1s'
 retry_max_attempts = 3
@@ -117,6 +121,10 @@ nanos = 0
 url = 'http://localhost:50051/'
 party_uid = 'ampd'
 key_uid = 'axelar'
+
+[tofnd_config.timeout]
+secs = 3
+nanos = 0
 
 [service_registry]
 cosmwasm_contract = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'

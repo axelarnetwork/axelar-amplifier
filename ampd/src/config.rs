@@ -1,4 +1,5 @@
 use std::net::{Ipv4Addr, SocketAddrV4};
+use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 
@@ -15,6 +16,7 @@ pub struct Config {
     pub health_check_bind_addr: SocketAddrV4,
     pub tm_jsonrpc: Url,
     pub tm_grpc: Url,
+    pub tm_grpc_timeout: Duration,
     pub event_processor: event_processor::Config,
     pub broadcast: broadcaster::Config,
     #[serde(deserialize_with = "deserialize_handler_configs")]
@@ -29,6 +31,7 @@ impl Default for Config {
         Self {
             tm_jsonrpc: "http://localhost:26657".parse().unwrap(),
             tm_grpc: "tcp://localhost:9090".parse().unwrap(),
+            tm_grpc_timeout: Duration::from_secs(3),
             broadcast: broadcaster::Config::default(),
             handlers: vec![],
             tofnd_config: TofndConfig::default(),
@@ -279,6 +282,10 @@ mod tests {
             url = '{url}'
             party_uid = '{party_uid}'
             key_uid = '{key_uid}'
+
+            [tofnd_config.timeout]
+            secs = 3
+            nanos = 0
             ",
         );
 
