@@ -142,12 +142,19 @@ impl Client<'_> {
 
 #[cfg(test)]
 mod tests {
+    use axelar_wasm_std::msg_id::HexTxHash;
+    use axelar_wasm_std::nonempty;
     use cosmwasm_std::testing::{MockApi, MockQuerier};
-    use cosmwasm_std::{from_json, to_json_binary, Addr, QuerierWrapper, SystemError, WasmQuery};
+    use cosmwasm_std::{
+        from_json, to_json_binary, Addr, HexBinary, QuerierWrapper, SystemError, WasmQuery,
+    };
+    use interchain_token_service::TokenId;
     use router_api::{CrossChainId, Message};
+    use xrpl_types::msg::XRPLInterchainTransferMessage;
+    use xrpl_types::types::{XRPLPaymentAmount, XRPLToken};
 
     use crate::client::Client;
-    use crate::msg::QueryMsg;
+    use crate::msg::{InterchainTransfer, MessageWithPayload, QueryMsg};
 
     #[test]
     fn query_outgoing_messages_should_return_error_when_query_errors() {
@@ -179,6 +186,150 @@ mod tests {
                 .unwrap(),
         };
         let res = client.outgoing_messages(vec![cc_id.clone()]);
+        assert!(res.is_ok());
+        goldie::assert_json!(res.unwrap());
+    }
+
+    #[test]
+    fn query_xrp_token_id_should_return_error_when_query_errors() {
+        let (querier, addr) = setup_queries_to_fail();
+
+        let client: Client =
+            client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
+        let res = client.xrp_token_id();
+        assert!(res.is_err());
+        goldie::assert!(res.unwrap_err().to_string());
+    }
+
+    #[test]
+    fn query_xrp_token_id_should_return_xrp_token_id() {
+        let (querier, addr) = setup_queries_to_succeed();
+
+        let client: Client =
+            client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
+        let res = client.xrp_token_id();
+        assert!(res.is_ok());
+        goldie::assert!(res.unwrap().to_string());
+    }
+
+    #[test]
+    fn query_token_instance_decimals_should_return_error_when_query_errors() {
+        let (querier, addr) = setup_queries_to_fail();
+
+        let client: Client =
+            client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
+        let res = client.token_instance_decimals("xrpl".parse().unwrap(), TokenId::new([0; 32]));
+        assert!(res.is_err());
+        goldie::assert!(res.unwrap_err().to_string());
+    }
+
+    #[test]
+    fn query_token_instance_decimals_should_return_token_instance_decimals() {
+        let (querier, addr) = setup_queries_to_succeed();
+
+        let client: Client =
+            client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
+        let res = client.token_instance_decimals("xrpl".parse().unwrap(), TokenId::new([0; 32]));
+        assert!(res.is_ok());
+        goldie::assert_json!(res.unwrap());
+    }
+
+    #[test]
+    fn query_xrpl_token_should_return_error_when_query_errors() {
+        let (querier, addr) = setup_queries_to_fail();
+
+        let client: Client =
+            client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
+        let res = client.xrpl_token(TokenId::new([2; 32]));
+        assert!(res.is_err());
+        goldie::assert!(res.unwrap_err().to_string());
+    }
+
+    #[test]
+    fn query_xrpl_token_should_return_xrpl_token() {
+        let (querier, addr) = setup_queries_to_succeed();
+
+        let client: Client =
+            client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
+        let res = client.xrpl_token(TokenId::new([2; 32]));
+        assert!(res.is_ok());
+        goldie::assert_json!(res.unwrap());
+    }
+
+    #[test]
+    fn query_linked_token_id_should_return_error_when_query_errors() {
+        let (querier, addr) = setup_queries_to_fail();
+
+        let client: Client =
+            client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
+        let res = client.linked_token_id(XRPLToken {
+            issuer: "rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh".parse().unwrap(),
+            currency: "USD".to_string().try_into().unwrap(),
+        });
+        assert!(res.is_err());
+        goldie::assert!(res.unwrap_err().to_string());
+    }
+
+    #[test]
+    fn query_linked_token_id_should_return_linked_token_id() {
+        let (querier, addr) = setup_queries_to_succeed();
+
+        let client: Client =
+            client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
+        let res = client.linked_token_id(XRPLToken {
+            issuer: "rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh".parse().unwrap(),
+            currency: "USD".to_string().try_into().unwrap(),
+        });
+        assert!(res.is_ok());
+        goldie::assert!(res.unwrap().to_string());
+    }
+
+    #[test]
+    fn query_interchain_transfer_should_return_error_when_query_errors() {
+        let (querier, addr) = setup_queries_to_fail();
+
+        let client: Client =
+            client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
+        let res = client.interchain_transfer(
+            XRPLInterchainTransferMessage {
+                tx_id: HexTxHash::new([0; 32]),
+                source_address: "raNVNWvhUQzFkDDTdEw3roXRJfMJFVJuQo".parse().unwrap(),
+                destination_chain: "Avalanche".parse().unwrap(),
+                destination_address: nonempty::String::try_from(
+                    "95181d16cfb23Bc493668C17d973F061e30F2EAF",
+                )
+                .unwrap(),
+                payload_hash: None,
+                transfer_amount: XRPLPaymentAmount::Drops(100000),
+                gas_fee_amount: XRPLPaymentAmount::Drops(10),
+            },
+            None,
+        );
+        assert!(res.is_err());
+        goldie::assert!(res.unwrap_err().to_string());
+    }
+
+    #[test]
+    fn query_interchain_transfer_should_return_interchain_transfer() {
+        let (querier, addr) = setup_queries_to_succeed();
+
+        let client: Client =
+            client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
+        let res = client.interchain_transfer(
+            XRPLInterchainTransferMessage {
+                tx_id: HexTxHash::new([0; 32]),
+                source_address: "raNVNWvhUQzFkDDTdEw3roXRJfMJFVJuQo".parse().unwrap(),
+                destination_chain: "Avalanche".parse().unwrap(),
+                destination_address: nonempty::String::try_from(
+                    "95181d16cfb23Bc493668C17d973F061e30F2EAF",
+                )
+                .unwrap(),
+                payload_hash: None,
+                transfer_amount: XRPLPaymentAmount::Drops(100000),
+                gas_fee_amount: XRPLPaymentAmount::Drops(10),
+            },
+            None,
+        );
         assert!(res.is_ok());
         goldie::assert_json!(res.unwrap());
     }
@@ -224,6 +375,42 @@ mod tests {
                     )
                     .into())
                     .into(),
+                    QueryMsg::XrpTokenId => {
+                        Ok(to_json_binary(&TokenId::new([0; 32])).into()).into()
+                    },
+                    QueryMsg::TokenInstanceDecimals { .. } => {
+                        Ok(to_json_binary(&18u8).into()).into()
+                    },
+                    QueryMsg::XrplToken(_) => {
+                        Ok(to_json_binary(&XRPLToken {
+                            issuer: "rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh".parse().unwrap(),
+                            currency: "USD".to_string().try_into().unwrap(),
+                        }).into()).into()
+                    },
+                    QueryMsg::LinkedTokenId(_) => {
+                        Ok(to_json_binary(&TokenId::new([2; 32])).into()).into()
+                    },
+                    QueryMsg::InterchainTransfer { .. } => {
+                        Ok(to_json_binary(&InterchainTransfer {
+                            message_with_payload: Some(MessageWithPayload {
+                                message: Message {
+                                    cc_id: CrossChainId {
+                                        source_chain: "xrpl".parse().unwrap(),
+                                        message_id: "0x13548ac28fe95805ad2b8b824472d08e3b45cbc023a5a45a912f11ea98f81e97"
+                                            .parse()
+                                            .unwrap(),
+                                    },
+                                    source_address: "foobar".parse().unwrap(),
+                                    destination_chain: "xrpl".parse().unwrap(),
+                                    destination_address: "foobar".parse().unwrap(),
+                                    payload_hash: [0u8; 32],
+                                },
+                                payload: nonempty::HexBinary::try_from(HexBinary::from_hex("abcd1234").unwrap()).unwrap(),
+                            }),
+                            token_id: TokenId::new([0; 32]),
+                        })
+                        .into()).into()
+                    },
                     _ => panic!("unexpected query: {:?}", msg),
                 }
             }
