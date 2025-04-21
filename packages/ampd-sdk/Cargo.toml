@@ -1,0 +1,26 @@
+[package]
+name = "ampd-sdk"
+version = "0.1.0"
+rust-version = { workspace = true }
+edition = { workspace = true }
+
+[dependencies]
+ampd-proto = { workspace = true }
+async-trait = { workspace = true }
+error-stack = { workspace = true }
+events = { workspace = true }
+futures = { workspace = true }
+mockall = { workspace = true }
+prost = "0.13.5"
+prost-types = "0.13.5"
+serde_json = { workspace = true }
+tendermint = { workspace = true }
+thiserror = { workspace = true }
+tokio-stream = { workspace = true }
+tonic = "0.13.0"
+
+[build-dependencies]
+tonic-build = "0.13.0"
+
+[lints]
+workspace = true

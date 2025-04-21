@@ -1,15 +1,16 @@
 use axelar_wasm_std::{killswitch, nonempty, FnExt, IntoContractError};
-use cosmwasm_std::{DepsMut, HexBinary, QuerierWrapper, Response, Storage};
+use cosmwasm_std::{DepsMut, HexBinary, QuerierWrapper, Response, Storage, Uint256};
 use error_stack::{bail, ensure, report, Result, ResultExt};
 use interceptors::{deploy_token_to_destination_chain, deploy_token_to_source_chain};
 use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
 
 use crate::events::Event;
+use crate::msg::SupplyModifier;
 use crate::primitives::HubMessage;
 use crate::state::TokenDeploymentType;
 use crate::{
     msg, state, DeployInterchainToken, InterchainTransfer, LinkToken, Message,
-    RegisterTokenMetadata, TokenId,
+    RegisterTokenMetadata, TokenConfig, TokenId, TokenInstance, TokenSupply,
 };
 
 mod interceptors;
@@ -62,6 +63,11 @@ pub enum Error {
         origin_chain: ChainNameRaw,
         chain: ChainNameRaw,
     },
+    #[error("token {token_id} already registered with different origin chain {origin_chain}")]
+    WrongOriginChain {
+        token_id: TokenId,
+        origin_chain: ChainNameRaw,
+    },
     #[error(
         "token {token_id} deployed from chain {chain} with different decimals than original deployment"
     )]
@@ -86,6 +92,8 @@ pub enum Error {
     },
     #[error("failed to query axelarnet gateway for chain name")]
     FailedToQueryAxelarnetGateway,
+    #[error("supply modification overflowed. existing supply {0:?}")]
+    ModifySupplyOverflow(TokenSupply),
 }
 
 /// Executes an incoming ITS message.
@@ -322,6 +330,17 @@ fn ensure_is_its_source_address(
     Ok(())
 }
 
+fn ensure_chain_is_registered(storage: &dyn Storage, chain: ChainNameRaw) -> Result<(), Error> {
+    ensure!(
+        state::may_load_chain_config(storage, &chain)
+            .change_context(Error::State)?
+            .is_some(),
+        Error::ChainNotRegistered(chain)
+    );
+
+    Ok(())
+}
+
 fn send_to_destination(
     storage: &dyn Storage,
     querier: QuerierWrapper,
@@ -408,6 +427,95 @@ fn update_chain(storage: &mut dyn Storage, config: msg::ChainConfig) -> Result<(
     Ok(())
 }
 
+pub fn modify_supply(
+    deps: DepsMut,
+    chain: ChainNameRaw,
+    token_id: TokenId,
+    supply_modifier: SupplyModifier,
+) -> Result<Response, Error> {
+    let mut token_instance = state::may_load_token_instance(deps.storage, chain.clone(), token_id)
+        .change_context(Error::State)?
+        .ok_or(Error::TokenNotDeployed {
+            token_id,
+            chain: chain.clone(),
+        })?;
+
+    // set supply to tracked if untracked
+    if token_instance.supply == TokenSupply::Untracked {
+        token_instance.supply = TokenSupply::Tracked(Uint256::zero());
+    }
+
+    token_instance.supply = match supply_modifier {
+        SupplyModifier::IncreaseSupply(amount) => token_instance
+            .supply
+            .clone()
+            .checked_add(amount)
+            .change_context(Error::ModifySupplyOverflow(token_instance.supply))?,
+        SupplyModifier::DecreaseSupply(amount) => token_instance
+            .supply
+            .clone()
+            .checked_sub(amount)
+            .change_context(Error::ModifySupplyOverflow(token_instance.supply))?,
+    };
+
+    state::save_token_instance(deps.storage, chain.clone(), token_id, &token_instance)
+        .change_context(Error::State)?;
+
+    Ok(Response::new().add_event(Event::SupplyModified {
+        token_id,
+        chain,
+        supply_modifier,
+    }))
+}
+
+pub fn register_p2p_token_instance(
+    deps: DepsMut,
+    token_id: TokenId,
+    chain: ChainNameRaw,
+    origin_chain: ChainNameRaw,
+    decimals: u8,
+    supply: TokenSupply,
+) -> Result<Response, Error> {
+    ensure_chain_is_registered(deps.storage, chain.clone())?;
+    ensure_chain_is_registered(deps.storage, origin_chain.clone())?;
+
+    match state::may_load_token_config(deps.storage, &token_id).change_context(Error::State)? {
+        Some(TokenConfig {
+            origin_chain: stored_origin_chain,
+        }) => {
+            // Each token has a single global config, which is set the first time the token is deployed
+            // Subsequent deployments should not modify the existing config
+            // However, if a config exists, we need to check that the origin chain matches
+            ensure!(
+                stored_origin_chain == origin_chain,
+                Error::WrongOriginChain {
+                    token_id,
+                    origin_chain: stored_origin_chain
+                }
+            );
+        }
+        None => state::save_token_config(deps.storage, token_id, &TokenConfig { origin_chain })
+            .change_context(Error::State)?,
+    }
+
+    if state::may_load_token_instance(deps.storage, chain.clone(), token_id)
+        .change_context(Error::State)?
+        .is_some()
+    {
+        bail!(Error::TokenAlreadyDeployed { token_id, chain });
+    }
+
+    state::save_token_instance(
+        deps.storage,
+        chain.clone(),
+        token_id,
+        &TokenInstance { supply, decimals },
+    )
+    .change_context(Error::State)?;
+
+    Ok(Response::new())
+}
+
 trait DeploymentType {
     fn deployment_type(&self) -> TokenDeploymentType;
 }
@@ -424,26 +532,29 @@ impl DeploymentType for DeployInterchainToken {
 
 #[cfg(test)]
 mod tests {
+
     use assert_ok::assert_ok;
     use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
     use axelar_wasm_std::{assert_err_contains, killswitch, nonempty, permission_control};
     use axelarnet_gateway::msg::QueryMsg;
     use cosmwasm_std::testing::{mock_dependencies, MockApi, MockQuerier};
     use cosmwasm_std::{
-        from_json, to_json_binary, HexBinary, MemoryStorage, OwnedDeps, Uint256, WasmQuery,
+        from_json, to_json_binary, DepsMut, HexBinary, MemoryStorage, OwnedDeps, Response, Uint256,
+        WasmQuery,
     };
+    use error_stack::{report, Result};
     use router_api::{ChainName, ChainNameRaw, CrossChainId};
 
-    use super::apply_to_hub;
+    use super::{apply_to_hub, register_p2p_token_instance};
     use crate::contract::execute::{
         apply_to_transfer, disable_execution, enable_execution, execute_message, freeze_chain,
-        register_chain, register_chains, unfreeze_chain, update_chains, Error,
+        modify_supply, register_chain, register_chains, unfreeze_chain, update_chains, Error,
     };
     use crate::msg::TruncationConfig;
     use crate::state::{self, Config};
     use crate::{
         msg, DeployInterchainToken, HubMessage, InterchainTransfer, LinkToken, Message,
-        RegisterTokenMetadata, TokenId,
+        RegisterTokenMetadata, TokenId, TokenSupply,
     };
 
     const SOLANA: &str = "solana";
@@ -457,11 +568,271 @@ mod tests {
     const GOVERNANCE: &str = "governance";
     const AXELARNET_GATEWAY: &str = "axelarnet-gateway";
 
-    fn its_address() -> nonempty::HexBinary {
-        HexBinary::from_hex(ITS_ADDRESS)
-            .unwrap()
-            .try_into()
-            .unwrap()
+    #[test]
+    fn should_be_able_to_transfer() {
+        let mut deps = mock_dependencies();
+        init(&mut deps);
+
+        assert_ok!(deploy_token(
+            deps.as_mut(),
+            ethereum(),
+            solana(),
+            token_id()
+        ));
+
+        assert_ok!(transfer_token(
+            deps.as_mut(),
+            ethereum(),
+            solana(),
+            token_id(),
+            Uint256::one().try_into().unwrap()
+        ));
+    }
+
+    #[test]
+    fn should_not_be_able_to_transfer_more_than_supply() {
+        let mut deps = mock_dependencies();
+        init(&mut deps);
+        let origin_chain = ethereum();
+        let remote_chain = solana();
+
+        assert_ok!(deploy_token(
+            deps.as_mut(),
+            origin_chain.clone(),
+            remote_chain.clone(),
+            token_id()
+        ));
+
+        let starting_supply =
+            assert_ok!(get_supply(deps.as_mut(), remote_chain.clone(), token_id()));
+        assert_eq!(starting_supply, TokenSupply::Tracked(Uint256::zero()));
+
+        // we try to transfer from the remote chain to the origin chain, which should fail
+        // since the token was just deployed and thus there is no supply on remote chain yet
+        assert_err_contains!(
+            transfer_token(
+                deps.as_mut(),
+                remote_chain,
+                origin_chain,
+                token_id(),
+                Uint256::one().try_into().unwrap()
+            ),
+            Error,
+            Error::TokenSupplyInvariantViolated { .. }
+        );
+    }
+
+    #[test]
+    fn should_be_able_to_increase_supply() {
+        let mut deps = mock_dependencies();
+        init(&mut deps);
+
+        assert_ok!(deploy_token(
+            deps.as_mut(),
+            ethereum(),
+            solana(),
+            token_id()
+        ));
+
+        let starting_supply = assert_ok!(get_supply(deps.as_mut(), solana(), token_id()));
+        assert_eq!(starting_supply, TokenSupply::Tracked(Uint256::zero()));
+
+        let supply_increase = Uint256::from_u128(100).try_into().unwrap();
+        assert_ok!(modify_supply(
+            deps.as_mut(),
+            solana(),
+            token_id(),
+            msg::SupplyModifier::IncreaseSupply(supply_increase)
+        ));
+
+        let expected_supply = assert_ok!(starting_supply.checked_add(supply_increase));
+        let result_supply = assert_ok!(get_supply(deps.as_mut(), solana(), token_id()));
+
+        assert_eq!(result_supply, expected_supply);
+
+        // transfer from solana to ethereum should succeed, since we manually set the supply
+        // otherwise this would fail, since there have been no transfers to solana and thus no supply
+        assert_ok!(transfer_token(
+            deps.as_mut(),
+            solana(),
+            ethereum(),
+            token_id(),
+            Uint256::one().try_into().unwrap()
+        ));
+    }
+
+    #[test]
+    fn should_be_able_to_decrease_supply() {
+        let mut deps = mock_dependencies();
+        init(&mut deps);
+
+        assert_ok!(deploy_token(
+            deps.as_mut(),
+            ethereum(),
+            solana(),
+            token_id()
+        ));
+
+        // perform a transfer to add some token supply to solana
+        let initial_transfer = Uint256::from_u128(100).try_into().unwrap();
+        assert_ok!(transfer_token(
+            deps.as_mut(),
+            ethereum(),
+            solana(),
+            token_id(),
+            initial_transfer
+        ));
+
+        let current_supply = assert_ok!(get_supply(deps.as_mut(), solana(), token_id()));
+        assert_eq!(current_supply, TokenSupply::Tracked(*initial_transfer));
+
+        let supply_decrease = initial_transfer;
+        assert_ok!(modify_supply(
+            deps.as_mut(),
+            solana(),
+            token_id(),
+            msg::SupplyModifier::DecreaseSupply(supply_decrease)
+        ));
+
+        let expected_supply = assert_ok!(current_supply.checked_sub(supply_decrease));
+        let result_supply = assert_ok!(get_supply(deps.as_mut(), solana(), token_id()));
+        assert_eq!(result_supply, expected_supply);
+
+        // transfer from solana to ethereum should fail. We transferred 100 tokens to solana at the start of the test,
+        // but then manually decreased the supply, so there should not be 100 tokens to transfer from solana
+        assert_err_contains!(
+            transfer_token(
+                deps.as_mut(),
+                solana(),
+                ethereum(),
+                token_id(),
+                initial_transfer
+            ),
+            Error,
+            Error::TokenSupplyInvariantViolated { .. }
+        );
+    }
+
+    #[test]
+    fn should_be_able_to_set_supply_on_untracked() {
+        let mut deps = mock_dependencies();
+        init(&mut deps);
+
+        assert_ok!(deploy_token_custom_minter(
+            deps.as_mut(),
+            ethereum(),
+            solana(),
+            token_id(),
+            its_address()
+        ));
+
+        let supply_increase = Uint256::from_u128(50);
+        let expected_supply = TokenSupply::Tracked(supply_increase);
+        assert_ok!(modify_supply(
+            deps.as_mut(),
+            solana(),
+            token_id(),
+            msg::SupplyModifier::IncreaseSupply(supply_increase.try_into().unwrap())
+        ));
+
+        let result_supply = assert_ok!(get_supply(deps.as_mut(), solana(), token_id()));
+        assert_eq!(result_supply, expected_supply);
+
+        // try to transfer more than the supply we just set, should fail
+        assert_err_contains!(
+            transfer_token(
+                deps.as_mut(),
+                solana(),
+                ethereum(),
+                token_id(),
+                supply_increase
+                    .checked_add(Uint256::one())
+                    .unwrap()
+                    .try_into()
+                    .unwrap(),
+            ),
+            Error,
+            Error::TokenSupplyInvariantViolated { .. }
+        );
+    }
+
+    #[test]
+    fn should_not_be_able_to_set_supply_on_not_deployed_token() {
+        let mut deps = mock_dependencies();
+        init(&mut deps);
+
+        assert_err_contains!(
+            modify_supply(
+                deps.as_mut(),
+                solana(),
+                token_id(),
+                msg::SupplyModifier::IncreaseSupply(Uint256::from_u128(50u128).try_into().unwrap())
+            ),
+            Error,
+            Error::TokenNotDeployed { .. }
+        );
+
+        // deploy the token
+        assert_ok!(deploy_token(
+            deps.as_mut(),
+            ethereum(),
+            solana(),
+            token_id()
+        ));
+
+        // token id exists now, but try to modify supply on a chain where it is not yet deployed
+        assert_err_contains!(
+            modify_supply(
+                deps.as_mut(),
+                ChainNameRaw::try_from(XRPL).unwrap(),
+                token_id(),
+                msg::SupplyModifier::IncreaseSupply(Uint256::from_u128(50u128).try_into().unwrap())
+            ),
+            Error,
+            Error::TokenNotDeployed { .. }
+        );
+    }
+
+    #[test]
+    fn modify_supply_should_detect_overflow_underflow() {
+        let mut deps = mock_dependencies();
+        init(&mut deps);
+
+        assert_ok!(deploy_token(
+            deps.as_mut(),
+            ethereum(),
+            solana(),
+            token_id()
+        ));
+
+        assert_ok!(modify_supply(
+            deps.as_mut(),
+            solana(),
+            token_id(),
+            msg::SupplyModifier::IncreaseSupply(Uint256::one().try_into().unwrap())
+        ));
+
+        assert_err_contains!(
+            modify_supply(
+                deps.as_mut(),
+                solana(),
+                token_id(),
+                msg::SupplyModifier::IncreaseSupply(Uint256::MAX.try_into().unwrap())
+            ),
+            Error,
+            Error::ModifySupplyOverflow { .. }
+        );
+
+        assert_err_contains!(
+            modify_supply(
+                deps.as_mut(),
+                solana(),
+                token_id(),
+                msg::SupplyModifier::DecreaseSupply(Uint256::MAX.try_into().unwrap())
+            ),
+            Error,
+            Error::ModifySupplyOverflow { .. }
+        );
     }
 
     #[test]
@@ -1189,6 +1560,397 @@ mod tests {
         );
     }
 
+    #[test]
+    fn should_modify_supply_on_custom_tokens() {
+        let mut deps = mock_dependencies();
+        init(&mut deps);
+
+        register_and_link_custom_tokens(
+            &mut deps,
+            token_id(),
+            ethereum(),
+            solana(),
+            18,
+            18,
+            its_address(),
+        );
+
+        assert_ok!(modify_supply(
+            deps.as_mut(),
+            solana(),
+            token_id(),
+            msg::SupplyModifier::IncreaseSupply(Uint256::from_u128(50u128).try_into().unwrap())
+        ));
+
+        assert_err_contains!(
+            transfer_token(
+                deps.as_mut(),
+                solana(),
+                ethereum(),
+                token_id(),
+                Uint256::from_u128(100u128).try_into().unwrap()
+            ),
+            Error,
+            Error::TokenSupplyInvariantViolated { .. }
+        );
+
+        // a smaller transfer should succeed
+        assert_ok!(transfer_token(
+            deps.as_mut(),
+            solana(),
+            ethereum(),
+            token_id(),
+            Uint256::from_u128(50u128).try_into().unwrap()
+        ));
+    }
+
+    #[test]
+    fn should_register_p2p_tokens() {
+        let mut deps = mock_dependencies();
+        init(&mut deps);
+
+        let origin_chain = ethereum();
+        let instance_chains: Vec<ChainNameRaw> = vec![solana(), ethereum()];
+        let decimals = 18;
+        let supply = TokenSupply::Tracked(Uint256::one());
+
+        for chain in instance_chains {
+            assert_ok!(register_p2p_token_instance(
+                deps.as_mut(),
+                token_id(),
+                chain,
+                origin_chain.clone(),
+                decimals,
+                supply.clone()
+            ));
+        }
+
+        assert_ok!(transfer_token(
+            deps.as_mut(),
+            ethereum(),
+            solana(),
+            token_id(),
+            Uint256::one().try_into().unwrap()
+        ));
+    }
+
+    #[test]
+    fn should_transfer_between_p2p_tokens_and_hub_deployed_tokens() {
+        let mut deps = mock_dependencies();
+        init(&mut deps);
+
+        // deploy to solana via the hub
+        assert_ok!(deploy_token(
+            deps.as_mut(),
+            ethereum(),
+            solana(),
+            token_id()
+        ));
+
+        // register instance of same token deployed on xrpl
+        assert_ok!(register_p2p_token_instance(
+            deps.as_mut(),
+            token_id(),
+            xrpl(),
+            ethereum(),
+            18,
+            TokenSupply::Tracked(Uint256::one())
+        ));
+
+        // test transfer in both directions
+        assert_ok!(transfer_token(
+            deps.as_mut(),
+            xrpl(),
+            solana(),
+            token_id(),
+            Uint256::one().try_into().unwrap()
+        ));
+
+        assert_ok!(transfer_token(
+            deps.as_mut(),
+            solana(),
+            xrpl(),
+            token_id(),
+            Uint256::one().try_into().unwrap()
+        ));
+    }
+
+    #[test]
+    fn should_not_register_same_p2p_token_twice() {
+        let mut deps = mock_dependencies();
+        init(&mut deps);
+
+        let decimals = 18;
+        let supply = TokenSupply::Tracked(Uint256::one());
+        assert_ok!(register_p2p_token_instance(
+            deps.as_mut(),
+            token_id(),
+            solana(),
+            ethereum(),
+            decimals,
+            supply.clone()
+        ));
+        let res = register_p2p_token_instance(
+            deps.as_mut(),
+            token_id(),
+            solana(),
+            ethereum(),
+            decimals,
+            supply.clone(),
+        );
+        assert_err_contains!(res, Error, Error::TokenAlreadyDeployed { .. });
+    }
+
+    #[test]
+    fn should_not_register_p2p_token_with_different_origin() {
+        let mut deps = mock_dependencies();
+        init(&mut deps);
+
+        let origin_chain = ethereum();
+        let instance_chain = solana();
+        let decimals = 18;
+        let supply = TokenSupply::Tracked(Uint256::one());
+        assert_ok!(register_p2p_token_instance(
+            deps.as_mut(),
+            token_id(),
+            origin_chain.clone(),
+            origin_chain.clone(),
+            decimals,
+            supply.clone()
+        ));
+        let wrong_origin_chain = xrpl();
+        let res = register_p2p_token_instance(
+            deps.as_mut(),
+            token_id(),
+            instance_chain,
+            wrong_origin_chain,
+            decimals,
+            supply.clone(),
+        );
+        assert_err_contains!(res, Error, Error::WrongOriginChain { .. });
+    }
+
+    #[test]
+    fn should_not_register_p2p_token_with_unregistered_chain() {
+        let mut deps = mock_dependencies();
+        init(&mut deps);
+
+        let decimals = 18;
+        let supply = TokenSupply::Tracked(Uint256::one());
+        assert_err_contains!(
+            register_p2p_token_instance(
+                deps.as_mut(),
+                token_id(),
+                ChainNameRaw::try_from("bananas").unwrap(),
+                ethereum(),
+                decimals,
+                supply.clone()
+            ),
+            Error,
+            Error::ChainNotRegistered { .. }
+        );
+
+        assert_err_contains!(
+            register_p2p_token_instance(
+                deps.as_mut(),
+                token_id(),
+                ethereum(),
+                ChainNameRaw::try_from("bananas").unwrap(),
+                decimals,
+                supply.clone()
+            ),
+            Error,
+            Error::ChainNotRegistered { .. }
+        );
+    }
+
+    #[test]
+    fn register_p2p_token_should_init_balance_tracking() {
+        let mut deps = mock_dependencies();
+        init(&mut deps);
+
+        let decimals = 18;
+        assert_ok!(register_p2p_token_instance(
+            deps.as_mut(),
+            token_id(),
+            ethereum(),
+            ethereum(),
+            decimals,
+            TokenSupply::Untracked
+        ));
+
+        let supply = TokenSupply::Tracked(Uint256::one());
+        assert_ok!(register_p2p_token_instance(
+            deps.as_mut(),
+            token_id(),
+            solana(),
+            ethereum(),
+            decimals,
+            supply.clone(),
+        ));
+
+        let transfer_amount = Uint256::one().try_into().unwrap();
+
+        // initial supply is one token. first transfer should succeed
+        assert_ok!(transfer_token(
+            deps.as_mut(),
+            solana(),
+            ethereum(),
+            token_id(),
+            transfer_amount
+        ));
+
+        assert_err_contains!(
+            transfer_token(
+                deps.as_mut(),
+                solana(),
+                ethereum(),
+                token_id(),
+                transfer_amount
+            ),
+            Error,
+            Error::TokenSupplyInvariantViolated { .. }
+        );
+    }
+
+    // Below are various helper functions to assist with writing tests
+
+    fn its_address() -> nonempty::HexBinary {
+        HexBinary::from_hex(ITS_ADDRESS)
+            .unwrap()
+            .try_into()
+            .unwrap()
+    }
+
+    // most tests only need one token id
+    fn token_id() -> TokenId {
+        TokenId::new([7u8; 32])
+    }
+
+    fn xrpl() -> ChainNameRaw {
+        XRPL.try_into().unwrap()
+    }
+
+    fn solana() -> ChainNameRaw {
+        SOLANA.try_into().unwrap()
+    }
+
+    fn ethereum() -> ChainNameRaw {
+        ETHEREUM.try_into().unwrap()
+    }
+
+    fn cc_id(source_chain: ChainNameRaw) -> CrossChainId {
+        CrossChainId {
+            source_chain,
+            message_id: HexTxHashAndEventIndex::new([1u8; 32], 0u32).into(),
+        }
+    }
+
+    fn get_supply(
+        deps: DepsMut,
+        chain: ChainNameRaw,
+        token_id: TokenId,
+    ) -> Result<TokenSupply, Error> {
+        state::may_load_token_instance(deps.storage, chain.clone(), token_id)
+            .unwrap()
+            .ok_or(report!(Error::TokenNotDeployed { token_id, chain }))
+            .map(|token| token.supply)
+    }
+
+    fn transfer_token(
+        deps: DepsMut,
+        from: ChainNameRaw,
+        to: ChainNameRaw,
+        token_id: TokenId,
+        amount: nonempty::Uint256,
+    ) -> Result<Response, Error> {
+        let msg = HubMessage::SendToHub {
+            destination_chain: to,
+            message: InterchainTransfer {
+                token_id,
+                source_address: its_address(),
+                destination_address: its_address(),
+                amount,
+                data: None,
+            }
+            .into(),
+        };
+        execute_message(
+            deps,
+            cc_id(from),
+            ITS_ADDRESS.to_string().try_into().unwrap(),
+            msg.abi_encode(),
+        )
+    }
+
+    fn deploy_token(
+        deps: DepsMut,
+        from: ChainNameRaw,
+        to: ChainNameRaw,
+        token_id: TokenId,
+    ) -> Result<Response, Error> {
+        deploy_token_with_metadata(
+            deps,
+            from,
+            to,
+            token_id,
+            "Test".parse().unwrap(),
+            "TEST".parse().unwrap(),
+            18,
+            None,
+        )
+    }
+
+    fn deploy_token_custom_minter(
+        deps: DepsMut,
+        from: ChainNameRaw,
+        to: ChainNameRaw,
+        token_id: TokenId,
+        minter: nonempty::HexBinary,
+    ) -> Result<Response, Error> {
+        deploy_token_with_metadata(
+            deps,
+            from,
+            to,
+            token_id,
+            "Test".parse().unwrap(),
+            "TEST".parse().unwrap(),
+            18,
+            Some(minter),
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn deploy_token_with_metadata(
+        deps: DepsMut,
+        from: ChainNameRaw,
+        to: ChainNameRaw,
+        token_id: TokenId,
+        name: nonempty::String,
+        symbol: nonempty::String,
+        decimals: u8,
+        minter: Option<nonempty::HexBinary>,
+    ) -> Result<Response, Error> {
+        let msg = HubMessage::SendToHub {
+            destination_chain: to,
+            message: DeployInterchainToken {
+                token_id,
+                name,
+                symbol,
+                decimals,
+                minter,
+            }
+            .into(),
+        };
+
+        execute_message(
+            deps,
+            cc_id(from),
+            ITS_ADDRESS.to_string().try_into().unwrap(),
+            msg.clone().abi_encode(),
+        )
+    }
+
     fn register_custom_token(
         deps: &mut OwnedDeps<MemoryStorage, MockApi, MockQuerier>,
         chain: ChainNameRaw,
@@ -1294,6 +2056,7 @@ mod tests {
             deps.as_mut().storage,
             &Config {
                 axelarnet_gateway: MockApi::default().addr_make(AXELARNET_GATEWAY),
+                operator: MockApi::default().addr_make("operator-address")
             },
         ));
 

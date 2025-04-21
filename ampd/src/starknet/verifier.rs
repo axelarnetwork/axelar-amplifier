@@ -1,6 +1,8 @@
 use axelar_wasm_std::voting::Vote;
 use cosmwasm_std::HexBinary;
+use router_api::ChainName;
 use starknet_core::types::Felt;
+use tracing::debug;
 
 use crate::handlers::starknet_verify_msg::Message;
 use crate::handlers::starknet_verify_verifier_set::VerifierSetConfirmation;
@@ -27,8 +29,16 @@ pub fn verify_msg(
 
 impl PartialEq<Message> for ContractCallEvent {
     fn eq(&self, axl_msg: &Message) -> bool {
-        Felt::from(axl_msg.source_address.clone()) == self.source_address
-            && axl_msg.destination_chain == self.destination_chain
+        let matches_destination_chain = match ChainName::try_from(self.destination_chain.as_ref()) {
+            Ok(chain) => axl_msg.destination_chain == chain,
+            Err(e) => {
+                debug!(error = ?e, "failed to parse destination chain");
+                false
+            }
+        };
+
+        matches_destination_chain
+            && Felt::from(axl_msg.source_address.clone()) == self.source_address
             && axl_msg.destination_address == self.destination_address
             && axl_msg.payload_hash == self.payload_hash
     }
@@ -223,6 +233,22 @@ mod tests {
             verify_msg(
                 &mock_valid_event(),
                 &mock_valid_message(),
+                &String::from("0x035410be6f4bf3f67f7c1bb4a93119d9d410b2f981bfafbf5dbbf5d37ae7439e"),
+            ),
+            Vote::SucceededOnChain
+        )
+    }
+
+    #[test]
+    fn shoud_verify_event_if_chain_uses_different_casing() {
+        let msg = mock_valid_message();
+        let mut event = mock_valid_event();
+        event.destination_chain = msg.destination_chain.to_string().to_uppercase();
+
+        assert_eq!(
+            verify_msg(
+                &event,
+                &msg,
                 &String::from("0x035410be6f4bf3f67f7c1bb4a93119d9d410b2f981bfafbf5dbbf5d37ae7439e"),
             ),
             Vote::SucceededOnChain

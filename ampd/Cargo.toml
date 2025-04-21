@@ -1,12 +1,14 @@
 [package]
 name = "ampd"
 edition = { workspace = true }
-version = "1.4.0"
+version = "1.7.0"
 rust-version = { workspace = true }
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-async-trait = "0.1.59"
+async-trait = { workspace = true }
+axelar-solana-encoding = { workspace = true }
+axelar-solana-gateway = { workspace = true }
 axelar-wasm-std = { workspace = true }
 axum = "0.7.5"
 base64 = "0.21.2"
@@ -29,7 +31,8 @@ ethers-providers = { version = "2.0.13", default-features = false, features = [
 events = { workspace = true }
 events-derive = { workspace = true }
 evm-gateway = { workspace = true }
-futures = "0.3.25"
+futures = { workspace = true }
+gateway-event-stack = { workspace = true }
 hex = { version = "0.4.3", features = ["serde"] }
 humantime-serde = "1.1.1"
 itertools = { workspace = true }
@@ -48,11 +51,16 @@ report = { workspace = true }
 reqwest = { version = "0.11.24", default-features = false }
 rewards = { workspace = true }
 router-api = { workspace = true }
+schemars = { workspace = true }
 serde = { version = "1.0.147", features = ["derive"] }
 serde_json = { workspace = true }
 serde_with = "3.2.0"
 service-registry-api = { workspace = true }
 sha3 = { workspace = true }
+solana-client = "=2.0.16"
+solana-sdk = "=2.0.16"
+solana-transaction-status = "=2.0.16"
+solana-zk-token-sdk = "=2.0.16"
 starknet-checked-felt = { workspace = true }
 
 starknet-core = { workspace = true }
@@ -63,7 +71,7 @@ stellar-xdr = { workspace = true, features = ["serde_json"] }
 sui-gateway = { workspace = true }
 sui-json-rpc-types = { git = "https://github.com/mystenlabs/sui", tag = "testnet-v1.39.1" }
 sui-types = { git = "https://github.com/mystenlabs/sui", tag = "testnet-v1.39.1" }
-tendermint = "0.35.0"
+tendermint = { workspace = true }
 tendermint-rpc = { version = "0.35.0", features = ["http-client"] }
 thiserror = { workspace = true }
 tokio = { workspace = true, features = ["signal"] }
@@ -83,6 +91,8 @@ url = "2.3.1"
 valuable = { version = "0.1.0", features = ["derive"] }
 valuable-serde = { version = "0.1.0", features = ["std"] }
 voting-verifier = { workspace = true }
+xrpl-types = { workspace = true }
+xrpl_http_client = { version = "0.15.0" }
 
 [dev-dependencies]
 assert_ok = { workspace = true }
@@ -94,6 +104,7 @@ goldie = { workspace = true }
 multisig = { workspace = true, features = ["test", "library"] }
 rand = { workspace = true }
 random-string = "1.0.0"
+test-log = { version = "0.2", features = ["trace"], default-features = false }
 tokio = { workspace = true, features = ["test-util"] }
 
 [build-dependencies]
