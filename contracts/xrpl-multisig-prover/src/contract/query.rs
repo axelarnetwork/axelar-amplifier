@@ -4,9 +4,7 @@ use multisig::key::{PublicKey, Signature};
 use multisig::types::MultisigState;
 use router_api::CrossChainId;
 use xrpl_types::error::XRPLError;
-use xrpl_types::types::{
-    XRPLAccountId, XRPLSignedTx, XRPLSigner, XRPLTxStatus, XRPLUnsignedTxToSign,
-};
+use xrpl_types::types::{XRPLAccountId, XRPLSignedTx, XRPLSigner, XRPLUnsignedTxToSign};
 
 use crate::error::ContractError;
 use crate::msg::{ProofResponse, ProofStatus};
@@ -26,9 +24,6 @@ fn message_to_sign(
         MULTISIG_SESSION_ID_TO_UNSIGNED_TX_HASH.load(storage, multisig_session_id.u64())?;
 
     let tx_info = UNSIGNED_TX_HASH_TO_TX_INFO.load(storage, &unsigned_tx_hash)?;
-    if tx_info.status != XRPLTxStatus::Pending {
-        return Err(ContractError::TxStatusNotPending);
-    }
 
     let encoded_unsigned_tx_to_sign = XRPLUnsignedTxToSign {
         unsigned_tx: tx_info.unsigned_tx,

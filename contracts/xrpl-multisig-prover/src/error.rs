@@ -188,9 +188,6 @@ pub enum ContractError {
     #[error("transaction status is already confirmed")]
     TxStatusAlreadyConfirmed,
 
-    #[error("transaction status is not pending")]
-    TxStatusNotPending,
-
     #[error("transaction status is still unknown")]
     TxStatusUnknown,
 
