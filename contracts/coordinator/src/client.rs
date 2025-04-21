@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use cosmwasm_std::{Addr, CosmosMsg};
+use cosmwasm_std::CosmosMsg;
 use error_stack::{Result, ResultExt};
 use router_api::ChainName;
 
@@ -9,57 +9,33 @@ use crate::msg::{ChainContractsKey, ChainContractsResponse, ExecuteMsg, QueryMsg
 #[derive(thiserror::Error, Debug, PartialEq)]
 pub enum Error {
     #[error(
-        "failed to execute ReadyToUnbond query at coordinator contract. verifier_address: {0}"
+        "coordinator failed to retrieve if verifier is ready to unbond. verifier_address: {0}"
     )]
     ReadyToUnbond(String),
 
     #[error(
-        "failed to execute VerifierDetailsWithProvers query at coordinator contract. service_name: {service_name}, verifier_address: {verifier_address}"
+        "coordinator failed to retrieve verifier details and corresponding provers. service_name: {service_name}, verifier_address: {verifier_address}"
     )]
     VerifierDetailsWithProvers {
         service_name: String,
         verifier_address: String,
     },
 
-    #[error("failed to execute ChainContractsInfo query at coordinator contract. chain name {0}")]
-    ChainNameNotRegistered(String),
-
-    #[error("failed to execute ChainContractsInfo query at coordinator contract. gateway {0}")]
-    GatewayNotRegistered(Addr),
-
-    #[error("failed to execute ChainContractsInfo query at coordinator contract. prover {0}")]
-    ProverNotRegistered(Addr),
-
-    #[error("failed to execute ChainContractsInfo query at coordinator contract. verifier {0}")]
-    VerifierNotRegistered(Addr),
+    #[error("coordinator failed to retreive chain contracts info")]
+    ChainContractsInfo,
 }
 
-impl From<QueryMsg> for Error {
-    fn from(value: QueryMsg) -> Self {
-        match value {
-            QueryMsg::ReadyToUnbond { verifier_address } => Error::ReadyToUnbond(verifier_address),
-            QueryMsg::VerifierInfo {
-                service_name,
-                verifier,
-            } => Error::VerifierDetailsWithProvers {
-                service_name,
-                verifier_address: verifier,
-            },
-            QueryMsg::ChainContractsInfo(chain_contracts_key) => match chain_contracts_key {
-                ChainContractsKey::GatewayAddress(gateway_addr) => {
-                    Error::GatewayNotRegistered(gateway_addr)
-                }
-                ChainContractsKey::ProverAddress(prover_addr) => {
-                    Error::ProverNotRegistered(prover_addr)
-                }
-                ChainContractsKey::VerifierAddress(verifier_addr) => {
-                    Error::VerifierNotRegistered(verifier_addr)
-                }
-                ChainContractsKey::ChainName(chain_name) => {
-                    Error::ChainNameNotRegistered(chain_name.into())
-                }
-            },
-        }
+fn err_from_msg_params(msg: QueryMsg) -> Error {
+    match msg {
+        QueryMsg::ReadyToUnbond { verifier_address } => Error::ReadyToUnbond(verifier_address),
+        QueryMsg::VerifierInfo {
+            service_name,
+            verifier,
+        } => Error::VerifierDetailsWithProvers {
+            service_name,
+            verifier_address: verifier,
+        },
+        QueryMsg::ChainContractsInfo(_) => Error::ChainContractsInfo,
     }
 }
 
@@ -107,7 +83,9 @@ impl Client<'_> {
 
     pub fn ready_to_unbond(&self, verifier_address: String) -> Result<bool, Error> {
         let msg = QueryMsg::ReadyToUnbond { verifier_address };
-        self.client.query(&msg).change_context_lazy(|| msg.into())
+        self.client
+            .query(&msg)
+            .change_context_lazy(|| err_from_msg_params(msg))
     }
 
     pub fn chain_contracts(
@@ -115,7 +93,9 @@ impl Client<'_> {
         chain_contracts_key: ChainContractsKey,
     ) -> Result<ChainContractsResponse, Error> {
         let msg = QueryMsg::ChainContractsInfo(chain_contracts_key);
-        self.client.query(&msg).change_context_lazy(|| msg.into())
+        self.client
+            .query(&msg)
+            .change_context_lazy(|| err_from_msg_params(msg))
     }
 }
 
