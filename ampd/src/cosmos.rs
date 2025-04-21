@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use async_trait::async_trait;
 use cosmrs::proto::cosmos::auth::v1beta1::query_client::QueryClient as AuthQueryClient;
 use cosmrs::proto::cosmos::auth::v1beta1::{
@@ -99,9 +101,14 @@ pub struct CosmosGrpcClient {
 }
 
 impl CosmosGrpcClient {
-    pub async fn new(url: &str) -> Result<Self> {
+    pub async fn new(url: &str, timeout: Duration) -> Result<Self> {
         let endpoint: tonic::transport::Endpoint = url.parse().map_err(ErrorExt::into_report)?;
-        let conn = endpoint.connect().await.map_err(ErrorExt::into_report)?;
+        let conn = endpoint
+            .timeout(timeout)
+            .connect_timeout(timeout)
+            .connect()
+            .await
+            .map_err(ErrorExt::into_report)?;
 
         Ok(Self {
             auth: AuthQueryClient::new(conn.clone()),
