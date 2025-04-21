@@ -5087,6 +5087,7 @@ dependencies = [
  "ethers-core",
  "gateway",
  "gateway-api",
+ "goldie",
  "interchain-token-service",
  "k256",
  "multisig",

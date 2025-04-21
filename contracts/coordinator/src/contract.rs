@@ -157,7 +157,6 @@ mod tests {
         gateway: Addr,
         verifier: Addr,
         chain_name: ChainName,
-        chain_record: ChainContractsRecord,
     }
 
     fn setup(
@@ -179,13 +178,6 @@ mod tests {
         let eth_voting_verifier = deps.api.addr_make("eth_voting_verifier");
         let eth: ChainName = "Ethereum".parse().unwrap();
 
-        let chain_record = ChainContractsRecord {
-            chain_name: eth.clone(),
-            prover_address: eth_prover.clone(),
-            gateway_address: eth_gateway.clone(),
-            verifier_address: eth_voting_verifier.clone(),
-        };
-
         TestSetup {
             deps,
             env,
@@ -193,7 +185,6 @@ mod tests {
             gateway: eth_gateway,
             verifier: eth_voting_verifier,
             chain_name: eth,
-            chain_record,
         }
     }
 
@@ -312,7 +303,7 @@ mod tests {
         );
 
         assert!(record_response_by_chain.is_ok());
-        assert_eq!(record_response_by_chain.unwrap(), test_setup.chain_record);
+        goldie::assert_json!(record_response_by_chain.unwrap());
 
         let record_response_by_gateway: StdResult<ChainContractsRecord> = cosmwasm_std::from_json(
             query(
@@ -326,7 +317,7 @@ mod tests {
         );
 
         assert!(record_response_by_gateway.is_ok());
-        assert_eq!(record_response_by_gateway.unwrap(), test_setup.chain_record);
+        goldie::assert_json!(record_response_by_gateway.unwrap());
 
         let record_response_by_prover: StdResult<ChainContractsRecord> = cosmwasm_std::from_json(
             query(
@@ -340,7 +331,7 @@ mod tests {
         );
 
         assert!(record_response_by_prover.is_ok());
-        assert_eq!(record_response_by_prover.unwrap(), test_setup.chain_record);
+        goldie::assert_json!(record_response_by_prover.unwrap());
 
         let record_response_by_verifier: StdResult<ChainContractsRecord> = cosmwasm_std::from_json(
             query(
@@ -354,10 +345,7 @@ mod tests {
         );
 
         assert!(record_response_by_verifier.is_ok());
-        assert_eq!(
-            record_response_by_verifier.unwrap(),
-            test_setup.chain_record
-        );
+        goldie::assert_json!(record_response_by_verifier.unwrap());
     }
 
     #[test]

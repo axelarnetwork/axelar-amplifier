@@ -33,6 +33,7 @@ error-stack = { workspace = true }
 ethers-core = { workspace = true }
 gateway = { workspace = true }
 gateway-api = { workspace = true }
+goldie = { workspace = true }
 interchain-token-service = { workspace = true }
 k256 = { workspace = true }
 multisig = { workspace = true }
