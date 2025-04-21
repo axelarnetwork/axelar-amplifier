@@ -338,3 +338,44 @@ pub fn query(
     }?
     .then(Ok)
 }
+
+#[cfg(test)]
+mod test {
+    use assert_ok::assert_ok;
+    use cosmwasm_std::testing::{message_info, mock_dependencies, mock_env};
+    use cosmwasm_std::Empty;
+
+    use crate::contract::{instantiate, migrate, CONTRACT_NAME, CONTRACT_VERSION};
+    use crate::msg::InstantiateMsg;
+
+    #[test]
+    fn migrate_sets_contract_version() {
+        let mut deps = mock_dependencies();
+        let api = deps.api;
+        let env = mock_env();
+        let info = message_info(&api.addr_make("sender"), &[]);
+        let instantiate_msg = InstantiateMsg {
+            admin_address: api.addr_make("admin").to_string(),
+            governance_address: api.addr_make("governance").to_string(),
+            verifier_address: api.addr_make("verifier").to_string(),
+            router_address: api.addr_make("router").to_string(),
+            its_hub_address: api.addr_make("its_hub").to_string(),
+            its_hub_chain_name: "hub".parse().unwrap(),
+            chain_name: "chain".parse().unwrap(),
+            xrpl_multisig_address: "rNadVFcvGdkGKs4zVGwHXZHC9spkYw7dtu".parse().unwrap(),
+        };
+
+        assert_ok!(instantiate(
+            deps.as_mut(),
+            env.clone(),
+            info.clone(),
+            instantiate_msg
+        ));
+
+        migrate(deps.as_mut(), mock_env(), Empty {}).unwrap();
+
+        let contract_version = cw2::get_contract_version(deps.as_mut().storage).unwrap();
+        assert_eq!(contract_version.contract, CONTRACT_NAME);
+        assert_eq!(contract_version.version, CONTRACT_VERSION);
+    }
+}
