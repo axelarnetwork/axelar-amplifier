@@ -3,6 +3,7 @@ use std::ops::Deref;
 
 use axelar_wasm_std::IntoContractError;
 use cosmwasm_schema::cw_serde;
+use cosmwasm_std::Uint256;
 use thiserror::Error;
 
 #[derive(Error, Debug, PartialEq, Eq, IntoContractError)]
@@ -21,6 +22,22 @@ impl TryFrom<u32> for NumBits {
         match value {
             32 | 64 | 128 | 256 => Ok(Self(value)),
             _ => Err(Error::InvalidNumberOfBits(value)),
+        }
+    }
+}
+
+impl NumBits {
+    // rounds up to the nearest supported number of bits.
+    // Anything greater than 256 is rounded to 256
+    pub fn round_to_nearest<T>(value: T) -> Self
+    where
+        T: Into<Uint256>,
+    {
+        match value.into() {
+            v if v <= Uint256::from(32u32) => NumBits(32),
+            v if v <= Uint256::from(64u32) => NumBits(64),
+            v if v <= Uint256::from(128u32) => NumBits(128),
+            _ => NumBits(256),
         }
     }
 }
