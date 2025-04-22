@@ -269,6 +269,16 @@ mod test {
             instantiate_msg
         ));
 
+        cw2::CONTRACT
+            .save(
+                deps.as_mut().storage,
+                &cw2::ContractVersion {
+                    contract: CONTRACT_NAME.to_string(),
+                    version: BASE_VERSION.to_string(),
+                },
+            )
+            .unwrap();
+
         migrate(deps.as_mut(), mock_env(), Empty {}).unwrap();
 
         let contract_version = cw2::get_contract_version(deps.as_mut().storage).unwrap();

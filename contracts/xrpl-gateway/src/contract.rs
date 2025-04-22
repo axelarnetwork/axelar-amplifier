@@ -345,7 +345,7 @@ mod test {
     use cosmwasm_std::testing::{message_info, mock_dependencies, mock_env};
     use cosmwasm_std::Empty;
 
-    use crate::contract::{instantiate, migrate, CONTRACT_NAME, CONTRACT_VERSION};
+    use crate::contract::{instantiate, migrate, BASE_VERSION, CONTRACT_NAME, CONTRACT_VERSION};
     use crate::msg::InstantiateMsg;
 
     #[test]
@@ -371,6 +371,16 @@ mod test {
             info.clone(),
             instantiate_msg
         ));
+
+        cw2::CONTRACT
+            .save(
+                deps.as_mut().storage,
+                &cw2::ContractVersion {
+                    contract: CONTRACT_NAME.to_string(),
+                    version: BASE_VERSION.to_string(),
+                },
+            )
+            .unwrap();
 
         migrate(deps.as_mut(), mock_env(), Empty {}).unwrap();
 
