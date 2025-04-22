@@ -200,9 +200,9 @@ mod tests {
         assert!(res.is_ok());
 
         TestSetupMulti {
-            admin_addr: admin_addr,
-            coordinator_addr: coordinator_addr,
-            app: app,
+            admin_addr,
+            coordinator_addr,
+            app,
             chain_name: chain_name.clone(),
             prover: prover.clone(),
             gateway: gateway.clone(),
