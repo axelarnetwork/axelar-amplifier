@@ -106,6 +106,7 @@ pub fn migrate(
 
 #[cfg(test)]
 mod test {
+    use assert_ok::assert_ok;
     use axelar_wasm_std::msg_id::HexTxHash;
     use axelar_wasm_std::nonempty::Uint128;
     use axelar_wasm_std::voting::Vote;
@@ -240,6 +241,39 @@ mod test {
             .iter()
             .map(|message| MessageStatus::new(message.clone(), status))
             .collect()
+    }
+
+    #[test]
+    fn migrate_sets_contract_version() {
+        let mut deps = mock_dependencies();
+        let api = deps.api;
+        let env = mock_env();
+        let info = message_info(&api.addr_make("sender"), &[]);
+        let service_registry = api.addr_make(SERVICE_REGISTRY_ADDRESS);
+        let instantiate_msg = InstantiateMsg {
+            governance_address: api.addr_make(GOVERNANCE).as_str().parse().unwrap(),
+            service_registry_address: service_registry.as_str().parse().unwrap(),
+            service_name: SERVICE_NAME.parse().unwrap(),
+            source_gateway_address: "rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh".parse().unwrap(),
+            voting_threshold: initial_voting_threshold(),
+            block_expiry: POLL_BLOCK_EXPIRY.try_into().unwrap(),
+            confirmation_height: 100,
+            source_chain: source_chain(),
+            rewards_address: api.addr_make(REWARDS_ADDRESS).as_str().parse().unwrap(),
+        };
+
+        assert_ok!(instantiate(
+            deps.as_mut(),
+            env.clone(),
+            info.clone(),
+            instantiate_msg
+        ));
+
+        migrate(deps.as_mut(), mock_env(), Empty {}).unwrap();
+
+        let contract_version = cw2::get_contract_version(deps.as_mut().storage).unwrap();
+        assert_eq!(contract_version.contract, CONTRACT_NAME);
+        assert_eq!(contract_version.version, CONTRACT_VERSION);
     }
 
     #[test]
