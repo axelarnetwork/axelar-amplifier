@@ -30,6 +30,7 @@ alloy-sol-types = { version = "0.7.6", default-features = false, features = [
 ] }
 anyhow = "1.0.89"
 ampd-proto = { version = "^0.1.0", path = "packages/ampd-proto" }
+ampd-sdk = { version = "^0.1.0", path = "packages/ampd-sdk" }
 assert_ok = "1.0"
 async-trait = "0.1.59"
 axelar-wasm-std = { version = "^1.0.0", path = "packages/axelar-wasm-std" }
@@ -43,6 +44,7 @@ coordinator = { version = "^1.1.0", path = "contracts/coordinator" }
 cosmwasm-crypto = "2.1.4"
 cosmwasm-schema = "2.1.4"
 cosmwasm-std = "2.1.4"
+cosmrs = "0.14.0"
 cw-multi-test = "2.2.0"
 cw-storage-plus = { version = "2.0.0", features = ["iterator", "macro"] }
 cw-utils = "2.0.0"
@@ -102,10 +104,13 @@ axelar-solana-gateway = { git = "https://github.com/eigerco/solana-axelar.git", 
 syn = "2.0.92"
 tendermint = "0.35.0"
 thiserror = "1.0.61"
+humantime-serde = "1.1.1"
+tracing = "0.1.37" 
 tofn = { version = "1.1" }
 tokio = "1.38.0"
 tokio-stream = "0.1.11"
 tokio-util = "0.7.11"
+typed-builder = "0.18.2"
 voting-verifier = { version = "^1.1.0", path = "contracts/voting-verifier" }
 axelar-core-std = { version = "^1.0.0", path = "packages/axelar-core-std" }
 proc-macro2 = "1.0.92"

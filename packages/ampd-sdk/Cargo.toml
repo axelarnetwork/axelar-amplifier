@@ -7,17 +7,25 @@ edition = { workspace = true }
 [dependencies]
 ampd-proto = { workspace = true }
 async-trait = { workspace = true }
+cosmrs = { workspace = true }
 error-stack = { workspace = true }
 events = { workspace = true }
 futures = { workspace = true }
+humantime-serde = { workspace = true }
 mockall = { workspace = true }
 prost = "0.13.5"
 prost-types = "0.13.5"
+report = { workspace = true }
+serde = { workspace = true }
 serde_json = { workspace = true }
 tendermint = { workspace = true }
 thiserror = { workspace = true }
+tokio = { workspace = true }
 tokio-stream = { workspace = true }
+tokio-util = { workspace = true }
 tonic = "0.13.0"
+tracing = { workspace = true }
+typed-builder = { workspace = true }
 
 [build-dependencies]
 tonic-build = "0.13.0"

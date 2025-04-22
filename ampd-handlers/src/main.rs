@@ -1,17 +1,15 @@
-fn get_greeting() -> &'static str {
-    "Hello from AMPD handler!"
-}
+use ampd_sdk::grpc::client;
+use tokio_util::sync::CancellationToken;
 
-fn main() {
-    println!("{}", get_greeting());
+#[tokio::main(flavor = "current_thread")]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let mut _grpc_client = client::new("http://localhost:50051").await?;
+    // let handler = EventHandlerImpl::new(...);
+    let _token = CancellationToken::new();
+    // HandlerTask::new(client, handler).run(token).await;
+
+    Ok(())
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_greeting() {
-        assert_eq!(get_greeting(), "Hello from AMPD handler!");
-    }
-}
+mod tests {}

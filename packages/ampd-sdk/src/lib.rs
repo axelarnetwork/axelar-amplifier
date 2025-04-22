@@ -1,1 +1,2 @@
-mod grpc;
+pub mod event;
+pub mod grpc;

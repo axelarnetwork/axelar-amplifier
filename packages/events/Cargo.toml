@@ -9,7 +9,7 @@ edition = { workspace = true }
 ampd-proto = { workspace = true }
 axelar-wasm-std = { workspace = true }
 base64 = "0.21.2"
-cosmrs = { version = "0.14.0", features = ["cosmwasm"] }
+cosmrs = { workspace = true, features = ["cosmwasm"] }
 error-stack = { workspace = true }
 serde_json = { workspace = true }
 tendermint = { workspace = true }
