@@ -1,7 +1,7 @@
 use axelar_wasm_std::error::ContractError;
 use axelar_wasm_std::nonempty;
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, DepsMut, Order, Uint256, Uint512};
+use cosmwasm_std::{Addr, DepsMut, Order, Uint512};
 use cw_storage_plus::{Item, Map};
 use itertools::Itertools;
 use router_api::{Address, ChainNameRaw};
@@ -51,23 +51,23 @@ pub fn migrate(deps: DepsMut, msg: MigrateMsg) -> Result<(), ContractError> {
     let transformed_configs: Vec<(ChainNameRaw, state::ChainConfig)> = old_configs
         .into_iter()
         .map(|(chain_name, old_config)| {
-            (
-                chain_name,
-                state::ChainConfig {
-                    truncation: state::TruncationConfig {
-                        max_decimals_when_truncating: old_config
-                            .truncation
-                            .max_decimals_when_truncating,
-                        max_uint_bits: convert_max_uint_to_max_bits(
-                            *old_config.truncation.max_uint,
-                        ),
+            convert_max_uint_to_max_bits(old_config.truncation.max_uint).map(|max_uint_bits| {
+                (
+                    chain_name,
+                    state::ChainConfig {
+                        truncation: state::TruncationConfig {
+                            max_decimals_when_truncating: old_config
+                                .truncation
+                                .max_decimals_when_truncating,
+                            max_uint_bits,
+                        },
+                        its_address: old_config.its_address,
+                        frozen: old_config.frozen,
                     },
-                    its_address: old_config.its_address,
-                    frozen: old_config.frozen,
-                },
-            )
+                )
+            })
         })
-        .collect();
+        .try_collect()?;
 
     for (chain, config) in transformed_configs {
         NEW_CHAIN_CONFIGS.save(deps.storage, &chain, &config)?;
@@ -76,14 +76,10 @@ pub fn migrate(deps: DepsMut, msg: MigrateMsg) -> Result<(), ContractError> {
     Ok(())
 }
 
-fn convert_max_uint_to_max_bits(max_uint: Uint256) -> NumBits {
-    if max_uint <= Uint256::from_u128(256) {
-        return NumBits::round_to_nearest(max_uint);
-    }
-
+fn convert_max_uint_to_max_bits(max_uint: nonempty::Uint256) -> Result<NumBits, ContractError> {
     // Need to add one to correctly get the number of bits. This will round down if the result is not a power of two
     #[allow(clippy::arithmetic_side_effects)] // can't possibly overflow
-    NumBits::round_to_nearest((Uint512::from(max_uint) + Uint512::one()).ilog2())
+    NumBits::try_from(Uint512::from(*max_uint).ilog2() + 1).map_err(|err| err.into())
 }
 
 #[cfg(test)]
@@ -94,7 +90,7 @@ mod test {
     use router_api::{Address, ChainNameRaw};
 
     use super::{migrate, ChainConfig, OLD_CHAIN_CONFIGS};
-    use crate::contract::migrations::v1_1_0::{
+    use crate::contract::migrations::v1_1_1::{
         convert_max_uint_to_max_bits, OldConfig, NEW_CHAIN_CONFIGS, OLD_CONFIG,
     };
     use crate::contract::migrations::MigrateMsg;
@@ -102,77 +98,73 @@ mod test {
     use crate::state;
 
     #[test]
-    fn convert_max_uint_to_max_bits_should_round_correctly() {
-        let bits32 = NumBits::try_from(32).unwrap();
-        let bits64 = NumBits::try_from(64).unwrap();
-        let bits128 = NumBits::try_from(128).unwrap();
-        let bits256 = NumBits::try_from(256).unwrap();
-        assert_eq!(convert_max_uint_to_max_bits(Uint256::one()), bits32);
-        assert_eq!(convert_max_uint_to_max_bits(Uint256::from_u128(31)), bits32);
-        assert_eq!(convert_max_uint_to_max_bits(Uint256::from_u128(32)), bits32);
-
-        assert_eq!(convert_max_uint_to_max_bits(Uint256::from_u128(50)), bits64);
-        assert_eq!(convert_max_uint_to_max_bits(Uint256::from_u128(63)), bits64);
-        assert_eq!(convert_max_uint_to_max_bits(Uint256::from_u128(64)), bits64);
-
+    fn convert_max_uint_to_max_bits_should_convert_correctly() {
+        // standard max uints
         assert_eq!(
-            convert_max_uint_to_max_bits(Uint256::from_u128(100)),
-            bits128
+            convert_max_uint_to_max_bits(Uint256::from(u32::MAX).try_into().unwrap()).unwrap(),
+            NumBits::try_from(32).unwrap()
         );
         assert_eq!(
-            convert_max_uint_to_max_bits(Uint256::from_u128(127)),
-            bits128
+            convert_max_uint_to_max_bits(Uint256::from(u64::MAX).try_into().unwrap()).unwrap(),
+            NumBits::try_from(64).unwrap()
         );
         assert_eq!(
-            convert_max_uint_to_max_bits(Uint256::from_u128(128)),
-            bits128
+            convert_max_uint_to_max_bits(Uint256::from(u128::MAX).try_into().unwrap()).unwrap(),
+            NumBits::try_from(128).unwrap()
+        );
+        assert_eq!(
+            convert_max_uint_to_max_bits(Uint256::MAX.try_into().unwrap()).unwrap(),
+            NumBits::try_from(256).unwrap()
         );
 
+        // other powers of two
         assert_eq!(
-            convert_max_uint_to_max_bits(Uint256::from_u128(200)),
-            bits256
+            convert_max_uint_to_max_bits(Uint256::from(2u128.pow(127) - 1).try_into().unwrap())
+                .unwrap(),
+            NumBits::try_from(127).unwrap()
         );
         assert_eq!(
-            convert_max_uint_to_max_bits(Uint256::from_u128(255)),
-            bits256
-        );
-        assert_eq!(
-            convert_max_uint_to_max_bits(Uint256::from_u128(256)),
-            bits256
-        );
-
-        assert_eq!(
-            convert_max_uint_to_max_bits(Uint256::from_u128(512)),
-            bits32
-        );
-        assert_eq!(
-            convert_max_uint_to_max_bits(Uint256::from(u32::MAX / 2)),
-            bits32
-        );
-        assert_eq!(
-            convert_max_uint_to_max_bits(Uint256::from(u32::MAX)),
-            bits32
+            convert_max_uint_to_max_bits(Uint256::from(2u128.pow(100) - 1).try_into().unwrap())
+                .unwrap(),
+            NumBits::try_from(100).unwrap()
         );
 
+        // numbers that are not powers of two
         assert_eq!(
-            convert_max_uint_to_max_bits(Uint256::from(u64::MAX / 2)),
-            bits64
+            convert_max_uint_to_max_bits(Uint256::from(u128::MAX - 10).try_into().unwrap())
+                .unwrap(),
+            NumBits::try_from(128).unwrap()
         );
         assert_eq!(
-            convert_max_uint_to_max_bits(Uint256::from(u64::MAX)),
-            bits64
-        );
-
-        assert_eq!(
-            convert_max_uint_to_max_bits(Uint256::from(u128::MAX / 2)),
-            bits128
-        );
-        assert_eq!(
-            convert_max_uint_to_max_bits(Uint256::from(u128::MAX)),
-            bits128
+            convert_max_uint_to_max_bits(Uint256::from(u32::MAX - 10).try_into().unwrap()).unwrap(),
+            NumBits::try_from(32).unwrap()
         );
 
-        assert_eq!(convert_max_uint_to_max_bits(Uint256::MAX), bits256);
+        // very small numbers
+        assert_eq!(
+            convert_max_uint_to_max_bits(Uint256::from(32u32).try_into().unwrap()).unwrap(),
+            NumBits::try_from(6).unwrap()
+        );
+        assert_eq!(
+            convert_max_uint_to_max_bits(Uint256::from(64u32).try_into().unwrap()).unwrap(),
+            NumBits::try_from(7).unwrap()
+        );
+        assert_eq!(
+            convert_max_uint_to_max_bits(Uint256::from(127u32).try_into().unwrap()).unwrap(),
+            NumBits::try_from(7).unwrap()
+        );
+        assert_eq!(
+            convert_max_uint_to_max_bits(Uint256::from(128u32).try_into().unwrap()).unwrap(),
+            NumBits::try_from(8).unwrap()
+        );
+        assert_eq!(
+            convert_max_uint_to_max_bits(Uint256::from(255u32).try_into().unwrap()).unwrap(),
+            NumBits::try_from(8).unwrap()
+        );
+        assert_eq!(
+            convert_max_uint_to_max_bits(Uint256::from(256u32).try_into().unwrap()).unwrap(),
+            NumBits::try_from(9).unwrap()
+        );
     }
 
     #[test]
@@ -202,7 +194,7 @@ mod test {
                 ChainNameRaw::try_from("avalanche").unwrap(),
                 ChainConfig {
                     truncation: super::TruncationConfig {
-                        max_uint: Uint256::one().checked_shl(200).unwrap().try_into().unwrap(),
+                        max_uint: Uint256::from_u128(u128::MAX).try_into().unwrap(),
                         max_decimals_when_truncating: 18,
                     },
                     its_address: Address::try_from("0x00".to_string()).unwrap(),
@@ -213,7 +205,7 @@ mod test {
                 ChainNameRaw::try_from("solana").unwrap(),
                 ChainConfig {
                     truncation: super::TruncationConfig {
-                        max_uint: Uint256::from_u128(256u128).try_into().unwrap(),
+                        max_uint: Uint256::from_u128(2u128.pow(127) - 1).try_into().unwrap(),
                         max_decimals_when_truncating: 18,
                     },
                     its_address: Address::try_from("0x00".to_string()).unwrap(),
@@ -224,7 +216,51 @@ mod test {
                 ChainNameRaw::try_from("xrpl").unwrap(),
                 ChainConfig {
                     truncation: super::TruncationConfig {
-                        max_uint: Uint256::from_u128(255u128).try_into().unwrap(),
+                        max_uint: Uint256::from(u64::MAX).try_into().unwrap(),
+                        max_decimals_when_truncating: 18,
+                    },
+                    its_address: Address::try_from("0x00".to_string()).unwrap(),
+                    frozen: false,
+                },
+            ),
+            (
+                ChainNameRaw::try_from("xrpl-evm").unwrap(),
+                ChainConfig {
+                    truncation: super::TruncationConfig {
+                        max_uint: Uint256::from(u32::MAX).try_into().unwrap(),
+                        max_decimals_when_truncating: 18,
+                    },
+                    its_address: Address::try_from("0x00".to_string()).unwrap(),
+                    frozen: false,
+                },
+            ),
+            (
+                ChainNameRaw::try_from("polygon").unwrap(),
+                ChainConfig {
+                    truncation: super::TruncationConfig {
+                        max_uint: Uint256::from(256u32).try_into().unwrap(),
+                        max_decimals_when_truncating: 18,
+                    },
+                    its_address: Address::try_from("0x00".to_string()).unwrap(),
+                    frozen: false,
+                },
+            ),
+            (
+                ChainNameRaw::try_from("stellar").unwrap(),
+                ChainConfig {
+                    truncation: super::TruncationConfig {
+                        max_uint: Uint256::from(127u32).try_into().unwrap(),
+                        max_decimals_when_truncating: 18,
+                    },
+                    its_address: Address::try_from("0x00".to_string()).unwrap(),
+                    frozen: false,
+                },
+            ),
+            (
+                ChainNameRaw::try_from("stacks").unwrap(),
+                ChainConfig {
+                    truncation: super::TruncationConfig {
+                        max_uint: Uint256::from(64u32).try_into().unwrap(),
                         max_decimals_when_truncating: 18,
                     },
                     its_address: Address::try_from("0x00".to_string()).unwrap(),
@@ -246,7 +282,8 @@ mod test {
             }
         ));
 
-        for (chain, old_config) in old_configs {
+        let expected_num_bits = [256, 128, 127, 64, 32, 9, 7, 7];
+        for ((chain, old_config), expected_num_bits) in old_configs.iter().zip(expected_num_bits) {
             let new_config = NEW_CHAIN_CONFIGS.load(&deps.storage, &chain).unwrap();
             assert_eq!(new_config.its_address, old_config.its_address);
             assert_eq!(
@@ -256,7 +293,7 @@ mod test {
             assert_eq!(new_config.frozen, old_config.frozen);
             assert_eq!(
                 new_config.truncation.max_uint_bits,
-                NumBits::try_from(256).unwrap()
+                NumBits::try_from(expected_num_bits).unwrap()
             );
         }
     }
