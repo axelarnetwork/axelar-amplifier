@@ -12,7 +12,6 @@ pub struct MigrateMsg {
     operator_address: String,
 }
 
-
 #[cfg_attr(not(feature = "library"), entry_point)]
 #[migrate_from_version("1.1")]
 pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
