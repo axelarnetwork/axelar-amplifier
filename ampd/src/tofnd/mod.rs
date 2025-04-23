@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use hex::{self, FromHex};
 use serde::{Deserialize, Serialize};
 
@@ -18,6 +20,7 @@ pub struct Config {
     pub url: Url,
     pub party_uid: String,
     pub key_uid: String,
+    pub timeout: Duration,
 }
 
 impl Default for Config {
@@ -26,6 +29,7 @@ impl Default for Config {
             url: "http://localhost:50051/".parse().unwrap(),
             party_uid: "ampd".into(),
             key_uid: "axelar".into(),
+            timeout: Duration::from_secs(3),
         }
     }
 }
