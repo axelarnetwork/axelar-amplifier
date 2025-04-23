@@ -120,3 +120,214 @@ impl CosmosClient for CosmosGrpcClient {
             .map_err(ErrorExt::into_report)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use cosmrs::proto::cosmos::auth::v1beta1::BaseAccount;
+    use cosmrs::proto::cosmos::base::abci::v1beta1::{
+        AbciMessageLog, Attribute, GasInfo, Result as AbciResult, StringEvent, TxResponse,
+    };
+    use cosmrs::proto::cosmos::base::v1beta1::Coin;
+    use cosmrs::proto::cosmos::tx::v1beta1::{BroadcastMode, Tx};
+    use cosmrs::tendermint::abci;
+    use cosmrs::tx::MessageExt;
+    use cosmrs::Any;
+    use serde_json::json;
+
+    use super::*;
+
+    #[test]
+    fn ensure_broadcast_tx_req_res_serialization_do_not_change() {
+        let req = BroadcastTxRequest {
+            tx_bytes: vec![1, 2, 3, 4, 5],
+            mode: BroadcastMode::Sync as i32,
+        };
+        let res = BroadcastTxResponse {
+            tx_response: Some(TxResponse {
+                height: 100,
+                txhash: "txhash".to_string(),
+                codespace: "codespace".to_string(),
+                code: 10,
+                data: "data".to_string(),
+                raw_log: "raw_log".to_string(),
+                logs: vec![AbciMessageLog {
+                    msg_index: 0,
+                    log: "log".to_string(),
+                    events: vec![StringEvent {
+                        r#type: "event_type".to_string(),
+                        attributes: vec![Attribute {
+                            key: "key".to_string(),
+                            value: "value".to_string(),
+                        }],
+                    }],
+                }],
+                info: "info".to_string(),
+                gas_wanted: 1000,
+                gas_used: 900,
+                tx: Some(prost_types::Any {
+                    type_url: "axelar.type".to_string(),
+                    value: vec![1, 2, 3, 4, 5, 6],
+                }),
+                timestamp: "timestamp".to_string(),
+                events: vec![abci::Event {
+                    kind: "event_type".to_string(),
+                    attributes: vec![abci::EventAttribute {
+                        index: true,
+                        key: "key".to_string(),
+                        value: "value".to_string(),
+                    }],
+                }
+                .into()],
+            }),
+        };
+
+        goldie::assert_json!(json!({
+            "req": req.to_bytes().unwrap(),
+            "res": res.to_bytes().unwrap()
+        }));
+    }
+
+    #[test]
+    fn ensure_simulate_req_res_serialization_do_not_change() {
+        let req = SimulateRequest {
+            #[allow(deprecated)]
+            tx: Some(Tx {
+                body: None,
+                auth_info: None,
+                signatures: vec![vec![5, 6, 7, 8]],
+            }),
+            tx_bytes: vec![1, 2, 3, 4, 5],
+        };
+        let res = SimulateResponse {
+            gas_info: Some(GasInfo {
+                gas_wanted: 1000,
+                gas_used: 900,
+            }),
+            result: Some(AbciResult {
+                #[allow(deprecated)]
+                data: vec![1, 2, 3],
+                log: "simulation log".to_string(),
+                events: vec![abci::Event {
+                    kind: "simulation_event".to_string(),
+                    attributes: vec![abci::EventAttribute {
+                        index: true,
+                        key: "sim_key".to_string(),
+                        value: "sim_value".to_string(),
+                    }],
+                }
+                .into()],
+                msg_responses: vec![prost_types::Any {
+                    type_url: "/cosmos.base.v1beta1.MsgResponse".to_string(),
+                    value: vec![1, 2, 3, 4, 5],
+                }],
+            }),
+        };
+
+        goldie::assert_json!(json!({
+            "req": req.to_bytes().unwrap(),
+            "res": res.to_bytes().unwrap()
+        }));
+    }
+
+    #[test]
+    fn ensure_get_tx_req_res_serialization_do_not_change() {
+        let req = GetTxRequest {
+            hash: "0123456789ABCDEF".to_string(),
+        };
+        let res = GetTxResponse {
+            tx: Some(Tx {
+                body: None,
+                auth_info: None,
+                signatures: vec![vec![1, 2, 3, 4]],
+            }),
+            tx_response: Some(TxResponse {
+                height: 100,
+                txhash: "0123456789ABCDEF".to_string(),
+                codespace: "codespace".to_string(),
+                code: 0,
+                data: "data".to_string(),
+                raw_log: "[{\"events\":[{\"type\":\"tx_event\",\"attributes\":[{\"key\":\"action\",\"value\":\"get_tx\"}]}]}]".to_string(),
+                logs: vec![AbciMessageLog {
+                    msg_index: 0,
+                    log: "tx log message".to_string(),
+                    events: vec![StringEvent {
+                        r#type: "tx_get_event".to_string(),
+                        attributes: vec![Attribute {
+                            key: "tx_key".to_string(),
+                            value: "tx_value".to_string(),
+                        }],
+                    }],
+                }],
+                info: "info".to_string(),
+                gas_wanted: 1000,
+                gas_used: 900,
+                tx: Some(prost_types::Any {
+                    type_url: "/cosmos.tx.v1beta1.Tx".to_string(),
+                    value: vec![10, 20, 30, 40, 50],
+                }),
+                timestamp: "2025-04-23T17:00:00Z".to_string(),
+                events: vec![abci::Event {
+                    kind: "tx_result_event".to_string(),
+                    attributes: vec![abci::EventAttribute {
+                        index: true,
+                        key: "tx_result_key".to_string(),
+                        value: "tx_result_value".to_string(),
+                    }],
+                }.into()],
+            }),
+        };
+
+        goldie::assert_json!(json!({
+            "req": req.to_bytes().unwrap(),
+            "res": res.to_bytes().unwrap()
+        }));
+    }
+
+    #[test]
+    fn ensure_account_req_res_serialization_do_not_change() {
+        let req = QueryAccountRequest {
+            address: "axelar1q95p9fntvqn6jm9m0u5092pu9ulq3chn0zkuks".to_string(),
+        };
+        let base_account = BaseAccount {
+            address: "axelar1q95p9fntvqn6jm9m0u5092pu9ulq3chn0zkuks".to_string(),
+            pub_key: Some(prost_types::Any {
+                type_url: "/cosmos.crypto.secp256k1.PubKey".to_string(),
+                value: vec![
+                    10, 33, 2, 136, 177, 245, 49, 184, 120, 113, 219, 192, 55, 41, 81,
+                ],
+            }),
+            account_number: 42,
+            sequence: 7,
+        };
+        let res = QueryAccountResponse {
+            account: Some(Any {
+                type_url: "/cosmos.auth.v1beta1.BaseAccount".to_string(),
+                value: base_account.to_bytes().unwrap(),
+            }),
+        };
+
+        goldie::assert_json!(json!({
+            "req": req.to_bytes().unwrap(),
+            "res": res.to_bytes().unwrap()
+        }));
+    }
+
+    #[test]
+    fn ensure_balance_req_res_serialization_do_not_change() {
+        let req = QueryBalanceRequest {
+            address: "axelar1q95p9fntvqn6jm9m0u5092pu9ulq3chn0zkuks".to_string(),
+            denom: "uaxl".to_string(),
+        };
+        let res = QueryBalanceResponse {
+            balance: Some(Coin {
+                denom: "uaxl".to_string(),
+                amount: "1000000".to_string(),
+            }),
+        };
+
+        goldie::assert_json!(json!({
+            "req": req.to_bytes().unwrap(),
+            "res": res.to_bytes().unwrap()
+        }));
+    }
+}
