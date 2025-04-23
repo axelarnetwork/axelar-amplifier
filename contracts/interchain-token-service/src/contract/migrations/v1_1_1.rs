@@ -285,11 +285,13 @@ mod test {
         let expected_num_bits = [256, 128, 127, 64, 32, 9, 7, 7];
         for ((chain, old_config), expected_num_bits) in old_configs.iter().zip(expected_num_bits) {
             let new_config = NEW_CHAIN_CONFIGS.load(&deps.storage, chain).unwrap();
+
             assert_eq!(new_config.its_address, old_config.its_address);
             assert_eq!(
                 new_config.truncation.max_decimals_when_truncating,
                 old_config.truncation.max_decimals_when_truncating
             );
+
             assert_eq!(new_config.frozen, old_config.frozen);
             assert_eq!(
                 new_config.truncation.max_uint_bits,
