@@ -1,5 +1,7 @@
 {
-  "req": [
+  "req": "BroadcastTxRequest { tx_bytes: [1, 2, 3, 4, 5], mode: Sync }",
+  "res": "BroadcastTxResponse { tx_response: Some(TxResponse { height: 100, txhash: \"txhash\", codespace: \"codespace\", code: 10, data: \"data\", raw_log: \"raw_log\", logs: [AbciMessageLog { msg_index: 0, log: \"log\", events: [StringEvent { r#type: \"event_type\", attributes: [Attribute { key: \"key\", value: \"value\" }] }] }], info: \"info\", gas_wanted: 1000, gas_used: 900, tx: Some(Any { type_url: \"axelar.type\", value: [1, 2, 3, 4, 5, 6] }), timestamp: \"timestamp\", events: [Event { r#type: \"event_type\", attributes: [EventAttribute { key: \"key\", value: \"value\", index: true }] }] }) }",
+  "req_bytes": [
     10,
     5,
     1,
@@ -10,7 +12,7 @@
     16,
     2
   ],
-  "res": [
+  "res_bytes": [
     10,
     149,
     1,

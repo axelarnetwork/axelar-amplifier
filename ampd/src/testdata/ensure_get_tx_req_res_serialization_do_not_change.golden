@@ -1,5 +1,7 @@
 {
-  "req": [
+  "req": "GetTxRequest { hash: \"0123456789ABCDEF\" }",
+  "res": "GetTxResponse { tx: Some(Tx { body: None, auth_info: None, signatures: [[1, 2, 3, 4]] }), tx_response: Some(TxResponse { height: 100, txhash: \"0123456789ABCDEF\", codespace: \"codespace\", code: 0, data: \"data\", raw_log: \"[{\\\"events\\\":[{\\\"type\\\":\\\"tx_event\\\",\\\"attributes\\\":[{\\\"key\\\":\\\"action\\\",\\\"value\\\":\\\"get_tx\\\"}]}]}]\", logs: [AbciMessageLog { msg_index: 0, log: \"tx log message\", events: [StringEvent { r#type: \"tx_get_event\", attributes: [Attribute { key: \"tx_key\", value: \"tx_value\" }] }] }], info: \"info\", gas_wanted: 1000, gas_used: 900, tx: Some(Any { type_url: \"/cosmos.tx.v1beta1.Tx\", value: [10, 20, 30, 40, 50] }), timestamp: \"2025-04-23T17:00:00Z\", events: [Event { r#type: \"tx_result_event\", attributes: [EventAttribute { key: \"tx_result_key\", value: \"tx_result_value\", index: true }] }] }) }",
+  "req_bytes": [
     10,
     16,
     48,
@@ -19,7 +21,7 @@
     69,
     70
   ],
-  "res": [
+  "res_bytes": [
     10,
     6,
     26,

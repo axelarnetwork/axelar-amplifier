@@ -1,5 +1,7 @@
 {
-  "req": [
+  "req": "SimulateRequest { tx: Some(Tx { body: None, auth_info: None, signatures: [[5, 6, 7, 8]] }), tx_bytes: [1, 2, 3, 4, 5] }",
+  "res": "SimulateResponse { gas_info: Some(GasInfo { gas_wanted: 1000, gas_used: 900 }), result: Some(Result { data: [1, 2, 3], log: \"simulation log\", events: [Event { r#type: \"simulation_event\", attributes: [EventAttribute { key: \"sim_key\", value: \"sim_value\", index: true }] }], msg_responses: [Any { type_url: \"/cosmos.base.v1beta1.MsgResponse\", value: [1, 2, 3, 4, 5] }] }) }",
+  "req_bytes": [
     10,
     6,
     26,
@@ -16,7 +18,7 @@
     4,
     5
   ],
-  "res": [
+  "res_bytes": [
     10,
     6,
     8,

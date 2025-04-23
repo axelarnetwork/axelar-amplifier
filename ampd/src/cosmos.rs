@@ -182,8 +182,10 @@ mod tests {
         };
 
         goldie::assert_json!(json!({
-            "req": req.to_bytes().unwrap(),
-            "res": res.to_bytes().unwrap()
+            "req": format!("{:?}", req),
+            "res": format!("{:?}", res),
+            "req_bytes": req.to_bytes().unwrap(),
+            "res_bytes": res.to_bytes().unwrap()
         }));
     }
 
@@ -224,8 +226,10 @@ mod tests {
         };
 
         goldie::assert_json!(json!({
-            "req": req.to_bytes().unwrap(),
-            "res": res.to_bytes().unwrap()
+            "req": format!("{:?}", req),
+            "res": format!("{:?}", res),
+            "req_bytes": req.to_bytes().unwrap(),
+            "res_bytes": res.to_bytes().unwrap()
         }));
     }
 
@@ -278,8 +282,10 @@ mod tests {
         };
 
         goldie::assert_json!(json!({
-            "req": req.to_bytes().unwrap(),
-            "res": res.to_bytes().unwrap()
+            "req": format!("{:?}", req),
+            "res": format!("{:?}", res),
+            "req_bytes": req.to_bytes().unwrap(),
+            "res_bytes": res.to_bytes().unwrap()
         }));
     }
 
@@ -307,8 +313,10 @@ mod tests {
         };
 
         goldie::assert_json!(json!({
-            "req": req.to_bytes().unwrap(),
-            "res": res.to_bytes().unwrap()
+            "req": format!("{:?}", req),
+            "res": format!("{:?}", res),
+            "req_bytes": req.to_bytes().unwrap(),
+            "res_bytes": res.to_bytes().unwrap()
         }));
     }
 
@@ -326,8 +334,10 @@ mod tests {
         };
 
         goldie::assert_json!(json!({
-            "req": req.to_bytes().unwrap(),
-            "res": res.to_bytes().unwrap()
+            "req": format!("{:?}", req),
+            "res": format!("{:?}", res),
+            "req_bytes": req.to_bytes().unwrap(),
+            "res_bytes": res.to_bytes().unwrap()
         }));
     }
 }

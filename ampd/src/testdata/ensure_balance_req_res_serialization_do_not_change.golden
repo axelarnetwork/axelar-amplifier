@@ -1,5 +1,7 @@
 {
-  "req": [
+  "req": "QueryBalanceRequest { address: \"axelar1q95p9fntvqn6jm9m0u5092pu9ulq3chn0zkuks\", denom: \"uaxl\" }",
+  "res": "QueryBalanceResponse { balance: Some(Coin { denom: \"uaxl\", amount: \"1000000\" }) }",
+  "req_bytes": [
     10,
     45,
     97,
@@ -54,7 +56,7 @@
     120,
     108
   ],
-  "res": [
+  "res_bytes": [
     10,
     15,
     10,
