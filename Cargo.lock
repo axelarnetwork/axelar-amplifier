@@ -312,6 +312,7 @@ dependencies = [
  "sui-json-rpc-types",
  "sui-types 0.1.0",
  "tendermint 0.35.0",
+ "tendermint-proto 0.40.3",
  "tendermint-rpc",
  "test-log",
  "thiserror 1.0.69",

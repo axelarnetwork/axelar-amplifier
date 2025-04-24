@@ -104,6 +104,7 @@ goldie = { workspace = true }
 multisig = { workspace = true, features = ["test", "library"] }
 rand = { workspace = true }
 random-string = "1.0.0"
+tendermint-proto ={ version = "0.40.3" }
 test-log = { version = "0.2", features = ["trace"], default-features = false }
 tokio = { workspace = true, features = ["test-util"] }
 
