@@ -13,30 +13,8 @@ pub enum Error {
     )]
     ReadyToUnbond(String),
 
-    #[error(
-        "coordinator failed to retrieve verifier details and corresponding provers. service_name: {service_name}, verifier_address: {verifier_address}"
-    )]
-    VerifierDetailsWithProvers {
-        service_name: String,
-        verifier_address: String,
-    },
-
     #[error("coordinator failed to retreive chain contracts info")]
     ChainContractsInfo,
-}
-
-fn err_from_msg_params(msg: QueryMsg) -> Error {
-    match msg {
-        QueryMsg::ReadyToUnbond { verifier_address } => Error::ReadyToUnbond(verifier_address),
-        QueryMsg::VerifierInfo {
-            service_name,
-            verifier,
-        } => Error::VerifierDetailsWithProvers {
-            service_name,
-            verifier_address: verifier,
-        },
-        QueryMsg::ChainContractsInfo(_) => Error::ChainContractsInfo,
-    }
 }
 
 impl<'a> From<client::ContractClient<'a, ExecuteMsg, QueryMsg>> for Client<'a> {
@@ -82,10 +60,13 @@ impl Client<'_> {
     }
 
     pub fn ready_to_unbond(&self, verifier_address: String) -> Result<bool, Error> {
-        let msg = QueryMsg::ReadyToUnbond { verifier_address };
+        let msg = QueryMsg::ReadyToUnbond {
+            verifier_address: verifier_address.clone(),
+        };
+
         self.client
             .query(&msg)
-            .change_context_lazy(|| err_from_msg_params(msg))
+            .change_context(Error::ReadyToUnbond(verifier_address))
     }
 
     pub fn chain_contracts(
@@ -95,7 +76,7 @@ impl Client<'_> {
         let msg = QueryMsg::ChainContractsInfo(chain_contracts_key);
         self.client
             .query(&msg)
-            .change_context_lazy(|| err_from_msg_params(msg))
+            .change_context(Error::ChainContractsInfo)
     }
 }
 

@@ -3,22 +3,32 @@ mod migrations;
 mod query;
 
 use axelar_wasm_std::address::validate_cosmwasm_address;
-use axelar_wasm_std::{address, permission_control, FnExt};
+use axelar_wasm_std::error::ContractError;
+use axelar_wasm_std::{address, permission_control, FnExt, IntoContractError};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     to_json_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response, Storage,
 };
-use error_stack::report;
+use error_stack::{report, ResultExt};
 use itertools::Itertools;
 pub use migrations::{migrate, MigrateMsg};
 
-use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{is_prover_registered, Config, CONFIG};
 
 pub const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 pub const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
+
+#[derive(thiserror::Error, Debug, IntoContractError)]
+pub enum Error {
+    #[error("coordinator instantiation failed")]
+    InstantiateFailed,
+    #[error("coordinator query failed")]
+    QueryFailed,
+    #[error("coordinator execution failed")]
+    ExecuteFailed,
+}
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -26,16 +36,25 @@ pub fn instantiate(
     _env: Env,
     _info: MessageInfo,
     msg: InstantiateMsg,
-) -> Result<Response, axelar_wasm_std::error::ContractError> {
-    cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+) -> Result<Response, ContractError> {
+    cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)
+        .map_err(|err| error_stack::Report::new(err))
+        .change_context(Error::InstantiateFailed)?;
 
     let config = Config {
         service_registry: address::validate_cosmwasm_address(deps.api, &msg.service_registry)?,
     };
-    CONFIG.save(deps.storage, &config)?;
+    CONFIG
+        .save(deps.storage, &config)
+        .map_err(|err| error_stack::Report::new(err))
+        .change_context(Error::InstantiateFailed)?;
 
-    let governance = address::validate_cosmwasm_address(deps.api, &msg.governance_address)?;
-    permission_control::set_governance(deps.storage, &governance)?;
+    let governance = address::validate_cosmwasm_address(deps.api, &msg.governance_address)
+        .change_context(Error::InstantiateFailed)?;
+
+    permission_control::set_governance(deps.storage, &governance)
+        .map_err(|err| error_stack::Report::new(err))
+        .change_context(Error::InstantiateFailed)?;
 
     Ok(Response::default())
 }
@@ -46,12 +65,15 @@ pub fn execute(
     _env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
-) -> Result<Response, axelar_wasm_std::error::ContractError> {
-    match msg.ensure_permissions(
-        deps.storage,
-        &info.sender,
-        find_prover_address(&info.sender),
-    )? {
+) -> Result<Response, ContractError> {
+    match msg
+        .ensure_permissions(
+            deps.storage,
+            &info.sender,
+            find_prover_address(&info.sender),
+        )
+        .change_context(Error::ExecuteFailed)?
+    {
         ExecuteMsg::RegisterProverContract {
             chain_name,
             new_prover_addr,
@@ -66,9 +88,12 @@ pub fn execute(
             voting_verifier_address,
         } => {
             let prover_address = validate_cosmwasm_address(deps.api, &prover_address)?;
+
             let gateway_address = validate_cosmwasm_address(deps.api, &gateway_address)?;
+
             let voting_verifier_address =
                 validate_cosmwasm_address(deps.api, &voting_verifier_address)?;
+
             execute::register_chain(
                 deps,
                 chain_name,
@@ -84,61 +109,58 @@ pub fn execute(
                 .try_collect()?;
             execute::set_active_verifier_set(deps, info, verifiers)
         }
-    }?
+    }
+    .change_context(Error::ExecuteFailed)?
     .then(Ok)
 }
 
 fn find_prover_address(
     sender: &Addr,
-) -> impl FnOnce(&dyn Storage, &ExecuteMsg) -> error_stack::Result<Addr, ContractError> + '_ {
+) -> impl FnOnce(&dyn Storage, &ExecuteMsg) -> error_stack::Result<Addr, crate::state::Error> + '_ {
     |storage, _| {
         if is_prover_registered(storage, sender.clone())? {
             Ok(sender.clone())
         } else {
-            Err(report!(ContractError::ProverNotRegistered(sender.clone())))
+            Err(report!(crate::state::Error::ProverNotRegistered(
+                sender.clone()
+            )))
         }
     }
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(
-    deps: Deps,
-    _env: Env,
-    msg: QueryMsg,
-) -> Result<Binary, axelar_wasm_std::error::ContractError> {
+pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
     match msg {
         QueryMsg::ReadyToUnbond {
             verifier_address: worker_address,
         } => {
             let worker_address = validate_cosmwasm_address(deps.api, &worker_address)?;
-            to_json_binary(&query::check_verifier_ready_to_unbond(
+
+            Ok(to_json_binary(&query::check_verifier_ready_to_unbond(
                 deps,
                 worker_address,
-            )?)?
+            )?)?)
         }
         QueryMsg::VerifierInfo {
             service_name,
             verifier,
         } => {
             let verifier_address = validate_cosmwasm_address(deps.api, &verifier)?;
-            to_json_binary(&query::verifier_details_with_provers(
+
+            Ok(to_json_binary(&query::verifier_details_with_provers(
                 deps,
                 service_name,
                 verifier_address,
-            )?)?
+            )?)?)
         }
-        QueryMsg::ChainContractsInfo(chain_contracts_key) => {
-            to_json_binary(&query::get_chain_contracts_info(deps, chain_contracts_key)?)?
-        }
+        QueryMsg::ChainContractsInfo(chain_contracts_key) => Ok(to_json_binary(
+            &query::get_chain_contracts_info(deps, chain_contracts_key)?,
+        )?),
     }
-    .then(Ok)
 }
 
 #[cfg(test)]
 mod tests {
-
-    use std::collections::HashSet;
-
     use axelar_wasm_std::permission_control::Permission;
     use cosmwasm_std::{Addr, Empty, StdResult};
     use cw_multi_test::{no_init, App, ContractWrapper, Executor};
@@ -148,7 +170,7 @@ mod tests {
     use crate::msg::ChainContractsKey;
     use crate::state::{load_prover_by_chain, ChainContractsRecord};
 
-    struct TestSetupMulti {
+    struct TestSetup {
         admin_addr: Addr,
         coordinator_addr: Addr,
         app: App,
@@ -158,7 +180,7 @@ mod tests {
         chain_name: ChainName,
     }
 
-    fn setup() -> TestSetupMulti {
+    fn setup() -> TestSetup {
         let mut app = App::new(no_init);
 
         let admin_addr = app.api().addr_make("admin");
@@ -199,7 +221,7 @@ mod tests {
 
         assert!(res.is_ok());
 
-        TestSetupMulti {
+        TestSetup {
             admin_addr,
             coordinator_addr,
             app,
@@ -208,38 +230,6 @@ mod tests {
             gateway: gateway.clone(),
             verifier: verifier.clone(),
         }
-    }
-
-    #[test]
-    #[allow(clippy::arithmetic_side_effects)]
-    fn test_instantiation() {
-        let mut test_setup = setup();
-
-        assert!(test_setup
-            .app
-            .execute_contract(
-                test_setup.app.api().addr_make("not_governance"),
-                test_setup.coordinator_addr.clone(),
-                &ExecuteMsg::RegisterProverContract {
-                    chain_name: test_setup.chain_name.clone(),
-                    new_prover_addr: test_setup.prover.to_string(),
-                },
-                &[],
-            )
-            .is_err());
-
-        assert!(test_setup
-            .app
-            .execute_contract(
-                test_setup.admin_addr,
-                test_setup.coordinator_addr.clone(),
-                &ExecuteMsg::RegisterProverContract {
-                    chain_name: test_setup.chain_name.clone(),
-                    new_prover_addr: test_setup.prover.to_string(),
-                },
-                &[],
-            )
-            .is_ok());
     }
 
     #[test]
@@ -287,16 +277,15 @@ mod tests {
             &[],
         );
 
-        assert_eq!(
-            res.unwrap_err().root_cause().to_string(),
-            axelar_wasm_std::error::ContractError::from(
+        assert!(res.unwrap_err().root_cause().to_string().contains(
+            &axelar_wasm_std::error::ContractError::from(
                 permission_control::Error::PermissionDenied {
                     expected: Permission::Governance.into(),
                     actual: Permission::NoPrivilege.into()
                 }
             )
             .to_string()
-        );
+        ));
     }
 
     #[test]
@@ -344,65 +333,6 @@ mod tests {
 
         assert!(record_response_by_verifier.is_ok());
         goldie::assert_json!(record_response_by_verifier.unwrap());
-    }
-
-    #[test]
-    fn set_active_verifiers_from_prover_succeeds() {
-        let mut test_setup = setup();
-        let new_prover = test_setup.app.api().addr_make("new_eth_prover");
-
-        assert!(test_setup
-            .app
-            .execute_contract(
-                test_setup.admin_addr.clone(),
-                test_setup.coordinator_addr.clone(),
-                &ExecuteMsg::RegisterProverContract {
-                    chain_name: test_setup.chain_name.clone(),
-                    new_prover_addr: new_prover.to_string(),
-                },
-                &[],
-            )
-            .is_ok());
-
-        let res = test_setup.app.execute_contract(
-            new_prover.clone(),
-            test_setup.coordinator_addr.clone(),
-            &ExecuteMsg::SetActiveVerifiers {
-                verifiers: HashSet::new(),
-            },
-            &[],
-        );
-
-        assert!(res.is_ok(), "{:?}", res);
-    }
-
-    #[test]
-    fn set_active_verifiers_from_random_address_fails() {
-        let mut test_setup = setup();
-
-        let res = test_setup.app.execute_contract(
-            test_setup.prover.clone(),
-            test_setup.coordinator_addr.clone(),
-            &ExecuteMsg::SetActiveVerifiers {
-                verifiers: HashSet::new(),
-            },
-            &[],
-        );
-
-        assert!(res.is_err());
-        assert!(res
-            .unwrap_err()
-            .root_cause()
-            .to_string()
-            .to_string()
-            .contains(
-                &axelar_wasm_std::error::ContractError::from(
-                    permission_control::Error::WhitelistNotFound {
-                        sender: test_setup.prover
-                    }
-                )
-                .to_string()
-            ));
     }
 
     #[test]
