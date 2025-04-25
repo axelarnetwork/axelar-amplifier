@@ -4,8 +4,8 @@ use async_trait::async_trait;
 use cosmrs::Any;
 use error_stack::Context;
 use events::{AbciEventTypeFilter, Event};
+use futures::pin_mut;
 use futures::stream::StreamExt;
-use futures::{pin_mut, Future};
 use mockall::automock;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -214,4 +214,69 @@ async fn handle_error_action<T, E>(
     }
 }
 
-// testing: mock client, mock event handler, .....
+#[cfg(test)]
+mod tests {
+    use error_stack::Report;
+
+    use super::*;
+    use crate::grpc::client::{Error as ClientError, MockClient};
+
+    #[tokio::test]
+    async fn test_successful_event_handling() {
+        let mut handler = MockEventHandler::new();
+
+        handler
+        .expect_subscribe_args()
+        .returning(|| SubscribeArgs {
+            event_filters: vec![AbciEventTypeFilter {
+                event_type: "test_event".to_string()
+            }],
+            include_block_begin_end: true
+        });
+
+        handler
+        .expect_handle()
+        .times(2)
+        .returning(|_, _| Ok(vec![]));
+
+        let mut mock_client = MockClient::new();
+        let events = vec![
+            Event::BlockBegin(1u32.into()),
+            Event::BlockEnd(1u32.into()),
+        ];
+
+        mock_client
+            .expect_subscribe()
+            .times(1)
+            .returning(move |_, _| {
+                let result_events: Vec<Result<Event, Report<ClientError>>> =
+                    events.clone().into_iter().map(Ok).collect();
+                Ok(tokio_stream::iter(result_events))
+            });
+
+        let mut task = HandlerTask::builder()
+            .handler(handler)
+            .client(mock_client)
+            .config(Config {
+                stream_timeout: Duration::from_millis(100),
+            })
+            .handler_retry_policy(RetryPolicy::NoRetry)
+            .broadcast_retry_policy(RetryPolicy::NoRetry)
+            .event_subscribe_error_cb(|_| HandlerTaskAction::Abort)
+            .handler_error_cb(|_, _| HandlerTaskAction::Abort)
+            .broadcaster_error_cb(|_, _| HandlerTaskAction::Abort)
+            .build();
+
+        let result = tokio::time::timeout(
+            Duration::from_secs(1), 
+            task.run(CancellationToken::new())
+        ).await;
+        
+        match result {
+            Ok(task_result) => assert!(task_result.is_ok()),
+            Err(_timeout) => { 
+                assert!(false, "Task timed out");
+            }
+        }
+    }
+}
