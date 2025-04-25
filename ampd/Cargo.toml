@@ -3,6 +3,7 @@ name = "ampd"
 edition = { workspace = true }
 version = "1.7.0"
 rust-version = { workspace = true }
+license = "MIT OR Apache-2.0"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
@@ -42,7 +43,7 @@ move-core-types = { git = "https://github.com/mystenlabs/sui", tag = "testnet-v1
 multisig = { workspace = true, features = ["library"] }
 multiversx-sdk = "0.6.1"
 num-traits = { workspace = true }
-openssl = { version = "0.10.35", features = [
+openssl = { version = "0.10.72", features = [
   "vendored",
 ] } # Needed to make arm compilation work by forcing vendoring
 prost = "0.13.5"
