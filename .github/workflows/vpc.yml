@@ -5,7 +5,7 @@ on:
 
 jobs:
   ping-ip:
-    runs-on: blacksmith-staging
+    runs-on: blacksmith-staging-2vcpu-ubuntu-2204
     steps:
       - name: Ping IP address
         run: |
