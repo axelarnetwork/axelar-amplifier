@@ -156,10 +156,10 @@ fn mock_multisig(operators: Vec<TestOperator>) -> Multisig {
     }
 }
 
-fn service_registry_mock_querier_handler<'a, TestApi: Api + ApiAddrMaker>(
+fn service_registry_mock_querier_handler<TestApi: Api + ApiAddrMaker>(
     msg: service_registry_api::msg::QueryMsg,
     operators: Vec<TestOperator>,
-    mock_api: &'a TestApi,
+    mock_api: &TestApi,
 ) -> QuerierResult {
     let result = match msg {
         service_registry_api::msg::QueryMsg::Service { service_name } => {
@@ -263,7 +263,7 @@ where
                 gateway_mock_querier_handler()
                     .into_result()?
                     .into_result()
-                    .map_err(|err| anyhow::Error::msg(err))
+                    .map_err(anyhow::Error::msg)
             }
             WasmQuery::Smart { contract_addr, msg }
                 if contract_addr == self.multisig_addr.as_str() =>
@@ -271,7 +271,7 @@ where
                 multisig_mock_querier_handler(from_json(msg).unwrap(), self.operators.clone())
                     .into_result()?
                     .into_result()
-                    .map_err(|err| anyhow::Error::msg(err))
+                    .map_err(anyhow::Error::msg)
             }
             WasmQuery::Smart { contract_addr, msg }
                 if contract_addr == self.mock_api.addr_make(SERVICE_REGISTRY_ADDRESS).as_str() =>
@@ -283,7 +283,7 @@ where
                 )
                 .into_result()?
                 .into_result()
-                .map_err(|err| anyhow::Error::msg(err))
+                .map_err(anyhow::Error::msg)
             }
             WasmQuery::Smart { contract_addr, .. }
                 if contract_addr == self.mock_api.addr_make(VOTING_VERIFIER_ADDRESS).as_str() =>
@@ -291,7 +291,7 @@ where
                 voting_verifier_mock_querier_handler(self.verifier_set_status)
                     .into_result()?
                     .into_result()
-                    .map_err(|err| anyhow::Error::msg(err))
+                    .map_err(anyhow::Error::msg)
             }
             _ => self.wasm.query(api, storage, querier, block, request),
         }
