@@ -2,6 +2,7 @@
 name = "axelarnet-gateway"
 version = "1.0.0"
 rust-version = { workspace = true }
+license = "MIT OR Apache-2.0"
 edition = { workspace = true }
 description = "The Axelarnet Gateway contract allows apps on the Axelar Network to send/receive cross-chain messages to/from other chains."
 
