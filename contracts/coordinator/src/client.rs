@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use cosmwasm_std::CosmosMsg;
+use cosmwasm_std::{Addr, CosmosMsg};
 use error_stack::{Result, ResultExt};
 use router_api::ChainName;
 
@@ -13,8 +13,17 @@ pub enum Error {
     )]
     ReadyToUnbond(String),
 
-    #[error("coordinator failed to retreive chain contracts info")]
-    ChainContractsInfo,
+    #[error("failed to execute ChainContractsInfo query at coordinator contract. chain name {0}")]
+    ChainNameNotRegistered(String),
+
+    #[error("failed to execute ChainContractsInfo query at coordinator contract. gateway {0}")]
+    GatewayNotRegistered(Addr),
+
+    #[error("failed to execute ChainContractsInfo query at coordinator contract. prover {0}")]
+    ProverNotRegistered(Addr),
+
+    #[error("failed to execute ChainContractsInfo query at coordinator contract. verifier {0}")]
+    VerifierNotRegistered(Addr),
 }
 
 impl<'a> From<client::ContractClient<'a, ExecuteMsg, QueryMsg>> for Client<'a> {
@@ -73,10 +82,23 @@ impl Client<'_> {
         &self,
         chain_contracts_key: ChainContractsKey,
     ) -> Result<ChainContractsResponse, Error> {
-        let msg = QueryMsg::ChainContractsInfo(chain_contracts_key);
+        let msg = QueryMsg::ChainContractsInfo(chain_contracts_key.clone());
         self.client
             .query(&msg)
-            .change_context(Error::ChainContractsInfo)
+            .change_context(match chain_contracts_key {
+                ChainContractsKey::GatewayAddress(gateway_addr) => {
+                    Error::GatewayNotRegistered(gateway_addr)
+                }
+                ChainContractsKey::ProverAddress(prover_addr) => {
+                    Error::ProverNotRegistered(prover_addr)
+                }
+                ChainContractsKey::VerifierAddress(verifier_addr) => {
+                    Error::VerifierNotRegistered(verifier_addr)
+                }
+                ChainContractsKey::ChainName(chain_name) => {
+                    Error::ChainNameNotRegistered(chain_name.into())
+                }
+            })
     }
 }
 

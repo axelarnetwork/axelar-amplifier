@@ -120,11 +120,16 @@ pub fn query(
 mod tests {
     use axelar_wasm_std::permission_control::Permission;
     use axelar_wasm_std::{permission_control, MajorityThreshold, Threshold, VerificationStatus};
+    use coordinator;
     use cosmwasm_std::testing::{
         message_info, mock_dependencies, mock_env, MockApi, MockQuerier, MockStorage,
     };
     use cosmwasm_std::{
-        from_json, Addr, Empty, Fraction, OwnedDeps, SubMsgResponse, SubMsgResult, Uint128, Uint64,
+        from_json, instantiate2_address, Addr, Api, Checksum, Empty, Fraction, MemoryStorage,
+        OwnedDeps, SubMsgResponse, SubMsgResult, Uint128, Uint64,
+    };
+    use cw_multi_test::{
+        no_init, App, AppBuilder, Contract, ContractWrapper, Executor, FailingModule, MockApiBech32,
     };
     use multisig::msg::Signer;
     use multisig::verifier_set::VerifierSet;
@@ -137,8 +142,9 @@ mod tests {
     use crate::msg::{ProofResponse, ProofStatus, VerifierSetResponse};
     use crate::test::test_data::{self, TestOperator};
     use crate::test::test_utils::{
-        mock_querier_handler, ADMIN, COORDINATOR_ADDRESS, GATEWAY_ADDRESS, GOVERNANCE,
-        MULTISIG_ADDRESS, SERVICE_NAME, SERVICE_REGISTRY_ADDRESS, VOTING_VERIFIER_ADDRESS,
+        mock_querier_handler, ProverWasm, ADMIN, COORDINATOR_ADDRESS, GATEWAY_ADDRESS, GOVERNANCE,
+        MULTISIG_ADDRESS, REWARDS, SERVICE_NAME, SERVICE_REGISTRY_ADDRESS, SIGNATURE_BLOCK_EXPIRY,
+        VOTING_VERIFIER_ADDRESS,
     };
 
     const RELAYER: &str = "relayer";
@@ -177,6 +183,138 @@ mod tests {
         .unwrap();
 
         deps
+    }
+
+    fn setup_multi_test_case(
+        coordinator_registers_prover: bool,
+    ) -> (
+        App<
+            cw_multi_test::BankKeeper,
+            MockApiBech32,
+            MemoryStorage,
+            FailingModule<Empty, Empty, Empty>,
+            ProverWasm<Empty, Empty, MockApiBech32>,
+        >,
+        Addr,
+    ) {
+        let bech_prefix = "axelar";
+
+        // Multisig address must be known beforehand and and passed to Wasm module
+        let multisig_code = ContractWrapper::new(
+            multisig::contract::execute,
+            multisig::contract::instantiate,
+            multisig::contract::query,
+        )
+        .with_checksum(Checksum::generate(&vec![1, 2, 3, 4, 5, 6, 7, 8]));
+        let multisig_salt = &vec![1, 2, 3, 4, 5, 6, 7, 8];
+
+        let multisig_addr = instantiate2_address(
+            multisig_code.checksum().unwrap().as_slice(),
+            &MockApiBech32::new(bech_prefix)
+                .addr_canonicalize(&MockApiBech32::new(bech_prefix).addr_make(ADMIN).to_string())
+                .unwrap(),
+            &multisig_salt.clone(),
+        );
+        assert!(multisig_addr.is_ok());
+
+        let multisig_addr = MockApiBech32::new(bech_prefix).addr_humanize(&multisig_addr.unwrap());
+        assert!(multisig_addr.is_ok());
+
+        let mut app = AppBuilder::new()
+            .with_wasm(ProverWasm::new(
+                test_data::operators(),
+                VerificationStatus::SucceededOnSourceChain,
+                multisig_addr.unwrap(),
+                MockApiBech32::new(bech_prefix),
+            ))
+            .with_api(MockApiBech32::new(bech_prefix))
+            .build(no_init);
+
+        let coordinator_code = ContractWrapper::new(
+            coordinator::contract::execute,
+            coordinator::contract::instantiate,
+            coordinator::contract::query,
+        );
+        let coordinator_code_id = app.store_code(Box::new(coordinator_code));
+
+        let coordinator_addr = app.instantiate_contract(
+            coordinator_code_id,
+            app.api().addr_make(ADMIN),
+            &coordinator::msg::InstantiateMsg {
+                governance_address: app.api().addr_make(ADMIN).clone().to_string(),
+                service_registry: app.api().addr_make(SERVICE_REGISTRY_ADDRESS).to_string(),
+            },
+            &[],
+            "Coordinator1.0.0",
+            Some(app.api().addr_make(ADMIN).to_string()),
+        );
+        assert!(coordinator_addr.is_ok());
+        let coordinator_addr = coordinator_addr.unwrap();
+
+        let multisig_code_id = app.store_code(Box::new(multisig_code));
+        let multisig_addr = app.instantiate2_contract(
+            multisig_code_id,
+            app.api().addr_make(ADMIN),
+            &multisig::msg::InstantiateMsg {
+                governance_address: app.api().addr_make(GOVERNANCE).into_string(),
+                admin_address: app.api().addr_make(ADMIN).into_string(),
+                rewards_address: app.api().addr_make(REWARDS).into_string(),
+                block_expiry: SIGNATURE_BLOCK_EXPIRY.try_into().unwrap(),
+            },
+            &[],
+            "Multsig1.0.0",
+            Some(app.api().addr_make(ADMIN).to_string()),
+            multisig_salt.clone(),
+        );
+        assert!(multisig_addr.is_ok());
+        let multisig_addr = multisig_addr.unwrap();
+
+        let prover_code = ContractWrapper::new(execute, instantiate, query);
+        let prover_code_id = app.store_code(Box::new(prover_code));
+
+        let prover_addr = app.instantiate_contract(
+            prover_code_id,
+            app.api().addr_make(ADMIN),
+            &InstantiateMsg {
+                admin_address: app.api().addr_make(ADMIN).to_string(),
+                governance_address: app.api().addr_make(GOVERNANCE).to_string(),
+                gateway_address: app.api().addr_make(GATEWAY_ADDRESS).to_string(),
+                multisig_address: multisig_addr.to_string(),
+                coordinator_address: coordinator_addr.clone().to_string(),
+                service_registry_address: app.api().addr_make(SERVICE_REGISTRY_ADDRESS).to_string(),
+                voting_verifier_address: app.api().addr_make(VOTING_VERIFIER_ADDRESS).to_string(),
+                signing_threshold: test_data::threshold(),
+                service_name: SERVICE_NAME.to_string(),
+                chain_name: "ganache-0".to_string(),
+                verifier_set_diff_threshold: 0,
+                encoder: Encoder::Abi,
+                key_type: multisig::key::KeyType::Ecdsa,
+                domain_separator: [0; 32],
+            },
+            &[],
+            "Prover1.0.0",
+            Some(app.api().addr_make(ADMIN).to_string()),
+        );
+        assert!(prover_addr.is_ok());
+        let prover_addr = prover_addr.unwrap();
+
+        assert!(app
+            .execute_contract(
+                app.api().addr_make(ADMIN),
+                coordinator_addr.clone(),
+                &coordinator::msg::ExecuteMsg::RegisterProverContract {
+                    chain_name: "ganache-0".to_string().parse().unwrap(),
+                    new_prover_addr: if coordinator_registers_prover {
+                        prover_addr.to_string()
+                    } else {
+                        app.api().addr_make("random_address").clone().to_string()
+                    },
+                },
+                &[]
+            )
+            .is_ok());
+
+        (app, prover_addr)
     }
 
     fn execute_update_verifier_set(
@@ -422,17 +560,18 @@ mod tests {
 
     #[test]
     fn test_update_verifier_set_from_non_admin_or_governance_should_fail() {
-        let mut deps = setup_test_case();
-        let api = deps.api;
-        let res = execute(
-            deps.as_mut(),
-            mock_env(),
-            message_info(&api.addr_make("some random address"), &[]),
-            ExecuteMsg::UpdateVerifierSet {},
+        let (mut app, prover_addr) = setup_multi_test_case(true);
+
+        let res = app.execute_contract(
+            app.api().addr_make("some random address"),
+            prover_addr.clone(),
+            &ExecuteMsg::UpdateVerifierSet {},
+            &[],
         );
+
         assert!(res.is_err());
         assert_eq!(
-            res.unwrap_err().to_string(),
+            res.unwrap_err().root_cause().to_string(),
             axelar_wasm_std::error::ContractError::from(
                 permission_control::Error::PermissionDenied {
                     expected: Permission::Elevated.into(),
@@ -444,27 +583,46 @@ mod tests {
     }
 
     #[test]
+    fn test_update_verifier_set_from_non_prover_should_fail() {
+        let (mut app, prover_addr) = setup_multi_test_case(false);
+
+        let res = app.execute_contract(
+            app.api().addr_make(GOVERNANCE),
+            prover_addr.clone(),
+            &ExecuteMsg::UpdateVerifierSet {},
+            &[],
+        );
+        assert!(res.is_err());
+        assert!(res.unwrap_err().root_cause().to_string().contains(
+            &permission_control::Error::WhitelistNotFound {
+                sender: prover_addr.clone()
+            }
+            .to_string()
+        ));
+    }
+
+    #[test]
     fn test_update_verifier_set_from_governance_should_succeed() {
-        let mut deps = setup_test_case();
-        let api = deps.api;
-        let res = execute(
-            deps.as_mut(),
-            mock_env(),
-            message_info(&api.addr_make(GOVERNANCE), &[]),
-            ExecuteMsg::UpdateVerifierSet {},
+        let (mut app, prover_addr) = setup_multi_test_case(true);
+
+        let res = app.execute_contract(
+            app.api().addr_make(GOVERNANCE),
+            prover_addr.clone(),
+            &ExecuteMsg::UpdateVerifierSet {},
+            &[],
         );
         assert!(res.is_ok());
     }
 
     #[test]
     fn test_update_verifier_set_from_admin_should_succeed() {
-        let mut deps = setup_test_case();
-        let api = deps.api;
-        let res = execute(
-            deps.as_mut(),
-            mock_env(),
-            message_info(&api.addr_make(ADMIN), &[]),
-            ExecuteMsg::UpdateVerifierSet {},
+        let (mut app, prover_addr) = setup_multi_test_case(true);
+
+        let res = app.execute_contract(
+            app.api().addr_make(ADMIN),
+            prover_addr.clone(),
+            &ExecuteMsg::UpdateVerifierSet {},
+            &[],
         );
         assert!(res.is_ok());
     }
