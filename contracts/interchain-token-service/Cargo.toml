@@ -1,6 +1,6 @@
 [package]
 name = "interchain-token-service"
-version = "1.2.0"
+version = "1.2.1"
 rust-version = { workspace = true }
 edition = { workspace = true }
 
