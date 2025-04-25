@@ -261,7 +261,7 @@ mod tests {
             &[],
             "Multsig1.0.0",
             Some(app.api().addr_make(ADMIN).to_string()),
-            multisig_salt.clone(),
+            *multisig_salt,
         );
         assert!(multisig_addr.is_ok());
         let multisig_addr = multisig_addr.unwrap();
