@@ -150,6 +150,14 @@ mod tests {
     const RELAYER: &str = "relayer";
     const MULTISIG_SESSION_ID: Uint64 = Uint64::one();
 
+    type TestAppMulti = App<
+        cw_multi_test::BankKeeper,
+        MockApiBech32,
+        MemoryStorage,
+        FailingModule<Empty, Empty, Empty>,
+        ProverWasm<Empty, Empty, MockApiBech32>,
+    >;
+
     pub fn setup_test_case() -> OwnedDeps<MockStorage, MockApi, MockQuerier, Empty> {
         let mut deps = mock_dependencies();
         let api = deps.api;
@@ -185,18 +193,7 @@ mod tests {
         deps
     }
 
-    fn setup_multi_test_case(
-        coordinator_registers_prover: bool,
-    ) -> (
-        App<
-            cw_multi_test::BankKeeper,
-            MockApiBech32,
-            MemoryStorage,
-            FailingModule<Empty, Empty, Empty>,
-            ProverWasm<Empty, Empty, MockApiBech32>,
-        >,
-        Addr,
-    ) {
+    fn setup_multi_test_case(coordinator_registers_prover: bool) -> (TestAppMulti, Addr) {
         let bech_prefix = "axelar";
 
         // Multisig address must be known beforehand and and passed to Wasm module
@@ -205,13 +202,13 @@ mod tests {
             multisig::contract::instantiate,
             multisig::contract::query,
         )
-        .with_checksum(Checksum::generate(&vec![1, 2, 3, 4, 5, 6, 7, 8]));
-        let multisig_salt = &vec![1, 2, 3, 4, 5, 6, 7, 8];
+        .with_checksum(Checksum::generate(&[1, 2, 3, 4, 5, 6, 7, 8]));
+        let multisig_salt = &[1, 2, 3, 4, 5, 6, 7, 8];
 
         let multisig_addr = instantiate2_address(
             multisig_code.checksum().unwrap().as_slice(),
             &MockApiBech32::new(bech_prefix)
-                .addr_canonicalize(&MockApiBech32::new(bech_prefix).addr_make(ADMIN).to_string())
+                .addr_canonicalize(MockApiBech32::new(bech_prefix).addr_make(ADMIN).as_ref())
                 .unwrap(),
             &multisig_salt.clone(),
         );
