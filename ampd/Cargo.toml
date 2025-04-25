@@ -42,7 +42,7 @@ move-core-types = { git = "https://github.com/mystenlabs/sui", tag = "testnet-v1
 multisig = { workspace = true, features = ["library"] }
 multiversx-sdk = "0.6.1"
 num-traits = { workspace = true }
-openssl = { version = "0.10.35", features = [
+openssl = { version = "0.10.72", features = [
   "vendored",
 ] } # Needed to make arm compilation work by forcing vendoring
 prost = "0.11.9"
