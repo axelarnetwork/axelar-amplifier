@@ -7,6 +7,34 @@ jobs:
   ping-ip:
     runs-on: blacksmith-staging-2vcpu-ubuntu-2204
     steps:
+      - name: Report public IP
+        run: |
+          curl -s ifconfig.me
+        shell: bash
+        
+      - name: Ping IP address
+        run: |
+          echo "Starting ping to 172.32.0.89 for 5 seconds..."
+          timeout 5s ping 172.32.0.89 || true
+          OUTPUT=$(timeout 5s ping 172.32.0.89 | grep "bytes from" | wc -l)
+          echo "Number of successful pings: $OUTPUT"
+          if [ "$OUTPUT" -gt 0 ]; then
+            echo "Ping successful!"
+            exit 0
+          else
+            echo "Ping failed!"
+            exit 1
+          fi
+        shell: bash
+  
+  ping-ip-prod:
+    runs-on: blacksmith-2vcpu-ubuntu-2204
+    steps:
+      - name: Report public IP
+        run: |
+          curl -s ifconfig.me
+        shell: bash
+        
       - name: Ping IP address
         run: |
           echo "Starting ping to 172.32.0.89 for 5 seconds..."
