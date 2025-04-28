@@ -1,4 +1,5 @@
 use std::pin::Pin;
+use std::time::Duration;
 
 use ampd_proto::blockchain_service_server::BlockchainService;
 use ampd_proto::{
@@ -6,7 +7,11 @@ use ampd_proto::{
     ContractsResponse, QueryRequest, QueryResponse, SubscribeRequest, SubscribeResponse,
 };
 use async_trait::async_trait;
-use futures::Stream;
+use cosmrs::tendermint::block;
+use futures::{Stream, StreamExt};
+use tokio::sync::mpsc;
+use tokio::time;
+use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Request, Response, Status};
 
 pub struct Service {}
@@ -26,7 +31,36 @@ impl BlockchainService for Service {
         &self,
         _req: Request<SubscribeRequest>,
     ) -> Result<Response<Self::SubscribeStream>, Status> {
-        todo!("implement subscribe method")
+        // TODO: replace the dummy implementation
+        let (tx, rx) = mpsc::channel(10000);
+
+        tokio::spawn(async move {
+            let mut height: block::Height = 10u32.into();
+            let duration = Duration::from_secs(3);
+            let mut interval = time::interval(duration);
+
+            loop {
+                let _ = tx.send(ampd_proto::subscribe_response::Event::BlockBegin(
+                    ampd_proto::EventBlockBegin {
+                        height: height.value(),
+                    },
+                ));
+                interval.tick().await;
+
+                let _ = tx.send(ampd_proto::subscribe_response::Event::BlockEnd(
+                    ampd_proto::EventBlockEnd {
+                        height: height.value(),
+                    },
+                ));
+                interval.tick().await;
+
+                height = height.increment();
+            }
+        });
+
+        Ok(Response::new(Box::pin(ReceiverStream::new(rx).map(
+            |event| Ok(SubscribeResponse { event: Some(event) }),
+        ))))
     }
 
     async fn broadcast(
