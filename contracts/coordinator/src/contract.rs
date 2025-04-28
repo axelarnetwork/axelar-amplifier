@@ -23,11 +23,11 @@ pub const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 #[derive(thiserror::Error, Debug, IntoContractError)]
 pub enum Error {
     #[error("coordinator instantiation failed")]
-    InstantiateFailed,
+    Instantiate,
     #[error("coordinator query failed")]
-    QueryFailed,
+    Query,
     #[error("coordinator execution failed")]
-    ExecuteFailed,
+    Execute,
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -39,7 +39,7 @@ pub fn instantiate(
 ) -> Result<Response, ContractError> {
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)
         .map_err(|err| error_stack::Report::new(err))
-        .change_context(Error::InstantiateFailed)?;
+        .change_context(Error::Instantiate)?;
 
     let config = Config {
         service_registry: address::validate_cosmwasm_address(deps.api, &msg.service_registry)?,
@@ -47,14 +47,14 @@ pub fn instantiate(
     CONFIG
         .save(deps.storage, &config)
         .map_err(|err| error_stack::Report::new(err))
-        .change_context(Error::InstantiateFailed)?;
+        .change_context(Error::Instantiate)?;
 
     let governance = address::validate_cosmwasm_address(deps.api, &msg.governance_address)
-        .change_context(Error::InstantiateFailed)?;
+        .change_context(Error::Instantiate)?;
 
     permission_control::set_governance(deps.storage, &governance)
         .map_err(|err| error_stack::Report::new(err))
-        .change_context(Error::InstantiateFailed)?;
+        .change_context(Error::Instantiate)?;
 
     Ok(Response::default())
 }
@@ -72,7 +72,7 @@ pub fn execute(
             &info.sender,
             find_prover_address(&info.sender),
         )
-        .change_context(Error::ExecuteFailed)?
+        .change_context(Error::Execute)?
     {
         ExecuteMsg::RegisterProverContract {
             chain_name,
@@ -110,7 +110,7 @@ pub fn execute(
             execute::set_active_verifier_set(deps, info, verifiers)
         }
     }
-    .change_context(Error::ExecuteFailed)?
+    .change_context(Error::Execute)?
     .then(Ok)
 }
 

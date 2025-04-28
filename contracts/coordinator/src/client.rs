@@ -9,20 +9,20 @@ use crate::msg::{ChainContractsKey, ChainContractsResponse, ExecuteMsg, QueryMsg
 #[derive(thiserror::Error, Debug, PartialEq)]
 pub enum Error {
     #[error(
-        "coordinator failed to retrieve if verifier is ready to unbond. verifier_address: {0}"
+        "coordinator failed to retrieve if verifier {0} is ready to unbond."
     )]
     ReadyToUnbond(String),
 
-    #[error("failed to execute ChainContractsInfo query at coordinator contract. chain name {0}")]
+    #[error("failed to query ChainContractsInfo by chain name {0}")]
     ChainNameNotRegistered(String),
 
-    #[error("failed to execute ChainContractsInfo query at coordinator contract. gateway {0}")]
+    #[error("failed to query ChainContractsInfo by gateway {0}")]
     GatewayNotRegistered(Addr),
 
-    #[error("failed to execute ChainContractsInfo query at coordinator contract. prover {0}")]
+    #[error("failed to query ChainContractsInfo by prover {0}")]
     ProverNotRegistered(Addr),
 
-    #[error("failed to execute ChainContractsInfo query at coordinator contract. verifier {0}")]
+    #[error("failed to query ChainContractsInfo by verifier {0}")]
     VerifierNotRegistered(Addr),
 }
 
