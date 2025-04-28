@@ -2,6 +2,7 @@ use std::net::{IpAddr, SocketAddr};
 
 use ampd_proto::blockchain_service_server::BlockchainServiceServer;
 use ampd_proto::crypto_service_server::CryptoServiceServer;
+use axelar_wasm_std::nonempty;
 use error_stack::Result;
 use report::ErrorExt;
 use serde::de::{self, Deserializer};
@@ -25,8 +26,8 @@ pub enum Error {
 pub struct Config {
     pub ip_addr: IpAddr,
     pub port: u16,
-    pub concurrency_limit: usize,
-    pub concurrency_limit_per_connection: usize,
+    pub concurrency_limit: nonempty::Usize,
+    pub concurrency_limit_per_connection: nonempty::Usize,
 }
 
 impl Default for Config {
@@ -34,8 +35,12 @@ impl Default for Config {
         Self {
             ip_addr: "127.0.0.1".parse().expect("default IP must be valid"),
             port: 9090,
-            concurrency_limit: 1024,
-            concurrency_limit_per_connection: 32,
+            concurrency_limit: 1024
+                .try_into()
+                .expect("default concurrency limit must be valid"),
+            concurrency_limit_per_connection: 32
+                .try_into()
+                .expect("default concurrency limit per connection must be valid"),
         }
     }
 }
@@ -45,16 +50,6 @@ where
     D: Deserializer<'de>,
 {
     let config: Config = Deserialize::deserialize(deserializer)?;
-
-    if config.concurrency_limit == 0 {
-        return Err(de::Error::custom("concurrency_limit must be > 0"));
-    }
-
-    if config.concurrency_limit_per_connection == 0 {
-        return Err(de::Error::custom(
-            "concurrency_limit_per_connection must be > 0",
-        ));
-    }
 
     if config.concurrency_limit < config.concurrency_limit_per_connection {
         return Err(de::Error::custom(
@@ -74,9 +69,10 @@ impl Server {
     pub fn new(config: &Config) -> Self {
         Self {
             addr: SocketAddr::new(config.ip_addr, config.port),
+            // TODO: add TLS and optional public key pinning
             router: transport::Server::builder()
-                .layer(ConcurrencyLimitLayer::new(config.concurrency_limit))
-                .concurrency_limit_per_connection(config.concurrency_limit_per_connection)
+                .layer(ConcurrencyLimitLayer::new(config.concurrency_limit.into()))
+                .concurrency_limit_per_connection(config.concurrency_limit_per_connection.into())
                 .add_service(BlockchainServiceServer::new(
                     blockchain_service::Service::new(),
                 ))

@@ -82,16 +82,9 @@ mod tests {
             concurrency_limit_per_connection = {concurrency_limit_per_connection}
             ",
         );
-
         let cfg: Config = toml::from_str(config_str.as_str()).unwrap();
 
-        assert_eq!(cfg.grpc.ip_addr.to_string(), ip_addr);
-        assert_eq!(cfg.grpc.port, port);
-        assert_eq!(cfg.grpc.concurrency_limit, concurrency_limit);
-        assert_eq!(
-            cfg.grpc.concurrency_limit_per_connection,
-            concurrency_limit_per_connection
-        );
+        goldie::assert_json!(cfg);
     }
 
     #[test]
