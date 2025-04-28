@@ -1,7 +1,7 @@
 use std::ops::Mul;
 
 use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
-use cosmrs::tx::{Fee, MessageExt};
+use cosmrs::tx::Fee;
 use cosmrs::{Any, Coin};
 use error_stack::{report, ResultExt};
 use k256::sha2::{Digest, Sha256};
@@ -111,11 +111,10 @@ where
     }
 
     async fn broadcast(&mut self, msgs: impl IntoIterator<Item = Any>) -> Result<TxResponse> {
-        let batch_req = proto::axelar::auxiliary::v1beta1::BatchRequest {
+        let batch_req = Any::from_msg(&proto::axelar::auxiliary::v1beta1::BatchRequest {
             sender: self.broadcaster.address.as_ref().to_bytes(),
             messages: msgs.into_iter().collect(),
-        }
-        .to_any()
+        })
         .expect("failed to serialize proto message for batch request");
         let fee = self.estimate_fee(batch_req.clone()).await?;
         let pub_key = self.broadcaster.pub_key;
@@ -166,7 +165,6 @@ mod tests {
     use cosmrs::proto::cosmos::auth::v1beta1::{BaseAccount, QueryAccountResponse};
     use cosmrs::proto::cosmos::base::abci::v1beta1::{GasInfo, TxResponse};
     use cosmrs::proto::cosmos::tx::v1beta1::{BroadcastTxResponse, Fee, SimulateResponse};
-    use cosmrs::tx::MessageExt;
     use cosmrs::{tendermint, Any};
     use error_stack::report;
     use mockall::Sequence;
@@ -245,7 +243,7 @@ mod tests {
             .in_sequence(&mut seq)
             .return_once(move |_| {
                 Ok(QueryAccountResponse {
-                    account: Some(base_account.to_any().unwrap()),
+                    account: Some(Any::from_msg(&base_account).unwrap()),
                 })
             });
         mock_client
@@ -330,7 +328,7 @@ mod tests {
             .in_sequence(&mut seq)
             .return_once(move |_| {
                 Ok(QueryAccountResponse {
-                    account: Some(initial_account.to_any().unwrap()),
+                    account: Some(Any::from_msg(&initial_account).unwrap()),
                 })
             });
         mock_client
@@ -357,7 +355,7 @@ mod tests {
             .in_sequence(&mut seq)
             .return_once(move |_| {
                 Ok(QueryAccountResponse {
-                    account: Some(reset_account.to_any().unwrap()),
+                    account: Some(Any::from_msg(&reset_account).unwrap()),
                 })
             });
 
@@ -416,7 +414,7 @@ mod tests {
             .in_sequence(&mut seq)
             .return_once(move |_| {
                 Ok(QueryAccountResponse {
-                    account: Some(base_account.to_any().unwrap()),
+                    account: Some(Any::from_msg(&base_account).unwrap()),
                 })
             });
         mock_client
@@ -499,7 +497,7 @@ mod tests {
             .in_sequence(&mut seq)
             .return_once(move |_| {
                 Ok(QueryAccountResponse {
-                    account: Some(base_account.to_any().unwrap()),
+                    account: Some(Any::from_msg(&base_account).unwrap()),
                 })
             });
 
@@ -577,7 +575,7 @@ mod tests {
             .in_sequence(&mut seq)
             .return_once(move |_| {
                 Ok(QueryAccountResponse {
-                    account: Some(base_account.to_any().unwrap()),
+                    account: Some(Any::from_msg(&base_account).unwrap()),
                 })
             });
         mock_client
@@ -695,7 +693,7 @@ mod tests {
             .in_sequence(&mut seq)
             .return_once(move |_| {
                 Ok(QueryAccountResponse {
-                    account: Some(initial_account.to_any().unwrap()),
+                    account: Some(Any::from_msg(&initial_account).unwrap()),
                 })
             });
         mock_client
@@ -722,7 +720,7 @@ mod tests {
             .in_sequence(&mut seq)
             .return_once(move |_| {
                 Ok(QueryAccountResponse {
-                    account: Some(reset_account.to_any().unwrap()),
+                    account: Some(Any::from_msg(&reset_account).unwrap()),
                 })
             });
         mock_client
@@ -813,7 +811,7 @@ mod tests {
             .in_sequence(&mut seq)
             .return_once(move |_| {
                 Ok(QueryAccountResponse {
-                    account: Some(base_account.to_any().unwrap()),
+                    account: Some(Any::from_msg(&base_account).unwrap()),
                 })
             });
         mock_client

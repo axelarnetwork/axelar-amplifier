@@ -2,6 +2,7 @@
 name = "coordinator"
 version = "1.1.0"
 rust-version = { workspace = true }
+license = "MIT OR Apache-2.0"
 edition = { workspace = true }
 description = "Amplifier info aggregation for external use, alongside contract management, instantiation and migration"
 

@@ -1,4 +1,4 @@
-use cosmrs::proto::traits::TypeUrl;
+use prost::Name;
 
 pub mod axelar {
     pub mod auxiliary {
@@ -37,6 +37,7 @@ mod tendermint {
     }
 }
 
-impl TypeUrl for axelar::auxiliary::v1beta1::BatchRequest {
-    const TYPE_URL: &'static str = "/axelar.auxiliary.v1beta1.BatchRequest";
+impl Name for axelar::auxiliary::v1beta1::BatchRequest {
+    const NAME: &'static str = "BatchRequest";
+    const PACKAGE: &'static str = "axelar.auxiliary.v1beta1";
 }

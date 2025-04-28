@@ -244,7 +244,7 @@ mod tests {
 
     #[test]
     fn invalid_try_from_string() {
-        assert!(DecCoin::try_from("10a0u/-xl").is_err());
+        assert!(DecCoin::try_from("10a0u/-xl!").is_err());
         assert!(DecCoin::try_from("uaxl6").is_err());
     }
 

@@ -184,7 +184,6 @@ mod tests {
     use cosmrs::proto::cosmos::auth::v1beta1::{BaseAccount, QueryAccountResponse};
     use cosmrs::proto::cosmos::base::abci::v1beta1::{GasInfo, TxResponse};
     use cosmrs::proto::cosmos::tx::v1beta1::{BroadcastTxResponse, SimulateResponse};
-    use cosmrs::tx::MessageExt;
     use cosmrs::Coin;
     use cosmwasm_std::to_hex;
     use error_stack::Report;
@@ -231,12 +230,11 @@ mod tests {
             account_number,
             sequence,
         };
-        let base_account_any = base_account.to_any().unwrap();
 
         let mut mock_client = cosmos::MockCosmosClient::new();
         mock_client.expect_account().return_once(move |_| {
             Ok(QueryAccountResponse {
-                account: Some(base_account_any),
+                account: Some(Any::from_msg(&base_account).unwrap()),
             })
         });
 
@@ -296,12 +294,11 @@ mod tests {
             account_number,
             sequence,
         };
-        let base_account_any = base_account.to_any().unwrap();
 
         let mut mock_client = cosmos::MockCosmosClient::new();
         mock_client.expect_account().return_once(move |_| {
             Ok(QueryAccountResponse {
-                account: Some(base_account_any),
+                account: Some(Any::from_msg(&base_account).unwrap()),
             })
         });
 
@@ -342,12 +339,11 @@ mod tests {
             account_number,
             sequence,
         };
-        let base_account_any = base_account.to_any().unwrap();
 
         let mut mock_client = cosmos::MockCosmosClient::new();
         mock_client.expect_account().return_once(move |_| {
             Ok(QueryAccountResponse {
-                account: Some(base_account_any),
+                account: Some(Any::from_msg(&base_account).unwrap()),
             })
         });
 
@@ -392,7 +388,6 @@ mod tests {
             account_number,
             sequence,
         };
-        let base_account_any = base_account.to_any().unwrap();
 
         let mut seq = Sequence::new();
         let mut mock_client = cosmos::MockCosmosClient::new();
@@ -402,7 +397,7 @@ mod tests {
             .in_sequence(&mut seq)
             .return_once(move |_| {
                 Ok(QueryAccountResponse {
-                    account: Some(base_account_any),
+                    account: Some(Any::from_msg(&base_account).unwrap()),
                 })
             });
 
@@ -450,12 +445,11 @@ mod tests {
             account_number,
             sequence,
         };
-        let base_account_any = base_account.to_any().unwrap();
 
         let mut mock_client = cosmos::MockCosmosClient::new();
         mock_client.expect_account().return_once(move |_| {
             Ok(QueryAccountResponse {
-                account: Some(base_account_any),
+                account: Some(Any::from_msg(&base_account).unwrap()),
             })
         });
 
@@ -490,12 +484,11 @@ mod tests {
             account_number,
             sequence,
         };
-        let base_account_any = base_account.to_any().unwrap();
 
         let mut mock_client = cosmos::MockCosmosClient::new();
         mock_client.expect_account().return_once(move |_| {
             Ok(QueryAccountResponse {
-                account: Some(base_account_any),
+                account: Some(Any::from_msg(&base_account).unwrap()),
             })
         });
 
@@ -542,7 +535,7 @@ mod tests {
             .in_sequence(&mut seq)
             .return_once(move |_| {
                 Ok(QueryAccountResponse {
-                    account: Some(base_account.to_any().unwrap()),
+                    account: Some(Any::from_msg(&base_account).unwrap()),
                 })
             });
         mock_client
@@ -562,7 +555,7 @@ mod tests {
             .in_sequence(&mut seq)
             .return_once(move |_| {
                 Ok(QueryAccountResponse {
-                    account: Some(base_account.to_any().unwrap()),
+                    account: Some(Any::from_msg(&base_account).unwrap()),
                 })
             });
 
@@ -597,7 +590,6 @@ mod tests {
             account_number,
             sequence: initial_sequence,
         };
-        let base_account_any = base_account.to_any().unwrap();
 
         let mut seq = Sequence::new();
         let mut mock_client = cosmos::MockCosmosClient::new();
@@ -607,7 +599,7 @@ mod tests {
             .in_sequence(&mut seq)
             .return_once(move |_| {
                 Ok(QueryAccountResponse {
-                    account: Some(base_account_any),
+                    account: Some(Any::from_msg(&base_account).unwrap()),
                 })
             });
         mock_client
@@ -679,12 +671,11 @@ mod tests {
             account_number,
             sequence: *sequence.read().unwrap(),
         };
-        let base_account_any = base_account.to_any().unwrap();
 
         let mut mock_client = cosmos::MockCosmosClient::new();
         mock_client.expect_account().return_once(move |_| {
             Ok(QueryAccountResponse {
-                account: Some(base_account_any),
+                account: Some(Any::from_msg(&base_account).unwrap()),
             })
         });
         let sequence_clone = sequence.clone();

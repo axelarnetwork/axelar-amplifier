@@ -2,6 +2,7 @@
 name = "starknet-checked-felt"
 version = "1.0.0"
 rust-version = { workspace = true }
+license = "MIT OR Apache-2.0"
 edition = { workspace = true }
 
 [dependencies]

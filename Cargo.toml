@@ -13,6 +13,7 @@ resolver = "2"
 [workspace.package]
 rust-version = "1.81.0" # be sure there is an optimizer release supporting this version before updating. See https://github.com/CosmWasm/optimizer
 edition = "2021"
+license = "MIT OR Apache-2.0"
 
 [workspace.metadata.scripts]
 optimize = """docker run --rm -v "$(pwd)":/code \
@@ -64,7 +65,7 @@ goldie = { version = "0.5" }
 heck = "0.5.0"
 hex = "0.4.3"
 integration-tests = { version = "^1.0.0", path = "integration-tests" }
-interchain-token-service = { version = "^1.2.0", path = "contracts/interchain-token-service" }
+interchain-token-service = { version = "^1.2.1", path = "contracts/interchain-token-service" }
 into-inner-derive = { version = "^1.0.0", path = "packages/into-inner-derive" }
 itertools = "0.14.0"
 k256 = { version = "0.13.1", features = ["ecdsa"] }
