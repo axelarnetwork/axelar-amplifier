@@ -20,3 +20,4 @@
 # Contributing
 
 - [Documentation](contributing/documentation.md)
+- [Integration Guide](contributing/integration_guide.md)

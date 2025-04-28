@@ -7,7 +7,7 @@ use thiserror::Error;
 
 #[derive(Error, Debug, PartialEq, Eq, IntoContractError)]
 pub enum Error {
-    #[error("invalid number of bits {0}. Must be 32, 64, 128 or 256")]
+    #[error("invalid number of bits {0}. Must be between 1 and 256")]
     InvalidNumberOfBits(u32),
 }
 
@@ -19,7 +19,7 @@ impl TryFrom<u32> for NumBits {
     type Error = Error;
     fn try_from(value: u32) -> Result<Self, Self::Error> {
         match value {
-            32 | 64 | 128 | 256 => Ok(Self(value)),
+            x if x > 0 && x <= 256 => Ok(Self(value)),
             _ => Err(Error::InvalidNumberOfBits(value)),
         }
     }
@@ -47,7 +47,7 @@ mod test {
 
     #[test]
     fn should_parse_valid_values() {
-        let cases = [32, 64, 128, 256];
+        let cases = [1, 10, 32, 50, 64, 100, 127, 128, 255, 256];
         for case in cases {
             assert!(NumBits::try_from(case).is_ok());
             assert_eq!(*NumBits::try_from(case).unwrap(), case)
@@ -56,7 +56,7 @@ mod test {
 
     #[test]
     fn should_not_parse_invalid_values() {
-        let cases = [0, 1, 16, 33, 255, 512];
+        let cases = [0, 257, 512, 10000];
         for case in cases {
             assert_err_contains!(
                 NumBits::try_from(case),
