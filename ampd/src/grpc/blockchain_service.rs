@@ -40,18 +40,22 @@ impl BlockchainService for Service {
             let mut interval = time::interval(duration);
 
             loop {
-                let _ = tx.send(ampd_proto::subscribe_response::Event::BlockBegin(
-                    ampd_proto::EventBlockBegin {
-                        height: height.value(),
-                    },
-                ));
+                let _ = tx
+                    .send(ampd_proto::subscribe_response::Event::BlockBegin(
+                        ampd_proto::EventBlockBegin {
+                            height: height.value(),
+                        },
+                    ))
+                    .await;
                 interval.tick().await;
 
-                let _ = tx.send(ampd_proto::subscribe_response::Event::BlockEnd(
-                    ampd_proto::EventBlockEnd {
-                        height: height.value(),
-                    },
-                ));
+                let _ = tx
+                    .send(ampd_proto::subscribe_response::Event::BlockEnd(
+                        ampd_proto::EventBlockEnd {
+                            height: height.value(),
+                        },
+                    ))
+                    .await;
                 interval.tick().await;
 
                 height = height.increment();
