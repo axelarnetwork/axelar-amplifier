@@ -26,18 +26,17 @@ impl RetryPolicy {
 }
 
 pub async fn with_retry<F, Fut, R, Err>(mut future: F, policy: RetryPolicy) -> Result<R, Err>
-// move this dude to ampd-sdk from ampd
 where
     F: FnMut() -> Fut,
     Fut: Future<Output = Result<R, Err>>,
 {
-    let mut attempts = 0;
+    let mut attempts = 0u64;
 
     loop {
         match future().await {
             Ok(result) => return Ok(result),
             Err(err) => {
-                attempts += 1;
+                attempts = attempts.saturating_add(1);
 
                 if attempts >= policy.max_attempts() {
                     return Err(err);
