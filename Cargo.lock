@@ -244,6 +244,7 @@ dependencies = [
 name = "ampd"
 version = "1.7.0"
 dependencies = [
+ "ampd-proto",
  "assert_ok",
  "async-trait",
  "axelar-solana-encoding",
@@ -323,6 +324,7 @@ dependencies = [
  "toml 0.5.11",
  "tonic 0.13.0",
  "tonic-build",
+ "tower 0.5.2",
  "tracing",
  "tracing-core",
  "tracing-subscriber",

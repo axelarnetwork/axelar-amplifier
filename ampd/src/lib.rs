@@ -37,6 +37,7 @@ mod cosmos;
 mod event_processor;
 mod event_sub;
 mod evm;
+mod grpc;
 mod handlers;
 mod health_check;
 mod json_rpc;
@@ -74,8 +75,10 @@ async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
         service_registry: _service_registry,
         rewards: _rewards,
         health_check_bind_addr,
+        grpc: grpc_config,
     } = cfg;
 
+    let grpc_server = grpc::Server::new(&grpc_config);
     let tm_client = tendermint_rpc::HttpClient::new(tm_jsonrpc.to_string().as_str())
         .change_context(Error::Connection)
         .attach_printable(tm_jsonrpc.clone())?;
@@ -144,6 +147,7 @@ async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
         event_processor.stream_buffer_size,
         block_height_monitor,
         health_check_server,
+        grpc_server,
     )
     .configure_handlers(verifier, handlers, event_processor)
     .await
@@ -177,6 +181,7 @@ where
     multisig_client: MultisigClient,
     block_height_monitor: BlockHeightMonitor<tendermint_rpc::HttpClient>,
     health_check_server: health_check::Server,
+    grpc_server: grpc::Server,
 }
 
 impl<T> App<T>
@@ -192,6 +197,7 @@ where
         event_buffer_cap: usize,
         block_height_monitor: BlockHeightMonitor<tendermint_rpc::HttpClient>,
         health_check_server: health_check::Server,
+        grpc_server: grpc::Server,
     ) -> Self {
         let (event_publisher, event_subscriber) =
             event_sub::EventPublisher::new(tm_client, event_buffer_cap);
@@ -207,6 +213,7 @@ where
             multisig_client,
             block_height_monitor,
             health_check_server,
+            grpc_server,
         }
     }
 
@@ -566,6 +573,7 @@ where
             tx_confirmer,
             block_height_monitor,
             health_check_server,
+            grpc_server,
             ..
         } = self;
 
@@ -609,6 +617,9 @@ where
             .add_task(CancellableTask::create(|token| {
                 App::create_broadcaster_task(broadcaster, tx_confirmer).run(token)
             }))
+            .add_task(CancellableTask::create(|token| {
+                grpc_server.run(token).change_context(Error::GrpcServer)
+            }))
             .run(main_token)
             .await
     }
@@ -642,4 +653,6 @@ pub enum Error {
     InvalidFinalizerType(ChainName),
     #[error("health check is not working")]
     HealthCheck,
+    #[error("gRPC server failed")]
+    GrpcServer,
 }
