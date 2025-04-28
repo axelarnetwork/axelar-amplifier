@@ -1,9 +1,13 @@
 use axelar_wasm_std::nonempty;
 use cosmwasm_std::{Addr, Storage, Timestamp, Uint128};
 use cw_storage_plus::{Index, IndexList, IndexedMap, KeyDeserialize, Map, MultiIndex};
+use error_stack::{report, Report, ResultExt};
 use router_api::ChainName;
 use service_registry_api::error::ContractError;
-use service_registry_api::{AuthorizationState, BondingState, Service, Verifier};
+use service_registry_api::{
+    AuthorizationState, BondingState, Service, ServiceParamsOverride, UpdatedServiceParams,
+    Verifier,
+};
 
 type ServiceName = String;
 type VerifierAddress = Addr;
@@ -47,8 +51,89 @@ pub const VERIFIERS_PER_CHAIN: IndexedMap<
 /// For now, all verifiers have equal weight, regardless of amount bonded
 pub const VERIFIER_WEIGHT: nonempty::Uint128 = nonempty::Uint128::one();
 
-pub const SERVICES: Map<&ServiceName, Service> = Map::new("services");
+const SERVICES: Map<&ServiceName, Service> = Map::new("services");
+const SERVICE_OVERRIDES: Map<(&ServiceName, &ChainName), ServiceParamsOverride> =
+    Map::new("service_overrides");
+
 pub const VERIFIERS: Map<(&ServiceName, &VerifierAddress), Verifier> = Map::new("verifiers");
+
+pub fn service(
+    storage: &dyn Storage,
+    service_name: &ServiceName,
+    chain: &ChainName,
+) -> error_stack::Result<Service, ContractError> {
+    let service = default_service_params(storage, service_name)?;
+
+    let params_override = SERVICE_OVERRIDES
+        .may_load(storage, (service_name, chain))
+        .change_context(ContractError::StorageError)?;
+    match params_override {
+        Some(params_override) => Ok(Service {
+            min_num_verifiers: params_override
+                .min_num_verifiers
+                .unwrap_or(service.min_num_verifiers),
+            max_num_verifiers: params_override
+                .max_num_verifiers
+                .unwrap_or(service.max_num_verifiers),
+            ..service
+        }),
+        None => Ok(service),
+    }
+}
+
+pub fn default_service_params(
+    storage: &dyn Storage,
+    service_name: &ServiceName,
+) -> error_stack::Result<Service, ContractError> {
+    SERVICES
+        .may_load(storage, &service_name)
+        .change_context(ContractError::StorageError)?
+        .ok_or(report!(ContractError::ServiceNotFound))
+}
+
+pub fn save_service(
+    storage: &mut dyn Storage,
+    service_name: &ServiceName,
+    service: Service,
+) -> error_stack::Result<Service, ContractError> {
+    SERVICES
+        .update(storage, service_name, |s| match s {
+            None => Ok(service),
+            _ => Err(ContractError::ServiceAlreadyExists),
+        })
+        .map_err(Report::new)
+}
+
+pub fn has_service(storage: &dyn Storage, service_name: &ServiceName) -> bool {
+    SERVICES.has(storage, service_name)
+}
+
+pub fn update_service(
+    storage: &mut dyn Storage,
+    service_name: &ServiceName,
+    updated_service_params: UpdatedServiceParams,
+) -> error_stack::Result<Service, ContractError> {
+    SERVICES
+        .update(storage, service_name, |service| match service {
+            None => Err(ContractError::ServiceNotFound),
+            Some(service) => Ok(Service {
+                min_num_verifiers: updated_service_params
+                    .min_num_verifiers
+                    .unwrap_or(service.min_num_verifiers),
+                max_num_verifiers: updated_service_params
+                    .max_num_verifiers
+                    .unwrap_or(service.max_num_verifiers),
+                min_verifier_bond: updated_service_params
+                    .min_verifier_bond
+                    .unwrap_or(service.min_verifier_bond),
+                unbonding_period_days: updated_service_params
+                    .unbonding_period_days
+                    .unwrap_or(service.unbonding_period_days),
+                ..service
+            }),
+        })
+        .map_err(Report::new)
+}
 
 pub fn bond_verifier(
     verifier: Verifier,

@@ -1,21 +1,20 @@
 use axelar_wasm_std::address;
 use cosmwasm_std::{Deps, Order};
+use error_stack::{report, Report};
 use itertools::Itertools;
 use router_api::ChainName;
 use service_registry_api::error::ContractError;
 use service_registry_api::*;
 
 use crate::msg::VerifierDetails;
-use crate::state::{SERVICES, VERIFIERS, VERIFIERS_PER_CHAIN, VERIFIER_WEIGHT};
+use crate::state::{self, VERIFIERS, VERIFIERS_PER_CHAIN, VERIFIER_WEIGHT};
 
 pub fn active_verifiers(
     deps: Deps,
     service_name: String,
     chain_name: ChainName,
-) -> Result<Vec<WeightedVerifier>, ContractError> {
-    let service = SERVICES
-        .may_load(deps.storage, &service_name)?
-        .ok_or(ContractError::ServiceNotFound)?;
+) -> error_stack::Result<Vec<WeightedVerifier>, ContractError> {
+    let service = state::service(deps.storage, &service_name, &chain_name)?;
 
     let verifiers: Vec<_> = VERIFIERS_PER_CHAIN
         .prefix((service_name.clone(), chain_name.clone()))
@@ -37,10 +36,12 @@ pub fn active_verifiers(
             verifier_info: verifier,
             weight: VERIFIER_WEIGHT, // all verifiers have an identical const weight for now
         })
-        .try_collect()?;
+        .try_collect()
+        .map_err(ContractError::from)
+        .map_err(Report::new)?;
 
     if verifiers.len() < service.min_num_verifiers.into() {
-        Err(ContractError::NotEnoughVerifiers)
+        Err(report!(ContractError::NotEnoughVerifiers))
     } else {
         Ok(verifiers)
     }
@@ -72,8 +73,6 @@ pub fn verifier(
     })
 }
 
-pub fn service(deps: Deps, service_name: String) -> Result<Service, ContractError> {
-    SERVICES
-        .may_load(deps.storage, &service_name)?
-        .ok_or(ContractError::ServiceNotFound)
+pub fn service(deps: Deps, service_name: String) -> error_stack::Result<Service, ContractError> {
+    state::default_service_params(deps.storage, &service_name)
 }

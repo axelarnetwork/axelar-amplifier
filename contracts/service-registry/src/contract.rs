@@ -9,7 +9,7 @@ use service_registry_api::error::ContractError;
 use service_registry_api::{AuthorizationState, BondingState, Service};
 
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
-use crate::state::{SERVICES, VERIFIERS};
+use crate::state::{self, VERIFIERS};
 
 mod execute;
 mod migrations;
@@ -154,9 +154,7 @@ fn match_verifier(
 
         // on error, check if the service even exists, and if it doesn't, return ServiceNotFound
         if res.is_err() {
-            SERVICES
-                .load(storage, service_name)
-                .change_context(ContractError::ServiceNotFound)
+            state::default_service_params(storage, &service_name)
                 .change_context(permission_control::Error::Unauthorized)?;
         }
         res
