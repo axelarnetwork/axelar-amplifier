@@ -86,7 +86,7 @@ pub fn default_service_params(
     service_name: &ServiceName,
 ) -> error_stack::Result<Service, ContractError> {
     SERVICES
-        .may_load(storage, &service_name)
+        .may_load(storage, service_name)
         .change_context(ContractError::StorageError)?
         .ok_or(report!(ContractError::ServiceNotFound))
 }
@@ -133,6 +133,26 @@ pub fn update_service(
             }),
         })
         .map_err(Report::new)
+}
+
+pub fn save_service_override(
+    storage: &mut dyn Storage,
+    service_name: &ServiceName,
+    chain: &ChainName,
+    service_params_override: &ServiceParamsOverride,
+) -> error_stack::Result<(), ContractError> {
+    SERVICE_OVERRIDES
+        .save(storage, (service_name, chain), service_params_override)
+        .map_err(ContractError::from)
+        .map_err(Report::new)
+}
+
+pub fn remove_service_override(
+    storage: &mut dyn Storage,
+    service_name: &ServiceName,
+    chain: &ChainName,
+) {
+    SERVICE_OVERRIDES.remove(storage, (service_name, chain))
 }
 
 pub fn bond_verifier(

@@ -70,6 +70,15 @@ pub fn execute(
             service_name,
             updated_service_params,
         } => execute::update_service(deps, service_name, updated_service_params),
+        ExecuteMsg::OverrideServiceParams {
+            service_name,
+            chain,
+            service_params_override,
+        } => execute::override_service_params(deps, service_name, chain, service_params_override),
+        ExecuteMsg::RemoveServiceParamsOverride {
+            service_name,
+            chain,
+        } => execute::remove_service_params_override(deps, service_name, chain),
         ExecuteMsg::AuthorizeVerifiers {
             verifiers,
             service_name,
@@ -154,7 +163,7 @@ fn match_verifier(
 
         // on error, check if the service even exists, and if it doesn't, return ServiceNotFound
         if res.is_err() {
-            state::default_service_params(storage, &service_name)
+            state::default_service_params(storage, service_name)
                 .change_context(permission_control::Error::Unauthorized)?;
         }
         res
@@ -198,8 +207,8 @@ mod test {
         coins, from_json, CosmosMsg, Empty, OwnedDeps, StdResult, Uint128, WasmQuery,
     };
     use router_api::ChainName;
-    use service_registry_api::msg::{UpdatedServiceParams, VerifierDetails};
-    use service_registry_api::{Verifier, WeightedVerifier};
+    use service_registry_api::msg::VerifierDetails;
+    use service_registry_api::{UpdatedServiceParams, Verifier, WeightedVerifier};
 
     use super::*;
     use crate::state::VERIFIER_WEIGHT;
