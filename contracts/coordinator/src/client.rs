@@ -8,9 +8,7 @@ use crate::msg::{ChainContractsKey, ChainContractsResponse, ExecuteMsg, QueryMsg
 
 #[derive(thiserror::Error, Debug, PartialEq)]
 pub enum Error {
-    #[error(
-        "coordinator failed to retrieve if verifier {0} is ready to unbond."
-    )]
+    #[error("coordinator failed to retrieve if verifier {0} is ready to unbond.")]
     ReadyToUnbond(String),
 
     #[error("failed to query ChainContractsInfo by chain name {0}")]
