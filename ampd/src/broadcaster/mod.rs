@@ -32,6 +32,8 @@ use crate::types::{CosmosPublicKey, TMAddress};
 use crate::{cosmos, tofnd};
 
 pub mod confirm_tx;
+// TODO: mods dec_coin and tx should moved to broadcaster_v2 and made private
+// once this broadcaster mod is replaced
 pub mod dec_coin;
 pub mod tx;
 
