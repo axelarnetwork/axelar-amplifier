@@ -19,6 +19,10 @@ use valuable::Valuable;
 use super::{broadcaster, Error, Result};
 use crate::cosmos;
 
+/// Represents a message in the queue ready for broadcasting
+///
+/// This struct contains a Cosmos message, its estimated gas cost,
+/// and a callback channel for receiving the transaction result.
 #[derive(Debug)]
 pub struct QueueMsg {
     pub msg: Any,
@@ -26,6 +30,33 @@ pub struct QueueMsg {
     pub tx_res_callback: oneshot::Sender<Result<(String, u64)>>,
 }
 
+/// Client interface for submitting messages to the message queue
+///
+/// `MsgQueueClient` provides methods to enqueue Cosmos messages
+/// for efficient batched broadcasting. It handles gas estimation and
+/// result callbacks through a Future-based API.
+///
+/// The client is designed to be cloned and shared across multiple
+/// tasks, allowing concurrent message submission from different
+/// parts of the application.
+///
+/// # Example
+///
+/// ```rust,ignore
+/// let (msg_queue, msg_queue_client) = MsgQueue::new_msg_queue_and_client(
+///     broadcaster,
+///     10,     // queue capacity
+///     100000, // gas cap
+///     Duration::from_secs(5)
+/// )?;
+///
+/// // Enqueue with result callback
+/// let future = msg_queue_client.enqueue(msg).await?;
+/// let (tx_hash, msg_index) = future.await?;
+///
+/// // Enqueue without caring about the result
+/// msg_queue_client.enqueue_and_forget(msg).await?;
+/// ```
 #[derive(Clone)]
 pub struct MsgQueueClient<T>
 where
@@ -39,6 +70,31 @@ impl<T> MsgQueueClient<T>
 where
     T: cosmos::CosmosClient,
 {
+    /// Enqueues a message and returns a Future for tracking its result
+    ///
+    /// This method:
+    /// 1. Estimates the gas required for the message
+    /// 2. Adds the message to the queue
+    /// 3. Returns a Future that resolves when the transaction completes
+    ///
+    /// The returned Future will resolve to:
+    /// - `Ok((tx_hash, index))` on successful broadcast
+    /// - `Err` with the relevant error on failure
+    ///
+    /// # Arguments
+    ///
+    /// * `msg` - The Cosmos message to enqueue
+    ///
+    /// # Returns
+    ///
+    /// A Future that resolves to the transaction result
+    ///
+    /// # Errors
+    ///
+    /// * `Error::EstimateGas` - If gas estimation fails
+    /// * `Error::EnqueueMsg` - If enqueueing fails
+    /// * `Error::GasExceedsGasCap` - If the message requires more gas than allowed
+    /// * `Error::ReceiveTxResult` - If the result channel is closed prematurely
     pub async fn enqueue(
         &mut self,
         msg: Any,
@@ -52,23 +108,55 @@ where
         }))
     }
 
+    /// Enqueues a message without waiting for its result
+    ///
+    /// This is a fire-and-forget variant of `enqueue`, useful when
+    /// you don't need to track the transaction result.
+    ///
+    /// # Arguments
+    ///
+    /// * `msg` - The Cosmos message to enqueue
+    ///
+    /// # Returns
+    ///
+    /// `Ok(())` if the message was successfully enqueued
+    ///
+    /// # Errors
+    ///
+    /// * `Error::EstimateGas` - If gas estimation fails
+    /// * `Error::EnqueueMsg` - If enqueueing fails
     pub async fn enqueue_and_forget(&mut self, msg: Any) -> Result<()> {
         let _rx = self.enqueue_with_channel(msg).await?;
 
         Ok(())
     }
 
+    /// Internal method that handles message enqueueing
+    ///
+    /// This method:
+    /// 1. Creates a oneshot channel for the transaction result
+    /// 2. Estimates the gas required for the message
+    /// 3. Creates a QueueMsg with the message and callback
+    /// 4. Sends the QueueMsg to the queue
+    ///
+    /// # Arguments
+    ///
+    /// * `msg` - The Cosmos message to enqueue
+    ///
+    /// # Returns
+    ///
+    /// The receiver end of the oneshot channel for the transaction result
+    ///
+    /// # Errors
+    ///
+    /// * `Error::EstimateGas` - If gas estimation fails
+    /// * `Error::EnqueueMsg` - If enqueueing fails
     async fn enqueue_with_channel(
         &mut self,
         msg: Any,
     ) -> Result<oneshot::Receiver<Result<(String, u64)>>> {
         let (tx, rx) = oneshot::channel();
-        let gas = self
-            .broadcaster
-            .sim_cx()
-            .await
-            .estimate_gas(vec![msg.clone()])
-            .await?;
+        let gas = self.broadcaster.estimate_gas(vec![msg.clone()]).await?;
 
         let msg = QueueMsg {
             msg,
@@ -87,6 +175,17 @@ where
 }
 
 pin_project! {
+    /// Message queue for batching and broadcasting Cosmos transactions
+    ///
+    /// `MsgQueue` collects messages to be broadcast and exposes them as a Stream.
+    /// The queue has two trigger mechanisms for releasing messages:
+    ///
+    /// 1. When accumulated gas usage reaches the configured gas cap
+    /// 2. When a configured time duration elapses (timeout mechanism)
+    ///
+    /// This provides efficient batching while ensuring timely processing.
+    /// The Stream implementation yields non-empty vectors of queued messages
+    /// that are ready for broadcasting.
     pub struct MsgQueue {
         #[pin]
         stream: Fuse<ReceiverStream<QueueMsg>>,
@@ -98,6 +197,28 @@ pin_project! {
 }
 
 impl MsgQueue {
+    /// Creates a new message queue and client pair
+    ///
+    /// This factory method sets up a complete message queue system by creating:
+    /// 1. A `MsgQueue` instance that processes and batches messages
+    /// 2. A `MsgQueueClient` that can be used to enqueue messages
+    ///
+    /// The two components communicate through a channel with bounded capacity.
+    ///
+    /// # Arguments
+    ///
+    /// * `broadcaster` - The broadcaster instance used for gas estimation and tx sending
+    /// * `msg_cap` - Capacity of the internal message channel
+    /// * `gas_cap` - Maximum gas allowed per transaction batch
+    /// * `duration` - Maximum time to wait before releasing queued messages
+    ///
+    /// # Returns
+    ///
+    /// * A tuple containing:
+    ///   - A pinned Stream that yields batches of messages ready for broadcast
+    ///   - A client for enqueueing messages to the queue
+    ///
+    /// The returned Stream must be polled to process messages.
     pub fn new_msg_queue_and_client<T>(
         broadcaster: broadcaster::Broadcaster<T>,
         msg_cap: usize,
@@ -125,8 +246,18 @@ impl MsgQueue {
 }
 
 impl Stream for MsgQueue {
+    /// The MsgQueue yields batches of messages as non-empty vectors
     type Item = nonempty::Vec<QueueMsg>;
 
+    /// Polls the message queue and yields batched messages when ready
+    ///
+    /// This implementation handles three cases:
+    /// 1. New message received: Add to queue, possibly triggering a batch release
+    /// 2. Stream closed: Drain the queue and then terminate
+    /// 3. Timeout elapsed: Release all queued messages
+    ///
+    /// The poll logic ensures that messages are efficiently batched while
+    /// maintaining a maximum delay for any queued message.
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let mut me = self.as_mut().project();
 
@@ -134,25 +265,31 @@ impl Stream for MsgQueue {
             match me.stream.as_mut().poll_next(cx) {
                 Poll::Pending => break,
                 Poll::Ready(Some(msg)) => {
+                    // reset the deadline timer when the first message is added to an empty queue
                     if me.queue.is_empty() {
                         me.deadline.set(time::sleep(*me.duration));
                     }
 
+                    // try to add the message to the queue
+                    // if the queue returns Some, it means we have a batch ready to send
                     if let Some(msgs) = me.queue.push_or(msg, handle_queue_error) {
                         return Poll::Ready(Some(msgs));
                     }
                 }
                 Poll::Ready(None) => {
-                    // after the client stream was terminated, the MsgQueue must be fully drained before it can also terminate
+                    // input stream is closed, drain any remaining messages and terminate
                     return Poll::Ready(me.queue.pop_all());
                 }
             }
         }
 
+        // if we have no messages queued, we can't produce anything yet
         if me.queue.is_empty() {
             return Poll::Pending;
         }
 
+        // check if the deadline has elapsed
+        // if so, flush the queue regardless of how full it is
         match me.deadline.poll(cx) {
             Poll::Pending => Poll::Pending,
             Poll::Ready(()) => Poll::Ready(me.queue.pop_all()),
@@ -205,6 +342,8 @@ impl Queue {
             .checked_add(msg.gas)
             .filter(|gas_cost| gas_cost <= &self.gas_cap)
         {
+            // if gas cost > gas cap or gas cost overflows, pop all and then push
+            // the new message
             None => {
                 let results = self.pop_all();
 
@@ -213,12 +352,14 @@ impl Queue {
 
                 results
             }
+            // if gas cost = gas cap, pop all including the new message
             Some(gas_cost) if gas_cost == self.gas_cap => {
                 let mut results = self.pop_all().map(Vec::from).unwrap_or_default();
                 results.push(msg);
 
                 Some(results.try_into().expect("must not be empty"))
             }
+            // if gas cost < gas cap, only push the new message
             Some(gas_cost) => {
                 self.gas_cost = gas_cost;
                 self.msgs.push(msg);
@@ -313,6 +454,9 @@ mod tests {
             actual.as_ref()[0].msg.type_url,
             "/cosmos.bank.v1beta1.MsgSend"
         );
+
+        drop(msg_queue_client);
+        assert!(msg_queue.next().await.is_none());
     }
 
     #[tokio::test]
@@ -356,7 +500,7 @@ mod tests {
         )
         .unwrap();
 
-        let _rx = msg_queue_client.enqueue(dummy_msg()).await.unwrap();
+        let rx = msg_queue_client.enqueue(dummy_msg()).await.unwrap();
         let actual = msg_queue.next().await.unwrap();
 
         assert_eq!(actual.as_ref().len(), 1);
@@ -365,6 +509,14 @@ mod tests {
             actual.as_ref()[0].msg.type_url,
             "/cosmos.bank.v1beta1.MsgSend"
         );
+
+        Vec::from(actual)
+            .pop()
+            .unwrap()
+            .tx_res_callback
+            .send(Ok(("txhash".to_string(), 10)))
+            .unwrap();
+        assert_eq!(rx.await.unwrap(), ("txhash".to_string(), 10));
     }
 
     #[tokio::test]
@@ -409,6 +561,53 @@ mod tests {
             Error,
             Error::EstimateGas
         );
+    }
+
+    #[tokio::test]
+    async fn msg_queue_msg_dropped() {
+        let gas_cap = 100;
+        let base_account = BaseAccount {
+            address: TMAddress::random(PREFIX).to_string(),
+            pub_key: None,
+            account_number: 42,
+            sequence: 10,
+        };
+
+        let mut cosmos_client = cosmos::MockCosmosClient::new();
+        cosmos_client.expect_account().return_once(move |_| {
+            Ok(QueryAccountResponse {
+                account: Some(Any::from_msg(&base_account).unwrap()),
+            })
+        });
+        cosmos_client.expect_simulate().once().returning(move |_| {
+            Ok(SimulateResponse {
+                gas_info: Some(GasInfo {
+                    gas_wanted: gas_cap,
+                    gas_used: gas_cap,
+                }),
+                result: None,
+            })
+        });
+        let broadcaster = broadcaster::Broadcaster::new(
+            cosmos_client,
+            "chain-id".parse().unwrap(),
+            random_cosmos_public_key(),
+        )
+        .await
+        .unwrap();
+
+        let (mut msg_queue, mut msg_queue_client) = MsgQueue::new_msg_queue_and_client(
+            broadcaster,
+            10,
+            gas_cap,
+            time::Duration::from_secs(1),
+        )
+        .unwrap();
+
+        let rx = msg_queue_client.enqueue(dummy_msg()).await.unwrap();
+        let _ = msg_queue.next().await;
+
+        assert_err_contains!(rx.await, Error, Error::ReceiveTxResult(_));
     }
 
     #[tokio::test]
@@ -468,8 +667,9 @@ mod tests {
 
     #[tokio::test]
     async fn msg_queue_gas_capacity() {
-        let gas_cap = 1000u64;
-        let msg_count = 10;
+        let gas_cap = 1000;
+        let gas_cost = 100;
+        let msg_count = 11;
         let base_account = BaseAccount {
             address: TMAddress::random(PREFIX).to_string(),
             pub_key: None,
@@ -489,8 +689,8 @@ mod tests {
             .returning(move |_| {
                 Ok(SimulateResponse {
                     gas_info: Some(GasInfo {
-                        gas_wanted: gas_cap / msg_count as u64,
-                        gas_used: gas_cap / msg_count as u64,
+                        gas_wanted: gas_cost,
+                        gas_used: gas_cost,
                     }),
                     result: None,
                 })
@@ -510,6 +710,22 @@ mod tests {
             time::Duration::from_secs(3),
         )
         .unwrap();
+        let handle = tokio::spawn(async move {
+            let actual = msg_queue.next().await.unwrap();
+            assert_eq!(actual.as_ref().len(), 10);
+            for msg in actual.as_ref() {
+                assert_eq!(msg.gas, gas_cost);
+                assert_eq!(msg.msg.type_url, "/cosmos.bank.v1beta1.MsgSend");
+            }
+
+            let actual = msg_queue.next().await.unwrap();
+            assert_eq!(actual.as_ref().len(), 1);
+            assert_eq!(actual.as_ref()[0].gas, gas_cost);
+            assert_eq!(
+                actual.as_ref()[0].msg.type_url,
+                "/cosmos.bank.v1beta1.MsgSend"
+            );
+        });
 
         for _ in 0..msg_count {
             msg_queue_client
@@ -517,18 +733,65 @@ mod tests {
                 .await
                 .unwrap();
         }
-        let actual = msg_queue.next().await.unwrap();
+        handle.await.unwrap();
+    }
 
-        assert_eq!(actual.as_ref().len(), msg_count);
-        for msg in actual.as_ref() {
-            assert_eq!(msg.gas, gas_cap / 10);
-            assert_eq!(msg.msg.type_url, "/cosmos.bank.v1beta1.MsgSend");
-        }
+    #[tokio::test]
+    async fn msg_queue_msg_with_gas_cost_above_cap() {
+        let gas_cap = 100;
+        let gas_cost = 101;
+        let base_account = BaseAccount {
+            address: TMAddress::random(PREFIX).to_string(),
+            pub_key: None,
+            account_number: 42,
+            sequence: 10,
+        };
+
+        let mut cosmos_client = cosmos::MockCosmosClient::new();
+        cosmos_client.expect_account().return_once(move |_| {
+            Ok(QueryAccountResponse {
+                account: Some(Any::from_msg(&base_account).unwrap()),
+            })
+        });
+        cosmos_client.expect_simulate().once().returning(move |_| {
+            Ok(SimulateResponse {
+                gas_info: Some(GasInfo {
+                    gas_wanted: gas_cost,
+                    gas_used: gas_cost,
+                }),
+                result: None,
+            })
+        });
+        let broadcaster = broadcaster::Broadcaster::new(
+            cosmos_client,
+            "chain-id".parse().unwrap(),
+            random_cosmos_public_key(),
+        )
+        .await
+        .unwrap();
+
+        let (mut msg_queue, mut msg_queue_client) = MsgQueue::new_msg_queue_and_client(
+            broadcaster,
+            10,
+            gas_cap,
+            time::Duration::from_secs(1),
+        )
+        .unwrap();
+
+        let rx = msg_queue_client.enqueue(dummy_msg()).await.unwrap();
+        let handle = tokio::spawn(async move {
+            assert!(msg_queue.next().await.is_none());
+        });
+
+        assert_err_contains!(rx.await, Error, Error::GasExceedsGasCap { .. });
+        drop(msg_queue_client);
+        handle.await.unwrap();
     }
 
     #[tokio::test]
     async fn msg_queue_gas_overflow() {
         let gas_cap = u64::MAX;
+        let gas_cost = gas_cap - 1;
         let base_account = BaseAccount {
             address: TMAddress::random(PREFIX).to_string(),
             pub_key: None,
@@ -548,8 +811,8 @@ mod tests {
             .returning(move |_| {
                 Ok(SimulateResponse {
                     gas_info: Some(GasInfo {
-                        gas_wanted: gas_cap,
-                        gas_used: gas_cap,
+                        gas_wanted: gas_cost,
+                        gas_used: gas_cost,
                     }),
                     result: None,
                 })
@@ -581,7 +844,7 @@ mod tests {
         let actual = msg_queue.next().await.unwrap();
 
         assert_eq!(actual.as_ref().len(), 1);
-        assert_eq!(actual.as_ref()[0].gas, gas_cap);
+        assert_eq!(actual.as_ref()[0].gas, gas_cost);
         assert_eq!(
             actual.as_ref()[0].msg.type_url,
             "/cosmos.bank.v1beta1.MsgSend"
@@ -590,7 +853,7 @@ mod tests {
         let actual = msg_queue.next().await.unwrap();
 
         assert_eq!(actual.as_ref().len(), 1);
-        assert_eq!(actual.as_ref()[0].gas, gas_cap);
+        assert_eq!(actual.as_ref()[0].gas, gas_cost);
         assert_eq!(
             actual.as_ref()[0].msg.type_url,
             "/cosmos.bank.v1beta1.MsgSend"

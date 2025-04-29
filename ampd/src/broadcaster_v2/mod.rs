@@ -46,6 +46,21 @@ pub enum Error {
     GasExceedsGasCap { msg: Any, gas: Gas, gas_cap: Gas },
 }
 
+/// A task that processes queued messages and broadcasts them to a Cosmos blockchain
+///
+/// `BroadcasterTask` continuously polls a message queue for batches of messages,
+/// signs them using the provided signer, and broadcasts them to the Cosmos network.
+/// It handles fee estimation, transaction creation, signing, and broadcasting.
+///
+/// The task is designed to be resilient to failures, continuing to process
+/// new message batches even if previous ones fail. It provides feedback on
+/// transaction results to message submitters through callback channels.
+///
+/// # Type Parameters
+///
+/// * `T` - A Cosmos client that can communicate with the blockchain
+/// * `Q` - A Stream that yields batches of messages to be broadcast
+/// * `S` - A cryptographic signer that can sign transaction payloads
 #[derive(TypedBuilder)]
 pub struct BroadcasterTask<T, Q, S>
 where
@@ -67,6 +82,23 @@ where
     Q: futures::Stream<Item = nonempty::Vec<msg_queue::QueueMsg>> + Unpin,
     S: tofnd::grpc::Multisig,
 {
+    /// Runs the broadcaster task until the message queue is exhausted
+    ///
+    /// This method continuously processes message batches from the queue:
+    /// 1. Retrieves the next batch of messages from the queue
+    /// 2. Broadcasts them as a single transaction
+    /// 3. Handles the result (success or failure)
+    /// 4. Notifies submitters of the transaction result via callbacks
+    /// 5. Proceeds to the next batch
+    ///
+    /// The task runs until the message queue is closed/exhausted, at which point
+    /// it terminates successfully. Errors during broadcasting are logged and
+    /// communicated back to submitters but don't halt the task.
+    ///
+    /// # Returns
+    ///
+    /// A Result indicating whether the task completed successfully.
+    /// Note that individual transaction failures don't cause the task to return an error.
     pub async fn run(mut self) -> Result<()> {
         while let Some(msgs) = self.msg_queue.next().await {
             let tx_hash = self
@@ -96,8 +128,6 @@ where
     async fn estimate_fee(&mut self, batch_req: Any) -> Result<Fee> {
         let gas = self
             .broadcaster
-            .sim_cx()
-            .await
             .estimate_gas(vec![batch_req])
             .await
             .change_context(Error::EstimateGas)?;
@@ -123,8 +153,6 @@ where
         let pub_key = self.broadcaster.pub_key;
 
         self.broadcaster
-            .broadcast_cx()
-            .await
             .broadcast(vec![batch_req], fee, |sign_doc| {
                 let mut hasher = Sha256::new();
                 hasher.update(sign_doc);

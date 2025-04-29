@@ -13,112 +13,43 @@ use crate::broadcaster::tx::Tx;
 use crate::types::{CosmosPublicKey, TMAddress};
 use crate::{cosmos, PREFIX};
 
-/// Simulation context for gas estimation
+/// `Broadcaster` provides transaction broadcasting functionality for Cosmos networks.
 ///
-/// Holds a read lock on the sequence number, allowing multiple simulations
-/// to occur concurrently. This is useful for estimating gas without actually
-/// submitting transactions.
-pub struct SimCx<'a, T> {
-    client: &'a mut T,
-    pub_key: CosmosPublicKey,
-    acc_sequence: &'a Arc<RwLock<u64>>,
-}
-
-impl<'a, T> SimCx<'a, T>
-where
-    T: cosmos::CosmosClient,
-{
-    pub async fn estimate_gas(self, msgs: Vec<Any>) -> Result<Gas> {
-        let acc_sequence = self.acc_sequence.read().await;
-
-        cosmos::estimate_gas(self.client, msgs, self.pub_key, *acc_sequence)
-            .await
-            .change_context(Error::EstimateGas)
-    }
-}
-
-/// Broadcasting context for transaction submission
+/// This struct handles:
+/// - Transaction creation and signing
+/// - Sequence number management across concurrent broadcasts
+/// - Gas estimation
+/// - Error recovery
 ///
-/// Holds a write lock on the sequence number, ensuring that only one broadcast
-/// can happen at a time. This is necessary because each transaction must have
-/// a unique sequence number, and we need to increment the sequence number
-/// after a successful broadcast.
-pub struct BroadcastCx<'a, T> {
-    client: &'a mut T,
-    chain_id: &'a tendermint::chain::Id,
-    address: &'a TMAddress,
-    pub_key: CosmosPublicKey,
-    acc_number: u64,
-    acc_sequence: &'a Arc<RwLock<u64>>,
-}
-
-impl<'a, T> BroadcastCx<'a, T>
-where
-    T: cosmos::CosmosClient,
-{
-    async fn reset_sequence(self, mut acc_sequence: RwLockWriteGuard<'_, u64>) -> Result<()> {
-        let account = cosmos::account(self.client, self.address)
-            .await
-            .change_context(Error::QueryAccount)?;
-        *acc_sequence = account.sequence;
-
-        Ok(())
-    }
-
-    pub async fn broadcast<F, Fut, Err>(
-        self,
-        msgs: Vec<Any>,
-        fee: Fee,
-        sign_fn: F,
-    ) -> Result<TxResponse>
-    where
-        F: Fn(Vec<u8>) -> Fut,
-        Fut: Future<Output = error_stack::Result<Vec<u8>, Err>>,
-        Err: Context,
-    {
-        let mut acc_sequence = self.acc_sequence.write().await;
-
-        let tx = Tx::builder()
-            .msgs(msgs)
-            .pub_key(self.pub_key)
-            .acc_sequence(*acc_sequence)
-            .fee(fee)
-            .build()
-            .sign_with(self.chain_id, self.acc_number, sign_fn)
-            .await
-            .change_context(Error::TxSigning)?;
-
-        match cosmos::broadcast(self.client, tx).await {
-            Ok(tx_response) => {
-                *acc_sequence = acc_sequence
-                    .checked_add(1)
-                    .expect("account sequence must not overflow");
-
-                Ok(tx_response)
-            }
-            Err(err) => {
-                self.reset_sequence(acc_sequence).await?;
-
-                Err(err).change_context(Error::BroadcastTx)
-            }
-        }
-    }
-}
-
-/// A thread-safe transaction broadcaster for Cosmos chains
+/// # Thread Safety
 ///
-/// This struct manages sequence numbers for Cosmos transactions, ensuring that
-/// they are properly incremented even when broadcasting from multiple threads.
-/// It provides two contexts for transaction operations:
+/// `Broadcaster` is designed to be thread-safe with internal sequence number synchronization,
+/// allowing it to be safely cloned and used across multiple tasks concurrently.
 ///
-/// - `SimCx` - A simulation context that holds a read lock on the sequence number
-/// - `BroadcastCx` - A broadcast context that holds a write lock on the sequence number
+/// # Sequence Management
 ///
-/// The sequence number is only incremented after a successful broadcast, ensuring
-/// that failed transactions don't cause gaps in the sequence numbering.
+/// The account sequence is automatically incremented after successful broadcasts and
+/// reset to the on-chain value after failures, ensuring the next transaction always
+/// uses the correct sequence number.
 ///
-/// Thread-safety is provided by using tokio's RwLock to protect the sequence number,
-/// allowing multiple concurrent simulations (reads) but exclusive broadcasts (writes).
+/// # Transaction Flow
+///
+/// 1. Retrieves account info on initialization
+/// 2. Manages sequence number tracking internally
+/// 3. Creates transactions with proper chain parameters
+/// 4. Signs transactions using provided signing function
+/// 5. Broadcasts transactions to the Cosmos network
+/// 6. Handles sequence recovery on broadcast failures
+///
+/// # Example Usage
+///
+/// ```rust,ignore
+/// let broadcaster = Broadcaster::new(cosmos_client, chain_id, public_key).await?;
+/// let gas = broadcaster.estimate_gas(messages).await?;
+/// let tx_response = broadcaster
+///     .broadcast(messages, fee, sign_function)
+///     .await?;
+/// ```
 #[derive(Clone, Debug)]
 pub struct Broadcaster<T>
 where
@@ -136,6 +67,27 @@ impl<T> Broadcaster<T>
 where
     T: cosmos::CosmosClient,
 {
+    /// Creates a new `Broadcaster` instance.
+    ///
+    /// This method:
+    /// 1. Derives the account address from the provided public key
+    /// 2. Queries the account information from the blockchain
+    /// 3. Initializes the broadcaster with the account's sequence number
+    ///
+    /// # Arguments
+    ///
+    /// * `client` - A client that implements the `CosmosClient` trait for blockchain communication
+    /// * `chain_id` - The ID of the Cosmos blockchain to broadcast to
+    /// * `pub_key` - The public key used for signing transactions
+    ///
+    /// # Returns
+    ///
+    /// A Result containing either the initialized `Broadcaster` or an error
+    ///
+    /// # Errors
+    ///
+    /// * `Error::InvalidPubKey` - If the public key cannot be converted to a valid Cosmos account address
+    /// * `Error::QueryAccount` - If querying the account information from the blockchain fails
     pub async fn new(
         mut client: T,
         chain_id: tendermint::chain::Id,
@@ -159,24 +111,114 @@ where
         })
     }
 
-    pub async fn sim_cx(&mut self) -> SimCx<T> {
-        SimCx {
-            client: &mut self.client,
-            pub_key: self.pub_key,
-            acc_sequence: &self.acc_sequence,
-        }
+    /// Estimates the gas required for a transaction containing the given messages.
+    ///
+    /// This performs a simulated execution of the transaction without actually
+    /// broadcasting it, to determine gas costs.
+    ///
+    /// # Arguments
+    ///
+    /// * `msgs` - The Cosmos messages to include in the transaction
+    ///
+    /// # Returns
+    ///
+    /// A Result containing either the estimated gas amount or an error
+    ///
+    /// # Errors
+    ///
+    /// * `Error::EstimateGas` - If the gas estimation fails
+    pub async fn estimate_gas(&mut self, msgs: Vec<Any>) -> Result<Gas> {
+        let acc_sequence = self.acc_sequence.read().await;
+
+        cosmos::estimate_gas(&mut self.client, msgs, self.pub_key, *acc_sequence)
+            .await
+            .change_context(Error::EstimateGas)
     }
 
-    pub async fn broadcast_cx(&mut self) -> BroadcastCx<T> {
-        BroadcastCx {
-            client: &mut self.client,
-            chain_id: &self.chain_id,
-            address: &self.address,
-            pub_key: self.pub_key,
-            acc_number: self.acc_number,
-            acc_sequence: &self.acc_sequence,
+    /// Broadcasts a transaction to the Cosmos blockchain.
+    ///
+    /// This method:
+    /// 1. Creates a transaction with the provided messages and fee
+    /// 2. Signs the transaction using the provided signing function
+    /// 3. Broadcasts the signed transaction to the blockchain
+    /// 4. Updates the account sequence number on success
+    /// 5. Resets the sequence number on failure
+    ///
+    /// # Arguments
+    ///
+    /// * `msgs` - The Cosmos messages to include in the transaction
+    /// * `fee` - The fee to pay for the transaction
+    /// * `sign_fn` - A function that signs the transaction bytes
+    ///
+    /// # Returns
+    ///
+    /// A Result containing either the transaction response or an error
+    ///
+    /// # Errors
+    ///
+    /// * `Error::TxSigning` - If signing the transaction fails
+    /// * `Error::BroadcastTx` - If broadcasting the transaction fails
+    ///
+    /// # Thread Safety
+    ///
+    /// This method acquires a write lock on the account sequence, ensuring that
+    /// concurrent broadcasts use distinct sequence numbers.
+    pub async fn broadcast<F, Fut, Err>(
+        &mut self,
+        msgs: Vec<Any>,
+        fee: Fee,
+        sign_fn: F,
+    ) -> Result<TxResponse>
+    where
+        F: Fn(Vec<u8>) -> Fut,
+        Fut: Future<Output = error_stack::Result<Vec<u8>, Err>>,
+        Err: Context,
+    {
+        let mut acc_sequence = self.acc_sequence.write().await;
+
+        let tx = Tx::builder()
+            .msgs(msgs)
+            .pub_key(self.pub_key)
+            .acc_sequence(*acc_sequence)
+            .fee(fee)
+            .build()
+            .sign_with(&self.chain_id, self.acc_number, sign_fn)
+            .await
+            .change_context(Error::TxSigning)?;
+
+        match cosmos::broadcast(&mut self.client, tx).await {
+            Ok(tx_response) => {
+                // increment sequence number on successful broadcast
+                *acc_sequence = acc_sequence
+                    .checked_add(1)
+                    .expect("account sequence must not overflow");
+
+                Ok(tx_response)
+            }
+            Err(err) => {
+                // reset sequence number on failed broadcast
+                reset_sequence(&mut self.client, &self.address, acc_sequence).await?;
+
+                Err(err).change_context(Error::BroadcastTx)
+            }
         }
     }
+}
+
+async fn reset_sequence<T>(
+    client: &mut T,
+    address: &TMAddress,
+    mut acc_sequence: RwLockWriteGuard<'_, u64>,
+) -> Result<()>
+where
+    T: cosmos::CosmosClient,
+{
+    let account = cosmos::account(client, address)
+        .await
+        .change_context(Error::QueryAccount)?;
+    *acc_sequence = account.sequence;
+
+    Ok(())
 }
 
 #[cfg(test)]
@@ -284,46 +326,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn context_creation_should_work_correctly() {
-        let pub_key = random_cosmos_public_key();
-        let address: TMAddress = pub_key.account_id(PREFIX).unwrap().into();
-        let chain_id: tendermint::chain::Id = "test-chain-id".parse().unwrap();
-        let account_number = 42u64;
-        let sequence = 10u64;
-
-        let base_account = BaseAccount {
-            address: address.to_string(),
-            pub_key: None,
-            account_number,
-            sequence,
-        };
-
-        let mut mock_client = cosmos::MockCosmosClient::new();
-        mock_client.expect_account().return_once(move |_| {
-            Ok(QueryAccountResponse {
-                account: Some(Any::from_msg(&base_account).unwrap()),
-            })
-        });
-
-        let mut broadcaster = Broadcaster::new(mock_client, chain_id.clone(), pub_key)
-            .await
-            .unwrap();
-
-        let sim_cx = broadcaster.sim_cx().await;
-        assert_eq!(*sim_cx.acc_sequence.read().await, sequence);
-        assert_eq!(sim_cx.pub_key, pub_key);
-        assert_eq!(*broadcaster.acc_sequence.read().await, sequence);
-
-        let broadcast_cx = broadcaster.broadcast_cx().await;
-        assert_eq!(*broadcast_cx.acc_sequence.read().await, sequence);
-        assert_eq!(broadcast_cx.acc_number, account_number);
-        assert_eq!(broadcast_cx.pub_key, pub_key);
-        assert_eq!(broadcast_cx.chain_id, &chain_id);
-        assert_eq!(*broadcaster.acc_sequence.read().await, sequence);
-    }
-
-    #[tokio::test]
-    async fn sim_cx_estimate_gas_should_succeed() {
+    async fn estimate_gas_should_succeed() {
         let pub_key = random_cosmos_public_key();
         let address: TMAddress = pub_key.account_id(PREFIX).unwrap().into();
         let chain_id: tendermint::chain::Id = "test-chain-id".parse().unwrap();
@@ -361,8 +364,7 @@ mod tests {
             .unwrap();
 
         let msgs = vec![dummy_msg()];
-        let sim_cx = broadcaster.sim_cx().await;
-        let result = sim_cx.estimate_gas(msgs).await;
+        let result = broadcaster.estimate_gas(msgs).await;
 
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), gas_used);
@@ -370,7 +372,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn broadcast_cx_broadcast_should_succeed() {
+    async fn broadcast_should_succeed() {
         let pub_key = random_cosmos_public_key();
         let address: TMAddress = pub_key.account_id(PREFIX).unwrap().into();
         let chain_id: tendermint::chain::Id = "test-chain-id".parse().unwrap();
@@ -421,8 +423,7 @@ mod tests {
         let msgs = vec![dummy_msg()];
         let sign_fn = |_: Vec<u8>| async { Ok::<Vec<u8>, Report<cosmos::Error>>(vec![0u8; 64]) };
 
-        let broadcast_cx = broadcaster.broadcast_cx().await;
-        let result = broadcast_cx.broadcast(msgs, fee, sign_fn).await;
+        let result = broadcaster.broadcast(msgs, fee, sign_fn).await;
 
         assert!(result.is_ok());
         let tx_response = result.unwrap();
@@ -431,7 +432,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn sim_cx_estimate_gas_should_fail_with_gas_info_missing() {
+    async fn estimate_gas_should_fail_with_gas_info_missing() {
         let pub_key = random_cosmos_public_key();
         let address: TMAddress = pub_key.account_id(PREFIX).unwrap().into();
         let chain_id: tendermint::chain::Id = "test-chain-id".parse().unwrap();
@@ -460,15 +461,14 @@ mod tests {
             .await
             .unwrap();
 
-        let sim_cx = broadcaster.sim_cx().await;
-        let result = sim_cx.estimate_gas(vec![dummy_msg()]).await;
+        let result = broadcaster.estimate_gas(vec![dummy_msg()]).await;
 
         assert_err_contains!(result, Error, Error::EstimateGas);
         assert_eq!(*broadcaster.acc_sequence.read().await, sequence);
     }
 
     #[tokio::test]
-    async fn broadcast_cx_signing_should_fail() {
+    async fn broadcast_should_fail_if_signing_fails() {
         let pub_key = random_cosmos_public_key();
         let address: TMAddress = pub_key.account_id(PREFIX).unwrap().into();
         let chain_id: tendermint::chain::Id = "test-chain-id".parse().unwrap();
@@ -476,7 +476,6 @@ mod tests {
         let sequence = 10u64;
 
         let fee = Fee::from_amount_and_gas(Coin::new(3750u128, "uaxl").unwrap(), 150000u64);
-
         let base_account = BaseAccount {
             address: address.to_string(),
             pub_key: None,
@@ -501,17 +500,14 @@ mod tests {
             ))
         };
 
-        let broadcast_cx = broadcaster.broadcast_cx().await;
-        let result = broadcast_cx
-            .broadcast(vec![dummy_msg()], fee, sign_fn)
-            .await;
+        let result = broadcaster.broadcast(vec![dummy_msg()], fee, sign_fn).await;
 
         assert_err_contains!(result, Error, Error::TxSigning);
         assert_eq!(*broadcaster.acc_sequence.read().await, sequence);
     }
 
     #[tokio::test]
-    async fn broadcast_cx_should_fail_with_broadcast_tx_error() {
+    async fn broadcast_should_fail_with_broadcast_tx_error() {
         let pub_key = random_cosmos_public_key();
         let address: TMAddress = pub_key.account_id(PREFIX).unwrap().into();
         let chain_id: tendermint::chain::Id = "test-chain-id".parse().unwrap();
@@ -564,10 +560,7 @@ mod tests {
 
         let sign_fn = |_: Vec<u8>| async { Ok::<Vec<u8>, Report<cosmos::Error>>(vec![0u8; 64]) };
 
-        let broadcast_cx = broadcaster.broadcast_cx().await;
-        let result = broadcast_cx
-            .broadcast(vec![dummy_msg()], fee, sign_fn)
-            .await;
+        let result = broadcaster.broadcast(vec![dummy_msg()], fee, sign_fn).await;
 
         assert_err_contains!(result, Error, Error::BroadcastTx);
         assert_eq!(*broadcaster.acc_sequence.read().await, sequence);
@@ -634,20 +627,16 @@ mod tests {
 
         let sign_fn = |_: Vec<u8>| async { Ok::<Vec<u8>, Report<cosmos::Error>>(vec![0u8; 64]) };
 
-        let broadcast_cx = broadcaster.broadcast_cx().await;
-        let result1 = broadcast_cx
+        let result = broadcaster
             .broadcast(vec![dummy_msg()], fee.clone(), sign_fn)
             .await;
-        assert!(result1.is_ok());
-        assert_eq!(result1.unwrap().txhash, "tx1");
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().txhash, "tx1");
         assert_eq!(*broadcaster.acc_sequence.read().await, initial_sequence + 1);
 
-        let broadcast_cx = broadcaster.broadcast_cx().await;
-        let result2 = broadcast_cx
-            .broadcast(vec![dummy_msg()], fee, sign_fn)
-            .await;
-        assert!(result2.is_ok());
-        assert_eq!(result2.unwrap().txhash, "tx2");
+        let result = broadcaster.broadcast(vec![dummy_msg()], fee, sign_fn).await;
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().txhash, "tx2");
         assert_eq!(*broadcaster.acc_sequence.read().await, initial_sequence + 2);
     }
 
@@ -765,8 +754,6 @@ mod tests {
 
                 tokio::spawn(async move {
                     let _gas = broadcaster_clone
-                        .sim_cx()
-                        .await
                         .estimate_gas(vec![dummy_msg()])
                         .await
                         .unwrap();
@@ -780,8 +767,6 @@ mod tests {
 
                 tokio::spawn(async move {
                     let _tx = broadcaster_clone
-                        .broadcast_cx()
-                        .await
                         .broadcast(vec![dummy_msg(), dummy_msg()], fee_clone, |_| async {
                             Ok::<Vec<u8>, Report<cosmos::Error>>(vec![0u8; 64])
                         })
