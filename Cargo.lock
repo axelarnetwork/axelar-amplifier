@@ -2255,17 +2255,20 @@ dependencies = [
  "cw-storage-plus",
  "cw2",
  "error-stack",
+ "gateway-api",
  "goldie",
  "integration-tests",
  "itertools 0.14.0",
  "msgs-derive",
  "multisig",
+ "multisig-prover-api",
  "report",
  "router-api",
  "semver 1.0.26",
  "service-registry-api",
  "thiserror 1.0.69",
  "tofn",
+ "voting-verifier-api",
 ]
 
 [[package]]
@@ -6344,7 +6347,6 @@ dependencies = [
  "multisig",
  "prost 0.12.6",
  "router-api",
- "service-registry",
  "service-registry-api",
  "sha3 0.10.8",
  "stellar",

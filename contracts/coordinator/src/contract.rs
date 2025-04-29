@@ -108,6 +108,9 @@ pub fn execute(
                 .map(|v| validate_cosmwasm_address(deps.api, v))
                 .try_collect()?;
             execute::set_active_verifier_set(deps, info, verifiers)
+        },
+        ExecuteMsg::DeployChain { chain_name, gateway_instantiate_msg, verifier_instantiate_msg, prover_instantiate_msg } => {
+            Ok(Response::new())
         }
     }
     .change_context(Error::Execute)?

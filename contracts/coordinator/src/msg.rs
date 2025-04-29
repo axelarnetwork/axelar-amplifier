@@ -6,6 +6,9 @@ use cosmwasm_std::Addr;
 use msgs_derive::EnsurePermissions;
 use router_api::ChainName;
 use service_registry_api::Verifier;
+use gateway_api::msg::InstantiateMsg as GatewayInstantiateMsg;
+use voting_verifier_api::msg::InstantiateMsg as VerifierInstantiateMsg;
+use multisig_prover_api::msg::InstantiateMsg as ProverInstantiateMsg;
 
 pub use crate::contract::MigrateMsg;
 
@@ -39,6 +42,14 @@ pub enum ExecuteMsg {
     },
     #[permission(Specific(prover))]
     SetActiveVerifiers { verifiers: HashSet<String> },
+
+    #[permission(Any)]
+    DeployChain {
+        chain_name: String,
+        gateway_instantiate_msg: GatewayInstantiateMsg,
+        verifier_instantiate_msg: VerifierInstantiateMsg,
+        prover_instantiate_msg: ProverInstantiateMsg,
+    }
 }
 
 #[cw_serde]

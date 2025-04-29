@@ -29,7 +29,6 @@ stellar = { workspace = true }
 stellar-xdr = { workspace = true }
 sui-gateway = { workspace = true }
 thiserror = { workspace = true }
-service-registry = { workspace = true }
 service-registry-api = { workspace = true }
 
 [dev-dependencies]
