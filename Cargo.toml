@@ -109,6 +109,7 @@ tokio = "1.44.2"
 tokio-stream = "0.1.11"
 tokio-util = "0.7.11"
 voting-verifier = { version = "^1.1.0", path = "contracts/voting-verifier" }
+voting-verifier-api = { version = "1.0.0", path = "packages/voting-verifier-api" }
 axelar-core-std = { version = "^1.0.0", path = "packages/axelar-core-std" }
 proc-macro2 = "1.0.92"
 
