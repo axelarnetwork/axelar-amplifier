@@ -66,7 +66,7 @@ voting-verifier = { workspace = true, features = ["library"] }
 [dev-dependencies]
 anyhow = "1.0"
 assert_ok = { workspace = true }
-cw-multi-test = { workspace = true, features = ["cosmwasm_1_2"] }
+cw-multi-test = { workspace = true }
 elliptic-curve = "0.13.5"
 generic-array = "0.14.7"
 goldie = { workspace = true }
