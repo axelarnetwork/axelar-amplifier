@@ -144,14 +144,6 @@ mod tests {
     const RELAYER: &str = "relayer";
     const MULTISIG_SESSION_ID: Uint64 = Uint64::one();
 
-    type TestAppMulti = App<
-        cw_multi_test::BankKeeper,
-        MockApiBech32,
-        MemoryStorage,
-        FailingModule<Empty, Empty, Empty>,
-        ProverWasm<Empty, Empty, MockApiBech32>,
-    >;
-
     pub fn setup_test_case() -> OwnedDeps<MockStorage, MockApi, MockQuerier, Empty> {
         let mut deps = mock_dependencies();
         let api = deps.api;
