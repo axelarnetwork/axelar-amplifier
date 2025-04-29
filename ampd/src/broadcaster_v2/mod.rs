@@ -3,7 +3,7 @@ use std::ops::Mul;
 use axelar_wasm_std::nonempty;
 use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
 use cosmrs::tx::Fee;
-use cosmrs::{Any, Coin, Gas};
+use cosmrs::{Any, Coin};
 use error_stack::{report, ResultExt};
 use k256::sha2::{Digest, Sha256};
 use num_traits::cast;
@@ -42,8 +42,8 @@ pub enum Error {
     BroadcastTx,
     #[error("failed to receive tx result")]
     ReceiveTxResult(#[from] oneshot::error::RecvError),
-    #[error("estimated gas {gas} exceeds gas limit {gas_cap}")]
-    GasExceedsGasCap { gas: Gas, gas_cap: Gas },
+    #[error("estimated gas exceeds gas limit")]
+    QueueingMsg,
 }
 
 #[derive(TypedBuilder)]

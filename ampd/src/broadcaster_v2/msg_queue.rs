@@ -4,15 +4,17 @@ use std::future::Future;
 
 use axelar_wasm_std::nonempty;
 use cosmrs::{Any, Gas};
-use error_stack::bail;
+use error_stack::{report, Report};
 use futures::{FutureExt, Stream};
 use pin_project_lite::pin_project;
-use report::ErrorExt;
+use report::{ErrorExt, LoggableError};
 use tokio::sync::{mpsc, oneshot};
 use tokio::time;
 use tokio_stream::adapters::Fuse;
 use tokio_stream::wrappers::ReceiverStream;
 use tokio_stream::StreamExt;
+use tracing::warn;
+use valuable::Valuable;
 
 use super::{broadcaster, Error, Result};
 use crate::cosmos;
@@ -31,7 +33,6 @@ where
 {
     tx: mpsc::Sender<QueueMsg>,
     broadcaster: broadcaster::Broadcaster<T>,
-    gas_cap: Gas,
 }
 
 impl<T> MsgQueueClient<T>
@@ -68,13 +69,6 @@ where
             .await
             .estimate_gas(vec![msg.clone()])
             .await?;
-
-        if gas > self.gas_cap {
-            bail!(Error::GasExceedsGasCap {
-                gas,
-                gas_cap: self.gas_cap
-            })
-        }
 
         let msg = QueueMsg {
             msg,
@@ -121,11 +115,7 @@ impl MsgQueue {
                 queue: Queue::new(gas_cap),
                 duration,
             }),
-            MsgQueueClient {
-                broadcaster,
-                tx,
-                gas_cap,
-            },
+            MsgQueueClient { broadcaster, tx },
         ))
     }
 }
@@ -144,8 +134,19 @@ impl Stream for MsgQueue {
                         me.deadline.set(time::sleep(*me.duration));
                     }
 
-                    if let Some(msgs) = me.queue.push(msg) {
-                        return Poll::Ready(Some(msgs));
+                    match me.queue.push(msg) {
+                        Ok(Some(msgs)) => {
+                            return Poll::Ready(Some(msgs));
+                        }
+                        Err((err, tx_res_callback)) => {
+                            warn!(
+                                error = LoggableError::from(&err).as_value(),
+                                "message droped"
+                            );
+                            let _ =
+                                tx_res_callback.send(Err(err.change_context(Error::QueueingMsg)));
+                        }
+                        _ => {}
                     }
                 }
                 Poll::Ready(None) => {
@@ -166,6 +167,14 @@ impl Stream for MsgQueue {
     }
 }
 
+#[derive(thiserror::Error, Debug)]
+pub enum QueueError {
+    #[error("message {:?}'s estimated gas {gas} exceeds gas limit {gas_cap}", msg)]
+    GasExceedsGasCap { msg: Any, gas: Gas, gas_cap: Gas },
+}
+
+type ErrorAndCallback = (Report<QueueError>, oneshot::Sender<Result<(String, u64)>>);
+
 struct Queue {
     msgs: Vec<QueueMsg>,
     gas_cost: Gas,
@@ -181,40 +190,45 @@ impl Queue {
         }
     }
 
-    pub fn push(&mut self, msg: QueueMsg) -> Option<nonempty::Vec<QueueMsg>> {
-        match self.gas_cost.checked_add(msg.gas) {
+    pub fn push(
+        &mut self,
+        msg: QueueMsg,
+    ) -> core::result::Result<Option<nonempty::Vec<QueueMsg>>, ErrorAndCallback> {
+        if msg.gas > self.gas_cap {
+            return Err((
+                report!(QueueError::GasExceedsGasCap {
+                    msg: msg.msg,
+                    gas: msg.gas,
+                    gas_cap: self.gas_cap,
+                }),
+                msg.tx_res_callback,
+            ));
+        }
+
+        match self
+            .gas_cost
+            .checked_add(msg.gas)
+            .filter(|gas_cost| gas_cost <= &self.gas_cap)
+        {
             None => {
                 let results = self.pop_all();
 
                 self.gas_cost = msg.gas;
                 self.msgs.push(msg);
 
-                results
-            }
-            Some(gas_cost) if gas_cost > self.gas_cap => {
-                let results = self.pop_all();
-
-                self.gas_cost = msg.gas;
-                self.msgs.push(msg);
-
-                results
+                Ok(results)
             }
             Some(gas_cost) if gas_cost == self.gas_cap => {
-                let results = if let Some(mut results) = self.pop_all() {
-                    results.as_mut().push(msg);
+                let mut results = self.pop_all().map(Vec::from).unwrap_or_default();
+                results.push(msg);
 
-                    results
-                } else {
-                    vec![msg].try_into().expect("must not be empty")
-                };
-
-                Some(results)
+                Ok(Some(results.try_into().expect("must not be empty")))
             }
             Some(gas_cost) => {
                 self.gas_cost = gas_cost;
                 self.msgs.push(msg);
 
-                None
+                Ok(None)
             }
         }
     }

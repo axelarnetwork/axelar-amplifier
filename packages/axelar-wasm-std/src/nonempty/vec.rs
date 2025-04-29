@@ -39,12 +39,6 @@ impl<T> AsRef<std::vec::Vec<T>> for Vec<T> {
     }
 }
 
-impl<T> AsMut<std::vec::Vec<T>> for Vec<T> {
-    fn as_mut(&mut self) -> &mut std::vec::Vec<T> {
-        &mut self.0
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
