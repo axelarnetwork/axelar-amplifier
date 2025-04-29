@@ -50,12 +50,11 @@ pub const VERIFIERS_PER_CHAIN: IndexedMap<
 
 /// For now, all verifiers have equal weight, regardless of amount bonded
 pub const VERIFIER_WEIGHT: nonempty::Uint128 = nonempty::Uint128::one();
+pub const VERIFIERS: Map<(&ServiceName, &VerifierAddress), Verifier> = Map::new("verifiers");
 
 const SERVICES: Map<&ServiceName, Service> = Map::new("services");
 const SERVICE_OVERRIDES: Map<(&ServiceName, &ChainName), ServiceParamsOverride> =
     Map::new("service_overrides");
-
-pub const VERIFIERS: Map<(&ServiceName, &VerifierAddress), Verifier> = Map::new("verifiers");
 
 pub fn service(
     storage: &dyn Storage,
@@ -67,6 +66,7 @@ pub fn service(
     let params_override = SERVICE_OVERRIDES
         .may_load(storage, (service_name, chain))
         .change_context(ContractError::StorageError)?;
+
     match params_override {
         Some(params_override) => Ok(Service {
             min_num_verifiers: params_override
@@ -271,6 +271,167 @@ mod tests {
     use service_registry_api::{AuthorizationState, BondingState, Verifier};
 
     use super::*;
+
+    #[test]
+    fn load_service_no_override() {
+        let mut deps = mock_dependencies();
+        let stored_service = save_mock_service(deps.as_mut().storage);
+        let chain_name = "solana".parse().unwrap();
+
+        let loaded_service =
+            service(deps.as_ref().storage, &stored_service.name, &chain_name).unwrap();
+
+        assert_eq!(loaded_service, stored_service);
+    }
+
+    #[test]
+    fn load_service_with_full_override() {
+        let mut deps = mock_dependencies();
+        let stored_service = save_mock_service(deps.as_mut().storage);
+        let chain_name = "solana".parse().unwrap();
+        let min_verifiers_override = 20;
+        let max_verifiers_override = Some(20);
+
+        let params_override = ServiceParamsOverride {
+            min_num_verifiers: Some(min_verifiers_override),
+            max_num_verifiers: Some(max_verifiers_override),
+        };
+        save_service_override(
+            deps.as_mut().storage,
+            &stored_service.name,
+            &chain_name,
+            &params_override,
+        )
+        .unwrap();
+
+        let loaded_service =
+            service(deps.as_ref().storage, &stored_service.name, &chain_name).unwrap();
+
+        let expected_service = Service {
+            min_num_verifiers: min_verifiers_override,
+            max_num_verifiers: max_verifiers_override,
+            ..stored_service
+        };
+
+        assert_eq!(loaded_service, expected_service);
+        assert_ne!(
+            loaded_service.min_num_verifiers,
+            stored_service.min_num_verifiers
+        );
+        assert_ne!(
+            loaded_service.max_num_verifiers,
+            stored_service.max_num_verifiers
+        );
+    }
+
+    #[test]
+    fn load_service_with_partial_override() {
+        let mut deps = mock_dependencies();
+        let stored_service = save_mock_service(deps.as_mut().storage);
+        let chain_name = "solana".parse().unwrap();
+        let max_verifiers_override = Some(20);
+
+        let params_override = ServiceParamsOverride {
+            min_num_verifiers: None,
+            max_num_verifiers: Some(max_verifiers_override),
+        };
+        save_service_override(
+            deps.as_mut().storage,
+            &stored_service.name,
+            &chain_name,
+            &params_override,
+        )
+        .unwrap();
+
+        let loaded_service =
+            service(deps.as_ref().storage, &stored_service.name, &chain_name).unwrap();
+
+        let expected_service = Service {
+            max_num_verifiers: max_verifiers_override,
+            ..stored_service
+        };
+
+        assert_eq!(loaded_service, expected_service);
+        assert_ne!(
+            loaded_service.max_num_verifiers,
+            stored_service.max_num_verifiers
+        );
+    }
+
+    #[test]
+    fn load_default_service_params() {
+        let mut deps = mock_dependencies();
+        let stored_service = save_mock_service(deps.as_mut().storage);
+        let chain_name = "solana".parse().unwrap();
+        let max_verifiers_override = Some(20);
+
+        let params_override = ServiceParamsOverride {
+            min_num_verifiers: None,
+            max_num_verifiers: Some(max_verifiers_override),
+        };
+        save_service_override(
+            deps.as_mut().storage,
+            &stored_service.name,
+            &chain_name,
+            &params_override,
+        )
+        .unwrap();
+
+        let loaded_service =
+            default_service_params(deps.as_ref().storage, &stored_service.name).unwrap();
+
+        assert_eq!(loaded_service, stored_service);
+    }
+
+    #[test]
+    fn has_service_returns_true_if_service_exists() {
+        let mut deps = mock_dependencies();
+        let stored_service = save_mock_service(deps.as_mut().storage);
+
+        assert!(has_service(deps.as_ref().storage, &stored_service.name));
+    }
+
+    #[test]
+    fn has_service_returns_false_if_service_does_not_exist() {
+        let deps = mock_dependencies();
+
+        assert!(!has_service(
+            deps.as_ref().storage,
+            &"nonexistent".to_string()
+        ));
+    }
+
+    #[test]
+    fn remove_service_override_succeeds() {
+        let mut deps = mock_dependencies();
+        let service_name = "amplifier".to_string();
+        let chain_name = "solana".parse().unwrap();
+        let max_verifiers_override = Some(20);
+
+        let params_override = ServiceParamsOverride {
+            min_num_verifiers: None,
+            max_num_verifiers: Some(max_verifiers_override),
+        };
+        save_service_override(
+            deps.as_mut().storage,
+            &service_name,
+            &chain_name,
+            &params_override,
+        )
+        .unwrap();
+
+        let stored_override = SERVICE_OVERRIDES
+            .load(deps.as_ref().storage, (&service_name, &chain_name))
+            .unwrap();
+        assert_eq!(stored_override, params_override);
+
+        remove_service_override(deps.as_mut().storage, &service_name, &chain_name);
+
+        assert!(SERVICE_OVERRIDES
+            .may_load(deps.as_ref().storage, (&service_name, &chain_name))
+            .unwrap()
+            .is_none());
+    }
 
     #[test]
     fn register_single_verifier_chain_single_call_success() {
@@ -807,5 +968,23 @@ mod tests {
         let res = claim_verifier_stake(verifier, Timestamp::from_nanos(1), 0);
         assert!(res.is_err());
         assert_eq!(res.unwrap_err(), ContractError::VerifierJailed);
+    }
+
+    fn mock_service() -> Service {
+        Service {
+            name: "amplifier".to_string(),
+            coordinator_contract: MockApi::default().addr_make("coordinator"),
+            min_num_verifiers: 1,
+            max_num_verifiers: Some(10),
+            min_verifier_bond: Uint128::from(100u32).try_into().unwrap(),
+            bond_denom: "uaxl".to_string(),
+            unbonding_period_days: 1,
+            description: "description".to_string(),
+        }
+    }
+
+    fn save_mock_service(storage: &mut dyn Storage) -> Service {
+        let service = mock_service();
+        save_service(storage, &service.name.clone(), service).unwrap()
     }
 }
