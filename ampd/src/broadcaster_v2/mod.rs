@@ -3,13 +3,13 @@ use std::ops::Mul;
 use axelar_wasm_std::nonempty;
 use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
 use cosmrs::tx::Fee;
-use cosmrs::{Any, Coin};
+use cosmrs::{Any, Coin, Gas};
 use error_stack::{report, ResultExt};
 use k256::sha2::{Digest, Sha256};
 use num_traits::cast;
 use report::{LoggableError, ResultCompatExt};
 use thiserror::Error;
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::oneshot;
 use tokio_stream::StreamExt;
 use tracing::{error, info};
 use typed_builder::TypedBuilder;
@@ -24,10 +24,10 @@ mod proto;
 
 type Result<T> = error_stack::Result<T, Error>;
 
-#[derive(Error, Debug)]
+#[derive(Error, Debug, Clone)]
 pub enum Error {
     #[error("failed to enqueue message")]
-    EnqueueMsg(#[from] mpsc::error::SendError<msg_queue::QueueMsg>),
+    EnqueueMsg,
     #[error("failed to estimate gas")]
     EstimateGas,
     #[error("failed to estimate tx fee")]
@@ -42,8 +42,8 @@ pub enum Error {
     BroadcastTx,
     #[error("failed to receive tx result")]
     ReceiveTxResult(#[from] oneshot::error::RecvError),
-    #[error("estimated gas exceeds gas limit")]
-    QueueingMsg,
+    #[error("message {:?}'s estimated gas {gas} exceeds gas limit {gas_cap}", msg)]
+    GasExceedsGasCap { msg: Any, gas: Gas, gas_cap: Gas },
 }
 
 #[derive(TypedBuilder)]
@@ -69,7 +69,7 @@ where
 {
     pub async fn run(mut self) -> Result<()> {
         while let Some(msgs) = self.msg_queue.next().await {
-            let tx_res = self
+            let tx_hash = self
                 .broadcast(msgs.as_ref().iter().map(|msg| msg.msg.clone()))
                 .await
                 .inspect(|res| {
@@ -84,8 +84,10 @@ where
                         err = LoggableError::from(err).as_value(),
                         "failed to broadcast tx",
                     );
-                });
-            handle_tx_res(tx_res, msgs);
+                })
+                .map(|res| res.txhash);
+
+            handle_tx_res(tx_hash, msgs);
         }
 
         Ok(())
@@ -144,9 +146,7 @@ where
     }
 }
 
-fn handle_tx_res(tx_res: Result<TxResponse>, msgs: nonempty::Vec<msg_queue::QueueMsg>) {
-    let tx_hash = tx_res.map(|res| res.txhash);
-
+fn handle_tx_res(tx_hash: Result<String>, msgs: nonempty::Vec<msg_queue::QueueMsg>) {
     Vec::from(msgs)
         .into_iter()
         .enumerate()
@@ -155,8 +155,8 @@ fn handle_tx_res(tx_res: Result<TxResponse>, msgs: nonempty::Vec<msg_queue::Queu
                 (tx_res_callback, Ok(tx_hash)) => {
                     let _ = tx_res_callback.send(Ok((tx_hash.clone(), i as u64)));
                 }
-                (tx_res_callback, Err(_)) => {
-                    let _ = tx_res_callback.send(Err(report!(Error::BroadcastTx)));
+                (tx_res_callback, Err(err)) => {
+                    let _ = tx_res_callback.send(Err(report!(err.current_context().clone())));
                 }
             };
         });

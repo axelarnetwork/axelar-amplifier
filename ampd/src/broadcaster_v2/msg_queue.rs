@@ -4,7 +4,7 @@ use std::future::Future;
 
 use axelar_wasm_std::nonempty;
 use cosmrs::{Any, Gas};
-use error_stack::{report, Report};
+use error_stack::{report, Report, ResultExt};
 use futures::{FutureExt, Stream};
 use pin_project_lite::pin_project;
 use report::{ErrorExt, LoggableError};
@@ -76,7 +76,11 @@ where
             tx_res_callback: tx,
         };
 
-        self.tx.send(msg).await.map_err(ErrorExt::into_report)?;
+        self.tx
+            .send(msg)
+            .await
+            .map_err(Report::new)
+            .change_context(Error::EnqueueMsg)?;
 
         Ok(rx)
     }
@@ -134,19 +138,8 @@ impl Stream for MsgQueue {
                         me.deadline.set(time::sleep(*me.duration));
                     }
 
-                    match me.queue.push(msg) {
-                        Ok(Some(msgs)) => {
-                            return Poll::Ready(Some(msgs));
-                        }
-                        Err((err, tx_res_callback)) => {
-                            warn!(
-                                error = LoggableError::from(&err).as_value(),
-                                "message droped"
-                            );
-                            let _ =
-                                tx_res_callback.send(Err(err.change_context(Error::QueueingMsg)));
-                        }
-                        _ => {}
+                    if let Some(msgs) = me.queue.push_or(msg, handle_queue_error) {
+                        return Poll::Ready(Some(msgs));
                     }
                 }
                 Poll::Ready(None) => {
@@ -167,13 +160,15 @@ impl Stream for MsgQueue {
     }
 }
 
-#[derive(thiserror::Error, Debug)]
-pub enum QueueError {
-    #[error("message {:?}'s estimated gas {gas} exceeds gas limit {gas_cap}", msg)]
-    GasExceedsGasCap { msg: Any, gas: Gas, gas_cap: Gas },
-}
+fn handle_queue_error(msg: QueueMsg, err: Error) {
+    let err = report!(err);
+    warn!(
+        error = LoggableError::from(&err).as_value(),
+        "message droped"
+    );
 
-type ErrorAndCallback = (Report<QueueError>, oneshot::Sender<Result<(String, u64)>>);
+    let _ = msg.tx_res_callback.send(Err(err));
+}
 
 struct Queue {
     msgs: Vec<QueueMsg>,
@@ -190,19 +185,19 @@ impl Queue {
         }
     }
 
-    pub fn push(
-        &mut self,
-        msg: QueueMsg,
-    ) -> core::result::Result<Option<nonempty::Vec<QueueMsg>>, ErrorAndCallback> {
+    pub fn push_or<F>(&mut self, msg: QueueMsg, handle_error: F) -> Option<nonempty::Vec<QueueMsg>>
+    where
+        F: FnOnce(QueueMsg, Error),
+    {
         if msg.gas > self.gas_cap {
-            return Err((
-                report!(QueueError::GasExceedsGasCap {
-                    msg: msg.msg,
-                    gas: msg.gas,
-                    gas_cap: self.gas_cap,
-                }),
-                msg.tx_res_callback,
-            ));
+            let err = Error::GasExceedsGasCap {
+                msg: msg.msg.clone(),
+                gas: msg.gas,
+                gas_cap: self.gas_cap,
+            };
+            handle_error(msg, err);
+
+            return None;
         }
 
         match self
@@ -216,19 +211,19 @@ impl Queue {
                 self.gas_cost = msg.gas;
                 self.msgs.push(msg);
 
-                Ok(results)
+                results
             }
             Some(gas_cost) if gas_cost == self.gas_cap => {
                 let mut results = self.pop_all().map(Vec::from).unwrap_or_default();
                 results.push(msg);
 
-                Ok(Some(results.try_into().expect("must not be empty")))
+                Some(results.try_into().expect("must not be empty"))
             }
             Some(gas_cost) => {
                 self.gas_cost = gas_cost;
                 self.msgs.push(msg);
 
-                Ok(None)
+                None
             }
         }
     }

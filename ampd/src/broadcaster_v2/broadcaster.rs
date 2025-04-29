@@ -6,7 +6,7 @@ use cosmrs::tx::Fee;
 use cosmrs::{tendermint, Any, Gas};
 use error_stack::{Context, ResultExt};
 use report::ResultCompatExt;
-use tokio::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
+use tokio::sync::{RwLock, RwLockWriteGuard};
 
 use super::{Error, Result};
 use crate::broadcaster::tx::Tx;
@@ -21,7 +21,7 @@ use crate::{cosmos, PREFIX};
 pub struct SimCx<'a, T> {
     client: &'a mut T,
     pub_key: CosmosPublicKey,
-    acc_sequence: RwLockReadGuard<'a, u64>,
+    acc_sequence: &'a Arc<RwLock<u64>>,
 }
 
 impl<'a, T> SimCx<'a, T>
@@ -29,7 +29,9 @@ where
     T: cosmos::CosmosClient,
 {
     pub async fn estimate_gas(self, msgs: Vec<Any>) -> Result<Gas> {
-        cosmos::estimate_gas(self.client, msgs, self.pub_key, *self.acc_sequence)
+        let acc_sequence = self.acc_sequence.read().await;
+
+        cosmos::estimate_gas(self.client, msgs, self.pub_key, *acc_sequence)
             .await
             .change_context(Error::EstimateGas)
     }
@@ -47,24 +49,24 @@ pub struct BroadcastCx<'a, T> {
     address: &'a TMAddress,
     pub_key: CosmosPublicKey,
     acc_number: u64,
-    acc_sequence: RwLockWriteGuard<'a, u64>,
+    acc_sequence: &'a Arc<RwLock<u64>>,
 }
 
 impl<'a, T> BroadcastCx<'a, T>
 where
     T: cosmos::CosmosClient,
 {
-    async fn reset_sequence(mut self) -> Result<()> {
+    async fn reset_sequence(self, mut acc_sequence: RwLockWriteGuard<'_, u64>) -> Result<()> {
         let account = cosmos::account(self.client, self.address)
             .await
             .change_context(Error::QueryAccount)?;
-        *self.acc_sequence = account.sequence;
+        *acc_sequence = account.sequence;
 
         Ok(())
     }
 
     pub async fn broadcast<F, Fut, Err>(
-        mut self,
+        self,
         msgs: Vec<Any>,
         fee: Fee,
         sign_fn: F,
@@ -74,10 +76,12 @@ where
         Fut: Future<Output = error_stack::Result<Vec<u8>, Err>>,
         Err: Context,
     {
+        let mut acc_sequence = self.acc_sequence.write().await;
+
         let tx = Tx::builder()
             .msgs(msgs)
             .pub_key(self.pub_key)
-            .acc_sequence(*self.acc_sequence)
+            .acc_sequence(*acc_sequence)
             .fee(fee)
             .build()
             .sign_with(self.chain_id, self.acc_number, sign_fn)
@@ -86,15 +90,14 @@ where
 
         match cosmos::broadcast(self.client, tx).await {
             Ok(tx_response) => {
-                *self.acc_sequence = self
-                    .acc_sequence
+                *acc_sequence = acc_sequence
                     .checked_add(1)
                     .expect("account sequence must not overflow");
 
                 Ok(tx_response)
             }
             Err(err) => {
-                self.reset_sequence().await?;
+                self.reset_sequence(acc_sequence).await?;
 
                 Err(err).change_context(Error::BroadcastTx)
             }
@@ -160,7 +163,7 @@ where
         SimCx {
             client: &mut self.client,
             pub_key: self.pub_key,
-            acc_sequence: self.acc_sequence.read().await,
+            acc_sequence: &self.acc_sequence,
         }
     }
 
@@ -171,7 +174,7 @@ where
             address: &self.address,
             pub_key: self.pub_key,
             acc_number: self.acc_number,
-            acc_sequence: self.acc_sequence.write().await,
+            acc_sequence: &self.acc_sequence,
         }
     }
 }
@@ -307,14 +310,14 @@ mod tests {
             .unwrap();
 
         let sim_cx = broadcaster.sim_cx().await;
-        assert_eq!(*sim_cx.acc_sequence, sequence);
+        assert_eq!(*sim_cx.acc_sequence.read().await, sequence);
         assert_eq!(sim_cx.pub_key, pub_key);
 
         drop(sim_cx);
         assert_eq!(*broadcaster.acc_sequence.read().await, sequence);
 
         let broadcast_cx = broadcaster.broadcast_cx().await;
-        assert_eq!(*broadcast_cx.acc_sequence, sequence);
+        assert_eq!(*broadcast_cx.acc_sequence.read().await, sequence);
         assert_eq!(broadcast_cx.acc_number, account_number);
         assert_eq!(broadcast_cx.pub_key, pub_key);
         assert_eq!(broadcast_cx.chain_id, &chain_id);
