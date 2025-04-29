@@ -263,7 +263,6 @@ impl Stream for MsgQueue {
 
         loop {
             match me.stream.as_mut().poll_next(cx) {
-                Poll::Pending => break,
                 Poll::Ready(Some(msg)) => {
                     // reset the deadline timer when the first message is added to an empty queue
                     if me.queue.is_empty() {
@@ -280,19 +279,17 @@ impl Stream for MsgQueue {
                     // input stream is closed, drain any remaining messages and terminate
                     return Poll::Ready(me.queue.pop_all());
                 }
+                Poll::Pending => {
+                    // if we have no messages queued, we can't produce anything yet
+                    if me.queue.is_empty() {
+                        return Poll::Pending;
+                    }
+
+                    // check if the deadline has elapsed
+                    // if so, flush the queue regardless of how full it is
+                    return me.deadline.poll(cx).map(|_| me.queue.pop_all());
+                }
             }
-        }
-
-        // if we have no messages queued, we can't produce anything yet
-        if me.queue.is_empty() {
-            return Poll::Pending;
-        }
-
-        // check if the deadline has elapsed
-        // if so, flush the queue regardless of how full it is
-        match me.deadline.poll(cx) {
-            Poll::Pending => Poll::Pending,
-            Poll::Ready(()) => Poll::Ready(me.queue.pop_all()),
         }
     }
 }
