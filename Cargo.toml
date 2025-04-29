@@ -104,7 +104,7 @@ syn = "2.0.92"
 tendermint = "0.35.0"
 thiserror = "1.0.61"
 tofn = { version = "1.1" }
-tokio = "1.38.0"
+tokio = "1.44.2"
 tokio-stream = "0.1.11"
 tokio-util = "0.7.11"
 voting-verifier = { version = "^1.1.0", path = "contracts/voting-verifier" }
