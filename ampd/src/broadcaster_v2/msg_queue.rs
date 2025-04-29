@@ -520,6 +520,85 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn multiple_msg_queue_clients() {
+        let gas_cap = 1000;
+        let gas_cost = 100;
+        let msg_count_per_client = 10;
+        let client_count = 10;
+        let base_account = BaseAccount {
+            address: TMAddress::random(PREFIX).to_string(),
+            pub_key: None,
+            account_number: 42,
+            sequence: 10,
+        };
+
+        let mut cosmos_client = cosmos::MockCosmosClient::new();
+        cosmos_client.expect_account().return_once(move |_| {
+            Ok(QueryAccountResponse {
+                account: Some(Any::from_msg(&base_account).unwrap()),
+            })
+        });
+        cosmos_client
+            .expect_clone()
+            .times(client_count)
+            .returning(move || {
+                let mut cosmos_client = cosmos::MockCosmosClient::new();
+                cosmos_client
+                    .expect_simulate()
+                    .times(msg_count_per_client)
+                    .returning(move |_| {
+                        Ok(SimulateResponse {
+                            gas_info: Some(GasInfo {
+                                gas_wanted: gas_cost,
+                                gas_used: gas_cost,
+                            }),
+                            result: None,
+                        })
+                    });
+
+                cosmos_client
+            });
+        let broadcaster = broadcaster::Broadcaster::new(
+            cosmos_client,
+            "chain-id".parse().unwrap(),
+            random_cosmos_public_key(),
+        )
+        .await
+        .unwrap();
+
+        let (mut msg_queue, msg_queue_client) = MsgQueue::new_msg_queue_and_client(
+            broadcaster,
+            10,
+            gas_cap,
+            time::Duration::from_secs(3),
+        )
+        .unwrap();
+
+        let handles: Vec<_> = (0..client_count)
+            .map(|_| {
+                let mut msg_queue_client_clone = msg_queue_client.clone();
+
+                tokio::spawn(async move {
+                    for _ in 0..msg_count_per_client {
+                        msg_queue_client_clone
+                            .enqueue_and_forget(dummy_msg())
+                            .await
+                            .unwrap();
+                    }
+                })
+            })
+            .collect();
+
+        for _ in 0..((client_count * msg_count_per_client) as u64 * gas_cost) / gas_cap {
+            let actual = msg_queue.next().await.unwrap();
+            assert_eq!(actual.as_ref().len() as u64, gas_cap / gas_cost);
+        }
+        for handle in handles {
+            handle.await.unwrap();
+        }
+    }
+
+    #[tokio::test]
     async fn msg_queue_client_error_handling() {
         let base_account = BaseAccount {
             address: TMAddress::random(PREFIX).to_string(),
