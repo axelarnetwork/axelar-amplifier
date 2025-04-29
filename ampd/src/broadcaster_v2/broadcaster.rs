@@ -312,8 +312,6 @@ mod tests {
         let sim_cx = broadcaster.sim_cx().await;
         assert_eq!(*sim_cx.acc_sequence.read().await, sequence);
         assert_eq!(sim_cx.pub_key, pub_key);
-
-        drop(sim_cx);
         assert_eq!(*broadcaster.acc_sequence.read().await, sequence);
 
         let broadcast_cx = broadcaster.broadcast_cx().await;
@@ -321,8 +319,6 @@ mod tests {
         assert_eq!(broadcast_cx.acc_number, account_number);
         assert_eq!(broadcast_cx.pub_key, pub_key);
         assert_eq!(broadcast_cx.chain_id, &chain_id);
-
-        drop(broadcast_cx);
         assert_eq!(*broadcaster.acc_sequence.read().await, sequence);
     }
 

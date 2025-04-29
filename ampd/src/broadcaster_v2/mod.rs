@@ -408,8 +408,6 @@ mod tests {
 
         let mut seq = Sequence::new();
         let mut mock_client = cosmos::MockCosmosClient::new();
-
-        // Account query for initialization
         mock_client
             .expect_account()
             .once()
@@ -419,8 +417,6 @@ mod tests {
                     account: Some(Any::from_msg(&base_account).unwrap()),
                 })
             });
-
-        // Simulate for fee estimation
         mock_client
             .expect_simulate()
             .once()
@@ -434,11 +430,6 @@ mod tests {
                     result: None,
                 })
             });
-
-        // BroadcastCx is initialized but fails at signing stage,
-        // so no additional account query is needed for reset
-        // since reset happens within the broadcast_cx but won't execute
-        // if we fail before the actual broadcast call
 
         let broadcaster = broadcaster::Broadcaster::new(mock_client, chain_id, pub_key)
             .await
@@ -456,7 +447,7 @@ mod tests {
             .await
             .unwrap();
         assert!(result.is_ok());
-        assert_err_contains!(rx.await.unwrap(), Error, Error::BroadcastTx);
+        assert_err_contains!(rx.await.unwrap(), Error, Error::TxSigning);
     }
 
     #[tokio::test]
