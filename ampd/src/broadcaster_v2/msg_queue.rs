@@ -2,8 +2,10 @@ use core::pin::Pin;
 use core::task::{Context, Poll};
 use std::future::Future;
 
+use axelar_wasm_std::nonempty;
 use cosmrs::{Any, Gas};
-use futures::Stream;
+use error_stack::bail;
+use futures::{FutureExt, Stream};
 use pin_project_lite::pin_project;
 use report::ErrorExt;
 use tokio::sync::{mpsc, oneshot};
@@ -12,14 +14,14 @@ use tokio_stream::adapters::Fuse;
 use tokio_stream::wrappers::ReceiverStream;
 use tokio_stream::StreamExt;
 
-use super::{broadcaster, Result};
+use super::{broadcaster, Error, Result};
 use crate::cosmos;
 
 #[derive(Debug)]
 pub struct QueueMsg {
     pub msg: Any,
     pub gas: Gas,
-    pub tx_res_callback: Option<oneshot::Sender<Result<(String, u64)>>>,
+    pub tx_res_callback: oneshot::Sender<Result<(String, u64)>>,
 }
 
 #[derive(Clone)]
@@ -29,41 +31,60 @@ where
 {
     tx: mpsc::Sender<QueueMsg>,
     broadcaster: broadcaster::Broadcaster<T>,
+    gas_cap: Gas,
 }
 
 impl<T> MsgQueueClient<T>
 where
     T: cosmos::CosmosClient,
 {
-    pub async fn enqueue(&mut self, msg: Any) -> Result<oneshot::Receiver<Result<(String, u64)>>> {
-        let (tx, rx) = oneshot::channel();
-        self.enqueue_with_channel(msg, Some(tx)).await?;
+    pub async fn enqueue(
+        &mut self,
+        msg: Any,
+    ) -> Result<impl Future<Output = Result<(String, u64)>> + Send> {
+        let rx = self.enqueue_with_channel(msg).await?;
 
-        Ok(rx)
+        Ok(rx.map(|result| match result {
+            Ok(Ok(result)) => Ok(result),
+            Ok(Err(err)) => Err(err),
+            Err(err) => Err(err.into_report()),
+        }))
     }
 
     pub async fn enqueue_and_forget(&mut self, msg: Any) -> Result<()> {
-        self.enqueue_with_channel(msg, None).await
+        let _ = self.enqueue_with_channel(msg).await?;
+
+        Ok(())
     }
 
     async fn enqueue_with_channel(
         &mut self,
         msg: Any,
-        tx_res_callback: Option<oneshot::Sender<Result<(String, u64)>>>,
-    ) -> Result<()> {
+    ) -> Result<oneshot::Receiver<Result<(String, u64)>>> {
+        let (tx, rx) = oneshot::channel();
         let gas = self
             .broadcaster
             .sim_cx()
             .await
             .estimate_gas(vec![msg.clone()])
             .await?;
+
+        if gas > self.gas_cap {
+            bail!(Error::GasExceedsGasCap {
+                gas,
+                gas_cap: self.gas_cap
+            })
+        }
+
         let msg = QueueMsg {
             msg,
             gas,
-            tx_res_callback,
+            tx_res_callback: tx,
         };
 
-        self.tx.send(msg).await.map_err(ErrorExt::into_report)
+        self.tx.send(msg).await.map_err(ErrorExt::into_report)?;
+
+        Ok(rx)
     }
 }
 
@@ -84,7 +105,10 @@ impl MsgQueue {
         msg_cap: usize,
         gas_cap: Gas,
         duration: time::Duration,
-    ) -> Result<(impl Stream<Item = Vec<QueueMsg>>, MsgQueueClient<T>)>
+    ) -> Result<(
+        impl Stream<Item = nonempty::Vec<QueueMsg>>,
+        MsgQueueClient<T>,
+    )>
     where
         T: cosmos::CosmosClient,
     {
@@ -97,13 +121,17 @@ impl MsgQueue {
                 queue: Queue::new(gas_cap),
                 duration,
             }),
-            MsgQueueClient { broadcaster, tx },
+            MsgQueueClient {
+                broadcaster,
+                tx,
+                gas_cap,
+            },
         ))
     }
 }
 
 impl Stream for MsgQueue {
-    type Item = Vec<QueueMsg>;
+    type Item = nonempty::Vec<QueueMsg>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let mut me = self.as_mut().project();
@@ -121,14 +149,8 @@ impl Stream for MsgQueue {
                     }
                 }
                 Poll::Ready(None) => {
-                    // returning Some here is only correct because we fuse the inner stream.
-                    let last = if me.queue.is_empty() {
-                        None
-                    } else {
-                        Some(me.queue.pop_all())
-                    };
-
-                    return Poll::Ready(last);
+                    // after the client stream was terminated, the MsgQueue must be fully drained before it can also terminate
+                    return Poll::Ready(me.queue.pop_all());
                 }
             }
         }
@@ -139,7 +161,7 @@ impl Stream for MsgQueue {
 
         match me.deadline.poll(cx) {
             Poll::Pending => Poll::Pending,
-            Poll::Ready(()) => Poll::Ready(Some(me.queue.pop_all())),
+            Poll::Ready(()) => Poll::Ready(me.queue.pop_all()),
         }
     }
 }
@@ -159,7 +181,7 @@ impl Queue {
         }
     }
 
-    pub fn push(&mut self, msg: QueueMsg) -> Option<Vec<QueueMsg>> {
+    pub fn push(&mut self, msg: QueueMsg) -> Option<nonempty::Vec<QueueMsg>> {
         match self.gas_cost.checked_add(msg.gas) {
             None => {
                 let results = self.pop_all();
@@ -167,25 +189,48 @@ impl Queue {
                 self.gas_cost = msg.gas;
                 self.msgs.push(msg);
 
+                results
+            }
+            Some(gas_cost) if gas_cost > self.gas_cap => {
+                let results = self.pop_all();
+
+                self.gas_cost = msg.gas;
+                self.msgs.push(msg);
+
+                results
+            }
+            Some(gas_cost) if gas_cost == self.gas_cap => {
+                let results = if let Some(mut results) = self.pop_all() {
+                    results.as_mut().push(msg);
+
+                    results
+                } else {
+                    vec![msg].try_into().expect("must not be empty")
+                };
+
                 Some(results)
             }
             Some(gas_cost) => {
                 self.gas_cost = gas_cost;
                 self.msgs.push(msg);
 
-                if self.gas_cost >= self.gas_cap {
-                    Some(self.pop_all())
-                } else {
-                    None
-                }
+                None
             }
         }
     }
 
-    pub fn pop_all(&mut self) -> Vec<QueueMsg> {
+    pub fn pop_all(&mut self) -> Option<nonempty::Vec<QueueMsg>> {
+        if self.is_empty() {
+            return None;
+        }
+
         self.gas_cost = 0;
 
-        std::mem::take(&mut self.msgs)
+        Some(
+            std::mem::take(&mut self.msgs)
+                .try_into()
+                .expect("msgs must not be empty"),
+        )
     }
 
     pub fn is_empty(&self) -> bool {
@@ -253,10 +298,12 @@ mod tests {
             .unwrap();
         let actual = msg_queue.next().await.unwrap();
 
-        assert_eq!(actual.len(), 1);
-        assert_eq!(actual[0].gas, gas_cap);
-        assert_eq!(actual[0].msg.type_url, "/cosmos.bank.v1beta1.MsgSend");
-        assert!(actual[0].tx_res_callback.is_none());
+        assert_eq!(actual.as_ref().len(), 1);
+        assert_eq!(actual.as_ref()[0].gas, gas_cap);
+        assert_eq!(
+            actual.as_ref()[0].msg.type_url,
+            "/cosmos.bank.v1beta1.MsgSend"
+        );
     }
 
     #[tokio::test]
@@ -300,13 +347,15 @@ mod tests {
         )
         .unwrap();
 
-        msg_queue_client.enqueue(dummy_msg()).await.unwrap();
+        let _ = msg_queue_client.enqueue(dummy_msg()).await.unwrap();
         let actual = msg_queue.next().await.unwrap();
 
-        assert_eq!(actual.len(), 1);
-        assert_eq!(actual[0].gas, gas_cap);
-        assert_eq!(actual[0].msg.type_url, "/cosmos.bank.v1beta1.MsgSend");
-        assert!(actual[0].tx_res_callback.is_some());
+        assert_eq!(actual.as_ref().len(), 1);
+        assert_eq!(actual.as_ref()[0].gas, gas_cap);
+        assert_eq!(
+            actual.as_ref()[0].msg.type_url,
+            "/cosmos.bank.v1beta1.MsgSend"
+        );
     }
 
     #[tokio::test]
@@ -400,10 +449,12 @@ mod tests {
             .unwrap();
         let actual = msg_queue.next().await.unwrap();
 
-        assert_eq!(actual.len(), 1);
-        assert_eq!(actual[0].gas, gas_cap / 10);
-        assert_eq!(actual[0].msg.type_url, "/cosmos.bank.v1beta1.MsgSend");
-        assert!(actual[0].tx_res_callback.is_none());
+        assert_eq!(actual.as_ref().len(), 1);
+        assert_eq!(actual.as_ref()[0].gas, gas_cap / 10);
+        assert_eq!(
+            actual.as_ref()[0].msg.type_url,
+            "/cosmos.bank.v1beta1.MsgSend"
+        );
     }
 
     #[tokio::test]
@@ -459,11 +510,10 @@ mod tests {
         }
         let actual = msg_queue.next().await.unwrap();
 
-        assert_eq!(actual.len(), msg_count);
-        for msg in actual {
+        assert_eq!(actual.as_ref().len(), msg_count);
+        for msg in actual.as_ref() {
             assert_eq!(msg.gas, gas_cap / 10);
             assert_eq!(msg.msg.type_url, "/cosmos.bank.v1beta1.MsgSend");
-            assert!(msg.tx_res_callback.is_none());
         }
     }
 
@@ -521,17 +571,21 @@ mod tests {
             .unwrap();
         let actual = msg_queue.next().await.unwrap();
 
-        assert_eq!(actual.len(), 1);
-        assert_eq!(actual[0].gas, gas_cap);
-        assert_eq!(actual[0].msg.type_url, "/cosmos.bank.v1beta1.MsgSend");
-        assert!(actual[0].tx_res_callback.is_none());
+        assert_eq!(actual.as_ref().len(), 1);
+        assert_eq!(actual.as_ref()[0].gas, gas_cap);
+        assert_eq!(
+            actual.as_ref()[0].msg.type_url,
+            "/cosmos.bank.v1beta1.MsgSend"
+        );
 
         let actual = msg_queue.next().await.unwrap();
 
-        assert_eq!(actual.len(), 1);
-        assert_eq!(actual[0].gas, gas_cap);
-        assert_eq!(actual[0].msg.type_url, "/cosmos.bank.v1beta1.MsgSend");
-        assert!(actual[0].tx_res_callback.is_none());
+        assert_eq!(actual.as_ref().len(), 1);
+        assert_eq!(actual.as_ref()[0].gas, gas_cap);
+        assert_eq!(
+            actual.as_ref()[0].msg.type_url,
+            "/cosmos.bank.v1beta1.MsgSend"
+        );
     }
 
     fn dummy_msg() -> Any {

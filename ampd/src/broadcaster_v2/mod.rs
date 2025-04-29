@@ -1,14 +1,15 @@
 use std::ops::Mul;
 
+use axelar_wasm_std::nonempty;
 use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
 use cosmrs::tx::Fee;
-use cosmrs::{Any, Coin};
+use cosmrs::{Any, Coin, Gas};
 use error_stack::{report, ResultExt};
 use k256::sha2::{Digest, Sha256};
 use num_traits::cast;
 use report::{LoggableError, ResultCompatExt};
 use thiserror::Error;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, oneshot};
 use tokio_stream::StreamExt;
 use tracing::{error, info};
 use typed_builder::TypedBuilder;
@@ -39,13 +40,17 @@ pub enum Error {
     TxSigning,
     #[error("failed to broadcast tx")]
     BroadcastTx,
+    #[error("failed to receive tx result")]
+    ReceiveTxResult(#[from] oneshot::error::RecvError),
+    #[error("estimated gas {gas} exceeds gas limit {gas_cap}")]
+    GasExceedsGasCap { gas: Gas, gas_cap: Gas },
 }
 
 #[derive(TypedBuilder)]
 pub struct BroadcasterTask<T, Q, S>
 where
     T: cosmos::CosmosClient,
-    Q: futures::Stream<Item = Vec<msg_queue::QueueMsg>> + Unpin,
+    Q: futures::Stream<Item = nonempty::Vec<msg_queue::QueueMsg>> + Unpin,
     S: tofnd::grpc::Multisig,
 {
     broadcaster: broadcaster::Broadcaster<T>,
@@ -59,22 +64,18 @@ where
 impl<T, Q, S> BroadcasterTask<T, Q, S>
 where
     T: cosmos::CosmosClient,
-    Q: futures::Stream<Item = Vec<msg_queue::QueueMsg>> + Unpin,
+    Q: futures::Stream<Item = nonempty::Vec<msg_queue::QueueMsg>> + Unpin,
     S: tofnd::grpc::Multisig,
 {
     pub async fn run(mut self) -> Result<()> {
         while let Some(msgs) = self.msg_queue.next().await {
-            if msgs.is_empty() {
-                continue;
-            }
-
             let tx_res = self
-                .broadcast(msgs.iter().map(|msg| msg.msg.clone()))
+                .broadcast(msgs.as_ref().iter().map(|msg| msg.msg.clone()))
                 .await
                 .inspect(|res| {
                     info!(
                         tx_hash = res.txhash,
-                        msg_count = msgs.len(),
+                        msg_count = msgs.as_ref().len(),
                         "successfully broadcasted tx"
                     );
                 })
@@ -84,7 +85,7 @@ where
                         "failed to broadcast tx",
                     );
                 });
-            self.handle_tx_res(tx_res, msgs);
+            handle_tx_res(tx_res, msgs);
         }
 
         Ok(())
@@ -141,22 +142,24 @@ where
             })
             .await
     }
+}
 
-    fn handle_tx_res(&mut self, tx_res: Result<TxResponse>, msgs: Vec<msg_queue::QueueMsg>) {
-        let tx_hash = tx_res.map(|res| res.txhash);
+fn handle_tx_res(tx_res: Result<TxResponse>, msgs: nonempty::Vec<msg_queue::QueueMsg>) {
+    let tx_hash = tx_res.map(|res| res.txhash);
 
-        msgs.into_iter().enumerate().for_each(|(i, msg)| {
+    Vec::from(msgs)
+        .into_iter()
+        .enumerate()
+        .for_each(|(i, msg)| {
             match (msg.tx_res_callback, &tx_hash) {
-                (None, _) => {}
-                (Some(tx_res_callback), Ok(tx_hash)) => {
+                (tx_res_callback, Ok(tx_hash)) => {
                     let _ = tx_res_callback.send(Ok((tx_hash.clone(), i as u64)));
                 }
-                (Some(tx_res_callback), Err(_)) => {
+                (tx_res_callback, Err(_)) => {
                     let _ = tx_res_callback.send(Err(report!(Error::BroadcastTx)));
                 }
             };
         });
-    }
 }
 
 #[cfg(test)]
@@ -221,13 +224,13 @@ mod tests {
                 let msg = QueueMsg {
                     msg: dummy_msg(),
                     gas: 50000,
-                    tx_res_callback: Some(tx),
+                    tx_res_callback: tx,
                 };
 
                 (rx, msg)
             })
             .unzip();
-        let msg_queue = iter(vec![queue_msgs]);
+        let msg_queue = iter(vec![queue_msgs.try_into().unwrap()]);
 
         let mut mock_signer = MockMultisig::new();
         mock_signer
@@ -310,8 +313,10 @@ mod tests {
         let queue_msgs = vec![QueueMsg {
             msg: dummy_msg(),
             gas: 50000,
-            tx_res_callback: Some(tx),
-        }];
+            tx_res_callback: tx,
+        }]
+        .try_into()
+        .unwrap();
         let msg_queue = iter(vec![queue_msgs]);
 
         let mut mock_signer = MockMultisig::new();
@@ -379,94 +384,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn broadcaster_task_should_handle_mixed_callbacks() {
-        let pub_key = random_cosmos_public_key();
-        let address = pub_key.account_id(PREFIX).unwrap().into();
-        let chain_id: tendermint::chain::Id = "test-chain-id".parse().unwrap();
-        let base_account = create_base_account(&address);
-
-        let (tx, rx) = oneshot::channel();
-        let queue_msgs = vec![
-            QueueMsg {
-                msg: dummy_msg(),
-                gas: 50000,
-                tx_res_callback: None,
-            },
-            QueueMsg {
-                msg: dummy_msg(),
-                gas: 50000,
-                tx_res_callback: Some(tx),
-            },
-        ];
-        let msg_queue = iter(vec![queue_msgs]);
-
-        let mut mock_signer = MockMultisig::new();
-        mock_signer
-            .expect_sign()
-            .once()
-            .returning(|_, _, _, _| Ok(vec![0u8; 64]));
-
-        let mut seq = Sequence::new();
-        let mut mock_client = cosmos::MockCosmosClient::new();
-        mock_client
-            .expect_account()
-            .once()
-            .in_sequence(&mut seq)
-            .return_once(move |_| {
-                Ok(QueryAccountResponse {
-                    account: Some(Any::from_msg(&base_account).unwrap()),
-                })
-            });
-        mock_client
-            .expect_simulate()
-            .once()
-            .in_sequence(&mut seq)
-            .return_once(move |_| {
-                Ok(SimulateResponse {
-                    gas_info: Some(GasInfo {
-                        gas_wanted: 0,
-                        gas_used: 100000,
-                    }),
-                    result: None,
-                })
-            });
-        mock_client
-            .expect_broadcast_tx()
-            .once()
-            .in_sequence(&mut seq)
-            .return_once(move |_| {
-                Ok(BroadcastTxResponse {
-                    tx_response: Some(TxResponse {
-                        txhash: "tx_hash_success".to_string(),
-                        code: 0,
-                        ..Default::default()
-                    }),
-                })
-            });
-
-        let broadcaster = broadcaster::Broadcaster::new(mock_client, chain_id, pub_key)
-            .await
-            .unwrap();
-        let broadcaster_task = BroadcasterTask::builder()
-            .broadcaster(broadcaster)
-            .msg_queue(msg_queue)
-            .signer(mock_signer)
-            .key_id("test-key".to_string())
-            .gas_adjustment(1.5)
-            .gas_price(DecCoin::new(0.025, "uaxl").unwrap())
-            .build();
-
-        let result = tokio::spawn(async move { broadcaster_task.run().await })
-            .await
-            .unwrap();
-        assert!(result.is_ok());
-
-        let (tx_hash, idx) = rx.await.unwrap().unwrap();
-        assert_eq!(tx_hash, "tx_hash_success");
-        assert_eq!(idx, 1);
-    }
-
-    #[tokio::test]
     async fn broadcaster_task_should_handle_signing_errors() {
         let pub_key = random_cosmos_public_key();
         let address = pub_key.account_id(PREFIX).unwrap().into();
@@ -477,8 +394,10 @@ mod tests {
         let queue_msgs = vec![QueueMsg {
             msg: dummy_msg(),
             gas: 50000,
-            tx_res_callback: Some(tx),
-        }];
+            tx_res_callback: tx,
+        }]
+        .try_into()
+        .unwrap();
         let msg_queue = iter(vec![queue_msgs]);
 
         let mut mock_signer = MockMultisig::new();
@@ -552,13 +471,17 @@ mod tests {
         let batch_1 = vec![QueueMsg {
             msg: dummy_msg(),
             gas: 50000,
-            tx_res_callback: Some(tx_1),
-        }];
+            tx_res_callback: tx_1,
+        }]
+        .try_into()
+        .unwrap();
         let batch_2 = vec![QueueMsg {
             msg: dummy_msg(),
             gas: 50000,
-            tx_res_callback: Some(tx_2),
-        }];
+            tx_res_callback: tx_2,
+        }]
+        .try_into()
+        .unwrap();
         let msg_queue = iter(vec![batch_1, batch_2]);
 
         let mut mock_signer = MockMultisig::new();
@@ -670,13 +593,17 @@ mod tests {
         let batch_1 = vec![QueueMsg {
             msg: dummy_msg(),
             gas: 50000,
-            tx_res_callback: Some(tx_1),
-        }];
+            tx_res_callback: tx_1,
+        }]
+        .try_into()
+        .unwrap();
         let batch_2 = vec![QueueMsg {
             msg: dummy_msg(),
             gas: 50000,
-            tx_res_callback: Some(tx_2),
-        }];
+            tx_res_callback: tx_2,
+        }]
+        .try_into()
+        .unwrap();
         let msg_queue = iter(vec![batch_1, batch_2]);
 
         let mut mock_signer = MockMultisig::new();
@@ -793,8 +720,10 @@ mod tests {
         let queue_msgs = vec![QueueMsg {
             msg: dummy_msg(),
             gas: 50000,
-            tx_res_callback: Some(tx),
-        }];
+            tx_res_callback: tx,
+        }]
+        .try_into()
+        .unwrap();
         let msg_queue = iter(vec![queue_msgs]);
 
         let mut mock_signer = MockMultisig::new();
