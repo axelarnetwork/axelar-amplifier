@@ -80,23 +80,10 @@ impl Client<'_> {
         &self,
         chain_contracts_key: ChainContractsKey,
     ) -> Result<ChainContractsResponse, Error> {
-        let msg = QueryMsg::ChainContractsInfo(chain_contracts_key.clone());
+        let msg = QueryMsg::ChainContractsInfo(chain_contracts_key);
         self.client
             .query(&msg)
-            .change_context(match chain_contracts_key {
-                ChainContractsKey::GatewayAddress(gateway_addr) => {
-                    Error::GatewayNotRegistered(gateway_addr)
-                }
-                ChainContractsKey::ProverAddress(prover_addr) => {
-                    Error::ProverNotRegistered(prover_addr)
-                }
-                ChainContractsKey::VerifierAddress(verifier_addr) => {
-                    Error::VerifierNotRegistered(verifier_addr)
-                }
-                ChainContractsKey::ChainName(chain_name) => {
-                    Error::ChainNameNotRegistered(chain_name.into())
-                }
-            })
+            .change_context(Error::ChainContractsInfo)
     }
 }
 
