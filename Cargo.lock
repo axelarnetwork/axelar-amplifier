@@ -12640,6 +12640,17 @@ dependencies = [
  "sha3 0.10.8",
  "starknet-checked-felt",
  "thiserror 1.0.69",
+ "voting-verifier-api",
+]
+
+[[package]]
+name = "voting-verifier-api"
+version = "1.0.0"
+dependencies = [
+ "axelar-wasm-std",
+ "cosmwasm-schema",
+ "router-api",
+ "serde_json",
 ]
 
 [[package]]
