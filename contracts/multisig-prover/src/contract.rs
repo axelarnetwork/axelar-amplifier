@@ -3,8 +3,8 @@ use axelar_wasm_std::{address, permission_control};
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Reply, Response};
 use error_stack::ResultExt;
+use multisig_prover_api::error::ContractError;
 
-use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{Config, CONFIG};
 
@@ -128,18 +128,18 @@ mod tests {
     };
     use multisig::msg::Signer;
     use multisig::verifier_set::VerifierSet;
+    use multisig_prover_api::encoding::Encoder;
+    use multisig_prover_api::test::test_data::{self, TestOperator};
+    use multisig_prover_api::test::test_utils::{
+        mock_querier_handler, ADMIN, COORDINATOR_ADDRESS, GATEWAY_ADDRESS, GOVERNANCE,
+        MULTISIG_ADDRESS, SERVICE_NAME, SERVICE_REGISTRY_ADDRESS, VOTING_VERIFIER_ADDRESS,
+    };
     use prost::Message;
     use router_api::CrossChainId;
 
     use super::*;
     use crate::contract::execute::should_update_verifier_set;
-    use crate::encoding::Encoder;
     use crate::msg::{ProofResponse, ProofStatus, VerifierSetResponse};
-    use crate::test::test_data::{self, TestOperator};
-    use crate::test::test_utils::{
-        mock_querier_handler, ADMIN, COORDINATOR_ADDRESS, GATEWAY_ADDRESS, GOVERNANCE,
-        MULTISIG_ADDRESS, SERVICE_NAME, SERVICE_REGISTRY_ADDRESS, VOTING_VERIFIER_ADDRESS,
-    };
 
     const RELAYER: &str = "relayer";
     const MULTISIG_SESSION_ID: Uint64 = Uint64::one();

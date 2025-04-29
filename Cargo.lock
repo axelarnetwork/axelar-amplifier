@@ -5026,6 +5026,7 @@ dependencies = [
  "k256",
  "multisig",
  "multisig-prover",
+ "multisig-prover-api",
  "rand 0.8.5",
  "report",
  "rewards",
@@ -6300,6 +6301,7 @@ dependencies = [
  "k256",
  "msgs-derive",
  "multisig",
+ "multisig-prover-api",
  "prost 0.12.6",
  "report",
  "router-api",
@@ -6313,6 +6315,42 @@ dependencies = [
  "sui-gateway",
  "thiserror 1.0.69",
  "voting-verifier",
+]
+
+[[package]]
+name = "multisig-prover-api"
+version = "1.0.0"
+dependencies = [
+ "anyhow",
+ "assert_ok",
+ "axelar-wasm-std",
+ "bcs",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-multi-test",
+ "cw-storage-plus",
+ "cw-utils",
+ "elliptic-curve",
+ "error-stack",
+ "ethers-contract",
+ "ethers-core",
+ "evm-gateway",
+ "generic-array",
+ "goldie",
+ "hex",
+ "itertools 0.14.0",
+ "k256",
+ "msgs-derive",
+ "multisig",
+ "prost 0.12.6",
+ "router-api",
+ "service-registry",
+ "service-registry-api",
+ "sha3 0.10.8",
+ "stellar",
+ "stellar-xdr",
+ "sui-gateway",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
