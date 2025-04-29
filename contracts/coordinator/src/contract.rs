@@ -109,8 +109,26 @@ pub fn execute(
                 .try_collect()?;
             execute::set_active_verifier_set(deps, info, verifiers)
         },
-        ExecuteMsg::DeployChain { chain_name, gateway_instantiate_msg, verifier_instantiate_msg, prover_instantiate_msg } => {
-            Ok(Response::new())
+        ExecuteMsg::DeployChain { 
+            chain_name,
+            gateway_code_id,
+            gateway_instantiate_msg,
+            verifier_code_id,
+            verifier_instantiate_msg,
+            prover_code_id,
+            prover_instantiate_msg } => {
+            
+            execute::deploy_chain(
+                deps,
+                info,
+                chain_name.parse().unwrap(), 
+                gateway_code_id,
+                gateway_instantiate_msg,
+                verifier_code_id,
+                verifier_instantiate_msg,
+                prover_code_id,
+                prover_instantiate_msg 
+            )
         }
     }
     .change_context(Error::Execute)?

@@ -46,8 +46,11 @@ pub enum ExecuteMsg {
     #[permission(Any)]
     DeployChain {
         chain_name: String,
+        gateway_code_id: u64,
         gateway_instantiate_msg: GatewayInstantiateMsg,
+        verifier_code_id: u64,
         verifier_instantiate_msg: VerifierInstantiateMsg,
+        prover_code_id: u64,
         prover_instantiate_msg: ProverInstantiateMsg,
     }
 }
