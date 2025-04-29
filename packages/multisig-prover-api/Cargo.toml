@@ -1,0 +1,46 @@
+[package]
+name = "multisig-prover-api"
+version = "1.0.0"
+rust-version = { workspace = true }
+edition = { workspace = true }
+
+[features]
+test-helpers = []
+
+[dependencies]
+axelar-wasm-std = { workspace = true, features = ["derive"] }
+bcs = { workspace = true }
+cosmwasm-schema = { workspace = true }
+cosmwasm-std = { workspace = true }
+cw-storage-plus = { workspace = true }
+cw-utils = { workspace = true }
+error-stack = { workspace = true }
+ethers-contract = { workspace = true }
+ethers-core = { workspace = true }
+evm-gateway = { workspace = true }
+hex = { version = "0.4.3", default-features = false, features = [] }
+itertools = { workspace = true }
+k256 = { workspace = true }
+msgs-derive = { workspace = true }
+multisig = { workspace = true, features = ["library"] }
+router-api = { workspace = true }
+sha3 = { workspace = true }
+stellar = { workspace = true }
+stellar-xdr = { workspace = true }
+sui-gateway = { workspace = true }
+thiserror = { workspace = true }
+service-registry = { workspace = true }
+service-registry-api = { workspace = true }
+
+[dev-dependencies]
+anyhow = "1.0"
+assert_ok = { workspace = true }
+cw-multi-test = { workspace = true }
+elliptic-curve = "0.13.5"
+generic-array = "0.14.7"
+goldie = { workspace = true }
+prost = "0.12.4"
+
+
+[lints]
+workspace = true
