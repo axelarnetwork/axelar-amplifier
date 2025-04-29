@@ -53,7 +53,7 @@ where
     }
 
     pub async fn enqueue_and_forget(&mut self, msg: Any) -> Result<()> {
-        let _ = self.enqueue_with_channel(msg).await?;
+        let _rx = self.enqueue_with_channel(msg).await?;
 
         Ok(())
     }
@@ -361,7 +361,7 @@ mod tests {
         )
         .unwrap();
 
-        let _ = msg_queue_client.enqueue(dummy_msg()).await.unwrap();
+        let _rx = msg_queue_client.enqueue(dummy_msg()).await.unwrap();
         let actual = msg_queue.next().await.unwrap();
 
         assert_eq!(actual.as_ref().len(), 1);
