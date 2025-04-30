@@ -8,7 +8,7 @@ use crate::handlers::config::deserialize_handler_configs;
 use crate::handlers::{self};
 use crate::tofnd::Config as TofndConfig;
 use crate::url::Url;
-use crate::{broadcaster, event_processor};
+use crate::{broadcaster, event_processor, grpc};
 
 #[derive(Deserialize, Serialize, Debug, PartialEq)]
 #[serde(default)]
@@ -24,6 +24,8 @@ pub struct Config {
     pub tofnd_config: TofndConfig,
     pub service_registry: ServiceRegistryConfig,
     pub rewards: RewardsConfig,
+    #[serde(deserialize_with = "grpc::deserialize_config")]
+    pub grpc: grpc::Config,
 }
 
 impl Default for Config {
@@ -39,6 +41,7 @@ impl Default for Config {
             service_registry: ServiceRegistryConfig::default(),
             rewards: RewardsConfig::default(),
             health_check_bind_addr: SocketAddrV4::new(Ipv4Addr::UNSPECIFIED, 3000),
+            grpc: grpc::Config::default(),
         }
     }
 }
@@ -62,6 +65,115 @@ mod tests {
     use crate::url::Url;
 
     const PREFIX: &str = "axelar";
+
+    #[test]
+    fn deserialize_valid_grpc_config() {
+        let ip_addr = "0.0.0.0";
+        let port = 9091;
+        let concurrency_limit = 2048;
+        let concurrency_limit_per_connection = 256;
+
+        let config_str = format!(
+            "
+            [grpc]
+            ip_addr = '{ip_addr}'
+            port = {port}
+            concurrency_limit = {concurrency_limit}
+            concurrency_limit_per_connection = {concurrency_limit_per_connection}
+            ",
+        );
+        let cfg: Config = toml::from_str(config_str.as_str()).unwrap();
+
+        goldie::assert_json!(cfg);
+    }
+
+    #[test]
+    fn deserialize_invalid_grpc_config() {
+        let ip_addr = "invalid_ip";
+        let port = 9091;
+        let concurrency_limit = 2048;
+        let concurrency_limit_per_connection = 256;
+
+        let config_str = format!(
+            "
+            [grpc]
+            ip_addr = '{ip_addr}'
+            port = {port}
+            concurrency_limit = {concurrency_limit}
+            concurrency_limit_per_connection = {concurrency_limit_per_connection}
+            ",
+        );
+        let cfg: Result<Config, _> = toml::from_str(config_str.as_str());
+        assert!(cfg.is_err());
+
+        let ip_addr = "0.0.0.0";
+        let port = "invalid_port";
+        let concurrency_limit = 2048;
+        let concurrency_limit_per_connection = 256;
+
+        let config_str = format!(
+            "
+            [grpc]
+            ip_addr = '{ip_addr}'
+            port = {port}
+            concurrency_limit = {concurrency_limit}
+            concurrency_limit_per_connection = {concurrency_limit_per_connection}
+            ",
+        );
+        let cfg: Result<Config, _> = toml::from_str(config_str.as_str());
+        assert!(cfg.is_err());
+
+        let ip_addr = "0.0.0.0";
+        let port = 9090;
+        let concurrency_limit = 0;
+        let concurrency_limit_per_connection = 256;
+
+        let config_str = format!(
+            "
+            [grpc]
+            ip_addr = '{ip_addr}'
+            port = {port}
+            concurrency_limit = {concurrency_limit}
+            concurrency_limit_per_connection = {concurrency_limit_per_connection}
+            ",
+        );
+        let cfg: Result<Config, _> = toml::from_str(config_str.as_str());
+        assert!(cfg.is_err());
+
+        let ip_addr = "0.0.0.0";
+        let port = 9090;
+        let concurrency_limit = 2048;
+        let concurrency_limit_per_connection = 0;
+
+        let config_str = format!(
+            "
+            [grpc]
+            ip_addr = '{ip_addr}'
+            port = {port}
+            concurrency_limit = {concurrency_limit}
+            concurrency_limit_per_connection = {concurrency_limit_per_connection}
+            ",
+        );
+        let cfg: Result<Config, _> = toml::from_str(config_str.as_str());
+        assert!(cfg.is_err());
+
+        let ip_addr = "0.0.0.0";
+        let port = 9090;
+        let concurrency_limit = 100;
+        let concurrency_limit_per_connection = 200;
+
+        let config_str = format!(
+            "
+            [grpc]
+            ip_addr = '{ip_addr}'
+            port = {port}
+            concurrency_limit = {concurrency_limit}
+            concurrency_limit_per_connection = {concurrency_limit_per_connection}
+            ",
+        );
+        let cfg: Result<Config, _> = toml::from_str(config_str.as_str());
+        assert!(cfg.is_err());
+    }
 
     #[test]
     fn deserialize_handlers() {
