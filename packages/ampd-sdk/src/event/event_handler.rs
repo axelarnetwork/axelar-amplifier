@@ -62,13 +62,13 @@ pub enum Error {
     #[error("timeout while waiting for event stream")]
     StreamTimeout,
 
-    #[error("failed to create handler event type from client event")]
-    TryIntoEventHandlerType,
+    #[error("unable to parse event of type")] // attach printable
+    EventConversion,
 
-    #[error("error when handling event messages and task action is set to abort")]
+    #[error("error when handling event messages")]
     HandlerFailed,
 
-    #[error("error when broadcasting message and task action is set to abort")]
+    #[error("error when broadcasting message")]
     BroadcastFailed,
 }
 
@@ -97,7 +97,7 @@ where
     handler_retry_policy: RetryPolicy,
     #[builder(default = RetryPolicy::NoRetry)]
     broadcast_retry_policy: RetryPolicy,
-    event_subscribe_error_cb: fn(&client::Error) -> HandlerTaskAction,
+    event_subscribe_error_cb: fn(Report<client::Error>) -> HandlerTaskAction,
     handler_error_cb: fn(&H::Event, &H::Err) -> HandlerTaskAction,
     broadcaster_error_cb: fn(&Any, H::Err) -> HandlerTaskAction,
 }
@@ -107,6 +107,18 @@ where
     H: EventHandler,
     C: client::Client,
 {
+    fn log_block_start_and_end(event: &Event) {
+        match event {
+            Event::BlockBegin(height) => {
+                info!(height = height.value(), "handler started processing block");
+            }
+            Event::BlockEnd(height) => {
+                info!(height = height.value(), "handler finished processing block");
+            }
+            _ => {}
+        }
+    }
+
     pub async fn run(&mut self, token: CancellationToken) -> Result<(), Error> {
         let subscription_args = self.handler.subscribe_args().await;
 
@@ -124,25 +136,16 @@ where
         let intermediate_stream = event_stream
             .take_while(|_| !child_token.is_cancelled())
             .timeout_repeating(interval(self.config.stream_timeout))
-            .map(|element| match element {
-                Ok(event) => event.change_context(Error::ClientEventStream),
-                Err(_) => Err(Report::new(Error::StreamTimeout)),
-            })
-            .inspect_ok(|event| match event {
-                Event::BlockBegin(height) => {
-                    info!(height = height.value(), "Handler started processing block");
-                }
-                Event::BlockEnd(height) => {
-                    info!(height = height.value(), "Handler finished processing block");
-                }
-                _ => {}
-            })
-            .map(|event_result| match event_result {
-                Ok(event) => {
-                    H::Event::try_from(event).map_err(|_| report!(Error::TryIntoEventHandlerType))
-                }
-                Err(err) => Err(err),
-            });
+            .map(|element| element.change_context(Error::StreamTimeout).and_then(
+                |event| event.change_context(Error::ClientEventStream)
+                .inspect(HandlerTask::log_block_start_and_end)
+                .and_then(|event| {
+                    H::Event::try_from(event).map_err(|_| report!(Error::EventConversion))
+                })
+            ));
+            // .and_then(|event| {
+            //     H::Event::try_from(event).map_err(|_| report!(Error::EventConversion))
+            // });
 
         let processed_stream = intermediate_stream.then(|handler_event_result| async {
             match handler_event_result {
@@ -177,15 +180,11 @@ where
                         )),
                     }
                 }
-                Err(err) => {
-                    if let Some(client_err) = err.downcast_ref::<client::Error>() {
-                        Ok(ActionOutcome::HandlerAction(
-                            (self.event_subscribe_error_cb)(client_err),
-                            Error::ClientEventStream,
-                        ))
-                    } else {
-                        Err(err)
-                    }
+                Err(client_err) => {
+                    Ok(ActionOutcome::HandlerAction(
+                        (self.event_subscribe_error_cb)(client_err),
+                        Error::ClientEventStream,
+                    ))
                 }
             }
         });
@@ -217,6 +216,7 @@ where
 
         Ok(())
     }
+
 }
 
 #[cfg(test)]
