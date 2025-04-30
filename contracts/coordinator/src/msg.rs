@@ -1,14 +1,17 @@
 use std::collections::HashSet;
 
+use axelar_wasm_std::address::AddressFormat;
+use axelar_wasm_std::msg_id::MessageIdFormat;
 use axelar_wasm_std::nonempty;
+use axelar_wasm_std::hash::Hash;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::Addr;
 use msgs_derive::EnsurePermissions;
 use router_api::ChainName;
 use service_registry_api::Verifier;
-use gateway_api::msg::InstantiateMsg as GatewayInstantiateMsg;
-use voting_verifier_api::msg::InstantiateMsg as VerifierInstantiateMsg;
-use multisig_prover_api::msg::InstantiateMsg as ProverInstantiateMsg;
+use axelar_wasm_std::MajorityThreshold;
+use multisig::key::KeyType;
+use multisig_prover_api::encoding::Encoder;
 
 pub use crate::contract::MigrateMsg;
 
@@ -20,6 +23,8 @@ type VerifierAddress = Addr;
 pub struct InstantiateMsg {
     pub governance_address: String,
     pub service_registry: String,
+    pub router_address: String,
+    pub multisig_address: String,
 }
 
 #[cw_serde]
@@ -54,12 +59,40 @@ pub enum ExecuteMsg {
 pub enum DeploymentParams {
     Manual {
         gateway_code_id: u64,
-        gateway_instantiate_msg: GatewayInstantiateMsg,
         verifier_code_id: u64,
-        verifier_instantiate_msg: VerifierInstantiateMsg,
+        verifier_msg: VerifierMsg,
         prover_code_id: u64,
-        prover_instantiate_msg: ProverInstantiateMsg,
+        prover_msg: ProverMsg,
     }
+}
+
+#[cw_serde]
+pub struct ProverMsg {
+    pub governance_address: String,
+    pub multisig_address: String,
+    pub voting_verifier_address: String,
+    pub signing_threshold: MajorityThreshold,
+    pub service_name: String,
+    pub chain_name: String,
+    pub verifier_set_diff_threshold: u32,
+    pub encoder: Encoder,
+    pub key_type: KeyType,
+    #[serde(with = "axelar_wasm_std::hex")] // (de)serialization with hex module
+    #[schemars(with = "String")] // necessary attribute in conjunction with #[serde(with ...)]
+    pub domain_separator: Hash,
+}
+
+#[cw_serde]
+pub struct VerifierMsg {
+    pub governance_address: String,
+    pub service_name: String,
+    pub voting_threshold: MajorityThreshold,
+    pub block_expiry: nonempty::Uint64,
+    pub confirmation_height: u64,
+    pub source_chain: ChainName,
+    pub rewards_address: nonempty::String,
+    pub msg_id_format: MessageIdFormat,
+    pub address_format: AddressFormat,
 }
 
 #[cw_serde]
