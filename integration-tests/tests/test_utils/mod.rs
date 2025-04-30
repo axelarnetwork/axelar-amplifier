@@ -365,26 +365,8 @@ pub fn chain_contracts_info_from_coordinator(
     query_response.unwrap()
 }
 
-pub fn assert_chain_contracts_details_are_equal(
-    chain_contracts_record: ChainContractsResponse,
-    chain_contracts: &Chain,
-) {
-    assert_eq!(
-        chain_contracts_record.gateway_address,
-        chain_contracts.gateway.contract_addr
-    );
-    assert_eq!(
-        chain_contracts_record.prover_address,
-        chain_contracts.multisig_prover.contract_addr
-    );
-    assert_eq!(
-        chain_contracts_record.verifier_address,
-        chain_contracts.voting_verifier.contract_addr
-    );
-    assert_eq!(
-        chain_contracts_record.chain_name,
-        chain_contracts.chain_name
-    );
+pub fn assert_chain_contracts_details_are_equal(chain_contracts_record: ChainContractsResponse) {
+    goldie::assert_json!(chain_contracts_record);
 }
 
 #[allow(clippy::arithmetic_side_effects)]
