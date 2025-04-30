@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Order, Storage};
 use cw_storage_plus::{index_list, Index, IndexList, IndexedMap, Item, MultiIndex, UniqueIndex};
-use error_stack::{Report, Result, ResultExt};
+use error_stack::{report, Result, ResultExt};
 use router_api::ChainName;
 
 use crate::msg::ChainContractsResponse;
@@ -31,6 +31,9 @@ pub enum Error {
 
     #[error("failed to save state data")]
     StateSaveFailed,
+
+    #[error("failed to remove state data")]
+    StateRemoveFailed,
 }
 
 #[cw_serde]
@@ -111,7 +114,6 @@ pub fn save_chain_contracts(
 
     CHAIN_CONTRACTS_MAP
         .save(storage, chain, &record)
-        .map_err(|err| Report::new(err))
         .change_context(Error::StateSaveFailed)?;
 
     Ok(())
@@ -123,9 +125,8 @@ pub fn contracts_by_chain(
 ) -> Result<ChainContractsRecord, Error> {
     CHAIN_CONTRACTS_MAP
         .may_load(storage, chain_name.clone())
-        .map_err(|err| Report::new(err))
         .change_context(Error::StateParseFailed)?
-        .ok_or_else(|| Report::new(Error::ChainNotRegistered(chain_name)))
+        .ok_or(report!(Error::ChainNotRegistered(chain_name)))
 }
 
 pub fn contracts_by_prover(
@@ -136,9 +137,8 @@ pub fn contracts_by_prover(
         .idx
         .by_prover
         .item(storage, prover_address.clone())
-        .map_err(|err| Report::new(err))
         .change_context(Error::StateParseFailed)?
-        .ok_or_else(|| Report::new(Error::ProverNotRegistered(prover_address)))?
+        .ok_or(Error::ProverNotRegistered(prover_address))?
         .1)
 }
 
@@ -150,9 +150,8 @@ pub fn contracts_by_gateway(
         .idx
         .by_gateway
         .item(storage, gateway_address.clone())
-        .map_err(|err| Report::new(err))
         .change_context(Error::StateParseFailed)?
-        .ok_or_else(|| Report::new(Error::GatewayNotRegistered(gateway_address)))?
+        .ok_or(Error::GatewayNotRegistered(gateway_address))?
         .1)
 }
 
@@ -164,9 +163,8 @@ pub fn contracts_by_verifier(
         .idx
         .by_verifier
         .item(storage, verifier_address.clone())
-        .map_err(|err| Report::new(err))
         .change_context(Error::StateParseFailed)?
-        .ok_or_else(|| Report::new(Error::VerifierNotRegistered(verifier_address)))?
+        .ok_or(Error::VerifierNotRegistered(verifier_address))?
         .1)
 }
 
@@ -192,7 +190,6 @@ pub fn is_prover_registered(
         .idx
         .by_prover
         .item(storage, prover_address)
-        .map_err(|err| Report::new(err))
         .change_context(Error::StateParseFailed)?
         .is_some())
 }
@@ -202,11 +199,10 @@ pub fn load_prover_by_chain(
     storage: &dyn Storage,
     chain_name: ChainName,
 ) -> Result<ProverAddress, Error> {
-    CHAIN_PROVER_INDEXED_MAP
+    Ok(CHAIN_PROVER_INDEXED_MAP
         .may_load(storage, chain_name.clone())
-        .map_err(|err| Report::new(err))
         .change_context(Error::StateParseFailed)?
-        .ok_or_else(|| Report::new(Error::ChainNotRegistered(chain_name)))
+        .ok_or(Error::ChainNotRegistered(chain_name))?)
 }
 
 pub fn save_prover_for_chain(
@@ -216,7 +212,6 @@ pub fn save_prover_for_chain(
 ) -> Result<(), Error> {
     CHAIN_PROVER_INDEXED_MAP
         .save(storage, chain.clone(), &prover)
-        .map_err(|err| Report::new(err))
         .change_context(Error::StateSaveFailed)?;
 
     Ok(())
@@ -257,18 +252,13 @@ pub fn update_verifier_set_for_prover(
     let existing_verifiers = VERIFIER_PROVER_INDEXED_MAP
         .prefix(prover_address.clone())
         .keys(storage, None, None, Order::Ascending)
-        .filter_map(|res| res.ok())
+        .filter_map(core::result::Result::ok)
         .collect::<HashSet<VerifierAddress>>();
 
     for verifier in existing_verifiers.difference(&new_verifiers) {
         VERIFIER_PROVER_INDEXED_MAP
             .remove(storage, (prover_address.clone(), verifier.clone()))
-            .unwrap_or_else(|_| {
-                panic!(
-                    "Failed to remove verifier {:?} for prover {:?}",
-                    verifier, prover_address
-                )
-            });
+            .change_context(Error::StateRemoveFailed)?;
     }
 
     for verifier in new_verifiers.difference(&existing_verifiers) {
@@ -281,7 +271,6 @@ pub fn update_verifier_set_for_prover(
                     verifier: verifier.clone(),
                 },
             )
-            .map_err(|err| Report::new(err))
             .change_context(Error::StateSaveFailed)?;
     }
 
