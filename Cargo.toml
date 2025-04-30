@@ -13,6 +13,7 @@ resolver = "2"
 [workspace.package]
 rust-version = "1.81.0" # be sure there is an optimizer release supporting this version before updating. See https://github.com/CosmWasm/optimizer
 edition = "2021"
+license = "MIT OR Apache-2.0"
 
 [workspace.metadata.scripts]
 optimize = """docker run --rm -v "$(pwd)":/code \
@@ -103,7 +104,7 @@ syn = "2.0.92"
 tendermint = "0.35.0"
 thiserror = "1.0.61"
 tofn = { version = "1.1" }
-tokio = "1.38.0"
+tokio = "1.44.2"
 tokio-stream = "0.1.11"
 tokio-util = "0.7.11"
 voting-verifier = { version = "^1.1.0", path = "contracts/voting-verifier" }

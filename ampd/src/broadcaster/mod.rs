@@ -12,7 +12,7 @@ use cosmrs::proto::cosmos::tx::v1beta1::{BroadcastMode, BroadcastTxRequest, Simu
 use cosmrs::proto::traits::MessageExt;
 use cosmrs::tendermint::chain::Id;
 use cosmrs::tx::Fee;
-use cosmrs::{Amount, Coin, Denom, Gas};
+use cosmrs::{Amount, Any, Coin, Denom, Gas};
 use dec_coin::DecCoin;
 use error_stack::{ensure, report, FutureExt, Result, ResultExt};
 use futures::TryFutureExt;
@@ -20,8 +20,6 @@ use itertools::Itertools;
 use k256::sha2::{Digest, Sha256};
 use mockall::automock;
 use num_traits::{cast, Zero};
-use prost::Message;
-use prost_types::Any;
 use report::ResultCompatExt;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -349,7 +347,8 @@ where
 }
 
 fn decode_base_account(account: Any) -> Result<BaseAccount, Error> {
-    BaseAccount::decode(&account.value[..])
+    account
+        .to_msg()
         .change_context(Error::MalformedResponse {
             query: "account".to_string(),
         })
@@ -365,7 +364,6 @@ mod tests {
     use cosmrs::proto::cosmos::tx::v1beta1::{
         BroadcastTxResponse, GetTxResponse, SimulateResponse,
     };
-    use cosmrs::proto::traits::MessageExt;
     use cosmrs::proto::Any;
     use cosmrs::tx::Msg;
     use cosmrs::{AccountId, Coin, Denom};
@@ -587,7 +585,7 @@ mod tests {
             };
 
             Ok(QueryAccountResponse {
-                account: Some(account.to_any().unwrap()),
+                account: Some(Any::from_msg(&account).unwrap()),
             })
         });
         let mut broadcaster = init_validated_broadcaster(
@@ -813,7 +811,7 @@ mod tests {
         client.expect_account().returning(move |request| {
             if request.address == address.to_string() {
                 Ok(QueryAccountResponse {
-                    account: Some(account.to_any().unwrap()),
+                    account: Some(Any::from_msg(&account).unwrap()),
                 })
             } else {
                 Ok(QueryAccountResponse { account: None })
