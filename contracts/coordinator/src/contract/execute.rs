@@ -3,13 +3,10 @@ use core::cmp::Ordering;
 
 use error_stack::{Result, ResultExt};
 use cosmwasm_std::{Addr, Binary, DepsMut, MessageInfo, Response, WasmMsg, WasmQuery};
-
-use gateway_api::msg::InstantiateMsg as GatewayInstantiateMsg;
-use voting_verifier_api::msg::InstantiateMsg as VerifierInstantiateMsg;
-use multisig_prover_api::msg::InstantiateMsg as ProverInstantiateMsg;
 use router_api::ChainName;
 
 use crate::events::Event;
+use crate::msg::DeploymentParams;
 use crate::state::{save_chain_contracts, save_prover_for_chain, update_verifier_set_for_prover};
 
 #[derive(thiserror::Error, Debug, PartialEq)]
@@ -90,8 +87,8 @@ fn launch_contract(
     code_id: u64,
     instantiate_msg: Binary,
     label: String,
-) -> error_stack::Result<(Vec<WasmMsg>, Vec<Event>), Error> {
-    let mut results = (vec![], vec![]);
+) -> error_stack::Result<(Vec<WasmMsg>, Vec<Event>, Option<Addr>), Error> {
+    let mut results = (vec![], vec![], None);
 
     // Instantiate the contract
     results.0.push(WasmMsg::Instantiate2 { 
@@ -110,17 +107,13 @@ fn launch_contract(
     }.into())
     .change_context(Error::FailedToDeployContracts)?;
 
-    let instantiate2_addr = deps.api.addr_humanize(
+    results.2 = Some(deps.api.addr_humanize(
         &cosmwasm_std::instantiate2_address(
             code_info.checksum.as_slice(), 
             &info.sender.as_bytes().into(), 
             salt.as_slice()
         ).map_err(|_| Error::FailedToDeployContracts)?
-    ).map_err(|_| Error::FailedToDeployContracts)?;
-
-    // results.1.push(Event::DeployedChainContracts { 
-    //     gateway_address: instantiate2_addr
-    // });
+    ).map_err(|_| Error::FailedToDeployContracts)?);
 
     Ok(results)
 }
@@ -129,27 +122,59 @@ pub fn deploy_chain(
     deps: DepsMut,
     info: MessageInfo,
     chain_name: ChainName,
-    gateway_code_id: u64,
-    gateway_instantiate_msg: GatewayInstantiateMsg,
-    verifier_code_id: u64,
-    verifier_instantiate_msg: VerifierInstantiateMsg,
-    prover_code_id: u64,
-    prover_instantiate_msg: ProverInstantiateMsg,
+    params: DeploymentParams,
 ) -> error_stack::Result<Response, Error> {
     let mut response = Response::new();
 
-    // Gateway
-    let (msgs, events) = launch_contract(
-        &deps, 
-        &info, 
-        Binary::new(instantiate2_salt(&info)), 
-        gateway_code_id,
-        cosmwasm_std::to_json_binary(&gateway_instantiate_msg)
-        .change_context(Error::FailedToDeployContracts)?,
-        "Gateway1.0.0".to_string(),
-    )?;
+    match params {
+        DeploymentParams::Manual {
+            gateway_code_id,
+            gateway_instantiate_msg,
+            prover_code_id,
+            prover_instantiate_msg,
+            verifier_code_id,
+            verifier_instantiate_msg,
+        } => {
+            // Gateway
+            let (msgs, events, _) = launch_contract(
+                &deps, 
+                &info, 
+                Binary::new(instantiate2_salt(&info)), 
+                gateway_code_id,
+                cosmwasm_std::to_json_binary(&gateway_instantiate_msg)
+                .change_context(Error::FailedToDeployContracts)?,
+                "Gateway1.0.0".to_string(),
+            )?;
 
-    response = response.add_messages(msgs).add_events(events);
+            response = response.add_messages(msgs).add_events(events);
+
+            // Prover
+            let (msgs, events, _) = launch_contract(
+                &deps, 
+                &info, 
+                Binary::new(instantiate2_salt(&info)), 
+                prover_code_id,
+                cosmwasm_std::to_json_binary(&prover_instantiate_msg)
+                .change_context(Error::FailedToDeployContracts)?,
+                "Prover1.0.0".to_string(),
+            )?;
+
+            response = response.add_messages(msgs).add_events(events);
+
+            // Verifier
+            let (msgs, events, _) = launch_contract(
+                &deps, 
+                &info, 
+                Binary::new(instantiate2_salt(&info)), 
+                verifier_code_id,
+                cosmwasm_std::to_json_binary(&verifier_instantiate_msg)
+                .change_context(Error::FailedToDeployContracts)?,
+                "Verifier1.0.0".to_string(),
+            )?;
+
+            response = response.add_messages(msgs).add_events(events);
+        }
+    }
 
     Ok(response)
 }

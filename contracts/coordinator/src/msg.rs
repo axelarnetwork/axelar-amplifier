@@ -44,8 +44,15 @@ pub enum ExecuteMsg {
     SetActiveVerifiers { verifiers: HashSet<String> },
 
     #[permission(Any)]
-    DeployChain {
-        chain_name: String,
+    DeployChain{
+        chain_name: ChainName,
+        params: DeploymentParams,
+    }
+}
+
+#[cw_serde]
+pub enum DeploymentParams {
+    Manual {
         gateway_code_id: u64,
         gateway_instantiate_msg: GatewayInstantiateMsg,
         verifier_code_id: u64,
