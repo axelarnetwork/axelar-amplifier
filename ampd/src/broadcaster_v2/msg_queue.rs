@@ -298,7 +298,7 @@ fn handle_queue_error(msg: QueueMsg, err: Error) {
     let err = report!(err);
     warn!(
         error = LoggableError::from(&err).as_value(),
-        "message droped"
+        "message dropped"
     );
 
     let _ = msg.tx_res_callback.send(Err(err));
