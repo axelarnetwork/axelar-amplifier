@@ -128,7 +128,7 @@ fn is_valid_contract_address(contract: &str) -> bool {
 fn filter_event_with(
     filters: Vec<ampd_proto::EventFilter>,
     include_block_begin_end: bool,
-) -> impl FnMut(&error_stack::Result<events::Event, event_sub::Error>) -> bool {
+) -> impl Fn(&error_stack::Result<events::Event, event_sub::Error>) -> bool {
     move |event| match event {
         Ok(event) => {
             let contract = event.contract_address();
