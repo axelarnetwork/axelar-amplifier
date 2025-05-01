@@ -38,8 +38,7 @@ impl<E> BlockchainService for Service<E>
 where
     E: event_sub::EventSub + Send + Sync + 'static,
 {
-    type SubscribeStream =
-        Pin<Box<dyn Stream<Item = Result<SubscribeResponse, Status>> + Send + 'static>>;
+    type SubscribeStream = Pin<Box<dyn Stream<Item = Result<SubscribeResponse, Status>> + Send>>;
 
     async fn subscribe(
         &self,
