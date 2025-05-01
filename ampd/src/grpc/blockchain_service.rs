@@ -1,5 +1,4 @@
 use std::pin::Pin;
-use std::str::FromStr;
 
 use ampd_proto::blockchain_service_server::BlockchainService;
 use ampd_proto::{
@@ -7,7 +6,6 @@ use ampd_proto::{
     ContractsResponse, QueryRequest, QueryResponse, SubscribeRequest, SubscribeResponse,
 };
 use async_trait::async_trait;
-use cosmrs::AccountId;
 use futures::{Stream, TryStreamExt};
 use report::LoggableError;
 use tokio_stream::StreamExt;
@@ -15,7 +13,8 @@ use tonic::{Request, Response, Status};
 use tracing::error;
 use valuable::Valuable;
 
-use crate::{event_sub, PREFIX};
+use crate::event_sub;
+use crate::grpc::event_filters;
 
 pub struct Service<E>
 where
@@ -49,12 +48,21 @@ where
             include_block_begin_end,
         } = req.into_inner();
 
-        filters.iter().try_for_each(validate_filter)?;
+        let filters: event_filters::EventFilters = (filters, include_block_begin_end)
+            .try_into()
+            .map_err(|err| {
+                error!(
+                    err = LoggableError::from(&err).as_value(),
+                    "invalid event filters provided for event subscription"
+                );
+
+                Status::from(err.current_context())
+            })?;
 
         Ok(Response::new(Box::pin(
             self.event_sub
                 .subscribe()
-                .filter(filter_event_with(filters, include_block_begin_end))
+                .filter(move |event| filters.filter(event))
                 .map_ok(Into::into)
                 .map_ok(|event| ampd_proto::SubscribeResponse { event: Some(event) })
                 .map_err(|err| {
@@ -105,75 +113,6 @@ where
     }
 }
 
-fn validate_filter(filter: &ampd_proto::EventFilter) -> Result<(), Status> {
-    if filter.r#type.is_empty() && filter.contract.is_empty() {
-        return Err(Status::invalid_argument("empty filter received"));
-    }
-
-    if !is_valid_contract_address(&filter.contract) {
-        return Err(Status::invalid_argument(format!(
-            "invalid contract address {} received in the filters",
-            filter.contract
-        )));
-    }
-
-    Ok(())
-}
-
-fn is_valid_contract_address(contract: &str) -> bool {
-    contract.is_empty()
-        || AccountId::from_str(contract).is_ok_and(|contract| contract.prefix() == PREFIX)
-}
-
-fn filter_event_with(
-    filters: Vec<ampd_proto::EventFilter>,
-    include_block_begin_end: bool,
-) -> impl Fn(&error_stack::Result<events::Event, event_sub::Error>) -> bool {
-    move |event| match event {
-        Ok(event) => {
-            let contract = event.contract_address();
-
-            match event {
-                events::Event::BlockBegin(_) | events::Event::BlockEnd(_) => {
-                    include_block_begin_end
-                }
-                events::Event::Abci { event_type, .. } => {
-                    filter_abci_event(&filters, event_type, contract)
-                }
-            }
-        }
-        Err(_) => true,
-    }
-}
-
-fn filter_abci_event(
-    filters: &[ampd_proto::EventFilter],
-    event_type: &str,
-    contract: Option<AccountId>,
-) -> bool {
-    if filters.is_empty() {
-        return true;
-    }
-
-    filters.iter().any(|filter| {
-        if !filter.r#type.is_empty() && filter.r#type != event_type {
-            return false;
-        }
-
-        if !filter.contract.is_empty()
-            && filter.contract
-                != contract
-                    .as_ref()
-                    .map(ToString::to_string)
-                    .unwrap_or_default()
-        {
-            return false;
-        }
-
-        true
-    })
-}
-
 #[cfg(test)]
 mod tests {
     use error_stack::report;
@@ -186,6 +125,7 @@ mod tests {
     use super::*;
     use crate::event_sub::{self, MockEventSub};
     use crate::types::TMAddress;
+    use crate::PREFIX;
 
     #[tokio::test]
     async fn subscribe_should_stream_events_successfully() {

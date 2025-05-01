@@ -134,7 +134,7 @@ mod tests {
             let res = FieldElementAndEventIndex::from_str(&msg_id);
             let parsed = res.unwrap();
             assert_eq!(parsed.event_index, event_index);
-            assert_eq!(parsed.tx_hash_as_hex(), tx_hash.try_into().unwrap(),);
+            assert_eq!(parsed.tx_hash_as_hex(), tx_hash.as_str(),);
             assert_eq!(parsed.to_string(), msg_id);
         }
     }
