@@ -68,7 +68,7 @@ pub enum Error {
     #[error("timeout while waiting for event stream")]
     StreamTimeout,
 
-    #[error("unable to parse event of type")] // attach printable
+    #[error("unable to parse event of type")]
     EventConversion,
 
     #[error("error when handling event messages")]
@@ -216,7 +216,11 @@ where
     async fn parse_event(&self, element: StreamElement) -> Result<H::Event, HandlerTaskAction> {
         Self::flatten_results(element)
             .inspect(Self::log_block_boundary)
-            .and_then(|event| H::Event::try_from(event).change_context(Error::EventConversion))
+            .and_then(|event| {
+                H::Event::try_from(event.clone())
+                    .change_context(Error::EventConversion)
+                    .attach_printable(format!("failed to create handler event from: {event}"))
+            })
             .map_err(self.event_subscription_error_cb)
     }
 
@@ -254,9 +258,9 @@ where
     async fn broadcast_msgs(
         &self,
         msgs: Vec<Any>,
-        token: &CancellationToken,
+        _token: &CancellationToken,
     ) -> Result<(), HandlerTaskAction> {
-        with_retry(|| async { todo!() }, self.broadcast_retry_policy)
+        with_retry(|| async { Ok(()) }, self.broadcast_retry_policy) // Placeholder for actual broadcast
             .await
             .map_err(|err| (self.broadcast_error_cb)(&msgs, err))
     }
@@ -307,7 +311,7 @@ mod tests {
         let events = vec![Event::BlockBegin(1u32.into()), Event::BlockEnd(1u32.into())];
         let mut client = mock_client_subscribe_with_events(events);
 
-        let mut task = HandlerTask::builder()
+        let task = HandlerTask::builder()
             .handler(handler)
             .config(Config {
                 stream_timeout: Duration::from_millis(100),
@@ -342,7 +346,7 @@ mod tests {
         let events = vec![Event::BlockBegin(1u32.into())];
         let mut client = mock_client_subscribe_with_events(events);
 
-        let mut task = HandlerTask::builder()
+        let task = HandlerTask::builder()
             .handler(handler)
             .config(Config {
                 stream_timeout: Duration::from_millis(100),
@@ -386,7 +390,7 @@ mod tests {
         ];
         let mut client = mock_client_subscribe_with_events(events);
 
-        let mut task = HandlerTask::builder()
+        let task = HandlerTask::builder()
             .handler(handler)
             .config(Config {
                 stream_timeout: Duration::from_millis(100),
@@ -423,7 +427,7 @@ mod tests {
         let events = vec![Event::BlockBegin(1u32.into())];
         let mut client = mock_client_subscribe_with_events(events);
 
-        let mut task = HandlerTask::builder()
+        let task = HandlerTask::builder()
             .handler(handler)
             .config(Config {
                 stream_timeout: Duration::from_millis(100),
@@ -458,7 +462,7 @@ mod tests {
             Ok(tokio_stream::iter(result_events))
         });
 
-        let mut task = HandlerTask::builder()
+        let task = HandlerTask::builder()
             .handler(handler)
             .config(Config {
                 stream_timeout: Duration::from_millis(100),
@@ -489,7 +493,7 @@ mod tests {
             Ok(tokio_stream::iter(result_events))
         });
 
-        let mut task = HandlerTask::builder()
+        let task = HandlerTask::builder()
             .handler(handler)
             .config(Config {
                 stream_timeout: Duration::from_millis(50),
