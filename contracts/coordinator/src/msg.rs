@@ -70,7 +70,6 @@ pub enum DeploymentParams {
 pub struct ProverMsg {
     pub governance_address: String,
     pub multisig_address: String,
-    pub voting_verifier_address: String,
     pub signing_threshold: MajorityThreshold,
     pub service_name: String,
     pub chain_name: String,
@@ -86,6 +85,7 @@ pub struct ProverMsg {
 pub struct VerifierMsg {
     pub governance_address: String,
     pub service_name: String,
+    pub source_gateway_address: String,
     pub voting_threshold: MajorityThreshold,
     pub block_expiry: nonempty::Uint64,
     pub confirmation_height: u64,

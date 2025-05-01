@@ -65,7 +65,7 @@ pub fn set_active_verifier_set(
 fn instantiate2_salt(
     info: &MessageInfo,
 ) -> Vec<u8> {
-    // Temporary. Use a counter instead
+    // TODO. Use a counter or chain/contract name instead
     let mut bh_vec = (1 as u32).to_le_bytes().to_vec();
     let mut addr_vec = match info.sender.to_string().as_bytes().len().cmp(&56) {
         Ordering::Greater => {
@@ -104,6 +104,7 @@ fn instantiate2_addr(
 fn launch_contract(
     deps: &DepsMut,
     info: &MessageInfo,
+    env: &Env,
     salt: Binary,
     code_id: u64,
     instantiate_msg: Binary,
@@ -131,7 +132,7 @@ fn launch_contract(
     results.1 = deps.api.addr_humanize(
         &cosmwasm_std::instantiate2_address(
             code_info.checksum.as_slice(), 
-            &info.sender.as_bytes().into(), 
+            &deps.api.addr_canonicalize(&env.contract.address.to_string().clone()).unwrap(), 
             salt.as_slice()
         ).map_err(|_| Error::FailedToDeployContracts)?
     ).map_err(|_| Error::FailedToDeployContracts)?;
@@ -150,9 +151,9 @@ pub fn deploy_chain(
 
     let config = load_config(deps.storage);
 
-    // let gateway_salt = instantiate2_salt(&info);
+    let gateway_salt = instantiate2_salt(&info);
     let verifier_salt = instantiate2_salt(&info);
-    // let prover_salt = instantiate2_salt(&info);
+    let prover_salt = instantiate2_salt(&info);
 
     match params {
         DeploymentParams::Manual {
@@ -169,20 +170,14 @@ pub fn deploy_chain(
                 verifier_salt.as_ref(),
             )?;
 
-            // let prover_address = instantiate2_addr(
-            //     &deps, 
-            //     &info, 
-            //     verifier_code_id,
-            //     verifier_salt.as_ref(),
-            // );
-
             let mut event = Event::new("coordinator_deploy_contracts");
 
             // Gateway
             let (msgs, gateway_address) = launch_contract(
                 &deps, 
-                &info, 
-                Binary::new(instantiate2_salt(&info)), 
+                &info,
+                &env,
+                Binary::new(gateway_salt), 
                 gateway_code_id,
                 cosmwasm_std::to_json_binary(&gateway_api::msg::InstantiateMsg{
                     verifier_address: verifier_address.to_string().clone(),
@@ -198,14 +193,15 @@ pub fn deploy_chain(
             // Verifier
             let (msgs, voting_verifier_address) = launch_contract(
                 &deps, 
-                &info, 
-                Binary::new(instantiate2_salt(&info)), 
+                &info,
+                &env,
+                Binary::new(verifier_salt), 
                 verifier_code_id,
                 cosmwasm_std::to_json_binary(&voting_verifier_api::msg::InstantiateMsg{
                     governance_address: verifier_msg.governance_address.parse().unwrap(),
                     service_registry_address: config.service_registry.to_string().parse().unwrap(),
                     service_name: verifier_msg.service_name.parse().unwrap(),
-                    source_gateway_address: gateway_address.to_string().parse().unwrap(),
+                    source_gateway_address: verifier_msg.source_gateway_address.parse().unwrap(),
                     voting_threshold: verifier_msg.voting_threshold,
                     block_expiry: verifier_msg.block_expiry,
                     confirmation_height: verifier_msg.confirmation_height,
@@ -224,8 +220,9 @@ pub fn deploy_chain(
             // Prover
             let (msgs, multisig_prover_address) = launch_contract(
                 &deps, 
-                &info, 
-                Binary::new(instantiate2_salt(&info)), 
+                &info,
+                &env,
+                Binary::new(prover_salt), 
                 prover_code_id,
                 cosmwasm_std::to_json_binary(
                     &multisig_prover_api::msg::InstantiateMsg{

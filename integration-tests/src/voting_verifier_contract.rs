@@ -11,6 +11,7 @@ use crate::protocol::Protocol;
 #[derive(Clone)]
 pub struct VotingVerifierContract {
     pub contract_addr: Addr,
+    pub code_id: u64,
 }
 
 impl VotingVerifierContract {
@@ -58,7 +59,7 @@ impl VotingVerifierContract {
             )
             .unwrap();
 
-        VotingVerifierContract { contract_addr }
+        VotingVerifierContract { contract_addr, code_id }
     }
 }
 
