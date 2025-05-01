@@ -1,1 +1,1 @@
-failed to execute ReadyToUnbond query at coordinator contract. verifier_address: cosmwasm13ry74e5wkvqt99c690kfuk3xlaqhnltxr44hmps7f3j40wd2ac2q92x34s
+coordinator failed to retrieve if verifier cosmwasm13ry74e5wkvqt99c690kfuk3xlaqhnltxr44hmps7f3j40wd2ac2q92x34s is ready to unbond.
