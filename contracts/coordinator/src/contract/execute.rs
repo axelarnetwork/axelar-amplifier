@@ -1,13 +1,14 @@
-use std::collections::HashSet;
 use core::cmp::Ordering;
+use std::collections::HashSet;
 
+use cosmwasm_std::{Addr, Binary, DepsMut, Env, Event, MessageInfo, Response, WasmMsg, WasmQuery};
 use error_stack::{Result, ResultExt};
-use cosmwasm_std::{Addr, Binary, DepsMut, MessageInfo, Response, WasmMsg, WasmQuery, Env};
 use router_api::ChainName;
 
-use cosmwasm_std::Event;
 use crate::msg::DeploymentParams;
-use crate::state::{save_chain_contracts, save_prover_for_chain, update_verifier_set_for_prover, load_config};
+use crate::state::{
+    load_config, save_chain_contracts, save_prover_for_chain, update_verifier_set_for_prover,
+};
 
 #[derive(thiserror::Error, Debug, PartialEq)]
 pub enum Error {
@@ -62,18 +63,12 @@ pub fn set_active_verifier_set(
     Ok(Response::new())
 }
 
-fn instantiate2_salt(
-    info: &MessageInfo,
-) -> Vec<u8> {
+fn instantiate2_salt(info: &MessageInfo) -> Vec<u8> {
     // TODO. Use a counter or chain/contract name instead
-    let mut bh_vec = (1 as u32).to_le_bytes().to_vec();
+    let mut bh_vec = (1_u32).to_le_bytes().to_vec();
     let mut addr_vec = match info.sender.to_string().as_bytes().len().cmp(&56) {
-        Ordering::Greater => {
-            info.sender.to_string().as_bytes()[..56].to_vec()
-        },
-        _ => {
-            info.sender.to_string().as_bytes().to_vec()
-        },
+        Ordering::Greater => info.sender.to_string().as_bytes()[..56].to_vec(),
+        _ => info.sender.to_string().as_bytes().to_vec(),
     };
 
     addr_vec.append(&mut bh_vec);
@@ -86,19 +81,24 @@ fn instantiate2_addr(
     code_id: u64,
     salt: &[u8],
 ) -> error_stack::Result<Addr, Error> {
-    let code_info: cosmwasm_std::CodeInfoResponse = deps.querier.query(
-        &WasmQuery::CodeInfo { 
-            code_id: code_id 
-    }.into())
-    .change_context(Error::FailedToDeployContracts)?;
+    let code_info: cosmwasm_std::CodeInfoResponse = deps
+        .querier
+        .query(&WasmQuery::CodeInfo { code_id }.into())
+        .change_context(Error::FailedToDeployContracts)?;
 
-    deps.api.addr_humanize(&cosmwasm_std::instantiate2_address(
-        code_info.checksum.as_slice(), 
-&deps.api.addr_canonicalize(info.sender.as_str())
-                .change_context(Error::FailedToDeployContracts)?,
-        salt
-    ).change_context(Error::FailedToDeployContracts)?)
-    .change_context(Error::FailedToDeployContracts)
+    deps.api
+        .addr_humanize(
+            &cosmwasm_std::instantiate2_address(
+                code_info.checksum.as_slice(),
+                &deps
+                    .api
+                    .addr_canonicalize(info.sender.as_str())
+                    .change_context(Error::FailedToDeployContracts)?,
+                salt,
+            )
+            .change_context(Error::FailedToDeployContracts)?,
+        )
+        .change_context(Error::FailedToDeployContracts)
 }
 
 fn launch_contract(
@@ -113,29 +113,35 @@ fn launch_contract(
     let mut results = (vec![], Addr::unchecked(""));
 
     // Instantiate the contract
-    results.0.push(WasmMsg::Instantiate2 { 
-        admin: Some(info.sender.to_string()), 
-        code_id: code_id, 
-        msg: instantiate_msg, 
-        funds: info.funds.clone(), 
-        label: label,
+    results.0.push(WasmMsg::Instantiate2 {
+        admin: Some(info.sender.to_string()),
+        code_id,
+        msg: instantiate_msg,
+        funds: info.funds.clone(),
+        label,
         salt: salt.clone(),
     });
 
     // Get Code info
-    let code_info: cosmwasm_std::CodeInfoResponse = deps.querier.query(
-        &WasmQuery::CodeInfo { 
-            code_id: code_id 
-    }.into())
-    .change_context(Error::FailedToDeployContracts)?;
+    let code_info: cosmwasm_std::CodeInfoResponse = deps
+        .querier
+        .query(&WasmQuery::CodeInfo { code_id }.into())
+        .change_context(Error::FailedToDeployContracts)?;
 
-    results.1 = deps.api.addr_humanize(
-        &cosmwasm_std::instantiate2_address(
-            code_info.checksum.as_slice(), 
-            &deps.api.addr_canonicalize(&env.contract.address.to_string().clone()).unwrap(), 
-            salt.as_slice()
-        ).map_err(|_| Error::FailedToDeployContracts)?
-    ).map_err(|_| Error::FailedToDeployContracts)?;
+    results.1 = deps
+        .api
+        .addr_humanize(
+            &cosmwasm_std::instantiate2_address(
+                code_info.checksum.as_slice(),
+                &deps
+                    .api
+                    .addr_canonicalize(&env.contract.address.to_string().clone())
+                    .unwrap(),
+                salt.as_slice(),
+            )
+            .map_err(|_| Error::FailedToDeployContracts)?,
+        )
+        .map_err(|_| Error::FailedToDeployContracts)?;
 
     Ok(results)
 }
@@ -145,7 +151,7 @@ pub fn deploy_chain(
     env: Env,
     info: MessageInfo,
     chain_name: ChainName,
-    params: DeploymentParams,
+    params: &DeploymentParams,
 ) -> error_stack::Result<Response, Error> {
     let mut response = Response::new();
 
@@ -158,33 +164,32 @@ pub fn deploy_chain(
     match params {
         DeploymentParams::Manual {
             gateway_code_id,
+            gateway_label,
             prover_code_id,
+            prover_label,
             prover_msg,
             verifier_code_id,
+            verifier_label,
             verifier_msg,
         } => {
-            let verifier_address = instantiate2_addr(
-                &deps, 
-                &info, 
-                verifier_code_id,
-                verifier_salt.as_ref(),
-            )?;
+            let verifier_address =
+                instantiate2_addr(&deps, &info, *verifier_code_id, verifier_salt.as_ref())?;
 
             let mut event = Event::new("coordinator_deploy_contracts");
 
             // Gateway
             let (msgs, gateway_address) = launch_contract(
-                &deps, 
+                &deps,
                 &info,
                 &env,
-                Binary::new(gateway_salt), 
-                gateway_code_id,
-                cosmwasm_std::to_json_binary(&gateway_api::msg::InstantiateMsg{
+                Binary::new(gateway_salt),
+                *gateway_code_id,
+                cosmwasm_std::to_json_binary(&gateway_api::msg::InstantiateMsg {
                     verifier_address: verifier_address.to_string().clone(),
                     router_address: config.router.to_string().clone(),
                 })
                 .change_context(Error::FailedToDeployContracts)?,
-                "Gateway1.0.0".to_string(),
+                gateway_label.clone(),
             )?;
 
             event = event.add_attribute("gateway_address", gateway_address.clone());
@@ -192,12 +197,12 @@ pub fn deploy_chain(
 
             // Verifier
             let (msgs, voting_verifier_address) = launch_contract(
-                &deps, 
+                &deps,
                 &info,
                 &env,
-                Binary::new(verifier_salt), 
-                verifier_code_id,
-                cosmwasm_std::to_json_binary(&voting_verifier_api::msg::InstantiateMsg{
+                Binary::new(verifier_salt),
+                *verifier_code_id,
+                cosmwasm_std::to_json_binary(&voting_verifier_api::msg::InstantiateMsg {
                     governance_address: verifier_msg.governance_address.parse().unwrap(),
                     service_registry_address: config.service_registry.to_string().parse().unwrap(),
                     service_name: verifier_msg.service_name.parse().unwrap(),
@@ -206,12 +211,12 @@ pub fn deploy_chain(
                     block_expiry: verifier_msg.block_expiry,
                     confirmation_height: verifier_msg.confirmation_height,
                     source_chain: chain_name.clone(),
-                    rewards_address: verifier_msg.rewards_address,
-                    msg_id_format: verifier_msg.msg_id_format,
-                    address_format: verifier_msg.address_format,
+                    rewards_address: verifier_msg.rewards_address.clone(),
+                    msg_id_format: verifier_msg.msg_id_format.clone(),
+                    address_format: verifier_msg.address_format.clone(),
                 })
                 .change_context(Error::FailedToDeployContracts)?,
-                "Verifier1.0.0".to_string(),
+                verifier_label.clone(),
             )?;
 
             event = event.add_attribute("voting_verifier_address", voting_verifier_address.clone());
@@ -219,13 +224,12 @@ pub fn deploy_chain(
 
             // Prover
             let (msgs, multisig_prover_address) = launch_contract(
-                &deps, 
+                &deps,
                 &info,
                 &env,
-                Binary::new(prover_salt), 
-                prover_code_id,
-                cosmwasm_std::to_json_binary(
-                    &multisig_prover_api::msg::InstantiateMsg{
+                Binary::new(prover_salt),
+                *prover_code_id,
+                cosmwasm_std::to_json_binary(&multisig_prover_api::msg::InstantiateMsg {
                     admin_address: info.sender.to_string().clone(),
                     governance_address: prover_msg.governance_address.to_string().clone(),
                     coordinator_address: env.contract.address.to_string().clone(),
@@ -234,7 +238,7 @@ pub fn deploy_chain(
                     service_registry_address: config.service_registry.to_string().clone(),
                     voting_verifier_address: voting_verifier_address.to_string().clone(),
                     signing_threshold: prover_msg.signing_threshold,
-                    service_name: prover_msg.service_name,
+                    service_name: prover_msg.service_name.to_string(),
                     chain_name: chain_name.to_string().clone(),
                     verifier_set_diff_threshold: prover_msg.verifier_set_diff_threshold,
                     encoder: prover_msg.encoder,
@@ -242,7 +246,7 @@ pub fn deploy_chain(
                     domain_separator: prover_msg.domain_separator,
                 })
                 .change_context(Error::FailedToDeployContracts)?,
-                "Prover1.0.0".to_string(),
+                prover_label.clone(),
             )?;
 
             event = event.add_attribute("multisig_prover_address", multisig_prover_address);

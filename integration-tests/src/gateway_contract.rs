@@ -35,7 +35,10 @@ impl GatewayContract {
             )
             .unwrap();
 
-        GatewayContract { contract_addr, code_id }
+        GatewayContract {
+            contract_addr,
+            code_id,
+        }
     }
 }
 

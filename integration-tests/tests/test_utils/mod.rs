@@ -459,7 +459,7 @@ pub fn setup_protocol(service_name: nonempty::String) -> Protocol {
         governance_address.clone(),
         service_registry.contract_addr.clone(),
         router.contract_address(),
-        multisig.contract_address()
+        multisig.contract_address(),
     );
 
     Protocol {

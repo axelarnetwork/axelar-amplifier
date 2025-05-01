@@ -10,7 +10,6 @@ pub struct InstantiateMsg {
     pub router_address: String,
 }
 
-
 #[cw_serde]
 #[derive(EnsurePermissions)]
 pub enum ExecuteMsg {

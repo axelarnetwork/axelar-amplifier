@@ -76,7 +76,7 @@ impl KeyDeserialize for PayloadId {
     }
 }
 
-#[cfg(feature = "test_helper")]
+#[cfg(test)]
 mod test {
     use crate::payload::Payload;
     use crate::test::test_data;

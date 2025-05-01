@@ -59,7 +59,10 @@ impl VotingVerifierContract {
             )
             .unwrap();
 
-        VotingVerifierContract { contract_addr, code_id }
+        VotingVerifierContract {
+            contract_addr,
+            code_id,
+        }
     }
 }
 

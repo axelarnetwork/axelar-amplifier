@@ -1,17 +1,16 @@
 use std::collections::HashSet;
 
 use axelar_wasm_std::address::AddressFormat;
-use axelar_wasm_std::msg_id::MessageIdFormat;
-use axelar_wasm_std::nonempty;
 use axelar_wasm_std::hash::Hash;
+use axelar_wasm_std::msg_id::MessageIdFormat;
+use axelar_wasm_std::{nonempty, MajorityThreshold};
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::Addr;
 use msgs_derive::EnsurePermissions;
-use router_api::ChainName;
-use service_registry_api::Verifier;
-use axelar_wasm_std::MajorityThreshold;
 use multisig::key::KeyType;
 use multisig_prover_api::encoding::Encoder;
+use router_api::ChainName;
+use service_registry_api::Verifier;
 
 pub use crate::contract::MigrateMsg;
 
@@ -49,21 +48,24 @@ pub enum ExecuteMsg {
     SetActiveVerifiers { verifiers: HashSet<String> },
 
     #[permission(Any)]
-    DeployChain{
+    DeployChain {
         chain_name: ChainName,
-        params: DeploymentParams,
-    }
+        params: Box<DeploymentParams>,
+    },
 }
 
 #[cw_serde]
 pub enum DeploymentParams {
     Manual {
         gateway_code_id: u64,
+        gateway_label: String,
         verifier_code_id: u64,
+        verifier_label: String,
         verifier_msg: VerifierMsg,
         prover_code_id: u64,
+        prover_label: String,
         prover_msg: ProverMsg,
-    }
+    },
 }
 
 #[cw_serde]

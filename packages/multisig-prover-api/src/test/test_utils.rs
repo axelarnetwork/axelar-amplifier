@@ -1,4 +1,4 @@
-use axelar_wasm_std::{VerificationStatus, nonempty};
+use axelar_wasm_std::{nonempty, VerificationStatus};
 use cosmwasm_std::testing::MockApi;
 use cosmwasm_std::{from_json, to_json_binary, QuerierResult, Uint128, WasmQuery};
 use multisig::msg::Signer;
