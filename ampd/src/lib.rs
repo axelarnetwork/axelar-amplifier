@@ -76,10 +76,12 @@ async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
         grpc: grpc_config,
     } = cfg;
 
-    let grpc_server = grpc::Server::new(&grpc_config);
     let tm_client = tendermint_rpc::HttpClient::new(tm_jsonrpc.to_string().as_str())
         .change_context(Error::Connection)
         .attach_printable(tm_jsonrpc.clone())?;
+    let (event_publisher, event_subscriber) =
+        event_sub::EventPublisher::new(tm_client.clone(), event_processor.stream_buffer_size);
+    let grpc_server = grpc::Server::new(&grpc_config, event_subscriber.clone());
     let cosmos_client = cosmos::CosmosGrpcClient::new(tm_grpc.as_str(), tm_grpc_timeout)
         .await
         .change_context(Error::Connection)
@@ -138,11 +140,11 @@ async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
         .into();
 
     App::new(
-        tm_client,
+        event_publisher,
+        event_subscriber,
         broadcaster,
         tx_confirmer,
         multisig_client,
-        event_processor.stream_buffer_size,
         block_height_monitor,
         health_check_server,
         grpc_server,
@@ -188,18 +190,15 @@ where
 {
     #[allow(clippy::too_many_arguments)]
     fn new(
-        tm_client: tendermint_rpc::HttpClient,
+        event_publisher: event_sub::EventPublisher<tendermint_rpc::HttpClient>,
+        event_subscriber: event_sub::EventSubscriber,
         broadcaster: QueuedBroadcaster<T>,
         tx_confirmer: TxConfirmer<CosmosGrpcClient>,
         multisig_client: MultisigClient,
-        event_buffer_cap: usize,
         block_height_monitor: BlockHeightMonitor<tendermint_rpc::HttpClient>,
         health_check_server: health_check::Server,
         grpc_server: grpc::Server,
     ) -> Self {
-        let (event_publisher, event_subscriber) =
-            event_sub::EventPublisher::new(tm_client, event_buffer_cap);
-
         let event_processor = TaskGroup::new("event handler");
 
         Self {
