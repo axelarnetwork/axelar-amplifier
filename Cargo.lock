@@ -285,6 +285,7 @@ dependencies = [
  "multiversx-sdk",
  "num-traits",
  "openssl",
+ "pin-project-lite",
  "prost 0.13.5",
  "prost-types 0.13.5",
  "rand 0.8.5",
