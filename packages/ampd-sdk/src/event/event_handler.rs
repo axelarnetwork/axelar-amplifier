@@ -1,21 +1,27 @@
+use std::fmt::Display;
 use std::time::Duration;
 
 use async_trait::async_trait;
 use cosmrs::Any;
-use error_stack::{report, Context, Report, Result, ResultExt};
+use error_stack::{report, Context, Report, ResultExt};
 use events::{AbciEventTypeFilter, Event};
-use futures::{pin_mut, TryStreamExt};
+use futures::{pin_mut, Stream, TryFutureExt};
+use itertools::Itertools;
 use mockall::automock;
+use report::LoggableError;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use tokio::time::{interval, sleep};
-use tokio_stream::StreamExt;
+use tokio::time::interval;
+use tokio_stream::{Elapsed, StreamExt};
 use tokio_util::sync::CancellationToken;
-use tracing::info;
+use tracing::{error, info};
 use typed_builder::TypedBuilder;
+use valuable::Valuable;
 
 use crate::grpc::client;
 use crate::utils::{with_retry, RetryPolicy};
+
+type StreamElement = Result<error_stack::Result<Event, client::Error>, Elapsed>;
 
 #[automock(
     type Err = Error;
@@ -29,13 +35,13 @@ pub trait EventHandler: Send + Sync {
     async fn handle(
         &self,
         event: &Self::Event,
-        token: CancellationToken,
+        token: &CancellationToken,
     ) -> Result<Vec<Any>, Self::Err>;
 
-    async fn subscribe_args(&self) -> SubscribeArgs;
+    async fn subscription_params(&self) -> SubscriptionParams;
 }
 
-pub struct SubscribeArgs {
+pub struct SubscriptionParams {
     pub event_filters: Vec<AbciEventTypeFilter>,
     pub include_block_begin_end: bool,
 }
@@ -70,6 +76,9 @@ pub enum Error {
 
     #[error("error when broadcasting message")]
     BroadcastFailed,
+
+    #[error("{0} task aborted")]
+    TaskAborted(String),
 }
 
 pub enum HandlerTaskAction {
@@ -78,36 +87,146 @@ pub enum HandlerTaskAction {
     ContinueAndSleep(Duration),
 }
 
-enum ActionOutcome<T> {
-    Success(T),
-    HandlerAction(HandlerTaskAction, Error),
-}
-
-#[derive(TypedBuilder)]
 #[allow(dead_code)]
-pub struct HandlerTask<H, C>
+#[derive(TypedBuilder)]
+pub struct HandlerTask<H>
 where
     H: EventHandler,
-    C: client::Client,
+    <H::Event as TryFrom<Event>>::Error: Context,
+    H::Event: Display,
 {
     handler: H,
-    client: C,
     config: Config,
     #[builder(default = RetryPolicy::NoRetry)]
     handler_retry_policy: RetryPolicy,
     #[builder(default = RetryPolicy::NoRetry)]
     broadcast_retry_policy: RetryPolicy,
-    event_subscribe_error_cb: fn(Report<client::Error>) -> HandlerTaskAction,
-    handler_error_cb: fn(&H::Event, &H::Err) -> HandlerTaskAction,
-    broadcaster_error_cb: fn(&Any, H::Err) -> HandlerTaskAction,
+    #[builder(default = HandlerTask::<H>::default_event_subscription_error_cb)]
+    event_subscription_error_cb: fn(Report<Error>) -> HandlerTaskAction,
+    #[builder(default = HandlerTask::<H>::default_handler_error_cb)]
+    handler_error_cb: fn(&H::Event, H::Err) -> HandlerTaskAction,
+    #[builder(default = HandlerTask::<H>::default_broadcast_error_cb)]
+    broadcast_error_cb: fn(&[Any], H::Err) -> HandlerTaskAction,
 }
 
-impl<H, C> HandlerTask<H, C>
+impl<H> HandlerTask<H>
 where
     H: EventHandler,
-    C: client::Client,
+    <H::Event as TryFrom<Event>>::Error: Context,
+    H::Event: Display,
 {
-    fn log_block_start_and_end(event: &Event) {
+    fn default_event_subscription_error_cb(err: Report<Error>) -> HandlerTaskAction {
+        error!(
+            err = LoggableError::from(&err).as_value(),
+            "failed to subscribe to events"
+        );
+
+        HandlerTaskAction::Continue
+    }
+
+    fn default_handler_error_cb(event: &H::Event, err: H::Err) -> HandlerTaskAction
+    where
+        <H::Event as TryFrom<Event>>::Error: Context,
+        H::Event: Display,
+    {
+        error!(
+            err = LoggableError::from(&report!(err)).as_value(),
+            event = format!("{event}").as_value(),
+            "failed to process events"
+        );
+
+        HandlerTaskAction::Continue
+    }
+
+    fn default_broadcast_error_cb(msgs: &[Any], err: H::Err) -> HandlerTaskAction {
+        let msgs = msgs
+            .iter()
+            .map(serde_json::to_string)
+            .try_collect()
+            .unwrap_or(vec![]);
+
+        error!(
+            err = LoggableError::from(&report!(err)).as_value(),
+            msgs = msgs.as_value(),
+            "failed to broadcast messages"
+        );
+
+        HandlerTaskAction::Continue
+    }
+    pub async fn run(
+        self,
+        task_label: impl Into<String>,
+        client: &mut impl client::Client,
+        token: CancellationToken,
+    ) -> error_stack::Result<(), Error> {
+        let stream = self
+            .subscribe_to_stream(client, &token)
+            .await?
+            .then(|element| self.process_stream(element, &token));
+
+        pin_mut!(stream);
+        while let Some(action) = stream.next().await {
+            match action {
+                HandlerTaskAction::Continue => continue,
+                HandlerTaskAction::ContinueAndSleep(timeout) => tokio::time::sleep(timeout).await,
+                HandlerTaskAction::Abort => {
+                    return Err(report!(Error::TaskAborted(task_label.into())))
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn subscribe_to_stream<'a>(
+        &self,
+        client: &'a mut impl client::Client,
+        token: &'a CancellationToken,
+    ) -> error_stack::Result<impl Stream<Item = StreamElement> + 'a, Error> {
+        let subscription_params = self.handler.subscription_params().await;
+
+        let stream = client
+            .subscribe(
+                subscription_params.event_filters,
+                subscription_params.include_block_begin_end,
+            )
+            .await
+            .change_context(Error::ClientEventStream)?
+            .take_while(|_| !token.is_cancelled())
+            .timeout_repeating(interval(self.config.stream_timeout));
+
+        Ok(stream)
+    }
+
+    async fn process_stream(
+        &self,
+        element: StreamElement,
+        token: &CancellationToken,
+    ) -> HandlerTaskAction {
+        let action = self
+            .parse_event(element)
+            .and_then(|event| self.handle_event(event, token))
+            .and_then(|msgs| self.broadcast_msgs(msgs, token))
+            .await
+            .map(|_| HandlerTaskAction::Continue);
+
+        action.unwrap_or_else(|err_action| err_action)
+    }
+
+    async fn parse_event(&self, element: StreamElement) -> Result<H::Event, HandlerTaskAction> {
+        Self::flatten_results(element)
+            .inspect(Self::log_block_boundary)
+            .and_then(|event| H::Event::try_from(event).change_context(Error::EventConversion))
+            .map_err(self.event_subscription_error_cb)
+    }
+
+    fn flatten_results(stream_element: StreamElement) -> error_stack::Result<Event, Error> {
+        stream_element
+            .change_context(Error::StreamTimeout)
+            .and_then(|event_result| event_result.change_context(Error::ClientEventStream))
+    }
+
+    fn log_block_boundary(event: &Event) {
         match event {
             Event::BlockBegin(height) => {
                 info!(height = height.value(), "handler started processing block");
@@ -119,104 +238,28 @@ where
         }
     }
 
-    pub async fn run(&mut self, token: CancellationToken) -> Result<(), Error> {
-        let subscription_args = self.handler.subscribe_args().await;
-
-        let event_stream = self
-            .client
-            .subscribe(
-                subscription_args.event_filters,
-                subscription_args.include_block_begin_end,
-            )
-            .await
-            .change_context(Error::ClientEventStream)?;
-
-        let child_token = token.child_token();
-
-        let intermediate_stream = event_stream
-            .take_while(|_| !child_token.is_cancelled())
-            .timeout_repeating(interval(self.config.stream_timeout))
-            .map(|element| element.change_context(Error::StreamTimeout).and_then(
-                |event| event.change_context(Error::ClientEventStream)
-                .inspect(HandlerTask::log_block_start_and_end)
-                .and_then(|event| {
-                    H::Event::try_from(event).map_err(|_| report!(Error::EventConversion))
-                })
-            ));
-            // .and_then(|event| {
-            //     H::Event::try_from(event).map_err(|_| report!(Error::EventConversion))
-            // });
-
-        let processed_stream = intermediate_stream.then(|handler_event_result| async {
-            match handler_event_result {
-                Ok(handler_event) => {
-                    let handle_result = with_retry(
-                        || self.handler.handle(&handler_event, child_token.clone()),
-                        self.handler_retry_policy,
-                    )
-                    .await;
-
-                    match handle_result {
-                        Ok(msgs) => {
-                            for msg in msgs {
-                                let broadcast_result = with_retry(
-                                    || async { Ok(()) }, // Placeholder for actual broadcast
-                                    self.broadcast_retry_policy,
-                                )
-                                .await;
-
-                                if let Err(err) = broadcast_result {
-                                    return Ok(ActionOutcome::HandlerAction(
-                                        (self.broadcaster_error_cb)(&msg, err),
-                                        Error::BroadcastFailed,
-                                    ));
-                                }
-                            }
-                            Ok(ActionOutcome::Success(()))
-                        }
-                        Err(err) => Ok(ActionOutcome::HandlerAction(
-                            (self.handler_error_cb)(&handler_event, err.current_context()),
-                            Error::HandlerFailed,
-                        )),
-                    }
-                }
-                Err(client_err) => {
-                    Ok(ActionOutcome::HandlerAction(
-                        (self.event_subscribe_error_cb)(client_err),
-                        Error::ClientEventStream,
-                    ))
-                }
-            }
-        });
-
-        pin_mut!(processed_stream);
-        while let Some(result) = processed_stream.next().await {
-            match result {
-                Ok(ActionOutcome::Success(_)) => {
-                    continue; // Successfully processed the event
-                }
-                Ok(ActionOutcome::HandlerAction(action, error)) => {
-                    match action {
-                        HandlerTaskAction::Abort => {
-                            return Err(report!(error));
-                        }
-                        HandlerTaskAction::Continue => {
-                            continue; // Continue processing the next event
-                        }
-                        HandlerTaskAction::ContinueAndSleep(duration) => {
-                            sleep(duration).await;
-                        }
-                    }
-                }
-                Err(err) => {
-                    return Err(err);
-                }
-            }
-        }
-
-        Ok(())
+    async fn handle_event(
+        &self,
+        event: H::Event,
+        token: &CancellationToken,
+    ) -> Result<Vec<Any>, HandlerTaskAction> {
+        with_retry(
+            || self.handler.handle(&event, token),
+            self.handler_retry_policy,
+        )
+        .await
+        .map_err(|err| (self.handler_error_cb)(&event, err))
     }
 
+    async fn broadcast_msgs(
+        &self,
+        msgs: Vec<Any>,
+        token: &CancellationToken,
+    ) -> Result<(), HandlerTaskAction> {
+        with_retry(|| async { todo!() }, self.broadcast_retry_policy)
+            .await
+            .map_err(|err| (self.broadcast_error_cb)(&msgs, err))
+    }
 }
 
 #[cfg(test)]
@@ -228,12 +271,14 @@ mod tests {
 
     fn setup_handler() -> MockEventHandler {
         let mut handler = MockEventHandler::new();
-        handler.expect_subscribe_args().returning(|| SubscribeArgs {
-            event_filters: vec![AbciEventTypeFilter {
-                event_type: "test_event".to_string(),
-            }],
-            include_block_begin_end: true,
-        });
+        handler
+            .expect_subscription_params()
+            .returning(|| SubscriptionParams {
+                event_filters: vec![AbciEventTypeFilter {
+                    event_type: "test_event".to_string(),
+                }],
+                include_block_begin_end: true,
+            });
         handler
     }
 
@@ -243,7 +288,7 @@ mod tests {
             .expect_subscribe()
             .times(1)
             .returning(move |_, _| {
-                let result_events: Vec<Result<Event, ClientError>> =
+                let result_events: Vec<error_stack::Result<Event, ClientError>> =
                     events.clone().into_iter().map(Ok).collect();
                 Ok(tokio_stream::iter(result_events))
             });
@@ -260,23 +305,25 @@ mod tests {
             .returning(|_, _| Ok(vec![]));
 
         let events = vec![Event::BlockBegin(1u32.into()), Event::BlockEnd(1u32.into())];
-        let client = mock_client_subscribe_with_events(events);
+        let mut client = mock_client_subscribe_with_events(events);
 
         let mut task = HandlerTask::builder()
             .handler(handler)
-            .client(client)
             .config(Config {
                 stream_timeout: Duration::from_millis(100),
             })
             .handler_retry_policy(RetryPolicy::NoRetry)
             .broadcast_retry_policy(RetryPolicy::NoRetry)
-            .event_subscribe_error_cb(|_| HandlerTaskAction::Abort)
+            .event_subscription_error_cb(|_| HandlerTaskAction::Abort)
             .handler_error_cb(|_, _| HandlerTaskAction::Abort)
-            .broadcaster_error_cb(|_, _| HandlerTaskAction::Abort)
+            .broadcast_error_cb(|_, _| HandlerTaskAction::Abort)
             .build();
 
-        let result =
-            tokio::time::timeout(Duration::from_secs(1), task.run(CancellationToken::new())).await;
+        let result = tokio::time::timeout(
+            Duration::from_secs(1),
+            task.run("test_task", &mut client, CancellationToken::new()),
+        )
+        .await;
 
         assert!(result.is_ok());
         let task_result = result.unwrap();
@@ -290,28 +337,29 @@ mod tests {
         handler
             .expect_handle()
             .times(1)
-            .returning(|_, _| Err(report!(Error::HandlerFailed)));
+            .returning(|_, _| Err(Error::HandlerFailed));
 
         let events = vec![Event::BlockBegin(1u32.into())];
-        let client = mock_client_subscribe_with_events(events);
+        let mut client = mock_client_subscribe_with_events(events);
 
         let mut task = HandlerTask::builder()
             .handler(handler)
-            .client(client)
             .config(Config {
                 stream_timeout: Duration::from_millis(100),
             })
-            .event_subscribe_error_cb(|_| HandlerTaskAction::Abort)
+            .event_subscription_error_cb(|_| HandlerTaskAction::Abort)
             .handler_error_cb(|_, _| HandlerTaskAction::Abort)
-            .broadcaster_error_cb(|_, _| HandlerTaskAction::Abort)
+            .broadcast_error_cb(|_, _| HandlerTaskAction::Abort)
             .build();
 
-        let result = task.run(CancellationToken::new()).await;
+        let result = task
+            .run("test_task", &mut client, CancellationToken::new())
+            .await;
 
         assert!(result.is_err());
         assert!(matches!(
             result.unwrap_err().current_context(),
-            Error::HandlerFailed
+            Error::TaskAborted(_)
         ));
     }
 
@@ -326,7 +374,7 @@ mod tests {
             };
 
             if height == 1 {
-                Err(report!(Error::HandlerFailed))
+                Err(Error::HandlerFailed)
             } else {
                 Ok(vec![])
             }
@@ -336,20 +384,21 @@ mod tests {
             Event::BlockBegin(1u32.into()),
             Event::BlockBegin(2u32.into()),
         ];
-        let client = mock_client_subscribe_with_events(events);
+        let mut client = mock_client_subscribe_with_events(events);
 
         let mut task = HandlerTask::builder()
             .handler(handler)
-            .client(client)
             .config(Config {
                 stream_timeout: Duration::from_millis(100),
             })
-            .event_subscribe_error_cb(|_| HandlerTaskAction::Abort)
+            .event_subscription_error_cb(|_| HandlerTaskAction::Abort)
             .handler_error_cb(|_, _| HandlerTaskAction::Continue)
-            .broadcaster_error_cb(|_, _| HandlerTaskAction::Abort)
+            .broadcast_error_cb(|_, _| HandlerTaskAction::Abort)
             .build();
 
-        let result = task.run(CancellationToken::new()).await;
+        let result = task
+            .run("test_task", &mut client, CancellationToken::new())
+            .await;
         assert!(result.is_ok());
     }
 
@@ -365,18 +414,17 @@ mod tests {
             *count += 1;
 
             if *count <= 2 {
-                Err(Report::new(Error::HandlerFailed))
+                Err(Error::HandlerFailed)
             } else {
                 Ok(vec![])
             }
         });
 
         let events = vec![Event::BlockBegin(1u32.into())];
-        let client = mock_client_subscribe_with_events(events);
+        let mut client = mock_client_subscribe_with_events(events);
 
         let mut task = HandlerTask::builder()
             .handler(handler)
-            .client(client)
             .config(Config {
                 stream_timeout: Duration::from_millis(100),
             })
@@ -385,12 +433,14 @@ mod tests {
                 max_attempts: 3,
             })
             .broadcast_retry_policy(RetryPolicy::NoRetry)
-            .event_subscribe_error_cb(|_| HandlerTaskAction::Abort)
+            .event_subscription_error_cb(|_| HandlerTaskAction::Abort)
             .handler_error_cb(|_, _| HandlerTaskAction::Abort)
-            .broadcaster_error_cb(|_, _| HandlerTaskAction::Abort)
+            .broadcast_error_cb(|_, _| HandlerTaskAction::Abort)
             .build();
 
-        let result = task.run(CancellationToken::new()).await;
+        let result = task
+            .run("test_task", &mut client, CancellationToken::new())
+            .await;
 
         assert!(result.is_ok());
         assert_eq!(*call_count.lock().unwrap(), 3);
@@ -403,28 +453,29 @@ mod tests {
 
         let mut client = MockClient::new();
         client.expect_subscribe().times(1).returning(move |_, _| {
-            let result_events: Vec<Result<Event, ClientError>> =
+            let result_events: Vec<error_stack::Result<Event, ClientError>> =
                 vec![Err(report!(ClientError::InvalidResponse))];
             Ok(tokio_stream::iter(result_events))
         });
 
         let mut task = HandlerTask::builder()
             .handler(handler)
-            .client(client)
             .config(Config {
                 stream_timeout: Duration::from_millis(100),
             })
-            .event_subscribe_error_cb(|_| HandlerTaskAction::Abort)
+            .event_subscription_error_cb(|_| HandlerTaskAction::Abort)
             .handler_error_cb(|_, _| HandlerTaskAction::Abort)
-            .broadcaster_error_cb(|_, _| HandlerTaskAction::Abort)
+            .broadcast_error_cb(|_, _| HandlerTaskAction::Abort)
             .build();
 
-        let result = task.run(CancellationToken::new()).await;
+        let result = task
+            .run("test_task", &mut client, CancellationToken::new())
+            .await;
 
         assert!(result.is_err());
         assert!(matches!(
             result.unwrap_err().current_context(),
-            Error::ClientEventStream
+            Error::TaskAborted(_)
         ));
     }
 
@@ -434,19 +485,18 @@ mod tests {
 
         let mut client = MockClient::new();
         client.expect_subscribe().times(1).returning(move |_, _| {
-            let result_events: Vec<Result<Event, ClientError>> = vec![];
+            let result_events: Vec<error_stack::Result<Event, ClientError>> = vec![];
             Ok(tokio_stream::iter(result_events))
         });
 
         let mut task = HandlerTask::builder()
             .handler(handler)
-            .client(client)
             .config(Config {
                 stream_timeout: Duration::from_millis(50),
             })
-            .event_subscribe_error_cb(|_| HandlerTaskAction::Abort)
+            .event_subscription_error_cb(|_| HandlerTaskAction::Abort)
             .handler_error_cb(|_, _| HandlerTaskAction::Abort)
-            .broadcaster_error_cb(|_, _| HandlerTaskAction::Abort)
+            .broadcast_error_cb(|_, _| HandlerTaskAction::Abort)
             .build();
 
         let token = CancellationToken::new();
@@ -457,7 +507,7 @@ mod tests {
             token_clone.cancel();
         });
 
-        let result = task.run(token).await;
+        let result = task.run("test_task", &mut client, token).await;
         assert!(result.is_ok());
     }
 
@@ -481,20 +531,21 @@ mod tests {
             Event::BlockEnd(2u32.into()),
             Event::BlockBegin(3u32.into()),
         ];
-        let client = mock_client_subscribe_with_events(events);
+        let mut client = mock_client_subscribe_with_events(events);
 
-        let mut task = HandlerTask::builder()
+        let task = HandlerTask::builder()
             .handler(handler)
-            .client(client)
             .config(Config {
                 stream_timeout: Duration::from_millis(100),
             })
-            .event_subscribe_error_cb(|_| HandlerTaskAction::Abort)
+            .event_subscription_error_cb(|_| HandlerTaskAction::Abort)
             .handler_error_cb(|_, _| HandlerTaskAction::Abort)
-            .broadcaster_error_cb(|_, _| HandlerTaskAction::Abort)
+            .broadcast_error_cb(|_, _| HandlerTaskAction::Abort)
             .build();
 
-        let result = task.run(CancellationToken::new()).await;
+        let result = task
+            .run("test_task", &mut client, CancellationToken::new())
+            .await;
 
         assert!(result.is_ok());
         assert_eq!(*event_count.lock().unwrap(), 5);

@@ -369,6 +369,7 @@ dependencies = [
  "events",
  "futures",
  "humantime-serde",
+ "itertools 0.14.0",
  "mockall 0.12.1",
  "prost 0.13.5",
  "prost-types 0.13.5",
@@ -384,6 +385,7 @@ dependencies = [
  "tonic-build",
  "tracing",
  "typed-builder",
+ "valuable",
 ]
 
 [[package]]

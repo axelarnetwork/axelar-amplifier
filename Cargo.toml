@@ -106,7 +106,7 @@ syn = "2.0.92"
 tendermint = "0.35.0"
 thiserror = "1.0.61"
 humantime-serde = "1.1.1"
-tracing = "0.1.37" 
+tracing = { version = "0.1.37", features = ["valuable", "log"] }
 tofn = { version = "1.1" }
 tokio = "1.44.2"
 tokio-stream = "0.1.11"
@@ -115,6 +115,7 @@ typed-builder = "0.18.2"
 voting-verifier = { version = "^1.1.0", path = "contracts/voting-verifier" }
 axelar-core-std = { version = "^1.0.0", path = "packages/axelar-core-std" }
 proc-macro2 = "1.0.92"
+valuable = "0.1.1"
 
 [workspace.lints.clippy]
 arithmetic_side_effects = "deny"
