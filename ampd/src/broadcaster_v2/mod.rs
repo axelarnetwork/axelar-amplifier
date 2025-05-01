@@ -42,8 +42,12 @@ pub enum Error {
     BroadcastTx,
     #[error("failed to receive tx result")]
     ReceiveTxResult(#[from] oneshot::error::RecvError),
-    #[error("message {:?}'s estimated gas {gas} exceeds gas limit {gas_cap}", msg)]
-    GasExceedsGasCap { msg: Any, gas: Gas, gas_cap: Gas },
+    #[error("message {msg_type}'s estimated gas {gas} exceeds gas limit {gas_cap}")]
+    GasExceedsGasCap {
+        msg_type: String,
+        gas: Gas,
+        gas_cap: Gas,
+    },
 }
 
 /// A task that processes queued messages and broadcasts them to a Cosmos blockchain

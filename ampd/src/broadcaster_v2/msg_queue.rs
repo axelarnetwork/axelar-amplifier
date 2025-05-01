@@ -8,6 +8,7 @@ use error_stack::{report, Report, ResultExt};
 use futures::{FutureExt, Stream};
 use pin_project_lite::pin_project;
 use report::{ErrorExt, LoggableError};
+use serde_json::json;
 use tokio::sync::{mpsc, oneshot};
 use tokio::time;
 use tokio_stream::adapters::Fuse;
@@ -295,13 +296,19 @@ impl Stream for MsgQueue {
 }
 
 fn handle_queue_error(msg: QueueMsg, err: Error) {
-    let err = report!(err);
+    let QueueMsg {
+        msg,
+        tx_res_callback,
+        ..
+    } = msg;
+
+    let err = report!(err).attach_printable(json!({ "msg": msg }));
     warn!(
         error = LoggableError::from(&err).as_value(),
         "message dropped"
     );
 
-    let _ = msg.tx_res_callback.send(Err(err));
+    let _ = tx_res_callback.send(Err(err));
 }
 
 struct Queue {
@@ -325,7 +332,7 @@ impl Queue {
     {
         if msg.gas > self.gas_cap {
             let err = Error::GasExceedsGasCap {
-                msg: msg.msg.clone(),
+                msg_type: msg.msg.type_url.clone(),
                 gas: msg.gas,
                 gas_cap: self.gas_cap,
             };
@@ -367,17 +374,8 @@ impl Queue {
     }
 
     pub fn pop_all(&mut self) -> Option<nonempty::Vec<QueueMsg>> {
-        if self.is_empty() {
-            return None;
-        }
-
         self.gas_cost = 0;
-
-        Some(
-            std::mem::take(&mut self.msgs)
-                .try_into()
-                .expect("msgs must not be empty"),
-        )
+        std::mem::take(&mut self.msgs).try_into().ok()
     }
 
     pub fn is_empty(&self) -> bool {
