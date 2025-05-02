@@ -8,7 +8,7 @@ edition = { workspace = true }
 [dependencies]
 ampd-sdk = { workspace = true }
 events = { workspace = true }
-tokio = { workspace = true }
+tokio = { workspace = true, features = ["rt-multi-thread"] }
 tokio-util = { workspace = true }
 
 [lints]
