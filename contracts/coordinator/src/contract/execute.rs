@@ -1,15 +1,15 @@
 use core::cmp::Ordering;
 use std::collections::HashSet;
 
-use axelar_wasm_std::counter::Counter;
-use cosmwasm_std::{Addr, Binary, DepsMut, Env, Event, MessageInfo, Response, WasmMsg, WasmQuery, StdResult};
-use error_stack::{Result, ResultExt, report};
-use router_api::{ChainName, ChainEndpoint};
+use cosmwasm_std::{Addr, Binary, DepsMut, Env, Event, MessageInfo, Response, WasmMsg, WasmQuery};
+use error_stack::{report, Result, ResultExt};
 use router_api::msg::QueryMsg;
+use router_api::{ChainEndpoint, ChainName, Gateway};
 
 use crate::msg::DeploymentParams;
 use crate::state::{
-    load_config, save_chain_contracts, save_prover_for_chain, update_verifier_set_for_prover, INSTANTIATE2_COUNTER,
+    load_config, save_chain_contracts, save_prover_for_chain, update_verifier_set_for_prover,
+    DEPLOYED_CHAINS, INSTANTIATE2_COUNTER,
 };
 
 #[derive(thiserror::Error, Debug, PartialEq)]
@@ -71,16 +71,26 @@ pub fn set_active_verifier_set(
     Ok(Response::new())
 }
 
-fn instantiate2_salt(deps: &mut DepsMut, info: &MessageInfo) -> error_stack::Result<Vec<u8>, Error> {
+fn instantiate2_salt(
+    deps: &mut DepsMut,
+    info: &MessageInfo,
+) -> error_stack::Result<Vec<u8>, Error> {
     let counter_value = INSTANTIATE2_COUNTER.cur(deps.storage).to_be_bytes();
 
-    let mut addr_vec = match info.sender.to_string().as_bytes().len().cmp(&counter_value.len()) {
+    let mut addr_vec = match info
+        .sender
+        .to_string()
+        .as_bytes()
+        .len()
+        .cmp(&counter_value.len())
+    {
         Ordering::Greater => info.sender.to_string().as_bytes()[..counter_value.len()].to_vec(),
         _ => info.sender.to_string().as_bytes().to_vec(),
     };
 
-    INSTANTIATE2_COUNTER.incr(deps.storage)
-    .change_context(Error::Instantiate2SaltFailure)?;
+    INSTANTIATE2_COUNTER
+        .incr(deps.storage)
+        .change_context(Error::Instantiate2SaltFailure)?;
 
     addr_vec.extend(counter_value);
     Ok(addr_vec)
@@ -166,25 +176,36 @@ pub fn deploy_chain(
 ) -> error_stack::Result<Response, Error> {
     let mut response = Response::new();
     let config = load_config(deps.storage);
-    
-    // if let Ok(chain_endpoint) = deps.querier.query_wasm_smart::<ChainEndpoint>(
-    //     config.router.clone(), 
-    //     &QueryMsg::ChainInfo(chain_name.clone())
-    // ) {
-    //     return error_stack::Result::Err(report!(Error::ChainNameTaken(
-    //         chain_name,
-    //         chain_endpoint.gateway.address
-    //     )));
-    // }
 
-    let gateway_salt = instantiate2_salt(&mut deps, &info)
-    .change_context(Error::FailedToDeployContracts)?;
+    // Ensure chain is not registered with the router
+    if let Ok(chain_endpoint) = deps.querier.query_wasm_smart::<ChainEndpoint>(
+        config.router.clone(),
+        &QueryMsg::ChainInfo(chain_name.clone()),
+    ) {
+        return error_stack::Result::Err(report!(Error::ChainNameTaken(
+            chain_name,
+            chain_endpoint.gateway.address
+        )));
+    }
 
-    let verifier_salt = instantiate2_salt(&mut deps, &info)
-    .change_context(Error::FailedToDeployContracts)?;
+    // Ensure chain has not already been deployed
+    if let Ok(gateway) = DEPLOYED_CHAINS.load(deps.storage, chain_name.to_string()) {
+        return error_stack::Result::Err(report!(Error::ChainNameTaken(
+            chain_name,
+            gateway.address
+        )));
+    }
 
-    let prover_salt = instantiate2_salt(&mut deps, &info)
-    .change_context(Error::FailedToDeployContracts)?;
+    let save_gateway_address: Option<Addr>;
+
+    let gateway_salt =
+        instantiate2_salt(&mut deps, &info).change_context(Error::FailedToDeployContracts)?;
+
+    let verifier_salt =
+        instantiate2_salt(&mut deps, &info).change_context(Error::FailedToDeployContracts)?;
+
+    let prover_salt =
+        instantiate2_salt(&mut deps, &info).change_context(Error::FailedToDeployContracts)?;
 
     match params {
         DeploymentParams::Manual {
@@ -216,6 +237,7 @@ pub fn deploy_chain(
                 gateway_label.clone(),
             )?;
 
+            save_gateway_address = Some(gateway_address.clone());
             event = event.add_attribute("gateway_address", gateway_address.clone());
             response = response.add_messages(msgs);
 
@@ -274,6 +296,17 @@ pub fn deploy_chain(
             event = event.add_attribute("multisig_prover_address", multisig_prover_address);
             response = response.add_messages(msgs).add_event(event);
         }
+    }
+
+    // Register this chain so that it cannot be reused
+    if let Some(a) = save_gateway_address {
+        DEPLOYED_CHAINS
+            .save(
+                deps.storage,
+                chain_name.to_string(),
+                &Gateway { address: a },
+            )
+            .change_context(Error::FailedToDeployContracts)?;
     }
 
     Ok(response)
