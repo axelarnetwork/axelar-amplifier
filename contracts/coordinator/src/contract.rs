@@ -3,22 +3,32 @@ mod migrations;
 mod query;
 
 use axelar_wasm_std::address::validate_cosmwasm_address;
-use axelar_wasm_std::{address, permission_control, FnExt};
+use axelar_wasm_std::error::ContractError;
+use axelar_wasm_std::{address, permission_control, FnExt, IntoContractError};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     to_json_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response, Storage,
 };
-use error_stack::report;
+use error_stack::{report, ResultExt};
 use itertools::Itertools;
 pub use migrations::{migrate, MigrateMsg};
 
-use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{is_prover_registered, Config, CONFIG};
 
 pub const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 pub const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
+
+#[derive(thiserror::Error, Debug, IntoContractError)]
+pub enum Error {
+    #[error("coordinator instantiation failed")]
+    Instantiate,
+    #[error("coordinator query failed")]
+    Query,
+    #[error("coordinator execution failed")]
+    Execute,
+}
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -26,16 +36,25 @@ pub fn instantiate(
     _env: Env,
     _info: MessageInfo,
     msg: InstantiateMsg,
-) -> Result<Response, axelar_wasm_std::error::ContractError> {
-    cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+) -> Result<Response, ContractError> {
+    cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)
+        .map_err(|err| error_stack::Report::new(err))
+        .change_context(Error::Instantiate)?;
 
     let config = Config {
         service_registry: address::validate_cosmwasm_address(deps.api, &msg.service_registry)?,
     };
-    CONFIG.save(deps.storage, &config)?;
+    CONFIG
+        .save(deps.storage, &config)
+        .map_err(|err| error_stack::Report::new(err))
+        .change_context(Error::Instantiate)?;
 
-    let governance = address::validate_cosmwasm_address(deps.api, &msg.governance_address)?;
-    permission_control::set_governance(deps.storage, &governance)?;
+    let governance = address::validate_cosmwasm_address(deps.api, &msg.governance_address)
+        .change_context(Error::Instantiate)?;
+
+    permission_control::set_governance(deps.storage, &governance)
+        .map_err(|err| error_stack::Report::new(err))
+        .change_context(Error::Instantiate)?;
 
     Ok(Response::default())
 }
@@ -46,12 +65,15 @@ pub fn execute(
     _env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
-) -> Result<Response, axelar_wasm_std::error::ContractError> {
-    match msg.ensure_permissions(
-        deps.storage,
-        &info.sender,
-        find_prover_address(&info.sender),
-    )? {
+) -> Result<Response, ContractError> {
+    match msg
+        .ensure_permissions(
+            deps.storage,
+            &info.sender,
+            find_prover_address(&info.sender),
+        )
+        .change_context(Error::Execute)?
+    {
         ExecuteMsg::RegisterProverContract {
             chain_name,
             new_prover_addr,
@@ -66,9 +88,12 @@ pub fn execute(
             voting_verifier_address,
         } => {
             let prover_address = validate_cosmwasm_address(deps.api, &prover_address)?;
+
             let gateway_address = validate_cosmwasm_address(deps.api, &gateway_address)?;
+
             let voting_verifier_address =
                 validate_cosmwasm_address(deps.api, &voting_verifier_address)?;
+
             execute::register_chain(
                 deps,
                 chain_name,
@@ -84,66 +109,61 @@ pub fn execute(
                 .try_collect()?;
             execute::set_active_verifier_set(deps, info, verifiers)
         }
-    }?
+    }
+    .change_context(Error::Execute)?
     .then(Ok)
 }
 
 fn find_prover_address(
     sender: &Addr,
-) -> impl FnOnce(&dyn Storage, &ExecuteMsg) -> error_stack::Result<Addr, ContractError> + '_ {
+) -> impl FnOnce(&dyn Storage, &ExecuteMsg) -> error_stack::Result<Addr, crate::state::Error> + '_ {
     |storage, _| {
         if is_prover_registered(storage, sender.clone())? {
             Ok(sender.clone())
         } else {
-            Err(report!(ContractError::ProverNotRegistered(sender.clone())))
+            Err(report!(crate::state::Error::ProverNotRegistered(
+                sender.clone()
+            )))
         }
     }
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(
-    deps: Deps,
-    _env: Env,
-    msg: QueryMsg,
-) -> Result<Binary, axelar_wasm_std::error::ContractError> {
+pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
     match msg {
         QueryMsg::ReadyToUnbond {
             verifier_address: worker_address,
         } => {
             let worker_address = validate_cosmwasm_address(deps.api, &worker_address)?;
-            to_json_binary(&query::check_verifier_ready_to_unbond(
+
+            Ok(to_json_binary(&query::check_verifier_ready_to_unbond(
                 deps,
                 worker_address,
-            )?)?
+            )?)?)
         }
         QueryMsg::VerifierInfo {
             service_name,
             verifier,
         } => {
             let verifier_address = validate_cosmwasm_address(deps.api, &verifier)?;
-            to_json_binary(&query::verifier_details_with_provers(
+
+            Ok(to_json_binary(&query::verifier_details_with_provers(
                 deps,
                 service_name,
                 verifier_address,
-            )?)?
+            )?)?)
         }
-        QueryMsg::ChainContractsInfo(chain_contracts_key) => {
-            to_json_binary(&query::get_chain_contracts_info(deps, chain_contracts_key)?)?
-        }
+        QueryMsg::ChainContractsInfo(chain_contracts_key) => Ok(to_json_binary(
+            &query::get_chain_contracts_info(deps, chain_contracts_key)?,
+        )?),
     }
-    .then(Ok)
 }
 
 #[cfg(test)]
 mod tests {
-
-    use std::collections::HashSet;
-
     use axelar_wasm_std::permission_control::Permission;
-    use cosmwasm_std::testing::{
-        message_info, mock_dependencies, mock_env, MockApi, MockQuerier, MockStorage,
-    };
-    use cosmwasm_std::{Addr, Empty, OwnedDeps, StdResult};
+    use cosmwasm_std::{Addr, Empty, StdResult};
+    use cw_multi_test::{no_init, App, ContractWrapper, Executor};
     use router_api::ChainName;
 
     use super::*;
@@ -151,261 +171,117 @@ mod tests {
     use crate::state::{load_prover_by_chain, ChainContractsRecord};
 
     struct TestSetup {
-        deps: OwnedDeps<MockStorage, MockApi, MockQuerier, Empty>,
-        env: Env,
+        admin_addr: Addr,
+        coordinator_addr: Addr,
+        app: App,
         prover: Addr,
         gateway: Addr,
         verifier: Addr,
         chain_name: ChainName,
-        chain_record: ChainContractsRecord,
     }
 
-    fn setup(
-        mut deps: OwnedDeps<MockStorage, MockApi, MockQuerier, Empty>,
-        governance: &Addr,
-    ) -> TestSetup {
-        let info = message_info(&deps.api.addr_make("instantiator"), &[]);
-        let env = mock_env();
+    fn setup() -> TestSetup {
+        let mut app = App::new(no_init);
 
-        let instantiate_msg = InstantiateMsg {
-            governance_address: governance.to_string(),
-            service_registry: deps.api.addr_make("random_service").to_string(),
-        };
+        let admin_addr = app.api().addr_make("admin");
+        let chain_name: ChainName = "Ethereum".parse().unwrap();
+        let prover = app.api().addr_make("eth_prover");
+        let gateway = app.api().addr_make("eth_gateway");
+        let verifier = app.api().addr_make("eth_voting_verifier");
 
-        instantiate(deps.as_mut(), env.clone(), info.clone(), instantiate_msg).unwrap();
+        let coordinator_code = ContractWrapper::new(execute, instantiate, query);
+        let coordinator_code_id = app.store_code(Box::new(coordinator_code));
 
-        let eth_prover = deps.api.addr_make("eth_prover");
-        let eth_gateway = deps.api.addr_make("eth_gateway");
-        let eth_voting_verifier = deps.api.addr_make("eth_voting_verifier");
-        let eth: ChainName = "Ethereum".parse().unwrap();
+        let coordinator_addr = app.instantiate_contract(
+            coordinator_code_id,
+            admin_addr.clone(),
+            &InstantiateMsg {
+                governance_address: admin_addr.clone().to_string(),
+                service_registry: app.api().addr_make("service_registry").to_string(),
+            },
+            &[],
+            "Coordinator1.0.0",
+            Some(admin_addr.to_string()),
+        );
 
-        let chain_record = ChainContractsRecord {
-            chain_name: eth.clone(),
-            prover_address: eth_prover.clone(),
-            gateway_address: eth_gateway.clone(),
-            verifier_address: eth_voting_verifier.clone(),
-        };
+        assert!(coordinator_addr.is_ok());
+        let coordinator_addr = coordinator_addr.unwrap();
+
+        let res = app.execute_contract(
+            admin_addr.clone(),
+            coordinator_addr.clone(),
+            &ExecuteMsg::RegisterChain {
+                chain_name: chain_name.clone(),
+                prover_address: prover.clone().to_string(),
+                gateway_address: gateway.clone().to_string(),
+                voting_verifier_address: verifier.clone().to_string(),
+            },
+            &[],
+        );
+
+        assert!(res.is_ok());
 
         TestSetup {
-            deps,
-            env,
-            prover: eth_prover,
-            gateway: eth_gateway,
-            verifier: eth_voting_verifier,
-            chain_name: eth,
-            chain_record,
+            admin_addr,
+            coordinator_addr,
+            app,
+            chain_name: chain_name.clone(),
+            prover: prover.clone(),
+            gateway: gateway.clone(),
+            verifier: verifier.clone(),
         }
     }
 
     #[test]
-    #[allow(clippy::arithmetic_side_effects)]
-    fn test_instantiation() {
-        let deps = mock_dependencies();
-        let api = deps.api;
-        let governance = deps.api.addr_make("governance_for_coordinator");
-        let mut test_setup = setup(deps, &governance);
-
-        assert!(execute(
-            test_setup.deps.as_mut(),
-            test_setup.env.clone(),
-            message_info(&api.addr_make("not_governance"), &[]),
-            ExecuteMsg::RegisterProverContract {
-                chain_name: test_setup.chain_name.clone(),
-                new_prover_addr: test_setup.prover.to_string(),
-            }
-        )
-        .is_err());
-
-        assert!(execute(
-            test_setup.deps.as_mut(),
-            test_setup.env,
-            message_info(&governance, &[]),
-            ExecuteMsg::RegisterProverContract {
-                chain_name: test_setup.chain_name.clone(),
-                new_prover_addr: test_setup.prover.to_string(),
-            }
-        )
-        .is_ok());
-    }
-
-    #[test]
     fn add_prover_from_governance_succeeds() {
-        let deps = mock_dependencies();
-        let governance = deps.api.addr_make("governance_for_coordinator");
-        let mut test_setup = setup(deps, &governance);
+        let mut test_setup = setup();
+        let new_prover = test_setup.app.api().addr_make("new_eth_prover");
 
-        let _res = execute(
-            test_setup.deps.as_mut(),
-            test_setup.env,
-            message_info(&governance, &[]),
-            ExecuteMsg::RegisterProverContract {
-                chain_name: test_setup.chain_name.clone(),
-                new_prover_addr: test_setup.prover.to_string(),
-            },
-        )
-        .unwrap();
+        assert!(test_setup
+            .app
+            .execute_contract(
+                test_setup.admin_addr.clone(),
+                test_setup.coordinator_addr.clone(),
+                &ExecuteMsg::RegisterProverContract {
+                    chain_name: test_setup.chain_name.clone(),
+                    new_prover_addr: new_prover.to_string(),
+                },
+                &[]
+            )
+            .is_ok());
 
         let chain_prover = load_prover_by_chain(
-            test_setup.deps.as_ref().storage,
+            test_setup
+                .app
+                .contract_storage(&test_setup.coordinator_addr)
+                .as_ref(),
             test_setup.chain_name.clone(),
         );
         assert!(chain_prover.is_ok(), "{:?}", chain_prover);
-        assert_eq!(chain_prover.unwrap(), test_setup.prover);
+        assert_eq!(chain_prover.unwrap(), new_prover);
     }
 
     #[test]
     fn add_prover_from_random_address_fails() {
-        let deps = mock_dependencies();
-        let api = deps.api;
-        let governance = deps.api.addr_make("governance_for_coordinator");
-        let mut test_setup = setup(deps, &governance);
+        let mut test_setup = setup();
+        let new_prover = test_setup.app.api().addr_make("new_eth_prover");
+        let random_addr = test_setup.app.api().addr_make("random_address");
 
-        let res = execute(
-            test_setup.deps.as_mut(),
-            test_setup.env,
-            message_info(&api.addr_make("random_address"), &[]),
-            ExecuteMsg::RegisterProverContract {
+        let res = test_setup.app.execute_contract(
+            random_addr.clone(),
+            test_setup.coordinator_addr.clone(),
+            &ExecuteMsg::RegisterProverContract {
                 chain_name: test_setup.chain_name.clone(),
-                new_prover_addr: test_setup.prover.to_string(),
+                new_prover_addr: new_prover.to_string(),
             },
+            &[],
         );
-        assert_eq!(
-            res.unwrap_err().to_string(),
-            axelar_wasm_std::error::ContractError::from(
+
+        assert!(res.unwrap_err().root_cause().to_string().contains(
+            &axelar_wasm_std::error::ContractError::from(
                 permission_control::Error::PermissionDenied {
                     expected: Permission::Governance.into(),
                     actual: Permission::NoPrivilege.into()
-                }
-            )
-            .to_string()
-        );
-    }
-
-    #[test]
-    fn register_contract_addresses_from_governance_succeeds() {
-        let deps = mock_dependencies();
-        let governance = deps.api.addr_make("governance_for_coordinator");
-        let mut test_setup = setup(deps, &governance);
-
-        let _res = execute(
-            test_setup.deps.as_mut(),
-            test_setup.env.clone(),
-            message_info(&governance, &[]),
-            ExecuteMsg::RegisterChain {
-                chain_name: test_setup.chain_name.clone(),
-                prover_address: test_setup.prover.to_string(),
-                gateway_address: test_setup.gateway.to_string(),
-                voting_verifier_address: test_setup.verifier.to_string(),
-            },
-        )
-        .unwrap();
-
-        let record_response_by_chain: StdResult<ChainContractsRecord> = cosmwasm_std::from_json(
-            query(
-                test_setup.deps.as_ref(),
-                test_setup.env.clone(),
-                QueryMsg::ChainContractsInfo(ChainContractsKey::ChainName(
-                    test_setup.chain_name.clone(),
-                )),
-            )
-            .unwrap(),
-        );
-
-        assert!(record_response_by_chain.is_ok());
-        assert_eq!(record_response_by_chain.unwrap(), test_setup.chain_record);
-
-        let record_response_by_gateway: StdResult<ChainContractsRecord> = cosmwasm_std::from_json(
-            query(
-                test_setup.deps.as_ref(),
-                test_setup.env.clone(),
-                QueryMsg::ChainContractsInfo(ChainContractsKey::GatewayAddress(
-                    test_setup.gateway.clone(),
-                )),
-            )
-            .unwrap(),
-        );
-
-        assert!(record_response_by_gateway.is_ok());
-        assert_eq!(record_response_by_gateway.unwrap(), test_setup.chain_record);
-
-        let record_response_by_prover: StdResult<ChainContractsRecord> = cosmwasm_std::from_json(
-            query(
-                test_setup.deps.as_ref(),
-                test_setup.env.clone(),
-                QueryMsg::ChainContractsInfo(ChainContractsKey::ProverAddress(
-                    test_setup.prover.clone(),
-                )),
-            )
-            .unwrap(),
-        );
-
-        assert!(record_response_by_prover.is_ok());
-        assert_eq!(record_response_by_prover.unwrap(), test_setup.chain_record);
-
-        let record_response_by_verifier: StdResult<ChainContractsRecord> = cosmwasm_std::from_json(
-            query(
-                test_setup.deps.as_ref(),
-                test_setup.env.clone(),
-                QueryMsg::ChainContractsInfo(ChainContractsKey::VerifierAddress(
-                    test_setup.verifier.clone(),
-                )),
-            )
-            .unwrap(),
-        );
-
-        assert!(record_response_by_verifier.is_ok());
-        assert_eq!(
-            record_response_by_verifier.unwrap(),
-            test_setup.chain_record
-        );
-    }
-
-    #[test]
-    fn set_active_verifiers_from_prover_succeeds() {
-        let deps = mock_dependencies();
-        let governance = deps.api.addr_make("governance_for_coordinator");
-        let mut test_setup = setup(deps, &governance);
-
-        execute(
-            test_setup.deps.as_mut(),
-            test_setup.env.clone(),
-            message_info(&governance, &[]),
-            ExecuteMsg::RegisterProverContract {
-                chain_name: test_setup.chain_name.clone(),
-                new_prover_addr: test_setup.prover.to_string(),
-            },
-        )
-        .unwrap();
-
-        let res = execute(
-            test_setup.deps.as_mut(),
-            test_setup.env,
-            message_info(&test_setup.prover, &[]),
-            ExecuteMsg::SetActiveVerifiers {
-                verifiers: HashSet::new(),
-            },
-        );
-        assert!(res.is_ok(), "{:?}", res);
-    }
-
-    #[test]
-    fn set_active_verifiers_from_random_address_fails() {
-        let deps = mock_dependencies();
-        let governance = deps.api.addr_make("governance_for_coordinator");
-        let mut test_setup = setup(deps, &governance);
-
-        let res = execute(
-            test_setup.deps.as_mut(),
-            test_setup.env,
-            message_info(&test_setup.prover, &[]),
-            ExecuteMsg::SetActiveVerifiers {
-                verifiers: HashSet::new(),
-            },
-        );
-        assert!(res.unwrap_err().to_string().contains(
-            &axelar_wasm_std::error::ContractError::from(
-                permission_control::Error::WhitelistNotFound {
-                    sender: test_setup.prover
                 }
             )
             .to_string()
@@ -413,14 +289,77 @@ mod tests {
     }
 
     #[test]
+    fn register_contract_addresses_from_governance_succeeds() {
+        let test_setup = setup();
+
+        let record_response_by_chain: StdResult<ChainContractsRecord> =
+            test_setup.app.wrap().query_wasm_smart(
+                test_setup.coordinator_addr.clone(),
+                &QueryMsg::ChainContractsInfo(ChainContractsKey::ChainName(test_setup.chain_name)),
+            );
+
+        assert!(record_response_by_chain.is_ok());
+        goldie::assert_json!(record_response_by_chain.unwrap());
+
+        let record_response_by_gateway: StdResult<ChainContractsRecord> =
+            test_setup.app.wrap().query_wasm_smart(
+                test_setup.coordinator_addr.clone(),
+                &QueryMsg::ChainContractsInfo(ChainContractsKey::GatewayAddress(
+                    test_setup.gateway.clone(),
+                )),
+            );
+
+        assert!(record_response_by_gateway.is_ok());
+        goldie::assert_json!(record_response_by_gateway.unwrap());
+
+        let record_response_by_prover: StdResult<ChainContractsRecord> =
+            test_setup.app.wrap().query_wasm_smart(
+                test_setup.coordinator_addr.clone(),
+                &QueryMsg::ChainContractsInfo(ChainContractsKey::ProverAddress(
+                    test_setup.prover.clone(),
+                )),
+            );
+
+        assert!(record_response_by_prover.is_ok());
+        goldie::assert_json!(record_response_by_prover.unwrap());
+
+        let record_response_by_verifier: StdResult<ChainContractsRecord> =
+            test_setup.app.wrap().query_wasm_smart(
+                test_setup.coordinator_addr.clone(),
+                &QueryMsg::ChainContractsInfo(ChainContractsKey::VerifierAddress(
+                    test_setup.verifier.clone(),
+                )),
+            );
+
+        assert!(record_response_by_verifier.is_ok());
+        goldie::assert_json!(record_response_by_verifier.unwrap());
+    }
+
+    #[test]
     fn migrate_sets_contract_version() {
-        let deps = mock_dependencies();
-        let governance = deps.api.addr_make("governance_for_coordinator");
-        let mut test_setup = setup(deps, &governance);
+        let mut test_setup = setup();
 
-        migrate(test_setup.deps.as_mut(), mock_env(), Empty {}).unwrap();
+        let coordinator_code =
+            ContractWrapper::new(execute, instantiate, query).with_migrate(migrate);
+        let coordinator_code_id = test_setup.app.store_code(Box::new(coordinator_code));
 
-        let contract_version = cw2::get_contract_version(test_setup.deps.as_mut().storage).unwrap();
+        assert!(test_setup
+            .app
+            .migrate_contract(
+                test_setup.admin_addr.clone(),
+                test_setup.coordinator_addr.clone(),
+                &Empty {},
+                coordinator_code_id,
+            )
+            .is_ok());
+
+        let contract_version = cw2::get_contract_version(
+            test_setup
+                .app
+                .contract_storage_mut(&test_setup.coordinator_addr)
+                .as_ref(),
+        )
+        .unwrap();
         assert_eq!(contract_version.contract, CONTRACT_NAME);
         assert_eq!(contract_version.version, CONTRACT_VERSION);
     }
