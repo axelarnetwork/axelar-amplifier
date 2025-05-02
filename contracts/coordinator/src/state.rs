@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 
+use axelar_wasm_std::counter::{self, Counter};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Order, Storage};
 use cw_storage_plus::{index_list, Index, IndexList, IndexedMap, Item, MultiIndex, UniqueIndex};
@@ -49,6 +50,8 @@ pub fn load_config(storage: &dyn Storage) -> Config {
         .load(storage)
         .expect("coordinator config must be set during instantiation")
 }
+
+pub const INSTANTIATE2_COUNTER: Counter<u64> = Counter::new("instantiate2_counter");
 
 /// Records the contract addresses for a specific chain
 #[cw_serde]

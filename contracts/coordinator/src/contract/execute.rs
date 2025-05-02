@@ -1,13 +1,15 @@
 use core::cmp::Ordering;
 use std::collections::HashSet;
 
-use cosmwasm_std::{Addr, Binary, DepsMut, Env, Event, MessageInfo, Response, WasmMsg, WasmQuery};
-use error_stack::{Result, ResultExt};
-use router_api::ChainName;
+use axelar_wasm_std::counter::Counter;
+use cosmwasm_std::{Addr, Binary, DepsMut, Env, Event, MessageInfo, Response, WasmMsg, WasmQuery, StdResult};
+use error_stack::{Result, ResultExt, report};
+use router_api::{ChainName, ChainEndpoint};
+use router_api::msg::QueryMsg;
 
 use crate::msg::DeploymentParams;
 use crate::state::{
-    load_config, save_chain_contracts, save_prover_for_chain, update_verifier_set_for_prover,
+    load_config, save_chain_contracts, save_prover_for_chain, update_verifier_set_for_prover, INSTANTIATE2_COUNTER,
 };
 
 #[derive(thiserror::Error, Debug, PartialEq)]
@@ -21,8 +23,14 @@ pub enum Error {
     #[error("prover {0} is not registered")]
     ProverNotRegistered(Addr),
 
+    #[error("failed to perform instantiate2")]
+    Instantiate2SaltFailure,
+
     #[error("failed to deploy core contracts")]
     FailedToDeployContracts,
+
+    #[error("chain {0} already taken with gateway {1}")]
+    ChainNameTaken(ChainName, Addr),
 }
 
 pub fn register_prover(
@@ -63,16 +71,19 @@ pub fn set_active_verifier_set(
     Ok(Response::new())
 }
 
-fn instantiate2_salt(info: &MessageInfo) -> Vec<u8> {
-    // TODO. Use a counter or chain/contract name instead
-    let mut bh_vec = (1_u32).to_le_bytes().to_vec();
-    let mut addr_vec = match info.sender.to_string().as_bytes().len().cmp(&56) {
-        Ordering::Greater => info.sender.to_string().as_bytes()[..56].to_vec(),
+fn instantiate2_salt(deps: &mut DepsMut, info: &MessageInfo) -> error_stack::Result<Vec<u8>, Error> {
+    let counter_value = INSTANTIATE2_COUNTER.cur(deps.storage).to_be_bytes();
+
+    let mut addr_vec = match info.sender.to_string().as_bytes().len().cmp(&counter_value.len()) {
+        Ordering::Greater => info.sender.to_string().as_bytes()[..counter_value.len()].to_vec(),
         _ => info.sender.to_string().as_bytes().to_vec(),
     };
 
-    addr_vec.append(&mut bh_vec);
-    addr_vec
+    INSTANTIATE2_COUNTER.incr(deps.storage)
+    .change_context(Error::Instantiate2SaltFailure)?;
+
+    addr_vec.extend(counter_value);
+    Ok(addr_vec)
 }
 
 fn instantiate2_addr(
@@ -147,19 +158,33 @@ fn launch_contract(
 }
 
 pub fn deploy_chain(
-    deps: DepsMut,
+    mut deps: DepsMut,
     env: Env,
     info: MessageInfo,
     chain_name: ChainName,
     params: &DeploymentParams,
 ) -> error_stack::Result<Response, Error> {
     let mut response = Response::new();
-
     let config = load_config(deps.storage);
+    
+    // if let Ok(chain_endpoint) = deps.querier.query_wasm_smart::<ChainEndpoint>(
+    //     config.router.clone(), 
+    //     &QueryMsg::ChainInfo(chain_name.clone())
+    // ) {
+    //     return error_stack::Result::Err(report!(Error::ChainNameTaken(
+    //         chain_name,
+    //         chain_endpoint.gateway.address
+    //     )));
+    // }
 
-    let gateway_salt = instantiate2_salt(&info);
-    let verifier_salt = instantiate2_salt(&info);
-    let prover_salt = instantiate2_salt(&info);
+    let gateway_salt = instantiate2_salt(&mut deps, &info)
+    .change_context(Error::FailedToDeployContracts)?;
+
+    let verifier_salt = instantiate2_salt(&mut deps, &info)
+    .change_context(Error::FailedToDeployContracts)?;
+
+    let prover_salt = instantiate2_salt(&mut deps, &info)
+    .change_context(Error::FailedToDeployContracts)?;
 
     match params {
         DeploymentParams::Manual {
@@ -177,7 +202,6 @@ pub fn deploy_chain(
 
             let mut event = Event::new("coordinator_deploy_contracts");
 
-            // Gateway
             let (msgs, gateway_address) = launch_contract(
                 &deps,
                 &info,
@@ -195,7 +219,6 @@ pub fn deploy_chain(
             event = event.add_attribute("gateway_address", gateway_address.clone());
             response = response.add_messages(msgs);
 
-            // Verifier
             let (msgs, voting_verifier_address) = launch_contract(
                 &deps,
                 &info,
@@ -222,7 +245,6 @@ pub fn deploy_chain(
             event = event.add_attribute("voting_verifier_address", voting_verifier_address.clone());
             response = response.add_messages(msgs);
 
-            // Prover
             let (msgs, multisig_prover_address) = launch_contract(
                 &deps,
                 &info,

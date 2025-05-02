@@ -27,9 +27,7 @@ fn coordinator_one_click_deployment() {
                 verifier_msg: coordinator::msg::VerifierMsg {
                     governance_address: protocol.governance_address.to_string(),
                     service_name: protocol.service_name.parse().unwrap(),
-                    source_gateway_address: "0x4F4495243837681061C4743b74B3eEdf548D56A5"
-                        .try_into()
-                        .unwrap(),
+                    source_gateway_address: "0x4F4495243837681061C4743b74B3eEdf548D56A5".to_string(),
                     voting_threshold: Threshold::try_from((3, 4)).unwrap().try_into().unwrap(),
                     block_expiry: 10.try_into().unwrap(),
                     confirmation_height: 5,
@@ -63,6 +61,7 @@ fn coordinator_one_click_deployment() {
         },
     );
 
+    println!("Check the stuff: {:?}", res);
     assert!(res.is_ok());
     let res = res.unwrap();
 
