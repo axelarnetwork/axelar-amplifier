@@ -25,7 +25,7 @@ fn coordinator_one_click_deployment() {
                 verifier_code_id: chain1.voting_verifier.code_id,
                 verifier_label: "Verifier1.0.0".to_string(),
                 verifier_msg: coordinator::msg::VerifierMsg {
-                    governance_address: protocol.governance_address.to_string().try_into().unwrap(),
+                    governance_address: protocol.governance_address.to_string(),
                     service_name: protocol.service_name.parse().unwrap(),
                     source_gateway_address: "0x4F4495243837681061C4743b74B3eEdf548D56A5"
                         .try_into()
@@ -46,7 +46,7 @@ fn coordinator_one_click_deployment() {
                 prover_code_id: chain1.multisig_prover.code_id,
                 prover_label: "Prover1.0.0".to_string(),
                 prover_msg: coordinator::msg::ProverMsg {
-                    governance_address: protocol.governance_address.to_string().try_into().unwrap(),
+                    governance_address: protocol.governance_address.to_string(),
                     multisig_address: protocol.multisig.contract_addr.to_string(),
                     signing_threshold: Threshold::try_from((2u64, 3u64))
                         .unwrap()

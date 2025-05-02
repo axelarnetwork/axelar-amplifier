@@ -51,7 +51,7 @@ itertools = "0.11.0"
 k256 = { workspace = true }
 msgs-derive = { workspace = true }
 multisig = { workspace = true, features = ["library"] }
-multisig-prover-api = { workspace = true, features = ["test-helpers"] }
+multisig-prover-api = { workspace = true }
 report = { workspace = true }
 router-api = { workspace = true }
 semver = { workspace = true }
@@ -72,6 +72,7 @@ cw-multi-test = { workspace = true }
 elliptic-curve = "0.13.5"
 generic-array = "0.14.7"
 goldie = { workspace = true }
+multisig-prover-api = { workspace = true, features = ["test-helpers"] }
 prost = "0.12.4"
 
 [lints]
