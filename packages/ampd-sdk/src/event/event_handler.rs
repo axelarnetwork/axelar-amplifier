@@ -16,13 +16,11 @@ use tokio_util::sync::CancellationToken;
 use tracing::{error, info};
 use typed_builder::TypedBuilder;
 
-use super::{
+use crate::event::callbacks::{
     default_broadcast_error_cb, default_event_subscription_error_cb, default_handler_error_cb,
 };
 use crate::future::{with_retry, RetryPolicy};
 use crate::grpc::client;
-
-type StreamElement = error_stack::Result<Event, Error>;
 
 #[automock(
     type Err = Error;
@@ -62,8 +60,9 @@ impl Default for Config {
 }
 
 #[derive(Error, Debug)]
+#[allow(dead_code)]
 pub enum Error {
-    #[error("failed to retreive events stream from the client")]
+    #[error("failed to retrieve events stream from the client")]
     EventStream,
 
     #[error("timeout while waiting for event stream")]
@@ -82,6 +81,7 @@ pub enum Error {
     TaskAborted(String),
 }
 
+#[allow(dead_code)]
 pub enum HandlerTaskAction {
     Abort,
     Continue,
@@ -89,6 +89,7 @@ pub enum HandlerTaskAction {
 }
 
 #[derive(TypedBuilder)]
+#[allow(dead_code)]
 pub struct HandlerTask<H>
 where
     H: EventHandler,
@@ -111,6 +112,7 @@ where
     broadcast_error_cb: fn(&[Any], H::Err) -> HandlerTaskAction,
 }
 
+#[allow(dead_code)]
 impl<H> HandlerTask<H>
 where
     H: EventHandler,
@@ -144,7 +146,8 @@ where
         &self,
         client: &'a mut impl client::Client,
         token: &'a CancellationToken,
-    ) -> error_stack::Result<impl Stream<Item = StreamElement> + 'a, Error> {
+    ) -> error_stack::Result<impl Stream<Item = error_stack::Result<Event, Error>> + 'a, Error>
+    {
         let subscription_params = self.handler.subscription_params();
 
         let stream = client
@@ -167,7 +170,7 @@ where
 
     async fn process_stream(
         &self,
-        element: StreamElement,
+        element: error_stack::Result<Event, Error>,
         token: &CancellationToken,
     ) -> HandlerTaskAction {
         let action = self
@@ -180,7 +183,10 @@ where
         action.unwrap_or_else(|err_action| err_action)
     }
 
-    async fn parse_event(&self, element: StreamElement) -> Result<H::Event, HandlerTaskAction> {
+    async fn parse_event(
+        &self,
+        element: error_stack::Result<Event, Error>,
+    ) -> Result<H::Event, HandlerTaskAction> {
         element
             .inspect(Self::log_block_boundary)
             .and_then(|event| {
