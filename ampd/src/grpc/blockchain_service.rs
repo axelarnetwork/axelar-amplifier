@@ -13,6 +13,7 @@ use tonic::{Request, Response, Status};
 use tracing::error;
 use valuable::Valuable;
 
+use super::error::ErrorExt;
 use crate::event_sub;
 use crate::grpc::event_filters;
 
@@ -50,40 +51,30 @@ where
 
         let filters: event_filters::EventFilters = (filters, include_block_begin_end)
             .try_into()
-            .map_err(|err| {
+            .inspect_err(|err| {
                 error!(
-                    err = LoggableError::from(&err).as_value(),
+                    err = LoggableError::from(err).as_value(),
                     "invalid event filters provided for event subscription"
                 );
-
-                Status::from(err.current_context())
-            })?;
+            })
+            .map_err(ErrorExt::into_status)?;
 
         Ok(Response::new(Box::pin(
             self.event_sub
                 .subscribe()
-                .filter(move |event| filters.filter(event))
+                .filter(move |event| match event {
+                    Ok(event) => filters.filter(event),
+                    Err(_) => true,
+                })
                 .map_ok(Into::into)
                 .map_ok(|event| ampd_proto::SubscribeResponse { event: Some(event) })
-                .map_err(|err| {
+                .inspect_err(|err| {
                     error!(
-                        err = LoggableError::from(&err).as_value(),
+                        err = LoggableError::from(err).as_value(),
                         "event subscription error"
                     );
-
-                    match err.current_context() {
-                        event_sub::Error::LatestBlockQuery
-                        | event_sub::Error::BlockResultsQuery { .. } => {
-                            Status::unavailable("blockchain service is temporarily unavailable")
-                        }
-                        event_sub::Error::EventDecoding { .. } => Status::internal(
-                            "server encountered an error processing blockchain events",
-                        ),
-                        event_sub::Error::BroadcastStreamRecv(_) => {
-                            Status::data_loss("events have been missed due to client lag")
-                        }
-                    }
-                }),
+                })
+                .map_err(ErrorExt::into_status),
         )))
     }
 
@@ -188,7 +179,13 @@ mod tests {
 
         let service = Service::new(mock_event_sub);
         let res = service
-            .subscribe(subscribe_req(vec![], true))
+            .subscribe(subscribe_req(
+                vec![ampd_proto::EventFilter {
+                    r#type: "event_type".to_string(),
+                    ..Default::default()
+                }],
+                true,
+            ))
             .await
             .unwrap();
         let mut event_stream = res.into_inner();
@@ -210,7 +207,13 @@ mod tests {
 
         let service = Service::new(mock_event_sub);
         let res = service
-            .subscribe(subscribe_req(vec![], true))
+            .subscribe(subscribe_req(
+                vec![ampd_proto::EventFilter {
+                    r#type: "event_type".to_string(),
+                    ..Default::default()
+                }],
+                true,
+            ))
             .await
             .unwrap();
         let mut event_stream = res.into_inner();
@@ -232,7 +235,13 @@ mod tests {
 
         let service = Service::new(mock_event_sub);
         let res = service
-            .subscribe(subscribe_req(vec![], true))
+            .subscribe(subscribe_req(
+                vec![ampd_proto::EventFilter {
+                    r#type: "event_type".to_string(),
+                    ..Default::default()
+                }],
+                true,
+            ))
             .await
             .unwrap();
         let mut event_stream = res.into_inner();
@@ -251,7 +260,13 @@ mod tests {
 
         let service = Service::new(mock_event_sub);
         let res = service
-            .subscribe(subscribe_req(vec![], true))
+            .subscribe(subscribe_req(
+                vec![ampd_proto::EventFilter {
+                    r#type: "event_type".to_string(),
+                    ..Default::default()
+                }],
+                true,
+            ))
             .await
             .unwrap();
         let mut event_stream = res.into_inner();

@@ -17,6 +17,7 @@ use crate::event_sub::EventSub;
 
 mod blockchain_service;
 mod crypto_service;
+mod error;
 mod event_filters;
 
 #[derive(Error, Debug)]

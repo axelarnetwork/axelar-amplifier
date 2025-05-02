@@ -2,13 +2,12 @@ use std::str::FromStr;
 
 use axelar_wasm_std::nonempty;
 use cosmrs::AccountId;
-use error_stack::{report, Report, Result};
+use error_stack::{ensure, Report, Result};
 use report::ResultCompatExt;
 use thiserror::Error;
-use tonic::Status;
 
 use crate::types::TMAddress;
-use crate::{event_sub, PREFIX};
+use crate::PREFIX;
 
 #[derive(Error, Debug)]
 pub enum Error {
@@ -16,18 +15,6 @@ pub enum Error {
     EmptyFilter,
     #[error("invalid contract address in filter")]
     InvalidContractAddress(String),
-}
-
-impl From<&Error> for Status {
-    fn from(error: &Error) -> Self {
-        match error {
-            Error::EmptyFilter => Status::invalid_argument("empty filter provided"),
-            Error::InvalidContractAddress(contract) => Status::invalid_argument(format!(
-                "invalid contract address {} provided in filters",
-                contract
-            )),
-        }
-    }
 }
 
 #[derive(Debug)]
@@ -47,11 +34,10 @@ impl TryFrom<ampd_proto::EventFilter> for EventFilter {
             let contract = AccountId::from_str(&event_filter.contract)
                 .change_context(Error::InvalidContractAddress(event_filter.contract.clone()))
                 .and_then(|contract| {
-                    if contract.prefix() != PREFIX {
-                        return Err(report!(Error::InvalidContractAddress(
-                            event_filter.contract
-                        )));
-                    }
+                    ensure!(
+                        contract.prefix() == PREFIX,
+                        Error::InvalidContractAddress(event_filter.contract)
+                    );
 
                     Ok(contract)
                 })
@@ -60,9 +46,10 @@ impl TryFrom<ampd_proto::EventFilter> for EventFilter {
             Some(contract)
         };
 
-        if event_type.is_none() && contract.is_none() {
-            return Err(report!(Error::EmptyFilter));
-        }
+        ensure!(
+            event_type.is_some() || contract.is_some(),
+            Error::EmptyFilter
+        );
 
         Ok(EventFilter {
             event_type,
@@ -72,20 +59,20 @@ impl TryFrom<ampd_proto::EventFilter> for EventFilter {
 }
 
 impl EventFilter {
-    pub fn filter(&self, event_type: &str, contract: &Option<TMAddress>) -> bool {
-        if self
-            .event_type
-            .as_ref()
-            .is_some_and(|filter| *filter != event_type)
-        {
-            return false;
-        }
+    pub fn filter(&self, event_type: &str, contract: Option<&TMAddress>) -> bool {
+        self.matches_event_type(event_type) && self.matches_contract(contract)
+    }
 
-        if self.contract.is_some() && self.contract != *contract {
-            return false;
-        }
+    fn matches_event_type(&self, event_type: &str) -> bool {
+        self.event_type.is_none()
+            || self
+                .event_type
+                .as_ref()
+                .is_some_and(|filter| *filter == event_type)
+    }
 
-        true
+    fn matches_contract(&self, contract: Option<&TMAddress>) -> bool {
+        self.contract.is_none() || self.contract.as_ref() == contract
     }
 }
 
@@ -96,21 +83,14 @@ pub struct EventFilters {
 }
 
 impl EventFilters {
-    pub fn filter(&self, event: &Result<events::Event, event_sub::Error>) -> bool {
-        match event {
-            Ok(event) => {
-                let contract = event.contract_address();
+    pub fn filter(&self, event: &events::Event) -> bool {
+        let contract = event.contract_address();
 
-                match event {
-                    events::Event::BlockBegin(_) | events::Event::BlockEnd(_) => {
-                        self.include_block_begin_end
-                    }
-                    events::Event::Abci { event_type, .. } => {
-                        self.filter_abci_event(event_type, contract)
-                    }
-                }
+        match event {
+            events::Event::BlockBegin(_) | events::Event::BlockEnd(_) => {
+                self.include_block_begin_end
             }
-            Err(_) => true,
+            events::Event::Abci { event_type, .. } => self.filter_abci_event(event_type, contract),
         }
     }
 
@@ -126,7 +106,7 @@ impl EventFilters {
 
         self.filters
             .iter()
-            .any(|filter| filter.filter(event_type, &contract))
+            .any(|filter| filter.filter(event_type, contract.as_ref()))
     }
 }
 
@@ -151,7 +131,6 @@ mod tests {
     use std::iter;
 
     use axelar_wasm_std::assert_err_contains;
-    use error_stack::report;
     use events::Event;
     use serde_json::{Map, Value};
 
@@ -222,8 +201,8 @@ mod tests {
         };
 
         let filter = EventFilter::try_from(proto_filter).unwrap();
-        assert!(filter.filter("test_event", &None));
-        assert!(!filter.filter("other_event", &None));
+        assert!(filter.filter("test_event", None));
+        assert!(!filter.filter("other_event", None));
     }
 
     #[test]
@@ -236,9 +215,9 @@ mod tests {
 
         let filter = EventFilter::try_from(proto_filter).unwrap();
 
-        assert!(filter.filter("any_event", &Some(address.clone())));
-        assert!(!filter.filter("any_event", &Some(TMAddress::random(PREFIX))));
-        assert!(!filter.filter("any_event", &None));
+        assert!(filter.filter("any_event", Some(&address)));
+        assert!(!filter.filter("any_event", Some(&TMAddress::random(PREFIX))));
+        assert!(!filter.filter("any_event", None));
     }
 
     #[test]
@@ -251,9 +230,9 @@ mod tests {
 
         let filter = EventFilter::try_from(proto_filter).unwrap();
 
-        assert!(filter.filter("test_event", &Some(address.clone())));
-        assert!(!filter.filter("other_event", &Some(address.clone())));
-        assert!(!filter.filter("test_event", &Some(TMAddress::random(PREFIX))));
+        assert!(filter.filter("test_event", Some(&address)));
+        assert!(!filter.filter("other_event", Some(&address)));
+        assert!(!filter.filter("test_event", Some(&TMAddress::random(PREFIX))));
     }
 
     #[test]
@@ -290,8 +269,8 @@ mod tests {
         }];
 
         let filters = EventFilters::try_from((proto_filters, true)).unwrap();
-        assert!(filters.filter(&Ok(Event::BlockBegin(100u32.into()))));
-        assert!(filters.filter(&Ok(Event::BlockEnd(100u32.into()))));
+        assert!(filters.filter(&Event::BlockBegin(100u32.into())));
+        assert!(filters.filter(&Event::BlockEnd(100u32.into())));
     }
 
     #[test]
@@ -302,8 +281,8 @@ mod tests {
         }];
 
         let filters = EventFilters::try_from((proto_filters, false)).unwrap();
-        assert!(!filters.filter(&Ok(Event::BlockBegin(100u32.into()))));
-        assert!(!filters.filter(&Ok(Event::BlockEnd(100u32.into()))));
+        assert!(!filters.filter(&Event::BlockBegin(100u32.into())));
+        assert!(!filters.filter(&Event::BlockEnd(100u32.into())));
     }
 
     #[test]
@@ -314,14 +293,14 @@ mod tests {
         }];
 
         let filters = EventFilters::try_from((proto_filters, false)).unwrap();
-        assert!(filters.filter(&Ok(Event::Abci {
+        assert!(filters.filter(&Event::Abci {
             event_type: "test_event".to_string(),
             attributes: Map::new(),
-        })));
-        assert!(!filters.filter(&Ok(Event::Abci {
+        }));
+        assert!(!filters.filter(&Event::Abci {
             event_type: "other_event".to_string(),
             attributes: Map::new(),
-        })));
+        }));
     }
 
     #[test]
@@ -339,42 +318,31 @@ mod tests {
         ];
 
         let filters = EventFilters::try_from((proto_filters, false)).unwrap();
-        assert!(filters.filter(&Ok(Event::Abci {
+        assert!(filters.filter(&Event::Abci {
             event_type: "event_1".to_string(),
             attributes: Map::new(),
-        })));
-        assert!(filters.filter(&Ok(Event::Abci {
+        }));
+        assert!(filters.filter(&Event::Abci {
             event_type: "any_event".to_string(),
             attributes: iter::once((
                 "_contract_address".to_string(),
                 Value::String(address.to_string()),
             ))
             .collect(),
-        })));
-        assert!(!filters.filter(&Ok(Event::Abci {
+        }));
+        assert!(!filters.filter(&Event::Abci {
             event_type: "event_2".to_string(),
             attributes: Map::new(),
-        })));
+        }));
     }
 
     #[test]
     fn event_filters_should_allow_all_events_when_no_filters_provided() {
         let filters = EventFilters::try_from((vec![], true)).unwrap();
 
-        assert!(filters.filter(&Ok(Event::Abci {
+        assert!(filters.filter(&Event::Abci {
             event_type: "any_event".to_string(),
             attributes: Map::new(),
-        })));
-    }
-
-    #[test]
-    fn event_filters_should_always_allow_error_events() {
-        let proto_filters = vec![ampd_proto::EventFilter {
-            r#type: "test_event".to_string(),
-            contract: "".to_string(),
-        }];
-
-        let filters = EventFilters::try_from((proto_filters, false)).unwrap();
-        assert!(filters.filter(&Err(report!(event_sub::Error::LatestBlockQuery))));
+        }));
     }
 }
