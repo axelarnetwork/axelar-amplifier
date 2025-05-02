@@ -77,6 +77,7 @@ impl From<&event_sub::Error> for Error {
 
 #[cfg(test)]
 mod tests {
+    use error_stack::report;
     use tendermint::block::Height;
     use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
     use tonic::Code;
@@ -104,19 +105,19 @@ mod tests {
             Code::Unavailable
         );
         assert_eq!(
-            event_sub::Error::BlockResultsQuery {
+            report!(event_sub::Error::BlockResultsQuery {
                 block: Height::default()
-            }
+            })
             .into_status()
             .code(),
             Code::Unavailable
         );
         assert_eq!(
-            event_sub::Error::EventDecoding {
+            (&report!(event_sub::Error::EventDecoding {
                 block: Height::default()
-            }
-            .into_status()
-            .code(),
+            }))
+                .into_status()
+                .code(),
             Code::Internal
         );
         assert_eq!(
