@@ -1,8 +1,5 @@
-use std::str::FromStr;
-
 use axelar_wasm_std::nonempty;
-use cosmrs::AccountId;
-use error_stack::{ensure, Report, Result};
+use error_stack::{ensure, report, Report, Result};
 use report::ResultCompatExt;
 use thiserror::Error;
 
@@ -18,9 +15,10 @@ pub enum Error {
 }
 
 #[derive(Debug)]
-pub struct EventFilter {
-    event_type: Option<nonempty::String>,
-    contract: Option<TMAddress>,
+pub enum EventFilter {
+    EventType(nonempty::String),
+    Contract(TMAddress),
+    EventTypeAndContract(nonempty::String, TMAddress),
 }
 
 impl TryFrom<ampd_proto::EventFilter> for EventFilter {
@@ -31,48 +29,38 @@ impl TryFrom<ampd_proto::EventFilter> for EventFilter {
         let contract = if event_filter.contract.is_empty() {
             None
         } else {
-            let contract = AccountId::from_str(&event_filter.contract)
-                .change_context(Error::InvalidContractAddress(event_filter.contract.clone()))
-                .and_then(|contract| {
-                    ensure!(
-                        contract.prefix() == PREFIX,
-                        Error::InvalidContractAddress(event_filter.contract)
-                    );
-
-                    Ok(contract)
-                })
-                .map(Into::into)?;
+            let contract: TMAddress = event_filter
+                .contract
+                .parse()
+                .change_context(Error::InvalidContractAddress(event_filter.contract.clone()))?;
+            ensure!(
+                contract.as_ref().prefix() == PREFIX,
+                Error::InvalidContractAddress(event_filter.contract)
+            );
 
             Some(contract)
         };
 
-        ensure!(
-            event_type.is_some() || contract.is_some(),
-            Error::EmptyFilter
-        );
-
-        Ok(EventFilter {
-            event_type,
-            contract,
-        })
+        match (event_type, contract) {
+            (Some(event_type), Some(contract)) => {
+                Ok(EventFilter::EventTypeAndContract(event_type, contract))
+            }
+            (Some(event_type), None) => Ok(EventFilter::EventType(event_type)),
+            (None, Some(contract)) => Ok(EventFilter::Contract(contract)),
+            (None, None) => Err(report!(Error::EmptyFilter)),
+        }
     }
 }
 
 impl EventFilter {
     pub fn filter(&self, event_type: &str, contract: Option<&TMAddress>) -> bool {
-        self.matches_event_type(event_type) && self.matches_contract(contract)
-    }
-
-    fn matches_event_type(&self, event_type: &str) -> bool {
-        self.event_type.is_none()
-            || self
-                .event_type
-                .as_ref()
-                .is_some_and(|filter| *filter == event_type)
-    }
-
-    fn matches_contract(&self, contract: Option<&TMAddress>) -> bool {
-        self.contract.is_none() || self.contract.as_ref() == contract
+        match self {
+            EventFilter::EventType(event_type_filter) => event_type_filter == event_type,
+            EventFilter::Contract(contract_filter) => Some(contract_filter) == contract,
+            EventFilter::EventTypeAndContract(event_type_filter, contract_filter) => {
+                event_type_filter == event_type && Some(contract_filter) == contract
+            }
+        }
     }
 }
 
@@ -138,28 +126,36 @@ mod tests {
     use crate::types::TMAddress;
 
     #[test]
-    fn event_filter_should_be_created_from_valid_event_filter() {
+    fn event_filter_should_be_created_from_valid_event_type() {
         let proto_filter = ampd_proto::EventFilter {
             r#type: "test_event".to_string(),
             contract: "".to_string(),
         };
 
         let filter = EventFilter::try_from(proto_filter).unwrap();
-        assert!(filter.event_type.is_some());
-        assert!(filter.contract.is_none());
+        assert!(matches!(filter, EventFilter::EventType(_)));
     }
 
     #[test]
     fn event_filter_should_be_created_from_valid_contract_address() {
-        let address = TMAddress::random(PREFIX);
         let proto_filter = ampd_proto::EventFilter {
             r#type: "".to_string(),
-            contract: address.to_string(),
+            contract: TMAddress::random(PREFIX).to_string(),
         };
 
         let filter = EventFilter::try_from(proto_filter).unwrap();
-        assert!(filter.event_type.is_none());
-        assert_eq!(filter.contract.as_ref(), Some(&address));
+        assert!(matches!(filter, EventFilter::Contract(_)));
+    }
+
+    #[test]
+    fn event_filter_should_be_created_from_valid_event_type_and_contract_address() {
+        let proto_filter = ampd_proto::EventFilter {
+            r#type: "test_event".to_string(),
+            contract: TMAddress::random(PREFIX).to_string(),
+        };
+
+        let filter = EventFilter::try_from(proto_filter).unwrap();
+        assert!(matches!(filter, EventFilter::EventTypeAndContract(_, _)));
     }
 
     #[test]
