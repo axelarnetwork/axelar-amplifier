@@ -22,6 +22,11 @@ mod broadcaster;
 mod msg_queue;
 mod proto;
 
+pub use broadcaster::Broadcaster;
+#[cfg(test)]
+pub use msg_queue::QueueMsg;
+pub use msg_queue::{MsgQueue, MsgQueueClient};
+
 type Result<T> = error_stack::Result<T, Error>;
 
 #[derive(Error, Debug, Clone)]
@@ -30,14 +35,14 @@ pub enum Error {
     EnqueueMsg,
     #[error("failed to estimate gas")]
     EstimateGas,
-    #[error("failed to estimate tx fee")]
-    EstimateFee,
+    #[error("failed to adjust the fee")]
+    FeeAdjustment,
     #[error("failed to query account")]
-    QueryAccount,
+    AccountQuery,
     #[error("invalid public key")]
     InvalidPubKey,
     #[error("failed to sign tx")]
-    TxSigning,
+    SignTx,
     #[error("failed to broadcast tx")]
     BroadcastTx,
     #[error("failed to receive tx result")]
@@ -139,11 +144,11 @@ where
 
         Ok(Fee::from_amount_and_gas(
             Coin::new(
-                cast(gas.mul(self.gas_price.amount).ceil()).ok_or(report!(Error::EstimateFee))?,
+                cast(gas.mul(self.gas_price.amount).ceil()).ok_or(report!(Error::FeeAdjustment))?,
                 self.gas_price.denom.as_ref(),
             )
-            .change_context(Error::EstimateFee)?,
-            cast::<f64, u64>(gas).ok_or(report!(Error::EstimateFee))?,
+            .change_context(Error::FeeAdjustment)?,
+            cast::<f64, u64>(gas).ok_or(report!(Error::FeeAdjustment))?,
         ))
     }
 
@@ -479,7 +484,7 @@ mod tests {
             .await
             .unwrap();
         assert!(result.is_ok());
-        assert_err_contains!(rx.await.unwrap(), Error, Error::TxSigning);
+        assert_err_contains!(rx.await.unwrap(), Error, Error::SignTx);
     }
 
     #[tokio::test]

@@ -99,7 +99,7 @@ where
             .into();
         let account = cosmos::account(&mut client, &address)
             .await
-            .change_context(Error::QueryAccount)?;
+            .change_context(Error::AccountQuery)?;
 
         Ok(Self {
             client,
@@ -184,7 +184,7 @@ where
             .build()
             .sign_with(&self.chain_id, self.acc_number, sign_fn)
             .await
-            .change_context(Error::TxSigning)?;
+            .change_context(Error::SignTx)?;
 
         match cosmos::broadcast(&mut self.client, tx).await {
             Ok(tx_response) => {
@@ -215,7 +215,7 @@ where
 {
     let account = cosmos::account(client, address)
         .await
-        .change_context(Error::QueryAccount)?;
+        .change_context(Error::AccountQuery)?;
     *acc_sequence = account.sequence;
 
     Ok(())
@@ -322,7 +322,7 @@ mod tests {
 
         let result = Broadcaster::new(mock_client, chain_id, pub_key).await;
 
-        assert_err_contains!(result, Error, Error::QueryAccount);
+        assert_err_contains!(result, Error, Error::AccountQuery);
     }
 
     #[tokio::test]
@@ -502,7 +502,7 @@ mod tests {
 
         let result = broadcaster.broadcast(vec![dummy_msg()], fee, sign_fn).await;
 
-        assert_err_contains!(result, Error, Error::TxSigning);
+        assert_err_contains!(result, Error, Error::SignTx);
         assert_eq!(*broadcaster.acc_sequence.read().await, sequence);
     }
 
