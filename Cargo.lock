@@ -340,11 +340,18 @@ dependencies = [
 [[package]]
 name = "ampd-handlers"
 version = "0.1.0"
+dependencies = [
+ "ampd-sdk",
+ "events",
+ "tokio",
+ "tokio-util",
+]
 
 [[package]]
 name = "ampd-proto"
 version = "0.1.0"
 dependencies = [
+ "cosmrs",
  "prost 0.13.5",
  "prost-types 0.13.5",
  "serde_json",
@@ -358,18 +365,28 @@ version = "0.1.0"
 dependencies = [
  "ampd-proto",
  "async-trait",
+ "cosmrs",
  "error-stack",
  "events",
  "futures",
+ "humantime-serde",
+ "itertools 0.14.0",
  "mockall 0.12.1",
  "prost 0.13.5",
  "prost-types 0.13.5",
+ "report",
+ "serde",
  "serde_json",
  "tendermint 0.35.0",
  "thiserror 1.0.69",
+ "tokio",
  "tokio-stream",
+ "tokio-util",
  "tonic 0.13.0",
  "tonic-build",
+ "tracing",
+ "typed-builder",
+ "valuable",
 ]
 
 [[package]]
@@ -3544,6 +3561,7 @@ dependencies = [
  "cosmrs",
  "error-stack",
  "goldie",
+ "serde",
  "serde_json",
  "tendermint 0.35.0",
  "thiserror 1.0.69",
