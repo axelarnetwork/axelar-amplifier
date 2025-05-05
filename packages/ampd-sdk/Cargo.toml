@@ -30,6 +30,9 @@ tracing = { workspace = true }
 typed-builder = { workspace = true }
 valuable = { workspace = true }
 
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }
+
 [build-dependencies]
 tonic-build = "0.13.0"
 

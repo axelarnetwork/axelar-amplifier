@@ -3560,6 +3560,7 @@ dependencies = [
  "cosmrs",
  "error-stack",
  "goldie",
+ "serde",
  "serde_json",
  "tendermint 0.35.0",
  "thiserror 1.0.69",

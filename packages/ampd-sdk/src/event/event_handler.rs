@@ -9,6 +9,7 @@ use futures::{pin_mut, Stream, TryFutureExt};
 use mockall::automock;
 use report::ErrorExt;
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use thiserror::Error;
 use tokio::time::interval;
 use tokio_stream::{Elapsed, StreamExt};
@@ -16,9 +17,7 @@ use tokio_util::sync::CancellationToken;
 use tracing::{error, info};
 use typed_builder::TypedBuilder;
 
-use crate::event::callbacks::{
-    default_broadcast_error_cb, default_event_subscription_error_cb, default_handler_error_cb,
-};
+use crate::event::callbacks::{default_event_subscription_error_cb, default_handler_error_cb};
 use crate::future::{with_retry, RetryPolicy};
 use crate::grpc::client;
 
@@ -35,7 +34,7 @@ pub trait EventHandler: Send + Sync {
         &self,
         event: &Self::Event,
         token: &CancellationToken,
-    ) -> Result<Vec<Any>, Self::Err>;
+    ) -> error_stack::Result<Vec<Any>, Self::Err>;
 
     fn subscription_params(&self) -> SubscriptionParams;
 }
@@ -107,9 +106,8 @@ where
     #[builder(default = default_event_subscription_error_cb)]
     event_subscription_error_cb: fn(Report<Error>) -> HandlerTaskAction,
     #[builder(default = default_handler_error_cb)]
-    handler_error_cb: fn(&H::Event, H::Err) -> HandlerTaskAction,
-    #[builder(default = default_broadcast_error_cb)]
-    broadcast_error_cb: fn(&[Any], H::Err) -> HandlerTaskAction,
+    handler_error_cb: fn(&H::Event, Report<H::Err>) -> HandlerTaskAction,
+    // TODO: broadcast_error_cb should be a slice of tuple (message, res of that message)
 }
 
 #[allow(dead_code)]
@@ -192,7 +190,7 @@ where
             .and_then(|event| {
                 H::Event::try_from(event.clone())
                     .change_context(Error::EventConversion)
-                    .attach_printable(format!("failed to create handler event from: {event}"))
+                    .attach_printable(json!({ "event": event }))
             })
             .map_err(self.event_subscription_error_cb)
     }
@@ -224,12 +222,10 @@ where
 
     async fn broadcast_msgs(
         &self,
-        msgs: Vec<Any>,
+        _msgs: Vec<Any>,
         _token: &CancellationToken,
     ) -> Result<(), HandlerTaskAction> {
-        with_retry(|| async { Ok(()) }, self.broadcast_retry_policy) // Placeholder for actual broadcast
-            .await
-            .map_err(|err| (self.broadcast_error_cb)(&msgs, err))
+        Ok(()) // TODO: iterate over the messages and broadcast them
     }
 }
 
@@ -287,7 +283,6 @@ mod tests {
             .broadcast_retry_policy(RetryPolicy::NoRetry)
             .event_subscription_error_cb(|_| HandlerTaskAction::Abort)
             .handler_error_cb(|_, _| HandlerTaskAction::Abort)
-            .broadcast_error_cb(|_, _| HandlerTaskAction::Abort)
             .build();
 
         let result = tokio::time::timeout(
@@ -308,7 +303,7 @@ mod tests {
         handler
             .expect_handle()
             .times(1)
-            .returning(|_, _| Err(Error::HandlerFailed));
+            .returning(|_, _| Err(report!(Error::HandlerFailed)));
 
         let events = vec![Event::BlockBegin(1u32.into())];
         let mut client = mock_client_subscribe_with_events(events);
@@ -320,7 +315,6 @@ mod tests {
             })
             .event_subscription_error_cb(|_| HandlerTaskAction::Abort)
             .handler_error_cb(|_, _| HandlerTaskAction::Abort)
-            .broadcast_error_cb(|_, _| HandlerTaskAction::Abort)
             .build();
 
         let result = task.run(&mut client, CancellationToken::new()).await;
@@ -343,7 +337,7 @@ mod tests {
             };
 
             if height == 1 {
-                Err(Error::HandlerFailed)
+                Err(report!(Error::HandlerFailed))
             } else {
                 Ok(vec![])
             }
@@ -362,7 +356,6 @@ mod tests {
             })
             .event_subscription_error_cb(|_| HandlerTaskAction::Abort)
             .handler_error_cb(|_, _| HandlerTaskAction::Continue)
-            .broadcast_error_cb(|_, _| HandlerTaskAction::Abort)
             .build();
 
         let result = task.run(&mut client, CancellationToken::new()).await;
@@ -381,7 +374,7 @@ mod tests {
             *count += 1;
 
             if *count <= 2 {
-                Err(Error::HandlerFailed)
+                Err(report!(Error::HandlerFailed))
             } else {
                 Ok(vec![])
             }
@@ -402,7 +395,6 @@ mod tests {
             .broadcast_retry_policy(RetryPolicy::NoRetry)
             .event_subscription_error_cb(|_| HandlerTaskAction::Abort)
             .handler_error_cb(|_, _| HandlerTaskAction::Abort)
-            .broadcast_error_cb(|_, _| HandlerTaskAction::Abort)
             .build();
 
         let result = task.run(&mut client, CancellationToken::new()).await;
@@ -430,7 +422,6 @@ mod tests {
             })
             .event_subscription_error_cb(|_| HandlerTaskAction::Abort)
             .handler_error_cb(|_, _| HandlerTaskAction::Abort)
-            .broadcast_error_cb(|_, _| HandlerTaskAction::Abort)
             .build();
 
         let result = task.run(&mut client, CancellationToken::new()).await;
@@ -459,7 +450,6 @@ mod tests {
             })
             .event_subscription_error_cb(|_| HandlerTaskAction::Abort)
             .handler_error_cb(|_, _| HandlerTaskAction::Abort)
-            .broadcast_error_cb(|_, _| HandlerTaskAction::Abort)
             .build();
 
         let token = CancellationToken::new();
@@ -503,7 +493,6 @@ mod tests {
             })
             .event_subscription_error_cb(|_| HandlerTaskAction::Abort)
             .handler_error_cb(|_, _| HandlerTaskAction::Abort)
-            .broadcast_error_cb(|_, _| HandlerTaskAction::Abort)
             .build();
 
         let result = task.run(&mut client, CancellationToken::new()).await;

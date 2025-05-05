@@ -6,6 +6,7 @@ use base64::engine::general_purpose::STANDARD;
 use base64::Engine;
 use cosmrs::AccountId;
 use error_stack::{Report, Result, ResultExt};
+use serde::Serialize;
 use tendermint::abci::EventAttribute;
 use tendermint::{abci, block};
 
@@ -16,7 +17,7 @@ pub struct AbciEventTypeFilter {
     pub event_type: String,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Serialize, PartialEq, Eq)]
 pub enum Event {
     BlockBegin(block::Height),
     BlockEnd(block::Height),
