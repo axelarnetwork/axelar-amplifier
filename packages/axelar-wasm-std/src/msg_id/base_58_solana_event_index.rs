@@ -123,7 +123,7 @@ mod tests {
             let res = Base58SolanaTxSignatureAndEventIndex::from_str(&msg_id);
             let parsed = res.unwrap();
             assert_eq!(parsed.event_index, event_index);
-            assert_eq!(parsed.signature_as_base58(), tx_digest.try_into().unwrap());
+            assert_eq!(parsed.signature_as_base58(), tx_digest.as_str());
             assert_eq!(parsed.to_string(), msg_id);
         }
     }

@@ -13,8 +13,12 @@ use tonic::transport;
 use tower::layer::util::{Identity, Stack};
 use tower::limit::ConcurrencyLimitLayer;
 
+use crate::event_sub::EventSub;
+
 mod blockchain_service;
 mod crypto_service;
+mod error;
+mod event_filters;
 
 #[derive(Error, Debug)]
 pub enum Error {
@@ -66,7 +70,10 @@ pub struct Server {
 }
 
 impl Server {
-    pub fn new(config: &Config) -> Self {
+    pub fn new<E>(config: &Config, event_sub: E) -> Self
+    where
+        E: EventSub + Send + Sync + 'static,
+    {
         Self {
             addr: SocketAddr::new(config.ip_addr, config.port),
             // TODO: add TLS and optional public key pinning
@@ -74,7 +81,7 @@ impl Server {
                 .layer(ConcurrencyLimitLayer::new(config.concurrency_limit.into()))
                 .concurrency_limit_per_connection(config.concurrency_limit_per_connection.into())
                 .add_service(BlockchainServiceServer::new(
-                    blockchain_service::Service::new(),
+                    blockchain_service::Service::new(event_sub),
                 ))
                 .add_service(CryptoServiceServer::new(crypto_service::Service::new())),
         }

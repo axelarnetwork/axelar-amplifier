@@ -1,5 +1,6 @@
 use std::fmt;
 use std::hash::{Hash as StdHash, Hasher};
+use std::str::FromStr;
 
 use cosmrs::AccountId;
 use ethers_core::types::{Address, H256};
@@ -16,6 +17,14 @@ pub type Hash = H256;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TMAddress(AccountId);
+
+impl FromStr for TMAddress {
+    type Err = <AccountId as FromStr>::Err;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        AccountId::from_str(s).map(Self)
+    }
+}
 
 impl StdHash for TMAddress {
     fn hash<H: Hasher>(&self, state: &mut H) {

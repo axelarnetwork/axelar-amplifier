@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 use std::fmt::Display;
 
 use axelar_wasm_std::FnExt;
@@ -12,6 +12,8 @@ use tendermint::{abci, block};
 
 use crate::errors::DecodingError;
 use crate::Error;
+
+const KEY_CONTRACT_ADDRESS: &str = "_contract_address";
 
 pub struct AbciEventTypeFilter {
     pub event_type: String,
@@ -71,7 +73,7 @@ impl Event {
                 event_type: _,
                 attributes,
             } => attributes
-                .get("_contract_address")
+                .get(KEY_CONTRACT_ADDRESS)
                 .and_then(|address| serde_json::from_value::<AccountId>(address.clone()).ok()),
             _ => None,
         }
@@ -121,6 +123,39 @@ fn base64_to_utf8(base64_str: &str) -> std::result::Result<String, DecodingError
     Ok(STANDARD.decode(base64_str)?.then(String::from_utf8)?)
 }
 
+impl From<Event> for ampd_proto::subscribe_response::Event {
+    fn from(event: Event) -> Self {
+        let contract = event.contract_address();
+
+        match event {
+            Event::BlockBegin(height) => {
+                ampd_proto::subscribe_response::Event::BlockBegin(ampd_proto::EventBlockBegin {
+                    height: height.value(),
+                })
+            }
+            Event::BlockEnd(height) => {
+                ampd_proto::subscribe_response::Event::BlockEnd(ampd_proto::EventBlockEnd {
+                    height: height.value(),
+                })
+            }
+            Event::Abci {
+                event_type,
+                attributes,
+            } => ampd_proto::subscribe_response::Event::Abci(ampd_proto::Event {
+                r#type: event_type,
+                contract: contract
+                    .as_ref()
+                    .map(ToString::to_string)
+                    .unwrap_or_default(),
+                attributes: attributes
+                    .into_iter()
+                    .map(|(key, value)| (key, value.to_string()))
+                    .collect(),
+            }),
+        }
+    }
+}
+
 impl TryFrom<ampd_proto::subscribe_response::Event> for Event {
     type Error = Report<Error>;
 
@@ -142,25 +177,20 @@ impl TryFrom<ampd_proto::subscribe_response::Event> for Event {
             }
             ampd_proto::subscribe_response::Event::Abci(abci) => Ok(Self::Abci {
                 event_type: abci.r#type,
-                attributes: convert_attributes(&abci.attributes),
+                attributes: abci
+                    .attributes
+                    .into_iter()
+                    .map(|(key, value)| {
+                        (
+                            key,
+                            serde_json::from_str(&value)
+                                .unwrap_or(serde_json::Value::String(value)),
+                        )
+                    })
+                    .collect(),
             }),
         }
     }
-}
-
-fn convert_attributes(
-    proto_attrs: &HashMap<String, String>,
-) -> serde_json::Map<String, serde_json::Value> {
-    let mut result = serde_json::Map::new();
-
-    for (key, value) in proto_attrs {
-        let json_value = serde_json::from_str(value)
-            .unwrap_or_else(|_| serde_json::Value::String(value.clone()));
-
-        result.insert(key.clone(), json_value);
-    }
-
-    result
 }
 
 #[cfg(test)]
@@ -171,12 +201,13 @@ mod test {
     use cosmrs::AccountId;
     use tendermint::block;
 
+    use super::KEY_CONTRACT_ADDRESS;
     use crate::Event;
 
     fn make_event_with_contract_address(contract_address: &AccountId) -> Event {
         let mut attributes = serde_json::Map::new();
         attributes.insert(
-            "_contract_address".to_string(),
+            KEY_CONTRACT_ADDRESS.to_string(),
             contract_address.to_string().into(),
         );
         Event::Abci {
@@ -272,7 +303,7 @@ mod test {
         attrs.insert("key1".to_string(), "value1".to_string());
         attrs.insert("key2".to_string(), "42".to_string());
         attrs.insert(
-            "_contract_address".to_string(),
+            KEY_CONTRACT_ADDRESS.to_string(),
             contract_address_string.clone(),
         );
 
