@@ -1,4 +1,4 @@
 [submodule "packages/ampd-proto/proto-files"]
 	path = packages/ampd-proto/proto-files
 	url = https://github.com/axelarnetwork/ampd-proto.git
-	branch = main
+	branch = docs/update-subscribe-status-code-comments

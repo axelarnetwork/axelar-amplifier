@@ -14,11 +14,12 @@ use tower::layer::util::{Identity, Stack};
 use tower::limit::ConcurrencyLimitLayer;
 
 use crate::event_sub::EventSub;
+use crate::{broadcaster_v2, cosmos};
 
 mod blockchain_service;
 mod crypto_service;
 mod error;
-mod event_filters;
+mod reqs;
 
 #[derive(Error, Debug)]
 pub enum Error {
@@ -70,7 +71,11 @@ pub struct Server {
 }
 
 impl Server {
-    pub fn new<E>(config: &Config, event_sub: E) -> Self
+    pub fn new<E>(
+        config: &Config,
+        event_sub: E,
+        msg_queue_client: broadcaster_v2::MsgQueueClient<cosmos::CosmosGrpcClient>,
+    ) -> Self
     where
         E: EventSub + Send + Sync + 'static,
     {
@@ -81,7 +86,10 @@ impl Server {
                 .layer(ConcurrencyLimitLayer::new(config.concurrency_limit.into()))
                 .concurrency_limit_per_connection(config.concurrency_limit_per_connection.into())
                 .add_service(BlockchainServiceServer::new(
-                    blockchain_service::Service::new(event_sub),
+                    blockchain_service::Service::builder()
+                        .event_sub(event_sub)
+                        .msg_queue_client(msg_queue_client)
+                        .build(),
                 ))
                 .add_service(CryptoServiceServer::new(crypto_service::Service::new())),
         }
