@@ -1,8 +1,21 @@
 use error_stack::Report;
+use report::LoggableError;
 use tonic::Status;
+use tracing::error;
+use valuable::Valuable;
 
 use super::reqs;
 use crate::{broadcaster_v2, event_sub};
+
+pub fn log<Err>(msg: &str) -> impl Fn(&Report<Err>) + '_ {
+    move |err| {
+        error!(
+            component = "grpc",
+            err = LoggableError::from(err).as_value(),
+            msg
+        );
+    }
+}
 
 pub trait ErrorExt {
     fn into_status(self) -> Status;

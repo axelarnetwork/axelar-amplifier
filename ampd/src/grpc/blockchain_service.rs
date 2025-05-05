@@ -7,15 +7,11 @@ use ampd_proto::{
 };
 use async_trait::async_trait;
 use futures::{FutureExt, Stream, TryStreamExt};
-use report::LoggableError;
 use tokio_stream::StreamExt;
 use tonic::{Request, Response, Status};
-use tracing::error;
 use typed_builder::TypedBuilder;
-use valuable::Valuable;
 
-use super::error::ErrorExt;
-use super::reqs;
+use super::{error, reqs};
 use crate::{broadcaster_v2, cosmos, event_sub};
 
 #[derive(TypedBuilder)]
@@ -41,13 +37,8 @@ where
         req: Request<SubscribeRequest>,
     ) -> Result<Response<Self::SubscribeStream>, Status> {
         let filters = reqs::validate_subscribe(req)
-            .inspect_err(|err| {
-                error!(
-                    err = LoggableError::from(err).as_value(),
-                    "invalid subscribe request"
-                );
-            })
-            .map_err(ErrorExt::into_status)?;
+            .inspect_err(error::log("invalid subscribe request"))
+            .map_err(error::ErrorExt::into_status)?;
 
         Ok(Response::new(Box::pin(
             self.event_sub
@@ -58,13 +49,8 @@ where
                 })
                 .map_ok(Into::into)
                 .map_ok(|event| SubscribeResponse { event: Some(event) })
-                .inspect_err(|err| {
-                    error!(
-                        err = LoggableError::from(err).as_value(),
-                        "event subscription error"
-                    );
-                })
-                .map_err(ErrorExt::into_status),
+                .inspect_err(error::log("event subscription error"))
+                .map_err(error::ErrorExt::into_status),
         )))
     }
 
@@ -73,13 +59,8 @@ where
         req: Request<BroadcastRequest>,
     ) -> Result<Response<BroadcastResponse>, Status> {
         let msg = reqs::validate_broadcast(req)
-            .inspect_err(|err| {
-                error!(
-                    err = LoggableError::from(err).as_value(),
-                    "invalid broadcast request"
-                );
-            })
-            .map_err(ErrorExt::into_status)?;
+            .inspect_err(error::log("invalid broadcast request"))
+            .map_err(error::ErrorExt::into_status)?;
 
         self.msg_queue_client
             .clone()
@@ -94,13 +75,8 @@ where
             .await
             .map(|(tx_hash, index)| BroadcastResponse { tx_hash, index })
             .map(Response::new)
-            .inspect_err(|err| {
-                error!(
-                    err = LoggableError::from(err).as_value(),
-                    "message broadcast error"
-                );
-            })
-            .map_err(ErrorExt::into_status)
+            .inspect_err(error::log("message broadcast error"))
+            .map_err(error::ErrorExt::into_status)
     }
 
     async fn query(&self, _req: Request<QueryRequest>) -> Result<Response<QueryResponse>, Status> {
