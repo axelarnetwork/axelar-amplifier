@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::pin::Pin;
 use std::vec;
 
@@ -81,10 +80,9 @@ impl Client for GrpcClient {
         let request = SubscribeRequest {
             filters: filters
                 .into_iter()
-                .map(|filter| ampd_proto::Event {
+                .map(|filter| ampd_proto::EventFilter {
                     r#type: filter.event_type,
-                    contract: String::new(),
-                    attributes: HashMap::new(),
+                    contract: Default::default(),
                 })
                 .collect(),
             include_block_begin_end,
