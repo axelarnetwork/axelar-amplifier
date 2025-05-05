@@ -164,7 +164,6 @@ mod tests {
 
     use crate::encoding::abi::{encode_execute_data, payload_digest, CommandType};
     use crate::payload::Payload;
-    #[cfg(feature = "test-helpers")]
     use crate::test::test_data::{
         curr_verifier_set, domain_separator, messages, new_verifier_set, verifier_set_from_pub_keys,
     };

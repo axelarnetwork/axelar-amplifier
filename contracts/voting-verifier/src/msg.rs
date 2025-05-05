@@ -6,9 +6,9 @@ use cosmwasm_schema::{cw_serde, QueryResponses};
 use msgs_derive::EnsurePermissions;
 use multisig::verifier_set::VerifierSet;
 use router_api::{ChainName, Message};
+pub use voting_verifier_api::msg::InstantiateMsg;
 
 pub use crate::contract::MigrateMsg;
-pub use voting_verifier_api::msg::InstantiateMsg;
 
 #[cw_serde]
 #[derive(EnsurePermissions)]
