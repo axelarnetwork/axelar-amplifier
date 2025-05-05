@@ -29,6 +29,8 @@ use crate::config::Config;
 mod asyncutil;
 mod block_height_monitor;
 mod broadcaster;
+#[allow(dead_code)]
+mod broadcaster_v2;
 pub mod commands;
 pub mod config;
 mod cosmos;
