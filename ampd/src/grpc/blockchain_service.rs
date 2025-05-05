@@ -6,7 +6,7 @@ use ampd_proto::{
     ContractsResponse, QueryRequest, QueryResponse, SubscribeRequest, SubscribeResponse,
 };
 use async_trait::async_trait;
-use futures::{FutureExt, Stream, TryStreamExt};
+use futures::{Stream, TryFutureExt, TryStreamExt};
 use tokio_stream::StreamExt;
 use tonic::{Request, Response, Status};
 use typed_builder::TypedBuilder;
@@ -65,13 +65,7 @@ where
         self.msg_queue_client
             .clone()
             .enqueue(msg)
-            .map(|rx| async {
-                match rx {
-                    Ok(rx) => rx.await,
-                    Err(err) => Err(err),
-                }
-            })
-            .await
+            .and_then(|rx| rx)
             .await
             .map(|(tx_hash, index)| BroadcastResponse { tx_hash, index })
             .map(Response::new)

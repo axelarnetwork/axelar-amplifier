@@ -100,9 +100,9 @@ where
         &mut self,
         msg: Any,
     ) -> Result<impl Future<Output = Result<(String, u64)>> + Send> {
-        let attachment = json!({ "msg": msg });
+        let attachment = json!({ "msg": &msg });
         let rx = self
-            .enqueue_with_channel(msg.clone())
+            .enqueue_with_channel(msg)
             .await
             .map_err(|err| err.attach_printable(attachment.clone()))?;
 
