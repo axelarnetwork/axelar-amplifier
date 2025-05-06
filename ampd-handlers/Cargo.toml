@@ -7,8 +7,10 @@ edition = { workspace = true }
 
 [dependencies]
 ampd-sdk = { workspace = true }
+error-stack = { workspace = true }
 events = { workspace = true }
 tokio = { workspace = true, features = ["rt-multi-thread"] }
+tokio-stream = { workspace = true }
 tokio-util = { workspace = true }
 
 [lints]
