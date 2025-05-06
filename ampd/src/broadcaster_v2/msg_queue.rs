@@ -5,7 +5,7 @@ use std::future::Future;
 use axelar_wasm_std::nonempty;
 use cosmrs::{Any, Gas};
 use error_stack::{report, Report, ResultExt};
-use futures::{FutureExt, Stream};
+use futures::{FutureExt, Stream, TryFutureExt};
 use pin_project_lite::pin_project;
 use report::{ErrorExt, LoggableError};
 use serde_json::json;
@@ -100,13 +100,19 @@ where
         &mut self,
         msg: Any,
     ) -> Result<impl Future<Output = Result<(String, u64)>> + Send> {
-        let rx = self.enqueue_with_channel(msg).await?;
+        let attachment = json!({ "msg": &msg });
+        let rx = self
+            .enqueue_with_channel(msg)
+            .await
+            .map_err(|err| err.attach_printable(attachment.clone()))?;
 
-        Ok(rx.map(|result| match result {
-            Ok(Ok(result)) => Ok(result),
-            Ok(Err(err)) => Err(err),
-            Err(err) => Err(err.into_report()),
-        }))
+        Ok(rx
+            .map(|result| match result {
+                Ok(Ok(result)) => Ok(result),
+                Ok(Err(err)) => Err(err),
+                Err(err) => Err(err.into_report()),
+            })
+            .map_err(move |err| err.attach_printable(attachment)))
     }
 
     /// Enqueues a message without waiting for its result
@@ -225,16 +231,13 @@ impl MsgQueue {
         msg_cap: usize,
         gas_cap: Gas,
         duration: time::Duration,
-    ) -> Result<(
-        impl Stream<Item = nonempty::Vec<QueueMsg>>,
-        MsgQueueClient<T>,
-    )>
+    ) -> (Pin<Box<MsgQueue>>, MsgQueueClient<T>)
     where
         T: cosmos::CosmosClient,
     {
         let (tx, rx) = mpsc::channel(msg_cap);
 
-        Ok((
+        (
             Box::pin(MsgQueue {
                 stream: ReceiverStream::new(rx).fuse(),
                 deadline: time::sleep(duration),
@@ -242,7 +245,7 @@ impl MsgQueue {
                 duration,
             }),
             MsgQueueClient { broadcaster, tx },
-        ))
+        )
     }
 }
 
@@ -297,12 +300,10 @@ impl Stream for MsgQueue {
 
 fn handle_queue_error(msg: QueueMsg, err: Error) {
     let QueueMsg {
-        msg,
-        tx_res_callback,
-        ..
+        tx_res_callback, ..
     } = msg;
 
-    let err = report!(err).attach_printable(json!({ "msg": msg }));
+    let err = report!(err);
     warn!(
         error = LoggableError::from(&err).as_value(),
         "message dropped"
@@ -434,8 +435,7 @@ mod tests {
             10,
             gas_cap,
             time::Duration::from_secs(1),
-        )
-        .unwrap();
+        );
 
         msg_queue_client
             .enqueue_and_forget(dummy_msg())
@@ -492,8 +492,7 @@ mod tests {
             10,
             gas_cap,
             time::Duration::from_secs(1),
-        )
-        .unwrap();
+        );
 
         let rx = msg_queue_client.enqueue(dummy_msg()).await.unwrap();
         let actual = msg_queue.next().await.unwrap();
@@ -566,8 +565,7 @@ mod tests {
             10,
             gas_cap,
             time::Duration::from_secs(3),
-        )
-        .unwrap();
+        );
 
         let handles: Vec<_> = (0..client_count)
             .map(|_| {
@@ -627,8 +625,7 @@ mod tests {
             10,
             1000u64,
             time::Duration::from_secs(1),
-        )
-        .unwrap();
+        );
 
         assert_err_contains!(
             msg_queue_client.enqueue_and_forget(dummy_msg()).await,
@@ -675,8 +672,7 @@ mod tests {
             10,
             gas_cap,
             time::Duration::from_secs(1),
-        )
-        .unwrap();
+        );
 
         let rx = msg_queue_client.enqueue(dummy_msg()).await.unwrap();
         let _ = msg_queue.next().await;
@@ -722,8 +718,7 @@ mod tests {
             10,
             gas_cap,
             time::Duration::from_secs(3),
-        )
-        .unwrap();
+        );
 
         msg_queue_client
             .enqueue_and_forget(dummy_msg())
@@ -782,8 +777,7 @@ mod tests {
             10,
             gas_cap,
             time::Duration::from_secs(3),
-        )
-        .unwrap();
+        );
         let handle = tokio::spawn(async move {
             let actual = msg_queue.next().await.unwrap();
             assert_eq!(actual.as_ref().len(), 10);
@@ -849,8 +843,7 @@ mod tests {
             10,
             gas_cap,
             time::Duration::from_secs(1),
-        )
-        .unwrap();
+        );
 
         let rx = msg_queue_client.enqueue(dummy_msg()).await.unwrap();
         let handle = tokio::spawn(async move {
@@ -904,8 +897,7 @@ mod tests {
             10,
             gas_cap,
             time::Duration::from_secs(1),
-        )
-        .unwrap();
+        );
 
         msg_queue_client
             .enqueue_and_forget(dummy_msg())

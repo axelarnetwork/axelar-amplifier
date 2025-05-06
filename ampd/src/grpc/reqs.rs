@@ -1,10 +1,28 @@
+use ampd_proto::{BroadcastRequest, SubscribeRequest};
 use axelar_wasm_std::nonempty;
+use cosmrs::Any;
 use error_stack::{ensure, report, Report, Result};
 use report::ResultCompatExt;
 use thiserror::Error;
+use tonic::Request;
 
 use crate::types::TMAddress;
 use crate::PREFIX;
+
+pub fn validate_subscribe(req: Request<SubscribeRequest>) -> Result<EventFilters, Error> {
+    let SubscribeRequest {
+        filters,
+        include_block_begin_end,
+    } = req.into_inner();
+
+    (filters, include_block_begin_end).try_into()
+}
+
+pub fn validate_broadcast(req: Request<BroadcastRequest>) -> Result<Any, Error> {
+    req.into_inner()
+        .msg
+        .ok_or(report!(Error::EmptyBroadcastMsg))
+}
 
 #[derive(Error, Debug)]
 pub enum Error {
@@ -12,6 +30,8 @@ pub enum Error {
     EmptyFilter,
     #[error("invalid contract address in filter")]
     InvalidContractAddress(String),
+    #[error("empty broadcast message")]
+    EmptyBroadcastMsg,
 }
 
 #[derive(Debug)]
@@ -233,62 +253,77 @@ mod tests {
 
     #[test]
     fn event_filters_should_be_created_from_valid_proto_filters() {
-        let proto_filters = vec![ampd_proto::EventFilter {
-            r#type: "test_event".to_string(),
-            contract: "".to_string(),
-        }];
+        let req = Request::new(SubscribeRequest {
+            filters: vec![ampd_proto::EventFilter {
+                r#type: "test_event".to_string(),
+                contract: "".to_string(),
+            }],
+            include_block_begin_end: true,
+        });
 
-        let filters = EventFilters::try_from((proto_filters, true)).unwrap();
+        let filters = validate_subscribe(req).unwrap();
         assert_eq!(filters.filters.len(), 1);
         assert!(filters.include_block_begin_end);
     }
 
     #[test]
     fn event_filters_should_fail_if_any_filter_is_invalid() {
-        let proto_filters = vec![
-            ampd_proto::EventFilter {
-                r#type: "test_event".to_string(),
-                contract: "".to_string(),
-            },
-            ampd_proto::EventFilter::default(),
-        ];
+        let req = Request::new(SubscribeRequest {
+            filters: vec![
+                ampd_proto::EventFilter {
+                    r#type: "test_event".to_string(),
+                    contract: "".to_string(),
+                },
+                ampd_proto::EventFilter::default(),
+            ],
+            include_block_begin_end: true,
+        });
 
-        let result = EventFilters::try_from((proto_filters, true));
+        let result = validate_subscribe(req);
         assert_err_contains!(result, Error, Error::EmptyFilter);
     }
 
     #[test]
     fn event_filters_should_include_block_events_when_configured() {
-        let proto_filters = vec![ampd_proto::EventFilter {
-            r#type: "test_event".to_string(),
-            contract: "".to_string(),
-        }];
+        let req = Request::new(SubscribeRequest {
+            filters: vec![ampd_proto::EventFilter {
+                r#type: "test_event".to_string(),
+                contract: "".to_string(),
+            }],
+            include_block_begin_end: true,
+        });
 
-        let filters = EventFilters::try_from((proto_filters, true)).unwrap();
+        let filters = validate_subscribe(req).unwrap();
         assert!(filters.filter(&Event::BlockBegin(100u32.into())));
         assert!(filters.filter(&Event::BlockEnd(100u32.into())));
     }
 
     #[test]
     fn event_filters_should_exclude_block_events_when_configured() {
-        let proto_filters = vec![ampd_proto::EventFilter {
-            r#type: "test_event".to_string(),
-            contract: "".to_string(),
-        }];
+        let req = Request::new(SubscribeRequest {
+            filters: vec![ampd_proto::EventFilter {
+                r#type: "test_event".to_string(),
+                contract: "".to_string(),
+            }],
+            include_block_begin_end: false,
+        });
 
-        let filters = EventFilters::try_from((proto_filters, false)).unwrap();
+        let filters = validate_subscribe(req).unwrap();
         assert!(!filters.filter(&Event::BlockBegin(100u32.into())));
         assert!(!filters.filter(&Event::BlockEnd(100u32.into())));
     }
 
     #[test]
     fn event_filters_should_match_abci_events_with_matching_filters() {
-        let proto_filters = vec![ampd_proto::EventFilter {
-            r#type: "test_event".to_string(),
-            contract: "".to_string(),
-        }];
+        let req = Request::new(SubscribeRequest {
+            filters: vec![ampd_proto::EventFilter {
+                r#type: "test_event".to_string(),
+                contract: "".to_string(),
+            }],
+            include_block_begin_end: false,
+        });
 
-        let filters = EventFilters::try_from((proto_filters, false)).unwrap();
+        let filters = validate_subscribe(req).unwrap();
         assert!(filters.filter(&Event::Abci {
             event_type: "test_event".to_string(),
             attributes: Map::new(),
@@ -302,18 +337,21 @@ mod tests {
     #[test]
     fn event_filters_should_match_any_filter_in_multiple_filters() {
         let address = TMAddress::random(PREFIX);
-        let proto_filters = vec![
-            ampd_proto::EventFilter {
-                r#type: "event_1".to_string(),
-                contract: "".to_string(),
-            },
-            ampd_proto::EventFilter {
-                r#type: "".to_string(),
-                contract: address.to_string(),
-            },
-        ];
+        let req = Request::new(SubscribeRequest {
+            filters: vec![
+                ampd_proto::EventFilter {
+                    r#type: "event_1".to_string(),
+                    contract: "".to_string(),
+                },
+                ampd_proto::EventFilter {
+                    r#type: "".to_string(),
+                    contract: address.to_string(),
+                },
+            ],
+            include_block_begin_end: false,
+        });
 
-        let filters = EventFilters::try_from((proto_filters, false)).unwrap();
+        let filters = validate_subscribe(req).unwrap();
         assert!(filters.filter(&Event::Abci {
             event_type: "event_1".to_string(),
             attributes: Map::new(),
@@ -334,11 +372,31 @@ mod tests {
 
     #[test]
     fn event_filters_should_allow_all_events_when_no_filters_provided() {
-        let filters = EventFilters::try_from((vec![], true)).unwrap();
+        let req = Request::new(SubscribeRequest {
+            filters: vec![],
+            include_block_begin_end: true,
+        });
 
+        let filters = validate_subscribe(req).unwrap();
         assert!(filters.filter(&Event::Abci {
             event_type: "any_event".to_string(),
             attributes: Map::new(),
         }));
+    }
+
+    #[test]
+    fn validate_broadcast_should_work() {
+        let req = Request::new(BroadcastRequest {
+            msg: Some(Any {
+                type_url: "/cosmos.bank.v1beta1.MsgSend".to_string(),
+                value: vec![1, 2, 3],
+            }),
+        });
+        let msg = validate_broadcast(req).unwrap();
+        assert_eq!(msg.type_url, "/cosmos.bank.v1beta1.MsgSend");
+        assert_eq!(msg.value, vec![1, 2, 3]);
+
+        let req = Request::new(BroadcastRequest { msg: None });
+        assert_err_contains!(validate_broadcast(req), Error, Error::EmptyBroadcastMsg);
     }
 }
