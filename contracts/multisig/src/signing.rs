@@ -101,20 +101,19 @@ fn call_sig_verifier(
     pub_key: HexBinary,
     signer: String,
     session_id: Uint64,
-) -> Result<(), ContractError> {
+) -> error_stack::Result<(), ContractError> {
     let res = sig_verifier
         .verify_signature(signature, message, pub_key, signer, session_id)
-        .map_err(|err| ContractError::SignatureVerificationFailed {
-            reason: err.to_string(),
+        .change_context(ContractError::SignatureVerificationFailed {
+            reason: "failed to query sig verifier".into(),
         })?;
 
     if !res {
         Err(ContractError::SignatureVerificationFailed {
             reason: "unable to verify signature".into(),
-        })
-    } else {
-        Ok(())
+        })?;
     }
+    Ok(())
 }
 
 fn signers_weight(signatures: &HashMap<String, Signature>, verifier_set: &VerifierSet) -> Uint128 {
