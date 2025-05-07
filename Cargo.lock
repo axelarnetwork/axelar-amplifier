@@ -6257,7 +6257,7 @@ checksum = "e5ce46fe64a9d73be07dcbe690a38ce1b293be448fd8ce1e6c1b8062c9f72c6a"
 
 [[package]]
 name = "multisig"
-version = "1.2.0"
+version = "1.2.1"
 dependencies = [
  "axelar-wasm-std",
  "client",
