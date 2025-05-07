@@ -1,11 +1,9 @@
-use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
 use error_stack::ResultExt;
 use mockall::automock;
 use report::ErrorExt;
-use tokio::sync::Mutex;
 use tonic::transport::Channel;
 use tonic::Status;
 
@@ -34,7 +32,7 @@ pub trait Multisig {
 #[derive(Clone)]
 pub struct MultisigClient {
     party_uid: String,
-    client: Arc<Mutex<multisig_client::MultisigClient<Channel>>>,
+    client: multisig_client::MultisigClient<Channel>,
 }
 
 impl MultisigClient {
@@ -49,7 +47,7 @@ impl MultisigClient {
 
         Ok(Self {
             party_uid,
-            client: Arc::new(Mutex::new(multisig_client::MultisigClient::new(conn))),
+            client: multisig_client::MultisigClient::new(conn),
         })
     }
 }
@@ -64,8 +62,7 @@ impl Multisig for MultisigClient {
         };
 
         self.client
-            .lock()
-            .await
+            .clone()
             .keygen(request)
             .await
             .and_then(|response| {
@@ -104,8 +101,7 @@ impl Multisig for MultisigClient {
         };
 
         self.client
-            .lock()
-            .await
+            .clone()
             .sign(request)
             .await
             .and_then(|response| {

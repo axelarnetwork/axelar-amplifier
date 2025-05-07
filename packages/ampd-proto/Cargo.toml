@@ -6,6 +6,7 @@ license = "MIT OR Apache-2.0"
 edition = { workspace = true }
 
 [dependencies]
+cosmrs = { workspace = true }
 prost = "0.13.5"
 prost-types = "0.13.5"
 serde_json = { workspace = true }

@@ -285,6 +285,7 @@ dependencies = [
  "multiversx-sdk",
  "num-traits",
  "openssl",
+ "pin-project-lite",
  "prost 0.13.5",
  "prost-types 0.13.5",
  "rand 0.8.5",
@@ -339,11 +340,18 @@ dependencies = [
 [[package]]
 name = "ampd-handlers"
 version = "0.1.0"
+dependencies = [
+ "ampd-sdk",
+ "events",
+ "tokio",
+ "tokio-util",
+]
 
 [[package]]
 name = "ampd-proto"
 version = "0.1.0"
 dependencies = [
+ "cosmrs",
  "prost 0.13.5",
  "prost-types 0.13.5",
  "serde_json",
@@ -357,18 +365,28 @@ version = "0.1.0"
 dependencies = [
  "ampd-proto",
  "async-trait",
+ "cosmrs",
  "error-stack",
  "events",
  "futures",
+ "humantime-serde",
+ "itertools 0.14.0",
  "mockall 0.12.1",
  "prost 0.13.5",
  "prost-types 0.13.5",
+ "report",
+ "serde",
  "serde_json",
  "tendermint 0.35.0",
  "thiserror 1.0.69",
+ "tokio",
  "tokio-stream",
+ "tokio-util",
  "tonic 0.13.0",
  "tonic-build",
+ "tracing",
+ "typed-builder",
+ "valuable",
 ]
 
 [[package]]
@@ -3543,6 +3561,7 @@ dependencies = [
  "cosmrs",
  "error-stack",
  "goldie",
+ "serde",
  "serde_json",
  "tendermint 0.35.0",
  "thiserror 1.0.69",
@@ -5021,6 +5040,7 @@ dependencies = [
  "ethers-core",
  "gateway",
  "gateway-api",
+ "goldie",
  "interchain-token-service",
  "k256",
  "multisig",
@@ -6237,7 +6257,7 @@ checksum = "e5ce46fe64a9d73be07dcbe690a38ce1b293be448fd8ce1e6c1b8062c9f72c6a"
 
 [[package]]
 name = "multisig"
-version = "1.1.1"
+version = "1.2.0"
 dependencies = [
  "axelar-wasm-std",
  "client",

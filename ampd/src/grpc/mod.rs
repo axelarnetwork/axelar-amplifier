@@ -10,11 +10,15 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tokio_util::sync::CancellationToken;
 use tonic::transport;
-use tower::layer::util::{Identity, Stack};
 use tower::limit::ConcurrencyLimitLayer;
+use typed_builder::TypedBuilder;
+
+use crate::{broadcaster_v2, cosmos, event_sub};
 
 mod blockchain_service;
 mod crypto_service;
+mod error;
+mod reqs;
 
 #[derive(Error, Debug)]
 pub enum Error {
@@ -60,29 +64,31 @@ where
     Ok(config)
 }
 
+#[derive(TypedBuilder)]
 pub struct Server {
-    addr: SocketAddr,
-    router: transport::server::Router<Stack<ConcurrencyLimitLayer, Identity>>,
+    config: Config,
+    event_sub: event_sub::EventSubscriber,
+    msg_queue_client: broadcaster_v2::MsgQueueClient<cosmos::CosmosGrpcClient>,
 }
 
 impl Server {
-    pub fn new(config: &Config) -> Self {
-        Self {
-            addr: SocketAddr::new(config.ip_addr, config.port),
-            // TODO: add TLS and optional public key pinning
-            router: transport::Server::builder()
-                .layer(ConcurrencyLimitLayer::new(config.concurrency_limit.into()))
-                .concurrency_limit_per_connection(config.concurrency_limit_per_connection.into())
-                .add_service(BlockchainServiceServer::new(
-                    blockchain_service::Service::new(),
-                ))
-                .add_service(CryptoServiceServer::new(crypto_service::Service::new())),
-        }
-    }
-
     pub async fn run(self, token: CancellationToken) -> Result<(), Error> {
-        self.router
-            .serve_with_shutdown(self.addr, token.cancelled_owned())
+        let addr = SocketAddr::new(self.config.ip_addr, self.config.port);
+        let router = transport::Server::builder()
+            .layer(ConcurrencyLimitLayer::new(
+                self.config.concurrency_limit.into(),
+            ))
+            .concurrency_limit_per_connection(self.config.concurrency_limit_per_connection.into())
+            .add_service(BlockchainServiceServer::new(
+                blockchain_service::Service::builder()
+                    .event_sub(self.event_sub)
+                    .msg_queue_client(self.msg_queue_client)
+                    .build(),
+            ))
+            .add_service(CryptoServiceServer::new(crypto_service::Service::new()));
+
+        router
+            .serve_with_shutdown(addr, token.cancelled_owned())
             .await
             .map_err(ErrorExt::into_report)
     }

@@ -47,6 +47,7 @@ num-traits = { workspace = true }
 openssl = { version = "0.10.72", features = [
   "vendored",
 ] } # Needed to make arm compilation work by forcing vendoring
+pin-project-lite = "0.2.16"
 prost = "0.13.5"
 prost-types = "0.13.5"
 report = { workspace = true }
@@ -82,7 +83,7 @@ tokio-util = { workspace = true }
 toml = "0.5.9"
 tonic = "0.13.0"
 tower = "0.5.2"
-tracing = { version = "0.1.37", features = ["valuable", "log"] }
+tracing = { workspace = true }
 tracing-core = { version = "0.1.30", features = ["valuable"] }
 tracing-subscriber = { version = "0.3.16", features = [
   "json",

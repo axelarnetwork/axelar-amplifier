@@ -1,17 +1,7 @@
-fn get_greeting() -> &'static str {
-    "Hello from AMPD handler!"
-}
-
-fn main() {
-    println!("{}", get_greeting());
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    Ok(())
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_greeting() {
-        assert_eq!(get_greeting(), "Hello from AMPD handler!");
-    }
-}
+mod tests {}
