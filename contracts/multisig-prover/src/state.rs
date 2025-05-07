@@ -5,10 +5,9 @@ use cosmwasm_std::Addr;
 use cw_storage_plus::{Item, Map};
 use multisig::key::KeyType;
 use multisig::verifier_set::VerifierSet;
+use multisig_prover_api::encoding::Encoder;
+use multisig_prover_api::payload::{Payload, PayloadId};
 use router_api::ChainName;
-
-use crate::encoding::Encoder;
-use crate::payload::{Payload, PayloadId};
 
 #[cw_serde]
 pub struct Config {

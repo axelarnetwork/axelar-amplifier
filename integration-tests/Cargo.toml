@@ -39,6 +39,7 @@ interchain-token-service = { workspace = true }
 k256 = { workspace = true }
 multisig = { workspace = true }
 multisig-prover = { workspace = true }
+multisig-prover-api = { workspace = true }
 rand = { workspace = true }
 report = { workspace = true }
 rewards = { workspace = true }

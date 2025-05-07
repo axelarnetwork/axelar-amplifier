@@ -1,7 +1,7 @@
 use cosmwasm_std::{from_json, DepsMut, Reply, Response, Uint64};
 use cw_utils::{parse_execute_response_data, MsgExecuteContractResponse, ParseReplyError};
+use multisig_prover_api::error::ContractError;
 
-use crate::error::ContractError;
 use crate::events::Event;
 use crate::state::{CONFIG, MULTISIG_SESSION_PAYLOAD, PAYLOAD, REPLY_TRACKER};
 
