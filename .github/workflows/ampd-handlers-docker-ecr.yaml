@@ -3,7 +3,7 @@ name: ampd-handlers (push to main) - Build and push image to ECR
 on:
   push:
     branches:
-      - main
+      - feat/dummy-handler-client-connection # TODO: replace with main before merge
     paths:
       - 'ampd-handlers/**'
       - '.github/workflows/ampd-handlers-docker-ecr.yaml'
