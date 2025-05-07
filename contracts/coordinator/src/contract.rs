@@ -348,7 +348,10 @@ mod tests {
             .migrate_contract(
                 test_setup.admin_addr.clone(),
                 test_setup.coordinator_addr.clone(),
-                &Empty {},
+                &MigrateMsg {
+                    router: test_setup.app.api().addr_make("router"),
+                    multisig: test_setup.app.api().addr_make("multisig"),
+                },
                 coordinator_code_id,
             )
             .is_ok());
