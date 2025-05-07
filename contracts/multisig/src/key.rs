@@ -176,9 +176,13 @@ impl KeyTyped for Signature {
 }
 
 impl Signature {
-    pub fn verify<T: AsRef<[u8]>>(&self, msg: T, pub_key: &PublicKey) -> Result<(), ContractError> {
+    pub fn verify<T: AsRef<[u8]>>(
+        &self,
+        msg: T,
+        pub_key: &PublicKey,
+    ) -> error_stack::Result<(), ContractError> {
         if !self.matches_type(pub_key) {
-            return Err(ContractError::KeyTypeMismatch);
+            Err(ContractError::KeyTypeMismatch)?;
         }
 
         let res = match self.key_type() {
@@ -186,13 +190,12 @@ impl Signature {
             KeyType::Ed25519 => ed25519_verify(msg.as_ref(), self.as_ref(), pub_key.as_ref()),
         }?;
 
-        if res {
-            Ok(())
-        } else {
+        if !res {
             Err(ContractError::SignatureVerificationFailed {
                 reason: "unable to verify signature".into(),
-            })
+            })?;
         }
+        Ok(())
     }
 }
 
@@ -317,6 +320,7 @@ impl From<PublicKey> for HexBinary {
 
 #[cfg(test)]
 mod ecdsa_tests {
+    use axelar_wasm_std::assert_err_contains;
     use cosmwasm_std::HexBinary;
     use k256::{AffinePoint, EncodedPoint};
 
@@ -436,11 +440,10 @@ mod ecdsa_tests {
         let message = MsgToSign::try_from(ecdsa_test_data::message()).unwrap();
         let public_key = PublicKey::try_from((KeyType::Ecdsa, ecdsa_test_data::pub_key())).unwrap();
         let result = signature.verify(message, &public_key);
-        assert_eq!(
-            result.unwrap_err(),
-            ContractError::SignatureVerificationFailed {
-                reason: "unable to verify signature".into(),
-            }
+        assert_err_contains!(
+            result,
+            ContractError,
+            ContractError::SignatureVerificationFailed { .. }
         );
     }
 
@@ -455,11 +458,10 @@ mod ecdsa_tests {
         let message = MsgToSign::try_from(ecdsa_test_data::message()).unwrap();
         let public_key = PublicKey::try_from((KeyType::Ecdsa, ecdsa_test_data::pub_key())).unwrap();
         let result = signature.verify(message, &public_key);
-        assert_eq!(
-            result.unwrap_err(),
-            ContractError::SignatureVerificationFailed {
-                reason: "Crypto error: signature error".into(),
-            }
+        assert_err_contains!(
+            result,
+            ContractError,
+            ContractError::SignatureVerificationFailed { .. }
         );
     }
 
@@ -476,17 +478,17 @@ mod ecdsa_tests {
         let message = MsgToSign::try_from(ecdsa_test_data::message()).unwrap();
         let public_key = PublicKey::try_from((KeyType::Ecdsa, invalid_pub_key)).unwrap();
         let result = signature.verify(message, &public_key);
-        assert_eq!(
-            result.unwrap_err(),
-            ContractError::SignatureVerificationFailed {
-                reason: "unable to verify signature".into(),
-            }
+        assert_err_contains!(
+            result,
+            ContractError,
+            ContractError::SignatureVerificationFailed { .. }
         );
     }
 }
 
 #[cfg(test)]
 mod ed25519_tests {
+    use axelar_wasm_std::assert_err_contains;
     use cosmwasm_std::HexBinary;
     use curve25519_dalek::edwards::CompressedEdwardsY;
 
@@ -602,11 +604,10 @@ mod ed25519_tests {
         let public_key =
             PublicKey::try_from((KeyType::Ed25519, ed25519_test_data::pub_key())).unwrap();
         let result = signature.verify(message, &public_key);
-        assert_eq!(
-            result.unwrap_err(),
-            ContractError::SignatureVerificationFailed {
-                reason: "unable to verify signature".into(),
-            }
+        assert_err_contains!(
+            result,
+            ContractError,
+            ContractError::SignatureVerificationFailed { .. }
         );
     }
 
@@ -621,11 +622,11 @@ mod ed25519_tests {
         let message = MsgToSign::try_from(ed25519_test_data::message()).unwrap();
         let public_key = PublicKey::Ed25519(invalid_pub_key);
         let result = signature.verify(message, &public_key);
-        assert_eq!(
-            result.unwrap_err(),
-            ContractError::SignatureVerificationFailed {
-                reason: "unable to verify signature".into(),
-            }
+
+        assert_err_contains!(
+            result,
+            ContractError,
+            ContractError::SignatureVerificationFailed { .. }
         );
     }
 }
