@@ -73,7 +73,7 @@ itertools = "0.14.0"
 k256 = { version = "0.13.1", features = ["ecdsa"] }
 mockall = "0.12.1"
 msgs-derive = { version = "^1.0.0", path = "packages/msgs-derive" }
-multisig = { version = "^1.1.1", path = "contracts/multisig" }
+multisig = { version = "^1.2.1", path = "contracts/multisig" }
 multisig-prover = { version = "^1.1.1", path = "contracts/multisig-prover" }
 num-traits = { version = "0.2.14", default-features = false }
 quote = "1.0.38"

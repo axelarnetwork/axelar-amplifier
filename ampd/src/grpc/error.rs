@@ -1,8 +1,21 @@
 use error_stack::Report;
+use report::LoggableError;
 use tonic::Status;
+use tracing::error;
+use valuable::Valuable;
 
-use super::event_filters;
-use crate::event_sub;
+use super::reqs;
+use crate::{broadcaster_v2, event_sub};
+
+pub fn log<Err>(msg: &str) -> impl Fn(&Report<Err>) + '_ {
+    move |err| {
+        error!(
+            component = "grpc",
+            err = LoggableError::from(err).as_value(),
+            msg
+        );
+    }
+}
 
 pub trait ErrorExt {
     fn into_status(self) -> Status;
@@ -46,13 +59,17 @@ impl From<Status> for Error {
     }
 }
 
-impl From<&event_filters::Error> for Error {
-    fn from(err: &event_filters::Error) -> Self {
+impl From<&reqs::Error> for Error {
+    fn from(err: &reqs::Error) -> Self {
         match err {
-            event_filters::Error::EmptyFilter => Status::invalid_argument("empty filter provided"),
-            event_filters::Error::InvalidContractAddress(contract) => Status::invalid_argument(
-                format!("invalid contract address {} provided in filters", contract),
-            ),
+            reqs::Error::EmptyFilter => Status::invalid_argument("empty filter provided"),
+            reqs::Error::InvalidContractAddress(contract) => Status::invalid_argument(format!(
+                "invalid contract address {} provided in filters",
+                contract
+            )),
+            reqs::Error::EmptyBroadcastMsg => {
+                Status::invalid_argument("empty broadcast message provided")
+            }
         }
         .into()
     }
@@ -75,10 +92,34 @@ impl From<&event_sub::Error> for Error {
     }
 }
 
+impl From<&broadcaster_v2::Error> for Error {
+    fn from(err: &broadcaster_v2::Error) -> Self {
+        match err {
+            broadcaster_v2::Error::EstimateGas | broadcaster_v2::Error::GasExceedsGasCap { .. } => {
+                Status::invalid_argument("failed to estimate gas or gas exceeds gas cap")
+            }
+            broadcaster_v2::Error::AccountQuery | broadcaster_v2::Error::BroadcastTx => {
+                Status::unavailable("blockchain service is temporarily unavailable")
+            }
+            broadcaster_v2::Error::SignTx => {
+                Status::unavailable("signing service is temporarily unavailable")
+            }
+            broadcaster_v2::Error::EnqueueMsg
+            | broadcaster_v2::Error::FeeAdjustment
+            | broadcaster_v2::Error::InvalidPubKey
+            | broadcaster_v2::Error::ReceiveTxResult(_) => {
+                Status::internal("server encountered an error processing request")
+            }
+        }
+        .into()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use error_stack::report;
     use tendermint::block::Height;
+    use tokio::sync::oneshot;
     use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
     use tonic::Code;
 
@@ -87,11 +128,11 @@ mod tests {
     #[test]
     fn event_filters_errors_to_status() {
         assert_eq!(
-            event_filters::Error::EmptyFilter.into_status().code(),
+            reqs::Error::EmptyFilter.into_status().code(),
             Code::InvalidArgument
         );
         assert_eq!(
-            event_filters::Error::InvalidContractAddress("invalid_contract_address".to_string())
+            reqs::Error::InvalidContractAddress("invalid_contract_address".to_string())
                 .into_status()
                 .code(),
             Code::InvalidArgument
@@ -125,6 +166,55 @@ mod tests {
                 .into_status()
                 .code(),
             Code::DataLoss
+        );
+    }
+
+    #[tokio::test]
+    async fn broadcaster_v2_errors_to_status() {
+        assert_eq!(
+            broadcaster_v2::Error::EstimateGas.into_status().code(),
+            Code::InvalidArgument
+        );
+        assert_eq!(
+            broadcaster_v2::Error::GasExceedsGasCap {
+                msg_type: "test_message".to_string(),
+                gas: 1000000,
+                gas_cap: 500000
+            }
+            .into_status()
+            .code(),
+            Code::InvalidArgument
+        );
+        assert_eq!(
+            broadcaster_v2::Error::AccountQuery.into_status().code(),
+            Code::Unavailable
+        );
+        assert_eq!(
+            broadcaster_v2::Error::BroadcastTx.into_status().code(),
+            Code::Unavailable
+        );
+        assert_eq!(
+            broadcaster_v2::Error::SignTx.into_status().code(),
+            Code::Unavailable
+        );
+        assert_eq!(
+            broadcaster_v2::Error::EnqueueMsg.into_status().code(),
+            Code::Internal
+        );
+        assert_eq!(
+            broadcaster_v2::Error::FeeAdjustment.into_status().code(),
+            Code::Internal
+        );
+        assert_eq!(
+            broadcaster_v2::Error::InvalidPubKey.into_status().code(),
+            Code::Internal
+        );
+        let (_, rx) = oneshot::channel::<u32>();
+        assert_eq!(
+            broadcaster_v2::Error::ReceiveTxResult(rx.await.unwrap_err())
+                .into_status()
+                .code(),
+            Code::Internal
         );
     }
 }
