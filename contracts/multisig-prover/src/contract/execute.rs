@@ -10,10 +10,12 @@ use error_stack::{report, Result, ResultExt};
 use itertools::Itertools;
 use multisig::msg::Signer;
 use multisig::verifier_set::VerifierSet;
+use multisig_prover_api::Encoder;
 use router_api::{ChainName, CrossChainId, Message};
 use service_registry_api::WeightedVerifier;
 
 use crate::contract::START_MULTISIG_REPLY_ID;
+use crate::encoding::EncoderExt;
 use crate::error::ContractError;
 use crate::payload::Payload;
 use crate::state::{
@@ -117,7 +119,7 @@ fn messages(
 fn make_verifier_set(
     deps: &DepsMut,
     env: &Env,
-    config: &Config,
+    config: &Config<Encoder>,
 ) -> Result<VerifierSet, ContractError> {
     let service_registry: service_registry_api::Client =
         client::ContractClient::new(deps.querier, &config.service_registry).into();
@@ -169,7 +171,7 @@ fn make_verifier_set(
 fn next_verifier_set(
     deps: &DepsMut,
     env: &Env,
-    config: &Config,
+    config: &Config<Encoder>,
 ) -> Result<Option<VerifierSet>, ContractError> {
     // if there's already a pending verifiers set update, just return it
     if let Some(pending_verifier_set) = NEXT_VERIFIER_SET
@@ -290,7 +292,7 @@ pub fn update_verifier_set(
 
 fn ensure_verifier_set_verification(
     verifier_set: &VerifierSet,
-    config: &Config,
+    config: &Config<Encoder>,
     deps: &DepsMut,
 ) -> Result<(), ContractError> {
     let verifier: voting_verifier::Client =
@@ -400,7 +402,7 @@ pub fn update_signing_threshold(
     CONFIG
         .update(
             deps.storage,
-            |mut config| -> std::result::Result<Config, ContractError> {
+            |mut config| -> std::result::Result<Config<Encoder>, ContractError> {
                 config.signing_threshold = new_signing_threshold;
                 Ok(config)
             },
@@ -423,6 +425,7 @@ mod tests {
 
     use axelar_wasm_std::Threshold;
     use cosmwasm_std::testing::{mock_dependencies, mock_env, MockApi};
+    use multisig_prover_api::Encoder;
     use router_api::ChainName;
 
     use super::{different_set_in_progress, next_verifier_set, should_update_verifier_set};
@@ -544,7 +547,7 @@ mod tests {
         assert_eq!(ret_verifier_set.unwrap().unwrap(), new_verifier_set);
     }
 
-    fn mock_config() -> Config {
+    fn mock_config() -> Config<Encoder> {
         Config {
             gateway: MockApi::default().addr_make("doesn't matter"),
             multisig: MockApi::default().addr_make("doesn't matter"),
@@ -555,7 +558,7 @@ mod tests {
             service_name: "validators".to_string(),
             chain_name: ChainName::try_from("ethereum".to_owned()).unwrap(),
             verifier_set_diff_threshold: 0,
-            encoder: crate::encoding::Encoder::Abi,
+            encoder: multisig_prover_api::Encoder::Abi,
             key_type: multisig::key::KeyType::Ecdsa,
             domain_separator: [0; 32],
         }

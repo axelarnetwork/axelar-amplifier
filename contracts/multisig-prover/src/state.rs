@@ -5,13 +5,14 @@ use cosmwasm_std::Addr;
 use cw_storage_plus::{Item, Map};
 use multisig::key::KeyType;
 use multisig::verifier_set::VerifierSet;
+use multisig_prover_api::Encoder;
 use router_api::ChainName;
 
-use crate::encoding::Encoder;
+use crate::encoding::EncoderExt;
 use crate::payload::{Payload, PayloadId};
 
 #[cw_serde]
-pub struct Config {
+pub struct Config<T: EncoderExt> {
     pub gateway: Addr,
     pub multisig: Addr,
     pub coordinator: Addr,
@@ -21,12 +22,12 @@ pub struct Config {
     pub service_name: String,
     pub chain_name: ChainName,
     pub verifier_set_diff_threshold: u32,
-    pub encoder: Encoder,
+    pub encoder: T,
     pub key_type: KeyType,
     pub domain_separator: Hash,
 }
 
-pub const CONFIG: Item<Config> = Item::new("config");
+pub const CONFIG: Item<Config<Encoder>> = Item::new("config");
 pub const PAYLOAD: Map<&PayloadId, Payload> = Map::new("payload");
 pub const MULTISIG_SESSION_PAYLOAD: Map<u64, PayloadId> = Map::new("multisig_session_payload");
 
