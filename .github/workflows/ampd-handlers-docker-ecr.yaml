@@ -4,9 +4,6 @@ on:
   push:
     branches:
       - feat/dummy-handler-client-connection # TODO: replace with main before merge
-    paths:
-      - 'ampd-handlers/**'
-      - '.github/workflows/ampd-handlers-docker-ecr.yaml'
   workflow_dispatch:
 
 jobs:
