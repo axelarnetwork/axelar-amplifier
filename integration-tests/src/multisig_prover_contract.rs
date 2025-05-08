@@ -5,7 +5,7 @@ use cosmwasm_std::{Addr, DepsMut, Env};
 use cw_multi_test::{ContractWrapper, Executor};
 use multisig::key::KeyType;
 use multisig_prover::contract::{execute, instantiate, query};
-use multisig_prover_api::Encoder;
+use multisig_prover::Encoder;
 
 use crate::contract::Contract;
 use crate::protocol::{emptying_deps_mut, Protocol};

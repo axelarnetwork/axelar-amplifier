@@ -6,6 +6,7 @@ pub mod msg;
 mod payload;
 mod state;
 
+pub use encoding::Encoder;
 pub use payload::Payload;
 
 #[cfg(test)]
