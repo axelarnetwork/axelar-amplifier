@@ -67,6 +67,16 @@ impl MultisigProverContract {
     }
 }
 
+impl Default for MultisigProverContract {
+    fn default() -> Self {
+        MultisigProverContract {
+            contract_addr: Addr::unchecked(""),
+            admin_addr: Addr::unchecked(""),
+            code_id: 0,
+        }
+    }
+}
+
 fn custom_reply(
     mut deps: DepsMut<AxelarQueryMsg>,
     env: Env,

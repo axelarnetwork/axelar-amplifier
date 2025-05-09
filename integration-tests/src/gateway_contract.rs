@@ -42,6 +42,15 @@ impl GatewayContract {
     }
 }
 
+impl Default for GatewayContract {
+    fn default() -> Self {
+        GatewayContract {
+            contract_addr: Addr::unchecked(""),
+            code_id: 0,
+        }
+    }
+}
+
 impl Contract for GatewayContract {
     type QMsg = gateway_api::msg::QueryMsg;
     type ExMsg = gateway_api::msg::ExecuteMsg;

@@ -66,6 +66,15 @@ impl VotingVerifierContract {
     }
 }
 
+impl Default for VotingVerifierContract {
+    fn default() -> Self {
+        VotingVerifierContract {
+            contract_addr: Addr::unchecked(""),
+            code_id: 0,
+        }
+    }
+}
+
 impl Contract for VotingVerifierContract {
     type QMsg = voting_verifier::msg::QueryMsg;
     type ExMsg = voting_verifier::msg::ExecuteMsg;

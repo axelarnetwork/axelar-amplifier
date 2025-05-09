@@ -98,7 +98,7 @@ fn instantiate2_salt(
 
 fn instantiate2_addr(
     deps: &DepsMut,
-    info: &MessageInfo,
+    env: &Env,
     code_id: u64,
     salt: &[u8],
 ) -> error_stack::Result<Addr, Error> {
@@ -113,7 +113,7 @@ fn instantiate2_addr(
                 code_info.checksum.as_slice(),
                 &deps
                     .api
-                    .addr_canonicalize(info.sender.as_str())
+                    .addr_canonicalize(&env.contract.address.to_string().clone())
                     .change_context(Error::FailedToDeployContracts)?,
                 salt,
             )
@@ -219,7 +219,7 @@ pub fn deploy_chain(
             verifier_msg,
         } => {
             let verifier_address =
-                instantiate2_addr(&deps, &info, *verifier_code_id, verifier_salt.as_ref())?;
+                instantiate2_addr(&deps, &env, *verifier_code_id, verifier_salt.as_ref())?;
 
             let mut event = Event::new("coordinator_deploy_contracts");
 
@@ -238,7 +238,9 @@ pub fn deploy_chain(
             )?;
 
             save_gateway_address = Some(gateway_address.clone());
-            event = event.add_attribute("gateway_address", gateway_address.clone());
+            event = event
+                .add_attribute("gateway_address", gateway_address.clone())
+                .add_attribute("gateway_code_id", (*gateway_code_id).to_string());
             response = response.add_messages(msgs);
 
             let (msgs, voting_verifier_address) = launch_contract(
@@ -264,7 +266,10 @@ pub fn deploy_chain(
                 verifier_label.clone(),
             )?;
 
-            event = event.add_attribute("voting_verifier_address", voting_verifier_address.clone());
+            event = event
+                .add_attribute("voting_verifier_address", voting_verifier_address.clone())
+                .add_attribute("voting_verifier_code_id", (*verifier_code_id).to_string());
+
             response = response.add_messages(msgs);
 
             let (msgs, multisig_prover_address) = launch_contract(
@@ -293,7 +298,9 @@ pub fn deploy_chain(
                 prover_label.clone(),
             )?;
 
-            event = event.add_attribute("multisig_prover_address", multisig_prover_address);
+            event = event
+                .add_attribute("multisig_prover_address", multisig_prover_address)
+                .add_attribute("multisig_prover_code_id", (*prover_code_id).to_string());
             response = response.add_messages(msgs).add_event(event);
         }
     }

@@ -1,18 +1,36 @@
-use axelar_wasm_std::Threshold;
+use std::collections::HashMap;
+
 use axelar_wasm_std::error::ContractError;
-use cosmwasm_std::Addr;
+use axelar_wasm_std::{nonempty, Threshold};
+use cosmwasm_std::{coins, Addr, HexBinary, Uint128};
 use cw_multi_test::AppResponse;
+use error_stack::Report;
 use integration_tests::contract::Contract;
+use integration_tests::gateway_contract::GatewayContract;
+use integration_tests::multisig_prover_contract::MultisigProverContract;
 use integration_tests::protocol::Protocol;
-use crate::test_utils::Chain;
+use integration_tests::voting_verifier_contract::VotingVerifierContract;
 use multisig::key::KeyType;
 use multisig_prover_api::encoding::Encoder;
-use error_stack::Report;
+use rewards::PoolId;
+use router_api::{CrossChainId, Message};
+
+use crate::test_utils::{Chain, AXL_DENOMINATION};
 
 pub mod test_utils;
 
-fn deploy_chains(protocol: &mut Protocol, chain: &Chain, chain_name: &str) -> Result<AppResponse, Report<ContractError>>{
-    protocol.coordinator.execute(
+struct DeployedContracts {
+    gateway: GatewayContract,
+    voting_verifier: VotingVerifierContract,
+    multisig_prover: MultisigProverContract,
+}
+
+fn deploy_chains(
+    protocol: &mut Protocol,
+    chain: &Chain,
+    chain_name: &str,
+) -> Result<AppResponse, Report<ContractError>> {
+    let res = protocol.coordinator.execute(
         &mut protocol.app,
         protocol.governance_address.clone(),
         &coordinator::msg::ExecuteMsg::DeployChain {
@@ -58,7 +76,125 @@ fn deploy_chains(protocol: &mut Protocol, chain: &Chain, chain_name: &str) -> Re
                 },
             }),
         },
-    )
+    )?;
+
+    let contracts = gather_contracts(&protocol, res.clone());
+
+    protocol.multisig.execute(
+        &mut protocol.app,
+        protocol.governance_address.clone(),
+        &multisig::msg::ExecuteMsg::AuthorizeCallers {
+            contracts: HashMap::from([(
+                contracts.multisig_prover.contract_addr.to_string(),
+                chain_name.parse().unwrap(),
+            )]),
+        },
+    )?;
+
+    protocol.router.execute(
+        &mut protocol.app,
+        protocol.governance_address.clone(),
+        &router_api::msg::ExecuteMsg::RegisterChain {
+            chain: chain_name.parse().unwrap(),
+            gateway_address: contracts
+                .gateway
+                .contract_addr
+                .to_string()
+                .try_into()
+                .unwrap(),
+            msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
+        },
+    )?;
+
+    let rewards_params = rewards::msg::Params {
+        epoch_duration: nonempty::Uint64::try_from(10u64).unwrap(),
+        rewards_per_epoch: Uint128::from(100u128).try_into().unwrap(),
+        participation_threshold: (1, 2).try_into().unwrap(),
+    };
+
+    protocol.rewards.execute(
+        &mut protocol.app,
+        protocol.governance_address.clone(),
+        &rewards::msg::ExecuteMsg::CreatePool {
+            pool_id: PoolId {
+                chain_name: chain_name.parse().unwrap(),
+                contract: contracts.voting_verifier.contract_addr.to_string(),
+            },
+            params: rewards_params.clone(),
+        },
+    )?;
+
+    protocol.rewards.execute(
+        &mut protocol.app,
+        protocol.governance_address.clone(),
+        &rewards::msg::ExecuteMsg::CreatePool {
+            pool_id: PoolId {
+                chain_name: chain_name.parse().unwrap(),
+                contract: protocol.multisig.contract_addr.to_string(),
+            },
+            params: rewards_params,
+        },
+    )?;
+
+    protocol.rewards.execute_with_funds(
+        &mut protocol.app,
+        protocol.genesis_address.clone(),
+        &rewards::msg::ExecuteMsg::AddRewards {
+            pool_id: PoolId {
+                chain_name: chain_name.parse().unwrap(),
+                contract: contracts.voting_verifier.contract_addr.to_string(),
+            },
+        },
+        &coins(1000, AXL_DENOMINATION),
+    )?;
+
+    protocol.rewards.execute_with_funds(
+        &mut protocol.app,
+        protocol.genesis_address.clone(),
+        &rewards::msg::ExecuteMsg::AddRewards {
+            pool_id: PoolId {
+                chain_name: chain_name.parse().unwrap(),
+                contract: protocol.multisig.contract_addr.to_string(),
+            },
+        },
+        &coins(1000, AXL_DENOMINATION),
+    )?;
+
+    Ok(res)
+}
+
+fn gather_contracts(protocol: &Protocol, app_response: AppResponse) -> DeployedContracts {
+    let mut gateway = GatewayContract::default();
+    let mut voting_verifier = VotingVerifierContract::default();
+    let mut multisig_prover = MultisigProverContract::default();
+
+    for e in app_response.events {
+        if e.ty == "wasm-coordinator_deploy_contracts" {
+            for attribute in e.attributes {
+                if attribute.key == "gateway_address" {
+                    gateway.contract_addr = Addr::unchecked(attribute.value);
+                } else if attribute.key == "voting_verifier_address" {
+                    voting_verifier.contract_addr = Addr::unchecked(attribute.value);
+                } else if attribute.key == "multisig_prover_address" {
+                    multisig_prover.contract_addr = Addr::unchecked(attribute.value);
+                } else if attribute.key == "gateway_code_id" {
+                    gateway.code_id = attribute.value.parse().unwrap();
+                } else if attribute.key == "voting_verifier_code_id" {
+                    voting_verifier.code_id = attribute.value.parse().unwrap();
+                } else if attribute.key == "multisig_prover_code_id" {
+                    multisig_prover.code_id = attribute.value.parse().unwrap();
+                }
+            }
+        }
+    }
+
+    multisig_prover.admin_addr = protocol.governance_address.clone();
+
+    DeployedContracts {
+        gateway,
+        voting_verifier,
+        multisig_prover,
+    }
 }
 
 #[test]
@@ -199,4 +335,68 @@ fn coordinator_one_click_multiple_deployments_succeeds() {
 
     assert!(deploy_chains(&mut protocol, &chain1, chain_name_1.as_str()).is_ok());
     assert!(deploy_chains(&mut protocol, &chain1, chain_name_2.as_str()).is_ok());
+}
+
+#[test]
+fn coordinator_one_click_gateway_verifier_interaction_succeeds() {
+    let test_utils::TestCase {
+        mut protocol,
+        chain1,
+        chain2,
+        verifiers,
+        ..
+    } = test_utils::setup_test_case();
+
+    let chain_name = String::from("testchain");
+
+    let msgs = vec![Message {
+        cc_id: CrossChainId::new(
+            chain_name.clone(),
+            "0x88d7956fd7b6fcec846548d83bd25727f2585b4be3add21438ae9fbb34625924-3",
+        )
+        .unwrap(),
+        source_address: "0xBf12773B490e1Deb57039061AAcFA2A87DEaC9b9"
+            .to_string()
+            .try_into()
+            .unwrap(),
+        destination_address: "0xce16F69375520ab01377ce7B88f5BA8C48F8D666"
+            .to_string()
+            .try_into()
+            .unwrap(),
+        destination_chain: chain2.chain_name.clone(),
+        payload_hash: HexBinary::from_hex(
+            "3e50a012285f8e7ec59b558179cd546c55c477ebe16202aac7d7747e25be03be",
+        )
+        .unwrap()
+        .as_slice()
+        .try_into()
+        .unwrap(),
+    }];
+
+    let res = deploy_chains(&mut protocol, &chain1, chain_name.as_str());
+    assert!(res.is_ok());
+
+    for verifier in verifiers {
+        assert!(protocol
+            .service_registry
+            .execute(
+                &mut protocol.app,
+                verifier.addr.clone(),
+                &service_registry::msg::ExecuteMsg::RegisterChainSupport {
+                    service_name: protocol.service_name.parse().unwrap(),
+                    chains: vec![chain_name.parse().unwrap(),]
+                }
+            )
+            .is_ok());
+    }
+
+    let contracts = gather_contracts(&protocol, res.unwrap());
+    assert!(contracts
+        .gateway
+        .execute(
+            &mut protocol.app,
+            protocol.governance_address.clone(),
+            &gateway::msg::ExecuteMsg::VerifyMessages(msgs.clone())
+        )
+        .is_ok());
 }
