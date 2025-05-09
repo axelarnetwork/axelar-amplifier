@@ -102,7 +102,7 @@ fn call_sig_verifier(
     signer: String,
     session_id: Uint64,
 ) -> CosmosMsg {
-    sig_verifier.verify_signature_exec(signature, message, pub_key, signer, session_id)
+    sig_verifier.verify_signature(signature, message, pub_key, signer, session_id)
 }
 
 fn signers_weight(signatures: &HashMap<String, Signature>, verifier_set: &VerifierSet) -> Uint128 {
@@ -120,11 +120,10 @@ fn signers_weight(signatures: &HashMap<String, Signature>, verifier_set: &Verifi
 
 #[cfg(test)]
 mod tests {
-    use std::marker::PhantomData;
 
     use assert_ok::assert_ok;
     use cosmwasm_std::testing::{MockApi, MockQuerier};
-    use cosmwasm_std::{to_json_binary, HexBinary, QuerierWrapper};
+    use cosmwasm_std::{HexBinary, QuerierWrapper};
 
     use super::*;
     use crate::key::KeyType;
@@ -281,7 +280,7 @@ mod tests {
             let msg = msg.unwrap();
             assert_eq!(
                 msg,
-                sig_verifier.verify_signature_exec(
+                sig_verifier.verify_signature(
                     signature.as_ref().into(),
                     session.msg.into(),
                     pub_key.as_ref().into(),

@@ -34,7 +34,7 @@ impl<'a, T> SignatureVerifier<'a, T> {
         .into()
     }
 
-    pub fn verify_signature_exec(
+    pub fn verify_signature(
         &self,
         signature: HexBinary,
         message: HexBinary,
@@ -60,7 +60,7 @@ impl<'a, T> SignatureVerifier<'a, T> {
             .change_context(Error::QuerySignatureVerifier)
     }
 
-    pub fn verify_signature(
+    pub fn verify_signature_query(
         &self,
         signature: HexBinary,
         message: HexBinary,
