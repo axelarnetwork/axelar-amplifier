@@ -10,7 +10,7 @@ use multisig::msg::SignerWithSig;
 use multisig::verifier_set::VerifierSet;
 
 use crate::error::ContractError;
-use crate::payload::Payload;
+use crate::Payload;
 
 #[cw_serde]
 #[derive(Copy)]
@@ -20,8 +20,25 @@ pub enum Encoder {
     StellarXdr,
 }
 
-impl Encoder {
-    pub fn digest(
+pub trait EncoderExt {
+    fn digest(
+        &self,
+        domain_separator: &Hash,
+        verifier_set: &VerifierSet,
+        payload: &Payload,
+    ) -> Result<Hash, ContractError>;
+
+    fn execute_data(
+        &self,
+        domain_separator: &Hash,
+        verifier_set: &VerifierSet,
+        sigs: Vec<SignerWithSig>,
+        payload: &Payload,
+    ) -> Result<HexBinary, ContractError>;
+}
+
+impl EncoderExt for Encoder {
+    fn digest(
         &self,
         domain_separator: &Hash,
         verifier_set: &VerifierSet,
@@ -36,7 +53,7 @@ impl Encoder {
         }
     }
 
-    pub fn execute_data(
+    fn execute_data(
         &self,
         domain_separator: &Hash,
         verifier_set: &VerifierSet,

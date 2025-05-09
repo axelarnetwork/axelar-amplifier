@@ -14,7 +14,7 @@ use multisig::verifier_set::VerifierSet;
 use sha3::{Digest, Keccak256};
 
 use crate::error::ContractError;
-use crate::payload::Payload;
+use crate::Payload;
 
 const PREFIX: &str = "\x19Ethereum Signed Message:\n96";
 
@@ -163,10 +163,10 @@ mod tests {
     use multisig::msg::{Signer, SignerWithSig};
 
     use crate::encoding::abi::{encode_execute_data, payload_digest, CommandType};
-    use crate::payload::Payload;
     use crate::test::test_data::{
         curr_verifier_set, domain_separator, messages, new_verifier_set, verifier_set_from_pub_keys,
     };
+    use crate::Payload;
 
     #[test]
     fn command_type_from_payload() {

@@ -7,8 +7,7 @@ use multisig::key::KeyType;
 use router_api::CrossChainId;
 
 pub use crate::contract::MigrateMsg;
-use crate::encoding::Encoder;
-use crate::payload::Payload;
+use crate::{Encoder, Payload};
 
 #[cw_serde]
 pub struct InstantiateMsg {

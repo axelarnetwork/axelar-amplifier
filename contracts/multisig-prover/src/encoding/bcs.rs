@@ -11,7 +11,7 @@ use sha3::{Digest, Keccak256};
 use sui_gateway::{CommandType, ExecuteData, Message, MessageToSign, Proof, WeightedSigners};
 
 use crate::error::ContractError;
-use crate::payload::Payload;
+use crate::Payload;
 
 fn encode_payload(payload: &Payload) -> Result<Vec<u8>, ContractError> {
     let encoded: Vec<u8> = match payload {
@@ -115,7 +115,7 @@ mod tests {
     use router_api::{CrossChainId, Message};
 
     use super::payload_digest;
-    use crate::payload::Payload;
+    use crate::Payload;
 
     #[test]
     fn payload_digest_should_encode_correctly_for_verifier_set() {

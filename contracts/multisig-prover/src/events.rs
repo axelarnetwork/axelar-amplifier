@@ -19,7 +19,7 @@ mod tests {
     use router_api::Message;
 
     use super::*;
-    use crate::payload::Payload;
+    use crate::Payload;
 
     #[test]
     fn proof_under_construction_is_serializable() {

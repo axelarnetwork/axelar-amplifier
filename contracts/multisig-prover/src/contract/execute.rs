@@ -14,11 +14,12 @@ use router_api::{ChainName, CrossChainId, Message};
 use service_registry_api::WeightedVerifier;
 
 use crate::contract::START_MULTISIG_REPLY_ID;
+use crate::encoding::EncoderExt;
 use crate::error::ContractError;
-use crate::payload::Payload;
 use crate::state::{
     Config, CONFIG, CURRENT_VERIFIER_SET, NEXT_VERIFIER_SET, PAYLOAD, REPLY_TRACKER,
 };
+use crate::Payload;
 
 pub fn construct_proof(
     deps: DepsMut,
@@ -555,7 +556,7 @@ mod tests {
             service_name: "validators".to_string(),
             chain_name: ChainName::try_from("ethereum".to_owned()).unwrap(),
             verifier_set_diff_threshold: 0,
-            encoder: crate::encoding::Encoder::Abi,
+            encoder: crate::Encoder::Abi,
             key_type: multisig::key::KeyType::Ecdsa,
             domain_separator: [0; 32],
         }

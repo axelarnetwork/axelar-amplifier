@@ -3,6 +3,7 @@ use error_stack::Result;
 use multisig::multisig::Multisig;
 use multisig::types::MultisigState;
 
+use crate::encoding::EncoderExt;
 use crate::error::ContractError;
 use crate::msg::{ProofResponse, ProofStatus, VerifierSetResponse};
 use crate::state::{

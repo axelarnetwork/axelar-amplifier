@@ -9,7 +9,7 @@ use stellar::{Message, Messages, Proof, WeightedSigners};
 use stellar_xdr::curr::{Limits, ScVal, WriteXdr};
 
 use crate::error::ContractError;
-use crate::payload::Payload;
+use crate::Payload;
 
 pub fn payload_digest(
     domain_separator: &Hash,
@@ -89,7 +89,7 @@ mod tests {
     use router_api::{CrossChainId, Message};
 
     use crate::encoding::stellar_xdr::{encode_execute_data, payload_digest};
-    use crate::payload::Payload;
+    use crate::Payload;
 
     #[test]
     fn stellar_messages_payload_digest() {
