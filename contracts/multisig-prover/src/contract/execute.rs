@@ -429,7 +429,6 @@ mod tests {
     use super::{different_set_in_progress, next_verifier_set, should_update_verifier_set};
     use crate::state::{Config, NEXT_VERIFIER_SET};
     use crate::test::test_data;
-    use crate::Encoder;
 
     #[test]
     fn should_update_verifier_set_no_change() {
