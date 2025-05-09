@@ -7,11 +7,11 @@ use multisig::key::KeyType;
 use multisig::verifier_set::VerifierSet;
 use router_api::ChainName;
 
-use crate::encoding::{Encoder, EncoderExt};
+use crate::encoding::Encoder;
 use crate::payload::{Payload, PayloadId};
 
 #[cw_serde]
-pub struct Config<T: EncoderExt> {
+pub struct Config {
     pub gateway: Addr,
     pub multisig: Addr,
     pub coordinator: Addr,
@@ -21,12 +21,12 @@ pub struct Config<T: EncoderExt> {
     pub service_name: String,
     pub chain_name: ChainName,
     pub verifier_set_diff_threshold: u32,
-    pub encoder: T,
+    pub encoder: Encoder,
     pub key_type: KeyType,
     pub domain_separator: Hash,
 }
 
-pub const CONFIG: Item<Config<Encoder>> = Item::new("config");
+pub const CONFIG: Item<Config> = Item::new("config");
 pub const PAYLOAD: Map<&PayloadId, Payload> = Map::new("payload");
 pub const MULTISIG_SESSION_PAYLOAD: Map<u64, PayloadId> = Map::new("multisig_session_payload");
 

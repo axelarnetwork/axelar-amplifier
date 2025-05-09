@@ -19,7 +19,7 @@ use crate::error::ContractError;
 use crate::state::{
     Config, CONFIG, CURRENT_VERIFIER_SET, NEXT_VERIFIER_SET, PAYLOAD, REPLY_TRACKER,
 };
-use crate::{Encoder, Payload};
+use crate::Payload;
 
 pub fn construct_proof(
     deps: DepsMut,
@@ -118,7 +118,7 @@ fn messages(
 fn make_verifier_set(
     deps: &DepsMut,
     env: &Env,
-    config: &Config<Encoder>,
+    config: &Config,
 ) -> Result<VerifierSet, ContractError> {
     let service_registry: service_registry_api::Client =
         client::ContractClient::new(deps.querier, &config.service_registry).into();
@@ -170,7 +170,7 @@ fn make_verifier_set(
 fn next_verifier_set(
     deps: &DepsMut,
     env: &Env,
-    config: &Config<Encoder>,
+    config: &Config,
 ) -> Result<Option<VerifierSet>, ContractError> {
     // if there's already a pending verifiers set update, just return it
     if let Some(pending_verifier_set) = NEXT_VERIFIER_SET
@@ -291,7 +291,7 @@ pub fn update_verifier_set(
 
 fn ensure_verifier_set_verification(
     verifier_set: &VerifierSet,
-    config: &Config<Encoder>,
+    config: &Config,
     deps: &DepsMut,
 ) -> Result<(), ContractError> {
     let verifier: voting_verifier::Client =
@@ -401,7 +401,7 @@ pub fn update_signing_threshold(
     CONFIG
         .update(
             deps.storage,
-            |mut config| -> std::result::Result<Config<Encoder>, ContractError> {
+            |mut config| -> std::result::Result<Config, ContractError> {
                 config.signing_threshold = new_signing_threshold;
                 Ok(config)
             },
@@ -546,7 +546,7 @@ mod tests {
         assert_eq!(ret_verifier_set.unwrap().unwrap(), new_verifier_set);
     }
 
-    fn mock_config() -> Config<Encoder> {
+    fn mock_config() -> Config {
         Config {
             gateway: MockApi::default().addr_make("doesn't matter"),
             multisig: MockApi::default().addr_make("doesn't matter"),
