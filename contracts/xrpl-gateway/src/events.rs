@@ -10,6 +10,8 @@ pub enum XRPLGatewayEvent {
     UnfitForRouting { msg: Message },
     RoutingOutgoing { msg: Message },
     ContractCalled { msg: Message, payload: HexBinary },
+    ExecutionDisabled,
+    ExecutionEnabled,
 }
 
 fn make_message_event<T: Into<Vec<Attribute>>>(event_name: &str, msg: T) -> Event {
@@ -41,6 +43,8 @@ impl From<XRPLGatewayEvent> for Event {
                 make_message_event("contract_called", msg)
                     .add_attribute("payload", payload.to_string())
             }
+            XRPLGatewayEvent::ExecutionDisabled => Event::new("execution_disabled"),
+            XRPLGatewayEvent::ExecutionEnabled => Event::new("execution_enabled"),
         }
     }
 }

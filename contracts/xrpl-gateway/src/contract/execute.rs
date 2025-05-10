@@ -3,7 +3,9 @@ use std::str::FromStr;
 
 use axelar_core_std::nexus;
 use axelar_wasm_std::msg_id::HexTxHash;
-use axelar_wasm_std::{address, nonempty, permission_control, FnExt, VerificationStatus};
+use axelar_wasm_std::{
+    address, killswitch, nonempty, permission_control, FnExt, VerificationStatus,
+};
 use cosmwasm_std::{Addr, CosmosMsg, DepsMut, Event, HexBinary, Response, Storage, Uint256};
 use error_stack::{bail, ensure, report, Result, ResultExt};
 use interchain_token_service::{self, TokenId};
@@ -30,9 +32,15 @@ const PREFIX_CROSS_CHAIN_ID: &[u8] = b"cross-chain-id";
 const MAX_TOKEN_DECIMALS: u8 = 50;
 
 pub fn verify_messages(
+    storage: &dyn Storage,
     verifier: &xrpl_voting_verifier::Client,
     msgs: Vec<XRPLMessage>,
 ) -> Result<Response, Error> {
+    ensure!(
+        killswitch::is_contract_active(storage),
+        Error::ExecutionDisabled
+    );
+
     let msgs_by_status = group_by_status(verifier, msgs)?;
     let (msgs, events) = verify(verifier, msgs_by_status);
     Ok(Response::new().add_messages(msgs).add_events(events))
@@ -60,6 +68,11 @@ pub fn route_incoming_messages(
     verifier: &xrpl_voting_verifier::Client,
     msgs_with_payload: Vec<WithPayload<XRPLMessage>>,
 ) -> Result<Response, Error> {
+    ensure!(
+        killswitch::is_contract_active(storage),
+        Error::ExecutionDisabled
+    );
+
     let msgs_by_status = group_by_status(verifier, msgs_with_payload)?;
     let mut route_msgs = Vec::new();
     let mut events = Vec::new();
@@ -654,6 +667,14 @@ pub fn deploy_remote_token(
         message: its_msg,
     };
     route_hub_message(config, nexus_client, hub_msg)
+}
+
+pub fn disable_execution(storage: &mut dyn Storage) -> Result<Response, Error> {
+    killswitch::engage(storage, XRPLGatewayEvent::ExecutionDisabled).change_context(Error::State)
+}
+
+pub fn enable_execution(storage: &mut dyn Storage) -> Result<Response, Error> {
+    killswitch::disengage(storage, XRPLGatewayEvent::ExecutionEnabled).change_context(Error::State)
 }
 
 fn generate_message_id(client: &nexus::Client) -> Result<[u8; 32], Error> {

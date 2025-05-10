@@ -2,10 +2,12 @@ use std::fmt::Debug;
 use std::str::FromStr;
 
 use axelar_core_std::nexus;
-use axelar_wasm_std::{address, permission_control, FnExt, IntoContractError};
+use axelar_wasm_std::{address, killswitch, permission_control, FnExt, IntoContractError};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{Binary, Deps, DepsMut, Empty, Env, HexBinary, MessageInfo, Response, StdError};
+use cosmwasm_std::{
+    to_json_binary, Binary, Deps, DepsMut, Empty, Env, HexBinary, MessageInfo, Response, StdError,
+};
 use error_stack::ResultExt;
 use interchain_token_service::TokenId;
 use router_api::{ChainNameRaw, CrossChainId};
@@ -38,6 +40,8 @@ pub enum Error {
     DuplicateMessageIds,
     #[error("failed to execute gateway command")]
     Execute,
+    #[error("contract execution disabled")]
+    ExecutionDisabled,
     #[error("unable to generate event index")]
     EventIndex,
     #[error("forbidden chain {0}")]
@@ -164,6 +168,8 @@ pub fn migrate(
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
     cw2::assert_contract_version(deps.storage, CONTRACT_NAME, BASE_VERSION)?;
 
+    killswitch::init(deps.storage, killswitch::State::Disengaged)?;
+
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     Ok(Response::default())
@@ -205,6 +211,8 @@ pub fn instantiate(
         deps.storage,
         &deps.api.addr_validate(&msg.governance_address)?,
     )?;
+
+    killswitch::init(deps.storage, killswitch::State::Disengaged)?;
 
     Ok(Response::new())
 }
@@ -274,7 +282,7 @@ pub fn execute(
         }
         ExecuteMsg::VerifyMessages(msgs) => {
             let verifier = client::ContractClient::new(deps.querier, &config.verifier).into();
-            execute::verify_messages(&verifier, msgs)
+            execute::verify_messages(deps.storage, &verifier, msgs)
         }
         // Should be called RouteOutgoingMessage.
         // Called RouteMessages for compatibility with the router.
@@ -295,6 +303,8 @@ pub fn execute(
         ExecuteMsg::UpdateAdmin { new_admin_address } => {
             execute::update_admin(deps, new_admin_address)
         }
+        ExecuteMsg::DisableExecution => execute::disable_execution(deps.storage),
+        ExecuteMsg::EnableExecution => execute::enable_execution(deps.storage),
     }?
     .then(Ok)
 }
@@ -335,6 +345,9 @@ pub fn query(
             let config = state::load_config(deps.storage);
             query::translate_to_call_contract(deps.storage, &config, &message, payload)
         }
+        QueryMsg::IsEnabled => Ok(
+            to_json_binary(&killswitch::is_contract_active(deps.storage)).map_err(Error::from)?,
+        ),
     }?
     .then(Ok)
 }

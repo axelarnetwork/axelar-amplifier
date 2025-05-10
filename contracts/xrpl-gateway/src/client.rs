@@ -28,6 +28,9 @@ pub enum Error {
         payload: nonempty::HexBinary,
     },
 
+    #[error("failed to query whether contract is enabled")]
+    IsEnabled,
+
     #[error("failed to query linked token id for xrpl token: {0}")]
     LinkedTokenId(XRPLToken),
 
@@ -59,6 +62,7 @@ impl From<QueryMsg> for Error {
                 Error::InterchainTransfer { message, payload }
             }
             QueryMsg::CallContract { message, payload } => Error::CallContract { message, payload },
+            QueryMsg::IsEnabled => Error::IsEnabled,
             QueryMsg::LinkedTokenId(token_id) => Error::LinkedTokenId(token_id),
             QueryMsg::OutgoingMessages(message_ids) => Error::OutgoingMessages(message_ids),
             QueryMsg::TokenInstanceDecimals {
@@ -92,6 +96,11 @@ impl Client<'_> {
         payload: Option<nonempty::HexBinary>,
     ) -> Result<InterchainTransfer> {
         let msg = QueryMsg::InterchainTransfer { message, payload };
+        self.client.query(&msg).change_context_lazy(|| msg.into())
+    }
+
+    pub fn is_enabled(&self) -> Result<bool> {
+        let msg = QueryMsg::IsEnabled;
         self.client.query(&msg).change_context_lazy(|| msg.into())
     }
 

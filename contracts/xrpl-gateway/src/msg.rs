@@ -123,6 +123,14 @@ pub enum ExecuteMsg {
 
     #[permission(Elevated)]
     UpdateAdmin { new_admin_address: String },
+
+    // Engages execution killswitch.
+    #[permission(Elevated)]
+    EnableExecution,
+
+    // Disengages execution killswitch.
+    #[permission(Elevated)]
+    DisableExecution,
 }
 
 #[cw_serde]
@@ -181,4 +189,7 @@ pub enum QueryMsg {
         message: XRPLCallContractMessage,
         payload: nonempty::HexBinary,
     },
+
+    #[returns(bool)]
+    IsEnabled,
 }
