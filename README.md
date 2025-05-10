@@ -7,6 +7,7 @@ network properties, such as improved security or better delivery and availabilit
 
 ### Documentation
 
+Because this repo pulls in [ampd-proto](https://github.com/axelarnetwork/ampd-proto), use `git pull --recurse-submodules` to ensure a local clone/fork does likewise.
 High level documentation and diagrams can be found in the [doc](doc/README.md) directory.
 
 ### Contract Json Schemas
