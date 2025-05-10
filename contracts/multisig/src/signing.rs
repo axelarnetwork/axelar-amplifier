@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, HexBinary, Uint128, Uint64};
+use cosmwasm_std::{Addr, CosmosMsg, HexBinary, Uint128, Uint64};
 use error_stack::{bail, ResultExt};
 use router_api::ChainName;
 use signature_verifier_api::client::SignatureVerifier;
@@ -65,33 +65,33 @@ pub fn validate_session_signature(
     pub_key: &PublicKey,
     block_height: u64,
     sig_verifier: Option<SignatureVerifier>,
-) -> error_stack::Result<(), ContractError> {
+) -> error_stack::Result<Option<CosmosMsg>, ContractError> {
     if session.expires_at < block_height {
         bail!(ContractError::SigningSessionClosed {
             session_id: session.id,
         });
     }
 
-    sig_verifier
-        .map_or_else(
-            || signature.verify(&session.msg, pub_key),
-            |sig_verifier| {
-                call_sig_verifier(
-                    sig_verifier,
-                    signature.as_ref().into(),
-                    session.msg.as_ref().into(),
-                    pub_key.as_ref().into(),
-                    signer.to_string(),
-                    session.id,
-                )
-            },
-        )
-        .change_context(ContractError::InvalidSignature {
-            session_id: session.id,
-            signer: signer.into(),
-        })?;
+    match sig_verifier {
+        Some(sig_verifier) => Ok(Some(call_sig_verifier(
+            sig_verifier,
+            signature.as_ref().into(),
+            session.msg.as_ref().into(),
+            pub_key.as_ref().into(),
+            signer.to_string(),
+            session.id,
+        ))),
+        None => {
+            signature.verify(&session.msg, pub_key).change_context(
+                ContractError::InvalidSignature {
+                    session_id: session.id,
+                    signer: signer.into(),
+                },
+            )?;
 
-    Ok(())
+            Ok(None)
+        }
+    }
 }
 
 fn call_sig_verifier(
@@ -101,19 +101,8 @@ fn call_sig_verifier(
     pub_key: HexBinary,
     signer: String,
     session_id: Uint64,
-) -> error_stack::Result<(), ContractError> {
-    let res = sig_verifier
-        .verify_signature(signature, message, pub_key, signer, session_id)
-        .change_context(ContractError::SignatureVerificationFailed {
-            reason: "failed to query sig verifier".into(),
-        })?;
-
-    if !res {
-        Err(ContractError::SignatureVerificationFailed {
-            reason: "unable to verify signature".into(),
-        })?;
-    }
-    Ok(())
+) -> CosmosMsg {
+    sig_verifier.verify_signature(signature, message, pub_key, signer, session_id)
 }
 
 fn signers_weight(signatures: &HashMap<String, Signature>, verifier_set: &VerifierSet) -> Uint128 {
@@ -131,8 +120,10 @@ fn signers_weight(signatures: &HashMap<String, Signature>, verifier_set: &Verifi
 
 #[cfg(test)]
 mod tests {
+
+    use assert_ok::assert_ok;
     use cosmwasm_std::testing::{MockApi, MockQuerier};
-    use cosmwasm_std::{to_json_binary, HexBinary, QuerierWrapper};
+    use cosmwasm_std::{HexBinary, QuerierWrapper};
 
     use super::*;
     use crate::key::KeyType;
@@ -270,35 +261,33 @@ mod tests {
                 .unwrap()
                 .pub_key;
 
-            for verification in [true, false] {
-                let mut querier = MockQuerier::default();
-                querier.update_wasm(move |_| Ok(to_json_binary(&verification).into()).into());
-                let sig_verifier = Some(SignatureVerifier {
-                    address: MockApi::default().addr_make("verifier"),
-                    querier: QuerierWrapper::new(&querier),
-                });
+            let querier = MockQuerier::default();
+            let sig_verifier = SignatureVerifier::new(
+                MockApi::default().addr_make("verifier"),
+                QuerierWrapper::new(&querier),
+            );
 
-                let result = validate_session_signature(
-                    &session,
-                    &signer,
-                    signature,
-                    pub_key,
-                    0,
-                    sig_verifier,
-                );
-
-                if verification {
-                    assert!(result.is_ok());
-                } else {
-                    assert_eq!(
-                        *result.unwrap_err().current_context(),
-                        ContractError::InvalidSignature {
-                            session_id: session.id,
-                            signer: signer.clone().into(),
-                        }
-                    );
-                }
-            }
+            let result = validate_session_signature(
+                &session,
+                &signer,
+                signature,
+                pub_key,
+                0,
+                Some(sig_verifier.clone()),
+            );
+            let msg = assert_ok!(result);
+            assert!(msg.is_some());
+            let msg = msg.unwrap();
+            assert_eq!(
+                msg,
+                sig_verifier.verify_signature(
+                    signature.as_ref().into(),
+                    session.msg.into(),
+                    pub_key.as_ref().into(),
+                    signer.to_string(),
+                    session.id
+                )
+            );
         }
     }
 
