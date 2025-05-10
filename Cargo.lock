@@ -342,8 +342,10 @@ name = "ampd-handlers"
 version = "0.1.0"
 dependencies = [
  "ampd-sdk",
+ "error-stack",
  "events",
  "tokio",
+ "tokio-stream",
  "tokio-util",
 ]
 
