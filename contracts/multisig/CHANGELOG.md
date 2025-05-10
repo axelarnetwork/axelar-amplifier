@@ -7,7 +7,7 @@
 
 ## [v2.0.0](https://github.com/axelarnetwork/axelar-amplifier/tree/multisig-v2.0.0) (2025-05-09)
 
-[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/multisig-v1.2.1..ampd-v2.0.0)
+[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/multisig-v1.2.1..multisig-v2.0.0)
 
 - Change custom signature verification callback to use an execute message instead of a query [#833](https://github.com/axelarnetwork/axelar-amplifier/pull/833)
 
