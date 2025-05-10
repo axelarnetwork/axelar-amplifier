@@ -8,6 +8,7 @@ use cosmwasm_std::{
     Uint256, Uint64,
 };
 use interchain_token_service::{HubMessage, TokenId};
+use multisig::key::{PublicKey, Signature};
 use multisig::types::MultisigState;
 use router_api::{ChainNameRaw, CrossChainId};
 use sha3::{Digest, Keccak256};
@@ -17,6 +18,7 @@ use xrpl_types::types::{
 };
 
 use super::START_MULTISIG_REPLY_ID;
+use crate::contract::query;
 use crate::error::ContractError;
 use crate::state::{self, Config, FEE_RESERVE, FEE_RESERVE_TOP_UP_COUNTED, TRUST_LINE};
 use crate::{axelar_verifiers, xrpl_multisig};
@@ -147,6 +149,19 @@ pub fn confirm_add_reserves_message(
     }
 
     Ok(Response::default())
+}
+
+pub fn verify_signature(
+    storage: &dyn Storage,
+    session_id: &Uint64,
+    public_key: &PublicKey,
+    signature: &Signature,
+) -> Result<Response, ContractError> {
+    if query::verify_signature(storage, session_id, public_key, signature)? {
+        Ok(Response::default())
+    } else {
+        Err(ContractError::InvalidSignature)
+    }
 }
 
 fn message_status(

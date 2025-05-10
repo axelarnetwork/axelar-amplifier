@@ -155,4 +155,13 @@ pub enum ExecuteMsg {
 
     #[permission(Elevated)]
     UpdateAdmin { new_admin_address: String },
+
+    #[permission(Any)]
+    VerifySignature {
+        signature: HexBinary,
+        message: HexBinary,
+        public_key: HexBinary,
+        signer_address: String,
+        session_id: Uint64,
+    },
 }

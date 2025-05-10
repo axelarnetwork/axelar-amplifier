@@ -130,6 +130,19 @@ pub fn execute(
             &config,
             add_reserves_message,
         ),
+        ExecuteMsg::VerifySignature {
+            session_id,
+            message: _,
+            public_key,
+            signature,
+            signer_address: _,
+        } => execute::verify_signature(
+            deps.storage,
+            &session_id,
+            &PublicKey::Ecdsa(public_key),
+            &multisig::key::Signature::try_from((multisig::key::KeyType::Ecdsa, signature))
+                .map_err(|_| ContractError::InvalidSignature)?,
+        ),
     }?
     .then(Ok)
 }
