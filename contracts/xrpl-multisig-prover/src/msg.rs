@@ -93,6 +93,9 @@ pub enum QueryMsg {
 
     #[returns(u32)]
     TicketCreate,
+
+    #[returns(bool)]
+    IsEnabled,
 }
 
 #[cw_serde]
@@ -130,6 +133,12 @@ pub enum ExecuteMsg {
     ConfirmAddReservesMessage {
         add_reserves_message: XRPLAddReservesMessage,
     },
+
+    #[permission(Elevated)]
+    DisableExecution,
+
+    #[permission(Elevated)]
+    EnableExecution,
 
     #[permission(Any)]
     TicketCreate,

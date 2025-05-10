@@ -2,7 +2,9 @@ use std::collections::HashSet;
 use std::str::FromStr;
 
 use axelar_wasm_std::msg_id::HexTxHash;
-use axelar_wasm_std::{address, permission_control, FnExt, MajorityThreshold, VerificationStatus};
+use axelar_wasm_std::{
+    address, killswitch, permission_control, FnExt, MajorityThreshold, VerificationStatus,
+};
 use cosmwasm_std::{
     wasm_execute, Addr, DepsMut, Env, HexBinary, QuerierWrapper, Response, Storage, SubMsg,
     Uint256, Uint64,
@@ -20,6 +22,7 @@ use xrpl_types::types::{
 use super::START_MULTISIG_REPLY_ID;
 use crate::contract::query;
 use crate::error::ContractError;
+use crate::events::Event;
 use crate::state::{self, Config, FEE_RESERVE, FEE_RESERVE_TOP_UP_COUNTED, TRUST_LINE};
 use crate::{axelar_verifiers, xrpl_multisig};
 
@@ -56,6 +59,10 @@ pub fn construct_ticket_create_proof(
     self_address: Addr,
     config: &Config,
 ) -> Result<Response, ContractError> {
+    if !killswitch::is_contract_active(storage) {
+        return Err(ContractError::ExecutionDisabled);
+    }
+
     let ticket_count = xrpl_multisig::num_of_tickets_to_create(storage)?;
     if ticket_count < config.ticket_count_threshold {
         return Err(ContractError::TicketCountThresholdNotReached);
@@ -307,6 +314,10 @@ pub fn construct_payment_proof(
     cc_id: CrossChainId,
     payload: HexBinary,
 ) -> Result<Response, ContractError> {
+    if !killswitch::is_contract_active(storage) {
+        return Err(ContractError::ExecutionDisabled);
+    }
+
     let multisig: multisig::Client = client::ContractClient::new(querier, &config.multisig).into();
     // Prevent creating a duplicate signing session before the previous one expires
     if let Some(multisig_session) =
@@ -505,6 +516,16 @@ pub fn update_verifier_set(
                 .add_message(coordinator.set_active_verifiers(verifier_union_set)))
         }
     }
+}
+
+pub fn disable_execution(deps: DepsMut) -> Result<Response, ContractError> {
+    killswitch::engage(deps.storage, Event::ExecutionDisabled)?;
+    Ok(Response::new())
+}
+
+pub fn enable_execution(deps: DepsMut) -> Result<Response, ContractError> {
+    killswitch::disengage(deps.storage, Event::ExecutionEnabled)?;
+    Ok(Response::new())
 }
 
 fn all_active_verifiers(storage: &mut dyn Storage) -> Result<HashSet<String>, ContractError> {

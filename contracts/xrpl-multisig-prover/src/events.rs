@@ -21,4 +21,6 @@ pub enum Event {
         unsigned_tx: HexBinary,
         expires_at: u64,
     },
+    ExecutionDisabled,
+    ExecutionEnabled,
 }

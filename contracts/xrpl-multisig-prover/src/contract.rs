@@ -1,4 +1,4 @@
-use axelar_wasm_std::{address, permission_control, FnExt};
+use axelar_wasm_std::{address, killswitch, permission_control, FnExt};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
@@ -62,6 +62,8 @@ pub fn instantiate(
         deps.storage,
         &deps.api.addr_validate(&msg.governance_address)?,
     )?;
+
+    killswitch::init(deps.storage, killswitch::State::Disengaged)?;
 
     NEXT_SEQUENCE_NUMBER.save(deps.storage, &msg.next_sequence_number)?;
     LAST_ASSIGNED_TICKET_NUMBER.save(deps.storage, &msg.last_assigned_ticket_number)?;
@@ -143,6 +145,8 @@ pub fn execute(
             &multisig::key::Signature::try_from((multisig::key::KeyType::Ecdsa, signature))
                 .map_err(|_| ContractError::InvalidSignature)?,
         ),
+        ExecuteMsg::DisableExecution => execute::disable_execution(deps),
+        ExecuteMsg::EnableExecution => execute::enable_execution(deps),
     }?
     .then(Ok)
 }
@@ -198,6 +202,7 @@ pub fn query(
             deps.storage,
             config.ticket_count_threshold,
         )?),
+        QueryMsg::IsEnabled => to_json_binary(&killswitch::is_contract_active(deps.storage)),
     }
     .change_context(ContractError::SerializeResponse)
     .map_err(axelar_wasm_std::error::ContractError::from)
@@ -210,6 +215,8 @@ pub fn migrate(
     _msg: Empty,
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
     cw2::assert_contract_version(deps.storage, CONTRACT_NAME, BASE_VERSION)?;
+
+    killswitch::init(deps.storage, killswitch::State::Disengaged)?;
 
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 

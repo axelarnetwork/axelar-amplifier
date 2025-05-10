@@ -17,6 +17,9 @@ pub enum ContractError {
     #[error("empty signer public keys")]
     EmptySignerPublicKeys,
 
+    #[error("contract execution disabled")]
+    ExecutionDisabled,
+
     #[error("failed to build verifier set")]
     FailedToBuildVerifierSet,
 
