@@ -31,6 +31,11 @@ impl XRPLVotingVerifierContract {
                 code_id,
                 Addr::unchecked("anyone"),
                 &xrpl_voting_verifier::msg::InstantiateMsg {
+                    admin_address: protocol
+                        .router_admin_address
+                        .to_string()
+                        .try_into()
+                        .unwrap(),
                     governance_address: protocol.governance_address.to_string().try_into().unwrap(),
                     service_registry_address: protocol
                         .service_registry

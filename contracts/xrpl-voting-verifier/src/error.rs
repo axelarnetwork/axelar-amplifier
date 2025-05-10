@@ -5,8 +5,17 @@ use thiserror::Error;
 
 #[derive(Error, Debug, PartialEq, IntoContractError)]
 pub enum ContractError {
+    #[error("failed to disable execution")]
+    DisableExecution,
+
     #[error("empty batch of messages")]
     EmptyMessages,
+
+    #[error("failed to enable execution")]
+    EnableExecution,
+
+    #[error("contract execution disabled")]
+    ExecutionDisabled,
 
     #[error("failed to build verifier snapshot")]
     FailedToBuildSnapshot,

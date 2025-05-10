@@ -239,6 +239,7 @@ mod test {
         let info = message_info(&api.addr_make("deployer"), &[]);
 
         let msg = InstantiateMsg {
+            admin_address: api.addr_make("admin").to_string().try_into().unwrap(),
             governance_address: api.addr_make("governance").to_string().try_into().unwrap(),
             service_registry_address: api
                 .addr_make("service-registry")

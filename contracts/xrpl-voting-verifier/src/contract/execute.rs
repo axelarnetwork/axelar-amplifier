@@ -2,19 +2,19 @@ use std::collections::HashMap;
 
 use axelar_wasm_std::utils::TryMapExt;
 use axelar_wasm_std::voting::{PollId, PollResults, Vote, WeightedPoll};
-use axelar_wasm_std::{snapshot, MajorityThreshold, VerificationStatus};
+use axelar_wasm_std::{killswitch, snapshot, MajorityThreshold, VerificationStatus};
 use cosmwasm_std::{
     to_json_binary, Deps, DepsMut, Env, Event, MessageInfo, OverflowError, OverflowOperation,
     Response, Storage, WasmMsg,
 };
-use error_stack::{report, Report, Result, ResultExt};
+use error_stack::{ensure, report, Report, Result, ResultExt};
 use itertools::Itertools;
 use service_registry::WeightedVerifier;
 use xrpl_types::msg::XRPLMessage;
 
 use crate::contract::query::message_status;
 use crate::error::ContractError;
-use crate::events::{PollEnded, PollMetadata, PollStarted, QuorumReached, Voted};
+use crate::events::{self, PollEnded, PollMetadata, PollStarted, QuorumReached, Voted};
 use crate::state::{self, poll_messages, Poll, CONFIG, POLLS, POLL_ID, VOTES};
 
 pub fn update_voting_threshold(
@@ -38,6 +38,11 @@ pub fn verify_messages(
     env: Env,
     messages: Vec<XRPLMessage>,
 ) -> Result<Response, ContractError> {
+    ensure!(
+        killswitch::is_contract_active(deps.storage),
+        ContractError::ExecutionDisabled
+    );
+
     if messages.is_empty() {
         return Err(report!(ContractError::EmptyMessages));
     }
@@ -279,4 +284,14 @@ fn calculate_expiration(block_height: u64, block_expiry: u64) -> Result<u64, Con
         .ok_or_else(|| OverflowError::new(OverflowOperation::Add))
         .map_err(ContractError::from)
         .map_err(Report::from)
+}
+
+pub fn disable_execution(storage: &mut dyn Storage) -> Result<Response, ContractError> {
+    killswitch::engage(storage, events::ExecutionDisabled)
+        .change_context(ContractError::DisableExecution)
+}
+
+pub fn enable_execution(storage: &mut dyn Storage) -> Result<Response, ContractError> {
+    killswitch::disengage(storage, events::ExecutionEnabled)
+        .change_context(ContractError::EnableExecution)
 }

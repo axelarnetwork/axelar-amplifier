@@ -1,12 +1,12 @@
-use axelar_wasm_std::{address, permission_control, FnExt};
+use axelar_wasm_std::{address, killswitch, permission_control, FnExt};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_json_binary, Attribute, Binary, Deps, DepsMut, Empty, Env, Event, MessageInfo, Response,
+    to_json_binary, Attribute, Binary, Deps, DepsMut, Env, Event, MessageInfo, Response,
 };
 
 use crate::error::ContractError;
-use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
+use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 use crate::state::{Config, CONFIG};
 
 mod execute;
@@ -26,7 +26,11 @@ pub fn instantiate(
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     let governance = address::validate_cosmwasm_address(deps.api, &msg.governance_address)?;
+    let admin = address::validate_cosmwasm_address(deps.api, &msg.admin_address)?;
+    permission_control::set_admin(deps.storage, &admin)?;
     permission_control::set_governance(deps.storage, &governance)?;
+
+    killswitch::init(deps.storage, killswitch::State::Disengaged)?;
 
     let config = Config {
         service_name: msg.service_name,
@@ -68,6 +72,8 @@ pub fn execute(
             deps,
             new_voting_threshold,
         )?),
+        ExecuteMsg::DisableExecution => Ok(execute::disable_execution(deps.storage)?),
+        ExecuteMsg::EnableExecution => Ok(execute::enable_execution(deps.storage)?),
     }
 }
 
@@ -95,9 +101,14 @@ pub fn query(
 pub fn migrate(
     deps: DepsMut,
     _env: Env,
-    _msg: Empty,
+    msg: MigrateMsg,
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
     cw2::assert_contract_version(deps.storage, CONTRACT_NAME, BASE_VERSION)?;
+
+    killswitch::init(deps.storage, killswitch::State::Disengaged)?;
+
+    let admin = address::validate_cosmwasm_address(deps.api, &msg.admin_address)?;
+    permission_control::set_admin(deps.storage, &admin)?;
 
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
@@ -162,12 +173,14 @@ mod test {
         let mut deps = mock_dependencies();
         let api = deps.api;
         let service_registry = api.addr_make(SERVICE_REGISTRY_ADDRESS);
+        let admin = api.addr_make(ADMIN);
 
         instantiate(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(ADMIN), &[]),
+            message_info(&admin, &[]),
             InstantiateMsg {
+                admin_address: admin.as_str().parse().unwrap(),
                 governance_address: api.addr_make(GOVERNANCE).as_str().parse().unwrap(),
                 service_registry_address: service_registry.as_str().parse().unwrap(),
                 service_name: SERVICE_NAME.parse().unwrap(),
@@ -251,6 +264,7 @@ mod test {
         let info = message_info(&api.addr_make("sender"), &[]);
         let service_registry = api.addr_make(SERVICE_REGISTRY_ADDRESS);
         let instantiate_msg = InstantiateMsg {
+            admin_address: api.addr_make(ADMIN).as_str().parse().unwrap(),
             governance_address: api.addr_make(GOVERNANCE).as_str().parse().unwrap(),
             service_registry_address: service_registry.as_str().parse().unwrap(),
             service_name: SERVICE_NAME.parse().unwrap(),
@@ -279,7 +293,15 @@ mod test {
             )
             .unwrap();
 
-        migrate(deps.as_mut(), mock_env(), Empty {}).unwrap();
+        let new_admin = api.addr_make("new_admin").as_str().parse().unwrap();
+        migrate(
+            deps.as_mut(),
+            mock_env(),
+            MigrateMsg {
+                admin_address: new_admin,
+            },
+        )
+        .unwrap();
 
         let contract_version = cw2::get_contract_version(deps.as_mut().storage).unwrap();
         assert_eq!(contract_version.contract, CONTRACT_NAME);

@@ -8,6 +8,9 @@ use xrpl_types::types::{xrpl_account_id_string, XRPLAccountId};
 
 #[cw_serde]
 pub struct InstantiateMsg {
+    /// Address that can execute all messages that either have unrestricted or admin permission level.
+    /// Should be set to a trusted address that can react to unexpected interruptions to the contract's operation.
+    pub admin_address: nonempty::String,
     /// Address that can call all messages of unrestricted governance permission level, like UpdateVotingThreshold.
     /// It can execute messages that bypasses verification checks to rescue the contract if it got into an otherwise unrecoverable state due to external forces.
     /// On mainnet it should match the address of the Cosmos governance module.
@@ -55,6 +58,14 @@ pub enum ExecuteMsg {
     UpdateVotingThreshold {
         new_voting_threshold: MajorityThreshold,
     },
+
+    // Engages execution killswitch.
+    #[permission(Elevated)]
+    EnableExecution,
+
+    // Disengages execution killswitch.
+    #[permission(Elevated)]
+    DisableExecution,
 }
 
 #[cw_serde]
@@ -91,4 +102,11 @@ impl MessageStatus {
     pub fn new(message: XRPLMessage, status: VerificationStatus) -> Self {
         Self { message, status }
     }
+}
+
+#[cw_serde]
+pub struct MigrateMsg {
+    /// Address that can execute all messages that either have unrestricted or admin permission level.
+    /// Should be set to a trusted address that can react to unexpected interruptions to the contract's operation.
+    pub admin_address: nonempty::String,
 }

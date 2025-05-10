@@ -176,6 +176,22 @@ where
     }
 }
 
+pub struct ExecutionDisabled;
+
+impl From<ExecutionDisabled> for Event {
+    fn from(_: ExecutionDisabled) -> Self {
+        Event::new("execution_disabled")
+    }
+}
+
+pub struct ExecutionEnabled;
+
+impl From<ExecutionEnabled> for Event {
+    fn from(_: ExecutionEnabled) -> Self {
+        Event::new("execution_enabled")
+    }
+}
+
 #[cfg(test)]
 mod test {
     use axelar_wasm_std::msg_id::HexTxHash;
