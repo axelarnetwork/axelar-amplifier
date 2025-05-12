@@ -78,8 +78,8 @@ impl KeyDeserialize for PayloadId {
 
 #[cfg(test)]
 mod test {
-    use crate::payload::Payload;
     use crate::test::test_data;
+    use crate::Payload;
 
     #[test]
     fn payload_messages_id_unchanged() {
