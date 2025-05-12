@@ -203,6 +203,9 @@ pub fn query(
             config.ticket_count_threshold,
         )?),
         QueryMsg::IsEnabled => to_json_binary(&killswitch::is_contract_active(deps.storage)),
+        QueryMsg::AvailableTickets => to_json_binary(&AVAILABLE_TICKETS.load(deps.storage)?),
+        QueryMsg::NextSequenceNumber => to_json_binary(&NEXT_SEQUENCE_NUMBER.load(deps.storage)?),
+        QueryMsg::FeeReserve => to_json_binary(&FEE_RESERVE.load(deps.storage)?),
     }
     .change_context(ContractError::SerializeResponse)
     .map_err(axelar_wasm_std::error::ContractError::from)

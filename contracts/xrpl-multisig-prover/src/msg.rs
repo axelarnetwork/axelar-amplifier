@@ -96,6 +96,15 @@ pub enum QueryMsg {
 
     #[returns(bool)]
     IsEnabled,
+
+    #[returns(Vec<u32>)]
+    AvailableTickets,
+
+    #[returns(u32)]
+    NextSequenceNumber,
+
+    #[returns(u64)]
+    FeeReserve,
 }
 
 #[cw_serde]
