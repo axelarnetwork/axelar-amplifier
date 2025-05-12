@@ -25,7 +25,7 @@ mod query;
 
 const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
-const BASE_VERSION: &str = "1.1.1";
+const BASE_VERSION: &str = "1.1.2";
 
 // https://xrpl.org/docs/concepts/accounts/addresses#special-addresses
 const XRP_ISSUER: &str = "rrrrrrrrrrrrrrrrrrrrrhoLvTp";
