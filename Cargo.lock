@@ -11278,7 +11278,7 @@ dependencies = [
 
 [[package]]
 name = "xrpl-gateway"
-version = "1.1.2"
+version = "1.2.0"
 dependencies = [
  "assert_ok",
  "axelar-core-std 1.0.0",
