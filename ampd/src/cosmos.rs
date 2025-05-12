@@ -1,3 +1,4 @@
+use std::str::FromStr;
 use std::time::Duration;
 
 use async_trait::async_trait;
@@ -14,16 +15,16 @@ use cosmrs::proto::cosmos::tx::v1beta1::{
     SimulateRequest, SimulateResponse, TxRaw,
 };
 use cosmrs::tx::MessageExt;
-use cosmrs::{Any, Gas};
+use cosmrs::{Any, Coin, Denom, Gas};
 use error_stack::{report, ResultExt};
 use mockall::mock;
 use prost::Message;
-use report::ErrorExt;
+use report::{ErrorExt, ResultCompatExt};
 use thiserror::Error;
 use tonic::transport::Channel;
 use tonic::Response;
 
-use crate::broadcaster::tx::Tx;
+use crate::broadcaster_v2::Tx;
 use crate::types::{CosmosPublicKey, TMAddress};
 
 type Result<T> = error_stack::Result<T, Error>;
@@ -40,6 +41,8 @@ pub enum Error {
     AccountMissing,
     #[error("tx response is missing in the broadcast tx response")]
     TxResponseMissing,
+    #[error("account balance is missing in the query response")]
+    BalanceMissing,
     #[error("failed to decode the query response")]
     MalformedResponse,
     #[error("failed to build tx")]
@@ -220,6 +223,36 @@ where
         .and_then(|res| res.tx_response.ok_or(report!(Error::TxResponseMissing)))
 }
 
+pub async fn balance<T>(client: &mut T, address: &TMAddress, denom: &Denom) -> Result<Coin>
+where
+    T: CosmosClient,
+{
+    client
+        .balance(QueryBalanceRequest {
+            address: address.to_string(),
+            denom: denom.to_string(),
+        })
+        .await
+        .and_then(|res| {
+            let coin = res.balance.ok_or(report!(Error::BalanceMissing))?;
+            let amount = u128::from_str(&coin.amount).change_context(Error::MalformedResponse)?;
+
+            Coin::new(amount, &coin.denom).change_context(Error::MalformedResponse)
+        })
+}
+
+pub async fn tx<T>(client: &mut T, hash: &str) -> Result<Option<TxResponse>>
+where
+    T: CosmosClient,
+{
+    client
+        .tx(GetTxRequest {
+            hash: hash.to_string(),
+        })
+        .await
+        .map(|res| res.tx_response)
+}
+
 fn decode_base_account(account: Any) -> Result<BaseAccount> {
     BaseAccount::decode(&account.value[..]).change_context(Error::MalformedResponse)
 }
@@ -358,6 +391,155 @@ mod tests {
         let actual = account(&mut mock_client, &address).await;
 
         assert_err_contains!(actual, Error, Error::MalformedResponse);
+    }
+
+    #[tokio::test]
+    async fn balance_success() {
+        let address = TMAddress::random(PREFIX);
+        let denom = Denom::from_str("uaxl").unwrap();
+        let amount = 1000000u128;
+        let expected_coin = cosmrs::Coin::new(amount, denom.as_ref()).unwrap();
+
+        let mut mock_client = MockCosmosClient::new();
+        mock_client
+            .expect_balance()
+            .with(predicate::eq(QueryBalanceRequest {
+                address: address.to_string(),
+                denom: denom.to_string(),
+            }))
+            .return_once(move |_| {
+                Ok(QueryBalanceResponse {
+                    balance: Some(Coin {
+                        denom: "uaxl".to_string(),
+                        amount: amount.to_string(),
+                    }),
+                })
+            });
+
+        let actual = balance(&mut mock_client, &address, &denom).await;
+
+        assert_eq!(actual.unwrap(), expected_coin);
+    }
+
+    #[tokio::test]
+    async fn balance_balance_missing() {
+        let address = TMAddress::random(PREFIX);
+        let denom = Denom::from_str("uaxl").unwrap();
+
+        let mut mock_client = MockCosmosClient::new();
+        mock_client
+            .expect_balance()
+            .with(predicate::eq(QueryBalanceRequest {
+                address: address.to_string(),
+                denom: denom.to_string(),
+            }))
+            .return_once(move |_| Ok(QueryBalanceResponse { balance: None }));
+
+        let actual = balance(&mut mock_client, &address, &denom).await;
+
+        assert_err_contains!(actual, Error, Error::BalanceMissing);
+    }
+
+    #[tokio::test]
+    async fn balance_malformed_amount() {
+        let address = TMAddress::random(PREFIX);
+        let denom = Denom::from_str("uaxl").unwrap();
+
+        let mut mock_client = MockCosmosClient::new();
+        mock_client
+            .expect_balance()
+            .with(predicate::eq(QueryBalanceRequest {
+                address: address.to_string(),
+                denom: denom.to_string(),
+            }))
+            .return_once(move |_| {
+                Ok(QueryBalanceResponse {
+                    balance: Some(Coin {
+                        denom: "uaxl".to_string(),
+                        amount: "not-a-number".to_string(),
+                    }),
+                })
+            });
+
+        let actual = balance(&mut mock_client, &address, &denom).await;
+
+        assert_err_contains!(actual, Error, Error::MalformedResponse);
+    }
+
+    #[tokio::test]
+    async fn balance_malformed_denom() {
+        let address = TMAddress::random(PREFIX);
+        let denom = Denom::from_str("uaxl").unwrap();
+
+        let mut mock_client = MockCosmosClient::new();
+        mock_client
+            .expect_balance()
+            .with(predicate::eq(QueryBalanceRequest {
+                address: address.to_string(),
+                denom: denom.to_string(),
+            }))
+            .return_once(move |_| {
+                Ok(QueryBalanceResponse {
+                    balance: Some(Coin {
+                        denom: "uaxl_-=".to_string(),
+                        amount: "10000".to_string(),
+                    }),
+                })
+            });
+
+        let actual = balance(&mut mock_client, &address, &denom).await;
+
+        assert_err_contains!(actual, Error, Error::MalformedResponse);
+    }
+
+    #[tokio::test]
+    async fn tx_success() {
+        let tx_hash = "ABC123";
+        let expected_response = TxResponse {
+            height: 100,
+            txhash: tx_hash.to_string(),
+            ..Default::default()
+        };
+
+        let expected_response_clone = expected_response.clone();
+        let mut mock_client = MockCosmosClient::new();
+        mock_client
+            .expect_tx()
+            .with(predicate::eq(GetTxRequest {
+                hash: tx_hash.to_string(),
+            }))
+            .return_once(move |_| {
+                Ok(GetTxResponse {
+                    tx: None,
+                    tx_response: Some(expected_response_clone),
+                })
+            });
+
+        let actual = tx(&mut mock_client, tx_hash).await;
+
+        assert_eq!(actual.unwrap(), Some(expected_response));
+    }
+
+    #[tokio::test]
+    async fn tx_not_found() {
+        let tx_hash = "NONEXISTENT";
+
+        let mut mock_client = MockCosmosClient::new();
+        mock_client
+            .expect_tx()
+            .with(predicate::eq(GetTxRequest {
+                hash: tx_hash.to_string(),
+            }))
+            .return_once(move |_| {
+                Ok(GetTxResponse {
+                    tx: None,
+                    tx_response: None,
+                })
+            });
+
+        let actual = tx(&mut mock_client, tx_hash).await;
+
+        assert_eq!(actual.unwrap(), None);
     }
 
     #[tokio::test]

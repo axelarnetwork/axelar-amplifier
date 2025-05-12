@@ -107,7 +107,10 @@ impl From<&broadcaster_v2::Error> for Error {
             broadcaster_v2::Error::EnqueueMsg
             | broadcaster_v2::Error::FeeAdjustment
             | broadcaster_v2::Error::InvalidPubKey
-            | broadcaster_v2::Error::ReceiveTxResult(_) => {
+            | broadcaster_v2::Error::ReceiveTxResult(_)
+            | broadcaster_v2::Error::ConfirmTx(_)
+            | broadcaster_v2::Error::BalanceQuery
+            | broadcaster_v2::Error::InsufficientBalance { .. } => {
                 Status::internal("server encountered an error processing request")
             }
         }

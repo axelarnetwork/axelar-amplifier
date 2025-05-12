@@ -24,10 +24,7 @@ impl TmClient for HttpClient {
     async fn latest_block(&self) -> Result<BlockResponse, Error> {
         future::with_retry(
             || Client::latest_block(self),
-            RetryPolicy::RepeatConstant {
-                sleep: Duration::from_secs(1),
-                max_attempts: 15,
-            },
+            RetryPolicy::repeat_constant(Duration::from_secs(1), 15),
         )
         .await
         .map_err(Report::from)
@@ -36,10 +33,7 @@ impl TmClient for HttpClient {
     async fn block_results(&self, height: Height) -> Result<BlockResultsResponse, Error> {
         future::with_retry(
             || Client::block_results(self, height),
-            RetryPolicy::RepeatConstant {
-                sleep: Duration::from_secs(1),
-                max_attempts: 15,
-            },
+            RetryPolicy::repeat_constant(Duration::from_secs(1), 15),
         )
         .await
         .map_err(Report::from)

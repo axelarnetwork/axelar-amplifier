@@ -189,10 +189,7 @@ mod tests {
     async fn event_stream_should_stream_error_if_block_stream_streams_error() {
         let tm_client = MockTmClient::new();
 
-        let retry_policy = RetryPolicy::RepeatConstant {
-            sleep: Duration::from_millis(100),
-            max_attempts: 3,
-        };
+        let retry_policy = RetryPolicy::repeat_constant(Duration::from_millis(100), 3);
         let block_stream = stream::iter(vec![
             Err(report!(Error::LatestBlockQuery)),
             Err(report!(Error::LatestBlockQuery)),
@@ -274,10 +271,7 @@ mod tests {
                 }
             });
 
-        let retry_policy = RetryPolicy::RepeatConstant {
-            sleep: Duration::from_millis(100),
-            max_attempts: 3,
-        };
+        let retry_policy = RetryPolicy::repeat_constant(Duration::from_millis(100), 3);
         let block_stream = stream::iter(vec![Ok(1u32.into()), Ok(2u32.into())]);
         let mut stream = events(&tm_client, block_stream, retry_policy);
 
@@ -335,10 +329,7 @@ mod tests {
                 }
             });
 
-        let retry_policy = RetryPolicy::RepeatConstant {
-            sleep: Duration::from_millis(100),
-            max_attempts: 3,
-        };
+        let retry_policy = RetryPolicy::repeat_constant(Duration::from_millis(100), 3);
         let block_stream = stream::iter(vec![Ok(1u32.into()), Ok(2u32.into())]);
         let stream = events(&tm_client, block_stream, retry_policy);
 

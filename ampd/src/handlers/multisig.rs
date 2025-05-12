@@ -191,7 +191,6 @@ mod test {
 
     use base64::engine::general_purpose::STANDARD;
     use base64::Engine;
-    use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
     use cosmrs::AccountId;
     use cosmwasm_std::{HexBinary, Uint64};
     use error_stack::{Report, Result};
@@ -203,7 +202,6 @@ mod test {
     use tokio::sync::watch;
 
     use super::*;
-    use crate::broadcaster::MockBroadcaster;
     use crate::tofnd;
     use crate::tofnd::grpc::MockMultisig;
 
@@ -293,11 +291,6 @@ mod test {
         signer: MockMultisig,
         latest_block_height: u64,
     ) -> Handler<MockMultisig> {
-        let mut broadcaster = MockBroadcaster::new();
-        broadcaster
-            .expect_broadcast()
-            .returning(|_| Ok(TxResponse::default()));
-
         let (_, rx) = watch::channel(latest_block_height);
 
         Handler::new(verifier, multisig, chain, signer, rx)

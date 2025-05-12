@@ -1,31 +1,40 @@
-use std::ops::Mul;
+use std::ops::{DerefMut, Mul};
 
 use axelar_wasm_std::nonempty;
 use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
 use cosmrs::tx::Fee;
-use cosmrs::{Any, Coin, Gas};
-use error_stack::{report, ResultExt};
+use cosmrs::{Any, Coin, Denom, Gas};
+use dec_coin::DecCoin;
+use deref_derive::{Deref, DerefMut};
+use error_stack::{ensure, report, ResultExt};
 use k256::sha2::{Digest, Sha256};
 use num_traits::cast;
 use report::{LoggableError, ResultCompatExt};
 use thiserror::Error;
 use tokio::sync::oneshot;
 use tokio_stream::StreamExt;
-use tracing::{error, info};
+use tracing::{error, info, instrument};
 use typed_builder::TypedBuilder;
 use valuable::Valuable;
 
-use crate::broadcaster::dec_coin::DecCoin;
+use crate::types::TMAddress;
 use crate::{cosmos, tofnd};
 
 mod broadcaster;
+mod config;
+mod confirmer;
+mod dec_coin;
 mod msg_queue;
 mod proto;
+mod tx;
 
 pub use broadcaster::Broadcaster;
+pub use config::Config;
+pub use confirmer::TxConfirmer;
 #[cfg(test)]
 pub use msg_queue::QueueMsg;
 pub use msg_queue::{MsgQueue, MsgQueueClient};
+pub use tx::Tx;
 
 type Result<T> = error_stack::Result<T, Error>;
 
@@ -39,6 +48,10 @@ pub enum Error {
     FeeAdjustment,
     #[error("failed to query account")]
     AccountQuery,
+    #[error("failed to query balance")]
+    BalanceQuery,
+    #[error("insufficient balance: address {address} has {balance}")]
+    InsufficientBalance { address: TMAddress, balance: Coin },
     #[error("invalid public key")]
     InvalidPubKey,
     #[error("failed to sign tx")]
@@ -53,6 +66,8 @@ pub enum Error {
         gas: Gas,
         gas_cap: Gas,
     },
+    #[error("failed to confirm tx {0}")]
+    ConfirmTx(String),
 }
 
 /// A task that processes queued messages and broadcasts them to a Cosmos blockchain
@@ -70,7 +85,7 @@ pub enum Error {
 /// * `T` - A Cosmos client that can communicate with the blockchain
 /// * `Q` - A Stream that yields batches of messages to be broadcast
 /// * `S` - A cryptographic signer that can sign transaction payloads
-#[derive(TypedBuilder)]
+#[derive(Debug, TypedBuilder)]
 pub struct BroadcasterTask<T, Q, S>
 where
     T: cosmos::CosmosClient,
@@ -83,9 +98,54 @@ where
     key_id: String,
     gas_adjustment: f64,
     gas_price: DecCoin,
+    #[builder(default = None, setter(strip_option))]
+    tx_confirmer_client: Option<confirmer::TxConfirmerClient>,
 }
 
 impl<T, Q, S> BroadcasterTask<T, Q, S>
+where
+    T: cosmos::CosmosClient,
+    Q: futures::Stream<Item = nonempty::Vec<msg_queue::QueueMsg>> + Unpin,
+    S: tofnd::grpc::Multisig,
+{
+    /// Validates the broadcaster task configuration by ensuring the account has sufficient balance.
+    ///
+    /// This method checks that the account associated with the broadcaster's address has
+    /// a positive balance in the currency specified by the gas price denomination. This
+    /// validation ensures that the broadcaster has funds to pay for transaction fees before
+    /// attempting to process any messages.
+    ///
+    /// # Returns
+    /// A Result containing a ValidatedBroadcasterTask if validation succeeds, or an error if:
+    /// - The balance query fails (Error::BalanceQuery)
+    /// - The account has insufficient balance (Error::InsufficientBalance)
+    pub async fn validate(mut self) -> Result<ValidatedBroadcasterTask<T, Q, S>> {
+        let denom: Denom = self.gas_price.denom.clone().into();
+        let address = self.broadcaster.address.clone();
+
+        let balance = cosmos::balance(&mut self.broadcaster.client, &address, &denom)
+            .await
+            .change_context(Error::BalanceQuery)?;
+        ensure!(
+            balance.amount > 0,
+            Error::InsufficientBalance { address, balance }
+        );
+
+        Ok(ValidatedBroadcasterTask { inner: self })
+    }
+}
+
+#[derive(Debug, Deref, DerefMut)]
+pub struct ValidatedBroadcasterTask<T, Q, S>
+where
+    T: cosmos::CosmosClient,
+    Q: futures::Stream<Item = nonempty::Vec<msg_queue::QueueMsg>> + Unpin,
+    S: tofnd::grpc::Multisig,
+{
+    inner: BroadcasterTask<T, Q, S>,
+}
+
+impl<T, Q, S> ValidatedBroadcasterTask<T, Q, S>
 where
     T: cosmos::CosmosClient,
     Q: futures::Stream<Item = nonempty::Vec<msg_queue::QueueMsg>> + Unpin,
@@ -108,6 +168,7 @@ where
     ///
     /// A Result indicating whether the task completed successfully.
     /// Note that individual transaction failures don't cause the task to return an error.
+    #[instrument(skip_all)]
     pub async fn run(mut self) -> Result<()> {
         while let Some(msgs) = self.msg_queue.next().await {
             let tx_hash = self
@@ -128,7 +189,7 @@ where
                 })
                 .map(|res| res.txhash);
 
-            handle_tx_res(tx_hash, msgs);
+            self.handle_tx_res(tx_hash, msgs).await?;
         }
 
         Ok(())
@@ -161,7 +222,9 @@ where
         let fee = self.estimate_fee(batch_req.clone()).await?;
         let pub_key = self.broadcaster.pub_key;
 
-        self.broadcaster
+        let inner = self.deref_mut();
+        inner
+            .broadcaster
             .broadcast(vec![batch_req], fee, |sign_doc| {
                 let mut hasher = Sha256::new();
                 hasher.update(sign_doc);
@@ -172,8 +235,8 @@ where
                     .try_into()
                     .expect("hash size must be 32");
 
-                self.signer.sign(
-                    &self.key_id,
+                inner.signer.sign(
+                    &inner.key_id,
                     sign_digest.into(),
                     pub_key.into(),
                     tofnd::Algorithm::Ecdsa,
@@ -181,38 +244,57 @@ where
             })
             .await
     }
-}
 
-fn handle_tx_res(tx_hash: Result<String>, msgs: nonempty::Vec<msg_queue::QueueMsg>) {
-    Vec::from(msgs)
-        .into_iter()
-        .enumerate()
-        .for_each(|(i, msg)| {
-            match (msg.tx_res_callback, &tx_hash) {
-                (tx_res_callback, Ok(tx_hash)) => {
-                    let _ = tx_res_callback.send(Ok((tx_hash.clone(), i as u64)));
-                }
-                (tx_res_callback, Err(err)) => {
-                    let _ = tx_res_callback.send(Err(report!(err.current_context().clone())));
-                }
-            };
-        });
+    async fn handle_tx_res(
+        &self,
+        tx_hash: Result<String>,
+        msgs: nonempty::Vec<msg_queue::QueueMsg>,
+    ) -> Result<()> {
+        if let (Some(confirmer_sender), Ok(tx_hash)) = (&self.tx_confirmer_client, &tx_hash) {
+            confirmer_sender
+                .send(tx_hash.clone())
+                .await
+                .map_err(|_| Error::ConfirmTx(tx_hash.clone()))?;
+        }
+
+        Vec::from(msgs)
+            .into_iter()
+            .enumerate()
+            .for_each(|(i, msg)| {
+                match &tx_hash {
+                    Ok(tx_hash) => {
+                        let _ = msg.tx_res_callback.send(Ok((tx_hash.clone(), i as u64)));
+                    }
+                    Err(err) => {
+                        let _ = msg
+                            .tx_res_callback
+                            .send(Err(report!(err.current_context().clone())));
+                    }
+                };
+            });
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use axelar_wasm_std::assert_err_contains;
+    use cosmos_sdk_proto::cosmos::base::v1beta1::Coin;
     use cosmrs::proto::cosmos::auth::v1beta1::{BaseAccount, QueryAccountResponse};
+    use cosmrs::proto::cosmos::bank::v1beta1::{QueryBalanceRequest, QueryBalanceResponse};
     use cosmrs::proto::cosmos::base::abci::v1beta1::{GasInfo, TxResponse};
     use cosmrs::proto::cosmos::tx::v1beta1::{BroadcastTxResponse, Fee, SimulateResponse};
     use cosmrs::{tendermint, Any};
     use error_stack::report;
-    use mockall::Sequence;
+    use futures::StreamExt;
+    use mockall::{predicate, Sequence};
     use prost::Message;
-    use tokio::sync::oneshot;
-    use tokio_stream::iter;
+    use tokio::sync::{mpsc, oneshot};
+    use tokio_stream::wrappers::ReceiverStream;
+    use tokio_stream::{empty, iter};
 
-    use crate::broadcaster::dec_coin::DecCoin;
+    use crate::broadcaster_v2::dec_coin::DecCoin;
     use crate::broadcaster_v2::msg_queue::QueueMsg;
     use crate::broadcaster_v2::{broadcaster, BroadcasterTask, Error};
     use crate::tofnd::error::Error as TofndError;
@@ -246,6 +328,229 @@ mod tests {
             .unwrap()
             .fee
             .unwrap()
+    }
+
+    #[tokio::test]
+    async fn broadcaster_task_validate_should_fail_if_balance_query_fails() {
+        let pub_key = random_cosmos_public_key();
+        let address = pub_key.account_id(PREFIX).unwrap().into();
+        let chain_id: tendermint::chain::Id = "test-chain-id".parse().unwrap();
+        let base_account = create_base_account(&address);
+
+        let msg_queue = empty();
+        let mock_signer = MockMultisig::new();
+
+        let mut seq = Sequence::new();
+        let mut mock_client = cosmos::MockCosmosClient::new();
+        mock_client
+            .expect_account()
+            .once()
+            .in_sequence(&mut seq)
+            .return_once(move |_| {
+                Ok(QueryAccountResponse {
+                    account: Some(Any::from_msg(&base_account).unwrap()),
+                })
+            });
+        mock_client
+            .expect_balance()
+            .once()
+            .with(predicate::eq(QueryBalanceRequest {
+                address: address.to_string(),
+                denom: "uaxl".to_string(),
+            }))
+            .in_sequence(&mut seq)
+            .return_once(|_| {
+                Err(report!(cosmos::Error::GrpcRequest(
+                    tonic::Status::internal("balance query failed")
+                )))
+            });
+
+        let broadcaster = broadcaster::Broadcaster::new(mock_client, chain_id, pub_key)
+            .await
+            .unwrap();
+        let broadcaster_task = BroadcasterTask::builder()
+            .broadcaster(broadcaster)
+            .msg_queue(msg_queue)
+            .signer(mock_signer)
+            .key_id("test-key".to_string())
+            .gas_adjustment(1.5)
+            .gas_price(DecCoin::new(0.025, "uaxl").unwrap())
+            .build();
+
+        let result = broadcaster_task.validate().await;
+        assert!(result.is_err());
+        assert_err_contains!(result, Error, Error::BalanceQuery);
+    }
+
+    #[tokio::test]
+    async fn broadcaster_task_validate_should_fail_if_balance_is_zero() {
+        let pub_key = random_cosmos_public_key();
+        let address = pub_key.account_id(PREFIX).unwrap().into();
+        let chain_id: tendermint::chain::Id = "test-chain-id".parse().unwrap();
+        let base_account = create_base_account(&address);
+        let zero_balance = "0";
+
+        let msg_queue = empty();
+        let mock_signer = MockMultisig::new();
+
+        let mut seq = Sequence::new();
+        let mut mock_client = cosmos::MockCosmosClient::new();
+        mock_client
+            .expect_account()
+            .once()
+            .in_sequence(&mut seq)
+            .return_once(move |_| {
+                Ok(QueryAccountResponse {
+                    account: Some(Any::from_msg(&base_account).unwrap()),
+                })
+            });
+        mock_client
+            .expect_balance()
+            .once()
+            .with(predicate::eq(QueryBalanceRequest {
+                address: address.to_string(),
+                denom: "uaxl".to_string(),
+            }))
+            .in_sequence(&mut seq)
+            .return_once(move |_| {
+                Ok(QueryBalanceResponse {
+                    balance: Some(Coin {
+                        denom: "uaxl".to_string(),
+                        amount: zero_balance.to_string(),
+                    }),
+                })
+            });
+
+        let broadcaster = broadcaster::Broadcaster::new(mock_client, chain_id, pub_key)
+            .await
+            .unwrap();
+        let broadcaster_task = BroadcasterTask::builder()
+            .broadcaster(broadcaster)
+            .msg_queue(msg_queue)
+            .signer(mock_signer)
+            .key_id("test-key".to_string())
+            .gas_adjustment(1.5)
+            .gas_price(DecCoin::new(0.025, "uaxl").unwrap())
+            .build();
+
+        let result = broadcaster_task.validate().await;
+        assert_err_contains!(result, Error, Error::InsufficientBalance { .. });
+    }
+
+    #[tokio::test]
+    async fn broadcaster_task_should_process_message_queue_successfully_and_send_for_confirmation()
+    {
+        let pub_key = random_cosmos_public_key();
+        let address = pub_key.account_id(PREFIX).unwrap().into();
+        let chain_id: tendermint::chain::Id = "test-chain-id".parse().unwrap();
+        let base_account = create_base_account(&address);
+
+        let (receivers, queue_msgs): (Vec<_>, Vec<_>) = (0..2)
+            .map(|_| {
+                let (tx, rx) = oneshot::channel();
+                let msg = QueueMsg {
+                    msg: dummy_msg(),
+                    gas: 50000,
+                    tx_res_callback: tx,
+                };
+
+                (rx, msg)
+            })
+            .unzip();
+        let msg_queue = iter(vec![queue_msgs.try_into().unwrap()]);
+
+        let mut mock_signer = MockMultisig::new();
+        mock_signer
+            .expect_sign()
+            .once()
+            .returning(|_, _, _, _| Ok(vec![0u8; 64]));
+
+        let mut seq = Sequence::new();
+        let mut mock_client = cosmos::MockCosmosClient::new();
+        mock_client
+            .expect_account()
+            .once()
+            .in_sequence(&mut seq)
+            .return_once(move |_| {
+                Ok(QueryAccountResponse {
+                    account: Some(Any::from_msg(&base_account).unwrap()),
+                })
+            });
+        mock_client
+            .expect_balance()
+            .once()
+            .with(predicate::eq(QueryBalanceRequest {
+                address: address.to_string(),
+                denom: "uaxl".to_string(),
+            }))
+            .in_sequence(&mut seq)
+            .return_once(|_| {
+                Ok(QueryBalanceResponse {
+                    balance: Some(Coin {
+                        denom: "uaxl".to_string(),
+                        amount: "1000000".to_string(),
+                    }),
+                })
+            });
+        mock_client
+            .expect_simulate()
+            .once()
+            .in_sequence(&mut seq)
+            .return_once(move |_| {
+                Ok(SimulateResponse {
+                    gas_info: Some(GasInfo {
+                        gas_wanted: 0,
+                        gas_used: 100000,
+                    }),
+                    result: None,
+                })
+            });
+        mock_client
+            .expect_broadcast_tx()
+            .once()
+            .in_sequence(&mut seq)
+            .return_once(move |_| {
+                Ok(BroadcastTxResponse {
+                    tx_response: Some(TxResponse {
+                        txhash: "tx_hash_success".to_string(),
+                        code: 0,
+                        ..Default::default()
+                    }),
+                })
+            });
+
+        let broadcaster = broadcaster::Broadcaster::new(mock_client, chain_id, pub_key)
+            .await
+            .unwrap();
+        let (tx, rx) = mpsc::channel(1);
+        let broadcaster_task = BroadcasterTask::builder()
+            .broadcaster(broadcaster)
+            .msg_queue(msg_queue)
+            .signer(mock_signer)
+            .key_id("test-key".to_string())
+            .gas_adjustment(1.5)
+            .gas_price(DecCoin::new(0.025, "uaxl").unwrap())
+            .tx_confirmer_client(tx)
+            .build()
+            .validate()
+            .await
+            .unwrap();
+
+        let result = tokio::spawn(async move { broadcaster_task.run().await })
+            .await
+            .unwrap();
+        assert!(result.is_ok());
+        assert_eq!(
+            vec!["tx_hash_success".to_string()],
+            ReceiverStream::new(rx).collect::<Vec<_>>().await
+        );
+
+        for (i, rx) in receivers.into_iter().enumerate() {
+            let (tx_hash, idx) = rx.await.unwrap().unwrap();
+
+            assert_eq!(tx_hash, "tx_hash_success");
+            assert_eq!(idx, i as u64);
+        }
     }
 
     #[tokio::test]
@@ -287,6 +592,22 @@ mod tests {
                 })
             });
         mock_client
+            .expect_balance()
+            .once()
+            .with(predicate::eq(QueryBalanceRequest {
+                address: address.to_string(),
+                denom: "uaxl".to_string(),
+            }))
+            .in_sequence(&mut seq)
+            .return_once(|_| {
+                Ok(QueryBalanceResponse {
+                    balance: Some(Coin {
+                        denom: "uaxl".to_string(),
+                        amount: "1000000".to_string(),
+                    }),
+                })
+            });
+        mock_client
             .expect_simulate()
             .once()
             .in_sequence(&mut seq)
@@ -323,7 +644,10 @@ mod tests {
             .key_id("test-key".to_string())
             .gas_adjustment(1.5)
             .gas_price(DecCoin::new(0.025, "uaxl").unwrap())
-            .build();
+            .build()
+            .validate()
+            .await
+            .unwrap();
 
         let result = tokio::spawn(async move { broadcaster_task.run().await })
             .await
@@ -374,6 +698,22 @@ mod tests {
                 })
             });
         mock_client
+            .expect_balance()
+            .once()
+            .with(predicate::eq(QueryBalanceRequest {
+                address: address.to_string(),
+                denom: "uaxl".to_string(),
+            }))
+            .in_sequence(&mut seq)
+            .return_once(|_| {
+                Ok(QueryBalanceResponse {
+                    balance: Some(Coin {
+                        denom: "uaxl".to_string(),
+                        amount: "1000000".to_string(),
+                    }),
+                })
+            });
+        mock_client
             .expect_simulate()
             .once()
             .in_sequence(&mut seq)
@@ -411,7 +751,10 @@ mod tests {
             .key_id("test-key".to_string())
             .gas_adjustment(1.5)
             .gas_price(DecCoin::new(0.025, "uaxl").unwrap())
-            .build();
+            .build()
+            .validate()
+            .await
+            .unwrap();
 
         let result = tokio::spawn(async move { broadcaster_task.run().await })
             .await
@@ -455,6 +798,22 @@ mod tests {
                 })
             });
         mock_client
+            .expect_balance()
+            .once()
+            .with(predicate::eq(QueryBalanceRequest {
+                address: address.to_string(),
+                denom: "uaxl".to_string(),
+            }))
+            .in_sequence(&mut seq)
+            .return_once(|_| {
+                Ok(QueryBalanceResponse {
+                    balance: Some(Coin {
+                        denom: "uaxl".to_string(),
+                        amount: "1000000".to_string(),
+                    }),
+                })
+            });
+        mock_client
             .expect_simulate()
             .once()
             .in_sequence(&mut seq)
@@ -478,7 +837,10 @@ mod tests {
             .key_id("test-key".to_string())
             .gas_adjustment(1.5)
             .gas_price(DecCoin::new(0.025, "uaxl").unwrap())
-            .build();
+            .build()
+            .validate()
+            .await
+            .unwrap();
 
         let result = tokio::spawn(async move { broadcaster_task.run().await })
             .await
@@ -527,6 +889,22 @@ mod tests {
             .return_once(move |_| {
                 Ok(QueryAccountResponse {
                     account: Some(Any::from_msg(&base_account).unwrap()),
+                })
+            });
+        mock_client
+            .expect_balance()
+            .once()
+            .with(predicate::eq(QueryBalanceRequest {
+                address: address.to_string(),
+                denom: "uaxl".to_string(),
+            }))
+            .in_sequence(&mut seq)
+            .return_once(|_| {
+                Ok(QueryBalanceResponse {
+                    balance: Some(Coin {
+                        denom: "uaxl".to_string(),
+                        amount: "1000000".to_string(),
+                    }),
                 })
             });
         mock_client
@@ -592,7 +970,10 @@ mod tests {
             .key_id("test-key".to_string())
             .gas_adjustment(1.5)
             .gas_price(DecCoin::new(0.025, "uaxl").unwrap())
-            .build();
+            .build()
+            .validate()
+            .await
+            .unwrap();
 
         let result = tokio::spawn(async move { broadcaster_task.run().await })
             .await
@@ -649,6 +1030,22 @@ mod tests {
             .return_once(move |_| {
                 Ok(QueryAccountResponse {
                     account: Some(Any::from_msg(&initial_account).unwrap()),
+                })
+            });
+        mock_client
+            .expect_balance()
+            .once()
+            .with(predicate::eq(QueryBalanceRequest {
+                address: address.to_string(),
+                denom: "uaxl".to_string(),
+            }))
+            .in_sequence(&mut seq)
+            .return_once(|_| {
+                Ok(QueryBalanceResponse {
+                    balance: Some(Coin {
+                        denom: "uaxl".to_string(),
+                        amount: "1000000".to_string(),
+                    }),
                 })
             });
         mock_client
@@ -715,7 +1112,10 @@ mod tests {
             .key_id("test-key".to_string())
             .gas_adjustment(1.5)
             .gas_price(DecCoin::new(0.025, "uaxl").unwrap())
-            .build();
+            .build()
+            .validate()
+            .await
+            .unwrap();
 
         let result = tokio::spawn(async move { broadcaster_task.run().await })
             .await
@@ -772,6 +1172,22 @@ mod tests {
                 })
             });
         mock_client
+            .expect_balance()
+            .once()
+            .with(predicate::eq(QueryBalanceRequest {
+                address: address.to_string(),
+                denom: "uaxl".to_string(),
+            }))
+            .in_sequence(&mut seq)
+            .return_once(|_| {
+                Ok(QueryBalanceResponse {
+                    balance: Some(Coin {
+                        denom: "uaxl".to_string(),
+                        amount: "1000000".to_string(),
+                    }),
+                })
+            });
+        mock_client
             .expect_simulate()
             .once()
             .in_sequence(&mut seq)
@@ -818,7 +1234,10 @@ mod tests {
             .key_id("test-key".to_string())
             .gas_adjustment(gas_adjustment)
             .gas_price(DecCoin::new(gas_price_amount, expected_denom).unwrap())
-            .build();
+            .build()
+            .validate()
+            .await
+            .unwrap();
 
         let result = tokio::spawn(async move { broadcaster_task.run().await })
             .await
