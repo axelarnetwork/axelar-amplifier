@@ -342,8 +342,10 @@ name = "ampd-handlers"
 version = "0.1.0"
 dependencies = [
  "ampd-sdk",
+ "error-stack",
  "events",
  "tokio",
+ "tokio-stream",
  "tokio-util",
 ]
 
@@ -6286,8 +6288,9 @@ checksum = "defc4c55412d89136f966bbb339008b474350e5e6e78d2714439c386b3137a03"
 
 [[package]]
 name = "multisig"
-version = "1.2.1"
+version = "2.0.0"
 dependencies = [
+ "assert_ok",
  "axelar-wasm-std",
  "client",
  "cosmwasm-crypto",
