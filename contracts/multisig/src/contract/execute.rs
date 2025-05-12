@@ -105,12 +105,9 @@ pub fn submit_signature(
     let sig_verifier = session
         .sig_verifier
         .clone()
-        .map(|address| SignatureVerifier {
-            address,
-            querier: deps.querier,
-        });
+        .map(|address| SignatureVerifier::new(address, deps.querier));
 
-    validate_session_signature(
+    let sig_verifier_msg = validate_session_signature(
         &session,
         &info.sender,
         &signature,
@@ -139,6 +136,10 @@ pub fn submit_signature(
         signature,
         config.rewards_contract.into_string(),
     )
+    .map(|res| match sig_verifier_msg {
+        Some(msg) => res.add_message(msg),
+        None => res,
+    })
 }
 
 pub fn register_verifier_set(
