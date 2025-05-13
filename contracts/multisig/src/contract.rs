@@ -92,8 +92,7 @@ pub fn execute(
                 deps,
                 env,
                 verifier_set_id,
-                msg.try_into()
-                    .map_err(axelar_wasm_std::error::ContractError::from)?,
+                msg.into(),
                 chain_name,
                 sig_verifier,
             )
