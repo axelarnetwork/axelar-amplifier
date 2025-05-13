@@ -11,6 +11,7 @@ use crate::signing::{validate_session_signature, SigningSession};
 use crate::state::{load_session_signatures, save_pub_key, save_signature, AUTHORIZED_CALLERS};
 use crate::verifier_set::VerifierSet;
 
+
 pub fn start_signing_session(
     deps: DepsMut,
     env: Env,

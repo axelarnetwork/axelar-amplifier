@@ -161,7 +161,9 @@ where
                     .signer
                     .sign(
                         self.multisig.to_string().as_str(),
-                        MessageDigest::from(<[u8; 32]>::try_from(msg.as_ref()).change_context(MessageToSign)?),
+                        MessageDigest::from(
+                            <[u8; 32]>::try_from(msg.as_ref()).change_context(MessageToSign)?,
+                        ),
                         *pub_key,
                         key_type,
                     )
