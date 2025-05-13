@@ -3,22 +3,14 @@ mod bcs;
 mod stellar_xdr;
 
 use axelar_wasm_std::hash::Hash;
-use cosmwasm_schema::cw_serde;
 use cosmwasm_std::HexBinary;
 use error_stack::Result;
 use multisig::msg::SignerWithSig;
 use multisig::verifier_set::VerifierSet;
+use multisig_prover_api::encoding::Encoder;
 
 use crate::error::ContractError;
 use crate::Payload;
-
-#[cw_serde]
-#[derive(Copy)]
-pub enum Encoder {
-    Abi,
-    Bcs,
-    StellarXdr,
-}
 
 pub trait EncoderExt {
     fn digest(
