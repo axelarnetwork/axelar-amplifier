@@ -1,0 +1,15 @@
+[package]
+name = "voting-verifier-api"
+version = "1.0.0"
+rust-version = { workspace = true }
+license = { workspace = true }
+edition = { workspace = true }
+
+[dependencies]
+axelar-wasm-std = { workspace = true, features = ["derive"] }
+cosmwasm-schema = { workspace = true }
+router-api = { workspace = true }
+serde_json = { workspace = true }
+
+[lints]
+workspace = true
