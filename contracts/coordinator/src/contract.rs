@@ -164,7 +164,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
 #[cfg(test)]
 mod tests {
     use axelar_wasm_std::permission_control::Permission;
-    use cosmwasm_std::{Addr, Empty, StdResult};
+    use cosmwasm_std::{Addr, StdResult};
     use cw_multi_test::{no_init, App, ContractWrapper, Executor};
     use router_api::ChainName;
 
