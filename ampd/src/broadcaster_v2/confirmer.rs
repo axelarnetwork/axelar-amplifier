@@ -60,14 +60,14 @@ where
     T: cosmos::CosmosClient + Clone,
 {
     /// Creates a new transaction confirmer with the specified Cosmos client and retry policy.
-///
-/// # Parameters
-/// * `client` - Cosmos client for querying transaction status
-/// * `retry_policy` - Policy defining retry behavior for failed transaction queries
-///
-/// # Returns
-/// A tuple containing the confirmer instance and a client for submitting transaction hashes
-pub fn new(client: T, retry_policy: RetryPolicy) -> (Self, TxConfirmerClient) {
+    ///
+    /// # Parameters
+    /// * `client` - Cosmos client for querying transaction status
+    /// * `retry_policy` - Policy defining retry behavior for failed transaction queries
+    ///
+    /// # Returns
+    /// A tuple containing the confirmer instance and a client for submitting transaction hashes
+    pub fn new(client: T, retry_policy: RetryPolicy) -> (Self, TxConfirmerClient) {
         let (tx, rx) = mpsc::channel(TX_CONFIRMATION_QUEUE_CAP);
         let confirmer = Self {
             rx,
@@ -80,15 +80,15 @@ pub fn new(client: T, retry_policy: RetryPolicy) -> (Self, TxConfirmerClient) {
 
     #[instrument(skip_all)]
     /// Starts the transaction confirmation process, continuously monitoring submitted transaction hashes.
-/// 
-/// Processes transaction hashes from the receiver channel, concurrently confirming
-/// up to `TX_CONFIRMATION_BUFFER_SIZE` transactions. For each transaction, it queries
-/// the blockchain repeatedly according to the retry policy until the transaction
-/// is confirmed or definitely failed.
-///
-/// # Returns
-/// A Result indicating whether the confirmer completed successfully
-pub async fn run(self) -> Result<()> {
+    ///
+    /// Processes transaction hashes from the receiver channel, concurrently confirming
+    /// up to `TX_CONFIRMATION_BUFFER_SIZE` transactions. For each transaction, it queries
+    /// the blockchain repeatedly according to the retry policy until the transaction
+    /// is confirmed or definitely failed.
+    ///
+    /// # Returns
+    /// A Result indicating whether the confirmer completed successfully
+    pub async fn run(self) -> Result<()> {
         let Self {
             rx,
             client,
