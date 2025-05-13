@@ -1,9 +1,9 @@
 [package]
-name = "ampd"
 edition = { workspace = true }
-version = "1.7.0"
-rust-version = { workspace = true }
 license = "MIT OR Apache-2.0"
+name = "ampd"
+rust-version = { workspace = true }
+version = "1.7.0"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
@@ -46,7 +46,7 @@ multiversx-sdk = "0.6.1"
 num-traits = { workspace = true }
 openssl = { version = "0.10.72", features = [
   "vendored",
-] } # Needed to make arm compilation work by forcing vendoring
+] }# Needed to make arm compilation work by forcing vendoring
 pin-project-lite = "0.2.16"
 prost = "0.13.5"
 prost-types = "0.13.5"
@@ -109,7 +109,7 @@ goldie = { workspace = true }
 multisig = { workspace = true, features = ["test", "library"] }
 rand = { workspace = true }
 random-string = "1.0.0"
-tendermint-proto ={ version = "0.40.3" }
+tendermint-proto = { version = "0.40.3" }
 test-log = { version = "0.2", features = ["trace"], default-features = false }
 tokio = { workspace = true, features = ["test-util"] }
 tracing-test = "0.2.5"
