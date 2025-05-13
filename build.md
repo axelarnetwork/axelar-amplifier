@@ -4,9 +4,8 @@ This document provides instructions for building Amplifier components, including
 
 ## Prerequisites
 
-- Rust and Cargo (rust-version = "1.81.0" currently required)
-- Docker (for contract optimization)
-- Git (for cloning and handling submodules)
+- Rust and Cargo (check the current rust version in the `workspace.package` of root [Cargo.toml](Cargo.toml) file)
+- Docker (for reproducible optimized contract builds)
 - cargo-run-script (for running optimization scripts)
 
 ## Building the Project
@@ -35,19 +34,14 @@ cd contracts/<contract-name>
 cargo test
 ```
 
-## Building and Optimizing Contracts for Deployment
+## Release Build
 
 CosmWasm contracts need to be built for the WebAssembly target and optimized for deployment. The optimization process is essential for reducing contract size and gas costs.
 
-### Installing cargo-run-script
-
-First, install the cargo-run-script tool:
-
+Install the cargo-run-script tool:
 ```bash
 cargo install cargo-run-script
 ```
-
-### Building and Optimizing a Contract for Deployment
 
 To create a reproducible wasm build for a contract via the cosmwasm [optimizer](https://github.com/CosmWasm/optimizer):
 
@@ -69,7 +63,7 @@ Note: For actual blockchain deployment, always use the optimized contract, not t
 
 ### Configuration
 
-To run a local instance of `ampd`, you need to provide a configuration file. You can use the template located at `ampd/src/tests/config_template.toml` as a starting point:
+To run a local instance of `ampd`, you need to provide a configuration file. You can use [this template](ampd/src/tests/config_template.toml) as a starting point:
 
 ```bash
 # Copy the config template
