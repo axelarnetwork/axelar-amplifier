@@ -44,7 +44,7 @@ pub fn verify_signature(
     message: &HexBinary,
 ) -> StdResult<bool> {
     let signer_xrpl_address = XRPLAccountId::from(public_key);
-    let tx_hash = message_to_sign(storage, multisig_session_id, &signer_xrpl_address)?;
+    let tx_hash = message_to_sign(storage, multisig_session_id, &signer_xrpl_address, message)?;
     Ok(signature
         .verify(HexBinary::from(tx_hash), public_key)
         .is_ok())
