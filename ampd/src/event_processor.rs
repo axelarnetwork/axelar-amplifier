@@ -17,6 +17,13 @@ use crate::asyncutil::future::{with_retry, RetryPolicy};
 use crate::asyncutil::task::TaskError;
 use crate::{broadcaster_v2, cosmos, event_sub};
 
+// Maximum number of messages to enqueue for broadcasting concurrently.
+// - Controls parallelism when enqueueing messages to the broadcast queue
+// - Higher values increase throughput for processing many messages at once
+// - Lower values reduce resource consumption
+// - Setting is balanced based on network capacity and system resources
+const TX_BROADCAST_BUFFER_SIZE: usize = 10;
+
 #[async_trait]
 pub trait EventHandler {
     type Err: Context;
@@ -120,7 +127,7 @@ where
         Ok(msgs) => {
             tokio_stream::iter(msgs)
                 .map(|msg| async { msg_queue_client.clone().enqueue_and_forget(msg).await })
-                .buffered(100)
+                .buffered(TX_BROADCAST_BUFFER_SIZE)
                 .inspect_err(|err| {
                     warn!(
                         err = LoggableError::from(err).as_value(),
@@ -144,10 +151,10 @@ where
 
 fn should_task_stop(token: CancellationToken) -> impl Fn(&StreamStatus) -> future::Ready<bool> {
     move |event| match event {
-        StreamStatus::Ok(Event::BlockEnd(_)) | StreamStatus::TimedOut => {
-            future::ready(token.is_cancelled())
+        StreamStatus::Ok(Event::BlockBegin(_)) | StreamStatus::TimedOut => {
+            future::ready(!token.is_cancelled())
         }
-        _ => future::ready(false),
+        _ => future::ready(true),
     }
 }
 
@@ -157,6 +164,7 @@ fn log_block_end_event(event: &StreamStatus) {
     }
 }
 
+#[derive(Debug)]
 enum StreamStatus {
     Ok(Event),
     Error(Report<event_sub::Error>),
@@ -165,287 +173,455 @@ enum StreamStatus {
 
 #[cfg(test)]
 mod tests {
-    // use std::time::Duration;
+    use std::time::Duration;
 
-    // use assert_ok::assert_ok;
-    // use async_trait::async_trait;
-    // use cosmrs::bank::MsgSend;
-    // use cosmrs::tx::Msg;
-    // use cosmrs::{AccountId, Any};
-    // use error_stack::{report, Result};
-    // use events::Event;
-    // use futures::stream;
-    // use mockall::mock;
-    // use tokio::time::timeout;
-    // use tokio_util::sync::CancellationToken;
+    use async_trait::async_trait;
+    use axelar_wasm_std::assert_err_contains;
+    use cosmos_sdk_proto::cosmos::auth::v1beta1::{BaseAccount, QueryAccountResponse};
+    use cosmos_sdk_proto::cosmos::base::abci::v1beta1::GasInfo;
+    use cosmos_sdk_proto::cosmos::tx::v1beta1::SimulateResponse;
+    use cosmrs::bank::MsgSend;
+    use cosmrs::tendermint::chain;
+    use cosmrs::tx::Msg;
+    use cosmrs::{AccountId, Any};
+    use error_stack::{report, Result};
+    use events::Event;
+    use futures::{stream, StreamExt};
+    use mockall::mock;
+    use report::ErrorExt;
+    use tokio_util::sync::CancellationToken;
+    use tonic::Status;
 
-    // use crate::event_processor;
-    // use crate::event_processor::{consume_events, Config, Error, EventHandler};
-    // use crate::queue::queued_broadcaster::{Error as BroadcasterError, MockBroadcasterClient};
+    use crate::event_processor::{consume_events, Config, Error, EventHandler};
+    use crate::types::{random_cosmos_public_key, TMAddress};
+    use crate::{broadcaster_v2, cosmos, event_sub, PREFIX};
 
-    // pub fn setup_event_config(
-    //     retry_delay_value: Duration,
-    //     stream_timeout_value: Duration,
-    // ) -> Config {
-    //     Config {
-    //         retry_delay: retry_delay_value,
-    //         retry_max_attempts: 3,
-    //         stream_timeout: stream_timeout_value,
-    //         stream_buffer_size: 100000,
-    //     }
-    // }
+    pub fn setup_event_config(
+        retry_delay_value: Duration,
+        stream_timeout_value: Duration,
+    ) -> Config {
+        Config {
+            retry_delay: retry_delay_value,
+            retry_max_attempts: 3,
+            stream_timeout: stream_timeout_value,
+            stream_buffer_size: 100000,
+        }
+    }
 
-    // #[tokio::test]
-    // async fn stop_when_stream_closes() {
-    //     let events: Vec<Result<Event, event_processor::Error>> = vec![
-    //         Ok(Event::BlockEnd(0_u32.into())),
-    //         Ok(Event::BlockEnd(1_u32.into())),
-    //         Ok(Event::BlockEnd(3_u32.into())),
-    //     ];
+    #[tokio::test]
+    async fn stop_when_stream_closes() {
+        let pub_key = random_cosmos_public_key();
+        let address: TMAddress = pub_key.account_id(PREFIX).unwrap().into();
+        let chain_id: chain::Id = "test-chain-id".parse().unwrap();
+        let account_number = 42u64;
+        let sequence = 10u64;
+        let base_account = BaseAccount {
+            address: address.to_string(),
+            pub_key: None,
+            account_number,
+            sequence,
+        };
+        let event_config = setup_event_config(Duration::from_secs(1), Duration::from_secs(1000));
+        let events: Vec<Result<Event, event_sub::Error>> = vec![
+            Ok(Event::BlockEnd(0_u32.into())),
+            Ok(Event::BlockEnd(1_u32.into())),
+            Ok(Event::BlockEnd(3_u32.into())),
+        ];
 
-    //     let mut handler = MockEventHandler::new();
-    //     handler
-    //         .expect_handle()
-    //         .times(events.len())
-    //         .returning(|_| Ok(vec![]));
+        let mut handler = MockEventHandler::new();
+        handler
+            .expect_handle()
+            .times(events.len())
+            .returning(|_| Ok(vec![]));
 
-    //     let broadcaster = MockBroadcasterClient::new();
-    //     let event_config = setup_event_config(Duration::from_secs(1), Duration::from_secs(1000));
+        let mut mock_client = cosmos::MockCosmosClient::new();
+        mock_client.expect_account().return_once(move |_| {
+            Ok(QueryAccountResponse {
+                account: Some(Any::from_msg(&base_account).unwrap()),
+            })
+        });
 
-    //     let result_with_timeout = timeout(
-    //         Duration::from_secs(1),
-    //         consume_events(
-    //             "handler".to_string(),
-    //             handler,
-    //             broadcaster,
-    //             stream::iter(events),
-    //             event_config,
-    //             CancellationToken::new(),
-    //         ),
-    //     )
-    //     .await;
+        let broadcaster = broadcaster_v2::Broadcaster::new(mock_client, chain_id, pub_key)
+            .await
+            .unwrap();
+        let (_, msg_queue_client) = broadcaster_v2::MsgQueue::new_msg_queue_and_client(
+            broadcaster,
+            10,
+            100,
+            Duration::from_millis(500),
+        );
 
-    //     assert!(result_with_timeout.is_ok());
-    //     assert!(result_with_timeout.unwrap().is_ok());
-    // }
+        let result = consume_events(
+            "handler".to_string(),
+            handler,
+            stream::iter(events),
+            event_config,
+            CancellationToken::new(),
+            msg_queue_client,
+        )
+        .await;
+        assert!(result.is_ok());
+    }
 
-    // #[tokio::test]
-    // async fn return_error_when_stream_fails() {
-    //     let events: Vec<Result<Event, event_processor::Error>> = vec![
-    //         Ok(Event::BlockEnd(0_u32.into())),
-    //         Err(report!(Error::EventStream)),
-    //     ];
+    #[tokio::test]
+    async fn return_error_when_stream_fails() {
+        let pub_key = random_cosmos_public_key();
+        let address: TMAddress = pub_key.account_id(PREFIX).unwrap().into();
+        let chain_id: chain::Id = "test-chain-id".parse().unwrap();
+        let account_number = 42u64;
+        let sequence = 10u64;
+        let base_account = BaseAccount {
+            address: address.to_string(),
+            pub_key: None,
+            account_number,
+            sequence,
+        };
+        let event_config = setup_event_config(Duration::from_secs(1), Duration::from_secs(1000));
+        let events: Vec<Result<Event, event_sub::Error>> = vec![
+            Ok(Event::BlockEnd(0_u32.into())),
+            Err(report!(event_sub::Error::LatestBlockQuery)),
+        ];
 
-    //     let mut handler = MockEventHandler::new();
-    //     handler.expect_handle().times(1).returning(|_| Ok(vec![]));
+        let mut handler = MockEventHandler::new();
+        handler.expect_handle().return_once(|_| Ok(vec![]));
 
-    //     let broadcaster = MockBroadcasterClient::new();
-    //     let event_config = setup_event_config(Duration::from_secs(1), Duration::from_secs(1000));
+        let mut mock_client = cosmos::MockCosmosClient::new();
+        mock_client.expect_account().return_once(move |_| {
+            Ok(QueryAccountResponse {
+                account: Some(Any::from_msg(&base_account).unwrap()),
+            })
+        });
 
-    //     let result_with_timeout = timeout(
-    //         Duration::from_secs(1),
-    //         consume_events(
-    //             "handler".to_string(),
-    //             handler,
-    //             broadcaster,
-    //             stream::iter(events),
-    //             event_config,
-    //             CancellationToken::new(),
-    //         ),
-    //     )
-    //     .await;
+        let broadcaster = broadcaster_v2::Broadcaster::new(mock_client, chain_id, pub_key)
+            .await
+            .unwrap();
+        let (_, msg_queue_client) = broadcaster_v2::MsgQueue::new_msg_queue_and_client(
+            broadcaster,
+            10,
+            100,
+            Duration::from_millis(500),
+        );
 
-    //     assert!(result_with_timeout.is_ok());
-    //     assert!(result_with_timeout.unwrap().is_err());
-    // }
+        let result = consume_events(
+            "handler".to_string(),
+            handler,
+            stream::iter(events),
+            event_config,
+            CancellationToken::new(),
+            msg_queue_client,
+        )
+        .await;
+        assert_err_contains!(result, Error, Error::EventStream);
+    }
 
-    // #[tokio::test(start_paused = true)]
-    // async fn return_ok_when_handler_fails() {
-    //     let events: Vec<Result<Event, event_processor::Error>> =
-    //         vec![Ok(Event::BlockEnd(0_u32.into()))];
+    #[tokio::test(start_paused = true)]
+    async fn return_ok_when_handler_fails() {
+        let pub_key = random_cosmos_public_key();
+        let address: TMAddress = pub_key.account_id(PREFIX).unwrap().into();
+        let chain_id: chain::Id = "test-chain-id".parse().unwrap();
+        let account_number = 42u64;
+        let sequence = 10u64;
+        let base_account = BaseAccount {
+            address: address.to_string(),
+            pub_key: None,
+            account_number,
+            sequence,
+        };
+        let event_config = setup_event_config(Duration::from_secs(1), Duration::from_secs(1000));
+        let events: Vec<Result<Event, event_sub::Error>> = vec![Ok(Event::BlockEnd(0_u32.into()))];
 
-    //     let mut handler = MockEventHandler::new();
-    //     handler
-    //         .expect_handle()
-    //         .times(3)
-    //         .returning(|_| Err(report!(EventHandlerError::Failed)));
+        let mut handler = MockEventHandler::new();
+        handler
+            .expect_handle()
+            .times(3)
+            .returning(|_| Err(report!(EventHandlerError::Failed)));
 
-    //     let broadcaster = MockBroadcasterClient::new();
-    //     let event_config = setup_event_config(Duration::from_secs(1), Duration::from_secs(1000));
+        let mut mock_client = cosmos::MockCosmosClient::new();
+        mock_client.expect_account().return_once(move |_| {
+            Ok(QueryAccountResponse {
+                account: Some(Any::from_msg(&base_account).unwrap()),
+            })
+        });
 
-    //     let result_with_timeout = timeout(
-    //         Duration::from_secs(3),
-    //         consume_events(
-    //             "handler".to_string(),
-    //             handler,
-    //             broadcaster,
-    //             stream::iter(events),
-    //             event_config,
-    //             CancellationToken::new(),
-    //         ),
-    //     )
-    //     .await;
+        let broadcaster = broadcaster_v2::Broadcaster::new(mock_client, chain_id, pub_key)
+            .await
+            .unwrap();
+        let (_, msg_queue_client) = broadcaster_v2::MsgQueue::new_msg_queue_and_client(
+            broadcaster,
+            10,
+            100,
+            Duration::from_millis(500),
+        );
 
-    //     assert!(result_with_timeout.is_ok());
-    //     assert!(result_with_timeout.unwrap().is_ok());
-    // }
+        let result = consume_events(
+            "handler".to_string(),
+            handler,
+            stream::iter(events),
+            event_config,
+            CancellationToken::new(),
+            msg_queue_client,
+        )
+        .await;
+        assert!(result.is_ok());
+    }
 
-    // #[tokio::test(start_paused = true)]
-    // async fn return_ok_and_broadcast_when_handler_succeeds() {
-    //     let events: Vec<Result<Event, event_processor::Error>> =
-    //         vec![Ok(Event::BlockEnd(0_u32.into()))];
+    #[tokio::test(start_paused = true)]
+    async fn return_ok_and_broadcast_when_handler_succeeds() {
+        let pub_key = random_cosmos_public_key();
+        let address: TMAddress = pub_key.account_id(PREFIX).unwrap().into();
+        let chain_id: chain::Id = "test-chain-id".parse().unwrap();
+        let account_number = 42u64;
+        let sequence = 10u64;
+        let base_account = BaseAccount {
+            address: address.to_string(),
+            pub_key: None,
+            account_number,
+            sequence,
+        };
+        let event_config = setup_event_config(Duration::from_secs(1), Duration::from_secs(1000));
+        let events: Vec<Result<Event, event_sub::Error>> = vec![Ok(Event::BlockEnd(0_u32.into()))];
 
-    //     let mut handler = MockEventHandler::new();
-    //     handler
-    //         .expect_handle()
-    //         .once()
-    //         .returning(|_| Ok(vec![dummy_msg(), dummy_msg()]));
+        let mut handler = MockEventHandler::new();
+        handler
+            .expect_handle()
+            .return_once(|_| Ok(vec![dummy_msg(), dummy_msg()]));
 
-    //     let event_config = setup_event_config(Duration::from_secs(1), Duration::from_secs(1000));
-    //     let mut broadcaster = MockBroadcasterClient::new();
-    //     broadcaster
-    //         .expect_broadcast()
-    //         .times(2)
-    //         .returning(|_| Ok(()));
+        let mut mock_client = cosmos::MockCosmosClient::new();
+        mock_client.expect_account().return_once(move |_| {
+            Ok(QueryAccountResponse {
+                account: Some(Any::from_msg(&base_account).unwrap()),
+            })
+        });
+        mock_client.expect_clone().times(2).returning(|| {
+            let mut mock_client = cosmos::MockCosmosClient::new();
+            mock_client.expect_simulate().return_once(|_| {
+                Ok(SimulateResponse {
+                    gas_info: Some(GasInfo {
+                        gas_wanted: 50,
+                        gas_used: 50,
+                    }),
+                    ..Default::default()
+                })
+            });
 
-    //     let result_with_timeout = timeout(
-    //         Duration::from_secs(3),
-    //         consume_events(
-    //             "handler".to_string(),
-    //             handler,
-    //             broadcaster,
-    //             stream::iter(events),
-    //             event_config,
-    //             CancellationToken::new(),
-    //         ),
-    //     )
-    //     .await;
+            mock_client
+        });
 
-    //     assert!(result_with_timeout.is_ok());
-    //     assert!(result_with_timeout.unwrap().is_ok());
-    // }
+        let broadcaster = broadcaster_v2::Broadcaster::new(mock_client, chain_id, pub_key)
+            .await
+            .unwrap();
+        let (msg_queue, msg_queue_client) = broadcaster_v2::MsgQueue::new_msg_queue_and_client(
+            broadcaster,
+            10,
+            100,
+            Duration::from_millis(500),
+        );
 
-    // #[tokio::test(start_paused = true)]
-    // async fn return_ok_when_broadcaster_fails() {
-    //     let events: Vec<Result<Event, event_processor::Error>> =
-    //         vec![Ok(Event::BlockEnd(0_u32.into()))];
+        let result = consume_events(
+            "handler".to_string(),
+            handler,
+            stream::iter(events),
+            event_config,
+            CancellationToken::new(),
+            msg_queue_client,
+        )
+        .await;
+        assert!(result.is_ok());
+        let msgs = msg_queue.collect::<Vec<_>>().await;
+        assert_eq!(msgs.len(), 1);
+        let msgs = msgs.first().unwrap();
+        assert_eq!(msgs.as_ref().len(), 2)
+    }
 
-    //     let mut handler = MockEventHandler::new();
-    //     handler
-    //         .expect_handle()
-    //         .once()
-    //         .returning(|_| Ok(vec![dummy_msg(), dummy_msg()]));
+    #[tokio::test(start_paused = true)]
+    async fn return_ok_when_broadcaster_fails() {
+        let pub_key = random_cosmos_public_key();
+        let address: TMAddress = pub_key.account_id(PREFIX).unwrap().into();
+        let chain_id: chain::Id = "test-chain-id".parse().unwrap();
+        let account_number = 42u64;
+        let sequence = 10u64;
+        let base_account = BaseAccount {
+            address: address.to_string(),
+            pub_key: None,
+            account_number,
+            sequence,
+        };
+        let event_config = setup_event_config(Duration::from_secs(1), Duration::from_secs(1000));
+        let events: Vec<Result<Event, event_sub::Error>> = vec![Ok(Event::BlockEnd(0_u32.into()))];
 
-    //     let event_config = setup_event_config(Duration::from_secs(1), Duration::from_secs(1000));
-    //     let mut broadcaster = MockBroadcasterClient::new();
-    //     broadcaster
-    //         .expect_broadcast()
-    //         .times(2)
-    //         .returning(|_| Err(report!(BroadcasterError::EstimateFee)));
+        let mut handler = MockEventHandler::new();
+        handler
+            .expect_handle()
+            .return_once(|_| Ok(vec![dummy_msg(), dummy_msg()]));
 
-    //     let result_with_timeout = timeout(
-    //         Duration::from_secs(3),
-    //         consume_events(
-    //             "handler".to_string(),
-    //             handler,
-    //             broadcaster,
-    //             stream::iter(events),
-    //             event_config,
-    //             CancellationToken::new(),
-    //         ),
-    //     )
-    //     .await;
+        let mut mock_client = cosmos::MockCosmosClient::new();
+        mock_client.expect_account().return_once(move |_| {
+            Ok(QueryAccountResponse {
+                account: Some(Any::from_msg(&base_account).unwrap()),
+            })
+        });
+        mock_client.expect_clone().times(2).returning(|| {
+            let mut mock_client = cosmos::MockCosmosClient::new();
+            mock_client
+                .expect_simulate()
+                .return_once(|_| Err(Status::internal("internal error").into_report()));
 
-    //     assert_ok!(assert_ok!(result_with_timeout));
-    // }
+            mock_client
+        });
 
-    // #[tokio::test]
-    // async fn react_to_cancellation_at_block_end() {
-    //     let events: Vec<Result<Event, event_processor::Error>> = vec![
-    //         Ok(Event::BlockBegin(0_u32.into())),
-    //         Ok(Event::BlockBegin(1_u32.into())),
-    //         Ok(Event::BlockBegin(2_u32.into())),
-    //         Ok(Event::BlockEnd(3_u32.into())),
-    //         Ok(Event::BlockBegin(4_u32.into())),
-    //     ];
+        let broadcaster = broadcaster_v2::Broadcaster::new(mock_client, chain_id, pub_key)
+            .await
+            .unwrap();
+        let (msg_queue, msg_queue_client) = broadcaster_v2::MsgQueue::new_msg_queue_and_client(
+            broadcaster,
+            10,
+            100,
+            Duration::from_millis(500),
+        );
 
-    //     let mut handler = MockEventHandler::new();
-    //     handler.expect_handle().times(4).returning(|_| Ok(vec![]));
+        let result = consume_events(
+            "handler".to_string(),
+            handler,
+            stream::iter(events),
+            event_config,
+            CancellationToken::new(),
+            msg_queue_client,
+        )
+        .await;
+        let msgs = msg_queue.collect::<Vec<_>>().await;
+        assert!(result.is_ok());
+        assert_eq!(msgs.len(), 0);
+    }
 
-    //     let broadcaster = MockBroadcasterClient::new();
-    //     let event_config = setup_event_config(Duration::from_secs(1), Duration::from_secs(1000));
+    #[tokio::test]
+    async fn react_to_cancellation_at_block_end() {
+        let pub_key = random_cosmos_public_key();
+        let address: TMAddress = pub_key.account_id(PREFIX).unwrap().into();
+        let chain_id: chain::Id = "test-chain-id".parse().unwrap();
+        let account_number = 42u64;
+        let sequence = 10u64;
+        let base_account = BaseAccount {
+            address: address.to_string(),
+            pub_key: None,
+            account_number,
+            sequence,
+        };
+        let event_config = setup_event_config(Duration::from_secs(1), Duration::from_secs(1000));
+        let token = CancellationToken::new();
+        let events: Vec<Result<Event, event_sub::Error>> = vec![
+            Ok(Event::BlockEnd(0_u32.into())),
+            Ok(Event::BlockEnd(1_u32.into())),
+            Ok(Event::BlockEnd(2_u32.into())),
+            Ok(Event::BlockEnd(3_u32.into())),
+            Ok(Event::BlockBegin(4_u32.into())),
+        ];
 
-    //     let token = CancellationToken::new();
-    //     token.cancel();
+        let mut handler = MockEventHandler::new();
+        handler
+            .expect_handle()
+            .times(events.len() - 1)
+            .returning(|_| Ok(vec![]));
 
-    //     let result_with_timeout = timeout(
-    //         Duration::from_secs(1),
-    //         consume_events(
-    //             "handler".to_string(),
-    //             handler,
-    //             broadcaster,
-    //             stream::iter(events),
-    //             event_config,
-    //             token,
-    //         ),
-    //     )
-    //     .await;
+        let mut mock_client = cosmos::MockCosmosClient::new();
+        mock_client.expect_account().return_once(move |_| {
+            Ok(QueryAccountResponse {
+                account: Some(Any::from_msg(&base_account).unwrap()),
+            })
+        });
 
-    //     assert!(result_with_timeout.is_ok());
-    //     assert!(result_with_timeout.unwrap().is_ok());
-    // }
+        let broadcaster = broadcaster_v2::Broadcaster::new(mock_client, chain_id, pub_key)
+            .await
+            .unwrap();
+        let (_, msg_queue_client) = broadcaster_v2::MsgQueue::new_msg_queue_and_client(
+            broadcaster,
+            10,
+            100,
+            Duration::from_millis(500),
+        );
 
-    // #[tokio::test]
-    // async fn react_to_cancellation_on_timeout() {
-    //     let handler = MockEventHandler::new();
+        token.cancel();
+        let result = consume_events(
+            "handler".to_string(),
+            handler,
+            stream::iter(events),
+            event_config,
+            token.child_token(),
+            msg_queue_client,
+        )
+        .await;
+        assert!(result.is_ok());
+    }
 
-    //     let broadcaster = MockBroadcasterClient::new();
-    //     let event_config = setup_event_config(Duration::from_secs(1), Duration::from_secs(0));
+    #[tokio::test]
+    async fn react_to_cancellation_on_timeout() {
+        let pub_key = random_cosmos_public_key();
+        let address: TMAddress = pub_key.account_id(PREFIX).unwrap().into();
+        let chain_id: chain::Id = "test-chain-id".parse().unwrap();
+        let account_number = 42u64;
+        let sequence = 10u64;
+        let base_account = BaseAccount {
+            address: address.to_string(),
+            pub_key: None,
+            account_number,
+            sequence,
+        };
+        let token = CancellationToken::new();
+        let event_config = setup_event_config(Duration::from_secs(1), Duration::from_secs(2));
 
-    //     let token = CancellationToken::new();
-    //     token.cancel();
+        let mut mock_client = cosmos::MockCosmosClient::new();
+        mock_client.expect_account().return_once(move |_| {
+            Ok(QueryAccountResponse {
+                account: Some(Any::from_msg(&base_account).unwrap()),
+            })
+        });
 
-    //     let result_with_timeout = timeout(
-    //         Duration::from_secs(1),
-    //         consume_events(
-    //             "handler".to_string(),
-    //             handler,
-    //             broadcaster,
-    //             stream::pending::<Result<Event, Error>>(), // never returns any items so it can time out
-    //             event_config,
-    //             token,
-    //         ),
-    //     )
-    //     .await;
+        let broadcaster = broadcaster_v2::Broadcaster::new(mock_client, chain_id, pub_key)
+            .await
+            .unwrap();
+        let (_, msg_queue_client) = broadcaster_v2::MsgQueue::new_msg_queue_and_client(
+            broadcaster,
+            10,
+            100,
+            Duration::from_millis(500),
+        );
 
-    //     assert!(result_with_timeout.is_ok());
-    //     assert!(result_with_timeout.unwrap().is_ok());
-    // }
+        token.cancel();
+        let result = consume_events(
+            "handler".to_string(),
+            MockEventHandler::new(),
+            stream::pending(),
+            event_config,
+            token.child_token(),
+            msg_queue_client,
+        )
+        .await;
+        assert!(result.is_ok());
+    }
 
-    // #[derive(Error, Debug)]
-    // pub enum EventHandlerError {
-    //     #[error("failed")]
-    //     Failed,
-    // }
+    #[derive(Error, Debug)]
+    pub enum EventHandlerError {
+        #[error("failed")]
+        Failed,
+    }
 
-    // mock! {
-    //         EventHandler{}
+    mock! {
+            EventHandler{}
 
-    //         #[async_trait]
-    //         impl EventHandler for EventHandler {
-    //             type Err = EventHandlerError;
+            #[async_trait]
+            impl EventHandler for EventHandler {
+                type Err = EventHandlerError;
 
-    //             async fn handle(&self, event: &Event) -> Result<Vec<Any>, EventHandlerError>;
-    //         }
-    // }
+                async fn handle(&self, event: &Event) -> Result<Vec<Any>, EventHandlerError>;
+            }
+    }
 
-    // fn dummy_msg() -> Any {
-    //     MsgSend {
-    //         from_address: AccountId::new("", &[1, 2, 3]).unwrap(),
-    //         to_address: AccountId::new("", &[4, 5, 6]).unwrap(),
-    //         amount: vec![],
-    //     }
-    //     .to_any()
-    //     .unwrap()
-    // }
+    fn dummy_msg() -> Any {
+        MsgSend {
+            from_address: AccountId::new("", &[1, 2, 3]).unwrap(),
+            to_address: AccountId::new("", &[4, 5, 6]).unwrap(),
+            amount: vec![],
+        }
+        .to_any()
+        .unwrap()
+    }
 }
