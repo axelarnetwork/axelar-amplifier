@@ -44,7 +44,11 @@ blockchain environment, where different contracts can be deployed and interacted
 each other. See the [integration-tests](integration-tests) package for examples, as well as reusable helper functions.
 
 ### Release
-For team members responsible for managing releases, please refer to the [ampd release](ampd/ampd-release.md) document for detailed instructions on the release process. For others, you can use [GitHub tags page](https://github.com/axelarnetwork/axelar-amplifier/tags) to get the specefic builds for each contract.
+For team members responsible for managing releases, please refer to the [ampd release](ampd/ampd-release.md) document for detailed instructions on the release process. 
+
+For others, 
+
+For others, you can use [GitHub tags page](https://github.com/axelarnetwork/axelar-amplifier/tags) to get the specefic builds for each contract.
 
 ### Versioning
 
