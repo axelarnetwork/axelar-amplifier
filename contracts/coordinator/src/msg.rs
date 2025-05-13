@@ -1,9 +1,14 @@
 use std::collections::HashSet;
 
-use axelar_wasm_std::nonempty;
+use axelar_wasm_std::address::AddressFormat;
+use axelar_wasm_std::hash::Hash;
+use axelar_wasm_std::msg_id::MessageIdFormat;
+use axelar_wasm_std::{nonempty, MajorityThreshold};
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::Addr;
 use msgs_derive::EnsurePermissions;
+use multisig::key::KeyType;
+use multisig_prover_api::encoding::Encoder;
 use router_api::ChainName;
 use service_registry_api::Verifier;
 
@@ -41,6 +46,56 @@ pub enum ExecuteMsg {
     },
     #[permission(Specific(prover))]
     SetActiveVerifiers { verifiers: HashSet<String> },
+
+    #[permission(Any)]
+    InstantiateChainContracts {
+        chain_name: ChainName,
+        deployment_name: String,
+        params: Box<DeploymentParams>,
+    },
+}
+
+#[cw_serde]
+pub enum DeploymentParams {
+    Manual {
+        gateway_code_id: u64,
+        gateway_label: String,
+        verifier_code_id: u64,
+        verifier_label: String,
+        verifier_msg: VerifierMsg,
+        prover_code_id: u64,
+        prover_label: String,
+        prover_msg: ProverMsg,
+    },
+}
+
+#[cw_serde]
+pub struct ProverMsg {
+    pub governance_address: String,
+    pub multisig_address: String,
+    pub signing_threshold: MajorityThreshold,
+    pub service_name: String,
+    pub chain_name: String,
+    pub verifier_set_diff_threshold: u32,
+    pub encoder: Encoder,
+    pub key_type: KeyType,
+    #[serde(with = "axelar_wasm_std::hex")] // (de)serialization with hex module
+    #[schemars(with = "String")] // necessary attribute in conjunction with #[serde(with ...)]
+    pub domain_separator: Hash,
+}
+
+#[cw_serde]
+pub struct VerifierMsg {
+    pub governance_address: String,
+    pub service_name: String,
+    pub source_gateway_address: String,
+    pub voting_threshold: MajorityThreshold,
+    pub block_expiry: nonempty::Uint64,
+    pub confirmation_height: u64,
+    pub source_chain: ChainName,
+    pub rewards_address: nonempty::String,
+    pub msg_id_format: MessageIdFormat,
+    pub address_format: AddressFormat,
 }
 
 #[cw_serde]

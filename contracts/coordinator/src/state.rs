@@ -1,10 +1,11 @@
 use std::collections::HashSet;
 
+use axelar_wasm_std::counter::Counter;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Order, Storage};
-use cw_storage_plus::{index_list, Index, IndexList, IndexedMap, Item, MultiIndex, UniqueIndex};
+use cw_storage_plus::{index_list, Index, IndexList, IndexedMap, Item, Map, MultiIndex, UniqueIndex};
 use error_stack::{report, Result, ResultExt};
-use router_api::ChainName;
+use router_api::{ChainName, Gateway};
 
 use crate::msg::ChainContractsResponse;
 
@@ -49,6 +50,16 @@ pub fn load_config(storage: &dyn Storage) -> Config {
         .load(storage)
         .expect("coordinator config must be set during instantiation")
 }
+
+#[cw_serde]
+pub struct ChainContracts {
+    pub gateway: Addr,
+    pub voting_verifier: Addr,
+    pub multisig_prover: Addr,
+}
+
+pub const INSTANTIATE2_COUNTER: Counter<u64> = Counter::new("instantiate2_counter");
+pub const DEPLOYED_CHAINS: Map<String, ChainContracts> = Map::new("deployed_chains");
 
 /// Records the contract addresses for a specific chain
 #[cw_serde]
