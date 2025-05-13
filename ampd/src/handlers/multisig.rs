@@ -9,8 +9,9 @@ use cosmwasm_std::{HexBinary, Uint64};
 use error_stack::ResultExt;
 use events_derive;
 use events_derive::try_from;
-use hex::encode;
+use hex::{encode, FromHex};
 use multisig::msg::ExecuteMsg;
+use multisig::types::MsgToSign;
 use router_api::ChainName;
 use serde::de::Error as DeserializeError;
 use serde::{Deserialize, Deserializer};
@@ -18,7 +19,7 @@ use tokio::sync::watch::Receiver;
 use tracing::info;
 
 use crate::event_processor::EventHandler;
-use crate::handlers::errors::Error::{self, DeserializeEvent};
+use crate::handlers::errors::Error::{self, DeserializeEvent, MessageToSign};
 use crate::tofnd::grpc::Multisig;
 use crate::tofnd::{self, MessageDigest};
 use crate::types::{PublicKey, TMAddress};
@@ -29,8 +30,7 @@ struct SigningStartedEvent {
     session_id: u64,
     #[serde(deserialize_with = "deserialize_public_keys")]
     pub_keys: HashMap<TMAddress, PublicKey>,
-    #[serde(with = "hex")]
-    msg: MessageDigest,
+    msg: MsgToSign,
     expires_at: u64,
     chain: ChainName,
 }
@@ -161,7 +161,7 @@ where
                     .signer
                     .sign(
                         self.multisig.to_string().as_str(),
-                        msg.clone(),
+                        MessageDigest::from(<[u8; 32]>::try_from(msg.as_ref()).change_context(MessageToSign)?),
                         *pub_key,
                         key_type,
                     )
