@@ -3,8 +3,38 @@ use std::ops::Deref;
 
 use cosmwasm_schema::cw_serde;
 use into_inner_derive::IntoInner;
+use serde::{Deserialize, Serialize};
 
 use crate::nonempty::Error;
+
+#[derive(Debug, Copy, Clone, IntoInner, Serialize, Deserialize, PartialEq, PartialOrd)]
+#[serde(try_from = "usize")]
+#[serde(into = "usize")]
+pub struct Usize(usize);
+
+impl TryFrom<usize> for Usize {
+    type Error = Error;
+
+    fn try_from(value: usize) -> Result<Self, Self::Error> {
+        if value == 0 {
+            Err(Error::InvalidValue(value.to_string()))
+        } else {
+            Ok(Usize(value))
+        }
+    }
+}
+
+impl From<Usize> for usize {
+    fn from(value: Usize) -> Self {
+        value.into_inner()
+    }
+}
+
+impl fmt::Display for Usize {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
 
 #[cw_serde]
 #[serde(try_from = "cosmwasm_std::Uint64")]
@@ -146,6 +176,15 @@ impl Uint128 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn convert_between_usize_and_nonempty_usize() {
+        assert_eq!(
+            Usize::try_from(0).unwrap_err(),
+            Error::InvalidValue("0".to_string())
+        );
+        assert_eq!(usize::from(Usize::try_from(100).unwrap()), 100);
+    }
 
     #[test]
     fn convert_from_u64_to_uint64() {

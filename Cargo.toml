@@ -31,6 +31,7 @@ alloy-sol-types = { version = "0.7.6", default-features = false, features = [
 ] }
 anyhow = "1.0.89"
 ampd-proto = { version = "^0.1.0", path = "packages/ampd-proto" }
+ampd-sdk = { version = "^0.1.0", path = "packages/ampd-sdk" }
 assert_ok = "1.0"
 async-trait = "0.1.59"
 axelar-wasm-std = { version = "^1.0.0", path = "packages/axelar-wasm-std" }
@@ -44,6 +45,7 @@ coordinator = { version = "^1.1.0", path = "contracts/coordinator" }
 cosmwasm-crypto = "2.1.4"
 cosmwasm-schema = "2.1.4"
 cosmwasm-std = "2.1.4"
+cosmrs = "0.22.0"
 cw-multi-test = "2.2.0"
 cw-storage-plus = { version = "2.0.0", features = ["iterator", "macro"] }
 cw-utils = "2.0.0"
@@ -71,8 +73,9 @@ itertools = "0.14.0"
 k256 = { version = "0.13.1", features = ["ecdsa"] }
 mockall = "0.12.1"
 msgs-derive = { version = "^1.0.0", path = "packages/msgs-derive" }
-multisig = { version = "^1.1.1", path = "contracts/multisig" }
+multisig = { version = "^2.0.0", path = "contracts/multisig" }
 multisig-prover = { version = "^1.1.1", path = "contracts/multisig-prover" }
+multisig-prover-api = { version = "1.0.0", path = "packages/multisig-prover-api" }
 num-traits = { version = "0.2.14", default-features = false }
 quote = "1.0.38"
 rand = "0.8.5"
@@ -103,13 +106,18 @@ axelar-solana-gateway = { git = "https://github.com/eigerco/solana-axelar.git", 
 syn = "2.0.92"
 tendermint = "0.35.0"
 thiserror = "1.0.61"
+humantime-serde = "1.1.1"
+tracing = { version = "0.1.37", features = ["valuable", "log"] }
 tofn = { version = "1.1" }
-tokio = "1.38.0"
+tokio = "1.44.2"
 tokio-stream = "0.1.11"
 tokio-util = "0.7.11"
+typed-builder = "0.18.2"
 voting-verifier = { version = "^1.1.0", path = "contracts/voting-verifier" }
+voting-verifier-api = { version = "1.0.0", path = "packages/voting-verifier-api" }
 axelar-core-std = { version = "^1.0.0", path = "packages/axelar-core-std" }
 proc-macro2 = "1.0.92"
+valuable = "0.1.1"
 
 [workspace.lints.clippy]
 arithmetic_side_effects = "deny"

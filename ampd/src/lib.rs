@@ -1,8 +1,10 @@
+use std::pin::Pin;
 use std::time::Duration;
 
 use asyncutil::task::{CancellableTask, TaskError, TaskGroup};
 use block_height_monitor::BlockHeightMonitor;
 use broadcaster::Broadcaster;
+use broadcaster_v2::MsgQueue;
 use cosmos::CosmosGrpcClient;
 use error_stack::{FutureExt, Result, ResultExt};
 use event_processor::EventHandler;
@@ -29,12 +31,15 @@ use crate::config::Config;
 mod asyncutil;
 mod block_height_monitor;
 mod broadcaster;
+#[allow(dead_code)]
+mod broadcaster_v2;
 pub mod commands;
 pub mod config;
 mod cosmos;
 mod event_processor;
 mod event_sub;
 mod evm;
+mod grpc;
 mod handlers;
 mod health_check;
 mod json_rpc;
@@ -72,15 +77,12 @@ async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
         service_registry: _service_registry,
         rewards: _rewards,
         health_check_bind_addr,
+        grpc: grpc_config,
     } = cfg;
 
     let tm_client = tendermint_rpc::HttpClient::new(tm_jsonrpc.to_string().as_str())
         .change_context(Error::Connection)
         .attach_printable(tm_jsonrpc.clone())?;
-    let cosmos_client = cosmos::CosmosGrpcClient::new(tm_grpc.as_str(), tm_grpc_timeout)
-        .await
-        .change_context(Error::Connection)
-        .attach_printable(tm_grpc.clone())?;
     let multisig_client = MultisigClient::new(
         tofnd_config.party_uid,
         tofnd_config.url.as_str(),
@@ -89,18 +91,47 @@ async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
     .await
     .change_context(Error::Connection)
     .attach_printable(tofnd_config.url)?;
-
     let block_height_monitor = BlockHeightMonitor::connect(tm_client.clone())
         .await
         .change_context(Error::Connection)
         .attach_printable(tm_jsonrpc)?;
-
     let pub_key = multisig_client
         .keygen(&tofnd_config.key_uid, tofnd::Algorithm::Ecdsa)
         .await
         .change_context(Error::Tofnd)?;
     let pub_key = CosmosPublicKey::try_from(pub_key).change_context(Error::Tofnd)?;
-
+    let (event_publisher, event_subscriber) =
+        event_sub::EventPublisher::new(tm_client.clone(), event_processor.stream_buffer_size);
+    let cosmos_client = cosmos::CosmosGrpcClient::new(tm_grpc.as_str(), tm_grpc_timeout)
+        .await
+        .change_context(Error::Connection)
+        .attach_printable(tm_grpc.clone())?;
+    let broadcaster = broadcaster_v2::Broadcaster::new(
+        cosmos_client.clone(),
+        broadcast.chain_id.clone(),
+        pub_key,
+    )
+    .await
+    .change_context(Error::Broadcaster)?;
+    let (msg_queue, msg_queue_client) = broadcaster_v2::MsgQueue::new_msg_queue_and_client(
+        broadcaster.clone(),
+        broadcast.queue_cap,
+        broadcast.batch_gas_limit,
+        broadcast.broadcast_interval,
+    );
+    let grpc_server = grpc::Server::builder()
+        .config(grpc_config)
+        .event_sub(event_subscriber.clone())
+        .msg_queue_client(msg_queue_client)
+        .build();
+    let broadcaster_task = broadcaster_v2::BroadcasterTask::builder()
+        .broadcaster(broadcaster)
+        .msg_queue(msg_queue)
+        .signer(multisig_client.clone())
+        .key_id(tofnd_config.key_uid.clone())
+        .gas_adjustment(broadcast.gas_adjustment)
+        .gas_price(broadcast.gas_price.clone())
+        .build();
     let broadcaster = broadcaster::UnvalidatedBasicBroadcaster::builder()
         .address_prefix(PREFIX.to_string())
         .client(cosmos_client.clone())
@@ -135,13 +166,15 @@ async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
         .into();
 
     App::new(
-        tm_client,
+        event_publisher,
+        event_subscriber,
         broadcaster,
         tx_confirmer,
         multisig_client,
-        event_processor.stream_buffer_size,
         block_height_monitor,
         health_check_server,
+        grpc_server,
+        broadcaster_task,
     )
     .configure_handlers(verifier, handlers, event_processor)
     .await
@@ -175,6 +208,12 @@ where
     multisig_client: MultisigClient,
     block_height_monitor: BlockHeightMonitor<tendermint_rpc::HttpClient>,
     health_check_server: health_check::Server,
+    grpc_server: grpc::Server,
+    broadcaster_task: broadcaster_v2::BroadcasterTask<
+        cosmos::CosmosGrpcClient,
+        Pin<Box<MsgQueue>>,
+        MultisigClient,
+    >,
 }
 
 impl<T> App<T>
@@ -183,17 +222,20 @@ where
 {
     #[allow(clippy::too_many_arguments)]
     fn new(
-        tm_client: tendermint_rpc::HttpClient,
+        event_publisher: event_sub::EventPublisher<tendermint_rpc::HttpClient>,
+        event_subscriber: event_sub::EventSubscriber,
         broadcaster: QueuedBroadcaster<T>,
         tx_confirmer: TxConfirmer<CosmosGrpcClient>,
         multisig_client: MultisigClient,
-        event_buffer_cap: usize,
         block_height_monitor: BlockHeightMonitor<tendermint_rpc::HttpClient>,
         health_check_server: health_check::Server,
+        grpc_server: grpc::Server,
+        broadcaster_task: broadcaster_v2::BroadcasterTask<
+            cosmos::CosmosGrpcClient,
+            Pin<Box<MsgQueue>>,
+            MultisigClient,
+        >,
     ) -> Self {
-        let (event_publisher, event_subscriber) =
-            event_sub::EventPublisher::new(tm_client, event_buffer_cap);
-
         let event_processor = TaskGroup::new("event handler");
 
         Self {
@@ -205,6 +247,8 @@ where
             multisig_client,
             block_height_monitor,
             health_check_server,
+            grpc_server,
+            broadcaster_task,
         }
     }
 
@@ -564,6 +608,8 @@ where
             tx_confirmer,
             block_height_monitor,
             health_check_server,
+            grpc_server,
+            broadcaster_task,
             ..
         } = self;
 
@@ -607,6 +653,12 @@ where
             .add_task(CancellableTask::create(|token| {
                 App::create_broadcaster_task(broadcaster, tx_confirmer).run(token)
             }))
+            .add_task(CancellableTask::create(|token| {
+                grpc_server.run(token).change_context(Error::GrpcServer)
+            }))
+            .add_task(CancellableTask::create(|_| {
+                broadcaster_task.run().change_context(Error::Broadcaster)
+            }))
             .run(main_token)
             .await
     }
@@ -640,4 +692,6 @@ pub enum Error {
     InvalidFinalizerType(ChainName),
     #[error("health check is not working")]
     HealthCheck,
+    #[error("gRPC server failed")]
+    GrpcServer,
 }

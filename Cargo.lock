@@ -244,6 +244,7 @@ dependencies = [
 name = "ampd"
 version = "1.7.0"
 dependencies = [
+ "ampd-proto",
  "assert_ok",
  "async-trait",
  "axelar-solana-encoding",
@@ -284,6 +285,7 @@ dependencies = [
  "multiversx-sdk",
  "num-traits",
  "openssl",
+ "pin-project-lite",
  "prost 0.13.5",
  "prost-types 0.13.5",
  "rand 0.8.5",
@@ -322,6 +324,7 @@ dependencies = [
  "toml 0.5.11",
  "tonic 0.13.0",
  "tonic-build",
+ "tower 0.5.2",
  "tracing",
  "tracing-core",
  "tracing-subscriber",
@@ -337,11 +340,20 @@ dependencies = [
 [[package]]
 name = "ampd-handlers"
 version = "0.1.0"
+dependencies = [
+ "ampd-sdk",
+ "error-stack",
+ "events",
+ "tokio",
+ "tokio-stream",
+ "tokio-util",
+]
 
 [[package]]
 name = "ampd-proto"
 version = "0.1.0"
 dependencies = [
+ "cosmrs",
  "prost 0.13.5",
  "prost-types 0.13.5",
  "serde_json",
@@ -355,18 +367,28 @@ version = "0.1.0"
 dependencies = [
  "ampd-proto",
  "async-trait",
+ "cosmrs",
  "error-stack",
  "events",
  "futures",
+ "humantime-serde",
+ "itertools 0.14.0",
  "mockall 0.12.1",
  "prost 0.13.5",
  "prost-types 0.13.5",
+ "report",
+ "serde",
  "serde_json",
  "tendermint 0.35.0",
  "thiserror 1.0.69",
+ "tokio",
  "tokio-stream",
+ "tokio-util",
  "tonic 0.13.0",
  "tonic-build",
+ "tracing",
+ "typed-builder",
+ "valuable",
 ]
 
 [[package]]
@@ -3541,6 +3563,7 @@ dependencies = [
  "cosmrs",
  "error-stack",
  "goldie",
+ "serde",
  "serde_json",
  "tendermint 0.35.0",
  "thiserror 1.0.69",
@@ -5019,10 +5042,12 @@ dependencies = [
  "ethers-core",
  "gateway",
  "gateway-api",
+ "goldie",
  "interchain-token-service",
  "k256",
  "multisig",
  "multisig-prover",
+ "multisig-prover-api",
  "rand 0.8.5",
  "report",
  "rewards",
@@ -6235,8 +6260,9 @@ checksum = "e5ce46fe64a9d73be07dcbe690a38ce1b293be448fd8ce1e6c1b8062c9f72c6a"
 
 [[package]]
 name = "multisig"
-version = "1.1.1"
+version = "2.0.0"
 dependencies = [
+ "assert_ok",
  "axelar-wasm-std",
  "client",
  "cosmwasm-crypto",
@@ -6297,6 +6323,7 @@ dependencies = [
  "k256",
  "msgs-derive",
  "multisig",
+ "multisig-prover-api",
  "prost 0.12.6",
  "report",
  "router-api",
@@ -6310,6 +6337,15 @@ dependencies = [
  "sui-gateway",
  "thiserror 1.0.69",
  "voting-verifier",
+]
+
+[[package]]
+name = "multisig-prover-api"
+version = "1.0.0"
+dependencies = [
+ "axelar-wasm-std",
+ "cosmwasm-schema",
+ "multisig",
 ]
 
 [[package]]
@@ -11741,9 +11777,9 @@ dependencies = [
 
 [[package]]
 name = "tokio"
-version = "1.44.1"
+version = "1.44.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f382da615b842244d4b8738c82ed1275e6c5dd90c459a30941cd07080b06c91a"
+checksum = "e6b88822cbe49de4185e3a4cbf8321dd487cf5fe0c5c65695fef6346371e9c48"
 dependencies = [
  "backtrace",
  "bytes",
@@ -12580,6 +12616,17 @@ dependencies = [
  "sha3 0.10.8",
  "starknet-checked-felt",
  "thiserror 1.0.69",
+ "voting-verifier-api",
+]
+
+[[package]]
+name = "voting-verifier-api"
+version = "1.0.0"
+dependencies = [
+ "axelar-wasm-std",
+ "cosmwasm-schema",
+ "router-api",
+ "serde_json",
 ]
 
 [[package]]

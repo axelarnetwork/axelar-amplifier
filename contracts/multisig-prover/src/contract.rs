@@ -128,12 +128,12 @@ mod tests {
     };
     use multisig::msg::Signer;
     use multisig::verifier_set::VerifierSet;
+    use multisig_prover_api::encoding::Encoder;
     use prost::Message;
     use router_api::CrossChainId;
 
     use super::*;
     use crate::contract::execute::should_update_verifier_set;
-    use crate::encoding::Encoder;
     use crate::msg::{ProofResponse, ProofStatus, VerifierSetResponse};
     use crate::test::test_data::{self, TestOperator};
     use crate::test::test_utils::{

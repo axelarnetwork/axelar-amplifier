@@ -131,3 +131,9 @@ cosmwasm_contract = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq
 
 [rewards]
 cosmwasm_contract = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'
+
+[grpc]
+ip_addr = '127.0.0.1'
+port = 9090
+concurrency_limit = 1024
+concurrency_limit_per_connection = 32

@@ -8,59 +8,20 @@ use crate::msg::{ChainContractsKey, ChainContractsResponse, ExecuteMsg, QueryMsg
 
 #[derive(thiserror::Error, Debug, PartialEq)]
 pub enum Error {
-    #[error(
-        "failed to execute ReadyToUnbond query at coordinator contract. verifier_address: {0}"
-    )]
+    #[error("coordinator failed to retrieve if verifier {0} is ready to unbond.")]
     ReadyToUnbond(String),
 
-    #[error(
-        "failed to execute VerifierDetailsWithProvers query at coordinator contract. service_name: {service_name}, verifier_address: {verifier_address}"
-    )]
-    VerifierDetailsWithProvers {
-        service_name: String,
-        verifier_address: String,
-    },
-
-    #[error("failed to execute ChainContractsInfo query at coordinator contract. chain name {0}")]
+    #[error("failed to query ChainContractsInfo by chain name {0}")]
     ChainNameNotRegistered(String),
 
-    #[error("failed to execute ChainContractsInfo query at coordinator contract. gateway {0}")]
+    #[error("failed to query ChainContractsInfo by gateway {0}")]
     GatewayNotRegistered(Addr),
 
-    #[error("failed to execute ChainContractsInfo query at coordinator contract. prover {0}")]
+    #[error("failed to query ChainContractsInfo by prover {0}")]
     ProverNotRegistered(Addr),
 
-    #[error("failed to execute ChainContractsInfo query at coordinator contract. verifier {0}")]
+    #[error("failed to query ChainContractsInfo by verifier {0}")]
     VerifierNotRegistered(Addr),
-}
-
-impl From<QueryMsg> for Error {
-    fn from(value: QueryMsg) -> Self {
-        match value {
-            QueryMsg::ReadyToUnbond { verifier_address } => Error::ReadyToUnbond(verifier_address),
-            QueryMsg::VerifierInfo {
-                service_name,
-                verifier,
-            } => Error::VerifierDetailsWithProvers {
-                service_name,
-                verifier_address: verifier,
-            },
-            QueryMsg::ChainContractsInfo(chain_contracts_key) => match chain_contracts_key {
-                ChainContractsKey::GatewayAddress(gateway_addr) => {
-                    Error::GatewayNotRegistered(gateway_addr)
-                }
-                ChainContractsKey::ProverAddress(prover_addr) => {
-                    Error::ProverNotRegistered(prover_addr)
-                }
-                ChainContractsKey::VerifierAddress(verifier_addr) => {
-                    Error::VerifierNotRegistered(verifier_addr)
-                }
-                ChainContractsKey::ChainName(chain_name) => {
-                    Error::ChainNameNotRegistered(chain_name.into())
-                }
-            },
-        }
-    }
 }
 
 impl<'a> From<client::ContractClient<'a, ExecuteMsg, QueryMsg>> for Client<'a> {
@@ -106,16 +67,36 @@ impl Client<'_> {
     }
 
     pub fn ready_to_unbond(&self, verifier_address: String) -> Result<bool, Error> {
-        let msg = QueryMsg::ReadyToUnbond { verifier_address };
-        self.client.query(&msg).change_context_lazy(|| msg.into())
+        let msg = QueryMsg::ReadyToUnbond {
+            verifier_address: verifier_address.clone(),
+        };
+
+        self.client
+            .query(&msg)
+            .change_context(Error::ReadyToUnbond(verifier_address))
     }
 
     pub fn chain_contracts(
         &self,
         chain_contracts_key: ChainContractsKey,
     ) -> Result<ChainContractsResponse, Error> {
-        let msg = QueryMsg::ChainContractsInfo(chain_contracts_key);
-        self.client.query(&msg).change_context_lazy(|| msg.into())
+        let msg = QueryMsg::ChainContractsInfo(chain_contracts_key.clone());
+        self.client
+            .query(&msg)
+            .change_context(match chain_contracts_key {
+                ChainContractsKey::GatewayAddress(gateway_addr) => {
+                    Error::GatewayNotRegistered(gateway_addr)
+                }
+                ChainContractsKey::ProverAddress(prover_addr) => {
+                    Error::ProverNotRegistered(prover_addr)
+                }
+                ChainContractsKey::VerifierAddress(verifier_addr) => {
+                    Error::VerifierNotRegistered(verifier_addr)
+                }
+                ChainContractsKey::ChainName(chain_name) => {
+                    Error::ChainNameNotRegistered(chain_name.into())
+                }
+            })
     }
 }
 
