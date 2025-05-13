@@ -5047,6 +5047,7 @@ dependencies = [
  "k256",
  "multisig",
  "multisig-prover",
+ "multisig-prover-api",
  "rand 0.8.5",
  "report",
  "rewards",
@@ -6322,6 +6323,7 @@ dependencies = [
  "k256",
  "msgs-derive",
  "multisig",
+ "multisig-prover-api",
  "prost 0.12.6",
  "report",
  "router-api",
@@ -6335,6 +6337,15 @@ dependencies = [
  "sui-gateway",
  "thiserror 1.0.69",
  "voting-verifier",
+]
+
+[[package]]
+name = "multisig-prover-api"
+version = "1.0.0"
+dependencies = [
+ "axelar-wasm-std",
+ "cosmwasm-schema",
+ "multisig",
 ]
 
 [[package]]
@@ -12605,6 +12616,17 @@ dependencies = [
  "sha3 0.10.8",
  "starknet-checked-felt",
  "thiserror 1.0.69",
+ "voting-verifier-api",
+]
+
+[[package]]
+name = "voting-verifier-api"
+version = "1.0.0"
+dependencies = [
+ "axelar-wasm-std",
+ "cosmwasm-schema",
+ "router-api",
+ "serde_json",
 ]
 
 [[package]]

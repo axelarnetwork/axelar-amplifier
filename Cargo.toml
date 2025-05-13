@@ -75,6 +75,7 @@ mockall = "0.12.1"
 msgs-derive = { version = "^1.0.0", path = "packages/msgs-derive" }
 multisig = { version = "^2.0.0", path = "contracts/multisig" }
 multisig-prover = { version = "^1.1.1", path = "contracts/multisig-prover" }
+multisig-prover-api = { version = "1.0.0", path = "packages/multisig-prover-api" }
 num-traits = { version = "0.2.14", default-features = false }
 quote = "1.0.38"
 rand = "0.8.5"
@@ -113,6 +114,7 @@ tokio-stream = "0.1.11"
 tokio-util = "0.7.11"
 typed-builder = "0.18.2"
 voting-verifier = { version = "^1.1.0", path = "contracts/voting-verifier" }
+voting-verifier-api = { version = "1.0.0", path = "packages/voting-verifier-api" }
 axelar-core-std = { version = "^1.0.0", path = "packages/axelar-core-std" }
 proc-macro2 = "1.0.92"
 valuable = "0.1.1"
