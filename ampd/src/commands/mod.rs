@@ -1,10 +1,9 @@
-use core::pin::Pin;
+use std::pin::Pin;
 
 use clap::Subcommand;
 use cosmrs::proto::Any;
 use cosmrs::AccountId;
 use error_stack::{Result, ResultExt};
-use futures::TryFutureExt;
 use serde::{Deserialize, Serialize};
 use valuable::Valuable;
 
@@ -91,34 +90,24 @@ async fn broadcast_tx(
     tx: Any,
     pub_key: CosmosPublicKey,
 ) -> Result<String, Error> {
-    let (broadcaster_task, mut msg_queue_client) = instantiate_broadcaster(config, pub_key).await?;
-    let handle = tokio::spawn(broadcaster_task.validate().and_then(|task| task.run()));
+    let mut broadcaster = instantiate_broadcaster(config, pub_key).await?;
 
-    let (tx_hash, _) = msg_queue_client
-        .enqueue(tx)
+    Ok(broadcaster
+        .broadcast(vec![tx].try_into().expect("must be non-empty"))
         .await
         .change_context(Error::Broadcaster)?
-        .await
-        .change_context(Error::Broadcaster)?;
-
-    drop(msg_queue_client);
-    let _ = handle.await;
-
-    Ok(tx_hash)
+        .txhash)
 }
 
 async fn instantiate_broadcaster(
     config: Config,
     pub_key: CosmosPublicKey,
 ) -> Result<
-    (
-        broadcaster_v2::BroadcasterTask<
-            cosmos::CosmosGrpcClient,
-            Pin<Box<broadcaster_v2::MsgQueue>>,
-            MultisigClient,
-        >,
-        broadcaster_v2::MsgQueueClient<cosmos::CosmosGrpcClient>,
-    ),
+    broadcaster_v2::ValidatedBroadcasterTask<
+        cosmos::CosmosGrpcClient,
+        Pin<Box<broadcaster_v2::MsgQueue>>,
+        MultisigClient,
+    >,
     Error,
 > {
     let AmpdConfig {
@@ -145,7 +134,7 @@ async fn instantiate_broadcaster(
         broadcaster_v2::Broadcaster::new(cosmos_client.clone(), broadcast.chain_id, pub_key)
             .await
             .change_context(Error::Broadcaster)?;
-    let (msg_queue, msg_queue_client) = broadcaster_v2::MsgQueue::new_msg_queue_and_client(
+    let (msg_queue, _) = broadcaster_v2::MsgQueue::new_msg_queue_and_client(
         broadcaster.clone(),
         broadcast.queue_cap,
         broadcast.batch_gas_limit,
@@ -158,7 +147,10 @@ async fn instantiate_broadcaster(
         .key_id(tofnd_config.key_uid.clone())
         .gas_adjustment(broadcast.gas_adjustment)
         .gas_price(broadcast.gas_price)
-        .build();
+        .build()
+        .validate()
+        .await
+        .change_context(Error::Broadcaster)?;
 
-    Ok((broadcaster_task, msg_queue_client))
+    Ok(broadcaster_task)
 }

@@ -172,21 +172,15 @@ where
     pub async fn run(mut self) -> Result<()> {
         while let Some(msgs) = self.msg_queue.next().await {
             let tx_hash = self
-                .broadcast(msgs.as_ref().iter().map(|msg| msg.msg.clone()))
+                .broadcast(
+                    msgs.as_ref()
+                        .iter()
+                        .map(|msg| msg.msg.clone())
+                        .collect::<Vec<_>>()
+                        .try_into()
+                        .expect("must be non-empty"),
+                )
                 .await
-                .inspect(|res| {
-                    info!(
-                        tx_hash = res.txhash,
-                        msg_count = msgs.as_ref().len(),
-                        "successfully broadcasted tx"
-                    );
-                })
-                .inspect_err(|err| {
-                    error!(
-                        err = LoggableError::from(err).as_value(),
-                        "failed to broadcast tx",
-                    );
-                })
                 .map(|res| res.txhash);
 
             self.handle_tx_res(tx_hash, msgs).await?;
@@ -195,28 +189,40 @@ where
         Ok(())
     }
 
-    async fn estimate_fee(&mut self, batch_req: Any) -> Result<Fee> {
-        let gas = self
-            .broadcaster
-            .estimate_gas(vec![batch_req])
-            .await
-            .change_context(Error::EstimateGas)?;
-        let gas = gas as f64 * self.gas_adjustment;
+    /// Broadcasts a collection of messages as a single transaction to the Cosmos blockchain.
+    ///
+    /// This method handles the complete transaction lifecycle:
+    /// 1. Packages messages into a BatchRequest
+    /// 2. Estimates appropriate gas and fee based on simulation
+    /// 3. Signs the transaction using the configured signer
+    /// 4. Broadcasts the signed transaction to the network
+    /// 5. Logs the results of the broadcast operation
+    ///
+    /// The gas calculation applies the configured gas adjustment factor to the
+    /// simulated gas, and calculates fees based on the gas price denomination.
+    ///
+    /// # Parameters
+    /// * `msgs` - A non-empty vector of Any-encoded protocol messages to broadcast
+    ///
+    /// # Returns
+    /// * On success: TxResponse containing the transaction hash and execution results
+    /// * On failure: Error indicating what part of the broadcast process failed
+    ///
+    /// # Errors
+    /// This method can fail with various error types depending on where in the process it fails:
+    /// * `Error::EstimateGas` - If the gas estimation simulation fails
+    /// * `Error::FeeAdjustment` - If fee calculation encounters numeric conversion issues
+    /// * `Error::SignTx` - If transaction signing fails
+    /// * `Error::BroadcastTx` - If the network rejects the transaction
+    #[instrument(skip_all)]
+    pub async fn broadcast(&mut self, msgs: nonempty::Vec<Any>) -> Result<TxResponse> {
+        let msgs: Vec<_> = msgs.into();
+        let msg_count = msgs.len();
+        info!(msg_count, "broadcasting messages");
 
-        Ok(Fee::from_amount_and_gas(
-            Coin::new(
-                cast(gas.mul(self.gas_price.amount).ceil()).ok_or(report!(Error::FeeAdjustment))?,
-                self.gas_price.denom.as_ref(),
-            )
-            .change_context(Error::FeeAdjustment)?,
-            cast::<f64, u64>(gas).ok_or(report!(Error::FeeAdjustment))?,
-        ))
-    }
-
-    async fn broadcast(&mut self, msgs: impl IntoIterator<Item = Any>) -> Result<TxResponse> {
         let batch_req = Any::from_msg(&proto::axelar::auxiliary::v1beta1::BatchRequest {
             sender: self.broadcaster.address.as_ref().to_bytes(),
-            messages: msgs.into_iter().collect(),
+            messages: msgs,
         })
         .expect("failed to serialize proto message for batch request");
         let fee = self.estimate_fee(batch_req.clone()).await?;
@@ -243,6 +249,36 @@ where
                 )
             })
             .await
+            .inspect(|res| {
+                info!(
+                    tx_hash = res.txhash,
+                    msg_count, "successfully broadcasted tx"
+                );
+            })
+            .inspect_err(|err| {
+                error!(
+                    err = LoggableError::from(err).as_value(),
+                    "failed to broadcast tx",
+                );
+            })
+    }
+
+    async fn estimate_fee(&mut self, batch_req: Any) -> Result<Fee> {
+        let gas = self
+            .broadcaster
+            .estimate_gas(vec![batch_req])
+            .await
+            .change_context(Error::EstimateGas)?;
+        let gas = gas as f64 * self.gas_adjustment;
+
+        Ok(Fee::from_amount_and_gas(
+            Coin::new(
+                cast(gas.mul(self.gas_price.amount).ceil()).ok_or(report!(Error::FeeAdjustment))?,
+                self.gas_price.denom.as_ref(),
+            )
+            .change_context(Error::FeeAdjustment)?,
+            cast::<f64, u64>(gas).ok_or(report!(Error::FeeAdjustment))?,
+        ))
     }
 
     async fn handle_tx_res(
@@ -1247,5 +1283,437 @@ mod tests {
         let (tx_hash, idx) = rx.await.unwrap().unwrap();
         assert_eq!(tx_hash, "tx_hash_success");
         assert_eq!(idx, 0);
+    }
+
+    #[tokio::test]
+    async fn broadcast_should_successfully_broadcast_single_message() {
+        let pub_key = random_cosmos_public_key();
+        let address = pub_key.account_id(PREFIX).unwrap().into();
+        let chain_id: tendermint::chain::Id = "test-chain-id".parse().unwrap();
+        let gas_adjustment = 1.5;
+        let gas_price_amount = 0.025;
+        let gas_price_denom = "uaxl";
+        let base_account = create_base_account(&address);
+        let simulated_gas_used = 100000u64;
+        let expected_gas_limit = 150000u64; // 100000 * 1.5 = 150000
+        let expected_fee_amount = 3750u64; // 150000 * 0.025 = 3750
+
+        let mut mock_signer = MockMultisig::new();
+        mock_signer
+            .expect_sign()
+            .once()
+            .returning(|_, _, _, _| Ok(vec![0u8; 64]));
+
+        let mut seq = Sequence::new();
+        let mut mock_client = cosmos::MockCosmosClient::new();
+        mock_client
+            .expect_account()
+            .once()
+            .in_sequence(&mut seq)
+            .return_once(move |_| {
+                Ok(QueryAccountResponse {
+                    account: Some(Any::from_msg(&base_account).unwrap()),
+                })
+            });
+        mock_client
+            .expect_balance()
+            .once()
+            .with(predicate::eq(QueryBalanceRequest {
+                address: address.to_string(),
+                denom: gas_price_denom.to_string(),
+            }))
+            .in_sequence(&mut seq)
+            .return_once(|_| {
+                Ok(QueryBalanceResponse {
+                    balance: Some(Coin {
+                        denom: gas_price_denom.to_string(),
+                        amount: "1000000".to_string(),
+                    }),
+                })
+            });
+        mock_client
+            .expect_simulate()
+            .once()
+            .in_sequence(&mut seq)
+            .return_once(move |_| {
+                Ok(SimulateResponse {
+                    gas_info: Some(GasInfo {
+                        gas_wanted: 0,
+                        gas_used: simulated_gas_used,
+                    }),
+                    result: None,
+                })
+            });
+        mock_client
+            .expect_broadcast_tx()
+            .once()
+            .in_sequence(&mut seq)
+            .withf(move |req| {
+                let actual_fee = decode_gas_fee(&req.tx_bytes);
+                assert_eq!(actual_fee.amount.len(), 1);
+
+                actual_fee.gas_limit == expected_gas_limit
+                    && actual_fee.amount.first().unwrap().amount == expected_fee_amount.to_string()
+                    && actual_fee.amount.first().unwrap().denom == gas_price_denom
+            })
+            .return_once(move |_| {
+                Ok(BroadcastTxResponse {
+                    tx_response: Some(TxResponse {
+                        txhash: "tx_hash_success".to_string(),
+                        code: 0,
+                        ..Default::default()
+                    }),
+                })
+            });
+
+        let broadcaster = broadcaster::Broadcaster::new(mock_client, chain_id, pub_key)
+            .await
+            .unwrap();
+        let msg_queue = empty();
+        let mut broadcaster_task = BroadcasterTask::builder()
+            .broadcaster(broadcaster)
+            .msg_queue(msg_queue)
+            .signer(mock_signer)
+            .key_id("test-key".to_string())
+            .gas_adjustment(gas_adjustment)
+            .gas_price(DecCoin::new(gas_price_amount, gas_price_denom).unwrap())
+            .build()
+            .validate()
+            .await
+            .unwrap();
+
+        let messages = vec![dummy_msg()].try_into().unwrap();
+        let result = broadcaster_task.broadcast(messages).await;
+        assert!(result.is_ok());
+
+        let response = result.unwrap();
+        assert_eq!(response.txhash, "tx_hash_success");
+        assert_eq!(response.code, 0);
+    }
+
+    #[tokio::test]
+    async fn broadcast_should_successfully_broadcast_multiple_messages() {
+        let pub_key = random_cosmos_public_key();
+        let address = pub_key.account_id(PREFIX).unwrap().into();
+        let chain_id: tendermint::chain::Id = "test-chain-id".parse().unwrap();
+        let gas_adjustment = 1.5;
+        let gas_price_amount = 0.025;
+        let gas_price_denom = "uaxl";
+        let base_account = create_base_account(&address);
+        let simulated_gas_used = 100000u64;
+
+        let mut mock_signer = MockMultisig::new();
+        mock_signer
+            .expect_sign()
+            .once()
+            .returning(|_, _, _, _| Ok(vec![0u8; 64]));
+
+        let mut seq = Sequence::new();
+        let mut mock_client = cosmos::MockCosmosClient::new();
+        mock_client
+            .expect_account()
+            .once()
+            .in_sequence(&mut seq)
+            .return_once(move |_| {
+                Ok(QueryAccountResponse {
+                    account: Some(Any::from_msg(&base_account).unwrap()),
+                })
+            });
+        mock_client
+            .expect_balance()
+            .once()
+            .with(predicate::eq(QueryBalanceRequest {
+                address: address.to_string(),
+                denom: gas_price_denom.to_string(),
+            }))
+            .in_sequence(&mut seq)
+            .return_once(|_| {
+                Ok(QueryBalanceResponse {
+                    balance: Some(Coin {
+                        denom: gas_price_denom.to_string(),
+                        amount: "1000000".to_string(),
+                    }),
+                })
+            });
+        mock_client
+            .expect_simulate()
+            .once()
+            .in_sequence(&mut seq)
+            .return_once(move |_| {
+                Ok(SimulateResponse {
+                    gas_info: Some(GasInfo {
+                        gas_wanted: 0,
+                        gas_used: simulated_gas_used,
+                    }),
+                    result: None,
+                })
+            });
+        mock_client
+            .expect_broadcast_tx()
+            .once()
+            .in_sequence(&mut seq)
+            .return_once(move |_| {
+                Ok(BroadcastTxResponse {
+                    tx_response: Some(TxResponse {
+                        txhash: "tx_hash_multiple_msgs".to_string(),
+                        code: 0,
+                        ..Default::default()
+                    }),
+                })
+            });
+
+        let broadcaster = broadcaster::Broadcaster::new(mock_client, chain_id, pub_key)
+            .await
+            .unwrap();
+        let msg_queue = empty();
+        let mut broadcaster_task = BroadcasterTask::builder()
+            .broadcaster(broadcaster)
+            .msg_queue(msg_queue)
+            .signer(mock_signer)
+            .key_id("test-key".to_string())
+            .gas_adjustment(gas_adjustment)
+            .gas_price(DecCoin::new(gas_price_amount, gas_price_denom).unwrap())
+            .build()
+            .validate()
+            .await
+            .unwrap();
+
+        let messages = vec![dummy_msg(), dummy_msg(), dummy_msg()]
+            .try_into()
+            .unwrap();
+        let result = broadcaster_task.broadcast(messages).await;
+        assert!(result.is_ok());
+
+        let response = result.unwrap();
+        assert_eq!(response.txhash, "tx_hash_multiple_msgs");
+        assert_eq!(response.code, 0);
+    }
+
+    #[tokio::test]
+    async fn broadcast_should_propagate_gas_estimation_error() {
+        let pub_key = random_cosmos_public_key();
+        let address = pub_key.account_id(PREFIX).unwrap().into();
+        let chain_id: tendermint::chain::Id = "test-chain-id".parse().unwrap();
+        let gas_adjustment = 1.5;
+        let gas_price_amount = 0.025;
+        let gas_price_denom = "uaxl";
+        let base_account = create_base_account(&address);
+
+        let mut seq = Sequence::new();
+        let mut mock_client = cosmos::MockCosmosClient::new();
+        mock_client
+            .expect_account()
+            .once()
+            .in_sequence(&mut seq)
+            .return_once(move |_| {
+                Ok(QueryAccountResponse {
+                    account: Some(Any::from_msg(&base_account).unwrap()),
+                })
+            });
+        mock_client
+            .expect_balance()
+            .once()
+            .with(predicate::eq(QueryBalanceRequest {
+                address: address.to_string(),
+                denom: gas_price_denom.to_string(),
+            }))
+            .in_sequence(&mut seq)
+            .return_once(|_| {
+                Ok(QueryBalanceResponse {
+                    balance: Some(Coin {
+                        denom: gas_price_denom.to_string(),
+                        amount: "1000000".to_string(),
+                    }),
+                })
+            });
+        mock_client
+            .expect_simulate()
+            .once()
+            .in_sequence(&mut seq)
+            .return_once(move |_| {
+                Err(report!(cosmos::Error::GrpcRequest(
+                    tonic::Status::internal("simulation failed")
+                )))
+            });
+
+        let broadcaster = broadcaster::Broadcaster::new(mock_client, chain_id, pub_key)
+            .await
+            .unwrap();
+        let msg_queue = empty();
+        let mut broadcaster_task = BroadcasterTask::builder()
+            .broadcaster(broadcaster)
+            .msg_queue(msg_queue)
+            .signer(MockMultisig::new())
+            .key_id("test-key".to_string())
+            .gas_adjustment(gas_adjustment)
+            .gas_price(DecCoin::new(gas_price_amount, gas_price_denom).unwrap())
+            .build()
+            .validate()
+            .await
+            .unwrap();
+
+        let messages = vec![dummy_msg()].try_into().unwrap();
+        let result = broadcaster_task.broadcast(messages).await;
+        assert!(result.is_err());
+        assert_err_contains!(result, Error, Error::EstimateGas);
+    }
+
+    #[tokio::test]
+    async fn broadcast_should_propagate_signing_error() {
+        let pub_key = random_cosmos_public_key();
+        let address = pub_key.account_id(PREFIX).unwrap().into();
+        let chain_id: tendermint::chain::Id = "test-chain-id".parse().unwrap();
+        let gas_adjustment = 1.5;
+        let gas_price_amount = 0.025;
+        let gas_price_denom = "uaxl";
+        let base_account = create_base_account(&address);
+        let simulated_gas_used = 100000u64;
+
+        let mut mock_signer = MockMultisig::new();
+        mock_signer
+            .expect_sign()
+            .once()
+            .returning(|_, _, _, _| Err(report!(TofndError::SignFailed)));
+
+        let mut seq = Sequence::new();
+        let mut mock_client = cosmos::MockCosmosClient::new();
+        mock_client
+            .expect_account()
+            .once()
+            .in_sequence(&mut seq)
+            .return_once(move |_| {
+                Ok(QueryAccountResponse {
+                    account: Some(Any::from_msg(&base_account).unwrap()),
+                })
+            });
+        mock_client
+            .expect_balance()
+            .once()
+            .with(predicate::eq(QueryBalanceRequest {
+                address: address.to_string(),
+                denom: gas_price_denom.to_string(),
+            }))
+            .in_sequence(&mut seq)
+            .return_once(|_| {
+                Ok(QueryBalanceResponse {
+                    balance: Some(Coin {
+                        denom: gas_price_denom.to_string(),
+                        amount: "1000000".to_string(),
+                    }),
+                })
+            });
+        mock_client
+            .expect_simulate()
+            .once()
+            .in_sequence(&mut seq)
+            .return_once(move |_| {
+                Ok(SimulateResponse {
+                    gas_info: Some(GasInfo {
+                        gas_wanted: 0,
+                        gas_used: simulated_gas_used,
+                    }),
+                    result: None,
+                })
+            });
+
+        let broadcaster = broadcaster::Broadcaster::new(mock_client, chain_id, pub_key)
+            .await
+            .unwrap();
+        let msg_queue = empty();
+        let mut broadcaster_task = BroadcasterTask::builder()
+            .broadcaster(broadcaster)
+            .msg_queue(msg_queue)
+            .signer(mock_signer)
+            .key_id("test-key".to_string())
+            .gas_adjustment(gas_adjustment)
+            .gas_price(DecCoin::new(gas_price_amount, gas_price_denom).unwrap())
+            .build()
+            .validate()
+            .await
+            .unwrap();
+
+        let messages = vec![dummy_msg()].try_into().unwrap();
+        let result = broadcaster_task.broadcast(messages).await;
+        assert!(result.is_err());
+        assert_err_contains!(result, Error, Error::SignTx);
+    }
+
+    #[tokio::test]
+    async fn broadcast_should_propagate_broadcast_error() {
+        let pub_key = random_cosmos_public_key();
+        let address = pub_key.account_id(PREFIX).unwrap().into();
+        let chain_id: tendermint::chain::Id = "test-chain-id".parse().unwrap();
+        let gas_adjustment = 1.5;
+        let gas_price_amount = 0.025;
+        let gas_price_denom = "uaxl";
+        let base_account = create_base_account(&address);
+        let simulated_gas_used = 100000u64;
+
+        let mut mock_signer = MockMultisig::new();
+        mock_signer
+            .expect_sign()
+            .once()
+            .returning(|_, _, _, _| Ok(vec![0u8; 64]));
+
+        let mut mock_client = cosmos::MockCosmosClient::new();
+        let base_account_clone = base_account.clone();
+        mock_client.expect_account().times(2).returning(move |_| {
+            Ok(QueryAccountResponse {
+                account: Some(Any::from_msg(&base_account_clone).unwrap()),
+            })
+        });
+        mock_client
+            .expect_balance()
+            .once()
+            .with(predicate::eq(QueryBalanceRequest {
+                address: address.to_string(),
+                denom: gas_price_denom.to_string(),
+            }))
+            .return_once(|_| {
+                Ok(QueryBalanceResponse {
+                    balance: Some(Coin {
+                        denom: gas_price_denom.to_string(),
+                        amount: "1000000".to_string(),
+                    }),
+                })
+            });
+        mock_client.expect_simulate().once().return_once(move |_| {
+            Ok(SimulateResponse {
+                gas_info: Some(GasInfo {
+                    gas_wanted: 0,
+                    gas_used: simulated_gas_used,
+                }),
+                result: None,
+            })
+        });
+        mock_client
+            .expect_broadcast_tx()
+            .once()
+            .return_once(move |_| {
+                Err(report!(cosmos::Error::GrpcRequest(
+                    tonic::Status::internal("broadcast failed")
+                )))
+            });
+
+        let broadcaster = broadcaster::Broadcaster::new(mock_client, chain_id, pub_key)
+            .await
+            .unwrap();
+        let msg_queue = empty();
+        let mut broadcaster_task = BroadcasterTask::builder()
+            .broadcaster(broadcaster)
+            .msg_queue(msg_queue)
+            .signer(mock_signer)
+            .key_id("test-key".to_string())
+            .gas_adjustment(gas_adjustment)
+            .gas_price(DecCoin::new(gas_price_amount, gas_price_denom).unwrap())
+            .build()
+            .validate()
+            .await
+            .unwrap();
+
+        let messages = vec![dummy_msg()].try_into().unwrap();
+        let result = broadcaster_task.broadcast(messages).await;
+        assert!(result.is_err());
+        assert_err_contains!(result, Error, Error::BroadcastTx);
     }
 }
