@@ -43,6 +43,8 @@ pub fn instantiate(
 
     let config = Config {
         service_registry: address::validate_cosmwasm_address(deps.api, &msg.service_registry)?,
+        router: address::validate_cosmwasm_address(deps.api, &msg.router_address)?,
+        multisig: address::validate_cosmwasm_address(deps.api, &msg.multisig_address)?,
     };
     CONFIG
         .save(deps.storage, &config)
@@ -198,6 +200,8 @@ mod tests {
             &InstantiateMsg {
                 governance_address: admin_addr.clone().to_string(),
                 service_registry: app.api().addr_make("service_registry").to_string(),
+                router_address: app.api().addr_make("router").to_string(),
+                multisig_address: app.api().addr_make("multisig").to_string(),
             },
             &[],
             "Coordinator1.0.0",

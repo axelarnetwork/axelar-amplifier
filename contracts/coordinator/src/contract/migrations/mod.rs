@@ -1,14 +1,13 @@
 use axelar_wasm_std::{migrate_from_version, IntoContractError};
+use cosmwasm_schema::cw_serde;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{Addr, DepsMut, Env, Response};
-use cosmwasm_schema::cw_serde;
 use cw_storage_plus::Item;
 use error_stack::ResultExt;
 
-use crate::state::{Config, CONFIG};
-
 use crate::contract::{CONTRACT_NAME, CONTRACT_VERSION};
+use crate::state::{Config, CONFIG};
 
 #[derive(thiserror::Error, Debug, IntoContractError)]
 pub enum Error {
@@ -36,15 +35,18 @@ pub fn migrate(
     msg: MigrateMsg,
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
     cw2::ensure_from_older_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)
-    .change_context(Error::Migration)?;
+        .change_context(Error::Migration)?;
 
     let old_config = OLD_CONFIG.load(deps.storage)?;
 
-    CONFIG.save(deps.storage, &Config {
-        service_registry: old_config.service_registry,
-        router: msg.router,
-        multisig: msg.multisig,
-    })?;
+    CONFIG.save(
+        deps.storage,
+        &Config {
+            service_registry: old_config.service_registry,
+            router: msg.router,
+            multisig: msg.multisig,
+        },
+    )?;
 
     Ok(Response::default())
 }
