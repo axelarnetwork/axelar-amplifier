@@ -134,7 +134,7 @@ pub fn execute(
         ),
         ExecuteMsg::VerifySignature {
             session_id,
-            message: _,
+            message,
             public_key,
             signature,
             signer_address: _,

@@ -19,18 +19,17 @@ fn message_to_sign(
     storage: &dyn Storage,
     multisig_session_id: &Uint64,
     signer_xrpl_address: &XRPLAccountId,
+    message: &HexBinary,
 ) -> Result<[u8; 32], ContractError> {
-    let unsigned_tx_hash =
-        MULTISIG_SESSION_ID_TO_UNSIGNED_TX_HASH.load(storage, multisig_session_id.u64())?;
 
-    let tx_info = UNSIGNED_TX_HASH_TO_TX_INFO.load(storage, &unsigned_tx_hash)?;
-
+    let unsigned_tx_hash: [u8; 32] = Sha256::digest(message.as_slice()).into();
     let encoded_unsigned_tx_to_sign = XRPLUnsignedTxToSign {
-        unsigned_tx: tx_info.unsigned_tx,
+        unsigned_tx: message,
         unsigned_tx_hash: HexTxHash::new(unsigned_tx_hash),
-        cc_id: tx_info.original_cc_id,
+        cc_id: CrossChainId{source_chain: "test".try_into().unwrap(),message_id: "something".try_into().unwrap()}
     }
     .xrpl_serialize()?;
+    
     Ok(xrpl_types::types::message_to_sign(
         encoded_unsigned_tx_to_sign,
         signer_xrpl_address,
@@ -42,6 +41,7 @@ pub fn verify_signature(
     multisig_session_id: &Uint64,
     public_key: &PublicKey,
     signature: &Signature,
+    message: &HexBinary,
 ) -> StdResult<bool> {
     let signer_xrpl_address = XRPLAccountId::from(public_key);
     let tx_hash = message_to_sign(storage, multisig_session_id, &signer_xrpl_address)?;
