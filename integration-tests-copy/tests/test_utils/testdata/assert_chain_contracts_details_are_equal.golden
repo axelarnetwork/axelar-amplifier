@@ -1,6 +1,0 @@
-{
-  "chain_name": "ethereum",
-  "prover_address": "cosmwasm1tqwwyth34550lg2437m05mjnjp8w7h5ka7m70jtzpxn4uh2ktsmqruaxmk",
-  "gateway_address": "cosmwasm1wn625s4jcmvk0szpl85rj5azkfc6suyvf75q6vrddscjdphtve8suv7azv",
-  "verifier_address": "cosmwasm1mf6ptkssddfmxvhdx0ech0k03ktp6kf9yk59renau2gvht3nq2gq7z7vxe"
-}
