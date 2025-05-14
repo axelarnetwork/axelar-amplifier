@@ -6,7 +6,10 @@ use error_stack::{Result, ResultExt};
 use router_api::ChainName;
 
 use crate::msg::DeploymentParams;
-use crate::state::{load_config, save_chain_contracts, save_prover_for_chain, update_verifier_set_for_prover, DEPLOYED_CHAINS, INSTANTIATE2_COUNTER, ChainContracts};
+use crate::state::{
+    load_config, save_chain_contracts, save_prover_for_chain, update_verifier_set_for_prover,
+    ChainContracts, DEPLOYED_CHAINS, INSTANTIATE2_COUNTER,
+};
 
 #[derive(thiserror::Error, Debug, PartialEq)]
 pub enum Error {
@@ -180,7 +183,7 @@ pub fn instantiate_chain_contracts(
     let prover_salt =
         instantiate2_salt(&mut deps, &info).change_context(Error::FailedToInstantiateContracts)?;
 
-    let mut chain_contracts: Option<ChainContracts> = None;
+    let chain_contracts: Option<ChainContracts>;
 
     match params {
         DeploymentParams::Manual {
@@ -287,11 +290,7 @@ pub fn instantiate_chain_contracts(
 
     if let Some(c) = chain_contracts {
         DEPLOYED_CHAINS
-            .save(
-                deps.storage,
-                deployment_name.to_string(),
-                &c,
-            )
+            .save(deps.storage, deployment_name.to_string(), &c)
             .change_context(Error::FailedToInstantiateContracts)?;
     }
 

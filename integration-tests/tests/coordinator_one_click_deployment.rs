@@ -81,7 +81,7 @@ fn deploy_chains(
         },
     )?;
 
-    let contracts = gather_contracts(&protocol, res.clone());
+    let contracts = gather_contracts(protocol, res.clone());
 
     let response = protocol.coordinator.execute(
         &mut protocol.app,
@@ -169,11 +169,8 @@ fn coordinator_one_click_deployment_succeeds() {
     let res = deploy_chains(&mut protocol, &chain1, "testchain", "testchain", true);
     assert!(res.is_ok());
 
-    let new_contracts = gather_contracts(
-        &protocol, 
-        res.unwrap()
-    );
-   
+    let new_contracts = gather_contracts(&protocol, res.unwrap());
+
     let res = protocol
         .app
         .wrap()
@@ -206,8 +203,22 @@ fn coordinator_one_click_distinct_deployment_names_succeed() {
 
     let chain_name = String::from("testchain");
 
-    assert!(deploy_chains(&mut protocol, &chain1, chain_name.as_str(), "testchain1", false).is_ok());
-    assert!(deploy_chains(&mut protocol, &chain1, chain_name.as_str(), "testchain2", false).is_ok());
+    assert!(deploy_chains(
+        &mut protocol,
+        &chain1,
+        chain_name.as_str(),
+        "testchain1",
+        false
+    )
+    .is_ok());
+    assert!(deploy_chains(
+        &mut protocol,
+        &chain1,
+        chain_name.as_str(),
+        "testchain2",
+        false
+    )
+    .is_ok());
 }
 
 #[test]
@@ -221,13 +232,26 @@ fn coordinator_one_click_multiple_deployments_succeeds() {
     let chain_name_1 = String::from("testchain1");
     let chain_name_2 = String::from("testchain2");
 
-    assert!(deploy_chains(&mut protocol, &chain1, chain_name_1.as_str(), chain_name_1.as_str(), false).is_ok());
-    assert!(deploy_chains(&mut protocol, &chain1, chain_name_2.as_str(), chain_name_2.as_str(), false).is_ok());
+    assert!(deploy_chains(
+        &mut protocol,
+        &chain1,
+        chain_name_1.as_str(),
+        chain_name_1.as_str(),
+        false
+    )
+    .is_ok());
+    assert!(deploy_chains(
+        &mut protocol,
+        &chain1,
+        chain_name_2.as_str(),
+        chain_name_2.as_str(),
+        false
+    )
+    .is_ok());
 }
 
 #[test]
 fn coordinator_one_click_contract_interactions_succeeds() {
-    // TODO: Break up into separate tests
     let test_utils::TestCase {
         mut protocol,
         chain1,
@@ -286,12 +310,18 @@ fn coordinator_one_click_contract_interactions_succeeds() {
         .unwrap(),
     }];
 
-    let res = deploy_chains(&mut protocol, &chain1, chain_name.as_str(), chain_name.as_str(), true);
+    let res = deploy_chains(
+        &mut protocol,
+        &chain1,
+        chain_name.as_str(),
+        chain_name.as_str(),
+        true,
+    );
     assert!(res.is_ok());
 
     // Verify Messages
 
-    for ref verifier in &verifiers {
+    for verifier in &verifiers {
         assert!(protocol
             .service_registry
             .execute(
@@ -315,8 +345,7 @@ fn coordinator_one_click_contract_interactions_succeeds() {
         )
         .is_ok());
 
-    // Verify and Route Incoming Messages
-
+    // Verify messages
     let res = chain1.gateway.execute(
         &mut protocol.app,
         protocol.governance_address.clone(),
@@ -342,6 +371,7 @@ fn coordinator_one_click_contract_interactions_succeeds() {
 
     assert!(poll_id.is_some());
 
+    // Vote on message success
     for v in &verifiers {
         assert!(chain1
             .voting_verifier
@@ -356,6 +386,7 @@ fn coordinator_one_click_contract_interactions_succeeds() {
             .is_ok());
     }
 
+    // Check that the vote passed
     let res: Result<Vec<voting_verifier::msg::MessageStatus>, cosmwasm_std::StdError> =
         chain1.voting_verifier.query(
             &protocol.app,
@@ -367,6 +398,7 @@ fn coordinator_one_click_contract_interactions_succeeds() {
         VerificationStatus::SucceededOnSourceChain
     );
 
+    // Route messages to the new gateway
     assert!(chain1
         .gateway
         .execute(
@@ -376,6 +408,7 @@ fn coordinator_one_click_contract_interactions_succeeds() {
         )
         .is_ok());
 
+    // Update verifier set in the prover
     assert!(contracts
         .multisig_prover
         .execute(
@@ -385,6 +418,7 @@ fn coordinator_one_click_contract_interactions_succeeds() {
         )
         .is_ok());
 
+    // Check that a proof for the incoming message can be created
     assert!(contracts
         .multisig_prover
         .execute(

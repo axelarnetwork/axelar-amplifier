@@ -3,9 +3,11 @@ use std::collections::HashSet;
 use axelar_wasm_std::counter::Counter;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Order, Storage};
-use cw_storage_plus::{index_list, Index, IndexList, IndexedMap, Item, Map, MultiIndex, UniqueIndex};
+use cw_storage_plus::{
+    index_list, Index, IndexList, IndexedMap, Item, Map, MultiIndex, UniqueIndex,
+};
 use error_stack::{report, Result, ResultExt};
-use router_api::{ChainName, Gateway};
+use router_api::ChainName;
 
 use crate::msg::ChainContractsResponse;
 
