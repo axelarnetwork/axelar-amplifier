@@ -96,6 +96,12 @@ pub enum QueryMsg {
     #[returns(Service)]
     Service { service_name: String },
 
+    #[returns(Service)]
+    ServiceParams {
+        service_name: String,
+        chain_name: ChainName,
+    },
+
     #[returns(VerifierDetails)]
     Verifier {
         service_name: String,

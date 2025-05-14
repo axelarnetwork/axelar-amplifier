@@ -76,3 +76,11 @@ pub fn verifier(
 pub fn service(deps: Deps, service_name: String) -> error_stack::Result<Service, ContractError> {
     state::default_service_params(deps.storage, &service_name)
 }
+
+pub fn service_override(
+    deps: Deps,
+    service_name: String,
+    chain_name: ChainName,
+) -> error_stack::Result<ServiceParamsOverride, ContractError> {
+    state::service(deps.storage, &service_name, &chain_name)
+}

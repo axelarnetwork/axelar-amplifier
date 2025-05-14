@@ -17,6 +17,12 @@ pub enum Error {
     #[error("failed to query service registry for service {0}")]
     Service(String),
 
+    #[error("failed to query service registry for parameters for service {service_name} and chain {chain_name}")]
+    ServiceOverride {
+        service_name: String,
+        chain_name: ChainName,
+    },
+
     #[error("failed to query service registry for verifier {verifier} of service {service_name}")]
     Verifier {
         service_name: String,
@@ -71,6 +77,9 @@ impl Client<'_> {
         self.client.query(&msg).change_context_lazy(|| msg.into())
     }
 
+    #[deprecated(
+        note = "Use service_params instead which supports specifying a chain name and returns the service parameters considering chain overrides"
+    )]
     pub fn service(&self, service_name: String) -> Result<Service> {
         let msg = QueryMsg::Service { service_name };
         self.client.query(&msg).change_context_lazy(|| msg.into())

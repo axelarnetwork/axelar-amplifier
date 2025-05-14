@@ -190,6 +190,11 @@ pub fn query(
         QueryMsg::Service { service_name } => {
             to_json_binary(&query::service(deps, service_name)?).map_err(|err| err.into())
         }
+        QueryMsg::ServiceParams {
+            service_name,
+            chain_name,
+        } => to_json_binary(&query::service_override(deps, service_name, chain_name)?)
+            .map_err(|err| err.into()),
     }
 }
 
@@ -461,6 +466,92 @@ mod test {
             err.report,
             permission_control::Error,
             permission_control::Error::PermissionDenied { .. }
+        ));
+    }
+
+    #[test]
+    fn override_service_params_should_suceed() {
+        let mut deps = setup();
+        let api = deps.api;
+
+        let service_name = "verifiers";
+        let chain_name = "solana".parse().unwrap();
+        let min_verifiers_override = 20;
+        let max_verifiers_override = Some(20);
+
+        let service_params_override = ServiceParamsOverride {
+            min_num_verifiers: Some(min_verifiers_override),
+            max_num_verifiers: Some(max_verifiers_override),
+        };
+
+        let service = execute_register_service(deps.as_mut(), service_name.into());
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
+            ExecuteMsg::OverrideServiceParams {
+                service_name: service_name.into(),
+                chain: chain_name,
+                service_params_override,
+            },
+        );
+        assert!(res.is_ok());
+
+        let res: Service = from_json(
+            query(
+                deps.as_ref(),
+                mock_env(),
+                QueryMsg::ServiceParams {
+                    service_name: service_name.into(),
+                    chain_name,
+                },
+            )
+            .unwrap(),
+        )
+        .unwrap();
+
+        let expected_service = Service {
+            min_num_verifiers: min_verifiers_override,
+            max_num_verifiers: max_verifiers_override,
+            ..service
+        };
+
+        assert_eq!(res, expected_service);
+    }
+
+    #[test]
+    fn override_service_params_should_fail_when_service_does_not_exist() {
+        let mut deps = setup();
+        let api = deps.api;
+
+        let service_name = "verifiers";
+        let chain_name = "solana".parse().unwrap();
+        let min_verifiers_override = 20;
+        let max_verifiers_override = Some(20);
+
+        let service_params_override = ServiceParamsOverride {
+            min_num_verifiers: Some(min_verifiers_override),
+            max_num_verifiers: Some(max_verifiers_override),
+        };
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
+            ExecuteMsg::OverrideServiceParams {
+                service_name: service_name.into(),
+                chain: chain_name,
+                service_params_override,
+            },
+        );
+
+        assert!(res.is_err());
+        let err = res.unwrap_err();
+        assert!(err_contains!(
+            err.report,
+            ContractError,
+            ContractError::ServiceNotFound
         ));
     }
 
