@@ -458,6 +458,8 @@ pub fn setup_protocol(service_name: nonempty::String) -> Protocol {
         &mut app,
         governance_address.clone(),
         service_registry.contract_addr.clone(),
+        router.contract_addr.clone(),
+        multisig.contract_addr.clone(),
     );
 
     Protocol {
