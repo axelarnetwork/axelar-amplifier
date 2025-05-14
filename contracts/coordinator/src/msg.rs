@@ -17,6 +17,8 @@ type VerifierAddress = Addr;
 pub struct InstantiateMsg {
     pub governance_address: String,
     pub service_registry: String,
+    pub router_address: String,
+    pub multisig_address: String,
 }
 
 #[cw_serde]

@@ -16,6 +16,8 @@ impl CoordinatorContract {
         app: &mut AxelarApp,
         governance: Addr,
         service_registry: Addr,
+        router: Addr,
+        multisig: Addr,
     ) -> Self {
         let code = ContractWrapper::new_with_empty(execute, instantiate, query);
         let code_id = app.store_code(Box::new(code));
@@ -27,6 +29,8 @@ impl CoordinatorContract {
                 &coordinator::msg::InstantiateMsg {
                     governance_address: governance.to_string(),
                     service_registry: service_registry.to_string(),
+                    router_address: router.to_string(),
+                    multisig_address: multisig.to_string(),
                 },
                 &[],
                 "coordinator",

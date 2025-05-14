@@ -39,6 +39,8 @@ pub enum Error {
 #[cw_serde]
 pub struct Config {
     pub service_registry: Addr,
+    pub router: Addr,
+    pub multisig: Addr,
 }
 pub const CONFIG: Item<Config> = Item::new("config");
 
