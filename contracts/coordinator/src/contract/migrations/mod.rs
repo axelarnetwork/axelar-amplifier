@@ -1,4 +1,4 @@
-use axelar_wasm_std::{migrate_from_version, IntoContractError};
+use axelar_wasm_std::migrate_from_version;
 use cosmwasm_schema::cw_serde;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
@@ -6,12 +6,6 @@ use cosmwasm_std::{Addr, DepsMut, Env, Response};
 use cw_storage_plus::Item;
 
 use crate::state::{Config, CONFIG};
-
-#[derive(thiserror::Error, Debug, IntoContractError)]
-pub enum Error {
-    #[error("coordinator migration failed")]
-    Migration,
-}
 
 #[cw_serde]
 pub struct OldConfig {
