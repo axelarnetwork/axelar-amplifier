@@ -43,6 +43,8 @@ pub fn instantiate(
 
     let config = Config {
         service_registry: address::validate_cosmwasm_address(deps.api, &msg.service_registry)?,
+        router: address::validate_cosmwasm_address(deps.api, &msg.router_address)?,
+        multisig: address::validate_cosmwasm_address(deps.api, &msg.multisig_address)?,
     };
     CONFIG
         .save(deps.storage, &config)
@@ -162,7 +164,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
 #[cfg(test)]
 mod tests {
     use axelar_wasm_std::permission_control::Permission;
-    use cosmwasm_std::{Addr, Empty, StdResult};
+    use cosmwasm_std::{Addr, StdResult};
     use cw_multi_test::{no_init, App, ContractWrapper, Executor};
     use router_api::ChainName;
 
@@ -198,6 +200,8 @@ mod tests {
             &InstantiateMsg {
                 governance_address: admin_addr.clone().to_string(),
                 service_registry: app.api().addr_make("service_registry").to_string(),
+                router_address: app.api().addr_make("router").to_string(),
+                multisig_address: app.api().addr_make("multisig").to_string(),
             },
             &[],
             "Coordinator1.0.0",
@@ -348,7 +352,10 @@ mod tests {
             .migrate_contract(
                 test_setup.admin_addr.clone(),
                 test_setup.coordinator_addr.clone(),
-                &Empty {},
+                &MigrateMsg {
+                    router: test_setup.app.api().addr_make("router"),
+                    multisig: test_setup.app.api().addr_make("multisig"),
+                },
                 coordinator_code_id,
             )
             .is_ok());
