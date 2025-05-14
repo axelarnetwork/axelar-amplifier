@@ -4,7 +4,7 @@ use std::vec;
 use ampd_proto;
 use ampd_proto::blockchain_service_client::BlockchainServiceClient;
 use ampd_proto::crypto_service_client::CryptoServiceClient;
-use ampd_proto::SubscribeRequest;
+use ampd_proto::{BroadcastRequest, BroadcastResponse, SubscribeRequest};
 use async_trait::async_trait;
 use error_stack::{report, Report, Result, ResultExt};
 use events::{AbciEventTypeFilter, Event};
@@ -40,6 +40,8 @@ pub trait Client {
         filters: Vec<AbciEventTypeFilter>,
         include_block_begin_end: bool,
     ) -> Result<Self::Stream, Error>;
+
+    async fn broadcast(&mut self, msg: cosmrs::Any) -> Result<BroadcastResponse, Error>;
 }
 
 #[allow(dead_code)]
@@ -104,6 +106,22 @@ impl Client for GrpcClient {
         });
 
         Ok(Box::pin(transformed_stream))
+    }
+
+    async fn broadcast(&mut self, msg: cosmrs::Any) -> Result<BroadcastResponse, Error> {
+        let request = BroadcastRequest {
+            msg: Some(msg.into()),
+        };
+
+        let broadcast_response = self
+            .blockchain
+            .broadcast(request)
+            .await
+            .map_err(Error::GrpcRequest)
+            .map_err(Report::new)?
+            .into_inner();
+
+        Ok(broadcast_response)
     }
 }
 
