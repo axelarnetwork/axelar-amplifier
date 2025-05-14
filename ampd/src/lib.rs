@@ -123,6 +123,7 @@ async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
         .config(grpc_config)
         .event_sub(event_subscriber.clone())
         .msg_queue_client(msg_queue_client)
+        .cosmos_grpc_client(cosmos_client.clone())
         .build();
     let broadcaster_task = broadcaster_v2::BroadcasterTask::builder()
         .broadcaster(broadcaster)

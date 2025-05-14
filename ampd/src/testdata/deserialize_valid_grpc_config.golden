@@ -42,6 +42,7 @@
     "ip_addr": "0.0.0.0",
     "port": 9091,
     "concurrency_limit": 2048,
-    "concurrency_limit_per_connection": 256
+    "concurrency_limit_per_connection": 256,
+    "reqs_timeout": "30s"
   }
 }

@@ -1,4 +1,5 @@
 use std::net::{IpAddr, SocketAddr};
+use std::time::Duration;
 
 use ampd_proto::blockchain_service_server::BlockchainServiceServer;
 use ampd_proto::crypto_service_server::CryptoServiceServer;
@@ -32,6 +33,8 @@ pub struct Config {
     pub port: u16,
     pub concurrency_limit: nonempty::Usize,
     pub concurrency_limit_per_connection: nonempty::Usize,
+    #[serde(with = "humantime_serde")]
+    pub reqs_timeout: Duration,
 }
 
 impl Default for Config {
@@ -45,6 +48,7 @@ impl Default for Config {
             concurrency_limit_per_connection: 32
                 .try_into()
                 .expect("default concurrency limit per connection must be valid"),
+            reqs_timeout: Duration::from_secs(30),
         }
     }
 }
@@ -69,12 +73,14 @@ pub struct Server {
     config: Config,
     event_sub: event_sub::EventSubscriber,
     msg_queue_client: broadcaster_v2::MsgQueueClient<cosmos::CosmosGrpcClient>,
+    cosmos_grpc_client: cosmos::CosmosGrpcClient,
 }
 
 impl Server {
     pub async fn run(self, token: CancellationToken) -> Result<(), Error> {
         let addr = SocketAddr::new(self.config.ip_addr, self.config.port);
         let router = transport::Server::builder()
+            .timeout(self.config.reqs_timeout)
             .layer(ConcurrencyLimitLayer::new(
                 self.config.concurrency_limit.into(),
             ))
@@ -83,6 +89,7 @@ impl Server {
                 blockchain_service::Service::builder()
                     .event_sub(self.event_sub)
                     .msg_queue_client(self.msg_queue_client)
+                    .cosmos_client(self.cosmos_grpc_client)
                     .build(),
             ))
             .add_service(CryptoServiceServer::new(crypto_service::Service::new()));

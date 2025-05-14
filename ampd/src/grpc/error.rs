@@ -5,7 +5,7 @@ use tracing::error;
 use valuable::Valuable;
 
 use super::reqs;
-use crate::{broadcaster_v2, event_sub};
+use crate::{broadcaster_v2, cosmos, event_sub};
 
 pub fn log<Err>(msg: &str) -> impl Fn(&Report<Err>) + '_ {
     move |err| {
@@ -64,9 +64,9 @@ impl From<&reqs::Error> for Error {
         match err {
             reqs::Error::EmptyFilter => Status::invalid_argument("empty filter provided"),
             reqs::Error::InvalidContractAddress(contract) => Status::invalid_argument(format!(
-                "invalid contract address {} provided in filters",
-                contract
+                "invalid contract address \"{contract}\" provided"
             )),
+            reqs::Error::InvalidQuery => Status::invalid_argument("invalid query provided"),
             reqs::Error::EmptyBroadcastMsg => {
                 Status::invalid_argument("empty broadcast message provided")
             }
@@ -115,6 +115,27 @@ impl From<&broadcaster_v2::Error> for Error {
     }
 }
 
+impl From<&cosmos::Error> for Error {
+    fn from(err: &cosmos::Error) -> Self {
+        match err {
+            cosmos::Error::GrpcConnection(_) | cosmos::Error::GrpcRequest(_) => {
+                Status::unavailable("blockchain service is temporarily unavailable")
+            }
+            cosmos::Error::QuerySmartContractState(reason) => Status::unknown(format!(
+                "failed to query smart contract state with error {reason}"
+            )),
+            cosmos::Error::GasInfoMissing
+            | cosmos::Error::AccountMissing
+            | cosmos::Error::TxResponseMissing
+            | cosmos::Error::MalformedResponse
+            | cosmos::Error::TxBuilding => {
+                Status::internal("server encountered an error processing request")
+            }
+        }
+        .into()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use error_stack::report;
@@ -126,7 +147,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn event_filters_errors_to_status() {
+    fn reqs_errors_to_status() {
         assert_eq!(
             reqs::Error::EmptyFilter.into_status().code(),
             Code::InvalidArgument
@@ -135,6 +156,14 @@ mod tests {
             reqs::Error::InvalidContractAddress("invalid_contract_address".to_string())
                 .into_status()
                 .code(),
+            Code::InvalidArgument
+        );
+        assert_eq!(
+            reqs::Error::InvalidQuery.into_status().code(),
+            Code::InvalidArgument
+        );
+        assert_eq!(
+            reqs::Error::EmptyBroadcastMsg.into_status().code(),
             Code::InvalidArgument
         );
     }
@@ -214,6 +243,42 @@ mod tests {
             broadcaster_v2::Error::ReceiveTxResult(rx.await.unwrap_err())
                 .into_status()
                 .code(),
+            Code::Internal
+        );
+    }
+
+    #[test]
+    fn cosmos_errors_to_status() {
+        assert_eq!(
+            cosmos::Error::GrpcRequest(Status::unavailable("service unavailable"))
+                .into_status()
+                .code(),
+            Code::Unavailable
+        );
+        assert_eq!(
+            cosmos::Error::QuerySmartContractState("contract execution error".to_string())
+                .into_status()
+                .code(),
+            Code::Unknown
+        );
+        assert_eq!(
+            cosmos::Error::GasInfoMissing.into_status().code(),
+            Code::Internal
+        );
+        assert_eq!(
+            cosmos::Error::AccountMissing.into_status().code(),
+            Code::Internal
+        );
+        assert_eq!(
+            cosmos::Error::TxResponseMissing.into_status().code(),
+            Code::Internal
+        );
+        assert_eq!(
+            cosmos::Error::MalformedResponse.into_status().code(),
+            Code::Internal
+        );
+        assert_eq!(
+            cosmos::Error::TxBuilding.into_status().code(),
             Code::Internal
         );
     }
