@@ -51,6 +51,7 @@ itertools = "0.11.0"
 k256 = { workspace = true }
 msgs-derive = { workspace = true }
 multisig = { workspace = true, features = ["library"] }
+multisig-prover-api = { workspace = true }
 report = { workspace = true }
 router-api = { workspace = true }
 semver = { workspace = true }
