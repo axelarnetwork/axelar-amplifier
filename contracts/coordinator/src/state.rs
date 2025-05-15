@@ -5,12 +5,9 @@ use cosmwasm_std::{Addr, Order, Storage};
 use cw_storage_plus::{index_list, Index, IndexList, IndexedMap, Item, MultiIndex, UniqueIndex};
 use error_stack::{report, Result, ResultExt};
 
-use crate::shared::{ChainName, ProverAddress,GatewayAddress, VerifierAddress};
-
+use crate::shared::{ChainName, GatewayAddress, ProverAddress, VerifierAddress};
 
 use crate::msg::ChainContractsResponse;
-
-
 
 #[derive(thiserror::Error, Debug, PartialEq)]
 pub enum Error {

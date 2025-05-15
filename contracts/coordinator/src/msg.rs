@@ -5,10 +5,10 @@ use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::Addr;
 use msgs_derive::EnsurePermissions;
 
-use service_registry_api::Verifier;
 pub use crate::contract::MigrateMsg;
+use service_registry_api::Verifier;
 
-use crate::shared::{ChainName, ProverAddress,GatewayAddress, VerifierAddress};
+use crate::shared::{ChainName, GatewayAddress, ProverAddress, VerifierAddress};
 
 #[cw_serde]
 pub struct InstantiateMsg {
