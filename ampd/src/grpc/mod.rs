@@ -77,10 +77,24 @@ pub struct Server {
 impl Server {
     pub async fn run(self, token: CancellationToken) -> Result<(), Error> {
         let addr = SocketAddr::new(self.config.ip_addr, self.config.port);
+        // Configure tracing middleware for gRPC server requests
+        // This creates structured logs for request/response monitoring
         let trace_layer = trace::TraceLayer::new_for_grpc()
+            // Configure how spans are created for each request
+            // This adds a new trace span at INFO level containing method info
+            // Example span: grpc_request{method="/amplifier.blockchain.BlockchainService/broadcast"}
             .make_span_with(trace::DefaultMakeSpan::new().level(tracing::Level::INFO))
+            // Configure what's logged when a request is received
+            // This logs at INFO level when a request starts processing
+            // Example: INFO grpc_request{method="..."}: started processing request
             .on_request(trace::DefaultOnRequest::new().level(tracing::Level::INFO))
+            // Configure what's logged when a response is sent
+            // This logs at INFO level when a request completes successfully
+            // Example: INFO grpc_request{method="..."}: finished processing request latency=10ms status=200
             .on_response(trace::DefaultOnResponse::new().level(tracing::Level::INFO))
+            // Configure what's logged when a request fails with an error
+            // This logs at ERROR level with status code and error details
+            // Example: ERROR grpc_request{method="..."}: failed to process request latency=5ms status=INVALID_ARGUMENT code=3 message="empty broadcast message"
             .on_failure(trace::DefaultOnFailure::new().level(tracing::Level::ERROR));
         let router = transport::Server::builder()
             .layer(trace_layer)
@@ -96,7 +110,7 @@ impl Server {
             ))
             .add_service(CryptoServiceServer::new(crypto_service::Service::new()));
 
-        info!(addr = addr.to_string(), "gRPC server started");
+        info!(%addr, "gRPC server started");
 
         router
             .serve_with_shutdown(addr, token.cancelled_owned())
