@@ -4,14 +4,17 @@ use ampd_proto::blockchain_service_server::BlockchainServiceServer;
 use ampd_proto::crypto_service_server::CryptoServiceServer;
 use axelar_wasm_std::nonempty;
 use error_stack::Result;
-use report::ErrorExt;
+use report::{ErrorExt, LoggableError};
 use serde::de::{self, Deserializer};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tokio_util::sync::CancellationToken;
 use tonic::transport;
 use tower::limit::ConcurrencyLimitLayer;
+use tower_http::trace;
+use tracing::info;
 use typed_builder::TypedBuilder;
+use valuable::Valuable;
 
 use crate::{broadcaster_v2, cosmos, event_sub};
 
@@ -74,7 +77,13 @@ pub struct Server {
 impl Server {
     pub async fn run(self, token: CancellationToken) -> Result<(), Error> {
         let addr = SocketAddr::new(self.config.ip_addr, self.config.port);
+        let trace_layer = trace::TraceLayer::new_for_grpc()
+            .make_span_with(trace::DefaultMakeSpan::new().level(tracing::Level::INFO))
+            .on_request(trace::DefaultOnRequest::new().level(tracing::Level::INFO))
+            .on_response(trace::DefaultOnResponse::new().level(tracing::Level::INFO))
+            .on_failure(trace::DefaultOnFailure::new().level(tracing::Level::ERROR));
         let router = transport::Server::builder()
+            .layer(trace_layer)
             .layer(ConcurrencyLimitLayer::new(
                 self.config.concurrency_limit.into(),
             ))
@@ -87,9 +96,20 @@ impl Server {
             ))
             .add_service(CryptoServiceServer::new(crypto_service::Service::new()));
 
+        info!(addr = addr.to_string(), "gRPC server started");
+
         router
             .serve_with_shutdown(addr, token.cancelled_owned())
             .await
             .map_err(ErrorExt::into_report)
+            .inspect(|_| {
+                info!("gRPC server stopped");
+            })
+            .inspect_err(|err| {
+                info!(
+                    err = LoggableError::from(err).as_value(),
+                    "gRPC server failed"
+                );
+            })
     }
 }
