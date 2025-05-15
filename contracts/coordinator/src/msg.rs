@@ -8,7 +8,7 @@ use msgs_derive::EnsurePermissions;
 use service_registry_api::Verifier;
 pub use crate::contract::MigrateMsg;
 
-use crate::exported::{ChainName, ProverAddress,GatewayAddress, VerifierAddress};
+use crate::shared::{ChainName, ProverAddress,GatewayAddress, VerifierAddress};
 
 #[cw_serde]
 pub struct InstantiateMsg {

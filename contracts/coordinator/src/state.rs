@@ -5,7 +5,7 @@ use cosmwasm_std::{Addr, Order, Storage};
 use cw_storage_plus::{index_list, Index, IndexList, IndexedMap, Item, MultiIndex, UniqueIndex};
 use error_stack::{report, Result, ResultExt};
 
-use crate::exported::{ChainName, ProverAddress,GatewayAddress, VerifierAddress};
+use crate::shared::{ChainName, ProverAddress,GatewayAddress, VerifierAddress};
 
 
 use crate::msg::ChainContractsResponse;
