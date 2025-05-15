@@ -32,13 +32,10 @@ pub fn validate_smart_contract_state(
     let SmartContractStateRequest { contract, query } = req.into_inner();
 
     ensure!(!query.is_empty(), Error::InvalidQuery);
-    let query: serde_json::Value =
+    let _: serde_json::Value =
         serde_json::from_slice(&query).change_context(Error::InvalidQuery)?;
 
-    Ok((
-        validate_address(&contract)?,
-        serde_json::to_vec(&query).expect("must be valid JSON"),
-    ))
+    Ok((validate_address(&contract)?, query))
 }
 
 fn validate_address(address: &str) -> Result<TMAddress, Error> {
