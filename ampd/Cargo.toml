@@ -83,6 +83,7 @@ tokio-util = { workspace = true }
 toml = "0.5.9"
 tonic = "0.13.0"
 tower = "0.5.2"
+tower-http = { version = "0.6.4", features = ["trace"] }
 tracing = { workspace = true }
 tracing-core = { version = "0.1.30", features = ["valuable"] }
 tracing-subscriber = { version = "0.3.16", features = [
