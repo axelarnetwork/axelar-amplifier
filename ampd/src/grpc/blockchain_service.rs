@@ -2,8 +2,8 @@ use std::pin::Pin;
 
 use ampd_proto::blockchain_service_server::BlockchainService;
 use ampd_proto::{
-    AddressRequest, AddressResponse, BroadcastRequest, BroadcastResponse, ContractsRequest,
-    ContractsResponse, SmartContractStateRequest, SmartContractStateResponse, SubscribeRequest,
+    AddressRequest, AddressResponse, BroadcastRequest, BroadcastResponse, ContractStateRequest,
+    ContractStateResponse, ContractsRequest, ContractsResponse, SubscribeRequest,
     SubscribeResponse,
 };
 use async_trait::async_trait;
@@ -75,19 +75,19 @@ where
             .map_err(status::StatusExt::into_status)
     }
 
-    async fn smart_contract_state(
+    async fn contract_state(
         &self,
-        req: Request<SmartContractStateRequest>,
-    ) -> Result<Response<SmartContractStateResponse>, Status> {
-        let (contract, query) = reqs::validate_smart_contract_state(req)
-            .inspect_err(status::log("invalid smart contract state request"))
+        req: Request<ContractStateRequest>,
+    ) -> Result<Response<ContractStateResponse>, Status> {
+        let (contract, query) = reqs::validate_contract_state(req)
+            .inspect_err(status::log("invalid contract state request"))
             .map_err(status::StatusExt::into_status)?;
 
-        cosmos::smart_contract_state(&mut self.cosmos_client.clone(), &contract, &query)
+        cosmos::contract_state(&mut self.cosmos_client.clone(), &contract, &query)
             .await
-            .map(|result| SmartContractStateResponse { result })
+            .map(|result| ContractStateResponse { result })
             .map(Response::new)
-            .inspect_err(status::log("query smart contract state error"))
+            .inspect_err(status::log("query contract state error"))
             .map_err(status::StatusExt::into_status)
     }
 
@@ -670,24 +670,24 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn smart_contract_state_should_return_error_if_req_is_invalid() {
+    async fn contract_state_should_return_error_if_req_is_invalid() {
         let (service, _) = setup(
             MockEventSub::new(),
             MockCosmosClient::new(),
             MockCosmosClient::new(),
         )
         .await;
-        let req = Request::new(SmartContractStateRequest {
+        let req = Request::new(ContractStateRequest {
             contract: "invalid_address".to_string(),
             query: serde_json::to_vec(&serde_json::json!({"get_config": {}})).unwrap(),
         });
-        let res = service.smart_contract_state(req).await;
+        let res = service.contract_state(req).await;
 
         assert!(res.is_err_and(|status| status.code() == Code::InvalidArgument));
     }
 
     #[tokio::test]
-    async fn smart_contract_state_should_return_error_if_empty_query() {
+    async fn contract_state_should_return_error_if_empty_query() {
         let address = TMAddress::random(PREFIX);
         let (service, _) = setup(
             MockEventSub::new(),
@@ -695,17 +695,17 @@ mod tests {
             MockCosmosClient::new(),
         )
         .await;
-        let req = Request::new(SmartContractStateRequest {
+        let req = Request::new(ContractStateRequest {
             contract: address.to_string(),
             query: vec![],
         });
-        let res = service.smart_contract_state(req).await;
+        let res = service.contract_state(req).await;
 
         assert!(res.is_err_and(|status| status.code() == Code::InvalidArgument));
     }
 
     #[tokio::test]
-    async fn smart_contract_state_should_return_error_if_invalid_json() {
+    async fn contract_state_should_return_error_if_invalid_json() {
         let address = TMAddress::random(PREFIX);
         let (service, _) = setup(
             MockEventSub::new(),
@@ -713,17 +713,17 @@ mod tests {
             MockCosmosClient::new(),
         )
         .await;
-        let req = Request::new(SmartContractStateRequest {
+        let req = Request::new(ContractStateRequest {
             contract: address.to_string(),
             query: vec![1, 2, 3], // invalid json
         });
-        let res = service.smart_contract_state(req).await;
+        let res = service.contract_state(req).await;
 
         assert!(res.is_err_and(|status| status.code() == Code::InvalidArgument));
     }
 
     #[tokio::test]
-    async fn smart_contract_state_should_return_error_if_cosmos_query_fails() {
+    async fn contract_state_should_return_error_if_cosmos_query_fails() {
         let address = TMAddress::random(PREFIX);
         let address_str = address.to_string();
         let query_bytes = serde_json::to_vec(&serde_json::json!({"get_config": {}})).unwrap();
@@ -754,17 +754,17 @@ mod tests {
             mock_cosmos_client,
         )
         .await;
-        let req = Request::new(SmartContractStateRequest {
+        let req = Request::new(ContractStateRequest {
             contract: address_str,
             query: query_bytes,
         });
-        let res = service.smart_contract_state(req).await;
+        let res = service.contract_state(req).await;
 
         assert!(res.is_err_and(|status| status.code() == Code::Unknown));
     }
 
     #[tokio::test]
-    async fn smart_contract_state_should_return_result_successfully() {
+    async fn contract_state_should_return_result_successfully() {
         let address = TMAddress::random(PREFIX);
         let address_str = address.to_string();
         let query_bytes = serde_json::to_vec(&serde_json::json!({"get_config": {}})).unwrap();
@@ -799,15 +799,11 @@ mod tests {
             mock_cosmos_client,
         )
         .await;
-        let req = Request::new(SmartContractStateRequest {
+        let req = Request::new(ContractStateRequest {
             contract: address_str,
             query: query_bytes,
         });
-        let res = service
-            .smart_contract_state(req)
-            .await
-            .unwrap()
-            .into_inner();
+        let res = service.contract_state(req).await.unwrap().into_inner();
 
         assert_eq!(res.result, result);
     }

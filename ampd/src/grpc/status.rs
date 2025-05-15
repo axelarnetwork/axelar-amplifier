@@ -62,17 +62,7 @@ impl From<tonic::Status> for Status {
 
 impl From<&reqs::Error> for Status {
     fn from(err: &reqs::Error) -> Self {
-        match err {
-            reqs::Error::EmptyFilter => tonic::Status::invalid_argument("empty filter provided"),
-            reqs::Error::InvalidContractAddress(contract) => tonic::Status::invalid_argument(
-                format!("invalid contract address \"{contract}\" provided"),
-            ),
-            reqs::Error::InvalidQuery => tonic::Status::invalid_argument("invalid query provided"),
-            reqs::Error::EmptyBroadcastMsg => {
-                tonic::Status::invalid_argument("empty broadcast message provided")
-            }
-        }
-        .into()
+        tonic::Status::invalid_argument(err.to_string()).into()
     }
 }
 
@@ -97,7 +87,7 @@ impl From<&broadcaster_v2::Error> for Status {
     fn from(err: &broadcaster_v2::Error) -> Self {
         match err {
             broadcaster_v2::Error::EstimateGas | broadcaster_v2::Error::GasExceedsGasCap { .. } => {
-                tonic::Status::invalid_argument("failed to estimate gas or gas exceeds gas cap")
+                tonic::Status::invalid_argument(err.to_string())
             }
             broadcaster_v2::Error::AccountQuery | broadcaster_v2::Error::BroadcastTx => {
                 tonic::Status::unavailable("blockchain service is temporarily unavailable")
@@ -122,9 +112,7 @@ impl From<&cosmos::Error> for Status {
             cosmos::Error::GrpcConnection(_) | cosmos::Error::GrpcRequest(_) => {
                 tonic::Status::unavailable("blockchain service is temporarily unavailable")
             }
-            cosmos::Error::QuerySmartContractState(reason) => tonic::Status::unknown(format!(
-                "failed to query smart contract state with error {reason}"
-            )),
+            cosmos::Error::QuerySmartContractState(_) => tonic::Status::unknown(err.to_string()),
             cosmos::Error::GasInfoMissing
             | cosmos::Error::AccountMissing
             | cosmos::Error::TxResponseMissing

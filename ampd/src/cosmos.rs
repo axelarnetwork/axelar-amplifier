@@ -48,7 +48,7 @@ pub enum Error {
     MalformedResponse,
     #[error("failed to build tx")]
     TxBuilding,
-    #[error("failed to query the smart contract state")]
+    #[error("failed to query the smart contract state with error {0}")]
     QuerySmartContractState(String),
 }
 
@@ -243,7 +243,7 @@ where
         .and_then(|res| res.tx_response.ok_or(report!(Error::TxResponseMissing)))
 }
 
-pub async fn smart_contract_state<T>(
+pub async fn contract_state<T>(
     client: &mut T,
     address: &TMAddress,
     query: impl AsRef<[u8]>,
@@ -451,7 +451,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn smart_contract_state_success() {
+    async fn contract_state_success() {
         let address = TMAddress::random(PREFIX);
         let query = serde_json::to_vec(&json!({"get_count": {}})).unwrap();
         let expected = vec![1, 2, 3, 4];
@@ -469,13 +469,13 @@ mod tests {
                 })
             });
 
-        let actual = smart_contract_state(&mut mock_client, &address, query).await;
+        let actual = contract_state(&mut mock_client, &address, query).await;
 
         assert_eq!(actual.unwrap(), expected);
     }
 
     #[tokio::test]
-    async fn smart_contract_state_contract_error() {
+    async fn contract_state_contract_error() {
         let address = TMAddress::random(PREFIX);
         let query = serde_json::to_vec(&json!({"invalid_query": {}})).unwrap();
 
@@ -493,13 +493,13 @@ mod tests {
                 ))))
             });
 
-        let actual = smart_contract_state(&mut mock_client, &address, query).await;
+        let actual = contract_state(&mut mock_client, &address, query).await;
 
         assert_err_contains!(actual, Error, Error::QuerySmartContractState(_));
     }
 
     #[tokio::test]
-    async fn smart_contract_state_network_error() {
+    async fn contract_state_network_error() {
         let address = TMAddress::random(PREFIX);
         let query = serde_json::to_vec(&json!({"get_count": {}})).unwrap();
 
@@ -517,7 +517,7 @@ mod tests {
                 ))))
             });
 
-        let actual = smart_contract_state(&mut mock_client, &address, query).await;
+        let actual = contract_state(&mut mock_client, &address, query).await;
 
         assert_err_contains!(actual, Error, Error::GrpcRequest(_));
     }
