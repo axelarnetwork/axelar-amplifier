@@ -12,7 +12,7 @@ use tokio_stream::StreamExt;
 use tonic::{Request, Response, Status};
 use typed_builder::TypedBuilder;
 
-use super::{error, reqs};
+use super::{reqs, status};
 use crate::{broadcaster_v2, cosmos, event_sub};
 
 #[derive(TypedBuilder)]
@@ -39,8 +39,8 @@ where
         req: Request<SubscribeRequest>,
     ) -> Result<Response<Self::SubscribeStream>, Status> {
         let filters = reqs::validate_subscribe(req)
-            .inspect_err(error::log("invalid subscribe request"))
-            .map_err(error::ErrorExt::into_status)?;
+            .inspect_err(status::log("invalid subscribe request"))
+            .map_err(status::StatusExt::into_status)?;
 
         Ok(Response::new(Box::pin(
             self.event_sub
@@ -51,8 +51,8 @@ where
                 })
                 .map_ok(Into::into)
                 .map_ok(|event| SubscribeResponse { event: Some(event) })
-                .inspect_err(error::log("event subscription error"))
-                .map_err(error::ErrorExt::into_status),
+                .inspect_err(status::log("event subscription error"))
+                .map_err(status::StatusExt::into_status),
         )))
     }
 
@@ -61,8 +61,8 @@ where
         req: Request<BroadcastRequest>,
     ) -> Result<Response<BroadcastResponse>, Status> {
         let msg = reqs::validate_broadcast(req)
-            .inspect_err(error::log("invalid broadcast request"))
-            .map_err(error::ErrorExt::into_status)?;
+            .inspect_err(status::log("invalid broadcast request"))
+            .map_err(status::StatusExt::into_status)?;
 
         self.msg_queue_client
             .clone()
@@ -71,8 +71,8 @@ where
             .await
             .map(|(tx_hash, index)| BroadcastResponse { tx_hash, index })
             .map(Response::new)
-            .inspect_err(error::log("message broadcast error"))
-            .map_err(error::ErrorExt::into_status)
+            .inspect_err(status::log("message broadcast error"))
+            .map_err(status::StatusExt::into_status)
     }
 
     async fn smart_contract_state(
@@ -80,15 +80,15 @@ where
         req: Request<SmartContractStateRequest>,
     ) -> Result<Response<SmartContractStateResponse>, Status> {
         let (contract, query) = reqs::validate_smart_contract_state(req)
-            .inspect_err(error::log("invalid smart contract state request"))
-            .map_err(error::ErrorExt::into_status)?;
+            .inspect_err(status::log("invalid smart contract state request"))
+            .map_err(status::StatusExt::into_status)?;
 
         cosmos::smart_contract_state(&mut self.cosmos_client.clone(), &contract, &query)
             .await
             .map(|result| SmartContractStateResponse { result })
             .map(Response::new)
-            .inspect_err(error::log("query smart contract state error"))
-            .map_err(error::ErrorExt::into_status)
+            .inspect_err(status::log("query smart contract state error"))
+            .map_err(status::StatusExt::into_status)
     }
 
     async fn address(

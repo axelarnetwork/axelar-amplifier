@@ -1,6 +1,6 @@
+use deref_derive::Deref;
 use error_stack::Report;
 use report::LoggableError;
-use tonic::Status;
 use tracing::error;
 use valuable::Valuable;
 
@@ -17,111 +17,112 @@ pub fn log<Err>(msg: &str) -> impl Fn(&Report<Err>) + '_ {
     }
 }
 
-pub trait ErrorExt {
-    fn into_status(self) -> Status;
+pub trait StatusExt {
+    fn into_status(self) -> tonic::Status;
 }
 
-struct Error(Status);
+#[derive(Deref)]
+struct Status(tonic::Status);
 
-impl<Err> ErrorExt for Err
+impl<Err> StatusExt for Err
 where
-    Err: Into<Error>,
+    Err: Into<Status>,
 {
-    fn into_status(self) -> Status {
+    fn into_status(self) -> tonic::Status {
         self.into().0
     }
 }
 
-impl<'a, Err> ErrorExt for &Report<Err>
+impl<'a, Err> StatusExt for &Report<Err>
 where
-    Error: From<&'a Err>,
+    Status: From<&'a Err>,
     Err: Send + Sync + 'static,
     Self: 'a,
 {
-    fn into_status(self) -> Status {
+    fn into_status(self) -> tonic::Status {
         self.current_context().into_status()
     }
 }
 
-impl<Err> ErrorExt for Report<Err>
+impl<Err> StatusExt for Report<Err>
 where
-    for<'a> Error: From<&'a Err>,
+    for<'a> Status: From<&'a Err>,
     Err: Send + Sync + 'static,
 {
-    fn into_status(self) -> Status {
+    fn into_status(self) -> tonic::Status {
         (&self).into_status()
     }
 }
 
-impl From<Status> for Error {
-    fn from(status: Status) -> Self {
+impl From<tonic::Status> for Status {
+    fn from(status: tonic::Status) -> Self {
         Self(status)
     }
 }
 
-impl From<&reqs::Error> for Error {
+impl From<&reqs::Error> for Status {
     fn from(err: &reqs::Error) -> Self {
         match err {
-            reqs::Error::EmptyFilter => Status::invalid_argument("empty filter provided"),
-            reqs::Error::InvalidContractAddress(contract) => Status::invalid_argument(format!(
-                "invalid contract address \"{contract}\" provided"
-            )),
-            reqs::Error::InvalidQuery => Status::invalid_argument("invalid query provided"),
+            reqs::Error::EmptyFilter => tonic::Status::invalid_argument("empty filter provided"),
+            reqs::Error::InvalidContractAddress(contract) => tonic::Status::invalid_argument(
+                format!("invalid contract address \"{contract}\" provided"),
+            ),
+            reqs::Error::InvalidQuery => tonic::Status::invalid_argument("invalid query provided"),
             reqs::Error::EmptyBroadcastMsg => {
-                Status::invalid_argument("empty broadcast message provided")
+                tonic::Status::invalid_argument("empty broadcast message provided")
             }
         }
         .into()
     }
 }
 
-impl From<&event_sub::Error> for Error {
+impl From<&event_sub::Error> for Status {
     fn from(err: &event_sub::Error) -> Self {
         match err {
             event_sub::Error::LatestBlockQuery | event_sub::Error::BlockResultsQuery { .. } => {
-                Status::unavailable("blockchain service is temporarily unavailable")
+                tonic::Status::unavailable("blockchain service is temporarily unavailable")
             }
             event_sub::Error::EventDecoding { .. } => {
-                Status::internal("server encountered an error processing blockchain events")
+                tonic::Status::internal("server encountered an error processing blockchain events")
             }
             event_sub::Error::BroadcastStreamRecv(_) => {
-                Status::data_loss("events have been missed due to client lag")
+                tonic::Status::data_loss("events have been missed due to client lag")
             }
         }
         .into()
     }
 }
 
-impl From<&broadcaster_v2::Error> for Error {
+impl From<&broadcaster_v2::Error> for Status {
     fn from(err: &broadcaster_v2::Error) -> Self {
         match err {
             broadcaster_v2::Error::EstimateGas | broadcaster_v2::Error::GasExceedsGasCap { .. } => {
-                Status::invalid_argument("failed to estimate gas or gas exceeds gas cap")
+                tonic::Status::invalid_argument("failed to estimate gas or gas exceeds gas cap")
             }
             broadcaster_v2::Error::AccountQuery | broadcaster_v2::Error::BroadcastTx => {
-                Status::unavailable("blockchain service is temporarily unavailable")
+                tonic::Status::unavailable("blockchain service is temporarily unavailable")
             }
             broadcaster_v2::Error::SignTx => {
-                Status::unavailable("signing service is temporarily unavailable")
+                tonic::Status::unavailable("signing service is temporarily unavailable")
             }
             broadcaster_v2::Error::EnqueueMsg
             | broadcaster_v2::Error::FeeAdjustment
             | broadcaster_v2::Error::InvalidPubKey
             | broadcaster_v2::Error::ReceiveTxResult(_) => {
-                Status::internal("server encountered an error processing request")
+                tonic::Status::internal("server encountered an error processing request")
             }
         }
         .into()
     }
 }
 
-impl From<&cosmos::Error> for Error {
+impl From<&cosmos::Error> for Status {
     fn from(err: &cosmos::Error) -> Self {
         match err {
             cosmos::Error::GrpcConnection(_) | cosmos::Error::GrpcRequest(_) => {
-                Status::unavailable("blockchain service is temporarily unavailable")
+                tonic::Status::unavailable("blockchain service is temporarily unavailable")
             }
-            cosmos::Error::QuerySmartContractState(reason) => Status::unknown(format!(
+            cosmos::Error::QuerySmartContractState(reason) => tonic::Status::unknown(format!(
                 "failed to query smart contract state with error {reason}"
             )),
             cosmos::Error::GasInfoMissing
@@ -129,7 +130,7 @@ impl From<&cosmos::Error> for Error {
             | cosmos::Error::TxResponseMissing
             | cosmos::Error::MalformedResponse
             | cosmos::Error::TxBuilding => {
-                Status::internal("server encountered an error processing request")
+                tonic::Status::internal("server encountered an error processing request")
             }
         }
         .into()
@@ -250,7 +251,7 @@ mod tests {
     #[test]
     fn cosmos_errors_to_status() {
         assert_eq!(
-            cosmos::Error::GrpcRequest(Status::unavailable("service unavailable"))
+            cosmos::Error::GrpcRequest(tonic::Status::unavailable("service unavailable"))
                 .into_status()
                 .code(),
             Code::Unavailable

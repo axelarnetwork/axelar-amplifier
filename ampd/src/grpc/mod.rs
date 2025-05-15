@@ -21,8 +21,8 @@ use crate::{broadcaster_v2, cosmos, event_sub};
 
 mod blockchain_service;
 mod crypto_service;
-mod error;
 mod reqs;
+mod status;
 
 #[derive(Error, Debug)]
 pub enum Error {
