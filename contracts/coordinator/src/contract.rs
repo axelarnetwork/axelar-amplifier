@@ -64,7 +64,7 @@ pub fn instantiate(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
-    _env: Env,
+    env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
@@ -111,6 +111,18 @@ pub fn execute(
                 .try_collect()?;
             execute::set_active_verifier_set(deps, info, verifiers)
         }
+        ExecuteMsg::InstantiateChainContracts {
+            chain_name,
+            deployment_name,
+            params,
+        } => execute::instantiate_chain_contracts(
+            deps,
+            env,
+            info,
+            chain_name,
+            deployment_name,
+            params.as_ref(),
+        ),
     }
     .change_context(Error::Execute)?
     .then(Ok)
