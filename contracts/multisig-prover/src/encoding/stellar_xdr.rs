@@ -2,7 +2,7 @@ use axelar_wasm_std::hash::Hash;
 use axelar_wasm_std::FnExt;
 use cosmwasm_std::HexBinary;
 use error_stack::{Result, ResultExt};
-use multisig::{SignerWithSig,VerifierSet};
+use multisig::{SignerWithSig, VerifierSet};
 use sha3::{Digest, Keccak256};
 use stellar::{Message, Messages, Proof, WeightedSigners};
 use stellar_xdr::curr::{Limits, ScVal, WriteXdr};
