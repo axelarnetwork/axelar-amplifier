@@ -9,7 +9,7 @@ use axelar_wasm_std::voting::{PollId, Vote};
 use axelar_wasm_std::{nonempty, VerificationStatus};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Attribute, Event};
-use multisig::verifier_set::VerifierSet;
+use multisig::VerifierSet;
 use router_api::{Address, ChainName, Message};
 
 use crate::error::ContractError;
@@ -346,9 +346,8 @@ mod test {
     use axelar_wasm_std::{nonempty, Threshold, VerificationStatus};
     use cosmwasm_std::testing::MockApi;
     use cosmwasm_std::{Attribute, Uint128};
-    use multisig::key::KeyType;
+    use multisig::{KeyType,VerifierSet};
     use multisig::test::common::{build_verifier_set, ecdsa_test_data};
-    use multisig::verifier_set::VerifierSet;
     use router_api::{CrossChainId, Message};
     use serde_json::json;
 

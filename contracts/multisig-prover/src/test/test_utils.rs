@@ -1,10 +1,8 @@
 use axelar_wasm_std::VerificationStatus;
 use cosmwasm_std::testing::MockApi;
 use cosmwasm_std::{from_json, to_json_binary, QuerierResult, Uint128, WasmQuery};
-use multisig::msg::Signer;
-use multisig::multisig::Multisig;
-use multisig::types::MultisigState;
-use multisig::verifier_set::VerifierSet;
+use multisig::{Signer,Multisig,MultisigState,VerifierSet};
+
 use service_registry::VERIFIER_WEIGHT;
 use service_registry_api::{AuthorizationState, BondingState, Verifier, WeightedVerifier};
 

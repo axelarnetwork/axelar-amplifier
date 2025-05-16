@@ -3,7 +3,7 @@ use axelar_wasm_std::voting::{PollId, Vote};
 use axelar_wasm_std::{nonempty, MajorityThreshold, VerificationStatus};
 use cosmwasm_std::CosmosMsg;
 use error_stack::ResultExt;
-use multisig::verifier_set::VerifierSet;
+use multisig::VerifierSet;
 use router_api::Message;
 
 use crate::msg::{ExecuteMsg, MessageStatus, PollResponse, QueryMsg};
@@ -111,7 +111,7 @@ mod test {
     use cosmwasm_std::{
         from_json, Addr, DepsMut, QuerierWrapper, SystemError, Uint128, Uint64, WasmQuery,
     };
-    use multisig::verifier_set::VerifierSet;
+    use multisig::VerifierSet;
     use router_api::{CrossChainId, Message};
 
     use crate::contract::{instantiate, query};

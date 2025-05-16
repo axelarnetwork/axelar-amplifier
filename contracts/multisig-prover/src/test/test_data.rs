@@ -4,9 +4,8 @@ use axelar_wasm_std::{nonempty, MajorityThreshold, Participant, Threshold};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::testing::MockApi;
 use cosmwasm_std::{Addr, HexBinary, Uint128, Uint64};
-use multisig::key::{KeyType, Signature};
-use multisig::msg::Signer;
-use multisig::verifier_set::VerifierSet;
+use multisig::{Signature,KeyType,Signer,VerifierSet};
+
 use router_api::{CrossChainId, Message};
 
 pub fn new_verifier_set() -> VerifierSet {

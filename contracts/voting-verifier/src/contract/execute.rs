@@ -10,7 +10,7 @@ use cosmwasm_std::{
 };
 use error_stack::{report, Report, Result, ResultExt};
 use itertools::Itertools;
-use multisig::verifier_set::VerifierSet;
+use multisig::VerifierSet;
 use router_api::{ChainName, Message};
 use service_registry::WeightedVerifier;
 

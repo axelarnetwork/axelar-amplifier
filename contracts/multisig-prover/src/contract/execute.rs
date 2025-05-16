@@ -8,8 +8,8 @@ use axelar_wasm_std::{
 use cosmwasm_std::{wasm_execute, Addr, DepsMut, Env, QuerierWrapper, Response, Storage, SubMsg};
 use error_stack::{report, Result, ResultExt};
 use itertools::Itertools;
-use multisig::msg::Signer;
-use multisig::verifier_set::VerifierSet;
+use multisig::{Signer, VerifierSet};
+
 use router_api::{ChainName, CrossChainId, Message};
 use service_registry_api::WeightedVerifier;
 

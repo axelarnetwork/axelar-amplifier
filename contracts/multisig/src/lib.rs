@@ -11,6 +11,9 @@ mod state;
 pub mod types;
 pub mod verifier_set;
 
+mod exported;
+pub use exported::*;
+
 #[cfg(feature = "secp256k1")]
 mod secp256k1;
 

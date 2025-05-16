@@ -1,7 +1,7 @@
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{from_json, HexBinary, StdResult};
 use cw_storage_plus::{Key, KeyDeserialize, PrimaryKey};
-use multisig::verifier_set::VerifierSet;
+use multisig::VerifierSet;
 use router_api::{CrossChainId, Message, FIELD_DELIMITER};
 use sha3::{Digest, Keccak256};
 

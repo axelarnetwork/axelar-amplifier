@@ -8,9 +8,8 @@ use evm_gateway::{
 };
 use itertools::Itertools;
 use k256::ecdsa::RecoveryId;
-use multisig::key::Signature;
-use multisig::msg::SignerWithSig;
-use multisig::verifier_set::VerifierSet;
+
+use multisig::{Signature,SignerWithSig,VerifierSet};
 use sha3::{Digest, Keccak256};
 
 use crate::error::ContractError;
