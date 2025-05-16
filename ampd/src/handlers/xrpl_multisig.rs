@@ -12,6 +12,8 @@ use events_derive;
 use events_derive::try_from;
 use hex::encode;
 use multisig::msg::ExecuteMsg;
+use multisig::types::MsgToSign;
+use router_api::ChainName;
 use serde::de::Error as DeserializeError;
 use serde::{Deserialize, Deserializer};
 use tokio::sync::watch::Receiver;
@@ -25,13 +27,14 @@ use crate::tofnd::{Algorithm, MessageDigest};
 use crate::types::{PublicKey, TMAddress};
 
 #[derive(Debug, Deserialize)]
-#[try_from("wasm-xrpl_signing_started")]
-struct XRPLSigningStartedEvent {
+#[try_from("wasm-signing_started")]
+struct SigningStartedEvent {
     session_id: u64,
     #[serde(deserialize_with = "deserialize_public_keys")]
     pub_keys: HashMap<TMAddress, PublicKey>,
-    unsigned_tx: HexBinary,
+    msg: MsgToSign,
     expires_at: u64,
+    chain: ChainName,
 }
 
 fn deserialize_public_keys<'de, D>(
@@ -51,8 +54,8 @@ where
 
 pub struct Handler<S> {
     verifier: TMAddress,
-    multisig_prover: TMAddress,
     multisig: TMAddress,
+    chain: ChainName,
     signer: S,
     latest_block_height: Receiver<u64>,
 }
@@ -64,14 +67,14 @@ where
     pub fn new(
         verifier: TMAddress,
         multisig: TMAddress,
-        multisig_prover: TMAddress,
+        chain: ChainName,
         signer: S,
         latest_block_height: Receiver<u64>,
     ) -> Self {
         Self {
             verifier,
             multisig,
-            multisig_prover,
+            chain,
             signer,
             latest_block_height,
         }
@@ -103,15 +106,16 @@ where
     type Err = Error;
 
     async fn handle(&self, event: &events::Event) -> error_stack::Result<Vec<Any>, Error> {
-        if !event.is_from_contract(self.multisig_prover.as_ref()) {
+        if !event.is_from_contract(self.multisig.as_ref()) {
             return Ok(vec![]);
         }
 
-        let XRPLSigningStartedEvent {
+        let SigningStartedEvent {
             session_id,
             pub_keys,
-            unsigned_tx,
+            msg,
             expires_at,
+            chain,
         } = match event.try_into() as error_stack::Result<_, _> {
             Err(report) if matches!(report.current_context(), EventTypeMismatch(_)) => {
                 return Ok(vec![]);
@@ -119,9 +123,13 @@ where
             result => result.change_context(DeserializeEvent)?,
         };
 
+        if !chain.eq(&self.chain) {
+            return Ok(vec![]);
+        }
+
         info!(
             session_id = session_id,
-            msg = unsigned_tx.to_hex(),
+            msg = encode(&msg),
             "get signing request",
         );
 
@@ -145,7 +153,7 @@ where
                 let xrpl_address = XRPLAccountId::from(&multisig_pub_key);
 
                 let msg_digest = MessageDigest::from(
-                    xrpl_types::types::message_to_sign(unsigned_tx.to_vec(), &xrpl_address)
+                    xrpl_types::types::message_to_sign(msg.as_ref().to_vec(), &xrpl_address)
                         .map_err(|_e| Error::MessageToSign)?,
                 );
 
@@ -186,9 +194,11 @@ mod test {
     use cosmrs::AccountId;
     use cosmwasm_std::{HexBinary, Uint64};
     use error_stack::{Report, Result};
+    use multisig::events::Event;
     use multisig::key::PublicKey;
+    use multisig::types::MsgToSign;
     use rand::rngs::OsRng;
-    use serde_json::to_string;
+    use router_api::ChainName;
     use tendermint::abci;
     use tokio::sync::watch;
 
@@ -196,40 +206,7 @@ mod test {
     use crate::tofnd;
     use crate::tofnd::grpc::MockMultisig;
 
-    pub enum XRPLMultisigProverEvent {
-        XRPLSigningStarted {
-            session_id: Uint64,
-            verifier_set_id: String,
-            pub_keys: HashMap<String, PublicKey>,
-            unsigned_tx: HexBinary,
-            expires_at: u64,
-        },
-    }
-
-    impl From<XRPLMultisigProverEvent> for cosmwasm_std::Event {
-        fn from(other: XRPLMultisigProverEvent) -> Self {
-            match other {
-                XRPLMultisigProverEvent::XRPLSigningStarted {
-                    session_id,
-                    verifier_set_id,
-                    pub_keys,
-                    unsigned_tx,
-                    expires_at,
-                } => cosmwasm_std::Event::new("xrpl_signing_started")
-                    .add_attribute("session_id", session_id)
-                    .add_attribute("verifier_set_id", verifier_set_id)
-                    .add_attribute(
-                        "pub_keys",
-                        to_string(&pub_keys)
-                            .expect("violated invariant: pub_keys are not serializable"),
-                    )
-                    .add_attribute("unsigned_tx", unsigned_tx.to_hex())
-                    .add_attribute("expires_at", expires_at.to_string()),
-            }
-        }
-    }
-
-    const MULTISIG_PROVER_ADDRESS: &str = "axelarvaloper1zh9wrak6ke4n6fclj5e8yk397czv430ygs5jz7";
+    const MULTISIG_ADDRESS: &str = "axelarvaloper1zh9wrak6ke4n6fclj5e8yk397czv430ygs5jz7";
     const PREFIX: &str = "axelar";
 
     fn rand_public_key() -> multisig::key::PublicKey {
@@ -241,7 +218,7 @@ mod test {
         ))
     }
 
-    fn rand_unsigned_tx() -> HexBinary {
+    fn rand_message() -> HexBinary {
         let digest: [u8; 32] = rand::random();
         HexBinary::from(digest.as_slice())
     }
@@ -251,17 +228,18 @@ mod test {
             .map(|_| (TMAddress::random(PREFIX).to_string(), rand_public_key()))
             .collect::<HashMap<String, multisig::key::PublicKey>>();
 
-        let poll_started = XRPLMultisigProverEvent::XRPLSigningStarted {
+        let poll_started = Event::SigningStarted {
             session_id: Uint64::one(),
             verifier_set_id: "verifier_set_id".to_string(),
             pub_keys,
-            unsigned_tx: rand_unsigned_tx(),
+            msg: MsgToSign::unchecked(rand_message()),
+            chain_name: "xrpl".parse().unwrap(),
             expires_at: 100u64,
         };
 
         let mut event: cosmwasm_std::Event = poll_started.into();
         event.ty = format!("wasm-{}", event.ty);
-        event = event.add_attribute("_contract_address", MULTISIG_PROVER_ADDRESS);
+        event = event.add_attribute("_contract_address", MULTISIG_ADDRESS);
 
         events::Event::try_from(abci::Event::new(
             event.ty,
@@ -278,13 +256,13 @@ mod test {
     fn handler(
         verifier: TMAddress,
         multisig: TMAddress,
-        multisig_prover: TMAddress,
+        chain: ChainName,
         signer: MockMultisig,
         latest_block_height: u64,
     ) -> Handler<MockMultisig> {
         let (_, rx) = watch::channel(latest_block_height);
 
-        Handler::new(verifier, multisig, multisig_prover, signer, rx)
+        Handler::new(verifier, multisig, chain, signer, rx)
     }
 
     #[test]
@@ -299,7 +277,7 @@ mod test {
             }
             _ => panic!("incorrect event type"),
         }
-        let event: Result<XRPLSigningStartedEvent, events::Error> = (&event).try_into();
+        let event: Result<SigningStartedEvent, events::Error> = (&event).try_into();
 
         assert!(matches!(
             event.unwrap_err().current_context(),
@@ -326,7 +304,7 @@ mod test {
             _ => panic!("incorrect event type"),
         }
 
-        let event: Result<XRPLSigningStartedEvent, events::Error> = (&event).try_into();
+        let event: Result<SigningStartedEvent, events::Error> = (&event).try_into();
 
         assert!(matches!(
             event.unwrap_err().current_context(),
@@ -336,20 +314,20 @@ mod test {
 
     #[test]
     fn should_deserialize_event() {
-        let event: Result<XRPLSigningStartedEvent, events::Error> =
+        let event: Result<SigningStartedEvent, events::Error> =
             (&signing_started_event()).try_into();
 
         assert!(event.is_ok());
     }
 
     #[tokio::test]
-    async fn should_not_handle_event_if_multisig_prover_address_does_not_match() {
+    async fn should_not_handle_event_if_multisig_address_does_not_match() {
         let client = MockMultisig::default();
 
         let handler = handler(
             TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
-            TMAddress::random(PREFIX),
+            "xrpl".parse().unwrap(),
             client,
             100u64,
         );
@@ -369,8 +347,8 @@ mod test {
 
         let handler = handler(
             TMAddress::random(PREFIX),
-            TMAddress::random(PREFIX),
-            TMAddress::from(MULTISIG_PROVER_ADDRESS.parse::<AccountId>().unwrap()),
+            TMAddress::from(MULTISIG_ADDRESS.parse::<AccountId>().unwrap()),
+            "xrpl".parse().unwrap(),
             client,
             100u64,
         );
@@ -389,13 +367,12 @@ mod test {
             .returning(move |_, _, _, _| Err(Report::from(tofnd::error::Error::SignFailed)));
 
         let event = signing_started_event();
-        let signing_started: XRPLSigningStartedEvent =
-            ((&event).try_into() as Result<_, _>).unwrap();
+        let signing_started: SigningStartedEvent = ((&event).try_into() as Result<_, _>).unwrap();
         let verifier = signing_started.pub_keys.keys().next().unwrap().clone();
         let handler = handler(
             verifier,
-            TMAddress::random(PREFIX),
-            TMAddress::from(MULTISIG_PROVER_ADDRESS.parse::<AccountId>().unwrap()),
+            TMAddress::from(MULTISIG_ADDRESS.parse::<AccountId>().unwrap()),
+            "xrpl".parse().unwrap(),
             client,
             99u64,
         );
@@ -414,15 +391,35 @@ mod test {
             .returning(move |_, _, _, _| Err(Report::from(tofnd::error::Error::SignFailed)));
 
         let event = signing_started_event();
-        let signing_started: XRPLSigningStartedEvent =
-            ((&event).try_into() as Result<_, _>).unwrap();
+        let signing_started: SigningStartedEvent = ((&event).try_into() as Result<_, _>).unwrap();
         let verifier = signing_started.pub_keys.keys().next().unwrap().clone();
         let handler = handler(
             verifier,
-            TMAddress::random(PREFIX),
-            TMAddress::from(MULTISIG_PROVER_ADDRESS.parse::<AccountId>().unwrap()),
+            TMAddress::from(MULTISIG_ADDRESS.parse::<AccountId>().unwrap()),
+            "xrpl".parse().unwrap(),
             client,
             101u64,
+        );
+
+        assert_eq!(handler.handle(&event).await.unwrap(), vec![]);
+    }
+
+    #[tokio::test]
+    async fn should_not_handle_event_if_chain_does_not_match() {
+        let mut client = MockMultisig::default();
+        client
+            .expect_sign()
+            .returning(move |_, _, _, _| Err(Report::from(tofnd::error::Error::SignFailed)));
+
+        let event = signing_started_event();
+        let signing_started: SigningStartedEvent = ((&event).try_into() as Result<_, _>).unwrap();
+        let verifier = signing_started.pub_keys.keys().next().unwrap().clone();
+        let handler = handler(
+            verifier,
+            TMAddress::from(MULTISIG_ADDRESS.parse::<AccountId>().unwrap()),
+            "not-xrpl".parse().unwrap(),
+            client,
+            100u64,
         );
 
         assert_eq!(handler.handle(&event).await.unwrap(), vec![]);
