@@ -3,8 +3,8 @@ use axelar_wasm_std::MajorityThreshold;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::Addr;
 use cw_storage_plus::{Item, Map};
-use multisig::key::KeyType;
-use multisig::verifier_set::VerifierSet;
+use multisig::KeyType;
+use multisig::VerifierSet;
 use multisig_prover_api::encoding::Encoder;
 use router_api::ChainName;
 

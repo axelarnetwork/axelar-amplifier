@@ -8,9 +8,9 @@ use evm_gateway::{
 };
 use itertools::Itertools;
 use k256::ecdsa::RecoveryId;
-use multisig::key::Signature;
-use multisig::msg::SignerWithSig;
-use multisig::verifier_set::VerifierSet;
+use multisig::Signature;
+use multisig::SignerWithSig;
+use multisig::VerifierSet;
 use sha3::{Digest, Keccak256};
 
 use crate::error::ContractError;
@@ -159,7 +159,7 @@ mod tests {
     use hex::FromHex;
     use itertools::Itertools;
     use k256::ecdsa::{RecoveryId, Signature as K256Signature};
-    use multisig::key::{KeyType, KeyTyped, Signature};
+    use multisig::{KeyType, KeyTyped, Signature};
     use multisig::msg::{Signer, SignerWithSig};
 
     use crate::encoding::abi::{encode_execute_data, payload_digest, CommandType};
@@ -303,7 +303,7 @@ mod tests {
             let recoverable = non_recoverable
                 .to_recoverable(
                     HexBinary::from_hex(digest).unwrap().as_slice(),
-                    &multisig::key::PublicKey::Ecdsa(HexBinary::from(pub_key.to_vec())),
+                    &multisig::PublicKey::Ecdsa(HexBinary::from(pub_key.to_vec())),
                     |recovery_byte: RecoveryId| -> u8 {
                         recovery_byte
                             .to_byte()

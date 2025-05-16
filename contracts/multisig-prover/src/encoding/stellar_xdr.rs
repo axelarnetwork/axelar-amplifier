@@ -2,8 +2,8 @@ use axelar_wasm_std::hash::Hash;
 use axelar_wasm_std::FnExt;
 use cosmwasm_std::HexBinary;
 use error_stack::{Result, ResultExt};
-use multisig::msg::SignerWithSig;
-use multisig::verifier_set::VerifierSet;
+use multisig::SignerWithSig;
+use multisig::VerifierSet;
 use sha3::{Digest, Keccak256};
 use stellar::{Message, Messages, Proof, WeightedSigners};
 use stellar_xdr::curr::{Limits, ScVal, WriteXdr};
@@ -82,10 +82,10 @@ pub fn encode_execute_data(
 mod tests {
     use cosmwasm_std::testing::MockApi;
     use cosmwasm_std::{HexBinary, Uint128};
-    use multisig::key::KeyType::Ed25519;
-    use multisig::key::Signature;
-    use multisig::msg::{Signer, SignerWithSig};
-    use multisig::verifier_set::VerifierSet;
+    use multisig::KeyType::Ed25519;
+    use multisig::Signature;
+    use multisig::{Signer, SignerWithSig};
+    use multisig::VerifierSet;
     use router_api::{CrossChainId, Message};
 
     use crate::encoding::stellar_xdr::{encode_execute_data, payload_digest};

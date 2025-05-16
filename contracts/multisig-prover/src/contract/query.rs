@@ -1,7 +1,7 @@
 use cosmwasm_std::{to_json_binary, Deps, QueryRequest, StdResult, Uint64, WasmQuery};
 use error_stack::Result;
-use multisig::multisig::Multisig;
-use multisig::types::MultisigState;
+use multisig::Multisig;
+use multisig::MultisigState;
 
 use crate::encoding::EncoderExt;
 use crate::error::ContractError;
@@ -17,7 +17,7 @@ pub fn proof(deps: Deps, multisig_session_id: Uint64) -> Result<ProofResponse, C
         .load(deps.storage, multisig_session_id.u64())
         .map_err(ContractError::from)?;
 
-    let query_msg = multisig::msg::QueryMsg::Multisig {
+    let query_msg = multisig::QueryMsg::Multisig {
         session_id: multisig_session_id,
     };
 

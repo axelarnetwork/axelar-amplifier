@@ -8,8 +8,8 @@ use axelar_wasm_std::{
 use cosmwasm_std::{wasm_execute, Addr, DepsMut, Env, QuerierWrapper, Response, Storage, SubMsg};
 use error_stack::{report, Result, ResultExt};
 use itertools::Itertools;
-use multisig::msg::Signer;
-use multisig::verifier_set::VerifierSet;
+use multisig::Signer;
+use multisig::VerifierSet;
 use router_api::{ChainName, CrossChainId, Message};
 use service_registry_api::WeightedVerifier;
 
@@ -68,7 +68,7 @@ pub fn construct_proof(
         .encoder
         .digest(&config.domain_separator, &verifier_set, &payload)?;
 
-    let start_sig_msg = multisig::msg::ExecuteMsg::StartSigningSession {
+    let start_sig_msg = multisig::ExecuteMsg::StartSigningSession {
         verifier_set_id: verifier_set.id(),
         msg: digest.into(),
         chain_name: config.chain_name,
@@ -558,7 +558,7 @@ mod tests {
             chain_name: ChainName::try_from("ethereum".to_owned()).unwrap(),
             verifier_set_diff_threshold: 0,
             encoder: Encoder::Abi,
-            key_type: multisig::key::KeyType::Ecdsa,
+            key_type: multisig::Ecdsa,
             domain_separator: [0; 32],
         }
     }
