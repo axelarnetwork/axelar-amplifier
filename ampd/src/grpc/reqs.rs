@@ -1,7 +1,9 @@
-use ampd_proto::{BroadcastRequest, SubscribeRequest};
+use std::str::FromStr;
+
+use ampd_proto::{BroadcastRequest, ContractStateRequest, SubscribeRequest};
 use axelar_wasm_std::nonempty;
 use cosmrs::Any;
-use error_stack::{ensure, report, Report, Result};
+use error_stack::{ensure, report, Report, Result, ResultExt};
 use report::ResultCompatExt;
 use thiserror::Error;
 use tonic::Request;
@@ -24,12 +26,37 @@ pub fn validate_broadcast(req: Request<BroadcastRequest>) -> Result<Any, Error> 
         .ok_or(report!(Error::EmptyBroadcastMsg))
 }
 
+pub fn validate_contract_state(
+    req: Request<ContractStateRequest>,
+) -> Result<(TMAddress, Vec<u8>), Error> {
+    let ContractStateRequest { contract, query } = req.into_inner();
+
+    ensure!(!query.is_empty(), Error::InvalidQuery);
+    let _: serde_json::Value =
+        serde_json::from_slice(&query).change_context(Error::InvalidQuery)?;
+
+    Ok((validate_address(&contract)?, query))
+}
+
+fn validate_address(address: &str) -> Result<TMAddress, Error> {
+    let address = TMAddress::from_str(address)
+        .change_context(Error::InvalidContractAddress(address.to_string()))?;
+    ensure!(
+        address.prefix() == PREFIX,
+        Error::InvalidContractAddress(address.to_string())
+    );
+
+    Ok(address)
+}
+
 #[derive(Error, Debug)]
 pub enum Error {
     #[error("empty filter")]
     EmptyFilter,
-    #[error("invalid contract address in filter")]
+    #[error("invalid contract address {0}")]
     InvalidContractAddress(String),
+    #[error("invalid query")]
+    InvalidQuery,
     #[error("empty broadcast message")]
     EmptyBroadcastMsg,
 }
@@ -49,16 +76,7 @@ impl TryFrom<ampd_proto::EventFilter> for EventFilter {
         let contract = if event_filter.contract.is_empty() {
             None
         } else {
-            let contract: TMAddress = event_filter
-                .contract
-                .parse()
-                .change_context(Error::InvalidContractAddress(event_filter.contract.clone()))?;
-            ensure!(
-                contract.as_ref().prefix() == PREFIX,
-                Error::InvalidContractAddress(event_filter.contract)
-            );
-
-            Some(contract)
+            Some(validate_address(&event_filter.contract)?)
         };
 
         match (event_type, contract) {
@@ -398,5 +416,74 @@ mod tests {
 
         let req = Request::new(BroadcastRequest { msg: None });
         assert_err_contains!(validate_broadcast(req), Error, Error::EmptyBroadcastMsg);
+    }
+
+    #[test]
+    fn validate_contract_state_should_extract_contract_and_query() {
+        let address = TMAddress::random(PREFIX);
+        let query_json = serde_json::json!({"get_config": {}});
+        let query_bytes = serde_json::to_vec(&query_json).unwrap();
+
+        let req = Request::new(ContractStateRequest {
+            contract: address.to_string(),
+            query: query_bytes.clone(),
+        });
+
+        let (result_address, result_query) = validate_contract_state(req).unwrap();
+        assert_eq!(result_address, address);
+        assert_eq!(result_query, query_bytes);
+    }
+
+    #[test]
+    fn validate_contract_state_should_fail_on_empty_query() {
+        let address = TMAddress::random(PREFIX);
+        let req = Request::new(ContractStateRequest {
+            contract: address.to_string(),
+            query: vec![],
+        });
+
+        let result = validate_contract_state(req);
+        assert_err_contains!(result, Error, Error::InvalidQuery);
+    }
+
+    #[test]
+    fn validate_contract_state_should_fail_on_invalid_json() {
+        let address = TMAddress::random(PREFIX);
+        let req = Request::new(ContractStateRequest {
+            contract: address.to_string(),
+            query: vec![1, 2, 3], // invalid JSON bytes
+        });
+
+        let result = validate_contract_state(req);
+        assert_err_contains!(result, Error, Error::InvalidQuery);
+    }
+
+    #[test]
+    fn validate_contract_state_should_fail_on_invalid_contract_address() {
+        let query_json = serde_json::json!({"get_config": {}});
+        let query_bytes = serde_json::to_vec(&query_json).unwrap();
+
+        let req = Request::new(ContractStateRequest {
+            contract: "invalid_address".to_string(),
+            query: query_bytes,
+        });
+
+        let result = validate_contract_state(req);
+        assert_err_contains!(result, Error, Error::InvalidContractAddress(_));
+    }
+
+    #[test]
+    fn validate_contract_state_should_fail_on_contract_with_wrong_prefix() {
+        let address = TMAddress::random("wrong");
+        let query_json = serde_json::json!({"get_config": {}});
+        let query_bytes = serde_json::to_vec(&query_json).unwrap();
+
+        let req = Request::new(ContractStateRequest {
+            contract: address.to_string(),
+            query: query_bytes,
+        });
+
+        let result = validate_contract_state(req);
+        assert_err_contains!(result, Error, Error::InvalidContractAddress(_));
     }
 }

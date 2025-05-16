@@ -111,6 +111,7 @@ async fn prepare_app(cfg: Config) -> Result<App, Error> {
         .config(grpc_config)
         .event_sub(event_subscriber.clone())
         .msg_queue_client(msg_queue_client.clone())
+        .cosmos_grpc_client(cosmos_client.clone())
         .build();
     let (tx_confirmer, tx_confirmer_client) = broadcaster_v2::TxConfirmer::new(
         cosmos_client,

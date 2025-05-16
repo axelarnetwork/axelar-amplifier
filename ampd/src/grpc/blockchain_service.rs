@@ -2,8 +2,9 @@ use std::pin::Pin;
 
 use ampd_proto::blockchain_service_server::BlockchainService;
 use ampd_proto::{
-    AddressRequest, AddressResponse, BroadcastRequest, BroadcastResponse, ContractsRequest,
-    ContractsResponse, QueryRequest, QueryResponse, SubscribeRequest, SubscribeResponse,
+    AddressRequest, AddressResponse, BroadcastRequest, BroadcastResponse, ContractStateRequest,
+    ContractStateResponse, ContractsRequest, ContractsResponse, SubscribeRequest,
+    SubscribeResponse,
 };
 use async_trait::async_trait;
 use futures::{Stream, TryFutureExt, TryStreamExt};
@@ -11,7 +12,7 @@ use tokio_stream::StreamExt;
 use tonic::{Request, Response, Status};
 use typed_builder::TypedBuilder;
 
-use super::{error, reqs};
+use super::{reqs, status};
 use crate::{broadcaster_v2, cosmos, event_sub};
 
 #[derive(TypedBuilder)]
@@ -22,6 +23,7 @@ where
 {
     event_sub: E,
     msg_queue_client: broadcaster_v2::MsgQueueClient<C>,
+    cosmos_client: C,
 }
 
 #[async_trait]
@@ -37,8 +39,8 @@ where
         req: Request<SubscribeRequest>,
     ) -> Result<Response<Self::SubscribeStream>, Status> {
         let filters = reqs::validate_subscribe(req)
-            .inspect_err(error::log("invalid subscribe request"))
-            .map_err(error::ErrorExt::into_status)?;
+            .inspect_err(status::log("invalid subscribe request"))
+            .map_err(status::StatusExt::into_status)?;
 
         Ok(Response::new(Box::pin(
             self.event_sub
@@ -49,8 +51,8 @@ where
                 })
                 .map_ok(Into::into)
                 .map_ok(|event| SubscribeResponse { event: Some(event) })
-                .inspect_err(error::log("event subscription error"))
-                .map_err(error::ErrorExt::into_status),
+                .inspect_err(status::log("event subscription error"))
+                .map_err(status::StatusExt::into_status),
         )))
     }
 
@@ -59,8 +61,8 @@ where
         req: Request<BroadcastRequest>,
     ) -> Result<Response<BroadcastResponse>, Status> {
         let msg = reqs::validate_broadcast(req)
-            .inspect_err(error::log("invalid broadcast request"))
-            .map_err(error::ErrorExt::into_status)?;
+            .inspect_err(status::log("invalid broadcast request"))
+            .map_err(status::StatusExt::into_status)?;
 
         self.msg_queue_client
             .clone()
@@ -69,12 +71,24 @@ where
             .await
             .map(|(tx_hash, index)| BroadcastResponse { tx_hash, index })
             .map(Response::new)
-            .inspect_err(error::log("message broadcast error"))
-            .map_err(error::ErrorExt::into_status)
+            .inspect_err(status::log("message broadcast error"))
+            .map_err(status::StatusExt::into_status)
     }
 
-    async fn query(&self, _req: Request<QueryRequest>) -> Result<Response<QueryResponse>, Status> {
-        todo!("implement query method")
+    async fn contract_state(
+        &self,
+        req: Request<ContractStateRequest>,
+    ) -> Result<Response<ContractStateResponse>, Status> {
+        let (contract, query) = reqs::validate_contract_state(req)
+            .inspect_err(status::log("invalid contract state request"))
+            .map_err(status::StatusExt::into_status)?;
+
+        cosmos::contract_state(&mut self.cosmos_client.clone(), &contract, &query)
+            .await
+            .map(|result| ContractStateResponse { result })
+            .map(Response::new)
+            .inspect_err(status::log("query contract state error"))
+            .map_err(status::StatusExt::into_status)
     }
 
     async fn address(
@@ -101,11 +115,15 @@ mod tests {
     use cosmrs::proto::cosmos::auth::v1beta1::{BaseAccount, QueryAccountResponse};
     use cosmrs::proto::cosmos::base::abci::v1beta1::GasInfo;
     use cosmrs::proto::cosmos::tx::v1beta1::SimulateResponse;
+    use cosmrs::proto::cosmwasm::wasm::v1::{
+        QuerySmartContractStateRequest, QuerySmartContractStateResponse,
+    };
     use cosmrs::{Any, Gas};
     use error_stack::report;
     use events::{self, Event};
     use futures::future::join_all;
     use futures::{stream, StreamExt};
+    use mockall::predicate;
     use report::ErrorExt;
     use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
     use tonic::{Code, Request};
@@ -120,27 +138,30 @@ mod tests {
 
     async fn setup(
         mock_event_sub: MockEventSub,
-        mut mock_cosmos_client: MockCosmosClient,
+        mut broadcaster_mock_cosmos_client: MockCosmosClient,
+        mock_cosmos_client: MockCosmosClient,
     ) -> (
         Service<MockEventSub, MockCosmosClient>,
         impl Stream<Item = nonempty::Vec<broadcaster_v2::QueueMsg>>,
     ) {
-        mock_cosmos_client.expect_account().return_once(|_| {
-            Ok(QueryAccountResponse {
-                account: Some(
-                    Any::from_msg(&BaseAccount {
-                        address: TMAddress::random(PREFIX).to_string(),
-                        pub_key: None,
-                        account_number: 42,
-                        sequence: 10,
-                    })
-                    .unwrap(),
-                ),
-            })
-        });
+        broadcaster_mock_cosmos_client
+            .expect_account()
+            .return_once(|_| {
+                Ok(QueryAccountResponse {
+                    account: Some(
+                        Any::from_msg(&BaseAccount {
+                            address: TMAddress::random(PREFIX).to_string(),
+                            pub_key: None,
+                            account_number: 42,
+                            sequence: 10,
+                        })
+                        .unwrap(),
+                    ),
+                })
+            });
 
         let broadcaster = broadcaster_v2::Broadcaster::new(
-            mock_cosmos_client,
+            broadcaster_mock_cosmos_client,
             "chain_id".try_into().unwrap(),
             random_cosmos_public_key(),
         )
@@ -155,6 +176,7 @@ mod tests {
         let service = Service::builder()
             .event_sub(mock_event_sub)
             .msg_queue_client(msg_queue_client)
+            .cosmos_client(mock_cosmos_client)
             .build();
 
         (service, msg_queue)
@@ -174,7 +196,12 @@ mod tests {
             .expect_subscribe()
             .return_once(move || stream::iter(events.into_iter().map(Result::Ok)).boxed());
 
-        let (service, _) = setup(mock_event_sub, MockCosmosClient::new()).await;
+        let (service, _) = setup(
+            mock_event_sub,
+            MockCosmosClient::new(),
+            MockCosmosClient::new(),
+        )
+        .await;
         let res = service
             .subscribe(subscribe_req(vec![], true))
             .await
@@ -190,7 +217,12 @@ mod tests {
 
     #[tokio::test]
     async fn subscribe_should_return_error_if_any_filter_is_invalid() {
-        let (service, _) = setup(MockEventSub::new(), MockCosmosClient::new()).await;
+        let (service, _) = setup(
+            MockEventSub::new(),
+            MockCosmosClient::new(),
+            MockCosmosClient::new(),
+        )
+        .await;
         let res = service
             .subscribe(subscribe_req(
                 vec![ampd_proto::EventFilter::default()],
@@ -218,7 +250,12 @@ mod tests {
             tokio_stream::once(Err(report!(event_sub::Error::LatestBlockQuery))).boxed()
         });
 
-        let (service, _) = setup(mock_event_sub, MockCosmosClient::new()).await;
+        let (service, _) = setup(
+            mock_event_sub,
+            MockCosmosClient::new(),
+            MockCosmosClient::new(),
+        )
+        .await;
         let res = service
             .subscribe(subscribe_req(
                 vec![ampd_proto::EventFilter {
@@ -246,7 +283,12 @@ mod tests {
             .boxed()
         });
 
-        let (service, _) = setup(mock_event_sub, MockCosmosClient::new()).await;
+        let (service, _) = setup(
+            mock_event_sub,
+            MockCosmosClient::new(),
+            MockCosmosClient::new(),
+        )
+        .await;
         let res = service
             .subscribe(subscribe_req(
                 vec![ampd_proto::EventFilter {
@@ -274,7 +316,12 @@ mod tests {
             .boxed()
         });
 
-        let (service, _) = setup(mock_event_sub, MockCosmosClient::new()).await;
+        let (service, _) = setup(
+            mock_event_sub,
+            MockCosmosClient::new(),
+            MockCosmosClient::new(),
+        )
+        .await;
         let res = service
             .subscribe(subscribe_req(
                 vec![ampd_proto::EventFilter {
@@ -299,7 +346,12 @@ mod tests {
             tokio_stream::once(Err(BroadcastStreamRecvError::Lagged(10).into_report())).boxed()
         });
 
-        let (service, _) = setup(mock_event_sub, MockCosmosClient::new()).await;
+        let (service, _) = setup(
+            mock_event_sub,
+            MockCosmosClient::new(),
+            MockCosmosClient::new(),
+        )
+        .await;
         let res = service
             .subscribe(subscribe_req(
                 vec![ampd_proto::EventFilter {
@@ -335,7 +387,12 @@ mod tests {
             r#type: "event_type_2".to_string(),
             ..Default::default()
         };
-        let (service, _) = setup(mock_event_sub, MockCosmosClient::new()).await;
+        let (service, _) = setup(
+            mock_event_sub,
+            MockCosmosClient::new(),
+            MockCosmosClient::new(),
+        )
+        .await;
         let res = service
             .subscribe(subscribe_req(vec![filter], false))
             .await
@@ -373,7 +430,12 @@ mod tests {
             r#type: "test_event".to_string(),
             contract: expected.contract_address().unwrap().to_string(),
         };
-        let (service, _) = setup(mock_event_sub, MockCosmosClient::new()).await;
+        let (service, _) = setup(
+            mock_event_sub,
+            MockCosmosClient::new(),
+            MockCosmosClient::new(),
+        )
+        .await;
         let res = service
             .subscribe(subscribe_req(vec![filter], false))
             .await
@@ -399,7 +461,12 @@ mod tests {
             .expect_subscribe()
             .return_once(move || stream::iter(events.into_iter().map(Result::Ok)).boxed());
 
-        let (service, _) = setup(mock_event_sub, MockCosmosClient::new()).await;
+        let (service, _) = setup(
+            mock_event_sub,
+            MockCosmosClient::new(),
+            MockCosmosClient::new(),
+        )
+        .await;
         let res = service
             .subscribe(subscribe_req(vec![], false))
             .await
@@ -449,7 +516,12 @@ mod tests {
             contract: expected[1].contract_address().unwrap().to_string(),
             ..Default::default()
         };
-        let (service, _) = setup(mock_event_sub, MockCosmosClient::new()).await;
+        let (service, _) = setup(
+            mock_event_sub,
+            MockCosmosClient::new(),
+            MockCosmosClient::new(),
+        )
+        .await;
         let res = service
             .subscribe(subscribe_req(vec![filter_1, filter_2], false))
             .await
@@ -465,7 +537,12 @@ mod tests {
 
     #[tokio::test]
     async fn broadcast_should_return_error_if_req_is_invalid() {
-        let (service, _) = setup(MockEventSub::new(), MockCosmosClient::new()).await;
+        let (service, _) = setup(
+            MockEventSub::new(),
+            MockCosmosClient::new(),
+            MockCosmosClient::new(),
+        )
+        .await;
         let res = service.broadcast(broadcast_req(None)).await;
         assert!(res.is_err_and(|status| status.code() == Code::InvalidArgument));
     }
@@ -482,7 +559,12 @@ mod tests {
             mock_cosmos_client
         });
 
-        let (service, _) = setup(MockEventSub::new(), mock_cosmos_client).await;
+        let (service, _) = setup(
+            MockEventSub::new(),
+            mock_cosmos_client,
+            MockCosmosClient::new(),
+        )
+        .await;
         let res = service.broadcast(broadcast_req(Some(dummy_msg()))).await;
         assert!(res.is_err_and(|status| status.code() == Code::InvalidArgument));
     }
@@ -505,7 +587,12 @@ mod tests {
             mock_cosmos_client
         });
 
-        let (service, mut msg_queue) = setup(MockEventSub::new(), mock_cosmos_client).await;
+        let (service, mut msg_queue) = setup(
+            MockEventSub::new(),
+            mock_cosmos_client,
+            MockCosmosClient::new(),
+        )
+        .await;
         tokio::spawn(async move { while msg_queue.next().await.is_some() {} });
         let res = service.broadcast(broadcast_req(Some(dummy_msg()))).await;
         assert!(res.is_err_and(|status| status.code() == Code::InvalidArgument));
@@ -534,7 +621,12 @@ mod tests {
                 mock_cosmos_client
             });
 
-        let (service, mut msg_queue) = setup(MockEventSub::new(), mock_cosmos_client).await;
+        let (service, mut msg_queue) = setup(
+            MockEventSub::new(),
+            mock_cosmos_client,
+            MockCosmosClient::new(),
+        )
+        .await;
         let service = Arc::new(service);
         let handles = join_all(
             (0..msg_count)
@@ -575,6 +667,145 @@ mod tests {
             assert_eq!(tx_hash, tx_hash.to_string());
             assert_eq!(index, i as u64);
         }
+    }
+
+    #[tokio::test]
+    async fn contract_state_should_return_error_if_req_is_invalid() {
+        let (service, _) = setup(
+            MockEventSub::new(),
+            MockCosmosClient::new(),
+            MockCosmosClient::new(),
+        )
+        .await;
+        let req = Request::new(ContractStateRequest {
+            contract: "invalid_address".to_string(),
+            query: serde_json::to_vec(&serde_json::json!({"get_config": {}})).unwrap(),
+        });
+        let res = service.contract_state(req).await;
+
+        assert!(res.is_err_and(|status| status.code() == Code::InvalidArgument));
+    }
+
+    #[tokio::test]
+    async fn contract_state_should_return_error_if_empty_query() {
+        let address = TMAddress::random(PREFIX);
+        let (service, _) = setup(
+            MockEventSub::new(),
+            MockCosmosClient::new(),
+            MockCosmosClient::new(),
+        )
+        .await;
+        let req = Request::new(ContractStateRequest {
+            contract: address.to_string(),
+            query: vec![],
+        });
+        let res = service.contract_state(req).await;
+
+        assert!(res.is_err_and(|status| status.code() == Code::InvalidArgument));
+    }
+
+    #[tokio::test]
+    async fn contract_state_should_return_error_if_invalid_json() {
+        let address = TMAddress::random(PREFIX);
+        let (service, _) = setup(
+            MockEventSub::new(),
+            MockCosmosClient::new(),
+            MockCosmosClient::new(),
+        )
+        .await;
+        let req = Request::new(ContractStateRequest {
+            contract: address.to_string(),
+            query: vec![1, 2, 3], // invalid json
+        });
+        let res = service.contract_state(req).await;
+
+        assert!(res.is_err_and(|status| status.code() == Code::InvalidArgument));
+    }
+
+    #[tokio::test]
+    async fn contract_state_should_return_error_if_cosmos_query_fails() {
+        let address = TMAddress::random(PREFIX);
+        let address_str = address.to_string();
+        let query_bytes = serde_json::to_vec(&serde_json::json!({"get_config": {}})).unwrap();
+
+        let mock_address = address_str.clone();
+        let mock_query = query_bytes.clone();
+
+        let mut mock_cosmos_client = MockCosmosClient::new();
+        mock_cosmos_client.expect_clone().return_once(move || {
+            let mut mock = MockCosmosClient::new();
+            mock.expect_smart_contract_state()
+                .with(predicate::eq(QuerySmartContractStateRequest {
+                    address: mock_address,
+                    query_data: mock_query,
+                }))
+                .return_once(|_| {
+                    Err(report!(cosmos::Error::QueryContractState(
+                        "execution error".to_string()
+                    )))
+                });
+
+            mock
+        });
+
+        let (service, _) = setup(
+            MockEventSub::new(),
+            MockCosmosClient::new(),
+            mock_cosmos_client,
+        )
+        .await;
+        let req = Request::new(ContractStateRequest {
+            contract: address_str,
+            query: query_bytes,
+        });
+        let res = service.contract_state(req).await;
+
+        assert!(res.is_err_and(|status| status.code() == Code::Unknown));
+    }
+
+    #[tokio::test]
+    async fn contract_state_should_return_result_successfully() {
+        let address = TMAddress::random(PREFIX);
+        let address_str = address.to_string();
+        let query_bytes = serde_json::to_vec(&serde_json::json!({"get_config": {}})).unwrap();
+        let result = serde_json::to_vec(&serde_json::json!({
+            "name": "test-contract",
+            "version": "1.0.0",
+            "config": {
+                "enabled": true
+            }
+        }))
+        .unwrap();
+        let mock_address = address_str.clone();
+        let mock_query = query_bytes.clone();
+        let mock_result = result.clone();
+
+        let mut mock_cosmos_client = MockCosmosClient::new();
+        mock_cosmos_client.expect_clone().return_once(move || {
+            let mut mock = MockCosmosClient::new();
+            mock.expect_smart_contract_state()
+                .with(predicate::eq(QuerySmartContractStateRequest {
+                    address: mock_address,
+                    query_data: mock_query,
+                }))
+                .return_once(move |_| Ok(QuerySmartContractStateResponse { data: mock_result }));
+
+            mock
+        });
+
+        let (service, _) = setup(
+            MockEventSub::new(),
+            MockCosmosClient::new(),
+            mock_cosmos_client,
+        )
+        .await;
+        let req = Request::new(ContractStateRequest {
+            contract: address_str,
+            query: query_bytes,
+        });
+        let res = service.contract_state(req).await.unwrap().into_inner();
+
+        assert_eq!(res.result, result);
     }
 
     fn subscribe_req(
