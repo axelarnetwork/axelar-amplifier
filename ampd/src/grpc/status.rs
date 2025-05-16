@@ -24,33 +24,32 @@ pub trait StatusExt {
 #[derive(Deref)]
 struct Status(tonic::Status);
 
-impl<Err> StatusExt for Err
+impl<T> StatusExt for T
 where
-    Err: Into<Status>,
+    T: Into<Status>,
 {
     fn into_status(self) -> tonic::Status {
         self.into().0
     }
 }
 
-impl<'a, Err> StatusExt for &Report<Err>
+impl<'a, Err> From<&'a Report<Err>> for Status
 where
-    Status: From<&'a Err>,
+    for<'b> Status: From<&'b Err>,
     Err: Send + Sync + 'static,
-    Self: 'a,
 {
-    fn into_status(self) -> tonic::Status {
-        self.current_context().into_status()
+    fn from(err: &'a Report<Err>) -> Self {
+        err.current_context().into()
     }
 }
 
-impl<Err> StatusExt for Report<Err>
+impl<Err> From<Report<Err>> for Status
 where
     for<'a> Status: From<&'a Err>,
     Err: Send + Sync + 'static,
 {
-    fn into_status(self) -> tonic::Status {
-        (&self).into_status()
+    fn from(err: Report<Err>) -> Self {
+        (&err).into()
     }
 }
 
