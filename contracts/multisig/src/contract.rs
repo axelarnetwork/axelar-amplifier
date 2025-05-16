@@ -81,8 +81,7 @@ pub fn execute(
                 deps,
                 env,
                 verifier_set_id,
-                msg.try_into()
-                    .map_err(axelar_wasm_std::error::ContractError::from)?,
+                msg.into(),
                 chain_name,
                 sig_verifier,
             )
@@ -526,7 +525,7 @@ mod tests {
 
             assert_eq!(session.id, Uint64::from(i as u64 + 1));
             assert_eq!(session.verifier_set_id, verifier_set_id);
-            assert_eq!(session.msg, message.clone().try_into().unwrap());
+            assert_eq!(session.msg, message.clone().into());
             assert!(signatures.is_empty());
             assert_eq!(session.state, MultisigState::Pending);
 

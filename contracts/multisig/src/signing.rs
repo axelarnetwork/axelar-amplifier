@@ -143,7 +143,7 @@ mod tests {
         let key_type = KeyType::Ecdsa;
         let verifier_set = build_verifier_set(KeyType::Ecdsa, &signers);
 
-        let message: MsgToSign = ecdsa_test_data::message().try_into().unwrap();
+        let message: MsgToSign = ecdsa_test_data::message().into();
         let expires_at = 12345;
         let session = SigningSession::new(
             Uint64::one(),
@@ -179,7 +179,7 @@ mod tests {
         let key_type = KeyType::Ed25519;
         let verifier_set = build_verifier_set(key_type, &signers);
 
-        let message: MsgToSign = ed25519_test_data::message().try_into().unwrap();
+        let message: MsgToSign = ed25519_test_data::message().into();
         let expires_at = 12345;
         let session = SigningSession::new(
             Uint64::one(),
