@@ -14,10 +14,10 @@ impl Service {
 #[async_trait]
 impl CryptoService for Service {
     async fn sign(&self, _req: Request<SignRequest>) -> Result<Response<SignResponse>, Status> {
-        todo!("implement sign method")
+        Err(Status::unimplemented("sign method is not implemented yet"))
     }
 
     async fn key(&self, _req: Request<KeyRequest>) -> Result<Response<KeyResponse>, Status> {
-        todo!("implement key method")
+        Err(Status::unimplemented("key method is not implemented yet"))
     }
 }
