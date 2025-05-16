@@ -383,14 +383,14 @@ where
                     )
                 }
                 handlers::config::Config::XRPLMultisigSigner {
-                    multisig_contract,
-                    multisig_prover_contract,
+                    cosmwasm_contract,
+                    chain_name,
                 } => self.create_handler_task(
                     "xrpl-multisig-signer",
                     handlers::xrpl_multisig::Handler::new(
                         verifier.clone(),
-                        multisig_contract,
-                        multisig_prover_contract,
+                        cosmwasm_contract,
+                        chain_name,
                         self.multisig_client.clone(),
                         self.block_height_monitor.latest_block_height(),
                     ),
