@@ -4,11 +4,9 @@ use axelar_wasm_std::nonempty;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::Addr;
 use msgs_derive::EnsurePermissions;
-
 use service_registry_api::Verifier;
 
 pub use crate::contract::MigrateMsg;
-
 use crate::{ChainName, GatewayAddress, ProverAddress, VerifierAddress};
 
 #[cw_serde]
