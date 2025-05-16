@@ -4,14 +4,13 @@ use axelar_wasm_std::nonempty;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::Addr;
 use msgs_derive::EnsurePermissions;
-use router_api::ChainName;
+
 use service_registry_api::Verifier;
 
 pub use crate::contract::MigrateMsg;
 
-type ProverAddress = Addr;
-type GatewayAddress = Addr;
-type VerifierAddress = Addr;
+use crate::{ProverAddress, GatewayAddress, VerifierAddress, ChainName};
+
 
 #[cw_serde]
 pub struct InstantiateMsg {

@@ -4,13 +4,10 @@ use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Order, Storage};
 use cw_storage_plus::{index_list, Index, IndexList, IndexedMap, Item, MultiIndex, UniqueIndex};
 use error_stack::{report, Result, ResultExt};
-use router_api::ChainName;
 
 use crate::msg::ChainContractsResponse;
+use crate::{ProverAddress, GatewayAddress, VerifierAddress, ChainName};
 
-type ProverAddress = Addr;
-type GatewayAddress = Addr;
-type VerifierAddress = Addr;
 
 #[derive(thiserror::Error, Debug, PartialEq)]
 pub enum Error {
