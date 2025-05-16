@@ -441,8 +441,10 @@ pub fn modify_supply(
         })?;
 
     // set supply to tracked if untracked
-    if token_instance.supply == TokenSupply::Untracked {
-        token_instance.supply = TokenSupply::Tracked(Uint256::zero());
+    let msg_token_supply: msg::TokenSupply = token_instance.supply.clone().into();
+    if msg_token_supply == TokenSupply::Untracked {
+        token_instance.supply = state::TokenSupply::try_from_msg_token_supply(TokenSupply::Tracked(Uint256::zero()))
+            .map_err(|_| Error::State)?;
     }
 
     token_instance.supply = match supply_modifier {
@@ -450,12 +452,12 @@ pub fn modify_supply(
             .supply
             .clone()
             .checked_add(amount)
-            .change_context(Error::ModifySupplyOverflow(token_instance.supply))?,
+            .change_context(Error::ModifySupplyOverflow(token_instance.supply.into()))?,
         SupplyModifier::DecreaseSupply(amount) => token_instance
             .supply
             .clone()
             .checked_sub(amount)
-            .change_context(Error::ModifySupplyOverflow(token_instance.supply))?,
+            .change_context(Error::ModifySupplyOverflow(token_instance.supply.into()))?,
     };
 
     state::save_token_instance(deps.storage, chain.clone(), token_id, &token_instance)
@@ -479,7 +481,7 @@ pub fn register_p2p_token_instance(
     ensure_chain_is_registered(deps.storage, chain.clone())?;
     ensure_chain_is_registered(deps.storage, origin_chain.clone())?;
 
-    match state::may_load_token_config(deps.storage, &token_id).change_context(Error::State)? {
+    match state::TokenConfig::try_from_msg_token_config(state::may_load_token_config(deps.storage, &token_id).change_context(Error::State))? {
         Some(TokenConfig {
             origin_chain: stored_origin_chain,
         }) => {

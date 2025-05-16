@@ -70,6 +70,15 @@ pub enum TokenSupply {
     Untracked,
 }
 
+impl From<TokenSupply> for msg::TokenSupply {
+    fn from(supply: TokenSupply) -> Self {
+        match supply {
+            TokenSupply::Tracked(amount) => msg::TokenSupply::Tracked(amount),
+            TokenSupply::Untracked => msg::TokenSupply::Untracked,
+        }
+    }
+}
+
 impl TokenSupply {
     pub fn checked_add(self, amount: nonempty::Uint256) -> Result<Self, OverflowError> {
         match self {
@@ -89,6 +98,13 @@ impl TokenSupply {
         }
         .then(Ok)
     }
+    // TODO: add verification
+    pub fn try_from_msg_token_supply(supply: msg::TokenSupply) -> Result<Self, axelar_wasm_std::address::Error> {
+        match supply {
+            msg::TokenSupply::Tracked(amount) => Ok(TokenSupply::Tracked(amount)),
+            msg::TokenSupply::Untracked => Ok(TokenSupply::Untracked),
+        }
+    }
 }
 
 /// Information about a token on a specific chain.
@@ -96,6 +112,15 @@ impl TokenSupply {
 pub struct TokenInstance {
     pub supply: TokenSupply,
     pub decimals: u8,
+}
+
+impl From<TokenInstance> for msg::TokenInstance {
+    fn from(token_instance: TokenInstance) -> Self {
+        Self {
+            supply: token_instance.supply.into(),
+            decimals: token_instance.decimals
+        }
+    }
 }
 
 impl TokenInstance {
@@ -114,6 +139,14 @@ impl TokenInstance {
 
         Self { supply, decimals }
     }
+
+    // TODO: add verification
+    pub fn try_from_msg_token_instance(token_instance: msg::TokenInstance) -> Result<Self, axelar_wasm_std::address::Error> {
+        Ok(Self {
+            supply: TokenSupply::try_from_msg_token_supply(token_instance.supply)?,
+            decimals: token_instance.decimals,
+        })
+    }
 }
 
 /// The deployment type of the token.
@@ -127,6 +160,23 @@ pub enum TokenDeploymentType {
 #[cw_serde]
 pub struct TokenConfig {
     pub origin_chain: ChainNameRaw,
+}
+
+impl From<TokenConfig> for msg::TokenConfig {
+    fn from(token_config: TokenConfig) -> Self {
+        Self {
+            origin_chain: token_config.origin_chain,
+        }
+    }
+}
+
+impl TokenConfig {
+    // TODO: add verification
+    pub fn try_from_msg_token_config(token_config: msg::TokenConfig) -> Result<Self, axelar_wasm_std::address::Error> {
+        Ok(Self {
+            origin_chain: token_config.origin_chain,
+        })
+    }
 }
 
 type TokenAddress = nonempty::HexBinary;
