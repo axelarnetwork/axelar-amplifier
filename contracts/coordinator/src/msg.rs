@@ -9,8 +9,7 @@ use service_registry_api::Verifier;
 
 pub use crate::contract::MigrateMsg;
 
-use crate::{ProverAddress, GatewayAddress, VerifierAddress, ChainName};
-
+use crate::{ChainName, GatewayAddress, ProverAddress, VerifierAddress};
 
 #[cw_serde]
 pub struct InstantiateMsg {

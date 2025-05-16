@@ -6,8 +6,7 @@ use cw_storage_plus::{index_list, Index, IndexList, IndexedMap, Item, MultiIndex
 use error_stack::{report, Result, ResultExt};
 
 use crate::msg::ChainContractsResponse;
-use crate::{ProverAddress, GatewayAddress, VerifierAddress, ChainName};
-
+use crate::{ChainName, GatewayAddress, ProverAddress, VerifierAddress};
 
 #[derive(thiserror::Error, Debug, PartialEq)]
 pub enum Error {
