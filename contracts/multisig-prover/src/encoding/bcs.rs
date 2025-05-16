@@ -4,9 +4,7 @@ use axelar_wasm_std::hash::Hash;
 use cosmwasm_std::HexBinary;
 use error_stack::{Result, ResultExt};
 use k256::ecdsa::RecoveryId;
-use multisig::Signature;
-use multisig::SignerWithSig;
-use multisig::VerifierSet;
+use multisig::{Signature, SignerWithSig, VerifierSet};
 use sha3::{Digest, Keccak256};
 use sui_gateway::{CommandType, ExecuteData, Message, MessageToSign, Proof, WeightedSigners};
 
@@ -109,9 +107,8 @@ mod tests {
     use axelar_wasm_std::hash::Hash;
     use cosmwasm_std::testing::MockApi;
     use cosmwasm_std::{HexBinary, Uint128};
-    use multisig::KeyType;
     use multisig::msg::Signer;
-    use multisig::VerifierSet;
+    use multisig::{KeyType, VerifierSet};
     use router_api::{CrossChainId, Message};
 
     use super::payload_digest;

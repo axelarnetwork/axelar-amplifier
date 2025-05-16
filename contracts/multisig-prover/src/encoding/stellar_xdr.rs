@@ -2,8 +2,7 @@ use axelar_wasm_std::hash::Hash;
 use axelar_wasm_std::FnExt;
 use cosmwasm_std::HexBinary;
 use error_stack::{Result, ResultExt};
-use multisig::SignerWithSig;
-use multisig::VerifierSet;
+use multisig::{SignerWithSig, VerifierSet};
 use sha3::{Digest, Keccak256};
 use stellar::{Message, Messages, Proof, WeightedSigners};
 use stellar_xdr::curr::{Limits, ScVal, WriteXdr};
@@ -83,9 +82,7 @@ mod tests {
     use cosmwasm_std::testing::MockApi;
     use cosmwasm_std::{HexBinary, Uint128};
     use multisig::KeyType::Ed25519;
-    use multisig::Signature;
-    use multisig::{Signer, SignerWithSig};
-    use multisig::VerifierSet;
+    use multisig::{Signature, Signer, SignerWithSig, VerifierSet};
     use router_api::{CrossChainId, Message};
 
     use crate::encoding::stellar_xdr::{encode_execute_data, payload_digest};

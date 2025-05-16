@@ -2,14 +2,14 @@ mod client;
 pub mod contract;
 mod error;
 pub mod events;
+mod exported;
 pub mod key;
 pub mod msg;
-mod multisig;
+pub mod multisig;
 mod signing;
 mod state;
 pub mod types;
 pub mod verifier_set;
-mod exported;
 pub use exported::*;
 
 #[cfg(feature = "secp256k1")]

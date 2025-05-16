@@ -8,9 +8,7 @@ use evm_gateway::{
 };
 use itertools::Itertools;
 use k256::ecdsa::RecoveryId;
-use multisig::Signature;
-use multisig::SignerWithSig;
-use multisig::VerifierSet;
+use multisig::{Signature, SignerWithSig, VerifierSet};
 use sha3::{Digest, Keccak256};
 
 use crate::error::ContractError;
@@ -159,8 +157,8 @@ mod tests {
     use hex::FromHex;
     use itertools::Itertools;
     use k256::ecdsa::{RecoveryId, Signature as K256Signature};
-    use multisig::{KeyType, KeyTyped, Signature};
     use multisig::msg::{Signer, SignerWithSig};
+    use multisig::{KeyType, KeyTyped, Signature};
 
     use crate::encoding::abi::{encode_execute_data, payload_digest, CommandType};
     use crate::test::test_data::{

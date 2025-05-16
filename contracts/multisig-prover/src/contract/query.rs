@@ -1,7 +1,6 @@
 use cosmwasm_std::{to_json_binary, Deps, QueryRequest, StdResult, Uint64, WasmQuery};
 use error_stack::Result;
-use multisig::Multisig;
-use multisig::MultisigState;
+use multisig::{Multisig, MultisigState};
 
 use crate::encoding::EncoderExt;
 use crate::error::ContractError;
