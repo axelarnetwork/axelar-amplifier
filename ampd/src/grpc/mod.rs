@@ -32,12 +32,23 @@ pub enum Error {
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct Config {
+    /// IP address on which the gRPC server will listen
     pub ip_addr: IpAddr,
+    /// Port number on which the gRPC server will listen
     pub port: u16,
-    pub concurrency_limit: nonempty::Usize,
+    /// Maximum number of concurrent requests the server can handle globally across all connections
+    /// This applies server-wide concurrency limiting to prevent resource exhaustion
+    /// Requests beyond this limit will be queued until processing slots become available
+    pub global_concurrency_limit: nonempty::Usize,
+    /// Maximum number of concurrent requests the server can handle per client connection
+    /// Helps prevent a single client from monopolizing server resources
+    /// Must be less than or equal to global_concurrency_limit
     pub concurrency_limit_per_connection: nonempty::Usize,
+    /// Maximum time allowed for processing a single request before timing out
+    /// Applies to all gRPC method calls
+    /// Uses humantime_serde for parsing human-readable duration formats in configuration files
     #[serde(with = "humantime_serde")]
-    pub reqs_timeout: Duration,
+    pub request_timeout: Duration,
 }
 
 impl Default for Config {
@@ -45,13 +56,13 @@ impl Default for Config {
         Self {
             ip_addr: "127.0.0.1".parse().expect("default IP must be valid"),
             port: 9090,
-            concurrency_limit: 1024
+            global_concurrency_limit: 1024
                 .try_into()
                 .expect("default concurrency limit must be valid"),
             concurrency_limit_per_connection: 32
                 .try_into()
                 .expect("default concurrency limit per connection must be valid"),
-            reqs_timeout: Duration::from_secs(30),
+            request_timeout: Duration::from_secs(30),
         }
     }
 }
@@ -62,7 +73,7 @@ where
 {
     let config: Config = Deserialize::deserialize(deserializer)?;
 
-    if config.concurrency_limit < config.concurrency_limit_per_connection {
+    if config.global_concurrency_limit < config.concurrency_limit_per_connection {
         return Err(de::Error::custom(
             "concurrency_limit must be >= concurrency_limit_per_connection",
         ));
@@ -102,10 +113,10 @@ impl Server {
             // Example: ERROR grpc_request{method="..."}: failed to process request latency=5ms status=INVALID_ARGUMENT code=3 message="empty broadcast message"
             .on_failure(trace::DefaultOnFailure::new().level(tracing::Level::ERROR));
         let router = transport::Server::builder()
-            .timeout(self.config.reqs_timeout)
+            .timeout(self.config.request_timeout)
             .layer(trace_layer)
             .layer(ConcurrencyLimitLayer::new(
-                self.config.concurrency_limit.into(),
+                self.config.global_concurrency_limit.into(),
             ))
             .concurrency_limit_per_connection(self.config.concurrency_limit_per_connection.into())
             .add_service(BlockchainServiceServer::new(

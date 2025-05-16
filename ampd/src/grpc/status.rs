@@ -35,7 +35,7 @@ where
 
 impl<'a, Err> From<&'a Report<Err>> for Status
 where
-    for<'b> Status: From<&'b Err>,
+    Status: From<&'a Err>,
     Err: Send + Sync + 'static,
 {
     fn from(err: &'a Report<Err>) -> Self {
@@ -111,7 +111,7 @@ impl From<&cosmos::Error> for Status {
             cosmos::Error::GrpcConnection(_) | cosmos::Error::GrpcRequest(_) => {
                 tonic::Status::unavailable("blockchain service is temporarily unavailable")
             }
-            cosmos::Error::QuerySmartContractState(_) => tonic::Status::unknown(err.to_string()),
+            cosmos::Error::QueryContractState(_) => tonic::Status::unknown(err.to_string()),
             cosmos::Error::GasInfoMissing
             | cosmos::Error::AccountMissing
             | cosmos::Error::TxResponseMissing
@@ -244,7 +244,7 @@ mod tests {
             Code::Unavailable
         );
         assert_eq!(
-            cosmos::Error::QuerySmartContractState("contract execution error".to_string())
+            cosmos::Error::QueryContractState("contract execution error".to_string())
                 .into_status()
                 .code(),
             Code::Unknown

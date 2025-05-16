@@ -48,8 +48,8 @@ pub enum Error {
     MalformedResponse,
     #[error("failed to build tx")]
     TxBuilding,
-    #[error("failed to query the smart contract state with error {0}")]
-    QuerySmartContractState(String),
+    #[error("failed to query the contract state with error {0}")]
+    QueryContractState(String),
 }
 
 mock! {
@@ -260,7 +260,7 @@ where
         .map(|res| res.data)
         .map_err(|err| match err.current_context() {
             Error::GrpcRequest(status) if status.code() == Code::Unknown => {
-                report!(Error::QuerySmartContractState(status.message().to_string()))
+                report!(Error::QueryContractState(status.message().to_string()))
             }
             _ => err,
         })
@@ -495,7 +495,7 @@ mod tests {
 
         let actual = contract_state(&mut mock_client, &address, query).await;
 
-        assert_err_contains!(actual, Error, Error::QuerySmartContractState(_));
+        assert_err_contains!(actual, Error, Error::QueryContractState(_));
     }
 
     #[tokio::test]

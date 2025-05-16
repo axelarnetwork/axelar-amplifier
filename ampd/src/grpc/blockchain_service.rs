@@ -740,7 +740,7 @@ mod tests {
                     query_data: mock_query,
                 }))
                 .return_once(|_| {
-                    Err(report!(cosmos::Error::QuerySmartContractState(
+                    Err(report!(cosmos::Error::QueryContractState(
                         "execution error".to_string()
                     )))
                 });
