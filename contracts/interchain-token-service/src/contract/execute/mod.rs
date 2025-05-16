@@ -442,9 +442,9 @@ pub fn modify_supply(
 
     // set supply to tracked if untracked
     let msg_token_supply: msg::TokenSupply = token_instance.supply.clone().into();
+    // TODO: map error properly
     if msg_token_supply == TokenSupply::Untracked {
-        token_instance.supply = state::TokenSupply::try_from_msg_token_supply(TokenSupply::Tracked(Uint256::zero()))
-            .map_err(|_| Error::State)?;
+        token_instance.supply = state::TokenSupply::try_from_msg_token_supply(TokenSupply::Tracked(Uint256::zero())).change_context(Error::State)?;
     }
 
     token_instance.supply = match supply_modifier {
@@ -481,10 +481,11 @@ pub fn register_p2p_token_instance(
     ensure_chain_is_registered(deps.storage, chain.clone())?;
     ensure_chain_is_registered(deps.storage, origin_chain.clone())?;
 
-    match state::TokenConfig::try_from_msg_token_config(state::may_load_token_config(deps.storage, &token_id).change_context(Error::State))? {
-        Some(TokenConfig {
-            origin_chain: stored_origin_chain,
-        }) => {
+    match state::may_load_token_config(deps.storage, &token_id).change_context(Error::State)? {
+        Some(token_config) => {
+            let TokenConfig {
+                origin_chain: stored_origin_chain,
+            } = token_config.into();
             // Each token has a single global config, which is set the first time the token is deployed
             // Subsequent deployments should not modify the existing config
             // However, if a config exists, we need to check that the origin chain matches
@@ -496,8 +497,11 @@ pub fn register_p2p_token_instance(
                 }
             );
         }
-        None => state::save_token_config(deps.storage, token_id, &TokenConfig { origin_chain })
-            .change_context(Error::State)?,
+        None => {
+            let token_config = TokenConfig { origin_chain };
+            state::save_token_config(deps.storage, token_id, &state::TokenConfig::try_from_msg_token_config(token_config).change_context(Error::State)?)
+                .change_context(Error::State)?;
+        }
     }
 
     if state::may_load_token_instance(deps.storage, chain.clone(), token_id)
