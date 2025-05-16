@@ -585,7 +585,7 @@ mod ed25519_tests {
     fn test_verify_signature() {
         let signature =
             Signature::try_from((KeyType::Ed25519, ed25519_test_data::signature())).unwrap();
-        let message = MsgToSign::try_from(ed25519_test_data::message()).unwrap();
+        let message = MsgToSign::from(ed25519_test_data::message());
         let public_key =
             PublicKey::try_from((KeyType::Ed25519, ed25519_test_data::pub_key())).unwrap();
         let result = signature.verify(message, &public_key);
