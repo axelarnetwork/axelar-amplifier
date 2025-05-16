@@ -127,11 +127,6 @@ where
         };
 
         if !chain.eq(&self.chain) {
-            info!(
-                session_id = session_id.to_string(),
-                chain = chain.to_string(),
-                "skipping signing session for different chain"
-            );
             return Ok(vec![]);
         }
 
