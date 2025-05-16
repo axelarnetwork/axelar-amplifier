@@ -378,8 +378,7 @@ mod test {
             .returning(move |_, _, _, _| Err(Report::from(tofnd::error::Error::SignFailed)));
 
         let event = signing_started_event();
-        let signing_started: SigningStartedEvent =
-            ((&event).try_into() as Result<_, _>).unwrap();
+        let signing_started: SigningStartedEvent = ((&event).try_into() as Result<_, _>).unwrap();
         let verifier = signing_started.pub_keys.keys().next().unwrap().clone();
         let handler = handler(
             verifier,
@@ -403,8 +402,7 @@ mod test {
             .returning(move |_, _, _, _| Err(Report::from(tofnd::error::Error::SignFailed)));
 
         let event = signing_started_event();
-        let signing_started: SigningStartedEvent =
-            ((&event).try_into() as Result<_, _>).unwrap();
+        let signing_started: SigningStartedEvent = ((&event).try_into() as Result<_, _>).unwrap();
         let verifier = signing_started.pub_keys.keys().next().unwrap().clone();
         let handler = handler(
             verifier,
@@ -425,8 +423,7 @@ mod test {
             .returning(move |_, _, _, _| Err(Report::from(tofnd::error::Error::SignFailed)));
 
         let event = signing_started_event();
-        let signing_started: SigningStartedEvent =
-            ((&event).try_into() as Result<_, _>).unwrap();
+        let signing_started: SigningStartedEvent = ((&event).try_into() as Result<_, _>).unwrap();
         let verifier = signing_started.pub_keys.keys().next().unwrap().clone();
         let handler = handler(
             verifier,
