@@ -3,18 +3,39 @@ use std::collections::HashMap;
 use axelar_wasm_std::nonempty;
 use axelarnet_gateway::AxelarExecutableMsg;
 use cosmwasm_schema::{cw_serde, QueryResponses};
+use cosmwasm_std::Uint256;
 use msgs_derive::EnsurePermissions;
 use router_api::{Address, ChainNameRaw};
 
 pub use crate::contract::MigrateMsg;
 use crate::shared::NumBits;
-use crate::state::{TokenConfig, TokenInstance};
-use crate::{TokenId, TokenSupply};
+use crate::TokenId;
 
 pub const DEFAULT_PAGINATION_LIMIT: u32 = 30;
 
 const fn default_pagination_limit() -> u32 {
     DEFAULT_PAGINATION_LIMIT
+}
+
+#[cw_serde]
+pub enum TokenSupplyMsg {
+    /// The total token supply bridged to this chain.
+    /// ITS Hub will not allow bridging back more than this amount of the token from the corresponding chain.
+    Tracked(Uint256),
+    /// The token supply bridged to this chain is not tracked.
+    Untracked,
+}
+
+/// Information about a token on a specific chain.
+#[cw_serde]
+pub struct TokenInstanceMsg {
+    pub supply: TokenSupplyMsg,
+    pub decimals: u8,
+}
+
+#[cw_serde]
+pub struct TokenConfigMsg {
+    pub origin_chain: ChainNameRaw,
 }
 
 #[cw_serde]
@@ -42,7 +63,7 @@ pub enum ExecuteMsg {
         token_id: TokenId,
         origin_chain: ChainNameRaw,
         decimals: u8,
-        supply: TokenSupply,
+        supply: TokenSupplyMsg,
     },
 
     /// For each chain, register the ITS contract and set config parameters.
@@ -146,14 +167,14 @@ pub enum QueryMsg {
     },
 
     /// Query a token instance on a specific chain
-    #[returns(Option<TokenInstance>)]
+    #[returns(Option<TokenInstanceMsg>)]
     TokenInstance {
         chain: ChainNameRaw,
         token_id: TokenId,
     },
 
     /// Query the configuration parameters for a token
-    #[returns(Option<TokenConfig>)]
+    #[returns(Option<TokenConfigMsg>)]
     TokenConfig { token_id: TokenId },
 
     /// Query the state of contract (enabled/disabled)
