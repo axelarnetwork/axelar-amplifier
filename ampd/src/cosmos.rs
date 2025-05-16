@@ -13,6 +13,10 @@ use cosmrs::proto::cosmos::tx::v1beta1::{
     BroadcastMode, BroadcastTxRequest, BroadcastTxResponse, GetTxRequest, GetTxResponse,
     SimulateRequest, SimulateResponse, TxRaw,
 };
+use cosmrs::proto::cosmwasm::wasm::v1::query_client::QueryClient as CosmWasmQueryClient;
+use cosmrs::proto::cosmwasm::wasm::v1::{
+    QuerySmartContractStateRequest, QuerySmartContractStateResponse,
+};
 use cosmrs::tx::MessageExt;
 use cosmrs::{Any, Gas};
 use error_stack::{report, ResultExt};
@@ -21,7 +25,7 @@ use prost::Message;
 use report::ErrorExt;
 use thiserror::Error;
 use tonic::transport::Channel;
-use tonic::Response;
+use tonic::{Code, Response, Status};
 
 use crate::broadcaster::tx::Tx;
 use crate::types::{CosmosPublicKey, TMAddress};
@@ -33,7 +37,7 @@ pub enum Error {
     #[error("failed to connect to the grpc endpoint")]
     GrpcConnection(#[from] tonic::transport::Error),
     #[error("failed to make the grpc request")]
-    GrpcRequest(#[from] tonic::Status),
+    GrpcRequest(#[from] Status),
     #[error("gas info is missing in the query response")]
     GasInfoMissing,
     #[error("account is missing in the query response")]
@@ -44,6 +48,8 @@ pub enum Error {
     MalformedResponse,
     #[error("failed to build tx")]
     TxBuilding,
+    #[error("failed to query the contract state with error {0}")]
+    QueryContractState(String),
 }
 
 mock! {
@@ -60,10 +66,12 @@ mock! {
         async fn broadcast_tx(&mut self, req: BroadcastTxRequest) -> Result<BroadcastTxResponse>;
         async fn simulate(&mut self, req: SimulateRequest) -> Result<SimulateResponse>;
         async fn tx(&mut self, req: GetTxRequest) -> Result<GetTxResponse>;
-
-        async fn account(&mut self, address: QueryAccountRequest) -> Result<QueryAccountResponse>;
-
-        async fn balance(&mut self, request: QueryBalanceRequest) -> Result<QueryBalanceResponse>;
+        async fn account(&mut self, req: QueryAccountRequest) -> Result<QueryAccountResponse>;
+        async fn balance(&mut self, req: QueryBalanceRequest) -> Result<QueryBalanceResponse>;
+        async fn smart_contract_state(
+            &mut self,
+            req: QuerySmartContractStateRequest,
+        ) -> Result<QuerySmartContractStateResponse>;
     }
 }
 
@@ -72,10 +80,12 @@ pub trait CosmosClient {
     async fn broadcast_tx(&mut self, req: BroadcastTxRequest) -> Result<BroadcastTxResponse>;
     async fn simulate(&mut self, req: SimulateRequest) -> Result<SimulateResponse>;
     async fn tx(&mut self, req: GetTxRequest) -> Result<GetTxResponse>;
-
-    async fn account(&mut self, address: QueryAccountRequest) -> Result<QueryAccountResponse>;
-
-    async fn balance(&mut self, request: QueryBalanceRequest) -> Result<QueryBalanceResponse>;
+    async fn account(&mut self, req: QueryAccountRequest) -> Result<QueryAccountResponse>;
+    async fn balance(&mut self, req: QueryBalanceRequest) -> Result<QueryBalanceResponse>;
+    async fn smart_contract_state(
+        &mut self,
+        req: QuerySmartContractStateRequest,
+    ) -> Result<QuerySmartContractStateResponse>;
 }
 
 /// CosmosGrpcClient implements the CosmosClient trait to interact with Cosmos blockchain nodes via gRPC.
@@ -97,6 +107,7 @@ pub trait CosmosClient {
 pub struct CosmosGrpcClient {
     auth: AuthQueryClient<Channel>,
     bank: BankQueryClient<Channel>,
+    cosm_wasm: CosmWasmQueryClient<Channel>,
     service: ServiceClient<Channel>,
 }
 
@@ -113,6 +124,7 @@ impl CosmosGrpcClient {
         Ok(Self {
             auth: AuthQueryClient::new(conn.clone()),
             bank: BankQueryClient::new(conn.clone()),
+            cosm_wasm: CosmWasmQueryClient::new(conn.clone()),
             service: ServiceClient::new(conn),
         })
     }
@@ -144,17 +156,28 @@ impl CosmosClient for CosmosGrpcClient {
             .map_err(ErrorExt::into_report)
     }
 
-    async fn account(&mut self, request: QueryAccountRequest) -> Result<QueryAccountResponse> {
+    async fn account(&mut self, req: QueryAccountRequest) -> Result<QueryAccountResponse> {
         self.auth
-            .account(request)
+            .account(req)
             .await
             .map(Response::into_inner)
             .map_err(ErrorExt::into_report)
     }
 
-    async fn balance(&mut self, request: QueryBalanceRequest) -> Result<QueryBalanceResponse> {
+    async fn balance(&mut self, req: QueryBalanceRequest) -> Result<QueryBalanceResponse> {
         self.bank
-            .balance(request)
+            .balance(req)
+            .await
+            .map(Response::into_inner)
+            .map_err(ErrorExt::into_report)
+    }
+
+    async fn smart_contract_state(
+        &mut self,
+        req: QuerySmartContractStateRequest,
+    ) -> Result<QuerySmartContractStateResponse> {
+        self.cosm_wasm
+            .smart_contract_state(req)
             .await
             .map(Response::into_inner)
             .map_err(ErrorExt::into_report)
@@ -218,6 +241,29 @@ where
         .broadcast_tx(tx)
         .await
         .and_then(|res| res.tx_response.ok_or(report!(Error::TxResponseMissing)))
+}
+
+pub async fn contract_state<T>(
+    client: &mut T,
+    address: &TMAddress,
+    query: impl AsRef<[u8]>,
+) -> Result<Vec<u8>>
+where
+    T: CosmosClient,
+{
+    client
+        .smart_contract_state(QuerySmartContractStateRequest {
+            address: address.to_string(),
+            query_data: query.as_ref().to_vec(),
+        })
+        .await
+        .map(|res| res.data)
+        .map_err(|err| match err.current_context() {
+            Error::GrpcRequest(status) if status.code() == Code::Unknown => {
+                report!(Error::QueryContractState(status.message().to_string()))
+            }
+            _ => err,
+        })
 }
 
 fn decode_base_account(account: Any) -> Result<BaseAccount> {
@@ -402,6 +448,78 @@ mod tests {
         let actual = broadcast(&mut mock_client, tx_raw).await;
 
         assert_err_contains!(actual, Error, Error::TxResponseMissing);
+    }
+
+    #[tokio::test]
+    async fn contract_state_success() {
+        let address = TMAddress::random(PREFIX);
+        let query = serde_json::to_vec(&json!({"get_count": {}})).unwrap();
+        let expected = vec![1, 2, 3, 4];
+
+        let mut mock_client = MockCosmosClient::new();
+        mock_client
+            .expect_smart_contract_state()
+            .with(predicate::eq(QuerySmartContractStateRequest {
+                address: address.to_string(),
+                query_data: query.clone(),
+            }))
+            .return_once(|_| {
+                Ok(QuerySmartContractStateResponse {
+                    data: vec![1, 2, 3, 4],
+                })
+            });
+
+        let actual = contract_state(&mut mock_client, &address, query).await;
+
+        assert_eq!(actual.unwrap(), expected);
+    }
+
+    #[tokio::test]
+    async fn contract_state_contract_error() {
+        let address = TMAddress::random(PREFIX);
+        let query = serde_json::to_vec(&json!({"invalid_query": {}})).unwrap();
+
+        let mut mock_client = MockCosmosClient::new();
+        mock_client
+            .expect_smart_contract_state()
+            .with(predicate::eq(QuerySmartContractStateRequest {
+                address: address.to_string(),
+                query_data: query.clone(),
+            }))
+            .return_once(move |_| {
+                Err(report!(Error::GrpcRequest(Status::new(
+                    Code::Unknown,
+                    "query not supported"
+                ))))
+            });
+
+        let actual = contract_state(&mut mock_client, &address, query).await;
+
+        assert_err_contains!(actual, Error, Error::QueryContractState(_));
+    }
+
+    #[tokio::test]
+    async fn contract_state_network_error() {
+        let address = TMAddress::random(PREFIX);
+        let query = serde_json::to_vec(&json!({"get_count": {}})).unwrap();
+
+        let mut mock_client = MockCosmosClient::new();
+        mock_client
+            .expect_smart_contract_state()
+            .with(predicate::eq(QuerySmartContractStateRequest {
+                address: address.to_string(),
+                query_data: query.clone(),
+            }))
+            .return_once(move |_| {
+                Err(report!(Error::GrpcRequest(Status::new(
+                    Code::Unavailable,
+                    "connection error"
+                ))))
+            });
+
+        let actual = contract_state(&mut mock_client, &address, query).await;
+
+        assert_err_contains!(actual, Error, Error::GrpcRequest(_));
     }
 
     #[test]
@@ -594,6 +712,33 @@ mod tests {
                 denom: "uaxl".to_string(),
                 amount: "1000000".to_string(),
             }),
+        };
+
+        goldie::assert_json!(json!({
+            "req": format!("{:?}", req),
+            "res": format!("{:?}", res),
+            "req_bytes": req.to_bytes().unwrap(),
+            "res_bytes": res.to_bytes().unwrap()
+        }));
+    }
+
+    #[test]
+    fn ensure_smart_contract_state_req_res_serialization_do_not_change() {
+        let req = QuerySmartContractStateRequest {
+            address: "axelar1q95p9fntvqn6jm9m0u5092pu9ulq3chn0zkuks".to_string(),
+            query_data: serde_json::to_vec(&json!({"get_config": {}})).unwrap(),
+        };
+        let res = QuerySmartContractStateResponse {
+            data: serde_json::to_vec(&json!({
+                "name": "axelar-gateway",
+                "version": "1.0.0",
+                "owner": "axelar1q95p9fntvqn6jm9m0u5092pu9ulq3chn0zkuks",
+                "config": {
+                    "chain_id": "axelar-testnet-1",
+                    "enabled": true
+                }
+            }))
+            .unwrap(),
         };
 
         goldie::assert_json!(json!({
