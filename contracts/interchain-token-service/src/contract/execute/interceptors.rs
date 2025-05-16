@@ -4,10 +4,9 @@ use error_stack::{bail, ensure, report, Result, ResultExt};
 use router_api::ChainNameRaw;
 
 use super::Error;
-use crate::state::{self, TokenDeploymentType};
+use crate::state::{self, TokenDeploymentType, TokenConfig, TokenInstance};
 use crate::{
-    DeployInterchainToken, InterchainTransfer, RegisterTokenMetadata, TokenConfig, TokenId,
-    TokenInstance,
+    DeployInterchainToken, InterchainTransfer, RegisterTokenMetadata, TokenId,
 };
 
 pub fn subtract_supply_amount(
@@ -339,9 +338,9 @@ mod test {
     use super::{register_custom_token, Error};
     use crate::contract::execute::interceptors;
     use crate::msg::TruncationConfig;
-    use crate::state::{self, TokenDeploymentType};
+    use crate::state::{self, TokenDeploymentType, TokenInstance };
     use crate::{
-        msg, DeployInterchainToken, InterchainTransfer, RegisterTokenMetadata, TokenInstance,
+        msg, DeployInterchainToken, InterchainTransfer, RegisterTokenMetadata,
     };
 
     #[test]

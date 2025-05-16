@@ -7,10 +7,10 @@ use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
 use crate::events::Event;
 use crate::msg::SupplyModifier;
 use crate::primitives::HubMessage;
-use crate::state::TokenDeploymentType;
+use crate::state::{TokenDeploymentType, TokenConfig, TokenInstance, TokenSupply};
 use crate::{
     msg, state, DeployInterchainToken, InterchainTransfer, LinkToken, Message,
-    RegisterTokenMetadata, TokenConfig, TokenId, TokenInstance, TokenSupply,
+    RegisterTokenMetadata, TokenId
 };
 
 mod interceptors;
@@ -441,10 +441,8 @@ pub fn modify_supply(
         })?;
 
     // set supply to tracked if untracked
-    let msg_token_supply: msg::TokenSupply = token_instance.supply.clone().into();
-    // TODO: map error properly
-    if msg_token_supply == TokenSupply::Untracked {
-        token_instance.supply = state::TokenSupply::try_from_msg_token_supply(TokenSupply::Tracked(Uint256::zero())).change_context(Error::State)?;
+    if token_instance.supply == TokenSupply::Untracked {
+        token_instance.supply = TokenSupply::Tracked(Uint256::zero());
     }
 
     token_instance.supply = match supply_modifier {
@@ -452,12 +450,12 @@ pub fn modify_supply(
             .supply
             .clone()
             .checked_add(amount)
-            .change_context(Error::ModifySupplyOverflow(token_instance.supply.into()))?,
+            .change_context(Error::ModifySupplyOverflow(token_instance.supply))?,
         SupplyModifier::DecreaseSupply(amount) => token_instance
             .supply
             .clone()
             .checked_sub(amount)
-            .change_context(Error::ModifySupplyOverflow(token_instance.supply.into()))?,
+            .change_context(Error::ModifySupplyOverflow(token_instance.supply))?,
     };
 
     state::save_token_instance(deps.storage, chain.clone(), token_id, &token_instance)
@@ -482,10 +480,9 @@ pub fn register_p2p_token_instance(
     ensure_chain_is_registered(deps.storage, origin_chain.clone())?;
 
     match state::may_load_token_config(deps.storage, &token_id).change_context(Error::State)? {
-        Some(token_config) => {
-            let TokenConfig {
-                origin_chain: stored_origin_chain,
-            } = token_config.into();
+        Some(TokenConfig {
+            origin_chain: stored_origin_chain,
+        }) => {
             // Each token has a single global config, which is set the first time the token is deployed
             // Subsequent deployments should not modify the existing config
             // However, if a config exists, we need to check that the origin chain matches
@@ -497,11 +494,8 @@ pub fn register_p2p_token_instance(
                 }
             );
         }
-        None => {
-            let token_config = TokenConfig { origin_chain };
-            state::save_token_config(deps.storage, token_id, &state::TokenConfig::try_from_msg_token_config(token_config).change_context(Error::State)?)
-                .change_context(Error::State)?;
-        }
+        None => state::save_token_config(deps.storage, token_id, &TokenConfig { origin_chain })
+            .change_context(Error::State)?,
     }
 
     if state::may_load_token_instance(deps.storage, chain.clone(), token_id)
@@ -557,10 +551,10 @@ mod tests {
         modify_supply, register_chain, register_chains, unfreeze_chain, update_chains, Error,
     };
     use crate::msg::TruncationConfig;
-    use crate::state::{self, Config};
+    use crate::state::{self, Config, TokenSupply};
     use crate::{
         msg, DeployInterchainToken, HubMessage, InterchainTransfer, LinkToken, Message,
-        RegisterTokenMetadata, TokenId, TokenSupply,
+        RegisterTokenMetadata, TokenId,
     };
 
     const SOLANA: &str = "solana";

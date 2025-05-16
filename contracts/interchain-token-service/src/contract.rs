@@ -10,7 +10,7 @@ use error_stack::{Report, ResultExt};
 use execute::{freeze_chain, unfreeze_chain};
 
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
-use crate::state;
+use crate::state::{self, TokenSupply};
 use crate::state::Config;
 
 mod execute;
@@ -117,7 +117,7 @@ pub fn execute(
             chain,
             origin_chain,
             decimals,
-            supply,
+            TokenSupply::try_from_msg_token_supply(supply)?,
         )
         .change_context(Error::RegisterP2pTokenInstance),
         ExecuteMsg::ModifySupply {
