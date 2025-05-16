@@ -127,7 +127,7 @@ mod tests {
         from_json, Addr, Empty, Fraction, OwnedDeps, SubMsgResponse, SubMsgResult, Uint128, Uint64,
     };
     use multisig::msg::Signer;
-    use multisig::verifier_set::VerifierSet;
+    use multisig::VerifierSet;
     use multisig_prover_api::encoding::Encoder;
     use prost::Message;
     use router_api::CrossChainId;
@@ -170,7 +170,7 @@ mod tests {
                 chain_name: "ganache-0".to_string(),
                 verifier_set_diff_threshold: 0,
                 encoder: Encoder::Abi,
-                key_type: multisig::key::KeyType::Ecdsa,
+                key_type: multisig::Ecdsa,
                 domain_separator: [0; 32],
             },
         )
@@ -343,7 +343,7 @@ mod tests {
                 chain_name: "Ethereum".to_string(),
                 verifier_set_diff_threshold: 0,
                 encoder: encoding,
-                key_type: multisig::key::KeyType::Ecdsa,
+                key_type: multisig::Ecdsa,
                 domain_separator: [0; 32],
             };
 

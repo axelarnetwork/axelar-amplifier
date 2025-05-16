@@ -2,7 +2,7 @@ use axelar_wasm_std::voting::{PollId, PollStatus, Vote};
 use axelar_wasm_std::{MajorityThreshold, VerificationStatus};
 use cosmwasm_std::Deps;
 use error_stack::{Result, ResultExt};
-use multisig::verifier_set::VerifierSet;
+use multisig::VerifierSet;
 use router_api::Message;
 
 use crate::error::ContractError;
