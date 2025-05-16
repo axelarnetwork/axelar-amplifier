@@ -1,11 +1,8 @@
 use axelar_wasm_std::{address, permission_control};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{
-    to_json_binary, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Reply, Response,
-};
+use cosmwasm_std::{to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Reply, Response};
 use error_stack::ResultExt;
-use semver::{Version, VersionReq};
 
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
@@ -15,6 +12,8 @@ mod execute;
 mod migrations;
 mod query;
 mod reply;
+
+pub use migrations::{migrate, MigrateMsg};
 
 pub const START_MULTISIG_REPLY_ID: u64 = 1;
 
@@ -117,21 +116,6 @@ pub fn query(
     .map_err(axelar_wasm_std::error::ContractError::from)
 }
 
-#[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(
-    deps: DepsMut,
-    _env: Env,
-    _msg: Empty,
-) -> Result<Response, axelar_wasm_std::error::ContractError> {
-    let old_version = Version::parse(&cw2::get_contract_version(deps.storage)?.version)?;
-    let version_requirement = VersionReq::parse(">= 1.1.0, < 1.2.0")?;
-    assert!(version_requirement.matches(&old_version));
-
-    cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-
-    Ok(Response::default())
-}
-
 #[cfg(test)]
 mod tests {
     use axelar_wasm_std::permission_control::Permission;
@@ -144,12 +128,12 @@ mod tests {
     };
     use multisig::msg::Signer;
     use multisig::verifier_set::VerifierSet;
+    use multisig_prover_api::encoding::Encoder;
     use prost::Message;
     use router_api::CrossChainId;
 
     use super::*;
     use crate::contract::execute::should_update_verifier_set;
-    use crate::encoding::Encoder;
     use crate::msg::{ProofResponse, ProofStatus, VerifierSetResponse};
     use crate::test::test_data::{self, TestOperator};
     use crate::test::test_utils::{

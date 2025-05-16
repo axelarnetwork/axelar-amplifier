@@ -1,9 +1,9 @@
-use std::sync::Arc;
+use std::time::Duration;
 
 use async_trait::async_trait;
 use error_stack::ResultExt;
 use mockall::automock;
-use tokio::sync::Mutex;
+use report::ErrorExt;
 use tonic::transport::Channel;
 use tonic::Status;
 
@@ -13,7 +13,6 @@ use super::proto::sign_response::SignResponse;
 use super::proto::{multisig_client, Algorithm, KeygenRequest, SignRequest};
 use super::{MessageDigest, Signature};
 use crate::types::PublicKey;
-use crate::url::Url;
 
 type Result<T> = error_stack::Result<T, Error>;
 
@@ -33,18 +32,22 @@ pub trait Multisig {
 #[derive(Clone)]
 pub struct MultisigClient {
     party_uid: String,
-    client: Arc<Mutex<multisig_client::MultisigClient<Channel>>>,
+    client: multisig_client::MultisigClient<Channel>,
 }
 
 impl MultisigClient {
-    pub async fn new(party_uid: String, url: Url) -> Result<Self> {
+    pub async fn new(party_uid: String, url: &str, timeout: Duration) -> Result<Self> {
+        let endpoint: tonic::transport::Endpoint = url.parse().map_err(ErrorExt::into_report)?;
+        let conn = endpoint
+            .timeout(timeout)
+            .connect_timeout(timeout)
+            .connect()
+            .await
+            .map_err(ErrorExt::into_report)?;
+
         Ok(Self {
             party_uid,
-            client: Arc::new(Mutex::new(
-                multisig_client::MultisigClient::connect(url.to_string())
-                    .await
-                    .change_context(Error::Grpc)?,
-            )),
+            client: multisig_client::MultisigClient::new(conn),
         })
     }
 }
@@ -59,8 +62,7 @@ impl Multisig for MultisigClient {
         };
 
         self.client
-            .lock()
-            .await
+            .clone()
             .keygen(request)
             .await
             .and_then(|response| {
@@ -69,7 +71,7 @@ impl Multisig for MultisigClient {
                     .keygen_response
                     .ok_or_else(|| Status::internal("keygen response is empty"))
             })
-            .change_context(Error::Grpc)
+            .map_err(ErrorExt::into_report)
             .and_then(|response| match response {
                 KeygenResponse::PubKey(pub_key) => match algorithm {
                     Algorithm::Ecdsa => PublicKey::new_secp256k1(&pub_key),
@@ -99,8 +101,7 @@ impl Multisig for MultisigClient {
         };
 
         self.client
-            .lock()
-            .await
+            .clone()
             .sign(request)
             .await
             .and_then(|response| {
@@ -109,7 +110,7 @@ impl Multisig for MultisigClient {
                     .sign_response
                     .ok_or_else(|| Status::internal("sign response is empty"))
             })
-            .change_context(Error::Grpc)
+            .map_err(ErrorExt::into_report)
             .and_then(|response| match response {
                 SignResponse::Signature(signature) => match algorithm {
                     Algorithm::Ecdsa => {

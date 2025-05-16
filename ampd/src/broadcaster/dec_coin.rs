@@ -154,6 +154,12 @@ impl Display for FiniteAmount {
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
 pub struct Denom(cosmrs::Denom);
 
+impl AsRef<str> for Denom {
+    fn as_ref(&self) -> &str {
+        self.0.as_ref()
+    }
+}
+
 impl TryFrom<cosmrs::Denom> for Denom {
     type Error = Report<Error>;
 
@@ -238,7 +244,7 @@ mod tests {
 
     #[test]
     fn invalid_try_from_string() {
-        assert!(DecCoin::try_from("10a0u/-xl").is_err());
+        assert!(DecCoin::try_from("10a0u/-xl!").is_err());
         assert!(DecCoin::try_from("uaxl6").is_err());
     }
 

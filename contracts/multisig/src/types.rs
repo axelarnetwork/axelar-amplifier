@@ -1,7 +1,6 @@
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::HexBinary;
 
-
 #[cw_serde]
 pub struct MsgToSign(HexBinary);
 
@@ -32,10 +31,8 @@ pub enum MultisigState {
     },
 }
 
-
 impl From<HexBinary> for MsgToSign {
     fn from(value: HexBinary) -> Self {
         MsgToSign(value)
     }
 }
-
