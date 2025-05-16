@@ -10,7 +10,7 @@ use cosmwasm_std::{
 };
 use interchain_token_service::msg::{self, ExecuteMsg, SupplyModifier, TruncationConfig};
 use interchain_token_service::shared::NumBits;
-use interchain_token_service::{contract, HubMessage, TokenId, TokenSupply};
+use interchain_token_service::{contract, HubMessage, TokenId, TokenSupplyMsg};
 use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
 
 use super::{instantiate_contract, TestMessage};
@@ -121,7 +121,7 @@ pub fn register_p2p_token_instance(
     origin_chain: ChainNameRaw,
     chain: ChainNameRaw,
     decimals: u8,
-    supply: TokenSupply,
+    supply: TokenSupplyMsg,
 ) -> Result<Response, ContractError> {
     contract::execute(
         deps,
