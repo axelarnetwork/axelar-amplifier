@@ -9,7 +9,7 @@ use cosmwasm_std::{HexBinary, Uint64};
 use error_stack::ResultExt;
 use events_derive;
 use events_derive::try_from;
-use hex::{encode, FromHex};
+use hex::encode;
 use multisig::msg::ExecuteMsg;
 use multisig::types::MsgToSign;
 use router_api::ChainName;
