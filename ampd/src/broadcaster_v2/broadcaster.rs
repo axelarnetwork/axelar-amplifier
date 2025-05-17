@@ -9,7 +9,7 @@ use report::ResultCompatExt;
 use tokio::sync::{RwLock, RwLockWriteGuard};
 
 use super::{Error, Result};
-use crate::broadcaster::tx::Tx;
+use crate::broadcaster_v2::Tx;
 use crate::types::{CosmosPublicKey, TMAddress};
 use crate::{cosmos, PREFIX};
 
@@ -55,7 +55,7 @@ pub struct Broadcaster<T>
 where
     T: cosmos::CosmosClient,
 {
-    client: T,
+    pub client: T,
     chain_id: tendermint::chain::Id,
     pub pub_key: CosmosPublicKey,
     pub address: TMAddress,

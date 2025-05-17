@@ -104,7 +104,7 @@ where
         let rx = self
             .enqueue_with_channel(msg)
             .await
-            .map_err(|err| err.attach_printable(attachment.clone()))?;
+            .map_err(|err| err.attach(attachment.clone()))?;
 
         Ok(rx
             .map(|result| match result {
@@ -112,7 +112,7 @@ where
                 Ok(Err(err)) => Err(err),
                 Err(err) => Err(err.into_report()),
             })
-            .map_err(move |err| err.attach_printable(attachment)))
+            .map_err(move |err| err.attach(attachment)))
     }
 
     /// Enqueues a message without waiting for its result
