@@ -19,6 +19,7 @@ use valuable::Valuable;
 
 use super::{broadcaster, Error, Result};
 use crate::cosmos;
+use crate::types::TMAddress;
 
 /// Represents a message in the queue ready for broadcasting
 ///
@@ -71,6 +72,25 @@ impl<T> MsgQueueClient<T>
 where
     T: cosmos::CosmosClient,
 {
+    /// Returns the Tendermint address associated with this client
+    ///
+    /// This method provides access to the underlying broadcaster's address,
+    /// which represents the Cosmos account that will broadcast transactions.
+    /// The address is derived from the public key used to initialize the broadcaster.
+    ///
+    /// # Returns
+    ///
+    /// A reference to the `TMAddress` of the account used for broadcasting
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let address = msg_queue_client.address();
+    /// println!("Broadcasting from address: {}", address);
+    /// ```
+    pub fn address(&self) -> &TMAddress {
+        &self.broadcaster.address
+    }
     /// Enqueues a message and returns a Future for tracking its result
     ///
     /// This method:
@@ -396,6 +416,38 @@ mod tests {
     use crate::broadcaster_v2::Error;
     use crate::types::{random_cosmos_public_key, TMAddress};
     use crate::PREFIX;
+
+    #[tokio::test]
+    async fn msg_queue_client_address_returns_broadcaster_address() {
+        let pub_key = random_cosmos_public_key();
+        let expected_address: TMAddress = pub_key.account_id(PREFIX).unwrap().into();
+        let base_account = BaseAccount {
+            address: expected_address.to_string(),
+            pub_key: None,
+            account_number: 42,
+            sequence: 10,
+        };
+
+        let mut cosmos_client = cosmos::MockCosmosClient::new();
+        cosmos_client.expect_account().return_once(move |_| {
+            Ok(QueryAccountResponse {
+                account: Some(Any::from_msg(&base_account).unwrap()),
+            })
+        });
+        let broadcaster =
+            broadcaster::Broadcaster::new(cosmos_client, "chain-id".parse().unwrap(), pub_key)
+                .await
+                .unwrap();
+
+        let (_msg_queue, msg_queue_client) = MsgQueue::new_msg_queue_and_client(
+            broadcaster,
+            10,
+            1000u64,
+            time::Duration::from_secs(1),
+        );
+
+        assert_eq!(msg_queue_client.address(), &expected_address);
+    }
 
     #[tokio::test]
     async fn msg_queue_client_enqueue_and_forget() {
