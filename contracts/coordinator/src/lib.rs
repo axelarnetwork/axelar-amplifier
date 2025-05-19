@@ -1,6 +1,6 @@
 mod client;
-pub use client::Client;
-
 pub mod contract;
+mod exported;
 pub mod msg;
 mod state;
+pub use exported::*;
