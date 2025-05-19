@@ -4,8 +4,7 @@ use axelar_solana_encoding::hasher::NativeHasher;
 use axelar_solana_encoding::types::verifier_set::verifier_set_hash;
 use axelar_solana_gateway::processor::{GatewayEvent, VerifierSetRotated};
 use axelar_wasm_std::voting::Vote;
-use multisig::key::PublicKey;
-use multisig::verifier_set::VerifierSet;
+use multisig::{PublicKey, VerifierSet};
 use solana_sdk::signature::Signature;
 use solana_transaction_status::UiTransactionStatusMeta;
 use tracing::error;
@@ -178,7 +177,7 @@ mod tests {
     fn fixture_rotate_verifier_set() -> (
         String,
         VerifierSetRotated,
-        multisig::verifier_set::VerifierSet,
+        multisig::VerifierSet,
     ) {
         let base64_data = "c2lnbmVycyByb3RhdGVkXw== AgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA= rGbfImIlluyfNx5TfhnZEDS+uUBKCSDRAJ28Znulbgw=";
         let verifier_set = multisig::verifier_set::VerifierSet {

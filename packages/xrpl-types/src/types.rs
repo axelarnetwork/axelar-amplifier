@@ -11,7 +11,7 @@ use cw_storage_plus::{Key, KeyDeserialize, PrimaryKey};
 use k256::ecdsa;
 use k256::schnorr::signature::SignatureEncoding;
 use lazy_static::lazy_static;
-use multisig::key::PublicKey;
+use multisig::PublicKey;
 use regex::Regex;
 use ripemd::Ripemd160;
 use router_api::{CrossChainId, FIELD_DELIMITER};
@@ -682,14 +682,14 @@ pub struct XRPLSigner {
     pub signing_pub_key: PublicKey,
 }
 
-impl TryFrom<multisig::msg::SignerWithSig> for XRPLSigner {
+impl TryFrom<multisig::SignerWithSig> for XRPLSigner {
     type Error = XRPLError;
 
-    fn try_from(signer_with_sig: multisig::msg::SignerWithSig) -> Result<Self, XRPLError> {
-        let multisig::msg::SignerWithSig { signer, signature } = signer_with_sig;
+    fn try_from(signer_with_sig: multisig::SignerWithSig) -> Result<Self, XRPLError> {
+        let multisig::SignerWithSig { signer, signature } = signer_with_sig;
 
         let txn_signature = match signer.pub_key {
-            multisig::key::PublicKey::Ecdsa(_) => HexBinary::from(
+            multisig::PublicKey::Ecdsa(_) => HexBinary::from(
                 ecdsa::Signature::to_der(
                     &ecdsa::Signature::try_from(signature.as_ref())
                         .map_err(|_| XRPLError::FailedToEncodeSignature)?,

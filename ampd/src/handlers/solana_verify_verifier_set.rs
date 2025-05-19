@@ -9,7 +9,7 @@ use cosmrs::Any;
 use error_stack::ResultExt;
 use events::Error::EventTypeMismatch;
 use events_derive::try_from;
-use multisig::verifier_set::VerifierSet;
+use multisig::VerifierSet;
 use router_api::ChainName;
 use serde::Deserialize;
 use solana_transaction_status::UiTransactionStatusMeta;

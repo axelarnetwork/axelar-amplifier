@@ -10,7 +10,7 @@ use error_stack::ResultExt;
 use events::Error::EventTypeMismatch;
 use events::Event;
 use events_derive::try_from;
-use multisig::verifier_set::VerifierSet;
+use multisig::VerifierSet;
 use multiversx_sdk::data::address::Address;
 use serde::Deserialize;
 use tokio::sync::watch::Receiver;

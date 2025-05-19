@@ -66,21 +66,21 @@ impl fmt::Display for PublicKey {
     }
 }
 
-impl TryFrom<&multisig::key::PublicKey> for PublicKey {
+impl TryFrom<&multisig::PublicKey> for PublicKey {
     type Error = Report<Error>;
 
-    fn try_from(key: &multisig::key::PublicKey) -> Result<Self> {
+    fn try_from(key: &multisig::PublicKey) -> Result<Self> {
         match key {
-            multisig::key::PublicKey::Ecdsa(key) => Self::new_secp256k1(key),
-            multisig::key::PublicKey::Ed25519(key) => Self::new_ed25519(key),
+            multisig::PublicKey::Ecdsa(key) => Self::new_secp256k1(key),
+            multisig::PublicKey::Ed25519(key) => Self::new_ed25519(key),
         }
     }
 }
 
-impl TryFrom<multisig::key::PublicKey> for PublicKey {
+impl TryFrom<multisig::PublicKey> for PublicKey {
     type Error = Report<Error>;
 
-    fn try_from(key: multisig::key::PublicKey) -> Result<Self> {
+    fn try_from(key: multisig::PublicKey) -> Result<Self> {
         (&key).try_into()
     }
 }

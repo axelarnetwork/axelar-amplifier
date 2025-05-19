@@ -11,8 +11,7 @@ use events::Error::EventTypeMismatch;
 use events_derive;
 use events_derive::try_from;
 use hex::encode;
-use multisig::msg::ExecuteMsg;
-use multisig::types::MsgToSign;
+use multisig::{ExecuteMsg,MsgToSign};
 use router_api::ChainName;
 use serde::de::Error as DeserializeError;
 use serde::{Deserialize, Deserializer};
@@ -43,7 +42,7 @@ fn deserialize_public_keys<'de, D>(
 where
     D: Deserializer<'de>,
 {
-    let keys_by_address: HashMap<TMAddress, multisig::key::PublicKey> =
+    let keys_by_address: HashMap<TMAddress, multisig::PublicKey> =
         HashMap::deserialize(deserializer)?;
 
     keys_by_address
@@ -145,8 +144,8 @@ where
         match pub_keys.get(&self.verifier) {
             Some(&pub_key) => {
                 let pub_key_hex = HexBinary::from(pub_key.to_bytes());
-                let multisig_pub_key = multisig::key::PublicKey::try_from((
-                    multisig::key::KeyType::Ecdsa,
+                let multisig_pub_key = multisig::PublicKey::try_from((
+                    multisig::KeyType::Ecdsa,
                     pub_key_hex,
                 ))
                 .map_err(|_e| Error::PublicKey)?;

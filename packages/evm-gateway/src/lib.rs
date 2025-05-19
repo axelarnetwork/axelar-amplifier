@@ -10,9 +10,7 @@ use ethers_core::abi::{encode, Tokenize};
 use ethers_core::types::{Address, Bytes, U256};
 use ethers_core::utils::public_key_to_address;
 use k256::ecdsa::VerifyingKey;
-use multisig::key::PublicKey;
-use multisig::msg::{Signer, SignerWithSig};
-use multisig::verifier_set::VerifierSet;
+use multisig::{PublicKey, Signer, SignerWithSig, VerifierSet};
 use router_api::Message as RouterMessage;
 use sha3::{Digest, Keccak256};
 

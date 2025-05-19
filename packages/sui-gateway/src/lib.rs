@@ -2,9 +2,7 @@ use std::str::FromStr;
 
 use cosmwasm_std::Uint256;
 use error_stack::{report, Report, ResultExt};
-use multisig::key::PublicKey;
-use multisig::msg::SignerWithSig;
-use multisig::verifier_set::VerifierSet;
+use multisig::{PublicKey, SignerWithSig, VerifierSet};
 use serde::{Deserialize, Serialize};
 use sha3::{Digest, Keccak256};
 use sui_types::SuiAddress;
@@ -131,14 +129,14 @@ pub struct Signature {
     bytes: Vec<u8>,
 }
 
-impl TryFrom<multisig::key::Signature> for Signature {
+impl TryFrom<multisig::Signature> for Signature {
     type Error = Report<Error>;
 
-    fn try_from(signature: multisig::key::Signature) -> Result<Self, Self::Error> {
+    fn try_from(signature: multisig::Signature) -> Result<Self, Self::Error> {
         match signature {
             // The move contracts require recoverable signatures. This should
             // only be called after the proper conversion during encoding.
-            multisig::key::Signature::EcdsaRecoverable(signature) => Ok(Self {
+            multisig::Signature::EcdsaRecoverable(signature) => Ok(Self {
                 bytes: signature.as_ref().to_vec(),
             }),
             _ => Err(report!(Error::UnsupportedSignature)),

@@ -10,7 +10,7 @@ use error_stack::ResultExt;
 use ethers_core::types::{TransactionReceipt, U64};
 use events::Error::EventTypeMismatch;
 use events_derive::try_from;
-use multisig::verifier_set::VerifierSet;
+use multisig::VerifierSet;
 use router_api::ChainName;
 use serde::Deserialize;
 use tokio::sync::watch::Receiver;

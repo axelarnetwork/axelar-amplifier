@@ -1,7 +1,7 @@
 use axelar_wasm_std::hash::Hash;
 use axelar_wasm_std::MajorityThreshold;
 use cosmwasm_schema::cw_serde;
-use multisig::key::KeyType;
+use multisig::KeyType;
 
 use crate::encoding::Encoder;
 
