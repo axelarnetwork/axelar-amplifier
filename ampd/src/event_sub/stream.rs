@@ -95,6 +95,8 @@ where
         })
         .collect::<Result<Vec<_>>>()?;
 
+    tokio::time::sleep(Duration::new(1, 0)).await;
+
     Ok(iter::once(Event::BlockBegin(block_height))
         .chain(events)
         .chain(iter::once(Event::BlockEnd(block_height)))
