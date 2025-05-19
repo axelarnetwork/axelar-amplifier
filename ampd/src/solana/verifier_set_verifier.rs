@@ -174,11 +174,7 @@ mod tests {
     const GATEWAY_PROGRAM_ID: Pubkey = axelar_solana_gateway::ID;
     const RAW_SIGNATURE: [u8; 64] = [42; 64];
 
-    fn fixture_rotate_verifier_set() -> (
-        String,
-        VerifierSetRotated,
-        multisig::VerifierSet,
-    ) {
+    fn fixture_rotate_verifier_set() -> (String, VerifierSetRotated, multisig::VerifierSet) {
         let base64_data = "c2lnbmVycyByb3RhdGVkXw== AgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA= rGbfImIlluyfNx5TfhnZEDS+uUBKCSDRAJ28Znulbgw=";
         let verifier_set = multisig::verifier_set::VerifierSet {
             signers: {

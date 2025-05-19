@@ -65,9 +65,7 @@ impl PartialEq<VerifierSetConfirmation> for SignersRotatedEvent {
             .signers
             .values()
             .filter_map(|signer| match &signer.pub_key {
-                multisig::PublicKey::Ecdsa(pubkey) => {
-                    Some((pubkey.clone(), signer.weight.u128()))
-                }
+                multisig::PublicKey::Ecdsa(pubkey) => Some((pubkey.clone(), signer.weight.u128())),
                 _ => None,
             })
             .collect::<Vec<_>>();

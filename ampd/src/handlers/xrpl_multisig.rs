@@ -11,7 +11,7 @@ use events::Error::EventTypeMismatch;
 use events_derive;
 use events_derive::try_from;
 use hex::encode;
-use multisig::{ExecuteMsg,MsgToSign};
+use multisig::{ExecuteMsg, MsgToSign};
 use router_api::ChainName;
 use serde::de::Error as DeserializeError;
 use serde::{Deserialize, Deserializer};
@@ -144,11 +144,9 @@ where
         match pub_keys.get(&self.verifier) {
             Some(&pub_key) => {
                 let pub_key_hex = HexBinary::from(pub_key.to_bytes());
-                let multisig_pub_key = multisig::PublicKey::try_from((
-                    multisig::KeyType::Ecdsa,
-                    pub_key_hex,
-                ))
-                .map_err(|_e| Error::PublicKey)?;
+                let multisig_pub_key =
+                    multisig::PublicKey::try_from((multisig::KeyType::Ecdsa, pub_key_hex))
+                        .map_err(|_e| Error::PublicKey)?;
                 let xrpl_address = XRPLAccountId::from(&multisig_pub_key);
 
                 let msg_digest = MessageDigest::from(

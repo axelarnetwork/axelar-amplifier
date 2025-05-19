@@ -1,6 +1,6 @@
 use axelar_wasm_std::hash::Hash;
 use cosmwasm_std::Uint256;
-use multisig::{PublicKey,Signer, VerifierSet};
+use multisig::{PublicKey, Signer, VerifierSet};
 use sha3::{Digest, Keccak256};
 
 use crate::mvx::error::Error;

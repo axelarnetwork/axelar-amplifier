@@ -10,7 +10,7 @@ use error_stack::ResultExt;
 use events_derive;
 use events_derive::try_from;
 use hex::encode;
-use multisig::{ExecuteMsg,MsgToSign};
+use multisig::{ExecuteMsg, MsgToSign};
 use router_api::ChainName;
 use serde::de::Error as DeserializeError;
 use serde::{Deserialize, Deserializer};
