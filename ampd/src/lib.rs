@@ -1,4 +1,5 @@
 use std::pin::Pin;
+use std::sync::Once;
 use std::time::Duration;
 
 use asyncutil::task::{CancellableTask, TaskError, TaskGroup};
@@ -18,7 +19,7 @@ use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::commitment_config::CommitmentConfig;
 use starknet_providers::jsonrpc::HttpTransport;
 use thiserror::Error;
-use tofnd::grpc::{Multisig, MultisigClient};
+use tofnd::{Multisig, MultisigClient};
 use tokio::signal::unix::{signal, SignalKind};
 use tokio::sync::mpsc;
 use tokio::time::interval;
@@ -60,6 +61,14 @@ use crate::broadcaster::confirm_tx::TxConfirmer;
 
 const PREFIX: &str = "axelar";
 const DEFAULT_RPC_TIMEOUT: Duration = Duration::from_secs(3);
+
+static INSTALL_DEBUG_HOOKS: Once = Once::new();
+
+pub fn install_debug_hooks() {
+    INSTALL_DEBUG_HOOKS.call_once(|| {
+        tofnd::install_debug_hooks();
+    });
+}
 
 pub async fn run(cfg: Config) -> Result<(), Error> {
     prepare_app(cfg).await?.run().await
@@ -124,6 +133,7 @@ async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
         .event_sub(event_subscriber.clone())
         .msg_queue_client(msg_queue_client)
         .cosmos_grpc_client(cosmos_client.clone())
+        .multisig_client(multisig_client.clone())
         .build();
     let broadcaster_task = broadcaster_v2::BroadcasterTask::builder()
         .broadcaster(broadcaster)

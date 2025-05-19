@@ -1,17 +1,15 @@
 use std::time::Duration;
 
 use async_trait::async_trait;
-use error_stack::ResultExt;
+use error_stack::{report, ResultExt};
 use mockall::automock;
 use report::ErrorExt;
 use tonic::transport::Channel;
-use tonic::Status;
 
-use super::error::{Error, TofndError};
 use super::proto::keygen_response::KeygenResponse;
 use super::proto::sign_response::SignResponse;
 use super::proto::{multisig_client, Algorithm, KeygenRequest, SignRequest};
-use super::{MessageDigest, Signature};
+use super::Error;
 use crate::types::PublicKey;
 
 type Result<T> = error_stack::Result<T, Error>;
@@ -23,10 +21,10 @@ pub trait Multisig {
     async fn sign(
         &self,
         key_uid: &str,
-        data: MessageDigest,
+        data: [u8; 32],
         pub_key: PublicKey,
         algorithm: Algorithm,
-    ) -> Result<Signature>;
+    ) -> Result<Vec<u8>>;
 }
 
 #[derive(Clone)]
@@ -65,33 +63,32 @@ impl Multisig for MultisigClient {
             .clone()
             .keygen(request)
             .await
-            .and_then(|response| {
-                response
-                    .into_inner()
-                    .keygen_response
-                    .ok_or_else(|| Status::internal("keygen response is empty"))
-            })
             .map_err(ErrorExt::into_report)
-            .and_then(|response| match response {
+            .and_then(|res| {
+                let res = res.into_inner();
+
+                res.clone()
+                    .keygen_response
+                    .ok_or(report!(Error::InvalidKeygenResponse).attach(res))
+            })
+            .and_then(|res| match &res {
                 KeygenResponse::PubKey(pub_key) => match algorithm {
-                    Algorithm::Ecdsa => PublicKey::new_secp256k1(&pub_key),
-                    Algorithm::Ed25519 => PublicKey::new_ed25519(&pub_key),
+                    Algorithm::Ecdsa => PublicKey::new_secp256k1(pub_key),
+                    Algorithm::Ed25519 => PublicKey::new_ed25519(pub_key),
                 }
-                .change_context(Error::ParsingFailed)
-                .attach_printable(format!("{{ invalid_value = {:?} }}", pub_key)),
-                KeygenResponse::Error(error_msg) => {
-                    Err(TofndError::ExecutionFailed(error_msg)).change_context(Error::KeygenFailed)
-                }
+                .change_context(Error::InvalidKeygenResponse)
+                .attach(res),
+                KeygenResponse::Error(error) => Err(report!(Error::ExecutionFailed(error.clone()))),
             })
     }
 
     async fn sign(
         &self,
         key_uid: &str,
-        data: MessageDigest,
+        data: [u8; 32],
         pub_key: PublicKey,
         algorithm: Algorithm,
-    ) -> Result<Signature> {
+    ) -> Result<Vec<u8>> {
         let request = SignRequest {
             key_uid: key_uid.to_string(),
             msg_to_sign: data.into(),
@@ -104,14 +101,15 @@ impl Multisig for MultisigClient {
             .clone()
             .sign(request)
             .await
-            .and_then(|response| {
-                response
-                    .into_inner()
-                    .sign_response
-                    .ok_or_else(|| Status::internal("sign response is empty"))
-            })
             .map_err(ErrorExt::into_report)
-            .and_then(|response| match response {
+            .and_then(|res| {
+                let res = res.into_inner();
+
+                res.clone()
+                    .sign_response
+                    .ok_or(report!(Error::InvalidSignResponse).attach(res))
+            })
+            .and_then(|res| match &res {
                 SignResponse::Signature(signature) => match algorithm {
                     Algorithm::Ecdsa => {
                         k256::ecdsa::Signature::from_der(&signature).map(|sig| sig.to_vec())
@@ -120,11 +118,9 @@ impl Multisig for MultisigClient {
                         ed25519_dalek::Signature::from_slice(&signature).map(|sig| sig.to_vec())
                     }
                 }
-                .change_context(Error::ParsingFailed),
-
-                SignResponse::Error(error_msg) => {
-                    Err(TofndError::ExecutionFailed(error_msg)).change_context(Error::SignFailed)
-                }
+                .change_context(Error::InvalidSignResponse)
+                .attach(res),
+                SignResponse::Error(error) => Err(report!(Error::ExecutionFailed(error.clone()))),
             })
     }
 }

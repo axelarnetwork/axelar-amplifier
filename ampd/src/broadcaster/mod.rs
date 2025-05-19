@@ -27,7 +27,7 @@ use tracing::info;
 use tx::Tx;
 use typed_builder::TypedBuilder;
 
-use crate::tofnd::grpc::Multisig;
+use crate::tofnd::Multisig;
 use crate::types::{CosmosPublicKey, TMAddress};
 use crate::{cosmos, tofnd};
 
@@ -379,7 +379,7 @@ mod tests {
     use crate::broadcaster::{
         BasicBroadcaster, Broadcaster, Config, Error, UnvalidatedBasicBroadcaster,
     };
-    use crate::tofnd::grpc::MockMultisig;
+    use crate::tofnd::MockMultisig;
     use crate::types::{CosmosPublicKey, PublicKey, TMAddress};
     use crate::PREFIX;
 

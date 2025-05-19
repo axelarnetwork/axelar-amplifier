@@ -5,7 +5,7 @@ use tracing::error;
 use valuable::Valuable;
 
 use super::reqs;
-use crate::{broadcaster_v2, cosmos, event_sub};
+use crate::{broadcaster_v2, cosmos, event_sub, tofnd};
 
 pub fn log<Err>(msg: &str) -> impl Fn(&Report<Err>) + '_ {
     move |err| {
@@ -117,6 +117,23 @@ impl From<&cosmos::Error> for Status {
             | cosmos::Error::TxResponseMissing
             | cosmos::Error::MalformedResponse
             | cosmos::Error::TxBuilding => {
+                tonic::Status::internal("server encountered an error processing request")
+            }
+        }
+        .into()
+    }
+}
+
+impl From<&tofnd::Error> for Status {
+    fn from(err: &tofnd::Error) -> Self {
+        match err {
+            tofnd::Error::GrpcConnection(_) => {
+                tonic::Status::unavailable("crypto service is temporarily unavailable")
+            }
+            tofnd::Error::GrpcRequest(status) => status.clone(), // passing status through because we control tofnd
+            tofnd::Error::InvalidKeygenResponse
+            | tofnd::Error::InvalidSignResponse
+            | tofnd::Error::ExecutionFailed(_) => {
                 tonic::Status::internal("server encountered an error processing request")
             }
         }
@@ -267,6 +284,30 @@ mod tests {
         );
         assert_eq!(
             cosmos::Error::TxBuilding.into_status().code(),
+            Code::Internal
+        );
+    }
+
+    #[test]
+    fn tofnd_errors_to_status() {
+        assert_eq!(
+            tofnd::Error::GrpcRequest(tonic::Status::permission_denied("permission denied"))
+                .into_status()
+                .code(),
+            Code::PermissionDenied
+        );
+        assert_eq!(
+            tofnd::Error::InvalidKeygenResponse.into_status().code(),
+            Code::Internal
+        );
+        assert_eq!(
+            tofnd::Error::InvalidSignResponse.into_status().code(),
+            Code::Internal
+        );
+        assert_eq!(
+            tofnd::Error::ExecutionFailed("key generation failed".to_string())
+                .into_status()
+                .code(),
             Code::Internal
         );
     }
