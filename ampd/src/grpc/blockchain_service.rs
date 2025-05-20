@@ -95,14 +95,18 @@ where
         &self,
         _req: Request<AddressRequest>,
     ) -> Result<Response<AddressResponse>, Status> {
-        todo!("implement address method")
+        Err(Status::unimplemented(
+            "address method is not implemented yet",
+        ))
     }
 
     async fn contracts(
         &self,
         _req: Request<ContractsRequest>,
     ) -> Result<Response<ContractsResponse>, Status> {
-        todo!("implement contracts method")
+        Err(Status::unimplemented(
+            "contracts method is not implemented yet",
+        ))
     }
 }
 
