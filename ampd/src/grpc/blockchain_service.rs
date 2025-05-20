@@ -104,7 +104,9 @@ where
         &self,
         _req: Request<ContractsRequest>,
     ) -> Result<Response<ContractsResponse>, Status> {
-        todo!("implement contracts method")
+        Err(Status::unimplemented(
+            "contracts method is not implemented yet",
+        ))
     }
 }
 

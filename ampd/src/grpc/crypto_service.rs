@@ -25,7 +25,7 @@ where
     T: Multisig + Send + Sync + 'static,
 {
     async fn sign(&self, _req: Request<SignRequest>) -> Result<Response<SignResponse>, Status> {
-        todo!("implement sign method")
+        Err(Status::unimplemented("sign method is not implemented yet"))
     }
 
     async fn key(&self, req: Request<KeyRequest>) -> Result<Response<KeyResponse>, Status> {

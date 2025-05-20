@@ -22,8 +22,7 @@ use xrpl_types::types::XRPLAccountId;
 
 use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error::{self, DeserializeEvent};
-use crate::tofnd::Algorithm;
-use crate::tofnd::Multisig;
+use crate::tofnd::{Algorithm, Multisig};
 use crate::types::{PublicKey, TMAddress};
 
 #[derive(Debug, Deserialize)]
