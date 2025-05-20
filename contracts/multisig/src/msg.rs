@@ -6,10 +6,7 @@ use cosmwasm_std::{Addr, HexBinary, Uint128, Uint64};
 use msgs_derive::EnsurePermissions;
 use router_api::ChainName;
 
-pub use crate::contract::MigrateMsg;
-use crate::key::{KeyType, PublicKey, Signature};
-use crate::multisig::Multisig;
-use crate::verifier_set::VerifierSet;
+use crate::{KeyType, Multisig, PublicKey, Signature, VerifierSet};
 
 #[cw_serde]
 pub struct InstantiateMsg {
