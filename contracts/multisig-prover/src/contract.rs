@@ -126,8 +126,7 @@ mod tests {
     use cosmwasm_std::{
         from_json, Addr, Empty, Fraction, OwnedDeps, SubMsgResponse, SubMsgResult, Uint128, Uint64,
     };
-    use multisig::msg::Signer;
-    use multisig::VerifierSet;
+    use multisig::{Signer, VerifierSet};
     use multisig_prover_api::encoding::Encoder;
     use prost::Message;
     use router_api::CrossChainId;

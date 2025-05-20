@@ -192,9 +192,7 @@ mod test {
     use cosmrs::AccountId;
     use cosmwasm_std::{HexBinary, Uint64};
     use error_stack::{Report, Result};
-    use multisig::events::Event;
-    use multisig::key::PublicKey;
-    use multisig::types::MsgToSign;
+    use multisig::{Event, MsgToSign, PublicKey};
     use rand::rngs::OsRng;
     use router_api::ChainName;
     use tendermint::abci;
@@ -208,8 +206,8 @@ mod test {
     const MULTISIG_ADDRESS: &str = "axelarvaloper1zh9wrak6ke4n6fclj5e8yk397czv430ygs5jz7";
     const PREFIX: &str = "axelar";
 
-    fn rand_public_key() -> multisig::key::PublicKey {
-        multisig::key::PublicKey::Ecdsa(HexBinary::from(
+    fn rand_public_key() -> multisig::PublicKey {
+        multisig::PublicKey::Ecdsa(HexBinary::from(
             k256::ecdsa::SigningKey::random(&mut OsRng)
                 .verifying_key()
                 .to_sec1_bytes()
@@ -225,7 +223,7 @@ mod test {
     fn signing_started_event() -> events::Event {
         let pub_keys = (0..10)
             .map(|_| (TMAddress::random(PREFIX).to_string(), rand_public_key()))
-            .collect::<HashMap<String, multisig::key::PublicKey>>();
+            .collect::<HashMap<String, multisig::PublicKey>>();
 
         let poll_started = Event::SigningStarted {
             session_id: Uint64::one(),

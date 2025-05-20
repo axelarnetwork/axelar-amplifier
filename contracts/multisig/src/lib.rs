@@ -1,11 +1,11 @@
 mod client;
 pub mod contract;
 mod error;
-pub mod events;
+mod events;
 mod exported;
 pub mod key;
 pub mod msg;
-pub mod multisig;
+mod multisig;
 mod signing;
 mod state;
 pub mod types;

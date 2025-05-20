@@ -31,11 +31,11 @@ impl From<KeyType> for tofnd::Algorithm {
     }
 }
 
-impl From<KeyType> for multisig::key::KeyType {
+impl From<KeyType> for multisig::KeyType {
     fn from(val: KeyType) -> Self {
         match val {
-            KeyType::Ecdsa => multisig::key::KeyType::Ecdsa,
-            KeyType::Ed25519 => multisig::key::KeyType::Ed25519,
+            KeyType::Ecdsa => multisig::KeyType::Ecdsa,
+            KeyType::Ed25519 => multisig::KeyType::Ed25519,
         }
     }
 }

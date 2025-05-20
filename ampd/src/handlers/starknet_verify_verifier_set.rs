@@ -169,8 +169,8 @@ mod tests {
     use error_stack::Result;
     use ethers_core::types::U256;
     use events::Event;
-    use multisig::key::KeyType;
     use multisig::test::common::{build_verifier_set, ecdsa_test_data};
+    use multisig::KeyType;
     use rand::Rng;
     use starknet_checked_felt::CheckedFelt;
     use tendermint::abci;

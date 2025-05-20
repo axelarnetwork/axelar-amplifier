@@ -347,8 +347,7 @@ mod test {
     use cosmwasm_std::testing::MockApi;
     use cosmwasm_std::{Attribute, Uint128};
     use multisig::test::common::{build_verifier_set, ecdsa_test_data};
-    use multisig::verifier_set::VerifierSet;
-    use multisig::KeyType;
+    use multisig::{KeyType, VerifierSet};
     use router_api::{CrossChainId, Message};
     use serde_json::json;
 

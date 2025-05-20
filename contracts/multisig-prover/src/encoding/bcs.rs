@@ -107,8 +107,7 @@ mod tests {
     use axelar_wasm_std::hash::Hash;
     use cosmwasm_std::testing::MockApi;
     use cosmwasm_std::{HexBinary, Uint128};
-    use multisig::msg::Signer;
-    use multisig::{KeyType, VerifierSet};
+    use multisig::{KeyType, Signer, VerifierSet};
     use router_api::{CrossChainId, Message};
 
     use super::payload_digest;

@@ -147,8 +147,7 @@ mod test {
     use axelar_wasm_std::snapshot::Participant;
     use cosmwasm_std::testing::MockApi;
     use cosmwasm_std::{HexBinary, Uint128};
-    use multisig::key::PublicKey;
-    use multisig::verifier_set::VerifierSet;
+    use multisig::{PublicKey, VerifierSet};
     use router_api::{CrossChainId, Message as RouterMessage};
 
     use crate::{Message, WeightedSigners};

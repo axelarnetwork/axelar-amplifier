@@ -176,24 +176,24 @@ mod tests {
 
     fn fixture_rotate_verifier_set() -> (String, VerifierSetRotated, multisig::VerifierSet) {
         let base64_data = "c2lnbmVycyByb3RhdGVkXw== AgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA= rGbfImIlluyfNx5TfhnZEDS+uUBKCSDRAJ28Znulbgw=";
-        let verifier_set = multisig::verifier_set::VerifierSet {
+        let verifier_set = multisig::VerifierSet {
             signers: {
                 let mut map = BTreeMap::new();
                 map.insert(
                     "aabbcc".to_string(),
-                    multisig::msg::Signer {
+                    multisig::Signer {
                         weight: 500_u128.into(),
                         address: cosmwasm_std::Addr::unchecked("axelar1abc"),
-                        pub_key: multisig::key::PublicKey::Ecdsa(HexBinary::from_hex(
+                        pub_key: multisig::PublicKey::Ecdsa(HexBinary::from_hex(
                     "036773a9d49a2a2f04b4aa8724d0f40e197570e4bb85f6b826da2a4ec25996d018",
                 )
                 .unwrap()),
                     },
                 );
-                map.insert("aabbccdd".to_string(), multisig::msg::Signer {
+                map.insert("aabbccdd".to_string(), multisig::Signer {
                         weight: 200_u128.into(),
                         address: cosmwasm_std::Addr::unchecked("axelar1abcaa"),
-                        pub_key: multisig::key::PublicKey::Ecdsa(HexBinary::from_hex("038f8504c6ec6c16f2b37897d33bdb0667da32d18c7144365a47ac934abedcc0ba").unwrap())
+                        pub_key: multisig::PublicKey::Ecdsa(HexBinary::from_hex("038f8504c6ec6c16f2b37897d33bdb0667da32d18c7144365a47ac934abedcc0ba").unwrap())
                     });
                 map
             },

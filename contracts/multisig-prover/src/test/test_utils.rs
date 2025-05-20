@@ -1,10 +1,7 @@
 use axelar_wasm_std::VerificationStatus;
 use cosmwasm_std::testing::MockApi;
 use cosmwasm_std::{from_json, to_json_binary, QuerierResult, Uint128, WasmQuery};
-use multisig::msg::Signer;
-use multisig::multisig::Multisig;
-use multisig::types::MultisigState;
-use multisig::verifier_set::VerifierSet;
+use multisig::{Multisig, MultisigState, Signer, VerifierSet};
 use service_registry::VERIFIER_WEIGHT;
 use service_registry_api::{AuthorizationState, BondingState, Verifier, WeightedVerifier};
 
@@ -59,14 +56,12 @@ fn gateway_mock_querier_handler() -> QuerierResult {
 }
 
 fn multisig_mock_querier_handler(
-    msg: multisig::msg::QueryMsg,
+    msg: multisig::QueryMsg,
     operators: Vec<TestOperator>,
 ) -> QuerierResult {
     let result = match msg {
-        multisig::msg::QueryMsg::Multisig { session_id: _ } => {
-            to_json_binary(&mock_multisig(operators))
-        }
-        multisig::msg::QueryMsg::PublicKey {
+        multisig::QueryMsg::Multisig { session_id: _ } => to_json_binary(&mock_multisig(operators)),
+        multisig::QueryMsg::PublicKey {
             verifier_address,
             key_type: _,
         } => to_json_binary(

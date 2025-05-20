@@ -204,8 +204,8 @@ mod tests {
     use ethers_core::types::H256;
     use ethers_providers::ProviderError;
     use events::Event;
-    use multisig::key::KeyType;
     use multisig::test::common::{build_verifier_set, ecdsa_test_data};
+    use multisig::KeyType;
     use router_api::ChainName;
     use tokio::sync::watch;
     use tokio::test as async_test;

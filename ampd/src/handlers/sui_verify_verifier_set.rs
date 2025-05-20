@@ -157,8 +157,8 @@ mod tests {
     use error_stack::Report;
     use ethers_providers::ProviderError;
     use events::Event;
-    use multisig::key::KeyType;
     use multisig::test::common::{build_verifier_set, ecdsa_test_data};
+    use multisig::KeyType;
     use sui_types::base_types::{SuiAddress, SUI_ADDRESS_LENGTH};
     use tokio::sync::watch;
     use tokio::test as async_test;

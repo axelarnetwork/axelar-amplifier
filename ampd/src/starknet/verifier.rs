@@ -100,8 +100,7 @@ mod tests {
     use axelar_wasm_std::voting::Vote;
     use cosmwasm_std::{Addr, HexBinary, Uint128};
     use ethers_core::types::H256;
-    use multisig::msg::Signer;
-    use multisig::verifier_set::VerifierSet;
+    use multisig::{Signer, VerifierSet};
     use router_api::ChainName;
     use starknet_checked_felt::CheckedFelt;
     use starknet_core::types::Felt;
@@ -269,7 +268,7 @@ mod tests {
         let signers = vec![Signer {
             address: Addr::unchecked("axelarvaloper1x86a8prx97ekkqej2x636utrdu23y8wupp9gk5"),
             weight: Uint128::from(10u128),
-            pub_key: multisig::key::PublicKey::Ecdsa(
+            pub_key: multisig::PublicKey::Ecdsa(
                 HexBinary::from_hex(
                     "03d123ce370b163acd576be0e32e436bb7e63262769881d35fa3573943bf6c6f81",
                 )
