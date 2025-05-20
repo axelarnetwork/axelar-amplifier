@@ -46,6 +46,7 @@ multisig-prover-api = { workspace = true }
 report = { workspace = true }
 router-api = { workspace = true }
 semver = { workspace = true }
+serde_json = { workspace = true }
 service-registry-api = { workspace = true }
 thiserror = { workspace = true }
 voting-verifier-api = { workspace = true }

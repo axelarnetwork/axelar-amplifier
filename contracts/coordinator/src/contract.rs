@@ -112,17 +112,9 @@ pub fn execute(
             execute::set_active_verifier_set(deps, info, verifiers)
         }
         ExecuteMsg::InstantiateChainContracts {
-            chain_name,
             deployment_name,
             params,
-        } => execute::instantiate_chain_contracts(
-            deps,
-            env,
-            info,
-            chain_name,
-            deployment_name,
-            params.as_ref(),
-        ),
+        } => execute::instantiate_chain_contracts(deps, env, info, deployment_name, &params),
     }
     .change_context(Error::Execute)?
     .then(Ok)

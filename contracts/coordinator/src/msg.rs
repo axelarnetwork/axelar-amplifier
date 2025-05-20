@@ -49,9 +49,8 @@ pub enum ExecuteMsg {
 
     #[permission(Any)]
     InstantiateChainContracts {
-        chain_name: ChainName,
         deployment_name: String,
-        params: Box<DeploymentParams>,
+        params: DeploymentParams,
     },
 }
 
@@ -86,9 +85,9 @@ pub struct ProverMsg {
 
 #[cw_serde]
 pub struct VerifierMsg {
-    pub governance_address: String,
-    pub service_name: String,
-    pub source_gateway_address: String,
+    pub governance_address: nonempty::String,
+    pub service_name: nonempty::String,
+    pub source_gateway_address: nonempty::String,
     pub voting_threshold: MajorityThreshold,
     pub block_expiry: nonempty::Uint64,
     pub confirmation_height: u64,

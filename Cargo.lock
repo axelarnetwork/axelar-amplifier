@@ -2285,6 +2285,7 @@ dependencies = [
  "report",
  "router-api",
  "semver 1.0.26",
+ "serde_json",
  "service-registry-api",
  "thiserror 1.0.69",
  "tofn",
