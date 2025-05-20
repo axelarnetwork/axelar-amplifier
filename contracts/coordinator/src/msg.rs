@@ -7,7 +7,7 @@ use msgs_derive::EnsurePermissions;
 use router_api::ChainName;
 use service_registry_api::Verifier;
 
-pub use crate::MigrateMsg;
+pub use crate::contract::MigrateMsg;
 
 type ProverAddress = Addr;
 type GatewayAddress = Addr;
