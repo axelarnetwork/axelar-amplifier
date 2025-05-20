@@ -63,7 +63,7 @@ mod tests {
         let algorithm = Algorithm::Ecdsa;
         let signing_key = k256::ecdsa::SigningKey::random(&mut OsRng);
         let verifying_key = signing_key.verifying_key();
-        let expected_pub_key = PublicKey::new_secp256k1(&verifying_key.to_sec1_bytes()).unwrap();
+        let expected_pub_key = PublicKey::new_secp256k1(verifying_key.to_sec1_bytes()).unwrap();
 
         let mut multisig = MockMultisig::new();
         multisig

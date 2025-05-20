@@ -226,7 +226,7 @@ where
 
                 self.signer.sign(
                     self.pub_key.0.as_str(),
-                    sign_digest.into(),
+                    sign_digest,
                     (&self.pub_key.1).into(),
                     tofnd::Algorithm::Ecdsa,
                 )

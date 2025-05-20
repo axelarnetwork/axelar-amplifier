@@ -112,10 +112,10 @@ impl Multisig for MultisigClient {
             .and_then(|res| match &res {
                 SignResponse::Signature(signature) => match algorithm {
                     Algorithm::Ecdsa => {
-                        k256::ecdsa::Signature::from_der(&signature).map(|sig| sig.to_vec())
+                        k256::ecdsa::Signature::from_der(signature).map(|sig| sig.to_vec())
                     }
                     Algorithm::Ed25519 => {
-                        ed25519_dalek::Signature::from_slice(&signature).map(|sig| sig.to_vec())
+                        ed25519_dalek::Signature::from_slice(signature).map(|sig| sig.to_vec())
                     }
                 }
                 .change_context(Error::InvalidSignResponse)

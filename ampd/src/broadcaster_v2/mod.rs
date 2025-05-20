@@ -174,7 +174,7 @@ where
 
                 self.signer.sign(
                     &self.key_id,
-                    sign_digest.into(),
+                    sign_digest,
                     pub_key.into(),
                     tofnd::Algorithm::Ecdsa,
                 )
