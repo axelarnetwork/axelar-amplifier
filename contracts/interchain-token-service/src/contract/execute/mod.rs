@@ -7,10 +7,10 @@ use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
 use crate::events::Event;
 use crate::msg::SupplyModifier;
 use crate::primitives::HubMessage;
-use crate::state::{TokenDeploymentType, TokenConfig, TokenInstance, TokenSupply};
+use crate::state::{TokenConfig, TokenDeploymentType, TokenInstance, TokenSupply};
 use crate::{
     msg, state, DeployInterchainToken, InterchainTransfer, LinkToken, Message,
-    RegisterTokenMetadata, TokenId
+    RegisterTokenMetadata, TokenId,
 };
 
 mod interceptors;

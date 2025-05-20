@@ -99,7 +99,9 @@ impl TokenSupply {
         .then(Ok)
     }
     // TODO: add verification
-    pub fn try_from_msg_token_supply(supply: msg::TokenSupply) -> Result<Self, axelar_wasm_std::address::Error> {
+    pub fn try_from_msg_token_supply(
+        supply: msg::TokenSupply,
+    ) -> Result<Self, axelar_wasm_std::address::Error> {
         match supply {
             msg::TokenSupply::Tracked(amount) => Ok(TokenSupply::Tracked(amount)),
             msg::TokenSupply::Untracked => Ok(TokenSupply::Untracked),
@@ -118,7 +120,7 @@ impl From<TokenInstance> for msg::TokenInstance {
     fn from(token_instance: TokenInstance) -> Self {
         Self {
             supply: token_instance.supply.into(),
-            decimals: token_instance.decimals
+            decimals: token_instance.decimals,
         }
     }
 }
@@ -141,7 +143,9 @@ impl TokenInstance {
     }
 
     // TODO: add verification
-    pub fn try_from_msg_token_instance(token_instance: msg::TokenInstance) -> Result<Self, axelar_wasm_std::address::Error> {
+    pub fn try_from_msg_token_instance(
+        token_instance: msg::TokenInstance,
+    ) -> Result<Self, axelar_wasm_std::address::Error> {
         Ok(Self {
             supply: TokenSupply::try_from_msg_token_supply(token_instance.supply)?,
             decimals: token_instance.decimals,
@@ -172,7 +176,9 @@ impl From<TokenConfig> for msg::TokenConfig {
 
 impl TokenConfig {
     // TODO: add verification
-    pub fn try_from_msg_token_config(token_config: msg::TokenConfig) -> Result<Self, axelar_wasm_std::address::Error> {
+    pub fn try_from_msg_token_config(
+        token_config: msg::TokenConfig,
+    ) -> Result<Self, axelar_wasm_std::address::Error> {
         Ok(Self {
             origin_chain: token_config.origin_chain,
         })
