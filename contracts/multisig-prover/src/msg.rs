@@ -5,7 +5,7 @@ use msgs_derive::EnsurePermissions;
 pub use multisig_prover_api::msg::InstantiateMsg;
 use router_api::CrossChainId;
 
-pub use crate::contract::MigrateMsg;
+pub use crate::MigrateMsg;
 use crate::Payload;
 
 #[cw_serde]
