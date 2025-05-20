@@ -15,7 +15,7 @@ use serde::Deserialize;
 use sui_types::base_types::SuiAddress;
 use tokio::sync::watch::Receiver;
 use tracing::info;
-use voting_verifier::msg::ExecuteMsg;
+use voting_verifier::ExecuteMsg;
 
 use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error;

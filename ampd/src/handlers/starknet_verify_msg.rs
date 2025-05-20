@@ -16,7 +16,7 @@ use serde::Deserialize;
 use starknet_checked_felt::CheckedFelt;
 use tokio::sync::watch::Receiver;
 use tracing::info;
-use voting_verifier::msg::ExecuteMsg;
+use voting_verifier::ExecuteMsg;
 
 use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error;
