@@ -1,8 +1,9 @@
 use std::collections::HashMap;
+use std::str::FromStr;
 
 use axelar_wasm_std::error::ContractError;
 use axelar_wasm_std::voting::{PollId, Vote};
-use axelar_wasm_std::{Threshold, VerificationStatus};
+use axelar_wasm_std::{nonempty, Threshold, VerificationStatus};
 use cosmwasm_std::{Addr, HexBinary};
 use cw_multi_test::AppResponse;
 use error_stack::Report;
@@ -13,7 +14,7 @@ use integration_tests::protocol::Protocol;
 use integration_tests::voting_verifier_contract::VotingVerifierContract;
 use multisig::key::KeyType;
 use multisig_prover_api::encoding::Encoder;
-use router_api::{CrossChainId, Message};
+use router_api::{Address, CrossChainId, Message};
 
 use crate::test_utils::Chain;
 
@@ -27,27 +28,32 @@ struct DeployedContracts {
 
 fn deploy_chains(
     protocol: &mut Protocol,
-    chain: &Chain,
     chain_name: &str,
+    chain: &Chain,
     deployment_name: &str,
     register_with_router: bool,
 ) -> Result<AppResponse, Report<ContractError>> {
+    // TODO: Remove walls of code
     let res = protocol.coordinator.execute(
         &mut protocol.app,
         protocol.governance_address.clone(),
         &coordinator::msg::ExecuteMsg::InstantiateChainContracts {
-            chain_name: chain_name.parse().unwrap(),
             deployment_name: deployment_name.to_string(),
-            params: Box::new(coordinator::msg::DeploymentParams::Manual {
+            params: coordinator::msg::DeploymentParams::Manual {
                 gateway_code_id: chain.gateway.code_id,
                 gateway_label: "Gateway1.0.0".to_string(),
                 verifier_code_id: chain.voting_verifier.code_id,
                 verifier_label: "Verifier1.0.0".to_string(),
                 verifier_msg: coordinator::msg::VerifierMsg {
-                    governance_address: protocol.governance_address.to_string(),
-                    service_name: protocol.service_name.parse().unwrap(),
-                    source_gateway_address: "0x4F4495243837681061C4743b74B3eEdf548D56A5"
-                        .to_string(),
+                    governance_address: nonempty::String::try_from(
+                        protocol.governance_address.to_string(),
+                    )
+                    .unwrap(),
+                    service_name: protocol.service_name.clone(),
+                    source_gateway_address: nonempty::String::try_from(
+                        "0x4F4495243837681061C4743b74B3eEdf548D56A5".to_string(),
+                    )
+                    .unwrap(),
                     voting_threshold: Threshold::try_from((3, 4)).unwrap().try_into().unwrap(),
                     block_expiry: 10.try_into().unwrap(),
                     confirmation_height: 5,
@@ -77,7 +83,7 @@ fn deploy_chains(
                     key_type: KeyType::Ecdsa,
                     domain_separator: [0; 32],
                 },
-            }),
+            },
         },
     )?;
 
@@ -88,7 +94,13 @@ fn deploy_chains(
         protocol.governance_address.clone(),
         &coordinator::msg::ExecuteMsg::RegisterProverContract {
             chain_name: chain_name.parse().unwrap(),
-            new_prover_addr: contracts.multisig_prover.contract_addr.to_string(),
+            new_prover_addr: contracts
+                .multisig_prover
+                .contract_addr
+                .to_string()
+                .trim_matches(|c| c == '"' || c == '/')
+                .parse()
+                .unwrap(),
         },
     );
     assert!(response.is_ok());
@@ -98,7 +110,13 @@ fn deploy_chains(
         protocol.governance_address.clone(),
         &multisig::msg::ExecuteMsg::AuthorizeCallers {
             contracts: HashMap::from([(
-                contracts.multisig_prover.contract_addr.to_string(),
+                contracts
+                    .multisig_prover
+                    .contract_addr
+                    .to_string()
+                    .trim_matches(|c| c == '"' || c == '/')
+                    .parse()
+                    .unwrap(),
                 chain_name.parse().unwrap(),
             )]),
         },
@@ -110,12 +128,14 @@ fn deploy_chains(
             protocol.governance_address.clone(),
             &router_api::msg::ExecuteMsg::RegisterChain {
                 chain: chain_name.parse().unwrap(),
-                gateway_address: contracts
-                    .gateway
-                    .contract_addr
-                    .to_string()
-                    .try_into()
-                    .unwrap(),
+                gateway_address: Address::from_str(
+                    contracts
+                        .gateway
+                        .contract_addr
+                        .to_string()
+                        .trim_matches(|c| c == '"' || c == '/'),
+                )
+                .unwrap(),
                 msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
             },
         )?;
@@ -130,19 +150,30 @@ fn gather_contracts(protocol: &Protocol, app_response: AppResponse) -> DeployedC
     let mut multisig_prover = MultisigProverContract::default();
 
     for e in app_response.events {
-        if e.ty == "wasm-coordinator_deploy_contracts" {
+        if e.ty == "wasm-gateway" {
             for attribute in e.attributes {
-                if attribute.key == "gateway_address" {
-                    gateway.contract_addr = Addr::unchecked(attribute.value);
-                } else if attribute.key == "voting_verifier_address" {
-                    voting_verifier.contract_addr = Addr::unchecked(attribute.value);
-                } else if attribute.key == "multisig_prover_address" {
-                    multisig_prover.contract_addr = Addr::unchecked(attribute.value);
-                } else if attribute.key == "gateway_code_id" {
+                if attribute.key == "address" {
+                    gateway.contract_addr =
+                        Addr::unchecked(attribute.value.trim_matches(|c| c == '"' || c == '/'));
+                } else if attribute.key == "code_id" {
                     gateway.code_id = attribute.value.parse().unwrap();
-                } else if attribute.key == "voting_verifier_code_id" {
+                }
+            }
+        } else if e.ty == "wasm-voting_verifier" {
+            for attribute in e.attributes {
+                if attribute.key == "address" {
+                    voting_verifier.contract_addr =
+                        Addr::unchecked(attribute.value.trim_matches(|c| c == '"' || c == '/'));
+                } else if attribute.key == "code_id" {
                     voting_verifier.code_id = attribute.value.parse().unwrap();
-                } else if attribute.key == "multisig_prover_code_id" {
+                }
+            }
+        } else if e.ty == "wasm-multisig_prover" {
+            for attribute in e.attributes {
+                if attribute.key == "address" {
+                    multisig_prover.contract_addr =
+                        Addr::unchecked(attribute.value.trim_matches(|c| c == '"' || c == '/'));
+                } else if attribute.key == "code_id" {
                     multisig_prover.code_id = attribute.value.parse().unwrap();
                 }
             }
@@ -166,7 +197,8 @@ fn coordinator_one_click_deployment_succeeds() {
         ..
     } = test_utils::setup_test_case();
 
-    let res = deploy_chains(&mut protocol, &chain1, "testchain", "testchain", true);
+    // TODO: Reformat to not have chain name and deployment name adjacent (avoid confusion). General case should have them as different
+    let res = deploy_chains(&mut protocol, "testchain", &chain1, "testchaindeploy", true);
     assert!(res.is_ok());
 
     let new_contracts = gather_contracts(&protocol, res.unwrap());
@@ -176,6 +208,7 @@ fn coordinator_one_click_deployment_succeeds() {
         .wrap()
         .query_wasm_contract_info(new_contracts.gateway.contract_addr.to_string().clone());
     assert!(res.is_ok());
+
     assert_eq!(res.unwrap().code_id, chain1.gateway.code_id);
 
     let res = protocol
@@ -205,16 +238,16 @@ fn coordinator_one_click_distinct_deployment_names_succeed() {
 
     assert!(deploy_chains(
         &mut protocol,
-        &chain1,
         chain_name.as_str(),
+        &chain1,
         "testchain1",
         false
     )
     .is_ok());
     assert!(deploy_chains(
         &mut protocol,
-        &chain1,
         chain_name.as_str(),
+        &chain1,
         "testchain2",
         false
     )
@@ -234,16 +267,16 @@ fn coordinator_one_click_multiple_deployments_succeeds() {
 
     assert!(deploy_chains(
         &mut protocol,
-        &chain1,
         chain_name_1.as_str(),
+        &chain1,
         chain_name_1.as_str(),
         false
     )
     .is_ok());
     assert!(deploy_chains(
         &mut protocol,
-        &chain1,
         chain_name_2.as_str(),
+        &chain1,
         chain_name_2.as_str(),
         false
     )
@@ -312,8 +345,8 @@ fn coordinator_one_click_contract_interactions_succeeds() {
 
     let res = deploy_chains(
         &mut protocol,
-        &chain1,
         chain_name.as_str(),
+        &chain1,
         chain_name.as_str(),
         true,
     );

@@ -355,7 +355,7 @@ pub fn instantiate_chain_contracts(
 
             response = response
                 .add_message(msg)
-                .add_event(ContractInstantiated::VotingVerifier {
+                .add_event(ContractInstantiated::MultisigProver {
                     address: multisig_prover_address.clone(),
                     code_id: *prover_code_id,
                 });
