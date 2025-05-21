@@ -8,7 +8,7 @@ on:
 
 jobs:
   build-and-push-latest-docker-image:
-    runs-on: ubuntu-22.04
+    runs-on: blacksmith-32vcpu-ubuntu-2204
     permissions:
       id-token: write
       contents: read
