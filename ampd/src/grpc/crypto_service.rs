@@ -40,7 +40,7 @@ where
                 pub_key: pub_key.to_bytes(),
             })
             .map(Response::new)
-            .inspect_err(status::log("message broadcast error"))
+            .inspect_err(status::log("query key error"))
             .map_err(status::StatusExt::into_status)
     }
 }
