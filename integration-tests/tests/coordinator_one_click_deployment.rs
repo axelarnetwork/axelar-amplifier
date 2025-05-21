@@ -39,7 +39,7 @@ fn deploy_chains(
         protocol.governance_address.clone(),
         &coordinator::msg::ExecuteMsg::InstantiateChainContracts {
             deployment_name: deployment_name.to_string(),
-            params: coordinator::msg::DeploymentParams::Manual {
+            params: Box::new(coordinator::msg::DeploymentParams::Manual {
                 gateway_code_id: chain.gateway.code_id,
                 gateway_label: "Gateway1.0.0".to_string(),
                 verifier_code_id: chain.voting_verifier.code_id,
@@ -83,7 +83,7 @@ fn deploy_chains(
                     key_type: KeyType::Ecdsa,
                     domain_separator: [0; 32],
                 },
-            },
+            }),
         },
     )?;
 

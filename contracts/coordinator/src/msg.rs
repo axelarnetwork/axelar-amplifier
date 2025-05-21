@@ -50,7 +50,7 @@ pub enum ExecuteMsg {
     #[permission(Any)]
     InstantiateChainContracts {
         deployment_name: String,
-        params: DeploymentParams,
+        params: Box<DeploymentParams>,
     },
 }
 
