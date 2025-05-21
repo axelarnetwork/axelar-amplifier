@@ -33,7 +33,7 @@ fn deploy_chains(
     deployment_name: &str,
     register_with_router: bool,
 ) -> Result<AppResponse, Report<ContractError>> {
-    // TODO: Remove walls of code
+    // Deploy gateway, verifier and prover using InstantiateChainContracts
     let res = protocol.coordinator.execute(
         &mut protocol.app,
         protocol.governance_address.clone(),
@@ -87,6 +87,7 @@ fn deploy_chains(
         },
     )?;
 
+    // Gather each contract's address from the returned events
     let contracts = gather_contracts(protocol, res.clone());
 
     let response = protocol.coordinator.execute(
@@ -190,14 +191,13 @@ fn gather_contracts(protocol: &Protocol, app_response: AppResponse) -> DeployedC
 }
 
 #[test]
-fn coordinator_one_click_deployment_succeeds() {
+fn coordinator_one_click_deploys_each_contract_using_correct_code_ids_and_bytecode() {
     let test_utils::TestCase {
         mut protocol,
         chain1,
         ..
     } = test_utils::setup_test_case();
 
-    // TODO: Reformat to not have chain name and deployment name adjacent (avoid confusion). General case should have them as different
     let res = deploy_chains(&mut protocol, "testchain", &chain1, "testchaindeploy", true);
     assert!(res.is_ok());
 
@@ -208,7 +208,6 @@ fn coordinator_one_click_deployment_succeeds() {
         .wrap()
         .query_wasm_contract_info(new_contracts.gateway.contract_addr.to_string().clone());
     assert!(res.is_ok());
-
     assert_eq!(res.unwrap().code_id, chain1.gateway.code_id);
 
     let res = protocol
@@ -227,7 +226,8 @@ fn coordinator_one_click_deployment_succeeds() {
 }
 
 #[test]
-fn coordinator_one_click_distinct_deployment_names_succeed() {
+fn coordinator_one_click_instantiates_contracts_same_chainname_different_deployment_names_succeeds()
+{
     let test_utils::TestCase {
         mut protocol,
         chain1,
@@ -255,7 +255,8 @@ fn coordinator_one_click_distinct_deployment_names_succeed() {
 }
 
 #[test]
-fn coordinator_one_click_multiple_deployments_succeeds() {
+fn coordinator_one_click_instantiates_contracts_different_chainname_different_deployment_names_succeeds(
+) {
     let test_utils::TestCase {
         mut protocol,
         chain1,
@@ -284,7 +285,64 @@ fn coordinator_one_click_multiple_deployments_succeeds() {
 }
 
 #[test]
-fn coordinator_one_click_contract_interactions_succeeds() {
+fn coordinator_one_click_instantiates_contracts_different_chainname_same_deployment_names_fails() {
+    let test_utils::TestCase {
+        mut protocol,
+        chain1,
+        ..
+    } = test_utils::setup_test_case();
+
+    let chain_name_1 = String::from("testchain1");
+    let chain_name_2 = String::from("testchain2");
+
+    assert!(deploy_chains(
+        &mut protocol,
+        chain_name_1.as_str(),
+        &chain1,
+        chain_name_1.as_str(),
+        false
+    )
+    .is_ok());
+    assert!(deploy_chains(
+        &mut protocol,
+        chain_name_2.as_str(),
+        &chain1,
+        chain_name_1.as_str(),
+        false
+    )
+    .is_err());
+}
+
+#[test]
+fn coordinator_one_click_instantiates_contracts_same_chainname_same_deployment_names_fails() {
+    let test_utils::TestCase {
+        mut protocol,
+        chain1,
+        ..
+    } = test_utils::setup_test_case();
+
+    let chain_name = String::from("testchain");
+
+    assert!(deploy_chains(
+        &mut protocol,
+        chain_name.as_str(),
+        &chain1,
+        chain_name.as_str(),
+        false
+    )
+    .is_ok());
+    assert!(deploy_chains(
+        &mut protocol,
+        chain_name.as_str(),
+        &chain1,
+        chain_name.as_str(),
+        false
+    )
+    .is_err());
+}
+
+#[test]
+fn coordinator_one_click_message_verification_and_routing_succeeds() {
     let test_utils::TestCase {
         mut protocol,
         chain1,
