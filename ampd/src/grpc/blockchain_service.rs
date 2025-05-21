@@ -95,14 +95,18 @@ where
         &self,
         _req: Request<AddressRequest>,
     ) -> Result<Response<AddressResponse>, Status> {
-        todo!("implement address method")
+        Ok(Response::new(AddressResponse {
+            address: self.msg_queue_client.address().to_string(),
+        }))
     }
 
     async fn contracts(
         &self,
         _req: Request<ContractsRequest>,
     ) -> Result<Response<ContractsResponse>, Status> {
-        todo!("implement contracts method")
+        Err(Status::unimplemented(
+            "contracts method is not implemented yet",
+        ))
     }
 }
 
@@ -806,6 +810,50 @@ mod tests {
         let res = service.contract_state(req).await.unwrap().into_inner();
 
         assert_eq!(res.result, result);
+    }
+
+    #[tokio::test]
+    async fn address_should_return_msg_queue_client_address() {
+        let pub_key = random_cosmos_public_key();
+        let expected_address: TMAddress = pub_key.account_id(PREFIX).unwrap().into();
+        let base_account = BaseAccount {
+            address: expected_address.to_string(),
+            pub_key: None,
+            account_number: 42,
+            sequence: 10,
+        };
+
+        let mut mock_cosmos_client = MockCosmosClient::new();
+        mock_cosmos_client.expect_account().return_once(move |_| {
+            Ok(QueryAccountResponse {
+                account: Some(Any::from_msg(&base_account).unwrap()),
+            })
+        });
+        let broadcaster = broadcaster_v2::Broadcaster::new(
+            mock_cosmos_client,
+            "chain-id".parse().unwrap(),
+            pub_key,
+        )
+        .await
+        .unwrap();
+
+        let (_, msg_queue_client) = broadcaster_v2::MsgQueue::new_msg_queue_and_client(
+            broadcaster,
+            10,
+            1000u64,
+            Duration::from_secs(1),
+        );
+
+        let service = Service::builder()
+            .event_sub(MockEventSub::new())
+            .msg_queue_client(msg_queue_client)
+            .cosmos_client(MockCosmosClient::new())
+            .build();
+
+        let req = Request::new(AddressRequest {});
+        let res = service.address(req).await.unwrap().into_inner();
+
+        assert_eq!(res.address, expected_address.to_string());
     }
 
     fn subscribe_req(
