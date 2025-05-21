@@ -95,8 +95,6 @@ where
         })
         .collect::<Result<Vec<_>>>()?;
 
-    tokio::time::sleep(Duration::new(1, 0)).await;
-
     Ok(iter::once(Event::BlockBegin(block_height))
         .chain(events)
         .chain(iter::once(Event::BlockEnd(block_height)))
@@ -133,6 +131,7 @@ impl BlockState {
                 .await?;
         }
 
+        tokio::time::sleep(Duration::from_secs(1)).await;
         match token.is_cancelled() {
             true => Ok(None),
             false => {
