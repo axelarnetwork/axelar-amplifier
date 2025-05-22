@@ -1,6 +1,7 @@
-use tokio::sync::mpsc::Sender;
-use crate::metrics::msg::MetricsMsg;
 use tokio::sync::mpsc::error::TrySendError;
+use tokio::sync::mpsc::Sender;
+
+use crate::metrics::msg::MetricsMsg;
 
 #[derive(Clone)]
 pub struct MetricsClient {

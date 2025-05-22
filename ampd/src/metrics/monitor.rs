@@ -9,8 +9,9 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tokio_util::sync::CancellationToken;
 use tracing::info;
-use crate::metrics::server::MetricsServer;
+
 use crate::metrics::msg::MetricsError;
+use crate::metrics::server::MetricsServer;
 
 #[derive(Error, Debug)]
 pub enum Error {
@@ -26,16 +27,16 @@ pub struct Server {
 }
 
 impl Server {
-  
-    pub fn new(bind_address: SocketAddrV4) 
-        -> Result<(Self, crate::metrics::client::MetricsClient), prometheus::Error> {
+    pub fn new(
+        bind_address: SocketAddrV4,
+    ) -> Result<(Self, crate::metrics::client::MetricsClient), prometheus::Error> {
         let (client, server) = crate::metrics::setup::create_metrics()?;
         Ok((
-            Self { 
-                bind_address, 
-                metrics_server: server
+            Self {
+                bind_address,
+                metrics_server: server,
             },
-            client
+            client,
         ))
     }
     pub async fn run(self, cancel: CancellationToken) -> Result<(), Error> {
@@ -48,12 +49,11 @@ impl Server {
             "starting monitor server"
         );
 
-        let app = Router::new()
-        .route("/status", get(status))
-        .route("/metrics", get(move || metrics(self.metrics_server.clone())));
-        
+        let app = Router::new().route("/status", get(status)).route(
+            "/metrics",
+            get(move || metrics(self.metrics_server.clone())),
+        );
 
-        
         axum::serve(listener, app)
             .with_graceful_shutdown(async move {
                 cancel.cancelled().await;
@@ -78,8 +78,8 @@ async fn metrics(metrics_server: Arc<MetricsServer>) -> (StatusCode, String) {
                 MetricsError::Utf8Error => "UTF-8 conversion error",
             };
             (
-                StatusCode::INTERNAL_SERVER_ERROR, 
-                format!("Failed to gather metrics: {}", error_type)
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Failed to gather metrics: {}", error_type),
             )
         }
     }
@@ -103,8 +103,8 @@ mod tests {
     async fn server_lifecycle() {
         let bind_address = test_bind_addr();
 
-        let (server, _metrics_client) = Server::new(bind_address)
-            .expect("Failed to create server and metrics client");
+        let (server, _metrics_client) =
+            Server::new(bind_address).expect("Failed to create server and metrics client");
 
         let cancel = CancellationToken::new();
 
@@ -141,10 +141,9 @@ mod tests {
     #[async_test]
     async fn server_with_metrics() {
         let bind_address = test_bind_addr();
-        let (server, metrics_client) = Server::new(bind_address)
-        .expect("Failed to create server with metrics");
-    
-        
+        let (server, metrics_client) =
+            Server::new(bind_address).expect("Failed to create server with metrics");
+
         let cancel = CancellationToken::new();
 
         tokio::spawn(server.run(cancel.clone()));
@@ -153,43 +152,47 @@ mod tests {
 
         tokio::time::sleep(Duration::from_millis(100)).await;
 
- 
         let status_response = reqwest::get(&status_url).await.unwrap();
         assert_eq!(reqwest::StatusCode::OK, status_response.status());
-        
-   
+
         let initial_metrics = reqwest::get(&metrics_url).await.unwrap();
         assert_eq!(reqwest::StatusCode::OK, initial_metrics.status());
         let initial_text = initial_metrics.text().await.unwrap();
-        
-  
-        assert!(initial_text.contains("blocks_received 0"), 
-                "got: {}, should be 0 ", initial_text);
-               
+
+        assert!(
+            initial_text.contains("blocks_received 0"),
+            "got: {}, should be 0 ",
+            initial_text
+        );
+
         let mut handles = vec![];
 
         for i in 0..3 {
-            let client_clone = metrics_client.clone(); 
+            let client_clone = metrics_client.clone();
             let handle = tokio::spawn(async move {
-                client_clone.inc_block_received()
+                client_clone
+                    .inc_block_received()
                     .expect(&format!("Task {} failed to increase block counter", i));
             });
             handles.push(handle);
         }
-        
+
         for handle in handles {
             handle.await.expect("Task failed");
         }
-    
+
         tokio::time::sleep(Duration::from_millis(50)).await;
-        
+
         let updated_metrics = reqwest::get(&metrics_url).await.unwrap();
         assert_eq!(reqwest::StatusCode::OK, updated_metrics.status());
         let updated_text = updated_metrics.text().await.unwrap();
-        
-        assert!(updated_text.contains("blocks_received 3"), 
-                "got {} block, should be 3", updated_text);
-        
+
+        assert!(
+            updated_text.contains("blocks_received 3"),
+            "got {} block, should be 3",
+            updated_text
+        );
+
         cancel.cancel();
         tokio::time::sleep(Duration::from_millis(100)).await;
 
