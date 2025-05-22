@@ -94,6 +94,14 @@ pub enum Config {
         rpc_url: Url,
         rpc_timeout: Option<Duration>,
     },
+    StacksMsgVerifier {
+        cosmwasm_contract: TMAddress,
+        http_url: Url,
+    },
+    StacksVerifierSetVerifier {
+        cosmwasm_contract: TMAddress,
+        http_url: Url,
+    },
 }
 
 fn validate_starknet_msg_verifier_config<'de, D>(configs: &[Config]) -> Result<(), D::Error>
@@ -216,6 +224,16 @@ where
         &configs,
         Config::SolanaVerifierSetVerifier,
         "Solana verifier set verifier"
+    )?;
+    ensure_unique_config!(
+        &configs,
+        Config::StacksMsgVerifier,
+        "Stacks message verifier"
+    )?;
+    ensure_unique_config!(
+        &configs,
+        Config::StacksVerifierSetVerifier,
+        "Stacks verifier set verifier"
     )?;
 
     Ok(configs)
@@ -379,6 +397,40 @@ mod tests {
         assert!(
             matches!(deserialize_handler_configs(to_value(configs).unwrap()),
                 Err(e) if e.to_string().contains("only one Solana verifier set verifier config is allowed")
+            )
+        );
+
+        let configs = vec![
+            Config::StacksMsgVerifier {
+                cosmwasm_contract: TMAddress::random(PREFIX),
+                http_url: "http://localhost:8080/".parse().unwrap(),
+            },
+            Config::StacksMsgVerifier {
+                cosmwasm_contract: TMAddress::random(PREFIX),
+                http_url: "http://localhost:8080/".parse().unwrap(),
+            },
+        ];
+
+        assert!(
+            matches!(deserialize_handler_configs(to_value(configs).unwrap()),
+                Err(e) if e.to_string().contains("only one Stacks message verifier config is allowed")
+            )
+        );
+
+        let configs = vec![
+            Config::StacksVerifierSetVerifier {
+                cosmwasm_contract: TMAddress::random(PREFIX),
+                http_url: "http://localhost:8080/".parse().unwrap(),
+            },
+            Config::StacksVerifierSetVerifier {
+                cosmwasm_contract: TMAddress::random(PREFIX),
+                http_url: "http://localhost:8080/".parse().unwrap(),
+            },
+        ];
+
+        assert!(
+            matches!(deserialize_handler_configs(to_value(configs).unwrap()),
+                Err(e) if e.to_string().contains("only one Stacks verifier set verifier config is allowed")
             )
         );
     }
