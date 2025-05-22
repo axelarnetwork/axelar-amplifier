@@ -1,4 +1,4 @@
-health_check_bind_addr = '0.0.0.0:3000'
+prometheus_monitor_bind_addr = '0.0.0.0:3000'
 tm_jsonrpc = 'http://localhost:26657/'
 tm_grpc = 'tcp://localhost:9090'
 
