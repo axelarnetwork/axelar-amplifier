@@ -1,7 +1,8 @@
 use std::str::FromStr;
 
 use ampd_proto::{
-    Algorithm, BroadcastRequest, ContractStateRequest, KeyId, KeyRequest, SubscribeRequest,
+    Algorithm, BroadcastRequest, ContractStateRequest, KeyId, KeyRequest, SignRequest,
+    SubscribeRequest,
 };
 use axelar_wasm_std::nonempty;
 use cosmrs::Any;
@@ -59,6 +60,17 @@ pub fn validate_key(
     validate_key_id(key_id.unwrap_or_default())
 }
 
+pub fn validate_sign(
+    req: Request<SignRequest>,
+) -> Result<(nonempty::String, tofnd::Algorithm, nonempty::Vec<u8>), Error> {
+    let SignRequest { key_id, msg } = req.into_inner();
+
+    let (id, algorithm) = validate_key_id(key_id.unwrap_or_default())?;
+    let msg = nonempty::Vec::<u8>::try_from(msg).change_context(Error::EmptySignMsg)?;
+
+    Ok((id, algorithm, msg))
+}
+
 fn validate_key_id(key_id: KeyId) -> Result<(nonempty::String, tofnd::Algorithm), Error> {
     let KeyId { id, algorithm } = key_id;
 
@@ -88,6 +100,8 @@ pub enum Error {
     EmptyKeyId,
     #[error("invalid crypto algorithm {0}")]
     InvalidCryptoAlgorithm(i32),
+    #[error("empty sign message")]
+    EmptySignMsg,
 }
 
 #[derive(Debug)]
@@ -579,5 +593,54 @@ mod tests {
 
         let result = validate_key_id(key_id_obj);
         assert_err_contains!(result, Error, Error::InvalidCryptoAlgorithm(_));
+    }
+
+    #[test]
+    fn validate_sign_should_extract_key_id_algorithm_and_message() {
+        let key_id = "test_key";
+        let algorithm = ampd_proto::Algorithm::Ecdsa;
+        let message = vec![1, 2, 3, 4];
+
+        let req = Request::new(SignRequest {
+            key_id: Some(KeyId {
+                id: key_id.to_string(),
+                algorithm: algorithm.into(),
+            }),
+            msg: message.clone(),
+        });
+
+        let (result_id, result_algorithm, result_msg) = validate_sign(req).unwrap();
+        assert_eq!(result_id.as_str(), key_id);
+        assert_eq!(result_algorithm, tofnd::Algorithm::Ecdsa);
+        assert_eq!(result_msg.as_ref().as_slice(), message);
+    }
+
+    #[test]
+    fn validate_sign_should_fail_when_no_key_id_is_provided() {
+        let message = vec![1, 2, 3, 4];
+        let req = Request::new(SignRequest {
+            key_id: None,
+            msg: message,
+        });
+
+        let result = validate_sign(req);
+        assert_err_contains!(result, Error, Error::EmptyKeyId);
+    }
+
+    #[test]
+    fn validate_sign_should_fail_with_empty_message() {
+        let key_id = "test_key";
+        let algorithm = ampd_proto::Algorithm::Ecdsa;
+
+        let req = Request::new(SignRequest {
+            key_id: Some(KeyId {
+                id: key_id.to_string(),
+                algorithm: algorithm.into(),
+            }),
+            msg: vec![],
+        });
+
+        let result = validate_sign(req);
+        assert_err_contains!(result, Error, Error::EmptySignMsg);
     }
 }

@@ -1,4 +1,4 @@
-use std::convert::{TryFrom, TryInto};
+use std::convert::TryFrom;
 
 use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmrs::tx::Msg;
@@ -69,11 +69,7 @@ pub async fn run(config: Config, args: Args) -> Result<Option<String>, Error> {
 
     let sender = pub_key.account_id(PREFIX).change_context(Error::Tofnd)?;
 
-    let address_hash: [u8; 32] = Keccak256::digest(sender.as_ref().as_bytes())
-        .as_slice()
-        .try_into()
-        .expect("wrong length");
-
+    let address_hash: [u8; 32] = Keccak256::digest(sender.as_ref().as_bytes()).into();
     let signed_sender_address = multisig_client
         .sign(
             &multisig_address.to_string(),
