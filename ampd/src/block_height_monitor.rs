@@ -7,8 +7,8 @@ use tokio::{select, time};
 use tokio_util::sync::CancellationToken;
 use tracing::info;
 
-use crate::tm_client::TmClient;
 use crate::metrics::client::MetricsClient;
+use crate::tm_client::TmClient;
 
 pub struct BlockHeightMonitor<T: TmClient + Sync> {
     latest_height_tx: Sender<u64>,
@@ -26,7 +26,10 @@ pub enum BlockHeightMonitorError {
     SendMetrics,
 }
 impl<T: TmClient + Sync> BlockHeightMonitor<T> {
-    pub async fn connect(client: T, metrics_client: Option<MetricsClient>) -> Result<Self, BlockHeightMonitorError> {
+    pub async fn connect(
+        client: T,
+        metrics_client: Option<MetricsClient>,
+    ) -> Result<Self, BlockHeightMonitorError> {
         let latest_block = client
             .latest_block()
             .await
@@ -50,7 +53,7 @@ impl<T: TmClient + Sync> BlockHeightMonitor<T> {
 
     pub async fn run(self, token: CancellationToken) -> Result<(), BlockHeightMonitorError> {
         let mut interval = time::interval(self.poll_interval);
-        let mut previous_height = *self.latest_height_rx.borrow();  
+        let mut previous_height = *self.latest_height_rx.borrow();
 
         loop {
             select! {
@@ -186,7 +189,6 @@ mod tests {
             .return_once(move || mock_client_2);
         let (tx, mut rx) = tokio::sync::mpsc::channel(100);
         let metrics_client = Some(crate::metrics::client::MetricsClient::new(tx));
-        
 
         let token = CancellationToken::new();
         let poll_interval = Duration::new(0, 1e7 as u32);
@@ -200,15 +202,10 @@ mod tests {
         time::sleep(poll_interval * 5).await;
         let mut block_count = 0;
         while let Ok(_msg) = rx.try_recv() {
-                block_count += 1;
+            block_count += 1;
         }
         token.cancel();
         assert!(handle.await.is_ok(), "Monitor should exit cleanly");
         assert!(block_count > 12, "expect around 15 blocks to be received");
-    
-       
     }
 }
-
-    
-
