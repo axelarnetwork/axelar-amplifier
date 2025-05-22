@@ -54,6 +54,7 @@ mod tofnd;
 mod types;
 mod url;
 mod xrpl;
+pub mod metrics;
 
 use crate::asyncutil::future::RetryPolicy;
 use crate::broadcaster::confirm_tx::TxConfirmer;
