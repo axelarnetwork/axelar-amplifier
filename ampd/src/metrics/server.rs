@@ -46,9 +46,9 @@ impl MetricsServer {
        
         encoder
         .encode(&metric_families, &mut buffer)
-        .map_err(|e| MetricsError::EncodeError(e.to_string()))?;
+        .map_err(|_e| MetricsError::EncodeError)?;
 
         String::from_utf8(buffer)
-            .map_err(|e| MetricsError::Utf8Error(e.to_string()))
+            .map_err(|_e| MetricsError::Utf8Error)
     }
 }

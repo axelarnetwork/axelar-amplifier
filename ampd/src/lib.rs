@@ -1,6 +1,7 @@
 use std::pin::Pin;
 use std::time::Duration;
 
+
 use asyncutil::task::{CancellableTask, TaskError, TaskGroup};
 use block_height_monitor::BlockHeightMonitor;
 use broadcaster::Broadcaster;
@@ -25,7 +26,7 @@ use tokio::time::interval;
 use tokio_util::sync::CancellationToken;
 use tracing::info;
 use types::{CosmosPublicKey, TMAddress};
-
+use crate::metrics::monitor;
 use crate::config::Config;
 
 mod asyncutil;
@@ -41,7 +42,7 @@ mod event_sub;
 mod evm;
 mod grpc;
 mod handlers;
-mod health_check;
+
 mod json_rpc;
 mod mvx;
 mod queue;
@@ -77,10 +78,12 @@ async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
         event_processor,
         service_registry: _service_registry,
         rewards: _rewards,
-        health_check_bind_addr,
+        monitor_bind_addr,
         grpc: grpc_config,
     } = cfg;
 
+    let (monitor_server, metrics_client) = metrics::monitor::Server::new(monitor_bind_addr)
+    .change_context(Error::MetricsSetup)?;
     let tm_client = tendermint_rpc::HttpClient::new(tm_jsonrpc.to_string().as_str())
         .change_context(Error::Connection)
         .attach_printable(tm_jsonrpc.clone())?;
@@ -92,7 +95,7 @@ async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
     .await
     .change_context(Error::Connection)
     .attach_printable(tofnd_config.url)?;
-    let block_height_monitor = BlockHeightMonitor::connect(tm_client.clone())
+    let block_height_monitor = BlockHeightMonitor::connect(tm_client.clone(), Some(metrics_client.clone()))
         .await
         .change_context(Error::Connection)
         .attach_printable(tm_jsonrpc)?;
@@ -160,7 +163,7 @@ async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
         },
     );
 
-    let health_check_server = health_check::Server::new(health_check_bind_addr);
+ 
 
     let verifier: TMAddress = pub_key
         .account_id(PREFIX)
@@ -174,9 +177,10 @@ async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
         tx_confirmer,
         multisig_client,
         block_height_monitor,
-        health_check_server,
+        monitor_server,
         grpc_server,
         broadcaster_task,
+        metrics_client,
     )
     .configure_handlers(verifier, handlers, event_processor)
     .await
@@ -209,13 +213,14 @@ where
     tx_confirmer: TxConfirmer<CosmosGrpcClient>,
     multisig_client: MultisigClient,
     block_height_monitor: BlockHeightMonitor<tendermint_rpc::HttpClient>,
-    health_check_server: health_check::Server,
+    monitor_server: monitor::Server,
     grpc_server: grpc::Server,
     broadcaster_task: broadcaster_v2::BroadcasterTask<
         cosmos::CosmosGrpcClient,
         Pin<Box<MsgQueue>>,
         MultisigClient,
     >,
+    metrics_client: metrics::client::MetricsClient,
 }
 
 impl<T> App<T>
@@ -230,13 +235,14 @@ where
         tx_confirmer: TxConfirmer<CosmosGrpcClient>,
         multisig_client: MultisigClient,
         block_height_monitor: BlockHeightMonitor<tendermint_rpc::HttpClient>,
-        health_check_server: health_check::Server,
+        monitor_server: monitor::Server,
         grpc_server: grpc::Server,
         broadcaster_task: broadcaster_v2::BroadcasterTask<
             cosmos::CosmosGrpcClient,
             Pin<Box<MsgQueue>>,
             MultisigClient,
         >,
+        metrics_client: metrics::client::MetricsClient
     ) -> Self {
         let event_processor = TaskGroup::new("event handler");
 
@@ -248,9 +254,10 @@ where
             tx_confirmer,
             multisig_client,
             block_height_monitor,
-            health_check_server,
+            monitor_server,
             grpc_server,
             broadcaster_task,
+            metrics_client,
         }
     }
 
@@ -609,7 +616,7 @@ where
             broadcaster,
             tx_confirmer,
             block_height_monitor,
-            health_check_server,
+            monitor_server,
             grpc_server,
             broadcaster_task,
             ..
@@ -643,7 +650,7 @@ where
                     .change_context(Error::EventPublisher)
             }))
             .add_task(CancellableTask::create(|token| {
-                health_check_server
+                monitor_server
                     .run(token)
                     .change_context(Error::HealthCheck)
             }))
@@ -696,4 +703,6 @@ pub enum Error {
     HealthCheck,
     #[error("gRPC server failed")]
     GrpcServer,
+    #[error("metrics setup failed")]
+    MetricsSetup,
 }

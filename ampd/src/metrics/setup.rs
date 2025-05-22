@@ -27,7 +27,7 @@ mod tests {
     async fn test_create_metrics_returns_valid_components() {
         let result = create_metrics();
         assert!(result.is_ok(), "create_metrics should succeed");
-        let (client, server) = result.unwrap();
+        let (_client , server) = result.unwrap();
         let metrics = server.gather().expect("Failed to gather metrics");
         assert!(metrics.contains("blocks_received 0"), "Initial metrics should show 0 blocks");
     }
