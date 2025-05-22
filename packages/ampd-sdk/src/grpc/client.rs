@@ -4,7 +4,7 @@ use std::vec;
 use ampd_proto;
 use ampd_proto::blockchain_service_client::BlockchainServiceClient;
 use ampd_proto::crypto_service_client::CryptoServiceClient;
-use ampd_proto::SubscribeRequest;
+use ampd_proto::{AddressRequest, SubscribeRequest};
 use async_trait::async_trait;
 use error_stack::{report, Report, Result, ResultExt};
 use events::{AbciEventTypeFilter, Event};
@@ -12,7 +12,9 @@ use futures::StreamExt;
 use mockall::automock;
 use thiserror::Error;
 use tokio_stream::Stream;
-use tonic::transport;
+use tonic::{transport, Request};
+
+type AmpdBroadcasterAddress = String;
 
 #[derive(Error, Debug)]
 pub enum Error {
@@ -40,6 +42,8 @@ pub trait Client {
         filters: Vec<AbciEventTypeFilter>,
         include_block_begin_end: bool,
     ) -> Result<Self::Stream, Error>;
+
+    async fn address(&mut self) -> Result<AmpdBroadcasterAddress, Error>;
 }
 
 #[allow(dead_code)]
@@ -104,6 +108,21 @@ impl Client for GrpcClient {
         });
 
         Ok(Box::pin(transformed_stream))
+    }
+
+    async fn address(&mut self) -> Result<AmpdBroadcasterAddress, Error> {
+        let request = Request::new(AddressRequest {});
+
+        let address = self
+            .blockchain
+            .address(request)
+            .await
+            .map_err(Error::GrpcRequest)
+            .map_err(Report::new)?
+            .into_inner()
+            .address;
+
+        Ok(address)
     }
 }
 
