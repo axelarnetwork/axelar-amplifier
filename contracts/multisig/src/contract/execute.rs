@@ -18,13 +18,13 @@ pub fn start_signing_session(
     msg: MsgToSign,
     chain_name: ChainName,
     sig_verifier: Option<Addr>,
-) -> Result<Response, ContractError> {
+) -> error_stack::Result<Response, ContractError> {
     ensure!(
         killswitch::is_contract_active(deps.storage),
         ContractError::SigningDisabled
     );
 
-    let config = CONFIG.load(deps.storage)?;
+    let config = CONFIG.load(deps.storage).map_err(ContractError::from)?;
 
     let verifier_set = verifier_set(deps.storage, &verifier_set_id)?;
 
@@ -42,7 +42,8 @@ pub fn start_signing_session(
         .block
         .height
         .checked_add(config.block_expiry.into())
-        .ok_or_else(|| OverflowError::new(OverflowOperation::Add))?;
+        .ok_or_else(|| OverflowError::new(OverflowOperation::Add))
+        .map_err(ContractError::from)?;
 
     let signing_session = SigningSession::new(
         session_id,
@@ -53,7 +54,9 @@ pub fn start_signing_session(
         sig_verifier,
     );
 
-    SIGNING_SESSIONS.save(deps.storage, session_id.into(), &signing_session)?;
+    SIGNING_SESSIONS
+        .save(deps.storage, session_id.into(), &signing_session)
+        .map_err(ContractError::from)?;
 
     let event = Event::SigningStarted {
         session_id,
@@ -65,7 +68,7 @@ pub fn start_signing_session(
     };
 
     Ok(Response::new()
-        .set_data(to_json_binary(&session_id)?)
+        .set_data(to_json_binary(&session_id).map_err(ContractError::from)?)
         .add_event(event))
 }
 
@@ -75,17 +78,19 @@ pub fn submit_signature(
     info: MessageInfo,
     session_id: Uint64,
     signature: HexBinary,
-) -> Result<Response, ContractError> {
+) -> error_stack::Result<Response, ContractError> {
     ensure!(
         killswitch::is_contract_active(deps.storage),
         ContractError::SigningDisabled
     );
 
-    let config = CONFIG.load(deps.storage)?;
+    let config = CONFIG.load(deps.storage).map_err(ContractError::from)?;
     let mut session = SIGNING_SESSIONS
         .load(deps.storage, session_id.into())
         .map_err(|_| ContractError::SigningSessionNotFound { session_id })?;
-    let verifier_set = VERIFIER_SETS.load(deps.storage, &session.verifier_set_id)?;
+    let verifier_set = VERIFIER_SETS
+        .load(deps.storage, &session.verifier_set_id)
+        .map_err(ContractError::from)?;
 
     let pub_key = match verifier_set.signers.get(&info.sender.to_string()) {
         Some(signer) => Ok(&signer.pub_key),
@@ -100,12 +105,9 @@ pub fn submit_signature(
     let sig_verifier = session
         .sig_verifier
         .clone()
-        .map(|address| SignatureVerifier {
-            address,
-            querier: deps.querier,
-        });
+        .map(|address| SignatureVerifier::new(address, deps.querier));
 
-    validate_session_signature(
+    let sig_verifier_msg = validate_session_signature(
         &session,
         &info.sender,
         &signature,
@@ -115,12 +117,15 @@ pub fn submit_signature(
     )?;
     let signature = save_signature(deps.storage, session_id, signature, &info.sender)?;
 
-    let signatures = load_session_signatures(deps.storage, session_id.u64())?;
+    let signatures =
+        load_session_signatures(deps.storage, session_id.u64()).map_err(ContractError::from)?;
 
     let old_state = session.state.clone();
 
     session.recalculate_session_state(&signatures, &verifier_set, env.block.height);
-    SIGNING_SESSIONS.save(deps.storage, session.id.u64(), &session)?;
+    SIGNING_SESSIONS
+        .save(deps.storage, session.id.u64(), &session)
+        .map_err(ContractError::from)?;
 
     let state_changed = old_state != session.state;
 
@@ -131,14 +136,20 @@ pub fn submit_signature(
         signature,
         config.rewards_contract.into_string(),
     )
+    .map(|res| match sig_verifier_msg {
+        Some(msg) => res.add_message(msg),
+        None => res,
+    })
 }
 
 pub fn register_verifier_set(
     deps: DepsMut,
     verifier_set: VerifierSet,
-) -> Result<Response, ContractError> {
+) -> error_stack::Result<Response, ContractError> {
     let verifier_set_id = verifier_set.id();
-    VERIFIER_SETS.save(deps.storage, &verifier_set_id, &verifier_set)?;
+    VERIFIER_SETS
+        .save(deps.storage, &verifier_set_id, &verifier_set)
+        .map_err(ContractError::from)?;
 
     Ok(Response::default())
 }
@@ -148,7 +159,7 @@ pub fn register_pub_key(
     info: MessageInfo,
     public_key: PublicKey,
     signed_sender_address: HexBinary,
-) -> Result<Response, ContractError> {
+) -> error_stack::Result<Response, ContractError> {
     let signed_sender_address: Signature =
         (public_key.key_type(), signed_sender_address).try_into()?;
 
@@ -185,12 +196,13 @@ pub fn require_authorized_caller(
 pub fn authorize_callers(
     deps: DepsMut,
     contracts: HashMap<Addr, ChainName>,
-) -> Result<Response, ContractError> {
+) -> error_stack::Result<Response, ContractError> {
     contracts
         .iter()
         .try_for_each(|(contract_address, chain_name)| {
             AUTHORIZED_CALLERS.save(deps.storage, contract_address, chain_name)
-        })?;
+        })
+        .map_err(ContractError::from)?;
 
     Ok(
         Response::new().add_events(contracts.into_iter().map(|(contract_address, chain_name)| {
@@ -205,7 +217,7 @@ pub fn authorize_callers(
 pub fn unauthorize_callers(
     deps: DepsMut,
     contracts: HashMap<Addr, ChainName>,
-) -> Result<Response, ContractError> {
+) -> error_stack::Result<Response, ContractError> {
     contracts.iter().for_each(|(contract_address, _)| {
         AUTHORIZED_CALLERS.remove(deps.storage, contract_address)
     });
@@ -220,12 +232,12 @@ pub fn unauthorize_callers(
     )
 }
 
-pub fn enable_signing(deps: DepsMut) -> Result<Response, ContractError> {
-    killswitch::disengage(deps.storage, Event::SigningEnabled).map_err(|err| err.into())
+pub fn enable_signing(deps: DepsMut) -> error_stack::Result<Response, ContractError> {
+    Ok(killswitch::disengage(deps.storage, Event::SigningEnabled).map_err(ContractError::from)?)
 }
 
-pub fn disable_signing(deps: DepsMut) -> Result<Response, ContractError> {
-    killswitch::engage(deps.storage, Event::SigningDisabled).map_err(|err| err.into())
+pub fn disable_signing(deps: DepsMut) -> error_stack::Result<Response, ContractError> {
+    Ok(killswitch::engage(deps.storage, Event::SigningDisabled).map_err(ContractError::from)?)
 }
 
 fn signing_response(
@@ -234,7 +246,7 @@ fn signing_response(
     signer: Addr,
     signature: Signature,
     rewards_contract: String,
-) -> Result<Response, ContractError> {
+) -> error_stack::Result<Response, ContractError> {
     let rewards_msg = WasmMsg::Execute {
         contract_addr: rewards_contract,
         msg: to_json_binary(&rewards::msg::ExecuteMsg::RecordParticipation {
@@ -245,7 +257,8 @@ fn signing_response(
                 .try_into()
                 .expect("couldn't convert session_id to nonempty string"),
             verifier_address: signer.to_string(),
-        })?,
+        })
+        .map_err(ContractError::from)?,
         funds: vec![],
     };
 

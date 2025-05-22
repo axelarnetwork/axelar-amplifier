@@ -1,4 +1,5 @@
 use std::net::{Ipv4Addr, SocketAddrV4};
+use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 
@@ -7,7 +8,7 @@ use crate::handlers::config::deserialize_handler_configs;
 use crate::handlers::{self};
 use crate::tofnd::Config as TofndConfig;
 use crate::url::Url;
-use crate::{broadcaster, event_processor};
+use crate::{broadcaster, event_processor, grpc};
 
 #[derive(Deserialize, Serialize, Debug, PartialEq)]
 #[serde(default)]
@@ -15,6 +16,7 @@ pub struct Config {
     pub health_check_bind_addr: SocketAddrV4,
     pub tm_jsonrpc: Url,
     pub tm_grpc: Url,
+    pub tm_grpc_timeout: Duration,
     pub event_processor: event_processor::Config,
     pub broadcast: broadcaster::Config,
     #[serde(deserialize_with = "deserialize_handler_configs")]
@@ -22,6 +24,8 @@ pub struct Config {
     pub tofnd_config: TofndConfig,
     pub service_registry: ServiceRegistryConfig,
     pub rewards: RewardsConfig,
+    #[serde(deserialize_with = "grpc::deserialize_config")]
+    pub grpc: grpc::Config,
 }
 
 impl Default for Config {
@@ -29,6 +33,7 @@ impl Default for Config {
         Self {
             tm_jsonrpc: "http://localhost:26657".parse().unwrap(),
             tm_grpc: "tcp://localhost:9090".parse().unwrap(),
+            tm_grpc_timeout: Duration::from_secs(5),
             broadcast: broadcaster::Config::default(),
             handlers: vec![],
             tofnd_config: TofndConfig::default(),
@@ -36,6 +41,7 @@ impl Default for Config {
             service_registry: ServiceRegistryConfig::default(),
             rewards: RewardsConfig::default(),
             health_check_bind_addr: SocketAddrV4::new(Ipv4Addr::UNSPECIFIED, 3000),
+            grpc: grpc::Config::default(),
         }
     }
 }
@@ -59,6 +65,146 @@ mod tests {
     use crate::url::Url;
 
     const PREFIX: &str = "axelar";
+
+    #[test]
+    fn deserialize_valid_grpc_config() {
+        let ip_addr = "0.0.0.0";
+        let port = 9091;
+        let global_concurrency_limit = 2048;
+        let concurrency_limit_per_connection = 256;
+        let request_timeout = "30s";
+
+        let config_str = format!(
+            "
+            [grpc]
+            ip_addr = '{ip_addr}'
+            port = {port}
+            global_concurrency_limit = {global_concurrency_limit}
+            concurrency_limit_per_connection = {concurrency_limit_per_connection}
+            request_timeout = '{request_timeout}'
+            ",
+        );
+        let cfg: Config = toml::from_str(config_str.as_str()).unwrap();
+
+        goldie::assert_json!(cfg);
+    }
+
+    #[test]
+    fn deserialize_invalid_grpc_config() {
+        let ip_addr = "invalid_ip";
+        let port = 9091;
+        let global_concurrency_limit = 2048;
+        let concurrency_limit_per_connection = 256;
+        let request_timeout = "30s";
+
+        let config_str = format!(
+            "
+            [grpc]
+            ip_addr = '{ip_addr}'
+            port = {port}
+            global_concurrency_limit = {global_concurrency_limit}
+            concurrency_limit_per_connection = {concurrency_limit_per_connection}
+            request_timeout = '{request_timeout}'
+            ",
+        );
+        let cfg: Result<Config, _> = toml::from_str(config_str.as_str());
+        assert!(cfg.is_err());
+
+        let ip_addr = "0.0.0.0";
+        let port = "invalid_port";
+        let global_concurrency_limit = 2048;
+        let concurrency_limit_per_connection = 256;
+        let request_timeout = "30s";
+
+        let config_str = format!(
+            "
+            [grpc]
+            ip_addr = '{ip_addr}'
+            port = {port}
+            global_concurrency_limit = {global_concurrency_limit}
+            concurrency_limit_per_connection = {concurrency_limit_per_connection}
+            request_timeout = '{request_timeout}'
+            ",
+        );
+        let cfg: Result<Config, _> = toml::from_str(config_str.as_str());
+        assert!(cfg.is_err());
+
+        let ip_addr = "0.0.0.0";
+        let port = 9090;
+        let global_concurrency_limit = 0;
+        let concurrency_limit_per_connection = 256;
+        let request_timeout = "30s";
+
+        let config_str = format!(
+            "
+            [grpc]
+            ip_addr = '{ip_addr}'
+            port = {port}
+            global_concurrency_limit = {global_concurrency_limit}
+            concurrency_limit_per_connection = {concurrency_limit_per_connection}
+            request_timeout = '{request_timeout}'
+            ",
+        );
+        let cfg: Result<Config, _> = toml::from_str(config_str.as_str());
+        assert!(cfg.is_err());
+
+        let ip_addr = "0.0.0.0";
+        let port = 9090;
+        let global_concurrency_limit = 2048;
+        let concurrency_limit_per_connection = 0;
+        let request_timeout = "30s";
+
+        let config_str = format!(
+            "
+            [grpc]
+            ip_addr = '{ip_addr}'
+            port = {port}
+            global_concurrency_limit = {global_concurrency_limit}
+            concurrency_limit_per_connection = {concurrency_limit_per_connection}
+            request_timeout = '{request_timeout}'
+            ",
+        );
+        let cfg: Result<Config, _> = toml::from_str(config_str.as_str());
+        assert!(cfg.is_err());
+
+        let ip_addr = "0.0.0.0";
+        let port = 9090;
+        let global_concurrency_limit = 100;
+        let concurrency_limit_per_connection = 200;
+        let request_timeout = "30s";
+
+        let config_str = format!(
+            "
+            [grpc]
+            ip_addr = '{ip_addr}'
+            port = {port}
+            global_concurrency_limit = {global_concurrency_limit}
+            concurrency_limit_per_connection = {concurrency_limit_per_connection}
+            request_timeout = '{request_timeout}'
+            ",
+        );
+        let cfg: Result<Config, _> = toml::from_str(config_str.as_str());
+        assert!(cfg.is_err());
+
+        let ip_addr = "0.0.0.0";
+        let port = 9090;
+        let global_concurrency_limit = 100;
+        let concurrency_limit_per_connection = 100;
+        let invalid_request_timeout = "invalid_timeout";
+
+        let config_str = format!(
+            "
+            [grpc]
+            ip_addr = '{ip_addr}'
+            port = {port}
+            global_concurrency_limit = {global_concurrency_limit}
+            concurrency_limit_per_connection = {concurrency_limit_per_connection}
+            request_timeout = '{invalid_request_timeout}'
+            ",
+        );
+        let cfg: Result<Config, _> = toml::from_str(config_str.as_str());
+        assert!(cfg.is_err());
+    }
 
     #[test]
     fn deserialize_handlers() {
@@ -291,6 +437,10 @@ mod tests {
             url = '{url}'
             party_uid = '{party_uid}'
             key_uid = '{key_uid}'
+
+            [tofnd_config.timeout]
+            secs = 5
+            nanos = 0
             ",
         );
 

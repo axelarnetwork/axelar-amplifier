@@ -2,6 +2,7 @@
 name = "integration-tests"
 version = "1.0.0"
 rust-version = { workspace = true }
+license = "MIT OR Apache-2.0"
 edition = { workspace = true }
 description = "Amplifier Integration Tests"
 
@@ -33,10 +34,12 @@ error-stack = { workspace = true }
 ethers-core = { workspace = true }
 gateway = { workspace = true }
 gateway-api = { workspace = true }
+goldie = { workspace = true }
 interchain-token-service = { workspace = true }
 k256 = { workspace = true }
 multisig = { workspace = true }
 multisig-prover = { workspace = true }
+multisig-prover-api = { workspace = true }
 rand = { workspace = true }
 report = { workspace = true }
 rewards = { workspace = true }

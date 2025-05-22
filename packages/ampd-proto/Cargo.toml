@@ -1,0 +1,19 @@
+[package]
+name = "ampd-proto"
+version = "0.1.0"
+rust-version = { workspace = true }
+license = "MIT OR Apache-2.0"
+edition = { workspace = true }
+
+[dependencies]
+cosmrs = { workspace = true }
+prost = "0.13.5"
+prost-types = "0.13.5"
+serde_json = { workspace = true }
+tonic = "0.13.0"
+
+[build-dependencies]
+tonic-build = "0.13.0"
+
+[lints]
+workspace = true

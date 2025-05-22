@@ -2,7 +2,13 @@
 
 ## [Unreleased](https://github.com/axelarnetwork/axelar-amplifier/tree/HEAD)
 
-[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/ampd-v1.7.0..HEAD)
+[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/ampd-v1.8.0..HEAD)
+
+## [v1.8.0](https://github.com/axelarnetwork/axelar-amplifier/tree/ampd-v1.8.0) (2025-05-16)
+
+[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/ampd-v1.7.0..ampd-v1.8.0)
+
+- Change XRPL handler to listen to multisig contract [#850](https://github.com/axelarnetwork/axelar-amplifier/pull/850)
 
 ## [v1.7.0](https://github.com/axelarnetwork/axelar-amplifier/tree/ampd-v1.7.0) (2025-04-07)
 

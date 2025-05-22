@@ -4,6 +4,8 @@ use cosmwasm_std::HexBinary;
 use msgs_derive::EnsurePermissions;
 use router_api::{Address, ChainName, CrossChainId, Message};
 
+pub use crate::contract::MigrateMsg;
+
 #[cw_serde]
 pub enum ExecutableMessage {
     /// A message that has been sent by the router, but not executed yet.

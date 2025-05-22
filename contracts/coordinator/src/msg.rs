@@ -7,10 +7,18 @@ use msgs_derive::EnsurePermissions;
 use router_api::ChainName;
 use service_registry_api::Verifier;
 
+pub use crate::contract::MigrateMsg;
+
+type ProverAddress = Addr;
+type GatewayAddress = Addr;
+type VerifierAddress = Addr;
+
 #[cw_serde]
 pub struct InstantiateMsg {
     pub governance_address: String,
     pub service_registry: String,
+    pub router_address: String,
+    pub multisig_address: String,
 }
 
 #[cw_serde]
@@ -46,6 +54,9 @@ pub enum QueryMsg {
         service_name: String,
         verifier: String,
     },
+
+    #[returns(ChainContractsResponse)]
+    ChainContractsInfo(ChainContractsKey),
 }
 
 #[cw_serde]
@@ -54,4 +65,20 @@ pub struct VerifierInfo {
     pub weight: nonempty::Uint128,
     pub supported_chains: Vec<ChainName>,
     pub actively_signing_for: HashSet<Addr>,
+}
+
+#[cw_serde]
+pub enum ChainContractsKey {
+    ChainName(ChainName),
+    ProverAddress(ProverAddress),
+    GatewayAddress(GatewayAddress),
+    VerifierAddress(VerifierAddress),
+}
+
+#[cw_serde]
+pub struct ChainContractsResponse {
+    pub chain_name: ChainName,
+    pub prover_address: ProverAddress,
+    pub gateway_address: GatewayAddress,
+    pub verifier_address: VerifierAddress,
 }

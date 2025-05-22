@@ -13,6 +13,18 @@ use crate::nonempty::Error;
 #[derive(Eq, Hash, Valuable, IntoInner)]
 pub struct String(std::string::String);
 
+impl PartialEq<&str> for &String {
+    fn eq(&self, other: &&str) -> bool {
+        self.0 == *other
+    }
+}
+
+impl PartialEq<&str> for String {
+    fn eq(&self, other: &&str) -> bool {
+        self.0 == *other
+    }
+}
+
 impl TryFrom<std::string::String> for String {
     type Error = Error;
 

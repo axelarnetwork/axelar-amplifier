@@ -4,7 +4,7 @@ use std::future::Future;
 use cosmrs::proto::cosmos::tx::v1beta1::TxRaw;
 use cosmrs::tendermint::chain::Id;
 use cosmrs::tx::{BodyBuilder, Fee, SignDoc, SignerInfo};
-use cosmrs::{Any, Coin};
+use cosmrs::Any;
 use error_stack::{Context, Result, ResultExt};
 use report::ResultCompatExt;
 use thiserror::Error;
@@ -36,13 +36,12 @@ where
 }
 
 fn zero_fee() -> Fee {
-    Fee::from_amount_and_gas(
-        Coin {
-            denom: "".parse().unwrap(),
-            amount: 0,
-        },
-        0u64,
-    )
+    Fee {
+        amount: vec![],
+        gas_limit: 0,
+        payer: None,
+        granter: None,
+    }
 }
 
 impl<M> Tx<M>
@@ -102,14 +101,15 @@ mod tests {
     use cosmrs::proto::cosmos::tx::v1beta1::TxRaw;
     use cosmrs::proto::Any;
     use cosmrs::tendermint::chain::Id;
-    use cosmrs::tx::{BodyBuilder, Fee, Msg, SignDoc, SignerInfo};
-    use cosmrs::{AccountId, Coin};
+    use cosmrs::tx::{BodyBuilder, Msg, SignDoc, SignerInfo};
+    use cosmrs::AccountId;
     use error_stack::Result;
     use k256::ecdsa;
     use k256::sha2::{Digest, Sha256};
     use tokio::test;
 
     use super::{Error, Tx, DUMMY_CHAIN_ID};
+    use crate::broadcaster::tx::zero_fee;
     use crate::types::CosmosPublicKey;
 
     #[test]
@@ -141,15 +141,8 @@ mod tests {
             .unwrap();
 
         let body = BodyBuilder::new().msgs(msgs).finish();
-        let auth_info = SignerInfo::single_direct(Some(pub_key), acc_sequence).auth_info(
-            Fee::from_amount_and_gas(
-                Coin {
-                    denom: "".parse().unwrap(),
-                    amount: 0,
-                },
-                0u64,
-            ),
-        );
+        let auth_info =
+            SignerInfo::single_direct(Some(pub_key), acc_sequence).auth_info(zero_fee());
         let sign_doc = SignDoc::new(&body, &auth_info, &chain_id, acc_number).unwrap();
         let expected_tx = sign_doc
             .sign(&SigningKey::from_slice(priv_key_bytes.as_slice()).unwrap())
@@ -174,15 +167,8 @@ mod tests {
             .unwrap();
 
         let body = BodyBuilder::new().msgs(msgs).finish();
-        let auth_info = SignerInfo::single_direct(Some(pub_key), acc_sequence).auth_info(
-            Fee::from_amount_and_gas(
-                Coin {
-                    denom: "".parse().unwrap(),
-                    amount: 0,
-                },
-                0u64,
-            ),
-        );
+        let auth_info =
+            SignerInfo::single_direct(Some(pub_key), acc_sequence).auth_info(zero_fee());
         let expected_tx = TxRaw {
             body_bytes: body.into_bytes().unwrap(),
             auth_info_bytes: auth_info.into_bytes().unwrap(),
