@@ -3,8 +3,8 @@ use std::vec;
 
 use ampd_proto;
 use ampd_proto::blockchain_service_client::BlockchainServiceClient;
-use ampd_proto::{BroadcastRequest, BroadcastResponse, SubscribeRequest};
 use ampd_proto::crypto_service_client::CryptoServiceClient;
+use ampd_proto::{BroadcastRequest, BroadcastResponse, SubscribeRequest};
 use async_trait::async_trait;
 use error_stack::{report, Report, Result, ResultExt};
 use events::{AbciEventTypeFilter, Event};
@@ -123,9 +123,7 @@ impl Client for GrpcClient {
     }
 
     async fn broadcast(&mut self, msg: cosmrs::Any) -> Result<BrodcastClientReponse, Error> {
-        let request = BroadcastRequest {
-            msg: Some(msg),
-        };
+        let request = BroadcastRequest { msg: Some(msg) };
 
         let broadcast_response = self
             .blockchain
