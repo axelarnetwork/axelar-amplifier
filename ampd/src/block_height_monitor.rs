@@ -8,22 +8,25 @@ use tokio_util::sync::CancellationToken;
 use tracing::info;
 
 use crate::tm_client::TmClient;
+use crate::metrics::client::MetricsClient;
 
 pub struct BlockHeightMonitor<T: TmClient + Sync> {
     latest_height_tx: Sender<u64>,
     latest_height_rx: Receiver<u64>,
     client: T,
     poll_interval: Duration,
+    metrics_client: Option<MetricsClient>,
 }
 
 #[derive(Error, Debug)]
 pub enum BlockHeightMonitorError {
     #[error("failed to get latest block")]
     LatestBlock,
+    #[error("failed to send metrics")]
+    SendMetrics,
 }
-
 impl<T: TmClient + Sync> BlockHeightMonitor<T> {
-    pub async fn connect(client: T) -> Result<Self, BlockHeightMonitorError> {
+    pub async fn connect(client: T, metrics_client: Option<MetricsClient>) -> Result<Self, BlockHeightMonitorError> {
         let latest_block = client
             .latest_block()
             .await
@@ -35,6 +38,7 @@ impl<T: TmClient + Sync> BlockHeightMonitor<T> {
             latest_height_rx,
             client,
             poll_interval: Duration::new(3, 0),
+            metrics_client,
         })
     }
 
@@ -46,11 +50,22 @@ impl<T: TmClient + Sync> BlockHeightMonitor<T> {
 
     pub async fn run(self, token: CancellationToken) -> Result<(), BlockHeightMonitorError> {
         let mut interval = time::interval(self.poll_interval);
+        let mut previous_height = *self.latest_height_rx.borrow();  
 
         loop {
             select! {
                 _ = interval.tick() => {
                     let latest_block = self.client.latest_block().await.change_context(BlockHeightMonitorError::LatestBlock)?;
+                    let latest_height: u64 = latest_block.block.header.height.into();
+                    if latest_height > previous_height {
+                        if let Some(metrics) = &self.metrics_client {
+                            for _ in (previous_height + 1)..=latest_height {
+                                metrics.inc_block_received().
+                                map_err(|_e| BlockHeightMonitorError::SendMetrics)?;
+                            }
+                        }
+                    }
+                    previous_height = latest_height;
 
                     // expect is ok here, because the latest_height_rx receiver is never closed, and thus the channel should always be open
                     self.latest_height_tx.send(latest_block.block.header.height.into()).expect("failed to publish latest block height");
@@ -106,7 +121,8 @@ mod tests {
 
         let token = CancellationToken::new();
         let poll_interval = Duration::new(0, 1e7 as u32);
-        let monitor = BlockHeightMonitor::connect(mock_client)
+        let metric_client = None;
+        let monitor = BlockHeightMonitor::connect(mock_client, metric_client)
             .await
             .unwrap()
             .poll_interval(poll_interval);
@@ -146,4 +162,53 @@ mod tests {
             fn clone(&self) -> Self;
         }
     }
+
+    #[test]
+    #[allow(clippy::cast_possible_truncation)]
+    async fn test_metrcis_track_blocks_added() {
+        let block: tendermint::Block =
+            serde_json::from_str(include_str!("tests/axelar_block.json")).unwrap();
+        let mut height = u64::from(block.header.height);
+
+        let mut mock_client = MockTmClientClonable::new();
+        mock_client.expect_latest_block().returning(move || {
+            let mut block = block.clone();
+            height += 3;
+            block.header.height = height.try_into().unwrap();
+            Ok(tm_client::BlockResponse {
+                block_id: Default::default(),
+                block,
+            })
+        });
+        let mock_client_2 = MockTmClientClonable::new();
+        mock_client
+            .expect_clone()
+            .return_once(move || mock_client_2);
+        let (tx, mut rx) = tokio::sync::mpsc::channel(100);
+        let metrics_client = Some(crate::metrics::client::MetricsClient::new(tx));
+        
+
+        let token = CancellationToken::new();
+        let poll_interval = Duration::new(0, 1e7 as u32);
+        let monitor = BlockHeightMonitor::connect(mock_client, metrics_client.clone())
+            .await
+            .unwrap()
+            .poll_interval(poll_interval);
+        let exit_token = token.clone();
+        let handle = tokio::spawn(async move { monitor.run(exit_token).await });
+
+        time::sleep(poll_interval * 5).await;
+        let mut block_count = 0;
+        while let Ok(_msg) = rx.try_recv() {
+                block_count += 1;
+        }
+        token.cancel();
+        assert!(handle.await.is_ok(), "Monitor should exit cleanly");
+        assert!(block_count > 12, "expect around 15 blocks to be received");
+    
+       
+    }
 }
+
+    
+

@@ -9,29 +9,34 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tokio_util::sync::CancellationToken;
 use tracing::info;
-use crate::metrics::MetricsServer;
-use crate::metrics::MetricsError;
+use crate::metrics::server::MetricsServer;
+use crate::metrics::msg::MetricsError;
 
 #[derive(Error, Debug)]
 pub enum Error {
-    #[error("failed to start the health check server")]
+    #[error("failed to start the monitor server")]
     Start,
-    #[error("health check server failed unexpectedly")]
+    #[error("monitor server failed unexpectedly")]
     WhileRunning,
 }
 
 pub struct Server {
     bind_address: SocketAddrV4,
-    metrics_server: Option<Arc<MetricsServer>>,
+    metrics_server: Arc<MetricsServer>,
 }
 
 impl Server {
-    pub fn new(bind_address: SocketAddrV4) -> Self {
-        Self { bind_address, metrics_server: None}
-    }
-    pub fn with_metrics(mut self, metrics_server: Arc<MetricsServer>) -> Self {
-        self.metrics_server = Some(metrics_server);
-        self
+  
+    pub fn new(bind_address: SocketAddrV4) 
+        -> Result<(Self, crate::metrics::client::MetricsClient), prometheus::Error> {
+        let (client, server) = crate::metrics::setup::create_metrics()?;
+        Ok((
+            Self { 
+                bind_address, 
+                metrics_server: server
+            },
+            client
+        ))
     }
     pub async fn run(self, cancel: CancellationToken) -> Result<(), Error> {
         let listener = tokio::net::TcpListener::bind(self.bind_address)
@@ -40,19 +45,19 @@ impl Server {
 
         info!(
             address = self.bind_address.to_string(),
-            "starting health check server"
+            "starting monitor server"
         );
 
-        let mut app = Router::new().route("/status", get(status));
-        if let Some(metrics_server) = self.metrics_server {
-            app = app.route("/metrics", get(move || metrics(metrics_server.clone())));
-        }
+        let app = Router::new()
+        .route("/status", get(status))
+        .route("/metrics", get(move || metrics(self.metrics_server.clone())));
         
+
         
         axum::serve(listener, app)
             .with_graceful_shutdown(async move {
                 cancel.cancelled().await;
-                info!("exiting health check server")
+                info!("exiting monitor server")
             })
             .await
             .change_context(Error::WhileRunning)
@@ -69,8 +74,8 @@ async fn metrics(metrics_server: Arc<MetricsServer>) -> (StatusCode, String) {
         Ok(metrics_data) => (StatusCode::OK, metrics_data),
         Err(e) => {
             let error_type = match e {
-                MetricsError::EncodeError(_) => "encoding error",
-                MetricsError::Utf8Error(_) => "UTF-8 conversion error",
+                MetricsError::EncodeError => "encoding error",
+                MetricsError::Utf8Error => "UTF-8 conversion error",
             };
             (
                 StatusCode::INTERNAL_SERVER_ERROR, 
@@ -98,7 +103,8 @@ mod tests {
     async fn server_lifecycle() {
         let bind_address = test_bind_addr();
 
-        let server = Server::new(bind_address);
+        let (server, _metrics_client) = Server::new(bind_address)
+            .expect("Failed to create server and metrics client");
 
         let cancel = CancellationToken::new();
 
@@ -119,7 +125,7 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(100)).await;
 
         match reqwest::get(&url).await {
-            Ok(_) => panic!("health check server should be closed by now"),
+            Ok(_) => panic!("monitor server should be closed by now"),
             Err(error) => assert!(error.is_connect()),
         };
     }
@@ -134,12 +140,11 @@ mod tests {
     }
     #[async_test]
     async fn server_with_metrics() {
-        use crate::metrics::setup::create_metrics;
         let bind_address = test_bind_addr();
-        let (metrics_client, metrics_server) = create_metrics()
-            .expect("Failed to create metrics");
-
-        let server = Server::new(bind_address).with_metrics(metrics_server);
+        let (server, metrics_client) = Server::new(bind_address)
+        .expect("Failed to create server with metrics");
+    
+        
         let cancel = CancellationToken::new();
 
         tokio::spawn(server.run(cancel.clone()));

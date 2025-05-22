@@ -6,6 +6,6 @@ pub enum MetricsMsg {
 
 #[derive(Debug)]
 pub enum MetricsError {
-    EncodeError(String),
-    Utf8Error(String),
+    EncodeError,
+    Utf8Error,
 }
