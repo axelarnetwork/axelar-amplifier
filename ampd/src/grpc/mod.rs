@@ -26,7 +26,7 @@ mod status;
 
 #[derive(Error, Debug)]
 pub enum Error {
-    #[error("failed to start the gRPC server")]
+    #[error(transparent)]
     Transport(#[from] transport::Error),
 }
 
