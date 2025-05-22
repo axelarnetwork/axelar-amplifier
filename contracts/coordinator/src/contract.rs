@@ -113,8 +113,9 @@ pub fn execute(
         }
         ExecuteMsg::InstantiateChainContracts {
             deployment_name,
+            salt,
             params,
-        } => execute::instantiate_chain_contracts(deps, env, info, deployment_name, &params),
+        } => execute::instantiate_chain_contracts(deps, env, info, deployment_name, salt, *params),
     }
     .change_context(Error::Execute)?
     .then(Ok)

@@ -5,7 +5,7 @@ use axelar_wasm_std::hash::Hash;
 use axelar_wasm_std::msg_id::MessageIdFormat;
 use axelar_wasm_std::{nonempty, MajorityThreshold};
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::Addr;
+use cosmwasm_std::{Addr, Binary};
 use msgs_derive::EnsurePermissions;
 use multisig::key::KeyType;
 use multisig_prover_api::encoding::Encoder;
@@ -50,22 +50,30 @@ pub enum ExecuteMsg {
     #[permission(Any)]
     InstantiateChainContracts {
         deployment_name: String,
+        salt: Binary,
         params: Box<DeploymentParams>,
     },
 }
 
 #[cw_serde]
+pub struct ContractInfo<T> {
+    pub code_id: u64,
+    pub label: String,
+    pub msg: T,
+}
+
+#[cw_serde]
+pub struct ManualDeploymentParams {
+    pub gateway: ContractInfo<()>,
+    pub verifier: ContractInfo<VerifierMsg>,
+    pub prover: ContractInfo<ProverMsg>,
+}
+
+#[cw_serde]
+// The parameters used to configure each instantiation.
+// This is an enum to allow for additional parameter types in the future
 pub enum DeploymentParams {
-    Manual {
-        gateway_code_id: u64,
-        gateway_label: String,
-        verifier_code_id: u64,
-        verifier_label: String,
-        verifier_msg: VerifierMsg,
-        prover_code_id: u64,
-        prover_label: String,
-        prover_msg: ProverMsg,
-    },
+    Manual(ManualDeploymentParams), // user supplies all info that cannot be inferred by coordinator
 }
 
 #[cw_serde]

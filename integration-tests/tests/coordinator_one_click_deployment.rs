@@ -4,7 +4,10 @@ use std::str::FromStr;
 use axelar_wasm_std::error::ContractError;
 use axelar_wasm_std::voting::{PollId, Vote};
 use axelar_wasm_std::{nonempty, Threshold, VerificationStatus};
-use cosmwasm_std::{Addr, HexBinary};
+use coordinator::msg::{
+    ContractInfo, DeploymentParams, ManualDeploymentParams, ProverMsg, VerifierMsg,
+};
+use cosmwasm_std::{Addr, Binary, HexBinary};
 use cw_multi_test::AppResponse;
 use error_stack::Report;
 use integration_tests::contract::Contract;
@@ -30,60 +33,71 @@ fn deploy_chains(
     protocol: &mut Protocol,
     chain_name: &str,
     chain: &Chain,
-    deployment_name: &str,
+    deployment_name: String,
+    salt: Binary,
     register_with_router: bool,
 ) -> Result<AppResponse, Report<ContractError>> {
     // Deploy gateway, verifier and prover using InstantiateChainContracts
+
     let res = protocol.coordinator.execute(
         &mut protocol.app,
         protocol.governance_address.clone(),
         &coordinator::msg::ExecuteMsg::InstantiateChainContracts {
-            deployment_name: deployment_name.to_string(),
-            params: Box::new(coordinator::msg::DeploymentParams::Manual {
-                gateway_code_id: chain.gateway.code_id,
-                gateway_label: "Gateway1.0.0".to_string(),
-                verifier_code_id: chain.voting_verifier.code_id,
-                verifier_label: "Verifier1.0.0".to_string(),
-                verifier_msg: coordinator::msg::VerifierMsg {
-                    governance_address: nonempty::String::try_from(
-                        protocol.governance_address.to_string(),
-                    )
-                    .unwrap(),
-                    service_name: protocol.service_name.clone(),
-                    source_gateway_address: nonempty::String::try_from(
-                        "0x4F4495243837681061C4743b74B3eEdf548D56A5".to_string(),
-                    )
-                    .unwrap(),
-                    voting_threshold: Threshold::try_from((3, 4)).unwrap().try_into().unwrap(),
-                    block_expiry: 10.try_into().unwrap(),
-                    confirmation_height: 5,
-                    source_chain: chain_name.parse().unwrap(),
-                    rewards_address: protocol
-                        .rewards
-                        .contract_addr
-                        .to_string()
-                        .try_into()
-                        .unwrap(),
-                    msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
-                    address_format: axelar_wasm_std::address::AddressFormat::Eip55,
+            deployment_name,
+            salt,
+            params: Box::new(DeploymentParams::Manual(ManualDeploymentParams {
+                gateway: ContractInfo {
+                    code_id: chain.gateway.code_id,
+                    label: "Gateway1.0.0".to_string(),
+                    msg: (),
                 },
-                prover_code_id: chain.multisig_prover.code_id,
-                prover_label: "Prover1.0.0".to_string(),
-                prover_msg: coordinator::msg::ProverMsg {
-                    governance_address: protocol.governance_address.to_string(),
-                    multisig_address: protocol.multisig.contract_addr.to_string(),
-                    signing_threshold: Threshold::try_from((2u64, 3u64))
-                        .unwrap()
-                        .try_into()
+                verifier: ContractInfo {
+                    code_id: chain.voting_verifier.code_id,
+                    label: "Verifier1.0.0".to_string(),
+                    msg: VerifierMsg {
+                        governance_address: nonempty::String::try_from(
+                            protocol.governance_address.to_string(),
+                        )
                         .unwrap(),
-                    service_name: protocol.service_name.parse().unwrap(),
-                    chain_name: chain_name.parse().unwrap(),
-                    verifier_set_diff_threshold: 0,
-                    encoder: Encoder::Abi,
-                    key_type: KeyType::Ecdsa,
-                    domain_separator: [0; 32],
+                        service_name: protocol.service_name.clone(),
+                        source_gateway_address: nonempty::String::try_from(
+                            "0x4F4495243837681061C4743b74B3eEdf548D56A5".to_string(),
+                        )
+                        .unwrap(),
+                        voting_threshold: Threshold::try_from((3, 4)).unwrap().try_into().unwrap(),
+                        block_expiry: 10.try_into().unwrap(),
+                        confirmation_height: 5,
+                        source_chain: chain_name.parse().unwrap(),
+                        rewards_address: protocol
+                            .rewards
+                            .contract_addr
+                            .to_string()
+                            .try_into()
+                            .unwrap(),
+                        msg_id_format:
+                            axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
+                        address_format: axelar_wasm_std::address::AddressFormat::Eip55,
+                    },
                 },
-            }),
+                prover: ContractInfo {
+                    code_id: chain.multisig_prover.code_id,
+                    label: "Prover1.0.0".to_string(),
+                    msg: ProverMsg {
+                        governance_address: protocol.governance_address.to_string(),
+                        multisig_address: protocol.multisig.contract_addr.to_string(),
+                        signing_threshold: Threshold::try_from((2u64, 3u64))
+                            .unwrap()
+                            .try_into()
+                            .unwrap(),
+                        service_name: protocol.service_name.parse().unwrap(),
+                        chain_name: chain_name.parse().unwrap(),
+                        verifier_set_diff_threshold: 0,
+                        encoder: Encoder::Abi,
+                        key_type: KeyType::Ecdsa,
+                        domain_separator: [0; 32],
+                    },
+                },
+            })),
         },
     )?;
 
@@ -198,7 +212,14 @@ fn coordinator_one_click_deploys_each_contract_using_correct_code_ids_and_byteco
         ..
     } = test_utils::setup_test_case();
 
-    let res = deploy_chains(&mut protocol, "testchain", &chain1, "testchaindeploy", true);
+    let res = deploy_chains(
+        &mut protocol,
+        "testchain",
+        &chain1,
+        String::from("testchaindeploy"),
+        Binary::new(vec![1]),
+        true,
+    );
     assert!(res.is_ok());
 
     let new_contracts = gather_contracts(&protocol, res.unwrap());
@@ -240,7 +261,8 @@ fn coordinator_one_click_instantiates_contracts_same_chainname_different_deploym
         &mut protocol,
         chain_name.as_str(),
         &chain1,
-        "testchain1",
+        String::from("testchain1"),
+        Binary::new(vec![1]),
         false
     )
     .is_ok());
@@ -248,7 +270,8 @@ fn coordinator_one_click_instantiates_contracts_same_chainname_different_deploym
         &mut protocol,
         chain_name.as_str(),
         &chain1,
-        "testchain2",
+        String::from("testchain2"),
+        Binary::new(vec![2]),
         false
     )
     .is_ok());
@@ -268,17 +291,19 @@ fn coordinator_one_click_instantiates_contracts_different_chainname_different_de
 
     assert!(deploy_chains(
         &mut protocol,
-        chain_name_1.as_str(),
+        chain_name_1.clone().as_str(),
         &chain1,
-        chain_name_1.as_str(),
+        chain_name_1,
+        Binary::new(vec![1]),
         false
     )
     .is_ok());
     assert!(deploy_chains(
         &mut protocol,
-        chain_name_2.as_str(),
+        chain_name_2.clone().as_str(),
         &chain1,
-        chain_name_2.as_str(),
+        chain_name_2,
+        Binary::new(vec![2]),
         false
     )
     .is_ok());
@@ -297,17 +322,19 @@ fn coordinator_one_click_instantiates_contracts_different_chainname_same_deploym
 
     assert!(deploy_chains(
         &mut protocol,
-        chain_name_1.as_str(),
+        chain_name_1.clone().as_str(),
         &chain1,
-        chain_name_1.as_str(),
+        chain_name_1.clone(),
+        Binary::new(vec![1]),
         false
     )
     .is_ok());
     assert!(deploy_chains(
         &mut protocol,
-        chain_name_2.as_str(),
+        chain_name_2.clone().as_str(),
         &chain1,
-        chain_name_1.as_str(),
+        chain_name_1,
+        Binary::new(vec![2]),
         false
     )
     .is_err());
@@ -325,17 +352,19 @@ fn coordinator_one_click_instantiates_contracts_same_chainname_same_deployment_n
 
     assert!(deploy_chains(
         &mut protocol,
-        chain_name.as_str(),
+        chain_name.clone().as_str(),
         &chain1,
-        chain_name.as_str(),
+        chain_name.clone(),
+        Binary::new(vec![1]),
         false
     )
     .is_ok());
     assert!(deploy_chains(
         &mut protocol,
-        chain_name.as_str(),
+        chain_name.clone().as_str(),
         &chain1,
-        chain_name.as_str(),
+        chain_name.clone(),
+        Binary::new(vec![2]),
         false
     )
     .is_err());
@@ -403,9 +432,10 @@ fn coordinator_one_click_message_verification_and_routing_succeeds() {
 
     let res = deploy_chains(
         &mut protocol,
-        chain_name.as_str(),
+        chain_name.clone().as_str(),
         &chain1,
-        chain_name.as_str(),
+        chain_name.clone(),
+        Binary::new(vec![1]),
         true,
     );
     assert!(res.is_ok());

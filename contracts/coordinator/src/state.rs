@@ -1,6 +1,5 @@
 use std::collections::HashSet;
 
-use axelar_wasm_std::counter::Counter;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Order, Storage};
 use cw_storage_plus::{
@@ -37,6 +36,9 @@ pub enum Error {
 
     #[error("failed to remove state data")]
     StateRemoveFailed,
+
+    #[error("deplyment name {0} is in use")]
+    DeploymentName(String),
 }
 
 #[cw_serde]
@@ -60,7 +62,6 @@ pub struct ChainContracts {
     pub multisig_prover: Addr,
 }
 
-pub const INSTANTIATE2_COUNTER: Counter<u64> = Counter::new("instantiate2_counter");
 pub const DEPLOYED_CHAINS: Map<String, ChainContracts> = Map::new("deployed_chains");
 
 /// Records the contract addresses for a specific chain
@@ -181,6 +182,30 @@ pub fn contracts_by_verifier(
         .change_context(Error::StateParseFailed)?
         .ok_or(Error::VerifierNotRegistered(verifier_address))?
         .1)
+}
+
+pub fn validate_deployment_name_availability(
+    storage: &dyn Storage,
+    deployment_name: String,
+) -> Result<(), Error> {
+    let deployments = DEPLOYED_CHAINS
+        .may_load(storage, deployment_name.clone())
+        .change_context(Error::StateParseFailed)?;
+
+    match deployments {
+        Some(_) => Err(report!(Error::DeploymentName(deployment_name))),
+        None => Ok(()),
+    }
+}
+
+pub fn save_deployed_contracts(
+    storage: &mut dyn Storage,
+    deployment_name: String,
+    contracts: ChainContracts,
+) -> Result<(), Error> {
+    DEPLOYED_CHAINS
+        .save(storage, deployment_name, &contracts)
+        .change_context(Error::StateSaveFailed)
 }
 
 // Legacy prover storage - maintained for backward compatibility
