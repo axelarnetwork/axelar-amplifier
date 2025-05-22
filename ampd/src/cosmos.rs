@@ -34,9 +34,9 @@ type Result<T> = error_stack::Result<T, Error>;
 
 #[derive(Error, Debug)]
 pub enum Error {
-    #[error("failed to connect to the grpc endpoint")]
+    #[error(transparent)]
     GrpcConnection(#[from] tonic::transport::Error),
-    #[error("failed to make the grpc request")]
+    #[error(transparent)]
     GrpcRequest(#[from] Status),
     #[error("gas info is missing in the query response")]
     GasInfoMissing,
