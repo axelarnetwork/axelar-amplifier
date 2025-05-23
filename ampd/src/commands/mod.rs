@@ -11,7 +11,7 @@ use crate::asyncutil::future::RetryPolicy;
 use crate::broadcaster::confirm_tx::TxConfirmer;
 use crate::broadcaster::Broadcaster;
 use crate::config::{Config as AmpdConfig, Config};
-use crate::tofnd::grpc::{Multisig, MultisigClient};
+use crate::tofnd::{Multisig, MultisigClient};
 use crate::types::{CosmosPublicKey, TMAddress};
 use crate::{broadcaster, cosmos, tofnd, Error, PREFIX};
 

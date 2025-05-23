@@ -12,8 +12,7 @@ use valuable::Valuable;
 
 use crate::commands::{broadcast_tx, verifier_pub_key};
 use crate::config::Config;
-use crate::tofnd::grpc::{Multisig, MultisigClient};
-use crate::tofnd::{self};
+use crate::tofnd::{self, Multisig, MultisigClient};
 use crate::types::TMAddress;
 use crate::{handlers, Error, PREFIX};
 
@@ -78,7 +77,7 @@ pub async fn run(config: Config, args: Args) -> Result<Option<String>, Error> {
     let signed_sender_address = multisig_client
         .sign(
             &multisig_address.to_string(),
-            address_hash.into(),
+            address_hash,
             multisig_key,
             args.key_type.into(),
         )

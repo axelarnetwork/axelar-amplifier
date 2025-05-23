@@ -1,6 +1,8 @@
 use std::str::FromStr;
 
-use ampd_proto::{BroadcastRequest, ContractStateRequest, SubscribeRequest};
+use ampd_proto::{
+    Algorithm, BroadcastRequest, ContractStateRequest, KeyId, KeyRequest, SubscribeRequest,
+};
 use axelar_wasm_std::nonempty;
 use cosmrs::Any;
 use error_stack::{ensure, report, Report, Result, ResultExt};
@@ -9,7 +11,7 @@ use thiserror::Error;
 use tonic::Request;
 
 use crate::types::TMAddress;
-use crate::PREFIX;
+use crate::{tofnd, PREFIX};
 
 pub fn validate_subscribe(req: Request<SubscribeRequest>) -> Result<EventFilters, Error> {
     let SubscribeRequest {
@@ -49,6 +51,29 @@ fn validate_address(address: &str) -> Result<TMAddress, Error> {
     Ok(address)
 }
 
+pub fn validate_key(
+    req: Request<KeyRequest>,
+) -> Result<(nonempty::String, tofnd::Algorithm), Error> {
+    let KeyRequest { key_id } = req.into_inner();
+
+    validate_key_id(key_id.unwrap_or_default())
+}
+
+fn validate_key_id(key_id: KeyId) -> Result<(nonempty::String, tofnd::Algorithm), Error> {
+    let KeyId { id, algorithm } = key_id;
+
+    let id = nonempty::String::try_from(id).change_context(Error::EmptyKeyId)?;
+    let algorithm = match algorithm.try_into() {
+        Ok(Algorithm::Ecdsa) => tofnd::Algorithm::Ecdsa,
+        Ok(Algorithm::Ed25519) => tofnd::Algorithm::Ed25519,
+        _ => {
+            return Err(report!(Error::InvalidCryptoAlgorithm(algorithm)));
+        }
+    };
+
+    Ok((id, algorithm))
+}
+
 #[derive(Error, Debug)]
 pub enum Error {
     #[error("empty filter")]
@@ -59,6 +84,10 @@ pub enum Error {
     InvalidQuery,
     #[error("empty broadcast message")]
     EmptyBroadcastMsg,
+    #[error("empty key id")]
+    EmptyKeyId,
+    #[error("invalid crypto algorithm {0}")]
+    InvalidCryptoAlgorithm(i32),
 }
 
 #[derive(Debug)]
@@ -485,5 +514,70 @@ mod tests {
 
         let result = validate_contract_state(req);
         assert_err_contains!(result, Error, Error::InvalidContractAddress(_));
+    }
+
+    #[test]
+    fn validate_key_should_extract_key_id_and_algorithm() {
+        let key_id = "test_key";
+        let algorithm = ampd_proto::Algorithm::Ecdsa;
+
+        let req = Request::new(KeyRequest {
+            key_id: Some(KeyId {
+                id: key_id.to_string(),
+                algorithm: algorithm.into(),
+            }),
+        });
+
+        let (result_id, result_algorithm) = validate_key(req).unwrap();
+        assert_eq!(result_id.as_str(), key_id);
+        assert_eq!(result_algorithm, tofnd::Algorithm::Ecdsa);
+    }
+
+    #[test]
+    fn validate_key_should_use_default_key_id_when_none_provided() {
+        let req = Request::new(KeyRequest { key_id: None });
+
+        let result = validate_key(req);
+        assert_err_contains!(result, Error, Error::EmptyKeyId);
+    }
+
+    #[test]
+    fn validate_key_id_should_handle_ed25519_algorithm() {
+        let key_id = "test_key";
+        let algorithm = ampd_proto::Algorithm::Ed25519;
+
+        let key_id_obj = KeyId {
+            id: key_id.to_string(),
+            algorithm: algorithm.into(),
+        };
+
+        let (result_id, result_algorithm) = validate_key_id(key_id_obj).unwrap();
+        assert_eq!(result_id.as_str(), key_id);
+        assert_eq!(result_algorithm, tofnd::Algorithm::Ed25519);
+    }
+
+    #[test]
+    fn validate_key_id_should_fail_with_empty_key_id() {
+        let key_id_obj = KeyId {
+            id: "".to_string(),
+            algorithm: ampd_proto::Algorithm::Ecdsa.into(),
+        };
+
+        let result = validate_key_id(key_id_obj);
+        assert_err_contains!(result, Error, Error::EmptyKeyId);
+    }
+
+    #[test]
+    fn validate_key_id_should_fail_with_invalid_algorithm() {
+        let key_id = "test_key";
+        let invalid_algorithm = 999; // some invalid algorithm value
+
+        let key_id_obj = KeyId {
+            id: key_id.to_string(),
+            algorithm: invalid_algorithm,
+        };
+
+        let result = validate_key_id(key_id_obj);
+        assert_err_contains!(result, Error, Error::InvalidCryptoAlgorithm(_));
     }
 }
