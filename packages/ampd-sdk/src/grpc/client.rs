@@ -4,8 +4,9 @@ use std::vec;
 use ampd_proto;
 use ampd_proto::blockchain_service_client::BlockchainServiceClient;
 use ampd_proto::crypto_service_client::CryptoServiceClient;
-use ampd_proto::{BroadcastRequest, BroadcastResponse, SubscribeRequest};
+use ampd_proto::{AddressRequest, BroadcastRequest, BroadcastResponse, SubscribeRequest};
 use async_trait::async_trait;
+use cosmrs::AccountId;
 use error_stack::{report, Report, Result, ResultExt};
 use events::{AbciEventTypeFilter, Event};
 use futures::StreamExt;
@@ -13,7 +14,7 @@ use mockall::automock;
 use report::ErrorExt;
 use thiserror::Error;
 use tokio_stream::Stream;
-use tonic::transport;
+use tonic::{transport, Request};
 
 #[derive(Error, Debug)]
 pub enum Error {
@@ -25,6 +26,9 @@ pub enum Error {
 
     #[error("failed to convert event")]
     EventConversion,
+
+    #[error("invalid address received")]
+    InvalidAddress(#[from] cosmrs::ErrorReport),
 
     #[error("missing event in response")]
     InvalidResponse,
@@ -41,6 +45,8 @@ pub trait Client {
         filters: Vec<AbciEventTypeFilter>,
         include_block_begin_end: bool,
     ) -> Result<Self::Stream, Error>;
+
+    async fn address(&mut self) -> Result<AccountId, Error>;
 
     async fn broadcast(&mut self, msg: cosmrs::Any) -> Result<BrodcastClientReponse, Error>;
 }
@@ -121,6 +127,21 @@ impl Client for GrpcClient {
         });
 
         Ok(Box::pin(transformed_stream))
+    }
+
+    async fn address(&mut self) -> Result<AccountId, Error> {
+        let broadcaster_address = self
+            .blockchain
+            .address(Request::new(AddressRequest {}))
+            .await
+            .map_err(ErrorExt::into_report)?
+            .into_inner()
+            .address;
+
+        let ampd_broadcaster_address =
+            broadcaster_address.parse().map_err(ErrorExt::into_report)?;
+
+        Ok(ampd_broadcaster_address)
     }
 
     async fn broadcast(&mut self, msg: cosmrs::Any) -> Result<BrodcastClientReponse, Error> {
