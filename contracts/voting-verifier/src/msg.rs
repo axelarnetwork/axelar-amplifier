@@ -2,7 +2,7 @@ use axelar_wasm_std::voting::{PollId, PollStatus, Vote, WeightedPoll};
 use axelar_wasm_std::{nonempty, MajorityThreshold, VerificationStatus};
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use msgs_derive::EnsurePermissions;
-use multisig::verifier_set::VerifierSet;
+use multisig::VerifierSet;
 use router_api::Message;
 pub use voting_verifier_api::msg::InstantiateMsg;
 

@@ -9,7 +9,7 @@ use cosmrs::Any;
 use error_stack::ResultExt;
 use events::Error::EventTypeMismatch;
 use events_derive::try_from;
-use multisig::verifier_set::VerifierSet;
+use multisig::VerifierSet;
 use router_api::ChainName;
 use serde::Deserialize;
 use solana_transaction_status::UiTransactionStatusMeta;
@@ -177,8 +177,8 @@ mod tests {
     use cosmrs::AccountId;
     use cosmwasm_std;
     use events::Event;
-    use multisig::key::KeyType;
     use multisig::test::common::{build_verifier_set, ecdsa_test_data};
+    use multisig::KeyType;
     use solana_sdk::signature::Signature;
     use solana_transaction_status::option_serializer::OptionSerializer;
     use tokio::sync::watch;

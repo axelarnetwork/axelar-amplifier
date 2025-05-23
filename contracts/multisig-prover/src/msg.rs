@@ -62,11 +62,11 @@ pub struct ProofResponse {
 #[cw_serde]
 pub struct VerifierSetResponse {
     pub id: String,
-    pub verifier_set: multisig::verifier_set::VerifierSet,
+    pub verifier_set: multisig::VerifierSet,
 }
 
-impl From<multisig::verifier_set::VerifierSet> for VerifierSetResponse {
-    fn from(set: multisig::verifier_set::VerifierSet) -> Self {
+impl From<multisig::VerifierSet> for VerifierSetResponse {
+    fn from(set: multisig::VerifierSet) -> Self {
         VerifierSetResponse {
             id: set.id(),
             verifier_set: set,

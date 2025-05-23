@@ -172,8 +172,8 @@ mod tests {
     use base64::Engine;
     use cosmwasm_std::{HexBinary, Uint128};
     use hex::ToHex;
-    use multisig::key::KeyType;
     use multisig::test::common::{build_verifier_set, ed25519_test_data};
+    use multisig::KeyType;
     use multiversx_sdk::data::address::Address;
     use multiversx_sdk::data::transaction::{ApiLogs, Events, LogData, TransactionOnNetwork};
 
