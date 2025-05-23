@@ -1,4 +1,5 @@
 use std::pin::Pin;
+use std::str::FromStr;
 use std::vec;
 
 use ampd_proto;
@@ -6,15 +7,17 @@ use ampd_proto::blockchain_service_client::BlockchainServiceClient;
 use ampd_proto::crypto_service_client::CryptoServiceClient;
 use ampd_proto::{AddressRequest, SubscribeRequest};
 use async_trait::async_trait;
+use cosmrs::AccountId;
 use error_stack::{report, Report, Result, ResultExt};
 use events::{AbciEventTypeFilter, Event};
 use futures::StreamExt;
 use mockall::automock;
+use report::ErrorExt;
 use thiserror::Error;
 use tokio_stream::Stream;
 use tonic::{transport, Request};
 
-type AmpdBroadcasterAddress = String;
+type AmpdBroadcasterAddress = AccountId;
 
 #[derive(Error, Debug)]
 pub enum Error {
@@ -26,6 +29,9 @@ pub enum Error {
 
     #[error("failed to convert event")]
     EventConversion,
+
+    #[error("failed to convert address")]
+    AddressConversion,
 
     #[error("missing event in response")]
     InvalidResponse,
@@ -111,18 +117,18 @@ impl Client for GrpcClient {
     }
 
     async fn address(&mut self) -> Result<AmpdBroadcasterAddress, Error> {
-        let request = Request::new(AddressRequest {});
-
-        let address = self
+        let broadcaster_address = self
             .blockchain
-            .address(request)
+            .address(Request::new(AddressRequest {}))
             .await
-            .map_err(Error::GrpcRequest)
-            .map_err(Report::new)?
+            .map_err(ErrorExt::into_report)?
             .into_inner()
             .address;
 
-        Ok(address)
+        let ampd_broadcaster_address = AccountId::from_str(broadcaster_address.as_str())
+            .map_err(|_| report!(Error::AddressConversion))?;
+
+        Ok(ampd_broadcaster_address)
     }
 }
 
