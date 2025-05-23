@@ -18,7 +18,7 @@ use stellar_xdr::curr::{ScAddress, ScBytes, ScString};
 use tokio::sync::watch::Receiver;
 use tracing::{info, info_span};
 use valuable::Valuable;
-use voting_verifier::msg::ExecuteMsg;
+use voting_verifier::ExecuteMsg;
 
 use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error;
