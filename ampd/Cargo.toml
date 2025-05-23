@@ -99,6 +99,9 @@ voting-verifier = { workspace = true }
 xrpl-types = { workspace = true }
 xrpl_http_client = { version = "0.15.0" }
 
+[build-dependencies]
+tonic-build = "0.13.0"
+
 [dev-dependencies]
 assert_ok = { workspace = true }
 ed25519-dalek = { workspace = true, features = ["rand_core"] }
@@ -109,12 +112,9 @@ goldie = { workspace = true }
 multisig = { workspace = true, features = ["test", "library"] }
 rand = { workspace = true }
 random-string = "1.0.0"
-tendermint-proto ={ version = "0.40.3" }
+tendermint-proto = { version = "0.40.3" }
 test-log = { version = "0.2", features = ["trace"], default-features = false }
 tokio = { workspace = true, features = ["test-util"] }
-
-[build-dependencies]
-tonic-build = "0.13.0"
 
 [lints]
 workspace = true

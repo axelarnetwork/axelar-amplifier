@@ -10,6 +10,7 @@ use error_stack::{report, Report, Result, ResultExt};
 use events::{AbciEventTypeFilter, Event};
 use futures::StreamExt;
 use mockall::automock;
+use report::ErrorExt;
 use thiserror::Error;
 use tokio_stream::Stream;
 use tonic::transport;
@@ -129,11 +130,10 @@ impl Client for GrpcClient {
             .blockchain
             .broadcast(request)
             .await
-            .map_err(Error::GrpcRequest)
-            .map_err(Report::new)?
+            .map_err(ErrorExt::into_report)?
             .into_inner();
 
-        Ok(BrodcastClientReponse::from(broadcast_response))
+        Ok(broadcast_response.into())
     }
 }
 
