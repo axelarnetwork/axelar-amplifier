@@ -35,6 +35,9 @@ pub enum Error {
     #[error("gateway is already registered")]
     GatewayAlreadyRegistered,
 
+    #[error("coordinator is not found")]
+    CoordinatorNotFound,
+
     #[error("chain is frozen")]
     ChainFrozen { chain: ChainName },
 
