@@ -139,8 +139,7 @@ impl Client for GrpcClient {
             .into_inner()
             .address;
 
-        let ampd_broadcaster_address =
-            AccountId::from_str(broadcaster_address.as_str()).map_err(ErrorExt::into_report)?;
+        let ampd_broadcaster_address = broadcaster_address.parse().map_err(ErrorExt::into_report)?;
 
         Ok(ampd_broadcaster_address)
     }
