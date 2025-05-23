@@ -131,6 +131,7 @@ impl BlockState {
                 .await?;
         }
 
+        tokio::time::sleep(Duration::from_secs(1)).await;
         match token.is_cancelled() {
             true => Ok(None),
             false => {
