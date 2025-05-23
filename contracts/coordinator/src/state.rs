@@ -2,7 +2,9 @@ use std::collections::HashSet;
 
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Order, Storage};
-use cw_storage_plus::{index_list, Index, IndexList, IndexedMap, Item, MultiIndex, UniqueIndex};
+use cw_storage_plus::{
+    index_list, Index, IndexList, IndexedMap, Item, Map, MultiIndex, UniqueIndex,
+};
 use error_stack::{report, Result, ResultExt};
 use router_api::ChainName;
 
@@ -34,6 +36,9 @@ pub enum Error {
 
     #[error("failed to remove state data")]
     StateRemoveFailed,
+
+    #[error("deplyment name {0} is in use")]
+    DeploymentName(String),
 }
 
 #[cw_serde]
@@ -49,6 +54,15 @@ pub fn load_config(storage: &dyn Storage) -> Config {
         .load(storage)
         .expect("coordinator config must be set during instantiation")
 }
+
+#[cw_serde]
+pub struct ChainContracts {
+    pub gateway: Addr,
+    pub voting_verifier: Addr,
+    pub multisig_prover: Addr,
+}
+
+pub const DEPLOYED_CHAINS: Map<String, ChainContracts> = Map::new("deployed_chains");
 
 /// Records the contract addresses for a specific chain
 #[cw_serde]
@@ -168,6 +182,30 @@ pub fn contracts_by_verifier(
         .change_context(Error::StateParseFailed)?
         .ok_or(Error::VerifierNotRegistered(verifier_address))?
         .1)
+}
+
+pub fn validate_deployment_name_availability(
+    storage: &dyn Storage,
+    deployment_name: String,
+) -> Result<(), Error> {
+    let deployments = DEPLOYED_CHAINS
+        .may_load(storage, deployment_name.clone())
+        .change_context(Error::StateParseFailed)?;
+
+    match deployments {
+        Some(_) => Err(report!(Error::DeploymentName(deployment_name))),
+        None => Ok(()),
+    }
+}
+
+pub fn save_deployed_contracts(
+    storage: &mut dyn Storage,
+    deployment_name: String,
+    contracts: ChainContracts,
+) -> Result<(), Error> {
+    DEPLOYED_CHAINS
+        .save(storage, deployment_name, &contracts)
+        .change_context(Error::StateSaveFailed)
 }
 
 // Legacy prover storage - maintained for backward compatibility

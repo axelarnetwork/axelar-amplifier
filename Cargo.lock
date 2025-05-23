@@ -2232,17 +2232,21 @@ dependencies = [
  "cw-storage-plus",
  "cw2",
  "error-stack",
+ "gateway-api",
  "goldie",
  "integration-tests",
  "itertools 0.14.0",
  "msgs-derive",
  "multisig",
+ "multisig-prover-api",
  "report",
  "router-api",
  "semver 1.0.26",
+ "serde_json",
  "service-registry-api",
  "thiserror 1.0.69",
  "tofn",
+ "voting-verifier-api",
 ]
 
 [[package]]
