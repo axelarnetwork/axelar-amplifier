@@ -5,7 +5,7 @@ use std::vec;
 use ampd_proto;
 use ampd_proto::blockchain_service_client::BlockchainServiceClient;
 use ampd_proto::crypto_service_client::CryptoServiceClient;
-use ampd_proto::{AddressRequest, SubscribeRequest};
+use ampd_proto::{AddressRequest, BroadcastRequest, BroadcastResponse, SubscribeRequest};
 use async_trait::async_trait;
 use cosmrs::AccountId;
 use error_stack::{report, Report, Result, ResultExt};
@@ -48,6 +48,8 @@ pub trait Client {
     ) -> Result<Self::Stream, Error>;
 
     async fn address(&mut self) -> Result<AccountId, Error>;
+
+    async fn broadcast(&mut self, msg: cosmrs::Any) -> Result<BrodcastClientReponse, Error>;
 }
 
 #[allow(dead_code)]
@@ -74,6 +76,20 @@ pub async fn new(url: &str) -> Result<GrpcClient, Error> {
     let crypto = CryptoServiceClient::new(conn);
 
     Ok(GrpcClient { blockchain, crypto })
+}
+
+pub struct BrodcastClientReponse {
+    pub txhash: String,
+    pub index: u64,
+}
+
+impl From<BroadcastResponse> for BrodcastClientReponse {
+    fn from(response: BroadcastResponse) -> Self {
+        BrodcastClientReponse {
+            txhash: response.tx_hash,
+            index: response.index,
+        }
+    }
 }
 
 #[async_trait]
@@ -127,6 +143,19 @@ impl Client for GrpcClient {
             AccountId::from_str(broadcaster_address.as_str()).map_err(ErrorExt::into_report)?;
 
         Ok(ampd_broadcaster_address)
+    }
+
+    async fn broadcast(&mut self, msg: cosmrs::Any) -> Result<BrodcastClientReponse, Error> {
+        let request = BroadcastRequest { msg: Some(msg) };
+
+        let broadcast_response = self
+            .blockchain
+            .broadcast(request)
+            .await
+            .map_err(ErrorExt::into_report)?
+            .into_inner();
+
+        Ok(broadcast_response.into())
     }
 }
 
