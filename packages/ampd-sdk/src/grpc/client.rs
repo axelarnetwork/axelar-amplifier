@@ -17,8 +17,6 @@ use thiserror::Error;
 use tokio_stream::Stream;
 use tonic::{transport, Request};
 
-type AmpdBroadcasterAddress = AccountId;
-
 #[derive(Error, Debug)]
 pub enum Error {
     #[error("failed to connect to the grpc endpoint")]
@@ -30,8 +28,8 @@ pub enum Error {
     #[error("failed to convert event")]
     EventConversion,
 
-    #[error("failed to convert address")]
-    AddressConversion,
+    #[error("invalid address received")]
+    InvalidAddress(#[from] cosmrs::ErrorReport),
 
     #[error("missing event in response")]
     InvalidResponse,
@@ -49,7 +47,7 @@ pub trait Client {
         include_block_begin_end: bool,
     ) -> Result<Self::Stream, Error>;
 
-    async fn address(&mut self) -> Result<AmpdBroadcasterAddress, Error>;
+    async fn address(&mut self) -> Result<AccountId, Error>;
 }
 
 #[allow(dead_code)]
@@ -116,7 +114,7 @@ impl Client for GrpcClient {
         Ok(Box::pin(transformed_stream))
     }
 
-    async fn address(&mut self) -> Result<AmpdBroadcasterAddress, Error> {
+    async fn address(&mut self) -> Result<AccountId, Error> {
         let broadcaster_address = self
             .blockchain
             .address(Request::new(AddressRequest {}))
@@ -125,8 +123,8 @@ impl Client for GrpcClient {
             .into_inner()
             .address;
 
-        let ampd_broadcaster_address = AccountId::from_str(broadcaster_address.as_str())
-            .map_err(|_| report!(Error::AddressConversion))?;
+        let ampd_broadcaster_address =
+            AccountId::from_str(broadcaster_address.as_str()).map_err(ErrorExt::into_report)?;
 
         Ok(ampd_broadcaster_address)
     }
