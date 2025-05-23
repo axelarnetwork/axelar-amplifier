@@ -12,4 +12,6 @@ pub struct InstantiateMsg {
     pub governance_address: String,
     // the address of the axelarnet gateway
     pub axelarnet_gateway: String,
+    // the address of the coordinator
+    pub coordinator_address: String,
 }

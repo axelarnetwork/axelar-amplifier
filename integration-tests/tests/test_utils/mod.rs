@@ -424,12 +424,14 @@ pub fn setup_protocol(service_name: nonempty::String) -> Protocol {
     let admin_address = MockApi::default().addr_make("admin");
     let governance_address = MockApi::default().addr_make("governance");
     let axelarnet_gateway = MockApi::default().addr_make("axelarnet_gateway");
+    let coordinator_address = MockApi::default().addr_make("coordinator");
 
     let router = RouterContract::instantiate_contract(
         &mut app,
         admin_address.clone(),
         governance_address.clone(),
         axelarnet_gateway.clone(),
+        coordinator_address.clone(),
     );
 
     let rewards_params = rewards::msg::Params {

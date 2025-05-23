@@ -5,6 +5,7 @@ pub struct RouterInstantiated {
     pub admin: Addr,
     pub governance: Addr,
     pub axelarnet_gateway: Addr,
+    pub coordinator: Addr,
 }
 
 pub struct ChainRegistered {

@@ -283,6 +283,7 @@ mod test {
     use crate::state::chain_endpoints;
 
     const AXELARNET_GATEWAY: &str = "axelarnet_gateway";
+    const COORDINATOR: &str = "coordinator";
 
     fn rand_message(source_chain: ChainName, destination_chain: ChainName) -> Message {
         let mut bytes = [0; 32];
@@ -330,6 +331,7 @@ mod test {
                 admin_address: api.addr_make("admin").to_string(),
                 governance_address: api.addr_make("governance").to_string(),
                 axelarnet_gateway: api.addr_make(AXELARNET_GATEWAY).to_string(),
+                coordinator_address: api.addr_make(COORDINATOR).to_string(),
             },
         )
         .unwrap();
@@ -359,6 +361,7 @@ mod test {
                 admin_address: api.addr_make("admin").to_string(),
                 governance_address: api.addr_make("governance").to_string(),
                 axelarnet_gateway: api.addr_make(AXELARNET_GATEWAY).to_string(),
+                coordinator_address: api.addr_make(COORDINATOR).to_string(),
             },
         )
         .unwrap();
@@ -402,6 +405,7 @@ mod test {
                 admin_address: api.addr_make("admin").to_string(),
                 governance_address: api.addr_make("governance").to_string(),
                 axelarnet_gateway: api.addr_make(AXELARNET_GATEWAY).to_string(),
+                coordinator_address: api.addr_make(COORDINATOR).to_string(),
             },
         )
         .unwrap();
@@ -443,6 +447,7 @@ mod test {
                 admin_address: api.addr_make("admin").to_string(),
                 governance_address: api.addr_make("governance").to_string(),
                 axelarnet_gateway: api.addr_make(AXELARNET_GATEWAY).to_string(),
+                coordinator_address: api.addr_make(COORDINATOR).to_string(),
             },
         )
         .unwrap();
@@ -499,6 +504,7 @@ mod test {
                 admin_address: api.addr_make("admin").to_string(),
                 governance_address: api.addr_make("governance").to_string(),
                 axelarnet_gateway: api.addr_make(AXELARNET_GATEWAY).to_string(),
+                coordinator_address: api.addr_make(COORDINATOR).to_string(),
             },
         )
         .unwrap();
@@ -549,6 +555,7 @@ mod test {
                 admin_address: api.addr_make("admin").to_string(),
                 governance_address: api.addr_make("governance").to_string(),
                 axelarnet_gateway: api.addr_make(AXELARNET_GATEWAY).to_string(),
+                coordinator_address: api.addr_make(COORDINATOR).to_string(),
             },
         )
         .unwrap();
@@ -583,6 +590,7 @@ mod test {
                 admin_address: api.addr_make("admin").to_string(),
                 governance_address: api.addr_make("governance").to_string(),
                 axelarnet_gateway: api.addr_make(AXELARNET_GATEWAY).to_string(),
+                coordinator_address: api.addr_make(COORDINATOR).to_string(),
             },
         )
         .unwrap();
@@ -644,6 +652,7 @@ mod test {
                 admin_address: api.addr_make("admin").to_string(),
                 governance_address: api.addr_make("governance").to_string(),
                 axelarnet_gateway: api.addr_make(AXELARNET_GATEWAY).to_string(),
+                coordinator_address: api.addr_make(COORDINATOR).to_string(),
             },
         )
         .unwrap();
@@ -725,6 +734,7 @@ mod test {
                 admin_address: api.addr_make("admin").to_string(),
                 governance_address: api.addr_make("governance").to_string(),
                 axelarnet_gateway: api.addr_make(AXELARNET_GATEWAY).to_string(),
+                coordinator_address: api.addr_make(COORDINATOR).to_string(),
             },
         )
         .unwrap();
@@ -794,6 +804,7 @@ mod test {
                 admin_address: api.addr_make("admin").to_string(),
                 governance_address: api.addr_make("governance").to_string(),
                 axelarnet_gateway: api.addr_make(AXELARNET_GATEWAY).to_string(),
+                coordinator_address: api.addr_make(COORDINATOR).to_string(),
             },
         )
         .unwrap();
@@ -829,6 +840,7 @@ mod test {
                 admin_address: api.addr_make("admin").to_string(),
                 governance_address: api.addr_make("governance").to_string(),
                 axelarnet_gateway: api.addr_make(AXELARNET_GATEWAY).to_string(),
+                coordinator_address: api.addr_make(COORDINATOR).to_string(),
             },
         )
         .unwrap();
