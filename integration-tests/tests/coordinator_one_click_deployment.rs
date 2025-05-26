@@ -5,7 +5,7 @@ use axelar_wasm_std::error::ContractError;
 use axelar_wasm_std::voting::{PollId, Vote};
 use axelar_wasm_std::{nonempty, Threshold, VerificationStatus};
 use coordinator::msg::{
-    ContractInfo, DeploymentParams, ManualDeploymentParams, ProverMsg, VerifierMsg,
+    ContractDeploymentInfo, DeploymentParams, ManualDeploymentParams, ProverMsg, VerifierMsg,
 };
 use cosmwasm_std::{Addr, Binary, HexBinary};
 use cw_multi_test::AppResponse;
@@ -33,7 +33,7 @@ fn deploy_chains(
     protocol: &mut Protocol,
     chain_name: &str,
     chain: &Chain,
-    deployment_name: String,
+    deployment_name: nonempty::String,
     salt: Binary,
     register_with_router: bool,
 ) -> Result<AppResponse, Report<ContractError>> {
@@ -46,12 +46,12 @@ fn deploy_chains(
             deployment_name,
             salt,
             params: Box::new(DeploymentParams::Manual(ManualDeploymentParams {
-                gateway: ContractInfo {
+                gateway: ContractDeploymentInfo {
                     code_id: chain.gateway.code_id,
                     label: "Gateway1.0.0".to_string(),
                     msg: (),
                 },
-                verifier: ContractInfo {
+                verifier: ContractDeploymentInfo {
                     code_id: chain.voting_verifier.code_id,
                     label: "Verifier1.0.0".to_string(),
                     msg: VerifierMsg {
@@ -79,7 +79,7 @@ fn deploy_chains(
                         address_format: axelar_wasm_std::address::AddressFormat::Eip55,
                     },
                 },
-                prover: ContractInfo {
+                prover: ContractDeploymentInfo {
                     code_id: chain.multisig_prover.code_id,
                     label: "Prover1.0.0".to_string(),
                     msg: ProverMsg {
@@ -216,7 +216,7 @@ fn coordinator_one_click_deploys_each_contract_using_correct_code_ids_and_byteco
         &mut protocol,
         "testchain",
         &chain1,
-        String::from("testchaindeploy"),
+        nonempty::String::try_from("testchaindeploy").unwrap(),
         Binary::new(vec![1]),
         true,
     );
@@ -261,7 +261,7 @@ fn coordinator_one_click_instantiates_contracts_same_chainname_different_deploym
         &mut protocol,
         chain_name.as_str(),
         &chain1,
-        String::from("testchain1"),
+        nonempty::String::try_from("testchain1").unwrap(),
         Binary::new(vec![1]),
         false
     )
@@ -270,7 +270,7 @@ fn coordinator_one_click_instantiates_contracts_same_chainname_different_deploym
         &mut protocol,
         chain_name.as_str(),
         &chain1,
-        String::from("testchain2"),
+        nonempty::String::try_from("testchain2").unwrap(),
         Binary::new(vec![2]),
         false
     )
@@ -293,7 +293,7 @@ fn coordinator_one_click_instantiates_contracts_different_chainname_different_de
         &mut protocol,
         chain_name_1.clone().as_str(),
         &chain1,
-        chain_name_1,
+        nonempty::String::try_from(chain_name_1).unwrap(),
         Binary::new(vec![1]),
         false
     )
@@ -302,7 +302,7 @@ fn coordinator_one_click_instantiates_contracts_different_chainname_different_de
         &mut protocol,
         chain_name_2.clone().as_str(),
         &chain1,
-        chain_name_2,
+        nonempty::String::try_from(chain_name_2).unwrap(),
         Binary::new(vec![2]),
         false
     )
@@ -324,7 +324,7 @@ fn coordinator_one_click_instantiates_contracts_different_chainname_same_deploym
         &mut protocol,
         chain_name_1.clone().as_str(),
         &chain1,
-        chain_name_1.clone(),
+        nonempty::String::try_from(chain_name_1.clone()).unwrap(),
         Binary::new(vec![1]),
         false
     )
@@ -333,7 +333,7 @@ fn coordinator_one_click_instantiates_contracts_different_chainname_same_deploym
         &mut protocol,
         chain_name_2.clone().as_str(),
         &chain1,
-        chain_name_1,
+        nonempty::String::try_from(chain_name_1).unwrap(),
         Binary::new(vec![2]),
         false
     )
@@ -354,7 +354,7 @@ fn coordinator_one_click_instantiates_contracts_same_chainname_same_deployment_n
         &mut protocol,
         chain_name.clone().as_str(),
         &chain1,
-        chain_name.clone(),
+        nonempty::String::try_from(chain_name.clone()).unwrap(),
         Binary::new(vec![1]),
         false
     )
@@ -363,7 +363,7 @@ fn coordinator_one_click_instantiates_contracts_same_chainname_same_deployment_n
         &mut protocol,
         chain_name.clone().as_str(),
         &chain1,
-        chain_name.clone(),
+        nonempty::String::try_from(chain_name.clone()).unwrap(),
         Binary::new(vec![2]),
         false
     )
@@ -434,7 +434,7 @@ fn coordinator_one_click_message_verification_and_routing_succeeds() {
         &mut protocol,
         chain_name.clone().as_str(),
         &chain1,
-        chain_name.clone(),
+        nonempty::String::try_from(chain_name.clone()).unwrap(),
         Binary::new(vec![1]),
         true,
     );
