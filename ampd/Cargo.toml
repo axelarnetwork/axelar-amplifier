@@ -99,6 +99,9 @@ voting-verifier = { workspace = true }
 xrpl-types = { workspace = true }
 xrpl_http_client = { version = "0.15.0" }
 
+[build-dependencies]
+tonic-build = "0.13.0"
+
 [dev-dependencies]
 assert_ok = { workspace = true }
 cosmos-sdk-proto = "0.27.0"
@@ -114,9 +117,6 @@ tendermint-proto = { version = "0.40.3" }
 test-log = { version = "0.2", features = ["trace"], default-features = false }
 tokio = { workspace = true, features = ["test-util"] }
 tracing-test = "0.2.5"
-
-[build-dependencies]
-tonic-build = "0.13.0"
 
 [lints]
 workspace = true
