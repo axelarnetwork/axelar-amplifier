@@ -11,6 +11,7 @@ use crate::protocol::Protocol;
 #[derive(Clone)]
 pub struct VotingVerifierContract {
     pub contract_addr: Addr,
+    pub code_id: u64,
 }
 
 impl VotingVerifierContract {
@@ -58,7 +59,19 @@ impl VotingVerifierContract {
             )
             .unwrap();
 
-        VotingVerifierContract { contract_addr }
+        VotingVerifierContract {
+            contract_addr,
+            code_id,
+        }
+    }
+}
+
+impl Default for VotingVerifierContract {
+    fn default() -> Self {
+        VotingVerifierContract {
+            contract_addr: MockApi::default().addr_make("verifier"),
+            code_id: 0,
+        }
     }
 }
 
