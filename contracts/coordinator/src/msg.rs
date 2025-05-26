@@ -47,16 +47,18 @@ pub enum ExecuteMsg {
     #[permission(Specific(prover))]
     SetActiveVerifiers { verifiers: HashSet<String> },
 
-    #[permission(Any)]
+    #[permission(Governance)]
     InstantiateChainContracts {
-        deployment_name: String,
+        deployment_name: nonempty::String,
         salt: Binary,
+        // Make params a Box to avoid having a large discrepancy in variant sizes
+        // Such an error will be flagged by "cargo clippy..."
         params: Box<DeploymentParams>,
     },
 }
 
 #[cw_serde]
-pub struct ContractInfo<T> {
+pub struct ContractDeploymentInfo<T> {
     pub code_id: u64,
     pub label: String,
     pub msg: T,
@@ -64,9 +66,9 @@ pub struct ContractInfo<T> {
 
 #[cw_serde]
 pub struct ManualDeploymentParams {
-    pub gateway: ContractInfo<()>,
-    pub verifier: ContractInfo<VerifierMsg>,
-    pub prover: ContractInfo<ProverMsg>,
+    pub gateway: ContractDeploymentInfo<()>,
+    pub verifier: ContractDeploymentInfo<VerifierMsg>,
+    pub prover: ContractDeploymentInfo<ProverMsg>,
 }
 
 #[cw_serde]

@@ -70,8 +70,8 @@ impl MultisigProverContract {
 impl Default for MultisigProverContract {
     fn default() -> Self {
         MultisigProverContract {
-            contract_addr: Addr::unchecked(""),
-            admin_addr: Addr::unchecked(""),
+            contract_addr: MockApi::default().addr_make("prover"),
+            admin_addr: MockApi::default().addr_make("admin"),
             code_id: 0,
         }
     }

@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 
+use axelar_wasm_std::nonempty;
 use cosmwasm_std::{Addr, Binary, DepsMut, Env, MessageInfo, Response, WasmMsg, WasmQuery};
 use error_stack::{Result, ResultExt};
 use router_api::ChainName;
@@ -231,7 +232,7 @@ pub fn instantiate_chain_contracts(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    deployment_name: String,
+    deployment_name: nonempty::String,
     salt: Binary,
     params: DeploymentParams,
 ) -> error_stack::Result<Response, Error> {

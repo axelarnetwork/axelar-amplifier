@@ -69,7 +69,7 @@ impl VotingVerifierContract {
 impl Default for VotingVerifierContract {
     fn default() -> Self {
         VotingVerifierContract {
-            contract_addr: Addr::unchecked(""),
+            contract_addr: MockApi::default().addr_make("verifier"),
             code_id: 0,
         }
     }

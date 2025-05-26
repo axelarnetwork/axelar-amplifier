@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 
+use axelar_wasm_std::nonempty;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Order, Storage};
 use cw_storage_plus::{
@@ -38,7 +39,7 @@ pub enum Error {
     StateRemoveFailed,
 
     #[error("deplyment name {0} is in use")]
-    DeploymentName(String),
+    DeploymentName(nonempty::String),
 }
 
 #[cw_serde]
@@ -186,10 +187,10 @@ pub fn contracts_by_verifier(
 
 pub fn validate_deployment_name_availability(
     storage: &dyn Storage,
-    deployment_name: String,
+    deployment_name: nonempty::String,
 ) -> Result<(), Error> {
     let deployments = DEPLOYED_CHAINS
-        .may_load(storage, deployment_name.clone())
+        .may_load(storage, deployment_name.clone().to_string())
         .change_context(Error::StateParseFailed)?;
 
     match deployments {
@@ -200,11 +201,11 @@ pub fn validate_deployment_name_availability(
 
 pub fn save_deployed_contracts(
     storage: &mut dyn Storage,
-    deployment_name: String,
+    deployment_name: nonempty::String,
     contracts: ChainContracts,
 ) -> Result<(), Error> {
     DEPLOYED_CHAINS
-        .save(storage, deployment_name, &contracts)
+        .save(storage, deployment_name.to_string(), &contracts)
         .change_context(Error::StateSaveFailed)
 }
 

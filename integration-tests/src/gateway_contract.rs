@@ -45,7 +45,7 @@ impl GatewayContract {
 impl Default for GatewayContract {
     fn default() -> Self {
         GatewayContract {
-            contract_addr: Addr::unchecked(""),
+            contract_addr: MockApi::default().addr_make("gateway"),
             code_id: 0,
         }
     }
