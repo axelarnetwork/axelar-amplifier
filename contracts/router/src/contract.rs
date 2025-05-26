@@ -4,6 +4,7 @@ use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     to_json_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response, Storage,
 };
+use error_stack::ResultExt;
 use router_api::error::Error;
 
 use crate::events::RouterInstantiated;
@@ -32,12 +33,14 @@ pub fn instantiate(
     let admin = address::validate_cosmwasm_address(deps.api, &msg.admin_address)?;
     let governance = address::validate_cosmwasm_address(deps.api, &msg.governance_address)?;
     let axelarnet_gateway = address::validate_cosmwasm_address(deps.api, &msg.axelarnet_gateway)?;
+    let coordinator = address::validate_cosmwasm_address(deps.api, &msg.coordinator_address)?;
 
     permission_control::set_admin(deps.storage, &admin)?;
     permission_control::set_governance(deps.storage, &governance)?;
 
     let config = Config {
         axelarnet_gateway: axelarnet_gateway.clone(),
+        coordinator: coordinator.clone(),
     };
 
     state::save_config(deps.storage, &config)?;
@@ -47,6 +50,7 @@ pub fn instantiate(
         admin,
         governance,
         axelarnet_gateway,
+        coordinator,
     }))
 }
 
@@ -60,6 +64,7 @@ pub fn execute(
     match msg.ensure_permissions(
         deps.storage,
         &info.sender,
+        find_coordinator_address,
         find_gateway_address(&info.sender),
     )? {
         ExecuteMsg::RegisterChain {
@@ -113,6 +118,15 @@ fn find_gateway_address(
     }
 }
 
+fn find_coordinator_address(
+    storage: &dyn Storage,
+    _: &ExecuteMsg,
+) -> error_stack::Result<Addr, Error> {
+    Ok(load_config(storage)
+        .change_context(Error::CoordinatorNotFound)?
+        .coordinator)
+}
+
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(
     deps: Deps,
@@ -154,6 +168,7 @@ mod test {
     const ADMIN_ADDRESS: &str = "admin";
     const GOVERNANCE_ADDRESS: &str = "governance";
     const AXELARNET_GATEWAY_ADDRESS: &str = "axelarnet_gateway";
+    const COORDINATOR_ADDRESS: &str = "coordinator";
     const UNAUTHORIZED_ADDRESS: &str = "unauthorized";
 
     fn setup() -> OwnedDeps<MockStorage, MockApi, MockQuerier, Empty> {
@@ -171,6 +186,7 @@ mod test {
                 admin_address: api.addr_make(ADMIN_ADDRESS).to_string(),
                 governance_address: api.addr_make(GOVERNANCE_ADDRESS).to_string(),
                 axelarnet_gateway: api.addr_make(AXELARNET_GATEWAY_ADDRESS).to_string(),
+                coordinator_address: api.addr_make(COORDINATOR_ADDRESS).to_string(),
             },
         )
         .unwrap();
