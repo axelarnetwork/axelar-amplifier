@@ -8,6 +8,7 @@ use axelar_wasm_std::flagset::FlagSet;
 use axelar_wasm_std::hash::Hash;
 use axelar_wasm_std::msg_id::MessageIdFormat;
 use axelar_wasm_std::{nonempty, FnExt};
+use const_str::contains;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Attribute, HexBinary, StdError, StdResult};
 use cw_storage_plus::{Key, KeyDeserialize, Prefixer, PrimaryKey};
@@ -197,8 +198,23 @@ impl FromStr for ChainName {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let chain_name: ChainNameRaw = s.parse()?;
 
-        Ok(ChainName(chain_name.0.to_lowercase()))
+        Ok(chain_name.normalize())
     }
+}
+
+#[macro_export]
+macro_rules! chain_name {
+    ($s: literal) => {{
+        use std::str::FromStr;
+
+        const _: () = {
+            if !$crate::ChainNameRaw::is_raw_chain_name($s) {
+                panic!("string literal is not a valid chain name");
+            }
+        };
+
+        $crate::ChainName::from_str($s).expect("string literal was already checked")
+    }};
 }
 
 impl From<ChainName> for String {
@@ -321,8 +337,11 @@ impl ChainNameRaw {
     /// Special care must be taken when using this function. Normalization means a loss of information
     /// and can lead to the chain not being found in the database. This function should only be used if absolutely necessary.
     pub fn normalize(&self) -> ChainName {
-        // assert: if ChainNameRaw is valid, ChainName is also valid, just lower-cased
-        ChainName::try_from(self.as_ref()).expect("invalid chain name")
+        ChainName(self.as_ref().to_lowercase())
+    }
+
+    pub const fn is_raw_chain_name(s: &str) -> bool {
+        !s.is_empty() && s.len() <= Self::MAX_LEN && s.is_ascii() && !contains!(s, FIELD_DELIMITER)
     }
 }
 
@@ -330,12 +349,25 @@ impl FromStr for ChainNameRaw {
     type Err = Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if s.is_empty() || s.len() > Self::MAX_LEN || !s.is_ascii() || s.contains(FIELD_DELIMITER) {
+        if !Self::is_raw_chain_name(s) {
             return Err(Error::InvalidChainName);
         }
 
         Ok(ChainNameRaw(s.to_owned()))
     }
+}
+
+#[macro_export]
+macro_rules! chain_name_raw {
+    ($s:literal) => {{
+        const _: () = {
+            if !$crate::ChainNameRaw::is_raw_chain_name($s) {
+                panic!("string literal is not a valid chain name");
+            }
+        };
+
+        $crate::ChainNameRaw::from_str($s).expect("string literal was already checked")
+    }};
 }
 
 impl From<ChainNameRaw> for String {
@@ -632,6 +664,12 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn chain_name_macros_compile() {
+        chain_name_raw!("ETHEREUM-2");
+        chain_name!("ethereum-1");
     }
 
     #[test]
