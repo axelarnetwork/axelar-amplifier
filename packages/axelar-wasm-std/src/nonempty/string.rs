@@ -79,6 +79,20 @@ impl Display for String {
     }
 }
 
+#[macro_export]
+macro_rules! nonempty_str {
+    ($s: literal) => {{
+        use std::str::FromStr;
+        const _: () = {
+            if $s.is_empty() {
+                panic!("string literal must not be empty");
+            }
+        };
+
+        $crate::nonempty::String::from_str($s).expect("nonempty string was already checked")
+    }};
+}
+
 #[cfg(test)]
 mod tests {
     use crate::nonempty;
@@ -90,5 +104,10 @@ mod tests {
 
         assert!(nonempty::String::try_from("some string").is_ok());
         assert!(serde_json::from_str::<nonempty::String>("\"some string\"").is_ok());
+    }
+
+    #[test]
+    fn nonempty_str_macro_compiles() {
+        nonempty_str!("hello world");
     }
 }
