@@ -8,6 +8,7 @@ edition = { workspace = true }
 [dependencies]
 ampd-proto = { workspace = true }
 async-trait = { workspace = true }
+axelar-wasm-std = { workspace = true }
 cosmrs = { workspace = true }
 cosmwasm-std = { workspace = true }
 error-stack = { workspace = true }

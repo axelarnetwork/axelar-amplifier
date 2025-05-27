@@ -368,6 +368,7 @@ version = "0.1.0"
 dependencies = [
  "ampd-proto",
  "async-trait",
+ "axelar-wasm-std",
  "cosmrs",
  "cosmwasm-std",
  "error-stack",

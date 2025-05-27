@@ -9,6 +9,7 @@ use ampd_proto::{
     ContractsResponse, SubscribeRequest,
 };
 use async_trait::async_trait;
+use axelar_wasm_std::nonempty;
 use cosmrs::AccountId;
 use cosmwasm_std::Addr;
 use error_stack::{report, Report, Result, ResultExt};
@@ -37,7 +38,7 @@ pub enum Error {
     #[error("missing event in response")]
     InvalidResponse,
 
-    #[error("empty contract or query provided")]
+    #[error("empty query provided")]
     InvalidStateInput,
 }
 
@@ -57,7 +58,11 @@ pub trait Client {
 
     async fn broadcast(&mut self, msg: cosmrs::Any) -> Result<BrodcastClientReponse, Error>;
 
-    async fn contract_state(&mut self, contract: String, query: Vec<u8>) -> Result<Vec<u8>, Error>;
+    async fn contract_state(
+        &mut self,
+        contract: nonempty::String,
+        query: Vec<u8>,
+    ) -> Result<Vec<u8>, Error>;
 
     async fn contracts(&mut self) -> Result<ContractsAddresses, Error>;
 }
@@ -186,13 +191,20 @@ impl Client for GrpcClient {
         Ok(broadcast_response.into())
     }
 
-    async fn contract_state(&mut self, contract: String, query: Vec<u8>) -> Result<Vec<u8>, Error> {
-        let request = (!contract.is_empty() && !query.is_empty())
-            .then_some(ContractStateRequest { contract, query })
-            .ok_or_else(|| report!(Error::InvalidStateInput))?;
+    async fn contract_state(
+        &mut self,
+        contract: nonempty::String,
+        query: Vec<u8>,
+    ) -> Result<Vec<u8>, Error> {
+        if query.is_empty() {
+            return Err(report!(Error::InvalidStateInput));
+        }
 
         self.blockchain
-            .contract_state(request)
+            .contract_state(ContractStateRequest {
+                contract: contract.into(),
+                query,
+            })
             .await
             .map_err(ErrorExt::into_report)
             .map(|response| response.into_inner().result)
