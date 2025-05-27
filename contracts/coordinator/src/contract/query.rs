@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-
 use cosmwasm_std::{Addr, Deps, Order, StdError};
 use error_stack::{Result, ResultExt};
 use itertools::Itertools;
@@ -23,9 +21,6 @@ pub enum Error {
 
     #[error("coordinator failed to retreive chain contracts info")]
     ChainContractsInfo,
-
-    #[error("failed to get provers for verifier {0}")]
-    FailedToGetProversForVerifier(Addr),
 }
 
 pub fn check_verifier_ready_to_unbond(deps: Deps, verifier_address: Addr) -> Result<bool, Error> {
@@ -49,11 +44,13 @@ pub fn verifier_details_with_provers(
             verifier_address: verifier_address.to_string(),
         })?;
 
-    let active_prover_set = get_provers_for_verifier(deps, verifier_address.clone())
+    let mut active_prover_set = get_provers_for_verifier(deps, verifier_address.clone())
         .change_context(Error::VerifierDetailsWithProvers {
             service_name: service_name.clone(),
             verifier_address: verifier_address.to_string(),
         })?;
+
+    active_prover_set.sort_by_key(|addr| addr.to_string());
 
     Ok(VerifierInfo {
         verifier: verifier_details.verifier,
@@ -72,17 +69,18 @@ fn is_verifier_in_any_verifier_set(deps: Deps, verifier_address: &Addr) -> bool 
         .any(|_| true)
 }
 
-fn get_provers_for_verifier(deps: Deps, verifier_address: Addr) -> Result<HashSet<Addr>, Error> {
+fn get_provers_for_verifier(
+    deps: Deps,
+    verifier_address: Addr,
+) -> core::result::Result<Vec<Addr>, StdError> {
     VERIFIER_PROVER_INDEXED_MAP
         .idx
         .by_verifier
         .prefix(verifier_address.clone())
         .range(deps.storage, None, None, Order::Ascending)
         .map(|result| result.map(|(_, record)| record.prover))
-        .try_collect::<Addr, HashSet<Addr>, StdError>()
-        .change_context(Error::FailedToGetProversForVerifier(
-            verifier_address.clone(),
-        ))
+        .dedup()
+        .try_collect()
 }
 
 pub fn get_chain_contracts_info(

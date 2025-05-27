@@ -344,10 +344,12 @@ pub fn assert_verifier_details_are_equal(
         verifier.supported_chains.clone().into_iter().collect();
     assert_eq!(verifier_info_chains, verifier_chains);
 
-    let available_provers: HashSet<Addr> = chains
+    let mut available_provers: Vec<Addr> = chains
         .iter()
         .map(|chain| chain.multisig_prover.contract_addr.clone())
         .collect();
+
+    available_provers.sort_by_key(|addr| addr.to_string());
 
     assert_eq!(verifier_info.actively_signing_for, available_provers);
 }
