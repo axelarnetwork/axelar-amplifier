@@ -22,8 +22,6 @@ pub const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[derive(thiserror::Error, Debug, IntoContractError)]
 pub enum Error {
-    #[error("coordinator instantiation failed")]
-    Instantiate,
     #[error("coordinator query failed")]
     Query,
     #[error("coordinator execution failed")]
@@ -37,26 +35,17 @@ pub fn instantiate(
     _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
-    cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)
-        .map_err(|err| error_stack::Report::new(err))
-        .change_context(Error::Instantiate)?;
+    cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     let config = Config {
         service_registry: address::validate_cosmwasm_address(deps.api, &msg.service_registry)?,
         router: address::validate_cosmwasm_address(deps.api, &msg.router_address)?,
         multisig: address::validate_cosmwasm_address(deps.api, &msg.multisig_address)?,
     };
-    CONFIG
-        .save(deps.storage, &config)
-        .map_err(|err| error_stack::Report::new(err))
-        .change_context(Error::Instantiate)?;
+    CONFIG.save(deps.storage, &config)?;
 
-    let governance = address::validate_cosmwasm_address(deps.api, &msg.governance_address)
-        .change_context(Error::Instantiate)?;
-
-    permission_control::set_governance(deps.storage, &governance)
-        .map_err(|err| error_stack::Report::new(err))
-        .change_context(Error::Instantiate)?;
+    let governance = address::validate_cosmwasm_address(deps.api, &msg.governance_address)?;
+    permission_control::set_governance(deps.storage, &governance)?;
 
     Ok(Response::default())
 }
