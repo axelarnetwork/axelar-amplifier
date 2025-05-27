@@ -14,6 +14,7 @@ use crate::protocol::{emptying_deps_mut, Protocol};
 pub struct MultisigProverContract {
     pub contract_addr: Addr,
     pub admin_addr: Addr,
+    pub code_id: u64,
 }
 
 impl MultisigProverContract {
@@ -61,6 +62,17 @@ impl MultisigProverContract {
         MultisigProverContract {
             contract_addr,
             admin_addr: admin_address,
+            code_id,
+        }
+    }
+}
+
+impl Default for MultisigProverContract {
+    fn default() -> Self {
+        MultisigProverContract {
+            contract_addr: MockApi::default().addr_make("prover"),
+            admin_addr: MockApi::default().addr_make("admin"),
+            code_id: 0,
         }
     }
 }
