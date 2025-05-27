@@ -2,7 +2,8 @@ mod execute;
 mod migrations;
 mod query;
 
-use axelar_wasm_std::address::validate_cosmwasm_address;
+use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
+use crate::state;
 use axelar_wasm_std::error::ContractError;
 use axelar_wasm_std::{address, permission_control, FnExt};
 #[cfg(not(feature = "library"))]
@@ -10,15 +11,27 @@ use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     to_json_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response, Storage,
 };
-use error_stack::report;
+use error_stack::{report, ResultExt};
 use itertools::Itertools;
 pub use migrations::{migrate, MigrateMsg};
-
-use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
-use crate::state::{is_prover_registered, Config, CONFIG};
+use router_api::ChainName;
 
 pub const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 pub const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
+
+#[derive(thiserror::Error, Debug)]
+pub enum Error {
+    #[error("failed to register the basic protocol contracts")]
+    RegisterProtocol,
+    #[error("failed to register the prover contract")]
+    RegisterProverContract,
+    #[error("failed to register contracts for chain {0}")]
+    RegisterChain(ChainName),
+    #[error("failed to set the active verifier set for contract {0}")]
+    SetActiveVerifiers(Addr),
+    #[error("failed to register the prover contract")]
+    InstantiateChainContracts,
+}
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -28,13 +41,6 @@ pub fn instantiate(
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-
-    let config = Config {
-        service_registry: address::validate_cosmwasm_address(deps.api, &msg.service_registry)?,
-        router: address::validate_cosmwasm_address(deps.api, &msg.router_address)?,
-        multisig: address::validate_cosmwasm_address(deps.api, &msg.multisig_address)?,
-    };
-    CONFIG.save(deps.storage, &config)?;
 
     let governance = address::validate_cosmwasm_address(deps.api, &msg.governance_address)?;
     permission_control::set_governance(deps.storage, &governance)?;
@@ -54,12 +60,25 @@ pub fn execute(
         &info.sender,
         find_prover_address(info.sender.clone()),
     )? {
+        ExecuteMsg::RegisterProtocol {
+            service_registry,
+            router_address,
+            multisig_address,
+        } => {
+            let service_registry_addr =
+                address::validate_cosmwasm_address(deps.api, &service_registry)?;
+            let router_addr = address::validate_cosmwasm_address(deps.api, &router_address)?;
+            let multisig_addr = address::validate_cosmwasm_address(deps.api, &multisig_address)?;
+            execute::register_protocol(deps, service_registry_addr, router_addr, multisig_addr)
+                .change_context(Error::RegisterProtocol)
+        }
         ExecuteMsg::RegisterProverContract {
             chain_name,
             new_prover_addr,
         } => {
-            let new_prover_addr = validate_cosmwasm_address(deps.api, &new_prover_addr)?;
+            let new_prover_addr = address::validate_cosmwasm_address(deps.api, &new_prover_addr)?;
             execute::register_prover(deps, chain_name, new_prover_addr)
+                .change_context(Error::RegisterProverContract)
         }
         ExecuteMsg::RegisterChain {
             chain_name,
@@ -67,45 +86,46 @@ pub fn execute(
             gateway_address,
             voting_verifier_address,
         } => {
-            let prover_address = validate_cosmwasm_address(deps.api, &prover_address)?;
-
-            let gateway_address = validate_cosmwasm_address(deps.api, &gateway_address)?;
-
+            let prover_address = address::validate_cosmwasm_address(deps.api, &prover_address)?;
+            let gateway_address = address::validate_cosmwasm_address(deps.api, &gateway_address)?;
             let voting_verifier_address =
-                validate_cosmwasm_address(deps.api, &voting_verifier_address)?;
+                address::validate_cosmwasm_address(deps.api, &voting_verifier_address)?;
 
             execute::register_chain(
                 deps,
-                chain_name,
+                chain_name.clone(),
                 prover_address,
                 gateway_address,
                 voting_verifier_address,
             )
+            .change_context(Error::RegisterChain(chain_name))
         }
         ExecuteMsg::SetActiveVerifiers { verifiers } => {
             let verifiers = verifiers
                 .iter()
-                .map(|v| validate_cosmwasm_address(deps.api, v))
+                .map(|v| address::validate_cosmwasm_address(deps.api, v))
                 .try_collect()?;
-            execute::set_active_verifier_set(deps, info, verifiers)
+            execute::set_active_verifier_set(deps, info.sender.clone(), verifiers)
+                .change_context(Error::SetActiveVerifiers(info.sender))
         }
         ExecuteMsg::InstantiateChainContracts {
             deployment_name,
             salt,
             params,
-        } => execute::instantiate_chain_contracts(deps, env, info, deployment_name, salt, *params),
+        } => execute::instantiate_chain_contracts(deps, env, info, deployment_name, salt, *params)
+            .change_context(Error::InstantiateChainContracts),
     }?
     .then(Ok)
 }
 
 fn find_prover_address(
     sender: Addr,
-) -> impl FnOnce(&dyn Storage, &ExecuteMsg) -> error_stack::Result<Addr, crate::state::Error> {
+) -> impl FnOnce(&dyn Storage, &ExecuteMsg) -> error_stack::Result<Addr, state::Error> {
     move |storage, _| {
-        if is_prover_registered(storage, sender.clone())? {
+        if state::is_prover_registered(storage, sender.clone())? {
             Ok(sender)
         } else {
-            Err(report!(crate::state::Error::ProverNotRegistered(sender)))
+            Err(report!(state::Error::ProverNotRegistered(sender)))
         }
     }
 }
@@ -116,7 +136,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
         QueryMsg::ReadyToUnbond {
             verifier_address: worker_address,
         } => {
-            let worker_address = validate_cosmwasm_address(deps.api, &worker_address)?;
+            let worker_address = address::validate_cosmwasm_address(deps.api, &worker_address)?;
 
             Ok(to_json_binary(&query::check_verifier_ready_to_unbond(
                 deps,
@@ -127,7 +147,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
             service_name,
             verifier,
         } => {
-            let verifier_address = validate_cosmwasm_address(deps.api, &verifier)?;
+            let verifier_address = address::validate_cosmwasm_address(deps.api, &verifier)?;
 
             Ok(to_json_binary(&query::verifier_details_with_provers(
                 deps,
@@ -179,9 +199,6 @@ mod tests {
             admin_addr.clone(),
             &InstantiateMsg {
                 governance_address: admin_addr.clone().to_string(),
-                service_registry: app.api().addr_make("service_registry").to_string(),
-                router_address: app.api().addr_make("router").to_string(),
-                multisig_address: app.api().addr_make("multisig").to_string(),
             },
             &[],
             "Coordinator1.0.0",
@@ -190,6 +207,18 @@ mod tests {
 
         assert!(coordinator_addr.is_ok());
         let coordinator_addr = coordinator_addr.unwrap();
+
+        app.execute_contract(
+            admin_addr.clone(),
+            coordinator_addr.clone(),
+            &ExecuteMsg::RegisterProtocol {
+                service_registry: app.api().addr_make("service_registry").to_string(),
+                router_address: app.api().addr_make("router").to_string(),
+                multisig_address: app.api().addr_make("multisig").to_string(),
+            },
+            &[],
+        )
+            .unwrap();
 
         let res = app.execute_contract(
             admin_addr.clone(),

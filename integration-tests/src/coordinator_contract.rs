@@ -28,15 +28,24 @@ impl CoordinatorContract {
                 MockApi::default().addr_make("anyone"),
                 &coordinator::msg::InstantiateMsg {
                     governance_address: governance.to_string(),
-                    service_registry: service_registry.to_string(),
-                    router_address: router.to_string(),
-                    multisig_address: multisig.to_string(),
                 },
                 &[],
                 "coordinator",
                 None,
             )
             .unwrap();
+
+        app.execute_contract(
+            governance,
+            contract_addr.clone(),
+            &coordinator::msg::ExecuteMsg::RegisterProtocol {
+                service_registry: service_registry.to_string(),
+                router_address: router.to_string(),
+                multisig_address: multisig.to_string(),
+            },
+            &[],
+        )
+        .unwrap();
 
         CoordinatorContract { contract_addr }
     }

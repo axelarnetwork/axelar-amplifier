@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use axelar_wasm_std::nonempty;
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, Order, Storage};
+use cosmwasm_std::{Addr, Order, StdError, Storage};
 use cw_storage_plus::{
     index_list, Index, IndexList, IndexedMap, Item, Map, MultiIndex, UniqueIndex,
 };
@@ -43,17 +43,19 @@ pub enum Error {
 }
 
 #[cw_serde]
-pub struct Config {
+pub struct ProtocolContracts {
     pub service_registry: Addr,
     pub router: Addr,
     pub multisig: Addr,
 }
-pub const CONFIG: Item<Config> = Item::new("config");
+const PROTOCOL: Item<ProtocolContracts> = Item::new("protocol");
 
-pub fn load_config(storage: &dyn Storage) -> Config {
-    CONFIG
-        .load(storage)
-        .expect("coordinator config must be set during instantiation")
+pub fn save_protocol_contracts(storage: &mut dyn Storage, protocol: &ProtocolContracts) -> Result<(), StdError> {
+    Ok(PROTOCOL.save(storage, protocol)?)
+}
+
+pub fn load_protocol_contracts(storage: &dyn Storage) -> Result<ProtocolContracts, StdError> {
+    Ok(PROTOCOL.load(storage)?)
 }
 
 #[cw_serde]
