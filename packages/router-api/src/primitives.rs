@@ -668,8 +668,14 @@ mod tests {
 
     #[test]
     fn chain_name_macros_compile() {
-        assert_eq!(chain_name_raw!("ETHEREUM-1"),ChainNameRaw::from_str("ETHEREUM-1").unwrap());
-        assert_eq!(chain_name!("ETHEREUM-1"),ChainName::from_str("ETHEREUM-1").unwrap());
+        assert_eq!(
+            chain_name_raw!("ETHEREUM-1"),
+            ChainNameRaw::from_str("ETHEREUM-1").unwrap()
+        );
+        assert_eq!(
+            chain_name!("ETHEREUM-1"),
+            ChainName::from_str("ETHEREUM-1").unwrap()
+        );
     }
 
     #[test]
