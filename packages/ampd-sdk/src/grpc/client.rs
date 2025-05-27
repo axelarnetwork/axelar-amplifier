@@ -4,9 +4,13 @@ use std::vec;
 use ampd_proto;
 use ampd_proto::blockchain_service_client::BlockchainServiceClient;
 use ampd_proto::crypto_service_client::CryptoServiceClient;
-use ampd_proto::{AddressRequest, BroadcastRequest, BroadcastResponse, SubscribeRequest};
+use ampd_proto::{
+    AddressRequest, BroadcastRequest, BroadcastResponse, ContractStateRequest, ContractsRequest,
+    ContractsResponse, SubscribeRequest,
+};
 use async_trait::async_trait;
 use cosmrs::AccountId;
+use cosmwasm_std::Addr;
 use error_stack::{report, Report, Result, ResultExt};
 use events::{AbciEventTypeFilter, Event};
 use futures::StreamExt;
@@ -32,6 +36,9 @@ pub enum Error {
 
     #[error("missing event in response")]
     InvalidResponse,
+
+    #[error("empty contract or query provided")]
+    InvalidStateInput,
 }
 
 #[automock(type Stream = tokio_stream::Iter<vec::IntoIter<Result<Event, Error>>>;)]
@@ -49,6 +56,10 @@ pub trait Client {
     async fn address(&mut self) -> Result<AccountId, Error>;
 
     async fn broadcast(&mut self, msg: cosmrs::Any) -> Result<BrodcastClientReponse, Error>;
+
+    async fn contract_state(&mut self, contract: String, query: Vec<u8>) -> Result<Vec<u8>, Error>;
+
+    async fn contracts(&mut self) -> Result<ContractsAddresses, Error>;
 }
 
 #[allow(dead_code)]
@@ -87,6 +98,24 @@ impl From<BroadcastResponse> for BrodcastClientReponse {
         BrodcastClientReponse {
             txhash: response.tx_hash,
             index: response.index,
+        }
+    }
+}
+
+pub struct ContractsAddresses {
+    pub voting_verifier: Addr,
+    pub multisig_prover: Addr,
+    pub service_registry: Addr,
+    pub rewards: Addr,
+}
+
+impl From<ContractsResponse> for ContractsAddresses {
+    fn from(response: ContractsResponse) -> Self {
+        ContractsAddresses {
+            voting_verifier: Addr::unchecked(response.voting_verifier),
+            multisig_prover: Addr::unchecked(response.multisig_prover),
+            service_registry: Addr::unchecked(response.service_registry),
+            rewards: Addr::unchecked(response.rewards),
         }
     }
 }
@@ -155,6 +184,29 @@ impl Client for GrpcClient {
             .into_inner();
 
         Ok(broadcast_response.into())
+    }
+
+    async fn contract_state(&mut self, contract: String, query: Vec<u8>) -> Result<Vec<u8>, Error> {
+        let request = (!contract.is_empty() && !query.is_empty())
+            .then_some(ContractStateRequest { contract, query })
+            .ok_or_else(|| report!(Error::InvalidStateInput))?;
+
+        self.blockchain
+            .contract_state(request)
+            .await
+            .map_err(ErrorExt::into_report)
+            .map(|response| response.into_inner().result)
+    }
+
+    async fn contracts(&mut self) -> Result<ContractsAddresses, Error> {
+        let response = self
+            .blockchain
+            .contracts(Request::new(ContractsRequest {}))
+            .await
+            .map_err(ErrorExt::into_report)?
+            .into_inner();
+
+        Ok(response.into())
     }
 }
 

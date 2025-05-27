@@ -9,6 +9,7 @@ edition = { workspace = true }
 ampd-proto = { workspace = true }
 async-trait = { workspace = true }
 cosmrs = { workspace = true }
+cosmwasm-std = { workspace = true }
 error-stack = { workspace = true }
 events = { workspace = true }
 futures = { workspace = true }

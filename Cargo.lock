@@ -369,6 +369,7 @@ dependencies = [
  "ampd-proto",
  "async-trait",
  "cosmrs",
+ "cosmwasm-std",
  "error-stack",
  "events",
  "futures",
