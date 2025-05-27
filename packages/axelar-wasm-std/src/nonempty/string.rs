@@ -95,6 +95,8 @@ macro_rules! nonempty_str {
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
+
     use crate::nonempty;
 
     #[test]
@@ -108,6 +110,9 @@ mod tests {
 
     #[test]
     fn nonempty_str_macro_compiles() {
-        nonempty_str!("hello world");
+        assert_eq!(
+            nonempty_str!("hello world"),
+            nonempty::String::from_str("hello world").unwrap()
+        );
     }
 }
