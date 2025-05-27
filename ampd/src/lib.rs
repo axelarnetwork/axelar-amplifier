@@ -83,7 +83,18 @@ async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
     } = cfg;
 
     let (monitor_server, metrics_client) =
-        metrics::monitor::Server::new(monitor_bind_addr).change_context(Error::MetricsSetup)?;
+        metrics::monitor::Server::new(monitor_bind_addr).change_context(Error::MonitorSetup)?;
+    // just for DEBUG
+    let metrics_client_for_timer = metrics_client.clone();
+    tokio::spawn(async move {
+        let mut interval = interval(Duration::from_secs(2));
+        loop {
+            interval.tick().await;
+            metrics_client_for_timer.inc_timer().unwrap();
+        }
+    });
+    // end of DEBUG
+
     let tm_client = tendermint_rpc::HttpClient::new(tm_jsonrpc.to_string().as_str())
         .change_context(Error::Connection)
         .attach_printable(tm_jsonrpc.clone())?;
@@ -219,7 +230,7 @@ where
         Pin<Box<MsgQueue>>,
         MultisigClient,
     >,
-    #[allow(dead_code)] // want it to has same lifetime as the app
+    #[allow(dead_code)] // want it to has same lifetime as the app... may used in the future
     metrics_client: metrics::client::MetricsClient,
 }
 
@@ -650,7 +661,7 @@ where
                     .change_context(Error::EventPublisher)
             }))
             .add_task(CancellableTask::create(|token| {
-                monitor_server.run(token).change_context(Error::HealthCheck)
+                monitor_server.run(token).change_context(Error::Monitor)
             }))
             .add_task(CancellableTask::create(|token| {
                 event_processor
@@ -697,10 +708,10 @@ pub enum Error {
     BlockHeightMonitor,
     #[error("invalid finalizer type for chain {0}")]
     InvalidFinalizerType(ChainName),
-    #[error("health check is not working")]
-    HealthCheck,
+    #[error("Montor not working")]
+    Monitor,
     #[error("gRPC server failed")]
     GrpcServer,
     #[error("metrics setup failed")]
-    MetricsSetup,
+    MonitorSetup,
 }

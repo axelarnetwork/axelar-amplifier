@@ -1,58 +1,73 @@
 use std::net::SocketAddrV4;
-use std::sync::Arc;
-
+use std::sync::Arc; 
+use tokio::sync::Mutex;
+use error_stack::{Result, ResultExt}; 
 use axum::http::StatusCode;
 use axum::routing::get;
 use axum::{Json, Router};
-use error_stack::{Result, ResultExt};
+use tokio::sync::mpsc;
 use serde::{Deserialize, Serialize};
-use thiserror::Error;
 use tokio_util::sync::CancellationToken;
 use tracing::info;
+
 
 use crate::metrics::msg::MetricsError;
 use crate::metrics::server::MetricsServer;
 
-#[derive(Error, Debug)]
-pub enum Error {
-    #[error("failed to start the monitor server")]
-    Start,
-    #[error("monitor server failed unexpectedly")]
-    WhileRunning,
-}
+use super::client::MetricsClient;
 
+// we need to access the metrics server concurrently 
+// one for receiving metrics messages
+// one for http requests ->  Arc to allow shared ownership 
+// Mutex to protect the metrics server from concurrent access
+// lock() to ensure only one thread can access the metrics server at a time
 pub struct Server {
     bind_address: SocketAddrV4,
-    metrics_server: Arc<MetricsServer>,
+    metrics_server: Arc<Mutex<MetricsServer>>, 
 }
 
 impl Server {
     pub fn new(
         bind_address: SocketAddrV4,
-    ) -> Result<(Self, crate::metrics::client::MetricsClient), prometheus::Error> {
-        let (client, server) = crate::metrics::setup::create_metrics()?;
+    ) -> Result<(Self, crate::metrics::client::MetricsClient), MetricsError> {
+        let (tx, mut rx) = mpsc::channel(1000); 
+        let metrics_server_logic = MetricsServer::new()
+            .change_context(MetricsError::Start)?;
+        let shared_metrics_server = Arc::new(Mutex::new(metrics_server_logic));
+        let client = MetricsClient::new(tx);
+
+        let processor_metrics_server_arc = shared_metrics_server.clone();
+        tokio::spawn(async move {
+            while let Some(msg) = rx.recv().await {
+                let mut server_guard = processor_metrics_server_arc.lock().await;
+                server_guard.handle_message(msg)?;
+            }
+            Ok::<_, MetricsError>(())
+        });
+
         Ok((
             Self {
                 bind_address,
-                metrics_server: server,
+                metrics_server: shared_metrics_server,
             },
             client,
         ))
     }
-    pub async fn run(self, cancel: CancellationToken) -> Result<(), Error> {
+
+    pub async fn run(self, cancel: CancellationToken) -> Result<(), MetricsError> {
         let listener = tokio::net::TcpListener::bind(self.bind_address)
             .await
-            .change_context(Error::Start)?;
+            .change_context(MetricsError::Start)?;
 
         info!(
             address = self.bind_address.to_string(),
             "starting monitor server"
         );
+       
 
-        let app = Router::new().route("/status", get(status)).route(
-            "/metrics",
-            get(move || metrics(self.metrics_server.clone())),
-        );
+        let app = Router::new()
+            .route("/status", get(status))
+            .route("/metrics", get(move || metrics(self.metrics_server.clone())));
 
         axum::serve(listener, app)
             .with_graceful_shutdown(async move {
@@ -60,7 +75,8 @@ impl Server {
                 info!("exiting monitor server")
             })
             .await
-            .change_context(Error::WhileRunning)
+            .change_context(MetricsError::WhileRunning)?;
+        Ok(())
     }
 }
 
@@ -69,21 +85,14 @@ async fn status() -> (StatusCode, Json<Status>) {
     (StatusCode::OK, Json(Status { ok: true }))
 }
 
-async fn metrics(metrics_server: Arc<MetricsServer>) -> (StatusCode, String) {
-    match metrics_server.gather() {
-        Ok(metrics_data) => (StatusCode::OK, metrics_data),
-        Err(e) => {
-            let error_type = match e {
-                MetricsError::EncodeError => "encoding error",
-                MetricsError::Utf8Error => "UTF-8 conversion error",
-            };
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                format!("Failed to gather metrics: {}", error_type),
-            )
-        }
+async fn metrics(metrics_server: Arc<Mutex<MetricsServer>>) -> (StatusCode, String) {
+    let server = metrics_server.lock().await;
+    match server.gather() {
+        Ok(metrics) => (StatusCode::OK, metrics),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to gather metrics: {}", e)),
     }
 }
+
 #[derive(Serialize, Deserialize)]
 struct Status {
     ok: bool,

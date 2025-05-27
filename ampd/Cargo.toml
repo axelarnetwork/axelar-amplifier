@@ -119,3 +119,8 @@ tokio = { workspace = true, features = ["test-util"] }
 
 [lints]
 workspace = true
+
+
+[[bin]]
+name = "metrics_test"
+path = "src/metrics/bin/manual_test.rs"
