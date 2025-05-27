@@ -4,13 +4,13 @@ mod query;
 
 use axelar_wasm_std::address::validate_cosmwasm_address;
 use axelar_wasm_std::error::ContractError;
-use axelar_wasm_std::{address, permission_control, FnExt, IntoContractError};
+use axelar_wasm_std::{address, permission_control, FnExt};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     to_json_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response, Storage,
 };
-use error_stack::{report, ResultExt};
+use error_stack::report;
 use itertools::Itertools;
 pub use migrations::{migrate, MigrateMsg};
 
@@ -19,14 +19,6 @@ use crate::state::{is_prover_registered, Config, CONFIG};
 
 pub const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 pub const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
-
-#[derive(thiserror::Error, Debug, IntoContractError)]
-pub enum Error {
-    #[error("coordinator query failed")]
-    Query,
-    #[error("coordinator execution failed")]
-    Execute,
-}
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -57,14 +49,11 @@ pub fn execute(
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
-    match msg
-        .ensure_permissions(
-            deps.storage,
-            &info.sender,
-            find_prover_address(&info.sender),
-        )
-        .change_context(Error::Execute)?
-    {
+    match msg.ensure_permissions(
+        deps.storage,
+        &info.sender,
+        find_prover_address(info.sender.clone()),
+    )? {
         ExecuteMsg::RegisterProverContract {
             chain_name,
             new_prover_addr,
@@ -105,21 +94,18 @@ pub fn execute(
             salt,
             params,
         } => execute::instantiate_chain_contracts(deps, env, info, deployment_name, salt, *params),
-    }
-    .change_context(Error::Execute)?
+    }?
     .then(Ok)
 }
 
 fn find_prover_address(
-    sender: &Addr,
-) -> impl FnOnce(&dyn Storage, &ExecuteMsg) -> error_stack::Result<Addr, crate::state::Error> + '_ {
-    |storage, _| {
+    sender: Addr,
+) -> impl FnOnce(&dyn Storage, &ExecuteMsg) -> error_stack::Result<Addr, crate::state::Error> {
+    move |storage, _| {
         if is_prover_registered(storage, sender.clone())? {
-            Ok(sender.clone())
+            Ok(sender)
         } else {
-            Err(report!(crate::state::Error::ProverNotRegistered(
-                sender.clone()
-            )))
+            Err(report!(crate::state::Error::ProverNotRegistered(sender)))
         }
     }
 }
