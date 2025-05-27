@@ -1,7 +1,6 @@
 use tokio::sync::mpsc::Sender;
-use crate::metrics::msg::MetricsError;
 
-use crate::metrics::msg::MetricsMsg;
+use crate::metrics::msg::{MetricsError, MetricsMsg};
 
 #[derive(Clone)]
 pub struct MetricsClient {
@@ -14,12 +13,14 @@ impl MetricsClient {
     }
 
     pub fn inc_block_received(&self) -> Result<(), MetricsError> {
-        self.sender.try_send(MetricsMsg::IncBlockReceived)
+        self.sender
+            .try_send(MetricsMsg::IncBlockReceived)
             .map_err(|_| MetricsError::MetricUpdateFailed)?;
         Ok(())
     }
     pub fn inc_timer(&self) -> Result<(), MetricsError> {
-        self.sender.try_send(MetricsMsg::IncTimer)
+        self.sender
+            .try_send(MetricsMsg::IncTimer)
             .map_err(|_| MetricsError::MetricUpdateFailed)?;
         Ok(())
     }

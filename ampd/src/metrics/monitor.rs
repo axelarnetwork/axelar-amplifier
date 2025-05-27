@@ -1,38 +1,35 @@
 use std::net::SocketAddrV4;
-use std::sync::Arc; 
-use tokio::sync::Mutex;
-use error_stack::{Result, ResultExt}; 
+use std::sync::Arc;
+
 use axum::http::StatusCode;
 use axum::routing::get;
 use axum::{Json, Router};
-use tokio::sync::mpsc;
+use error_stack::{Result, ResultExt};
 use serde::{Deserialize, Serialize};
+use tokio::sync::{mpsc, Mutex};
 use tokio_util::sync::CancellationToken;
 use tracing::info;
 
-
+use super::client::MetricsClient;
 use crate::metrics::msg::MetricsError;
 use crate::metrics::server::MetricsServer;
 
-use super::client::MetricsClient;
-
-// we need to access the metrics server concurrently 
+// we need to access the metrics server concurrently
 // one for receiving metrics messages
-// one for http requests ->  Arc to allow shared ownership 
+// one for http requests ->  Arc to allow shared ownership
 // Mutex to protect the metrics server from concurrent access
 // lock() to ensure only one thread can access the metrics server at a time
 pub struct Server {
     bind_address: SocketAddrV4,
-    metrics_server: Arc<Mutex<MetricsServer>>, 
+    metrics_server: Arc<Mutex<MetricsServer>>,
 }
 
 impl Server {
     pub fn new(
         bind_address: SocketAddrV4,
     ) -> Result<(Self, crate::metrics::client::MetricsClient), MetricsError> {
-        let (tx, mut rx) = mpsc::channel(1000); 
-        let metrics_server_logic = MetricsServer::new()
-            .change_context(MetricsError::Start)?;
+        let (tx, mut rx) = mpsc::channel(1000);
+        let metrics_server_logic = MetricsServer::new().change_context(MetricsError::Start)?;
         let shared_metrics_server = Arc::new(Mutex::new(metrics_server_logic));
         let client = MetricsClient::new(tx);
 
@@ -63,11 +60,11 @@ impl Server {
             address = self.bind_address.to_string(),
             "starting monitor server"
         );
-       
 
-        let app = Router::new()
-            .route("/status", get(status))
-            .route("/metrics", get(move || metrics(self.metrics_server.clone())));
+        let app = Router::new().route("/status", get(status)).route(
+            "/metrics",
+            get(move || metrics(self.metrics_server.clone())),
+        );
 
         axum::serve(listener, app)
             .with_graceful_shutdown(async move {
@@ -89,7 +86,10 @@ async fn metrics(metrics_server: Arc<Mutex<MetricsServer>>) -> (StatusCode, Stri
     let server = metrics_server.lock().await;
     match server.gather() {
         Ok(metrics) => (StatusCode::OK, metrics),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to gather metrics: {}", e)),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Failed to gather metrics: {}", e),
+        ),
     }
 }
 
