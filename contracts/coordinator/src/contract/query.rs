@@ -50,7 +50,7 @@ pub fn verifier_details_with_provers(
             verifier_address: verifier_address.to_string(),
         })?;
 
-    active_prover_set.sort_by_key(|addr| addr.to_string());
+    active_prover_set.sort();
 
     Ok(VerifierInfo {
         verifier: verifier_details.verifier,

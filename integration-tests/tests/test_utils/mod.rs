@@ -349,7 +349,7 @@ pub fn assert_verifier_details_are_equal(
         .map(|chain| chain.multisig_prover.contract_addr.clone())
         .collect();
 
-    available_provers.sort_by_key(|addr| addr.to_string());
+    available_provers.sort();
 
     assert_eq!(verifier_info.actively_signing_for, available_provers);
 }
