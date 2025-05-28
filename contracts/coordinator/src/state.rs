@@ -17,6 +17,9 @@ type VerifierAddress = Addr;
 
 #[derive(thiserror::Error, Debug, PartialEq)]
 pub enum Error {
+    #[error("failed to save state changes")]
+    PersistingState,
+
     #[error("chain {0} is not registered")]
     ChainNotRegistered(ChainName),
 
@@ -32,13 +35,10 @@ pub enum Error {
     #[error("failed to parse state data")]
     StateParseFailed,
 
-    #[error("failed to save state data")]
-    StateSaveFailed,
-
     #[error("failed to remove state data")]
     StateRemoveFailed,
 
-    #[error("deplyment name {0} is in use")]
+    #[error("deployment name {0} is in use")]
     DeploymentName(nonempty::String),
 }
 
@@ -48,6 +48,7 @@ pub struct ProtocolContracts {
     pub router: Addr,
     pub multisig: Addr,
 }
+
 const PROTOCOL: Item<ProtocolContracts> = Item::new("protocol");
 
 pub fn save_protocol_contracts(
@@ -57,7 +58,7 @@ pub fn save_protocol_contracts(
     Ok(PROTOCOL.save(storage, protocol)?)
 }
 
-pub fn load_protocol_contracts(storage: &dyn Storage) -> Result<ProtocolContracts, StdError> {
+pub fn protocol_contracts(storage: &dyn Storage) -> Result<ProtocolContracts, StdError> {
     Ok(PROTOCOL.load(storage)?)
 }
 
@@ -136,7 +137,7 @@ pub fn save_chain_contracts(
 
     CHAIN_CONTRACTS_MAP
         .save(storage, chain, &record)
-        .change_context(Error::StateSaveFailed)?;
+        .change_context(Error::PersistingState)?;
 
     Ok(())
 }
@@ -211,7 +212,7 @@ pub fn save_deployed_contracts(
 ) -> Result<(), Error> {
     DEPLOYED_CHAINS
         .save(storage, deployment_name.to_string(), &contracts)
-        .change_context(Error::StateSaveFailed)
+        .change_context(Error::PersistingState)
 }
 
 // Legacy prover storage - maintained for backward compatibility
@@ -258,7 +259,7 @@ pub fn save_prover_for_chain(
 ) -> Result<(), Error> {
     CHAIN_PROVER_INDEXED_MAP
         .save(storage, chain.clone(), &prover)
-        .change_context(Error::StateSaveFailed)?;
+        .change_context(Error::PersistingState)?;
 
     Ok(())
 }
@@ -317,7 +318,7 @@ pub fn update_verifier_set_for_prover(
                     verifier: verifier.clone(),
                 },
             )
-            .change_context(Error::StateSaveFailed)?;
+            .change_context(Error::PersistingState)?;
     }
 
     Ok(())
