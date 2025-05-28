@@ -39,7 +39,7 @@ impl CoordinatorContract {
             governance,
             contract_addr.clone(),
             &coordinator::msg::ExecuteMsg::RegisterProtocol {
-                service_registry: service_registry.to_string(),
+                service_registry_address: service_registry.to_string(),
                 router_address: router.to_string(),
                 multisig_address: multisig.to_string(),
             },

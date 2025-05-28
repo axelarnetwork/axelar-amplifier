@@ -29,7 +29,7 @@ pub enum ExecuteMsg {
     /// After the contract is instantiated, this should be the first call to execute
     #[permission(Governance)]
     RegisterProtocol {
-        service_registry: String,
+        service_registry_address: String,
         router_address: String,
         multisig_address: String,
     },

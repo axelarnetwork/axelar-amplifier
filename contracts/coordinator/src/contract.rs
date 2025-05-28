@@ -62,7 +62,7 @@ pub fn execute(
         find_prover_address(info.sender.clone()),
     )? {
         ExecuteMsg::RegisterProtocol {
-            service_registry,
+            service_registry_address: service_registry,
             router_address,
             multisig_address,
         } => {
@@ -213,7 +213,7 @@ mod tests {
             admin_addr.clone(),
             coordinator_addr.clone(),
             &ExecuteMsg::RegisterProtocol {
-                service_registry: app.api().addr_make("service_registry").to_string(),
+                service_registry_address: app.api().addr_make("service_registry").to_string(),
                 router_address: app.api().addr_make("router").to_string(),
                 multisig_address: app.api().addr_make("multisig").to_string(),
             },
