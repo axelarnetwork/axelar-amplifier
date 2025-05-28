@@ -6,10 +6,8 @@ use std::str::FromStr;
 use axelar_wasm_std::utils::TryMapExt;
 use cosmwasm_std::Uint256;
 use error_stack::{bail, Report, ResultExt};
-use multisig::key::Signature::Ed25519;
-use multisig::key::{PublicKey, Signature};
-use multisig::msg::{Signer, SignerWithSig};
-use multisig::verifier_set::VerifierSet;
+use multisig::Signature::Ed25519;
+use multisig::{PublicKey, Signature, Signer, SignerWithSig, VerifierSet};
 use sha3::{Digest, Keccak256};
 use stellar_strkey::Contract;
 use stellar_xdr::curr::{

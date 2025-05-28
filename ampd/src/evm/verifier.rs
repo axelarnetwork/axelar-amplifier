@@ -143,8 +143,8 @@ mod tests {
     use ethers_core::types::{Log, TransactionReceipt, H256};
     use evm_gateway::i_axelar_amplifier_gateway::{ContractCallFilter, SignersRotatedFilter};
     use evm_gateway::WeightedSigners;
-    use multisig::key::KeyType;
     use multisig::test::common::{build_verifier_set, ecdsa_test_data};
+    use multisig::KeyType;
 
     use super::{verify_message, verify_verifier_set};
     use crate::handlers::evm_verify_msg::Message;

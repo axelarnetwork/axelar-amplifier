@@ -11,8 +11,7 @@ use events::Error::EventTypeMismatch;
 use events_derive;
 use events_derive::try_from;
 use hex::encode;
-use multisig::msg::ExecuteMsg;
-use multisig::types::MsgToSign;
+use multisig::{ExecuteMsg, MsgToSign};
 use router_api::ChainName;
 use serde::de::Error as DeserializeError;
 use serde::{Deserialize, Deserializer};
@@ -43,7 +42,7 @@ fn deserialize_public_keys<'de, D>(
 where
     D: Deserializer<'de>,
 {
-    let keys_by_address: HashMap<TMAddress, multisig::key::PublicKey> =
+    let keys_by_address: HashMap<TMAddress, multisig::PublicKey> =
         HashMap::deserialize(deserializer)?;
 
     keys_by_address
@@ -145,11 +144,9 @@ where
         match pub_keys.get(&self.verifier) {
             Some(&pub_key) => {
                 let pub_key_hex = HexBinary::from(pub_key.to_bytes());
-                let multisig_pub_key = multisig::key::PublicKey::try_from((
-                    multisig::key::KeyType::Ecdsa,
-                    pub_key_hex,
-                ))
-                .map_err(|_e| Error::PublicKey)?;
+                let multisig_pub_key =
+                    multisig::PublicKey::try_from((multisig::KeyType::Ecdsa, pub_key_hex))
+                        .map_err(|_e| Error::PublicKey)?;
                 let xrpl_address = XRPLAccountId::from(&multisig_pub_key);
 
                 let msg_digest = MessageDigest::from(
@@ -195,9 +192,7 @@ mod test {
     use cosmrs::AccountId;
     use cosmwasm_std::{HexBinary, Uint64};
     use error_stack::{Report, Result};
-    use multisig::events::Event;
-    use multisig::key::PublicKey;
-    use multisig::types::MsgToSign;
+    use multisig::{Event, MsgToSign, PublicKey};
     use rand::rngs::OsRng;
     use router_api::ChainName;
     use tendermint::abci;
@@ -211,8 +206,8 @@ mod test {
     const MULTISIG_ADDRESS: &str = "axelarvaloper1zh9wrak6ke4n6fclj5e8yk397czv430ygs5jz7";
     const PREFIX: &str = "axelar";
 
-    fn rand_public_key() -> multisig::key::PublicKey {
-        multisig::key::PublicKey::Ecdsa(HexBinary::from(
+    fn rand_public_key() -> multisig::PublicKey {
+        multisig::PublicKey::Ecdsa(HexBinary::from(
             k256::ecdsa::SigningKey::random(&mut OsRng)
                 .verifying_key()
                 .to_sec1_bytes()
@@ -228,7 +223,7 @@ mod test {
     fn signing_started_event() -> events::Event {
         let pub_keys = (0..10)
             .map(|_| (TMAddress::random(PREFIX).to_string(), rand_public_key()))
-            .collect::<HashMap<String, multisig::key::PublicKey>>();
+            .collect::<HashMap<String, multisig::PublicKey>>();
 
         let poll_started = Event::SigningStarted {
             session_id: Uint64::one(),
