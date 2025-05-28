@@ -49,12 +49,10 @@ struct ContractsInstantiated {
     _deployment_name: nonempty::String,
 }
 
-fn deserialize_json_attribute<'de, T, D>(
-    deserializer: D,
-) -> Result<T, D::Error>
+fn deserialize_json_attribute<'de, T, D>(deserializer: D) -> Result<T, D::Error>
 where
     D: Deserializer<'de>,
-    T: DeserializeOwned
+    T: DeserializeOwned,
 {
     let json: String = Deserialize::deserialize(deserializer)?;
     serde_json::from_str::<T>(&json).map_err(D::Error::custom)
