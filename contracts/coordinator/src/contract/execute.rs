@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use axelar_wasm_std::nonempty;
 use cosmwasm_std::{Addr, Binary, DepsMut, Env, MessageInfo, Response, WasmMsg, WasmQuery};
 use error_stack::{Result, ResultExt};
-use router_api::{chain_name, ChainName};
+use router_api::ChainName;
 
 use crate::events::{ContractInstantiation, Event};
 use crate::msg::{DeploymentParams, ProverMsg, VerifierMsg};
