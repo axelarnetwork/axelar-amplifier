@@ -8,6 +8,7 @@ use coordinator::events::ContractInstantiation;
 use coordinator::msg::{
     ContractDeploymentInfo, DeploymentParams, ManualDeploymentParams, ProverMsg, VerifierMsg,
 };
+use cosmwasm_std::testing::MockApi;
 use cosmwasm_std::{Binary, HexBinary};
 use cw_multi_test::AppResponse;
 use error_stack::Report;
