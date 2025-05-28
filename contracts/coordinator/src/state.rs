@@ -50,7 +50,10 @@ pub struct ProtocolContracts {
 }
 const PROTOCOL: Item<ProtocolContracts> = Item::new("protocol");
 
-pub fn save_protocol_contracts(storage: &mut dyn Storage, protocol: &ProtocolContracts) -> Result<(), StdError> {
+pub fn save_protocol_contracts(
+    storage: &mut dyn Storage,
+    protocol: &ProtocolContracts,
+) -> Result<(), StdError> {
     Ok(PROTOCOL.save(storage, protocol)?)
 }
 

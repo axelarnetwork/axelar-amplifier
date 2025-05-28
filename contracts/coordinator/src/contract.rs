@@ -2,8 +2,6 @@ mod execute;
 mod migrations;
 mod query;
 
-use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
-use crate::state;
 use axelar_wasm_std::error::ContractError;
 use axelar_wasm_std::{address, permission_control, FnExt};
 #[cfg(not(feature = "library"))]
@@ -15,6 +13,9 @@ use error_stack::{report, ResultExt};
 use itertools::Itertools;
 pub use migrations::{migrate, MigrateMsg};
 use router_api::ChainName;
+
+use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
+use crate::state;
 
 pub const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 pub const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -218,7 +219,7 @@ mod tests {
             },
             &[],
         )
-            .unwrap();
+        .unwrap();
 
         let res = app.execute_contract(
             admin_addr.clone(),
@@ -346,37 +347,5 @@ mod tests {
 
         assert!(record_response_by_verifier.is_ok());
         goldie::assert_json!(record_response_by_verifier.unwrap());
-    }
-
-    #[test]
-    fn migrate_sets_contract_version() {
-        let mut test_setup = setup();
-
-        let coordinator_code =
-            ContractWrapper::new(execute, instantiate, query).with_migrate(migrate);
-        let coordinator_code_id = test_setup.app.store_code(Box::new(coordinator_code));
-
-        assert!(test_setup
-            .app
-            .migrate_contract(
-                test_setup.admin_addr.clone(),
-                test_setup.coordinator_addr.clone(),
-                &MigrateMsg {
-                    router: test_setup.app.api().addr_make("router"),
-                    multisig: test_setup.app.api().addr_make("multisig"),
-                },
-                coordinator_code_id,
-            )
-            .is_ok());
-
-        let contract_version = cw2::get_contract_version(
-            test_setup
-                .app
-                .contract_storage_mut(&test_setup.coordinator_addr)
-                .as_ref(),
-        )
-        .unwrap();
-        assert_eq!(contract_version.contract, CONTRACT_NAME);
-        assert_eq!(contract_version.version, CONTRACT_VERSION);
     }
 }

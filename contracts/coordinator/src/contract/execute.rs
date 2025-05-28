@@ -16,7 +16,7 @@ use crate::state::{ChainContracts, ProtocolContracts};
 pub enum Error {
     #[error("protocol contracts (e.g. the router) are not registered yet")]
     ProtocolNotRegistered,
-    
+
     #[error("failed to activate verifier set")]
     VerifierSetActivationFailed,
 
@@ -98,12 +98,7 @@ pub fn set_active_verifier_set(
     Ok(Response::new())
 }
 
-fn instantiate2_addr(
-    deps: &DepsMut,
-    env: &Env,
-    code_id: u64,
-    salt: &[u8],
-) -> Result<Addr, Error> {
+fn instantiate2_addr(deps: &DepsMut, env: &Env, code_id: u64, salt: &[u8]) -> Result<Addr, Error> {
     let code_info: cosmwasm_std::CodeInfoResponse = deps
         .querier
         .query(&WasmQuery::CodeInfo { code_id }.into())
@@ -258,7 +253,8 @@ pub fn instantiate_chain_contracts(
     state::validate_deployment_name_availability(deps.storage, deployment_name.clone())
         .change_context(Error::InstantiateContracts)?;
 
-    let config = state::load_protocol_contracts(deps.storage).change_context(Error::ProtocolNotRegistered)?;
+    let config = state::load_protocol_contracts(deps.storage)
+        .change_context(Error::ProtocolNotRegistered)?;
 
     match params {
         DeploymentParams::Manual(params) => {

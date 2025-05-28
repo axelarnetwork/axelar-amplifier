@@ -28,7 +28,7 @@ pub struct InstantiateMsg {
 pub enum ExecuteMsg {
     /// After the contract is instantiated, this should be the first call to execute
     #[permission(Governance)]
-    RegisterProtocol{
+    RegisterProtocol {
         service_registry: String,
         router_address: String,
         multisig_address: String,
