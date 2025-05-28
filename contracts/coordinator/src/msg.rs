@@ -21,14 +21,18 @@ type VerifierAddress = Addr;
 #[cw_serde]
 pub struct InstantiateMsg {
     pub governance_address: String,
-    pub service_registry: String,
-    pub router_address: String,
-    pub multisig_address: String,
 }
 
 #[cw_serde]
 #[derive(EnsurePermissions)]
 pub enum ExecuteMsg {
+    /// After the contract is instantiated, this should be the first call to execute
+    #[permission(Governance)]
+    RegisterProtocol {
+        service_registry_address: String,
+        router_address: String,
+        multisig_address: String,
+    },
     #[deprecated(
         note = "Use RegisterChain instead which supports registering all contract addresses at once"
     )]

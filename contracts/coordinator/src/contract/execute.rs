@@ -1,19 +1,22 @@
 use std::collections::HashSet;
 
 use axelar_wasm_std::nonempty;
-use cosmwasm_std::{Addr, Binary, DepsMut, Env, MessageInfo, Response, WasmMsg, WasmQuery};
+use cosmwasm_std::{
+    Addr, Binary, DepsMut, Env, MessageInfo, Response, StdError, WasmMsg, WasmQuery,
+};
 use error_stack::{Result, ResultExt};
 use router_api::ChainName;
 
 use crate::events::{ContractInstantiation, Event};
 use crate::msg::{DeploymentParams, ProverMsg, VerifierMsg};
-use crate::state::{
-    load_config, save_chain_contracts, save_deployed_contracts, save_prover_for_chain,
-    update_verifier_set_for_prover, validate_deployment_name_availability, ChainContracts,
-};
+use crate::state;
+use crate::state::{ChainContracts, ProtocolContracts};
 
 #[derive(thiserror::Error, Debug, PartialEq)]
 pub enum Error {
+    #[error("protocol contracts (e.g. the router) are not registered yet")]
+    ProtocolNotRegistered,
+
     #[error("failed to activate verifier set")]
     VerifierSetActivationFailed,
 
@@ -42,12 +45,27 @@ pub enum Error {
     InstantiateProver,
 }
 
+pub fn register_protocol(
+    deps: DepsMut,
+    service_registry: Addr,
+    router: Addr,
+    multisig: Addr,
+) -> Result<Response, StdError> {
+    let protocol = ProtocolContracts {
+        service_registry,
+        router,
+        multisig,
+    };
+    state::save_protocol_contracts(deps.storage, &protocol)?;
+    Ok(Response::default())
+}
+
 pub fn register_prover(
     deps: DepsMut,
     chain_name: ChainName,
     new_prover_addr: Addr,
 ) -> Result<Response, Error> {
-    save_prover_for_chain(deps.storage, chain_name, new_prover_addr.clone())
+    state::save_prover_for_chain(deps.storage, chain_name, new_prover_addr.clone())
         .change_context(Error::ProverNotRegistered(new_prover_addr))?;
     Ok(Response::new())
 }
@@ -59,7 +77,7 @@ pub fn register_chain(
     gateway_addr: Addr,
     voting_verifier_address: Addr,
 ) -> Result<Response, Error> {
-    save_chain_contracts(
+    state::save_chain_contracts(
         deps.storage,
         chain_name.clone(),
         prover_addr,
@@ -72,20 +90,15 @@ pub fn register_chain(
 
 pub fn set_active_verifier_set(
     deps: DepsMut,
-    info: MessageInfo,
+    sender: Addr,
     verifiers: HashSet<Addr>,
 ) -> Result<Response, Error> {
-    update_verifier_set_for_prover(deps.storage, info.sender, verifiers)
+    state::update_verifier_set_for_prover(deps.storage, sender, verifiers)
         .change_context(Error::VerifierSetActivationFailed)?;
     Ok(Response::new())
 }
 
-fn instantiate2_addr(
-    deps: &DepsMut,
-    env: &Env,
-    code_id: u64,
-    salt: &[u8],
-) -> error_stack::Result<Addr, Error> {
+fn instantiate2_addr(deps: &DepsMut, env: &Env, code_id: u64, salt: &[u8]) -> Result<Addr, Error> {
     let code_info: cosmwasm_std::CodeInfoResponse = deps
         .querier
         .query(&WasmQuery::CodeInfo { code_id }.into())
@@ -114,7 +127,7 @@ fn launch_contract(
     code_id: u64,
     instantiate_msg: Binary,
     label: String,
-) -> error_stack::Result<(WasmMsg, Addr), Error> {
+) -> Result<(WasmMsg, Addr), Error> {
     Ok((
         WasmMsg::Instantiate2 {
             admin: Some(info.sender.to_string()),
@@ -133,7 +146,7 @@ fn instantiate_gateway(
     label: String,
     router_address: Addr,
     verifier_address: Addr,
-) -> error_stack::Result<(WasmMsg, Addr), Error> {
+) -> Result<(WasmMsg, Addr), Error> {
     launch_contract(
         &ctx.deps,
         &ctx.info,
@@ -154,7 +167,7 @@ fn instantiate_verifier(
     label: String,
     service_registry_address: Addr,
     verifier_msg: &VerifierMsg,
-) -> error_stack::Result<(WasmMsg, Addr), Error> {
+) -> Result<(WasmMsg, Addr), Error> {
     launch_contract(
         &ctx.deps,
         &ctx.info,
@@ -190,7 +203,7 @@ fn instantiate_prover(
     multisig_address: Addr,
     verifier_address: Addr,
     prover_msg: &ProverMsg,
-) -> error_stack::Result<(WasmMsg, Addr), Error> {
+) -> Result<(WasmMsg, Addr), Error> {
     launch_contract(
         &ctx.deps,
         &ctx.info,
@@ -235,12 +248,13 @@ pub fn instantiate_chain_contracts(
     deployment_name: nonempty::String,
     salt: Binary,
     params: DeploymentParams,
-) -> error_stack::Result<Response, Error> {
+) -> Result<Response, Error> {
     let mut response = Response::new();
-    validate_deployment_name_availability(deps.storage, deployment_name.clone())
+    state::validate_deployment_name_availability(deps.storage, deployment_name.clone())
         .change_context(Error::InstantiateContracts)?;
 
-    let config = load_config(deps.storage);
+    let config = state::load_protocol_contracts(deps.storage)
+        .change_context(Error::ProtocolNotRegistered)?;
 
     match params {
         DeploymentParams::Manual(params) => {
@@ -306,7 +320,7 @@ pub fn instantiate_chain_contracts(
                     deployment_name: deployment_name.clone(),
                 });
 
-            save_deployed_contracts(
+            state::save_deployed_contracts(
                 ctx.deps.storage,
                 deployment_name,
                 ChainContracts {

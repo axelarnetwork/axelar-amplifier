@@ -5,7 +5,7 @@ use cosmwasm_std::entry_point;
 use cosmwasm_std::{Addr, DepsMut, Env, Response};
 use cw_storage_plus::Item;
 
-use crate::state::{Config, CONFIG};
+use crate::state;
 
 #[cw_serde]
 pub struct OldConfig {
@@ -28,9 +28,9 @@ pub fn migrate(
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
     let old_config = OLD_CONFIG.load(deps.storage)?;
 
-    CONFIG.save(
+    state::save_protocol_contracts(
         deps.storage,
-        &Config {
+        &state::ProtocolContracts {
             service_registry: old_config.service_registry,
             router: msg.router,
             multisig: msg.multisig,

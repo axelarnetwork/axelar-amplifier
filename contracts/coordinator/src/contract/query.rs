@@ -6,11 +6,14 @@ use service_registry_api::msg::VerifierDetails;
 use crate::msg::{ChainContractsKey, ChainContractsResponse, VerifierInfo};
 use crate::state::{
     contracts_by_chain, contracts_by_gateway, contracts_by_prover, contracts_by_verifier,
-    load_config, VERIFIER_PROVER_INDEXED_MAP,
+    load_protocol_contracts, VERIFIER_PROVER_INDEXED_MAP,
 };
 
 #[derive(thiserror::Error, Debug, PartialEq)]
 pub enum Error {
+    #[error("protocol contracts (e.g. the router) are not registered yet")]
+    ProtocolNotRegistered,
+
     #[error(
         "coordinator failed to retrieve verifier details and corresponding provers. service_name: {service_name}, verifier_address: {verifier_address}"
     )]
@@ -32,7 +35,8 @@ pub fn verifier_details_with_provers(
     service_name: String,
     verifier_address: Addr,
 ) -> Result<VerifierInfo, Error> {
-    let config = load_config(deps.storage);
+    let config =
+        load_protocol_contracts(deps.storage).change_context(Error::ProtocolNotRegistered)?;
 
     let service_registry: service_registry_api::Client =
         client::ContractClient::new(deps.querier, &config.service_registry).into();
