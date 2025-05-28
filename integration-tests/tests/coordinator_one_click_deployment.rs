@@ -21,7 +21,7 @@ use integration_tests::voting_verifier_contract::VotingVerifierContract;
 use multisig::key::KeyType;
 use multisig_prover_api::encoding::Encoder;
 use router_api::{Address, ChainName, CrossChainId, Message};
-use serde::de::Error;
+use serde::de::{DeserializeOwned, Error};
 use serde::{Deserialize, Deserializer};
 
 use crate::test_utils::Chain;
@@ -37,11 +37,11 @@ struct DeployedContracts {
 #[derive(Deserialize, Debug)]
 #[try_from("wasm-contracts_instantiated")]
 struct ContractsInstantiated {
-    #[serde(deserialize_with = "deserialize_contract_instantiation")]
+    #[serde(deserialize_with = "deserialize_json_attribute")]
     gateway: ContractInstantiation,
-    #[serde(deserialize_with = "deserialize_contract_instantiation")]
+    #[serde(deserialize_with = "deserialize_json_attribute")]
     voting_verifier: ContractInstantiation,
-    #[serde(deserialize_with = "deserialize_contract_instantiation")]
+    #[serde(deserialize_with = "deserialize_json_attribute")]
     multisig_prover: ContractInstantiation,
     #[serde(rename = "chain_name")]
     _chain_name: ChainName,
@@ -49,14 +49,15 @@ struct ContractsInstantiated {
     _deployment_name: nonempty::String,
 }
 
-fn deserialize_contract_instantiation<'de, D>(
+fn deserialize_json_attribute<'de, T, D>(
     deserializer: D,
-) -> Result<ContractInstantiation, D::Error>
+) -> Result<T, D::Error>
 where
     D: Deserializer<'de>,
+    T: DeserializeOwned
 {
     let json: String = Deserialize::deserialize(deserializer)?;
-    serde_json::from_str::<ContractInstantiation>(&json).map_err(D::Error::custom)
+    serde_json::from_str::<T>(&json).map_err(D::Error::custom)
 }
 
 fn deploy_chains(
