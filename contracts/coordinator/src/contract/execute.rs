@@ -1,9 +1,7 @@
 use std::collections::HashSet;
 
 use axelar_wasm_std::nonempty;
-use cosmwasm_std::{
-    Addr, Binary, DepsMut, Env, MessageInfo, Response, StdError, WasmMsg, WasmQuery,
-};
+use cosmwasm_std::{Addr, Binary, DepsMut, Env, MessageInfo, Response, WasmMsg, WasmQuery};
 use error_stack::{Result, ResultExt};
 use router_api::ChainName;
 
@@ -245,7 +243,7 @@ pub fn instantiate_chain_contracts(
                 &ctx,
                 params.gateway.label.clone(),
                 protocol.router.clone(),
-                verifier_address,
+                verifier_address.clone(),
             )
             .change_context(Error::InstantiateContracts)?;
 

@@ -13,7 +13,6 @@ use cosmwasm_std::{
 use error_stack::{report, ResultExt};
 use itertools::Itertools;
 pub use migrations::{migrate, MigrateMsg};
-use router_api::ChainName;
 
 use crate::contract::errors::Error;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};

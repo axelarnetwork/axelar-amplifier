@@ -42,8 +42,6 @@ pub enum Error {
     },
     #[error("coordinator failed to retrieve chain contracts info")]
     ChainContractsInfo,
-    #[error("failed to get provers for verifier {0}")]
-    FailedToGetProversForVerifier(Addr),
     #[error("unable to persist the main protocol contracts")]
     UnableToPersistProtocol,
     #[error("contract config before migration not found")]
