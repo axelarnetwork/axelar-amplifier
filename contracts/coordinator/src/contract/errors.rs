@@ -5,13 +5,13 @@ use router_api::ChainName;
 pub enum Error {
     #[error("failed to register the basic protocol contracts")]
     RegisterProtocol,
-    #[error("failed to register the prover contract")]
-    RegisterProverContract,
+    #[error("failed to register the prover contract {0}")]
+    RegisterProverContract(Addr),
     #[error("failed to register contracts for chain {0}")]
     RegisterChain(ChainName),
     #[error("failed to set the active verifier set for contract {0}")]
     SetActiveVerifiers(Addr),
-    #[error("failed to register the prover contract")]
+    #[error("failed to instantiate chain contracts")]
     InstantiateChainContracts,
     #[error("main protocol contracts (e.g. the router) are not registered yet")]
     ProtocolNotRegistered,

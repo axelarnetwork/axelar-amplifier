@@ -69,7 +69,7 @@ pub fn execute(
         } => {
             let new_prover_addr = address::validate_cosmwasm_address(deps.api, &new_prover_addr)?;
             execute::register_prover(deps, chain_name, new_prover_addr)
-                .change_context(Error::RegisterProverContract)
+                .change_context(Error::RegisterProverContract(new_prover_addr))
         }
         ExecuteMsg::RegisterChain {
             chain_name,
