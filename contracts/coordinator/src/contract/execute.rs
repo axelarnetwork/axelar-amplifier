@@ -1,62 +1,29 @@
 use std::collections::HashSet;
 
 use axelar_wasm_std::nonempty;
-use cosmwasm_std::{
-    Addr, Binary, DepsMut, Env, MessageInfo, Response, StdError, WasmMsg, WasmQuery,
-};
+use cosmwasm_std::{Addr, Binary, DepsMut, Env, MessageInfo, Response, WasmMsg, WasmQuery};
 use error_stack::{Result, ResultExt};
 use router_api::ChainName;
 
+use crate::contract::errors::Error;
 use crate::events::{ContractInstantiation, Event};
 use crate::msg::{DeploymentParams, ProverMsg, VerifierMsg};
 use crate::state;
 use crate::state::{ChainContracts, ProtocolContracts};
-
-#[derive(thiserror::Error, Debug, PartialEq)]
-pub enum Error {
-    #[error("protocol contracts (e.g. the router) are not registered yet")]
-    ProtocolNotRegistered,
-
-    #[error("failed to activate verifier set")]
-    VerifierSetActivationFailed,
-
-    #[error("chain {0} is not registered")]
-    ChainNotRegistered(ChainName),
-
-    #[error("prover {0} is not registered")]
-    ProverNotRegistered(Addr),
-
-    #[error("failed to generate instantiate2 address")]
-    Instantiate2Address,
-
-    #[error("failed to instantiate core contracts")]
-    InstantiateContracts,
-
-    #[error("failed to query code info for code id {0}")]
-    QueryCodeInfo(u64),
-
-    #[error("failed to instantiate gateway")]
-    InstantiateGateway,
-
-    #[error("failed to instantiate verifier")]
-    InstantiateVerifier,
-
-    #[error("failed to instantiate prover")]
-    InstantiateProver,
-}
 
 pub fn register_protocol(
     deps: DepsMut,
     service_registry: Addr,
     router: Addr,
     multisig: Addr,
-) -> Result<Response, StdError> {
+) -> Result<Response, Error> {
     let protocol = ProtocolContracts {
         service_registry,
         router,
         multisig,
     };
-    state::save_protocol_contracts(deps.storage, &protocol)?;
+    state::save_protocol_contracts(deps.storage, &protocol)
+        .change_context(Error::UnableToPersistProtocol)?;
     Ok(Response::default())
 }
 
@@ -253,8 +220,8 @@ pub fn instantiate_chain_contracts(
     state::validate_deployment_name_availability(deps.storage, deployment_name.clone())
         .change_context(Error::InstantiateContracts)?;
 
-    let config = state::load_protocol_contracts(deps.storage)
-        .change_context(Error::ProtocolNotRegistered)?;
+    let protocol =
+        state::protocol_contracts(deps.storage).change_context(Error::ProtocolNotRegistered)?;
 
     match params {
         DeploymentParams::Manual(params) => {
@@ -275,7 +242,7 @@ pub fn instantiate_chain_contracts(
             let (msg, gateway_address) = instantiate_gateway(
                 &ctx,
                 params.gateway.label.clone(),
-                config.router.clone(),
+                protocol.router.clone(),
                 verifier_address.clone(),
             )
             .change_context(Error::InstantiateContracts)?;
@@ -285,7 +252,7 @@ pub fn instantiate_chain_contracts(
             let (msg, voting_verifier_address) = instantiate_verifier(
                 &ctx,
                 params.verifier.label.clone(),
-                config.service_registry.clone(),
+                protocol.service_registry.clone(),
                 &params.verifier.msg,
             )?;
 
@@ -295,8 +262,8 @@ pub fn instantiate_chain_contracts(
                 &ctx,
                 params.prover.label.clone(),
                 gateway_address.clone(),
-                config.service_registry.clone(),
-                config.multisig.clone(),
+                protocol.service_registry.clone(),
+                protocol.multisig.clone(),
                 voting_verifier_address.clone(),
                 &params.prover.msg,
             )?;

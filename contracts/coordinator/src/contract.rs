@@ -1,3 +1,4 @@
+mod errors;
 mod execute;
 mod migrations;
 mod query;
@@ -12,27 +13,13 @@ use cosmwasm_std::{
 use error_stack::{report, ResultExt};
 use itertools::Itertools;
 pub use migrations::{migrate, MigrateMsg};
-use router_api::ChainName;
 
+use crate::contract::errors::Error;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state;
 
 pub const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 pub const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
-
-#[derive(thiserror::Error, Debug)]
-pub enum Error {
-    #[error("failed to register the basic protocol contracts")]
-    RegisterProtocol,
-    #[error("failed to register the prover contract")]
-    RegisterProverContract,
-    #[error("failed to register contracts for chain {0}")]
-    RegisterChain(ChainName),
-    #[error("failed to set the active verifier set for contract {0}")]
-    SetActiveVerifiers(Addr),
-    #[error("failed to register the prover contract")]
-    InstantiateChainContracts,
-}
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -78,8 +65,8 @@ pub fn execute(
             new_prover_addr,
         } => {
             let new_prover_addr = address::validate_cosmwasm_address(deps.api, &new_prover_addr)?;
-            execute::register_prover(deps, chain_name, new_prover_addr)
-                .change_context(Error::RegisterProverContract)
+            execute::register_prover(deps, chain_name, new_prover_addr.clone())
+                .change_context(Error::RegisterProverContract(new_prover_addr))
         }
         ExecuteMsg::RegisterChain {
             chain_name,
