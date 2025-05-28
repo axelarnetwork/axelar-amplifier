@@ -43,8 +43,6 @@ struct ContractsInstantiated {
     voting_verifier: ContractInstantiation,
     #[serde(deserialize_with = "deserialize_contract_instantiation")]
     multisig_prover: ContractInstantiation,
-    _chain_name: ChainName,
-    _deployment_name: nonempty::String,
 }
 
 fn deserialize_contract_instantiation<'de, D>(
