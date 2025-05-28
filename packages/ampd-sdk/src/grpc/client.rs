@@ -11,7 +11,6 @@ use ampd_proto::{
 use async_trait::async_trait;
 use axelar_wasm_std::nonempty;
 use cosmrs::AccountId;
-use cosmwasm_std::Addr;
 use error_stack::{report, Report, Result, ResultExt};
 use events::{AbciEventTypeFilter, Event};
 use futures::StreamExt;
@@ -38,13 +37,12 @@ pub enum Error {
     #[error("missing event in response")]
     InvalidResponse,
 
-    #[error("empty query provided")]
-    InvalidStateInput,
+    #[error("failed to convert contract address")]
+    ContractAddressConversion,
 }
 
 #[automock(type Stream = tokio_stream::Iter<vec::IntoIter<Result<Event, Error>>>;)]
 #[async_trait]
-#[allow(dead_code)]
 pub trait Client {
     type Stream: Stream<Item = Result<Event, Error>>;
 
@@ -61,20 +59,18 @@ pub trait Client {
     async fn contract_state(
         &mut self,
         contract: nonempty::String,
-        query: Vec<u8>,
+        query: nonempty::Vec<u8>,
     ) -> Result<Vec<u8>, Error>;
 
     async fn contracts(&mut self) -> Result<ContractsAddresses, Error>;
 }
 
-#[allow(dead_code)]
 #[derive(Clone)]
 pub struct GrpcClient {
     pub blockchain: BlockchainServiceClient<transport::Channel>,
     pub crypto: CryptoServiceClient<transport::Channel>,
 }
 
-#[allow(dead_code)]
 pub async fn new(url: &str) -> Result<GrpcClient, Error> {
     let endpoint: transport::Endpoint = url
         .parse()
@@ -108,20 +104,26 @@ impl From<BroadcastResponse> for BrodcastClientReponse {
 }
 
 pub struct ContractsAddresses {
-    pub voting_verifier: Addr,
-    pub multisig_prover: Addr,
-    pub service_registry: Addr,
-    pub rewards: Addr,
+    pub voting_verifier: nonempty::String,
+    pub multisig_prover: nonempty::String,
+    pub service_registry: nonempty::String,
+    pub rewards: nonempty::String,
 }
 
-impl From<ContractsResponse> for ContractsAddresses {
-    fn from(response: ContractsResponse) -> Self {
-        ContractsAddresses {
-            voting_verifier: Addr::unchecked(response.voting_verifier),
-            multisig_prover: Addr::unchecked(response.multisig_prover),
-            service_registry: Addr::unchecked(response.service_registry),
-            rewards: Addr::unchecked(response.rewards),
-        }
+impl TryFrom<ContractsResponse> for ContractsAddresses {
+    type Error = Report<Error>;
+
+    fn try_from(response: ContractsResponse) -> Result<ContractsAddresses, Error> {
+        let convert = |addr: String| -> Result<nonempty::String, Error> {
+            nonempty::String::try_from(addr).change_context(Error::ContractAddressConversion)
+        };
+
+        Ok(ContractsAddresses {
+            voting_verifier: convert(response.voting_verifier)?,
+            multisig_prover: convert(response.multisig_prover)?,
+            service_registry: convert(response.service_registry)?,
+            rewards: convert(response.rewards)?,
+        })
     }
 }
 
@@ -194,16 +196,12 @@ impl Client for GrpcClient {
     async fn contract_state(
         &mut self,
         contract: nonempty::String,
-        query: Vec<u8>,
+        query: nonempty::Vec<u8>,
     ) -> Result<Vec<u8>, Error> {
-        if query.is_empty() {
-            return Err(report!(Error::InvalidStateInput));
-        }
-
         self.blockchain
             .contract_state(ContractStateRequest {
                 contract: contract.into(),
-                query,
+                query: query.into(),
             })
             .await
             .map_err(ErrorExt::into_report)
@@ -218,7 +216,7 @@ impl Client for GrpcClient {
             .map_err(ErrorExt::into_report)?
             .into_inner();
 
-        Ok(response.into())
+        Ok(ContractsAddresses::try_from(response)?)
     }
 }
 
