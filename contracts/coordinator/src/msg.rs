@@ -88,7 +88,7 @@ pub struct ProverMsg {
     pub multisig_address: String,
     pub signing_threshold: MajorityThreshold,
     pub service_name: String,
-    pub chain_name: String,
+    pub chain_name: ChainName,
     pub verifier_set_diff_threshold: u32,
     pub encoder: Encoder,
     pub key_type: KeyType,

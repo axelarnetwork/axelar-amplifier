@@ -32,6 +32,8 @@ cosmwasm-std = { workspace = true }
 cw-multi-test = { workspace = true, features = ["cosmwasm_1_2"] }
 error-stack = { workspace = true }
 ethers-core = { workspace = true }
+events = { workspace = true }
+events-derive = { workspace = true }
 gateway = { workspace = true }
 gateway-api = { workspace = true }
 goldie = { workspace = true }
