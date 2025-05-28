@@ -18,9 +18,6 @@ use crate::contract::errors::Error;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state;
 
-use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
-use crate::state;
-
 pub const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 pub const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -68,7 +65,7 @@ pub fn execute(
             new_prover_addr,
         } => {
             let new_prover_addr = address::validate_cosmwasm_address(deps.api, &new_prover_addr)?;
-            execute::register_prover(deps, chain_name, new_prover_addr)
+            execute::register_prover(deps, chain_name, new_prover_addr.clone())
                 .change_context(Error::RegisterProverContract(new_prover_addr))
         }
         ExecuteMsg::RegisterChain {

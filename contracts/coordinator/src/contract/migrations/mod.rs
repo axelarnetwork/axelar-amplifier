@@ -55,7 +55,7 @@ mod tests {
     use axelar_wasm_std::{address, permission_control};
     use cosmwasm_schema::cw_serde;
     use cosmwasm_std::testing::{message_info, mock_dependencies, mock_env};
-    use cosmwasm_std::{DepsMut, Env, MessageInfo, Response};
+    use cosmwasm_std::{DepsMut, Env, MessageInfo, Response, Storage};
 
     use crate::contract::migrations::{OldConfig, OLD_CONFIG};
     use crate::contract::{migrate, MigrateMsg};
