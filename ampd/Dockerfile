@@ -24,7 +24,20 @@ COPY ./ampd/build.rs ./ampd/build.rs
 RUN cargo install --locked --path ./ampd
 
 FROM debian:bookworm-slim AS runner
-RUN apt-get update && apt-get install -y ca-certificates libssl3 && rm -rf /var/lib/apt/lists/*
+
+ARG GRPCURL_VERSION=1.9.3
+
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    curl \
+    wget \
+    libssl3 \
+    && rm -rf /var/lib/apt/lists/*
+RUN wget https://github.com/fullstorydev/grpcurl/releases/download/v${GRPCURL_VERSION}/grpcurl_${GRPCURL_VERSION}_linux_x86_64.tar.gz \
+    && tar -xvf grpcurl_${GRPCURL_VERSION}_linux_x86_64.tar.gz \
+    && mv grpcurl /usr/local/bin/grpcurl \
+    && chmod +x /usr/local/bin/grpcurl \
+    && rm grpcurl_${GRPCURL_VERSION}_linux_x86_64.tar.gz
 RUN addgroup --system --gid 1001 axelard && adduser --home /home/axelard --system --uid 1000 --ingroup axelard axelard
 WORKDIR /home/axelard
 RUN mkdir /.ampd && chown axelard /.ampd
