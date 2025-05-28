@@ -132,7 +132,7 @@ pub struct VerifierInfo {
     pub verifier: Verifier,
     pub weight: nonempty::Uint128,
     pub supported_chains: Vec<ChainName>,
-    pub actively_signing_for: HashSet<Addr>,
+    pub actively_signing_for: Vec<Addr>,
 }
 
 #[cw_serde]

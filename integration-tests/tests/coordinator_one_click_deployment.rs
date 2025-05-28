@@ -7,6 +7,7 @@ use axelar_wasm_std::{nonempty, Threshold, VerificationStatus};
 use coordinator::msg::{
     ContractDeploymentInfo, DeploymentParams, ManualDeploymentParams, ProverMsg, VerifierMsg,
 };
+use cosmwasm_std::testing::MockApi;
 use cosmwasm_std::{Addr, Binary, HexBinary};
 use cw_multi_test::AppResponse;
 use error_stack::Report;
@@ -552,4 +553,45 @@ fn coordinator_one_click_message_verification_and_routing_succeeds() {
             .unwrap()])
         )
         .is_ok());
+}
+
+#[test]
+fn coordinator_one_click_query_verifier_info_succeeds() {
+    let test_utils::TestCase {
+        protocol,
+        verifiers,
+        ..
+    } = test_utils::setup_test_case();
+
+    assert!(protocol
+        .coordinator
+        .query::<coordinator::msg::VerifierInfo>(
+            &protocol.app,
+            &coordinator::msg::QueryMsg::VerifierInfo {
+                service_name: protocol.service_name.to_string(),
+                verifier: verifiers[0].addr.to_string(),
+            }
+        )
+        .is_ok());
+}
+
+#[test]
+fn coordinator_one_click_query_verifier_info_fails() {
+    let test_utils::TestCase { protocol, .. } = test_utils::setup_test_case();
+
+    let res = protocol
+        .coordinator
+        .query::<coordinator::msg::VerifierInfo>(
+            &protocol.app,
+            &coordinator::msg::QueryMsg::VerifierInfo {
+                service_name: protocol.service_name.to_string(),
+                verifier: MockApi::default().addr_make("random_verifier").to_string(),
+            },
+        );
+
+    assert!(res.is_err());
+    assert!(res
+        .unwrap_err()
+        .to_string()
+        .contains(&service_registry_api::error::ContractError::VerifierNotFound.to_string()));
 }
