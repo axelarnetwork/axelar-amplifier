@@ -8,7 +8,7 @@ use coordinator::events::ContractInstantiation;
 use coordinator::msg::{
     ContractDeploymentInfo, DeploymentParams, ManualDeploymentParams, ProverMsg, VerifierMsg,
 };
-use cosmwasm_std::{Addr, Binary, HexBinary};
+use cosmwasm_std::{Binary, HexBinary};
 use cw_multi_test::AppResponse;
 use error_stack::Report;
 use events_derive::try_from;
@@ -20,7 +20,8 @@ use integration_tests::voting_verifier_contract::VotingVerifierContract;
 use multisig::key::KeyType;
 use multisig_prover_api::encoding::Encoder;
 use router_api::{Address, ChainName, CrossChainId, Message};
-use serde::Deserialize;
+use serde::de::Error;
+use serde::{Deserialize, Deserializer};
 
 use crate::test_utils::Chain;
 
@@ -35,11 +36,24 @@ struct DeployedContracts {
 #[derive(Deserialize, Debug)]
 #[try_from("wasm-contracts_instantiated")]
 struct ContractsInstantiated {
+    #[serde(deserialize_with = "deserialize_contract_instantiation")]
     gateway: ContractInstantiation,
+    #[serde(deserialize_with = "deserialize_contract_instantiation")]
     voting_verifier: ContractInstantiation,
+    #[serde(deserialize_with = "deserialize_contract_instantiation")]
     multisig_prover: ContractInstantiation,
     chain_name: ChainName,
     deployment_name: nonempty::String,
+}
+
+fn deserialize_contract_instantiation<'de, D>(
+    deserializer: D,
+) -> Result<ContractInstantiation, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let json: String = Deserialize::deserialize(deserializer)?;
+    serde_json::from_str::<ContractInstantiation>(&json).map_err(D::Error::custom)
 }
 
 fn deploy_chains(
@@ -177,21 +191,25 @@ fn gather_contracts(protocol: &Protocol, app_response: AppResponse) -> DeployedC
     let mut voting_verifier = VotingVerifierContract::default();
     let mut multisig_prover = MultisigProverContract::default();
 
-    println!("EVENT: {:?}", app_response);
+    let event = app_response
+        .events
+        .iter()
+        .map(|e| events::Event::Abci {
+            event_type: e.ty.clone(),
+            attributes: e
+                .attributes
+                .iter()
+                .map(|attribute| {
+                    (
+                        attribute.key.clone(),
+                        serde_json::Value::String(attribute.value.clone()),
+                    )
+                })
+                .collect(),
+        })
+        .find_map(|e| ContractsInstantiated::try_from(e).ok())
+        .unwrap();
 
-    let mut events = app_response.events.iter().map(|e| events::Event::Abci {
-        event_type: e.ty.clone(),
-        attributes: e
-            .attributes
-            .iter()
-            .map(|attribute| (attribute.key.clone(), serde_json::Value::String(attribute.value.clone())))
-            .collect(),
-    });
-
-    let event = events.find_map(|e| {
-        ContractsInstantiated::try_from(e).ok()
-    }).unwrap(); 
-    
     gateway.code_id = event.gateway.code_id;
     gateway.contract_addr = event.gateway.address;
     voting_verifier.code_id = event.voting_verifier.code_id;

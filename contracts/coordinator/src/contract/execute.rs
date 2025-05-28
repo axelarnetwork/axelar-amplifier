@@ -292,15 +292,15 @@ pub fn instantiate_chain_contracts(
                 .add_event(Event::ContractsInstantiated {
                     gateway: ContractInstantiation {
                         address: gateway_address.clone(),
-                        code_id: params.gateway.code_id
+                        code_id: params.gateway.code_id,
                     },
                     voting_verifier: ContractInstantiation {
                         address: verifier_address,
-                        code_id: params.verifier.code_id
+                        code_id: params.verifier.code_id,
                     },
                     multisig_prover: ContractInstantiation {
                         address: multisig_prover_address.clone(),
-                        code_id: params.prover.code_id
+                        code_id: params.prover.code_id,
                     },
                     chain_name: params.prover.msg.chain_name,
                     deployment_name: deployment_name.clone(),
