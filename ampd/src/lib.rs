@@ -84,7 +84,8 @@ async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
 
     let (monitor_server, metrics_client) =
         metrics::monitor::Server::new(monitor_bind_addr).change_context(Error::MonitorSetup)?;
-    // just for DEBUG
+
+    // just for DEBUG, track timer metrics
     let metrics_client_for_timer = metrics_client.clone();
     tokio::spawn(async move {
         let mut interval = interval(Duration::from_secs(2));

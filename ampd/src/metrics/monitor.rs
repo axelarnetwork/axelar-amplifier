@@ -23,6 +23,7 @@ pub struct Server {
     bind_address: SocketAddrV4,
     metrics_server: Arc<Mutex<MetricsServer>>,
 }
+// field: metricsServer: T/F
 
 impl Server {
     pub fn new(
@@ -41,7 +42,7 @@ impl Server {
             }
             Ok::<_, MetricsError>(())
         });
-
+        // need to think about this.... seperate them? server_with prometheus? 
         Ok((
             Self {
                 bind_address,
