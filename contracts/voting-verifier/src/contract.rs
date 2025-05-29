@@ -127,9 +127,7 @@ mod test {
     use multisig::key::KeyType;
     use multisig::test::common::{build_verifier_set, ecdsa_test_data};
     use router_api::{ChainName, CrossChainId, Message};
-    use service_registry::{
-        AuthorizationState, BondingState, Verifier, WeightedVerifier,
-    };
+    use service_registry::{AuthorizationState, BondingState, Verifier, WeightedVerifier};
     use sha3::{Digest, Keccak256, Keccak512};
     use starknet_checked_felt::CheckedFelt;
 
