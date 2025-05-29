@@ -3,10 +3,10 @@ use std::vec;
 
 use axelar_core_std::nexus;
 use axelar_wasm_std::flagset::FlagSet;
-use axelar_wasm_std::killswitch;
 use axelar_wasm_std::msg_id::{self, MessageIdFormat};
+use axelar_wasm_std::{address, killswitch, permission_control};
 use cosmwasm_std::{
-    to_json_binary, Addr, Event, QuerierWrapper, Response, StdResult, Storage, WasmMsg,
+    to_json_binary, Addr, Deps, DepsMut, Event, QuerierWrapper, Response, StdResult, Storage, WasmMsg
 };
 use error_stack::{bail, ensure, report, Report, ResultExt};
 use itertools::Itertools;
@@ -16,7 +16,7 @@ use router_api::{ChainEndpoint, ChainName, Gateway, GatewayDirection, Message};
 use crate::events::{
     ChainFrozen, ChainRegistered, ChainUnfrozen, GatewayInfo, GatewayUpgraded, MessageRouted,
 };
-use crate::state::{chain_endpoints, Config};
+use crate::state::{chain_endpoints, load_config, Config};
 use crate::{events, state};
 
 pub fn register_chain(
@@ -25,7 +25,7 @@ pub fn register_chain(
     name: ChainName,
     gateway: Addr,
     msg_id_format: MessageIdFormat,
-) -> Result<Response, Report<Error>> {
+) -> error_stack::Result<Response, Error> {
     if find_chain_for_gateway(storage, &gateway)
         .change_context(Error::StoreFailure)?
         .is_some()
@@ -259,6 +259,42 @@ pub fn route_messages(
     Ok(Response::new()
         .add_messages(wasm_msgs)
         .add_events(msgs.into_iter().map(|msg| MessageRouted { msg })))
+}
+
+fn validate_sender_can_register_chains(deps: Deps, sender: Addr) -> error_stack::Result<(), Error> {
+    if !permission_control::sender_role(deps.storage, &sender)
+    .map_err(|_| report!(Error::StoreFailure))?
+    .contains(permission_control::Permission::Governance) {
+        Err(report!(Error::Unauthorized))
+    } else {
+        Ok(())
+    }
+}
+
+pub fn execute_from_coordinator(
+    deps: DepsMut,
+    original_sender: Addr,
+    msg: router_api::msg::ExecuteMsg,
+) -> error_stack::Result<Response, Error> {
+    match msg {
+        router_api::msg::ExecuteMsg::RegisterChain {
+            chain,
+            gateway_address,
+            msg_id_format,
+        } => {
+            validate_sender_can_register_chains(deps.as_ref(), original_sender)?;
+
+            register_chain(
+                deps.storage,
+                deps.querier,
+                chain,
+                address::validate_cosmwasm_address(deps.api, &gateway_address)
+                .change_context(Error::InvalidAddress)?,
+                msg_id_format,
+            )
+        }
+        _ => Err(report!(Error::InvalidExecuteMsg)),
+    }
 }
 
 #[cfg(test)]

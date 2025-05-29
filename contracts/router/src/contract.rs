@@ -64,8 +64,8 @@ pub fn execute(
     match msg.ensure_permissions(
         deps.storage,
         &info.sender,
-        find_coordinator_address,
         find_gateway_address(&info.sender),
+        find_coordinator_address,
     )? {
         ExecuteMsg::RegisterChain {
             chain,
@@ -98,6 +98,14 @@ pub fn execute(
         )?),
         ExecuteMsg::DisableRouting => execute::disable_routing(deps.storage),
         ExecuteMsg::EnableRouting => execute::enable_routing(deps.storage),
+        ExecuteMsg::ExecuteFromCoordinator {
+            original_sender,
+            msg,
+        } => Ok(execute::execute_from_coordinator(
+            deps,
+            original_sender,
+            *msg,
+        )?),
     }?
     .then(Ok)
 }
