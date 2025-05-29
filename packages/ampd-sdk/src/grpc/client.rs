@@ -37,8 +37,8 @@ pub enum Error {
     #[error("missing event in response")]
     InvalidResponse,
 
-    #[error("failed to convert contract address")]
-    ContractAddressConversion,
+    #[error("invalid contracts response")]
+    InvalidContractsResponse,
 }
 
 #[automock(type Stream = tokio_stream::Iter<vec::IntoIter<Result<Event, Error>>>;)]
@@ -111,18 +111,14 @@ pub struct ContractsAddresses {
 }
 
 impl TryFrom<ContractsResponse> for ContractsAddresses {
-    type Error = Report<Error>;
+    type Error = Report<nonempty::Error>;
 
-    fn try_from(response: ContractsResponse) -> Result<ContractsAddresses, Error> {
-        let convert = |addr: String| -> Result<nonempty::String, Error> {
-            nonempty::String::try_from(addr).change_context(Error::ContractAddressConversion)
-        };
-
+    fn try_from(response: ContractsResponse) -> Result<ContractsAddresses, nonempty::Error> {
         Ok(ContractsAddresses {
-            voting_verifier: convert(response.voting_verifier)?,
-            multisig_prover: convert(response.multisig_prover)?,
-            service_registry: convert(response.service_registry)?,
-            rewards: convert(response.rewards)?,
+            voting_verifier: nonempty::String::try_from(response.voting_verifier)?,
+            multisig_prover: nonempty::String::try_from(response.multisig_prover)?,
+            service_registry: nonempty::String::try_from(response.service_registry)?,
+            rewards: nonempty::String::try_from(response.rewards)?,
         })
     }
 }
@@ -216,7 +212,9 @@ impl Client for GrpcClient {
             .map_err(ErrorExt::into_report)?
             .into_inner();
 
-        Ok(ContractsAddresses::try_from(response)?)
+        Ok(ContractsAddresses::try_from(response.clone())
+            .change_context(Error::InvalidContractsResponse)
+            .attach_printable(format!("{{ response = {response:?} }}"))?)
     }
 }
 
