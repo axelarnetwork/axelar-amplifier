@@ -5,41 +5,26 @@ use cosmwasm_std::{Addr, Binary, DepsMut, Env, MessageInfo, Response, WasmMsg, W
 use error_stack::{Result, ResultExt};
 use router_api::ChainName;
 
-use crate::events::ContractInstantiated;
+use crate::contract::errors::Error;
+use crate::events::{ContractInstantiation, Event};
 use crate::msg::{DeploymentParams, ProverMsg, VerifierMsg};
-use crate::state::{
-    load_config, save_chain_contracts, save_deployed_contracts, save_prover_for_chain,
-    update_verifier_set_for_prover, validate_deployment_name_availability, ChainContracts,
-};
+use crate::state;
+use crate::state::{ChainContracts, ProtocolContracts};
 
-#[derive(thiserror::Error, Debug, PartialEq)]
-pub enum Error {
-    #[error("failed to activate verifier set")]
-    VerifierSetActivationFailed,
-
-    #[error("chain {0} is not registered")]
-    ChainNotRegistered(ChainName),
-
-    #[error("prover {0} is not registered")]
-    ProverNotRegistered(Addr),
-
-    #[error("failed to generate instantiate2 address")]
-    Instantiate2Address,
-
-    #[error("failed to instantiate core contracts")]
-    InstantiateContracts,
-
-    #[error("failed to query code info for code id {0}")]
-    QueryCodeInfo(u64),
-
-    #[error("failed to instantiate gateway")]
-    InstantiateGateway,
-
-    #[error("failed to instantiate verifier")]
-    InstantiateVerifier,
-
-    #[error("failed to instantiate prover")]
-    InstantiateProver,
+pub fn register_protocol(
+    deps: DepsMut,
+    service_registry: Addr,
+    router: Addr,
+    multisig: Addr,
+) -> Result<Response, Error> {
+    let protocol = ProtocolContracts {
+        service_registry,
+        router,
+        multisig,
+    };
+    state::save_protocol_contracts(deps.storage, &protocol)
+        .change_context(Error::UnableToPersistProtocol)?;
+    Ok(Response::default())
 }
 
 pub fn register_prover(
@@ -47,7 +32,7 @@ pub fn register_prover(
     chain_name: ChainName,
     new_prover_addr: Addr,
 ) -> Result<Response, Error> {
-    save_prover_for_chain(deps.storage, chain_name, new_prover_addr.clone())
+    state::save_prover_for_chain(deps.storage, chain_name, new_prover_addr.clone())
         .change_context(Error::ProverNotRegistered(new_prover_addr))?;
     Ok(Response::new())
 }
@@ -59,7 +44,7 @@ pub fn register_chain(
     gateway_addr: Addr,
     voting_verifier_address: Addr,
 ) -> Result<Response, Error> {
-    save_chain_contracts(
+    state::save_chain_contracts(
         deps.storage,
         chain_name.clone(),
         prover_addr,
@@ -72,20 +57,15 @@ pub fn register_chain(
 
 pub fn set_active_verifier_set(
     deps: DepsMut,
-    info: MessageInfo,
+    sender: Addr,
     verifiers: HashSet<Addr>,
 ) -> Result<Response, Error> {
-    update_verifier_set_for_prover(deps.storage, info.sender, verifiers)
+    state::update_verifier_set_for_prover(deps.storage, sender, verifiers)
         .change_context(Error::VerifierSetActivationFailed)?;
     Ok(Response::new())
 }
 
-fn instantiate2_addr(
-    deps: &DepsMut,
-    env: &Env,
-    code_id: u64,
-    salt: &[u8],
-) -> error_stack::Result<Addr, Error> {
+fn instantiate2_addr(deps: &DepsMut, env: &Env, code_id: u64, salt: &[u8]) -> Result<Addr, Error> {
     let code_info: cosmwasm_std::CodeInfoResponse = deps
         .querier
         .query(&WasmQuery::CodeInfo { code_id }.into())
@@ -114,7 +94,7 @@ fn launch_contract(
     code_id: u64,
     instantiate_msg: Binary,
     label: String,
-) -> error_stack::Result<(WasmMsg, Addr), Error> {
+) -> Result<(WasmMsg, Addr), Error> {
     Ok((
         WasmMsg::Instantiate2 {
             admin: Some(info.sender.to_string()),
@@ -133,7 +113,7 @@ fn instantiate_gateway(
     label: String,
     router_address: Addr,
     verifier_address: Addr,
-) -> error_stack::Result<(WasmMsg, Addr), Error> {
+) -> Result<(WasmMsg, Addr), Error> {
     launch_contract(
         &ctx.deps,
         &ctx.info,
@@ -154,7 +134,7 @@ fn instantiate_verifier(
     label: String,
     service_registry_address: Addr,
     verifier_msg: &VerifierMsg,
-) -> error_stack::Result<(WasmMsg, Addr), Error> {
+) -> Result<(WasmMsg, Addr), Error> {
     launch_contract(
         &ctx.deps,
         &ctx.info,
@@ -190,7 +170,7 @@ fn instantiate_prover(
     multisig_address: Addr,
     verifier_address: Addr,
     prover_msg: &ProverMsg,
-) -> error_stack::Result<(WasmMsg, Addr), Error> {
+) -> Result<(WasmMsg, Addr), Error> {
     launch_contract(
         &ctx.deps,
         &ctx.info,
@@ -207,7 +187,7 @@ fn instantiate_prover(
             voting_verifier_address: verifier_address.to_string().clone(),
             signing_threshold: prover_msg.signing_threshold,
             service_name: prover_msg.service_name.to_string(),
-            chain_name: prover_msg.chain_name.clone(),
+            chain_name: prover_msg.chain_name.to_string(),
             verifier_set_diff_threshold: prover_msg.verifier_set_diff_threshold,
             encoder: prover_msg.encoder,
             key_type: prover_msg.key_type,
@@ -235,12 +215,13 @@ pub fn instantiate_chain_contracts(
     deployment_name: nonempty::String,
     salt: Binary,
     params: DeploymentParams,
-) -> error_stack::Result<Response, Error> {
+) -> Result<Response, Error> {
     let mut response = Response::new();
-    validate_deployment_name_availability(deps.storage, deployment_name.clone())
+    state::validate_deployment_name_availability(deps.storage, deployment_name.clone())
         .change_context(Error::InstantiateContracts)?;
 
-    let config = load_config(deps.storage);
+    let protocol =
+        state::protocol_contracts(deps.storage).change_context(Error::ProtocolNotRegistered)?;
 
     match params {
         DeploymentParams::Manual(params) => {
@@ -261,56 +242,58 @@ pub fn instantiate_chain_contracts(
             let (msg, gateway_address) = instantiate_gateway(
                 &ctx,
                 params.gateway.label.clone(),
-                config.router.clone(),
-                verifier_address,
+                protocol.router.clone(),
+                verifier_address.clone(),
             )
             .change_context(Error::InstantiateContracts)?;
 
-            response = response
-                .add_message(msg)
-                .add_event(ContractInstantiated::Gateway {
-                    address: gateway_address.clone(),
-                    code_id: params.gateway.code_id,
-                });
+            response = response.add_message(msg);
 
             let (msg, voting_verifier_address) = instantiate_verifier(
                 &ctx,
                 params.verifier.label.clone(),
-                config.service_registry.clone(),
+                protocol.service_registry.clone(),
                 &params.verifier.msg,
             )?;
 
-            response = response
-                .add_message(msg)
-                .add_event(ContractInstantiated::VotingVerifier {
-                    address: voting_verifier_address.clone(),
-                    code_id: params.verifier.code_id,
-                });
+            response = response.add_message(msg);
 
             let (msg, multisig_prover_address) = instantiate_prover(
                 &ctx,
                 params.prover.label.clone(),
                 gateway_address.clone(),
-                config.service_registry.clone(),
-                config.multisig.clone(),
+                protocol.service_registry.clone(),
+                protocol.multisig.clone(),
                 voting_verifier_address.clone(),
                 &params.prover.msg,
             )?;
 
             response = response
                 .add_message(msg)
-                .add_event(ContractInstantiated::MultisigProver {
-                    address: multisig_prover_address.clone(),
-                    code_id: params.prover.code_id,
+                .add_event(Event::ContractsInstantiated {
+                    gateway: ContractInstantiation {
+                        address: gateway_address.clone(),
+                        code_id: params.gateway.code_id,
+                    },
+                    voting_verifier: ContractInstantiation {
+                        address: verifier_address,
+                        code_id: params.verifier.code_id,
+                    },
+                    multisig_prover: ContractInstantiation {
+                        address: multisig_prover_address.clone(),
+                        code_id: params.prover.code_id,
+                    },
+                    chain_name: params.prover.msg.chain_name,
+                    deployment_name: deployment_name.clone(),
                 });
 
-            save_deployed_contracts(
+            state::save_deployed_contracts(
                 ctx.deps.storage,
                 deployment_name,
                 ChainContracts {
                     gateway: gateway_address,
                     voting_verifier: voting_verifier_address,
-                    multisig_prover: multisig_prover_address.clone(),
+                    multisig_prover: multisig_prover_address,
                 },
             )
             .change_context(Error::InstantiateContracts)?;
