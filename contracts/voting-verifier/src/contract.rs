@@ -128,7 +128,7 @@ mod test {
     use multisig::test::common::{build_verifier_set, ecdsa_test_data};
     use router_api::{ChainName, CrossChainId, Message};
     use service_registry::{
-        AuthorizationState, BondingState, Verifier, WeightedVerifier, VERIFIER_WEIGHT,
+        AuthorizationState, BondingState, Verifier, WeightedVerifier,
     };
     use sha3::{Digest, Keccak256, Keccak512};
     use starknet_checked_felt::CheckedFelt;
@@ -215,7 +215,7 @@ mod test {
                         .into_iter()
                         .map(|v| WeightedVerifier {
                             verifier_info: v,
-                            weight: VERIFIER_WEIGHT,
+                            weight: nonempty::Uint128::one(),
                         })
                         .collect::<Vec<WeightedVerifier>>(),
                 )

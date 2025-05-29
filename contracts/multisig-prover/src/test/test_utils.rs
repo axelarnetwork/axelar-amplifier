@@ -1,11 +1,10 @@
-use axelar_wasm_std::VerificationStatus;
+use axelar_wasm_std::{nonempty, VerificationStatus};
 use cosmwasm_std::testing::MockApi;
 use cosmwasm_std::{from_json, to_json_binary, QuerierResult, Uint128, WasmQuery};
 use multisig::msg::Signer;
 use multisig::multisig::Multisig;
 use multisig::types::MultisigState;
 use multisig::verifier_set::VerifierSet;
-use service_registry::VERIFIER_WEIGHT;
 use service_registry_api::{AuthorizationState, BondingState, Verifier, WeightedVerifier};
 
 use super::test_data::{self, TestOperator};
@@ -159,7 +158,7 @@ fn service_registry_mock_querier_handler(
                         authorization_state: AuthorizationState::Authorized,
                         service_name: SERVICE_NAME.to_string(),
                     },
-                    weight: VERIFIER_WEIGHT,
+                    weight: nonempty::Uint128::one(),
                 })
                 .collect::<Vec<WeightedVerifier>>(),
         ),
