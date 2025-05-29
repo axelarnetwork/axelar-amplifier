@@ -64,8 +64,8 @@ pub fn execute(
     match msg.ensure_permissions(
         deps.storage,
         &info.sender,
-        find_coordinator_address,
         find_gateway_address(&info.sender),
+        find_coordinator_address,
     )? {
         ExecuteMsg::RegisterChain {
             chain,
@@ -98,6 +98,14 @@ pub fn execute(
         )?),
         ExecuteMsg::DisableRouting => execute::disable_routing(deps.storage),
         ExecuteMsg::EnableRouting => execute::enable_routing(deps.storage),
+        ExecuteMsg::ExecuteFromCoordinator {
+            original_sender,
+            msg,
+        } => Ok(execute::execute_from_coordinator(
+            deps,
+            original_sender,
+            *msg,
+        )?),
     }?
     .then(Ok)
 }
@@ -1834,5 +1842,81 @@ mod test {
         )
         .unwrap_err();
         goldie::assert!(err.to_string());
+    }
+
+    #[test]
+    fn only_coordinator_executes_coordinator_endpoint_succeeds() {
+        let mut deps = setup();
+        let api = deps.api;
+
+        let polygon = make_chain("polygon");
+
+        assert!(execute(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make(COORDINATOR_ADDRESS), &[]),
+            ExecuteMsg::ExecuteFromCoordinator {
+                original_sender: api.addr_make(GOVERNANCE_ADDRESS),
+                msg: Box::new(router_api::msg::ExecuteMsg::RegisterChain {
+                    chain: polygon.chain_name.clone(),
+                    gateway_address: polygon.gateway.to_string().try_into().unwrap(),
+                    msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
+                }),
+            },
+        )
+        .is_ok());
+    }
+
+    #[test]
+    fn only_coordinator_executes_coordinator_endpoint_fails() {
+        let mut deps = setup();
+        let api = deps.api;
+
+        let polygon = make_chain("polygon");
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
+            ExecuteMsg::ExecuteFromCoordinator {
+                original_sender: api.addr_make(GOVERNANCE_ADDRESS),
+                msg: Box::new(router_api::msg::ExecuteMsg::RegisterChain {
+                    chain: polygon.chain_name.clone(),
+                    gateway_address: polygon.gateway.to_string().try_into().unwrap(),
+                    msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
+                }),
+            },
+        );
+
+        assert!(res.is_err());
+        assert!(res.unwrap_err().to_string().contains(
+            &permission_control::Error::AddressNotWhitelisted {
+                expected: vec![api.addr_make(COORDINATOR_ADDRESS)],
+                actual: api.addr_make(ADMIN_ADDRESS)
+            }
+            .to_string()
+        ));
+    }
+
+    #[test]
+    fn coordinator_endpoint_only_allows_register_msg() {
+        let mut deps = setup();
+        let api = deps.api;
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make(COORDINATOR_ADDRESS), &[]),
+            ExecuteMsg::ExecuteFromCoordinator {
+                original_sender: api.addr_make(GOVERNANCE_ADDRESS),
+                msg: Box::new(ExecuteMsg::EnableRouting {}),
+            },
+        );
+
+        assert!(res.is_err());
+        assert!(res
+            .unwrap_err()
+            .to_string()
+            .contains(&Error::InvalidExecuteMsg.to_string()));
     }
 }
