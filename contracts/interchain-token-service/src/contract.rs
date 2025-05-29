@@ -10,8 +10,7 @@ use error_stack::{Report, ResultExt};
 use execute::{freeze_chain, unfreeze_chain};
 
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
-use crate::state;
-use crate::state::Config;
+use crate::state::{self, Config};
 
 mod execute;
 mod migrations;

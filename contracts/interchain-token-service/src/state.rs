@@ -70,6 +70,15 @@ pub enum TokenSupply {
     Untracked,
 }
 
+impl From<msg::TokenSupply> for TokenSupply {
+    fn from(supply: msg::TokenSupply) -> Self {
+        match supply {
+            msg::TokenSupply::Tracked(amount) => TokenSupply::Tracked(amount),
+            msg::TokenSupply::Untracked => TokenSupply::Untracked,
+        }
+    }
+}
+
 impl TokenSupply {
     pub fn checked_add(self, amount: nonempty::Uint256) -> Result<Self, OverflowError> {
         match self {
@@ -412,5 +421,18 @@ mod tests {
                 .into_iter()
                 .collect::<HashMap<_, _>>()
         );
+    }
+
+    #[test]
+    fn supply_from_msg_type_conversion_succeeds() {
+        let tracked_msg_supply: msg::TokenSupply = msg::TokenSupply::Tracked(Uint256::MAX);
+        let tracked_supply: TokenSupply = tracked_msg_supply.into();
+
+        assert_eq!(tracked_supply, TokenSupply::Tracked(Uint256::MAX));
+
+        let untracked_msg_supply: msg::TokenSupply = msg::TokenSupply::Untracked;
+        let untracked_supply: TokenSupply = untracked_msg_supply.into();
+
+        assert_eq!(untracked_supply, TokenSupply::Untracked);
     }
 }
