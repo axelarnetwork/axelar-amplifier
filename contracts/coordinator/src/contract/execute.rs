@@ -283,7 +283,7 @@ pub fn instantiate_chain_contracts(
                         address: multisig_prover_address.clone(),
                         code_id: params.prover.code_id,
                     },
-                    chain_name: params.prover.msg.chain_name,
+                    chain_name: params.prover.msg.chain_name.clone(),
                     deployment_name: deployment_name.clone(),
                 });
 
@@ -291,8 +291,7 @@ pub fn instantiate_chain_contracts(
                 ctx.deps.storage,
                 deployment_name,
                 ChainContracts {
-                    chain_name: ChainName::try_from(params.prover.msg.chain_name.clone())
-                        .change_context(Error::InvalidChainName(params.prover.msg.chain_name))?,
+                    chain_name: params.prover.msg.chain_name,
                     msg_id_format: params.verifier.msg.msg_id_format,
                     gateway: gateway_address,
                     voting_verifier: voting_verifier_address,
