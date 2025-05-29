@@ -175,6 +175,7 @@ mod test {
         verifiers
     }
 
+    // TODO: this makes explicit assumptions about the weight distribution strategy of the service registry, it's probably better to change it into an integration test
     fn setup(
         verifiers: Vec<Verifier>,
         msg_id_format: &MessageIdFormat,

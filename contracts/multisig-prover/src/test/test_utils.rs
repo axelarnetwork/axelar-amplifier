@@ -125,6 +125,7 @@ fn mock_multisig(operators: Vec<TestOperator>) -> Multisig {
     }
 }
 
+// TODO: this makes explicit assumptions about the weight distribution strategy of the service registry, it's probably better to change it into an integration test
 fn service_registry_mock_querier_handler(
     msg: service_registry_api::msg::QueryMsg,
     operators: Vec<TestOperator>,
