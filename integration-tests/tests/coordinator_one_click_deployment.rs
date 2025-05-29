@@ -4,12 +4,15 @@ use std::str::FromStr;
 use axelar_wasm_std::error::ContractError;
 use axelar_wasm_std::voting::{PollId, Vote};
 use axelar_wasm_std::{nonempty, Threshold, VerificationStatus};
+use coordinator::events::ContractInstantiation;
 use coordinator::msg::{
     ContractDeploymentInfo, DeploymentParams, ManualDeploymentParams, ProverMsg, VerifierMsg,
 };
-use cosmwasm_std::{Addr, Binary, HexBinary};
+use cosmwasm_std::testing::MockApi;
+use cosmwasm_std::{Binary, HexBinary};
 use cw_multi_test::AppResponse;
 use error_stack::Report;
+use events_derive::try_from;
 use integration_tests::contract::Contract;
 use integration_tests::gateway_contract::GatewayContract;
 use integration_tests::multisig_prover_contract::MultisigProverContract;
@@ -17,7 +20,9 @@ use integration_tests::protocol::Protocol;
 use integration_tests::voting_verifier_contract::VotingVerifierContract;
 use multisig::key::KeyType;
 use multisig_prover_api::encoding::Encoder;
-use router_api::{Address, CrossChainId, Message};
+use router_api::{Address, ChainName, CrossChainId, Message};
+use serde::de::{DeserializeOwned, Error};
+use serde::{Deserialize, Deserializer};
 
 use crate::test_utils::Chain;
 
@@ -27,6 +32,30 @@ struct DeployedContracts {
     gateway: GatewayContract,
     voting_verifier: VotingVerifierContract,
     multisig_prover: MultisigProverContract,
+}
+
+#[derive(Deserialize, Debug)]
+#[try_from("wasm-contracts_instantiated")]
+struct ContractsInstantiated {
+    #[serde(deserialize_with = "deserialize_json_attribute")]
+    gateway: ContractInstantiation,
+    #[serde(deserialize_with = "deserialize_json_attribute")]
+    voting_verifier: ContractInstantiation,
+    #[serde(deserialize_with = "deserialize_json_attribute")]
+    multisig_prover: ContractInstantiation,
+    #[serde(rename = "chain_name")]
+    _chain_name: ChainName,
+    #[serde(rename = "deployment_name")]
+    _deployment_name: nonempty::String,
+}
+
+fn deserialize_json_attribute<'de, T, D>(deserializer: D) -> Result<T, D::Error>
+where
+    D: Deserializer<'de>,
+    T: DeserializeOwned,
+{
+    let json: String = Deserialize::deserialize(deserializer)?;
+    serde_json::from_str::<T>(&json).map_err(D::Error::custom)
 }
 
 fn deploy_chains(
@@ -164,38 +193,32 @@ fn gather_contracts(protocol: &Protocol, app_response: AppResponse) -> DeployedC
     let mut voting_verifier = VotingVerifierContract::default();
     let mut multisig_prover = MultisigProverContract::default();
 
-    for e in app_response.events {
-        if e.ty == "wasm-gateway" {
-            for attribute in e.attributes {
-                if attribute.key == "address" {
-                    gateway.contract_addr =
-                        Addr::unchecked(attribute.value.trim_matches(|c| c == '"' || c == '/'));
-                } else if attribute.key == "code_id" {
-                    gateway.code_id = attribute.value.parse().unwrap();
-                }
-            }
-        } else if e.ty == "wasm-voting_verifier" {
-            for attribute in e.attributes {
-                if attribute.key == "address" {
-                    voting_verifier.contract_addr =
-                        Addr::unchecked(attribute.value.trim_matches(|c| c == '"' || c == '/'));
-                } else if attribute.key == "code_id" {
-                    voting_verifier.code_id = attribute.value.parse().unwrap();
-                }
-            }
-        } else if e.ty == "wasm-multisig_prover" {
-            for attribute in e.attributes {
-                if attribute.key == "address" {
-                    multisig_prover.contract_addr =
-                        Addr::unchecked(attribute.value.trim_matches(|c| c == '"' || c == '/'));
-                } else if attribute.key == "code_id" {
-                    multisig_prover.code_id = attribute.value.parse().unwrap();
-                }
-            }
-        }
-    }
+    let event = app_response
+        .events
+        .iter()
+        .map(|e| events::Event::Abci {
+            event_type: e.ty.clone(),
+            attributes: e
+                .attributes
+                .iter()
+                .map(|attribute| {
+                    (
+                        attribute.key.clone(),
+                        serde_json::Value::String(attribute.value.clone()),
+                    )
+                })
+                .collect(),
+        })
+        .find_map(|e| ContractsInstantiated::try_from(e).ok())
+        .unwrap();
 
+    gateway.code_id = event.gateway.code_id;
+    gateway.contract_addr = event.gateway.address;
+    voting_verifier.code_id = event.voting_verifier.code_id;
+    voting_verifier.contract_addr = event.voting_verifier.address;
     multisig_prover.admin_addr = protocol.governance_address.clone();
+    multisig_prover.code_id = event.multisig_prover.code_id;
+    multisig_prover.contract_addr = event.multisig_prover.address;
 
     DeployedContracts {
         gateway,
@@ -552,4 +575,45 @@ fn coordinator_one_click_message_verification_and_routing_succeeds() {
             .unwrap()])
         )
         .is_ok());
+}
+
+#[test]
+fn coordinator_one_click_query_verifier_info_succeeds() {
+    let test_utils::TestCase {
+        protocol,
+        verifiers,
+        ..
+    } = test_utils::setup_test_case();
+
+    assert!(protocol
+        .coordinator
+        .query::<coordinator::msg::VerifierInfo>(
+            &protocol.app,
+            &coordinator::msg::QueryMsg::VerifierInfo {
+                service_name: protocol.service_name.to_string(),
+                verifier: verifiers[0].addr.to_string(),
+            }
+        )
+        .is_ok());
+}
+
+#[test]
+fn coordinator_one_click_query_verifier_info_fails() {
+    let test_utils::TestCase { protocol, .. } = test_utils::setup_test_case();
+
+    let res = protocol
+        .coordinator
+        .query::<coordinator::msg::VerifierInfo>(
+            &protocol.app,
+            &coordinator::msg::QueryMsg::VerifierInfo {
+                service_name: protocol.service_name.to_string(),
+                verifier: MockApi::default().addr_make("random_verifier").to_string(),
+            },
+        );
+
+    assert!(res.is_err());
+    assert!(res
+        .unwrap_err()
+        .to_string()
+        .contains(&service_registry_api::error::ContractError::VerifierNotFound.to_string()));
 }
