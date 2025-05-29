@@ -427,10 +427,8 @@ pub fn setup_protocol(service_name: nonempty::String) -> Protocol {
     let governance_address = MockApi::default().addr_make("governance");
     let axelarnet_gateway = MockApi::default().addr_make("axelarnet_gateway");
 
-    let coordinator = CoordinatorContract::instantiate_contract(
-        &mut app,
-        governance_address.clone(),
-    );
+    let coordinator =
+        CoordinatorContract::instantiate_contract(&mut app, governance_address.clone());
 
     let router = RouterContract::instantiate_contract(
         &mut app,
