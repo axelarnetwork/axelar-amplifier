@@ -127,9 +127,7 @@ mod test {
     use multisig::key::KeyType;
     use multisig::test::common::{build_verifier_set, ecdsa_test_data};
     use router_api::{ChainName, CrossChainId, Message};
-    use service_registry::{
-        AuthorizationState, BondingState, Verifier, WeightedVerifier, VERIFIER_WEIGHT,
-    };
+    use service_registry::{AuthorizationState, BondingState, Verifier, WeightedVerifier};
     use sha3::{Digest, Keccak256, Keccak512};
     use starknet_checked_felt::CheckedFelt;
 
@@ -175,6 +173,7 @@ mod test {
         verifiers
     }
 
+    // TODO: this makes explicit assumptions about the weight distribution strategy of the service registry, it's probably better to change it into an integration test
     fn setup(
         verifiers: Vec<Verifier>,
         msg_id_format: &MessageIdFormat,
@@ -215,7 +214,7 @@ mod test {
                         .into_iter()
                         .map(|v| WeightedVerifier {
                             verifier_info: v,
-                            weight: VERIFIER_WEIGHT,
+                            weight: nonempty::Uint128::one(),
                         })
                         .collect::<Vec<WeightedVerifier>>(),
                 )
