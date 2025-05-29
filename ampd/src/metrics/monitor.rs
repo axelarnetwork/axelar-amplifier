@@ -11,9 +11,8 @@ use tokio_util::sync::CancellationToken;
 use tracing::info;
 
 use super::client::MetricsClient;
-use crate::metrics::msg::MetricsError;
+use crate::metrics::msg::{MetricsError, MetricsMsg};
 use crate::metrics::server::MetricsServer;
-use crate::metrics::msg::MetricsMsg;
 
 // we need to access the metrics server concurrently
 // one for receiving metrics messages
@@ -31,7 +30,7 @@ impl Server {
     pub fn new(
         bind_address: SocketAddrV4,
     ) -> Result<(Self, Option<crate::metrics::client::MetricsClient>), MetricsError> {
-        // log a warning if failed to initailized , server and metrics tx will be None 
+        // log a warning if failed to initailized , server and metrics tx will be None
         let (metrics_server, metrics_rx, client) = match MetricsServer::new() {
             Ok(server) => {
                 let shared_server = Arc::new(Mutex::new(server));
@@ -41,7 +40,7 @@ impl Server {
             }
             Err(e) => {
                 tracing::warn!("Failed to initialize metrics server: {:?}", e);
-                (None, None, None) 
+                (None, None, None)
             }
         };
 
@@ -53,8 +52,6 @@ impl Server {
         Ok((server, client))
     }
 
-
-
     pub async fn run(self, cancel: CancellationToken) -> Result<(), MetricsError> {
         let listener = tokio::net::TcpListener::bind(self.bind_address)
             .await
@@ -64,8 +61,10 @@ impl Server {
             address = self.bind_address.to_string(),
             "starting monitor server"
         );
-        // receive messages from the metrics channel -> always 
-        if let (Some(metrics_server), Some(mut metrics_rx)) = (self.metrics_server.clone(), self.metrics_rx) {
+        // receive messages from the metrics channel -> always
+        if let (Some(metrics_server), Some(mut metrics_rx)) =
+            (self.metrics_server.clone(), self.metrics_rx)
+        {
             tokio::spawn(async move {
                 while let Some(msg) = metrics_rx.recv().await {
                     let mut server_guard = metrics_server.lock().await;
@@ -76,9 +75,7 @@ impl Server {
             });
         }
 
-        let app = Router::new()
-        .route("/status", get(status))
-        .route(
+        let app = Router::new().route("/status", get(status)).route(
             "/metrics",
             get({
                 let metrics_server = self.metrics_server.clone();
