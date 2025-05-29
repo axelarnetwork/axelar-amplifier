@@ -1843,4 +1843,50 @@ mod test {
         .unwrap_err();
         goldie::assert!(err.to_string());
     }
+
+    #[test]
+    fn only_coordinator_executes_coordinator_endpoint_succeeds() {
+        let mut deps = setup();
+        let api = deps.api;
+
+        let polygon = make_chain("polygon");
+
+        assert!(execute(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make(COORDINATOR_ADDRESS), &[]),
+            ExecuteMsg::ExecuteFromCoordinator {
+                original_sender: api.addr_make(GOVERNANCE_ADDRESS),
+                msg: Box::new(router_api::msg::ExecuteMsg::RegisterChain {
+                    chain: polygon.chain_name.clone(),
+                    gateway_address: polygon.gateway.to_string().try_into().unwrap(),
+                    msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
+                }),
+            },
+        )
+        .is_ok());
+    }
+
+    #[test]
+    fn only_coordinator_executes_coordinator_endpoint_fails() {
+        let mut deps = setup();
+        let api = deps.api;
+
+        let polygon = make_chain("polygon");
+
+        assert!(execute(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
+            ExecuteMsg::ExecuteFromCoordinator {
+                original_sender: api.addr_make(GOVERNANCE_ADDRESS),
+                msg: Box::new(router_api::msg::ExecuteMsg::RegisterChain {
+                    chain: polygon.chain_name.clone(),
+                    gateway_address: polygon.gateway.to_string().try_into().unwrap(),
+                    msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
+                }),
+            },
+        )
+        .is_err());
+    }
 }
