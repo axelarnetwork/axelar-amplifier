@@ -5051,6 +5051,8 @@ dependencies = [
  "cw-multi-test",
  "error-stack",
  "ethers-core",
+ "events",
+ "events-derive",
  "gateway",
  "gateway-api",
  "goldie",
