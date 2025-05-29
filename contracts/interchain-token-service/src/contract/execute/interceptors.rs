@@ -9,6 +9,7 @@ use crate::{
     DeployInterchainToken, InterchainTransfer, RegisterTokenMetadata, TokenConfig, TokenId,
     TokenInstance,
 };
+use crate::shared::NumBits;
 
 pub fn subtract_supply_amount(
     storage: &mut dyn Storage,
@@ -271,7 +272,7 @@ fn destination_amount(
             })?
     };
 
-    if amount_overflows(destination_amount, *destination_max_uint_bits) {
+    if amount_overflows(destination_amount, destination_max_uint_bits) {
         bail!(Error::InvalidTransferAmount {
             source_chain: source_chain.to_owned(),
             destination_chain: destination_chain.to_owned(),
@@ -288,8 +289,8 @@ fn destination_amount(
     })
 }
 
-fn amount_overflows(amount: Uint256, target_chain_max_bits: u32) -> bool {
-    match amount.checked_shr(target_chain_max_bits) {
+fn amount_overflows(amount: Uint256, target_chain_max_bits: NumBits) -> bool {
+    match amount.checked_shr(target_chain_max_bits.to_u32()) {
         Ok(res) => res.gt(&Uint256::zero()),
         // this overflow error occurs when trying to shift 256 bits or more.
         // But this can only happen if max_bits is >= 256, and amount itself is only 256 bits.

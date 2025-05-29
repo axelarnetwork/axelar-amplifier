@@ -1,5 +1,4 @@
 use core::fmt;
-use std::ops::Deref;
 
 use axelar_wasm_std::IntoContractError;
 use cosmwasm_schema::cw_serde;
@@ -7,29 +6,31 @@ use thiserror::Error;
 
 #[derive(Error, Debug, PartialEq, Eq, IntoContractError)]
 pub enum Error {
-    #[error("invalid number of bits {0}. Must be between 1 and 256")]
+    #[error("number of bits must be between 1 and 256 (given: {0})")]
     InvalidNumberOfBits(u32),
 }
 
 #[cw_serde]
+#[derive(PartialOrd)]
 #[serde(try_from = "u32")]
-pub struct NumBits(u32);
+pub struct NumBits(u8);
 
 impl TryFrom<u32> for NumBits {
     type Error = Error;
     fn try_from(value: u32) -> Result<Self, Self::Error> {
-        match value {
-            x if x > 0 && x <= 256 => Ok(Self(value)),
-            _ => Err(Error::InvalidNumberOfBits(value)),
-        }
+        value
+            .checked_sub(1)
+            .and_then(|value| u8::try_from(value).ok())
+            .ok_or(Error::InvalidNumberOfBits(value))
+            .map(Self)
     }
 }
 
-impl Deref for NumBits {
-    type Target = u32;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
+impl NumBits {
+    pub fn to_u32(self) -> u32 {
+        (self.0 as u32)
+            .checked_add(1)
+            .expect("u8::MAX + 1 < u32::MAX")
     }
 }
 
@@ -50,7 +51,7 @@ mod test {
         let cases = [1, 10, 32, 50, 64, 100, 127, 128, 255, 256];
         for case in cases {
             assert!(NumBits::try_from(case).is_ok());
-            assert_eq!(*NumBits::try_from(case).unwrap(), case)
+            assert_eq!(NumBits::try_from(case).unwrap().to_u32(), case)
         }
     }
 
