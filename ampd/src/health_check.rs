@@ -47,8 +47,8 @@ impl Server {
         //     test_counter.clone(),
         // );
 
-        Self { 
-            bind_address, 
+        Self {
+            bind_address,
             // registry: Arc::new(registry),
             // test_counter: Arc::new(test_counter),
         }
@@ -64,12 +64,11 @@ impl Server {
             "starting health check server"
         );
 
-        let app = Router::new()
-            .route("/status", get(status));
-            // .route("/bump", get(bump))
-            // .route("/metrics", get(metrics))
-            // .layer(Extension(self.registry.clone()))
-            // .layer(Extension(self.test_counter.clone()));
+        let app = Router::new().route("/status", get(status));
+        // .route("/bump", get(bump))
+        // .route("/metrics", get(metrics))
+        // .layer(Extension(self.registry.clone()))
+        // .layer(Extension(self.test_counter.clone()));
 
         axum::serve(listener, app)
             .with_graceful_shutdown(async move {
@@ -87,7 +86,7 @@ async fn status() -> (StatusCode, Json<Status>) {
 }
 
 // async fn bump(
-//     Extension(test_counter): Extension<Arc<Family<TestLabel, Counter>>>, 
+//     Extension(test_counter): Extension<Arc<Family<TestLabel, Counter>>>,
 // ) {
 //     let label = TestLabel {
 //         path: "/bump".to_string(),
