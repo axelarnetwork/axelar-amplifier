@@ -283,7 +283,7 @@ pub fn instantiate_chain_contracts(
                         address: multisig_prover_address.clone(),
                         code_id: params.prover.code_id,
                     },
-                    chain_name: params.prover.msg.chain_name.clone(),
+                    chain_name: params.prover.msg.chain_name,
                     deployment_name: deployment_name.clone(),
                 });
 
