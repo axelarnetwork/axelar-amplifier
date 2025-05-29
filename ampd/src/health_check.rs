@@ -1,16 +1,16 @@
 use std::net::SocketAddrV4;
-use std::sync::Arc;
+// use std::sync::Arc;
 
-use axum::extract::Extension;
+// use axum::extract::Extension;
 use axum::http::StatusCode;
 use axum::routing::get;
 use axum::{Json, Router};
 use error_stack::{Result, ResultExt};
-use prometheus_client::encoding::EncodeLabelSet;
-use prometheus_client::encoding::text::encode;
-use prometheus_client::metrics::counter::Counter;
-use prometheus_client::metrics::family::Family;
-use prometheus_client::registry::Registry;
+// use prometheus_client::encoding::EncodeLabelSet;
+// use prometheus_client::encoding::text::encode;
+// use prometheus_client::metrics::counter::Counter;
+// use prometheus_client::metrics::family::Family;
+// use prometheus_client::registry::Registry;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tokio_util::sync::CancellationToken;
@@ -26,31 +26,31 @@ pub enum Error {
 
 pub struct Server {
     bind_address: SocketAddrV4,
-    registry: Arc<Registry>,
-    test_counter: Arc<Family<TestLabel, Counter>>,
+    // registry: Arc<Registry>,
+    // test_counter: Arc<Family<TestLabel, Counter>>,
 }
 
-#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
-struct TestLabel {
-    path: String,
-}
+// #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+// struct TestLabel {
+//     path: String,
+// }
 
 impl Server {
     pub fn new(bind_address: SocketAddrV4) -> Self {
-        let mut registry = Registry::default();
+        // let mut registry = Registry::default();
 
-        let test_counter = Family::<TestLabel, Counter>::default();
+        // let test_counter = Family::<TestLabel, Counter>::default();
 
-        registry.register(
-            "current_time",
-            "Current date and time EST",
-            test_counter.clone(),
-        );
+        // registry.register(
+        //     "current_time",
+        //     "Current date and time EST",
+        //     test_counter.clone(),
+        // );
 
         Self { 
             bind_address, 
-            registry: Arc::new(registry),
-            test_counter: Arc::new(test_counter),
+            // registry: Arc::new(registry),
+            // test_counter: Arc::new(test_counter),
         }
     }
 
@@ -65,10 +65,11 @@ impl Server {
         );
 
         let app = Router::new()
-            .route("/status", get(status))
-            .route("/bump", get(bump))
-            .route("/metrics", get(move || metrics(self.registry.clone())))
-            .layer(Extension(self.test_counter.clone()));
+            .route("/status", get(status));
+            // .route("/bump", get(bump))
+            // .route("/metrics", get(metrics))
+            // .layer(Extension(self.registry.clone()))
+            // .layer(Extension(self.test_counter.clone()));
 
         axum::serve(listener, app)
             .with_graceful_shutdown(async move {
@@ -85,23 +86,25 @@ async fn status() -> (StatusCode, Json<Status>) {
     (StatusCode::OK, Json(Status { ok: true }))
 }
 
-async fn bump(
-    Extension(test_counter): Extension<Arc<Family<TestLabel, Counter>>>, 
-) {
-    let label = TestLabel {
-        path: "/bump".to_string(),
-    };
+// async fn bump(
+//     Extension(test_counter): Extension<Arc<Family<TestLabel, Counter>>>, 
+// ) {
+//     let label = TestLabel {
+//         path: "/bump".to_string(),
+//     };
 
-    test_counter
-        .get_or_create(&label)
-        .inc();
-}
+//     test_counter
+//         .get_or_create(&label)
+//         .inc();
+// }
 
-async fn metrics(registry: Arc<Registry>) -> String {
-    let mut buffer = String::new();
-    encode(&mut buffer, &registry).unwrap();
-    buffer
-}
+// async fn metrics(
+//     Extension(registry): Extension<Arc<Registry>>,
+// ) -> String {
+//     let mut buffer = String::new();
+//     encode(&mut buffer, &registry).unwrap();
+//     buffer
+// }
 
 #[derive(Serialize, Deserialize)]
 struct Status {
