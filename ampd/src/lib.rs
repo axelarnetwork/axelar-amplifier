@@ -85,16 +85,6 @@ async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
     let (monitor_server, metrics_client) =
         metrics::monitor::Server::new(monitor_bind_addr).change_context(Error::MonitorSetup)?;
 
-    // just for DEBUG, track timer metrics
-    let metrics_client_for_timer = metrics_client.clone();
-    tokio::spawn(async move {
-        let mut interval = interval(Duration::from_secs(2));
-        loop {
-            interval.tick().await;
-            metrics_client_for_timer.inc_timer().unwrap();
-        }
-    });
-    // end of DEBUG
 
     let tm_client = tendermint_rpc::HttpClient::new(tm_jsonrpc.to_string().as_str())
         .change_context(Error::Connection)
@@ -107,8 +97,10 @@ async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
     .await
     .change_context(Error::Connection)
     .attach_printable(tofnd_config.url)?;
+
+    // pass to block heigh monitor 
     let block_height_monitor =
-        BlockHeightMonitor::connect(tm_client.clone(), Some(metrics_client.clone()))
+        BlockHeightMonitor::connect(tm_client.clone(), metrics_client.clone())
             .await
             .change_context(Error::Connection)
             .attach_printable(tm_jsonrpc)?;
@@ -231,8 +223,7 @@ where
         Pin<Box<MsgQueue>>,
         MultisigClient,
     >,
-    #[allow(dead_code)] // want it to has same lifetime as the app... may used in the future
-    metrics_client: metrics::client::MetricsClient,
+    metrics_client: Option<metrics::client::MetricsClient>,
 }
 
 impl<T> App<T>
@@ -254,7 +245,7 @@ where
             Pin<Box<MsgQueue>>,
             MultisigClient,
         >,
-        metrics_client: metrics::client::MetricsClient,
+        metrics_client: Option<metrics::client::MetricsClient>,
     ) -> Self {
         let event_processor = TaskGroup::new("event handler");
 
@@ -631,11 +622,13 @@ where
             monitor_server,
             grpc_server,
             broadcaster_task,
+            metrics_client,
             ..
         } = self;
 
         let main_token = CancellationToken::new();
         let exit_token = main_token.clone();
+        let signal_token = main_token.clone(); // Clone main_token for use in the signal handling task
         tokio::spawn(async move {
             let mut sigint = signal(SignalKind::interrupt()).expect("failed to capture SIGINT");
             let mut sigterm = signal(SignalKind::terminate()).expect("failed to capture SIGTERM");
@@ -649,6 +642,26 @@ where
 
             exit_token.cancel();
         });
+        // DEBUG (need to be deleted or changed) testings updating every 2 seconds 
+        if let Some(metrics_client) = metrics_client {
+            let mut interval = interval(Duration::from_secs(2));
+            tokio::spawn(async move {
+                loop {
+                    tokio::select! {
+                        _ = interval.tick() => {
+                            if let Err(e) = metrics_client.inc_timer() {
+                                tracing::error!("Failed to increment timer: {:?}", e);
+                            }
+                        }
+                        _ = signal_token.cancelled() => {
+                            tracing::info!("Timer task shutting down");
+                            break;
+                        }
+                    }
+                }
+            });
+        }
+        // it should goes up every 2 seocnds
 
         TaskGroup::new("ampd")
             .add_task(CancellableTask::create(|token| {

@@ -13,6 +13,7 @@ use tracing::info;
 use super::client::MetricsClient;
 use crate::metrics::msg::MetricsError;
 use crate::metrics::server::MetricsServer;
+use crate::metrics::msg::MetricsMsg;
 
 // we need to access the metrics server concurrently
 // one for receiving metrics messages
@@ -21,36 +22,38 @@ use crate::metrics::server::MetricsServer;
 // lock() to ensure only one thread can access the metrics server at a time
 pub struct Server {
     bind_address: SocketAddrV4,
-    metrics_server: Arc<Mutex<MetricsServer>>,
+    metrics_server: Option<Arc<Mutex<MetricsServer>>>,
+    metrics_rx: Option<mpsc::Receiver<MetricsMsg>>,
 }
 // field: metricsServer: T/F
 
 impl Server {
     pub fn new(
         bind_address: SocketAddrV4,
-    ) -> Result<(Self, crate::metrics::client::MetricsClient), MetricsError> {
-        let (tx, mut rx) = mpsc::channel(1000);
-        let metrics_server_logic = MetricsServer::new().change_context(MetricsError::Start)?;
-        let shared_metrics_server = Arc::new(Mutex::new(metrics_server_logic));
-        let client = MetricsClient::new(tx);
-
-        let processor_metrics_server_arc = shared_metrics_server.clone();
-        tokio::spawn(async move {
-            while let Some(msg) = rx.recv().await {
-                let mut server_guard = processor_metrics_server_arc.lock().await;
-                server_guard.handle_message(msg)?;
+    ) -> Result<(Self, Option<crate::metrics::client::MetricsClient>), MetricsError> {
+        // log a warning if failed to initailized , server and metrics tx will be None 
+        let (metrics_server, metrics_rx, client) = match MetricsServer::new() {
+            Ok(server) => {
+                let shared_server = Arc::new(Mutex::new(server));
+                let (tx, rx) = mpsc::channel(1000);
+                let client = Some(MetricsClient::new(tx));
+                (Some(shared_server), Some(rx), client)
             }
-            Ok::<_, MetricsError>(())
-        });
-        // need to think about this.... seperate them? server_with prometheus? 
-        Ok((
-            Self {
-                bind_address,
-                metrics_server: shared_metrics_server,
-            },
-            client,
-        ))
+            Err(e) => {
+                tracing::warn!("Failed to initialize metrics server: {:?}", e);
+                (None, None, None) 
+            }
+        };
+
+        let server = Self {
+            bind_address,
+            metrics_server,
+            metrics_rx,
+        };
+        Ok((server, client))
     }
+
+
 
     pub async fn run(self, cancel: CancellationToken) -> Result<(), MetricsError> {
         let listener = tokio::net::TcpListener::bind(self.bind_address)
@@ -61,10 +64,32 @@ impl Server {
             address = self.bind_address.to_string(),
             "starting monitor server"
         );
+        // receive messages from the metrics channel -> always 
+        if let (Some(metrics_server), Some(mut metrics_rx)) = (self.metrics_server.clone(), self.metrics_rx) {
+            tokio::spawn(async move {
+                while let Some(msg) = metrics_rx.recv().await {
+                    let mut server_guard = metrics_server.lock().await;
+                    if let Err(e) = server_guard.handle_message(msg) {
+                        tracing::error!("Failed to handle metrics message: {:?}", e);
+                    }
+                }
+            });
+        }
 
-        let app = Router::new().route("/status", get(status)).route(
+        let app = Router::new()
+        .route("/status", get(status))
+        .route(
             "/metrics",
-            get(move || metrics(self.metrics_server.clone())),
+            get({
+                let metrics_server = self.metrics_server.clone();
+                move || async move {
+                    if let Some(server) = metrics_server {
+                        metrics(server).await
+                    } else {
+                        (StatusCode::NOT_FOUND, "Metrics not available".to_string())
+                    }
+                }
+            }),
         );
 
         axum::serve(listener, app)
@@ -180,9 +205,13 @@ mod tests {
         for i in 0..3 {
             let client_clone = metrics_client.clone();
             let handle = tokio::spawn(async move {
-                client_clone
-                    .inc_block_received()
-                    .expect(&format!("Task {} failed to increase block counter", i));
+                if let Some(client1) = client_clone {
+                    client1
+                        .inc_block_received()
+                        .expect(&format!("Task {} failed to increase block counter", i));
+                } else {
+                    panic!("MetricsClient is None");
+                }
             });
             handles.push(handle);
         }
