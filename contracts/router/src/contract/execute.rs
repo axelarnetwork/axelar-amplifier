@@ -6,7 +6,8 @@ use axelar_wasm_std::flagset::FlagSet;
 use axelar_wasm_std::msg_id::{self, MessageIdFormat};
 use axelar_wasm_std::{address, killswitch, permission_control};
 use cosmwasm_std::{
-    to_json_binary, Addr, Deps, DepsMut, Event, QuerierWrapper, Response, StdResult, Storage, WasmMsg
+    to_json_binary, Addr, Deps, DepsMut, Event, QuerierWrapper, Response, StdResult, Storage,
+    WasmMsg,
 };
 use error_stack::{bail, ensure, report, Report, ResultExt};
 use itertools::Itertools;
@@ -16,7 +17,7 @@ use router_api::{ChainEndpoint, ChainName, Gateway, GatewayDirection, Message};
 use crate::events::{
     ChainFrozen, ChainRegistered, ChainUnfrozen, GatewayInfo, GatewayUpgraded, MessageRouted,
 };
-use crate::state::{chain_endpoints, load_config, Config};
+use crate::state::{chain_endpoints, Config};
 use crate::{events, state};
 
 pub fn register_chain(
@@ -263,8 +264,9 @@ pub fn route_messages(
 
 fn validate_sender_can_register_chains(deps: Deps, sender: Addr) -> error_stack::Result<(), Error> {
     if !permission_control::sender_role(deps.storage, &sender)
-    .map_err(|_| report!(Error::StoreFailure))?
-    .contains(permission_control::Permission::Governance) {
+        .map_err(|_| report!(Error::StoreFailure))?
+        .contains(permission_control::Permission::Governance)
+    {
         Err(report!(Error::Unauthorized))
     } else {
         Ok(())
@@ -289,7 +291,7 @@ pub fn execute_from_coordinator(
                 deps.querier,
                 chain,
                 address::validate_cosmwasm_address(deps.api, &gateway_address)
-                .change_context(Error::InvalidAddress)?,
+                    .change_context(Error::InvalidAddress)?,
                 msg_id_format,
             )
         }

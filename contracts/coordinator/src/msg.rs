@@ -61,9 +61,7 @@ pub enum ExecuteMsg {
     },
 
     #[permission(Any)]
-    RegisterDeployment {
-        deployment_name: nonempty::String,
-    }
+    RegisterDeployment { deployment_name: nonempty::String },
 }
 
 #[cw_serde]

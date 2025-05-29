@@ -49,6 +49,4 @@ pub enum Error {
     UnableToPersistProtocol,
     #[error("contract config before migration not found")]
     OldConfigNotFound,
-    #[error("chain name {0} is invalid")]
-    InvalidChainName(String),
 }

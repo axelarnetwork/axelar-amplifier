@@ -51,7 +51,7 @@ pub enum ExecuteMsg {
     ExecuteFromCoordinator {
         original_sender: Addr,
         msg: Box<ExecuteMsg>,
-    }
+    },
 }
 
 #[cw_serde]
