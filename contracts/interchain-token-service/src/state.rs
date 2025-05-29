@@ -70,11 +70,11 @@ pub enum TokenSupply {
     Untracked,
 }
 
-impl From<msg::TokenSupplyMsg> for TokenSupply {
-    fn from(supply: msg::TokenSupplyMsg) -> Self {
+impl From<msg::TokenSupply> for TokenSupply {
+    fn from(supply: msg::TokenSupply) -> Self {
         match supply {
-            msg::TokenSupplyMsg::Tracked(amount) => TokenSupply::Tracked(amount),
-            msg::TokenSupplyMsg::Untracked => TokenSupply::Untracked,
+            msg::TokenSupply::Tracked(amount) => TokenSupply::Tracked(amount),
+            msg::TokenSupply::Untracked => TokenSupply::Untracked,
         }
     }
 }
@@ -425,12 +425,12 @@ mod tests {
 
     #[test]
     fn supply_from_msg_type_conversion_succeeds() {
-        let tracked_msg_supply: msg::TokenSupplyMsg = msg::TokenSupplyMsg::Tracked(Uint256::MAX);
+        let tracked_msg_supply: msg::TokenSupply = msg::TokenSupply::Tracked(Uint256::MAX);
         let tracked_supply: TokenSupply = tracked_msg_supply.into();
 
         assert_eq!(tracked_supply, TokenSupply::Tracked(Uint256::MAX));
 
-        let untracked_msg_supply: msg::TokenSupplyMsg = msg::TokenSupplyMsg::Untracked;
+        let untracked_msg_supply: msg::TokenSupply = msg::TokenSupply::Untracked;
         let untracked_supply: TokenSupply = untracked_msg_supply.into();
 
         assert_eq!(untracked_supply, TokenSupply::Untracked);

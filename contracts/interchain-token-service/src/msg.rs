@@ -18,7 +18,7 @@ const fn default_pagination_limit() -> u32 {
 }
 
 #[cw_serde]
-pub enum TokenSupplyMsg {
+pub enum TokenSupply {
     /// The total token supply bridged to this chain.
     /// ITS Hub will not allow bridging back more than this amount of the token from the corresponding chain.
     Tracked(Uint256),
@@ -28,13 +28,13 @@ pub enum TokenSupplyMsg {
 
 /// Information about a token on a specific chain.
 #[cw_serde]
-pub struct TokenInstanceMsg {
-    pub supply: TokenSupplyMsg,
+pub struct TokenInstance {
+    pub supply: TokenSupply,
     pub decimals: u8,
 }
 
 #[cw_serde]
-pub struct TokenConfigMsg {
+pub struct TokenConfig {
     pub origin_chain: ChainNameRaw,
 }
 
@@ -63,7 +63,7 @@ pub enum ExecuteMsg {
         token_id: TokenId,
         origin_chain: ChainNameRaw,
         decimals: u8,
-        supply: TokenSupplyMsg,
+        supply: TokenSupply,
     },
 
     /// For each chain, register the ITS contract and set config parameters.
@@ -167,14 +167,14 @@ pub enum QueryMsg {
     },
 
     /// Query a token instance on a specific chain
-    #[returns(Option<TokenInstanceMsg>)]
+    #[returns(Option<TokenInstance>)]
     TokenInstance {
         chain: ChainNameRaw,
         token_id: TokenId,
     },
 
     /// Query the configuration parameters for a token
-    #[returns(Option<TokenConfigMsg>)]
+    #[returns(Option<TokenConfig>)]
     TokenConfig { token_id: TokenId },
 
     /// Query the state of contract (enabled/disabled)

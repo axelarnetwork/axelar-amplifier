@@ -10,7 +10,7 @@ use crate::primitives::HubMessage;
 use crate::state::TokenDeploymentType;
 use crate::{
     msg, state, DeployInterchainToken, InterchainTransfer, LinkToken, Message,
-    RegisterTokenMetadata, TokenConfig, TokenId, TokenInstance, TokenSupply, TokenSupplyMsg,
+    RegisterTokenMetadata, TokenConfig, TokenId, TokenInstance, TokenSupply,
 };
 
 mod interceptors;
@@ -474,7 +474,7 @@ pub fn register_p2p_token_instance(
     chain: ChainNameRaw,
     origin_chain: ChainNameRaw,
     decimals: u8,
-    supply: TokenSupplyMsg,
+    supply: msg::TokenSupply,
 ) -> Result<Response, Error> {
     let supply: TokenSupply = supply.into();
 
@@ -556,7 +556,7 @@ mod tests {
     use crate::state::{self, Config};
     use crate::{
         msg, DeployInterchainToken, HubMessage, InterchainTransfer, LinkToken, Message,
-        RegisterTokenMetadata, TokenId, TokenSupply, TokenSupplyMsg,
+        RegisterTokenMetadata, TokenId, TokenSupply,
     };
 
     const SOLANA: &str = "solana";
@@ -1614,7 +1614,7 @@ mod tests {
         let origin_chain = ethereum();
         let instance_chains: Vec<ChainNameRaw> = vec![solana(), ethereum()];
         let decimals = 18;
-        let supply = TokenSupplyMsg::Tracked(Uint256::one());
+        let supply = msg::TokenSupply::Tracked(Uint256::one());
 
         for chain in instance_chains {
             assert_ok!(register_p2p_token_instance(
@@ -1656,7 +1656,7 @@ mod tests {
             xrpl(),
             ethereum(),
             18,
-            TokenSupplyMsg::Tracked(Uint256::one())
+            msg::TokenSupply::Tracked(Uint256::one())
         ));
 
         // test transfer in both directions
@@ -1683,7 +1683,7 @@ mod tests {
         init(&mut deps);
 
         let decimals = 18;
-        let supply = TokenSupplyMsg::Tracked(Uint256::one());
+        let supply = msg::TokenSupply::Tracked(Uint256::one());
         assert_ok!(register_p2p_token_instance(
             deps.as_mut(),
             token_id(),
@@ -1711,7 +1711,7 @@ mod tests {
         let origin_chain = ethereum();
         let instance_chain = solana();
         let decimals = 18;
-        let supply = TokenSupplyMsg::Tracked(Uint256::one());
+        let supply = msg::TokenSupply::Tracked(Uint256::one());
         assert_ok!(register_p2p_token_instance(
             deps.as_mut(),
             token_id(),
@@ -1738,7 +1738,7 @@ mod tests {
         init(&mut deps);
 
         let decimals = 18;
-        let supply = TokenSupplyMsg::Tracked(Uint256::one());
+        let supply = msg::TokenSupply::Tracked(Uint256::one());
         assert_err_contains!(
             register_p2p_token_instance(
                 deps.as_mut(),
@@ -1778,10 +1778,10 @@ mod tests {
             ethereum(),
             ethereum(),
             decimals,
-            TokenSupplyMsg::Untracked
+            msg::TokenSupply::Untracked
         ));
 
-        let supply = TokenSupplyMsg::Tracked(Uint256::one());
+        let supply = msg::TokenSupply::Tracked(Uint256::one());
         assert_ok!(register_p2p_token_instance(
             deps.as_mut(),
             token_id(),

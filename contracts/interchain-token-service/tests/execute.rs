@@ -9,7 +9,7 @@ use interchain_token_service::events::Event;
 use interchain_token_service::msg::{self, ExecuteMsg, TruncationConfig};
 use interchain_token_service::{
     DeployInterchainToken, HubMessage, InterchainTransfer, LinkToken, RegisterTokenMetadata,
-    TokenId, TokenSupplyMsg,
+    TokenId,
 };
 use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
 use serde_json::json;
@@ -1343,7 +1343,7 @@ fn deploy_interchain_token_tracks_supply() {
         ))
         .unwrap()
         .supply,
-        TokenSupplyMsg::Untracked,
+        msg::TokenSupply::Untracked,
     );
     assert_eq!(
         assert_ok!(utils::query_token_instance(
@@ -1353,7 +1353,7 @@ fn deploy_interchain_token_tracks_supply() {
         ))
         .unwrap()
         .supply,
-        TokenSupplyMsg::Tracked(amount.into())
+        msg::TokenSupply::Tracked(amount.into())
     );
 
     // Send the same amount back
@@ -1387,7 +1387,7 @@ fn deploy_interchain_token_tracks_supply() {
         ))
         .unwrap()
         .supply,
-        TokenSupplyMsg::Untracked
+        msg::TokenSupply::Untracked
     );
     assert_eq!(
         assert_ok!(utils::query_token_instance(
@@ -1397,7 +1397,7 @@ fn deploy_interchain_token_tracks_supply() {
         ))
         .unwrap()
         .supply,
-        TokenSupplyMsg::Tracked(Uint256::zero())
+        msg::TokenSupply::Tracked(Uint256::zero())
     );
 }
 
@@ -1444,7 +1444,7 @@ fn deploy_interchain_token_with_minter_does_not_track_supply() {
             ))
             .unwrap()
             .supply,
-            TokenSupplyMsg::Untracked,
+            msg::TokenSupply::Untracked,
         );
     }
 
@@ -1498,7 +1498,7 @@ fn deploy_interchain_token_with_minter_does_not_track_supply() {
             ))
             .unwrap()
             .supply,
-            TokenSupplyMsg::Untracked,
+            msg::TokenSupply::Untracked,
         );
     }
 }
@@ -1741,7 +1741,7 @@ fn register_p2p_token_has_correct_access_control() {
             source_its_chain.clone(),
             destination_its_chain.clone(),
             18u8,
-            TokenSupplyMsg::Untracked
+            msg::TokenSupply::Untracked
         ));
     }
 }
@@ -1765,7 +1765,7 @@ fn register_p2p_token_should_fail_when_called_by_non_elevated_account() {
             source_its_chain,
             destination_its_chain,
             18u8,
-            TokenSupplyMsg::Untracked
+            msg::TokenSupply::Untracked
         ),
         permission_control::Error,
         permission_control::Error::PermissionDenied { .. }
