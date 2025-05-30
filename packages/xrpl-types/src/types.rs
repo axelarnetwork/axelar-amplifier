@@ -512,6 +512,7 @@ pub struct XRPLPaymentTx {
     pub amount: XRPLPaymentAmount,
     pub destination: XRPLAccountId,
     pub cross_currency: Option<XRPLCrossCurrencyOptions>,
+    pub cc_id: Option<CrossChainId>,
 }
 
 #[cw_serde]
