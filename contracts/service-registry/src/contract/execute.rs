@@ -1,11 +1,12 @@
 use axelar_wasm_std::nonempty;
-use error_stack::Result;
+use error_stack::{ensure, Result};
 use router_api::ChainName;
-use service_registry_api::{self, AuthorizationState, Verifier};
+use service_registry_api::{
+    self, AuthorizationState, ServiceParamsOverride, UpdatedServiceParams, Verifier,
+};
 use state::VERIFIERS;
 
 use super::*;
-use crate::msg::UpdatedServiceParams;
 use crate::state::{self};
 
 #[allow(clippy::too_many_arguments)]
@@ -20,29 +21,21 @@ pub fn register_service(
     unbonding_period_days: u16,
     description: String,
 ) -> Result<Response, ContractError> {
-    let key = &service_name.clone();
-
-    SERVICES.update(
+    state::save_service(
         deps.storage,
-        key,
-        |service| -> std::result::Result<Service, ContractError> {
-            match service {
-                None => Ok(Service {
-                    name: service_name,
-                    coordinator_contract,
-                    min_num_verifiers,
-                    max_num_verifiers,
-                    min_verifier_bond,
-                    bond_denom,
-                    unbonding_period_days,
-                    description,
-                }),
-                _ => Err(ContractError::ServiceAlreadyExists),
-            }
+        &service_name.clone(),
+        Service {
+            name: service_name,
+            coordinator_contract,
+            min_num_verifiers,
+            max_num_verifiers,
+            min_verifier_bond,
+            bond_denom,
+            unbonding_period_days,
+            description,
         },
     )?;
 
-    // Response with attributes? event?
     Ok(Response::new())
 }
 
@@ -52,10 +45,7 @@ pub fn update_verifier_authorization_status(
     service_name: String,
     auth_state: AuthorizationState,
 ) -> Result<Response, ContractError> {
-    SERVICES
-        .may_load(deps.storage, &service_name)
-        .change_context(ContractError::StorageError)?
-        .ok_or(ContractError::ServiceNotFound)?;
+    ensure_service_exists(deps.storage, &service_name)?;
 
     for verifier in verifiers {
         VERIFIERS.update(
@@ -86,24 +76,37 @@ pub fn update_service(
     service_name: String,
     updated_service_params: UpdatedServiceParams,
 ) -> Result<Response, ContractError> {
-    SERVICES.update(deps.storage, &service_name, |service| match service {
-        None => Err(ContractError::ServiceNotFound),
-        Some(service) => Ok(Service {
-            min_num_verifiers: updated_service_params
-                .min_num_verifiers
-                .unwrap_or(service.min_num_verifiers),
-            max_num_verifiers: updated_service_params
-                .max_num_verifiers
-                .unwrap_or(service.max_num_verifiers),
-            min_verifier_bond: updated_service_params
-                .min_verifier_bond
-                .unwrap_or(service.min_verifier_bond),
-            unbonding_period_days: updated_service_params
-                .unbonding_period_days
-                .unwrap_or(service.unbonding_period_days),
-            ..service
-        }),
-    })?;
+    state::update_service(deps.storage, &service_name, updated_service_params)?;
+    Ok(Response::new())
+}
+
+pub fn override_service_params(
+    deps: DepsMut,
+    service_name: String,
+    chain: ChainName,
+    service_params_override: ServiceParamsOverride,
+) -> Result<Response, ContractError> {
+    ensure_service_exists(deps.storage, &service_name)?;
+
+    state::save_service_override(
+        deps.storage,
+        &service_name,
+        &chain,
+        &service_params_override,
+    )?;
+
+    Ok(Response::new())
+}
+
+pub fn remove_service_params_override(
+    deps: DepsMut,
+    service_name: String,
+    chain: ChainName,
+) -> Result<Response, ContractError> {
+    ensure_service_exists(deps.storage, &service_name)?;
+
+    state::remove_service_override(deps.storage, &service_name, &chain);
+
     Ok(Response::new())
 }
 
@@ -112,10 +115,7 @@ pub fn bond_verifier(
     info: MessageInfo,
     service_name: String,
 ) -> Result<Response, ContractError> {
-    let service = SERVICES
-        .may_load(deps.storage, &service_name)
-        .change_context(ContractError::StorageError)?
-        .ok_or(ContractError::ServiceNotFound)?;
+    let service = state::default_service_params(deps.storage, &service_name)?;
 
     let bond: Option<nonempty::Uint128> = if !info.funds.is_empty() {
         Some(
@@ -158,10 +158,7 @@ pub fn register_chains_support(
     service_name: String,
     chains: Vec<ChainName>,
 ) -> Result<Response, ContractError> {
-    SERVICES
-        .may_load(deps.storage, &service_name)
-        .change_context(ContractError::StorageError)?
-        .ok_or(ContractError::ServiceNotFound)?;
+    ensure_service_exists(deps.storage, &service_name)?;
 
     state::register_chains_support(
         deps.storage,
@@ -179,10 +176,7 @@ pub fn deregister_chains_support(
     service_name: String,
     chains: Vec<ChainName>,
 ) -> Result<Response, ContractError> {
-    SERVICES
-        .may_load(deps.storage, &service_name)
-        .change_context(ContractError::StorageError)?
-        .ok_or(ContractError::ServiceNotFound)?;
+    ensure_service_exists(deps.storage, &service_name)?;
 
     state::deregister_chains_support(deps.storage, service_name.clone(), chains, info.sender)?;
 
@@ -195,10 +189,7 @@ pub fn unbond_verifier(
     info: MessageInfo,
     service_name: String,
 ) -> Result<Response, ContractError> {
-    let service = SERVICES
-        .may_load(deps.storage, &service_name)
-        .change_context(ContractError::StorageError)?
-        .ok_or(ContractError::ServiceNotFound)?;
+    let service = state::default_service_params(deps.storage, &service_name)?;
 
     let verifier = VERIFIERS
         .may_load(deps.storage, (&service_name, &info.sender))
@@ -227,10 +218,7 @@ pub fn claim_stake(
     info: MessageInfo,
     service_name: String,
 ) -> Result<Response, ContractError> {
-    let service = SERVICES
-        .may_load(deps.storage, &service_name)
-        .change_context(ContractError::StorageError)?
-        .ok_or(ContractError::ServiceNotFound)?;
+    let service = state::default_service_params(deps.storage, &service_name)?;
 
     let verifier = VERIFIERS
         .may_load(deps.storage, (&service_name, &info.sender))
@@ -255,4 +243,16 @@ pub fn claim_stake(
         }]
         .to_vec(),
     }))
+}
+
+fn ensure_service_exists(
+    storage: &dyn Storage,
+    service_name: &String,
+) -> Result<(), ContractError> {
+    ensure!(
+        state::has_service(storage, service_name),
+        ContractError::ServiceNotFound
+    );
+
+    Ok(())
 }
