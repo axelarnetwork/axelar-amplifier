@@ -12,7 +12,7 @@ pub enum Error {
 
 #[cw_serde]
 #[derive(PartialOrd)]
-#[serde(try_from = "u32")]
+#[serde(try_from = "u32", into = "u32")]
 pub struct NumBits(u8);
 
 impl TryFrom<u32> for NumBits {
@@ -26,9 +26,9 @@ impl TryFrom<u32> for NumBits {
     }
 }
 
-impl NumBits {
-    pub fn to_u32(self) -> u32 {
-        (self.0 as u32)
+impl From<NumBits> for u32 {
+    fn from(value: NumBits) -> Self {
+        (value.0 as u32)
             .checked_add(1)
             .expect("u8::MAX + 1 < u32::MAX")
     }
@@ -51,7 +51,7 @@ mod test {
         let cases = [1, 10, 32, 50, 64, 100, 127, 128, 255, 256];
         for case in cases {
             assert!(NumBits::try_from(case).is_ok());
-            assert_eq!(NumBits::try_from(case).unwrap().to_u32(), case)
+            assert_eq!(u32::from(NumBits::try_from(case).unwrap()), case)
         }
     }
 
