@@ -101,7 +101,7 @@ async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
 
     // pass to block heigh monitor
     let block_height_monitor =
-        BlockHeightMonitor::connect(tm_client.clone(), metrics_client.clone())
+        BlockHeightMonitor::connect(tm_client.clone())
             .await
             .change_context(Error::Connection)
             .attach_printable(tm_jsonrpc)?;
