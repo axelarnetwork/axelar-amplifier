@@ -409,10 +409,10 @@ mod tests {
         handler.expect_handle().times(0);
 
         let mut client = MockClient::new();
-        client.expect_subscribe().times(1).returning(move |_, _| {
-            let result_events: Vec<error_stack::Result<Event, ClientError>> =
-                vec![Err(report!(ClientError::MissingEvent))];
-            Ok(tokio_stream::iter(result_events))
+        client.expect_subscribe().times(1).returning(|_, _| {
+            Ok(tokio_stream::iter(vec![Err(report!(
+                ClientError::MissingEvent
+            ))]))
         });
 
         let task = HandlerTask::builder()
