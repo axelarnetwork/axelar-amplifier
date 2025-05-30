@@ -35,7 +35,7 @@ pub enum Error {
     InvalidAddress(&'static str),
 
     #[error("missing event in response")]
-    MissingEvent,
+    InvalidResponse,
 
     #[error("query response is not valid json")]
     InvalidJson,
@@ -158,7 +158,7 @@ impl Client for GrpcClient {
         let transformed_stream = streaming_response.into_inner().map(|result| match result {
             Ok(response) => match response.event {
                 Some(event) => Event::try_from(event).change_context(Error::EventConversion),
-                None => bail!(Error::MissingEvent),
+                None => bail!(Error::InvalidResponse),
             },
             Err(e) => bail!(Error::GrpcRequest(e)),
         });
