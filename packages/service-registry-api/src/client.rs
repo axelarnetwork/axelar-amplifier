@@ -17,7 +17,7 @@ pub enum Error {
     #[error("failed to query service registry for service {0}")]
     Service(String),
 
-    #[error("failed to query service registry for parameters for service {service_name} and chain {chain_name}")]
+    #[error("failed to query service registry for service parameters for service {service_name} and chain {chain_name}")]
     ServiceParams {
         service_name: String,
         chain_name: ChainName,
@@ -85,7 +85,7 @@ impl Client<'_> {
     }
 
     #[deprecated(
-        note = "Use service_params instead which supports specifying a chain name and returns the service parameters considering chain overrides"
+        note = "Use service_params instead, which supports specifying a chain name and returns the service parameters considering chain overrides"
     )]
     pub fn service(&self, service_name: String) -> Result<Service> {
         let msg = QueryMsg::Service { service_name };

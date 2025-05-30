@@ -310,7 +310,7 @@ mod test {
             mock_env(),
             message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
             ExecuteMsg::OverrideServiceParams {
-                service_name: service_name.into(),
+                service_name,
                 chain_name: chain_name.clone(),
                 service_params_override: service_params_override.clone(),
             },
