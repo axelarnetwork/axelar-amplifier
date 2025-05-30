@@ -42,6 +42,8 @@ pub struct Config {
     #[serde(with = "humantime_serde")]
     pub stream_timeout: Duration,
     pub stream_buffer_size: usize,
+    #[serde(with = "humantime_serde")]
+    pub delay: Duration,
 }
 
 impl Default for Config {
@@ -51,6 +53,7 @@ impl Default for Config {
             retry_max_attempts: 3,
             stream_timeout: Duration::from_secs(15),
             stream_buffer_size: 100000,
+            delay: Duration::from_secs(1),
         }
     }
 }
@@ -196,12 +199,14 @@ mod tests {
     pub fn setup_event_config(
         retry_delay_value: Duration,
         stream_timeout_value: Duration,
+        delay: Duration,
     ) -> Config {
         Config {
             retry_delay: retry_delay_value,
             retry_max_attempts: 3,
             stream_timeout: stream_timeout_value,
             stream_buffer_size: 100000,
+            delay,
         }
     }
 
@@ -220,7 +225,11 @@ mod tests {
             .returning(|_| Ok(vec![]));
 
         let broadcaster = MockBroadcasterClient::new();
-        let event_config = setup_event_config(Duration::from_secs(1), Duration::from_secs(1000));
+        let event_config = setup_event_config(
+            Duration::from_secs(1),
+            Duration::from_secs(1000),
+            Duration::from_secs(1),
+        );
 
         let result_with_timeout = timeout(
             Duration::from_secs(1),
@@ -250,7 +259,11 @@ mod tests {
         handler.expect_handle().times(1).returning(|_| Ok(vec![]));
 
         let broadcaster = MockBroadcasterClient::new();
-        let event_config = setup_event_config(Duration::from_secs(1), Duration::from_secs(1000));
+        let event_config = setup_event_config(
+            Duration::from_secs(1),
+            Duration::from_secs(1000),
+            Duration::from_secs(1),
+        );
 
         let result_with_timeout = timeout(
             Duration::from_secs(1),
@@ -281,7 +294,11 @@ mod tests {
             .returning(|_| Err(report!(EventHandlerError::Failed)));
 
         let broadcaster = MockBroadcasterClient::new();
-        let event_config = setup_event_config(Duration::from_secs(1), Duration::from_secs(1000));
+        let event_config = setup_event_config(
+            Duration::from_secs(1),
+            Duration::from_secs(1000),
+            Duration::from_secs(1),
+        );
 
         let result_with_timeout = timeout(
             Duration::from_secs(3),
@@ -311,7 +328,11 @@ mod tests {
             .once()
             .returning(|_| Ok(vec![dummy_msg(), dummy_msg()]));
 
-        let event_config = setup_event_config(Duration::from_secs(1), Duration::from_secs(1000));
+        let event_config = setup_event_config(
+            Duration::from_secs(1),
+            Duration::from_secs(1000),
+            Duration::from_secs(1),
+        );
         let mut broadcaster = MockBroadcasterClient::new();
         broadcaster
             .expect_broadcast()
@@ -346,7 +367,11 @@ mod tests {
             .once()
             .returning(|_| Ok(vec![dummy_msg(), dummy_msg()]));
 
-        let event_config = setup_event_config(Duration::from_secs(1), Duration::from_secs(1000));
+        let event_config = setup_event_config(
+            Duration::from_secs(1),
+            Duration::from_secs(1000),
+            Duration::from_secs(1),
+        );
         let mut broadcaster = MockBroadcasterClient::new();
         broadcaster
             .expect_broadcast()
@@ -383,7 +408,11 @@ mod tests {
         handler.expect_handle().times(4).returning(|_| Ok(vec![]));
 
         let broadcaster = MockBroadcasterClient::new();
-        let event_config = setup_event_config(Duration::from_secs(1), Duration::from_secs(1000));
+        let event_config = setup_event_config(
+            Duration::from_secs(1),
+            Duration::from_secs(1000),
+            Duration::from_secs(1),
+        );
 
         let token = CancellationToken::new();
         token.cancel();
@@ -410,7 +439,11 @@ mod tests {
         let handler = MockEventHandler::new();
 
         let broadcaster = MockBroadcasterClient::new();
-        let event_config = setup_event_config(Duration::from_secs(1), Duration::from_secs(0));
+        let event_config = setup_event_config(
+            Duration::from_secs(1),
+            Duration::from_secs(0),
+            Duration::from_secs(1),
+        );
 
         let token = CancellationToken::new();
         token.cancel();

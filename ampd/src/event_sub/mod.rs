@@ -77,15 +77,17 @@ pub struct EventPublisher<T: TmClient + Sync> {
     tm_client: T,
     poll_interval: Duration,
     tx: Sender<std::result::Result<Event, Error>>,
+    delay: Duration,
 }
 
 impl<T: TmClient + Sync> EventPublisher<T> {
-    pub fn new(client: T, capacity: usize) -> (Self, EventSubscriber) {
+    pub fn new(client: T, capacity: usize, delay: Duration) -> (Self, EventSubscriber) {
         let (tx, _) = broadcast::channel(capacity);
         let publisher = EventPublisher {
             tm_client: client,
             poll_interval: POLL_INTERVAL,
             tx: tx.clone(),
+            delay,
         };
         let subscriber = EventSubscriber { tx };
 
@@ -93,9 +95,14 @@ impl<T: TmClient + Sync> EventPublisher<T> {
     }
 
     pub async fn run(self, token: CancellationToken) -> Result<(), Error> {
-        let block_stream = stream::blocks(&self.tm_client, self.poll_interval, token.child_token())
-            .await?
-            .filter(|_| future::ready(self.has_subscriber())); // skip processing blocks when no subscriber exists
+        let block_stream = stream::blocks(
+            &self.tm_client,
+            self.poll_interval,
+            self.delay,
+            token.child_token(),
+        )
+        .await?
+        .filter(|_| future::ready(self.has_subscriber())); // skip processing blocks when no subscriber exists
         let mut event_stream =
             stream::events(&self.tm_client, block_stream, BLOCK_PROCESSING_RETRY_POLICY);
 
@@ -138,6 +145,7 @@ impl<T: TmClient + Sync> EventPublisher<T> {
 #[cfg(test)]
 mod tests {
     use std::sync;
+    use std::time::Duration;
 
     use axelar_wasm_std::assert_err_contains;
     use base64::engine::general_purpose::STANDARD;
@@ -176,7 +184,8 @@ mod tests {
         tm_client.expect_block_results().never();
 
         let token = CancellationToken::new();
-        let (event_publisher, _subscriber) = EventPublisher::new(tm_client, 100);
+        let (event_publisher, _subscriber) =
+            EventPublisher::new(tm_client, 100, Duration::from_secs(1));
         let handle = tokio::spawn(event_publisher.run(token.child_token()));
 
         while *call_count.read().unwrap() < 10 {}
@@ -235,7 +244,8 @@ mod tests {
         });
 
         let token = CancellationToken::new();
-        let (event_publisher, subscriber) = EventPublisher::new(tm_client, 100);
+        let (event_publisher, subscriber) =
+            EventPublisher::new(tm_client, 100, Duration::from_secs(1));
         let mut stream = subscriber.subscribe();
         let handle = tokio::spawn(event_publisher.run(token.child_token()));
 
