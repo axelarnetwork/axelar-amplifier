@@ -411,7 +411,7 @@ mod tests {
         let mut client = MockClient::new();
         client.expect_subscribe().times(1).returning(move |_, _| {
             let result_events: Vec<error_stack::Result<Event, ClientError>> =
-                vec![Err(report!(ClientError::InvalidResponse))];
+                vec![Err(report!(ClientError::MissingEvent))];
             Ok(tokio_stream::iter(result_events))
         });
 

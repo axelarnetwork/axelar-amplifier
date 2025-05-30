@@ -11,11 +11,11 @@ use ampd_proto::{
 use async_trait::async_trait;
 use axelar_wasm_std::nonempty;
 use cosmrs::AccountId;
-use error_stack::{report, Report, Result, ResultExt};
+use error_stack::{bail, Report, Result, ResultExt as _};
 use events::{AbciEventTypeFilter, Event};
 use futures::StreamExt;
 use mockall::automock;
-use report::ErrorExt;
+use report::{ResultCompatExt, ResultExt};
 use thiserror::Error;
 use tokio_stream::Stream;
 use tonic::{transport, Request};
@@ -31,11 +31,14 @@ pub enum Error {
     #[error("failed to convert event")]
     EventConversion,
 
-    #[error("invalid address received")]
-    InvalidAddress(#[from] cosmrs::ErrorReport),
+    #[error("invalid {0} address ")]
+    InvalidAddress(&'static str),
 
     #[error("missing event in response")]
-    InvalidResponse,
+    MissingEvent,
+
+    #[error("query response is not valid json")]
+    InvalidJson,
 
     #[error("invalid contracts response")]
     InvalidContractsResponse,
@@ -54,13 +57,13 @@ pub trait Client {
 
     async fn address(&mut self) -> Result<AccountId, Error>;
 
-    async fn broadcast(&mut self, msg: cosmrs::Any) -> Result<BrodcastClientReponse, Error>;
+    async fn broadcast(&mut self, msg: cosmrs::Any) -> Result<BroadcastClientResponse, Error>;
 
     async fn contract_state(
         &mut self,
         contract: nonempty::String,
         query: nonempty::Vec<u8>,
-    ) -> Result<Vec<u8>, Error>;
+    ) -> Result<serde_json::Value, Error>;
 
     async fn contracts(&mut self) -> Result<ContractsAddresses, Error>;
 }
@@ -72,16 +75,9 @@ pub struct GrpcClient {
 }
 
 pub async fn new(url: &str) -> Result<GrpcClient, Error> {
-    let endpoint: transport::Endpoint = url
-        .parse()
-        .map_err(Into::into) // Convert to Error::GrpcConnection via #[from]
-        .map_err(Report::new)?;
+    let endpoint: transport::Endpoint = url.parse().into_report()?; // Convert to Error::GrpcConnection via #[from]
 
-    let conn = endpoint
-        .connect()
-        .await
-        .map_err(Into::into) // Convert to Error::GrpcConnection via #[from]
-        .map_err(Report::new)?;
+    let conn = endpoint.connect().await.into_report()?;
 
     let blockchain = BlockchainServiceClient::new(conn.clone());
     let crypto = CryptoServiceClient::new(conn);
@@ -89,36 +85,50 @@ pub async fn new(url: &str) -> Result<GrpcClient, Error> {
     Ok(GrpcClient { blockchain, crypto })
 }
 
-pub struct BrodcastClientReponse {
-    pub txhash: String,
+pub struct BroadcastClientResponse {
+    pub tx_hash: String,
     pub index: u64,
 }
 
-impl From<BroadcastResponse> for BrodcastClientReponse {
+impl From<BroadcastResponse> for BroadcastClientResponse {
     fn from(response: BroadcastResponse) -> Self {
-        BrodcastClientReponse {
-            txhash: response.tx_hash,
+        BroadcastClientResponse {
+            tx_hash: response.tx_hash,
             index: response.index,
         }
     }
 }
 
 pub struct ContractsAddresses {
-    pub voting_verifier: nonempty::String,
-    pub multisig_prover: nonempty::String,
-    pub service_registry: nonempty::String,
-    pub rewards: nonempty::String,
+    pub voting_verifier: AccountId,
+    pub multisig_prover: AccountId,
+    pub service_registry: AccountId,
+    pub rewards: AccountId,
 }
 
-impl TryFrom<ContractsResponse> for ContractsAddresses {
-    type Error = Report<nonempty::Error>;
+impl TryFrom<&ContractsResponse> for ContractsAddresses {
+    type Error = Report<Error>;
 
-    fn try_from(response: ContractsResponse) -> Result<ContractsAddresses, nonempty::Error> {
+    fn try_from(
+        response: &ContractsResponse,
+    ) -> core::result::Result<ContractsAddresses, Self::Error> {
         Ok(ContractsAddresses {
-            voting_verifier: nonempty::String::try_from(response.voting_verifier)?,
-            multisig_prover: nonempty::String::try_from(response.multisig_prover)?,
-            service_registry: nonempty::String::try_from(response.service_registry)?,
-            rewards: nonempty::String::try_from(response.rewards)?,
+            voting_verifier: response
+                .voting_verifier
+                .parse::<AccountId>()
+                .change_context(Error::InvalidAddress("voting verifier"))?,
+            multisig_prover: response
+                .multisig_prover
+                .parse::<AccountId>()
+                .change_context(Error::InvalidAddress("multisig prover"))?,
+            service_registry: response
+                .service_registry
+                .parse::<AccountId>()
+                .change_context(Error::InvalidAddress("service registry"))?,
+            rewards: response
+                .rewards
+                .parse::<AccountId>()
+                .change_context(Error::InvalidAddress("rewards"))?,
         })
     }
 }
@@ -143,19 +153,14 @@ impl Client for GrpcClient {
             include_block_begin_end,
         };
 
-        let streaming_response = self
-            .blockchain
-            .subscribe(request)
-            .await
-            .map_err(Error::GrpcRequest)
-            .map_err(Report::new)?;
+        let streaming_response = self.blockchain.subscribe(request).await.into_report()?;
 
         let transformed_stream = streaming_response.into_inner().map(|result| match result {
             Ok(response) => match response.event {
                 Some(event) => Event::try_from(event).change_context(Error::EventConversion),
-                None => Err(report!(Error::InvalidResponse)),
+                None => bail!(Error::MissingEvent),
             },
-            Err(e) => Err(report!(Error::GrpcRequest(e))),
+            Err(e) => bail!(Error::GrpcRequest(e)),
         });
 
         Ok(Box::pin(transformed_stream))
@@ -166,24 +171,25 @@ impl Client for GrpcClient {
             .blockchain
             .address(Request::new(AddressRequest {}))
             .await
-            .map_err(ErrorExt::into_report)?
+            .into_report()?
             .into_inner()
             .address;
 
-        let ampd_broadcaster_address =
-            broadcaster_address.parse().map_err(ErrorExt::into_report)?;
+        let ampd_broadcaster_address = broadcaster_address
+            .parse::<AccountId>()
+            .change_context(Error::InvalidAddress("broadcaster"))?;
 
         Ok(ampd_broadcaster_address)
     }
 
-    async fn broadcast(&mut self, msg: cosmrs::Any) -> Result<BrodcastClientReponse, Error> {
+    async fn broadcast(&mut self, msg: cosmrs::Any) -> Result<BroadcastClientResponse, Error> {
         let request = BroadcastRequest { msg: Some(msg) };
 
         let broadcast_response = self
             .blockchain
             .broadcast(request)
             .await
-            .map_err(ErrorExt::into_report)?
+            .into_report()?
             .into_inner();
 
         Ok(broadcast_response.into())
@@ -193,15 +199,22 @@ impl Client for GrpcClient {
         &mut self,
         contract: nonempty::String,
         query: nonempty::Vec<u8>,
-    ) -> Result<Vec<u8>, Error> {
+    ) -> Result<serde_json::Value, Error> {
         self.blockchain
             .contract_state(ContractStateRequest {
                 contract: contract.into(),
                 query: query.into(),
             })
             .await
-            .map_err(ErrorExt::into_report)
+            .into_report()
             .map(|response| response.into_inner().result)
+            .and_then(|result| {
+                let encoded_response = hex::encode(&result);
+
+                serde_json::to_value(result)
+                    .change_context(Error::InvalidJson)
+                    .attach_printable(encoded_response)
+            })
     }
 
     async fn contracts(&mut self) -> Result<ContractsAddresses, Error> {
@@ -209,12 +222,12 @@ impl Client for GrpcClient {
             .blockchain
             .contracts(Request::new(ContractsRequest {}))
             .await
-            .map_err(ErrorExt::into_report)?
+            .into_report()?
             .into_inner();
 
-        Ok(ContractsAddresses::try_from(response.clone())
+        ContractsAddresses::try_from(&response)
             .change_context(Error::InvalidContractsResponse)
-            .attach_printable(format!("{{ response = {response:?} }}"))?)
+            .attach_printable(format!("{response:?}"))
     }
 }
 
