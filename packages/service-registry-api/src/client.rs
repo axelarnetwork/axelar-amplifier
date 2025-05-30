@@ -18,7 +18,7 @@ pub enum Error {
     Service(String),
 
     #[error("failed to query service registry for parameters for service {service_name} and chain {chain_name}")]
-    ServiceOverride {
+    ServiceParams {
         service_name: String,
         chain_name: ChainName,
     },
@@ -41,6 +41,13 @@ impl From<QueryMsg> for Error {
                 chain_name,
             },
             QueryMsg::Service { service_name } => Error::Service(service_name),
+            QueryMsg::ServiceParams {
+                service_name,
+                chain_name,
+            } => Error::ServiceParams {
+                service_name,
+                chain_name,
+            },
             QueryMsg::Verifier {
                 service_name,
                 verifier,
@@ -82,6 +89,14 @@ impl Client<'_> {
     )]
     pub fn service(&self, service_name: String) -> Result<Service> {
         let msg = QueryMsg::Service { service_name };
+        self.client.query(&msg).change_context_lazy(|| msg.into())
+    }
+
+    pub fn service_params(&self, service_name: String, chain_name: ChainName) -> Result<Service> {
+        let msg = QueryMsg::ServiceParams {
+            service_name,
+            chain_name,
+        };
         self.client.query(&msg).change_context_lazy(|| msg.into())
     }
 
@@ -164,6 +179,7 @@ mod test {
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
         let service_name = "verifiers".to_string();
+        #[allow(deprecated)]
         let res = client.service(service_name.clone());
 
         assert!(res.is_err());
@@ -176,7 +192,34 @@ mod test {
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
         let service_name = "verifiers".to_string();
+        #[allow(deprecated)]
         let res = client.service(service_name.clone());
+
+        assert!(res.is_ok());
+        goldie::assert_json!(res.unwrap());
+    }
+
+    #[test]
+    fn query_service_params_returns_error_when_query_fails() {
+        let (querier, addr) = setup_queries_to_fail();
+        let client: Client =
+            client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
+        let service_name = "verifiers".to_string();
+        let chain_name = "ethereum".try_into().unwrap();
+        let res = client.service_params(service_name, chain_name);
+
+        assert!(res.is_err());
+        goldie::assert!(res.unwrap_err().to_string());
+    }
+
+    #[test]
+    fn query_service_params_returns_service() {
+        let (querier, addr) = setup_queries_to_succeed();
+        let client: Client =
+            client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
+        let service_name = "verifiers".to_string();
+        let chain_name = "ethereum".try_into().unwrap();
+        let res = client.service_params(service_name, chain_name);
 
         assert!(res.is_ok());
         goldie::assert_json!(res.unwrap());
@@ -199,6 +242,19 @@ mod test {
         });
 
         (querier, addr_clone)
+    }
+
+    fn mock_service(api: &MockApi, service_name: String) -> Service {
+        Service {
+            name: service_name,
+            coordinator_contract: api.addr_make("coordinator"),
+            min_num_verifiers: 1,
+            max_num_verifiers: None,
+            min_verifier_bond: Uint128::one(),
+            bond_denom: "uaxl".into(),
+            unbonding_period_days: 10,
+            description: "some service".into(),
+        }
     }
 
     fn setup_queries_to_succeed() -> (MockQuerier, Addr) {
@@ -227,15 +283,15 @@ mod test {
                     }])
                     .into())
                     .into(),
-                    QueryMsg::Service { service_name } => Ok(to_json_binary(&Service {
-                        name: service_name,
-                        coordinator_contract: api.addr_make("coordinator"),
-                        min_num_verifiers: 1,
-                        max_num_verifiers: None,
-                        min_verifier_bond: Uint128::one(),
-                        bond_denom: "uaxl".into(),
-                        unbonding_period_days: 10,
-                        description: "some service".into(),
+                    QueryMsg::Service { service_name } => {
+                        Ok(to_json_binary(&mock_service(&api, service_name)).into()).into()
+                    }
+                    QueryMsg::ServiceParams {
+                        service_name,
+                        chain_name: _,
+                    } => Ok(to_json_binary(&Service {
+                        min_num_verifiers: 2,
+                        ..mock_service(&api, service_name)
                     })
                     .into())
                     .into(),

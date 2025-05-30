@@ -77,10 +77,10 @@ pub fn service(deps: Deps, service_name: String) -> error_stack::Result<Service,
     state::default_service_params(deps.storage, &service_name)
 }
 
-pub fn service_override(
+pub fn service_params(
     deps: Deps,
     service_name: String,
     chain_name: ChainName,
-) -> error_stack::Result<ServiceParamsOverride, ContractError> {
+) -> error_stack::Result<Service, ContractError> {
     state::service(deps.storage, &service_name, &chain_name)
 }

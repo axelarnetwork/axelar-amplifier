@@ -193,7 +193,7 @@ pub fn query(
         QueryMsg::ServiceParams {
             service_name,
             chain_name,
-        } => to_json_binary(&query::service_override(deps, service_name, chain_name)?)
+        } => to_json_binary(&query::service_params(deps, service_name, chain_name)?)
             .map_err(|err| err.into()),
     }
 }
@@ -213,7 +213,9 @@ mod test {
     };
     use router_api::ChainName;
     use service_registry_api::msg::VerifierDetails;
-    use service_registry_api::{UpdatedServiceParams, Verifier, WeightedVerifier};
+    use service_registry_api::{
+        ServiceParamsOverride, UpdatedServiceParams, Verifier, WeightedVerifier,
+    };
 
     use super::*;
     use crate::state::VERIFIER_WEIGHT;
@@ -249,6 +251,68 @@ mod test {
         });
 
         deps
+    }
+
+    fn execute_register_service(deps: DepsMut, service_name: String) -> Service {
+        let api = MockApi::default();
+
+        let service = Service {
+            name: service_name,
+            coordinator_contract: api.addr_make(COORDINATOR_ADDRESS),
+            min_num_verifiers: 0,
+            max_num_verifiers: Some(100),
+            min_verifier_bond: Uint128::one().try_into().unwrap(),
+            bond_denom: AXL_DENOMINATION.into(),
+            unbonding_period_days: 10,
+            description: "amplifier service".into(),
+        };
+        let res = execute(
+            deps,
+            mock_env(),
+            message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
+            ExecuteMsg::RegisterService {
+                service_name: service.name.clone(),
+                coordinator_contract: service.coordinator_contract.to_string(),
+                min_num_verifiers: service.min_num_verifiers,
+                max_num_verifiers: service.max_num_verifiers,
+                min_verifier_bond: service.min_verifier_bond,
+                bond_denom: service.bond_denom.clone(),
+                unbonding_period_days: service.unbonding_period_days,
+                description: service.description.clone(),
+            },
+        );
+        assert!(res.is_ok());
+        service
+    }
+
+    fn execute_override_service_params(
+        deps: DepsMut,
+        service_name: String,
+        chain_name: ChainName,
+    ) -> ServiceParamsOverride {
+        let api = MockApi::default();
+
+        let min_verifiers_override = 20;
+        let max_verifiers_override = Some(20);
+
+        let service_params_override = ServiceParamsOverride {
+            min_num_verifiers: Some(min_verifiers_override),
+            max_num_verifiers: Some(max_verifiers_override),
+        };
+
+        let res = execute(
+            deps,
+            mock_env(),
+            message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
+            ExecuteMsg::OverrideServiceParams {
+                service_name: service_name.into(),
+                chain: chain_name.clone(),
+                service_params_override: service_params_override.clone(),
+            },
+        );
+
+        assert!(res.is_ok());
+        service_params_override
     }
 
     #[test]
@@ -294,38 +358,6 @@ mod test {
             permission_control::Error,
             permission_control::Error::PermissionDenied { .. }
         ));
-    }
-
-    fn execute_register_service(deps: DepsMut, service_name: String) -> Service {
-        let api = MockApi::default();
-
-        let service = Service {
-            name: service_name,
-            coordinator_contract: api.addr_make(COORDINATOR_ADDRESS),
-            min_num_verifiers: 0,
-            max_num_verifiers: Some(100),
-            min_verifier_bond: Uint128::one().try_into().unwrap(),
-            bond_denom: AXL_DENOMINATION.into(),
-            unbonding_period_days: 10,
-            description: "amplifier service".into(),
-        };
-        let res = execute(
-            deps,
-            mock_env(),
-            message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
-            ExecuteMsg::RegisterService {
-                service_name: service.name.clone(),
-                coordinator_contract: service.coordinator_contract.to_string(),
-                min_num_verifiers: service.min_num_verifiers,
-                max_num_verifiers: service.max_num_verifiers,
-                min_verifier_bond: service.min_verifier_bond,
-                bond_denom: service.bond_denom.clone(),
-                unbonding_period_days: service.unbonding_period_days,
-                description: service.description.clone(),
-            },
-        );
-        assert!(res.is_ok());
-        service
     }
 
     #[test]
@@ -470,12 +502,12 @@ mod test {
     }
 
     #[test]
-    fn override_service_params_should_suceed() {
+    fn override_service_params_should_succeed() {
         let mut deps = setup();
         let api = deps.api;
 
         let service_name = "verifiers";
-        let chain_name = "solana".parse().unwrap();
+        let chain_name: ChainName = "solana".parse().unwrap();
         let min_verifiers_override = 20;
         let max_verifiers_override = Some(20);
 
@@ -492,7 +524,7 @@ mod test {
             message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
             ExecuteMsg::OverrideServiceParams {
                 service_name: service_name.into(),
-                chain: chain_name,
+                chain: chain_name.clone(),
                 service_params_override,
             },
         );
@@ -552,6 +584,134 @@ mod test {
             err.report,
             ContractError,
             ContractError::ServiceNotFound
+        ));
+    }
+
+    #[test]
+    fn override_service_params_should_only_be_callable_by_governance() {
+        let mut deps = setup();
+        let api = deps.api;
+
+        let service_name = "verifiers";
+        let chain_name = "solana".parse().unwrap();
+        let min_verifiers_override = 20;
+        let max_verifiers_override = Some(20);
+
+        let service_params_override = ServiceParamsOverride {
+            min_num_verifiers: Some(min_verifiers_override),
+            max_num_verifiers: Some(max_verifiers_override),
+        };
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make(UNAUTHORIZED_ADDRESS), &[]),
+            ExecuteMsg::OverrideServiceParams {
+                service_name: service_name.into(),
+                chain: chain_name,
+                service_params_override,
+            },
+        );
+
+        assert!(res.is_err());
+        let err = res.unwrap_err();
+        assert!(err_contains!(
+            err.report,
+            permission_control::Error,
+            permission_control::Error::PermissionDenied { .. }
+        ));
+    }
+
+    #[test]
+    fn remove_service_params_override_should_remove_override() {
+        let mut deps = setup();
+        let api = deps.api;
+
+        let service_name = "verifiers";
+        let chain_name: ChainName = "solana".parse().unwrap();
+
+        let service = execute_register_service(deps.as_mut(), service_name.into());
+        execute_override_service_params(deps.as_mut(), service_name.into(), chain_name.clone());
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
+            ExecuteMsg::RemoveServiceParamsOverride {
+                service_name: service_name.into(),
+                chain: chain_name.clone(),
+            },
+        );
+
+        assert!(res.is_ok());
+
+        let res: Service = from_json(
+            query(
+                deps.as_ref(),
+                mock_env(),
+                QueryMsg::ServiceParams {
+                    service_name: service_name.into(),
+                    chain_name,
+                },
+            )
+            .unwrap(),
+        )
+        .unwrap();
+
+        assert_eq!(res, service);
+    }
+
+    #[test]
+    fn remove_service_params_override_should_fail_when_service_does_not_exist() {
+        let mut deps = setup();
+        let api = deps.api;
+
+        let service_name = "verifiers";
+        let chain_name: ChainName = "solana".parse().unwrap();
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
+            ExecuteMsg::RemoveServiceParamsOverride {
+                service_name: service_name.into(),
+                chain: chain_name.clone(),
+            },
+        );
+
+        assert!(res.is_err());
+        let err = res.unwrap_err();
+        assert!(err_contains!(
+            err.report,
+            ContractError,
+            ContractError::ServiceNotFound
+        ));
+    }
+
+    #[test]
+    fn remove_service_params_override_should_only_be_callable_by_governance() {
+        let mut deps = setup();
+        let api = deps.api;
+
+        let service_name = "verifiers";
+        let chain_name = "solana".parse().unwrap();
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make(UNAUTHORIZED_ADDRESS), &[]),
+            ExecuteMsg::RemoveServiceParamsOverride {
+                service_name: service_name.into(),
+                chain: chain_name,
+            },
+        );
+
+        assert!(res.is_err());
+        let err = res.unwrap_err();
+        assert!(err_contains!(
+            err.report,
+            permission_control::Error,
+            permission_control::Error::PermissionDenied { .. }
         ));
     }
 
