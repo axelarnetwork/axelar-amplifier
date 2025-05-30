@@ -112,25 +112,26 @@ impl TryFrom<&ContractsResponse> for ContractsAddresses {
     fn try_from(
         response: &ContractsResponse,
     ) -> core::result::Result<ContractsAddresses, Self::Error> {
+        let ContractsResponse {
+            voting_verifier,
+            multisig_prover,
+            service_registry,
+            rewards,
+        } = response;
+
         Ok(ContractsAddresses {
-            voting_verifier: response
-                .voting_verifier
-                .parse::<AccountId>()
-                .change_context(Error::InvalidAddress("voting verifier"))?,
-            multisig_prover: response
-                .multisig_prover
-                .parse::<AccountId>()
-                .change_context(Error::InvalidAddress("multisig prover"))?,
-            service_registry: response
-                .service_registry
-                .parse::<AccountId>()
-                .change_context(Error::InvalidAddress("service registry"))?,
-            rewards: response
-                .rewards
-                .parse::<AccountId>()
-                .change_context(Error::InvalidAddress("rewards"))?,
+            voting_verifier: parse_addr(voting_verifier, "voting verifier")?,
+            multisig_prover: parse_addr(multisig_prover, "multisig prover")?,
+            service_registry: parse_addr(service_registry, "service registry")?,
+            rewards: parse_addr(rewards, "rewards contract")?,
         })
     }
+}
+
+fn parse_addr(addr: &str, address_name: &'static str) -> Result<AccountId, Error> {
+    addr.parse::<AccountId>()
+        .change_context(Error::InvalidAddress(address_name))
+        .attach_printable_lazy(|| addr.to_string())
 }
 
 #[async_trait]
@@ -175,9 +176,7 @@ impl Client for GrpcClient {
             .into_inner()
             .address;
 
-        let ampd_broadcaster_address = broadcaster_address
-            .parse::<AccountId>()
-            .change_context(Error::InvalidAddress("broadcaster"))?;
+        let ampd_broadcaster_address = parse_addr(&broadcaster_address, "broadcaster")?;
 
         Ok(ampd_broadcaster_address)
     }
