@@ -1,13 +1,13 @@
 use std::net::SocketAddrV4;
 use std::sync::Arc;
 
-// use axum::extract::Extension;
+use axum::extract::Extension;
 use axum::http::StatusCode;
 use axum::routing::get;
 use axum::{Json, Router};
 use error_stack::{Result, ResultExt};
 use prometheus_client::encoding::EncodeLabelSet;
-// use prometheus_client::encoding::text::encode;
+use prometheus_client::encoding::text::encode;
 use prometheus_client::metrics::counter::Counter;
 use prometheus_client::metrics::family::Family;
 use prometheus_client::registry::Registry;
@@ -64,11 +64,12 @@ impl Server {
             "starting health check server"
         );
 
-        let app = Router::new().route("/status", get(status));
-        // .route("/bump", get(bump))
-        // .route("/metrics", get(metrics))
-        // .layer(Extension(self.registry.clone()))
-        // .layer(Extension(self.test_counter.clone()));
+        let app = Router::new()
+            .route("/status", get(status))
+            .route("/bump", get(bump))
+            .route("/metrics", get(metrics))
+            .layer(Extension(self.registry.clone()))
+            .layer(Extension(self.test_counter.clone()));
 
         axum::serve(listener, app)
             .with_graceful_shutdown(async move {
@@ -85,25 +86,28 @@ async fn status() -> (StatusCode, Json<Status>) {
     (StatusCode::OK, Json(Status { ok: true }))
 }
 
-// async fn bump(
-//     Extension(test_counter): Extension<Arc<Family<TestLabel, Counter>>>,
-// ) {
-//     let label = TestLabel {
-//         path: "/bump".to_string(),
-//     };
+// TODO: remove String return type, currently used for testing
+async fn bump(
+    Extension(test_counter): Extension<Arc<Family<TestLabel, Counter>>>,
+) -> String {
+    let label = TestLabel {
+        path: "/bump".to_string(),
+    };
 
-//     test_counter
-//         .get_or_create(&label)
-//         .inc();
-// }
+    let label = test_counter.get_or_create(&label);
+    label.inc();
 
-// async fn metrics(
-//     Extension(registry): Extension<Arc<Registry>>,
-// ) -> String {
-//     let mut buffer = String::new();
-//     encode(&mut buffer, &registry).unwrap();
-//     buffer
-// }
+    let val = label.get();
+    val.to_string()
+}
+
+async fn metrics(
+    Extension(registry): Extension<Arc<Registry>>,
+) -> String {
+    let mut buffer = String::new();
+    encode(&mut buffer, &registry).unwrap();
+    buffer
+}
 
 #[derive(Serialize, Deserialize)]
 struct Status {
