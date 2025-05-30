@@ -1,0 +1,99 @@
+name: Transparent Cache Test
+
+on:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      label:
+        description: "Devbox label (e.g. bs-dev-paul)"
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+  pull-requests: write
+
+jobs:
+  test-cache:
+    strategy:
+      matrix:
+        platform: [blacksmith-staging-32vcpu-ubuntu-2404]
+    runs-on:
+      - ${{ matrix.platform }}
+      - ${{ github.event.inputs.label }}
+    steps:          
+      - name: Create a 300MB test file
+        run: |
+          # Create a 300MB test file named test.txt
+          dd if=/dev/urandom of=test.txt bs=1M count=300
+          
+          # Show file size
+          ls -lh test.txt
+          
+      - name: Try native cache action
+        id: cache-action-save
+        uses: actions/cache/save@v4.2.2
+        with:
+          path: test.txt
+          key: test-cache-inspection-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.run_number }}-${{ github.sha }}
+
+      - name: Restore from cache
+        uses: actions/cache/restore@v4.2.2
+        id: cache-restore
+        with:
+          path: test.txt
+          key: test-cache-inspection-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.run_number }}-${{ github.sha }}
+          fail-on-cache-miss: true
+        
+      - name: Create a 9GB test file
+        run: |
+          # Create a 9GB test file named test-large.txt
+          dd if=/dev/urandom of=test-large.txt bs=1M count=9000
+          
+          # Show file size
+          ls -lh test-large.txt
+          
+      - name: Try native cache action
+        id: cache-action-save-large
+        uses: actions/cache/save@v4.2.2
+        with:
+          path: test-large.txt
+          key: test-cache-inspection-large-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.run_number }}-${{ github.sha }}
+
+      - name: Restore from cache
+        uses: actions/cache/restore@v4.2.2
+        id: cache-restore-large
+        with:
+          path: test-large.txt
+          key: test-cache-inspection-large-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.run_number }}-${{ github.sha }}
+          fail-on-cache-miss: true
+
+      - name: Create a 1MB test file
+        run: |
+          # Create a 1MB test file named test-small.txt
+          dd if=/dev/urandom of=test-small.txt bs=1M count=1
+          
+          # Show file size
+          ls -lh test-small.txt
+          
+      - name: Try native cache action
+        id: cache-action-save-small
+        uses: actions/cache/save@v4.2.2
+        with:
+          path: test-small.txt
+          key: test-cache-inspection-small-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.run_number }}-${{ github.sha }}
+
+      - name: Restore from cache
+        uses: actions/cache/restore@v4.2.2
+        id: cache-restore-small
+        with:
+          path: test-small.txt
+          key: test-cache-inspection-small-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.run_number }}-${{ github.sha }}
+          fail-on-cache-miss: true
+
+      - name: Delete All Caches
+        uses: useblacksmith/cache-delete@v1
+        with:
+          key: test-cache-inspection-
+          prefix: true
