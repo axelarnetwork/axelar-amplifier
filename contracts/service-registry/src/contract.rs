@@ -72,13 +72,18 @@ pub fn execute(
         } => execute::update_service(deps, service_name, updated_service_params),
         ExecuteMsg::OverrideServiceParams {
             service_name,
-            chain,
+            chain_name,
             service_params_override,
-        } => execute::override_service_params(deps, service_name, chain, service_params_override),
+        } => execute::override_service_params(
+            deps,
+            service_name,
+            chain_name,
+            service_params_override,
+        ),
         ExecuteMsg::RemoveServiceParamsOverride {
             service_name,
-            chain,
-        } => execute::remove_service_params_override(deps, service_name, chain),
+            chain_name,
+        } => execute::remove_service_params_override(deps, service_name, chain_name),
         ExecuteMsg::AuthorizeVerifiers {
             verifiers,
             service_name,
@@ -306,7 +311,7 @@ mod test {
             message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
             ExecuteMsg::OverrideServiceParams {
                 service_name: service_name.into(),
-                chain: chain_name.clone(),
+                chain_name: chain_name.clone(),
                 service_params_override: service_params_override.clone(),
             },
         );
@@ -524,7 +529,7 @@ mod test {
             message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
             ExecuteMsg::OverrideServiceParams {
                 service_name: service_name.into(),
-                chain: chain_name.clone(),
+                chain_name: chain_name.clone(),
                 service_params_override,
             },
         );
@@ -573,7 +578,7 @@ mod test {
             message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
             ExecuteMsg::OverrideServiceParams {
                 service_name: service_name.into(),
-                chain: chain_name,
+                chain_name,
                 service_params_override,
             },
         );
@@ -608,7 +613,7 @@ mod test {
             message_info(&api.addr_make(UNAUTHORIZED_ADDRESS), &[]),
             ExecuteMsg::OverrideServiceParams {
                 service_name: service_name.into(),
-                chain: chain_name,
+                chain_name,
                 service_params_override,
             },
         );
@@ -639,7 +644,7 @@ mod test {
             message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
             ExecuteMsg::RemoveServiceParamsOverride {
                 service_name: service_name.into(),
-                chain: chain_name.clone(),
+                chain_name: chain_name.clone(),
             },
         );
 
@@ -675,7 +680,7 @@ mod test {
             message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
             ExecuteMsg::RemoveServiceParamsOverride {
                 service_name: service_name.into(),
-                chain: chain_name.clone(),
+                chain_name: chain_name.clone(),
             },
         );
 
@@ -702,7 +707,7 @@ mod test {
             message_info(&api.addr_make(UNAUTHORIZED_ADDRESS), &[]),
             ExecuteMsg::RemoveServiceParamsOverride {
                 service_name: service_name.into(),
-                chain: chain_name,
+                chain_name,
             },
         );
 

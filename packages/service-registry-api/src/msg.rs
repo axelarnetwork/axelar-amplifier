@@ -32,14 +32,14 @@ pub enum ExecuteMsg {
     #[permission(Governance)]
     OverrideServiceParams {
         service_name: String,
-        chain: ChainName,
+        chain_name: ChainName,
         service_params_override: ServiceParamsOverride,
     },
     // Removes the service params override.
     #[permission(Governance)]
     RemoveServiceParamsOverride {
         service_name: String,
-        chain: ChainName,
+        chain_name: ChainName,
     },
     /// Authorizes verifiers to join a service. Can only be called by governance account. Verifiers must still bond sufficient stake to participate.
     #[permission(Governance)]
