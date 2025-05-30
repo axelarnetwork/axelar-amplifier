@@ -20,8 +20,7 @@ use tracing::info;
 
 use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error::{self, DeserializeEvent, MessageToSign};
-use crate::tofnd::grpc::Multisig;
-use crate::tofnd::{self, MessageDigest};
+use crate::tofnd::{self, Multisig};
 use crate::types::{PublicKey, TMAddress};
 
 #[derive(Debug, Deserialize)]
@@ -152,16 +151,10 @@ where
                     PublicKey::Ed25519(_) => tofnd::Algorithm::Ed25519,
                 };
 
+                let data = <[u8; 32]>::try_from(msg.as_ref()).change_context(MessageToSign)?;
                 let signature = self
                     .signer
-                    .sign(
-                        self.multisig.to_string().as_str(),
-                        MessageDigest::from(
-                            <[u8; 32]>::try_from(msg.as_ref()).change_context(MessageToSign)?,
-                        ),
-                        *pub_key,
-                        key_type,
-                    )
+                    .sign(self.multisig.to_string().as_str(), data, *pub_key, key_type)
                     .await
                     .change_context(Error::Sign)?;
 
@@ -202,7 +195,7 @@ mod test {
     use super::*;
     use crate::broadcaster::MockBroadcaster;
     use crate::tofnd;
-    use crate::tofnd::grpc::MockMultisig;
+    use crate::tofnd::MockMultisig;
 
     const MULTISIG_ADDRESS: &str = "axelarvaloper1zh9wrak6ke4n6fclj5e8yk397czv430ygs5jz7";
     const PREFIX: &str = "axelar";
@@ -419,7 +412,7 @@ mod test {
         let mut client = MockMultisig::default();
         client
             .expect_sign()
-            .returning(move |_, _, _, _| Err(Report::from(tofnd::error::Error::SignFailed)));
+            .returning(move |_, _, _, _| Err(Report::from(tofnd::Error::InvalidSignResponse)));
 
         let handler = handler(
             TMAddress::random(PREFIX),
@@ -440,7 +433,7 @@ mod test {
         let mut client = MockMultisig::default();
         client
             .expect_sign()
-            .returning(move |_, _, _, _| Err(Report::from(tofnd::error::Error::SignFailed)));
+            .returning(move |_, _, _, _| Err(Report::from(tofnd::Error::InvalidSignResponse)));
 
         let event = signing_started_event();
         let signing_started: SigningStartedEvent = ((&event).try_into() as Result<_, _>).unwrap();
@@ -464,7 +457,7 @@ mod test {
         let mut client = MockMultisig::default();
         client
             .expect_sign()
-            .returning(move |_, _, _, _| Err(Report::from(tofnd::error::Error::SignFailed)));
+            .returning(move |_, _, _, _| Err(Report::from(tofnd::Error::InvalidSignResponse)));
 
         let event = signing_started_event();
         let signing_started: SigningStartedEvent = ((&event).try_into() as Result<_, _>).unwrap();
@@ -485,7 +478,7 @@ mod test {
         let mut client = MockMultisig::default();
         client
             .expect_sign()
-            .returning(move |_, _, _, _| Err(Report::from(tofnd::error::Error::SignFailed)));
+            .returning(move |_, _, _, _| Err(Report::from(tofnd::Error::InvalidSignResponse)));
 
         let event = signing_started_event();
         let signing_started: SigningStartedEvent = ((&event).try_into() as Result<_, _>).unwrap();
