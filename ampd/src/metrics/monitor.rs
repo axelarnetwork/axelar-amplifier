@@ -14,6 +14,8 @@ use super::client::MetricsClient;
 use crate::metrics::msg::{MetricsError, MetricsMsg};
 use crate::metrics::server::MetricsServer;
 
+const CHANNEL_SIZE: usize = 1000;
+
 // we need to access the metrics server concurrently
 // one for receiving metrics messages
 // one for http requests ->  Arc to allow shared ownership
@@ -24,7 +26,9 @@ pub struct Server {
     metrics_server: Option<Arc<Mutex<MetricsServer>>>,
     metrics_rx: Option<mpsc::Receiver<MetricsMsg>>,
 }
-// field: metricsServer: T/F
+// need to do: 
+// configurable -> optional operation 
+// implementing metrics / interface 
 
 impl Server {
     pub fn new(
@@ -34,9 +38,9 @@ impl Server {
         let (metrics_server, metrics_rx, client) = match MetricsServer::new() {
             Ok(server) => {
                 let shared_server = Arc::new(Mutex::new(server));
-                let (tx, rx) = mpsc::channel(1000);
-                let client = Some(MetricsClient::new(tx));
-                (Some(shared_server), Some(rx), client)
+                let (tx, rx) = mpsc::channel(CHANNEL_SIZE);
+                let client = MetricsClient::new(tx);
+                (Some(shared_server), Some(rx), Some(client))
             }
             Err(e) => {
                 tracing::warn!("Failed to initialize metrics server: {:?}", e);
@@ -61,15 +65,34 @@ impl Server {
             address = self.bind_address.to_string(),
             "starting monitor server"
         );
-        // receive messages from the metrics channel -> always
+        // cancel exit gracefully 
         if let (Some(metrics_server), Some(mut metrics_rx)) =
             (self.metrics_server.clone(), self.metrics_rx)
         {
+            let cancel = cancel.clone();
             tokio::spawn(async move {
-                while let Some(msg) = metrics_rx.recv().await {
-                    let mut server_guard = metrics_server.lock().await;
-                    if let Err(e) = server_guard.handle_message(msg) {
-                        tracing::error!("Failed to handle metrics message: {:?}", e);
+                loop {
+                    tokio::select! {
+                        // one branch for receiving messages from the metrics channel
+                        msg = metrics_rx.recv() => {
+                            match msg {
+                                Some(msg) => {
+                                    let mut server_guard = metrics_server.lock().await;
+                                    if let Err(e) = server_guard.handle_message(msg) {
+                                        tracing::error!("Failed to handle metrics message: {:?}", e);
+                                    }
+                                }
+                                None => {
+                                    tracing::info!("Metrics channel closed, exiting metrics processing task");
+                                    break;
+                                }
+                            }
+                        }
+                        // another branch for graceful shutdown
+                        _ = cancel.cancelled() => {
+                            tracing::info!("exiting metrics processing task");
+                            break;
+                        }
                     }
                 }
             });
@@ -237,4 +260,80 @@ mod tests {
             Err(error) => assert!(error.is_connect()),
         };
     }
+
+    #[async_test]
+    async fn metrics_task_graceful_shutdown_with_client() {
+        let bind_address = test_bind_addr();
+        let (server, metrics_client) =
+            Server::new(bind_address).expect("Failed to create server with metrics");
+
+        let cancel = CancellationToken::new();
+        let server_handle = tokio::spawn(server.run(cancel.clone()));
+
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        // send some metrics messages to the server
+        if let Some(ref client) = metrics_client {
+            for i in 0..5 {
+                client.inc_timer()
+                    .expect(&format!("Failed to send timer increment {}", i));
+            }
+  
+            for i in 0..3 {
+                client.inc_block_received()
+                    .expect(&format!("Failed to send block received {}", i));
+            }
+        }
+
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        // Verify metrics are correctly updated
+        let metrics_url = format!("http://{}/metrics", bind_address);
+        let response = reqwest::get(&metrics_url).await.unwrap();
+        assert_eq!(reqwest::StatusCode::OK, response.status());
+            let metrics_text = response.text().await.unwrap();
+
+            assert!(
+                metrics_text.contains("timer 5"),
+                "Expected timer 5, got: {}",
+                metrics_text
+            );
+            assert!(
+                metrics_text.contains("blocks_received 3"),
+                "Expected blocks_received 3, got: {}",
+                metrics_text
+            );
+
+            
+            println!("Cancelling server...");
+            cancel.cancel();
+
+            
+            let shutdown_result = tokio::time::timeout(
+                Duration::from_secs(2),
+                server_handle
+            ).await;
+
+            
+            assert!(
+                shutdown_result.is_ok(),
+                "Server should have shut down gracefully within 2 seconds"
+            );
+
+            let server_result = shutdown_result.unwrap();
+            assert!(
+                server_result.is_ok(),
+                "Server should have completed without errors: {:?}",
+                server_result
+            );
+            // Verify server is actually down
+            tokio::time::sleep(Duration::from_millis(100)).await;
+            match reqwest::get(&metrics_url).await {
+                Ok(_) => panic!("Server should be shut down and not accepting connections"),
+                Err(error) => {
+                    assert!(error.is_connect(), "Expected connection error, got: {:?}", error);
+                    println!("✅ Server correctly shut down - connection refused");
+                }
+            }
+        }
 }
