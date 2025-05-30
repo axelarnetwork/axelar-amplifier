@@ -1,0 +1,11 @@
+version: 3.8
+
+services:
+  prometheus:
+    image: prom/prometheus
+    container_name: prometheus
+    ports:
+      - 9091:9090
+    command: -config.file=/etc/prometheus/prometheus.yaml
+    extra-hosts:
+      - "host.docker.internal:host-gateway"
