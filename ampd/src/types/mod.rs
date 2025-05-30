@@ -3,6 +3,7 @@ use std::hash::{Hash as StdHash, Hasher};
 use std::str::FromStr;
 
 use cosmrs::AccountId;
+use deref_derive::Deref;
 use ethers_core::types::{Address, H256};
 use serde::{Deserialize, Serialize};
 
@@ -15,7 +16,7 @@ pub use key::{CosmosPublicKey, PublicKey};
 pub type EVMAddress = Address;
 pub type Hash = H256;
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Deref)]
 pub struct TMAddress(AccountId);
 
 impl FromStr for TMAddress {

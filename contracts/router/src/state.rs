@@ -38,6 +38,7 @@ pub fn load_chain_by_gateway(
 #[cw_serde]
 pub struct Config {
     pub axelarnet_gateway: Addr,
+    pub coordinator: Addr,
 }
 
 pub const CONFIG: Item<Config> = Item::new("config");

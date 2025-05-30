@@ -2,9 +2,9 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum Error {
-    #[error("failed to connect to the grpc endpoint")]
+    #[error(transparent)]
     GrpcConnection(#[from] tonic::transport::Error),
-    #[error("failed to make the grpc request")]
+    #[error(transparent)]
     GrpcRequest(#[from] tonic::Status),
     #[error("keygen failed")]
     KeygenFailed,

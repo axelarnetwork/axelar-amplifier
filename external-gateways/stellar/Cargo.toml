@@ -19,9 +19,9 @@ stellar-strkey = { version = "0.0.10" }
 stellar-xdr = { workspace = true }
 thiserror = { workspace = true }
 
-[lints]
-workspace = true
-
 [dev-dependencies]
 goldie = { workspace = true }
 rand = { workspace = true }
+
+[lints]
+workspace = true

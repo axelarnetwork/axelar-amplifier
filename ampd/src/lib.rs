@@ -123,6 +123,7 @@ async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
         .config(grpc_config)
         .event_sub(event_subscriber.clone())
         .msg_queue_client(msg_queue_client)
+        .cosmos_grpc_client(cosmos_client.clone())
         .build();
     let broadcaster_task = broadcaster_v2::BroadcasterTask::builder()
         .broadcaster(broadcaster)
@@ -382,14 +383,14 @@ where
                     )
                 }
                 handlers::config::Config::XRPLMultisigSigner {
-                    multisig_contract,
-                    multisig_prover_contract,
+                    cosmwasm_contract,
+                    chain_name,
                 } => self.create_handler_task(
                     "xrpl-multisig-signer",
                     handlers::xrpl_multisig::Handler::new(
                         verifier.clone(),
-                        multisig_contract,
-                        multisig_prover_contract,
+                        cosmwasm_contract,
+                        chain_name,
                         self.multisig_client.clone(),
                         self.block_height_monitor.latest_block_height(),
                     ),
