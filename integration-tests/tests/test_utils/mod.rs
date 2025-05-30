@@ -344,10 +344,12 @@ pub fn assert_verifier_details_are_equal(
         verifier.supported_chains.clone().into_iter().collect();
     assert_eq!(verifier_info_chains, verifier_chains);
 
-    let available_provers: HashSet<Addr> = chains
+    let mut available_provers: Vec<Addr> = chains
         .iter()
         .map(|chain| chain.multisig_prover.contract_addr.clone())
         .collect();
+
+    available_provers.sort();
 
     assert_eq!(verifier_info.actively_signing_for, available_provers);
 }
@@ -424,14 +426,16 @@ pub fn setup_protocol(service_name: nonempty::String) -> Protocol {
     let admin_address = MockApi::default().addr_make("admin");
     let governance_address = MockApi::default().addr_make("governance");
     let axelarnet_gateway = MockApi::default().addr_make("axelarnet_gateway");
-    let coordinator_address = MockApi::default().addr_make("coordinator");
+
+    let coordinator =
+        CoordinatorContract::instantiate_contract(&mut app, governance_address.clone());
 
     let router = RouterContract::instantiate_contract(
         &mut app,
         admin_address.clone(),
         governance_address.clone(),
         axelarnet_gateway.clone(),
-        coordinator_address.clone(),
+        coordinator.contract_addr.clone(),
     );
 
     let rewards_params = rewards::msg::Params {
@@ -456,7 +460,7 @@ pub fn setup_protocol(service_name: nonempty::String) -> Protocol {
     let service_registry =
         ServiceRegistryContract::instantiate_contract(&mut app, governance_address.clone());
 
-    let coordinator = CoordinatorContract::instantiate_contract(
+    coordinator.register_protocol(
         &mut app,
         governance_address.clone(),
         service_registry.contract_addr.clone(),

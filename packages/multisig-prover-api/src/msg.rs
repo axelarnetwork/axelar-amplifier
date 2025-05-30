@@ -30,6 +30,7 @@ pub struct InstantiateMsg {
     pub signing_threshold: MajorityThreshold,
     /// Name of service in the service registry for which verifiers are registered.
     pub service_name: String,
+    /// TODO: Change to ChainName
     /// Name of chain for which this prover contract creates proofs.
     pub chain_name: String,
     /// Maximum tolerable difference between currently active verifier set and registered verifier set.
