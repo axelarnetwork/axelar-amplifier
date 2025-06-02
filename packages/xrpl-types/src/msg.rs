@@ -7,6 +7,7 @@ use cosmwasm_std::{Attribute, HexBinary};
 use router_api::{ChainNameRaw, CrossChainId, FIELD_DELIMITER};
 use sha3::{Digest, Keccak256};
 
+use crate::error::XRPLError;
 use crate::types::{xrpl_account_id_string, XRPLAccountId, XRPLPaymentAmount};
 use crate::{hex_option, hex_tx_hash};
 
@@ -59,7 +60,7 @@ impl std::fmt::Display for XRPLMessageType {
 }
 
 impl FromStr for XRPLMessageType {
-    type Err = String;
+    type Err = XRPLError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
@@ -68,7 +69,7 @@ impl FromStr for XRPLMessageType {
             "call_contract" => Ok(XRPLMessageType::CallContract),
             "add_gas" => Ok(XRPLMessageType::AddGas),
             "add_reserves" => Ok(XRPLMessageType::AddReserves),
-            _ => Err(format!("Invalid XRPL message type: {}", s)),
+            _ => Err(XRPLError::UnsupportedMessageType),
         }
     }
 }
@@ -448,6 +449,8 @@ impl<T: Clone + Into<XRPLMessage>> From<WithPayload<T>> for XRPLMessage {
 mod test {
     use std::str::FromStr;
 
+    use crate::error::XRPLError;
+
     use super::XRPLMessageType;
 
     #[test]
@@ -473,9 +476,6 @@ mod test {
         assert_eq!(msg_type.unwrap().to_string(), "proof");
 
         let msg_type = XRPLMessageType::from_str("invalid");
-        assert_eq!(
-            msg_type,
-            Err("Invalid XRPL message type: invalid".to_string())
-        );
+        assert_eq!(msg_type, Err(XRPLError::UnsupportedMessageType));
     }
 }
