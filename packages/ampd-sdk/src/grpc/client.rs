@@ -6,7 +6,7 @@ use ampd_proto::blockchain_service_client::BlockchainServiceClient;
 use ampd_proto::crypto_service_client::CryptoServiceClient;
 use ampd_proto::{
     AddressRequest, BroadcastRequest, BroadcastResponse, ContractStateRequest, ContractsRequest,
-    ContractsResponse, SubscribeRequest,
+    ContractsResponse, KeyId, KeyRequest, SignRequest, SubscribeRequest,
 };
 use async_trait::async_trait;
 use axelar_wasm_std::nonempty;
@@ -16,6 +16,7 @@ use events::{AbciEventTypeFilter, Event};
 use futures::StreamExt;
 use mockall::automock;
 use report::{ResultCompatExt, ResultExt};
+use serde_json::Value;
 use thiserror::Error;
 use tokio_stream::Stream;
 use tonic::{transport, Request};
@@ -63,9 +64,13 @@ pub trait Client {
         &mut self,
         contract: nonempty::String,
         query: nonempty::Vec<u8>,
-    ) -> Result<serde_json::Value, Error>;
+    ) -> Result<Value, Error>;
 
     async fn contracts(&mut self) -> Result<ContractsAddresses, Error>;
+
+    async fn sign(&mut self, key: Option<Key>, message: nonempty::Vec<u8>) -> Result<Value, Error>;
+
+    async fn key(&mut self, key: Option<Key>) -> Result<Value, Error>;
 }
 
 #[derive(Clone)]
@@ -134,6 +139,20 @@ fn parse_addr(addr: &str, address_name: &'static str) -> Result<AccountId, Error
         .attach_printable_lazy(|| addr.to_string())
 }
 
+pub struct Key {
+    pub id: nonempty::String,
+    pub algorithm: i32,
+}
+
+impl From<Key> for KeyId {
+    fn from(key: Key) -> Self {
+        KeyId {
+            id: key.id.into(),
+            algorithm: key.algorithm,
+        }
+    }
+}
+
 #[async_trait]
 impl Client for GrpcClient {
     type Stream = Pin<Box<dyn Stream<Item = Result<Event, Error>> + Send>>;
@@ -198,7 +217,7 @@ impl Client for GrpcClient {
         &mut self,
         contract: nonempty::String,
         query: nonempty::Vec<u8>,
-    ) -> Result<serde_json::Value, Error> {
+    ) -> Result<Value, Error> {
         self.blockchain
             .contract_state(ContractStateRequest {
                 contract: contract.into(),
@@ -227,6 +246,41 @@ impl Client for GrpcClient {
         ContractsAddresses::try_from(&response)
             .change_context(Error::InvalidContractsResponse)
             .attach_printable(format!("{response:?}"))
+    }
+
+    async fn sign(&mut self, key: Option<Key>, message: nonempty::Vec<u8>) -> Result<Value, Error> {
+        self.crypto
+            .sign(Request::new(SignRequest {
+                key_id: key.map(|k| k.into()),
+                msg: message.into(),
+            }))
+            .await
+            .into_report()
+            .map(|response| response.into_inner().signature)
+            .and_then(|signature| {
+                let encoded_signature = hex::encode(&signature);
+
+                serde_json::to_value(signature)
+                    .change_context(Error::InvalidJson)
+                    .attach_printable(encoded_signature)
+            })
+    }
+
+    async fn key(&mut self, key: Option<Key>) -> Result<Value, Error> {
+        self.crypto
+            .key(Request::new(KeyRequest {
+                key_id: key.map(|k| k.into()),
+            }))
+            .await
+            .into_report()
+            .map(|response| response.into_inner().pub_key)
+            .and_then(|pub_key| {
+                let encoded_pub_key = hex::encode(&pub_key);
+
+                serde_json::to_value(pub_key)
+                    .change_context(Error::InvalidJson)
+                    .attach_printable(encoded_pub_key)
+            })
     }
 }
 
