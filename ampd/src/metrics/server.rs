@@ -17,19 +17,14 @@ impl MetricsServer {
         let block_received = IntCounter::new("blocks_received", "Number of blocks received")
             .map_err(|_| MetricsError::MetricSpawnFailed)?;
 
-        let timer = IntCounter::new("timer", "increase every 2 seconds")
-            .map_err(|_| MetricsError::MetricSpawnFailed)?;
 
         registry
             .register(Box::new(block_received.clone()))
             .map_err(|_| MetricsError::MetricRegisterFailed)?;
 
-        registry
-            .register(Box::new(timer.clone()))
-            .map_err(|_| MetricsError::MetricRegisterFailed)?;
 
         counters.insert("blocks_received".to_string(), block_received);
-        counters.insert("timer".to_string(), timer);
+       
 
         Ok(Self { registry, counters })
     }
@@ -40,12 +35,6 @@ impl MetricsServer {
                 self.counters
                     .get_mut("blocks_received")
                     .ok_or_else(|| MetricsError::CounterNotFound("blocks_received".to_string()))?
-                    .inc();
-            }
-            MetricsMsg::IncTimer => {
-                self.counters
-                    .get_mut("timer")
-                    .ok_or_else(|| MetricsError::CounterNotFound("timer".to_string()))?
                     .inc();
             }
         }

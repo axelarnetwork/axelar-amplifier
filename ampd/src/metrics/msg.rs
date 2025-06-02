@@ -5,7 +5,6 @@ use error_stack::Context;
 #[derive(Debug)]
 pub enum MetricsMsg {
     IncBlockReceived,
-    IncTimer,
 }
 // for error_stack
 #[derive(Debug)]

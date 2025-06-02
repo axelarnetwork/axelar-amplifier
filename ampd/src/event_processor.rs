@@ -65,6 +65,7 @@ pub async fn consume_events<H, B, S, E>(
     event_stream: S,
     event_processor_config: Config,
     token: CancellationToken,
+    metric_client: Option<crate::metrics::client::MetricsClient>,
 ) -> Result<(), Error>
 where
     H: EventHandler,
@@ -98,6 +99,9 @@ where
                 height = height.value(),
                 "handler finished processing block"
             );
+            if let Some(ref metric_client) = metric_client {
+                metric_client.inc_block_received().change_context(Error::EventStream)?;
+            }
         }
 
         if should_task_stop(stream_status, &token) {
@@ -231,6 +235,7 @@ mod tests {
                 stream::iter(events),
                 event_config,
                 CancellationToken::new(),
+                None,
             ),
         )
         .await;
@@ -261,6 +266,7 @@ mod tests {
                 stream::iter(events),
                 event_config,
                 CancellationToken::new(),
+                None,
             ),
         )
         .await;
@@ -292,6 +298,7 @@ mod tests {
                 stream::iter(events),
                 event_config,
                 CancellationToken::new(),
+                None,
             ),
         )
         .await;
@@ -327,6 +334,7 @@ mod tests {
                 stream::iter(events),
                 event_config,
                 CancellationToken::new(),
+                None,
             ),
         )
         .await;
@@ -362,6 +370,7 @@ mod tests {
                 stream::iter(events),
                 event_config,
                 CancellationToken::new(),
+                None,
             ),
         )
         .await;
@@ -397,6 +406,7 @@ mod tests {
                 stream::iter(events),
                 event_config,
                 token,
+                None,
             ),
         )
         .await;
@@ -424,6 +434,7 @@ mod tests {
                 stream::pending::<Result<Event, Error>>(), // never returns any items so it can time out
                 event_config,
                 token,
+                None,
             ),
         )
         .await;

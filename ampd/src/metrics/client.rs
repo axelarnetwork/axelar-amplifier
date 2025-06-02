@@ -18,10 +18,5 @@ impl MetricsClient {
             .map_err(|_| MetricsError::MetricUpdateFailed)?;
         Ok(())
     }
-    pub fn inc_timer(&self) -> Result<(), MetricsError> {
-        self.sender
-            .try_send(MetricsMsg::IncTimer)
-            .map_err(|_| MetricsError::MetricUpdateFailed)?;
-        Ok(())
-    }
+
 }

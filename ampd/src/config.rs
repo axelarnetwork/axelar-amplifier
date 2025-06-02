@@ -14,7 +14,6 @@ use crate::{broadcaster, event_processor, grpc};
 #[serde(default)]
 pub struct Config {
     pub monitor_bind_addr: SocketAddrV4,
-    pub metrics_enabled: bool,
     pub tm_jsonrpc: Url,
     pub tm_grpc: Url,
     pub tm_grpc_timeout: Duration,
@@ -42,7 +41,6 @@ impl Default for Config {
             service_registry: ServiceRegistryConfig::default(),
             rewards: RewardsConfig::default(),
             monitor_bind_addr: SocketAddrV4::new(Ipv4Addr::UNSPECIFIED, 3000),
-            metrics_enabled: true,
             grpc: grpc::Config::default(),
         }
     }

@@ -79,12 +79,11 @@ async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
         service_registry: _service_registry,
         rewards: _rewards,
         monitor_bind_addr,
-        metrics_enabled,
         grpc: grpc_config,
     } = cfg;
 
     let (monitor_server, metrics_client) =
-        metrics::monitor::Server::new(monitor_bind_addr, metrics_enabled)
+        metrics::monitor::Server::new(monitor_bind_addr)
             .change_context(Error::MonitorSetup)?;
 
     let tm_client = tendermint_rpc::HttpClient::new(tm_jsonrpc.to_string().as_str())
@@ -300,6 +299,7 @@ where
                             self.block_height_monitor.latest_block_height(),
                         ),
                         event_processor_config.clone(),
+                        self.metrics_client.clone(),
                     )
                 }
                 handlers::config::Config::EvmVerifierSetVerifier {
@@ -329,6 +329,7 @@ where
                             self.block_height_monitor.latest_block_height(),
                         ),
                         event_processor_config.clone(),
+                        self.metrics_client.clone(),
                     )
                 }
                 handlers::config::Config::MultisigSigner {
@@ -344,6 +345,7 @@ where
                         self.block_height_monitor.latest_block_height(),
                     ),
                     event_processor_config.clone(),
+                    self.metrics_client.clone(),
                 ),
                 handlers::config::Config::SuiMsgVerifier {
                     cosmwasm_contract,
@@ -365,6 +367,7 @@ where
                         self.block_height_monitor.latest_block_height(),
                     ),
                     event_processor_config.clone(),
+                    self.metrics_client.clone(),
                 ),
                 handlers::config::Config::XRPLMsgVerifier {
                     cosmwasm_contract,
@@ -392,6 +395,7 @@ where
                             self.block_height_monitor.latest_block_height(),
                         ),
                         event_processor_config.clone(),
+                        self.metrics_client.clone(),
                     )
                 }
                 handlers::config::Config::XRPLMultisigSigner {
@@ -407,6 +411,7 @@ where
                         self.block_height_monitor.latest_block_height(),
                     ),
                     event_processor_config.clone(),
+                    self.metrics_client.clone(),
                 ),
                 handlers::config::Config::SuiVerifierSetVerifier {
                     cosmwasm_contract,
@@ -428,6 +433,7 @@ where
                         self.block_height_monitor.latest_block_height(),
                     ),
                     event_processor_config.clone(),
+                    self.metrics_client.clone(),
                 ),
                 handlers::config::Config::MvxMsgVerifier {
                     cosmwasm_contract,
@@ -441,6 +447,7 @@ where
                         self.block_height_monitor.latest_block_height(),
                     ),
                     event_processor_config.clone(),
+                    self.metrics_client.clone(),
                 ),
                 handlers::config::Config::MvxVerifierSetVerifier {
                     cosmwasm_contract,
@@ -454,6 +461,7 @@ where
                         self.block_height_monitor.latest_block_height(),
                     ),
                     event_processor_config.clone(),
+                    self.metrics_client.clone(),
                 ),
                 handlers::config::Config::StellarMsgVerifier {
                     cosmwasm_contract,
@@ -470,6 +478,7 @@ where
                         self.block_height_monitor.latest_block_height(),
                     ),
                     event_processor_config.clone(),
+                    self.metrics_client.clone(),
                 ),
                 handlers::config::Config::StellarVerifierSetVerifier {
                     cosmwasm_contract,
@@ -486,6 +495,7 @@ where
                         self.block_height_monitor.latest_block_height(),
                     ),
                     event_processor_config.clone(),
+                    self.metrics_client.clone(),
                 ),
                 handlers::config::Config::StarknetMsgVerifier {
                     cosmwasm_contract,
@@ -502,6 +512,7 @@ where
                         self.block_height_monitor.latest_block_height(),
                     ),
                     event_processor_config.clone(),
+                    self.metrics_client.clone(),
                 ),
                 handlers::config::Config::StarknetVerifierSetVerifier {
                     cosmwasm_contract,
@@ -518,6 +529,7 @@ where
                         self.block_height_monitor.latest_block_height(),
                     ),
                     event_processor_config.clone(),
+                    self.metrics_client.clone(),
                 ),
                 handlers::config::Config::SolanaMsgVerifier {
                     chain_name,
@@ -538,6 +550,7 @@ where
                         self.block_height_monitor.latest_block_height(),
                     ),
                     event_processor_config.clone(),
+                    self.metrics_client.clone(),
                 ),
                 handlers::config::Config::SolanaVerifierSetVerifier {
                     chain_name,
@@ -559,6 +572,7 @@ where
                     )
                     .await,
                     event_processor_config.clone(),
+                    self.metrics_client.clone(),
                 ),
             };
             self.event_processor = self.event_processor.add_task(task);
@@ -572,6 +586,7 @@ where
         label: L,
         handler: H,
         event_processor_config: event_processor::Config,
+        metric_client: Option<metrics::client::MetricsClient>,
     ) -> CancellableTask<Result<(), event_processor::Error>>
     where
         L: AsRef<str>,
@@ -589,6 +604,7 @@ where
                 sub,
                 event_processor_config,
                 token,
+                metric_client,
             )
         })
     }
@@ -650,12 +666,11 @@ where
                 loop {
                     tokio::select! {
                         _ = interval.tick() => {
-                            if let Err(e) = metrics_client.inc_timer() {
-                                tracing::error!("Failed to increment timer: {:?}", e);
-                            }
+                            
+                            tracing::info!("metrics tracking");
                         }
                         _ = signal_token.cancelled() => {
-                            tracing::info!("Timer task shutting down");
+                            tracing::info!("shut down metrics tracking");
                             break;
                         }
                     }

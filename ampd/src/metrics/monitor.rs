@@ -33,9 +33,8 @@ pub struct Server {
 impl Server {
     pub fn new(
         bind_address: SocketAddrV4,
-        metrics_enabled: bool,
     ) -> Result<(Self, Option<crate::metrics::client::MetricsClient>), MetricsError> {
-        let (metrics_server, metrics_rx, client) = if metrics_enabled {
+        let (metrics_server, metrics_rx, client) = 
             match MetricsServer::new() {
                 Ok(server) => {
                     let shared_server = Arc::new(Mutex::new(server));
@@ -47,11 +46,8 @@ impl Server {
                     tracing::warn!("Failed to initialize metrics server: {:?}", e);
                     (None, None, None)
                 }
-            }
-        } else {
-            (None, None, None)
-        };
-
+            };
+         
         let server = Self {
             bind_address,
             metrics_server,
@@ -163,7 +159,7 @@ mod tests {
         let bind_address = test_bind_addr();
 
         let (server, _metrics_client) =
-            Server::new(bind_address, false).expect("Failed to create server without metrics tracking");
+            Server::new(bind_address).expect("Failed to create server without metrics tracking");
 
         let cancel = CancellationToken::new();
 
@@ -201,7 +197,7 @@ mod tests {
     async fn server_with_metrics() {
         let bind_address = test_bind_addr();
         let (server, metrics_client) =
-            Server::new(bind_address, true).expect("Failed to create server with metrics");
+            Server::new(bind_address).expect("Failed to create server with metrics");
 
         let cancel = CancellationToken::new();
 
@@ -269,7 +265,7 @@ mod tests {
     async fn metrics_task_graceful_shutdown_with_client() {
         let bind_address = test_bind_addr();
         let (server, metrics_client) =
-            Server::new(bind_address, true).expect("Failed to create server with metrics");
+            Server::new(bind_address).expect("Failed to create server with metrics");
 
         let cancel = CancellationToken::new();
         let server_handle = tokio::spawn(server.run(cancel.clone()));
@@ -278,10 +274,6 @@ mod tests {
 
         // send some metrics messages to the server
         if let Some(ref client) = metrics_client {
-            for i in 0..5 {
-                client.inc_timer()
-                    .expect(&format!("Failed to send timer increment {}", i));
-            }
   
             for i in 0..3 {
                 client.inc_block_received()
@@ -297,11 +289,6 @@ mod tests {
         assert_eq!(reqwest::StatusCode::OK, response.status());
             let metrics_text = response.text().await.unwrap();
 
-            assert!(
-                metrics_text.contains("timer 5"),
-                "Expected timer 5, got: {}",
-                metrics_text
-            );
             assert!(
                 metrics_text.contains("blocks_received 3"),
                 "Expected blocks_received 3, got: {}",
@@ -341,47 +328,5 @@ mod tests {
             }
         }
 
-    #[async_test]
-    async fn server_with_metrics_disabled() {
-        let bind_address = test_bind_addr();
-        let (server, metrics_client) =
-            Server::new(bind_address, false).expect("Failed to create server with metrics disabled");
-
-      
-        assert!(metrics_client.is_none(), "Metrics client should be None when disabled");
-
-        let cancel = CancellationToken::new();
-        tokio::spawn(server.run(cancel.clone()));
-
-        let status_url = format!("http://{}/status", bind_address);
-        let metrics_url = format!("http://{}/metrics", bind_address);
-
-        tokio::time::sleep(Duration::from_millis(100)).await;
-
-        let status_response = reqwest::get(&status_url).await.unwrap();
-        assert_eq!(reqwest::StatusCode::OK, status_response.status());
-        let status = status_response.json::<Status>().await.unwrap();
-        assert!(status.ok, "Status endpoint should return ok:true");
-
-        let metrics_response = reqwest::get(&metrics_url).await.unwrap();
-        assert_eq!(
-            reqwest::StatusCode::NOT_FOUND,
-            metrics_response.status(),
-            "Metrics endpoint should return 404 when disabled"
-        );
-        let response_text = metrics_response.text().await.unwrap();
-        assert_eq!(
-            "Metrics not available",
-            response_text,
-            "Metrics endpoint should indicate metrics are not available"
-        );
-
-        cancel.cancel();
-        tokio::time::sleep(Duration::from_millis(100)).await;
-
-        match reqwest::get(&status_url).await {
-            Ok(_) => panic!("Server should be closed after cancellation"),
-            Err(error) => assert!(error.is_connect(), "Expected connection error after server shutdown"),
-        };
-    }
+   
 }
