@@ -28,6 +28,8 @@ pub trait EventHandler {
 
 #[derive(Error, Debug)]
 pub enum Error {
+    #[error("metrics update failed")]
+    Metrics,
     #[error("could not consume events from stream")]
     EventStream,
     #[error("handler stopped prematurely")]
@@ -100,7 +102,7 @@ where
                 "handler finished processing block"
             );
             if let Some(ref metric_client) = metric_client {
-                metric_client.inc_block_received().change_context(Error::EventStream)?;
+                metric_client.inc_block_received().change_context(Error::Metrics)?;
             }
         }
 

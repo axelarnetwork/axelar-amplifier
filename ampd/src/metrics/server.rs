@@ -18,7 +18,6 @@ impl MetricsServer {
         let block_received = IntCounter::new("blocks_received", "Number of blocks received")
             .map_err(|_| MetricsError::MetricSpawnFailed)?;
 
-
         registry
             .register(Box::new(block_received.clone()))
             .map_err(|_| MetricsError::MetricRegisterFailed)?;

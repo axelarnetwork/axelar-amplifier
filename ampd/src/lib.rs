@@ -84,7 +84,7 @@ async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
 
     // server and cient created 
     let (monitor_server, metrics_client) =
-    metrics::monitor::Server::new(monitor_bind_addr);
+    metrics::monitor::Server::new(monitor_bind_addr, true).change_context(Error::Monitor)?;
 
     let tm_client = tendermint_rpc::HttpClient::new(tm_jsonrpc.to_string().as_str())
         .change_context(Error::Connection)
@@ -719,10 +719,8 @@ pub enum Error {
     BlockHeightMonitor,
     #[error("invalid finalizer type for chain {0}")]
     InvalidFinalizerType(ChainName),
-    #[error("Montor not working")]
-    Monitor,
     #[error("gRPC server failed")]
     GrpcServer,
-    #[error("metrics setup failed")]
-    MonitorSetup,
+    #[error("metrics monitor failed")]
+    Monitor,
 }

@@ -28,32 +28,36 @@ pub struct Server {
     metrics_rx: Option<mpsc::Receiver<MetricsMsg>>,
 }
 
-
+// configured enables the server to run with or without metrics
 impl Server {
     pub fn new(
         bind_address: SocketAddrV4,
-    ) -> (Self, Option<crate::metrics::client::MetricsClient>) {
-        let (metrics_server, metrics_rx, client) = 
-            match MetricsServer::new() {
-                Ok(server) => {
+        configured: bool, // ← Add configuration parameter
+    ) -> Result<(Self, Option<crate::metrics::client::MetricsClient>), MetricsError> {
+        
+        if !configured {
+            // return a server without metrics
+            let server = Self {
+                bind_address,
+                metrics_server: None,
+                metrics_rx: None,
+            };
+            return Ok((server, None));
+        }
+
+        // Create metrics 
+        let server = MetricsServer::new()?; 
                     let shared_server = Arc::new(Mutex::new(server)); 
                     let (tx, rx) = mpsc::channel(CHANNEL_SIZE);
                     let client = MetricsClient::new(tx);
-                    (Some(shared_server), Some(rx), Some(client))
-                }
-                Err(e) => {
-                    // still continue without metrics server 
-                    tracing::warn!("Failed to initialize metrics server: {:?}", e);
-                    (None, None, None)
-                }
-            };
-         
+                             
         let server = Self {
             bind_address,
-            metrics_server,
-            metrics_rx,
+            metrics_server: Some(shared_server),
+            metrics_rx: Some(rx),
         };
-        (server, client)// also returned the client so it could be cloned and passed around in lib.rs
+
+        Ok((server, Some(client)))
     }
 
     pub async fn run(mut self, cancel: CancellationToken) -> Result<(), MetricsError> {
@@ -96,7 +100,10 @@ impl Server {
             .change_context(MetricsError::WhileRunning)?;
         Ok(())
     }
+    
 
+    // error handling ideas
+    // 
     fn start_metrics_processing(
         metrics_server: Arc<Mutex<MetricsServer>>,
         mut metrics_rx: mpsc::Receiver<MetricsMsg>,
@@ -121,12 +128,12 @@ impl Server {
                             }
                         }
                     }
-                    // another branch for periodic metrics gathering
+                    // another branch for periodic metrics gathering ! for Proof of concept !
                     _ = interval.tick() => {
                         let server_guard = metrics_server.lock().await;
                         match server_guard.gather() {
                             Ok(metrics) => {
-                                tracing::info!("Metrics: {}", metrics);
+                                tracing::info!("Metrics: {}", metrics); // log 
                             }
                             Err(e) => {
                                 tracing::error!("Failed to gather metrics: {:?}", e);
@@ -180,8 +187,8 @@ mod tests {
     async fn server_lifecycle() {
         let bind_address = test_bind_addr();
 
-        let (server, _metrics_client) =
-            Server::new(bind_address);
+let (server, _metrics_client) =
+            Server::new(bind_address, false).expect("Failed to create server");
 
         let cancel = CancellationToken::new();
 
@@ -219,7 +226,7 @@ mod tests {
     async fn server_with_metrics() {
         let bind_address = test_bind_addr();
         let (server, metrics_client) =
-            Server::new(bind_address);
+  Server::new(bind_address, true).expect("Failed to create server with metrics");
 
         let cancel = CancellationToken::new();
 
@@ -287,7 +294,7 @@ mod tests {
     async fn metrics_task_graceful_shutdown_with_client() {
         let bind_address = test_bind_addr();
         let (server, metrics_client) =
-            Server::new(bind_address);
+            Server::new(bind_address, true).expect("Failed to create server with metrics");
 
         let cancel = CancellationToken::new();
         let server_handle = tokio::spawn(server.run(cancel.clone()));
