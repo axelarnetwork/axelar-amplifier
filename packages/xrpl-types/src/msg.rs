@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use axelar_wasm_std::msg_id::HexTxHash;
 use axelar_wasm_std::nonempty;
 use cosmwasm_schema::cw_serde;
@@ -56,11 +58,11 @@ impl std::fmt::Display for XRPLMessageType {
     }
 }
 
-impl TryFrom<String> for XRPLMessageType {
-    type Error = String;
+impl FromStr for XRPLMessageType {
+    type Err = String;
 
-    fn try_from(s: String) -> Result<Self, Self::Error> {
-        match s.as_str() {
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
             "proof" => Ok(XRPLMessageType::Proof),
             "interchain_transfer" => Ok(XRPLMessageType::InterchainTransfer),
             "call_contract" => Ok(XRPLMessageType::CallContract),
@@ -444,31 +446,33 @@ impl<T: Clone + Into<XRPLMessage>> From<WithPayload<T>> for XRPLMessage {
 }
 
 mod test {
+    use std::str::FromStr;
+
     use super::XRPLMessageType;
 
     #[test]
     fn test_xrpl_message_type_from_string() {
-        let msg_type = XRPLMessageType::try_from("interchain_transfer".to_string());
+        let msg_type = XRPLMessageType::from_str("interchain_transfer");
         assert_eq!(msg_type, Ok(XRPLMessageType::InterchainTransfer));
         assert_eq!(msg_type.unwrap().to_string(), "interchain_transfer");
 
-        let msg_type = XRPLMessageType::try_from("call_contract".to_string());
+        let msg_type = XRPLMessageType::from_str("call_contract");
         assert_eq!(msg_type, Ok(XRPLMessageType::CallContract));
         assert_eq!(msg_type.unwrap().to_string(), "call_contract");
 
-        let msg_type = XRPLMessageType::try_from("add_gas".to_string());
+        let msg_type = XRPLMessageType::from_str("add_gas");
         assert_eq!(msg_type, Ok(XRPLMessageType::AddGas));
         assert_eq!(msg_type.unwrap().to_string(), "add_gas");
 
-        let msg_type = XRPLMessageType::try_from("add_reserves".to_string());
+        let msg_type = XRPLMessageType::from_str("add_reserves");
         assert_eq!(msg_type, Ok(XRPLMessageType::AddReserves));
         assert_eq!(msg_type.unwrap().to_string(), "add_reserves");
 
-        let msg_type = XRPLMessageType::try_from("proof".to_string());
+        let msg_type = XRPLMessageType::from_str("proof");
         assert_eq!(msg_type, Ok(XRPLMessageType::Proof));
         assert_eq!(msg_type.unwrap().to_string(), "proof");
 
-        let msg_type = XRPLMessageType::try_from("invalid".to_string());
+        let msg_type = XRPLMessageType::from_str("invalid");
         assert_eq!(
             msg_type,
             Err("Invalid XRPL message type: invalid".to_string())
