@@ -259,7 +259,7 @@ mod tests {
                 if let Some(client1) = client_clone {
                     client1
                         .inc_block_received()
-                        .expect(&format!("Task {} failed to increase block counter", i));
+                        .unwrap_or_else(|_| panic!("Task {} failed to increase block counter", i));
                 } else {
                     panic!("MetricsClient is None");
                 }
@@ -308,7 +308,7 @@ mod tests {
             for i in 0..3 {
                 client
                     .inc_block_received()
-                    .expect(&format!("Failed to send block received {}", i));
+                    .unwrap_or_else(|_| panic!("Failed to send block received {}", i));
             }
         }
 
@@ -352,7 +352,7 @@ mod tests {
                     "Expected connection error, got: {:?}",
                     error
                 );
-                println!("✅ Server correctly shut down - connection refused");
+                println!("Server correctly shut down - connection refused");
             }
         }
     }
