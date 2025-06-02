@@ -98,6 +98,9 @@ where
                 height = height.value(),
                 "handler finished processing block"
             );
+            info!(
+                "hello"
+            );
         }
 
         if should_task_stop(stream_status, &token) {
