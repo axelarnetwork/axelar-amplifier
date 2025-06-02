@@ -9,6 +9,7 @@ use crate::protocol::AxelarApp;
 #[derive(Clone)]
 pub struct GatewayContract {
     pub contract_addr: Addr,
+    pub code_id: u64,
 }
 
 impl GatewayContract {
@@ -34,7 +35,19 @@ impl GatewayContract {
             )
             .unwrap();
 
-        GatewayContract { contract_addr }
+        GatewayContract {
+            contract_addr,
+            code_id,
+        }
+    }
+}
+
+impl Default for GatewayContract {
+    fn default() -> Self {
+        GatewayContract {
+            contract_addr: MockApi::default().addr_make("gateway"),
+            code_id: 0,
+        }
     }
 }
 

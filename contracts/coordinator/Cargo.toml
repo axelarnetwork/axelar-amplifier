@@ -6,10 +6,14 @@ license = "MIT OR Apache-2.0"
 edition = { workspace = true }
 description = "Amplifier info aggregation for external use, alongside contract management, instantiation and migration"
 
-exclude = [
-    "contract.wasm",
-    "hash.txt"
-]
+exclude = ["contract.wasm", "hash.txt"]
+
+[package.metadata.scripts]
+optimize = """docker run --rm -v "$(pwd)":/code \
+  --mount type=volume,source="$(basename "$(pwd)")_cache",target=/code/target \
+  --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
+  cosmwasm/optimizer:0.16.1
+"""
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [lib]
@@ -23,32 +27,29 @@ path = "src/bin/schema.rs"
 # use library feature to disable all instantiate/execute/query exports
 library = []
 
-[package.metadata.scripts]
-optimize = """docker run --rm -v "$(pwd)":/code \
-  --mount type=volume,source="$(basename "$(pwd)")_cache",target=/code/target \
-  --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
-  cosmwasm/optimizer:0.16.1
-"""
-
 [dependencies]
 axelar-wasm-std = { workspace = true, features = ["derive"] }
 client = { workspace = true }
 cosmwasm-schema = { workspace = true }
-cosmwasm-std = { workspace = true }
+cosmwasm-std = { workspace = true, features = ["cosmwasm_1_2"] }
 cw-storage-plus = { workspace = true }
 cw2 = { workspace = true }
 error-stack = { workspace = true }
+gateway-api = { workspace = true }
 itertools = { workspace = true }
 msgs-derive = { workspace = true }
 multisig = { workspace = true, features = ["library"] }
+multisig-prover-api = { workspace = true }
 report = { workspace = true }
 router-api = { workspace = true }
 semver = { workspace = true }
+serde_json = { workspace = true }
 service-registry-api = { workspace = true }
 thiserror = { workspace = true }
+voting-verifier-api = { workspace = true }
 
 [dev-dependencies]
-cw-multi-test = { workspace = true }
+cw-multi-test = { workspace = true, features = ["cosmwasm_1_2"] }
 goldie = { workspace = true }
 integration-tests = { workspace = true }
 tofn = { workspace = true }
