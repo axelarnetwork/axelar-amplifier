@@ -1,6 +1,6 @@
 use tokio::sync::mpsc::Sender;
 
-use crate::metrics::msg::{MetricsError, MetricsMsg};
+use crate::prometheus_metrics::msg::{MetricsError, MetricsMsg};
 
 #[derive(Clone)]
 pub struct MetricsClient {
@@ -18,5 +18,4 @@ impl MetricsClient {
             .map_err(|_| MetricsError::MetricUpdateFailed)?;
         Ok(())
     }
-
 }

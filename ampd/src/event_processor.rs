@@ -67,7 +67,7 @@ pub async fn consume_events<H, B, S, E>(
     event_stream: S,
     event_processor_config: Config,
     token: CancellationToken,
-    metric_client: Option<crate::metrics::client::MetricsClient>,
+    metric_client: Option<crate::prometheus_metrics::client::MetricsClient>,
 ) -> Result<(), Error>
 where
     H: EventHandler,
@@ -102,7 +102,9 @@ where
                 "handler finished processing block"
             );
             if let Some(ref metric_client) = metric_client {
-                metric_client.inc_block_received().change_context(Error::Metrics)?;
+                metric_client
+                    .inc_block_received()
+                    .change_context(Error::Metrics)?;
             }
         }
 

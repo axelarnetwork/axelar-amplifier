@@ -27,7 +27,7 @@ use tracing::info;
 use types::{CosmosPublicKey, TMAddress};
 
 use crate::config::Config;
-use crate::metrics::monitor;
+use crate::prometheus_metrics::monitor;
 
 mod asyncutil;
 mod block_height_monitor;
@@ -44,8 +44,8 @@ mod grpc;
 mod handlers;
 
 mod json_rpc;
-pub mod metrics;
 mod mvx;
+pub mod prometheus_metrics;
 mod queue;
 mod solana;
 mod starknet;
@@ -78,13 +78,14 @@ async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
         event_processor,
         service_registry: _service_registry,
         rewards: _rewards,
-        monitor_bind_addr,
+        prometheus_monitor_bind_addr,
         grpc: grpc_config,
     } = cfg;
 
-    // server and cient created 
-    let (monitor_server, metrics_client) =
-    metrics::monitor::Server::new(monitor_bind_addr, true).change_context(Error::Monitor)?;
+    // server and cient created
+    let (prometheus_monitor_server, metrics_client) =
+        prometheus_metrics::monitor::Server::new(prometheus_monitor_bind_addr, true)
+            .change_context(Error::Monitor)?;
 
     let tm_client = tendermint_rpc::HttpClient::new(tm_jsonrpc.to_string().as_str())
         .change_context(Error::Connection)
@@ -98,11 +99,10 @@ async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
     .change_context(Error::Connection)
     .attach_printable(tofnd_config.url)?;
 
-    let block_height_monitor =
-        BlockHeightMonitor::connect(tm_client.clone())
-            .await
-            .change_context(Error::Connection)
-            .attach_printable(tm_jsonrpc)?;
+    let block_height_monitor = BlockHeightMonitor::connect(tm_client.clone())
+        .await
+        .change_context(Error::Connection)
+        .attach_printable(tm_jsonrpc)?;
     let pub_key = multisig_client
         .keygen(&tofnd_config.key_uid, tofnd::Algorithm::Ecdsa)
         .await
@@ -179,7 +179,7 @@ async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
         tx_confirmer,
         multisig_client,
         block_height_monitor,
-        monitor_server,
+        prometheus_monitor_server,
         grpc_server,
         broadcaster_task,
         metrics_client,
@@ -215,14 +215,14 @@ where
     tx_confirmer: TxConfirmer<CosmosGrpcClient>,
     multisig_client: MultisigClient,
     block_height_monitor: BlockHeightMonitor<tendermint_rpc::HttpClient>,
-    monitor_server: monitor::Server,
+    prometheus_monitor_server: monitor::Server,
     grpc_server: grpc::Server,
     broadcaster_task: broadcaster_v2::BroadcasterTask<
         cosmos::CosmosGrpcClient,
         Pin<Box<MsgQueue>>,
         MultisigClient,
     >,
-    metrics_client: Option<metrics::client::MetricsClient>,
+    metrics_client: Option<prometheus_metrics::client::MetricsClient>,
 }
 
 impl<T> App<T>
@@ -237,14 +237,14 @@ where
         tx_confirmer: TxConfirmer<CosmosGrpcClient>,
         multisig_client: MultisigClient,
         block_height_monitor: BlockHeightMonitor<tendermint_rpc::HttpClient>,
-        monitor_server: monitor::Server,
+        prometheus_monitor_server: monitor::Server,
         grpc_server: grpc::Server,
         broadcaster_task: broadcaster_v2::BroadcasterTask<
             cosmos::CosmosGrpcClient,
             Pin<Box<MsgQueue>>,
             MultisigClient,
         >,
-        metrics_client: Option<metrics::client::MetricsClient>,
+        metrics_client: Option<prometheus_metrics::client::MetricsClient>,
     ) -> Self {
         let event_processor = TaskGroup::new("event handler");
 
@@ -256,7 +256,7 @@ where
             tx_confirmer,
             multisig_client,
             block_height_monitor,
-            monitor_server,
+            prometheus_monitor_server,
             grpc_server,
             broadcaster_task,
             metrics_client,
@@ -585,7 +585,7 @@ where
         label: L,
         handler: H,
         event_processor_config: event_processor::Config,
-        metric_client: Option<metrics::client::MetricsClient>,
+        metric_client: Option<prometheus_metrics::client::MetricsClient>,
     ) -> CancellableTask<Result<(), event_processor::Error>>
     where
         L: AsRef<str>,
@@ -635,10 +635,9 @@ where
             broadcaster,
             tx_confirmer,
             block_height_monitor,
-            monitor_server,
+            prometheus_monitor_server,
             grpc_server,
             broadcaster_task,
-            metrics_client,
             ..
         } = self;
 
@@ -658,8 +657,6 @@ where
             exit_token.cancel();
         });
 
-     
-
         TaskGroup::new("ampd")
             .add_task(CancellableTask::create(|token| {
                 block_height_monitor
@@ -672,7 +669,9 @@ where
                     .change_context(Error::EventPublisher)
             }))
             .add_task(CancellableTask::create(|token| {
-                monitor_server.run(token).change_context(Error::Monitor)
+                prometheus_monitor_server
+                    .run(token)
+                    .change_context(Error::Monitor)
             }))
             .add_task(CancellableTask::create(|token| {
                 event_processor

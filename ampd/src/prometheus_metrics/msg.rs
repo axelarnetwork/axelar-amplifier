@@ -5,7 +5,6 @@ pub enum MetricsMsg {
     IncBlockReceived,
 }
 
-
 #[derive(Debug, Error)]
 pub enum MetricsError {
     #[error("failed to start metrics server")]
@@ -25,5 +24,3 @@ pub enum MetricsError {
     #[error("counter not found: {0}")]
     CounterNotFound(String),
 }
-
-
