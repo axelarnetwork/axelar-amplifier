@@ -644,7 +644,6 @@ where
 
         let main_token = CancellationToken::new();
         let exit_token = main_token.clone();
-        let signal_token = main_token.clone(); // Clone main_token for use in the signal handling task
         tokio::spawn(async move {
             let mut sigint = signal(SignalKind::interrupt()).expect("failed to capture SIGINT");
             let mut sigterm = signal(SignalKind::terminate()).expect("failed to capture SIGTERM");

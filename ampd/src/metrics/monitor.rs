@@ -102,7 +102,7 @@ impl Server {
         mut metrics_rx: mpsc::Receiver<MetricsMsg>,
         cancel: CancellationToken,
     ) {
-       
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(2));
         tokio::spawn(async move {
             loop {
                 tokio::select! {
@@ -121,7 +121,20 @@ impl Server {
                             }
                         }
                     }
-                    
+                    // another branch for periodic metrics gathering
+                    _ = interval.tick() => {
+                        let server_guard = metrics_server.lock().await;
+                        match server_guard.gather() {
+                            Ok(metrics) => {
+                                tracing::info!("Metrics: {}", metrics);
+                            }
+                            Err(e) => {
+                                tracing::error!("Failed to gather metrics: {:?}", e);
+                            }
+                        }
+                    }
+
+                   
                     // another branch for graceful shutdown
                     _ = cancel.cancelled() => {
                         break;
