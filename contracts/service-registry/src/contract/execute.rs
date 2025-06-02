@@ -5,6 +5,7 @@ use service_registry_api::{self, AuthorizationState, Verifier};
 use state::VERIFIERS;
 
 use super::*;
+use crate::events::{ChainsSupportDeregistered, ChainsSupportRegistered};
 use crate::msg::UpdatedServiceParams;
 use crate::state::{self};
 
@@ -170,7 +171,11 @@ pub fn register_chains_support(
         info.sender.clone(),
     )?;
 
-    Ok(Response::new())
+    Ok(Response::new().add_event(ChainsSupportRegistered {
+        verifier: info.sender,
+        service_name: service_name,
+        chains: chains,
+    }))
 }
 
 pub fn deregister_chains_support(
@@ -184,9 +189,18 @@ pub fn deregister_chains_support(
         .change_context(ContractError::StorageError)?
         .ok_or(ContractError::ServiceNotFound)?;
 
-    state::deregister_chains_support(deps.storage, service_name.clone(), chains, info.sender)?;
+    state::deregister_chains_support(
+        deps.storage,
+        service_name.clone(),
+        chains.clone(),
+        info.sender.clone(),
+    )?;
 
-    Ok(Response::new())
+    Ok(Response::new().add_event(ChainsSupportDeregistered {
+        verifier: info.sender,
+        service_name: service_name,
+        chains: chains,
+    }))
 }
 
 pub fn unbond_verifier(
