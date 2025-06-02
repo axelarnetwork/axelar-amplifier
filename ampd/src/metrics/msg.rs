@@ -1,37 +1,29 @@
-use std::fmt;
-
-use error_stack::Context;
+use thiserror::Error;
 
 #[derive(Debug)]
 pub enum MetricsMsg {
     IncBlockReceived,
 }
-// for error_stack
-#[derive(Debug)]
+
+
+#[derive(Debug, Error)]
 pub enum MetricsError {
+    #[error("failed to start metrics server")]
     Start,
+    #[error("metrics server failed while running")]
     WhileRunning,
+    #[error("failed to encode metrics")]
     EncodeError,
+    #[error("failed to convert metrics to UTF-8")]
     Utf8Error,
+    #[error("failed to update metric")]
     MetricUpdateFailed,
+    #[error("failed to register metric")]
     MetricRegisterFailed,
+    #[error("failed to spawn metric")]
     MetricSpawnFailed,
+    #[error("counter not found: {0}")]
     CounterNotFound(String),
 }
 
-impl Context for MetricsError {}
 
-impl fmt::Display for MetricsError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            MetricsError::Start => write!(f, "failed to start metrics server"),
-            MetricsError::WhileRunning => write!(f, "metrics server failed while running"),
-            MetricsError::EncodeError => write!(f, "failed to encode metrics"),
-            MetricsError::Utf8Error => write!(f, "failed to convert metrics to UTF-8"),
-            MetricsError::MetricUpdateFailed => write!(f, "failed to update metric"),
-            MetricsError::MetricRegisterFailed => write!(f, "failed to register metric"),
-            MetricsError::MetricSpawnFailed => write!(f, "failed to spawn metric"),
-            MetricsError::CounterNotFound(name) => write!(f, "counter not found: {}", name),
-        }
-    }
-}

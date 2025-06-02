@@ -82,9 +82,9 @@ async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
         grpc: grpc_config,
     } = cfg;
 
+    // server and cient created 
     let (monitor_server, metrics_client) =
-        metrics::monitor::Server::new(monitor_bind_addr)
-            .change_context(Error::MonitorSetup)?;
+    metrics::monitor::Server::new(monitor_bind_addr);
 
     let tm_client = tendermint_rpc::HttpClient::new(tm_jsonrpc.to_string().as_str())
         .change_context(Error::Connection)
@@ -98,7 +98,6 @@ async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
     .change_context(Error::Connection)
     .attach_printable(tofnd_config.url)?;
 
-    // pass to block heigh monitor
     let block_height_monitor =
         BlockHeightMonitor::connect(tm_client.clone())
             .await
@@ -659,25 +658,8 @@ where
 
             exit_token.cancel();
         });
-        // DEBUG (need to be deleted or changed) testings updating every 2 seconds
-        if let Some(metrics_client) = metrics_client {
-            let mut interval = interval(Duration::from_secs(2));
-            tokio::spawn(async move {
-                loop {
-                    tokio::select! {
-                        _ = interval.tick() => {
-                            
-                            tracing::info!("metrics tracking");
-                        }
-                        _ = signal_token.cancelled() => {
-                            tracing::info!("shut down metrics tracking");
-                            break;
-                        }
-                    }
-                }
-            });
-        }
-        // it should goes up every 2 seocnds
+
+     
 
         TaskGroup::new("ampd")
             .add_task(CancellableTask::create(|token| {

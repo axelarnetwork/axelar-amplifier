@@ -21,28 +21,28 @@ const CHANNEL_SIZE: usize = 1000;
 // one for http requests ->  Arc to allow shared ownership
 // Mutex to protect the metrics server from concurrent access
 // lock() to ensure only one thread can access the metrics server at a time
+
 pub struct Server {
     bind_address: SocketAddrV4,
     metrics_server: Option<Arc<Mutex<MetricsServer>>>,
     metrics_rx: Option<mpsc::Receiver<MetricsMsg>>,
 }
-// need to do: 
-// configurable -> optional operation 
-// implementing metrics / interface 
+
 
 impl Server {
     pub fn new(
         bind_address: SocketAddrV4,
-    ) -> Result<(Self, Option<crate::metrics::client::MetricsClient>), MetricsError> {
+    ) -> (Self, Option<crate::metrics::client::MetricsClient>) {
         let (metrics_server, metrics_rx, client) = 
             match MetricsServer::new() {
                 Ok(server) => {
-                    let shared_server = Arc::new(Mutex::new(server));
+                    let shared_server = Arc::new(Mutex::new(server)); 
                     let (tx, rx) = mpsc::channel(CHANNEL_SIZE);
                     let client = MetricsClient::new(tx);
                     (Some(shared_server), Some(rx), Some(client))
                 }
                 Err(e) => {
+                    // still continue without metrics server 
                     tracing::warn!("Failed to initialize metrics server: {:?}", e);
                     (None, None, None)
                 }
@@ -53,10 +53,10 @@ impl Server {
             metrics_server,
             metrics_rx,
         };
-        Ok((server, client))
+        (server, client)// also returned the client so it could be cloned and passed around in lib.rs
     }
 
-    pub async fn run(self, cancel: CancellationToken) -> Result<(), MetricsError> {
+    pub async fn run(mut self, cancel: CancellationToken) -> Result<(), MetricsError> {
         let listener = tokio::net::TcpListener::bind(self.bind_address)
             .await
             .change_context(MetricsError::Start)?;
@@ -65,39 +65,14 @@ impl Server {
             address = self.bind_address.to_string(),
             "starting monitor server"
         );
-        // cancel exit gracefully 
-        if let (Some(metrics_server), Some(mut metrics_rx)) =
-            (self.metrics_server.clone(), self.metrics_rx)
-        {
-            let cancel = cancel.clone();
-            tokio::spawn(async move {
-                loop {
-                    tokio::select! {
-                        // one branch for receiving messages from the metrics channel
-                        msg = metrics_rx.recv() => {
-                            match msg {
-                                Some(msg) => {
-                                    let mut server_guard = metrics_server.lock().await;
-                                    if let Err(e) = server_guard.handle_message(msg) {
-                                        tracing::error!("Failed to handle metrics message: {:?}", e);
-                                    }
-                                }
-                                None => {
-                                    tracing::info!("Metrics channel closed, exiting metrics processing task");
-                                    break;
-                                }
-                            }
-                        }
-                        // another branch for graceful shutdown
-                        _ = cancel.cancelled() => {
-                            tracing::info!("exiting metrics processing task");
-                            break;
-                        }
-                    }
-                }
-            });
-        }
 
+        // Start metrics processing if available
+        if let (Some(metrics_server), Some(metrics_rx)) =
+            (self.metrics_server.clone(), self.metrics_rx.take())
+        {
+            Self::start_metrics_processing(metrics_server, metrics_rx, cancel.clone());
+        }
+        // host the metrics routes, if not available, return 404
         let app = Router::new().route("/status", get(status)).route(
             "/metrics",
             get({
@@ -120,6 +95,40 @@ impl Server {
             .await
             .change_context(MetricsError::WhileRunning)?;
         Ok(())
+    }
+
+    fn start_metrics_processing(
+        metrics_server: Arc<Mutex<MetricsServer>>,
+        mut metrics_rx: mpsc::Receiver<MetricsMsg>,
+        cancel: CancellationToken,
+    ) {
+       
+        tokio::spawn(async move {
+            loop {
+                tokio::select! {
+                    // one branch for receiving messages from the metrics channel
+                    msg = metrics_rx.recv() => {
+                        match msg {
+                            Some(msg) => {
+                                let mut server_guard = metrics_server.lock().await;
+                                if let Err(e) = server_guard.handle_message(msg) {
+                                    tracing::error!("Failed to handle metrics message: {:?}", e);
+                                }
+                            }
+                            None => {
+                                // channel closed, exit the loop
+                                break;
+                            }
+                        }
+                    }
+                    
+                    // another branch for graceful shutdown
+                    _ = cancel.cancelled() => {
+                        break;
+                    }
+                }
+            }
+        });
     }
 }
 
@@ -159,7 +168,7 @@ mod tests {
         let bind_address = test_bind_addr();
 
         let (server, _metrics_client) =
-            Server::new(bind_address).expect("Failed to create server without metrics tracking");
+            Server::new(bind_address);
 
         let cancel = CancellationToken::new();
 
@@ -197,7 +206,7 @@ mod tests {
     async fn server_with_metrics() {
         let bind_address = test_bind_addr();
         let (server, metrics_client) =
-            Server::new(bind_address).expect("Failed to create server with metrics");
+            Server::new(bind_address);
 
         let cancel = CancellationToken::new();
 
@@ -265,7 +274,7 @@ mod tests {
     async fn metrics_task_graceful_shutdown_with_client() {
         let bind_address = test_bind_addr();
         let (server, metrics_client) =
-            Server::new(bind_address).expect("Failed to create server with metrics");
+            Server::new(bind_address);
 
         let cancel = CancellationToken::new();
         let server_handle = tokio::spawn(server.run(cancel.clone()));

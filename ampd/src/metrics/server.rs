@@ -11,6 +11,7 @@ pub struct MetricsServer {
 
 impl MetricsServer {
     pub fn new() -> Result<Self, MetricsError> {
+        // register all metrics 
         let registry = Registry::new();
         let mut counters = HashMap::new();
 
@@ -24,12 +25,13 @@ impl MetricsServer {
 
 
         counters.insert("blocks_received".to_string(), block_received);
-       
 
         Ok(Self { registry, counters })
     }
 
+    // modify metrics based on the message received 
     pub fn handle_message(&mut self, msg: MetricsMsg) -> Result<(), MetricsError> {
+        
         match msg {
             MetricsMsg::IncBlockReceived => {
                 self.counters
@@ -40,7 +42,7 @@ impl MetricsServer {
         }
         Ok(())
     }
-
+    /// Gathers the metrics and encodes them to a string -> called to expose metrics
     pub fn gather(&self) -> Result<String, MetricsError> {
         let mut buffer = Vec::new();
         let encoder = TextEncoder::new();
