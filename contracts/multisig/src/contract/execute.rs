@@ -179,7 +179,7 @@ pub fn register_pub_key(
     }))
 }
 
-pub fn require_authorized_caller_signing_session(
+pub fn require_authorized_caller(
     storage: &dyn Storage,
     contract_address: &Addr,
     chain_name: &ChainName,
@@ -190,14 +190,6 @@ pub fn require_authorized_caller_signing_session(
             expected: expected_chain_name,
         });
     }
-    Ok(contract_address.clone())
-}
-pub fn require_authorized_caller_register_verifier_set(
-    storage: &dyn Storage,
-    contract_address: &Addr,
-) -> Result<Addr, ContractError> {
-    AUTHORIZED_CALLERS.load(storage, contract_address)?;
-
     Ok(contract_address.clone())
 }
 

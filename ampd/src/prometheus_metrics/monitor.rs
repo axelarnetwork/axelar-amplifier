@@ -48,7 +48,8 @@ impl Server {
         if let Some(addr) = self.bind_address {
             Self::run_server(addr, self.metrics_rx, cancel).await
         } else {
-            Ok(Self::run_dummy(self.metrics_rx, cancel).await)
+            Self::run_dummy(self.metrics_rx, cancel).await;
+            Ok(())
         }
     }
 
