@@ -2,11 +2,11 @@
 
 ## [Unreleased](https://github.com/axelarnetwork/axelar-amplifier/tree/HEAD)
 
-[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/ampd-v1.8.1..HEAD)
+[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/ampd-v1.9.0..HEAD)
 
-## [v1.8.1](https://github.com/axelarnetwork/axelar-amplifier/tree/ampd-v1.8.1)
+## [v1.9.0](https://github.com/axelarnetwork/axelar-amplifier/tree/ampd-v1.9.0)
 
-[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/ampd-v1.8.0..ampd-v1.8.1)
+[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/ampd-v1.8.0..ampd-v1.9.0)
 
 - Add configurable delay before block processing [#860](https://github.com/axelarnetwork/axelar-amplifier/pull/860)
 - Add curl and wget to ampd dockerfile [#887](https://github.com/axelarnetwork/axelar-amplifier/pull/887)
