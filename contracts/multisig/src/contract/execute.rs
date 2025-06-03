@@ -196,9 +196,8 @@ pub fn require_authorized_caller_register_verifier_set(
     storage: &dyn Storage,
     contract_address: &Addr,
 ) -> Result<Addr, ContractError> {
-    AUTHORIZED_CALLERS
-        .load(storage, contract_address)?;
-    
+    AUTHORIZED_CALLERS.load(storage, contract_address)?;
+
     Ok(contract_address.clone())
 }
 

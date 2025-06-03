@@ -200,8 +200,8 @@ mod tests {
 
     use crate::event_processor;
     use crate::event_processor::{consume_events, Config, Error, EventHandler};
-    use crate::queue::queued_broadcaster::{Error as BroadcasterError, MockBroadcasterClient};
     use crate::prometheus_metrics::monitor::Server;
+    use crate::queue::queued_broadcaster::{Error as BroadcasterError, MockBroadcasterClient};
 
     pub fn setup_event_config(
         retry_delay_value: Duration,
