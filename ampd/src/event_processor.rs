@@ -70,7 +70,7 @@ pub async fn consume_events<H, B, S, E>(
     event_stream: S,
     event_processor_config: Config,
     token: CancellationToken,
-    metric_client: Option<crate::prometheus_metrics::client::MetricsClient>,
+    metric_client: crate::prometheus_metrics::client::MetricsClient,
 ) -> Result<(), Error>
 where
     H: EventHandler,
@@ -104,11 +104,9 @@ where
                 height = height.value(),
                 "handler finished processing block"
             );
-            if let Some(ref metric_client) = metric_client {
-                metric_client
-                    .inc_block_received()
-                    .change_context(Error::Metrics)?;
-            }
+            metric_client
+                .inc_block_received()
+                .change_context(Error::Metrics)?;
         }
 
         if should_task_stop(stream_status, &token) {
@@ -203,6 +201,7 @@ mod tests {
     use crate::event_processor;
     use crate::event_processor::{consume_events, Config, Error, EventHandler};
     use crate::queue::queued_broadcaster::{Error as BroadcasterError, MockBroadcasterClient};
+    use crate::prometheus_metrics::monitor::Server;
 
     pub fn setup_event_config(
         retry_delay_value: Duration,
@@ -239,6 +238,8 @@ mod tests {
             Duration::from_secs(1),
         );
 
+        let (_server, metrics_client) = Server::new(None).expect("Failed to create server");
+
         let result_with_timeout = timeout(
             Duration::from_secs(1),
             consume_events(
@@ -248,7 +249,7 @@ mod tests {
                 stream::iter(events),
                 event_config,
                 CancellationToken::new(),
-                None,
+                metrics_client,
             ),
         )
         .await;
@@ -274,6 +275,8 @@ mod tests {
             Duration::from_secs(1),
         );
 
+        let (_server, metrics_client) = Server::new(None).expect("Failed to create server");
+
         let result_with_timeout = timeout(
             Duration::from_secs(1),
             consume_events(
@@ -283,7 +286,7 @@ mod tests {
                 stream::iter(events),
                 event_config,
                 CancellationToken::new(),
-                None,
+                metrics_client,
             ),
         )
         .await;
@@ -310,6 +313,8 @@ mod tests {
             Duration::from_secs(1),
         );
 
+        let (_server, metrics_client) = Server::new(None).expect("Failed to create server");
+
         let result_with_timeout = timeout(
             Duration::from_secs(3),
             consume_events(
@@ -319,7 +324,7 @@ mod tests {
                 stream::iter(events),
                 event_config,
                 CancellationToken::new(),
-                None,
+                metrics_client,
             ),
         )
         .await;
@@ -350,6 +355,8 @@ mod tests {
             .times(2)
             .returning(|_| Ok(()));
 
+        let (_server, metrics_client) = Server::new(None).expect("Failed to create server");
+
         let result_with_timeout = timeout(
             Duration::from_secs(3),
             consume_events(
@@ -359,7 +366,7 @@ mod tests {
                 stream::iter(events),
                 event_config,
                 CancellationToken::new(),
-                None,
+                metrics_client,
             ),
         )
         .await;
@@ -390,6 +397,8 @@ mod tests {
             .times(2)
             .returning(|_| Err(report!(BroadcasterError::EstimateFee)));
 
+        let (_server, metrics_client) = Server::new(None).expect("Failed to create server");
+
         let result_with_timeout = timeout(
             Duration::from_secs(3),
             consume_events(
@@ -399,7 +408,7 @@ mod tests {
                 stream::iter(events),
                 event_config,
                 CancellationToken::new(),
-                None,
+                metrics_client,
             ),
         )
         .await;
@@ -430,6 +439,8 @@ mod tests {
         let token = CancellationToken::new();
         token.cancel();
 
+        let (_server, metrics_client) = Server::new(None).expect("Failed to create server");
+
         let result_with_timeout = timeout(
             Duration::from_secs(1),
             consume_events(
@@ -439,7 +450,7 @@ mod tests {
                 stream::iter(events),
                 event_config,
                 token,
-                None,
+                metrics_client,
             ),
         )
         .await;
@@ -462,6 +473,8 @@ mod tests {
         let token = CancellationToken::new();
         token.cancel();
 
+        let (_server, metrics_client) = Server::new(None).expect("Failed to create server");
+
         let result_with_timeout = timeout(
             Duration::from_secs(1),
             consume_events(
@@ -471,7 +484,7 @@ mod tests {
                 stream::pending::<Result<Event, Error>>(), // never returns any items so it can time out
                 event_config,
                 token,
-                None,
+                metrics_client,
             ),
         )
         .await;

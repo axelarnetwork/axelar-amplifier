@@ -1,4 +1,4 @@
 pub mod client;
-pub mod monitor;
-mod msg;
 mod metrics;
+pub mod monitor;
+pub mod msg;
