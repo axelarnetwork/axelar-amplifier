@@ -84,7 +84,7 @@ async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
 
     // server and cient created
     let (prometheus_monitor_server, metrics_client) =
-        prometheus_metrics::monitor::Server::new(prometheus_monitor_bind_addr, true)
+        prometheus_metrics::monitor::Server::new(prometheus_monitor_bind_addr)
             .change_context(Error::Monitor)?;
 
     let tm_client = tendermint_rpc::HttpClient::new(tm_jsonrpc.to_string().as_str())
@@ -225,7 +225,7 @@ where
         Pin<Box<MsgQueue>>,
         MultisigClient,
     >,
-    metrics_client: Option<prometheus_metrics::client::MetricsClient>,
+    metrics_client: prometheus_metrics::client::MetricsClient,
 }
 
 impl<T> App<T>
@@ -247,7 +247,7 @@ where
             Pin<Box<MsgQueue>>,
             MultisigClient,
         >,
-        metrics_client: Option<prometheus_metrics::client::MetricsClient>,
+        metrics_client: prometheus_metrics::client::MetricsClient,
     ) -> Self {
         let event_processor = TaskGroup::new("event handler");
 
@@ -588,7 +588,7 @@ where
         label: L,
         handler: H,
         event_processor_config: event_processor::Config,
-        metric_client: Option<prometheus_metrics::client::MetricsClient>,
+        metric_client: prometheus_metrics::client::MetricsClient,
     ) -> CancellableTask<Result<(), event_processor::Error>>
     where
         L: AsRef<str>,

@@ -13,7 +13,7 @@ use crate::{broadcaster, event_processor, grpc};
 #[derive(Deserialize, Serialize, Debug, PartialEq)]
 #[serde(default)]
 pub struct Config {
-    pub prometheus_monitor_bind_addr: SocketAddrV4,
+    pub prometheus_monitor_bind_addr: Option<SocketAddrV4>,
     pub tm_jsonrpc: Url,
     pub tm_grpc: Url,
     pub tm_grpc_timeout: Duration,
@@ -40,7 +40,7 @@ impl Default for Config {
             event_processor: event_processor::Config::default(),
             service_registry: ServiceRegistryConfig::default(),
             rewards: RewardsConfig::default(),
-            prometheus_monitor_bind_addr: SocketAddrV4::new(Ipv4Addr::UNSPECIFIED, 3000),
+            prometheus_monitor_bind_addr: Some(SocketAddrV4::new(Ipv4Addr::UNSPECIFIED, 3000)),
             grpc: grpc::Config::default(),
         }
     }
