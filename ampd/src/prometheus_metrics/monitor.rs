@@ -1,18 +1,19 @@
 use std::net::SocketAddrV4;
-use std::sync::Arc;
+
 
 use axum::http::StatusCode;
 use axum::routing::get;
 use axum::{Json, Router};
 use error_stack::{Result, ResultExt};
 use serde::{Deserialize, Serialize};
-use tokio::sync::{mpsc, Mutex};
+use tokio::sync::{mpsc};
 use tokio_util::sync::CancellationToken;
 use tracing::info;
+use prometheus::{Registry, TextEncoder};
 
 use super::client::MetricsClient;
 use crate::prometheus_metrics::msg::{MetricsError, MetricsMsg};
-use crate::prometheus_metrics::server::MetricsServer;
+use crate::prometheus_metrics::metrics::Metrics;
 
 const CHANNEL_SIZE: usize = 1000;
 
@@ -23,79 +24,97 @@ const CHANNEL_SIZE: usize = 1000;
 // lock() to ensure only one thread can access the metrics server at a time
 
 pub struct Server {
-    bind_address: SocketAddrV4,
-    metrics_server: Option<Arc<Mutex<MetricsServer>>>,
-    metrics_rx: Option<mpsc::Receiver<MetricsMsg>>,
+    bind_address: Option<SocketAddrV4>,
+    metrics_rx: mpsc::Receiver<MetricsMsg>,
 }
 
 // configured enables the server to run with or without metrics
 impl Server {
     pub fn new(
-        bind_address: SocketAddrV4,
-        configured: bool, // ← Add configuration parameter
+        bind_address: Option<SocketAddrV4>,
     ) -> Result<
         (
             Self,
-            Option<crate::prometheus_metrics::client::MetricsClient>,
+            crate::prometheus_metrics::client::MetricsClient,
         ),
         MetricsError,
     > {
-        if !configured {
-            // return a server without metrics
-            let server = Self {
-                bind_address,
-                metrics_server: None,
-                metrics_rx: None,
-            };
-            return Ok((server, None));
-        }
 
-        // Create metrics
-        let server = MetricsServer::new()?;
-        let shared_server = Arc::new(Mutex::new(server));
         let (tx, rx) = mpsc::channel(CHANNEL_SIZE);
+        
         let client = MetricsClient::new(tx);
 
         let server = Self {
             bind_address,
-            metrics_server: Some(shared_server),
-            metrics_rx: Some(rx),
+            metrics_rx: rx,
         };
 
-        Ok((server, Some(client)))
+        Ok((server, client))
+    }
+    
+
+    pub async fn run(self, cancel: CancellationToken) -> Result<(), MetricsError> {
+        if let Some(addr) = self.bind_address {
+            Self::run_server( addr, self.metrics_rx, cancel).await
+        } else {
+            Ok(Self::run_dummy(self.metrics_rx, cancel).await)
+        }
     }
 
-    pub async fn run(mut self, cancel: CancellationToken) -> Result<(), MetricsError> {
-        let listener = tokio::net::TcpListener::bind(self.bind_address)
-            .await
-            .change_context(MetricsError::Start)?;
+    async fn run_dummy(
+        mut metrics_rx: mpsc::Receiver<MetricsMsg>,
+        cancel: CancellationToken,
+    ) {
+        info!("running dummy server, no metrics will be collected");
+        tokio::spawn(async move {
+            loop {
+                tokio::select! {
+                    // one branch for receiving messages from the metrics channel
+                    msg = metrics_rx.recv() => {
+                        match msg {
+                            Some(_) =>{
 
+                            }
+                            None => {
+                                    break;
+                                }
+                    }
+                }
+                
+                    // another branch for graceful shutdown
+                    _ = cancel.cancelled() => {
+                        break;
+                    }
+                }
+            }
+        });
+    }
+
+    async fn run_server(addr: SocketAddrV4, metrics_rx: mpsc::Receiver<MetricsMsg>, cancel: CancellationToken) -> std::result::Result<(), error_stack::Report<MetricsError>> {
+        let registry = prometheus::Registry::new();
+        let metrics = Metrics::new(&registry)?;
+        let listener = tokio::net::TcpListener::bind(addr)
+        .await
+        .change_context(MetricsError::Start)?;
+    
         info!(
-            address = self.bind_address.to_string(),
+            address = addr.to_string(),
             "starting monitor server"
         );
-
-        // Start metrics processing if available
-        if let (Some(metrics_server), Some(metrics_rx)) =
-            (self.metrics_server.clone(), self.metrics_rx.take())
-        {
-            Self::start_metrics_processing(metrics_server, metrics_rx, cancel.clone());
-        }
+    
+        
+        Self::start_metrics_processing(metrics, metrics_rx, cancel.clone());
+        
         // host the metrics routes, if not available, return 404
         let app = Router::new().route("/status", get(status)).route(
             "/metrics",
             get({
-                let metrics_server = self.metrics_server.clone();
                 move || async move {
-                    if let Some(server) = metrics_server {
-                        metrics(server).await
-                    } else {
-                        (StatusCode::NOT_FOUND, "Metrics not available".to_string())
-                    }
+                    gather_metrics(&registry).await
                 }
             }),
         );
-
+    
         axum::serve(listener, app)
             .with_graceful_shutdown(async move {
                 cancel.cancelled().await;
@@ -105,15 +124,14 @@ impl Server {
             .change_context(MetricsError::WhileRunning)?;
         Ok(())
     }
-
+    
     // error handling ideas
     //
     fn start_metrics_processing(
-        metrics_server: Arc<Mutex<MetricsServer>>,
+        server: Metrics,
         mut metrics_rx: mpsc::Receiver<MetricsMsg>,
         cancel: CancellationToken,
     ) {
-        let mut interval = tokio::time::interval(std::time::Duration::from_secs(2));
         tokio::spawn(async move {
             loop {
                 tokio::select! {
@@ -121,26 +139,13 @@ impl Server {
                     msg = metrics_rx.recv() => {
                         match msg {
                             Some(msg) => {
-                                let mut server_guard = metrics_server.lock().await;
-                                if let Err(e) = server_guard.handle_message(msg) {
+                                if let Err(e) = server.handle_message(msg) {
                                     tracing::error!("Failed to handle metrics message: {:?}", e);
                                 }
                             }
                             None => {
                                 // channel closed, exit the loop
                                 break;
-                            }
-                        }
-                    }
-                    // another branch for periodic metrics gathering ! for Proof of concept !
-                    _ = interval.tick() => {
-                        let server_guard = metrics_server.lock().await;
-                        match server_guard.gather() {
-                            Ok(metrics) => {
-                                tracing::info!("Metrics: {}", metrics); // log
-                            }
-                            Err(e) => {
-                                tracing::error!("Failed to gather metrics: {:?}", e);
                             }
                         }
                     }
@@ -159,9 +164,8 @@ async fn status() -> (StatusCode, Json<Status>) {
     (StatusCode::OK, Json(Status { ok: true }))
 }
 
-async fn metrics(metrics_server: Arc<Mutex<MetricsServer>>) -> (StatusCode, String) {
-    let server = metrics_server.lock().await;
-    match server.gather() {
+async fn gather_metrics(registry:&Registry) -> (StatusCode, String) {
+    match crate::prometheus_metrics::metrics::gather(registry) {
         Ok(metrics) => (StatusCode::OK, metrics),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -224,6 +228,7 @@ mod tests {
             SocketAddr::V6(_) => panic!("unexpected address"),
         }
     }
+
     #[async_test]
     async fn server_with_metrics() {
         let bind_address = test_bind_addr();
