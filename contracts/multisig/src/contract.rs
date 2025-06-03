@@ -63,7 +63,11 @@ pub fn execute(
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
-    match msg.ensure_permissions(deps.storage, &info.sender, is_authorized(&info.sender))? {
+    match msg.ensure_permissions(
+        deps.storage,
+        &info.sender,
+        can_start_signing_session(&info.sender),
+    )? {
         ExecuteMsg::StartSigningSession {
             verifier_set_id,
             msg,
@@ -122,17 +126,13 @@ fn validate_contract_addresses(
         .try_collect()
 }
 
-fn is_authorized(
+fn can_start_signing_session(
     sender: &Addr,
 ) -> impl FnOnce(&dyn Storage, &ExecuteMsg) -> error_stack::Result<Addr, permission_control::Error> + '_
 {
     |storage, msg| match msg {
         ExecuteMsg::StartSigningSession { chain_name, .. } => {
-            execute::require_authorized_caller_signing_session(storage, sender, chain_name)
-                .change_context(permission_control::Error::Unauthorized)
-        }
-        ExecuteMsg::RegisterVerifierSet { .. } => {
-            execute::require_authorized_caller_register_verifier_set(storage, sender)
+            execute::require_authorized_caller(storage, sender, chain_name)
                 .change_context(permission_control::Error::Unauthorized)
         }
         _ => Err(report!(permission_control::Error::WrongVariant)),
