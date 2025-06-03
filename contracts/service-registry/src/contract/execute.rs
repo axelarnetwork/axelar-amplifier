@@ -5,7 +5,7 @@ use service_registry_api::{self, AuthorizationState, Verifier};
 use state::VERIFIERS;
 
 use super::*;
-use crate::events::{ChainsSupportDeregistered, ChainsSupportRegistered};
+use crate::events::Event;
 use crate::msg::UpdatedServiceParams;
 use crate::state::{self};
 
@@ -171,7 +171,7 @@ pub fn register_chains_support(
         info.sender.clone(),
     )?;
 
-    Ok(Response::new().add_event(ChainsSupportRegistered {
+    Ok(Response::new().add_event(Event::ChainsSupportRegistered {
         verifier: info.sender,
         service_name,
         chains,
@@ -196,7 +196,7 @@ pub fn deregister_chains_support(
         info.sender.clone(),
     )?;
 
-    Ok(Response::new().add_event(ChainsSupportDeregistered {
+    Ok(Response::new().add_event(Event::ChainsSupportDeregistered {
         verifier: info.sender,
         service_name,
         chains,
