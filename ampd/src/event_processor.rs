@@ -17,6 +17,7 @@ use valuable::Valuable;
 
 use crate::asyncutil::future::{self, RetryPolicy};
 use crate::asyncutil::task::TaskError;
+use crate::prometheus_metrics::msg::MetricsMsg;
 use crate::queue::queued_broadcaster::BroadcasterClient;
 
 #[async_trait]
@@ -105,7 +106,7 @@ where
                 "handler finished processing block"
             );
             metric_client
-                .inc_block_received()
+                .send_metrics_msg(MetricsMsg::IncBlockReceived)
                 .change_context(Error::Metrics)?;
         }
 
