@@ -12,9 +12,9 @@ impl MetricsClient {
         Self { sender }
     }
 
-    pub fn inc_block_received(&self) -> Result<(), MetricsError> {
+    pub fn send_metrics_msg(&self, msg: MetricsMsg) -> Result<(), MetricsError> {
         self.sender
-            .try_send(MetricsMsg::IncBlockReceived)
+            .try_send(msg)
             .map_err(|_| MetricsError::MetricUpdateFailed)?;
         Ok(())
     }

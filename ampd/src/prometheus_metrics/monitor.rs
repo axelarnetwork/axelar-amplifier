@@ -245,7 +245,7 @@ mod tests {
             let client_clone = metrics_client.clone();
             let handle = tokio::spawn(async move {
                 client_clone
-                    .inc_block_received()
+                    .send_metrics_msg(MetricsMsg::IncBlockReceived)
                     .unwrap_or_else(|_| panic!("Task {} failed to increase block counter", i));
             });
             handles.push(handle);
@@ -290,7 +290,7 @@ mod tests {
         // send some metrics messages to the server
         for i in 0..3 {
             metrics_client
-                .inc_block_received()
+                .send_metrics_msg(MetricsMsg::IncBlockReceived)
                 .unwrap_or_else(|_| panic!("Failed to send block received {}", i));
         }
 
