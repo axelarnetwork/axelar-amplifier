@@ -63,11 +63,7 @@ pub fn execute(
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
-    match msg.ensure_permissions(
-        deps.storage,
-        &info.sender,
-        is_authorized(&info.sender),
-    )? {
+    match msg.ensure_permissions(deps.storage, &info.sender, is_authorized(&info.sender))? {
         ExecuteMsg::StartSigningSession {
             verifier_set_id,
             msg,
