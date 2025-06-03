@@ -173,8 +173,8 @@ pub fn register_chains_support(
 
     Ok(Response::new().add_event(ChainsSupportRegistered {
         verifier: info.sender,
-        service_name: service_name,
-        chains: chains,
+        service_name,
+        chains,
     }))
 }
 
@@ -198,8 +198,8 @@ pub fn deregister_chains_support(
 
     Ok(Response::new().add_event(ChainsSupportDeregistered {
         verifier: info.sender,
-        service_name: service_name,
-        chains: chains,
+        service_name,
+        chains,
     }))
 }
 
