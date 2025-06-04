@@ -66,7 +66,7 @@ pub fn execute(
     match msg.ensure_permissions(
         deps.storage,
         &info.sender,
-        can_start_signing_session(&info.sender),
+        is_authorized(&info.sender),
     )? {
         ExecuteMsg::StartSigningSession {
             verifier_set_id,
@@ -126,13 +126,17 @@ fn validate_contract_addresses(
         .try_collect()
 }
 
-fn can_start_signing_session(
+fn is_authorized(
     sender: &Addr,
 ) -> impl FnOnce(&dyn Storage, &ExecuteMsg) -> error_stack::Result<Addr, permission_control::Error> + '_
 {
     |storage, msg| match msg {
         ExecuteMsg::StartSigningSession { chain_name, .. } => {
-            execute::require_authorized_caller(storage, sender, chain_name)
+            execute::require_authorized_caller_sign_session(storage, sender, chain_name)
+                .change_context(permission_control::Error::Unauthorized)
+        }
+        ExecuteMsg::RegisterVerifierSet { .. } => {
+            execute::require_authorized_caller_verifier_set(storage, sender)
                 .change_context(permission_control::Error::Unauthorized)
         }
         _ => Err(report!(permission_control::Error::WrongVariant)),

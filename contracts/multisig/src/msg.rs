@@ -44,8 +44,8 @@ pub enum ExecuteMsg {
         session_id: Uint64,
         signature: HexBinary,
     },
-    #[permission(Any)]
-    RegisterVerifierSet { verifier_set: VerifierSet },
+    #[permission(Specific(authorized))]
+    RegisterVerifierSet { verifier_set: VerifierSet},
     #[permission(Any)]
     RegisterPublicKey {
         public_key: PublicKey,
