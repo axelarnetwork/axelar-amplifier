@@ -1426,4 +1426,72 @@ mod tests {
             ));
         }
     }
+
+    #[test]
+    fn test_register_verifier_set_authorization_success() {
+        let mut deps = mock_dependencies();
+        do_instantiate(deps.as_mut()).unwrap();
+        
+        let api = deps.api;
+        let prover_address = api.addr_make(PROVER);
+        let chain_name: ChainName = "mock-chain".parse().unwrap();
+        
+        // Create a test verifier set
+        let signers = ecdsa_test_data::signers();
+        let verifier_set = build_verifier_set(KeyType::Ecdsa, &signers);
+        
+        // Test 1: WITHOUT authorization - should FAIL
+        let info = message_info(&prover_address, &[]);
+        let env = mock_env();
+        let msg = ExecuteMsg::RegisterVerifierSet { 
+            verifier_set: verifier_set.clone() 
+        };
+        let res = execute(deps.as_mut(), env, info, msg);
+        
+        assert!(res.is_err());
+        assert!(res.unwrap_err().to_string().contains("sender is not authorized"));
+        
+        // Test 2: WITH authorization - should SUCCESS
+        // First authorize the caller for verifier set registration
+        do_authorize_callers(
+            deps.as_mut(),
+            vec![(prover_address.clone(), chain_name.clone())],
+        ).unwrap();
+        
+        // Now the call should succeed
+        let info = message_info(&prover_address, &[]);
+        let env = mock_env();
+        let msg = ExecuteMsg::RegisterVerifierSet { 
+            verifier_set: verifier_set.clone() 
+        };
+        let res = execute(deps.as_mut(), env, info, msg);
+        
+        assert!(res.is_ok());
+        
+        // Verify the verifier set was actually registered
+        let query_res = query_verifier_set(&verifier_set.id(), deps.as_ref());
+        assert!(query_res.is_ok());
+        let stored_verifier_set: VerifierSet = from_json(query_res.unwrap()).unwrap();
+        assert_eq!(stored_verifier_set, verifier_set);
+        
+        // Test 3: UNAUTHORIZE and try again - should FAIL
+        do_unauthorize_caller(
+            deps.as_mut(),
+            vec![(prover_address.clone(), chain_name.clone())],
+        ).unwrap();
+        
+        // Create a different verifier set for this test
+        let signers2 = ed25519_test_data::signers();
+        let verifier_set2 = build_verifier_set(KeyType::Ed25519, &signers2);
+        
+        let info = message_info(&prover_address, &[]);
+        let env = mock_env();
+        let msg = ExecuteMsg::RegisterVerifierSet { 
+            verifier_set: verifier_set2 
+        };
+        let res = execute(deps.as_mut(), env, info, msg);
+        
+        assert!(res.is_err());
+        assert!(res.unwrap_err().to_string().contains("sender is not authorized"));
+    }
 }
