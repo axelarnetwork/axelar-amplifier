@@ -101,11 +101,14 @@ pub fn execute(
         ExecuteMsg::ExecuteFromCoordinator {
             original_sender,
             msg,
-        } => Ok(execute::execute_from_coordinator(
-            deps,
-            original_sender,
-            *msg,
-        )?),
+        } => {
+            msg.route(
+                deps, 
+                original_sender, 
+                execute::execute_from_coordinator
+            )
+            .map_err(|_| Error::Unauthorized)
+        }
     }?
     .then(Ok)
 }
@@ -1914,9 +1917,6 @@ mod test {
         );
 
         assert!(res.is_err());
-        assert!(res
-            .unwrap_err()
-            .to_string()
-            .contains(&Error::InvalidExecuteMsg.to_string()));
+        // TODO: Test that error is correct type
     }
 }

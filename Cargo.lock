@@ -6229,6 +6229,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "msgs-external-execute"
+version = "1.0.0"
+dependencies = [
+ "axelar-wasm-std",
+ "cosmwasm-std",
+ "error-stack",
+ "itertools 0.14.0",
+ "proc-macro2 1.0.95",
+ "quote 1.0.40",
+ "syn 2.0.101",
+]
+
+[[package]]
 name = "msim-macros"
 version = "0.1.0"
 source = "git+https://github.com/MystenLabs/mysten-sim.git?rev=9c6636c399d5c60a1759f1670b1c07b3d408799a#9c6636c399d5c60a1759f1670b1c07b3d408799a"
@@ -8559,6 +8572,7 @@ dependencies = [
  "flagset",
  "hex",
  "msgs-derive",
+ "msgs-external-execute",
  "rand 0.8.5",
  "report",
  "schemars",
