@@ -18,7 +18,7 @@ impl Metrics {
         Ok(Self { block_received })
     }
 
-    // modify metrics based on the message received
+    // modify metrics based on the message receive
     pub fn handle_message(&self, msg: MetricsMsg) -> Result<(), MetricsError> {
         match msg {
             MetricsMsg::IncBlockReceived => {
@@ -36,7 +36,7 @@ pub fn gather(registry: &Registry) -> Result<String, MetricsError> {
 
     encoder
         .encode(&metric_families, &mut buffer)
-        .map_err(|_e| MetricsError::EncodeError)?;
+        .map_err(|_| MetricsError::EncodeError)?;
 
-    String::from_utf8(buffer).map_err(|_e| MetricsError::Utf8Error)
+    String::from_utf8(buffer).map_err(|_| MetricsError::Utf8Error)
 }

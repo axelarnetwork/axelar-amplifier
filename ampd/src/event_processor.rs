@@ -17,6 +17,7 @@ use valuable::Valuable;
 
 use crate::asyncutil::future::{self, RetryPolicy};
 use crate::asyncutil::task::TaskError;
+use crate::prometheus_metrics::client::MetricsClient;
 use crate::prometheus_metrics::msg::MetricsMsg;
 use crate::queue::queued_broadcaster::BroadcasterClient;
 
@@ -71,7 +72,7 @@ pub async fn consume_events<H, B, S, E>(
     event_stream: S,
     event_processor_config: Config,
     token: CancellationToken,
-    metric_client: crate::prometheus_metrics::client::MetricsClient,
+    metric_client: MetricsClient,
 ) -> Result<(), Error>
 where
     H: EventHandler,
@@ -201,6 +202,7 @@ mod tests {
 
     use crate::event_processor;
     use crate::event_processor::{consume_events, Config, Error, EventHandler};
+    use crate::prometheus_metrics::monitor::tests::test_bind_addr;
     use crate::prometheus_metrics::monitor::Server;
     use crate::queue::queued_broadcaster::{Error as BroadcasterError, MockBroadcasterClient};
 
@@ -519,5 +521,60 @@ mod tests {
         }
         .to_any()
         .unwrap()
+    }
+    #[tokio::test]
+    async fn verify_block_received_metric_is_sent() {
+        let events: Vec<Result<Event, event_processor::Error>> = vec![
+            Ok(Event::BlockEnd(0_u32.into())),
+            Ok(Event::BlockEnd(1_u32.into())),
+            Ok(Event::BlockEnd(2_u32.into())),
+            Ok(Event::BlockBegin(3_u32.into())),
+            Ok(Event::BlockEnd(4_u32.into())),
+            Ok(Event::BlockBegin(5_u32.into())),
+            Ok(Event::BlockEnd(6_u32.into())),
+        ];
+        let num_block_ends = 5;
+        let mut handler = MockEventHandler::new();
+        handler
+            .expect_handle()
+            .times(events.len())
+            .returning(|_| Ok(vec![]));
+
+        let broadcaster = MockBroadcasterClient::new();
+        let event_config = setup_event_config(
+            Duration::from_secs(1),
+            Duration::from_secs(1000),
+            Duration::from_secs(1),
+        );
+
+        let bind_address = test_bind_addr();
+        let (server, metrics_client) = Server::new(bind_address).expect("Failed to create server");
+
+        let cancel_token = CancellationToken::new();
+        tokio::spawn(server.run(cancel_token.clone()));
+
+        let result_with_timeout = timeout(
+            Duration::from_secs(3),
+            consume_events(
+                "handler".to_string(),
+                handler,
+                broadcaster,
+                stream::iter(events),
+                event_config,
+                cancel_token.clone(),
+                metrics_client,
+            ),
+        )
+        .await;
+
+        assert!(result_with_timeout.is_ok());
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        let metrics_url = format!("http://{}/metrics", bind_address.unwrap());
+        let response = reqwest::get(&metrics_url).await.unwrap();
+        let metrics_text = response.text().await.unwrap();
+        assert!(metrics_text.contains(&format!("blocks_received {}", num_block_ends)));
+
+        cancel_token.cancel();
     }
 }
