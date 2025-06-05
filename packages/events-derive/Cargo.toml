@@ -9,9 +9,11 @@ edition = { workspace = true }
 [lib]
 proc-macro = true
 
+[dev-dependencies]
+events = { workspace = true}
+
 [dependencies]
 error-stack = { workspace = true }
-events = { workspace = true }
 quote = { workspace = true }
 serde = "1.0.183"
 serde_json = "1.0.105"
