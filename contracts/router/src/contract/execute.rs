@@ -6,7 +6,8 @@ use axelar_wasm_std::flagset::FlagSet;
 use axelar_wasm_std::msg_id::{self, MessageIdFormat};
 use axelar_wasm_std::{address, killswitch};
 use cosmwasm_std::{
-    to_json_binary, Addr, DepsMut, Env, Event, MessageInfo, QuerierWrapper, Response, StdResult, Storage, WasmMsg,
+    to_json_binary, Addr, DepsMut, Env, Event, MessageInfo, QuerierWrapper, Response, StdResult,
+    Storage, WasmMsg,
 };
 use error_stack::{bail, ensure, report, Report, ResultExt};
 use itertools::Itertools;

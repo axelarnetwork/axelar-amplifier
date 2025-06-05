@@ -1,10 +1,13 @@
-use itertools::{Itertools, Unique};
+use itertools::Itertools;
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
+use syn::punctuated::Punctuated;
 use syn::{
-    parse_macro_input, punctuated::Punctuated, Data, DataEnum, DeriveInput, Expr, Ident, ItemFn,
-    Path, Signature, Stmt, Token,
+    Data, DataEnum, DeriveInput, Expr, Ident, Path,
+    Token,
 };
+
+const ATTRIBUTE_NAME: &str = "permit";
 
 #[proc_macro_derive(ExternalExecute, attributes(permit))]
 pub fn hello_macro_derive(input: TokenStream) -> TokenStream {
@@ -33,7 +36,7 @@ fn build_implementation(enum_type: Ident, data: DataEnum) -> TokenStream {
 }
 
 fn build_route_implementation(data: DataEnum) -> proc_macro2::TokenStream {
-    let (variant_args, unique_args) = variant_tokens_and_unique_args(data.clone());
+    let (variant_args, unique_args) = variant_tokens_and_unique_args(data);
 
     let rm = route_match(variant_args);
 
@@ -41,7 +44,7 @@ fn build_route_implementation(data: DataEnum) -> proc_macro2::TokenStream {
         .map(|i| format_ident!("F{}", i))
         .collect();
 
-    proc_macro2::TokenStream::from(quote! {
+    quote! {
         pub fn route<T, #(#fs),*>(
             &self,
             deps: cosmwasm_std::DepsMut,
@@ -57,11 +60,37 @@ fn build_route_implementation(data: DataEnum) -> proc_macro2::TokenStream {
                 {
             #rm
         }
-    })
+    }
 }
 
-// Returns:
-// - variant tokens: First tuple element is variant ident. Second is list of permitted contracts for that variant
+fn route_match(routing_fns: Vec<(Ident, Vec<Path>)>) -> proc_macro2::TokenStream {
+    let (variants, routes): (Vec<_>, Vec<_>) = routing_fns.into_iter().unzip();
+    let sends = sends(routes.into_iter().flatten().collect());
+
+    quote! {
+        match self {
+            #(#variants => {#sends}),*
+        }
+    }
+}
+
+fn sends(routes: Vec<Path>) -> proc_macro2::TokenStream {
+    quote! {
+        let mut info_new_sender = info.clone();
+        info_new_sender.sender = original_sender.clone();
+        #(
+            let res = #routes(deps, env.clone(), info_new_sender.clone(), self.clone(), exec);
+            if res.is_ok() {
+                return Ok(res.unwrap());
+            }
+        )*
+
+        Err(axelar_wasm_std::permission_control::Error::Unauthorized)
+    }
+}
+
+// Returns
+// - variant tokens: First tuple element is variant identifier. Second is list of permitted contracts for that variant
 // - unique arguments: List of permitted contracts (no duplicates)
 fn variant_tokens_and_unique_args(data: DataEnum) -> (Vec<(Ident, Vec<Path>)>, Vec<Path>) {
     let mut variant_args: Vec<(Ident, Vec<Path>)> = vec![];
@@ -72,7 +101,7 @@ fn variant_tokens_and_unique_args(data: DataEnum) -> (Vec<(Ident, Vec<Path>)>, V
         for a in v.attrs.clone() {
             if let syn::Meta::List(l) = a.clone().meta {
                 let attribute_name = l.path.segments.last().unwrap().ident.clone();
-                if attribute_name.to_string() != "permit" {
+                if attribute_name != ATTRIBUTE_NAME {
                     continue;
                 }
 
@@ -81,10 +110,10 @@ fn variant_tokens_and_unique_args(data: DataEnum) -> (Vec<(Ident, Vec<Path>)>, V
                     .expect("cannot parse arguments");
 
                 let permitted_contracts: Vec<Path> = argument
-                    .into_iter()
+                    .iter()
                     .map(|arg| match arg {
                         Expr::Path(path) => path.path.clone(),
-                        _ => panic!("expected a path"),
+                        _ => panic!("could not parse permitted contract"),
                     })
                     .collect();
 
@@ -100,50 +129,31 @@ fn variant_tokens_and_unique_args(data: DataEnum) -> (Vec<(Ident, Vec<Path>)>, V
 // This computes the inverse of variant_tokens_and_unique_args's variant args.
 // Returns: Vector of tuples where the first element is a permitted contract, and the second
 // is a vector of all variants that contract is permitted for.
-fn variants_for_contract(variant_args: Vec<(Ident, Vec<Path>)>, unique_args: Vec<Path>) -> Vec<(Path, Vec<Ident>)> {
-    // TODO: We can optimize further by sorting
+fn variants_for_contract(
+    variant_args: Vec<(Ident, Vec<Path>)>,
+    unique_args: Vec<Path>,
+) -> Vec<(Path, Vec<Ident>)> {
+    // TODO: We can optimize further by sorting. Although, since this executes at compile time, this simpler
+    // implementation may be sufficient.
     unique_args
-    .into_iter()
-    .map(|permitted_contract| {
-        let mut variants: Vec<Ident> = vec![];
-        for (v, paths) in variant_args.clone() {
-            for p in paths {
-                if p.get_ident().unwrap().eq(permitted_contract.get_ident().unwrap()) {
-                    variants.push(v.clone());
-                    break;
+        .into_iter()
+        .map(|permitted_contract| {
+            let mut variants: Vec<Ident> = vec![];
+            for (v, paths) in variant_args.clone() {
+                for p in paths {
+                    if p.get_ident()
+                        .unwrap()
+                        .eq(permitted_contract.get_ident().unwrap())
+                    {
+                        variants.push(v.clone());
+                        break;
+                    }
                 }
             }
-        }
 
-        (permitted_contract, variants)
-    })
-    .collect()
-}
-
-fn route_match(routing_fns: Vec<(Ident, Vec<Path>)>) -> proc_macro2::TokenStream {
-    let (variants, routes): (Vec<_>, Vec<_>) = routing_fns.into_iter().unzip();
-    let sends = sends(routes.into_iter().flatten().collect());
-
-    proc_macro2::TokenStream::from(quote! {
-        match self {
-            #(#variants => {#sends}),*
-        }
-    })
-}
-
-fn sends(routes: Vec<Path>) -> proc_macro2::TokenStream {
-    proc_macro2::TokenStream::from(quote! {
-        let mut info_new_sender = info.clone();
-        info_new_sender.sender = original_sender.clone();
-        #(
-            let res = #routes(deps, env.clone(), info_new_sender.clone(), self.clone(), exec);
-            if res.is_ok() {
-                return Ok(res.unwrap());
-            }
-        )*
-
-        Err(axelar_wasm_std::permission_control::Error::Unauthorized)
-    })
+            (permitted_contract, variants)
+        })
+        .collect()
 }
 
 fn build_execute_implementation(data: DataEnum) -> Vec<proc_macro2::TokenStream> {
@@ -154,10 +164,8 @@ fn build_execute_implementation(data: DataEnum) -> Vec<proc_macro2::TokenStream>
         .into_iter()
         .map(|(contract, variants)| {
             // execute functions ident
-            let execute_fn_ident = format_ident!(
-                "execute_from_{}",
-                contract.get_ident().unwrap().to_string()
-            );
+            let execute_fn_ident =
+                format_ident!("execute_from_{}", contract.get_ident().unwrap().to_string());
 
             quote! {
                 pub fn #execute_fn_ident <F0>(
@@ -184,44 +192,4 @@ fn build_execute_implementation(data: DataEnum) -> Vec<proc_macro2::TokenStream>
             }
         })
         .collect()
-}
-
-// Execute function attribute
-#[proc_macro_attribute]
-pub fn allow_external_execute(_attr: TokenStream, item: TokenStream) -> TokenStream {
-    let input = parse_macro_input!(item as ItemFn);
-    let block = &input.block;
-    let sig = &input.sig;
-    let vis = &input.vis;
-
-    // Copied match
-    let mut copy_block = block.clone();
-    copy_block.stmts.clear();
-
-    // Copied signature
-    let mut copy_sig = Signature::from(sig.clone());
-    copy_sig.ident = format_ident!("{}_copy", sig.ident);
-
-    for st in block.stmts.clone() {
-        match st.clone() {
-            Stmt::Expr(expr, _) => match expr {
-                Expr::Match(match_st) => {
-                    copy_block.stmts.push(st);
-                }
-                _ => (),
-            },
-            _ => (),
-        }
-    }
-
-    TokenStream::from(quote! {
-        #vis #copy_sig {
-            println!("This is a copy!");
-            #copy_block
-        }
-
-        #vis #sig {
-            #block
-        }
-    })
 }

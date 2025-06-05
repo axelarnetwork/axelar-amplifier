@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use axelar_wasm_std::msg_id::MessageIdFormat;
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{Addr, DepsMut, Env, MessageInfo, Response};
+use cosmwasm_std::{Addr, Response};
 use msgs_derive::EnsurePermissions;
 use msgs_external_execute::ExternalExecute;
 

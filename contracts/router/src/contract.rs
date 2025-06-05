@@ -12,8 +12,6 @@ use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state;
 use crate::state::{load_chain_by_gateway, load_config, Config};
 
-use msgs_external_execute::allow_external_execute;
-
 mod execute;
 mod migrations;
 mod query;
@@ -103,8 +101,8 @@ pub fn execute(
         ExecuteMsg::ExecuteFromCoordinator {
             original_sender,
             msg,
-        } => {
-            msg.route(
+        } => msg
+            .route(
                 deps,
                 env,
                 info,
@@ -112,8 +110,7 @@ pub fn execute(
                 execute,
                 router_api::msg::ExecuteMsg::execute_from_coordinator,
             )
-            .map_err(|_| Error::Unauthorized)
-        }
+            .map_err(|_| Error::Unauthorized),
     }?
     .then(Ok)
 }
@@ -141,20 +138,6 @@ fn find_coordinator_address(
     Ok(load_config(storage)
         .change_context(Error::CoordinatorNotFound)?
         .coordinator)
-}
-
-pub enum TestEnum {
-    One,
-    Two,
-}
-
-#[allow_external_execute]
-pub fn test(t: TestEnum) {
-    match t {
-        TestEnum::One => println!("ONE!"),
-        TestEnum::Two => println!("TWO!"),
-    }
-    println!("Test function");
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -1937,11 +1920,5 @@ mod test {
 
         assert!(res.is_err());
         // TODO: Test that error is correct type
-    }
-
-    #[test]
-    fn call_test() {
-        test_copy(TestEnum::One);
-        test(TestEnum::Two);
     }
 }
