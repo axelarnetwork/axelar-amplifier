@@ -146,7 +146,7 @@ struct Status {
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
 
     use std::net::{SocketAddr, TcpListener};
     use std::time::Duration;
@@ -185,7 +185,7 @@ mod tests {
         };
     }
 
-    fn test_bind_addr() -> Option<SocketAddrV4> {
+    pub fn test_bind_addr() -> Option<SocketAddrV4> {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
 
         match listener.local_addr().unwrap() {
