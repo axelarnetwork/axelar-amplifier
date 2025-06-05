@@ -12,6 +12,7 @@ use event_sub::EventSub;
 use evm::finalizer::{pick, Finalization};
 use evm::json_rpc::EthereumClient;
 use multiversx_sdk::gateway::GatewayProxy;
+use prometheus_metrics::client::MetricsClient;
 use queue::queued_broadcaster::QueuedBroadcaster;
 use router_api::ChainName;
 use solana_client::nonblocking::rpc_client::RpcClient;
@@ -82,7 +83,6 @@ async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
         grpc: grpc_config,
     } = cfg;
 
-    // server and cient created
     let (prometheus_monitor_server, metrics_client) =
         prometheus_metrics::monitor::Server::new(prometheus_monitor_bind_addr)
             .change_context(Error::Monitor)?;
@@ -225,7 +225,7 @@ where
         Pin<Box<MsgQueue>>,
         MultisigClient,
     >,
-    metrics_client: prometheus_metrics::client::MetricsClient,
+    metrics_client: MetricsClient,
 }
 
 impl<T> App<T>
@@ -247,7 +247,7 @@ where
             Pin<Box<MsgQueue>>,
             MultisigClient,
         >,
-        metrics_client: prometheus_metrics::client::MetricsClient,
+        metrics_client: MetricsClient,
     ) -> Self {
         let event_processor = TaskGroup::new("event handler");
 
