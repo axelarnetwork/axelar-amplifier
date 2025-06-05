@@ -57,30 +57,6 @@ pub enum ExecuteMsg {
     },
 }
 
-impl ExecuteMsg {
-    pub fn execute_from_coordinator<F0>(
-        deps: DepsMut,
-        env: Env,
-        info: MessageInfo,
-        msg: ExecuteMsg,
-        exec: F0,
-    ) -> Result<Response, axelar_wasm_std::error::ContractError>
-    where
-        F0: FnOnce(
-            DepsMut,
-            Env,
-            MessageInfo,
-            Self,
-        )
-            -> Result<cosmwasm_std::Response, axelar_wasm_std::error::ContractError>,
-    {
-        match msg {
-            ExecuteMsg::RegisterChain { .. } => exec(deps, env, info, msg),
-            _ => Err(Error::InvalidExecuteMsg.into()),
-        }
-    }
-}
-
 #[cw_serde]
 #[derive(QueryResponses)]
 pub enum QueryMsg {

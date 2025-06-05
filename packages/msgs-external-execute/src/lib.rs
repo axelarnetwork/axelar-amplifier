@@ -18,55 +18,25 @@ pub fn hello_macro_derive(input: TokenStream) -> TokenStream {
 }
 
 fn build_implementation(enum_type: Ident, data: DataEnum) -> TokenStream {
-    let route_function = build_route_implementation(data);
+    let route_function = build_route_implementation(data.clone());
+    let execute_functions = build_execute_implementation(data);
 
     TokenStream::from(quote! {
         impl #enum_type {
             #route_function
+
+            #(
+                #execute_functions
+            )*
         }
     })
 }
 
 fn build_route_implementation(data: DataEnum) -> proc_macro2::TokenStream {
-    let mut route_fn_tokens: Vec<(Ident, Vec<Path>)> = vec![];
-    let mut unique_args: Vec<Path> = vec![];
+    let (variant_args, unique_args) = variant_tokens_and_unique_args(data.clone());
 
-    for v in data.variants {
-        println!("Variant: {:?}", v.ident.clone());
-        let variant = v.ident.clone();
-        for a in v.attrs.clone() {
-            if let syn::Meta::List(l) = a.clone().meta {
-                let attribute_name = l.path.segments.last().unwrap().ident.clone();
-                if attribute_name.to_string() != "permit" {
-                    continue;
-                }
+    let rm = route_match(variant_args);
 
-                println!("Last {:?}", l.path.segments.last().clone()); // permit
-
-                let argument = a
-                    .parse_args_with(Punctuated::<Expr, Token![,]>::parse_terminated)
-                    .expect("cannot parse arguments");
-
-                let mut permitted_contracts: Vec<Path> = argument
-                    .into_iter()
-                    .map(|arg| match arg {
-                        Expr::Path(path) => path.path.clone(),
-                        _ => panic!("expected a path"),
-                    })
-                    .collect();
-
-                route_fn_tokens.push((variant.clone(), permitted_contracts.clone()));
-                unique_args.append(&mut permitted_contracts.clone());
-            }
-        }
-    }
-
-    let unique_args: Vec<Path> = unique_args.into_iter().unique().collect();
-
-    println!("Tokens: {:?}", route_fn_tokens.clone());
-    println!("Arguments: {:?}", unique_args);
-
-    let rm = route_match(route_fn_tokens);
     let fs: Vec<_> = (0..unique_args.len())
         .map(|i| format_ident!("F{}", i))
         .collect();
@@ -88,6 +58,43 @@ fn build_route_implementation(data: DataEnum) -> proc_macro2::TokenStream {
             #rm
         }
     })
+}
+
+// Returns:
+// - variant tokens: First tuple element is variant ident. Second is list of permitted contracts for that variant
+// - unique arguments: List of permitted contracts (no duplicates)
+fn variant_tokens_and_unique_args(data: DataEnum) -> (Vec<(Ident, Vec<Path>)>, Vec<Path>) {
+    let mut variant_args: Vec<(Ident, Vec<Path>)> = vec![];
+    let mut unique_args: Vec<Path> = vec![];
+
+    for v in data.variants {
+        let variant = v.ident.clone();
+        for a in v.attrs.clone() {
+            if let syn::Meta::List(l) = a.clone().meta {
+                let attribute_name = l.path.segments.last().unwrap().ident.clone();
+                if attribute_name.to_string() != "permit" {
+                    continue;
+                }
+
+                let argument = a
+                    .parse_args_with(Punctuated::<Expr, Token![,]>::parse_terminated)
+                    .expect("cannot parse arguments");
+
+                let permitted_contracts: Vec<Path> = argument
+                    .into_iter()
+                    .map(|arg| match arg {
+                        Expr::Path(path) => path.path.clone(),
+                        _ => panic!("expected a path"),
+                    })
+                    .collect();
+
+                variant_args.push((variant.clone(), permitted_contracts.clone()));
+                unique_args.append(&mut permitted_contracts.clone());
+            }
+        }
+    }
+
+    (variant_args, unique_args.into_iter().unique().collect())
 }
 
 fn route_match(routing_fns: Vec<(Ident, Vec<Path>)>) -> proc_macro2::TokenStream {
@@ -114,6 +121,45 @@ fn sends(routes: Vec<Path>) -> proc_macro2::TokenStream {
 
         Err(axelar_wasm_std::permission_control::Error::Unauthorized)
     })
+}
+
+fn build_execute_implementation(data: DataEnum) -> Vec<proc_macro2::TokenStream> {
+    let (variant_args, unique_args) = variant_tokens_and_unique_args(data.clone());
+
+    unique_args
+        .into_iter()
+        .map(|permitted_contract| {
+            // execute functions ident
+            let execute_fn_ident = format_ident!(
+                "execute_from_{}",
+                permitted_contract.get_ident().unwrap().to_string()
+            );
+
+            quote! {
+                pub fn #execute_fn_ident <F0>(
+                    deps: cosmwasm_std::DepsMut,
+                    env: cosmwasm_std::Env,
+                    info: cosmwasm_std::MessageInfo,
+                    msg: ExecuteMsg,
+                    exec: F0,
+                ) -> Result<Response, axelar_wasm_std::error::ContractError>
+                where
+                    F0: FnOnce(
+                        cosmwasm_std::DepsMut,
+                        cosmwasm_std::Env,
+                        cosmwasm_std::MessageInfo,
+                        Self,
+                    )
+                        -> Result<cosmwasm_std::Response, axelar_wasm_std::error::ContractError>,
+                {
+                    match msg {
+                        ExecuteMsg::RegisterChain { .. } => exec(deps, env, info, msg),
+                        _ => Err(Error::InvalidExecuteMsg.into()),
+                    }
+                }
+            }
+        })
+        .collect()
 }
 
 // Execute function attribute
