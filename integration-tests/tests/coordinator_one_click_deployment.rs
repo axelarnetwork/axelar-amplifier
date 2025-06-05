@@ -12,7 +12,7 @@ use cosmwasm_std::testing::MockApi;
 use cosmwasm_std::{Binary, HexBinary};
 use cw_multi_test::AppResponse;
 use error_stack::Report;
-use events_derive::try_from;
+use events::try_from;
 use integration_tests::contract::Contract;
 use integration_tests::gateway_contract::GatewayContract;
 use integration_tests::multisig_prover_contract::MultisigProverContract;

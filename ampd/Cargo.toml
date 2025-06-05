@@ -30,8 +30,7 @@ ethers-core = { workspace = true }
 ethers-providers = { version = "2.0.13", default-features = false, features = [
   "rustls",
 ] }
-events = { workspace = true }
-events-derive = { workspace = true }
+events = { workspace = true, features = ["derive"] }
 evm-gateway = { workspace = true }
 futures = { workspace = true }
 gateway-event-stack = { workspace = true }
