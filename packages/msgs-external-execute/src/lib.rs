@@ -2,7 +2,8 @@ use itertools::Itertools;
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
 use syn::{
-    parse_macro_input, punctuated::Punctuated, Data, DataEnum, DeriveInput, Expr, Ident, ItemFn, Path, Signature, Stmt, Token
+    parse_macro_input, punctuated::Punctuated, Data, DataEnum, DeriveInput, Expr, Ident, ItemFn,
+    Path, Signature, Stmt, Token,
 };
 
 #[proc_macro_derive(ExternalExecute, attributes(permit))]
@@ -71,15 +72,18 @@ fn build_route_implementation(data: DataEnum) -> proc_macro2::TokenStream {
         .collect();
 
     proc_macro2::TokenStream::from(quote! {
-        pub fn route<#(#fs),*>(
+        pub fn route<T, #(#fs),*>(
             &self,
             deps: cosmwasm_std::DepsMut,
             env: cosmwasm_std::Env,
             info: cosmwasm_std::MessageInfo,
             original_sender: Addr,
+            exec: T,
             #(#unique_args: #fs),*
         ) -> Result<cosmwasm_std::Response, axelar_wasm_std::permission_control::Error>
-            where #(#fs:FnOnce(cosmwasm_std::DepsMut, cosmwasm_std::Env, cosmwasm_std::MessageInfo, Self) -> Result<cosmwasm_std::Response, axelar_wasm_std::error::ContractError>),*,
+            where
+            T: FnOnce(cosmwasm_std::DepsMut, cosmwasm_std::Env, cosmwasm_std::MessageInfo, Self) -> Result<cosmwasm_std::Response, axelar_wasm_std::error::ContractError>,
+            #(#fs:FnOnce(cosmwasm_std::DepsMut, cosmwasm_std::Env, cosmwasm_std::MessageInfo, Self, T) -> Result<cosmwasm_std::Response, axelar_wasm_std::error::ContractError>),*
                 {
             #rm
         }
@@ -102,7 +106,7 @@ fn sends(routes: Vec<Path>) -> proc_macro2::TokenStream {
         let mut info_new_sender = info.clone();
         info_new_sender.sender = original_sender.clone();
         #(
-            let res = #routes(deps, env.clone(), info_new_sender.clone(), self.clone());
+            let res = #routes(deps, env.clone(), info_new_sender.clone(), self.clone(), exec);
             if res.is_ok() {
                 return Ok(res.unwrap());
             }
@@ -130,13 +134,11 @@ pub fn allow_external_execute(_attr: TokenStream, item: TokenStream) -> TokenStr
 
     for st in block.stmts.clone() {
         match st.clone() {
-            Stmt::Expr(expr, _) => {
-                match expr {
-                    Expr::Match(match_st) => {
-                        copy_block.stmts.push(st);
-                    }
-                    _ => (),
+            Stmt::Expr(expr, _) => match expr {
+                Expr::Match(match_st) => {
+                    copy_block.stmts.push(st);
                 }
+                _ => (),
             },
             _ => (),
         }

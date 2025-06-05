@@ -108,8 +108,9 @@ pub fn execute(
                 deps,
                 env,
                 info,
-                original_sender, 
+                original_sender,
                 execute,
+                router_api::msg::ExecuteMsg::execute_from_coordinator,
             )
             .map_err(|_| Error::Unauthorized)
         }
