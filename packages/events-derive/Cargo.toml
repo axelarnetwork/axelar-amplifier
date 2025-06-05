@@ -10,7 +10,7 @@ edition = { workspace = true }
 proc-macro = true
 
 [dev-dependencies]
-events = { workspace = true}
+events = { workspace = true }
 
 [dependencies]
 error-stack = { workspace = true }
