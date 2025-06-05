@@ -1,4 +1,4 @@
-use itertools::Itertools;
+use itertools::{Itertools, Unique};
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
 use syn::{
@@ -97,6 +97,29 @@ fn variant_tokens_and_unique_args(data: DataEnum) -> (Vec<(Ident, Vec<Path>)>, V
     (variant_args, unique_args.into_iter().unique().collect())
 }
 
+// This computes the inverse of variant_tokens_and_unique_args's variant args.
+// Returns: Vector of tuples where the first element is a permitted contract, and the second
+// is a vector of all variants that contract is permitted for.
+fn variants_for_contract(variant_args: Vec<(Ident, Vec<Path>)>, unique_args: Vec<Path>) -> Vec<(Path, Vec<Ident>)> {
+    // TODO: We can optimize further by sorting
+    unique_args
+    .into_iter()
+    .map(|permitted_contract| {
+        let mut variants: Vec<Ident> = vec![];
+        for (v, paths) in variant_args.clone() {
+            for p in paths {
+                if p.get_ident().unwrap().eq(permitted_contract.get_ident().unwrap()) {
+                    variants.push(v.clone());
+                    break;
+                }
+            }
+        }
+
+        (permitted_contract, variants)
+    })
+    .collect()
+}
+
 fn route_match(routing_fns: Vec<(Ident, Vec<Path>)>) -> proc_macro2::TokenStream {
     let (variants, routes): (Vec<_>, Vec<_>) = routing_fns.into_iter().unzip();
     let sends = sends(routes.into_iter().flatten().collect());
@@ -125,14 +148,15 @@ fn sends(routes: Vec<Path>) -> proc_macro2::TokenStream {
 
 fn build_execute_implementation(data: DataEnum) -> Vec<proc_macro2::TokenStream> {
     let (variant_args, unique_args) = variant_tokens_and_unique_args(data.clone());
+    let match_cases = variants_for_contract(variant_args, unique_args.clone());
 
-    unique_args
+    match_cases
         .into_iter()
-        .map(|permitted_contract| {
+        .map(|(contract, variants)| {
             // execute functions ident
             let execute_fn_ident = format_ident!(
                 "execute_from_{}",
-                permitted_contract.get_ident().unwrap().to_string()
+                contract.get_ident().unwrap().to_string()
             );
 
             quote! {
@@ -153,7 +177,7 @@ fn build_execute_implementation(data: DataEnum) -> Vec<proc_macro2::TokenStream>
                         -> Result<cosmwasm_std::Response, axelar_wasm_std::error::ContractError>,
                 {
                     match msg {
-                        ExecuteMsg::RegisterChain { .. } => exec(deps, env, info, msg),
+                        #(ExecuteMsg::#variants { .. } => exec(deps, env, info, msg))*,
                         _ => Err(Error::InvalidExecuteMsg.into()),
                     }
                 }
