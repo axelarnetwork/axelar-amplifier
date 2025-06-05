@@ -12,6 +12,8 @@ use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state;
 use crate::state::{load_chain_by_gateway, load_config, Config};
 
+use msgs_external_execute::allow_external_execute;
+
 mod execute;
 mod migrations;
 mod query;
@@ -57,7 +59,7 @@ pub fn instantiate(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
-    _env: Env,
+    env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
@@ -103,7 +105,9 @@ pub fn execute(
             msg,
         } => {
             msg.route(
-                deps, 
+                deps,
+                env,
+                info,
                 original_sender, 
                 execute::execute_from_coordinator
             )
@@ -136,6 +140,20 @@ fn find_coordinator_address(
     Ok(load_config(storage)
         .change_context(Error::CoordinatorNotFound)?
         .coordinator)
+}
+
+pub enum TestEnum {
+    One,
+    Two,
+}
+
+#[allow_external_execute]
+pub fn test(t: TestEnum) {
+    match t {
+        TestEnum::One => println!("ONE!"),
+        TestEnum::Two => println!("TWO!"),
+    }
+    println!("Test function");
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -1918,5 +1936,11 @@ mod test {
 
         assert!(res.is_err());
         // TODO: Test that error is correct type
+    }
+
+    #[test]
+    fn call_test() {
+        test_copy(TestEnum::One);
+        test(TestEnum::Two);
     }
 }

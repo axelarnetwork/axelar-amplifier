@@ -6,7 +6,7 @@ use axelar_wasm_std::flagset::FlagSet;
 use axelar_wasm_std::msg_id::{self, MessageIdFormat};
 use axelar_wasm_std::{address, killswitch};
 use cosmwasm_std::{
-    to_json_binary, Addr, DepsMut, Event, QuerierWrapper, Response, StdResult, Storage, WasmMsg,
+    to_json_binary, Addr, DepsMut, Env, Event, MessageInfo, QuerierWrapper, Response, StdResult, Storage, WasmMsg,
 };
 use error_stack::{bail, ensure, report, Report, ResultExt};
 use itertools::Itertools;
@@ -263,31 +263,18 @@ pub fn route_messages(
 
 pub fn execute_from_coordinator(
     deps: DepsMut,
-    original_sender: Addr,
+    env: Env,
+    info: MessageInfo,
     msg: router_api::msg::ExecuteMsg,
-) -> error_stack::Result<Response, Error> {
-    match msg
-        .ensure_permissions(
-            deps.storage,
-            &original_sender,
-            crate::contract::find_gateway_address(&original_sender),
-            crate::contract::find_coordinator_address,
-        )
-        .change_context(Error::Unauthorized)?
-    {
-        router_api::msg::ExecuteMsg::RegisterChain {
-            chain,
-            gateway_address,
-            ref msg_id_format,
-        } => register_chain(
-            deps.storage,
-            deps.querier,
-            chain,
-            address::validate_cosmwasm_address(deps.api, &gateway_address)
-                .change_context(Error::InvalidAddress)?,
-            msg_id_format.clone(),
+) -> Result<Response, axelar_wasm_std::error::ContractError> {
+    match msg {
+        router_api::msg::ExecuteMsg::RegisterChain { .. } => crate::contract::execute (
+            deps,
+            env,
+            info,
+            msg
         ),
-        _ => Err(report!(Error::InvalidExecuteMsg)),
+        _ => Err(Error::InvalidExecuteMsg.into()),
     }
 }
 

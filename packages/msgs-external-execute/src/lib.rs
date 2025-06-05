@@ -1,9 +1,9 @@
-use cosmwasm_std::Response;
 use itertools::Itertools;
 use proc_macro::TokenStream;
-use proc_macro2::Span;
 use quote::{format_ident, quote};
-use syn::{punctuated::Punctuated, Data, DataEnum, DeriveInput, Expr, Ident, Path, Token};
+use syn::{
+    parse_macro_input, punctuated::Punctuated, Data, DataEnum, DeriveInput, Expr, Ident, ItemFn, Path, Signature, Stmt, Token
+};
 
 #[proc_macro_derive(ExternalExecute, attributes(permit))]
 pub fn hello_macro_derive(input: TokenStream) -> TokenStream {
@@ -60,27 +60,26 @@ fn build_route_implementation(data: DataEnum) -> proc_macro2::TokenStream {
         }
     }
 
-    let unique_args: Vec<Path> = unique_args
-    .into_iter()
-    .unique()
-    .collect();
+    let unique_args: Vec<Path> = unique_args.into_iter().unique().collect();
 
     println!("Tokens: {:?}", route_fn_tokens.clone());
     println!("Arguments: {:?}", unique_args);
 
     let rm = route_match(route_fn_tokens);
-    let fs: Vec<_> = (0..unique_args.len()).map(|i| format_ident!("F{}", i)).collect();
-    let cs: Vec<_> = (0..unique_args.len()).map(|i| format_ident!("C{}", i)).collect();
+    let fs: Vec<_> = (0..unique_args.len())
+        .map(|i| format_ident!("F{}", i))
+        .collect();
 
     proc_macro2::TokenStream::from(quote! {
-        pub fn route<#(#fs),*,#(#cs),*>(
+        pub fn route<#(#fs),*>(
             &self,
             deps: cosmwasm_std::DepsMut,
+            env: cosmwasm_std::Env,
+            info: cosmwasm_std::MessageInfo,
             original_sender: Addr,
             #(#unique_args: #fs),*
         ) -> Result<cosmwasm_std::Response, axelar_wasm_std::permission_control::Error>
-            where #(#fs:FnOnce(cosmwasm_std::DepsMut, Addr, Self) -> error_stack::Result<cosmwasm_std::Response, #cs>),*,
-            #(#cs: error_stack::Context),*
+            where #(#fs:FnOnce(cosmwasm_std::DepsMut, cosmwasm_std::Env, cosmwasm_std::MessageInfo, Self) -> Result<cosmwasm_std::Response, axelar_wasm_std::error::ContractError>),*,
                 {
             #rm
         }
@@ -100,13 +99,57 @@ fn route_match(routing_fns: Vec<(Ident, Vec<Path>)>) -> proc_macro2::TokenStream
 
 fn sends(routes: Vec<Path>) -> proc_macro2::TokenStream {
     proc_macro2::TokenStream::from(quote! {
+        let mut info_new_sender = info.clone();
+        info_new_sender.sender = original_sender.clone();
         #(
-            let res = #routes(deps, original_sender.clone(), self.clone());
+            let res = #routes(deps, env.clone(), info_new_sender.clone(), self.clone());
             if res.is_ok() {
                 return Ok(res.unwrap());
             }
         )*
 
         Err(axelar_wasm_std::permission_control::Error::Unauthorized)
+    })
+}
+
+// Execute function attribute
+#[proc_macro_attribute]
+pub fn allow_external_execute(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(item as ItemFn);
+    let block = &input.block;
+    let sig = &input.sig;
+    let vis = &input.vis;
+
+    // Copied match
+    let mut copy_block = block.clone();
+    copy_block.stmts.clear();
+
+    // Copied signature
+    let mut copy_sig = Signature::from(sig.clone());
+    copy_sig.ident = format_ident!("{}_copy", sig.ident);
+
+    for st in block.stmts.clone() {
+        match st.clone() {
+            Stmt::Expr(expr, _) => {
+                match expr {
+                    Expr::Match(match_st) => {
+                        copy_block.stmts.push(st);
+                    }
+                    _ => (),
+                }
+            },
+            _ => (),
+        }
+    }
+
+    TokenStream::from(quote! {
+        #vis #copy_sig {
+            println!("This is a copy!");
+            #copy_block
+        }
+
+        #vis #sig {
+            #block
+        }
     })
 }
