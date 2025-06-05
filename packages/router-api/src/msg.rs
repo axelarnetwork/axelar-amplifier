@@ -2,10 +2,11 @@ use std::collections::HashMap;
 
 use axelar_wasm_std::msg_id::MessageIdFormat;
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::Addr;
+use cosmwasm_std::{Addr, DepsMut, Env, MessageInfo, Response};
 use msgs_derive::EnsurePermissions;
 use msgs_external_execute::ExternalExecute;
 
+use crate::error::Error;
 use crate::primitives::*;
 
 #[cw_serde]
@@ -54,6 +55,30 @@ pub enum ExecuteMsg {
         original_sender: Addr,
         msg: Box<ExecuteMsg>,
     },
+}
+
+impl ExecuteMsg {
+    pub fn execute_from_coordinator<F0>(
+        deps: DepsMut,
+        env: Env,
+        info: MessageInfo,
+        msg: ExecuteMsg,
+        exec: F0,
+    ) -> Result<Response, axelar_wasm_std::error::ContractError>
+    where
+        F0: FnOnce(
+            DepsMut,
+            Env,
+            MessageInfo,
+            Self,
+        )
+            -> Result<cosmwasm_std::Response, axelar_wasm_std::error::ContractError>,
+    {
+        match msg {
+            ExecuteMsg::RegisterChain { .. } => exec(deps, env, info, msg),
+            _ => Err(Error::InvalidExecuteMsg.into()),
+        }
+    }
 }
 
 #[cw_serde]

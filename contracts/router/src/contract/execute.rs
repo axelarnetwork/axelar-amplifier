@@ -261,23 +261,6 @@ pub fn route_messages(
         .add_events(msgs.into_iter().map(|msg| MessageRouted { msg })))
 }
 
-pub fn execute_from_coordinator(
-    deps: DepsMut,
-    env: Env,
-    info: MessageInfo,
-    msg: router_api::msg::ExecuteMsg,
-) -> Result<Response, axelar_wasm_std::error::ContractError> {
-    match msg {
-        router_api::msg::ExecuteMsg::RegisterChain { .. } => crate::contract::execute (
-            deps,
-            env,
-            info,
-            msg
-        ),
-        _ => Err(Error::InvalidExecuteMsg.into()),
-    }
-}
-
 #[cfg(test)]
 mod test {
     use std::collections::HashMap;

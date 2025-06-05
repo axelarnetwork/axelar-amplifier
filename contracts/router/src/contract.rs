@@ -109,7 +109,7 @@ pub fn execute(
                 env,
                 info,
                 original_sender, 
-                execute::execute_from_coordinator
+                execute,
             )
             .map_err(|_| Error::Unauthorized)
         }
