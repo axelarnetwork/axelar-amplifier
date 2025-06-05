@@ -1,0 +1,56 @@
+name: tmate
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Environment"
+        required: true
+        type: choice
+        options:
+          - dev-box
+          - staging
+          - production
+        default: staging
+      label:
+        description: "Devbox label (e.g. bs-dev-paul) - only used for dev-box environment"
+        required: false
+        type: string
+      use_arm:
+        description: "Use ARM machine"
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  tmate-dev-box:
+    if: github.event.inputs.environment == 'dev-box'
+    runs-on:
+      - ${{ github.event.inputs.use_arm == 'true' && 'blacksmith-staging-32vcpu-ubuntu-2404-arm' || 'blacksmith-staging-32vcpu-ubuntu-2404' }}
+      - ${{ github.event.inputs.label }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Run tmate session
+        uses: mxschmitt/action-tmate@v3
+
+  tmate-staging:
+    if: github.event.inputs.environment == 'staging'
+    runs-on: ${{ github.event.inputs.use_arm == 'true' && 'blacksmith-staging-2vcpu-ubuntu-2404-arm' || 'blacksmith-staging' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Run tmate session
+        uses: mxschmitt/action-tmate@v3
+
+  tmate-production:
+    if: github.event.inputs.environment == 'production'
+    runs-on: ${{ github.event.inputs.use_arm == 'true' && 'blacksmith-2vcpu-ubuntu-2404-arm' || 'blacksmith' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Run tmate session
+        uses: mxschmitt/action-tmate@v3
