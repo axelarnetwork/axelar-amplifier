@@ -13,7 +13,7 @@ use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
 use tokio_stream::wrappers::BroadcastStream;
 use tokio_stream::Stream;
 use tokio_util::sync::CancellationToken;
-use tracing::{error, info};
+use tracing::{error, info, instrument};
 use valuable::Valuable;
 
 use crate::asyncutil::future::RetryPolicy;
@@ -73,6 +73,7 @@ impl EventSub for EventSubscriber {
     }
 }
 
+#[derive(Debug)]
 pub struct EventPublisher<T: TmClient + Sync> {
     tm_client: T,
     poll_interval: Duration,
@@ -80,7 +81,7 @@ pub struct EventPublisher<T: TmClient + Sync> {
     delay: Duration,
 }
 
-impl<T: TmClient + Sync> EventPublisher<T> {
+impl<T: TmClient + Sync + std::fmt::Debug> EventPublisher<T> {
     pub fn new(client: T, capacity: usize, delay: Duration) -> (Self, EventSubscriber) {
         let (tx, _) = broadcast::channel(capacity);
         let publisher = EventPublisher {
@@ -94,6 +95,7 @@ impl<T: TmClient + Sync> EventPublisher<T> {
         (publisher, subscriber)
     }
 
+    #[instrument]
     pub async fn run(self, token: CancellationToken) -> Result<(), Error> {
         let block_stream = stream::blocks(
             &self.tm_client,
@@ -156,6 +158,7 @@ mod tests {
     use random_string::generate;
     use tendermint::{abci, block};
     use tokio_util::sync::CancellationToken;
+    use tracing::instrument;
 
     use crate::event_sub::{Error, EventPublisher, EventSub};
     use crate::tm_client::{self, MockTmClient};
@@ -195,6 +198,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
+    #[instrument]
     async fn should_stream_events_and_errors() {
         let block: tendermint::Block =
             serde_json::from_str(include_str!("../tests/axelar_block.json")).unwrap();
@@ -211,9 +215,21 @@ mod tests {
                     block_id: Default::default(),
                     block: block.clone(),
                 }),
-                2 => Err(report!(tendermint_rpc::Error::server(
-                    "server error".to_string()
-                ))),
+                2 => {
+                    let context = tendermint_rpc::Error::server("server error".to_string());
+                    let report = report!(context);
+                    let res = Err(report);
+                    // dbg!(&res);
+                    // XXX TODO: determine why no span trace was included?
+                    // [ampd/src/event_sub/mod.rs:222:21] &res = Err(
+                    //     server error: server error
+                        
+                    //     Location:
+                    //         /Users/adult/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/flex-error-0.4.4/src/tracer_impl/eyre.rs:10:9
+                    //     ╰╴at ampd/src/event_sub/mod.rs:220:34,
+                    // )
+                    res
+                },
                 _ => {
                     let mut block = block.clone();
                     height = height.increment();

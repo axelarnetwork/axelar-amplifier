@@ -7,6 +7,7 @@ use std::panic::Location;
 
 use error_stack::{AttachmentKind, Context, Frame, FrameKind, Report};
 use itertools::Itertools;
+use tracing_error::SpanTrace;
 use valuable::Valuable;
 
 #[derive(Valuable, PartialEq, Debug, Default)]
@@ -16,6 +17,7 @@ pub struct LoggableError {
     pub location: String,
     pub cause: Option<Box<LoggableError>>,
     pub backtrace: Option<LoggableBacktrace>,
+    pub spantrace: Option<LoggableSpanTrace>,
 }
 
 impl Display for LoggableError {
@@ -73,8 +75,9 @@ impl<T> From<&Report<T>> for LoggableError {
                     }
                     FrameType::Location(loc) => error.location = loc.to_string(),
                     FrameType::Printable(p) => attachments.push(p),
-                    FrameType::Opaque => attachments.push("opaque attachment".to_string()),
                     FrameType::Backtrace(b) => error.backtrace = Some(LoggableBacktrace::from(b)),
+                    FrameType::Spantrace(s) => error.spantrace = Some(LoggableSpanTrace::from(s)),
+                    FrameType::Opaque => attachments.push("opaque attachment".to_string()),
                 }
             }
 
@@ -119,10 +122,28 @@ impl From<&Backtrace> for LoggableBacktrace {
     }
 }
 
+#[derive(Valuable, PartialEq, Eq, Debug)]
+pub struct LoggableSpanTrace {
+    pub lines: Vec<String>,
+}
+
+impl From<&SpanTrace> for LoggableSpanTrace {
+    fn from(spantrace: &SpanTrace) -> Self {
+        LoggableSpanTrace {
+            lines: spantrace
+                .to_string()
+                .split('\n')
+                .map(|s| s.to_string())
+                .collect(),
+        }
+    }
+}
+
 enum FrameType<'a> {
     Context(&'a dyn Context),
     Location(&'a Location<'a>),
     Backtrace(&'a Backtrace),
+    Spantrace(&'a SpanTrace),
     Printable(String),
     Opaque,
 }
@@ -141,6 +162,10 @@ impl<'a> From<&'a Frame> for FrameType<'a> {
 
                 if let Some(b) = f.downcast_ref::<Backtrace>() {
                     return FrameType::Backtrace(b);
+                }
+
+                if let Some(s) = f.downcast_ref::<SpanTrace>() {
+                    return FrameType::Spantrace(s);
                 }
 
                 FrameType::Opaque
@@ -201,10 +226,13 @@ mod tests {
                     location: format!("packages/report/src/loggable.rs:{}:22", line_offset + 1),
                     cause: None,
                     backtrace: None,
+                    spantrace: None,
                 })),
                 backtrace: None,
+                spantrace: None,
             })),
             backtrace: None,
+            spantrace: None,
         };
 
         assert_eq!(err, expected_err);
