@@ -15,7 +15,7 @@ pub fn active_verifiers(
     service_name: String,
     chain_name: ChainName,
 ) -> error_stack::Result<Vec<WeightedVerifier>, ContractError> {
-    let service = state::service(deps.storage, &service_name, &chain_name)?;
+    let service = state::service_with_overrides(deps.storage, &service_name, &chain_name)?;
 
     let verifiers: Vec<_> = VERIFIERS_PER_CHAIN
         .prefix((service_name.clone(), chain_name.clone()))
@@ -73,14 +73,17 @@ pub fn verifier(
     })
 }
 
-pub fn service(deps: Deps, service_name: String) -> error_stack::Result<Service, ContractError> {
-    state::default_service_params(deps.storage, &service_name)
+pub fn base_service(
+    deps: Deps,
+    service_name: String,
+) -> error_stack::Result<Service, ContractError> {
+    state::base_service(deps.storage, &service_name)
 }
 
-pub fn service_params(
+pub fn service_with_overrides(
     deps: Deps,
     service_name: String,
     chain_name: ChainName,
 ) -> error_stack::Result<Service, ContractError> {
-    state::service(deps.storage, &service_name, &chain_name)
+    state::service_with_overrides(deps.storage, &service_name, &chain_name)
 }

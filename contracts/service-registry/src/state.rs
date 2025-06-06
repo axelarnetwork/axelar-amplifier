@@ -57,12 +57,12 @@ const SERVICES: Map<&ServiceName, Service> = Map::new("services");
 const SERVICE_OVERRIDES: Map<(&ServiceName, &ChainName), ServiceParamsOverride> =
     Map::new("service_overrides");
 
-pub fn service(
+pub fn service_with_overrides(
     storage: &dyn Storage,
     service_name: &ServiceName,
     chain: &ChainName,
 ) -> error_stack::Result<Service, ContractError> {
-    let service = default_service_params(storage, service_name)?;
+    let service = base_service(storage, service_name)?;
 
     let params_override = SERVICE_OVERRIDES
         .may_load(storage, (service_name, chain))
@@ -82,7 +82,7 @@ pub fn service(
     }
 }
 
-pub fn default_service_params(
+pub fn base_service(
     storage: &dyn Storage,
     service_name: &ServiceName,
 ) -> error_stack::Result<Service, ContractError> {
@@ -279,7 +279,8 @@ mod tests {
         let chain_name = "solana".parse().unwrap();
 
         let loaded_service =
-            service(deps.as_ref().storage, &stored_service.name, &chain_name).unwrap();
+            service_with_overrides(deps.as_ref().storage, &stored_service.name, &chain_name)
+                .unwrap();
 
         assert_eq!(loaded_service, stored_service);
     }
@@ -305,7 +306,8 @@ mod tests {
         .unwrap();
 
         let loaded_service =
-            service(deps.as_ref().storage, &stored_service.name, &chain_name).unwrap();
+            service_with_overrides(deps.as_ref().storage, &stored_service.name, &chain_name)
+                .unwrap();
 
         let expected_service = Service {
             min_num_verifiers: min_verifiers_override,
@@ -344,7 +346,8 @@ mod tests {
         .unwrap();
 
         let loaded_service =
-            service(deps.as_ref().storage, &stored_service.name, &chain_name).unwrap();
+            service_with_overrides(deps.as_ref().storage, &stored_service.name, &chain_name)
+                .unwrap();
 
         let expected_service = Service {
             max_num_verifiers: max_verifiers_override,
@@ -377,8 +380,7 @@ mod tests {
         )
         .unwrap();
 
-        let loaded_service =
-            default_service_params(deps.as_ref().storage, &stored_service.name).unwrap();
+        let loaded_service = base_service(deps.as_ref().storage, &stored_service.name).unwrap();
 
         assert_eq!(loaded_service, stored_service);
     }

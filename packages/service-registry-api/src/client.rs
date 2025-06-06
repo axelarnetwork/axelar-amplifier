@@ -41,7 +41,7 @@ impl From<QueryMsg> for Error {
                 chain_name,
             },
             QueryMsg::Service { service_name } => Error::Service(service_name),
-            QueryMsg::ServiceParams {
+            QueryMsg::ServiceWithOverrides {
                 service_name,
                 chain_name,
             } => Error::ServiceParams {
@@ -93,7 +93,7 @@ impl Client<'_> {
     }
 
     pub fn service_params(&self, service_name: String, chain_name: ChainName) -> Result<Service> {
-        let msg = QueryMsg::ServiceParams {
+        let msg = QueryMsg::ServiceWithOverrides {
             service_name,
             chain_name,
         };
@@ -286,7 +286,7 @@ mod test {
                     QueryMsg::Service { service_name } => {
                         Ok(to_json_binary(&mock_service(&api, service_name)).into()).into()
                     }
-                    QueryMsg::ServiceParams {
+                    QueryMsg::ServiceWithOverrides {
                         service_name,
                         chain_name: _,
                     } => Ok(to_json_binary(&Service {

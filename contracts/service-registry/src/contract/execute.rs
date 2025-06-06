@@ -115,7 +115,7 @@ pub fn bond_verifier(
     info: MessageInfo,
     service_name: String,
 ) -> Result<Response, ContractError> {
-    let service = state::default_service_params(deps.storage, &service_name)?;
+    let service = state::base_service(deps.storage, &service_name)?;
 
     let bond: Option<nonempty::Uint128> = if !info.funds.is_empty() {
         Some(
@@ -189,7 +189,7 @@ pub fn unbond_verifier(
     info: MessageInfo,
     service_name: String,
 ) -> Result<Response, ContractError> {
-    let service = state::default_service_params(deps.storage, &service_name)?;
+    let service = state::base_service(deps.storage, &service_name)?;
 
     let verifier = VERIFIERS
         .may_load(deps.storage, (&service_name, &info.sender))
@@ -218,7 +218,7 @@ pub fn claim_stake(
     info: MessageInfo,
     service_name: String,
 ) -> Result<Response, ContractError> {
-    let service = state::default_service_params(deps.storage, &service_name)?;
+    let service = state::base_service(deps.storage, &service_name)?;
 
     let verifier = VERIFIERS
         .may_load(deps.storage, (&service_name, &info.sender))

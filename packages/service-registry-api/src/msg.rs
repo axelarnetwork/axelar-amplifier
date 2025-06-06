@@ -97,7 +97,7 @@ pub enum QueryMsg {
     Service { service_name: String },
 
     #[returns(Service)]
-    ServiceParams {
+    ServiceWithOverrides {
         service_name: String,
         chain_name: ChainName,
     },
