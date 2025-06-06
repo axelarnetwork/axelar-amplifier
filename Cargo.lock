@@ -2237,7 +2237,6 @@ dependencies = [
  "error-stack",
  "gateway-api",
  "goldie",
- "goldie-utils",
  "integration-tests",
  "itertools 0.14.0",
  "msgs-derive",
