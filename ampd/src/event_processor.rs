@@ -202,7 +202,7 @@ mod tests {
 
     use crate::event_processor;
     use crate::event_processor::{consume_events, Config, Error, EventHandler};
-    use crate::prometheus_metrics::monitor::tests::test_bind_addr;
+    use crate::prometheus_metrics::monitor::tests::test_server_setup;
     use crate::prometheus_metrics::monitor::Server;
     use crate::queue::queued_broadcaster::{Error as BroadcasterError, MockBroadcasterClient};
 
@@ -547,10 +547,8 @@ mod tests {
             Duration::from_secs(1),
         );
 
-        let bind_address = test_bind_addr();
-        let (server, metrics_client) = Server::new(bind_address).expect("Failed to create server");
+        let (bind_address, server, metrics_client, cancel_token) = test_server_setup();
 
-        let cancel_token = CancellationToken::new();
         tokio::spawn(server.run(cancel_token.clone()));
 
         let result_with_timeout = timeout(
