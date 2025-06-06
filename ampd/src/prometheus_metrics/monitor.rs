@@ -147,7 +147,6 @@ struct Status {
 
 #[cfg(test)]
 pub mod tests {
-
     use std::net::{SocketAddr, TcpListener};
     use std::time::Duration;
 
@@ -155,13 +154,50 @@ pub mod tests {
 
     use super::*;
 
+    fn test_bind_addr() -> Option<SocketAddrV4> {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+
+        match listener.local_addr().unwrap() {
+            SocketAddr::V4(addr) => Some(addr),
+            SocketAddr::V6(_) => panic!("unexpected address"),
+        }
+    }
+
+    pub fn test_server_setup() -> (
+        Option<SocketAddrV4>,
+        Server,
+        MetricsClient,
+        CancellationToken,
+    ) {
+        let bind_address = test_bind_addr();
+        let (server, metrics_client) = Server::new(bind_address).expect("Failed to create server");
+        let cancel = CancellationToken::new();
+
+        (bind_address, server, metrics_client, cancel)
+    }
+
+    pub fn test_dummy_server_setup() -> (Server, MetricsClient, CancellationToken) {
+        let (server, metrics_client) = Server::new(None).expect("Failed to create server");
+        let cancel = CancellationToken::new();
+
+        (server, metrics_client, cancel)
+    }
+
+    fn send_metrics_client_msg(
+        metrics_client: &MetricsClient,
+        msg: MetricsMsg,
+        number_of_messages: usize,
+    ) {
+        for i in 0..number_of_messages {
+            metrics_client
+                .send_metrics_msg(msg.clone())
+                .unwrap_or_else(|_| panic!("Failed to send message {}", i));
+        }
+    }
+
     #[async_test]
     async fn server_lifecycle() {
-        let bind_address = test_bind_addr();
-
-        let (server, _metrics_client) = Server::new(bind_address).expect("Failed to create server");
-
-        let cancel = CancellationToken::new();
+        let (bind_address, server, _metrics_client, cancel) = test_server_setup();
 
         tokio::spawn(server.run(cancel.clone()));
 
@@ -185,20 +221,9 @@ pub mod tests {
         };
     }
 
-    pub fn test_bind_addr() -> Option<SocketAddrV4> {
-        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-
-        match listener.local_addr().unwrap() {
-            SocketAddr::V4(addr) => Some(addr),
-            SocketAddr::V6(_) => panic!("unexpected address"),
-        }
-    }
-
     #[async_test]
     async fn metrics_collection_and_endpoints() {
-        let bind_address = test_bind_addr();
-        let (server, metrics_client) = Server::new(bind_address).expect("Failed to create server");
-        let cancel = CancellationToken::new();
+        let (bind_address, server, metrics_client, cancel) = test_server_setup();
 
         tokio::spawn(server.run(cancel.clone()));
         let metrics_url = format!("http://{}/metrics", bind_address.unwrap());
@@ -210,11 +235,7 @@ pub mod tests {
         let initial_text = initial_metrics.text().await.unwrap();
         assert!(initial_text.contains("blocks_received 0"));
 
-        for i in 0..3 {
-            metrics_client
-                .send_metrics_msg(MetricsMsg::IncBlockReceived)
-                .unwrap_or_else(|_| panic!("Failed to send message {}", i));
-        }
+        send_metrics_client_msg(&metrics_client, MetricsMsg::IncBlockReceived, 3);
 
         tokio::time::sleep(Duration::from_millis(100)).await;
 
@@ -226,18 +247,13 @@ pub mod tests {
 
     #[async_test]
     async fn graceful_shutdown_with_handle() {
-        let bind_address = test_bind_addr();
-        let (server, metrics_client) = Server::new(bind_address).expect("Failed to create server");
-        let cancel = CancellationToken::new();
+        let (_, server, metrics_client, cancel) = test_server_setup();
+
         let server_handle = tokio::spawn(server.run(cancel.clone()));
 
         tokio::time::sleep(Duration::from_millis(100)).await;
 
-        for i in 0..2 {
-            metrics_client
-                .send_metrics_msg(MetricsMsg::IncBlockReceived)
-                .unwrap_or_else(|_| panic!("Failed to send message {}", i));
-        }
+        send_metrics_client_msg(&metrics_client, MetricsMsg::IncBlockReceived, 2);
 
         cancel.cancel();
 
@@ -254,17 +270,13 @@ pub mod tests {
 
     #[async_test]
     async fn dummy_server_drop_client() {
-        let (server, metrics_client) = Server::new(None).expect("Failed to create dummy server");
-        let cancel = CancellationToken::new();
+        let (server, metrics_client, cancel) = test_dummy_server_setup();
+
         let server_handle = tokio::spawn(server.run(cancel.clone()));
 
         tokio::time::sleep(Duration::from_millis(50)).await;
 
-        for i in 0..5 {
-            metrics_client
-                .send_metrics_msg(MetricsMsg::IncBlockReceived)
-                .unwrap_or_else(|_| panic!("Failed to send message {}", i));
-        }
+        send_metrics_client_msg(&metrics_client, MetricsMsg::IncBlockReceived, 5);
 
         tokio::time::sleep(Duration::from_millis(50)).await;
 
@@ -282,9 +294,7 @@ pub mod tests {
     }
     #[async_test]
     async fn concurrent_clients() {
-        let bind_address = test_bind_addr();
-        let (server, original_client) = Server::new(bind_address).expect("Failed to create server");
-        let cancel = CancellationToken::new();
+        let (bind_address, server, original_client, cancel) = test_server_setup();
 
         tokio::spawn(server.run(cancel.clone()));
         tokio::time::sleep(Duration::from_millis(100)).await;
@@ -295,13 +305,9 @@ pub mod tests {
 
         let mut handles = Vec::new();
 
-        for (i, client) in [client1, client2, client3].into_iter().enumerate() {
+        for (_, client) in [client1, client2, client3].into_iter().enumerate() {
             let handle = tokio::spawn(async move {
-                for j in 0..5 {
-                    client
-                        .send_metrics_msg(MetricsMsg::IncBlockReceived)
-                        .unwrap_or_else(|_| panic!("Client {} failed to send message {}", i, j));
-                }
+                send_metrics_client_msg(&client, MetricsMsg::IncBlockReceived, 5);
             });
             handles.push(handle);
         }
