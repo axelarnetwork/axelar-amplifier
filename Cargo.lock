@@ -9342,6 +9342,7 @@ dependencies = [
  "schemars",
  "semver 1.0.26",
  "serde",
+ "serde_json",
  "service-registry-api",
  "thiserror 1.0.69",
 ]
