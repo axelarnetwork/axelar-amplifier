@@ -43,6 +43,9 @@ pub enum Error {
 
     #[error("invalid contracts response")]
     InvalidContractsResponse,
+
+    #[error("invalid byte array")]
+    InvalidByteArray,
 }
 
 #[automock(type Stream = tokio_stream::Iter<vec::IntoIter<Result<Event, Error>>>;)]
@@ -68,9 +71,13 @@ pub trait Client {
 
     async fn contracts(&mut self) -> Result<ContractsAddresses, Error>;
 
-    async fn sign(&mut self, key: Option<Key>, message: nonempty::Vec<u8>) -> Result<Value, Error>;
+    async fn sign(
+        &mut self,
+        key: Option<Key>,
+        message: nonempty::Vec<u8>,
+    ) -> Result<nonempty::Vec<u8>, Error>;
 
-    async fn key(&mut self, key: Option<Key>) -> Result<Value, Error>;
+    async fn key(&mut self, key: Option<Key>) -> Result<nonempty::Vec<u8>, Error>;
 }
 
 #[derive(Clone)]
@@ -248,7 +255,11 @@ impl Client for GrpcClient {
             .attach_printable(format!("{response:?}"))
     }
 
-    async fn sign(&mut self, key: Option<Key>, message: nonempty::Vec<u8>) -> Result<Value, Error> {
+    async fn sign(
+        &mut self,
+        key: Option<Key>,
+        message: nonempty::Vec<u8>,
+    ) -> Result<nonempty::Vec<u8>, Error> {
         self.crypto
             .sign(Request::new(SignRequest {
                 key_id: key.map(|k| k.into()),
@@ -256,30 +267,22 @@ impl Client for GrpcClient {
             }))
             .await
             .into_report()
-            .map(|response| response.into_inner().signature)
-            .and_then(|signature| {
-                let encoded_signature = hex::encode(&signature);
-
-                serde_json::to_value(signature)
-                    .change_context(Error::InvalidJson)
-                    .attach_printable(encoded_signature)
+            .and_then(|response| {
+                nonempty::Vec::try_from(response.into_inner().signature)
+                    .change_context(Error::InvalidByteArray)
             })
     }
 
-    async fn key(&mut self, key: Option<Key>) -> Result<Value, Error> {
+    async fn key(&mut self, key: Option<Key>) -> Result<nonempty::Vec<u8>, Error> {
         self.crypto
             .key(Request::new(KeyRequest {
                 key_id: key.map(|k| k.into()),
             }))
             .await
             .into_report()
-            .map(|response| response.into_inner().pub_key)
-            .and_then(|pub_key| {
-                let encoded_pub_key = hex::encode(&pub_key);
-
-                serde_json::to_value(pub_key)
-                    .change_context(Error::InvalidJson)
-                    .attach_printable(encoded_pub_key)
+            .and_then(|response| {
+                nonempty::Vec::try_from(response.into_inner().pub_key)
+                    .change_context(Error::InvalidByteArray)
             })
     }
 }
