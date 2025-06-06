@@ -80,7 +80,7 @@ pub fn create_config_response(chain_data: &ChainData, frozen: bool) -> ChainConf
         chain: chain_data.chain.clone(),
         its_edge_contract: chain_data.address.clone(),
         truncation: TruncationConfig {
-            max_uint_bits: chain_data.max_uint_bits.clone(),
+            max_uint_bits: chain_data.max_uint_bits,
             max_decimals_when_truncating: chain_data.max_decimals,
         },
         frozen,
