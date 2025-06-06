@@ -2237,6 +2237,7 @@ dependencies = [
  "error-stack",
  "gateway-api",
  "goldie",
+ "goldie-utils",
  "integration-tests",
  "itertools 0.14.0",
  "msgs-derive",
@@ -4241,6 +4242,14 @@ dependencies = [
  "serde_json",
  "upon",
  "yansi",
+]
+
+[[package]]
+name = "goldie-utils"
+version = "1.0.0"
+dependencies = [
+ "goldie",
+ "serde",
 ]
 
 [[package]]

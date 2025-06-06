@@ -1,0 +1,13 @@
+[package]
+name = "goldie-utils"
+version = "1.0.0"
+rust-version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+goldie = { workspace = true }
+serde = { workspace = true }
+
+[lints]
+workspace = true
