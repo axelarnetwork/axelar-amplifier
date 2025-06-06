@@ -11,9 +11,13 @@ use tokio_util::sync::CancellationToken;
 use tracing::info;
 
 use super::client::MetricsClient;
-use crate::prometheus_metrics::metrics::Metrics;
+use crate::prometheus_metrics::metrics::{self, Metrics};
 use crate::prometheus_metrics::msg::{MetricsError, MetricsMsg};
+use reqwest::Url;
 
+
+// safe upper bound for expected metric throughput;
+// shouldnt exceed 1000 message currently 
 const CHANNEL_SIZE: usize = 1000;
 
 pub struct Server {
@@ -36,25 +40,21 @@ impl Server {
     }
 
     pub async fn run(self, cancel: CancellationToken) -> Result<(), MetricsError> {
-        if let Some(addr) = self.bind_address {
-            Self::run_server(addr, self.metrics_rx, cancel).await
-        } else {
-            Self::run_dummy(self.metrics_rx, cancel).await;
-            Ok(())
+        match self.bind_address {
+            Some(addr) => Self::run_server(addr, self.metrics_rx, cancel).await,
+            None => Self::run_dummy(self.metrics_rx, cancel).await
         }
     }
 
-    async fn run_dummy(mut metrics_rx: mpsc::Receiver<MetricsMsg>, cancel: CancellationToken) {
-        info!("running dummy server, no metrics will be collected");
+    async fn run_dummy(mut metrics_rx: mpsc::Receiver<MetricsMsg>, cancel: CancellationToken) -> Result<(), MetricsError> {
+        info!("no prometheus endpoint defined, so no metrics will be collected");
         tokio::spawn(async move {
             loop {
                 tokio::select! {
                     msg = metrics_rx.recv() => {
                         match msg {
                             Some(_) =>{}
-                            None => {
-                                    break;
-                                }
+                            None => break,
                         }
                     }
                     _ = cancel.cancelled() => {
@@ -63,22 +63,23 @@ impl Server {
                 }
             }
         });
+        Ok(())
     }
 
     async fn run_server(
         addr: SocketAddrV4,
         metrics_rx: mpsc::Receiver<MetricsMsg>,
         cancel: CancellationToken,
-    ) -> std::result::Result<(), error_stack::Report<MetricsError>> {
+    ) -> Result<(), MetricsError> {
         let registry = prometheus::Registry::new();
         let metrics = Metrics::new(&registry)?;
         let listener = tokio::net::TcpListener::bind(addr)
             .await
             .change_context(MetricsError::Start)?;
 
-        info!(address = addr.to_string(), "starting monitor server");
+        info!(address = addr.to_string(), "starting monitoring server");
 
-        Self::start_metrics_processing(metrics, metrics_rx, cancel.clone());
+        let metrics_handle = Self::start_metrics_processing(metrics, metrics_rx, cancel.clone());
 
         // host the metrics routes, if not available, return 404
         let app = Router::new().route("/status", get(status)).route(
@@ -89,40 +90,36 @@ impl Server {
         axum::serve(listener, app)
             .with_graceful_shutdown(async move {
                 cancel.cancelled().await;
-                info!("exiting monitor server")
+                info!("shutting down monitoring server")
             })
             .await
             .change_context(MetricsError::WhileRunning)?;
+        let _ = metrics_handle.await;
         Ok(())
+        // handle joinHanlde? 
     }
 
     fn start_metrics_processing(
         server: Metrics,
         mut metrics_rx: mpsc::Receiver<MetricsMsg>,
         cancel: CancellationToken,
-    ) {
+    ) -> tokio::task::JoinHandle<()> {
         tokio::spawn(async move {
             loop {
                 tokio::select! {
-
                     msg = metrics_rx.recv() => {
                         match msg {
                             Some(msg) => {
-                                if let Err(e) = server.handle_message(msg) {
-                                    tracing::error!("Failed to handle metrics message: {:?}", e);
-                                }
+                                server.handle_message(msg) 
                             }
-                            None => {
-                                break;
-                            }
+                            None => break
                         }
                     }
-                    _ = cancel.cancelled() => {
-                        break;
-                    }
+                    _ = cancel.cancelled() => break
+                    
                 }
             }
-        });
+        })
     }
 }
 
@@ -131,11 +128,11 @@ async fn status() -> (StatusCode, Json<Status>) {
 }
 
 async fn gather_metrics(registry: &Registry) -> (StatusCode, String) {
-    match crate::prometheus_metrics::metrics::gather(registry) {
+    match metrics::gather(registry) {
         Ok(metrics) => (StatusCode::OK, metrics),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Failed to gather metrics: {}", e),
+            e.to_string(),
         ),
     }
 }
@@ -151,9 +148,19 @@ pub mod tests {
     use std::time::Duration;
 
     use tokio::test as async_test;
-
     use super::*;
 
+    pub fn test_bind_addr() -> Option<SocketAddrV4> {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+
+        match listener.local_addr().unwrap() {
+            SocketAddr::V4(addr) => Some(addr),
+            SocketAddr::V6(_) => panic!("unexpected address"),
+        }
+    }
+
+    #[async_test(start_paused = true)] 
+    async fn server_starts_responds_to_status_and_shuts_down_gracefully()  {
     fn test_bind_addr() -> Option<SocketAddrV4> {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
 
@@ -173,6 +180,7 @@ pub mod tests {
         let (server, metrics_client) = Server::new(bind_address).expect("Failed to create server");
         let cancel = CancellationToken::new();
 
+        let (server, _metrics_client) = Server::new(bind_address).expect("failed to create server");
         (bind_address, server, metrics_client, cancel)
     }
 
@@ -201,11 +209,12 @@ pub mod tests {
 
         tokio::spawn(server.run(cancel.clone()));
 
-        let url = format!("http://{}/status", bind_address.unwrap());
+        let base_url = Url::parse(&format!("http://{}", bind_address.unwrap())).unwrap();
+        let url = base_url.join("status").unwrap();
 
         tokio::time::sleep(Duration::from_millis(100)).await;
 
-        let response = reqwest::get(&url).await.unwrap();
+        let response = reqwest::get(url.clone()).await.unwrap();
         assert_eq!(reqwest::StatusCode::OK, response.status());
 
         let status = response.json::<Status>().await.unwrap();
@@ -215,7 +224,7 @@ pub mod tests {
 
         tokio::time::sleep(Duration::from_millis(100)).await;
 
-        match reqwest::get(&url).await {
+        match reqwest::get(url).await {
             Ok(_) => panic!("monitor server should be closed by now"),
             Err(error) => assert!(error.is_connect()),
         };
@@ -226,11 +235,12 @@ pub mod tests {
         let (bind_address, server, metrics_client, cancel) = test_server_setup();
 
         tokio::spawn(server.run(cancel.clone()));
-        let metrics_url = format!("http://{}/metrics", bind_address.unwrap());
+        let base_url = Url::parse(&format!("http://{}", bind_address.unwrap())).unwrap();
+        let metrics_url = base_url.join("metrics").unwrap();
 
         tokio::time::sleep(Duration::from_millis(100)).await;
 
-        let initial_metrics = reqwest::get(&metrics_url).await.unwrap();
+        let initial_metrics = reqwest::get(metrics_url.clone()).await.unwrap();
         assert_eq!(reqwest::StatusCode::OK, initial_metrics.status());
         let initial_text = initial_metrics.text().await.unwrap();
         assert!(initial_text.contains("blocks_received 0"));
@@ -239,7 +249,7 @@ pub mod tests {
 
         tokio::time::sleep(Duration::from_millis(100)).await;
 
-        let updated_metrics = reqwest::get(&metrics_url).await.unwrap();
+        let updated_metrics = reqwest::get(metrics_url).await.unwrap();
         let updated_text = updated_metrics.text().await.unwrap();
         assert!(updated_text.contains("blocks_received 3"));
         cancel.cancel();
@@ -256,15 +266,14 @@ pub mod tests {
         send_metrics_client_msg(&metrics_client, MetricsMsg::IncBlockReceived, 2);
 
         cancel.cancel();
-
         let shutdown_result = tokio::time::timeout(Duration::from_secs(2), server_handle).await;
         assert!(
             shutdown_result.is_ok(),
-            "Server should shut down gracefully"
+            "server should shut down gracefully"
         );
         assert!(
             shutdown_result.unwrap().is_ok(),
-            "Server should complete without errors"
+            "server should complete without errors"
         );
     }
 
@@ -285,14 +294,15 @@ pub mod tests {
         let shutdown_result = tokio::time::timeout(Duration::from_secs(2), server_handle).await;
         assert!(
             shutdown_result.is_ok(),
-            "Dummy server should exit when client is dropped"
+            "dummy server should exit when client is dropped"
         );
         assert!(
             shutdown_result.unwrap().is_ok(),
-            "Dummy server should complete without errors"
+            "dummy server should complete without errors"
         );
     }
-    #[async_test]
+
+    #[async_test, start_paused = true]
     async fn concurrent_clients() {
         let (bind_address, server, original_client, cancel) = test_server_setup();
 
@@ -305,7 +315,7 @@ pub mod tests {
 
         let mut handles = Vec::new();
 
-        for (_, client) in [client1, client2, client3].into_iter().enumerate() {
+        for client in [client1, client2, client3].into_iter() {
             let handle = tokio::spawn(async move {
                 send_metrics_client_msg(&client, MetricsMsg::IncBlockReceived, 5);
             });
@@ -316,10 +326,12 @@ pub mod tests {
             handle.await.unwrap();
         }
 
-        tokio::time::sleep(Duration::from_millis(100)).await;
+        tokio::time::sleep(Duration::from_millis(100)).await; 
 
-        let metrics_url = format!("http://{}/metrics", bind_address.unwrap());
-        let response = reqwest::get(&metrics_url).await.unwrap();
+        let base_url = Url::parse(&format!("http://{}", bind_address.unwrap())).unwrap();
+        let metrics_url = base_url.join("metrics").unwrap();
+       
+        let response = reqwest::get(metrics_url).await.unwrap();
         let metrics_text = response.text().await.unwrap();
         assert!(metrics_text.contains("blocks_received 15"));
 

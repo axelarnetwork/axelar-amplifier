@@ -107,7 +107,7 @@ where
                 "handler finished processing block"
             );
             metric_client
-                .send_metrics_msg(MetricsMsg::IncBlockReceived)
+                .record_metric(MetricsMsg::IncBlockReceived)
                 .change_context(Error::Metrics)?;
         }
 

@@ -1,5 +1,5 @@
 use prometheus::{Encoder, IntCounter, Registry, TextEncoder};
-
+use error_stack::{Result, ResultExt};
 use crate::prometheus_metrics::msg::{MetricsError, MetricsMsg};
 
 pub struct Metrics {
@@ -8,24 +8,23 @@ pub struct Metrics {
 
 impl Metrics {
     pub fn new(registry: &Registry) -> Result<Self, MetricsError> {
-        let block_received = IntCounter::new("blocks_received", "Number of blocks received")
-            .map_err(|_| MetricsError::MetricSpawnFailed)?;
+        let block_received = IntCounter::new("blocks_received", "number of blocks received")
+            .change_context(MetricsError::MetricSpawnFailed)?;
 
         registry
             .register(Box::new(block_received.clone()))
-            .map_err(|_| MetricsError::MetricRegisterFailed)?;
+            .change_context(MetricsError::MetricRegisterFailed)?;
 
         Ok(Self { block_received })
     }
 
     // modify metrics based on the message receive
-    pub fn handle_message(&self, msg: MetricsMsg) -> Result<(), MetricsError> {
+    pub fn handle_message(&self, msg: MetricsMsg) {
         match msg {
             MetricsMsg::IncBlockReceived => {
                 self.block_received.inc();
             }
         }
-        Ok(())
     }
 }
 
@@ -38,5 +37,5 @@ pub fn gather(registry: &Registry) -> Result<String, MetricsError> {
         .encode(&metric_families, &mut buffer)
         .map_err(|_| MetricsError::EncodeError)?;
 
-    String::from_utf8(buffer).map_err(|_| MetricsError::Utf8Error)
+    String::from_utf8(buffer).change_context(MetricsError::Utf8Error)
 }

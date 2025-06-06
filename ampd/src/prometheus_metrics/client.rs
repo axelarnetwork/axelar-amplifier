@@ -1,5 +1,5 @@
 use tokio::sync::mpsc::Sender;
-
+use error_stack::{Result, ResultExt};
 use crate::prometheus_metrics::msg::{MetricsError, MetricsMsg};
 
 #[derive(Clone)]
@@ -12,10 +12,10 @@ impl MetricsClient {
         Self { sender }
     }
 
-    pub fn send_metrics_msg(&self, msg: MetricsMsg) -> Result<(), MetricsError> {
+    pub fn record_metric(&self, msg: MetricsMsg) -> Result<(), MetricsError> {
         self.sender
             .try_send(msg)
-            .map_err(|_| MetricsError::MetricUpdateFailed)?;
+            .change_context(MetricsError::MetricUpdateFailed)?;
         Ok(())
     }
 }
