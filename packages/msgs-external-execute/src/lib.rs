@@ -202,8 +202,31 @@ fn build_execute_implementation(data: DataEnum) -> Vec<proc_macro2::TokenStream>
 
 // Generate the execution message
 #[proc_macro_attribute]
-pub fn external_execute(_attr: TokenStream, item: TokenStream) -> TokenStream {
+pub fn external_execute(attr: TokenStream, item: TokenStream) -> TokenStream {
     let mut input_enum = parse_macro_input!(item as ItemEnum);
+
+    let permitted_contracts: Vec<Ident> = match syn::parse(attr).unwrap() {
+        Expr::Call( call ) => {
+            match *call.func.clone() {
+                Expr::Path ( call_path ) => {
+                    if call_path.path.get_ident().unwrap().to_string() != "contracts" {
+                        panic!("expected a 'contracts' call")
+                    }
+
+                    call.args.iter()
+                    .filter_map(|e| match e.clone() {
+                        Expr::Path( path ) => {
+                            Some(path.path.get_ident().unwrap().clone())
+                        },
+                        _ => None,
+                    })
+                    .collect()
+                },
+                _ => panic!("expected a 'contracts' call")
+            }
+        },
+        _ => panic!("expected a 'contracts' call"),
+    };
 
     // Derive ExternalExecute
     input_enum.attrs.push(parse_quote!{
@@ -211,7 +234,7 @@ pub fn external_execute(_attr: TokenStream, item: TokenStream) -> TokenStream {
     });
 
     let new_variant: syn::Variant = syn::parse2(quote! {
-        #[permission(Specific(coordinator))]
+        #[permission(Specific(#(#permitted_contracts),*))]
         ExecuteFromCoordinator {
             original_sender: Addr,
             msg: Box<ExecuteMsg>,

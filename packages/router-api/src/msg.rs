@@ -9,7 +9,7 @@ use msgs_external_execute::{external_execute, ExternalExecute};
 use crate::error::Error;
 use crate::primitives::*;
 
-#[external_execute]
+#[external_execute(contracts(coordinator))]
 #[cw_serde]
 #[derive(EnsurePermissions)]
 pub enum ExecuteMsg {
