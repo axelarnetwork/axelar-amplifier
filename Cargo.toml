@@ -68,7 +68,7 @@ gateway = { version = "^1.1.1", path = "contracts/gateway" }
 gateway-api = { version = "^1.0.0", path = "packages/gateway-api" }
 gateway-event-stack = { git = "https://github.com/eigerco/solana-axelar.git", rev = "f167d2b" }
 goldie = { version = "0.5" }
-goldie-utils = { version = "^1.0.0", path = "packages/goldie-utils"}
+goldie-utils = { version = "^1.0.0", path = "packages/goldie-utils" }
 heck = "0.5.0"
 hex = "0.4.3"
 humantime-serde = "1.1.1"
