@@ -402,7 +402,7 @@ pub fn register_chains(deps: DepsMut, chains: Vec<msg::ChainConfig>) -> Result<R
 fn register_chain(storage: &mut dyn Storage, config: msg::ChainConfig) -> Result<(), Error> {
     match state::may_load_chain_config(storage, &config.chain).change_context(Error::State)? {
         Some(_) => bail!(Error::ChainAlreadyRegistered(config.chain)),
-        None => state::save_chain_config(storage, &config.chain.clone(), config)
+        None => state::save_chain_config(storage, &config.chain.clone(), &config.into())
             .change_context(Error::State)?,
     };
 
@@ -420,7 +420,7 @@ pub fn update_chains(deps: DepsMut, chains: Vec<msg::ChainConfig>) -> Result<Res
 fn update_chain(storage: &mut dyn Storage, config: msg::ChainConfig) -> Result<(), Error> {
     match state::may_load_chain_config(storage, &config.chain).change_context(Error::State)? {
         None => bail!(Error::ChainNotRegistered(config.chain)),
-        Some(_) => state::save_chain_config(storage, &config.chain.clone(), config)
+        Some(_) => state::save_chain_config(storage, &config.chain.clone(), &config.into())
             .change_context(Error::State)?,
     };
 
