@@ -34,9 +34,9 @@ type Result<T> = error_stack::Result<T, Error>;
 
 #[derive(Error, Debug)]
 pub enum Error {
-    #[error("failed to connect to the grpc endpoint")]
+    #[error(transparent)]
     GrpcConnection(#[from] tonic::transport::Error),
-    #[error("failed to make the grpc request")]
+    #[error(transparent)]
     GrpcRequest(#[from] Status),
     #[error("gas info is missing in the query response")]
     GasInfoMissing,
@@ -246,7 +246,7 @@ where
 pub async fn contract_state<T>(
     client: &mut T,
     address: &TMAddress,
-    query: impl AsRef<[u8]>,
+    query: Vec<u8>,
 ) -> Result<Vec<u8>>
 where
     T: CosmosClient,
@@ -254,7 +254,7 @@ where
     client
         .smart_contract_state(QuerySmartContractStateRequest {
             address: address.to_string(),
-            query_data: query.as_ref().to_vec(),
+            query_data: query,
         })
         .await
         .map(|res| res.data)

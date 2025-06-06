@@ -102,8 +102,11 @@ async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
         .await
         .change_context(Error::Tofnd)?;
     let pub_key = CosmosPublicKey::try_from(pub_key).change_context(Error::Tofnd)?;
-    let (event_publisher, event_subscriber) =
-        event_sub::EventPublisher::new(tm_client.clone(), event_processor.stream_buffer_size);
+    let (event_publisher, event_subscriber) = event_sub::EventPublisher::new(
+        tm_client.clone(),
+        event_processor.stream_buffer_size,
+        event_processor.delay,
+    );
     let cosmos_client = cosmos::CosmosGrpcClient::new(tm_grpc.as_str(), tm_grpc_timeout)
         .await
         .change_context(Error::Connection)
