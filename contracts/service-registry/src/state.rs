@@ -1,7 +1,8 @@
 use axelar_wasm_std::nonempty;
 use cosmwasm_std::{Addr, Storage, Timestamp, Uint128};
 use cw_storage_plus::{Index, IndexList, IndexedMap, KeyDeserialize, Map, MultiIndex};
-use error_stack::{report, Report, ResultExt};
+use error_stack::{report, ResultExt as _};
+use report::ResultExt;
 use router_api::ChainName;
 use service_registry_api::error::ContractError;
 use service_registry_api::{
@@ -101,7 +102,7 @@ pub fn save_service(
             None => Ok(service),
             _ => Err(ContractError::ServiceAlreadyExists),
         })
-        .map_err(Report::new)
+        .into_report()
 }
 
 pub fn has_service(storage: &dyn Storage, service_name: &ServiceName) -> bool {
@@ -132,7 +133,7 @@ pub fn update_service(
                 ..service
             }),
         })
-        .map_err(Report::new)
+        .into_report()
 }
 
 pub fn save_service_override(
@@ -143,8 +144,7 @@ pub fn save_service_override(
 ) -> error_stack::Result<(), ContractError> {
     SERVICE_OVERRIDES
         .save(storage, (service_name, chain), service_params_override)
-        .map_err(ContractError::from)
-        .map_err(Report::new)
+        .into_report()
 }
 
 pub fn remove_service_override(

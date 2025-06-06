@@ -1,7 +1,8 @@
 use axelar_wasm_std::address;
 use cosmwasm_std::{Deps, Order};
-use error_stack::{report, Report};
+use error_stack::report;
 use itertools::Itertools;
+use report::ResultExt;
 use router_api::ChainName;
 use service_registry_api::error::ContractError;
 use service_registry_api::*;
@@ -37,8 +38,7 @@ pub fn active_verifiers(
             weight: VERIFIER_WEIGHT, // all verifiers have an identical const weight for now
         })
         .try_collect()
-        .map_err(ContractError::from)
-        .map_err(Report::new)?;
+        .into_report()?;
 
     if verifiers.len() < service.min_num_verifiers.into() {
         Err(report!(ContractError::NotEnoughVerifiers))
