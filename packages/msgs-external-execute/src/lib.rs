@@ -2,10 +2,7 @@ use itertools::Itertools;
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
 use syn::punctuated::Punctuated;
-use syn::{
-    Data, DataEnum, DeriveInput, Expr, Ident, Path,
-    Token,
-};
+use syn::{Data, DataEnum, DeriveInput, Expr, Ident, Path, Token};
 
 const ATTRIBUTE_NAME: &str = "permit";
 
@@ -22,7 +19,7 @@ pub fn hello_macro_derive(input: TokenStream) -> TokenStream {
 
 fn build_implementation(enum_type: Ident, data: DataEnum) -> TokenStream {
     let route_function = build_route_implementation(data.clone());
-    let execute_functions = build_execute_implementation(data);
+    let execute_functions = build_execute_implementation(data.clone());
 
     TokenStream::from(quote! {
         impl #enum_type {
@@ -65,28 +62,35 @@ fn build_route_implementation(data: DataEnum) -> proc_macro2::TokenStream {
 
 fn route_match(routing_fns: Vec<(Ident, Vec<Path>)>) -> proc_macro2::TokenStream {
     let (variants, routes): (Vec<_>, Vec<_>) = routing_fns.into_iter().unzip();
-    let sends = sends(routes.into_iter().flatten().collect());
+    let sends = sends(routes.clone());
 
     quote! {
+        let mut info_new_sender = info.clone();
+        info_new_sender.sender = original_sender.clone();
+
         match self {
-            #(#variants => {#sends}),*
+            #(ExecuteMsg::#variants {..} => {#sends}),*
+            _ => Err(axelar_wasm_std::permission_control::Error::WrongVariant),
         }
     }
 }
 
-fn sends(routes: Vec<Path>) -> proc_macro2::TokenStream {
-    quote! {
-        let mut info_new_sender = info.clone();
-        info_new_sender.sender = original_sender.clone();
-        #(
-            let res = #routes(deps, env.clone(), info_new_sender.clone(), self.clone(), exec);
-            if res.is_ok() {
-                return Ok(res.unwrap());
-            }
-        )*
+fn sends(routes: Vec<Vec<Path>>) -> Vec<proc_macro2::TokenStream> {
+    routes
+    .into_iter()
+    .map(|paths| {
+        quote! {
+            #(
+                let res = #paths(deps, env.clone(), info_new_sender.clone(), self.clone(), exec);
+                if res.is_ok() {
+                    return Ok(res.unwrap());
+                }
+            )*
 
-        Err(axelar_wasm_std::permission_control::Error::Unauthorized)
-    }
+            Err(axelar_wasm_std::permission_control::Error::Unauthorized)
+        }
+    })
+    .collect()
 }
 
 // Returns
@@ -185,7 +189,7 @@ fn build_execute_implementation(data: DataEnum) -> Vec<proc_macro2::TokenStream>
                         -> Result<cosmwasm_std::Response, axelar_wasm_std::error::ContractError>,
                 {
                     match msg {
-                        #(ExecuteMsg::#variants { .. } => exec(deps, env, info, msg))*,
+                        #(ExecuteMsg::#variants { .. } => {exec(deps, env, info, msg)}),*
                         _ => Err(Error::InvalidExecuteMsg.into()),
                     }
                 }
