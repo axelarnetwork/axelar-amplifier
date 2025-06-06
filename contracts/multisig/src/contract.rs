@@ -174,7 +174,7 @@ pub fn query(
     .then(Ok)
 }
 
-#[cfg(feature = "test")]
+//#[cfg(feature = "test")]
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
@@ -381,6 +381,14 @@ mod tests {
     ) {
         let mut deps = mock_dependencies();
         do_instantiate(deps.as_mut()).unwrap();
+        let prover_address = MockApi::default().addr_make(PROVER);
+        let chain_name: ChainName = "mock-chain".parse().unwrap();
+        do_authorize_callers(
+            deps.as_mut(),
+            vec![(prover_address.clone(), chain_name.clone())],
+        )
+        .unwrap();
+    
         let verifier_set_ecdsa = generate_verifier_set(KeyType::Ecdsa, deps.as_mut())
             .unwrap()
             .1;
@@ -461,7 +469,14 @@ mod tests {
     fn update_verifier_set() {
         let mut deps = mock_dependencies();
         do_instantiate(deps.as_mut()).unwrap();
-
+        
+        let prover_address = MockApi::default().addr_make(PROVER);
+        let chain_name: ChainName = "mock-chain".parse().unwrap();
+        do_authorize_callers(
+            deps.as_mut(),
+            vec![(prover_address, chain_name)],
+        ).unwrap();
+        
         let res = generate_verifier_set(KeyType::Ecdsa, deps.as_mut());
         assert!(res.is_ok());
         let verifier_set_1 = res.unwrap().1;
@@ -1165,12 +1180,6 @@ mod tests {
         let prover_address = api.addr_make(PROVER);
         let chain_name: ChainName = "mock-chain".parse().unwrap();
 
-        // authorize
-        do_authorize_callers(
-            deps.as_mut(),
-            vec![(prover_address.clone(), chain_name.clone())],
-        )
-        .unwrap();
 
         for verifier_set_id in [ecdsa_subkey.clone(), ed25519_subkey.clone()] {
             let res = do_start_signing_session(

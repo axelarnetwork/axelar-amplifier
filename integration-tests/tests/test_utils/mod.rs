@@ -714,14 +714,15 @@ pub struct Chain {
     pub multisig_prover: MultisigProverContract,
     pub chain_name: ChainName,
 }
-
+// setting up a new chain for testing 
+// multisig prover admin -> 
 pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
     let voting_verifier = VotingVerifierContract::instantiate_contract(
         protocol,
         Threshold::try_from((3, 4)).unwrap().try_into().unwrap(),
         chain_name.clone(),
     );
-
+    
     let gateway = GatewayContract::instantiate_contract(
         &mut protocol.app,
         protocol.router.contract_address().clone(),
@@ -759,14 +760,8 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
         },
     );
     assert!(response.is_ok());
-
-    let response = multisig_prover.execute(
-        &mut protocol.app,
-        multisig_prover_admin,
-        &multisig_prover::msg::ExecuteMsg::UpdateVerifierSet,
-    );
-    assert!(response.is_ok());
-
+    // authorize the multisig prover to call the multisig contract (contract adress and name)
+    // saving to authorize state.rs <- registerverifier set hasnt saved here 
     let response = protocol.multisig.execute(
         &mut protocol.app,
         protocol.governance_address.clone(),
@@ -779,6 +774,18 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
     );
     assert!(response.is_ok());
 
+    // --------------------- setup and register everything ---------------------
+    // initial verifier set is registered 
+    let response = multisig_prover.execute(
+        &mut protocol.app,
+        multisig_prover_admin,
+        &multisig_prover::msg::ExecuteMsg::UpdateVerifierSet,
+    );
+    assert!(response.is_ok());
+    
+    
+    
+    
     let response = protocol.router.execute(
         &mut protocol.app,
         protocol.governance_address.clone(),

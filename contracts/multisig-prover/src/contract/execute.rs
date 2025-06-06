@@ -306,10 +306,10 @@ fn ensure_verifier_set_verification(
         Ok(())
     }
 }
-
+// detects changes in verifiers and creates a pending verifier set update? 
 pub fn confirm_verifier_set(deps: DepsMut, sender: Addr) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage).expect("failed to load config");
-
+    // loeads the pending verifier set that was previously stored in update_verifier_set
     let verifier_set = NEXT_VERIFIER_SET
         .may_load(deps.storage)
         .change_context(ContractError::StorageError)?
@@ -320,6 +320,7 @@ pub fn confirm_verifier_set(deps: DepsMut, sender: Addr) -> Result<Response, Con
     if !sender_role.contains(Permission::Governance) {
         ensure_verifier_set_verification(&verifier_set, &config, &deps)?;
     }
+    // sender needs to be a governance-> otherwise verify it 
 
     CURRENT_VERIFIER_SET
         .save(deps.storage, &verifier_set)
