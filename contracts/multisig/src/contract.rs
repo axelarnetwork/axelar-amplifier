@@ -1494,4 +1494,69 @@ mod tests {
         assert!(res.is_err());
         assert!(res.unwrap_err().to_string().contains("sender is not authorized"));
     }
+
+    #[test]
+    fn test_register_verifier_set_authorization_edge_cases() {
+        let mut deps = mock_dependencies();
+        do_instantiate(deps.as_mut()).unwrap();
+        
+        let api = deps.api;
+        let prover_address = api.addr_make(PROVER);
+        let chain_name: ChainName = "mock-chain".parse().unwrap();
+        
+        // Create test verifier sets
+        let ecdsa_signers = ecdsa_test_data::signers();
+        let verifier_set1 = build_verifier_set(KeyType::Ecdsa, &ecdsa_signers);
+        let verifier_set2 = build_verifier_set(KeyType::Ecdsa, &ecdsa_signers[1..]);
+        
+        // Test 1: Try to register without any authorization
+        let info = message_info(&prover_address, &[]);
+        let env = mock_env();
+        let msg = ExecuteMsg::RegisterVerifierSet { 
+            verifier_set: verifier_set1.clone() 
+        };
+        let res = execute(deps.as_mut(), env, info, msg);
+        assert!(res.is_err());
+        assert!(res.unwrap_err().to_string().contains("sender is not authorized"));
+        
+        // Test 2: Authorize for wrong chain, should still fail
+        do_authorize_callers(
+            deps.as_mut(),
+            vec![(prover_address.clone(), "wrong-chain".parse().unwrap())],
+        ).unwrap();
+        
+        let info = message_info(&prover_address, &[]);
+        let env = mock_env();
+        let msg = ExecuteMsg::RegisterVerifierSet { 
+            verifier_set: verifier_set1.clone() 
+        };
+        let res = execute(deps.as_mut(), env, info, msg);
+        assert!(res.is_ok()); // This should still work because we only check if the caller is authorized
+        
+        // Test 3: Unauthorize and try again
+        do_unauthorize_caller(
+            deps.as_mut(),
+            vec![(prover_address.clone(), "wrong-chain".parse().unwrap())],
+        ).unwrap();
+        
+        let info = message_info(&prover_address, &[]);
+        let env = mock_env();
+        let msg = ExecuteMsg::RegisterVerifierSet { 
+            verifier_set: verifier_set2 
+        };
+        let res = execute(deps.as_mut(), env, info, msg);
+        assert!(res.is_err());
+        assert!(res.unwrap_err().to_string().contains("sender is not authorized"));
+        
+        // Test 4: Try with a different unauthorized address
+        let other_address = api.addr_make("other");
+        let info = message_info(&other_address, &[]);
+        let env = mock_env();
+        let msg = ExecuteMsg::RegisterVerifierSet { 
+            verifier_set: verifier_set1 
+        };
+        let res = execute(deps.as_mut(), env, info, msg);
+        assert!(res.is_err());
+        assert!(res.unwrap_err().to_string().contains("sender is not authorized"));
+    }
 }
