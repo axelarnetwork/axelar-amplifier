@@ -2,7 +2,9 @@ use itertools::Itertools;
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
 use syn::punctuated::Punctuated;
-use syn::{Data, DataEnum, DeriveInput, Expr, Ident, Path, Token};
+use syn::{
+    parse_macro_input, parse_quote, Data, DataEnum, DeriveInput, Expr, Ident, ItemEnum, ItemFn, Path, Token
+};
 
 const ATTRIBUTE_NAME: &str = "permit";
 
@@ -19,7 +21,7 @@ pub fn hello_macro_derive(input: TokenStream) -> TokenStream {
 
 fn build_implementation(enum_type: Ident, data: DataEnum) -> TokenStream {
     let route_function = build_route_implementation(data.clone());
-    let execute_functions = build_execute_implementation(data.clone());
+    let execute_functions = build_execute_implementation(data);
 
     TokenStream::from(quote! {
         impl #enum_type {
@@ -196,4 +198,31 @@ fn build_execute_implementation(data: DataEnum) -> Vec<proc_macro2::TokenStream>
             }
         })
         .collect()
+}
+
+// Generate the execution message
+#[proc_macro_attribute]
+pub fn external_execute(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    let mut input_enum = parse_macro_input!(item as ItemEnum);
+
+    // Derive ExternalExecute
+    input_enum.attrs.push(parse_quote!{
+        #[derive(ExternalExecute)]
+    });
+
+    let new_variant: syn::Variant = syn::parse2(quote! {
+        #[permission(Specific(coordinator))]
+        ExecuteFromCoordinator {
+            original_sender: Addr,
+            msg: Box<ExecuteMsg>,
+        }
+    }).unwrap();
+
+    // Add variant
+    input_enum.variants.push(new_variant);
+
+    // Convert back to TokenStream
+    TokenStream::from(quote! {
+        #input_enum
+    })
 }
