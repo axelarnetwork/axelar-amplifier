@@ -83,7 +83,7 @@ where
             .inspect_err(status::log("invalid contract state request"))
             .map_err(status::StatusExt::into_status)?;
 
-        cosmos::contract_state(&mut self.cosmos_client.clone(), &contract, &query)
+        cosmos::contract_state(&mut self.cosmos_client.clone(), &contract, query)
             .await
             .map(|result| ContractStateResponse { result })
             .map(Response::new)

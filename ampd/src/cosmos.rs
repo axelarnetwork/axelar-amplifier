@@ -246,7 +246,7 @@ where
 pub async fn contract_state<T>(
     client: &mut T,
     address: &TMAddress,
-    query: impl AsRef<[u8]>,
+    query: Vec<u8>,
 ) -> Result<Vec<u8>>
 where
     T: CosmosClient,
@@ -254,7 +254,7 @@ where
     client
         .smart_contract_state(QuerySmartContractStateRequest {
             address: address.to_string(),
-            query_data: query.as_ref().to_vec(),
+            query_data: query,
         })
         .await
         .map(|res| res.data)
