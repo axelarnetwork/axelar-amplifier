@@ -16,6 +16,7 @@ cw-storage-plus = { workspace = true }
 error-stack = { workspace = true }
 flagset = { version = "0.4.3", features = ["serde"] }
 msgs-derive = { workspace = true }
+msgs-external-execute = { workspace = true }
 report = { workspace = true }
 schemars = { workspace = true }
 serde = { workspace = true }

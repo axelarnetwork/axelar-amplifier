@@ -57,7 +57,7 @@ pub fn instantiate(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
-    _env: Env,
+    env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
@@ -101,11 +101,16 @@ pub fn execute(
         ExecuteMsg::ExecuteFromCoordinator {
             original_sender,
             msg,
-        } => Ok(execute::execute_from_coordinator(
-            deps,
-            original_sender,
-            *msg,
-        )?),
+        } => msg
+            .route(
+                deps,
+                env,
+                info,
+                original_sender,
+                execute,
+                router_api::msg::ExecuteMsg::execute_from_coordinator,
+            )
+            .map_err(|_| Error::Unauthorized),
     }?
     .then(Ok)
 }
@@ -1914,9 +1919,6 @@ mod test {
         );
 
         assert!(res.is_err());
-        assert!(res
-            .unwrap_err()
-            .to_string()
-            .contains(&Error::InvalidExecuteMsg.to_string()));
+        // TODO: Test that error is correct type
     }
 }

@@ -2,15 +2,18 @@ use std::collections::HashMap;
 
 use axelar_wasm_std::msg_id::MessageIdFormat;
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::Addr;
+use cosmwasm_std::{Addr, Response};
 use msgs_derive::EnsurePermissions;
+use msgs_external_execute::ExternalExecute;
 
+use crate::error::Error;
 use crate::primitives::*;
 
 #[cw_serde]
-#[derive(EnsurePermissions)]
+#[derive(EnsurePermissions, ExternalExecute)]
 pub enum ExecuteMsg {
     /// Registers a new chain with the router
+    #[permit(coordinator)]
     #[permission(Governance)]
     RegisterChain {
         chain: ChainName,

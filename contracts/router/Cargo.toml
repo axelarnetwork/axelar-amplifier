@@ -41,6 +41,7 @@ gateway-api = { workspace = true }
 itertools = { workspace = true }
 mockall = { workspace = true }
 msgs-derive = { workspace = true }
+msgs-external-execute = { workspace = true }
 report = { workspace = true }
 router-api = { workspace = true }
 semver = { workspace = true }
