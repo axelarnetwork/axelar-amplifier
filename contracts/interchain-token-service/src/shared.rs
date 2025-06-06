@@ -11,7 +11,7 @@ pub enum Error {
 }
 
 #[cw_serde]
-#[derive(PartialOrd)]
+#[derive(PartialOrd, Copy)]
 #[serde(try_from = "u32", into = "u32")]
 pub struct NumBits(u8);
 

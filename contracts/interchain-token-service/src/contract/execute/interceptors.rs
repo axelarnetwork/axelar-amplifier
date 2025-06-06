@@ -422,14 +422,15 @@ mod test {
         state::save_chain_config(
             &mut storage,
             &destination_chain,
-            msg::ChainConfig {
+            &msg::ChainConfig {
                 chain: destination_chain.clone(),
                 its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
                 truncation: TruncationConfig {
                     max_uint_bits: 32u32.try_into().unwrap(),
                     max_decimals_when_truncating: 6,
                 },
-            },
+            }
+            .into(),
         )
         .unwrap();
 
@@ -475,14 +476,15 @@ mod test {
         state::save_chain_config(
             &mut storage,
             &destination_chain,
-            msg::ChainConfig {
+            &msg::ChainConfig {
                 chain: destination_chain.clone(),
                 its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
                 truncation: TruncationConfig {
                     max_uint_bits: 64.try_into().unwrap(),
                     max_decimals_when_truncating: 6,
                 },
-            },
+            }
+            .into(),
         )
         .unwrap();
 
@@ -528,14 +530,15 @@ mod test {
         state::save_chain_config(
             &mut storage,
             &destination_chain,
-            msg::ChainConfig {
+            &msg::ChainConfig {
                 chain: destination_chain.clone(),
                 its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
                 truncation: TruncationConfig {
                     max_uint_bits: 64.try_into().unwrap(),
                     max_decimals_when_truncating: 6,
                 },
-            },
+            }
+            .into(),
         )
         .unwrap();
 
@@ -581,14 +584,15 @@ mod test {
         state::save_chain_config(
             &mut storage,
             &destination_chain,
-            msg::ChainConfig {
+            &msg::ChainConfig {
                 chain: destination_chain.clone(),
                 its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
                 truncation: TruncationConfig {
                     max_uint_bits: 32.try_into().unwrap(),
                     max_decimals_when_truncating: 6,
                 },
-            },
+            }
+            .into(),
         )
         .unwrap();
 
@@ -634,14 +638,15 @@ mod test {
         state::save_chain_config(
             &mut storage,
             &destination_chain,
-            msg::ChainConfig {
+            &msg::ChainConfig {
                 chain: destination_chain.clone(),
                 its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
                 truncation: TruncationConfig {
                     max_uint_bits: 32.try_into().unwrap(),
                     max_decimals_when_truncating: 6,
                 },
-            },
+            }
+            .into(),
         )
         .unwrap();
 
@@ -666,27 +671,29 @@ mod test {
         state::save_chain_config(
             &mut storage,
             &source_chain,
-            msg::ChainConfig {
+            &msg::ChainConfig {
                 chain: source_chain.clone(),
                 its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
                 truncation: TruncationConfig {
                     max_uint_bits: 256.try_into().unwrap(),
                     max_decimals_when_truncating: 12,
                 },
-            },
+            }
+            .into(),
         )
         .unwrap();
         state::save_chain_config(
             &mut storage,
             &destination_chain,
-            msg::ChainConfig {
+            &msg::ChainConfig {
                 chain: destination_chain.clone(),
                 its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
                 truncation: TruncationConfig {
                     max_uint_bits: 128.try_into().unwrap(),
                     max_decimals_when_truncating: 6,
                 },
-            },
+            }
+            .into(),
         )
         .unwrap();
         let deploy_token = DeployInterchainToken {
@@ -730,27 +737,29 @@ mod test {
         state::save_chain_config(
             &mut storage,
             &source_chain,
-            msg::ChainConfig {
+            &msg::ChainConfig {
                 chain: source_chain.clone(),
                 its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
                 truncation: TruncationConfig {
                     max_uint_bits: 128.try_into().unwrap(),
                     max_decimals_when_truncating: 6,
                 },
-            },
+            }
+            .into(),
         )
         .unwrap();
         state::save_chain_config(
             &mut storage,
             &destination_chain,
-            msg::ChainConfig {
+            &msg::ChainConfig {
                 chain: destination_chain.clone(),
                 its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
                 truncation: TruncationConfig {
                     max_uint_bits: 256.try_into().unwrap(),
                     max_decimals_when_truncating: 6,
                 },
-            },
+            }
+            .into(),
         )
         .unwrap();
 
