@@ -305,7 +305,7 @@ pub mod tests {
 
         let mut handles = Vec::new();
 
-        for (_, client) in [client1, client2, client3].into_iter().enumerate() {
+        for client in [client1, client2, client3].into_iter() {
             let handle = tokio::spawn(async move {
                 send_metrics_client_msg(&client, MetricsMsg::IncBlockReceived, 5);
             });
