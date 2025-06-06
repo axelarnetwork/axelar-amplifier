@@ -292,6 +292,7 @@ pub mod tests {
             "Dummy server should complete without errors"
         );
     }
+
     #[async_test]
     async fn concurrent_clients() {
         let (bind_address, server, original_client, cancel) = test_server_setup();
