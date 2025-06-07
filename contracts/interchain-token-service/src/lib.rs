@@ -7,4 +7,3 @@ pub mod events;
 pub mod msg;
 pub mod shared;
 mod state;
-use state::{TokenConfig, TokenInstance, TokenSupply};

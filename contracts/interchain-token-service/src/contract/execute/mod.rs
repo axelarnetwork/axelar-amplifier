@@ -7,10 +7,10 @@ use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
 use crate::events::Event;
 use crate::msg::SupplyModifier;
 use crate::primitives::HubMessage;
-use crate::state::TokenDeploymentType;
+use crate::state::{TokenConfig, TokenDeploymentType, TokenInstance, TokenSupply};
 use crate::{
     msg, state, DeployInterchainToken, InterchainTransfer, LinkToken, Message,
-    RegisterTokenMetadata, TokenConfig, TokenId, TokenInstance, TokenSupply,
+    RegisterTokenMetadata, TokenId,
 };
 
 mod interceptors;
@@ -553,10 +553,10 @@ mod tests {
         modify_supply, register_chain, register_chains, unfreeze_chain, update_chains, Error,
     };
     use crate::msg::TruncationConfig;
-    use crate::state::{self, Config};
+    use crate::state::{self, Config, TokenSupply};
     use crate::{
         msg, DeployInterchainToken, HubMessage, InterchainTransfer, LinkToken, Message,
-        RegisterTokenMetadata, TokenId, TokenSupply,
+        RegisterTokenMetadata, TokenId,
     };
 
     const SOLANA: &str = "solana";
