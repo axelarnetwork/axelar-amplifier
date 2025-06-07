@@ -4,7 +4,7 @@ use error_stack::{Result, ResultExt};
 use itertools::Itertools;
 use router_api::client::Router;
 use router_api::Message;
-use voting_verifier::MessageStatus;
+use voting_verifier::msg::MessageStatus;
 
 use crate::contract::Error;
 use crate::events::GatewayEvent;

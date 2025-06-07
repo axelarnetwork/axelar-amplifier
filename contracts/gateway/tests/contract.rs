@@ -18,7 +18,7 @@ use itertools::Itertools;
 use rand::{thread_rng, Rng};
 use router_api::{CrossChainId, Message};
 use serde::Serialize;
-use voting_verifier::MessageStatus;
+use voting_verifier::msg::MessageStatus;
 
 const ROUTER: &str = "router";
 const VERIFIER: &str = "verifier";
@@ -282,7 +282,7 @@ fn reject_reroute_outgoing_message_with_different_contents() {
 
 fn test_cases_for_correct_verifier() -> (
     Vec<Vec<Message>>,
-    impl Fn(voting_verifier::QueryMsg) -> Result<Vec<MessageStatus>, ContractError> + Clone,
+    impl Fn(voting_verifier::msg::QueryMsg) -> Result<Vec<MessageStatus>, ContractError> + Clone,
 ) {
     let all_messages = generate_msgs_with_all_statuses(10);
     let status_by_msg = map_status_by_msg(all_messages.clone());
@@ -307,7 +307,7 @@ fn test_cases_for_correct_verifier() -> (
 
 fn test_cases_for_duplicate_msgs() -> (
     Vec<Vec<Message>>,
-    impl Fn(voting_verifier::QueryMsg) -> Result<Vec<MessageStatus>, ContractError> + Clone,
+    impl Fn(voting_verifier::msg::QueryMsg) -> Result<Vec<MessageStatus>, ContractError> + Clone,
 ) {
     let all_messages = generate_msgs_with_all_statuses(10);
     let status_by_msg = map_status_by_msg(all_messages.clone());
@@ -393,11 +393,11 @@ fn map_status_by_msg(
 
 fn correctly_working_verifier_handler(
     status_by_msg: HashMap<Message, VerificationStatus>,
-) -> impl Fn(voting_verifier::QueryMsg) -> Result<Vec<MessageStatus>, ContractError> + Clone + 'static
+) -> impl Fn(voting_verifier::msg::QueryMsg) -> Result<Vec<MessageStatus>, ContractError> + Clone + 'static
 {
-    move |msg: voting_verifier::QueryMsg| -> Result<Vec<MessageStatus>, ContractError> {
+    move |msg: voting_verifier::msg::QueryMsg| -> Result<Vec<MessageStatus>, ContractError> {
         match msg {
-            voting_verifier::QueryMsg::MessagesStatus(messages) => Ok(messages
+            voting_verifier::msg::QueryMsg::MessagesStatus(messages) => Ok(messages
                 .into_iter()
                 .map(|msg| {
                     MessageStatus::new(
@@ -416,7 +416,7 @@ fn correctly_working_verifier_handler(
 
 fn update_query_handler<U: Serialize>(
     querier: &mut MockQuerier,
-    handler: impl Fn(voting_verifier::QueryMsg) -> Result<U, ContractError> + 'static,
+    handler: impl Fn(voting_verifier::msg::QueryMsg) -> Result<U, ContractError> + 'static,
 ) {
     let handler = move |msg: &WasmQuery| match msg {
         WasmQuery::Smart { msg, .. } => {

@@ -17,7 +17,7 @@ use serde::Deserialize;
 use tokio::sync::watch::Receiver;
 use tracing::{info, info_span};
 use valuable::Valuable;
-use voting_verifier::ExecuteMsg;
+use voting_verifier::msg::ExecuteMsg;
 use xrpl_http_client::Transaction;
 use xrpl_types::msg::XRPLMessage;
 use xrpl_types::types::{xrpl_account_id_string, XRPLAccountId};
