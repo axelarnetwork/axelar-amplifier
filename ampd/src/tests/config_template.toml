@@ -11,6 +11,7 @@ retry_delay = '1s'
 retry_max_attempts = 3
 stream_timeout = '15s'
 stream_buffer_size = 100000
+delay = '1s'
 
 [broadcast]
 chain_id = 'axelar-dojo-1'
