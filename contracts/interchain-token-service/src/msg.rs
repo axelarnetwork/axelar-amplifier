@@ -3,18 +3,39 @@ use std::collections::HashMap;
 use axelar_wasm_std::nonempty;
 use axelarnet_gateway::AxelarExecutableMsg;
 use cosmwasm_schema::{cw_serde, QueryResponses};
+use cosmwasm_std::Uint256;
 use msgs_derive::EnsurePermissions;
 use router_api::{Address, ChainNameRaw};
 
 pub use crate::contract::MigrateMsg;
 use crate::shared::NumBits;
-use crate::state::{TokenConfig, TokenInstance};
-use crate::{TokenId, TokenSupply};
+use crate::TokenId;
 
 pub const DEFAULT_PAGINATION_LIMIT: u32 = 30;
 
 const fn default_pagination_limit() -> u32 {
     DEFAULT_PAGINATION_LIMIT
+}
+
+#[cw_serde]
+pub enum TokenSupply {
+    /// The total token supply bridged to this chain.
+    /// ITS Hub will not allow bridging back more than this amount of the token from the corresponding chain.
+    Tracked(Uint256),
+    /// The token supply bridged to this chain is not tracked.
+    Untracked,
+}
+
+/// Information about a token on a specific chain.
+#[cw_serde]
+pub struct TokenInstance {
+    pub supply: TokenSupply,
+    pub decimals: u8,
+}
+
+#[cw_serde]
+pub struct TokenConfig {
+    pub origin_chain: ChainNameRaw,
 }
 
 #[cw_serde]
