@@ -3,7 +3,7 @@ use proc_macro::TokenStream;
 use quote::{format_ident, quote};
 use syn::punctuated::Punctuated;
 use syn::{
-    parse_macro_input, parse_quote, Data, DataEnum, DeriveInput, Expr, Ident, ItemEnum, ItemFn, Path, Token
+    parse_macro_input, parse_quote, Data, DataEnum, DeriveInput, Expr, Ident, ItemEnum, Path, Token,
 };
 
 const ATTRIBUTE_NAME: &str = "permit";
@@ -79,20 +79,20 @@ fn route_match(routing_fns: Vec<(Ident, Vec<Path>)>) -> proc_macro2::TokenStream
 
 fn sends(routes: Vec<Vec<Path>>) -> Vec<proc_macro2::TokenStream> {
     routes
-    .into_iter()
-    .map(|paths| {
-        quote! {
-            #(
-                let res = #paths(deps, env.clone(), info_new_sender.clone(), msg.clone(), exec);
-                if res.is_ok() {
-                    return Ok(res.unwrap());
-                }
-            )*
+        .into_iter()
+        .map(|paths| {
+            quote! {
+                #(
+                    let res = #paths(deps, env.clone(), info_new_sender.clone(), msg.clone(), exec);
+                    if res.is_ok() {
+                        return Ok(res.unwrap());
+                    }
+                )*
 
-            Err(axelar_wasm_std::permission_control::Error::Unauthorized)
-        }
-    })
-    .collect()
+                Err(axelar_wasm_std::permission_control::Error::Unauthorized)
+            }
+        })
+        .collect()
 }
 
 // Returns
@@ -206,30 +206,27 @@ pub fn external_execute(attr: TokenStream, item: TokenStream) -> TokenStream {
     let mut input_enum = parse_macro_input!(item as ItemEnum);
 
     let permitted_contracts: Vec<Ident> = match syn::parse(attr).unwrap() {
-        Expr::Call( call ) => {
-            match *call.func.clone() {
-                Expr::Path ( call_path ) => {
-                    if call_path.path.get_ident().unwrap().to_string() != "contracts" {
-                        panic!("expected a 'contracts' call")
-                    }
+        Expr::Call(call) => match *call.func.clone() {
+            Expr::Path(call_path) => {
+                if *call_path.path.get_ident().unwrap() != "contracts" {
+                    panic!("expected a 'contracts' call")
+                }
 
-                    call.args.iter()
+                call.args
+                    .iter()
                     .filter_map(|e| match e.clone() {
-                        Expr::Path( path ) => {
-                            Some(path.path.get_ident().unwrap().clone())
-                        },
+                        Expr::Path(path) => Some(path.path.get_ident().unwrap().clone()),
                         _ => None,
                     })
                     .collect()
-                },
-                _ => panic!("expected a 'contracts' call")
             }
+            _ => panic!("expected a 'contracts' call"),
         },
         _ => panic!("expected a 'contracts' call"),
     };
 
     // Derive ExternalExecute
-    input_enum.attrs.push(parse_quote!{
+    input_enum.attrs.push(parse_quote! {
         #[derive(ExternalExecute)]
     });
 
@@ -239,7 +236,8 @@ pub fn external_execute(attr: TokenStream, item: TokenStream) -> TokenStream {
             original_sender: Addr,
             msg: Box<ExecuteMsg>,
         }
-    }).unwrap();
+    })
+    .unwrap();
 
     // Add variant
     input_enum.variants.push(new_variant);

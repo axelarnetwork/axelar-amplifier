@@ -101,17 +101,16 @@ pub fn execute(
         ExecuteMsg::ExecuteFromExternal {
             original_sender,
             msg,
-        } => 
-            ExecuteMsg::route(
-                deps,
-                env,
-                info,
-                original_sender,
-                *msg,
-                execute,
-                router_api::msg::ExecuteMsg::execute_from_coordinator,
-            )
-            .map_err(|_| Error::Unauthorized),
+        } => ExecuteMsg::route(
+            deps,
+            env,
+            info,
+            original_sender,
+            *msg,
+            execute,
+            router_api::msg::ExecuteMsg::execute_from_coordinator,
+        )
+        .map_err(|_| Error::Unauthorized),
     }?
     .then(Ok)
 }
