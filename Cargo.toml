@@ -2,6 +2,7 @@
 members = [
     "ampd",
     "ampd-handlers",
+    "andrew-linter-test",
     "contracts/*",
     "external-gateways/*",
     "integration-tests",

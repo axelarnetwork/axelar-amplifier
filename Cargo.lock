@@ -390,6 +390,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "andrew-linter-test"
+version = "0.0.1"
+dependencies = [
+ "rustc-tools",
+]
+
+[[package]]
 name = "android-tzdata"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8664,6 +8671,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3e75f6a532d0fd9f7f13144f392b6ad56a32696bfcd9c78f797f16bbb6f072d6"
 
 [[package]]
+name = "rustc-tools"
+version = "0.80.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d4f3a8629f1a748f023cb362f077e7c0c0d42f87418cf361b502f5920a26b409"
+dependencies = [
+ "cargo_metadata",
+ "term",
+]
+
+[[package]]
 name = "rustc_version"
 version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -12066,6 +12083,17 @@ dependencies = [
  "url",
  "uuid",
  "walkdir",
+]
+
+[[package]]
+name = "term"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c59df8ac95d96ff9bede18eb7300b0fda5e5d8d90960e76f8e14ae765eedbf1f"
+dependencies = [
+ "dirs-next",
+ "rustversion",
+ "winapi",
 ]
 
 [[package]]
