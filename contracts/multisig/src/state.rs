@@ -4,7 +4,7 @@ use axelar_wasm_std::nonempty;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, HexBinary, Order, StdResult, Storage, Uint64};
 use cw_storage_plus::{Index, IndexList, IndexedMap, Item, Map, UniqueIndex};
-use error_stack::ResultExt;
+use error_stack::{bail, ResultExt};
 use router_api::ChainName;
 
 use crate::key::{KeyType, KeyTyped, PublicKey, Signature};
@@ -29,6 +29,34 @@ pub const VERIFIER_SETS: Map<&VerifierSetId, VerifierSet> = Map::new("verifier_s
 
 /// Signatures by session id and signer address
 pub const SIGNATURES: Map<(u64, &str), Signature> = Map::new("signatures");
+
+/// Permissions for external executes
+pub const EXTERNAL_EXECUTE_PERMISSIONS: Map<String, Addr> =
+    Map::new("external_execute_permissions");
+
+pub fn save_external_execute_permit(
+    store: &mut dyn Storage,
+    contract_name: nonempty::String,
+    contract_addr: Addr,
+) -> error_stack::Result<(), ContractError> {
+    EXTERNAL_EXECUTE_PERMISSIONS
+        .save(store, contract_name.to_string(), &contract_addr)
+        .change_context(ContractError::PersistingState)?;
+    Ok(())
+}
+
+pub fn external_execute_permit(
+    store: &dyn Storage,
+    contract_name: nonempty::String,
+) -> error_stack::Result<Addr, ContractError> {
+    match EXTERNAL_EXECUTE_PERMISSIONS
+        .may_load(store, contract_name.to_string())
+        .change_context(ContractError::ParseState)?
+    {
+        Some(addr) => Ok(addr),
+        None => bail!(ContractError::EmptyState),
+    }
+}
 
 pub fn load_session_signatures(
     store: &dyn Storage,

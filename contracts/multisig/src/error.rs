@@ -63,6 +63,18 @@ pub enum ContractError {
     #[error("key type mismatch")]
     KeyTypeMismatch,
 
+    #[error("failed to save state changes")]
+    PersistingState,
+
+    #[error("failed to parse state data")]
+    ParseState,
+
+    #[error("state data is empty")]
+    EmptyState,
+
+    #[error("execute message is invalid")]
+    InvalidExecuteMsg,
+
     #[error("caller is not authorized")]
     Unauthorized,
 

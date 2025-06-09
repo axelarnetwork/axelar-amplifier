@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use axelar_wasm_std::{address, killswitch, permission_control, FnExt};
+use axelar_wasm_std::{address, killswitch, nonempty, nonempty_str, permission_control, FnExt};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
@@ -14,7 +14,8 @@ use router_api::ChainName;
 use crate::events::Event;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{
-    verifier_set, Config, CONFIG, SIGNING_SESSIONS, SIGNING_SESSION_COUNTER, VERIFIER_SETS,
+    external_execute_permit, save_external_execute_permit, verifier_set, Config, CONFIG,
+    SIGNING_SESSIONS, SIGNING_SESSION_COUNTER, VERIFIER_SETS,
 };
 use crate::types::{MsgToSign, MultisigState};
 use crate::ContractError;
@@ -67,6 +68,7 @@ pub fn execute(
         deps.storage,
         &info.sender,
         can_start_signing_session(&info.sender),
+        external_execute_permissions(nonempty_str!("coordinator")),
     )? {
         ExecuteMsg::StartSigningSession {
             verifier_set_id,
@@ -107,6 +109,23 @@ pub fn execute(
         }
         ExecuteMsg::DisableSigning => execute::disable_signing(deps),
         ExecuteMsg::EnableSigning => execute::enable_signing(deps),
+        ExecuteMsg::PermitContractForExternalExecute {
+            contract_name,
+            contract_addr,
+        } => execute::permit_contract_for_external_execute(deps, contract_name, contract_addr),
+        ExecuteMsg::ExecuteFromExternal {
+            original_sender,
+            msg,
+        } => ExecuteMsg::route(
+            deps,
+            env,
+            info,
+            original_sender,
+            *msg,
+            execute,
+            ExecuteMsg::execute_from_coordinator,
+        )
+        .change_context(ContractError::Unauthorized),
     }?
     .then(Ok)
 }
@@ -136,6 +155,16 @@ fn can_start_signing_session(
                 .change_context(permission_control::Error::Unauthorized)
         }
         _ => Err(report!(permission_control::Error::WrongVariant)),
+    }
+}
+
+fn external_execute_permissions(
+    contract_name: nonempty::String,
+) -> impl FnOnce(&dyn Storage, &ExecuteMsg) -> error_stack::Result<Addr, permission_control::Error>
+{
+    move |storage, _| {
+        external_execute_permit(storage, contract_name)
+            .change_context(permission_control::Error::Unauthorized)
     }
 }
 

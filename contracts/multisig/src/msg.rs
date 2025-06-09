@@ -2,14 +2,16 @@ use std::collections::HashMap;
 
 use axelar_wasm_std::nonempty;
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{Addr, HexBinary, Uint128, Uint64};
+use cosmwasm_std::{Addr, HexBinary, Response, Uint128, Uint64};
 use msgs_derive::EnsurePermissions;
+use msgs_external_execute::{external_execute, ExternalExecute};
 use router_api::ChainName;
 
 pub use crate::contract::MigrateMsg;
 use crate::key::{KeyType, PublicKey, Signature};
 use crate::multisig::Multisig;
 use crate::verifier_set::VerifierSet;
+use crate::ContractError as Error;
 
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -22,6 +24,7 @@ pub struct InstantiateMsg {
     pub block_expiry: nonempty::Uint64,
 }
 
+#[external_execute(contracts(coordinator))]
 #[cw_serde]
 #[derive(EnsurePermissions)]
 pub enum ExecuteMsg {
@@ -55,6 +58,7 @@ pub enum ExecuteMsg {
     },
     /// Authorizes a set of contracts to call StartSigningSession.
     #[permission(Governance)]
+    #[permit(coordinator)]
     AuthorizeCallers {
         contracts: HashMap<String, ChainName>,
     },
@@ -71,6 +75,13 @@ pub enum ExecuteMsg {
     /// Resumes routing after an emergency shutdown
     #[permission(Elevated)]
     EnableSigning,
+
+    /// Add other contracts that are permitted to execute this contract
+    #[permission(Governance)]
+    PermitContractForExternalExecute {
+        contract_name: nonempty::String,
+        contract_addr: Addr,
+    },
 }
 
 #[cw_serde]

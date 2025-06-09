@@ -6334,6 +6334,7 @@ dependencies = [
  "itertools 0.11.0",
  "k256",
  "msgs-derive",
+ "msgs-external-execute",
  "report",
  "rewards",
  "router-api",

@@ -240,6 +240,15 @@ pub fn disable_signing(deps: DepsMut) -> error_stack::Result<Response, ContractE
     Ok(killswitch::engage(deps.storage, Event::SigningDisabled).map_err(ContractError::from)?)
 }
 
+pub fn permit_contract_for_external_execute(
+    deps: DepsMut,
+    contract_name: nonempty::String,
+    contract_addr: Addr,
+) -> error_stack::Result<Response, ContractError> {
+    save_external_execute_permit(deps.storage, contract_name, contract_addr)?;
+    Ok(Response::new())
+}
+
 fn signing_response(
     session: SigningSession,
     state_changed: bool,
