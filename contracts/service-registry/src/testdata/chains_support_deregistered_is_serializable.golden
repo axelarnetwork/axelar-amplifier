@@ -1,0 +1,17 @@
+{
+  "type": "chains_support_deregistered",
+  "attributes": [
+    {
+      "key": "verifier",
+      "value": "\"verifier\""
+    },
+    {
+      "key": "service_name",
+      "value": "\"test_service\""
+    },
+    {
+      "key": "chains",
+      "value": "[\"ethereum\",\"polygon\"]"
+    }
+  ]
+}
