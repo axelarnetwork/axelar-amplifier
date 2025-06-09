@@ -45,11 +45,11 @@ fn build_route_implementation(data: DataEnum) -> proc_macro2::TokenStream {
 
     quote! {
         pub fn route<T, #(#fs),*>(
-            &self,
             deps: cosmwasm_std::DepsMut,
             env: cosmwasm_std::Env,
             info: cosmwasm_std::MessageInfo,
             original_sender: Addr,
+            msg: Self,
             exec: T,
             #(#unique_args: #fs),*
         ) -> Result<cosmwasm_std::Response, axelar_wasm_std::permission_control::Error>
@@ -70,7 +70,7 @@ fn route_match(routing_fns: Vec<(Ident, Vec<Path>)>) -> proc_macro2::TokenStream
         let mut info_new_sender = info.clone();
         info_new_sender.sender = original_sender.clone();
 
-        match self {
+        match msg {
             #(ExecuteMsg::#variants {..} => {#sends}),*
             _ => Err(axelar_wasm_std::permission_control::Error::WrongVariant),
         }
@@ -83,7 +83,7 @@ fn sends(routes: Vec<Vec<Path>>) -> Vec<proc_macro2::TokenStream> {
     .map(|paths| {
         quote! {
             #(
-                let res = #paths(deps, env.clone(), info_new_sender.clone(), self.clone(), exec);
+                let res = #paths(deps, env.clone(), info_new_sender.clone(), msg.clone(), exec);
                 if res.is_ok() {
                     return Ok(res.unwrap());
                 }
@@ -235,7 +235,7 @@ pub fn external_execute(attr: TokenStream, item: TokenStream) -> TokenStream {
 
     let new_variant: syn::Variant = syn::parse2(quote! {
         #[permission(Specific(#(#permitted_contracts),*))]
-        ExecuteFromCoordinator {
+        ExecuteFromExternal {
             original_sender: Addr,
             msg: Box<ExecuteMsg>,
         }
@@ -244,7 +244,6 @@ pub fn external_execute(attr: TokenStream, item: TokenStream) -> TokenStream {
     // Add variant
     input_enum.variants.push(new_variant);
 
-    // Convert back to TokenStream
     TokenStream::from(quote! {
         #input_enum
     })

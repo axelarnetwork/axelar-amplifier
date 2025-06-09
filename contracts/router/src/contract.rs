@@ -98,15 +98,16 @@ pub fn execute(
         )?),
         ExecuteMsg::DisableRouting => execute::disable_routing(deps.storage),
         ExecuteMsg::EnableRouting => execute::enable_routing(deps.storage),
-        ExecuteMsg::ExecuteFromCoordinator {
+        ExecuteMsg::ExecuteFromExternal {
             original_sender,
             msg,
-        } => msg
-            .route(
+        } => 
+            ExecuteMsg::route(
                 deps,
                 env,
                 info,
                 original_sender,
+                *msg,
                 execute,
                 router_api::msg::ExecuteMsg::execute_from_coordinator,
             )
@@ -1860,7 +1861,7 @@ mod test {
             deps.as_mut(),
             mock_env(),
             message_info(&api.addr_make(COORDINATOR_ADDRESS), &[]),
-            ExecuteMsg::ExecuteFromCoordinator {
+            ExecuteMsg::ExecuteFromExternal {
                 original_sender: api.addr_make(GOVERNANCE_ADDRESS),
                 msg: Box::new(router_api::msg::ExecuteMsg::RegisterChain {
                     chain: polygon.chain_name.clone(),
@@ -1883,7 +1884,7 @@ mod test {
             deps.as_mut(),
             mock_env(),
             message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
-            ExecuteMsg::ExecuteFromCoordinator {
+            ExecuteMsg::ExecuteFromExternal {
                 original_sender: api.addr_make(GOVERNANCE_ADDRESS),
                 msg: Box::new(router_api::msg::ExecuteMsg::RegisterChain {
                     chain: polygon.chain_name.clone(),
@@ -1912,7 +1913,7 @@ mod test {
             deps.as_mut(),
             mock_env(),
             message_info(&api.addr_make(COORDINATOR_ADDRESS), &[]),
-            ExecuteMsg::ExecuteFromCoordinator {
+            ExecuteMsg::ExecuteFromExternal {
                 original_sender: api.addr_make(GOVERNANCE_ADDRESS),
                 msg: Box::new(ExecuteMsg::EnableRouting {}),
             },
