@@ -55,7 +55,7 @@ cw-storage-plus = { version = "2.0.0", features = ["iterator", "macro"] }
 cw-utils = "2.0.0"
 cw2 = "2.0.0"
 ed25519-dalek = { version = "2.1.1", default-features = false }
-error-stack = { version = "0.4.0", features = ["eyre"] }
+error-stack = { version = "0.4.0", features = ["eyre", "spantrace"] }
 ethers-contract = { version = "2.0.14", default-features = false, features = [
   "abigen",
 ] }
@@ -114,6 +114,7 @@ tokio = "1.44.2"
 tokio-stream = "0.1.11"
 tokio-util = "0.7.11"
 tracing = { version = "0.1.37", features = ["valuable", "log"] }
+tracing-error = { version = "0.2.1", features = ["traced-error"] }
 typed-builder = "0.18.2"
 valuable = "0.1.1"
 voting-verifier = { version = "^1.1.0", path = "contracts/voting-verifier" }

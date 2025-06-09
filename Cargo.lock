@@ -328,6 +328,7 @@ dependencies = [
  "tower-http 0.6.4",
  "tracing",
  "tracing-core",
+ "tracing-error",
  "tracing-subscriber",
  "typed-builder",
  "url",
@@ -3313,6 +3314,7 @@ dependencies = [
  "anyhow",
  "eyre",
  "rustc_version 0.4.1",
+ "tracing-error",
 ]
 
 [[package]]
