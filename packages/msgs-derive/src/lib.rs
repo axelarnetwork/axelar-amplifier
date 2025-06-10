@@ -4,7 +4,9 @@ use proc_macro::TokenStream;
 use quote::{format_ident, quote};
 use syn::punctuated::Punctuated;
 use syn::token::Comma;
-use syn::{Data, DataEnum, DeriveInput, Expr, ExprCall, Ident, Path, Token, Variant};
+use syn::{
+    parse_quote, Data, DataEnum, DeriveInput, Expr, ExprCall, FnArg, Ident, Path, Token, Variant,
+};
 
 /// This macro derives the `ensure_permissions` method for an enum. The method checks if the sender
 /// has the required permissions to execute the variant. The permissions are defined using the
@@ -356,4 +358,140 @@ fn build_full_check_function(
             }
         }
     }
+}
+
+#[proc_macro_derive(ExternalExecute, attributes(contracts))]
+pub fn derive_external_execute(input: TokenStream) -> TokenStream {
+    let input = syn::parse_macro_input!(input as DeriveInput);
+    let ident = input.ident.clone();
+
+    match input.data.clone() {
+        Data::Enum(data) => build_execute_implementation(ident, data),
+        _ => panic!("Only enums are supported"),
+    }
+}
+
+fn build_execute_implementation(enum_type: Ident, data: DataEnum) -> TokenStream {
+    let contracts: Vec<_> = data
+        .variants
+        .into_iter()
+        .filter_map(find_contracts)
+        .flatten()
+        .unique()
+        .collect();
+
+    let fs: Vec<_> = (0..contracts.len())
+        .map(|i| format_ident!("F{}", i))
+        .collect();
+
+    let cs: Vec<_> = (0..contracts.len())
+        .map(|i| format_ident!("C{}", i))
+        .collect();
+
+    TokenStream::from(quote! {
+        impl #enum_type {
+            pub fn ensure_permissions2<#(#fs),*, #(#cs),*>(
+                    self,
+                    storage: &dyn cosmwasm_std::Storage,
+                    sender: &cosmwasm_std::Addr,
+                    #(#contracts: #fs),*
+                ) -> error_stack::Result<ExecuteMsg,axelar_wasm_std::permission_control::Error>
+                        where
+                            #(#fs:FnOnce(&dyn cosmwasm_std::Storage, &ExecuteMsg) -> error_stack::Result<cosmwasm_std::Addr, #cs>),*,
+                            #(#cs: error_stack::Context),*
+                        {
+                match self {
+                    ExecuteMsg2::Relay{msg, ..} => {msg.ensure_permissions(storage, sender, #(#contracts),*)},
+                    ExecuteMsg2::Direct(msg) => {msg.ensure_permissions(storage, sender, #(#contracts),*)}
+                    _ => panic!("invalid variant"),
+                }
+            }
+        }
+    })
+}
+
+fn find_contracts(variant: Variant) -> Option<Vec<Ident>> {
+    let idents: Vec<_> = variant
+    .attrs
+    .into_iter()
+    .filter_map(|a| match a.meta.clone() {
+        syn::Meta::List(l) => {
+            if l.path.is_ident(&format_ident!("contracts")) {
+                Some(l.tokens)
+            } else {
+                None
+            }
+        }
+        _ => None,
+    })
+    .flatten()
+    .filter_map(|tree| match tree.clone() {
+        proc_macro2::TokenTree::Ident(ident) => Some(ident),
+        _ => None,
+    })
+    .collect();
+
+    if idents.len() == 0 {
+        None
+    } else {
+        Some(idents)
+    }
+}
+
+#[proc_macro_attribute]
+pub fn external_execute_msg(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    let execute_msg = syn::parse_macro_input!(item as syn::ItemEnum);
+
+    let data = execute_msg.clone();
+
+    let permissions: Vec<_> = data
+        .variants
+        .into_iter()
+        .filter_map(find_permissions)
+        .map(|p| p.1.specific.clone())
+        .flatten()
+        .filter_map(|p| match p.get_ident() {
+            Some(i) => Some(i.clone()),
+            None => None,
+        })
+        .collect();
+
+    let execute2_msg: syn::ItemEnum = parse_quote! {
+        #[cw_serde]
+        #[derive(EnsurePermissions, ExternalExecute)]
+        pub enum ExecuteMsg2 {
+            #[permission(Any)]
+            #[contracts(#(#permissions),*)]
+            Relay {
+                sender: String,
+                msg: ExecuteMsg,
+            },
+
+            #[permission(Any)]
+            #[serde(untagged)]
+            Direct(ExecuteMsg),
+        }
+    };
+
+    TokenStream::from(quote! {
+            #execute_msg
+
+            #execute2_msg
+    })
+}
+
+#[proc_macro_attribute]
+pub fn external_execute(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    let mut execute_fn = syn::parse_macro_input!(item as syn::ItemFn);
+    if execute_fn.sig.ident != format_ident!("execute") {
+        panic!("external_execute macro can only be used with execute endpoint")
+    }
+
+    // replace ExecuteMsg with ExecuteMsg2
+    execute_fn.sig.inputs.pop();
+    execute_fn.sig.inputs.push(parse_quote! {msg: ExecuteMsg2});
+
+    TokenStream::from(quote! {
+        #execute_fn
+    })
 }

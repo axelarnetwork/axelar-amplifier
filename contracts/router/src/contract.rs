@@ -5,10 +5,11 @@ use cosmwasm_std::{
     to_json_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response, Storage,
 };
 use error_stack::ResultExt;
+use msgs_derive::external_execute;
 use router_api::error::Error;
 
 use crate::events::RouterInstantiated;
-use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
+use crate::msg::{ExecuteMsg, ExecuteMsg2, InstantiateMsg, QueryMsg};
 use crate::state;
 use crate::state::{load_chain_by_gateway, load_config, Config};
 
@@ -54,6 +55,7 @@ pub fn instantiate(
     }))
 }
 
+// #[external_execute]
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
