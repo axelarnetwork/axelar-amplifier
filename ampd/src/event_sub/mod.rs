@@ -163,10 +163,6 @@ mod tests {
     use crate::event_sub::{Error, EventPublisher, EventSub};
     use crate::tm_client::{self, MockTmClient};
 
-    use tracing_core::LevelFilter;
-    use tracing_error::ErrorLayer;
-    use tracing_subscriber::{EnvFilter, prelude::*};
-
     #[tokio::test(flavor = "multi_thread")]
     async fn should_skip_processing_blocks_when_no_subscriber_exists() {
         let block: tendermint::Block =

@@ -17,9 +17,10 @@ use config::ConfigError;
 use error_stack::{Report, ResultExt};
 use report::LoggableError;
 use tracing::{error, info};
-use tracing_error::ErrorLayer;
-use tracing_subscriber::{EnvFilter, prelude::*};
 use tracing_core::LevelFilter;
+use tracing_error::ErrorLayer;
+use tracing_subscriber::prelude::*;
+use tracing_subscriber::EnvFilter;
 use valuable::Valuable;
 
 #[derive(Debug, Parser, Valuable)]
@@ -102,10 +103,7 @@ fn set_up_logger(output: &Output) {
 
     match output {
         Output::Json => {
-            let fmt_layer = tracing_subscriber::fmt::layer()
-                .json()
-                .flatten_event(true);
-            
+            let fmt_layer = tracing_subscriber::fmt::layer().json().flatten_event(true);
             tracing_subscriber::registry()
                 .with(error_layer)
                 .with(filter_layer)
