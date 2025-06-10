@@ -407,6 +407,12 @@ fn build_execute_implementation(enum_type: Ident, data: DataEnum) -> TokenStream
                 }
             }
         }
+
+        impl From<ExecuteMsg> for ExecuteMsg2 {
+            fn from(msg: ExecuteMsg) -> Self {
+                Self::Direct(msg)
+            }
+        }
     })
 }
 
@@ -481,15 +487,19 @@ pub fn external_execute_msg(_attr: TokenStream, item: TokenStream) -> TokenStrea
 }
 
 #[proc_macro_attribute]
-pub fn external_execute(_attr: TokenStream, item: TokenStream) -> TokenStream {
+pub fn external_execute(attr: TokenStream, item: TokenStream) -> TokenStream {
     let mut execute_fn = syn::parse_macro_input!(item as syn::ItemFn);
     if execute_fn.sig.ident != format_ident!("execute") {
         panic!("external_execute macro can only be used with execute endpoint")
     }
 
     // replace ExecuteMsg with ExecuteMsg2
+    execute_fn.sig.generics.params.push(parse_quote!(T: Into<ExecuteMsg> + Clone));
     execute_fn.sig.inputs.pop();
-    execute_fn.sig.inputs.push(parse_quote! {msg: ExecuteMsg2});
+    execute_fn.sig.inputs.push(parse_quote! {msg: T});
+    execute_fn.block.stmts.insert(0, parse_quote!{
+        let msg: ExecuteMsg = msg.into();
+    });
 
     TokenStream::from(quote! {
         #execute_fn

@@ -55,7 +55,7 @@ pub fn instantiate(
     }))
 }
 
-// #[external_execute]
+#[external_execute(gateway, coordinator)]
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
