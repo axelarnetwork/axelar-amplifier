@@ -11,6 +11,7 @@ retry_delay = '1s'
 retry_max_attempts = 3
 stream_timeout = '15s'
 stream_buffer_size = 100000
+delay = '1s'
 
 [broadcast]
 chain_id = 'axelar-dojo-1'
@@ -135,5 +136,6 @@ cosmwasm_contract = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq
 [grpc]
 ip_addr = '127.0.0.1'
 port = 9090
-concurrency_limit = 1024
+global_concurrency_limit = 1024
 concurrency_limit_per_connection = 32
+request_timeout = '30s'

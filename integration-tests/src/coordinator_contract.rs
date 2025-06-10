@@ -12,11 +12,7 @@ pub struct CoordinatorContract {
 }
 
 impl CoordinatorContract {
-    pub fn instantiate_contract(
-        app: &mut AxelarApp,
-        governance: Addr,
-        service_registry: Addr,
-    ) -> Self {
+    pub fn instantiate_contract(app: &mut AxelarApp, governance: Addr) -> Self {
         let code = ContractWrapper::new_with_empty(execute, instantiate, query);
         let code_id = app.store_code(Box::new(code));
 
@@ -26,7 +22,6 @@ impl CoordinatorContract {
                 MockApi::default().addr_make("anyone"),
                 &coordinator::msg::InstantiateMsg {
                     governance_address: governance.to_string(),
-                    service_registry: service_registry.to_string(),
                 },
                 &[],
                 "coordinator",
@@ -35,6 +30,27 @@ impl CoordinatorContract {
             .unwrap();
 
         CoordinatorContract { contract_addr }
+    }
+
+    pub fn register_protocol(
+        &self,
+        app: &mut AxelarApp,
+        governance: Addr,
+        service_registry: Addr,
+        router: Addr,
+        multisig: Addr,
+    ) {
+        app.execute_contract(
+            governance,
+            self.contract_addr.clone(),
+            &coordinator::msg::ExecuteMsg::RegisterProtocol {
+                service_registry_address: service_registry.to_string(),
+                router_address: router.to_string(),
+                multisig_address: multisig.to_string(),
+            },
+            &[],
+        )
+        .unwrap();
     }
 }
 

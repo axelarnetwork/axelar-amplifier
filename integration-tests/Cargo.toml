@@ -7,6 +7,13 @@ edition = { workspace = true }
 description = "Amplifier Integration Tests"
 
 exclude = ["contract.wasm", "hash.txt"]
+
+[package.metadata.scripts]
+optimize = """docker run --rm -v "$(pwd)":/code \
+  --mount type=volume,source="$(basename "$(pwd)")_cache",target=/code/target \
+  --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
+  cosmwasm/optimizer:0.16.1
+"""
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [lib]
@@ -16,22 +23,16 @@ crate-type = ["rlib"]
 # use library feature to disable all instantiate/execute/query exports
 library = []
 
-[package.metadata.scripts]
-optimize = """docker run --rm -v "$(pwd)":/code \
-  --mount type=volume,source="$(basename "$(pwd)")_cache",target=/code/target \
-  --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
-  cosmwasm/optimizer:0.16.1
-"""
-
 [dependencies]
 anyhow = { workspace = true }
 axelar-core-std = { workspace = true }
 axelar-wasm-std = { workspace = true }
 coordinator = { workspace = true }
 cosmwasm-std = { workspace = true }
-cw-multi-test = { workspace = true }
+cw-multi-test = { workspace = true, features = ["cosmwasm_1_2"] }
 error-stack = { workspace = true }
 ethers-core = { workspace = true }
+events = { workspace = true, features = ["derive"] }
 gateway = { workspace = true }
 gateway-api = { workspace = true }
 goldie = { workspace = true }
@@ -39,6 +40,7 @@ interchain-token-service = { workspace = true }
 k256 = { workspace = true }
 multisig = { workspace = true }
 multisig-prover = { workspace = true }
+multisig-prover-api = { workspace = true }
 rand = { workspace = true }
 report = { workspace = true }
 rewards = { workspace = true }

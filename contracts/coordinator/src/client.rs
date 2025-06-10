@@ -35,6 +35,19 @@ pub struct Client<'a> {
 }
 
 impl Client<'_> {
+    pub fn register_protocol(
+        &self,
+        router: &Addr,
+        service_registry: &Addr,
+        multisig: &Addr,
+    ) -> CosmosMsg {
+        self.client.execute(&ExecuteMsg::RegisterProtocol {
+            service_registry_address: service_registry.to_string(),
+            router_address: router.to_string(),
+            multisig_address: multisig.to_string(),
+        })
+    }
+
     pub fn register_prover_contract(
         &self,
         chain_name: ChainName,

@@ -7,6 +7,13 @@ edition = { workspace = true }
 description = "Voting verifier contract"
 
 exclude = ["contract.wasm", "hash.txt"]
+
+[package.metadata.scripts]
+optimize = """docker run --rm -v "$(pwd)":/code \
+  --mount type=volume,source="$(basename "$(pwd)")_cache",target=/code/target \
+  --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
+  cosmwasm/optimizer:0.16.1
+"""
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [lib]
@@ -19,13 +26,6 @@ path = "src/bin/schema.rs"
 [features]
 # use library feature to disable all instantiate/execute/query exports
 library = []
-
-[package.metadata.scripts]
-optimize = """docker run --rm -v "$(pwd)":/code \
-  --mount type=volume,source="$(basename "$(pwd)")_cache",target=/code/target \
-  --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
-  cosmwasm/optimizer:0.16.1
-"""
 
 [dependencies]
 axelar-wasm-std = { workspace = true, features = ["derive"] }
@@ -46,6 +46,7 @@ serde_json = { workspace = true }
 service-registry = { workspace = true, features = ["library"] }
 service-registry-api = { workspace = true }
 thiserror = { workspace = true }
+voting-verifier-api = { workspace = true }
 
 [dev-dependencies]
 alloy-primitives = { version = "0.7.7", features = ["getrandom"] }

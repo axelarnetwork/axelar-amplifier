@@ -8,19 +8,17 @@ edition = { workspace = true }
 [dependencies]
 ampd-proto = { workspace = true }
 async-trait = { workspace = true }
+axelar-wasm-std = { workspace = true }
 cosmrs = { workspace = true }
 error-stack = { workspace = true }
 events = { workspace = true }
 futures = { workspace = true }
+hex = { workspace = true }
 humantime-serde = { workspace = true }
-itertools = { workspace = true }
 mockall = { workspace = true }
-prost = "0.13.5"
-prost-types = "0.13.5"
 report = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-tendermint = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
 tokio-stream = { workspace = true }
@@ -30,11 +28,10 @@ tracing = { workspace = true }
 typed-builder = { workspace = true }
 valuable = { workspace = true }
 
+[build-dependencies]
+
 [dev-dependencies]
 tokio = { workspace = true, features = ["test-util"] }
-
-[build-dependencies]
-tonic-build = "0.13.0"
 
 [lints]
 workspace = true
