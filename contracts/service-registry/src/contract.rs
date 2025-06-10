@@ -666,7 +666,7 @@ mod test {
     }
 
     #[test]
-    fn remove_service_params_override_should_fail_when_service_does_not_exist() {
+    fn remove_service_params_override_should_fail_when_it_does_not_exist() {
         let mut deps = setup();
         let api = deps.api;
 
@@ -688,7 +688,7 @@ mod test {
         assert!(err_contains!(
             err.report,
             ContractError,
-            ContractError::ServiceNotFound
+            ContractError::ServiceOverrideNotFound
         ));
     }
 

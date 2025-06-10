@@ -86,8 +86,6 @@ pub fn override_service_params(
     chain: ChainName,
     service_params_override: ServiceParamsOverride,
 ) -> Result<Response, ContractError> {
-    ensure_service_exists(deps.storage, &service_name)?;
-
     state::save_service_override(
         deps.storage,
         &service_name,
@@ -103,9 +101,7 @@ pub fn remove_service_params_override(
     service_name: String,
     chain: ChainName,
 ) -> Result<Response, ContractError> {
-    ensure_service_exists(deps.storage, &service_name)?;
-
-    state::remove_service_override(deps.storage, &service_name, &chain);
+    state::remove_service_override(deps.storage, &service_name, &chain)?;
 
     Ok(Response::new())
 }

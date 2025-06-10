@@ -1,7 +1,7 @@
 use axelar_wasm_std::nonempty;
 use cosmwasm_std::{Addr, Storage, Timestamp, Uint128};
 use cw_storage_plus::{Index, IndexList, IndexedMap, KeyDeserialize, Map, MultiIndex};
-use error_stack::{report, ResultExt as _};
+use error_stack::{bail, report, ResultExt as _};
 use report::ResultExt;
 use router_api::ChainName;
 use service_registry_api::error::ContractError;
@@ -140,6 +140,10 @@ pub fn save_service_override(
     chain: &ChainName,
     service_params_override: &ServiceParamsOverride,
 ) -> error_stack::Result<(), ContractError> {
+    if !has_service(storage, service_name) {
+        bail!(ContractError::ServiceNotFound);
+    }
+
     SERVICE_OVERRIDES
         .save(storage, (service_name, chain), service_params_override)
         .into_report()
@@ -149,8 +153,14 @@ pub fn remove_service_override(
     storage: &mut dyn Storage,
     service_name: &ServiceName,
     chain: &ChainName,
-) {
-    SERVICE_OVERRIDES.remove(storage, (service_name, chain))
+) -> error_stack::Result<(), ContractError> {
+    if !SERVICE_OVERRIDES.has(storage, (service_name, chain)) {
+        bail!(ContractError::ServiceOverrideNotFound);
+    }
+
+    SERVICE_OVERRIDES.remove(storage, (service_name, chain));
+
+    Ok(())
 }
 
 pub fn bond_verifier(
@@ -263,7 +273,7 @@ mod tests {
     use std::str::FromStr;
     use std::vec;
 
-    use axelar_wasm_std::nonempty;
+    use axelar_wasm_std::{assert_err_contains, nonempty};
     use cosmwasm_std::testing::{mock_dependencies, MockApi};
     use cosmwasm_std::{Timestamp, Uint128};
     use service_registry_api::{AuthorizationState, BondingState, Verifier};
@@ -413,7 +423,7 @@ mod tests {
     #[test]
     fn remove_service_override_succeeds() {
         let mut deps = mock_dependencies();
-        let service_name = "amplifier".to_string();
+        let stored_service = save_mock_service(deps.as_mut().storage);
         let chain_name = "solana".parse().unwrap();
         let max_verifiers_override = Some(20);
 
@@ -423,23 +433,35 @@ mod tests {
         };
         save_service_override(
             deps.as_mut().storage,
-            &service_name,
+            &stored_service.name,
             &chain_name,
             &params_override,
         )
         .unwrap();
 
         let stored_override = SERVICE_OVERRIDES
-            .load(deps.as_ref().storage, (&service_name, &chain_name))
+            .load(deps.as_ref().storage, (&stored_service.name, &chain_name))
             .unwrap();
         assert_eq!(stored_override, params_override);
 
-        remove_service_override(deps.as_mut().storage, &service_name, &chain_name);
+        let res = remove_service_override(deps.as_mut().storage, &stored_service.name, &chain_name);
+        assert!(res.is_ok());
 
         assert!(SERVICE_OVERRIDES
-            .may_load(deps.as_ref().storage, (&service_name, &chain_name))
+            .may_load(deps.as_ref().storage, (&stored_service.name, &chain_name))
             .unwrap()
             .is_none());
+    }
+
+    #[test]
+    fn remove_service_override_fails_if_service_override_does_not_exist() {
+        let mut deps = mock_dependencies();
+        let stored_service = save_mock_service(deps.as_mut().storage);
+        let chain_name = "solana".parse().unwrap();
+
+        let res = remove_service_override(deps.as_mut().storage, &stored_service.name, &chain_name);
+
+        assert_err_contains!(res, ContractError, ContractError::ServiceOverrideNotFound);
     }
 
     #[test]
