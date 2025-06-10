@@ -60,8 +60,12 @@ pub fn update_verifier_authorization_status(
 
     if auth_state == AuthorizationState::Authorized {
         if let Some(max) = service.max_num_verifiers {
-            let current_authorized = count_authorized_verifiers(&deps, service_name.clone());
-            let new_total = current_authorized + verifiers.len() as u16;
+            let current_authorized = count_authorized_verifiers(&deps, service_name.clone())?;
+            let verifiers_len =
+                u16::try_from(verifiers.len()).map_err(|_| ContractError::TooManyVerifiers)?;
+            let new_total = current_authorized
+                .checked_add(verifiers_len)
+                .ok_or(ContractError::TooManyVerifiers)?;
             if new_total > max {
                 return Err(ContractError::MaxVerifiersExceeded(max, new_total - max).into());
             }
@@ -98,7 +102,7 @@ pub fn update_service(
     updated_service_params: UpdatedServiceParams,
 ) -> Result<Response, ContractError> {
     if let Some(new_max) = updated_service_params.max_num_verifiers {
-        let current_authorized = count_authorized_verifiers(&deps, service_name.clone());
+        let current_authorized = count_authorized_verifiers(&deps, service_name.clone())?;
         if let Some(max) = new_max {
             if max < current_authorized {
                 return Err(
@@ -291,7 +295,7 @@ pub fn claim_stake(
     }))
 }
 
-fn count_authorized_verifiers(deps: &DepsMut, service_name: String) -> u16 {
+fn count_authorized_verifiers(deps: &DepsMut, service_name: String) -> Result<u16, ContractError> {
     let authorized_verifiers: Vec<_> = VERIFIERS
         .prefix(&service_name)
         .range(deps.storage, None, None, cosmwasm_std::Order::Ascending)
@@ -299,5 +303,5 @@ fn count_authorized_verifiers(deps: &DepsMut, service_name: String) -> u16 {
         .filter(|verifier| verifier.authorization_state == AuthorizationState::Authorized)
         .collect();
 
-    authorized_verifiers.len() as u16
+    u16::try_from(authorized_verifiers.len()).map_err(|_| ContractError::TooManyVerifiers.into())
 }
