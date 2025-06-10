@@ -1,6 +1,8 @@
 use cosmwasm_schema::cw_serde;
 // these messages and structs are extracted into a separate package to avoid circular dependencies
-pub use service_registry_api::msg::{ExecuteMsg, QueryMsg, VerifierDetails};
+pub use service_registry_api::msg::{
+    ExecuteMsg, QueryMsg, ServiceParamsOverride, UpdatedServiceParams, VerifierDetails,
+};
 
 pub use crate::contract::MigrateMsg;
 

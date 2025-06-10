@@ -1,17 +1,49 @@
 use axelar_wasm_std::nonempty;
+use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Storage, Timestamp, Uint128};
 use cw_storage_plus::{Index, IndexList, IndexedMap, KeyDeserialize, Map, MultiIndex};
 use error_stack::{bail, report, ResultExt as _};
 use report::ResultExt;
 use router_api::ChainName;
 use service_registry_api::error::ContractError;
-use service_registry_api::{
-    AuthorizationState, BondingState, Service, ServiceParamsOverride, UpdatedServiceParams,
-    Verifier,
-};
+use service_registry_api::{AuthorizationState, BondingState, Service, Verifier};
 
 type ServiceName = String;
 type VerifierAddress = Addr;
+
+#[cw_serde]
+pub struct UpdatedServiceParams {
+    pub min_num_verifiers: Option<u16>,
+    pub max_num_verifiers: Option<Option<u16>>,
+    pub min_verifier_bond: Option<nonempty::Uint128>,
+    pub unbonding_period_days: Option<u16>,
+}
+
+impl From<crate::msg::UpdatedServiceParams> for UpdatedServiceParams {
+    fn from(params: crate::msg::UpdatedServiceParams) -> Self {
+        UpdatedServiceParams {
+            min_num_verifiers: params.min_num_verifiers,
+            max_num_verifiers: params.max_num_verifiers,
+            min_verifier_bond: params.min_verifier_bond,
+            unbonding_period_days: params.unbonding_period_days,
+        }
+    }
+}
+
+#[cw_serde]
+pub struct ServiceParamsOverride {
+    pub min_num_verifiers: Option<u16>,
+    pub max_num_verifiers: Option<Option<u16>>,
+}
+
+impl From<crate::msg::ServiceParamsOverride> for ServiceParamsOverride {
+    fn from(params: crate::msg::ServiceParamsOverride) -> Self {
+        ServiceParamsOverride {
+            min_num_verifiers: params.min_num_verifiers,
+            max_num_verifiers: params.max_num_verifiers,
+        }
+    }
+}
 
 pub struct VerifierPerChainIndexes<'a> {
     pub verifier_address: MultiIndex<

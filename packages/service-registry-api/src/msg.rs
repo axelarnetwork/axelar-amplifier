@@ -112,3 +112,21 @@ pub struct VerifierDetails {
     pub weight: nonempty::Uint128,
     pub supported_chains: Vec<ChainName>,
 }
+
+// Represents any modifiable fields of the Service struct
+// Any non-None field overwrites the value currently stored in the Service object
+#[cw_serde]
+pub struct UpdatedServiceParams {
+    pub min_num_verifiers: Option<u16>,
+    pub max_num_verifiers: Option<Option<u16>>,
+    pub min_verifier_bond: Option<nonempty::Uint128>,
+    pub unbonding_period_days: Option<u16>,
+}
+
+// Represents any overrideable fields of the Service struct
+// Any non-None field overrides the value currently stored in the Service object
+#[cw_serde]
+pub struct ServiceParamsOverride {
+    pub min_num_verifiers: Option<u16>,
+    pub max_num_verifiers: Option<Option<u16>>,
+}

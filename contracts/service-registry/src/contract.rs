@@ -69,7 +69,7 @@ pub fn execute(
         ExecuteMsg::UpdateService {
             service_name,
             updated_service_params,
-        } => execute::update_service(deps, service_name, updated_service_params),
+        } => execute::update_service(deps, service_name, updated_service_params.into()),
         ExecuteMsg::OverrideServiceParams {
             service_name,
             chain_name,
@@ -78,7 +78,7 @@ pub fn execute(
             deps,
             service_name,
             chain_name,
-            service_params_override,
+            service_params_override.into(),
         ),
         ExecuteMsg::RemoveServiceParamsOverride {
             service_name,
@@ -214,12 +214,10 @@ mod test {
         coins, from_json, CosmosMsg, Empty, OwnedDeps, StdResult, Uint128, WasmQuery,
     };
     use router_api::ChainName;
-    use service_registry_api::msg::VerifierDetails;
-    use service_registry_api::{
-        ServiceParamsOverride, UpdatedServiceParams, Verifier, WeightedVerifier,
-    };
+    use service_registry_api::{Verifier, WeightedVerifier};
 
     use super::*;
+    use crate::msg::{ServiceParamsOverride, UpdatedServiceParams, VerifierDetails};
     use crate::state::VERIFIER_WEIGHT;
 
     const GOVERNANCE_ADDRESS: &str = "governance";
