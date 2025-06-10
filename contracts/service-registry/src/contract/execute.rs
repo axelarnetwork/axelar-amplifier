@@ -53,10 +53,20 @@ pub fn update_verifier_authorization_status(
     service_name: String,
     auth_state: AuthorizationState,
 ) -> Result<Response, ContractError> {
-    SERVICES
+    let service = SERVICES
         .may_load(deps.storage, &service_name)
         .change_context(ContractError::StorageError)?
         .ok_or(ContractError::ServiceNotFound)?;
+
+    if auth_state == AuthorizationState::Authorized {
+        if let Some(max) = service.max_num_verifiers {
+            let current_authorized = count_authorized_verifiers(&deps, service_name.clone());
+            let new_total = current_authorized + verifiers.len() as u16;
+            if new_total > max {
+                return Err(ContractError::MaxVerifiersExceeded(max, new_total - max).into());
+            }
+        }
+    }
 
     for verifier in verifiers {
         VERIFIERS.update(
@@ -87,6 +97,16 @@ pub fn update_service(
     service_name: String,
     updated_service_params: UpdatedServiceParams,
 ) -> Result<Response, ContractError> {
+    if let Some(new_max) = updated_service_params.max_num_verifiers {
+        let current_authorized = count_authorized_verifiers(&deps, service_name.clone());
+        if let Some(max) = new_max {
+            if max < current_authorized {
+                return Err(
+                    ContractError::MaxVerifiersSetBelowCurrent(max, current_authorized).into(),
+                );
+            }
+        }
+    }
     SERVICES.update(deps.storage, &service_name, |service| match service {
         None => Err(ContractError::ServiceNotFound),
         Some(service) => Ok(Service {
@@ -269,4 +289,15 @@ pub fn claim_stake(
         }]
         .to_vec(),
     }))
+}
+
+fn count_authorized_verifiers(deps: &DepsMut, service_name: String) -> u16 {
+    let authorized_verifiers: Vec<_> = VERIFIERS
+        .prefix(&service_name)
+        .range(deps.storage, None, None, cosmwasm_std::Order::Ascending)
+        .filter_map(|item| item.ok().map(|(_, verifier)| verifier))
+        .filter(|verifier| verifier.authorization_state == AuthorizationState::Authorized)
+        .collect();
+
+    authorized_verifiers.len() as u16
 }

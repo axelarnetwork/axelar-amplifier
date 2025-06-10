@@ -33,6 +33,10 @@ pub enum ContractError {
     NoFundsToBond,
     #[error("not enough verifiers")]
     NotEnoughVerifiers,
+    #[error("max verifiers limit {0} exceeded by {1} verifiers")]
+    MaxVerifiersExceeded(u16, u16),
+    #[error("max verifiers limit {0} is below current authorized verifiers {1}")]
+    MaxVerifiersSetBelowCurrent(u16, u16),
     #[error("verifier is jailed")]
     VerifierJailed,
     #[error("failed to unbond verifier")]
