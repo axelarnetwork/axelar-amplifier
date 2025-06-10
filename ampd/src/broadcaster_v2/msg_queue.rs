@@ -732,7 +732,7 @@ mod tests {
         assert_err_contains!(rx.await, Error, Error::ReceiveTxResult(_));
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn msg_queue_stream_timeout() {
         let gas_cap = 1000u64;
         let base_account = BaseAccount {
@@ -786,7 +786,7 @@ mod tests {
         );
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn msg_queue_gas_capacity() {
         let gas_cap = 1000;
         let gas_cost = 100;
@@ -907,7 +907,7 @@ mod tests {
         handle.await.unwrap();
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn msg_queue_gas_overflow() {
         let gas_cap = u64::MAX;
         let gas_cost = gas_cap - 1;

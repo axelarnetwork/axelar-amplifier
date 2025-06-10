@@ -7,7 +7,6 @@ use mockall::automock;
 use report::LoggableError;
 use tendermint::block;
 use thiserror::Error;
-use tokio::select;
 use tokio::sync::broadcast::{self, Sender};
 use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
 use tokio_stream::wrappers::BroadcastStream;
@@ -95,41 +94,29 @@ impl<T: TmClient + Sync> EventPublisher<T> {
     }
 
     pub async fn run(self, token: CancellationToken) -> Result<(), Error> {
-        let block_stream = stream::blocks(
-            &self.tm_client,
-            self.poll_interval,
-            self.delay,
-            token.child_token(),
-        )
-        .await?
-        .filter(|_| future::ready(self.has_subscriber())); // skip processing blocks when no subscriber exists
-        let mut event_stream =
-            stream::events(&self.tm_client, block_stream, BLOCK_PROCESSING_RETRY_POLICY);
+        let block_stream = stream::blocks(&self.tm_client, self.poll_interval, self.delay)
+            .filter(|_| future::ready(self.has_subscriber())); // skip processing blocks when no subscriber exists
+        let event_stream =
+            stream::events(&self.tm_client, block_stream, BLOCK_PROCESSING_RETRY_POLICY)
+                .take_until(token.cancelled());
 
-        loop {
-            select! {
-                event = event_stream.next() => match event {
-                    Some(event) => {
-                        let event = event
-                            .inspect_err(|err| {
-                                error!(err = LoggableError::from(err).as_value(), "failed to retrieve to events");
-                            })
-                            .map_err(|err| err.current_context().clone());
+        tokio::pin!(event_stream);
+        while let Some(event) = event_stream.next().await {
+            let event = event
+                .inspect_err(|err| {
+                    error!(
+                        err = LoggableError::from(err).as_value(),
+                        "failed to retrieve to events"
+                    );
+                })
+                .map_err(|err| err.current_context().clone());
 
-                        let _ = self.tx.send(event)
-                            .map_err(Report::new)
-                            .inspect_err(|err| {
-                                error!(err = LoggableError::from(err).as_value(), "failed to send event to subscribers");
-                            });
-                    },
-                    None => {
-                        break;
-                    }
-                },
-                _ = token.cancelled() => {
-                    break;
-                },
-            }
+            let _ = self.tx.send(event).map_err(Report::new).inspect_err(|err| {
+                error!(
+                    err = LoggableError::from(err).as_value(),
+                    "failed to send event to subscribers"
+                );
+            });
         }
 
         info!("exiting event sub");
@@ -160,7 +147,7 @@ mod tests {
     use crate::event_sub::{Error, EventPublisher, EventSub};
     use crate::tm_client::{self, MockTmClient};
 
-    #[tokio::test(flavor = "multi_thread")]
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
     async fn should_skip_processing_blocks_when_no_subscriber_exists() {
         let block: tendermint::Block =
             serde_json::from_str(include_str!("../tests/axelar_block.json")).unwrap();
@@ -188,13 +175,15 @@ mod tests {
             EventPublisher::new(tm_client, 100, Duration::from_secs(1));
         let handle = tokio::spawn(event_publisher.run(token.child_token()));
 
-        while *call_count.read().unwrap() < 10 {}
+        while *call_count.read().unwrap() < 10 {
+            tokio::time::advance(Duration::from_secs(1)).await;
+        }
 
         token.cancel();
         handle.await.unwrap().unwrap();
     }
 
-    #[tokio::test(flavor = "multi_thread")]
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
     async fn should_stream_events_and_errors() {
         let block: tendermint::Block =
             serde_json::from_str(include_str!("../tests/axelar_block.json")).unwrap();
@@ -253,28 +242,35 @@ mod tests {
             stream.next().await.unwrap(),
             Ok(Event::BlockBegin(_))
         ));
+        tokio::time::advance(Duration::from_secs(1)).await;
         assert!(matches!(
             stream.next().await.unwrap(),
             Ok(Event::Abci { .. })
         ));
+        tokio::time::advance(Duration::from_secs(1)).await;
         assert!(matches!(
             stream.next().await.unwrap(),
             Ok(Event::Abci { .. })
         ));
+        tokio::time::advance(Duration::from_secs(1)).await;
         assert!(matches!(
             stream.next().await.unwrap(),
             Ok(Event::Abci { .. })
         ));
+        tokio::time::advance(Duration::from_secs(1)).await;
         assert!(matches!(
             stream.next().await.unwrap(),
             Ok(Event::BlockEnd(_))
         ));
+        tokio::time::advance(Duration::from_secs(1)).await;
         assert_err_contains!(stream.next().await.unwrap(), Error, Error::LatestBlockQuery);
+        tokio::time::advance(Duration::from_secs(1)).await;
         assert_err_contains!(
             stream.next().await.unwrap(),
             Error,
             Error::BlockResultsQuery { .. }
         );
+        tokio::time::advance(Duration::from_secs(1)).await;
 
         token.cancel();
         handle.await.unwrap().unwrap();
