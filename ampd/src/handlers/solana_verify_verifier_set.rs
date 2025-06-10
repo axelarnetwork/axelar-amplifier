@@ -42,7 +42,6 @@ struct PollStartedEvent {
     participants: Vec<TMAddress>,
 }
 
-#[derive(Debug)]
 pub struct Handler<C: SolanaRpcClientProxy> {
     chain_name: ChainName,
     verifier: TMAddress,

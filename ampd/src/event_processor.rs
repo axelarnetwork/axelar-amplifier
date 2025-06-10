@@ -1,4 +1,3 @@
-use std::fmt::Debug;
 use std::pin::Pin;
 use std::time::Duration;
 
@@ -13,7 +12,7 @@ use thiserror::Error;
 use tokio::time::timeout;
 use tokio_stream::Stream;
 use tokio_util::sync::CancellationToken;
-use tracing::{info, instrument, warn};
+use tracing::{info, warn};
 use valuable::Valuable;
 
 use crate::asyncutil::future::{self, RetryPolicy};
@@ -71,8 +70,8 @@ pub async fn consume_events<H, B, S, E>(
     token: CancellationToken,
 ) -> Result<(), Error>
 where
-    H: EventHandler + Debug,
-    B: BroadcasterClient + Debug,
+    H: EventHandler,
+    B: BroadcasterClient,
     S: Stream<Item = Result<Event, E>>,
     E: Context,
 {
@@ -110,7 +109,6 @@ where
     }
 }
 
-#[instrument]
 async fn handle_event<H, B>(
     handler: &H,
     broadcaster: &B,
@@ -118,8 +116,8 @@ async fn handle_event<H, B>(
     retry_policy: RetryPolicy,
 ) -> Result<(), Error>
 where
-    H: EventHandler + Debug,
-    B: BroadcasterClient + Debug,
+    H: EventHandler,
+    B: BroadcasterClient,
 {
     // if handlers run into errors we log them and then move on to the next event
     match future::with_retry(|| handler.handle(event), retry_policy).await {
