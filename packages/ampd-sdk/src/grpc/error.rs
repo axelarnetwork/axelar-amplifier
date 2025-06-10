@@ -1,4 +1,3 @@
-use report::ResultExt;
 use thiserror::Error;
 use tonic::Code;
 
