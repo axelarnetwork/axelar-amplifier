@@ -17,13 +17,10 @@ use config::ConfigError;
 use error_stack::{Report, ResultExt};
 use report::LoggableError;
 use tracing::{error, info};
-use tracing_subscriber::EnvFilter;
+use tracing_error::ErrorLayer;
+use tracing_subscriber::{EnvFilter, prelude::*};
 use tracing_core::LevelFilter;
 use valuable::Valuable;
-
-// XXX: @see: fn set_up_logger
-// use tracing_error::ErrorLayer;
-// use tracing_subscriber::{EnvFilter, prelude::*};
 
 #[derive(Debug, Parser, Valuable)]
 #[command(version)]
@@ -98,53 +95,29 @@ async fn main() -> ExitCode {
 }
 
 fn set_up_logger(output: &Output) {
+    let error_layer = ErrorLayer::default();
+    let filter_layer = EnvFilter::builder()
+        .with_default_directive(LevelFilter::INFO.into())
+        .from_env_lossy();
 
-    // XXX: Subscriber init
-
-    // XXX: Simple / naive:
-    // let subscriber = tracing_subscriber::Registry::default().with(ErrorLayer::default());
-    // tracing::subscriber::set_global_default(subscriber).expect("Valid tracing subscriber");
-
-    // XXX: Using layers:
-    // let error_layer = ErrorLayer::default();
-    // let filter_layer = EnvFilter::builder()
-    //     .with_default_directive(LevelFilter::INFO.into())
-    //     .from_env_lossy();
-    // let fmt_layer = tracing_subscriber::fmt::layer()
-    //     .with_target(false);
-
-    // let subscriber = tracing_subscriber::registry()
-    //     .with(error_layer)
-    //     .with(filter_layer)
-    //     .with(fmt_layer)
-    // dbg!(&subscriber);
-    // subscriber.init();
-
-    // XXX TODO: Figure out how to use JSON & compact format and `flatten_event`
-    // to reproduce the below matches. 
-    // NOTE: tracing_subscriber::fmt() cannot use `.with(ErrorLayer::default())`
-    // so we will have to figure out using JSON / compact format and `flatten_event` 
-    // with a `tracing_subscriber::registry()` init
     match output {
         Output::Json => {
-            tracing_subscriber::fmt()
+            let fmt_layer = tracing_subscriber::fmt::layer()
                 .json()
-                .flatten_event(true)
-                .with_env_filter(
-                    EnvFilter::builder()
-                        .with_default_directive(LevelFilter::INFO.into())
-                        .from_env_lossy(),
-                )
+                .flatten_event(true);
+            
+            tracing_subscriber::registry()
+                .with(error_layer)
+                .with(filter_layer)
+                .with(fmt_layer)
                 .init();
         }
         Output::Text => {
-            tracing_subscriber::fmt()
-                .compact()
-                .with_env_filter(
-                    EnvFilter::builder()
-                        .with_default_directive(LevelFilter::INFO.into())
-                        .from_env_lossy(),
-                )
+            let fmt_layer = tracing_subscriber::fmt::layer().compact();
+            tracing_subscriber::registry()
+                .with(error_layer)
+                .with(filter_layer)
+                .with(fmt_layer)
                 .init();
         }
     };

@@ -96,7 +96,6 @@ impl<T: TmClient + Sync + std::fmt::Debug> EventPublisher<T> {
         (publisher, subscriber)
     }
 
-    // XXX: tracing_subscriber
     #[instrument]
     pub async fn run(self, token: CancellationToken) -> Result<(), Error> {
         let block_stream = stream::blocks(
@@ -204,21 +203,6 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn should_stream_events_and_errors() {
-        // XXX TODO: Remove this custom subscriber created for testing purposes
-        let error_layer = ErrorLayer::default();
-        let filter_layer = EnvFilter::builder()
-            .with_default_directive(LevelFilter::INFO.into())
-            .from_env_lossy();
-        let fmt_layer = tracing_subscriber::fmt::layer()
-            .with_target(false);
-
-        let subscriber = tracing_subscriber::registry()
-            .with(error_layer)
-            .with(filter_layer)
-            .with(fmt_layer);
-        // dbg!(&subscriber);
-        subscriber.init();
-
         let block: tendermint::Block =
             serde_json::from_str(include_str!("../tests/axelar_block.json")).unwrap();
         let initial_height = block.header().height;
