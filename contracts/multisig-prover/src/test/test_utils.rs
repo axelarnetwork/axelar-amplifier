@@ -131,18 +131,19 @@ fn service_registry_mock_querier_handler(
     operators: Vec<TestOperator>,
 ) -> QuerierResult {
     let result = match msg {
-        service_registry_api::msg::QueryMsg::Service { service_name } => {
-            to_json_binary(&service_registry_api::Service {
-                name: service_name.to_string(),
-                coordinator_contract: MockApi::default().addr_make(COORDINATOR_ADDRESS),
-                min_num_verifiers: 1,
-                max_num_verifiers: Some(100),
-                min_verifier_bond: Uint128::new(1).try_into().unwrap(),
-                bond_denom: "uaxl".to_string(),
-                unbonding_period_days: 1,
-                description: "verifiers".to_string(),
-            })
-        }
+        service_registry_api::msg::QueryMsg::Service {
+            service_name,
+            chain_name: _,
+        } => to_json_binary(&service_registry_api::Service {
+            name: service_name.to_string(),
+            coordinator_contract: MockApi::default().addr_make(COORDINATOR_ADDRESS),
+            min_num_verifiers: 1,
+            max_num_verifiers: Some(100),
+            min_verifier_bond: Uint128::new(1).try_into().unwrap(),
+            bond_denom: "uaxl".to_string(),
+            unbonding_period_days: 1,
+            description: "verifiers".to_string(),
+        }),
         service_registry_api::msg::QueryMsg::ActiveVerifiers {
             service_name: _,
             chain_name: _,

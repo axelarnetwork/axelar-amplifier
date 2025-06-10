@@ -17,12 +17,6 @@ pub enum Error {
     #[error("failed to query service registry for service {0}")]
     Service(String),
 
-    #[error("failed to query service registry for service parameters for service {service_name} and chain {chain_name}")]
-    ServiceParams {
-        service_name: String,
-        chain_name: ChainName,
-    },
-
     #[error("failed to query service registry for verifier {verifier} of service {service_name}")]
     Verifier {
         service_name: String,
@@ -40,14 +34,10 @@ impl From<QueryMsg> for Error {
                 service_name,
                 chain_name,
             },
-            QueryMsg::Service { service_name } => Error::Service(service_name),
-            QueryMsg::ServiceWithOverrides {
+            QueryMsg::Service {
                 service_name,
-                chain_name,
-            } => Error::ServiceParams {
-                service_name,
-                chain_name,
-            },
+                chain_name: _,
+            } => Error::Service(service_name),
             QueryMsg::Verifier {
                 service_name,
                 verifier,
@@ -84,20 +74,15 @@ impl Client<'_> {
         self.client.query(&msg).change_context_lazy(|| msg.into())
     }
 
-    #[deprecated(
-        note = "Use service_params instead, which supports specifying a chain name and returns the service parameters considering chain overrides"
-    )]
-    pub fn service(&self, service_name: String) -> Result<Service> {
-        let msg = QueryMsg::Service { service_name };
-        self.client.query(&msg).change_context_lazy(|| msg.into())
-    }
-
-    pub fn service_params(&self, service_name: String, chain_name: ChainName) -> Result<Service> {
-        let msg = QueryMsg::ServiceWithOverrides {
+    pub fn service(&self, service_name: String, chain_name: Option<ChainName>) -> Result<Service> {
+        let msg = QueryMsg::Service {
             service_name,
-            chain_name,
+            chain_name: chain_name.clone(),
         };
-        self.client.query(&msg).change_context_lazy(|| msg.into())
+        self.client
+            .query(&msg)
+            .change_context_lazy(|| msg.into())
+            .attach_printable_lazy(|| format!("chain_name: {:?}", chain_name))
     }
 
     pub fn verifier(&self, service_name: String, verifier: String) -> Result<VerifierDetails> {
@@ -179,8 +164,7 @@ mod test {
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
         let service_name = "verifiers".to_string();
-        #[allow(deprecated)]
-        let res = client.service(service_name.clone());
+        let res = client.service(service_name.clone(), None);
 
         assert!(res.is_err());
         goldie::assert!(res.unwrap_err().to_string());
@@ -192,34 +176,33 @@ mod test {
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
         let service_name = "verifiers".to_string();
-        #[allow(deprecated)]
-        let res = client.service(service_name.clone());
+        let res = client.service(service_name.clone(), None);
 
         assert!(res.is_ok());
         goldie::assert_json!(res.unwrap());
     }
 
     #[test]
-    fn query_service_params_returns_error_when_query_fails() {
+    fn query_service_with_chain_name_returns_error_when_query_fails() {
         let (querier, addr) = setup_queries_to_fail();
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
         let service_name = "verifiers".to_string();
         let chain_name = "ethereum".try_into().unwrap();
-        let res = client.service_params(service_name, chain_name);
+        let res = client.service(service_name, Some(chain_name));
 
         assert!(res.is_err());
         goldie::assert!(res.unwrap_err().to_string());
     }
 
     #[test]
-    fn query_service_params_returns_service() {
+    fn query_service_with_chain_name_returns_service() {
         let (querier, addr) = setup_queries_to_succeed();
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
         let service_name = "verifiers".to_string();
         let chain_name = "ethereum".try_into().unwrap();
-        let res = client.service_params(service_name, chain_name);
+        let res = client.service(service_name, Some(chain_name));
 
         assert!(res.is_ok());
         goldie::assert_json!(res.unwrap());
@@ -244,11 +227,11 @@ mod test {
         (querier, addr_clone)
     }
 
-    fn mock_service(api: &MockApi, service_name: String) -> Service {
+    fn mock_service(api: &MockApi, service_name: String, chain_name: Option<ChainName>) -> Service {
         Service {
             name: service_name,
             coordinator_contract: api.addr_make("coordinator"),
-            min_num_verifiers: 1,
+            min_num_verifiers: chain_name.map_or(1, |_| 2),
             max_num_verifiers: None,
             min_verifier_bond: Uint128::one(),
             bond_denom: "uaxl".into(),
@@ -283,18 +266,11 @@ mod test {
                     }])
                     .into())
                     .into(),
-                    QueryMsg::Service { service_name } => {
-                        Ok(to_json_binary(&mock_service(&api, service_name)).into()).into()
-                    }
-                    QueryMsg::ServiceWithOverrides {
+                    QueryMsg::Service {
                         service_name,
-                        chain_name: _,
-                    } => Ok(to_json_binary(&Service {
-                        min_num_verifiers: 2,
-                        ..mock_service(&api, service_name)
-                    })
-                    .into())
-                    .into(),
+                        chain_name,
+                    } => Ok(to_json_binary(&mock_service(&api, service_name, chain_name)).into())
+                        .into(),
                     QueryMsg::Verifier {
                         service_name,
                         verifier,

@@ -57,16 +57,24 @@ const SERVICES: Map<&ServiceName, Service> = Map::new("services");
 const SERVICE_OVERRIDES: Map<(&ServiceName, &ChainName), ServiceParamsOverride> =
     Map::new("service_overrides");
 
-pub fn service_with_overrides(
+pub fn service(
     storage: &dyn Storage,
     service_name: &ServiceName,
-    chain: &ChainName,
+    chain: Option<&ChainName>,
 ) -> error_stack::Result<Service, ContractError> {
-    let service = base_service(storage, service_name)?;
+    let service = SERVICES
+        .may_load(storage, service_name)
+        .change_context(ContractError::StorageError)?
+        .ok_or(report!(ContractError::ServiceNotFound))?;
 
-    let params_override = SERVICE_OVERRIDES
-        .may_load(storage, (service_name, chain))
-        .change_context(ContractError::StorageError)?;
+    let params_override = chain
+        .map(|chain| {
+            SERVICE_OVERRIDES
+                .may_load(storage, (service_name, chain))
+                .change_context(ContractError::StorageError)
+        })
+        .transpose()?
+        .flatten();
 
     match params_override {
         Some(params_override) => Ok(Service {
@@ -82,17 +90,7 @@ pub fn service_with_overrides(
     }
 }
 
-pub fn base_service(
-    storage: &dyn Storage,
-    service_name: &ServiceName,
-) -> error_stack::Result<Service, ContractError> {
-    SERVICES
-        .may_load(storage, service_name)
-        .change_context(ContractError::StorageError)?
-        .ok_or(report!(ContractError::ServiceNotFound))
-}
-
-pub fn save_service(
+pub fn save_new_service(
     storage: &mut dyn Storage,
     service_name: &ServiceName,
     service: Service,
@@ -278,9 +276,12 @@ mod tests {
         let stored_service = save_mock_service(deps.as_mut().storage);
         let chain_name = "solana".parse().unwrap();
 
-        let loaded_service =
-            service_with_overrides(deps.as_ref().storage, &stored_service.name, &chain_name)
-                .unwrap();
+        let loaded_service = service(
+            deps.as_ref().storage,
+            &stored_service.name,
+            Some(&chain_name),
+        )
+        .unwrap();
 
         assert_eq!(loaded_service, stored_service);
     }
@@ -305,9 +306,12 @@ mod tests {
         )
         .unwrap();
 
-        let loaded_service =
-            service_with_overrides(deps.as_ref().storage, &stored_service.name, &chain_name)
-                .unwrap();
+        let loaded_service = service(
+            deps.as_ref().storage,
+            &stored_service.name,
+            Some(&chain_name),
+        )
+        .unwrap();
 
         let expected_service = Service {
             min_num_verifiers: min_verifiers_override,
@@ -345,9 +349,12 @@ mod tests {
         )
         .unwrap();
 
-        let loaded_service =
-            service_with_overrides(deps.as_ref().storage, &stored_service.name, &chain_name)
-                .unwrap();
+        let loaded_service = service(
+            deps.as_ref().storage,
+            &stored_service.name,
+            Some(&chain_name),
+        )
+        .unwrap();
 
         let expected_service = Service {
             max_num_verifiers: max_verifiers_override,
@@ -380,7 +387,7 @@ mod tests {
         )
         .unwrap();
 
-        let loaded_service = base_service(deps.as_ref().storage, &stored_service.name).unwrap();
+        let loaded_service = service(deps.as_ref().storage, &stored_service.name, None).unwrap();
 
         assert_eq!(loaded_service, stored_service);
     }
@@ -987,6 +994,6 @@ mod tests {
 
     fn save_mock_service(storage: &mut dyn Storage) -> Service {
         let service = mock_service();
-        save_service(storage, &service.name.clone(), service).unwrap()
+        save_new_service(storage, &service.name.clone(), service).unwrap()
     }
 }

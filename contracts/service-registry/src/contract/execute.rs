@@ -21,7 +21,7 @@ pub fn register_service(
     unbonding_period_days: u16,
     description: String,
 ) -> Result<Response, ContractError> {
-    state::save_service(
+    state::save_new_service(
         deps.storage,
         &service_name.clone(),
         Service {
@@ -115,7 +115,7 @@ pub fn bond_verifier(
     info: MessageInfo,
     service_name: String,
 ) -> Result<Response, ContractError> {
-    let service = state::base_service(deps.storage, &service_name)?;
+    let service = state::service(deps.storage, &service_name, None)?;
 
     let bond: Option<nonempty::Uint128> = if !info.funds.is_empty() {
         Some(
@@ -189,7 +189,7 @@ pub fn unbond_verifier(
     info: MessageInfo,
     service_name: String,
 ) -> Result<Response, ContractError> {
-    let service = state::base_service(deps.storage, &service_name)?;
+    let service = state::service(deps.storage, &service_name, None)?;
 
     let verifier = VERIFIERS
         .may_load(deps.storage, (&service_name, &info.sender))
@@ -218,7 +218,7 @@ pub fn claim_stake(
     info: MessageInfo,
     service_name: String,
 ) -> Result<Response, ContractError> {
-    let service = state::base_service(deps.storage, &service_name)?;
+    let service = state::service(deps.storage, &service_name, None)?;
 
     let verifier = VERIFIERS
         .may_load(deps.storage, (&service_name, &info.sender))

@@ -168,7 +168,7 @@ fn match_verifier(
 
         // on error, check if the service even exists, and if it doesn't, return ServiceNotFound
         if res.is_err() {
-            state::base_service(storage, service_name)
+            state::service(storage, service_name, None)
                 .change_context(permission_control::Error::Unauthorized)?;
         }
         res
@@ -192,18 +192,11 @@ pub fn query(
             verifier,
         } => to_json_binary(&query::verifier(deps, service_name, verifier)?)
             .map_err(|err| err.into()),
-        QueryMsg::Service { service_name } => {
-            to_json_binary(&query::base_service(deps, service_name)?).map_err(|err| err.into())
-        }
-        QueryMsg::ServiceWithOverrides {
+        QueryMsg::Service {
             service_name,
             chain_name,
-        } => to_json_binary(&query::service_with_overrides(
-            deps,
-            service_name,
-            chain_name,
-        )?)
-        .map_err(|err| err.into()),
+        } => to_json_binary(&query::service(deps, service_name, chain_name)?)
+            .map_err(|err| err.into()),
     }
 }
 
@@ -410,6 +403,7 @@ mod test {
                 mock_env(),
                 QueryMsg::Service {
                     service_name: service.name.clone(),
+                    chain_name: None,
                 },
             )
             .unwrap(),
@@ -464,6 +458,7 @@ mod test {
                 mock_env(),
                 QueryMsg::Service {
                     service_name: service_name.into(),
+                    chain_name: None,
                 },
             )
             .unwrap(),
@@ -543,9 +538,9 @@ mod test {
             query(
                 deps.as_ref(),
                 mock_env(),
-                QueryMsg::ServiceWithOverrides {
+                QueryMsg::Service {
                     service_name: service_name.into(),
-                    chain_name,
+                    chain_name: Some(chain_name),
                 },
             )
             .unwrap(),
@@ -658,9 +653,9 @@ mod test {
             query(
                 deps.as_ref(),
                 mock_env(),
-                QueryMsg::ServiceWithOverrides {
+                QueryMsg::Service {
                     service_name: service_name.into(),
-                    chain_name,
+                    chain_name: Some(chain_name),
                 },
             )
             .unwrap(),
