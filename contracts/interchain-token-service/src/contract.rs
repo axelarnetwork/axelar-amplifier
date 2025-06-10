@@ -152,7 +152,7 @@ fn match_gateway(storage: &dyn Storage, _: &ExecuteMsg) -> Result<Addr, Report<E
 }
 
 fn match_operator(storage: &dyn Storage, _: &ExecuteMsg) -> Result<Addr, Report<Error>> {
-    Ok(state::load_config(storage).operator)
+    Ok(state::load_config(storage).axelarnet_gateway)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
