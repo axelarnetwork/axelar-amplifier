@@ -5,6 +5,7 @@ use service_registry_api::{self, AuthorizationState, Verifier};
 use state::VERIFIERS;
 
 use super::*;
+use crate::events::Event;
 use crate::state::{self, ServiceParamsOverride, UpdatedServiceParams};
 
 #[allow(clippy::too_many_arguments)]
@@ -161,7 +162,11 @@ pub fn register_chains_support(
         info.sender.clone(),
     )?;
 
-    Ok(Response::new())
+    Ok(Response::new().add_event(Event::ChainsSupportRegistered {
+        verifier: info.sender,
+        service_name,
+        chains,
+    }))
 }
 
 pub fn deregister_chains_support(
@@ -172,9 +177,18 @@ pub fn deregister_chains_support(
 ) -> Result<Response, ContractError> {
     ensure_service_exists(deps.storage, &service_name)?;
 
-    state::deregister_chains_support(deps.storage, service_name.clone(), chains, info.sender)?;
+    state::deregister_chains_support(
+        deps.storage,
+        service_name.clone(),
+        chains.clone(),
+        info.sender.clone(),
+    )?;
 
-    Ok(Response::new())
+    Ok(Response::new().add_event(Event::ChainsSupportDeregistered {
+        verifier: info.sender,
+        service_name,
+        chains,
+    }))
 }
 
 pub fn unbond_verifier(
