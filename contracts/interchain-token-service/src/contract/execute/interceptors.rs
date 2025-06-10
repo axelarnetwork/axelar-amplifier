@@ -4,6 +4,7 @@ use error_stack::{bail, ensure, report, Result, ResultExt};
 use router_api::ChainNameRaw;
 
 use super::Error;
+use crate::shared::NumBits;
 use crate::state::{self, TokenConfig, TokenDeploymentType, TokenInstance};
 use crate::{DeployInterchainToken, InterchainTransfer, RegisterTokenMetadata, TokenId};
 
