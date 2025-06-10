@@ -242,7 +242,7 @@ dependencies = [
 
 [[package]]
 name = "ampd"
-version = "1.8.0"
+version = "1.9.0"
 dependencies = [
  "ampd-proto",
  "assert_ok",
@@ -268,7 +268,6 @@ dependencies = [
  "ethers-core",
  "ethers-providers",
  "events",
- "events-derive",
  "evm-gateway",
  "faux",
  "futures",
@@ -3556,6 +3555,7 @@ dependencies = [
  "base64 0.21.7",
  "cosmrs",
  "error-stack",
+ "events-derive",
  "goldie",
  "serde",
  "serde_json",
@@ -5049,7 +5049,6 @@ dependencies = [
  "error-stack",
  "ethers-core",
  "events",
- "events-derive",
  "gateway",
  "gateway-api",
  "goldie",
