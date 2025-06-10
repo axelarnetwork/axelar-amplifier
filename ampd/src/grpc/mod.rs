@@ -13,7 +13,7 @@ use tokio_util::sync::CancellationToken;
 use tonic::transport;
 use tower::limit::ConcurrencyLimitLayer;
 use tower_http::trace;
-use tracing::info;
+use tracing::{info, instrument};
 use typed_builder::TypedBuilder;
 use valuable::Valuable;
 
@@ -82,7 +82,7 @@ where
     Ok(config)
 }
 
-#[derive(TypedBuilder)]
+#[derive(Debug, TypedBuilder)]
 pub struct Server {
     config: Config,
     event_sub: event_sub::EventSubscriber,
@@ -91,6 +91,7 @@ pub struct Server {
 }
 
 impl Server {
+    #[instrument]
     pub async fn run(self, token: CancellationToken) -> Result<(), Error> {
         let addr = SocketAddr::new(self.config.ip_addr, self.config.port);
         // Configure tracing middleware for gRPC server requests

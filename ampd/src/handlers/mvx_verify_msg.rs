@@ -44,6 +44,7 @@ struct PollStartedEvent {
     expires_at: u64,
 }
 
+#[derive(Debug)]
 pub struct Handler<P>
 where
     P: MvxProxy + Send + Sync,

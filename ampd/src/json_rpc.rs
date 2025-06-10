@@ -9,6 +9,7 @@ use crate::url::Url;
 
 type Result<T> = error_stack::Result<T, ProviderError>;
 
+#[derive(Debug)]
 pub struct Client<P>
 where
     P: JsonRpcClient,

@@ -103,7 +103,7 @@ pub trait CosmosClient {
 /// This cloning approach is efficient for concurrent operations since it allows multiple
 /// client instances to share the same connection resources while maintaining independent state.
 ///
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct CosmosGrpcClient {
     auth: AuthQueryClient<Channel>,
     bank: BankQueryClient<Channel>,

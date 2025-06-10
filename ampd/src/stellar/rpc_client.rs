@@ -59,6 +59,7 @@ impl TxResponse {
     }
 }
 
+#[derive(Debug)]
 #[cfg_attr(test, faux::create)]
 pub struct Client(stellar_rpc_client::Client);
 

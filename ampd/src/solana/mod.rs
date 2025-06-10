@@ -49,6 +49,21 @@ impl SolanaRpcClientProxy for RpcClient {
     }
 }
 
+// XXX TODO: fix - error[E0117]: only traits defined in the current crate can be implemented for 
+// types defined outside of the crate
+// use std::fmt;
+// impl fmt::Debug for RpcClient {
+//     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+//         // XXX: unable to access private struct fields
+//         // (`sender` and `config`) but a debug impl is 
+//         // required for adding SpanTrace error tracing
+//         f.debug_struct("RpcClient")
+//             // .field("sender", &self.sender)
+//             // .field("config", &self.config)
+//             .finish()
+//     }
+// }
+
 pub fn deserialize_pubkey<'de, D>(deserializer: D) -> Result<Pubkey, D::Error>
 where
     D: Deserializer<'de>,

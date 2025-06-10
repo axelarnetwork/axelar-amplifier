@@ -29,7 +29,7 @@ pub trait Multisig {
     ) -> Result<Signature>;
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct MultisigClient {
     party_uid: String,
     client: multisig_client::MultisigClient<Channel>,

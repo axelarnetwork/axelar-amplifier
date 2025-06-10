@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use std::pin::Pin;
 use std::time::Duration;
 
@@ -566,7 +567,7 @@ where
     ) -> CancellableTask<Result<(), event_processor::Error>>
     where
         L: AsRef<str>,
-        H: EventHandler + Send + Sync + 'static,
+        H: EventHandler + Send + Sync + 'static + Debug,
     {
         let label = label.as_ref().to_string();
         let broadcaster = self.broadcaster.client();

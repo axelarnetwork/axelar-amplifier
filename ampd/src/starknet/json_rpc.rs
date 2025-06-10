@@ -28,6 +28,7 @@ pub enum StarknetClientError {
 
 /// Implementor of verification method(s) for given network using JSON RPC
 /// client.
+#[derive(Debug)]
 pub struct Client<T>
 where
     T: JsonRpcTransport + Send + Sync,
