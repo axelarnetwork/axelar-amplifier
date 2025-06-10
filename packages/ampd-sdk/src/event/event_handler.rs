@@ -234,7 +234,8 @@ mod tests {
     use std::sync::{Arc, Mutex};
 
     use super::*;
-    use crate::grpc::client::{Error as ClientError, MockClient};
+    use crate::grpc::client::MockClient;
+    use crate::grpc::error::Error as ClientError;
 
     fn setup_handler() -> MockEventHandler {
         let mut handler = MockEventHandler::new();

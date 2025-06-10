@@ -16,37 +16,11 @@ use events::{AbciEventTypeFilter, Event};
 use futures::StreamExt;
 use mockall::automock;
 use report::{ResultCompatExt, ResultExt};
-use serde_json::Value;
-use thiserror::Error;
+use serde::de::DeserializeOwned;
 use tokio_stream::Stream;
 use tonic::{transport, Request};
 
-#[derive(Error, Debug)]
-pub enum Error {
-    #[error("failed to connect to the grpc endpoint")]
-    GrpcConnection(#[from] tonic::transport::Error),
-
-    #[error("failed to execute gRPC request")]
-    GrpcRequest(#[from] tonic::Status),
-
-    #[error("failed to convert event")]
-    EventConversion,
-
-    #[error("invalid {0} address ")]
-    InvalidAddress(&'static str),
-
-    #[error("missing event in response")]
-    InvalidResponse,
-
-    #[error("query response is not valid json")]
-    InvalidJson,
-
-    #[error("invalid contracts response")]
-    InvalidContractsResponse,
-
-    #[error("invalid byte array")]
-    InvalidByteArray,
-}
+use crate::grpc::error::*;
 
 #[automock(type Stream = tokio_stream::Iter<vec::IntoIter<Result<Event, Error>>>;)]
 #[async_trait]
@@ -63,11 +37,11 @@ pub trait Client {
 
     async fn broadcast(&mut self, msg: cosmrs::Any) -> Result<BroadcastClientResponse, Error>;
 
-    async fn contract_state(
+    async fn contract_state<T: DeserializeOwned + 'static>(
         &mut self,
         contract: nonempty::String,
         query: nonempty::Vec<u8>,
-    ) -> Result<Value, Error>;
+    ) -> Result<T, Error>;
 
     async fn contracts(&mut self) -> Result<ContractsAddresses, Error>;
 
@@ -87,13 +61,10 @@ pub struct GrpcClient {
 }
 
 pub async fn new(url: &str) -> Result<GrpcClient, Error> {
-    let endpoint: transport::Endpoint = url.parse().into_report()?; // Convert to Error::GrpcConnection via #[from]
-
+    let endpoint: transport::Endpoint = url.parse().into_report()?;
     let conn = endpoint.connect().await.into_report()?;
-
     let blockchain = BlockchainServiceClient::new(conn.clone());
     let crypto = CryptoServiceClient::new(conn);
-
     Ok(GrpcClient { blockchain, crypto })
 }
 
@@ -187,7 +158,7 @@ impl Client for GrpcClient {
                 Some(event) => Event::try_from(event).change_context(Error::EventConversion),
                 None => bail!(Error::InvalidResponse),
             },
-            Err(e) => bail!(Error::GrpcRequest(e)),
+            Err(status) => bail!(Error::from(status)),
         });
 
         Ok(Box::pin(transformed_stream))
@@ -203,7 +174,6 @@ impl Client for GrpcClient {
             .address;
 
         let ampd_broadcaster_address = parse_addr(&broadcaster_address, "broadcaster")?;
-
         Ok(ampd_broadcaster_address)
     }
 
@@ -220,11 +190,11 @@ impl Client for GrpcClient {
         Ok(broadcast_response.into())
     }
 
-    async fn contract_state(
+    async fn contract_state<T: DeserializeOwned + 'static>(
         &mut self,
         contract: nonempty::String,
         query: nonempty::Vec<u8>,
-    ) -> Result<Value, Error> {
+    ) -> Result<T, Error> {
         self.blockchain
             .contract_state(ContractStateRequest {
                 contract: contract.into(),
@@ -234,11 +204,9 @@ impl Client for GrpcClient {
             .into_report()
             .map(|response| response.into_inner().result)
             .and_then(|result| {
-                let encoded_response = hex::encode(&result);
-
-                serde_json::to_value(result)
+                serde_json::from_slice(&result)
                     .change_context(Error::InvalidJson)
-                    .attach_printable(encoded_response)
+                    .attach_printable(hex::encode(&result))
             })
     }
 
