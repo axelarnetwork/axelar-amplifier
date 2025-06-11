@@ -122,7 +122,7 @@ impl From<&Backtrace> for LoggableBacktrace {
     }
 }
 
-#[derive(Valuable, PartialEq, Eq, Debug)]
+#[derive(Clone, Debug, Default, Eq, PartialEq, Valuable)]
 pub struct LoggableSpanTrace {
     pub lines: Vec<String>,
 }
@@ -182,7 +182,13 @@ mod tests {
 
     use error_stack::Report;
     use thiserror::Error;
+    use tracing::instrument;
+    use tracing_core::LevelFilter;
+    use tracing_error::ErrorLayer;
+    use tracing_subscriber::prelude::*;
+    use tracing_subscriber::EnvFilter;
 
+    use crate::loggable::LoggableSpanTrace;
     use crate::LoggableError;
 
     #[derive(Error, Debug)]
@@ -260,5 +266,39 @@ mod tests {
         assert!(error_msg.contains("value"));
         assert!(error_msg.contains("inner attachment"));
         assert!(error_msg.contains(vec_attachment.as_str()));
+    }
+
+    #[test]
+    /// An instrumented function that creates a report must return
+    /// a valid span trace in the LoggableError
+    fn instrument_should_display_span_trace() {
+        // Configure layers
+        let error_layer = ErrorLayer::default();
+        let filter_layer = EnvFilter::builder()
+            .with_default_directive(LevelFilter::INFO.into())
+            .from_env_lossy();
+        let fmt_layer = tracing_subscriber::fmt::layer().with_target(false);
+        // Initialize a tracing subscriber
+        tracing_subscriber::registry()
+            .with(error_layer)
+            .with(filter_layer)
+            .with(fmt_layer)
+            .init();
+
+        let loggable_error: LoggableError = instrumented_log();
+        let spantrace: Option<LoggableSpanTrace> = loggable_error.spantrace;
+
+        assert!(spantrace.is_some());
+        assert_eq!(spantrace.clone().unwrap_or_default().lines.len(), 2_usize);
+        assert!(spantrace.unwrap_or_default().lines[0]
+            .contains("report::loggable::tests::instrumented_log"));
+    }
+
+    #[instrument]
+    fn instrumented_log() -> LoggableError {
+        let report = Report::new(Error::FromString("internal error".to_string()));
+        let error = LoggableError::from(&report);
+        // dbg!(&error);
+        error
     }
 }

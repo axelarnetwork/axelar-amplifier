@@ -8222,7 +8222,10 @@ dependencies = [
  "eyre",
  "itertools 0.14.0",
  "thiserror 1.0.69",
+ "tracing",
+ "tracing-core",
  "tracing-error",
+ "tracing-subscriber",
  "valuable",
 ]
 
