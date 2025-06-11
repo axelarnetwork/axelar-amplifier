@@ -102,7 +102,7 @@ impl TryFrom<String> for Address {
     type Error = Report<Error>;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
-        if value.contains(FIELD_DELIMITER) {
+        if !Self::is_address(&value) {
             return Err(Report::new(Error::InvalidAddress));
         }
 
@@ -114,10 +114,31 @@ impl TryFrom<String> for Address {
     }
 }
 
+impl Address {
+    pub const fn is_address(value: &str) -> bool {
+        !value.is_empty() && !contains!(value, FIELD_DELIMITER)
+    }
+}
+
 impl std::fmt::Display for Address {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", *self.0)
     }
+}
+
+#[macro_export]
+macro_rules! address {
+    ($s:literal) => {{
+        use std::str::FromStr as _;
+
+        const _: () = {
+            if !$crate::Address::is_address($s) {
+                panic!("string literal is not a valid address");
+            }
+        };
+
+        $crate::Address::from_str($s).expect("string literal was already checked")
+    }};
 }
 
 #[cw_serde]
@@ -360,6 +381,8 @@ impl FromStr for ChainNameRaw {
 #[macro_export]
 macro_rules! chain_name_raw {
     ($s:literal) => {{
+        use std::str::FromStr as _;
+
         const _: () = {
             if !$crate::ChainNameRaw::is_raw_chain_name($s) {
                 panic!("string literal is not a valid chain name");
