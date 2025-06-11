@@ -2,10 +2,7 @@ use thiserror::Error;
 use tonic::Code;
 
 #[derive(Error, Debug)]
-pub enum Error {
-    #[error("failed to connect to the grpc endpoint")]
-    GrpcConnection(#[from] tonic::transport::Error),
-
+pub enum GrpcError {
     #[error("invalid argument provided: {0}")]
     InvalidArgument(String),
 
@@ -23,7 +20,10 @@ pub enum Error {
 
     #[error("unknown gRPC error: {0}")]
     UnknownGrpcError(String),
+}
 
+#[derive(Error, Debug)]
+pub enum AppError {
     #[error("failed to convert event")]
     EventConversion,
 
@@ -43,16 +43,47 @@ pub enum Error {
     InvalidByteArray,
 }
 
+#[derive(Error, Debug)]
+pub enum Error {
+    #[error("failed to connect to the grpc endpoint")]
+    GrpcConnection(#[from] tonic::transport::Error),
+
+    #[error(transparent)]
+    Grpc(#[from] GrpcError),
+
+    #[error(transparent)]
+    App(#[from] AppError),
+}
+
 impl From<tonic::Status> for Error {
+    fn from(status: tonic::Status) -> Self {
+        Error::Grpc(GrpcError::from(status))
+    }
+}
+
+impl From<tonic::Status> for GrpcError {
     fn from(status: tonic::Status) -> Self {
         let message = status.message().to_string();
         match status.code() {
-            Code::InvalidArgument => Error::InvalidArgument(message),
-            Code::DataLoss => Error::DataLoss(message),
-            Code::Internal => Error::InternalError(message),
-            Code::Unavailable => Error::ServiceUnavailable(message),
-            Code::Unknown => Error::OperationFailed(message),
-            _ => Error::UnknownGrpcError(format!("{}: {}", status.code(), message)),
+            Code::InvalidArgument => GrpcError::InvalidArgument(message),
+            Code::DataLoss => GrpcError::DataLoss(message),
+            Code::Internal => GrpcError::InternalError(message),
+            Code::Unavailable => GrpcError::ServiceUnavailable(message),
+            Code::Unknown => GrpcError::OperationFailed(message),
+            _ => GrpcError::UnknownGrpcError(format!("{}: {}", status.code(), message)),
+        }
+    }
+}
+
+impl GrpcError {
+    pub fn grpc_code(&self) -> Code {
+        match self {
+            GrpcError::InvalidArgument(_) => Code::InvalidArgument,
+            GrpcError::DataLoss(_) => Code::DataLoss,
+            GrpcError::InternalError(_) => Code::Internal,
+            GrpcError::ServiceUnavailable(_) => Code::Unavailable,
+            GrpcError::OperationFailed(_) => Code::Unknown,
+            GrpcError::UnknownGrpcError(_) => Code::Unknown,
         }
     }
 }
@@ -60,11 +91,7 @@ impl From<tonic::Status> for Error {
 impl Error {
     pub fn grpc_code(&self) -> Option<Code> {
         match self {
-            Error::InvalidArgument(_) => Some(Code::InvalidArgument),
-            Error::DataLoss(_) => Some(Code::DataLoss),
-            Error::InternalError(_) => Some(Code::Internal),
-            Error::ServiceUnavailable(_) => Some(Code::Unavailable),
-            Error::OperationFailed(_) => Some(Code::Unknown),
+            Error::Grpc(grpc_err) => Some(grpc_err.grpc_code()),
             _ => None,
         }
     }
@@ -72,17 +99,23 @@ impl Error {
     pub fn is_retryable(&self) -> bool {
         matches!(
             self,
-            Error::DataLoss(_) | Error::ServiceUnavailable(_) | Error::InternalError(_)
+            Error::Grpc(
+                GrpcError::DataLoss(_)
+                    | GrpcError::ServiceUnavailable(_)
+                    | GrpcError::InternalError(_),
+            )
         )
     }
 
     pub fn is_client_error(&self) -> bool {
         matches!(
             self,
-            Error::InvalidArgument(_)
-                | Error::InvalidAddress(_)
-                | Error::InvalidJson
-                | Error::InvalidByteArray
+            Error::Grpc(GrpcError::InvalidArgument(_))
+                | Error::App(
+                    AppError::InvalidAddress(_)
+                        | AppError::InvalidJson
+                        | AppError::InvalidByteArray,
+                )
         )
     }
 }
@@ -95,28 +128,31 @@ mod tests {
     fn test_status_conversion() {
         let status = tonic::Status::invalid_argument("Invalid filter");
         let error = Error::from(status);
-        assert!(matches!(error, Error::InvalidArgument(_)));
+        assert!(matches!(error, Error::Grpc(GrpcError::InvalidArgument(_))));
         assert!(error.is_client_error());
         assert!(!error.is_retryable());
     }
 
     #[test]
     fn test_grpc_code_mapping() {
-        let error = Error::InvalidArgument("test_error".to_string());
+        let error = Error::Grpc(GrpcError::InvalidArgument("test".to_string()));
         assert_eq!(error.grpc_code(), Some(Code::InvalidArgument));
 
-        let error = Error::DataLoss("test_error".to_string());
+        let error = Error::Grpc(GrpcError::DataLoss("test".to_string()));
         assert_eq!(error.grpc_code(), Some(Code::DataLoss));
+
+        let error = Error::App(AppError::InvalidJson);
+        assert_eq!(error.grpc_code(), None);
     }
 
     #[test]
     fn test_error_categorization() {
-        assert!(Error::DataLoss("test".to_string()).is_retryable());
-        assert!(Error::ServiceUnavailable("test_error".to_string()).is_retryable());
-        assert!(!Error::InvalidArgument("test_error".to_string()).is_retryable());
+        assert!(Error::Grpc(GrpcError::DataLoss("test".to_string())).is_retryable());
+        assert!(Error::Grpc(GrpcError::ServiceUnavailable("test".to_string())).is_retryable());
+        assert!(!Error::Grpc(GrpcError::InvalidArgument("test".to_string())).is_retryable());
 
-        assert!(Error::InvalidArgument("test_error".to_string()).is_client_error());
-        assert!(Error::InvalidJson.is_client_error());
-        assert!(!Error::InternalError("test_error".to_string()).is_client_error());
+        assert!(Error::Grpc(GrpcError::InvalidArgument("test".to_string())).is_client_error());
+        assert!(Error::App(AppError::InvalidJson).is_client_error());
+        assert!(!Error::Grpc(GrpcError::InternalError("test".to_string())).is_client_error());
     }
 }

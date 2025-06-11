@@ -235,7 +235,7 @@ mod tests {
 
     use super::*;
     use crate::grpc::client::MockClient;
-    use crate::grpc::error::Error as ClientError;
+    use crate::grpc::error::{AppError, Error as ClientError};
 
     fn setup_handler() -> MockEventHandler {
         let mut handler = MockEventHandler::new();
@@ -411,9 +411,9 @@ mod tests {
 
         let mut client = MockClient::new();
         client.expect_subscribe().times(1).returning(|_, _| {
-            Ok(tokio_stream::iter(vec![Err(report!(
-                ClientError::InvalidResponse
-            ))]))
+            Ok(tokio_stream::iter(vec![Err(report!(ClientError::App(
+                AppError::InvalidResponse
+            )))]))
         });
 
         let task = HandlerTask::builder()

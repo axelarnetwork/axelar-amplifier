@@ -20,7 +20,7 @@ use serde::de::DeserializeOwned;
 use tokio_stream::Stream;
 use tonic::{transport, Request};
 
-use crate::grpc::error::*;
+use crate::grpc::error::{AppError, Error};
 
 #[automock(type Stream = tokio_stream::Iter<vec::IntoIter<Result<Event, Error>>>;)]
 #[async_trait]
@@ -113,7 +113,7 @@ impl TryFrom<&ContractsResponse> for ContractsAddresses {
 
 fn parse_addr(addr: &str, address_name: &'static str) -> Result<AccountId, Error> {
     addr.parse::<AccountId>()
-        .change_context(Error::InvalidAddress(address_name))
+        .change_context(Error::App(AppError::InvalidAddress(address_name)))
         .attach_printable_lazy(|| addr.to_string())
 }
 
@@ -155,8 +155,10 @@ impl Client for GrpcClient {
 
         let transformed_stream = streaming_response.into_inner().map(|result| match result {
             Ok(response) => match response.event {
-                Some(event) => Event::try_from(event).change_context(Error::EventConversion),
-                None => bail!(Error::InvalidResponse),
+                Some(event) => {
+                    Event::try_from(event).change_context(Error::App(AppError::EventConversion))
+                }
+                None => bail!(Error::App(AppError::InvalidResponse)),
             },
             Err(status) => bail!(Error::from(status)),
         });
@@ -205,7 +207,7 @@ impl Client for GrpcClient {
             .map(|response| response.into_inner().result)
             .and_then(|result| {
                 serde_json::from_slice(&result)
-                    .change_context(Error::InvalidJson)
+                    .change_context(Error::App(AppError::InvalidJson))
                     .attach_printable(hex::encode(&result))
             })
     }
@@ -219,7 +221,7 @@ impl Client for GrpcClient {
             .into_inner();
 
         ContractsAddresses::try_from(&response)
-            .change_context(Error::InvalidContractsResponse)
+            .change_context(Error::App(AppError::InvalidContractsResponse))
             .attach_printable(format!("{response:?}"))
     }
 
@@ -237,7 +239,7 @@ impl Client for GrpcClient {
             .into_report()
             .and_then(|response| {
                 nonempty::Vec::try_from(response.into_inner().signature)
-                    .change_context(Error::InvalidByteArray)
+                    .change_context(Error::App(AppError::InvalidByteArray))
             })
     }
 
@@ -250,7 +252,7 @@ impl Client for GrpcClient {
             .into_report()
             .and_then(|response| {
                 nonempty::Vec::try_from(response.into_inner().pub_key)
-                    .change_context(Error::InvalidByteArray)
+                    .change_context(Error::App(AppError::InvalidByteArray))
             })
     }
 }
