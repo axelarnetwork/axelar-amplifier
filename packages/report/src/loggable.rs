@@ -285,18 +285,18 @@ mod tests {
             .with(fmt_layer)
             .init();
 
-        let loggable_error: LoggableError = instrumented_log();
+        let report: Report<Error> = instrumented_report();
+        let loggable_error = LoggableError::from(&report);
         let spantrace: Option<LoggableSpanTrace> = loggable_error.spantrace;
 
         assert!(spantrace.is_some());
         assert_eq!(spantrace.clone().unwrap_or_default().lines.len(), 2_usize);
         assert!(spantrace.unwrap_or_default().lines[0]
-            .contains("report::loggable::tests::instrumented_log"));
+            .contains("report::loggable::tests::instrumented_report"));
     }
 
     #[instrument]
-    fn instrumented_log() -> LoggableError {
-        let report = Report::new(Error::FromString("internal error".to_string()));
-        LoggableError::from(&report)
+    fn instrumented_report() -> Report<Error> {
+        Report::new(Error::FromString("internal error".to_string()))
     }
 }
