@@ -113,7 +113,7 @@ impl TryFrom<&ContractsResponse> for ContractsAddresses {
 
 fn parse_addr(addr: &str, address_name: &'static str) -> Result<AccountId, Error> {
     addr.parse::<AccountId>()
-        .change_context(Error::App(AppError::InvalidAddress(address_name)))
+        .change_context(AppError::InvalidAddress(address_name).into())
         .attach_printable_lazy(|| addr.to_string())
 }
 
@@ -156,9 +156,9 @@ impl Client for GrpcClient {
         let transformed_stream = streaming_response.into_inner().map(|result| match result {
             Ok(response) => match response.event {
                 Some(event) => {
-                    Event::try_from(event).change_context(Error::App(AppError::EventConversion))
+                    Event::try_from(event).change_context(AppError::EventConversion.into())
                 }
-                None => bail!(Error::App(AppError::InvalidResponse)),
+                None => bail!(Error::from(AppError::InvalidResponse)),
             },
             Err(status) => bail!(Error::from(status)),
         });
@@ -207,7 +207,7 @@ impl Client for GrpcClient {
             .map(|response| response.into_inner().result)
             .and_then(|result| {
                 serde_json::from_slice(&result)
-                    .change_context(Error::App(AppError::InvalidJson))
+                    .change_context(AppError::InvalidJson.into())
                     .attach_printable(hex::encode(&result))
             })
     }
@@ -221,7 +221,7 @@ impl Client for GrpcClient {
             .into_inner();
 
         ContractsAddresses::try_from(&response)
-            .change_context(Error::App(AppError::InvalidContractsResponse))
+            .change_context(AppError::InvalidContractsResponse.into())
             .attach_printable(format!("{response:?}"))
     }
 
@@ -239,7 +239,7 @@ impl Client for GrpcClient {
             .into_report()
             .and_then(|response| {
                 nonempty::Vec::try_from(response.into_inner().signature)
-                    .change_context(Error::App(AppError::InvalidByteArray))
+                    .change_context(AppError::InvalidByteArray.into())
             })
     }
 
@@ -252,7 +252,7 @@ impl Client for GrpcClient {
             .into_report()
             .and_then(|response| {
                 nonempty::Vec::try_from(response.into_inner().pub_key)
-                    .change_context(Error::App(AppError::InvalidByteArray))
+                    .change_context(AppError::InvalidByteArray.into())
             })
     }
 }
