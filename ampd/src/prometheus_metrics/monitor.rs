@@ -13,11 +13,9 @@ use tracing::info;
 use super::client::MetricsClient;
 use crate::prometheus_metrics::metrics::{self, Metrics};
 use crate::prometheus_metrics::msg::{MetricsError, MetricsMsg};
-use reqwest::Url;
-
 
 // safe upper bound for expected metric throughput;
-// shouldnt exceed 1000 message currently 
+// shouldnt exceed 1000 message currently
 const CHANNEL_SIZE: usize = 1000;
 
 pub struct Server {
@@ -42,13 +40,17 @@ impl Server {
     pub async fn run(self, cancel: CancellationToken) -> Result<(), MetricsError> {
         match self.bind_address {
             Some(addr) => Self::run_server(addr, self.metrics_rx, cancel).await,
-            None => Self::run_dummy(self.metrics_rx, cancel).await
+            None => Self::run_dummy(self.metrics_rx, cancel).await,
         }
     }
 
-    async fn run_dummy(mut metrics_rx: mpsc::Receiver<MetricsMsg>, cancel: CancellationToken) -> Result<(), MetricsError> {
+    async fn run_dummy(
+        mut metrics_rx: mpsc::Receiver<MetricsMsg>,
+        cancel: CancellationToken,
+    ) -> Result<(), MetricsError> {
         info!("no prometheus endpoint defined, so no metrics will be collected");
-        tokio::spawn(async move {
+
+        let handle = tokio::spawn(async move {
             loop {
                 tokio::select! {
                     msg = metrics_rx.recv() => {
@@ -63,6 +65,7 @@ impl Server {
                 }
             }
         });
+        _ = handle.await;
         Ok(())
     }
 
@@ -96,7 +99,6 @@ impl Server {
             .change_context(MetricsError::WhileRunning)?;
         let _ = metrics_handle.await;
         Ok(())
-        // handle joinHanlde? 
     }
 
     fn start_metrics_processing(
@@ -110,13 +112,13 @@ impl Server {
                     msg = metrics_rx.recv() => {
                         match msg {
                             Some(msg) => {
-                                server.handle_message(msg) 
+                                server.handle_message(msg)
                             }
                             None => break
                         }
                     }
                     _ = cancel.cancelled() => break
-                    
+
                 }
             }
         })
@@ -130,10 +132,7 @@ async fn status() -> (StatusCode, Json<Status>) {
 async fn gather_metrics(registry: &Registry) -> (StatusCode, String) {
     match metrics::gather(registry) {
         Ok(metrics) => (StatusCode::OK, metrics),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            e.to_string(),
-        ),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
     }
 }
 
@@ -147,47 +146,36 @@ pub mod tests {
     use std::net::{SocketAddr, TcpListener};
     use std::time::Duration;
 
+    use reqwest::Url;
     use tokio::test as async_test;
+
     use super::*;
 
-    pub fn test_bind_addr() -> Option<SocketAddrV4> {
+    pub fn test_bind_addr() -> SocketAddrV4 {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
 
         match listener.local_addr().unwrap() {
-            SocketAddr::V4(addr) => Some(addr),
+            SocketAddr::V4(addr) => addr,
             SocketAddr::V6(_) => panic!("unexpected address"),
         }
     }
 
-    #[async_test(start_paused = true)] 
-    async fn server_starts_responds_to_status_and_shuts_down_gracefully()  {
-    fn test_bind_addr() -> Option<SocketAddrV4> {
-        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-
-        match listener.local_addr().unwrap() {
-            SocketAddr::V4(addr) => Some(addr),
-            SocketAddr::V6(_) => panic!("unexpected address"),
-        }
-    }
-
-    pub fn test_server_setup() -> (
+    pub fn test_metrics_server_setup() -> (
         Option<SocketAddrV4>,
         Server,
         MetricsClient,
         CancellationToken,
     ) {
         let bind_address = test_bind_addr();
-        let (server, metrics_client) = Server::new(bind_address).expect("Failed to create server");
+        let (server, metrics_client) =
+            Server::new(Some(bind_address)).expect("failed to create server");
         let cancel = CancellationToken::new();
-
-        let (server, _metrics_client) = Server::new(bind_address).expect("failed to create server");
-        (bind_address, server, metrics_client, cancel)
+        (Some(bind_address), server, metrics_client, cancel)
     }
 
     pub fn test_dummy_server_setup() -> (Server, MetricsClient, CancellationToken) {
-        let (server, metrics_client) = Server::new(None).expect("Failed to create server");
+        let (server, metrics_client) = Server::new(None).expect("failed to create server");
         let cancel = CancellationToken::new();
-
         (server, metrics_client, cancel)
     }
 
@@ -198,14 +186,14 @@ pub mod tests {
     ) {
         for i in 0..number_of_messages {
             metrics_client
-                .send_metrics_msg(msg.clone())
-                .unwrap_or_else(|_| panic!("Failed to send message {}", i));
+                .record_metric(msg.clone())
+                .unwrap_or_else(|_| panic!("failed to send message {}", i));
         }
     }
 
-    #[async_test]
-    async fn server_lifecycle() {
-        let (bind_address, server, _metrics_client, cancel) = test_server_setup();
+    #[async_test(start_paused = true)]
+    async fn metrics_server_should_respond_to_status_and_shutdown_gracefully() {
+        let (bind_address, server, _metrics_client, cancel) = test_metrics_server_setup();
 
         tokio::spawn(server.run(cancel.clone()));
 
@@ -230,9 +218,9 @@ pub mod tests {
         };
     }
 
-    #[async_test]
-    async fn metrics_collection_and_endpoints() {
-        let (bind_address, server, metrics_client, cancel) = test_server_setup();
+    #[async_test(start_paused = true)]
+    async fn metrics_endpoint_should_reflect_message_counts() {
+        let (bind_address, server, metrics_client, cancel) = test_metrics_server_setup();
 
         tokio::spawn(server.run(cancel.clone()));
         let base_url = Url::parse(&format!("http://{}", bind_address.unwrap())).unwrap();
@@ -255,9 +243,9 @@ pub mod tests {
         cancel.cancel();
     }
 
-    #[async_test]
-    async fn graceful_shutdown_with_handle() {
-        let (_, server, metrics_client, cancel) = test_server_setup();
+    #[async_test(start_paused = true)]
+    async fn server_shuts_down_gracefully_when_token_is_cancelled() {
+        let (_, server, metrics_client, cancel) = test_metrics_server_setup();
 
         let server_handle = tokio::spawn(server.run(cancel.clone()));
 
@@ -275,10 +263,17 @@ pub mod tests {
             shutdown_result.unwrap().is_ok(),
             "server should complete without errors"
         );
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        // client should not be able to send message after server shutdown
+        let send_result = metrics_client.record_metric(MetricsMsg::IncBlockReceived);
+        assert!(
+            send_result.is_err(),
+            "client should not be able to send messages after server shutdown"
+        );
     }
 
-    #[async_test]
-    async fn dummy_server_drop_client() {
+    #[async_test(start_paused = true)]
+    async fn dummy_server_exits_when_all_clients_are_dropped() {
         let (server, metrics_client, cancel) = test_dummy_server_setup();
 
         let server_handle = tokio::spawn(server.run(cancel.clone()));
@@ -301,10 +296,32 @@ pub mod tests {
             "dummy server should complete without errors"
         );
     }
-
-    #[async_test, start_paused = true]
-    async fn concurrent_clients() {
-        let (bind_address, server, original_client, cancel) = test_server_setup();
+    #[async_test(start_paused = true)]
+    async fn dummy_server_client_fails_after_cancellation() {
+        let (server, metrics_client, cancel) = test_dummy_server_setup();
+        let server_handle = tokio::spawn(server.run(cancel.clone()));
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        send_metrics_client_msg(&metrics_client, MetricsMsg::IncBlockReceived, 1);
+        cancel.cancel();
+        let shutdown_result = tokio::time::timeout(Duration::from_secs(2), server_handle).await;
+        assert!(
+            shutdown_result.is_ok(),
+            "dummy server should shut down gracefully when cancelled"
+        );
+        assert!(
+            shutdown_result.unwrap().is_ok(),
+            "dummy server should complete without errors"
+        );
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        let send_result = metrics_client.record_metric(MetricsMsg::IncBlockReceived);
+        assert!(
+            send_result.is_err(),
+            "client should not be able to send messages after dummy server cancellation"
+        );
+    }
+    #[async_test(start_paused = true)]
+    async fn metrics_server_handle_concurrent_requests_sucessfully() {
+        let (bind_address, server, original_client, cancel) = test_metrics_server_setup();
 
         tokio::spawn(server.run(cancel.clone()));
         tokio::time::sleep(Duration::from_millis(100)).await;
@@ -326,11 +343,11 @@ pub mod tests {
             handle.await.unwrap();
         }
 
-        tokio::time::sleep(Duration::from_millis(100)).await; 
+        tokio::time::sleep(Duration::from_millis(100)).await;
 
         let base_url = Url::parse(&format!("http://{}", bind_address.unwrap())).unwrap();
         let metrics_url = base_url.join("metrics").unwrap();
-       
+
         let response = reqwest::get(metrics_url).await.unwrap();
         let metrics_text = response.text().await.unwrap();
         assert!(metrics_text.contains("blocks_received 15"));

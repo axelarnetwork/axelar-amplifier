@@ -1,5 +1,6 @@
-use prometheus::{Encoder, IntCounter, Registry, TextEncoder};
 use error_stack::{Result, ResultExt};
+use prometheus::{Encoder, IntCounter, Registry, TextEncoder};
+
 use crate::prometheus_metrics::msg::{MetricsError, MetricsMsg};
 
 pub struct Metrics {
@@ -18,7 +19,6 @@ impl Metrics {
         Ok(Self { block_received })
     }
 
-    // modify metrics based on the message receive
     pub fn handle_message(&self, msg: MetricsMsg) {
         match msg {
             MetricsMsg::IncBlockReceived => {
@@ -35,7 +35,7 @@ pub fn gather(registry: &Registry) -> Result<String, MetricsError> {
 
     encoder
         .encode(&metric_families, &mut buffer)
-        .map_err(|_| MetricsError::EncodeError)?;
+        .change_context(MetricsError::EncodeError)?;
 
     String::from_utf8(buffer).change_context(MetricsError::Utf8Error)
 }

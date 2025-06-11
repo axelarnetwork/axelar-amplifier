@@ -1,5 +1,6 @@
-use tokio::sync::mpsc::Sender;
 use error_stack::{Result, ResultExt};
+use tokio::sync::mpsc::Sender;
+
 use crate::prometheus_metrics::msg::{MetricsError, MetricsMsg};
 
 #[derive(Clone)]

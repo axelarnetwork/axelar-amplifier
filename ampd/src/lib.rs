@@ -588,7 +588,7 @@ where
         label: L,
         handler: H,
         event_processor_config: event_processor::Config,
-        metric_client: prometheus_metrics::client::MetricsClient,
+        metric_client: MetricsClient,
     ) -> CancellableTask<Result<(), event_processor::Error>>
     where
         L: AsRef<str>,
