@@ -297,8 +297,6 @@ mod tests {
     #[instrument]
     fn instrumented_log() -> LoggableError {
         let report = Report::new(Error::FromString("internal error".to_string()));
-        let error = LoggableError::from(&report);
-        // dbg!(&error);
-        error
+        LoggableError::from(&report)
     }
 }
