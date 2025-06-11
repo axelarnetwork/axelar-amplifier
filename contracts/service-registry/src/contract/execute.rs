@@ -29,7 +29,7 @@ pub fn register_service(
         |service| -> std::result::Result<Service, ContractError> {
             match service {
                 None => Ok(Service {
-                    name: service_name,
+                    name: service_name.clone(),
                     coordinator_contract,
                     min_num_verifiers,
                     max_num_verifiers,
@@ -42,13 +42,74 @@ pub fn register_service(
             }
         },
     )?;
+    state::AUTHORIZED_VERIFIER_COUNT.save(deps.storage, &service_name, &0).change_context(ContractError::StorageError)?;
 
     // Response with attributes? event?
     Ok(Response::new())
 }
 
+
+fn count_verifiers_updated_to_authorize(
+    deps: &DepsMut,
+    service_name: String,
+    verifiers: &[Addr],
+) -> Result<u16, ContractError> {
+    let mut count = 0;
+    for verifier in verifiers {
+        match VERIFIERS.may_load(deps.storage, (&service_name, verifier))
+            .change_context(ContractError::StorageError)? {
+            Some(existing) if existing.authorization_state != AuthorizationState::Authorized => {
+                count += 1;
+            }
+            None => {
+                count += 1;
+            }
+            _ => {} // Already authorized, skip
+        }
+    }
+    u16::try_from(count).change_context(ContractError::StorageError)
+}
+
+fn increment_authorized_count(deps: &mut DepsMut, service_name: &str) -> Result<(), ContractError> {
+    state::AUTHORIZED_VERIFIER_COUNT.update(
+        deps.storage,
+        service_name,
+        |count| -> std::result::Result<u16, ContractError> {
+            let current = count.ok_or(ContractError::StorageError)?;
+            current.checked_add(1).ok_or(ContractError::StorageError)
+        },
+    ).change_context(ContractError::StorageError)?;
+    Ok(())
+}
+
+fn decrement_authorized_count(deps: &mut DepsMut, service_name: &str) -> Result<(), ContractError> {
+    state::AUTHORIZED_VERIFIER_COUNT.update(
+        deps.storage,
+        service_name,
+        |count| -> std::result::Result<u16, ContractError> {
+            match count {
+                Some(n) if n > 0 => Ok(n - 1), // show never happen 
+                _ => Err(ContractError::AuthroizedVerifierCountLessThanZero),
+            }
+        },
+    ).change_context(ContractError::StorageError)?;
+    Ok(())
+}
+
+fn deduplicate_verifiers(verifiers: Vec<Addr>) -> Vec<Addr> {
+    if verifiers.len() <= 1 {
+        return verifiers;  // No deduplication needed
+    }
+    
+    let mut seen = std::collections::HashSet::with_capacity(verifiers.len());
+    verifiers.into_iter()
+        .filter(|addr| seen.insert(addr.clone()))
+        .collect()
+}
+
+
 pub fn update_verifier_authorization_status(
-    deps: DepsMut,
+    mut deps: DepsMut,
     verifiers: Vec<Addr>,
     service_name: String,
     auth_state: AuthorizationState,
@@ -58,24 +119,21 @@ pub fn update_verifier_authorization_status(
         .change_context(ContractError::StorageError)?
         .ok_or(ContractError::ServiceNotFound)?;
 
+    let verifiers: Vec<Addr> = deduplicate_verifiers(verifiers);
+
     if auth_state == AuthorizationState::Authorized {
-        if let Some(max) = service.max_num_verifiers {
-            let current_authorized = count_authorized_verifiers(&deps, service_name.clone())?;
-            let verifiers_len =
-                u16::try_from(verifiers.len()).map_err(|_| ContractError::TooManyVerifiers)?;
-            let new_total = current_authorized
-                .checked_add(verifiers_len)
-                .ok_or(ContractError::TooManyVerifiers)?;
-            if new_total > max {
-                return Err(ContractError::MaxVerifiersExceeded(max, new_total - max).into());
-            }
-        }
+        validate_max_verifiers_not_exceed(&deps, &service_name, &service, &verifiers)?;
     }
 
     for verifier in verifiers {
+        let old_state = VERIFIERS
+            .may_load(deps.storage, (&service_name, &verifier))
+            .change_context(ContractError::StorageError)?
+            .map(|v| v.authorization_state);
+
         VERIFIERS.update(
             deps.storage,
-            (&service_name, &verifier.clone()),
+            (&service_name, &verifier),
             |sw| -> std::result::Result<Verifier, ContractError> {
                 match sw {
                     Some(mut verifier) => {
@@ -83,17 +141,65 @@ pub fn update_verifier_authorization_status(
                         Ok(verifier)
                     }
                     None => Ok(Verifier {
-                        address: verifier,
+                        address: verifier.clone(),
                         bonding_state: BondingState::Unbonded,
                         authorization_state: auth_state.clone(),
                         service_name: service_name.clone(),
-                    }),
+                    })
                 }
             },
         )?;
+
+        match (old_state, auth_state.clone()) {
+            (Some(old), new) => match (old, new) {
+                (AuthorizationState::Authorized, AuthorizationState::NotAuthorized) |
+                (AuthorizationState::Authorized, AuthorizationState::Jailed) => {
+                    decrement_authorized_count(&mut deps, &service_name)?;
+                }
+                (AuthorizationState::NotAuthorized, AuthorizationState::Authorized) |
+                (AuthorizationState::Jailed, AuthorizationState::Authorized) => {
+                    increment_authorized_count(&mut deps, &service_name)?;
+                }
+                _ => {}
+            },
+            (None, AuthorizationState::Authorized) => {
+                increment_authorized_count(&mut deps, &service_name)?;
+            }
+            _ => {}
+        }
     }
 
     Ok(Response::new())
+}
+
+fn validate_max_verifiers_not_exceed(
+    deps: &DepsMut,
+    service_name: &str,
+    service: &Service,
+    verifiers: &[Addr]
+) -> Result<(), ContractError> {
+    if let Some(max) = service.max_num_verifiers {
+        let current_authorized = state::AUTHORIZED_VERIFIER_COUNT
+            .may_load(deps.storage, service_name)
+            .change_context(ContractError::StorageError)?
+            .ok_or(ContractError::StorageError)?;
+            
+        let verifiers_to_authorize = count_verifiers_updated_to_authorize(
+            deps, 
+            service_name.to_string(),
+            verifiers
+        )?;
+        
+        let new_total = current_authorized
+            .checked_add(verifiers_to_authorize)
+            .ok_or(ContractError::StorageError)?;
+            
+        if new_total > max {
+            return Err(ContractError::MaxVerifiersExceeded(max, new_total - max).into());
+        }
+    }
+    
+    Ok(())
 }
 
 pub fn update_service(
@@ -102,7 +208,10 @@ pub fn update_service(
     updated_service_params: UpdatedServiceParams,
 ) -> Result<Response, ContractError> {
     if let Some(new_max) = updated_service_params.max_num_verifiers {
-        let current_authorized = count_authorized_verifiers(&deps, service_name.clone())?;
+        let current_authorized = state::AUTHORIZED_VERIFIER_COUNT
+            .may_load(deps.storage, &service_name)
+            .change_context(ContractError::StorageError)?
+            .ok_or(ContractError::StorageError)?;
         if let Some(max) = new_max {
             if max < current_authorized {
                 return Err(
@@ -303,5 +412,7 @@ fn count_authorized_verifiers(deps: &DepsMut, service_name: String) -> Result<u1
         .filter(|verifier| verifier.authorization_state == AuthorizationState::Authorized)
         .collect();
 
-    u16::try_from(authorized_verifiers.len()).map_err(|_| ContractError::TooManyVerifiers.into())
+    u16::try_from(authorized_verifiers.len()).map_err(|_| ContractError::StorageError.into())
 }
+
+

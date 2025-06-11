@@ -2496,7 +2496,7 @@ mod test {
     }
 
     #[test]
-    fn max_verifiers_limit() {
+    fn max_verifiers_limit_is_enforced() {
         let mut deps = setup();
         let api = deps.api;
 
@@ -2583,7 +2583,7 @@ mod test {
         let service_name = "validators";
         let min_verifier_bond: nonempty::Uint128 = Uint128::new(100).try_into().unwrap();
 
-        // start with max of 5 verifiers
+        // start with max of 5 verifiers 
         let res = execute(
             deps.as_mut(),
             mock_env(),
@@ -2592,7 +2592,7 @@ mod test {
                 service_name: service_name.into(),
                 coordinator_contract: api.addr_make(COORDINATOR_ADDRESS).to_string(),
                 min_num_verifiers: 0,
-                max_num_verifiers: Some(5),
+                max_num_verifiers: Some(5),  
                 min_verifier_bond,
                 bond_denom: AXL_DENOMINATION.into(),
                 unbonding_period_days: 10,
@@ -2628,7 +2628,7 @@ mod test {
                 service_name: service_name.into(),
                 updated_service_params: UpdatedServiceParams {
                     min_num_verifiers: None,
-                    max_num_verifiers: Some(Some(2)),
+                    max_num_verifiers: Some(Some(2)),  
                     min_verifier_bond: None,
                     unbonding_period_days: None,
                 },
@@ -2642,7 +2642,7 @@ mod test {
             ContractError::MaxVerifiersSetBelowCurrent(2, 3)
         ));
 
-        // update to 4 -> should succeed
+        // update to 4 -> should succed
         let res = execute(
             deps.as_mut(),
             mock_env(),
@@ -2651,7 +2651,7 @@ mod test {
                 service_name: service_name.into(),
                 updated_service_params: UpdatedServiceParams {
                     min_num_verifiers: None,
-                    max_num_verifiers: Some(Some(4)), // Set max to 4
+                    max_num_verifiers: Some(Some(4)),  // Set max to 4
                     min_verifier_bond: None,
                     unbonding_period_days: None,
                 },

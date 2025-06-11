@@ -49,6 +49,7 @@ pub const VERIFIER_WEIGHT: nonempty::Uint128 = nonempty::Uint128::one();
 
 pub const SERVICES: Map<&ServiceName, Service> = Map::new("services");
 pub const VERIFIERS: Map<(&ServiceName, &VerifierAddress), Verifier> = Map::new("verifiers");
+pub const AUTHORIZED_VERIFIER_COUNT: Map<&str, u16> = Map::new("authorized_verifier_count");
 
 pub fn bond_verifier(
     verifier: Verifier,
