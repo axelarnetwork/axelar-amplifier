@@ -114,7 +114,13 @@ tokio = "1.44.2"
 tokio-stream = "0.1.11"
 tokio-util = "0.7.11"
 tracing = { version = "0.1.37", features = ["valuable", "log"] }
+tracing-core = { version = "0.1.30", features = ["valuable"] }
 tracing-error = { version = "0.2.1", features = ["traced-error"] }
+tracing-subscriber = { version = "0.3.16", features = [
+  "json",
+  "valuable",
+  "env-filter",
+] }
 typed-builder = "0.18.2"
 valuable = "0.1.1"
 voting-verifier = { version = "^1.1.0", path = "contracts/voting-verifier" }

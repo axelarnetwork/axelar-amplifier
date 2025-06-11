@@ -11,7 +11,10 @@ error-stack = { workspace = true }
 eyre = "0.6.8"
 itertools = { workspace = true }
 thiserror = { workspace = true }
+tracing = { workspace = true }
+tracing-core = { workspace = true }
 tracing-error = { workspace = true }
+tracing-subscriber = { workspace = true }
 valuable = { version = "0.1.0", features = ["derive"] }
 
 [lints]
