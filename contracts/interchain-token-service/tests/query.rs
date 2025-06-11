@@ -51,7 +51,7 @@ impl ChainConfigTest {
             self.deps.as_mut(),
             self.eth.chain.clone(),
             self.eth.address.clone(),
-            self.eth.max_uint_bits.clone(),
+            self.eth.max_uint_bits,
             self.eth.max_decimals,
         )
         .unwrap();
@@ -60,7 +60,7 @@ impl ChainConfigTest {
             self.deps.as_mut(),
             self.polygon.chain.clone(),
             self.polygon.address.clone(),
-            self.polygon.max_uint_bits.clone(),
+            self.polygon.max_uint_bits,
             self.polygon.max_decimals,
         )
         .unwrap();
@@ -267,7 +267,7 @@ fn query_chains_pagination() {
             test_config.deps.as_mut(),
             chain_name.parse().unwrap(),
             address.parse().unwrap(),
-            test_config.eth.max_uint_bits.clone(),
+            test_config.eth.max_uint_bits,
             test_config.eth.max_decimals,
         )
         .unwrap();
