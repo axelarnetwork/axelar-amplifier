@@ -17,7 +17,7 @@ use tracing::info;
 use typed_builder::TypedBuilder;
 use valuable::Valuable;
 
-use crate::{broadcaster_v2, cosmos, event_sub};
+use crate::{broadcaster_v2, cosmos, event_sub, tofnd};
 
 mod blockchain_service;
 mod crypto_service;
@@ -88,6 +88,7 @@ pub struct Server {
     event_sub: event_sub::EventSubscriber,
     msg_queue_client: broadcaster_v2::MsgQueueClient<cosmos::CosmosGrpcClient>,
     cosmos_grpc_client: cosmos::CosmosGrpcClient,
+    multisig_client: tofnd::MultisigClient,
 }
 
 impl Server {
@@ -126,7 +127,9 @@ impl Server {
                     .cosmos_client(self.cosmos_grpc_client)
                     .build(),
             ))
-            .add_service(CryptoServiceServer::new(crypto_service::Service::new()));
+            .add_service(CryptoServiceServer::new(crypto_service::Service::from(
+                self.multisig_client,
+            )));
 
         info!(%addr, "gRPC server started");
 
