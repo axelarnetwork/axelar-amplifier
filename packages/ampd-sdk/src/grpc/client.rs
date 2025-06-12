@@ -119,16 +119,26 @@ fn parse_addr(addr: &str, address_name: &'static str) -> Result<AccountId, Error
         .attach_printable_lazy(|| addr.to_string())
 }
 
+pub enum KeyAlgorithm {
+    Ecdsa,
+    Ed25519,
+}
+
 pub struct Key {
     pub id: nonempty::String,
-    pub algorithm: i32,
+    pub algorithm: KeyAlgorithm,
 }
 
 impl From<Key> for KeyId {
     fn from(key: Key) -> Self {
+        let algorithm = match key.algorithm {
+            KeyAlgorithm::Ecdsa => ampd_proto::Algorithm::Ecdsa,
+            KeyAlgorithm::Ed25519 => ampd_proto::Algorithm::Ed25519,
+        };
+
         KeyId {
             id: key.id.into(),
-            algorithm: key.algorithm,
+            algorithm: algorithm as i32,
         }
     }
 }
@@ -481,7 +491,9 @@ mod tests {
             move |_, _| Ok(sig.clone())
         });
 
-        let result = mock.sign(Some(generate_key()), sample_message()).await;
+        let result = mock
+            .sign(Some(generate_key(KeyAlgorithm::Ecdsa)), sample_message())
+            .await;
         assert!(result.is_ok_and(|signature| signature == expected_signature));
     }
 
@@ -492,7 +504,9 @@ mod tests {
         mock.expect_sign()
             .return_once(|_, _| Err(Report::new(AppError::InvalidByteArray.into())));
 
-        let result = mock.sign(Some(generate_key()), sample_message()).await;
+        let result = mock
+            .sign(Some(generate_key(KeyAlgorithm::Ecdsa)), sample_message())
+            .await;
         assert!(result.is_err_and(|error| matches!(
             error.current_context(),
             Error::App(AppError::InvalidByteArray)
@@ -509,7 +523,9 @@ mod tests {
             ))
         });
 
-        let result = mock.sign(Some(generate_key()), sample_message()).await;
+        let result = mock
+            .sign(Some(generate_key(KeyAlgorithm::Ecdsa)), sample_message())
+            .await;
         assert!(result.is_err_and(|error| matches!(
             error.current_context(),
             Error::Grpc(GrpcError::InternalError(_))
@@ -537,7 +553,7 @@ mod tests {
             move |_| Ok(key.clone())
         });
 
-        let result = mock.key(Some(generate_key())).await;
+        let result = mock.key(Some(generate_key(KeyAlgorithm::Ecdsa))).await;
         assert!(result.is_ok_and(|pub_key| pub_key == expected_pub_key));
     }
 
@@ -551,7 +567,7 @@ mod tests {
             ))
         });
 
-        let result = mock.key(Some(generate_key())).await;
+        let result = mock.key(Some(generate_key(KeyAlgorithm::Ecdsa))).await;
         assert!(result.is_err_and(|error| matches!(
             error.current_context(),
             Error::Grpc(GrpcError::DataLoss(_))
@@ -568,7 +584,7 @@ mod tests {
             ))
         });
 
-        let result = mock.key(Some(generate_key())).await;
+        let result = mock.key(Some(generate_key(KeyAlgorithm::Ecdsa))).await;
         assert!(result.is_err_and(|error| matches!(
             error.current_context(),
             Error::Grpc(GrpcError::InvalidArgument(_))
@@ -627,6 +643,21 @@ mod tests {
         )));
     }
 
+    #[test]
+    fn keyid_from_key_algorithm_mapping() {
+        let key_ecdsa = generate_key(KeyAlgorithm::Ecdsa);
+        let key_ed25519 = generate_key(KeyAlgorithm::Ed25519);
+
+        let keyid_ecdsa: KeyId = key_ecdsa.into();
+        let keyid_ed25519: KeyId = key_ed25519.into();
+
+        assert_eq!(keyid_ecdsa.algorithm, ampd_proto::Algorithm::Ecdsa as i32);
+        assert_eq!(
+            keyid_ed25519.algorithm,
+            ampd_proto::Algorithm::Ed25519 as i32
+        );
+    }
+
     pub fn any_msg() -> Any {
         Any {
             type_url: "/cosmos.bank.v1beta1.MsgSend".to_string(),
@@ -642,10 +673,10 @@ mod tests {
         )
     }
 
-    pub fn generate_key() -> Key {
+    pub fn generate_key(algorithm: KeyAlgorithm) -> Key {
         Key {
             id: nonempty::String::try_from("test-key-1".to_string()).unwrap(),
-            algorithm: 1,
+            algorithm,
         }
     }
 
