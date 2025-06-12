@@ -2,7 +2,7 @@ use std::fmt;
 use std::fmt::Debug;
 
 use error_stack::Report;
-use ethers_providers::{Http, JsonRpcClient, MockProvider, ProviderError};
+use ethers_providers::{Http, JsonRpcClient, ProviderError};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
@@ -46,9 +46,7 @@ impl Client<Http> {
 
 impl Debug for Client<Http> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let provider = MockProvider::new();
-        f.debug_struct("Client")
-            .field("provider", &provider)
-            .finish()
+        let provider = "redacted".to_string();;
+        f.debug_struct("Client").field("provider", &provider).finish()
     }
 }
