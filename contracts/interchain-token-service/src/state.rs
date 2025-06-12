@@ -70,6 +70,15 @@ pub enum TokenSupply {
     Untracked,
 }
 
+impl From<msg::TokenSupply> for TokenSupply {
+    fn from(supply: msg::TokenSupply) -> Self {
+        match supply {
+            msg::TokenSupply::Tracked(amount) => TokenSupply::Tracked(amount),
+            msg::TokenSupply::Untracked => TokenSupply::Untracked,
+        }
+    }
+}
+
 impl TokenSupply {
     pub fn checked_add(self, amount: nonempty::Uint256) -> Result<Self, OverflowError> {
         match self {
@@ -191,10 +200,10 @@ pub fn load_chain_configs<'a>(
 pub fn save_chain_config(
     storage: &mut dyn Storage,
     chain: &ChainNameRaw,
-    config: impl Into<ChainConfig>,
+    config: &ChainConfig,
 ) -> Result<(), Error> {
     CHAIN_CONFIGS
-        .save(storage, chain, &config.into())
+        .save(storage, chain, config)
         .change_context(Error::Storage)
 }
 
@@ -375,7 +384,7 @@ mod tests {
         assert_ok!(save_chain_config(
             deps.as_mut().storage,
             &chain1.clone(),
-            msg::ChainConfig {
+            &msg::ChainConfig {
                 chain: chain1.clone(),
                 its_edge_contract: address1.clone(),
                 truncation: msg::TruncationConfig {
@@ -383,11 +392,12 @@ mod tests {
                     max_decimals_when_truncating: 16u8
                 }
             }
+            .into()
         ));
         assert_ok!(save_chain_config(
             deps.as_mut().storage,
             &chain2.clone(),
-            msg::ChainConfig {
+            &msg::ChainConfig {
                 chain: chain2.clone(),
                 its_edge_contract: address2.clone(),
                 truncation: msg::TruncationConfig {
@@ -395,6 +405,7 @@ mod tests {
                     max_decimals_when_truncating: 16u8
                 }
             }
+            .into()
         ));
         assert_eq!(
             assert_ok!(load_its_contract(deps.as_ref().storage, &chain1)),
@@ -412,5 +423,18 @@ mod tests {
                 .into_iter()
                 .collect::<HashMap<_, _>>()
         );
+    }
+
+    #[test]
+    fn supply_from_msg_type_conversion_succeeds() {
+        let tracked_msg_supply: msg::TokenSupply = msg::TokenSupply::Tracked(Uint256::MAX);
+        let tracked_supply: TokenSupply = tracked_msg_supply.into();
+
+        assert_eq!(tracked_supply, TokenSupply::Tracked(Uint256::MAX));
+
+        let untracked_msg_supply: msg::TokenSupply = msg::TokenSupply::Untracked;
+        let untracked_supply: TokenSupply = untracked_msg_supply.into();
+
+        assert_eq!(untracked_supply, TokenSupply::Untracked);
     }
 }

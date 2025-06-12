@@ -6,7 +6,7 @@ use cosmwasm_std::{from_json, Deps};
 use interchain_token_service::contract::query;
 use interchain_token_service::msg::{ChainConfigResponse, ChainFilter, QueryMsg, TruncationConfig};
 use interchain_token_service::shared::NumBits;
-use interchain_token_service::{TokenConfig, TokenId, TokenInstance};
+use interchain_token_service::{msg, TokenId};
 use router_api::{Address, ChainNameRaw};
 
 pub fn query_its_chain(
@@ -28,7 +28,7 @@ pub fn query_token_instance(
     deps: Deps,
     chain: ChainNameRaw,
     token_id: TokenId,
-) -> Result<Option<TokenInstance>, ContractError> {
+) -> Result<Option<msg::TokenInstance>, ContractError> {
     let bin = query(
         deps,
         mock_env(),
@@ -40,7 +40,7 @@ pub fn query_token_instance(
 pub fn query_token_config(
     deps: Deps,
     token_id: TokenId,
-) -> Result<Option<TokenConfig>, ContractError> {
+) -> Result<Option<msg::TokenConfig>, ContractError> {
     let bin = query(deps, mock_env(), QueryMsg::TokenConfig { token_id })?;
     Ok(from_json(bin)?)
 }
@@ -80,7 +80,7 @@ pub fn create_config_response(chain_data: &ChainData, frozen: bool) -> ChainConf
         chain: chain_data.chain.clone(),
         its_edge_contract: chain_data.address.clone(),
         truncation: TruncationConfig {
-            max_uint_bits: chain_data.max_uint_bits.clone(),
+            max_uint_bits: chain_data.max_uint_bits,
             max_decimals_when_truncating: chain_data.max_decimals,
         },
         frozen,
