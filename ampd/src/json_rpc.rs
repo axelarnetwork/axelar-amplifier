@@ -47,6 +47,8 @@ impl Client<Http> {
 impl Debug for Client<Http> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let provider = "redacted".to_string();
-        f.debug_struct("Client").field("provider", &provider).finish()
+        f.debug_struct("Client")
+            .field("provider", &provider)
+            .finish()
     }
 }
