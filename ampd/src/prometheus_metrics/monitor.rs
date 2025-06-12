@@ -78,9 +78,7 @@ impl Server {
                             },
                         }
                     }
-                    _ = cancel.cancelled() => {
-                        break;
-                    }
+                    _ = cancel.cancelled() => break
                 }
             }
         });
