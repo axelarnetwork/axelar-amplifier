@@ -8,7 +8,7 @@ use prometheus::Registry;
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
-use tracing::info;
+use tracing::{info, warn};
 
 use crate::prometheus_metrics::metrics::{self, Metrics};
 use crate::prometheus_metrics::msg::{MetricsError, MetricsMsg};
@@ -72,7 +72,10 @@ impl Server {
                     msg = metrics_rx.recv() => {
                         match msg {
                             Some(_) =>{}
-                            None => break,
+                            None => {
+                                warn!("all metrics clients disconnected, metrics processing stopped");
+                                break;
+                            },
                         }
                     }
                     _ = cancel.cancelled() => {
@@ -130,7 +133,10 @@ impl Server {
                             Some(msg) => {
                                 server.handle_message(msg)
                             }
-                            None => break
+                            None => {
+                                warn!("all metrics clients disconnected, metrics processing stopped");
+                                break;
+                            }
                         }
                     }
                     _ = cancel.cancelled() => break
@@ -233,6 +239,26 @@ pub mod tests {
             Err(error) => assert!(error.is_connect()),
         };
     }
+
+    #[async_test(start_paused = true)]
+    async fn test_metrics_server_handles_all_clients_dropped() {
+        let (bind_address, server, metrics_client, cancel) = test_metrics_server_setup();
+        tokio::spawn(server.run(cancel.clone()));
+        send_metrics_client_msg(&metrics_client, MetricsMsg::IncBlockReceived, 3);
+        drop(metrics_client);
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        let base_url = Url::parse(&format!("http://{}", bind_address.unwrap())).unwrap();
+        let metrics_url = base_url.join("metrics").unwrap();
+        let response = reqwest::get(metrics_url.clone()).await;
+        assert!(response.is_ok(), "metrics server still running after client dropped");
+        cancel.cancel();
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        match reqwest::get(metrics_url).await {
+            Ok(_) => panic!("monitor server should be closed by now"),
+            Err(error) => assert!(error.is_connect()),
+        };
+    }
+
 
     #[async_test(start_paused = true)]
     async fn metrics_endpoint_should_reflect_message_counts() {
