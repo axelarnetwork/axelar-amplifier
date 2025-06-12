@@ -106,9 +106,17 @@ where
                 height = height.value(),
                 "handler finished processing block"
             );
-            metric_client
-                .record_metric(MetricsMsg::IncBlockReceived)
-                .change_context(Error::Metrics)?;
+
+           
+            if let Err(err) = metric_client
+                .record_metric(MetricsMsg::IncBlockReceived) {
+                warn!(
+                    handler = handler_label,
+                    height = height.value(),
+                    err = %err,
+                    "failed to update metrics for block end event"
+                );
+            }
         }
 
         if should_task_stop(stream_status, &token) {
