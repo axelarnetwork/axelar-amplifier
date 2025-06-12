@@ -13,11 +13,7 @@ jobs:
   test:
     name: Test Suite
     runs-on:
-      - blacksmith-staging-32vcpu-ubuntu-2404
-      - bs-dev-sondhi
-    permissions:
-      actions: write
-      contents: read
+      - blacksmith-staging-8vcpu-ubuntu-2404
     steps:
       - uses: actions/checkout@v4
 
@@ -28,13 +24,13 @@ jobs:
           toolchain: 1.78.0
           override: true
 
-      - name: Install sccache
-        uses: mozilla-actions/sccache-action@v0.0.9
+      # - name: Install sccache
+      #   uses: mozilla-actions/sccache-action@v0.0.9
 
-      - name: Configure sccache
-        run: |
-          echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
-          echo "SCCACHE_GHA_ENABLED=true" >> $GITHUB_ENV
+      # - name: Configure sccache
+      #   run: |
+      #     echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
+      #     echo "SCCACHE_GHA_ENABLED=true" >> $GITHUB_ENV
 
       - name: Install protoc
         uses: arduino/setup-protoc@v2
