@@ -41,8 +41,8 @@ pub enum ContractError {
     VerifierJailed,
     #[error("failed to unbond verifier")]
     FailedToUnbondVerifier,
-    #[error("authorized verifier count is less than 0")]
-    AuthroizedVerifierCountLessThanZero,
+    #[error("authorized verifier count is less than 0, counter is corrupted")]
+    AuthurizedCounterFailed,
     // Generic error to wrap cw_storage_plus errors
     // This should only be used for things that shouldn't happen, such as encountering
     // an error when loading data that should load successfully. For errors that can

@@ -238,6 +238,37 @@ mod test {
 
         deps
     }
+    fn check_authorized_verifier_count(
+        deps: &OwnedDeps<MockStorage, MockApi, MockQuerier, Empty>,
+        service_name: &str,
+        expected: u16,
+    ) {
+        let stored_count = crate::state::AUTHORIZED_VERIFIER_COUNT
+            .may_load(&deps.storage, &service_name.to_string())
+            .unwrap()
+            .expect("service should exist");
+
+        let actual_count = crate::state::VERIFIERS
+            .prefix(&service_name.to_string()) // ← Use your better approach
+            .range(&deps.storage, None, None, cosmwasm_std::Order::Ascending)
+            .filter_map(|item| item.ok().map(|(_, verifier)| verifier))
+            .filter(|verifier| verifier.authorization_state == AuthorizationState::Authorized)
+            .count();
+        let actual_count = u16::try_from(actual_count).expect("actual count should fit in u16");
+
+        assert_eq!(
+            stored_count, expected,
+            "Stored count doesn't match expected"
+        );
+        assert_eq!(
+            actual_count, expected,
+            "Actual count doesn't match expected"
+        );
+        assert_eq!(
+            stored_count, actual_count,
+            "Stored count doesn't match actual count"
+        );
+    }
 
     #[test]
     fn register_service() {
@@ -2496,7 +2527,7 @@ mod test {
     }
 
     #[test]
-    fn max_verifiers_limit_is_enforced() {
+    fn max_verifiers_limit_is_enforced_when_authroized_verifiers() {
         let mut deps = setup();
         let api = deps.api;
 
@@ -2561,7 +2592,7 @@ mod test {
             ContractError::MaxVerifiersExceeded(4, 1)
         ));
 
-        // Third batch: authorize 1 more verifier  -> 4 verifiers authorized
+        // Third batch: authorize 1 more verifier  -> 4 verifiers authorized -> should success
         let verifier_3 = vec![api.addr_make("verifier4").to_string()];
         let res = execute(
             deps.as_mut(),
@@ -2576,14 +2607,14 @@ mod test {
     }
 
     #[test]
-    fn update_service_max_verifiers_below_current() {
+    fn update_service_max_verifiers_only_if_below_current_authoried_verifier() {
         let mut deps = setup();
         let api = deps.api;
 
         let service_name = "validators";
         let min_verifier_bond: nonempty::Uint128 = Uint128::new(100).try_into().unwrap();
 
-        // start with max of 5 verifiers 
+        // start with max of 5 verifiers
         let res = execute(
             deps.as_mut(),
             mock_env(),
@@ -2592,7 +2623,7 @@ mod test {
                 service_name: service_name.into(),
                 coordinator_contract: api.addr_make(COORDINATOR_ADDRESS).to_string(),
                 min_num_verifiers: 0,
-                max_num_verifiers: Some(5),  
+                max_num_verifiers: Some(5),
                 min_verifier_bond,
                 bond_denom: AXL_DENOMINATION.into(),
                 unbonding_period_days: 10,
@@ -2628,7 +2659,7 @@ mod test {
                 service_name: service_name.into(),
                 updated_service_params: UpdatedServiceParams {
                     min_num_verifiers: None,
-                    max_num_verifiers: Some(Some(2)),  
+                    max_num_verifiers: Some(Some(2)),
                     min_verifier_bond: None,
                     unbonding_period_days: None,
                 },
@@ -2651,12 +2682,174 @@ mod test {
                 service_name: service_name.into(),
                 updated_service_params: UpdatedServiceParams {
                     min_num_verifiers: None,
-                    max_num_verifiers: Some(Some(4)),  // Set max to 4
+                    max_num_verifiers: Some(Some(4)), // Set max to 4
                     min_verifier_bond: None,
                     unbonding_period_days: None,
                 },
             },
         );
         assert!(res.is_ok());
+    }
+    #[test]
+    fn authorized_verifier_count_stays_in_sync() {
+        let mut deps = setup();
+        let api = deps.api;
+
+        let service_name = "validators";
+        let min_verifier_bond: nonempty::Uint128 = Uint128::new(100).try_into().unwrap();
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
+            ExecuteMsg::RegisterService {
+                service_name: service_name.into(),
+                coordinator_contract: api.addr_make(COORDINATOR_ADDRESS).to_string(),
+                min_num_verifiers: 0,
+                max_num_verifiers: Some(10),
+                min_verifier_bond,
+                bond_denom: AXL_DENOMINATION.into(),
+                unbonding_period_days: 10,
+                description: "Some service".into(),
+            },
+        );
+        assert!(res.is_ok());
+
+        check_authorized_verifier_count(&deps, &service_name, 0);
+
+        // authorized 3 verifiers (None -> Authorized)
+        // expected: 3
+        let verifiers_batch_1 = vec![
+            api.addr_make("verifier1").to_string(),
+            api.addr_make("verifier2").to_string(),
+            api.addr_make("verifier3").to_string(),
+            api.addr_make("verifier4").to_string(),
+            api.addr_make("verifier5").to_string(),
+        ];
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
+            ExecuteMsg::AuthorizeVerifiers {
+                verifiers: verifiers_batch_1.clone(),
+                service_name: service_name.into(),
+            },
+        );
+        assert!(res.is_ok());
+
+        check_authorized_verifier_count(&deps, &service_name, 3);
+
+        // Re-authorize already authorized verifiers (should not change count) authroized -> authroized
+        // expected: 5
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
+            ExecuteMsg::AuthorizeVerifiers {
+                verifiers: vec![
+                    api.addr_make("verifier1").to_string(),
+                    api.addr_make("verifier2").to_string(),
+                ],
+                service_name: service_name.into(),
+            },
+        );
+        assert!(res.is_ok());
+
+        check_authorized_verifier_count(&deps, &service_name, 5);
+
+        // Unauthorize 2 verifiers (Authorized -> NotAuthorized)
+        // expected: 3
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
+            ExecuteMsg::UnauthorizeVerifiers {
+                verifiers: vec![
+                    api.addr_make("verifier1").to_string(),
+                    api.addr_make("verifier3").to_string(),
+                ],
+                service_name: service_name.into(),
+            },
+        );
+        assert!(res.is_ok());
+
+        check_authorized_verifier_count(&deps, &service_name, 3);
+
+        // Jail 1 verifier (Authorized -> Jailed)
+        // expected: 2
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
+            ExecuteMsg::JailVerifiers {
+                verifiers: vec![api.addr_make("verifier2").to_string()],
+                service_name: service_name.into(),
+            },
+        );
+        assert!(res.is_ok());
+        check_authorized_verifier_count(&deps, &service_name, 2);
+
+        // Unjail 1 verifier (Jailed -> Authorized)
+        // expected: 3
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
+            ExecuteMsg::AuthorizeVerifiers {
+                verifiers: vec![api.addr_make("verifier2").to_string()],
+                service_name: service_name.into(),
+            },
+        );
+        assert!(res.is_ok());
+        check_authorized_verifier_count(&deps, &service_name, 3);
+
+        // authorized unauthroized verifiers (NotAuthorized -> Authorized)
+        // expected: 5
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
+            ExecuteMsg::AuthorizeVerifiers {
+                verifiers: vec![
+                    api.addr_make("verifier1").to_string(),
+                    api.addr_make("verifier3").to_string(),
+                ],
+                service_name: service_name.into(),
+            },
+        );
+        assert!(res.is_ok());
+        check_authorized_verifier_count(&deps, &service_name, 5);
+
+        // jail new verifier (None -> Jailed)
+        let new_verifier = api.addr_make("verifier6").to_string();
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
+            ExecuteMsg::JailVerifiers {
+                verifiers: vec![new_verifier.clone()],
+                service_name: service_name.into(),
+            },
+        );
+        assert!(res.is_ok());
+        check_authorized_verifier_count(&deps, &service_name, 5);
+
+        // authorize duplicates verifiers
+        let new_verifiers = vec![
+            api.addr_make("verifier7").to_string(),
+            api.addr_make("verifier7").to_string(),
+        ];
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
+            ExecuteMsg::AuthorizeVerifiers {
+                verifiers: new_verifiers.clone(),
+                service_name: service_name.into(),
+            },
+        );
+        assert!(res.is_ok());
+        check_authorized_verifier_count(&deps, &service_name, 6);
     }
 }
