@@ -245,7 +245,7 @@ mod tests {
             Duration::from_secs(1),
         );
 
-        let (_server, metrics_client) = Server::new(None).expect("failed to  create server");
+        let (_server, metrics_client) = Server::new(None).expect("failed to create server");
 
         let result_with_timeout = timeout(
             Duration::from_secs(1),
@@ -282,7 +282,7 @@ mod tests {
             Duration::from_secs(1),
         );
 
-        let (_server, metrics_client) = Server::new(None).expect("failed to  create server");
+        let (_server, metrics_client) = Server::new(None).expect("failed to create server");
 
         let result_with_timeout = timeout(
             Duration::from_secs(1),
@@ -320,7 +320,7 @@ mod tests {
             Duration::from_secs(1),
         );
 
-        let (_server, metrics_client) = Server::new(None).expect("failed to  create server");
+        let (_server, metrics_client) = Server::new(None).expect("failed to create server");
 
         let result_with_timeout = timeout(
             Duration::from_secs(3),
@@ -362,7 +362,7 @@ mod tests {
             .times(2)
             .returning(|_| Ok(()));
 
-        let (_server, metrics_client) = Server::new(None).expect("failed to  create server");
+        let (_server, metrics_client) = Server::new(None).expect("failed to create server");
 
         let result_with_timeout = timeout(
             Duration::from_secs(3),
@@ -404,7 +404,7 @@ mod tests {
             .times(2)
             .returning(|_| Err(report!(BroadcasterError::EstimateFee)));
 
-        let (_server, metrics_client) = Server::new(None).expect("failed to  create server");
+        let (_server, metrics_client) = Server::new(None).expect("failed to create server");
 
         let result_with_timeout = timeout(
             Duration::from_secs(3),
@@ -446,7 +446,7 @@ mod tests {
         let token = CancellationToken::new();
         token.cancel();
 
-        let (_server, metrics_client) = Server::new(None).expect("failed to  create server");
+        let (_server, metrics_client) = Server::new(None).expect("failed to create server");
 
         let result_with_timeout = timeout(
             Duration::from_secs(1),
@@ -480,7 +480,7 @@ mod tests {
         let token = CancellationToken::new();
         token.cancel();
 
-        let (_server, metrics_client) = Server::new(None).expect("failed to  create server");
+        let (_server, metrics_client) = Server::new(None).expect("failed to create server");
 
         let result_with_timeout = timeout(
             Duration::from_secs(1),
@@ -571,8 +571,8 @@ mod tests {
 
         assert!(result_with_timeout.is_ok());
         tokio::time::sleep(Duration::from_millis(100)).await;
-
-        let metrics_url = format!("http://{}/metrics", bind_address.unwrap());
+        let base_url = Url::parse(&format!("http://{}", bind_address.unwrap())).unwrap();
+        let metrics_url = base_url.join("metrics").unwrap();
         let response = reqwest::get(&metrics_url).await.unwrap();
         let metrics_text = response.text().await.unwrap();
         assert!(metrics_text.contains(&format!("blocks_received {}", num_block_ends)));
