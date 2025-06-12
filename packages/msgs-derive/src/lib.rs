@@ -389,6 +389,11 @@ fn build_execute_implementation(enum_type: Ident, data: DataEnum) -> TokenStream
         .collect();
 
     TokenStream::from(quote! {
+        pub trait ExternalExecute {
+            fn msg(&self) -> ExecuteMsg;
+            fn original_sender(&self) -> Option<Addr>;
+        }
+
         impl #enum_type {
             pub fn ensure_permissions2<#(#fs),*, #(#cs),*>(
                     self,
@@ -408,9 +413,33 @@ fn build_execute_implementation(enum_type: Ident, data: DataEnum) -> TokenStream
             }
         }
 
-        impl From<ExecuteMsg> for ExecuteMsg2 {
-            fn from(msg: ExecuteMsg) -> Self {
-                Self::Direct(msg)
+        impl ExternalExecute for ExecuteMsg2 {
+            fn msg(&self) -> ExecuteMsg {
+                match self {
+                    ExecuteMsg2::Relay { sender, msg } => {
+                        msg.clone()
+                    },
+                    ExecuteMsg2::Direct(msg) => msg.clone()
+                }
+            }
+
+            fn original_sender(&self) -> Option<Addr> {
+                match self {
+                    ExecuteMsg2::Relay { sender, .. } => {
+                        Some(sender.clone())
+                    },
+                    ExecuteMsg2::Direct(_) => None,
+                }
+            }
+        }
+
+        impl ExternalExecute for ExecuteMsg {
+            fn msg(&self) -> ExecuteMsg {
+                self.clone()
+            }
+
+            fn original_sender(&self) -> Option<Addr> {
+                None
             }
         }
     })
@@ -418,24 +447,24 @@ fn build_execute_implementation(enum_type: Ident, data: DataEnum) -> TokenStream
 
 fn find_contracts(variant: Variant) -> Option<Vec<Ident>> {
     let idents: Vec<_> = variant
-    .attrs
-    .into_iter()
-    .filter_map(|a| match a.meta.clone() {
-        syn::Meta::List(l) => {
-            if l.path.is_ident(&format_ident!("contracts")) {
-                Some(l.tokens)
-            } else {
-                None
+        .attrs
+        .into_iter()
+        .filter_map(|a| match a.meta.clone() {
+            syn::Meta::List(l) => {
+                if l.path.is_ident(&format_ident!("contracts")) {
+                    Some(l.tokens)
+                } else {
+                    None
+                }
             }
-        }
-        _ => None,
-    })
-    .flatten()
-    .filter_map(|tree| match tree.clone() {
-        proc_macro2::TokenTree::Ident(ident) => Some(ident),
-        _ => None,
-    })
-    .collect();
+            _ => None,
+        })
+        .flatten()
+        .filter_map(|tree| match tree.clone() {
+            proc_macro2::TokenTree::Ident(ident) => Some(ident),
+            _ => None,
+        })
+        .collect();
 
     if idents.len() == 0 {
         None
@@ -469,7 +498,7 @@ pub fn external_execute_msg(_attr: TokenStream, item: TokenStream) -> TokenStrea
             #[permission(Any)]
             #[contracts(#(#permissions),*)]
             Relay {
-                sender: String,
+                sender: Addr,
                 msg: ExecuteMsg,
             },
 
@@ -487,21 +516,46 @@ pub fn external_execute_msg(_attr: TokenStream, item: TokenStream) -> TokenStrea
 }
 
 #[proc_macro_attribute]
-pub fn external_execute(attr: TokenStream, item: TokenStream) -> TokenStream {
+pub fn external_execute(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let mut execute_fn = syn::parse_macro_input!(item as syn::ItemFn);
     if execute_fn.sig.ident != format_ident!("execute") {
         panic!("external_execute macro can only be used with execute endpoint")
     }
 
     // replace ExecuteMsg with ExecuteMsg2
-    execute_fn.sig.generics.params.push(parse_quote!(T: Into<ExecuteMsg> + Clone));
+    execute_fn
+        .sig
+        .generics
+        .params
+        .push(parse_quote!(T: ExternalExecute + Clone));
     execute_fn.sig.inputs.pop();
     execute_fn.sig.inputs.push(parse_quote! {msg: T});
-    execute_fn.block.stmts.insert(0, parse_quote!{
-        let msg: ExecuteMsg = msg.into();
-    });
+
+    execute_fn.block.stmts.insert(
+        0,
+        parse_quote! {
+            let msg = msg.msg();
+        },
+    );
+
+    execute_fn.block.stmts.insert(
+        0,
+        parse_quote! {
+            let mut test = MessageInfo {
+                sender: match msg.original_sender() {
+                    Some(addr) => {
+                        addr.clone()
+                    },
+                    None => info.sender.clone(),
+                },
+                funds: info.funds.clone(),
+            };
+        },
+    );
 
     TokenStream::from(quote! {
+        use router_api::msg::ExternalExecute;
+
         #execute_fn
     })
 }

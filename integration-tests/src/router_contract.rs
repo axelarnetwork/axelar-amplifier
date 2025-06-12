@@ -19,7 +19,7 @@ impl RouterContract {
         axelarnet: Addr,
         coordinator: Addr,
     ) -> Self {
-        let code = ContractWrapper::new_with_empty(execute, instantiate, query);
+        let code = ContractWrapper::new_with_empty(execute::<router_api::msg::ExecuteMsg>, instantiate, query);
         let code_id = app.store_code(Box::new(code));
 
         let contract_addr = app
