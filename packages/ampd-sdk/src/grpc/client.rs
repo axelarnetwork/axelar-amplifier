@@ -20,7 +20,7 @@ use serde::de::DeserializeOwned;
 use tokio_stream::Stream;
 use tonic::{transport, Request};
 
-use crate::grpc::error::*;
+use crate::grpc::error::{AppError, Error};
 
 #[automock(type Stream = tokio_stream::Iter<vec::IntoIter<Result<Event, Error>>>;)]
 #[async_trait]
@@ -115,7 +115,7 @@ impl TryFrom<&ContractsResponse> for ContractsAddresses {
 
 fn parse_addr(addr: &str, address_name: &'static str) -> Result<AccountId, Error> {
     addr.parse::<AccountId>()
-        .change_context(Error::InvalidAddress(address_name))
+        .change_context(AppError::InvalidAddress(address_name).into())
         .attach_printable_lazy(|| addr.to_string())
 }
 
@@ -157,8 +157,10 @@ impl Client for GrpcClient {
 
         let transformed_stream = streaming_response.into_inner().map(|result| match result {
             Ok(response) => match response.event {
-                Some(event) => Event::try_from(event).change_context(Error::EventConversion),
-                None => bail!(Error::InvalidResponse),
+                Some(event) => {
+                    Event::try_from(event).change_context(AppError::EventConversion.into())
+                }
+                None => bail!(Error::from(AppError::InvalidResponse)),
             },
             Err(status) => bail!(Error::from(status)),
         });
@@ -207,7 +209,7 @@ impl Client for GrpcClient {
             .map(|response| response.into_inner().result)
             .and_then(|result| {
                 serde_json::from_slice(&result)
-                    .change_context(Error::InvalidJson)
+                    .change_context(AppError::InvalidJson.into())
                     .attach_printable(hex::encode(&result))
             })
     }
@@ -221,7 +223,7 @@ impl Client for GrpcClient {
             .into_inner();
 
         ContractsAddresses::try_from(&response)
-            .change_context(Error::InvalidContractsResponse)
+            .change_context(AppError::InvalidContractsResponse.into())
             .attach_printable(format!("{response:?}"))
     }
 
@@ -239,7 +241,7 @@ impl Client for GrpcClient {
             .into_report()
             .and_then(|response| {
                 nonempty::Vec::try_from(response.into_inner().signature)
-                    .change_context(Error::InvalidByteArray)
+                    .change_context(AppError::InvalidByteArray.into())
             })
     }
 
@@ -252,7 +254,7 @@ impl Client for GrpcClient {
             .into_report()
             .and_then(|response| {
                 nonempty::Vec::try_from(response.into_inner().pub_key)
-                    .change_context(Error::InvalidByteArray)
+                    .change_context(AppError::InvalidByteArray.into())
             })
     }
 }
@@ -268,7 +270,7 @@ mod tests {
     use tokio_stream::StreamExt;
 
     use super::*;
-    use crate::grpc::error::Error;
+    use crate::grpc::error::GrpcError;
 
     #[tokio::test]
     async fn address_should_succeed_returning_the_address() {
@@ -289,14 +291,16 @@ mod tests {
         let mut mock = MockClient::new();
 
         mock.expect_address().return_once(|| {
-            Err(Report::new(Error::ServiceUnavailable(
-                "service unavailable".to_string(),
-            )))
+            Err(Report::new(
+                GrpcError::ServiceUnavailable("service unavailable".to_string()).into(),
+            ))
         });
 
         let result = mock.address().await;
-        assert!(result
-            .is_err_and(|error| matches!(error.current_context(), Error::ServiceUnavailable(_))));
+        assert!(result.is_err_and(|error| matches!(
+            error.current_context(),
+            Error::Grpc(GrpcError::ServiceUnavailable(_))
+        )));
     }
 
     #[tokio::test]
@@ -304,15 +308,16 @@ mod tests {
         let mut mock = MockClient::new();
 
         mock.expect_address().return_once(|| {
-            Err(Report::new(Error::InvalidArgument(
-                "invalid request".to_string(),
-            )))
+            Err(Report::new(
+                GrpcError::InvalidArgument("invalid request".to_string()).into(),
+            ))
         });
 
         let result = mock.address().await;
-        assert!(
-            result.is_err_and(|error| matches!(error.current_context(), Error::InvalidArgument(_)))
-        );
+        assert!(result.is_err_and(|error| matches!(
+            error.current_context(),
+            Error::Grpc(GrpcError::InvalidArgument(_))
+        )));
     }
 
     #[tokio::test]
@@ -350,15 +355,16 @@ mod tests {
         let mut mock = MockClient::new();
 
         mock.expect_broadcast().return_once(|_| {
-            Err(Report::new(Error::InternalError(
-                "gas estimation failed".to_string(),
-            )))
+            Err(Report::new(
+                GrpcError::InternalError("gas estimation failed".to_string()).into(),
+            ))
         });
 
         let result = mock.broadcast(any_msg()).await;
-        assert!(
-            result.is_err_and(|error| matches!(error.current_context(), Error::InternalError(_)))
-        );
+        assert!(result.is_err_and(|error| matches!(
+            error.current_context(),
+            Error::Grpc(GrpcError::InternalError(_))
+        )));
     }
 
     #[tokio::test]
@@ -407,12 +413,15 @@ mod tests {
         let mut mock = MockClient::new();
 
         mock.expect_contract_state::<Value>()
-            .return_once(|_, _| Err(Report::new(Error::InvalidJson)));
+            .return_once(|_, _| Err(Report::new(AppError::InvalidJson.into())));
 
         let (contract, query) = contract_state_input_args();
 
         let result: Result<Value, Error> = mock.contract_state(contract, query).await;
-        assert!(result.is_err_and(|error| matches!(error.current_context(), Error::InvalidJson)));
+        assert!(result.is_err_and(|error| matches!(
+            error.current_context(),
+            Error::App(AppError::InvalidJson)
+        )));
     }
 
     #[tokio::test]
@@ -420,17 +429,18 @@ mod tests {
         let mut mock = MockClient::new();
 
         mock.expect_contract_state::<Value>().return_once(|_, _| {
-            Err(Report::new(Error::OperationFailed(
-                "contract execution failed".to_string(),
-            )))
+            Err(Report::new(
+                GrpcError::OperationFailed("contract execution failed".to_string()).into(),
+            ))
         });
 
         let (contract, query) = contract_state_input_args();
 
         let result: Result<Value, Error> = mock.contract_state(contract, query).await;
-        assert!(
-            result.is_err_and(|error| matches!(error.current_context(), Error::OperationFailed(_)))
-        );
+        assert!(result.is_err_and(|error| matches!(
+            error.current_context(),
+            Error::Grpc(GrpcError::OperationFailed(_))
+        )));
     }
 
     #[tokio::test]
@@ -452,12 +462,12 @@ mod tests {
         let mut mock = MockClient::new();
 
         mock.expect_contracts()
-            .return_once(|| Err(Report::new(Error::InvalidContractsResponse)));
+            .return_once(|| Err(Report::new(AppError::InvalidContractsResponse.into())));
 
         let result = mock.contracts().await;
         assert!(result.is_err_and(|error| matches!(
             error.current_context(),
-            Error::InvalidContractsResponse
+            Error::App(AppError::InvalidContractsResponse)
         )));
     }
 
@@ -480,12 +490,13 @@ mod tests {
         let mut mock = MockClient::new();
 
         mock.expect_sign()
-            .return_once(|_, _| Err(Report::new(Error::InvalidByteArray)));
+            .return_once(|_, _| Err(Report::new(AppError::InvalidByteArray.into())));
 
         let result = mock.sign(Some(generate_key()), sample_message()).await;
-        assert!(
-            result.is_err_and(|error| matches!(error.current_context(), Error::InvalidByteArray))
-        );
+        assert!(result.is_err_and(|error| matches!(
+            error.current_context(),
+            Error::App(AppError::InvalidByteArray)
+        )));
     }
 
     #[tokio::test]
@@ -493,15 +504,16 @@ mod tests {
         let mut mock = MockClient::new();
 
         mock.expect_sign().return_once(|_, _| {
-            Err(Report::new(Error::InternalError(
-                "signing service unavailable".to_string(),
-            )))
+            Err(Report::new(
+                GrpcError::InternalError("signing service unavailable".to_string()).into(),
+            ))
         });
 
         let result = mock.sign(Some(generate_key()), sample_message()).await;
-        assert!(
-            result.is_err_and(|error| matches!(error.current_context(), Error::InternalError(_)))
-        );
+        assert!(result.is_err_and(|error| matches!(
+            error.current_context(),
+            Error::Grpc(GrpcError::InternalError(_))
+        )));
     }
 
     #[tokio::test]
@@ -534,13 +546,16 @@ mod tests {
         let mut mock = MockClient::new();
 
         mock.expect_key().return_once(|_| {
-            Err(Report::new(Error::DataLoss(
-                "connection lost during key retrieval".to_string(),
-            )))
+            Err(Report::new(
+                GrpcError::DataLoss("connection lost during key retrieval".to_string()).into(),
+            ))
         });
 
         let result = mock.key(Some(generate_key())).await;
-        assert!(result.is_err_and(|error| matches!(error.current_context(), Error::DataLoss(_))));
+        assert!(result.is_err_and(|error| matches!(
+            error.current_context(),
+            Error::Grpc(GrpcError::DataLoss(_))
+        )));
     }
 
     #[tokio::test]
@@ -548,15 +563,16 @@ mod tests {
         let mut mock = MockClient::new();
 
         mock.expect_key().return_once(|_| {
-            Err(Report::new(Error::InvalidArgument(
-                "key not found".to_string(),
-            )))
+            Err(Report::new(
+                GrpcError::InvalidArgument("key not found".to_string()).into(),
+            ))
         });
 
         let result = mock.key(Some(generate_key())).await;
-        assert!(
-            result.is_err_and(|error| matches!(error.current_context(), Error::InvalidArgument(_)))
-        );
+        assert!(result.is_err_and(|error| matches!(
+            error.current_context(),
+            Error::Grpc(GrpcError::InvalidArgument(_))
+        )));
     }
 
     #[tokio::test]
@@ -582,13 +598,16 @@ mod tests {
         let mut mock = MockClient::new();
 
         mock.expect_subscribe().return_once(|_, _| {
-            Err(Report::new(Error::DataLoss(
-                "client cannot keep up".to_string(),
-            )))
+            Err(Report::new(
+                GrpcError::DataLoss("client cannot keep up".to_string()).into(),
+            ))
         });
 
         let result = mock.subscribe(vec![], true).await;
-        assert!(result.is_err_and(|error| matches!(error.current_context(), Error::DataLoss(_))));
+        assert!(result.is_err_and(|error| matches!(
+            error.current_context(),
+            Error::Grpc(GrpcError::DataLoss(_))
+        )));
     }
 
     #[tokio::test]
@@ -596,15 +615,16 @@ mod tests {
         let mut mock = MockClient::new();
 
         mock.expect_subscribe().return_once(|_, _| {
-            Err(Report::new(Error::InvalidArgument(
-                "Invalid filter provided".to_string(),
-            )))
+            Err(Report::new(
+                GrpcError::InvalidArgument("Invalid filter provided".to_string()).into(),
+            ))
         });
 
         let result = mock.subscribe(vec![], false).await;
-        assert!(
-            result.is_err_and(|error| matches!(error.current_context(), Error::InvalidArgument(_)))
-        );
+        assert!(result.is_err_and(|error| matches!(
+            error.current_context(),
+            Error::Grpc(GrpcError::InvalidArgument(_))
+        )));
     }
 
     pub fn any_msg() -> Any {
