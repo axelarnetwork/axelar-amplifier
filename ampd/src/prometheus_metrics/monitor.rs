@@ -10,14 +10,30 @@ use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 use tracing::info;
 
-use super::client::MetricsClient;
 use crate::prometheus_metrics::metrics::{self, Metrics};
 use crate::prometheus_metrics::msg::{MetricsError, MetricsMsg};
 
 // safe upper bound for expected metric throughput;
-// shouldnt exceed 1000 message currently
+// shouldnt exceed 1000 message
 const CHANNEL_SIZE: usize = 1000;
 
+#[derive(Clone)]
+pub struct MetricsClient {
+    sender: mpsc::Sender<MetricsMsg>,
+}
+
+impl MetricsClient {
+    fn new(sender: mpsc::Sender<MetricsMsg>) -> Self {
+        Self { sender }
+    }
+
+    pub fn record_metric(&self, msg: MetricsMsg) -> Result<(), MetricsError> {
+        self.sender
+            .try_send(msg)
+            .change_context(MetricsError::MetricUpdateFailed)?;
+        Ok(())
+    }
+}
 pub struct Server {
     bind_address: Option<SocketAddrV4>,
     metrics_rx: mpsc::Receiver<MetricsMsg>,

@@ -17,7 +17,7 @@ use valuable::Valuable;
 
 use crate::asyncutil::future::{self, RetryPolicy};
 use crate::asyncutil::task::TaskError;
-use crate::prometheus_metrics::client::MetricsClient;
+use crate::prometheus_metrics::monitor::MetricsClient;
 use crate::prometheus_metrics::msg::MetricsMsg;
 use crate::queue::queued_broadcaster::BroadcasterClient;
 
@@ -241,7 +241,7 @@ mod tests {
             Duration::from_secs(1),
         );
 
-        let (_server, metrics_client) = Server::new(None).expect("failedto create server");
+        let (_server, metrics_client) = Server::new(None).expect("failed to  create server");
 
         let result_with_timeout = timeout(
             Duration::from_secs(1),
@@ -278,7 +278,7 @@ mod tests {
             Duration::from_secs(1),
         );
 
-        let (_server, metrics_client) = Server::new(None).expect("failedto create server");
+        let (_server, metrics_client) = Server::new(None).expect("failed to  create server");
 
         let result_with_timeout = timeout(
             Duration::from_secs(1),
@@ -316,7 +316,7 @@ mod tests {
             Duration::from_secs(1),
         );
 
-        let (_server, metrics_client) = Server::new(None).expect("failedto create server");
+        let (_server, metrics_client) = Server::new(None).expect("failed to  create server");
 
         let result_with_timeout = timeout(
             Duration::from_secs(3),
@@ -358,7 +358,7 @@ mod tests {
             .times(2)
             .returning(|_| Ok(()));
 
-        let (_server, metrics_client) = Server::new(None).expect("failedto create server");
+        let (_server, metrics_client) = Server::new(None).expect("failed to  create server");
 
         let result_with_timeout = timeout(
             Duration::from_secs(3),
@@ -400,7 +400,7 @@ mod tests {
             .times(2)
             .returning(|_| Err(report!(BroadcasterError::EstimateFee)));
 
-        let (_server, metrics_client) = Server::new(None).expect("failedto create server");
+        let (_server, metrics_client) = Server::new(None).expect("failed to  create server");
 
         let result_with_timeout = timeout(
             Duration::from_secs(3),
@@ -442,7 +442,7 @@ mod tests {
         let token = CancellationToken::new();
         token.cancel();
 
-        let (_server, metrics_client) = Server::new(None).expect("failedto create server");
+        let (_server, metrics_client) = Server::new(None).expect("failed to  create server");
 
         let result_with_timeout = timeout(
             Duration::from_secs(1),
@@ -476,7 +476,7 @@ mod tests {
         let token = CancellationToken::new();
         token.cancel();
 
-        let (_server, metrics_client) = Server::new(None).expect("failedto create server");
+        let (_server, metrics_client) = Server::new(None).expect("failed to  create server");
 
         let result_with_timeout = timeout(
             Duration::from_secs(1),

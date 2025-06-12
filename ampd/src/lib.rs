@@ -12,7 +12,7 @@ use event_sub::EventSub;
 use evm::finalizer::{pick, Finalization};
 use evm::json_rpc::EthereumClient;
 use multiversx_sdk::gateway::GatewayProxy;
-use prometheus_metrics::client::MetricsClient;
+use prometheus_metrics::monitor::MetricsClient;
 use queue::queued_broadcaster::QueuedBroadcaster;
 use router_api::ChainName;
 use solana_client::nonblocking::rpc_client::RpcClient;
