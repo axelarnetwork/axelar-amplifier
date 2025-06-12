@@ -250,7 +250,10 @@ pub mod tests {
         let base_url = Url::parse(&format!("http://{}", bind_address.unwrap())).unwrap();
         let metrics_url = base_url.join("metrics").unwrap();
         let response = reqwest::get(metrics_url.clone()).await;
-        assert!(response.is_ok(), "metrics server still running after client dropped");
+        assert!(
+            response.is_ok(),
+            "metrics server still running after client dropped"
+        );
         cancel.cancel();
         tokio::time::sleep(Duration::from_millis(100)).await;
         match reqwest::get(metrics_url).await {
@@ -258,7 +261,6 @@ pub mod tests {
             Err(error) => assert!(error.is_connect()),
         };
     }
-
 
     #[async_test(start_paused = true)]
     async fn metrics_endpoint_should_reflect_message_counts() {
