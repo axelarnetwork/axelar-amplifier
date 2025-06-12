@@ -1,7 +1,8 @@
+use std::fmt;
 use std::fmt::Debug;
 
 use error_stack::Report;
-use ethers_providers::{Http, JsonRpcClient, ProviderError};
+use ethers_providers::{Http, JsonRpcClient, ProviderError, MockProvider};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
@@ -9,7 +10,6 @@ use crate::url::Url;
 
 type Result<T> = error_stack::Result<T, ProviderError>;
 
-#[derive(Debug)]
 pub struct Client<P>
 where
     P: JsonRpcClient,
@@ -41,5 +41,14 @@ where
 impl Client<Http> {
     pub fn new_http(url: &Url, client: reqwest::Client) -> Self {
         Client::new(Http::new_with_client(url, client))
+    }
+}
+
+impl Debug for Client<Http> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let provider = MockProvider::new();
+        f.debug_struct("Client")
+         .field("provider", &provider)
+         .finish()
     }
 }
