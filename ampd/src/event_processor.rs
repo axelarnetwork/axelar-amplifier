@@ -201,6 +201,7 @@ mod tests {
     use events::Event;
     use futures::stream;
     use mockall::mock;
+    use reqwest::Url;
     use tokio::time::timeout;
     use tokio_util::sync::CancellationToken;
 
@@ -573,7 +574,7 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(100)).await;
         let base_url = Url::parse(&format!("http://{}", bind_address.unwrap())).unwrap();
         let metrics_url = base_url.join("metrics").unwrap();
-        let response = reqwest::get(&metrics_url).await.unwrap();
+        let response = reqwest::get(metrics_url).await.unwrap();
         let metrics_text = response.text().await.unwrap();
         assert!(metrics_text.contains(&format!("blocks_received {}", num_block_ends)));
 
