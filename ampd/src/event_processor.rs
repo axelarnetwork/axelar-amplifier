@@ -30,8 +30,6 @@ pub trait EventHandler {
 
 #[derive(Error, Debug)]
 pub enum Error {
-    #[error("metrics update failed")]
-    Metrics,
     #[error("could not consume events from stream")]
     EventStream,
     #[error("handler stopped prematurely")]
