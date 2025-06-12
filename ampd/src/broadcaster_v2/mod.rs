@@ -154,8 +154,9 @@ where
 
     async fn broadcast(&mut self, msgs: impl IntoIterator<Item = Any>) -> Result<TxResponse> {
         let batch_req = Any::from_msg(&proto::axelar::auxiliary::v1beta1::BatchRequest {
-            sender: self.broadcaster.address.as_ref().to_bytes(),
+            sender_bz: self.broadcaster.address.as_ref().to_bytes(),
             messages: msgs.into_iter().collect(),
+            sender: self.broadcaster.address.as_ref().to_string(),
         })
         .expect("failed to serialize proto message for batch request");
         let fee = self.estimate_fee(batch_req.clone()).await?;
