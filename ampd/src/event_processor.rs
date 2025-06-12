@@ -107,9 +107,7 @@ where
                 "handler finished processing block"
             );
 
-           
-            if let Err(err) = metric_client
-                .record_metric(MetricsMsg::IncBlockReceived) {
+            if let Err(err) = metric_client.record_metric(MetricsMsg::IncBlockReceived) {
                 warn!(
                     handler = handler_label,
                     height = height.value(),
