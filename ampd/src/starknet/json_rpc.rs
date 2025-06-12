@@ -1,6 +1,8 @@
 //! Verification implementation of Starknet JSON RPC client's verification of
 //! transaction existence
 
+use std::fmt;
+
 use async_trait::async_trait;
 use axelar_wasm_std::msg_id::FieldElementAndEventIndex;
 use mockall::automock;
@@ -28,7 +30,6 @@ pub enum StarknetClientError {
 
 /// Implementor of verification method(s) for given network using JSON RPC
 /// client.
-#[derive(Debug)]
 pub struct Client<T>
 where
     T: JsonRpcTransport + Send + Sync,
@@ -128,6 +129,16 @@ where
             }
             _ => None,
         }
+    }
+}
+
+impl<T> fmt::Debug for Client<T>
+where
+    T: JsonRpcTransport + Send + Sync + 'static,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let client = "redacted".to_string();
+        f.debug_struct("Client").field("client", &client).finish()
     }
 }
 
