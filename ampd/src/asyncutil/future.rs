@@ -45,7 +45,7 @@ enum PolicyAction {
     Abort,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub enum RetryPolicy {
     RepeatConstant { sleep: Duration, max_attempts: u64 },
 }

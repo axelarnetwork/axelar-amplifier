@@ -14,7 +14,7 @@ use tokio::time;
 use tokio_stream::adapters::Fuse;
 use tokio_stream::wrappers::ReceiverStream;
 use tokio_stream::StreamExt;
-use tracing::warn;
+use tracing::{instrument, warn};
 use valuable::Valuable;
 
 use super::{broadcaster, Error, Result};
@@ -59,7 +59,7 @@ pub struct QueueMsg {
 /// // Enqueue without caring about the result
 /// msg_queue_client.enqueue_and_forget(msg).await?;
 /// ```
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct MsgQueueClient<T>
 where
     T: cosmos::CosmosClient,
@@ -213,6 +213,7 @@ pin_project! {
     /// This provides efficient batching while ensuring timely processing.
     /// The Stream implementation yields non-empty vectors of queued messages
     /// that are ready for broadcasting.
+    #[derive(Debug)]
     pub struct MsgQueue {
         #[pin]
         stream: Fuse<ReceiverStream<QueueMsg>>,
@@ -318,6 +319,7 @@ impl Stream for MsgQueue {
     }
 }
 
+#[instrument]
 fn handle_queue_error(msg: QueueMsg, err: Error) {
     let QueueMsg {
         tx_res_callback, ..
@@ -332,6 +334,7 @@ fn handle_queue_error(msg: QueueMsg, err: Error) {
     let _ = tx_res_callback.send(Err(err));
 }
 
+#[derive(Debug)]
 struct Queue {
     msgs: Vec<QueueMsg>,
     gas_cost: Gas,

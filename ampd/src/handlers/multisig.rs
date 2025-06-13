@@ -49,6 +49,7 @@ where
         .collect()
 }
 
+#[derive(Debug)]
 pub struct Handler<S> {
     verifier: TMAddress,
     multisig: TMAddress,

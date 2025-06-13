@@ -1,3 +1,4 @@
+use std::fmt;
 use std::fmt::Debug;
 
 use error_stack::Report;
@@ -40,5 +41,14 @@ where
 impl Client<Http> {
     pub fn new_http(url: &Url, client: reqwest::Client) -> Self {
         Client::new(Http::new_with_client(url, client))
+    }
+}
+
+impl Debug for Client<Http> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let provider = "redacted".to_string();
+        f.debug_struct("Client")
+            .field("provider", &provider)
+            .finish()
     }
 }
