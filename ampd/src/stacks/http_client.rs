@@ -1,6 +1,9 @@
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
+use std::result::Result as StdResult;
+use std::time::Duration;
 
+use error_stack::{Result, ResultExt};
 use futures::future::join_all;
 use hex::ToHex;
 use serde::Deserialize;
@@ -8,6 +11,7 @@ use thiserror::Error;
 
 use crate::types::Hash;
 use crate::url::Url;
+use crate::Error as BaseError;
 
 const TRANSACTION: &str = "extended/v1/tx/0x";
 const LATEST_BLOCK: &str = "extended/v2/blocks/latest";
@@ -61,11 +65,15 @@ pub struct Client {
 
 #[cfg_attr(test, faux::methods)]
 impl Client {
-    pub fn new_http(api_url: Url) -> Self {
-        Client {
+    pub fn new_http(api_url: Url, rpc_timeout: Duration) -> Result<Self, BaseError> {
+        Ok(Client {
             api_url: api_url.to_string().trim_end_matches('/').into(),
-            client: reqwest::Client::new(),
-        }
+            client: reqwest::ClientBuilder::new()
+                .connect_timeout(rpc_timeout)
+                .timeout(rpc_timeout)
+                .build()
+                .change_context(BaseError::Connection)?,
+        })
     }
 
     pub async fn finalized_transactions(
@@ -104,7 +112,7 @@ impl Client {
             .filter(|tx| Self::is_valid_transaction(tx, finalized_block_height))
     }
 
-    pub async fn latest_block(&self) -> Result<Block, Error> {
+    pub async fn latest_block(&self) -> StdResult<Block, Error> {
         let endpoint = LATEST_BLOCK.to_string();
 
         let endpoint = self.endpoint(endpoint.as_str());
@@ -119,7 +127,7 @@ impl Client {
             .map_err(|_| Error::Client)
     }
 
-    async fn transaction(&self, tx_id: &str) -> Result<Transaction, Error> {
+    async fn transaction(&self, tx_id: &str) -> StdResult<Transaction, Error> {
         let endpoint = TRANSACTION.to_string() + tx_id;
 
         let endpoint = self.endpoint(endpoint.as_str());

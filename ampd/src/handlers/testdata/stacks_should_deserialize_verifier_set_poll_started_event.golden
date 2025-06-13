@@ -4,6 +4,9 @@ PollStartedEvent {
             100,
         ),
     ),
+    source_chain: ChainName(
+        "stacks",
+    ),
     source_gateway_address: Contract(
         QualifiedContractIdentifier {
             issuer: StandardPrincipalData(SP2N959SER36FZ5QT1CX9BR63W3E8X35WQCMBYYWC),

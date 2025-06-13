@@ -97,11 +97,13 @@ rpc_url = "https://fullnode.testnet.sui.io:443"
 
 [[handlers]]
 type = 'StacksMsgVerifier'
+chain_name = 'stacks'
 cosmwasm_contract = 'axelar1mjlvl44v8er50nxjxcuugd4prafzxj4r84q84pf3ntgte6crnywsrk0s5e'
 http_url = 'https://api.testnet.hiro.so' # Stacks Hiro API URL
 
 [[handlers]]
 type = 'StacksVerifierSetVerifier'
+chain_name = 'stacks'
 cosmwasm_contract = 'axelar1mjlvl44v8er50nxjxcuugd4prafzxj4r84q84pf3ntgte6crnywsrk0s5e'
 http_url = 'https://api.testnet.hiro.so' # Stacks Hiro API URL
 

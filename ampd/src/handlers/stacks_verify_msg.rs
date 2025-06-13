@@ -51,6 +51,7 @@ struct PollStartedEvent {
 }
 
 pub struct Handler {
+    chain_name: ChainName,
     verifier: TMAddress,
     voting_verifier_contract: TMAddress,
     http_client: Client,
@@ -59,12 +60,14 @@ pub struct Handler {
 
 impl Handler {
     pub async fn new(
+        chain_name: ChainName,
         verifier: TMAddress,
         voting_verifier_contract: TMAddress,
         http_client: Client,
         latest_block_height: Receiver<u64>,
     ) -> error_stack::Result<Self, crate::stacks::http_client::Error> {
         Ok(Self {
+            chain_name,
             verifier,
             voting_verifier_contract,
             http_client,
@@ -107,6 +110,10 @@ impl EventHandler for Handler {
             }
             event => event.change_context(Error::DeserializeEvent)?,
         };
+
+        if source_chain != self.chain_name {
+            return Ok(vec![]);
+        }
 
         if !participants.contains(&self.verifier) {
             return Ok(vec![]);
@@ -177,6 +184,7 @@ impl EventHandler for Handler {
 mod tests {
     use std::collections::HashMap;
     use std::convert::TryInto;
+    use std::str::FromStr;
 
     use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
     use cosmrs::cosmwasm::MsgExecuteContract;
@@ -184,6 +192,7 @@ mod tests {
     use cosmwasm_std;
     use error_stack::Result;
     use ethers_core::types::H160;
+    use router_api::ChainName;
     use tokio::sync::watch;
     use tokio::test as async_test;
     use voting_verifier::events::{PollMetadata, PollStarted, TxEventConfirmation};
@@ -249,6 +258,30 @@ mod tests {
         assert!(handler.handle(&event).await.is_ok());
     }
 
+    #[async_test]
+    async fn incorrect_chain() {
+        let client = Client::faux();
+
+        let voting_verifier = TMAddress::random(PREFIX);
+        let worker = TMAddress::random(PREFIX);
+        let event = into_structured_event(
+            poll_started_event(participants(5, Some(worker.clone()))),
+            &voting_verifier,
+        );
+
+        let handler = super::Handler::new(
+            ChainName::from_str("other").unwrap(),
+            worker,
+            voting_verifier,
+            client,
+            watch::channel(0).1,
+        )
+        .await
+        .unwrap();
+
+        assert!(handler.handle(&event).await.is_ok());
+    }
+
     // Should not handle event if worker is not a poll participant
     #[async_test]
     async fn verifier_is_not_a_participant() {
@@ -259,6 +292,7 @@ mod tests {
             into_structured_event(poll_started_event(participants(5, None)), &voting_verifier);
 
         let handler = super::Handler::new(
+            ChainName::from_str("stacks").unwrap(),
             TMAddress::random(PREFIX),
             voting_verifier,
             client,
@@ -283,9 +317,15 @@ mod tests {
             &voting_verifier,
         );
 
-        let handler = super::Handler::new(worker, voting_verifier, client, watch::channel(0).1)
-            .await
-            .unwrap();
+        let handler = super::Handler::new(
+            ChainName::from_str("stacks").unwrap(),
+            worker,
+            voting_verifier,
+            client,
+            watch::channel(0).1,
+        )
+        .await
+        .unwrap();
 
         let actual = handler.handle(&event).await.unwrap();
         assert_eq!(actual.len(), 1);
@@ -308,9 +348,15 @@ mod tests {
 
         let (tx, rx) = watch::channel(expiration - 1);
 
-        let handler = super::Handler::new(worker, voting_verifier, client, rx)
-            .await
-            .unwrap();
+        let handler = super::Handler::new(
+            ChainName::from_str("stacks").unwrap(),
+            worker,
+            voting_verifier,
+            client,
+            rx,
+        )
+        .await
+        .unwrap();
 
         // poll is not expired yet, should hit proxy
         let actual = handler.handle(&event).await.unwrap();
@@ -326,6 +372,7 @@ mod tests {
         let client = Client::faux();
 
         let handler = Handler::new(
+            ChainName::from_str("stacks").unwrap(),
             TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
             client,

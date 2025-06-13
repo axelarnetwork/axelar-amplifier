@@ -312,13 +312,23 @@ mod tests {
 
             [[handlers]]
             type = 'StacksMsgVerifier'
+            chain_name = 'stacks'
             cosmwasm_contract = '{}'
             http_url = 'http://localhost:8000'
 
+            [handlers.rpc_timeout]
+            secs = 3
+            nanos = 0
+
             [[handlers]]
             type = 'StacksVerifierSetVerifier'
+            chain_name = 'stacks'
             cosmwasm_contract = '{}'
             http_url = 'http://localhost:8000'
+
+            [handlers.rpc_timeout]
+            secs = 3
+            nanos = 0
             ",
             TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
@@ -577,16 +587,20 @@ mod tests {
                     rpc_timeout: Some(Duration::from_secs(3)),
                 },
                 HandlerConfig::StacksMsgVerifier {
+                    chain_name: ChainName::from_str("stacks").unwrap(),
                     cosmwasm_contract: TMAddress::from(
                         AccountId::new("axelar", &[0u8; 32]).unwrap(),
                     ),
                     http_url: Url::from_str("http://127.0.0.1").unwrap(),
+                    rpc_timeout: Some(Duration::from_secs(3)),
                 },
                 HandlerConfig::StacksVerifierSetVerifier {
+                    chain_name: ChainName::from_str("stacks").unwrap(),
                     cosmwasm_contract: TMAddress::from(
                         AccountId::new("axelar", &[0u8; 32]).unwrap(),
                     ),
                     http_url: Url::from_str("http://127.0.0.1").unwrap(),
+                    rpc_timeout: Some(Duration::from_secs(3)),
                 },
             ],
             ..Config::default()

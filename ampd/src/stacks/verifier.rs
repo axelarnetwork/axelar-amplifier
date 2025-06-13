@@ -10,7 +10,6 @@ use crate::handlers::stacks_verify_verifier_set::VerifierSetConfirmation;
 use crate::stacks::error::Error;
 use crate::stacks::http_client::{Transaction, TransactionEvents};
 use crate::stacks::WeightedSigners;
-use crate::types::Hash;
 
 const PRINT_TOPIC: &str = "print";
 
@@ -18,11 +17,7 @@ const CONTRACT_CALL_TYPE: &str = "contract-call";
 const SIGNERS_ROTATED_TYPE: &str = "signers-rotated";
 
 impl Message {
-    fn eq_event(
-        &self,
-        event: &TransactionEvents,
-        new_payload_hash: Option<Hash>,
-    ) -> Result<bool, Box<dyn std::error::Error>> {
+    fn eq_event(&self, event: &TransactionEvents) -> Result<bool, Error> {
         let contract_log = event.contract_log.as_ref().ok_or(Error::PropertyEmpty)?;
 
         if contract_log.topic != PRINT_TOPIC {
@@ -98,11 +93,7 @@ impl Message {
                 return Ok(false);
             }
 
-            if let Some(new_payload_hash) = new_payload_hash {
-                if new_payload_hash != self.payload_hash {
-                    return Ok(false);
-                }
-            } else if !data
+            if !data
                 .get("payload-hash")?
                 .eq(&Value::buff_from(self.payload_hash.as_bytes().to_vec())?)
             {
@@ -117,7 +108,7 @@ impl Message {
 }
 
 impl VerifierSetConfirmation {
-    fn eq_event(&self, event: &TransactionEvents) -> Result<bool, Box<dyn std::error::Error>> {
+    fn eq_event(&self, event: &TransactionEvents) -> Result<bool, Error> {
         let contract_log = event.contract_log.as_ref().ok_or(Error::PropertyEmpty)?;
 
         if contract_log.topic != PRINT_TOPIC {
@@ -155,13 +146,16 @@ impl VerifierSetConfirmation {
                 return Ok(false);
             }
 
-            let weighted_signers = WeightedSigners::try_from(&self.verifier_set)?;
+            let weighted_signers = WeightedSigners::try_from(&self.verifier_set)
+                .map_err(|_| Error::InvalidEncoding)?;
 
-            let hash = weighted_signers.hash();
+            let hash = weighted_signers
+                .hash()
+                .map_err(|_| Error::InvalidEncoding)?;
 
             if !data
                 .get("signers-hash")?
-                .eq(&Value::buff_from(hash?.to_vec())?)
+                .eq(&Value::buff_from(hash.to_vec())?)
             {
                 return Ok(false);
             }
@@ -205,7 +199,7 @@ pub fn verify_message(
     }
 
     match find_event(transaction, gateway_address, message.message_id.event_index) {
-        Some(event) if message.eq_event(event, None).unwrap_or(false) => Vote::SucceededOnChain,
+        Some(event) if message.eq_event(event).unwrap_or(false) => Vote::SucceededOnChain,
         _ => Vote::NotFound,
     }
 }

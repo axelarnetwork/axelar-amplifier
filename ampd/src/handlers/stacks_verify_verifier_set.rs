@@ -11,6 +11,7 @@ use error_stack::ResultExt;
 use events::Error::EventTypeMismatch;
 use events::{try_from, Event};
 use multisig::verifier_set::VerifierSet;
+use router_api::ChainName;
 use serde::Deserialize;
 use tokio::sync::watch::Receiver;
 use tracing::{info, info_span};
@@ -36,6 +37,7 @@ pub struct VerifierSetConfirmation {
 #[try_from("wasm-verifier_set_poll_started")]
 struct PollStartedEvent {
     poll_id: PollId,
+    source_chain: ChainName,
     #[serde(with = "crate::stacks::principal_data_serde")]
     source_gateway_address: PrincipalData,
     verifier_set: VerifierSetConfirmation,
@@ -45,6 +47,7 @@ struct PollStartedEvent {
 }
 
 pub struct Handler {
+    chain_name: ChainName,
     verifier: TMAddress,
     voting_verifier_contract: TMAddress,
     http_client: Client,
@@ -53,12 +56,14 @@ pub struct Handler {
 
 impl Handler {
     pub fn new(
+        chain_name: ChainName,
         verifier: TMAddress,
         voting_verifier_contract: TMAddress,
         http_client: Client,
         latest_block_height: Receiver<u64>,
     ) -> Self {
         Self {
+            chain_name,
             verifier,
             voting_verifier_contract,
             http_client,
@@ -91,6 +96,7 @@ impl EventHandler for Handler {
 
         let PollStartedEvent {
             poll_id,
+            source_chain,
             source_gateway_address,
             verifier_set,
             participants,
@@ -103,6 +109,10 @@ impl EventHandler for Handler {
             }
             event => event.change_context(Error::DeserializeEvent)?,
         };
+
+        if source_chain != self.chain_name {
+            return Ok(vec![]);
+        }
 
         if !participants.contains(&self.verifier) {
             return Ok(vec![]);
@@ -156,6 +166,7 @@ impl EventHandler for Handler {
 #[cfg(test)]
 mod tests {
     use std::convert::TryInto;
+    use std::str::FromStr;
 
     use assert_ok::assert_ok;
     use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
@@ -165,6 +176,7 @@ mod tests {
     use cosmwasm_std::{HexBinary, Uint128};
     use multisig::key::KeyType;
     use multisig::test::common::{build_verifier_set, ecdsa_test_data};
+    use router_api::ChainName;
     use tokio::sync::watch;
     use tokio::test as async_test;
     use voting_verifier::events::{PollMetadata, PollStarted, VerifierSetConfirmation};
@@ -232,6 +244,7 @@ mod tests {
         );
 
         let handler = super::Handler::new(
+            ChainName::from_str("stacks").unwrap(),
             TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
             Client::faux(),
@@ -249,9 +262,36 @@ mod tests {
         );
 
         let handler = super::Handler::new(
+            ChainName::from_str("stacks").unwrap(),
             TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
             Client::faux(),
+            watch::channel(0).1,
+        );
+
+        assert_eq!(handler.handle(&event).await.unwrap(), vec![]);
+    }
+
+    #[async_test]
+    async fn incorrect_chain() {
+        let client = Client::faux();
+
+        let voting_verifier = TMAddress::random(PREFIX);
+        let verifier = TMAddress::random(PREFIX);
+        let expiration = 100u64;
+        let event = into_structured_event(
+            verifier_set_poll_started_event(
+                vec![verifier.clone()].into_iter().collect(),
+                expiration,
+            ),
+            &voting_verifier,
+        );
+
+        let handler = super::Handler::new(
+            ChainName::from_str("other").unwrap(),
+            verifier,
+            voting_verifier,
+            client,
             watch::channel(0).1,
         );
 
@@ -267,6 +307,7 @@ mod tests {
         );
 
         let handler = super::Handler::new(
+            ChainName::from_str("stacks").unwrap(),
             TMAddress::random(PREFIX),
             voting_verifier,
             Client::faux(),
@@ -295,7 +336,13 @@ mod tests {
 
         let (tx, rx) = watch::channel(expiration - 1);
 
-        let handler = super::Handler::new(verifier, voting_verifier, client, rx);
+        let handler = super::Handler::new(
+            ChainName::from_str("stacks").unwrap(),
+            verifier,
+            voting_verifier,
+            client,
+            rx,
+        );
 
         // poll is not expired yet, should hit proxy
         let actual = handler.handle(&event).await.unwrap();
@@ -321,7 +368,13 @@ mod tests {
             &voting_verifier,
         );
 
-        let handler = super::Handler::new(worker, voting_verifier, client, watch::channel(0).1);
+        let handler = super::Handler::new(
+            ChainName::from_str("stacks").unwrap(),
+            worker,
+            voting_verifier,
+            client,
+            watch::channel(0).1,
+        );
 
         let actual = handler.handle(&event).await.unwrap();
         assert_eq!(actual.len(), 1);
@@ -337,7 +390,7 @@ mod tests {
         PollStarted::VerifierSet {
             metadata: PollMetadata {
                 poll_id: "100".parse().unwrap(),
-                source_chain: "multiversx".parse().unwrap(),
+                source_chain: "stacks".parse().unwrap(),
                 source_gateway_address: "SP2N959SER36FZ5QT1CX9BR63W3E8X35WQCMBYYWC.axelar-gateway"
                     .parse()
                     .unwrap(),

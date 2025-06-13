@@ -95,12 +95,16 @@ pub enum Config {
         rpc_timeout: Option<Duration>,
     },
     StacksMsgVerifier {
+        chain_name: ChainName,
         cosmwasm_contract: TMAddress,
         http_url: Url,
+        rpc_timeout: Option<Duration>,
     },
     StacksVerifierSetVerifier {
+        chain_name: ChainName,
         cosmwasm_contract: TMAddress,
         http_url: Url,
+        rpc_timeout: Option<Duration>,
     },
 }
 
@@ -400,16 +404,14 @@ mod tests {
             )
         );
 
-        let configs = vec![
-            Config::StacksMsgVerifier {
-                cosmwasm_contract: TMAddress::random(PREFIX),
-                http_url: "http://localhost:8080/".parse().unwrap(),
-            },
-            Config::StacksMsgVerifier {
-                cosmwasm_contract: TMAddress::random(PREFIX),
-                http_url: "http://localhost:8080/".parse().unwrap(),
-            },
-        ];
+        let sample_config = Config::StacksMsgVerifier {
+            chain_name: ChainName::from_str("stacks").unwrap(),
+            cosmwasm_contract: TMAddress::random(PREFIX),
+            http_url: "http://localhost:8080/".parse().unwrap(),
+            rpc_timeout: None,
+        };
+
+        let configs = vec![sample_config.clone(), sample_config];
 
         assert!(
             matches!(deserialize_handler_configs(to_value(configs).unwrap()),
@@ -417,16 +419,14 @@ mod tests {
             )
         );
 
-        let configs = vec![
-            Config::StacksVerifierSetVerifier {
-                cosmwasm_contract: TMAddress::random(PREFIX),
-                http_url: "http://localhost:8080/".parse().unwrap(),
-            },
-            Config::StacksVerifierSetVerifier {
-                cosmwasm_contract: TMAddress::random(PREFIX),
-                http_url: "http://localhost:8080/".parse().unwrap(),
-            },
-        ];
+        let sample_config = Config::StacksVerifierSetVerifier {
+            chain_name: ChainName::from_str("stacks").unwrap(),
+            cosmwasm_contract: TMAddress::random(PREFIX),
+            http_url: "http://localhost:8080/".parse().unwrap(),
+            rpc_timeout: None,
+        };
+
+        let configs = vec![sample_config.clone(), sample_config];
 
         assert!(
             matches!(deserialize_handler_configs(to_value(configs).unwrap()),
