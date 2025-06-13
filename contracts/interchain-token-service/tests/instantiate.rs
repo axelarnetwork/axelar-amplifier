@@ -33,6 +33,7 @@ fn instantiate_with_args_succeeds() {
             admin_address: admin_address.to_string(),
             axelarnet_gateway_address: axelarnet_gateway_address.to_string(),
             operator_address: operator_address.to_string(),
+            manager_address: api.addr_make("manager").to_string(),
         },
     ));
 
@@ -73,6 +74,7 @@ fn invalid_gateway_address() {
         admin_address: utils::params::ADMIN.to_string(),
         axelarnet_gateway_address: "".to_string(),
         operator_address: utils::params::OPERATOR.to_string(),
+        manager_address: api.addr_make("manager").to_string(),
     };
     assert_err_contains!(
         contract::instantiate(

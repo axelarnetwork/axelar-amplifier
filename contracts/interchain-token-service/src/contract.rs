@@ -70,6 +70,7 @@ pub fn instantiate(
     let admin = address::validate_cosmwasm_address(deps.api, &msg.admin_address)?;
     let governance = address::validate_cosmwasm_address(deps.api, &msg.governance_address)?;
     let operator = address::validate_cosmwasm_address(deps.api, &msg.operator_address)?;
+    let manager = address::validate_cosmwasm_address(deps.api, &msg.manager_address)?;
 
     permission_control::set_admin(deps.storage, &admin)?;
     permission_control::set_governance(deps.storage, &governance)?;
@@ -82,6 +83,7 @@ pub fn instantiate(
         &Config {
             axelarnet_gateway,
             operator,
+            manager,
         },
     )?;
 
@@ -97,7 +99,7 @@ pub fn execute(
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
-    match msg.ensure_permissions(deps.storage, &info.sender, match_gateway, match_operator)? {
+    match msg.ensure_permissions(deps.storage, &info.sender, match_gateway, match_operator, match_manager)? {
         ExecuteMsg::Execute(AxelarExecutableMsg {
             cc_id,
             source_address,
@@ -153,6 +155,10 @@ fn match_gateway(storage: &dyn Storage, _: &ExecuteMsg) -> Result<Addr, Report<E
 
 fn match_operator(storage: &dyn Storage, _: &ExecuteMsg) -> Result<Addr, Report<Error>> {
     Ok(state::load_config(storage).operator)
+}
+
+fn match_manager(storage: &dyn Storage, _: &ExecuteMsg) -> Result<Addr, Report<Error>> {
+    Ok(state::load_config(storage).manager)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]

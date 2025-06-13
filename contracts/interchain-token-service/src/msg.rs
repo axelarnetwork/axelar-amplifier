@@ -43,6 +43,7 @@ pub struct InstantiateMsg {
     pub governance_address: String,
     pub admin_address: String,
     pub operator_address: String,
+    pub manager_address: String,
     /// The address of the axelarnet-gateway contract on Amplifier
     pub axelarnet_gateway_address: String,
 }
@@ -70,7 +71,7 @@ pub enum ExecuteMsg {
     /// Each chain's ITS contract has to be whitelisted before
     /// ITS Hub can send cross-chain messages to it, or receive messages from it.
     /// If any chain is already registered, an error is returned.
-    #[permission(Governance)]
+    #[permission(Specific(manager))]
     RegisterChains { chains: Vec<ChainConfig> },
 
     // Increase or decrease the supply for a given token and chain.
