@@ -7,7 +7,7 @@ use syn::parse::{Parse, ParseStream};
 use syn::punctuated::Punctuated;
 use syn::token::Comma;
 use syn::{
-    parse_quote, Data, DataEnum, DeriveInput, Expr, ExprCall, Fields, FnArg, Ident, Path, Token, Variant
+    parse_quote, Data, DataEnum, DeriveInput, Expr, ExprCall, Fields, FnArg, Ident, ItemFn, Path, Token, Variant
 };
 
 /// This macro derives the `ensure_permissions` method for an enum. The method checks if the sender
@@ -472,40 +472,38 @@ fn find_contracts(variant: Variant) -> Option<Vec<Ident>> {
 }
 
 fn find_original_indent(data: DataEnum) -> Option<Ident> {
-    let original_ident: Vec<Ident> = 
-    data.
-    variants
-    .into_iter()
-    .filter_map(|v| {
-        if v.ident.eq(&format_ident!("Direct")) {
-            match v.fields {
-                Fields::Unnamed(field) => {
-                    let fields: Vec<_> = field.unnamed.into_iter().filter_map(|f|
-                        match f.ty {
-                            syn::Type::Path(path) => {
-                                match path.path.get_ident() {
+    let original_ident: Vec<Ident> = data
+        .variants
+        .into_iter()
+        .filter_map(|v| {
+            if v.ident.eq(&format_ident!("Direct")) {
+                match v.fields {
+                    Fields::Unnamed(field) => {
+                        let fields: Vec<_> = field
+                            .unnamed
+                            .into_iter()
+                            .filter_map(|f| match f.ty {
+                                syn::Type::Path(path) => match path.path.get_ident() {
                                     Some(ident) => Some(ident.clone()),
                                     None => None,
-                                }
-                            },
-                            _ => None,
-                        }
-                    )
-                    .collect();
+                                },
+                                _ => None,
+                            })
+                            .collect();
 
-                    if fields.len() == 1 {
-                        Some(fields[0].clone())
-                    } else {
-                        panic!("the 'Direct' variant must have only one unnamed field")
+                        if fields.len() == 1 {
+                            Some(fields[0].clone())
+                        } else {
+                            panic!("the 'Direct' variant must have only one unnamed field")
+                        }
                     }
-                },
-                _ => None,
+                    _ => None,
+                }
+            } else {
+                None
             }
-        } else {
-            None
-        }
-    })
-    .collect();
+        })
+        .collect();
 
     if original_ident.len() == 1 {
         Some(original_ident[0].clone())
@@ -592,46 +590,74 @@ impl Parse for KeyValue {
     }
 }
 
-#[proc_macro_attribute]
-pub fn external_execute(attr: TokenStream, item: TokenStream) -> TokenStream {
-    let mut execute_fn = syn::parse_macro_input!(item as syn::ItemFn);
-    let contracts: Vec<_> = syn::parse_macro_input!(attr as KeyValue)
-        .contracts
-        .into_iter()
-        .map(|(_, contract)| contract)
+fn validate_external_contract(
+    contract_names: Vec<Ident>,
+    permission_fns: Vec<Ident>,
+) -> TokenStream {
+    if contract_names.len() != permission_fns.len() {
+        panic!("require same number of contract names as permission functions");
+    }
+
+    let fs: Vec<_> = (0..contract_names.len())
+        .map(|i| format_ident!("F{}", i))
         .collect();
 
+    let cs: Vec<_> = (0..contract_names.len())
+        .map(|i| format_ident!("C{}", i))
+        .collect();
+
+    TokenStream::from(quote! {
+        fn validate_external_contract<#(#fs),*, #(#cs),*>(
+                msg: ExecuteMsg,
+                storage: &dyn cosmwasm_std::Storage,
+                addr: Addr, 
+                #(#contract_names: #fs),*
+            ) -> error_stack::Result<(),
+            axelar_wasm_std::permission_control::Error>
+            where
+            #(#fs:FnOnce(&dyn cosmwasm_std::Storage, &ExecuteMsg) -> error_stack::Result<cosmwasm_std::Addr, #cs>),*,
+            #(#cs: error_stack::Context),*
+                {
+                #(
+                    if addr == #contract_names(storage, &msg).change_context(axelar_wasm_std::permission_control::Error::Unauthorized)? {
+                        return Ok(());
+                    }
+                )*
+                
+            Err(error_stack::report!(axelar_wasm_std::permission_control::Error::Unauthorized))
+        }
+    })
+}
+
+#[proc_macro_attribute]
+pub fn external_execute(attr: TokenStream, item: TokenStream) -> TokenStream {
+    let mut execute_fn = syn::parse_macro_input!(item as ItemFn);
     if execute_fn.sig.ident != format_ident!("execute") {
         panic!("external_execute macro can only be used with execute endpoint")
     }
 
-    // replace ExecuteMsg with ExecuteMsg2
-    execute_fn
-        .sig
-        .generics
-        .params
-        .push(parse_quote!(T: ExternalExecute + Clone));
+    let (contract_names, permission_fns): (Vec<_>, Vec<_>) = syn::parse_macro_input!(attr as KeyValue)
+        .contracts
+        .into_iter()
+        .unzip();
 
+    let validate_fn = validate_external_contract(contract_names.clone(), permission_fns.clone());
+    let validate_fn = syn::parse_macro_input!(validate_fn as ItemFn);
+
+    // replace ExecuteMsg with ExternalExecute trait
     execute_fn.sig.inputs.pop();
-    execute_fn.sig.inputs.push(parse_quote! {msg: T});
+    execute_fn.sig.inputs.push(parse_quote! {msg: impl ExternalExecute});
 
     let statements = execute_fn.block.stmts;
     execute_fn.block = parse_quote!(
         {
             // Check if sender is able to execute
-            // NOP if this is a direct execution
-            while true {
-                #(
-                    if msg.authorize(deps.storage, info.sender.clone(), #contracts).is_ok() {
-                        break;
-                    }
-                )*
-
-                return Err(axelar_wasm_std::permission_control::Error::Unauthorized.into())
-            }
+            let sender = info.sender.clone();
 
             // Get the original sender and message
             let (msg, info) = msg.msg_and_info(info);
+
+            validate_external_contract(msg.clone(), deps.storage, sender.clone(), #(#permission_fns),*)?;
 
             // Perform authorization and execution for original sender and message
             #(#statements)*
@@ -642,5 +668,7 @@ pub fn external_execute(attr: TokenStream, item: TokenStream) -> TokenStream {
         use router_api::msg::ExternalExecute;
 
         #execute_fn
+
+        #validate_fn
     })
 }
