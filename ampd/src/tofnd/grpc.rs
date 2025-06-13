@@ -1,3 +1,5 @@
+use std::fmt;
+use std::fmt::Debug;
 use std::time::Duration;
 
 use async_trait::async_trait;
@@ -29,7 +31,7 @@ pub trait Multisig {
     ) -> Result<Signature>;
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct MultisigClient {
     party_uid: String,
     client: multisig_client::MultisigClient<Channel>,
@@ -126,5 +128,15 @@ impl Multisig for MultisigClient {
                     Err(TofndError::ExecutionFailed(error_msg)).change_context(Error::SignFailed)
                 }
             })
+    }
+}
+
+impl Debug for MultisigClient {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let client = "redacted".to_string();
+        f.debug_struct("MultisigClient")
+            .field("party_uid", &self.party_uid)
+            .field("client", &client)
+            .finish()
     }
 }
