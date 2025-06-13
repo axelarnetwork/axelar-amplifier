@@ -7,7 +7,7 @@ use syn::parse::{Parse, ParseStream};
 use syn::punctuated::Punctuated;
 use syn::token::Comma;
 use syn::{
-    parse_quote, Data, DataEnum, DeriveInput, Expr, ExprCall, FnArg, Ident, Path, Token, Variant,
+    parse_quote, Data, DataEnum, DeriveInput, Expr, ExprCall, Fields, FnArg, Ident, Path, Token, Variant
 };
 
 /// This macro derives the `ensure_permissions` method for an enum. The method checks if the sender
@@ -362,6 +362,8 @@ fn build_full_check_function(
     }
 }
 
+////-----------------------------------------------------------
+
 #[proc_macro_derive(ExternalExecute, attributes(contracts))]
 pub fn derive_external_execute(input: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(input as DeriveInput);
@@ -374,81 +376,50 @@ pub fn derive_external_execute(input: TokenStream) -> TokenStream {
 }
 
 fn build_execute_implementation(enum_type: Ident, data: DataEnum) -> TokenStream {
-    let contracts: Vec<_> = data
-        .variants
-        .into_iter()
-        .filter_map(find_contracts)
-        .flatten()
-        .unique()
-        .collect();
-
-    println!("Find Contracts: {:?}", contracts);
-
-    // let fs: Vec<_> = (0..contracts.len())
-    //     .map(|i| format_ident!("F{}", i))
-    //     .collect();
-
-    // let cs: Vec<_> = (0..contracts.len())
-    //     .map(|i| format_ident!("C{}", i))
-    //     .collect();
+    let original_ident = find_original_indent(data).unwrap();
+    println!("Original Ident: {:?}", original_ident);
 
     TokenStream::from(quote! {
         use error_stack::ResultExt;
+        use cosmwasm_std::MessageInfo;
 
         pub trait ExternalExecute {
-            fn msg(&self) -> ExecuteMsg;
-
-            fn original_sender(&self) -> Option<Addr>;
+            fn msg_and_info(&self, info: MessageInfo) -> (#original_ident, MessageInfo);
 
             fn authorize<F, C2>(&self, storage: &dyn cosmwasm_std::Storage, addr: Addr, func: F)
             -> error_stack::Result<(), axelar_wasm_std::permission_control::Error> where
-                F: FnOnce(&dyn cosmwasm_std::Storage, &ExecuteMsg) -> error_stack::Result<cosmwasm_std::Addr, C2>,
+                F: FnOnce(&dyn cosmwasm_std::Storage, &#original_ident) -> error_stack::Result<cosmwasm_std::Addr, C2>,
                 C2: error_stack::Context;
         }
 
-        // impl #enum_type {
-            // pub fn ensure_permissions2<#(#fs),*, #(#cs),*>(
-            //         self,
-            //         storage: &dyn cosmwasm_std::Storage,
-            //         sender: &cosmwasm_std::Addr,
-            //         #(#contracts: #fs),*
-            //     ) -> error_stack::Result<ExecuteMsg,axelar_wasm_std::permission_control::Error>
-            //             where
-            //                 #(#fs:FnOnce(&dyn cosmwasm_std::Storage, &ExecuteMsg) -> error_stack::Result<cosmwasm_std::Addr, #cs>),*,
-            //                 #(#cs: error_stack::Context),*
-            //             {
-            //     match self {
-            //         ExecuteMsg2::Relay{msg, ..} => {msg.ensure_permissions(storage, sender, #(#contracts),*)},
-            //         ExecuteMsg2::Direct(msg) => {msg.ensure_permissions(storage, sender, #(#contracts),*)}
-            //         _ => panic!("invalid variant"),
-            //     }
-            // }
-        // }
-
-        impl ExternalExecute for ExecuteMsg2 {
-            fn msg(&self) -> ExecuteMsg {
+        impl #enum_type {
+            fn msg(&self) -> #original_ident {
                 match self {
-                    ExecuteMsg2::Relay { sender, msg } => {
+                    #enum_type::Relay { msg, .. } => {
                         msg.clone()
                     },
-                    ExecuteMsg2::Direct(msg) => msg.clone()
+                    #enum_type::Direct(msg) => msg.clone(),
                 }
             }
+        }
 
-            fn original_sender(&self) -> Option<Addr> {
+        impl ExternalExecute for #enum_type {
+            fn msg_and_info(&self, info: MessageInfo) -> (#original_ident, MessageInfo) {
                 match self {
-                    ExecuteMsg2::Relay { sender, .. } => {
-                        Some(sender.clone())
-                    },
-                    ExecuteMsg2::Direct(_) => None,
+                    #enum_type::Relay { sender, msg } =>
+                        (msg.clone(), MessageInfo {
+                            sender: sender.clone(),
+                            funds: info.funds,
+                        }),
+                    #enum_type::Direct(msg) => (msg.clone(), info.clone()),
                 }
             }
 
             fn authorize<F, C2>(&self, storage: &dyn cosmwasm_std::Storage, addr: Addr, func: F)
             -> error_stack::Result<(), axelar_wasm_std::permission_control::Error> where
-                F: FnOnce(&dyn cosmwasm_std::Storage, &ExecuteMsg) -> error_stack::Result<cosmwasm_std::Addr, C2>,
+                F: FnOnce(&dyn cosmwasm_std::Storage, &#original_ident) -> error_stack::Result<cosmwasm_std::Addr, C2>,
                 C2: error_stack::Context {
-                    if func(storage, &self.msg()).change_context(Error::CoordinatorNotFound)
+                    if func(storage, &self.msg())
                     .change_context(axelar_wasm_std::permission_control::Error::Unauthorized)? == addr {
                         Ok(())
                     } else {
@@ -457,18 +428,14 @@ fn build_execute_implementation(enum_type: Ident, data: DataEnum) -> TokenStream
                 }
         }
 
-        impl ExternalExecute for ExecuteMsg {
-            fn msg(&self) -> ExecuteMsg {
-                self.clone()
-            }
-
-            fn original_sender(&self) -> Option<Addr> {
-                None
+        impl ExternalExecute for #original_ident {
+            fn msg_and_info(&self, info: MessageInfo) -> (#original_ident, MessageInfo) {
+                (self.clone(), info.clone())
             }
 
             fn authorize<F, C2>(&self, storage: &dyn cosmwasm_std::Storage, addr: Addr, func: F)
             -> error_stack::Result<(), axelar_wasm_std::permission_control::Error> where
-                F: FnOnce(&dyn cosmwasm_std::Storage, &ExecuteMsg) -> error_stack::Result<cosmwasm_std::Addr, C2>,
+                F: FnOnce(&dyn cosmwasm_std::Storage, &#original_ident) -> error_stack::Result<cosmwasm_std::Addr, C2>,
                 C2: error_stack::Context {
                     Ok(())
                 }
@@ -501,6 +468,49 @@ fn find_contracts(variant: Variant) -> Option<Vec<Ident>> {
         None
     } else {
         Some(idents)
+    }
+}
+
+fn find_original_indent(data: DataEnum) -> Option<Ident> {
+    let original_ident: Vec<Ident> = 
+    data.
+    variants
+    .into_iter()
+    .filter_map(|v| {
+        if v.ident.eq(&format_ident!("Direct")) {
+            match v.fields {
+                Fields::Unnamed(field) => {
+                    let fields: Vec<_> = field.unnamed.into_iter().filter_map(|f|
+                        match f.ty {
+                            syn::Type::Path(path) => {
+                                match path.path.get_ident() {
+                                    Some(ident) => Some(ident.clone()),
+                                    None => None,
+                                }
+                            },
+                            _ => None,
+                        }
+                    )
+                    .collect();
+
+                    if fields.len() == 1 {
+                        Some(fields[0].clone())
+                    } else {
+                        panic!("the 'Direct' variant must have only one unnamed field")
+                    }
+                },
+                _ => None,
+            }
+        } else {
+            None
+        }
+    })
+    .collect();
+
+    if original_ident.len() == 1 {
+        Some(original_ident[0].clone())
+    } else {
+        panic!("missing 'Direct' variant")
     }
 }
 
@@ -591,8 +601,6 @@ pub fn external_execute(attr: TokenStream, item: TokenStream) -> TokenStream {
         .map(|(_, contract)| contract)
         .collect();
 
-    println!("Contracts:: {:?}", contracts);
-
     if execute_fn.sig.ident != format_ident!("execute") {
         panic!("external_execute macro can only be used with execute endpoint")
     }
@@ -612,28 +620,18 @@ pub fn external_execute(attr: TokenStream, item: TokenStream) -> TokenStream {
         {
             // Check if sender is able to execute
             // NOP if this is a direct execution
-            // while true {
-            //     #(
-            //         if msg.authorize(deps.storage, info.sender, #contracts).is_ok() {
-            //             break;
-            //         }
-            //     )*
+            while true {
+                #(
+                    if msg.authorize(deps.storage, info.sender.clone(), #contracts).is_ok() {
+                        break;
+                    }
+                )*
 
-            //     return Err(axelar_wasm_std::permission_control::Error::Unauthorized.into())
-            // }
+                return Err(axelar_wasm_std::permission_control::Error::Unauthorized.into())
+            }
 
             // Get the original sender and message
-            let mut test = MessageInfo {
-                sender: match msg.original_sender() {
-                    Some(addr) => {
-                        addr.clone()
-                    },
-                    None => info.sender.clone(),
-                },
-                funds: info.funds.clone(),
-            };
-
-            let msg = msg.msg();
+            let (msg, info) = msg.msg_and_info(info);
 
             // Perform authorization and execution for original sender and message
             #(#statements)*
