@@ -318,17 +318,19 @@ pub fn register_deployment(
     let protocol_contracts =
         state::protocol_contracts(deps.storage).change_context(Error::ProtocolNotRegistered)?;
 
-    Ok(Response::new().add_message(WasmMsg::Execute {
+    Ok(Response::new().add_message(WasmMsg::Execute{
         contract_addr: protocol_contracts.router.to_string(),
-        msg: to_json_binary(&router_api::msg::ExecuteMsg2::Direct(
-            router_api::msg::ExecuteMsg::RegisterChain {
+        msg: to_json_binary(&router_api::msg::ExecuteMsg2::Relay {
+            sender,
+            msg: router_api::msg::ExecuteMsg::RegisterChain {
                 chain: deployed_contracts.chain_name,
                 gateway_address: router_api::Address::try_from(
                     deployed_contracts.gateway.to_string(),
                 )
                 .change_context(Error::ChainContractsInfo)?,
                 msg_id_format: deployed_contracts.msg_id_format,
-            }))
+            }
+        })
         .change_context(Error::UnableToPersistProtocol)?,
         funds: vec![],
     }))

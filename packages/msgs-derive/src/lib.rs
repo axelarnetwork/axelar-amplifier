@@ -1,5 +1,4 @@
 use axelar_wasm_std::permission_control::Permission;
-use cosmwasm_std::StdResult;
 use itertools::Itertools;
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
@@ -7,7 +6,7 @@ use syn::parse::{Parse, ParseStream};
 use syn::punctuated::Punctuated;
 use syn::token::Comma;
 use syn::{
-    parse_quote, Data, DataEnum, DeriveInput, Expr, ExprCall, Fields, FnArg, Ident, ItemFn, Path,
+    parse_quote, Data, DataEnum, DeriveInput, Expr, ExprCall, Fields, Ident, ItemFn, Path,
     Token, Variant,
 };
 
@@ -363,8 +362,6 @@ fn build_full_check_function(
     }
 }
 
-////-----------------------------------------------------------
-
 #[proc_macro_derive(ExternalExecute, attributes(contracts))]
 pub fn derive_external_execute(input: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(input as DeriveInput);
@@ -456,10 +453,7 @@ fn find_original_indent(data: DataEnum) -> Option<Ident> {
                             .unnamed
                             .into_iter()
                             .filter_map(|f| match f.ty {
-                                syn::Type::Path(path) => match path.path.get_ident() {
-                                    Some(ident) => Some(ident.clone()),
-                                    None => None,
-                                },
+                                syn::Type::Path(path) => path.path.get_ident().cloned(),
                                 _ => None,
                             })
                             .collect();
@@ -547,13 +541,9 @@ impl Parse for ContractPermission {
                             return None;
                         };
 
-                        let Some(contract_ident) = contract_name.path.get_ident() else {
-                            return None;
-                        };
+                        let contract_ident = contract_name.path.get_ident()?;
 
-                        let Some(function_ident) = function_name.path.get_ident() else {
-                            return None;
-                        };
+                        let function_ident = function_name.path.get_ident()?;
 
                         Some((contract_ident.clone(), function_ident.clone()))
                     }
@@ -574,6 +564,7 @@ impl IntoIterator for ContractPermission {
 }
 
 fn validate_external_contract_function(
+    execute_msg_ident: Ident,
     contract_names: Vec<Ident>,
     permission_fns: Vec<Ident>,
 ) -> TokenStream {
@@ -591,14 +582,14 @@ fn validate_external_contract_function(
 
     TokenStream::from(quote! {
         fn validate_external_contract<#(#fs),*, #(#cs),*>(
-                msg: ExecuteMsg,
+                msg: #execute_msg_ident,
                 storage: &dyn cosmwasm_std::Storage,
                 addr: Addr,
                 #(#contract_names: #fs),*
             ) -> error_stack::Result<(),
             axelar_wasm_std::permission_control::Error>
             where
-            #(#fs:FnOnce(&dyn cosmwasm_std::Storage, &ExecuteMsg) -> error_stack::Result<cosmwasm_std::Addr, #cs>),*,
+            #(#fs:FnOnce(&dyn cosmwasm_std::Storage, &#execute_msg_ident) -> error_stack::Result<cosmwasm_std::Addr, #cs>),*,
             #(#cs: error_stack::Context),*
                 {
                 #(
@@ -624,17 +615,29 @@ pub fn external_execute(attr: TokenStream, item: TokenStream) -> TokenStream {
             .into_iter()
             .unzip();
 
-    let validate_fn =
-        validate_external_contract_function(contract_names.clone(), permission_fns.clone());
-    let validate_fn = syn::parse_macro_input!(validate_fn as ItemFn);
-
     // Replace ExecuteMsg with ExternalExecute trait
     // Both ExecuteMsg and ExecuteMsg2 implement this trait
-    execute_fn.sig.inputs.pop();
+    let original_msg = execute_fn.sig.inputs.pop().unwrap().into_value();
     execute_fn
         .sig
         .inputs
         .push(parse_quote! {msg: impl ExternalExecute});
+
+    let original_msg_ident = match original_msg {
+        syn::FnArg::Typed(typ) => {
+            match *typ.ty {
+                syn::Type::Path(p) => {
+                    p.path.get_ident().unwrap().clone()
+                },
+                _ => panic!("problem parsing final argument of 'execute'")
+            }
+        },
+        _ => panic!("last argument of 'execute' must be a typed execute message")
+    };
+
+    let validate_fn =
+        validate_external_contract_function(original_msg_ident, contract_names.clone(), permission_fns.clone());
+    let validate_fn = syn::parse_macro_input!(validate_fn as ItemFn);
 
     let statements = execute_fn.block.stmts;
     execute_fn.block = parse_quote!(

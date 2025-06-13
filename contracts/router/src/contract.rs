@@ -9,7 +9,7 @@ use msgs_derive::external_execute;
 use router_api::error::Error;
 
 use crate::events::RouterInstantiated;
-use crate::msg::{ExecuteMsg, ExecuteMsg2, InstantiateMsg, QueryMsg};
+use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state;
 use crate::state::{load_chain_by_gateway, load_config, Config};
 
