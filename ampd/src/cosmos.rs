@@ -1,5 +1,7 @@
+use std::fmt;
 use std::time::Duration;
 
+use ::std::fmt::Debug;
 use async_trait::async_trait;
 use cosmrs::proto::cosmos::auth::v1beta1::query_client::QueryClient as AuthQueryClient;
 use cosmrs::proto::cosmos::auth::v1beta1::{
@@ -103,7 +105,7 @@ pub trait CosmosClient {
 /// This cloning approach is efficient for concurrent operations since it allows multiple
 /// client instances to share the same connection resources while maintaining independent state.
 ///
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct CosmosGrpcClient {
     auth: AuthQueryClient<Channel>,
     bank: BankQueryClient<Channel>,
@@ -181,6 +183,18 @@ impl CosmosClient for CosmosGrpcClient {
             .await
             .map(Response::into_inner)
             .map_err(ErrorExt::into_report)
+    }
+}
+
+impl Debug for CosmosGrpcClient {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let redacted = "redacted".to_string();
+        f.debug_struct("CosmosGrpcClient")
+            .field("auth", &redacted)
+            .field("bank", &redacted)
+            .field("cosm_wasm", &redacted)
+            .field("service", &redacted)
+            .finish()
     }
 }
 
