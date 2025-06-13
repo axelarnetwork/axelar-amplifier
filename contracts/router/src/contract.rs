@@ -55,7 +55,7 @@ pub fn instantiate(
     }))
 }
 
-#[external_execute(gateway, coordinator)]
+#[external_execute(coordinator = find_coordinator_address, gateway = find_coordinator_address)]
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
