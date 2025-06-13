@@ -1,3 +1,5 @@
+use std::fmt;
+use std::fmt::Debug;
 use std::net::{IpAddr, SocketAddr};
 use std::time::Duration;
 
@@ -30,7 +32,7 @@ pub enum Error {
     Transport(#[from] transport::Error),
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Serialize, Deserialize, PartialEq)]
 pub struct Config {
     /// IP address on which the gRPC server will listen
     pub ip_addr: IpAddr,
@@ -64,6 +66,22 @@ impl Default for Config {
                 .expect("default concurrency limit per connection must be valid"),
             request_timeout: Duration::from_secs(30),
         }
+    }
+}
+
+impl Debug for Config {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let redacted = "redacted".to_string();
+        f.debug_struct("Config")
+            .field("ip_addr", &redacted)
+            .field("port", &redacted)
+            .field("global_concurrency_limit", &self.global_concurrency_limit)
+            .field(
+                "concurrency_limit_per_connection",
+                &self.concurrency_limit_per_connection,
+            )
+            .field("request_timeout", &self.request_timeout)
+            .finish()
     }
 }
 
