@@ -400,10 +400,9 @@ fn build_execute_implementation(enum_type: Ident, data: DataEnum) -> TokenStream
 
             fn original_sender(&self) -> Option<Addr>;
 
-            fn authorize<F, C1, C2>(&self, storage: &dyn cosmwasm_std::Storage, addr: Addr, func: F)
-            -> error_stack::Result<(), C1> where
+            fn authorize<F, C2>(&self, storage: &dyn cosmwasm_std::Storage, addr: Addr, func: F)
+            -> error_stack::Result<(), axelar_wasm_std::permission_control::Error> where
                 F: FnOnce(&dyn cosmwasm_std::Storage, &ExecuteMsg) -> error_stack::Result<cosmwasm_std::Addr, C2>,
-                C1: error_stack::Context,
                 C2: error_stack::Context;
         }
 
@@ -445,17 +444,16 @@ fn build_execute_implementation(enum_type: Ident, data: DataEnum) -> TokenStream
                 }
             }
 
-            fn authorize<F, C1, C2>(&self, storage: &dyn cosmwasm_std::Storage, addr: Addr, func: F)
-            -> error_stack::Result<(), C1> where
+            fn authorize<F, C2>(&self, storage: &dyn cosmwasm_std::Storage, addr: Addr, func: F)
+            -> error_stack::Result<(), axelar_wasm_std::permission_control::Error> where
                 F: FnOnce(&dyn cosmwasm_std::Storage, &ExecuteMsg) -> error_stack::Result<cosmwasm_std::Addr, C2>,
-                C1: error_stack::Context,
                 C2: error_stack::Context {
-                    // if func(storage, &self.msg()).change_context(axelar_wasm_std::permission_control::Error::Unauthorized)? == addr {
-                    //     Ok(())
-                    // } else {
-                    //     Err(error_stack::report!(axelar_wasm_std::permission_control::Error::Unauthorized))
-                    // }
-                    Ok(())
+                    if func(storage, &self.msg()).change_context(Error::CoordinatorNotFound)
+                    .change_context(axelar_wasm_std::permission_control::Error::Unauthorized)? == addr {
+                        Ok(())
+                    } else {
+                        Err(error_stack::report!(axelar_wasm_std::permission_control::Error::Unauthorized))
+                    }
                 }
         }
 
@@ -468,10 +466,9 @@ fn build_execute_implementation(enum_type: Ident, data: DataEnum) -> TokenStream
                 None
             }
 
-            fn authorize<F, C1, C2>(&self, storage: &dyn cosmwasm_std::Storage, addr: Addr, func: F)
-            -> error_stack::Result<(), C1> where
+            fn authorize<F, C2>(&self, storage: &dyn cosmwasm_std::Storage, addr: Addr, func: F)
+            -> error_stack::Result<(), axelar_wasm_std::permission_control::Error> where
                 F: FnOnce(&dyn cosmwasm_std::Storage, &ExecuteMsg) -> error_stack::Result<cosmwasm_std::Addr, C2>,
-                C1: error_stack::Context,
                 C2: error_stack::Context {
                     Ok(())
                 }
