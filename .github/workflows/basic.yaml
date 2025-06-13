@@ -17,12 +17,10 @@ jobs:
       fail-fast: false # Let all matrix jobs complete even if some fail
       matrix:
         runner:
-          - blacksmith-staging-8vcpu-ubuntu-2404
-          - blacksmith-staging-8vcpu-ubuntu-2204
-          - blacksmith-8vcpu-ubuntu-2204
-          - blacksmith-32vcpu-ubuntu-2404
+          - blacksmith-staging-4vcpu-ubuntu-2404
+          - blacksmith-4vcpu-ubuntu-2404
+          # run on ubuntu-latest to verify compatibility
           - ubuntu-latest
-          - ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
 
@@ -46,25 +44,24 @@ jobs:
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-      # Cache for Blacksmith runners
-      - name: Cache build artifacts (Blacksmith)
-        if: startsWith(matrix.runner, 'blacksmith')
-        uses: useblacksmith/rust-cache@v3.0.1
-        id: cache-blacksmith
-        with:
-          shared-key: "cache-tests-${{ matrix.runner }}"
+      # # Cache for Blacksmith runners
+      # - name: Cache build artifacts (Blacksmith)
+      #   if: startsWith(matrix.runner, 'blacksmith')
+      #   uses: useblacksmith/rust-cache@v3.0.1
+      #   id: cache-blacksmith
+      #   with:
+      #     shared-key: "cache-tests-${{ matrix.runner }}"
 
       # Cache for GitHub Actions runners
       - name: Cache build artifacts (GitHub Actions)
-        if: matrix.runner == 'ubuntu-latest' || matrix.runner == 'ubuntu-22.04'
         uses: Swatinem/rust-cache@v2
         id: cache-github
         with:
           shared-key: "cache-tests-${{ matrix.runner }}"
 
-      - name: Log crates.toml
-        if: (steps.cache-blacksmith.outputs.cache-hit == 'true') || (steps.cache-github.outputs.cache-hit == 'true')
-        run: cat /home/runner/.cargo/.crates.toml
+      # - name: Log crates.toml
+      #   if: (steps.cache-blacksmith.outputs.cache-hit == 'true') || (steps.cache-github.outputs.cache-hit == 'true')
+      #   run: cat /home/runner/.cargo/.crates.toml
 
       - name: Run tests
         uses: actions-rs/cargo@v1
