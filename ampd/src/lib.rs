@@ -372,7 +372,7 @@ where
                     verifier.clone(),
                     cosmwasm_contract.clone(),
                     json_rpc::Client::new_http(
-                        &rpc_url,
+                        rpc_url,
                         reqwest::ClientBuilder::new()
                             .connect_timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
                             .timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
@@ -435,7 +435,7 @@ where
                     verifier.clone(),
                     cosmwasm_contract.clone(),
                     json_rpc::Client::new_http(
-                        &rpc_url,
+                        rpc_url,
                         reqwest::ClientBuilder::new()
                             .connect_timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
                             .timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
