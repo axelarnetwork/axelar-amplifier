@@ -86,7 +86,7 @@ impl Deref for Address {
     type Target = String;
 
     fn deref(&self) -> &Self::Target {
-        self.0.deref()
+        &self.0
     }
 }
 
@@ -102,27 +102,32 @@ impl TryFrom<String> for Address {
     type Error = Report<Error>;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
+        let value = nonempty::String::try_from(value).change_context(Error::InvalidAddress)?;
+
+        value.try_into()
+    }
+}
+
+impl TryFrom<nonempty::String> for Address {
+    type Error = Report<Error>;
+    fn try_from(value: nonempty::String) -> Result<Self, Self::Error> {
         if !Self::is_address(&value) {
             return Err(Report::new(Error::InvalidAddress));
         }
 
-        Ok(Address(
-            value
-                .parse::<nonempty::String>()
-                .change_context(Error::InvalidAddress)?,
-        ))
+        Ok(Address(value))
     }
 }
 
 impl Address {
     pub const fn is_address(value: &str) -> bool {
-        !value.is_empty() && !contains!(value, FIELD_DELIMITER)
+        nonempty::String::is_not_empty(value) && !contains!(value, FIELD_DELIMITER)
     }
 }
 
-impl std::fmt::Display for Address {
+impl Display for Address {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", *self.0)
+        write!(f, "{}", self.0)
     }
 }
 
