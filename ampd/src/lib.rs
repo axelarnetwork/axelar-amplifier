@@ -46,6 +46,7 @@ mod json_rpc;
 mod mvx;
 mod queue;
 mod solana;
+mod stacks;
 mod starknet;
 mod stellar;
 mod sui;
@@ -57,6 +58,7 @@ mod xrpl;
 
 use crate::asyncutil::future::RetryPolicy;
 use crate::broadcaster::confirm_tx::TxConfirmer;
+use crate::stacks::http_client::Client;
 
 const PREFIX: &str = "axelar";
 const DEFAULT_RPC_TIMEOUT: Duration = Duration::from_secs(3);
@@ -549,6 +551,40 @@ where
                         self.block_height_monitor.latest_block_height(),
                     )
                     .await,
+                    event_processor_config.clone(),
+                ),
+                handlers::config::Config::StacksMsgVerifier {
+                    chain_name,
+                    cosmwasm_contract,
+                    http_url,
+                    rpc_timeout,
+                } => self.create_handler_task(
+                    "stacks-msg-verifier",
+                    handlers::stacks_verify_msg::Handler::new(
+                        chain_name,
+                        verifier.clone(),
+                        cosmwasm_contract,
+                        Client::new_http(http_url, rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))?,
+                        self.block_height_monitor.latest_block_height(),
+                    )
+                    .await
+                    .change_context(Error::Connection)?,
+                    event_processor_config.clone(),
+                ),
+                handlers::config::Config::StacksVerifierSetVerifier {
+                    chain_name,
+                    cosmwasm_contract,
+                    http_url,
+                    rpc_timeout,
+                } => self.create_handler_task(
+                    "stacks-verifier-set-verifier",
+                    handlers::stacks_verify_verifier_set::Handler::new(
+                        chain_name,
+                        verifier.clone(),
+                        cosmwasm_contract,
+                        Client::new_http(http_url, rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))?,
+                        self.block_height_monitor.latest_block_height(),
+                    ),
                     event_processor_config.clone(),
                 ),
             };
