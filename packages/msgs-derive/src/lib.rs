@@ -517,9 +517,7 @@ pub fn external_execute(attr: TokenStream, item: TokenStream) -> TokenStream {
     let original_msg = execute_fn.sig.inputs.pop().unwrap().into_value();
     let original_msg_ident = match original_msg {
         syn::FnArg::Typed(typ) => match *typ.ty {
-            syn::Type::Path(p) => {
-                p.path.get_ident().unwrap().clone()
-            },
+            syn::Type::Path(p) => p.path.get_ident().unwrap().clone(),
             _ => panic!("problem parsing final argument of 'execute'"),
         },
         _ => panic!("last argument of 'execute' must be a typed execute message"),
@@ -562,8 +560,6 @@ pub fn external_execute(attr: TokenStream, item: TokenStream) -> TokenStream {
     );
 
     TokenStream::from(quote! {
-        use router_api::msg::#new_msg_ident;
-
         #execute_fn
 
         #validate_fn
