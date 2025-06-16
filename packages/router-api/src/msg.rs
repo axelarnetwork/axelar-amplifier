@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use axelar_wasm_std::msg_id::MessageIdFormat;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::Addr;
-use msgs_derive::{external_execute_msg, EnsurePermissions, ExternalExecute};
+use msgs_derive::{external_execute_msg, EnsurePermissions};
 
 use crate::primitives::*;
 

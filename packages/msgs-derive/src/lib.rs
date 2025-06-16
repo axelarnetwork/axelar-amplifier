@@ -362,138 +362,18 @@ fn build_full_check_function(
     }
 }
 
-#[proc_macro_derive(ExternalExecute, attributes(contracts))]
-pub fn derive_external_execute(input: TokenStream) -> TokenStream {
-    let input = syn::parse_macro_input!(input as DeriveInput);
-    let ident = input.ident.clone();
-
-    match input.data.clone() {
-        Data::Enum(data) => build_execute_implementation(ident, data),
-        _ => panic!("Only enums are supported"),
-    }
-}
-
-fn build_execute_implementation(enum_type: Ident, data: DataEnum) -> TokenStream {
-    let original_ident = find_original_indent(data).unwrap();
-
-    TokenStream::from(quote! {
-        use error_stack::ResultExt;
-        use cosmwasm_std::MessageInfo;
-        use serde;
-
-        pub trait ExternalExecute: serde::de::DeserializeOwned {
-            fn msg_and_info(&self, info: MessageInfo) -> (#original_ident, MessageInfo, bool);
-
-            fn authorize<F, C2>(&self, storage: &dyn cosmwasm_std::Storage, addr: Addr, func: F)
-            -> error_stack::Result<(), axelar_wasm_std::permission_control::Error> where
-                F: FnOnce(&dyn cosmwasm_std::Storage, &#original_ident) -> error_stack::Result<cosmwasm_std::Addr, C2>,
-                C2: error_stack::Context;
-        }
-
-        impl #enum_type {
-            fn msg(&self) -> #original_ident {
-                match self {
-                    #enum_type::Relay { msg, .. } => {
-                        msg.clone()
-                    },
-                    #enum_type::Direct(msg) => msg.clone(),
-                }
-            }
-        }
-
-        impl ExternalExecute for #enum_type {
-            fn msg_and_info(&self, info: MessageInfo) -> (#original_ident, MessageInfo, bool) {
-                match self {
-                    #enum_type::Relay { sender, msg } =>
-                        (msg.clone(), MessageInfo {
-                            sender: sender.clone(),
-                            funds: info.funds,
-                        }, true),
-                    #enum_type::Direct(msg) => (msg.clone(), info.clone(), false),
-                }
-            }
-
-            fn authorize<F, C2>(&self, storage: &dyn cosmwasm_std::Storage, addr: Addr, func: F)
-            -> error_stack::Result<(), axelar_wasm_std::permission_control::Error> where
-                F: FnOnce(&dyn cosmwasm_std::Storage, &#original_ident) -> error_stack::Result<cosmwasm_std::Addr, C2>,
-                C2: error_stack::Context {
-                    if func(storage, &self.msg())
-                    .change_context(axelar_wasm_std::permission_control::Error::Unauthorized)? == addr {
-                        Ok(())
-                    } else {
-                        Err(error_stack::report!(axelar_wasm_std::permission_control::Error::Unauthorized))
-                    }
-                }
-        }
-
-        impl ExternalExecute for #original_ident {
-            fn msg_and_info(&self, info: MessageInfo) -> (#original_ident, MessageInfo, bool) {
-                (self.clone(), info.clone(), false)
-            }
-
-            fn authorize<F, C2>(&self, storage: &dyn cosmwasm_std::Storage, addr: Addr, func: F)
-            -> error_stack::Result<(), axelar_wasm_std::permission_control::Error> where
-                F: FnOnce(&dyn cosmwasm_std::Storage, &#original_ident) -> error_stack::Result<cosmwasm_std::Addr, C2>,
-                C2: error_stack::Context {
-                    Ok(())
-                }
-        }
-
-        impl From<#original_ident> for #enum_type {
-            fn from(msg: #original_ident) -> #enum_type {
-                #enum_type::Direct(msg)
-            }
-        }
-    })
-}
-
-fn find_original_indent(data: DataEnum) -> Option<Ident> {
-    let original_ident: Vec<Ident> = data
-        .variants
-        .into_iter()
-        .filter_map(|v| {
-            if v.ident.eq(&format_ident!("Direct")) {
-                match v.fields {
-                    Fields::Unnamed(field) => {
-                        let fields: Vec<_> = field
-                            .unnamed
-                            .into_iter()
-                            .filter_map(|f| match f.ty {
-                                syn::Type::Path(path) => path.path.get_ident().cloned(),
-                                _ => None,
-                            })
-                            .collect();
-
-                        if fields.len() == 1 {
-                            Some(fields[0].clone())
-                        } else {
-                            panic!("the 'Direct' variant must have only one unnamed field")
-                        }
-                    }
-                    _ => None,
-                }
-            } else {
-                None
-            }
-        })
-        .collect();
-
-    if original_ident.len() == 1 {
-        Some(original_ident[0].clone())
-    } else {
-        panic!("missing 'Direct' variant")
-    }
+fn external_execute_msg_ident(execute_msg_ident: Ident) -> Ident {
+    format_ident!("{}External", execute_msg_ident.clone())
 }
 
 #[proc_macro_attribute]
 pub fn external_execute_msg(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let execute_msg = syn::parse_macro_input!(item as syn::ItemEnum);
     let execute_msg_ident = execute_msg.ident.clone();
-    let execute_msg_2_ident = format_ident!("{}External", execute_msg.ident.clone());
+    let execute_msg_2_ident = external_execute_msg_ident(execute_msg.ident.clone());
 
     let execute2_msg: syn::ItemEnum = parse_quote! {
         #[cw_serde]
-        #[derive(ExternalExecute)]
         pub enum #execute_msg_2_ident {
             Relay {
                 sender: Addr,
@@ -506,9 +386,15 @@ pub fn external_execute_msg(_attr: TokenStream, item: TokenStream) -> TokenStrea
     };
 
     TokenStream::from(quote! {
-            #execute_msg
+        #execute_msg
 
-            #execute2_msg
+        #execute2_msg
+
+        impl From<#execute_msg_ident> for #execute_msg_2_ident {
+            fn from(msg: #execute_msg_ident) -> #execute_msg_2_ident {
+                #execute_msg_2_ident::Direct(msg)
+            }
+        }
     })
 }
 
@@ -631,12 +517,14 @@ pub fn external_execute(attr: TokenStream, item: TokenStream) -> TokenStream {
     let original_msg = execute_fn.sig.inputs.pop().unwrap().into_value();
     let original_msg_ident = match original_msg {
         syn::FnArg::Typed(typ) => match *typ.ty {
-            syn::Type::Path(p) => p.path.get_ident().unwrap().clone(),
+            syn::Type::Path(p) => {
+                p.path.get_ident().unwrap().clone()
+            },
             _ => panic!("problem parsing final argument of 'execute'"),
         },
         _ => panic!("last argument of 'execute' must be a typed execute message"),
     };
-    let new_msg_ident = format_ident!("{}External", original_msg_ident);
+    let new_msg_ident = external_execute_msg_ident(original_msg_ident.clone());
 
     execute_fn
         .sig
@@ -653,17 +541,20 @@ pub fn external_execute(attr: TokenStream, item: TokenStream) -> TokenStream {
     let statements = execute_fn.block.stmts;
     execute_fn.block = parse_quote!(
         {
-            // Check if sender is able to execute
-            let external_contract_address = info.sender.clone();
+            let (msg, info) = match msg {
+                #new_msg_ident::Relay{sender, msg} => {
+                    // Validate that the sending contract is allowed to execute messages.
+                    validate_external_contract(msg.clone(), deps.storage, info.sender.clone(), #(#permission_fns),*)?;
 
-            // Get the original sender and message
-            let (msg, info, is_external) = msg.msg_and_info(info);
-
-            // Validate that the sending contract is allowed to execute messages.
-            // This is a NOP when sending a direct ExecuteMsg
-            if is_external {
-                validate_external_contract(msg.clone(), deps.storage, external_contract_address.clone(), #(#permission_fns),*)?;
-            }
+                    (msg, cosmwasm_std::MessageInfo {
+                        sender: sender,
+                        funds: info.funds,
+                    })
+                },
+                #new_msg_ident::Direct(msg) => {
+                    (msg, info)
+                },
+            };
 
             // Perform authorization and execution for original sender and message
             #(#statements)*
@@ -671,7 +562,6 @@ pub fn external_execute(attr: TokenStream, item: TokenStream) -> TokenStream {
     );
 
     TokenStream::from(quote! {
-        use router_api::msg::ExternalExecute;
         use router_api::msg::#new_msg_ident;
 
         #execute_fn
