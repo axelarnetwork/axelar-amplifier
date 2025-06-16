@@ -271,7 +271,7 @@ where
                     self.event_processor = self.event_processor.add_task(task);
                 }
                 Err(e) => {
-                    tracing::warn!(error = e, config,
+                    tracing::warn!(error = %e, config = ?config,
                         "Failed to create a handler, skipping instantiation. This handler will not run (and not vote or sign for this specific chain) until the issue is fixed and ampd is restarted."                       
                     );
                 }
