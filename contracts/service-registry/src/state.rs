@@ -89,7 +89,7 @@ const SERVICES: Map<&ServiceName, Service> = Map::new("services");
 const SERVICE_OVERRIDES: Map<(&ServiceName, &ChainName), ServiceParamsOverride> =
     Map::new("service_overrides");
 
-pub const AUTHORIZED_VERIFIER_COUNT: Map<&str, u16> = Map::new("authorized_verifier_count");
+pub const AUTHORIZED_VERIFIER_COUNT: Map<&ServiceName, u16> = Map::new("authorized_verifier_count");
 
 pub fn service(
     storage: &dyn Storage,
@@ -213,6 +213,8 @@ pub fn count_authorized_verifiers(
     Ok(count)
     
 }
+// validtion for min 
+// max < min
 pub fn update_service(
     storage: &mut dyn Storage,
     service_name: &ServiceName,
