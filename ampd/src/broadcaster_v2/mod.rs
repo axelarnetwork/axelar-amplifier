@@ -185,6 +185,7 @@ where
     }
 }
 
+#[instrument]
 fn handle_tx_res(tx_hash: Result<String>, msgs: nonempty::Vec<msg_queue::QueueMsg>) {
     Vec::from(msgs)
         .into_iter()

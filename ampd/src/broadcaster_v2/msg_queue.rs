@@ -1,5 +1,6 @@
 use core::pin::Pin;
 use core::task::{Context, Poll};
+use std::fmt::Debug;
 use std::future::Future;
 
 use axelar_wasm_std::nonempty;
@@ -296,7 +297,7 @@ impl Stream for MsgQueue {
 
                     // try to add the message to the queue
                     // if the queue returns Some, it means we have a batch ready to send
-                    if let Some(msgs) = me.queue.push_or(msg, handle_queue_error) {
+                    if let Some(msgs) = me.queue.push_or(msg) {
                         return Poll::Ready(Some(msgs));
                     }
                 }
@@ -319,19 +320,18 @@ impl Stream for MsgQueue {
     }
 }
 
-#[instrument]
-fn handle_queue_error(msg: QueueMsg, err: Error) {
+fn handle_queue_error(msg: QueueMsg, err: Error){
     let QueueMsg {
         tx_res_callback, ..
     } = msg;
 
-    let err = report!(err);
+    let report = report!(err);
     warn!(
-        error = LoggableError::from(&err).as_value(),
+        error = LoggableError::from(&report).as_value(),
         "message dropped"
     );
 
-    let _ = tx_res_callback.send(Err(err));
+    let _ = tx_res_callback.send(Err(report));
 }
 
 #[derive(Debug)]
@@ -350,17 +350,15 @@ impl Queue {
         }
     }
 
-    pub fn push_or<F>(&mut self, msg: QueueMsg, handle_error: F) -> Option<nonempty::Vec<QueueMsg>>
-    where
-        F: FnOnce(QueueMsg, Error),
-    {
+    #[instrument]
+    pub fn push_or(&mut self, msg: QueueMsg) -> Option<nonempty::Vec<QueueMsg>> {
         if msg.gas > self.gas_cap {
             let err = Error::GasExceedsGasCap {
                 msg_type: msg.msg.type_url.clone(),
                 gas: msg.gas,
                 gas_cap: self.gas_cap,
             };
-            handle_error(msg, err);
+            Queue::error_once(msg, err, handle_queue_error);
 
             return None;
         }
@@ -397,6 +395,13 @@ impl Queue {
         }
     }
 
+    pub fn error_once<F>(msg: QueueMsg, err: Error, once: F) 
+    where
+        F: PushOrOnce,
+    {
+        once(msg, err);
+    }
+
     pub fn pop_all(&mut self) -> Option<nonempty::Vec<QueueMsg>> {
         self.gas_cost = 0;
         std::mem::take(&mut self.msgs).try_into().ok()
@@ -404,6 +409,16 @@ impl Queue {
 
     pub fn is_empty(&self) -> bool {
         self.msgs.is_empty()
+    }
+}
+
+trait PushOrOnce: FnOnce(QueueMsg, Error) {}
+
+impl<F> PushOrOnce for F where F: FnOnce(QueueMsg, Error) {}
+
+impl Debug for dyn PushOrOnce {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "PushOrOnce")
     }
 }
 

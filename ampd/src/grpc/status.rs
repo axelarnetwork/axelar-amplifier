@@ -1,13 +1,12 @@
 use deref_derive::Deref;
 use error_stack::Report;
 use report::LoggableError;
-use tracing::{error, instrument};
+use tracing::error;
 use valuable::Valuable;
 
 use super::reqs;
 use crate::{broadcaster_v2, cosmos, event_sub};
 
-#[instrument]
 pub fn log<Err>(msg: &str) -> impl Fn(&Report<Err>) + '_ {
     move |err| {
         error!(
