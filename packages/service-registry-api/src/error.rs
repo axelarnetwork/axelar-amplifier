@@ -21,8 +21,6 @@ pub enum ContractError {
     VerifierLimitExceed(u16, u16),
     #[error("max verifiers limit {0} is below current authorized verifiers {1}")]
     MaxVerifiersSetBelowCurrent(u16, u16),
-    #[error("authorized verifier count is less than 0, counter is corrupted")]
-    AuthurizedCounterFailed,
     #[error("unauthorized")]
     Unauthorized,
     #[error("service name already exists")]
