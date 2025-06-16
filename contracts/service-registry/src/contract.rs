@@ -262,7 +262,7 @@ mod test {
                 .expect("Failed to get authorized verifier count");
 
         let actual_count = crate::state::VERIFIERS
-            .prefix(&service_name.to_string()) 
+            .prefix(&service_name.to_string())
             .range(&deps.storage, None, None, cosmwasm_std::Order::Ascending)
             .filter_map(|item| item.ok().map(|(_, verifier)| verifier))
             .filter(|verifier| verifier.authorization_state == AuthorizationState::Authorized)
