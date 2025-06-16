@@ -7,8 +7,8 @@ use msgs_derive::{external_execute_msg, EnsurePermissions, ExternalExecute};
 
 use crate::primitives::*;
 
-#[external_execute_msg]
 #[cw_serde]
+#[external_execute_msg]
 #[derive(EnsurePermissions)]
 pub enum ExecuteMsg {
     /// Registers a new chain with the router

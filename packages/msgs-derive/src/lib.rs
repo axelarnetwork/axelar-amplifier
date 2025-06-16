@@ -6,8 +6,8 @@ use syn::parse::{Parse, ParseStream};
 use syn::punctuated::Punctuated;
 use syn::token::Comma;
 use syn::{
-    parse_quote, Data, DataEnum, DeriveInput, Expr, ExprCall, Fields, Ident, ItemFn, Path,
-    Token, Variant,
+    parse_quote, Data, DataEnum, DeriveInput, Expr, ExprCall, Fields, Ident, ItemFn, Path, Token,
+    Variant,
 };
 
 /// This macro derives the `ensure_permissions` method for an enum. The method checks if the sender
@@ -375,14 +375,14 @@ pub fn derive_external_execute(input: TokenStream) -> TokenStream {
 
 fn build_execute_implementation(enum_type: Ident, data: DataEnum) -> TokenStream {
     let original_ident = find_original_indent(data).unwrap();
-    println!("Original Ident: {:?}", original_ident);
 
     TokenStream::from(quote! {
         use error_stack::ResultExt;
         use cosmwasm_std::MessageInfo;
+        use serde;
 
         pub trait ExternalExecute {
-            fn msg_and_info(&self, info: MessageInfo) -> (#original_ident, MessageInfo);
+            fn msg_and_info(&self, info: MessageInfo) -> (#original_ident, MessageInfo, bool);
 
             fn authorize<F, C2>(&self, storage: &dyn cosmwasm_std::Storage, addr: Addr, func: F)
             -> error_stack::Result<(), axelar_wasm_std::permission_control::Error> where
@@ -402,14 +402,14 @@ fn build_execute_implementation(enum_type: Ident, data: DataEnum) -> TokenStream
         }
 
         impl ExternalExecute for #enum_type {
-            fn msg_and_info(&self, info: MessageInfo) -> (#original_ident, MessageInfo) {
+            fn msg_and_info(&self, info: MessageInfo) -> (#original_ident, MessageInfo, bool) {
                 match self {
                     #enum_type::Relay { sender, msg } =>
                         (msg.clone(), MessageInfo {
                             sender: sender.clone(),
                             funds: info.funds,
-                        }),
-                    #enum_type::Direct(msg) => (msg.clone(), info.clone()),
+                        }, true),
+                    #enum_type::Direct(msg) => (msg.clone(), info.clone(), false),
                 }
             }
 
@@ -427,8 +427,8 @@ fn build_execute_implementation(enum_type: Ident, data: DataEnum) -> TokenStream
         }
 
         impl ExternalExecute for #original_ident {
-            fn msg_and_info(&self, info: MessageInfo) -> (#original_ident, MessageInfo) {
-                (self.clone(), info.clone())
+            fn msg_and_info(&self, info: MessageInfo) -> (#original_ident, MessageInfo, bool) {
+                (self.clone(), info.clone(), false)
             }
 
             fn authorize<F, C2>(&self, storage: &dyn cosmwasm_std::Storage, addr: Addr, func: F)
@@ -593,8 +593,13 @@ fn validate_external_contract_function(
             #(#cs: error_stack::Context),*
                 {
                 #(
-                    if addr == #contract_names(storage, &msg).change_context(axelar_wasm_std::permission_control::Error::Unauthorized)? {
-                        return Ok(());
+                    match #contract_names(storage, &msg) {
+                        Ok(a) => {
+                            if a == addr {
+                                return Ok(());
+                            }
+                        },
+                        Err(_) => {},
                     }
                 )*
 
@@ -624,19 +629,18 @@ pub fn external_execute(attr: TokenStream, item: TokenStream) -> TokenStream {
         .push(parse_quote! {msg: impl ExternalExecute});
 
     let original_msg_ident = match original_msg {
-        syn::FnArg::Typed(typ) => {
-            match *typ.ty {
-                syn::Type::Path(p) => {
-                    p.path.get_ident().unwrap().clone()
-                },
-                _ => panic!("problem parsing final argument of 'execute'")
-            }
+        syn::FnArg::Typed(typ) => match *typ.ty {
+            syn::Type::Path(p) => p.path.get_ident().unwrap().clone(),
+            _ => panic!("problem parsing final argument of 'execute'"),
         },
-        _ => panic!("last argument of 'execute' must be a typed execute message")
+        _ => panic!("last argument of 'execute' must be a typed execute message"),
     };
 
-    let validate_fn =
-        validate_external_contract_function(original_msg_ident, contract_names.clone(), permission_fns.clone());
+    let validate_fn = validate_external_contract_function(
+        original_msg_ident,
+        contract_names.clone(),
+        permission_fns.clone(),
+    );
     let validate_fn = syn::parse_macro_input!(validate_fn as ItemFn);
 
     let statements = execute_fn.block.stmts;
@@ -646,11 +650,13 @@ pub fn external_execute(attr: TokenStream, item: TokenStream) -> TokenStream {
             let external_contract_address = info.sender.clone();
 
             // Get the original sender and message
-            let (msg, info) = msg.msg_and_info(info);
+            let (msg, info, is_external) = msg.msg_and_info(info);
 
             // Validate that the sending contract is allowed to execute messages.
             // This is a NOP when sending a direct ExecuteMsg
-            validate_external_contract(msg.clone(), deps.storage, external_contract_address.clone(), #(#permission_fns),*)?;
+            if is_external {
+                validate_external_contract(msg.clone(), deps.storage, external_contract_address.clone(), #(#permission_fns),*)?;
+            }
 
             // Perform authorization and execution for original sender and message
             #(#statements)*

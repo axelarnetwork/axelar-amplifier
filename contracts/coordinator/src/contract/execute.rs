@@ -318,7 +318,7 @@ pub fn register_deployment(
     let protocol_contracts =
         state::protocol_contracts(deps.storage).change_context(Error::ProtocolNotRegistered)?;
 
-    Ok(Response::new().add_message(WasmMsg::Execute{
+    Ok(Response::new().add_message(WasmMsg::Execute {
         contract_addr: protocol_contracts.router.to_string(),
         msg: to_json_binary(&router_api::msg::ExecuteMsg2::Relay {
             sender,
@@ -329,7 +329,7 @@ pub fn register_deployment(
                 )
                 .change_context(Error::ChainContractsInfo)?,
                 msg_id_format: deployed_contracts.msg_id_format,
-            }
+            },
         })
         .change_context(Error::UnableToPersistProtocol)?,
         funds: vec![],
