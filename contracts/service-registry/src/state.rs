@@ -208,7 +208,7 @@ pub fn count_verifiers_updated_to_authorized(
             _ => {}
         }
     }
-    u16::try_from(count).change_context(ContractError::AuthorizedVerifiersExceedu16)
+    Ok(count)
 }
 
 pub fn increment_authorized_count(
