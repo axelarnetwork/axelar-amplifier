@@ -89,6 +89,8 @@ const SERVICES: Map<&ServiceName, Service> = Map::new("services");
 const SERVICE_OVERRIDES: Map<(&ServiceName, &ChainName), ServiceParamsOverride> =
     Map::new("service_overrides");
 
+pub const AUTHORIZED_VERIFIER_COUNT: Map<&str, u16> = Map::new("authorized_verifier_count");
+
 pub fn service(
     storage: &dyn Storage,
     service_name: &ServiceName,
@@ -122,6 +124,11 @@ pub fn service(
     }
 }
 
+pub fn save_service_authorized_verifier(storage: &mut dyn Storage, service_name: &ServiceName) -> error_stack::Result<(), ContractError> {
+    AUTHORIZED_VERIFIER_COUNT
+        .save(storage, service_name, &0u16)
+        .into_report()
+}
 pub fn save_new_service(
     storage: &mut dyn Storage,
     service_name: &ServiceName,
@@ -139,11 +146,91 @@ pub fn has_service(storage: &dyn Storage, service_name: &ServiceName) -> bool {
     SERVICES.has(storage, service_name)
 }
 
+pub fn count_verifiers_updated_to_authorize(
+    storage: &dyn Storage,
+    service_name: &ServiceName,
+    verifiers: &[Addr],
+) -> error_stack::Result<u16, ContractError> {
+    let mut count = 0;
+    for verifier in verifiers {
+        match VERIFIERS
+            .may_load(storage, (service_name, verifier))
+            .change_context(ContractError::StorageError)?
+        {
+            Some(existing) if existing.authorization_state != AuthorizationState::Authorized => {
+                count += 1;
+            }
+            None => {
+                count += 1;
+            }
+            _ => {} // Already authorized, skip
+        }
+    }
+    u16::try_from(count).change_context(ContractError::StorageError)
+}
+pub fn increment_authorized_count(
+    storage: &mut dyn Storage,
+    service_name: &ServiceName,
+) -> error_stack::Result<(), ContractError> {
+    AUTHORIZED_VERIFIER_COUNT
+        .update(
+            storage,
+            service_name,
+            |count| -> std::result::Result<u16, ContractError> {
+                let current = count.ok_or(ContractError::ServiceNotFound)?;
+                current.checked_add(1).ok_or(ContractError::StorageError)
+            },
+        )
+        .change_context(ContractError::StorageError)?;
+    Ok(())
+}
+pub fn decrement_authorized_count(
+    storage: &mut dyn Storage,
+    service_name: &ServiceName,
+) -> error_stack::Result<(), ContractError> {
+    AUTHORIZED_VERIFIER_COUNT
+        .update(
+            storage,
+            service_name,
+            |count| -> std::result::Result<u16, ContractError> {
+                match count {
+                    Some(n) if n > 0 => Ok(n - 1),
+                    _ => Err(ContractError::AuthurizedCounterFailed), // should never happen -> counter is corrupted
+                }
+            },
+        )
+        .change_context(ContractError::StorageError)?;
+    Ok(())
+}
+pub fn count_authorized_verifiers(
+    storage: &dyn Storage,
+    service_name: &ServiceName,
+) -> error_stack::Result<u16, ContractError> {
+    let count = AUTHORIZED_VERIFIER_COUNT
+        .may_load(storage, service_name)
+        .change_context(ContractError::StorageError)?
+        .ok_or(report!(ContractError::ServiceNotFound))?;
+    Ok(count)
+    
+}
 pub fn update_service(
     storage: &mut dyn Storage,
     service_name: &ServiceName,
     updated_service_params: UpdatedServiceParams,
 ) -> error_stack::Result<Service, ContractError> {
+    if let Some(new_max) = updated_service_params.max_num_verifiers {
+        let current_authorized = AUTHORIZED_VERIFIER_COUNT
+            .may_load(storage, &service_name)
+            .change_context(ContractError::StorageError)?
+            .ok_or(ContractError::ServiceNotFound)?;
+        if let Some(max) = new_max {
+            if max < current_authorized {
+                return Err(
+                    ContractError::MaxVerifiersSetBelowCurrent(max, current_authorized).into(),
+                );
+            }
+        }
+    }
     SERVICES
         .update(storage, service_name, |service| match service {
             None => Err(ContractError::ServiceNotFound),
@@ -166,6 +253,18 @@ pub fn update_service(
         .into_report()
 }
 
+pub fn get_verifier_auth_state(
+    storage: &dyn Storage,
+    service_name: &ServiceName,
+    verifier: &VerifierAddress,
+) -> error_stack::Result<Option<AuthorizationState>, ContractError> {
+    let auth_state = VERIFIERS
+        .may_load(storage, (service_name, verifier))
+        .change_context(ContractError::StorageError)?
+        .map(|v| v.authorization_state);
+    
+    Ok(auth_state)
+}
 pub fn save_service_override(
     storage: &mut dyn Storage,
     service_name: &ServiceName,
