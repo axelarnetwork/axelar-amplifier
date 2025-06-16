@@ -52,15 +52,17 @@ pub fn register_service(
 
 // count how many new verifiers will be updated to "Authorized" state
 // ignore if re-uthorized
+// case 1: new verifier None -> authorized 
+// case 3: change state jailed/unauthorized -> authorized
 fn count_verifiers_updated_to_authorize(
     deps: &DepsMut,
-    service_name: String,
+    service_name: &String,
     verifiers: &[Addr],
 ) -> Result<u16, ContractError> {
     let mut count = 0;
     for verifier in verifiers {
         match VERIFIERS
-            .may_load(deps.storage, (&service_name, verifier))
+            .may_load(deps.storage, (service_name, verifier))
             .change_context(ContractError::StorageError)?
         {
             Some(existing) if existing.authorization_state != AuthorizationState::Authorized => {
@@ -107,6 +109,7 @@ fn decrement_authorized_count(deps: &mut DepsMut, service_name: &str) -> Result<
 }
 
 // should never have two same verifier in the list, otherwise there will be problem in counting
+// sth. need to worry about? may not need 
 fn deduplicate_verifiers(verifiers: Vec<Addr>) -> Vec<Addr> {
     if verifiers.len() <= 1 {
         return verifiers;
@@ -190,7 +193,7 @@ pub fn update_verifier_authorization_status(
 
 fn validate_max_verifiers_not_exceed(
     deps: &DepsMut,
-    service_name: &str,
+    service_name: &String,
     service: &Service,
     verifiers: &[Addr],
 ) -> Result<(), ContractError> {
@@ -201,7 +204,7 @@ fn validate_max_verifiers_not_exceed(
             .ok_or(ContractError::ServiceNotFound)?;
 
         let verifiers_to_authorize =
-            count_verifiers_updated_to_authorize(deps, service_name.to_string(), verifiers)?;
+            count_verifiers_updated_to_authorize(deps, service_name, verifiers)?;
 
         let new_total = current_authorized
             .checked_add(verifiers_to_authorize)

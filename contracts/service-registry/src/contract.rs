@@ -249,7 +249,7 @@ mod test {
             .expect("service should exist");
 
         let actual_count = crate::state::VERIFIERS
-            .prefix(&service_name.to_string()) // ← Use your better approach
+            .prefix(&service_name.to_string()) 
             .range(&deps.storage, None, None, cosmwasm_std::Order::Ascending)
             .filter_map(|item| item.ok().map(|(_, verifier)| verifier))
             .filter(|verifier| verifier.authorization_state == AuthorizationState::Authorized)
