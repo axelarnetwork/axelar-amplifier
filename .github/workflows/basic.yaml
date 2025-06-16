@@ -12,7 +12,15 @@ name: Basic
 jobs:
   test:
     name: Test Suite
-    runs-on: blacksmith-32vcpu-ubuntu-2204
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false # Let all matrix jobs complete even if some fail
+      matrix:
+        runner:
+          - blacksmith-staging-4vcpu-ubuntu-2404
+          - blacksmith-4vcpu-ubuntu-2404
+          # run on ubuntu-latest to verify compatibility
+          - ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -23,20 +31,37 @@ jobs:
           toolchain: 1.78.0
           override: true
 
+      - name: Install sccache
+        uses: mozilla-actions/sccache-action@v0.0.9
+
+      - name: Configure sccache
+        run: |
+          echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
+          echo "SCCACHE_GHA_ENABLED=true" >> $GITHUB_ENV
+
       - name: Install protoc
         uses: arduino/setup-protoc@v2
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Cache build artifacts
-        uses: useblacksmith/rust-cache@v3.0.1
-        id: cache
-        with:
-          shared-key: "cache-tests"
+      # # Cache for Blacksmith runners
+      # - name: Cache build artifacts (Blacksmith)
+      #   if: startsWith(matrix.runner, 'blacksmith')
+      #   uses: useblacksmith/rust-cache@v3.0.1
+      #   id: cache-blacksmith
+      #   with:
+      #     shared-key: "cache-tests-${{ matrix.runner }}"
 
-      - name: Log crates.toml
-        if: steps.cache.outputs.cache-hit == 'true'
-        run: cat /home/runner/.cargo/.crates.toml
+      # Cache for GitHub Actions runners
+      - name: Cache build artifacts (GitHub Actions)
+        uses: Swatinem/rust-cache@v2
+        id: cache-github
+        with:
+          shared-key: "cache-tests-${{ matrix.runner }}"
+
+      # - name: Log crates.toml
+      #   if: (steps.cache-blacksmith.outputs.cache-hit == 'true') || (steps.cache-github.outputs.cache-hit == 'true')
+      #   run: cat /home/runner/.cargo/.crates.toml
 
       - name: Run tests
         uses: actions-rs/cargo@v1
@@ -46,6 +71,13 @@ jobs:
         env:
           RUSTFLAGS: --cfg tracing_unstable
           RUST_BACKTRACE: 1
+
+      # - name: Setup tmate session
+      #   if: always()
+      #   uses: mxschmitt/action-tmate@v3
+      #   with:
+      #     limit-access-to-actor: true
+      #   timeout-minutes: 30
 
   cosmwasm-compilation:
     name: Cosmwasm Compilation
