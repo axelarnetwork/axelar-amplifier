@@ -262,7 +262,7 @@ mod test {
                 .expect("Failed to get authorized verifier count");
 
         let actual_count = crate::state::VERIFIERS
-            .prefix(&service_name.to_string()) // No need to convert to string again
+            .prefix(&service_name.to_string()) 
             .range(&deps.storage, None, None, cosmwasm_std::Order::Ascending)
             .filter_map(|item| item.ok().map(|(_, verifier)| verifier))
             .filter(|verifier| verifier.authorization_state == AuthorizationState::Authorized)
@@ -393,8 +393,6 @@ mod test {
             },
         )
         .expect("Failed to authorize verifiers");
-
-        // Verify count is correct
         check_authorized_verifier_count(&deps, &service_name.into(), 5);
 
         (deps, api, service_name.into(), verifiers)
@@ -2839,7 +2837,7 @@ mod test {
         assert_eq!(expected_chains, actual_chains);
     }
     #[test]
-    fn max_verifiers_limit_is_enforced_when_authroized_verifiers() {
+    fn max_verifiers_limit_is_enforced_when_authorized_verifiers() {
         let mut deps = setup();
         let api = deps.api;
 
