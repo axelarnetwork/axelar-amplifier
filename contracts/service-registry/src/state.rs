@@ -189,17 +189,21 @@ pub fn count_verifiers_updated_to_authorized(
     service_name: &ServiceName,
     verifiers: &[Addr],
 ) -> error_stack::Result<u16, ContractError> {
-    let mut count = 0;
+    let mut count: u16 = 0;
     for verifier in verifiers {
         match VERIFIERS
             .may_load(storage, (service_name, verifier))
             .change_context(ContractError::StorageError)?
         {
             Some(existing) if existing.authorization_state != AuthorizationState::Authorized => {
-                count += 1;
+                count = count
+                    .checked_add(1)
+                    .ok_or(ContractError::AuthorizedVerifiersExceedu16)?;
             }
             None => {
-                count += 1;
+                count = count
+                    .checked_add(1)
+                    .ok_or(ContractError::AuthorizedVerifiersExceedu16)?;
             }
             _ => {}
         }
