@@ -352,7 +352,7 @@ mod test {
         Vec<String>,
     ) {
         let mut deps = setup();
-        let api = deps.api.clone();
+        let api = deps.api;
         let service_name = "validators";
 
         // Register service
@@ -393,7 +393,7 @@ mod test {
             },
         )
         .expect("Failed to authorize verifiers");
-        check_authorized_verifier_count(&deps, &service_name.into(), 5);
+        check_authorized_verifier_count(&deps, &service_name.to_string(), 5);
 
         (deps, api, service_name.into(), verifiers)
     }
@@ -3023,14 +3023,14 @@ mod test {
         );
         assert!(res.is_ok());
 
-        check_authorized_verifier_count(&deps, &service_name.into(), 0);
+        check_authorized_verifier_count(&deps, &service_name.to_string(), 0);
     }
 
     #[test]
     fn re_authorizing_same_verifiers_does_not_increase_count() {
         let (mut deps, api, service_name, _verifiers) = setup_and_authorize_5();
 
-        check_authorized_verifier_count(&deps, &service_name.clone().into(), 5);
+        check_authorized_verifier_count(&deps, &service_name.clone(), 5);
         let res = execute(
             deps.as_mut(),
             mock_env(),
@@ -3040,11 +3040,11 @@ mod test {
                     api.addr_make("verifier1").to_string(),
                     api.addr_make("verifier2").to_string(),
                 ],
-                service_name: service_name.clone().into(),
+                service_name: service_name.clone(),
             },
         );
         assert!(res.is_ok());
-        check_authorized_verifier_count(&deps, &service_name.into(), 5);
+        check_authorized_verifier_count(&deps, &service_name, 5);
     }
     #[test]
     fn unauthorize_verifiers_reduces_count() {
@@ -3063,7 +3063,7 @@ mod test {
             },
         );
         assert!(res.is_ok());
-        check_authorized_verifier_count(&deps, &service_name.into(), 3);
+        check_authorized_verifier_count(&deps, &service_name, 3);
     }
     #[test]
     fn jailing_and_unjailing_affects_authorized_count() {
@@ -3093,7 +3093,7 @@ mod test {
             },
         );
         assert!(res.is_ok());
-        check_authorized_verifier_count(&deps, &service_name.into(), 5);
+        check_authorized_verifier_count(&deps, &service_name, 5);
     }
     #[test]
     fn jailing_from_none_does_not_affect_count() {
@@ -3110,7 +3110,7 @@ mod test {
             },
         );
         assert!(res.is_ok());
-        check_authorized_verifier_count(&deps, &service_name.into(), 5);
+        check_authorized_verifier_count(&deps, &service_name, 5);
     }
     #[test]
     fn jailing_unauthorized_verifier_does_not_affect_authorized_count() {
@@ -3128,6 +3128,6 @@ mod test {
         );
         assert!(res.is_ok());
 
-        check_authorized_verifier_count(&deps, &service_name.into(), 5);
+        check_authorized_verifier_count(&deps, &service_name, 5);
     }
 }
