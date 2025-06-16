@@ -381,7 +381,7 @@ fn build_execute_implementation(enum_type: Ident, data: DataEnum) -> TokenStream
         use cosmwasm_std::MessageInfo;
         use serde;
 
-        pub trait ExternalExecute {
+        pub trait ExternalExecute: serde::de::DeserializeOwned {
             fn msg_and_info(&self, info: MessageInfo) -> (#original_ident, MessageInfo, bool);
 
             fn authorize<F, C2>(&self, storage: &dyn cosmwasm_std::Storage, addr: Addr, func: F)
