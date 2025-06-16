@@ -24,7 +24,7 @@ pub fn register_service(
         deps.storage,
         &service_name.clone(),
         Service {
-            name: service_name,
+            name: service_name.clone(),
             coordinator_contract,
             min_num_verifiers,
             max_num_verifiers,
@@ -34,9 +34,38 @@ pub fn register_service(
             description,
         },
     )?;
-
+    state::save_service_authorized_verifier(deps.storage, &service_name)?;
     Ok(Response::new())
 }
+fn validate_max_verifiers_not_exceed(
+    deps: &DepsMut,
+    service_name: &String,
+    service: &Service,
+    verifiers: &[Addr],
+) -> Result<(), ContractError> {
+    if let Some(max) = service.max_num_verifiers {
+        let current_authorized = state::count_authorized_verifiers(
+            deps.storage,
+            service_name,
+        )?;
+
+        let verifiers_to_authorize =
+            state::count_verifiers_updated_to_authorize(deps.storage, service_name, verifiers)?;
+
+        let new_total = current_authorized
+            .checked_add(verifiers_to_authorize)
+            .ok_or(ContractError::StorageError)?;
+
+        if new_total > max {
+            return Err(ContractError::MaxVerifiersExceeded(max, new_total - max).into());
+        }
+    }
+
+    Ok(())
+}
+
+
+
 
 pub fn update_verifier_authorization_status(
     deps: DepsMut,
@@ -45,8 +74,16 @@ pub fn update_verifier_authorization_status(
     auth_state: AuthorizationState,
 ) -> Result<Response, ContractError> {
     ensure_service_exists(deps.storage, &service_name)?;
-
+    
+    if auth_state == AuthorizationState::Authorized {
+        let service = state::service(deps.storage, &service_name, None)?;
+        validate_max_verifiers_not_exceed(&deps, &service_name, &service, &verifiers)?;
+    }
+    
     for verifier in verifiers {
+        // Properly unwrap the Result from get_verifier_auth_state
+        let old_state = state::get_verifier_auth_state(deps.storage, &service_name, &verifier)?;
+        
         VERIFIERS.update(
             deps.storage,
             (&service_name, &verifier.clone()),
@@ -65,8 +102,30 @@ pub fn update_verifier_authorization_status(
                 }
             },
         )?;
+        
+        match (old_state, auth_state.clone()) {
+            // case 1: old state is Some, new state is different
+            // authorized -> other, decrement counter
+            // other -> authorized, increment counter
+            (Some(old), new) => match (old, new) {
+                (AuthorizationState::Authorized, AuthorizationState::NotAuthorized)
+                | (AuthorizationState::Authorized, AuthorizationState::Jailed) => {
+                    state::decrement_authorized_count(deps.storage, &service_name)?;
+                }
+                (AuthorizationState::NotAuthorized, AuthorizationState::Authorized)
+                | (AuthorizationState::Jailed, AuthorizationState::Authorized) => {
+                    state::increment_authorized_count(deps.storage, &service_name)?;
+                }
+                _ => {}
+            },
+            // case 2: old state is None, new state is Authorized, increment counter
+            (None, AuthorizationState::Authorized) => {
+                state::increment_authorized_count(deps.storage, &service_name)?;
+            }
+            _ => {}
+        }
     }
-
+    
     Ok(Response::new())
 }
 
