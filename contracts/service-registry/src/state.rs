@@ -159,7 +159,7 @@ pub fn update_verifier_auth_state(
         .change_context(ContractError::StorageError)
 }
 
-pub fn save_service_in_authroized_verifiers_count(
+pub fn save_servicename_in_counter(
     storage: &mut dyn Storage,
     service_name: &ServiceName,
 ) -> error_stack::Result<(), ContractError> {
@@ -1192,7 +1192,7 @@ mod tests {
     fn test_authorized_verifier_count_operation() {
         let mut deps = mock_dependencies();
         let service = save_mock_service(deps.as_mut().storage);
-        save_service_in_authroized_verifiers_count(deps.as_mut().storage, &service.name).unwrap();
+        save_servicename_in_counter(deps.as_mut().storage, &service.name).unwrap();
         let count = count_authorized_verifiers(deps.as_ref().storage, &service.name).unwrap();
         assert_eq!(count, 0);
         increment_authorized_count(deps.as_mut().storage, &service.name).unwrap();
@@ -1208,7 +1208,7 @@ mod tests {
     fn test_update_service_max_verifiers_below_current_should_fail() {
         let mut deps = mock_dependencies();
         let service = save_mock_service(deps.as_mut().storage);
-        save_service_in_authroized_verifiers_count(deps.as_mut().storage, &service.name).unwrap();
+        save_servicename_in_counter(deps.as_mut().storage, &service.name).unwrap();
 
         for _ in 0..5 {
             increment_authorized_count(deps.as_mut().storage, &service.name).unwrap();

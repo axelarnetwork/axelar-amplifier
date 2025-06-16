@@ -34,7 +34,7 @@ pub fn register_service(
             description,
         },
     )?;
-    state::save_service_in_authroized_verifiers_count(deps.storage, &service_name)?;
+    state::save_servicename_in_counter(deps.storage, &service_name)?;
     Ok(Response::new())
 }
 fn validate_max_verifiers_not_exceed(
