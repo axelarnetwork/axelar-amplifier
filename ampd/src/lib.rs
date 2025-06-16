@@ -272,7 +272,7 @@ where
                 }
                 Err(e) => {
                     tracing::warn!(error = %e, config = ?config,
-                        "Failed to create a handler, skipping instantiation. This handler will not run (and not vote or sign for this specific chain) until the issue is fixed and ampd is restarted."                       
+                        "Failed to create a handler, skipping instantiation. This handler will not run (and not vote or sign for this specific chain) until the issue is fixed and ampd is restarted."
                     );
                 }
             };
@@ -510,10 +510,8 @@ where
                 handlers::starknet_verify_msg::Handler::new(
                     verifier.clone(),
                     cosmwasm_contract.clone(),
-                    starknet::json_rpc::Client::new_with_transport(HttpTransport::new(
-                        ::url::Url::parse(rpc_url.as_str()).change_context(Error::Connection)?,
-                    ))
-                    .change_context(Error::Connection)?,
+                    starknet::json_rpc::Client::new_with_transport(HttpTransport::new(rpc_url))
+                        .change_context(Error::Connection)?,
                     self.block_height_monitor.latest_block_height(),
                 ),
                 event_processor_config.clone(),
@@ -526,10 +524,8 @@ where
                 handlers::starknet_verify_verifier_set::Handler::new(
                     verifier.clone(),
                     cosmwasm_contract.clone(),
-                    starknet::json_rpc::Client::new_with_transport(HttpTransport::new(
-                        ::url::Url::parse(rpc_url.as_str()).change_context(Error::Connection)?,
-                    ))
-                    .change_context(Error::Connection)?,
+                    starknet::json_rpc::Client::new_with_transport(HttpTransport::new(rpc_url))
+                        .change_context(Error::Connection)?,
                     self.block_height_monitor.latest_block_height(),
                 ),
                 event_processor_config.clone(),
