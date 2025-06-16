@@ -438,6 +438,12 @@ fn build_execute_implementation(enum_type: Ident, data: DataEnum) -> TokenStream
                     Ok(())
                 }
         }
+
+        impl From<#original_ident> for #enum_type {
+            fn from(msg: #original_ident) -> #enum_type {
+                #enum_type::Direct(msg)
+            }
+        }
     })
 }
 
@@ -483,7 +489,7 @@ fn find_original_indent(data: DataEnum) -> Option<Ident> {
 pub fn external_execute_msg(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let execute_msg = syn::parse_macro_input!(item as syn::ItemEnum);
     let execute_msg_ident = execute_msg.ident.clone();
-    let execute_msg_2_ident = format_ident!("{}2", execute_msg.ident.clone());
+    let execute_msg_2_ident = format_ident!("{}External", execute_msg.ident.clone());
 
     let execute2_msg: syn::ItemEnum = parse_quote! {
         #[cw_serde]
@@ -623,11 +629,6 @@ pub fn external_execute(attr: TokenStream, item: TokenStream) -> TokenStream {
     // Replace ExecuteMsg with ExternalExecute trait
     // Both ExecuteMsg and ExecuteMsg2 implement this trait
     let original_msg = execute_fn.sig.inputs.pop().unwrap().into_value();
-    execute_fn
-        .sig
-        .inputs
-        .push(parse_quote! {msg: impl ExternalExecute});
-
     let original_msg_ident = match original_msg {
         syn::FnArg::Typed(typ) => match *typ.ty {
             syn::Type::Path(p) => p.path.get_ident().unwrap().clone(),
@@ -635,6 +636,12 @@ pub fn external_execute(attr: TokenStream, item: TokenStream) -> TokenStream {
         },
         _ => panic!("last argument of 'execute' must be a typed execute message"),
     };
+    let new_msg_ident = format_ident!("{}External", original_msg_ident);
+
+    execute_fn
+        .sig
+        .inputs
+        .push(parse_quote! {msg: #new_msg_ident});
 
     let validate_fn = validate_external_contract_function(
         original_msg_ident,
@@ -665,6 +672,7 @@ pub fn external_execute(attr: TokenStream, item: TokenStream) -> TokenStream {
 
     TokenStream::from(quote! {
         use router_api::msg::ExternalExecute;
+        use router_api::msg::#new_msg_ident;
 
         #execute_fn
 

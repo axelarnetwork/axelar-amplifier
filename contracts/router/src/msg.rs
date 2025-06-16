@@ -1,6 +1,6 @@
 use cosmwasm_schema::cw_serde;
 // these messages are extracted into a separate package to avoid circular dependencies
-pub use router_api::msg::{ExecuteMsg, ExecuteMsg2, QueryMsg};
+pub use router_api::msg::{ExecuteMsg, QueryMsg};
 
 pub use crate::contract::MigrateMsg;
 
