@@ -42,7 +42,7 @@ fn validate_max_verifiers_not_exceed(
     service_name: &String,
     verifiers: &[Addr],
 ) -> Result<(), ContractError> {
-    let max_verifiers = state::load_max_verifiers(deps.storage, &service_name)?;
+    let max_verifiers = state::load_max_verifiers(deps.storage, service_name)?;
     if let Some(max) = max_verifiers {
         let current_authorized = state::count_authorized_verifiers(deps.storage, service_name)?;
 
@@ -54,7 +54,10 @@ fn validate_max_verifiers_not_exceed(
             .ok_or(ContractError::AuthorizedVerifiersExceedu16)?;
 
         if new_total > max {
-            return Err(ContractError::VerifierLimitExceed(max, new_total - max).into());
+            let excess = new_total
+                .checked_sub(max)
+                .ok_or(ContractError::AuthorizedVerifiersNegative)?; // This shouldn't happen due to the if condition
+            return Err(Report::new(ContractError::VerifierLimitExceed(max, excess)));
         }
     }
 
