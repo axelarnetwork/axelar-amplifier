@@ -9,9 +9,9 @@ use serde::{Deserialize, Serialize};
 use serde_with::with_prefix;
 
 use crate::evm::finalizer::Finalization;
+use crate::types::debug::REDACTED_VALUE;
 use crate::types::TMAddress;
 use crate::url::Url;
-use crate::types::debug::REDACTED_VALUE;
 
 #[derive(Clone, Deserialize, Serialize, PartialEq)]
 pub struct Chain {

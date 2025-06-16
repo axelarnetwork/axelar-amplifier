@@ -30,8 +30,8 @@ use tonic::transport::Channel;
 use tonic::{Code, Response, Status};
 
 use crate::broadcaster::tx::Tx;
-use crate::types::{CosmosPublicKey, TMAddress};
 use crate::types::debug::REDACTED_VALUE;
+use crate::types::{CosmosPublicKey, TMAddress};
 
 type Result<T> = error_stack::Result<T, Error>;
 

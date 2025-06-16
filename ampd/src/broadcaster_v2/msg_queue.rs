@@ -320,7 +320,7 @@ impl Stream for MsgQueue {
     }
 }
 
-fn handle_queue_error(msg: QueueMsg, err: Error){
+fn handle_queue_error(msg: QueueMsg, err: Error) {
     let QueueMsg {
         tx_res_callback, ..
     } = msg;
@@ -395,7 +395,7 @@ impl Queue {
         }
     }
 
-    pub fn error_once<F>(msg: QueueMsg, err: Error, once: F) 
+    pub fn error_once<F>(msg: QueueMsg, err: Error, once: F)
     where
         F: PushOrOnce,
     {

@@ -19,8 +19,8 @@ use tracing::{info, instrument};
 use typed_builder::TypedBuilder;
 use valuable::Valuable;
 
-use crate::{broadcaster_v2, cosmos, event_sub};
 use crate::types::debug::REDACTED_VALUE;
+use crate::{broadcaster_v2, cosmos, event_sub};
 
 mod blockchain_service;
 mod crypto_service;
