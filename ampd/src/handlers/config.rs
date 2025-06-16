@@ -11,6 +11,7 @@ use serde_with::with_prefix;
 use crate::evm::finalizer::Finalization;
 use crate::types::TMAddress;
 use crate::url::Url;
+use crate::types::debug::REDACTED_VALUE;
 
 #[derive(Clone, Deserialize, Serialize, PartialEq)]
 pub struct Chain {
@@ -22,10 +23,9 @@ pub struct Chain {
 
 impl Debug for Chain {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let rpc_url = "redacted".to_string();
         f.debug_struct("Chain")
             .field("name", &self.name)
-            .field("rpc_url", &rpc_url)
+            .field("rpc_url", &REDACTED_VALUE)
             .field("finalization", &self.finalization)
             .finish()
     }

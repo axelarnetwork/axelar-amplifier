@@ -9,6 +9,7 @@ use crate::commands::{RewardsConfig, ServiceRegistryConfig};
 use crate::handlers::config::deserialize_handler_configs;
 use crate::handlers::{self};
 use crate::tofnd::Config as TofndConfig;
+use crate::types::debug::REDACTED_VALUE;
 use crate::url::Url;
 use crate::{broadcaster, event_processor, grpc};
 
@@ -50,18 +51,17 @@ impl Default for Config {
 
 impl Debug for Config {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let redacted = "redacted".to_string();
         f.debug_struct("Config")
-            .field("tm_jsonrpc", &redacted)
-            .field("tm_grpc", &redacted)
+            .field("tm_jsonrpc", &REDACTED_VALUE)
+            .field("tm_grpc", &REDACTED_VALUE)
             .field("tm_grpc_timeout", &self.tm_grpc_timeout)
             .field("broadcast", &self.broadcast)
             .field("handlers", &self.handlers)
-            .field("tofnd_config", &redacted)
+            .field("tofnd_config", &REDACTED_VALUE)
             .field("event_processor", &self.event_processor)
             .field("service_registry", &self.service_registry)
             .field("rewards", &self.rewards)
-            .field("health_check_bind_addr", &redacted)
+            .field("health_check_bind_addr", &REDACTED_VALUE)
             // fmt::Debug is already redacted for field gprc
             // (@see: src/grpc/mod.rs)
             .field("grpc", &self.grpc)

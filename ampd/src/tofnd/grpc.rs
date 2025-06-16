@@ -14,6 +14,7 @@ use super::proto::keygen_response::KeygenResponse;
 use super::proto::sign_response::SignResponse;
 use super::proto::{multisig_client, Algorithm, KeygenRequest, SignRequest};
 use super::{MessageDigest, Signature};
+use crate::types::debug::REDACTED_VALUE;
 use crate::types::PublicKey;
 
 type Result<T> = error_stack::Result<T, Error>;
@@ -133,10 +134,9 @@ impl Multisig for MultisigClient {
 
 impl Debug for MultisigClient {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let client = "redacted".to_string();
         f.debug_struct("MultisigClient")
             .field("party_uid", &self.party_uid)
-            .field("client", &client)
+            .field("client", &REDACTED_VALUE)
             .finish()
     }
 }

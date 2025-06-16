@@ -31,6 +31,7 @@ use tonic::{Code, Response, Status};
 
 use crate::broadcaster::tx::Tx;
 use crate::types::{CosmosPublicKey, TMAddress};
+use crate::types::debug::REDACTED_VALUE;
 
 type Result<T> = error_stack::Result<T, Error>;
 
@@ -188,12 +189,11 @@ impl CosmosClient for CosmosGrpcClient {
 
 impl Debug for CosmosGrpcClient {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let redacted = "redacted".to_string();
         f.debug_struct("CosmosGrpcClient")
-            .field("auth", &redacted)
-            .field("bank", &redacted)
-            .field("cosm_wasm", &redacted)
-            .field("service", &redacted)
+            .field("auth", &REDACTED_VALUE)
+            .field("bank", &REDACTED_VALUE)
+            .field("cosm_wasm", &REDACTED_VALUE)
+            .field("service", &REDACTED_VALUE)
             .finish()
     }
 }

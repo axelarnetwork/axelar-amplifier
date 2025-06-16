@@ -6,6 +6,7 @@ use ethers_providers::{Http, JsonRpcClient, ProviderError};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
+use crate::types::debug::REDACTED_VALUE;
 use crate::url::Url;
 
 type Result<T> = error_stack::Result<T, ProviderError>;
@@ -46,9 +47,8 @@ impl Client<Http> {
 
 impl Debug for Client<Http> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let provider = "redacted".to_string();
         f.debug_struct("Client")
-            .field("provider", &provider)
+            .field("provider", &REDACTED_VALUE)
             .finish()
     }
 }

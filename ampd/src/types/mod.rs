@@ -8,6 +8,7 @@ use ethers_core::types::{Address, H256};
 use serde::{Deserialize, Serialize};
 
 mod key;
+pub mod debug;
 pub(crate) mod starknet;
 #[cfg(test)]
 pub use key::test_utils::random_cosmos_public_key;
