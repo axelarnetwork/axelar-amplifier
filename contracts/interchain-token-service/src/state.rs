@@ -200,10 +200,10 @@ pub fn load_chain_configs<'a>(
 pub fn save_chain_config(
     storage: &mut dyn Storage,
     chain: &ChainNameRaw,
-    config: impl Into<ChainConfig>,
+    config: &ChainConfig,
 ) -> Result<(), Error> {
     CHAIN_CONFIGS
-        .save(storage, chain, &config.into())
+        .save(storage, chain, config)
         .change_context(Error::Storage)
 }
 
@@ -384,7 +384,7 @@ mod tests {
         assert_ok!(save_chain_config(
             deps.as_mut().storage,
             &chain1.clone(),
-            msg::ChainConfig {
+            &msg::ChainConfig {
                 chain: chain1.clone(),
                 its_edge_contract: address1.clone(),
                 truncation: msg::TruncationConfig {
@@ -392,11 +392,12 @@ mod tests {
                     max_decimals_when_truncating: 16u8
                 }
             }
+            .into()
         ));
         assert_ok!(save_chain_config(
             deps.as_mut().storage,
             &chain2.clone(),
-            msg::ChainConfig {
+            &msg::ChainConfig {
                 chain: chain2.clone(),
                 its_edge_contract: address2.clone(),
                 truncation: msg::TruncationConfig {
@@ -404,6 +405,7 @@ mod tests {
                     max_decimals_when_truncating: 16u8
                 }
             }
+            .into()
         ));
         assert_eq!(
             assert_ok!(load_its_contract(deps.as_ref().storage, &chain1)),
