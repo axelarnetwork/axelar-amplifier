@@ -363,7 +363,7 @@ fn build_full_check_function(
 }
 
 fn external_execute_msg_ident(execute_msg_ident: Ident) -> Ident {
-    format_ident!("{}External", execute_msg_ident.clone())
+    format_ident!("{}FromContract", execute_msg_ident.clone())
 }
 
 #[proc_macro_attribute]
@@ -406,7 +406,7 @@ pub fn external_execute_msg(_attr: TokenStream, item: TokenStream) -> TokenStrea
 /// ContractPermission is a vector of tuples, where the first element is thhe contract name, and the second
 /// is the authorization function.
 ///
-/// The aformentionned example denotes that the 'find_coordinator' function will be used to authorize
+/// The aforementioned example denotes that the 'find_coordinator' function will be used to authorize
 /// the coordinator contract, and the 'find_verifier' function is used to authorize the verifier contract.
 /// The authorization function is the same as is provided to the ensure_permissions method, and it's
 /// signature is as follows:

@@ -320,7 +320,7 @@ pub fn register_deployment(
 
     Ok(Response::new().add_message(WasmMsg::Execute {
         contract_addr: protocol_contracts.router.to_string(),
-        msg: to_json_binary(&router_api::msg::ExecuteMsgExternal::Relay {
+        msg: to_json_binary(&router_api::msg::ExecuteMsgFromContract::Relay {
             sender,
             msg: router_api::msg::ExecuteMsg::RegisterChain {
                 chain: deployed_contracts.chain_name,
