@@ -6,8 +6,7 @@ use syn::parse::{Parse, ParseStream};
 use syn::punctuated::Punctuated;
 use syn::token::Comma;
 use syn::{
-    parse_quote, Data, DataEnum, DeriveInput, Expr, ExprCall, Fields, Ident, ItemFn, Path, Token,
-    Variant,
+    parse_quote, Expr, ExprCall, Ident, ItemEnum, ItemFn, Path, Token, Variant
 };
 
 /// This macro derives the `ensure_permissions` method for an enum. The method checks if the sender
@@ -26,11 +25,13 @@ use syn::{
 ///
 /// # Example
 /// ```
+/// use cosmwasm_schema::cw_serde;
 /// use cosmwasm_std::{Addr, Deps, Env, MessageInfo};
 /// use cosmwasm_std::testing::MockApi;
 /// use axelar_wasm_std::permission_control::Permission;
 /// use msgs_derive::EnsurePermissions;
 ///
+/// #[cw_serde]
 /// #[derive(EnsurePermissions)]
 /// pub enum ExecuteMsg {
 ///     #[permission(NoPrivilege, Admin)]
@@ -82,28 +83,47 @@ use syn::{
 /// ```
 #[proc_macro_derive(EnsurePermissions, attributes(permission))]
 pub fn derive_ensure_permissions(input: TokenStream) -> TokenStream {
-    let input = syn::parse_macro_input!(input as DeriveInput);
-    let ident = input.ident.clone();
+    // This will trigger a compile time error if the parse failed. In other words,
+    // this macro can only be used on an enum.
+    let data = syn::parse_macro_input!(input as ItemEnum);
+    let ident = data.ident.clone();
 
-    match input.data.clone() {
-        Data::Enum(data) => build_implementation(ident, data),
-        _ => panic!("Only enums are supported"),
-    }
+    build_implementation(ident, data)
 }
-fn build_implementation(enum_type: Ident, data: DataEnum) -> TokenStream {
+fn build_implementation(enum_type: Ident, data: ItemEnum) -> TokenStream {
     let (variants, permissions): (Vec<_>, Vec<_>) = data
         .variants
         .into_iter()
         .filter_map(find_permissions)
         .unzip();
 
+    let external_execute_msg_ident = external_execute_msg_ident(enum_type.clone());
+    let visibility = data.vis;
+
     let specific_check = build_specific_permissions_check(&enum_type, &variants, &permissions);
     let general_check = build_general_permissions_check(&enum_type, &variants, &permissions);
     let check_function = build_full_check_function(&permissions, specific_check, general_check);
 
     TokenStream::from(quote! {
+        #[cw_serde]
+        #visibility enum #external_execute_msg_ident {
+            Relay {
+                sender: cosmwasm_std::Addr,
+                msg: #enum_type,
+            },
+
+            #[serde(untagged)]
+            Direct(#enum_type),
+        }
+
         impl #enum_type{
             #check_function
+        }
+
+        impl From<#enum_type> for #external_execute_msg_ident {
+            fn from(msg: #enum_type) -> #external_execute_msg_ident {
+                #external_execute_msg_ident::Direct(msg)
+            }
         }
     })
 }
@@ -364,38 +384,6 @@ fn build_full_check_function(
 
 fn external_execute_msg_ident(execute_msg_ident: Ident) -> Ident {
     format_ident!("{}FromContract", execute_msg_ident.clone())
-}
-
-#[proc_macro_attribute]
-pub fn external_execute_msg(_attr: TokenStream, item: TokenStream) -> TokenStream {
-    let execute_msg = syn::parse_macro_input!(item as syn::ItemEnum);
-    let execute_msg_ident = execute_msg.ident.clone();
-    let execute_msg_2_ident = external_execute_msg_ident(execute_msg.ident.clone());
-
-    let execute2_msg: syn::ItemEnum = parse_quote! {
-        #[cw_serde]
-        pub enum #execute_msg_2_ident {
-            Relay {
-                sender: Addr,
-                msg: #execute_msg_ident,
-            },
-
-            #[serde(untagged)]
-            Direct(#execute_msg_ident),
-        }
-    };
-
-    TokenStream::from(quote! {
-        #execute_msg
-
-        #execute2_msg
-
-        impl From<#execute_msg_ident> for #execute_msg_2_ident {
-            fn from(msg: #execute_msg_ident) -> #execute_msg_2_ident {
-                #execute_msg_2_ident::Direct(msg)
-            }
-        }
-    })
 }
 
 /// ContractPermission is a custom struct is used to parse the attributes for the external_execute macro

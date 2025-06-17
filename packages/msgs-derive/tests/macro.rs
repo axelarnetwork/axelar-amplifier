@@ -1,11 +1,14 @@
 use std::fmt::Display;
 
 use axelar_wasm_std::permission_control;
+use cosmwasm_schema::cw_serde;
 use cosmwasm_std::testing::{MockApi, MockStorage};
 use cosmwasm_std::{Addr, Storage};
 use error_stack::{report, Report};
+use msgs_derive::EnsurePermissions;
 
-#[derive(msgs_derive::EnsurePermissions, Clone, Debug)]
+#[cw_serde]
+#[derive(EnsurePermissions)]
 #[allow(dead_code)] // the msg fields are only defined to make sure the derive attribute can handle fields correctly
 enum TestMsg {
     #[permission(NoPrivilege)]
@@ -22,7 +25,8 @@ enum TestMsg {
     Multi,
 }
 
-#[derive(msgs_derive::EnsurePermissions, Clone, Debug)]
+#[cw_serde]
+#[derive(EnsurePermissions)]
 enum TestMsg2 {
     #[permission(Any)]
     Any,
