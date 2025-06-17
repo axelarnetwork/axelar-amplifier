@@ -1,3 +1,5 @@
+use std::fmt;
+use std::fmt::Debug;
 use std::net::{Ipv4Addr, SocketAddrV4};
 use std::time::Duration;
 
@@ -7,10 +9,11 @@ use crate::commands::{RewardsConfig, ServiceRegistryConfig};
 use crate::handlers::config::deserialize_handler_configs;
 use crate::handlers::{self};
 use crate::tofnd::Config as TofndConfig;
+use crate::types::debug::REDACTED_VALUE;
 use crate::url::Url;
 use crate::{broadcaster, event_processor, grpc};
 
-#[derive(Deserialize, Serialize, Debug, PartialEq)]
+#[derive(Deserialize, Serialize, PartialEq)]
 #[serde(default)]
 pub struct Config {
     pub health_check_bind_addr: SocketAddrV4,
@@ -43,6 +46,26 @@ impl Default for Config {
             health_check_bind_addr: SocketAddrV4::new(Ipv4Addr::UNSPECIFIED, 3000),
             grpc: grpc::Config::default(),
         }
+    }
+}
+
+impl Debug for Config {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Config")
+            .field("tm_jsonrpc", &REDACTED_VALUE)
+            .field("tm_grpc", &REDACTED_VALUE)
+            .field("tm_grpc_timeout", &self.tm_grpc_timeout)
+            .field("broadcast", &self.broadcast)
+            .field("handlers", &self.handlers)
+            .field("tofnd_config", &REDACTED_VALUE)
+            .field("event_processor", &self.event_processor)
+            .field("service_registry", &self.service_registry)
+            .field("rewards", &self.rewards)
+            .field("health_check_bind_addr", &REDACTED_VALUE)
+            // fmt::Debug is already redacted for field gprc
+            // (@see: src/grpc/mod.rs)
+            .field("grpc", &self.grpc)
+            .finish()
     }
 }
 
