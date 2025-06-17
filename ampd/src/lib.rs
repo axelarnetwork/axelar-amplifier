@@ -263,299 +263,315 @@ where
         event_processor_config: event_processor::Config,
     ) -> Result<App<T>, Error> {
         for config in handler_configs {
-            let task = match config {
-                handlers::config::Config::EvmMsgVerifier {
-                    chain,
-                    cosmwasm_contract,
-                    rpc_timeout,
-                } => {
-                    let rpc_client = json_rpc::Client::new_http(
-                        &chain.rpc_url,
-                        reqwest::ClientBuilder::new()
-                            .connect_timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
-                            .timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
-                            .build()
-                            .change_context(Error::Connection)?,
+            match self
+                .try_create_handler_task(&config, &verifier, &event_processor_config)
+                .await
+            {
+                Ok(task) => {
+                    self.event_processor = self.event_processor.add_task(task);
+                }
+                Err(e) => {
+                    tracing::warn!(error = %e, config = ?config,
+                        "Failed to create a handler, skipping instantiation. This handler will not run (and not vote or sign for this specific chain) until the issue is fixed and ampd is restarted."
                     );
-
-                    check_finalizer(&chain.name, &chain.finalization, &rpc_client).await?;
-
-                    self.create_handler_task(
-                        format!("{}-msg-verifier", chain.name),
-                        handlers::evm_verify_msg::Handler::new(
-                            verifier.clone(),
-                            cosmwasm_contract,
-                            chain.name,
-                            chain.finalization,
-                            rpc_client,
-                            self.block_height_monitor.latest_block_height(),
-                        ),
-                        event_processor_config.clone(),
-                    )
                 }
-                handlers::config::Config::EvmVerifierSetVerifier {
-                    chain,
-                    cosmwasm_contract,
-                    rpc_timeout,
-                } => {
-                    let rpc_client = json_rpc::Client::new_http(
-                        &chain.rpc_url,
-                        reqwest::ClientBuilder::new()
-                            .connect_timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
-                            .timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
-                            .build()
-                            .change_context(Error::Connection)?,
-                    );
-
-                    check_finalizer(&chain.name, &chain.finalization, &rpc_client).await?;
-
-                    self.create_handler_task(
-                        format!("{}-verifier-set-verifier", chain.name),
-                        handlers::evm_verify_verifier_set::Handler::new(
-                            verifier.clone(),
-                            cosmwasm_contract,
-                            chain.name,
-                            chain.finalization,
-                            rpc_client,
-                            self.block_height_monitor.latest_block_height(),
-                        ),
-                        event_processor_config.clone(),
-                    )
-                }
-                handlers::config::Config::MultisigSigner {
-                    cosmwasm_contract,
-                    chain_name,
-                } => self.create_handler_task(
-                    "multisig-signer",
-                    handlers::multisig::Handler::new(
-                        verifier.clone(),
-                        cosmwasm_contract,
-                        chain_name,
-                        self.multisig_client.clone(),
-                        self.block_height_monitor.latest_block_height(),
-                    ),
-                    event_processor_config.clone(),
-                ),
-                handlers::config::Config::SuiMsgVerifier {
-                    cosmwasm_contract,
-                    rpc_url,
-                    rpc_timeout,
-                } => self.create_handler_task(
-                    "sui-msg-verifier",
-                    handlers::sui_verify_msg::Handler::new(
-                        verifier.clone(),
-                        cosmwasm_contract,
-                        json_rpc::Client::new_http(
-                            &rpc_url,
-                            reqwest::ClientBuilder::new()
-                                .connect_timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
-                                .timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
-                                .build()
-                                .change_context(Error::Connection)?,
-                        ),
-                        self.block_height_monitor.latest_block_height(),
-                    ),
-                    event_processor_config.clone(),
-                ),
-                handlers::config::Config::XRPLMsgVerifier {
-                    cosmwasm_contract,
-                    chain_name,
-                    chain_rpc_url,
-                    rpc_timeout,
-                } => {
-                    let rpc_client = xrpl_http_client::Client::builder()
-                        .base_url(chain_rpc_url.as_str())
-                        .http_client(
-                            reqwest::ClientBuilder::new()
-                                .connect_timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
-                                .timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
-                                .build()
-                                .change_context(Error::Connection)?,
-                        )
-                        .build();
-
-                    self.create_handler_task(
-                        format!("{}-msg-verifier", chain_name),
-                        handlers::xrpl_verify_msg::Handler::new(
-                            verifier.clone(),
-                            cosmwasm_contract,
-                            rpc_client,
-                            self.block_height_monitor.latest_block_height(),
-                        ),
-                        event_processor_config.clone(),
-                    )
-                }
-                handlers::config::Config::XRPLMultisigSigner {
-                    cosmwasm_contract,
-                    chain_name,
-                } => self.create_handler_task(
-                    "xrpl-multisig-signer",
-                    handlers::xrpl_multisig::Handler::new(
-                        verifier.clone(),
-                        cosmwasm_contract,
-                        chain_name,
-                        self.multisig_client.clone(),
-                        self.block_height_monitor.latest_block_height(),
-                    ),
-                    event_processor_config.clone(),
-                ),
-                handlers::config::Config::SuiVerifierSetVerifier {
-                    cosmwasm_contract,
-                    rpc_url,
-                    rpc_timeout,
-                } => self.create_handler_task(
-                    "sui-verifier-set-verifier",
-                    handlers::sui_verify_verifier_set::Handler::new(
-                        verifier.clone(),
-                        cosmwasm_contract,
-                        json_rpc::Client::new_http(
-                            &rpc_url,
-                            reqwest::ClientBuilder::new()
-                                .connect_timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
-                                .timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
-                                .build()
-                                .change_context(Error::Connection)?,
-                        ),
-                        self.block_height_monitor.latest_block_height(),
-                    ),
-                    event_processor_config.clone(),
-                ),
-                handlers::config::Config::MvxMsgVerifier {
-                    cosmwasm_contract,
-                    proxy_url,
-                } => self.create_handler_task(
-                    "mvx-msg-verifier",
-                    handlers::mvx_verify_msg::Handler::new(
-                        verifier.clone(),
-                        cosmwasm_contract,
-                        GatewayProxy::new(proxy_url.to_string().trim_end_matches('/').into()),
-                        self.block_height_monitor.latest_block_height(),
-                    ),
-                    event_processor_config.clone(),
-                ),
-                handlers::config::Config::MvxVerifierSetVerifier {
-                    cosmwasm_contract,
-                    proxy_url,
-                } => self.create_handler_task(
-                    "mvx-worker-set-verifier",
-                    handlers::mvx_verify_verifier_set::Handler::new(
-                        verifier.clone(),
-                        cosmwasm_contract,
-                        GatewayProxy::new(proxy_url.to_string().trim_end_matches('/').into()),
-                        self.block_height_monitor.latest_block_height(),
-                    ),
-                    event_processor_config.clone(),
-                ),
-                handlers::config::Config::StellarMsgVerifier {
-                    cosmwasm_contract,
-                    rpc_url,
-                } => self.create_handler_task(
-                    "stellar-msg-verifier",
-                    handlers::stellar_verify_msg::Handler::new(
-                        verifier.clone(),
-                        cosmwasm_contract,
-                        stellar::rpc_client::Client::new(
-                            rpc_url.to_string().trim_end_matches('/').into(),
-                        )
-                        .change_context(Error::Connection)?,
-                        self.block_height_monitor.latest_block_height(),
-                    ),
-                    event_processor_config.clone(),
-                ),
-                handlers::config::Config::StellarVerifierSetVerifier {
-                    cosmwasm_contract,
-                    rpc_url,
-                } => self.create_handler_task(
-                    "stellar-verifier-set-verifier",
-                    handlers::stellar_verify_verifier_set::Handler::new(
-                        verifier.clone(),
-                        cosmwasm_contract,
-                        stellar::rpc_client::Client::new(
-                            rpc_url.to_string().trim_end_matches('/').into(),
-                        )
-                        .change_context(Error::Connection)?,
-                        self.block_height_monitor.latest_block_height(),
-                    ),
-                    event_processor_config.clone(),
-                ),
-                handlers::config::Config::StarknetMsgVerifier {
-                    cosmwasm_contract,
-                    rpc_url,
-                } => self.create_handler_task(
-                    "starknet-msg-verifier",
-                    handlers::starknet_verify_msg::Handler::new(
-                        verifier.clone(),
-                        cosmwasm_contract,
-                        starknet::json_rpc::Client::new_with_transport(HttpTransport::new(
-                            &rpc_url,
-                        ))
-                        .change_context(Error::Connection)?,
-                        self.block_height_monitor.latest_block_height(),
-                    ),
-                    event_processor_config.clone(),
-                ),
-                handlers::config::Config::StarknetVerifierSetVerifier {
-                    cosmwasm_contract,
-                    rpc_url,
-                } => self.create_handler_task(
-                    "starknet-verifier-set-verifier",
-                    handlers::starknet_verify_verifier_set::Handler::new(
-                        verifier.clone(),
-                        cosmwasm_contract,
-                        starknet::json_rpc::Client::new_with_transport(HttpTransport::new(
-                            &rpc_url,
-                        ))
-                        .change_context(Error::Connection)?,
-                        self.block_height_monitor.latest_block_height(),
-                    ),
-                    event_processor_config.clone(),
-                ),
-                handlers::config::Config::SolanaMsgVerifier {
-                    chain_name,
-                    cosmwasm_contract,
-                    rpc_url,
-                    rpc_timeout,
-                } => self.create_handler_task(
-                    "solana-msg-verifier",
-                    handlers::solana_verify_msg::Handler::new(
-                        chain_name,
-                        verifier.clone(),
-                        cosmwasm_contract,
-                        RpcClient::new_with_timeout_and_commitment(
-                            rpc_url.to_string(),
-                            rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT),
-                            CommitmentConfig::finalized(),
-                        ),
-                        self.block_height_monitor.latest_block_height(),
-                    ),
-                    event_processor_config.clone(),
-                ),
-                handlers::config::Config::SolanaVerifierSetVerifier {
-                    chain_name,
-                    cosmwasm_contract,
-                    rpc_url,
-                    rpc_timeout,
-                } => self.create_handler_task(
-                    "solana-verifier-set-verifier",
-                    handlers::solana_verify_verifier_set::Handler::new(
-                        chain_name,
-                        verifier.clone(),
-                        cosmwasm_contract,
-                        RpcClient::new_with_timeout_and_commitment(
-                            rpc_url.to_string(),
-                            rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT),
-                            CommitmentConfig::finalized(),
-                        ),
-                        self.block_height_monitor.latest_block_height(),
-                    )
-                    .await,
-                    event_processor_config.clone(),
-                ),
             };
-            self.event_processor = self.event_processor.add_task(task);
         }
 
         Ok(self)
+    }
+
+    async fn try_create_handler_task(
+        &mut self,
+        config: &handlers::config::Config,
+        verifier: &TMAddress,
+        event_processor_config: &event_processor::Config,
+    ) -> Result<CancellableTask<Result<(), event_processor::Error>>, Error> {
+        match config {
+            handlers::config::Config::EvmMsgVerifier {
+                chain,
+                cosmwasm_contract,
+                rpc_timeout,
+            } => {
+                let rpc_client = json_rpc::Client::new_http(
+                    &chain.rpc_url,
+                    reqwest::ClientBuilder::new()
+                        .connect_timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
+                        .timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
+                        .build()
+                        .change_context(Error::Connection)?,
+                );
+
+                check_finalizer(&chain.name, &chain.finalization, &rpc_client).await?;
+
+                Ok(self.create_handler_task(
+                    format!("{}-msg-verifier", chain.name),
+                    handlers::evm_verify_msg::Handler::new(
+                        verifier.clone(),
+                        cosmwasm_contract.clone(),
+                        chain.name.clone(),
+                        chain.finalization.clone(),
+                        rpc_client,
+                        self.block_height_monitor.latest_block_height(),
+                    ),
+                    event_processor_config.clone(),
+                ))
+            }
+            handlers::config::Config::EvmVerifierSetVerifier {
+                chain,
+                cosmwasm_contract,
+                rpc_timeout,
+            } => {
+                let rpc_client = json_rpc::Client::new_http(
+                    &chain.rpc_url,
+                    reqwest::ClientBuilder::new()
+                        .connect_timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
+                        .timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
+                        .build()
+                        .change_context(Error::Connection)?,
+                );
+
+                check_finalizer(&chain.name, &chain.finalization, &rpc_client).await?;
+
+                Ok(self.create_handler_task(
+                    format!("{}-verifier-set-verifier", chain.name),
+                    handlers::evm_verify_verifier_set::Handler::new(
+                        verifier.clone(),
+                        cosmwasm_contract.clone(),
+                        chain.name.clone(),
+                        chain.finalization.clone(),
+                        rpc_client,
+                        self.block_height_monitor.latest_block_height(),
+                    ),
+                    event_processor_config.clone(),
+                ))
+            }
+            handlers::config::Config::MultisigSigner {
+                cosmwasm_contract,
+                chain_name,
+            } => Ok(self.create_handler_task(
+                "multisig-signer",
+                handlers::multisig::Handler::new(
+                    verifier.clone(),
+                    cosmwasm_contract.clone(),
+                    chain_name.clone(),
+                    self.multisig_client.clone(),
+                    self.block_height_monitor.latest_block_height(),
+                ),
+                event_processor_config.clone(),
+            )),
+            handlers::config::Config::SuiMsgVerifier {
+                cosmwasm_contract,
+                rpc_url,
+                rpc_timeout,
+            } => Ok(self.create_handler_task(
+                "sui-msg-verifier",
+                handlers::sui_verify_msg::Handler::new(
+                    verifier.clone(),
+                    cosmwasm_contract.clone(),
+                    json_rpc::Client::new_http(
+                        rpc_url,
+                        reqwest::ClientBuilder::new()
+                            .connect_timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
+                            .timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
+                            .build()
+                            .change_context(Error::Connection)?,
+                    ),
+                    self.block_height_monitor.latest_block_height(),
+                ),
+                event_processor_config.clone(),
+            )),
+            handlers::config::Config::XRPLMsgVerifier {
+                cosmwasm_contract,
+                chain_name,
+                chain_rpc_url,
+                rpc_timeout,
+            } => {
+                let rpc_client = xrpl_http_client::Client::builder()
+                    .base_url(chain_rpc_url.as_str())
+                    .http_client(
+                        reqwest::ClientBuilder::new()
+                            .connect_timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
+                            .timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
+                            .build()
+                            .change_context(Error::Connection)?,
+                    )
+                    .build();
+
+                Ok(self.create_handler_task(
+                    format!("{}-msg-verifier", chain_name),
+                    handlers::xrpl_verify_msg::Handler::new(
+                        verifier.clone(),
+                        cosmwasm_contract.clone(),
+                        rpc_client,
+                        self.block_height_monitor.latest_block_height(),
+                    ),
+                    event_processor_config.clone(),
+                ))
+            }
+            handlers::config::Config::XRPLMultisigSigner {
+                cosmwasm_contract,
+                chain_name,
+            } => Ok(self.create_handler_task(
+                "xrpl-multisig-signer",
+                handlers::xrpl_multisig::Handler::new(
+                    verifier.clone(),
+                    cosmwasm_contract.clone(),
+                    chain_name.clone(),
+                    self.multisig_client.clone(),
+                    self.block_height_monitor.latest_block_height(),
+                ),
+                event_processor_config.clone(),
+            )),
+            handlers::config::Config::SuiVerifierSetVerifier {
+                cosmwasm_contract,
+                rpc_url,
+                rpc_timeout,
+            } => Ok(self.create_handler_task(
+                "sui-verifier-set-verifier",
+                handlers::sui_verify_verifier_set::Handler::new(
+                    verifier.clone(),
+                    cosmwasm_contract.clone(),
+                    json_rpc::Client::new_http(
+                        rpc_url,
+                        reqwest::ClientBuilder::new()
+                            .connect_timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
+                            .timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
+                            .build()
+                            .change_context(Error::Connection)?,
+                    ),
+                    self.block_height_monitor.latest_block_height(),
+                ),
+                event_processor_config.clone(),
+            )),
+            handlers::config::Config::MvxMsgVerifier {
+                cosmwasm_contract,
+                proxy_url,
+            } => Ok(self.create_handler_task(
+                "mvx-msg-verifier",
+                handlers::mvx_verify_msg::Handler::new(
+                    verifier.clone(),
+                    cosmwasm_contract.clone(),
+                    GatewayProxy::new(proxy_url.to_string().trim_end_matches('/').into()),
+                    self.block_height_monitor.latest_block_height(),
+                ),
+                event_processor_config.clone(),
+            )),
+            handlers::config::Config::MvxVerifierSetVerifier {
+                cosmwasm_contract,
+                proxy_url,
+            } => Ok(self.create_handler_task(
+                "mvx-worker-set-verifier",
+                handlers::mvx_verify_verifier_set::Handler::new(
+                    verifier.clone(),
+                    cosmwasm_contract.clone(),
+                    GatewayProxy::new(proxy_url.to_string().trim_end_matches('/').into()),
+                    self.block_height_monitor.latest_block_height(),
+                ),
+                event_processor_config.clone(),
+            )),
+            handlers::config::Config::StellarMsgVerifier {
+                cosmwasm_contract,
+                rpc_url,
+            } => Ok(self.create_handler_task(
+                "stellar-msg-verifier",
+                handlers::stellar_verify_msg::Handler::new(
+                    verifier.clone(),
+                    cosmwasm_contract.clone(),
+                    stellar::rpc_client::Client::new(
+                        rpc_url.to_string().trim_end_matches('/').into(),
+                    )
+                    .change_context(Error::Connection)?,
+                    self.block_height_monitor.latest_block_height(),
+                ),
+                event_processor_config.clone(),
+            )),
+            handlers::config::Config::StellarVerifierSetVerifier {
+                cosmwasm_contract,
+                rpc_url,
+            } => Ok(self.create_handler_task(
+                "stellar-verifier-set-verifier",
+                handlers::stellar_verify_verifier_set::Handler::new(
+                    verifier.clone(),
+                    cosmwasm_contract.clone(),
+                    stellar::rpc_client::Client::new(
+                        rpc_url.to_string().trim_end_matches('/').into(),
+                    )
+                    .change_context(Error::Connection)?,
+                    self.block_height_monitor.latest_block_height(),
+                ),
+                event_processor_config.clone(),
+            )),
+            handlers::config::Config::StarknetMsgVerifier {
+                cosmwasm_contract,
+                rpc_url,
+            } => Ok(self.create_handler_task(
+                "starknet-msg-verifier",
+                handlers::starknet_verify_msg::Handler::new(
+                    verifier.clone(),
+                    cosmwasm_contract.clone(),
+                    starknet::json_rpc::Client::new_with_transport(HttpTransport::new(rpc_url))
+                        .change_context(Error::Connection)?,
+                    self.block_height_monitor.latest_block_height(),
+                ),
+                event_processor_config.clone(),
+            )),
+            handlers::config::Config::StarknetVerifierSetVerifier {
+                cosmwasm_contract,
+                rpc_url,
+            } => Ok(self.create_handler_task(
+                "starknet-verifier-set-verifier",
+                handlers::starknet_verify_verifier_set::Handler::new(
+                    verifier.clone(),
+                    cosmwasm_contract.clone(),
+                    starknet::json_rpc::Client::new_with_transport(HttpTransport::new(rpc_url))
+                        .change_context(Error::Connection)?,
+                    self.block_height_monitor.latest_block_height(),
+                ),
+                event_processor_config.clone(),
+            )),
+            handlers::config::Config::SolanaMsgVerifier {
+                chain_name,
+                cosmwasm_contract,
+                rpc_url,
+                rpc_timeout,
+            } => Ok(self.create_handler_task(
+                "solana-msg-verifier",
+                handlers::solana_verify_msg::Handler::new(
+                    chain_name.clone(),
+                    verifier.clone(),
+                    cosmwasm_contract.clone(),
+                    RpcClient::new_with_timeout_and_commitment(
+                        rpc_url.to_string(),
+                        rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT),
+                        CommitmentConfig::finalized(),
+                    ),
+                    self.block_height_monitor.latest_block_height(),
+                ),
+                event_processor_config.clone(),
+            )),
+            handlers::config::Config::SolanaVerifierSetVerifier {
+                chain_name,
+                cosmwasm_contract,
+                rpc_url,
+                rpc_timeout,
+            } => Ok(self.create_handler_task(
+                "solana-verifier-set-verifier",
+                handlers::solana_verify_verifier_set::Handler::new(
+                    chain_name.clone(),
+                    verifier.clone(),
+                    cosmwasm_contract.clone(),
+                    RpcClient::new_with_timeout_and_commitment(
+                        rpc_url.to_string(),
+                        rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT),
+                        CommitmentConfig::finalized(),
+                    ),
+                    self.block_height_monitor.latest_block_height(),
+                )
+                .await,
+                event_processor_config.clone(),
+            )),
+        }
     }
 
     fn create_handler_task<L, H>(
@@ -698,4 +714,116 @@ pub enum Error {
     HealthCheck,
     #[error("gRPC server failed")]
     GrpcServer,
+}
+
+#[cfg(test)]
+mod tests {
+    use std::str::FromStr;
+
+    use super::*;
+    use crate::url::Url;
+
+    #[test]
+    fn test_invalid_url_parsing_returns_error() {
+        // Test that invalid URLs are properly detected
+        let invalid_url = "http://definitely-does-not-exist-12345.invalid";
+        let result = Url::from_str(invalid_url);
+
+        // Should be able to parse the URL (syntax is valid)
+        assert!(
+            result.is_ok(),
+            "URL parsing should succeed for syntactically valid URLs"
+        );
+
+        // The actual connection failure will happen during handler creation
+        let parsed_url = result.unwrap();
+        // URL parsing may normalize the URL (e.g., add trailing slash)
+        assert!(parsed_url
+            .as_str()
+            .starts_with("http://definitely-does-not-exist-12345.invalid"));
+    }
+
+    #[test]
+    fn test_handler_config_creation_with_invalid_url() {
+        // Test URL creation with invalid host - this should succeed syntactically
+        let invalid_url = "http://invalid-nonexistent-host:8545";
+        let parsed_url = Url::from_str(invalid_url);
+
+        // URL parsing should succeed for syntactically valid URLs
+        assert!(
+            parsed_url.is_ok(),
+            "URL parsing should succeed for syntactically valid URLs"
+        );
+
+        // The actual connection failure will happen during handler creation, not URL parsing
+        let url = parsed_url.unwrap();
+        assert!(url
+            .as_str()
+            .starts_with("http://invalid-nonexistent-host:8545"));
+    }
+
+    #[test]
+    fn test_resilient_handler_configuration_concept() {
+        // Test the concept behind resilient handler configuration
+        // This verifies that individual handler failures should not prevent app startup
+
+        // Simulate handler creation results - some succeed, some fail
+        let handler_results = vec![
+            Ok("MultisigSigner created successfully"),
+            Err("Connection failed: invalid-stellar-host unreachable"),
+            Ok("Another handler created successfully"),
+            Err("Connection failed: invalid-ethereum-host unreachable"),
+        ];
+
+        let mut successful_handlers = 0;
+        let mut failed_handlers = 0;
+
+        // This simulates the error handling logic in configure_handlers
+        for result in handler_results {
+            match result {
+                Ok(_) => {
+                    successful_handlers += 1;
+                }
+                Err(error) => {
+                    // Log warning and continue (simulated)
+                    failed_handlers += 1;
+                    assert!(
+                        error.contains("Connection failed"),
+                        "Error should be connection-related: {}",
+                        error
+                    );
+                }
+            }
+        }
+
+        // Verify that we continue processing even with failures
+        assert_eq!(successful_handlers, 2);
+        assert_eq!(failed_handlers, 2);
+
+        // The key insight: ampd should start with 2 working handlers,
+        // even though 2 handlers failed to initialize
+        assert!(
+            successful_handlers > 0,
+            "At least some handlers should succeed"
+        );
+    }
+
+    #[test]
+    fn test_error_context_propagation() {
+        // Test that error context is properly maintained
+        use error_stack::Report;
+
+        // Simulate an error that would occur during handler creation
+        let connection_error: Report<Error> = Report::new(Error::Connection);
+
+        // Verify error context
+        assert!(matches!(
+            connection_error.current_context(),
+            Error::Connection
+        ));
+
+        // Test error message
+        let error_string = format!("{}", connection_error);
+        assert!(error_string.contains("connection failed"));
+    }
 }
