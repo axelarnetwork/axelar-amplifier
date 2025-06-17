@@ -273,374 +273,523 @@ impl Client for GrpcClient {
 mod tests {
     use std::str::FromStr;
 
-    use axelar_wasm_std::nonempty;
+    use ampd_proto::blockchain_service_server::{BlockchainService, BlockchainServiceServer};
+    use ampd_proto::crypto_service_server::{CryptoService, CryptoServiceServer};
+    use ampd_proto::{
+        AddressResponse, ContractStateResponse, KeyResponse, SignResponse, SubscribeResponse,
+    };
     use cosmrs::{AccountId, Any};
-    use events::Event;
+    use futures::StreamExt;
+    use mockall::mock;
+    use serde::{Deserialize, Serialize};
     use serde_json::Value;
-    use tokio_stream::StreamExt;
+    use tonic::{Request, Response, Status};
 
     use super::*;
     use crate::grpc::error::GrpcError;
 
+    type ServerSubscribeStream =
+        Pin<Box<dyn Stream<Item = std::result::Result<SubscribeResponse, Status>> + Send>>;
+    mock! {
+        #[derive(Debug)]
+        pub BlockchainService {}
+
+        #[async_trait]
+        impl BlockchainService for BlockchainService {
+            type SubscribeStream = ServerSubscribeStream;
+            async fn address(&self, request: Request<AddressRequest>) -> std::result::Result<Response<AddressResponse>, Status>;
+            async fn broadcast(&self, request: Request<BroadcastRequest>) -> std::result::Result<Response<BroadcastResponse>, Status>;
+            async fn contract_state(&self, request: Request<ContractStateRequest>) -> std::result::Result<Response<ContractStateResponse>, Status>;
+            async fn contracts(&self, request: Request<ContractsRequest>) -> std::result::Result<Response<ContractsResponse>, Status>;
+            async fn subscribe(&self, request: Request<SubscribeRequest>) -> std::result::Result<Response<ServerSubscribeStream>, Status>;
+        }
+    }
+
+    mock! {
+        #[derive(Debug)]
+        pub CryptoService {}
+
+        #[async_trait]
+        impl CryptoService for CryptoService {
+            async fn sign(&self, request: Request<SignRequest>) -> std::result::Result<Response<SignResponse>, Status>;
+            async fn key(&self, request: Request<KeyRequest>) -> std::result::Result<Response<KeyResponse>, Status>;
+        }
+    }
+
+    async fn setup_test_client(
+        mock_blockchain: MockBlockchainService,
+        mock_crypto: MockCryptoService,
+    ) -> GrpcClient {
+        let server = tonic::transport::Server::builder()
+            .add_service(BlockchainServiceServer::new(mock_blockchain))
+            .add_service(CryptoServiceServer::new(mock_crypto));
+
+        let addr: std::net::SocketAddr = "[::1]:0".parse().unwrap();
+        let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
+        let server_addr = listener.local_addr().unwrap();
+        let bound_server =
+            server.serve_with_incoming(tokio_stream::wrappers::TcpListenerStream::new(listener));
+
+        tokio::spawn(bound_server);
+        let url = format!("http://{}", server_addr);
+        new(&url).await.unwrap()
+    }
+
     #[tokio::test]
     async fn address_should_succeed_returning_the_address() {
-        let mut mock = MockClient::new();
+        let mut mock_blockchain = MockBlockchainService::new();
         let expected_address = sample_account_id();
 
-        mock.expect_address().return_once({
-            let addr = expected_address.clone();
-            move || Ok(addr.clone())
-        });
+        mock_blockchain
+            .expect_address()
+            .return_once(move |_request| {
+                Ok(Response::new(AddressResponse {
+                    address: expected_address.to_string(),
+                }))
+            });
 
-        let result = mock.address().await;
-        assert!(result.is_ok_and(|address| address == expected_address));
+        let mut client = setup_test_client(mock_blockchain, MockCryptoService::new()).await;
+        let result = client.address().await;
+
+        assert!(result.is_ok(), "unexpected error: {}", result.unwrap_err());
+        assert_eq!(result.unwrap(), sample_account_id());
     }
 
     #[tokio::test]
     async fn address_should_return_error_if_grpc_error_occurs() {
-        let mut mock = MockClient::new();
+        let mut mock_blockchain = MockBlockchainService::new();
+        mock_blockchain
+            .expect_address()
+            .return_once(|_request| Err(Status::unavailable("service unavailable")));
 
-        mock.expect_address().return_once(|| {
-            Err(Report::new(
-                GrpcError::ServiceUnavailable("service unavailable".to_string()).into(),
-            ))
-        });
+        let mut client = setup_test_client(mock_blockchain, MockCryptoService::new()).await;
+        let result = client.address().await;
 
-        let result = mock.address().await;
-        assert!(result.is_err_and(|error| matches!(
-            error.current_context(),
+        assert!(result.is_err(), "unexpected error: {}", result.unwrap_err());
+        assert!(matches!(
+            result.unwrap_err().current_context(),
             Error::Grpc(GrpcError::ServiceUnavailable(_))
-        )));
+        ));
     }
 
     #[tokio::test]
     async fn address_should_return_error_if_invalid_argument_is_provided() {
-        let mut mock = MockClient::new();
+        let mut mock_blockchain = MockBlockchainService::new();
+        mock_blockchain
+            .expect_address()
+            .return_once(|_request| Err(Status::invalid_argument("invalid request")));
 
-        mock.expect_address().return_once(|| {
-            Err(Report::new(
-                GrpcError::InvalidArgument("invalid request".to_string()).into(),
-            ))
-        });
+        let mut client = setup_test_client(mock_blockchain, MockCryptoService::new()).await;
+        let result = client.address().await;
 
-        let result = mock.address().await;
-        assert!(result.is_err_and(|error| matches!(
-            error.current_context(),
+        assert!(result.is_err(), "unexpected error: {}", result.unwrap_err());
+        assert!(matches!(
+            result.unwrap_err().current_context(),
             Error::Grpc(GrpcError::InvalidArgument(_))
-        )));
+        ));
     }
 
     #[tokio::test]
     async fn address_should_handle_multiple_consecutive_calls() {
-        let mut mock = MockClient::new();
+        let mut mock_blockchain = MockBlockchainService::new();
         let expected_address = sample_account_id();
 
-        mock.expect_address().times(5).returning({
-            let addr = expected_address.clone();
-            move || Ok(addr.clone())
-        });
+        mock_blockchain
+            .expect_address()
+            .times(5)
+            .returning(move |_request| {
+                Ok(Response::new(AddressResponse {
+                    address: expected_address.to_string(),
+                }))
+            });
+
+        let mut client = setup_test_client(mock_blockchain, MockCryptoService::new()).await;
 
         for _ in 0..5 {
-            let result = mock.address().await;
-            assert!(result.is_ok_and(|address| address == expected_address));
+            let result = client.address().await;
+            assert!(result.is_ok(), "unexpected error: {}", result.unwrap_err());
+            assert_eq!(result.unwrap(), sample_account_id());
         }
     }
 
     #[tokio::test]
     async fn broadcast_should_succeed_returning_the_response() {
-        let mut mock = MockClient::new();
+        let mut mock_blockchain = MockBlockchainService::new();
         let expected_response = sample_broadcast_response();
 
-        mock.expect_broadcast().return_once({
-            let response = expected_response.clone();
-            move |_| Ok(response.clone())
-        });
+        mock_blockchain
+            .expect_broadcast()
+            .return_once(move |__request| {
+                Ok(Response::new(BroadcastResponse {
+                    tx_hash: expected_response.tx_hash.clone(),
+                    index: expected_response.index,
+                }))
+            });
 
-        let result = mock.broadcast(any_msg()).await;
-        assert!(result.is_ok_and(|response| response == expected_response));
+        let mut client = setup_test_client(mock_blockchain, MockCryptoService::new()).await;
+        let result = client.broadcast(any_msg()).await;
+
+        assert!(result.is_ok(), "unexpected error: {}", result.unwrap_err());
+        assert_eq!(result.unwrap(), sample_broadcast_response());
     }
 
     #[tokio::test]
     async fn broadcast_should_return_error_if_internal_error_occurs() {
-        let mut mock = MockClient::new();
+        let mut mock_blockchain = MockBlockchainService::new();
+        mock_blockchain
+            .expect_broadcast()
+            .return_once(|_request| Err(Status::internal("gas estimation failed")));
 
-        mock.expect_broadcast().return_once(|_| {
-            Err(Report::new(
-                GrpcError::InternalError("gas estimation failed".to_string()).into(),
-            ))
-        });
+        let mut client = setup_test_client(mock_blockchain, MockCryptoService::new()).await;
+        let result = client.broadcast(any_msg()).await;
 
-        let result = mock.broadcast(any_msg()).await;
-        assert!(result.is_err_and(|error| matches!(
-            error.current_context(),
+        assert!(result.is_err(), "unexpected error: {}", result.unwrap_err());
+        assert!(matches!(
+            result.unwrap_err().current_context(),
             Error::Grpc(GrpcError::InternalError(_))
-        )));
+        ));
     }
 
     #[tokio::test]
     async fn broadcast_should_handle_empty_message_value() {
-        let mut mock = MockClient::new();
+        let mut mock_blockchain = MockBlockchainService::new();
+        let expected_response = sample_broadcast_response();
 
-        mock.expect_broadcast()
-            .return_once(|_| Ok(sample_broadcast_response()));
+        mock_blockchain
+            .expect_broadcast()
+            .return_once(move |_request| {
+                Ok(Response::new(BroadcastResponse {
+                    tx_hash: expected_response.tx_hash.clone(),
+                    index: expected_response.index,
+                }))
+            });
+
+        let mut client = setup_test_client(mock_blockchain, MockCryptoService::new()).await;
 
         let empty_msg = Any {
             type_url: "/cosmos.bank.v1beta1.MsgSend".to_string(),
             value: vec![],
         };
 
-        let result = mock.broadcast(empty_msg).await;
+        let result = client.broadcast(empty_msg).await;
         assert!(result.is_ok());
     }
 
     #[tokio::test]
     async fn contract_state_should_succeed_returning_the_response() {
-        let mut mock = MockClient::new();
-
-        #[derive(serde::Deserialize, Debug, PartialEq, Clone)]
+        #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
         struct TestResponse {
             balance: String,
             owner: String,
         }
 
+        let mut mock_blockchain = MockBlockchainService::new();
         let expected_response = TestResponse {
             balance: "1000".to_string(),
             owner: "axelar1abc".to_string(),
         };
+        let expected_response_clone = expected_response.clone();
 
-        mock.expect_contract_state::<TestResponse>().return_once({
-            let response = expected_response.clone();
-            move |_, _| Ok(response.clone())
-        });
+        mock_blockchain
+            .expect_contract_state()
+            .return_once(move |_request| {
+                Ok(Response::new(ContractStateResponse {
+                    result: serde_json::to_vec(&expected_response).unwrap(),
+                }))
+            });
+
+        let mut client = setup_test_client(mock_blockchain, MockCryptoService::new()).await;
         let (contract, query) = contract_state_input_args();
+        let result: Result<TestResponse, Error> = client.contract_state(contract, query).await;
 
-        let result: Result<TestResponse, Error> = mock.contract_state(contract, query).await;
-        assert!(result.is_ok_and(|response| response == expected_response));
+        assert!(result.is_ok(), "unexpected error: {}", result.unwrap_err());
+        assert_eq!(result.unwrap(), expected_response_clone);
     }
 
     #[tokio::test]
     async fn contract_state_should_return_error_if_invalid_response() {
-        let mut mock = MockClient::new();
+        let mut mock_blockchain = MockBlockchainService::new();
 
-        mock.expect_contract_state::<Value>()
-            .return_once(|_, _| Err(Report::new(AppError::InvalidJson.into())));
+        mock_blockchain
+            .expect_contract_state()
+            .return_once(|_request| {
+                Ok(Response::new(ContractStateResponse {
+                    result: b"invalid json {".to_vec(),
+                }))
+            });
 
+        let mut client = setup_test_client(mock_blockchain, MockCryptoService::new()).await;
         let (contract, query) = contract_state_input_args();
+        let result: Result<Value, Error> = client.contract_state(contract, query).await;
 
-        let result: Result<Value, Error> = mock.contract_state(contract, query).await;
-        assert!(result.is_err_and(|error| matches!(
-            error.current_context(),
+        assert!(result.is_err(), "unexpected error: {}", result.unwrap_err());
+        assert!(matches!(
+            result.unwrap_err().current_context(),
             Error::App(AppError::InvalidJson)
-        )));
+        ));
     }
 
     #[tokio::test]
     async fn contract_state_should_return_error_if_operation_failed() {
-        let mut mock = MockClient::new();
+        let mut mock_blockchain = MockBlockchainService::new();
+        mock_blockchain
+            .expect_contract_state()
+            .return_once(|_request| Err(Status::unknown("contract execution failed")));
 
-        mock.expect_contract_state::<Value>().return_once(|_, _| {
-            Err(Report::new(
-                GrpcError::OperationFailed("contract execution failed".to_string()).into(),
-            ))
-        });
-
+        let mut client = setup_test_client(mock_blockchain, MockCryptoService::new()).await;
         let (contract, query) = contract_state_input_args();
+        let result: Result<Value, Error> = client.contract_state(contract, query).await;
 
-        let result: Result<Value, Error> = mock.contract_state(contract, query).await;
-        assert!(result.is_err_and(|error| matches!(
-            error.current_context(),
+        assert!(result.is_err(), "unexpected error: {}", result.unwrap_err());
+        assert!(matches!(
+            result.unwrap_err().current_context(),
             Error::Grpc(GrpcError::OperationFailed(_))
-        )));
+        ));
     }
 
     #[tokio::test]
     async fn contracts_should_succeed_returning_the_response() {
-        let mut mock = MockClient::new();
+        let mut mock_blockchain = MockBlockchainService::new();
         let expected_contracts = sample_contracts();
 
-        mock.expect_contracts().return_once({
-            let contracts = expected_contracts.clone();
-            move || Ok(contracts.clone())
-        });
+        mock_blockchain
+            .expect_contracts()
+            .return_once(move |_request| {
+                Ok(Response::new(ContractsResponse {
+                    voting_verifier: expected_contracts.voting_verifier.to_string(),
+                    multisig_prover: expected_contracts.multisig_prover.to_string(),
+                    service_registry: expected_contracts.service_registry.to_string(),
+                    rewards: expected_contracts.rewards.to_string(),
+                }))
+            });
 
-        let result = mock.contracts().await;
-        assert!(result.is_ok_and(|contracts| contracts == expected_contracts));
+        let mut client = setup_test_client(mock_blockchain, MockCryptoService::new()).await;
+        let result = client.contracts().await;
+
+        assert!(result.is_ok(), "unexpected error: {}", result.unwrap_err());
+        assert_eq!(result.unwrap(), sample_contracts());
     }
 
     #[tokio::test]
     async fn contracts_should_return_error_if_invalid_contracts_response() {
-        let mut mock = MockClient::new();
+        let mut mock_blockchain = MockBlockchainService::new();
+        mock_blockchain
+            .expect_contracts()
+            .return_once(move |_request| {
+                Ok(Response::new(ContractsResponse {
+                    voting_verifier: "".to_string(),
+                    multisig_prover: "".to_string(),
+                    service_registry: "".to_string(),
+                    rewards: "".to_string(),
+                }))
+            });
 
-        mock.expect_contracts()
-            .return_once(|| Err(Report::new(AppError::InvalidContractsResponse.into())));
+        let mut client = setup_test_client(mock_blockchain, MockCryptoService::new()).await;
 
-        let result = mock.contracts().await;
-        assert!(result.is_err_and(|error| matches!(
-            error.current_context(),
+        let result = client.contracts().await;
+        assert!(matches!(
+            result.unwrap_err().current_context(),
             Error::App(AppError::InvalidContractsResponse)
-        )));
+        ));
     }
 
     #[tokio::test]
     async fn sign_should_succeed_returning_the_signature() {
-        let mut mock = MockClient::new();
-        let expected_signature = sample_signature();
+        let mut mock_crypto = MockCryptoService::new();
 
-        mock.expect_sign().return_once({
-            let sig = expected_signature.clone();
-            move |_, _| Ok(sig.clone())
+        mock_crypto.expect_sign().return_once(|_request| {
+            Ok(Response::new(SignResponse {
+                signature: sample_signature().into(),
+            }))
         });
 
-        let result = mock
+        let mut client = setup_test_client(MockBlockchainService::new(), mock_crypto).await;
+        let result = client
             .sign(Some(generate_key(KeyAlgorithm::Ecdsa)), sample_message())
             .await;
-        assert!(result.is_ok_and(|signature| signature == expected_signature));
+
+        assert!(result.is_ok(), "unexpected error: {}", result.unwrap_err());
+        assert_eq!(result.unwrap(), sample_signature());
     }
 
     #[tokio::test]
     async fn sign_should_return_error_if_invalid_byte_array() {
-        let mut mock = MockClient::new();
+        let mut mock_crypto = MockCryptoService::new();
 
-        mock.expect_sign()
-            .return_once(|_, _| Err(Report::new(AppError::InvalidByteArray.into())));
+        mock_crypto
+            .expect_sign()
+            .return_once(|_request| Ok(Response::new(SignResponse { signature: vec![] })));
 
-        let result = mock
+        let mut client = setup_test_client(MockBlockchainService::new(), mock_crypto).await;
+
+        let result = client
             .sign(Some(generate_key(KeyAlgorithm::Ecdsa)), sample_message())
             .await;
-        assert!(result.is_err_and(|error| matches!(
-            error.current_context(),
+        assert!(matches!(
+            result.unwrap_err().current_context(),
             Error::App(AppError::InvalidByteArray)
-        )));
+        ));
     }
 
     #[tokio::test]
     async fn sign_should_return_error_if_internal_error_occurs() {
-        let mut mock = MockClient::new();
+        let mut mock_crypto = MockCryptoService::new();
 
-        mock.expect_sign().return_once(|_, _| {
-            Err(Report::new(
-                GrpcError::InternalError("signing service unavailable".to_string()).into(),
-            ))
-        });
+        mock_crypto
+            .expect_sign()
+            .return_once(|_request| Err(Status::internal("signing service unavailable")));
 
-        let result = mock
+        let mut client = setup_test_client(MockBlockchainService::new(), mock_crypto).await;
+
+        let result = client
             .sign(Some(generate_key(KeyAlgorithm::Ecdsa)), sample_message())
             .await;
-        assert!(result.is_err_and(|error| matches!(
-            error.current_context(),
+        assert!(matches!(
+            result.unwrap_err().current_context(),
             Error::Grpc(GrpcError::InternalError(_))
-        )));
+        ));
     }
 
     #[tokio::test]
     async fn sign_should_handle_none_key() {
-        let mut mock = MockClient::new();
+        let mut mock_crypto = MockCryptoService::new();
 
-        mock.expect_sign()
-            .return_once(|_, _| Ok(sample_signature()));
+        mock_crypto.expect_sign().return_once(|_request| {
+            Ok(Response::new(SignResponse {
+                signature: sample_signature().into(),
+            }))
+        });
 
-        let result = mock.sign(None, sample_message()).await;
-        assert!(result.is_ok());
+        let mut client = setup_test_client(MockBlockchainService::new(), mock_crypto).await;
+        let result = client.sign(None, sample_message()).await;
+
+        assert!(result.is_ok(), "unexpected error: {}", result.unwrap_err());
+        assert_eq!(result.unwrap(), sample_signature());
     }
 
     #[tokio::test]
     async fn key_should_succeed_returning_the_public_key() {
-        let mut mock = MockClient::new();
-        let expected_pub_key = sample_public_key();
+        let mut mock_crypto = MockCryptoService::new();
 
-        mock.expect_key().return_once({
-            let key = expected_pub_key.clone();
-            move |_| Ok(key.clone())
+        mock_crypto.expect_key().return_once(|_request| {
+            Ok(Response::new(KeyResponse {
+                pub_key: sample_public_key().into(),
+            }))
         });
 
-        let result = mock.key(Some(generate_key(KeyAlgorithm::Ecdsa))).await;
-        assert!(result.is_ok_and(|pub_key| pub_key == expected_pub_key));
+        let mut client = setup_test_client(MockBlockchainService::new(), mock_crypto).await;
+        let result = client.key(Some(generate_key(KeyAlgorithm::Ecdsa))).await;
+
+        assert!(result.is_ok(), "unexpected error: {}", result.unwrap_err());
+        assert_eq!(result.unwrap(), sample_public_key());
     }
 
     #[tokio::test]
     async fn key_should_return_error_if_data_loss_occurs() {
-        let mut mock = MockClient::new();
+        let mut mock_crypto = MockCryptoService::new();
 
-        mock.expect_key().return_once(|_| {
-            Err(Report::new(
-                GrpcError::DataLoss("connection lost during key retrieval".to_string()).into(),
-            ))
-        });
+        mock_crypto
+            .expect_key()
+            .return_once(|_request| Err(Status::data_loss("connection lost during key retrieval")));
 
-        let result = mock.key(Some(generate_key(KeyAlgorithm::Ecdsa))).await;
-        assert!(result.is_err_and(|error| matches!(
-            error.current_context(),
+        let mut client = setup_test_client(MockBlockchainService::new(), mock_crypto).await;
+
+        let result = client.key(Some(generate_key(KeyAlgorithm::Ecdsa))).await;
+        assert!(matches!(
+            result.unwrap_err().current_context(),
             Error::Grpc(GrpcError::DataLoss(_))
-        )));
+        ));
     }
 
     #[tokio::test]
     async fn key_should_handle_key_not_found() {
-        let mut mock = MockClient::new();
+        let mut mock_crypto = MockCryptoService::new();
 
-        mock.expect_key().return_once(|_| {
-            Err(Report::new(
-                GrpcError::InvalidArgument("key not found".to_string()).into(),
-            ))
-        });
+        mock_crypto
+            .expect_key()
+            .return_once(|_request| Err(Status::invalid_argument("key not found")));
 
-        let result = mock.key(Some(generate_key(KeyAlgorithm::Ecdsa))).await;
-        assert!(result.is_err_and(|error| matches!(
-            error.current_context(),
+        let mut client = setup_test_client(MockBlockchainService::new(), mock_crypto).await;
+
+        let result = client.key(Some(generate_key(KeyAlgorithm::Ecdsa))).await;
+        assert!(matches!(
+            result.unwrap_err().current_context(),
             Error::Grpc(GrpcError::InvalidArgument(_))
-        )));
+        ));
     }
 
     #[tokio::test]
     async fn subscribe_should_succeed_returning_the_stream() {
-        let mut mock = MockClient::new();
+        let mut mock_blockchain = MockBlockchainService::new();
         let events = block_begin_end_events(101);
 
-        mock.expect_subscribe().return_once(move |_, _| {
-            let result_events: Vec<error_stack::Result<Event, Error>> =
-                events.clone().into_iter().map(Ok).collect();
-            Ok(tokio_stream::iter(result_events))
-        });
+        mock_blockchain
+            .expect_subscribe()
+            .return_once(move |_request| {
+                let subscribe_responses: Vec<SubscribeResponse> = events
+                    .into_iter()
+                    .map(|event| SubscribeResponse {
+                        event: Some(event.into()),
+                    })
+                    .collect();
 
-        let result = mock.subscribe(vec![], true).await;
+                Ok(Response::new(Box::pin(tokio_stream::iter(
+                    subscribe_responses.into_iter().map(std::result::Result::Ok),
+                ))))
+            });
+
+        let mut client = setup_test_client(mock_blockchain, MockCryptoService::new()).await;
+        let result = client.subscribe(vec![], true).await;
         assert!(result.is_ok());
 
         let event_result_op = result.unwrap().next().await;
-        assert!(event_result_op.is_some_and(|event_result| event_result.is_ok()));
+        assert!(event_result_op.unwrap().is_ok());
     }
 
     #[tokio::test]
     async fn subscribe_should_return_error_if_data_loss_occurs() {
-        let mut mock = MockClient::new();
+        let mut mock_blockchain = MockBlockchainService::new();
 
-        mock.expect_subscribe().return_once(|_, _| {
-            Err(Report::new(
-                GrpcError::DataLoss("client cannot keep up".to_string()).into(),
-            ))
-        });
+        mock_blockchain
+            .expect_subscribe()
+            .return_once(move |_request| {
+                Ok(Response::new(Box::pin(tokio_stream::once(
+                    std::result::Result::Err(Status::data_loss("client cannot keep up")),
+                ))))
+            });
 
-        let result = mock.subscribe(vec![], true).await;
-        assert!(result.is_err_and(|error| matches!(
-            error.current_context(),
+        let mut client = setup_test_client(mock_blockchain, MockCryptoService::new()).await;
+
+        let result = client.subscribe(vec![], true).await;
+        let next_steam_item = result.unwrap().next().await;
+        assert!(next_steam_item.is_some());
+        assert!(matches!(
+            next_steam_item.unwrap().unwrap_err().current_context(),
             Error::Grpc(GrpcError::DataLoss(_))
-        )));
+        ));
     }
 
     #[tokio::test]
     async fn subscribe_should_return_error_if_invalid_argument_is_provided() {
-        let mut mock = MockClient::new();
+        let mut mock_blockchain = MockBlockchainService::new();
 
-        mock.expect_subscribe().return_once(|_, _| {
-            Err(Report::new(
-                GrpcError::InvalidArgument("Invalid filter provided".to_string()).into(),
-            ))
-        });
+        mock_blockchain
+            .expect_subscribe()
+            .return_once(move |_request| {
+                Ok(Response::new(Box::pin(tokio_stream::once(
+                    std::result::Result::Err(Status::invalid_argument("invalid filter provided")),
+                ))))
+            });
 
-        let result = mock.subscribe(vec![], false).await;
-        assert!(result.is_err_and(|error| matches!(
-            error.current_context(),
+        let mut client = setup_test_client(mock_blockchain, MockCryptoService::new()).await;
+
+        let result = client.subscribe(vec![], true).await;
+        let next_steam_item = result.unwrap().next().await;
+        assert!(next_steam_item.is_some());
+        assert!(matches!(
+            next_steam_item.unwrap().unwrap_err().current_context(),
             Error::Grpc(GrpcError::InvalidArgument(_))
-        )));
+        ));
     }
 
     #[test]
