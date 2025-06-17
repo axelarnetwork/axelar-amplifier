@@ -106,3 +106,69 @@ impl Visitor<'_> for UrlVisitor {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use serde::Deserialize;
+
+    use super::*;
+
+    #[test]
+    fn test_new_sensitive_and_display_debug() {
+        let url = Url::new_sensitive("http://secret.api/key").unwrap();
+        assert!(url.is_sensitive);
+        assert_eq!(format!("{}", url), "[REDACTED]");
+        assert_eq!(format!("{:?}", url), "[REDACTED]");
+    }
+
+    #[test]
+    fn test_new_non_sensitive_and_display_debug() {
+        let url = Url::new_non_sensitive("http://public.api").unwrap();
+        assert!(!url.is_sensitive);
+        assert_eq!(format!("{}", url), "http://public.api/");
+        assert_eq!(format!("{:?}", url), "http://public.api/");
+    }
+
+    #[test]
+    fn test_to_standard_url() {
+        let original = "https://example.com";
+        let url = Url::new_non_sensitive(original).unwrap();
+        let inner: url::Url = url.to_standard_url();
+        assert_eq!(inner.as_str(), "https://example.com/");
+    }
+
+    #[test]
+    fn test_serialization() {
+        let url = Url::new_non_sensitive("https://serialize.test").unwrap();
+        let serialized = toml::to_string(&url).unwrap();
+        assert!(serialized.contains("https://serialize.test"));
+    }
+
+    #[test]
+    fn test_deserialize_sensitive() {
+        #[derive(Deserialize)]
+        struct TestConfig {
+            #[serde(deserialize_with = "Url::deserialize_sensitive")]
+            url: Url,
+        }
+        let toml_str = r#"url = "https://sensitive.test""#;
+        let config: TestConfig = toml::from_str(toml_str).unwrap();
+        assert!(config.url.is_sensitive);
+        assert_eq!(format!("{}", config.url), "[REDACTED]");
+        assert_eq!(config.url.as_str(), "https://sensitive.test/");
+    }
+
+    #[test]
+    fn test_deserialize_non_sensitive() {
+        #[derive(Deserialize)]
+        struct TestConfig {
+            #[serde(deserialize_with = "Url::deserialize_non_sensitive")]
+            url: Url,
+        }
+        let toml_str = r#"url = "https://non-sensitive.test""#;
+        let config: TestConfig = toml::from_str(toml_str).unwrap();
+        assert!(!config.url.is_sensitive);
+        assert_eq!(format!("{}", config.url), "https://non-sensitive.test/");
+        assert_eq!(config.url.as_str(), "https://non-sensitive.test/");
+    }
+}
