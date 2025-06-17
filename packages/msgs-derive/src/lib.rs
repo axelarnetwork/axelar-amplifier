@@ -1,6 +1,7 @@
 use axelar_wasm_std::permission_control::Permission;
 use itertools::Itertools;
 use proc_macro::TokenStream;
+use proc_macro2::Span;
 use quote::{format_ident, quote};
 use syn::parse::{Parse, ParseStream};
 use syn::punctuated::Punctuated;
@@ -443,6 +444,69 @@ impl IntoIterator for ContractPermission {
     }
 }
 
+#[derive(Debug)]
+struct AllPermissions {
+    relay_permissions: ContractPermission,
+    specific_permissions: ContractPermission,
+}
+
+impl Parse for AllPermissions {
+    fn parse(input: ParseStream) -> Result<Self, syn::Error> {
+        let punct = Punctuated::<ExprCall, Token![,]>::parse_terminated(input)?;
+
+        let parse_permissions_list = |expr_call: ExprCall, expected_call_name: String| -> Option<Vec<(Ident, Ident)>> {
+            match *expr_call.func {
+                Expr::Path(path) => {
+                    match path.path.get_ident() {
+                        Some(path_ident) => {
+                            if path_ident.eq(&Ident::new(expected_call_name.as_str(), Span::call_site())) {
+                                // Permission functions for checking contract addresses
+                                Some(expr_call.args
+                                    .into_iter()
+                                    .filter_map(|arg| match arg {
+                                        Expr::Assign(a) => {
+                                            let Expr::Path(contract_name) = *a.left else {
+                                                return None;
+                                            };
+
+                                            let Expr::Path(function_name) = *a.right else {
+                                                return None;
+                                            };
+
+                                            let contract_ident = contract_name.path.get_ident()?;
+
+                                            let function_ident = function_name.path.get_ident()?;
+
+                                            Some((contract_ident.clone(), function_ident.clone()))
+                                        },
+                                        _ => panic!("expected format 'contract == contract_permission_fn'"),
+                                    })
+                                    .collect::<Vec<(Ident, Ident)>>()
+                                )
+                            } else {
+                                None
+                            }
+                        },
+                        None => None,
+                    }
+                },
+                _ => panic!("expecting call to be a path name")
+            }
+        };
+
+        Ok(AllPermissions { 
+            relay_permissions: ContractPermission(punct.iter()
+                .filter_map(|e| parse_permissions_list(e.clone(), String::from("contracts")))
+                .flatten()
+                .collect()), 
+            specific_permissions: ContractPermission(punct.iter()
+                .filter_map(|e| parse_permissions_list(e.clone(), String::from("specific")))
+                .flatten()
+                .collect()),
+        })
+    }
+}
+
 fn validate_external_contract_function(
     execute_msg_ident: Ident,
     contract_names: Vec<Ident>,
@@ -488,6 +552,12 @@ fn validate_external_contract_function(
     })
 }
 
+// This macro enforces which contracts are allowed to execute this contract.
+// Furthermore, it uses the 'ensure_permissions' method to ensure that the
+// sending address has permission to execute the given message. If the given
+// message is a 'Relay" message (it has been sent by another contract rather
+// than directly from a user), 'ensure_permissions' will check against the
+// original sender of the message (not the contract address).
 #[proc_macro_attribute]
 pub fn external_execute(attr: TokenStream, item: TokenStream) -> TokenStream {
     let mut execute_fn = syn::parse_macro_input!(item as ItemFn);
@@ -495,10 +565,8 @@ pub fn external_execute(attr: TokenStream, item: TokenStream) -> TokenStream {
         panic!("external_execute macro can only be used with execute endpoint")
     }
 
-    let (contract_names, permission_fns): (Vec<_>, Vec<_>) =
-        syn::parse_macro_input!(attr as ContractPermission)
-            .into_iter()
-            .unzip();
+    let all_permissions = syn::parse_macro_input!(attr as AllPermissions);
+    let (contract_names, permission_fns): (Vec<_>, Vec<_>) = all_permissions.relay_permissions.into_iter().unzip();
 
     // Replace ExecuteMsg with ExternalExecute trait
     // Both ExecuteMsg and ExecuteMsg2 implement this trait
