@@ -58,4 +58,7 @@ pub enum Error {
 
     #[error("unauthorized")]
     Unauthorized,
+
+    #[error("error serializing data")]
+    Serialize,
 }
