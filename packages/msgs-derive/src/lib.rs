@@ -1,3 +1,6 @@
+use std::cmp::Ordering;
+use std::hash::{Hash, Hasher};
+
 use axelar_wasm_std::permission_control::Permission;
 use itertools::Itertools;
 use proc_macro::TokenStream;
@@ -6,9 +9,7 @@ use quote::{format_ident, quote};
 use syn::parse::{Parse, ParseStream};
 use syn::punctuated::Punctuated;
 use syn::token::Comma;
-use syn::{
-    parse_quote, Expr, ExprCall, Ident, ItemEnum, ItemFn, Path, Token, Variant
-};
+use syn::{parse_quote, Expr, ExprCall, Ident, ItemEnum, ItemFn, Path, Token, Variant};
 
 /// This macro derives the `ensure_permissions` method for an enum. The method checks if the sender
 /// has the required permissions to execute the variant. The permissions are defined using the
@@ -323,6 +324,7 @@ fn build_full_check_function(
         .iter()
         .flat_map(|permission| permission.specific.iter())
         .unique()
+        .sorted_by(|a, b| sort_permissions(a, b))
         .collect::<Vec<_>>();
 
     let comments = quote! {
@@ -383,6 +385,22 @@ fn build_full_check_function(
     }
 }
 
+fn default_hasher() -> impl Hasher {
+    std::collections::hash_map::DefaultHasher::new()
+}
+
+fn sort_permissions(p1: &Path, p2: &Path) -> Ordering {
+    let mut hasher = default_hasher();
+    p1.hash(&mut hasher);
+    let p1_hash = hasher.finish();
+
+    let mut hasher = default_hasher();
+    p2.hash(&mut hasher);
+    let p2_hash = hasher.finish();
+
+    p1_hash.cmp(&p2_hash)
+}
+
 fn external_execute_msg_ident(execute_msg_ident: Ident) -> Ident {
     format_ident!("{}FromContract", execute_msg_ident.clone())
 }
@@ -404,39 +422,10 @@ fn external_execute_msg_ident(execute_msg_ident: Ident) -> Ident {
 ///
 /// The authorized address is returned.
 #[derive(Debug)]
-struct ContractPermission(Vec<(Ident, Ident)>);
-
-impl Parse for ContractPermission {
-    fn parse(input: ParseStream) -> Result<Self, syn::Error> {
-        let punct = Punctuated::<Expr, Token![,]>::parse_terminated(input)?;
-        Ok(ContractPermission(
-            punct
-                .into_iter()
-                .filter_map(|expr| match expr {
-                    Expr::Assign(a) => {
-                        let Expr::Path(contract_name) = *a.left else {
-                            return None;
-                        };
-
-                        let Expr::Path(function_name) = *a.right else {
-                            return None;
-                        };
-
-                        let contract_ident = contract_name.path.get_ident()?;
-
-                        let function_ident = function_name.path.get_ident()?;
-
-                        Some((contract_ident.clone(), function_ident.clone()))
-                    }
-                    _ => None,
-                })
-                .collect(),
-        ))
-    }
-}
+struct ContractPermission(Vec<(Ident, Expr)>);
 
 impl IntoIterator for ContractPermission {
-    type Item = (Ident, Ident);
+    type Item = (Ident, Expr);
     type IntoIter = std::vec::IntoIter<Self::Item>;
 
     fn into_iter(self) -> Self::IntoIter {
@@ -454,12 +443,16 @@ impl Parse for AllPermissions {
     fn parse(input: ParseStream) -> Result<Self, syn::Error> {
         let punct = Punctuated::<ExprCall, Token![,]>::parse_terminated(input)?;
 
-        let parse_permissions_list = |expr_call: ExprCall, expected_call_name: String| -> Option<Vec<(Ident, Ident)>> {
+        let parse_permissions_list = |expr_call: ExprCall,
+                                      expected_call_name: String|
+         -> Option<Vec<(Ident, Expr)>> {
             match *expr_call.func {
                 Expr::Path(path) => {
                     match path.path.get_ident() {
                         Some(path_ident) => {
-                            if path_ident.eq(&Ident::new(expected_call_name.as_str(), Span::call_site())) {
+                            if path_ident
+                                .eq(&Ident::new(expected_call_name.as_str(), Span::call_site()))
+                            {
                                 // Permission functions for checking contract addresses
                                 Some(expr_call.args
                                     .into_iter()
@@ -469,40 +462,41 @@ impl Parse for AllPermissions {
                                                 return None;
                                             };
 
-                                            let Expr::Path(function_name) = *a.right else {
-                                                return None;
-                                            };
-
                                             let contract_ident = contract_name.path.get_ident()?;
-
-                                            let function_ident = function_name.path.get_ident()?;
-
-                                            Some((contract_ident.clone(), function_ident.clone()))
+                                            // TODO: Filter and only allow certain expressions
+                                            // TODO: Do not allow duplicates!
+                                            Some((contract_ident.clone(), *a.right))
                                         },
                                         _ => panic!("expected format 'contract == contract_permission_fn'"),
                                     })
-                                    .collect::<Vec<(Ident, Ident)>>()
+                                    .collect::<Vec<(Ident, Expr)>>()
                                 )
                             } else {
                                 None
                             }
-                        },
+                        }
                         None => None,
                     }
-                },
-                _ => panic!("expecting call to be a path name")
+                }
+                _ => panic!("expecting call to be a path name"),
             }
         };
 
-        Ok(AllPermissions { 
-            relay_permissions: ContractPermission(punct.iter()
-                .filter_map(|e| parse_permissions_list(e.clone(), String::from("contracts")))
-                .flatten()
-                .collect()), 
-            specific_permissions: ContractPermission(punct.iter()
-                .filter_map(|e| parse_permissions_list(e.clone(), String::from("specific")))
-                .flatten()
-                .collect()),
+        Ok(AllPermissions {
+            relay_permissions: ContractPermission(
+                punct
+                    .iter()
+                    .filter_map(|e| parse_permissions_list(e.clone(), String::from("contracts")))
+                    .flatten()
+                    .collect(),
+            ),
+            specific_permissions: ContractPermission(
+                punct
+                    .iter()
+                    .filter_map(|e| parse_permissions_list(e.clone(), String::from("specific")))
+                    .flatten()
+                    .collect(),
+            ),
         })
     }
 }
@@ -510,12 +504,7 @@ impl Parse for AllPermissions {
 fn validate_external_contract_function(
     execute_msg_ident: Ident,
     contract_names: Vec<Ident>,
-    permission_fns: Vec<Ident>,
 ) -> TokenStream {
-    if contract_names.len() != permission_fns.len() {
-        panic!("require same number of contract names as permission functions");
-    }
-
     let fs: Vec<_> = (0..contract_names.len())
         .map(|i| format_ident!("F{}", i))
         .collect();
@@ -555,7 +544,7 @@ fn validate_external_contract_function(
 // This macro enforces which contracts are allowed to execute this contract.
 // Furthermore, it uses the 'ensure_permissions' method to ensure that the
 // sending address has permission to execute the given message. If the given
-// message is a 'Relay" message (it has been sent by another contract rather
+// message is a 'Relay' message (it has been sent by another contract rather
 // than directly from a user), 'ensure_permissions' will check against the
 // original sender of the message (not the contract address).
 #[proc_macro_attribute]
@@ -566,7 +555,15 @@ pub fn external_execute(attr: TokenStream, item: TokenStream) -> TokenStream {
     }
 
     let all_permissions = syn::parse_macro_input!(attr as AllPermissions);
-    let (contract_names, permission_fns): (Vec<_>, Vec<_>) = all_permissions.relay_permissions.into_iter().unzip();
+    let (contract_names, contract_permissions): (Vec<_>, Vec<_>) =
+        all_permissions.relay_permissions.into_iter().unzip();
+    let (_, specific_permissions): (Vec<_>, Vec<_>) = all_permissions
+        .specific_permissions
+        .into_iter()
+        .sorted_by(|a, b| sort_permissions(&Path::from(a.0.clone()), &Path::from(b.0.clone())))
+        .unzip();
+
+    // TODO: Write integration tests to check sorted ordering works!
 
     // Replace ExecuteMsg with ExternalExecute trait
     // Both ExecuteMsg and ExecuteMsg2 implement this trait
@@ -585,11 +582,8 @@ pub fn external_execute(attr: TokenStream, item: TokenStream) -> TokenStream {
         .inputs
         .push(parse_quote! {msg: #new_msg_ident});
 
-    let validate_fn = validate_external_contract_function(
-        original_msg_ident,
-        contract_names.clone(),
-        permission_fns.clone(),
-    );
+    let validate_fn =
+        validate_external_contract_function(original_msg_ident, contract_names.clone());
     let validate_fn = syn::parse_macro_input!(validate_fn as ItemFn);
 
     let statements = execute_fn.block.stmts;
@@ -598,7 +592,7 @@ pub fn external_execute(attr: TokenStream, item: TokenStream) -> TokenStream {
             let (msg, info) = match msg {
                 #new_msg_ident::Relay{sender, msg} => {
                     // Validate that the sending contract is allowed to execute messages.
-                    validate_external_contract(msg.clone(), deps.storage, info.sender.clone(), #(#permission_fns),*)?;
+                    validate_external_contract(msg.clone(), deps.storage, info.sender.clone(), #(#contract_permissions),*)?;
 
                     (msg, cosmwasm_std::MessageInfo {
                         sender: sender,
@@ -609,6 +603,13 @@ pub fn external_execute(attr: TokenStream, item: TokenStream) -> TokenStream {
                     (msg, info)
                 },
             };
+
+            // Ensure permissions
+            let msg = msg.ensure_permissions(
+                deps.storage,
+                &info.sender,
+                #(#specific_permissions),*
+            )?;
 
             // Perform authorization and execution for original sender and message
             #(#statements)*

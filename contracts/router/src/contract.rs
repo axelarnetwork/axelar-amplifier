@@ -55,7 +55,7 @@ pub fn instantiate(
     }))
 }
 
-#[external_execute(contracts(coordinator = find_coordinator_address))]
+#[external_execute(contracts(coordinator = find_coordinator_address), specific(gateway = find_gateway_address(&info.sender), coordinator = find_coordinator_address))]
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
@@ -63,12 +63,7 @@ pub fn execute(
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
-    match msg.ensure_permissions(
-        deps.storage,
-        &info.sender,
-        find_gateway_address(&info.sender),
-        find_coordinator_address,
-    )? {
+    match msg {
         ExecuteMsg::RegisterChain {
             chain,
             gateway_address,
@@ -225,7 +220,8 @@ mod test {
                 chain: chain.chain_name.clone(),
                 gateway_address: chain.gateway.to_string().try_into().unwrap(),
                 msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
-            }.into(),
+            }
+            .into(),
         )
         .unwrap();
     }
@@ -428,7 +424,8 @@ mod test {
                         .get(&s.chain_name.to_string())
                         .unwrap()
                         .clone(),
-                ).into(),
+                )
+                .into(),
             )
             .unwrap();
 
@@ -464,7 +461,8 @@ mod test {
                 chain: chain.chain_name.clone(),
                 gateway_address: chain.gateway.to_string().try_into().unwrap(),
                 msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
-            }.into(),
+            }
+            .into(),
         )
         .unwrap_err();
         assert_contract_err_string_contains(
@@ -483,7 +481,8 @@ mod test {
                 chain: chain.chain_name.clone(),
                 gateway_address: chain.gateway.to_string().try_into().unwrap(),
                 msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
-            }.into(),
+            }
+            .into(),
         )
         .unwrap_err();
         assert_contract_err_string_contains(
@@ -502,7 +501,8 @@ mod test {
                 chain: chain.chain_name.clone(),
                 gateway_address: chain.gateway.to_string().try_into().unwrap(),
                 msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
-            }.into(),
+            }
+            .into(),
         );
         assert!(res.is_ok());
 
@@ -515,7 +515,8 @@ mod test {
                     chain.chain_name.clone(),
                     GatewayDirection::Bidirectional,
                 )]),
-            }.into(),
+            }
+            .into(),
         )
         .unwrap_err();
 
@@ -536,7 +537,8 @@ mod test {
                     chain.chain_name.clone(),
                     GatewayDirection::Bidirectional,
                 )]),
-            }.into(),
+            }
+            .into(),
         )
         .is_ok());
 
@@ -549,7 +551,8 @@ mod test {
                     chain.chain_name.clone(),
                     GatewayDirection::Bidirectional,
                 )]),
-            }.into(),
+            }
+            .into(),
         );
         assert!(res.is_ok());
 
@@ -559,7 +562,8 @@ mod test {
             message_info(&api.addr_make(UNAUTHORIZED_ADDRESS), &[]),
             ExecuteMsg::FreezeChains {
                 chains: HashMap::from([(chain.chain_name.clone(), GatewayDirection::None)]),
-            }.into(),
+            }
+            .into(),
         )
         .unwrap_err();
         assert_contract_err_string_contains(
@@ -576,7 +580,8 @@ mod test {
             message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
             ExecuteMsg::FreezeChains {
                 chains: HashMap::from([(chain.chain_name.clone(), GatewayDirection::None)]),
-            }.into(),
+            }
+            .into(),
         )
         .is_ok());
 
@@ -586,7 +591,8 @@ mod test {
             message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
             ExecuteMsg::FreezeChains {
                 chains: HashMap::from([(chain.chain_name.clone(), GatewayDirection::None)]),
-            }.into(),
+            }
+            .into(),
         );
         assert!(res.is_ok());
 
@@ -601,7 +607,8 @@ mod test {
                     .to_string()
                     .try_into()
                     .unwrap(),
-            }.into(),
+            }
+            .into(),
         )
         .unwrap_err();
         assert_contract_err_string_contains(
@@ -623,7 +630,8 @@ mod test {
                     .to_string()
                     .try_into()
                     .unwrap(),
-            }.into(),
+            }
+            .into(),
         )
         .unwrap_err();
         assert_contract_err_string_contains(
@@ -645,7 +653,8 @@ mod test {
                     .to_string()
                     .try_into()
                     .unwrap(),
-            }.into(),
+            }
+            .into(),
         );
         assert!(res.is_ok());
     }
@@ -668,7 +677,8 @@ mod test {
             ExecuteMsg::UpgradeGateway {
                 chain: polygon.chain_name.clone(),
                 contract_address: new_gateway.to_string().try_into().unwrap(),
-            }.into(),
+            }
+            .into(),
         )
         .unwrap();
 
@@ -703,7 +713,8 @@ mod test {
             ExecuteMsg::UpgradeGateway {
                 chain: polygon.chain_name.clone(),
                 contract_address: new_gateway.to_string().try_into().unwrap(),
-            }.into(),
+            }
+            .into(),
         )
         .unwrap();
 
@@ -781,7 +792,8 @@ mod test {
                     .try_into()
                     .unwrap(),
                 msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
-            }.into(),
+            }
+            .into(),
         )
         .unwrap_err();
         assert_contract_err_string_contains(err, Error::ChainAlreadyExists);
@@ -799,7 +811,8 @@ mod test {
                     .try_into()
                     .unwrap(),
                 msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
-            }.into(),
+            }
+            .into(),
         )
         .unwrap_err();
         assert_contract_err_string_contains(err, Error::ChainAlreadyExists);
@@ -834,7 +847,8 @@ mod test {
                 chain: polygon.chain_name.clone(),
                 gateway_address: eth.gateway.to_string().try_into().unwrap(),
                 msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
-            }.into(),
+            }
+            .into(),
         )
         .unwrap_err();
         assert_contract_err_string_contains(err, Error::GatewayAlreadyRegistered);
@@ -847,7 +861,8 @@ mod test {
             ExecuteMsg::UpgradeGateway {
                 chain: eth.chain_name,
                 contract_address: polygon.gateway.to_string().try_into().unwrap(),
-            }.into(),
+            }
+            .into(),
         )
         .unwrap_err();
 
@@ -869,7 +884,8 @@ mod test {
             message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
             ExecuteMsg::FreezeChains {
                 chains: HashMap::from([(polygon.chain_name.clone(), GatewayDirection::Incoming)]),
-            }.into(),
+            }
+            .into(),
         )
         .unwrap();
 
@@ -912,7 +928,8 @@ mod test {
             message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
             ExecuteMsg::UnfreezeChains {
                 chains: HashMap::from([(polygon.chain_name.clone(), GatewayDirection::Incoming)]),
-            }.into(),
+            }
+            .into(),
         );
         assert!(res.is_ok());
 
@@ -942,7 +959,8 @@ mod test {
             message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
             ExecuteMsg::FreezeChains {
                 chains: HashMap::from([(polygon.chain_name.clone(), GatewayDirection::Outgoing)]),
-            }.into(),
+            }
+            .into(),
         );
         assert!(res.is_ok());
 
@@ -968,7 +986,8 @@ mod test {
             message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
             ExecuteMsg::UnfreezeChains {
                 chains: HashMap::from([(polygon.chain_name.clone(), GatewayDirection::Outgoing)]),
-            }.into(),
+            }
+            .into(),
         );
         assert!(res.is_ok());
 
@@ -1014,7 +1033,8 @@ mod test {
                     polygon.chain_name.clone(),
                     GatewayDirection::Bidirectional,
                 )]),
-            }.into(),
+            }
+            .into(),
         );
         assert!(res.is_ok());
 
@@ -1060,7 +1080,8 @@ mod test {
                     polygon.chain_name.clone(),
                     GatewayDirection::Bidirectional,
                 )]),
-            }.into(),
+            }
+            .into(),
         )
         .unwrap();
 
@@ -1133,7 +1154,8 @@ mod test {
                 message_info(sender, &[]),
                 ExecuteMsg::FreezeChains {
                     chains: test_case.clone(),
-                }.into(),
+                }
+                .into(),
             );
             assert!(result_check(&res));
         }
@@ -1172,7 +1194,8 @@ mod test {
                         (eth.chain_name.clone(), GatewayDirection::Bidirectional),
                         (polygon.chain_name.clone(), GatewayDirection::Bidirectional),
                     ]),
-                }.into(),
+                }
+                .into(),
             );
             assert!(result_check(&res));
         }
@@ -1212,7 +1235,8 @@ mod test {
                     polygon.chain_name.clone(),
                     GatewayDirection::Bidirectional,
                 )]),
-            }.into(),
+            }
+            .into(),
         );
         assert!(res.is_ok());
 
@@ -1225,7 +1249,8 @@ mod test {
             message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
             ExecuteMsg::UnfreezeChains {
                 chains: HashMap::from([(polygon.chain_name.clone(), GatewayDirection::Incoming)]),
-            }.into(),
+            }
+            .into(),
         )
         .unwrap();
 
@@ -1274,7 +1299,8 @@ mod test {
                     polygon.chain_name.clone(),
                     GatewayDirection::Bidirectional,
                 )]),
-            }.into(),
+            }
+            .into(),
         );
         assert!(res.is_ok());
 
@@ -1287,7 +1313,8 @@ mod test {
             message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
             ExecuteMsg::UnfreezeChains {
                 chains: HashMap::from([(polygon.chain_name.clone(), GatewayDirection::Outgoing)]),
-            }.into(),
+            }
+            .into(),
         )
         .unwrap();
 
@@ -1333,7 +1360,8 @@ mod test {
             message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
             ExecuteMsg::FreezeChains {
                 chains: HashMap::from([(polygon.chain_name.clone(), GatewayDirection::Incoming)]),
-            }.into(),
+            }
+            .into(),
         )
         .unwrap();
 
@@ -1343,7 +1371,8 @@ mod test {
             message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
             ExecuteMsg::FreezeChains {
                 chains: HashMap::from([(polygon.chain_name.clone(), GatewayDirection::Outgoing)]),
-            }.into(),
+            }
+            .into(),
         )
         .unwrap();
 
@@ -1396,7 +1425,8 @@ mod test {
             message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
             ExecuteMsg::FreezeChains {
                 chains: HashMap::from([(polygon.chain_name.clone(), GatewayDirection::Outgoing)]),
-            }.into(),
+            }
+            .into(),
         )
         .unwrap();
 
@@ -1406,7 +1436,8 @@ mod test {
             message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
             ExecuteMsg::FreezeChains {
                 chains: HashMap::from([(polygon.chain_name.clone(), GatewayDirection::Incoming)]),
-            }.into(),
+            }
+            .into(),
         )
         .unwrap();
 
@@ -1462,7 +1493,8 @@ mod test {
                     polygon.chain_name.clone(),
                     GatewayDirection::Bidirectional,
                 )]),
-            }.into(),
+            }
+            .into(),
         );
         assert!(res.is_ok());
 
@@ -1473,7 +1505,8 @@ mod test {
             message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
             ExecuteMsg::UnfreezeChains {
                 chains: HashMap::from([(polygon.chain_name.clone(), GatewayDirection::Incoming)]),
-            }.into(),
+            }
+            .into(),
         )
         .unwrap();
 
@@ -1484,7 +1517,8 @@ mod test {
             message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
             ExecuteMsg::UnfreezeChains {
                 chains: HashMap::from([(polygon.chain_name.clone(), GatewayDirection::Outgoing)]),
-            }.into(),
+            }
+            .into(),
         )
         .unwrap();
 
@@ -1528,7 +1562,8 @@ mod test {
                     polygon.chain_name.clone(),
                     GatewayDirection::Bidirectional,
                 )]),
-            }.into(),
+            }
+            .into(),
         );
         assert!(res.is_ok());
 
@@ -1539,7 +1574,8 @@ mod test {
             message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
             ExecuteMsg::UnfreezeChains {
                 chains: HashMap::from([(polygon.chain_name.clone(), GatewayDirection::Outgoing)]),
-            }.into(),
+            }
+            .into(),
         )
         .unwrap();
 
@@ -1550,7 +1586,8 @@ mod test {
             message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
             ExecuteMsg::UnfreezeChains {
                 chains: HashMap::from([(polygon.chain_name.clone(), GatewayDirection::Incoming)]),
-            }.into(),
+            }
+            .into(),
         )
         .unwrap();
 
@@ -1594,7 +1631,8 @@ mod test {
                     polygon.chain_name.clone(),
                     GatewayDirection::Bidirectional,
                 )]),
-            }.into(),
+            }
+            .into(),
         );
         assert!(res.is_ok());
 
@@ -1605,7 +1643,8 @@ mod test {
             message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
             ExecuteMsg::UnfreezeChains {
                 chains: HashMap::from([(polygon.chain_name.clone(), GatewayDirection::None)]),
-            }.into(),
+            }
+            .into(),
         )
         .unwrap();
 
@@ -1864,7 +1903,8 @@ mod test {
                     gateway_address: polygon.gateway.to_string().try_into().unwrap(),
                     msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
                 }),
-            }.into(),
+            }
+            .into(),
         )
         .is_ok());
     }
@@ -1887,7 +1927,8 @@ mod test {
                     gateway_address: polygon.gateway.to_string().try_into().unwrap(),
                     msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
                 }),
-            }.into(),
+            }
+            .into(),
         );
 
         assert!(res.is_err());
@@ -1912,7 +1953,8 @@ mod test {
             ExecuteMsg::ExecuteFromCoordinator {
                 original_sender: api.addr_make(GOVERNANCE_ADDRESS),
                 msg: Box::new(ExecuteMsg::EnableRouting {}),
-            }.into(),
+            }
+            .into(),
         );
 
         assert!(res.is_err());
