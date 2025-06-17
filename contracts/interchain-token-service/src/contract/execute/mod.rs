@@ -7,10 +7,10 @@ use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
 use crate::events::Event;
 use crate::msg::SupplyModifier;
 use crate::primitives::HubMessage;
-use crate::state::TokenDeploymentType;
+use crate::state::{TokenConfig, TokenDeploymentType, TokenInstance, TokenSupply};
 use crate::{
     msg, state, DeployInterchainToken, InterchainTransfer, LinkToken, Message,
-    RegisterTokenMetadata, TokenConfig, TokenId, TokenInstance, TokenSupply,
+    RegisterTokenMetadata, TokenId,
 };
 
 mod interceptors;
@@ -402,7 +402,7 @@ pub fn register_chains(deps: DepsMut, chains: Vec<msg::ChainConfig>) -> Result<R
 fn register_chain(storage: &mut dyn Storage, config: msg::ChainConfig) -> Result<(), Error> {
     match state::may_load_chain_config(storage, &config.chain).change_context(Error::State)? {
         Some(_) => bail!(Error::ChainAlreadyRegistered(config.chain)),
-        None => state::save_chain_config(storage, &config.chain.clone(), config)
+        None => state::save_chain_config(storage, &config.chain.clone(), &config.into())
             .change_context(Error::State)?,
     };
 
@@ -420,7 +420,7 @@ pub fn update_chains(deps: DepsMut, chains: Vec<msg::ChainConfig>) -> Result<Res
 fn update_chain(storage: &mut dyn Storage, config: msg::ChainConfig) -> Result<(), Error> {
     match state::may_load_chain_config(storage, &config.chain).change_context(Error::State)? {
         None => bail!(Error::ChainNotRegistered(config.chain)),
-        Some(_) => state::save_chain_config(storage, &config.chain.clone(), config)
+        Some(_) => state::save_chain_config(storage, &config.chain.clone(), &config.into())
             .change_context(Error::State)?,
     };
 
@@ -474,8 +474,10 @@ pub fn register_p2p_token_instance(
     chain: ChainNameRaw,
     origin_chain: ChainNameRaw,
     decimals: u8,
-    supply: TokenSupply,
+    supply: msg::TokenSupply,
 ) -> Result<Response, Error> {
+    let supply: TokenSupply = supply.into();
+
     ensure_chain_is_registered(deps.storage, chain.clone())?;
     ensure_chain_is_registered(deps.storage, origin_chain.clone())?;
 
@@ -551,10 +553,10 @@ mod tests {
         modify_supply, register_chain, register_chains, unfreeze_chain, update_chains, Error,
     };
     use crate::msg::TruncationConfig;
-    use crate::state::{self, Config};
+    use crate::state::{self, Config, TokenSupply};
     use crate::{
         msg, DeployInterchainToken, HubMessage, InterchainTransfer, LinkToken, Message,
-        RegisterTokenMetadata, TokenId, TokenSupply,
+        RegisterTokenMetadata, TokenId,
     };
 
     const SOLANA: &str = "solana";
@@ -1612,7 +1614,7 @@ mod tests {
         let origin_chain = ethereum();
         let instance_chains: Vec<ChainNameRaw> = vec![solana(), ethereum()];
         let decimals = 18;
-        let supply = TokenSupply::Tracked(Uint256::one());
+        let supply = msg::TokenSupply::Tracked(Uint256::one());
 
         for chain in instance_chains {
             assert_ok!(register_p2p_token_instance(
@@ -1654,7 +1656,7 @@ mod tests {
             xrpl(),
             ethereum(),
             18,
-            TokenSupply::Tracked(Uint256::one())
+            msg::TokenSupply::Tracked(Uint256::one())
         ));
 
         // test transfer in both directions
@@ -1681,7 +1683,7 @@ mod tests {
         init(&mut deps);
 
         let decimals = 18;
-        let supply = TokenSupply::Tracked(Uint256::one());
+        let supply = msg::TokenSupply::Tracked(Uint256::one());
         assert_ok!(register_p2p_token_instance(
             deps.as_mut(),
             token_id(),
@@ -1709,7 +1711,7 @@ mod tests {
         let origin_chain = ethereum();
         let instance_chain = solana();
         let decimals = 18;
-        let supply = TokenSupply::Tracked(Uint256::one());
+        let supply = msg::TokenSupply::Tracked(Uint256::one());
         assert_ok!(register_p2p_token_instance(
             deps.as_mut(),
             token_id(),
@@ -1736,7 +1738,7 @@ mod tests {
         init(&mut deps);
 
         let decimals = 18;
-        let supply = TokenSupply::Tracked(Uint256::one());
+        let supply = msg::TokenSupply::Tracked(Uint256::one());
         assert_err_contains!(
             register_p2p_token_instance(
                 deps.as_mut(),
@@ -1776,10 +1778,10 @@ mod tests {
             ethereum(),
             ethereum(),
             decimals,
-            TokenSupply::Untracked
+            msg::TokenSupply::Untracked
         ));
 
-        let supply = TokenSupply::Tracked(Uint256::one());
+        let supply = msg::TokenSupply::Tracked(Uint256::one());
         assert_ok!(register_p2p_token_instance(
             deps.as_mut(),
             token_id(),

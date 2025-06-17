@@ -12,7 +12,7 @@ use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
 use tokio_stream::wrappers::BroadcastStream;
 use tokio_stream::Stream;
 use tokio_util::sync::CancellationToken;
-use tracing::{error, info};
+use tracing::{error, info, instrument};
 use valuable::Valuable;
 
 use crate::asyncutil::future::RetryPolicy;
@@ -72,6 +72,7 @@ impl EventSub for EventSubscriber {
     }
 }
 
+#[derive(Debug)]
 pub struct EventPublisher<T: TmClient + Sync> {
     tm_client: T,
     poll_interval: Duration,
@@ -79,7 +80,8 @@ pub struct EventPublisher<T: TmClient + Sync> {
     delay: Duration,
 }
 
-impl<T: TmClient + Sync> EventPublisher<T> {
+impl<T: TmClient + Sync + std::fmt::Debug> EventPublisher<T> {
+    #[instrument]
     pub fn new(client: T, capacity: usize, delay: Duration) -> (Self, EventSubscriber) {
         let (tx, _) = broadcast::channel(capacity);
         let publisher = EventPublisher {
@@ -93,6 +95,7 @@ impl<T: TmClient + Sync> EventPublisher<T> {
         (publisher, subscriber)
     }
 
+    #[instrument]
     pub async fn run(self, token: CancellationToken) -> Result<(), Error> {
         let block_stream = stream::blocks(&self.tm_client, self.poll_interval, self.delay)
             .filter(|_| future::ready(self.has_subscriber())); // skip processing blocks when no subscriber exists
