@@ -13,6 +13,12 @@ use crate::nonempty::Error;
 #[derive(Eq, Hash, Valuable, IntoInner)]
 pub struct String(std::string::String);
 
+impl String {
+    pub const fn is_not_empty(value: &str) -> bool {
+        !value.is_empty()
+    }
+}
+
 impl PartialEq<&str> for &String {
     fn eq(&self, other: &&str) -> bool {
         self.0 == *other
