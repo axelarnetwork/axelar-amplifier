@@ -130,7 +130,7 @@ mod tests {
     }
 
     #[test]
-    fn test_to_standard_url() {
+    fn test_to_standard_url_convert_to_url_sucessfully() {
         let original = "https://example.com";
         let url = Url::new_non_sensitive(original).unwrap();
         let inner: url::Url = url.to_standard_url();
@@ -138,14 +138,18 @@ mod tests {
     }
 
     #[test]
-    fn test_serialization() {
+    fn serialization_preserves_full_url_regardless_of_sensitivity() {
         let url = Url::new_non_sensitive("https://serialize.test").unwrap();
         let serialized = toml::to_string(&url).unwrap();
         assert!(serialized.contains("https://serialize.test"));
+
+        let sensitive_url = Url::new_sensitive("https://sensitive.serialize.test").unwrap();
+        let serialized = toml::to_string(&sensitive_url).unwrap();
+        assert!(serialized.contains("https://sensitive.serialize.test"));
     }
 
     #[test]
-    fn test_deserialize_sensitive() {
+    fn deserialize_sensitive_marks_url_as_sensitive_and_redacts_display() {
         #[derive(Deserialize)]
         struct TestConfig {
             #[serde(deserialize_with = "Url::deserialize_sensitive")]
@@ -159,7 +163,7 @@ mod tests {
     }
 
     #[test]
-    fn test_deserialize_non_sensitive() {
+    fn deserialize_non_sensitive_shows_full_url_in_display() {
         #[derive(Deserialize)]
         struct TestConfig {
             #[serde(deserialize_with = "Url::deserialize_non_sensitive")]
