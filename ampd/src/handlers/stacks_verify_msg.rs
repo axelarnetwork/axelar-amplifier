@@ -4,7 +4,7 @@ use std::convert::TryInto;
 use async_trait::async_trait;
 use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
 use axelar_wasm_std::voting::{PollId, Vote};
-use clarity::vm::types::PrincipalData;
+use clarity::vm::types::{PrincipalData, TypeSignature};
 use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmrs::tx::Msg;
 use cosmrs::Any;
@@ -20,9 +20,10 @@ use voting_verifier::msg::ExecuteMsg;
 
 use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error;
+use crate::stacks::error::Error as StacksError;
 use crate::stacks::finalizer::latest_finalized_block_height;
 use crate::stacks::http_client::Client;
-use crate::stacks::verifier::verify_message;
+use crate::stacks::verifier::{get_type_signature_contract_call, verify_message};
 use crate::types::{Hash, TMAddress};
 
 type CustomResult<T> = error_stack::Result<T, Error>;
@@ -56,22 +57,26 @@ pub struct Handler {
     voting_verifier_contract: TMAddress,
     http_client: Client,
     latest_block_height: Receiver<u64>,
+    type_signature_contract_call: TypeSignature,
 }
 
 impl Handler {
-    pub async fn new(
+    pub fn new(
         chain_name: ChainName,
         verifier: TMAddress,
         voting_verifier_contract: TMAddress,
         http_client: Client,
         latest_block_height: Receiver<u64>,
-    ) -> error_stack::Result<Self, crate::stacks::http_client::Error> {
+    ) -> error_stack::Result<Self, StacksError> {
+        let type_signature_contract_call = get_type_signature_contract_call()?;
+
         Ok(Self {
             chain_name,
             verifier,
             voting_verifier_contract,
             http_client,
             latest_block_height,
+            type_signature_contract_call,
         })
     }
 
@@ -157,11 +162,17 @@ impl EventHandler for Handler {
             let votes: Vec<Vote> = messages
                 .iter()
                 .map(|msg| {
-                    transactions
-                        .get(&msg.message_id.tx_hash.into())
-                        .map_or(Vote::NotFound, |transaction| {
-                            verify_message(&source_gateway_address, transaction, msg)
-                        })
+                    transactions.get(&msg.message_id.tx_hash.into()).map_or(
+                        Vote::NotFound,
+                        |transaction| {
+                            verify_message(
+                                &source_gateway_address,
+                                transaction,
+                                msg,
+                                &self.type_signature_contract_call,
+                            )
+                        },
+                    )
                 })
                 .collect();
 
@@ -269,14 +280,13 @@ mod tests {
             &voting_verifier,
         );
 
-        let handler = super::Handler::new(
+        let handler = Handler::new(
             ChainName::from_str("other").unwrap(),
             worker,
             voting_verifier,
             client,
             watch::channel(0).1,
         )
-        .await
         .unwrap();
 
         assert!(handler.handle(&event).await.is_ok());
@@ -291,14 +301,13 @@ mod tests {
         let event =
             into_structured_event(poll_started_event(participants(5, None)), &voting_verifier);
 
-        let handler = super::Handler::new(
+        let handler = Handler::new(
             ChainName::from_str("stacks").unwrap(),
             TMAddress::random(PREFIX),
             voting_verifier,
             client,
             watch::channel(0).1,
         )
-        .await
         .unwrap();
 
         assert!(handler.handle(&event).await.is_ok());
@@ -317,14 +326,13 @@ mod tests {
             &voting_verifier,
         );
 
-        let handler = super::Handler::new(
+        let handler = Handler::new(
             ChainName::from_str("stacks").unwrap(),
             worker,
             voting_verifier,
             client,
             watch::channel(0).1,
         )
-        .await
         .unwrap();
 
         let actual = handler.handle(&event).await.unwrap();
@@ -348,14 +356,13 @@ mod tests {
 
         let (tx, rx) = watch::channel(expiration - 1);
 
-        let handler = super::Handler::new(
+        let handler = Handler::new(
             ChainName::from_str("stacks").unwrap(),
             worker,
             voting_verifier,
             client,
             rx,
         )
-        .await
         .unwrap();
 
         // poll is not expired yet, should hit proxy
@@ -378,7 +385,6 @@ mod tests {
             client,
             watch::channel(0).1,
         )
-        .await
         .unwrap();
 
         handler

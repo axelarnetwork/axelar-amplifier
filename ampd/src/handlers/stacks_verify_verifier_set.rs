@@ -3,7 +3,7 @@ use std::convert::TryInto;
 use async_trait::async_trait;
 use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
 use axelar_wasm_std::voting::{PollId, Vote};
-use clarity::vm::types::PrincipalData;
+use clarity::vm::types::{PrincipalData, TypeSignature};
 use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmrs::tx::Msg;
 use cosmrs::Any;
@@ -22,7 +22,7 @@ use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error;
 use crate::stacks::finalizer::latest_finalized_block_height;
 use crate::stacks::http_client::Client;
-use crate::stacks::verifier::verify_verifier_set;
+use crate::stacks::verifier::{get_type_signature_signers_rotated, verify_verifier_set};
 use crate::types::TMAddress;
 
 type Result<T> = error_stack::Result<T, Error>;
@@ -52,6 +52,7 @@ pub struct Handler {
     voting_verifier_contract: TMAddress,
     http_client: Client,
     latest_block_height: Receiver<u64>,
+    type_signature_signers_rotated: TypeSignature,
 }
 
 impl Handler {
@@ -61,14 +62,17 @@ impl Handler {
         voting_verifier_contract: TMAddress,
         http_client: Client,
         latest_block_height: Receiver<u64>,
-    ) -> Self {
-        Self {
+    ) -> error_stack::Result<Self, crate::stacks::error::Error> {
+        let type_signature_signers_rotated = get_type_signature_signers_rotated()?;
+
+        Ok(Self {
             chain_name,
             verifier,
             voting_verifier_contract,
             http_client,
             latest_block_height,
-        }
+            type_signature_signers_rotated,
+        })
     }
 
     fn vote_msg(&self, poll_id: PollId, vote: Vote) -> MsgExecuteContract {
@@ -146,7 +150,12 @@ impl EventHandler for Handler {
             info!("ready to verify a new worker set in poll");
 
             let vote = transaction.map_or(Vote::NotFound, |transaction| {
-                verify_verifier_set(&source_gateway_address, &transaction, verifier_set)
+                verify_verifier_set(
+                    &source_gateway_address,
+                    &transaction,
+                    verifier_set,
+                    &self.type_signature_signers_rotated,
+                )
             });
             info!(
                 vote = vote.as_value(),
@@ -181,7 +190,7 @@ mod tests {
     use tokio::test as async_test;
     use voting_verifier::events::{PollMetadata, PollStarted, VerifierSetConfirmation};
 
-    use super::PollStartedEvent;
+    use super::{Handler, PollStartedEvent};
     use crate::event_processor::EventHandler;
     use crate::handlers::tests::{into_structured_event, participants};
     use crate::stacks::http_client::{Block, Client};
@@ -243,13 +252,14 @@ mod tests {
             &TMAddress::random(PREFIX),
         );
 
-        let handler = super::Handler::new(
+        let handler = Handler::new(
             ChainName::from_str("stacks").unwrap(),
             TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
             Client::faux(),
             watch::channel(0).1,
-        );
+        )
+        .unwrap();
 
         assert_eq!(handler.handle(&event).await.unwrap(), vec![]);
     }
@@ -261,13 +271,14 @@ mod tests {
             &TMAddress::random(PREFIX),
         );
 
-        let handler = super::Handler::new(
+        let handler = Handler::new(
             ChainName::from_str("stacks").unwrap(),
             TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
             Client::faux(),
             watch::channel(0).1,
-        );
+        )
+        .unwrap();
 
         assert_eq!(handler.handle(&event).await.unwrap(), vec![]);
     }
@@ -287,13 +298,14 @@ mod tests {
             &voting_verifier,
         );
 
-        let handler = super::Handler::new(
+        let handler = Handler::new(
             ChainName::from_str("other").unwrap(),
             verifier,
             voting_verifier,
             client,
             watch::channel(0).1,
-        );
+        )
+        .unwrap();
 
         assert_eq!(handler.handle(&event).await.unwrap(), vec![]);
     }
@@ -306,13 +318,14 @@ mod tests {
             &voting_verifier,
         );
 
-        let handler = super::Handler::new(
+        let handler = Handler::new(
             ChainName::from_str("stacks").unwrap(),
             TMAddress::random(PREFIX),
             voting_verifier,
             Client::faux(),
             watch::channel(0).1,
-        );
+        )
+        .unwrap();
 
         assert_eq!(handler.handle(&event).await.unwrap(), vec![]);
     }
@@ -336,13 +349,14 @@ mod tests {
 
         let (tx, rx) = watch::channel(expiration - 1);
 
-        let handler = super::Handler::new(
+        let handler = Handler::new(
             ChainName::from_str("stacks").unwrap(),
             verifier,
             voting_verifier,
             client,
             rx,
-        );
+        )
+        .unwrap();
 
         // poll is not expired yet, should hit proxy
         let actual = handler.handle(&event).await.unwrap();
@@ -368,13 +382,14 @@ mod tests {
             &voting_verifier,
         );
 
-        let handler = super::Handler::new(
+        let handler = Handler::new(
             ChainName::from_str("stacks").unwrap(),
             worker,
             voting_verifier,
             client,
             watch::channel(0).1,
-        );
+        )
+        .unwrap();
 
         let actual = handler.handle(&event).await.unwrap();
         assert_eq!(actual.len(), 1);

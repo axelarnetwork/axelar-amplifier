@@ -567,7 +567,6 @@ where
                         Client::new_http(http_url, rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))?,
                         self.block_height_monitor.latest_block_height(),
                     )
-                    .await
                     .change_context(Error::Connection)?,
                     event_processor_config.clone(),
                 ),
@@ -584,7 +583,8 @@ where
                         cosmwasm_contract,
                         Client::new_http(http_url, rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))?,
                         self.block_height_monitor.latest_block_height(),
-                    ),
+                    )
+                    .change_context(Error::Connection)?,
                     event_processor_config.clone(),
                 ),
             };
