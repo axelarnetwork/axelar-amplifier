@@ -17,7 +17,9 @@ use crate::{broadcaster, event_processor, grpc};
 #[serde(default)]
 pub struct Config {
     pub health_check_bind_addr: SocketAddrV4,
+    #[serde(deserialize_with = "Url::deserialize_sensitive")]
     pub tm_jsonrpc: Url,
+    #[serde(deserialize_with = "Url::deserialize_sensitive")]
     pub tm_grpc: Url,
     pub tm_grpc_timeout: Duration,
     pub event_processor: event_processor::Config,
@@ -34,8 +36,8 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            tm_jsonrpc: "http://localhost:26657".parse().unwrap(),
-            tm_grpc: "tcp://localhost:9090".parse().unwrap(),
+            tm_jsonrpc: Url::new_non_sensitive("http://localhost:26657").unwrap(),
+            tm_grpc: Url::new_non_sensitive("tcp://localhost:9090").unwrap(),
             tm_grpc_timeout: Duration::from_secs(5),
             broadcast: broadcaster::Config::default(),
             handlers: vec![],
@@ -461,15 +463,13 @@ mod tests {
         assert_eq!(cfg.tofnd_config.party_uid.as_str(), party_uid);
         assert_eq!(cfg.tofnd_config.key_uid.as_str(), key_uid);
     }
-
     #[test]
-    fn can_serialize_deserialize_config() {
+    fn serialization_roundtrip_preserves_data() {
         let cfg = config_template();
-
-        let serialized = toml::to_string_pretty(&cfg).expect("should work");
-        let deserialized: Config = toml::from_str(serialized.as_str()).expect("should work");
-
-        assert_eq!(cfg, deserialized);
+        let serialized1 = toml::to_string_pretty(&cfg).expect("should work");
+        let deserialized: Config = toml::from_str(serialized1.as_str()).expect("should work");
+        let serialized2 = toml::to_string_pretty(&deserialized).expect("should work");
+        assert_eq!(serialized1, serialized2);
     }
 
     #[test]
@@ -497,7 +497,7 @@ mod tests {
                     chain: Chain {
                         name: ChainName::from_str("Ethereum").unwrap(),
                         finalization: Finalization::RPCFinalizedBlock,
-                        rpc_url: Url::from_str("http://127.0.0.1").unwrap(),
+                        rpc_url: Url::new_non_sensitive("http://127.0.0.1").unwrap(),
                     },
                     rpc_timeout: Some(Duration::from_secs(3)),
                     cosmwasm_contract: TMAddress::from(
@@ -511,7 +511,7 @@ mod tests {
                     chain: Chain {
                         name: ChainName::from_str("Fantom").unwrap(),
                         finalization: Finalization::ConfirmationHeight,
-                        rpc_url: Url::from_str("http://127.0.0.1").unwrap(),
+                        rpc_url: Url::new_non_sensitive("http://127.0.0.1").unwrap(),
                     },
                     rpc_timeout: Some(Duration::from_secs(3)),
                 },
@@ -525,58 +525,58 @@ mod tests {
                     cosmwasm_contract: TMAddress::from(
                         AccountId::new("axelar", &[0u8; 32]).unwrap(),
                     ),
-                    rpc_url: Url::from_str("http://127.0.0.1").unwrap(),
+                    rpc_url: Url::new_non_sensitive("http://127.0.0.1").unwrap(),
                     rpc_timeout: Some(Duration::from_secs(3)),
                 },
                 HandlerConfig::SuiVerifierSetVerifier {
                     cosmwasm_contract: TMAddress::from(
                         AccountId::new("axelar", &[0u8; 32]).unwrap(),
                     ),
-                    rpc_url: Url::from_str("http://127.0.0.1").unwrap(),
+                    rpc_url: Url::new_non_sensitive("http://127.0.0.1").unwrap(),
                     rpc_timeout: Some(Duration::from_secs(3)),
                 },
                 HandlerConfig::MvxMsgVerifier {
                     cosmwasm_contract: TMAddress::from(
                         AccountId::new("axelar", &[0u8; 32]).unwrap(),
                     ),
-                    proxy_url: Url::from_str("http://127.0.0.1").unwrap(),
+                    proxy_url: Url::new_non_sensitive("http://127.0.0.1").unwrap(),
                 },
                 HandlerConfig::MvxVerifierSetVerifier {
                     cosmwasm_contract: TMAddress::from(
                         AccountId::new("axelar", &[0u8; 32]).unwrap(),
                     ),
-                    proxy_url: Url::from_str("http://127.0.0.1").unwrap(),
+                    proxy_url: Url::new_non_sensitive("http://127.0.0.1").unwrap(),
                 },
                 HandlerConfig::StellarMsgVerifier {
                     cosmwasm_contract: TMAddress::from(
                         AccountId::new("axelar", &[0u8; 32]).unwrap(),
                     ),
-                    rpc_url: Url::from_str("http://127.0.0.1").unwrap(),
+                    rpc_url: Url::new_non_sensitive("http://127.0.0.1").unwrap(),
                 },
                 HandlerConfig::StellarVerifierSetVerifier {
                     cosmwasm_contract: TMAddress::from(
                         AccountId::new("axelar", &[0u8; 32]).unwrap(),
                     ),
-                    rpc_url: Url::from_str("http://127.0.0.1").unwrap(),
+                    rpc_url: Url::new_non_sensitive("http://127.0.0.1").unwrap(),
                 },
                 HandlerConfig::StarknetMsgVerifier {
                     cosmwasm_contract: TMAddress::from(
                         AccountId::new("axelar", &[0u8; 32]).unwrap(),
                     ),
-                    rpc_url: Url::from_str("http://127.0.0.1").unwrap(),
+                    rpc_url: Url::new_non_sensitive("http://127.0.0.1").unwrap(),
                 },
                 HandlerConfig::StarknetVerifierSetVerifier {
                     cosmwasm_contract: TMAddress::from(
                         AccountId::new("axelar", &[0u8; 32]).unwrap(),
                     ),
-                    rpc_url: Url::from_str("http://127.0.0.1").unwrap(),
+                    rpc_url: Url::new_non_sensitive("http://127.0.0.1").unwrap(),
                 },
                 HandlerConfig::SolanaMsgVerifier {
                     chain_name: ChainName::from_str("solana").unwrap(),
                     cosmwasm_contract: TMAddress::from(
                         AccountId::new("axelar", &[0u8; 32]).unwrap(),
                     ),
-                    rpc_url: Url::from_str("http://127.0.0.1").unwrap(),
+                    rpc_url: Url::new_non_sensitive("http://127.0.0.1").unwrap(),
                     rpc_timeout: Some(Duration::from_secs(3)),
                 },
                 HandlerConfig::SolanaVerifierSetVerifier {
@@ -584,7 +584,7 @@ mod tests {
                     cosmwasm_contract: TMAddress::from(
                         AccountId::new("axelar", &[0u8; 32]).unwrap(),
                     ),
-                    rpc_url: Url::from_str("http://127.0.0.1").unwrap(),
+                    rpc_url: Url::new_non_sensitive("http://127.0.0.1").unwrap(),
                     rpc_timeout: Some(Duration::from_secs(3)),
                 },
             ],

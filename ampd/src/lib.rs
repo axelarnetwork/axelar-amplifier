@@ -510,8 +510,10 @@ where
                 handlers::starknet_verify_msg::Handler::new(
                     verifier.clone(),
                     cosmwasm_contract.clone(),
-                    starknet::json_rpc::Client::new_with_transport(HttpTransport::new(rpc_url))
-                        .change_context(Error::Connection)?,
+                    starknet::json_rpc::Client::new_with_transport(HttpTransport::new(
+                        rpc_url.to_standard_url(),
+                    ))
+                    .change_context(Error::Connection)?,
                     self.block_height_monitor.latest_block_height(),
                 ),
                 event_processor_config.clone(),
@@ -524,8 +526,10 @@ where
                 handlers::starknet_verify_verifier_set::Handler::new(
                     verifier.clone(),
                     cosmwasm_contract.clone(),
-                    starknet::json_rpc::Client::new_with_transport(HttpTransport::new(rpc_url))
-                        .change_context(Error::Connection)?,
+                    starknet::json_rpc::Client::new_with_transport(HttpTransport::new(
+                        rpc_url.to_standard_url(),
+                    ))
+                    .change_context(Error::Connection)?,
                     self.block_height_monitor.latest_block_height(),
                 ),
                 event_processor_config.clone(),
@@ -718,7 +722,6 @@ pub enum Error {
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
 
     use super::*;
     use crate::url::Url;
@@ -727,7 +730,7 @@ mod tests {
     fn test_invalid_url_parsing_returns_error() {
         // Test that invalid URLs are properly detected
         let invalid_url = "http://definitely-does-not-exist-12345.invalid";
-        let result = Url::from_str(invalid_url);
+        let result = Url::new_non_sensitive(invalid_url);
 
         // Should be able to parse the URL (syntax is valid)
         assert!(
@@ -747,7 +750,7 @@ mod tests {
     fn test_handler_config_creation_with_invalid_url() {
         // Test URL creation with invalid host - this should succeed syntactically
         let invalid_url = "http://invalid-nonexistent-host:8545";
-        let parsed_url = Url::from_str(invalid_url);
+        let parsed_url = Url::new_non_sensitive(invalid_url);
 
         // URL parsing should succeed for syntactically valid URLs
         assert!(
