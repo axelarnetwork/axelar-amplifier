@@ -13,9 +13,9 @@ pub enum ContractError {
     Overflow(#[from] OverflowError),
     #[error(transparent)]
     NonEmpty(#[from] nonempty::Error),
-    #[error("Verifiers count exceeds u16 limit")]
+    #[error("verifiers count exceeds u16 limit")]
     AuthorizedVerifiersExceedu16,
-    #[error("Verifiers count is negative")]
+    #[error("verifiers count is negative")]
     AuthorizedVerifiersNegative,
     #[error("max verifiers limit {0} exceeded by {1} verifiers")]
     VerifierLimitExceed(u16, u16),

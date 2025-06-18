@@ -6,7 +6,7 @@ use state::VERIFIERS;
 
 use super::*;
 use crate::events::Event;
-use crate::state::{self, ServiceParamsOverride, UpdatedServiceParams};
+use crate::state::{self, CountOperation, ServiceParamsOverride, UpdatedServiceParams};
 
 #[allow(clippy::too_many_arguments)]
 pub fn register_service(
@@ -34,30 +34,33 @@ pub fn register_service(
             description,
         },
     )?;
-    state::save_servicename_in_counter(deps.storage, &service_name)?;
+    state::register_new_service_counter(deps.storage, &service_name)?;
     Ok(Response::new())
 }
-fn validate_max_verifiers_not_exceed(
+fn ensure_authorization_max_limit_respected(
     deps: &DepsMut,
     service_name: &String,
     verifiers: &[Addr],
 ) -> Result<(), ContractError> {
-    let max_verifiers = state::load_max_verifiers(deps.storage, service_name)?;
-    if let Some(max) = max_verifiers {
-        let current_authorized = state::count_authorized_verifiers(deps.storage, service_name)?;
+    let max_limit = state::get_service_verifier_max_limit(deps.storage, service_name)?;
+    if let Some(max_limit) = max_limit {
+        let authorzied_verifier_count =
+            state::number_of_authorized_verifiers(deps.storage, service_name)?;
 
-        let verifiers_to_authorize =
-            state::count_verifiers_updated_to_authorized(deps.storage, service_name, verifiers)?;
+        let additional_authorizations =
+            state::count_verifiers_becoming_authorized(deps.storage, service_name, verifiers)?;
 
-        let new_total = current_authorized
-            .checked_add(verifiers_to_authorize)
+        let total_after_update = authorzied_verifier_count
+            .checked_add(additional_authorizations)
             .ok_or(ContractError::AuthorizedVerifiersExceedu16)?;
 
-        if new_total > max {
-            let excess = new_total
-                .checked_sub(max)
-                .ok_or(ContractError::AuthorizedVerifiersNegative)?; // This shouldn't happen due to the if condition
-            return Err(Report::new(ContractError::VerifierLimitExceed(max, excess)));
+        if total_after_update > max_limit {
+            let excess = total_after_update
+                .checked_sub(max_limit)
+                .ok_or(ContractError::AuthorizedVerifiersNegative)?;
+            return Err(Report::new(ContractError::VerifierLimitExceed(
+                max_limit, excess,
+            )));
         }
     }
 
@@ -73,7 +76,7 @@ pub fn update_verifier_authorization_status(
     ensure_service_exists(deps.storage, &service_name)?;
 
     if auth_state == AuthorizationState::Authorized {
-        validate_max_verifiers_not_exceed(&deps, &service_name, &verifiers)?;
+        ensure_authorization_max_limit_respected(&deps, &service_name, &verifiers)?;
     }
     for verifier in verifiers {
         let old_state = state::get_verifier_auth_state(deps.storage, &service_name, &verifier)?;
@@ -83,23 +86,32 @@ pub fn update_verifier_authorization_status(
             &verifier,
             auth_state.clone(),
         )?;
-        // update the counter (AUTHORIZED_VERIFIERS_COUNT)
-        // not AUTHORIZED -> AUTHROIZED, increment
-        // AUTHORIZED -> NOT_AUTHORIZED, decrement
         match (old_state, auth_state.clone()) {
             (Some(old), new) => match (old, new) {
                 (AuthorizationState::Authorized, AuthorizationState::NotAuthorized)
                 | (AuthorizationState::Authorized, AuthorizationState::Jailed) => {
-                    state::decrement_authorized_count(deps.storage, &service_name)?;
+                    state::update_authorized_count(
+                        deps.storage,
+                        &service_name,
+                        CountOperation::Decrement,
+                    )?;
                 }
                 (AuthorizationState::NotAuthorized, AuthorizationState::Authorized)
                 | (AuthorizationState::Jailed, AuthorizationState::Authorized) => {
-                    state::increment_authorized_count(deps.storage, &service_name)?;
+                    state::update_authorized_count(
+                        deps.storage,
+                        &service_name,
+                        CountOperation::Increment,
+                    )?;
                 }
                 _ => {}
             },
             (None, AuthorizationState::Authorized) => {
-                state::increment_authorized_count(deps.storage, &service_name)?;
+                state::update_authorized_count(
+                    deps.storage,
+                    &service_name,
+                    CountOperation::Increment,
+                )?;
             }
             _ => {}
         }
