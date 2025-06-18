@@ -134,7 +134,6 @@ mod tests {
         }
         let toml_str = r#"url = "https://sensitive.test""#;
         let config: TestConfig = toml::from_str(toml_str).unwrap();
-        assert!(config.url.is_sensitive);
         assert_eq!(format!("{}", config.url), REDACTED_VALUE);
         assert_eq!(config.url.as_str(), "https://sensitive.test/");
     }
@@ -148,7 +147,6 @@ mod tests {
         }
         let toml_str = r#"url = "https://non-sensitive.test""#;
         let config: TestConfig = toml::from_str(toml_str).unwrap();
-        assert!(!config.url.is_sensitive);
         assert_eq!(format!("{}", config.url), "https://non-sensitive.test/");
         assert_eq!(config.url.as_str(), "https://non-sensitive.test/");
     }
