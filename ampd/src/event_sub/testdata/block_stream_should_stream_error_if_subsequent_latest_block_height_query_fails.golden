@@ -1,0 +1,11 @@
+[
+    Ok(
+        block::Height(5153624),
+    ),
+    Err(
+        "failed querying the latest block",
+    ),
+    Err(
+        "failed querying the latest block",
+    ),
+]
