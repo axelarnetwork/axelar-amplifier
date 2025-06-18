@@ -9,27 +9,16 @@ use serde::{Deserialize, Serialize};
 use serde_with::with_prefix;
 
 use crate::evm::finalizer::Finalization;
-use crate::types::debug::REDACTED_VALUE;
 use crate::types::TMAddress;
 use crate::url::Url;
 
-#[derive(Clone, Deserialize, Serialize, PartialEq)]
+#[derive(Clone, Deserialize, Serialize, PartialEq, Debug)]
 pub struct Chain {
     pub name: ChainName,
     #[serde(deserialize_with = "Url::deserialize_sensitive")]
     pub rpc_url: Url,
     #[serde(default)]
     pub finalization: Finalization,
-}
-
-impl Debug for Chain {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Chain")
-            .field("name", &self.name)
-            .field("rpc_url", &REDACTED_VALUE)
-            .field("finalization", &self.finalization)
-            .finish()
-    }
 }
 
 with_prefix!(chain "chain_");
@@ -255,6 +244,7 @@ mod tests {
 
     use crate::evm::finalizer::Finalization;
     use crate::handlers::config::{deserialize_handler_configs, Chain, Config};
+    use crate::types::debug::REDACTED_VALUE;
     use crate::types::TMAddress;
     use crate::url::Url;
     use crate::PREFIX;
@@ -407,5 +397,18 @@ mod tests {
                 Err(e) if e.to_string().contains("only one Solana verifier set verifier config is allowed")
             )
         );
+    }
+    #[test]
+    fn test_chain_struct_debug_redacts_url() {
+        let chain = Chain {
+            name: ChainName::from_str("ethereum").unwrap(),
+            rpc_url: Url::new_sensitive("http://localhost:7545/API_KEY").unwrap(),
+            finalization: Finalization::RPCFinalizedBlock,
+        };
+        let debug_output = format!("{:?}", chain);
+        assert!(debug_output.contains("ethereum"));
+        assert!(debug_output.contains(REDACTED_VALUE));
+        assert!(!debug_output.contains("API_KEY"));
+        assert!(debug_output.contains("RPCFinalizedBlock"));
     }
 }

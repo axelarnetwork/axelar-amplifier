@@ -54,12 +54,12 @@ impl Default for Config {
 impl Debug for Config {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Config")
-            .field("tm_jsonrpc", &REDACTED_VALUE)
-            .field("tm_grpc", &REDACTED_VALUE)
+            .field("tm_jsonrpc", &self.tm_jsonrpc)
+            .field("tm_grpc", &self.tm_grpc)
             .field("tm_grpc_timeout", &self.tm_grpc_timeout)
             .field("broadcast", &self.broadcast)
             .field("handlers", &self.handlers)
-            .field("tofnd_config", &REDACTED_VALUE)
+            .field("tofnd_config", &self.tofnd_config)
             .field("event_processor", &self.event_processor)
             .field("service_registry", &self.service_registry)
             .field("rewards", &self.rewards)

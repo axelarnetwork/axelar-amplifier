@@ -1,9 +1,11 @@
 use std::fmt::{Debug, Display, Formatter};
 use std::ops::Deref;
 
-use serde::de::{Error};
+use serde::de::Error;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use url::ParseError;
+
+use crate::types::debug::REDACTED_VALUE;
 
 #[derive(Hash, PartialEq, Eq, Clone)]
 pub struct Url {
@@ -21,11 +23,17 @@ impl Deref for Url {
 
 impl Url {
     pub fn new_sensitive(s: &str) -> Result<Self, ParseError> {
-        url::Url::parse(s).map(|url| Self{inner: url, is_sensitive:true})
+        url::Url::parse(s).map(|url| Self {
+            inner: url,
+            is_sensitive: true,
+        })
     }
 
     pub fn new_non_sensitive(s: &str) -> Result<Self, ParseError> {
-        url::Url::parse(s).map(|url| Self{inner: url, is_sensitive:false})
+        url::Url::parse(s).map(|url| Self {
+            inner: url,
+            is_sensitive: false,
+        })
     }
 
     pub fn deserialize_sensitive<'de, D>(deserializer: D) -> Result<Self, D::Error>
@@ -57,7 +65,7 @@ impl Serialize for Url {
 impl Display for Url {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         if self.is_sensitive {
-            f.write_str("[REDACTED]")
+            f.write_str(REDACTED_VALUE)
         } else {
             f.write_str(self.inner.as_str())
         }
@@ -76,8 +84,6 @@ impl Debug for Url {
     }
 }
 
-
-
 #[cfg(test)]
 mod tests {
     use serde::Deserialize;
@@ -88,8 +94,8 @@ mod tests {
     fn test_new_sensitive_and_display_debug() {
         let url = Url::new_sensitive("http://secret.api/key").unwrap();
         assert!(url.is_sensitive);
-        assert_eq!(format!("{}", url), "[REDACTED]");
-        assert_eq!(format!("{:?}", url), "[REDACTED]");
+        assert_eq!(format!("{}", url), REDACTED_VALUE);
+        assert_eq!(format!("{:?}", url), REDACTED_VALUE);
     }
 
     #[test]
@@ -129,7 +135,7 @@ mod tests {
         let toml_str = r#"url = "https://sensitive.test""#;
         let config: TestConfig = toml::from_str(toml_str).unwrap();
         assert!(config.url.is_sensitive);
-        assert_eq!(format!("{}", config.url), "[REDACTED]");
+        assert_eq!(format!("{}", config.url), REDACTED_VALUE);
         assert_eq!(config.url.as_str(), "https://sensitive.test/");
     }
 
