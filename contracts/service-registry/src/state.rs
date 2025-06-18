@@ -9,7 +9,10 @@ use service_registry_api::error::ContractError;
 use service_registry_api::{AuthorizationState, BondingState, Service, Verifier};
 type ServiceName = String;
 type VerifierAddress = Addr;
-
+pub enum CountOperation {
+    Increment,
+    Decrement,
+}
 #[cw_serde]
 pub struct UpdatedServiceParams {
     pub min_num_verifiers: Option<u16>,
@@ -90,7 +93,7 @@ const SERVICE_OVERRIDES: Map<(&ServiceName, &ChainName), ServiceParamsOverride> 
 
 const AUTHORIZED_VERIFIER_COUNT: Map<&ServiceName, u16> = Map::new("authorized_verifier_count");
 
-pub fn load_max_verifiers(
+pub fn get_service_verifier_max_limit(
     storage: &dyn Storage,
     service_name: &ServiceName,
 ) -> error_stack::Result<Option<u16>, ContractError> {
@@ -159,13 +162,14 @@ pub fn update_verifier_auth_state(
         .change_context(ContractError::StorageError)
 }
 
-pub fn save_servicename_in_counter(
+pub fn register_new_service_counter(
     storage: &mut dyn Storage,
     service_name: &ServiceName,
 ) -> error_stack::Result<(), ContractError> {
     AUTHORIZED_VERIFIER_COUNT
         .save(storage, service_name, &0u16)
-        .into_report()
+        .change_context(ContractError::StorageError)?;
+    Ok(())
 }
 pub fn save_new_service(
     storage: &mut dyn Storage,
@@ -184,7 +188,7 @@ pub fn has_service(storage: &dyn Storage, service_name: &ServiceName) -> bool {
     SERVICES.has(storage, service_name)
 }
 
-pub fn count_verifiers_updated_to_authorized(
+pub fn count_verifiers_becoming_authorized(
     storage: &dyn Storage,
     service_name: &ServiceName,
     verifiers: &[Addr],
@@ -195,7 +199,9 @@ pub fn count_verifiers_updated_to_authorized(
             .may_load(storage, (service_name, verifier))
             .change_context(ContractError::StorageError)?
         {
-            Some(existing) if existing.authorization_state != AuthorizationState::Authorized => {
+            Some(existing_verifier)
+                if existing_verifier.authorization_state != AuthorizationState::Authorized =>
+            {
                 count = count
                     .checked_add(1)
                     .ok_or(ContractError::AuthorizedVerifiersExceedu16)?;
@@ -210,10 +216,10 @@ pub fn count_verifiers_updated_to_authorized(
     }
     Ok(count)
 }
-
-pub fn increment_authorized_count(
+pub fn update_authorized_count(
     storage: &mut dyn Storage,
     service_name: &ServiceName,
+    operation: CountOperation,
 ) -> error_stack::Result<(), ContractError> {
     AUTHORIZED_VERIFIER_COUNT
         .update(
@@ -221,34 +227,21 @@ pub fn increment_authorized_count(
             service_name,
             |count| -> std::result::Result<u16, ContractError> {
                 let current = count.ok_or(ContractError::ServiceNotFound)?;
-                current
-                    .checked_add(1)
-                    .ok_or(ContractError::AuthorizedVerifiersExceedu16)
-            },
-        )
-        .change_context(ContractError::StorageError)?;
-    Ok(())
-}
-pub fn decrement_authorized_count(
-    storage: &mut dyn Storage,
-    service_name: &ServiceName,
-) -> error_stack::Result<(), ContractError> {
-    AUTHORIZED_VERIFIER_COUNT
-        .update(
-            storage,
-            service_name,
-            |count| -> std::result::Result<u16, ContractError> {
-                let current = count.ok_or(ContractError::ServiceNotFound)?;
-                current
-                    .checked_sub(1)
-                    .ok_or(ContractError::AuthorizedVerifiersNegative)
+                match operation {
+                    CountOperation::Increment => current
+                        .checked_add(1)
+                        .ok_or(ContractError::AuthorizedVerifiersExceedu16),
+                    CountOperation::Decrement => current
+                        .checked_sub(1)
+                        .ok_or(ContractError::AuthorizedVerifiersNegative),
+                }
             },
         )
         .change_context(ContractError::StorageError)?;
     Ok(())
 }
 
-pub fn count_authorized_verifiers(
+pub fn number_of_authorized_verifiers(
     storage: &dyn Storage,
     service_name: &ServiceName,
 ) -> error_stack::Result<u16, ContractError> {
@@ -265,7 +258,7 @@ pub fn update_service(
     updated_service_params: UpdatedServiceParams,
 ) -> error_stack::Result<Service, ContractError> {
     if let Some(new_max) = updated_service_params.max_num_verifiers {
-        let current_authorized = count_authorized_verifiers(storage, service_name)?;
+        let current_authorized = number_of_authorized_verifiers(storage, service_name)?;
         if let Some(max) = new_max {
             if max < current_authorized {
                 return Err(
@@ -1196,26 +1189,45 @@ mod tests {
     fn test_authorized_verifier_count_operation() {
         let mut deps = mock_dependencies();
         let service = save_mock_service(deps.as_mut().storage);
-        save_servicename_in_counter(deps.as_mut().storage, &service.name).unwrap();
-        let count = count_authorized_verifiers(deps.as_ref().storage, &service.name).unwrap();
+        register_new_service_counter(deps.as_mut().storage, &service.name).unwrap();
+        let count = number_of_authorized_verifiers(deps.as_ref().storage, &service.name).unwrap();
         assert_eq!(count, 0);
-        increment_authorized_count(deps.as_mut().storage, &service.name).unwrap();
-        let count = count_authorized_verifiers(deps.as_ref().storage, &service.name).unwrap();
+        update_authorized_count(
+            deps.as_mut().storage,
+            &service.name,
+            CountOperation::Increment,
+        )
+        .unwrap();
+        let count = number_of_authorized_verifiers(deps.as_ref().storage, &service.name).unwrap();
         assert_eq!(count, 1);
-        decrement_authorized_count(deps.as_mut().storage, &service.name).unwrap();
-        let count = count_authorized_verifiers(deps.as_ref().storage, &service.name).unwrap();
+        update_authorized_count(
+            deps.as_mut().storage,
+            &service.name,
+            CountOperation::Decrement,
+        )
+        .unwrap();
+        let count = number_of_authorized_verifiers(deps.as_ref().storage, &service.name).unwrap();
         assert_eq!(count, 0);
-        let result = decrement_authorized_count(deps.as_mut().storage, &service.name);
+        let result = update_authorized_count(
+            deps.as_mut().storage,
+            &service.name,
+            CountOperation::Decrement,
+        );
         assert!(result.is_err());
     }
     #[test]
     fn test_update_service_max_verifiers_below_current_should_fail() {
         let mut deps = mock_dependencies();
         let service = save_mock_service(deps.as_mut().storage);
-        save_servicename_in_counter(deps.as_mut().storage, &service.name).unwrap();
+        register_new_service_counter(deps.as_mut().storage, &service.name).unwrap();
 
         for _ in 0..5 {
-            increment_authorized_count(deps.as_mut().storage, &service.name).unwrap();
+            update_authorized_count(
+                deps.as_mut().storage,
+                &service.name,
+                CountOperation::Increment,
+            )
+            .unwrap();
         }
 
         let params = UpdatedServiceParams {
