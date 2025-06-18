@@ -522,7 +522,7 @@ mod tests {
         let stream_delay = Duration::from_millis(10);
 
         let stream = blocks(&tm_client, poll_interval, stream_delay);
-        let results: Vec<_> = stream.take(12).collect().await;
+        let results: Vec<_> = stream.take(20).collect().await;
 
         let mut error_count = 0;
         let mut success_count = 0;
@@ -543,7 +543,7 @@ mod tests {
         }
 
         assert_eq!(error_count, 5); // 5 errors total
-        assert_eq!(success_count, 7); // 7 successful block heights
+        assert_eq!(success_count, 15); // 15 successful block heights
     }
 
     #[tokio::test(start_paused = true)]
@@ -982,11 +982,7 @@ mod tests {
         async fn latest_block(
             &self,
         ) -> error_stack::Result<tm_client::BlockResponse, tm_client::Error> {
-            self.call_count
-                .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-            let count = self.call_count.load(std::sync::atomic::Ordering::SeqCst);
-            tokio::time::sleep((self.delay)(count)).await; // Simulate slow response
-            self.client.latest_block().await
+            unimplemented!()
         }
 
         async fn block_results(
