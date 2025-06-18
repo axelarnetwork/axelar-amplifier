@@ -93,11 +93,7 @@ impl Client {
         tx_hashes
             .into_iter()
             .zip(txs)
-            .filter_map(|(hash, tx)| {
-                tx.as_ref()?;
-
-                Some((hash, tx.unwrap()))
-            })
+            .filter_map(|(hash, tx)| tx.map(|transaction| (hash, transaction)))
             .collect()
     }
 
