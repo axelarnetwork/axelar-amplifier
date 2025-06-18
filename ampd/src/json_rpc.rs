@@ -41,7 +41,7 @@ where
 
 impl Client<Http> {
     pub fn new_http(url: &Url, client: reqwest::Client) -> Self {
-        Client::new(Http::new_with_client(url.to_standard_url(), client))
+        Client::new(Http::new_with_client(url, client))
     }
 }
 

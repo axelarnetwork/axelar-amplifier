@@ -50,10 +50,6 @@ impl Url {
             is_sensitive: false,
         })
     }
-
-    pub fn to_standard_url(&self) -> url::Url {
-        self.inner.clone()
-    }
 }
 
 impl Serialize for Url {
@@ -72,6 +68,12 @@ impl Display for Url {
         } else {
             f.write_str(self.inner.as_str())
         }
+    }
+}
+
+impl From<&Url> for url::Url {
+    fn from(value: &Url) -> Self {
+        value.inner.clone()
     }
 }
 
@@ -130,10 +132,10 @@ mod tests {
     }
 
     #[test]
-    fn test_to_standard_url_convert_to_url_sucessfully() {
+    fn test_from_trait_convert_to_url_sucessfully() {
         let original = "https://example.com";
         let url = Url::new_non_sensitive(original).unwrap();
-        let inner: url::Url = url.to_standard_url();
+        let inner: url::Url = url::Url::from(&url);
         assert_eq!(inner.as_str(), "https://example.com/");
     }
 

@@ -511,7 +511,7 @@ where
                     verifier.clone(),
                     cosmwasm_contract.clone(),
                     starknet::json_rpc::Client::new_with_transport(HttpTransport::new(
-                        rpc_url.to_standard_url(),
+                        rpc_url,
                     ))
                     .change_context(Error::Connection)?,
                     self.block_height_monitor.latest_block_height(),
@@ -527,7 +527,7 @@ where
                     verifier.clone(),
                     cosmwasm_contract.clone(),
                     starknet::json_rpc::Client::new_with_transport(HttpTransport::new(
-                        rpc_url.to_standard_url(),
+                        rpc_url,
                     ))
                     .change_context(Error::Connection)?,
                     self.block_height_monitor.latest_block_height(),
