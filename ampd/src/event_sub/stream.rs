@@ -43,7 +43,7 @@ where
 {
     IntervalStream::new(interval(poll_interval))
         .then(|_each_tick| latest_block_height(tm_client))
-        .dedup()
+        .strictly_increasing_values()
         .map(move |result| delay_blocks(result, stream_delay))
         .buffered(1) // so blocks can be filled in without dealing with futures
         .fill_gaps()
@@ -157,7 +157,7 @@ fn block_events(block_results: BlockResultsResponse) -> Vec<Result<Event>> {
 }
 
 pin_project! {
-    struct Dedup<S>
+    struct StrictlyIncreasing<S>
     where
         S: TryStream,
     {
@@ -167,18 +167,19 @@ pin_project! {
     }
 }
 
-trait DedupExt: TryStream + Sized {
-    fn dedup(self) -> Dedup<Self> {
-        Dedup {
+trait StrictlyIncreasingExt: TryStream + Sized {
+    /// Creates a stream that only yields values that are strictly increasing compared to previously yielded values.
+    fn strictly_increasing_values(self) -> StrictlyIncreasing<Self> {
+        StrictlyIncreasing {
             stream: self,
             previous: None,
         }
     }
 }
 
-impl<S> DedupExt for S where S: TryStream {}
+impl<S> StrictlyIncreasingExt for S where S: TryStream {}
 
-impl<S> Stream for Dedup<S>
+impl<S> Stream for StrictlyIncreasing<S>
 where
     S: TryStream,
     S::Ok: Clone + PartialEq + PartialOrd,
@@ -191,7 +192,7 @@ where
         let mut me = self.as_mut().project();
 
         // loop until we get an element that is not a duplicate of an already streamed one.
-        // We use loop instead of recursion here, because in the case of a stuck chain, 
+        // We use loop instead of recursion here, because in the case of a stuck chain,
         // the stream could receive the same element for a long time, which would cause a stack overflow.
         loop {
             match me.stream.as_mut().try_poll_next(cx) {
@@ -201,8 +202,8 @@ where
                     match previous {
                         Some(previous) if previous >= current => {
                             me.previous.replace(previous.clone()); // revert update of the previous value
-                            continue
-                        },
+                            continue;
+                        }
                         _ => return Poll::Ready(Some(Ok(current))),
                     }
                 }
