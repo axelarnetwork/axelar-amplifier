@@ -2860,7 +2860,6 @@ mod test {
         );
         assert!(res.is_ok());
 
-        // First batch: authorize 3 verifiers
         let verifiers_1 = vec![
             api.addr_make("verifier1").to_string(),
             api.addr_make("verifier2").to_string(),
@@ -2878,7 +2877,6 @@ mod test {
         );
         assert!(res.is_ok());
 
-        // Second batch: try to authorize 2 more verifiers (should fail as it would exceed max)
         let verifiers_2 = vec![
             api.addr_make("verifier4").to_string(),
             api.addr_make("verifier5").to_string(),
@@ -2901,7 +2899,6 @@ mod test {
             ContractError::VerifierLimitExceed(4, 1)
         ));
 
-        // Third batch: authorize 1 more verifier  -> 4 verifiers authorized -> should success
         let verifier_3 = vec![api.addr_make("verifier4").to_string()];
         let res = execute(
             deps.as_mut(),
@@ -2940,7 +2937,6 @@ mod test {
         );
         assert!(res.is_ok());
 
-        // Authorize 3 verifiers
         let verifiers = vec![
             api.addr_make("verifier1").to_string(),
             api.addr_make("verifier2").to_string(),
@@ -2958,7 +2954,6 @@ mod test {
         );
         assert!(res.is_ok());
 
-        // Try to update max verifiers to 2 -> should fail
         let res = execute(
             deps.as_mut(),
             mock_env(),
@@ -2981,7 +2976,6 @@ mod test {
             ContractError::MaxVerifiersSetBelowCurrent(2, 3)
         ));
 
-        // update to 4 -> should succed
         let res = execute(
             deps.as_mut(),
             mock_env(),
