@@ -71,7 +71,6 @@ async fn latest_block_height<T: TmClient>(tm_client: &T) -> Result<block::Height
 /// - failed event retrievals are retried according to the retry policy
 /// - all events from a successfully queried block are included in the stream
 /// - block processing maintains the sequential order of the input stream
-#[instrument]
 pub fn events<'a, T, S>(
     tm_client: &'a T,
     block_stream: S,
