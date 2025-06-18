@@ -83,12 +83,7 @@ where
     block_stream
         .map(move |block_height| retrieve_all_block_events(tm_client, block_height, retry_policy))
         .buffered(super::BLOCK_PROCESSING_BUFFER)
-        .flat_map(|result| {
-            result.map_or_else(
-                |err| stream::iter(vec![Err(err)]),
-                |events| stream::iter(events),
-            )
-        })
+        .flat_map(|result| result.map_or_else(|err| stream::iter(vec![Err(err)]), stream::iter))
 }
 
 async fn delay_blocks(
@@ -120,6 +115,21 @@ where
     }
 }
 
+async fn block_results<T>(
+    tm_client: &T,
+    block_height: block::Height,
+) -> Result<BlockResultsResponse>
+where
+    T: TmClient,
+{
+    tm_client
+        .block_results(block_height)
+        .await
+        .change_context(Error::BlockResultsQuery {
+            block: block_height,
+        })
+}
+
 fn block_events(block_results: BlockResultsResponse) -> Vec<Result<Event>> {
     let begin_block_events = block_results.begin_block_events.into_iter().flatten();
     let tx_events = block_results
@@ -143,23 +153,6 @@ fn block_events(block_results: BlockResultsResponse) -> Vec<Result<Event>> {
         .chain(events)
         .chain(iter::once(Ok(Event::BlockEnd(block_results.height))))
         .collect()
-}
-
-async fn block_results<T>(
-    tm_client: &T,
-    block_height: block::Height,
-) -> Result<BlockResultsResponse>
-where
-    T: TmClient,
-{
-    let block_results =
-        tm_client
-            .block_results(block_height)
-            .await
-            .change_context(Error::BlockResultsQuery {
-                block: block_height,
-            })?;
-    Ok(block_results)
 }
 
 pin_project! {
