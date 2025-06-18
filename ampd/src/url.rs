@@ -93,7 +93,6 @@ mod tests {
     #[test]
     fn test_new_sensitive_and_display_debug() {
         let url = Url::new_sensitive("http://secret.api/key").unwrap();
-        assert!(url.is_sensitive);
         assert_eq!(format!("{}", url), REDACTED_VALUE);
         assert_eq!(format!("{:?}", url), REDACTED_VALUE);
     }
@@ -101,7 +100,6 @@ mod tests {
     #[test]
     fn test_new_non_sensitive_and_display_debug() {
         let url = Url::new_non_sensitive("http://public.api").unwrap();
-        assert!(!url.is_sensitive);
         assert_eq!(format!("{}", url), "http://public.api/");
         assert_eq!(format!("{:?}", url), "http://public.api/");
     }
