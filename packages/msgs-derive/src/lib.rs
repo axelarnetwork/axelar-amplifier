@@ -325,7 +325,10 @@ fn build_general_permissions_check(
 }
 
 fn build_verify_external_executor_function(data: ItemEnum) -> proc_macro2::TokenStream {
-    let v: Vec<(Ident, Ident)> = data
+    // The following vector stores the following pairs
+    // (contract_name, variant_name)
+    // Results are sorted on contract_name
+    let contracts_and_variants: Vec<(Ident, Ident)> = data
         .variants
         .into_iter()
         .filter_map(|variant| {
@@ -342,6 +345,8 @@ fn build_verify_external_executor_function(data: ItemEnum) -> proc_macro2::Token
                                         .parse2(list.tokens.clone())
                                         .expect("expecting valid contract names");
                                     let mut res: Vec<(Ident, Ident)> = vec![];
+
+                                    // Contracts must parse to a path. Only keep valid contract names
                                     for c in contracts {
                                         if let Expr::Path(expr_path) = c {
                                             if let Some(contract_name) = expr_path.path.get_ident()
@@ -353,6 +358,7 @@ fn build_verify_external_executor_function(data: ItemEnum) -> proc_macro2::Token
                                             }
                                         }
                                     }
+
                                     Some(res)
                                 } else {
                                     None
@@ -370,17 +376,17 @@ fn build_verify_external_executor_function(data: ItemEnum) -> proc_macro2::Token
         .sorted_by(|a, b| a.0.cmp(&b.0))
         .collect();
 
+    // For every contract, list every variant that contract may execute
     let allowed_msgs: Vec<(String, Vec<Ident>)> = {
         let mut map: BTreeMap<String, Vec<Ident>> = BTreeMap::new();
-        for (contract, variant) in v {
+        for (contract, variant) in contracts_and_variants {
             map.entry(contract.to_string()).or_default().push(variant);
         }
         map.into_iter().collect()
     };
 
-    let enum_type = external_execute_msg_ident(data.ident.clone());
     let original_enum_type = data.ident.clone();
-    let generated: Vec<_> = allowed_msgs.iter().map(|(_, variants)| quote! {
+    let match_contract_can_execute_variant: Vec<_> = allowed_msgs.iter().map(|(_, variants)| quote! {
         match msg {
             #(#original_enum_type::#variants {..} => {},)*
             _ => return error_stack::bail!(axelar_wasm_std::permission_control::Error::Unauthorized),
@@ -390,25 +396,20 @@ fn build_verify_external_executor_function(data: ItemEnum) -> proc_macro2::Token
 
     let all_contracts: Vec<_> = allowed_msgs.into_iter().map(|x| x.0).collect();
 
-    proc_macro2::TokenStream::from(quote! {
+   quote! {
         pub fn verify_external_executor(
-            self,
+            msg: #original_enum_type,
             contract_name: String,
-        ) -> error_stack::Result<Self, axelar_wasm_std::permission_control::Error> {
-            let msg = match self.clone() {
-                #enum_type::Direct(msg) => msg,
-                #enum_type::Relay{msg, ..} => msg,
-            };
-
+        ) -> error_stack::Result<#original_enum_type, axelar_wasm_std::permission_control::Error> {
             #(
                 if contract_name == #all_contracts {
-                    #generated
+                    #match_contract_can_execute_variant
                 }
             )*
 
-            Ok(self)
+            Ok(msg.clone())
         }
-    })
+    }
 }
 
 fn build_full_check_function(
@@ -706,10 +707,16 @@ pub fn external_execute(attr: TokenStream, item: TokenStream) -> TokenStream {
             let (msg, info) = match msg {
                 #new_msg_ident::Relay{sender, msg} => {
                     // Validate that the sending contract is allowed to execute messages.
-                    let contract_name: String = validate_external_contract(msg.clone(), deps.storage, info.sender.clone(), #(#contract_permissions),*, #(#contract_names_literals.to_string()),*)?;
-                    msg_old.verify_external_executor(contract_name)?;
-
-                    (msg, cosmwasm_std::MessageInfo {
+                    (#new_msg_ident::verify_external_executor(
+                        msg.clone(), 
+                        validate_external_contract(
+                            msg.clone(), 
+                            deps.storage, 
+                            info.sender.clone(), 
+                            #(#contract_permissions),*, 
+                            #(#contract_names_literals.to_string()),*
+                        )?,
+                    )?, cosmwasm_std::MessageInfo {
                         sender: sender,
                         funds: info.funds,
                     })
