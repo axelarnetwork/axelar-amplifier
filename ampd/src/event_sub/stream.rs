@@ -181,7 +181,7 @@ impl<S> DedupExt for S where S: TryStream {}
 impl<S> Stream for Dedup<S>
 where
     S: TryStream,
-    S::Ok: Clone + PartialEq,
+    S::Ok: Clone + PartialEq + PartialOrd,
 {
     type Item = core::result::Result<S::Ok, S::Error>;
     fn poll_next(
@@ -190,16 +190,24 @@ where
     ) -> Poll<Option<core::result::Result<S::Ok, S::Error>>> {
         let mut me = self.as_mut().project();
 
-        match me.stream.as_mut().try_poll_next(cx) {
-            Poll::Ready(Some(Ok(current))) => {
-                let previous = me.previous.replace(current.clone());
+        // loop until we get an element that is not a duplicate of an already streamed one.
+        // We use loop instead of recursion here, because in the case of a stuck chain, 
+        // the stream could receive the same element for a long time, which would cause a stack overflow.
+        loop {
+            match me.stream.as_mut().try_poll_next(cx) {
+                Poll::Ready(Some(Ok(current))) => {
+                    let previous = me.previous.replace(current.clone());
 
-                match previous {
-                    Some(previous) if previous == current => Poll::Pending,
-                    _ => Poll::Ready(Some(Ok(current))),
+                    match previous {
+                        Some(previous) if previous >= current => {
+                            me.previous.replace(previous.clone()); // revert update of the previous value
+                            continue
+                        },
+                        _ => return Poll::Ready(Some(Ok(current))),
+                    }
                 }
+                poll_result => return poll_result,
             }
-            poll_result => poll_result,
         }
     }
 }
@@ -448,13 +456,14 @@ mod tests {
             let height = match call_count {
                 1 => start_height,     // 400
                 2 => start_height + 1, // 401
-                3 => start_height + 2, // 402
-                4 => start_height + 1, // 401 - duplicate, older than predecessor
-                5 => start_height + 2, // 402 - duplicate of already streamed
-                6 => start_height - 1, // 399 - older than any streamed block
-                7 => start_height + 3, // 403 - new block
-                8 => start_height,     // 400 - duplicate of first streamed
-                _ => start_height + 3 + call_count - 8,
+                3 => start_height + 1, // 401 - immediate duplicate
+                4 => start_height + 2, // 402
+                5 => start_height + 1, // 401 - duplicate, older than predecessor
+                6 => start_height + 2, // 402 - duplicate of already streamed
+                7 => start_height - 1, // 399 - older than any streamed block
+                8 => start_height + 3, // 403 - new block
+                9 => start_height,     // 400 - duplicate of first streamed
+                _ => start_height + 3 + call_count - 9,
             };
             Ok(create_block_with_height(&base_block, height))
         });
@@ -463,9 +472,9 @@ mod tests {
         let stream_delay = Duration::from_millis(10);
 
         let stream = blocks(&tm_client, poll_interval, stream_delay);
-        let results: Vec<_> = stream.take(5).collect().await; // Should get 400, 401, 402, 403, 404
+        let results: Vec<_> = stream.take(10).collect().await; // Should get 400, 401, 402, 403, 404, 405, 406, 407, 408, 409
 
-        assert_eq!(results.len(), 5);
+        assert_eq!(results.len(), 10);
 
         for (i, height_result) in results.into_iter().enumerate() {
             assert_eq!(height_result.unwrap().value(), start_height + i as u64);
