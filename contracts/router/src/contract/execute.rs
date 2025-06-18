@@ -261,36 +261,6 @@ pub fn route_messages(
         .add_events(msgs.into_iter().map(|msg| MessageRouted { msg })))
 }
 
-pub fn execute_from_coordinator(
-    deps: DepsMut,
-    original_sender: Addr,
-    msg: router_api::msg::ExecuteMsg,
-) -> error_stack::Result<Response, Error> {
-    match msg
-        .ensure_permissions(
-            deps.storage,
-            &original_sender,
-            crate::contract::find_gateway_address(&original_sender),
-            crate::contract::find_coordinator_address,
-        )
-        .change_context(Error::Unauthorized)?
-    {
-        router_api::msg::ExecuteMsg::RegisterChain {
-            chain,
-            gateway_address,
-            ref msg_id_format,
-        } => register_chain(
-            deps.storage,
-            deps.querier,
-            chain,
-            address::validate_cosmwasm_address(deps.api, &gateway_address)
-                .change_context(Error::InvalidAddress)?,
-            msg_id_format.clone(),
-        ),
-        _ => Err(report!(Error::InvalidExecuteMsg)),
-    }
-}
-
 #[cfg(test)]
 mod test {
     use std::collections::HashMap;

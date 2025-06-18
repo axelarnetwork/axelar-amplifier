@@ -46,12 +46,6 @@ pub enum ExecuteMsg {
     /// Called by an incoming gateway
     #[permission(Specific(gateway))]
     RouteMessages(Vec<Message>),
-
-    #[permission(Specific(coordinator))]
-    ExecuteFromCoordinator {
-        original_sender: Addr,
-        msg: Box<ExecuteMsg>,
-    },
 }
 
 #[cw_serde]
