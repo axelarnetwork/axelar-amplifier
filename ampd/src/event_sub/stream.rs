@@ -4,8 +4,6 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::time::Duration;
 
-use crate::asyncutil::future::{with_retry, RetryPolicy};
-use crate::tm_client::{BlockResultsResponse, TmClient};
 use error_stack::ResultExt;
 use events::Event;
 use futures::{stream, Stream, StreamExt, TryStream};
@@ -14,6 +12,9 @@ use tendermint::block;
 use tokio::time::interval;
 use tokio_stream::wrappers::IntervalStream;
 use tracing::instrument;
+
+use crate::asyncutil::future::{with_retry, RetryPolicy};
+use crate::tm_client::{BlockResultsResponse, TmClient};
 
 type Error = super::Error;
 type Result<T> = error_stack::Result<T, Error>;
@@ -325,17 +326,18 @@ where
 mod tests {
     use std::time::Duration;
 
-    use super::super::tests::{block_results_response, random_event};
-    use crate::asyncutil::future::RetryPolicy;
-    use crate::event_sub::stream::{blocks, events};
-    use crate::event_sub::Error;
-    use crate::tm_client::{self, MockTmClient, TmClient};
     use axelar_wasm_std::err_contains;
     use error_stack::report;
     use events::Event;
     use futures::{stream, StreamExt};
     use tendermint::abci::EventAttribute;
     use tendermint::block;
+
+    use super::super::tests::{block_results_response, random_event};
+    use crate::asyncutil::future::RetryPolicy;
+    use crate::event_sub::stream::{blocks, events};
+    use crate::event_sub::Error;
+    use crate::tm_client::{self, MockTmClient, TmClient};
 
     #[tokio::test(start_paused = true)]
     async fn blocks_stream_adheres_to_poll_interval_to_get_new_blocks() {
