@@ -17,6 +17,7 @@ pub use proto::Algorithm;
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub struct Config {
+    #[serde(deserialize_with = "Url::deserialize_sensitive")]
     pub url: Url,
     pub party_uid: String,
     pub key_uid: String,
@@ -26,7 +27,7 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            url: "http://localhost:50051/".parse().unwrap(),
+            url: Url::new_non_sensitive("http://localhost:50051/").unwrap(),
             party_uid: "ampd".into(),
             key_uid: "axelar".into(),
             timeout: Duration::from_secs(3),
