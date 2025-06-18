@@ -86,38 +86,40 @@ pub fn update_verifier_authorization_status(
             &verifier,
             auth_state.clone(),
         )?;
-        match (old_state, auth_state.clone()) {
-            (Some(old), new) => match (old, new) {
-                (AuthorizationState::Authorized, AuthorizationState::NotAuthorized)
-                | (AuthorizationState::Authorized, AuthorizationState::Jailed) => {
-                    state::update_authorized_count(
-                        deps.storage,
-                        &service_name,
-                        CountOperation::Decrement,
-                    )?;
-                }
-                (AuthorizationState::NotAuthorized, AuthorizationState::Authorized)
-                | (AuthorizationState::Jailed, AuthorizationState::Authorized) => {
-                    state::update_authorized_count(
-                        deps.storage,
-                        &service_name,
-                        CountOperation::Increment,
-                    )?;
-                }
-                _ => {}
-            },
-            (None, AuthorizationState::Authorized) => {
-                state::update_authorized_count(
-                    deps.storage,
-                    &service_name,
-                    CountOperation::Increment,
-                )?;
-            }
-            _ => {}
-        }
+        update_count_based_on_state_transition(
+            deps.storage,
+            &service_name,
+            &auth_state,
+            old_state,
+        )?;
     }
 
     Ok(Response::new())
+}
+
+fn update_count_based_on_state_transition(
+    storage: &mut dyn Storage,
+    service_name: &String,
+    auth_state: &AuthorizationState,
+    old_state: Option<AuthorizationState>,
+) -> Result<(), ContractError> {
+    Ok(match (old_state, auth_state.clone()) {
+        (Some(old), new) => match (old, new) {
+            (AuthorizationState::Authorized, AuthorizationState::NotAuthorized)
+            | (AuthorizationState::Authorized, AuthorizationState::Jailed) => {
+                state::update_authorized_count(storage, service_name, CountOperation::Decrement)?;
+            }
+            (AuthorizationState::NotAuthorized, AuthorizationState::Authorized)
+            | (AuthorizationState::Jailed, AuthorizationState::Authorized) => {
+                state::update_authorized_count(storage, service_name, CountOperation::Increment)?;
+            }
+            _ => {}
+        },
+        (None, AuthorizationState::Authorized) => {
+            state::update_authorized_count(storage, service_name, CountOperation::Increment)?;
+        }
+        _ => {}
+    })
 }
 
 pub fn update_service(
