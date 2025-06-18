@@ -43,6 +43,7 @@ struct PollStartedEvent {
     expires_at: u64,
 }
 
+#[derive(Debug)]
 pub struct Handler<C>
 where
     C: SuiClient + Send + Sync,

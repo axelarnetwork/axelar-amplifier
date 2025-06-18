@@ -1,3 +1,5 @@
+use std::fmt;
+use std::fmt::Debug;
 use std::time::Duration;
 
 use itertools::Itertools;
@@ -7,15 +9,26 @@ use serde::{Deserialize, Serialize};
 use serde_with::with_prefix;
 
 use crate::evm::finalizer::Finalization;
+use crate::types::debug::REDACTED_VALUE;
 use crate::types::TMAddress;
 use crate::url::Url;
 
-#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[derive(Clone, Deserialize, Serialize, PartialEq)]
 pub struct Chain {
     pub name: ChainName,
     pub rpc_url: Url,
     #[serde(default)]
     pub finalization: Finalization,
+}
+
+impl Debug for Chain {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Chain")
+            .field("name", &self.name)
+            .field("rpc_url", &REDACTED_VALUE)
+            .field("finalization", &self.finalization)
+            .finish()
+    }
 }
 
 with_prefix!(chain "chain_");

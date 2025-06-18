@@ -1,8 +1,11 @@
+use std::fmt::Debug;
 use std::iter;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::time::Duration;
 
+use crate::asyncutil::future::{with_retry, RetryPolicy};
+use crate::tm_client::{BlockResultsResponse, TmClient};
 use error_stack::ResultExt;
 use events::Event;
 use futures::{stream, Stream, StreamExt, TryStream};
@@ -10,9 +13,7 @@ use pin_project_lite::pin_project;
 use tendermint::block;
 use tokio::time::interval;
 use tokio_stream::wrappers::IntervalStream;
-
-use crate::asyncutil::future::{with_retry, RetryPolicy};
-use crate::tm_client::{BlockResultsResponse, TmClient};
+use tracing::instrument;
 
 type Error = super::Error;
 type Result<T> = error_stack::Result<T, Error>;
@@ -30,13 +31,14 @@ type Result<T> = error_stack::Result<T, Error>;
 /// - no delay when catching up, i.e. if the block height query returns a block that is n blocks
 ///   ahead of the previously seen latest block, all blocks leading up to that new latest block will get
 ///   streamed without delay
+#[instrument]
 pub fn blocks<Client>(
     tm_client: &Client,
     poll_interval: Duration,
     stream_delay: Duration,
 ) -> impl Stream<Item = Result<block::Height>> + '_
 where
-    Client: TmClient + Sync,
+    Client: TmClient + Sync + Debug,
 {
     IntervalStream::new(interval(poll_interval))
         .then(|_each_tick| latest_block_height(tm_client))
@@ -69,6 +71,7 @@ async fn latest_block_height<T: TmClient>(tm_client: &T) -> Result<block::Height
 /// - failed event retrievals are retried according to the retry policy
 /// - all events from a successfully queried block are included in the stream
 /// - block processing maintains the sequential order of the input stream
+#[instrument]
 pub fn events<'a, T, S>(
     tm_client: &'a T,
     block_stream: S,

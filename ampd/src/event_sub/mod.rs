@@ -55,7 +55,7 @@ pub trait EventSub {
     fn subscribe(&self) -> impl Stream<Item = Result<Event, Error>> + Send + 'static;
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct EventSubscriber {
     tx: Sender<std::result::Result<Event, Error>>,
 }

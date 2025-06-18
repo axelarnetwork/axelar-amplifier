@@ -1,5 +1,6 @@
 use core::pin::Pin;
 use core::task::{Context, Poll};
+use std::fmt::Debug;
 use std::future::Future;
 
 use axelar_wasm_std::nonempty;
@@ -14,7 +15,7 @@ use tokio::time;
 use tokio_stream::adapters::Fuse;
 use tokio_stream::wrappers::ReceiverStream;
 use tokio_stream::StreamExt;
-use tracing::warn;
+use tracing::{instrument, warn};
 use valuable::Valuable;
 
 use super::{broadcaster, Error, Result};
@@ -59,7 +60,7 @@ pub struct QueueMsg {
 /// // Enqueue without caring about the result
 /// msg_queue_client.enqueue_and_forget(msg).await?;
 /// ```
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct MsgQueueClient<T>
 where
     T: cosmos::CosmosClient,
@@ -213,6 +214,7 @@ pin_project! {
     /// This provides efficient batching while ensuring timely processing.
     /// The Stream implementation yields non-empty vectors of queued messages
     /// that are ready for broadcasting.
+    #[derive(Debug)]
     pub struct MsgQueue {
         #[pin]
         stream: Fuse<ReceiverStream<QueueMsg>>,
@@ -323,15 +325,16 @@ fn handle_queue_error(msg: QueueMsg, err: Error) {
         tx_res_callback, ..
     } = msg;
 
-    let err = report!(err);
+    let report = report!(err);
     warn!(
-        error = LoggableError::from(&err).as_value(),
+        error = LoggableError::from(&report).as_value(),
         "message dropped"
     );
 
-    let _ = tx_res_callback.send(Err(err));
+    let _ = tx_res_callback.send(Err(report));
 }
 
+#[derive(Debug)]
 struct Queue {
     msgs: Vec<QueueMsg>,
     gas_cost: Gas,
@@ -347,6 +350,7 @@ impl Queue {
         }
     }
 
+    #[instrument(skip(handle_error))]
     pub fn push_or<F>(&mut self, msg: QueueMsg, handle_error: F) -> Option<nonempty::Vec<QueueMsg>>
     where
         F: FnOnce(QueueMsg, Error),
