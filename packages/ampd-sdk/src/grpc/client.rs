@@ -351,7 +351,7 @@ mod tests {
         let mut client = setup_test_client(mock_blockchain, MockCryptoService::new()).await;
         let result = client.address().await;
 
-        assert!(result.is_ok(), "unexpected error: {}", result.unwrap_err());
+        assert!(result.is_ok());
         assert_eq!(result.unwrap(), sample_account_id());
     }
 
@@ -365,7 +365,7 @@ mod tests {
         let mut client = setup_test_client(mock_blockchain, MockCryptoService::new()).await;
         let result = client.address().await;
 
-        assert!(result.is_err(), "unexpected error: {}", result.unwrap_err());
+        assert!(result.is_err());
         assert!(matches!(
             result.unwrap_err().current_context(),
             Error::Grpc(GrpcError::ServiceUnavailable(_))
@@ -382,7 +382,7 @@ mod tests {
         let mut client = setup_test_client(mock_blockchain, MockCryptoService::new()).await;
         let result = client.address().await;
 
-        assert!(result.is_err(), "unexpected error: {}", result.unwrap_err());
+        assert!(result.is_err());
         assert!(matches!(
             result.unwrap_err().current_context(),
             Error::Grpc(GrpcError::InvalidArgument(_))
@@ -407,7 +407,7 @@ mod tests {
 
         for _ in 0..5 {
             let result = client.address().await;
-            assert!(result.is_ok(), "unexpected error: {}", result.unwrap_err());
+            assert!(result.is_ok());
             assert_eq!(result.unwrap(), sample_account_id());
         }
     }
@@ -429,7 +429,7 @@ mod tests {
         let mut client = setup_test_client(mock_blockchain, MockCryptoService::new()).await;
         let result = client.broadcast(any_msg()).await;
 
-        assert!(result.is_ok(), "unexpected error: {}", result.unwrap_err());
+        assert!(result.is_ok());
         assert_eq!(result.unwrap(), sample_broadcast_response());
     }
 
@@ -443,7 +443,7 @@ mod tests {
         let mut client = setup_test_client(mock_blockchain, MockCryptoService::new()).await;
         let result = client.broadcast(any_msg()).await;
 
-        assert!(result.is_err(), "unexpected error: {}", result.unwrap_err());
+        assert!(result.is_err());
         assert!(matches!(
             result.unwrap_err().current_context(),
             Error::Grpc(GrpcError::InternalError(_))
@@ -502,7 +502,7 @@ mod tests {
         let (contract, query) = contract_state_input_args();
         let result: Result<TestResponse, Error> = client.contract_state(contract, query).await;
 
-        assert!(result.is_ok(), "unexpected error: {}", result.unwrap_err());
+        assert!(result.is_ok());
         assert_eq!(result.unwrap(), expected_response_clone);
     }
 
@@ -522,7 +522,7 @@ mod tests {
         let (contract, query) = contract_state_input_args();
         let result: Result<Value, Error> = client.contract_state(contract, query).await;
 
-        assert!(result.is_err(), "unexpected error: {}", result.unwrap_err());
+        assert!(result.is_err());
         assert!(matches!(
             result.unwrap_err().current_context(),
             Error::App(AppError::InvalidJson)
@@ -540,7 +540,7 @@ mod tests {
         let (contract, query) = contract_state_input_args();
         let result: Result<Value, Error> = client.contract_state(contract, query).await;
 
-        assert!(result.is_err(), "unexpected error: {}", result.unwrap_err());
+        assert!(result.is_err());
         assert!(matches!(
             result.unwrap_err().current_context(),
             Error::Grpc(GrpcError::OperationFailed(_))
@@ -566,7 +566,7 @@ mod tests {
         let mut client = setup_test_client(mock_blockchain, MockCryptoService::new()).await;
         let result = client.contracts().await;
 
-        assert!(result.is_ok(), "unexpected error: {}", result.unwrap_err());
+        assert!(result.is_ok());
         assert_eq!(result.unwrap(), sample_contracts());
     }
 
@@ -587,6 +587,8 @@ mod tests {
         let mut client = setup_test_client(mock_blockchain, MockCryptoService::new()).await;
 
         let result = client.contracts().await;
+
+        assert!(result.is_err());
         assert!(matches!(
             result.unwrap_err().current_context(),
             Error::App(AppError::InvalidContractsResponse)
@@ -608,7 +610,7 @@ mod tests {
             .sign(Some(generate_key(KeyAlgorithm::Ecdsa)), sample_message())
             .await;
 
-        assert!(result.is_ok(), "unexpected error: {}", result.unwrap_err());
+        assert!(result.is_ok());
         assert_eq!(result.unwrap(), sample_signature());
     }
 
@@ -625,6 +627,8 @@ mod tests {
         let result = client
             .sign(Some(generate_key(KeyAlgorithm::Ecdsa)), sample_message())
             .await;
+
+        assert!(result.is_err());
         assert!(matches!(
             result.unwrap_err().current_context(),
             Error::App(AppError::InvalidByteArray)
@@ -644,6 +648,8 @@ mod tests {
         let result = client
             .sign(Some(generate_key(KeyAlgorithm::Ecdsa)), sample_message())
             .await;
+
+        assert!(result.is_err());
         assert!(matches!(
             result.unwrap_err().current_context(),
             Error::Grpc(GrpcError::InternalError(_))
@@ -663,7 +669,7 @@ mod tests {
         let mut client = setup_test_client(MockBlockchainService::new(), mock_crypto).await;
         let result = client.sign(None, sample_message()).await;
 
-        assert!(result.is_ok(), "unexpected error: {}", result.unwrap_err());
+        assert!(result.is_ok());
         assert_eq!(result.unwrap(), sample_signature());
     }
 
@@ -680,7 +686,7 @@ mod tests {
         let mut client = setup_test_client(MockBlockchainService::new(), mock_crypto).await;
         let result = client.key(Some(generate_key(KeyAlgorithm::Ecdsa))).await;
 
-        assert!(result.is_ok(), "unexpected error: {}", result.unwrap_err());
+        assert!(result.is_ok());
         assert_eq!(result.unwrap(), sample_public_key());
     }
 
@@ -695,6 +701,8 @@ mod tests {
         let mut client = setup_test_client(MockBlockchainService::new(), mock_crypto).await;
 
         let result = client.key(Some(generate_key(KeyAlgorithm::Ecdsa))).await;
+
+        assert!(result.is_err());
         assert!(matches!(
             result.unwrap_err().current_context(),
             Error::Grpc(GrpcError::DataLoss(_))
@@ -712,6 +720,8 @@ mod tests {
         let mut client = setup_test_client(MockBlockchainService::new(), mock_crypto).await;
 
         let result = client.key(Some(generate_key(KeyAlgorithm::Ecdsa))).await;
+
+        assert!(result.is_err());
         assert!(matches!(
             result.unwrap_err().current_context(),
             Error::Grpc(GrpcError::InvalidArgument(_))
