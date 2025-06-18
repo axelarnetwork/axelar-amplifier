@@ -1,8 +1,8 @@
 use std::fmt::{Debug, Display, Formatter};
 use std::ops::Deref;
 
-use serde::de::{Error, Visitor};
-use serde::{Deserializer, Serialize, Serializer};
+use serde::de::{Error};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use url::ParseError;
 
 #[derive(Hash, PartialEq, Eq, Clone)]
@@ -20,35 +20,28 @@ impl Deref for Url {
 }
 
 impl Url {
-    fn new(url: url::Url, is_sensitive: bool) -> Self {
-        Self {
-            inner: url,
-            is_sensitive,
-        }
-    }
-
     pub fn new_sensitive(s: &str) -> Result<Self, ParseError> {
-        url::Url::parse(s).map(|url| Self::new(url, true))
+        url::Url::parse(s).map(|url| Self{inner: url, is_sensitive:true})
     }
 
     pub fn new_non_sensitive(s: &str) -> Result<Self, ParseError> {
-        url::Url::parse(s).map(|url| Self::new(url, false))
+        url::Url::parse(s).map(|url| Self{inner: url, is_sensitive:false})
     }
 
     pub fn deserialize_sensitive<'de, D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
-        deserializer.deserialize_string(UrlVisitor { is_sensitive: true })
+        let url_str = String::deserialize(deserializer)?;
+        Url::new_sensitive(&url_str).map_err(|err| D::Error::custom(err.to_string()))
     }
 
     pub fn deserialize_non_sensitive<'de, D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
-        deserializer.deserialize_string(UrlVisitor {
-            is_sensitive: false,
-        })
+        let url_str = String::deserialize(deserializer)?;
+        Url::new_non_sensitive(&url_str).map_err(|err| D::Error::custom(err.to_string()))
     }
 }
 
@@ -71,43 +64,19 @@ impl Display for Url {
     }
 }
 
-impl From<&Url> for url::Url {
-    fn from(value: &Url) -> Self {
-        value.inner.clone()
+impl From<Url> for url::Url {
+    fn from(value: Url) -> Self {
+        value.inner
     }
 }
 
 impl Debug for Url {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        if self.is_sensitive {
-            f.write_str("[REDACTED]")
-        } else {
-            f.write_str(self.inner.as_str())
-        }
+        Display::fmt(self, f)
     }
 }
 
-struct UrlVisitor {
-    is_sensitive: bool,
-}
-impl Visitor<'_> for UrlVisitor {
-    type Value = Url;
 
-    fn expecting(&self, formatter: &mut Formatter) -> std::fmt::Result {
-        formatter.write_str("a well-formed url string")
-    }
-
-    fn visit_str<E>(self, url: &str) -> Result<Self::Value, E>
-    where
-        E: Error,
-    {
-        if self.is_sensitive {
-            Url::new_sensitive(url).map_err(|err: ParseError| E::custom(err.to_string()))
-        } else {
-            Url::new_non_sensitive(url).map_err(|err: ParseError| E::custom(err.to_string()))
-        }
-    }
-}
 
 #[cfg(test)]
 mod tests {
@@ -135,7 +104,7 @@ mod tests {
     fn test_from_trait_convert_to_url_sucessfully() {
         let original = "https://example.com";
         let url = Url::new_non_sensitive(original).unwrap();
-        let inner: url::Url = url::Url::from(&url);
+        let inner: url::Url = url::Url::from(url);
         assert_eq!(inner.as_str(), "https://example.com/");
     }
 

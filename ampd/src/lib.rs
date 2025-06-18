@@ -294,7 +294,7 @@ where
                 rpc_timeout,
             } => {
                 let rpc_client = json_rpc::Client::new_http(
-                    &chain.rpc_url,
+                    chain.rpc_url.clone(),
                     reqwest::ClientBuilder::new()
                         .connect_timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
                         .timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
@@ -323,7 +323,7 @@ where
                 rpc_timeout,
             } => {
                 let rpc_client = json_rpc::Client::new_http(
-                    &chain.rpc_url,
+                    chain.rpc_url.clone(),
                     reqwest::ClientBuilder::new()
                         .connect_timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
                         .timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
@@ -370,7 +370,7 @@ where
                     verifier.clone(),
                     cosmwasm_contract.clone(),
                     json_rpc::Client::new_http(
-                        rpc_url,
+                        rpc_url.clone(),
                         reqwest::ClientBuilder::new()
                             .connect_timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
                             .timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
@@ -433,7 +433,7 @@ where
                     verifier.clone(),
                     cosmwasm_contract.clone(),
                     json_rpc::Client::new_http(
-                        rpc_url,
+                        rpc_url.clone(),
                         reqwest::ClientBuilder::new()
                             .connect_timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
                             .timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
@@ -511,7 +511,7 @@ where
                     verifier.clone(),
                     cosmwasm_contract.clone(),
                     starknet::json_rpc::Client::new_with_transport(HttpTransport::new(
-                        rpc_url,
+                        rpc_url.clone(),
                     ))
                     .change_context(Error::Connection)?,
                     self.block_height_monitor.latest_block_height(),
@@ -527,7 +527,7 @@ where
                     verifier.clone(),
                     cosmwasm_contract.clone(),
                     starknet::json_rpc::Client::new_with_transport(HttpTransport::new(
-                        rpc_url,
+                        rpc_url.clone(),
                     ))
                     .change_context(Error::Connection)?,
                     self.block_height_monitor.latest_block_height(),
