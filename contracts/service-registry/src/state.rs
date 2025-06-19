@@ -10,11 +10,13 @@ use service_registry_api::AuthorizationState::{Authorized, Jailed, NotAuthorized
 use service_registry_api::{AuthorizationState, BondingState, Service, Verifier};
 type ServiceName = String;
 type VerifierAddress = Addr;
+use error_stack::ensure;
 
-pub enum VerifierCountOperation {
+enum VerifierCountOperation {
     Increment,
     Decrement,
 }
+
 #[cw_serde]
 pub struct UpdatedServiceParams {
     pub min_num_verifiers: Option<u16>,
@@ -162,7 +164,10 @@ pub fn save_new_service(
     service: Service,
 ) -> error_stack::Result<Service, ContractError> {
     AUTHORIZED_VERIFIER_COUNT
-        .save(storage, service_name, &0u16)
+        .update(storage, service_name, |count| match count {
+            None => Ok(0u16),
+            Some(_) => Err(ContractError::ServiceAlreadyExists),
+        })
         .change_context(ContractError::StorageError)?;
 
     SERVICES
@@ -187,11 +192,9 @@ pub fn update_count_based_on_state_transition(
         (Some(NotAuthorized) | Some(Jailed), Authorized) | (None, Authorized) => {
             VerifierCountOperation::Increment
         }
-
         (Some(Authorized), NotAuthorized) | (Some(Authorized), Jailed) => {
             VerifierCountOperation::Decrement
         }
-
         _ => return Ok(()),
     };
     update_authorized_count(storage, service_name, operation)
@@ -222,7 +225,7 @@ pub fn count_verifiers_becoming_authorized(
     })
 }
 
-pub fn update_authorized_count(
+fn update_authorized_count(
     storage: &mut dyn Storage,
     service_name: &ServiceName,
     operation: VerifierCountOperation,
@@ -263,12 +266,14 @@ pub fn update_service(
     service_name: &ServiceName,
     updated_service_params: UpdatedServiceParams,
 ) -> error_stack::Result<Service, ContractError> {
-    if let Some(Some(max)) = updated_service_params.max_num_verifiers {
+    if let Some(Some(max_verifiers_limt)) = updated_service_params.max_num_verifiers {
         let current_authorized = number_of_authorized_verifiers(storage, service_name)?;
-        if max < current_authorized {
-            return Err(ContractError::MaxVerifiersSetBelowCurrent(max, current_authorized).into());
-        }
+        ensure!(
+            max_verifiers_limt >= current_authorized,
+            ContractError::MaxVerifiersSetBelowCurrent(max_verifiers_limt, current_authorized)
+        );
     }
+
     SERVICES
         .update(storage, service_name, |service| match service {
             None => Err(ContractError::ServiceNotFound),
@@ -1187,12 +1192,14 @@ mod tests {
         let service = mock_service();
         save_new_service(storage, &service.name.clone(), service).unwrap()
     }
+
     #[test]
     fn test_authorized_verifier_count_operation() {
         let mut deps = mock_dependencies();
         let service = save_mock_service(deps.as_mut().storage);
         let count = number_of_authorized_verifiers(deps.as_ref().storage, &service.name).unwrap();
         assert_eq!(count, 0);
+
         update_authorized_count(
             deps.as_mut().storage,
             &service.name,
@@ -1201,6 +1208,7 @@ mod tests {
         .unwrap();
         let count = number_of_authorized_verifiers(deps.as_ref().storage, &service.name).unwrap();
         assert_eq!(count, 1);
+
         update_authorized_count(
             deps.as_mut().storage,
             &service.name,
@@ -1209,6 +1217,7 @@ mod tests {
         .unwrap();
         let count = number_of_authorized_verifiers(deps.as_ref().storage, &service.name).unwrap();
         assert_eq!(count, 0);
+
         let result = update_authorized_count(
             deps.as_mut().storage,
             &service.name,
@@ -1216,10 +1225,12 @@ mod tests {
         );
         assert!(result.is_err());
     }
+
     #[test]
     fn test_update_service_max_verifiers_below_current_should_fail() {
         let mut deps = mock_dependencies();
         let service = save_mock_service(deps.as_mut().storage);
+
         for _ in 0..5 {
             update_authorized_count(
                 deps.as_mut().storage,
@@ -1235,6 +1246,7 @@ mod tests {
             min_verifier_bond: None,
             unbonding_period_days: None,
         };
+
         let result = update_service(deps.as_mut().storage, &service.name, params);
         assert!(result.is_err());
     }
