@@ -1943,10 +1943,10 @@ mod test {
         );
 
         assert!(res.is_err());
-        assert!(res.unwrap_err().to_string().contains(
-            &axelar_wasm_std::permission_control::Error::Unauthorized
-                .to_string()
-        ));
+        assert!(res
+            .unwrap_err()
+            .to_string()
+            .contains(&axelar_wasm_std::permission_control::Error::Unauthorized.to_string()));
     }
 
     #[test]

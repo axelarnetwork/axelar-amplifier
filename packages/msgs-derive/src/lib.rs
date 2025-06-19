@@ -7,8 +7,7 @@ use itertools::Itertools;
 use proc_macro::TokenStream;
 use proc_macro2::{Literal, Span};
 use quote::{format_ident, quote};
-use syn::parse::Parser;
-use syn::parse::{Parse, ParseStream};
+use syn::parse::{Parse, ParseStream, Parser};
 use syn::punctuated::Punctuated;
 use syn::token::Comma;
 use syn::{parse_quote, Expr, ExprCall, Ident, ItemEnum, ItemFn, Meta, Path, Token, Variant};
@@ -331,48 +330,44 @@ fn build_verify_external_executor_function(data: ItemEnum) -> proc_macro2::Token
     let contracts_and_variants: Vec<(Ident, Ident)> = data
         .variants
         .into_iter()
-        .filter_map(|variant| {
-            Some(
-                variant
-                    .attrs
-                    .into_iter()
-                    .filter_map(|attr| match attr.meta.clone() {
-                        Meta::List(list) => match list.path.get_ident() {
-                            Some(function_name) => {
-                                if function_name.eq(&format_ident!("external_executors")) {
-                                    let parser = Punctuated::<Expr, Token![,]>::parse_terminated;
-                                    let contracts = parser
-                                        .parse2(list.tokens.clone())
-                                        .expect("expecting valid contract names");
-                                    let mut res: Vec<(Ident, Ident)> = vec![];
+        .flat_map(|variant| {
+            variant
+                .attrs
+                .into_iter()
+                .filter_map(|attr| match attr.meta.clone() {
+                    Meta::List(list) => match list.path.get_ident() {
+                        Some(function_name) => {
+                            if function_name.eq(&format_ident!("external_executors")) {
+                                let parser = Punctuated::<Expr, Token![,]>::parse_terminated;
+                                let contracts = parser
+                                    .parse2(list.tokens.clone())
+                                    .expect("expecting valid contract names");
+                                let mut res: Vec<(Ident, Ident)> = vec![];
 
-                                    // Contracts must parse to a path. Only keep valid contract names
-                                    for c in contracts {
-                                        if let Expr::Path(expr_path) = c {
-                                            if let Some(contract_name) = expr_path.path.get_ident()
-                                            {
-                                                res.push((
-                                                    contract_name.clone(),
-                                                    variant.ident.clone(),
-                                                ));
-                                            }
+                                // Contracts must parse to a path. Only keep valid contract names
+                                for c in contracts {
+                                    if let Expr::Path(expr_path) = c {
+                                        if let Some(contract_name) = expr_path.path.get_ident() {
+                                            res.push((
+                                                contract_name.clone(),
+                                                variant.ident.clone(),
+                                            ));
                                         }
                                     }
-
-                                    Some(res)
-                                } else {
-                                    None
                                 }
+
+                                Some(res)
+                            } else {
+                                None
                             }
-                            None => None,
-                        },
-                        _ => None,
-                    })
-                    .flatten()
-                    .collect::<Vec<(Ident, Ident)>>(),
-            )
+                        }
+                        None => None,
+                    },
+                    _ => None,
+                })
+                .flatten()
+                .collect::<Vec<(Ident, Ident)>>()
         })
-        .flatten()
         .sorted_by(|a, b| a.0.cmp(&b.0))
         .collect();
 
@@ -388,22 +383,22 @@ fn build_verify_external_executor_function(data: ItemEnum) -> proc_macro2::Token
     let original_enum_type = data.ident.clone();
     let match_contract_can_execute_variant: Vec<_> = allowed_msgs.iter().map(|(_, variants)| quote! {
         match msg {
-            #(#original_enum_type::#variants {..} => {},)*
-            _ => return error_stack::bail!(axelar_wasm_std::permission_control::Error::Unauthorized),
+            #(#original_enum_type::#variants {..} => Ok(msg.clone()),)*
+            _ => error_stack::bail!(axelar_wasm_std::permission_control::Error::Unauthorized),
         }
     })
     .collect();
 
     let all_contracts: Vec<_> = allowed_msgs.into_iter().map(|x| x.0).collect();
 
-   quote! {
+    quote! {
         pub fn verify_external_executor(
             msg: #original_enum_type,
             contract_name: String,
         ) -> error_stack::Result<#original_enum_type, axelar_wasm_std::permission_control::Error> {
             #(
                 if contract_name == #all_contracts {
-                    #match_contract_can_execute_variant
+                    return #match_contract_can_execute_variant
                 }
             )*
 
@@ -619,8 +614,6 @@ fn validate_external_contract_function(
         })
         .collect();
 
-    println!("Contract names: {:?}", contract_names_str);
-
     TokenStream::from(quote! {
         fn validate_external_contract<#(#fs),*, #(#cs),*>(
                 msg: #execute_msg_ident,
@@ -672,9 +665,9 @@ pub fn external_execute(attr: TokenStream, item: TokenStream) -> TokenStream {
         .unzip();
 
     let contract_names_literals: Vec<_> = contract_names
-    .iter()
-    .map(|cn| Literal::string(cn.to_string().as_str()))
-    .collect();
+        .iter()
+        .map(|cn| Literal::string(cn.to_string().as_str()))
+        .collect();
 
     // TODO: Write integration tests to check sorted ordering works!
 
@@ -708,12 +701,12 @@ pub fn external_execute(attr: TokenStream, item: TokenStream) -> TokenStream {
                 #new_msg_ident::Relay{sender, msg} => {
                     // Validate that the sending contract is allowed to execute messages.
                     (#new_msg_ident::verify_external_executor(
-                        msg.clone(), 
+                        msg.clone(),
                         validate_external_contract(
-                            msg.clone(), 
-                            deps.storage, 
-                            info.sender.clone(), 
-                            #(#contract_permissions),*, 
+                            msg.clone(),
+                            deps.storage,
+                            info.sender.clone(),
+                            #(#contract_permissions),*,
                             #(#contract_names_literals.to_string()),*
                         )?,
                     )?, cosmwasm_std::MessageInfo {
