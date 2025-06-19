@@ -165,65 +165,65 @@ fn ensure_specific_permissions() {
     // calling ensure_permissions. Since the call to ensure premissions is now generated,
     // this deterministic ordering helps to ensure arguments are inserted in the correct
     // order.
-    // The order in this test is: gateway3, gateway1, gateway2
+    // The order in this test happens to be: gateway1, gateway2, gateway3
 
     let mut storage = MockStorage::new();
     permission_control::set_admin(&mut storage, &admin).unwrap();
     permission_control::set_governance(&mut storage, &governance).unwrap();
 
     assert!(TestMsg2::Any
-        .ensure_permissions(&storage, &no_privilege, gateway3, gateway1, gateway2)
+        .ensure_permissions(&storage, &no_privilege, gateway1, gateway2, gateway3)
         .is_ok());
     assert!(TestMsg2::Any
-        .ensure_permissions(&storage, &admin, gateway3, gateway1, gateway2)
+        .ensure_permissions(&storage, &admin, gateway1, gateway2, gateway3)
         .is_ok());
     assert!(TestMsg2::Any
-        .ensure_permissions(&storage, &governance, gateway3, gateway1, gateway2)
+        .ensure_permissions(&storage, &governance, gateway1, gateway2, gateway3)
         .is_ok());
     assert!(TestMsg2::Any
-        .ensure_permissions(&storage, &gateway1_addr, gateway3, gateway1, gateway2)
+        .ensure_permissions(&storage, &gateway1_addr, gateway1, gateway2, gateway3)
         .is_ok());
     assert!(TestMsg2::Any
-        .ensure_permissions(&storage, &gateway2_addr, gateway3, gateway1, gateway2)
+        .ensure_permissions(&storage, &gateway2_addr, gateway1, gateway2, gateway3)
         .is_ok());
     assert!(TestMsg2::Any
-        .ensure_permissions(&storage, &gateway3_addr, gateway3, gateway1, gateway2)
+        .ensure_permissions(&storage, &gateway3_addr, gateway1, gateway2, gateway3)
         .is_ok());
 
     assert!(matches!(
         TestMsg2::Specific1
-            .ensure_permissions(&storage, &no_privilege, gateway3, gateway1, gateway2)
+            .ensure_permissions(&storage, &no_privilege, gateway1, gateway2, gateway3)
             .unwrap_err()
             .current_context(),
         permission_control::Error::AddressNotWhitelisted { .. }
     ));
     assert!(matches!(
         TestMsg2::Specific1
-            .ensure_permissions(&storage, &admin, gateway3, gateway1, gateway2)
+            .ensure_permissions(&storage, &admin, gateway1, gateway2, gateway3)
             .unwrap_err()
             .current_context(),
         permission_control::Error::AddressNotWhitelisted { .. }
     ));
     assert!(matches!(
         TestMsg2::Specific1
-            .ensure_permissions(&storage, &governance, gateway3, gateway1, gateway2)
+            .ensure_permissions(&storage, &governance, gateway1, gateway2, gateway3)
             .unwrap_err()
             .current_context(),
         permission_control::Error::AddressNotWhitelisted { .. }
     ));
     assert!(TestMsg2::Specific1
-        .ensure_permissions(&storage, &gateway1_addr, gateway3, gateway1, gateway2)
+        .ensure_permissions(&storage, &gateway1_addr, gateway1, gateway2, gateway3)
         .is_ok());
     assert!(matches!(
         TestMsg2::Specific1
-            .ensure_permissions(&storage, &gateway2_addr, gateway3, gateway1, gateway2)
+            .ensure_permissions(&storage, &gateway2_addr, gateway1, gateway2, gateway3)
             .unwrap_err()
             .current_context(),
         permission_control::Error::AddressNotWhitelisted { .. }
     ));
     assert!(matches!(
         TestMsg2::Specific1
-            .ensure_permissions(&storage, &gateway3_addr, gateway3, gateway1, gateway2)
+            .ensure_permissions(&storage, &gateway3_addr, gateway1, gateway2, gateway3)
             .unwrap_err()
             .current_context(),
         permission_control::Error::AddressNotWhitelisted { .. }
@@ -231,94 +231,94 @@ fn ensure_specific_permissions() {
 
     assert!(matches!(
         TestMsg2::Specific2
-            .ensure_permissions(&storage, &no_privilege, gateway3, gateway1, gateway2)
+            .ensure_permissions(&storage, &no_privilege, gateway1, gateway2, gateway3)
             .unwrap_err()
             .current_context(),
         permission_control::Error::PermissionDenied { .. }
     ));
     assert!(TestMsg2::Specific2
-        .ensure_permissions(&storage, &admin, gateway3, gateway1, gateway2)
+        .ensure_permissions(&storage, &admin, gateway1, gateway2, gateway3)
         .is_ok());
     assert!(TestMsg2::Specific2
-        .ensure_permissions(&storage, &governance, gateway3, gateway1, gateway2)
+        .ensure_permissions(&storage, &governance, gateway1, gateway2, gateway3)
         .is_ok());
     assert!(TestMsg2::Specific2
-        .ensure_permissions(&storage, &gateway1_addr, gateway3, gateway1, gateway2)
+        .ensure_permissions(&storage, &gateway1_addr, gateway1, gateway2, gateway3)
         .is_ok());
     assert!(matches!(
         TestMsg2::Specific2
-            .ensure_permissions(&storage, &gateway2_addr, gateway3, gateway1, gateway2)
+            .ensure_permissions(&storage, &gateway2_addr, gateway1, gateway2, gateway3)
             .unwrap_err()
             .current_context(),
         permission_control::Error::PermissionDenied { .. }
     ));
     assert!(matches!(
         TestMsg2::Specific2
-            .ensure_permissions(&storage, &gateway3_addr, gateway3, gateway1, gateway2)
+            .ensure_permissions(&storage, &gateway3_addr, gateway1, gateway2, gateway3)
             .unwrap_err()
             .current_context(),
         permission_control::Error::PermissionDenied { .. }
     ));
 
     assert!(TestMsg2::Specific3
-        .ensure_permissions(&storage, &no_privilege, gateway3, gateway1, gateway2)
+        .ensure_permissions(&storage, &no_privilege, gateway1, gateway2, gateway3)
         .is_ok());
     assert!(TestMsg2::Specific3
-        .ensure_permissions(&storage, &admin, gateway3, gateway1, gateway2)
+        .ensure_permissions(&storage, &admin, gateway1, gateway2, gateway3)
         .is_ok());
     assert!(matches!(
         TestMsg2::Specific3
-            .ensure_permissions(&storage, &governance, gateway3, gateway1, gateway2)
+            .ensure_permissions(&storage, &governance, gateway1, gateway2, gateway3)
             .unwrap_err()
             .current_context(),
         permission_control::Error::PermissionDenied { .. }
     ));
     assert!(TestMsg2::Specific3
-        .ensure_permissions(&storage, &gateway1_addr, gateway3, gateway1, gateway2)
+        .ensure_permissions(&storage, &gateway1_addr, gateway1, gateway2, gateway3)
         .is_ok());
     assert!(TestMsg2::Specific3
-        .ensure_permissions(&storage, &gateway2_addr, gateway3, gateway1, gateway2)
+        .ensure_permissions(&storage, &gateway2_addr, gateway1, gateway2, gateway3)
         .is_ok());
     assert!(TestMsg2::Specific3
-        .ensure_permissions(&storage, &gateway3_addr, gateway3, gateway1, gateway2)
+        .ensure_permissions(&storage, &gateway3_addr, gateway1, gateway2, gateway3)
         .is_ok()); // because of NoPrivilege
 
     assert!(matches!(
         TestMsg2::Specific4
-            .ensure_permissions(&storage, &no_privilege, gateway3, gateway1, gateway2)
+            .ensure_permissions(&storage, &no_privilege, gateway1, gateway2, gateway3)
             .unwrap_err()
             .current_context(),
         permission_control::Error::AddressNotWhitelisted { .. }
     ));
     assert!(matches!(
         TestMsg2::Specific4
-            .ensure_permissions(&storage, &admin, gateway3, gateway1, gateway2)
+            .ensure_permissions(&storage, &admin, gateway1, gateway2, gateway3)
             .unwrap_err()
             .current_context(),
         permission_control::Error::AddressNotWhitelisted { .. }
     ));
     assert!(matches!(
         TestMsg2::Specific4
-            .ensure_permissions(&storage, &governance, gateway3, gateway1, gateway2)
+            .ensure_permissions(&storage, &governance, gateway1, gateway2, gateway3)
             .unwrap_err()
             .current_context(),
         permission_control::Error::AddressNotWhitelisted { .. }
     ));
     assert!(TestMsg2::Specific4
-        .ensure_permissions(&storage, &gateway1_addr, gateway3, gateway1, gateway2)
+        .ensure_permissions(&storage, &gateway1_addr, gateway1, gateway2, gateway3)
         .is_ok());
     assert!(TestMsg2::Specific4
-        .ensure_permissions(&storage, &gateway2_addr, gateway3, gateway1, gateway2)
+        .ensure_permissions(&storage, &gateway2_addr, gateway1, gateway2, gateway3)
         .is_ok());
     assert!(TestMsg2::Specific4
-        .ensure_permissions(&storage, &gateway3_addr, gateway3, gateway1, gateway2)
+        .ensure_permissions(&storage, &gateway3_addr, gateway1, gateway2, gateway3)
         .is_ok());
 
     let gateway3 = |_: &dyn Storage, _: &TestMsg2| Err(report!(Error));
 
     assert!(matches!(
         TestMsg2::Specific4
-            .ensure_permissions(&storage, &gateway3_addr, gateway3, gateway1, gateway2)
+            .ensure_permissions(&storage, &gateway3_addr, gateway1, gateway2, gateway3)
             .unwrap_err()
             .current_context(),
         permission_control::Error::WhitelistNotFound { .. }

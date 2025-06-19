@@ -415,7 +415,7 @@ fn build_full_check_function(
         .iter()
         .flat_map(|permission| permission.specific.iter())
         .unique()
-        .sorted_by(|a, b| sort_permissions(&a.get_ident().unwrap(), &b.get_ident().unwrap()))
+        .sorted_by(|a, b| sort_permissions(a.get_ident().unwrap(), b.get_ident().unwrap()))
         .collect::<Vec<_>>();
 
     let comments = quote! {
@@ -477,9 +477,7 @@ fn build_full_check_function(
 }
 
 fn sort_permissions(p1: &Ident, p2: &Ident) -> Ordering {
-    p1
-    .to_string()
-    .cmp(&p2.to_string())
+    p1.to_string().cmp(&p2.to_string())
 }
 
 fn external_execute_msg_ident(execute_msg_ident: Ident) -> Ident {
