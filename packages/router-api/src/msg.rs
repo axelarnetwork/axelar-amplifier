@@ -11,7 +11,7 @@ use crate::primitives::*;
 pub enum ExecuteMsg {
     /// Registers a new chain with the router
     #[permission(Governance)]
-    #[external_executors(coordinator, gateway)]
+    #[allow_contract_executors(coordinator)]
     RegisterChain {
         chain: ChainName,
         gateway_address: Address,
@@ -19,14 +19,12 @@ pub enum ExecuteMsg {
     },
     /// Changes the gateway address associated with a particular chain
     #[permission(Governance)]
-    #[external_executors(gateway)]
     UpgradeGateway {
         chain: ChainName,
         contract_address: Address,
     },
     /// Freezes the specified chains in the specified directions.
     #[permission(Elevated)]
-    #[external_executors(coordinator)]
     FreezeChains {
         chains: HashMap<ChainName, GatewayDirection>,
     },

@@ -55,7 +55,7 @@ pub fn instantiate(
     }))
 }
 
-#[external_execute(contracts(coordinator = find_coordinator_address), specific(gateway = find_gateway_address(&info.sender)))]
+#[external_execute(allow_execution_from_contracts(coordinator = find_coordinator_address), allow_execution_from_addresses(gateway = find_gateway_address(&info.sender)))]
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,

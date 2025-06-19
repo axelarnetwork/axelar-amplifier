@@ -84,7 +84,7 @@ use syn::{parse_quote, Expr, ExprCall, Ident, ItemEnum, ItemFn, Meta, Path, Toke
 /// assert!(execute(deps, env, info, ExecuteMsg::OnlyGatewayCanCallThis).is_err());
 /// # }
 /// ```
-#[proc_macro_derive(EnsurePermissions, attributes(permission, external_executors))]
+#[proc_macro_derive(EnsurePermissions, attributes(permission, allow_contract_executors))]
 pub fn derive_ensure_permissions(input: TokenStream) -> TokenStream {
     // This will trigger a compile time error if the parse failed. In other words,
     // this macro can only be used on an enum.
@@ -337,7 +337,7 @@ fn build_verify_external_executor_function(data: ItemEnum) -> proc_macro2::Token
                 .filter_map(|attr| match attr.meta.clone() {
                     Meta::List(list) => match list.path.get_ident() {
                         Some(function_name) => {
-                            if function_name.eq(&format_ident!("external_executors")) {
+                            if function_name.eq(&format_ident!("allow_contract_executors")) {
                                 let parser = Punctuated::<Expr, Token![,]>::parse_terminated;
                                 let contracts = parser
                                     .parse2(list.tokens.clone())
@@ -497,12 +497,12 @@ fn external_execute_msg_ident(execute_msg_ident: Ident) -> Ident {
     format_ident!("{}FromContract", execute_msg_ident.clone())
 }
 
-/// ContractPermission is a custom struct is used to parse the attributes for the external_execute macro
+/// AllPermissions is a custom struct used to parse the attributes for the external_execute macro
 /// The external_execute macro must be defined as follows:
 ///
-/// #[external_execute(coordinator = find_coordinator, verifier = find_verifier)]
+/// #[external_execute(allow_execution_from_contracts(coordinator = find_coordinator_address), allow_execution_from_addresses(verifier = find_varifier_address))]
 ///
-/// ContractPermission is a vector of tuples, where the first element is thhe contract name, and the second
+/// ContractPermission is a vector of tuples, where the first element is the contract name, and the second
 /// is the authorization function.
 ///
 /// The aforementioned example denotes that the 'find_coordinator' function will be used to authorize
@@ -513,6 +513,9 @@ fn external_execute_msg_ident(execute_msg_ident: Ident) -> Ident {
 /// FnOnce(&dyn cosmwasm_std::Storage, &ExecuteMsg) -> error_stack::Result<cosmwasm_std::Addr, impl error_stack::Context>
 ///
 /// The authorized address is returned.
+///
+/// allow_execution_from_contracts: Proxy contracts that are allowed to execute messages on this contract.
+/// allow_execution_from_addresses: Addresses that are allowed to execute particular messages.
 #[derive(Debug)]
 struct ContractPermission(Vec<(Ident, Expr)>);
 
@@ -578,14 +581,24 @@ impl Parse for AllPermissions {
             relay_permissions: ContractPermission(
                 punct
                     .iter()
-                    .filter_map(|e| parse_permissions_list(e.clone(), String::from("contracts")))
+                    .filter_map(|e| {
+                        parse_permissions_list(
+                            e.clone(),
+                            String::from("allow_execution_from_contracts"),
+                        )
+                    })
                     .flatten()
                     .collect(),
             ),
             specific_permissions: ContractPermission(
                 punct
                     .iter()
-                    .filter_map(|e| parse_permissions_list(e.clone(), String::from("specific")))
+                    .filter_map(|e| {
+                        parse_permissions_list(
+                            e.clone(),
+                            String::from("allow_execution_from_addresses"),
+                        )
+                    })
                     .flatten()
                     .collect(),
             ),
