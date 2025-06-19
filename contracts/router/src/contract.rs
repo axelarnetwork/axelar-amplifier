@@ -55,7 +55,7 @@ pub fn instantiate(
     }))
 }
 
-#[external_execute(contracts(coordinator = find_coordinator_address), specific(gateway = find_gateway_address(&info.sender), coordinator = find_coordinator_address))]
+#[external_execute(allow_execution_from_contracts(coordinator = find_coordinator_address), allow_execution_from_addresses(gateway = find_gateway_address(&info.sender)))]
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
@@ -95,14 +95,6 @@ pub fn execute(
         )?),
         ExecuteMsg::DisableRouting => execute::disable_routing(deps.storage),
         ExecuteMsg::EnableRouting => execute::enable_routing(deps.storage),
-        ExecuteMsg::ExecuteFromCoordinator {
-            original_sender,
-            msg,
-        } => Ok(execute::execute_from_coordinator(
-            deps,
-            original_sender,
-            *msg,
-        )?),
     }?
     .then(Ok)
 }
@@ -1886,6 +1878,27 @@ mod test {
     }
 
     #[test]
+    fn direct_msgs_succeeds_nexus_routing_check() {
+        let mut deps = setup();
+        let api = deps.api;
+        let eth = make_chain("ethereum");
+        let polygon = make_chain("polygon");
+
+        register_chain(deps.as_mut(), &eth);
+        register_chain(deps.as_mut(), &polygon);
+
+        assert!(execute(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make(AXELARNET_GATEWAY_ADDRESS), &[]),
+            ExecuteMsgFromContract::Direct(ExecuteMsg::RouteMessages(generate_messages(
+                &eth, &polygon, &mut 0, 10
+            ))),
+        )
+        .is_ok());
+    }
+
+    #[test]
     fn only_coordinator_executes_coordinator_endpoint_succeeds() {
         let mut deps = setup();
         let api = deps.api;
@@ -1896,15 +1909,14 @@ mod test {
             deps.as_mut(),
             mock_env(),
             message_info(&api.addr_make(COORDINATOR_ADDRESS), &[]),
-            ExecuteMsg::ExecuteFromCoordinator {
-                original_sender: api.addr_make(GOVERNANCE_ADDRESS),
-                msg: Box::new(router_api::msg::ExecuteMsg::RegisterChain {
+            ExecuteMsgFromContract::Relay {
+                sender: api.addr_make(GOVERNANCE_ADDRESS),
+                msg: router_api::msg::ExecuteMsg::RegisterChain {
                     chain: polygon.chain_name.clone(),
                     gateway_address: polygon.gateway.to_string().try_into().unwrap(),
                     msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
-                }),
-            }
-            .into(),
+                },
+            },
         )
         .is_ok());
     }
@@ -1920,25 +1932,21 @@ mod test {
             deps.as_mut(),
             mock_env(),
             message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
-            ExecuteMsg::ExecuteFromCoordinator {
-                original_sender: api.addr_make(GOVERNANCE_ADDRESS),
-                msg: Box::new(router_api::msg::ExecuteMsg::RegisterChain {
+            ExecuteMsgFromContract::Relay {
+                sender: api.addr_make(GOVERNANCE_ADDRESS),
+                msg: router_api::msg::ExecuteMsg::RegisterChain {
                     chain: polygon.chain_name.clone(),
                     gateway_address: polygon.gateway.to_string().try_into().unwrap(),
                     msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
-                }),
-            }
-            .into(),
+                },
+            },
         );
 
         assert!(res.is_err());
-        assert!(res.unwrap_err().to_string().contains(
-            &permission_control::Error::AddressNotWhitelisted {
-                expected: vec![api.addr_make(COORDINATOR_ADDRESS)],
-                actual: api.addr_make(ADMIN_ADDRESS)
-            }
+        assert!(res
+            .unwrap_err()
             .to_string()
-        ));
+            .contains(&axelar_wasm_std::permission_control::Error::Unauthorized.to_string()));
     }
 
     #[test]
@@ -1950,17 +1958,16 @@ mod test {
             deps.as_mut(),
             mock_env(),
             message_info(&api.addr_make(COORDINATOR_ADDRESS), &[]),
-            ExecuteMsg::ExecuteFromCoordinator {
-                original_sender: api.addr_make(GOVERNANCE_ADDRESS),
-                msg: Box::new(ExecuteMsg::EnableRouting {}),
-            }
-            .into(),
+            ExecuteMsgFromContract::Relay {
+                sender: api.addr_make(GOVERNANCE_ADDRESS),
+                msg: ExecuteMsg::EnableRouting {},
+            },
         );
 
         assert!(res.is_err());
         assert!(res
             .unwrap_err()
             .to_string()
-            .contains(&Error::InvalidExecuteMsg.to_string()));
+            .contains(&axelar_wasm_std::permission_control::Error::Unauthorized.to_string()));
     }
 }

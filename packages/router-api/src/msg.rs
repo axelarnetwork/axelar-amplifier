@@ -2,7 +2,6 @@ use std::collections::HashMap;
 
 use axelar_wasm_std::msg_id::MessageIdFormat;
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::Addr;
 use msgs_derive::EnsurePermissions;
 
 use crate::primitives::*;
@@ -12,6 +11,7 @@ use crate::primitives::*;
 pub enum ExecuteMsg {
     /// Registers a new chain with the router
     #[permission(Governance)]
+    #[allow_contract_executors(coordinator)]
     RegisterChain {
         chain: ChainName,
         gateway_address: Address,
@@ -46,12 +46,6 @@ pub enum ExecuteMsg {
     /// Called by an incoming gateway
     #[permission(Specific(gateway))]
     RouteMessages(Vec<Message>),
-
-    #[permission(Specific(coordinator))]
-    ExecuteFromCoordinator {
-        original_sender: Addr,
-        msg: Box<ExecuteMsg>,
-    },
 }
 
 #[cw_serde]
