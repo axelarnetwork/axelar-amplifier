@@ -6,7 +6,10 @@ use state::VERIFIERS;
 
 use super::*;
 use crate::events::Event;
-use crate::state::{self, CountOperation, ServiceParamsOverride, UpdatedServiceParams};
+use crate::state::{
+    self, save_new_service, update_count_based_on_state_transition, ServiceParamsOverride,
+    UpdatedServiceParams, VerifierCountOperation,
+};
 
 #[allow(clippy::too_many_arguments)]
 pub fn register_service(
@@ -20,7 +23,7 @@ pub fn register_service(
     unbonding_period_days: u16,
     description: String,
 ) -> Result<Response, ContractError> {
-    state::save_new_service(
+    save_new_service(
         deps.storage,
         &service_name.clone(),
         Service {
@@ -34,15 +37,15 @@ pub fn register_service(
             description,
         },
     )?;
-    state::register_new_service_counter(deps.storage, &service_name)?;
     Ok(Response::new())
 }
+
 fn ensure_authorization_max_limit_respected(
     deps: &DepsMut,
     service_name: &String,
     verifiers: &[Addr],
 ) -> Result<(), ContractError> {
-    let max_limit = state::get_service_verifier_max_limit(deps.storage, service_name)?;
+    let max_limit = state::service(deps.storage, service_name, None)?.max_num_verifiers;
     if let Some(max_limit) = max_limit {
         let authorzied_verifier_count =
             state::number_of_authorized_verifiers(deps.storage, service_name)?;
@@ -54,14 +57,10 @@ fn ensure_authorization_max_limit_respected(
             .checked_add(additional_authorizations)
             .ok_or(ContractError::AuthorizedVerifiersExceedu16)?;
 
-        if total_after_update > max_limit {
-            let excess = total_after_update
-                .checked_sub(max_limit)
-                .ok_or(ContractError::AuthorizedVerifiersNegative)?;
-            return Err(Report::new(ContractError::VerifierLimitExceed(
-                max_limit, excess,
-            )));
-        }
+        ensure!(
+            total_after_update <= max_limit,
+            ContractError::VerifierLimitExceed
+        );
     }
 
     Ok(())
@@ -79,7 +78,8 @@ pub fn update_verifier_authorization_status(
         ensure_authorization_max_limit_respected(&deps, &service_name, &verifiers)?;
     }
     for verifier in verifiers {
-        let old_state = state::get_verifier_auth_state(deps.storage, &service_name, &verifier)?;
+        let previous_auth_state =
+            state::get_verifier_auth_state(deps.storage, &service_name, &verifier)?;
         state::update_verifier_auth_state(
             deps.storage,
             &service_name,
@@ -90,37 +90,11 @@ pub fn update_verifier_authorization_status(
             deps.storage,
             &service_name,
             &auth_state,
-            old_state,
+            previous_auth_state,
         )?;
     }
 
     Ok(Response::new())
-}
-
-fn update_count_based_on_state_transition(
-    storage: &mut dyn Storage,
-    service_name: &String,
-    auth_state: &AuthorizationState,
-    old_state: Option<AuthorizationState>,
-) -> Result<(), ContractError> {
-    match (old_state, auth_state.clone()) {
-        (Some(old), new) => match (old, new) {
-            (AuthorizationState::Authorized, AuthorizationState::NotAuthorized)
-            | (AuthorizationState::Authorized, AuthorizationState::Jailed) => {
-                state::update_authorized_count(storage, service_name, CountOperation::Decrement)?;
-            }
-            (AuthorizationState::NotAuthorized, AuthorizationState::Authorized)
-            | (AuthorizationState::Jailed, AuthorizationState::Authorized) => {
-                state::update_authorized_count(storage, service_name, CountOperation::Increment)?;
-            }
-            _ => {}
-        },
-        (None, AuthorizationState::Authorized) => {
-            state::update_authorized_count(storage, service_name, CountOperation::Increment)?;
-        }
-        _ => {}
-    };
-    Ok(())
 }
 
 pub fn update_service(

@@ -2896,7 +2896,7 @@ mod test {
         assert!(err_contains!(
             err.report,
             ContractError,
-            ContractError::VerifierLimitExceed(4, 1)
+            ContractError::VerifierLimitExceed
         ));
 
         let verifier_3 = vec![api.addr_make("verifier4").to_string()];
