@@ -536,7 +536,7 @@ impl Parse for AllPermissions {
         let mut contracts_seen: HashMap<String, ()> = HashMap::new();
 
         let mut parse_permissions_list = |expr_call: ExprCall,
-                                      expected_call_name: String|
+                                          expected_call_name: String|
          -> Option<Vec<(Ident, Expr)>> {
             match *expr_call.func {
                 Expr::Path(path) => {
@@ -654,23 +654,23 @@ fn validate_external_contract_function(
 }
 
 /// This macro enforces two requirements:
-/// 
+///
 /// 1. If a proxy contract wants to execute a message on this contract, that proxy contract
-/// must have permission to do so.
+///     must have permission to do so.
 /// 2. The original sender of a message has permission to execute that message. If the message
-/// is sent by a proxy contract, the original sender is the address that initiated the transaction
-/// on the proxy.
-/// 
+///     is sent by a proxy contract, the original sender is the address that initiated the transaction
+///     on the proxy.
+///
 /// This macro takes arguments of the form:
-/// 
+///
 /// #\[external_execute(allow_execution_from_contracts(contract = find_contract_address), allow_execution_from_addresses(sender = find_sender_address))\]
-/// 
+///
 /// 'allow_execution_from_contracts' handles case 1, and allow_execution_from_addresses handles
 /// case 2. In both scenarios, the left hand side of the assignment is the identifier for the
 /// contract and original sender, respectively. The right hand side is a function with the signature:
-/// 
+///
 /// FnOnce(&dyn cosmwasm_std::Storage, &ExecuteMsg) -> error_stack::Result<cosmwasm_std::Addr, impl error_stack::Context>
-/// 
+///
 /// The right hand side can be an expression that returns a function with that signature.
 #[proc_macro_attribute]
 pub fn external_execute(attr: TokenStream, item: TokenStream) -> TokenStream {
