@@ -1,6 +1,5 @@
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, HashMap};
-use std::hash::{Hash, Hasher};
 
 use axelar_wasm_std::permission_control::Permission;
 use itertools::Itertools;
@@ -478,15 +477,10 @@ fn build_full_check_function(
 }
 
 fn sort_permissions(p1: &Path, p2: &Path) -> Ordering {
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    p1.hash(&mut hasher);
-    let p1_hash = hasher.finish();
-
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    p2.hash(&mut hasher);
-    let p2_hash = hasher.finish();
-
-    p1_hash.cmp(&p2_hash)
+    p1.get_ident()
+        .unwrap()
+        .to_string()
+        .cmp(&p2.get_ident().unwrap().to_string())
 }
 
 fn external_execute_msg_ident(execute_msg_ident: Ident) -> Ident {
