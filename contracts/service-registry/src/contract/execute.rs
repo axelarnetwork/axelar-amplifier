@@ -8,7 +8,7 @@ use super::*;
 use crate::events::Event;
 use crate::state::{
     self, save_new_service, update_count_based_on_state_transition, ServiceParamsOverride,
-    UpdatedServiceParams, VerifierCountOperation,
+    UpdatedServiceParams,
 };
 
 #[allow(clippy::too_many_arguments)]
@@ -25,7 +25,7 @@ pub fn register_service(
 ) -> Result<Response, ContractError> {
     save_new_service(
         deps.storage,
-        &service_name.clone(),
+        &service_name,
         Service {
             name: service_name.clone(),
             coordinator_contract,
@@ -77,15 +77,18 @@ pub fn update_verifier_authorization_status(
     if auth_state == AuthorizationState::Authorized {
         ensure_authorization_max_limit_respected(&deps, &service_name, &verifiers)?;
     }
+
     for verifier in verifiers {
         let previous_auth_state =
             state::get_verifier_auth_state(deps.storage, &service_name, &verifier)?;
+
         state::update_verifier_auth_state(
             deps.storage,
             &service_name,
             &verifier,
             auth_state.clone(),
         )?;
+
         update_count_based_on_state_transition(
             deps.storage,
             &service_name,

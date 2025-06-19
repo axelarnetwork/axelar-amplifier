@@ -252,6 +252,7 @@ mod test {
 
         deps
     }
+
     fn check_authorized_verifier_count(
         deps: &OwnedDeps<MockStorage, MockApi, MockQuerier, Empty>,
         service_name: &String,
@@ -395,6 +396,7 @@ mod test {
 
         (deps, api, service_name.into(), verifiers)
     }
+
     #[test]
     fn register_service() {
         let mut deps = setup();
@@ -2834,6 +2836,7 @@ mod test {
             verifier_details.supported_chains.into_iter().collect();
         assert_eq!(expected_chains, actual_chains);
     }
+
     #[test]
     fn max_verifiers_limit_is_enforced_when_authorized_verifiers() {
         let mut deps = setup();
@@ -2992,6 +2995,7 @@ mod test {
         );
         assert!(res.is_ok());
     }
+
     #[test]
     fn register_service_initializes_with_zero_authorized_verifiers() {
         let mut deps = setup();
@@ -3058,7 +3062,7 @@ mod test {
         check_authorized_verifier_count(&deps, &service_name, 3);
     }
     #[test]
-    fn jailing_and_unjailing_affects_authorized_count() {
+    fn jailing_and_unjailing_authorized_verifier_affects_authorized_count() {
         let (mut deps, api, service_name, _verifiers) = setup_and_authorize_5_verifiers();
 
         let res = execute(
@@ -3085,6 +3089,7 @@ mod test {
         assert!(res.is_ok());
         check_authorized_verifier_count(&deps, &service_name, 5);
     }
+
     #[test]
     fn jailing_from_none_does_not_affect_count() {
         let (mut deps, api, service_name, _verifiers) = setup_and_authorize_5_verifiers();
@@ -3102,6 +3107,7 @@ mod test {
         assert!(res.is_ok());
         check_authorized_verifier_count(&deps, &service_name, 5);
     }
+
     #[test]
     fn jailing_unauthorized_verifier_does_not_affect_authorized_count() {
         let (mut deps, api, service_name, _verifiers) = setup_and_authorize_5_verifiers();
@@ -3117,7 +3123,6 @@ mod test {
             },
         );
         assert!(res.is_ok());
-
         check_authorized_verifier_count(&deps, &service_name, 5);
     }
 }
