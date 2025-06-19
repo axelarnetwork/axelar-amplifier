@@ -339,20 +339,19 @@ mod tests {
     async fn address_should_succeed_returning_the_address() {
         let mut mock_blockchain = MockBlockchainService::new();
         let expected_address = sample_account_id();
+        let mock_response = AddressResponse {
+            address: expected_address.to_string(),
+        };
 
         mock_blockchain
             .expect_address()
-            .return_once(move |_request| {
-                Ok(Response::new(AddressResponse {
-                    address: expected_address.to_string(),
-                }))
-            });
+            .return_once(move |_request| Ok(Response::new(mock_response)));
 
         let mut client = setup_test_client(mock_blockchain, MockCryptoService::new()).await;
         let result = client.address().await;
 
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), sample_account_id());
+        assert!(result.is_ok(), "unexpected error: {}", result.unwrap_err());
+        assert_eq!(result.unwrap(), expected_address);
     }
 
     #[tokio::test]
@@ -365,7 +364,7 @@ mod tests {
         let mut client = setup_test_client(mock_blockchain, MockCryptoService::new()).await;
         let result = client.address().await;
 
-        assert!(result.is_err());
+        assert!(result.is_err(), "unexpected Ok result: {}", result.unwrap());
         assert!(matches!(
             result.unwrap_err().current_context(),
             Error::Grpc(GrpcError::ServiceUnavailable(_))
@@ -382,7 +381,11 @@ mod tests {
         let mut client = setup_test_client(mock_blockchain, MockCryptoService::new()).await;
         let result = client.address().await;
 
-        assert!(result.is_err());
+        assert!(
+            result.is_err(),
+            "unexpected Ok result: {:?}",
+            result.unwrap()
+        );
         assert!(matches!(
             result.unwrap_err().current_context(),
             Error::Grpc(GrpcError::InvalidArgument(_))
@@ -393,22 +396,21 @@ mod tests {
     async fn address_should_handle_multiple_consecutive_calls() {
         let mut mock_blockchain = MockBlockchainService::new();
         let expected_address = sample_account_id();
+        let mock_response = AddressResponse {
+            address: expected_address.to_string(),
+        };
 
         mock_blockchain
             .expect_address()
             .times(5)
-            .returning(move |_request| {
-                Ok(Response::new(AddressResponse {
-                    address: expected_address.to_string(),
-                }))
-            });
+            .returning(move |_request| Ok(Response::new(mock_response.clone())));
 
         let mut client = setup_test_client(mock_blockchain, MockCryptoService::new()).await;
 
         for _ in 0..5 {
             let result = client.address().await;
-            assert!(result.is_ok());
-            assert_eq!(result.unwrap(), sample_account_id());
+            assert!(result.is_ok(), "unexpected error: {}", result.unwrap_err());
+            assert_eq!(result.unwrap(), expected_address);
         }
     }
 
@@ -416,21 +418,20 @@ mod tests {
     async fn broadcast_should_succeed_returning_the_response() {
         let mut mock_blockchain = MockBlockchainService::new();
         let expected_response = sample_broadcast_response();
+        let mock_response = BroadcastResponse {
+            tx_hash: expected_response.tx_hash.clone(),
+            index: expected_response.index,
+        };
 
         mock_blockchain
             .expect_broadcast()
-            .return_once(move |__request| {
-                Ok(Response::new(BroadcastResponse {
-                    tx_hash: expected_response.tx_hash.clone(),
-                    index: expected_response.index,
-                }))
-            });
+            .return_once(move |__request| Ok(Response::new(mock_response)));
 
         let mut client = setup_test_client(mock_blockchain, MockCryptoService::new()).await;
         let result = client.broadcast(any_msg()).await;
 
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), sample_broadcast_response());
+        assert!(result.is_ok(), "unexpected error: {}", result.unwrap_err());
+        assert_eq!(result.unwrap(), expected_response);
     }
 
     #[tokio::test]
@@ -443,7 +444,11 @@ mod tests {
         let mut client = setup_test_client(mock_blockchain, MockCryptoService::new()).await;
         let result = client.broadcast(any_msg()).await;
 
-        assert!(result.is_err());
+        assert!(
+            result.is_err(),
+            "unexpected Ok result: {:?}",
+            result.unwrap()
+        );
         assert!(matches!(
             result.unwrap_err().current_context(),
             Error::Grpc(GrpcError::InternalError(_))
@@ -454,15 +459,14 @@ mod tests {
     async fn broadcast_should_handle_empty_message_value() {
         let mut mock_blockchain = MockBlockchainService::new();
         let expected_response = sample_broadcast_response();
+        let mock_response = BroadcastResponse {
+            tx_hash: expected_response.tx_hash.clone(),
+            index: expected_response.index,
+        };
 
         mock_blockchain
             .expect_broadcast()
-            .return_once(move |_request| {
-                Ok(Response::new(BroadcastResponse {
-                    tx_hash: expected_response.tx_hash.clone(),
-                    index: expected_response.index,
-                }))
-            });
+            .return_once(move |_request| Ok(Response::new(mock_response)));
 
         let mut client = setup_test_client(mock_blockchain, MockCryptoService::new()).await;
 
@@ -472,7 +476,7 @@ mod tests {
         };
 
         let result = client.broadcast(empty_msg).await;
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "unexpected error: {}", result.unwrap_err());
     }
 
     #[tokio::test]
@@ -494,7 +498,7 @@ mod tests {
             .expect_contract_state()
             .return_once(move |_request| {
                 Ok(Response::new(ContractStateResponse {
-                    result: serde_json::to_vec(&expected_response).unwrap(),
+                    result: serde_json::to_vec(&expected_response_clone).unwrap(),
                 }))
             });
 
@@ -502,8 +506,8 @@ mod tests {
         let (contract, query) = contract_state_input_args();
         let result: Result<TestResponse, Error> = client.contract_state(contract, query).await;
 
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), expected_response_clone);
+        assert!(result.is_ok(), "unexpected error: {}", result.unwrap_err());
+        assert_eq!(result.unwrap(), expected_response);
     }
 
     #[tokio::test]
@@ -522,7 +526,11 @@ mod tests {
         let (contract, query) = contract_state_input_args();
         let result: Result<Value, Error> = client.contract_state(contract, query).await;
 
-        assert!(result.is_err());
+        assert!(
+            result.is_err(),
+            "unexpected Ok result: {:?}",
+            result.unwrap()
+        );
         assert!(matches!(
             result.unwrap_err().current_context(),
             Error::App(AppError::InvalidJson)
@@ -540,7 +548,11 @@ mod tests {
         let (contract, query) = contract_state_input_args();
         let result: Result<Value, Error> = client.contract_state(contract, query).await;
 
-        assert!(result.is_err());
+        assert!(
+            result.is_err(),
+            "unexpected Ok result: {:?}",
+            result.unwrap()
+        );
         assert!(matches!(
             result.unwrap_err().current_context(),
             Error::Grpc(GrpcError::OperationFailed(_))
@@ -551,23 +563,22 @@ mod tests {
     async fn contracts_should_succeed_returning_the_response() {
         let mut mock_blockchain = MockBlockchainService::new();
         let expected_contracts = sample_contracts();
+        let mock_response = ContractsResponse {
+            voting_verifier: expected_contracts.voting_verifier.to_string(),
+            multisig_prover: expected_contracts.multisig_prover.to_string(),
+            service_registry: expected_contracts.service_registry.to_string(),
+            rewards: expected_contracts.rewards.to_string(),
+        };
 
         mock_blockchain
             .expect_contracts()
-            .return_once(move |_request| {
-                Ok(Response::new(ContractsResponse {
-                    voting_verifier: expected_contracts.voting_verifier.to_string(),
-                    multisig_prover: expected_contracts.multisig_prover.to_string(),
-                    service_registry: expected_contracts.service_registry.to_string(),
-                    rewards: expected_contracts.rewards.to_string(),
-                }))
-            });
+            .return_once(move |_request| Ok(Response::new(mock_response)));
 
         let mut client = setup_test_client(mock_blockchain, MockCryptoService::new()).await;
         let result = client.contracts().await;
 
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), sample_contracts());
+        assert!(result.is_ok(), "unexpected error: {}", result.unwrap_err());
+        assert_eq!(result.unwrap(), expected_contracts);
     }
 
     #[tokio::test]
@@ -588,7 +599,11 @@ mod tests {
 
         let result = client.contracts().await;
 
-        assert!(result.is_err());
+        assert!(
+            result.is_err(),
+            "unexpected Ok result: {:?}",
+            result.unwrap()
+        );
         assert!(matches!(
             result.unwrap_err().current_context(),
             Error::App(AppError::InvalidContractsResponse)
@@ -598,20 +613,22 @@ mod tests {
     #[tokio::test]
     async fn sign_should_succeed_returning_the_signature() {
         let mut mock_crypto = MockCryptoService::new();
+        let expected_signature = sample_signature();
+        let mock_response = SignResponse {
+            signature: expected_signature.clone().into(),
+        };
 
-        mock_crypto.expect_sign().return_once(|_request| {
-            Ok(Response::new(SignResponse {
-                signature: sample_signature().into(),
-            }))
-        });
+        mock_crypto
+            .expect_sign()
+            .return_once(|_request| Ok(Response::new(mock_response)));
 
         let mut client = setup_test_client(MockBlockchainService::new(), mock_crypto).await;
         let result = client
             .sign(Some(generate_key(KeyAlgorithm::Ecdsa)), sample_message())
             .await;
 
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), sample_signature());
+        assert!(result.is_ok(), "unexpected error: {}", result.unwrap_err());
+        assert_eq!(result.unwrap(), expected_signature);
     }
 
     #[tokio::test]
@@ -628,7 +645,11 @@ mod tests {
             .sign(Some(generate_key(KeyAlgorithm::Ecdsa)), sample_message())
             .await;
 
-        assert!(result.is_err());
+        assert!(
+            result.is_err(),
+            "unexpected Ok result: {:?}",
+            result.unwrap()
+        );
         assert!(matches!(
             result.unwrap_err().current_context(),
             Error::App(AppError::InvalidByteArray)
@@ -649,7 +670,11 @@ mod tests {
             .sign(Some(generate_key(KeyAlgorithm::Ecdsa)), sample_message())
             .await;
 
-        assert!(result.is_err());
+        assert!(
+            result.is_err(),
+            "unexpected Ok result: {:?}",
+            result.unwrap()
+        );
         assert!(matches!(
             result.unwrap_err().current_context(),
             Error::Grpc(GrpcError::InternalError(_))
@@ -659,35 +684,39 @@ mod tests {
     #[tokio::test]
     async fn sign_should_handle_none_key() {
         let mut mock_crypto = MockCryptoService::new();
+        let expected_signature = sample_signature();
+        let mock_response = SignResponse {
+            signature: expected_signature.clone().into(),
+        };
 
-        mock_crypto.expect_sign().return_once(|_request| {
-            Ok(Response::new(SignResponse {
-                signature: sample_signature().into(),
-            }))
-        });
+        mock_crypto
+            .expect_sign()
+            .return_once(|_request| Ok(Response::new(mock_response)));
 
         let mut client = setup_test_client(MockBlockchainService::new(), mock_crypto).await;
         let result = client.sign(None, sample_message()).await;
 
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), sample_signature());
+        assert!(result.is_ok(), "unexpected error: {}", result.unwrap_err());
+        assert_eq!(result.unwrap(), expected_signature);
     }
 
     #[tokio::test]
     async fn key_should_succeed_returning_the_public_key() {
         let mut mock_crypto = MockCryptoService::new();
+        let expected_public_key = sample_public_key();
+        let mock_response = KeyResponse {
+            pub_key: expected_public_key.clone().into(),
+        };
 
-        mock_crypto.expect_key().return_once(|_request| {
-            Ok(Response::new(KeyResponse {
-                pub_key: sample_public_key().into(),
-            }))
-        });
+        mock_crypto
+            .expect_key()
+            .return_once(|_request| Ok(Response::new(mock_response)));
 
         let mut client = setup_test_client(MockBlockchainService::new(), mock_crypto).await;
         let result = client.key(Some(generate_key(KeyAlgorithm::Ecdsa))).await;
 
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), sample_public_key());
+        assert!(result.is_ok(), "unexpected error: {}", result.unwrap_err());
+        assert_eq!(result.unwrap(), expected_public_key);
     }
 
     #[tokio::test]
@@ -702,7 +731,11 @@ mod tests {
 
         let result = client.key(Some(generate_key(KeyAlgorithm::Ecdsa))).await;
 
-        assert!(result.is_err());
+        assert!(
+            result.is_err(),
+            "unexpected Ok result: {:?}",
+            result.unwrap()
+        );
         assert!(matches!(
             result.unwrap_err().current_context(),
             Error::Grpc(GrpcError::DataLoss(_))
@@ -721,7 +754,11 @@ mod tests {
 
         let result = client.key(Some(generate_key(KeyAlgorithm::Ecdsa))).await;
 
-        assert!(result.is_err());
+        assert!(
+            result.is_err(),
+            "unexpected Ok result: {:?}",
+            result.unwrap()
+        );
         assert!(matches!(
             result.unwrap_err().current_context(),
             Error::Grpc(GrpcError::InvalidArgument(_))
