@@ -1,5 +1,5 @@
 use std::cmp::Ordering;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::hash::{Hash, Hasher};
 
 use axelar_wasm_std::permission_control::Permission;
@@ -533,8 +533,9 @@ struct AllPermissions {
 impl Parse for AllPermissions {
     fn parse(input: ParseStream) -> Result<Self, syn::Error> {
         let punct = Punctuated::<ExprCall, Token![,]>::parse_terminated(input)?;
+        let mut contracts_seen: HashMap<String, ()> = HashMap::new();
 
-        let parse_permissions_list = |expr_call: ExprCall,
+        let mut parse_permissions_list = |expr_call: ExprCall,
                                       expected_call_name: String|
          -> Option<Vec<(Ident, Expr)>> {
             match *expr_call.func {
@@ -554,9 +555,10 @@ impl Parse for AllPermissions {
                                             };
 
                                             let contract_ident = contract_name.path.get_ident()?;
-                                            // TODO: Filter and only allow certain expressions
-                                            // TODO: Do not allow duplicates!
-                                            Some((contract_ident.clone(), *a.right))
+                                            match contracts_seen.insert(contract_ident.to_string().clone(), ()) {
+                                                Some(_) => panic!("every identifier must appear at most once (left hand side of assignment)"),
+                                                None => Some((contract_ident.clone(), *a.right)),
+                                            }
                                         },
                                         _ => panic!("expected format 'contract == contract_permission_fn'"),
                                     })
@@ -651,12 +653,25 @@ fn validate_external_contract_function(
     })
 }
 
-// This macro enforces which contracts are allowed to execute this contract.
-// Furthermore, it uses the 'ensure_permissions' method to ensure that the
-// sending address has permission to execute the given message. If the given
-// message is a 'Relay' message (it has been sent by another contract rather
-// than directly from a user), 'ensure_permissions' will check against the
-// original sender of the message (not the contract address).
+/// This macro enforces two requirements:
+/// 
+/// 1. If a proxy contract wants to execute a message on this contract, that proxy contract
+/// must have permission to do so.
+/// 2. The original sender of a message has permission to execute that message. If the message
+/// is sent by a proxy contract, the original sender is the address that initiated the transaction
+/// on the proxy.
+/// 
+/// This macro takes arguments of the form:
+/// 
+/// #\[external_execute(allow_execution_from_contracts(contract = find_contract_address), allow_execution_from_addresses(sender = find_sender_address))\]
+/// 
+/// 'allow_execution_from_contracts' handles case 1, and allow_execution_from_addresses handles
+/// case 2. In both scenarios, the left hand side of the assignment is the identifier for the
+/// contract and original sender, respectively. The right hand side is a function with the signature:
+/// 
+/// FnOnce(&dyn cosmwasm_std::Storage, &ExecuteMsg) -> error_stack::Result<cosmwasm_std::Addr, impl error_stack::Context>
+/// 
+/// The right hand side can be an expression that returns a function with that signature.
 #[proc_macro_attribute]
 pub fn external_execute(attr: TokenStream, item: TokenStream) -> TokenStream {
     let mut execute_fn = syn::parse_macro_input!(item as ItemFn);
@@ -677,8 +692,6 @@ pub fn external_execute(attr: TokenStream, item: TokenStream) -> TokenStream {
         .iter()
         .map(|cn| Literal::string(cn.to_string().as_str()))
         .collect();
-
-    // TODO: Write integration tests to check sorted ordering works!
 
     // Replace ExecuteMsg with ExternalExecute trait
     // Both ExecuteMsg and ExecuteMsg2 implement this trait
