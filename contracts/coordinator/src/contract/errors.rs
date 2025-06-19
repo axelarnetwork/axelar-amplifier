@@ -49,4 +49,7 @@ pub enum Error {
     UnableToPersistProtocol,
     #[error("contract config before migration not found")]
     OldConfigNotFound,
+
+    #[error("invalid address {0}")]
+    InvalidAddress(Addr),
 }

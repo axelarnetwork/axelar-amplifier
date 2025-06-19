@@ -1,9 +1,7 @@
 use std::collections::HashSet;
 
 use axelar_wasm_std::nonempty;
-use cosmwasm_std::{
-    to_json_binary, Addr, Binary, DepsMut, Env, MessageInfo, Response, WasmMsg, WasmQuery,
-};
+use cosmwasm_std::{Addr, Binary, DepsMut, Env, MessageInfo, Response, WasmMsg, WasmQuery};
 use error_stack::{Result, ResultExt};
 use router_api::ChainName;
 
@@ -318,20 +316,17 @@ pub fn register_deployment(
     let protocol_contracts =
         state::protocol_contracts(deps.storage).change_context(Error::ProtocolNotRegistered)?;
 
-    Ok(Response::new().add_message(WasmMsg::Execute {
-        contract_addr: protocol_contracts.router.to_string(),
-        msg: to_json_binary(&router_api::msg::ExecuteMsgFromContract::Relay {
-            sender,
-            msg: router_api::msg::ExecuteMsg::RegisterChain {
-                chain: deployed_contracts.chain_name,
-                gateway_address: router_api::Address::try_from(
-                    deployed_contracts.gateway.to_string(),
-                )
-                .change_context(Error::ChainContractsInfo)?,
-                msg_id_format: deployed_contracts.msg_id_format,
-            },
-        })
-        .change_context(Error::UnableToPersistProtocol)?,
-        funds: vec![],
-    }))
+    let router = router_api::client::Router::new(protocol_contracts.router);
+
+    let msg = router.register_chain(
+        sender,
+        deployed_contracts.chain_name,
+        router_api::Address::try_from(deployed_contracts.gateway.to_string())
+            .change_context(Error::InvalidAddress(deployed_contracts.gateway))?,
+        deployed_contracts.msg_id_format,
+    );
+
+    println!("msg: {:?}", msg);
+
+    Ok(Response::new().add_messages(msg))
 }
