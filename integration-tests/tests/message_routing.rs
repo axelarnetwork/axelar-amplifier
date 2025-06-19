@@ -80,7 +80,7 @@ fn single_message_can_be_verified_and_routed_and_proven_and_rewards_are_distribu
     // proof should be complete by now
     assert!(matches!(
         proof.status,
-        multisig_prover::msg::ProofStatus::Completed { .. }
+        solana_multisig_prover::msg::ProofStatus::Completed { .. }
     ));
     assert_eq!(proof.message_ids, msg_ids);
 

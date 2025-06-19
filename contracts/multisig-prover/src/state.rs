@@ -5,7 +5,7 @@ use cosmwasm_std::Addr;
 use cw_storage_plus::{Item, Map};
 use multisig::key::KeyType;
 use multisig::verifier_set::VerifierSet;
-use multisig_prover_api::encoding::Encoder;
+use solana_multisig_prover_api::encoding::Encoder;
 use router_api::ChainName;
 
 use crate::payload::{Payload, PayloadId};

@@ -424,8 +424,8 @@ mod tests {
 
     use axelar_wasm_std::Threshold;
     use cosmwasm_std::testing::{mock_dependencies, mock_env};
-    use multisig_prover_api::encoding::Encoder;
     use router_api::{chain_name, cosmos_addr};
+    use solana_multisig_prover_api::encoding::Encoder;
 
     use super::{different_set_in_progress, next_verifier_set, should_update_verifier_set};
     use crate::state::{Config, NEXT_VERIFIER_SET};
