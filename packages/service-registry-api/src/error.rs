@@ -17,8 +17,8 @@ pub enum ContractError {
     AuthorizedVerifiersExceedu16,
     #[error("verifiers count is negative")]
     AuthorizedVerifiersNegative,
-    #[error("max verifiers limit {0} exceeded by {1} verifiers")]
-    VerifierLimitExceed(u16, u16),
+    #[error("max verifiers limit exceeded")]
+    VerifierLimitExceed,
     #[error("max verifiers limit {0} is below current authorized verifiers {1}")]
     MaxVerifiersSetBelowCurrent(u16, u16),
     #[error("unauthorized")]
