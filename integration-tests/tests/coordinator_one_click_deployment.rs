@@ -641,15 +641,14 @@ fn coordinator_one_click_register_deployment_with_router_succeeds() {
 
     let contracts = gather_contracts(&protocol, res.unwrap());
 
-    let res = protocol.coordinator.execute(
-        &mut protocol.app,
-        protocol.governance_address.clone(),
-        &coordinator::msg::ExecuteMsg::RegisterDeployment { deployment_name },
-    );
-
-    println!("res: {:?}", res);
-
-    assert!(res.is_ok());
+    assert!(protocol
+        .coordinator
+        .execute(
+            &mut protocol.app,
+            protocol.governance_address.clone(),
+            &coordinator::msg::ExecuteMsg::RegisterDeployment { deployment_name },
+        )
+        .is_ok());
 
     let res = protocol.router.query::<router_api::ChainEndpoint>(
         &protocol.app,

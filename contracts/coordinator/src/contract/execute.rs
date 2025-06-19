@@ -318,15 +318,13 @@ pub fn register_deployment(
 
     let router = router_api::client::Router::new(protocol_contracts.router);
 
-    let msg = router.register_chain(
-        sender,
-        deployed_contracts.chain_name,
-        router_api::Address::try_from(deployed_contracts.gateway.to_string())
-            .change_context(Error::InvalidAddress(deployed_contracts.gateway))?,
-        deployed_contracts.msg_id_format,
-    );
-
-    println!("msg: {:?}", msg);
-
-    Ok(Response::new().add_messages(msg))
+    Ok(Response::new().add_messages(
+        router.register_chain(
+            sender,
+            deployed_contracts.chain_name,
+            router_api::Address::try_from(deployed_contracts.gateway.to_string())
+                .change_context(Error::InvalidAddress(deployed_contracts.gateway))?,
+            deployed_contracts.msg_id_format,
+        ),
+    ))
 }
