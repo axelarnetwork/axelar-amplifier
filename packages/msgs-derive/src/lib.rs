@@ -415,7 +415,7 @@ fn build_full_check_function(
         .iter()
         .flat_map(|permission| permission.specific.iter())
         .unique()
-        .sorted_by(|a, b| sort_permissions(a, b))
+        .sorted_by(|a, b| sort_permissions(&a.get_ident().unwrap(), &b.get_ident().unwrap()))
         .collect::<Vec<_>>();
 
     let comments = quote! {
@@ -476,11 +476,10 @@ fn build_full_check_function(
     }
 }
 
-fn sort_permissions(p1: &Path, p2: &Path) -> Ordering {
-    p1.get_ident()
-        .unwrap()
-        .to_string()
-        .cmp(&p2.get_ident().unwrap().to_string())
+fn sort_permissions(p1: &Ident, p2: &Ident) -> Ordering {
+    p1
+    .to_string()
+    .cmp(&p2.to_string())
 }
 
 fn external_execute_msg_ident(execute_msg_ident: Ident) -> Ident {
@@ -679,7 +678,7 @@ pub fn external_execute(attr: TokenStream, item: TokenStream) -> TokenStream {
     let (_, specific_permissions): (Vec<_>, Vec<_>) = all_permissions
         .specific_permissions
         .into_iter()
-        .sorted_by(|a, b| sort_permissions(&Path::from(a.0.clone()), &Path::from(b.0.clone())))
+        .sorted_by(|a, b| sort_permissions(&a.0, &b.0))
         .unzip();
 
     let contract_names_literals: Vec<_> = contract_names
