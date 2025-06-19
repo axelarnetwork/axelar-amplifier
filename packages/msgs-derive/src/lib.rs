@@ -477,16 +477,12 @@ fn build_full_check_function(
     }
 }
 
-fn default_hasher() -> impl Hasher {
-    std::collections::hash_map::DefaultHasher::new()
-}
-
 fn sort_permissions(p1: &Path, p2: &Path) -> Ordering {
-    let mut hasher = default_hasher();
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
     p1.hash(&mut hasher);
     let p1_hash = hasher.finish();
 
-    let mut hasher = default_hasher();
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
     p2.hash(&mut hasher);
     let p2_hash = hasher.finish();
 
