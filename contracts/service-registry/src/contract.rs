@@ -3042,6 +3042,7 @@ mod test {
         assert!(res.is_ok());
         check_authorized_verifier_count(&deps, &service_name, 5);
     }
+
     #[test]
     fn unauthorize_verifiers_reduces_count() {
         let (mut deps, api, service_name, _verifiers) = setup_and_authorize_5_verifiers();
@@ -3061,6 +3062,7 @@ mod test {
         assert!(res.is_ok());
         check_authorized_verifier_count(&deps, &service_name, 3);
     }
+
     #[test]
     fn jailing_and_unjailing_authorized_verifier_affects_authorized_count() {
         let (mut deps, api, service_name, _verifiers) = setup_and_authorize_5_verifiers();
