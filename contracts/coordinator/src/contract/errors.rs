@@ -46,8 +46,4 @@ pub enum Error {
     UnableToPersistProtocol,
     #[error("contract config before migration not found")]
     OldConfigNotFound,
-    #[error("invalid address {0}")]
-    InvalidAddress(Addr),
-    #[error("unable to execute message on {0} at address {1}")]
-    ExternalExecute(nonempty::String, Addr),
 }

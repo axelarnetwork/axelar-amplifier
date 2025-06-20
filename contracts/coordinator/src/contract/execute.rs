@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use axelar_wasm_std::{nonempty, nonempty_str};
+use axelar_wasm_std::nonempty;
 use cosmwasm_std::{Addr, Binary, DepsMut, Env, MessageInfo, Response, WasmMsg, WasmQuery};
 use error_stack::{Result, ResultExt};
 use router_api::ChainName;
