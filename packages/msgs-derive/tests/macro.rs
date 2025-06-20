@@ -5,10 +5,10 @@ use cosmwasm_schema::cw_serde;
 use cosmwasm_std::testing::{MockApi, MockStorage};
 use cosmwasm_std::{Addr, Storage};
 use error_stack::{report, Report};
-use msgs_derive::EnsurePermissions;
+use msgs_derive::Permissions;
 
 #[cw_serde]
-#[derive(EnsurePermissions)]
+#[derive(Permissions)]
 #[allow(dead_code)] // the msg fields are only defined to make sure the derive attribute can handle fields correctly
 enum TestMsg {
     #[permission(NoPrivilege)]
@@ -26,7 +26,7 @@ enum TestMsg {
 }
 
 #[cw_serde]
-#[derive(EnsurePermissions)]
+#[derive(Permissions)]
 enum TestMsg2 {
     #[permission(Any)]
     Any,
@@ -159,7 +159,7 @@ fn ensure_specific_permissions() {
         Ok::<Addr, Report<Error>>(MockApi::default().addr_make("gateway3"))
     };
 
-    // Given a set of specific permissions, the EnsurePermissions macro will now determine
+    // Given a set of specific permissions, the Permissions macro will now determine
     // a deterministic order of how the permission checking functions should appear as
     // arguments in 'ensure_permissions'. Previously, the developer was responsible for
     // calling ensure_permissions. Since the call to ensure premissions is now generated,

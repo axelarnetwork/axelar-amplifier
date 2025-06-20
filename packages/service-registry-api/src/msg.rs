@@ -1,6 +1,6 @@
 use axelar_wasm_std::nonempty;
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use msgs_derive::EnsurePermissions;
+use msgs_derive::Permissions;
 use router_api::ChainName;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use crate::primitives::*;
 
 #[cw_serde]
-#[derive(EnsurePermissions)]
+#[derive(Permissions)]
 pub enum ExecuteMsg {
     /// Can only be called by governance account
     #[permission(Governance)]

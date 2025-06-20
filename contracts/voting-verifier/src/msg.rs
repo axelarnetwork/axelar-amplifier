@@ -1,7 +1,7 @@
 use axelar_wasm_std::voting::{PollId, PollStatus, Vote, WeightedPoll};
 use axelar_wasm_std::{nonempty, MajorityThreshold, VerificationStatus};
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use msgs_derive::EnsurePermissions;
+use msgs_derive::Permissions;
 use multisig::verifier_set::VerifierSet;
 use router_api::Message;
 pub use voting_verifier_api::msg::InstantiateMsg;
@@ -9,7 +9,7 @@ pub use voting_verifier_api::msg::InstantiateMsg;
 pub use crate::contract::MigrateMsg;
 
 #[cw_serde]
-#[derive(EnsurePermissions)]
+#[derive(Permissions)]
 pub enum ExecuteMsg {
     // Computes the results of a poll
     // For all verified messages, calls MessagesVerified on the verifier

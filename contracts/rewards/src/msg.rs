@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use axelar_wasm_std::{nonempty, Threshold};
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, Uint128, Uint64};
-use msgs_derive::EnsurePermissions;
+use msgs_derive::Permissions;
 use router_api::{Address, ChainName};
 
 pub use crate::contract::MigrateMsg;
@@ -43,7 +43,7 @@ pub struct Params {
 }
 
 #[cw_serde]
-#[derive(EnsurePermissions)]
+#[derive(Permissions)]
 pub enum ExecuteMsg {
     /// Log a specific verifier as participating in a specific event. Verifier weights are ignored
     /// This call will error if the pool does not yet exist.
