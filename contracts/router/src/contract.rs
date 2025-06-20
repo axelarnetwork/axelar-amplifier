@@ -115,10 +115,7 @@ fn find_gateway_address(
     }
 }
 
-fn find_coordinator_address(
-    storage: &dyn Storage,
-    _: &ExecuteMsg,
-) -> error_stack::Result<Addr, Error> {
+fn find_coordinator_address(storage: &dyn Storage) -> error_stack::Result<Addr, Error> {
     Ok(load_config(storage)
         .change_context(Error::CoordinatorNotFound)?
         .coordinator)

@@ -1,15 +1,15 @@
 use std::cmp::Ordering;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::HashMap;
 
 use axelar_wasm_std::permission_control::Permission;
 use itertools::Itertools;
 use proc_macro::TokenStream;
 use proc_macro2::{Literal, Span};
 use quote::{format_ident, quote};
-use syn::parse::{Parse, ParseStream, Parser};
+use syn::parse::{Parse, ParseStream};
 use syn::punctuated::Punctuated;
 use syn::token::Comma;
-use syn::{parse_quote, Expr, ExprCall, Ident, ItemEnum, ItemFn, Meta, Path, Token, Variant};
+use syn::{parse_quote, Expr, ExprCall, Ident, ItemEnum, ItemFn, Path, Token, Variant};
 
 /// This macro derives the `ensure_permissions` method for an enum. The method checks if the sender
 /// has the required permissions to execute the variant. The permissions are defined using the
@@ -83,7 +83,8 @@ use syn::{parse_quote, Expr, ExprCall, Ident, ItemEnum, ItemFn, Meta, Path, Toke
 /// assert!(execute(deps, env, info, ExecuteMsg::OnlyGatewayCanCallThis).is_err());
 /// # }
 /// ```
-#[proc_macro_derive(Permissions, attributes(permission, allow_contract_executors))]
+
+#[proc_macro_derive(EnsurePermissions, attributes(permission))]
 pub fn derive_ensure_permissions(input: TokenStream) -> TokenStream {
     // This will trigger a compile time error if the parse failed. In other words,
     // this macro can only be used on an enum.
@@ -107,7 +108,8 @@ fn build_implementation(enum_type: Ident, data: ItemEnum) -> TokenStream {
     let specific_check = build_specific_permissions_check(&enum_type, &variants, &permissions);
     let general_check = build_general_permissions_check(&enum_type, &variants, &permissions);
     let check_function = build_full_check_function(&permissions, specific_check, general_check);
-    let verify_external_executors = build_verify_external_executor_function(data.clone());
+    let verify_external_executors =
+        build_verify_external_executor_function(&enum_type, &variants, &permissions);
 
     TokenStream::from(quote! {
         #[cw_serde]
@@ -141,10 +143,11 @@ fn build_implementation(enum_type: Ident, data: ItemEnum) -> TokenStream {
 struct MsgPermissions {
     specific: Vec<Path>,
     general: Vec<Path>,
+    external: Vec<Path>,
 }
 
 fn find_permissions(variant: Variant) -> Option<(Ident, MsgPermissions)> {
-    let (specific, general): (Vec<_>, Vec<_>) = variant
+    let (specific, general, external): (Vec<_>, Vec<_>, Vec<_>) = variant
         .attrs
         .iter()
         .filter(|attr| attr.path().is_ident("permission"))
@@ -157,16 +160,22 @@ fn find_permissions(variant: Variant) -> Option<(Ident, MsgPermissions)> {
             }
         })
         .map(|expr| match expr {
-            Expr::Path(path) => (None, Some(path.path)),
+            Expr::Path(path) => (None, Some(path.path), None),
             Expr::Call(ExprCall { args, func, .. }) => {
-                let paths = parse_specific_permissions(&variant, args);
-                if !is_specific_attribute(&func) {
-                    panic!(
+                let paths = parse_non_general_permissions(&variant, args);
+
+                match *func {
+                    Expr::Path(p) if p.path.is_ident("Specific") => {
+                        (Some(paths), None, None)
+                    },
+                    Expr::Path(p) if p.path.is_ident("External") => {
+                        (None, None, Some(paths))
+                    },
+                    _ => panic!(
                         "unrecognized permission attribute for variant {}, suggestion: 'Specific(...)'?",
                         variant.ident
-                    );
+                    ),
                 }
-                (Some(paths), None)
             }
             expr =>
                 panic!(
@@ -174,16 +183,24 @@ fn find_permissions(variant: Variant) -> Option<(Ident, MsgPermissions)> {
                     quote! {#expr}, variant.ident
                 )
         })
-        .unzip();
+        .multiunzip();
 
     let specific: Vec<Path> = specific.into_iter().flatten().flatten().collect();
     let general: Vec<Path> = general.into_iter().flatten().collect();
+    let external: Vec<Path> = external.into_iter().flatten().flatten().collect();
 
     if !general.iter().all_unique() {
         panic!("permissions for variant {} must be unique", variant.ident);
     }
 
     if !specific.iter().all_unique() {
+        panic!(
+            "whitelisted addresses for variant {} must be unique",
+            variant.ident
+        );
+    }
+
+    if !external.iter().all_unique() {
         panic!(
             "whitelisted addresses for variant {} must be unique",
             variant.ident
@@ -205,23 +222,23 @@ fn find_permissions(variant: Variant) -> Option<(Ident, MsgPermissions)> {
         );
     }
 
-    Some((variant.ident, MsgPermissions { specific, general }))
+    Some((
+        variant.ident,
+        MsgPermissions {
+            specific,
+            general,
+            external,
+        },
+    ))
 }
 
-fn is_specific_attribute(func: &Expr) -> bool {
-    match func {
-        Expr::Path(path) => path.path.is_ident("Specific"),
-        _ => false,
-    }
-}
-
-fn parse_specific_permissions(
+fn parse_non_general_permissions(
     variant: &Variant,
     args: Punctuated<Expr, Comma>,
 ) -> impl IntoIterator<Item = Path> + '_ {
     args.into_iter().map(|arg| match arg {
         Expr::Path(path) => path.path,
-        _ => panic!("wrong format of 'Specific' permission attribute for variant {}, only comma separated identifiers are allowed", variant.ident),
+        _ => panic!("wrong format of non-general permission attribute for variant {}, only comma separated identifiers are allowed", variant.ident),
     })
 }
 
@@ -322,86 +339,37 @@ fn build_general_permissions_check(
     }
 }
 
-fn build_verify_external_executor_function(data: ItemEnum) -> proc_macro2::TokenStream {
-    // The following vector stores the following pairs
-    // (contract_name, variant_name)
-    // Results are sorted on contract_name
-    let contracts_and_variants: Vec<(Ident, Ident)> = data
-        .variants
-        .into_iter()
-        .flat_map(|variant| {
-            variant
-                .attrs
-                .into_iter()
-                .filter_map(|attr| match attr.meta.clone() {
-                    Meta::List(list) => match list.path.get_ident() {
-                        Some(function_name) => {
-                            if function_name.eq(&format_ident!("allow_contract_executors")) {
-                                let parser = Punctuated::<Expr, Token![,]>::parse_terminated;
-                                let contracts = parser
-                                    .parse2(list.tokens.clone())
-                                    .expect("expecting valid contract names");
-                                let mut res: Vec<(Ident, Ident)> = vec![];
+fn build_verify_external_executor_function(
+    enum_type: &Ident,
+    variants: &[Ident],
+    permissions: &[MsgPermissions],
+) -> proc_macro2::TokenStream {
+    let ensure_contract_has_permission = permissions.iter().map(|permission| {
+        let allowed_contracts: Vec<_> = permission
+            .external
+            .iter()
+            .map(|path| syn::LitStr::new(&path.get_ident().unwrap().to_string(), Span::call_site()))
+            .collect();
 
-                                // Contracts must parse to a path. Only keep valid contract names
-                                for c in contracts {
-                                    if let Expr::Path(expr_path) = c {
-                                        if let Some(contract_name) = expr_path.path.get_ident() {
-                                            res.push((
-                                                contract_name.clone(),
-                                                variant.ident.clone(),
-                                            ));
-                                        }
-                                    }
-                                }
-
-                                Some(res)
-                            } else {
-                                None
-                            }
-                        }
-                        None => None,
-                    },
-                    _ => None,
-                })
-                .flatten()
-                .collect::<Vec<(Ident, Ident)>>()
-        })
-        .sorted_by(|a, b| a.0.cmp(&b.0))
-        .collect();
-
-    // For every contract, list every variant that contract may execute
-    let allowed_msgs: Vec<(String, Vec<Ident>)> = {
-        let mut map: BTreeMap<String, Vec<Ident>> = BTreeMap::new();
-        for (contract, variant) in contracts_and_variants {
-            map.entry(contract.to_string()).or_default().push(variant);
+        quote! {
+            #(
+                if contract_name == #allowed_contracts {
+                    return Ok(msg);
+                }
+            )*
+            error_stack::bail!(axelar_wasm_std::permission_control::Error::Unauthorized)
         }
-        map.into_iter().collect()
-    };
-
-    let original_enum_type = data.ident.clone();
-    let match_contract_can_execute_variant: Vec<_> = allowed_msgs.iter().map(|(_, variants)| quote! {
-        match msg {
-            #(#original_enum_type::#variants {..} => Ok(msg.clone()),)*
-            _ => error_stack::bail!(axelar_wasm_std::permission_control::Error::Unauthorized),
-        }
-    })
-    .collect();
-
-    let all_contracts: Vec<_> = allowed_msgs.into_iter().map(|x| x.0).collect();
+    });
 
     quote! {
         pub fn verify_external_executor(
-            msg: #original_enum_type,
+            msg: #enum_type,
             contract_name: String,
-        ) -> error_stack::Result<#original_enum_type, axelar_wasm_std::permission_control::Error> {
-            #(
-                if contract_name == #all_contracts {
-                    return #match_contract_can_execute_variant
-                }
-            )*
-
-            Ok(msg.clone())
+        ) -> error_stack::Result<#enum_type, axelar_wasm_std::permission_control::Error> {
+            match msg {
+                #(#enum_type::#variants {..} => {#ensure_contract_has_permission}),*
+                _ => error_stack::bail!(axelar_wasm_std::permission_control::Error::Unauthorized),
+            }
         }
     }
 }
@@ -595,19 +563,16 @@ impl Parse for AllPermissions {
     }
 }
 
-fn validate_external_contract_function(
-    execute_msg_ident: Ident,
-    contract_names: Vec<Ident>,
-) -> TokenStream {
-    let fs: Vec<_> = (0..contract_names.len())
+fn validate_external_contract_function(contracts: Vec<Ident>) -> TokenStream {
+    let fs: Vec<_> = (0..contracts.len())
         .map(|i| format_ident!("F{}", i))
         .collect();
 
-    let cs: Vec<_> = (0..contract_names.len())
+    let cs: Vec<_> = (0..contracts.len())
         .map(|i| format_ident!("C{}", i))
         .collect();
 
-    let contract_names_str: Vec<_> = contract_names
+    let contract_names: Vec<_> = contracts
         .iter()
         .map(|c| {
             let mut new_arg = c.to_string().clone();
@@ -618,21 +583,20 @@ fn validate_external_contract_function(
 
     TokenStream::from(quote! {
         fn validate_external_contract<#(#fs),*, #(#cs),*>(
-                msg: #execute_msg_ident,
                 storage: &dyn cosmwasm_std::Storage,
-                addr: Addr,
-                #(#contract_names: #fs),*,
-                #(#contract_names_str: String),*
+                contract_addr: Addr,
+                #(#contracts: #fs),*,
+                #(#contract_names: String),*
             ) -> error_stack::Result<String, axelar_wasm_std::permission_control::Error>
             where
-            #(#fs:FnOnce(&dyn cosmwasm_std::Storage, &#execute_msg_ident) -> error_stack::Result<cosmwasm_std::Addr, #cs>),*,
+            #(#fs:FnOnce(&dyn cosmwasm_std::Storage) -> error_stack::Result<cosmwasm_std::Addr, #cs>),*,
             #(#cs: error_stack::Context),*
                 {
                 #(
-                    match #contract_names(storage, &msg) {
-                        Ok(a) => {
-                            if a == addr {
-                                return Ok(#contract_names_str);
+                    match #contracts(storage) {
+                        Ok(stored_addr) => {
+                            if stored_addr == contract_addr {
+                                return Ok(#contract_names);
                             }
                         },
                         Err(_) => {},
@@ -660,9 +624,13 @@ fn validate_external_contract_function(
 /// case 2. In both scenarios, the left hand side of the assignment is the identifier for the
 /// contract and original sender, respectively. The right hand side is a function with the signature:
 ///
+/// FnOnce(&dyn cosmwasm_std::Storage) -> error_stack::Result<cosmwasm_std::Addr, impl error_stack::Context>
+///
+/// for contracts, and
+///
 /// FnOnce(&dyn cosmwasm_std::Storage, &ExecuteMsg) -> error_stack::Result<cosmwasm_std::Addr, impl error_stack::Context>
 ///
-/// The right hand side can be an expression that returns a function with that signature.
+/// for addresses. The right hand side can be an expression that returns a function with that signature.
 #[proc_macro_attribute]
 pub fn ensure_permissions(attr: TokenStream, item: TokenStream) -> TokenStream {
     let mut execute_fn = syn::parse_macro_input!(item as ItemFn);
@@ -701,8 +669,7 @@ pub fn ensure_permissions(attr: TokenStream, item: TokenStream) -> TokenStream {
         .inputs
         .push(parse_quote! {msg: #new_msg_ident});
 
-    let validate_fn =
-        validate_external_contract_function(original_msg_ident, contract_names.clone());
+    let validate_fn = validate_external_contract_function(contract_names.clone());
     let validate_fn = syn::parse_macro_input!(validate_fn as ItemFn);
 
     let statements = execute_fn.block.stmts;
@@ -714,9 +681,8 @@ pub fn ensure_permissions(attr: TokenStream, item: TokenStream) -> TokenStream {
                 #new_msg_ident::Relay{sender, msg} => {
                     // Validate that the sending contract is allowed to execute messages.
                     (#new_msg_ident::verify_external_executor(
-                        msg.clone(),
+                        msg,
                         validate_external_contract(
-                            msg.clone(),
                             deps.storage,
                             info.sender.clone(),
                             #(#contract_permissions),*,

@@ -59,9 +59,6 @@ pub enum ExecuteMsg {
         // Such an error will be flagged by "cargo clippy..."
         params: Box<DeploymentParams>,
     },
-
-    #[permission(Any)]
-    RegisterDeployment { deployment_name: nonempty::String },
 }
 
 #[cw_serde]

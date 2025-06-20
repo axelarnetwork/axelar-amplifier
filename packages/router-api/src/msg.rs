@@ -10,8 +10,7 @@ use crate::primitives::*;
 #[derive(Permissions)]
 pub enum ExecuteMsg {
     /// Registers a new chain with the router
-    #[permission(Governance)]
-    #[allow_contract_executors(coordinator)]
+    #[permission(Governance, External(coordinator))]
     RegisterChain {
         chain: ChainName,
         gateway_address: Address,

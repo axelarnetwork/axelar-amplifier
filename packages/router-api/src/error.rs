@@ -53,12 +53,6 @@ pub enum Error {
     #[error("failed to query the nexus module")]
     Nexus,
 
-    #[error("execute message is invalid")]
-    InvalidExecuteMsg,
-
-    #[error("unauthorized")]
-    Unauthorized,
-
     #[error("error serializing data")]
     Serialize,
 }
