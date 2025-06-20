@@ -52,4 +52,7 @@ pub enum Error {
 
     #[error("failed to query the nexus module")]
     Nexus,
+
+    #[error("error serializing data")]
+    Serialize,
 }
