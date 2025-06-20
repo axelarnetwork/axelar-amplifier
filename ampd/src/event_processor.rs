@@ -14,11 +14,11 @@ use tokio_stream::Stream;
 use tokio_util::sync::CancellationToken;
 use tracing::{info, warn};
 use valuable::Valuable;
-use crate::prometheus_metrics::monitor::MetricsClient;
-use crate::prometheus_metrics::msg::MetricsMsg;
 
 use crate::asyncutil::future::{self, RetryPolicy};
 use crate::asyncutil::task::TaskError;
+use crate::prometheus_metrics::monitor::MetricsClient;
+use crate::prometheus_metrics::msg::MetricsMsg;
 use crate::queue::queued_broadcaster::BroadcasterClient;
 
 #[async_trait]
@@ -199,13 +199,14 @@ mod tests {
     use events::Event;
     use futures::stream;
     use mockall::mock;
+    use reqwest::Url;
     use tokio::time::timeout;
     use tokio_util::sync::CancellationToken;
-    use reqwest::Url;
-    use crate::prometheus_metrics::monitor::tests::test_metrics_server_setup;
-    use crate::prometheus_metrics::monitor::Server;
+
     use crate::event_processor;
     use crate::event_processor::{consume_events, Config, Error, EventHandler};
+    use crate::prometheus_metrics::monitor::tests::test_metrics_server_setup;
+    use crate::prometheus_metrics::monitor::Server;
     use crate::queue::queued_broadcaster::{Error as BroadcasterError, MockBroadcasterClient};
 
     pub fn setup_event_config(
@@ -289,7 +290,7 @@ mod tests {
                 stream::iter(events),
                 event_config,
                 CancellationToken::new(),
-                metrics_client
+                metrics_client,
             ),
         )
         .await;
@@ -326,7 +327,7 @@ mod tests {
                 stream::iter(events),
                 event_config,
                 CancellationToken::new(),
-                metrics_client
+                metrics_client,
             ),
         )
         .await;
@@ -448,7 +449,7 @@ mod tests {
                 stream::iter(events),
                 event_config,
                 token,
-                metrics_client
+                metrics_client,
             ),
         )
         .await;
@@ -480,7 +481,7 @@ mod tests {
                 stream::pending::<Result<Event, Error>>(), // never returns any items so it can time out
                 event_config,
                 token,
-                metrics_client
+                metrics_client,
             ),
         )
         .await;
@@ -568,5 +569,4 @@ mod tests {
 
         cancel_token.cancel();
     }
-    
 }
