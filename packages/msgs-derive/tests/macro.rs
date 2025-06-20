@@ -1,11 +1,14 @@
 use std::fmt::Display;
 
 use axelar_wasm_std::permission_control;
+use cosmwasm_schema::cw_serde;
 use cosmwasm_std::testing::{MockApi, MockStorage};
 use cosmwasm_std::{Addr, Storage};
 use error_stack::{report, Report};
+use msgs_derive::EnsurePermissions;
 
-#[derive(msgs_derive::EnsurePermissions, Clone, Debug)]
+#[cw_serde]
+#[derive(EnsurePermissions)]
 #[allow(dead_code)] // the msg fields are only defined to make sure the derive attribute can handle fields correctly
 enum TestMsg {
     #[permission(NoPrivilege)]
@@ -22,7 +25,8 @@ enum TestMsg {
     Multi,
 }
 
-#[derive(msgs_derive::EnsurePermissions, Clone, Debug)]
+#[cw_serde]
+#[derive(EnsurePermissions)]
 enum TestMsg2 {
     #[permission(Any)]
     Any,
@@ -154,6 +158,14 @@ fn ensure_specific_permissions() {
     let gateway3 = |_: &dyn Storage, _: &TestMsg2| {
         Ok::<Addr, Report<Error>>(MockApi::default().addr_make("gateway3"))
     };
+
+    // Given a set of specific permissions, the EnsurePermissions macro will now determine
+    // a deterministic order of how the permission checking functions should appear as
+    // arguments in 'ensure_permissions'. Previously, the developer was responsible for
+    // calling ensure_permissions. Since the call to ensure premissions is now generated,
+    // this deterministic ordering helps to ensure arguments are inserted in the correct
+    // order.
+    // The order in this test happens to be: gateway1, gateway2, gateway3
 
     let mut storage = MockStorage::new();
     permission_control::set_admin(&mut storage, &admin).unwrap();

@@ -25,7 +25,7 @@ pub fn register_chain(
     name: ChainName,
     gateway: Addr,
     msg_id_format: MessageIdFormat,
-) -> Result<Response, Report<Error>> {
+) -> error_stack::Result<Response, Error> {
     if find_chain_for_gateway(storage, &gateway)
         .change_context(Error::StoreFailure)?
         .is_some()
