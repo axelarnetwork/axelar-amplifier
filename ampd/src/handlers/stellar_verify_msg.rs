@@ -50,6 +50,7 @@ struct PollStartedEvent {
     participants: Vec<TMAddress>,
 }
 
+#[derive(Debug)]
 pub struct Handler {
     verifier: TMAddress,
     voting_verifier_contract: TMAddress,

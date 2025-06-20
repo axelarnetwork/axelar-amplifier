@@ -1,5 +1,7 @@
+use std::fmt;
 use std::time::Duration;
 
+use ::std::fmt::Debug;
 use async_trait::async_trait;
 use cosmrs::proto::cosmos::auth::v1beta1::query_client::QueryClient as AuthQueryClient;
 use cosmrs::proto::cosmos::auth::v1beta1::{
@@ -28,6 +30,7 @@ use tonic::transport::Channel;
 use tonic::{Code, Response, Status};
 
 use crate::broadcaster::tx::Tx;
+use crate::types::debug::REDACTED_VALUE;
 use crate::types::{CosmosPublicKey, TMAddress};
 
 type Result<T> = error_stack::Result<T, Error>;
@@ -181,6 +184,17 @@ impl CosmosClient for CosmosGrpcClient {
             .await
             .map(Response::into_inner)
             .map_err(ErrorExt::into_report)
+    }
+}
+
+impl Debug for CosmosGrpcClient {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("CosmosGrpcClient")
+            .field("auth", &REDACTED_VALUE)
+            .field("bank", &REDACTED_VALUE)
+            .field("cosm_wasm", &REDACTED_VALUE)
+            .field("service", &REDACTED_VALUE)
+            .finish()
     }
 }
 

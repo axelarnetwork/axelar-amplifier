@@ -1,20 +1,55 @@
-use std::fmt::{Display, Formatter};
-use std::str::FromStr;
+use std::fmt::{Debug, Display, Formatter};
+use std::ops::Deref;
 
-use deref_derive::Deref;
-use serde::de::{Error, Visitor};
+use serde::de::Error;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use url::ParseError;
 
-#[derive(Debug, Deref, Hash, PartialEq, Eq, Clone)]
-pub struct Url(url::Url);
+use crate::types::debug::REDACTED_VALUE;
 
-impl<'a> Deserialize<'a> for Url {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+#[derive(Hash, PartialEq, Eq, Clone)]
+pub struct Url {
+    inner: url::Url,
+    is_sensitive: bool,
+}
+
+impl Deref for Url {
+    type Target = url::Url;
+
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
+}
+
+impl Url {
+    pub fn new_sensitive(s: &str) -> Result<Self, ParseError> {
+        url::Url::parse(s).map(|url| Self {
+            inner: url,
+            is_sensitive: true,
+        })
+    }
+
+    pub fn new_non_sensitive(s: &str) -> Result<Self, ParseError> {
+        url::Url::parse(s).map(|url| Self {
+            inner: url,
+            is_sensitive: false,
+        })
+    }
+
+    pub fn deserialize_sensitive<'de, D>(deserializer: D) -> Result<Self, D::Error>
     where
-        D: Deserializer<'a>,
+        D: Deserializer<'de>,
     {
-        deserializer.deserialize_string(UrlVisitor)
+        let url_str = String::deserialize(deserializer)?;
+        Url::new_sensitive(&url_str).map_err(|err| D::Error::custom(err.to_string()))
+    }
+
+    pub fn deserialize_non_sensitive<'de, D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let url_str = String::deserialize(deserializer)?;
+        Url::new_non_sensitive(&url_str).map_err(|err| D::Error::custom(err.to_string()))
     }
 }
 
@@ -23,43 +58,94 @@ impl Serialize for Url {
     where
         S: Serializer,
     {
-        serializer.serialize_str(self.0.as_str())
-    }
-}
-
-impl FromStr for Url {
-    type Err = ParseError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        url::Url::parse(s).map(Url)
+        serializer.serialize_str(self.inner.as_str())
     }
 }
 
 impl Display for Url {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_str(self.as_str())
+        if self.is_sensitive {
+            f.write_str(REDACTED_VALUE)
+        } else {
+            f.write_str(self.inner.as_str())
+        }
     }
 }
 
-impl From<&Url> for url::Url {
-    fn from(value: &Url) -> Self {
-        value.0.clone()
+impl From<Url> for url::Url {
+    fn from(value: Url) -> Self {
+        value.inner
     }
 }
 
-struct UrlVisitor;
-impl Visitor<'_> for UrlVisitor {
-    type Value = Url;
+impl Debug for Url {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        Display::fmt(self, f)
+    }
+}
 
-    fn expecting(&self, formatter: &mut Formatter) -> std::fmt::Result {
-        formatter.write_str("a well-formed url string")
+#[cfg(test)]
+mod tests {
+    use serde::Deserialize;
+
+    use super::*;
+
+    #[test]
+    fn test_new_sensitive_and_display_debug() {
+        let url = Url::new_sensitive("http://secret.api/key").unwrap();
+        assert_eq!(format!("{}", url), REDACTED_VALUE);
+        assert_eq!(format!("{:?}", url), REDACTED_VALUE);
     }
 
-    fn visit_str<E>(self, url: &str) -> Result<Self::Value, E>
-    where
-        E: Error,
-    {
-        url.parse()
-            .map_err(|err: ParseError| E::custom(err.to_string()))
+    #[test]
+    fn test_new_non_sensitive_and_display_debug() {
+        let url = Url::new_non_sensitive("http://public.api").unwrap();
+        assert_eq!(format!("{}", url), "http://public.api/");
+        assert_eq!(format!("{:?}", url), "http://public.api/");
+    }
+
+    #[test]
+    fn test_from_trait_convert_to_url_sucessfully() {
+        let original = "https://example.com";
+        let url = Url::new_non_sensitive(original).unwrap();
+        let inner: url::Url = url::Url::from(url);
+        assert_eq!(inner.as_str(), "https://example.com/");
+    }
+
+    #[test]
+    fn serialization_preserves_full_url_regardless_of_sensitivity() {
+        let url = Url::new_non_sensitive("https://serialize.test").unwrap();
+        let serialized = toml::to_string(&url).unwrap();
+        assert!(serialized.contains("https://serialize.test"));
+
+        let sensitive_url = Url::new_sensitive("https://sensitive.serialize.test").unwrap();
+        let serialized = toml::to_string(&sensitive_url).unwrap();
+        assert!(serialized.contains("https://sensitive.serialize.test"));
+    }
+
+    #[test]
+    fn deserialize_sensitive_marks_url_as_sensitive_and_redacts_display() {
+        #[derive(Deserialize)]
+        struct TestConfig {
+            #[serde(deserialize_with = "Url::deserialize_sensitive")]
+            url: Url,
+        }
+        let toml_str = r#"url = "https://sensitive.test""#;
+        let config: TestConfig = toml::from_str(toml_str).unwrap();
+        assert_eq!(format!("{}", config.url), REDACTED_VALUE);
+        assert_eq!(config.url.as_str(), "https://sensitive.test/");
+    }
+
+    #[test]
+    fn deserialize_non_sensitive_shows_full_url_in_display() {
+        #[derive(Deserialize)]
+        struct TestConfig {
+            #[serde(deserialize_with = "Url::deserialize_non_sensitive")]
+            url: Url,
+        }
+        let toml_str = r#"url = "https://non-sensitive.test""#;
+        let config: TestConfig = toml::from_str(toml_str).unwrap();
+        assert_eq!(format!("{}", config.url), "https://non-sensitive.test/");
+        assert_eq!(config.url.as_str(), "https://non-sensitive.test/");
     }
 }
