@@ -82,12 +82,9 @@ async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
         grpc: grpc_config,
     } = cfg;
 
-
     let (prometheus_monitor_server, metrics_client) =
-        monitor::Server::new(prometheus_monitor_bind_addr)
-        .change_context(Error::Monitor)?;
+        monitor::Server::new(prometheus_monitor_bind_addr).change_context(Error::Monitor)?;
     let tm_client = tendermint_rpc::HttpClient::new(tm_jsonrpc.as_str())
-
         .change_context(Error::Connection)
         .attach_printable(tm_jsonrpc.clone())?;
     let multisig_client = MultisigClient::new(
