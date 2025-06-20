@@ -12,6 +12,7 @@ use event_sub::EventSub;
 use evm::finalizer::{pick, Finalization};
 use evm::json_rpc::EthereumClient;
 use multiversx_sdk::gateway::GatewayProxy;
+use prometheus_metrics::monitor::MetricsClient;
 use queue::queued_broadcaster::QueuedBroadcaster;
 use router_api::ChainName;
 use solana_client::nonblocking::rpc_client::RpcClient;
@@ -26,9 +27,9 @@ use tokio::time::interval;
 use tokio_util::sync::CancellationToken;
 use tracing::info;
 use types::{CosmosPublicKey, TMAddress};
-use prometheus_metrics::monitor::MetricsClient;
-use crate::prometheus_metrics::monitor;
+
 use crate::config::Config;
+use crate::prometheus_metrics::monitor;
 
 mod asyncutil;
 mod block_height_monitor;
@@ -43,9 +44,9 @@ mod event_sub;
 mod evm;
 mod grpc;
 mod handlers;
-pub mod prometheus_metrics;
 mod json_rpc;
 mod mvx;
+pub mod prometheus_metrics;
 mod queue;
 mod solana;
 mod starknet;
@@ -87,6 +88,7 @@ async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
         monitor::Server::new(prometheus_monitor_bind_addr)
         .change_context(Error::Monitor)?;
     let tm_client = tendermint_rpc::HttpClient::new(tm_jsonrpc.as_str())
+
         .change_context(Error::Connection)
         .attach_printable(tm_jsonrpc.clone())?;
     let multisig_client = MultisigClient::new(
@@ -168,7 +170,6 @@ async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
         },
     );
 
-
     let verifier: TMAddress = pub_key
         .account_id(PREFIX)
         .expect("failed to convert to account identifier")
@@ -247,8 +248,6 @@ where
             MultisigClient,
         >,
         metrics_client: MetricsClient,
-
-
     ) -> Self {
         let event_processor = TaskGroup::new("event handler");
 
@@ -263,7 +262,7 @@ where
             prometheus_monitor_server,
             grpc_server,
             broadcaster_task,
-            metrics_client
+            metrics_client,
         }
     }
 
