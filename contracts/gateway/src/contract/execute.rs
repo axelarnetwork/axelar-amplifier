@@ -47,13 +47,15 @@ pub fn route_outgoing_messages(
 fn apply(
     verifier: &voting_verifier::Client,
     msgs: Vec<Message>,
-    action: impl Fn(Vec<(VerificationStatus, Vec<Message>)>) -> (Option<CosmosMsg>, Vec<Event>),
+    action: impl Fn(
+        Vec<(VerificationStatus, Vec<Message>)>,
+    ) -> Result<(Option<CosmosMsg>, Vec<Event>), Error>,
 ) -> Result<Response, Error> {
     check_for_duplicates(msgs)?
         .then(|msgs| verifier.messages_status(msgs))
         .change_context(Error::MessageStatus)?
         .then(group_by_status)
-        .then(action)
+        .then(action)?
         .then(|(msgs, events)| Response::new().add_messages(msgs).add_events(events))
         .then(Ok)
 }
@@ -89,8 +91,8 @@ fn group_by_status(
 fn verify(
     verifier: &voting_verifier::Client,
     msgs_by_status: Vec<(VerificationStatus, Vec<Message>)>,
-) -> (Option<CosmosMsg>, Vec<Event>) {
-    msgs_by_status
+) -> Result<(Option<CosmosMsg>, Vec<Event>), Error> {
+    Ok(msgs_by_status
         .into_iter()
         .map(|(status, msgs)| {
             (
@@ -99,13 +101,13 @@ fn verify(
             )
         })
         .then(flat_unzip)
-        .then(|(msgs, events)| (verifier.verify_messages(msgs), events))
+        .then(|(msgs, events)| (verifier.verify_messages(msgs), events)))
 }
 
 fn route(
     router: &Router,
     msgs_by_status: Vec<(VerificationStatus, Vec<Message>)>,
-) -> (Option<CosmosMsg>, Vec<Event>) {
+) -> Result<(Option<CosmosMsg>, Vec<Event>), Error> {
     msgs_by_status
         .into_iter()
         .map(|(status, msgs)| {
@@ -115,7 +117,14 @@ fn route(
             )
         })
         .then(flat_unzip)
-        .then(|(msgs, events)| (router.route(msgs), events))
+        .then(|(msgs, events)| {
+            Ok((
+                router
+                    .route(msgs)
+                    .change_context(Error::RouteIncomingMessages)?,
+                events,
+            ))
+        })
 }
 
 // not all messages are verifiable, so it's better to only take a reference and allocate a vector on demand

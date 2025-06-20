@@ -3,6 +3,7 @@ use std::marker::PhantomData;
 use axelar_wasm_std::msg_id::MessageIdFormat;
 use axelar_wasm_std::vec::VecExt;
 use cosmwasm_std::{to_json_binary, Addr, CosmosMsg, Empty, WasmMsg};
+use error_stack::{report, Result};
 
 use crate::error::Error;
 use crate::msg::{ExecuteMsg, ExecuteMsgFromContract};
@@ -26,17 +27,16 @@ impl<T> Router<T> {
         Ok(WasmMsg::Execute {
             contract_addr: self.address.to_string(),
             msg: to_json_binary(&ExecuteMsgFromContract::Direct(msg.clone()))
-                .map_err(|_| Error::Serialize)?,
+                .map_err(|_| report!(Error::Serialize))?,
             funds: vec![],
         }
         .into())
     }
 
-    pub fn route(&self, msgs: Vec<Message>) -> Option<CosmosMsg<T>> {
+    pub fn route(&self, msgs: Vec<Message>) -> Result<Option<CosmosMsg<T>>, Error> {
         msgs.to_none_if_empty()
             .map(|msgs| self.execute(&ExecuteMsg::RouteMessages(msgs)))
             .transpose()
-            .unwrap_or_default()
     }
 
     pub fn execute_from_contract(
@@ -50,7 +50,7 @@ impl<T> Router<T> {
                 sender: original_sender,
                 msg: msg.clone(),
             })
-            .map_err(|_| Error::Serialize)?,
+            .map_err(|_| report!(Error::Serialize))?,
             funds: vec![],
         }
         .into())
@@ -62,7 +62,7 @@ impl<T> Router<T> {
         chain: ChainName,
         gateway_address: Address,
         msg_id_format: MessageIdFormat,
-    ) -> Option<CosmosMsg<T>> {
+    ) -> Result<Option<CosmosMsg<T>>, Error> {
         self.execute_from_contract(
             original_sender,
             &ExecuteMsg::RegisterChain {
@@ -71,6 +71,6 @@ impl<T> Router<T> {
                 msg_id_format,
             },
         )
-        .ok()
+        .map(Some)
     }
 }
