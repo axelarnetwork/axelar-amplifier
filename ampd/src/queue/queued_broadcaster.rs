@@ -38,6 +38,7 @@ pub trait BroadcasterClient {
     async fn broadcast(&self, tx: Any) -> Result;
 }
 
+#[derive(Debug)]
 pub struct QueuedBroadcasterClient {
     sender: mpsc::Sender<MsgAndResponseCallback>,
 }

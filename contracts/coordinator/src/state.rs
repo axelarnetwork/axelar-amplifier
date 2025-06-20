@@ -1,6 +1,5 @@
 use std::collections::HashSet;
 
-use axelar_wasm_std::msg_id::MessageIdFormat;
 use axelar_wasm_std::nonempty;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Order, StdError, Storage};
@@ -40,10 +39,7 @@ pub enum Error {
     StateRemoveFailed,
 
     #[error("deployment name {0} is in use")]
-    DeploymentNameInUse(nonempty::String),
-
-    #[error("deployment name {0} is not registered")]
-    DeploymentNameNotRegistered(nonempty::String),
+    DeploymentName(nonempty::String),
 }
 
 #[cw_serde]
@@ -68,8 +64,6 @@ pub fn protocol_contracts(storage: &dyn Storage) -> Result<ProtocolContracts, St
 
 #[cw_serde]
 pub struct ChainContracts {
-    pub chain_name: ChainName,
-    pub msg_id_format: MessageIdFormat,
     pub gateway: Addr,
     pub voting_verifier: Addr,
     pub multisig_prover: Addr,
@@ -206,7 +200,7 @@ pub fn validate_deployment_name_availability(
         .change_context(Error::StateParseFailed)?;
 
     match deployments {
-        Some(_) => Err(report!(Error::DeploymentNameInUse(deployment_name))),
+        Some(_) => Err(report!(Error::DeploymentName(deployment_name))),
         None => Ok(()),
     }
 }
@@ -221,6 +215,7 @@ pub fn save_deployed_contracts(
         .change_context(Error::PersistingState)
 }
 
+#[allow(dead_code)]
 pub fn deployed_contracts(
     storage: &dyn Storage,
     deployment_name: nonempty::String,
@@ -228,7 +223,7 @@ pub fn deployed_contracts(
     DEPLOYED_CHAINS
         .may_load(storage, deployment_name.to_string())
         .change_context(Error::StateParseFailed)?
-        .ok_or(report!(Error::DeploymentNameNotRegistered(deployment_name)))
+        .ok_or(report!(Error::DeploymentName(deployment_name)))
 }
 
 // Legacy prover storage - maintained for backward compatibility
