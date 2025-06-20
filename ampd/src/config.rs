@@ -1,6 +1,6 @@
 use std::fmt;
 use std::fmt::Debug;
-use std::net::{Ipv4Addr, SocketAddrV4};
+use std::net::SocketAddrV4;
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
@@ -45,7 +45,7 @@ impl Default for Config {
             event_processor: event_processor::Config::default(),
             service_registry: ServiceRegistryConfig::default(),
             rewards: RewardsConfig::default(),
-            prometheus_monitor_bind_addr: Some(SocketAddrV4::new(Ipv4Addr::UNSPECIFIED, 3000)),
+            prometheus_monitor_bind_addr: None,
             grpc: grpc::Config::default(),
         }
     }
@@ -76,6 +76,7 @@ mod tests {
     use std::fs;
     use std::fs::File;
     use std::io::Write;
+    use std::net::{Ipv4Addr, SocketAddrV4};
     use std::path::PathBuf;
     use std::str::FromStr;
     use std::time::Duration;
@@ -590,5 +591,25 @@ mod tests {
             ],
             ..Config::default()
         }
+    }
+
+    #[test]
+    fn prometheus_monitor_bind_addr_deserializes_address() {
+        let bind_addr = "0.0.0.0:3000";
+        let config_str = format!("prometheus_monitor_bind_addr = '{bind_addr}'");
+        let cfg: Config = toml::from_str(&config_str).unwrap();
+
+        assert!(cfg.prometheus_monitor_bind_addr.is_some());
+        assert_eq!(
+            cfg.prometheus_monitor_bind_addr.unwrap(),
+            SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), 3000)
+        );
+    }
+
+    #[test]
+    fn prometheus_monitor_bind_addr_omitted_when_none() {
+        let cfg = config_template();
+        let serialized = toml::to_string_pretty(&cfg).expect("should work");
+        assert!(!serialized.contains("prometheus_monitor_bind_addr"));
     }
 }
