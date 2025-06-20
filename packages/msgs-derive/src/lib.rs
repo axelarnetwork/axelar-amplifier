@@ -31,10 +31,10 @@ use syn::{parse_quote, Expr, ExprCall, Ident, ItemEnum, ItemFn, Meta, Path, Toke
 /// use cosmwasm_std::{Addr, Deps, Env, MessageInfo};
 /// use cosmwasm_std::testing::MockApi;
 /// use axelar_wasm_std::permission_control::Permission;
-/// use msgs_derive::EnsurePermissions;
+/// use msgs_derive::Permissions;
 ///
 /// #[cw_serde]
-/// #[derive(EnsurePermissions)]
+/// #[derive(Permissions)]
 /// pub enum ExecuteMsg {
 ///     #[permission(NoPrivilege, Admin)]
 ///     AnyoneButGovernanceCanCallThis,
@@ -83,7 +83,7 @@ use syn::{parse_quote, Expr, ExprCall, Ident, ItemEnum, ItemFn, Meta, Path, Toke
 /// assert!(execute(deps, env, info, ExecuteMsg::OnlyGatewayCanCallThis).is_err());
 /// # }
 /// ```
-#[proc_macro_derive(EnsurePermissions, attributes(permission, allow_contract_executors))]
+#[proc_macro_derive(Permissions, attributes(permission, allow_contract_executors))]
 pub fn derive_ensure_permissions(input: TokenStream) -> TokenStream {
     // This will trigger a compile time error if the parse failed. In other words,
     // this macro can only be used on an enum.
@@ -484,10 +484,10 @@ fn external_execute_msg_ident(execute_msg_ident: Ident) -> Ident {
     format_ident!("{}FromContract", execute_msg_ident.clone())
 }
 
-/// AllPermissions is a custom struct used to parse the attributes for the external_execute macro
-/// The external_execute macro must be defined as follows:
+/// AllPermissions is a custom struct used to parse the attributes for the ensure_permissions macro
+/// The ensure_permissions macro must be defined as follows:
 ///
-/// #[external_execute(allow_execution_from_contracts(coordinator = find_coordinator_address), allow_execution_from_addresses(verifier = find_varifier_address))]
+/// #[ensure_permissions(allow_execution_from_contracts(coordinator = find_coordinator_address), allow_execution_from_addresses(verifier = find_varifier_address))]
 ///
 /// ContractPermission is a vector of tuples, where the first element is the contract name, and the second
 /// is the authorization function.
@@ -654,7 +654,7 @@ fn validate_external_contract_function(
 ///
 /// This macro takes arguments of the form:
 ///
-/// #\[external_execute(allow_execution_from_contracts(contract = find_contract_address), allow_execution_from_addresses(sender = find_sender_address))\]
+/// #\[ensure_permissions(allow_execution_from_contracts(contract = find_contract_address), allow_execution_from_addresses(sender = find_sender_address))\]
 ///
 /// 'allow_execution_from_contracts' handles case 1, and allow_execution_from_addresses handles
 /// case 2. In both scenarios, the left hand side of the assignment is the identifier for the
@@ -664,10 +664,10 @@ fn validate_external_contract_function(
 ///
 /// The right hand side can be an expression that returns a function with that signature.
 #[proc_macro_attribute]
-pub fn external_execute(attr: TokenStream, item: TokenStream) -> TokenStream {
+pub fn ensure_permissions(attr: TokenStream, item: TokenStream) -> TokenStream {
     let mut execute_fn = syn::parse_macro_input!(item as ItemFn);
     if execute_fn.sig.ident != format_ident!("execute") {
-        panic!("external_execute macro can only be used with execute endpoint")
+        panic!("ensure_permissions macro can only be used with execute endpoint")
     }
 
     let all_permissions = syn::parse_macro_input!(attr as AllPermissions);

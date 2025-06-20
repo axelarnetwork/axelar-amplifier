@@ -5,7 +5,7 @@ use cosmwasm_std::{
     to_json_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response, Storage,
 };
 use error_stack::ResultExt;
-use msgs_derive::external_execute;
+use msgs_derive::ensure_permissions;
 use router_api::error::Error;
 
 use crate::events::RouterInstantiated;
@@ -55,7 +55,7 @@ pub fn instantiate(
     }))
 }
 
-#[external_execute(allow_execution_from_contracts(coordinator = find_coordinator_address), allow_execution_from_addresses(gateway = find_gateway_address(&info.sender)))]
+#[ensure_permissions(allow_execution_from_contracts(coordinator = find_coordinator_address), allow_execution_from_addresses(gateway = find_gateway_address(&info.sender)))]
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
