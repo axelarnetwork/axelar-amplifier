@@ -464,6 +464,7 @@ mod tests {
         assert_eq!(cfg.tofnd_config.party_uid.as_str(), party_uid);
         assert_eq!(cfg.tofnd_config.key_uid.as_str(), key_uid);
     }
+    
     #[test]
     fn serialization_roundtrip_preserves_data() {
         let cfg = config_template();
