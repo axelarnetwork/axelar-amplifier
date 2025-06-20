@@ -17,6 +17,7 @@ use router_api::ChainName;
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::commitment_config::CommitmentConfig;
 use starknet_providers::jsonrpc::HttpTransport;
+use sui_types::metrics;
 use thiserror::Error;
 use tofnd::grpc::{Multisig, MultisigClient};
 use tokio::signal::unix::{signal, SignalKind};
@@ -25,7 +26,8 @@ use tokio::time::interval;
 use tokio_util::sync::CancellationToken;
 use tracing::info;
 use types::{CosmosPublicKey, TMAddress};
-
+use prometheus_metrics::monitor::MetricsClient;
+use crate::prometheus_metrics::monitor;
 use crate::config::Config;
 
 mod asyncutil;
@@ -41,7 +43,7 @@ mod event_sub;
 mod evm;
 mod grpc;
 mod handlers;
-mod health_check;
+pub mod prometheus_metrics;
 mod json_rpc;
 mod mvx;
 mod queue;
@@ -76,10 +78,14 @@ async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
         event_processor,
         service_registry: _service_registry,
         rewards: _rewards,
-        health_check_bind_addr,
+        prometheus_monitor_bind_addr,
         grpc: grpc_config,
     } = cfg;
 
+
+    let (prometheus_monitor_server, metrics_client) =
+        monitor::Server::new(prometheus_monitor_bind_addr)
+        .change_context(Error::Monitor)?;
     let tm_client = tendermint_rpc::HttpClient::new(tm_jsonrpc.as_str())
         .change_context(Error::Connection)
         .attach_printable(tm_jsonrpc.clone())?;
@@ -162,7 +168,6 @@ async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
         },
     );
 
-    let health_check_server = health_check::Server::new(health_check_bind_addr);
 
     let verifier: TMAddress = pub_key
         .account_id(PREFIX)
@@ -176,9 +181,10 @@ async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
         tx_confirmer,
         multisig_client,
         block_height_monitor,
-        health_check_server,
+        prometheus_monitor_server,
         grpc_server,
         broadcaster_task,
+        metrics_client,
     )
     .configure_handlers(verifier, handlers, event_processor)
     .await
@@ -211,13 +217,14 @@ where
     tx_confirmer: TxConfirmer<CosmosGrpcClient>,
     multisig_client: MultisigClient,
     block_height_monitor: BlockHeightMonitor<tendermint_rpc::HttpClient>,
-    health_check_server: health_check::Server,
+    prometheus_monitor_server: monitor::Server,
     grpc_server: grpc::Server,
     broadcaster_task: broadcaster_v2::BroadcasterTask<
         cosmos::CosmosGrpcClient,
         Pin<Box<MsgQueue>>,
         MultisigClient,
     >,
+    metrics_client: MetricsClient,
 }
 
 impl<T> App<T>
@@ -232,13 +239,16 @@ where
         tx_confirmer: TxConfirmer<CosmosGrpcClient>,
         multisig_client: MultisigClient,
         block_height_monitor: BlockHeightMonitor<tendermint_rpc::HttpClient>,
-        health_check_server: health_check::Server,
+        prometheus_monitor_server: monitor::Server,
         grpc_server: grpc::Server,
         broadcaster_task: broadcaster_v2::BroadcasterTask<
             cosmos::CosmosGrpcClient,
             Pin<Box<MsgQueue>>,
             MultisigClient,
         >,
+        metrics_client: MetricsClient,
+
+
     ) -> Self {
         let event_processor = TaskGroup::new("event handler");
 
@@ -250,9 +260,10 @@ where
             tx_confirmer,
             multisig_client,
             block_height_monitor,
-            health_check_server,
+            prometheus_monitor_server,
             grpc_server,
             broadcaster_task,
+            metrics_client
         }
     }
 
@@ -315,6 +326,7 @@ where
                         self.block_height_monitor.latest_block_height(),
                     ),
                     event_processor_config.clone(),
+                    self.metrics_client.clone(),
                 ))
             }
             handlers::config::Config::EvmVerifierSetVerifier {
@@ -344,6 +356,7 @@ where
                         self.block_height_monitor.latest_block_height(),
                     ),
                     event_processor_config.clone(),
+                    self.metrics_client.clone(),
                 ))
             }
             handlers::config::Config::MultisigSigner {
@@ -359,6 +372,7 @@ where
                     self.block_height_monitor.latest_block_height(),
                 ),
                 event_processor_config.clone(),
+                self.metrics_client.clone(),
             )),
             handlers::config::Config::SuiMsgVerifier {
                 cosmwasm_contract,
@@ -380,6 +394,7 @@ where
                     self.block_height_monitor.latest_block_height(),
                 ),
                 event_processor_config.clone(),
+                self.metrics_client.clone(),
             )),
             handlers::config::Config::XRPLMsgVerifier {
                 cosmwasm_contract,
@@ -407,6 +422,7 @@ where
                         self.block_height_monitor.latest_block_height(),
                     ),
                     event_processor_config.clone(),
+                    self.metrics_client.clone(),
                 ))
             }
             handlers::config::Config::XRPLMultisigSigner {
@@ -422,6 +438,7 @@ where
                     self.block_height_monitor.latest_block_height(),
                 ),
                 event_processor_config.clone(),
+                self.metrics_client.clone(),
             )),
             handlers::config::Config::SuiVerifierSetVerifier {
                 cosmwasm_contract,
@@ -443,6 +460,7 @@ where
                     self.block_height_monitor.latest_block_height(),
                 ),
                 event_processor_config.clone(),
+                self.metrics_client.clone(),
             )),
             handlers::config::Config::MvxMsgVerifier {
                 cosmwasm_contract,
@@ -456,6 +474,7 @@ where
                     self.block_height_monitor.latest_block_height(),
                 ),
                 event_processor_config.clone(),
+                self.metrics_client.clone(),
             )),
             handlers::config::Config::MvxVerifierSetVerifier {
                 cosmwasm_contract,
@@ -469,6 +488,7 @@ where
                     self.block_height_monitor.latest_block_height(),
                 ),
                 event_processor_config.clone(),
+                self.metrics_client.clone(),
             )),
             handlers::config::Config::StellarMsgVerifier {
                 cosmwasm_contract,
@@ -485,6 +505,7 @@ where
                     self.block_height_monitor.latest_block_height(),
                 ),
                 event_processor_config.clone(),
+                self.metrics_client.clone(),
             )),
             handlers::config::Config::StellarVerifierSetVerifier {
                 cosmwasm_contract,
@@ -501,6 +522,7 @@ where
                     self.block_height_monitor.latest_block_height(),
                 ),
                 event_processor_config.clone(),
+                self.metrics_client.clone(),
             )),
             handlers::config::Config::StarknetMsgVerifier {
                 cosmwasm_contract,
@@ -517,6 +539,7 @@ where
                     self.block_height_monitor.latest_block_height(),
                 ),
                 event_processor_config.clone(),
+                self.metrics_client.clone(),
             )),
             handlers::config::Config::StarknetVerifierSetVerifier {
                 cosmwasm_contract,
@@ -533,6 +556,7 @@ where
                     self.block_height_monitor.latest_block_height(),
                 ),
                 event_processor_config.clone(),
+                self.metrics_client.clone(),
             )),
             handlers::config::Config::SolanaMsgVerifier {
                 chain_name,
@@ -553,6 +577,7 @@ where
                     self.block_height_monitor.latest_block_height(),
                 ),
                 event_processor_config.clone(),
+                self.metrics_client.clone(),
             )),
             handlers::config::Config::SolanaVerifierSetVerifier {
                 chain_name,
@@ -574,6 +599,7 @@ where
                 )
                 .await,
                 event_processor_config.clone(),
+                self.metrics_client.clone(),
             )),
         }
     }
@@ -583,6 +609,7 @@ where
         label: L,
         handler: H,
         event_processor_config: event_processor::Config,
+        metrics_client: MetricsClient,
     ) -> CancellableTask<Result<(), event_processor::Error>>
     where
         L: AsRef<str>,
@@ -600,6 +627,7 @@ where
                 sub,
                 event_processor_config,
                 token,
+                metrics_client,
             )
         })
     }
@@ -631,7 +659,7 @@ where
             broadcaster,
             tx_confirmer,
             block_height_monitor,
-            health_check_server,
+            prometheus_monitor_server,
             grpc_server,
             broadcaster_task,
             ..
@@ -665,9 +693,9 @@ where
                     .change_context(Error::EventPublisher)
             }))
             .add_task(CancellableTask::create(|token| {
-                health_check_server
+                prometheus_monitor_server
                     .run(token)
-                    .change_context(Error::HealthCheck)
+                    .change_context(Error::Monitor)
             }))
             .add_task(CancellableTask::create(|token| {
                 event_processor
@@ -714,8 +742,8 @@ pub enum Error {
     BlockHeightMonitor,
     #[error("invalid finalizer type for chain {0}")]
     InvalidFinalizerType(ChainName),
-    #[error("health check is not working")]
-    HealthCheck,
+    #[error("metrics monitor failed")]
+    Monitor,
     #[error("gRPC server failed")]
     GrpcServer,
 }
