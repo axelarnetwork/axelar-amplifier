@@ -13,14 +13,24 @@ use axelar_wasm_std::nonempty;
 use cosmrs::AccountId;
 use error_stack::{bail, Report, Result, ResultExt as _};
 use events::{AbciEventTypeFilter, Event};
-use futures::StreamExt;
+use futures::{Future, StreamExt};
 use mockall::automock;
 use report::{ResultCompatExt, ResultExt};
 use serde::de::DeserializeOwned;
+use tokio::time::{timeout, Duration};
 use tokio_stream::Stream;
 use tonic::{transport, Request};
 
+use crate::future::{with_retry, RetryPolicy};
 use crate::grpc::error::{AppError, Error};
+
+// TODO: make these configurable
+const DEFAULT_INITIAL_TIMEOUT: Duration = Duration::from_secs(3);
+const DEFAULT_RPC_TIMEOUT: Duration = Duration::from_secs(20);
+const DEFAULT_RETRY_POLICY: RetryPolicy = RetryPolicy::RepeatConstant {
+    sleep: Duration::from_secs(5),
+    max_attempts: 3,
+};
 
 #[automock(type Stream = tokio_stream::Iter<vec::IntoIter<Result<Event, Error>>>;)]
 #[async_trait]
@@ -62,6 +72,8 @@ pub struct GrpcClient {
 
 pub async fn new(url: &str) -> Result<GrpcClient, Error> {
     let endpoint: transport::Endpoint = url.parse().into_report()?;
+    let endpoint = endpoint.connect_timeout(DEFAULT_INITIAL_TIMEOUT);
+
     let conn = endpoint.connect().await.into_report()?;
     let blockchain = BlockchainServiceClient::new(conn.clone());
     let crypto = CryptoServiceClient::new(conn);
@@ -143,6 +155,31 @@ impl From<Key> for KeyId {
     }
 }
 
+pub async fn with_timeout_and_retry<F, Fut, R>(
+    mut operation: F,
+    timeout_duration: Duration,
+    retry_policy: RetryPolicy,
+) -> Result<R, Error>
+where
+    F: FnMut() -> Fut,
+    Fut: Future<Output = std::result::Result<R, tonic::Status>>,
+{
+    with_retry(
+        || {
+            let operation_fut = operation();
+            async move {
+                match timeout(timeout_duration, operation_fut).await {
+                    Ok(Ok(value)) => Ok(value),
+                    Ok(Err(err)) => Err(err).into_report(),
+                    Err(timeout_err) => Err(timeout_err).into_report(),
+                }
+            }
+        },
+        retry_policy,
+    )
+    .await
+}
+
 #[async_trait]
 impl Client for GrpcClient {
     type Stream = Pin<Box<dyn Stream<Item = Result<Event, Error>> + Send>>;
@@ -163,7 +200,16 @@ impl Client for GrpcClient {
             include_block_begin_end,
         };
 
-        let streaming_response = self.blockchain.subscribe(request).await.into_report()?;
+        let streaming_response = with_timeout_and_retry(
+            || {
+                let mut blockchain_client = self.blockchain.clone();
+                let request = request.clone();
+                async move { blockchain_client.subscribe(request).await }
+            },
+            DEFAULT_RPC_TIMEOUT,
+            DEFAULT_RETRY_POLICY,
+        )
+        .await?;
 
         let transformed_stream = streaming_response.into_inner().map(|result| match result {
             Ok(response) => match response.event {
@@ -179,27 +225,40 @@ impl Client for GrpcClient {
     }
 
     async fn address(&mut self) -> Result<AccountId, Error> {
-        let broadcaster_address = self
-            .blockchain
-            .address(Request::new(AddressRequest {}))
-            .await
-            .into_report()?
-            .into_inner()
-            .address;
+        let broadcaster_address = with_timeout_and_retry(
+            || {
+                let mut blockchain_client = self.blockchain.clone();
+                async move {
+                    blockchain_client
+                        .address(Request::new(AddressRequest {}))
+                        .await
+                }
+            },
+            DEFAULT_RPC_TIMEOUT,
+            DEFAULT_RETRY_POLICY,
+        )
+        .await?
+        .into_inner()
+        .address;
 
         let ampd_broadcaster_address = parse_addr(&broadcaster_address, "broadcaster")?;
         Ok(ampd_broadcaster_address)
     }
 
     async fn broadcast(&mut self, msg: cosmrs::Any) -> Result<BroadcastClientResponse, Error> {
-        let request = BroadcastRequest { msg: Some(msg) };
-
-        let broadcast_response = self
-            .blockchain
-            .broadcast(request)
-            .await
-            .into_report()?
-            .into_inner();
+        let broadcast_response = with_timeout_and_retry(
+            || {
+                let mut blockchain_client = self.blockchain.clone();
+                let request = BroadcastRequest {
+                    msg: Some(msg.clone()),
+                };
+                async move { blockchain_client.broadcast(request).await }
+            },
+            DEFAULT_RPC_TIMEOUT,
+            DEFAULT_RETRY_POLICY,
+        )
+        .await?
+        .into_inner();
 
         Ok(broadcast_response.into())
     }
@@ -209,28 +268,44 @@ impl Client for GrpcClient {
         contract: nonempty::String,
         query: nonempty::Vec<u8>,
     ) -> Result<T, Error> {
-        self.blockchain
-            .contract_state(ContractStateRequest {
-                contract: contract.into(),
-                query: query.into(),
-            })
-            .await
-            .into_report()
-            .map(|response| response.into_inner().result)
-            .and_then(|result| {
-                serde_json::from_slice(&result)
-                    .change_context(AppError::InvalidJson.into())
-                    .attach_printable(hex::encode(&result))
-            })
+        let request = ContractStateRequest {
+            contract: contract.into(),
+            query: query.into(),
+        };
+
+        with_timeout_and_retry(
+            || {
+                let mut blockchain_client = self.blockchain.clone();
+                let request = request.clone();
+                async move { blockchain_client.contract_state(request).await }
+            },
+            DEFAULT_RPC_TIMEOUT,
+            DEFAULT_RETRY_POLICY,
+        )
+        .await
+        .map(|response| response.into_inner().result)
+        .and_then(|result| {
+            serde_json::from_slice(&result)
+                .change_context(AppError::InvalidJson.into())
+                .attach_printable(hex::encode(&result))
+        })
     }
 
     async fn contracts(&mut self) -> Result<ContractsAddresses, Error> {
-        let response = self
-            .blockchain
-            .contracts(Request::new(ContractsRequest {}))
-            .await
-            .into_report()?
-            .into_inner();
+        let response = with_timeout_and_retry(
+            || {
+                let mut blockchain_client = self.blockchain.clone();
+                async move {
+                    blockchain_client
+                        .contracts(Request::new(ContractsRequest {}))
+                        .await
+                }
+            },
+            DEFAULT_RPC_TIMEOUT,
+            DEFAULT_RETRY_POLICY,
+        )
+        .await?
+        .into_inner();
 
         ContractsAddresses::try_from(&response)
             .change_context(AppError::InvalidContractsResponse.into())
@@ -242,30 +317,46 @@ impl Client for GrpcClient {
         key: Option<Key>,
         message: nonempty::Vec<u8>,
     ) -> Result<nonempty::Vec<u8>, Error> {
-        self.crypto
-            .sign(Request::new(SignRequest {
-                key_id: key.map(|k| k.into()),
-                msg: message.into(),
-            }))
-            .await
-            .into_report()
-            .and_then(|response| {
-                nonempty::Vec::try_from(response.into_inner().signature)
-                    .change_context(AppError::InvalidByteArray.into())
-            })
+        let request = SignRequest {
+            key_id: key.map(|k| k.into()),
+            msg: message.into(),
+        };
+
+        with_timeout_and_retry(
+            || {
+                let mut crypto_client = self.crypto.clone();
+                let request = request.clone();
+                async move { crypto_client.sign(request).await }
+            },
+            DEFAULT_RPC_TIMEOUT,
+            DEFAULT_RETRY_POLICY,
+        )
+        .await
+        .and_then(|response| {
+            nonempty::Vec::try_from(response.into_inner().signature)
+                .change_context(AppError::InvalidByteArray.into())
+        })
     }
 
     async fn key(&mut self, key: Option<Key>) -> Result<nonempty::Vec<u8>, Error> {
-        self.crypto
-            .key(Request::new(KeyRequest {
-                key_id: key.map(|k| k.into()),
-            }))
-            .await
-            .into_report()
-            .and_then(|response| {
-                nonempty::Vec::try_from(response.into_inner().pub_key)
-                    .change_context(AppError::InvalidByteArray.into())
-            })
+        let request = KeyRequest {
+            key_id: key.map(|k| k.into()),
+        };
+
+        with_timeout_and_retry(
+            || {
+                let mut crypto_client = self.crypto.clone();
+                let request = request.clone();
+                async move { crypto_client.key(request).await }
+            },
+            DEFAULT_RPC_TIMEOUT,
+            DEFAULT_RETRY_POLICY,
+        )
+        .await
+        .and_then(|response| {
+            nonempty::Vec::try_from(response.into_inner().pub_key)
+                .change_context(AppError::InvalidByteArray.into())
+        })
     }
 }
 
@@ -359,7 +450,7 @@ mod tests {
         let mut mock_blockchain = MockBlockchainService::new();
         mock_blockchain
             .expect_address()
-            .return_once(|_request| Err(Status::unavailable("service unavailable")));
+            .returning(|_request| Err(Status::unavailable("service unavailable")));
 
         let mut client = setup_test_client(mock_blockchain, MockCryptoService::new()).await;
         let result = client.address().await;
@@ -376,7 +467,7 @@ mod tests {
         let mut mock_blockchain = MockBlockchainService::new();
         mock_blockchain
             .expect_address()
-            .return_once(|_request| Err(Status::invalid_argument("invalid request")));
+            .returning(|_request| Err(Status::invalid_argument("invalid request")));
 
         let mut client = setup_test_client(mock_blockchain, MockCryptoService::new()).await;
         let result = client.address().await;
@@ -439,7 +530,7 @@ mod tests {
         let mut mock_blockchain = MockBlockchainService::new();
         mock_blockchain
             .expect_broadcast()
-            .return_once(|_request| Err(Status::internal("gas estimation failed")));
+            .returning(|_request| Err(Status::internal("gas estimation failed")));
 
         let mut client = setup_test_client(mock_blockchain, MockCryptoService::new()).await;
         let result = client.broadcast(any_msg()).await;
@@ -542,7 +633,7 @@ mod tests {
         let mut mock_blockchain = MockBlockchainService::new();
         mock_blockchain
             .expect_contract_state()
-            .return_once(|_request| Err(Status::unknown("contract execution failed")));
+            .returning(|_request| Err(Status::unknown("contract execution failed")));
 
         let mut client = setup_test_client(mock_blockchain, MockCryptoService::new()).await;
         let (contract, query) = contract_state_input_args();
@@ -662,7 +753,7 @@ mod tests {
 
         mock_crypto
             .expect_sign()
-            .return_once(|_request| Err(Status::internal("signing service unavailable")));
+            .returning(|_request| Err(Status::internal("signing service unavailable")));
 
         let mut client = setup_test_client(MockBlockchainService::new(), mock_crypto).await;
 
@@ -725,7 +816,7 @@ mod tests {
 
         mock_crypto
             .expect_key()
-            .return_once(|_request| Err(Status::data_loss("connection lost during key retrieval")));
+            .returning(|_request| Err(Status::data_loss("connection lost during key retrieval")));
 
         let mut client = setup_test_client(MockBlockchainService::new(), mock_crypto).await;
 
@@ -748,7 +839,7 @@ mod tests {
 
         mock_crypto
             .expect_key()
-            .return_once(|_request| Err(Status::invalid_argument("key not found")));
+            .returning(|_request| Err(Status::invalid_argument("key not found")));
 
         let mut client = setup_test_client(MockBlockchainService::new(), mock_crypto).await;
 
