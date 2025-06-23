@@ -182,6 +182,29 @@ jobs:
           command: fmt
           args: --all -- --check
 
+      - name: Install latest stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+
+      - name: Install cargo-dylint
+        uses: baptiste0928/cargo-install@v2
+        with:
+          crate: cargo-dylint
+
+      - name: Install dylint-lint
+        uses: baptiste0928/cargo-install@v2
+        with:
+          crate: dylint-link
+
+      - name: Run custom lints
+        uses: actions-rs/cargo@v1
+        with:
+          command: dylint
+          args: --all
+
       - name: Install stable toolchain
         uses: actions-rs/toolchain@v1
         with:
