@@ -10,8 +10,7 @@ use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 use tracing::{info, warn};
 
-use crate::prometheus_metrics::metrics::{self, Metrics};
-use crate::prometheus_metrics::msg::{MetricsError, MetricsMsg};
+use crate::prometheus_metrics::metrics::{self, Metrics, MetricsError, MetricsMsg};
 
 // safe upper bound for expected metric throughput;
 // shouldnt exceed 1000 message

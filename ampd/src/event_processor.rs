@@ -17,8 +17,8 @@ use valuable::Valuable;
 
 use crate::asyncutil::future::{self, RetryPolicy};
 use crate::asyncutil::task::TaskError;
+use crate::prometheus_metrics::metrics::MetricsMsg;
 use crate::prometheus_metrics::monitor::MetricsClient;
-use crate::prometheus_metrics::msg::MetricsMsg;
 use crate::queue::queued_broadcaster::BroadcasterClient;
 
 #[async_trait]
@@ -516,7 +516,8 @@ mod tests {
         .to_any()
         .unwrap()
     }
-    #[tokio::test]
+
+    #[tokio::test(start_paused = true)]
     async fn block_end_events_increment_blocks_received_metric() {
         let events: Vec<Result<Event, event_processor::Error>> = vec![
             Ok(Event::BlockEnd(0_u32.into())),

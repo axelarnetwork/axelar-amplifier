@@ -1,7 +1,31 @@
 use error_stack::{Result, ResultExt};
 use prometheus::{Encoder, IntCounter, Registry, TextEncoder};
+use thiserror::Error;
 
-use crate::prometheus_metrics::msg::{MetricsError, MetricsMsg};
+#[derive(Debug, Clone)]
+pub enum MetricsMsg {
+    IncBlockReceived,
+}
+
+#[derive(Debug, Error)]
+pub enum MetricsError {
+    #[error("failed to start metrics server")]
+    Start,
+    #[error("metrics server failed while running")]
+    WhileRunning,
+    #[error("failed to encode metrics")]
+    EncodeError,
+    #[error("failed to convert metrics to UTF-8")]
+    Utf8Error,
+    #[error("failed to update metric")]
+    MetricUpdateFailed,
+    #[error("failed to register metric")]
+    MetricRegisterFailed,
+    #[error("failed to spawn metric")]
+    MetricSpawnFailed,
+    #[error("counter not found: {0}")]
+    CounterNotFound(String),
+}
 
 pub struct Metrics {
     block_received: IntCounter,

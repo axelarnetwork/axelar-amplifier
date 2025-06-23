@@ -14,7 +14,7 @@ Below is the config file format, with explanations for each entry:
 tm_jsonrpc=[JSON-RPC URL of Axelar node]
 tm_grpc=[gRPC URL of Axelar node]
 event_buffer_cap=[max blockchain events to queue. Will error if set too low]
-prometheus_monitor_bind_addr=[the /status endpoint bind address i.e "0.0.0.0:3000"]
+prometheus_monitor_bind_addr=[the /status and /metrics endpoints bind address i.e "0.0.0.0:3000"]
 
 [service_registry]
 cosmwasm_contract=[address of service registry]
