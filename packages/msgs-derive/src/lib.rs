@@ -201,7 +201,7 @@ fn find_permissions(variant: Variant) -> Option<(Ident, MsgPermissions)> {
 
     if !external.iter().all_unique() {
         panic!(
-            "whitelisted addresses for variant {} must be unique",
+            "whitelisted external addresses for variant {} must be unique",
             variant.ident
         );
     }
@@ -491,11 +491,11 @@ struct AllPermissions {
 impl Parse for AllPermissions {
     fn parse(input: ParseStream) -> Result<Self, syn::Error> {
         let punct = Punctuated::<ExprCall, Token![,]>::parse_terminated(input)?;
-        let mut contracts_seen: HashMap<String, ()> = HashMap::new();
-
-        let mut parse_permissions_list = |expr_call: ExprCall,
-                                          expected_call_name: String|
+        let parse_permissions_list = |expr_call: ExprCall,
+                                      expected_call_name: String|
          -> Option<Vec<(Ident, Expr)>> {
+            let mut contracts_seen: HashMap<String, ()> = HashMap::new();
+
             match *expr_call.func {
                 Expr::Path(path) => {
                     match path.path.get_ident() {

@@ -159,14 +159,6 @@ fn ensure_specific_permissions() {
         Ok::<Addr, Report<Error>>(MockApi::default().addr_make("gateway3"))
     };
 
-    // Given a set of specific permissions, the EnsurePermissions macro will now determine
-    // a deterministic order of how the permission checking functions should appear as
-    // arguments in 'ensure_permissions'. Previously, the developer was responsible for
-    // calling ensure_permissions. Since the call to ensure premissions is now generated,
-    // this deterministic ordering helps to ensure arguments are inserted in the correct
-    // order.
-    // The order in this test happens to be: gateway1, gateway2, gateway3
-
     let mut storage = MockStorage::new();
     permission_control::set_admin(&mut storage, &admin).unwrap();
     permission_control::set_governance(&mut storage, &governance).unwrap();
