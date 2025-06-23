@@ -283,7 +283,7 @@ pub fn instantiate_chain_contracts(
                         address: multisig_prover_address.clone(),
                         code_id: params.prover.code_id,
                     },
-                    chain_name: params.prover.msg.chain_name,
+                    chain_name: params.prover.msg.chain_name.clone(),
                     deployment_name: deployment_name.clone(),
                 });
 
@@ -291,6 +291,8 @@ pub fn instantiate_chain_contracts(
                 ctx.deps.storage,
                 deployment_name,
                 ChainContracts {
+                    chain_name: params.prover.msg.chain_name,
+                    msg_id_format: params.verifier.msg.msg_id_format,
                     gateway: gateway_address,
                     voting_verifier: voting_verifier_address,
                     multisig_prover: multisig_prover_address,
@@ -301,4 +303,30 @@ pub fn instantiate_chain_contracts(
     }
 
     Ok(response)
+}
+
+pub fn register_deployment(
+    deps: DepsMut,
+    original_sender: Addr,
+    deployment_name: nonempty::String,
+) -> Result<Response, Error> {
+    let deployed_contracts = state::deployed_contracts(deps.storage, deployment_name.clone())
+        .change_context(Error::ChainContractsInfo)?;
+
+    let protocol_contracts =
+        state::protocol_contracts(deps.storage).change_context(Error::ProtocolNotRegistered)?;
+
+    let router = router_api::client::Router::new(protocol_contracts.router);
+
+    Ok(Response::new().add_message(
+        router
+            .register_chain(
+                original_sender,
+                deployed_contracts.chain_name,
+                router_api::Address::try_from(deployed_contracts.gateway.to_string())
+                    .change_context(Error::ChainContractsInfo)?,
+                deployed_contracts.msg_id_format,
+            )
+            .change_context(Error::ProtocolNotRegistered)?,
+    ))
 }

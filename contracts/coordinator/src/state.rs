@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 
+use axelar_wasm_std::msg_id::MessageIdFormat;
 use axelar_wasm_std::nonempty;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Order, StdError, Storage};
@@ -64,6 +65,8 @@ pub fn protocol_contracts(storage: &dyn Storage) -> Result<ProtocolContracts, St
 
 #[cw_serde]
 pub struct ChainContracts {
+    pub chain_name: ChainName,
+    pub msg_id_format: MessageIdFormat,
     pub gateway: Addr,
     pub voting_verifier: Addr,
     pub multisig_prover: Addr,

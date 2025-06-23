@@ -1,3 +1,4 @@
+use axelar_wasm_std::nonempty;
 use cosmwasm_std::Addr;
 use router_api::ChainName;
 
@@ -11,6 +12,8 @@ pub enum Error {
     RegisterChain(ChainName),
     #[error("failed to set the active verifier set for contract {0}")]
     SetActiveVerifiers(Addr),
+    #[error("failed to register deployment {0} with router")]
+    RegisterDeployment(nonempty::String),
     #[error("failed to instantiate chain contracts")]
     InstantiateChainContracts,
     #[error("main protocol contracts (e.g. the router) are not registered yet")]

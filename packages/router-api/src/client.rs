@@ -62,7 +62,7 @@ impl<T> Router<T> {
         chain: ChainName,
         gateway_address: Address,
         msg_id_format: MessageIdFormat,
-    ) -> Result<Option<CosmosMsg<T>>, Error> {
+    ) -> Result<CosmosMsg<T>, Error> {
         self.execute_from_contract(
             original_sender,
             &ExecuteMsg::RegisterChain {
@@ -71,6 +71,5 @@ impl<T> Router<T> {
                 msg_id_format,
             },
         )
-        .map(Some)
     }
 }
