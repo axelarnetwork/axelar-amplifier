@@ -286,6 +286,7 @@ mod tests {
     use tonic::{Request, Response, Status};
 
     use super::*;
+    use crate::grpc::client::new as new_client;
     use crate::grpc::error::GrpcError;
 
     type ServerSubscribeStream =
@@ -324,7 +325,7 @@ mod tests {
             .add_service(BlockchainServiceServer::new(mock_blockchain))
             .add_service(CryptoServiceServer::new(mock_crypto));
 
-        let addr: std::net::SocketAddr = "[::1]:0".parse().unwrap();
+        let addr: std::net::SocketAddr = "127.0.0.1:0".parse().unwrap();
         let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
         let server_addr = listener.local_addr().unwrap();
         let bound_server =
@@ -332,7 +333,8 @@ mod tests {
 
         tokio::spawn(bound_server);
         let url = format!("http://{}", server_addr);
-        new(&url).await.unwrap()
+
+        new_client(&url).await.unwrap()
     }
 
     #[tokio::test]
