@@ -139,7 +139,8 @@ mod tests {
 
     use crate::contract::errors::Error;
     use crate::contract::migrations::{
-        ChainNameAndMsgFormat, OldChainContracts, OldConfig, OLD_CONFIG, OLD_DEPLOYED_CHAINS,
+        ChainNameAndMsgFormat, MigrationError, OldChainContracts, OldConfig, OLD_CONFIG,
+        OLD_DEPLOYED_CHAINS,
     };
     use crate::contract::{migrate, MigrateMsg};
     use crate::state;
@@ -267,5 +268,129 @@ mod tests {
                 multisig_prover,
             }
         )
+    }
+
+    #[test]
+    fn migrate_fails_when_deployment_missing_from_migration_msg() {
+        let mut deps = mock_dependencies();
+        let api = deps.api;
+        let env = mock_env();
+        let info = message_info(&api.addr_make("sender"), &[]);
+
+        let service_registry = api.addr_make("service_registry");
+        old_instantiate(
+            deps.as_mut(),
+            env.clone(),
+            info,
+            OldInstantiateMsg {
+                governance_address: api.addr_make("governance").to_string(),
+                service_registry: service_registry.to_string(),
+            },
+        )
+        .unwrap();
+
+        let gateway = api.addr_make("gateway");
+        let voting_verifier = api.addr_make("verifier");
+        let multisig_prover = api.addr_make("prover");
+
+        assert!(add_old_deployment(
+            deps.as_mut(),
+            nonempty_str!("deployment"),
+            OldChainContracts {
+                gateway: gateway.clone(),
+                voting_verifier: voting_verifier.clone(),
+                multisig_prover: multisig_prover.clone(),
+            }
+        )
+        .is_ok());
+
+        let router = api.addr_make("router");
+        let multisig = api.addr_make("multisig");
+        let chain_name = ChainName::try_from("axelar").unwrap();
+
+        let res = migrate(
+            deps.as_mut(),
+            env,
+            MigrateMsg {
+                router: router.to_string(),
+                multisig: multisig.to_string(),
+                chain_contracts: vec![ChainNameAndMsgFormat {
+                    deployment_name: nonempty_str!("deployment2"),
+                    chain_name: chain_name.clone(),
+                    msg_id_format: MessageIdFormat::FieldElementAndEventIndex,
+                }],
+            },
+        );
+
+        assert!(res.is_err());
+        assert!(res.unwrap_err().to_string().contains(
+            &MigrationError::MissingDeploymentFromMsg("deployment".to_string()).to_string()
+        ));
+    }
+
+    #[test]
+    fn migrate_fails_with_duplicate_deployment_ids_in_migration_msg() {
+        let mut deps = mock_dependencies();
+        let api = deps.api;
+        let env = mock_env();
+        let info = message_info(&api.addr_make("sender"), &[]);
+
+        let service_registry = api.addr_make("service_registry");
+        old_instantiate(
+            deps.as_mut(),
+            env.clone(),
+            info,
+            OldInstantiateMsg {
+                governance_address: api.addr_make("governance").to_string(),
+                service_registry: service_registry.to_string(),
+            },
+        )
+        .unwrap();
+
+        let gateway = api.addr_make("gateway");
+        let voting_verifier = api.addr_make("verifier");
+        let multisig_prover = api.addr_make("prover");
+
+        assert!(add_old_deployment(
+            deps.as_mut(),
+            nonempty_str!("deployment"),
+            OldChainContracts {
+                gateway: gateway.clone(),
+                voting_verifier: voting_verifier.clone(),
+                multisig_prover: multisig_prover.clone(),
+            }
+        )
+        .is_ok());
+
+        let router = api.addr_make("router");
+        let multisig = api.addr_make("multisig");
+        let chain_name = ChainName::try_from("axelar").unwrap();
+
+        let res = migrate(
+            deps.as_mut(),
+            env,
+            MigrateMsg {
+                router: router.to_string(),
+                multisig: multisig.to_string(),
+                chain_contracts: vec![
+                    ChainNameAndMsgFormat {
+                        deployment_name: nonempty_str!("deployment"),
+                        chain_name: chain_name.clone(),
+                        msg_id_format: MessageIdFormat::FieldElementAndEventIndex,
+                    },
+                    ChainNameAndMsgFormat {
+                        deployment_name: nonempty_str!("deployment"),
+                        chain_name: chain_name.clone(),
+                        msg_id_format: MessageIdFormat::FieldElementAndEventIndex,
+                    },
+                ],
+            },
+        );
+
+        assert!(res.is_err());
+        assert!(res
+            .unwrap_err()
+            .to_string()
+            .contains(&MigrationError::DuplicateDeployment("deployment".to_string()).to_string()));
     }
 }
