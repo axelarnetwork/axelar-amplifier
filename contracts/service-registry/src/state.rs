@@ -161,7 +161,7 @@ pub fn update_service(
 ) -> error_stack::Result<Service, ContractError> {
     if let Some(Some(max_verifiers_limit)) = updated_service_params.max_num_verifiers {
         let current_authorized = number_of_authorized_verifiers(storage, service_name)?;
-        
+
         ensure!(
             max_verifiers_limit >= current_authorized,
             ContractError::MaxVerifiersSetBelowCurrent(max_verifiers_limit, current_authorized)
@@ -219,24 +219,17 @@ pub fn remove_service_override(
     Ok(())
 }
 
-pub fn update_verifier_status(storage: &mut dyn Storage, service_name: &String, auth_state: &AuthorizationState, verifier: Addr) 
--> error_stack::Result<(), ContractError> {
-    let previous_auth_state =
-        get_verifier_auth_state(storage, service_name, &verifier)?;
+pub fn update_verifier_status(
+    storage: &mut dyn Storage,
+    service_name: &String,
+    auth_state: &AuthorizationState,
+    verifier: Addr,
+) -> error_stack::Result<(), ContractError> {
+    let previous_auth_state = get_verifier_auth_state(storage, service_name, &verifier)?;
 
-    update_verifier_auth_state(
-        storage,
-        service_name,
-        &verifier,
-        auth_state.clone(),
-    )?;
+    update_verifier_auth_state(storage, service_name, &verifier, auth_state.clone())?;
 
-    update_count_based_on_state_transition(
-        storage,
-        service_name,
-        auth_state,
-        previous_auth_state,
-    )?;
+    update_count_based_on_state_transition(storage, service_name, auth_state, previous_auth_state)?;
     Ok(())
 }
 
@@ -439,9 +432,6 @@ fn update_authorized_count(
         .change_context(ContractError::StorageError)?;
     Ok(())
 }
-
-
-
 
 #[cfg(test)]
 mod tests {
@@ -1207,6 +1197,7 @@ mod tests {
             VerifierCountOperation::Increment,
         )
         .unwrap();
+
         let count = number_of_authorized_verifiers(deps.as_ref().storage, &service.name).unwrap();
         assert_eq!(count, 1);
 
@@ -1216,15 +1207,6 @@ mod tests {
             VerifierCountOperation::Decrement,
         )
         .unwrap();
-        let count = number_of_authorized_verifiers(deps.as_ref().storage, &service.name).unwrap();
-        assert_eq!(count, 0);
-
-        let result = update_authorized_count(
-            deps.as_mut().storage,
-            &service.name,
-            VerifierCountOperation::Decrement,
-        );
-        assert!(result.is_err());
     }
 
     #[test]

@@ -6,10 +6,7 @@ use state::VERIFIERS;
 
 use super::*;
 use crate::events::Event;
-use crate::state::{
-    self, save_new_service, ServiceParamsOverride,
-    UpdatedServiceParams,
-};
+use crate::state::{self, save_new_service, ServiceParamsOverride, UpdatedServiceParams};
 
 #[allow(clippy::too_many_arguments)]
 pub fn register_service(
@@ -58,8 +55,6 @@ pub fn update_verifier_authorization_status(
 
     Ok(Response::new())
 }
-
-
 
 pub fn update_service(
     deps: DepsMut,

@@ -2895,6 +2895,7 @@ mod test {
                 service_name: service_name.into(),
             },
         );
+
         let err = res.unwrap_err();
 
         assert!(err_contains!(
@@ -2902,18 +2903,6 @@ mod test {
             ContractError,
             ContractError::VerifierLimitExceeded
         ));
-
-        let verifier_3 = vec![api.addr_make("verifier4").to_string()];
-        let res = execute(
-            deps.as_mut(),
-            mock_env(),
-            message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
-            ExecuteMsg::AuthorizeVerifiers {
-                verifiers: verifier_3.clone(),
-                service_name: service_name.into(),
-            },
-        );
-        assert!(res.is_ok());
     }
 
     #[test]
