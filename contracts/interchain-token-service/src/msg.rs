@@ -4,7 +4,7 @@ use axelar_wasm_std::nonempty;
 use axelarnet_gateway::AxelarExecutableMsg;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::Uint256;
-use msgs_derive::EnsurePermissions;
+use msgs_derive::Permissions;
 use router_api::{Address, ChainNameRaw};
 
 pub use crate::contract::MigrateMsg;
@@ -48,7 +48,7 @@ pub struct InstantiateMsg {
 }
 
 #[cw_serde]
-#[derive(EnsurePermissions)]
+#[derive(Permissions)]
 pub enum ExecuteMsg {
     /// Execute a cross-chain message received by the axelarnet-gateway from another chain
     #[permission(Specific(gateway))]

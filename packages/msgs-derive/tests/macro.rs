@@ -5,10 +5,10 @@ use cosmwasm_schema::cw_serde;
 use cosmwasm_std::testing::{MockApi, MockStorage};
 use cosmwasm_std::{Addr, Storage};
 use error_stack::{report, Report};
-use msgs_derive::EnsurePermissions;
+use msgs_derive::Permissions;
 
 #[cw_serde]
-#[derive(EnsurePermissions)]
+#[derive(Permissions)]
 #[allow(dead_code)] // the msg fields are only defined to make sure the derive attribute can handle fields correctly
 enum TestMsg {
     #[permission(NoPrivilege)]
@@ -26,7 +26,7 @@ enum TestMsg {
 }
 
 #[cw_serde]
-#[derive(EnsurePermissions)]
+#[derive(Permissions)]
 enum TestMsg2 {
     #[permission(Any)]
     Any,

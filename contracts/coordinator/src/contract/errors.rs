@@ -50,5 +50,5 @@ pub enum Error {
     #[error("contract config before migration not found")]
     OldConfigNotFound,
     #[error("failed to execute router client")]
-    RouterClient
+    RouterClient,
 }
