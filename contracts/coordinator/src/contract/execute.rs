@@ -327,6 +327,6 @@ pub fn register_deployment(
                     .change_context(Error::ChainContractsInfo)?,
                 deployed_contracts.msg_id_format,
             )
-            .change_context(Error::ProtocolNotRegistered)?,
+            .change_context(Error::RouterClient)?,
     ))
 }

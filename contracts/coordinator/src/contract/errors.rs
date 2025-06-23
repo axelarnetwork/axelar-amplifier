@@ -49,4 +49,6 @@ pub enum Error {
     UnableToPersistProtocol,
     #[error("contract config before migration not found")]
     OldConfigNotFound,
+    #[error("failed to execute router client")]
+    RouterClient
 }
