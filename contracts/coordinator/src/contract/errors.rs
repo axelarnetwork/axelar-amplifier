@@ -1,8 +1,8 @@
-use axelar_wasm_std::nonempty;
+use axelar_wasm_std::{nonempty, IntoContractError};
 use cosmwasm_std::Addr;
 use router_api::ChainName;
 
-#[derive(thiserror::Error, Debug, PartialEq)]
+#[derive(thiserror::Error, Debug, PartialEq, IntoContractError)]
 pub enum Error {
     #[error("failed to register the basic protocol contracts")]
     RegisterProtocol,
@@ -50,5 +50,5 @@ pub enum Error {
     #[error("contract config before migration not found")]
     OldConfigNotFound,
     #[error("failed to execute router client")]
-    RouterClient
+    RouterClient,
 }
