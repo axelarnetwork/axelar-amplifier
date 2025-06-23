@@ -253,7 +253,7 @@ mod test {
         deps
     }
 
-    fn check_authorized_verifier_count(
+    fn assert_authorized_counter_is_valid(
         deps: &OwnedDeps<MockStorage, MockApi, MockQuerier, Empty>,
         service_name: &String,
         expected: u16,
@@ -268,6 +268,7 @@ mod test {
             .filter_map(|item| item.ok().map(|(_, verifier)| verifier))
             .filter(|verifier| verifier.authorization_state == AuthorizationState::Authorized)
             .count();
+
         let actual_count = u16::try_from(actual_count).expect("actual count should fit in u16");
 
         assert_eq!(
@@ -392,7 +393,7 @@ mod test {
         );
         assert!(res.is_ok());
 
-        check_authorized_verifier_count(&deps, &service_name.to_string(), 5);
+        assert_authorized_counter_is_valid(&deps, &service_name.to_string(), 5);
 
         (deps, api, service_name.into(), verifiers)
     }
@@ -2899,7 +2900,7 @@ mod test {
         assert!(err_contains!(
             err.report,
             ContractError,
-            ContractError::VerifierLimitExceed
+            ContractError::VerifierLimitExceeded
         ));
 
         let verifier_3 = vec![api.addr_make("verifier4").to_string()];
@@ -3019,14 +3020,14 @@ mod test {
         );
         assert!(res.is_ok());
 
-        check_authorized_verifier_count(&deps, &service_name.to_string(), 0);
+        assert_authorized_counter_is_valid(&deps, &service_name.to_string(), 0);
     }
 
     #[test]
     fn re_authorizing_same_verifiers_does_not_increase_count() {
         let (mut deps, api, service_name, _verifiers) = setup_and_authorize_5_verifiers();
 
-        check_authorized_verifier_count(&deps, &service_name.clone(), 5);
+        assert_authorized_counter_is_valid(&deps, &service_name.clone(), 5);
         let res = execute(
             deps.as_mut(),
             mock_env(),
@@ -3040,7 +3041,7 @@ mod test {
             },
         );
         assert!(res.is_ok());
-        check_authorized_verifier_count(&deps, &service_name, 5);
+        assert_authorized_counter_is_valid(&deps, &service_name, 5);
     }
 
     #[test]
@@ -3060,7 +3061,7 @@ mod test {
             },
         );
         assert!(res.is_ok());
-        check_authorized_verifier_count(&deps, &service_name, 3);
+        assert_authorized_counter_is_valid(&deps, &service_name, 3);
     }
 
     #[test]
@@ -3077,7 +3078,7 @@ mod test {
             },
         );
         assert!(res.is_ok());
-        check_authorized_verifier_count(&deps, &service_name.clone(), 4);
+        assert_authorized_counter_is_valid(&deps, &service_name.clone(), 4);
 
         let res = execute(
             deps.as_mut(),
@@ -3089,7 +3090,7 @@ mod test {
             },
         );
         assert!(res.is_ok());
-        check_authorized_verifier_count(&deps, &service_name, 5);
+        assert_authorized_counter_is_valid(&deps, &service_name, 5);
     }
 
     #[test]
@@ -3107,7 +3108,7 @@ mod test {
             },
         );
         assert!(res.is_ok());
-        check_authorized_verifier_count(&deps, &service_name, 5);
+        assert_authorized_counter_is_valid(&deps, &service_name, 5);
     }
 
     #[test]
@@ -3125,6 +3126,6 @@ mod test {
             },
         );
         assert!(res.is_ok());
-        check_authorized_verifier_count(&deps, &service_name, 5);
+        assert_authorized_counter_is_valid(&deps, &service_name, 5);
     }
 }

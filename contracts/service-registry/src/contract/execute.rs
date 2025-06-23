@@ -7,7 +7,7 @@ use state::VERIFIERS;
 use super::*;
 use crate::events::Event;
 use crate::state::{
-    self, save_new_service, update_count_based_on_state_transition, ServiceParamsOverride,
+    self, save_new_service, ServiceParamsOverride,
     UpdatedServiceParams,
 };
 
@@ -40,32 +40,6 @@ pub fn register_service(
     Ok(Response::new())
 }
 
-fn ensure_authorization_max_limit_respected(
-    deps: &DepsMut,
-    service_name: &String,
-    verifiers: &[Addr],
-) -> Result<(), ContractError> {
-    let max_limit = state::service(deps.storage, service_name, None)?.max_num_verifiers;
-    if let Some(max_limit) = max_limit {
-        let authorzied_verifier_count =
-            state::number_of_authorized_verifiers(deps.storage, service_name)?;
-
-        let additional_authorizations =
-            state::count_verifiers_becoming_authorized(deps.storage, service_name, verifiers)?;
-
-        let total_after_update = authorzied_verifier_count
-            .checked_add(additional_authorizations)
-            .ok_or(ContractError::AuthorizedVerifiersExceedu16)?;
-
-        ensure!(
-            total_after_update <= max_limit,
-            ContractError::VerifierLimitExceed
-        );
-    }
-
-    Ok(())
-}
-
 pub fn update_verifier_authorization_status(
     deps: DepsMut,
     verifiers: Vec<Addr>,
@@ -74,31 +48,18 @@ pub fn update_verifier_authorization_status(
 ) -> Result<Response, ContractError> {
     ensure_service_exists(deps.storage, &service_name)?;
 
-    if auth_state == AuthorizationState::Authorized {
-        ensure_authorization_max_limit_respected(&deps, &service_name, &verifiers)?;
+    for verifier in verifiers {
+        state::update_verifier_status(deps.storage, &service_name, &auth_state, verifier)?;
     }
 
-    for verifier in verifiers {
-        let previous_auth_state =
-            state::get_verifier_auth_state(deps.storage, &service_name, &verifier)?;
-
-        state::update_verifier_auth_state(
-            deps.storage,
-            &service_name,
-            &verifier,
-            auth_state.clone(),
-        )?;
-
-        update_count_based_on_state_transition(
-            deps.storage,
-            &service_name,
-            &auth_state,
-            previous_auth_state,
-        )?;
+    if auth_state == AuthorizationState::Authorized {
+        ensure_authorization_max_limit_respected(deps.storage, &service_name)?;
     }
 
     Ok(Response::new())
 }
+
+
 
 pub fn update_service(
     deps: DepsMut,
@@ -291,6 +252,24 @@ fn ensure_service_exists(
         state::has_service(storage, service_name),
         ContractError::ServiceNotFound
     );
+
+    Ok(())
+}
+
+fn ensure_authorization_max_limit_respected(
+    storage: &dyn Storage,
+    service_name: &String,
+) -> Result<(), ContractError> {
+    let max_limit = state::service(storage, service_name, None)?.max_num_verifiers;
+    if let Some(max_limit) = max_limit {
+        let authorzied_verifier_count =
+            state::number_of_authorized_verifiers(storage, service_name)?;
+
+        ensure!(
+            authorzied_verifier_count <= max_limit,
+            ContractError::VerifierLimitExceeded
+        );
+    }
 
     Ok(())
 }
