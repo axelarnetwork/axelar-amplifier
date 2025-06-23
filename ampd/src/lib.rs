@@ -80,7 +80,7 @@ async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
         grpc: grpc_config,
     } = cfg;
 
-    let tm_client = tendermint_rpc::HttpClient::new(tm_jsonrpc.to_string().as_str())
+    let tm_client = tendermint_rpc::HttpClient::new(tm_jsonrpc.as_str())
         .change_context(Error::Connection)
         .attach_printable(tm_jsonrpc.clone())?;
     let multisig_client = MultisigClient::new(
