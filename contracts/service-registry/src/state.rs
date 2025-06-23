@@ -225,11 +225,9 @@ pub fn update_verifier_status(
     auth_state: &AuthorizationState,
     verifier: Addr,
 ) -> error_stack::Result<(), ContractError> {
-    let previous_auth_state = get_verifier_auth_state(storage, service_name, &verifier)?;
-
+    update_authorized_verifier_count(storage, service_name, auth_state, &verifier)?;
     update_verifier_auth_state(storage, service_name, &verifier, auth_state.clone())?;
 
-    update_count_based_on_state_transition(storage, service_name, auth_state, previous_auth_state)?;
     Ok(())
 }
 
@@ -349,19 +347,6 @@ pub fn deregister_chains_support(
     Ok(())
 }
 
-fn get_verifier_auth_state(
-    storage: &dyn Storage,
-    service_name: &ServiceName,
-    verifier: &VerifierAddress,
-) -> error_stack::Result<Option<AuthorizationState>, ContractError> {
-    let auth_state = VERIFIERS
-        .may_load(storage, (service_name, verifier))
-        .change_context(ContractError::StorageError)?
-        .map(|v| v.authorization_state);
-
-    Ok(auth_state)
-}
-
 fn update_verifier_auth_state(
     storage: &mut dyn Storage,
     service_name: &ServiceName,
@@ -390,12 +375,17 @@ fn update_verifier_auth_state(
         .change_context(ContractError::StorageError)
 }
 
-fn update_count_based_on_state_transition(
+fn update_authorized_verifier_count(
     storage: &mut dyn Storage,
     service_name: &ServiceName,
     auth_state: &AuthorizationState,
-    old_state: Option<AuthorizationState>,
+    verifier: &VerifierAddress,
 ) -> error_stack::Result<(), ContractError> {
+    let old_state = VERIFIERS
+        .may_load(storage, (service_name, verifier))
+        .change_context(ContractError::StorageError)?
+        .map(|v| v.authorization_state);
+
     let operation = match (old_state, auth_state) {
         (Some(NotAuthorized) | Some(Jailed), Authorized) | (None, Authorized) => {
             VerifierCountOperation::Increment
