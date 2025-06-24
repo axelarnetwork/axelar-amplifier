@@ -737,16 +737,6 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
     let response = protocol.coordinator.execute(
         &mut protocol.app,
         protocol.governance_address.clone(),
-        &CoordinatorExecuteMsg::RegisterProverContract {
-            chain_name: chain_name.clone(),
-            new_prover_addr: multisig_prover.contract_addr.to_string(),
-        },
-    );
-    assert!(response.is_ok());
-
-    let response = protocol.coordinator.execute(
-        &mut protocol.app,
-        protocol.governance_address.clone(),
         &CoordinatorExecuteMsg::RegisterChain {
             chain_name: chain_name.clone(),
             prover_address: multisig_prover.contract_addr.to_string(),
