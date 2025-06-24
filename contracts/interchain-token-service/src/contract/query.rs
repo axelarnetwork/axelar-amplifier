@@ -1,10 +1,11 @@
 use axelar_wasm_std::{killswitch, IntoContractError};
 use cosmwasm_std::{to_json_binary, Binary, Deps};
 use error_stack::{Result, ResultExt};
+use interchain_token_api::TokenId;
 use itertools::Itertools;
 use router_api::ChainNameRaw;
 
-use crate::{msg, state, TokenId};
+use crate::{msg, state};
 
 #[derive(thiserror::Error, Debug, IntoContractError)]
 pub enum Error {
@@ -25,6 +26,7 @@ pub fn its_chain(deps: Deps, chain: ChainNameRaw) -> Result<Binary, Error> {
             max_decimals_when_truncating: config.truncation.max_decimals_when_truncating,
         },
         frozen: config.frozen,
+        translation_contract: config.translation_contract,
     }))
     .change_context(Error::JsonSerialization)
 }
@@ -64,6 +66,7 @@ pub fn its_chains(
             max_decimals_when_truncating: config.truncation.max_decimals_when_truncating,
         },
         frozen: config.frozen,
+        translation_contract: config.translation_contract,
     })
     .try_collect()?;
 

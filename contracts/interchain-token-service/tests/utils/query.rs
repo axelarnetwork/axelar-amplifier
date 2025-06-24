@@ -3,10 +3,11 @@ use std::collections::HashMap;
 use axelar_wasm_std::error::ContractError;
 use cosmwasm_std::testing::mock_env;
 use cosmwasm_std::{from_json, Deps};
+use interchain_token_api::TokenId;
 use interchain_token_service::contract::query;
+use interchain_token_service::msg;
 use interchain_token_service::msg::{ChainConfigResponse, ChainFilter, QueryMsg, TruncationConfig};
 use interchain_token_service::shared::NumBits;
-use interchain_token_service::{msg, TokenId};
 use router_api::{Address, ChainNameRaw};
 
 pub fn query_its_chain(
@@ -84,6 +85,8 @@ pub fn create_config_response(chain_data: &ChainData, frozen: bool) -> ChainConf
             max_decimals_when_truncating: chain_data.max_decimals,
         },
         frozen,
+        translation_contract: cosmwasm_std::testing::MockApi::default()
+            .addr_make("translation_contract"),
     }
 }
 
