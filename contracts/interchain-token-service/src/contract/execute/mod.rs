@@ -3,7 +3,7 @@ use cosmwasm_std::{DepsMut, HexBinary, QuerierWrapper, Response, Storage, Uint25
 use error_stack::{bail, ensure, report, Result, ResultExt};
 use interceptors::{deploy_token_to_destination_chain, deploy_token_to_source_chain};
 use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
-use std::str::FromStr;
+
 
 use crate::events::Event;
 use crate::msg::SupplyModifier;

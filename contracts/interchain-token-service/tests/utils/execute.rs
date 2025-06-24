@@ -13,7 +13,8 @@ use interchain_token_service::msg::{self, ExecuteMsg, SupplyModifier, Truncation
 use interchain_token_service::shared::NumBits;
 use interchain_token_service::{contract, HubMessage, TokenId};
 use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
-use abi_translation_contract::{hub_message_abi_encode, hub_message_abi_decode, QueryMsg as TranslationQueryMsg};
+use abi_translation_contract::{hub_message_abi_encode, hub_message_abi_decode};
+use interchain_token_service::msg::TranslationQueryMsg;
 
 use super::{instantiate_contract, TestMessage};
 use crate::utils::params;

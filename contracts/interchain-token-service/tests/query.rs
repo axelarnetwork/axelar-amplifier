@@ -10,6 +10,7 @@ use interchain_token_service::msg::{
 use interchain_token_service::TokenId;
 use router_api::{Address, ChainNameRaw};
 
+
 mod utils;
 
 struct ChainConfigTest {
@@ -79,6 +80,7 @@ fn query_chain_config() {
             max_decimals_when_truncating: test_config.eth.max_decimals,
         },
         frozen: false,
+        translation_contract: "0x1234567890123456789012345678901234567890".parse().unwrap(),
     };
 
     let eth_chain_config = assert_ok!(utils::query_its_chain(

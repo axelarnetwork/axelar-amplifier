@@ -3,6 +3,7 @@ use cosmwasm_std::{to_json_binary, Binary, Deps};
 use error_stack::{Result, ResultExt};
 use itertools::Itertools;
 use router_api::ChainNameRaw;
+use std::str::FromStr;
 
 use crate::{msg, state, TokenId};
 
@@ -12,6 +13,8 @@ pub enum Error {
     JsonSerialization,
     #[error("state error")]
     State,
+    #[error("invalid chain name")]
+    InvalidChainName,
 }
 
 pub fn its_chain(deps: Deps, chain: ChainNameRaw) -> Result<Binary, Error> {
@@ -25,6 +28,7 @@ pub fn its_chain(deps: Deps, chain: ChainNameRaw) -> Result<Binary, Error> {
             max_decimals_when_truncating: config.truncation.max_decimals_when_truncating,
         },
         frozen: config.frozen,
+        translation_contract: config.translation_contract,
     }))
     .change_context(Error::JsonSerialization)
 }
@@ -64,6 +68,7 @@ pub fn its_chains(
             max_decimals_when_truncating: config.truncation.max_decimals_when_truncating,
         },
         frozen: config.frozen,
+        translation_contract: config.translation_contract,
     })
     .try_collect()?;
 
@@ -85,4 +90,21 @@ pub fn token_config(deps: Deps, token_id: TokenId) -> Result<Binary, Error> {
 pub fn is_contract_enabled(deps: Deps) -> Result<Binary, Error> {
     to_json_binary(&killswitch::is_contract_active(deps.storage))
         .change_context(Error::JsonSerialization)
+}
+
+pub fn translation_hooks(
+    deps: Deps,
+    chain: String,
+) -> Result<Binary, Error> {
+    let chain_raw = ChainNameRaw::from_str(&chain).map_err(|_| Error::InvalidChainName)?;
+    let chain_config: Option<state::ChainConfig> =
+        state::may_load_chain_config(deps.storage, &chain_raw).change_context(Error::State)?;
+    
+    let translation_contract = chain_config
+        .map(|config| config.translation_contract.to_string());
+    
+    to_json_binary(&msg::TranslationHooksResponse {
+        translation_contract,
+    })
+    .change_context(Error::JsonSerialization)
 }

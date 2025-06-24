@@ -179,6 +179,10 @@ pub fn query(deps: Deps, _: Env, msg: QueryMsg) -> Result<Binary, ContractError>
         QueryMsg::IsEnabled => {
             query::is_contract_enabled(deps).change_context(Error::QueryContractStatus)
         }
+        QueryMsg::TranslationHooks { chain } => {
+            query::translation_hooks(deps, chain)
+                .change_context(Error::QueryChainConfig)
+        }
     }?
     .then(Ok)
 }

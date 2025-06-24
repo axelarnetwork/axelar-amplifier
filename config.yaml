@@ -1,0 +1,34 @@
+tm_jsonrpc: "http://devnet-amplifier.axelar.dev:26657"
+tm_grpc: "tcp://devnet-amplifier.axelar.dev:9090"
+event_buffer_cap: 10000
+
+service_registry:
+  cosmwasm_contract: "axelar1c9fkszt5lq34vvvlat3fxj6yv7ejtqapz04e97vtc9m5z9cwnamq8zjlhz"
+
+rewards:
+  cosmwasm_contract: "axelar1c6d75nxssc8t62cgx28clqyd669g2uyymljeqw7hfsq3de3vt2zs5rvk8c"
+
+broadcast:
+  batch_gas_limit: "20000000"
+  broadcast_interval: "1s"
+  chain_id: "devnet-amplifier"
+  gas_adjustment: "2"
+  gas_price: "0.00005uamplifier"
+  queue_cap: "1000"
+  tx_fetch_interval: "1000ms"
+  tx_fetch_max_retries: "15"
+
+tofnd_config:
+  batch_gas_limit: "10000000"
+  key_uid: "axelar"
+  party_uid: "ampd"
+  url: "http://127.0.0.1:50051"
+  timeout:
+    secs: 3
+    nanos: 0
+
+handlers:
+  - type: MultisigSigner
+    cosmwasm_contract: axelar19jxy26z0qnnspa45y5nru0l5rmy9d637z5km2ndjxthfxf5qaswst9290r
+    chain_name: fantom
+

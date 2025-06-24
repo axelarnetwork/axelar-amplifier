@@ -11,6 +11,7 @@ cosmwasm-schema = "1.5"
 cosmwasm-std = { workspace = true }
 cosmwasm-storage = "1.5"
 cw-storage-plus = "1.1.0"
+cw2 = { workspace = true }
 error-stack = "0.4"
 serde = { version = "1.0", default-features = false, features = ["derive"] }
 thiserror = "1.0"

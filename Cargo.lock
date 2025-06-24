@@ -23,6 +23,7 @@ dependencies = [
  "cosmwasm-std 2.2.2",
  "cosmwasm-storage",
  "cw-storage-plus 1.2.0",
+ "cw2",
  "error-stack",
  "hex",
  "interchain-token-service",

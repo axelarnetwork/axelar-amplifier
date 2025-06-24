@@ -84,6 +84,7 @@ pub fn create_config_response(chain_data: &ChainData, frozen: bool) -> ChainConf
             max_decimals_when_truncating: chain_data.max_decimals,
         },
         frozen,
+        translation_contract: "0x1234567890123456789012345678901234567890".parse().unwrap(),
     }
 }
 
