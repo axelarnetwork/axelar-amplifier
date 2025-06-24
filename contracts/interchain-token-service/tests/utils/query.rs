@@ -84,6 +84,8 @@ pub fn create_config_response(chain_data: &ChainData, frozen: bool) -> ChainConf
             max_decimals_when_truncating: chain_data.max_decimals,
         },
         frozen,
+        translation_contract: cosmwasm_std::testing::MockApi::default()
+            .addr_make("translation_contract"),
     }
 }
 

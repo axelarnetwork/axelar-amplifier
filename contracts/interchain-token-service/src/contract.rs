@@ -12,8 +12,8 @@ use execute::{freeze_chain, unfreeze_chain};
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{self, Config};
 
-mod execute;
-mod migrations;
+pub mod execute;
+pub mod migrations;
 mod query;
 
 pub use execute::Error as ExecuteError;

@@ -12,6 +12,8 @@ pub enum Error {
     JsonSerialization,
     #[error("state error")]
     State,
+    #[error("invalid chain name")]
+    InvalidChainName,
 }
 
 pub fn its_chain(deps: Deps, chain: ChainNameRaw) -> Result<Binary, Error> {
@@ -25,6 +27,7 @@ pub fn its_chain(deps: Deps, chain: ChainNameRaw) -> Result<Binary, Error> {
             max_decimals_when_truncating: config.truncation.max_decimals_when_truncating,
         },
         frozen: config.frozen,
+        translation_contract: config.translation_contract,
     }))
     .change_context(Error::JsonSerialization)
 }
@@ -64,6 +67,7 @@ pub fn its_chains(
             max_decimals_when_truncating: config.truncation.max_decimals_when_truncating,
         },
         frozen: config.frozen,
+        translation_contract: config.translation_contract,
     })
     .try_collect()?;
 

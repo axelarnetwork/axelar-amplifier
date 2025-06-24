@@ -424,6 +424,9 @@ mod test {
                     max_uint_bits: 32u32.try_into().unwrap(),
                     max_decimals_when_truncating: 6,
                 },
+                translation_contract: "0x1234567890123456789012345678901234567890"
+                    .parse()
+                    .unwrap(),
             }
             .into(),
         )
@@ -478,6 +481,9 @@ mod test {
                     max_uint_bits: 64.try_into().unwrap(),
                     max_decimals_when_truncating: 6,
                 },
+                translation_contract: "0x1234567890123456789012345678901234567890"
+                    .parse()
+                    .unwrap(),
             }
             .into(),
         )
@@ -532,6 +538,9 @@ mod test {
                     max_uint_bits: 64.try_into().unwrap(),
                     max_decimals_when_truncating: 6,
                 },
+                translation_contract: "0x1234567890123456789012345678901234567890"
+                    .parse()
+                    .unwrap(),
             }
             .into(),
         )
@@ -586,6 +595,9 @@ mod test {
                     max_uint_bits: 32.try_into().unwrap(),
                     max_decimals_when_truncating: 6,
                 },
+                translation_contract: "0x1234567890123456789012345678901234567890"
+                    .parse()
+                    .unwrap(),
             }
             .into(),
         )
@@ -640,6 +652,9 @@ mod test {
                     max_uint_bits: 32.try_into().unwrap(),
                     max_decimals_when_truncating: 6,
                 },
+                translation_contract: "0x1234567890123456789012345678901234567890"
+                    .parse()
+                    .unwrap(),
             }
             .into(),
         )
@@ -673,6 +688,9 @@ mod test {
                     max_uint_bits: 256.try_into().unwrap(),
                     max_decimals_when_truncating: 12,
                 },
+                translation_contract: "0x1234567890123456789012345678901234567890"
+                    .parse()
+                    .unwrap(),
             }
             .into(),
         )
@@ -687,6 +705,9 @@ mod test {
                     max_uint_bits: 128.try_into().unwrap(),
                     max_decimals_when_truncating: 6,
                 },
+                translation_contract: "0x1234567890123456789012345678901234567890"
+                    .parse()
+                    .unwrap(),
             }
             .into(),
         )
@@ -739,6 +760,9 @@ mod test {
                     max_uint_bits: 128.try_into().unwrap(),
                     max_decimals_when_truncating: 6,
                 },
+                translation_contract: "0x1234567890123456789012345678901234567890"
+                    .parse()
+                    .unwrap(),
             }
             .into(),
         )
@@ -753,6 +777,9 @@ mod test {
                     max_uint_bits: 256.try_into().unwrap(),
                     max_decimals_when_truncating: 6,
                 },
+                translation_contract: "0x1234567890123456789012345678901234567890"
+                    .parse()
+                    .unwrap(),
             }
             .into(),
         )

@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use axelar_wasm_std::{nonempty, FnExt, IntoContractError};
+use axelar_wasm_std::{address, nonempty, FnExt, IntoContractError};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Order, OverflowError, StdError, Storage, Uint256};
 use cw_storage_plus::{Bound, Item, Map};
@@ -23,6 +23,8 @@ pub enum Error {
     ChainNotFound(ChainNameRaw),
     #[error("chain config for chain {0} not found")]
     ChainConfigNotFound(ChainNameRaw),
+    #[error("invalid translation contract address {0}")]
+    InvalidTranslationContractAddress(Address),
     // This is a generic error to use when cw_storage_plus returns an error that is unexpected and
     // should never happen, such as an error encountered when saving data.
     #[error("storage error")]
@@ -40,25 +42,49 @@ pub struct ChainConfig {
     pub truncation: TruncationConfig,
     pub its_address: Address,
     pub frozen: bool,
+    pub translation_contract: Addr,
+}
+
+impl ChainConfig {
+    pub fn from_input(input: msg::ChainConfig, api: &dyn cosmwasm_std::Api) -> Result<Self, Error> {
+        Ok(Self {
+            truncation: TruncationConfig {
+                max_uint_bits: input.truncation.max_uint_bits,
+                max_decimals_when_truncating: input.truncation.max_decimals_when_truncating,
+            },
+            its_address: input.its_edge_contract,
+            frozen: false,
+            translation_contract: address::validate_cosmwasm_address(
+                api,
+                &input.translation_contract.to_string(),
+            )
+            .change_context(Error::InvalidTranslationContractAddress(
+                input.translation_contract,
+            ))?,
+        })
+    }
+}
+
+impl From<msg::ChainConfig> for ChainConfig {
+    fn from(input: msg::ChainConfig) -> Self {
+        // Note: This implementation uses Addr::unchecked for the translation_contract
+        // This should only be used in tests or when the address is known to be valid
+        Self {
+            truncation: TruncationConfig {
+                max_uint_bits: input.truncation.max_uint_bits,
+                max_decimals_when_truncating: input.truncation.max_decimals_when_truncating,
+            },
+            its_address: input.its_edge_contract,
+            frozen: false,
+            translation_contract: Addr::unchecked(input.translation_contract.to_string()),
+        }
+    }
 }
 
 #[cw_serde]
 pub struct TruncationConfig {
     pub max_uint_bits: NumBits, // The maximum number of bits used to represent unsigned integer values that is supported by the chain's token standard
     pub max_decimals_when_truncating: u8, // The maximum number of decimals that is preserved when deploying from a chain with a larger max unsigned integer
-}
-
-impl From<msg::ChainConfig> for ChainConfig {
-    fn from(value: msg::ChainConfig) -> Self {
-        Self {
-            truncation: TruncationConfig {
-                max_uint_bits: value.truncation.max_uint_bits,
-                max_decimals_when_truncating: value.truncation.max_decimals_when_truncating,
-            },
-            its_address: value.its_edge_contract,
-            frozen: false,
-        }
-    }
 }
 
 #[cw_serde]
@@ -390,7 +416,8 @@ mod tests {
                 truncation: msg::TruncationConfig {
                     max_uint_bits: 256.try_into().unwrap(),
                     max_decimals_when_truncating: 16u8
-                }
+                },
+                translation_contract: address1.clone(),
             }
             .into()
         ));
@@ -403,7 +430,8 @@ mod tests {
                 truncation: msg::TruncationConfig {
                     max_uint_bits: 256.try_into().unwrap(),
                     max_decimals_when_truncating: 16u8
-                }
+                },
+                translation_contract: address2.clone(),
             }
             .into()
         ));
