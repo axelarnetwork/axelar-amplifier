@@ -7,7 +7,7 @@ use cosmwasm_std::Uint256;
 use msgs_derive::EnsurePermissions;
 use router_api::{Address, ChainNameRaw};
 
-pub use crate::contract::MigrateMsg;
+pub use crate::contract::migrations::MigrateMsg;
 use crate::shared::NumBits;
 use crate::TokenId;
 use crate::primitives::HubMessage;
