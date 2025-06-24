@@ -241,15 +241,20 @@ mod tests {
     fn add_prover_from_governance_succeeds() {
         let mut test_setup = setup();
         let new_prover = test_setup.app.api().addr_make("new_eth_prover");
+        let new_gateway = test_setup.app.api().addr_make("new_eth_gateway");
+        let new_verifier = test_setup.app.api().addr_make("new_eth_verifier");
+
 
         assert!(test_setup
             .app
             .execute_contract(
                 test_setup.admin_addr.clone(),
                 test_setup.coordinator_addr.clone(),
-                &ExecuteMsg::RegisterProverContract {
+                &ExecuteMsg::RegisterChain {
                     chain_name: test_setup.chain_name.clone(),
-                    new_prover_addr: new_prover.to_string(),
+                    prover_address: new_prover.to_string(),
+                    gateway_address: new_gateway.to_string(),
+                    voting_verifier_address: new_verifier.to_string(),
                 },
                 &[]
             )
@@ -270,14 +275,18 @@ mod tests {
     fn add_prover_from_random_address_fails() {
         let mut test_setup = setup();
         let new_prover = test_setup.app.api().addr_make("new_eth_prover");
+        let new_gateway = test_setup.app.api().addr_make("new_eth_gateway");
+        let new_verifier = test_setup.app.api().addr_make("new_eth_verifier");
         let random_addr = test_setup.app.api().addr_make("random_address");
 
         let res = test_setup.app.execute_contract(
             random_addr.clone(),
             test_setup.coordinator_addr.clone(),
-            &ExecuteMsg::RegisterProverContract {
+            &ExecuteMsg::RegisterChain {
                 chain_name: test_setup.chain_name.clone(),
-                new_prover_addr: new_prover.to_string(),
+                prover_address: new_prover.to_string(),
+                gateway_address: new_gateway.to_string(),
+                voting_verifier_address: new_verifier.to_string(),
             },
             &[],
         );

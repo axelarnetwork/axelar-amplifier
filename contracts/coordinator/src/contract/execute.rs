@@ -47,11 +47,15 @@ pub fn register_chain(
     state::save_chain_contracts(
         deps.storage,
         chain_name.clone(),
-        prover_addr,
+        prover_addr.clone(),
         gateway_addr,
         voting_verifier_address,
     )
-    .change_context(Error::ChainNotRegistered(chain_name))?;
+    .change_context(Error::ChainNotRegistered(chain_name.clone()))?;
+
+    state::save_prover_for_chain(deps.storage, chain_name, prover_addr.clone())
+        .change_context(Error::ProverNotRegistered(prover_addr))?;
+
     Ok(Response::new())
 }
 
