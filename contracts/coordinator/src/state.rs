@@ -247,12 +247,18 @@ pub fn is_prover_registered(
     storage: &dyn Storage,
     prover_address: ProverAddress,
 ) -> Result<bool, Error> {
-    Ok(CHAIN_PROVER_INDEXED_MAP
-        .idx
-        .by_prover
-        .item(storage, prover_address)
-        .change_context(Error::StateParseFailed)?
-        .is_some())
+    match contracts_by_prover(storage, prover_address) {
+        Ok(..) => Ok(true),
+        Err(e)
+            if e.downcast_ref::<Error>().is_some_and(|e| match e {
+                Error::ProverNotRegistered(..) => true,
+                _ => false,
+            }) =>
+        {
+            Ok(false)
+        }
+        Err(e) => Err(e),
+    }
 }
 
 #[allow(dead_code)] // Used in tests, might be useful in future query
@@ -260,10 +266,7 @@ pub fn load_prover_by_chain(
     storage: &dyn Storage,
     chain_name: ChainName,
 ) -> Result<ProverAddress, Error> {
-    Ok(CHAIN_PROVER_INDEXED_MAP
-        .may_load(storage, chain_name.clone())
-        .change_context(Error::StateParseFailed)?
-        .ok_or(Error::ChainNotRegistered(chain_name))?)
+    Ok(contracts_by_chain(storage, chain_name)?.prover_address)
 }
 
 pub fn save_prover_for_chain(

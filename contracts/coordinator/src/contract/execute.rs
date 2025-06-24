@@ -53,9 +53,6 @@ pub fn register_chain(
     )
     .change_context(Error::ChainNotRegistered(chain_name.clone()))?;
 
-    state::save_prover_for_chain(deps.storage, chain_name, prover_addr.clone())
-        .change_context(Error::ProverNotRegistered(prover_addr))?;
-
     Ok(Response::new())
 }
 
