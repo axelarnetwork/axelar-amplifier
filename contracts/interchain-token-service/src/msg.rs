@@ -10,6 +10,7 @@ use router_api::{Address, ChainNameRaw};
 pub use crate::contract::MigrateMsg;
 use crate::shared::NumBits;
 use crate::TokenId;
+use crate::primitives::HubMessage;
 
 pub const DEFAULT_PAGINATION_LIMIT: u32 = 30;
 
@@ -127,6 +128,7 @@ pub struct ChainConfig {
     pub chain: ChainNameRaw,
     pub its_edge_contract: Address,
     pub truncation: TruncationConfig,
+    pub translation_contract: Address,
 }
 
 #[cw_serde]
@@ -141,6 +143,18 @@ pub struct ChainConfigResponse {
     pub its_edge_contract: Address,
     pub truncation: TruncationConfig,
     pub frozen: bool,
+    pub translation_contract: Address,
+}
+
+#[cw_serde]
+pub struct TranslationHooksResponse {
+    pub translation_contract: Option<String>,
+}
+
+#[cw_serde]
+pub enum TranslationQueryMsg {
+    FromBytes { payload: cosmwasm_std::HexBinary },
+    ToBytes { message: HubMessage },
 }
 
 #[cw_serde]
@@ -180,4 +194,10 @@ pub enum QueryMsg {
     /// Query the state of contract (enabled/disabled)
     #[returns(bool)]
     IsEnabled,
+
+    /// Query for translation hooks
+    #[returns(TranslationHooksResponse)]
+    TranslationHooks {
+        chain: String,
+    },
 }

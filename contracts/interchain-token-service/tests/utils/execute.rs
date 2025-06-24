@@ -8,10 +8,12 @@ use cosmwasm_std::testing::{message_info, mock_env, MockApi, MockQuerier, MockSt
 use cosmwasm_std::{
     from_json, to_json_binary, DepsMut, HexBinary, MemoryStorage, OwnedDeps, Response, WasmQuery,
 };
+use cosmwasm_std::SystemResult;
 use interchain_token_service::msg::{self, ExecuteMsg, SupplyModifier, TruncationConfig};
 use interchain_token_service::shared::NumBits;
 use interchain_token_service::{contract, HubMessage, TokenId};
 use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
+use abi_translation_contract::{hub_message_abi_encode, hub_message_abi_decode, QueryMsg as TranslationQueryMsg};
 
 use super::{instantiate_contract, TestMessage};
 use crate::utils::params;
@@ -40,11 +42,12 @@ pub fn execute_hub_message(
     source_address: Address,
     message: HubMessage,
 ) -> Result<Response, ContractError> {
-    execute(deps, cc_id, source_address, message.abi_encode())
+    execute(deps, cc_id, source_address, hub_message_abi_encode(message))
 }
 
 pub fn make_deps() -> OwnedDeps<MemoryStorage, MockApi, MockQuerier<AxelarQueryMsg>> {
     let addr = MockApi::default().addr_make(params::GATEWAY);
+    let translation_contract_addr = "0x1234567890123456789012345678901234567890";
     let mut deps = OwnedDeps {
         storage: MockStorage::default(),
         api: MockApi::default(),
@@ -61,6 +64,27 @@ pub fn make_deps() -> OwnedDeps<MemoryStorage, MockApi, MockQuerier<AxelarQueryM
                     Ok(to_json_binary(&ChainName::try_from("axelar").unwrap()).into()).into()
                 }
                 _ => panic!("unsupported query"),
+            }
+        }
+        WasmQuery::Smart { contract_addr, msg } if contract_addr == translation_contract_addr => {
+            // Handle translation contract queries
+            let query_msg = from_json::<TranslationQueryMsg>(msg).unwrap();
+            match query_msg {
+                TranslationQueryMsg::FromBytes { payload } => {
+                    // Use the actual translation logic
+                    match hub_message_abi_decode(payload.as_slice()) {
+                        Ok(hub_message) => Ok(to_json_binary(&hub_message).into()).into(),
+                        Err(_) => SystemResult::Err(cosmwasm_std::SystemError::InvalidRequest {
+                            error: "Translation failed".to_string(),
+                            request: Default::default(),
+                        }),
+                    }
+                }
+                TranslationQueryMsg::ToBytes { message } => {
+                    // Use the actual translation logic
+                    let payload = hub_message_abi_encode(message);
+                    Ok(to_json_binary(&payload).into()).into()
+                }
             }
         }
         _ => panic!("unexpected query: {:?}", msg),
@@ -98,6 +122,7 @@ pub fn register_chain(
                 max_uint_bits,
                 max_decimals_when_truncating,
             },
+            translation_contract: "0x1234567890123456789012345678901234567890".parse().unwrap(),
         }],
     )
 }
@@ -153,6 +178,7 @@ pub fn update_chain(
                 max_uint_bits,
                 max_decimals_when_truncating,
             },
+            translation_contract: "0x1234567890123456789012345678901234567890".parse().unwrap(),
         }],
     )
 }

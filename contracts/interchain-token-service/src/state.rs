@@ -40,6 +40,7 @@ pub struct ChainConfig {
     pub truncation: TruncationConfig,
     pub its_address: Address,
     pub frozen: bool,
+    pub translation_contract: Address,
 }
 
 #[cw_serde]
@@ -57,6 +58,7 @@ impl From<msg::ChainConfig> for ChainConfig {
             },
             its_address: value.its_edge_contract,
             frozen: false,
+            translation_contract: value.translation_contract,
         }
     }
 }
@@ -390,7 +392,8 @@ mod tests {
                 truncation: msg::TruncationConfig {
                     max_uint_bits: 256.try_into().unwrap(),
                     max_decimals_when_truncating: 16u8
-                }
+                },
+                translation_contract: address1.clone(),
             }
             .into()
         ));
@@ -403,7 +406,8 @@ mod tests {
                 truncation: msg::TruncationConfig {
                     max_uint_bits: 256.try_into().unwrap(),
                     max_decimals_when_truncating: 16u8
-                }
+                },
+                translation_contract: address2.clone(),
             }
             .into()
         ));

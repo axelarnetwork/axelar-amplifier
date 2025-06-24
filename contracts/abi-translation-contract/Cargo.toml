@@ -1,0 +1,29 @@
+[package]
+name = "abi-translation-contract"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+cosmwasm-schema = "1.5"
+cosmwasm-std = { workspace = true }
+cosmwasm-storage = "1.5"
+cw-storage-plus = "1.1.0"
+error-stack = "0.4"
+serde = { version = "1.0", default-features = false, features = ["derive"] }
+thiserror = "1.0"
+
+# Axelar dependencies
+axelar-wasm-std = { path = "../../packages/axelar-wasm-std" }
+interchain-token-service = { path = "../interchain-token-service" }
+router-api = { path = "../../packages/router-api" }
+
+# ABI encoding dependencies
+alloy-primitives = "1.2.1"
+alloy-sol-types = "1.2.1"
+hex = "0.4"
+
+[dev-dependencies]
+cosmwasm-schema = "1.5" 
