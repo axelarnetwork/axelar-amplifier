@@ -250,10 +250,8 @@ pub fn is_prover_registered(
     match contracts_by_prover(storage, prover_address) {
         Ok(..) => Ok(true),
         Err(e)
-            if e.downcast_ref::<Error>().is_some_and(|e| match e {
-                Error::ProverNotRegistered(..) => true,
-                _ => false,
-            }) =>
+            if e.downcast_ref::<Error>()
+                .is_some_and(|e| matches!(e, Error::ProverNotRegistered(..))) =>
         {
             Ok(false)
         }

@@ -244,7 +244,6 @@ mod tests {
         let new_gateway = test_setup.app.api().addr_make("new_eth_gateway");
         let new_verifier = test_setup.app.api().addr_make("new_eth_verifier");
 
-
         assert!(test_setup
             .app
             .execute_contract(
