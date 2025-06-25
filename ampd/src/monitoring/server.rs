@@ -89,7 +89,7 @@ impl Server {
         metrics_rx: mpsc::Receiver<MetricsMsg>,
         cancel: CancellationToken,
     ) -> Result<(), MetricsError> {
-        info!("no monitoring endpoint defined, so no metrics will be collected");
+        info!("no prometheus endpoint defined, so no metrics will be collected");
 
         let handle = Self::spawn_metrics_processor(metrics_rx, cancel, |_| {});
         _ = handle.await;
