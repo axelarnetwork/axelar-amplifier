@@ -52,6 +52,7 @@ impl Config {
 #[cfg(test)]
 mod tests {
     use std::net::{Ipv4Addr, SocketAddrV4};
+
     use super::*;
 
     #[test]
