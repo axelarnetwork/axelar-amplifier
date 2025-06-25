@@ -63,7 +63,7 @@ impl Server {
         mut metrics_rx: mpsc::Receiver<MetricsMsg>,
         cancel: CancellationToken,
     ) -> Result<(), MetricsError> {
-        info!("no monitoring endpoint defined, so no metrics will be collected");
+        info!("no prometheus endpoint defined, so no metrics will be collected");
 
         let handle = tokio::spawn(async move {
             loop {
