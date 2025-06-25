@@ -8,7 +8,7 @@ use crate::handlers::{self};
 use crate::monitoring::server::Config as MonitoringConfig;
 use crate::tofnd::Config as TofndConfig;
 use crate::url::Url;
-use crate::{broadcaster, event_processor, grpc};
+use crate::{broadcaster, event_processor, grpc, monitoring};
 
 #[derive(Deserialize, Serialize, PartialEq, Debug)]
 #[serde(default)]
@@ -53,6 +53,7 @@ mod tests {
     use std::fs;
     use std::fs::File;
     use std::io::Write;
+    use std::net::{Ipv4Addr, SocketAddrV4};
     use std::net::{Ipv4Addr, SocketAddrV4};
     use std::path::PathBuf;
     use std::str::FromStr;
