@@ -1,5 +1,4 @@
 {
-  "monitoring_bind_addr": "0.0.0.0:3000",
   "tm_jsonrpc": "http://localhost:26657/",
   "tm_grpc": "tcp://localhost:9090",
   "tm_grpc_timeout": {
@@ -45,5 +44,9 @@
     "global_concurrency_limit": 2048,
     "concurrency_limit_per_connection": 256,
     "request_timeout": "30s"
+  },
+  "monitoring_server": {
+    "enabled": false,
+    "bind_address": "127.0.0.1:3000"
   }
 }
