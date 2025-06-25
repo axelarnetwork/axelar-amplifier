@@ -1,2 +1,0 @@
-arithmetic-side-effects-allowed = ["voting_verifier::execute::PollResults","PollResults"]
-arithmetic-side-effects-allowed-binary = [["PollResults","*"]]
