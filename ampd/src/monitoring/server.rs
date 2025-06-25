@@ -89,7 +89,7 @@ impl Server {
         metrics_rx: mpsc::Receiver<MetricsMsg>,
         cancel: CancellationToken,
     ) -> Result<(), MetricsError> {
-        info!("no prometheus endpoint defined, so no metrics will be collected");
+        info!("no monitoring endpoint defined, so no metrics will be collected");
 
         let handle = Self::spawn_metrics_processor(metrics_rx, cancel, |_| {});
         _ = handle.await;
@@ -167,6 +167,7 @@ pub mod test_utils {
     use tokio_util::sync::CancellationToken;
 
     use super::*;
+    use crate::monitoring::endpoints::status::Status;
 
     fn test_bind_addr() -> SocketAddrV4 {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
@@ -177,7 +178,7 @@ pub mod test_utils {
         }
     }
 
-    pub fn test_metrics_server_setup() -> (
+    fn test_metrics_server_setup() -> (
         Option<SocketAddrV4>,
         Server,
         MonitoringClient,
