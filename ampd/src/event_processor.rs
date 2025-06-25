@@ -189,6 +189,7 @@ enum StreamStatus {
 
 #[cfg(test)]
 mod tests {
+    use std::net::{SocketAddr, SocketAddrV4, TcpListener};
     use std::time::Duration;
 
     use assert_ok::assert_ok;
@@ -563,7 +564,7 @@ mod tests {
 
         assert!(result_with_timeout.is_ok());
         tokio::time::sleep(Duration::from_millis(100)).await;
-        let base_url = Url::parse(&format!("http://{}", bind_address.unwrap())).unwrap();
+        let base_url = Url::parse(&format!("http://{}", bind_address)).unwrap();
         let metrics_url = base_url.join("metrics").unwrap();
         let response = reqwest::get(metrics_url).await.unwrap();
         let metrics_text = response.text().await.unwrap();
