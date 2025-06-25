@@ -11,12 +11,11 @@ use crate::handlers::{self};
 use crate::tofnd::Config as TofndConfig;
 use crate::types::debug::REDACTED_VALUE;
 use crate::url::Url;
-use crate::{broadcaster, event_processor, grpc};
+use crate::{broadcaster, event_processor, grpc, monitoring};
 
 #[derive(Deserialize, Serialize, PartialEq)]
 #[serde(default)]
 pub struct Config {
-    pub monitoring_bind_addr: Option<SocketAddrV4>,
     #[serde(deserialize_with = "Url::deserialize_sensitive")]
     pub tm_jsonrpc: Url,
     #[serde(deserialize_with = "Url::deserialize_sensitive")]
@@ -31,6 +30,7 @@ pub struct Config {
     pub rewards: RewardsConfig,
     #[serde(deserialize_with = "grpc::deserialize_config")]
     pub grpc: grpc::Config,
+    pub monitoring_server: monitoring::Config,
 }
 
 impl Default for Config {
@@ -45,29 +45,9 @@ impl Default for Config {
             event_processor: event_processor::Config::default(),
             service_registry: ServiceRegistryConfig::default(),
             rewards: RewardsConfig::default(),
-            monitoring_bind_addr: Some(SocketAddrV4::new(Ipv4Addr::UNSPECIFIED, 3000)),
             grpc: grpc::Config::default(),
+            monitoring_server: monitoring::Config::default(),
         }
-    }
-}
-
-impl Debug for Config {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Config")
-            .field("tm_jsonrpc", &self.tm_jsonrpc)
-            .field("tm_grpc", &self.tm_grpc)
-            .field("tm_grpc_timeout", &self.tm_grpc_timeout)
-            .field("broadcast", &self.broadcast)
-            .field("handlers", &self.handlers)
-            .field("tofnd_config", &self.tofnd_config)
-            .field("event_processor", &self.event_processor)
-            .field("service_registry", &self.service_registry)
-            .field("rewards", &self.rewards)
-            .field("monitoring_bind_addr", &REDACTED_VALUE)
-            // fmt::Debug is already redacted for field gprc
-            // (@see: src/grpc/mod.rs)
-            .field("grpc", &self.grpc)
-            .finish()
     }
 }
 
@@ -76,6 +56,7 @@ mod tests {
     use std::fs;
     use std::fs::File;
     use std::io::Write;
+    use std::net::{Ipv4Addr, SocketAddrV4};
     use std::path::PathBuf;
     use std::str::FromStr;
     use std::time::Duration;
@@ -590,5 +571,23 @@ mod tests {
             ],
             ..Config::default()
         }
+    }
+
+    #[test]
+    fn deserialize_monitoring_server_config() {
+        let bind_address = "0.0.0.0:3001";
+        let config_str = format!(
+            "
+            [monitoring_server]
+            enabled = true
+            bind_address = '{bind_address}'
+            ",
+        );
+        let cfg: Config = toml::from_str(&config_str).unwrap();
+        assert!(cfg.monitoring_server.enabled);
+        assert_eq!(
+            cfg.monitoring_server.bind_address.unwrap(),
+            SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), 3001)
+        );
     }
 }

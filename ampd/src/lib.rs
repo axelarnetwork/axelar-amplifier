@@ -77,12 +77,12 @@ async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
         event_processor,
         service_registry: _service_registry,
         rewards: _rewards,
-        monitoring_bind_addr,
+        monitoring_server,
         grpc: grpc_config,
     } = cfg;
 
     let (monitoring_server, metrics_client) =
-        MonitoringServer::new(monitoring_bind_addr).change_context(Error::Monitor)?;
+        MonitoringServer::new(monitoring_server.get_bind_addr()).change_context(Error::Monitor)?;
     let tm_client = tendermint_rpc::HttpClient::new(tm_jsonrpc.as_str())
         .change_context(Error::Connection)
         .attach_printable(tm_jsonrpc.clone())?;
