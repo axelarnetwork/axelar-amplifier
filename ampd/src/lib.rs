@@ -81,7 +81,7 @@ async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
         grpc: grpc_config,
     } = cfg;
 
-    let (prometheus_monitor_server, metrics_client) =
+    let (monitoring_server, metrics_client) =
         MonitoringServer::new(monitoring_bind_addr).change_context(Error::Monitor)?;
     let tm_client = tendermint_rpc::HttpClient::new(tm_jsonrpc.as_str())
         .change_context(Error::Connection)
@@ -177,7 +177,7 @@ async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
         tx_confirmer,
         multisig_client,
         block_height_monitor,
-        prometheus_monitor_server,
+        monitoring_server,
         grpc_server,
         broadcaster_task,
         metrics_client,
@@ -213,7 +213,7 @@ where
     tx_confirmer: TxConfirmer<CosmosGrpcClient>,
     multisig_client: MultisigClient,
     block_height_monitor: BlockHeightMonitor<tendermint_rpc::HttpClient>,
-    prometheus_monitor_server: MonitoringServer,
+    monitoring_server: MonitoringServer,
     grpc_server: grpc::Server,
     broadcaster_task: broadcaster_v2::BroadcasterTask<
         cosmos::CosmosGrpcClient,
@@ -235,7 +235,7 @@ where
         tx_confirmer: TxConfirmer<CosmosGrpcClient>,
         multisig_client: MultisigClient,
         block_height_monitor: BlockHeightMonitor<tendermint_rpc::HttpClient>,
-        prometheus_monitor_server: MonitoringServer,
+        monitoring_server: MonitoringServer,
         grpc_server: grpc::Server,
         broadcaster_task: broadcaster_v2::BroadcasterTask<
             cosmos::CosmosGrpcClient,
@@ -254,7 +254,7 @@ where
             tx_confirmer,
             multisig_client,
             block_height_monitor,
-            prometheus_monitor_server,
+            monitoring_server,
             grpc_server,
             broadcaster_task,
             metrics_client,
@@ -653,7 +653,7 @@ where
             broadcaster,
             tx_confirmer,
             block_height_monitor,
-            prometheus_monitor_server,
+            monitoring_server,
             grpc_server,
             broadcaster_task,
             ..
@@ -687,9 +687,7 @@ where
                     .change_context(Error::EventPublisher)
             }))
             .add_task(CancellableTask::create(|token| {
-                prometheus_monitor_server
-                    .run(token)
-                    .change_context(Error::Monitor)
+                monitoring_server.run(token).change_context(Error::Monitor)
             }))
             .add_task(CancellableTask::create(|token| {
                 event_processor

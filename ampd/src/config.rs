@@ -63,7 +63,7 @@ impl Debug for Config {
             .field("event_processor", &self.event_processor)
             .field("service_registry", &self.service_registry)
             .field("rewards", &self.rewards)
-            .field("prometheus_monitor_bind_addr", &REDACTED_VALUE)
+            .field("monitoring_bind_addr", &REDACTED_VALUE)
             // fmt::Debug is already redacted for field gprc
             // (@see: src/grpc/mod.rs)
             .field("grpc", &self.grpc)
