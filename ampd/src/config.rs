@@ -1,6 +1,3 @@
-use std::fmt;
-use std::fmt::Debug;
-use std::net::{Ipv4Addr, SocketAddrV4};
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
@@ -9,11 +6,10 @@ use crate::commands::{RewardsConfig, ServiceRegistryConfig};
 use crate::handlers::config::deserialize_handler_configs;
 use crate::handlers::{self};
 use crate::tofnd::Config as TofndConfig;
-use crate::types::debug::REDACTED_VALUE;
 use crate::url::Url;
 use crate::{broadcaster, event_processor, grpc, monitoring};
 
-#[derive(Deserialize, Serialize, PartialEq)]
+#[derive(Deserialize, Serialize, PartialEq, Debug)]
 #[serde(default)]
 pub struct Config {
     #[serde(deserialize_with = "Url::deserialize_sensitive")]
