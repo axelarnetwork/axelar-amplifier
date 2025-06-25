@@ -93,7 +93,7 @@ mod tests {
     #[tokio::test]
     async fn test_gather_metrics_returns_success_response() {
         let registry = Registry::new();
-        let metrics = Metrics::new(&registry).unwrap();
+        let _ = Metrics::new(&registry).unwrap();
 
         let (status, body) = gather_metrics(&registry).await;
         assert_eq!(status, StatusCode::OK);

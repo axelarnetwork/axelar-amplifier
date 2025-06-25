@@ -208,7 +208,7 @@ mod tests {
 
     use crate::event_processor;
     use crate::event_processor::{consume_events, Config, Error, EventHandler};
-    use crate::monitoring::server::{MetricsClient, Server};
+    use crate::monitoring::server::Server;
     use crate::queue::queued_broadcaster::{Error as BroadcasterError, MockBroadcasterClient};
 
     fn test_bind_addr() -> SocketAddrV4 {
