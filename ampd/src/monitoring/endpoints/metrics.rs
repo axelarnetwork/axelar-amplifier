@@ -1,17 +1,15 @@
+use axum::http::StatusCode;
 use error_stack::{Result, ResultExt};
 use prometheus::{Encoder, IntCounter, Registry, TextEncoder};
 use thiserror::Error;
 
-#[derive(Debug, Clone)]
-pub enum MetricsMsg {
-    IncBlockReceived,
-}
+use crate::monitoring::MetricsMsg;
 
 #[derive(Debug, Error)]
 pub enum MetricsError {
-    #[error("failed to start metrics server")]
+    #[error("failed to start monitoring server")]
     Start,
-    #[error("metrics server failed while running")]
+    #[error("monitoring server failed while running")]
     WhileRunning,
     #[error("failed to encode metrics")]
     EncodeError,
@@ -52,7 +50,7 @@ impl Metrics {
     }
 }
 
-pub fn gather(registry: &Registry) -> Result<String, MetricsError> {
+fn gather(registry: &Registry) -> Result<String, MetricsError> {
     let mut buffer = Vec::new();
     let encoder = TextEncoder::new();
     let metric_families = registry.gather();
@@ -62,4 +60,44 @@ pub fn gather(registry: &Registry) -> Result<String, MetricsError> {
         .change_context(MetricsError::EncodeError)?;
 
     String::from_utf8(buffer).change_context(MetricsError::Utf8Error)
+}
+
+pub async fn gather_metrics(registry: &Registry) -> (StatusCode, String) {
+    match gather(registry) {
+        Ok(metrics) => (StatusCode::OK, metrics),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use prometheus::Registry;
+
+    use super::*;
+
+    #[test]
+    fn metrics_handle_message_increments_counter_successfully() {
+        let registry = Registry::new();
+        let metrics = Metrics::new(&registry).unwrap();
+
+        let initial_metrics = gather(&registry).unwrap();
+        assert!(initial_metrics.contains("blocks_received 0"));
+
+        metrics.handle_message(MetricsMsg::IncBlockReceived);
+        metrics.handle_message(MetricsMsg::IncBlockReceived);
+        metrics.handle_message(MetricsMsg::IncBlockReceived);
+        let final_metrics = gather(&registry).unwrap();
+        assert!(final_metrics.contains("blocks_received 3"));
+    }
+
+    #[tokio::test]
+    async fn test_gather_metrics_returns_success_response() {
+        let registry = Registry::new();
+        let metrics = Metrics::new(&registry).unwrap();
+
+        let (status, body) = gather_metrics(&registry).await;
+        assert_eq!(status, StatusCode::OK);
+        assert!(body.contains("blocks_received 0"));
+        assert!(body.contains("# HELP blocks_received"));
+    }
 }
