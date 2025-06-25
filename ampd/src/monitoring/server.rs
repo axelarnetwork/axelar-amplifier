@@ -1,16 +1,15 @@
 use std::net::SocketAddrV4;
 
-use axum::http::StatusCode;
 use axum::routing::get;
-use axum::{Json, Router};
+use axum::Router;
 use error_stack::{Result, ResultExt};
-use prometheus::Registry;
-use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 use tracing::{info, warn};
 
-use crate::prometheus_metrics::metrics::{self, Metrics, MetricsError, MetricsMsg};
+use crate::monitoring::endpoints::metrics::{gather_metrics, Metrics, MetricsError};
+use crate::monitoring::endpoints::status::status;
+use crate::monitoring::MetricsMsg;
 
 // safe upper bound for expected metric throughput;
 // shouldnt exceed 1000 message
@@ -33,6 +32,7 @@ impl MetricsClient {
         Ok(())
     }
 }
+
 pub struct Server {
     bind_address: Option<SocketAddrV4>,
     metrics_rx: mpsc::Receiver<MetricsMsg>,
@@ -63,7 +63,7 @@ impl Server {
         mut metrics_rx: mpsc::Receiver<MetricsMsg>,
         cancel: CancellationToken,
     ) -> Result<(), MetricsError> {
-        info!("no prometheus endpoint defined, so no metrics will be collected");
+        info!("no monitoring endpoint defined, so no metrics will be collected");
 
         let handle = tokio::spawn(async move {
             loop {
@@ -144,24 +144,8 @@ impl Server {
     }
 }
 
-async fn status() -> (StatusCode, Json<Status>) {
-    (StatusCode::OK, Json(Status { ok: true }))
-}
-
-async fn gather_metrics(registry: &Registry) -> (StatusCode, String) {
-    match metrics::gather(registry) {
-        Ok(metrics) => (StatusCode::OK, metrics),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
-    }
-}
-
-#[derive(Serialize, Deserialize)]
-struct Status {
-    ok: bool,
-}
-
 #[cfg(test)]
-pub mod tests {
+mod tests {
     use std::net::{SocketAddr, TcpListener};
     use std::time::Duration;
 
@@ -169,8 +153,9 @@ pub mod tests {
     use tokio::test as async_test;
 
     use super::*;
+    use crate::monitoring::endpoints::status::Status;
 
-    pub fn test_bind_addr() -> SocketAddrV4 {
+    fn test_bind_addr() -> SocketAddrV4 {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
 
         match listener.local_addr().unwrap() {
@@ -179,7 +164,7 @@ pub mod tests {
         }
     }
 
-    pub fn test_metrics_server_setup() -> (
+    fn test_metrics_server_setup() -> (
         Option<SocketAddrV4>,
         Server,
         MetricsClient,
@@ -192,7 +177,7 @@ pub mod tests {
         (Some(bind_address), server, metrics_client, cancel)
     }
 
-    pub fn test_dummy_server_setup() -> (Server, MetricsClient, CancellationToken) {
+    fn test_dummy_server_setup() -> (Server, MetricsClient, CancellationToken) {
         let (server, metrics_client) = Server::new(None).expect("failed to create server");
         let cancel = CancellationToken::new();
         (server, metrics_client, cancel)
@@ -337,6 +322,7 @@ pub mod tests {
             "dummy server should complete without errors"
         );
     }
+
     #[async_test(start_paused = true)]
     async fn dummy_server_client_fails_after_cancellation() {
         let (server, metrics_client, cancel) = test_dummy_server_setup();
@@ -360,6 +346,7 @@ pub mod tests {
             "client should not be able to send messages after dummy server cancellation"
         );
     }
+
     #[async_test(start_paused = true)]
     async fn metrics_server_handle_concurrent_requests_sucessfully() {
         let (bind_address, server, original_client, cancel) = test_metrics_server_setup();

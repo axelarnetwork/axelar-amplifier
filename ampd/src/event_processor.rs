@@ -17,8 +17,8 @@ use valuable::Valuable;
 
 use crate::asyncutil::future::{self, RetryPolicy};
 use crate::asyncutil::task::TaskError;
-use crate::prometheus_metrics::metrics::MetricsMsg;
-use crate::prometheus_metrics::monitor::MetricsClient;
+use crate::monitoring::server::MetricsClient;
+use crate::monitoring::MetricsMsg;
 use crate::queue::queued_broadcaster::BroadcasterClient;
 
 #[async_trait]
@@ -104,11 +104,13 @@ where
                 height = height.value(),
                 "handler finished processing block"
             );
+
             if let Err(err) = metric_client.record_metric(MetricsMsg::IncBlockReceived) {
                 warn!( handler = handler_label,
                     height = height.value(),
                     err = %err,
-                    "failed to update metrics for block end event"
+                    "failed to record {:?} metric for block end event",
+                    MetricsMsg::IncBlockReceived
                 );
             }
         }
@@ -188,6 +190,7 @@ enum StreamStatus {
 
 #[cfg(test)]
 mod tests {
+    use std::net::{SocketAddr, SocketAddrV4, TcpListener};
     use std::time::Duration;
 
     use assert_ok::assert_ok;
@@ -205,11 +208,19 @@ mod tests {
 
     use crate::event_processor;
     use crate::event_processor::{consume_events, Config, Error, EventHandler};
-    use crate::prometheus_metrics::monitor::tests::test_metrics_server_setup;
-    use crate::prometheus_metrics::monitor::Server;
+    use crate::monitoring::server::{MetricsClient, Server};
     use crate::queue::queued_broadcaster::{Error as BroadcasterError, MockBroadcasterClient};
 
-    pub fn setup_event_config(
+    fn test_bind_addr() -> SocketAddrV4 {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+
+        match listener.local_addr().unwrap() {
+            SocketAddr::V4(addr) => addr,
+            SocketAddr::V6(_) => panic!("unexpected address"),
+        }
+    }
+
+    fn setup_event_config(
         retry_delay_value: Duration,
         stream_timeout_value: Duration,
         delay: Duration,
@@ -541,8 +552,11 @@ mod tests {
             Duration::from_secs(1000),
             Duration::from_secs(1),
         );
+        let bind_address = test_bind_addr();
 
-        let (bind_address, server, metrics_client, cancel_token) = test_metrics_server_setup();
+        let (server, metrics_client) =
+            Server::new(Some(bind_address)).expect("failed to create server");
+        let cancel_token = CancellationToken::new();
 
         tokio::spawn(server.run(cancel_token.clone()));
 
@@ -562,7 +576,7 @@ mod tests {
 
         assert!(result_with_timeout.is_ok());
         tokio::time::sleep(Duration::from_millis(100)).await;
-        let base_url = Url::parse(&format!("http://{}", bind_address.unwrap())).unwrap();
+        let base_url = Url::parse(&format!("http://{}", bind_address)).unwrap();
         let metrics_url = base_url.join("metrics").unwrap();
         let response = reqwest::get(metrics_url).await.unwrap();
         let metrics_text = response.text().await.unwrap();

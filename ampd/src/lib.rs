@@ -11,8 +11,8 @@ use event_processor::EventHandler;
 use event_sub::EventSub;
 use evm::finalizer::{pick, Finalization};
 use evm::json_rpc::EthereumClient;
+use monitoring::server::{MetricsClient, Server as MonitoringServer};
 use multiversx_sdk::gateway::GatewayProxy;
-use prometheus_metrics::monitor::MetricsClient;
 use queue::queued_broadcaster::QueuedBroadcaster;
 use router_api::ChainName;
 use solana_client::nonblocking::rpc_client::RpcClient;
@@ -28,7 +28,6 @@ use tracing::info;
 use types::{CosmosPublicKey, TMAddress};
 
 use crate::config::Config;
-use crate::prometheus_metrics::monitor;
 
 mod asyncutil;
 mod block_height_monitor;
@@ -44,8 +43,8 @@ mod evm;
 mod grpc;
 mod handlers;
 mod json_rpc;
+pub mod monitoring;
 mod mvx;
-pub mod prometheus_metrics;
 mod queue;
 mod solana;
 mod starknet;
@@ -78,12 +77,12 @@ async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
         event_processor,
         service_registry: _service_registry,
         rewards: _rewards,
-        prometheus_monitor_bind_addr,
+        monitoring_bind_addr,
         grpc: grpc_config,
     } = cfg;
 
     let (prometheus_monitor_server, metrics_client) =
-        monitor::Server::new(prometheus_monitor_bind_addr).change_context(Error::Monitor)?;
+        MonitoringServer::new(monitoring_bind_addr).change_context(Error::Monitor)?;
     let tm_client = tendermint_rpc::HttpClient::new(tm_jsonrpc.as_str())
         .change_context(Error::Connection)
         .attach_printable(tm_jsonrpc.clone())?;
@@ -214,7 +213,7 @@ where
     tx_confirmer: TxConfirmer<CosmosGrpcClient>,
     multisig_client: MultisigClient,
     block_height_monitor: BlockHeightMonitor<tendermint_rpc::HttpClient>,
-    prometheus_monitor_server: monitor::Server,
+    prometheus_monitor_server: MonitoringServer,
     grpc_server: grpc::Server,
     broadcaster_task: broadcaster_v2::BroadcasterTask<
         cosmos::CosmosGrpcClient,
@@ -236,7 +235,7 @@ where
         tx_confirmer: TxConfirmer<CosmosGrpcClient>,
         multisig_client: MultisigClient,
         block_height_monitor: BlockHeightMonitor<tendermint_rpc::HttpClient>,
-        prometheus_monitor_server: monitor::Server,
+        prometheus_monitor_server: MonitoringServer,
         grpc_server: grpc::Server,
         broadcaster_task: broadcaster_v2::BroadcasterTask<
             cosmos::CosmosGrpcClient,
